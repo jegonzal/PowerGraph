@@ -52,7 +52,7 @@ struct vertex_data {
   vec pvec;
   double value;
   vertex_data(){
-     pvec.resize(max_iter);
+     pvec.resize(max_iter+1);
   }
   void add_self_edge(double value) { }
 
@@ -67,7 +67,7 @@ struct edge_data {
   edge_data(double weight = 0) : weight(weight) { }
 };
 
-#define USE_GRAPH_VER 2
+#define USE_GRAPH_VER 3
 
 #if USE_GRAPH_VER == 1
 typedef graphlab::graph<vertex_data, edge_data> graph_type;
@@ -433,16 +433,16 @@ int main(int argc,  char *argv[]) {
 
   graphlab::command_line_options clopts("GraphLab Linear Solver Library");
 
-  std::string datafile, testfile;
+  std::string datafile, outdir;
   std::string format = "matrixmarket";
   size_t sync_interval = 10000;
   int unittest = 0;
+  int num_rows = 0;
 
   clopts.attach_option("data", &datafile, datafile,
                        "matrix input file");
   clopts.add_positional("data");
-  clopts.attach_option("testfile", &testfile, testfile,
-                       "test input file (optional)");
+  clopts.attach_option("outdir", &outdir, outdir, "Output directory");
   clopts.attach_option("debug", &debug, debug, "Display debug output.");
   clopts.attach_option("syncinterval", 
                        &sync_interval, sync_interval, 
@@ -451,6 +451,7 @@ int main(int argc,  char *argv[]) {
 		       "unit testing 0=None, 1=3x3 matrix");
   clopts.attach_option("max_iter", &max_iter, max_iter, "max iterations");
   clopts.attach_option("fix_init", &fix_init, fix_init, "fix random vector init to be const"); 
+  clopts.attach_option("num_rows", &num_rows, num_rows, "number of matrix rows");
   // Parse the command line arguments
   if(!clopts.parse(argc, argv)) {
     std::cout << "Invalid arguments!" << std::endl;
@@ -476,6 +477,8 @@ int main(int argc,  char *argv[]) {
     datafile = "lanczos2";
   }
 
+  logstream(LOG_WARNING)<<"Using Graph Version: " << USE_GRAPH_VER << std::endl;
+
   std::cout << "Load matrix " << datafile << std::endl;
   timer mytimer; mytimer.start(); 
 #if USE_GRAPH_VER != 3
@@ -484,8 +487,12 @@ int main(int argc,  char *argv[]) {
   //save_to_bin("/usr0/bickson/" + datafile, core.graph(), true);
   ///exit(1);
 #else
-  core.graph().load_directed("/usr0/bickson/" + datafile, false, false);
+  core.graph().load_directed(outdir+ datafile, false, false);
+  info.nonzeros = core.graph().num_edges();
+  info.cols = core.graph().num_vertices() - num_rows;
+  info.rows = num_rows;
 #endif
+  logstream(LOG_INFO)<<"Loadded a matrix of size " << info.rows << "x" << info.cols << "  nnz: " << info.nonzeros << endl;
   logstream(LOG_INFO)<<"Time taken to load graph: " << mytimer.current_time() << std::endl; 
 
   std::cout << "Schedule all vertices" << std::endl;

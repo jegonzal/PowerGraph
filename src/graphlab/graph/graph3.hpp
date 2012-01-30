@@ -34,18 +34,16 @@
 
 #ifndef GRAPHLAB_GRAPH3_HPP
 #define GRAPHLAB_GRAPH3_HPP
-
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 #include <omp.h>
 #include <cmath>
 #include <stdio.h>
 #include <string>
-#include <list>
 #include <vector>
 
 #include <fstream>
-
-#include <boost/bind.hpp>
-#include <boost/unordered_set.hpp>
 
 #include <graphlab/graph/graph_basic_types.hpp>
 #include <graphlab/logger/logger.hpp>
@@ -57,6 +55,8 @@
 #include <graphlab/util/random.hpp>
 #include <graphlab/graph/graph_storage.hpp>
 #include <graphlab/macros_def.hpp>
+
+
 
 template<typename T>
 uint array_from_file(std::string filename, T *& array){
@@ -488,8 +488,6 @@ enum iterator_type {INEDGE, OUTEDGE};
 
     edge_list_type in_edges(vertex_id_type v) {
       ASSERT_LT(v, num_nodes);
-      if (undirected)
-         return out_edges(v);
       return edge_list_type(&node_in_edges[node_in_degrees[v]], &node_in_edges[node_in_degrees[v+1]], num_in_edges(v),v,node_in_degrees[v]);  
     }
 
@@ -500,8 +498,6 @@ enum iterator_type {INEDGE, OUTEDGE};
 
     const edge_list_type in_edges(vertex_id_type v) const {
       ASSERT_LT(v, num_nodes);
-      if (undirected)
-        return out_edges(v);
       return edge_list_type(&node_in_edges[node_in_degrees[v]], &node_in_edges[node_in_degrees[v+1]], num_in_edges(v),v,node_in_degrees[v]);  
      }
 
@@ -622,7 +618,7 @@ enum iterator_type {INEDGE, OUTEDGE};
          assert(rc == rc2);
          logstream(LOG_INFO) << filename << " Read " << num_nodes << " nodes" << std::endl;
          rc = array_from_file(filename + ".edges", node_out_edges);
-         _num_edges = (rc/4)-1;
+         _num_edges = (rc/sizeof(uint));
          rc2 = array_from_file(filename + "-r.edges", node_in_edges);
          assert(rc == rc2);
   	 logstream(LOG_INFO) << filename << " Read " << (undirected? _num_edges/2 : _num_edges) << " edges" << std::endl;
@@ -630,7 +626,8 @@ enum iterator_type {INEDGE, OUTEDGE};
          verify_edges(node_in_edges, _num_edges, num_nodes);
          if (!no_edge_data){
            rc = array_from_file(filename + ".weights", edge_weights);
-           assert(rc/sizeof(double) == (int)(_num_edges+1)); 
+           assert(rc/sizeof(double) == (int)_num_edges); 
+           logstream(LOG_INFO) << filename << " Read: " << _num_edges << " weights " << std::endl;
          }
 
     } // end of load
