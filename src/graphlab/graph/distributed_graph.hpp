@@ -225,6 +225,35 @@ namespace graphlab {
     /** \brief Get the number of edges local to this proc */
     size_t num_local_edges() const { return local_graph.num_edges(); }
 
+    /** \brief get the local vertex id */
+    lvid_type local_to_global(const vertex_id_type vid) const { 
+      return vrecord(vid).lvid;
+    } // end of local_vertex_id
+
+    vertex_id_type global_to_local(const lvid_type lvid) const { 
+      ASSERT_LT(lvid, lvid2vid.size());
+      return lvid2vid[lvid];
+    } // end of global_vertex_id
+
+    /** \brief Returns a reference to the data stored on the vertex
+        v. */
+    VertexData& vertex_data(vertex_id_type v);
+    
+    /** \brief Returns a constant reference to the data stored on the
+        vertex v */
+    const VertexData& vertex_data(vertex_id_type v) const;
+
+    /** \brief Returns a reference to the data stored on the edge
+        source->target. */
+    EdgeData& edge_data(vertex_id_type source, vertex_id_type target);
+    
+    /** \brief Returns a constant reference to the data stored on the
+        edge source->target */
+    const EdgeData& edge_data(vertex_id_type source, 
+                              vertex_id_type target) const;
+
+
+   
     /** 
      * \brief Creates a vertex containing the vertex data
      */
@@ -265,6 +294,21 @@ namespace graphlab {
     
     bool is_local_init(vertex_id_type vid) const {
       return vertex_to_init_proc(vid) == rpc.procid();
+    }
+
+    const vertex_record& vrecord(const vertex_id_type& vid) const {
+      typedef typename vid2record_type::const_iterator iterator_type;
+      iterator_type iter = vid2record.find(vid);
+      ASSERT_TRUE(iter != vid2record.end());
+      return iter->second;
+    }
+
+
+    vertex_record& vrecord(const vertex_id_type& vid) {
+      typedef typename vid2record_type::iterator iterator_type;
+      iterator_type iter = vid2record.find(vid);
+      ASSERT_TRUE(iter != vid2record.end());
+      return iter->second;
     }
 
   }; // End of graph
@@ -373,8 +417,7 @@ namespace graphlab {
     //     }
     //   }
     //   fout.close();
-    // }
-    
+    // }   
 
   } // End of finalize
   
@@ -426,6 +469,39 @@ namespace graphlab {
                       source, target, edata);
     }
   } // End of add edge
+
+
+
+  template<typename VertexData, typename EdgeData>
+  VertexData& distributed_graph<VertexData, EdgeData>:: 
+  vertex_data(vertex_id_type vid) {
+    return local_graph.vertex_data(vrecord(vid).lvid);
+  } // end of vertex data
+
+    
+
+  template<typename VertexData, typename EdgeData>
+  const VertexData& distributed_graph<VertexData, EdgeData>:: 
+  vertex_data(vertex_id_type vid) const {
+    return local_graph.vertex_data(vrecord(vid).lvid);
+  } // end of const vertex data
+
+
+  template<typename VertexData, typename EdgeData>
+  EdgeData& distributed_graph<VertexData, EdgeData>:: 
+  edge_data(vertex_id_type source, vertex_id_type target) {
+    return local_graph.edge_data(vrecord(source).lvid, vrecord(target).lvid);
+  } // end of edge data
+
+
+  template<typename VertexData, typename EdgeData>
+  const EdgeData& distributed_graph<VertexData, EdgeData>:: 
+  edge_data(vertex_id_type source, vertex_id_type target) const {
+    return local_graph.edge_data(vrecord(source).lvid, vrecord(target).lvid);
+  } // end of const edge data
+
+
+
 
 
 } // end of namespace graphlab
