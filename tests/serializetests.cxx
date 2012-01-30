@@ -67,6 +67,16 @@ public:
 };
 
 
+struct pod_class_1: public graphlab::IS_POD_TYPE {
+  size_t x;
+};
+
+struct pod_class_2 {
+  size_t x;
+}; 
+SERIALIZABLE_POD(pod_class_2);
+
+
 class SerializeTestSuite : public CxxTest::TestSuite {
 public:
 
@@ -344,6 +354,60 @@ public:
 
     TS_ASSERT(m2.find("hello") != m2.end());
     TS_ASSERT(m2.find("world") != m2.end());
+  }
+  
+  void test_pod_method_1() {
+    std::vector<pod_class_1> p1;
+    for (size_t i = 0;i < 1000; ++i) {
+        pod_class_1 p;
+        p.x = i;
+        p1.push_back(p);
+    }
+    
+    std::ofstream f;
+    f.open("test.bin",std::fstream::binary);
+    oarchive a(f);
+    a << p1;
+    f.close();
+
+    std::vector<pod_class_1> p2;
+    
+    std::ifstream g;
+    iarchive b(g);
+    g.open("test.bin",std::fstream::binary);
+    b >> p2;
+    g.close();
+
+    for (size_t i = 0;i < 1000; ++i) {
+        TS_ASSERT_EQUALS(p1[i].x, p2[i].x);
+    }
+  }
+  
+    void test_pod_method_2() {
+    std::vector<pod_class_2> p1;
+    for (size_t i = 0;i < 1000; ++i) {
+        pod_class_2 p;
+        p.x = i;
+        p1.push_back(p);
+    }
+    
+    std::ofstream f;
+    f.open("test.bin",std::fstream::binary);
+    oarchive a(f);
+    a << p1;
+    f.close();
+
+    std::vector<pod_class_2> p2;
+    
+    std::ifstream g;
+    iarchive b(g);
+    g.open("test.bin",std::fstream::binary);
+    b >> p2;
+    g.close();
+
+    for (size_t i = 0;i < 1000; ++i) {
+        TS_ASSERT_EQUALS(p1[i].x, p2[i].x);
+    }
   }
 };
 
