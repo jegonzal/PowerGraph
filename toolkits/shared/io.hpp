@@ -656,13 +656,14 @@ inline void write_vec(const FILE * f, const int len, const T * array){
 }
 
 //write an output vector to file
-inline void write_vec(const FILE * f, const int len, const int * array){
+/*inline void write_vec(const FILE * f, const int len, const int * array){
   assert(f != NULL && array != NULL);
   int rc = fwrite(array, sizeof(int), len, (FILE*)f);
   assert(rc == len);
-}
+}*/
 
-inline void write_output_vector_binary(const std::string & datafile, const uint* output, int size){
+template<typename T>
+inline void write_output_vector_binary(const std::string & datafile, const T* output, int size){
 
    FILE * f = open_file(datafile.c_str(), "w");
    std::cout<<"Writing result to file: "<<datafile<<std::endl;
@@ -936,22 +937,20 @@ uint mmap_from_file(std::string filename, uint *& array){
 
 // type Graph should be graph2
 template <typename Graph>
-void save_to_bin(const std::string &filename, Graph& graph) {
+void save_to_bin(const std::string &filename, Graph& graph, bool edge_weight) {
   typedef typename Graph::vertex_id_type vertex_id_type;
   typedef typename Graph::edge_id_type edge_id_type;
 
   int n = graph.num_vertices();
   uint* nodes = new uint[graph.num_vertices()+1];
   uint* innodes = new uint[graph.num_vertices()+1];
-  nodes[0] = 0;
-  innodes[0] = 0;
    
   for (int i=0; i< (int)graph.num_vertices(); i++){
-     nodes[i+1] = nodes[i]+ graph.out_edges(i).size(); 
+     nodes[i+1] = nodes[i]+ graph.num_out_edges(i); 
      assert(nodes[i+1] <= graph.num_edges());
      assert(graph.out_edges(i).size() < (uint)n);
      assert(graph.in_edges(i).size() < (uint)n);
-     innodes[i+1] = innodes[i] + graph.in_edges(i).size();
+     innodes[i+1] = innodes[i] + graph.num_out_edges(i);
      assert(innodes[i+1] <= graph.num_edges());
    };
  
@@ -962,8 +961,13 @@ void save_to_bin(const std::string &filename, Graph& graph) {
   uint* _edges = graph.get_node_out_edges();
   uint* _inedges = graph.get_node_in_edges();
 #else
+  typedef typename Graph::edge_data_type _edge_data_type;
   const std::vector<edge_id_type>& _edges = graph.get_out_edge_storage();
   const std::vector<edge_id_type>& _inedges = graph.get_in_edge_storage();
+  if (edge_weight){  
+  const std::vector<_edge_data_type>& _weights = graph.get_edge_data_storage();
+    write_output_vector_binary(filename + ".weights", (double*)&_weights[0], graph.num_edges());
+  }
 #endif
   write_output_vector_binary(filename + ".edges", &_edges[0], graph.num_edges());
   write_output_vector_binary(filename + "-r.edges", &_inedges[0], graph.num_edges());

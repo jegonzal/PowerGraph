@@ -963,6 +963,9 @@ namespace graphlab {
     const std::vector<vertex_id_type>& get_csc_dst() const {
       return CSC_dst;
     }
+    const std::vector<EdgeData>& get_edge_data() const {
+      return edge_data_list;
+    }
 
     void load(iarchive& arc) {
       clear();

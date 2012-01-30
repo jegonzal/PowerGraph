@@ -247,6 +247,7 @@ enum iterator_type {INEDGE, OUTEDGE};
     uint * node_in_edges;
     uint * node_out_edges;
     std::vector<VertexData> *node_vdata_array;
+    double * edge_weights;
     char _color; //not implement yet
     EdgeData _edge;
 
@@ -259,6 +260,7 @@ enum iterator_type {INEDGE, OUTEDGE};
     graph3(){
       num_nodes = _num_edges = 0;
       node_in_edges = node_out_edges = node_in_degrees = node_out_degrees = NULL;
+      edge_weights = NULL;
       _color = 0; //not implement yet
       undirected = false;
     }
@@ -290,7 +292,13 @@ enum iterator_type {INEDGE, OUTEDGE};
        if (node_out_edges != NULL){
          delete [] node_out_edges; node_out_edges = NULL;
        }
-    }
+       if (in_edge_weights != NULL){
+         delete [] in_edge_weights; in_edge_weights = NULL;
+       }
+       if (out_edge_weights != NULL){
+         delete [] out_edge_weights; out_edge_weights = NULL;
+       }
+}
 
     void clear_reserve() {
       clear();
@@ -408,28 +416,29 @@ enum iterator_type {INEDGE, OUTEDGE};
 
     /** \brief Returns a reference to the data stored on the edge source->target. */
     EdgeData& edge_data(vertex_id_type source, vertex_id_type target) {
-     ASSERT_TRUE(finalized);
-       assert(false); //not implemented yet
-     return _edge;
+      edge_type pos = find(source, target);
+      if (pos.offset() != -1) 
+      return edge_weights[pos.offset()];
+      else return _edge;
     } // end of edge_data(u,v)
     
     /** \brief Returns a constant reference to the data stored on the
         edge source->target */
     const EdgeData& edge_data(vertex_id_type source, vertex_id_type target) const {
-     ASSERT_TRUE(finalized);
-       assert(false); //not implemented yet
-     return _edge;
+      edge_type pos = find(source, target);
+      if (pos.offset() != -1) 
+      return edge_weights[pos.offset()];
+      else return _edge;
     } // end of edge_data(u,v)
 
     /** \brief Returns a reference to the data stored on the edge e */
     EdgeData& edge_data(edge_type edge) { 
-      ASSERT_TRUE(finalized);
-       assert(false); //not implemented yet
-      return _edge;
+      ASSERT_NE(edge.offset(), -1);
+      return out_edge_weights[pos.offset()];
     }
     const EdgeData& edge_data(edge_type edge) const {
-       assert(false); //not implemented yet
-      //return 
+       ASSERT_NE(edge.offset(), -1);
+       return out_edge_weights[edge.offset()];
     }
 
     size_t num_in_edges(const vertex_id_type v) const {
@@ -531,7 +540,7 @@ enum iterator_type {INEDGE, OUTEDGE};
    
 
     /** \brief Load the graph from a file */
-    void load(const std::string& filename, bool no_node_data) {
+    void load(const std::string& filename, bool no_node_data, bool no_edge_data) {
          int rc =array_from_file(filename + ".nodes", node_out_degrees);
 	 num_nodes = (rc/4)-1;
          if (!no_node_data)
@@ -540,7 +549,12 @@ enum iterator_type {INEDGE, OUTEDGE};
          rc = array_from_file(filename + ".edges", node_out_edges);
          _num_edges = (rc/4)-1;
  	 logstream(LOG_INFO) << "Read " << (undirected? _num_edges/2 : _num_edges) << " edges" << std::endl;
-    } // end of load
+
+         if (!no_edge_data){
+           rc = array_from_file(filename + ".weights", edge_weights);
+           assert(rc/4 == _num_edges); 
+         }
+    } // end of loa
 
 
     void verify_degrees(const uint * nodes, int len, int n){
@@ -555,7 +569,7 @@ enum iterator_type {INEDGE, OUTEDGE};
     }
 
     /** \brief Load the graph from a file */
-    void load_directed(const std::string& filename, bool no_node_data) {
+    void load_directed(const std::string& filename, bool no_node_data, bool no_edge_data) {
       assert(!undirected);
          int rc =array_from_file(filename + ".nodes", node_out_degrees);
 	 num_nodes = (rc/4)-1;
@@ -571,6 +585,11 @@ enum iterator_type {INEDGE, OUTEDGE};
   	 logstream(LOG_INFO) << filename << " Read " << (undirected? _num_edges/2 : _num_edges) << " edges" << std::endl;
          verify_edges(node_out_edges, _num_edges, num_nodes);
          verify_edges(node_in_edges, _num_edges, num_nodes);
+         if (!no_edge_data){
+           rc = array_from_file(filename + ".weights", edge_weights);
+           assert(rc/4 == _num_edges); 
+         }
+
     } // end of load
 
  
