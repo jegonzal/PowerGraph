@@ -441,6 +441,13 @@ namespace graphlab {
                         "shared_memory_engine: Total time in evaluate_update_functor");
     REGISTER_TRACEPOINT(eng_lockrelease, 
                         "shared_memory_engine: Total time releasing locks");
+    REGISTER_TRACEPOINT(eng_lockrelease_apply, 
+                        "shared_memory_engine: Time releasing locks in apply phase");
+    REGISTER_TRACEPOINT(eng_lockrelease_gather, 
+                        "shared_memory_engine: Time releasing locks in gather phase");
+    REGISTER_TRACEPOINT(eng_lockrelease_scatter, 
+                        "shared_memory_engine: Time releasing locks in scatter phase");
+
 
 
   } // end of constructor
@@ -1075,8 +1082,10 @@ namespace graphlab {
                                      size_t cpuid) {
     CREATE_ACCUMULATING_TRACEPOINT(eng_locktime); 
     CREATE_ACCUMULATING_TRACEPOINT(eng_factorized);
-    CREATE_ACCUMULATING_TRACEPOINT(eng_lockrelease);
-    //    std::cout << "Running vid " << vid << " on " << cpuid << std::endl;
+    CREATE_ACCUMULATING_TRACEPOINT(eng_lockrelease_gather);
+    CREATE_ACCUMULATING_TRACEPOINT(eng_lockrelease_apply);
+    CREATE_ACCUMULATING_TRACEPOINT(eng_lockrelease_scatter);
+    // std::cout << "Running vid " << vid << " on " << cpuid << std::endl;
     // Gather phase -----------------------------------------------------------
     {
       iglobal_context& context = context_manager_ptr->get_global_context(cpuid);
@@ -1094,12 +1103,12 @@ namespace graphlab {
                                                        gather_consistency);
         END_AND_BEGIN_ACCUMULATING_TRACEPOINT(eng_locktime, eng_factorized);
         ufun.gather(context, edge);
-        END_AND_BEGIN_ACCUMULATING_TRACEPOINT(eng_factorized, eng_lockrelease);
+        END_AND_BEGIN_ACCUMULATING_TRACEPOINT(eng_factorized, eng_lockrelease_gather);
         context.commit();
         context_manager_ptr->release_single_edge_context(cpuid, context, edge);
-        END_ACCUMULATING_TRACEPOINT(eng_lockrelease);
-      }
-    }
+        END_ACCUMULATING_TRACEPOINT(eng_lockrelease_gather);
+       }
+     }
 
     if(ufun.gather_edges() == graphlab::OUT_EDGES ||
        ufun.gather_edges() == graphlab::ALL_EDGES) {
@@ -1111,10 +1120,10 @@ namespace graphlab {
                                                        gather_consistency);
         END_AND_BEGIN_ACCUMULATING_TRACEPOINT(eng_locktime, eng_factorized);
         ufun.gather(context, edge);
-        END_AND_BEGIN_ACCUMULATING_TRACEPOINT(eng_factorized, eng_lockrelease);
+        END_AND_BEGIN_ACCUMULATING_TRACEPOINT(eng_factorized, eng_lockrelease_gather);
         context.commit();
         context_manager_ptr->release_single_edge_context(cpuid, context, edge);
-        END_ACCUMULATING_TRACEPOINT(eng_lockrelease);
+        END_ACCUMULATING_TRACEPOINT(eng_lockrelease_gather);
       }
     }
     // Apply phase ------------------------------------------------------------
@@ -1123,12 +1132,12 @@ namespace graphlab {
       context_manager_ptr->get_vertex_context(cpuid, vid);
     END_AND_BEGIN_ACCUMULATING_TRACEPOINT(eng_locktime, eng_factorized);
     ufun.apply(context);
-    END_AND_BEGIN_ACCUMULATING_TRACEPOINT(eng_factorized, eng_lockrelease);
+    END_AND_BEGIN_ACCUMULATING_TRACEPOINT(eng_factorized, eng_lockrelease_apply);
     context.commit();
     context_manager_ptr->release_context(cpuid, context);
-    END_ACCUMULATING_TRACEPOINT(eng_lockrelease);
+    END_ACCUMULATING_TRACEPOINT(eng_lockrelease_apply);
     // Scatter phase ----------------------------------------------------------
-    const consistency_model scatter_consistency = ufun.gather_consistency();
+    const consistency_model scatter_consistency = ufun.scatter_consistency();
     if(ufun.scatter_edges() == graphlab::IN_EDGES ||
        ufun.scatter_edges() == graphlab::ALL_EDGES) {
       const edge_list_type edges = graph.in_edges(vid);
@@ -1139,10 +1148,10 @@ namespace graphlab {
                                                        scatter_consistency);
         END_AND_BEGIN_ACCUMULATING_TRACEPOINT(eng_locktime, eng_factorized);
         ufun.scatter(context, edge);
-        END_AND_BEGIN_ACCUMULATING_TRACEPOINT(eng_factorized, eng_lockrelease);
+        END_AND_BEGIN_ACCUMULATING_TRACEPOINT(eng_factorized, eng_lockrelease_scatter);
         context.commit();
         context_manager_ptr->release_single_edge_context(cpuid, context, edge);
-        END_ACCUMULATING_TRACEPOINT(eng_lockrelease);
+        END_ACCUMULATING_TRACEPOINT(eng_lockrelease_scatter);
       }
     }
     if(ufun.scatter_edges() == graphlab::OUT_EDGES ||
@@ -1155,15 +1164,17 @@ namespace graphlab {
                                                        scatter_consistency);
         END_AND_BEGIN_ACCUMULATING_TRACEPOINT(eng_locktime, eng_factorized);
         ufun.scatter(context, edge);
-        END_AND_BEGIN_ACCUMULATING_TRACEPOINT(eng_factorized, eng_lockrelease);
+        END_AND_BEGIN_ACCUMULATING_TRACEPOINT(eng_factorized, eng_lockrelease_scatter);
         context.commit();
         context_manager_ptr->release_single_edge_context(cpuid, context, edge);
-        END_ACCUMULATING_TRACEPOINT(eng_lockrelease);
+        END_ACCUMULATING_TRACEPOINT(eng_lockrelease_scatter);
       }
     }
     STORE_ACCUMULATING_TRACEPOINT(eng_locktime);
     STORE_ACCUMULATING_TRACEPOINT(eng_factorized);
-    STORE_ACCUMULATING_TRACEPOINT(eng_lockrelease);
+    STORE_ACCUMULATING_TRACEPOINT(eng_lockrelease_gather);
+    STORE_ACCUMULATING_TRACEPOINT(eng_lockrelease_apply);
+    STORE_ACCUMULATING_TRACEPOINT(eng_lockrelease_scatter);
 
   } // end of evaluate_update_functor
 

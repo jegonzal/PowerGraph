@@ -1,5 +1,9 @@
 package org.graphlab.data;
 
+/**
+ * Vertex that holds a single value
+ * @author Jiunn Haur Lim <jiunnhal@cmu.edu>
+ */
 public class ScalarVertex implements Vertex {
 
   /** GraphLab (or proxy vertex) ID */
@@ -44,11 +48,21 @@ public class ScalarVertex implements Vertex {
     this.mValue = d;
   }
   
+  /*
+   * IMPORTANT: must override this for JGraphT
+   * (non-Javadoc)
+   * @see java.lang.Object#hashCode()
+   */
   @Override
   public int hashCode(){
     return mId;
   }
   
+  /*
+   * IMPORTANT: must override this for JGraphT
+   * (non-Javadoc)
+   * @see java.lang.Object#equals(java.lang.Object)
+   */
   @Override
   public boolean equals(Object other){
     if (!(other instanceof ScalarVertex)) return false;

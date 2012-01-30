@@ -15,7 +15,13 @@ import org.jgrapht.DirectedGraph;
  * mirrors <tt>graphlab::core</tt>.
  * </p>
  * 
+ * <p>
+ * All logging from this core is done via {@link org.apache.log4j.Logger}.
+ * To configure, retrieve the logger using <tt>Logger.getClass(Core.class)</tt>.
+ * </p>
+ * 
  * @author Jiunn Haur Lim <jiunnhal@cmu.edu>
+ * @see <a href="http://logging.apache.org/log4j/1.2/manual.html">Log4J</a>
  */
 public final class Core {
 
@@ -53,8 +59,10 @@ public final class Core {
    * Creates a new GraphLab core.
    * <b>Call {@link #destroy()} when done to free up resources.</b>
    * 
-   * @param config      configuration e.g. scheduler, scope
-   * @throws CoreException if there was an error creating the core
+   * @param config
+   *          configuration e.g. scheduler, scope
+   * @throws CoreException
+   *          if there was an error creating the core
    */
   public Core(CoreConfiguration config) throws CoreException {
 
@@ -65,26 +73,30 @@ public final class Core {
 
   }
 
-	/**
-	 * Tells core to operate on this graph. This creates a proxy graph in the
-	 * GraphLab engine.
-	 * 
-	 * <p>
-	 * Once this is called, your graph must not be modified (or there be dragons!)
-	 * </p>
-	 * 
-	 * @param graph
-	 *            the graph to operate on.
-	 * @param <G>
-   *          Graph type must implement {@link org.jgrapht.DirectedGraph}. On the
-   *          C++ side, a proxy graph is given to the core engine, and updates are
-   *          forwarded to the Java updater (which you will provide through
-   *          {@link #schedule(Vertex, Updater)}.)
-	 * @throws NullPointerException if graph is null
-	 * @throws IllegalArgumentException if graph is empty
-	 * @throws IllegalStateException if {@link #destroy()} was invoked on this object
-	 */
-	public <G extends DirectedGraph<V, E>, V extends Vertex, E> void setGraph(G graph) {
+  /**
+   * Tells core to operate on this graph. This creates a proxy graph in the
+   * GraphLab engine. Updates are forwarded to the Java updater (which you will
+   * provide through {@link #schedule(Vertex, Updater)}.)
+   * 
+   * <b> Once this is called, your graph must not be modified (or there be
+   * dragons!) </b>
+   * 
+   * @param graph
+   *          the graph for the core operate on.
+   * @param <G>
+   *          Graph type must implement {@link org.jgrapht.DirectedGraph}
+   * @param <V>
+   *          Vertex type must implement {@link org.graphlab.data.Vertex}.
+   * 
+   * @throws NullPointerException
+   *           if graph is null
+   * @throws IllegalArgumentException
+   *           if graph is empty
+   * @throws IllegalStateException
+   *           if {@link #destroy()} was already invoked on this object
+   */
+	public <G extends DirectedGraph<V, E>, V extends Vertex, E>
+	void setGraph(G graph) {
 
 		if (null == graph)
 			throw new NullPointerException("graph must not be null.");
@@ -104,9 +116,8 @@ public final class Core {
 		  vertex.setRawId(addVertex(mCorePtr, vertex));
 
 		// add edges
-		for (E edge : graph.edgeSet()) {
+		for (E edge : graph.edgeSet())
 		  addEdge(mCorePtr, graph.getEdgeSource(edge).rawId(), graph.getEdgeTarget(edge).rawId());
-		}
 
 		long elapsed = System.currentTimeMillis() - startTime;
 		logger.info ("Graph transferring took: " + elapsed + " ms.");
@@ -116,7 +127,7 @@ public final class Core {
   /**
    * Destroys the GraphLab core. Once destroyed, this object may not be used.
    * Calling {@link #destroy()} more than once on the same object will generate
-   * a warning in the logs but will not have an effect.
+   * a warning in the logs but will not any other effects.
    */
 	public void destroy() {
 
@@ -136,10 +147,12 @@ public final class Core {
 
   /**
    * Run the engine until a termination condition is reached or there are no
-   * more tasks remaining to execute.
+   * more tasks remaining to execute. <b>{@link #setGraph(DirectedGraph)} must
+   * be called before invoking this method</b>.
    * 
    * @return runtime
-   * @throws IllegalStateException if {@link #destroy()} was invoked on this object
+   * @throws IllegalStateException
+   *           if {@link #destroy()} was invoked on this object
    */
 	public double start() {
 		
@@ -154,6 +167,8 @@ public final class Core {
 	/**
 	 * Get the number of updates executed by the engine.
 	 * @return update count
+   * @throws IllegalStateException
+   *           if {@link #destroy()} was invoked on this object
 	 */
 	public long lastUpdateCount(){
 	  
@@ -172,7 +187,7 @@ public final class Core {
    * @param updater
    *          updater to execute
    * @throws NullPointerException
-   *           if updater or vertex was null.
+   *           if <tt>updater</tt> or <tt>vertex</tt> was null.
    * @throws IllegalStateException
    *           if {@link #destroy()} was invoked on this object
    */
@@ -194,7 +209,7 @@ public final class Core {
 	 * @param updater
 	 *         updater to execute
    * @throws NullPointerException
-   *           if updater was null
+   *           if <tt>updater</tt> was null
    * @throws IllegalStateException
    *           if {@link #destroy()} was invoked on this object
 	 */
@@ -210,14 +225,23 @@ public final class Core {
 	  
 	}
 	
-	/**
-	 * Sets the number of cpus that the engine will use.
-   * This will destroy the current engine and any tasks associated with the current scheduler.
-	 * @param ncpus      number of CPUs that the engine will use.
-	 */
+  /**
+   * Sets the number of CPUs that the engine will use. This will destroy the
+   * current engine and any tasks associated with the current scheduler.
+   * 
+   * @param ncpus
+   *          number of CPUs that the engine will use.
+   * 
+   * @throws IllegalArgumentException
+   *           if <tt>ncpus</tt> was negative.
+   * @throws IllegalStateException
+   *           if {@link #destroy()} has already been invoked on this object
+   */
 	public void setNCpus(long ncpus){
 	  if (0 >= ncpus)
 	    throw new IllegalArgumentException ("ncpus must be positive.");
+	  if (mDestroyed)
+      throw new IllegalStateException("Core has been destroyed and may not be reused.");
 	  setNCpus(mCorePtr, ncpus);
 	}
 	
@@ -227,31 +251,49 @@ public final class Core {
    * currently associated with the scheduler.
    * 
    * @param scheduler
+   * @throws NullPointerException
+   *           if <tt>scheduler</tt> was null
+   * @throws IllegalStateException
+   *           if {@link #destroy()} has already been invoked on this object
    */
   public void setSchedulerType(Scheduler scheduler) {
+    if (null == scheduler)
+      throw new NullPointerException("scheduler must not be null.");
+    if (mDestroyed)
+      throw new IllegalStateException("Core has been destroyed and may not be reused.");
     setSchedulerType(mCorePtr, scheduler.type());
   }
 	
-	/**
-   * Sets the scope consistency model that the engine will use. 
-   * This will destroy the current engine and any tasks currently associated with the scheduler.
+  /**
+   * Sets the scope consistency model that the engine will use. This will
+   * destroy the current engine and any tasks currently associated with the
+   * scheduler.
+   * 
    * @param scope
+   * @throws NullPointerException
+   *           if <tt>scope</tt> was null
+   * @throws IllegalStateException
+   *           if {@link #destroy()} has already been invoked on this object
    */
 	public void setScopeType(Scope scope){
+	  if (null == scope)
+	    throw new NullPointerException("scope must not be null.");
+	  if (mDestroyed)
+	    throw new IllegalStateException("Core has been destroyed and may not be reused.");
 	  setScopeType(mCorePtr, scope.toString());
 	}
 	
-	/**
-	 * Creates and initializes graphlab::core -> dynamically allocates a core.
-	 * Must be freed by a corresponding call to {@link #destroyCore()}.
-	 * 
-	 * @return address of core or 0 on failure
-	 */
+  /**
+   * Creates and initializes graphlab::core &raquo; dynamically allocates a
+   * core. Must be freed by a corresponding call to {@link #destroyCore()}.
+   * 
+   * @return address of core or 0 on failure
+   */
 	private native long createCore();
 
-	/**
-   * Creates and initializes graphlab::core -> dynamically allocates a core.
-   * Must be freed by a corresponding call to {@link #destroyCore()}. 
+  /**
+   * Creates and initializes graphlab::core &raquo; dynamically allocates a
+   * core. Must be freed by a corresponding call to {@link #destroyCore()}.
    * 
    * @return address of core or 0 on failure
    */
@@ -301,7 +343,7 @@ public final class Core {
 	 * @param core_ptr
 	 *       {@link #mCorePtr}
 	 * @param updater
-	 * @param vertex
+	 * @param vertexId
 	 *       graphlab vertex ID
 	 */
 	private native void schedule(long core_ptr, Updater<?> updater, int vertexId);
