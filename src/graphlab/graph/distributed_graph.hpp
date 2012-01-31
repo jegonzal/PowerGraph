@@ -134,15 +134,13 @@ namespace graphlab {
       typedef iterator const_iterator;
       typedef edge_type value_type;
     private:
-      iterator begin_iter, end_iter;
+      const_iterator begin_iter, end_iter;
     public:
-      edge_list_type(const distributed_graph* graph_ptr = NULL, 
-                     local_const_iterator_type begin_iter = 
-                     local_const_iterator_type(), 
-                     local_const_iterator_type end_iter =
-                     local_const_iterator_type()) :
-        begin_iter(begin_iter, edge_functor(graph_ptr)),
-        end_iter(end_iter, edge_functor(graph_ptr)) { }
+      edge_list_type(const distributed_graph* graph_ptr = NULL,
+                     const local_edge_list_type& local_edge_list =
+                     local_edge_list_type()) :
+        begin_iter(local_edge_list.begin(), edge_functor(graph_ptr)),
+        end_iter(local_edge_list.end(), edge_functor(graph_ptr)) { }
       size_t size() const { return end_iter - begin_iter; }
       edge_type operator[](size_t i) const {
         ASSERT_LT(i, size()); return *(begin_iter + i);
@@ -237,7 +235,7 @@ namespace graphlab {
 
 
     //! Get all the edge which edge.target() == v
-    edge_list_type in_edges(const vertex_id_type v) const;
+    edge_list_type in_edges(const vertex_id_type vid) const;
 
     //! Get the number of edges which edge.target() == v
     size_t num_in_edges(const vertex_id_type v) const;
@@ -541,8 +539,8 @@ namespace graphlab {
   template<typename VertexData, typename EdgeData>
   typename distributed_graph<VertexData, EdgeData>::edge_list_type 
   distributed_graph<VertexData, EdgeData>:: 
-  in_edges(const vertex_id_type v) const {
-    return edge_list_type();
+  in_edges(const vertex_id_type vid) const {
+    return edge_list_type(this, local_graph.in_edges(vrecord(vid).lvid));
   } // end of in_edges
   
 
@@ -555,8 +553,8 @@ namespace graphlab {
   template<typename VertexData, typename EdgeData>
   typename distributed_graph<VertexData, EdgeData>::edge_list_type 
   distributed_graph<VertexData, EdgeData>:: 
-  out_edges(const vertex_id_type v) const { 
-    return edge_list_type();
+  out_edges(const vertex_id_type vid) const { 
+    return edge_list_type(this, local_graph.out_edges(vrecord(vid).lvid));
   } // end of out_edges
   
   template<typename VertexData, typename EdgeData>
