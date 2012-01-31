@@ -47,6 +47,7 @@ bipartite_graph_descriptor info;
 int max_iter = 10;
 bool debug;
 bool fix_init;
+bool measure_save_time = false;
 
 struct vertex_data {
   vec pvec;
@@ -59,13 +60,28 @@ struct vertex_data {
   void set_val(double value, int field_type) { 
     pvec[field_type] = value;
   }
+void save(graphlab::oarchive &oarc) const {
+  }
+
+  void load(graphlab::iarchive &iarc) {
+  }
+
   //double get_output(int field_type){ return pred_x; }
 }; // end of vertex_data
 
 struct edge_data {
   real_type weight;
   edge_data(double weight = 0) : weight(weight) { }
-};
+void save(graphlab::oarchive &oarc) const {
+    oarc << weight;
+  }
+
+
+  void load(graphlab::iarchive &iarc) {
+    iarc >> weight;
+  }
+
+ };
 
 #define USE_GRAPH_VER 2
 
@@ -452,6 +468,7 @@ int main(int argc,  char *argv[]) {
   clopts.attach_option("max_iter", &max_iter, max_iter, "max iterations");
   clopts.attach_option("fix_init", &fix_init, fix_init, "fix random vector init to be const"); 
   clopts.attach_option("num_rows", &num_rows, num_rows, "number of matrix rows");
+  clopts.attach_option("measure_save_time", &measure_save_time, measure_save_time, "Measure save time and exit");
   // Parse the command line arguments
   if(!clopts.parse(argc, argv)) {
     std::cout << "Invalid arguments!" << std::endl;
@@ -484,6 +501,18 @@ int main(int argc,  char *argv[]) {
 #if USE_GRAPH_VER != 3
   load_graph(datafile, format, info, core.graph());
   core.graph().finalize();
+#if USE_GRAPH_VER == 2
+  if (measure_save_time){
+    logstream(LOG_INFO) << "Going to save " << mytimer.current_time() << endl;
+    core.graph().save(datafile + ".out");
+    logstream(LOG_INFO) << "Saved in time " << mytimer.current_time() << endl;
+    graph_type graph0;
+    logstream(LOG_INFO) << "Going to load " << mytimer.current_time() << endl;
+    graph0.load(datafile + ".out");
+    logstream(LOG_INFO) << "Load in time " << mytimer.current_time() << endl;
+    exit(1);
+  }
+#endif
   //save_to_bin("/usr0/bickson/" + datafile, core.graph(), true);
   ///exit(1);
 #else
