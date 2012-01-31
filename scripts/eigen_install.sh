@@ -51,7 +51,7 @@ download_file_with_forward https://bitbucket.org/eigen/eigen/get/3.0.2.tar.gz \
   # unpack
 cd ./deps/
 set -e
-tar -xzvf eigen-3.0.2.tar.gz
+tar -xzvf eigen-eigen-3.0.2.tar.gz
 set +e
 echo "Eigen setup success!"
 cd ..
