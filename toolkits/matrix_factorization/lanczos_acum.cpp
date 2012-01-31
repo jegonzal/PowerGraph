@@ -67,7 +67,7 @@ struct edge_data {
   edge_data(double weight = 0) : weight(weight) { }
 };
 
-#define USE_GRAPH_VER 3
+#define USE_GRAPH_VER 2
 
 #if USE_GRAPH_VER == 1
 typedef graphlab::graph<vertex_data, edge_data> graph_type;
