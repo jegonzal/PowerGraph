@@ -163,22 +163,22 @@ namespace graphlab {
       procid_t owner; 
       /// The local vid of this vertex on this proc
       lvid_type lvid;
+      /// The number of in edges
+      size_t num_in_edges;
+      /// The nubmer of out edges
+      size_t num_out_edges;
       /// The set of proc that mirror this vertex.
       std::vector<procid_t> mirrors;
-      vertex_record() : owner(-1), lvid(-1) { }
+      vertex_record() : 
+        owner(-1), lvid(-1), 
+        num_in_edges(0), num_out_edges(0) { }
     }; // vertex_record
 
     /// The master vertex record map
     typedef boost::unordered_map<vertex_id_type, vertex_record> 
     vid2record_type;
-
-
-    /// temporary map for vertexdata
-    boost::unordered_map<vertex_id_type, vertex_data_type> tmp_vdata;
-    mutex tmp_vdata_lock;
       
-    // PRIVATE DATA MEMBERS ===================================================>    
-    
+    // PRIVATE DATA MEMBERS ===================================================>        
     /** The rpc interface for this class */
     mutable dc_dist_object<distributed_graph> rpc;
 
@@ -235,6 +235,19 @@ namespace graphlab {
       return lvid2vid[lvid];
     } // end of global_vertex_id
 
+
+    //! Get all the edge which edge.target() == v
+    edge_list_type in_edges(const vertex_id_type v) const;
+
+    //! Get the number of edges which edge.target() == v
+    size_t num_in_edges(const vertex_id_type v) const;
+
+    //! Get all the edges which edge.source() == v
+    edge_list_type out_edges(const vertex_id_type v) const;
+
+    //! Get the number of edges which edge.source() == v
+    size_t num_out_edges(const vertex_id_type v) const;
+
     /** \brief Returns a reference to the data stored on the vertex
         v. */
     VertexData& vertex_data(vertex_id_type v);
@@ -252,7 +265,11 @@ namespace graphlab {
     const EdgeData& edge_data(vertex_id_type source, 
                               vertex_id_type target) const;
 
-
+    /** \brief Returns a reference to the data stored on the edge e */
+    EdgeData& edge_data(const edge_type& edge);
+    
+    /** \brief Returns a constant reference to the data stored on the edge e */
+    const EdgeData& edge_data(const edge_type& edge) const;
    
     /** 
      * \brief Creates a vertex containing the vertex data
@@ -267,15 +284,6 @@ namespace graphlab {
                   const EdgeData& edata = EdgeData());
 
   private:
-    // Helper type used to synchronize the vertex data and assignments
-    struct vdata_shuffle_record {
-      vertex_id_type vid;
-      procid_t owner;
-      std::vector<procid_t> mirrors;
-      vertex_data_type vdata;
-      void load(iarchive& arc) { arc >> vid >> owner >> mirrors >> vdata; }
-      void save(oarchive& arc) const { arc << vid << owner << mirrors << vdata; }
-    };
 
     // HELPER ROUTINES =======================================================>    
     procid_t edge_to_proc(vertex_id_type source, vertex_id_type target) const {
@@ -311,6 +319,34 @@ namespace graphlab {
       return iter->second;
     }
 
+
+
+
+    // Helper type used to synchronize the vertex data and assignments
+    struct shuffle_record{
+      procid_t owner;
+      size_t num_in_edges, num_out_edges;
+      std::vector<procid_t> mirrors;
+      vertex_data_type vdata;
+      shuffle_record() : 
+        owner(0), num_in_edges(0), num_out_edges(0) { }
+      void load(iarchive& arc) { 
+        arc >> owner >> num_in_edges >> num_out_edges
+            >> mirrors >> vdata;
+      } // end of load
+      void save(oarchive& arc) const { 
+        arc << owner << num_in_edges << num_out_edges
+            << mirrors << vdata;
+      } // end of save     
+    }; // end of vdata_shuffle_record;
+
+    /// temporary map for vertexdata
+    typedef boost::unordered_map<vertex_id_type, shuffle_record> vid2shuffle_type;
+    vid2shuffle_type vid2shuffle;
+    mutex vid2shuffle_lock;
+    
+
+
   }; // End of graph
 
 
@@ -325,6 +361,13 @@ namespace graphlab {
 
   //////////////////////////////////////////////////////////////////////////////
   //// Implementation 
+  namespace distributed_graph_impl {
+    struct preshuffle_record : public graphlab::IS_POD_TYPE {
+      vertex_id_type vid, num_in_edges, num_out_edges;
+      preshuffle_record() : vid(0), num_in_edges(0), num_out_edges(0) { }     
+    };
+  };
+
 
   template<typename VertexData, typename EdgeData>
   void distributed_graph<VertexData, EdgeData>::finalize()  {   
@@ -333,72 +376,94 @@ namespace graphlab {
     ASSERT_EQ(local_graph.num_vertices(), vid2record.size());
     // resize local vid map
     lvid2vid.resize(vid2record.size());
+    
+    using namespace distributed_graph_impl;
     // For all the vertices that this processor has seen determine the
     // "negotiator" and send that machine the negotiator.
-    typedef std::vector< std::vector<vertex_id_type> >  proc2vids_type;
+    typedef std::vector< std::vector<preshuffle_record> > proc2vids_type;
     proc2vids_type proc2vids(rpc.numprocs());
-    {
-      typedef typename vid2record_type::value_type pair_type;
-      foreach(const pair_type& pair, vid2record) {
-        const vertex_id_type vid = pair.first;
-        const vertex_record& record = pair.second;
-        proc2vids[vertex_to_init_proc(vid)].push_back(vid);
-        lvid2vid[record.lvid] = vid;
+    typedef typename vid2record_type::value_type vid2record_pair_type;
+    foreach(vid2record_pair_type& pair, vid2record) {
+      const vertex_id_type vid = pair.first;
+      vertex_record& vrecord = pair.second;
+      lvid2vid[vrecord.lvid] = vid;
+      preshuffle_record pre_rec;
+      pre_rec.vid = vid;
+      pre_rec.num_in_edges = local_graph.num_in_edges(vrecord.lvid);
+      pre_rec.num_out_edges = local_graph.num_out_edges(vrecord.lvid);
+      proc2vids[vertex_to_init_proc(vid)].push_back(pre_rec);
+    }
+    // The returned local vertices are the vertices from each
+    // machine for which this machine is a negotiator.
+    mpi_tools::all2all(proc2vids, proc2vids);
+    
+   
+    // Update the vid2shuffle
+    for(procid_t proc = 0; proc < rpc.numprocs(); ++proc) {
+      foreach(const preshuffle_record& pre_rec, proc2vids[proc]) {
+        shuffle_record& shuffle_rec = vid2shuffle[pre_rec.vid];
+        shuffle_rec.num_in_edges += pre_rec.num_in_edges;
+        shuffle_rec.num_out_edges += pre_rec.num_out_edges;
+        shuffle_rec.mirrors.push_back(proc);
       }
-      // The returned local vertices are the vertices from each
-      // machine for which this machine is a negotiator.
-      mpi_tools::all2all(proc2vids, proc2vids);
     }
 
-    // Construct the vid2procs map by inverting the proc2vids map
-    typedef boost::unordered_map<vertex_id_type, std::vector<procid_t> > 
-      vid2procs_type;
-    vid2procs_type vid2procs;
-    for(procid_t proc = 0; proc < rpc.numprocs(); ++proc)
-      for(size_t i = 0; i < proc2vids[proc].size(); ++i) 
-        vid2procs[proc2vids[proc][i]].push_back(proc);
-    // clear the old local vertices
-    proc2vids_type().swap(proc2vids);
-
     // Construct the assignments
-    std::vector< std::vector<vdata_shuffle_record> > 
-      vdata_shuffle(rpc.numprocs());
     std::vector<size_t> counts(rpc.numprocs());
-    typedef vid2procs_type::value_type pair_type;
-    foreach(const pair_type& pair, vid2procs) {
+    typedef typename vid2shuffle_type::value_type shuffle_pair_type;
+    foreach(shuffle_pair_type& pair, vid2shuffle) {
+      shuffle_record& record = pair.second;
       // Find the best (least loaded) processor to assign the vertex.
       std::pair<size_t, procid_t> 
-        best_asg(counts[pair.second[0]], pair.second[0]);
-      foreach(procid_t proc, pair.second)
+        best_asg(counts[record.mirrors[0]], record.mirrors[0]);
+      foreach(procid_t proc, record.mirrors)
         best_asg = std::min(best_asg, std::make_pair(counts[proc], proc));
-      vdata_shuffle_record record;
-      record.vid = pair.first;
       record.owner = best_asg.second;
-      record.mirrors = pair.second;
-      record.vdata = tmp_vdata[record.vid];
       counts[record.owner]++;
-      foreach(procid_t proc, pair.second)
-        vdata_shuffle[proc].push_back(record);
     } // end of loop over 
-    foreach(size_t c, counts) std::cout << c << '\t';
-    std::cout << std::endl;
 
-    // clear the vid2procs table
-    vid2procs_type().swap(vid2procs);
+    // Send the data to all the processors
+    for(procid_t proc = 0; proc < rpc.numprocs(); ++proc) {
+      foreach(const preshuffle_record& pre_rec, proc2vids[proc]) {
+        const std::pair<vertex_id_type, shuffle_record> 
+          pair(pre_rec.vid, vid2shuffle[pre_rec.vid]);
+        rpc.send_to(proc, pair);
+      }
+    }
 
-    // Receive assignments from coordinators
-    mpi_tools::all2all(vdata_shuffle, vdata_shuffle);
+    // Receive the data from all the processors.  Here we are a little
+    // "clever" in that we loop over the vertices we have locally
+    // managed and use them to determine how many times to recv_from which machines
+    foreach(const vertex_id_type& tmpvid, lvid2vid) {     
+      const procid_t proc = vertex_to_init_proc(tmpvid);
+      std::pair<vertex_id_type, shuffle_record> vid_and_rec;
+      rpc.recv_from(proc, vid_and_rec);
+      const vertex_id_type& vid = vid_and_rec.first;
+      shuffle_record& shuffle_rec = vid_and_rec.second;      
+      vertex_record& vrecord = vid2record[vid];
+      vrecord.mirrors.swap(shuffle_rec.mirrors);
+      vrecord.owner = shuffle_rec.owner;
+      local_graph.vertex_data(vrecord.lvid) = shuffle_rec.vdata;
+      vrecord.num_in_edges = shuffle_rec.num_in_edges;
+      vrecord.num_out_edges = shuffle_rec.num_out_edges;
+    }
+
+
+
+
+    // // Receive assignments from coordinators
+    // mpi_tools::all2all(vdata_shuffle, vdata_shuffle);
     
-    // Incorporate all the vertex data assigned to each machine
-    for(size_t i = 0; i < vdata_shuffle.size(); ++i) {
-      foreach(vdata_shuffle_record& shuffle_record, vdata_shuffle[i]) {
-        ASSERT_TRUE(vid2record.find(shuffle_record.vid) != vid2record.end());
-        vertex_record& record = vid2record[shuffle_record.vid];
-        record.owner = shuffle_record.owner; 
-        record.mirrors.swap(shuffle_record.mirrors);
-        local_graph.vertex_data(record.lvid) = shuffle_record.vdata;
-      } // end of loop over vdata
-    } // end of loop over sending machines
+    // // Incorporate all the vertex data assigned to each machine
+    // for(size_t i = 0; i < vdata_shuffle.size(); ++i) {
+    //   foreach(vdata_shuffle_record& shuffle_record, vdata_shuffle[i]) {
+    //     ASSERT_TRUE(vid2record.find(shuffle_record.vid) != vid2record.end());
+    //     vertex_record& record = vid2record[shuffle_record.vid];
+    //     record.owner = shuffle_record.owner; 
+    //     record.mirrors.swap(shuffle_record.mirrors);
+    //     local_graph.vertex_data(record.lvid) = shuffle_record.vdata;
+    //   } // end of loop over vdata
+    // } // end of loop over sending machines
    
     // std::cout << "Save debugging information" << std::endl;
     // {
@@ -428,9 +493,9 @@ namespace graphlab {
              const VertexData& vdata) {
     // determine if the vertex is local
     if(is_local_init(vid)) {
-      tmp_vdata_lock.lock();
-      tmp_vdata[vid] = vdata;
-      tmp_vdata_lock.unlock();
+      vid2shuffle_lock.lock();
+      vid2shuffle[vid].vdata = vdata;
+      vid2shuffle_lock.unlock();
     } else {
       rpc.remote_call(vertex_to_init_proc(vid),
                       &distributed_graph::add_vertex,
@@ -472,6 +537,38 @@ namespace graphlab {
 
 
 
+  
+  template<typename VertexData, typename EdgeData>
+  typename distributed_graph<VertexData, EdgeData>::edge_list_type 
+  distributed_graph<VertexData, EdgeData>:: 
+  in_edges(const vertex_id_type v) const {
+    return edge_list_type();
+  } // end of in_edges
+  
+
+  template<typename VertexData, typename EdgeData>
+  size_t distributed_graph<VertexData, EdgeData>:: 
+  num_in_edges(const vertex_id_type v) const {
+    return vrecord(v).num_in_edges;
+  } // end of num_in_edges
+  
+  template<typename VertexData, typename EdgeData>
+  typename distributed_graph<VertexData, EdgeData>::edge_list_type 
+  distributed_graph<VertexData, EdgeData>:: 
+  out_edges(const vertex_id_type v) const { 
+    return edge_list_type();
+  } // end of out_edges
+  
+  template<typename VertexData, typename EdgeData>
+  size_t distributed_graph<VertexData, EdgeData>:: 
+  num_out_edges(const vertex_id_type v) const {
+    return vrecord(v).num_out_edges;
+  } // end of num out edges
+
+
+
+
+
   template<typename VertexData, typename EdgeData>
   VertexData& distributed_graph<VertexData, EdgeData>:: 
   vertex_data(vertex_id_type vid) {
@@ -498,6 +595,19 @@ namespace graphlab {
   const EdgeData& distributed_graph<VertexData, EdgeData>:: 
   edge_data(vertex_id_type source, vertex_id_type target) const {
     return local_graph.edge_data(vrecord(source).lvid, vrecord(target).lvid);
+  } // end of const edge data
+
+  template<typename VertexData, typename EdgeData>
+  EdgeData& distributed_graph<VertexData, EdgeData>:: 
+  edge_data(const edge_type& edge) {
+    return local_graph.edge_data(edge.local_edge);
+  } // end of edge data
+
+
+  template<typename VertexData, typename EdgeData>
+  const EdgeData& distributed_graph<VertexData, EdgeData>:: 
+  edge_data(const edge_type& edge) const {
+    return local_graph.edge_data(edge.local_edge);
   } // end of const edge data
 
 

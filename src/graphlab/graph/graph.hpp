@@ -365,10 +365,10 @@ namespace graphlab {
                               vertex_id_type target) const;
 
     /** \brief Returns a reference to the data stored on the edge e */
-    EdgeData& edge_data(edge_type edge);
+    EdgeData& edge_data(const edge_type& edge);
     
     /** \brief Returns a constant reference to the data stored on the edge e */
-    const EdgeData& edge_data(edge_type edge) const;
+    const EdgeData& edge_data(const edge_type& edge) const;
 
     //! Estimate the actual size in memory of this graph structure
     size_t estimate_sizeof() const;
@@ -727,14 +727,14 @@ namespace graphlab {
   } // end of edge_data(u,v)
   
   template<typename VertexData, typename EdgeData>
-  EdgeData& graph<VertexData, EdgeData>::edge_data(edge_type edge) {
+  EdgeData& graph<VertexData, EdgeData>::edge_data(const edge_type& edge) {
     ASSERT_EQ(edge.graph_ptr, this);
     ASSERT_LT(edge._id, edges.size());
     return edges[edge._id].data();
   } // end of edge_data(edge_type)
   
   template<typename VertexData, typename EdgeData>
-  const EdgeData& graph<VertexData, EdgeData>::edge_data(edge_type edge) const {
+  const EdgeData& graph<VertexData, EdgeData>::edge_data(const edge_type& edge) const {
     ASSERT_EQ(edge.graph_ptr, this);
     ASSERT_LT(edge._id, edges.size());
     return edges[edge._id].data();
