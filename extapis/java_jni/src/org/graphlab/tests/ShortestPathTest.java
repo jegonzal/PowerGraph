@@ -45,12 +45,12 @@ public class ShortestPathTest {
 		  = new DefaultDirectedWeightedGraph<ScalarVertex, DefaultWeightedEdge>(DefaultWeightedEdge.class);
 		GraphLoader.loadGraphFromTsvFile(graph, "test-graphs/one.tsv");
 		
-		// initialize to infinity
+		// initialize all distances to infinity
 		for (ScalarVertex v : graph.vertexSet()) {
 			v.setValue(Integer.MAX_VALUE);
 		}
 
-		// start from root
+		// start from root, where distance=0
 		ScalarVertex root = graph.vertexSet().iterator().next();
 		root.setValue(0);
 
@@ -61,7 +61,7 @@ public class ShortestPathTest {
 		
 		// check shortest paths
 		Iterator<ScalarVertex> it = graph.vertexSet().iterator();
-		it.next();
+		it.next();  // get vertex 1
 		assertEquals (null, 10, it.next().value(), 0);
 		
 	}
@@ -74,12 +74,12 @@ public class ShortestPathTest {
 	    = new DefaultDirectedWeightedGraph<ScalarVertex, DefaultWeightedEdge>(DefaultWeightedEdge.class);
 		GraphLoader.loadGraphFromTsvFile(graph, "test-graphs/toy.tsv");
 		
-		// initialize to infinity
+		// initialize all distances to infinity
 		for (ScalarVertex v : graph.vertexSet()) {
 			v.setValue(Integer.MAX_VALUE);
 		}
 
-		// start from root
+		// start from root, where distance=0
 		ScalarVertex root = graph.vertexSet().iterator().next();
 		root.setValue(0);
 

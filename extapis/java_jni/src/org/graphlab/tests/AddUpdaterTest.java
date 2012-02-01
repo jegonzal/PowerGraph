@@ -20,7 +20,7 @@ import org.junit.Test;
 
 public class AddUpdaterTest {
 
-  private Core core;
+  private Core mCore;
   
   @Before
   public void setUp() throws Exception {
@@ -28,7 +28,7 @@ public class AddUpdaterTest {
     BasicConfigurator.configure();
     Logger.getLogger(Core.class).setLevel(Level.OFF);
     // create core
-    core = new Core();
+    mCore = new Core();
   }
 
   /**
@@ -46,20 +46,28 @@ public class AddUpdaterTest {
 
     Iterator<ScalarVertex> it = graph.vertexSet().iterator();
     
-    core.setGraph(graph);
-    core.schedule(it.next(), new CounterUpdater(graph));
-    core.start();
+    mCore.setGraph(graph);
     
-    // check counter value
-    assertEquals (null, 4, it.next().value(), 0);
+    // schedule updater on vertex 0
+    mCore.schedule(it.next(), new CounterUpdater(graph));
+    mCore.start();
+    
+    // check counter value on one
+    assertEquals ("Checking last counter value of updater.", 4, it.next().value(), 0);
     
   }
   
   @After
   public void tearDown() throws Exception {
-    core.destroy();
+    mCore.destroy();
   }
   
+  /**
+   * Counter Updater. When fused, counter values are added. When it
+   * updates a vertex, it sets the value of the vertex with the current
+   * value of its counter.
+   * @author Jiunn Haur Lim <jiunnhal@cmu.edu>
+   */
   private static class CounterUpdater extends Updater<ScalarVertex> {
 
     private Graph<ScalarVertex, DefaultWeightedEdge> mGraph;
@@ -74,7 +82,9 @@ public class AddUpdaterTest {
     public void update(Context context, ScalarVertex vertex) {
       
       Iterator<ScalarVertex> it = mGraph.vertexSet().iterator();
+      // skip vertex 0
       it.next();
+      // get vertex 1
       ScalarVertex one = it.next();
       
       // record counter value in vertex
@@ -85,8 +95,14 @@ public class AddUpdaterTest {
         context.schedule(one, this);      // count = 1 + 1 = 2
         context.schedule(one, this);      // count = 2 + 2 = 4
       }
+      
     }
 
+    /*
+     * Fuse two updaters by adding count values
+     * (non-Javadoc)
+     * @see org.graphlab.Updater#add(org.graphlab.Updater)
+     */
     @Override
     public void add(Updater<ScalarVertex> updater) {
       if (!(updater instanceof CounterUpdater)) return;
