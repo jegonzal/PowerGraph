@@ -475,10 +475,15 @@ namespace graphlab {
     /** \brief Returns a reference to the data stored on the edge e */
     EdgeData& edge_data(edge_type edge) { 
       ASSERT_NE(edge.offset(), -1);
-      return edge_weights[edge.offset()];
+      if (edge_weights == NULL)
+       return _edge;
+      else return edge_weights[edge.offset()];
     }
     const EdgeData& edge_data(edge_type edge) const {
        ASSERT_NE(edge.offset(), -1);
+       if (edge_weights == NULL)
+       return _edge;
+       else
        return edge_weights[edge.offset()];
     }
 

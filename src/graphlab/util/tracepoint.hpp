@@ -6,7 +6,7 @@
 #include <graphlab/util/timer.hpp>
 #include <graphlab/parallel/atomic.hpp>
 
-// #define USE_TRACEPOINT
+#define USE_TRACEPOINT
 
 namespace graphlab{
 
