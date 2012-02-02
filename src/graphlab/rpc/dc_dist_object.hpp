@@ -23,8 +23,8 @@
 
 #include <graphlab/rpc/dc.hpp>
 
-#ifndef DC_DIST_OBJECT_HPP
-#define DC_DIST_OBJECT_HPP
+#ifndef GRAPHLAB_DC_DIST_OBJECT_HPP
+#define GRAPHLAB_DC_DIST_OBJECT_HPP
 #include <vector>
 #include <string>
 #include <set>
@@ -88,6 +88,21 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
   void inc_calls_received(procid_t p) {
     if (!full_barrier_in_effect) {
         callsreceived[p].inc();
+        if (full_barrier_in_effect) {
+          if (callsreceived[p].inc() == calls_to_receive[p]) {
+            // if it was me who set the bit
+            if (procs_complete.set_bit(p) == false) {
+              // then decrement the incomplete count.
+              // if it was me to decreased it to 0
+              // lock and signal
+              full_barrier_lock.lock();
+              if (num_proc_recvs_incomplete.dec() == 0) {
+                full_barrier_cond.signal();
+              }
+              full_barrier_lock.unlock();
+            }
+          }
+        } 
     }
     else {
       //check the proc I just incremented.
@@ -121,7 +136,7 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
 
  public:
   dc_dist_object(distributed_control &dc_, T* owner, bool calltracking = false):
-                                dc_(dc_),owner(owner),calltracking(calltracking) {
+    dc_(dc_),owner(owner),calltracking(calltracking) {
     callssent.resize(dc_.numprocs());
     callsreceived.resize(dc_.numprocs());
     bytessent.resize(dc_.numprocs());
@@ -297,9 +312,11 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
  
 
   /*
-  The generation procedure for requests are the same. The only difference is that the function
-  name has to be changed a little to be identify the return type of the function,
-  (typename dc_impl::function_ret_type<__GLRPC_FRESULT>) and the issuing processor is object_request_issue.
+  The generation procedure for requests are the same. The only
+  difference is that the function name has to be changed a little to
+  be identify the return type of the function, (typename
+  dc_impl::function_ret_type<__GLRPC_FRESULT>) and the issuing
+  processor is object_request_issue.
   
     The call can be issued with
     \code
@@ -320,7 +337,8 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
   }   \
 
   /**
-  Generates the interface functions. 3rd argument is a tuple (interface name, issue name, flags)
+  Generates the interface functions. 3rd argument is a tuple
+  (interface name, issue name, flags)
   */
   BOOST_PP_REPEAT(6, REQUEST_INTERFACE_GENERATOR, (typename dc_impl::function_ret_type<__GLRPC_FRESULT>::type remote_request, dc_impl::object_request_issue, STANDARD_CALL) )
   BOOST_PP_REPEAT(6, REQUEST_INTERFACE_GENERATOR, (typename dc_impl::function_ret_type<__GLRPC_FRESULT>::type fast_remote_request, dc_impl::object_request_issue, FAST_CALL) )
@@ -331,10 +349,11 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
   #undef RPC_INTERFACE_GENERATOR
   #undef REQUEST_INTERFACE_GENERATOR
   
-  /* Now generate the interface functions which allow me to call this dc_dist_object directly
-  The internal calls are similar to the ones above. The only difference is that is that instead of
-  'obj_id', the parameter passed to the issue processor is "control_obj_id" which identifies the
-  current RMI class.
+  /* Now generate the interface functions which allow me to call this
+  dc_dist_object directly The internal calls are similar to the ones
+  above. The only difference is that is that instead of 'obj_id', the
+  parameter passed to the issue processor is "control_obj_id" which
+  identifies the current RMI class.
   */
   #define RPC_INTERFACE_GENERATOR(Z,N,FNAME_AND_CALL) \
   template<typename F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, typename T)> \
@@ -1061,6 +1080,7 @@ private:
     procs_complete.clear();
     // activate the full barrier
     full_barrier_in_effect = true;
+    __asm("mfence");
     // begin one pass to set all which are already completed
     for (size_t i = 0;i < numprocs(); ++i) {
       if (callsreceived[i].value >= calls_to_receive[i]) {

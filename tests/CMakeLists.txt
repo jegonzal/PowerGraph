@@ -33,6 +33,7 @@ add_executable(rpc_example7 rpc_example7.cpp)
 
 add_dist2_executable(distributed_dg_construction_test distributed_dg_construction_test.cpp)
 add_dist2_executable(distributed_graph_test distributed_graph_test.cpp)
+add_dist2_executable(dht_performance_test dht_performance_test.cpp)
 endif()
 
 ADD_CXXTEST(md5test.cxx)
