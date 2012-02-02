@@ -174,33 +174,31 @@ void load_matrix_market_vector(graph_type * g)
     int M, N, nz;   
     int i;
 
-    FILE * f = fopen((config.datafile + "v").c_str(), "r");
-    if (f== NULL){
-	logstream(LOG_FATAL) << " can not find input file: " << config.datafile + "v, aborting " << std::endl;
-    }
-
+    FILE * f = open_file((config.datafile + "v").c_str(), "r");
     if (mm_read_banner(f, &matcode) != 0)
-    {
         logstream(LOG_FATAL) << "Could not process Matrix Market banner in file " << config.datafile << "v " << std::endl;
-    }
 
     /*  This is how one can screen matrix types if their application */
     /*  only supports a subset of the Matrix Market data types.      */
 
     if (mm_is_complex(matcode) && mm_is_matrix(matcode) && 
             mm_is_sparse(matcode) )
-    {
         logstream(LOG_FATAL) << "sorry, this application does not support " << std::endl << 
           "Market Market type: " << mm_typecode_to_str(matcode) << std::endl;
-    }
 
     /* find out size of sparse matrix .... */
-
-    if ((ret_code = mm_read_mtx_crd_size(f, &M, &N, &nz)) !=0){
+    if (mm_is_sparse(matcode)){
+      if ((ret_code = mm_read_mtx_crd_size(f, &M, &N, &nz)) !=0){
        logstream(LOG_FATAL) << "failed to read matrix market cardinality size " << std::endl; 
+      } 
+    } 
+    else {
+      if ((ret_code = mm_read_mtx_array_size(f, &M, &N)) != 0){
+       logstream(LOG_FATAL) << "failed to read matrix market cardinality size " << std::endl; 
+      }
+      nz = M*N;
     }
-
-
+    
     /* NOTE: when reading in doubles, ANSI C requires the use of the "l"  */
     /*   specifier as in "%lg", "%lf", "%le", otherwise errors will occur */
     /*  (ANSI C X3.159-1989, Sec. 4.9.6.2, p. 136 lines 13-15)            */
@@ -211,9 +209,20 @@ void load_matrix_market_vector(graph_type * g)
 
     for (i=0; i<nz; i++)
     {
-        fscanf(f, "%d %d %lg\n", &I, &J, &val);
-        I--;  /* adjust from 1-based to 0-based */
-        J--;
+        if (mm_is_sparse(matcode)){
+          int rc = fscanf(f, "%d %d %lg\n", &I, &J, &val);
+          if (rc != 3)
+            logstream(LOG_FATAL) << "Failed to read line: " << i << " in file: " << config.datafile << std::endl;
+          I--;  /* adjust from 1-based to 0-based */
+          J--;
+        }
+        else {
+          int rc = fscanf(f, "%lg", &val);
+          if (rc != 1)
+            logstream(LOG_FATAL) << "Failed to read line: " << i << " in file: " << config.datafile << std::endl;
+           J = 0;
+          I = i;
+        }
          if (config.scalerating != 1.0)
 	     val /= config.scalerating;
          if (!config.zero)
@@ -239,32 +248,28 @@ void load_matrix_market_matrix(graph_type * g)
     int M, N, nz;   
     int i;
 
-    FILE * f = fopen(config.datafile.c_str(), "r");
-    if (f== NULL){
-	logstream(LOG_FATAL) << " can not find input file " << config.datafile << "  aborting " << std::endl;
-    }
-
+    FILE * f = open_file(config.datafile.c_str(), "r");
     if (mm_read_banner(f, &matcode) != 0)
-    {
         logstream(LOG_FATAL) << "Could not process Matrix Market banner: " << config.datafile << std::endl;
-    }
 
     /*  This is how one can screen matrix types if their application */
     /*  only supports a subset of the Matrix Market data types.      */
 
     if (mm_is_complex(matcode) && mm_is_matrix(matcode) && 
             mm_is_sparse(matcode) )
-    {
         logstream(LOG_FATAL) << "sorry, this application does not support " << std::endl << 
           "Market Market type: " << mm_typecode_to_str(matcode) << std::endl;
-    }
 
     /* find out size of sparse matrix .... */
-
-    if ((ret_code = mm_read_mtx_crd_size(f, &M, &N, &nz)) !=0){
-       logstream(LOG_FATAL) << "failed to read matrix market cardinality size " << std::endl; 
+    if (mm_is_sparse(matcode)){
+      if ((ret_code = mm_read_mtx_crd_size(f, &M, &N, &nz)) !=0)
+        logstream(LOG_FATAL) << "failed to read matrix market cardinality size " << std::endl; 
+    } else {
+      if ((ret_code = mm_read_mtx_array_size(f, &M, &N)) != 0){
+        logstream(LOG_FATAL) << "failed to read matrix market cardinality size " << std::endl; 
+      }
+      nz = M*N;
     }
-
     ps.m = M; ps.n = N; 
     if (ps.m == ps.n){
        config.square = true;
@@ -286,10 +291,21 @@ void load_matrix_market_matrix(graph_type * g)
 
     for (i=0; i<nz; i++)
     {
-        fscanf(f, "%d %d %lg\n", &I, &J, &val);
-        I--;  /* adjust from 1-based to 0-based */
-        J--;
-         if (config.scalerating != 1.0)
+
+        if (mm_is_sparse(matcode)){
+          int rc= fscanf(f, "%d %d %lg\n", &I, &J, &val);
+          if (rc != 3)
+            logstream(LOG_FATAL) << "Failed to read line: " << i << " in file: " << config.datafile << std::endl;
+           I--;  /* adjust from 1-based to 0-based */
+           J--;
+         } else {
+	  int rc = fscanf(f, "%lg", &val);
+          if (rc != 1)
+            logstream(LOG_FATAL) << "Failed to read line: " << i << " in file: " << config.datafile << std::endl;
+          I = i / N;
+          J = i % N;  
+        }
+        if (config.scalerating != 1.0)
 	     val /= config.scalerating;
          if (!config.zero)
 	   assert(val!=0 );

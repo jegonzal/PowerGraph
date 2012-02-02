@@ -219,7 +219,15 @@ if [ -f ../demoapps/gabp/gabp ]; then
      echo "FAIL --unittest=5 (Conjugate Gradient- non square)"| tee -a $stdoutfname
      somefailed=1
   fi
-  popd > /dev/null
+  echo "********************TEST6************************" >> $stdoutfname
+ ./gabp --unittest=51  >> $stdoutfname 2>& 1 
+  if [ $? -eq 0 ]; then
+     echo "PASS TEST 6 (Conjugate Gradient, matrix market format)"| tee -a $stdoutfname
+  else
+     echo "FAIL --unittest=6 (Conjugate Gradient- matrix market)"| tee -a $stdoutfname
+     somefailed=1
+  fi
+   popd > /dev/null
 else
   echo "Linear solver library not found. "| tee -a $stdoutfname
 fi

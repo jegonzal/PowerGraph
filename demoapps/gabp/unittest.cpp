@@ -63,6 +63,17 @@ void unittest(graphlab::command_line_options &clopts){
     //config.oldformat = true;
     clopts.set_scheduler_type("fifo");
   }
+  else if (config.unittest == 51){
+   logstream(LOG_WARNING)<< "Going to run CG unit testing using matrix of size 13x13, with matrix market" << std::endl;
+    config.algorithm = CONJUGATE_GRADIENT;
+    config.datafile = "A.mtx";
+    config.threshold = 1e-10;
+    config.matrixmarket=true;
+    config.zero = true;
+    config.syncinterval = 10000;
+    config.iter = 20;
+    clopts.set_scheduler_type("fifo");
+ }
  else if (config.unittest == 6){
     logstream(LOG_WARNING)<< "Going to run GaBP inverse unit testing using matrix of size 3x3" << std::endl;
     //const char * args[] = {"gabp", "3", "mat3x3", "1e-10", "--unittest=6", "--syncinterval=10000"};
@@ -114,6 +125,9 @@ void verify_unittest_result(double diff){
       assert(diff < 1e-14);
    else if (config.unittest == 7){
       assert(pow(ps.last_cost - 97.3638, 2)< 1e-6);
+   }
+   else if (config.unittest == 51){
+      assert(pow(ps.means[0] - 0.7059603162769, 2) < 1e-8);
    }
    else if (config.unittest == 8){
       assert(pow(ps.last_cost - -65.1957, 2) <1e-6);
