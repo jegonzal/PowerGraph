@@ -312,30 +312,16 @@ namespace graphlab {
 
     edge_data_type& edge_data(edge_type edge) {
       ASSERT_FALSE(edge.empty());
-      size_t eid = -1;
-      switch(edge.get_dir()) {
-        case edge_type::OUTEDGE: eid = edge._edge_id; break;
-        case edge_type::INEDGE: eid = c2r_map[edge._edge_id]; break;
-        default: logstream(LOG_FATAL) << "Invalid edge type."
-                 << std::endl; assert(false);
-      }
-
-      ASSERT_LT(eid, num_edges);
-      return edge_data_list[eid];
+      return edge_data_list[edge.get_dir() == edge_type::OUTEDGE ? 
+        edge._edge_id :
+        c2r_map[edge._edge_id]];
     }
 
     const edge_data_type& edge_data(edge_type edge) const {
       ASSERT_FALSE(edge.empty());
-      size_t eid = -1;
-      switch(edge.get_dir()) {
-        case edge_type::OUTEDGE: eid = edge._edge_id; break;
-        case edge_type::INEDGE: eid = c2r_map[edge._edge_id]; break;
-        default: logstream(LOG_FATAL) << "Invalid edge type."
-                 << std::endl; assert(false);
-      }
-
-      ASSERT_LT(eid, num_edges);
-      return edge_data_list[eid];
+      return edge_data_list[edge.get_dir() == edge_type::OUTEDGE ? 
+        edge._edge_id :
+        c2r_map[edge._edge_id]];
     }
 
 
@@ -441,7 +427,10 @@ namespace graphlab {
       // Parallel sort target for each source= x interval: counter_array[x] - counter_array[x+1];
 #ifndef AVOID_PARALLEL_SORT
 #pragma omp parallel for
+#else
+      logstream(LOG_INFO) << "Parallel sort is disabled." << std::endl;
 #endif
+
       for (ssize_t j = 0; j < ssize_t(num_vertices); ++j) {
         if (counter_array[j] < counter_array[j+1]) {
           std::sort(permute_index.begin()+counter_array[j], 

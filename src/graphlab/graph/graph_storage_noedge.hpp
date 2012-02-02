@@ -453,7 +453,10 @@ namespace graphlab {
       // Parallel sort target for each source= x interval: counter_array[x] - counter_array[x+1];
 #ifndef AVOID_PARALLEL_SORT
 #pragma omp parallel for
+#else
+      logstream(LOG_INFO) << "Parallel sort is disabled." << std::endl;
 #endif
+
       for (ssize_t j = 0; j < ssize_t(num_vertices); ++j) {
         if (counter_array[j] < counter_array[j+1]) {
           std::sort(permute_index.begin()+counter_array[j], 

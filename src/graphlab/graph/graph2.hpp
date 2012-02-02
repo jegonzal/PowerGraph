@@ -85,6 +85,7 @@ namespace graphlab {
 
 #ifdef GRAPH2_NO_EDGE 
     typedef graph_storage_noedge<VertexData, EdgeData> gstore_type;
+    logstream(LOG_WARNING) << "Using graph type with no edge data." << std::endl;
 #else 
     typedef graph_storage<VertexData, EdgeData> gstore_type;
 #endif
@@ -142,7 +143,10 @@ namespace graphlab {
     void set_use_vcolor (bool x) { 
       use_vcolor = x;  
       if (!use_vcolor) 
+      {
         std::vector<vertex_color_type>().swap(vcolors);
+        logstream(LOG_WARNING) << "Graph vertex color is disabled." << std::endl;
+      }
     }
     bool get_use_vcolor () { return use_vcolor; }
 
@@ -479,7 +483,7 @@ namespace graphlab {
           >> vcolors
           >> gstore
           >> finalized;
-//        estimate_sizeof();
+        estimate_sizeof();
     } // end of load
 
     /** \brief Save the graph to an archive */

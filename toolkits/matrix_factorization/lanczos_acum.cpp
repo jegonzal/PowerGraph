@@ -20,16 +20,17 @@
  *
  */
 
-#include "graphlab.hpp"
+#include <graphlab.hpp>
 #include "../shared/io.hpp"
 #include "../shared/types.hpp"
 #include <graphlab/graph/graph2.hpp>
 #include <graphlab/graph/graph3.hpp>
 #include <graphlab/graph/graph.hpp>
+#include <google/malloc_extension.h>
+#include <graphlab/macros_def.hpp>
 using namespace graphlab;
 using namespace std;
 
-#define USE_TRACEPOINT
 
 /**
  *
@@ -86,7 +87,7 @@ void save(graphlab::oarchive &oarc) const {
 
  };
 
-#define USE_GRAPH_VER 3
+#define USE_GRAPH_VER 2
 
 #if USE_GRAPH_VER == 1
 typedef graphlab::graph<vertex_data, edge_data> graph_type;
@@ -108,8 +109,6 @@ typedef graphlab::graph3<vertex_data, edge_data> graph_type;
  * */
 void init_lanczos(graph_type * g, bipartite_graph_descriptor & info){
 
-   REGISTER_TRACEPOINT(init_lanczos, "Initializaing lanczos algorithm");
-   BEGIN_TRACEPOINT(init_lanczos);
    int m = max_iter;
    assert(m > 0);
    lancbeta = zeros(m+3);
@@ -134,7 +133,6 @@ void init_lanczos(graph_type * g, bipartite_graph_descriptor & info){
     vertex_data * data = (vertex_data*)&g->vertex_data(i);
     data->pvec = zeros(m+3);
   }
-  END_TRACEPOINT(init_lanczos);
 }
 void print_v(bool rows, int offset, graph_type * g){
 
@@ -180,13 +178,13 @@ struct lanczos_update :
   if (outs.size() == 0)
      return;
 
-  BEGIN_TRACEPOINT(edge_traversal);
-  for (size_t i=0; i< outs.size(); i++) {
-      edge_data & edge = context.edge_data(outs[i]);
-      const vertex_data  & movie = context.const_vertex_data(outs[i].target());
+  // for (size_t i=0; i< outs.size(); i++) {
+      // const edge_type& e = outs[i];
+  foreach (const edge_type& e, outs) {
+      const edge_data& edge = context.const_edge_data(e);
+      const vertex_data  & movie = context.const_vertex_data(e.target());
       user.value += edge.weight * movie.pvec[offset];
   }
-  END_TRACEPOINT(edge_traversal);
 
   if (debug && info.toprint(id)){
     printf("Lanczos ROWS computed value  %d %g \n",  id, user.value);   
@@ -208,13 +206,13 @@ struct lanczos_update :
   if (ins.size() == 0)
     return;
 
-   BEGIN_TRACEPOINT(edge_traversal_transpose);
-   for(size_t i=0; i< ins.size(); i++) {
-      const edge_data & edge = context.edge_data(ins[i]);
-      const vertex_data  & movie = context.const_vertex_data(ins[i].source());
-      user.value += edge.weight * movie.value;
+   // for (size_t i=0; i< ins.size(); i++) {
+      // const edge_type& e = ins[i];
+   foreach (const edge_type& e, ins) {
+      const edge_data& edge = context.const_edge_data(e);
+      const vertex_data  & movie = context.const_vertex_data(e.source());
+       user.value += edge.weight * movie.value;
    }
-   END_TRACEPOINT(edge_traversal_transpose);
    
    assert(offset2 < m+2 && offset3 < m+2);
    user.value -= lancbeta[offset2] * user.pvec[offset3];
@@ -372,17 +370,10 @@ void compute_residual(const vec & eigenvalues, const mat & eigenvectors, graph_t
 void lanczos(graphlab::core<graph_type, lanczos_update> & glcore, 
              bipartite_graph_descriptor & info, timer & mytimer){
    
-   REGISTER_TRACEPOINT(wTV, "w' * v");
-   REGISTER_TRACEPOINT(w_minus_lancalphaV, "w - alpha * w");
-   REGISTER_TRACEPOINT(orthogolonize_vs_all, "orthogolonize_vs_all");
-   REGISTER_TRACEPOINT(AAT, "A*A'*v");
-   REGISTER_TRACEPOINT(w_norm_2, "w_norm2");
-   REGISTER_TRACEPOINT(update_V, "update_V");
-   REGISTER_TRACEPOINT(edge_traversal, "edge_traversal");
-   REGISTER_TRACEPOINT(edge_traversal_transpose, "edge_traversal_transpose");
-
    glcore.set_global("m", max_iter);
+
    init_lanczos(&glcore.graph(), info);
+
    lanczos_update lupdate;
    glcore.add_aggregator("sync", lupdate, 1000);
    
@@ -392,9 +383,7 @@ void lanczos(graphlab::core<graph_type, lanczos_update> & glcore,
         glcore.set_global("offset", j);
         glcore.set_global("offset3", j-1);
         glcore.set_global("offset2",j);
-        BEGIN_TRACEPOINT(AAT);
         glcore.aggregate_now("sync");
-        END_TRACEPOINT(AAT);
 
         if (debug){
           print_w(true,&glcore.graph());
@@ -403,32 +392,19 @@ void lanczos(graphlab::core<graph_type, lanczos_update> & glcore,
        
         //lancalpha(j) = w'*V(:,j);
         //w =  w - lancalpha(j)*V(:,j);
-        BEGIN_TRACEPOINT(wTV);
-	lancalpha[j] = wTV(j, &glcore.graph());
-        END_TRACEPOINT(wTV);
-        BEGIN_TRACEPOINT(w_minus_lancalphaV);
+      	lancalpha[j] = wTV(j, &glcore.graph());
         w_minus_lancalphaV(j, &glcore.graph());
-        END_TRACEPOINT(w_minus_lancalphaV);
-        BEGIN_TRACEPOINT(orthogolonize_vs_all);
         orthogolonize_vs_all(j+1,&glcore.graph());
-        END_TRACEPOINT(orthogolonize_vs_all);
     
         if (debug)
           print_w(false,&glcore.graph());
 
         //lancbeta(j+1)=norm(w,2)a
-        BEGIN_TRACEPOINT(w_norm_2);
         lancbeta[j+1] = w_norm_2(false, &glcore.graph());
-        END_TRACEPOINT(w_norm_2)
 
         //V(:,j+1) = w/lancbeta(j+1);
-        BEGIN_TRACEPOINT(update_V);
         update_V(j+1, &glcore.graph()); 
-        END_TRACEPOINT(update_V);
         logstream(LOG_INFO) << "Finished iteration " << j << " in time: " << mytimer.current_time() << std::endl;
-
-
-
 
    } 
   /* 
@@ -486,6 +462,8 @@ int main(int argc,  char *argv[]) {
   int unittest = 0;
   int num_rows = 0;
 
+  bool load_bin = false;
+
   clopts.attach_option("data", &datafile, datafile,
                        "matrix input file");
   clopts.add_positional("data");
@@ -500,6 +478,7 @@ int main(int argc,  char *argv[]) {
   clopts.attach_option("fix_init", &fix_init, fix_init, "fix random vector init to be const"); 
   clopts.attach_option("num_rows", &num_rows, num_rows, "number of matrix rows");
   clopts.attach_option("measure_save_time", &measure_save_time, measure_save_time, "Measure save time and exit");
+  clopts.attach_option("load_bin", &load_bin, load_bin, "Load binary format");
   clopts.attach_option("edge_data_flag", &edge_data_flag, edge_data_flag, "Allow edge data");
   clopts.attach_option("is_square", &is_square, is_square, "square matrix?");
   // Parse the command line arguments
@@ -520,6 +499,9 @@ int main(int argc,  char *argv[]) {
 
   // Create a core
   graphlab::core<graph_type, lanczos_update> core;
+#if USE_GRAPH_VER == 2
+  core.graph().set_use_vcolor(false);
+#endif
   core.set_options(clopts); // Set the engine options
   core.set_scope_type("vertex");
   //unit testing
@@ -532,7 +514,11 @@ int main(int argc,  char *argv[]) {
   std::cout << "Load matrix " << datafile << std::endl;
   timer mytimer; mytimer.start(); 
 #if USE_GRAPH_VER != 3
-  load_graph(datafile, format, info, core.graph());
+  if (load_bin) {
+    core.graph().load(datafile+".out");
+  } else {
+    load_graph(datafile, format, info, core.graph());
+  }
   core.graph().finalize();
 #if USE_GRAPH_VER == 2
   if (measure_save_time){
@@ -547,20 +533,32 @@ int main(int argc,  char *argv[]) {
   }
 #endif
   //save_to_bin("/usr0/bickson/" + datafile, core.graph(), true);
-  ///exit(1);
+   // save_to_bin("/usr1/haijieg/netflix3/" + datafile, core.graph(), true);
+   // exit(1);
 #else
   core.graph().load_directed(outdir+ datafile, false, !edge_data_flag);
+#endif
   info.nonzeros = core.graph().num_edges();
   if (is_square)
      info.cols = num_rows;
   else 
   info.cols = core.graph().num_vertices() - num_rows;
   info.rows = num_rows;
-#endif
+
   logstream(LOG_INFO)<<"Loadded a matrix of size " << info.rows << "x" << info.cols << "  nnz: " << info.nonzeros << endl;
   logstream(LOG_INFO)<<"Time taken to load graph: " << mytimer.current_time() << std::endl; 
 
+   // After loading. Google TMalloc Profile
+   //
+   size_t value;
+   MallocExtension::instance()->GetNumericProperty("generic.heap_size", &value);
+   std::cout << "Heap Size: " << (double)value/(1024*1024) << "MB" << "\n";
+   MallocExtension::instance()->GetNumericProperty("generic.current_allocated_bytes", &value);
+   std::cout << "Allocated Size: " << (double)value/(1024*1024) << "MB" << "\n";
+
+
   std::cout << "Schedule all vertices" << std::endl;
+
   core.schedule_all(lanczos_update());
 
   if (sync_interval < core.graph().num_vertices()){
@@ -576,8 +574,8 @@ int main(int argc,  char *argv[]) {
   core.add_global("offset3", int(0));
   core.add_global("m", int(0));
 
+
   lanczos(core, info, mytimer);
- 
   std::cout << "Lanczos finished in " << mytimer.current_time() << std::endl;
   std::cout << "\t Updates: " << core.last_update_count() << " per node: " 
      << core.last_update_count() / core.graph().num_vertices() << std::endl;
@@ -593,4 +591,5 @@ int main(int argc,  char *argv[]) {
    return EXIT_SUCCESS;
 }
 
+#include <graphlab/macros_undef.hpp>
 
