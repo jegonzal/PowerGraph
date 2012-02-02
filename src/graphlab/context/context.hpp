@@ -37,7 +37,6 @@
 
 #include <graphlab/context/iglobal_context.hpp>
 #include <graphlab/context/icontext.hpp>
-#include <graphlab/util/tracepoint.hpp>
 #include <graphlab/context/consistency_model.hpp>
 
 
@@ -118,10 +117,6 @@ namespace graphlab {
       scheduler_ptr(scheduler_ptr), cpuid(cpuid),
       vid(-1), _consistency(EDGE_CONSISTENCY),
       start_time(lowres_time_seconds()) { 
-
-      REGISTER_TRACEPOINT(context_schedule,
-          "context: Time to schedule neighbors");
-
     }
     
 
@@ -248,9 +243,7 @@ namespace graphlab {
     void schedule(const vertex_id_type& vertex, 
                   const update_functor_type& update_fun) {
 
-//      BEGIN_TRACEPOINT(context_schedule);
       scheduler_ptr->schedule(cpuid, vertex, update_fun);
-//      END_TRACEPOINT(context_schedule);
     }
 
     void schedule_in_neighbors(const vertex_id_type& vertex, 

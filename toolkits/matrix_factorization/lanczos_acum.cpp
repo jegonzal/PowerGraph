@@ -87,7 +87,7 @@ void save(graphlab::oarchive &oarc) const {
 
  };
 
-#define USE_GRAPH_VER 2
+#define USE_GRAPH_VER 3
 
 #if USE_GRAPH_VER == 1
 typedef graphlab::graph<vertex_data, edge_data> graph_type;
