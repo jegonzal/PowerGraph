@@ -113,7 +113,7 @@ double cg(gl_types::core * _glcore, std::vector<double> & means, double &diff, a
    
         if (config.cg_resid){
           t=A*x-b;
-          logstream(LOG_INFO)<<"Iteration " << i << " approximated solution redidual is " << norm(t).toDouble() << std::endl;
+          logstream(LOG_INFO)<<"Iteration " << i << " approximated solution residual is " << norm(t).toDouble() << std::endl;
         }
 
         r=r-alpha*Ap;

@@ -37,6 +37,7 @@ void advanced_config::init_command_line_options(graphlab::command_line_options &
   clopts.attach_option("max_iter", &iter, iter, "maximal number of iterations");
   clopts.attach_option("lambda", &shotgun_lambda, shotgun_lambda, "shotgun: lambda");
   clopts.attach_option("matrixmarket", &matrixmarket, matrixmarket, "Input data is in matrix market format");
+  clopts.attach_option("init_mode", &init_mode, init_mode, "starting vector initialization mode. 0 = 0, 1 = random");
 }
 
 void problem_setup::verify_setup(graphlab::command_line_options& clopts){

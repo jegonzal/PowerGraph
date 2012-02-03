@@ -21,7 +21,10 @@ enum constant_offsets {GABP_PRIOR_MEAN_OFFSET = 0, //prior mean (b_i / A_ii)
                        GABP_PREV_MEAN_OFFSET = 5,// mean value from previous round (for convergence detection)
                        GABP_PREV_PREC_OFFSET = 6}; // precision value from previous round (for convergence detection)
 
-
+enum nit_modes{
+   INIT_ZERO = 0,
+   INIT_RANDOM = 1
+};
 
 
 /** Vertex data types for linear solvers**/
@@ -35,10 +38,8 @@ struct vertex_data {
   sdouble prev_prec; //precision value from previous round (for convergence detection)
   sdouble zero; //pad to x8
 
-  vertex_data(){ 
-     prev_mean = 1000;
-     prior_mean = prior_prec = real = cur_mean = cur_prec = prev_prec = 0;
-   };
+
+  vertex_data();
 
 };
 

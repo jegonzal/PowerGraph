@@ -359,7 +359,7 @@ void save_matrix_market_vector(const std::string& filename, const std::vector<do
     else 
       mm_write_mtx_array_size(f, a.size(), 1);
 
-    for (i=0; i<a.size(); i++){
+    for (i=0; i<(int)a.size(); i++){
       if (issparse){
         if (integer)
           fprintf(f, "%d %d %d\n", i+1, 1, (int)a[i]);

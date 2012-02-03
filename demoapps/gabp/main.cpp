@@ -87,6 +87,13 @@ void gamp_main(gl_types_gamp::core &glcore);
 advanced_config config;
 problem_setup ps;
 
+vertex_data::vertex_data(){ 
+     prev_mean = 1000;
+     prior_mean = prior_prec = real = cur_prec = prev_prec = cur_mean = 0;
+     if (config.init_mode == INIT_RANDOM)
+       cur_mean = drand48();
+};
+
 
 
 
