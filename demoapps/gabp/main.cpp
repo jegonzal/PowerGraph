@@ -43,6 +43,7 @@
 #include <cmath>
 #include <cstdio>
 #include "linear.h"
+#include "math.hpp"
 
 const char * countername[] = {"EDGE_TRAVERSAL", "NODE_TRAVERSAL", "RECOMPUTE_EXP_AX_LOGREG", "GAMP_MULT_A", "GAMP_MULT_AT", "GAMP_VEC_A", "GAMP_VEC_AT"};
 const char* runmodesnames[]= {"GaBP", "Jacobi", "Conjugate Gradient", "GaBP inverse", "Least Squares", "Shotgun Lasso", "Shotgun Logreg", "Generalized Approximate Message Passing (GAMP)"};
@@ -298,6 +299,21 @@ double start(graphlab::command_line_options &clopts, advanced_config &config){
   }
   // POST-PROCESSING *****
   std::cout << runmodesnames[config.algorithm] << " finished in " << runtime << std::endl;
+
+ 
+  if (config.calc_solution_residual){
+    coretype _core;
+    _core.set_engine_options(clopts); // Set the engine options
+    _core.graph() = core.graph();
+    clopts.set_scheduler_type("fifo");
+    _core.set_engine_options(clopts);
+    glcore = &_core;
+    init_row_cols();
+    DistMat A;
+    DistVec b(0,true), x(config.algorithm==CONJUGATE_GRADIENT ? 4 : 3, true), t(6, true);
+    t=A*x-b;
+    logstream(LOG_ERROR) << "Solution residual (norm(Ax-b)) is: " << norm(t).toDouble() << std::endl;
+  }
 
   fill_output(&core.graph());
 

@@ -420,7 +420,6 @@ void Axb(gl_types::iscope &scope,
   assert(r_offset >=0);
   double val = 0;
   assert(x_offset >=0 || y_offset>=0);
-
   timer t; t.start();
   
   /*** COMPUTE r = c*A*x  ********/
@@ -451,7 +450,8 @@ void Axb(gl_types::iscope &scope,
 }
 
 void fast_Axb(graph_type * g, std::vector<vertex_id_t> nodes){
-   
+ 
+
    timer t; t.start();
    for (int j=0; j< (int)nodes.size(); j++){
        vertex_id_t i =  nodes[j];

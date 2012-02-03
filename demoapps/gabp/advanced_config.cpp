@@ -38,6 +38,7 @@ void advanced_config::init_command_line_options(graphlab::command_line_options &
   clopts.attach_option("lambda", &shotgun_lambda, shotgun_lambda, "shotgun: lambda");
   clopts.attach_option("matrixmarket", &matrixmarket, matrixmarket, "Input data is in matrix market format");
   clopts.attach_option("init_mode", &init_mode, init_mode, "starting vector initialization mode. 0 = 0, 1 = random");
+  clopts.attach_option("calc_solution_residual", &calc_solution_residual, calc_solution_residual, "calc solution residual of the linear solver (norm(y-Ax))");
 }
 
 void problem_setup::verify_setup(graphlab::command_line_options& clopts){

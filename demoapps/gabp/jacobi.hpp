@@ -37,7 +37,6 @@
 #include "linear.h"
 #include <graphlab/macros_def.hpp>
 
-
 /***
  * JACOBI UPDATE FUNCTION
  * x_i = (b_i - \sum_j A_ij * x_j)/A_ii

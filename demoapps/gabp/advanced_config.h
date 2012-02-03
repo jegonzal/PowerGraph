@@ -111,6 +111,9 @@ bool svd_orthogonolize;
 /* variables for CG */
 bool cg_resid;
 
+/* Variables for linear solvers */
+bool calc_solution_residual;
+
 /* implicit ratings variables (see reference 10 in pmf.h) */
 float implicitratingweight;
 float implicitratingvalue;
@@ -164,7 +167,7 @@ advanced_config(){
     syncinterval = 10000;
     iter = 20;
     ncpus = 1;
-    cg_resid = true;
+    cg_resid = false;
     zero=true;
     isfloat = true;
     unittest = 0;
