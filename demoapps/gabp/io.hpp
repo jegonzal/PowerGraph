@@ -48,7 +48,7 @@ template<typename graph_type, typename vertex_data>
 void add_vertices(graph_type& graph){
      for (int i=0; i< (int)(config.square ? ps.m : ps.m+ps.n); i++){
        vertex_data data;
-       init_vertex_data(data, 1, GABP_PRIOR_MEAN_OFFSET, ps.last_node, i); 
+       init_vertex_data(data, config.supportgraphlabcf ? 1 : 0, GABP_PRIOR_MEAN_OFFSET, ps.last_node, i); 
        graph.add_vertex(data);
      }
 }
