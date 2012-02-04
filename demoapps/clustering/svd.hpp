@@ -287,13 +287,13 @@ void svd_ATxb(gl_types::iscope &scope,
   /* GET current vertex data */
   vertex_data& user = scope.vertex_data();
   int id = scope.vertex();
-  bool toprint = false; //(ac.debug && (id == ps.M || id == ps.M+ps.N-1));
+  bool toprint = (ac.debug && (id == ps.M || id == ps.M+ps.N-1));
   int m = ac.iter; 
   
   /* print statistics */
   if (toprint){
     printf("svd_ATxb: entering  node  %u \n",  id);   
-    debug_print_vec2("V" , user.pvec, m, id);
+    //debug_print_vec2("V" , user.pvec, m, id);
   }
 
   user.pvec[0] = 0;
@@ -332,13 +332,13 @@ void svd_ATxb2(gl_types::iscope &scope,
   /* GET current vertex data */
   vertex_data& user = scope.vertex_data();
   int id = scope.vertex();
-  bool toprint = false; //(ac.debug && (id == 0 || id == ps.M-1));
+  bool toprint = (ac.debug && (id == 0 || id == ps.M-1));
   int m = ac.iter; 
   
   /* print statistics */
   if (toprint)
     printf("svd_ATxb: entering  node  %d \n",  id);   
-    debug_print_vec2("V" , user.pvec, m, id);
+    //debug_print_vec2("V" , user.pvec, m, id);
 
   user.pvec[0] = 0;
   gl_types::edge_list out = scope.out_edge_ids();
