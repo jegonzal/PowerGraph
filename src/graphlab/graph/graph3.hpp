@@ -99,7 +99,8 @@ uint array_from_file(std::string filename, T *& array){
 }
 
 enum iterator_type {INEDGE, OUTEDGE}; 
-
+uint gnum_nodes;
+uint g_num_edges;
 
 uint mmap_from_file(std::string filename, uint *& array);
 
@@ -108,7 +109,13 @@ namespace graphlab {
    uint _source; 
    uint _target;
    uint _offset;
-   edge_type_impl(uint source, uint target, uint offset) : _source(source), _target(target), _offset(offset) {}
+
+   edge_type_impl(uint source, uint target, uint offset) : _source(source), _target(target), _offset(offset) {
+     assert(source != target);
+     assert(source <= gnum_nodes);
+     assert(target <= gnum_nodes);
+    
+   }
    edge_type_impl() : _source(-1), _target(-1), _offset(-1) { }
    uint source() const { return _source; }
    uint target() const { return _target; }
@@ -126,16 +133,24 @@ namespace graphlab {
       typedef edge_type reference;
     public:
       // Cosntructors
-      edge_iterator () : offset(-1), empty(true) { }
+      edge_iterator () : center(-1), offset(-1), empty(true), data_ptr(NULL) { }
      
-      edge_iterator (vertex_id_type _center, size_t _offset, 
-                     iterator_type _itype, const uint* _gstore_ptr) : 
+      edge_iterator (vertex_id_type _center, uint _offset, 
+                     iterator_type _itype, const uint* _data_ptr) : 
         center(_center), offset(_offset), itype(_itype), empty(false), 
-        gstore_ptr(_gstore_ptr) { }
+        data_ptr(_data_ptr) { 
+          assert(center < gnum_nodes);
+          assert(offset <= g_num_edges);
+          ASSERT_NE(data_ptr, NULL); 
+        }
       
       edge_iterator (const edge_iterator& it) :
         center(it.center), offset(it.offset), itype(it.itype), 
-        empty(it.empty), gstore_ptr(it.gstore_ptr) { }
+        empty(it.empty), data_ptr(it.data_ptr) { 
+        assert(center < gnum_nodes);
+        assert(offset <= g_num_edges);
+        ASSERT_NE(data_ptr, NULL);
+      }
   
       inline edge_type operator*() const  {
         ASSERT_TRUE(!empty);
@@ -150,13 +165,11 @@ namespace graphlab {
 
 
       inline bool operator==(const edge_iterator& it) const {
-        return (empty && it.empty) || 
-          (empty == it.empty && itype == it.itype && center == it.center && 
-           offset == it.offset);
+        return offset == it.offset;
       }
 
       inline bool operator!=(const edge_iterator& it) const { 
-        return !(*this == it);
+        return offset != it.offset;
       }
 
       inline edge_iterator& operator++() {
@@ -179,39 +192,35 @@ namespace graphlab {
       }
 
       inline edge_iterator operator+(size_t i) const {
-        edge_iterator retval(center, offset+i, itype, gstore_ptr);
+        edge_iterator retval(center, offset+i, itype, data_ptr);
         return retval;
       }
 
     private:
       // Generate the ret value of the iterator.
       inline edge_type make_value() const {
-        edge_type ret;
-        if (itype == INEDGE) {
-          edge_type rvalue(gstore_ptr[offset], center, offset);
-          ret = rvalue;
-        } else if (itype == OUTEDGE) {
-          edge_type rvalue(center, gstore_ptr[offset], offset);
-          ret = rvalue;
-        } else {
-          logstream(LOG_FATAL) << "Edge iterator type is invalid." 
-                               << std::endl;
-        }
-        return ret;
+          ASSERT_NE(data_ptr, NULL);
+          assert(offset < g_num_edges);
+          assert(center < gnum_nodes);
+          assert(data_ptr[offset] < gnum_nodes);
+          //logstream(LOG_INFO)<<"Make value called with center"<<center<<" offset: " << offset << " location: " << data_ptr[offset] << " data_ptr: " << data_ptr << std::endl;
+
+          return (itype == INEDGE)  ?
+             edge_type(data_ptr[offset], center, offset) :
+             edge_type(center, data_ptr[offset], offset);
       }
     private:
       vertex_id_type center;
       uint offset;
       iterator_type itype;
       bool empty;
-      const uint* gstore_ptr;
+      const uint* data_ptr;
     }; // end of class edge_iterator.
 
 
 
   struct edge_list{
     uint * start_ptr;
-    uint * end_ptr;
     uint _size;
     uint source;
     uint abs_offset;
@@ -219,26 +228,34 @@ namespace graphlab {
     typedef edge_iterator const_iterator;
     typedef edge_type value_type;
     iterator_type itype;
+    edge_iterator begin_ptr;
+    edge_iterator end_iter_ptr;
 
-    edge_list(): start_ptr(NULL), end_ptr(NULL), _size(0), source(-1), abs_offset(0), itype(OUTEDGE) { }
-    edge_list(uint * _start_ptr, uint * _end_ptr, uint size, uint _source, uint _abs_offset, iterator_type _itype){
-      start_ptr = _start_ptr; end_ptr = _end_ptr; abs_offset = _abs_offset;
+    edge_list(): start_ptr(NULL), _size(0), source(-1), abs_offset(0), itype(OUTEDGE) { }
+    edge_list(uint * _start_ptr, uint size, uint _source, uint _abs_offset, iterator_type _itype) : 
+      begin_ptr(_source, _abs_offset, _itype, _start_ptr), 
+      end_iter_ptr(_source, _abs_offset+size, _itype, _start_ptr){
+      start_ptr = _start_ptr; abs_offset = _abs_offset;
       _size = size; source = _source; itype = _itype;
+      assert(source < gnum_nodes); 
+      //logstream(LOG_INFO)<<"creating edge list with start ptr: " << _start_ptr << std::endl;
+      assert(_abs_offset+size <= g_num_edges);
+      assert(size < gnum_nodes); 
     }
 
     uint size() const { return _size; }
 
     edge_type operator[](uint i) const{
       ASSERT_LT(i, _size);
+      assert(source < gnum_nodes);
       if (itype == OUTEDGE)
-        return edge_type(source, *(start_ptr+i), abs_offset+i);
-      else return edge_type(*(start_ptr+i), source, abs_offset+i);
+        return edge_type(source, *(start_ptr+abs_offset+i), abs_offset+i);
+      else return edge_type(*(start_ptr+abs_offset+i), source, abs_offset+i);
     }
-    edge_iterator begin() const { return edge_iterator(source, 0, itype, start_ptr ); }
-    edge_iterator end() const { return edge_iterator(source, 0, itype, end_ptr ); }
-     bool empty() const { return size() == 0; }
-
-
+     
+    bool empty() const { return size() == 0; }
+    iterator begin() const { return begin_ptr; }
+    iterator end() const { return end_iter_ptr; }
   };
 
 
@@ -497,22 +514,22 @@ namespace graphlab {
 
     edge_list_type in_edges(vertex_id_type v) {
       ASSERT_LT(v, num_nodes);
-      return edge_list_type(&node_in_edges[node_in_degrees[v]], &node_in_edges[node_in_degrees[v+1]], num_in_edges(v),v,node_in_degrees[v], INEDGE);  
+      return edge_list_type(node_in_edges, num_in_edges(v),v,node_in_degrees[v], INEDGE);  
     }
 
     edge_list_type out_edges(vertex_id_type v) {
       ASSERT_LT(v, num_nodes);
-      return edge_list_type(&node_out_edges[node_out_degrees[v]], &node_out_edges[node_out_degrees[v+1]], num_out_edges(v),v, node_out_degrees[v], OUTEDGE);
+      return edge_list_type(node_out_edges, num_out_edges(v),v, node_out_degrees[v], OUTEDGE);
     }
 
     const edge_list_type in_edges(vertex_id_type v) const {
       ASSERT_LT(v, num_nodes);
-      return edge_list_type(&node_in_edges[node_in_degrees[v]], &node_in_edges[node_in_degrees[v+1]], num_in_edges(v),v,node_in_degrees[v], INEDGE);  
+      return edge_list_type(node_in_edges, num_in_edges(v),v,node_in_degrees[v], INEDGE);  
      }
 
     const edge_list_type out_edges(vertex_id_type v) const {
       ASSERT_LT(v, num_nodes);
-      return edge_list_type(&node_out_edges[node_out_degrees[v]], &node_out_edges[node_out_degrees[v+1]], num_out_edges(v),v,node_out_degrees[v], OUTEDGE);
+      return edge_list_type(node_out_edges,num_out_edges(v),v,node_out_degrees[v], OUTEDGE);
      }
 
     const vertex_color_type& color(vertex_id_type vertex) const {
@@ -638,7 +655,8 @@ namespace graphlab {
            assert(rc/sizeof(double) == size_t(_num_edges)); 
            logstream(LOG_INFO) << filename << " Read: " << _num_edges << " weights " << std::endl;
          }
-
+         gnum_nodes = num_nodes;
+         g_num_edges = _num_edges;
     } // end of load
 
  

@@ -175,13 +175,15 @@ struct lanczos_update :
   }
 
   const edge_list_type outs= context.out_edges();
+  //assert(outs.size() > 0);
   if (outs.size() == 0)
      return;
 
-  // for (size_t i=0; i< outs.size(); i++) {
-      // const edge_type& e = outs[i];
-  foreach (const edge_type& e, outs) {
+  for (size_t i=0; i< outs.size(); i++) {
+    const edge_type& e = outs[i];
+  //foreach (const edge_type &e, outs) {
       const edge_data& edge = context.const_edge_data(e);
+      //logstream(LOG_INFO)<<" Node: " << context.vertex_id() << " " << edge.weight << " " << e.source() << ":" << e.target() << "@" << e.offset() << std::endl;
       const vertex_data  & movie = context.const_vertex_data(e.target());
       user.value += edge.weight * movie.pvec[offset];
   }
@@ -203,15 +205,18 @@ struct lanczos_update :
   int offset3 = context.get_global<int>("offset3");
 
   const edge_list_type ins = context.in_edges();
+  //assert(ins.size() > 0);
   if (ins.size() == 0)
     return;
 
-   // for (size_t i=0; i< ins.size(); i++) {
-      // const edge_type& e = ins[i];
-   foreach (const edge_type& e, ins) {
+   for (size_t i=0; i< ins.size(); i++) {
+       const edge_type& e = ins[i];
+   //foreach (const edge_type& e, ins) {
       const edge_data& edge = context.const_edge_data(e);
       const vertex_data  & movie = context.const_vertex_data(e.source());
+      //logstream(LOG_INFO)<<" Node: " << context.vertex_id() << " " << edge.weight << " " << e.source() << ":" << e.target() << "@" << e.offset() << std::endl;
        user.value += edge.weight * movie.value;
+      assert(e.source() != e.target());
    }
    
    assert(offset2 < m+2 && offset3 < m+2);
