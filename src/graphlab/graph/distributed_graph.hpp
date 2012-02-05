@@ -54,6 +54,7 @@
 #include <graphlab/serialization/iarchive.hpp>
 #include <graphlab/serialization/oarchive.hpp>
 #include <graphlab/graph/graph.hpp>
+#include <graphlab/graph/graph2.hpp>
 
 
 
@@ -79,7 +80,7 @@ namespace graphlab {
 
 
     /// The type of the local graph used to store the graph data 
-    typedef graphlab::graph<VertexData, EdgeData> local_graph_type;
+    typedef graphlab::graph2<VertexData, EdgeData> local_graph_type;
 
     /** 
      * The type of the local vertex id and local edge id.
@@ -105,7 +106,6 @@ namespace graphlab {
                   edge_id_type eid, procid_t owner): _src(src), _tar(tar),
                   _eid(eid), _owner(owner), _empty(false) { }
         edge_type () : _src(-1), _tar(-1), _eid(-1), _owner(-1), _empty(true) { }
-
         inline vertex_id_type source() const {
           ASSERT_FALSE(empty()); 
           return _src;
@@ -170,86 +170,87 @@ namespace graphlab {
       const_iterator begin() const { return begin_iter; }
       const_iterator end() const { return end_iter; }
       bool empty() const { return size() == 0; }  
-    };
+    }; // end of local_edge_list_type
 
     /** This class represents an iterator over edge list stored on remote machine*/
     class remote_edge_iterator {
-    public:
-      typedef typename local_edge_type::edge_dir iterator_type;
-      typedef local_edge_type reference;
-    public:
-      // Cosntructors
-      remote_edge_iterator (procid_t proc) : 
-        offset(-1), empty(true), proc(proc) { }
-     
-      remote_edge_iterator (procid_t proc, vertex_id_type _center, 
-          size_t _offset, iterator_type _itype) : 
-        proc(proc), center(_center), offset(_offset), 
-        itype(_itype), empty(false) { }
-      
-      remote_edge_iterator (const remote_edge_iterator& it) :
-        proc(it.proc), center(it.center), offset(it.offset), 
-        itype(it.itype), empty(it.empty) { }
-  
-      inline edge_type operator*() const  {
-        ASSERT_TRUE(!empty);
-        return make_value();
-      }
+      public:
+        typedef typename local_edge_type::edge_dir iterator_type;
+        typedef local_edge_type reference;
+      public:
+        // Cosntructors
+        remote_edge_iterator (procid_t proc) : 
+          offset(-1), empty(true), proc(proc) { }
 
-      typedef boost::detail::
-      operator_arrow_result<edge_type, edge_type, edge_type*> arrow_type;
-      inline typename arrow_type::type operator->() const {
-        return arrow_type::make(make_value());
-      }
+        remote_edge_iterator (procid_t proc, vertex_id_type _center, 
+            size_t _offset, iterator_type _itype) : 
+          proc(proc), center(_center), offset(_offset), 
+          itype(_itype), empty(false) { }
+
+        remote_edge_iterator (const remote_edge_iterator& it) :
+          proc(it.proc), center(it.center), offset(it.offset), 
+          itype(it.itype), empty(it.empty) { }
+
+        inline edge_type operator*() const  {
+          ASSERT_TRUE(!empty);
+          return make_value();
+        }
+
+        typedef boost::detail::
+          operator_arrow_result<edge_type, edge_type, edge_type*> arrow_type;
+        inline typename arrow_type::type operator->() const {
+          return arrow_type::make(make_value());
+        }
 
 
-      inline bool operator==(const remote_edge_iterator& it) const {
-        return (proc == it.proc && empty && it.empty) || 
-          (proc == it.proc && empty == it.empty &&
-           itype == it.itype && center == it.center && 
-           offset == it.offset);
-      }
+        inline bool operator==(const remote_edge_iterator& it) const {
+          return (proc == it.proc && empty && it.empty) || 
+            (proc == it.proc && empty == it.empty &&
+             itype == it.itype && center == it.center && 
+             offset == it.offset);
+        }
 
-      inline bool operator!=(const remote_edge_iterator& it) const { 
-        return !(*this == it);
-      }
+        inline bool operator!=(const remote_edge_iterator& it) const { 
+          return !(*this == it);
+        }
 
-      inline remote_edge_iterator& operator++() {
-        ASSERT_TRUE(!empty);
-        ++offset;
-        return *this;
-      }
+        inline remote_edge_iterator& operator++() {
+          ASSERT_TRUE(!empty);
+          ++offset;
+          return *this;
+        }
 
-      inline remote_edge_iterator operator++(int) {
-        ASSERT_TRUE(!empty);
-        const remote_edge_iterator copy(*this);
-        operator++();
-        return copy;
-      }
+        inline remote_edge_iterator operator++(int) {
+          ASSERT_TRUE(!empty);
+          const remote_edge_iterator copy(*this);
+          operator++();
+          return copy;
+        }
 
-      inline int operator-(const remote_edge_iterator& it) const {
-        ASSERT_TRUE(!empty && itype == it.itype && center == it.center);
-        return offset - it.offset;
-      }
+        inline int operator-(const remote_edge_iterator& it) const {
+          ASSERT_TRUE(!empty && itype == it.itype && center == it.center);
+          return offset - it.offset;
+        }
 
-      inline remote_edge_iterator operator+(size_t i) const {
-        remote_edge_iterator retval(proc, center, offset+i, itype);
-        return retval;
-      }
+        inline remote_edge_iterator operator+(size_t i) const {
+          remote_edge_iterator retval(proc, center, offset+i, itype);
+          return retval;
+        }
 
-      // Generate the ret value of the iterator.
-      inline edge_type make_value() const {
-        // Not implemented
-        ASSERT_TRUE(false);
-        return edge_type();
-      }
+        // Generate the ret value of the iterator.
+        inline edge_type make_value() const {
+          // Not implemented;
+          logstream(LOG_WARNING) << "make_value not implemented. " << std::endl;
+          ASSERT_TRUE(false);
+          return edge_type();
+        }
 
-    private:
-      procid_t proc;
-      vertex_id_type center;
-      size_t offset;
-      iterator_type itype;
-      bool empty;
+      private:
+        procid_t proc;
+        vertex_id_type center;
+        size_t offset;
+        iterator_type itype;
+        bool empty;
     }; // end of remote_edge_iterator
 
     class edge_iterator : 
@@ -385,8 +386,6 @@ namespace graphlab {
         size_t list_size;
     }; // end of class edge_list.
 
-
-
   private:
     /**
      * The vertex record stores information associated with each
@@ -430,8 +429,9 @@ namespace graphlab {
     /** The global number of vertices and edges */
     size_t nverts, nedges;
 
-    /** The map from proc_id to num_vertices o proc */
-    std::vector<size_t> proc_num_vertices;
+    /** The number of vertices owned by this proc */
+    size_t local_own_nverts;
+
     /** The map from proc_id to num_edges that proc */
     std::vector<size_t> proc_num_edges;
 
@@ -440,7 +440,8 @@ namespace graphlab {
   public:
 
     // CONSTRUCTORS ==========================================================>
-    distributed_graph(distributed_control& dc) : rpc(dc, this) {
+    distributed_graph(distributed_control& dc) : 
+      rpc(dc, this), nverts(0), nedges(0), local_own_nverts(0) {
       rpc.barrier();
     }
 
@@ -496,6 +497,18 @@ namespace graphlab {
     //! Get the number of edges which edge.source() == v
     size_t num_out_edges(const vertex_id_type v) const;
 
+    // Get all the local edge which edge.target() == v
+    local_edge_list_type l_in_edges(const vertex_id_type v) const;
+
+    // Get the number of local edges which edge.target() == v
+    size_t l_num_in_edges(const vertex_id_type v) const;
+
+    // Get all the local edges which edge.source() == v
+    local_edge_list_type l_out_edges(const vertex_id_type v) const;
+
+    // Get the number of local edges which edge.source() == v
+    size_t l_num_out_edges(const vertex_id_type v) const;
+
     /** \brief Returns a reference to the data stored on the vertex
         v. */
     VertexData& vertex_data(vertex_id_type v);
@@ -531,18 +544,7 @@ namespace graphlab {
     void add_edge(vertex_id_type source, vertex_id_type target, 
                   const EdgeData& edata = EdgeData());
 
-    //! Get all the local edge which edge.target() == v
-    local_edge_list_type l_in_edges(const vertex_id_type v) const;
-
-    //! Get the number of local edges which edge.target() == v
-    size_t l_num_in_edges(const vertex_id_type v) const;
-
-    //! Get all the local edges which edge.source() == v
-    local_edge_list_type l_out_edges(const vertex_id_type v) const;
-
-    //! Get the number of local edges which edge.source() == v
-    size_t l_num_out_edges(const vertex_id_type v) const;
-
+    void resize (size_t n) { }
 
   private:
 
@@ -579,8 +581,6 @@ namespace graphlab {
       ASSERT_TRUE(iter != vid2record.end());
       return iter->second;
     }
-
-
 
 
     // Helper type used to synchronize the vertex data and assignments
@@ -710,6 +710,8 @@ namespace graphlab {
       local_graph.vertex_data(vrecord.lvid) = shuffle_rec.vdata;
       vrecord.num_in_edges = shuffle_rec.num_in_edges;
       vrecord.num_out_edges = shuffle_rec.num_out_edges;
+
+      if (vrecord.owner == rpc.procid()) ++local_own_nverts;
     }
 
 
@@ -725,6 +727,7 @@ namespace graphlab {
       nedges += proc_num_edges[i];
     }
 
+    local_graph.finalize();
 
     // // Receive assignments from coordinators
     // mpi_tools::all2all(vdata_shuffle, vdata_shuffle);
@@ -816,6 +819,8 @@ namespace graphlab {
   distributed_graph<VertexData, EdgeData>:: 
   in_edges(const vertex_id_type vid) const {
     // Not implemented.
+    logstream(LOG_WARNING) << "in_edges not implemented. " << std::endl;
+    ASSERT_TRUE(false);
     return edge_list_type();
   } // end of in_edges
  
@@ -847,6 +852,7 @@ namespace graphlab {
   distributed_graph<VertexData, EdgeData>:: 
   out_edges(const vertex_id_type vid) const { 
     // Not implemented;
+    logstream(LOG_WARNING) << "out_edges not implemented. " << std::endl;
     ASSERT_TRUE(false);
     return edge_list_type();
   } // end of out_edges
