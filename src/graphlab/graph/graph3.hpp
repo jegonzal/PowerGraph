@@ -109,17 +109,18 @@ namespace graphlab {
    uint _source; 
    uint _target;
    uint _offset;
+   iterator_type _direction;
 
-   edge_type_impl(uint source, uint target, uint offset) : _source(source), _target(target), _offset(offset) {
+   edge_type_impl(uint source, uint target, uint offset, iterator_type direction) : _source(source), _target(target), _offset(offset), _direction(direction) {
      assert(source != target);
      assert(source <= gnum_nodes);
      assert(target <= gnum_nodes);
-    
    }
    edge_type_impl() : _source(-1), _target(-1), _offset(-1) { }
    uint source() const { return _source; }
    uint target() const { return _target; }
    uint offset() const { return _offset; }
+   iterator_type direction() const { return _direction; }
   };
 
 
@@ -206,8 +207,8 @@ namespace graphlab {
           //logstream(LOG_INFO)<<"Make value called with center"<<center<<" offset: " << offset << " location: " << data_ptr[offset] << " data_ptr: " << data_ptr << std::endl;
 
           return (itype == INEDGE)  ?
-             edge_type(data_ptr[offset], center, offset) :
-             edge_type(center, data_ptr[offset], offset);
+             edge_type(data_ptr[offset], center, offset, itype) :
+             edge_type(center, data_ptr[offset], offset, itype);
       }
     private:
       vertex_id_type center;
@@ -249,8 +250,8 @@ namespace graphlab {
       ASSERT_LT(i, _size);
       assert(source < gnum_nodes);
       if (itype == OUTEDGE)
-        return edge_type(source, *(start_ptr+abs_offset+i), abs_offset+i);
-      else return edge_type(*(start_ptr+abs_offset+i), source, abs_offset+i);
+        return edge_type(source, *(start_ptr+abs_offset+i), abs_offset+i, itype);
+      else return edge_type(*(start_ptr+abs_offset+i), source, abs_offset+i, itype);
     }
      
     bool empty() const { return size() == 0; }
@@ -308,6 +309,7 @@ namespace graphlab {
     uint * node_out_edges;
     std::vector<VertexData> *node_vdata_array;
     EdgeData * edge_weights;
+    EdgeData * in_edge_weights;
     char _color; //not implement yet
     EdgeData _edge;
 
@@ -320,7 +322,7 @@ namespace graphlab {
     graph3(){
       num_nodes = _num_edges = 0;
       node_in_edges = node_out_edges = node_in_degrees = node_out_degrees = NULL;
-      edge_weights = NULL;
+      edge_weights = in_edge_weights = NULL;
       node_vdata_array = NULL;
       _color = 0; //not implement yet
       undirected = false;
@@ -355,6 +357,9 @@ namespace graphlab {
        }
        if (edge_weights != NULL){
          delete [] edge_weights; edge_weights = NULL;
+       }
+       if (in_edge_weights != NULL){
+         delete [] in_edge_weights; in_edge_weights = NULL;
        }
 }
 
@@ -404,20 +409,20 @@ namespace graphlab {
 
        for (uint i=node_out_degrees[source]; i< node_out_degrees[source+1]; i++)
           if (node_out_edges[i] == _target)
-	     return edge_type(source, _target, i);
+	     return edge_type(source, _target, i, OUTEDGE);
 	  else if (node_out_edges[i] > _target) //incoming edges asssumed to be sorted
-              return edge_type(-1,-1,-1);
+              return edge_type(-1,-1,-1, OUTEDGE);
        
-        return edge_type(-1,-1,-1);
+        return edge_type(-1,-1,-1, OUTEDGE);
    
     } // end of find
 
     edge_type reverse_edge(const edge_type& edge) const {
         for (uint i=node_in_degrees[edge.source()]; i< node_in_degrees[edge.source()+1]; i++)
           if (node_in_edges[i] == edge.source())
-	     return edge_type(edge.target(), edge.source(), i);
+	     return edge_type(edge.target(), edge.source(), i, INEDGE);
 
-      return edge_type(-1,-1,-1);
+      return edge_type(-1,-1,-1, INEDGE);
     }
 
 
@@ -494,14 +499,14 @@ namespace graphlab {
       ASSERT_NE(edge.offset(), -1);
       if (edge_weights == NULL)
        return _edge;
-      else return edge_weights[edge.offset()];
+      else return edge.direction() == INEDGE ? in_edge_weights[edge.offset()] : edge_weights[edge.offset()];
     }
     const EdgeData& edge_data(edge_type edge) const {
        ASSERT_NE(edge.offset(), -1);
        if (edge_weights == NULL)
        return _edge;
        else
-       return edge_weights[edge.offset()];
+       return edge.direction() == INEDGE ? in_edge_weights[edge.offset()] : edge_weights[edge.offset()];
     }
 
     size_t num_in_edges(const vertex_id_type v) const {
@@ -654,6 +659,10 @@ namespace graphlab {
            rc = array_from_file(filename + ".weights", edge_weights);
            assert(rc/sizeof(double) == size_t(_num_edges)); 
            logstream(LOG_INFO) << filename << " Read: " << _num_edges << " weights " << std::endl;
+           rc = array_from_file(filename + "-r.weights", in_edge_weights);
+           assert(rc/sizeof(double) == size_t(_num_edges)); 
+           logstream(LOG_INFO) << filename << " Read: " << _num_edges << " reverse weights " << std::endl;
+           
          }
          gnum_nodes = num_nodes;
          g_num_edges = _num_edges;
