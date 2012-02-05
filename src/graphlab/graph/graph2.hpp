@@ -46,7 +46,7 @@
 #ifndef GRAPHLAB_GRAPH2_HPP
 #define GRAPHLAB_GRAPH2_HPP
 
-#define DEBUG_GRAPH
+// #define DEBUG_GRAPH
 
 #include <omp.h>
 #include <cmath>

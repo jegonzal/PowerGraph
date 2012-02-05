@@ -32,12 +32,12 @@
 #ifndef GRAPHLAB_GRAPH_OPS_HPP
 #define GRAPHLAB_GRAPH_OPS_HPP
 
-// #include <boost/iostreams/stream.hpp>
-// #include <boost/iostreams/device/mapped_file.hpp>
-// #include <boost/iostreams/filtering_streambuf.hpp>
-// #include <boost/iostreams/filtering_stream.hpp>
-// #include <boost/iostreams/copy.hpp>
-// #include <boost/iostreams/filter/gzip.hpp>
+#include <boost/iostreams/stream.hpp>
+#include <boost/iostreams/device/mapped_file.hpp>
+#include <boost/iostreams/filtering_streambuf.hpp>
+#include <boost/iostreams/filtering_stream.hpp>
+#include <boost/iostreams/copy.hpp>
+#include <boost/iostreams/filter/gzip.hpp>
 
 #include <iostream>
 #include <fstream>
@@ -321,17 +321,23 @@ namespace graphlab {
 
 
     static bool load_adj_structure(const std::string& fname,
-                                   graph_type& graph) {
-      // std::ifstream in_file(fname.c_str(), 
-      //                       std::ios_base::in | std::ios_base::binary);
-      // if(!in_file.good()) return false;
-      // bios::filtering_stream<bios::input> fin;  
-      // fin.push(bios::gzip_decompressor());
-      // fin.push(in_file);
-      // assert(fin.good());
+                                   graph_type& graph, bool gzip=false) {
       logstream(LOG_INFO) << "Loading adjacency file" << std::endl;
-      std::ifstream fin(fname.c_str());
-      if(!fin.good()) return false;
+        namespace bios = boost::iostreams;
+        std::ifstream in_file(fname.c_str(), 
+                              std::ios_base::in | std::ios_base::binary);
+        bios::filtering_stream<bios::input> fin;  
+        // Using gzip filter
+        if (gzip)
+          fin.push(bios::gzip_decompressor());
+        fin.push(in_file);
+        fin.set_auto_close(true);
+        assert(fin.good());
+
+      if(!fin.good()) {
+        logstream(LOG_WARNING) << "file open failed" << std::endl;
+        return false;
+      }
       logstream(LOG_INFO) << "file open successful" << std::endl;
       size_t self_edges = 0;     
       size_t ctr = 0;
@@ -373,7 +379,7 @@ namespace graphlab {
             << "Added edata for " << ctr << " vertices: " 
             << source << std::endl; 
       } // end of loop over file
-      fin.close();
+        // fin.close();
       return true;
     } // end of load_adj_list
 
@@ -381,11 +387,12 @@ namespace graphlab {
 
     static bool load_structure(const std::string& fname,
                                const std::string& format,
-                               graph_type& graph) {
+                               graph_type& graph,
+                               bool gzip = false) {
       if (format == "metis") return load_metis_structure(fname, graph);
       else if (format == "snap") return load_snap_structure(fname, graph);
       else if (format == "tsv") return load_edge_list_structure(fname, graph);
-      else if (format == "adj") return load_adj_structure(fname, graph);
+      else if (format == "adj") return load_adj_structure(fname, graph, gzip);
       else {
         logstream(LOG_WARNING)
           << "Invalid format \"" << format << "\".  "
