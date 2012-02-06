@@ -66,6 +66,8 @@ void init_knn(){
       vertex_data & data = validation->vertex_data(i);
       data.min_distance = sum_sqr(data.datapoint);
    }
+
+   logstream(LOG_INFO)<<"Training is: " << training << " validation is: " << validation << std::endl;
 }
 
 
@@ -122,6 +124,7 @@ void knn_update_function(gl_types::iscope &scope,
    int start = (ps.algorithm == USER_KNN ? 0 : ps.M);
    int end = (ps.algorithm == USER_KNN ? ps.M : ps.M+ps.N);
   int howmany = (end-start)*ac.knn_sample_percent;
+  assert(howmany > 0 );
   flt_dbl_vec distances = zeros(howmany);
   ivec indices = ivec(howmany);
    if (ac.knn_sample_percent == 1.0){
@@ -133,9 +136,6 @@ void knn_update_function(gl_types::iscope &scope,
   }
   else for (int i=0; i<howmany; i++){
         int random_other = ::randi(start, end-1);
-        while(random_other == id){
-	  random_other == ::randi(start, end-1);
-        }
         vertex_data & other = training->vertex_data(random_other);
         distances[i] = calc_distance(vdata.datapoint, other.datapoint, other.min_distance, vdata.min_distance);
         indices[i] = random_other;
@@ -144,12 +144,13 @@ void knn_update_function(gl_types::iscope &scope,
   ivec indices_sorted = sort_index2(distances, indices);
   sort(distances); 
   vdata.distances = wrap_answer(distances, indices_sorted, ps.K);
+  assert(vdata.distances.size() == ps.K*2);
   if (toprint)
     printf("Closest is: %d with distance %g\n", (int)vdata.distances[1], vdata.distances[0]);
 
 
   if (id % 100 == 0)
-    printf("handling validation row %d\n", id);
+    printf("handling validation row %d at time: %g\n", id, ps.gt.current_time());
 }
 
 void copy_assignments(flt_dbl_mat &a, const flt_dbl_vec& distances, int i, graph_type* validation){

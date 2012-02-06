@@ -312,6 +312,11 @@ void start(command_line_options & clopts) {
   if (!ac.manualgraphsetup){
   if (!ac.loadgraph){
     graph_type *training = &glcore.graph();
+    graph_type* validation = NULL;		
+    if (ac.algorithm == ITEM_KNN || ac.algorithm == USER_KNN){		
+	        validation = training;		
+	        training = new graph_type();	
+    }	
     ps.set_graph(TRAINING, training);
     load_graph<graph_type>(ac.datafile.c_str(), training, TRAINING);
     if (ac.K > ps.M){
@@ -321,10 +326,8 @@ void start(command_line_options & clopts) {
       
 
     if (ac.algorithm == ITEM_KNN || ac.algorithm == USER_KNN){
-       graph_type * validation = new graph_type();
        ps.set_graph(VALIDATION, validation);
        load_graph<graph_type>((ac.datafile + "e").c_str(), validation, VALIDATION);
-       glcore.graph() = *validation;      
 
        graph_type * test_graph = new graph_type();
        ps.set_graph(TEST, test_graph);
