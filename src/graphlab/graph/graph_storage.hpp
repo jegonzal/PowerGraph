@@ -89,6 +89,13 @@ namespace graphlab {
           source_arr.push_back(source);
           target_arr.push_back(target);
         }
+        void add_block_edges(const std::vector<vertex_id_type>& src_arr, 
+            const std::vector<vertex_id_type>& dst_arr, 
+            const std::vector<EdgeData>& edata_arr) {
+          data.insert(data.end(), edata_arr.begin(), edata_arr.end());
+          source_arr.insert(source_arr.end(), src_arr.begin(), src_arr.end());
+          target_arr.insert(target_arr.end(), dst_arr.begin(), dst_arr.end());
+        }
         void clear() {
           std::vector<EdgeData>().swap(data);
           std::vector<vertex_id_type>().swap(source_arr);
@@ -221,8 +228,8 @@ namespace graphlab {
       vertex_id_type center;
       size_t offset;
       iterator_type itype;
-      bool empty;
       const edge_id_type* vid_arr;
+      bool empty;
     }; // end of class edge_iterator.
 
     // Represents an iteratable list of edge_types.
@@ -483,7 +490,9 @@ namespace graphlab {
       bool duplicate_edge_warn = false;
 
       // Construct CSR_src:
+#ifdef DEBUG_GRAPH
       std::cout << "Build CSR_src..." << std::endl;
+#endif
       CSR_src.reserve(num_vertices);
       if (use_skip_list) {
         CSR_src_skip.reserve(num_vertices);

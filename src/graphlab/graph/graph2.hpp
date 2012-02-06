@@ -302,6 +302,46 @@ namespace graphlab {
       // This is not the final edge_id, so we always return 0. 
       return 0;
     } // End of add edge
+    
+    /**
+     * \brief Add edge in block
+     */
+    void add_block_edges(const std::vector<vertex_id_type>& src_arr, 
+        const std::vector<vertex_id_type>& dst_arr, 
+        const std::vector<EdgeData>& edata_arr) {
+      ASSERT_TRUE((src_arr.size() == dst_arr.size())
+         && (src_arr.size() == edata_arr.size()));
+      if (finalized)
+      {
+        logstream(LOG_FATAL)
+          << "Attempting add edges"
+          << "to a finalized graph." << std::endl;
+        ASSERT_MSG(false, "Add edge to a finalized graph.");
+      }
+
+      for (size_t i = 0; i < src_arr.size(); ++i) {
+        vertex_id_type source = src_arr[i];
+        vertex_id_type target = dst_arr[i];
+        if ( source >= vertices.size() 
+             || target >= vertices.size() ) {
+          logstream(LOG_FATAL) 
+            << "Attempting add_edge (" << source
+            << " -> " << target
+            << ") when there are only " << vertices.size() 
+            << " vertices" << std::endl;
+          ASSERT_MSG(source < vertices.size(), "Invalid source vertex!");
+          ASSERT_MSG(target < vertices.size(), "Invalid target vertex!");
+        }
+
+        if(source == target) {
+          logstream(LOG_FATAL) 
+            << "Attempting to add self edge (" << source << " -> " << target <<  ").  "
+            << "This operation is not permitted in GraphLab!" << std::endl;
+          ASSERT_MSG(source != target, "Attempting to add self edge!");
+        }
+      }
+      edges_tmp.add_block_edges(src_arr, dst_arr, edata_arr);
+    } // End of add block edges
 
     
     /** \brief Returns a reference to the data stored on the vertex v. */
@@ -340,26 +380,32 @@ namespace graphlab {
     }
 
     size_t num_in_edges(const vertex_id_type v) const {
+      ASSERT_TRUE(finalized);
       return gstore.num_in_edges(v);
     }
 
     size_t num_out_edges(const vertex_id_type v) const {
+      ASSERT_TRUE(finalized);
       return gstore.num_out_edges(v);
     }
 
     edge_list_type in_edges(vertex_id_type v) {
+      ASSERT_TRUE(finalized);
       return gstore.in_edges(v);
     }
 
     edge_list_type out_edges(vertex_id_type v) {
+      ASSERT_TRUE(finalized);
       return gstore.out_edges(v);
     }
 
     const edge_list_type in_edges(vertex_id_type v) const {
+      ASSERT_TRUE(finalized);
       return gstore.in_edges(v);
     }
 
     const edge_list_type out_edges(vertex_id_type v) const {
+      ASSERT_TRUE(finalized);
       return gstore.out_edges(v);
     }
 
