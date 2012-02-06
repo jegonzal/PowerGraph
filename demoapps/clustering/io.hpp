@@ -615,6 +615,7 @@ int read_edges(FILE * f, int column_dim, graph_type * _g){
          ps.clusts.cluster_vec[vdata.current_cluster].cur_sum_of_points[ed[i].to - matlab_offset] += ed[i].weight;  
       }
       if (! vdata.reported){
+         //std::cout<<"Setting node: " << ed[i].from - matlab_offset << " as reported " << std::endl;
          vdata.reported = true;
          if (ac.algorithm == K_MEANS) 
            ps.clusts.cluster_vec[vdata.current_cluster].num_assigned_points++;

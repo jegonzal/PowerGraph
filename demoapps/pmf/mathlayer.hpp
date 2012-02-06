@@ -653,6 +653,23 @@ inline ivec sort_index(vec& a){
   Sort<double> sorter;
   return sorter.sort_index(0, a.size()-1, a);
 }
+inline ivec sort_index2(const vec&a, const ivec&indices){
+  assert(a.size() == indices.size());
+  ivec ret(a.size()); 
+  std::vector<std::pair<double,int> > D;
+  // 	
+  D.reserve(a.size());
+  for (int i=0;i<a.size();i++)
+    D.push_back(std::make_pair<double,int>(a[i],indices[i]));
+  std::sort(D.begin(),D.end());
+  for (int i=0;i<a.size();i++)
+  { 
+    ret[i]=D[i].second;
+  } 
+  return ret;
+}
+
+
 inline void set_val(vec & v, int pos, double val){
   v.set(pos, val);
 }

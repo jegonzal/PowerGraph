@@ -55,6 +55,7 @@ void init_knn(){
    for (int i=start; i< end; i++){
       vertex_data & data = training->vertex_data(i);
       data.min_distance = sum_sqr(data.datapoint);
+      assert( data.reported == ( nnz(data.datapoint) > 0));
    }
 
    int startv = (ps.algorithm == USER_KNN ? 0 : ps.M_validation);
@@ -122,20 +123,27 @@ void knn_update_function(gl_types::iscope &scope,
    int end = (ps.algorithm == USER_KNN ? ps.M : ps.M+ps.N);
   int howmany = (end-start)*ac.knn_sample_percent;
   flt_dbl_vec distances = zeros(howmany);
+  ivec indices = ivec(howmany);
    if (ac.knn_sample_percent == 1.0){
      for (int i=start; i< end; i++){
         vertex_data & other = training->vertex_data(i);
         distances[i-start] = calc_distance(vdata.datapoint, other.datapoint, other.min_distance, vdata.min_distance);
+        indices[i-start] = i;
      }
   }
   else for (int i=0; i<howmany; i++){
-        vertex_data & other = training->vertex_data(::randi(start, end-1));
+        int random_other = ::randi(start, end-1);
+        while(random_other == id){
+	  random_other == ::randi(start, end-1);
+        }
+        vertex_data & other = training->vertex_data(random_other);
         distances[i] = calc_distance(vdata.datapoint, other.datapoint, other.min_distance, vdata.min_distance);
+        indices[i] = random_other;
   }
 
-  ivec indices = sort_index(distances);
+  ivec indices_sorted = sort_index2(distances, indices);
   sort(distances); 
-  vdata.distances = wrap_answer(distances, indices, ps.K);
+  vdata.distances = wrap_answer(distances, indices_sorted, ps.K);
   if (toprint)
     printf("Closest is: %d with distance %g\n", (int)vdata.distances[1], vdata.distances[0]);
 
