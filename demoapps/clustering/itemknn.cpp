@@ -140,10 +140,10 @@ void knn_update_function(gl_types::iscope &scope,
         distances[i] = calc_distance(vdata.datapoint, other.datapoint, other.min_distance, vdata.min_distance);
         indices[i] = random_other;
   }
-
-  ivec indices_sorted = sort_index2(distances, indices);
-  sort(distances); 
-  vdata.distances = wrap_answer(distances, indices_sorted, ps.K);
+  vec out_dist(ps.K);
+  ivec indices_sorted = sort_index2(distances, indices, out_dist, ps.K);
+  //sort(distances); 
+  vdata.distances = wrap_answer(out_dist, indices_sorted, ps.K);
   assert(vdata.distances.size() == ps.K*2);
   if (toprint)
     printf("Closest is: %d with distance %g\n", (int)vdata.distances[1], vdata.distances[0]);
