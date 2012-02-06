@@ -142,7 +142,7 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
     bytessent.resize(dc_.numprocs());
     //------ Initialize the matched send/recv ------
     recv_froms.resize(dc_.numprocs());
-    
+    non_blocking_recv_from.resize(dc_.numprocs());
     //------ Initialize the gatherer ------
     gather_receive.resize(dc_.numprocs());
 
@@ -445,7 +445,7 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
     // wait for reply
     rt.wait();
     
-    if (control == false) inc_calls_received(target);
+    if (control == false) inc_calls_sent(target);
   }
   
   
@@ -476,19 +476,102 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
     recvstruct.lock.unlock();
     if (control == false) {
       // remote call to release the sender. Use an empty blob
-      dc_.fast_remote_call(source, reply_increment_counter, tag, dc_impl::blob());
+      dc_.control_call(source, reply_increment_counter, tag, dc_impl::blob());
       // I have to increment the calls sent manually here
       // since the matched send/recv calls do not go through the 
       // typical object calls. It goes through the DC, but I also want to charge
       // it to this object
-      inc_calls_sent(source);
+      inc_calls_received(source);
     }
     else {
       dc_.control_call(source, reply_increment_counter, tag, dc_impl::blob());
     }
   }
 
+  
+  
+/*****************************************************************************
+*             Implementation of non blocking send / recv
+*****************************************************************************/
 
+  
+ private:
+  std::vector<dc_impl::recv_from_struct> non_blocking_recv_from;
+
+  void receive_into_nonblocking_recv(size_t src,
+                                     std::string& str) {
+    non_blocking_recv_from[src].lock.lock();
+    non_blocking_recv_from[src].data = str;
+    ASSERT_FALSE(non_blocking_recv_from[src].hasdata);
+    non_blocking_recv_from[src].hasdata = true;
+    non_blocking_recv_from[src].cond.signal();
+    non_blocking_recv_from[src].lock.unlock();
+  }
+ public:
+  /**
+   This is a non-blocking send_to. It send an object T to the target
+   machine, but DOES NOT wait for the target machine to call recv_from
+   before returning. However, if a second send is issued to the same remote
+   machine before the remote machine has a chance to receive the first send,
+   an assertion failure will be raised. This does not share the same buffers
+   as the regular send_to so both can be used simultaneously.
+   */
+  template <typename U>
+  void send_to_nonblocking(procid_t target, U& t, bool control = false) {
+    std::stringstream strm;
+    oarchive oarc(strm);
+    oarc << t;
+    strm.flush();
+    if (control == false) {
+      internal_call(target, &dc_dist_object<T>::receive_into_nonblocking_recv,
+                    procid(), strm.str());
+    }
+    else {
+      internal_control_call(target, &dc_dist_object<T>::receive_into_nonblocking_recv,
+                            procid(), strm.str());
+    }
+    if (control == false) inc_calls_sent(target);
+  }
+  
+  
+  /**
+   Recieves from sends issued by send_to_nonblocking. Similar in behavior
+   as recv_from but must be matched with a send_to_nonblocking.
+   If no send was issued before the
+   recv_from_nonblocking was called, this function will block.
+   If a second send is issued before the current
+   machine has a chance to receive the first send,
+   an assertion failure will be raised.
+   This does not share the same buffers as the regular send_to so both
+   can be used simultaneously.
+   */
+  template <typename U>
+  void recv_from_nonblocking(procid_t source, U& t, bool control = false) {
+    // wait on the condition variable until I have data
+    dc_impl::recv_from_struct &recvstruct = non_blocking_recv_from[source];
+    recvstruct.lock.lock();
+    while (recvstruct.hasdata == false) {
+      recvstruct.cond.wait(recvstruct.lock);
+    }
+    
+    // got the data. deserialize it
+    std::stringstream strm(recvstruct.data);
+    iarchive iarc(strm);
+    iarc >> t;
+    // clear the data
+    std::string("").swap(recvstruct.data);
+    // clear the has data flag
+    recvstruct.hasdata = false;
+    // unlock
+    recvstruct.lock.unlock();
+    if (control == false) {
+      // I have to increment the calls sent manually here
+      // since the matched send/recv calls do not go through the
+      // typical object calls. It goes through the DC, but I also want to charge
+      // it to this object
+      inc_calls_received(source);
+    }
+  }
 
 
 
