@@ -414,7 +414,7 @@ else(CROSS_COMPILE_32_BIT MATCHES 1)
       CACHE STRING "compiler options"  FORCE)
   else(COMPILE_PROFILING MATCHES 1)
     set(CMAKE_CXX_FLAGS_RELEASE 
-      "-flto -fomit-frame-pointer -O3 -march=${MARCH} -mtune=native ${COMMON_FLAGS}"
+      "-O3 -march=${MARCH} -mtune=native ${COMMON_FLAGS}"
       CACHE STRING "compiler options"  FORCE)
   endif(COMPILE_PROFILING MATCHES 1)
 
