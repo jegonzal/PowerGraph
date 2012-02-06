@@ -87,7 +87,7 @@ void save(graphlab::oarchive &oarc) const {
 
  };
 
-#define USE_GRAPH_VER 3
+#define USE_GRAPH_VER 2
 
 #if USE_GRAPH_VER == 1
 typedef graphlab::graph<vertex_data, edge_data> graph_type;
@@ -143,7 +143,7 @@ void print_v(bool rows, int offset, graph_type * g){
     vertex_data * data = &g->vertex_data(i);
     v[i - start] = data->pvec[offset];
   }
-  cout<<"v is: " << mid(v,0,20) << endl;
+  cout<<"v is: " << endl << mid(v,0,20) << endl;
   if (end - start > 40)
     cout<<"v end is: " << mid(v, v.size()-20, 20) << endl;
 }
@@ -175,13 +175,15 @@ struct lanczos_update :
   }
 
   const edge_list_type outs= context.out_edges();
+  //assert(outs.size() > 0);
   if (outs.size() == 0)
      return;
 
-  // for (size_t i=0; i< outs.size(); i++) {
-      // const edge_type& e = outs[i];
-  foreach (const edge_type& e, outs) {
+  for (size_t i=0; i< outs.size(); i++) {
+    const edge_type& e = outs[i];
+  //foreach (const edge_type &e, outs) {
       const edge_data& edge = context.const_edge_data(e);
+      //logstream(LOG_INFO)<<" Node: " << context.vertex_id() << " " << edge.weight << " " << e.source() << ":" << e.target() << "@" << e.offset() << std::endl;
       const vertex_data  & movie = context.const_vertex_data(e.target());
       user.value += edge.weight * movie.pvec[offset];
   }
@@ -203,15 +205,17 @@ struct lanczos_update :
   int offset3 = context.get_global<int>("offset3");
 
   const edge_list_type ins = context.in_edges();
+  //assert(ins.size() > 0);
   if (ins.size() == 0)
     return;
 
-   // for (size_t i=0; i< ins.size(); i++) {
-      // const edge_type& e = ins[i];
-   foreach (const edge_type& e, ins) {
+   for (size_t i=0; i< ins.size(); i++) {
+       const edge_type& e = ins[i];
+   //foreach (const edge_type& e, ins) {
       const edge_data& edge = context.const_edge_data(e);
       const vertex_data  & movie = context.const_vertex_data(e.source());
-       user.value += edge.weight * movie.value;
+      user.value += edge.weight * movie.value;
+      assert(e.source() != e.target());
    }
    
    assert(offset2 < m+2 && offset3 < m+2);
@@ -270,6 +274,8 @@ double w_norm_2(bool rows, graph_type * g){
     vertex_data * data = &g->vertex_data(i);
     norm += data->value*data->value;
   }
+  if (debug)
+    logstream(LOG_INFO)<<"Beta is: " << sqrt(norm) << endl;
   return sqrt(norm);
 }
 
@@ -323,9 +329,9 @@ void print_w(bool rows, graph_type * g){
     const vertex_data * data = (vertex_data*)&g->vertex_data(i);
     v[i - start] = data->value;
   }
-  cout<<"w is: " << mid(v,0,20) << endl;
+  cout<<"w = " << endl << mid(v,0,20) << endl;
   if (end - start > 40)
-    cout<<"w end is: " << mid(v, v.size()-20, 20) << endl;
+    cout<<"w end is: " << endl << mid(v, v.size()-20, 20) << endl;
 }
 
 
@@ -367,7 +373,7 @@ void compute_residual(const vec & eigenvalues, const mat & eigenvectors, graph_t
 }
 
 
-void lanczos(graphlab::core<graph_type, lanczos_update> & glcore, 
+vec lanczos(graphlab::core<graph_type, lanczos_update> & glcore, 
              bipartite_graph_descriptor & info, timer & mytimer){
    
    glcore.set_global("m", max_iter);
@@ -447,6 +453,7 @@ void lanczos(graphlab::core<graph_type, lanczos_update> & glcore,
  mat V=zeros(eigenvalues.size(),1);
  set_col(V,0,eigenvalues); 
 
+ return eigenvalues;
 }
 
 int main(int argc,  char *argv[]) {
@@ -506,7 +513,12 @@ int main(int argc,  char *argv[]) {
   core.set_scope_type("vertex");
   //unit testing
   if (unittest == 1){
-    datafile = "lanczos2";
+    datafile = "lanczos2t";
+    debug = true; 
+    core.set_ncpus(1);
+    max_iter = 4;
+    fix_init = 1;
+    num_rows = 12;
   }
 
   logstream(LOG_WARNING)<<"Using Graph Version: " << USE_GRAPH_VER << std::endl;
@@ -575,7 +587,7 @@ int main(int argc,  char *argv[]) {
   core.add_global("m", int(0));
 
 
-  lanczos(core, info, mytimer);
+  vec eigs = lanczos(core, info, mytimer);
   std::cout << "Lanczos finished in " << mytimer.current_time() << std::endl;
   std::cout << "\t Updates: " << core.last_update_count() << " per node: " 
      << core.last_update_count() / core.graph().num_vertices() << std::endl;
@@ -586,6 +598,12 @@ int main(int argc,  char *argv[]) {
 
 
   if (unittest == 1){
+    assert(pow(sqrt(eigs[0])-4.1404,2) <1e-5);
+    assert(pow(sqrt(eigs[1])-1.3548,2) <1e-5);
+    assert(pow(sqrt(eigs[2])-0.9756,2) <1e-5);
+    assert(pow(sqrt(eigs[3])-0.8833,2) <1e-5);
+    assert(pow(sqrt(eigs[4])-0.1816,2) <1e-5);
+    logstream(LOG_WARNING)<<"Unittest 1 (lanczos 12x5 matrix passed fine!)" << endl;
   }
 
    return EXIT_SUCCESS;

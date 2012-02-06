@@ -131,6 +131,11 @@ namespace graphlab {
           return _edge_id;
         }
 
+        // Do not use.
+        size_t edge_id() const {
+          return _edge_id;
+        }
+
         inline bool empty() const { return _empty; }
         // Data fields. 
       private:
@@ -207,17 +212,17 @@ namespace graphlab {
         return retval;
       }
 
-    private:
       // Generate the ret value of the iterator.
       inline edge_type make_value() const {
           return edge_type(center, vid_arr[offset], offset, itype);
       }
+
     private:
       vertex_id_type center;
       size_t offset;
       iterator_type itype;
-      const edge_id_type* vid_arr;
       bool empty;
+      const edge_id_type* vid_arr;
     }; // end of class edge_iterator.
 
     // Represents an iteratable list of edge_types.

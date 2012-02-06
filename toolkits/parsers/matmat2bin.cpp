@@ -51,8 +51,6 @@ int main(int argc,  char *argv[]) {
 
   std::string datafile, outdir;
   std::string format = "matrixmarket";
-  size_t sync_interval = 10000;
-  int unittest = 0;
 
   clopts.attach_option("data", &datafile, datafile,
                        "matrix input file");

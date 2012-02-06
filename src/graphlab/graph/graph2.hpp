@@ -46,7 +46,7 @@
 #ifndef GRAPHLAB_GRAPH2_HPP
 #define GRAPHLAB_GRAPH2_HPP
 
-#define DEBUG_GRAPH
+// #define DEBUG_GRAPH
 
 #include <omp.h>
 #include <cmath>
@@ -85,7 +85,7 @@ namespace graphlab {
 
 #ifdef GRAPH2_NO_EDGE 
     typedef graph_storage_noedge<VertexData, EdgeData> gstore_type;
-    logstream(LOG_WARNING) << "Using graph type with no edge data." << std::endl;
+    //logstream(LOG_WARNING) << "Using graph type with no edge data." << std::endl;
 #else 
     typedef graph_storage<VertexData, EdgeData> gstore_type;
 #endif
