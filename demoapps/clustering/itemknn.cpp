@@ -34,7 +34,7 @@ extern const char * runmodesname[];
 //double sum_sqr(sparse_vec & v);
 const int matlab_offset = 1;
 
-flt_dbl_vec wrap_answer(const flt_dbl_vec& distances, const ivec& indices, int num){
+flt_dbl_vec wrap_answer(const vec& distances, const ivec& indices, int num){
    flt_dbl_vec ret = zeros(num*2);
    for (int i=0; i< num; i++){
       ret[2*i] = distances[i];
@@ -125,7 +125,7 @@ void knn_update_function(gl_types::iscope &scope,
    int end = (ps.algorithm == USER_KNN ? ps.M : ps.M+ps.N);
   int howmany = (end-start)*ac.knn_sample_percent;
   assert(howmany > 0 );
-  flt_dbl_vec distances = zeros(howmany);
+  vec distances(howmany);
   ivec indices = ivec(howmany);
    if (ac.knn_sample_percent == 1.0){
      for (int i=start; i< end; i++){

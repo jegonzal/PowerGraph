@@ -285,18 +285,18 @@ void export_to_itpp_file(){
   }
   if (ps.U.size() > 0){
     output << Name("U");
-    output << ps.U;
+    output << fmat2mat(ps.U);
   }
   if (ps.V.size() > 0){
     output << Name("V");
-    output << ps.V;
+    output << fmat2mat(ps.V);
   }
   if (ps.T.size() > 0 ){
     assert(ps.T.cols() ==2);
     output << Name("D1");
-    output << get_col(ps.T,0);
+    output << fmat2mat(get_col(ps.T,0));
     output << Name("D2");
-    output << get_col(ps.T,1);
+    output << fmat2mat(get_col(ps.T,1));
   }
   output.close();
 }
