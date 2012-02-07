@@ -839,9 +839,16 @@ bool load_binary_graph(const std::string& fname,
   bool is_square = desc.is_square();
 
   std::cout << "Adding edges." << std::endl;
+  int step = 0;
+  if (desc.nonzeros > 10000000)
+     step = desc.nonzeros / 100;
+
   for(size_t i = 0; i < size_t(desc.nonzeros); ++i) {    
     int row = 0, col = 0;  
     double val = 0;
+    if (step > 0 && (i % step == 0))
+       logstream(LOG_INFO) << "Loaded " << i << " edges for far." << std::endl;
+
     if(fscanf(fptr, "%d %d %lg\n", &row, &col, &val) != 3) {
       logstream(LOG_FATAL) 
         << "Error reading file " << fname << " on line: " << i << std::endl;

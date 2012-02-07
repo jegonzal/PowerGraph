@@ -638,14 +638,14 @@ namespace graphlab {
     /** \brief Load the graph from a file */
     void load_directed(const std::string& filename, bool no_node_data, bool no_edge_data) {
       assert(!undirected);
-         int rc =array_from_file(filename + ".nodes", node_out_degrees);
+         size_t rc =array_from_file(filename + ".nodes", node_out_degrees);
 	 num_nodes = (rc/4)-1;
          if (!no_node_data){
             if (node_vdata_array == NULL)
               node_vdata_array = new std::vector<VertexData>();
 	    node_vdata_array->resize(num_nodes);
          }
-         int rc2 =array_from_file(filename + "-r.nodes", node_in_degrees);
+         size_t rc2 =array_from_file(filename + "-r.nodes", node_in_degrees);
          assert(rc == rc2);
          logstream(LOG_INFO) << filename << " Read " << num_nodes << " nodes" << std::endl;
          rc = array_from_file(filename + ".edges", node_out_edges);

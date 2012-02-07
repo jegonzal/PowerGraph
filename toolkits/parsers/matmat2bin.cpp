@@ -74,6 +74,7 @@ int main(int argc,  char *argv[]) {
 
 
   graph_type graph2;
+  graph2.set_use_vcolor(false);
   std::cout << "Load matrix " << datafile << std::endl;
   bipartite_graph_descriptor info;
   load_graph(datafile, format, info, graph2);

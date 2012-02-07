@@ -52,6 +52,8 @@ bool fix_init;
 bool measure_save_time = false;
 bool edge_data_flag = true;
 bool is_square = false;
+bool use_aggregator = true;
+bool svd_orthogonolize = true;
 
 struct vertex_data {
   vec pvec;
@@ -87,7 +89,8 @@ void save(graphlab::oarchive &oarc) const {
 
  };
 
-#define USE_GRAPH_VER 2
+#define USE_GRAPH_VER 3
+
 
 #if USE_GRAPH_VER == 1
 typedef graphlab::graph<vertex_data, edge_data> graph_type;
@@ -114,7 +117,7 @@ void init_lanczos(graph_type * g, bipartite_graph_descriptor & info){
    lancbeta = zeros(m+3);
    lancalpha = zeros(m+3);
    double sum = 0;
-
+#pragma omp parallel for
   for (int i = info.get_start_node(false); i< info.get_end_node(false); i++){ 
     vertex_data * data = (vertex_data*)&g->vertex_data(i);
     data->pvec = zeros(m+3);
@@ -123,12 +126,14 @@ void init_lanczos(graph_type * g, bipartite_graph_descriptor & info){
   }
 
   sum = sqrt(sum);
+#pragma omp parallell for
   for (int i=info.get_start_node(false); i< info.get_end_node(false); i++){ 
     vertex_data * data = (vertex_data*)&g->vertex_data(i);
     data->pvec[1] /= sum;
     if (debug && i- info.get_start_node(false) < 20)
       std::cout<<"Initial V(:,2) is " << data->pvec[1] << std::endl;
   }
+#pragma omp parallel for
   for (int i = info.get_start_node(true); i< info.get_end_node(true); i++){ 
     vertex_data * data = (vertex_data*)&g->vertex_data(i);
     data->pvec = zeros(m+3);
@@ -139,6 +144,7 @@ void print_v(bool rows, int offset, graph_type * g){
   int start= info.get_start_node(rows);;
   int end = info.get_end_node(rows);;
   vec v = zeros(end-start);
+#pragma omp parallel for
   for (int i=start; i< end; i++){ 
     vertex_data * data = &g->vertex_data(i);
     v[i - start] = data->pvec[offset];
@@ -179,9 +185,12 @@ struct lanczos_update :
   if (outs.size() == 0)
      return;
 
+#ifndef USE_FOREACH
   for (size_t i=0; i< outs.size(); i++) {
-    const edge_type& e = outs[i];
-  //foreach (const edge_type &e, outs) {
+     const edge_type& e = outs[i];
+#else
+  foreach (const edge_type &e, outs) {
+#endif
       const edge_data& edge = context.const_edge_data(e);
       //logstream(LOG_INFO)<<" Node: " << context.vertex_id() << " " << edge.weight << " " << e.source() << ":" << e.target() << "@" << e.offset() << std::endl;
       const vertex_data  & movie = context.const_vertex_data(e.target());
@@ -209,9 +218,12 @@ struct lanczos_update :
   if (ins.size() == 0)
     return;
 
+#ifndef USE_FOREACH
    for (size_t i=0; i< ins.size(); i++) {
        const edge_type& e = ins[i];
-   //foreach (const edge_type& e, ins) {
+#else
+   foreach (const edge_type& e, ins) {
+#endif
       const edge_data& edge = context.const_edge_data(e);
       const vertex_data  & movie = context.const_vertex_data(e.source());
       user.value += edge.weight * movie.value;
@@ -261,6 +273,7 @@ void substruct(int curoffset, int j, graph_type* g, double alpha){
 
 
 void orthogolonize_vs_all(int curoffset, graph_type *g){
+#pragma omp parallel for
   for (int i=1; i< curoffset-1; i++){
      double alpha = wTV(i, g);
      if (alpha != 0)
@@ -270,6 +283,7 @@ void orthogolonize_vs_all(int curoffset, graph_type *g){
 
 double w_norm_2(bool rows, graph_type * g){
   double norm = 0;
+#pragma omp parallel for  
   for (int i=info.get_start_node(rows); i< info.get_end_node(rows); i++){ 
     vertex_data * data = &g->vertex_data(i);
     norm += data->value*data->value;
@@ -285,6 +299,7 @@ void w_minus_lancalphaV(int j, graph_type * g){
   
   if (debug)
 	cout << "w: " ;
+#pragma omp parallel for
   for (int i=info.get_start_node(false); i< info.get_end_node(false); i++){ 
     vertex_data * data = (vertex_data*)&g->vertex_data(i);
     data->value -= lancalpha[j]*data->pvec[j];
@@ -295,7 +310,7 @@ void update_V(int j, graph_type * g){
 
   if (debug)
 	cout<<"V: ";
-
+#pragma omp parallel for
   for (int i=info.get_start_node(false); i< info.get_end_node(false); i++){ 
     vertex_data * data = (vertex_data*)&g->vertex_data(i);
     data->value /= lancbeta[j]; //DB: NEW
@@ -311,6 +326,7 @@ void update_V(int j, graph_type * g){
 mat calc_V(graph_type * g){
 
   mat V = zeros(info.num_nodes(false), max_iter+1);
+#pragma omp parallel for
   for (int i=info.get_start_node(false); i< info.get_end_node(false); i++){ 
     const vertex_data * data = (vertex_data*)&g->vertex_data(i);
     set_row(V, i-info.get_start_node(false), mid(data->pvec, 1, max_iter+1));
@@ -348,6 +364,7 @@ void compute_residual(const vec & eigenvalues, const mat & eigenvectors, graph_t
       lancbeta[j] = eigenvalues[j-1];
       if (debug)
           printf("Residual eigenvalue %d is: %g\n", j, eigenvalues[j-1]);
+#pragma omp parallel for
       for (int i= info.get_start_node(false); i< info.get_end_node(false); i++){
          g->vertex_data(i).pvec[j] = get_val( eigenvectors, i-info.get_start_node(false), eigenvectors.cols() - j);
          //printf("%g ", g->vertex_data(i).pvec[j]);
@@ -361,6 +378,7 @@ void compute_residual(const vec & eigenvalues, const mat & eigenvectors, graph_t
       print_w(true, &glcore.graph());
       print_w(false, &glcore.graph());
        double sum = 0;
+#pragma omp parallel for
       for (int i= info.get_start_node(false); i< info.get_end_node(false); i++){
         sum += pow(g->vertex_data(i).value,2);
 
@@ -389,7 +407,12 @@ vec lanczos(graphlab::core<graph_type, lanczos_update> & glcore,
         glcore.set_global("offset", j);
         glcore.set_global("offset3", j-1);
         glcore.set_global("offset2",j);
-        glcore.aggregate_now("sync");
+        if (use_aggregator)
+          glcore.aggregate_now("sync");
+	else {
+        glcore.schedule_all(lanczos_update());
+        glcore.start();
+        }
 
         if (debug){
           print_w(true,&glcore.graph());
@@ -488,6 +511,7 @@ int main(int argc,  char *argv[]) {
   clopts.attach_option("load_bin", &load_bin, load_bin, "Load binary format");
   clopts.attach_option("edge_data_flag", &edge_data_flag, edge_data_flag, "Allow edge data");
   clopts.attach_option("is_square", &is_square, is_square, "square matrix?");
+  clopts.attach_option("use_aggregator", &use_aggregator, use_aggregator, "Use aggregator (true) or update function (false)");
   // Parse the command line arguments
   if(!clopts.parse(argc, argv)) {
     std::cout << "Invalid arguments!" << std::endl;
@@ -511,6 +535,7 @@ int main(int argc,  char *argv[]) {
 #endif
   core.set_options(clopts); // Set the engine options
   core.set_scope_type("vertex");
+  omp_set_num_threads(clopts.get_ncpus());
   //unit testing
   if (unittest == 1){
     datafile = "lanczos2t";
