@@ -24,4 +24,8 @@ lasso.cpp gamp.cpp
     ${CMAKE_CURRENT_BINARY_DIR}/A.mtx COPYONLY)
     configure_file(${CMAKE_CURRENT_SOURCE_DIR}/A.mtxv
     ${CMAKE_CURRENT_BINARY_DIR}/A.mtxv COPYONLY)
+    configure_file(${CMAKE_CURRENT_SOURCE_DIR}/MiX_MMER.mtx
+    ${CMAKE_CURRENT_BINARY_DIR}/MiX_MMER.mtx COPYONLY)
+    configure_file(${CMAKE_CURRENT_SOURCE_DIR}/MiX_MMER.mtxv
+    ${CMAKE_CURRENT_BINARY_DIR}/MiX_MMER.mtxv COPYONLY)
 endif()

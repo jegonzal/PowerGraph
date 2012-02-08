@@ -666,6 +666,10 @@ void load_pmf_graph(const char* filename, graph_type * g, graph_type * _g, testt
   assert(_K>=1);
   assert(_M>=1 && _N>=1); 
 
+ if (_M == 1632445733){
+     logstream(LOG_FATAL)<<"Detected matrix market input file. Please rerun using --matrixmarket=true flag" << std::endl;
+   }
+
 
   if (data_type == TRAINING){
   	ps.M=_M; ps.N= _N; ps.K= _K;

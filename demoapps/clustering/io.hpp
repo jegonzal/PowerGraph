@@ -440,10 +440,13 @@ void load_graph(const char* filename, graph_type * _g, testtype type) {
   assert(rc==4); 
   rc=fread(&_K,1,4,f);//unused
   assert(rc==4);
+  if (_M == 1632445733){
+     logstream(LOG_FATAL)<<"Detected matrix market input file. Please rerun using --matrixmarket=true flag" << std::endl;
+   }
+  
   if (!ac.supportgraphlabcf){
      if (_K != 0){
-       logstream(LOG_ERROR) << "Error reading binary file: " << filename << " header. 3rd int value shoud be reserved to be zero. If you are using sparse matrix market format do not forget to call the program with --matrixmarket=true flag" << std::endl;
-       exit(1);
+       logstream(LOG_FATAL) << "Error reading binary file: " << filename << " header. 3rd int value shoud be reserved to be zero. If you are using sparse matrix market format do not forget to call the program with --matrixmarket=true flag" << std::endl;
      }  
    
   }

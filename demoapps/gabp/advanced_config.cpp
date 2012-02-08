@@ -61,5 +61,8 @@ void problem_setup::verify_setup(graphlab::command_line_options& clopts){
 
   if ((config.algorithm == JACOBI || config.algorithm == GaBP) && clopts.get_scheduler_type() != "round_robin")
     logstream(LOG_FATAL) << "Please use command line --scheduler=\"round_robin(max_iterations=XX,block_size=1)\" when running Jacobi/Gaussian BP" << std::endl;
+
+ if (config.algorithm == JACOBI && !clopts.is_set("init_mode"))
+     config.init_mode = INIT_RANDOM;
  
 }

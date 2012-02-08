@@ -638,8 +638,8 @@ FILE * load_matrix_metadata(const char * filename){
    fread(&ps.n, 1, 4, f);
    if (ps.n == 0) 
       ps.n=ps.m; //compatability with older file format, will be removed later
-   if (ps.m == '%' && ps.n == '%'){
-     logstream(LOG_ERROR)<<"Detected matrix market input file. Please rerun using --matrixmarket=true flag" << std::endl;
+   if (ps.m == 1632445733){
+     logstream(LOG_FATAL)<<"Detected matrix market input file. Please rerun using --matrixmarket=true flag" << std::endl;
    }
    return f;
 }
