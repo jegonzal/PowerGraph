@@ -96,12 +96,13 @@ void fill_output(graph_type_kcores * g){
 
 
 //write an output vector to file
-void write_vec(FILE * f, int len, const double * array){
+template <typename T>
+void write_vec(FILE * f, int len, const T * array){
   assert(f != NULL && array != NULL);
   int total = 0;
   
   while(true){
-    int rc = fwrite(array+total, sizeof(double), len-total, f);
+    int rc = fwrite(array+total, sizeof(T), len-total, f);
     if (rc <= 0){
       if (errno == EINTR){
          logstream(LOG_WARNING) << "Interrupted system call, trying agin " << std::endl;
@@ -116,25 +117,6 @@ void write_vec(FILE * f, int len, const double * array){
   }
 }
 
-//write an output vector to file
-void write_vec(FILE * f, int len, const float * array){
-  assert(f != NULL && array != NULL);
-  int total = 0;
-  while(true){
-    int rc = fwrite(array + total, sizeof(float), len-total, f); 
-    if (rc<= 0){
-       if (errno == EINTR){
-          logstream(LOG_WARNING) << "Interrupted system call, trying agin " << std::endl;
-          continue;
-       }
-       perror("write failed");
-       exit(1);
-    }
-    total += rc;
-    if (total >= len)
-      break;
-  }
-}
 //write an output vector to file
 void read_vec(FILE * f, int len, double * array){
   assert(f != NULL && array != NULL);
@@ -274,7 +256,9 @@ void export_to_itpp_file(){
   remove(dfile);
   it_file output(dfile);
   if (ps.output_clusters.size() > 0){
-    output << Name("Clusters");
+    if (ps.algorithm == USER_KNN || ps.algorithm == ITEM_KNN)
+       output << Name("Distances");
+    else output << Name("Clusters");
     mat a = fmat2mat(ps.output_clusters);
     output << a; //DB: Eigen fails when trying to output << fmat2mat(ps.output_clusters)
   }  

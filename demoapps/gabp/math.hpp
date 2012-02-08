@@ -433,7 +433,7 @@ void Axb(gl_types::iscope &scope,
     }
   
     if (config.square)// add the diagonal term
-      val += (c* user.prior_prec * pr[x_offset]);
+      val += (c* (user.prior_prec+config.regularization) * pr[x_offset]);
   }
  /***** COMPUTE r = c*I*x  *****/
   else if (!A_offset && x_offset >= 0){
