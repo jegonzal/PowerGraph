@@ -235,10 +235,31 @@ void fill_factors_uvt<graph_type_svdpp,vertex_data_svdpp>(){
 template<typename edgedata, typename graph_type, typename edge_data>
 int read_mult_edges(FILE * f, int nodes, testtype type, graph_type * g, graph_type * _g, bool symmetry = false);
  //write an output vector to file
-void write_vec(FILE * f, int len, const double * array){
+template <typename T>
+void write_vec(FILE * f, const int len, const T * array){
   assert(f != NULL && array != NULL);
-  fwrite(array, len, sizeof(double), f);
+  int total = 0;
+  
+  while(true){
+    int rc = fwrite(array+total, sizeof(T), len-total, f);
+    if (rc <= 0){
+      if (errno == EINTR){
+         logstream(LOG_WARNING) << "Interrupted system call, trying agin " << std::endl;
+         continue;
+      }
+      perror("write failed");
+      logstream(LOG_FATAL) << "Failed to write vector!" << std::endl;
+    }
+    total += rc;
+    if (total >= len)
+      break;
+  }
 }
+
+
+
+
+
 void truncate_and_scale(float & prediction){
   if (prediction<ac.minval)
      prediction=ac.minval;
@@ -428,13 +449,14 @@ void export_uvt_to_binary_file(){
     logstream(LOG_FATAL) <<"time-svd++ does not support binary output format" << std::endl;
   }
 
-  if (ps.algorithm != LANCZOS && ps.algorithm != SVD)
-    fill_factors_uvt<graph_type, vertex_data>();
+  //if (ps.algorithm != LANCZOS && ps.algorithm != SVD)
+  //   fill_factors_uvt<graph_type, vertex_data>();
 
   char dfile[256] = {0};
   sprintf(dfile,"%s-%d-%d.out",ac.datafile.c_str(),ac.D,ps.iiter);
   FILE * f = open_file(dfile, "w");
-  assert(f!= NULL);
+
+  logstream(LOG_INFO)<<"Saving output in binary format to: " << dfile << std::endl;
 
   int rc = fwrite(&ps.M, 1, 4, f);
   assert(rc == 4);
@@ -445,10 +467,29 @@ void export_uvt_to_binary_file(){
   rc = fwrite(&ac.D, 1, 4, f);
   assert(rc == 4);
 
-  write_vec(f, ps.U.size(), data(ps.U));
-  write_vec(f, ps.V.size(), data(ps.V));
-  if (ps.tensor)
-    write_vec(f, ps.T.size(), data(ps.T));
+  for (int i=0; i< ps.M+ps.N; i++){ 
+      const vertex_data & vdata = ps.g<graph_type>(TRAINING)->vertex_data(i);
+      if (i < ps.M){
+        //set_row(ps.U, i, data.pvec);
+        write_vec(f, vdata.pvec.size(), data(vdata.pvec));
+      }
+      else {
+        write_vec(f, vdata.pvec.size(), data(vdata.pvec));
+        //set_row(ps.V, i-ps.M, data.pvec);
+      }
+   }
+
+   if (ps.tensor){ 
+     for (int i=0; i<ps.K; i++){
+        //set_row(ps.T, i, ps.times[i].pvec);
+        write_vec(f, ps.times[i].pvec.size(), data(ps.times[i].pvec));
+     }
+    } 
+
+  //write_vec(f, ps.U.size(), data(ps.U));
+  //write_vec(f, ps.V.size(), data(ps.V));
+  //if (ps.tensor)
+  //  write_vec(f, ps.T.size(), data(ps.T));
 
   if (ps.algorithm == SVD_PLUS_PLUS){
     write_vec(f, ps.svdpp_usr_bias.size(), data(ps.svdpp_usr_bias));

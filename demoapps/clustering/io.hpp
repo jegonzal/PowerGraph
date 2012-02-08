@@ -109,7 +109,7 @@ void write_vec(FILE * f, int len, const T * array){
          continue;
       }
       perror("write failed");
-      exit(1);
+      logstream(LOG_FATAL) << "Failed to write vector!" << std::endl;
     }
     total += rc;
     if (total >= len)
