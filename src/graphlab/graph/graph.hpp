@@ -229,6 +229,14 @@ namespace graphlab {
 
     // METHODS =================================================================>
 
+
+    void reduce_mem_consumption(){
+      edges.clear();
+      in_edges.clear();
+      out_edges.clear();
+      vcolors.clear();
+    }
+
     /**
      * \brief Resets the graph state.
      */

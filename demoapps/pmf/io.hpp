@@ -157,7 +157,9 @@ void verify_edges<graph_type_mult_edge,multiple_edges>(graph_type_mult_edge * _g
  */
 template<typename graph_type, typename vertex_data>
 void fill_factors_uvt(){
+
  if (ps.algorithm != LANCZOS && ps.algorithm != SVD){
+   ((graph_type*)ps.g<graph_type>(TRAINING))->reduce_mem_consumption();
    ps.U = zeros(ps.M,ac.D);
    ps.V = zeros(ps.N,ac.D);
 
