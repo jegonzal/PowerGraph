@@ -35,8 +35,10 @@
 #include <cmath>
 #include <cstdio>
 #include "linear.h"
+#include "advanced_config.h"
 #include <graphlab/macros_def.hpp>
 
+extern advanced_config config;
 /***
  * JACOBI UPDATE FUNCTION
  * x_i = (b_i - \sum_j A_ij * x_j)/A_ii
@@ -56,7 +58,7 @@ void jacobi_update_function(gl_types::iscope &scope,
 
   //initialize accumlated values in x_i
   sdouble x_i = vdata.prior_mean;
-  sdouble A_ii = vdata.prior_prec;
+  sdouble A_ii = vdata.prior_prec + config.regularization;
   assert(A_ii != 0);
 
   if (debug) 

@@ -3,7 +3,7 @@
 #include "advanced_config.h"
 
 extern problem_setup ps;
-extern advanced_config ac;
+extern advanced_config config;
 
 void advanced_config::init_command_line_options(graphlab::command_line_options & clopts){
   // Setup additional command line arguments for the GABP program
@@ -56,6 +56,10 @@ void problem_setup::verify_setup(graphlab::command_line_options& clopts){
     exit(1);
   }
 
+  if (config.algorithm == CONJUGATE_GRADIENT && config.iter <= 1)
+    logstream(LOG_FATAL) << "For conjugate gradient, you need to specify the number of iterations using --max_iter=XX flag" << std::endl;
 
+  if ((config.algorithm == JACOBI || config.algorithm == GaBP) && clopts.get_scheduler_type() != "round_robin")
+    logstream(LOG_FATAL) << "Please use command line --scheduler=\"round_robin(max_iterations=XX,block_size=1)\" when running Jacobi/Gaussian BP" << std::endl;
  
 }

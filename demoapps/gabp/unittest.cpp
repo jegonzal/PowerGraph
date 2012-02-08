@@ -27,8 +27,48 @@ void unittest(graphlab::command_line_options &clopts){
     config.syncinterval = 10000;
     //config.oldformat = true;
     clopts.set_scheduler_type("round_robin(max_iterations=10000,block_size=1)");
+  }//./gabp 0 MiX_MMER.mtx --matrixmarket=1 --calc_solution_residual=1 --scheduler="round_robin(max_iterations=100,block_size=1)" --regularization=1
+  else if (config.unittest == 21){
+    logstream(LOG_WARNING)<< "Going to run GaBP unit testing using symmetric 10x10 matrix, matrix market format with regularization" << std::endl;
+    config.algorithm = GaBP;
+    config.datafile = "MiX_MMER.mtx";
+    config.threshold = 1e-10;
+    config.syncinterval = 10000;
+    config.calc_solution_residual = 1;
+    config.matrixmarket = true;
+    config.regularization = 1;
+    //config.oldformat = true;
+    clopts.set_scheduler_type("round_robin(max_iterations=100,block_size=1)");
   }
-  else if (config.unittest == 3){
+  else if (config.unittest == 22){
+   //./gabp 1 MiX_MMER.mtx --matrixmarket=1 --calc_solution_residual=1 --scheduler="round_robin(max_iterations=1000,block_size=1)" --regularization=0 --init_mode=1
+    logstream(LOG_WARNING)<< "Going to run Jacobi unit testing using symmetric 10x10 matrix, matrix market format with regularization" << std::endl;
+    config.algorithm = JACOBI;
+    config.datafile = "MiX_MMER.mtx";
+    config.threshold = 1e-10;
+    config.syncinterval = 10000;
+    config.calc_solution_residual = 1;
+    config.matrixmarket = true;
+    config.regularization = 0;
+    config.init_mode = 1;
+    //config.oldformat = true;
+    clopts.set_scheduler_type("round_robin(max_iterations=1000,block_size=1)");
+  } //./gabp 2 MiX_MMER.mtx --matrixmarket=1 --calc_solution_residual=1 --max_iter=100 
+  else if (config.unittest == 23){
+   //./gabp 1 MiX_MMER.mtx --matrixmarket=1 --calc_solution_residual=1 --scheduler="round_robin(max_iterations=1000,block_size=1)" --regularization=0 --init_mode=1
+    logstream(LOG_WARNING)<< "Going to run CG unit testing using symmetric 10x10 matrix, matrix market format with regularization" << std::endl;
+    config.algorithm = CONJUGATE_GRADIENT;
+    config.datafile = "MiX_MMER.mtx";
+    config.threshold = 1e-10;
+    config.syncinterval = 10000;
+    config.calc_solution_residual = 1;
+    config.matrixmarket = true;
+    config.regularization = 0;
+    config.iter = 100; 
+    //config.oldformat = true;
+  } //./gabp 2 MiX_MMER.mtx --matrixmarket=1 --calc_solution_residual=1 --max_iter=100 
+    
+   else if (config.unittest == 3){
     logstream(LOG_WARNING)<< "Going to run Jacobi unit testing using matrix of size 3x3" << std::endl;
     //const char * args[] = {"gabp", "1", "mat3x3", "1e-10", "--unittest=3", "--syncinterval=10000"};
     //clopts.parse(6, (char**)args);
@@ -118,7 +158,16 @@ void verify_unittest_result(double diff){
    else if (config.unittest == 2){
       assert(diff <= 1e-15);
    }
-   else if (config.unittest == 3){
+   else if (config.unittest == 21){
+      assert(ps.residual < 1e-14);
+   }
+   else if (config.unittest == 22){
+      assert(ps.residual < 1e-14);
+   }
+   else if (config.unittest == 23){
+      assert(ps.residual < 1e-12);
+   }
+     else if (config.unittest == 3){
       assert(diff <= 1e-30);
    }
    else if (config.unittest == 4 || config.unittest == 5)

@@ -245,6 +245,7 @@ double start(graphlab::command_line_options &clopts, advanced_config &config){
 
     case CONJUGATE_GRADIENT:
           ps.x_comment += "%This file holds mean values x = inv(A)*y as computed by the Conjugate Gradient algorithm\n";
+          core.set_scheduler_type("fifo");
           break;
    
     default:
@@ -313,6 +314,7 @@ double start(graphlab::command_line_options &clopts, advanced_config &config){
     DistVec b(0,true), x(config.algorithm==CONJUGATE_GRADIENT ? 4 : 3, true), t(6, true);
     t=A*x-b;
     logstream(LOG_ERROR) << "Solution residual (norm(Ax-b)) is: " << norm(t).toDouble() << std::endl;
+    ps.residual = norm(t).toDouble();
   }
 
   fill_output(&core.graph());

@@ -183,6 +183,8 @@ public:
   std::string x_comment;
   std::string prec_comment;
 
+  double residual;
+
 
  problem_setup(){
 

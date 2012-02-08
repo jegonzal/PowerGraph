@@ -227,7 +227,31 @@ if [ -f ../demoapps/gabp/gabp ]; then
      echo "FAIL --unittest=6 (Conjugate Gradient- matrix market)"| tee -a $stdoutfname
      somefailed=1
   fi
-   popd > /dev/null
+  echo "********************TEST7************************" >> $stdoutfname
+ ./gabp --unittest=21  >> $stdoutfname 2>& 1 
+  if [ $? -eq 0 ]; then
+     echo "PASS TEST 7 (GaBP, matrix market format, square, regularization)"| tee -a $stdoutfname
+  else
+     echo "FAIL --unittest=7 (gaBP, matrix market format, square, regularization)"| tee -a $stdoutfname
+     somefailed=1
+  fi
+   echo "********************TEST8************************" >> $stdoutfname
+ ./gabp --unittest=22  >> $stdoutfname 2>& 1 
+  if [ $? -eq 0 ]; then
+     echo "PASS TEST 8 (Jacobi, matrix market format, symmetric)"| tee -a $stdoutfname
+  else
+     echo "FAIL --unittest=8 (Jacobi, matrix market format, symmetric)"| tee -a $stdoutfname
+     somefailed=1
+  fi
+   echo "********************TEST9************************" >> $stdoutfname
+ ./gabp --unittest=23  >> $stdoutfname 2>& 1 
+  if [ $? -eq 0 ]; then
+     echo "PASS TEST 9 (Conjugate Gradient, matrix market format, symmetric)"| tee -a $stdoutfname
+  else
+     echo "FAIL --unittest=9 (Conjugate Gradient, matrix market, symmetric)"| tee -a $stdoutfname
+     somefailed=1
+  fi
+    popd > /dev/null
 else
   echo "Linear solver library not found. "| tee -a $stdoutfname
 fi
