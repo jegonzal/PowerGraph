@@ -52,34 +52,32 @@ void load_matrix_market(const char * filename, graph_type *_g, testtype data_typ
     }
 
     if(data_type==TRAINING && f== NULL){
-	logstream(LOG_ERROR) << " can not find input file. aborting " << std::endl;
-	exit(1);
+	logstream(LOG_FATAL) << " can not find input file. aborting " << std::endl;
     }
 
     if (mm_read_banner(f, &matcode) != 0)
-    {
-        logstream(LOG_ERROR) << "Could not process Matrix Market banner." << std::endl;
-        exit(1);
-    }
+        logstream(LOG_FATAL) << "Could not process Matrix Market banner." << std::endl;
 
     /*  This is how one can screen matrix types if their application */
     /*  only supports a subset of the Matrix Market data types.      */
 
     if (mm_is_complex(matcode) && mm_is_matrix(matcode) && 
             mm_is_sparse(matcode) )
-    {
-        logstream(LOG_ERROR) << "sOrry, this application does not support " << std::endl << 
+        logstream(LOG_FATAL) << "sOrry, this application does not support " << std::endl << 
           "Market Market type: " << mm_typecode_to_str(matcode) << std::endl;
-        exit(1);
-    }
+
+    if (mm_is_array(matcode))
+       logstream(LOG_FATAL) << "Only sparse matrix format is supported. It seems your input file has dense formati (array format)" << std::endl;
+
+    if (mm_is_symmetric(matcode))
+       logstream(LOG_FATAL) << "Symmetic matrix market matrices are not supported in pmf. " << std::endl;
 
     /* find out size of sparse matrix .... */
-
-    if ((ret_code = mm_read_mtx_crd_size(f, &M, &N, &nz)) !=0){
-       logstream(LOG_ERROR) << "failed to read matrix market cardinality size " << std::endl; 
-       exit(1);
-    }
-
+    if ((ret_code = mm_read_mtx_crd_size(f, &M, &N, &nz)) !=0)
+       logstream(LOG_FATAL) << "failed to read matrix market cardinality size " << std::endl; 
+   
+   
+ 
     ps.M = M; ps.N = N; ps.K = 1;
     ps.last_node = M+N;
     verify_size(data_type, M, N, 1);
@@ -98,10 +96,12 @@ void load_matrix_market(const char * filename, graph_type *_g, testtype data_typ
     edge_data edge;
     for (i=0; i<nz; i++)
     {
-        fscanf(f, "%d %d %lg\n", &I, &J, &val);
+        int rec = fscanf(f, "%d %d %lg\n", &I, &J, &val);
+        if (rec != 3)
+           logstream(LOG_FATAL)<<"Error reading input line " << i << std::endl;
+
         if (I<=0 || J<= 0){
-          logstream(LOG_ERROR) << "Matrix market values should be >= 1, observed values: " << I << " " << J << " In item number " << nz << std::endl;
-          exit(1);
+          logstream(LOG_FATAL) << "Matrix market values should be >= 1, observed values: " << I << " " << J << " In item number " << nz << std::endl;
         }
         I--;  /* adjust from 1-based to 0-based */
         J--;
