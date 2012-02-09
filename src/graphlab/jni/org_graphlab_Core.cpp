@@ -278,6 +278,61 @@ extern "C" {
     return;
   
   }
+  
+  JNIEXPORT void JNICALL
+  Java_org_graphlab_Core_addGlobal
+  (JNIEnv *env, jobject obj, jlong ptr, jstring key, jobject to_store){
+  
+    if (NULL == env || 0 == ptr){
+      proxy_updater::core::throw_exception(
+        env,
+        "java/lang/IllegalArgumentException",
+        "ptr must not be null.");
+        return;
+    }
+    
+    proxy_updater::core *jni_core = (proxy_updater::core *) ptr;
+    
+    // convert jstring to c string
+    const char * key_str = env->GetStringUTFChars(key, NULL);
+    
+    java_any a = java_any(env, to_store);
+    (*jni_core)().add_global(std::string(key_str), a);
+    
+    // free memory
+    env->ReleaseStringUTFChars(key, key_str);
+    
+    return;
+  
+  }
+  
+  JNIEXPORT void JNICALL
+  Java_org_graphlab_Core_setGlobal
+  (JNIEnv *env, jobject obj, jlong ptr, jstring key, jobject to_store){
+  
+    if (NULL == env || 0 == ptr){
+      proxy_updater::core::throw_exception(
+        env,
+        "java/lang/IllegalArgumentException",
+        "ptr must not be null.");
+        return;
+    }
+    
+    proxy_updater::core *jni_core = (proxy_updater::core *) ptr;
+    
+    // convert jstring to c string
+    const char * key_str = env->GetStringUTFChars(key, NULL);
+    
+    java_any a = java_any(env, to_store);
+    (*jni_core)().set_global(std::string(key_str), a);
+    
+    // free memory
+    env->ReleaseStringUTFChars(key, key_str);
+    
+    return;
+  
+  }
+  
 
   JNIEXPORT jobject JNICALL
   Java_org_graphlab_Core_getGlobal

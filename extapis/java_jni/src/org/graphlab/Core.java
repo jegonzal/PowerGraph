@@ -191,6 +191,19 @@ public final class Core {
   public <Type> void addGlobalConst(String key, Type object) {
     addGlobalConst(mCorePtr, key, object);
   }
+  
+  /**
+   * Adds a global entry.
+   * @param <Type>
+   *           type of object to add
+   * @param key
+   *           key to uniquely identify the object
+   * @param object
+   *           the object to add
+   */
+  public <Type> void addGlobal(String key, Type object){
+    addGlobal(mCorePtr, key, object);
+  }
 
   /**
    * Retrieves a global entry.
@@ -206,6 +219,10 @@ public final class Core {
   public <Type> Type getGlobal(String key, Class<Type> cls) {
     Object obj = getGlobal(mCorePtr, key);
     return cls.cast(obj);
+  }
+  
+  public <Type> void setGlobal(String key, Type object){
+    setGlobal(mCorePtr, key, object);
   }
 
   /**
@@ -401,9 +418,33 @@ public final class Core {
 	 */
 	private native long lastUpdateCount(long ptr);
 	
+	/**
+	 * Add a global constant entry
+	 * @param ptr
+	 *       {@link mCorePtr}
+	 * @param key
+	 * @param obj
+	 */
 	private native void addGlobalConst(long ptr, String key, Object obj);
 	
+	/**
+   * Add a global entry
+   * @param ptr
+   *       {@link mCorePtr}
+   * @param key
+   * @param obj
+   */
+	private native void addGlobal(long ptr, String key, Object obj);
+	
+	/**
+	 * Retrieve a global entry
+	 * @param ptr
+	 * @param key
+	 * @return global entry
+	 */
 	private native Object getGlobal(long ptr, String key);
+	
+	private native void setGlobal(long ptr, String key, Object obj);
 
 	/**
 	 * Set the number of cpus that the engine will use.

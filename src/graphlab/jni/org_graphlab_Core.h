@@ -97,6 +97,14 @@ JNIEXPORT void JNICALL Java_org_graphlab_Core_addGlobalConst
 
 /*
  * Class:     org_graphlab_Core
+ * Method:    addGlobal
+ * Signature: (JLjava/lang/String;Ljava/lang/Object;)V
+ */
+JNIEXPORT void JNICALL Java_org_graphlab_Core_addGlobal
+  (JNIEnv *, jobject, jlong, jstring, jobject);
+
+/*
+ * Class:     org_graphlab_Core
  * Method:    getGlobal
  * Signature: (JLjava/lang/String;)Ljava/lang/Object;
  */
