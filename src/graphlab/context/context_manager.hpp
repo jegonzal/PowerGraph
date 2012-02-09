@@ -78,6 +78,7 @@ namespace graphlab {
     graph_type* graph_ptr;
     std::vector<context_type> contexts;
     std::vector<rwlock> locks;
+    // std::vector<mutex> locks;
     consistency_model default_consistency;
 
   public:
@@ -150,6 +151,7 @@ namespace graphlab {
     void acquire_writelock(const size_t cpuid, const vertex_id_type vid, 
                            const bool is_center = false) {
       locks[vid].writelock();
+      // locks[vid].lock();
     }
 
 
@@ -157,6 +159,7 @@ namespace graphlab {
 
     void acquire_readlock(const size_t cpuid, const vertex_id_type vid) {      
       locks[vid].readlock();
+      // locks[vid].lock();
     }
 
     

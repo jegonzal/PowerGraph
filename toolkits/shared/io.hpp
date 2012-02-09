@@ -839,9 +839,16 @@ bool load_binary_graph(const std::string& fname,
   bool is_square = desc.is_square();
 
   std::cout << "Adding edges." << std::endl;
+  int step = 0;
+  if (desc.nonzeros > 10000000)
+     step = desc.nonzeros / 100;
+
   for(size_t i = 0; i < size_t(desc.nonzeros); ++i) {    
     int row = 0, col = 0;  
     double val = 0;
+    if (step > 0 && (i % step == 0))
+       logstream(LOG_INFO) << "Loaded " << i << " edges for far." << std::endl;
+
     if(fscanf(fptr, "%d %d %lg\n", &row, &col, &val) != 3) {
       logstream(LOG_FATAL) 
         << "Error reading file " << fname << " on line: " << i << std::endl;
@@ -901,18 +908,31 @@ template <typename Graph>
 void save_to_bin(const std::string &filename, Graph& graph, bool edge_weight) {
   typedef typename Graph::vertex_id_type vertex_id_type;
   typedef typename Graph::edge_id_type edge_id_type;
+  typedef typename Graph::edge_list_type edge_list_type;
 
-  int n = graph.num_vertices();
   uint* nodes = new uint[graph.num_vertices()+1];
   uint* innodes = new uint[graph.num_vertices()+1];
   nodes[0] = 0; innodes[0] = 0;
- 
+  double * in_weights = NULL;
+  if (edge_weight)
+     in_weights = new double[graph.num_edges()]; 
+
+  int cnt = 0; 
   for (int i=0; i< (int)graph.num_vertices(); i++){
      nodes[i+1] = nodes[i]+ graph.num_out_edges(i); 
      innodes[i+1] = innodes[i] + graph.num_in_edges(i);
+     if (edge_weight){
+        const edge_list_type ins = graph.in_edges(i);
+        for (uint j=0; j< ins.size(); j++){
+           in_weights[cnt] = graph.edge_data(ins[j]).val;
+	   cnt++;
+        }
+     } 
      assert(nodes[i+1] <= graph.num_edges());
      assert(innodes[i+1] <= graph.num_edges());
    };
+   if (edge_weight)
+     assert((uint)cnt == graph.num_edges());
  
   write_output_vector_binary(filename + ".nodes", nodes, graph.num_vertices()+1);
   write_output_vector_binary(filename + "-r.nodes", innodes, graph.num_vertices()+1);
@@ -927,6 +947,7 @@ void save_to_bin(const std::string &filename, Graph& graph, bool edge_weight) {
   if (edge_weight){  
   const std::vector<_edge_data_type>& _weights = graph.get_edge_data_storage();
     write_output_vector_binary(filename + ".weights", (double*)&_weights[0], graph.num_edges());
+    write_output_vector_binary(filename + "-r.weights", in_weights, graph.num_edges());
   }
 #endif
   write_output_vector_binary(filename + ".edges", &_edges[0], graph.num_edges());

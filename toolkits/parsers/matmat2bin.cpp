@@ -51,8 +51,6 @@ int main(int argc,  char *argv[]) {
 
   std::string datafile, outdir;
   std::string format = "matrixmarket";
-  size_t sync_interval = 10000;
-  int unittest = 0;
 
   clopts.attach_option("data", &datafile, datafile,
                        "matrix input file");
@@ -76,6 +74,7 @@ int main(int argc,  char *argv[]) {
 
 
   graph_type graph2;
+  graph2.set_use_vcolor(false);
   std::cout << "Load matrix " << datafile << std::endl;
   bipartite_graph_descriptor info;
   load_graph(datafile, format, info, graph2);

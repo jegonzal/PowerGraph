@@ -89,6 +89,13 @@ namespace graphlab {
           source_arr.push_back(source);
           target_arr.push_back(target);
         }
+        void add_block_edges(const std::vector<vertex_id_type>& src_arr, 
+            const std::vector<vertex_id_type>& dst_arr, 
+            const std::vector<EdgeData>& edata_arr) {
+          data.insert(data.end(), edata_arr.begin(), edata_arr.end());
+          source_arr.insert(source_arr.end(), src_arr.begin(), src_arr.end());
+          target_arr.insert(target_arr.end(), dst_arr.begin(), dst_arr.end());
+        }
         void clear() {
           std::vector<EdgeData>().swap(data);
           std::vector<vertex_id_type>().swap(source_arr);
@@ -128,6 +135,11 @@ namespace graphlab {
 
         // Do not use.
         inline uint offset() const {
+          return _edge_id;
+        }
+
+        // Do not use.
+        size_t edge_id() const {
           return _edge_id;
         }
 
@@ -207,11 +219,11 @@ namespace graphlab {
         return retval;
       }
 
-    private:
       // Generate the ret value of the iterator.
       inline edge_type make_value() const {
           return edge_type(center, vid_arr[offset], offset, itype);
       }
+
     private:
       vertex_id_type center;
       size_t offset;
@@ -312,30 +324,16 @@ namespace graphlab {
 
     edge_data_type& edge_data(edge_type edge) {
       ASSERT_FALSE(edge.empty());
-      size_t eid = -1;
-      switch(edge.get_dir()) {
-        case edge_type::OUTEDGE: eid = edge._edge_id; break;
-        case edge_type::INEDGE: eid = c2r_map[edge._edge_id]; break;
-        default: logstream(LOG_FATAL) << "Invalid edge type."
-                 << std::endl; assert(false);
-      }
-
-      ASSERT_LT(eid, num_edges);
-      return edge_data_list[eid];
+      return edge_data_list[edge.get_dir() == edge_type::OUTEDGE ? 
+        edge._edge_id :
+        c2r_map[edge._edge_id]];
     }
 
     const edge_data_type& edge_data(edge_type edge) const {
       ASSERT_FALSE(edge.empty());
-      size_t eid = -1;
-      switch(edge.get_dir()) {
-        case edge_type::OUTEDGE: eid = edge._edge_id; break;
-        case edge_type::INEDGE: eid = c2r_map[edge._edge_id]; break;
-        default: logstream(LOG_FATAL) << "Invalid edge type."
-                 << std::endl; assert(false);
-      }
-
-      ASSERT_LT(eid, num_edges);
-      return edge_data_list[eid];
+      return edge_data_list[edge.get_dir() == edge_type::OUTEDGE ? 
+        edge._edge_id :
+        c2r_map[edge._edge_id]];
     }
 
 
@@ -441,7 +439,10 @@ namespace graphlab {
       // Parallel sort target for each source= x interval: counter_array[x] - counter_array[x+1];
 #ifndef AVOID_PARALLEL_SORT
 #pragma omp parallel for
+#else
+      logstream(LOG_INFO) << "Parallel sort is disabled." << std::endl;
 #endif
+
       for (ssize_t j = 0; j < ssize_t(num_vertices); ++j) {
         if (counter_array[j] < counter_array[j+1]) {
           std::sort(permute_index.begin()+counter_array[j], 
@@ -489,7 +490,9 @@ namespace graphlab {
       bool duplicate_edge_warn = false;
 
       // Construct CSR_src:
+#ifdef DEBUG_GRAPH
       std::cout << "Build CSR_src..." << std::endl;
+#endif
       CSR_src.reserve(num_vertices);
       if (use_skip_list) {
         CSR_src_skip.reserve(num_vertices);

@@ -176,6 +176,9 @@ namespace graphlab {
         ASSERT_LT(_id, graph_ptr->edges.size());
         return graph_ptr->edges[_id].target(); 
       }
+      size_t edge_id() const {
+        return _id;
+      }
       bool empty() const { return graph_ptr == NULL; }
       friend class graph;
     }; // end of class edge_type.

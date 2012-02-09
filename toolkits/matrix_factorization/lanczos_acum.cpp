@@ -20,12 +20,14 @@
  *
  */
 
-#include "graphlab.hpp"
+#include <graphlab.hpp>
 #include "../shared/io.hpp"
 #include "../shared/types.hpp"
 #include <graphlab/graph/graph2.hpp>
 #include <graphlab/graph/graph3.hpp>
 #include <graphlab/graph/graph.hpp>
+#include <google/malloc_extension.h>
+#include <graphlab/macros_def.hpp>
 using namespace graphlab;
 using namespace std;
 
@@ -48,6 +50,10 @@ int max_iter = 10;
 bool debug;
 bool fix_init;
 bool measure_save_time = false;
+bool edge_data_flag = true;
+bool is_square = false;
+bool use_aggregator = true;
+bool svd_orthogonolize = true;
 
 struct vertex_data {
   vec pvec;
@@ -71,7 +77,7 @@ void save(graphlab::oarchive &oarc) const {
 
 struct edge_data {
   real_type weight;
-  edge_data(double weight = 0) : weight(weight) { }
+  edge_data(double weight = 1) : weight(weight) { }
 void save(graphlab::oarchive &oarc) const {
     oarc << weight;
   }
@@ -83,7 +89,8 @@ void save(graphlab::oarchive &oarc) const {
 
  };
 
-#define USE_GRAPH_VER 2
+#define USE_GRAPH_VER 3
+
 
 #if USE_GRAPH_VER == 1
 typedef graphlab::graph<vertex_data, edge_data> graph_type;
@@ -104,12 +111,13 @@ typedef graphlab::graph3<vertex_data, edge_data> graph_type;
  *
  * */
 void init_lanczos(graph_type * g, bipartite_graph_descriptor & info){
+
    int m = max_iter;
    assert(m > 0);
    lancbeta = zeros(m+3);
    lancalpha = zeros(m+3);
    double sum = 0;
-
+#pragma omp parallel for
   for (int i = info.get_start_node(false); i< info.get_end_node(false); i++){ 
     vertex_data * data = (vertex_data*)&g->vertex_data(i);
     data->pvec = zeros(m+3);
@@ -118,12 +126,14 @@ void init_lanczos(graph_type * g, bipartite_graph_descriptor & info){
   }
 
   sum = sqrt(sum);
+#pragma omp parallell for
   for (int i=info.get_start_node(false); i< info.get_end_node(false); i++){ 
     vertex_data * data = (vertex_data*)&g->vertex_data(i);
     data->pvec[1] /= sum;
     if (debug && i- info.get_start_node(false) < 20)
       std::cout<<"Initial V(:,2) is " << data->pvec[1] << std::endl;
   }
+#pragma omp parallel for
   for (int i = info.get_start_node(true); i< info.get_end_node(true); i++){ 
     vertex_data * data = (vertex_data*)&g->vertex_data(i);
     data->pvec = zeros(m+3);
@@ -134,11 +144,12 @@ void print_v(bool rows, int offset, graph_type * g){
   int start= info.get_start_node(rows);;
   int end = info.get_end_node(rows);;
   vec v = zeros(end-start);
+#pragma omp parallel for
   for (int i=start; i< end; i++){ 
     vertex_data * data = &g->vertex_data(i);
     v[i - start] = data->pvec[offset];
   }
-  cout<<"v is: " << mid(v,0,20) << endl;
+  cout<<"v is: " << endl << mid(v,0,20) << endl;
   if (end - start > 40)
     cout<<"v end is: " << mid(v, v.size()-20, 20) << endl;
 }
@@ -170,12 +181,19 @@ struct lanczos_update :
   }
 
   const edge_list_type outs= context.out_edges();
+  //assert(outs.size() > 0);
   if (outs.size() == 0)
      return;
 
+#ifndef USE_FOREACH
   for (size_t i=0; i< outs.size(); i++) {
-      edge_data & edge = context.edge_data(outs[i]);
-      const vertex_data  & movie = context.const_vertex_data(outs[i].target());
+     const edge_type& e = outs[i];
+#else
+  foreach (const edge_type &e, outs) {
+#endif
+      const edge_data& edge = context.const_edge_data(e);
+      //logstream(LOG_INFO)<<" Node: " << context.vertex_id() << " " << edge.weight << " " << e.source() << ":" << e.target() << "@" << e.offset() << std::endl;
+      const vertex_data  & movie = context.const_vertex_data(e.target());
       user.value += edge.weight * movie.pvec[offset];
   }
 
@@ -196,13 +214,20 @@ struct lanczos_update :
   int offset3 = context.get_global<int>("offset3");
 
   const edge_list_type ins = context.in_edges();
+  //assert(ins.size() > 0);
   if (ins.size() == 0)
     return;
 
-   for(size_t i=0; i< ins.size(); i++) {
-      const edge_data & edge = context.edge_data(ins[i]);
-      const vertex_data  & movie = context.const_vertex_data(ins[i].source());
+#ifndef USE_FOREACH
+   for (size_t i=0; i< ins.size(); i++) {
+       const edge_type& e = ins[i];
+#else
+   foreach (const edge_type& e, ins) {
+#endif
+      const edge_data& edge = context.const_edge_data(e);
+      const vertex_data  & movie = context.const_vertex_data(e.source());
       user.value += edge.weight * movie.value;
+      assert(e.source() != e.target());
    }
    
    assert(offset2 < m+2 && offset3 < m+2);
@@ -248,6 +273,7 @@ void substruct(int curoffset, int j, graph_type* g, double alpha){
 
 
 void orthogolonize_vs_all(int curoffset, graph_type *g){
+#pragma omp parallel for
   for (int i=1; i< curoffset-1; i++){
      double alpha = wTV(i, g);
      if (alpha != 0)
@@ -257,10 +283,13 @@ void orthogolonize_vs_all(int curoffset, graph_type *g){
 
 double w_norm_2(bool rows, graph_type * g){
   double norm = 0;
+#pragma omp parallel for  
   for (int i=info.get_start_node(rows); i< info.get_end_node(rows); i++){ 
     vertex_data * data = &g->vertex_data(i);
     norm += data->value*data->value;
   }
+  if (debug)
+    logstream(LOG_INFO)<<"Beta is: " << sqrt(norm) << endl;
   return sqrt(norm);
 }
 
@@ -270,6 +299,7 @@ void w_minus_lancalphaV(int j, graph_type * g){
   
   if (debug)
 	cout << "w: " ;
+#pragma omp parallel for
   for (int i=info.get_start_node(false); i< info.get_end_node(false); i++){ 
     vertex_data * data = (vertex_data*)&g->vertex_data(i);
     data->value -= lancalpha[j]*data->pvec[j];
@@ -280,7 +310,7 @@ void update_V(int j, graph_type * g){
 
   if (debug)
 	cout<<"V: ";
-
+#pragma omp parallel for
   for (int i=info.get_start_node(false); i< info.get_end_node(false); i++){ 
     vertex_data * data = (vertex_data*)&g->vertex_data(i);
     data->value /= lancbeta[j]; //DB: NEW
@@ -296,6 +326,7 @@ void update_V(int j, graph_type * g){
 mat calc_V(graph_type * g){
 
   mat V = zeros(info.num_nodes(false), max_iter+1);
+#pragma omp parallel for
   for (int i=info.get_start_node(false); i< info.get_end_node(false); i++){ 
     const vertex_data * data = (vertex_data*)&g->vertex_data(i);
     set_row(V, i-info.get_start_node(false), mid(data->pvec, 1, max_iter+1));
@@ -314,9 +345,9 @@ void print_w(bool rows, graph_type * g){
     const vertex_data * data = (vertex_data*)&g->vertex_data(i);
     v[i - start] = data->value;
   }
-  cout<<"w is: " << mid(v,0,20) << endl;
+  cout<<"w = " << endl << mid(v,0,20) << endl;
   if (end - start > 40)
-    cout<<"w end is: " << mid(v, v.size()-20, 20) << endl;
+    cout<<"w end is: " << endl << mid(v, v.size()-20, 20) << endl;
 }
 
 
@@ -333,6 +364,7 @@ void compute_residual(const vec & eigenvalues, const mat & eigenvectors, graph_t
       lancbeta[j] = eigenvalues[j-1];
       if (debug)
           printf("Residual eigenvalue %d is: %g\n", j, eigenvalues[j-1]);
+#pragma omp parallel for
       for (int i= info.get_start_node(false); i< info.get_end_node(false); i++){
          g->vertex_data(i).pvec[j] = get_val( eigenvectors, i-info.get_start_node(false), eigenvectors.cols() - j);
          //printf("%g ", g->vertex_data(i).pvec[j]);
@@ -346,6 +378,7 @@ void compute_residual(const vec & eigenvalues, const mat & eigenvectors, graph_t
       print_w(true, &glcore.graph());
       print_w(false, &glcore.graph());
        double sum = 0;
+#pragma omp parallel for
       for (int i= info.get_start_node(false); i< info.get_end_node(false); i++){
         sum += pow(g->vertex_data(i).value,2);
 
@@ -358,12 +391,13 @@ void compute_residual(const vec & eigenvalues, const mat & eigenvectors, graph_t
 }
 
 
-void lanczos(graphlab::core<graph_type, lanczos_update> & glcore, 
+vec lanczos(graphlab::core<graph_type, lanczos_update> & glcore, 
              bipartite_graph_descriptor & info, timer & mytimer){
    
-
    glcore.set_global("m", max_iter);
+
    init_lanczos(&glcore.graph(), info);
+
    lanczos_update lupdate;
    glcore.add_aggregator("sync", lupdate, 1000);
    
@@ -373,7 +407,12 @@ void lanczos(graphlab::core<graph_type, lanczos_update> & glcore,
         glcore.set_global("offset", j);
         glcore.set_global("offset3", j-1);
         glcore.set_global("offset2",j);
-        glcore.aggregate_now("sync");
+        if (use_aggregator)
+          glcore.aggregate_now("sync");
+	else {
+        glcore.schedule_all(lanczos_update());
+        glcore.start();
+        }
 
         if (debug){
           print_w(true,&glcore.graph());
@@ -382,22 +421,19 @@ void lanczos(graphlab::core<graph_type, lanczos_update> & glcore,
        
         //lancalpha(j) = w'*V(:,j);
         //w =  w - lancalpha(j)*V(:,j);
-	lancalpha[j] = wTV(j, &glcore.graph());
+      	lancalpha[j] = wTV(j, &glcore.graph());
         w_minus_lancalphaV(j, &glcore.graph());
         orthogolonize_vs_all(j+1,&glcore.graph());
     
         if (debug)
           print_w(false,&glcore.graph());
 
-        //lancbeta(j+1)=norm(w,2);
+        //lancbeta(j+1)=norm(w,2)a
         lancbeta[j+1] = w_norm_2(false, &glcore.graph());
 
         //V(:,j+1) = w/lancbeta(j+1);
         update_V(j+1, &glcore.graph()); 
         logstream(LOG_INFO) << "Finished iteration " << j << " in time: " << mytimer.current_time() << std::endl;
-
-
-
 
    } 
   /* 
@@ -440,6 +476,7 @@ void lanczos(graphlab::core<graph_type, lanczos_update> & glcore,
  mat V=zeros(eigenvalues.size(),1);
  set_col(V,0,eigenvalues); 
 
+ return eigenvalues;
 }
 
 int main(int argc,  char *argv[]) {
@@ -455,6 +492,8 @@ int main(int argc,  char *argv[]) {
   int unittest = 0;
   int num_rows = 0;
 
+  bool load_bin = false;
+
   clopts.attach_option("data", &datafile, datafile,
                        "matrix input file");
   clopts.add_positional("data");
@@ -469,6 +508,10 @@ int main(int argc,  char *argv[]) {
   clopts.attach_option("fix_init", &fix_init, fix_init, "fix random vector init to be const"); 
   clopts.attach_option("num_rows", &num_rows, num_rows, "number of matrix rows");
   clopts.attach_option("measure_save_time", &measure_save_time, measure_save_time, "Measure save time and exit");
+  clopts.attach_option("load_bin", &load_bin, load_bin, "Load binary format");
+  clopts.attach_option("edge_data_flag", &edge_data_flag, edge_data_flag, "Allow edge data");
+  clopts.attach_option("is_square", &is_square, is_square, "square matrix?");
+  clopts.attach_option("use_aggregator", &use_aggregator, use_aggregator, "Use aggregator (true) or update function (false)");
   // Parse the command line arguments
   if(!clopts.parse(argc, argv)) {
     std::cout << "Invalid arguments!" << std::endl;
@@ -487,11 +530,20 @@ int main(int argc,  char *argv[]) {
 
   // Create a core
   graphlab::core<graph_type, lanczos_update> core;
+#if USE_GRAPH_VER == 2
+  core.graph().set_use_vcolor(false);
+#endif
   core.set_options(clopts); // Set the engine options
   core.set_scope_type("vertex");
+  omp_set_num_threads(clopts.get_ncpus());
   //unit testing
   if (unittest == 1){
-    datafile = "lanczos2";
+    datafile = "lanczos2t";
+    debug = true; 
+    core.set_ncpus(1);
+    max_iter = 4;
+    fix_init = 1;
+    num_rows = 12;
   }
 
   logstream(LOG_WARNING)<<"Using Graph Version: " << USE_GRAPH_VER << std::endl;
@@ -499,7 +551,11 @@ int main(int argc,  char *argv[]) {
   std::cout << "Load matrix " << datafile << std::endl;
   timer mytimer; mytimer.start(); 
 #if USE_GRAPH_VER != 3
-  load_graph(datafile, format, info, core.graph());
+  if (load_bin) {
+    core.graph().load(datafile+".out");
+  } else {
+    load_graph(datafile, format, info, core.graph());
+  }
   core.graph().finalize();
 #if USE_GRAPH_VER == 2
   if (measure_save_time){
@@ -514,17 +570,32 @@ int main(int argc,  char *argv[]) {
   }
 #endif
   //save_to_bin("/usr0/bickson/" + datafile, core.graph(), true);
-  ///exit(1);
+   // save_to_bin("/usr1/haijieg/netflix3/" + datafile, core.graph(), true);
+   // exit(1);
 #else
-  core.graph().load_directed(outdir+ datafile, false, false);
+  core.graph().load_directed(outdir+ datafile, false, !edge_data_flag);
+#endif
   info.nonzeros = core.graph().num_edges();
+  if (is_square)
+     info.cols = num_rows;
+  else 
   info.cols = core.graph().num_vertices() - num_rows;
   info.rows = num_rows;
-#endif
+
   logstream(LOG_INFO)<<"Loadded a matrix of size " << info.rows << "x" << info.cols << "  nnz: " << info.nonzeros << endl;
   logstream(LOG_INFO)<<"Time taken to load graph: " << mytimer.current_time() << std::endl; 
 
+   // After loading. Google TMalloc Profile
+   //
+   size_t value;
+   MallocExtension::instance()->GetNumericProperty("generic.heap_size", &value);
+   std::cout << "Heap Size: " << (double)value/(1024*1024) << "MB" << "\n";
+   MallocExtension::instance()->GetNumericProperty("generic.current_allocated_bytes", &value);
+   std::cout << "Allocated Size: " << (double)value/(1024*1024) << "MB" << "\n";
+
+
   std::cout << "Schedule all vertices" << std::endl;
+
   core.schedule_all(lanczos_update());
 
   if (sync_interval < core.graph().num_vertices()){
@@ -540,8 +611,8 @@ int main(int argc,  char *argv[]) {
   core.add_global("offset3", int(0));
   core.add_global("m", int(0));
 
-  lanczos(core, info, mytimer);
- 
+
+  vec eigs = lanczos(core, info, mytimer);
   std::cout << "Lanczos finished in " << mytimer.current_time() << std::endl;
   std::cout << "\t Updates: " << core.last_update_count() << " per node: " 
      << core.last_update_count() / core.graph().num_vertices() << std::endl;
@@ -552,9 +623,16 @@ int main(int argc,  char *argv[]) {
 
 
   if (unittest == 1){
+    assert(pow(sqrt(eigs[0])-4.1404,2) <1e-5);
+    assert(pow(sqrt(eigs[1])-1.3548,2) <1e-5);
+    assert(pow(sqrt(eigs[2])-0.9756,2) <1e-5);
+    assert(pow(sqrt(eigs[3])-0.8833,2) <1e-5);
+    assert(pow(sqrt(eigs[4])-0.1816,2) <1e-5);
+    logstream(LOG_WARNING)<<"Unittest 1 (lanczos 12x5 matrix passed fine!)" << endl;
   }
 
    return EXIT_SUCCESS;
 }
 
+#include <graphlab/macros_undef.hpp>
 

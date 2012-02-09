@@ -1,38 +1,5 @@
-/**  
- * Copyright (c) 2009 Carnegie Mellon University. 
- *     All rights reserved.
- *
- *  Licensed under the Apache License, Version 2.0 (the "License");
- *  you may not use this file except in compliance with the License.
- *  You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- *  Unless required by applicable law or agreed to in writing,
- *  software distributed under the License is distributed on an "AS
- *  IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
- *  express or implied.  See the License for the specific language
- *  governing permissions and limitations under the License.
- *
- * For more about this software visit:
- *
- *      http://www.graphlab.ml.cmu.edu
- *
- */
-
-/**
- * Also contains code that is Copyright 2011 Yahoo! Inc.  All rights
- * reserved.  
- *
- * Contributed under the iCLA for:
- *    Joseph Gonzalez (jegonzal@yahoo-inc.com) 
- *
- */
-
-
-
-#ifndef GRAPHLAB_SHARED_MEMORY_ENGINE_HPP
-#define GRAPHLAB_SHARED_MEMORY_ENGINE_HPP
+#ifndef GRAPHLAB_DISTRIBUTED_MEMORY_ENGINE_HPP
+#define GRAPHLAB_DISTRIBUTED_MEMORY_ENGINE_HPP
 
 #include <cmath>
 #include <cassert>
@@ -78,7 +45,7 @@ namespace graphlab {
    * This class defines a basic shared_memory engine
    */
   template<typename Graph, typename UpdateFunctor>
-  class shared_memory_engine : public iengine<Graph, UpdateFunctor> {
+  class distributed_engine : public iengine<Graph, UpdateFunctor> {
     
   public:
 
@@ -93,11 +60,11 @@ namespace graphlab {
     typedef typename graph_type::edge_list_type edge_list_type;
     typedef typename graph_type::edge_type edge_type;
 
-    typedef ischeduler<shared_memory_engine>      ischeduler_type;
+    typedef ischeduler<distributed_engine>      ischeduler_type;
     
     typedef typename iengine_base::icontext_type  icontext_type;
-    typedef context<shared_memory_engine>         context_type;
-    typedef context_manager<shared_memory_engine> context_manager_type;
+    typedef context<distributed_engine>         context_type;
+    typedef context_manager<distributed_engine> context_manager_type;
    
    
     typedef typename iengine_base::termination_function_type 
@@ -155,94 +122,13 @@ namespace graphlab {
     /** The time in millis that the engine was started */
     size_t start_time_millis;
 
-
-    /**
-     * Local state for each thread
-     */
-    struct thread_state_type {
-      size_t update_count;
-      char FALSE_CACHE_SHARING_PAD[64];
-    }; //end of thread_state
-    std::vector<thread_state_type> tls_array; 
-
-
-
-    //! Termination related variables
-    struct termination_members {
-      size_t last_check_time_in_millis;
-      size_t task_budget;
-      size_t timeout_millis;
-      mutex lock;
-      std::vector<termination_function_type> functions;
-      termination_members() { clear(); }
-      void clear() { 
-        last_check_time_in_millis = 0;
-        task_budget = 0;
-        timeout_millis = 0;
-        functions.clear();
-      }
-    };
-    termination_members termination;
-
-
-    // Global Values ----------------------------------------------------------
-    struct global_record { 
-      std::vector<spinlock> locks;
-      graphlab::any_vector values;
-      bool is_const;
-    }; // end of global_record
-    typedef std::map<std::string, global_record> global_map_type;
-    global_map_type global_records;
-
-    // Global Aggregates ------------------------------------------------------
-    struct isync {
-      size_t interval;
-      vertex_id_type begin_vid, end_vid;
-      bool use_barrier;
-      virtual ~isync() { }
-      virtual void run_aggregator(const std::string key,
-                                  const graphlab::barrier* barrier_ptr,
-                                  const std::vector<mutex>* sync_vlocks_ptr,
-                                  context_type context, 
-                                  size_t ncpus, size_t cpuid) = 0;
-    }; // end of isync
-    
-    template<typename Aggregator >
-    struct sync : public isync {
-      typedef Aggregator       aggregator_type;
-      using isync::begin_vid;
-      using isync::end_vid;
-      using isync::use_barrier;
-      const aggregator_type zero;
-      aggregator_type shared_aggregator;
-      mutex lock;
-      sync(const aggregator_type& zero) : zero(zero), 
-                                          shared_aggregator(zero) { }
-      void run_aggregator(const std::string key,
-                          const graphlab::barrier* barrier_ptr,
-                          const std::vector<mutex>* sync_vlocks_ptr,
-                          context_type context, size_t ncpus, size_t cpuid);
-    }; // end of sync
-
-
-    std::vector<mutex> sync_vlocks;
-    mutex sync_master_lock;
-    typedef std::map<std::string, isync*> sync_map_type;
-    sync_map_type sync_map;
-    typedef mutable_queue<std::string, long> sync_queue_type;   
-    sync_queue_type sync_queue;
-    thread_pool sync_threads;
-
-
-    
-
   public:
    
     //! Create an engine for the given graph
-    shared_memory_engine(graph_type& graph);
+    distributed_engine(graph_type& graph);
     
     //! Clear internal members
-    ~shared_memory_engine() { clear(); }
+    ~distributed_engine() {}
     
     //! Start the engine
     void start();
@@ -255,7 +141,7 @@ namespace graphlab {
       return exec_status; }
 
     //! \brief Get the number of updates executed by the engine.
-    size_t last_update_count() const;
+    size_t last_update_count() const { }
         
     
     /**
@@ -283,16 +169,16 @@ namespace graphlab {
     /**
      * \brief associate a termination function with this engine.
      */
-    void add_termination_condition(termination_function_type term);
+    void add_termination_condition(termination_function_type term) { }
 
     //!  remove all associated termination functions
-    void clear_termination_conditions();
+    void clear_termination_conditions() { }
     
     //! \brief The timeout is the total
-    void set_timeout(size_t timeout_in_seconds = 0);
+    void set_timeout(size_t timeout_in_seconds = 0) { }
 
     //! \brief set a limit on the number of tasks that may be executed.
-    void set_task_budget(size_t max_tasks = 0);
+    void set_task_budget(size_t max_tasks = 0) { }
 
     /**
      * \brief Update the engine options.  
@@ -303,57 +189,16 @@ namespace graphlab {
     void set_options(const graphlab_options& newopts);
 
     //! \brief Get the current engine options for this engine
-    const graphlab_options& get_options() { return opts; } 
-
-    /**
-     * Define a global mutable variable (or vector of variables).
-     *
-     * \param key the name of the variable (vector)
-     * \param value the initial value for the variable (vector)
-     * \param size the initial size of the global vector (default = 1)
-     * 
-     */
-    template< typename T >
-    void add_global(const std::string& key, const T& value, 
-                    size_t size = 1);
-
-    /**
-     * Define a global constant.
-     */
-    template< typename T >
-    void add_global_const(const std::string& key, const T& value, 
-                          size_t size = 1);
-
-
-    //! Change the value of a global entry
-    template< typename T >
-    void set_global(const std::string& key, const T& value, 
-                    size_t index = 0);
-
-    //! Get a copy of the value of a global entry
-    template< typename T >
-    T get_global(const std::string& key, size_t index = 0) const;
-
-
-    //! \brief Registers an aggregator with the engine
-    template<typename Aggregate>
-    void add_aggregator(const std::string& key,            
-                        const Aggregate& zero,                 
-                        size_t interval,
-                        bool use_barrier = false,
-                        vertex_id_type begin_vid = 0,
-                        vertex_id_type end_vid = 
-                        std::numeric_limits<vertex_id_type>::max());
-    
+    const graphlab_options& get_options() { return opts; }    
 
     //! Performs a sync immediately.
-    void aggregate_now(const std::string& key);
+    void aggregate_now(const std::string& key) { }
 
     //! reset the engine
-    void clear();
+    void clear() { }
 
   private:
-    friend class context<shared_memory_engine>;
+    friend class context<distributed_engine>;
     //! Get the global data and lock
     void get_global(const std::string& key,      
                     graphlab::any_vector*& ret_values_ptr,
@@ -411,8 +256,8 @@ namespace graphlab {
   /// Implementation
 
   template<typename Graph, typename UpdateFunctor> 
-  shared_memory_engine<Graph, UpdateFunctor>::
-  shared_memory_engine(graph_type& graph) : 
+  distributed_engine<Graph, UpdateFunctor>::
+  distributed_engine(graph_type& graph) : 
     graph(graph), 
     nverts(graph.num_vertices()),
     context_manager_ptr(NULL),
@@ -421,59 +266,22 @@ namespace graphlab {
     threads(opts.get_ncpus()),
     exec_status(execution_status::UNSET),
     exception_message(NULL),   
-    start_time_millis(0) { 
-  
-    REGISTER_TRACEPOINT(eng_syncqueue, 
-                        "shared_memory_engine: Evaluating Sync Queue");
-    REGISTER_TRACEPOINT(eng_schednext, 
-                        "shared_memory_engine: Reading Task from Scheduler");
-    REGISTER_TRACEPOINT(eng_schedcrit, 
-                        "shared_memory_engine: Time in Engine Termination Critical Section");
-    REGISTER_TRACEPOINT(eng_basicupdate, 
-                        "shared_memory_engine: Time in Basic Update user code");
-    REGISTER_TRACEPOINT(eng_factorized, 
-                        "shared_memory_engine: Time in Factorized Update user code");
-    REGISTER_TRACEPOINT(eng_locktime, 
-                        "shared_memory_engine: Time Acquiring Locks");
-    REGISTER_TRACEPOINT(eng_evalfac, 
-                        "shared_memory_engine: Total time in evaluate_factorized_update_functor");
-    REGISTER_TRACEPOINT(eng_evalbasic, 
-                        "shared_memory_engine: Total time in evaluate_update_functor");
-    REGISTER_TRACEPOINT(eng_lockrelease, 
-                        "shared_memory_engine: Total time releasing locks");
-
-
-  } // end of constructor
+    start_time_millis(0) {  } // end of constructor
 
 
   template<typename Graph, typename UpdateFunctor> 
   void
-  shared_memory_engine<Graph, UpdateFunctor>::
+  distributed_engine<Graph, UpdateFunctor>::
   set_options(const graphlab_options& new_opts) {
     clear();
     opts = new_opts;
   } // end of set_options
 
 
-  template<typename Graph, typename UpdateFunctor> 
-  void
-  shared_memory_engine<Graph, UpdateFunctor>::
-  set_timeout(size_t timeout_in_seconds) {
-    termination.timeout_millis = timeout_in_seconds * 1000;
-  } // end of set_timeout
 
   template<typename Graph, typename UpdateFunctor> 
   void
-  shared_memory_engine<Graph, UpdateFunctor>::
-  set_task_budget(size_t max_tasks) {
-    termination.task_budget = max_tasks; 
-  } // end of set_timeout
-
-
-
-  template<typename Graph, typename UpdateFunctor> 
-  void
-  shared_memory_engine<Graph, UpdateFunctor>::
+  distributed_engine<Graph, UpdateFunctor>::
   schedule(vertex_id_type vid,
            const update_functor_type& update_functor) { 
     initialize_members();
@@ -484,7 +292,7 @@ namespace graphlab {
 
   template<typename Graph, typename UpdateFunctor> 
   void
-  shared_memory_engine<Graph, UpdateFunctor>::
+  distributed_engine<Graph, UpdateFunctor>::
   schedule(const std::vector<vertex_id_type>& vids,
            const update_functor_type& update_functor) { 
     initialize_members();
@@ -499,7 +307,7 @@ namespace graphlab {
     //! \brief Apply update function to all the vertices in the graph
   template<typename Graph, typename UpdateFunctor> 
   void
-  shared_memory_engine<Graph, UpdateFunctor>::
+  distributed_engine<Graph, UpdateFunctor>::
   schedule_all(const update_functor_type& update_functor) { 
     initialize_members();
     ASSERT_TRUE(scheduler_ptr != NULL);
@@ -507,46 +315,6 @@ namespace graphlab {
   } // end of schedule_all
 
 
-  template<typename Graph, typename UpdateFunctor> 
-  size_t
-  shared_memory_engine<Graph, UpdateFunctor>::
-  last_update_count() const {
-    size_t count = 0;
-    for(size_t i = 0; i < tls_array.size(); ++i) 
-      count += tls_array[i].update_count;
-    return count;
-  } // end of last update count
-
-
-
-  template<typename Graph, typename UpdateFunctor> 
-  void
-  shared_memory_engine<Graph, UpdateFunctor>::
-  clear() {
-    join_all_threads();
-    // Delete any local datastructures if necessary
-    if(context_manager_ptr != NULL) {
-      delete context_manager_ptr;
-      context_manager_ptr = NULL;
-    }
-    if(scheduler_ptr != NULL) {
-      if(new_tasks_added) {
-        logstream(LOG_WARNING) 
-          << "Destroying scheduler without excuting new tasks!"
-          << std::endl;
-        new_tasks_added = false;
-      }
-      delete scheduler_ptr; 
-      scheduler_ptr = NULL;
-    }
-    tls_array.clear();
-    nverts = 0;
-    exec_status = execution_status::UNSET;
-  } // end of clear_members
-
-
-
-
 
 
 
@@ -554,7 +322,7 @@ namespace graphlab {
 
   template<typename Graph, typename UpdateFunctor> 
   void
-  shared_memory_engine<Graph, UpdateFunctor>::
+  distributed_engine<Graph, UpdateFunctor>::
   start() { 
 
     // ---------------------- Pre-execution Checks ------------------------- //
@@ -565,8 +333,6 @@ namespace graphlab {
     ASSERT_EQ(graph.num_vertices(), nverts);
     ASSERT_TRUE(context_manager_ptr != NULL);
     ASSERT_TRUE(scheduler_ptr != NULL);
-    ASSERT_EQ(tls_array.size(), opts.get_ncpus());
-    ASSERT_EQ(sync_vlocks.size(), nverts);
         
     // -------------------- Reset Internal Counters ------------------------ //
     for(size_t i = 0; i < tls_array.size(); ++i) { // Reset thread local state
@@ -615,7 +381,7 @@ namespace graphlab {
 
   template<typename Graph, typename UpdateFunctor> 
   void
-  shared_memory_engine<Graph, UpdateFunctor>::
+  distributed_engine<Graph, UpdateFunctor>::
   stop() {      
     // Setting the execution status to forced abort will cause any
     // thread loops to terminate after the current computaiton
@@ -629,7 +395,7 @@ namespace graphlab {
 
   template<typename Graph, typename UpdateFunctor> 
   void
-  shared_memory_engine<Graph, UpdateFunctor>::
+  distributed_engine<Graph, UpdateFunctor>::
   clear_termination_conditions() {      
     termination.clear();
   } // end of clear_termination_conditions
@@ -637,7 +403,7 @@ namespace graphlab {
 
   template<typename Graph, typename UpdateFunctor> 
   void
-  shared_memory_engine<Graph, UpdateFunctor>::
+  distributed_engine<Graph, UpdateFunctor>::
   add_termination_condition(termination_function_type fun) {
     ASSERT_TRUE(fun != NULL);
     termination.functions.push_back(fun);
@@ -648,7 +414,7 @@ namespace graphlab {
   template<typename Graph, typename UpdateFunctor> 
   template<typename T>
   void
-  shared_memory_engine<Graph, UpdateFunctor>::
+  distributed_engine<Graph, UpdateFunctor>::
   add_global(const std::string& key, const T& value, size_t size) {
     global_record& record = global_records[key];
     // Set the initial value (this can change the type)
@@ -661,7 +427,7 @@ namespace graphlab {
   template<typename Graph, typename UpdateFunctor> 
   template<typename T>
   void
-  shared_memory_engine<Graph, UpdateFunctor>::
+  distributed_engine<Graph, UpdateFunctor>::
   add_global_const(const std::string& key, const T& value, size_t size) {
     global_record& record = global_records[key];
     // Set the initial value (this can change the type)
@@ -675,7 +441,7 @@ namespace graphlab {
   template<typename Graph, typename UpdateFunctor> 
   template<typename T>
   void 
-  shared_memory_engine<Graph, UpdateFunctor>::
+  distributed_engine<Graph, UpdateFunctor>::
   set_global(const std::string& key, const T& value, size_t index) {
     typename global_map_type::iterator iter = global_records.find(key);
     if(iter == global_records.end()) {
@@ -698,7 +464,7 @@ namespace graphlab {
   template<typename Graph, typename UpdateFunctor> 
   template<typename T>
   T
-  shared_memory_engine<Graph, UpdateFunctor>::
+  distributed_engine<Graph, UpdateFunctor>::
   get_global(const std::string& key, size_t index) const {
     typename global_map_type::const_iterator iter = global_records.find(key);
     if(iter == global_records.end()) {
@@ -721,7 +487,7 @@ namespace graphlab {
   template<typename Graph, typename UpdateFunctor> 
   template<typename Aggregator>
   void 
-  shared_memory_engine<Graph, UpdateFunctor>::
+  distributed_engine<Graph, UpdateFunctor>::
   add_aggregator(const std::string& key,
                 const Aggregator& zero,                 
                 size_t interval,
@@ -747,7 +513,7 @@ namespace graphlab {
   
   template<typename Graph, typename UpdateFunctor> 
   void 
-  shared_memory_engine<Graph, UpdateFunctor>::
+  distributed_engine<Graph, UpdateFunctor>::
   aggregate_now(const std::string& key) {
     initialize_members();    
     typename sync_map_type::iterator iter = sync_map.find(key);
@@ -775,7 +541,7 @@ namespace graphlab {
 
   template<typename Graph, typename UpdateFunctor> 
   void
-  shared_memory_engine<Graph, UpdateFunctor>::
+  distributed_engine<Graph, UpdateFunctor>::
   get_global(const std::string& key,                         
              graphlab::any_vector*& ret_values_ptr,
              bool& ret_is_const) {
@@ -792,7 +558,7 @@ namespace graphlab {
 
   template<typename Graph, typename UpdateFunctor> 
   void
-  shared_memory_engine<Graph, UpdateFunctor>::
+  distributed_engine<Graph, UpdateFunctor>::
   acquire_global_lock(const std::string& key, size_t index) {
     typename global_map_type::iterator iter = global_records.find(key);
     ASSERT_TRUE(iter != global_records.end());
@@ -804,7 +570,7 @@ namespace graphlab {
 
   template<typename Graph, typename UpdateFunctor> 
   void
-  shared_memory_engine<Graph, UpdateFunctor>::
+  distributed_engine<Graph, UpdateFunctor>::
   release_global_lock(const std::string& key, size_t index) {
     typename global_map_type::iterator iter = global_records.find(key);
     ASSERT_TRUE(iter != global_records.end());
@@ -817,7 +583,7 @@ namespace graphlab {
 
   template<typename Graph, typename UpdateFunctor> 
   void
-  shared_memory_engine<Graph, UpdateFunctor>::
+  distributed_engine<Graph, UpdateFunctor>::
   initialize_members() {
     // If everything is already properly initialized then we don't
     // need to do anything.
@@ -838,7 +604,7 @@ namespace graphlab {
       
       // construct the scheduler
       ASSERT_TRUE(scheduler_ptr == NULL);
-      scheduler_ptr = scheduler_factory<shared_memory_engine>::
+      scheduler_ptr = scheduler_factory<distributed_engine>::
         new_scheduler(opts.scheduler_type,
                       opts.scheduler_args,
                       graph,
@@ -888,7 +654,7 @@ namespace graphlab {
 
   template<typename Graph, typename UpdateFunctor> 
   void
-  shared_memory_engine<Graph, UpdateFunctor>::
+  distributed_engine<Graph, UpdateFunctor>::
   launch_threads() {  
     const size_t ncpus = opts.get_ncpus();
     // launch the threads
@@ -896,7 +662,7 @@ namespace graphlab {
       // Create the boost function which effectively calls:
       //    this->thread_mainloop(i);
       const boost::function<void (void)> run_function = 
-        boost::bind(&shared_memory_engine::thread_mainloop, this, i);
+        boost::bind(&distributed_engine::thread_mainloop, this, i);
       // Add the function to the thread pool
       threads.launch(run_function);
     }
@@ -908,7 +674,7 @@ namespace graphlab {
 
   template<typename Graph, typename UpdateFunctor> 
   void
-  shared_memory_engine<Graph, UpdateFunctor>::
+  distributed_engine<Graph, UpdateFunctor>::
   join_all_threads() {
     join_threads(threads);
     join_threads(sync_threads);
@@ -917,7 +683,7 @@ namespace graphlab {
 
   template<typename Graph, typename UpdateFunctor> 
   void
-  shared_memory_engine<Graph, UpdateFunctor>::
+  distributed_engine<Graph, UpdateFunctor>::
   join_threads(thread_pool& threads) {
     // Join all the threads (looping while failed)
     bool join_successful = false;   
@@ -945,7 +711,7 @@ namespace graphlab {
 
   template<typename Graph, typename UpdateFunctor> 
   void
-  shared_memory_engine<Graph, UpdateFunctor>::
+  distributed_engine<Graph, UpdateFunctor>::
   thread_mainloop(size_t cpuid) {  
     while(exec_status == execution_status::RUNNING) { run_once(cpuid); }
     context_manager_ptr->flush_cache(cpuid);
@@ -954,7 +720,7 @@ namespace graphlab {
 
   template<typename Graph, typename UpdateFunctor> 
   void
-  shared_memory_engine<Graph, UpdateFunctor>::
+  distributed_engine<Graph, UpdateFunctor>::
   run_simulated() {  
     ASSERT_TRUE(opts.get_ncpus() > 0);
     const size_t last_cpuid = opts.get_ncpus() - 1;
@@ -970,7 +736,7 @@ namespace graphlab {
 
   template<typename Graph, typename UpdateFunctor> 
   void
-  shared_memory_engine<Graph, UpdateFunctor>::
+  distributed_engine<Graph, UpdateFunctor>::
   run_once(size_t cpuid) {
      
     // std::cout << "Run once on " << cpuid << std::endl;
@@ -1047,7 +813,7 @@ namespace graphlab {
   // unfactorized version
   template<typename Graph, typename UpdateFunctor> 
   void
-  shared_memory_engine<Graph, UpdateFunctor>::
+  distributed_engine<Graph, UpdateFunctor>::
   evaluate_update_functor(vertex_id_type vid,
                           update_functor_type& ufun, 
                           size_t cpuid) {              
@@ -1069,7 +835,7 @@ namespace graphlab {
   // Factorized version
   template<typename Graph, typename UpdateFunctor> 
   void
-  shared_memory_engine<Graph, UpdateFunctor>::
+  distributed_engine<Graph, UpdateFunctor>::
   evaluate_factorized_update_functor(vertex_id_type vid, 
                                      update_functor_type& ufun,
                                      size_t cpuid) {
@@ -1171,7 +937,7 @@ namespace graphlab {
 
   template<typename Graph, typename UpdateFunctor> 
   void
-  shared_memory_engine<Graph, UpdateFunctor>::
+  distributed_engine<Graph, UpdateFunctor>::
   launch_sync_prelocked(const std::string& key,
                         isync* sync) { 
     ASSERT_NE(sync, NULL);
@@ -1191,7 +957,7 @@ namespace graphlab {
 
   template<typename Graph, typename UpdateFunctor> 
   void
-  shared_memory_engine<Graph, UpdateFunctor>::
+  distributed_engine<Graph, UpdateFunctor>::
   evaluate_sync_queue() {
     // if the engine is no longer running or there is nothing in the
     // sync queue then we terminate early
@@ -1222,7 +988,7 @@ namespace graphlab {
   template<typename Graph, typename UpdateFunctor> 
   template<typename Aggregator>
   void
-  shared_memory_engine<Graph, UpdateFunctor>::sync<Aggregator>::
+  distributed_engine<Graph, UpdateFunctor>::sync<Aggregator>::
   run_aggregator(const std::string key,
                  const graphlab::barrier* barrier_ptr,
                  const std::vector<mutex>* sync_vlocks_ptr,
@@ -1288,7 +1054,7 @@ namespace graphlab {
 
   template<typename Graph, typename UpdateFunctor> 
   void
-  shared_memory_engine<Graph, UpdateFunctor>::
+  distributed_engine<Graph, UpdateFunctor>::
   schedule_sync_prelocked(const std::string& key, size_t sync_interval) {
     const size_t ucount = last_update_count();
     const long negated_next_ucount = -long(ucount + sync_interval); 
@@ -1298,7 +1064,7 @@ namespace graphlab {
 
   template<typename Graph, typename UpdateFunctor> 
   void
-  shared_memory_engine<Graph, UpdateFunctor>::
+  distributed_engine<Graph, UpdateFunctor>::
   evaluate_termination_conditions(size_t cpuid) {
     // return immediately if a check has already occured recently
     if(termination.last_check_time_in_millis == lowres_time_millis()) return;

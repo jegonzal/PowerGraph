@@ -87,6 +87,12 @@ namespace graphlab {
           source_arr.push_back(source);
           target_arr.push_back(target);
         }
+        void add_block_edges(const std::vector<vertex_id_type>& src_arr, 
+            const std::vector<vertex_id_type>& dst_arr, 
+            const std::vector<EdgeData>& edata_arr) {
+          source_arr.insert(source_arr.end(), src_arr.begin(), src_arr.end());
+          dst_arr.insert(target_arr.end(), dst_arr.begin(), dst_arr.end());
+        }
         void clear() {
           std::vector<vertex_id_type>().swap(source_arr);
           std::vector<vertex_id_type>().swap(target_arr);
@@ -453,7 +459,10 @@ namespace graphlab {
       // Parallel sort target for each source= x interval: counter_array[x] - counter_array[x+1];
 #ifndef AVOID_PARALLEL_SORT
 #pragma omp parallel for
+#else
+      logstream(LOG_INFO) << "Parallel sort is disabled." << std::endl;
 #endif
+
       for (ssize_t j = 0; j < ssize_t(num_vertices); ++j) {
         if (counter_array[j] < counter_array[j+1]) {
           std::sort(permute_index.begin()+counter_array[j], 
