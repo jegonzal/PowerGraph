@@ -179,6 +179,35 @@ public final class Core {
 	  
 	}
 
+	/**
+	 * Adds a global constant entry.
+	 * @param <Type>
+	 *           type of object to add
+	 * @param key
+	 *           key to uniquely identify the object
+	 * @param object
+	 *           the object to add
+	 */
+  public <Type> void addGlobalConst(String key, Type object) {
+    addGlobalConst(mCorePtr, key, object);
+  }
+
+  /**
+   * Retrieves a global entry.
+   * @param <Type>
+   *          type of object to retrieve (must be the same as the
+   *          type that was saved.)
+   * @param key
+   *          key to uniquely identify the object
+   * @param cls
+   *          class of the object to retrieve
+   * @return global object
+   */
+  public <Type> Type getGlobal(String key, Class<Type> cls) {
+    Object obj = getGlobal(mCorePtr, key);
+    return cls.cast(obj);
+  }
+
   /**
    * Schedule the execution of an update function on a particular vertex.
    * 
@@ -371,6 +400,10 @@ public final class Core {
 	 * @return update count
 	 */
 	private native long lastUpdateCount(long ptr);
+	
+	private native void addGlobalConst(long ptr, String key, Object obj);
+	
+	private native Object getGlobal(long ptr, String key);
 
 	/**
 	 * Set the number of cpus that the engine will use.

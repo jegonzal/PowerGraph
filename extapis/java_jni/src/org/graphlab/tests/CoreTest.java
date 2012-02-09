@@ -1,5 +1,9 @@
 package org.graphlab.tests;
 
+import static org.junit.Assert.assertEquals;
+
+import java.util.LinkedList;
+
 import org.apache.log4j.BasicConfigurator;
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
@@ -12,8 +16,6 @@ import org.jgrapht.graph.DefaultWeightedEdge;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
-
-import static org.junit.Assert.*;
 
 public class CoreTest {
 
@@ -46,6 +48,33 @@ public class CoreTest {
     
     // check count
     assertEquals("Checking lastUpdateCount", 10, mCore.lastUpdateCount());
+    
+  }
+  
+  @Test
+  public void testGlobalConst(){
+    
+    // set const
+    Integer obj = 6;
+    mCore.addGlobalConst("obj", obj);
+    
+    // do some computation
+    // create graph with 10 vertices
+    final DefaultDirectedWeightedGraph<ScalarVertex, DefaultWeightedEdge> graph
+      = new DefaultDirectedWeightedGraph<ScalarVertex, DefaultWeightedEdge>(DefaultWeightedEdge.class);
+    for (int i=0; i<10; i++) graph.addVertex(new ScalarVertex(i));
+    
+    // schedule a simple updater on all 10 vertices
+    mCore.setGraph(graph);
+    mCore.scheduleAll(new Updater<ScalarVertex>(){
+      @Override
+      public void update(Context context, ScalarVertex vertex){}
+    });
+    mCore.start();
+    
+    // get const
+    Integer returned = mCore.getGlobal("obj", Integer.class);
+    assertEquals("Checking value of stored constant.", new Integer(6), returned);
     
   }
 

@@ -29,6 +29,7 @@
 #define ORG_GRAPHLAB_UPDATER_HPP
 
 #include <graphlab.hpp>
+#include "java_any.hpp"
 #include "org_graphlab_Core.hpp"
 #include "org_graphlab_Updater.h"
 
@@ -56,12 +57,8 @@ namespace graphlab {
    * org.graphlab.Updater object.
    */
   class proxy_updater : 
-    public iupdate_functor<proxy_graph, proxy_updater> {
-    
-  private:
-    
-    /** org.graphlab.Updater object */
-    jobject mjava_updater;
+    public iupdate_functor<proxy_graph, proxy_updater>,
+    public java_any {
     
   public:
   

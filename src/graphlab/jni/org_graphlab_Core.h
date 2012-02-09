@@ -89,6 +89,22 @@ JNIEXPORT jlong JNICALL Java_org_graphlab_Core_lastUpdateCount
 
 /*
  * Class:     org_graphlab_Core
+ * Method:    addGlobalConst
+ * Signature: (JLjava/lang/String;Ljava/lang/Object;)V
+ */
+JNIEXPORT void JNICALL Java_org_graphlab_Core_addGlobalConst
+  (JNIEnv *, jobject, jlong, jstring, jobject);
+
+/*
+ * Class:     org_graphlab_Core
+ * Method:    getGlobal
+ * Signature: (JLjava/lang/String;)Ljava/lang/Object;
+ */
+JNIEXPORT jobject JNICALL Java_org_graphlab_Core_getGlobal
+  (JNIEnv *, jobject, jlong, jstring);
+
+/*
+ * Class:     org_graphlab_Core
  * Method:    setNCpus
  * Signature: (JJ)V
  */

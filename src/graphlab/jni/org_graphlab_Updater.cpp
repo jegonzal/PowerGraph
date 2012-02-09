@@ -60,54 +60,25 @@ void proxy_updater::init(JNIEnv *env){
 // proxy_updater instance members
 //---------------------------------------------------------------
 
-proxy_updater::proxy_updater(JNIEnv *env, jobject &java_updater){
-  mjava_updater = env->NewGlobalRef(java_updater);
-}
+proxy_updater::
+  proxy_updater(JNIEnv *env, jobject &obj)
+  : java_any(env, obj){}
 
-proxy_updater::proxy_updater() : mjava_updater(NULL){}
+proxy_updater::proxy_updater(){}
 
-proxy_updater::proxy_updater(const proxy_updater& other){
-    
-  if (NULL == other.mjava_updater){
-    this->mjava_updater = NULL;
-    return;
-  }
-  
-  // create another reference
-  JNIEnv *env = core::get_jni_env();
-  this->mjava_updater = env->NewGlobalRef(other.mjava_updater);
-  
-}
+proxy_updater::
+  proxy_updater(const proxy_updater& other)
+  : java_any(other){}
 
 proxy_updater &proxy_updater::operator=(const proxy_updater& other){
     
   if (this == &other) return *this;
-  
-  JNIEnv *env = core::get_jni_env();
-  jobject java_updater = NULL;
-  
-  // if other has a java object, create a new ref
-  if (NULL != other.mjava_updater)
-    java_updater = env->NewGlobalRef(other.mjava_updater);
-  
-  // if this has a java object, delete ref
-  if (NULL != this->mjava_updater)
-    env->DeleteGlobalRef(this->mjava_updater);
-    
-  // assign!
-  this->mjava_updater = java_updater;
-  
+  java_any::operator=(other);
   return *this;
   
 }
 
-proxy_updater::~proxy_updater(){
-  if (NULL == mjava_updater) return;
-  // delete reference to allow garbage collection
-  JNIEnv *env = core::get_jni_env();
-  env->DeleteGlobalRef(mjava_updater);
-  mjava_updater = NULL;
-}
+proxy_updater::~proxy_updater(){}
 
 //---------------------------------------------------------------
 // proxy_updater instance members - the update function
@@ -118,7 +89,7 @@ void proxy_updater::operator()(icontext_type& context){
   JNIEnv *env = core::get_jni_env();
   
   // forward call to org.graphlab.Updater
-  env->CallVoidMethod (mjava_updater, java_exec_update,
+  env->CallVoidMethod (obj(), java_exec_update,
                        &context,
                        context.vertex_data().app_vertex);
   
@@ -148,7 +119,7 @@ void proxy_updater::operator+=(const proxy_updater& other) const {
   JNIEnv *env = core::get_jni_env();
   
   // forward call to org.graphlab.Updater
-  env->CallVoidMethod (mjava_updater, java_add, other.mjava_updater);
+  env->CallVoidMethod (obj(), java_add, other.obj());
   
   // check for exception
   jthrowable exc = env->ExceptionOccurred();
