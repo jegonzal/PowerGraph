@@ -73,10 +73,6 @@ typedef graph<vertex_data,edge_data>::edge_type edge_type;
 
 graph_type * pgraph;
 
-void init_math(graph_type * _pgraph){
-  pgraph = _pgraph;
-}
-
 /***
  * UPDATE FUNCTION (ROWS)
  */
@@ -121,6 +117,11 @@ struct Axb:
 }
 };
 
+core<graph_type, Axb> * glcore = NULL;
+void init_math(graph_type * _pgraph, core<graph_type, Axb> * _glcore){
+  pgraph = _pgraph;
+  glcore = _glcore;
+}
 
 
 class DistMat; 
@@ -186,8 +187,9 @@ class DistVec{
       if (mi.d == 0.0)
         mi.d=1.0;
       transpose = vec.transpose;
-      //glcore->add_tasks((!transpose)?rows:cols, Axb, 1); //TODO
-      //runtime += glcore->start();
+      for (vertex_id_type start = info.get_start_node(!transpose); start <(vertex_id_type)info.get_end_node(!transpose); start++)
+        glcore->schedule(start, Axb()); 
+      runtime += glcore->start();
       debug_print(name);
       mi.reset_offsets();
       return *this;
@@ -313,8 +315,9 @@ class DistMat{
 DistVec& DistVec::operator=(DistMat &mat){
   mi.r_offset = offset;
   transpose = mat.transpose;
- // glcore->add_tasks((!mi.transpose)?rows:cols, Axb, 1);//TODO
- // runtime += glcore->start();
+  for (vertex_id_type start = info.get_start_node(!transpose); start< (vertex_id_type)info.get_end_node(!transpose); start++)
+    glcore->schedule(start, Axb());
+  runtime += glcore->start();
   debug_print(name);
   mi.reset_offsets();
   mat.transpose = false;
@@ -406,21 +409,6 @@ DistDouble norm(DistVec & vec){
     return mval;
 }
 
-void init_row_cols(){
-     /* 
-    for (int i=0; i< (int)info.get_start_node(false); i++)
-      rows.push_back(i);
-
-    if (config.square){
-      cols = rows;
-    }
-    else {
-      assert(ps.m!= 0);
-      for (int i=info.get_start_node(false); i < (int)info.get_end_node(false); i++)
-        cols.push_back(i);
-    }*/
-//TODO
-}
 
 
 #endif //_MATH_HPP

@@ -164,6 +164,7 @@ int main(int argc,  char *argv[]) {
   load_vector(xfile, format, matrix_info, core.graph(), CG_Y, true);
   
   math_info mi;
+  init_math(&core.graph(), &core);
   //aggregator acum;
   //core.add_aggregator("sync", acum, sync_interval);
   //core.add_global("REAL_NORM", double(0));
@@ -208,7 +209,7 @@ int main(int argc,  char *argv[]) {
      /*
      for i=1:size(A,1)
         Ap=A*p; 
-        if (~matrix_info.is_square())
+        if (~square)
           Ap=A'*Ap; 
         end             
         alpha=rsold/(p'*Ap); 
