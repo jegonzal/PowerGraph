@@ -307,8 +307,9 @@ void load_matrix_market_matrix(graph_type * g)
         }
         if (config.scalerating != 1.0)
 	     val /= config.scalerating;
-         if (!config.zero)
-	   assert(val!=0 );
+         if (!config.zero && val == 0)
+	  logstream(LOG_FATAL) << "Encountered zero value in line: " << i << " line is: [ " << I+1<<" " <<J+1<< " "<<val<< " ]."
+                               << "Please run with --zero=true to ignore zero values in input matrix." << std::endl;
         
         assert(I< M);
         assert(J< N);
@@ -317,7 +318,7 @@ void load_matrix_market_matrix(graph_type * g)
 	   vertex_data & data = g->vertex_data(I);
            init_prior_prec(data, val);
         }
-	else {
+	else if (val != 0){
           add_edge(val, I, J, g);
           if (mm_is_symmetric(matcode))
             add_edge(val, J, I, g);
