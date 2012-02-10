@@ -83,7 +83,6 @@ struct Axb:
 
   vertex_data& user = context.vertex_data();
   bool rows = context.vertex_id() < (uint)info.get_start_node(false);
-  double * pr = (double*)&user;
   assert(mi.r_offset >=0);
   double val = 0;
   assert(mi.x_offset >=0 || mi.y_offset>=0);
@@ -96,24 +95,23 @@ struct Axb:
    for (size_t i = 0; i < edges.size(); i++){
       const edge_data & edge = context.edge_data(edges[i]);
       const vertex_data  & movie = context.const_vertex_data(rows ? edges[i].target() : edges[i].source());
-      double * px = (double*)&movie.pvec[0];
-      val += (mi.c * edge.weight * px[mi.x_offset]);
+      val += (mi.c * edge.weight * movie.pvec[mi.x_offset]);
     }
   
     if (info.is_square())// add the diagonal term
-      val += (mi.c* (user.A_ii+ regularization) * pr[mi.x_offset]);
+      val += (mi.c* (user.A_ii+ regularization) * user.pvec[mi.x_offset]);
   }
  /***** COMPUTE r = c*I*x  *****/
   else if (!mi.A_offset && mi.x_offset >= 0){
-     val = mi.c*pr[mi.x_offset];
+     val = mi.c*user.pvec[mi.x_offset];
   }
   
   /**** COMPUTE r+= d*y (optional) ***/
   if (mi.y_offset>= 0){
-    val += mi.d*pr[mi.y_offset]; 
+    val += mi.d*user.pvec[mi.y_offset]; 
   }
 
-  pr[mi.r_offset] = val;
+  user.pvec[mi.r_offset] = val;
 }
 };
 
@@ -137,16 +135,15 @@ class DistVec{
    int end;
 
    void init(){
-     debug_print(name);
      start = info.get_start_node(!transpose);
      end = info.get_end_node(!transpose);
-     assert(start < end);
+     assert(start < end && start >= 0 && end >= 1);
+     debug_print(name);
    };
 
-   DistVec(math_info &_mi, bipartite_graph_descriptor &_info, int _offset, bool _transpose, const std::string & _name){
+   DistVec(bipartite_graph_descriptor &_info, int _offset, bool _transpose, const std::string & _name){
      offset = _offset;
      name = _name;
-     mi = _mi;
      info = _info;
      transpose = _transpose;
      init();
@@ -187,8 +184,10 @@ class DistVec{
       if (mi.d == 0.0)
         mi.d=1.0;
       transpose = vec.transpose;
-      for (vertex_id_type start = info.get_start_node(!transpose); start <(vertex_id_type)info.get_end_node(!transpose); start++)
-        glcore->schedule(start, Axb()); 
+      end = vec.end; 
+      start = vec.start;
+      for (vertex_id_type i = start; i < (vertex_id_type)end; i++)
+        glcore->schedule(i, Axb()); 
       runtime += glcore->start();
       debug_print(name);
       mi.reset_offsets();
@@ -198,42 +197,35 @@ class DistVec{
   DistVec& operator=(const vec & pvec){
     assert(offset >= 0);
     assert(pvec.size() == info.num_nodes(true) || pvec.size() == info.num_nodes(false));
+    assert(start < end);
     if (!info.is_square() && pvec.size() == info.num_nodes(false)){
       transpose = true;
     }
     else {
       transpose = false;
     }
-#pragma omp parallel for    
+//#pragma omp parallel for    
     for (int i=start; i< end; i++){  
-         const vertex_data * data = &pgraph->vertex_data(i);
-         double * pv = (double*)&data->pvec[0];
-         pv[offset] = pvec[i-start];  
+         pgraph->vertex_data(i).pvec[offset] = pvec[i-start];
     }
     debug_print(name);
     return *this;       
   }
 
 
-  void to_vec(vec & v){
-    if (v.size() == 0){
-      v.resize(info.num_nodes(!transpose));
+    vec to_vec(){
+      vec ret = zeros(end-start);
+      for (int i=start; i< end; i++){
+         ret[i-start] = pgraph->vertex_data(i).pvec[offset];
+      }
+      return ret;
     }
-    int start = info.get_start_node(!transpose);    
-    for (int i=start; i<info.get_end_node(!transpose); i++){
-         const vertex_data * data = &pgraph->vertex_data(i);        
-	 double * pv = (double*)data;
-         v[i-start] = pv[offset];
-     }
-  }
 
   void debug_print(const char * name){
      if (debug){
-       std::cout<<name<<" ("<<name<<" "<<offset<<" [ " << info.num_nodes(!transpose) << "] ";
-       for (int i=start; i< std::min(info.get_end_node(!transpose), info.get_start_node(!transpose)+MAX_PRINT_ITEMS); i++){  //TODO
-         const vertex_data * data = &pgraph->vertex_data(i);
-         double * pv = (double*)data;
-         std::cout<<pv[mi.r_offset==-1?offset:mi.r_offset]<<" ";
+       std::cout<<name<<" ("<<name<<" "<<offset<<" [ " << (end-start) << "] ";
+       for (int i=start; i< std::min(end, start+MAX_PRINT_ITEMS); i++){  
+         std::cout<<pgraph->vertex_data(i).pvec[mi.r_offset==-1?offset:mi.r_offset]<<" ";
        }
        std::cout<<std::endl;
      }
@@ -266,11 +258,9 @@ class DistMat{
   public:
     bool transpose;
     bipartite_graph_descriptor info;
-    math_info mi;
 
-    DistMat(bipartite_graph_descriptor& _info, math_info & _mi) { 
+    DistMat(bipartite_graph_descriptor& _info) { 
       info = _info;
-      mi = _mi;
       transpose = false;
     };
 
@@ -329,16 +319,17 @@ class DistDouble{
   public:
      double val;
      std::string name;
-     math_info mi;
 
-     DistDouble(math_info & _mi): mi(_mi) {};
+     DistDouble() {};
+     DistDouble(double _val) : val(_val) {};
+   
    
      const DistVec& operator*(const DistVec & dval){
         mi.d=val;
         return dval;
      }
      DistDouble  operator/(const DistDouble dval){
-        DistDouble mval(mi);
+        DistDouble mval;
         mval.val = val / dval.val;
         return mval;
      }
@@ -377,7 +368,7 @@ class DistDouble{
          val += mi.d* pv[mi.y_offset] * pv[mi.b_offset];
       }
       mi.reset_offsets();
-      DistDouble mval(mi);
+      DistDouble mval;
       mval.val = val;
       return mval;
  }
@@ -389,7 +380,7 @@ int size(DistMat & A, int pos){
 }
 
 DistDouble sqrt(DistDouble & dval){
-    DistDouble mval(mi);
+    DistDouble mval;
     mval.val=sqrt(dval.val);
     return mval;
 }
@@ -398,7 +389,7 @@ DistDouble norm(DistVec & vec){
     assert(vec.offset>=0);
     assert(vec.start < vec.end);
 
-    DistDouble mval(mi);
+    DistDouble mval;
     mval.val = 0;
     for (int i=vec.start; i < vec.end; i++){
        const vertex_data * data = &pgraph->vertex_data(i);

@@ -33,12 +33,14 @@ double regularization = 0;
 bool calc_residual = false;
 bool debug = false;
 int max_iter = 10;
+int data_size = 7;
 
 struct vertex_data {
 
   vec pvec;
   double A_ii;
   vertex_data() : A_ii(1) {
+    pvec.resize(data_size);
   }
   void add_self_edge(double value) { A_ii = value + regularization; }
 
@@ -86,6 +88,47 @@ enum input_pos{
   CG_AP = 5,
   CG_T = 6
 };
+
+
+void test_math(int unittest, bipartite_graph_descriptor & info, math_info & mi){
+    if (unittest == 1){
+    DistMat A(info);
+    DistVec b(info, CG_Y,true, "b");
+    DistVec prec(info, CG_PREC,true, "prec");
+    DistVec p(info, CG_P,true, "p");
+    DistVec x(info, CG_X,true, "x");
+    
+    x = ones(3);
+    vec ret = x.to_vec();
+    assert(ret[0] == 1);
+    assert(ret[1] == 1);
+    assert(ret[2] == 1);
+    x = -x;
+    ret = x.to_vec();
+    assert(ret[0] == -1);
+    assert(ret[1] == -1);
+    assert(ret[2] == -1);
+    DistDouble factor(2);
+    x = factor*x;
+    ret = x.to_vec();
+    assert(ret[0] == -2);
+    assert(ret[1] == -2);
+    assert(ret[2] == -2);
+    x = x + b;
+    vec bret = b.to_vec();
+    ret = x.to_vec();
+    assert(ret[0] == bret[0] - 2);
+    assert(ret[1] == bret[1] - 2);
+    assert(ret[2] == bret[2] - 2);
+
+    p = A*b;
+    vec pret = p.to_vec();
+     
+    }
+ 
+   exit(0);
+}
+
 
 int main(int argc,  char *argv[]) {
   
@@ -152,7 +195,7 @@ int main(int argc,  char *argv[]) {
   y= [ 0.9649    0.1576    0.9706 ]';
   x= [ 0.6803   -0.4396    0.4736 ]';
 */
-    datafile = "A"; yfile = "y"; xfile = "x"; sync_interval = 120;
+    datafile = "A"; yfile = "y"; xfile = "x";
   }
 
   std::cout << "Load matrix A" << std::endl;
@@ -171,19 +214,20 @@ int main(int argc,  char *argv[]) {
   //core.add_global("RELATIVE_NORM", double(0));
   //core.add_global("THRESHOLD", threshold); 
 
-  
+  if (unittest > 0)
+    test_math(unittest, matrix_info, mi); 
   //  int tmp=ps.n; ps.n=ps.m; ps.m = tmp;
   //  diff = NAN;
   //  init_row_cols();
 
-    DistMat A(matrix_info,mi);
-    DistVec b(mi, matrix_info, CG_Y,true, "b");
-    DistVec prec(mi, matrix_info, CG_PREC,true, "prec");
-    DistVec r(mi, matrix_info, CG_R, true, "r");
-    DistVec p(mi, matrix_info, CG_P,true, "p");
-    DistVec x(mi, matrix_info, CG_X,true, "x");
-    DistVec Ap(mi, matrix_info, CG_AP, false, "Ap");
-    DistVec t(mi, matrix_info, CG_T,true, "t");
+    DistMat A(matrix_info);
+    DistVec b(matrix_info, CG_Y,true, "b");
+    DistVec prec(matrix_info, CG_PREC,true, "prec");
+    DistVec r(matrix_info, CG_R, true, "r");
+    DistVec p(matrix_info, CG_P,true, "p");
+    DistVec x(matrix_info, CG_X,true, "x");
+    DistVec Ap(matrix_info, CG_AP, false, "Ap");
+    DistVec t(matrix_info, CG_T,true, "t");
     //initialize startng guess
 
     vec init_x;
@@ -191,7 +235,7 @@ int main(int argc,  char *argv[]) {
       init_x = ones(matrix_info.num_nodes(false));
     x = init_x;
 
-    DistDouble rsold(mi), rnew(mi), alpha(mi);
+    DistDouble rsold, rnew, alpha;
 
     /* r = -A*x+b;
        if (~sqaure)
