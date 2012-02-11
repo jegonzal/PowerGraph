@@ -456,14 +456,6 @@ int do_main(int argc, const char *argv[]){
    if (ac.unittest > 0)
         unit_testing(ac.unittest, clopts);
 
-
-   mat A = zeros(2,2);
-   set_val(A, 0,0,1);
-   set_val(A, 0,1,2);
-   set_val(A, 1,0,3);
-   set_val(A, 1,1,4);
-   const double * val = data(A);
- 
    switch(ac.algorithm){
       case ALS_TENSOR_MULT:
       case BPTF_TENSOR_MULT:

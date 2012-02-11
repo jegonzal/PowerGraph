@@ -445,13 +445,6 @@ void export_kdd_format(const graph_type & _g, testtype type, bool dosave) {
 template<typename graph_type, typename vertex_data>
 void export_uvt_to_binary_file(){
 
-  if (ps.algorithm == TIME_SVD_PLUS_PLUS){
-    logstream(LOG_FATAL) <<"time-svd++ does not support binary output format" << std::endl;
-  }
-
-  //if (ps.algorithm != LANCZOS && ps.algorithm != SVD)
-  //   fill_factors_uvt<graph_type, vertex_data>();
-
   char dfile[256] = {0};
   sprintf(dfile,"%s-%d-%d.out",ac.datafile.c_str(),ac.D,ps.iiter);
   FILE * f = open_file(dfile, "w");
@@ -470,36 +463,75 @@ void export_uvt_to_binary_file(){
   for (int i=0; i< ps.M+ps.N; i++){ 
       const vertex_data & vdata = ps.g<graph_type>(TRAINING)->vertex_data(i);
       if (i < ps.M){
-        //set_row(ps.U, i, data.pvec);
         write_vec(f, vdata.pvec.size(), data(vdata.pvec));
       }
       else {
         write_vec(f, vdata.pvec.size(), data(vdata.pvec));
-        //set_row(ps.V, i-ps.M, data.pvec);
       }
    }
 
    if (ps.tensor){ 
      for (int i=0; i<ps.K; i++){
-        //set_row(ps.T, i, ps.times[i].pvec);
         write_vec(f, ps.times[i].pvec.size(), data(ps.times[i].pvec));
      }
     } 
 
-  //write_vec(f, ps.U.size(), data(ps.U));
-  //write_vec(f, ps.V.size(), data(ps.V));
-  //if (ps.tensor)
-  //  write_vec(f, ps.T.size(), data(ps.T));
-
-  if (ps.algorithm == SVD_PLUS_PLUS){
-    write_vec(f, ps.svdpp_usr_bias.size(), data(ps.svdpp_usr_bias));
-    write_vec(f, ps.svdpp_movie_bias.size(), data(ps.svdpp_movie_bias));
-    write_vec(f, 1, ps.globalMean); 
-  }
-   
   fclose(f); 
 
 }
+
+//OUTPUT: SAVE FACTORS U,V,T to a binary file
+
+// FORMAT:  M N K D (4 x ints)
+// MATRIX U ( M x D doubles)
+// MATRIX V ( N x D doubles)
+// usr_bias ( M x 1 doubles)
+// movie bias (N x 1 doubles)
+// global mean (1 double)
+// TOTAL FILE SIZE: 4 ints + (M+N)*D + M + N + 1
+template<>
+void export_uvt_to_binary_file<graph_type_svdpp,vertex_data_svdpp>(){
+
+  if (ps.algorithm == TIME_SVD_PLUS_PLUS){
+    logstream(LOG_FATAL) <<"time-svd++ does not support binary output format" << std::endl;
+  }
+
+  char dfile[256] = {0};
+  sprintf(dfile,"%s-%d-%d.out",ac.datafile.c_str(),ac.D,ps.iiter);
+  FILE * f = open_file(dfile, "w");
+
+  logstream(LOG_INFO)<<"Saving output in binary format to: " << dfile << std::endl;
+
+  int rc = fwrite(&ps.M, 1, 4, f);
+  assert(rc == 4);
+  rc = fwrite(&ps.N, 1, 4, f);
+  assert(rc == 4);
+  rc = fwrite(&ps.K, 1, 4, f);
+  assert(rc == 4);
+  rc = fwrite(&ac.D, 1, 4, f);
+  assert(rc == 4);
+
+  ps.svdpp_usr_bias = zeros(ps.M);
+  ps.svdpp_movie_bias = zeros(ps.N);
+ 
+  for (int i=0; i< ps.M+ps.N; i++){ 
+      const vertex_data_svdpp & vdata = ps.g<graph_type_svdpp>(TRAINING)->vertex_data(i);
+      if (i < ps.M){
+        write_vec(f, vdata.pvec.size(), data(vdata.pvec));
+        ps.svdpp_usr_bias = vdata.bias;
+      }
+      else {
+        write_vec(f, vdata.pvec.size(), data(vdata.pvec));
+        ps.svdpp_movie_bias = vdata.bias;
+      }
+   }
+
+  write_vec(f, ps.svdpp_usr_bias.size(), data(ps.svdpp_usr_bias));
+  write_vec(f, ps.svdpp_movie_bias.size(), data(ps.svdpp_movie_bias));
+  write_vec(f, 1, ps.globalMean); 
+  fclose(f); 
+}
+
 
 
 //OUTPUT: SAVE FACTORS U,V,T TO IT++ FILE
