@@ -439,11 +439,17 @@ namespace graphlab {
     /** The number of vertices owned by this proc */
     size_t local_own_nverts;
 
-    /** The map from proc_id to num_edges that proc */
+    /** The global number of vertex replica */
+    size_t nreplica;
+
+    /** The map from proc_id to num_edges on that proc */
     std::vector<size_t> proc_num_edges;
 
-    /** The map from proc_id to num_vertices that proc */
+    /** The map from proc_id to num_local_vertices on that proc */
     std::vector<size_t> proc_num_vertices;
+
+    /** The map from proc_id to num_local_own_vertices on that proc */
+    std::vector<size_t> proc_num_own_vertices;
 
     size_t begin_eid;
 
@@ -451,7 +457,7 @@ namespace graphlab {
 
     // CONSTRUCTORS ==========================================================>
     distributed_graph(distributed_control& dc) : 
-      rpc(dc, this), nverts(0), nedges(0), local_own_nverts(0),
+      rpc(dc, this), nverts(0), nedges(0), local_own_nverts(0), nreplica(0),
       edge_buffer(this, rpc.numprocs()) {
       rpc.barrier();
     }
@@ -472,11 +478,17 @@ namespace graphlab {
     /** \brief Get the number of edges */
     size_t num_edges() const { return nedges; }
 
+    /** \brief Get the size of replica */
+    size_t num_replica() const { return nreplica; }
+
     /** \brief Get the number of vertices local to this proc */
     size_t num_local_vertices() const { return local_graph.num_vertices(); }
 
     /** \brief Get the number of edges local to this proc */
     size_t num_local_edges() const { return local_graph.num_edges(); }
+
+    /** \brief Get the number of vertices owned by this proc */
+    size_t num_local_own_vertices() const { return local_own_nverts; }
 
     /** \brief get the local vertex id */
     lvid_type local_vid (const vertex_id_type vid) const { 
@@ -873,9 +885,14 @@ namespace graphlab {
     proc_num_vertices.assign(rpc.numprocs(), num_local_vertices());
     mpi_tools::all2all(proc_num_vertices, proc_num_vertices);
     for (procid_t i = 0; i < rpc.numprocs(); ++i) {
-      nverts += proc_num_vertices[i];
+      nreplica += proc_num_vertices[i];
     }
 
+    proc_num_own_vertices.assign(rpc.numprocs(), num_local_own_vertices());
+    mpi_tools::all2all(proc_num_own_vertices, proc_num_own_vertices);
+    for (procid_t i = 0; i < rpc.numprocs(); ++i) {
+      nverts += proc_num_own_vertices[i];
+    }
 
 
     // // Receive assignments from coordinators
