@@ -58,6 +58,10 @@ public class UpdaterPriorityTest {
       }
       @Override
       public double priority(){ return 6; }
+      @Override
+      protected Updater<ScalarVertex> clone() {
+        return this;
+      }
     });
     
     core.schedule(it.next(), new Updater<ScalarVertex>(){
@@ -70,6 +74,10 @@ public class UpdaterPriorityTest {
       }
       @Override
       public double priority(){ return 10; }
+      @Override
+      protected Updater<ScalarVertex> clone() {
+        return this;
+      }
     });
     
     core.start();

@@ -179,6 +179,11 @@ public class Coloring {
 
     }
 
+    @Override
+    protected Updater<ScalarVertex> clone() {
+      return new ColoringUpdater(mGraph);
+    }
+
   }
   
 }

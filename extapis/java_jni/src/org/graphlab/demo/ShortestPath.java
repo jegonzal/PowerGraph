@@ -185,6 +185,11 @@ public class ShortestPath {
 
     }
 
+    @Override
+    protected Updater<ScalarVertex> clone() {
+      return new ShortestPathUpdater(mGraph);
+    }
+
   }
 
 }

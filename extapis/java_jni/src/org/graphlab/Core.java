@@ -179,6 +179,52 @@ public final class Core {
 	  
 	}
 
+	/**
+	 * Adds a global constant entry.
+	 * @param <Type>
+	 *           type of object to add
+	 * @param key
+	 *           key to uniquely identify the object
+	 * @param object
+	 *           the object to add
+	 */
+  public <Type> void addGlobalConst(String key, Type object) {
+    Object o = addGlobalConst(mCorePtr, key, object);
+  }
+  
+  /**
+   * Adds a global entry.
+   * @param <Type>
+   *           type of object to add
+   * @param key
+   *           key to uniquely identify the object
+   * @param object
+   *           the object to add
+   */
+  public <Type> void addGlobal(String key, Type object){
+    addGlobal(mCorePtr, key, object);
+  }
+
+  /**
+   * Retrieves a global entry.
+   * @param <Type>
+   *          type of object to retrieve (must be the same as the
+   *          type that was saved.)
+   * @param key
+   *          key to uniquely identify the object
+   * @param cls
+   *          class of the object to retrieve
+   * @return global object
+   */
+  public <Type> Type getGlobal(String key, Class<Type> cls) {
+    Object obj = getGlobal(mCorePtr, key);
+    return cls.cast(obj);
+  }
+  
+  public <Type> void setGlobal(String key, Type object){
+    setGlobal(mCorePtr, key, object);
+  }
+
   /**
    * Schedule the execution of an update function on a particular vertex.
    * 
@@ -223,6 +269,50 @@ public final class Core {
 
 	  scheduleAll(mCorePtr, updater);
 	  
+	}
+	
+  /**
+   * Registers a aggregator with the engine. The aggregator is used to collect
+   * data about the graph every "interval" updates.
+   * 
+   * @param key
+   *          the name of the aggregator
+   * @param aggregator
+   *          the initial value of the aggregator
+   * @param interval
+   *          the frequency at which the aggregator is initiated. corresponds
+   *          approximately to the number of update function calls before the
+   *          sync is reevaluated. If 0 the aggregator is not run automatically.
+   * @throws NullPointerException
+   *          if <tt>key</tt> or <tt>aggregator</tt> is null
+   * @throws IllegalArgumentException
+   *          if <tt>key</tt> has length 0
+   */
+	public void addAggregator(String key, Aggregator<?> aggregator, long interval){
+	  if (null == key || null == aggregator)
+	    throw new NullPointerException ("key and aggregator may not be null.");
+	  if (key.length() <= 0)
+	    throw new IllegalArgumentException ("key must have length of at least 1.");
+	  addAggregator(mCorePtr, key, aggregator, interval);
+	}
+	
+  /**
+   * Performs a sync immediately. This function requires that the shared
+   * variable already be registered with the engine.
+   * 
+   * @param key
+   *          name of the aggregator to sync
+   * @throws NullPointerException
+   *          if <tt>key</tt> is null
+   * @throws IllegalArgumentException
+   *          if <tt>key</tt> has length 0
+   */
+	public void aggregateNow(String key){
+	  if (null == key)
+	    throw new NullPointerException ("key must not be null.");
+	  if (key.length() <= 0)
+	    throw new IllegalArgumentException ("key must have length of at least 1.");
+	  aggregateNow(mCorePtr, key);
 	}
 	
   /**
@@ -371,9 +461,68 @@ public final class Core {
 	 * @return update count
 	 */
 	private native long lastUpdateCount(long ptr);
+	
+	/**
+	 * Add a global constant entry
+	 * @param ptr
+	 *       {@link mCorePtr}
+	 * @param key
+	 * @param obj
+	 */
+	private native Object addGlobalConst(long ptr, String key, Object obj);
+	
+	/**
+   * Adds a global entry
+   * @param ptr
+   *       {@link mCorePtr}
+   * @param key
+   * @param obj
+   */
+	private native void addGlobal(long ptr, String key, Object obj);
+	
+	/**
+	 * Retrieves a global entry
+	 * @param ptr
+	 *       {@link mCorePtr}
+	 * @param key
+	 * @return global entry
+	 */
+	private native Object getGlobal(long ptr, String key);
+	
+	/**
+	 * Updates the value of a global entry
+	 * @param ptr
+	 *       {@link mCorePtr}
+	 * @param key
+	 * @param obj
+	 */
+	private native void setGlobal(long ptr, String key, Object obj);
+	
+  /**
+   * Registers a aggregator with the engine. The aggregator is used to collect
+   * data about the graph every "interval" updates.
+   * 
+   * @param ptr
+   *      {@link mCorePtr}
+   * @param key
+   * @param aggregator
+   * @param interval
+   */
+	private native void addAggregator
+	  (long ptr, String key, Aggregator<?> aggregator, long interval);
+	
+  /**
+   * Performs a sync immediately. This function requires that the shared
+   * variable already be registered with the engine.
+   * 
+   * @param ptr
+   *      {@link mCorePtr}
+   * @param key
+   */
+	private native void aggregateNow(long ptr, String key);
 
 	/**
-	 * Set the number of cpus that the engine will use.
+	 * Set the number of CPUs that the engine will use.
 	 * This will destroy the current engine and any tasks associated with the current scheduler.
 	 * If this is not what you want, then configure the core in the constructor instead.
 	 * 

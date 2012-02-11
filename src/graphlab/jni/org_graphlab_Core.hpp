@@ -33,6 +33,8 @@
 
 #include <execinfo.h>
 #include <graphlab.hpp>
+
+#include "java_any.hpp"
 #include "org_graphlab_Core.h"
 
 namespace graphlab {
@@ -44,7 +46,7 @@ namespace graphlab {
    * with the JVM.
    */
   template <typename Graph, typename UpdateFunctor>
-  class jni_core {
+  class jni_core : public java_any {
     
   public:
   
@@ -58,9 +60,6 @@ namespace graphlab {
     /** graphlab::core object - the soul that this body wraps around */
     core_type *mcore;
     
-    /** associated org.graphlab.Core object */
-    jobject mobj;
-    
     /** Java virtual machine reference - set only once for each process */
     static JavaVM *mjvm;
     
@@ -73,9 +72,8 @@ namespace graphlab {
      *                  reference to the Java object.
      * @param[in] obj   associated org.graphlab.Core object.
      */
-    jni_core (JNIEnv *env, jobject &obj){
+    jni_core (JNIEnv *env, jobject &obj) : java_any (env, obj) {
       this->mcore = new core_type();
-      this->mobj = env->NewGlobalRef(obj);
     }
     
     /**
@@ -87,25 +85,11 @@ namespace graphlab {
     }
     
     /**
-     * Gets the associated org.graphlab.Core object
-     * @return org.graphlab.Core
-     */
-    jobject &obj(){
-      return mobj;
-    }
-    
-    /**
-     * Deallocates the graphlab core and deletes the reference to the
-     * Java object (so that it may be garbage collected.)
+     * Deallocates the graphlab core. Parent constructor will delete jobject
+     * reference.
      */
     ~jni_core(){
-    
       delete mcore;
-      
-      // allow associated org.graphlab.Core to be gc'ed
-      JNIEnv *env = get_jni_env();
-      env->DeleteGlobalRef(mobj);
-      
     }
     
     /**
@@ -137,9 +121,6 @@ namespace graphlab {
       // if the current thread is still attached, detach it
       if (thread::contains(ENV_ID)) {
         int res = mjvm->DetachCurrentThread();
-//         logstream(LOG_INFO)
-//           << "Detached thread from JVM."
-//           << std::endl;
         assert(res >= 0);
       }
       
@@ -189,10 +170,6 @@ namespace graphlab {
         // store JNI environment in thread-local storage
         thread::get_local(ENV_ID) = jenv;
         thread::set_thread_destroy_callback(detach_from_jvm);
-        
-//         logstream(LOG_INFO)
-//           << "Attached thread to JVM."
-//           << std::endl;
           
       }
       

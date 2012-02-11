@@ -21,116 +21,101 @@
  */
 
 /**
- * @file org_graphlab_Updater.hpp
+ * @file org_graphlab_Aggregator.hpp
  * @author Jiunn Haur Lim <jiunnhal@cmu.edu>
  */
 
-#ifndef ORG_GRAPHLAB_UPDATER_HPP
-#define ORG_GRAPHLAB_UPDATER_HPP
+#ifndef ORG_GRAPHLAB_AGGREGATOR_HPP
+#define ORG_GRAPHLAB_AGGREGATOR_HPP
 
 #include <graphlab.hpp>
 #include "java_any.hpp"
 #include "org_graphlab_Core.hpp"
-#include "org_graphlab_Updater.h"
+#include "org_graphlab_Updater.hpp"
 
 namespace graphlab {
-
-  /** Proxy edge */
-  struct proxy_edge {};
-  
-  /** Proxy vertex */
-  struct proxy_vertex {
-    /** corresponding application vertex */
-    jobject app_vertex;
-  };
-  
-  /** Proxy graph */
-  typedef graph<proxy_vertex, proxy_edge> proxy_graph;
   
   /**
-   * Proxy updater.
-   * Mirrors and forwards update calls to the corresponding Java updater.
+   * Proxy aggregator.
+   * Mirrors and forwards calls to the corresponding Java aggregator.
    * The constructor creates a new reference to the Java object (so that it
    * doesn't get garbage collected.) The destructor will delete the reference
    * to allow the corresponding Java object to be garbaged collected. The copy
    * constructor clones the Java object.
-   *
-   * Note that multiple proxy_updaters may correspond to the same
-   * org.graphlab.Updater object.
    */
-  class proxy_updater : 
-    public iupdate_functor<proxy_graph, proxy_updater>,
+  class proxy_aggregator : 
+    public iaggregator<proxy_graph, proxy_updater, proxy_aggregator>,
     public java_any {
+    
+  private:
+  
+    typedef proxy_updater::core core;
     
   public:
   
-    /** jni_core type that uses the proxy graph and the proxy updater */
-    typedef jni_core<proxy_graph, proxy_updater> core;
-
-    /** context type that uses the proxy graph and the proxy updater */
-    typedef iupdate_functor<proxy_graph, proxy_updater>::icontext_type context;
-  
     /**
-     * Method ID of org.graphlab.Updater#execUpdate.
+     * Method ID of org.graphlab.Aggregator#exec.
      */
-    static jmethodID java_exec_update;
+    static jmethodID java_exec;
     
     /**
-     * Method ID of org.graphlab.Updater#add.
+     * Method ID of org.graphlab.Aggregator#add.
      */
     static jmethodID java_add;
     
     /**
-     * Method ID of org.graphlab.Updater#priority.
+     * Method ID of org.graphlab.Aggregator#finalize.
      */
-    static jmethodID java_priority;
+    static jmethodID java_finalize;
     
     /**
-     * Method ID of org.graphlab.Updater#clone
+     * Method ID of org.graphlab.Aggregator#clone
      */
     static jmethodID java_clone;
     
     /**
-     * Constructor for proxy updater.
+     * Constructor for proxy aggregator.
      * Initializes this object with the associated Java org.graphlab.Updater
      * object.
      * @param[in] env           JNI environment - used to create a new reference
      *                          to javaUpdater.
-     * @param[in] java_updater  Java org.graphlab.Updater object. This constructor
+     * @param[in] java_aggregator  Java org.graphlab.Aggregator object. This constructor
      *                          will create a new reference to the object to prevent
      *                          garbage collection.
      */
-    proxy_updater(JNIEnv *env, jobject &java_updater);
+    proxy_aggregator(JNIEnv *env, jobject &java_aggregator);
     
     /** The default constructor does nothing */
-    proxy_updater();
+    proxy_aggregator();
     
     /**
-     * Copy constructor for proxy_updater.
-     * If \c other has a \c mjava_updater, creates a new reference to it.
+     * Copy constructor for proxy_aggregator.
+     * If \c other has a \c mobj, creates a new reference to it.
      */
-    proxy_updater(const proxy_updater& other);
+    proxy_aggregator(const proxy_aggregator& other);
     
     /**
-     * Copy assignment operator for proxy_updater.
-     * If \c other has a \c mjava_updater, creates a new reference to it.
+     * Copy assignment operator for proxy_aggregator.
+     * If \c other has a \c mobj, creates a new reference to it.
      */
-    proxy_updater &operator=(const proxy_updater &other);
+    proxy_aggregator &operator=(const proxy_aggregator &other);
     
     /**
      * Deletes the reference to the Java object so that it may be garbage
      * collected.
      */
-    ~proxy_updater();
+    ~proxy_aggregator();
     
     void operator()(icontext_type& context);
     
-    void operator+=(const update_functor_type& other);
+    void operator+=(const proxy_aggregator& other);
+    
+    void finalize(iglobal_context& context);
     
     static void init(JNIEnv *env);
     
   };
-  
-}
+
+};
 
 #endif

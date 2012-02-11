@@ -227,6 +227,11 @@ public class PageRank {
       mPriority += other.priority();
     }
 
+    @Override
+    protected Updater<ScalarVertex> clone() {
+      return new PageRankUpdater(mGraph, mPriority);
+    }
+
   }
   
 }

@@ -89,6 +89,54 @@ JNIEXPORT jlong JNICALL Java_org_graphlab_Core_lastUpdateCount
 
 /*
  * Class:     org_graphlab_Core
+ * Method:    addGlobalConst
+ * Signature: (JLjava/lang/String;Ljava/lang/Object;)V
+ */
+JNIEXPORT void JNICALL Java_org_graphlab_Core_addGlobalConst
+  (JNIEnv *, jobject, jlong, jstring, jobject);
+
+/*
+ * Class:     org_graphlab_Core
+ * Method:    addGlobal
+ * Signature: (JLjava/lang/String;Ljava/lang/Object;)V
+ */
+JNIEXPORT void JNICALL Java_org_graphlab_Core_addGlobal
+  (JNIEnv *, jobject, jlong, jstring, jobject);
+
+/*
+ * Class:     org_graphlab_Core
+ * Method:    getGlobal
+ * Signature: (JLjava/lang/String;)Ljava/lang/Object;
+ */
+JNIEXPORT jobject JNICALL Java_org_graphlab_Core_getGlobal
+  (JNIEnv *, jobject, jlong, jstring);
+
+/*
+ * Class:     org_graphlab_Core
+ * Method:    setGlobal
+ * Signature: (JLjava/lang/String;Ljava/lang/Object;)V
+ */
+JNIEXPORT void JNICALL Java_org_graphlab_Core_setGlobal
+  (JNIEnv *, jobject, jlong, jstring, jobject);
+
+/*
+ * Class:     org_graphlab_Core
+ * Method:    addAggregator
+ * Signature: (JLjava/lang/String;Lorg/graphlab/Aggregator;J)V
+ */
+JNIEXPORT void JNICALL Java_org_graphlab_Core_addAggregator
+  (JNIEnv *, jobject, jlong, jstring, jobject, jlong);
+
+/*
+ * Class:     org_graphlab_Core
+ * Method:    aggregateNow
+ * Signature: (JLjava/lang/String;)V
+ */
+JNIEXPORT void JNICALL Java_org_graphlab_Core_aggregateNow
+  (JNIEnv *, jobject, jlong, jstring);
+
+/*
+ * Class:     org_graphlab_Core
  * Method:    setNCpus
  * Signature: (JJ)V
  */

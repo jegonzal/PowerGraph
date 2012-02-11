@@ -16,10 +16,23 @@ public class ScalarVertex implements Vertex {
 
   /**
    * @param id
-   *      ID used in TSV-formatted files
+   *      ID used in TSV-formatted files. Required by JGraphT
+   *      to differentiate between vertices.
    */
   public ScalarVertex(int id){
+    this(id, 0);
+  }
+  
+  /**
+   * @param id
+   *      ID used in TSV-formatted files. Required by JGraphT
+   *      to differentiate between vertices.
+   * @param value
+   *      initial value of vertex
+   */
+  public ScalarVertex(int id, double value){
     mId = id;
+    mValue = value;
   }
   
   public int id(){
@@ -68,6 +81,11 @@ public class ScalarVertex implements Vertex {
     if (!(other instanceof ScalarVertex)) return false;
     ScalarVertex otherVertex = (ScalarVertex) other;
     return mId == otherVertex.mId;
+  }
+  
+  @Override
+  public String toString(){
+    return "id: " + mId + " value: " + mValue;
   }
 
 }
