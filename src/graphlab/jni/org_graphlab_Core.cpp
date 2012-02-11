@@ -271,8 +271,7 @@ extern "C" {
     // convert jstring to c string
     const char * key_str = env->GetStringUTFChars(key, NULL);
     
-    java_any a = java_any(env, to_store);
-    (*jni_core)().add_global_const(std::string(key_str), a);
+    (*jni_core)().add_global_const(std::string(key_str), java_any(env, to_store));
     
     // free memory
     env->ReleaseStringUTFChars(key, key_str);

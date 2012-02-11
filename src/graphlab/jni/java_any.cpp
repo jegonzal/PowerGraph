@@ -51,6 +51,20 @@ const jobject &java_any::obj() const {
   return mobj;
 }
 
+java_any::java_any(const java_any& other){
+    
+  // other doesn't have an existing ref
+  if (NULL == other.mobj){
+    this->mobj = NULL;
+    return;
+  }
+  
+  // create a new ref
+  JNIEnv *env = proxy_updater::core::get_jni_env();
+  this->mobj = env->NewGlobalRef(other.mobj);
+  
+}
+
 java_any &java_any::operator=(const java_any& other){
     
   // prevent self assignment

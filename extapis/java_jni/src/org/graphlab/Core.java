@@ -189,7 +189,7 @@ public final class Core {
 	 *           the object to add
 	 */
   public <Type> void addGlobalConst(String key, Type object) {
-    addGlobalConst(mCorePtr, key, object);
+    Object o = addGlobalConst(mCorePtr, key, object);
   }
   
   /**
@@ -469,7 +469,7 @@ public final class Core {
 	 * @param key
 	 * @param obj
 	 */
-	private native void addGlobalConst(long ptr, String key, Object obj);
+	private native Object addGlobalConst(long ptr, String key, Object obj);
 	
 	/**
    * Adds a global entry

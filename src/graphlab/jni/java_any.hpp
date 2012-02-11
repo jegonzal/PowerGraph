@@ -62,6 +62,8 @@ namespace graphlab {
     /** The default constructor does nothing. mobj is initialized to NULL. */
     java_any();
     
+    java_any(const java_any& other);  
+    
     /**
      * Copy assignment operator for java_any.
      * If \c other has a \c mobj, creates a new reference to it.
