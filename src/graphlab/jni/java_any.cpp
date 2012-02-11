@@ -90,6 +90,22 @@ java_any &java_any::operator=(const java_any& other){
   
 }
 
+void java_any::set_obj(jobject obj){
+
+  JNIEnv *env = proxy_updater::core::get_jni_env();
+  
+  if (NULL != mobj){
+    // delete current ref
+    env->DeleteGlobalRef(mobj);
+    mobj = NULL;
+  }
+  
+  if (NULL != obj){
+    mobj = env->NewGlobalRef(obj);
+  }
+  
+}
+
 java_any::~java_any(){
   if (NULL == mobj) return;
   // delete reference to allow garbage collection

@@ -82,5 +82,10 @@ public class ScalarVertex implements Vertex {
     ScalarVertex otherVertex = (ScalarVertex) other;
     return mId == otherVertex.mId;
   }
+  
+  @Override
+  public String toString(){
+    return "id: " + mId + " value: " + mValue;
+  }
 
 }

@@ -83,6 +83,11 @@ namespace graphlab {
      * collected.
      */
     ~java_any();
+    
+  protected:
+  
+    /** Deletes the current ref and creates a new ref */
+    void set_obj(jobject obj);
   
   };
 

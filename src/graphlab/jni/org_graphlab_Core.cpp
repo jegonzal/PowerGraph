@@ -35,6 +35,7 @@
 #include <wordexp.h>
 #include "org_graphlab_Core.hpp"
 #include "org_graphlab_Updater.hpp"
+#include "org_graphlab_Aggregator.hpp"
 
 using namespace graphlab;
 
@@ -70,6 +71,7 @@ extern "C" {
     }
     
     proxy_updater::init(env);
+    proxy_aggregator::init(env);
     
     // store env for this thread
     thread::get_local(proxy_updater::core::ENV_ID) = env;
@@ -460,45 +462,55 @@ extern "C" {
     (*jni_core)().schedule_all(proxy_updater(env, updater));
 
   }
- 
-//   JNIEXPORT void JNICALL Java_graphlab_wrapper_GraphLabJNIWrapper_setVertexColors
-//   (JNIEnv * env, jobject obj, jintArray colors) {
-//     jni_graph & graph = core.graph();
-//     jsize sz = env->GetArrayLength(colors);
-//     jboolean isCopy = false;
-//     jint * arr = env->GetIntArrayElements(colors, &isCopy);
-//     for(int i=0; i<sz; i++) {
-//       graph.color(i) = gl_types::vertex_color(arr[i]);
-//     }
-//     env->ReleaseIntArrayElements(colors, arr, JNI_ABORT);
-//   }
-// 
-//   JNIEXPORT void JNICALL Java_graphlab_wrapper_GraphLabJNIWrapper_setTaskBudget
-//   (JNIEnv * env, jobject obj, jint budget) {
-//     std::cout << "Set task budget: " << budget << std::endl;
-//     taskbudget = budget;
-//   }
-// 
-//   /*
-//    * Class:     graphlab_wrapper_GraphLabJNIWrapper
-//    * Method:    setIterations
-//    * Signature: (I)V
-//    */
-//   JNIEXPORT void JNICALL Java_graphlab_wrapper_GraphLabJNIWrapper_setIterations
-//   (JNIEnv * env, jobject obj, jint iter) {
-//     maxiter = iter;
-//   }
-// 
-//   JNIEXPORT void JNICALL Java_graphlab_wrapper_GraphLabJNIWrapper_setMetrics
-//   (JNIEnv * env, jobject obj, jstring schedulertype) {
-//     const char *str = env->GetStringUTFChars(schedulertype, 0);
-//     metrics_type = std::string(str);
-//   }
-// 
-//   JNIEXPORT void JNICALL Java_graphlab_wrapper_GraphLabJNIWrapper_computeGraphColoring
-//   (JNIEnv * env, jobject obj, jint ncpus) {
-//     core.graph().compute_coloring();
-//   }
+  
+  JNIEXPORT void JNICALL
+  Java_org_graphlab_Core_addAggregator
+  (JNIEnv * env, jobject obj,
+  jlong core_ptr, jstring key, jobject aggregator,
+  jlong frequency){
+    
+    if (NULL == env || 0 == core_ptr){
+    proxy_updater::core::throw_exception(
+        env,
+        "java/lang/IllegalArgumentException",
+        "core_ptr and updater_ptr must not be null.");
+        return;
+    }
+
+    // get objects from pointers
+    proxy_updater::core *jni_core = (proxy_updater::core *) core_ptr;
+
+    // add aggregator
+    const char * key_str = env->GetStringUTFChars(key, NULL);
+    (*jni_core)().add_aggregator(std::string(key_str),
+                                proxy_aggregator(env, aggregator),
+                                frequency);
+     env->ReleaseStringUTFChars(key, key_str);
+    
+  }
+  
+  JNIEXPORT void JNICALL
+  Java_org_graphlab_Core_aggregateNow
+  (JNIEnv * env, jobject obj,
+  jlong core_ptr, jstring key){
+  
+    if (NULL == env || 0 == core_ptr){
+    proxy_updater::core::throw_exception(
+        env,
+        "java/lang/IllegalArgumentException",
+        "core_ptr and updater_ptr must not be null.");
+        return;
+    }
+
+    // get objects from pointers
+    proxy_updater::core *jni_core = (proxy_updater::core *) core_ptr;
+
+    // add aggregator
+    const char * key_str = env->GetStringUTFChars(key, NULL);
+    (*jni_core)().aggregate_now(std::string(key_str));
+     env->ReleaseStringUTFChars(key, key_str);
+  
+  }
 
 #ifdef __cplusplus
 }
