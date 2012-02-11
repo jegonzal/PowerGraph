@@ -118,7 +118,7 @@ namespace graphlab {
     
     void operator()(icontext_type& context);
     
-    void operator+=(const update_functor_type& other) const;
+    void operator+=(const update_functor_type& other);
     
     static void init(JNIEnv *env);
     

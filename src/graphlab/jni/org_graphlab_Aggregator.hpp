@@ -68,11 +68,6 @@ namespace graphlab {
     static jmethodID java_finalize;
     
     /**
-     * Method ID of org.graphlab.Aggregator#clone.
-     */
-    static jmethodID java_clone;
-    
-    /**
      * Constructor for proxy aggregator.
      * Initializes this object with the associated Java org.graphlab.Updater
      * object.

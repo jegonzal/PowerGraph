@@ -44,6 +44,13 @@ namespace graphlab {
     /** Java object */
     jobject mobj;
     
+  protected:
+    
+    /**
+     * Method ID of org.graphlab.Aggregator#clone.
+     */
+    static jmethodID java_clone;
+    
   public:
   
     /**

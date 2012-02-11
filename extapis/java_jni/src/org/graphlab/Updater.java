@@ -49,6 +49,14 @@ public abstract class Updater<V extends Vertex> {
   public double priority(){
     return 0;
   }
+  
+  /*
+   * Required because multiple updaters might be executed in parallel.
+   * (non-Javadoc)
+   * @see java.lang.Object#clone()
+   */
+  @Override
+  protected abstract Updater<V> clone();
 
   /**
    * Executes the updater on the specified vertex. This is <em>only</em> invoked

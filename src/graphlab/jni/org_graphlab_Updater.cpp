@@ -37,21 +37,27 @@ void proxy_updater::init(JNIEnv *env){
   jclass updater_class = env->FindClass("org/graphlab/Updater");
 
   // get the method ID for Updater#execUpdate, if we don't have it already
-  if (0 == proxy_updater::java_exec_update){
-    proxy_updater::java_exec_update =
+  if (0 == java_exec_update){
+    java_exec_update =
       env->GetMethodID(updater_class, "execUpdate", "(JLorg/graphlab/data/Vertex;)V");
   }
   
   // get the method ID for Updater#add, if we don't have it already
-  if (0 == proxy_updater::java_add){
-    proxy_updater::java_add =
+  if (0 == java_add){
+    java_add =
       env->GetMethodID(updater_class, "add", "(Lorg/graphlab/Updater;)V");
   }
   
   // get the method ID for Updater#priority, if we don't have it already
-  if (0 == proxy_updater::java_priority){
-    proxy_updater::java_priority = 
+  if (0 == java_priority){
+    java_priority = 
       env->GetMethodID(updater_class, "priority", "()D");
+  }
+  
+  // get the method ID for Updater#clone, if we don't have it already
+  if (0 == java_clone){
+    java_clone = 
+      env->GetMethodID(updater_class, "clone", "()Lorg/graphlab/Updater;");
   }
   
 }
@@ -114,7 +120,7 @@ void proxy_updater::operator()(icontext_type& context){
 // proxy_updater instance members - the add function
 //---------------------------------------------------------------
 
-void proxy_updater::operator+=(const proxy_updater& other) const {
+void proxy_updater::operator+=(const proxy_updater& other){
   
   JNIEnv *env = core::get_jni_env();
   
