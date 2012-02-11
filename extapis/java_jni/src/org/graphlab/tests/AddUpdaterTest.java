@@ -53,7 +53,7 @@ public class AddUpdaterTest {
     mCore.start();
     
     // check counter value on one
-    assertEquals ("Checking last counter value of updater.", 4, it.next().value(), 0);
+    assertEquals ("Checking last counter value of updater.", 3, it.next().value(), 0);
     
   }
   
@@ -93,7 +93,7 @@ public class AddUpdaterTest {
         // schedule one three times
         context.schedule(one, this);      // count = 1
         context.schedule(one, this);      // count = 1 + 1 = 2
-        context.schedule(one, this);      // count = 2 + 2 = 4
+        context.schedule(one, this);      // count = 2 + 1 = 3
       }
       
     }
@@ -108,6 +108,13 @@ public class AddUpdaterTest {
       if (!(updater instanceof CounterUpdater)) return;
       CounterUpdater cu = (CounterUpdater) updater;
       counter += cu.counter;
+    }
+
+    @Override
+    protected Updater<ScalarVertex> clone() {
+      CounterUpdater clone = new CounterUpdater(mGraph);
+      clone.counter = counter;
+      return clone;
     }
 
   }

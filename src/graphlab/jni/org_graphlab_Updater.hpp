@@ -52,8 +52,10 @@ namespace graphlab {
    * Mirrors and forwards update calls to the corresponding Java updater.
    * The constructor creates a new reference to the Java object (so that it
    * doesn't get garbage collected.) The destructor will delete the reference
-   * to allow the corresponding Java object to be garbaged collected. Note
-   * that multiple proxy_updaters may correspond to the same
+   * to allow the corresponding Java object to be garbaged collected. The copy
+   * constructor clones the Java object.
+   *
+   * Note that multiple proxy_updaters may correspond to the same
    * org.graphlab.Updater object.
    */
   class proxy_updater : 
@@ -82,6 +84,11 @@ namespace graphlab {
      * Method ID of org.graphlab.Updater#priority.
      */
     static jmethodID java_priority;
+    
+    /**
+     * Method ID of org.graphlab.Updater#clone
+     */
+    static jmethodID java_clone;
     
     /**
      * Constructor for proxy updater.

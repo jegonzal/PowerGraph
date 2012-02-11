@@ -138,6 +138,11 @@ public class ShortestPathTest {
 
 		}
 
+    @Override
+    protected Updater<ScalarVertex> clone() {
+      return new ShortestPathUpdater(graph);
+    }
+
 	}
 
 }

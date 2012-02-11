@@ -31,6 +31,7 @@ using namespace graphlab;
 jmethodID proxy_updater::java_exec_update = 0;
 jmethodID proxy_updater::java_add = 0;
 jmethodID proxy_updater::java_priority= 0;
+jmethodID proxy_updater::java_clone    = 0;
 
 void proxy_updater::init(JNIEnv *env){
 
@@ -73,8 +74,19 @@ proxy_updater::
 proxy_updater::proxy_updater(){}
 
 proxy_updater::
-  proxy_updater(const proxy_updater& other)
-  : java_any(other){}
+  proxy_updater(const proxy_updater& other){
+
+  // other doesn't have an existing ref
+  if (NULL == other.obj()){
+    set_obj(NULL);
+    return;
+  }
+  
+  // clone the java object
+  JNIEnv *env = core::get_jni_env();
+  set_obj(env->CallObjectMethod(other.obj(), java_clone));  
+  
+}
 
 proxy_updater &proxy_updater::operator=(const proxy_updater& other){
     

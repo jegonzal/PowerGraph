@@ -33,11 +33,6 @@
 using namespace graphlab;
 
 //---------------------------------------------------------------
-// java_any static members
-//---------------------------------------------------------------
-jmethodID java_any::java_clone    = 0;
-
-//---------------------------------------------------------------
 // java_any instance members
 //---------------------------------------------------------------
 
@@ -47,20 +42,6 @@ java_any::java_any(JNIEnv *env, jobject &obj){
 }
 
 java_any::java_any() : mobj(NULL){}
-
-java_any::java_any(const java_any& other){
-    
-  // other doesn't have an existing ref
-  if (NULL == other.obj()){
-    set_obj(NULL);
-    return;
-  }
-  
-  // clone the java object
-  JNIEnv *env = proxy_updater::core::get_jni_env();
-  set_obj(env->CallObjectMethod(other.obj(), java_clone));
-  
-}
 
 jobject &java_any::obj() {
   return mobj;

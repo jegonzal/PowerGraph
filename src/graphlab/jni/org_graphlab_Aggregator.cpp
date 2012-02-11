@@ -31,6 +31,7 @@ using namespace graphlab;
 jmethodID proxy_aggregator::java_exec     = 0;
 jmethodID proxy_aggregator::java_add      = 0;
 jmethodID proxy_aggregator::java_finalize = 0;
+jmethodID proxy_aggregator::java_clone    = 0;
 
 void proxy_aggregator::init(JNIEnv *env){
 
@@ -72,8 +73,19 @@ proxy_aggregator::
 proxy_aggregator::proxy_aggregator(){}
 
 proxy_aggregator::
-  proxy_aggregator(const proxy_aggregator& other)
-  : java_any(other) {}
+  proxy_aggregator(const proxy_aggregator& other) {
+
+  // other doesn't have an existing ref
+  if (NULL == other.obj()){
+    set_obj(NULL);
+    return;
+  }
+  
+  // clone the java object
+  JNIEnv *env = core::get_jni_env();
+  set_obj(env->CallObjectMethod(other.obj(), java_clone));
+  
+}
 
 proxy_aggregator &proxy_aggregator::operator=(const proxy_aggregator& other){
     

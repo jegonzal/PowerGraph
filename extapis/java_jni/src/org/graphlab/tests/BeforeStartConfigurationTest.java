@@ -74,6 +74,11 @@ public class BeforeStartConfigurationTest {
         public void update(Context context, ScalarVertex vertex) {
           vertex.setValue(1);
         }
+
+        @Override
+        protected Updater<ScalarVertex> clone() {
+          return this;
+        }
       });
       
       logger.debug("Expect scheduler: " + scheduler.toString());
@@ -110,6 +115,11 @@ public class BeforeStartConfigurationTest {
         public void update(Context context, ScalarVertex vertex) {
           vertex.setValue(1);
         }
+
+        @Override
+        protected Updater<ScalarVertex> clone() {
+          return this;
+        }
       });
       
       logger.debug("Expect scope: " + scope.toString());
@@ -145,6 +155,11 @@ public class BeforeStartConfigurationTest {
         @Override
         public void update(Context context, ScalarVertex vertex) {
           vertex.setValue(1);
+        }
+
+        @Override
+        protected Updater<ScalarVertex> clone() {
+          return this;
         }
       });
       

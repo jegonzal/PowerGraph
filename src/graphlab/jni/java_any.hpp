@@ -34,8 +34,10 @@ namespace graphlab {
 
   /**
    * Generic wrapper for Java objects (jobject). It creates a NewGlobalRef on
-   * the jobject in the default constructor and copy constructor, and deletes
-   * the GlobalRef in the destructor.
+   * the jobject in the default constructor, and deletes the GlobalRef in the
+   * destructor. An assignment operator is also provided to deal with creating
+   * and deleting edges. Subclasses should provide a copy constructor, and there
+   * are two scenarios: NewGlobalRef during copy, or object clone during copy.
    */
   class java_any {
   
@@ -43,13 +45,6 @@ namespace graphlab {
     
     /** Java object */
     jobject mobj;
-    
-  protected:
-    
-    /**
-     * Method ID of org.graphlab.Aggregator#clone.
-     */
-    static jmethodID java_clone;
     
   public:
   
@@ -66,12 +61,6 @@ namespace graphlab {
     
     /** The default constructor does nothing. mobj is initialized to NULL. */
     java_any();
-    
-    /**
-     * Copy constructor for java_any.
-     * If \c other has a \c mobj, creates a new reference to it.
-     */
-    java_any(const java_any& other);
     
     /**
      * Copy assignment operator for java_any.

@@ -41,6 +41,11 @@ public class CoreTest {
     mCore.scheduleAll(new Updater<ScalarVertex>(){
       @Override
       public void update(Context context, ScalarVertex vertex){}
+
+      @Override
+      protected Updater<ScalarVertex> clone() {
+        return this;
+      }
     });
     mCore.start();
     
@@ -71,6 +76,11 @@ public class CoreTest {
         Integer returned = mCore.getGlobal("obj", Integer.class);
         assertEquals("Checking value of stored constant.", new Integer(6), returned);
       }
+
+      @Override
+      protected Updater<ScalarVertex> clone() {
+        return this;
+      }
     });
     mCore.start();
     
@@ -100,6 +110,11 @@ public class CoreTest {
       public void update(Context context, ScalarVertex vertex){
         // set value to 7
         mCore.setGlobal("obj", new Integer(7));
+      }
+
+      @Override
+      protected Updater<ScalarVertex> clone() {
+        return this;
       }
     });
     mCore.start();

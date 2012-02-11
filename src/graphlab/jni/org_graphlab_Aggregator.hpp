@@ -40,7 +40,8 @@ namespace graphlab {
    * Mirrors and forwards calls to the corresponding Java aggregator.
    * The constructor creates a new reference to the Java object (so that it
    * doesn't get garbage collected.) The destructor will delete the reference
-   * to allow the corresponding Java object to be garbaged collected.
+   * to allow the corresponding Java object to be garbaged collected. The copy
+   * constructor clones the Java object.
    */
   class proxy_aggregator : 
     public iaggregator<proxy_graph, proxy_updater, proxy_aggregator>,
@@ -66,6 +67,11 @@ namespace graphlab {
      * Method ID of org.graphlab.Aggregator#finalize.
      */
     static jmethodID java_finalize;
+    
+    /**
+     * Method ID of org.graphlab.Aggregator#clone
+     */
+    static jmethodID java_clone;
     
     /**
      * Constructor for proxy aggregator.
