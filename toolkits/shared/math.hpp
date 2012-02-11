@@ -141,6 +141,8 @@ class DistVec{
      debug_print(name);
    };
 
+   int size(){ return end-start; }
+
    DistVec(bipartite_graph_descriptor &_info, int _offset, bool _transpose, const std::string & _name){
      offset = _offset;
      name = _name;
@@ -174,6 +176,7 @@ class DistVec{
       transpose = other.transpose;
       return *this; 
    }
+   DistVec& operator+(const DistMat &other);
 
    DistVec& operator=(const DistVec & vec){
      assert(offset < MAX_OFFSET);
@@ -232,12 +235,20 @@ class DistVec{
   }
   void debug_print(std::string name){ return debug_print(name.c_str());}
 
+  double operator[](int i){
+    assert(i < end - start);
+    return pgraph->vertex_data(i+start).pvec[offset];
+  }
+
   DistDouble operator*(const DistVec & other);
   
   DistVec& operator*(const double val){
      mi.d=val;
      return *this;
   }
+  DistVec& operator*(const DistDouble &dval);
+  
+
   DistVec& _transpose() { 
      /*if (!config.square){
        start = n; end = m+n;
@@ -265,13 +276,15 @@ class DistMat{
     };
 
 
-    DistMat &operator*(DistVec & v){
+    DistMat &operator*(const DistVec & v){
       	mi.x_offset = v.offset;
         mi.A_offset = true;
         //v.transpose = transpose;
         //r_offset = A_offset;
         return *this;
     }
+    DistMat &operator*(const DistDouble &d);
+
     DistMat &operator-(){
         mi.c=-1.0;
         return *this;
@@ -313,6 +326,12 @@ DistVec& DistVec::operator=(DistMat &mat){
   mat.transpose = false;
   return *this;
 }
+DistVec& DistVec::operator+(const DistMat &other){
+      mi.y_offset = offset;
+      transpose = other.transpose;
+      return *this; 
+   }
+
 
 
 class DistDouble{
@@ -324,10 +343,15 @@ class DistDouble{
      DistDouble(double _val) : val(_val) {};
    
    
-     const DistVec& operator*(const DistVec & dval){
+     DistVec& operator*(DistVec & dval){
         mi.d=val;
         return dval;
      }
+     DistMat& operator*(DistMat & mat){
+        mi.c = val;
+        return mat;
+     }
+
      DistDouble  operator/(const DistDouble dval){
         DistDouble mval;
         mval.val = val / dval.val;
@@ -340,6 +364,9 @@ class DistDouble{
          val = other.val;
          debug_print(name);
          return *this;
+     }
+     bool operator==(const double _val){
+       return val == _val;
      }
      void debug_print(const char * name){
        std::cout<<name<<" "<<val<<std::endl;
@@ -372,11 +399,20 @@ class DistDouble{
       mval.val = val;
       return mval;
  }
+  DistVec& DistVec::operator*(const DistDouble &dval){
+      mi.d = dval.val;
+      return *this;
+  }
 
 
 int size(DistMat & A, int pos){
    assert(pos == 1 || pos == 2);
    return A.info.num_nodes(!A.transpose);
+}
+    
+DistMat &DistMat::operator*(const DistDouble &d){
+   mi.c = d.val;
+   return *this;
 }
 
 DistDouble sqrt(DistDouble & dval){

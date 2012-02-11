@@ -97,33 +97,71 @@ void test_math(int unittest, bipartite_graph_descriptor & info, math_info & mi){
     DistVec prec(info, CG_PREC,true, "prec");
     DistVec p(info, CG_P,true, "p");
     DistVec x(info, CG_X,true, "x");
-    
+    DistVec Ap(info, CG_AP, false, "Ap");
+ 
     x = ones(3);
-    vec ret = x.to_vec();
-    assert(ret[0] == 1);
-    assert(ret[1] == 1);
-    assert(ret[2] == 1);
+    assert(x[0] == 1);
+    assert(x[1] == 1);
+    assert(x[2] == 1);
     x = -x;
-    ret = x.to_vec();
-    assert(ret[0] == -1);
-    assert(ret[1] == -1);
-    assert(ret[2] == -1);
+    assert(x[0] == -1);
+    assert(x[1] == -1);
+    assert(x[2] == -1);
     DistDouble factor(2);
+    assert(factor == 2);
     x = factor*x;
-    ret = x.to_vec();
-    assert(ret[0] == -2);
-    assert(ret[1] == -2);
-    assert(ret[2] == -2);
+    assert(x[0] == -2);
+    assert(x[1] == -2);
+    assert(x[2] == -2);
     x = x + b;
     vec bret = b.to_vec();
-    ret = x.to_vec();
+    vec ret = x.to_vec();
     assert(ret[0] == bret[0] - 2);
     assert(ret[1] == bret[1] - 2);
     assert(ret[2] == bret[2] - 2);
 
     p = A*b;
     vec pret = p.to_vec();
-     
+    assert(pow(p[0] - 0.89646579890448475,2) <1e-15); 
+
+    Ap = A._transpose() * p;
+    assert(pow(Ap[0] -1.69277,2)<1e-8); 
+
+    x = zeros(3);
+    p = A*x;
+    assert(x[0] == 0);
+    assert(x[2] == 0);
+    assert(p[2] == 0);
+    assert(p[0] == 0);
+
+    x = zeros(3);
+    assert(x.size() == 3);
+    p = A*x + b;
+    assert(p.size() == 3);
+    //0.680272 -0.439596 0.473605
+    assert(pow(p[0] - 0.680272,2)<1e-8);
+    assert(pow(p[1] - -0.439596,2)<1e-8);
+    assert(pow(p[2] - 0.473605,2)<1e-8);
+
+    p = b + A*x;
+    assert(p.size() == 3);
+    assert(pow(p[0] - 0.680272,2)<1e-8);
+    assert(pow(p[1] - -0.439596,2)<1e-8);
+    assert(pow(p[2] - 0.473605,2)<1e-8);
+
+    p = factor*b+factor*A*x;
+    assert(p.size() == 3);
+    assert(pow(p[0] - (2*0.680272),2)<1e-8);
+    assert(pow(p[1] - (2*-0.439596),2)<1e-8);
+    assert(pow(p[2] - (2*0.473605),2)<1e-8);
+
+    p = b*factor + A*x*factor;
+    assert(p.size() == 3);
+    assert(pow(p[0] - (2*0.680272),2)<1e-8);
+    assert(pow(p[1] - (2*-0.439596),2)<1e-8);
+    assert(pow(p[2] - (2*0.473605),2)<1e-8);
+
+ 
     }
  
    exit(0);
