@@ -126,7 +126,7 @@ void init_lanczos(graph_type * g, bipartite_graph_descriptor & info){
   }
 
   sum = sqrt(sum);
-#pragma omp parallell for
+#pragma omp parallel for
   for (int i=info.get_start_node(false); i< info.get_end_node(false); i++){ 
     vertex_data * data = (vertex_data*)&g->vertex_data(i);
     data->pvec[1] /= sum;
