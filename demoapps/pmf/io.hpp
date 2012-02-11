@@ -518,11 +518,11 @@ void export_uvt_to_binary_file<graph_type_svdpp,vertex_data_svdpp>(){
       const vertex_data_svdpp & vdata = ps.g<graph_type_svdpp>(TRAINING)->vertex_data(i);
       if (i < ps.M){
         write_vec(f, vdata.pvec.size(), data(vdata.pvec));
-        ps.svdpp_usr_bias = vdata.bias;
+        ps.svdpp_usr_bias[i] = vdata.bias;
       }
       else {
         write_vec(f, vdata.pvec.size(), data(vdata.pvec));
-        ps.svdpp_movie_bias = vdata.bias;
+        ps.svdpp_movie_bias[i-ps.M] = vdata.bias;
       }
    }
 
