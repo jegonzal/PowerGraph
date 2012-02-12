@@ -83,6 +83,8 @@ struct Axb:
 
   vertex_data& user = context.vertex_data();
   bool rows = context.vertex_id() < (uint)info.get_start_node(false);
+  if (info.is_square())
+    rows = true;
   assert(mi.r_offset >=0);
   double val = 0;
   assert(mi.x_offset >=0 || mi.y_offset>=0);
@@ -228,7 +230,7 @@ class DistVec{
      if (debug){
        std::cout<<name<<" ("<<name<<" "<<offset<<" [ " << (end-start) << "] ";
        for (int i=start; i< std::min(end, start+MAX_PRINT_ITEMS); i++){  
-         std::cout<<pgraph->vertex_data(i).pvec[mi.r_offset==-1?offset:mi.r_offset]<<" ";
+         std::cout<<pgraph->vertex_data(i).pvec[(mi.r_offset==-1)?offset:mi.r_offset]<<" ";
        }
        std::cout<<std::endl;
      }
@@ -239,7 +241,7 @@ class DistVec{
     assert(i < end - start);
     return pgraph->vertex_data(i+start).pvec[offset];
   }
-
+  
   DistDouble operator*(const DistVec & other);
   
   DistVec& operator*(const double val){

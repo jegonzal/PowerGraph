@@ -31,16 +31,19 @@
 using namespace graphlab;
 double regularization = 0;
 bool calc_residual = false;
+bool final_residual = true;
+double threshold = 1e-5;
 bool debug = false;
 int max_iter = 10;
 int data_size = 7;
+std::string datafile, yfile, xfile;
 
 struct vertex_data {
 
   vec pvec;
   double A_ii;
   vertex_data() : A_ii(1) {
-    pvec.resize(data_size);
+    pvec = zeros(data_size);
   }
   void add_self_edge(double value) { A_ii = value + regularization; }
 
@@ -91,7 +94,6 @@ enum input_pos{
 
 
 void test_math(int unittest, bipartite_graph_descriptor & info, math_info & mi){
-    if (unittest == 1){
     DistMat A(info);
     DistVec b(info, CG_Y,true, "b");
     DistVec prec(info, CG_PREC,true, "prec");
@@ -161,12 +163,19 @@ void test_math(int unittest, bipartite_graph_descriptor & info, math_info & mi){
     assert(pow(p[1] - (2*-0.439596),2)<1e-8);
     assert(pow(p[2] - (2*0.473605),2)<1e-8);
 
- 
-    }
- 
-   exit(0);
+    exit(0);
 }
 
+void setup_unittest(int unittest){   
+   if (unittest == 1){
+     datafile = "unittest1.mtx"; yfile = "unittest1.mtxv"; max_iter = 20; threshold = 1e-10;
+   }
+}
+
+void verify_values(int unittest, double residual){
+   if (unittest == 1)
+     assert(residual < 1e-14);
+}
 
 int main(int argc,  char *argv[]) {
   
@@ -175,9 +184,7 @@ int main(int argc,  char *argv[]) {
 
   graphlab::command_line_options clopts("GraphLab Linear Solver Library");
 
-  std::string datafile, yfile, xfile;
   std::string format = "matrixmarket";
-  real_type threshold = 1e-5;
   size_t sync_interval = 10000;
   int unittest = 0;
 
@@ -201,7 +208,7 @@ int main(int argc,  char *argv[]) {
 		       "unit testing 0=None, 1=3x3 matrix");
   clopts.attach_option("max_iter", &max_iter, max_iter, "max number of iterations");
   clopts.attach_option("calc_residual", &calc_residual, calc_residual, "calc residual in each iteration"); 
-
+  clopts.attach_option("final_residual", &final_residual, final_residual, "calc residual at the end (norm(Ax-b))");
   // Parse the command line arguments
   if(!clopts.parse(argc, argv)) {
     std::cout << "Invalid arguments!" << std::endl;
@@ -224,17 +231,8 @@ int main(int argc,  char *argv[]) {
   graphlab::core<graph_type, Axb> core;
   core.set_options(clopts); // Set the engine options
 
-  //unit testing
-  if (unittest == 1){
-/*A= [  1.8147    0.9134    0.2785
-       0.9058    1.6324    0.5469
-       0.1270    0.0975    1.9575 ];
-
-  y= [ 0.9649    0.1576    0.9706 ]';
-  x= [ 0.6803   -0.4396    0.4736 ]';
-*/
-    datafile = "A"; yfile = "y"; xfile = "x";
-  }
+  if (unittest > 0)
+    setup_unittest(unittest);
 
   std::cout << "Load matrix A" << std::endl;
   bipartite_graph_descriptor matrix_info;
@@ -246,17 +244,9 @@ int main(int argc,  char *argv[]) {
   
   math_info mi;
   init_math(&core.graph(), &core);
-  //aggregator acum;
-  //core.add_aggregator("sync", acum, sync_interval);
-  //core.add_global("REAL_NORM", double(0));
-  //core.add_global("RELATIVE_NORM", double(0));
-  //core.add_global("THRESHOLD", threshold); 
 
-  if (unittest > 0)
+  if (unittest == 2)
     test_math(unittest, matrix_info, mi); 
-  //  int tmp=ps.n; ps.n=ps.m; ps.m = tmp;
-  //  diff = NAN;
-  //  init_row_cols();
 
     DistMat A(matrix_info);
     DistVec b(matrix_info, CG_Y,true, "b");
@@ -271,6 +261,9 @@ int main(int argc,  char *argv[]) {
     vec init_x;
     if (debug)
       init_x = ones(matrix_info.num_nodes(false));
+    else
+      init_x = randu(matrix_info.num_nodes(false));
+
     x = init_x;
 
     DistDouble rsold, rnew, alpha;
@@ -329,17 +322,19 @@ int main(int argc,  char *argv[]) {
         rsold=rnew;
     }
 
-  
+  if (final_residual){
+    p = A*x -b;
+    DistDouble ret = norm(p);
+    logstream(LOG_INFO) << "Solution converged to residual: " << ret.toDouble() << std::endl;
+    if (unittest > 0){
+     verify_values(unittest, ret.toDouble());
+    }
+  }
+ 
+
   vec ret = fill_output(&core.graph(), matrix_info, CG_X);
   write_output_vector(datafile + "x.out", format, ret, false);
 
-
-  if (unittest == 1){
-    double real_norm = core.get_global<double>("REAL_NORM");
-    double relative_norm = core.get_global<double>("RELATIVE_NORM");
-    assert(real_norm < 1e-30);
-    assert(relative_norm < 1e-30);
-  }
 
    return EXIT_SUCCESS;
 }

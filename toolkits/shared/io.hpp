@@ -301,7 +301,7 @@ bool load_matrixmarket_cpp_graph(const std::string& fname,
     const edge_data_type edata(val);
 
     if (debug && desc.nonzeros < 100)
-      logstream(LOG_INFO)<<"Adding an edge: " << source << "->" << target << " with val: " << std::endl;
+      logstream(LOG_INFO)<<"Adding an edge: " << source << "->" << target << " with val: " << val << std::endl;
 
     if(is_square && source == target) 
       graph.vertex_data(source).add_self_edge(val);
