@@ -95,12 +95,6 @@ namespace graphlab {
     iupdate_functor_type;
 
 
-    //! The type of vertex id used by the graph
-    typedef typename graph_type::vertex_id_type vertex_id_type;
-
-    //! The type of edge id used by the graph
-    typedef typename graph_type::edge_id_type edge_id_type;
-
     //! The edge list type used by the graph
     typedef typename graph_type::edge_list_type  edge_list_type;
 

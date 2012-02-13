@@ -159,6 +159,10 @@ class chandy_misra {
     compute_initial_fork_arrangement();
   }
 
+  inline const vertex_id_type invalid_vid() const {
+    return (vertex_id_type)(-1);
+  }
+
   inline vertex_id_type make_philosopher_hungry(vertex_id_type p_id) {
     vertex_id_type retval = vertex_id_type(-1);
     philosopherset[p_id].lock.lock();
