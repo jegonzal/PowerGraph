@@ -36,9 +36,10 @@ struct math_info{
   int increment;
   double  c;
   double  d;
-  int x_offset, b_offset , y_offset, r_offset;
+  int x_offset, b_offset , y_offset, r_offset, div_offset, prev_offset;
   bool A_offset;
   std::vector<std::string> names;
+  bool use_diag;
 
   math_info(){
     reset_offsets();
@@ -47,8 +48,9 @@ struct math_info{
   void reset_offsets(){
     increment = 2;
     c=1.0; d=0.0;
-    x_offset = b_offset = y_offset = r_offset = -1;
+    x_offset = b_offset = y_offset = r_offset = div_offset = prev_offset = -1;
     A_offset = false;
+    use_diag = true;
   }
   int increment_offset(){
     return increment++;
@@ -86,6 +88,10 @@ struct Axb:
   if (info.is_square())
     rows = true;
   assert(mi.r_offset >=0);
+  //store previous value for convergence detection
+  if (mi.prev_offset >= 0)
+    user.pvec[mi.prev_offset ] = user.pvec[mi.r_offset];
+
   double val = 0;
   assert(mi.x_offset >=0 || mi.y_offset>=0);
   timer t; t.start();
@@ -100,7 +106,7 @@ struct Axb:
       val += (mi.c * edge.weight * movie.pvec[mi.x_offset]);
     }
   
-    if (info.is_square())// add the diagonal term
+    if  (info.is_square() && mi.use_diag)// add the diagonal term
       val += (mi.c* (user.A_ii+ regularization) * user.pvec[mi.x_offset]);
   }
  /***** COMPUTE r = c*I*x  *****/
@@ -113,14 +119,21 @@ struct Axb:
     val += mi.d*user.pvec[mi.y_offset]; 
   }
 
+  /***** compute r = (... ) / div */
+  if (mi.div_offset >= 0){
+    val /= user.pvec[mi.div_offset];
+  }
+
   user.pvec[mi.r_offset] = val;
 }
 };
 
 core<graph_type, Axb> * glcore = NULL;
-void init_math(graph_type * _pgraph, core<graph_type, Axb> * _glcore){
+void init_math(graph_type * _pgraph, core<graph_type, Axb> * _glcore, bipartite_graph_descriptor & _info){
   pgraph = _pgraph;
   glcore = _glcore;
+  info = _info;
+  mi.reset_offsets();
 }
 
 
@@ -130,6 +143,7 @@ class DistDouble;
 class DistVec{
    public:
    int offset;
+   int prev_offset;
    std::string name; //optional
    bool transpose;
    bipartite_graph_descriptor info;
@@ -150,8 +164,19 @@ class DistVec{
      name = _name;
      info = _info;
      transpose = _transpose;
+     prev_offset = -1;
      init();
    }
+   DistVec(bipartite_graph_descriptor &_info, int _offset, bool _transpose, const std::string & _name, int _prev_offset){
+     offset = _offset;
+     name = _name;
+     info = _info;
+     transpose = _transpose;
+     assert(_prev_offset < data_size);
+     prev_offset = _prev_offset;
+     init();
+   }
+
 
    DistVec& operator-(){
      mi.d=-1.0;
@@ -179,6 +204,13 @@ class DistVec{
       return *this; 
    }
    DistVec& operator+(const DistMat &other);
+   
+   DistVec& operator-(const DistMat &other);
+  
+   DistVec& operator/(const DistVec &other){
+      mi.div_offset = other.offset;
+      return *this;
+   }
 
    DistVec& operator=(const DistVec & vec){
      assert(offset < MAX_OFFSET);
@@ -186,6 +218,8 @@ class DistVec{
          mi.y_offset = vec.offset;
        }  
       mi.r_offset = offset;
+      assert(prev_offset < data_size);
+      mi.prev_offset = prev_offset;
       if (mi.d == 0.0)
         mi.d=1.0;
       transpose = vec.transpose;
@@ -291,7 +325,12 @@ class DistMat{
         mi.c=-1.0;
         return *this;
     }
-    
+   
+    DistMat &operator/(const DistVec & v){
+        mi.div_offset = v.offset;
+        return *this;
+    }
+ 
     DistMat &operator+(){
         mi.c=1.0;
         return *this;
@@ -314,11 +353,17 @@ class DistMat{
        transpose = true;
        return *this;
     }
-   
+
+
+    void set_use_diag(bool use){
+      mi.use_diag = use;
+    }   
 };
 
 DistVec& DistVec::operator=(DistMat &mat){
   mi.r_offset = offset;
+  assert(prev_offset < data_size);
+  mi.prev_offset = prev_offset;
   transpose = mat.transpose;
   for (vertex_id_type start = info.get_start_node(!transpose); start< (vertex_id_type)info.get_end_node(!transpose); start++)
     glcore->schedule(start, Axb());
@@ -332,7 +377,15 @@ DistVec& DistVec::operator+(const DistMat &other){
       mi.y_offset = offset;
       transpose = other.transpose;
       return *this; 
-   }
+}
+DistVec& DistVec::operator-(const DistMat & other){
+      mi.y_offset = offset;
+      transpose = other.transpose;
+      if (mi.c == 0)
+         mi.c = -1;
+      else mi.c *= -1;
+      return *this;
+}
 
 
 
@@ -438,6 +491,13 @@ DistDouble norm(DistVec & vec){
     return mval;
 }
 
-
+vec diag(DistMat & mat){
+   assert(info.is_square());
+   vec ret = zeros(info.total());
+   for (int i=0; i< info.total(); i++){
+      ret[i] = pgraph->vertex_data(i).A_ii;
+   }
+   return ret;
+}
 
 #endif //_MATH_HPP

@@ -29,8 +29,6 @@
  * Written by Danny Bickson 
  */
 
-#ifndef JACOBI_HPP
-#define JACOBI_HPP
 
 #include <cmath>
 #include <cstdio>
@@ -41,38 +39,37 @@
 #include "../shared/types.hpp"
 using namespace graphlab;
 
-#include <graphlab/macros_def.hpp>
+enum jacobi_fields{
+  JACOBI_X = 0,
+  JACOBI_REAL_X = 1,
+  JACOBI_Y = 2,
+  JACOBI_PREV_X = 3,
+  JACOBI_PREC = 4
+};
 
+int data_size = 5;
 bool debug = false;
 double regularization = 0;
+bool final_residual = true;
 int max_iter = 10;
 
-enum jacobi_fields{
-  JACOBI_REAL_X = 1,
-  JACOBI_Y = 2
-};
-
-enum jacobi_output_fields{
-  JACOBI_X = 1
-};
 
 struct vertex_data {
-  real_type y, Aii;
-  real_type pred_x, real_x, prev_x;
-  vertex_data() : y(0), Aii(1), pred_x(0), real_x(0), 
-                  prev_x(-1) {
-    if(debug) std::cout << "hello" << std::endl;
+  vec pvec;
+  double A_ii;
+  //real_type y, Aii;
+  //real_type pvec[JACOBI_X], pvec[JACOBI_REAL_X], pvec[JACOBI_PREV_X];
+  vertex_data(): A_ii(1) { //: y(0), Aii(1), pvec[JACOBI_X](0), pvec[JACOBI_REAL_X](0), 
+                 // pvec[JACOBI_PREV_X](-1) 
+     pvec = zeros(data_size);
+     pvec[JACOBI_PREV_X] = -1;
   }
-  void add_self_edge(double value) { Aii = value + regularization; }
+  void add_self_edge(double value) { A_ii = value + regularization; }
 
   void set_val(double value, int field_type) { 
-     if (field_type == JACOBI_REAL_X) 
-       y = value; 
-     else if (field_type == JACOBI_Y)
-       real_x = value;
-  }
-  //only one output for jacobi - solution x
-  double get_output(int field_type){ return pred_x; }
+     pvec[field_type] = value;
+  }  
+  double get_output(int field_type){ return pvec[field_type]; }
 }; // end of vertex_data
 
 struct edge_data {
@@ -81,107 +78,27 @@ struct edge_data {
 };
 
 typedef graphlab::graph<vertex_data, edge_data> graph_type;
-
-/***
- * JACOBI UPDATE FUNCTION
- * x_i = (b_i - \sum_j A_ij * x_j)/A_ii
- */
-struct jacobi_update :
-  public graphlab::iupdate_functor<graph_type, jacobi_update> {
-  void operator()(icontext_type& context) {
-    /* GET current vertex data */
-    vertex_data& vdata = context.vertex_data();
-    const edge_list_type out_edges = context.out_edges();
-
-    //store last round values
-    vdata.prev_x = vdata.pred_x;
-
-    //initialize accumlated values in x_i
-    real_type x_i = vdata.y;
-    assert(!std::isnan(x_i));
-    const real_type A_ii = vdata.Aii;
-
-    if (debug) 
-      std::cout << "entering node " << context.vertex_id() 
-                << " A_ii=" << vdata.Aii 
-                << " prev_x=" << vdata.prev_x 
-                << " y: " << vdata.y << std::endl;
-  
-    for(size_t i = 0; i < out_edges.size(); ++i) {
-      edge_data& out_edge = context.edge_data(out_edges[i]);
-      const vertex_data & other = 
-        context.const_vertex_data(out_edges[i].target());
-      double val = out_edge.weight * other.pred_x;
-      x_i = x_i - val;
-      assert(!std::isnan(x_i));
-    }
-    assert(A_ii != 0);
-    vdata.pred_x = x_i / A_ii;
-    assert(!std::isnan(vdata.pred_x));   
- 
-    if (debug)
-      std::cout << context.vertex_id()<< ") x_i: " << x_i << std::endl;
-
-    assert(!std::isnan(x_i));
-    context.schedule(context.vertex_id(), *this);
-  }
-}; // end of update_functor
+#include "../shared/math.hpp"
 
 
-
-
-
-class accumulator :
-  public graphlab::iaccumulator<graph_type, jacobi_update, accumulator> {
+class aggregator :
+  public graphlab::iaggregator<graph_type, Axb, aggregator> {
 private:
   double real_norm, relative_norm;
 public:
-  accumulator() : 
+  aggregator() : 
     real_norm(0), 
     relative_norm(0) { }
   void operator()(icontext_type& context) {
-    /* GET current vertex data */
-    vertex_data& vdata = context.vertex_data();
-    const edge_list_type out_edges = context.out_edges();
-
-    //store last round values
-    vdata.prev_x = vdata.pred_x;
-
-    //initialize accumlated values in x_i
-    real_type x_i = vdata.y;
-    assert(!std::isnan(x_i));
-    const real_type A_ii = vdata.Aii;
-
-    if (debug) 
-      std::cout << "entering node " << context.vertex_id() 
-                << " A_ii=" << vdata.Aii 
-                << " prev_x=" << vdata.prev_x 
-                << " y: " << vdata.y << std::endl;
-  
-    for(size_t i = 0; i < out_edges.size(); ++i) {
-      edge_data& out_edge = context.edge_data(out_edges[i]);
-      const vertex_data & other = 
-        context.const_vertex_data(out_edges[i].target());
-      double val = out_edge.weight * other.pred_x;
-      x_i = x_i - val;
-      assert(!std::isnan(x_i));
-    }
-    assert(A_ii != 0);
-    vdata.pred_x = x_i / A_ii;
-    assert(!std::isnan(vdata.pred_x));   
- 
-    if (debug)
-      std::cout << context.vertex_id()<< ") x_i: " << x_i << std::endl;
-
-    assert(!std::isnan(x_i));
-    //context.schedule(context.vertex_id(), *this);
-    real_norm += std::pow(vdata.pred_x - vdata.real_x,2);
+    const vertex_data& vdata = context.const_vertex_data();
     assert(!std::isnan(real_norm));
-    relative_norm += std::pow(vdata.pred_x - vdata.prev_x, 2);
+    real_norm += std::pow(vdata.pvec[JACOBI_X] - vdata.pvec[JACOBI_REAL_X],2);
+    assert(!std::isnan(real_norm));
+    relative_norm += std::pow(vdata.pvec[JACOBI_X] - vdata.pvec[JACOBI_PREV_X], 2);
     if (debug)
 	std::cout << "Real_norm: " << real_norm << "relative norm: " <<relative_norm << std::endl;
   }
-  void operator+=(const accumulator& other) { 
+  void operator+=(const aggregator& other) { 
     assert(!std::isnan(real_norm));
     real_norm += other.real_norm; 
     assert(!std::isnan(real_norm));
@@ -199,10 +116,12 @@ public:
     if(relative_norm < threshold) 
       context.terminate();
   }
-}; // end of  accumulator
+}; // end of  aggregator
 
-
-
+void verify_values(int unittest, double residual){
+   if (unittest == 1)
+     assert(residual < 1e-5);
+}
 
 
 int main(int argc,  char *argv[]) {
@@ -236,7 +155,8 @@ int main(int argc,  char *argv[]) {
 	               "regularization added to the main diagonal");
   clopts.attach_option("unittest", &unittest, unittest, 
 		       "unit testing 0=None, 1=3x3 matrix");
-  clopts.attach_option("max_iter", &max_iter, max_iter, "max iteration");
+  clopts.attach_option("final_residual", &final_residual, final_residual, "calc residual at the end (norm(Ax-b))");
+  clopts.attach_option("max_iter", &max_iter, max_iter, "max number of iterations");
   // Parse the command line arguments
   if(!clopts.parse(argc, argv)) {
     std::cout << "Invalid arguments!" << std::endl;
@@ -256,7 +176,7 @@ int main(int argc,  char *argv[]) {
 
 
   // Create a core
-  graphlab::core<graph_type, jacobi_update> core;
+  graphlab::core<graph_type, Axb> core;
   core.set_options(clopts); // Set the engine options
 
   //unit testing
@@ -275,56 +195,68 @@ int main(int argc,  char *argv[]) {
   bipartite_graph_descriptor matrix_info;
   load_graph(datafile, format, matrix_info, core.graph());
   std::cout << "Load Y values" << std::endl;
-  load_vector(yfile, format, matrix_info, core.graph(), JACOBI_REAL_X, false);
+  load_vector(yfile, format, matrix_info, core.graph(), JACOBI_Y, false);
   std::cout << "Load x values" << std::endl;
-  load_vector(xfile, format, matrix_info, core.graph(), JACOBI_Y, true);
+  load_vector(xfile, format, matrix_info, core.graph(), JACOBI_REAL_X, true);
   
-
-  std::cout << "Schedule all vertices" << std::endl;
-  //core.schedule_all(jacobi_update());
-
   if (sync_interval < core.graph().num_vertices()){
     sync_interval = core.graph().num_vertices(); 
     logstream(LOG_WARNING) << "Sync interval is lower than the number of nodes: setting sync interval to " 
 			   << sync_interval << std::endl;
   }
  
-  accumulator acum;
-  core.add_sync("sync", acum, sync_interval);
+  aggregator acum;
+  core.add_aggregator("sync", acum, sync_interval);
   core.add_global("REAL_NORM", double(0));
   core.add_global("RELATIVE_NORM", double(0));
   core.add_global("THRESHOLD", threshold); 
+
+  init_math(&core.graph(), &core, matrix_info);
+  DistMat A(matrix_info);
+  DistVec b(matrix_info, JACOBI_Y,true, "b");
+  DistVec x(matrix_info, JACOBI_X,true, "x", JACOBI_PREV_X);
+  DistVec A_ii(matrix_info, JACOBI_PREC, true, "A_ii");
+  A_ii = diag(A);
+  //A.set_use_diag(false);
+  for (int i=0; i< info.total(); i++)
+    core.graph().vertex_data(i).A_ii = 0;
+
+  for (int i=0; i < max_iter; i++){
+    x = (b - A*x)/A_ii;
+  }
+
  
-  graphlab::timer t; t.start();
-
-  for (int i=0; i< max_iter; i++)
-     core.sync_now("sync");
-
-  //double runtime= core.start();
-  // POST-PROCESSING *****
-  double runtime = t.current_time();
-
   std::cout << "Jacobi finished in " << runtime << std::endl;
   std::cout << "\t Updates: " << core.last_update_count() << " per node: " 
      << core.last_update_count() / core.graph().num_vertices() << std::endl
     << "\t Rate:     " << (core.last_update_count()/runtime) << std::endl;
 
-  vec ret = fill_output(&core.graph(), matrix_info, JACOBI_X);
 
+  if (final_residual){
+    graphlab::core<graph_type, Axb> tmp_core;
+    tmp_core.graph() = core.graph();
+    init_math(&tmp_core.graph(), &tmp_core, matrix_info);
+    DistMat A(matrix_info);
+    DistVec b(matrix_info, JACOBI_Y,true,"b");
+    DistVec x(matrix_info, JACOBI_X,true,"x");
+    DistVec p(matrix_info, JACOBI_PREV_X, true, "p");
+    for (int i=0; i< info.total(); i++)
+      tmp_core.graph().vertex_data(i).A_ii = A_ii[i];
+
+    p = A*x -b;
+    DistDouble ret = norm(p);
+    logstream(LOG_INFO) << "Solution converged to residual: " << ret.toDouble() << std::endl;
+    if (unittest > 0){
+     verify_values(unittest, ret.toDouble());
+    }
+  }
+ 
+  vec ret = fill_output(&core.graph(), matrix_info, JACOBI_X);
   write_output_vector(datafile + "x.out", format, ret, false);
 
-
-  if (unittest == 1){
-    double real_norm = core.get_global<double>("REAL_NORM");
-    double relative_norm = core.get_global<double>("RELATIVE_NORM");
-    assert(real_norm < 1e-30);
-    assert(relative_norm < 1e-30);
-  }
 
    return EXIT_SUCCESS;
 }
 
 
 
-#include <graphlab/macros_undef.hpp>
-#endif

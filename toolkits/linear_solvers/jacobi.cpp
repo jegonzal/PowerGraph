@@ -273,7 +273,7 @@ int main(int argc,  char *argv[]) {
   if (final_residual){
     graphlab::core<graph_type, Axb> tmp_core;
     tmp_core.graph() = core.graph();
-    init_math(&tmp_core.graph(), &tmp_core);
+    init_math(&tmp_core.graph(), &tmp_core, matrix_info);
     DistMat A(matrix_info);
     DistVec b(matrix_info, JACOBI_Y,true,"b");
     DistVec x(matrix_info, JACOBI_X,true,"x");
