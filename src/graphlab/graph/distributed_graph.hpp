@@ -386,7 +386,6 @@ namespace graphlab {
         size_t list_size;
     }; // end of class edge_list.
 
-  private:
     /**
      * The vertex record stores information associated with each
      * vertex on this proc
@@ -413,6 +412,7 @@ namespace graphlab {
       }
     }; // vertex_record
 
+  private:
     /// The master vertex record map
     typedef boost::unordered_map<vertex_id_type, vertex_record> 
     vid2record_type;
@@ -500,20 +500,34 @@ namespace graphlab {
       return lvid2vid[lvid];
     } // end of global_vertex_id
 
-    // This method is currently local.
     vertex_record& get_vertex_record(const vertex_id_type vid) {
       typedef typename vid2record_type::iterator vrecord_iter_type;
-      vrecord_iter_type it = vrecord.find(vid);
-      ASSERT_TRUE(it != vrecord.end());
-      return *it;
+      vrecord_iter_type it = vid2record.find(vid);
+      ASSERT_TRUE(it != vid2record.end());
+      return it->second;
     }
 
-    // This method is currently local.
     const vertex_record& get_vertex_record(const vertex_id_type vid) const {
-      typedef typename vid2record_type::iterator vrecord_iter_type;
-      vrecord_iter_type it = vrecord.find(vid);
-      ASSERT_TRUE(it != vrecord.end());
-      return *it;
+      typedef typename vid2record_type::const_iterator vrecord_iter_type;
+      vrecord_iter_type it = vid2record.find(vid);
+      ASSERT_TRUE(it != vid2record.end());
+      return it->second;
+    }
+
+    vertex_record& l_get_vertex_record(const vertex_id_type vid) {
+      return get_vertex_record(global_vid(vid));
+    }
+
+    const vertex_record& l_get_vertex_record(const vertex_id_type vid) const {
+      return get_vertex_record(global_vid(vid));
+    }
+
+    local_graph_type& get_local_graph() {
+      return local_graph;
+    }
+
+    const local_graph_type& get_local_graph() const {
+      return local_graph;
     }
 
     edge_id_type global_eid(const leid_type eid) const {
