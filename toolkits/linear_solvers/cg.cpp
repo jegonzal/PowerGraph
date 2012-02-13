@@ -243,7 +243,7 @@ int main(int argc,  char *argv[]) {
   load_vector(xfile, format, matrix_info, core.graph(), CG_Y, true);
   
   math_info mi;
-  init_math(&core.graph(), &core);
+  init_math(&core.graph(), &core, matrix_info);
 
   if (unittest == 2)
     test_math(unittest, matrix_info, mi); 
