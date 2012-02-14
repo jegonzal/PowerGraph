@@ -150,8 +150,7 @@ namespace graphlab {
       term.reset();
     }
 
-    void schedule(const size_t cpuid,
-                  const vertex_id_type vid, 
+    void schedule(const vertex_id_type vid, 
                   const update_functor_type& fun) {  
       // Does nothing
     }

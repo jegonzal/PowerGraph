@@ -99,11 +99,9 @@ namespace graphlab {
     void start() { term.reset(); }
    
 
-    void schedule(const size_t cpuid,
-                  const vertex_id_type vid, 
+    void schedule(const vertex_id_type vid, 
                   const update_functor_type& fun) {      
       if (vfun_set.add(vid, fun)) {
-        term.new_job(cpuid);
         /* "Randomize" the task queue task is put in. Note that we do
            not care if this counter is corrupted in race conditions
            Find first queue that is not locked and put task there (or
@@ -121,6 +119,7 @@ namespace graphlab {
           idx = (queues[r1].size() < queues[r2].size()) ? r1 : r2;  
         }
         locks[idx].lock(); queues[idx].push_back(vid); locks[idx].unlock();
+        term.new_job(idx);
       }
     } // end of schedule
 

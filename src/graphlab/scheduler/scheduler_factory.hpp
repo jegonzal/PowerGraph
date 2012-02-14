@@ -58,8 +58,7 @@ namespace graphlab {
     static ischeduler_type* new_scheduler(graph_type& graph,
                                           const size_t& ncpus,
                                           const options_map& opts) {
-      ischeduler_type* scheduler_ptr = 
-        new Scheduler(graph, ncpus, opts);
+      ischeduler_type* scheduler_ptr = new Scheduler(graph, ncpus, opts);
       ASSERT_TRUE(scheduler_ptr != NULL);
       return scheduler_ptr;
     }

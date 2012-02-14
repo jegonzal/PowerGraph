@@ -179,6 +179,25 @@ namespace graphlab {
     virtual void schedule_all(const update_functor_type& update_functor) = 0;
 
     /**
+     * Schedule an update on all the neighbors of a particular vertex
+     */
+    virtual void schedule_in_neighbors(const vertex_id_type& vertex, 
+                                       const update_functor_type& update_fun) = 0;
+
+    /**
+     * Schedule an update on all the out neighbors of a particular vertex
+     */
+    virtual void schedule_out_neighbors(const vertex_id_type& vertex, 
+                                        const update_functor_type& update_fun) = 0;
+                                                  
+    /**
+     * Schedule an update on all the out neighbors of a particular vertex
+     */
+    virtual void schedule_neighbors(const vertex_id_type& vertex, 
+                                    const update_functor_type& update_fun) = 0;
+
+
+    /**
      * \brief associate a termination function with this engine.
      *
      * An engine can typically have many termination functions

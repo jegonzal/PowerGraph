@@ -74,8 +74,6 @@ namespace graphlab {
     engine_type* engine_ptr;
     /** A pointer to the underlying graph datastructure */
     graph_type* graph_ptr;   
-    /** A pointer to the scheduler */
-    ischeduler_type* scheduler_ptr;
     /** the cpuid of this context */
     size_t cpuid;
 
@@ -111,10 +109,9 @@ namespace graphlab {
      */
     context(engine_type* engine_ptr = NULL,
             graph_type* graph_ptr = NULL,
-            ischeduler_type* scheduler_ptr = NULL,
             size_t cpuid = -1) :
       engine_ptr(engine_ptr), graph_ptr(graph_ptr), 
-      scheduler_ptr(scheduler_ptr), cpuid(cpuid),
+      cpuid(cpuid),
       vid(-1), _consistency(EDGE_CONSISTENCY),
       start_time(lowres_time_seconds()) { 
     }
@@ -230,32 +227,24 @@ namespace graphlab {
       return graph_ptr->num_out_edges(v);
     }
 
-
-
-
-
     //! Get the consistency model under which this context was acquired
     consistency_model consistency() const { 
       return _consistency;
     }
     
-
     void schedule(const vertex_id_type& vertex, 
                   const update_functor_type& update_fun) {
-
-      scheduler_ptr->schedule(cpuid, vertex, update_fun);
+      engine_ptr->schedule(vertex, update_fun);
     }
 
     void schedule_in_neighbors(const vertex_id_type& vertex, 
                                const update_functor_type& update_fun) {
-      const edge_list_type edges = graph_ptr->in_edges(vertex);
-      foreach(const edge_type& e, edges) schedule(e.source(), update_fun);
+      engine_ptr->schedule_in_neighbors(vertex, update_fun);
     }
 
     void schedule_out_neighbors(const vertex_id_type& vertex, 
                                const update_functor_type& update_fun) {
-      const edge_list_type edges = graph_ptr->out_edges(vertex);
-      foreach(const edge_type& e, edges) schedule(e.target(), update_fun);
+      engine_ptr->schedule_out_neighbors(vertex, update_fun);
     }
 
     void schedule_neighbors(const vertex_id_type& vertex, 

@@ -102,22 +102,21 @@ namespace graphlab {
     void start() { term.reset(); }
    
 
-    void schedule(const size_t cpuid,
-                  const vertex_id_type vid, 
+    void schedule(const vertex_id_type vid, 
                   const update_functor_type& fun) {      
       const size_t idx = vid % queues.size();
       double priority = 0;
       locks[idx].lock(); 
       if (vfun_set.add(vid, fun, priority)) {
-        term.new_job(cpuid);
         queues[idx].push(vid, priority); 
+        term.new_job(idx);
       } else { queues[idx].update(vid, priority); }
       locks[idx].unlock();
     } // end of schedule
 
     void schedule_all(const update_functor_type& fun) {
       for (vertex_id_type vid = 0; vid < vfun_set.size(); ++vid) 
-        schedule( vid % current_queue.size(), vid, fun);
+        schedule(vid, fun);
     } // end of schedule_all
 
     void completed(const size_t cpuid,

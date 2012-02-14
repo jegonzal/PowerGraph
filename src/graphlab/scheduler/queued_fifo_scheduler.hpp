@@ -90,11 +90,11 @@ namespace graphlab {
     void start() { term.reset(); }
    
 
-    void schedule(const size_t cpuid,
-                  const vertex_id_type vid, 
+    void schedule(const vertex_id_type vid, 
                   const update_functor_type& fun) {      
       if (vfun_set.add(vid, fun)) {
-        term.new_job(cpuid);
+        const size_t cpuid = thread::thread_id();
+        ASSERT_LT(cpuid, in_queues.size());
         queue_type& queue = in_queues[cpuid];
         queue.push_back(vid);
         if(queue.size() > sub_queue_size) {
@@ -103,12 +103,13 @@ namespace graphlab {
           master_lock.unlock();
           queue.clear();
         }
+        term.new_job(cpuid);
       } 
     } // end of schedule
 
     void schedule_all(const update_functor_type& fun) {
       for (vertex_id_type vid = 0; vid < vfun_set.size(); ++vid)
-        schedule(vid % in_queues.size(), vid, fun);      
+        schedule(vid, fun);      
     } // end of schedule_all
 
     void completed(const size_t cpuid,

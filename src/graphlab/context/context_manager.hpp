@@ -61,8 +61,6 @@ namespace graphlab {
     
     typedef icontext<graph_type, update_functor_type> icontext_type;
     typedef context<engine_type> context_type;
-
-    typedef typename engine_type::ischeduler_type ischeduler_type;
     
     typedef typename graph_type::vertex_id_type  vertex_id_type;
     typedef typename graph_type::edge_list_type  edge_list_type;
@@ -84,7 +82,6 @@ namespace graphlab {
   public:
 
     context_manager(engine_type* engine_ptr,
-                    ischeduler_type* ischeduler_ptr,
                     graph_type* graph_ptr,
                     size_t ncpus,
                     consistency_model default_consistency_range 
@@ -92,14 +89,13 @@ namespace graphlab {
       graph_ptr(graph_ptr), contexts(ncpus), locks(graph_ptr->num_vertices()),
       default_consistency(default_consistency_range) {
       ASSERT_NE(engine_ptr, NULL);
-      ASSERT_NE(ischeduler_ptr, NULL);
       ASSERT_NE(graph_ptr, NULL);    
 
       if (default_consistency == DEFAULT_CONSISTENCY)
         default_consistency = EDGE_CONSISTENCY;
       // Initialize all the contexts
       for(size_t i = 0; i < contexts.size(); ++i) {
-        contexts[i] = context_type(engine_ptr, graph_ptr, ischeduler_ptr, i);
+        contexts[i] = context_type(engine_ptr, graph_ptr, i);
       }
     } // end of context manager
 

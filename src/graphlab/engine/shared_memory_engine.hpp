@@ -281,6 +281,25 @@ namespace graphlab {
     void schedule_all(const update_functor_type& update_functor);
 
     /**
+     * Schedule an update on all the neighbors of a particular vertex
+     */
+    void schedule_in_neighbors(const vertex_id_type& vertex, 
+                               const update_functor_type& update_fun);
+
+    /**
+     * Schedule an update on all the out neighbors of a particular vertex
+     */
+    void schedule_out_neighbors(const vertex_id_type& vertex, 
+                                const update_functor_type& update_fun);
+                                                  
+    /**
+     * Schedule an update on all the out neighbors of a particular vertex
+     */
+    void schedule_neighbors(const vertex_id_type& vertex, 
+                            const update_functor_type& update_fun);
+
+
+    /**
      * \brief associate a termination function with this engine.
      */
     void add_termination_condition(termination_function_type term);
@@ -478,8 +497,7 @@ namespace graphlab {
            const update_functor_type& update_functor) { 
     initialize_members();
     ASSERT_TRUE(scheduler_ptr != NULL);
-    const size_t cpuid = random::fast_uniform<size_t>(0, threads.size() - 1);
-    scheduler_ptr->schedule(cpuid, vid, update_functor);
+    scheduler_ptr->schedule(vid, update_functor);
   } // end of schedule
 
   template<typename Graph, typename UpdateFunctor> 
@@ -490,13 +508,12 @@ namespace graphlab {
     initialize_members();
     ASSERT_TRUE(scheduler_ptr != NULL);
     foreach(const vertex_id_type& vid, vids) {
-      const size_t cpuid = random::fast_uniform<size_t>(0, threads.size() - 1);
-      scheduler_ptr->schedule(cpuid, vid, update_functor);
+      scheduler_ptr->schedule(vid, update_functor);
     }
   } // end of schedule
 
- 
-    //! \brief Apply update function to all the vertices in the graph
+  
+  //! \brief Apply update function to all the vertices in the graph
   template<typename Graph, typename UpdateFunctor> 
   void
   shared_memory_engine<Graph, UpdateFunctor>::
@@ -507,6 +524,36 @@ namespace graphlab {
   } // end of schedule_all
 
 
+  template<typename Graph, typename UpdateFunctor> 
+  void
+  shared_memory_engine<Graph, UpdateFunctor>::
+  schedule_in_neighbors(const vertex_id_type& vertex, 
+                        const update_functor_type& update_fun) {
+    const edge_list_type edges = graph.in_edges(vertex);
+    foreach(const edge_type& e, edges) schedule(e.source(), update_fun);
+  } // end of schedule in neighbors
+
+  
+  template<typename Graph, typename UpdateFunctor> 
+  void
+  shared_memory_engine<Graph, UpdateFunctor>::
+  schedule_out_neighbors(const vertex_id_type& vertex, 
+                         const update_functor_type& update_fun) {
+    const edge_list_type edges = graph.out_edges(vertex);
+    foreach(const edge_type& e, edges) schedule(e.target(), update_fun);
+  } // end of schedule out neighbors
+  
+
+  template<typename Graph, typename UpdateFunctor> 
+  void
+  shared_memory_engine<Graph, UpdateFunctor>::
+  schedule_neighbors(const vertex_id_type& vertex, 
+                     const update_functor_type& update_fun) {
+    schedule_in_neighbors(vertex, update_fun);
+    schedule_out_neighbors(vertex, update_fun);
+  } // end of schedule neighbors
+  
+  
   template<typename Graph, typename UpdateFunctor> 
   size_t
   shared_memory_engine<Graph, UpdateFunctor>::
@@ -851,7 +898,6 @@ namespace graphlab {
         string_to_consistency_model(opts.get_scope_type());
       context_manager_ptr = 
         new context_manager_type(this,
-                                 scheduler_ptr,
                                  &graph,
                                  opts.get_ncpus(),
                                  context_range);
@@ -1180,7 +1226,7 @@ namespace graphlab {
       const boost::function<void (void)> sync_function = 
         boost::bind(&(isync::run_aggregator), sync, 
                     key, &barrier, &sync_vlocks, 
-                    context_type(this, &graph, scheduler_ptr, i),
+                    context_type(this, &graph, i),
                     sync_threads.size(), i);
       sync_threads.launch(sync_function);
     }

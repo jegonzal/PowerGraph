@@ -92,8 +92,7 @@ namespace graphlab {
      * Adds an update task with a particular priority. 
      * This function may be called at anytime.
      */
-    virtual void schedule(const size_t cpuid,
-                          const vertex_id_type vid, 
+    virtual void schedule(const vertex_id_type vid, 
                           const update_functor_type& fun) = 0;
 
     
@@ -143,43 +142,6 @@ namespace graphlab {
      */
     static void print_options_help(std::ostream& out) { };
 
-   
-    
-    // /**
-    //  * Return the metrics information logged by the engine.
-    //  * \see dump_metrics reset_metrics
-    //  */
-    // virtual metrics get_metrics() {
-    //   return metrics();
-    // }
-
-    // /**
-    //  * Clears all logged metrics
-    //  * \see dump_metrics get_metrics
-    //  */
-    // virtual void reset_metrics() { }
-    
-
-    //   /**
-    //    * Writes out the metrics information logged by the engine
-    //    * and all subordinate classes.
-    //    *
-    //    * Scheduler writers should note that for dump_metrics() to work,
-    //    * the scheduler only has to implement get_metrics()
-    //    * and reset_metrics(). Default behavior is to report the metrics
-    //    * returned by get_metrics() and call reset_metrics().
-    //    * This behavior may be overridden by implementing this function.
-    //    *
-    //    * \see get_metrics reset_metrics
-    //    */
-    //   virtual void report_metrics(imetrics_reporter &reporter) {
-    //     get_metrics().report(reporter);
-    //   }
-    
-    
-    // protected:
-    //   monitor_type* monitor;
-    
   };
 
 }
