@@ -47,11 +47,12 @@ echo "or Ctrl-C to break and install Eigen"
 read
 echo "Downloading Eigen 3.0.2 from www.tuxfamily.com... into `pwd`"
 download_file_with_forward https://bitbucket.org/eigen/eigen/get/3.0.2.tar.gz \
-    ./deps/eigen-eigen-3.0.2.tar.gz
+    ./deps/eigen-3.0.2.tar.gz
   # unpack
 cd ./deps/
 set -e
-tar -xzvf eigen-eigen-3.0.2.tar.gz
+mkdir eigen-3.0.2
+tar --strip-components=1 -xzvf eigen-3.0.2.tar.gz -C eigen-3.0.2
 set +e
 echo "Eigen setup success!"
 cd ..

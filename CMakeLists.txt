@@ -131,7 +131,7 @@ message(STATUS "Boost Shared libs: " ${Boost_SHARED_LIBRARIES})
 
 if (HAS_EIGEN)
   message(STATUS "Found Eigen linear algebra package")
-  include_directories(${GraphLab_SOURCE_DIR}/deps/eigen-eigen-3.0.2)
+  include_directories(${GraphLab_SOURCE_DIR}/deps/eigen-3.0.2)
 else ()
   message(STATUS "Eigen linear algebra package not found.")
   message(STATUS "Eigen is only required for the matrix factorization apps.")

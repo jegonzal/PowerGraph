@@ -26,7 +26,7 @@ class ChandyMisraTest: public CxxTest::TestSuite {
     for (size_t i = 0;i < 100; ++i) {
       TS_ASSERT_EQUALS(cm.make_philosopher_hungry(i % 25), i % 25);
       std::vector<vertex_id_type> r = cm.philosopher_stops_eating(i % 25);
-      TS_ASSERT_EQUALS(r.size(), 0);
+      TS_ASSERT_EQUALS(r.size(), size_t(0));
     }
     // test more aggressive
     for (size_t k = 0;k < 10; ++k) {
