@@ -371,8 +371,7 @@ namespace graphlab {
     //! reset the engine
     void clear();
 
-  private:
-    friend class context<shared_memory_engine>;
+
     //! Get the global data and lock
     void get_global(const std::string& key,      
                     graphlab::any_vector*& ret_values_ptr,
@@ -385,6 +384,7 @@ namespace graphlab {
     void release_global_lock(const std::string& key,      
                              size_t index = 0);
 
+  private:
 
     /**
      * Initialize all the engine members.  This is called before

@@ -511,9 +511,8 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
   /**
    This is a non-blocking send_to. It send an object T to the target
    machine, but DOES NOT wait for the target machine to call recv_from
-   before returning. However, if a second send is issued to the same remote
-   machine before the remote machine has a chance to receive the first send,
-   an assertion failure will be raised. This does not share the same buffers
+   before returning. Target machine must call recv_from_nonblocking
+   as many times as #machines sending. This does not share the same buffers
    as the regular send_to so both can be used simultaneously.
    */
   template <typename U>

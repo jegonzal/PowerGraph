@@ -54,8 +54,6 @@
 
 #include <graphlab/macros_def.hpp>
 
-#define VERTEX_LOCK_COUNT 131072
-
 namespace graphlab {
   
   /**
@@ -179,7 +177,7 @@ namespace graphlab {
 
     graph_type& graph;
     chandy_misra<typename graph_type::local_graph_type>* cmlocks;
-    
+
     thread_group thrgroup;
     
     //! The scheduler
@@ -247,7 +245,7 @@ namespace graphlab {
                                       graph.get_local_graph(),
                                       ncpus);
       vstate.resize(graph.num_local_vertices());
-      vstate_locks.resize(VERTEX_LOCK_COUNT);
+      vstate_locks.resize(graph.num_local_vertices());
       consensus = new async_consensus(rmi.dc(), ncpus);
       cmlocks = new chandy_misra<typename graph_type::local_graph_type>(graph.get_local_graph());
       thrlocal.resize(ncpus);
@@ -429,11 +427,50 @@ namespace graphlab {
         has_sched_task = true;
       }
     }
+
+    void locked_gather_complete(vertex_id_type lvid, const update_functor_type& uf) {
+      // make sure that I am the owner
+      ASSERT_EQ(graph.l_get_vertex_record(lvid).owner, rmi.procid());
+      ASSERT_TRUE(vstate[lvid] == GATHERING);
+      vstate[lvid].current += uf;
+      ASSERT_GT(vstate[lvid].apply_count_down, 0);
+      vstate[lvid].apply_count_down--;
+      if (vstate[lvid].apply_count_down == 0) {
+        vstate[lvid].state = APPLYING;
+        add_internal_task(lvid);
+      }
+    }
     
+    void rpc_gather_complete(vertex_id_type vid, const update_functor_type& uf) {
+      vertex_id_type lvid = graph.localvid(vid);
+      vstate_locks[lvid].lock();
+      locked_gather_complete(lvid, uf);
+      vstate_locks[lvid].unlock();
+    }
+    
+    void process_gather_locks_ready(vertex_id_type lvid) {
+      // in theory I do not need a lock here.
+      // but what the hell
+      vstate_locks[lvid].lock();
+      ASSERT_TRUE(vstate[lvid].state == GATHERING || vstate[lvid].state == MIRROR_GATHERING);
+      /** Implement Gathering Code Here!!! */
+      std::cout << rmi.procid() << ": Gathering on " << graph.global_vid(lvid) << std::endl;
+      procid_t vowner = graph.l_get_vertex_record(lvid).owner;
+      if (vowner == rmi.procid()) {
+        locked_gather_complete(lvid);
+      }
+      else {
+        rmi.remote_call(vowner,
+                        &engine_type::rpc_gather_complete,
+                        graph.global_vid(lvid));
+      }
+      vstate[lvid].state = MIRROR_SCATTERING;
+    }
+  
     
     void eval_internal_task(vertex_id_type lvid) {
       logstream(LOG_DEBUG) << rmi.procid() << ": Internal Task: " << graph.global_vid(lvid) << std::endl;
-      vstate_locks[lvid % VERTEX_LOCK_COUNT].lock();
+      vstate_locks[lvid].lock();
       
       std::vector<vertex_id_type> ready_vertices;
       switch(vstate[lvid].state) {
@@ -441,26 +478,42 @@ namespace graphlab {
           break;
         case GATHERING:
         case MIRROR_GATHERING:
-          {
-            vertex_id_type tmp = cmlocks->make_philosopher_hungry(lvid);
-            if (tmp != cmlocks->invalid_vid()) {
-              ready_vertices.push_back(tmp);
-            }
+          vertex_id_type tmp = cmlocks->make_philosopher_hungry(lvid);
+          if (tmp != cmlocks->invalid_vid()) {
+            ready_vertices.push_back(tmp);
           }
           break;
         case APPLYING:
+           /** Implement Applying Code Here!!! */
+          vstate[sched_lvid].state = SCATTERING;
+          master_broadcast_scattering(lvid, vstate[lvid].current);
           break;
         case SCATTERING:
+          ready_vertices = cmlocks->philosopher_stops_eating(lvid);
+          if (vstate[sched_lvid].hasnext) {
+            // ok. we have a next task!
+            // go back to gathering
+            vstate[sched_lvid].hasnext = false;
+            vstate[sched_lvid].state = NONE;
+            // make a copy of the update functor
+            update_functor_type tmp = vstate[sched_lvid].next;
+            eval_sched_task<true>(sched_lvid, tmp);
+          }
+          else {
+            vstate[sched_lvid].state = NONE;
+          }
+          break;
         case MIRROR_SCATTERING:
           ready_vertices = cmlocks->philosopher_stops_eating(lvid);
+          ASSERT_FALSE(vstate[sched_lvid].hasnext);
+          vstate[sched_lvid].state = NONE;
           break;
       }
-      
-      for (size_t i = 0;i < ready_vertices.size(); ++i) {
-        std::cout << ready_vertices[i] << " ";
+      vstate_locks[lvid].unlock();
+      // for everything whose locks are ready. perform the gather
+      foreach(vertex_id_type ready_lvid, ready_vertices) {
+        process_gather_locks_ready(ready_lvid);
       }
-      std::cout << std::endl;
-      vstate_locks[lvid % VERTEX_LOCK_COUNT].unlock();
     }
 
 
@@ -482,11 +535,11 @@ namespace graphlab {
       // immediately begin issuing the lock requests
       vertex_id_type sched_lvid = graph.local_vid(sched_vid);
       // set the vertex state
-      vstate_locks[sched_lvid % VERTEX_LOCK_COUNT].lock();
+      vstate_locks[sched_lvid].lock();
       ASSERT_TRUE(vstate[sched_lvid].state == NONE);
       vstate[sched_lvid].state = MIRROR_GATHERING;
       vstate[sched_lvid].current = task;
-      vstate_locks[sched_lvid % VERTEX_LOCK_COUNT].unlock();
+      vstate_locks[sched_lvid].unlock();
       // lets go
       // add_internal_task(sched_lvid);
     }
@@ -508,12 +561,29 @@ namespace graphlab {
       add_internal_task(sched_lvid);
     }
 
+        /**
+     * Task was added to the vstate. Now to begin scheduling the gathers
+     */
+    void master_broadcast_scattering(vertex_id_type sched_lvid,
+                                    const update_functor_type& task) {
+      logstream(LOG_DEBUG) << rmi.procid() << ": Broadcast Scattering: " << graph.global_vid(sched_lvid) << std::endl;
+      ASSERT_EQ(graph.l_get_vertex_record(sched_lvid).owner, rmi.procid());
+      vertex_id_type sched_vid = graph.global_vid(sched_lvid);
+      const typename graph_type::vertex_record& vrec = graph.get_vertex_record(sched_vid);
+      foreach(procid_t pid, vrec.get_replicas()) {
+        if (pid != rmi.procid()) {
+          rmi.remote_call(pid, &engine_type::rpc_begin_scattering, sched_vid, task);
+        }
+      }
+    }
+
+    template <bool prelocked>
     void eval_sched_task(size_t sched_lvid, const update_functor_type& task) {
       logstream(LOG_DEBUG) << rmi.procid() << ": Schedule Task: " << graph.global_vid(sched_lvid) << std::endl;
       ASSERT_EQ(graph.l_get_vertex_record(sched_lvid).owner, rmi.procid());
       // this is in local VIDs
       bool begin_gathering_vertex = false;
-      vstate_locks[sched_lvid % VERTEX_LOCK_COUNT].lock();
+      if (prelocked == false) vstate_locks[sched_lvid].lock();
       if (vstate[sched_lvid].state == NONE) {
         // we start gather right here.
         // set up the state
@@ -534,7 +604,7 @@ namespace graphlab {
           vstate[sched_lvid].next = task;
         }
       }
-      vstate_locks[sched_lvid % VERTEX_LOCK_COUNT].unlock();
+      if (prelocked == false) vstate_locks[sched_lvid].unlock();
       if (begin_gathering_vertex) master_broadcast_gathering(sched_lvid, task);
     }
     
@@ -597,6 +667,78 @@ namespace graphlab {
     }
   };
 
+
+  /////////////////////////// Global Variabes ////////////////////////////
+  //! Get the global data and lock
+  void get_global(const std::string& key,
+                  graphlab::any_vector*& ret_values_ptr,
+                  bool& ret_is_const);
+  
+  //! Get the global data and lock
+  void acquire_global_lock(const std::string& key,
+                           size_t index = 0);
+  //! Release the global data lock
+  void release_global_lock(const std::string& key,
+                           size_t index = 0);
+  
+ public:
+
+  /**
+  * Define a global mutable variable (or vector of variables).
+  *
+  * \param key the name of the variable (vector)
+  * \param value the initial value for the variable (vector)
+  * \param size the initial size of the global vector (default = 1)
+  *
+  */
+  template< typename T >
+  void add_global(const std::string& key, const T& value,
+                  size_t size = 1) {
+  logstream(LOG_DEBUG) << "Add Global: " << key << std::endl;
+  }
+
+  /**
+  * Define a global constant.
+  */
+  template< typename T >
+  void add_global_const(const std::string& key, const T& value,
+                        size_t size = 1) {
+    logstream(LOG_DEBUG) << "Add Global Const: " << key << std::endl;
+  }
+
+
+  //! Change the value of a global entry
+  template< typename T >
+  void set_global(const std::string& key, const T& value,
+                  size_t index = 0) {
+    logstream(LOG_DEBUG) << "Set Global: " << key << std::endl;
+  }
+
+  //! Get a copy of the value of a global entry
+  template< typename T >
+  T get_global(const std::string& key, size_t index = 0) {
+    logstream(LOG_DEBUG) << "Get Global : " << key << std::endl;
+    return T();
+  }
+
+//! \brief Registers an aggregator with the engine
+  template<typename Aggregate>
+  void add_aggregator(const std::string& key,
+                      const Aggregate& zero,
+                      size_t interval,
+                      bool use_barrier = false,
+                      vertex_id_type begin_vid = 0,
+                      vertex_id_type end_vid =
+                      std::numeric_limits<vertex_id_type>::max()) {
+    logstream(LOG_DEBUG) << "Add Aggregator : " << key << std::endl;
+  }
+
+
+  //! Performs a sync immediately.
+  void aggregate_now(const std::string& key) {
+    logstream(LOG_DEBUG) << "Aggregate Now : " << key << std::endl;
+  }
+  
 }
 
 #include <graphlab/macros_undef.hpp>
