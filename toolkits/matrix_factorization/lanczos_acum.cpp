@@ -26,7 +26,7 @@
 #include <graphlab/graph/graph2.hpp>
 #include <graphlab/graph/graph3.hpp>
 #include <graphlab/graph/graph.hpp>
-#include <google/malloc_extension.h>
+// #include <google/malloc_extension.h>
 #include <graphlab/macros_def.hpp>
 using namespace graphlab;
 using namespace std;
@@ -587,11 +587,11 @@ int main(int argc,  char *argv[]) {
 
    // After loading. Google TMalloc Profile
    //
-   size_t value;
-   MallocExtension::instance()->GetNumericProperty("generic.heap_size", &value);
-   std::cout << "Heap Size: " << (double)value/(1024*1024) << "MB" << "\n";
-   MallocExtension::instance()->GetNumericProperty("generic.current_allocated_bytes", &value);
-   std::cout << "Allocated Size: " << (double)value/(1024*1024) << "MB" << "\n";
+   // size_t value;
+   // MallocExtension::instance()->GetNumericProperty("generic.heap_size", &value);
+   // std::cout << "Heap Size: " << (double)value/(1024*1024) << "MB" << "\n";
+   // MallocExtension::instance()->GetNumericProperty("generic.current_allocated_bytes", &value);
+   // std::cout << "Allocated Size: " << (double)value/(1024*1024) << "MB" << "\n";
 
 
   std::cout << "Schedule all vertices" << std::endl;
