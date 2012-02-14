@@ -41,11 +41,11 @@
 #include <fstream>
 
 #include <boost/lexical_cast.hpp>
+#include <boost/random.hpp>
 
 
 #include <graphlab/logger/logger.hpp>
 #include <graphlab/logger/assertions.hpp>
-
 
 #include <graphlab/rpc/dc.hpp>
 #include <graphlab/rpc/dc_dist_object.hpp>
@@ -394,7 +394,7 @@ namespace graphlab {
       /// The official owning processor for this vertex
       procid_t owner; 
       /// The local vid of this vertex on this proc
-      lvid_type lvid;
+      vertex_id_type gvid;
       /// The number of in edges
       size_t num_in_edges;
       /// The nubmer of out edges
@@ -402,7 +402,11 @@ namespace graphlab {
       /// The set of proc that mirror this vertex.
       std::vector<procid_t> mirrors;
       vertex_record() : 
-        owner(-1), lvid(-1), 
+        owner(-1), gvid(-1), 
+        num_in_edges(0), num_out_edges(0) { }
+
+      vertex_record(const vertex_id_type& vid) : 
+        owner(-1), gvid(vid), 
         num_in_edges(0), num_out_edges(0) { }
       procid_t get_owner () const {
         return owner;
@@ -414,8 +418,8 @@ namespace graphlab {
 
   private:
     /// The master vertex record map
-    typedef boost::unordered_map<vertex_id_type, vertex_record> 
-    vid2record_type;
+    // typedef boost::unordered_map<vertex_id_type, vertex_record>  vid2record_type;
+    typedef std::vector<vertex_record> lvid2record_type;
       
     // PRIVATE DATA MEMBERS ===================================================>        
     /** The rpc interface for this class */
@@ -426,12 +430,11 @@ namespace graphlab {
     mutex local_graph_lock;
     
     /** The map from global vertex ids to vertex records */
-    vid2record_type vid2record;
-    mutex vid2record_lock;
+    lvid2record_type lvid2record;
+    mutex lvid2record_lock;
     
     /** The map from local vertex ids back to global vertex ids */
-    std::vector<vertex_id_type> lvid2vid;
-
+    boost::unordered_map<vertex_id_type, lvid_type> vid2lvid;
         
     /** The global number of vertices and edges */
     size_t nverts, nedges;
@@ -451,6 +454,15 @@ namespace graphlab {
     /** The map from proc_id to num_local_own_vertices on that proc */
     std::vector<size_t> proc_num_own_vertices;
 
+    /** The map from vertex_id to its degree on this proc.*/
+    typedef typename boost::unordered_map<vertex_id_type, size_t>  vid2degree_type;
+    std::vector<vid2degree_type> local_degree_count;
+
+    /** The map from vertex id to pairs of <pid, local_degree_of_v> */
+    typedef typename boost::unordered_map<vertex_id_type, std::vector<size_t> > dht_degree_table_type;
+    dht_degree_table_type dht_degree_table;
+    mutex dht_degree_table_lock;
+
     size_t begin_eid;
 
   public:
@@ -458,7 +470,7 @@ namespace graphlab {
     // CONSTRUCTORS ==========================================================>
     distributed_graph(distributed_control& dc) : 
       rpc(dc, this), nverts(0), nedges(0), local_own_nverts(0), nreplica(0),
-      edge_buffer(this, rpc.numprocs()) {
+      local_degree_count(rpc.numprocs()), edge_buffer(this, rpc.numprocs()) {
       rpc.barrier();
     }
 
@@ -492,34 +504,35 @@ namespace graphlab {
 
     /** \brief get the local vertex id */
     lvid_type local_vid (const vertex_id_type vid) const { 
-      return vrecord(vid).lvid;
+      ASSERT_TRUE(vid2lvid.find(vid) != NULL);
+      return vid2lvid[vid];
     } // end of local_vertex_id
 
     vertex_id_type global_vid (const lvid_type lvid) const { 
-      ASSERT_LT(lvid, lvid2vid.size());
-      return lvid2vid[lvid];
+      // ASSERT_LT(lvid, lvid2vid.size());
+      // return lvid2vid[lvid];
+      ASSERT_LT(lvid, lvid2record.size());
+      return lvid2record[lvid].gvid;
     } // end of global_vertex_id
 
     vertex_record& get_vertex_record(const vertex_id_type vid) {
-      typedef typename vid2record_type::iterator vrecord_iter_type;
-      vrecord_iter_type it = vid2record.find(vid);
-      ASSERT_TRUE(it != vid2record.end());
-      return it->second;
+      ASSERT_LT(local_vid(vid), lvid2record.size());
+      return lvid2record[local_vid(vid)];
     }
 
     const vertex_record& get_vertex_record(const vertex_id_type vid) const {
-      typedef typename vid2record_type::const_iterator vrecord_iter_type;
-      vrecord_iter_type it = vid2record.find(vid);
-      ASSERT_TRUE(it != vid2record.end());
-      return it->second;
+      ASSERT_LT(local_vid(vid), lvid2record.size());
+      return lvid2record[local_vid(vid)];
     }
 
-    vertex_record& l_get_vertex_record(const vertex_id_type vid) {
-      return get_vertex_record(global_vid(vid));
+    vertex_record& l_get_vertex_record(const lvid_type lvid) {
+      ASSERT_LT(lvid, lvid2record.size());
+      return lvid2record[lvid];
     }
 
-    const vertex_record& l_get_vertex_record(const vertex_id_type vid) const {
-      return get_vertex_record(global_vid(vid));
+    const vertex_record& l_get_vertex_record(const vertex_id_type lvid) const {
+      ASSERT_LT(lvid, lvid2record.size());
+      return lvid2record[lvid];
     }
 
     local_graph_type& get_local_graph() {
@@ -607,6 +620,8 @@ namespace graphlab {
 
     void resize (size_t n) { }
 
+    size_t get_num_procs () { return rpc.numprocs(); }
+
   private:
 
     // HELPER ROUTINES =======================================================>    
@@ -628,21 +643,68 @@ namespace graphlab {
       return vertex_to_init_proc(vid) == rpc.procid();
     }
 
-    const vertex_record& vrecord(const vertex_id_type& vid) const {
-      typedef typename vid2record_type::const_iterator iterator_type;
-      iterator_type iter = vid2record.find(vid);
-      ASSERT_TRUE(iter != vid2record.end());
-      return iter->second;
+//     const vertex_record& vrecord(const vertex_id_type& vid) const {
+//       typedef typename vid2record_type::const_iterator iterator_type;
+//       iterator_type iter = vid2record.find(vid);
+//       ASSERT_TRUE(iter != vid2record.end());
+//       return iter->second;
+//     }
+// 
+// 
+//     vertex_record& vrecord(const vertex_id_type& vid) {
+//       typedef typename vid2record_type::iterator iterator_type;
+//       iterator_type iter = vid2record.find(vid);
+//       ASSERT_TRUE(iter != vid2record.end());
+//       return iter->second;
+//     }
+
+    void block_add_degree_counts (procid_t pid, vid2degree_type degree) {
+      typedef typename vid2degree_type::value_type value_pair_type;
+      dht_degree_table_lock.lock();
+      foreach (value_pair_type& pair, degree) {
+        add_degree_counts(pair.first, pid, pair.second);
+      }
+      dht_degree_table_lock.unlock();
     }
 
-
-    vertex_record& vrecord(const vertex_id_type& vid) {
-      typedef typename vid2record_type::iterator iterator_type;
-      iterator_type iter = vid2record.find(vid);
-      ASSERT_TRUE(iter != vid2record.end());
-      return iter->second;
+    // Thread unsafe, used as a subroutine of block add degree counts.
+    void add_degree_counts (const vertex_id_type& vid, procid_t pid, size_t count) {
+      typedef typename dht_degree_table_type::iterator iterator_type;
+      iterator_type iter = dht_degree_table.find(vid);
+      if (iter == dht_degree_table.end()) {
+        std::vector<size_t>& dtable = dht_degree_table[vid];
+        dtable.resize(rpc.numprocs(), 0);
+        dtable[pid] += count;
+      } else {
+        (iter->second)[pid] += count;
+      }
     }
 
+    dht_degree_table_type block_get_degree_table (std::set<vertex_id_type> vid_query) {
+      dht_degree_table_type answer;
+      typedef typename dht_degree_table_type::iterator iterator_type;
+      foreach (vertex_id_type qvid, vid_query) {
+        iterator_type iter = dht_degree_table.find(qvid);
+        if (iter == dht_degree_table.end()) {
+          answer[qvid] = std::vector<size_t>(rpc.numprocs(), 0);
+        } else {
+          answer[qvid] = iter->second;
+        }
+      }
+      return answer;
+    }
+
+    // Return a size=#procs vector. Each is the degrees of vid on that proc.
+    // Thread unsafe, but its ok, we just need approximate counts.
+    std::vector<size_t>& get_degree_table (const vertex_id_type& vid) {
+      typedef typename dht_degree_table_type::iterator iterator_type;
+      iterator_type iter = dht_degree_table.find(vid);
+      if (iter == dht_degree_table.end()) {
+        return std::vector<size_t>(rpc.numprocs(), 0);
+      } else {
+        return iter->second;
+      }
+    }
 
     // Helper type used to synchronize the vertex data and assignments
     struct shuffle_record{
@@ -666,28 +728,105 @@ namespace graphlab {
     // Helper class to buffer the add edge operation and do block rpc call.
     class edge_buffer_type {
       public:
+        typedef typename boost::unordered_map<vertex_id_type, std::vector<size_t> > dht_degree_table_type;
+
+      public:
         edge_buffer_type (distributed_graph* graph_ptr, size_t num_procs,
-            size_t limit=200) : 
-          graph_ptr(graph_ptr), num_edges(0), limit(limit), 
-          proc_src(num_procs), proc_dst(num_procs), proc_edata(num_procs) { }
+            size_t limit=2000, size_t max_degree = 200) : 
+          graph_ptr(graph_ptr), num_procs(num_procs), num_edges(0), limit(limit), max_degree(max_degree),
+          proc_src(num_procs), proc_dst(num_procs), proc_edata(num_procs),
+    query_set(num_procs)  { }
+
+        procid_t edge_to_proc(vertex_id_type src, vertex_id_type dst,
+            std::vector<dht_degree_table_type>& degree_table) {
+         
+          size_t src_proc = graph_ptr->vertex_to_init_proc(src);
+          size_t dst_proc = graph_ptr->vertex_to_init_proc(dst);
+          std::vector<size_t>& src_degree = degree_table[src_proc][src];
+          std::vector<size_t>& dst_degree = degree_table[dst_proc][dst];
+
+          size_t best_src_proc = -1;
+          size_t max_src_degree = 0;
+          size_t best_dst_proc = -1;
+          size_t max_dst_degree = 0;
+          
+          for (size_t i = 0; i < num_procs; ++i) {
+            if (src_degree[i] <= max_degree && src_degree[i] > max_src_degree)
+            { best_src_proc = i; max_src_degree = src_degree[i]; }
+            if (dst_degree[i] <= max_degree && dst_degree[i] > max_dst_degree)
+            { best_dst_proc = i; max_dst_degree = dst_degree[i]; }
+          }
+
+          // no machine has ever seen this vertex 
+          if (max_src_degree == 0) {
+            best_src_proc = rand() % num_procs;
+          }
+          if (max_dst_degree == 0) {
+            best_dst_proc = rand() % num_procs;
+          }
+
+          // std::cout << "best_src_proc: " << best_src_proc
+          //   << "\n max_src_degree: " << max_src_degree
+          //   << "\n best_dst_proc: " << best_dst_proc
+          //   << "\n max_dst_degree: " << max_dst_degree
+          //   << std::endl;
+
+          // All procs are full, increase the limit and random assign.
+          if (best_src_proc == size_t(-1) && best_dst_proc == size_t(-1)) {
+            std::cout << "Double degree limit to " << max_degree << std::endl;
+            max_degree*= 2;
+            return rand() % num_procs;
+          } else {
+            if (best_src_proc == size_t(-1)) return best_dst_proc;
+            if (best_dst_proc == size_t(-1)) return best_src_proc;
+            return max_src_degree > max_dst_degree ? best_src_proc : best_dst_proc;
+          }
+        }
 
         // Add an edge to the buffer.
         // local only method
-        void add_edge(procid_t proc, vertex_id_type src,
-            vertex_id_type dst, const EdgeData& edata) {
-          ASSERT_LT(proc, proc_src.size());
-          proc_src[proc].push_back(src);
-          proc_dst[proc].push_back(dst);
-          proc_edata[proc].push_back(edata);
+        void add_edge(vertex_id_type src,
+          vertex_id_type dst, const EdgeData& edata) {
+          ASSERT_LT(edgebuf.size(), limit);
+          edgebuf.push_back(std::make_pair(src, dst)); 
+          databuf.push_back(edata);
+
+          query_set[graph_ptr->vertex_to_init_proc(src)].insert(src);
+          query_set[graph_ptr->vertex_to_init_proc(dst)].insert(dst);
           ++num_edges;
+        }
+
+        void assign_edges() {
+          // Get the degree table.
+          std::vector<dht_degree_table_type> degree_table(num_procs);
+          for (size_t i = 0; i < num_procs; ++i)
+          {
+            degree_table[i] = graph_ptr->rpc.remote_request(
+                i, &distributed_graph::block_get_degree_table,
+                query_set[i]);
+            query_set[i].clear();
+          }
+
+          for (size_t i = 0; i < num_edges; ++i) {
+            std::pair<vertex_id_type, vertex_id_type>& e = 
+              edgebuf[i];
+            procid_t proc = edge_to_proc(e.first, e.second, degree_table);
+            ASSERT_LT(proc, proc_src.size());
+            proc_src[proc].push_back(e.first);
+            proc_dst[proc].push_back(e.second);
+            proc_edata[proc].push_back(databuf[i]);
+          }
+          edgebuf.clear();
+          databuf.clear();
         } // end add edge
 
         // Flush all edges in the buffer.
         void flush() {
+          // std::cout << "Flushing edge buffer..." << std::endl;
+          assign_edges();
           for (size_t i = 0; i < proc_src.size(); ++i) {
             if (proc_src[i].size() == 0) 
               continue;
-
             if (i == graph_ptr->rpc.procid()) {
               graph_ptr->add_block_edges(proc_src[i], proc_dst[i], proc_edata[i]);
               clear(i);
@@ -722,10 +861,16 @@ namespace graphlab {
         size_t num_procs;
         size_t num_edges;
         size_t limit;
+        size_t max_degree;
         std::vector< std::vector<vertex_id_type> > proc_src;
         std::vector< std::vector<vertex_id_type> > proc_dst;
         std::vector< std::vector<EdgeData> > proc_edata;
+
+        std::vector<std::pair<vertex_id_type, vertex_id_type> > edgebuf;
+        std::vector<EdgeData> databuf;
+        std::vector<std::set<vertex_id_type> > query_set;
     }; // end of edge_buffer_type
+
 
     /** The buffer for blocking adding edges */
     edge_buffer_type edge_buffer;
@@ -761,41 +906,45 @@ namespace graphlab {
   void distributed_graph<VertexData, EdgeData>::finalize()  {   
     edge_buffer.flush();
     rpc.full_barrier();
+
+    //clear dht_degree_table;
+    typedef typename dht_degree_table_type::value_type dtable_entry_type;
+    foreach(dtable_entry_type& ety, dht_degree_table) {
+      std::vector<size_t>().swap(ety.second);
+    }
+    dht_degree_table_type().swap(dht_degree_table);
+
+
     // Check conditions on graph
-    if (local_graph.num_vertices() != vid2record.size()) {
+    if (local_graph.num_vertices() != lvid2record.size()) {
       logstream(LOG_WARNING) << "Finalize check failed. "
         << "loal_graph size: " << local_graph.num_vertices() 
-        << " not equal to vid2record size: " << vid2record.size()
+        << " not equal to lvid2record size: " << lvid2record.size()
         << std::endl;
     }
-    ASSERT_EQ(local_graph.num_vertices(), vid2record.size());
+    ASSERT_EQ(local_graph.num_vertices(), lvid2record.size());
 
     // Finalize local graph
     local_graph.finalize();
 
-    // resize local vid map
-    lvid2vid.resize(vid2record.size());
-    
+    // // resize local vid map
+    // lvid2vid.resize(vid2record.size());
+  
     using namespace distributed_graph_impl;
-#ifdef DEBUG_GRAPH
-    std::cout << "Finalize: preparing preshuffle record of size = " << 
-      vid2record.size() << std::endl;
-#endif
     // For all the vertices that this processor has seen determine the
     // "negotiator" and send that machine the negotiator.
     typedef std::vector< std::vector<preshuffle_record> > proc2vids_type;
     proc2vids_type proc2vids(rpc.numprocs());
-    typedef typename vid2record_type::value_type vid2record_pair_type;
-    foreach(vid2record_pair_type& pair, vid2record) {
-      const vertex_id_type vid = pair.first;
-      vertex_record& vrecord = pair.second;
-      lvid2vid[vrecord.lvid] = vid;
+
+    for (size_t lvid = 0; lvid < local_graph.num_vertices(); ++lvid) {
+      const vertex_id_type vid = lvid2record[lvid].gvid;
       preshuffle_record pre_rec;
       pre_rec.vid = vid;
-      pre_rec.num_in_edges = local_graph.num_in_edges(vrecord.lvid);
-      pre_rec.num_out_edges = local_graph.num_out_edges(vrecord.lvid);
+      pre_rec.num_in_edges = local_graph.num_in_edges(lvid);
+      pre_rec.num_out_edges = local_graph.num_out_edges(lvid);
       proc2vids[vertex_to_init_proc(vid)].push_back(pre_rec);
     }
+
     // The returned local vertices are the vertices from each
     // machine for which this machine is a negotiator.
 #ifdef DEBUG_GRAPH
@@ -868,16 +1017,20 @@ namespace graphlab {
       foreach (vid_shuffle_type vid_and_rec, vertex_assign) {
         const vertex_id_type& vid = vid_and_rec.first;
         shuffle_record& shuffle_rec = vid_and_rec.second;      
-        vertex_record& vrecord = vid2record[vid];
+
+
+        lvid_type lvid = vid2lvid[vid];
+        vertex_record& vrecord = lvid2record[lvid];
         vrecord.mirrors.swap(shuffle_rec.mirrors);
         vrecord.owner = shuffle_rec.owner;
-        local_graph.vertex_data(vrecord.lvid) = shuffle_rec.vdata;
+
+        local_graph.vertex_data(lvid) = shuffle_rec.vdata;
         vrecord.num_in_edges = shuffle_rec.num_in_edges;
         vrecord.num_out_edges = shuffle_rec.num_out_edges;
-        if (vrecord.owner == rpc.procid()) ++local_own_nverts;
+        if (vrecord.owner == rpc.procid()) 
+          ++local_own_nverts;
       }
     }
-
 
     rpc.barrier();
 
@@ -966,7 +1119,7 @@ namespace graphlab {
   void distributed_graph<VertexData, EdgeData>:: 
   add_edge(vertex_id_type source, vertex_id_type target, 
            const EdgeData& edata) {
-    edge_buffer.add_edge(edge_to_proc(source, target), source, target, edata);
+    edge_buffer.add_edge(source, target, edata);
     if (edge_buffer.is_full())
       edge_buffer.flush();
   } // End of add edge
@@ -986,27 +1139,44 @@ namespace graphlab {
     std::vector<lvid_type> local_target_arr;
     local_target_arr.reserve(target_arr.size());
 
-    vid2record_lock.lock();
+    lvid2record_lock.lock();
     lvid_type max_lvid = 0;
     for (size_t i = 0; i < source_arr.size(); ++i) {
       vertex_id_type source = source_arr[i];
       vertex_id_type target = target_arr[i];
 
-      // if the record was just created (it will have an invalid
-      // lvid=-1) then assign it the next lvid
-      vertex_record& source_rec = vid2record[source];
-      if(source_rec.lvid == vertex_id_type(-1))
-        source_rec.lvid = vid2record.size() - 1;
-      vertex_record& target_rec = vid2record[target];
-      if(target_rec.lvid == vertex_id_type(-1))
-        target_rec.lvid = vid2record.size() - 1;
+      if (vid2lvid.find(source) == vid2lvid.end()) {
+        lvid_type lvid = vid2lvid.size();
+        vid2lvid.insert(std::make_pair(source, lvid));
+        lvid2record.push_back(vertex_record(source));
+      }
+      ++local_degree_count[vertex_to_init_proc(source)][source];
 
-      local_source_arr.push_back(source_rec.lvid);
-      local_target_arr.push_back(target_rec.lvid);
+      if (vid2lvid.find(target) == vid2lvid.end()) {
+        lvid_type lvid = vid2lvid.size();
+        vid2lvid.insert(std::make_pair(target, lvid));
+        lvid2record.push_back(vertex_record(target));
+      }
+      ++local_degree_count[vertex_to_init_proc(source)][source];
 
-      max_lvid = std::max(std::max(source_rec.lvid, target_rec.lvid), max_lvid);
+
+      local_source_arr.push_back(vid2lvid[source]);
+      local_target_arr.push_back(vid2lvid[target]);
+
+      max_lvid = std::max(std::max(vid2lvid[source], vid2lvid[target]), max_lvid);
     }
-    vid2record_lock.unlock(); 
+
+    // send out local_degree count;
+    for (size_t i = 0; i < rpc.numprocs(); ++i) {
+      if (i != rpc.procid()) {
+        rpc.remote_call(i, &distributed_graph::block_add_degree_counts, rpc.procid(),
+            local_degree_count[i]);
+      } else {
+        block_add_degree_counts(rpc.procid(), local_degree_count[i]);
+      }
+      local_degree_count[i].clear();
+    }
+    lvid2record_lock.unlock(); 
 
     local_graph_lock.lock();
     if (max_lvid > 0 && max_lvid >= local_graph.num_vertices()) {
@@ -1032,20 +1202,20 @@ namespace graphlab {
   typename distributed_graph<VertexData, EdgeData>::local_edge_list_type 
   distributed_graph<VertexData, EdgeData>:: 
   l_in_edges(const vertex_id_type vid) const {
-    return local_edge_list_type(this, local_graph.in_edges(vrecord(vid).lvid));
+    return local_edge_list_type(this, local_graph.in_edges(local_vid(vid)));
   } // end of local num in edges 
   
 
   template<typename VertexData, typename EdgeData>
   size_t distributed_graph<VertexData, EdgeData>:: 
-  num_in_edges(const vertex_id_type v) const {
-    return vrecord(v).num_in_edges;
+  num_in_edges(const vertex_id_type vid) const {
+    return get_vertex_record(vid).num_in_edges;
   } // end of num_in_edges
 
   template<typename VertexData, typename EdgeData>
   size_t distributed_graph<VertexData, EdgeData>:: 
-  l_num_in_edges(const vertex_id_type v) const {
-    return local_graph.num_in_edges(vrecord(v).lvid);
+  l_num_in_edges(const vertex_id_type vid) const {
+    return local_graph.num_in_edges(local_vid(vid));
   } // end of local num out edges
 
   
@@ -1064,19 +1234,19 @@ namespace graphlab {
   typename distributed_graph<VertexData, EdgeData>::local_edge_list_type 
   distributed_graph<VertexData, EdgeData>:: 
   l_out_edges(const vertex_id_type vid) const { 
-    return local_edge_list_type(this, local_graph.out_edges(vrecord(vid).lvid));
+    return local_edge_list_type(this, local_graph.out_edges(local_vid(vid)));
   } // end of out_edges
   
   template<typename VertexData, typename EdgeData>
   size_t distributed_graph<VertexData, EdgeData>:: 
-  num_out_edges(const vertex_id_type v) const {
-    return vrecord(v).num_out_edges;
+  num_out_edges(const vertex_id_type vid) const {
+    return get_vertex_record(vid).num_out_edges;
   } // end of num out edges
 
   template<typename VertexData, typename EdgeData>
   size_t distributed_graph<VertexData, EdgeData>:: 
-  l_num_out_edges(const vertex_id_type v) const {
-    return local_graph.num_out_edges(vrecord(v).lvid);
+  l_num_out_edges(const vertex_id_type vid) const {
+    return local_graph.num_out_edges(local_vid(vid));
   } // end of num out edges
 
 
@@ -1084,7 +1254,7 @@ namespace graphlab {
   template<typename VertexData, typename EdgeData>
   VertexData& distributed_graph<VertexData, EdgeData>:: 
   vertex_data(vertex_id_type vid) {
-    return local_graph.vertex_data(vrecord(vid).lvid);
+    return local_graph.vertex_data(local_vid(vid));
   } // end of vertex data
 
     
@@ -1092,21 +1262,21 @@ namespace graphlab {
   template<typename VertexData, typename EdgeData>
   const VertexData& distributed_graph<VertexData, EdgeData>:: 
   vertex_data(vertex_id_type vid) const {
-    return local_graph.vertex_data(vrecord(vid).lvid);
+    return local_graph.vertex_data(local_vid(vid));
   } // end of const vertex data
 
   template<typename VertexData, typename EdgeData>
   EdgeData& distributed_graph<VertexData, EdgeData>:: 
   edge_data(vertex_id_type source, vertex_id_type target) {
     ASSERT_TRUE(is_local(source, target));
-    return local_graph.edge_data(vrecord(source).lvid, vrecord(target).lvid);
+    return local_graph.edge_data(local_vid(source), local_vid(target));
   } // end of edge data
 
   template<typename VertexData, typename EdgeData>
   const EdgeData& distributed_graph<VertexData, EdgeData>:: 
   edge_data(vertex_id_type source, vertex_id_type target) const {
     ASSERT_TRUE(is_local(source, target));
-    return local_graph.edge_data(vrecord(source).lvid, vrecord(target).lvid);
+    return local_graph.edge_data(local_vid(source), local_vid(target));
   } // end of const edge data
 
   template<typename VertexData, typename EdgeData>
@@ -1126,7 +1296,6 @@ namespace graphlab {
         local_eid(edge.edge_id()), local_edge_type::OUTEDGE);
     return local_graph.edge_data(l_edge);
   } // end of const edge data
-
 } // end of namespace graphlab
 #include <graphlab/macros_undef.hpp>
 
