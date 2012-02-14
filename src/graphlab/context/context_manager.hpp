@@ -95,7 +95,7 @@ namespace graphlab {
         default_consistency = EDGE_CONSISTENCY;
       // Initialize all the contexts
       for(size_t i = 0; i < contexts.size(); ++i) {
-        contexts[i] = context_type(engine_ptr, graph_ptr, i);
+        contexts[i] = context_type(engine_ptr, graph_ptr);
       }
     } // end of context manager
 
@@ -103,12 +103,7 @@ namespace graphlab {
      * Start is called before the threads are launch after the engine
      * is started
      */
-    void start() {
-      // Initialize the start time for all the contexts
-      const float start_time = lowres_time_seconds();
-      for(size_t i = 0; i < contexts.size(); ++i) 
-        contexts[i].set_start_time(start_time);
-    } // end of start
+    void start() { } // end of start
 
     void set_default_consistency(consistency_model 
                                  default_consistency_range) {

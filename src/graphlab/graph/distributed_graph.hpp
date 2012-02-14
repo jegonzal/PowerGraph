@@ -132,7 +132,7 @@ namespace graphlab {
       struct edge_functor : 
         public std::unary_function<local_edge_type, edge_type> {
 
-        edge_functor(const distributed_graph* graph_ptr) : 
+        edge_functor(const distributed_graph* graph_ptr = NULL) : 
           graph_ptr(graph_ptr) { }
 
         edge_type operator()(const local_edge_type& edge) const {
@@ -492,6 +492,30 @@ namespace graphlab {
 
     /** \brief Get the size of replica */
     size_t num_replica() const { return nreplica; }
+
+    /** Return the color of a vertex */
+    vertex_color_type color(vertex_id_type vid) const { 
+      //TODO: IMPLEMENT
+      logstream(LOG_FATAL) << "Color not implemented" << std::endl; 
+      return -1;
+    }
+
+    //! Get the rerverse edge 
+    edge_type reverse_edge(const edge_type& edge) const {      
+      //TODO: IMPLEMENT
+      logstream(LOG_FATAL) << "Reverse edge not implemented" << std::endl; 
+      return edge;
+    }
+
+    //! find a particular edge
+    edge_type find(vertex_id_type source,
+                   vertex_id_type target) const {
+      //TODO: IMPLEMENT
+      logstream(LOG_FATAL) << "find edge not implemented" << std::endl; 
+      return edge_type();
+    }
+
+
 
     /** \brief Get the number of vertices local to this proc */
     size_t num_local_vertices() const { return local_graph.num_vertices(); }

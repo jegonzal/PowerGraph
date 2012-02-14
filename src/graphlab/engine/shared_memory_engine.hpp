@@ -310,6 +310,9 @@ namespace graphlab {
     //! \brief The timeout is the total
     void set_timeout(size_t timeout_in_seconds = 0);
 
+    //! Time since start in milliseconds
+    size_t elapsed_time() const;
+
     //! \brief set a limit on the number of tasks that may be executed.
     void set_task_budget(size_t max_tasks = 0);
 
@@ -480,6 +483,15 @@ namespace graphlab {
   set_timeout(size_t timeout_in_seconds) {
     termination.timeout_millis = timeout_in_seconds * 1000;
   } // end of set_timeout
+
+  template<typename Graph, typename UpdateFunctor> 
+  size_t
+  shared_memory_engine<Graph, UpdateFunctor>::
+  elapsed_time() const {
+    return lowres_time_millis() - start_time_millis;
+  } // end of elapsed time
+
+  
 
   template<typename Graph, typename UpdateFunctor> 
   void
@@ -1226,7 +1238,7 @@ namespace graphlab {
       const boost::function<void (void)> sync_function = 
         boost::bind(&(isync::run_aggregator), sync, 
                     key, &barrier, &sync_vlocks, 
-                    context_type(this, &graph, i),
+                    context_type(this, &graph),
                     sync_threads.size(), i);
       sync_threads.launch(sync_function);
     }

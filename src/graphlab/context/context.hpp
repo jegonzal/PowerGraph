@@ -74,9 +74,6 @@ namespace graphlab {
     engine_type* engine_ptr;
     /** A pointer to the underlying graph datastructure */
     graph_type* graph_ptr;   
-    /** the cpuid of this context */
-    size_t cpuid;
-
     
     /** The vertex that this graph represents*/
     vertex_id_type vid;
@@ -84,9 +81,6 @@ namespace graphlab {
     /** The consistency model that this context ensures */
     consistency_model _consistency;
  
-    /** The time at which the engine was started */
-    float start_time;
-
   public:
 
     // Cache related members --------------------------------------------------
@@ -109,12 +103,10 @@ namespace graphlab {
      */
     context(engine_type* engine_ptr = NULL,
             graph_type* graph_ptr = NULL,
-            size_t cpuid = -1) :
+            vertex_id_type vid = -1,
+            consistency_model consistency = EDGE_CONSISTENCY) :
       engine_ptr(engine_ptr), graph_ptr(graph_ptr), 
-      cpuid(cpuid),
-      vid(-1), _consistency(EDGE_CONSISTENCY),
-      start_time(lowres_time_seconds()) { 
-    }
+      vid(vid), _consistency(consistency) { }
     
 
 
@@ -128,8 +120,7 @@ namespace graphlab {
     size_t num_updates() const { return engine_ptr->last_update_count(); } 
     void terminate() { engine_ptr->stop(); }
 
-    void set_start_time(float time) { start_time = time; }
-    float elapsed_time() const { return lowres_time_seconds() - start_time; }
+    size_t elapsed_time() const { return engine_ptr->elapsed_time(); }
    
 
     vertex_data_type& vertex_data(const vertex_id_type vid) {

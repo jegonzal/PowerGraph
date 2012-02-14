@@ -237,6 +237,9 @@ namespace graphlab {
                                                         scheduler_ptr(NULL),
                                                         ncpus(ncpus){
       rmi.barrier();
+      // TODO: Remove context creation.
+      // Added context to force compilation.   
+      context_type context;
     }
 
     /**
@@ -390,6 +393,11 @@ namespace graphlab {
      *  exeuction is automatically terminated.
      */
     void set_timeout(size_t timeout_secs) { };
+
+    /**
+     * elapsed time in milliseconds since start was called
+     */
+    size_t elapsed_time() const { return 0; }
     
     /**
      * \brief set a limit on the number of tasks that may be executed.

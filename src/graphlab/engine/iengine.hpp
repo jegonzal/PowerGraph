@@ -223,6 +223,12 @@ namespace graphlab {
     virtual void set_timeout(size_t timeout_secs) = 0;
     
     /**
+     * Get the elapsed time since start was called in milliseconds
+     */
+    virtual size_t elapsed_time() const = 0;
+
+
+    /**
      * \brief set a limit on the number of tasks that may be executed.
      * 
      * By once the engine has achived the max_task parameter execution
