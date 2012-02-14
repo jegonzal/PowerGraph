@@ -370,13 +370,17 @@ namespace graphlab {
     } // end of edge_data(u,v)
 
     /** \brief Returns a reference to the data stored on the edge e */
-    EdgeData& edge_data(edge_type edge) { 
+    EdgeData& edge_data(const edge_type& edge) { 
       ASSERT_TRUE(finalized);
       return gstore.edge_data(edge);
     }
-    const EdgeData& edge_data(edge_type edge) const {
+    const EdgeData& edge_data(const edge_type& edge) const {
       ASSERT_TRUE(finalized);
       return gstore.edge_data(edge);
+    }
+
+    edge_id_type edge_id (const edge_type& edge) const {
+      return gstore.edge_id(edge);
     }
 
     size_t num_in_edges(const vertex_id_type v) const {

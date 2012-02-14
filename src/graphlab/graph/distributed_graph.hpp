@@ -142,7 +142,7 @@ namespace graphlab {
             ASSERT_TRUE(graph_ptr != NULL);
             vertex_id_type source = graph_ptr->global_vid(edge.source());
             vertex_id_type target = graph_ptr->global_vid(edge.target());
-            vertex_id_type eid = graph_ptr->global_eid(edge.edge_id()); 
+            vertex_id_type eid = graph_ptr->global_eid(graph_ptr->get_l_edge_id(edge)); 
           }
         }
         const distributed_graph* graph_ptr;
@@ -576,6 +576,10 @@ namespace graphlab {
       return (eid - begin_eid);
     }
 
+    leid_type get_l_edge_id(const local_edge_type& e) const {
+      return local_graph.edge_id(e);
+    }
+
     //! Get all the edge which edge.target() == v
     edge_list_type in_edges(const vertex_id_type vid) const;
 
@@ -757,13 +761,14 @@ namespace graphlab {
 
       public:
         edge_buffer_type (distributed_graph* graph_ptr, size_t num_procs,
-            size_t limit=2000, size_t max_degree = 200) : 
+            size_t limit=500, size_t max_degree = 200) : 
           graph_ptr(graph_ptr), num_procs(num_procs), num_edges(0), limit(limit), max_degree(max_degree),
           proc_src(num_procs), proc_dst(num_procs), proc_edata(num_procs),
     query_set(num_procs)  { }
 
         procid_t edge_to_proc(vertex_id_type src, vertex_id_type dst,
             std::vector<dht_degree_table_type>& degree_table) {
+          return graph_ptr->edge_to_proc(src, dst);
          
           size_t src_proc = graph_ptr->vertex_to_init_proc(src);
           size_t dst_proc = graph_ptr->vertex_to_init_proc(dst);

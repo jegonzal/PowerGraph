@@ -139,7 +139,7 @@ namespace graphlab {
         }
 
         // Do not use.
-        size_t edge_id() const {
+        edge_id_type edge_id() const {
           return _edge_id;
         }
 
@@ -306,6 +306,18 @@ namespace graphlab {
       size_t end = (search >= num_vertices) ? num_edges: CSR_src[search];
       return (end-begin);
     }
+
+
+    edge_id_type edge_id (const edge_type& e) const {
+      ASSERT_FALSE(e.empty());
+      if (e.get_dir() == edge_type::OUT_EDGE)
+      {
+        return e.edge_id();
+      } else {
+        return e.edge_id() + num_edges;
+      }
+    }
+
 
     edge_data_type& edge_data(vertex_id_type source, vertex_id_type target) {
       ASSERT_LT(source, num_vertices);
