@@ -297,8 +297,7 @@ namespace graphlab {
       logstream(LOG_DEBUG) << rmi.procid() << ": Schedule " << vid << std::endl;
       procid_t owner = graph.get_vertex_record(vid).owner;
       if (owner == rmi.procid()) {
-        const size_t cpuid = random::fast_uniform<size_t>(0, ncpus - 1);
-        scheduler_ptr->schedule(cpuid, graph.local_vid(vid), update_functor);
+        scheduler_ptr->schedule(graph.local_vid(vid), update_functor);
         if (started && threads_alive.value < ncpus) {
           consensus->cancel_one();
         }
@@ -322,7 +321,7 @@ namespace graphlab {
            lvid < graph.get_local_graph().num_vertices(); 
            ++lvid) {
         if (graph.l_get_vertex_record(lvid).owner == rmi.procid()) {
-          scheduler_ptr->schedule(lvid % ncpus, lvid, update_functor);
+          scheduler_ptr->schedule(lvid, update_functor);
         }
       }
       
@@ -331,6 +330,32 @@ namespace graphlab {
       }
       rmi.barrier();
     }
+
+
+    /**
+     * Schedule an update on all the neighbors of a particular vertex
+     */
+    void schedule_in_neighbors(const vertex_id_type& vertex, 
+                               const update_functor_type& update_fun) {
+      assert(false); //TODO: IMPLEMENT
+    } // end of schedule in neighbors
+
+    /**
+     * Schedule an update on all the out neighbors of a particular vertex
+     */
+    void schedule_out_neighbors(const vertex_id_type& vertex, 
+                                const update_functor_type& update_fun) {
+      assert(false); //TODO: IMPLEMENT
+    } // end of schedule out neighbors
+                                                  
+    /**
+     * Schedule an update on all the out neighbors of a particular vertex
+     */
+    virtual void schedule_neighbors(const vertex_id_type& vertex, 
+                                    const update_functor_type& update_fun) {
+      assert(false); //TODO: IMPLEMENT
+    } // end of schedule neighbors
+
 
     /**
      * \brief associate a termination function with this engine.
