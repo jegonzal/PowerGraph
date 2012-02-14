@@ -503,9 +503,10 @@ namespace graphlab {
     size_t num_local_own_vertices() const { return local_own_nverts; }
 
     /** \brief get the local vertex id */
-    lvid_type local_vid (const vertex_id_type vid) const { 
-      ASSERT_TRUE(vid2lvid.find(vid) != NULL);
-      return vid2lvid[vid];
+    lvid_type local_vid (const vertex_id_type vid) const {
+      typename boost::unordered_map<vertex_id_type, lvid_type>::const_iterator iter = vid2lvid.find(vid);
+      ASSERT_TRUE(iter != vid2lvid.end());
+      return iter->second;
     } // end of local_vertex_id
 
     vertex_id_type global_vid (const lvid_type lvid) const { 
