@@ -39,6 +39,7 @@
 
 #include <graphlab/scheduler/ischeduler.hpp>
 #include <graphlab/context/icontext.hpp>
+#include <graphlab/context/context.hpp>
 #include <graphlab/engine/iengine.hpp>
 #include <graphlab/update_functor/iupdate_functor.hpp>
 #include <graphlab/engine/execution_status.hpp>
@@ -92,7 +93,7 @@ namespace graphlab {
     typedef ischeduler<pseudo_engine<Graph, UpdateFunctor> > ischeduler_type;
     
     typedef typename iengine_base::icontext_type  icontext_type;
-    //typedef context<distributed_engine>         context_type;
+    typedef context<distributed_engine>           context_type;
     //typedef context_manager<distributed_engine> context_manager_type;
    
     
@@ -335,7 +336,7 @@ namespace graphlab {
      */
     void schedule_in_neighbors(const vertex_id_type& vertex, 
                                const update_functor_type& update_fun) {
-      assert(false); //TODO: IMPLEMENT
+      assert(false); //TODO: IMPLEMENTh
     } // end of schedule in neighbors
 
     /**
@@ -459,14 +460,13 @@ namespace graphlab {
         locked_gather_complete(lvid);
       }
       else {
-        rmi.remote_call(owner,
+        rmi.remote_call(vowner,
                         &engine_type::rpc_gather_complete,
                         graph.global_vid(lvid));
       }
       vstate[lvid].state = MIRROR_SCATTERING;
     }
-      vstate_locks[lvid].unlock();
-    }
+  
     
     void eval_internal_task(vertex_id_type lvid) {
       logstream(LOG_DEBUG) << rmi.procid() << ": Internal Task: " << graph.global_vid(lvid) << std::endl;
@@ -577,7 +577,7 @@ namespace graphlab {
       }
     }
 
-    template <bool prelocked = false>
+    template <bool prelocked>
     void eval_sched_task(size_t sched_lvid, const update_functor_type& task) {
       logstream(LOG_DEBUG) << rmi.procid() << ": Schedule Task: " << graph.global_vid(sched_lvid) << std::endl;
       ASSERT_EQ(graph.l_get_vertex_record(sched_lvid).owner, rmi.procid());
@@ -669,8 +669,6 @@ namespace graphlab {
 
 
   /////////////////////////// Global Variabes ////////////////////////////
- private:
-  friend class context<shared_memory_engine>;
   //! Get the global data and lock
   void get_global(const std::string& key,
                   graphlab::any_vector*& ret_values_ptr,
