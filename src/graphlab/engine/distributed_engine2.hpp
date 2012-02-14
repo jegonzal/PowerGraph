@@ -434,11 +434,10 @@ namespace graphlab {
       }
     }
 
-    void locked_gather_complete(vertex_id_type lvid, const update_functor_type& uf) {
+    void locked_gather_complete(vertex_id_type lvid) {
       // make sure that I am the owner
       ASSERT_I_AM_OWNER(lvid);
       ASSERT_TRUE(vstate[lvid].state == GATHERING);
-      vstate[lvid].current += uf;
       ASSERT_GT(vstate[lvid].apply_count_down, 0);
       vstate[lvid].apply_count_down--;
       if (vstate[lvid].apply_count_down == 0) {
@@ -450,7 +449,8 @@ namespace graphlab {
     void rpc_gather_complete(vertex_id_type vid, const update_functor_type& uf) {
       vertex_id_type lvid = graph.local_vid(vid);
       vstate_locks[lvid].lock();
-      locked_gather_complete(lvid, uf);
+      vstate[lvid].current += uf;
+      locked_gather_complete(lvid);
       vstate_locks[lvid].unlock();
     }
     
@@ -463,7 +463,7 @@ namespace graphlab {
       std::cout << rmi.procid() << ": Gathering on " << graph.global_vid(lvid) << std::endl;
       procid_t vowner = graph.l_get_vertex_record(lvid).owner;
       if (vowner == rmi.procid()) {
-        locked_gather_complete(lvid, vstate[lvid].current); // THis is NOT what you want to do TODO:
+        locked_gather_complete(lvid);
       }
       else {
         rmi.remote_call(vowner,
@@ -532,7 +532,10 @@ namespace graphlab {
         thrlocal[i].add_task(lvid);
       }
       else {
-        thrlocal[i].add_task(lvid);
+        thrlocal[j].add_task(lvid);
+      }
+      if (started && threads_alive.value < ncpus) {
+        consensus->cancel();
       }
     }
     
@@ -687,14 +690,14 @@ namespace graphlab {
   //! Get the global data and lock
   void get_global(const std::string& key,
                   graphlab::any_vector*& ret_values_ptr,
-                  bool& ret_is_const);
+                  bool& ret_is_const) { }
   
   //! Get the global data and lock
   void acquire_global_lock(const std::string& key,
-                           size_t index = 0);
+                           size_t index = 0) { }
   //! Release the global data lock
   void release_global_lock(const std::string& key,
-                           size_t index = 0);
+                           size_t index = 0) { }
   
  public:
 
