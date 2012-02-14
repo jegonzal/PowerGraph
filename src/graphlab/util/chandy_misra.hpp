@@ -125,10 +125,10 @@ class chandy_misra {
       philosopherset[i].state = THINKING;
       foreach(typename GraphType::edge_type edge, graph.in_edges(i)) {
         if (edge.source() > edge.target()) {
-          forkset[edge.edge_id()] = DIRTY_BIT | 1;
+          forkset[graph.edge_id(edge)] = DIRTY_BIT | 1;
         }
         else {
-          forkset[edge.edge_id()] = DIRTY_BIT;
+          forkset[graph.edge_id(edge)] = DIRTY_BIT;
         }
       }
     }
@@ -173,9 +173,12 @@ class chandy_misra {
 
     // now try to get all the forks. lock one edge at a time
     // using the backoff strategy
+    //std::cout << "vertex " << p_id << std::endl;
+    //std::cout << "in edges: " << std::endl;
     foreach(typename GraphType::edge_type edge, graph.in_edges(p_id)) {
       try_acquire_edge_with_backoff(edge.target(), edge.source());
-      size_t edgeid = edge.edge_id();
+      //std::cout << "\t" << graph.edge_id(edge) << ": " << edge.source() << "->" << edge.target() << std::endl;
+      size_t edgeid = graph.edge_id(edge);
       // if fork is owned by other edge, try to take it
       if (fork_owner(edgeid) == OWNER_SOURCE) {
         request_for_fork(edgeid, OWNER_TARGET);
@@ -188,10 +191,11 @@ class chandy_misra {
       }
       philosopherset[edge.source()].lock.unlock();
     }
-    
+    //std::cout << "out edges: " << std::endl;
     foreach(typename GraphType::edge_type edge, graph.out_edges(p_id)) {
+      //std::cout << "\t" << graph.edge_id(edge) << ": " << edge.source() << "->" << edge.target() << std::endl;
       try_acquire_edge_with_backoff(edge.source(), edge.target());
-      size_t edgeid = edge.edge_id();
+      size_t edgeid = graph.edge_id(edge);
  
       // if fork is owned by other edge, try to take it
       if (fork_owner(edgeid) == OWNER_TARGET) {
@@ -224,7 +228,7 @@ class chandy_misra {
     // now forks are dirty
     foreach(typename GraphType::edge_type edge, graph.in_edges(p_id)) {
       try_acquire_edge_with_backoff(edge.target(), edge.source());
-      size_t edgeid = edge.edge_id();
+      size_t edgeid = graph.edge_id(edge);
       vertex_id_type other = edge.source();
       dirty_fork(edgeid);
       philosopherset[other].forks_acquired +=
@@ -241,7 +245,7 @@ class chandy_misra {
 
     foreach(typename GraphType::edge_type edge, graph.out_edges(p_id)) {
       try_acquire_edge_with_backoff(edge.source(), edge.target());
-      size_t edgeid = edge.edge_id();
+      size_t edgeid = graph.edge_id(edge);
       vertex_id_type other = edge.target();
       dirty_fork(edgeid);
       philosopherset[other].forks_acquired +=
@@ -274,14 +278,14 @@ class chandy_misra {
       size_t numowned = 0;
       size_t numowned_clean = 0;
       foreach(typename GraphType::edge_type edge, graph.in_edges(v)) {
-        size_t edgeid = edge.edge_id();
+        size_t edgeid = graph.edge_id(edge);
         if (fork_owner(edgeid) == OWNER_TARGET) {
           numowned++;
           if (!fork_dirty(edgeid)) numowned_clean++;
         }
       }
       foreach(typename GraphType::edge_type edge, graph.out_edges(v)) {
-        size_t edgeid = edge.edge_id();
+        size_t edgeid = graph.edge_id(edge);
         if (fork_owner(edgeid) == OWNER_SOURCE) {
           numowned++;
           if (!fork_dirty(edgeid)) numowned_clean++;

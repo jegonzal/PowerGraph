@@ -449,6 +449,7 @@ namespace graphlab {
       ASSERT_GT(vstate[lvid].apply_count_down, 0);
       vstate[lvid].apply_count_down--;
       if (vstate[lvid].apply_count_down == 0) {
+        std::cout << rmi.procid() << ": Gather Complete " << graph.global_vid(lvid) << std::endl;
         vstate[lvid].state = APPLYING;
         add_internal_task(lvid);
       }
@@ -478,8 +479,9 @@ namespace graphlab {
                         &engine_type::rpc_gather_complete,
                         graph.global_vid(lvid),
                         vstate[lvid].current);
+        vstate[lvid].state = MIRROR_SCATTERING;
       }
-      vstate[lvid].state = MIRROR_SCATTERING;
+      vstate_locks[lvid].unlock();
     }
   
     
@@ -501,10 +503,12 @@ namespace graphlab {
           break;
         case APPLYING:
            /** Implement Applying Code Here!!! */
+          std::cout << rmi.procid() << ": Apply On " << graph.global_vid(lvid) << std::endl;
           vstate[lvid].state = SCATTERING;
           master_broadcast_scattering(lvid, vstate[lvid].current);
           // fall through to scattering
         case SCATTERING:
+          std::cout << rmi.procid() << ": Scattering On " << graph.global_vid(lvid) << std::endl;
           ready_vertices = cmlocks->philosopher_stops_eating(lvid);
           if (vstate[lvid].hasnext) {
             // ok. we have a next task!
@@ -560,7 +564,7 @@ namespace graphlab {
       vstate[sched_lvid].current = task;
       vstate_locks[sched_lvid].unlock();
       // lets go
-      // add_internal_task(sched_lvid);
+      add_internal_task(sched_lvid);
     }
 
     /**

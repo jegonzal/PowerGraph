@@ -310,7 +310,7 @@ namespace graphlab {
 
     edge_id_type edge_id (const edge_type& e) const {
       ASSERT_FALSE(e.empty());
-      if (e.get_dir() == edge_type::OUT_EDGE)
+      if (e.get_dir() == edge_type::OUTEDGE)
       {
         return e.edge_id();
       } else {
