@@ -39,6 +39,7 @@
 
 #include <graphlab/scheduler/ischeduler.hpp>
 #include <graphlab/context/icontext.hpp>
+#include <graphlab/context/context.hpp>
 #include <graphlab/engine/iengine.hpp>
 #include <graphlab/update_functor/iupdate_functor.hpp>
 #include <graphlab/engine/execution_status.hpp>
@@ -94,7 +95,7 @@ namespace graphlab {
     typedef ischeduler<pseudo_engine<Graph, UpdateFunctor> > ischeduler_type;
     
     typedef typename iengine_base::icontext_type  icontext_type;
-    //typedef context<distributed_engine>         context_type;
+    typedef context<distributed_engine>           context_type;
     //typedef context_manager<distributed_engine> context_manager_type;
    
     
@@ -337,7 +338,7 @@ namespace graphlab {
      */
     void schedule_in_neighbors(const vertex_id_type& vertex, 
                                const update_functor_type& update_fun) {
-      assert(false); //TODO: IMPLEMENT
+      assert(false); //TODO: IMPLEMENTh
     } // end of schedule in neighbors
 
     /**

@@ -241,6 +241,20 @@ namespace graphlab {
 
     /** \brief get the current engine options. */
     virtual const graphlab_options& get_options() = 0;
+
+
+    //! Get the global data and lock
+    virtual void get_global(const std::string& key,      
+                            graphlab::any_vector*& ret_values_ptr,
+                            bool& ret_is_const) = 0; 
+
+    //! Get the global data and lock
+    virtual void acquire_global_lock(const std::string& key,      
+                                     size_t index = 0) = 0;
+    //! Release the global data lock
+    virtual void release_global_lock(const std::string& key,      
+                                     size_t index = 0) = 0;
+
     
     
   };
