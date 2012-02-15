@@ -29,6 +29,6 @@
 #include <graphlab/util/small_set.hpp>
 #include <graphlab/util/charstream.hpp>
 #include <graphlab/util/cache.hpp>
-
+#include <graphlab/util/fs_util.hpp>
 
 

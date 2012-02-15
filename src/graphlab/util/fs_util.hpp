@@ -35,11 +35,20 @@ namespace graphlab {
     /**
      * List all the files with the given suffix at the pathname
      * location
-     * \ingroup util_internal
      */
     void list_files_with_suffix(const std::string& pathname,
                                 const std::string& suffix,
                                 std::vector<std::string>& files);
+
+
+    /**
+     * List all the files with the given prefix at the pathname
+     * location
+     */
+    void list_files_with_prefix(const std::string& pathname,
+                                const std::string& prefix,
+                                std::vector<std::string>& files);
+
 
     /// \ingroup util_internal
     std::string change_suffix(const std::string& fname,
