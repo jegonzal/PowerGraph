@@ -143,7 +143,15 @@ namespace graphlab {
             ASSERT_TRUE(graph_ptr != NULL);
             vertex_id_type source = graph_ptr->global_vid(edge.source());
             vertex_id_type target = graph_ptr->global_vid(edge.target());
-            vertex_id_type eid = graph_ptr->global_eid(graph_ptr->get_l_edge_id(edge)); 
+            vertex_id_type eid = graph_ptr->global_eid(graph_ptr->get_l_edge_id(edge));
+            procid_t owner = -1;
+            logstream(LOG_FATAL) 
+              << "The local edge list implementation is incomplete" 
+              << std::endl;
+            // TODO: fix BUG
+            // I added this return statement as a filler but it is not
+            // correct.
+            return edge_type(source, target, eid, owner);
           }
         }
         const distributed_graph* graph_ptr;

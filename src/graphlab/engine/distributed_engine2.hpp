@@ -88,6 +88,7 @@ namespace graphlab {
     
     typedef typename graph_type::vertex_data_type vertex_data_type;
     typedef typename graph_type::edge_list_type edge_list_type;
+    typedef typename graph_type::local_edge_list_type local_edge_list_type;
     typedef typename graph_type::edge_type edge_type;
 
     typedef ischeduler<pseudo_engine<Graph, UpdateFunctor> > ischeduler_type;
@@ -463,18 +464,51 @@ namespace graphlab {
       vstate_locks[lvid].unlock();
     }
     
+
+    void do_scatter(vertex_id_type lvid) {
+      const vertex_id_type vid = graph.global_vid(lvid);
+      update_functor_type& ufun = vstate[lvid].current;
+      context_type context(this, &graph, vid, ufun.scatter_consistency());
+      if(ufun.scatter_edges() == graphlab::IN_EDGES || 
+         ufun.scatter_edges() == graphlab::ALL_EDGES) {
+        const local_edge_list_type edges = graph.l_in_edges(vid);
+        foreach(const edge_type& edge, edges) ufun.scatter(context, edge);
+      }
+      if(ufun.scatter_edges() == graphlab::OUT_EDGES ||
+         ufun.scatter_edges() == graphlab::ALL_EDGES) {
+        const local_edge_list_type edges = graph.l_out_edges(vid);
+        foreach(const edge_type& edge, edges) ufun.scatter(context, edge);
+      }
+    } // end of do scatter
+    
     void process_gather_locks_ready(vertex_id_type lvid) {
       // in theory I do not need a lock here.
       // but what the hell
       vstate_locks[lvid].lock();
-      ASSERT_TRUE(vstate[lvid].state == GATHERING || vstate[lvid].state == MIRROR_GATHERING);
-      /** Implement Gathering Code Here!!! */
-      std::cout << rmi.procid() << ": Gathering on " << graph.global_vid(lvid) << std::endl;
-      procid_t vowner = graph.l_get_vertex_record(lvid).owner;
+      ASSERT_TRUE(vstate[lvid].state == GATHERING || 
+                  vstate[lvid].state == MIRROR_GATHERING);
+      const vertex_id_type vid = graph.global_vid(lvid);
+      std::cout << rmi.procid() << ": Gathering on " << vid  << std::endl;
+      { // Do gather
+        update_functor_type& ufun = vstate[lvid].current;
+        context_type context(this, &graph, vid, ufun.gather_consistency());
+        ufun.init_gather(context);
+        if(ufun.gather_edges() == graphlab::IN_EDGES || 
+           ufun.gather_edges() == graphlab::ALL_EDGES) {
+          const local_edge_list_type edges = graph.l_in_edges(vid);
+          foreach(const edge_type& edge, edges) ufun.gather(context, edge);
+        }
+        if(ufun.gather_edges() == graphlab::OUT_EDGES ||
+           ufun.gather_edges() == graphlab::ALL_EDGES) {
+          const local_edge_list_type edges = graph.l_out_edges(vid);
+          foreach(const edge_type& edge, edges) ufun.gather(context, edge);
+        }
+      }
+
+      const procid_t vowner = graph.l_get_vertex_record(lvid).owner;
       if (vowner == rmi.procid()) {
         locked_gather_complete(lvid);
-      }
-      else {
+      } else {
         rmi.remote_call(vowner,
                         &engine_type::rpc_gather_complete,
                         graph.global_vid(lvid),
@@ -503,12 +537,20 @@ namespace graphlab {
           break;
         case APPLYING:
            /** Implement Applying Code Here!!! */
-          std::cout << rmi.procid() << ": Apply On " << graph.global_vid(lvid) << std::endl;
+          { // Do apply
+            const vertex_id_type vid = graph.global_vid(lvid);
+            std::cout << rmi.procid() << ": Apply On " << vid << std::endl;        
+            update_functor_type& ufun = vstate[lvid].current;
+            context_type context(this, &graph, vid, VERTEX_CONSISTENCY);
+            ufun.apply(context);
+          }
           vstate[lvid].state = SCATTERING;
           master_broadcast_scattering(lvid, vstate[lvid].current);
           // fall through to scattering
         case SCATTERING:
-          std::cout << rmi.procid() << ": Scattering On " << graph.global_vid(lvid) << std::endl;
+          std::cout << rmi.procid() << ": Scattering On " 
+                    << graph.global_vid(lvid) << std::endl;
+          do_scatter(lvid);
           ready_vertices = cmlocks->philosopher_stops_eating(lvid);
           if (vstate[lvid].hasnext) {
             // ok. we have a next task!
@@ -518,12 +560,12 @@ namespace graphlab {
             // make a copy of the update functor
             update_functor_type tmp = vstate[lvid].next;
             eval_sched_task<true>(lvid, tmp);
-          }
-          else {
+          } else {
             vstate[lvid].state = NONE;
           }
           break;
         case MIRROR_SCATTERING:
+          do_scatter(lvid);
           ready_vertices = cmlocks->philosopher_stops_eating(lvid);
           ASSERT_FALSE(vstate[lvid].hasnext);
           vstate[lvid].state = NONE;
