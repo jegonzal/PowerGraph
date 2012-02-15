@@ -581,12 +581,9 @@ namespace graphlab {
       return (begin_eid + eid);
     } 
 
-    std::pair<leid_type, ledge_dir_type> local_eid(const edge_id_type eid) const {
-      leid_type leid = (eid - begin_eid);
-      ledge_dir_type dir = leid < local_graph.num_edges() ? 
-        local_edge_type::OUTEDGE : local_edge_type::INEDGE;
-      return std::make_pair(leid, dir);
-    }
+    leid_type local_eid(const edge_id_type eid) const {
+      return (eid - begin_eid);
+    } 
 
     leid_type get_l_edge_id(const local_edge_type& e) const {
       return local_graph.edge_id(e);
@@ -1325,9 +1322,8 @@ namespace graphlab {
   EdgeData& distributed_graph<VertexData, EdgeData>:: 
   edge_data(const edge_type& edge) {
     ASSERT_TRUE(is_local(edge.source(), edge.target()));
-    std::pair<leid_type, ledge_dir_type> pair = local_eid(edge.edge_id());
     local_edge_type l_edge(local_vid(edge.source()), local_vid(edge.target()),
-        pair.first, pair.second);
+        local_eid(edge.edge_id()), local_edge_type::OUTEDGE);
     return local_graph.edge_data(l_edge);
   } // end of edge data
 
@@ -1335,9 +1331,8 @@ namespace graphlab {
   const EdgeData& distributed_graph<VertexData, EdgeData>:: 
   edge_data(const edge_type& edge) const {
     ASSERT_TRUE(is_local(edge.source(), edge.target()));
-    std::pair<leid_type, ledge_dir_type> pair = local_eid(edge.edge_id());
     local_edge_type l_edge(local_vid(edge.source()), local_vid(edge.target()),
-        pair.first, pair.second);
+        local_eid(edge.edge_id()), local_edge_type::OUTEDGE);
     return local_graph.edge_data(l_edge);
   } // end of const edge data
 } // end of namespace graphlab
