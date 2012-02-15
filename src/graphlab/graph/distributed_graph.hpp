@@ -102,6 +102,10 @@ namespace graphlab {
         edge_id_type _eid;
         procid_t _owner;
         bool _empty;
+        inline edge_id_type edge_id() const {
+          return _eid;
+        }
+        friend class distributed_graph;
       public:
         edge_type (vertex_id_type src, vertex_id_type tar,
                   edge_id_type eid, procid_t owner): _src(src), _tar(tar),
@@ -114,9 +118,6 @@ namespace graphlab {
         inline vertex_id_type target() const { 
           ASSERT_FALSE(empty());
           return _tar;
-        }
-        inline edge_id_type edge_id() const {
-          return _eid;
         }
         procid_t owner() const {
           return _owner;

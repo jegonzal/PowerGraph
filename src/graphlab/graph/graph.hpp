@@ -176,9 +176,6 @@ namespace graphlab {
         ASSERT_LT(_id, graph_ptr->edges.size());
         return graph_ptr->edges[_id].target(); 
       }
-      size_t edge_id() const {
-        return _id;
-      }
       bool empty() const { return graph_ptr == NULL; }
       friend class graph;
     }; // end of class edge_type.
@@ -361,6 +358,10 @@ namespace graphlab {
 
     /** \brief Returns a reference to the data stored on the edge source->target. */
     EdgeData& edge_data(vertex_id_type source, vertex_id_type target);
+    
+    edge_id_type edge_id(const edge_type& edge) const {
+      return edge._id;
+    }
     
     /** \brief Returns a constant reference to the data stored on the
         edge source->target */

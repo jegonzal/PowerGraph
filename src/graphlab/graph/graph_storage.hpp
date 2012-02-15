@@ -133,16 +133,6 @@ namespace graphlab {
           return _dir;
         }
 
-        // Do not use.
-        inline uint offset() const {
-          return _edge_id;
-        }
-
-        // Do not use.
-        edge_id_type edge_id() const {
-          return _edge_id;
-        }
-
         inline bool empty() const { return _empty; }
         // Data fields. 
       private:
@@ -151,6 +141,7 @@ namespace graphlab {
         edge_id_type _edge_id;
         edge_dir _dir;
         bool _empty;
+
 
         friend class graph_storage;
     }; // end of class edge_type.
@@ -308,7 +299,7 @@ namespace graphlab {
     }
 
 
-    edge_id_type edge_id (const edge_type& edge) const {
+    edge_id_type edge_id(const edge_type& edge) const {
       ASSERT_FALSE(edge.empty());
       return edge.get_dir() == edge_type::OUTEDGE ? 
                   edge._edge_id :

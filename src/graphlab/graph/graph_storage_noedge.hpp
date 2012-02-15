@@ -129,10 +129,6 @@ namespace graphlab {
           return _dir;
         }
 
-        // Do not use.
-        inline uint offset() const {
-          return _edge_id;
-        }
 
         inline bool empty() const { return _empty; }
         // Data fields. 
@@ -302,6 +298,13 @@ namespace graphlab {
       size_t search = use_skip_list ? nextValid(CSR_src_skip, v, true) : nextValid(CSR_src, v, false);
       size_t end = (search >= num_vertices) ? num_edges: CSR_src[search];
       return (end-begin);
+    }
+
+    edge_id_type edge_id (const edge_type& edge) const {
+      ASSERT_FALSE(edge.empty());
+      return edge.get_dir() == edge_type::OUTEDGE ? 
+                  edge._edge_id :
+                  c2r_map[edge._edge_id];
     }
 
     edge_data_type& edge_data(vertex_id_type source, vertex_id_type target) {

@@ -379,7 +379,7 @@ namespace graphlab {
       return gstore.edge_data(edge);
     }
 
-    edge_id_type edge_id (const edge_type& edge) const {
+    edge_id_type edge_id(const edge_type& edge) const {
       return gstore.edge_id(edge);
     }
 

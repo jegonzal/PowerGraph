@@ -17,6 +17,7 @@ class ChandyMisraTest: public CxxTest::TestSuite {
     for (size_t i = 0;i < 25; ++i) {
       for (size_t j = 0;j < 25; ++j) {
         if ((i != j) && (rand() % 1000 <= 100)) {
+          ASSERT_NE(i, j);
           g.add_edge(i, j, 0);
         }
       }
@@ -59,6 +60,8 @@ class ChandyMisraTest: public CxxTest::TestSuite {
           }
         }
       }
+      cm.no_locks_consistency_check();
+      cm.complete_consistency_check();
     }
     cm.no_locks_consistency_check();
     cm.complete_consistency_check();
