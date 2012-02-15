@@ -59,10 +59,12 @@ void problem_setup::verify_setup(graphlab::command_line_options& clopts){
   if (config.algorithm == CONJUGATE_GRADIENT && config.iter <= 1)
     logstream(LOG_FATAL) << "For conjugate gradient, you need to specify the number of iterations using --max_iter=XX flag" << std::endl;
 
-  if ((config.algorithm == JACOBI || config.algorithm == GaBP) && clopts.get_scheduler_type() != "round_robin")
-    logstream(LOG_FATAL) << "Please use command line --scheduler=\"round_robin(max_iterations=XX,block_size=1)\" when running Jacobi/Gaussian BP" << std::endl;
+  if ((config.algorithm == JACOBI || config.algorithm == GaBP) && ((clopts.get_scheduler_type() != "round_robin")|| (clopts.is_set("max_iter"))))
+    logstream(LOG_FATAL) << "Please use command line --scheduler=\"round_robin(max_iterations=XX,block_size=1)\" when running Jacobi/Gaussian BP. The flag --max_iter can not be used." << std::endl;
 
  if (config.algorithm == JACOBI && !clopts.is_set("init_mode"))
      config.init_mode = INIT_RANDOM;
- 
+
+
+
 }

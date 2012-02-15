@@ -164,7 +164,7 @@ advanced_config(){
     N = 0;
     debug = true;
     threshold = 1e-10;
-    syncinterval = 10000;
+    syncinterval = 0;
     iter = 20;
     ncpus = 1;
     cg_resid = false;
