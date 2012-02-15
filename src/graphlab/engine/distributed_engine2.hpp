@@ -460,7 +460,7 @@ namespace graphlab {
       ASSERT_GT(vstate[lvid].apply_count_down, 0);
       vstate[lvid].apply_count_down--;
       if (vstate[lvid].apply_count_down == 0) {
-        std::cout << rmi.procid() << ": Gather Complete " << graph.global_vid(lvid) << std::endl;
+        logstream(LOG_DEBUG) << rmi.procid() << ": Gather Complete " << graph.global_vid(lvid) << std::endl;
         vstate[lvid].state = APPLYING;
         add_internal_task(lvid);
       }
@@ -477,7 +477,7 @@ namespace graphlab {
 
     void do_apply(vertex_id_type lvid) { 
       const vertex_id_type vid = graph.global_vid(lvid);
-      std::cout << rmi.procid() << ": Apply On " << vid << std::endl;   
+      logstream(LOG_DEBUG) << rmi.procid() << ": Apply On " << vid << std::endl;   
       update_functor_type& ufun = vstate[lvid].current;
       context_type context(this, &graph, vid, VERTEX_CONSISTENCY);
       ufun.apply(context);
@@ -524,7 +524,7 @@ namespace graphlab {
       ASSERT_TRUE(vstate[lvid].state == GATHERING || 
                   vstate[lvid].state == MIRROR_GATHERING);
       const vertex_id_type vid = graph.global_vid(lvid);
-      std::cout << rmi.procid() << ": Gathering on " << vid  << std::endl;
+      logstream(LOG_DEBUG) << rmi.procid() << ": Gathering on " << vid  << std::endl;
       do_gather(lvid);
 
       const procid_t vowner = graph.l_get_vertex_record(lvid).owner;
@@ -565,7 +565,7 @@ namespace graphlab {
                                       graph.get_local_graph().vertex_data(lvid));
           // fall through to scattering
         case SCATTERING:
-          std::cout << rmi.procid() << ": Scattering On " 
+          logstream(LOG_DEBUG) << rmi.procid() << ": Scattering On " 
                     << graph.global_vid(lvid) << std::endl;                    
           do_scatter(lvid);
           completed_tasks.inc();
@@ -614,13 +614,14 @@ namespace graphlab {
     
     // If I receive the call I am a mirror of this vid
     void rpc_begin_gathering(vertex_id_type sched_vid, const update_functor_type& task) {
-      logstream(LOG_DEBUG) << rmi.procid() << ": Mirror Begin Gathering: " << sched_vid << std::endl;
+      logstream(LOG_DEBUG) << rmi.procid() << ": Mirror Begin Gathering: " 
+                           << sched_vid << std::endl;
       ASSERT_NE(graph.get_vertex_record(sched_vid).owner, rmi.procid());
       // immediately begin issuing the lock requests
       vertex_id_type sched_lvid = graph.local_vid(sched_vid);
       // set the vertex state
       vstate_locks[sched_lvid].lock();
-      ASSERT_TRUE(vstate[sched_lvid].state == NONE);
+      ASSERT_EQ(vstate[sched_lvid].state, NONE);
       vstate[sched_lvid].state = MIRROR_GATHERING;
       vstate[sched_lvid].current = task;
       vstate_locks[sched_lvid].unlock();
@@ -633,15 +634,20 @@ namespace graphlab {
      */
     void master_broadcast_gathering(vertex_id_type sched_lvid, 
                                     const update_functor_type& task) {
-      logstream(LOG_DEBUG) << rmi.procid() << ": Broadcast Gathering: " << graph.global_vid(sched_lvid) << std::endl;
+      logstream(LOG_DEBUG) << rmi.procid() << ": Broadcast Gathering: " 
+                           << graph.global_vid(sched_lvid) << std::endl;
       ASSERT_I_AM_OWNER(sched_lvid);
       vertex_id_type sched_vid = graph.global_vid(sched_lvid);
-      const typename graph_type::vertex_record& vrec = graph.get_vertex_record(sched_vid);
+      const typename graph_type::vertex_record& vrec = 
+        graph.get_vertex_record(sched_vid);
+      const unsigned char prevkey = 
+        rmi.dc().set_sequentialization_key(sched_vid % 254 + 1);
       foreach(procid_t pid, vrec.get_replicas()) {
         if (pid != rmi.procid()) {
           rmi.remote_call(pid, &engine_type::rpc_begin_gathering, sched_vid, task);
         }
       }
+      rmi.dc().set_sequentialization_key(prevkey);
       add_internal_task(sched_lvid);
     }
 
@@ -663,12 +669,16 @@ namespace graphlab {
       logstream(LOG_DEBUG) << rmi.procid() << ": Broadcast Scattering: " << graph.global_vid(sched_lvid) << std::endl;
       ASSERT_I_AM_OWNER(sched_lvid);
       vertex_id_type sched_vid = graph.global_vid(sched_lvid);
-      const typename graph_type::vertex_record& vrec = graph.get_vertex_record(sched_vid);
+      const typename graph_type::vertex_record& vrec = 
+        graph.get_vertex_record(sched_vid);
+      const unsigned char prevkey = 
+        rmi.dc().set_sequentialization_key(sched_vid % 254 + 1);
       foreach(procid_t pid, vrec.get_replicas()) {
         if (pid != rmi.procid()) {
           rmi.remote_call(pid, &engine_type::rpc_begin_scattering, sched_vid, task, central_vdata);
         }
       }
+      rmi.dc().set_sequentialization_key(prevkey);
     }
 
     template <bool prelocked>
@@ -762,7 +772,7 @@ namespace graphlab {
       size_t ctasks = completed_tasks.value;
       rmi.all_reduce(ctasks);
       if (rmi.procid() == 0) {
-        std::cout << "Completed Tasks: " << ctasks << std::endl;
+        logstream(LOG_DEBUG) << "Completed Tasks: " << ctasks << std::endl;
       }
     }
   
