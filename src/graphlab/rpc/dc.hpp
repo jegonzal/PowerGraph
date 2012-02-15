@@ -652,6 +652,16 @@ class distributed_control{
   template <typename U>
   inline void all_gather(std::vector<U>& data, bool control = false);
 
+
+  /**
+   * Each machine issues a piece of data.
+   * After calling all_gather(), all machines will return with identical
+   * values of data which is equal to the sum of everyone's contributions.
+   * Sum is computed using operator+=
+   */
+  template <typename U>
+  inline void all_reduce(U& data, bool control = false);
+
   
   /**
    * This function is takes a vector of local elements T which must
@@ -803,6 +813,11 @@ inline void distributed_control::gather(std::vector<U>& data, procid_t sendto, b
 template <typename U>
 inline void distributed_control::all_gather(std::vector<U>& data, bool control) {
   distributed_services->all_gather(data, control);
+}
+
+template <typename U>
+inline void distributed_control::all_reduce(U& data, bool control) {
+  distributed_services->all_reduce(data, control);
 }
 
 template <typename U>

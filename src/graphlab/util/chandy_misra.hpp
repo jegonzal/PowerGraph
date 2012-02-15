@@ -154,7 +154,7 @@ class chandy_misra {
   
  public:
   inline chandy_misra(GraphType &graph):graph(graph) {
-    forkset.resize(graph.num_edges(), 0);
+    forkset.resize(2 * graph.num_edges(), 0);
     philosopherset.resize(graph.num_vertices());
     compute_initial_fork_arrangement();
   }

@@ -154,6 +154,17 @@ namespace graphlab {
       rmi.all_gather(data, control);
     }
 
+    /**
+    * Each machine issues a piece of data.
+    * After calling all_gather(), all machines will return with identical
+    * values of data which is equal to the sum of everyone's contributions.
+    * Sum is computed using operator+=
+    */
+    template <typename U>
+    inline void all_reduce(U& data, bool control) {
+      rmi.all_reduce(data, control);
+    }
+
 
   /**
    * This function is takes a vector of local elements T which must

@@ -925,6 +925,112 @@ private:
   
 
 
+  /**
+   * Each machine issues a piece of data.
+   * After calling all_gather(), all machines will return with identical
+   * values of data which is equal to the sum of everyone's contributions.
+   * Sum is computed using operator+=
+   */
+  template <typename U>
+  void all_reduce(U& data, bool control = false) {
+    if (numprocs() == 1) return;
+    // get the string representation of the data
+   /* charstream strm(128);
+    oarchive oarc(strm);
+    oarc << data;
+    strm.flush();*/
+    // upward message
+    int ab_barrier_val = ab_barrier_sense;
+    ab_barrier_mut.lock();
+    // wait for all children to be done
+    while(1) {
+      if ((ab_barrier_sense == -1 && ab_child_barrier_counter.value == 0) ||
+          (ab_barrier_sense == 1 && ab_child_barrier_counter.value == (int)(numchild))) {
+        // flip the barrier sense
+        ab_barrier_sense = -ab_barrier_sense;
+        // call child to parent in parent
+        ab_barrier_mut.unlock();
+        if (procid() != 0) {
+          // accumulate my children data
+          for (procid_t i = 0;i < numchild; ++i) {
+            std::stringstream istrm(ab_children_data[i]);
+            iarchive iarc(istrm);
+            U tmp;
+            iarc >> tmp;
+            data += tmp;
+          }
+          // upward message
+          charstream ostrm(128);
+          oarchive oarc(ostrm);
+          oarc << data;
+          ostrm.flush();
+          if (control) {
+            internal_control_call(parent,
+                            &dc_dist_object<T>::__ab_child_to_parent_barrier_trigger,
+                            procid(),
+                            std::string(ostrm->c_str(), ostrm->size()));
+          }
+          else {
+            internal_call(parent,
+                          &dc_dist_object<T>::__ab_child_to_parent_barrier_trigger,
+                          procid(),
+                          std::string(ostrm->c_str(), ostrm->size()));
+          }
+        }
+        break;
+      }
+      ab_barrier_cond.wait(ab_barrier_mut);
+    }
+
+
+    //logger(LOG_DEBUG, "barrier phase 1 complete");
+    // I am root. send the barrier release downwards
+    if (procid() == 0) {
+      ab_barrier_release = ab_barrier_val;
+      for (procid_t i = 0;i < numchild; ++i) {
+        std::stringstream istrm(ab_children_data[i]);
+        iarchive iarc(istrm);
+        U tmp;
+        iarc >> tmp;
+        data += tmp;
+      }
+      // build the downward data
+      charstream ostrm(128);
+      oarchive oarc(ostrm);
+      oarc << data;
+      ostrm.flush();
+      ab_alldata = std::string(ostrm->c_str(), ostrm->size());
+      for (procid_t i = 0;i < numchild; ++i) {
+        internal_control_call((procid_t)(childbase + i),
+                             &dc_dist_object<T>::__ab_parent_to_child_barrier_release,
+                             ab_barrier_val,
+                             ab_alldata,
+                             (int)control);
+
+      }
+    }
+    // wait for the downward message releasing the barrier
+    ab_barrier_mut.lock();
+    while(1) {
+      if (ab_barrier_release == ab_barrier_val) break;
+      ab_barrier_cond.wait(ab_barrier_mut);
+    }
+    
+    if (procid() != 0) {
+      // read the collected data and release the lock
+      std::string local_ab_alldata = ab_alldata;
+      ab_barrier_mut.unlock();
+
+      //logger(LOG_DEBUG, "barrier phase 2 complete");
+
+      std::stringstream istrm(local_ab_alldata);
+      iarchive iarc(istrm);
+      iarc >> data;
+    }
+    else {
+      ab_barrier_mut.unlock();
+    }
+  }
 
 ////////////////////////////////////////////////////////////////////////////
 

@@ -308,10 +308,11 @@ namespace graphlab {
     }
 
 
-    edge_id_type edge_id (const edge_type& e) const {
-      ASSERT_FALSE(e.empty());
-      return (e.get_dir() == edge_type::OUTEDGE ? e._edge_id :
-          c2r_map[e._edge_id]);
+    edge_id_type edge_id (const edge_type& edge) const {
+      ASSERT_FALSE(edge.empty());
+      return edge.get_dir() == edge_type::OUTEDGE ? 
+                  edge._edge_id :
+                  c2r_map[edge._edge_id];
     }
 
 

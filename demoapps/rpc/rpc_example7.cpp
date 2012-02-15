@@ -28,6 +28,7 @@
 #include <graphlab/parallel/pthread_tools.hpp>
 #include <graphlab/rpc/dc.hpp>
 #include <graphlab/rpc/dc_init_from_mpi.hpp>
+#include <graphlab/rpc/dc_init_from_env.hpp>
 #include <graphlab/rpc/dc_services.hpp>
 #include <graphlab/rpc/dc_dist_object.hpp>
 using namespace graphlab;
@@ -87,6 +88,8 @@ int main(int argc, char ** argv) {
   // init MPI
   mpi_tools::init(argc, argv);
   
+  
+  
   if (mpi_tools::size() != 2) {
     std::cout<< "RPC Example 7: Distributed Object\n";
     std::cout << "Run with exactly 2 MPI nodes.\n";
@@ -94,10 +97,13 @@ int main(int argc, char ** argv) {
   }
 
   dc_init_param param;
-  ASSERT_TRUE(init_param_from_mpi(param));
+  ASSERT_TRUE(init_param_from_mpi(param) || init_param_from_env(param));
   global_logger().set_log_level(LOG_INFO);
   distributed_control dc(param);
   
+  size_t i = 10;
+  dc.all_reduce(i);
+  std::cout << i << "\n";
   // create a distributed vector
   distributed_vector<std::string> vec(dc);
   dc.barrier();
