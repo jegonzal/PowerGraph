@@ -788,8 +788,10 @@ namespace graphlab {
                             std::vector<dht_degree_table_type>& degree_table) {
         /// TODO: What is going on here?  Do you really mean to return
         /// immediately
-        return graph_ptr->edge_to_proc(src, dst);
+        // Sorry, this is to compare naive partition with greedy partition.
+        // return graph_ptr->edge_to_proc(src, dst);
          
+        procid_t best_proc = -1; 
         size_t src_proc = graph_ptr->vertex_to_init_proc(src);
         size_t dst_proc = graph_ptr->vertex_to_init_proc(dst);
         std::vector<size_t>& src_degree = degree_table[src_proc][src];
@@ -801,9 +803,9 @@ namespace graphlab {
         size_t max_dst_degree = 0;
           
         for (size_t i = 0; i < num_procs; ++i) {
-          if (src_degree[i] <= max_degree && src_degree[i] > max_src_degree)
+          if (src_degree[i] <= max_degree && src_degree[i] >= max_src_degree)
             { best_src_proc = i; max_src_degree = src_degree[i]; }
-          if (dst_degree[i] <= max_degree && dst_degree[i] > max_dst_degree)
+          if (dst_degree[i] <= max_degree && dst_degree[i] >= max_dst_degree)
             { best_dst_proc = i; max_dst_degree = dst_degree[i]; }
         }
 
@@ -825,14 +827,21 @@ namespace graphlab {
         if (best_src_proc == size_t(-1) && best_dst_proc == size_t(-1)) {
           std::cout << "Double degree limit to " << max_degree << std::endl;
           max_degree*= 2;
-          return rand() % num_procs;
+          best_proc = rand() % num_procs;
         } else {
-          if (best_src_proc == size_t(-1)) return best_dst_proc;
-          if (best_dst_proc == size_t(-1)) return best_src_proc;
-          return max_src_degree > max_dst_degree ? best_src_proc : best_dst_proc;
+          if (best_src_proc == size_t(-1)) {
+            best_proc = best_dst_proc;
+          } else if (best_dst_proc == size_t(-1)) {
+            best_proc = best_src_proc;
+          } else {         
+            best_proc = max_src_degree > max_dst_degree ? best_src_proc : best_dst_proc;
+          }
         }
+        ASSERT_LT(best_proc, num_procs);
+        ++src_degree[best_proc];
+        ++dst_degree[best_proc];
+        return best_proc;
       } // end of edge to proc
-
 
 
       // Add an edge to the buffer.
