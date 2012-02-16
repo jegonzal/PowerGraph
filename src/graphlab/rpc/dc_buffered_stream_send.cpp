@@ -28,146 +28,154 @@
 #include <graphlab/rpc/dc_buffered_stream_send.hpp>
 
 namespace graphlab {
-namespace dc_impl {
+  namespace dc_impl {
 
-void dc_buffered_stream_send::send_data(procid_t target_, 
-                unsigned char packet_type_mask,
-                std::istream &istrm,
-                size_t len) {
-  ASSERT_EQ(target, target_);
-  if (len != size_t(-1)) {
-    char cbuffer[len];
-    while(len > 0 && istrm.good()) {
-      size_t l = istrm.readsome(cbuffer, len);
-      len -= l;
-    }
-    send_data(target, packet_type_mask, cbuffer, len);
-  }
-  else {
-    // annoying. we have to compute the length of the stream
-    // allocate a 128byte block first.
-    // \todo: This can be optimized. Though, I don't think this
-    //        code path is even used.
-    size_t len = 0;
-    size_t cursize = 128;
-    char* data = (char*)malloc(128);
-    // while the stream is good. read stuff
-    // len is the current length of the contents
-    // cursize is the max length of the array
-    // when we run out of space in the array, we double the size.
-    while (istrm.good()) {
-      len += istrm.readsome(data+len, cursize-len);
-      if (cursize - len == 0) {
-        cursize *= 2;
-        data = (char*)realloc(data, cursize);
-      }
-    }
-    send_data(target, packet_type_mask, data, len);
-    free(data);
-  }
-}
-
-void dc_buffered_stream_send::send_data(procid_t target, 
-                 unsigned char packet_type_mask,
-                 char* data, size_t len) {
-  if ((packet_type_mask & CONTROL_PACKET) == 0) {
-    if (packet_type_mask & (FAST_CALL | STANDARD_CALL)) {
-      dc->inc_calls_sent(target);
-    }
-    bytessent.inc(len);
-  }
-
-  // build the packet header
-  packet_hdr hdr;
-  memset(&hdr, 0, sizeof(packet_hdr));
-  
-  hdr.len = len;
-  hdr.src = dc->procid(); 
-  hdr.sequentialization_key = dc->get_sequentialization_key();
-  hdr.packet_type_mask = packet_type_mask;
-  
-  std::streamsize numbytes_needed = sizeof(packet_hdr) + len;
-  // write into the send buffer
-  sendbuf.begin_critical_section();
-  // is there room?
-  if (numbytes_needed <= sendbuf.free_space()) {
-    // buffer has room to hold it. everything is all right with this world
-    sendbuf.write_unsafe(reinterpret_cast<char*>(&(hdr)), sizeof(packet_hdr));
-    sendbuf.write_unsafe(data, len);
-    sendbuf.end_critical_section_with_signal();
-  }
-  else if (numbytes_needed < sendbuf.reserved_size()) {
-    // the buffer is large enough. Just not enough room
-    while (sendbuf.free_space() < numbytes_needed) {
-      if (sendbuf.reader_is_blocked()) {
-        // sender is definitely inside a lock
-        // I take over the responsibilty of sending...
-        send_till_empty();
+    void dc_buffered_stream_send::send_data(procid_t target_, 
+                                                     unsigned char packet_type_mask,
+                                                     std::istream &istrm,
+                                                     size_t len) {
+      ASSERT_EQ(target, target_);
+      if (len != size_t(-1)) {
+        char cbuffer[len];
+        while(len > 0 && istrm.good()) {
+          size_t l = istrm.readsome(cbuffer, len);
+          len -= l;
+        }
+        send_data(target, packet_type_mask, cbuffer, len);
       }
       else {
-        // sender may be still sending.
-        // lets wait till it is done
-        sched_yield();
+        // annoying. we have to compute the length of the stream
+        // allocate a 128byte block first.
+        // \todo: This can be optimized. Though, I don't think this
+        //        code path is even used.
+        size_t len = 0;
+        size_t cursize = 128;
+        char* data = (char*)malloc(128);
+        // while the stream is good. read stuff
+        // len is the current length of the contents
+        // cursize is the max length of the array
+        // when we run out of space in the array, we double the size.
+        while (istrm.good()) {
+          len += istrm.readsome(data+len, cursize-len);
+          if (cursize - len == 0) {
+            cursize *= 2;
+            data = (char*)realloc(data, cursize);
+          }
+        }
+        send_data(target, packet_type_mask, data, len);
+        free(data);
       }
     }
-    sendbuf.write_unsafe(reinterpret_cast<char*>(&(hdr)), sizeof(packet_hdr));
-    sendbuf.write_unsafe(data, len);      
-    sendbuf.end_critical_section_with_signal();
 
-  }
-  else {
-    // the buffer is not large enough
-    // wait for the send buffer to clear
-    // the buffer is large enough. Just not enough room
-    while (sendbuf.size() > 0) {
-      if (sendbuf.reader_is_blocked()) {
-        // sender is definitely inside a lock
-        // I take over the responsibilty of sending...
-        send_till_empty();
+    void dc_buffered_stream_send::send_data(procid_t target, 
+                                                     unsigned char packet_type_mask,
+                                                     char* data, size_t len) {
+      if ((packet_type_mask & CONTROL_PACKET) == 0) {
+        if (packet_type_mask & (FAST_CALL | STANDARD_CALL)) {
+          dc->inc_calls_sent(target);
+        }
+        bytessent.inc(len);
       }
-      else {
-        // sender may be still sending.
-        // lets wait till it is done
-        sched_yield();
+
+      // build the packet header
+      packet_hdr hdr;
+      memset(&hdr, 0, sizeof(packet_hdr));
+  
+      hdr.len = len;
+      hdr.src = dc->procid(); 
+      hdr.sequentialization_key = dc->get_sequentialization_key();
+      hdr.packet_type_mask = packet_type_mask;
+  
+      std::streamsize numbytes_needed = sizeof(packet_hdr) + len;
+      expqueue_entry eentry;
+      eentry.len = numbytes_needed;
+      eentry.c = (char*)malloc(numbytes_needed);
+      memcpy(eentry.c, &hdr, sizeof(packet_hdr));
+      memcpy(eentry.c + sizeof(packet_hdr), data, len);
+      sendqueue.enqueue_conditional_signal(eentry, wait_count);
+    }
+
+
+    void dc_buffered_stream_send::write_combining_send(std::deque<expqueue_entry> &stuff) {
+      // fill new entries until I fill up the length
+      char sendcombining[combine_upper_threshold];
+      size_t length = 0;
+      // now send the stuff. stick them into the combining buffer.
+      while(!stuff.empty()){  
+        expqueue_entry ent = stuff.front();
+        stuff.pop_front();
+        // if length with the new entry exceeds my combining buffer length
+        // dump the combining buffer first and clear the buffer
+        if (length + ent.len > combine_upper_threshold) {
+          comm->send(target, sendcombining, length);
+          length = 0;
+        }
+
+        // if there is room in the combining buffer, write into the combining buffer
+        if (length + ent.len <= combine_upper_threshold) {
+          memcpy(sendcombining + length, ent.c , ent.len);
+          length += ent.len;
+          free(ent.c);
+        }
+        else {
+          // length should be 0 here
+          // too long for the combining buffer
+          // send it seperately
+          comm->send(target, ent.c, ent.len); 
+          free(ent.c);
+        }
+      }
+  
+      if (length > 0) {
+        comm->send(target, sendcombining, length);
       }
     }
-    comm->send2(target, 
-                reinterpret_cast<char*>(&hdr), sizeof(packet_hdr),
-                data,  len);
-    sendbuf.end_critical_section();
-  }
-  
-  
 
-}
+    void dc_buffered_stream_send::send_loop() {
+      float t = lowres_time_seconds(); 
 
-void dc_buffered_stream_send::send_till_empty() {
-  while(1) {
-    char* c = NULL;
-    std::streamsize readlen = sendbuf.introspective_read(c, 65536);
-    if (readlen == 0) break;
-    comm->send(target, c,  readlen);
-    sendbuf.advance_head(readlen);
-  }
-}
 
-void dc_buffered_stream_send::send_loop() {
-  while (!done) {
-    char *c = NULL;
-    std::streamsize readlen = sendbuf.blocking_introspective_read(c, 65536);
-    if (readlen == 0 && sendbuf.is_done()) break;
-    comm->send(target, c,  readlen);
-    sendbuf.advance_head(readlen);
-  }
-}
 
-void dc_buffered_stream_send::shutdown() {
-  done = true;
-  sendbuf.stop_reader();
-  thr.join();
-}
+      size_t last_sent = 0;
+      graphlab::timer timer;
+      timer.start();
+      double last_time = timer.current_time();
+      const size_t nanosecond_wait = 1000000;
+      const double nano2second = 1000*1000*1000;
+      const double second_wait = nanosecond_wait / nano2second;
+      while (1) {
 
-} // namespace dc_impl
+        bool ret = sendqueue.timed_wait_for_data(nanosecond_wait, wait_count);
+
+        if (ret) {
+          std::deque<expqueue_entry> stuff_to_send;
+          sendqueue.swap(stuff_to_send);
+          last_sent += stuff_to_send.size();
+          write_combining_send(stuff_to_send);
+        } else  break;
+
+        if (lowres_time_seconds() - t > 100) {
+          t = lowres_time_seconds();
+          std::cout << dc->procid() << "->" << target << '\t'
+                    << "(" << wait_count << ")[" << last_sent << "]"  << std::endl;
+          
+        }
+
+        if(timer.current_time() - last_time >= second_wait) {
+          wait_count = (wait_count + last_sent)/2;
+          last_sent = 0;
+          last_time = timer.current_time();
+        }
+
+      }
+    }
+
+    void dc_buffered_stream_send::shutdown() {
+      sendqueue.stop_blocking();
+      thr.join();
+    }
+
+  } // namespace dc_impl
 } // namespace graphlab
 
 

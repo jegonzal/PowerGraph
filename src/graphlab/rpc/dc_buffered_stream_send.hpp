@@ -31,7 +31,6 @@
 #include <graphlab/rpc/dc_types.hpp>
 #include <graphlab/rpc/dc_comm_base.hpp>
 #include <graphlab/rpc/dc_send.hpp>
-#include <graphlab/util/safe_circular_char_buffer.hpp>
 #include <graphlab/parallel/pthread_tools.hpp>
 #include <graphlab/util/blocking_queue.hpp>
 #include <graphlab/logger/logger.hpp>
@@ -40,26 +39,40 @@ class distributed_control;
 
 namespace dc_impl {
 
+struct expqueue_entry{
+  char* c;
+  size_t len;
+};
+
 /**
    \ingroup rpc
 Sender for the dc class.
   The job of the sender is to take as input data blocks of
   pieces which should be sent to a single destination socket.
   This can be thought of as a sending end of a multiplexor.
-  This class performs buffered transmissions.
-  That is, sends are relegated to an internal circular buffer, which is then
-  passed to the communication classes on another thread.
-
-  This implements a buffered sender and can be enabled by passing "buffered_send=yes"
+  This class performs buffered transmissions using an blocking 
+  queue with one call per queue entry.
+  A seperate thread is used to transmit queue entries. Rudimentary
+  write combining is used to decrease transmission overhead.
+  This is typically the best performing sender.
+  
+  This can be enabled by passing "buffered_queued_send=yes"
   in the distributed control initstring.
+  
+  dc_buffered_stream_send2 is similar, but does not perform write combining.
+  
 */
 
 class dc_buffered_stream_send: public dc_send{
  public:
-  dc_buffered_stream_send(distributed_control* dc, dc_comm_base *comm, procid_t target): dc(dc), 
-                                    comm(comm), target(target), done(false) { 
-    thr = launch_in_new_thread(boost::bind(&dc_buffered_stream_send::send_loop, 
-                                      this));
+  dc_buffered_stream_send(distributed_control* dc, 
+                                   dc_comm_base *comm, 
+                                   procid_t target) : 
+    dc(dc),  comm(comm), target(target), done(false), 
+    wait_count(1024000) { 
+    thr = launch_in_new_thread(boost::bind
+                               (&dc_buffered_stream_send::send_loop, 
+                                this));
   }
   
   ~dc_buffered_stream_send() {
@@ -89,6 +102,7 @@ class dc_buffered_stream_send: public dc_send{
 
   void send_loop();
   
+
   void shutdown();
   
   inline size_t bytes_sent() {
@@ -100,18 +114,26 @@ class dc_buffered_stream_send: public dc_send{
   distributed_control* dc;
   dc_comm_base *comm;
   procid_t target;
-  safe_circular_char_buffer sendbuf;
+
+  blocking_queue<expqueue_entry> sendqueue;
 
   thread thr;
   bool done;
   atomic<size_t> bytessent;
-  
-  void send_till_empty();
+  size_t wait_count;
+  // parameters for write combining.
+  // write combining will start if the data size is below the lower threshold
+  // and continue until it reaches the upper threshold
+  static const size_t combine_lower_threshold = 10240;
+  static const size_t combine_upper_threshold = 65536;  // 1 packet
+
+  void write_combining_send(std::deque<expqueue_entry>& e);
+
 };
 
 
 
 } // namespace dc_impl
 } // namespace graphlab
-#endif
+#endif // DC_BUFFERED_STREAM_SEND_EXPQUEUE_HPP
 
