@@ -327,23 +327,6 @@ namespace graphlab {
       // }
     } // end of schedule
 
-    /**
-     * This is called when a update function is scheduled to be run on
-     * a local vertex.  Here we use a "clever" trick in which we
-     * schedule the update function to run next which will cause it to
-     * be injected into the scheduler by one of the engine threads.
-     */
-    void rpc_schedule(const vertex_id_type& vid, 
-                      const update_functor_type& fun) {
-      const lvid_type lvid = graph.local_vid(vid);
-      ASSERT_I_AM_OWNER(lvid);
-      vstate_locks[lvid].lock();
-      if(vstate[lvid].hasnext) vstate[lvid].next += fun;
-      else { vstate[lvid].next = fun; vstate[lvid].hasnext = true; }
-      vstate_locks[lvid].unlock();
-      add_internal_task(lvid);
-    } // end of rpc_remote_schedule
-
 
     /**
      * \brief Creates a collection of tasks on all the vertices in the
@@ -359,7 +342,9 @@ namespace graphlab {
           scheduler_ptr->schedule(lvid, update_functor);
         }
       }      
-      if (started && threads_alive.value < ncpus) { consensus->cancel(); }
+      if (started && threads_alive.value < ncpus) {
+        consensus->cancel();
+      }
       rmi.barrier();
     } // end of schedule all
 
@@ -369,7 +354,7 @@ namespace graphlab {
      */
     void schedule_in_neighbors(const vertex_id_type& vertex, 
                                const update_functor_type& update_fun) {
-      assert(false); //TODO: IMPLEMENT
+      assert(false); //TODO: IMPLEMENTh
     } // end of schedule in neighbors
 
     /**
@@ -564,13 +549,7 @@ namespace graphlab {
       vertex_id_type tmp;
       std::vector<vertex_id_type> ready_vertices;
       switch(vstate[lvid].state) {
-      case NONE: 
-        if(vstate[lvid].hasnext) {
-          scheduler_ptr->schedule(lvid, vstate[lvid].next);
-          vstate[lvid].next = update_functor_type();
-          vstate[lvid].hasnext = false;
-        }
-        break;
+      case NONE: break;
       case GATHERING:
       case MIRROR_GATHERING:
         tmp = cmlocks->make_philosopher_hungry(lvid);
@@ -587,24 +566,24 @@ namespace graphlab {
         // fall through to scattering
       case SCATTERING:
         logstream(LOG_DEBUG) << rmi.procid() << ": Scattering On " 
-                             << graph.global_vid(lvid) << std::endl;   
+                             << graph.global_vid(lvid) << std::endl;                    
         do_scatter(lvid);
         completed_tasks.inc();
         ready_vertices = cmlocks->philosopher_stops_eating(lvid);
         if (vstate[lvid].hasnext) {
-          scheduler_ptr->schedule(lvid, vstate[lvid].next);
-          vstate[lvid].next = update_functor_type();
+          // ok. we have a next task!
+          // go back to gathering
           vstate[lvid].hasnext = false;
-          // // ok. we have a next task!
-          // // go back to gathering
-          // vstate[lvid].hasnext = false;
-          // vstate[lvid].state = NONE;
-          // // make a copy of the update functor
-          // update_functor_type tmp = vstate[lvid].next;
-          // vstate[lvid].next = update_functor_type();
-          // eval_sched_task<true>(lvid, tmp);
-        } else { vstate[lvid].current = update_functor_type(); }
-        vstate[lvid].state = NONE; 
+          vstate[lvid].state = NONE;
+          // make a copy of the update functor
+          update_functor_type tmp = vstate[lvid].next;
+          vstate[lvid].next = update_functor_type();
+          eval_sched_task<true>(lvid, tmp);
+        } 
+        else { 
+          vstate[lvid].current = update_functor_type();
+          vstate[lvid].state = NONE; 
+        }
         break;
       case MIRROR_SCATTERING:
         do_scatter(lvid);
@@ -615,7 +594,8 @@ namespace graphlab {
           vstate[lvid].hasnext = false;
           vstate[lvid].next = update_functor_type();
           add_internal_task(lvid);
-        } else {
+        }
+        else {
           vstate[lvid].current = update_functor_type();
           vstate[lvid].state = NONE;
         }
@@ -721,7 +701,6 @@ namespace graphlab {
       rmi.dc().set_sequentialization_key(prevkey);
     }
 
-
     template <bool prelocked>
     void eval_sched_task(const lvid_type sched_lvid, 
                          const update_functor_type& task) {
@@ -732,11 +711,9 @@ namespace graphlab {
       const procid_t owner = graph.l_get_vertex_record(sched_lvid).owner;
       if (owner != rmi.procid()) {
         const vertex_id_type vid = graph.global_vid(sched_lvid);
-        rmi.remote_call(owner, &engine_type::rpc_schedule, vid, task);
+        rmi.remote_call(owner, &engine_type::schedule, vid, task);
         return;
       }
-
-
       ASSERT_I_AM_OWNER(sched_lvid);
       // this is in local VIDs
       bool begin_gathering_vertex = false;
