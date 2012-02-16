@@ -78,58 +78,14 @@ class distributed_internal_update {
     enum vertex_signals {
       TRANSMISSION = 64
       LOCKS_ACQUIRED = 128
-    }
+    };
     unsigned char state;
     bool has_gather_and_apply;
     bool has_scatter;
     typename Engine::update_functor_type gather_and_apply_op;
     typename Engine::update_functor_type scatter_op;
     size_t count_down;
-  public:
-    
-    distributed_internal_update():state(NONE),
-                                  count_down(0),
-                                  has_gather_and_apply(false),
-                                  has_scatter(false) { }
-    
-    distributed_internal_update& operator+=(distributed_internal_update& other) {
-      if (other.has_gather_and_apply) {
-        if (has_gather_and_apply) gather_and_apply_op += other.gather_and_apply_op;
-        else {
-          gather_and_apply_op = other.gather_and_apply_op;
-          has_gather_and_apply = true;
-        }
-      }
-      
-      // join the scattering states
-      if (other.scatter_op) {
-        if (scatter_op) scatter_op += other.scatter_op;
-        else {
-          scatter_op = other.scatter_op;
-          has_scatter = true;
-        }
-      }
-    }
 
-    double priority() {
-    }
-
-    void save(oarchive &oarc) const {
-      oarc << state;
-      // conditional save of gather and scatter states
-      if (state & ANY_GATHERING_OR_APPLYING) oarc << gather_and_apply_op;
-      if (state & ANY_SCATTERING) oarc << scatter_op;
-    }
-    
-    void load(iarchive &iarc) {
-      iarc >> state;
-      // conditional save of gather and scatter states
-      if (state & ANY_GATHERING_OR_APPLYING) iarc >> gather_and_apply_op;
-      if (state & ANY_SCATTERING)iarc >> scatter_op;
-    }
-    
-    void exec(Engine* ptr, vertex_id_type vid) {
-    }
 };
   
 }

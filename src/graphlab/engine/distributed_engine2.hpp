@@ -298,7 +298,9 @@ namespace graphlab {
      * 
      * \return the total number of updates
      */
-    size_t last_update_count() const { return 0; }
+    size_t last_update_count() const { 
+      return completed_tasks.value; 
+    }
            
     
     /**
@@ -529,6 +531,7 @@ namespace graphlab {
         locked_gather_complete(lvid);
       } else {
         vstate[lvid].state = MIRROR_SCATTERING;
+        vstate[lvid].current = update_functor_type();
         rmi.remote_call(vowner,
                         &engine_type::rpc_gather_complete,
                         graph.global_vid(lvid),
@@ -574,14 +577,28 @@ namespace graphlab {
             vstate[lvid].state = NONE;
             // make a copy of the update functor
             update_functor_type tmp = vstate[lvid].next;
+            vstate[lvid].next = update_functor_type();
             eval_sched_task<true>(lvid, tmp);
-          } else { vstate[lvid].state = NONE; }
+          } 
+          else { 
+            vstate[lvid].current = update_functor_type();
+            vstate[lvid].state = NONE; 
+          }
           break;
         case MIRROR_SCATTERING:
           do_scatter(lvid);
           ready_vertices = cmlocks->philosopher_stops_eating(lvid);
-          ASSERT_FALSE(vstate[lvid].hasnext);
-          vstate[lvid].state = NONE;
+          if(vstate[lvid].hasnext) {
+            vstate[lvid].state = MIRROR_GATHERING;
+            vstate[lvid].current = vstate[lvid].next;
+            vstate[lvid].hasnext = false;
+            vstate[lvid].next = update_functor_type();
+            add_internal_task(lvid);
+          }
+          else {
+            vstate[lvid].current = update_functor_type();
+            vstate[lvid].state = NONE;
+          }
           break;
       }
       vstate_locks[lvid].unlock();
@@ -615,15 +632,19 @@ namespace graphlab {
       // set the vertex state
       vstate_locks[sched_lvid].lock();
       if (vstate[sched_lvid].state != NONE) {
-        std::cout << rmi.procid() << ": Vertex Failure: " << sched_vid << " Unexpected state." << std::endl;
-        ASSERT_EQ(vstate[sched_lvid].state, NONE);
+        ASSERT_EQ(vstate[sched_lvid].state, MIRROR_SCATTERING);
+        ASSERT_FALSE(vstate[sched_lvid].hasnext);
+        vstate[sched_lvid].next = task;
+        vstate[sched_lvid].hasnext = true;
+        vstate_locks[sched_lvid].unlock();
       }
-    
-      vstate[sched_lvid].state = MIRROR_GATHERING;
-      vstate[sched_lvid].current = task;
-      vstate_locks[sched_lvid].unlock();
-      // lets go
-      add_internal_task(sched_lvid);
+      else {    
+        vstate[sched_lvid].state = MIRROR_GATHERING;
+        vstate[sched_lvid].current = task;
+        vstate_locks[sched_lvid].unlock();
+        // lets go
+        add_internal_task(sched_lvid);
+      }
     }
 
     /**
@@ -753,6 +774,7 @@ namespace graphlab {
      * true or the scheduler has no tasks remaining.
      */
     void start() {
+      logstream(LOG_INFO) << "Spawning " << ncpus << " threads" << std::endl;
       ASSERT_TRUE(scheduler_ptr != NULL);
       // start the scheduler
       scheduler_ptr->start();
@@ -766,6 +788,8 @@ namespace graphlab {
       thrgroup.join();
       size_t ctasks = completed_tasks.value;
       rmi.all_reduce(ctasks);
+      completed_tasks.value = ctasks;
+      issued_tasks.value = ctasks;
       if (rmi.procid() == 0) {
         logstream(LOG_DEBUG) << "Completed Tasks: " << ctasks << std::endl;
       }
