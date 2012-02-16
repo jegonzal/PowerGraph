@@ -39,13 +39,11 @@
 #include <graphlab/logger/assertions.hpp>
 #include <graphlab/parallel/atomic.hpp>
 #include <graphlab/util/generics/any.hpp>
+#include <graphlab/util/branch_hints.hpp>
 #include <boost/unordered_map.hpp>
 #undef _POSIX_SPIN_LOCKS
 #define _POSIX_SPIN_LOCKS -1
 
-
-#define __likely__(x)       __builtin_expect((x),1)
-#define __unlikely__(x)     __builtin_expect((x),0)
 
 
 

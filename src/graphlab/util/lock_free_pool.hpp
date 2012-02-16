@@ -5,13 +5,15 @@
 #include <graphlab/logger/assertions.hpp>
 #include <graphlab/parallel/atomic.hpp>
 #include <graphlab/util/lock_free_internal.hpp>
+#include <graphlab/util/branch_hints.hpp>
 
 namespace graphlab {
 template <typename T, typename index_type = uint32_t>
 class lock_free_pool{
  private:
   std::vector<T> data;
-  
+  T* lower_ptrlimit;
+  T* upper_ptrlimit;
   // freelist[i] points to the next free list element
   // if freelist[i] == index_type(-1), then it is the last element
   // allocated entries are set to index_type(0), though
@@ -31,6 +33,8 @@ class lock_free_pool{
     if (poolsize == 0) {
      data.clear();
      freelist.clear();
+     lower_ptrlimit = NULL;
+     upper_ptrlimit = NULL;
     }
     else {
       data.resize(poolsize);
@@ -39,6 +43,8 @@ class lock_free_pool{
         freelist[i] = i + 1;
       }
       freelist[freelist.size() - 1] = index_type(-1);
+      lower_ptrlimit = &(data[0]);
+      upper_ptrlimit = &(data[data.size() - 1]);
     }
     freelisthead.q.val = 0;
     freelisthead.q.counter = 0;
@@ -54,7 +60,7 @@ class lock_free_pool{
     queue_ref_type newhead;
     do {
       oldhead.combined = freelisthead.combined;
-      if (oldhead.q.val == index_type(-1)) return NULL;
+      if (oldhead.q.val == index_type(-1)) return new T; // ran out of pool elements
       newhead.q.val = freelist[oldhead.q.val];
       newhead.q.counter = oldhead.q.counter + 1;
     } while(!atomic_compare_and_swap(freelisthead.combined, 
@@ -65,9 +71,15 @@ class lock_free_pool{
   }
   
   void free(T* p) {
-    // sanity check
+    // is this from the pool?
+    // if it is below the pointer limits
+    if (__unlikely__(p < lower_ptrlimit || p > upper_ptrlimit)) {
+      delete p;
+      return;
+    }
+    
     index_type cur = index_type(p - &(data[0]));
-    ASSERT_EQ(freelist[cur], index_type(-1));
+
     // prepare for free list insertion
     // I need to atomically set freelisthead == cur
     // and freelist[cur] = freelisthead

@@ -49,8 +49,10 @@
 #include <graphlab/scheduler/ischeduler.hpp>
 #include <graphlab/scheduler/scheduler_factory.hpp>
 #include <graphlab/util/chandy_misra.hpp>
+#include <graphlab/scheduler/queued_fifo_scheduler.hpp>
 
 #include <graphlab/rpc/async_consensus.hpp>
+#include <graphlab/engine/distributed_internal_update.hpp>
 
 #include <graphlab/macros_def.hpp>
 
@@ -74,6 +76,10 @@ namespace graphlab {
     typedef ischeduler<pseudo_engine<Graph, UpdateFunctor> > ischeduler_type;
   };
   
+  
+  
+
+  
 
   template<typename Graph, typename UpdateFunctor>
   class distributed_engine: public iengine<Graph, UpdateFunctor> {
@@ -93,6 +99,13 @@ namespace graphlab {
 
     typedef ischeduler<pseudo_engine<Graph, UpdateFunctor> > ischeduler_type;
     
+    typedef distributed_internal_update<engine_type> 
+                    internal_update_functor_type;
+
+    typedef queued_fifo_scheduler<
+                            pseudo_engine<Graph, internal_update_functor_type> 
+                                 > internal_scheduler_type;
+    
     typedef typename iengine_base::icontext_type  icontext_type;
     typedef context<distributed_engine>           context_type;
     //typedef context_manager<distributed_engine> context_manager_type;
@@ -101,62 +114,8 @@ namespace graphlab {
     typedef typename iengine_base::termination_function_type 
     termination_function_type;
     
-    
-    enum vertex_execution_state {
-      NONE = 0,
-      GATHERING,   // state on owner
-      APPLYING,    // state on owner
-      SCATTERING,  // state on owner
-      MIRROR_GATHERING, // state on mirror
-      MIRROR_SCATTERING, // state on mirror
-    }; // end of vertex execution state
-
-
-    struct vertex_state {
-      uint32_t apply_count_down; // used to count down the gathers
-      bool hasnext;
-      vertex_execution_state state; // current state of the vertex 
-      update_functor_type current; // What is currently being executed
-                                   //  accumulated
-      update_functor_type next; // next is set if the vertex is being
-                                // executed, but for whatever reason
-                                // it got popped from the scheduler
-                                // again
-      vertex_state(): apply_count_down(0), hasnext(false), state(NONE) { }      
-      std::ostream& operator<<(std::ostream& os) const {
-        switch(state) {
-        case NONE: { os << "NONE"; break; }
-        case GATHERING: { os << "GATHERING: " << apply_count_down; break; }
-        case APPLYING: { os << "APPLYING"; break; }
-        case SCATTERING: { os << "SCATTERING"; break; }
-        case MIRROR_GATHERING: { os << "MIRROR_GATHERING"; break; }
-        case MIRROR_SCATTERING: { os << "MIRROR_SCATTERING"; break; }
-        }
-        return os;
-      }
-    }; // end of vertex_state
-    
-    
     struct thread_local_data {
-      mutex lock;
-      size_t npending;
-      std::queue<vertex_id_type> pending_vertices;      
-      thread_local_data() : npending(0) { }       
-      void add_task(vertex_id_type v) {
-        lock.lock();
-        ++npending;
-        pending_vertices.push(v);
-        lock.unlock();
-      }
-      bool get_task(vertex_id_type &v) {
-        lock.lock();
-        if (npending == 0) { lock.unlock(); return false; }
-        --npending;
-        v = pending_vertices.front();
-        pending_vertices.pop();
-        lock.unlock();
-        return true;
-      }
+   
     }; // end of thread local data
 
   private:
@@ -174,6 +133,7 @@ namespace graphlab {
     
     //! The scheduler
     ischeduler_type* scheduler_ptr;
+    internal_scheduler_type* internal_scheduler_ptr;
     
     std::vector<vertex_state> vstate;
     std::vector<mutex> vstate_locks;
@@ -253,11 +213,17 @@ namespace graphlab {
      */
     void initialize() {
       logstream(LOG_INFO) << rmi.procid() << ": Initializing..." << std::endl;
+
       scheduler_ptr = scheduler_factory<pseudo_engine<Graph, UpdateFunctor> >::
         new_scheduler(opts.scheduler_type,
                       opts.scheduler_args,
                       graph.get_local_graph(),
                       ncpus);
+        
+      internal_scheduler_ptr = new internal_scheduler_type(graph.get_local_graph(),
+                                                           ncpus,
+                                                           options_map());
+      
       vstate.resize(graph.num_local_vertices());
       vstate_locks.resize(graph.num_local_vertices());
       consensus = new async_consensus(rmi.dc(), ncpus);
