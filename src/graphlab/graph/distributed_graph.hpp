@@ -138,7 +138,7 @@ namespace graphlab {
             const vertex_id_type source = graph_ptr->global_vid(edge.source());
             const vertex_id_type target = graph_ptr->global_vid(edge.target());
             const vertex_id_type eid = 
-              graph_ptr->global_eid(graph_ptr->get_l_edge_id(edge));
+              graph_ptr->global_eid(graph_ptr->local_eid(edge));
             const procid_t owner = graph_ptr->rpc.procid();
             return edge_type(source, target, eid, owner);
           }
@@ -545,8 +545,6 @@ namespace graphlab {
     } // end of local_vertex_id
 
     vertex_id_type global_vid (const lvid_type lvid) const { 
-      // ASSERT_LT(lvid, lvid2vid.size());
-      // return lvid2vid[lvid];
       ASSERT_LT(lvid, lvid2record.size());
       return lvid2record[lvid].gvid;
     } // end of global_vertex_id
@@ -587,7 +585,7 @@ namespace graphlab {
       return (eid - begin_eid);
     } 
 
-    leid_type get_l_edge_id(const local_edge_type& e) const {
+    leid_type local_eid(const local_edge_type& e) const {
       return local_graph.edge_id(e);
     }
 
