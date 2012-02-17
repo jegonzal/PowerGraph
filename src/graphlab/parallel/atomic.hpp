@@ -86,6 +86,8 @@ namespace graphlab {
     //! Performs an atomic decrement by 'val', returning the new value
     T dec_ret_last(const T val) { return __sync_fetch_and_sub(&value, val);  }
 
+    //! Performs an atomic exchange with 'val', returning the previous value
+    T exchange(const T val) { return __sync_lock_test_and_set(&value, val);  }
   };
 
 

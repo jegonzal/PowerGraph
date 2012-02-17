@@ -923,16 +923,14 @@ private:
     }
   }
   
-
-
-  /**
+/**
    * Each machine issues a piece of data.
    * After calling all_gather(), all machines will return with identical
    * values of data which is equal to the sum of everyone's contributions.
    * Sum is computed using operator+=
    */
-  template <typename U>
-  void all_reduce(U& data, bool control = false) {
+  template <typename U, typename PlusEqual>
+  void all_reduce2(U& data, PlusEqual plusequal, bool control = false) {
     if (numprocs() == 1) return;
     // get the string representation of the data
    /* charstream strm(128);
@@ -957,7 +955,7 @@ private:
             iarchive iarc(istrm);
             U tmp;
             iarc >> tmp;
-            data += tmp;
+            plusequal(data, tmp);
           }
           // upward message
           charstream ostrm(128);
@@ -992,7 +990,7 @@ private:
         iarchive iarc(istrm);
         U tmp;
         iarc >> tmp;
-        data += tmp;
+        plusequal(data, tmp);
       }
       // build the downward data
       charstream ostrm(128);
@@ -1015,7 +1013,7 @@ private:
       if (ab_barrier_release == ab_barrier_val) break;
       ab_barrier_cond.wait(ab_barrier_mut);
     }
-    
+
     if (procid() != 0) {
       // read the collected data and release the lock
       std::string local_ab_alldata = ab_alldata;
@@ -1030,6 +1028,24 @@ private:
     else {
       ab_barrier_mut.unlock();
     }
+  }
+
+  
+  template <typename U>
+  struct default_plus_equal {
+    void operator()(U& u, const U& v) {
+      u += v;
+    }
+  };
+  /**
+   * Each machine issues a piece of data.
+   * After calling all_gather(), all machines will return with identical
+   * values of data which is equal to the sum of everyone's contributions.
+   * Sum is computed using operator+=
+   */
+  template <typename U>
+  void all_reduce(U& data, bool control = false) {
+    all_reduce2(data, default_plus_equal<U>(), control);
   }
 
 ////////////////////////////////////////////////////////////////////////////

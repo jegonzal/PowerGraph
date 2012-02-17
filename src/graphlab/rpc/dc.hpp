@@ -662,6 +662,9 @@ class distributed_control{
   template <typename U>
   inline void all_reduce(U& data, bool control = false);
 
+
+  template <typename U, typename PlusEqual>
+  inline void all_reduce2(U& data, PlusEqual plusequal, bool control = false);
   
   /**
    * This function is takes a vector of local elements T which must
@@ -818,6 +821,12 @@ inline void distributed_control::all_gather(std::vector<U>& data, bool control) 
 template <typename U>
 inline void distributed_control::all_reduce(U& data, bool control) {
   distributed_services->all_reduce(data, control);
+}
+
+
+template <typename U, typename PlusEqual>
+inline void distributed_control::all_reduce2(U& data, PlusEqual plusequal, bool control) {
+  distributed_services->all_reduce2(data, plusequal, control);
 }
 
 template <typename U>
