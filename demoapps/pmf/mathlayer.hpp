@@ -205,6 +205,25 @@ inline ivec sort_index(const vec&a){
   } 
   return ret;
 }
+inline ivec sort_index2(const vec&a, const ivec&indices, vec & out, int K){
+  assert(a.size() == indices.size());
+  ivec ret(a.size()); 
+  std::vector<std::pair<double,int> > D;
+  // 	
+  D.reserve(a.size());
+  for (int i=0;i<a.size();i++)
+    D.push_back(std::make_pair<double,int>(a[i],indices[i]));
+  std::partial_sort(D.begin(),D.begin() + K, D.end());
+  for (int i=0;i<a.size();i++)
+  { 
+    ret[i]=D[i].second;
+    out[i] = D[i].first;
+    if (i >= K-1)
+      break;
+  } 
+  return ret;
+}
+
 
 //Eigen does not sort eigenvalues, as done in matlab
 inline bool eig_sym(const mat & T, vec & eigenvalues, mat & eigenvectors){
@@ -578,6 +597,13 @@ inline vec sqrt(const vec & v){
    }
    return ret;
 }
+inline void plus_mul( vec &v1,  sparse_vec &v2, double factor){
+  FOR_ITERATOR(i, v2){  
+    v1[get_nz_index(v2, i)] += factor*get_nz_data(v2, i);
+  }
+}
+
+
 #else //eigen is not found
 /***
  *

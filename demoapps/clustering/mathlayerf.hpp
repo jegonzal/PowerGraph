@@ -454,6 +454,12 @@ inline void assign(vec & v1, sparse_vec & v2, int N){
   }
 }
 
+inline void plus_mul( fvec &v1,  sparse_fvec &v2, float factor){
+  FOR_ITERATOR2(i, v2){  
+    v1[get_nz_index(v2, i)] += factor*get_nz_data(v2, i);
+  }
+}
+
 
 
 #else //eigen is not found
