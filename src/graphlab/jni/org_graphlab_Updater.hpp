@@ -127,6 +127,9 @@ namespace graphlab {
     
     void operator+=(const update_functor_type& other);
     
+    /**
+     * Initialize JNI method IDs
+     */
     static void init(JNIEnv *env);
     
   };

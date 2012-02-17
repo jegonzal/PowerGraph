@@ -33,6 +33,7 @@ jmethodID proxy_updater::java_add = 0;
 jmethodID proxy_updater::java_priority= 0;
 jmethodID proxy_updater::java_clone    = 0;
 
+// initialize JNI method IDs
 void proxy_updater::init(JNIEnv *env){
 
   jclass updater_class = env->FindClass("org/graphlab/Updater");
