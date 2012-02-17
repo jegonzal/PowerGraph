@@ -154,7 +154,7 @@ public class PageRank {
     
     Collections.sort(verticesList, new Comparator<ScalarVertex>(){
       public int compare(ScalarVertex left, ScalarVertex right) {
-        return Double.compare(left.value(), right.value());
+        return Double.compare(right.value(), left.value());
       }
     });
     
