@@ -60,11 +60,11 @@ set(CMAKE_MODULE_PATH ${GraphLab_SOURCE_DIR}/cmake)
 if(NOT EXPERIMENTAL)
   set(EXPERIMENTAL 0 CACHE BOOL "Enables building of experimental
   components.")
-endif()
+endif(NOT EXPERIMENTAL)
 
 if(NOT KC_ROOT)
   set(KC_ROOT "" CACHE STRING "Kyoto Cabinet Prefix")
-endif()
+endif(NOT KC_ROOT)
 
 
 
@@ -108,9 +108,9 @@ message(STATUS "Boost Shared libs: " ${Boost_SHARED_LIBRARIES})
 
 if (HAS_EIGEN)
   message(STATUS "Found Eigen linear algebra package")
-else ()
+else (HAS_EIGEN)
   message(STATUS "Eigen linear algebra package not found")
-endif()
+endif (HAS_EIGEN)
 
 
 
@@ -120,11 +120,11 @@ if(EXISTS ${JAVA_INCLUDE_PATH}/jni.h  )
   set(JNI_REALLY_FOUND 1 CACHE BOOL "Tests whether the header
   actually exists")
 message(STATUS "jni.h was found at " ${JAVA_INCLUDE_PATH}/jni.h)
-else( )
+else( EXISTS ${JAVA_INCLUDE_PATH}/jni.h  )
   set(JNI_REALLY_FOUND 0 CACHE BOOL "Tests whether the header
   actually exists")
 message(STATUS "jni.h was not found at " ${JAVA_INCLUDE_PATH}/jni.h)
-endif( )
+endif( EXISTS ${JAVA_INCLUDE_PATH}/jni.h )
 
 
 
@@ -571,7 +571,7 @@ MACRO(add_jni_library NAME)
     #         SET(CMAKE_SHARED_MODULE_CREATE_CXX_FLAGS "-dynamiclib -m64 ")
     #         SET_TARGET_PROPERTIES(${NAME} PROPERTIES SUFFIX .jnilib)
     # ENDIF (APPLE)
-  ENDIF ()
+  ENDIF (JNI_REALLY_FOUND)
 ENDMACRO(add_jni_library)
 
 
@@ -617,10 +617,10 @@ subdirs(src tests)
 
 if (IS_DIRECTORY ${GraphLab_SOURCE_DIR}/apps)
   subdirs(apps)
-endif()
+endif  (IS_DIRECTORY ${GraphLab_SOURCE_DIR}/apps)
 if (IS_DIRECTORY ${GraphLab_SOURCE_DIR}/demoapps)
   subdirs(demoapps)
-endif()
+endif (IS_DIRECTORY ${GraphLab_SOURCE_DIR}/demoapps)
 
 
 ## ===================================================================
