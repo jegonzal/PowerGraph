@@ -58,6 +58,7 @@ add_library(graphlab STATIC
   util/safe_circular_char_buffer.cpp
   util/fs_util.cpp
   util/tracepoint.cpp
+  util/event_log.cpp
   util/md5.cpp
   ${mmap_allocator}
   factors/discrete_variable.cpp
