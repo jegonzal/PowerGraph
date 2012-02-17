@@ -16,6 +16,7 @@ extapis/java_jni/dist
 extapis/java_jni/bin
 
 demoapps/coloring/matlab_tools/*.tsv
+demoapps/shortest_path/matlab_tools/*.tsv
 
 tags
 *swp
