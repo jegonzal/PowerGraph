@@ -23,7 +23,7 @@
 #ifndef GRAPHLAB_IDISTRIBUTED_INGRESS_HPP
 #define GRAPHLAB_IDISTRIBUTED_INGRESS_HPP
 
-
+#include <vector>
 #include <graphlab/graph/graph_basic_type.hpp>
 
 
