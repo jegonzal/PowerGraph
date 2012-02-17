@@ -46,6 +46,39 @@ public:
   }
 }; // end of shortest path update functor
 
+/**
+ * This aggregator sums the distances and finds the longest distance.
+ */       
+class aggregator :
+  public graphlab::iaggregator<graph_type, shortest_path_update, aggregator> {
+private:
+  float max_dist;
+  float sum_dist;
+  vertex_id_type furthest_vertex;
+public:
+  aggregator() : max_dist(0), sum_dist(0), furthest_vertex(0) { }
+  void operator()(icontext_type& context) {
+    float dist = context.const_vertex_data().dist;
+    sum_dist += dist;
+    if (dist > max_dist){
+      max_dist = dist;
+      furthest_vertex = context.vertex_id();
+    }
+  } // end of operator()
+  void operator+=(const aggregator& other) {
+    sum_dist += other.sum_dist;
+    if (other.max_dist > max_dist){
+      max_dist = other.max_dist;
+      furthest_vertex = other.furthest_vertex;
+    }
+  }
+  void finalize(iglobal_context_type& context) {
+    std::cout << "Total Distance:\t\t" << sum_dist << std::endl 
+              << "Longest Distance:\t" <<  max_dist << std::endl
+              << "Furthest Vertex:\t"  << furthest_vertex << std::endl;
+  }
+}; // end of aggregator
+
 
 int main(int argc, char** argv) {
   // Parse input
@@ -89,6 +122,9 @@ int main(int argc, char** argv) {
   std::cout << "Update Count: " << core.last_update_count() << std::endl;
   std::cout << "Update Freq:  " << (core.last_update_count() / runtime) 
             << std::endl;
+            
+  core.add_aggregator("aggregator", aggregator(), 0);
+  core.aggregate_now("aggregator");
 
 }
 
