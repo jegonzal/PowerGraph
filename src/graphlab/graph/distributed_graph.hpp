@@ -724,6 +724,7 @@ namespace graphlab {
     block_get_degree_table(std::set<vertex_id_type> vid_query) {
       dht_degree_table_type answer;
       typedef typename dht_degree_table_type::iterator iterator_type;
+      dht_degree_table_lock.lock();
       foreach (vertex_id_type qvid, vid_query) {
         iterator_type iter = dht_degree_table.find(qvid);
         if (iter == dht_degree_table.end()) {
@@ -732,24 +733,11 @@ namespace graphlab {
           answer[qvid] = iter->second;
         }
       }
+      dht_degree_table_lock.unlock();
       return answer;
     }  // end of block get degree table
 
-
-    // Return a size=#procs vector. Each is the degrees of vid on that proc.
-    // Thread unsafe, but its ok, we just need approximate counts.
-    std::vector<size_t>& get_degree_table (const vertex_id_type& vid) {
-      typedef typename dht_degree_table_type::iterator iterator_type;
-      iterator_type iter = dht_degree_table.find(vid);
-      if (iter == dht_degree_table.end()) {
-        return std::vector<size_t>(rpc.numprocs(), 0);
-      } else {
-        return iter->second;
-      }
-    }
-
-
-    // Helper type used to synchronize the vertex data and assignments
+   // Helper type used to synchronize the vertex data and assignments
     struct shuffle_record {
       procid_t owner;
       size_t num_in_edges, num_out_edges;
