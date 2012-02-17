@@ -87,7 +87,15 @@ namespace graphlab {
       opts.get_option("queuesize", sub_queue_size);
     }
 
-    void start() { term.reset(); }
+    void start() { 
+      master_lock.lock();
+      for (size_t i = 0;i < in_queues.size(); ++i) {
+        master_queue.push_back(in_queues[i]);
+        in_queues[i].clear();
+      }
+      master_lock.unlock();
+      term.reset(); 
+    }
    
 
     void schedule(const vertex_id_type vid, 
@@ -127,7 +135,7 @@ namespace graphlab {
       if(out_queues[cpuid].empty()) {
         master_lock.lock();
         if(!master_queue.empty()) {
-          out_queues[cpuid] = master_queue.front();
+          out_queues[cpuid].swap(master_queue.front());
           master_queue.pop_front();
         }
         master_lock.unlock();

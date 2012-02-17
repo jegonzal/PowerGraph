@@ -116,6 +116,7 @@ namespace graphlab {
     struct vertex_state {
       uint32_t apply_count_down; // used to count down the gathers
       bool hasnext;
+      bool scheduler_add;
       vertex_execution_state state; // current state of the vertex 
       update_functor_type current; // What is currently being executed
                                    //  accumulated
@@ -123,7 +124,7 @@ namespace graphlab {
                                 // executed, but for whatever reason
                                 // it got popped from the scheduler
                                 // again
-      vertex_state(): apply_count_down(0), hasnext(false), state(NONE) { }      
+      vertex_state(): apply_count_down(0), hasnext(false), scheduler_add(false), state(NONE) { }      
       std::ostream& operator<<(std::ostream& os) const {
         switch(state) {
         case NONE: { os << "NONE"; break; }
@@ -231,10 +232,10 @@ namespace graphlab {
       }
     } // end of try to quit
 
-    void ASSERT_I_AM_OWNER(const lvid_type lvid) const {
+    inline void ASSERT_I_AM_OWNER(const lvid_type lvid) const {
       ASSERT_EQ(graph.l_get_vertex_record(lvid).owner, rmi.procid());
     }
-    void ASSERT_I_AM_NOT_OWNER(const lvid_type lvid) const {
+    inline void ASSERT_I_AM_NOT_OWNER(const lvid_type lvid) const {
       ASSERT_NE(graph.l_get_vertex_record(lvid).owner, rmi.procid());
     }
     
@@ -312,8 +313,25 @@ namespace graphlab {
                   const update_functor_type& update_functor) {
       logstream(LOG_DEBUG) << rmi.procid() << ": Schedule " << vid << std::endl;
       const lvid_type local_vid = graph.local_vid(vid);
-      scheduler_ptr->schedule(local_vid, update_functor);
-      if (started && threads_alive.value < ncpus) consensus->cancel_one();
+      if (!started) {
+        scheduler_ptr->schedule(local_vid, update_functor);
+      }
+      else if (threads_alive.value == ncpus) {
+        vstate_locks[local_vid].lock();
+        if (vstate[local_vid].hasnext) {
+          vstate[local_vid].next += update_functor;
+        }
+        else {
+          vstate[local_vid].next = update_functor;
+          vstate[local_vid].hasnext = true;
+          vstate[local_vid].scheduler_add = true;
+          add_internal_task(local_vid);
+        }
+        vstate_locks[local_vid].unlock();
+      }
+      else if (threads_alive.value < ncpus) {
+        consensus->cancel();
+      }
       // const procid_t owner = graph.get_vertex_record(vid).owner;
       // if (owner == rmi.procid()) {
       //   scheduler_ptr->schedule(graph.local_vid(vid), update_functor);
@@ -548,8 +566,20 @@ namespace graphlab {
 
       vertex_id_type tmp;
       std::vector<vertex_id_type> ready_vertices;
+      
+      if (vstate[lvid].scheduler_add) {
+        vstate[lvid].scheduler_add = false;
+        if (vstate[lvid].hasnext) {
+          scheduler_ptr->schedule(lvid, vstate[lvid].next);
+          vstate[lvid].hasnext = false;
+          vstate[lvid].next = update_functor_type();
+        }
+        vstate_locks[lvid].unlock();
+        return;
+      }
       switch(vstate[lvid].state) {
-      case NONE: break;
+      case NONE: 
+        break;
       case GATHERING:
       case MIRROR_GATHERING:
         tmp = cmlocks->make_philosopher_hungry(lvid);
@@ -571,14 +601,10 @@ namespace graphlab {
         completed_tasks.inc();
         ready_vertices = cmlocks->philosopher_stops_eating(lvid);
         if (vstate[lvid].hasnext) {
-          // ok. we have a next task!
-          // go back to gathering
+          // stick next back into the scheduler
+          scheduler_ptr->schedule(lvid, vstate[lvid].next);
           vstate[lvid].hasnext = false;
-          vstate[lvid].state = NONE;
-          // make a copy of the update functor
-          update_functor_type tmp = vstate[lvid].next;
           vstate[lvid].next = update_functor_type();
-          eval_sched_task<true>(lvid, tmp);
         } 
         else { 
           vstate[lvid].current = update_functor_type();
@@ -798,6 +824,23 @@ namespace graphlab {
       issued_tasks.value = ctasks;
       if (rmi.procid() == 0) {
         logstream(LOG_DEBUG) << "Completed Tasks: " << ctasks << std::endl;
+      }
+      
+      // test if all schedulers are empty
+      for (size_t i = 0;i < ncpus; ++i) {
+        if (thrlocal[i].npending) {
+          logstream(LOG_WARNING) << rmi.procid() << ": Found " 
+                                 << thrlocal[i].npending 
+                                 << " Internal Tasks on CPU " << i << std::endl;
+        }
+        vertex_id_type sched_lvid;
+        update_functor_type task;
+        sched_status::status_enum stat = 
+                      scheduler_ptr->get_next(i, sched_lvid, task);
+        if (stat == sched_status::NEW_TASK) {
+          logstream(LOG_WARNING) << rmi.procid() << ": Found Scheduler Tasks" 
+                                 << " on CPU " << i << std::endl;
+        }
       }
     }
   
