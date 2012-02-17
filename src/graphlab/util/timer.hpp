@@ -113,6 +113,10 @@ namespace graphlab {
   */
   void my_sleep(size_t sleeplen);
 
+  /**
+  Sleeps for sleeplen milliseconds.
+  */
+  void my_sleep_ms(size_t sleeplen);
 
 } // end of graphlab namespace
 

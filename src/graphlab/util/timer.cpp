@@ -85,7 +85,17 @@ namespace graphlab {
     timeout.tv_nsec = 0;
     while (nanosleep(&timeout, &timeout) == -1);
   }
-  
+
+
+  /**
+  Sleeps for sleeplen milliseconds.
+  */
+  void my_sleep_ms(size_t sleeplen) {
+    struct timespec timeout;
+    timeout.tv_sec = sleeplen / 1000;
+    timeout.tv_nsec = (sleeplen % 1000) * 1000000;
+    while (nanosleep(&timeout, &timeout) == -1);
+  }
   
   /**
    * Precision of deciseconds 
