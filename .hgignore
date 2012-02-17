@@ -15,6 +15,8 @@ new_news.txt
 extapis/java_jni/dist
 extapis/java_jni/bin
 
+demoapps/coloring/matlab_tools/*.tsv
+
 tags
 *swp
 \.mchg\.mchg
