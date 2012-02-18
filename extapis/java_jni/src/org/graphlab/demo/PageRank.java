@@ -227,7 +227,7 @@ public class PageRank {
     public void add(Updater<ScalarVertex> other){
       if (!(other instanceof PageRankUpdater))
         throw new IllegalStateException("incompatible updaters added.");
-      mPriority += other.priority();
+      mPriority += ((PageRankUpdater) other).priority();
     }
 
     @Override

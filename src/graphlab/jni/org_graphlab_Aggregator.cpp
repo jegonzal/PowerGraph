@@ -103,27 +103,12 @@ proxy_aggregator::~proxy_aggregator(){}
 
 void proxy_aggregator::operator()(icontext_type& context){
   
+  // forward call to org.graphlab.Aggregator#exec
   JNIEnv *env = core::get_jni_env();
-  
-  // forward call to org.graphlab.Aggregator
   env->CallVoidMethod (obj(), java_exec,
                        &context,
                        context.vertex_data().app_vertex);
-  
-  // check for exception
-  jthrowable exc = env->ExceptionOccurred();
-  if (exc) {
-  
-    // TODO: better error handling
-      
-    jclass new_exc;
-    env->ExceptionDescribe();
-    env->ExceptionClear();
-    new_exc = env->FindClass("java/lang/IllegalArgumentException");
-    if (new_exc == NULL) return;
-    env->ThrowNew(new_exc, "thrown from C code");
-    
-  }
+  handle_exception(env);
 
 }
 
@@ -133,25 +118,10 @@ void proxy_aggregator::operator()(icontext_type& context){
 
 void proxy_aggregator::operator+=(const proxy_aggregator& other) {
   
+  // forward call to org.graphlab.Aggregator#add
   JNIEnv *env = core::get_jni_env();
-  
-  // forward call to org.graphlab.Updater
   env->CallVoidMethod (obj(), java_add, other.obj());
-  
-  // check for exception
-  jthrowable exc = env->ExceptionOccurred();
-  if (exc) {
-  
-    // TODO: better error handling
-      
-    jclass new_exc;
-    env->ExceptionDescribe();
-    env->ExceptionClear();
-    new_exc = env->FindClass("java/lang/IllegalArgumentException");
-    if (new_exc == NULL) return;
-    env->ThrowNew(new_exc, "thrown from C code");
-    
-  }
+  handle_exception(env);
 
 }
 
@@ -161,24 +131,9 @@ void proxy_aggregator::operator+=(const proxy_aggregator& other) {
 
 void proxy_aggregator::finalize(iglobal_context& context){
 
+  // forward call to org.graphlab.Aggregator#finalize
   JNIEnv *env = core::get_jni_env();
-  
-  // forward call to org.graphlab.Aggregator
   env->CallVoidMethod (obj(), java_finalize, &context);
-  
-  // check for exception
-  jthrowable exc = env->ExceptionOccurred();
-  if (exc) {
-  
-    // TODO: better error handling
-      
-    jclass new_exc;
-    env->ExceptionDescribe();
-    env->ExceptionClear();
-    new_exc = env->FindClass("java/lang/IllegalArgumentException");
-    if (new_exc == NULL) return;
-    env->ThrowNew(new_exc, "thrown from C code");
-    
-  }
+  handle_exception(env);
 
 }
