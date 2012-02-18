@@ -161,10 +161,14 @@ namespace graphlab {
     * Sum is computed using operator+=
     */
     template <typename U>
-    inline void all_reduce(U& data, bool control) {
+    inline void all_reduce(U& data, bool control = false) {
       rmi.all_reduce(data, control);
     }
 
+    template <typename U, typename PlusEqual>
+    void all_reduce2(U& data, PlusEqual plusequal, bool control = false) {
+      rmi.all_reduce2(data, plusequal, control);
+    }
 
   /**
    * This function is takes a vector of local elements T which must

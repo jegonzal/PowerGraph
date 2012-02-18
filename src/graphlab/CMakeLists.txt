@@ -58,6 +58,7 @@ add_library(graphlab STATIC
   util/safe_circular_char_buffer.cpp
   util/fs_util.cpp
   util/tracepoint.cpp
+  util/event_log.cpp
   util/md5.cpp
   ${mmap_allocator}
   factors/discrete_variable.cpp
@@ -78,6 +79,7 @@ add_library(graphlab STATIC
   rpc/dc_init_from_env.cpp
   rpc/dc_init_from_mpi.cpp
   rpc/async_consensus.cpp
+  rpc/distributed_event_log.cpp
   rpc/delta_dht.cpp
   )
 

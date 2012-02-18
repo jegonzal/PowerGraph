@@ -410,7 +410,7 @@ else(CROSS_COMPILE_32_BIT MATCHES 1)
     CACHE STRING "compiler options" FORCE)
   if (COMPILE_PROFILING MATCHES 1) 
     set(CMAKE_CXX_FLAGS_RELEASE 
-      "-O3 -march=${MARCH} -mtune=native -DUSE_TRACEPOINT ${COMMON_FLAGS}"
+      "-O3 -march=${MARCH} -mtune=native -DUSE_EVENT_LOG -DUSE_TRACEPOINT ${COMMON_FLAGS}"
       CACHE STRING "compiler options"  FORCE)
   else(COMPILE_PROFILING MATCHES 1)
     set(CMAKE_CXX_FLAGS_RELEASE 

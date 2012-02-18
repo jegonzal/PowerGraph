@@ -50,6 +50,7 @@
 #include <graphlab/util/random.hpp>
 #include <graphlab/util/mutable_queue.hpp>
 #include <graphlab/util/tracepoint.hpp>
+#include <graphlab/util/event_log.hpp>
 
 #include <graphlab/logger/logger.hpp>
 
@@ -423,7 +424,20 @@ namespace graphlab {
 
     void evaluate_termination_conditions(size_t cpuid);
 
-        
+    DECLARE_TRACER(eng_syncqueue);
+    DECLARE_TRACER(eng_schednext);
+    DECLARE_TRACER(eng_schedcrit);
+    DECLARE_TRACER(eng_basicupdate);
+    DECLARE_TRACER(eng_factorized);
+    DECLARE_TRACER(eng_locktime);
+    DECLARE_TRACER(eng_evalfac);
+    DECLARE_TRACER(eng_evalbasic);
+    DECLARE_TRACER(eng_lockrelease);
+    DECLARE_EVENT_LOG(eventlog);
+    enum {
+      SCHEDULE_EVENT = 0,
+      UPDATE_EVENT = 1
+    };
   }; // end of shared_memory engine
 
 
@@ -443,28 +457,28 @@ namespace graphlab {
     threads(opts.get_ncpus()),
     exec_status(execution_status::UNSET),
     exception_message(NULL),   
-    start_time_millis(0) { 
-  
-    REGISTER_TRACEPOINT(eng_syncqueue, 
-                        "shared_memory_engine: Evaluating Sync Queue");
-    REGISTER_TRACEPOINT(eng_schednext, 
-                        "shared_memory_engine: Reading Task from Scheduler");
-    REGISTER_TRACEPOINT(eng_schedcrit, 
-                        "shared_memory_engine: Time in Engine Termination Critical Section");
-    REGISTER_TRACEPOINT(eng_basicupdate, 
-                        "shared_memory_engine: Time in Basic Update user code");
-    REGISTER_TRACEPOINT(eng_factorized, 
-                        "shared_memory_engine: Time in Factorized Update user code");
-    REGISTER_TRACEPOINT(eng_locktime, 
-                        "shared_memory_engine: Time Acquiring Locks");
-    REGISTER_TRACEPOINT(eng_evalfac, 
-                        "shared_memory_engine: Total time in evaluate_factorized_update_functor");
-    REGISTER_TRACEPOINT(eng_evalbasic, 
-                        "shared_memory_engine: Total time in evaluate_update_functor");
-    REGISTER_TRACEPOINT(eng_lockrelease, 
-                        "shared_memory_engine: Total time releasing locks");
-
-
+    start_time_millis(0) {
+    INITIALIZE_TRACER(eng_syncqueue,
+                      "shared_memory_engine: Evaluating Sync Queue");
+    INITIALIZE_TRACER(eng_schednext,
+                      "shared_memory_engine: Reading Task from Scheduler");
+    INITIALIZE_TRACER(eng_schedcrit,
+                      "shared_memory_engine: Time in Engine Termination Critical Section");
+    INITIALIZE_TRACER(eng_basicupdate,
+                      "shared_memory_engine: Time in Basic Update user code");
+    INITIALIZE_TRACER(eng_factorized,
+                      "shared_memory_engine: Time in Factorized Update user code");
+    INITIALIZE_TRACER(eng_locktime,
+                      "shared_memory_engine: Time Acquiring Locks");
+    INITIALIZE_TRACER(eng_evalfac,
+                      "shared_memory_engine: Total time in evaluate_factorized_update_functor");
+    INITIALIZE_TRACER(eng_evalbasic,
+                      "shared_memory_engine: Total time in evaluate_update_functor");
+    INITIALIZE_TRACER(eng_lockrelease,
+                      "shared_memory_engine: Total time releasing locks");
+    INITIALIZE_EVENT_LOG(eventlog, std::cout, 100, event_log::RATE_BAR);
+    ADD_EVENT_TYPE(eventlog, SCHEDULE_EVENT, "Schedule");
+    ADD_EVENT_TYPE(eventlog, UPDATE_EVENT, "Updates");
   } // end of constructor
 
 
@@ -509,6 +523,7 @@ namespace graphlab {
            const update_functor_type& update_functor) { 
     initialize_members();
     ASSERT_TRUE(scheduler_ptr != NULL);
+    ACCUMULATE_EVENT(eventlog, SCHEDULE_EVENT, 1);
     scheduler_ptr->schedule(vid, update_functor);
   } // end of schedule
 
@@ -519,6 +534,7 @@ namespace graphlab {
            const update_functor_type& update_functor) { 
     initialize_members();
     ASSERT_TRUE(scheduler_ptr != NULL);
+    ACCUMULATE_EVENT(eventlog, SCHEDULE_EVENT, vids.size());
     foreach(const vertex_id_type& vid, vids) {
       scheduler_ptr->schedule(vid, update_functor);
     }
@@ -542,6 +558,7 @@ namespace graphlab {
   schedule_in_neighbors(const vertex_id_type& vertex, 
                         const update_functor_type& update_fun) {
     const edge_list_type edges = graph.in_edges(vertex);
+    ACCUMULATE_EVENT(eventlog, SCHEDULE_EVENT, edges.size());
     foreach(const edge_type& e, edges) schedule(e.source(), update_fun);
   } // end of schedule in neighbors
 
@@ -552,6 +569,7 @@ namespace graphlab {
   schedule_out_neighbors(const vertex_id_type& vertex, 
                          const update_functor_type& update_fun) {
     const edge_list_type edges = graph.out_edges(vertex);
+    ACCUMULATE_EVENT(eventlog, SCHEDULE_EVENT, edges.size());
     foreach(const edge_type& e, edges) schedule(e.target(), update_fun);
   } // end of schedule out neighbors
   
@@ -1083,6 +1101,8 @@ namespace graphlab {
     // Grab the sync lock
     sync_vlocks[vid].lock();
     // Call the correct update functor
+    ACCUMULATE_EVENT(eventlog, UPDATE_EVENT, 1);
+
     if(ufun.is_factorizable()) {
       BEGIN_TRACEPOINT(eng_evalfac);
       evaluate_factorized_update_functor(vid, ufun, cpuid);

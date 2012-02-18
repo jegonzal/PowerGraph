@@ -50,6 +50,7 @@
 #include <graphlab/scheduler/scheduler_factory.hpp>
 #include <graphlab/util/chandy_misra.hpp>
 
+#include <graphlab/rpc/distributed_event_log.hpp>
 #include <graphlab/rpc/async_consensus.hpp>
 
 #include <graphlab/macros_def.hpp>
@@ -189,6 +190,7 @@ namespace graphlab {
     atomic<uint64_t> issued_tasks;
     atomic<uint64_t> completed_tasks;
     
+    DECLARE_DIST_EVENT_LOG(eventlog);
     
     bool try_to_quit(size_t threadid,
                      bool& has_internal_task,
@@ -196,6 +198,7 @@ namespace graphlab {
                      bool& has_sched_task,
                      lvid_type& sched_lvid,
                      update_functor_type &task) {
+      ACCUMULATE_DIST_EVENT(eventlog, NO_WORK_EVENT, 1);
       /*if (issued_tasks.value != completed_tasks.value) {
         sched_yield();
         return false;
@@ -238,6 +241,13 @@ namespace graphlab {
     inline void ASSERT_I_AM_NOT_OWNER(const lvid_type lvid) const {
       ASSERT_NE(graph.l_get_vertex_record(lvid).owner, rmi.procid());
     }
+
+    enum {
+      SCHEDULE_EVENT = 0,
+      UPDATE_EVENT = 1,
+      INTERNAL_TASK_EVENT = 2,
+      NO_WORK_EVENT = 3
+    };
     
   public:
     distributed_engine(distributed_control &dc, graph_type& graph, 
@@ -247,6 +257,12 @@ namespace graphlab {
       // TODO: Remove context creation.
       // Added context to force compilation.   
       context_type context;
+
+      INITIALIZE_DIST_EVENT_LOG(eventlog, dc, std::cout, 500, dist_event_log::RATE_BAR);
+      ADD_DIST_EVENT_TYPE(eventlog, SCHEDULE_EVENT, "Schedule");
+      ADD_DIST_EVENT_TYPE(eventlog, UPDATE_EVENT, "Updates");
+      ADD_DIST_EVENT_TYPE(eventlog, INTERNAL_TASK_EVENT, "Internal");
+      ADD_DIST_EVENT_TYPE(eventlog, NO_WORK_EVENT, "No Work");
     }
 
     /**
@@ -304,7 +320,21 @@ namespace graphlab {
       return completed_tasks.value; 
     }
            
-    
+    void schedule_from_remote(vertex_id_type vid,
+                              const update_functor_type& update_functor) {
+      const lvid_type local_vid = graph.local_vid(vid);
+      vstate_locks[local_vid].lock();
+      if (vstate[local_vid].hasnext) {
+        vstate[local_vid].next += update_functor;
+      }
+      else {
+        vstate[local_vid].next = update_functor;
+        vstate[local_vid].hasnext = true;
+        vstate[local_vid].scheduler_add = true;
+        add_internal_task(local_vid);
+      }
+      vstate_locks[local_vid].unlock();
+    }
     /**
      * \brief Adds an update task with a particular priority.
      * This function is forwarded to the scheduler.
@@ -313,23 +343,9 @@ namespace graphlab {
                   const update_functor_type& update_functor) {
       logstream(LOG_DEBUG) << rmi.procid() << ": Schedule " << vid << std::endl;
       const lvid_type local_vid = graph.local_vid(vid);
-      if (!started) {
-        scheduler_ptr->schedule(local_vid, update_functor);
-      }
-      else if (threads_alive.value == ncpus) {
-        vstate_locks[local_vid].lock();
-        if (vstate[local_vid].hasnext) {
-          vstate[local_vid].next += update_functor;
-        }
-        else {
-          vstate[local_vid].next = update_functor;
-          vstate[local_vid].hasnext = true;
-          vstate[local_vid].scheduler_add = true;
-          add_internal_task(local_vid);
-        }
-        vstate_locks[local_vid].unlock();
-      }
-      else if (threads_alive.value < ncpus) {
+      scheduler_ptr->schedule(local_vid, update_functor);
+      ACCUMULATE_DIST_EVENT(eventlog, SCHEDULE_EVENT, 1);
+      if (threads_alive.value < ncpus) {
         consensus->cancel();
       }
       // const procid_t owner = graph.get_vertex_record(vid).owner;
@@ -560,6 +576,7 @@ namespace graphlab {
 
     
     void eval_internal_task(lvid_type lvid) {
+      ACCUMULATE_DIST_EVENT(eventlog, INTERNAL_TASK_EVENT, 1);
       logstream(LOG_DEBUG) << rmi.procid() << ": Internal Task: " 
                            << graph.global_vid(lvid) << std::endl;
       vstate_locks[lvid].lock();
@@ -730,6 +747,7 @@ namespace graphlab {
     template <bool prelocked>
     void eval_sched_task(const lvid_type sched_lvid, 
                          const update_functor_type& task) {
+      ACCUMULATE_DIST_EVENT(eventlog, UPDATE_EVENT, 1);
       logstream(LOG_DEBUG) << rmi.procid() << ": Schedule Task: "
                            << graph.global_vid(sched_lvid) << std::endl;
       // If I am not the owner just forward the task to the other
@@ -737,7 +755,7 @@ namespace graphlab {
       const procid_t owner = graph.l_get_vertex_record(sched_lvid).owner;
       if (owner != rmi.procid()) {
         const vertex_id_type vid = graph.global_vid(sched_lvid);
-        rmi.remote_call(owner, &engine_type::schedule, vid, task);
+        rmi.remote_call(owner, &engine_type::schedule_from_remote, vid, task);
         return;
       }
       ASSERT_I_AM_OWNER(sched_lvid);
