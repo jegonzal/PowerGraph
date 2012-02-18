@@ -84,6 +84,10 @@ namespace graphlab {
     /// The type of the local graph used to store the graph data 
     typedef graphlab::graph2<VertexData, EdgeData> local_graph_type;
 
+    typedef idistributed_ingress<VertexData, EdgeData> 
+    idistributed_ingress_type;
+
+
     /** 
      * The type of the local vertex id and local edge id.
      * While this is the same as the
@@ -458,16 +462,17 @@ namespace graphlab {
     size_t begin_eid;
 
     /** pointer to the distributed ingress object*/
-    idistributed_ingress* ingress_ptr; 
+    idistributed_ingress_type* ingress_ptr; 
 
   public:
 
     // CONSTRUCTORS ==========================================================>
     distributed_graph(distributed_control& dc) : 
-      rpc(dc, this), nverts(0), nedges(0), local_own_nverts(0), nreplica(0),
-      local_degree_count(rpc.numprocs()), edge_buffer(this, rpc.numprocs()) {
+      rpc(dc, this), nverts(0), nedges(0), local_own_nverts(0), nreplica(0) {
       rpc.barrier();
-      ingress_ptr = new distributed_batch_ingress(dc, this);
+      typedef distributed_batch_ingress<vertex_data_type, edge_data_type>
+        distributed_batch_ingress_type;
+      ingress_ptr = new distributed_batch_ingress_type(dc, *this);
     }
 
 
@@ -575,56 +580,96 @@ namespace graphlab {
       return (eid - begin_eid);
     } 
 
-    leid_type local_eid(const local_edge_type& e) const {
-      return local_graph.edge_id(e);
+    leid_type local_eid(const local_edge_type& eid) const {
+      return local_graph.edge_id(eid);
     }
 
     //! Get all the edge which edge.target() == v
-    edge_list_type in_edges(const vertex_id_type vid) const;
+    edge_list_type in_edges(const vertex_id_type vid) const {
+      // Not implemented.
+      logstream(LOG_WARNING) << "in_edges not implemented. " << std::endl;
+      ASSERT_TRUE(false);
+      return edge_list_type();
+    }
+
 
     //! Get the number of edges which edge.target() == v
-    size_t num_in_edges(const vertex_id_type v) const;
+    size_t num_in_edges(const vertex_id_type vid) const {
+      return get_vertex_record(vid).num_in_edges;
+    }
 
     //! Get all the edges which edge.source() == v
-    edge_list_type out_edges(const vertex_id_type v) const;
+    edge_list_type out_edges(const vertex_id_type vid) const {
+      // Not implemented;
+      logstream(LOG_WARNING) << "out_edges not implemented. " << std::endl;
+      ASSERT_TRUE(false);
+      return edge_list_type();
+    }
 
     //! Get the number of edges which edge.source() == v
-    size_t num_out_edges(const vertex_id_type v) const;
+    size_t num_out_edges(const vertex_id_type vid) const {
+      return get_vertex_record(vid).num_out_edges;
+    }
 
     // Get all the local edge which edge.target() == v
-    local_edge_list_type l_in_edges(const vertex_id_type v) const;
+    local_edge_list_type l_in_edges(const vertex_id_type vid) const {
+      return local_edge_list_type(this, local_graph.in_edges(local_vid(vid)));
+    }
 
     // Get the number of local edges which edge.target() == v
-    size_t l_num_in_edges(const vertex_id_type v) const;
+    size_t l_num_in_edges(const vertex_id_type vid) const { 
+      return local_graph.num_in_edges(local_vid(vid));
+    }
 
     // Get all the local edges which edge.source() == v
-    local_edge_list_type l_out_edges(const vertex_id_type v) const;
+    local_edge_list_type l_out_edges(const vertex_id_type vid) const {
+      return local_edge_list_type(this, local_graph.out_edges(local_vid(vid)));
+    }
 
     // Get the number of local edges which edge.source() == v
-    size_t l_num_out_edges(const vertex_id_type v) const;
+    size_t l_num_out_edges(const vertex_id_type vid) const {
+      return local_graph.num_out_edges(local_vid(vid));
+    }
 
     /** \brief Returns a reference to the data stored on the vertex
         v. */
-    VertexData& vertex_data(vertex_id_type v);
+    VertexData& vertex_data(vertex_id_type vid) {
+      return local_graph.vertex_data(local_vid(vid));
+    }
     
     /** \brief Returns a constant reference to the data stored on the
         vertex v */
-    const VertexData& vertex_data(vertex_id_type v) const;
+    const VertexData& vertex_data(vertex_id_type vid) const {
+      return local_graph.vertex_data(local_vid(vid));
+    }
 
     /** \brief Returns a reference to the data stored on the edge
         source->target. */
-    EdgeData& edge_data(vertex_id_type source, vertex_id_type target);
+    EdgeData& edge_data(vertex_id_type source, vertex_id_type target){
+      return local_graph.edge_data(local_vid(source), local_vid(target));
+    }
     
     /** \brief Returns a constant reference to the data stored on the
         edge source->target */
     const EdgeData& edge_data(vertex_id_type source, 
-                              vertex_id_type target) const;
+                              vertex_id_type target) const {
+      return local_graph.edge_data(local_vid(source), local_vid(target));
+    }
 
     /** \brief Returns a reference to the data stored on the edge e */
-    EdgeData& edge_data(const edge_type& edge);
+    EdgeData& edge_data(const edge_type& edge) {
+      local_edge_type l_edge(local_vid(edge.source()), local_vid(edge.target()),
+                             local_eid(edge.edge_id()), local_edge_type::OUTEDGE);
+      return local_graph.edge_data(l_edge);
+    }
     
     /** \brief Returns a constant reference to the data stored on the edge e */
-    const EdgeData& edge_data(const edge_type& edge) const;
+    const EdgeData& edge_data(const edge_type& edge) const {
+      local_edge_type l_edge(local_vid(edge.source()), local_vid(edge.target()),
+                             local_eid(edge.edge_id()), local_edge_type::OUTEDGE);
+      return local_graph.edge_data(l_edge);
+    }
+
    
     /** 
      * \brief Creates a vertex containing the vertex data
@@ -648,151 +693,10 @@ namespace graphlab {
 
     void resize (size_t n) { }
 
-    size_t get_num_procs () { return rpc.numprocs(); }
 
   }; // End of graph
 
-
-
-
-
-
-
-
-
-
-
-  //////////////////////////////////////////////////////////////////////////////
-  //// Implementation 
-  
-  
-  template<typename VertexData, typename EdgeData>
-  void distributed_graph<VertexData, EdgeData>::
-  add_vertex(const vertex_id_type& vid,
-             const VertexData& vdata) {
-    // determine if the vertex is local
-    if(is_local_init(vid)) {
-      vid2shuffle_lock.lock();
-      vid2shuffle[vid].vdata = vdata;
-      vid2shuffle_lock.unlock();
-    } else {
-      rpc.remote_call(vertex_to_init_proc(vid),
-                      &distributed_graph::add_vertex,
-                      vid, vdata);
-    }
-  } // End of add vertex;
-  
-  
-  /**** Methods for in edges ****/
-  template<typename VertexData, typename EdgeData>
-  typename distributed_graph<VertexData, EdgeData>::edge_list_type 
-  distributed_graph<VertexData, EdgeData>:: 
-  in_edges(const vertex_id_type vid) const {
-    // Not implemented.
-    logstream(LOG_WARNING) << "in_edges not implemented. " << std::endl;
-    ASSERT_TRUE(false);
-    return edge_list_type();
-  } // end of in_edges
  
-
-  template<typename VertexData, typename EdgeData>
-  typename distributed_graph<VertexData, EdgeData>::local_edge_list_type 
-  distributed_graph<VertexData, EdgeData>:: 
-  l_in_edges(const vertex_id_type vid) const {
-    return local_edge_list_type(this, local_graph.in_edges(local_vid(vid)));
-  } // end of local num in edges 
-  
-
-  template<typename VertexData, typename EdgeData>
-  size_t distributed_graph<VertexData, EdgeData>:: 
-  num_in_edges(const vertex_id_type vid) const {
-    return get_vertex_record(vid).num_in_edges;
-  } // end of num_in_edges
-
-  template<typename VertexData, typename EdgeData>
-  size_t distributed_graph<VertexData, EdgeData>:: 
-  l_num_in_edges(const vertex_id_type vid) const {
-    return local_graph.num_in_edges(local_vid(vid));
-  } // end of local num out edges
-
-  
-  /**** Methods for out edges ****/
-  template<typename VertexData, typename EdgeData>
-  typename distributed_graph<VertexData, EdgeData>::edge_list_type 
-  distributed_graph<VertexData, EdgeData>:: 
-  out_edges(const vertex_id_type vid) const { 
-    // Not implemented;
-    logstream(LOG_WARNING) << "out_edges not implemented. " << std::endl;
-    ASSERT_TRUE(false);
-    return edge_list_type();
-  } // end of out_edges
-
-  template<typename VertexData, typename EdgeData>
-  typename distributed_graph<VertexData, EdgeData>::local_edge_list_type 
-  distributed_graph<VertexData, EdgeData>:: 
-  l_out_edges(const vertex_id_type vid) const { 
-    return local_edge_list_type(this, local_graph.out_edges(local_vid(vid)));
-  } // end of out_edges
-  
-  template<typename VertexData, typename EdgeData>
-  size_t distributed_graph<VertexData, EdgeData>:: 
-  num_out_edges(const vertex_id_type vid) const {
-    return get_vertex_record(vid).num_out_edges;
-  } // end of num out edges
-
-  template<typename VertexData, typename EdgeData>
-  size_t distributed_graph<VertexData, EdgeData>:: 
-  l_num_out_edges(const vertex_id_type vid) const {
-    return local_graph.num_out_edges(local_vid(vid));
-  } // end of num out edges
-
-
-
-  template<typename VertexData, typename EdgeData>
-  VertexData& distributed_graph<VertexData, EdgeData>:: 
-  vertex_data(vertex_id_type vid) {
-    return local_graph.vertex_data(local_vid(vid));
-  } // end of vertex data
-
-    
-
-  template<typename VertexData, typename EdgeData>
-  const VertexData& distributed_graph<VertexData, EdgeData>:: 
-  vertex_data(vertex_id_type vid) const {
-    return local_graph.vertex_data(local_vid(vid));
-  } // end of const vertex data
-
-  template<typename VertexData, typename EdgeData>
-  EdgeData& distributed_graph<VertexData, EdgeData>:: 
-  edge_data(vertex_id_type source, vertex_id_type target) {
-    ASSERT_TRUE(is_local(source, target));
-    return local_graph.edge_data(local_vid(source), local_vid(target));
-  } // end of edge data
-
-  template<typename VertexData, typename EdgeData>
-  const EdgeData& distributed_graph<VertexData, EdgeData>:: 
-  edge_data(vertex_id_type source, vertex_id_type target) const {
-    ASSERT_TRUE(is_local(source, target));
-    return local_graph.edge_data(local_vid(source), local_vid(target));
-  } // end of const edge data
-
-  template<typename VertexData, typename EdgeData>
-  EdgeData& distributed_graph<VertexData, EdgeData>:: 
-  edge_data(const edge_type& edge) {
-    ASSERT_TRUE(is_local(edge.source(), edge.target()));
-    local_edge_type l_edge(local_vid(edge.source()), local_vid(edge.target()),
-                           local_eid(edge.edge_id()), local_edge_type::OUTEDGE);
-    return local_graph.edge_data(l_edge);
-  } // end of edge data
-
-  template<typename VertexData, typename EdgeData>
-  const EdgeData& distributed_graph<VertexData, EdgeData>:: 
-  edge_data(const edge_type& edge) const {
-    ASSERT_TRUE(is_local(edge.source(), edge.target()));
-    local_edge_type l_edge(local_vid(edge.source()), local_vid(edge.target()),
-                           local_eid(edge.edge_id()), local_edge_type::OUTEDGE);
-    return local_graph.edge_data(l_edge);
-  } // end of const edge data
 } // end of namespace graphlab
 #include <graphlab/macros_undef.hpp>
 

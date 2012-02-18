@@ -353,27 +353,27 @@ namespace graphlab {
       logstream(LOG_DEBUG)
         << "Finalize: exchange global statistics " << std::endl;
 
-      proc_num_edges.assign(rpc.numprocs(), num_local_edges());
+      proc_num_edges.assign(rpc.numprocs(), graph.num_local_edges());
       mpi_tools::all2all(proc_num_edges, proc_num_edges);
-      begin_eid = 0;
+      graph.begin_eid = 0;
       for (procid_t i = 0; i < rpc.procid(); ++i) {
-        begin_eid += proc_num_edges[i];
+        graph.begin_eid += proc_num_edges[i];
       }
-      nedges = begin_eid;
+      graph.nedges = graph.begin_eid;
       for (procid_t i = rpc.procid(); i < rpc.numprocs(); ++i) {
-        nedges += proc_num_edges[i];
+        graph.nedges += proc_num_edges[i];
       }
 
-      proc_num_vertices.assign(rpc.numprocs(), num_local_vertices());
+      proc_num_vertices.assign(rpc.numprocs(), graph.num_local_vertices());
       mpi_tools::all2all(proc_num_vertices, proc_num_vertices);
       for (procid_t i = 0; i < rpc.numprocs(); ++i) {
-        nreplica += proc_num_vertices[i];
+        graph.nreplica += proc_num_vertices[i];
       }
 
-      proc_num_own_vertices.assign(rpc.numprocs(), num_local_own_vertices());
+      proc_num_own_vertices.assign(rpc.numprocs(), graph.num_local_own_vertices());
       mpi_tools::all2all(proc_num_own_vertices, proc_num_own_vertices);
       for (procid_t i = 0; i < rpc.numprocs(); ++i) {
-        nverts += proc_num_own_vertices[i];
+        graph.nverts += proc_num_own_vertices[i];
       }
 
 
@@ -482,8 +482,8 @@ namespace graphlab {
         // return graph_ptr->edge_to_proc(src, dst);
          
         procid_t best_proc = -1; 
-        size_t src_proc = graph_ptr->vertex_to_init_proc(src);
-        size_t dst_proc = graph_ptr->vertex_to_init_proc(dst);
+        size_t src_proc = vertex_to_init_proc(src);
+        size_t dst_proc = vertex_to_init_proc(dst);
         std::vector<size_t>& src_degree = degree_table[src_proc][src];
         std::vector<size_t>& dst_degree = degree_table[dst_proc][dst];
 
@@ -492,7 +492,7 @@ namespace graphlab {
         size_t best_dst_proc = -1;
         size_t max_dst_degree = 0;
           
-        for (size_t i = 0; i < num_procs; ++i) {
+        for (size_t i = 0; i < rpc.numprocs(); ++i) {
           if (src_degree[i] <= max_degree && src_degree[i] >= max_src_degree)
             { best_src_proc = i; max_src_degree = src_degree[i]; }
           if (dst_degree[i] <= max_degree && dst_degree[i] >= max_dst_degree)
@@ -501,10 +501,10 @@ namespace graphlab {
 
         // no machine has ever seen this vertex 
         if (max_src_degree == 0) {
-          best_src_proc = rand() % num_procs;
+          best_src_proc = rand() % rpc.numprocs();
         }
         if (max_dst_degree == 0) {
-          best_dst_proc = rand() % num_procs;
+          best_dst_proc = rand() % rpc.numprocs();
         }
 
         // std::cout << "best_src_proc: " << best_src_proc
@@ -517,7 +517,7 @@ namespace graphlab {
         if (best_src_proc == size_t(-1) && best_dst_proc == size_t(-1)) {
           std::cout << "Double degree limit to " << max_degree << std::endl;
           max_degree*= 2;
-          best_proc = rand() % num_procs;
+          best_proc = rand() % rpc.numprocs();
         } else {
           if (best_src_proc == size_t(-1)) {
             best_proc = best_dst_proc;
@@ -527,7 +527,7 @@ namespace graphlab {
             best_proc = max_src_degree > max_dst_degree ? best_src_proc : best_dst_proc;
           }
         }
-        ASSERT_LT(best_proc, num_procs);
+        ASSERT_LT(best_proc, rpc.numprocs());
         ++src_degree[best_proc];
         ++dst_degree[best_proc];
         return best_proc;
@@ -535,11 +535,11 @@ namespace graphlab {
 
       void assign_edges() {
         // Get the degree table.
-        std::vector<dht_degree_table_type> degree_table(num_procs);
-        for (size_t i = 0; i < num_procs; ++i) {
+        std::vector<dht_degree_table_type> degree_table(rpc.numprocs());
+        for (size_t i = 0; i < rpc.numprocs(); ++i) {
           degree_table[i] = 
             rpc.remote_request(i, 
-                              &distributed_batch_ingress::add_edges,
+                              &distributed_batch_ingress::block_get_degree_table,
                               query_set[i]);
           query_set[i].clear();
         }
