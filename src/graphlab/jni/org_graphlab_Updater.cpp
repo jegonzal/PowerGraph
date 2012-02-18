@@ -28,9 +28,9 @@ using namespace graphlab;
 // proxy_updater static members
 //---------------------------------------------------------------
 
-jmethodID proxy_updater::java_exec_update = 0;
-jmethodID proxy_updater::java_add = 0;
-jmethodID proxy_updater::java_priority= 0;
+jmethodID proxy_updater::java_update   = 0;
+jmethodID proxy_updater::java_add      = 0;
+jmethodID proxy_updater::java_priority = 0;
 jmethodID proxy_updater::java_clone    = 0;
 
 // initialize JNI method IDs
@@ -38,10 +38,10 @@ void proxy_updater::init(JNIEnv *env){
 
   jclass updater_class = env->FindClass("org/graphlab/Updater");
 
-  // get the method ID for Updater#execUpdate, if we don't have it already
-  if (0 == java_exec_update){
-    java_exec_update =
-      env->GetMethodID(updater_class, "execUpdate", "(JLorg/graphlab/data/Vertex;)V");
+  // get the method ID for Updater#update, if we don't have it already
+  if (0 == java_update){
+    java_update =
+      env->GetMethodID(updater_class, "update", "(JLorg/graphlab/data/Vertex;)V");
   }
   
   // get the method ID for Updater#add, if we don't have it already
@@ -85,7 +85,7 @@ proxy_updater::
   
   // clone the java object
   JNIEnv *env = core::get_jni_env();
-  set_obj(env->CallObjectMethod(other.obj(), java_clone));  
+  set_obj(env->CallObjectMethod(other.obj(), java_clone));
   
 }
 
@@ -108,7 +108,7 @@ void proxy_updater::operator()(icontext_type& context){
   JNIEnv *env = core::get_jni_env();
   
   // forward call to org.graphlab.Updater
-  env->CallVoidMethod (obj(), java_exec_update,
+  env->CallVoidMethod (obj(), java_update,
                        &context,
                        context.vertex_data().app_vertex);
   
@@ -133,7 +133,7 @@ void proxy_updater::operator()(icontext_type& context){
 // proxy_updater instance members - the add function
 //---------------------------------------------------------------
 
-void proxy_updater::operator+=(const proxy_updater& other){
+void proxy_updater::operator+=(const proxy_updater& other) const {
   
   JNIEnv *env = core::get_jni_env();
   

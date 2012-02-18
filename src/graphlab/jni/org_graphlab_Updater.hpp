@@ -71,9 +71,9 @@ namespace graphlab {
     typedef iupdate_functor<proxy_graph, proxy_updater>::icontext_type context;
   
     /**
-     * Method ID of org.graphlab.Updater#execUpdate.
+     * Method ID of org.graphlab.Updater#update.
      */
-    static jmethodID java_exec_update;
+    static jmethodID java_update;
     
     /**
      * Method ID of org.graphlab.Updater#add.
@@ -125,7 +125,7 @@ namespace graphlab {
     
     void operator()(icontext_type& context);
     
-    void operator+=(const update_functor_type& other);
+    void operator+=(const update_functor_type& other) const;
     
     /**
      * Initialize JNI method IDs

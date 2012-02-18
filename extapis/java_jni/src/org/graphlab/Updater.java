@@ -29,7 +29,7 @@ public abstract class Updater<V extends Vertex> {
    * @param vertex
    *          vertex to be updated
    */
-  public abstract void update(Context context, V vertex);
+  protected abstract void update(Context context, V vertex);
 
   /**
    * When multiple update functors are scheduled to be run on the same function
@@ -38,7 +38,7 @@ public abstract class Updater<V extends Vertex> {
    * 
    * @param updater
    */
-  public void add(Updater<V> updater) {
+  protected void add(Updater<V> updater) {
     return;
   }
   
@@ -68,7 +68,7 @@ public abstract class Updater<V extends Vertex> {
    *          application vertex ID
    */
   @SuppressWarnings("unused")
-  private void execUpdate(long contextPtr, V vertex) {
+  private void update(long contextPtr, V vertex) {
     
     // for debugging purposes, throw up on bogus vertices from GraphLab
     if (null == vertex)
