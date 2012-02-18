@@ -73,7 +73,7 @@ public class PageRank {
     
     // execute graph updates
     core.setGraph(graph);
-    core.scheduleAll(new PageRankUpdater(graph, 1));
+    core.scheduleAll(new PageRankUpdater(graph, PageRankUpdater.RESET_PROB));
     logger.trace("Running graphlab ...");
     logger.info("Took " + core.start() + " seconds.");
     

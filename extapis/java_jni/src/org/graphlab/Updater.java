@@ -52,7 +52,7 @@ public abstract class Updater<V extends Vertex> {
    * @param vertex
    *          vertex to be updated
    */
-  protected abstract void update(Context context, V vertex);
+  protected void update(Context context, V vertex){}
 
   /**
    * When multiple update functors are scheduled to be run on the same function
