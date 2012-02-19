@@ -280,10 +280,11 @@ void display_top(const corpus_type& corpus,
         if(top_words.size() > ntop) top_words.erase(top_words.begin());
       }
     }
-    std::cout << "----------------" << std::endl;
+    std::cout << std::endl;
     rev_foreach(const cw_pair_type& pair, top_words) {
-      std::cout << pair.first << "\t\t" << corpus.dictionary.at(pair.second) << std::endl;
+      std::cout << corpus.dictionary.at(pair.second) << ", ";
     }
+    std::cout << std::endl;
   }
 } // end of display top
 
@@ -303,6 +304,7 @@ int main(int argc, char** argv) {
   size_t nsamples(10);
   double alpha(50.0/double(ntopics));
   double beta(0.1);
+  size_t topk(20);
   std::string llik_fname("llik.txt");
   std::string doctop_fname("doctop.txt");
   std::string wordtop_fname("wordtop.txt");
@@ -330,7 +332,9 @@ int main(int argc, char** argv) {
     ("doctop_fname", po::value<std::string>(&doctop_fname)->
      default_value(doctop_fname), "doctop_fname")
     ("wordtop_fname", po::value<std::string>(&wordtop_fname)->
-     default_value(wordtop_fname), "wordtop_fname");
+     default_value(wordtop_fname), "wordtop_fname")
+    ("topk", po::value<size_t>(&topk)->
+     default_value(topk), "number of top k to show");
   
   po::variables_map vm;
   po::store(po::parse_command_line(argc, argv, desc), vm);
@@ -369,8 +373,8 @@ int main(int argc, char** argv) {
   for(size_t i = 0; i < nburnin; ++i) {
     std::cout << "Burnin iteration: " << i << std::endl;
     gibbs.iterate();
-    std::cout << "Computing top 5 of each topic" << std::endl;
-    display_top(corpus, gibbs.n_wt, 5);
+    std::cout << "Computing top " << topk << " of each topic" << std::endl;
+    display_top(corpus, gibbs.n_wt, topk);
     std::cout << "Number of changes: " << gibbs.nchanges << std::endl
               << "Prop. Changes:     " 
               << double(gibbs.nchanges)/ corpus.ntokens << std::endl;
@@ -389,8 +393,16 @@ int main(int argc, char** argv) {
   for(size_t i = 0; i < nsamples; ++i) {
     std::cout << "Sampling iteration: " << i << std::endl;
     gibbs.iterate();
-    display_top(corpus, gibbs.n_wt, 5);
-    
+    std::cout << "Number of changes: " << gibbs.nchanges << std::endl
+              << "Prop. Changes:     " 
+              << double(gibbs.nchanges)/ corpus.ntokens << std::endl;
+    std::cout << "Accumulating sample" << std::endl;
+    n_td += gibbs.n_td;
+    n_wt += gibbs.n_wt;
+    n_t  += gibbs.n_t;
+
+    std::cout << "Computing top " << topk << " of each topic" << std::endl;
+    display_top(corpus, n_wt, topk);    
     std::cout << "Number of changes: " << gibbs.nchanges << std::endl
               << "Prop. Changes:     " 
               << double(gibbs.nchanges)/ corpus.ntokens << std::endl;
@@ -399,10 +411,6 @@ int main(int argc, char** argv) {
               <<  llik << std::endl;
     llik_fout << llik << '\t' << gibbs.nchanges << std::endl;
 
-    std::cout << "Accumulating sample" << std::endl;
-    n_td += gibbs.n_td;
-    n_wt += gibbs.n_wt;
-    n_t  += gibbs.n_t;
   }
   llik_fout.close();
 
