@@ -20,7 +20,7 @@ spy(E);
 %% save random graph
 prefix = 'random_graph';
 [u,v,w] = find(E);
-tbl = [u-1,v-1,w];
+tbl = [u-1,v-1];
 dlmwrite([prefix, '.tsv'], tbl, 'delimiter', '\t', 'precision', '%8d');
 
 

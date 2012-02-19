@@ -113,3 +113,20 @@ java_any::~java_any(){
   env->DeleteGlobalRef(mobj);
   mobj = NULL;
 }
+
+bool java_any::handle_exception(JNIEnv *env) const {
+  
+  // check for exception
+  jthrowable exc = env->ExceptionOccurred();
+  if (!exc) return false;
+  
+  // TODO: better error handling    
+  jclass new_exc;
+  env->ExceptionDescribe();
+  env->ExceptionClear();
+  new_exc = env->FindClass("java/lang/IllegalArgumentException");
+  env->ThrowNew(new_exc, "thrown from C code");
+  
+  return true;
+  
+}

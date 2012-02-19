@@ -50,18 +50,20 @@ public class GraphLoader {
 		
 		String input;
 		int lineNumber = 1;
+		boolean warned = false;
 		
 		// read line by line
 		while (null != (input = reader.readLine())) {
 
 		  // break up into source - target - weight
 			String[] tokens = input.trim().split("\\s+");
-			if (tokens.length != 3)
-				throw new IOException("Line " + lineNumber + " did not have exactly three tokens.");
+			if (tokens.length != 2 && tokens.length != 3)
+				throw new IOException("Line " + lineNumber + " did not have exactly two/three tokens.");
 
 			int source = Integer.parseInt(tokens[0]);
 			int target = Integer.parseInt(tokens[1]);
-			float weight = Float.parseFloat(tokens[2]);
+			float weight = 1;
+			if (3 == tokens.length) weight = Float.parseFloat(tokens[2]);
 
 			// create vertices if encountering them for the first time
 			ScalarVertex srcV = vertices.get(source);
@@ -82,7 +84,11 @@ public class GraphLoader {
 			  DefaultWeightedEdge edge = graph.addEdge(srcV, trgtV);
 			  graph.setEdgeWeight(edge, weight);
 			}else {
-				logger.warn("Dropped self-edge for vertex " + source);
+			  if (!warned){
+			    logger.warn("Dropped self-edge for vertex " + source +
+			                ". Subsequent warnings will be suppressed.");
+			    warned = true;
+			  }
 			}
 
 		}

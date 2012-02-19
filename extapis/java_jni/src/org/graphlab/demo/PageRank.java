@@ -13,6 +13,8 @@ import org.apache.log4j.Logger;
 import org.graphlab.Context;
 import org.graphlab.Core;
 import org.graphlab.Core.CoreException;
+import org.graphlab.CoreConfiguration;
+import org.graphlab.Scheduler;
 import org.graphlab.Updater;
 import org.graphlab.data.ScalarVertex;
 import org.graphlab.util.GraphLoader;
@@ -48,7 +50,9 @@ public class PageRank {
     final Core core;
     try {
       logger.trace("Initializing GraphLab core ...");
-      core = new Core();
+      CoreConfiguration config = new CoreConfiguration();
+      config.setScheduler(Scheduler.SWEEP);
+      core = new Core(config);
     } catch (CoreException e) {
       logger.fatal("Unable to initialize core. Terminating.", e);
       logger.trace("Exiting main method.");
@@ -69,7 +73,7 @@ public class PageRank {
     
     // execute graph updates
     core.setGraph(graph);
-    core.scheduleAll(new PageRankUpdater(graph, 1));
+    core.scheduleAll(new PageRankUpdater(graph, PageRankUpdater.RESET_PROB));
     logger.trace("Running graphlab ...");
     logger.info("Took " + core.start() + " seconds.");
     
@@ -154,7 +158,7 @@ public class PageRank {
     
     Collections.sort(verticesList, new Comparator<ScalarVertex>(){
       public int compare(ScalarVertex left, ScalarVertex right) {
-        return Double.compare(left.value(), right.value());
+        return Double.compare(right.value(), left.value());
       }
     });
     
@@ -195,8 +199,7 @@ public class PageRank {
       /* Iterate over edge_id_list and get source is slow in graph2 */
       for(DefaultWeightedEdge edge : mGraph.incomingEdgesOf(vertex)){
         double weight = mGraph.getEdgeWeight(edge);
-        sum += weight* 
-               mGraph.getEdgeSource(edge).value();
+        sum += weight * mGraph.getEdgeSource(edge).value();
       }
       
       // Add random reset probability
@@ -204,7 +207,7 @@ public class PageRank {
       vertex.setValue(RESET_PROB + (1-RESET_PROB)*sum);
       for(DefaultWeightedEdge edge : mGraph.outgoingEdgesOf(vertex)) {    
         double weight = mGraph.getEdgeWeight(edge);
-        double residual = weight * Math.abs(vertex.value()- oldValue);
+        double residual = weight * Math.abs(vertex.value() - oldValue);
         // If the neighbor changed sufficiently add to scheduler.
         if(residual > ACCURACY) 
           context.schedule(
@@ -224,7 +227,7 @@ public class PageRank {
     public void add(Updater<ScalarVertex> other){
       if (!(other instanceof PageRankUpdater))
         throw new IllegalStateException("incompatible updaters added.");
-      mPriority += other.priority();
+      mPriority += ((PageRankUpdater) other).priority();
     }
 
     @Override

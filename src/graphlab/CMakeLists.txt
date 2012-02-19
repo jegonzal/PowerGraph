@@ -79,6 +79,7 @@ add_library(graphlab STATIC
   rpc/dc_init_from_env.cpp
   rpc/dc_init_from_mpi.cpp
   rpc/async_consensus.cpp
+  rpc/distributed_event_log.cpp
   rpc/delta_dht.cpp
   )
 

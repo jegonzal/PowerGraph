@@ -224,12 +224,6 @@ extern "C" {
     }
     
     proxy_updater::core *jni_core = (proxy_updater::core *) ptr;
-
-//     logstream(LOG_DEBUG)
-//       << "Graph has: "
-//       << (*jni_core)().graph().num_vertices() << " vertices and "
-//       << (*jni_core)().graph().num_edges() << " edges."
-//       << std::endl;
     (*jni_core)().engine().get_options().print();
     
     double runtime = (*jni_core)().start();

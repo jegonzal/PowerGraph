@@ -62,6 +62,11 @@ namespace graphlab {
     /** The default constructor does nothing. mobj is initialized to NULL. */
     java_any();
     
+    /**
+     * Copy constructor
+     * If `other` has a reference to a java object, increases the reference count.
+     * Child classes may wish to override this to implement clone behavior.
+     */
     java_any(const java_any& other);  
     
     /**
@@ -84,8 +89,18 @@ namespace graphlab {
     
   protected:
   
-    /** Deletes the current ref and creates a new ref */
+    /**
+     * Deletes the current ref (if any) and creates a new ref if `obj` is not null.
+     * @param[in] obj     replaces current object ref
+     */
     void set_obj(jobject obj);
+    
+    /**
+     * Checks for and rethrows Java exceptions.
+     * @param[in] env     JNI environment
+     * @return true if exception was found; false otherwise
+     */
+    bool handle_exception(JNIEnv *env) const;
   
   };
 

@@ -2,7 +2,7 @@
 #include <graphlab/util/timer.hpp>
 #include <graphlab/logger/assertions.hpp>
 
-#define PROGRESS_BAR_WIDTH 40
+#define EVENT_BAR_WIDTH 40
 #define BAR_CHARACTER '#'
 
 namespace graphlab {
@@ -60,30 +60,30 @@ void event_log::flush() {
   if (print_method == NUMBER) {
     do {
       size_t ctrval = counters[pos].exchange(0);
-      found_events = found_events | ctrval > 0;
+      found_events = found_events || ctrval > 0;
       (*out) << pos  << ":\t" << ctrval << "\t" << 1000 * ctrval / timegap << " /s\n";
     } while(hascounter.next_bit(pos));
   }
   else if (print_method == DESCRIPTION) {
     do {
       size_t ctrval = counters[pos].exchange(0);
-      found_events = found_events | ctrval > 0;
+      found_events = found_events || ctrval > 0;
       (*out) << descriptions[pos]  << ":\t" << ctrval << "\t" << 1000 * ctrval / timegap << " /s\n";
     } while(hascounter.next_bit(pos));
   }
   else if (print_method == RATE_BAR) {
     char spacebuf[60];
     char pbuf[61];
-    memset(spacebuf, ' ', PROGRESS_BAR_WIDTH);
+    memset(spacebuf, ' ', EVENT_BAR_WIDTH);
     memset(pbuf, BAR_CHARACTER, 60);
     do {
       size_t ctrval = counters[pos].exchange(0);
-      found_events = found_events | ctrval > 0;
+      found_events = found_events || ctrval > 0;
       maxcounter[pos] = std::max(maxcounter[pos], ctrval);
       size_t barlen = 0;
       size_t mc = maxcounter[pos]; 
-      if (mc > 0) barlen = ctrval * PROGRESS_BAR_WIDTH / mc;
-      if (barlen > PROGRESS_BAR_WIDTH) barlen = PROGRESS_BAR_WIDTH;
+      if (mc > 0) barlen = ctrval * EVENT_BAR_WIDTH / mc;
+      if (barlen > EVENT_BAR_WIDTH) barlen = EVENT_BAR_WIDTH;
       
       pbuf[barlen] = '\0';
       spacebuf[max_desc_length - descriptions[pos].length() + 1] = 0;
@@ -91,9 +91,9 @@ void event_log::flush() {
       spacebuf[max_desc_length - descriptions[pos].length() + 1] =' ';
       pbuf[barlen] = BAR_CHARACTER;
       // now print the remaining spaces
-      spacebuf[PROGRESS_BAR_WIDTH - barlen] = '\0';
+      spacebuf[EVENT_BAR_WIDTH - barlen] = '\0';
       (*out) << spacebuf << "| " << ctrval << " : " << mc << " /s\n";
-      spacebuf[PROGRESS_BAR_WIDTH - barlen] = ' ';
+      spacebuf[EVENT_BAR_WIDTH - barlen] = ' ';
       
     } while(hascounter.next_bit(pos));
   }
