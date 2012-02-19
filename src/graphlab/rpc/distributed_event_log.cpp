@@ -18,7 +18,7 @@ void dist_event_log::initialize(distributed_control& dc,
   out = &ostrm;
   flush_interval = flush_interval_ms;
   if (rmi->procid() > 0) {
-    flush_interval /= 5;
+    flush_interval /= 10;
   }
   print_method = event_print;
   prevtime = 0;
@@ -29,6 +29,16 @@ void dist_event_log::initialize(distributed_control& dc,
 }
 
 dist_event_log::~dist_event_log() {
+  if (!finished) destroy();
+}
+
+void dist_event_log::destroy() {
+  uint32_t pos;
+  if (rmi->procid() == 0 && hascounter.first_bit(pos)) {
+    do {
+      (*out) << descriptions[pos]  << ":\t" << totalcounter[pos].value << " Events\n";
+    } while(hascounter.next_bit(pos));
+  }
   finished = true;
   m.lock();
   cond.signal();
@@ -60,6 +70,7 @@ void dist_event_log::accumulate_event_aggregator(procid_t proc,
                                                  unsigned char eventid,
                                                  size_t count) {
   hasevents = true;
+  totalcounter[eventid].inc(count);
   globalcounters[eventid][proc].inc(count);
 }
   
@@ -162,7 +173,7 @@ void dist_event_log::print_log() {
     memset(spacebuf, ' ', EVENT_BAR_WIDTH);
     do {
       found_events = found_events || stats[pos].total > 0;
-      maxcounter[pos] = std::max(maxcounter[pos], stats[pos].total);
+      maxcounter[pos] = std::max(maxcounter[pos], stats[pos].maximum);
       maxproc_counter[pos] = std::max(maxcounter[pos], stats[pos].maximum);
       
       // print the description prefix

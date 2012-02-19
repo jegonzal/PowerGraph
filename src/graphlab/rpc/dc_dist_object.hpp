@@ -37,6 +37,7 @@
 #include <graphlab/rpc/mem_function_arg_types_def.hpp>
 #include <graphlab/util/charstream.hpp>
 #include <boost/preprocessor.hpp>
+#include <graphlab/util/tracepoint.hpp>
 #include <graphlab/macros_def.hpp>
 
 #define BARRIER_BRANCH_FACTOR 128
@@ -80,7 +81,7 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
   friend class distributed_control;
   
   
-  
+  DECLARE_TRACER(distobj_remote_call_time);
 
 
  public:
@@ -180,6 +181,11 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
     // register
     obj_id = dc_.register_object(owner, this);
     control_obj_id = dc_.register_object(this, this);
+    
+    //-------- Initialize Tracer 
+    std::string name = typeid(T).name();
+    INITIALIZE_TRACER(distobj_remote_call_time,
+                      std::string("dc_dist_object ") + name + ": remote_call time");
   }
   
   /// The number of function calls received by this object
@@ -297,10 +303,12 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
   template<typename F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, typename T)> \
   void  BOOST_PP_TUPLE_ELEM(3,0,FNAME_AND_CALL) (procid_t target, F remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_) ) {  \
     ASSERT_LT(target, dc_.senders.size()); \
+    BEGIN_TRACEPOINT(distobj_remote_call_time); \
     if ((BOOST_PP_TUPLE_ELEM(3,2,FNAME_AND_CALL) & CONTROL_PACKET) == 0) inc_calls_sent(target); \
     BOOST_PP_CAT( BOOST_PP_TUPLE_ELEM(3,1,FNAME_AND_CALL),N) \
         <T, F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, T)> \
           ::exec(this, dc_.senders[target],  BOOST_PP_TUPLE_ELEM(3,2,FNAME_AND_CALL), target,obj_id, remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENI ,_) ); \
+    END_TRACEPOINT(distobj_remote_call_time); \
   }   \
   
   /*

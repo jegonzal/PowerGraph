@@ -30,7 +30,7 @@ class event_log{
   std::string descriptions[EVENT_MAX_COUNTERS];
   size_t maxcounter[EVENT_MAX_COUNTERS];
   atomic<size_t> counters[EVENT_MAX_COUNTERS];
-  
+  atomic<size_t> totalcounter[EVENT_MAX_COUNTERS];
   timer ti;
   double prevtime;  // last time flush() was called
   bool hasevents;   // whether there are logging events
@@ -51,6 +51,7 @@ class event_log{
     hascounter.clear();
     for (size_t i = 0;i < EVENT_MAX_COUNTERS; ++i) {
       maxcounter[i] = 0;
+      totalcounter[i].value = 0;
     }
     printing_thread.launch(boost::bind(&event_log::thread_loop, this));
   }
@@ -69,6 +70,7 @@ class event_log{
                                size_t count)  __attribute__((always_inline)) {
     hasevents = true;
     counters[eventid].inc(count);
+    totalcounter[eventid].inc(count);
   }
 
   void flush();

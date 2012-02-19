@@ -36,6 +36,7 @@ class dist_event_log{
   // Global counters on proc 0
   std::vector<atomic<size_t> > globalcounters[EVENT_MAX_COUNTERS];
   size_t maxcounter[EVENT_MAX_COUNTERS];
+  atomic<size_t> totalcounter[EVENT_MAX_COUNTERS];
   size_t maxproc_counter[EVENT_MAX_COUNTERS];  // maximum of per proc maximums
 
   timer ti;
@@ -62,6 +63,7 @@ class dist_event_log{
     for (size_t i = 0;i < EVENT_MAX_COUNTERS; ++i) {
       maxcounter[i] = 0;
       maxproc_counter[i] = 0;
+      totalcounter[i].value = 0;
     }
     printing_thread.launch(boost::bind(&dist_event_log::thread_loop, this));
   }
@@ -72,6 +74,8 @@ class dist_event_log{
                   event_print_type event_print);
 
   void close();
+  
+  void destroy();
   
   void thread_loop();
 
@@ -131,6 +135,7 @@ class dist_event_log{
 #define ACCUMULATE_DIST_EVENT(name, id, count) name.accumulate_event(id, count);
 #define FLUSH_DIST_EVENT_LOG(name) name.flush();
 #define CLOSE_DIST_EVENT_LOG(name) name.close();
+#define DESTROY_DIST_EVENT_LOG(name) name.destroy();
 
 #else
 #define DECLARE_DIST_EVENT_LOG(name) 
@@ -139,6 +144,7 @@ class dist_event_log{
 #define ACCUMULATE_DIST_EVENT(name, id, count) 
 #define FLUSH_DIST_EVENT_LOG(name) 
 #define CLOSE_DIST_EVENT_LOG(name)
+#define DESTROY_DIST_EVENT_LOG(name)
 #endif
 
 #endif

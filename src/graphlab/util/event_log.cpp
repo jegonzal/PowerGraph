@@ -22,6 +22,12 @@ void event_log::initialize(std::ostream &ostrm,
 }
 
 event_log::~event_log() {
+  uint32_t pos;
+  if (hascounter.first_bit(pos)) {
+    do {
+      (*out) << descriptions[pos]  << ":\t" << totalcounter[pos].value << " Events\n";
+    } while(hascounter.next_bit(pos));
+  }
   finished = true;
   m.lock();
   cond.signal();

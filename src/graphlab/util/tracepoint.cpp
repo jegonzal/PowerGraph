@@ -9,7 +9,7 @@
 namespace graphlab {
 
 static unsigned long long rtdsc_ticks_per_sec = 0; 
-mutex rtdsc_ticks_per_sec_mutex;
+static mutex rtdsc_ticks_per_sec_mutex;
 void trace_count::print(std::ostream& out, unsigned long long tpersec) const {
   if (tpersec == 0) {
     out << name << ": " << description << "\n";
@@ -46,10 +46,14 @@ unsigned long long estimate_ticks_per_second() {
   return rtdsc_ticks_per_sec;
 }
 
+static mutex printlock;
 
 trace_count::~trace_count() {
 #ifdef USE_TRACEPOINT
+  printlock.lock();
   print(std::cout, estimate_ticks_per_second());
+  std::cout.flush();
+  printlock.unlock();
 #endif
 }
 
