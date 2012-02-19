@@ -99,6 +99,7 @@ namespace graphlab {
     void start() { term.reset(); }
    
 
+
     void schedule(const vertex_id_type vid, 
                   const update_functor_type& fun) {      
       if (vfun_set.add(vid, fun)) {

@@ -155,7 +155,12 @@ namespace graphlab {
       // Does nothing
     }
 
-   
+
+    void schedule_from_execution_thread(const vertex_id_type vid, 
+                                        const update_functor_type& fun) {  
+      // Does nothing
+    }
+
     void schedule_all(const update_functor_type& fun) {
       for(size_t i = 0; i < functors.size(); ++i) 
         functors[i] = fun;

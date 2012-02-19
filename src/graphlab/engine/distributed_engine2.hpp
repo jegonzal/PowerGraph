@@ -120,7 +120,6 @@ namespace graphlab {
     struct vertex_state {
       uint32_t apply_count_down; // used to count down the gathers
       bool hasnext;
-      bool scheduler_add;
       vertex_execution_state state; // current state of the vertex 
       update_functor_type current; // What is currently being executed
                                    //  accumulated
@@ -128,7 +127,7 @@ namespace graphlab {
                                 // executed, but for whatever reason
                                 // it got popped from the scheduler
                                 // again
-      vertex_state(): apply_count_down(0), hasnext(false), scheduler_add(false), state(NONE) { }      
+      vertex_state(): apply_count_down(0), hasnext(false), state(NONE) { }      
       std::ostream& operator<<(std::ostream& os) const {
         switch(state) {
         case NONE: { os << "NONE"; break; }
@@ -373,10 +372,7 @@ namespace graphlab {
         vstate[local_vid].next += update_functor;
       }
       else {
-        vstate[local_vid].next = update_functor;
-        vstate[local_vid].hasnext = true;
-        vstate[local_vid].scheduler_add = true;
-        add_internal_task(local_vid);
+        scheduler_ptr->schedule(local_vid, update_functor);
       }
       vstate_locks[local_vid].unlock();
     }
@@ -388,7 +384,12 @@ namespace graphlab {
                   const update_functor_type& update_functor) {
       logstream(LOG_DEBUG) << rmi.procid() << ": Schedule " << vid << std::endl;
       const lvid_type local_vid = graph.local_vid(vid);
-      scheduler_ptr->schedule(local_vid, update_functor);
+      if (started) {
+        scheduler_ptr->schedule_from_execution_thread(local_vid, update_functor);
+      }
+      else {
+        scheduler_ptr->schedule(local_vid, update_functor);
+      }
       ACCUMULATE_DIST_EVENT(eventlog, SCHEDULE_EVENT, 1);
       if (threads_alive.value < ncpus) {
         consensus->cancel();
@@ -645,18 +646,6 @@ namespace graphlab {
       vertex_id_type tmp;
       std::vector<vertex_id_type> ready_vertices;
       
-      if (vstate[lvid].scheduler_add) {
-        vstate[lvid].scheduler_add = false;
-        if (vstate[lvid].hasnext) {
-          BEGIN_TRACEPOINT(disteng_scheduler_task_queue);
-          scheduler_ptr->schedule(lvid, vstate[lvid].next);
-          END_TRACEPOINT(disteng_scheduler_task_queue);
-          vstate[lvid].hasnext = false;
-          vstate[lvid].next = update_functor_type();
-        }
-        vstate_locks[lvid].unlock();
-        return;
-      }
       switch(vstate[lvid].state) {
       case NONE: 
         break;
@@ -987,7 +976,6 @@ namespace graphlab {
         }
       }
       for (size_t i = 0;i < vstate.size(); ++i) {
-        ASSERT_FALSE(vstate[i].scheduler_add);
         ASSERT_EQ(vstate[i].state, NONE);
       }
     }

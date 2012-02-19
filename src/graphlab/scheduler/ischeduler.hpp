@@ -95,6 +95,14 @@ namespace graphlab {
     virtual void schedule(const vertex_id_type vid, 
                           const update_functor_type& fun) = 0;
 
+    /**
+     * Adds an update task with a particular priority. 
+     * This function should be called only by the same threads consuming tasks
+     */
+    virtual void schedule_from_execution_thread(const vertex_id_type vid, 
+                                          const update_functor_type& fun) {
+      schedule(vid, fun);
+    }
     
     
     /** 

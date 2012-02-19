@@ -72,6 +72,7 @@ namespace graphlab {
     mutex master_lock;
     size_t sub_queue_size;
     std::vector<queue_type> in_queues;
+    std::vector<mutex> in_queue_locks;
     std::vector<queue_type> out_queues;
     // Terminator
     critical_termination term;
@@ -83,7 +84,7 @@ namespace graphlab {
                           const options_map& opts) :
       vfun_set(graph.num_vertices()), 
       sub_queue_size(100), 
-      in_queues(ncpus), out_queues(ncpus), term(ncpus) { 
+      in_queues(ncpus), in_queue_locks(ncpus), out_queues(ncpus), term(ncpus) { 
       opts.get_option("queuesize", sub_queue_size);
     }
 
@@ -96,21 +97,42 @@ namespace graphlab {
       master_lock.unlock();
       term.reset(); 
     }
-   
 
     void schedule(const vertex_id_type vid, 
                   const update_functor_type& fun) {      
       if (vfun_set.add(vid, fun)) {
+        const size_t cpuid = random::rand() % in_queues.size();
+        in_queue_locks[cpuid].lock();
+        queue_type& queue = in_queues[cpuid];
+        queue.push_back(vid);
+        if(queue.size() > sub_queue_size) {
+          master_lock.lock();
+          queue_type emptyq;
+          master_queue.push_back(emptyq);
+          master_queue.back().swap(queue);
+          master_lock.unlock();
+        }
+        in_queue_locks[cpuid].unlock();
+        term.new_job(cpuid);
+      } 
+    } // end of schedule
+
+    void schedule_from_execution_thread(const vertex_id_type vid, 
+                                        const update_functor_type& fun) {      
+      if (vfun_set.add(vid, fun)) {
         const size_t cpuid = thread::thread_id();
+        in_queue_locks[cpuid].lock();
         ASSERT_LT(cpuid, in_queues.size());
         queue_type& queue = in_queues[cpuid];
         queue.push_back(vid);
         if(queue.size() > sub_queue_size) {
           master_lock.lock();
-          master_queue.push_back(queue);
+          queue_type emptyq;
+          master_queue.push_back(emptyq);
+          master_queue.back().swap(queue);
           master_lock.unlock();
-          queue.clear();
         }
+        in_queue_locks[cpuid].unlock();
         term.new_job(cpuid);
       } 
     } // end of schedule
@@ -142,9 +164,11 @@ namespace graphlab {
       }
       // if the local queue is still empty see if there is any local
       // work left
+      in_queue_locks[cpuid].lock();
       if(out_queues[cpuid].empty() && !in_queues[cpuid].empty()) {
         out_queues[cpuid].swap(in_queues[cpuid]);
       }
+      in_queue_locks[cpuid].unlock();
       // end of get next
       queue_type& queue = out_queues[cpuid];
       if(!queue.empty()) {
