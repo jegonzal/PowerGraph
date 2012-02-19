@@ -34,7 +34,7 @@
 #ifndef GRAPHLAB_DISTRIBUTED_ENGINE_HPP
 #define GRAPHLAB_DISTRIBUTED_ENGINE_HPP
 
-#include <queue>
+#include <deque>
 #include <boost/bind.hpp>
 
 #include <graphlab/scheduler/ischeduler.hpp>
@@ -143,20 +143,20 @@ namespace graphlab {
     struct thread_local_data {
       mutex lock;
       size_t npending;
-      std::queue<vertex_id_type> pending_vertices;      
+      std::deque<vertex_id_type> pending_vertices;
       thread_local_data() : npending(0) { }       
       void add_task(vertex_id_type v) {
         lock.lock();
         ++npending;
-        pending_vertices.push(v);
+        pending_vertices.push_back(v);
         lock.unlock();
       }
-      bool get_task(vertex_id_type &v) {
+      bool get_task(std::deque<vertex_id_type> &v) {
+        v = std::deque<vertex_id_type>();
         lock.lock();
         if (npending == 0) { lock.unlock(); return false; }
-        --npending;
-        v = pending_vertices.front();
-        pending_vertices.pop();
+        npending = 0;
+        v.swap(pending_vertices);
         lock.unlock();
         return true;
       }
@@ -194,7 +194,7 @@ namespace graphlab {
     
     bool try_to_quit(size_t threadid,
                      bool& has_internal_task,
-                     lvid_type& internal_lvid,
+                     std::deque<lvid_type>& internal_lvid,
                      bool& has_sched_task,
                      lvid_type& sched_lvid,
                      update_functor_type &task) {
@@ -469,7 +469,7 @@ namespace graphlab {
     
     void get_a_task(size_t threadid, 
                     bool& has_internal_task,
-                    lvid_type& internal_lvid,
+                    std::deque<lvid_type>& internal_lvid,
                     bool& has_sched_task,
                     lvid_type& sched_lvid,
                     update_functor_type &task) {
@@ -787,7 +787,7 @@ namespace graphlab {
     void thread_start(size_t threadid) {
       bool has_internal_task = false;
       bool has_sched_task = false;
-      lvid_type internal_lvid;
+      std::deque<vertex_id_type> internal_lvid;
       lvid_type sched_lvid;
       update_functor_type task;
       
@@ -797,7 +797,10 @@ namespace graphlab {
                    has_sched_task, sched_lvid, task);
         // if we managed to get a task..
         if (has_internal_task) {
-          eval_internal_task(internal_lvid);
+          while(!internal_lvid.empty()) {
+            eval_internal_task(internal_lvid.front());
+            internal_lvid.pop_front();
+          }
         } else if (has_sched_task) {
           eval_sched_task<false>(sched_lvid, task);
         }
@@ -808,7 +811,10 @@ namespace graphlab {
                               has_internal_task, internal_lvid,
                               has_sched_task, sched_lvid, task)) {
           if (has_internal_task) {
-            eval_internal_task(internal_lvid);
+            while(!internal_lvid.empty()) {
+              eval_internal_task(internal_lvid.front());
+              internal_lvid.pop_front();
+            }
           } else if (has_sched_task) {
             eval_sched_task<false>(sched_lvid, task);
           }
