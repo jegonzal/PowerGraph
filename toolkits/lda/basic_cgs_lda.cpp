@@ -60,7 +60,7 @@ struct corpus_type {
     std::ifstream fin(fname.c_str());
     std::string str;
     while(fin.good()) {
-      fin >> str;
+      std::getline(fin, str);
       if(fin.good()) { dictionary.push_back(str); nwords++; }
     }
     fin.close();
@@ -300,7 +300,7 @@ int main(int argc, char** argv) {
   std::string counts_fname("counts.tsv");
   size_t ntopics(50);
   size_t nburnin(50);
-  size_t niters(10);
+  size_t nsamples(10);
   double alpha(50.0/double(ntopics));
   double beta(0.1);
   std::string llik_fname("llik.txt");
@@ -321,8 +321,8 @@ int main(int argc, char** argv) {
      default_value(ntopics), "Number of topics")
     ("nburnin", po::value<size_t>(&nburnin)->
      default_value(nburnin), "Number of iterations")
-    ("niters", po::value<size_t>(&niters)->
-     default_value(niters), "Number of iterations")
+    ("nsamples", po::value<size_t>(&nsamples)->
+     default_value(nsamples), "Number of iterations")
     ("alpha", po::value<double>(&alpha)->
      default_value(alpha), "Alpha prior")
     ("beta", po::value<double>(&beta)->
@@ -382,11 +382,11 @@ int main(int argc, char** argv) {
   }
   std::cout << "Finished burnin.  Preparing final sample set." << std::endl;
  
-  mat_type n_td = gibbs.n_td;
-  mat_type n_wt = gibbs.n_wt;
-  mat_type n_t  = gibbs.n_t;
+  mat_type n_td(ntopics, corpus.ndocs, 0);
+  mat_type n_wt(corpus.nwords, ntopics, 0);
+  mat_type n_t(ntopics, 1, 0);
 
-  for(size_t i = 0; i < niters; ++i) {
+  for(size_t i = 0; i < nsamples; ++i) {
     std::cout << "Sampling iteration: " << i << std::endl;
     gibbs.iterate();
     display_top(corpus, gibbs.n_wt, 5);
@@ -411,10 +411,10 @@ int main(int argc, char** argv) {
   for(size_t d = 0; d < corpus.ndocs; ++d) {
     double normalizer = ntopics * alpha; 
     for(size_t t = 0; t < ntopics; ++t) 
-      normalizer += double(n_td(t,d)) / double(niters);
+      normalizer += double(n_td(t,d)) / double(nsamples);
     for(size_t t = 0; t < ntopics; ++t) {
       const double value = 
-        (double(n_td(t,d))/double(niters) + alpha) / normalizer;
+        (double(n_td(t,d))/double(nsamples) + alpha) / normalizer;
       doctop_fout << value << ((t+1 < ntopics)? '\t' : '\n');
     }
   }
