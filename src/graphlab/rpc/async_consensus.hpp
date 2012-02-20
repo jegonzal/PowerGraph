@@ -91,22 +91,15 @@ namespace graphlab {
     async_consensus(distributed_control &dc, size_t required_threads_in_done = 1,
                     const dc_impl::dc_dist_object_base* attach = NULL);
 
-    /**
-     * Done blocks. It only returns if a cancellation
-     * or a completion occurs.
-     * Done may be called by many threads.
-     * Returns true if complete.
-     * Returns false if cancelled.
-     */
-    bool done();
 
     /**
      * A thread enters the critical section by calling
      * this function. after which it should check its termination 
      * condition locally, before calling end_done_critical_section
      */
-    void begin_done_critical_section();
+    void begin_done_critical_section(size_t cpuid);
 
+    void cancel_critical_section(size_t cpuid);
     /**
      * end_done_critical_section() closes the critical section.
      * 
@@ -118,26 +111,19 @@ namespace graphlab {
      * If done is not set, the thread will close the critical section
      * and return immediately
      */
-    bool end_done_critical_section(bool done);
+    bool end_done_critical_section(size_t cpuid);
 
     /**
      * Forces the consensus to be set
      */
     void force_done();
   
-    /** A non-blocking done() call. Returns true if consensus is achieved
-     * and false otherwise.
-     */
-    inline bool done_noblock() {
-      return complete;
-    }
-
     
     /// Wakes up all local threads waiting in done()
     void cancel();
 
     /// Wakes up one thread waiting in done()
-    void cancel_one();
+    void cancel_one(size_t cpuid);
 
     struct token {
       size_t total_calls_sent;
@@ -159,25 +145,46 @@ namespace graphlab {
     size_t last_calls_sent;
     size_t last_calls_received;
 
-    size_t required_threads_in_done;
-  
-    size_t threads_in_done;
-    /// set if a cancellation occurs while a thread is waiting in done()
-    size_t cancelled;
-    /// set when everyone is done
-    bool complete;
-    /// whether I currently have the token
+ 
+    
+    /// counts the number of threads which are not sleeping
+    /// protected by the mutex
+    size_t numactive; 
+    
+    /// Total number of CPUs
+    size_t ncpus;
+    
+    /// once flag is set, the terminator is invalid, and all threads
+    /// should leave
+    bool done;
+    
+    /// set if abort() is called
+    bool forced_abort;    
+    
+    /// Number of threads which have called
+    /// begin_critical_section(), and have not left end_critical_section()
+    /// This is an atomic counter and is not protected.
+    atomic<size_t> trying_to_sleep;
+    
+    /// critical[i] is set if thread i has called 
+    /// begin_critical_section(), but has not left end_critical_section()
+    /// sum of critical should be the same as trying_to_sleep
+    std::vector<char> critical;
+    
+    /// sleeping[i] is set if threads[i] is in cond.wait()
+    std::vector<char> sleeping;
+    
+    
     bool hastoken;
     /// If I have the token, the value of the token
     token cur_token;
 
-    mutex mut;
-    conditional cond;
-  
+    mutex m;
+    std::vector<conditional> cond;
+      
 
     void receive_the_token(token &tok);
     void pass_the_token();
-    void consensus();
   };
 
 }
