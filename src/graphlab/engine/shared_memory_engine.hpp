@@ -524,12 +524,9 @@ namespace graphlab {
     initialize_members();
     ASSERT_TRUE(scheduler_ptr != NULL);
     ACCUMULATE_EVENT(eventlog, SCHEDULE_EVENT, 1);
-    if (exec_status = execution_status::RUNNING) {
-      scheduler_ptr->schedule_from_execution_thread(vid, update_functor);
-    }
-    else {
-      scheduler_ptr->schedule(vid, update_functor);
-    }
+    if (exec_status == execution_status::RUNNING) 
+      scheduler_ptr->schedule_from_execution_thread(vid, update_functor);    
+    else scheduler_ptr->schedule(vid, update_functor);    
   } // end of schedule
 
   template<typename Graph, typename UpdateFunctor> 
@@ -540,15 +537,12 @@ namespace graphlab {
     initialize_members();
     ASSERT_TRUE(scheduler_ptr != NULL);
     ACCUMULATE_EVENT(eventlog, SCHEDULE_EVENT, vids.size());
-    if (exec_status = execution_status::RUNNING) {
-      foreach(const vertex_id_type& vid, vids) {
-        scheduler_ptr->schedule_from_execution_thread(vid, update_functor);
-      }
-    }
-    else {
-      foreach(const vertex_id_type& vid, vids) {
-        scheduler_ptr->schedule(vid, update_functor);
-      }
+    if (exec_status == execution_status::RUNNING) {
+      foreach(const vertex_id_type& vid, vids) 
+        scheduler_ptr->schedule_from_execution_thread(vid, update_functor);      
+    } else {
+      foreach(const vertex_id_type& vid, vids) 
+        scheduler_ptr->schedule(vid, update_functor);     
     }
   } // end of schedule
 

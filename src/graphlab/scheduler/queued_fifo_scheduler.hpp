@@ -84,7 +84,8 @@ namespace graphlab {
                           const options_map& opts) :
       vfun_set(graph.num_vertices()), 
       sub_queue_size(100), 
-      in_queues(ncpus), in_queue_locks(ncpus), out_queues(ncpus), term(ncpus) { 
+      in_queues(ncpus), in_queue_locks(ncpus), 
+      out_queues(ncpus), term(ncpus) { 
       opts.get_option("queuesize", sub_queue_size);
     }
 
@@ -121,8 +122,8 @@ namespace graphlab {
                                         const update_functor_type& fun) {      
       if (vfun_set.add(vid, fun)) {
         const size_t cpuid = thread::thread_id();
-        in_queue_locks[cpuid].lock();
         ASSERT_LT(cpuid, in_queues.size());
+        in_queue_locks[cpuid].lock();
         queue_type& queue = in_queues[cpuid];
         queue.push_back(vid);
         if(queue.size() > sub_queue_size) {
