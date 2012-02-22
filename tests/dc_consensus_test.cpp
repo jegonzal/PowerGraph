@@ -64,29 +64,29 @@ class simple_engine_test {
     }
   }
   
-  bool try_terminate(std::pair<size_t, bool> &job) {
+  bool try_terminate(size_t cpuid, std::pair<size_t, bool> &job) {
     job.second = false;
     
     numactive.dec();
-    cons.begin_done_critical_section();
+    cons.begin_done_critical_section(cpuid);
     job = queue.try_dequeue();
     if (job.second == false) {
-      bool ret = cons.end_done_critical_section(true);
+      bool ret = cons.end_done_critical_section(cpuid);
       numactive.inc();
       return ret;
     }
     else {
-      cons.end_done_critical_section(false);
+      cons.cancel_critical_section(cpuid);
       numactive.inc();
       return false;
     }
   }
   
-  void thread() {
+  void thread(size_t cpuid) {
     while(1) {
        std::pair<size_t, bool> job = queue.try_dequeue();
        if (job.second == false) {
-          bool ret = try_terminate(job);
+          bool ret = try_terminate(cpuid, job);
           if (ret == true) break;
           if (ret == false && job.second == false) continue;
        }
@@ -99,7 +99,7 @@ class simple_engine_test {
     for (size_t i = 0;i < 4; ++i) {
       thrgrp.launch(boost::bind(
                             &simple_engine_test::thread,
-                            this));
+                            this, i));
     }
     
     thrgrp.join();

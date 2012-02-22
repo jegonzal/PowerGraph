@@ -30,7 +30,7 @@ add_graphlab_executable(integer_serialize_bench integer_serialize_bench.cpp)
 add_graphlab_executable(test_graph_ops test_graph_ops.cpp)
 add_graphlab_executable(dc_consensus_test dc_consensus_test.cpp)
 add_graphlab_executable(delta_dht_test delta_dht_test.cpp)
-
+add_graphlab_executable(distributed_chandy_misra_test distributed_chandy_misra_test.cpp)
 
 
 # copyfile(runtests.sh)

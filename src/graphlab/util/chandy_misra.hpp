@@ -411,7 +411,7 @@ class chandy_misra {
                 ASSERT_FALSE(fork_dirty(edgeid));
               }
             }
-            ASSERT_NE(philosopherset[edge.source()].state, THINKING);
+            ASSERT_NE(philosopherset[edge.source()].state, (int)THINKING);
           }
         }
         foreach(typename GraphType::edge_type edge, graph.out_edges(v)) {
@@ -427,7 +427,7 @@ class chandy_misra {
                 ASSERT_FALSE(fork_dirty(edgeid));
               }
             }
-            ASSERT_NE(philosopherset[edge.target()].state, THINKING);
+            ASSERT_NE(philosopherset[edge.target()].state, (int)THINKING);
           }
         }
 
