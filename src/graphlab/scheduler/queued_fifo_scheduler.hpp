@@ -118,10 +118,10 @@ namespace graphlab {
       } 
     } // end of schedule
 
-    void schedule_from_execution_thread(const vertex_id_type vid, 
+    void schedule_from_execution_thread(const size_t cpuid,
+                                        const vertex_id_type vid, 
                                         const update_functor_type& fun) {      
       if (vfun_set.add(vid, fun)) {
-        const size_t cpuid = thread::thread_id();
         ASSERT_LT(cpuid, in_queues.size());
         in_queue_locks[cpuid].lock();
         queue_type& queue = in_queues[cpuid];
