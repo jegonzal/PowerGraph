@@ -70,25 +70,47 @@ namespace graphlab {
     /** context type that uses the proxy graph and the proxy updater */
     typedef iupdate_functor<proxy_graph, proxy_updater>::icontext_type context;
   
-    /**
-     * Method ID of org.graphlab.Updater#execUpdate.
-     */
-    static jmethodID java_exec_update;
+    /** Method ID of org.graphlab.Updater#update */
+    static jmethodID java_update;
     
-    /**
-     * Method ID of org.graphlab.Updater#add.
-     */
+    /** Method ID of org.graphlab.Updater#add */
     static jmethodID java_add;
     
-    /**
-     * Method ID of org.graphlab.Updater#priority.
-     */
+    /** Method ID of org.graphlab.Updater#priority */
     static jmethodID java_priority;
     
-    /**
-     * Method ID of org.graphlab.Updater#clone
-     */
+    /** Method ID of org.graphlab.Updater#clone */
     static jmethodID java_clone;
+    
+    /** Method ID of org.graphlab.Updater#isFactorizable */
+    static jmethodID java_is_factorizable;
+    
+    /** Method ID of org.graphlab.Updater#gatherEdges */
+    static jmethodID java_gather_edges;
+    
+    /** Method ID of org.graphlab.Updater#scatterEdges */
+    static jmethodID java_scatter_edges;
+    
+    /** Method ID of org.graphlab.Updater#gatherConsistency */
+    static jmethodID java_gather_consistency;
+    
+    /** Method ID of org.graphlab.Updater#scatterConsistency */
+    static jmethodID java_scatter_consistency;
+    
+    /** Method ID of org.graphlab.Updater#initGather */
+    static jmethodID java_init_gather;
+    
+    /** Method ID of org.graphlab.Updater#gather */
+    static jmethodID java_gather;
+    
+    /** Method ID of org.graphlab.Updater#merge */
+    static jmethodID java_merge;
+    
+    /** Method ID of org.graphlab.Updater#apply */
+    static jmethodID java_apply;
+    
+    /** Method ID of org.graphlab.Updater#scatter */
+    static jmethodID java_scatter;
     
     /**
      * Constructor for proxy updater.
@@ -124,9 +146,21 @@ namespace graphlab {
     ~proxy_updater();
     
     void operator()(icontext_type& context);
+    void operator+=(const update_functor_type& other) const;
+    bool is_factorizable() const;
+    edge_set gather_edges() const;
+    edge_set scatter_edges() const;
+    consistency_model gather_consistency() const;
+    consistency_model scatter_consistency() const;
+    void init_gather(iglobal_context_type& context);
+    void gather(icontext_type& context, const edge_type& edge);
+    void merge(const update_functor_type& other);
+    void apply(icontext_type& context);
+    void scatter(icontext_type& context, const edge_type& edge);
     
-    void operator+=(const update_functor_type& other);
-    
+    /**
+     * Initialize JNI method IDs
+     */
     static void init(JNIEnv *env);
     
   };

@@ -112,6 +112,9 @@ namespace graphlab {
     
     void finalize(iglobal_context& context);
     
+    /**
+     * Initialize JNI method IDs
+     */
     static void init(JNIEnv *env);
     
   };
