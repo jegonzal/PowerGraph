@@ -146,7 +146,7 @@ namespace graphlab {
     struct thread_local_data {
       mutex lock;
       size_t npending;
-      std::deque<vertex_id_type> pending_vertices;      
+      std::deque<vertex_id_type> pending_vertices;
       thread_local_data() : npending(0) { }       
       void add_task(vertex_id_type v) {
         lock.lock();
@@ -155,7 +155,7 @@ namespace graphlab {
         lock.unlock();
       }
       bool get_task(std::deque<vertex_id_type> &v) {
-        v.clear();
+        v = std::deque<vertex_id_type>();
         lock.lock();
         if (npending == 0) { lock.unlock(); return false; }
         npending = 0;
@@ -912,8 +912,8 @@ namespace graphlab {
     void thread_start(size_t threadid) {
       bool has_internal_task = false;
       bool has_sched_task = false;
-      std::deque<lvid_type> internal_lvid;
-      lvid_type sched_lvid;
+      std::deque<vertex_id_type> internal_lvid;
+      vertex_id_type sched_lvid;
       update_functor_type task;
       
       while(1) {
