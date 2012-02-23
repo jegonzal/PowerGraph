@@ -154,10 +154,10 @@ class distributed_chandy_misra {
         }
         else if (philosopherset[source].cancellation_sent == false) {
           philosopherset[source].cancellation_sent = true;
-
+          bool lockid = philosopherset[source].lockid;
           philosopherset[source].lock.unlock();
           philosopherset[target].lock.unlock();
-          issue_cancellation_request_unlocked(source);
+          issue_cancellation_request_unlocked(source, lockid);
           philosopherset[std::min(source, target)].lock.lock();
           philosopherset[std::max(source, target)].lock.lock();
         }
@@ -181,9 +181,10 @@ class distributed_chandy_misra {
         }
         else if (philosopherset[target].cancellation_sent == false) {
           philosopherset[target].cancellation_sent = true;
+          bool lockid = philosopherset[source].lockid;
           philosopherset[source].lock.unlock();
           philosopherset[target].lock.unlock();
-          issue_cancellation_request_unlocked(target);
+          issue_cancellation_request_unlocked(target, lockid);
           philosopherset[std::min(source, target)].lock.lock();
           philosopherset[std::max(source, target)].lock.lock();
         }
@@ -206,6 +207,7 @@ class distributed_chandy_misra {
 
   void cancellation_request_unlocked(vertex_id_type lvid, procid_t requestor, bool lockid) {
     philosopherset[lvid].lock.lock();
+    
     if (philosopherset[lvid].lockid == lockid) {
       if (philosopherset[lvid].counter > 0) {
         ++philosopherset[lvid].counter;
@@ -246,13 +248,14 @@ class distributed_chandy_misra {
     cancellation_request_unlocked(lvid, requestor, lockid);
   }
 
-  void issue_cancellation_request_unlocked(vertex_id_type lvid) {
+  void issue_cancellation_request_unlocked(vertex_id_type lvid, bool lockid) {
     // signal the master
     logstream(LOG_DEBUG) << rmi.procid() <<
         ": Requesting cancellation on " << distgraph.global_vid(lvid) << std::endl;
     const vertex_record &rec = distgraph.l_get_vertex_record(lvid);
+    
     if (rec.owner == rmi.procid()) {
-      cancellation_request_unlocked(lvid, rmi.procid(), philosopherset[lvid].lockid);
+      cancellation_request_unlocked(lvid, rmi.procid(), lockid);
     }
     else {
       unsigned char pkey = rmi.dc().set_sequentialization_key(rec.gvid % 254 + 1);
@@ -260,7 +263,7 @@ class distributed_chandy_misra {
                       &dcm_type::rpc_cancellation_request,
                       rec.gvid,
                       rmi.procid(), 
-                      philosopherset[lvid].lockid);
+                      lockid);
       rmi.dc().set_sequentialization_key(pkey);
 
     }
@@ -282,14 +285,15 @@ class distributed_chandy_misra {
 
   void cancellation_accept(vertex_id_type p_id) {
     std::vector<vertex_id_type> retval;
-    logstream(LOG_DEBUG) << rmi.procid() <<
-            ": Cancellation accept received on " << distgraph.global_vid(p_id) << std::endl;
-
     philosopherset[p_id].lock.lock();
     //philosopher is now hungry!
     ASSERT_EQ((int)philosopherset[p_id].state, (int)HORS_DOEUVRE);
     philosopherset[p_id].state = HUNGRY;
     philosopherset[p_id].cancellation_sent = false;
+    logstream(LOG_DEBUG) << rmi.procid() <<
+            ": Cancellation accept received on " << distgraph.global_vid(p_id) << " " <<
+            philosopherset[p_id].state << std::endl;
+
     // for each fork I own, try to give it away
     foreach(edge_type edge, graph.in_edges(p_id)) {
       try_acquire_edge_with_backoff(edge.target(), edge.source());
@@ -326,9 +330,13 @@ class distributed_chandy_misra {
       }
       philosopherset[edge.target()].lock.unlock();
     }
+    
+    if (philosopherset[p_id].state == HUNGRY &&
+        philosopherset[p_id].forks_acquired == philosopherset[p_id].num_edges) {
+      retval.push_back(p_id);
+    }
+      
     philosopherset[p_id].lock.unlock();
-      // I could very well enter hors douevre here lets try.
-    enter_hors_doeuvre_unlocked(p_id);
     foreach(vertex_id_type lvid, retval) {
       enter_hors_doeuvre_unlocked(lvid);
     }
@@ -417,28 +425,20 @@ class distributed_chandy_misra {
  *
  ***********************************************************************/
   void enter_hors_doeuvre_unlocked(vertex_id_type p_id) {
-    philosopherset[p_id].lock.lock();
      // if I got all forks I can eat
-    if (philosopherset[p_id].forks_acquired == philosopherset[p_id].num_edges &&
-        philosopherset[p_id].state == HORS_DOEUVRE) {
     logstream(LOG_DEBUG) << rmi.procid() <<
             ": Local HORS_DOEUVRE Philosopher  " << distgraph.global_vid(p_id) << std::endl;
-      philosopherset[p_id].lock.unlock();
-      // signal the master
-      const vertex_record &rec = distgraph.l_get_vertex_record(p_id);
-      if (rec.owner == rmi.procid()) {
-        signal_ready_unlocked(p_id, philosopherset[p_id].lockid);
-      }
-      else {
-        unsigned char pkey = rmi.dc().set_sequentialization_key(rec.gvid % 254 + 1);
-        rmi.remote_call(rec.owner,
-                        &dcm_type::rpc_signal_ready,
-                        rec.gvid, philosopherset[p_id].lockid);
-        rmi.dc().set_sequentialization_key(pkey);
-      }
+    // signal the master
+    const vertex_record &rec = distgraph.l_get_vertex_record(p_id);
+    if (rec.owner == rmi.procid()) {
+      signal_ready_unlocked(p_id, philosopherset[p_id].lockid);
     }
     else {
-      philosopherset[p_id].lock.unlock();
+      unsigned char pkey = rmi.dc().set_sequentialization_key(rec.gvid % 254 + 1);
+      rmi.remote_call(rec.owner,
+                      &dcm_type::rpc_signal_ready,
+                      rec.gvid, philosopherset[p_id].lockid);
+      rmi.dc().set_sequentialization_key(pkey);
     }
   }
 
@@ -475,7 +475,7 @@ class distributed_chandy_misra {
 
     logstream(LOG_DEBUG) << rmi.procid() <<
             ": Global HORS_DOEUVRE " << distgraph.global_vid(lvid)
-            << "(" << (int)philosopherset[lvid].counter << ")" << std::endl;
+            << "(" << (int)philosopherset[lvid].counter << ")" << " " << (int)(philosopherset[lvid].state) << std::endl;
   
     if(philosopherset[lvid].counter == 0) {
       philosopherset[lvid].lock.unlock();
@@ -508,7 +508,7 @@ class distributed_chandy_misra {
             ": EATING " << distgraph.global_vid(lvid)
             << "(" << (int)philosopherset[lvid].counter << ")" << std::endl;
   
-    ASSERT_EQ(philosopherset[lvid].state, (int)HORS_DOEUVRE);
+    ASSERT_EQ((int)philosopherset[lvid].state, (int)HORS_DOEUVRE);
     ASSERT_EQ(philosopherset[lvid].lockid, lockid);
     philosopherset[lvid].state = EATING;
     philosopherset[lvid].cancellation_sent = false;
@@ -708,6 +708,14 @@ class distributed_chandy_misra {
     for (size_t i = 0;i < philosopherset.size(); ++i) ASSERT_TRUE(philosopherset[i].state == THINKING);
   }
 
+  void print_out() {
+    std::cout << "Philosophers\n";
+    std::cout << "------------\n";
+    for (vertex_id_type v = 0; v < graph.num_vertices(); ++v) {
+      std::cout << distgraph.global_vid(v) << ": " << (int)philosopherset[v].state << " " << (int)philosopherset[v].counter << "\n";
+    }
+  }
+  
   void complete_consistency_check() {
     for (vertex_id_type v = 0; v < graph.num_vertices(); ++v) {
       // count the number of forks I own
