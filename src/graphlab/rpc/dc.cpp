@@ -45,7 +45,7 @@
 
 #include <graphlab/rpc/dc_stream_send.hpp>
 #include <graphlab/rpc/dc_stream_receive.hpp>
-#include <graphlab/rpc/dc_buffered_stream_send.hpp>
+#include <graphlab/rpc/dc_buffered_stream_send2.hpp>
 #include <graphlab/rpc/dc_buffered_stream_receive.hpp>
 #include <graphlab/rpc/reply_increment_counter.hpp>
 #include <graphlab/rpc/dc_services.hpp>
@@ -365,7 +365,7 @@ void distributed_control::init(const std::vector<std::string> &machines,
   
       if (buffered_send) {
         single_sender = false;
-        senders.push_back(new dc_impl::dc_buffered_stream_send(this, comm, i));
+        senders.push_back(new dc_impl::dc_buffered_stream_send2(this, comm, i));
       }
       else {
         single_sender = false;
