@@ -90,8 +90,8 @@ namespace graphlab {
                          const edge_data_type& edata = edge_data_type()) :
         source(source), target(target), edata(edata) { }
     };
-    std::vector< std::vector<edge_buffer_record> > edge_buffers;
-    std::vector< mutex > edge_buffer_locks;
+    std::vector< std::vector<edge_buffer_record>* > edge_buffer_ptrs;
+    mutex edge_buffers_lock;
 
    
     struct shuffle_record : public graphlab::IS_POD_TYPE {
@@ -106,19 +106,14 @@ namespace graphlab {
 
     distributed_random_ingress(distributed_control& dc, graph_type& graph) :
       rpc(dc, this), graph(graph),
-      vertex_buffers(rpc.numprocs()), vertex_buffer_locks(rpc.numprocs()),
-      edge_buffers(rpc.numprocs()), edge_buffer_locks(rpc.numprocs())
+      vertex_buffers(rpc.numprocs()), vertex_buffer_locks(rpc.numprocs())
     { rpc.barrier(); }
 
     void add_edge(vertex_id_type source, vertex_id_type target,
                   const EdgeData& edata) {
       const procid_t owning_proc = edge_to_proc(source, target);
-      if(owning_proc == rpc.procid()) { 
-        const size_t buffer_ind = random::rand() % edge_buffers.size();
-        edge_buffer_locks[buffer_ind].lock();
-        edge_buffers[buffer_ind].
-          push_back(edge_buffer_record(source, target, edata));
-        edge_buffer_locks[buffer_ind].unlock();        
+      if(owning_proc == rpc.procid()) {
+        edge_buffer().push_back(edge_buffer_record(source, target, edata));
       } else {
         rpc.remote_call(owning_proc, &distributed_random_ingress::add_edge,
                         source, target, edata);
@@ -156,8 +151,8 @@ namespace graphlab {
     void finalize() { 
       rpc.full_barrier();
       // add all the edges to the local graph --------------------------------
-      for(size_t i = 0; i < edge_buffers.size(); ++i) {
-        foreach(const edge_buffer_record& rec, edge_buffers[i]) {
+      for(size_t i = 0; i < edge_buffer_ptrs.size(); ++i) {
+        foreach(const edge_buffer_record& rec, *edge_buffer_ptrs[i]) {
           // Get the source_vlid;
           lvid_type source_lvid(-1);
           if(graph.vid2lvid.find(rec.source) == graph.vid2lvid.end()) {
@@ -176,7 +171,7 @@ namespace graphlab {
           graph.local_graph.add_edge(source_lvid, target_lvid, rec.edata);          
         } // end of loop over add edges
         // clear the buffer
-        std::vector< edge_buffer_record >().swap(edge_buffers[i]);
+        delete edge_buffer_ptrs[i]; edge_buffer_ptrs[i] = NULL;
       } // end for loop over buffers
       logstream(LOG_INFO) << "Finalizing local graph" << std::endl;
 
@@ -347,6 +342,22 @@ namespace graphlab {
 
     size_t vertex_to_buffer(const vertex_id_type vid) const {
       return (vid * 131071) % vertex_buffers.size();
+    }
+
+    std::vector<edge_buffer_record>& edge_buffer() {
+      graphlab::any& any = thread::get_local(1983);
+      std::vector<edge_buffer_record>* ebuffer_ptr = NULL;
+      if(any.empty()) {
+        ebuffer_ptr = new std::vector<edge_buffer_record>();
+        any = ebuffer_ptr;
+        edge_buffers_lock.lock();
+        edge_buffer_ptrs.push_back(ebuffer_ptr);
+        edge_buffers_lock.unlock();
+      } else {
+        ebuffer_ptr = any.as< std::vector<edge_buffer_record>* > ();
+      }
+      ASSERT_NE(ebuffer_ptr, NULL);
+      return *ebuffer_ptr;
     }
 
 
