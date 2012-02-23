@@ -145,8 +145,11 @@ namespace graphlab {
       const lvid_type lvid = graph.vid2lvid[vid];
       vertex_record& local_record = graph.lvid2record[lvid];
       local_record.owner = buffer_rec.owner;
+      ASSERT_EQ(local_record.num_in_edges, 0); // this should have not been set
       local_record.num_in_edges = buffer_rec.num_in_edges;
+      ASSERT_EQ(local_record.num_out_edges, 0); // this should have not been set
       local_record.num_out_edges = buffer_rec.num_out_edges;
+      ASSERT_EQ(local_record.mirrors.size(), 0);
       local_record.mirrors = buffer_rec.mirrors;
     } // end of update_vrecord
 
@@ -176,14 +179,16 @@ namespace graphlab {
         std::vector< edge_buffer_record >().swap(edge_buffers[i]);
       } // end for loop over buffers
       logstream(LOG_INFO) << "Finalizing local graph" << std::endl;
+
       // Finalize local graph
       graph.local_graph.finalize();
+
       // Initialize vertex records
       graph.lvid2record.resize(graph.vid2lvid.size());
       typedef typename boost::unordered_map<vertex_id_type, lvid_type>::value_type 
-        value_type;
-      foreach(const value_type& value, graph.vid2lvid) 
-        graph.lvid2record[value.second].gvid = value.first;      
+        vid2lvid_pair_type;
+      foreach(const vid2lvid_pair_type& pair, graph.vid2lvid) 
+        graph.lvid2record[pair.second].gvid = pair.first;      
       // Check conditions on graph
       ASSERT_EQ(graph.local_graph.num_vertices(), graph.lvid2record.size());   
    
@@ -192,8 +197,9 @@ namespace graphlab {
       // negotiator the edge information for that vertex.
       typedef std::vector< std::vector<shuffle_record> > proc2vids_type;
       proc2vids_type proc2vids(rpc.numprocs());
-      for (size_t lvid = 0; lvid < graph.local_graph.num_vertices(); ++lvid) {
-        const vertex_id_type vid = graph.lvid2record[lvid].gvid;
+      foreach(const vid2lvid_pair_type& pair, graph.vid2lvid) {
+        const vertex_id_type vid = pair.first;
+        const vertex_id_type lvid = pair.second;
         const procid_t negotiator = vertex_to_proc(vid);
         const shuffle_record rec(vid, graph.local_graph.num_in_edges(lvid),
                                  graph.local_graph.num_out_edges(lvid));
@@ -226,13 +232,13 @@ namespace graphlab {
       logstream(LOG_INFO) << "Shuffle record size (bytes): " << proc2vid_size
                           << std::endl;
 
-      // Construct the assignments
+      // Construct the vertex owner assignments
       logstream(LOG_INFO) << "Finalize: constructing assignments" << std::endl;
       std::vector<size_t> counts(rpc.numprocs());
       typedef boost::unordered_map<vertex_id_type, vertex_buffer_record> 
         vbuffer_map_type;
       typedef typename vbuffer_map_type::value_type vbuffer_pair_type;
-
+      // Loop over all vertices and the vertex buffer
       foreach(vbuffer_map_type& vbuffer, vertex_buffers) {
         foreach(vbuffer_pair_type& pair, vbuffer) {
           const vertex_id_type vid = pair.first;
@@ -255,7 +261,10 @@ namespace graphlab {
         // destroy the buffer
         vbuffer_map_type().swap(vbuffer);
       } // end of loop over 
+    
+      logstream(LOG_INFO) << "Finished sending all vertex data." << std::endl;
       rpc.full_barrier();
+      logstream(LOG_INFO) << "Finished receiving all vertex data." << std::endl;
 
       // Count the number of vertices owned locally
       graph.local_own_nverts = 0;
@@ -291,7 +300,6 @@ namespace graphlab {
       mpi_tools::all2all(swap_counts, swap_counts);
       graph.nreplicas = 0;
       foreach(size_t count, swap_counts) graph.nreplicas += count;
-
    
       // std::cout << "Save debugging information" << std::endl;
       // {
