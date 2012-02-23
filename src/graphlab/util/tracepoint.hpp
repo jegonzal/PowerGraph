@@ -92,7 +92,6 @@ struct trace_count{
   void print(std::ostream& out, unsigned long long tpersec = 0) const;
 };
 
-unsigned long long estimate_ticks_per_second();
 } // namespace
 
 /**

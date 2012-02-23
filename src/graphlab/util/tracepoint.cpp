@@ -8,8 +8,6 @@
 
 namespace graphlab {
 
-static unsigned long long rtdsc_ticks_per_sec = 0; 
-static mutex rtdsc_ticks_per_sec_mutex;
 void trace_count::print(std::ostream& out, unsigned long long tpersec) const {
   if (tpersec == 0) {
     out << name << ": " << description << "\n";
@@ -34,17 +32,6 @@ void trace_count::print(std::ostream& out, unsigned long long tpersec) const {
   }
 }
 
-unsigned long long estimate_ticks_per_second() {
-  rtdsc_ticks_per_sec_mutex.lock();
-  if (rtdsc_ticks_per_sec == 0) {
-    unsigned long long tstart = rdtsc();
-    graphlab::my_sleep(1);
-    unsigned long long tend = rdtsc();
-    rtdsc_ticks_per_sec = tend - tstart;
-  }
-  rtdsc_ticks_per_sec_mutex.unlock();
-  return rtdsc_ticks_per_sec;
-}
 
 static mutex printlock;
 

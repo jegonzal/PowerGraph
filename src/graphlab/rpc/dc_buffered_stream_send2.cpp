@@ -95,17 +95,18 @@ namespace dc_impl {
 
 
   void dc_buffered_stream_send2::send_loop() {
-    float t = lowres_time_seconds(); 
     size_t last_sent = 0;
     graphlab::timer timer;
     timer.start();
-    double last_time = timer.current_time();
-    const double nano2second = 1000*1000*1000;
-    const double second_wait = nanosecond_wait / nano2second;
+    unsigned long long last_time = rdtsc();
+    //const double nano2second = 1000*1000*1000;
+    //const double second_wait = nanosecond_wait / nano2second;
+    unsigned long long second_wait = estimate_ticks_per_second() / 1000;
+    std::cout << second_wait << std::endl;
     while (1) {
       lock.lock();
       cond.timedwait_ns(lock, nanosecond_wait);
-      if (!done && writebuffer.len > 0 ) {
+      if (!done && writebuffer.size() > 0) {
         sendbuffer.swap(writebuffer);
         lock.unlock();
         last_sent += writebuffer.size();
@@ -115,24 +116,20 @@ namespace dc_impl {
             && sendbuffer.buffer_size > 10240) {
           sendbuffer.clear(sendbuffer.buffer_size / 2);
         }
-        sendbuffer.clear();
-      } else  {
+        else {
+          sendbuffer.clear();
+        }
+      } else {
         lock.unlock();
+      }
+      if (done) {
         break;
       }
-
-      if (lowres_time_seconds() - t > 100) {
-        t = lowres_time_seconds();
-        logstream(LOG_INFO) 
-          << dc->procid() << "->" << target << '\t'
-          << "(" << wait_count_bytes << ")[" << last_sent << "]"  << std::endl;
-        
-      }
-
-      if(timer.current_time() - last_time >= second_wait) {
+      unsigned long long curtime = rdtsc();
+      if(curtime - last_time >= second_wait) {
         wait_count_bytes = (wait_count_bytes + last_sent)/2;
         last_sent = 0;
-        last_time = timer.current_time();
+        last_time = curtime;
       }
 
     }

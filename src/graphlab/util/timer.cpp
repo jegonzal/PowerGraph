@@ -25,6 +25,7 @@
 #include <signal.h>
 #include <sys/time.h>
 
+#include <graphlab/parallel/pthread_tools.hpp>
 #include <graphlab/util/timer.hpp>
 
 std::ostream&  operator<<(std::ostream& out, const graphlab::timer& t) {
@@ -105,5 +106,23 @@ namespace graphlab {
   }
 
   
+  
+static unsigned long long rtdsc_ticks_per_sec = 0; 
+static mutex rtdsc_ticks_per_sec_mutex;
+
+unsigned long long estimate_ticks_per_second() {
+  if (rtdsc_ticks_per_sec == 0) {
+    rtdsc_ticks_per_sec_mutex.lock();
+      if (rtdsc_ticks_per_sec == 0) {
+      unsigned long long tstart = rdtsc();
+      graphlab::my_sleep(1);
+      unsigned long long tend = rdtsc();
+      rtdsc_ticks_per_sec = tend - tstart;
+      }
+    rtdsc_ticks_per_sec_mutex.unlock();
+  }
+  return rtdsc_ticks_per_sec;
+}
+
 }
 
