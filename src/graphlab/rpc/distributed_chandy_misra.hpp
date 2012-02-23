@@ -211,20 +211,22 @@ class distributed_chandy_misra {
     if (philosopherset[lvid].lockid == lockid) {
       if (philosopherset[lvid].counter > 0) {
         ++philosopherset[lvid].counter;
-        philosopherset[lvid].lock.unlock();
+        bool lockid = philosopherset[lvid].lockid;
         logstream(LOG_DEBUG) << rmi.procid() <<
             ": Cancellation accepted on " << distgraph.global_vid(lvid) <<
             "(" << (int)philosopherset[lvid].counter << ")" << std::endl;
+        philosopherset[lvid].lock.unlock();
         const vertex_record& rec = distgraph.l_get_vertex_record(lvid);
         if (requestor != rmi.procid()) {
           unsigned char pkey = rmi.dc().set_sequentialization_key(rec.gvid % 254 + 1);
           rmi.remote_call(requestor,
                           &dcm_type::rpc_cancellation_accept,
-                          rec.gvid);
+                          rec.gvid,
+                          lockid);
           rmi.dc().set_sequentialization_key(pkey);
         }
         else {
-          cancellation_accept(lvid);
+          cancellation_accept_unlocked(lvid, lockid);
         }
       }
       else {
@@ -278,15 +280,16 @@ class distributed_chandy_misra {
  *  Releases all dirty forks
  ****************************************************************************/
 
-  void rpc_cancellation_accept(vertex_id_type gvid) {
+  void rpc_cancellation_accept(vertex_id_type gvid, bool lockid) {
     vertex_id_type lvid = distgraph.local_vid(gvid);
-    cancellation_accept(lvid);
+    cancellation_accept_unlocked(lvid, lockid);
   }
 
-  void cancellation_accept(vertex_id_type p_id) {
+  void cancellation_accept_unlocked(vertex_id_type p_id, bool lockid) {
     std::vector<vertex_id_type> retval;
     philosopherset[p_id].lock.lock();
     //philosopher is now hungry!
+    ASSERT_EQ (lockid, philosopherset[p_id].lockid);
     ASSERT_EQ((int)philosopherset[p_id].state, (int)HORS_DOEUVRE);
     philosopherset[p_id].state = HUNGRY;
     philosopherset[p_id].cancellation_sent = false;

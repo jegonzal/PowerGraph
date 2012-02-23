@@ -248,7 +248,7 @@ int main(int argc, char** argv) {
   std::cout << initial_nlocks_to_acquire + lockable_vertices.size() << " Locks to acquire\n";
   std::cout << nlocksacquired << " Locks Acquired in total\n";
   boost::unordered_map<graphlab::vertex_id_type, size_t>::const_iterator iter = demand_set.begin();
-  bool bad = (nlocksacquired != initial_nlocks_to_acquire + graph.num_local_vertices());
+  bool bad = (nlocksacquired != initial_nlocks_to_acquire + lockable_vertices.size());
   while (iter != demand_set.end()) {
     if(locked_set[iter->first] != iter->second) {
       std::cout << graph.l_get_vertex_record(iter->first).gvid << " mismatch: "

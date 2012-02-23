@@ -481,7 +481,7 @@ namespace graphlab {
         /// TODO: What is going on here?  Do you really mean to return
         /// immediately
         // Sorry, this is to compare naive partition with greedy partition.
-        // return graph_ptr->edge_to_proc(src, dst);
+        //return edge_to_proc(src, dst);
          
         procid_t best_proc = -1; 
         size_t src_proc = vertex_to_init_proc(src);
