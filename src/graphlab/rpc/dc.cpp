@@ -394,7 +394,16 @@ void distributed_control::init(const std::vector<std::string> &machines,
 
   compute_master_ranks();
 }
-  
+
+size_t distributed_control::set_sender_option(std::string opt, size_t value) {
+  size_t oldval = 0;
+  // we assume that all senders are identical
+  for (size_t i = 0;i < senders.size(); ++i) {
+    oldval = senders[i]->set_option(opt, value);
+  }
+  return oldval;
+}
+
 dc_services& distributed_control::services() {
   return *distributed_services;
 }

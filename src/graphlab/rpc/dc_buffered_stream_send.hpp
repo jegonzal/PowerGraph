@@ -68,8 +68,9 @@ class dc_buffered_stream_send: public dc_send{
   dc_buffered_stream_send(distributed_control* dc, 
                                    dc_comm_base *comm, 
                                    procid_t target) : 
-    dc(dc),  comm(comm), target(target), done(false), 
-    wait_count(1024000) { 
+                  dc(dc),  comm(comm), target(target), done(false), 
+                  wait_count(1024000), nanosecond_wait(1000000), 
+                  combine_upper_threshold(65536) { 
     thr = launch_in_new_thread(boost::bind
                                (&dc_buffered_stream_send::send_loop, 
                                 this));
@@ -109,6 +110,18 @@ class dc_buffered_stream_send: public dc_send{
     return bytessent.value;
   }
 
+  /**
+   * Possible Options include 
+   * combine_upper_threshold: Maximum size of outgoing send (65536 bytes)
+   * nanosecond_wait: Maximum amount of time remote calls can age 
+   *                  in the queue before the queue is flushed. (1000000)
+   * wait_count: Maximum number of remote calls in the buffer before
+   *             the queue is flushed. This number is self adjusting
+   *             with an exponential scaling rate and should not need
+   *             to be modified. (initial = 1024000)
+   */
+  size_t set_option(std::string opt, size_t val);
+
  private:
   /// pointer to the owner
   distributed_control* dc;
@@ -121,11 +134,11 @@ class dc_buffered_stream_send: public dc_send{
   bool done;
   atomic<size_t> bytessent;
   size_t wait_count;
+  size_t nanosecond_wait;
   // parameters for write combining.
   // write combining will start if the data size is below the lower threshold
   // and continue until it reaches the upper threshold
-  static const size_t combine_lower_threshold = 10240;
-  static const size_t combine_upper_threshold = 65536;  // 1 packet
+  size_t combine_upper_threshold;  // 1 packet
 
   void write_combining_send(std::deque<expqueue_entry>& e);
 

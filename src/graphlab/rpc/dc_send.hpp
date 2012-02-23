@@ -82,6 +82,10 @@ class dc_send{
    * If the sender multithreads, the sending thread must shut down.
    */
   virtual void shutdown() = 0;
+  
+  virtual size_t set_option(std::string opt, size_t val) {
+    return 0;
+  }
 
 };
   

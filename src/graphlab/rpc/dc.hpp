@@ -504,6 +504,12 @@ class distributed_control{
   inline procid_t master_rank() const {
     return masterid;
   }
+  
+  /**
+   * Sets a custom option on the sender. Returning the old value.
+   * Operation does nothing if the option is not recognized.
+   */
+  size_t set_sender_option(std::string opt, size_t value);
 
   /**
     registers a portable RPC call.
