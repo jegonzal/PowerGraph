@@ -31,9 +31,9 @@ namespace graphlab {
   namespace dc_impl {
 
     void dc_buffered_stream_send::send_data(procid_t target_, 
-                                                     unsigned char packet_type_mask,
-                                                     std::istream &istrm,
-                                                     size_t len) {
+                                            unsigned char packet_type_mask,
+                                            std::istream &istrm,
+                                            size_t len) {
       ASSERT_EQ(target, target_);
       if (len != size_t(-1)) {
         char cbuffer[len];
@@ -68,8 +68,8 @@ namespace graphlab {
     }
 
     void dc_buffered_stream_send::send_data(procid_t target, 
-                                                     unsigned char packet_type_mask,
-                                                     char* data, size_t len) {
+                                            unsigned char packet_type_mask,
+                                            char* data, size_t len) {
       if ((packet_type_mask & CONTROL_PACKET) == 0) {
         if (packet_type_mask & (FAST_CALL | STANDARD_CALL)) {
           dc->inc_calls_sent(target);
@@ -96,7 +96,8 @@ namespace graphlab {
     }
 
 
-    void dc_buffered_stream_send::write_combining_send(std::deque<expqueue_entry> &stuff) {
+    void dc_buffered_stream_send::
+    write_combining_send(std::deque<expqueue_entry> &stuff) {
       // fill new entries until I fill up the length
       char sendcombining[combine_upper_threshold];
       size_t length = 0;
@@ -116,8 +117,7 @@ namespace graphlab {
           memcpy(sendcombining + length, ent.c , ent.len);
           length += ent.len;
           free(ent.c);
-        }
-        else {
+        } else {
           // length should be 0 here
           // too long for the combining buffer
           // send it seperately
@@ -133,9 +133,6 @@ namespace graphlab {
 
     void dc_buffered_stream_send::send_loop() {
       float t = lowres_time_seconds(); 
-
-
-
       size_t last_sent = 0;
       graphlab::timer timer;
       timer.start();
@@ -156,8 +153,9 @@ namespace graphlab {
 
         if (lowres_time_seconds() - t > 100) {
           t = lowres_time_seconds();
-          std::cout << dc->procid() << "->" << target << '\t'
-                    << "(" << wait_count << ")[" << last_sent << "]"  << std::endl;
+          logstream(LOG_INFO) 
+            << dc->procid() << "->" << target << '\t'
+            << "(" << wait_count << ")[" << last_sent << "]"  << std::endl;
           
         }
 
