@@ -35,7 +35,9 @@
 
 #include <graphlab/macros_def.hpp>
 
+#define INITIAL_NLOCKS_TO_ACQUIRE 1000
 graphlab::mutex mt;
+graphlab::conditional cond;
 std::vector<graphlab::vertex_id_type> lockable_vertices;
 boost::unordered_map<graphlab::vertex_id_type, size_t> demand_set;
 boost::unordered_map<graphlab::vertex_id_type, size_t> current_demand_set;
@@ -65,8 +67,9 @@ graphlab::distributed_chandy_misra<graph_type> *locks;
 graph_type *ggraph;
 graphlab::blocking_queue<graphlab::vertex_id_type> locked_elements;
 
+
 void callback(graphlab::vertex_id_type v) {
-  logstream(LOG_INFO) << "Locked " << ggraph->global_vid(v) << std::endl;
+  //logstream(LOG_INFO) << "Locked " << ggraph->global_vid(v) << std::endl;
   mt.lock();
   ASSERT_EQ(current_demand_set[v], 1);
   locked_set[v]++;
@@ -87,7 +90,14 @@ void thread_stuff() {
       mt.lock();
       current_demand_set[deq.first] = 0;
       bool getnextlock = nlocks_to_acquire > 0;
-      if (nlocks_to_acquire > 0) nlocks_to_acquire--;
+      if (nlocks_to_acquire > 0) {
+        nlocks_to_acquire--;
+        if (nlocks_to_acquire % 100 == 0) {
+          std::cout << "Remaining: " << nlocks_to_acquire << std::endl;
+        }
+      }
+      if (nlocks_to_acquire == 0 &&
+        nlocksacquired == INITIAL_NLOCKS_TO_ACQUIRE + lockable_vertices.size()) cond.signal();
       mt.unlock();
 
       if (getnextlock > 0) {
@@ -112,7 +122,7 @@ void thread_stuff() {
 
 
 int main(int argc, char** argv) {
-  global_logger().set_log_level(LOG_DEBUG);
+  global_logger().set_log_level(LOG_INFO);
   global_logger().set_log_to_console(true);
 
   ///! Initialize control plain using mpi
@@ -218,8 +228,7 @@ int main(int argc, char** argv) {
   dc.barrier();
   locks = new graphlab::distributed_chandy_misra<graph_type>(dc, graph, callback);
   nlocksacquired = 0;
-  size_t initial_nlocks_to_acquire = 1000;
-  nlocks_to_acquire = initial_nlocks_to_acquire;
+  nlocks_to_acquire = INITIAL_NLOCKS_TO_ACQUIRE;
   dc.full_barrier();
   for (graphlab::vertex_id_type v = 0; v < graph.num_local_vertices(); ++v) {
     if (graph.l_get_vertex_record(v).owner == dc.procid()) {
@@ -235,20 +244,20 @@ int main(int argc, char** argv) {
   }
   for (graphlab::vertex_id_type v = 0; v < graph.num_local_vertices(); ++v) {
     if (graph.l_get_vertex_record(v).owner == dc.procid()) {
-      std::cout << dc.procid() << ": Lock Req for " << graph.l_get_vertex_record(v).gvid << std::endl;
+      //std::cout << dc.procid() << ": Lock Req for " << graph.l_get_vertex_record(v).gvid << std::endl;
       locks->make_philosopher_hungry(v);
     }
   }
-  if (dc.procid() == 0) {
-    getchar();
-  }
+  mt.lock();
+  while (nlocksacquired != INITIAL_NLOCKS_TO_ACQUIRE + lockable_vertices.size()) cond.wait(mt);
+  mt.unlock();
   dc.barrier();
   locked_elements.stop_blocking();
   thrs.join();
-  std::cout << initial_nlocks_to_acquire + lockable_vertices.size() << " Locks to acquire\n";
+  std::cout << INITIAL_NLOCKS_TO_ACQUIRE + lockable_vertices.size() << " Locks to acquire\n";
   std::cout << nlocksacquired << " Locks Acquired in total\n";
   boost::unordered_map<graphlab::vertex_id_type, size_t>::const_iterator iter = demand_set.begin();
-  bool bad = (nlocksacquired != initial_nlocks_to_acquire + lockable_vertices.size());
+  bool bad = (nlocksacquired != INITIAL_NLOCKS_TO_ACQUIRE + lockable_vertices.size());
   while (iter != demand_set.end()) {
     if(locked_set[iter->first] != iter->second) {
       std::cout << graph.l_get_vertex_record(iter->first).gvid << " mismatch: "
