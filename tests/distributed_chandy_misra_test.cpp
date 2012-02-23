@@ -122,8 +122,8 @@ void thread_stuff() {
 
 
 int main(int argc, char** argv) {
-  global_logger().set_log_level(LOG_INFO);
-  global_logger().set_log_to_console(true);
+//   global_logger().set_log_level(LOG_INFO);
+//   global_logger().set_log_to_console(true);
 
   ///! Initialize control plain using mpi
   graphlab::mpi_tools::init(argc, argv);
@@ -134,6 +134,7 @@ int main(int argc, char** argv) {
 
   // Parse command line options -----------------------------------------------
   graphlab::command_line_options clopts("PageRank algorithm.");
+  clopts.use_distributed_options();
   std::string graph_dir = "/mnt/bigbrofs/usr10/haijieg/domain_graph/edata_splits/";
   std::string format = "adj";
   clopts.attach_option("graph", &graph_dir, graph_dir,
@@ -158,7 +159,7 @@ int main(int argc, char** argv) {
 
   std::cout << dc.procid() << ": Starting." << std::endl;
   graphlab::timer timer; timer.start();
-  graph_type graph(dc);
+  graph_type graph(dc, clopts);
   ggraph = &graph;
   if(ring > 0) {
     if(dc.procid() == 0) {
@@ -174,7 +175,7 @@ int main(int argc, char** argv) {
           size_t t = graphlab::random::rand() % randomconnect;
           if (v[t] == false && t > i) {
             graph.add_edge(i, t);
-            std::cout << i << "->" << t << "\n";
+            //            std::cout << i << "->" << t << "\n";
             v[t] = true;
           }
         }
@@ -218,13 +219,13 @@ int main(int argc, char** argv) {
     << "\n Edge balance ratio: " << (float)graph.num_local_edges()/graph.num_edges()
     << std::endl;
 
-  for (graphlab::vertex_id_type v = 0; v < graph.num_local_vertices(); ++v) {
-    std::cout << graph.l_get_vertex_record(v).gvid << ": " << graph.l_get_vertex_record(v).owner << ":";
-    foreach(graphlab::procid_t pid,  graph.l_get_vertex_record(v).get_replicas()) {
-      std::cout << pid << " ";
-    }
-    std::cout << "\n";
-  }
+  // for (graphlab::vertex_id_type v = 0; v < graph.num_local_vertices(); ++v) {
+  //   std::cout << graph.l_get_vertex_record(v).gvid << ": " << graph.l_get_vertex_record(v).owner << ":";
+  //   foreach(graphlab::procid_t pid,  graph.l_get_vertex_record(v).get_replicas()) {
+  //     std::cout << pid << " ";
+  //   }
+  //   std::cout << "\n";
+  // }
   dc.barrier();
   locks = new graphlab::distributed_chandy_misra<graph_type>(dc, graph, callback);
   nlocksacquired = 0;
