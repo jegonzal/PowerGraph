@@ -51,6 +51,7 @@
 #include <graphlab/rpc/dc_dist_object.hpp>
 #include <graphlab/util/mpi_tools.hpp>
 
+#include <graphlab/options/graphlab_options.hpp>
 #include <graphlab/serialization/iarchive.hpp>
 #include <graphlab/serialization/oarchive.hpp>
 #include <graphlab/graph/graph.hpp>

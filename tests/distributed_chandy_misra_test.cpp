@@ -154,9 +154,9 @@ int main(int argc, char** argv) {
     << " ==============="
     << "\n Num vertices: " << graph.num_vertices()
     << "\n Num edges: " << graph.num_edges()
-    << "\n Num replica: " << graph.num_replica()
+    << "\n Num replica: " << graph.num_replicas()
     << "\n Replica to vertex ratio: "
-    << (float)graph.num_replica()/graph.num_vertices()
+    << (float)graph.num_replicas()/graph.num_vertices()
     << "\n --------------------------------------------"
     << "\n Num local own vertices: " << graph.num_local_own_vertices()
     << "\n Num local vertices: " << graph.num_local_vertices()
