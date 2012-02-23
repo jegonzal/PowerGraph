@@ -36,7 +36,13 @@
 #include <graphlab/macros_def.hpp>
 
 graphlab::mutex mt;
-boost::unordered_set<graphlab::vertex_id_type> lockedset;
+std::vector<graphlab::vertex_id_type> lockable_vertices;
+boost::unordered_map<graphlab::vertex_id_type, size_t> demand_set;
+boost::unordered_map<graphlab::vertex_id_type, size_t> current_demand_set;
+boost::unordered_map<graphlab::vertex_id_type, size_t> locked_set;
+size_t nlocksacquired ;
+
+size_t nlocks_to_acquire;
 
 struct vertex_data {
   uint32_t nupdates;
@@ -57,17 +63,52 @@ typedef graphlab::distributed_graph<vertex_data, edge_data> graph_type;
 
 graphlab::distributed_chandy_misra<graph_type> *locks;
 graph_type *ggraph;
+graphlab::blocking_queue<graphlab::vertex_id_type> locked_elements;
 
 void callback(graphlab::vertex_id_type v) {
   logstream(LOG_INFO) << "Locked " << ggraph->global_vid(v) << std::endl;
   mt.lock();
-  ASSERT_TRUE(lockedset.find(v) == lockedset.end());
-  lockedset.insert(v);
+  ASSERT_EQ(current_demand_set[v], 1);
+  locked_set[v]++;
+  nlocksacquired++;
   mt.unlock();
 //  graphlab::my_sleep(1);
-  locks->philosopher_stops_eating(v);
+  locked_elements.enqueue(v);
 }
 
+
+void thread_stuff() {
+  std::pair<graphlab::vertex_id_type, bool> deq;
+  while(1) {
+    deq = locked_elements.dequeue();
+    if (deq.second == false) break;
+    else {
+      locks->philosopher_stops_eating(deq.first);
+      mt.lock();
+      current_demand_set[deq.first] = 0;
+      bool getnextlock = nlocks_to_acquire > 0;
+      if (nlocks_to_acquire > 0) nlocks_to_acquire--;
+      mt.unlock();
+
+      if (getnextlock > 0) {
+        graphlab::vertex_id_type toacquire = 0;
+        while(1) {
+          mt.lock();
+           toacquire = lockable_vertices[graphlab::random::rand() %
+                                         lockable_vertices.size()];
+          if (current_demand_set[toacquire] == 0) {
+            current_demand_set[toacquire] = 1;
+            demand_set[toacquire]++;
+            mt.unlock();
+            break;
+          }
+          mt.unlock();
+        }
+        locks->make_philosopher_hungry(toacquire);
+      }
+    }
+  }
+}
 
 
 int main(int argc, char** argv) {
@@ -176,8 +217,22 @@ int main(int argc, char** argv) {
   }
   dc.barrier();
   locks = new graphlab::distributed_chandy_misra<graph_type>(dc, graph, callback);
-
+  nlocksacquired = 0;
+  size_t initial_nlocks_to_acquire = 1000;
+  nlocks_to_acquire = initial_nlocks_to_acquire;
   dc.full_barrier();
+  for (graphlab::vertex_id_type v = 0; v < graph.num_local_vertices(); ++v) {
+    if (graph.l_get_vertex_record(v).owner == dc.procid()) {
+      demand_set[v] = 1;
+      current_demand_set[v] = 1;
+      lockable_vertices.push_back(v);
+    }
+  }
+  dc.full_barrier();
+  graphlab::thread_group thrs;
+  for (size_t i = 0;i < 4; ++i) {
+    thrs.launch(thread_stuff);
+  }
   for (graphlab::vertex_id_type v = 0; v < graph.num_local_vertices(); ++v) {
     if (graph.l_get_vertex_record(v).owner == dc.procid()) {
       std::cout << dc.procid() << ": Lock Req for " << graph.l_get_vertex_record(v).gvid << std::endl;
@@ -188,12 +243,22 @@ int main(int argc, char** argv) {
     getchar();
   }
   dc.barrier();
-  for (graphlab::vertex_id_type v = 0; v < graph.num_local_vertices(); ++v) {
-    if (graph.l_get_vertex_record(v).owner == dc.procid()) {
-      if(lockedset.find(v) == lockedset.end()) {
-          std::cout << graph.l_get_vertex_record(v).gvid << " not acquired\n";
-      }
+  locked_elements.stop_blocking();
+  thrs.join();
+  std::cout << initial_nlocks_to_acquire + lockable_vertices.size() << " Locks to acquire\n";
+  std::cout << nlocksacquired << " Locks Acquired in total\n";
+  boost::unordered_map<graphlab::vertex_id_type, size_t>::const_iterator iter = demand_set.begin();
+  bool bad = (nlocksacquired != initial_nlocks_to_acquire + graph.num_local_vertices());
+  while (iter != demand_set.end()) {
+    if(locked_set[iter->first] != iter->second) {
+      std::cout << graph.l_get_vertex_record(iter->first).gvid << " mismatch: "
+                << locked_set[iter->first] << ", " << iter->second << "\n";
+      bad = true;
     }
+    ++iter;
+  }
+  if (bad) {
+    locks->print_out();
   }
   dc.barrier();
   graphlab::mpi_tools::finalize();
