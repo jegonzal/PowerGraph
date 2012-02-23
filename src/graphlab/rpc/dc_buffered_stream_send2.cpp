@@ -105,13 +105,14 @@ namespace dc_impl {
     while (1) {
       lock.lock();
       cond.timedwait_ns(lock, nanosecond_wait);
-      if (!done) {
+      if (!done && writebuffer.len > 0 ) {
         sendbuffer.swap(writebuffer);
         lock.unlock();
         last_sent += writebuffer.size();
         comm->send(target, sendbuffer.str, sendbuffer.len);
         // shrink if we are not using much buffer
-        if (sendbuffer.len < sendbuffer.buffer_size / 2) {
+        if (sendbuffer.len < sendbuffer.buffer_size / 2 
+            && sendbuffer.buffer_size > 10240) {
           sendbuffer.clear(sendbuffer.buffer_size / 2);
         }
         sendbuffer.clear();
