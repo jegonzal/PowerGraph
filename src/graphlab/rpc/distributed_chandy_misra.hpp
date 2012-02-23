@@ -181,7 +181,7 @@ class distributed_chandy_misra {
         }
         else if (philosopherset[target].cancellation_sent == false) {
           philosopherset[target].cancellation_sent = true;
-          bool lockid = philosopherset[source].lockid;
+          bool lockid = philosopherset[target].lockid;
           philosopherset[source].lock.unlock();
           philosopherset[target].lock.unlock();
           issue_cancellation_request_unlocked(target, lockid);
