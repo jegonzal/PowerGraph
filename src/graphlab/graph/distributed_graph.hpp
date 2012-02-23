@@ -57,6 +57,7 @@
 #include <graphlab/graph/graph2.hpp>
 #include <graphlab/graph/idistributed_ingress.hpp>
 #include <graphlab/graph/distributed_batch_ingress.hpp>
+#include <graphlab/graph/distributed_random_ingress.hpp>
 
 
 
@@ -86,6 +87,10 @@ namespace graphlab {
 
     typedef idistributed_ingress<VertexData, EdgeData> 
     idistributed_ingress_type;
+    typedef distributed_batch_ingress<VertexData, EdgeData>
+        distributed_batch_ingress_type;
+    typedef distributed_random_ingress<VertexData, EdgeData>
+        distributed_random_ingress_type;
 
 
     /** 
@@ -440,11 +445,9 @@ namespace graphlab {
 
     /** The local graph data */
     local_graph_type local_graph;
-    mutex local_graph_lock;
     
     /** The map from global vertex ids to vertex records */
     lvid2record_type lvid2record;
-    mutex lvid2record_lock;
     
     /** The map from local vertex ids back to global vertex ids */
     boost::unordered_map<vertex_id_type, lvid_type> vid2lvid;
@@ -456,7 +459,7 @@ namespace graphlab {
     size_t local_own_nverts;
 
     /** The global number of vertex replica */
-    size_t nreplica;
+    size_t nreplicas;
 
     /** The beginning edge id for this machine */
     size_t begin_eid;
@@ -468,16 +471,24 @@ namespace graphlab {
 
     // CONSTRUCTORS ==========================================================>
     distributed_graph(distributed_control& dc) : 
-      rpc(dc, this), nverts(0), nedges(0), local_own_nverts(0), nreplica(0) {
+      rpc(dc, this), nverts(0), nedges(0), local_own_nverts(0), nreplicas(0) {
       rpc.barrier();
-      typedef distributed_batch_ingress<vertex_data_type, edge_data_type>
-        distributed_batch_ingress_type;
-      ingress_ptr = new distributed_batch_ingress_type(dc, *this);
+      ingress_ptr = new distributed_random_ingress_type(dc, *this);     
     }
 
 
 
     // METHODS ===============================================================>
+
+
+    void set_ingress_method(const std::string& method) {
+      if(ingress_ptr != NULL) { delete ingress_ptr; ingress_ptr = NULL; }
+      if(method == "batch") {
+        ingress_ptr = new distributed_batch_ingress_type(rpc.dc(), *this);
+      } else {
+        ingress_ptr = new distributed_random_ingress_type(rpc.dc(), *this);
+      }
+    } // end of set ingress method
 
     /**
      * Finalize is used to complete graph ingress by resolving vertex
@@ -496,7 +507,7 @@ namespace graphlab {
     size_t num_edges() const { return nedges; }
 
     /** \brief Get the size of replica */
-    size_t num_replica() const { return nreplica; }
+    size_t num_replicas() const { return nreplicas; }
 
     /** Return the color of a vertex */
     vertex_color_type color(vertex_id_type vid) const { 

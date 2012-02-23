@@ -396,7 +396,8 @@ namespace graphlab {
       logstream(LOG_DEBUG) << rmi.procid() << ": Schedule " << local_vid << std::endl;
       if (started) {
         BEGIN_TRACEPOINT(disteng_scheduler_task_queue);
-        scheduler_ptr->schedule_from_execution_thread(local_vid, update_functor);
+        scheduler_ptr->schedule_from_execution_thread(thread::thread_id(),
+                                                      local_vid, update_functor);
         END_TRACEPOINT(disteng_scheduler_task_queue);
       }
       else {

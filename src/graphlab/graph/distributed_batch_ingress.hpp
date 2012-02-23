@@ -80,6 +80,8 @@ namespace graphlab {
 
     dc_dist_object<distributed_batch_ingress> rpc;
     graph_type& graph;
+    mutex local_graph_lock;
+    mutex lvid2record_lock;
 
     /** The map from vertex_id to its degree on this proc.*/
     typedef typename boost::unordered_map<vertex_id_type, size_t>  vid2degree_type;
@@ -156,7 +158,7 @@ namespace graphlab {
       std::vector<lvid_type> local_target_arr;
       local_target_arr.reserve(target_arr.size());
 
-      graph.lvid2record_lock.lock();
+      lvid2record_lock.lock();
       lvid_type max_lvid = 0;
       for (size_t i = 0; i < source_arr.size(); ++i) {
         vertex_id_type source = source_arr[i];
@@ -193,14 +195,14 @@ namespace graphlab {
         }
         local_degree_count[i].clear();
       }
-      graph.lvid2record_lock.unlock(); 
+      lvid2record_lock.unlock(); 
 
-      graph.local_graph_lock.lock();
+      local_graph_lock.lock();
       if (max_lvid > 0 && max_lvid >= graph.local_graph.num_vertices()) {
         graph.local_graph.resize(max_lvid + 1);
       }
       graph.local_graph.add_block_edges(local_source_arr, local_target_arr, edata_arr);
-      graph.local_graph_lock.unlock();
+      local_graph_lock.unlock();
     } // end of add edges
     
 
