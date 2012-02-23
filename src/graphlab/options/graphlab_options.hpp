@@ -90,6 +90,8 @@ namespace graphlab {
     //! The compiler flags
     std::string compile_flags;
 
+    //! Options for the graph
+    options_map graph_options;
     
     //! Use CPU affinities
     bool enable_cpu_affinities;
@@ -123,8 +125,7 @@ namespace graphlab {
 
     //! Use distributed options instead of shared memory options
     void use_distributed_options() {
-      engine_type = "dist_chromatic";
-      scheduler_type = "sweep";
+      scheduler_type = "queued_fifo";
       distributed_options = true;
     }
 
@@ -166,12 +167,12 @@ namespace graphlab {
     }
 
 
-    //! Set the scope type
     bool set_scheduler_type(const std::string& stype) {
       //! \todo: ADD CHECKING
       scheduler_type = scheduler_args.parse_string(stype);
       return true; 
     }    
+
 
     //! Get the scope type
     const std::string& get_scheduler_type() const {
@@ -190,6 +191,20 @@ namespace graphlab {
 
 
 
+    bool set_graph_options(const std::string& stype) {
+      //! \todo: ADD CHECKING
+      graph_options.parse_string(stype);
+      return true; 
+    }    
+    const options_map& get_graph_options() const { 
+      return graph_options;
+    }
+    options_map& get_graph_options() { 
+      return graph_options;
+    }
+
+
+    
 
     //! Set the metrics type
     bool set_metrics_type(const std::string& mtype) {

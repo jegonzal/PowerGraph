@@ -369,7 +369,7 @@ namespace graphlab {
       proc_num_vertices.assign(rpc.numprocs(), graph.num_local_vertices());
       mpi_tools::all2all(proc_num_vertices, proc_num_vertices);
       for (procid_t i = 0; i < rpc.numprocs(); ++i) {
-        graph.nreplica += proc_num_vertices[i];
+        graph.nreplicas += proc_num_vertices[i];
       }
 
       proc_num_own_vertices.assign(rpc.numprocs(), graph.num_local_own_vertices());

@@ -470,10 +470,14 @@ namespace graphlab {
   public:
 
     // CONSTRUCTORS ==========================================================>
-    distributed_graph(distributed_control& dc) : 
-      rpc(dc, this), nverts(0), nedges(0), local_own_nverts(0), nreplicas(0) {
+    distributed_graph(distributed_control& dc, 
+                      const graphlab_options& opts = graphlab_options() ) : 
+      rpc(dc, this), nverts(0), nedges(0), local_own_nverts(0), nreplicas(0),
+      ingress_ptr(NULL) {
       rpc.barrier();
-      ingress_ptr = new distributed_random_ingress_type(dc, *this);     
+      std::string ingress_method = "random";
+      opts.get_graph_options().get_option("ingress", ingress_method);
+      set_ingress_method(ingress_method);
     }
 
 
@@ -484,8 +488,10 @@ namespace graphlab {
     void set_ingress_method(const std::string& method) {
       if(ingress_ptr != NULL) { delete ingress_ptr; ingress_ptr = NULL; }
       if(method == "batch") {
+        logstream(LOG_INFO) << "Using batch ingress" << std::endl;
         ingress_ptr = new distributed_batch_ingress_type(rpc.dc(), *this);
       } else {
+        logstream(LOG_INFO) << "Using random ingress" << std::endl;
         ingress_ptr = new distributed_random_ingress_type(rpc.dc(), *this);
       }
     } // end of set ingress method

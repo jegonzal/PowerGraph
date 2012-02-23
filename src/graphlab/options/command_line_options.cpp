@@ -63,6 +63,7 @@ namespace graphlab {
     std::string scopetype(get_scope_type());
     std::string schedulertype(get_scheduler_type());
     std::string metricstype(get_metrics_type());
+    std::string graph_opts_string= "";
 
     if(!surpress_graphlab_options) {
       if (distributed_options == false) {
@@ -105,6 +106,10 @@ namespace graphlab {
           boost_po::value<std::string>(&(enginetype))->
           default_value(enginetype),
           "Options are {dist_chromatic}")
+          ("dgraphopts",
+           boost_po::value<std::string>(&(graph_opts_string))->
+           default_value(graph_opts_string),
+           "String of graph options i.e., (ingress=random)")
           ("scope",
           boost_po::value<std::string>(&(scopetype))->
           default_value(scopetype),
@@ -117,14 +122,15 @@ namespace graphlab {
           boost_po::value<std::string>()->implicit_value(""),
           "Display help for a particular scheduler.")
           ("enghelp",
-          boost_po::value<std::string>()->implicit_value(""),
-          "Display help for a particular engine.");
+           boost_po::value<std::string>()->implicit_value(""),
+           "Display help for a particular engine.");
       }
     }
     // Parse the arguments
     try{
       std::vector<std::string> arguments;
-      std::copy(argv + 1, argv + argc + !argc, std::inserter(arguments, arguments.end()));
+      std::copy(argv + 1, argv + argc + !argc, 
+                std::inserter(arguments, arguments.end()));
       boost_po::store(boost_po::command_line_parser(arguments).
                       options(desc).positional(pos_opts).run(), vm);
       boost_po::notify(vm);
@@ -189,6 +195,13 @@ namespace graphlab {
                 << std::endl;
       return false;
     }
+
+    if(!set_graph_options(graph_opts_string)) {
+      std::cout << "Invalid graph options! : " << graph_opts_string
+                << std::endl;
+      return false;
+    }
+
 
     return true;
   } // end of parse
