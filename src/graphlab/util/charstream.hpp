@@ -70,6 +70,12 @@ namespace graphlab {
         len = 0;
       }
 
+      void clear(size_t new_buffer_size) {
+        len = 0;
+        str = (char*)realloc(str, new_buffer_size);
+        buffer_size = new_buffer_size;
+      }
+
       char *str;
       size_t len;
       size_t buffer_size;
@@ -92,8 +98,15 @@ namespace graphlab {
         len += n;
         return n;
       }
-    };
+      
+      inline void swap(resizing_array_sink<self_deleting> &other) {
+        std::swap(str, other.str);
+        std::swap(len, other.len);
+        std::swap(buffer_size, other.buffer_size);
+      }
 
+    };
+    
   }; // end of impl;
   
   
