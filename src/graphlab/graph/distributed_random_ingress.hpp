@@ -173,8 +173,9 @@ namespace graphlab {
           graph.local_graph.add_edge(source_lvid, target_lvid, rec.edata);          
         } // end of loop over add edges
         // clear the buffer
-        //  edge_buffers[i].swap(std::vector< edge_buffer_record >());
+        std::vector< edge_buffer_record >().swap(edge_buffers[i]);
       } // end for loop over buffers
+      logstream(LOG_INFO) << "Finalizing local graph" << std::endl;
       // Finalize local graph
       graph.local_graph.finalize();
       // Initialize vertex records
@@ -201,15 +202,15 @@ namespace graphlab {
 
       // The returned local vertices are the vertices from each
       // machine for which this machine is a negotiator.
-      logstream(LOG_DEBUG) 
+      logstream(LOG_INFO) 
         << "Finalize: start exchange shuffle records" << std::endl;
       mpi_tools::all2all(proc2vids, proc2vids);
-      logstream(LOG_DEBUG) 
+      logstream(LOG_INFO) 
         << "Finalize: finish exchange shuffle records" << std::endl;
 
    
       // Update the vid2shuffle
-      logstream(LOG_DEBUG) 
+      logstream(LOG_INFO) 
         << "Finalize: update vid 2 shuffle records" << std::endl;
       size_t proc2vid_size = 0;
       for(procid_t proc = 0; proc < rpc.numprocs(); ++proc) {
@@ -226,7 +227,7 @@ namespace graphlab {
                           << std::endl;
 
       // Construct the assignments
-      logstream(LOG_DEBUG) << "Finalize: constructing assignments" << std::endl;
+      logstream(LOG_INFO) << "Finalize: constructing assignments" << std::endl;
       std::vector<size_t> counts(rpc.numprocs());
       typedef boost::unordered_map<vertex_id_type, vertex_buffer_record> 
         vbuffer_map_type;
@@ -252,9 +253,8 @@ namespace graphlab {
           }
         }
         // destroy the buffer
-        // vbuffer_map_type().swap(vbuffer.swap());
+        vbuffer_map_type().swap(vbuffer);
       } // end of loop over 
-
       rpc.full_barrier();
 
       // Count the number of vertices owned locally
