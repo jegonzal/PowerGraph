@@ -228,6 +228,8 @@ int main(int argc, char** argv) {
         num_neighbors(core.graph(), i)
         << '\n';
     fout.close();
+    graphlab::graph_ops<graph_type>::save_edge_list_structure("edge_list.txt",
+                                                          core.graph());
   }
 
   if(!binfname.empty()) { 

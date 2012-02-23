@@ -531,6 +531,19 @@ namespace graphlab {
     } // end of save metis
 
 
+    static bool save_edge_list_structure(const std::string& filename,
+                                         const Graph& graph) { 
+      typedef typename Graph::vertex_id_type vertex_id_type;
+      std::ofstream fout(filename.c_str());
+      if(!fout.good()) return false;
+      for(vertex_id_type i = 0; i < graph.num_vertices(); ++i) 
+        foreach(edge_type edge, graph.out_edges(i)) 
+          fout << edge.source() << '\t' << edge.target() << '\n';      
+      fout.close();
+      return true;
+    } // end of save metis
+
+
 
     static bool save_patoh_hypergraph_structure(const std::string& filename,
                                                  const Graph& graph) { 
@@ -568,7 +581,8 @@ namespace graphlab {
       size_t numedges = curid;
       // each edge is a vertex, each vertex is an edge
       // a pin is total adjacency of a hyper edge
-      fout << "0 " << numedges  << " " << graph.num_vertices() << " " << numedges  * 2 << "\n";
+      fout << "0 " << numedges  << " " << graph.num_vertices() 
+           << " " << numedges  * 2 << "\n";
       
       // loop over the "hyperedge" and write out the edges it is adjacent to
       for(vertex_id_type i = 0; i < graph.num_vertices(); ++i) {
