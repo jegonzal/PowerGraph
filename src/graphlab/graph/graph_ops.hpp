@@ -405,7 +405,7 @@ namespace graphlab {
 
       // test to see if the graph_dir is an hadoop path
       if(boost::starts_with(fname, "hdfs://")) {
-        graphlab::hdfs hdfs;
+/*        graphlab::hdfs hdfs;
         graphlab::hdfs::fstream in_file(hdfs, fname);
         boost::iostreams::filtering_stream<boost::iostreams::input> fin;  
         if(gzip) fin.push(boost::iostreams::gzip_decompressor());
@@ -416,7 +416,7 @@ namespace graphlab {
         }
         const bool success = load_structure_from_stream(fin, format, graph);
         in_file.close();
-        return success;
+        return success;*/
       } else {
         std::ifstream in_file(fname.c_str(), 
                               std::ios_base::in | std::ios_base::binary);

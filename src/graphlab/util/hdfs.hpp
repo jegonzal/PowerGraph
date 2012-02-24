@@ -20,16 +20,17 @@
  *
  */
 
+#ifndef HAS_HADOOP
+#define GRAPHLAB_HDFS_HPP
+#endif
 #ifndef GRAPHLAB_HDFS_HPP
 #define GRAPHLAB_HDFS_HPP
 
 // Requires the hdfs library
 
-#ifdef HAS_HADOOP
 extern "C" {
   #include <hdfs.h>
 }
-#endif 
 
 #include <vector>
 #include <boost/iostreams/stream.hpp>
@@ -113,6 +114,8 @@ namespace graphlab {
       hdfsFreeFileInfo(hdfs_file_list_ptr, num_files);
       return files;
     } // end of list_files
+
+    inline static bool has_hadoop() { return true; }
   }; // end of class hdfs
 #else
 
@@ -166,6 +169,9 @@ namespace graphlab {
                            << std::endl;
       return std::vector<std::string>();;
     } // end of list_files
+
+    // No hadoop available
+    inline static bool has_hadoop() { return false; }
   }; // end of class hdfs
 
 
