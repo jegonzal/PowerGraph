@@ -126,6 +126,7 @@ class dc_buffered_stream_send2: public dc_send{
   charstream_impl::resizing_array_sink<true> sendbuffer;
   
   mutex lock;
+  mutex sendlock;
   conditional cond;
 
   thread thr;
