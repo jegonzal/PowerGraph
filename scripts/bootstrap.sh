@@ -21,11 +21,11 @@ if [ ! -z $KC_ROOT ] && [ $KC_ROOT == $PWD/$DEPS_DIR ]; then
 fi
 
 
-if [ ! -z $YRL_EXPERIMENTAL ]; then
-  echo "Installing AVRO"
-  source scripts/avrocheck.sh
-  if [ ! -z $AVRO_ROOT ] && [ $AVRO_ROOT == $PWD/$DEPS_DIR ]; then
-    echo "AVRO_ROOT=$AVRO_ROOT" >> configure.deps
-  fi
-fi
+# if [ ! -z $YRL_EXPERIMENTAL ]; then
+#   echo "Installing AVRO"
+#   source scripts/avrocheck.sh
+#   if [ ! -z $AVRO_ROOT ] && [ $AVRO_ROOT == $PWD/$DEPS_DIR ]; then
+#     echo "AVRO_ROOT=$AVRO_ROOT" >> configure.deps
+#   fi
+# fi
 

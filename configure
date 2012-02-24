@@ -57,6 +57,8 @@ function print_help {
   echo
   echo "      --eigen                 Install Eigen linear algebra package "
   echo
+  echo "      --hadoop                Install hadoop tools for HDFS support "
+  echo
   echo "      -D something=something  specify definitions to be passed on to cmake."
   echo
   exit 1
@@ -100,8 +102,9 @@ while [ $# -gt 0 ]
     --itpp_include_dir=*)   itpp_include_dir=${1##--itpp_include_dir=} ;;
     --itpp_link_dir=*)      itpp_link_dir=${1##--itpp_link_dir=} ;;
     --eigen)		    install_eigen=1 ;;
- #   --yrlabs)               yrlabs=1 ;; # Yahoo Research Experimental Components
-    -D)                      config_flags="$config_flags -D $2"; shift ;;
+    --hadoop)		    install_hadoop=1 ;;
+    --force_hadoop_install) force_hadoop_install=1 ;;
+    -D)                     config_flags="$config_flags -D $2"; shift ;;
     *) unknown_option $1 ;;
   esac
   shift
@@ -126,12 +129,6 @@ else
   echo "EXPERIMENTAL=$EXPERIMENTAL"      >> configure.deps
 fi
 
-# Enable or disable Yahoo Research Labs Experimental components
-if [ ! -z $yrlabs ]; then
-  echo "YRL_EXPERIMENTAL=true"       >> configure.deps
-else
-  echo "YRL_EXPERIMENTAL=$YRL_EXPERIMENTAL"      >> configure.deps
-fi
 
 
 # Run the configure deps
@@ -151,6 +148,14 @@ if [ ! -z $install_eigen ]; then
 elif [ ! -z $itpp ]; then
   source ./scripts/itpp_install.sh | tee -a $LOG_FILE
 fi
+
+if [ ! -z $install_hadoop ]; then
+  source ./scripts/hadoop_install.sh  | tee -a $LOG_FILE
+  if [ ! -z $HADOOP_HOME ]; then
+      echo "HADOOP_HOME=$HADOOP_HOME" >> configure.deps
+  fi
+fi
+
 
 
 #if the prefix is not specified
@@ -213,13 +218,6 @@ if [ ! -z $EXPERIMENTAL ]; then
     config_flags="$config_flags -D EXPERIMENTAL:BOOL=$EXPERIMENTAL"
 fi
 
-if [ ! -z $YRL_EXPERIMENTAL ]; then
-    config_flags="$config_flags -D YRL_EXPERIMENTAL:BOOL=$YRL_EXPERIMENTAL"
-   if [ ! -z $AVRO_ROOT ]; then
-       config_flags="$config_flags -D AVRO_ROOT:STRING=$AVRO_ROOT"
-   fi
-fi
-
 
 if [ ! -z $itpp_link_dir ]; then
     config_flags="$config_flags -D ITPP_LINK_DIR:STRING=$itpp_link_dir"
@@ -230,7 +228,12 @@ if [ ! -z $itpp_include_dir ]; then
 fi
 
 if [ ! -z $HAS_EIGEN ]; then
-   config_flags="$config_flags -D HAS_EIGEN:STRING=true"
+   config_flags="$config_flags -D HAS_EIGEN:BOOL=true"
+fi
+
+if [ ! -z $HADOOP_HOME ]; then
+   config_flags="$config_flags -D HAS_HADOOP:BOOL=true"
+   config_flags="$config_flags -D HADOOP_HOME:STRING=$HADOOP_HOME"
 fi
 
 
