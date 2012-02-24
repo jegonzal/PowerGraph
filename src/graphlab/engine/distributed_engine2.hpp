@@ -657,7 +657,6 @@ namespace graphlab {
       BEGIN_TRACEPOINT(disteng_waiting_for_vstate_locks);
       vstate_locks[lvid].lock();
       END_TRACEPOINT(disteng_waiting_for_vstate_locks);
-      bool dounlock = false;
       switch(vstate[lvid].state) {
       case NONE: 
         ASSERT_MSG(false, "Empty Internal Task");
@@ -682,7 +681,9 @@ namespace graphlab {
 
           do_apply(lvid);
           vstate[lvid].state = SCATTERING;
-          dounlock = true;
+          master_broadcast_scattering(lvid,
+                                      vstate[lvid].current,
+                                      graph.get_local_graph().vertex_data(lvid));
           // fall through to scattering
         }
       case SCATTERING: {
@@ -697,7 +698,8 @@ namespace graphlab {
             vstate[lvid].hasnext = false;
           } 
           vstate[lvid].current = update_functor_type();
-          vstate[lvid].state = NONE; 
+          vstate[lvid].state = NONE;
+          cmlocks->philosopher_stops_eating(lvid);
           break;
         }
       case MIRROR_SCATTERING: {
@@ -719,11 +721,6 @@ namespace graphlab {
         }
       }
       vstate_locks[lvid].unlock();
-      if (dounlock) {
-        master_broadcast_scattering_and_unlock(lvid,
-                                      vstate[lvid].current,
-                                      graph.get_local_graph().vertex_data(lvid));
-      }
     } // end of eval internal task
 
 
@@ -808,7 +805,7 @@ namespace graphlab {
     /**
      * Task was added to the vstate. Now to begin scheduling the gathers
      */
-    void master_broadcast_scattering_and_unlock(lvid_type sched_lvid,
+    void master_broadcast_scattering(lvid_type sched_lvid,
                                      const update_functor_type& task,
                                      const vertex_data_type &central_vdata) {
       BEGIN_TRACEPOINT(disteng_init_scattering);
@@ -828,7 +825,6 @@ namespace graphlab {
       }
       rmi.dc().set_sequentialization_key(prevkey);
       END_TRACEPOINT(disteng_init_scattering);
-      cmlocks->philosopher_stops_eating(sched_lvid);
     }
 
     template <bool prelocked>

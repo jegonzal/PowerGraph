@@ -662,7 +662,7 @@ class distributed_chandy_misra {
     const vertex_record &rec = distgraph.l_get_vertex_record(p_id);
     ASSERT_EQ(rec.get_owner(), rmi.procid());
     philosopherset[p_id].lock.lock();
-    ASSERT_EQ(philosopherset[p_id].state, (int)THINKING);
+    ASSERT_EQ((int)philosopherset[p_id].state, (int)THINKING);
     bool newlockid = !philosopherset[p_id].lockid;
     initialize_master_philosopher_as_hungry_locked(p_id, newlockid);
     
