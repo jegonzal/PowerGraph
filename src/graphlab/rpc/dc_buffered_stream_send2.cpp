@@ -67,6 +67,35 @@ namespace dc_impl {
     }
   }
 
+  bool dc_buffered_stream_send2::adaptive_send_decision() {
+    /** basically for each call, you have a decision.
+     *  1: send it immediately, (either by waking up the sender, 
+     *                           or sending it in-line)
+     *  2: buffer it for sending.
+     * 
+     * I would like to send immediately if the callrate is low
+     * (as compared to the thread wake up time.)
+     * I would like to buffer it otherwise. 
+     */
+    if (prevtime == 0) {
+      prevtime = rdtsc();
+    }
+    else {
+      unsigned long long curtime = rdtsc();
+      ++callcount;
+      if (curtime - prevtime > rtdsc_per_ms) {
+        calls_per_ms = (calls_per_ms + double(callcount)  * rtdsc_per_ms / (curtime - prevtime)) / 2;
+        callcount = 0;
+        prevtime = curtime;
+//        std::cout << calls_per_ms << std::endl;
+      }
+      if (calls_per_ms < 50) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   void dc_buffered_stream_send2::send_data(procid_t target, 
                                           unsigned char packet_type_mask,
                                           char* data, size_t len) {
@@ -86,18 +115,16 @@ namespace dc_impl {
     hdr.sequentialization_key = dc->get_sequentialization_key();
     hdr.packet_type_mask = packet_type_mask;
 
-    lock.lock();
-    
+    lock.lock();   
     size_t prevwbufsize = writebuffer.len;
     writebuffer.write(reinterpret_cast<char*>(&hdr), sizeof(packet_hdr));
     writebuffer.write(data, len);
-
-    if (sendlock.try_lock()) {
+    bool send_decision = adaptive_send_decision();
+    if (send_decision && sendlock.try_lock()) {
       // try to immediately send if we have exceeded the threshold 
       // already nd we can acquire the lock
       sendbuffer.swap(writebuffer);
       lock.unlock();
-      size_t sentlen = sendbuffer.len;
       comm->send(target, sendbuffer.str, sendbuffer.len);
 
       if (sendbuffer.len < sendbuffer.buffer_size / 2 
@@ -107,10 +134,11 @@ namespace dc_impl {
       else {
         sendbuffer.clear();
       }
+
       sendlock.unlock();
     }
-    else if (prevwbufsize == 0 ||
-        writebuffer.len >= wait_count_bytes) {
+    else if (prevwbufsize == 0 || send_decision) {
+      flush = send_decision;
       cond.signal();
       lock.unlock();
     }
@@ -132,7 +160,6 @@ namespace dc_impl {
         sendlock.lock();
         sendbuffer.swap(writebuffer);
         lock.unlock();
-        size_t sentlen = sendbuffer.len;
         comm->send(target, sendbuffer.str, sendbuffer.len);
         // shrink if we are not using much buffer
         if (sendbuffer.len < sendbuffer.buffer_size / 2 
@@ -142,30 +169,20 @@ namespace dc_impl {
         else {
           sendbuffer.clear();
         }
-        if (prevtime == 0) {
-          prevtime = rdtsc();
-        }
-        else {
-          unsigned long long curtime = rdtsc();
-          double rate = (double(sentlen) * rtdsc_per_ms) / (curtime - prevtime);
-          wait_count_bytes = (0.5 * wait_count_bytes + 0.5 * rate);
-          wait_count_bytes += (wait_count_bytes == 0);
-          prevtime = curtime;
-        }
     
         sendlock.unlock();
         lock.lock();
       } else {
         unsigned long long sleep_start_time = rdtsc();
         // sleep for 1 ms or up till we get wait_count_bytes
-        while(writebuffer.len < wait_count_bytes &&
+        while(!flush &&
               sleep_start_time + rtdsc_per_ms > rdtsc() &&
               !done) {
           if(writebuffer.len == 0) cond.wait(lock);
           else cond.timedwait_ns(lock, nanosecond_wait);
         //  std::cout << prevtime << " " << second_wait << " " << nexttime << " " << writebuffer.len << "\n";
         }
-
+        flush = false;
       }
       if (done) {
         break;
@@ -188,10 +205,6 @@ namespace dc_impl {
     if (opt == "nanosecond_wait") {
       prevval = nanosecond_wait;
       nanosecond_wait = val;
-    }
-    else if (opt == "wait_count_bytes") {
-      prevval = wait_count_bytes;
-      wait_count_bytes = val;
     }
     return prevval;
   }

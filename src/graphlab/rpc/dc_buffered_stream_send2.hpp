@@ -65,7 +65,7 @@ class dc_buffered_stream_send2: public dc_send{
                                    dc_comm_base *comm, 
                                    procid_t target) : 
                   dc(dc),  comm(comm), target(target), done(false), 
-                  wait_count_bytes(1024000), nanosecond_wait(1000000), prevtime(0),
+                  flush(false), calls_per_ms(0), prevtime(0),
                   rtdsc_per_ms(estimate_ticks_per_second() / 1000) {
     thr = launch_in_new_thread(boost::bind
                                (&dc_buffered_stream_send2::send_loop, 
@@ -102,6 +102,8 @@ class dc_buffered_stream_send2: public dc_send{
 
   void shutdown();
   
+  bool adaptive_send_decision();
+  
   inline size_t bytes_sent() {
     return bytessent.value;
   }
@@ -132,8 +134,14 @@ class dc_buffered_stream_send2: public dc_send{
 
   thread thr;
   bool done;
-  atomic<size_t> bytessent;
-  size_t wait_count_bytes;
+
+  size_t callcount;
+  atomic<size_t> bytessent; 
+  
+  bool flush;
+  
+  double calls_per_ms;
+  
   size_t nanosecond_wait;
   unsigned long long prevtime;
   unsigned long long rtdsc_per_ms;
