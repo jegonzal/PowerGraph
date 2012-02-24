@@ -87,9 +87,22 @@ namespace dc_impl {
     hdr.packet_type_mask = packet_type_mask;
 
     lock.lock();
+
+    size_t prevwbufsize = writebuffer.len;
     writebuffer.write(reinterpret_cast<char*>(&hdr), sizeof(packet_hdr));
     writebuffer.write(data, len);
-    if (writebuffer.size() >= wait_count_bytes) cond.signal();
+
+    if (prevwbufsize == 0 && 
+        writebuffer.len >= wait_count_bytes &&
+        sendlock.try_lock()) {
+      comm->send(target, writebuffer.str, writebuffer.len);
+      sendlock.unlock();
+      writebuffer.clear();
+    }
+    else if (prevwbufsize == 0 ||
+        writebuffer.len >= wait_count_bytes) {
+      cond.signal();
+    }
     lock.unlock();
   }
 
@@ -98,19 +111,22 @@ namespace dc_impl {
     size_t last_sent = 0;
     graphlab::timer timer;
     timer.start();
-    unsigned long long last_time = rdtsc();
+    unsigned long long prevtime = rdtsc();
     //const double nano2second = 1000*1000*1000;
     //const double second_wait = nanosecond_wait / nano2second;
     unsigned long long second_wait = estimate_ticks_per_second() / 1000;
-    std::cout << second_wait << std::endl;
+
+    lock.lock();
     while (1) {
-      lock.lock();
-      cond.timedwait_ns(lock, nanosecond_wait);
-      if (!done && writebuffer.size() > 0) {
+      if (writebuffer.len > 0) {
         sendbuffer.swap(writebuffer);
+        sendlock.lock();
         lock.unlock();
-        last_sent += writebuffer.size();
+
+        wait_count_bytes = (wait_count_bytes + sendbuffer.len)/2;
+        wait_count_bytes += (wait_count_bytes == 0);
         comm->send(target, sendbuffer.str, sendbuffer.len);
+        sendlock.unlock();
         // shrink if we are not using much buffer
         if (sendbuffer.len < sendbuffer.buffer_size / 2 
             && sendbuffer.buffer_size > 10240) {
@@ -119,20 +135,23 @@ namespace dc_impl {
         else {
           sendbuffer.clear();
         }
+        lock.lock();
       } else {
-        lock.unlock();
+        prevtime = rdtsc();
+        while(writebuffer.len < wait_count_bytes &&
+              prevtime + second_wait > rdtsc() && 
+              !done) {
+          if(writebuffer.len == 0) cond.wait(lock);
+          else cond.timedwait_ns(lock, nanosecond_wait);
+        //  std::cout << prevtime << " " << second_wait << " " << nexttime << " " << writebuffer.len << "\n";
+        }
+
       }
       if (done) {
         break;
       }
-      unsigned long long curtime = rdtsc();
-      if(curtime - last_time >= second_wait) {
-        wait_count_bytes = (wait_count_bytes + last_sent)/2;
-        last_sent = 0;
-        last_time = curtime;
-      }
-
     }
+    lock.unlock();
   }
 
   void dc_buffered_stream_send2::shutdown() {

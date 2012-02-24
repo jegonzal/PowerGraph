@@ -40,6 +40,7 @@ int main(int argc, char ** argv) {
   const size_t strlen[4] = {16, 128, 1024, 10240};
   // fill rate
   for (size_t l = 0; l < 4; ++l) {
+    timer ti;
     if (dc.procid() == 0) {
       std::cout << "String Length = " << strlen[l] << std::endl;
       data.clear();
@@ -48,18 +49,18 @@ int main(int argc, char ** argv) {
       }
       std::cout << "10k random strings generated" << std::endl;
       std::cout << "Starting set" << std::endl;
-      timer ti;
-      ti.start();
+     ti.start();
       for (size_t i = 0;i < NUMSTRINGS; ++i) {
         testdht.set(data[i].first, data[i].second);
-        if (i % 100 == 0) {
+        if (i % 100000 == 0) {
           std::cout << ".";
           std::cout.flush();
         }
       }
-      std::cout << "10k insertions in " << ti.current_time() << std::endl;
+      std::cout << "10k insertions in " << ti.current_time();
     }
       dc.full_barrier();
+      if (dc.procid() == 0) std::cout << "\t" << ti.current_time() << " " << double(strlen[l]*NUMSTRINGS)/ti.current_time()/1024/1024 <<  std::endl;
   //  dc.barrier();
     // get rate
     if (dc.procid() == 0) {
