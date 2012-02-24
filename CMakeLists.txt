@@ -138,6 +138,15 @@ else ()
 endif()
 
 
+if(HADOOP_HOME)
+  add_definitions(-DHAS_HADOOP)
+  message(STATUS "Found hadoop home: " ${HADOOP_HOME})
+  set(HADOOP_FOUND 1 CACHE BOOL "Hadoop was found")
+else(HADOOP_HOME)
+  message(STATUS "Hadoop was not found but is strictly optional")      
+endif(HADOOP_HOME)
+
+
 
 #Find the JNI library
 find_package(JNI)

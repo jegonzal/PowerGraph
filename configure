@@ -125,8 +125,6 @@ fi
 # Enable or disable experimental graphlab components
 if [ ! -z $experimental ]; then
   echo "EXPERIMENTAL=true"       >> configure.deps
-else
-  echo "EXPERIMENTAL=$EXPERIMENTAL"      >> configure.deps
 fi
 
 
@@ -151,9 +149,6 @@ fi
 
 if [ ! -z $install_hadoop ]; then
   source ./scripts/hadoop_install.sh  | tee -a $LOG_FILE
-  if [ ! -z $HADOOP_HOME ]; then
-      echo "HADOOP_HOME=$HADOOP_HOME" >> configure.deps
-  fi
 fi
 
 
@@ -161,8 +156,6 @@ fi
 #if the prefix is not specified
 if [ ! -z $prefix ]; then
   echo "INSTALL_DIR=$prefix"     >> configure.deps
-else
-  echo "INSTALL_DIR=$INSTALL_DIR"  >> configure.deps
 fi
 
 
@@ -232,7 +225,6 @@ if [ ! -z $HAS_EIGEN ]; then
 fi
 
 if [ ! -z $HADOOP_HOME ]; then
-   config_flags="$config_flags -D HAS_HADOOP:BOOL=true"
    config_flags="$config_flags -D HADOOP_HOME:STRING=$HADOOP_HOME"
 fi
 
