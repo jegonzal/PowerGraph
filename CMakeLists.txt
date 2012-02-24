@@ -494,6 +494,7 @@ endmacro(ADD_CXXTEST)
 ## ===================================================================
 # Useful macros 
 macro(copy_file NAME)
+  message(STATUS "Copying File: " ${NAME})
   file(INSTALL ${CMAKE_CURRENT_SOURCE_DIR}/${NAME} 
     DESTINATION   ${CMAKE_CURRENT_BINARY_DIR} )
   ## The new cmake has much better ways to do this.  We should switch
@@ -510,8 +511,10 @@ endmacro(copy_file NAME)
 
 
 macro(copy_files NAME)
-  file(INSTALL  DESTINATION  ${CMAKE_CURRENT_BINARY_DIR} 
-    FILES_MATCHING PATTERN ${CMAKE_CURRENT_SOURCE_DIR}/${NAME} )
+  message(STATUS "Copying Files: " ${NAME})
+  file(INSTALL ${CMAKE_CURRENT_SOURCE_DIR}/  
+    DESTINATION  ${CMAKE_CURRENT_BINARY_DIR} 
+    FILES_MATCHING PATTERN ${NAME} )
 endmacro(copy_files NAME)
 
 
