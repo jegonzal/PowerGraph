@@ -50,19 +50,21 @@ if [ ! -z $force_hadoop_install ] || [ -z $hadoopfound ]; then
     if [ -z $always_yes ] ; then
         read
     fi
-    echo "Download Hadoop 1.0.0"
+    hadoop_ver=hadoop-1.0.0
+    hadoop_ver=hadoop-0.20.2
+    echo "Download $hadoop_ver"
     #download hadoop
-    rm hadoop-1.0.0.tar.gz
+    rm $hadoop_ver.tar.gz
     download_file_with_forward \
-        http://mirror.cc.columbia.edu/pub/software/apache//hadoop/common/hadoop-1.0.0/hadoop-1.0.0.tar.gz \
-        hadoop-1.0.0.tar.gz
+        http://mirror.cc.columbia.edu/pub/software/apache//hadoop/common/$hadoop_ver/$hadoop_ver.tar.gz \
+        $hadoop_ver.tar.gz
     echo "Cleaning up prior installations of hadoop..."
-    if [ -d "hadoop-1.0.0" ] ; then
-        rm -rf hadoop-1.0.0
+    if [ -d $hadoop_ver ] ; then
+        rm -rf $hadoop_ver
     fi
-    tar -xzvf hadoop-1.0.0.tar.gz
+    tar -xzvf $hadoop_ver
     # set HADOOP_HOME
-    HADOOP_HOME="$PWD/hadoop-1.0.0"
+    HADOOP_HOME="$PWD/$hadoop_ver"
     echo "HADOOP_HOME=$HADOOP_HOME" >> ../configure.deps
 else
     echo "Hadoop Found!"
