@@ -434,6 +434,7 @@ namespace graphlab {
         graphlab::hdfs hdfs;
         graphlab::hdfs::fstream in_file(hdfs, fname);
         boost::iostreams::filtering_stream<boost::iostreams::input> fin;  
+        fin.set_auto_close(false);
         if(gzip) fin.push(boost::iostreams::gzip_decompressor());
         fin.push(in_file);
         if(!fin.good()) {
@@ -441,6 +442,8 @@ namespace graphlab {
           return false;
         }
         const bool success = load_structure_from_stream(fin, format, graph);
+        fin.pop();
+        fin.pop();
         in_file.close();
         return success;
       } else {
