@@ -95,15 +95,32 @@ namespace dc_impl {
     if (prevwbufsize == 0 && 
         writebuffer.len >= wait_count_bytes &&
         sendlock.try_lock()) {
-      comm->send(target, writebuffer.str, writebuffer.len);
+      // try to immediately send if we have exceeded the threshold 
+      // already nd we can acquire the lock
+      sendbuffer.swap(writebuffer);
+      lock.unlock();
+      wait_count_bytes = (wait_count_bytes + sendbuffer.len)/2;
+      wait_count_bytes += (wait_count_bytes == 0);
+      comm->send(target, sendbuffer.str, sendbuffer.len);
+
+      if (sendbuffer.len < sendbuffer.buffer_size / 2 
+          && sendbuffer.buffer_size > 10240) {
+        sendbuffer.clear(sendbuffer.buffer_size / 2);
+      }
+      else {
+        sendbuffer.clear();
+      }
+ 
       sendlock.unlock();
-      writebuffer.clear();
     }
     else if (prevwbufsize == 0 ||
         writebuffer.len >= wait_count_bytes) {
       cond.signal();
+      lock.unlock();
     }
-    lock.unlock();
+    else {
+      lock.unlock();
+    }
   }
 
 
@@ -119,14 +136,13 @@ namespace dc_impl {
     lock.lock();
     while (1) {
       if (writebuffer.len > 0) {
-        sendbuffer.swap(writebuffer);
         sendlock.lock();
+        sendbuffer.swap(writebuffer);
         lock.unlock();
 
         wait_count_bytes = (wait_count_bytes + sendbuffer.len)/2;
         wait_count_bytes += (wait_count_bytes == 0);
         comm->send(target, sendbuffer.str, sendbuffer.len);
-        sendlock.unlock();
         // shrink if we are not using much buffer
         if (sendbuffer.len < sendbuffer.buffer_size / 2 
             && sendbuffer.buffer_size > 10240) {
@@ -135,6 +151,7 @@ namespace dc_impl {
         else {
           sendbuffer.clear();
         }
+        sendlock.unlock();
         lock.lock();
       } else {
         prevtime = rdtsc();
