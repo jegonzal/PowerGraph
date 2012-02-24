@@ -32,16 +32,21 @@
 #ifndef GRAPHLAB_GRAPH_OPS_HPP
 #define GRAPHLAB_GRAPH_OPS_HPP
 
+
+
+#include <iostream>
+#include <fstream>
+#include <string>
+
+#include <boost/algorithm/string/predicate.hpp>
 #include <boost/iostreams/stream.hpp>
-#include <boost/iostreams/device/mapped_file.hpp>
 #include <boost/iostreams/filtering_streambuf.hpp>
 #include <boost/iostreams/filtering_stream.hpp>
 #include <boost/iostreams/copy.hpp>
 #include <boost/iostreams/filter/gzip.hpp>
 
-#include <iostream>
-#include <fstream>
-#include <string>
+
+#include <graphlab/util/hdfs.hpp>
 
 
 
@@ -202,9 +207,8 @@ namespace graphlab {
     } // end of neighbors
     
 
-    static bool load_snap_structure(const std::string& filename,
-                                    graph_type& graph) {
-      std::ifstream fin(filename.c_str());
+    template<typename Fstream>
+    static bool load_snap_structure(Fstream& fin, graph_type& graph) {
       if(!fin.good()) return false;
       // Loop through file reading each line
       size_t self_edges = 0;
@@ -227,7 +231,6 @@ namespace graphlab {
             << "Self edge encountered but not supported!" << std::endl
             << "\t Further warnings will be surpressed." << std::endl;
       } // end of while loop       
-      fin.close();
       logstream(LOG_INFO) 
         << "Finished loading graph with: " << std::endl
         << "\t Vertices: " << graph.num_vertices() << std::endl
@@ -239,9 +242,8 @@ namespace graphlab {
     } // end of load SNAP
 
 
-    static bool load_edge_list_structure(const std::string& filename,
-                                         graph_type& graph) {
-      std::ifstream fin(filename.c_str());
+    template<typename Fstream>
+    static bool load_edge_list_structure(Fstream& fin, graph_type& graph) {
       if(!fin.good()) return false;
       size_t self_edges = 0;
       // Loop through file reading each line
@@ -259,7 +261,6 @@ namespace graphlab {
             << "Self edge encountered but not supported!" << std::endl
             << "\t Further warnings will be surpressed." << std::endl;
       }            
-      fin.close();
       logstream(LOG_INFO) 
         << "Finished loading graph with: " << std::endl
         << "\t Vertices: " << graph.num_vertices() << std::endl
@@ -270,16 +271,15 @@ namespace graphlab {
       return true;
     } // end of load edge list
     
-    
-    static inline void skip_newline(std::ifstream& fin) {
+    template<typename Fstream>
+    static inline void skip_newline(Fstream& fin) {
       char next_char = ' ';
       fin.get(next_char);
       ASSERT_EQ(next_char, '\n');  
     }
     
-    static bool load_metis_structure(const std::string& filename,
-                                     graph_type& graph) { 
-      std::ifstream fin(filename.c_str());
+    template<typename Fstream>
+    static bool load_metis_structure(Fstream& fin, graph_type& graph) { 
       if(!fin.good()) return false;
       size_t nverts = 0, nedges = 0;
       fin >> nverts >> nedges;
@@ -308,7 +308,6 @@ namespace graphlab {
         }
         skip_newline(fin);
       }
-      fin.close();
       logstream(LOG_INFO) 
         << "Finished loading graph with: " << std::endl
         << "\t Vertices: " << graph.num_vertices() << std::endl
@@ -320,20 +319,20 @@ namespace graphlab {
     } // end of load metis
 
 
-    static bool load_adj_structure(const std::string& fname,
-                                   graph_type& graph, bool gzip=false) {
+    template<typename Fstream>
+    static bool load_adj_structure(Fstream& fin, graph_type& graph) { 
       logstream(LOG_INFO) << "Loading adjacency file" << std::endl;
-        namespace bios = boost::iostreams;
-        std::ifstream in_file(fname.c_str(), 
-                              std::ios_base::in | std::ios_base::binary);
-        bios::filtering_stream<bios::input> fin;  
-        // Using gzip filter
-        if (gzip)
-          fin.push(bios::gzip_decompressor());
-        fin.push(in_file);
-        fin.set_auto_close(true);
-        assert(fin.good());
-
+//       namespace bios = boost::iostreams;
+//       std::ifstream in_file(fname.c_str(), 
+//                             std::ios_base::in | std::ios_base::binary);
+//       bios::filtering_stream<bios::input> fin;  
+//       // Using gzip filter
+//       if (gzip)
+//         fin.push(bios::gzip_decompressor());
+//       fin.push(in_file);
+//       fin.set_auto_close(true);
+//       assert(fin.good());
+      
       if(!fin.good()) {
         logstream(LOG_WARNING) << "file open failed" << std::endl;
         return false;
@@ -379,27 +378,61 @@ namespace graphlab {
             << "Added edata for " << ctr << " vertices: " 
             << source << std::endl; 
       } // end of loop over file
-        // fin.close();
       return true;
     } // end of load_adj_list
 
 
+    template<typename Fstream>
+    static bool load_structure_from_stream(Fstream& fstream,
+                                           const std::string& format,
+                                           graph_type& graph) {
+
+      if (format == "metis") return load_metis_structure(fstream, graph);
+      else if (format == "snap") return load_snap_structure(fstream, graph);
+      else if (format == "tsv") return load_edge_list_structure(fstream, graph);
+      else if (format == "adj") return load_adj_structure(fstream, graph);
+      else {
+        logstream(LOG_WARNING)
+          << "Invalid format \"" << format << "\"!" << std::endl;
+      }
+      return false;
+    } // end of load_structure
 
     static bool load_structure(const std::string& fname,
                                const std::string& format,
-                               graph_type& graph,
-                               bool gzip = false) {
-      if (format == "metis") return load_metis_structure(fname, graph);
-      else if (format == "snap") return load_snap_structure(fname, graph);
-      else if (format == "tsv") return load_edge_list_structure(fname, graph);
-      else if (format == "adj") return load_adj_structure(fname, graph, gzip);
-      else {
-        logstream(LOG_WARNING)
-          << "Invalid format \"" << format << "\".  "
-          << "Unable to load file \"" << fname << "\"!" << std::endl;     
-      }
-      return false;
-    }
+                               graph_type& graph) {
+      const bool gzip = boost::ends_with(fname, ".gz");
+
+      // test to see if the graph_dir is an hadoop path
+      if(boost::starts_with(fname, "hdfs://")) {
+        graphlab::hdfs hdfs;
+        graphlab::hdfs::fstream in_file(hdfs, fname);
+        boost::iostreams::filtering_stream<boost::iostreams::input> fin;  
+        if(gzip) fin.push(boost::iostreams::gzip_decompressor());
+        fin.push(in_file);
+        if(!fin.good()) {
+          std::cout << "Error opening file: " << fname << std::endl;
+          return false;
+        }
+        const bool success = load_structure_from_stream(fin, format, graph);
+        in_file.close();
+        return success;
+      } else {
+        std::ifstream in_file(fname.c_str(), 
+                              std::ios_base::in | std::ios_base::binary);
+        boost::iostreams::filtering_stream<boost::iostreams::input> fin;  
+        // Using gzip filter
+        if (gzip) fin.push(boost::iostreams::gzip_decompressor());
+        fin.push(in_file);
+        if(!fin.good()) {
+          std::cout << "Error opening file: " << fname << std::endl;
+          return false;
+        }
+        const bool success = load_structure_from_stream(fin, format, graph);
+        in_file.close();
+        return success;
+      } // end of else
+    } // end of load structure
 
 
 

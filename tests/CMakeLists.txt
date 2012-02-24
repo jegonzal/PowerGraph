@@ -33,7 +33,7 @@ add_graphlab_executable(delta_dht_test delta_dht_test.cpp)
 add_graphlab_executable(distributed_chandy_misra_test distributed_chandy_misra_test.cpp)
 
 
+add_graphlab_executable(hdfs_test hdfs_test.cpp)
 
-add_hadoop_graphlab_executable(hdfs_test hdfs_test.cpp)
 
 # copyfile(runtests.sh)

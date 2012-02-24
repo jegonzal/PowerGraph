@@ -184,14 +184,13 @@ int main(int argc, char** argv) {
   } else {
     std::vector<std::string> graph_files;
     graphlab::fs_util::list_files_with_prefix(graph_dir, "", graph_files);
-    const bool gzip = false;
     for(size_t i = 0; i < graph_files.size(); ++i) {
       if (i % dc.numprocs() == dc.procid()) {
         const std::string graph_fname = graph_dir + graph_files[i];
         std::cout << "Loading graph from structure file: " << graph_fname
                   << std::endl;
         graphlab::graph_ops<graph_type>::load_structure(graph_fname,
-                                                        format, graph, gzip);
+                                                        format, graph);
       }
     }
   }

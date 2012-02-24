@@ -139,7 +139,6 @@ endif()
 
 
 if(HADOOP_HOME)
-  add_definitions(-DHAS_HADOOP)
   message(STATUS "Found hadoop home: " ${HADOOP_HOME})
   set(HADOOP_FOUND 1 CACHE BOOL "Hadoop was found")
   include_directories(${HADOOP_HOME}/src/c++/libhdfs)
@@ -147,6 +146,8 @@ if(HADOOP_HOME)
 else(HADOOP_HOME)
   message(STATUS "Hadoop was not found but is strictly optional")      
 endif(HADOOP_HOME)
+
+
 
 
 
@@ -306,6 +307,15 @@ set(CMAKE_REQUIRED_LIBRARIES ${crlbackup})
 
 
 
+if( HADOOP_FOUND AND JNI_REALLY_FOUND )
+  add_definitions(-DHAS_HADOOP)
+  link_libraries(hdfs ${JAVA_JVM_LIBRARY})
+endif ( HADOOP_FOUND AND JNI_REALLY_FOUND )
+
+
+
+
+
 
 # test for system specific features
 
@@ -367,8 +377,6 @@ ENDIF(MPI_FOUND)
 
 
 
-
-
 # add boost to link directories and link libraries
 link_directories(
   ${Boost_LIBRARY_DIRS}
@@ -379,6 +387,8 @@ link_directories(
 if(NOT ${CMAKE_SYSTEM} MATCHES Windows)
   link_libraries(pthread gomp)   
 endif(NOT ${CMAKE_SYSTEM} MATCHES Windows)
+
+
 
 
 
@@ -563,24 +573,6 @@ macro(add_distributed_graphlab_executable NAME)
   endif(MPI_FOUND)
 endmacro(add_distributed_graphlab_executable)
 
-macro(add_hadoop_graphlab_executable NAME)
-  if(MPI_FOUND AND HADOOP_FOUND AND JNI_REALLY_FOUND)
-    add_executable(${NAME} ${ARGN})
-    target_link_libraries(${NAME} 
-      graphlab
-      ${MPI_LIBRARY} 
-      ${MPI_EXTRA_LIBRARY} 
-      ${Boost_LIBRARIES}
-      ${KYOTO_STATIC_LIBRARY}
-      hdfs
-      ${JAVA_JVM_LIBRARY}
-      )
-    set_source_files_properties( ${ARGN}
-      PROPERTIES COMPILE_DEFINITIONS "GLDISTRIBUTED2" )
-  else(MPI_FOUND AND HADOOP_FOUND AND JNI_REALLY_FOUND)
-    message(STATUS "Not Building " ${NAME} " since mpi, hadoop, or jni was not found.")
-  endif(MPI_FOUND AND HADOOP_FOUND AND JNI_REALLY_FOUND)
-endmacro(add_hadoop_graphlab_executable)
 
 
 

@@ -1,22 +1,28 @@
-
-extern "C" {
-  #include <hdfs.h>
-}
+#include <vector>
+#include <graphlab/util/hdfs.hpp>
 
 int main(int argc, char **argv) {
+  {
+    graphlab::hdfs hdfs;
+    const bool write = true;
+    graphlab::hdfs::fstream file(hdfs, "/tmp/joeytest.txt", write);
+    file.good();
+    file << "Hello World\n";
+    file.close();
+    std::vector<std::string> files = hdfs.list_files("/tmp/");
+    for(size_t i = 0; i < files.size(); ++i) 
+      std::cout << files[i] << std::endl;
+  }
 
-  hdfsFS fs = hdfsConnect("default", 0);
-  const char* writePath = "/tmp/testfile.txt";
-  hdfsFile writeFile = hdfsOpenFile(fs, writePath, O_WRONLY|O_CREAT, 0, 0, 0);
-  if(!writeFile) {
-    fprintf(stderr, "Failed to open %s for writing!\n", writePath);
-    exit(-1);
+  {
+    graphlab::hdfs hdfs;
+    graphlab::hdfs::fstream file(hdfs, "/tmp/joeytest.txt");
+    file.good();
+    std::string answer;
+    std::getline(file, answer);
+    std::cout << "contents: " << std::endl;
+    std::cout << answer << std::endl;
+    file.close();
   }
-  char* buffer = "Hello, World!";
-  tSize num_written_bytes = hdfsWrite(fs, writeFile, (void*)buffer, strlen(buffer)+1);
-  if (hdfsFlush(fs, writeFile)) {
-    fprintf(stderr, "Failed to 'flush' %s\n", writePath); 
-    exit(-1);
-  }
-  hdfsCloseFile(fs, writeFile);
+    std::cout << "Done!" << std::endl;
 }

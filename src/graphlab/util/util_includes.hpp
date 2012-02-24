@@ -24,11 +24,10 @@
 
 #include <graphlab/util/binary_parser.hpp>
 #include <graphlab/util/timer.hpp>
-//#include <graphlab/util/generics/blob.hpp>
 #include <graphlab/util/random.hpp>
 #include <graphlab/util/small_set.hpp>
 #include <graphlab/util/charstream.hpp>
 #include <graphlab/util/cache.hpp>
 #include <graphlab/util/fs_util.hpp>
-
+#include <graphlab/util/hdfs.hpp>
 
