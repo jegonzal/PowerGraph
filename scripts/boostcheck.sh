@@ -72,14 +72,14 @@ else
     if [ -z $always_yes ] ; then
       read
     fi
-    echo "Download Boost 1.46.1 from SourceForge..."
+    echo "Download Boost 1.48 from SourceForge..."
     #download boost
     rm boost.tar.bz2
-    download_file_with_forward http://sourceforge.net/projects/boost/files/boost/1.46.1/boost_1_46_1.tar.bz2/download boost.tar.bz2
-    # If there is already a boost 1_46_1 here. delete it
+    download_file_with_forward http://sourceforge.net/projects/boost/files/boost/1.48.0/boost_1_48_0.tar.bz2/download boost.tar.bz2
+    # If there is already a boost 1_48 here. delete it
     echo "Cleaning up prior installations of boost..."
-    if [ -d "boost_1_46_1" ] ; then
-      rm -rf boost_1_46_1
+    if [ -d "boost_1_48" ] ; then
+      rm -rf boost_1_48
     fi
     if [ -d "include/boost" ] ; then
       rm -rf include/boost
@@ -90,7 +90,7 @@ else
     set -e
     tar -xjvf boost.tar.bz2
     # cd into boost directory
-    cd boost_1_46_1
+    cd boost_1_48_0
     # build boost
     echo "Bootstrapping Boost..."
     ./bootstrap.sh --with-libraries="filesystem,program_options,system,iostreams" --prefix=$installprefix
