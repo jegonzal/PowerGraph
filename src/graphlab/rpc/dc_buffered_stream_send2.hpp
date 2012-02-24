@@ -65,7 +65,8 @@ class dc_buffered_stream_send2: public dc_send{
                                    dc_comm_base *comm, 
                                    procid_t target) : 
                   dc(dc),  comm(comm), target(target), done(false), 
-                  wait_count_bytes(1024000), nanosecond_wait(1000000) { 
+                  wait_count_bytes(1024000), nanosecond_wait(1000000), prevtime(0),
+                  rtdsc_per_ms(estimate_ticks_per_second() / 1000) {
     thr = launch_in_new_thread(boost::bind
                                (&dc_buffered_stream_send2::send_loop, 
                                 this));
@@ -134,6 +135,8 @@ class dc_buffered_stream_send2: public dc_send{
   atomic<size_t> bytessent;
   size_t wait_count_bytes;
   size_t nanosecond_wait;
+  unsigned long long prevtime;
+  unsigned long long rtdsc_per_ms;
 
 
 };

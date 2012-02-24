@@ -76,7 +76,7 @@ namespace dc_impl {
       }
       bytessent.inc(len);
     }
-
+    
     // build the packet header
     packet_hdr hdr;
     memset(&hdr, 0, sizeof(packet_hdr));
@@ -87,20 +87,17 @@ namespace dc_impl {
     hdr.packet_type_mask = packet_type_mask;
 
     lock.lock();
-
+    
     size_t prevwbufsize = writebuffer.len;
     writebuffer.write(reinterpret_cast<char*>(&hdr), sizeof(packet_hdr));
     writebuffer.write(data, len);
 
-    if (prevwbufsize == 0 && 
-        writebuffer.len >= wait_count_bytes &&
-        sendlock.try_lock()) {
+    if (sendlock.try_lock()) {
       // try to immediately send if we have exceeded the threshold 
       // already nd we can acquire the lock
       sendbuffer.swap(writebuffer);
       lock.unlock();
-      wait_count_bytes = (wait_count_bytes + sendbuffer.len)/2;
-      wait_count_bytes += (wait_count_bytes == 0);
+      size_t sentlen = sendbuffer.len;
       comm->send(target, sendbuffer.str, sendbuffer.len);
 
       if (sendbuffer.len < sendbuffer.buffer_size / 2 
@@ -110,7 +107,6 @@ namespace dc_impl {
       else {
         sendbuffer.clear();
       }
- 
       sendlock.unlock();
     }
     else if (prevwbufsize == 0 ||
@@ -125,13 +121,10 @@ namespace dc_impl {
 
 
   void dc_buffered_stream_send2::send_loop() {
-    size_t last_sent = 0;
     graphlab::timer timer;
     timer.start();
-    unsigned long long prevtime = rdtsc();
     //const double nano2second = 1000*1000*1000;
     //const double second_wait = nanosecond_wait / nano2second;
-    unsigned long long second_wait = estimate_ticks_per_second() / 1000;
 
     lock.lock();
     while (1) {
@@ -139,9 +132,7 @@ namespace dc_impl {
         sendlock.lock();
         sendbuffer.swap(writebuffer);
         lock.unlock();
-
-        wait_count_bytes = (wait_count_bytes + sendbuffer.len)/2;
-        wait_count_bytes += (wait_count_bytes == 0);
+        size_t sentlen = sendbuffer.len;
         comm->send(target, sendbuffer.str, sendbuffer.len);
         // shrink if we are not using much buffer
         if (sendbuffer.len < sendbuffer.buffer_size / 2 
@@ -151,12 +142,24 @@ namespace dc_impl {
         else {
           sendbuffer.clear();
         }
+        if (prevtime == 0) {
+          prevtime = rdtsc();
+        }
+        else {
+          unsigned long long curtime = rdtsc();
+          double rate = (double(sentlen) * rtdsc_per_ms) / (curtime - prevtime);
+          wait_count_bytes = (0.5 * wait_count_bytes + 0.5 * rate);
+          wait_count_bytes += (wait_count_bytes == 0);
+          prevtime = curtime;
+        }
+    
         sendlock.unlock();
         lock.lock();
       } else {
-        prevtime = rdtsc();
+        unsigned long long sleep_start_time = rdtsc();
+        // sleep for 1 ms or up till we get wait_count_bytes
         while(writebuffer.len < wait_count_bytes &&
-              prevtime + second_wait > rdtsc() && 
+              sleep_start_time + rtdsc_per_ms > rdtsc() &&
               !done) {
           if(writebuffer.len == 0) cond.wait(lock);
           else cond.timedwait_ns(lock, nanosecond_wait);
