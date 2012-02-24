@@ -59,6 +59,8 @@ function print_help {
   echo
   echo "      --hadoop                Install hadoop tools for HDFS support "
   echo
+  echo "      --force_hadoop_install  Force install hadoop tools for HDFS support "
+  echo
   echo "      -D something=something  specify definitions to be passed on to cmake."
   echo
   exit 1

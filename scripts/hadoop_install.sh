@@ -50,7 +50,7 @@ if [ ! -z $force_hadoop_install ] || [ -z $hadoopfound ]; then
     if [ -z $always_yes ] ; then
         read
     fi
-    hadoop_ver=hadoop-1.0.0
+#    hadoop_ver=hadoop-1.0.0
     hadoop_ver=hadoop-0.20.2
     echo "Download $hadoop_ver"
     #download hadoop
@@ -62,7 +62,7 @@ if [ ! -z $force_hadoop_install ] || [ -z $hadoopfound ]; then
     if [ -d $hadoop_ver ] ; then
         rm -rf $hadoop_ver
     fi
-    tar -xzvf $hadoop_ver
+    tar -xzvf $hadoop_ver.tar.gz
     # set HADOOP_HOME
     HADOOP_HOME="$PWD/$hadoop_ver"
     echo "HADOOP_HOME=$HADOOP_HOME" >> ../configure.deps
