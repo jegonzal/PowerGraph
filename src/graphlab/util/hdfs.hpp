@@ -20,16 +20,17 @@
  *
  */
 
+#ifndef HAS_HADOOP
+#define GRAPHLAB_HDFS_HPP
+#endif
 #ifndef GRAPHLAB_HDFS_HPP
 #define GRAPHLAB_HDFS_HPP
 
 // Requires the hdfs library
 
-#ifdef HAS_HADOOP
 extern "C" {
   #include <hdfs.h>
 }
-#endif 
 
 #include <vector>
 #include <boost/iostreams/stream.hpp>
