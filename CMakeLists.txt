@@ -142,6 +142,8 @@ if(HADOOP_HOME)
   add_definitions(-DHAS_HADOOP)
   message(STATUS "Found hadoop home: " ${HADOOP_HOME})
   set(HADOOP_FOUND 1 CACHE BOOL "Hadoop was found")
+  include_directories(${HADOOP_HOME}/src/c++/libhdfs)
+  link_directories(${HADOOP_HOME}/c++/Linux-amd64-64/lib)   
 else(HADOOP_HOME)
   message(STATUS "Hadoop was not found but is strictly optional")      
 endif(HADOOP_HOME)
@@ -153,7 +155,8 @@ find_package(JNI)
 if(EXISTS ${JAVA_INCLUDE_PATH}/jni.h  )
   set(JNI_REALLY_FOUND 1 CACHE BOOL "Tests whether the header
   actually exists")
-message(STATUS "jni.h was found at " ${JAVA_INCLUDE_PATH}/jni.h)
+  message(STATUS "jni.h was found at " ${JAVA_INCLUDE_PATH}/jni.h)
+  include_directories(${JNI_INCLUDE_DIRS})
 else( )
   set(JNI_REALLY_FOUND 0 CACHE BOOL "Tests whether the header
   actually exists")
@@ -312,7 +315,7 @@ set(CMAKE_REQUIRED_LIBRARIES ${crlbackup})
 check_library_exists("tcmalloc -lpthread" malloc "" TCMALLOC-FOUND)
 if (TCMALLOC-FOUND)
   message(STATUS "tcmalloc found. Using it everywhere")
-#  link_libraries(tcmalloc)
+# link_libraries(tcmalloc)
 else()
   message(STATUS "tcmalloc was not found but is optional.")
 endif()
@@ -557,6 +560,24 @@ macro(add_distributed_graphlab_executable NAME)
   endif(MPI_FOUND)
 endmacro(add_distributed_graphlab_executable)
 
+macro(add_hadoop_graphlab_executable NAME)
+  if(MPI_FOUND AND HADOOP_FOUND AND JNI_REALLY_FOUND)
+    add_executable(${NAME} ${ARGN})
+    target_link_libraries(${NAME} 
+      graphlab
+      ${MPI_LIBRARY} 
+      ${MPI_EXTRA_LIBRARY} 
+      ${Boost_LIBRARIES}
+      ${KYOTO_STATIC_LIBRARY}
+      hdfs
+      ${JAVA_JVM_LIBRARY}
+      )
+    set_source_files_properties( ${ARGN}
+      PROPERTIES COMPILE_DEFINITIONS "GLDISTRIBUTED2" )
+  else(MPI_FOUND AND HADOOP_FOUND AND JNI_REALLY_FOUND)
+    message(STATUS "Not Building " ${NAME} " since mpi, hadoop, or jni was not found.")
+  endif(MPI_FOUND AND HADOOP_FOUND AND JNI_REALLY_FOUND)
+endmacro(add_hadoop_graphlab_executable)
 
 
 
@@ -578,6 +599,8 @@ macro(add_zoltan_executable NAME)
     endif()
   endif( )
 endmacro(add_zoltan_executable)
+
+
 
 
 
@@ -610,8 +633,9 @@ macro(add_jni_library NAME)
     #         SET(CMAKE_SHARED_MODULE_CREATE_CXX_FLAGS "-dynamiclib -m64 ")
     #         SET_TARGET_PROPERTIES(${NAME} PROPERTIES SUFFIX .jnilib)
     # ENDIF (APPLE)
+  elseif ()
+    message(STATUS "Not building " ${NAME} " because JNI was not found")
   endif ()
-  message(STATUS "Not building " ${NAME} " because JNI was not found")
 endmacro(add_jni_library)
 
 

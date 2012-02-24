@@ -87,7 +87,7 @@ class ChandyMisraTest: public CxxTest::TestSuite {
         }
         cm.complete_consistency_check();
       }
-      TS_ASSERT_EQUALS(n, 0);
+      TS_ASSERT_EQUALS(n, size_t(0));
     }
   }
 
