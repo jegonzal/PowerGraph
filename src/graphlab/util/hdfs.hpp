@@ -154,7 +154,7 @@ namespace graphlab {
      * Open a connection to the filesystem. The default arguments
      * should be sufficient for most uses 
      */
-    hdfs(const std::string& host = "default", int port = 0) : 
+    hdfs(const std::string& host = "default", int port = 0) {
       logstream(LOG_FATAL) << "Hadoop is not installed on this system." 
                            << std::endl;
     } // end of constructor
