@@ -7,7 +7,6 @@
 #include <graphlab/macros_def.hpp>
 
 typedef graphlab::graph<char, char> graph_type;
-typedef graphlab::graph_ops<graph_type> graph_ops;
 
 int main(int argc, char** argv) {
   global_logger().set_log_level(LOG_DEBUG);
@@ -30,7 +29,7 @@ int main(int argc, char** argv) {
 
   
   graph_type graph;
-  bool success = graph_ops::load_structure(in_fname, graph);
+  bool success = graphlab::graph_ops::load_structure(in_fname, graph);
   assert(success);
   std::cout << "Finished loading!" << std::endl;
 
@@ -46,7 +45,7 @@ int main(int argc, char** argv) {
     std::cout << "Counting degree" << std::endl;
     size_t drop_count = 0;
     for(size_t i = 0; i < graph.num_vertices(); ++i) { 
-      drop[i] = graph_ops::num_neighbors(graph, i) >  threshold;
+      drop[i] = graphlab::graph_ops::num_neighbors(graph, i) >  threshold;
       drop_count += drop[i];
     }
     std::cout << "Dropping: " << drop_count << std::endl;
@@ -60,13 +59,13 @@ int main(int argc, char** argv) {
     graph2.finalize();
     std::cout << "Finished finalizing" << std::endl;
     std::cout << "Saving as metis" << std::endl;
-    success = graph_ops::
+    success = graphlab::graph_ops::
       save_metis_structure(out_fname, graph2);
     assert(success);
     std::cout << "Finished saving" << std::endl;
   } else {
     std::cout << "Saving as metis" << std::endl;
-    success = graph_ops::
+    success = graphlab::graph_ops::
       save_metis_structure(out_fname, graph);
     assert(success);
     std::cout << "Finished saving" << std::endl;

@@ -162,8 +162,7 @@ int main (int argc, char *argv[]){
   // set up graphlab execution core
   graphlab::core<graph_type, coloring_update> core;
   core.set_options(opts);
-  if(!graphlab::graph_ops<graph_type>::
-     load_structure (graph_file, format, core.graph())){
+  if(!graphlab::graph_ops::load_structure (graph_file, format, core.graph())){
     std::cout << "Error loading graph from " << graph_file << "." << std::endl;
     return EXIT_FAILURE;
   }

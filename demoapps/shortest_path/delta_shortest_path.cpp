@@ -118,7 +118,7 @@ int main(int argc, char** argv) {
   core.set_options(clopts);
   
   std::cout << "Loading graph from file" << std::endl;
-  const bool success = graphlab::graph_ops<graph_type>::
+  const bool success = graphlab::graph_ops::
     load_structure (graph_file, format, core.graph());
 
   if(!success) {
