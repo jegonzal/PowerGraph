@@ -108,7 +108,6 @@ namespace graphlab {
      */
     hdfs(const std::string& host = "default", tPort port = 0) {
       filesystem =  hdfsConnect(host.c_str(), port);
-      std::cout << "HDFS constructed" << std::endl;
       ASSERT_TRUE(filesystem != NULL); 
     } // end of constructor
 
