@@ -78,7 +78,8 @@ get_thread_local_stream() {
   dc_tls_data* curptr = reinterpret_cast<dc_tls_data*>(
                         pthread_getspecific(thrlocal_resizing_array_key));
   if (curptr != NULL) {
-    curptr->ras.clear();
+    if (curptr->ras.buffer_size > 65536) curptr->ras.clear(1024);
+    else curptr->ras.clear();
     return curptr->strm;
   }
   else {
