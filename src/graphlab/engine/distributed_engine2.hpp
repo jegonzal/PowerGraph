@@ -198,13 +198,10 @@ namespace graphlab {
     
     DECLARE_DIST_EVENT_LOG(eventlog);
     DECLARE_TRACER(disteng_eval_sched_task);
-    DECLARE_TRACER(disteng_init_gathering);
+    DECLARE_TRACER(disteng_chandy_misra);
+    DECLARE_TRACER(disteng_init_gathering); 
     DECLARE_TRACER(disteng_init_scattering);
     DECLARE_TRACER(disteng_waiting_for_vstate_locks);
-    DECLARE_TRACER(disteng_fork_acquisition);
-    DECLARE_TRACER(disteng_fork_release);
-    DECLARE_TRACER(disteng_mirror_fork_acquisition);
-    DECLARE_TRACER(disteng_mirror_fork_release);
     DECLARE_TRACER(disteng_evalfac);
     DECLARE_TRACER(disteng_internal_task_queue);
     DECLARE_TRACER(disteng_scheduler_task_queue);
@@ -299,20 +296,14 @@ namespace graphlab {
                         "distributed_engine: Initialize Scattering");
       INITIALIZE_TRACER(disteng_waiting_for_vstate_locks,
                       "distributed_engine: vstate Lock Contention");
-      INITIALIZE_TRACER(disteng_fork_acquisition,
-                      "distributed_engine: Fork Acquisition");
-      INITIALIZE_TRACER(disteng_fork_release,
-                      "distributed_engine: Fork Release");
-      INITIALIZE_TRACER(disteng_mirror_fork_acquisition,
-                      "distributed_engine: Mirror Fork Acquisition");
-      INITIALIZE_TRACER(disteng_mirror_fork_release,
-                      "distributed_engine: Mirror Fork Release");
       INITIALIZE_TRACER(disteng_evalfac,
                       "distributed_engine: Time in Factorized Update user code");
       INITIALIZE_TRACER(disteng_internal_task_queue,
                       "distributed_engine: Time in Internal Task Queue");
       INITIALIZE_TRACER(disteng_scheduler_task_queue,
                       "distributed_engine: Time in Scheduler Task Queue");
+      INITIALIZE_TRACER(disteng_chandy_misra,
+                      "distributed_engine: Time in Chandy Misra");
     }
 
     /**
@@ -699,7 +690,9 @@ namespace graphlab {
           } 
           vstate[lvid].current = update_functor_type();
           vstate[lvid].state = NONE;
+          BEGIN_TRACEPOINT(disteng_chandy_misra);
           cmlocks->philosopher_stops_eating(lvid);
+          END_TRACEPOINT(disteng_chandy_misra);
           break;
         }
       case MIRROR_SCATTERING: {
@@ -871,7 +864,11 @@ namespace graphlab {
       }
       if (prelocked == false) vstate_locks[sched_lvid].unlock();
       END_TRACEPOINT(disteng_eval_sched_task);
-      if (acquirelock) cmlocks->make_philosopher_hungry(sched_lvid);
+      if (acquirelock) {
+        BEGIN_TRACEPOINT(disteng_chandy_misra);
+        cmlocks->make_philosopher_hungry(sched_lvid);
+        END_TRACEPOINT(disteng_chandy_misra);
+      }
     }
     
     void thread_start(size_t threadid) {
