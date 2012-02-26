@@ -64,7 +64,6 @@ bipartite_graph_descriptor info;
 math_info mi;
 
 #define MAX_PRINT_ITEMS 21
-#define MAX_OFFSET 7
 double runtime = 0;
 
 using namespace graphlab;
@@ -213,7 +212,7 @@ class DistVec{
    }
 
    DistVec& operator=(const DistVec & vec){
-     assert(offset < MAX_OFFSET);
+     assert(offset < data_size);
      if (mi.x_offset == -1 && mi.y_offset == -1){
          mi.y_offset = vec.offset;
        }  
