@@ -70,7 +70,7 @@ else
     echo "Hadoop Found!"
 fi
 
-
+popd
 
 
 

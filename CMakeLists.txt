@@ -151,6 +151,8 @@ endif(HADOOP_HOME)
 
 
 
+
+
 #Find the JNI library
 find_package(JNI)
 if(EXISTS ${JAVA_INCLUDE_PATH}/jni.h  )
@@ -321,14 +323,22 @@ endif ( HADOOP_FOUND AND JNI_REALLY_FOUND )
 
 
 
+
 # check for TCMalloc
-check_library_exists("tcmalloc -lpthread" malloc "" TCMALLOC-FOUND)
+if(TCMALLOC_ROOT) 
+  check_library_exists("tcmalloc -lpthread" malloc "${TCMALLOC_ROOT}/lib" TCMALLOC-FOUND)
+
+else()
+  check_library_exists("tcmalloc -lpthread" malloc "" TCMALLOC-FOUND)
+endif()
+
 if (TCMALLOC-FOUND)
   message(STATUS "tcmalloc found. Using it everywhere")
   link_libraries(tcmalloc)
 else()
   message(STATUS "tcmalloc was not found but is optional.")
 endif()
+
 
 
 # architecture detection

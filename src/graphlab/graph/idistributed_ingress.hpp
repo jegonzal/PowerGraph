@@ -32,6 +32,7 @@ namespace graphlab {
   template<typename VertexData, typename EdgeData>
   class idistributed_ingress {
   public:     
+    virtual ~idistributed_ingress() { }
     virtual void add_edge(vertex_id_type source, vertex_id_type target,
                           const EdgeData& edata) = 0;
     virtual void add_vertex(vertex_id_type vid, const VertexData& vdata) = 0;

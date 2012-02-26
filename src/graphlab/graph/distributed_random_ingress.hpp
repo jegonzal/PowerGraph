@@ -107,7 +107,11 @@ namespace graphlab {
     distributed_random_ingress(distributed_control& dc, graph_type& graph) :
       rpc(dc, this), graph(graph),
       vertex_buffers(rpc.numprocs()), vertex_buffer_locks(rpc.numprocs())
-    { rpc.barrier(); }
+    { 
+      rpc.barrier();
+      std::cout << "Using random ingress" << std::endl;
+
+    }
 
     void add_edge(vertex_id_type source, vertex_id_type target,
                   const EdgeData& edata) {
