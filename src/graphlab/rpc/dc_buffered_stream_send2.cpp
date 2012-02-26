@@ -77,6 +77,7 @@ namespace dc_impl {
      * (as compared to the thread wake up time.)
      * I would like to buffer it otherwise. 
      */
+    return false;
     if (prevtime == 0) {
       prevtime = rdtsc();
     }

@@ -533,6 +533,12 @@ namespace graphlab {
       }
       END_TRACEPOINT(disteng_internal_task_queue);
       
+      const size_t pending_tasks = 
+        issued_tasks - (completed_tasks + blocked_issues);
+        
+      if( pending_tasks > 1000 ) { return; }
+
+
       sched_status::status_enum stat = 
         scheduler_ptr->get_next(threadid, sched_lvid, task);
       has_sched_task = stat != sched_status::EMPTY;
