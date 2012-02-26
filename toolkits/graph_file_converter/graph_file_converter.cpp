@@ -80,26 +80,24 @@ int main(int argc, char** argv) {
   }
 
   graph_type graph;
-  const bool success = graphlab::graph_ops<graph_type>::
-                    load_structure(input_graph_file, input_format, graph);
+  const bool success = graphlab::graph_ops::
+    load_structure(input_graph_file, input_format, graph);
+
   if(!success) {
     std::cout << "Error in reading file: " << input_graph_file << std::endl;
   }
   graph.finalize();
 
   if (output_format == "metis") {
-    graphlab::graph_ops<graph_type>::save_metis_structure(output_graph_file, 
-                                                          graph);
+    graphlab::graph_ops::save_metis_structure(output_graph_file, graph);
   }
   else if (output_format == "patoh") {
-    graphlab::
-        graph_ops<graph_type>::
-            save_patoh_hypergraph_structure(output_graph_file, graph);
+    graphlab::graph_ops::
+      save_patoh_hypergraph_structure(output_graph_file, graph);
   }
   else if (output_format == "zoltan") {
-    graphlab::
-        graph_ops<graph_type>::
-            save_zoltan_hypergraph_structure(output_graph_file, graph);
+    graphlab::graph_ops::
+      save_zoltan_hypergraph_structure(output_graph_file, graph);
   }
   return EXIT_SUCCESS;
 } // End of main

@@ -205,7 +205,7 @@ int main(int argc, char** argv) {
     core.graph().load(graph_file);
   } else {
     std::cout << "Loading graph from structure file." << std::endl;
-    const bool success = graphlab::graph_ops<graph_type>::    
+    const bool success = graphlab::graph_ops::
       load_structure(graph_file, format, core.graph());
     if(!success) {
       std::cout << "Error in reading file: " << graph_file << std::endl;
@@ -215,8 +215,7 @@ int main(int argc, char** argv) {
 
   if(!vinfo_fname.empty()) {
     std::cout << "Coloring the graph." << std::endl;
-    const size_t num_colors = graphlab::graph_ops<graph_type>::    
-      color(core.graph());
+    const size_t num_colors = graphlab::graph_ops::color(core.graph());
     std::cout << "Colors: " << num_colors << std::endl;
     std::ofstream fout(vinfo_fname.c_str());
     for(size_t i = 0; i < core.graph().num_vertices(); ++i) 
@@ -224,11 +223,10 @@ int main(int argc, char** argv) {
         << i << '\t' << core.graph().color(i) << '\t'
         << core.graph().num_in_edges(i) << '\t'
         << core.graph().num_out_edges(i) << '\t'
-        << graphlab::graph_ops<graph_type>::
-        num_neighbors(core.graph(), i)
+        << graphlab::graph_ops::num_neighbors(core.graph(), i)
         << '\n';
     fout.close();
-    graphlab::graph_ops<graph_type>::save_edge_list_structure("edge_list.txt",
+    graphlab::graph_ops::save_edge_list_structure("edge_list.txt",
                                                           core.graph());
   }
 

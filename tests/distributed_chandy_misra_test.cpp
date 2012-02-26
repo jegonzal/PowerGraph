@@ -189,8 +189,8 @@ int main(int argc, char** argv) {
         const std::string graph_fname = graph_dir + graph_files[i];
         std::cout << "Loading graph from structure file: " << graph_fname
                   << std::endl;
-        graphlab::graph_ops<graph_type>::load_structure(graph_fname,
-                                                        format, graph);
+        graphlab::graph_ops::load_structure(graph_fname,
+                                            format, graph);
       }
     }
   }

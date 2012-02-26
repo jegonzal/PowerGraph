@@ -49,11 +49,17 @@ namespace graphlab {
     class hdfs_device {
     public: // boost iostream concepts
       typedef char                                          char_type;
-      typedef boost::iostreams::bidirectional_device_tag    category;
+      struct category : 
+        public boost::iostreams::bidirectional_device_tag, 
+        public boost::iostreams::multichar_tag,
+        public boost::iostreams::closable_tag { };
     private:
       hdfsFS filesystem;
+      
       hdfsFile file;
+     
     public:
+      hdfs_device() : filesystem(NULL), file(NULL) { }
       hdfs_device(const hdfs& hdfs_fs, const std::string& filename,
                   const bool write = false) :
         filesystem(hdfs_fs.filesystem) {
@@ -66,12 +72,22 @@ namespace graphlab {
         file = hdfsOpenFile(filesystem, filename.c_str(), flags, buffer_size,
                             replication, block_size);
       }
-      void close() { 
-        const int flush_error = hdfsFlush(filesystem, file);
-        ASSERT_EQ(flush_error, 0);
+      //      ~hdfs_device() { if(file != NULL) close(); }
+
+      void close(std::ios_base::openmode mode = std::ios_base::openmode() ) { 
+        if(file == NULL) return;
+        if(file->type == OUTPUT) {
+          const int flush_error = hdfsFlush(filesystem, file);
+          ASSERT_EQ(flush_error, 0);
+        }
         const int close_error = hdfsCloseFile(filesystem, file);
         ASSERT_EQ(close_error, 0);
+        file = NULL;
       }
+
+      /** the optimal buffer size is 0. */
+      inline std::streamsize optimal_buffer_size() const { return 0; }
+
       std::streamsize read(char* strm_ptr, std::streamsize n) {
         return hdfsRead(filesystem, file, strm_ptr, n);
       } // end of read
@@ -90,8 +106,9 @@ namespace graphlab {
      * Open a connection to the filesystem. The default arguments
      * should be sufficient for most uses 
      */
-    hdfs(const std::string& host = "default", tPort port = 0) : 
-      filesystem(hdfsConnect(host.c_str(), port)) {
+    hdfs(const std::string& host = "default", tPort port = 0) {
+      filesystem =  hdfsConnect(host.c_str(), port);
+      std::cout << "HDFS constructed" << std::endl;
       ASSERT_TRUE(filesystem != NULL); 
     } // end of constructor
 

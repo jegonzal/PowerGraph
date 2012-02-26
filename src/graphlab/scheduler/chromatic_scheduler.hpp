@@ -108,7 +108,6 @@ namespace graphlab {
       // Verify the coloring
       //ASSERT_TRUE(graph.valid_coloring());
 
-      typedef graph_ops<graph_type> graph_ops;
 
       // parse the options
       bool auto_color = false;
