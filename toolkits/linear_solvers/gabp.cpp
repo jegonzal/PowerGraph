@@ -292,10 +292,6 @@ int main(int argc,  char *argv[]) {
 
 
 
-  // Create a core
-  graphlab::core<graph_type, gabp_update> core;
-  core.set_options(clopts); // Set the engine options
-
   //unit testing
   if (unittest == 1){
  /* A = [6.4228    2.0845    2.1617
@@ -306,16 +302,29 @@ int main(int argc,  char *argv[]) {
     prec = [    0.1996 0.2474 0.2116]';
  */
     datafile = "A_gabp"; yfile = "y"; xfile = "x_gabp"; sync_interval = 120;
+    clopts.set_scheduler_type("sweep(max_iterations=100,ordering=ascending,strict=true)");   
   }
+  //./gabp --data=A_gabp --yfile=y --fix_conv=10 --regularization=1 --scheduler="sweep(max_iterations=100,ordering=ascending,strict=true)"
+  else if (unittest == 2){
+    datafile = "A_gabp"; yfile = "y"; xfile = "x_gabp"; sync_interval = 120; fix_conv = 10; regularization = 1;
+    clopts.set_scheduler_type("sweep(max_iterations=100,ordering=ascending,strict=true)");   
+  }
+
+  // Create a core
+  graphlab::core<graph_type, gabp_update> core;
+  core.set_options(clopts); // Set the engine options
+
 
   std::cout << "Load matrix A" << std::endl;
   bipartite_graph_descriptor matrix_info;
   load_graph(datafile, format, matrix_info, core.graph());
   std::cout << "Load Y values" << std::endl;
   load_vector(yfile, format, matrix_info, core.graph(), GABP_Y, false);
-  std::cout << "Load x values" << std::endl;
-  load_vector(xfile, format, matrix_info, core.graph(), GABP_REAL_X, true);
-  
+  if (xfile.size() > 0){
+    std::cout << "Load x values" << std::endl;
+    load_vector(xfile, format, matrix_info, core.graph(), GABP_REAL_X, true);
+  }  
+
   std::cout << "Schedule all vertices" << std::endl;
   core.schedule_all(gabp_update());
 
@@ -351,7 +360,6 @@ int main(int argc,  char *argv[]) {
   }
 
   for (int i=0; i< outer_iterations; i++) {
-   std::cout << "GaBP instrance " << i << " finished in " << runtime << std::endl;
     if (fix_conv > 0){
        double old_regularization = regularization;
        regularization = 0;
@@ -369,8 +377,11 @@ int main(int argc,  char *argv[]) {
        core.graph() = tmp_core.graph();
     }
     double runtime= core.start();
+    std::cout << "GaBP instrance " << i << " finished in " << runtime << std::endl;
     tmp_core.graph() = core.graph();
-    xj += x.to_vec();
+    if (fix_conv > 0)
+      xj += x.to_vec();
+    else xj = x.to_vec();
     if (debug_conv_fix){
       PRINT_VEC(xj);
       PRINT_VEC(x); 
@@ -378,30 +389,24 @@ int main(int argc,  char *argv[]) {
    }
 
   if (final_residual){
-    //tmp_core.graph() = core.graph();
-    x = xj;
-    double old_regularization = regularization;
-    regularization = 0;
-    p = A*x - old_b;
-    regularization = old_regularization;
+    if (fix_conv){
+       x = xj;
+      regularization = 0;
+      b = old_b;
+    } 
+    p = A*x - b;
     DistDouble ret = norm(p);
     logstream(LOG_INFO) << "Solution converged to residual: " << ret.toDouble() << std::endl;
     if (unittest == 1)
       assert(ret.toDouble() < 1e-15);
+    else if (unittest == 2)
+      assert(ret.toDouble() < 1e-5);
   }
  
-  vec outx = fill_output(&core.graph(), matrix_info, GABP_CUR_MEAN);
-  write_output_vector(datafile + ".curmean.out", format, outx, false, "GraphLab linear solver library. vector x, as computed by GaBP, includes the solution x = inv(A)*y");
+  write_output_vector(datafile + ".curmean.out", format, xj, false, "GraphLab linear solver library. vector x, as computed by GaBP, includes the solution x = inv(A)*y");
 
   vec prec = fill_output(&core.graph(), matrix_info, GABP_CUR_PREC);
   write_output_vector(datafile + ".curprec.out", format, prec, false, "GraphLab linear solver library, vector prec, as computed by GaBp, includes an approximation of diag(inv(A))");
-
-
-  if (unittest == 1){
-    double relative_norm = core.get_global<double>("RELATIVE_NORM");
-    assert(relative_norm < 1e-30);
-  }
-
    return EXIT_SUCCESS;
 }
 

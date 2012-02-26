@@ -580,7 +580,9 @@ void save_matrix_market_format_matrix(const std::string datafile, const mat & ou
     MM_typecode matcode;                        
     mm_initialize_typecode(&matcode);
     mm_set_matrix(&matcode);
-    mm_set_coordinate(&matcode);
+    if (issparse)
+      mm_set_coordinate(&matcode);
+    else mm_set_array(&matcode);
 
     if (issparse)
       mm_set_sparse(&matcode);
@@ -591,8 +593,10 @@ void save_matrix_market_format_matrix(const std::string datafile, const mat & ou
     FILE * f = fopen(datafile.c_str(),"w");
     assert(f != NULL);
     mm_write_banner(f, matcode); 
-    mm_write_mtx_crd_size(f, output.size(), 1, output.size());
-
+    if (issparse)
+      mm_write_mtx_crd_size(f, output.size(), 1, output.size());
+    else 
+      mm_write_array_size(f, output.size(), 1);
     for (int j=0; j<(int)output.rows(); j++)
       for (int i=0; i< (int)output.cols(); i++){
          write_row(j+1, i+1, get_val(output, i, j), f, issparse);
