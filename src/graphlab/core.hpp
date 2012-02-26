@@ -121,6 +121,9 @@ namespace graphlab {
     /// \brief Get a constant reference to the graph associated with this core
     const graph_type& graph() const { return mgraph; }
 
+    /// \brief set this core graph
+    void set_graph(graph_type & graph){ mgraph = graph; }
+
     /**
      * \brief Set the type of scheduler.
      *

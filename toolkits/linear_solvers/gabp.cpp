@@ -48,57 +48,59 @@
 #include "graphlab.hpp"
 #include "../shared/io.hpp"
 #include "../shared/types.hpp"
+
 using namespace graphlab;
 
 #include <graphlab/macros_def.hpp>
 
 bool debug = false;
 bool support_null_variance = false;
+bool final_residual = true;
+bool debug_conv_fix = false;
+int fix_conv = 0;
 double regularization = 0;
 
 enum gabp_fields{
-  GABP_REAL_X = 1,
-  GABP_Y = 2
+  GABP_Y = 0,
+  GABP_PRIOR_PREC = 1,
+  GABP_REAL_X = 2,
+  GABP_CUR_MEAN = 3,
+  GABP_CUR_PREC = 4,
+  GABP_PREV_MEAN = 5,
+  GABP_PREV_PREC = 6,
+  GABP_OLD_Y = 7,
+  GABP_MAX_FIELD = 8
 };
 
-enum gabp_output_felds{
-  GABP_CUR_MEAN = 1, 
-  GABP_CUR_PREC = 2
-};
+int data_size = GABP_MAX_FIELD;
 
-/** Vertex data types for Gaussian B{**/
+/** Vertex data types for Gaussian BP**/
 struct vertex_data {
-  real_type prior_mean;  //prior mean (b_i / A_ii)
+  vec pvec;
+  double A_ii;
+ /* real_type prior_mean;  //prior mean (b_i / A_ii)
   real_type prior_prec;   //prior precision P_ii = A_ii
   real_type real;   //the real solution (if known) x = inv(A)*b for square matrix or x = pinv(A) for skinny matrix
   real_type cur_mean; //intermediate value to store the mean \mu_i
   real_type cur_prec; // //current precision value P_i
   real_type prev_mean; //  mean value from previous round (for convergence detection)
   real_type prev_prec; //precision value from previous round (for convergence detection)
-
+*/
   vertex_data(){ 
-     prev_mean = 1000;
-     prior_mean = prior_prec = real = cur_mean = cur_prec = prev_prec = 0;
+     pvec = zeros(GABP_MAX_FIELD);
+     pvec[GABP_PREV_MEAN] = 1000;
    };
   
-  void add_self_edge(double value) { prior_prec = value + regularization; }
+  void add_self_edge(double value) { A_ii = value; }
 
   void set_val(double value, int field_type) { 
-     if (field_type == GABP_Y){
-        if (!support_null_variance)
-	  assert(prior_prec > 0);
-        prior_mean = value; 
-     }
-     else if (field_type == GABP_REAL_X)
-       real = value;
-     else assert(false);
+    if (field_type == GABP_PRIOR_PREC)
+      A_ii = value;
+    else
+      pvec[field_type] = value;
   }
   double get_output(int field_type){ 
-     if (field_type == GABP_CUR_PREC)
-       return cur_prec;
-     else if (field_type == GABP_CUR_MEAN)
-       return cur_mean;
-     else assert(false);    
+    return pvec[field_type];
   }
 
 };
@@ -113,6 +115,9 @@ struct edge_data {
 
 typedef graphlab::graph<vertex_data, edge_data> graph_type;
 
+#include "../shared/math.hpp" //has to be included after vertex_data and edge_data and graph_type
+#include "../shared/printouts.hpp"
+
 /***
  * GABP UPDATE FUNCTION
  */
@@ -125,19 +130,19 @@ struct gabp_update :
     const edge_list_type in_edges = context.in_edges();
     
     //store last round values
-    vdata.prev_mean = vdata.cur_mean;
-    vdata.prev_prec = vdata.cur_prec;
+    vdata.pvec[GABP_PREV_MEAN] = vdata.pvec[GABP_CUR_MEAN];
+    vdata.pvec[GABP_PREV_PREC] = vdata.pvec[GABP_CUR_PREC];
 
     //initialize accumlated values
-    double mu_i = vdata.prior_mean;
-    real_type J_i = vdata.prior_prec + regularization;
+    double mu_i = vdata.pvec[GABP_Y];
+    real_type J_i = vdata.A_ii + regularization;
     if (!support_null_variance) assert(J_i != 0);
 
     /* CALCULATE new value */
     if (debug) {
       std::cout << "entering node " << context.vertex_id()
-                << " P=" << vdata.prior_prec
-                << " u=" << vdata.prior_mean
+                << " P=" << vdata.A_ii + regularization
+                << " u=" << vdata.pvec[GABP_Y]
                 << std::endl;
     }
     
@@ -155,15 +160,15 @@ struct gabp_update :
     
     // optional support for null variances
     if (support_null_variance && J_i == 0){
-      vdata.cur_mean = mu_i;
-      vdata.cur_prec = 0;
+      vdata.pvec[GABP_CUR_MEAN] = mu_i;
+      vdata.pvec[GABP_CUR_PREC] = 0;
     } else {
       assert(J_i != 0);
-      vdata.cur_mean = mu_i / J_i;
-      assert(vdata.cur_mean != NAN);
-      vdata.cur_prec = J_i;
+      vdata.pvec[GABP_CUR_MEAN] = mu_i / J_i;
+      assert(vdata.pvec[GABP_CUR_MEAN] != NAN);
+      vdata.pvec[GABP_CUR_PREC] = J_i;
     }
-    assert(vdata.cur_mean != NAN);
+    assert(vdata.pvec[GABP_CUR_MEAN] != NAN);
     
     /* SEND new value and schedule neighbors */
     for(size_t i = 0; i < in_edges.size(); ++i) {
@@ -205,28 +210,23 @@ struct gabp_update :
 class aggregator :
   public graphlab::iaggregator<graph_type, gabp_update, aggregator> {
 private:
-  real_type real_norm, relative_norm;
+  real_type relative_norm;
 public:
   aggregator() : 
-    real_norm(0), 
     relative_norm(0) { }
   void operator()(icontext_type& context) {
     const vertex_data& vdata = context.const_vertex_data();
-    real_norm += std::pow(vdata.cur_mean - vdata.real,2);
-    relative_norm += std::pow(vdata.cur_mean - vdata.prev_mean, 2);
+    relative_norm += std::pow(vdata.pvec[GABP_CUR_MEAN] - vdata.pvec[GABP_PREV_MEAN], 2);
     if (debug)
-	std::cout << "Real_norm: " << real_norm << "relative norm: " <<relative_norm << std::endl;
+	std::cout << "relative norm: " <<relative_norm << std::endl;
   }
   void operator+=(const aggregator& other) { 
-    real_norm += other.real_norm; 
     relative_norm += other.relative_norm;
   }
   void finalize(iglobal_context_type& context) {
     // here we can output something as a progress monitor
-    std::cout << "Real Norm:     " << real_norm << std::endl
-              << "Relative Norm: " << relative_norm << std::endl;
+              logstream(LOG_INFO) << "Relative Norm: " << relative_norm << std::endl;
     // write the final result into the shared data table
-    context.set_global("REAL_NORM", real_norm);
     context.set_global("RELATIVE_NORM", relative_norm);
     const real_type threshold = context.get_global<real_type>("THRESHOLD");
     if(relative_norm < threshold) 
@@ -261,7 +261,8 @@ int main(int argc,  char *argv[]) {
   clopts.attach_option("threshold", &threshold, threshold, "termination threshold.");
   clopts.add_positional("threshold");
   clopts.attach_option("format", &format, format, "matrix format");
-  clopts.attach_option("debug", &debug, debug, "Display debug output.");
+  clopts.attach_option("debug", &debug, debug, "Verbose mode");
+  clopts.attach_option("debug_conv_fix", &debug_conv_fix, debug_conv_fix, "Verbose mode for convergence fix");
   clopts.attach_option("syncinterval", 
                        &sync_interval, sync_interval, 
                        "sync interval (number of update functions before convergen detection");
@@ -271,7 +272,8 @@ int main(int argc,  char *argv[]) {
 		       "unit testing 0=None, 1=3x3 matrix");
   clopts.attach_option("support_null_variance", &support_null_variance, 
 		       support_null_variance, "support null precision");
-
+  clopts.attach_option("final_residual", &final_residual, final_residual, "calc residual at the end (norm(Ax-b))");
+  clopts.attach_option("fix_conv", &fix_conv, fix_conv, "Fix convergence, using XX outer loop iterations");
   // Parse the command line arguments
   if(!clopts.parse(argc, argv)) {
     std::cout << "Invalid arguments!" << std::endl;
@@ -326,26 +328,77 @@ int main(int argc,  char *argv[]) {
 
   aggregator acum;
   core.add_aggregator("sync", acum, sync_interval);
-  core.add_global("REAL_NORM", double(0));
   core.add_global("RELATIVE_NORM", double(0));
   core.add_global("THRESHOLD", threshold); 
- 
-  double runtime= core.start();
-  // POST-PROCESSING *****
- 
-  std::cout << "GaBP finished in " << runtime << std::endl;
 
-  vec x = fill_output(&core.graph(), matrix_info, GABP_CUR_MEAN);
-  write_output_vector(datafile + ".curmean.out", format, x, false);
+  math_info mi;
+  graphlab::core<graph_type, Axb> tmp_core;
+  tmp_core.graph() = core.graph();
+  init_math(&tmp_core.graph(), &tmp_core, matrix_info);
+  DistMat A(matrix_info);
+  DistVec b(matrix_info, GABP_Y,true, "b");
+  DistVec p(matrix_info, GABP_PREV_MEAN,true, "p");
+  DistVec x(matrix_info, GABP_CUR_MEAN,true, "x");
+  DistVec old_b(matrix_info, GABP_OLD_Y, true, "old_b");
+  DistDouble pnorm;
+  vec xj;
+   
+  int outer_iterations = 1;
+  if (fix_conv > 0){
+    outer_iterations = fix_conv;
+    xj = zeros(matrix_info.num_nodes(false));
+    old_b = b;
+  }
+
+  for (int i=0; i< outer_iterations; i++) {
+   std::cout << "GaBP instrance " << i << " finished in " << runtime << std::endl;
+    if (fix_conv > 0){
+       double old_regularization = regularization;
+       regularization = 0;
+       p = xj;
+       b = old_b - A*p;
+       if (debug_conv_fix){
+         PRINT_VEC(b);
+         PRINT_VEC(xj);
+       }
+       regularization = old_regularization;
+       pnorm = norm(b);
+       logstream(LOG_INFO) << "Convergence fix norm of gradient is: " << pnorm.toDouble() << std::endl;
+       if (pnorm < threshold)
+          break;
+       core.graph() = tmp_core.graph();
+    }
+    double runtime= core.start();
+    tmp_core.graph() = core.graph();
+    xj += x.to_vec();
+    if (debug_conv_fix){
+      PRINT_VEC(xj);
+      PRINT_VEC(x); 
+    }
+   }
+
+  if (final_residual){
+    //tmp_core.graph() = core.graph();
+    x = xj;
+    double old_regularization = regularization;
+    regularization = 0;
+    p = A*x - old_b;
+    regularization = old_regularization;
+    DistDouble ret = norm(p);
+    logstream(LOG_INFO) << "Solution converged to residual: " << ret.toDouble() << std::endl;
+    if (unittest == 1)
+      assert(ret.toDouble() < 1e-15);
+  }
+ 
+  vec outx = fill_output(&core.graph(), matrix_info, GABP_CUR_MEAN);
+  write_output_vector(datafile + ".curmean.out", format, outx, false, "GraphLab linear solver library. vector x, as computed by GaBP, includes the solution x = inv(A)*y");
 
   vec prec = fill_output(&core.graph(), matrix_info, GABP_CUR_PREC);
-  write_output_vector(datafile + ".curprec.out", format, prec, false);
+  write_output_vector(datafile + ".curprec.out", format, prec, false, "GraphLab linear solver library, vector prec, as computed by GaBp, includes an approximation of diag(inv(A))");
 
 
   if (unittest == 1){
-    double real_norm = core.get_global<double>("REAL_NORM");
     double relative_norm = core.get_global<double>("RELATIVE_NORM");
-    assert(real_norm < 1e-30);
     assert(relative_norm < 1e-30);
   }
 

@@ -520,8 +520,8 @@ void load_vector(const std::string& fname,
 
 inline void write_row(int row, int col, double val, FILE * f, bool issparse){
     if (issparse)
-      fprintf(f, "%d %d %10.3g\n", row, col, val);
-    else fprintf(f, "%10.3g ", val);
+      fprintf(f, "%d %d %10.13g\n", row, col, val);
+    else fprintf(f, "%10.13g ", val);
 }
 
 inline void write_row(int row, int col, int val, FILE * f, bool issparse){
@@ -545,7 +545,7 @@ inline void set_typecode<ivec>(MM_typecode & matcode){
 
 
 template<typename vec>
-void save_matrix_market_format_vector(const std::string datafile, const vec & output, bool issparse)
+void save_matrix_market_format_vector(const std::string datafile, const vec & output, bool issparse, std::string comment)
 {
     MM_typecode matcode;                        
     mm_initialize_typecode(&matcode);
@@ -561,6 +561,8 @@ void save_matrix_market_format_vector(const std::string datafile, const vec & ou
     FILE * f = fopen(datafile.c_str(),"w");
     assert(f != NULL);
     mm_write_banner(f, matcode); 
+    if (comment.size() > 0) // add a comment to the matrix market header
+      fprintf(f, "%c%s\n", '%', comment.c_str());
     mm_write_mtx_crd_size(f, output.size(), 1, output.size());
 
     for (int j=0; j<(int)output.size(); j++){
@@ -734,12 +736,13 @@ inline void write_output_matrix_binary(const std::string & datafile, const mat& 
 
 
 template<typename vec>
-inline void write_output_vector(const std::string & datafile, const std::string & format, const vec& output, bool issparse){
+inline void write_output_vector(const std::string & datafile, const std::string & format, const vec& output, bool issparse, std::string comment = ""){
 
+  logstream(LOG_INFO)<<"Going to write output to file: " << datafile << " (vector of size: " << output.size() << ") " << std::endl;
   if (format == "binary")
     write_output_vector_binary(datafile, output);
   else if (format == "matrixmarket")
-    save_matrix_market_format_vector(datafile, output,issparse); 
+    save_matrix_market_format_vector(datafile, output,issparse, comment); 
   else assert(false);
 }
 
