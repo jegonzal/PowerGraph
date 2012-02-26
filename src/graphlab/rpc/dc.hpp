@@ -121,6 +121,15 @@ In addition to the documented functions, the following RPC routines are provided
  \li \b targetmachine: The ID of the machine to run the function on
  \li \b function: The function to run on the target machine
 
+\par void distributed_control::remote_call(Iterator target_begin, Iterater target_end, function, ...)
+ remote_call performs a non-blocking RPC call to all target machines
+ listed in target_begin to target_end to
+ run the provided function pointer. All arguments are transmitted by value
+ and must be serializable.
+ \li \b target_begin: Start of an iterator range containing a list of processors
+ \li \b target_end: End of an iterator range containing a list of processors
+ \li \b function: The function to run on the target machine
+
 \par void distributed_control::fast_remote_call(procid_t targetmachine, function, ...)
  fast_remote_call is the same as remote_call, but the receiver completes the function
  call using the receiving thread instead of a thread pool. This should only be used if
@@ -356,6 +365,7 @@ class distributed_control{
 #define BROADCAST_INTERFACE_GENERATOR(Z,N,FNAME_AND_CALL) \
   template<typename Iterator, typename F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, typename T)> \
   void  BOOST_PP_TUPLE_ELEM(3,0,FNAME_AND_CALL) (Iterator target_begin, Iterator target_end, F remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_) ) {  \
+    if (target_begin == target_end) return;               \
     BOOST_PP_CAT( BOOST_PP_TUPLE_ELEM(3,1,FNAME_AND_CALL),N) \
         <Iterator, F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, T)> \
           ::exec(single_sender, senders,  BOOST_PP_TUPLE_ELEM(3,2,FNAME_AND_CALL), target_begin, target_end, remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENI ,_) ); \

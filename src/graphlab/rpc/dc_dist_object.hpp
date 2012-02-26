@@ -324,6 +324,7 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
   template<typename Iterator, typename F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, typename T)> \
   void  BOOST_PP_TUPLE_ELEM(3,0,FNAME_AND_CALL) (Iterator target_begin, Iterator target_end, \
                       F remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_) ) {  \
+    if (target_begin == target_end) return;               \
     BEGIN_TRACEPOINT(distobj_remote_call_time); \
     if ((BOOST_PP_TUPLE_ELEM(3,2,FNAME_AND_CALL) & CONTROL_PACKET) == 0) {            \
       Iterator iter = target_begin;       \
