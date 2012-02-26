@@ -191,7 +191,7 @@ The graph data structure behaves like an STL container and stores the vertex dat
     vertex_data vdata; 
     vdata.numflips = 0; 
     // Flip a uniform coin to obtain the initial color 
-    if (gl::random::rand_int(1) == 1) vdata.color = true; 
+    if (graphlab::random::rand_int(1) == 1) vdata.color = true; 
     else vdata.color = false; 
     // create the vertex 
     g.add_vertex(vdata); 
@@ -283,7 +283,7 @@ void update_function(gl::iscope& scope,
   size_t num_neighbors = in_edges.size();
   // Draw the new color
   bool new_color =
-    gl::random::rand01() < (double(num_red_neighbors) / num_neighbors);
+    graphlab::random::rand01() < (double(num_red_neighbors) / num_neighbors);
   // Determine if the draw was deterministic
   bool is_deterministic =
     num_neighbors == num_red_neighbors || num_red_neighbors == 0;
@@ -379,14 +379,14 @@ Modifications to constant references have undefined behavior.
 
 Now we can decide on the new color of the vertex. We either match the 
 majority color, or in the case of no majority color, we flip a coin. 
-Extensive random number support is provided through gl::random. 
+Extensive random number support is provided through graphlab::random. 
 random::rand01() provides a random floating point number 
 between 0 and 1. There are a number of other distribution based generators available in \ref random
 
 \code
   // Draw the new color
   bool new_color =
-    gl::random::rand01() < (double(num_red_neighbors) / num_neighbors);
+    graphlab::random::rand01() < (double(num_red_neighbors) / num_neighbors);
 \endcode
 
 Now we have decided on the new color of the vertex, we can go ahead and update the 
@@ -541,7 +541,7 @@ number of vertices.
   // here we can output something as a progress monitor 
   std::cout << "Red Proportion: " << proportion << std::endl; 
   // write the final result into the shared variable 
-  current_data.as<double> = (double)proportion; 
+  current_data.as<double>() = (double)proportion; 
 }
 \endcode
 

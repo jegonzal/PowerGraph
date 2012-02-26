@@ -417,7 +417,7 @@ code in the end of the <tt>main()</tt> function, before <tt>return</tt>:
 
 \code
   double norm = 0.0;
-  for(graphlab::vertex_id_t vid=0; vid&lt;core.graph().num_vertices(); vid++) {
+  for(graphlab::vertex_id_t vid=0; vid < core.graph().num_vertices(); vid++) {
   	 norm += core.graph().vertex_data(vid).value;
   }
 \endcode
@@ -427,7 +427,7 @@ code in the end of the <tt>main()</tt> function, before <tt>return</tt>:
 
 
 \code
- for(graphlab::vertex_id_t vid=0; vid&lt;5 ; vid++) {
+ for(graphlab::vertex_id_t vid=0; vid < 5 ; vid++) {
   	 std::cout << "Page " << vid << " pagerank = " <<
   	 	core.graph().vertex_data(vid).value / norm << std::endl;
   }
