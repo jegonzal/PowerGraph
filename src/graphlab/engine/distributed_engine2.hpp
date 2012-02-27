@@ -782,11 +782,8 @@ namespace graphlab {
         graph.l_get_vertex_record(sched_lvid);
       const unsigned char prevkey = 
         rmi.dc().set_sequentialization_key(sched_vid % 254 + 1);
-      foreach(procid_t pid, vrec.get_replicas()) {
-        if (pid != rmi.procid()) {
-          rmi.remote_call(pid, &engine_type::rpc_begin_gathering, sched_vid, task);
-        }
-      }
+      rmi.remote_call(vrec.mirrors().begin(), vrec.mirrors().end(),
+                      &engine_type::rpc_begin_gathering, sched_vid, task);
       rmi.dc().set_sequentialization_key(prevkey);
       END_TRACEPOINT(disteng_init_gathering);
       add_internal_task(sched_lvid);
@@ -816,12 +813,9 @@ namespace graphlab {
         graph.l_get_vertex_record(sched_lvid);
       const unsigned char prevkey = 
         rmi.dc().set_sequentialization_key(sched_vid % 254 + 1);
-      foreach(procid_t pid, vrec.get_replicas()) {
-        if (pid != rmi.procid()) {
-          rmi.remote_call(pid, &engine_type::rpc_begin_scattering, 
-                          sched_vid, task, central_vdata);
-        }
-      }
+      rmi.remote_call(vrec.mirrors().begin(), vrec.mirrors().end(), 
+                      &engine_type::rpc_begin_scattering, 
+                      sched_vid, task, central_vdata);
       rmi.dc().set_sequentialization_key(prevkey);
       END_TRACEPOINT(disteng_init_scattering);
     }
@@ -847,7 +841,7 @@ namespace graphlab {
       issued_tasks.inc();
       if (prelocked == false) {
         BEGIN_TRACEPOINT(disteng_waiting_for_vstate_locks);
-        vstate_locks[sched_lvid].lock();
+        vstate_locks[sched_lvid].lock();\
         END_TRACEPOINT(disteng_waiting_for_vstate_locks);
       }
       if (vstate[sched_lvid].state == NONE) {
@@ -856,7 +850,7 @@ namespace graphlab {
         vstate[sched_lvid].state = LOCKING;
         vstate[sched_lvid].current = task;
         vstate[sched_lvid].apply_count_down =   
-          graph.l_get_vertex_record(sched_lvid).get_replicas().size();
+          graph.l_get_vertex_record(sched_lvid).num_mirrors() + 1;
         acquirelock = true;
         // we are going to broadcast after unlock
       } else {

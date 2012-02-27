@@ -304,6 +304,12 @@ namespace graphlab {
           best_asg = std::min(best_asg, std::make_pair(counts[proc], proc));
         record.owner = best_asg.second;
         counts[record.owner]++;
+        // remove the owner from the mirrors
+        ASSERT_GT(record.mirrors.size(), 0);        
+        typedef std::vector<procid_t>::iterator iter_type;
+        for(iter_type i = record.mirrors.begin(); i < record.mirrors.end(); ++i) {
+          if(*i == record.owner) { record.mirrors.erase(i); break; }
+        }
       } // end of loop over 
 
       // Send the data to all the processors
@@ -334,13 +340,10 @@ namespace graphlab {
         foreach (vid_shuffle_type vid_and_rec, vertex_assign) {
           const vertex_id_type& vid = vid_and_rec.first;
           shuffle_record& shuffle_rec = vid_and_rec.second;      
-
-
           lvid_type lvid = graph.vid2lvid[vid];
-          vertex_record& vrecord = graph.lvid2record[lvid];
-          vrecord.mirrors.swap(shuffle_rec.mirrors);
+          vertex_record& vrecord = graph.lvid2record[lvid];          
+          vrecord._mirrors.swap(shuffle_rec.mirrors);
           vrecord.owner = shuffle_rec.owner;
-
           graph.local_graph.vertex_data(lvid) = shuffle_rec.vdata;
           vrecord.num_in_edges = shuffle_rec.num_in_edges;
           vrecord.num_out_edges = shuffle_rec.num_out_edges;

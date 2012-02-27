@@ -106,11 +106,9 @@ namespace graphlab {
 
     distributed_random_ingress(distributed_control& dc, graph_type& graph) :
       rpc(dc, this), graph(graph),
-      vertex_buffers(rpc.numprocs()), vertex_buffer_locks(rpc.numprocs())
-    { 
+      vertex_buffers(rpc.numprocs()), vertex_buffer_locks(rpc.numprocs()) { 
       rpc.barrier();
       std::cout << "Using random ingress" << std::endl;
-
     }
 
     void add_edge(vertex_id_type source, vertex_id_type target,
@@ -148,8 +146,14 @@ namespace graphlab {
       local_record.num_in_edges = buffer_rec.num_in_edges;
       ASSERT_EQ(local_record.num_out_edges, 0); // this should have not been set
       local_record.num_out_edges = buffer_rec.num_out_edges;
-      ASSERT_EQ(local_record.mirrors.size(), 0);
-      local_record.mirrors = buffer_rec.mirrors;
+      ASSERT_GT(buffer_rec.mirrors.size(), 0);
+      local_record._mirrors.reserve(buffer_rec.mirrors.size()-1);
+      ASSERT_EQ(local_record._mirrors.size(), 0);
+      // copy the mirrors but drop the owner
+      for(size_t i = 0; i < buffer_rec.mirrors.size(); ++i) {
+        if(buffer_rec.mirrors[i] != buffer_rec.owner) 
+          local_record._mirrors.push_back(buffer_rec.mirrors[i]);
+      }
     } // end of update_vrecord
 
     void finalize() { 
@@ -250,12 +254,9 @@ namespace graphlab {
           record.owner = best_asg.second;
           counts[record.owner]++;
           // Notify all machines of the new assignment
-          foreach(procid_t proc, record.mirrors) {
-            if(proc == rpc.procid()) update_vrecord(vid, record); 
-            else rpc.remote_call(proc, 
-                                 &distributed_random_ingress::update_vrecord,
-                                 vid, record);
-          }
+          rpc.remote_call(record.mirrors.begin(), record.mirrors.end(),
+                          &distributed_random_ingress::update_vrecord,
+                          vid, record);
         }
         // destroy the buffer
         vbuffer_map_type().swap(vbuffer);
@@ -298,27 +299,8 @@ namespace graphlab {
       swap_counts.assign(rpc.numprocs(), graph.num_local_vertices());
       mpi_tools::all2all(swap_counts, swap_counts);
       graph.nreplicas = 0;
-      foreach(size_t count, swap_counts) graph.nreplicas += count;
-   
-      // std::cout << "Save debugging information" << std::endl;
-      // {
-      //   const std::string fname = 
-      //     "file_" + boost::lexical_cast<std::string>(rpc.procid());
-      //   std::ofstream fout(fname.c_str());
-      //   typedef typename vid2record_type::value_type pair_type;
-      //   foreach(const pair_type& pair, vid2record) {      
-      //     fout << pair.first << '\t' << pair.second.owner << '\t';
-      //     std::vector<bool> bitset(rpc.numprocs(), false);
-      //     foreach(const procid_t& proc, pair.second.mirrors)
-      //       bitset[proc] = true;
-      //     for(size_t i = 0; i < bitset.size(); ++i) {
-      //       fout << (bitset[i]? '1' : '0') 
-      //            << (i+1 < bitset.size()? '\t' : '\n');
-      //     }
-      //   }
-      //   fout.close();
-      // }   
-    }
+      foreach(size_t count, swap_counts) graph.nreplicas += count;   
+    } // end of finalize
 
   private:
 

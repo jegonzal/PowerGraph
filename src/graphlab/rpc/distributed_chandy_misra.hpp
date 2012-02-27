@@ -485,11 +485,8 @@ class distributed_chandy_misra {
       // broadcast EATING
       const vertex_record& rec = distgraph.l_get_vertex_record(lvid);
       unsigned char pkey = rmi.dc().set_sequentialization_key(rec.gvid % 254 + 1);
-      foreach(procid_t p, rec.get_replicas()) {
-        if (p != rmi.procid()) {
-          rmi.remote_call(p, &dcm_type::rpc_set_eating, rec.gvid, lockid);
-        }
-      }
+      rmi.remote_call(rec.mirrors().begin(), rec.mirrors().end(), 
+                      &dcm_type::rpc_set_eating, rec.gvid, lockid);
       set_eating(lvid, lockid);
       rmi.dc().set_sequentialization_key(pkey);
     }
@@ -655,7 +652,8 @@ class distributed_chandy_misra {
                                                       bool lockid) {
     philosopherset[p_id].lockid = lockid;
     philosopherset[p_id].state = HUNGRY;
-    philosopherset[p_id].counter = distgraph.l_get_vertex_record(p_id).get_replicas().size();
+    philosopherset[p_id].counter = 
+      distgraph.l_get_vertex_record(p_id).num_mirrors() + 1;
   }
   
   void make_philosopher_hungry(vertex_id_type p_id) {
@@ -673,11 +671,8 @@ class distributed_chandy_misra {
     philosopherset[p_id].lock.unlock();
     
     unsigned char pkey = rmi.dc().set_sequentialization_key(rec.gvid % 254 + 1);
-    foreach(procid_t p, rec.get_replicas()) {
-      if (p != rmi.procid()) {
-        rmi.remote_call(p, &dcm_type::rpc_make_philosopher_hungry, rec.gvid, newlockid);
-      }
-    }
+    rmi.remote_call(rec.mirrors().begin(), rec.mirrors().end(), 
+                    &dcm_type::rpc_make_philosopher_hungry, rec.gvid, newlockid);
     rmi.dc().set_sequentialization_key(pkey);
     local_philosopher_grabs_forks(p_id);
   }
@@ -695,11 +690,8 @@ class distributed_chandy_misra {
     philosopherset[p_id].counter = 0;
     philosopherset[p_id].lock.unlock();
     unsigned char pkey = rmi.dc().set_sequentialization_key(rec.gvid % 254 + 1);
-    foreach(procid_t p, rec.get_replicas()) {
-      if (p != rmi.procid()) {
-        rmi.remote_call(p, &dcm_type::rpc_philosopher_stops_eating, rec.gvid);
-      }
-    }
+    rmi.remote_call(rec.mirrors().begin(), rec.mirrors().end(), 
+                    &dcm_type::rpc_philosopher_stops_eating, rec.gvid);
     rmi.dc().set_sequentialization_key(pkey);
     local_philosopher_stops_eating(p_id);
   }

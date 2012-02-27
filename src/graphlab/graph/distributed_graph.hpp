@@ -88,10 +88,14 @@ namespace graphlab {
 
     typedef idistributed_ingress<VertexData, EdgeData> 
     idistributed_ingress_type;
+   
     typedef distributed_batch_ingress<VertexData, EdgeData>
         distributed_batch_ingress_type;
+    friend class distributed_batch_ingress<VertexData, EdgeData>;
+
     typedef distributed_random_ingress<VertexData, EdgeData>
         distributed_random_ingress_type;
+    friend class distributed_random_ingress<VertexData, EdgeData>;
 
 
     /** 
@@ -421,24 +425,26 @@ namespace graphlab {
       size_t num_in_edges;
       /// The nubmer of out edges
       size_t num_out_edges;
-      /// The set of proc that mirror this vertex.
-      std::vector<procid_t> mirrors;
+      /** The set of proc that mirror this vertex.  The owner should
+          NOT be in this set.*/
+      std::vector<procid_t> _mirrors;
       vertex_record() : 
         owner(-1), gvid(-1), num_in_edges(0), num_out_edges(0) { }
       vertex_record(const vertex_id_type& vid) : 
         owner(-1), gvid(vid), num_in_edges(0), num_out_edges(0) { }
-      procid_t get_owner () const {
-        return owner;
-      }
-      const std::vector<procid_t>& get_replicas () const {
-        return mirrors;
-      }
+      procid_t get_owner () const { return owner; }
+      const std::vector<procid_t>& mirrors() const { return _mirrors; }
+      size_t num_mirrors() const { return _mirrors.size(); }
     }; // end of vertex_record
+
+
 
 
     /// The master vertex record map
     // typedef boost::unordered_map<vertex_id_type, vertex_record>  vid2record_type;
     typedef std::vector<vertex_record> lvid2record_type;
+
+  private:
       
     // PRIVATE DATA MEMBERS ===================================================> 
     /** The rpc interface for this class */
@@ -496,6 +502,7 @@ namespace graphlab {
         ingress_ptr = new distributed_random_ingress_type(rpc.dc(), *this);
       }
     } // end of set ingress method
+    
 
     /**
      * Finalize is used to complete graph ingress by resolving vertex
@@ -538,8 +545,6 @@ namespace graphlab {
       return edge_type();
     }
 
-
-
     /** \brief Get the number of vertices local to this proc */
     size_t num_local_vertices() const { return local_graph.num_vertices(); }
 
@@ -562,10 +567,10 @@ namespace graphlab {
       return lvid2record[lvid].gvid;
     } // end of global_vertex_id
 
-    vertex_record& get_vertex_record(const vertex_id_type vid) {
-      ASSERT_LT(local_vid(vid), lvid2record.size());
-      return lvid2record[local_vid(vid)];
-    }
+    // vertex_record& get_vertex_record(const vertex_id_type vid) {
+    //   ASSERT_LT(local_vid(vid), lvid2record.size());
+    //   return lvid2record[local_vid(vid)];
+    // }
 
     const vertex_record& get_vertex_record(const vertex_id_type vid) const {
       ASSERT_LT(local_vid(vid), lvid2record.size());
