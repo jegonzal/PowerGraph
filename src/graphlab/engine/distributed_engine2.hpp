@@ -196,6 +196,8 @@ namespace graphlab {
     atomic<uint64_t> issued_tasks;
     atomic<uint64_t> completed_tasks;
     
+    size_t max_pending_tasks;
+
     DECLARE_DIST_EVENT_LOG(eventlog);
     DECLARE_TRACER(disteng_eval_sched_task);
     DECLARE_TRACER(disteng_chandy_misra);
@@ -276,7 +278,8 @@ namespace graphlab {
   public:
     distributed_engine(distributed_control &dc, graph_type& graph, 
                        size_t ncpus) : 
-      rmi(dc, this), graph(graph), scheduler_ptr(NULL), ncpus(ncpus) {
+      rmi(dc, this), graph(graph), scheduler_ptr(NULL), ncpus(ncpus),
+      max_pending_tasks(10000) {
       rmi.barrier();
       // TODO: Remove context creation.
       // Added context to force compilation.   
@@ -499,6 +502,9 @@ namespace graphlab {
     /** \brief Update the engine options.  */
     void set_options(const graphlab_options& new_opts) {
       opts = new_opts;
+      if(opts.engine_args.get_option("max_pending", max_pending_tasks)) {
+        std::cout << "Max Pending: " << max_pending_tasks << std::endl;
+      }
     } 
 
     /** \brief get the current engine options. */
@@ -536,7 +542,7 @@ namespace graphlab {
       const size_t pending_tasks = 
         issued_tasks - (completed_tasks + blocked_issues);
         
-      if( pending_tasks > 1000 ) { return; }
+      if( pending_tasks > max_pending_tasks ) { return; }
 
 
       sched_status::status_enum stat = 
