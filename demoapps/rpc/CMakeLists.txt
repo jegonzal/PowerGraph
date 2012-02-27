@@ -10,3 +10,5 @@ add_distributed_graphlab_executable(rpc_example8 rpc_example8.cpp)
 add_distributed_graphlab_executable(rpc_example9 rpc_example9.cpp)
 
 add_distributed_graphlab_executable(dht_performance_test dht_performance_test.cpp)
+
+add_distributed_graphlab_executable(rpc_call_perf_test rpc_call_perf_test.cpp)
