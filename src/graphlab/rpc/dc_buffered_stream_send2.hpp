@@ -65,7 +65,7 @@ class dc_buffered_stream_send2: public dc_send{
                                    dc_comm_base *comm, 
                                    procid_t target) : 
                   dc(dc),  comm(comm), target(target), done(false), 
-                  flush(false), 
+                  flush_flag(false), return_signal(false),
                   rtdsc_per_ms(estimate_ticks_per_second() / 1000) {
     thr = launch_in_new_thread(boost::bind
                                (&dc_buffered_stream_send2::send_loop, 
@@ -99,7 +99,8 @@ class dc_buffered_stream_send2: public dc_send{
 
   void send_loop();
   
-
+  void flush();
+  
   void shutdown();
   
   bool adaptive_send_decision();
@@ -138,7 +139,9 @@ class dc_buffered_stream_send2: public dc_send{
   static atomic<size_t> callcount;
   atomic<size_t> bytessent; 
   
-  bool flush;
+  bool flush_flag;
+  bool return_signal;
+  conditional flush_return_cond;
   
   static double calls_per_ms;
   

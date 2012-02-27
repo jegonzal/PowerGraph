@@ -53,20 +53,27 @@ struct teststruct {
     }
   }
 
+  void print_res(double t1, double t2, double t3) {
+    std::cout << "Calls Sent in: " << t1 << "s\n";
+    std::cout << SEND_LIMIT / t1 / 1024 / 1024 << " MB/s\n";
+    std::cout << "Send Completed in: " << t2 << "s\n";
+    std::cout << SEND_LIMIT / t2 / 1024 / 1024 << " MB/s\n";
+    std::cout << "Receive Completed in: " << t2 << "s\n";
+    std::cout << SEND_LIMIT / t3 / 1024 / 1024 << " MB/s\n\n";
 
+  }
   void run_short_sends_0() {
     timer ti;
     std::cout << "Single Threaded " << SEND_LIMIT_PRINT << " sends, 4 integer blocks\n";
     ti.start();
     size_t numsends = SEND_LIMIT / (sizeof(size_t) * 4);
     perform_short_sends_0(numsends);
-    double t = ti.current_time();
-    rmi.full_barrier();
+    double t1 = ti.current_time();
+    rmi.dc().flush();
     double t2 = ti.current_time();
-    std::cout << "Calls Sent in: " << t << "s\n";
-    std::cout << SEND_LIMIT / t / 1024 / 1024 << " MB/s\n";
-    std::cout << "Calls Completed in: " << t2 << "s\n";
-    std::cout << SEND_LIMIT / t2 / 1024 / 1024 << " MB/s\n\n";
+    rmi.full_barrier();
+    double t3 = ti.current_time();
+    print_res(t1,t2,t3);
   }
   
   
@@ -80,13 +87,12 @@ struct teststruct {
       thrgrp.launch(boost::bind(&teststruct::perform_short_sends_0, this, numsends));
     }
     thrgrp.join();
-    double t = ti.current_time();
-    rmi.full_barrier();
+    double t1 = ti.current_time();
+    rmi.dc().flush();
     double t2 = ti.current_time();
-    std::cout << "Calls Sent in: " << t << "s\n";
-    std::cout << SEND_LIMIT / t / 1024 / 1024 << " MB/s\n";
-    std::cout << "Calls Completed in: " << t2 << "s\n";
-    std::cout << SEND_LIMIT / t2 / 1024 / 1024 << " MB/s\n\n";
+    rmi.full_barrier();
+    double t3 = ti.current_time();
+    print_res(t1,t2,t3);
   }
 
 
@@ -96,13 +102,12 @@ struct teststruct {
     ti.start();
     size_t numsends = SEND_LIMIT / (sizeof(size_t) * 4);
     perform_short_pod_sends_0(numsends);
-    double t = ti.current_time();
-    rmi.full_barrier();
+    double t1 = ti.current_time();
+    rmi.dc().flush();
     double t2 = ti.current_time();
-    std::cout << "Calls Sent in: " << t << "s\n";
-    std::cout << SEND_LIMIT / t / 1024 / 1024 << " MB/s\n";
-    std::cout << "Calls Completed in: " << t2 << "s\n";
-    std::cout << SEND_LIMIT / t2 / 1024 / 1024 << " MB/s\n\n";
+    rmi.full_barrier();
+    double t3 = ti.current_time();
+    print_res(t1,t2,t3);
   }
   
   
@@ -116,13 +121,12 @@ struct teststruct {
       thrgrp.launch(boost::bind(&teststruct::perform_short_pod_sends_0, this, numsends));
     }
     thrgrp.join();
-    double t = ti.current_time();
-    rmi.full_barrier();
+    double t1 = ti.current_time();
+    rmi.dc().flush();
     double t2 = ti.current_time();
-    std::cout << "Calls Sent in: " << t << "s\n";
-    std::cout << SEND_LIMIT / t / 1024 / 1024 << " MB/s\n";
-    std::cout << "Calls Completed in: " << t2 << "s\n";
-    std::cout << SEND_LIMIT / t2 / 1024 / 1024 << " MB/s\n\n";
+    rmi.full_barrier();
+    double t3 = ti.current_time();
+    print_res(t1,t2,t3);
   }
 
 
@@ -134,13 +138,12 @@ struct teststruct {
     ti.start();
     size_t numsends = SEND_LIMIT / (sizeof(size_t) * length);
     perform_long_sends_0(length, numsends);
-    double t = ti.current_time();
-    rmi.full_barrier();
+    double t1 = ti.current_time();
+    rmi.dc().flush();
     double t2 = ti.current_time();
-    std::cout << "Calls Sent in: " << t << "s\n";
-    std::cout << SEND_LIMIT / t / 1024 / 1024 << " MB/s\n";
-    std::cout << "Calls Completed in: " << t2 << "s\n";
-    std::cout << SEND_LIMIT / t2 / 1024 / 1024 << " MB/s\n\n";
+    rmi.full_barrier();
+    double t3 = ti.current_time();
+    print_res(t1,t2,t3);
   }
   
   
@@ -156,13 +159,12 @@ struct teststruct {
       thrgrp.launch(boost::bind(&teststruct::perform_long_sends_0, this, length, numsends));
     }
     thrgrp.join();
-    double t = ti.current_time();
-    rmi.full_barrier();
+    double t1 = ti.current_time();
+    rmi.dc().flush();
     double t2 = ti.current_time();
-    std::cout << "Calls Sent in: " << t << "s\n";
-    std::cout << SEND_LIMIT / t / 1024 / 1024 << " MB/s\n";
-    std::cout << "Calls Completed in: " << t2 << "s\n";
-    std::cout << SEND_LIMIT / t2 / 1024 / 1024 << " MB/s\n\n";
+    rmi.full_barrier();
+    double t3 = ti.current_time();
+    print_res(t1,t2,t3);
   }
 
 };

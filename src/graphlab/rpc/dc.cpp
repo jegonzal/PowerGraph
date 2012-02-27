@@ -430,6 +430,11 @@ void distributed_control::barrier() {
   distributed_services->barrier();
 }
 
+void distributed_control::flush() {
+  for (procid_t i = 0;i < senders.size(); ++i) {
+    if (senders[i]->channel_active(i)) senders[i]->flush();
+  }
+}
 
 
 void distributed_control::compute_master_ranks() {

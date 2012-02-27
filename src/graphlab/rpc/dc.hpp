@@ -580,7 +580,10 @@ class distributed_control{
   */
   void comm_barrier();
 
-
+  /**
+   * Completes a local flush of all send buffers
+   */
+  void flush();
 
 // Temp hack.
   long long int total_bytes_sent;
