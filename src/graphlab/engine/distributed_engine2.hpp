@@ -413,12 +413,17 @@ namespace graphlab {
      */
     void schedule_all(const update_functor_type& update_functor) {
       logstream(LOG_DEBUG) << rmi.procid() << ": Schedule All" << std::endl;
+      std::vector<vertex_id_type> vtxs;
       for(lvid_type lvid = 0; lvid < graph.get_local_graph().num_vertices(); 
           ++lvid) {
         if (graph.l_get_vertex_record(lvid).owner == rmi.procid()) {
-          scheduler_ptr->schedule(lvid, update_functor);
+          vtxs.push_back(lvid);
         }
-      }      
+      } 
+      std::random_shuffle(vtxs.begin(), vtxs.end());
+      for (size_t i = 0;i < vtxs.size(); ++i) {
+        scheduler_ptr->schedule(vtxs[i], update_functor);
+      }     
       if (started) {
         consensus->cancel();
       }
