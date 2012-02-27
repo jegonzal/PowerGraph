@@ -111,30 +111,51 @@ namespace graphlab {
       }
     };
 
+    DECLARE_TRACER(random_ingress);
+    DECLARE_TRACER(random_ingress_add_edge);
+    DECLARE_TRACER(random_ingress_add_vertex);
+    DECLARE_TRACER(random_ingress_recv_edges);
+    DECLARE_TRACER(random_ingress_compute_assignments);
+    DECLARE_TRACER(random_ingress_finalize);
+
   public:
 
     distributed_random_ingress(distributed_control& dc, graph_type& graph) :
       rpc(dc, this), graph(graph), vertex_exchange(dc), edge_exchange(dc) {
       rpc.barrier();
       std::cout << "Using random ingress" << std::endl;
-    }
+      INITIALIZE_TRACER(random_ingress, "Time spent in random ingress");
+      INITIALIZE_TRACER(random_ingress_add_edge, "Time spent in add edge");
+      INITIALIZE_TRACER(random_ingress_add_vertex, "Time spent in add vertex" );
+      INITIALIZE_TRACER(random_ingress_recv_edges, "Time spent in recv edges");
+      INITIALIZE_TRACER(random_ingress_compute_assignments, "Compute Assignment");
+      INITIALIZE_TRACER(random_ingress_finalize, "Time spent in finalize");
 
+    } // end of constructor
+
+    ~distributed_random_ingress() { }
 
     void add_edge(vertex_id_type source, vertex_id_type target,
                   const EdgeData& edata) {
+      BEGIN_TRACEPOINT(random_ingress_add_edge);
       const procid_t owning_proc = edge_to_proc(source, target);
       const edge_buffer_record record(source, target, edata);
       edge_exchange.send(owning_proc, record);
+      END_TRACEPOINT(random_ingress_add_edge);
     } // end of add edge
 
     void add_vertex(vertex_id_type vid, const VertexData& vdata)  { 
+      BEGIN_TRACEPOINT(random_ingress_add_vertex);
       const procid_t owning_proc = vertex_to_proc(vid);
       const vertex_buffer_record record(vid, vdata);
       vertex_exchange.send(owning_proc, record);
+      END_TRACEPOINT(random_ingress_add_vertex);
     } // end of add vertex
 
 
     void finalize() {
+      BEGIN_TRACEPOINT(random_ingress_finalize);
+      BEGIN_TRACEPOINT(random_ingress_recv_edges);
       edge_exchange.flush(); vertex_exchange.flush();
       // add all the edges to the local graph --------------------------------
       {
@@ -164,16 +185,18 @@ namespace graphlab {
         } // end for loop over buffers
       }
       logstream(LOG_INFO) << "Finalizing local graph" << std::endl;
-
+      END_TRACEPOINT(random_ingress_recv_edges);
       // Finalize local graph
       graph.local_graph.finalize();
       
+
       logstream(LOG_INFO) << "Local graph info: " << std::endl
                           << "\t nverts: " << graph.local_graph.num_vertices()
                           << std::endl
                           << "\t nedges: " << graph.local_graph.num_edges()
                           << std::endl;
 
+      BEGIN_TRACEPOINT(random_ingress_compute_assignments);
       // Initialize vertex records
       graph.lvid2record.resize(graph.vid2lvid.size());
       typedef typename boost::unordered_map<vertex_id_type, lvid_type>::value_type 
@@ -263,9 +286,9 @@ namespace graphlab {
         foreach(procid_t dest, negotiator_rec.mirrors) 
           negotiator_exchange.send(dest, negotiator_rec);
       } // end of loop over vertex records
-      negotiator_exchange.flush();
+      END_TRACEPOINT(random_ingress_compute_assignments);
 
-      rpc.full_barrier();
+      negotiator_exchange.flush();
       logstream(LOG_INFO) << "Recieving vertex data." << std::endl;
       {
         typedef typename buffered_exchange<vertex_negotiator_record>::buffer_type 
@@ -297,7 +320,6 @@ namespace graphlab {
           }
         }
       }
-
 
       // Count the number of vertices owned locally
       graph.local_own_nverts = 0;
@@ -332,7 +354,8 @@ namespace graphlab {
       swap_counts.assign(rpc.numprocs(), graph.num_local_vertices());
       mpi_tools::all2all(swap_counts, swap_counts);
       graph.nreplicas = 0;
-      foreach(size_t count, swap_counts) graph.nreplicas += count;   
+      foreach(size_t count, swap_counts) graph.nreplicas += count;
+      END_TRACEPOINT(random_ingress_finalize);
     } // end of finalize
 
   private:
