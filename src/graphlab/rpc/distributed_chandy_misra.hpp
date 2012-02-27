@@ -654,6 +654,7 @@ class distributed_chandy_misra {
     forkset.resize(graph.num_edges(), 0);
     philosopherset.resize(graph.num_vertices());
     compute_initial_fork_arrangement();
+    INITIALIZE_DIST_EVENT_LOG(eventlog, dc, std::cout, 500, dist_event_log::RATE_BAR);
     ADD_DIST_EVENT_TYPE(eventlog, COLLISIONS, "Collisions");
     ADD_DIST_EVENT_TYPE(eventlog, CANCELLATIONS, "Cancels");
 
