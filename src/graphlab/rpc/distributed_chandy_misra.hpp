@@ -2,6 +2,7 @@
 #define GRAPHLAB_LOCAL_CHANDY_MISRA_HPP
 #include <vector>
 #include <graphlab/rpc/dc_dist_object.hpp>
+#include <graphlab/rpc/distributed_event_log.hpp>
 #include <graphlab/logger/assertions.hpp>
 #include <graphlab/parallel/pthread_tools.hpp>
 #include <graphlab/graph/graph_basic_types.hpp>
@@ -36,6 +37,12 @@ class distributed_chandy_misra {
     return owner ? REQUEST_1 : REQUEST_0;
   }
 
+
+  enum {
+    COLLISIONS = 0,
+    CANCELLATIONS = 1
+  };
+  
   struct philosopher {
     vertex_id_type num_edges;
     vertex_id_type forks_acquired;
@@ -46,6 +53,9 @@ class distributed_chandy_misra {
     bool lockid;
   };
   std::vector<philosopher> philosopherset;
+  
+  DECLARE_DIST_EVENT_LOG(eventlog);
+    
   /*
    * Possible values for the philosopher state
    */
@@ -153,6 +163,7 @@ class distributed_chandy_misra {
           return true;
         }
         else if (philosopherset[source].cancellation_sent == false) {
+          ACCUMULATE_DIST_EVENT(eventlog, CANCELLATIONS, 1);
           philosopherset[source].cancellation_sent = true;
           bool lockid = philosopherset[source].lockid;
           philosopherset[source].lock.unlock();
@@ -180,6 +191,7 @@ class distributed_chandy_misra {
           return true;
         }
         else if (philosopherset[target].cancellation_sent == false) {
+          ACCUMULATE_DIST_EVENT(eventlog, CANCELLATIONS, 1);
           philosopherset[target].cancellation_sent = true;
           bool lockid = philosopherset[target].lockid;
           philosopherset[source].lock.unlock();
@@ -190,6 +202,7 @@ class distributed_chandy_misra {
         }
       }
     }
+    ACCUMULATE_DIST_EVENT(eventlog, COLLISIONS, 1);
     return false;
   }
 
@@ -641,6 +654,10 @@ class distributed_chandy_misra {
     forkset.resize(graph.num_edges(), 0);
     philosopherset.resize(graph.num_vertices());
     compute_initial_fork_arrangement();
+    INITIALIZE_DIST_EVENT_LOG(eventlog, dc, std::cout, 500, dist_event_log::RATE_BAR);
+    ADD_DIST_EVENT_TYPE(eventlog, COLLISIONS, "Collisions");
+    ADD_DIST_EVENT_TYPE(eventlog, CANCELLATIONS, "Cancels");
+
     rmi.barrier();
   }
 
