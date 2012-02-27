@@ -42,15 +42,12 @@
 #define INT_SERIALIZE(tname)                                            \
   template <typename ArcType> struct serialize_impl<ArcType, tname, false>{ \
     static void exec(ArcType &a, const tname &i_) {                     \
-      uint64_t i = (uint64_t)(i_) ;                                     \
-      char c[10];                                                       \
-      unsigned char len = compress_int(i, c);                           \
-      a.o->write(c + 10 - len, (std::streamsize)len);                   \
+      a.o->write(reinterpret_cast<const char*>(&i_), sizeof(tname));                                    \
     }                                                                   \
   };                                                                    \
   template <typename ArcType> struct deserialize_impl<ArcType, tname, false>{ \
     static void exec(ArcType &a, tname &t_) {                           \
-      decompress_int<ArcType, tname>(a, t_);                                \
+      decompress_int<ArcType, tname>(a, t_);                            \
     }                                                                   \
   };
 
