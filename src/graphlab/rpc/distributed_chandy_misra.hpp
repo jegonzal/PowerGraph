@@ -219,7 +219,7 @@ class distributed_chandy_misra {
         const vertex_record& rec = distgraph.l_get_vertex_record(lvid);
         if (requestor != rmi.procid()) {
           unsigned char pkey = rmi.dc().set_sequentialization_key(rec.gvid % 254 + 1);
-          rmi.remote_call(requestor,
+          rmi.pod_call(requestor,
                           &dcm_type::rpc_cancellation_accept,
                           rec.gvid,
                           lockid);
@@ -261,7 +261,7 @@ class distributed_chandy_misra {
     }
     else {
       unsigned char pkey = rmi.dc().set_sequentialization_key(rec.gvid % 254 + 1);
-      rmi.remote_call(rec.owner,
+      rmi.pod_call(rec.owner,
                       &dcm_type::rpc_cancellation_request,
                       rec.gvid,
                       rmi.procid(), 
@@ -438,7 +438,7 @@ class distributed_chandy_misra {
     }
     else {
       unsigned char pkey = rmi.dc().set_sequentialization_key(rec.gvid % 254 + 1);
-      rmi.remote_call(rec.owner,
+      rmi.pod_call(rec.owner,
                       &dcm_type::rpc_signal_ready,
                       rec.gvid, philosopherset[p_id].lockid);
       rmi.dc().set_sequentialization_key(pkey);
@@ -485,7 +485,7 @@ class distributed_chandy_misra {
       // broadcast EATING
       const vertex_record& rec = distgraph.l_get_vertex_record(lvid);
       unsigned char pkey = rmi.dc().set_sequentialization_key(rec.gvid % 254 + 1);
-      rmi.remote_call(rec.mirrors().begin(), rec.mirrors().end(), 
+      rmi.pod_call(rec.mirrors().begin(), rec.mirrors().end(),
                       &dcm_type::rpc_set_eating, rec.gvid, lockid);
       set_eating(lvid, lockid);
       rmi.dc().set_sequentialization_key(pkey);
@@ -671,7 +671,7 @@ class distributed_chandy_misra {
     philosopherset[p_id].lock.unlock();
     
     unsigned char pkey = rmi.dc().set_sequentialization_key(rec.gvid % 254 + 1);
-    rmi.remote_call(rec.mirrors().begin(), rec.mirrors().end(), 
+    rmi.pod_call(rec.mirrors().begin(), rec.mirrors().end(),
                     &dcm_type::rpc_make_philosopher_hungry, rec.gvid, newlockid);
     rmi.dc().set_sequentialization_key(pkey);
     local_philosopher_grabs_forks(p_id);
@@ -690,7 +690,7 @@ class distributed_chandy_misra {
     philosopherset[p_id].counter = 0;
     philosopherset[p_id].lock.unlock();
     unsigned char pkey = rmi.dc().set_sequentialization_key(rec.gvid % 254 + 1);
-    rmi.remote_call(rec.mirrors().begin(), rec.mirrors().end(), 
+    rmi.pod_call(rec.mirrors().begin(), rec.mirrors().end(),
                     &dcm_type::rpc_philosopher_stops_eating, rec.gvid);
     rmi.dc().set_sequentialization_key(pkey);
     local_philosopher_stops_eating(p_id);
