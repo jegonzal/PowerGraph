@@ -181,53 +181,55 @@ distributed_control::~distributed_control() {
   
 void distributed_control::exec_function_call(procid_t source, 
                                             const dc_impl::packet_hdr& hdr, 
-                                            std::istream &istrm) {
+                                            std::istream &istrm,
+                                            const size_t len) {
   unsigned char packet_type_mask = hdr.packet_type_mask;
-  // extract the dispatch function
-  iarchive arc(istrm);
-  size_t f; 
-  arc >> f;
-  // a regular funcion call
-  if (f != 0) {
+  // not a POD call
+  if ((hdr.packet_type_mask & POD_CALL) == 0) {
+    // extract the dispatch function
+    iarchive arc(istrm);
+    size_t f;
+    arc >> f;
+    // a regular funcion call
     dc_impl::dispatch_type dispatch = (dc_impl::dispatch_type)f;
     dispatch(*this, source, packet_type_mask, istrm);
   }
   else {
-    // f is NULL!. This is a portable call. deserialize the function name
-    std::string s;
-    arc >> s;
-    char isrequest;
-    arc >> isrequest;
-    if (isrequest == 0) {
-      // std::cout << "portable call to " << s << std::endl;
-      // look for the registration
-      dc_impl::dispatch_map_type::const_iterator iter = portable_dispatch_call_map.find(s);
-      if (iter == portable_dispatch_call_map.end()) {
-        logstream(LOG_ERROR) << "Unable to locate dispatcher for function " << s << std::endl;
-        return;
-      }
-      // dispatch
-      iter->second(*this, source, packet_type_mask, istrm);
-
-    }
-    else {
-     // std::cout << "portable request to " << s << std::endl;
-     dc_impl::dispatch_map_type::const_iterator iter = portable_dispatch_request_map.find(s);
-      if (iter == portable_dispatch_request_map.end()) {
-        logstream(LOG_ERROR) << "Unable to locate dispatcher for function " << s << std::endl;
-        return;
-      }
-      // dispatch
-      iter->second(*this, source, packet_type_mask, istrm);
-
-    }
+    // This is a POD call. The POD needs to know the entire stream...
+    // read the entire stream
+    char tmp[len];
+    istrm.read(tmp, len);
+    dc_impl::dispatch_type2 dispatch2 = *reinterpret_cast<dc_impl::dispatch_type2*>(tmp);
+    dispatch2(*this, source, packet_type_mask, tmp, len);
   }
   if ((packet_type_mask & CONTROL_PACKET) == 0) inc_calls_received(source);
 } 
 
-  const size_t buffer_size_wait = 1000; 
-  const size_t nano_wait = 100000;
-  
+
+void distributed_control::exec_function_call(procid_t source,
+                                            const dc_impl::packet_hdr& hdr,
+                                            const char* data,
+                                            const size_t len) {
+  unsigned char packet_type_mask = hdr.packet_type_mask;
+  // not a POD call
+  if ((hdr.packet_type_mask & POD_CALL) == 0) {
+    // extract the dispatch function
+    boost::iostreams::stream<boost::iostreams::array_source> strm(data, len);
+    iarchive arc(strm);
+    size_t f;
+    arc >> f;
+    // a regular funcion call
+    dc_impl::dispatch_type dispatch = (dc_impl::dispatch_type)f;
+    dispatch(*this, source, packet_type_mask, strm);
+  }
+  else {
+    dc_impl::dispatch_type2 dispatch2 = *reinterpret_cast<const dc_impl::dispatch_type2*>(data);
+    dispatch2(*this, source, packet_type_mask, data, len);
+  }
+  if ((packet_type_mask & CONTROL_PACKET) == 0) inc_calls_received(source);
+}
+
+
 void distributed_control::deferred_function_call(procid_t source, const dc_impl::packet_hdr& hdr,
                                                 char* buf, size_t len) {
 
@@ -267,9 +269,7 @@ void distributed_control::fcallhandler_loop(size_t id) {
       // }
 
       //create a stream containing all the data
-      boost::iostreams::stream<boost::iostreams::array_source> 
-        istrm(entry.data, entry.len);
-      exec_function_call(entry.source, entry.hdr, istrm);
+      exec_function_call(entry.source, entry.hdr, entry.data, entry.len);
       receivers[entry.source]->
         function_call_completed(entry.hdr.packet_type_mask);
       delete [] entry.data;
@@ -323,7 +323,6 @@ void distributed_control::init(const std::vector<std::string> &machines,
   procs_complete.resize(machines.size());
   //-----------------------------------------------
   
-  REGISTER_RPC((*this), reply_increment_counter);
   // parse the initstring
   std::map<std::string,std::string> options = parse_options(initstring);
   bool buffered_send = true;

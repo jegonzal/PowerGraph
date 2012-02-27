@@ -33,7 +33,9 @@
 #include <graphlab/rpc/dc_dist_object_base.hpp>
 #include <graphlab/rpc/object_request_issue.hpp>
 #include <graphlab/rpc/object_call_issue.hpp>
+#include <graphlab/rpc/object_podcall_issue.hpp>
 #include <graphlab/rpc/object_broadcast_issue.hpp>
+#include <graphlab/rpc/object_podcall_broadcast_issue.hpp>
 #include <graphlab/rpc/function_ret_type.hpp>
 #include <graphlab/rpc/mem_function_arg_types_def.hpp>
 #include <graphlab/util/charstream.hpp>
@@ -316,6 +318,7 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
   Generates the interface functions. 3rd argument is a tuple (interface name, issue name, flags)
   */
   BOOST_PP_REPEAT(7, RPC_INTERFACE_GENERATOR, (remote_call, dc_impl::object_call_issue, STANDARD_CALL) )
+  BOOST_PP_REPEAT(7, RPC_INTERFACE_GENERATOR, (pod_call, dc_impl::object_podcall_issue, STANDARD_CALL) )
   BOOST_PP_REPEAT(7, RPC_INTERFACE_GENERATOR, (fast_remote_call,dc_impl::object_call_issue, FAST_CALL) )
   BOOST_PP_REPEAT(7, RPC_INTERFACE_GENERATOR, (control_call,dc_impl::object_call_issue, (FAST_CALL | CONTROL_PACKET)) )
  
@@ -340,6 +343,8 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
   }   
   
   BOOST_PP_REPEAT(7, BROADCAST_INTERFACE_GENERATOR, (remote_call, dc_impl::object_broadcast_issue, STANDARD_CALL) )
+  BOOST_PP_REPEAT(7, BROADCAST_INTERFACE_GENERATOR, (pod_call, dc_impl::object_podcall_broadcast_issue, STANDARD_CALL) )
+
   /*
   The generation procedure for requests are the same. The only
   difference is that the function name has to be changed a little to

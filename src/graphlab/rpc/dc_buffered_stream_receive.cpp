@@ -95,7 +95,7 @@ void dc_buffered_stream_receive::process_buffer() {
       logstream(LOG_INFO) << "Is fast call" << std::endl;
       #endif
       boost::iostreams::stream<circular_char_buffer_source> strm(buffer,hdr.len);
-      dc->exec_function_call(hdr.src, hdr, strm);
+      dc->exec_function_call(hdr.src, hdr, strm, hdr.len);
     }
     else if (hdr.packet_type_mask & STANDARD_CALL) {
       #ifdef DC_RECEIVE_DEBUG

@@ -30,6 +30,7 @@
 #include <graphlab/rpc/dc_send.hpp>
 #include <graphlab/rpc/function_call_dispatch.hpp>
 #include <graphlab/rpc/is_rpc_call.hpp>
+#include <graphlab/rpc/reply_increment_counter.hpp>
 #include <boost/preprocessor.hpp>
 #include <graphlab/rpc/function_arg_types_def.hpp>
 

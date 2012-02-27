@@ -42,8 +42,6 @@
 #include <graphlab/rpc/dc_dist_object_base.hpp>
 
 #include <graphlab/rpc/is_rpc_call.hpp>
-#include <graphlab/rpc/portable_dispatch.hpp>
-#include <graphlab/rpc/portable_issue.hpp>
 #include <graphlab/rpc/function_call_issue.hpp>
 #include <graphlab/rpc/function_broadcast_issue.hpp>
 #include <graphlab/rpc/request_issue.hpp>
@@ -201,10 +199,6 @@ class distributed_control{
   
   /// a queue of functions to be executed
   std::vector<blocking_queue<function_call_block> > fcallqueue;
-  
-  /// A map of function name to dispatch function. Used for "portable" calls
-  dc_impl::dispatch_map_type portable_dispatch_call_map;
-  dc_impl::dispatch_map_type portable_dispatch_request_map;
 
   
   /// object registrations;
@@ -406,7 +400,8 @@ class distributed_control{
   Immediately calls the function described by the data
   inside the buffer. This should not be called directly.
   */
-  void exec_function_call(procid_t source, const dc_impl::packet_hdr& hdr, std::istream &istrm);
+  void exec_function_call(procid_t source, const dc_impl::packet_hdr& hdr, std::istream &istrm, const size_t len);
+  void exec_function_call(procid_t source, const dc_impl::packet_hdr& hdr, const char* data, const size_t len);
   
   
   
@@ -533,31 +528,6 @@ class distributed_control{
    */
   size_t set_sender_option(std::string opt, size_t value);
 
-  /**
-    registers a portable RPC call.
-  */
-  template <typename F, F f>
-  void register_rpc(std::string c) {
-    portable_dispatch_request_map[c] = (dc_impl::dispatch_type)
-              dc_impl::portable_detail::find_dispatcher<F,        // function type
-                              __GLRPC_FRESULT,                            // result
-                              boost::function_traits<               
-                                    typename boost::remove_pointer<F>::type
-                                                    >::arity ,   // number of arguments
-                              f,                                    // function itself
-                              typename dc_impl::is_rpc_call<F>::type  // whether it is an RPC style call
-                              >::dispatch_request_fn();
-                              
-    portable_dispatch_call_map[c] = (dc_impl::dispatch_type)
-              dc_impl::portable_detail::find_dispatcher<F,        // function type
-                              __GLRPC_FRESULT,                            // result
-                              boost::function_traits<               
-                                    typename boost::remove_pointer<F>::type
-                                                    >::arity ,   // number of arguments
-                              f,                                    // function itself
-                              typename dc_impl::is_rpc_call<F>::type  // whether it is an RPC style call
-                              >::dispatch_call_fn();
-  }
 
   /// \cond DC_INTERNAL
   inline size_t register_object(void* v, dc_impl::dc_dist_object_base *rmiinstance) {

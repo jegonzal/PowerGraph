@@ -43,7 +43,7 @@ struct test_struct {
       std::cout << "First set of calls... Proc 1 and 3 should receive" << std::endl;
       std::vector<procid_t> s;
       s.push_back(1); s.push_back(3);
-      rmi.remote_call(s.begin(), s.end(), &test_struct::print, 1);
+      rmi.pod_call(s.begin(), s.end(), &test_struct::print, 1);
     }
     rmi.full_barrier();
     
@@ -51,7 +51,7 @@ struct test_struct {
       std::cout << "Second set of calls... Proc 0 and 2 should receive" << std::endl;
       std::vector<procid_t> s;
       s.push_back(2); s.push_back(0);
-      rmi.remote_call(s.begin(), s.end(), &test_struct::print, 1);
+      rmi.pod_call(s.begin(), s.end(), &test_struct::print, 1);
     }
     rmi.full_barrier();
   }

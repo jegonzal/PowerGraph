@@ -45,8 +45,21 @@ typedef void (*comm_recv_callback_type)(void* tag, procid_t src,
 /** 
  * \ingroup rpc_internal
  * 
- * The type of the local function call dispatcher */
+ * The type of the local function call dispatcher.
+ * \see dispatch_type2
+ */
 typedef void (*dispatch_type)(distributed_control& dc, procid_t, unsigned char, std::istream&);
+
+/**
+ * \ingroup rpc_internal
+ *
+ * A second type of the local function call dispatcher.
+ * Currently only used by POD calls. TODO: to move all other call
+ * systems to use dispatch2.
+ * \see dispatch_type
+ */
+typedef void (*dispatch_type2)(distributed_control& dc, procid_t, unsigned char, const char* data, size_t len);
+
 
 typedef boost::unordered_map<std::string, dispatch_type> dispatch_map_type;
 
