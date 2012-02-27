@@ -330,21 +330,18 @@ namespace graphlab {
 
 
  
-
-
-
+  // define a blank cosntant for the mutable queue
+#define BLANK (size_t(-1))
 
   template <typename Priority>
   class mutable_queue<size_t, Priority> {
   public:
 
+    
     //! An element of the heap.
     typedef typename std::pair<size_t, Priority> heap_element;
 
     typedef size_t index_type;
-
-    //! Used to mark entries in the index map that are blank
-    static const size_t BLANK;
 
   protected:
 
@@ -546,10 +543,7 @@ namespace graphlab {
     }
   }; // class mutable_queue
 
-
-  template <typename Priority>
-  const size_t mutable_queue<size_t, Priority>::BLANK = size_t(-1);
-
+#undef BLANK
 
 } // namespace graphlab
 
