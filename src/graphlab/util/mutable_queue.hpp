@@ -329,8 +329,7 @@ namespace graphlab {
 
 
 
-    //! Used to mark entries in the index map that are blank
-enum empty_indx{ BLANK };
+ 
 
 
 
@@ -343,6 +342,9 @@ enum empty_indx{ BLANK };
     typedef typename std::pair<size_t, Priority> heap_element;
 
     typedef size_t index_type;
+
+    //! Used to mark entries in the index map that are blank
+    static const size_t BLANK;
 
   protected:
 
@@ -543,6 +545,11 @@ enum empty_indx{ BLANK };
       }
     }
   }; // class mutable_queue
+
+
+  template <typename Priority>
+  const size_t mutable_queue<size_t, Priority>::BLANK = size_t(-1);
+
 
 } // namespace graphlab
 
