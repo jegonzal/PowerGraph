@@ -572,7 +572,30 @@ class distributed_control{
   __attribute__((__deprecated__)) dc_services& services();
   
   /// \endcond
+<<<<<<< local
+=======
+  
+  /**
+   This comm barrier is not a true "barrier" but is
+   essentially a sequentialization point. It guarantees that
+   all calls from this machine to the target machine performed
+   before the comm_barrier() call are completed before any call
+   sent after the comm barrier() call.
+  */
+  void comm_barrier(procid_t targetmachine);
+  
+  /**
+    This is a convenience function which broadcasts a comm_barrier()
+    \note having all machines call the comm barrier does not guarantee
+    that all calls have been processed. Basically 'p' local barriers
+    do not result in a global barrier.
+  */
+  void comm_barrier();
 
+  /**
+   * Completes a local flush of all send buffers
+   */
+  void flush();
 
 // Temp hack.
   long long int total_bytes_sent;

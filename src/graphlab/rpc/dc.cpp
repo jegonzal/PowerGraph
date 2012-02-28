@@ -134,8 +134,9 @@ static std::string get_working_dir() {
 }
 
 distributed_control::~distributed_control() {
-  distributed_services->barrier();
+  distributed_services->full_barrier();
   logstream(LOG_INFO) << "Shutting down distributed control " << std::endl;
+  
   size_t bytessent = bytes_sent();
   for (size_t i = 0;i < senders.size(); ++i) {
     senders[i]->shutdown();
@@ -381,6 +382,11 @@ void distributed_control::barrier() {
   distributed_services->barrier();
 }
 
+void distributed_control::flush() {
+  for (procid_t i = 0;i < senders.size(); ++i) {
+    if (senders[i]->channel_active(i)) senders[i]->flush();
+  }
+}
 
 
 void distributed_control::compute_master_ranks() {

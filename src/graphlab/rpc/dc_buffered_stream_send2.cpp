@@ -30,6 +30,11 @@
 namespace graphlab {
 namespace dc_impl {
 
+  double dc_buffered_stream_send2::calls_per_ms = 0;
+  atomic<size_t> dc_buffered_stream_send2::callcount;
+  unsigned long long dc_buffered_stream_send2::prevtime = 0;
+  mutex dc_buffered_stream_send2::callcountmutex;
+
   void dc_buffered_stream_send2::send_data(procid_t target_, 
                                           unsigned char packet_type_mask,
                                           std::istream &istrm,
@@ -83,11 +88,12 @@ namespace dc_impl {
     }
     else {
       unsigned long long curtime = rdtsc();
-      ++callcount;
-      if (curtime - prevtime > rtdsc_per_ms) {
+      callcount.inc();
+      if (curtime - prevtime > rtdsc_per_ms && callcountmutex.try_lock()) {
         calls_per_ms = (calls_per_ms + double(callcount)  * rtdsc_per_ms / (curtime - prevtime)) / 2;
         callcount = 0;
         prevtime = curtime;
+        callcountmutex.unlock();
 //        std::cout << calls_per_ms << std::endl;
       }
       if (calls_per_ms < 50) {
@@ -143,7 +149,7 @@ namespace dc_impl {
     }
     else if (prevwbufsize == sizeof(block_header_type) || prevwbufsize > 1024*1024
              || send_decision) {
-      flush = send_decision;
+      flush_flag = send_decision;
       cond.signal();
       lock.unlock();
     }
@@ -183,14 +189,18 @@ namespace dc_impl {
       } else {
         unsigned long long sleep_start_time = rdtsc();
         // sleep for 1 ms or up till we get wait_count_bytes
-        while(!flush &&
+        while(!flush_flag &&
               sleep_start_time + rtdsc_per_ms > rdtsc() &&
               !done) {
+          if (return_signal) {
+            return_signal = false;
+            flush_return_cond.signal();
+          }
           if(writebuffer.len == sizeof(block_header_type)) cond.wait(lock);
           else cond.timedwait_ns(lock, nanosecond_wait);
         //  std::cout << prevtime << " " << second_wait << " " << nexttime << " " << writebuffer.len << "\n";
         }
-        flush = false;
+        flush_flag = false;
       }
       if (done) {
         break;
@@ -205,6 +215,15 @@ namespace dc_impl {
     cond.signal();
     lock.unlock();
     thr.join();
+  }
+  
+  void dc_buffered_stream_send2::flush() {
+    lock.lock();
+    flush_flag = true;
+    return_signal = true;
+    cond.signal();
+    while (return_signal) flush_return_cond.wait(lock);
+    lock.unlock();
   }
   
   size_t dc_buffered_stream_send2::set_option(std::string opt, 

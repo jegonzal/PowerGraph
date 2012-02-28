@@ -83,6 +83,8 @@ class dc_send{
    */
   virtual void shutdown() = 0;
   
+  virtual void flush() { } 
+  
   virtual size_t set_option(std::string opt, size_t val) {
     return 0;
   }

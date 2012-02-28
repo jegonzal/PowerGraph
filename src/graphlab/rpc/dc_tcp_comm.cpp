@@ -108,6 +108,7 @@ namespace graphlab {
         listenthread = NULL;
       }
       listenhandler = NULL;
+      // sleep for a while so the sender threads have time to flush
       logstream(LOG_INFO) << "Closing outgoing sockets" << std::endl;
       // close all outgoing sockets
       for (size_t i = 0;i < outsocks.size(); ++i) {
@@ -120,14 +121,14 @@ namespace graphlab {
       // close all incoming sockets
       for (size_t i = 0;i < socks.size(); ++i) {
         if (socks[i] > 0) {
-          ::close(socks[i]);
-          socks[i] = -1;
           // join the receiving threads
           // remember that the receiving handler is self deleting
           if (handlerthreads[i] != NULL) {
             handlerthreads[i]->join();
             delete handlerthreads[i];
           }
+          ::close(socks[i]);
+          socks[i] = -1;
           handlerthreads[i] = NULL;
           handlers[i] = NULL;
         }
@@ -184,6 +185,7 @@ namespace graphlab {
       // amount of data to transmit
       size_t dataleft = len1 + len2;
       // while there is still data to be sent
+      BEGIN_TRACEPOINT(tcp_send_call);
       while(dataleft > 0) {
         size_t ret = sendmsg(outsocks[target], &data, 0);
         // decrement the counter
@@ -216,18 +218,31 @@ namespace graphlab {
         data.msg_iov = newiovecptr;
         data.msg_iovlen = newiovlen;
       }
+      END_TRACEPOINT(tcp_send_call);
     }
 
     int dc_tcp_comm::sendtosock(int sockfd, const char* buf, size_t len) {
+      if (len > 1024*1024) {
+        while (len > 0) {
+          size_t res = std::min(len, (size_t)1024*1024);
+          sendtosock(sockfd, buf, res);
+          buf += res;
+          len -= res;
+        }
+        return 0;
+      }
       size_t numsent = 0;
+      BEGIN_TRACEPOINT(tcp_send_call);
       while (numsent < len) {
         ssize_t ret = ::send(sockfd, buf + numsent, len - numsent, 0);
         if (ret < 0) {
           logstream(LOG_ERROR) << "send error: " << strerror(errno) << std::endl;
+          END_TRACEPOINT(tcp_send_call);
           return errno;
         }
         numsent += ret;
       }
+      END_TRACEPOINT(tcp_send_call);
       return 0;
     }
   

@@ -65,7 +65,7 @@ class dc_buffered_stream_send2: public dc_send{
                                    dc_comm_base *comm, 
                                    procid_t target) : 
                   dc(dc),  comm(comm), target(target), done(false), 
-                  flush(false), calls_per_ms(0), prevtime(0),
+                  flush_flag(false), return_signal(false),
                   rtdsc_per_ms(estimate_ticks_per_second() / 1000) {
     char bufpad[sizeof(block_header_type)];
     writebuffer.write(bufpad, sizeof(block_header_type));
@@ -101,7 +101,8 @@ class dc_buffered_stream_send2: public dc_send{
 
   void send_loop();
   
-
+  void flush();
+  
   void shutdown();
   
   bool adaptive_send_decision();
@@ -137,18 +138,19 @@ class dc_buffered_stream_send2: public dc_send{
   thread thr;
   bool done;
 
-  size_t callcount;
+  static atomic<size_t> callcount;
   atomic<size_t> bytessent; 
   
-  bool flush;
+  bool flush_flag;
+  bool return_signal;
+  conditional flush_return_cond;
   
-  double calls_per_ms;
+  static double calls_per_ms;
   
   size_t nanosecond_wait;
-  unsigned long long prevtime;
+  static unsigned long long prevtime;
   unsigned long long rtdsc_per_ms;
-
-
+  static mutex callcountmutex;
 };
 
 
