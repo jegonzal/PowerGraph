@@ -309,7 +309,8 @@ template<typename Graph>
 bool load_matrixmarket_graph(const std::string& fname,
                              bipartite_graph_descriptor& desc,
                              Graph& graph,
-			     int parse_type = MATRIX_MARKET_3){ 
+			     int parse_type = MATRIX_MARKET_3, 
+			     bool allow_zeros = false){ 
   typedef Graph graph_type;
   typedef typename graph_type::vertex_id_type vertex_id_type;
   typedef typename graph_type::edge_data_type edge_data_type;
@@ -372,6 +373,13 @@ bool load_matrixmarket_graph(const std::string& fname,
     ASSERT_LT(col, desc.cols);
     ASSERT_GE(row, 0);
     ASSERT_GE(col, 0);
+
+   if (val == 0){
+     if (!allow_zeros)
+       logstream(LOG_FATAL)<<"Zero values are not allowed in sparse matrix market format. Use --zero=true to ignore this error." <<std::endl;
+     else 
+       continue;
+    }
     const vertex_id_type source = row;
     const vertex_id_type target = col + (is_square ? 0 : desc.rows);
     const edge_data_type edata(val);
@@ -393,12 +401,6 @@ bool load_matrixmarket_graph(const std::string& fname,
 } // end of load matrixmarket graph
 
 
-template<typename Graph>
-bool load_tsv_graph(const std::string& fname,
-                    bipartite_graph_descriptor& desc,
-                    Graph& graph) {  
-  return false;
-} // end of laod tsv graph
 
 
 template<typename Graph>
@@ -406,13 +408,12 @@ bool load_graph(const std::string& fname,
                 const std::string& format,
                 bipartite_graph_descriptor& desc,
                 Graph& graph, 
-	        int format_type = MATRIX_MARKET_3) {
+	        int format_type = MATRIX_MARKET_3, 
+	        bool allow_zeros=false) {
 
   if(format == "matrixmarket") 
-    return load_matrixmarket_graph(fname, desc, graph, format_type);
-  else if(format == "tsv")
-    return load_tsv_graph(fname, desc, graph);
-  else std::cout << "Invalid file format!" << std::endl;
+    return load_matrixmarket_graph(fname, desc, graph, format_type, allow_zeros);
+  else logstream(LOG_FATAL) << "Invalid file format!" << std::endl;
   return false;
 } // end of load graph
 
@@ -432,7 +433,7 @@ bool load_cpp_graph(const std::string& fname,
 
 
 template <typename graph_type>
-void load_matrix_market_vector(const std::string & filename, const bipartite_graph_descriptor & desc, graph_type & g, int type, bool optional_field)
+void load_matrix_market_vector(const std::string & filename, const bipartite_graph_descriptor & desc, graph_type & g, int type, bool optional_field, bool allow_zeros)
 {
     typedef typename graph_type::vertex_data_type vertex_data;
     
@@ -450,28 +451,20 @@ void load_matrix_market_vector(const std::string & filename, const bipartite_gra
     }
 
     if (mm_read_banner(f, &matcode) != 0)
-    {
-        logstream(LOG_ERROR) << "Could not process Matrix Market banner." << std::endl;
-        exit(1);
-    }
+        logstream(LOG_FATAL) << "Could not process Matrix Market banner." << std::endl;
 
     /*  This is how one can screen matrix types if their application */
     /*  only supports a subset of the Matrix Market data types.      */
 
     if (mm_is_complex(matcode) && mm_is_matrix(matcode) && 
             mm_is_sparse(matcode) )
-    {
-        logstream(LOG_ERROR) << "sorry, this application does not support " << std::endl << 
+        logstream(LOG_FATAL) << "sorry, this application does not support " << std::endl << 
           "Market Market type: " << mm_typecode_to_str(matcode) << std::endl;
-        exit(1);
-    }
 
     /* find out size of sparse matrix .... */
 
-    if ((ret_code = mm_read_mtx_crd_size(f, &M, &N, &nz)) !=0){
-       logstream(LOG_ERROR) << "failed to read matrix market cardinality size " << std::endl; 
-       exit(1);
-    }
+    if ((ret_code = mm_read_mtx_crd_size(f, &M, &N, &nz)) !=0)
+       logstream(LOG_FATAL) << "failed to read matrix market cardinality size " << std::endl; 
 
 
     /* NOTE: when reading in doubles, ANSI C requires the use of the "l"  */
@@ -493,6 +486,8 @@ void load_matrix_market_vector(const std::string & filename, const bipartite_gra
         //some users have gibrish in text file - better check both I and J are >=0 as well
         assert(row >=0 && row< M);
         assert(col == 0);
+        if (val == 0 && !allow_zeros)
+           logstream(LOG_FATAL)<<"Zero entries are not allowed in a sparse matrix market vector. Use --zero=true to avoid this error"<<std::endl;
         //set observation value
         vertex_data & vdata = g.vertex_data(row);
         vdata.set_val(val, type);
@@ -508,10 +503,11 @@ void load_vector(const std::string& fname,
                    const bipartite_graph_descriptor& desc,
                    Graph& graph, 
 		   int type,
-		   bool optional_field) {
+		   bool optional_field, 
+		   bool allow_zeros) {
 
   if (format == "matrixmarket"){
-     load_matrix_market_vector(fname, desc, graph, type, optional_field);
+     load_matrix_market_vector(fname, desc, graph, type, optional_field, allow_zeros);
      return;
   }
   else assert(false); //TODO other formats

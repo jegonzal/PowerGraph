@@ -52,6 +52,7 @@ bool debug = false;
 double regularization = 0;
 bool final_residual = true;
 int max_iter = 10;
+bool zero = false;  //allow for zero entries in sparse matrix market format
 
 
 struct vertex_data {
@@ -157,6 +158,7 @@ int main(int argc,  char *argv[]) {
 		       "unit testing 0=None, 1=3x3 matrix");
   clopts.attach_option("final_residual", &final_residual, final_residual, "calc residual at the end (norm(Ax-b))");
   clopts.attach_option("max_iter", &max_iter, max_iter, "max number of iterations");
+  clopts.attach_option("zero", &zero, zero, "Allow for zero edges (matrix entries)");
   // Parse the command line arguments
   if(!clopts.parse(argc, argv)) {
     std::cout << "Invalid arguments!" << std::endl;
@@ -193,11 +195,11 @@ int main(int argc,  char *argv[]) {
 
   std::cout << "Load matrix A" << std::endl;
   bipartite_graph_descriptor matrix_info;
-  load_graph(datafile, format, matrix_info, core.graph());
+  load_graph(datafile, format, matrix_info, core.graph(), MATRIX_MARKET_3, zero);
   std::cout << "Load Y values" << std::endl;
-  load_vector(yfile, format, matrix_info, core.graph(), JACOBI_Y, false);
+  load_vector(yfile, format, matrix_info, core.graph(), JACOBI_Y, false, zero);
   std::cout << "Load x values" << std::endl;
-  load_vector(xfile, format, matrix_info, core.graph(), JACOBI_REAL_X, true);
+  load_vector(xfile, format, matrix_info, core.graph(), JACOBI_REAL_X, true, zero);
   
   if (sync_interval < core.graph().num_vertices()){
     sync_interval = core.graph().num_vertices(); 

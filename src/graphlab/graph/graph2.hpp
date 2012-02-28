@@ -117,7 +117,7 @@ namespace graphlab {
     typedef typename gstore_type::edge_list edge_list_type;
 
     /** Edge list type for temporary insertion. */
-     typedef typename gstore_type::edge_info edge_info;
+    typedef typename gstore_type::edge_info edge_info;
 
   public:
 
@@ -131,11 +131,11 @@ namespace graphlab {
      * Create a graph with nverts vertices.
      */
     graph2(size_t nverts) : 
-      vertices(nverts),
-      vcolors(nverts),
-      finalized(false),
-      use_vcolor(true),
-      changeid(0) { }
+    vertices(nverts),
+    vcolors(nverts),
+    finalized(false),
+    use_vcolor(true),
+    changeid(0) { }
 
     void set_is_directed (bool x) {gstore.set_is_directed(x);}
     bool get_is_directed () {return gstore.get_is_directed();}
@@ -143,10 +143,10 @@ namespace graphlab {
     void set_use_vcolor (bool x) { 
       use_vcolor = x;  
       if (!use_vcolor) 
-      {
-        std::vector<vertex_color_type>().swap(vcolors);
-        logstream(LOG_WARNING) << "Graph vertex color is disabled." << std::endl;
-      }
+        {
+          std::vector<vertex_color_type>().swap(vcolors);
+          logstream(LOG_WARNING) << "Graph vertex color is disabled." << std::endl;
+        }
     }
     bool get_use_vcolor () { return use_vcolor; }
 
@@ -173,6 +173,8 @@ namespace graphlab {
       gstore.clear_reserve();
     }
     
+
+
     /**
      * Finalize a graph by sorting its edges to maximize the
      * efficiency of graphlab.  
@@ -205,7 +207,7 @@ namespace graphlab {
     /** \brief Get the number of edges */
     size_t num_edges() const {
       if (finalized) {
-       return gstore.edge_size();
+        return gstore.edge_size();
       } else {
         return edges_tmp.size();
       }
@@ -217,7 +219,7 @@ namespace graphlab {
         edge is found, the edge ID is returned in the second element of the pair. */
     edge_type find(const vertex_id_type source,
                    const vertex_id_type target) const {
-       return gstore.find(source, target);
+      return gstore.find(source, target);
     } // end of find
 
     edge_type reverse_edge(const edge_type& edge) const {
@@ -232,12 +234,12 @@ namespace graphlab {
      */
     vertex_id_type add_vertex(const VertexData& vdata = VertexData() ) {
       if (finalized)
-      {
-        logstream(LOG_FATAL)
-          << "Attempting add vertex"
-          << "to a finalized graph." << std::endl;
-        ASSERT_MSG(false, "Add vertex to a finalized graph.");
-      }
+        {
+          logstream(LOG_FATAL)
+            << "Attempting add vertex"
+            << "to a finalized graph." << std::endl;
+          ASSERT_MSG(false, "Add vertex to a finalized graph.");
+        }
 
       vertices.push_back(vdata);
 
@@ -268,12 +270,12 @@ namespace graphlab {
     edge_id_type add_edge(vertex_id_type source, vertex_id_type target, 
                           const EdgeData& edata = EdgeData()) {
       if (finalized)
-      {
-        logstream(LOG_FATAL)
-          << "Attempting add edge"
-          << "to a finalized graph." << std::endl;
-        ASSERT_MSG(false, "Add edge to a finalized graph.");
-      }
+        {
+          logstream(LOG_FATAL)
+            << "Attempting add edge"
+            << "to a finalized graph." << std::endl;
+          ASSERT_MSG(false, "Add edge to a finalized graph.");
+        }
 
 
       if ( source >= vertices.size() 
@@ -307,17 +309,17 @@ namespace graphlab {
      * \brief Add edge in block
      */
     void add_block_edges(const std::vector<vertex_id_type>& src_arr, 
-        const std::vector<vertex_id_type>& dst_arr, 
-        const std::vector<EdgeData>& edata_arr) {
+                         const std::vector<vertex_id_type>& dst_arr, 
+                         const std::vector<EdgeData>& edata_arr) {
       ASSERT_TRUE((src_arr.size() == dst_arr.size())
-         && (src_arr.size() == edata_arr.size()));
+                  && (src_arr.size() == edata_arr.size()));
       if (finalized)
-      {
-        logstream(LOG_FATAL)
-          << "Attempting add edges"
-          << "to a finalized graph." << std::endl;
-        ASSERT_MSG(false, "Add edge to a finalized graph.");
-      }
+        {
+          logstream(LOG_FATAL)
+            << "Attempting add edges"
+            << "to a finalized graph." << std::endl;
+          ASSERT_MSG(false, "Add edge to a finalized graph.");
+        }
 
       for (size_t i = 0; i < src_arr.size(); ++i) {
         vertex_id_type source = src_arr[i];
@@ -358,15 +360,15 @@ namespace graphlab {
 
     /** \brief Returns a reference to the data stored on the edge source->target. */
     EdgeData& edge_data(vertex_id_type source, vertex_id_type target) {
-     ASSERT_TRUE(finalized);
-     return gstore.edge_data(source, target);
+      ASSERT_TRUE(finalized);
+      return gstore.edge_data(source, target);
     } // end of edge_data(u,v)
     
     /** \brief Returns a constant reference to the data stored on the
         edge source->target */
     const EdgeData& edge_data(vertex_id_type source, vertex_id_type target) const {
-     ASSERT_TRUE(finalized);
-     return gstore.edge_data(source, target);
+      ASSERT_TRUE(finalized);
+      return gstore.edge_data(source, target);
     } // end of edge_data(u,v)
 
     /** \brief Returns a reference to the data stored on the edge e */
@@ -517,10 +519,10 @@ namespace graphlab {
       size_t store_size = gstore.estimate_sizeof();
 
       std::cout << "graph2: tmplist size: " << (double)elist_size/(1024*1024) 
-        << "  gstoreage size: " << (double)store_size/(1024*1024)
-        << "  vdata list size: " << (double)vlist_size/(1024*1024)
-        << "  vcolor list size: " << (double)vcolor_size/(1024*1024)
-        << std::endl;
+                << "  gstoreage size: " << (double)store_size/(1024*1024)
+                << "  vdata list size: " << (double)vlist_size/(1024*1024)
+                << "  vcolor list size: " << (double)vcolor_size/(1024*1024)
+                << std::endl;
       return store_size + vlist_size + vcolor_size + elist_size;
     }
 
@@ -533,7 +535,7 @@ namespace graphlab {
           >> vcolors
           >> gstore
           >> finalized;
-        estimate_sizeof();
+      estimate_sizeof();
     } // end of load
 
     /** \brief Save the graph to an archive */
@@ -546,6 +548,15 @@ namespace graphlab {
           << finalized;
     } // end of save
     
+    /** swap two graphs */
+    void swap(graph2& other) {
+      std::swap(vertices, other.vertices);
+      std::swap(use_vcolor, other.use_vcolor);
+      std::swap(vcolors, other.vcolors);
+      std::swap(gstore, other.gstore);
+      std::swap(finalized, other.finalized);
+    } // end of swap
+
 
     /** \brief Load the graph from a file */
     void load(const std::string& filename) {
@@ -554,6 +565,7 @@ namespace graphlab {
       iarc >> *this;
       fin.close();
     } // end of load
+
 
 
     /**
@@ -677,6 +689,7 @@ namespace graphlab {
     size_t changeid;
   }; // End of class graph2
 
+
   template<typename VertexData, typename EdgeData>
   std::ostream& operator<<(std::ostream& out,
                            const graph2<VertexData, EdgeData>& graph) {
@@ -702,6 +715,20 @@ namespace graphlab {
     return out;
   }
 } // end of namespace graphlab
+
+
+namespace std {
+  /**
+   * Swap two graphs
+   */
+  template<typename VertexData, typename EdgeData>
+  inline void swap(graphlab::graph2<VertexData,EdgeData>& a, 
+                   graphlab::graph2<VertexData,EdgeData>& b) { 
+    a.swap(b);
+  } // end of swap
+
+}; // end of namespace std
+
 #include <graphlab/macros_undef.hpp>
 #endif
 
