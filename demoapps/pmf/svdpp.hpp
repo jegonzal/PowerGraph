@@ -42,9 +42,9 @@ float itmBiasStep = 5e-3f;
 float itmBiasReg = 1e-3f;
 float usrBiasStep = 2e-4f;
 float usrBiasReg = 5e-3f;
-float usrFctrStep = 2e-2f;
+float usrFctrStep = 1e-3f;
 float usrFctrReg = 2e-2f;
-float itmFctrStep = 3e-3f;
+float itmFctrStep = 1e-3f;
 float itmFctrReg = 1e-2f; //gamma7
 float itmFctr2Step = 1e-4f;
 float itmFctr2Reg = 1e-2f;
@@ -94,12 +94,20 @@ float predict(const vertex_data_svdpp& user, const vertex_data_svdpp& movie, con
 
       //\hat(r_ui) = \mu + 
       prediction = ps.globalMean[0];
+      assert(!std::isnan(prediction));
                  // + b_u  +    b_i +
       prediction += user.bias + movie.bias;
+      assert(!std::isnan(prediction));
                  // + q_i^T   *(p_u      +sqrt(|N(u)|)\sum y_j)
       prediction += dot_prod(movie.pvec,(user.pvec+user.weight));
+      assert(!std::isnan(movie.pvec[0]));
+      assert(!std::isnan(user.pvec[0]));
+      assert(!std::isnan(user.weight[0]));
+
+      assert(!std::isnan(prediction));
       prediction = std::min((double)prediction, (double)ac.maxval);
       prediction = std::max((double)prediction, (double)ac.minval);
+      assert(!std::isnan(prediction));
       float err = rating - prediction;
       assert(!std::isnan(err));
       return err*err; 
@@ -129,13 +137,18 @@ double calc_svd_rmse(const graph_type_svdpp * _g, bool test, double & res){
      for (int i=0; i< ps.M; i++){
        vertex_data_svdpp & usr = (vertex_data_svdpp&)g->vertex_data(i);
        int n = usr.num_edges; //+1.0 ? //regularization
-       usr.weight = zeros(ac.D);
-       foreach(edge_id_t oedgeid, g->out_edge_ids(i)) {
-         vertex_data_svdpp & movie = (vertex_data_svdpp&)g->vertex_data(g->target(oedgeid)); 
-	 usr.weight += movie.weight;
+       if (n == 0){}
+       else {
+         usr.weight = zeros(ac.D);
+         foreach(edge_id_t oedgeid, g->out_edge_ids(i)) {
+           vertex_data_svdpp & movie = (vertex_data_svdpp&)g->vertex_data(g->target(oedgeid)); 
+	   usr.weight += movie.weight;
+           assert(usr.weight[0] != NAN);
+         }
+         float usrnorm = double(1.0/sqrt(n));
+         assert(usrnorm != NAN);
+         usr.weight *= usrnorm;
        }
-       float usrnorm = float(1.0/sqrt(n));
-       usr.weight *= usrnorm;
 
        foreach(edge_id_t oedgeid, _g->out_edge_ids(i)){
          const edge_data & item = _g->edge_data(oedgeid);
@@ -221,13 +234,15 @@ void svd_plus_plus_update_function(gl_types_svdpp::iscope &scope,
       vertex_data_svdpp  & movie = scope.neighbor_vertex_data(scope.target(oedgeid)); 
       //sum_{j \in N(u)} y_j 
       user.weight += movie.weight; 
-            
+      assert(!std::isnan(user.weight[0]));      
     }
   
    // sqrt(|N(u)|) 
-   float usrNorm = float(1.0/sqrt(user.num_edges));
+   float usrNorm = double(1.0/sqrt(user.num_edges));
+   assert(!std::isnan(usrNorm));
    //sqrt(|N(u)| * sum_j y_j
    user.weight *= usrNorm;
+   assert(!std::isnan(user.weight[0]));      
 
    vec step = zeros(ac.D);
  
@@ -241,11 +256,17 @@ void svd_plus_plus_update_function(gl_types_svdpp::iscope &scope,
       float err = edge.weight - estScore;
       assert(!std::isnan(user.rmse));
       vec itmFctr = movie.pvec;
+      assert(!std::isnan(movie.pvec[0]));
       vec usrFactor = user.pvec;
+      assert(!std::isnan(user.pvec[0]));
+      assert(!std::isnan(movie.pvec[0]));
    
       //q_i = q_i + gamma2     *(e_ui*(p_u      +  sqrt(N(U))\sum_j y_j) - gamma7    *q_i)
       movie.pvec += itmFctrStep*(err*(usrFactor +  user.weight)             - itmFctrReg*itmFctr);
+      assert(!std::isnan(user.weight[0]));      
+      assert(!std::isnan(movie.pvec[0]));
       //p_u = p_u + gamma2    *(e_ui*q_i   -gamma7     *p_u)
+      assert(!std::isnan(user.pvec[0]));
       user.pvec += usrFctrStep*(err *itmFctr-usrFctrReg*usrFactor);
       assert(!std::isnan(user.pvec[0]));
       step += err*itmFctr;
@@ -257,13 +278,16 @@ void svd_plus_plus_update_function(gl_types_svdpp::iscope &scope,
    }
 
    step *= float(itmFctr2Step*usrNorm);
-
+   assert(!std::isnan(step[0]));
    //gamma7 
    double mult = itmFctr2Step*itmFctr2Reg;
+   assert(!std::isnan(mult));
    foreach(graphlab::edge_id_t oedgeid, outs){
       vertex_data_svdpp  & movie = scope.neighbor_vertex_data(scope.target(oedgeid));
       //y_j = y_j  +   gamma2*sqrt|N(u)| * q_i - gamma7 * y_j
+      assert(!std::isnan(movie.weight[0]));
       movie.weight +=  step                    -  mult  * movie.weight;
+      assert(!std::isnan(movie.weight[0]));
    }
 
 
