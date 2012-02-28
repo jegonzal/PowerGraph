@@ -999,7 +999,31 @@ namespace graphlab {
           << CSC_dst_skip;
     }
 
+    void swap(graph_storage& other) {
+      std::swap(use_skip_list, other.use_skip_list);
+      std::swap(num_vertices, other.num_vertices);
+      std::swap(num_edges, other.num_edges);
+      std::swap(edge_data_list, other.edge_data_list);
+      std::swap(CSR_src, other.CSR_src);
+      std::swap(CSR_dst, other.CSR_dst);
+      std::swap(CSC_src, other.CSC_src);
+      std::swap(CSC_dst, other.CSC_dst);
+      std::swap(c2r_map, other.c2r_map);
+      std::swap(CSR_src_skip, other.CSR_src_skip);
+      std::swap(CSC_dst_skip, other.CSC_dst_skip);
+    }
+
   };// End of graph store;
 }// End of namespace;
+
+namespace std {
+  template<typename VertexData, typename EdgeData>
+  inline void swap(graphlab::graph_storage<VertexData,EdgeData>& a, 
+                   graphlab::graph_storage<VertexData,EdgeData>& b) {
+    a.swap(b);
+  } // end of swap
+}; // end of std namespace
+
+
 #include <graphlab/macros_undef.hpp>
 #endif
