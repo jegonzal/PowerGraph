@@ -36,6 +36,7 @@ double threshold = 1e-5;
 bool debug = false;
 int max_iter = 10;
 int data_size = 7;
+bool zero = false;  //allow for zero entries in sparse matrix market format
 std::string datafile, yfile, xfile;
 
 struct vertex_data {
@@ -209,6 +210,7 @@ int main(int argc,  char *argv[]) {
   clopts.attach_option("max_iter", &max_iter, max_iter, "max number of iterations");
   clopts.attach_option("calc_residual", &calc_residual, calc_residual, "calc residual in each iteration"); 
   clopts.attach_option("final_residual", &final_residual, final_residual, "calc residual at the end (norm(Ax-b))");
+  clopts.attach_option("zero", &zero, zero, "Allow for zero edges (matrix entries)");
   // Parse the command line arguments
   if(!clopts.parse(argc, argv)) {
     std::cout << "Invalid arguments!" << std::endl;
@@ -236,11 +238,11 @@ int main(int argc,  char *argv[]) {
 
   std::cout << "Load matrix A" << std::endl;
   bipartite_graph_descriptor matrix_info;
-  load_graph(datafile, format, matrix_info, core.graph());
+  load_graph(datafile, format, matrix_info, core.graph(), MATRIX_MARKET_3, zero);
   std::cout << "Load Y values" << std::endl;
-  load_vector(yfile, format, matrix_info, core.graph(), CG_X, false);
+  load_vector(yfile, format, matrix_info, core.graph(), CG_X, false,  zero);
   std::cout << "Load x values" << std::endl;
-  load_vector(xfile, format, matrix_info, core.graph(), CG_Y, true);
+  load_vector(xfile, format, matrix_info, core.graph(), CG_Y, true, zero);
   
   math_info mi;
   init_math(&core.graph(), &core, matrix_info);

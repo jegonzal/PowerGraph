@@ -59,6 +59,7 @@ bool final_residual = true;
 bool debug_conv_fix = false;
 int fix_conv = 0;
 double regularization = 0;
+bool zero = false; //allow for zero edges
 
 enum gabp_fields{
   GABP_Y = 0,
@@ -94,11 +95,12 @@ struct vertex_data {
   void add_self_edge(double value) { A_ii = value; }
 
   void set_val(double value, int field_type) { 
+ 
     if (field_type == GABP_PRIOR_PREC)
       A_ii = value;
     else
       pvec[field_type] = value;
-  }
+ }
   double get_output(int field_type){ 
     return pvec[field_type];
   }
@@ -274,6 +276,7 @@ int main(int argc,  char *argv[]) {
 		       support_null_variance, "support null precision");
   clopts.attach_option("final_residual", &final_residual, final_residual, "calc residual at the end (norm(Ax-b))");
   clopts.attach_option("fix_conv", &fix_conv, fix_conv, "Fix convergence, using XX outer loop iterations");
+  clopts.attach_option("zero", &zero, zero, "Allow for zero edges (matrix entries)");
   // Parse the command line arguments
   if(!clopts.parse(argc, argv)) {
     std::cout << "Invalid arguments!" << std::endl;
@@ -317,12 +320,12 @@ int main(int argc,  char *argv[]) {
 
   std::cout << "Load matrix A" << std::endl;
   bipartite_graph_descriptor matrix_info;
-  load_graph(datafile, format, matrix_info, core.graph());
+  load_graph(datafile, format, matrix_info, core.graph(), MATRIX_MARKET_3,zero);
   std::cout << "Load Y values" << std::endl;
-  load_vector(yfile, format, matrix_info, core.graph(), GABP_Y, false);
+  load_vector(yfile, format, matrix_info, core.graph(), GABP_Y, false, zero);
   if (xfile.size() > 0){
     std::cout << "Load x values" << std::endl;
-    load_vector(xfile, format, matrix_info, core.graph(), GABP_REAL_X, true);
+    load_vector(xfile, format, matrix_info, core.graph(), GABP_REAL_X, true, zero);
   }  
 
   std::cout << "Schedule all vertices" << std::endl;
