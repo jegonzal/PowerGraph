@@ -144,11 +144,13 @@ void dc_recv_callback(void* tag, procid_t src, const char* buf, size_t len) {
 }
 
 distributed_control::~distributed_control() {
-  distributed_services->barrier();
+  distributed_services->full_barrier();
   logstream(LOG_INFO) << "Shutting down distributed control " << std::endl;
+  
   size_t bytessent = bytes_sent();
   if (single_sender == false) {
     for (size_t i = 0;i < senders.size(); ++i) {
+      senders[i]->flush();
       senders[i]->shutdown();
       delete senders[i];
     }

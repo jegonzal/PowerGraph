@@ -182,13 +182,13 @@ namespace dc_impl {
       } else {
         unsigned long long sleep_start_time = rdtsc();
         // sleep for 1 ms or up till we get wait_count_bytes
-        if (return_signal) {
-          return_signal = false;
-          flush_return_cond.signal();
-        }
         while(!flush_flag &&
               sleep_start_time + rtdsc_per_ms > rdtsc() &&
               !done) {
+          if (return_signal) {
+            return_signal = false;
+            flush_return_cond.signal();
+          }
           if(writebuffer.len == 0) cond.wait(lock);
           else cond.timedwait_ns(lock, nanosecond_wait);
         //  std::cout << prevtime << " " << second_wait << " " << nexttime << " " << writebuffer.len << "\n";
