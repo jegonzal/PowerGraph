@@ -159,7 +159,9 @@ template<typename graph_type, typename vertex_data>
 void fill_factors_uvt(){
 
  if (ps.algorithm != LANCZOS && ps.algorithm != SVD){
-   ((graph_type*)ps.g<graph_type>(TRAINING))->reduce_mem_consumption();
+   //clear the graph only at the end of the run
+   if (ac.bptf_additional_output != true)
+     ((graph_type*)ps.g<graph_type>(TRAINING))->reduce_mem_consumption();
    ps.U = zeros(ps.M,ac.D);
    ps.V = zeros(ps.N,ac.D);
 

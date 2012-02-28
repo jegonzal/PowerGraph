@@ -206,7 +206,7 @@ void sample_U(){
   mat tmp2;  
   ret =  inv(beta0_ * A_U, tmp2);
   assert(ret);
-  mu_U = mvnrndex(mu0_, tmp2, ac.D);
+  mu_U = mvnrndex(mu0_, tmp2, ac.D, ac.bptf_chol_diagonal_weighting);
   if (ac.debug)
     cout<<"Sampling from U" <<A_U<<" "<<mu_U<<" "<<Umean<<" "<<W0_<<tmp<<endl;
 }
@@ -240,7 +240,7 @@ void sample_V(){
   mat tmp2; 
   ret = inv(beta0_*A_V, tmp2);
   assert(ret);
-  mu_V = mvnrndex(mu0_, tmp2, ac.D);
+  mu_V = mvnrndex(mu0_, tmp2, ac.D, ac.bptf_chol_diagonal_weighting);
   if (ac.debug)
     cout<<"Sampling from V: A_V" <<A_V<<" mu_V: "<<mu_V<<" Vmean: "<<Vmean<<" W0_: "<<W0_<<" tmp: "<<tmp<<endl;
 }
@@ -295,7 +295,7 @@ void sample_T(){
   mat tmp2 ;
   ret = inv(beta0_*A_T, tmp2);
   assert(ret);
-  mu_T = mvnrndex(mu0_, tmp2, ac.D);
+  mu_T = mvnrndex(mu0_, tmp2, ac.D, ac.bptf_chol_diagonal_weighting);
   if (ac.debug)
     cout<<"Sampling from T: A_T" <<A_T<<" mu_V: "<<mu_T<<" W0_: "<<W0_<<" tmp: "<<tmp<<endl;
    
@@ -325,7 +325,7 @@ void last_iter_bptf(double res){
     if (ac.datafile == "kddcup" || ac.datafile == "kddcup2")
 	export_kdd_format<graph_type, vertex_data, edge_data>(*ps.g<graph_type>(TEST), TEST, false);
     if (ac.bptf_additional_output && ps.iiter >= ac.bptf_burn_in)
-      write_output<graph_type, vertex_data>();
+        write_output<graph_type, vertex_data>();
 }
 
 

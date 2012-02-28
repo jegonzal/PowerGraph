@@ -90,6 +90,7 @@ int bptf_delay_alpha; //delay alpha sampling (optional, for BPTF)
 int bptf_burn_in; //burn-in priod (for MCMC sampling - optional)
 double bptf_alpha;
 bool bptf_additional_output; //export factor matrices on each iteration (and not just at the end).
+double bptf_chol_diagonal_weighting;
 
 /* Variables for SVD++ */
 float svdpp_step_dec;//step decrement size for SVD++
@@ -206,6 +207,7 @@ advanced_config(){
     bptf_burn_in = 10;
     bptf_alpha = 0;
     bptf_additional_output = false;
+    bptf_chol_diagonal_weighting = 0;
 
     regularization = 0;
   /* Variables for SVD++ */

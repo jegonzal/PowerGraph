@@ -211,7 +211,7 @@ void compute_least_squares(mat & Q, vec & vals, vec & weight, vec & result, bool
     ps.counter[BPTF_LEAST_SQUARES2]+= t.current_time();
        
     t.start();
-    result = mvnrndex(mui_, iAi_, ac.D); 
+    result = mvnrndex(mui_, iAi_, ac.D, ac.bptf_chol_diagonal_weighting); 
     assert(result.size() == ac.D);
     ps.counter[BPTF_MVN_RNDEX] += t.current_time();
   }

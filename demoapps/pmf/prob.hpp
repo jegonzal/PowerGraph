@@ -120,12 +120,14 @@ vec randn1_vec(int Dx, int Dy, int col){
 }
 
 
-vec mvnrndex(vec &mu, mat &sigma, int d){
+vec mvnrndex(vec &mu, mat &sigma, int d, double regularization){
    assert(mu.size() == d);
-   bool ret;
+   if (regularization > 0)
+     sigma = sigma+ regularization*eye(sigma.rows());
    mat tmp;
-   ret = chol(sigma, tmp);
-   assert(ret);
+   bool ret = chol(sigma, tmp);
+   if (!ret)
+     logstream(LOG_FATAL)<<"Cholesky decomposition in mvnrned() got into numerical errors. Try to set --bptf_chol_diagonal_weighting command line argument to add regularization" << std::endl;
    vec x = zeros(d);
    vec col = randn1_vec(mu.size(), 1,0);
    x = mu + transpose(tmp) * col;
@@ -288,7 +290,7 @@ void test_mvnrndex(){
   
   vec ret = zeros(6);
   for (int i=0; i<10000; i++){
-    ret+= mvnrndex(mu,sigma,6);
+    ret+= mvnrndex(mu,sigma,6,0);
   }
   ret /= 10000;
 

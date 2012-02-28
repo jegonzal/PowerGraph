@@ -122,7 +122,7 @@ void calc_T(int i){
       bool ret = inv(A_k, iAk_);
       assert(ret);
       vec muk_ = iAk_*(A_T*(t1 + mu_T)+alpha*RQ); //TODO
-      out = mvnrndex(muk_, iAk_, ac.D);
+      out = mvnrndex(muk_, iAk_, ac.D, ac.bptf_chol_diagonal_weighting);
     }
   }
   else if (i == ps.K-1){
@@ -140,7 +140,7 @@ void calc_T(int i){
       bool ret = inv(A_k, iAk_);
       assert(ret);
       vec muk_ = iAk_*(A_T*tk_2+alpha*RQ); //TODO
-      out = mvnrndex(muk_, iAk_, ac.D);
+      out = mvnrndex(muk_, iAk_, ac.D, ac.bptf_chol_diagonal_weighting);
     }
   }
   else {
@@ -161,7 +161,7 @@ void calc_T(int i){
       bool ret = inv(A_k, iAk_);
       assert(ret);
       vec muk_ = iAk_*(A_T* tsum +alpha*RQ); //TODO
-      out = mvnrndex(muk_, iAk_, ac.D);
+      out = mvnrndex(muk_, iAk_, ac.D, ac.bptf_chol_diagonal_weighting);
     }
   }
 
