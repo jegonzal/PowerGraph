@@ -365,47 +365,24 @@ namespace graphlab {
     void dc_tcp_comm::socket_handler::run() {
       // get a direct pointer to my receiver
       dc_receive* receiver = owner.receiver[sourceid];
-  
-      if (receiver->direct_access_support()) {
-        // we have direct buffer access!
-        size_t buflength;
-        char *c = receiver->get_buffer(buflength);
-        while(1) {      
-          ssize_t msglen = recv(fd, c, buflength, 0);
-          // if msglen == 0, the scoket is closed
-          if (msglen <= 0) {
-            owner.socks[sourceid] = -1;
-            // self deleting
-            delete this;
-            break;
-          }
-          owner.network_bytesreceived.inc(msglen);
-#ifdef COMM_DEBUG
-          logstream(LOG_INFO) << msglen << " bytes <-- " 
-                              << sourceid  << std::endl;
-#endif
-          c = receiver->advance_buffer(c, msglen, buflength);
+      // we have direct buffer access!
+      size_t buflength;
+      char *c = receiver->get_buffer(buflength);
+      while(1) {
+        ssize_t msglen = recv(fd, c, buflength, 0);
+        // if msglen == 0, the scoket is closed
+        if (msglen <= 0) {
+          owner.socks[sourceid] = -1;
+          // self deleting
+          delete this;
+          break;
         }
-      } else {
-        // fall back to using my own buffer
-        while(1) {
-          char c[10240];
-      
-          ssize_t msglen = recv(fd, c, 10240, 0);
-          // if msglen == 0, the scoket is closed
-          if (msglen <= 0) {
-            owner.socks[sourceid] = -1;
-            // self deleting
-            delete this;
-            break;
-          }
+        owner.network_bytesreceived.inc(msglen);
 #ifdef COMM_DEBUG
-          logstream(LOG_INFO) << msglen << " bytes <-- " 
-                              << sourceid  << std::endl;
+        logstream(LOG_INFO) << msglen << " bytes <-- "
+                            << sourceid  << std::endl;
 #endif
-          owner.network_bytesreceived.inc(msglen);
-          receiver->incoming_data(sourceid, c, msglen);
-        }
+        c = receiver->advance_buffer(c, msglen, buflength);
       }
     } // end of run
 

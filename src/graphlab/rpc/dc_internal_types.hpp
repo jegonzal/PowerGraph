@@ -78,6 +78,8 @@ struct packet_hdr {
   unsigned char sequentialization_key;
 };
 
+typedef uint64_t block_header_type;
+
 /** 
  * \ingroup rpc_internal
  * 

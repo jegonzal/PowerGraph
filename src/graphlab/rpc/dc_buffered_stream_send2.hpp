@@ -67,6 +67,8 @@ class dc_buffered_stream_send2: public dc_send{
                   dc(dc),  comm(comm), target(target), done(false), 
                   flush(false), calls_per_ms(0), prevtime(0),
                   rtdsc_per_ms(estimate_ticks_per_second() / 1000) {
+    char bufpad[sizeof(block_header_type)];
+    writebuffer.write(bufpad, sizeof(block_header_type));
     thr = launch_in_new_thread(boost::bind
                                (&dc_buffered_stream_send2::send_loop, 
                                 this));

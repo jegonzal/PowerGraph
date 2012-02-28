@@ -152,7 +152,7 @@ by checking if the function is a RPC style call or not.
 template<typename Iterator, typename F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, typename T)> \
 class  BOOST_PP_CAT(FNAME_AND_CALL, N) { \
   public: \
-  static void exec(bool single_sender, std::vector<dc_send*>& sender, unsigned char flags, Iterator target_begin, Iterator target_end, F remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_) ) {  \
+  static void exec(std::vector<dc_send*>& sender, unsigned char flags, Iterator target_begin, Iterator target_end, F remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_) ) {  \
     boost::iostreams::stream<resizing_array_sink_ref> &strm = get_thread_local_stream();    \
     oarchive arc(strm);                         \
     dispatch_type d = BOOST_PP_CAT(function_call_issue_detail::dispatch_selector,N)<typename is_rpc_call<F>::type, F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, T) >::dispatchfn();   \
@@ -161,18 +161,10 @@ class  BOOST_PP_CAT(FNAME_AND_CALL, N) { \
     BOOST_PP_REPEAT(N, GENARC, _)                \
     strm.flush();           \
     Iterator iter = target_begin; \
-    if (!single_sender) { \
-      while(iter != target_end) {                                         \
-        ASSERT_LT((*iter), sender.size());                                 \
-        sender[(*iter)]->send_data((*iter),flags , strm->c_str(), strm->size());    \
-        ++iter;                                                    \
-      } \
-    } \
-    else {  \
-      while(iter != target_end) {                                         \
-        sender[0]->send_data((*iter),flags , strm->c_str(), strm->size());    \
-        ++iter;                                                    \
-      } \
+    while(iter != target_end) {                                         \
+      ASSERT_LT((*iter), sender.size());                                 \
+      sender[(*iter)]->send_data((*iter),flags , strm->c_str(), strm->size());    \
+      ++iter;                                                    \
     } \
   }\
 }; 

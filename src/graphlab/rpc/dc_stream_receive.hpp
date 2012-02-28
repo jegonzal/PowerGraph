@@ -49,55 +49,24 @@ class dc_stream_receive: public dc_receive{
  public:
   
   dc_stream_receive(distributed_control* dc): 
-                  buffer(10240),
-                  barrier(false), dc(dc),
-                  bytesreceived(0){ }
+                  writebuffer(NULL), dc(dc), bytesreceived(0) { }
 
-  /**
-   Called by the controller when there is data coming
-   from the source
-  */
-  void incoming_data(procid_t src, 
-                     const char* buf, 
-                     size_t len);
-   
-  /** called by the controller when a function
-  call is completed */
-  void function_call_completed(unsigned char packettype) ;
  private:
-  /// the mutex protecting the buffer and the barrier 
-  mutex bufferlock;
-  
-  /** the incoming data stream. This is protected
-  by the bufferlock */
-  circular_char_buffer buffer;
 
-  /** number of rpc calls from this other processor
-     which are in the deferred execution queue */
-  atomic<size_t> pending_calls;
-  
-  /** whether a barrier has been issued. 
-      this is protected by the bufferlock */
-  bool barrier;
+  size_t header_read;
+  block_header_type cur_chunk_header;
+  char* writebuffer;
+  size_t write_buffer_written;
   
   /// pointer to the owner
   distributed_control* dc;
 
   size_t bytesreceived;
-  
-  /**
-    Reads the incoming buffer and processes, dispatching
-    calls when enough bytes are received
-  */
-  void process_buffer(bool outsidelocked) ;
 
   size_t bytes_received();
   
   void shutdown();
 
-  inline bool direct_access_support() {
-    return true;
-  }
   
   char* get_buffer(size_t& retbuflength);
   

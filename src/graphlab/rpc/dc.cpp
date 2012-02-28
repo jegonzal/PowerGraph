@@ -43,10 +43,8 @@
 #include <graphlab/rpc/dc_tcp_comm.hpp>
 #include <graphlab/rpc/dc_sctp_comm.hpp>
 
-#include <graphlab/rpc/dc_stream_send.hpp>
 #include <graphlab/rpc/dc_stream_receive.hpp>
 #include <graphlab/rpc/dc_buffered_stream_send2.hpp>
-#include <graphlab/rpc/dc_buffered_stream_receive.hpp>
 #include <graphlab/rpc/reply_increment_counter.hpp>
 #include <graphlab/rpc/dc_services.hpp>
 
@@ -135,27 +133,13 @@ static std::string get_working_dir() {
   return ret;
 }
 
- /**
-Callback function. This function is called whenever data is received
-*/
-void dc_recv_callback(void* tag, procid_t src, const char* buf, size_t len) {
-  distributed_control *dc = (distributed_control*)(tag);
-  dc->receivers[src]->incoming_data(src, buf, len);
-}
-
 distributed_control::~distributed_control() {
   distributed_services->barrier();
   logstream(LOG_INFO) << "Shutting down distributed control " << std::endl;
   size_t bytessent = bytes_sent();
-  if (single_sender == false) {
-    for (size_t i = 0;i < senders.size(); ++i) {
-      senders[i]->shutdown();
-      delete senders[i];
-    }
-  }
-  else {
-    senders[0]->shutdown();
-    delete senders[0];
+  for (size_t i = 0;i < senders.size(); ++i) {
+    senders[i]->shutdown();
+    delete senders[i];
   }
   
   comm->close();
@@ -179,40 +163,13 @@ distributed_control::~distributed_control() {
 
 }
   
-void distributed_control::exec_function_call(procid_t source, 
-                                            const dc_impl::packet_hdr& hdr, 
-                                            std::istream &istrm,
-                                            const size_t len) {
-  unsigned char packet_type_mask = hdr.packet_type_mask;
-  // not a POD call
-  if ((hdr.packet_type_mask & POD_CALL) == 0) {
-    // extract the dispatch function
-    iarchive arc(istrm);
-    size_t f;
-    arc >> f;
-    // a regular funcion call
-    dc_impl::dispatch_type dispatch = (dc_impl::dispatch_type)f;
-    dispatch(*this, source, packet_type_mask, istrm);
-  }
-  else {
-    // This is a POD call. The POD needs to know the entire stream...
-    // read the entire stream
-    char tmp[len];
-    istrm.read(tmp, len);
-    dc_impl::dispatch_type2 dispatch2 = *reinterpret_cast<dc_impl::dispatch_type2*>(tmp);
-    dispatch2(*this, source, packet_type_mask, tmp, len);
-  }
-  if ((packet_type_mask & CONTROL_PACKET) == 0) inc_calls_received(source);
-} 
-
 
 void distributed_control::exec_function_call(procid_t source,
-                                            const dc_impl::packet_hdr& hdr,
+                                            unsigned char packet_type_mask,
                                             const char* data,
                                             const size_t len) {
-  unsigned char packet_type_mask = hdr.packet_type_mask;
   // not a POD call
-  if ((hdr.packet_type_mask & POD_CALL) == 0) {
+  if ((packet_type_mask & POD_CALL) == 0) {
     // extract the dispatch function
     boost::iostreams::stream<boost::iostreams::array_source> strm(data, len);
     iarchive arc(strm);
@@ -229,20 +186,64 @@ void distributed_control::exec_function_call(procid_t source,
   if ((packet_type_mask & CONTROL_PACKET) == 0) inc_calls_received(source);
 }
 
+void distributed_control::deferred_function_call_chunk(char* buf, size_t len) {
+  fcallqueue[random::fast_uniform<size_t>(0, fcallqueue.size() - 1)].
+      enqueue(function_call_block(buf, len, true));
+}
 
-void distributed_control::deferred_function_call(procid_t source, const dc_impl::packet_hdr& hdr,
-                                                char* buf, size_t len) {
+void distributed_control::deferred_function_call(const dc_impl::packet_hdr& hdr,
+                                                char* buf, size_t len,char* chunk,
+                                                atomic<size_t>* refctr) {
 
   if (hdr.sequentialization_key == 0) {
     // fcallqueue[random::fast_uniform<size_t>(0, fcallqueue.size() - 1)].
     //   enqueue_conditional_signal(function_call_block(source, hdr, buf, len), buffer_size_wait);
     fcallqueue[random::fast_uniform<size_t>(0, fcallqueue.size() - 1)].
-      enqueue(function_call_block(source, hdr, buf, len));
+      enqueue(function_call_block(hdr.packet_type_mask, hdr.src, buf, len, chunk, refctr));
 
   }
   else {
     fcallqueue[hdr.sequentialization_key % fcallqueue.size()].
-      enqueue(function_call_block(source, hdr, buf, len));
+      enqueue(function_call_block(hdr.packet_type_mask, hdr.src, buf, len, chunk, refctr));
+  }
+}
+
+void distributed_control::process_fcall_block(function_call_block &fcallblock) {
+  if (fcallblock.is_chunk == false) {
+    exec_function_call(fcallblock.source, fcallblock.packet_mask,
+                       fcallblock.data, fcallblock.len);
+    if (fcallblock.chunk_ref_counter != NULL) {
+      if (fcallblock.chunk_ref_counter->dec() == 0) {
+        delete fcallblock.chunk_ref_counter;
+        free(fcallblock.chunk_src);
+      }
+    }
+  }
+  else {
+    //parse the data in fcallblock.data
+    char* data = fcallblock.data;
+    size_t remaininglen = fcallblock.len;
+    atomic<size_t>* refctr = new atomic<size_t>();
+    refctr->inc();
+    
+    while(remaininglen > 0) {
+      ASSERT_GE(remaininglen, sizeof(dc_impl::packet_hdr));
+      dc_impl::packet_hdr* hdr = reinterpret_cast<dc_impl::packet_hdr*>(data);
+      if ((hdr->packet_type_mask & CONTROL_PACKET) == 0) {
+        global_bytes_received[hdr->src].inc(hdr->len);
+      }
+      refctr->inc();
+      deferred_function_call(*hdr, data + sizeof(dc_impl::packet_hdr),
+                             hdr->len, fcallblock.data, refctr);
+      data += sizeof(dc_impl::packet_hdr) + hdr->len;
+      remaininglen -= sizeof(dc_impl::packet_hdr) + hdr->len;
+    }
+
+    // decrement reference counter
+    if (refctr->dec() == 0) {
+      delete refctr;
+      free(data);
+    }
   }
 }
 
@@ -260,19 +261,7 @@ void distributed_control::fcallhandler_loop(size_t id) {
       entry = q.front();
       q.pop_front();
       
-      // if (id == 0 && lowres_time_seconds() - t > 2)  {
-      //   t = lowres_time_seconds();
-      //   std::cout << "RPC backlog: ";
-      //   for (size_t i = 0 ; i < fcallqueue.get_num_queues();++i) 
-      //     std::cout << fcallqueue.size(i) << " ";
-      //   std::cout << std::endl;
-      // }
-
-      //create a stream containing all the data
-      exec_function_call(entry.source, entry.hdr, entry.data, entry.len);
-      receivers[entry.source]->
-        function_call_completed(entry.hdr.packet_type_mask);
-      delete [] entry.data;
+      process_fcall_block(entry);
     }
     //  std::cerr << "Handler " << id << " died." << std::endl;
   }
@@ -325,16 +314,7 @@ void distributed_control::init(const std::vector<std::string> &machines,
   
   // parse the initstring
   std::map<std::string,std::string> options = parse_options(initstring);
-  bool buffered_send = true;
-  bool buffered_recv = false;
 
-  if (options["buffered_recv"] == "true" ||
-    options["buffered_recv"] == "1" ||
-    options["buffered_recv"] == "yes") {
-    buffered_recv = true;
-    std::cerr << "Buffered Recv Option is ON." << std::endl;
-  }
-  
   if (commtype == TCP_COMM) {
     comm = new dc_impl::dc_tcp_comm();
     std::cerr << "TCP Communication layer constructed." << std::endl;
@@ -352,25 +332,13 @@ void distributed_control::init(const std::vector<std::string> &machines,
   }
   global_calls_sent.resize(machines.size());
   global_calls_received.resize(machines.size());
+  global_bytes_received.resize(machines.size());
   fcallqueue.resize(numhandlerthreads);
   // create the receiving objects
   if (comm->capabilities() && dc_impl::COMM_STREAM) {
     for (procid_t i = 0; i < machines.size(); ++i) {
-      if (buffered_recv) {
-        receivers.push_back(new dc_impl::dc_buffered_stream_receive(this));
-      }
-      else {
-        receivers.push_back(new dc_impl::dc_stream_receive(this));
-      }
-  
-      if (buffered_send) {
-        single_sender = false;
-        senders.push_back(new dc_impl::dc_buffered_stream_send2(this, comm, i));
-      }
-      else {
-        single_sender = false;
-        senders.push_back(new dc_impl::dc_stream_send(this, comm, i));
-      }
+      receivers.push_back(new dc_impl::dc_stream_receive(this));
+      senders.push_back(new dc_impl::dc_buffered_stream_send2(this, comm, i));
     }
   }
   // create the handler threads
@@ -408,23 +376,6 @@ dc_services& distributed_control::services() {
   return *distributed_services;
 }
 
-
-void distributed_control::comm_barrier(procid_t targetmachine) {
-  ASSERT_LT(targetmachine, numprocs());
-  if (targetmachine != procid() && senders[targetmachine]->channel_active(targetmachine)) {
-    std::stringstream strm;
-    senders[targetmachine]->send_data(targetmachine, BARRIER | CONTROL_PACKET, strm, 0);
-  }
-}
-
-void distributed_control::comm_barrier() {
-  std::stringstream strm;
-  for (procid_t i = 0;i < senders.size(); ++i) {
-    if (i != procid() && senders[i]->channel_active(i)) {
-      senders[i]->send_data(i, BARRIER | CONTROL_PACKET, strm, 0);
-    }
-  }
-}
 
 void distributed_control::barrier() {
   distributed_services->barrier();

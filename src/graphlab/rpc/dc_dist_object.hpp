@@ -237,30 +237,6 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
     return dc_.numprocs();
   }
 
-  
-  /**
-   This comm barrier is not a true "barrier" but is
-   essentially a sequentialization point. It guarantees that
-   all calls from this machine to the target machine performed
-   before the comm_barrier() call are completed before any call
-   sent after the comm barrier() call.
-   
-    \note This affects the global context
-  */
-  inline void comm_barrier(procid_t targetmachine) {
-    return dc_.comm_barrier(targetmachine);
-  }
-  /**
-    This is a convenience function which broadcasts a comm_barrier()
-    \note having all machines call the comm barrier does not guarantee
-    that all calls have been processed. Basically 'p' local barriers
-    do not result in a global barrier.
-    
-    \note This affects the global context
-  */
-  inline void comm_barrier() {
-    return dc_.comm_barrier();
-  }
 
   /**
     This returns the set of services for the parent DC.
@@ -319,8 +295,8 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
   */
   BOOST_PP_REPEAT(7, RPC_INTERFACE_GENERATOR, (remote_call, dc_impl::object_call_issue, STANDARD_CALL) )
   BOOST_PP_REPEAT(7, RPC_INTERFACE_GENERATOR, (pod_call, dc_impl::object_podcall_issue, STANDARD_CALL) )
-  BOOST_PP_REPEAT(7, RPC_INTERFACE_GENERATOR, (fast_remote_call,dc_impl::object_call_issue, FAST_CALL) )
-  BOOST_PP_REPEAT(7, RPC_INTERFACE_GENERATOR, (control_call,dc_impl::object_call_issue, (FAST_CALL | CONTROL_PACKET)) )
+  BOOST_PP_REPEAT(7, RPC_INTERFACE_GENERATOR, (fast_remote_call,dc_impl::object_call_issue, STANDARD_CALL) )
+  BOOST_PP_REPEAT(7, RPC_INTERFACE_GENERATOR, (control_call,dc_impl::object_call_issue, (STANDARD_CALL | CONTROL_PACKET)) )
  
   
   #define BROADCAST_INTERFACE_GENERATOR(Z,N,FNAME_AND_CALL) \
@@ -338,7 +314,7 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
     }                                     \
     BOOST_PP_CAT( BOOST_PP_TUPLE_ELEM(3,1,FNAME_AND_CALL),N) \
         <Iterator, T, F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, T)> \
-          ::exec(this, dc_.single_sender, dc_.senders,  BOOST_PP_TUPLE_ELEM(3,2,FNAME_AND_CALL), target_begin, target_end,obj_id, remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENI ,_) ); \
+          ::exec(this, dc_.senders,  BOOST_PP_TUPLE_ELEM(3,2,FNAME_AND_CALL), target_begin, target_end,obj_id, remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENI ,_) ); \
     END_TRACEPOINT(distobj_remote_call_time); \
   }   
   
@@ -375,8 +351,8 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
   (interface name, issue name, flags)
   */
   BOOST_PP_REPEAT(6, REQUEST_INTERFACE_GENERATOR, (typename dc_impl::function_ret_type<__GLRPC_FRESULT>::type remote_request, dc_impl::object_request_issue, STANDARD_CALL) )
-  BOOST_PP_REPEAT(6, REQUEST_INTERFACE_GENERATOR, (typename dc_impl::function_ret_type<__GLRPC_FRESULT>::type fast_remote_request, dc_impl::object_request_issue, FAST_CALL) )
-  BOOST_PP_REPEAT(6, REQUEST_INTERFACE_GENERATOR, (typename dc_impl::function_ret_type<__GLRPC_FRESULT>::type control_request, dc_impl::object_request_issue, (FAST_CALL | CONTROL_PACKET)) )
+  BOOST_PP_REPEAT(6, REQUEST_INTERFACE_GENERATOR, (typename dc_impl::function_ret_type<__GLRPC_FRESULT>::type fast_remote_request, dc_impl::object_request_issue, STANDARD_CALL) )
+  BOOST_PP_REPEAT(6, REQUEST_INTERFACE_GENERATOR, (typename dc_impl::function_ret_type<__GLRPC_FRESULT>::type control_request, dc_impl::object_request_issue, (STANDARD_CALL | CONTROL_PACKET)) )
  
 
 
@@ -401,8 +377,8 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
   }   \
   
   BOOST_PP_REPEAT(6, RPC_INTERFACE_GENERATOR, (internal_call,dc_impl::object_call_issue, STANDARD_CALL) )
-  BOOST_PP_REPEAT(6, RPC_INTERFACE_GENERATOR, (internal_fast_call,dc_impl::object_call_issue, FAST_CALL) )
-  BOOST_PP_REPEAT(6, RPC_INTERFACE_GENERATOR, (internal_control_call,dc_impl::object_call_issue, (FAST_CALL | CONTROL_PACKET)) )
+  BOOST_PP_REPEAT(6, RPC_INTERFACE_GENERATOR, (internal_fast_call,dc_impl::object_call_issue, STANDARD_CALL) )
+  BOOST_PP_REPEAT(6, RPC_INTERFACE_GENERATOR, (internal_control_call,dc_impl::object_call_issue, (STANDARD_CALL | CONTROL_PACKET)) )
  
 
   #define REQUEST_INTERFACE_GENERATOR(Z,N,ARGS) \
@@ -419,8 +395,8 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
   Generates the interface functions. 3rd argument is a tuple (interface name, issue name, flags)
   */
   BOOST_PP_REPEAT(6, REQUEST_INTERFACE_GENERATOR, (typename dc_impl::function_ret_type<__GLRPC_FRESULT>::type internal_request, dc_impl::object_request_issue, STANDARD_CALL) )
-  BOOST_PP_REPEAT(6, REQUEST_INTERFACE_GENERATOR, (typename dc_impl::function_ret_type<__GLRPC_FRESULT>::type internal_fast_request, dc_impl::object_request_issue, FAST_CALL) )
-  BOOST_PP_REPEAT(6, REQUEST_INTERFACE_GENERATOR, (typename dc_impl::function_ret_type<__GLRPC_FRESULT>::type internal_control_request, dc_impl::object_request_issue, (FAST_CALL | CONTROL_PACKET)) )
+  BOOST_PP_REPEAT(6, REQUEST_INTERFACE_GENERATOR, (typename dc_impl::function_ret_type<__GLRPC_FRESULT>::type internal_fast_request, dc_impl::object_request_issue, STANDARD_CALL) )
+  BOOST_PP_REPEAT(6, REQUEST_INTERFACE_GENERATOR, (typename dc_impl::function_ret_type<__GLRPC_FRESULT>::type internal_control_request, dc_impl::object_request_issue, (STANDARD_CALL | CONTROL_PACKET)) )
  
 
   #undef RPC_INTERFACE_GENERATOR

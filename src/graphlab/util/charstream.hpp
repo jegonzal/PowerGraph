@@ -76,6 +76,13 @@ namespace graphlab {
         buffer_size = new_buffer_size;
       }
 
+      void reserve(size_t new_buffer_size) {
+        if (new_buffer_size > buffer_size) {
+          str = (char*)realloc(str, new_buffer_size);
+          buffer_size = new_buffer_size;
+        }
+      }
+      
       char *str;
       size_t len;
       size_t buffer_size;

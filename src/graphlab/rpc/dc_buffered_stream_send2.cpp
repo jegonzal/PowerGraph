@@ -101,7 +101,7 @@ namespace dc_impl {
                                           unsigned char packet_type_mask,
                                           char* data, size_t len) {
     if ((packet_type_mask & CONTROL_PACKET) == 0) {
-      if (packet_type_mask & (FAST_CALL | STANDARD_CALL)) {
+      if (packet_type_mask & (STANDARD_CALL)) {
         dc->inc_calls_sent(target);
       }
       bytessent.inc(len);
@@ -126,6 +126,7 @@ namespace dc_impl {
       // already nd we can acquire the lock
       sendbuffer.swap(writebuffer);
       lock.unlock();
+      *reinterpret_cast<block_header_type*>(sendbuffer.str) = (block_header_type)(sendbuffer.len);
       comm->send(target, sendbuffer.str, sendbuffer.len);
 
       if (sendbuffer.len < sendbuffer.buffer_size / 2 
@@ -135,10 +136,13 @@ namespace dc_impl {
       else {
         sendbuffer.clear();
       }
-
+      char bufpad[sizeof(block_header_type)];
+      sendbuffer.write(bufpad, sizeof(block_header_type));
+    
       sendlock.unlock();
     }
-    else if (prevwbufsize == 0 || send_decision) {
+    else if (prevwbufsize == sizeof(block_header_type) || prevwbufsize > 1024*1024
+             || send_decision) {
       flush = send_decision;
       cond.signal();
       lock.unlock();
@@ -157,10 +161,11 @@ namespace dc_impl {
 
     lock.lock();
     while (1) {
-      if (writebuffer.len > 0) {
+      if (writebuffer.len > sizeof(block_header_type)) {
         sendlock.lock();
         sendbuffer.swap(writebuffer);
         lock.unlock();
+        *reinterpret_cast<block_header_type*>(sendbuffer.str) = (block_header_type)(sendbuffer.len);
         comm->send(target, sendbuffer.str, sendbuffer.len);
         // shrink if we are not using much buffer
         if (sendbuffer.len < sendbuffer.buffer_size / 2 
@@ -170,6 +175,8 @@ namespace dc_impl {
         else {
           sendbuffer.clear();
         }
+        char bufpad[sizeof(block_header_type)];
+        sendbuffer.write(bufpad, sizeof(block_header_type));
     
         sendlock.unlock();
         lock.lock();
@@ -179,7 +186,7 @@ namespace dc_impl {
         while(!flush &&
               sleep_start_time + rtdsc_per_ms > rdtsc() &&
               !done) {
-          if(writebuffer.len == 0) cond.wait(lock);
+          if(writebuffer.len == sizeof(block_header_type)) cond.wait(lock);
           else cond.timedwait_ns(lock, nanosecond_wait);
         //  std::cout << prevtime << " " << second_wait << " " << nexttime << " " << writebuffer.len << "\n";
         }

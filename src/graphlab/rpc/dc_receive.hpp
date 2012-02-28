@@ -45,20 +45,6 @@ class dc_receive {
   virtual ~dc_receive() { };
 
   /**
-   Called by the controller when there is data coming
-   from the source
-  */
-  virtual void incoming_data(procid_t src, 
-                     const char* buf, 
-                     size_t len) = 0;
-   
-  /**
-    If direct access support return true, 
-    get buffer and commit buffer should be defined
-  */
-  virtual bool direct_access_support() = 0;
-  
-  /**
     gets a buffer. The buffer length is returned in retbuflength
     This will be used for receiving data.
     If get_buffer() or advance_buffer() is called,
@@ -76,18 +62,7 @@ class dc_receive {
   virtual char* advance_buffer(char* c, size_t wrotelength, 
                               size_t& retbuflength) = 0;
   
-  /** called by the controller when a function
-  call is completed */
-  virtual void function_call_completed(unsigned char packettype) = 0;
 
-  /**
-  Bytes received must be updated before handing off 
-  to the handlers. Bytes received do not count headers.
-  If packet type is marked as CONTROL_PACKET, the packet is not counted
-  */
-  virtual size_t bytes_received() = 0;
-  
-  
   /**
    * Last call sent to any instance of dc_receive.
    * If the sender multithreads, the sending thread must shut down.

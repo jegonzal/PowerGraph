@@ -57,7 +57,7 @@ Marshalls a object function broadcast to a remote machine.
 template<typename Iterator, typename T, typename F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, typename T)> \
 class  BOOST_PP_CAT(BOOST_PP_TUPLE_ELEM(2,0,FNAME_AND_CALL), N) { \
   public: \
-  static void exec(dc_dist_object_base* rmi, bool single_sender, std::vector<dc_send*> sender, unsigned char flags, \
+  static void exec(dc_dist_object_base* rmi, std::vector<dc_send*> sender, unsigned char flags, \
                     Iterator target_begin, Iterator target_end, size_t objid, F remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_) ) {  \
     BOOST_PP_CAT(pod_template_detail::pod_call_struct, N)<F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, T)> s; \
     dispatch_type2 d = BOOST_PP_CAT(dc_impl::OBJECT_PODCALL_NONINTRUSIVE_DISPATCH,N)<distributed_control,T,F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N, GENT ,_) >;   \
@@ -66,22 +66,12 @@ class  BOOST_PP_CAT(BOOST_PP_TUPLE_ELEM(2,0,FNAME_AND_CALL), N) { \
     s.objid = objid;        \
     BOOST_PP_REPEAT(N, GENARC, _)                                       \
     Iterator iter = target_begin;                                       \
-    if (!single_sender) {                                               \
-      while(iter != target_end) {                                         \
-        ASSERT_LT((*iter), sender.size());                                 \
-        sender[(*iter)]->send_data((*iter),flags | POD_CALL , reinterpret_cast<char*>(&s), sizeof(s));    \
-        if ((flags & CONTROL_PACKET) == 0)                                  \
-          rmi->inc_bytes_sent((*iter), sizeof(s));                  \
-        ++iter;                                                             \
-      }                                                                   \
-    }                                                                     \
-    else {                                                                \
-      while(iter != target_end) {                                         \
-        sender[0]->send_data((*iter),flags | POD_CALL , reinterpret_cast<char*>(&s), sizeof(s));    \
-        if ((flags & CONTROL_PACKET) == 0)                                  \
-          rmi->inc_bytes_sent((*iter), sizeof(s));                  \
-        ++iter;                                                             \
-      }                                                                   \
+    while(iter != target_end) {                                         \
+      ASSERT_LT((*iter), sender.size());                                 \
+      sender[(*iter)]->send_data((*iter),flags | POD_CALL , reinterpret_cast<char*>(&s), sizeof(s));    \
+      if ((flags & CONTROL_PACKET) == 0)                                  \
+        rmi->inc_bytes_sent((*iter), sizeof(s));                  \
+      ++iter;                                                             \
     }                                                                   \
   }                                                                     \
 }; 
