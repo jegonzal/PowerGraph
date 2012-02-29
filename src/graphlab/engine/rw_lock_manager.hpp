@@ -81,13 +81,12 @@ namespace graphlab {
       locks[vid].unlock();
     }
 
-
     inline void lock_edge_context(const vertex_id_type& vid) {
       const edge_list_type in_edges  = graph.in_edges(vid);
       const edge_list_type out_edges = graph.out_edges(vid);
       // Loop over edges
       bool processed_center = false;
-      iterator in = in_edges.begin(), out = out_edges.begin();     
+      iterator in = in_edges.begin(), out = out_edges.begin();
       while(in != in_edges.end() && out != out_edges.end()) {
         const vertex_id_type in_vid  = in->source();
         const vertex_id_type out_vid = out->target();
@@ -98,7 +97,7 @@ namespace graphlab {
           readlock_vertex(in_vid); ++in; ++out;
         } else if(in_vid < out_vid) {
           readlock_vertex(in_vid); ++in;
-        } else { ASSERT_LT(out_vid, in_vid);
+        } else {
           readlock_vertex(out_vid); ++out;
         }
       } // loop over both in and out
@@ -136,7 +135,7 @@ namespace graphlab {
           writelock_vertex(in_vid); ++in; ++out;
         } else if(in_vid < out_vid) {
           writelock_vertex(in_vid); ++in;
-        } else { ASSERT_LT(out_vid, in_vid);
+        } else { 
           writelock_vertex(out_vid); ++out;
         }
       } // loop over both in and out
@@ -175,7 +174,7 @@ namespace graphlab {
           release_vertex(in_vid); ++in; ++out;
         } else if(in_vid < out_vid) {
           release_vertex(in_vid); ++in;
-        } else { ASSERT_LT(out_vid, in_vid);
+        } else { 
           release_vertex(out_vid); ++out;
         }
       } // loop over both in and out

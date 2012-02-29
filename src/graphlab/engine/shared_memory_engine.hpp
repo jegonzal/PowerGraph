@@ -1148,9 +1148,12 @@ namespace graphlab {
     context_type& context = tls_array[cpuid].context;
     context.init(vid, consistency);
     switch(consistency) {
+    case EDGE_CONSISTENCY:
+    case DEFAULT_CONSISTENCY:
+      lock_manager_ptr->lock_edge_context(vid); break;
     case VERTEX_CONSISTENCY: lock_manager_ptr->writelock_vertex(vid); break;
     case FULL_CONSISTENCY: lock_manager_ptr->lock_full_context(vid); break;
-    default: lock_manager_ptr->lock_edge_context(vid); break;
+    case NULL_CONSISTENCY: break;
     } // end of lock switch
     END_AND_BEGIN_TRACEPOINT(eng_locktime, eng_basicupdate);
     // Apply the update functor
@@ -1160,8 +1163,12 @@ namespace graphlab {
     END_AND_BEGIN_TRACEPOINT(eng_basicupdate, eng_lockrelease);
     // release the locks
     switch(consistency) {
+    case EDGE_CONSISTENCY:
+    case FULL_CONSISTENCY:
+    case DEFAULT_CONSISTENCY:
+      lock_manager_ptr->release_context(vid); break;
     case VERTEX_CONSISTENCY: lock_manager_ptr->release_vertex(vid); break;
-    default: lock_manager_ptr->release_context(vid); break;
+    case NULL_CONSISTENCY: break;
     } // end of lock switch
     END_TRACEPOINT(eng_lockrelease);
   }
