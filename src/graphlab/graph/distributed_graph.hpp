@@ -512,7 +512,7 @@ namespace graphlab {
      * ownship and completing local data structures.
      */
     void finalize() {
-      ASSERT_NE(ingress_ptr, NULL);
+      if(ingress_ptr == NULL) return;
       ingress_ptr->finalize();
       rpc.barrier(); delete ingress_ptr; ingress_ptr = NULL;
     }

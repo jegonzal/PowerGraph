@@ -289,6 +289,7 @@ namespace graphlab {
      * to any schedule() call. 
      */
     void initialize() {
+      graph.finalize();
       logstream(LOG_INFO) 
         << rmi.procid() << ": Initializing..." << std::endl;
       // currently this code wipes out any exisiting data structures
@@ -302,9 +303,7 @@ namespace graphlab {
                       graph.get_local_graph(),
                       threads.size());      
       // construct the context manager
-      vlocks.resize(graph.num_vertices());
-
-
+      vlocks.resize(graph.num_local_vertices());
       vstate.resize(graph.num_local_vertices());
       
       thrlocal.resize(threads.size());
