@@ -21,6 +21,19 @@ public class GraphLoader {
 	private static final Logger logger = Logger.getLogger(GraphLoader.class);
 	
 	/**
+	 * Defaults to ScalarVertex class
+	 * @param graph
+	 * @param filename
+	 * @throws IOException
+	 */
+	public static void loadGraphFromTsvFile(
+  	WeightedGraph<ScalarVertex, DefaultWeightedEdge> graph,
+    String filename)
+    throws IOException {
+      loadGraphFromTsvFile(graph, ScalarVertex.class, filename);
+  }
+	
+	/**
 	 * Load a graph file specified in the format:
 	 * 
 	 * <code>
@@ -37,8 +50,10 @@ public class GraphLoader {
 	 * @param filename
 	 *            the file to read from
 	 */
-	public static void loadGraphFromTsvFile(
-	    WeightedGraph<ScalarVertex, DefaultWeightedEdge> graph,
+	public static <V extends ScalarVertex> void
+	    loadGraphFromTsvFile(
+	    WeightedGraph<V, DefaultWeightedEdge> graph,
+	    Class<V> vertexClass,
 	    String filename)
 			throws IOException {
 
@@ -46,14 +61,14 @@ public class GraphLoader {
 		BufferedReader reader = new BufferedReader(new FileReader(filename));
 		
 		// map from number to vertex
-		Map<Integer, ScalarVertex> vertices = new HashMap<Integer, ScalarVertex>();
+		Map<Integer, V> vertices = new HashMap<Integer, V>();
 		
 		String input;
 		int lineNumber = 1;
 		boolean warned = false;
 		
 		// read line by line
-		while (null != (input = reader.readLine())) {
+		try { while (null != (input = reader.readLine())) {
 
 		  // break up into source - target - weight
 			String[] tokens = input.trim().split("\\s+");
@@ -66,24 +81,29 @@ public class GraphLoader {
 			if (3 == tokens.length) weight = Float.parseFloat(tokens[2]);
 
 			// create vertices if encountering them for the first time
-			ScalarVertex srcV = vertices.get(source);
+			V srcV = vertices.get(source);
 			if (null == srcV){
-			  srcV = new ScalarVertex(source);
+			  srcV = vertexClass.newInstance();
+			  srcV.setId(source);
 			  vertices.put(source, srcV);
 			  graph.addVertex(srcV);
 			}
 			
-			ScalarVertex trgtV = vertices.get(target);
+			// create target vertex
+			V trgtV = vertices.get(target);
 			if (null == trgtV){
-			  trgtV = new ScalarVertex(target);
+			  trgtV = vertexClass.newInstance();
+			  trgtV.setId(target);
 			  vertices.put(target, trgtV);
 			  graph.addVertex(trgtV);
 			}
 			
+			// check for self-edges
 			if (source != target) {
 			  DefaultWeightedEdge edge = graph.addEdge(srcV, trgtV);
 			  graph.setEdgeWeight(edge, weight);
 			}else {
+			  // warn once
 			  if (!warned){
 			    logger.warn("Dropped self-edge for vertex " + source +
 			                ". Subsequent warnings will be suppressed.");
@@ -91,7 +111,11 @@ public class GraphLoader {
 			  }
 			}
 
-		}
+		} } catch (IllegalAccessException e){
+		  throw new IllegalArgumentException("vertexClass must be a valid vertex class.");
+		} catch (InstantiationException e) {
+		  throw new IllegalArgumentException("vertexClass must be a valid vertex class.");
+    }
 
 		logger.trace ("Finished loading graph with: " + graph.vertexSet().size() + " vertices.");
 

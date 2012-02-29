@@ -15,6 +15,12 @@ public class ScalarVertex implements Vertex {
   private double mValue;
 
   /**
+   * The default constructor does nothing. Make sure you invoke
+   * {@link ScalarVertex#setId}.
+   */
+  public ScalarVertex(){}
+  
+  /**
    * @param id
    *      ID used in TSV-formatted files. Required by JGraphT
    *      to differentiate between vertices.
@@ -37,6 +43,15 @@ public class ScalarVertex implements Vertex {
   
   public int id(){
     return mId;
+  }
+  
+  /**
+   * Specifies a vertex ID. Required by JGraphT
+   * to differentiate between vertices.
+   * @param id
+   */
+  public void setId(int id){
+    mId = id;
   }
   
   public int rawId() {
