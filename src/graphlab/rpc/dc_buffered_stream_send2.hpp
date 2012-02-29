@@ -67,8 +67,7 @@ class dc_buffered_stream_send2: public dc_send{
                   dc(dc),  comm(comm), target(target), done(false), 
                   flush_flag(false), return_signal(false),
                   buffer_length_trigger(5*1024*1024), 
-                  max_buffer_length(5*1024*1024),
-                  rtdsc_per_ms(estimate_ticks_per_second() / 1000) {
+                  max_buffer_length(5*1024*1024), nanosecond_wait(1000000) {
     char bufpad[sizeof(block_header_type)];
     writebuffer.write(bufpad, sizeof(block_header_type));
     sendbuffer.write(bufpad, sizeof(block_header_type));
@@ -141,7 +140,6 @@ class dc_buffered_stream_send2: public dc_send{
   thread thr;
   bool done;
 
-  static atomic<size_t> callcount;
   atomic<size_t> bytessent; 
   
   bool flush_flag;
@@ -152,9 +150,6 @@ class dc_buffered_stream_send2: public dc_send{
   size_t max_buffer_length;
   
   size_t nanosecond_wait;
-  static unsigned long long prevtime;
-  unsigned long long rtdsc_per_ms;
-  static mutex callcountmutex;
 };
 
 
