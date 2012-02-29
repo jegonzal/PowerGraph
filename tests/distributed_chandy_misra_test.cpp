@@ -196,6 +196,25 @@ int main(int argc, char** argv) {
   }
   std::cout << dc.procid() << ": Enter Finalize" << std::endl;
   graph.finalize();
+  
+  boost::unordered_set<size_t> eidset1;
+  boost::unordered_set<size_t> eidset2;
+  typedef graph_type::local_graph_type::edge_type  local_edge_type;
+  for (size_t v = 0; v < graph.get_local_graph().num_vertices(); ++v) {
+    foreach(local_edge_type edge, graph.get_local_graph().in_edges(v)) {
+      size_t edgeid = graph.get_local_graph().edge_id(edge);
+      ASSERT_TRUE(eidset1.find(edgeid) == eidset1.end());
+      eidset1.insert(edgeid);
+    }
+    foreach(local_edge_type edge, graph.get_local_graph().out_edges(v)) {
+      size_t edgeid = graph.get_local_graph().edge_id(edge);
+      ASSERT_TRUE(eidset2.find(edgeid) == eidset2.end());
+      eidset2.insert(edgeid);
+    }
+  }
+  ASSERT_EQ(eidset1.size(), eidset2.size());
+  eidset1.clear(); eidset2.clear();
+  
   std::cout << " ==============================================================="
             << std::endl;
   std::cout << dc.procid() << ": Finished in " << timer.current_time() << std::endl;
@@ -239,7 +258,7 @@ int main(int argc, char** argv) {
   }
   dc.full_barrier();
   graphlab::thread_group thrs;
-  for (size_t i = 0;i < 4; ++i) {
+  for (size_t i = 0;i < 10; ++i) {
     thrs.launch(thread_stuff);
   }
   for (graphlab::vertex_id_type v = 0; v < graph.num_local_vertices(); ++v) {

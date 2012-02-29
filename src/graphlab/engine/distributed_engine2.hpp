@@ -100,6 +100,7 @@ namespace graphlab {
       SCATTERING,  // state on owner
       MIRROR_GATHERING, // state on mirror
       MIRROR_SCATTERING, // state on mirror
+      MIRROR_SCATTERING_AND_NEXT_LOCKING, // state on mirror
     }; // end of vertex execution state
 
 
@@ -122,6 +123,7 @@ namespace graphlab {
         case SCATTERING: { os << "SCATTERING"; break; }
         case MIRROR_GATHERING: { os << "MIRROR_GATHERING"; break; }
         case MIRROR_SCATTERING: { os << "MIRROR_SCATTERING"; break; }
+        case MIRROR_SCATTERING_AND_NEXT_LOCKING: { os << "MIRROR_SCATTERING_AND_NEXT_LOCKING"; break; }
         }
         return os;
       }
@@ -654,7 +656,10 @@ namespace graphlab {
       case NONE: 
         ASSERT_MSG(false, "Empty Internal Task");
       case LOCKING:
-        ASSERT_MSG(false, "Task in Locking?!");
+          BEGIN_TRACEPOINT(disteng_chandy_misra);
+          cmlocks->make_philosopher_hungry_per_replica(lvid);
+          END_TRACEPOINT(disteng_chandy_misra);
+          break;
       case GATHERING: {
           logstream(LOG_DEBUG) << rmi.procid() << ": Internal Task: " 
                               << graph.global_vid(lvid) << ": GATHERING(" << vstate[lvid].apply_count_down << ")" << std::endl;
@@ -685,6 +690,10 @@ namespace graphlab {
 
           do_scatter(lvid);
           completed_tasks.inc();
+          BEGIN_TRACEPOINT(disteng_chandy_misra);
+          cmlocks->philosopher_stops_eating_per_replica(lvid);
+          END_TRACEPOINT(disteng_chandy_misra);
+
           if (vstate[lvid].hasnext) {
             // stick next back into the scheduler
             schedule_local(lvid, vstate[lvid].next);
@@ -692,26 +701,25 @@ namespace graphlab {
           } 
           vstate[lvid].current = update_functor_type();
           vstate[lvid].state = NONE;
-          BEGIN_TRACEPOINT(disteng_chandy_misra);
-          cmlocks->philosopher_stops_eating(lvid);
-          END_TRACEPOINT(disteng_chandy_misra);
           break;
         }
       case MIRROR_SCATTERING: {
           logstream(LOG_DEBUG) << rmi.procid() << ": Scattering: " 
                               << graph.global_vid(lvid) << ": MIRROR_SCATTERING" << std::endl;
           do_scatter(lvid);
-          if(vstate[lvid].hasnext) {
-            vstate[lvid].state = MIRROR_GATHERING;
-            vstate[lvid].current = vstate[lvid].next;
-            vstate[lvid].hasnext = false;
-            vstate[lvid].next = update_functor_type();
-            add_internal_task(lvid);
-          }
-          else {
-            vstate[lvid].current = update_functor_type();
-            vstate[lvid].state = NONE;
-          }
+          vstate[lvid].state = NONE;
+          cmlocks->philosopher_stops_eating_per_replica(lvid);
+          ASSERT_FALSE(vstate[lvid].hasnext);
+          break;
+        }
+      case MIRROR_SCATTERING_AND_NEXT_LOCKING: {
+          logstream(LOG_DEBUG) << rmi.procid() << ": Scattering: " 
+                              << graph.global_vid(lvid) << ": MIRROR_SCATTERING_AND_LOCKING" << std::endl;
+          do_scatter(lvid);
+          vstate[lvid].state = LOCKING;
+          ASSERT_FALSE(vstate[lvid].hasnext);          
+          cmlocks->philosopher_stops_eating_per_replica(lvid);
+          cmlocks->make_philosopher_hungry_per_replica(lvid);
           break;
         }
       }
@@ -721,21 +729,37 @@ namespace graphlab {
 
     void add_internal_task(lvid_type lvid) {
       BEGIN_TRACEPOINT(disteng_internal_task_queue);
-      size_t i = random::rand() % ncpus;
-      size_t j = random::rand() % ncpus;
-      if (thrlocal[i].npending < thrlocal[j].npending) {
-        logstream(LOG_DEBUG) << rmi.procid() << "Adding Task to Thread " << i << std::endl;
-        thrlocal[i].add_task(lvid);
-        consensus->cancel_one(i);
-      } else { 
-        logstream(LOG_DEBUG) << rmi.procid() << "Adding Task to Thread " << i << std::endl;
-        thrlocal[j].add_task(lvid); 
-        consensus->cancel_one(j);
-      }
+      size_t i = lvid % ncpus;
+      thrlocal[i].add_task(lvid);
+      consensus->cancel_one(i);
       END_TRACEPOINT(disteng_internal_task_queue);
     }
     
 
+    void rpc_begin_locking(vertex_id_type sched_vid) {
+      logstream(LOG_DEBUG) << rmi.procid() << ": Mirror Begin Locking: " 
+                           << sched_vid << std::endl;
+      ASSERT_NE(graph.get_vertex_record(sched_vid).owner, rmi.procid());
+      // immediately begin issuing the lock requests
+      vertex_id_type sched_lvid = graph.local_vid(sched_vid);
+      // set the vertex state
+      BEGIN_TRACEPOINT(disteng_waiting_for_vstate_locks);
+      vstate_locks[sched_lvid].lock();
+      END_TRACEPOINT(disteng_waiting_for_vstate_locks);
+      if (vstate[sched_lvid].state == NONE) {
+        vstate[sched_lvid].state = LOCKING;
+        add_internal_task(sched_lvid);
+      }
+      else if (vstate[sched_lvid].state == MIRROR_SCATTERING) {
+        vstate[sched_lvid].state = MIRROR_SCATTERING_AND_NEXT_LOCKING;
+      }
+      else {
+        ASSERT_TRUE(vstate[sched_lvid].state == NONE || 
+                    vstate[sched_lvid].state == MIRROR_SCATTERING);
+      }
+      vstate_locks[sched_lvid].unlock();
+    }
+    
     // If I receive the call I am a mirror of this vid
     void rpc_begin_gathering(vertex_id_type sched_vid, 
                              const update_functor_type& task) {
@@ -748,20 +772,30 @@ namespace graphlab {
       BEGIN_TRACEPOINT(disteng_waiting_for_vstate_locks);
       vstate_locks[sched_lvid].lock();
       END_TRACEPOINT(disteng_waiting_for_vstate_locks);
-      if (vstate[sched_lvid].state != NONE) {
-        ASSERT_EQ(vstate[sched_lvid].state, MIRROR_SCATTERING);
-        ASSERT_FALSE(vstate[sched_lvid].hasnext);
-        vstate[sched_lvid].next = task;
-        vstate[sched_lvid].hasnext = true;
-        vstate_locks[sched_lvid].unlock();
-      }
-      else {    
-        vstate[sched_lvid].state = MIRROR_GATHERING;
-        vstate[sched_lvid].current = task;
-        vstate_locks[sched_lvid].unlock();
-        // lets go
-        add_internal_task(sched_lvid);
-      }
+      ASSERT_EQ(vstate[sched_lvid].state, LOCKING);
+
+      vstate[sched_lvid].state = MIRROR_GATHERING;
+      vstate[sched_lvid].current = task;
+      vstate_locks[sched_lvid].unlock();
+      // lets go
+      add_internal_task(sched_lvid);
+    }
+
+    /**
+     * Task was added to the vstate. Now to begin scheduling the gathers
+     */
+    void master_broadcast_locking(lvid_type sched_lvid) {
+      logstream(LOG_DEBUG) << rmi.procid() << ": Broadcast Gathering: " 
+                           << graph.global_vid(sched_lvid) << std::endl;
+      ASSERT_I_AM_OWNER(sched_lvid);
+      vertex_id_type sched_vid = graph.global_vid(sched_lvid);
+      const typename graph_type::vertex_record& vrec = 
+        graph.l_get_vertex_record(sched_lvid);
+      const unsigned char prevkey = 
+        rmi.dc().set_sequentialization_key(sched_vid % 254 + 1);
+      rmi.remote_call(vrec.mirrors().begin(), vrec.mirrors().end(),
+                      &engine_type::rpc_begin_locking, sched_vid);
+      rmi.dc().set_sequentialization_key(prevkey);
     }
 
     /**
@@ -837,18 +871,22 @@ namespace graphlab {
       issued_tasks.inc();
       if (prelocked == false) {
         BEGIN_TRACEPOINT(disteng_waiting_for_vstate_locks);
-        vstate_locks[sched_lvid].lock();\
+        vstate_locks[sched_lvid].lock();
         END_TRACEPOINT(disteng_waiting_for_vstate_locks);
       }
       if (vstate[sched_lvid].state == NONE) {
         // we start gather right here.
         // set up the state
         vstate[sched_lvid].state = LOCKING;
+        vstate[sched_lvid].hasnext = false;
         vstate[sched_lvid].current = task;
         vstate[sched_lvid].apply_count_down =   
           graph.l_get_vertex_record(sched_lvid).num_mirrors() + 1;
         acquirelock = true;
         // we are going to broadcast after unlock
+      } else if (vstate[sched_lvid].state == LOCKING) {
+         blocked_issues.inc();
+         vstate[sched_lvid].next += task;
       } else {
         blocked_issues.inc();
         if (vstate[sched_lvid].hasnext) {
@@ -862,8 +900,9 @@ namespace graphlab {
       END_TRACEPOINT(disteng_eval_sched_task);
       if (acquirelock) {
         BEGIN_TRACEPOINT(disteng_chandy_misra);
-        cmlocks->make_philosopher_hungry(sched_lvid);
+        cmlocks->make_philosopher_hungry_per_replica(sched_lvid);
         END_TRACEPOINT(disteng_chandy_misra);
+        master_broadcast_locking(sched_lvid);
       }
     }
     
