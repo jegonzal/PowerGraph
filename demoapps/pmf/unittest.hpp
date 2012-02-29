@@ -91,7 +91,7 @@ void unit_testing(int unittest, command_line_options& clopts){
       clopts.set_ncpus(1);
    }
    else if (unittest == 51){ //SVD++
-    ac.datafile = "movielens"; ps.algorithm = SVD_PLUS_PLUS; ac.algorithm = SVD_PLUS_PLUS; clopts.set_ncpus(1); ac.debug = true; ac.maxval = 5; ac.minval = 1;
+    ac.datafile = "movielens"; ps.algorithm = SVD_PLUS_PLUS; ac.algorithm = SVD_PLUS_PLUS; clopts.set_ncpus(1); ac.debug = true; ac.maxval = 5; ac.minval = 1; ac.isfloat=true;
       clopts.set_scheduler_type("round_robin(max_iterations=10,block_size=1)");
   }
    else if (unittest == 71){ //Lanczos
