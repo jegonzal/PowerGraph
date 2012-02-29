@@ -172,7 +172,7 @@ namespace graphlab {
     thread_pool threads;
 
     //! the context manager
-    context_manager_type* context_manager_ptr;
+    context_manager_type* cmanager_ptr;
     //! The scheduler
     ischeduler_type* scheduler_ptr;
 
@@ -181,7 +181,7 @@ namespace graphlab {
 
     //! Engine state
     bool started;
-    async_consensus* consensus_ptr;
+    async_consensus consensus;
     atomic<size_t> threads_alive;
     std::vector<thread_local_data> thrlocal;
     
@@ -215,19 +215,20 @@ namespace graphlab {
         sched_yield();
         return false;
       }
-      logstream(LOG_DEBUG) << rmi.procid() << "-" << threadid << ": " << "Termination Attempt " 
-                           << completed_tasks.value << "/" << issued_tasks.value << std::endl;
+      logstream(LOG_DEBUG) 
+        << rmi.procid() << "-" << threadid << ": " << "Termination Attempt " 
+        << completed_tasks.value << "/" << issued_tasks.value << std::endl;
       has_internal_task = false;
       has_sched_task = false;
       threads_alive.dec();
-      consensus_ptr->begin_done_critical_section(threadid);
+      consensus.begin_done_critical_section(threadid);
       
       BEGIN_TRACEPOINT(disteng_internal_task_queue);
       if (thrlocal[threadid].get_task(internal_lvid)) {
         logstream(LOG_DEBUG) << rmi.procid() << "-" << threadid <<  ": "
                              << "\tCancelled by Internal Task"  << std::endl;
         has_internal_task = true;
-        consensus_ptr->cancel_critical_section(threadid);
+        consensus.cancel_critical_section(threadid);
         threads_alive.inc();
         END_TRACEPOINT(disteng_internal_task_queue);
         return false;
@@ -239,7 +240,7 @@ namespace graphlab {
       if (stat == sched_status::EMPTY) {
         logstream(LOG_DEBUG) << rmi.procid() << "-" << threadid <<  ": " 
                              << "\tTermination Double Checked" << std::endl;
-        bool ret = consensus_ptr->end_done_critical_section(threadid);
+        bool ret = consensus.end_done_critical_section(threadid);
         threads_alive.inc();
         if (ret == false) {
           logstream(LOG_DEBUG) << rmi.procid() << "-" << threadid <<  ": " 
@@ -249,7 +250,7 @@ namespace graphlab {
       } else {
         logstream(LOG_DEBUG) << rmi.procid() << "-" << threadid <<  ": " 
                              << "\tCancelled by Scheduler Task" << std::endl;
-        consensus_ptr->cancel_critical_section(threadid);
+        consensus.cancel_critical_section(threadid);
         has_sched_task = true;
         threads_alive.inc();
         return false;
@@ -273,14 +274,16 @@ namespace graphlab {
   public:
     distributed_engine(distributed_control &dc, graph_type& graph, 
                        size_t ncpus) : 
-      rmi(dc, this), graph(graph), scheduler_ptr(NULL), threads(ncpus),
-      max_pending_tasks(10000) {
+      rmi(dc, this), graph(graph), threads(ncpus),
+      cmanager_ptr(NULL), scheduler_ptr(NULL), 
+      consensus(dc, ncpus), max_pending_tasks(10000) {
       rmi.barrier();
       // TODO: Remove context creation.
       // Added context to force compilation.   
       context_type context;
 
-      INITIALIZE_DIST_EVENT_LOG(eventlog, dc, std::cout, 500, dist_event_log::RATE_BAR);
+      INITIALIZE_DIST_EVENT_LOG(eventlog, dc, std::cout, 500, 
+                                dist_event_log::RATE_BAR);
       ADD_DIST_EVENT_TYPE(eventlog, SCHEDULE_EVENT, "Schedule");
       ADD_DIST_EVENT_TYPE(eventlog, UPDATE_EVENT, "Updates");
       ADD_DIST_EVENT_TYPE(eventlog, INTERNAL_TASK_EVENT, "Internal");
@@ -309,29 +312,34 @@ namespace graphlab {
      * to any schedule() call. 
      */
     void initialize() {
-      logstream(LOG_INFO) << rmi.procid() << ": Initializing..." << std::endl;
+      logstream(LOG_INFO) 
+        << rmi.procid() << ": Initializing..." << std::endl;
+      // currently this code wipes out any exisiting data structures
+      if(scheduler_ptr != NULL) {  delete scheduler_ptr; scheduler_ptr = NULL; }
+      if(cmanager_ptr != NULL) {  delete cmanager_ptr; cmanager_ptr = NULL; }
+
+      // construct the scheduler
       scheduler_ptr = scheduler_factory<pseudo_engine<Graph, UpdateFunctor> >::
         new_scheduler(opts.scheduler_type,
                       opts.scheduler_args,
                       graph.get_local_graph(),
-                      threads.size());
-      // create initial fork arrangement based on the alternate vid mapping
-      cmlocks = new lock_set_type(rmi.dc(), graph,
-                                  boost::bind(&engine_type::lock_ready, this, _1));
-      cmlocks->compute_initial_fork_arrangement();
-      
+                      threads.size());      
+      // construct the context manager
+      cmanager_ptr = new context_manager_type(this,
+                                              &graph,
+                                              opts.get_ncpus(),
+                                              context_range);
+
+
       vstate.resize(graph.num_local_vertices());
-      vstate_locks.resize(graph.num_local_vertices());
-      consensus_ptr = new async_consensus(rmi.dc(), threads.size());
       
       thrlocal.resize(threads.size());
       rmi.barrier();
     }
     
     ~distributed_engine() {
-      delete scheduler_ptr;
-      delete consensus_ptr;
-      delete cmlocks;
+      if(scheduler_ptr != NULL) {  delete scheduler_ptr; scheduler_ptr = NULL; }
+      if(cmanager_ptr != NULL) {  delete cmanager_ptr; cmanager_ptr = NULL; }
     }
     
     /**
@@ -350,7 +358,8 @@ namespace graphlab {
      *
      * Return the reason for the last termination.
      */
-    execution_status::status_enum last_exec_status() const { return execution_status::UNSET ; }
+    execution_status::status_enum last_exec_status() const { 
+      return execution_status::UNSET ; }
    
     /**
      * \brief Get the number of updates executed by the engine.
@@ -371,7 +380,7 @@ namespace graphlab {
       scheduler_ptr->schedule(local_vid, update_functor);
       END_TRACEPOINT(disteng_scheduler_task_queue);
       ACCUMULATE_DIST_EVENT(eventlog, SCHEDULE_EVENT, 1);
-      consensus_ptr->cancel();
+      consensus.cancel();
     }
     
     void schedule_local(vertex_id_type local_vid ,
@@ -387,7 +396,7 @@ namespace graphlab {
         scheduler_ptr->schedule(local_vid, update_functor);
       }
       ACCUMULATE_DIST_EVENT(eventlog, SCHEDULE_EVENT, 1);
-      consensus_ptr->cancel();
+      consensus.cancel();
     }
 
     /**
@@ -420,7 +429,7 @@ namespace graphlab {
         scheduler_ptr->schedule(vtxs[i], update_functor);
       }     
       if (started) {
-        consensus_ptr->cancel();
+        consensus.cancel();
       }
       rmi.barrier();
     } // end of schedule all
@@ -736,11 +745,11 @@ namespace graphlab {
       if (thrlocal[i].npending < thrlocal[j].npending) {
         logstream(LOG_DEBUG) << rmi.procid() << "Adding Task to Thread " << i << std::endl;
         thrlocal[i].add_task(lvid);
-        consensus_ptr->cancel_one(i);
+        consensus.cancel_one(i);
       } else { 
         logstream(LOG_DEBUG) << rmi.procid() << "Adding Task to Thread " << i << std::endl;
         thrlocal[j].add_task(lvid); 
-        consensus_ptr->cancel_one(j);
+        consensus.cancel_one(j);
       }
       END_TRACEPOINT(disteng_internal_task_queue);
     }

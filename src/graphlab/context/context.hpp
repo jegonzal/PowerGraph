@@ -108,11 +108,11 @@ namespace graphlab {
       engine_ptr(engine_ptr), graph_ptr(graph_ptr), 
       vid(vid), _consistency(consistency) { }
     
-
-
+    
     void init(const vertex_id_type vertex, consistency_model consistency) {             
-      vid = vertex;
-      _consistency = consistency;
+      vid = vertex; _consistency = consistency;
+      ASSERT_TRUE(graph_ptr != NULL);
+      ASSERT_TRUE(engine_ptr != NULL);
     } // end of init_vertex
 
     size_t num_vertices() const { return graph_ptr->num_vertices(); }
