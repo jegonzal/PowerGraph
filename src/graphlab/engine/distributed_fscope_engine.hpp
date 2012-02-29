@@ -572,20 +572,27 @@ namespace graphlab {
     }
     
 
-    inline void lock_single_edge(vertex_id_type center, 
-                                 vertex_id_type neighbor) {
+    inline void lock_single_edge(lvid_type center, lvid_type neighbor) {
+      ASSERT_EQ(vlocks.size(), graph.num_local_vertices());
+      ASSERT_LT(center, vlocks.size());
+      ASSERT_LT(neighbor, vlocks.size());
       if(center < neighbor) { vlocks[center].lock(); vlocks[neighbor].lock(); }
       else { vlocks[neighbor].lock(); vlocks[center].lock();  }
     }
 
-    inline void release_single_edge(vertex_id_type center, 
-                                    vertex_id_type neighbor) {
+    inline void release_single_edge(lvid_type center, lvid_type neighbor) {
+      ASSERT_EQ(vlocks.size(), graph.num_local_vertices());
+      ASSERT_LT(center, vlocks.size());
+      ASSERT_LT(neighbor, vlocks.size());
       vlocks[center].unlock(); vlocks[neighbor].unlock();
     }
 
-    inline void swap_single_edge(vertex_id_type center, 
-                                 vertex_id_type old_neighbor,
-                                 vertex_id_type new_neighbor) {
+    inline void swap_single_edge(lvid_type center, lvid_type old_neighbor,
+                                 lvid_type new_neighbor) {
+      ASSERT_EQ(vlocks.size(), graph.num_local_vertices());
+      ASSERT_LT(center, vlocks.size());
+      ASSERT_LT(old_neighbor, vlocks.size());
+      ASSERT_LT(new_neighbor, vlocks.size());
       vlocks[old_neighbor].unlock();
       if(!vlocks[new_neighbor].try_lock()) {
         vlocks[center].unlock(); lock_single_edge(center, new_neighbor);
@@ -602,6 +609,7 @@ namespace graphlab {
       if(ufun.gather_edges() == graphlab::IN_EDGES || 
          ufun.gather_edges() == graphlab::ALL_EDGES) {
         const local_edge_list_type edges = graph.l_in_edges(vid);
+        ASSERT_LT(edges.size(), graph.num_local_edges());
         for(size_t i = 0; i < edges.size(); ++i) {
           const lvid_type lneighbor = edges[i].l_source();
           if(i == 0) lock_single_edge(lvid, lneighbor);
@@ -613,6 +621,7 @@ namespace graphlab {
       if(ufun.gather_edges() == graphlab::OUT_EDGES ||
          ufun.gather_edges() == graphlab::ALL_EDGES) {
         const local_edge_list_type edges = graph.l_out_edges(vid);
+        ASSERT_LT(edges.size(), graph.num_local_edges());
         for(size_t i = 0; i < edges.size(); ++i) {
           const lvid_type lneighbor = edges[i].l_target();
           if(i == 0) lock_single_edge(lvid, lneighbor);

@@ -124,7 +124,7 @@ namespace graphlab {
       edge_type (lvid_type lsrc, lvid_type ltar,
                  vertex_id_type src, vertex_id_type tar,
                  edge_id_type eid, procid_t owner):
-        lsrc(src), ltar(tar), src(src), tar(tar), eid(eid), 
+        lsrc(lsrc), ltar(ltar), src(src), tar(tar), eid(eid), 
         _owner(owner), _empty(false) { }
       edge_type () : lsrc(-1), ltar(-1), src(-1), tar(-1), eid(-1), 
                      _owner(-1), _empty(true) { }
@@ -147,10 +147,10 @@ namespace graphlab {
       struct edge_functor : 
         public std::unary_function<local_edge_type, edge_type> {
 
-        edge_functor(const distributed_graph* graph_ptr = NULL) : 
+        inline edge_functor(const distributed_graph* graph_ptr = NULL) : 
           graph_ptr(graph_ptr) { }
 
-        edge_type operator()(const local_edge_type& edge) const {
+        inline edge_type operator()(const local_edge_type& edge) const {
           if (edge.empty()) {
             return edge_type();
           } else {
