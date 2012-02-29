@@ -62,21 +62,24 @@ namespace graphlab {
       graph(graph), locks(graph.num_vertices()) { }
 
     inline void writelock_vertex(const vertex_id_type& vid) {
-      ASSERT_LT(vid, locks.size()); locks[vid].writelock();
+      // ASSERT_LT(vid, locks.size()); 
+      locks[vid].writelock();
     }
 
     inline void readlock_vertex(const vertex_id_type& vid) {
-      ASSERT_LT(vid, locks.size()); locks[vid].readlock();
+      // ASSERT_LT(vid, locks.size()); 
+      locks[vid].readlock();
     }
 
     inline bool try_readlock_vertex(const vertex_id_type& vid) {
-      ASSERT_LT(vid, locks.size()); return locks[vid].try_readlock();
+      // ASSERT_LT(vid, locks.size()); 
+      return locks[vid].try_readlock();
     }
 
     inline void release_vertex(const vertex_id_type& vid) {
-      ASSERT_LT(vid, locks.size()); locks[vid].unlock();
+      // ASSERT_LT(vid, locks.size()); 
+      locks[vid].unlock();
     }
-
 
 
     inline void lock_edge_context(const vertex_id_type& vid) {
@@ -114,7 +117,7 @@ namespace graphlab {
         } else { readlock_vertex(out_vid); ++out; }
       } // loop over out edges
       // If we still have not locked the center do so now
-      if(!processed_center) { writelock_vertex(vid); }
+      if(__builtin_expect(!processed_center, false)) { writelock_vertex(vid); }
     } // end of lock edge context
 
     inline void lock_full_context(const vertex_id_type& vid) {
@@ -152,7 +155,7 @@ namespace graphlab {
         } else { writelock_vertex(out_vid); ++out; }
       } // loop over out edges
       // If we still have not locked the center do so now
-      if(!processed_center) { writelock_vertex(vid); }
+      if(__builtin_expect(!processed_center, false)) { writelock_vertex(vid); }
     } // end of lock full context
 
 
@@ -191,7 +194,7 @@ namespace graphlab {
         } else { release_vertex(out_vid); ++out; }
       } // loop over out edges
       // If we still have not released the center do so now
-      if(!processed_center) { release_vertex(vid); }
+      if(__builtin_expect(!processed_center, false)) { release_vertex(vid); }
     } // end of release context
 
 
