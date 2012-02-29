@@ -30,11 +30,6 @@
 namespace graphlab {
 namespace dc_impl {
 
-  double dc_buffered_stream_send2::calls_per_ms = 0;
-  atomic<size_t> dc_buffered_stream_send2::callcount;
-  unsigned long long dc_buffered_stream_send2::prevtime = 0;
-  mutex dc_buffered_stream_send2::callcountmutex;
-
   void dc_buffered_stream_send2::send_data(procid_t target_, 
                                           unsigned char packet_type_mask,
                                           std::istream &istrm,
@@ -82,25 +77,7 @@ namespace dc_impl {
      * (as compared to the thread wake up time.)
      * I would like to buffer it otherwise. 
      */
-    return writebuffer.len >= 5 * 1024 * 1024;
-    if (prevtime == 0) {
-      prevtime = rdtsc();
-    }
-    else {
-      unsigned long long curtime = rdtsc();
-      callcount.inc();
-      if (curtime - prevtime > rtdsc_per_ms && callcountmutex.try_lock()) {
-        calls_per_ms = (calls_per_ms + double(callcount)  * rtdsc_per_ms / (curtime - prevtime)) / 2;
-        callcount = 0;
-        prevtime = curtime;
-        callcountmutex.unlock();
-//        std::cout << calls_per_ms << std::endl;
-      }
-      if (calls_per_ms < 50) {
-        return true;
-      }
-    }
-    return false;
+    return writebuffer.len >= buffer_length_trigger;
   }
 
   void dc_buffered_stream_send2::send_data(procid_t target, 
@@ -148,9 +125,11 @@ namespace dc_impl {
       sendbuffer.write(bufpad, sizeof(block_header_type));
       sendlock.unlock();
     }*/
-    if (prevwbufsize == sizeof(block_header_type) ||  send_decision) {
+    if (prevwbufsize == sizeof(block_header_type) || send_decision) {
+      sendlock.lock();
       flush_flag = send_decision;
       cond.signal();
+      sendlock.unlock();
       lock.unlock();
     }
     else {
@@ -164,16 +143,25 @@ namespace dc_impl {
     timer.start();
     //const double nano2second = 1000*1000*1000;
     //const double second_wait = nanosecond_wait / nano2second;
-
+    int wakeuptimes = 0;
+    size_t sendlength = 0;
     lock.lock();
     while (1) {
       if (writebuffer.len > sizeof(block_header_type)) {
-        sendlock.lock();
         sendbuffer.swap(writebuffer);
         lock.unlock();
         // fill in the chunk header with the length of the chunk
         *reinterpret_cast<block_header_type*>(sendbuffer.str) = (block_header_type)(sendbuffer.len - sizeof(block_header_type));
         comm->send(target, sendbuffer.str, sendbuffer.len);
+        wakeuptimes++;
+        sendlength += sendbuffer.len;
+        if (wakeuptimes & 4) {
+          sendlength /= wakeuptimes;
+          buffer_length_trigger = (buffer_length_trigger + sendlength) / 2;
+          buffer_length_trigger = std::min(buffer_length_trigger, max_buffer_length);
+          buffer_length_trigger += (buffer_length_trigger == 0);
+          sendlength = 0; wakeuptimes = 0;
+        }
         // shrink if we are not using much buffer
         if (sendbuffer.len < sendbuffer.buffer_size / 2 
             && sendbuffer.buffer_size > 10240) {
@@ -185,22 +173,27 @@ namespace dc_impl {
         char bufpad[sizeof(block_header_type)];
         sendbuffer.write(bufpad, sizeof(block_header_type));
     
-        sendlock.unlock();
         lock.lock();
       } else {
-        unsigned long long sleep_start_time = rdtsc();
         // sleep for 1 ms or up till we get wait_count_bytes
+        lock.unlock();
         while(!flush_flag &&
-              sleep_start_time + rtdsc_per_ms > rdtsc() &&
               !done) {
           if (return_signal) {
             return_signal = false;
             flush_return_cond.signal();
           }
-          if(writebuffer.len == sizeof(block_header_type)) cond.wait(lock);
-          else cond.timedwait_ns(lock, nanosecond_wait);
-        //  std::cout << prevtime << " " << second_wait << " " << nexttime << " " << writebuffer.len << "\n";
+          if(writebuffer.len == sizeof(block_header_type)) {
+            sendlock.lock();
+            cond.wait(sendlock);
+            sendlock.unlock();
+          }
+          else if (writebuffer.len < buffer_length_trigger) {
+            my_sleep_ms(1);
+            break;
+          }
         }
+        lock.lock();
         flush_flag = false;
       }
       if (done) {
@@ -233,6 +226,10 @@ namespace dc_impl {
     if (opt == "nanosecond_wait") {
       prevval = nanosecond_wait;
       nanosecond_wait = val;
+    }
+    else if (opt == "max_buffer_length") {
+      prevval = max_buffer_length;
+      max_buffer_length = val;
     }
     return prevval;
   }
