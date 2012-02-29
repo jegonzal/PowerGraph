@@ -82,7 +82,7 @@ namespace dc_impl {
      * (as compared to the thread wake up time.)
      * I would like to buffer it otherwise. 
      */
-    return false;
+    return writebuffer.len >= 1024 * 1024;
     if (prevtime == 0) {
       prevtime = rdtsc();
     }
@@ -132,9 +132,11 @@ namespace dc_impl {
       // already nd we can acquire the lock
       sendbuffer.swap(writebuffer);
       lock.unlock();
-      *reinterpret_cast<block_header_type*>(sendbuffer.str) = (block_header_type)(sendbuffer.len);
-      comm->send(target, sendbuffer.str, sendbuffer.len);
 
+      // fill in the chunk header with the length of the chunk
+      *reinterpret_cast<block_header_type*>(sendbuffer.str) = (block_header_type)(sendbuffer.len - sizeof(block_header_type));
+      comm->send(target, sendbuffer.str, sendbuffer.len);
+      // shrink if we are not using much buffer
       if (sendbuffer.len < sendbuffer.buffer_size / 2 
           && sendbuffer.buffer_size > 10240) {
         sendbuffer.clear(sendbuffer.buffer_size / 2);
@@ -144,11 +146,9 @@ namespace dc_impl {
       }
       char bufpad[sizeof(block_header_type)];
       sendbuffer.write(bufpad, sizeof(block_header_type));
-    
       sendlock.unlock();
     }
-    else if (prevwbufsize == sizeof(block_header_type) || prevwbufsize > 1024*1024
-             || send_decision) {
+    else if (prevwbufsize == sizeof(block_header_type) ||  send_decision) {
       flush_flag = send_decision;
       cond.signal();
       lock.unlock();
