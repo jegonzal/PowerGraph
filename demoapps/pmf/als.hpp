@@ -51,6 +51,7 @@ void init_pmf() {
  */
 template<typename graph_type, typename vertex_data, typename edge_data>
 void last_iter(){
+  if (ps.algorithm != BPTF_TENSOR_MULT && ps.algorithm != ALS_TENSOR_MULT)
   printf("Entering last iter with %d total updates so far %u\n", ps.iiter, (unsigned int)dynamic_cast<graphlab::core<vertex_data,edge_data>*>(ps.glcore)->engine().last_update_count());
 
   double res,res2;

@@ -163,7 +163,10 @@ double calc_obj(double res){
   return obj;
 }
 template<typename graph_type, typename vertex_data, typename edge_data>
-void calc_stats2(const graph_type * gr, double&minU, double& maxU, int &moviewithoutedges, int& numedges, double &avgval, double& avgtime, double &minval, double &maxval, double&mintime, double&maxtime){
+void calc_stats2(const graph_type * gr, double&minU, double& maxU, int &moviewithoutedges, int& numedges, double &avgval, double& avgtime, double &minval, double &maxval, double&mintime, double&maxtime, int&timewithoutedges){
+ bool * timeslots = new bool[ps.K];
+ for (int i=0; i<ps.K; i++)
+    timeslots[i] = false;
  for (int i=ps.M; i< ps.M+ps.N; i++){ 
     const vertex_data * data = &gr->vertex_data(i);
       if (min(data->pvec) < minU)
@@ -177,6 +180,7 @@ void calc_stats2(const graph_type * gr, double&minU, double& maxU, int &moviewit
 	numedges++;
 	avgval += data.weight;
 	avgtime += data.time;
+        timeslots[(int)data.time]=true;
 	if (data.weight<minval)
 	   minval=data.weight;
 	if (data.time <mintime)
@@ -187,11 +191,19 @@ void calc_stats2(const graph_type * gr, double&minU, double& maxU, int &moviewit
 	   maxtime =data.time;
     }
 }
+  for (int i=0; i< ps.K; i++)
+    if (!timeslots[i])
+      timewithoutedges++;
 }
 
 template<>
-void calc_stats2<graph_type_mult_edge, vertex_data, multiple_edges>(const graph_type_mult_edge * gr, double&minU, double& maxU, int &moviewithoutedges, int& numedges, double &avgval, double& avgtime, double &minval, double &maxval,double&mintime, double&maxtime){
+void calc_stats2<graph_type_mult_edge, vertex_data, multiple_edges>(const graph_type_mult_edge * gr, double&minU, double& maxU, int &moviewithoutedges, int& numedges, double &avgval, double& avgtime, double &minval, double &maxval,double&mintime, double&maxtime, int&timewithoutedges){
+
+ bool * timeslots = new bool[ac.K];
+ for (int i=0; i< ps.K; i++)
+   timeslots[i] = false;
  for (int i=ps.M; i< ps.M+ps.N; i++){ 
+    
     const vertex_data * data = &gr->vertex_data(i);
       if (min(data->pvec) < minU)
 	 minU = min(data->pvec);
@@ -211,6 +223,7 @@ void calc_stats2<graph_type_mult_edge, vertex_data, multiple_edges>(const graph_
 	   minval=data.weight;
 	if (data.time <mintime)
 	   mintime = data.time;
+        timeslots[(int)data.time] = true;
 	if (data.weight>maxval)
 	   maxval=data.weight;
 	if (data.time > maxtime)
@@ -218,6 +231,9 @@ void calc_stats2<graph_type_mult_edge, vertex_data, multiple_edges>(const graph_
     }
  }
 }
+ for (int i=0; i< ps.K; i++)
+   if (!timeslots[i])
+     timewithoutedges++;
 }
 /// calc statistics about matrix/tensor and exit  
 template<typename graph_type, typename vertex_data,typename edge_data>
@@ -232,23 +248,26 @@ void calc_stats(testtype type){
    if (ps.tensor && type == TRAINING){
      int firsttimeused=-1;
      int lasttimeused=-1;
+     int timewithoutedges=0;
      for (int i=0; i<ps.K; i++){
        if (edges[i].size() > 0)
          firsttimeused = i;
+       else timewithoutedges++;
      }
      for (int i=ps.K-1; i>=0; i--){
        if (edges[i].size() > 0)
          lasttimeused = i;
      }
-     printf("Out of total %d time components, first used is %d, last used is %d\n", ps.K, firsttimeused, lasttimeused);
+     printf("Out of total %d time components, first used is %d, last used is %d, time slots not used: %d\n", ps.K, firsttimeused, lasttimeused, timewithoutedges);
   }	
   double avgval=0, minval=1e100, maxval=-1e100;
   double avgtime=0, mintime=1e100, maxtime=-1e100;
   double minV=1e100, maxV=-1e100, minU=1e100, maxU=-1e100;
   int moviewithoutedges = 0;
   int userwithoutedges = 0;
+  int timewithoutedges = 0;
   int numedges = 0;
-  calc_stats2<graph_type, vertex_data, edge_data>(gr, minU, maxU, moviewithoutedges, numedges, avgval, avgtime, minval, maxval, mintime, maxtime);
+  calc_stats2<graph_type, vertex_data, edge_data>(gr, minU, maxU, moviewithoutedges, numedges, avgval, avgtime, minval, maxval, mintime, maxtime, timewithoutedges);
  
   for (int i=0; i< ps.M; i++){ 
    const vertex_data * data = &gr->vertex_data(i);
