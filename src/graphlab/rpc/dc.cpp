@@ -188,12 +188,13 @@ void distributed_control::exec_function_call(procid_t source,
   if ((packet_type_mask & CONTROL_PACKET) == 0) inc_calls_received(source);
 }
 
-void distributed_control::deferred_function_call_chunk(char* buf, size_t len) {
+void distributed_control::deferred_function_call_chunk(char* buf, size_t len, procid_t src) {
   fcallqueue_entry* fc = new fcallqueue_entry;
   fc->chunk_src = buf;
   fc->chunk_len = len;
   fc->chunk_ref_counter = NULL;
   fc->is_chunk = true;
+  fc->source = src;
   fcallqueue[0].enqueue(fc);
 }
 
@@ -218,12 +219,11 @@ void distributed_control::process_fcall_block(fcallqueue_entry &fcallblock) {
     for (size_t i = 0;i < fcallqueue.size(); ++i) {
       queuebufs[i] = new fcallqueue_entry;
       queuebufs[i]->chunk_src = fcallblock.chunk_src;
-      queuebufs[i]->chunk_ref_counter = fcallblock.chunk_ref_counter;
+      queuebufs[i]->chunk_ref_counter = refctr;
       queuebufs[i]->chunk_len = 0;
+      queuebufs[i]->source = fcallblock.source;
       queuebufs[i]->is_chunk = false;
-      // this is silly but we do not know the source yet...
     }
-    procid_t src;
     
     //parse the data in fcallblock.data
     char* data = fcallblock.chunk_src;
@@ -234,7 +234,6 @@ void distributed_control::process_fcall_block(fcallqueue_entry &fcallblock) {
       ASSERT_GE(remaininglen, sizeof(dc_impl::packet_hdr));
       dc_impl::packet_hdr hdr = *reinterpret_cast<dc_impl::packet_hdr*>(data);
       ASSERT_LE(hdr.len, remaininglen);
-      src = hdr.src;
       
       if ((hdr.packet_type_mask & CONTROL_PACKET) == 0) {
         global_bytes_received[hdr.src].inc(hdr.len);
@@ -260,7 +259,6 @@ void distributed_control::process_fcall_block(fcallqueue_entry &fcallblock) {
     }
     for (size_t i = 0;i < fcallqueue.size(); ++i) { 
       if (queuebufs[i]->calls.size() > 0) {
-        queuebufs[i]->source = src;
         fcallqueue[i].enqueue(queuebufs[i]);
       }
       else {
@@ -361,7 +359,7 @@ void distributed_control::init(const std::vector<std::string> &machines,
   // create the receiving objects
   if (comm->capabilities() && dc_impl::COMM_STREAM) {
     for (procid_t i = 0; i < machines.size(); ++i) {
-      receivers.push_back(new dc_impl::dc_stream_receive(this));
+      receivers.push_back(new dc_impl::dc_stream_receive(this, i));
       senders.push_back(new dc_impl::dc_buffered_stream_send2(this, comm, i));
     }
   }

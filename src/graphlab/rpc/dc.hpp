@@ -415,7 +415,7 @@ class distributed_control{
    * Receive a collection of serialized function calls.
    * This function will take ownership of the pointer
    */
-  void deferred_function_call_chunk(char* buf, size_t len);
+  void deferred_function_call_chunk(char* buf, size_t len, procid_t src);
   
   /**
   This is called by the function handler threads

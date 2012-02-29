@@ -48,8 +48,9 @@ namespace dc_impl {
 class dc_stream_receive: public dc_receive{
  public:
   
-  dc_stream_receive(distributed_control* dc): 
-                  writebuffer(NULL), dc(dc), bytesreceived(0) { }
+  dc_stream_receive(distributed_control* dc, procid_t associated_proc): 
+                  writebuffer(NULL), dc(dc), associated_proc(associated_proc)
+                   { }
 
  private:
 
@@ -61,9 +62,8 @@ class dc_stream_receive: public dc_receive{
   /// pointer to the owner
   distributed_control* dc;
 
-  size_t bytesreceived;
-
-  size_t bytes_received();
+  procid_t associated_proc;
+  
   
   void shutdown();
 

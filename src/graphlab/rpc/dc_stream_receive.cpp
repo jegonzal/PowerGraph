@@ -76,7 +76,7 @@ char* dc_stream_receive::advance_buffer(char* c, size_t wrotelength,
 
   // if we reach here, we have an available block
   // give away the buffer to dc
-  dc->deferred_function_call_chunk(writebuffer, cur_chunk_header);
+  dc->deferred_function_call_chunk(writebuffer, cur_chunk_header, associated_proc);
   writebuffer = NULL;
   write_buffer_written = 0;
   header_read = 0;
@@ -84,9 +84,6 @@ char* dc_stream_receive::advance_buffer(char* c, size_t wrotelength,
 }
 
 
-size_t dc_stream_receive::bytes_received() {
-  return bytesreceived;
-}
   
 void dc_stream_receive::shutdown() { }
 
