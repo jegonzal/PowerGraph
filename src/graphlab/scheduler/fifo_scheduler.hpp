@@ -119,7 +119,8 @@ namespace graphlab {
           const uint32_t r2 = prod % queues.size();
           idx = (queues[r1].size() < queues[r2].size()) ? r1 : r2;  
         }
-        term.new_job(idx / multi);
+        if(multi == 0) term.new_job();
+        else term.new_job(idx / multi);
         locks[idx].lock(); queues[idx].push_back(vid); locks[idx].unlock();
       }
     } // end of schedule
