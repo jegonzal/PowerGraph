@@ -254,8 +254,6 @@ class distributed_chandy_misra {
       }
     }
     else {
-      ASSERT_TRUE(philosopherset[lvid].state == HORS_DOEUVRE || 
-                    philosopherset[lvid].state == EATING);
       philosopherset[lvid].lock.unlock();
       logstream(LOG_DEBUG) << rmi.procid() <<
         ": Cancellation on " << distgraph.global_vid(lvid) <<
