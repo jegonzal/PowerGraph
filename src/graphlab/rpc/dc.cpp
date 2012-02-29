@@ -198,7 +198,7 @@ void distributed_control::deferred_function_call_chunk(char* buf, size_t len, pr
   fc->chunk_ref_counter = NULL;
   fc->is_chunk = true;
   fc->source = src;
-  fcallqueue[0].enqueue(fc);
+  fcallqueue[src % fcallqueue.size()].enqueue(fc);
   END_TRACEPOINT(dc_receive_queuing);
 }
 
@@ -234,7 +234,7 @@ void distributed_control::process_fcall_block(fcallqueue_entry &fcallblock) {
     char* data = fcallblock.chunk_src;
     size_t remaininglen = fcallblock.chunk_len;
 
-    size_t stripe = 1;
+    size_t stripe = 0;
     while(remaininglen > 0) {
       ASSERT_GE(remaininglen, sizeof(dc_impl::packet_hdr));
       dc_impl::packet_hdr hdr = *reinterpret_cast<dc_impl::packet_hdr*>(data);
@@ -250,10 +250,11 @@ void distributed_control::process_fcall_block(fcallqueue_entry &fcallblock) {
                                             hdr.len,
                                             hdr.packet_type_mask));
         ++stripe;
-        if (stripe == fcallqueue.size()) stripe = 1;
+        if (stripe == (fcallblock.source % fcallqueue.size())) ++stripe;
+        if (stripe >= fcallqueue.size()) stripe -= fcallqueue.size();
       }
       else {
-        size_t idx = 1 + (hdr.sequentialization_key % (fcallqueue.size() - 1));
+        size_t idx = (hdr.sequentialization_key % (fcallqueue.size()));
         queuebufs[idx]->calls.push_back(function_call_block(
                                             data + sizeof(dc_impl::packet_hdr), 
                                             hdr.len,
