@@ -120,12 +120,12 @@ namespace graphlab {
           _source(_source), _target(_target), _edge_id(_eid), _dir(_dir), _empty(false) { }
       public:
         inline vertex_id_type source() const {
-          ASSERT_FALSE(empty()); 
+          // ASSERT_FALSE(empty()); 
           return _dir==OUTEDGE ? _source : _target; 
         }
 
         inline vertex_id_type target() const { 
-          ASSERT_FALSE(empty());
+          // ASSERT_FALSE(empty());
           return _dir==OUTEDGE ? _target : _source; 
         }
 
@@ -165,7 +165,7 @@ namespace graphlab {
        empty(it.empty) { }
   
       inline edge_type operator*() const  {
-        ASSERT_TRUE(!empty);
+        //  ASSERT_TRUE(!empty);
         return make_value();
       }
 
@@ -187,13 +187,13 @@ namespace graphlab {
       }
 
       inline edge_iterator& operator++() {
-        ASSERT_TRUE(!empty);
+        //        ASSERT_TRUE(!empty);
         ++offset;
         return *this;
       }
 
       inline edge_iterator operator++(int) {
-        ASSERT_TRUE(!empty);
+        //  ASSERT_TRUE(!empty);
         const edge_iterator copy(*this);
         operator++();
         return copy;
@@ -247,7 +247,7 @@ namespace graphlab {
       inline size_t size() const { return list_size;}
             
       inline edge_type operator[](size_t i) const {
-        ASSERT_LT(i, list_size);
+        // ASSERT_LT(i, list_size);
         return *(begin_ptr + i);
       }
 
