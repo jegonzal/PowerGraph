@@ -694,6 +694,31 @@ class distributed_chandy_misra {
     local_philosopher_grabs_forks(p_id);
   }
   
+  
+  
+  void make_philosopher_hungry_per_replica(vertex_id_type p_id) {
+    const vertex_record &rec = distgraph.l_get_vertex_record(p_id);
+    philosopherset[p_id].lock.lock();
+    ASSERT_EQ((int)philosopherset[p_id].state, (int)THINKING);
+
+    if (rec.get_owner() == rmi.procid()) {
+      bool newlockid = !philosopherset[p_id].lockid;
+      initialize_master_philosopher_as_hungry_locked(p_id, newlockid);
+      
+      logstream(LOG_DEBUG) << rmi.procid() <<
+            ": Global HUNGRY " << distgraph.global_vid(p_id)
+            << "(" << (int)philosopherset[p_id].counter << ")" << std::endl;
+    }
+    else {
+      bool newlockid = !philosopherset[p_id].lockid;
+      philosopherset[p_id].lockid = newlockid;
+      philosopherset[p_id].state = HUNGRY;
+    }
+    philosopherset[p_id].lock.unlock();
+    local_philosopher_grabs_forks(p_id);
+  }
+  
+  
   void philosopher_stops_eating(vertex_id_type p_id) {
     const vertex_record &rec = distgraph.l_get_vertex_record(p_id);
     ASSERT_EQ(rec.get_owner(), rmi.procid());
@@ -713,17 +738,12 @@ class distributed_chandy_misra {
     local_philosopher_stops_eating(p_id);
   }
 
-  void philosopher_stops_eating_local_party(vertex_id_type p_id) {
-    const vertex_record &rec = distgraph.l_get_vertex_record(p_id);
-    if (rec.get_owner() == rmi.procid()) {
-      logstream(LOG_DEBUG) << rmi.procid() <<
-              ": Global STOP Eating " << distgraph.global_vid(p_id) << std::endl;
+  void philosopher_stops_eating_per_replica(vertex_id_type p_id) {
+    logstream(LOG_DEBUG) << rmi.procid() <<
+            ": Global STOP Eating " << distgraph.global_vid(p_id) << std::endl;
 
-      philosopherset[p_id].lock.lock();
-      ASSERT_EQ(philosopherset[p_id].state, (int)EATING);
-      philosopherset[p_id].counter = 0;
-      philosopherset[p_id].lock.unlock();
-    }
+    ASSERT_EQ(philosopherset[p_id].state, (int)EATING);
+    
     local_philosopher_stops_eating(p_id);
   }
 
