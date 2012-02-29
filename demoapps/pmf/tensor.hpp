@@ -42,8 +42,8 @@ void calc_T(int i){
         last_iter<graph_type, vertex_data, edge_data>();
     return;
   }
-
-  assert(edges[i].size() > 0);
+  if (edges[i].size() == 0)
+    logstream(LOG_FATAL)<<"Time bin: " << i << " has no observed edges. Either rearrange your data to have consecutive time bins numbering where each time bin have some non zero matrix element, or run with --zero=true flag." << std::endl;
 
   if (ac.debug && (i==0 || i == ps.K-1))
     printf("node %d with Q size: %d %d\n", i, (int)edges[i].size(), (int)ac.D);
