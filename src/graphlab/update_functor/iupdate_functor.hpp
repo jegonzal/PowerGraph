@@ -84,7 +84,7 @@ namespace graphlab {
      * implemented by the derived class then the default context range
      * is returned.
      */
-    virtual consistency_model consistency() const {
+    inline virtual consistency_model consistency() const {
       return DEFAULT_CONSISTENCY;
     }
 
@@ -93,17 +93,17 @@ namespace graphlab {
      * same function they are added. The default behavior is to simply
      * ignore the later update functors.
      */
-    virtual void operator+=(const update_functor_type& other) const { }
+    inline virtual void operator+=(const update_functor_type& other) const { }
 
     /**
      * Get the priority of the update functor
      */
-    virtual double priority() const { return double(0); }        
+    inline virtual double priority() const { return double(0); }        
 
     /**
      * The main part of an update functor
      */
-    virtual void operator()(icontext_type& context) { 
+    inline virtual void operator()(icontext_type& context) { 
       logstream(LOG_FATAL) << "Operator() not implemented!" << std::endl;
     } 
 
@@ -111,31 +111,31 @@ namespace graphlab {
      * Returns true if the factorized (gather, apply, scatter) version
      * of the update functor is to be used.
      */
-    virtual bool is_factorizable() const { return false; }
+    inline virtual bool is_factorizable() const { return false; }
     
     /**
      * Returns the set of edges to gather 
      */
-    virtual edge_set gather_edges() const { return IN_EDGES; }
+    inline virtual edge_set gather_edges() const { return IN_EDGES; }
 
     /**
      * Returns true of the adjacent edge and vertex are modified
      * during the gather.
      */
-    virtual consistency_model gather_consistency() const { 
+    inline virtual consistency_model gather_consistency() const { 
       return DEFAULT_CONSISTENCY;
     }
 
     /**
      * Returns the set of edges to scatter
      */
-    virtual edge_set scatter_edges() const { return OUT_EDGES; }
+    inline virtual edge_set scatter_edges() const { return OUT_EDGES; }
 
     /**
      * Returns true of the adjacent edge and vertex are modified
      * during the gather.
      */
-    virtual consistency_model scatter_consistency() const { 
+    inline virtual consistency_model scatter_consistency() const { 
       return DEFAULT_CONSISTENCY;
     }
 
@@ -143,21 +143,21 @@ namespace graphlab {
     /**
      * Init gather is called before gathering
      */
-    virtual void init_gather(iglobal_context_type& context) { };
+    inline virtual void init_gather(iglobal_context_type& context) { };
 
     /**
      * Gather is called on all gather_edges() and may be called in
      * parallel.  The merge() operation is used to join update
      * functors.
      */
-    virtual void gather(icontext_type& context, const edge_type& edge) { 
+    inline virtual void gather(icontext_type& context, const edge_type& edge) { 
       logstream(LOG_FATAL) << "Gather not implemented!" << std::endl;
     };
 
     /**
      * Merges update functors during the gather process.
      */
-    virtual void merge(const update_functor_type& other) {
+    inline virtual void merge(const update_functor_type& other) {
       logstream(LOG_FATAL) << "Gather not implemented!" << std::endl;
     }
 
@@ -165,7 +165,7 @@ namespace graphlab {
      * Apply is called within the vertex consistency model on the
      * center vertex after all gathers have completed.
      */
-    virtual void apply(icontext_type& context) { 
+    inline virtual void apply(icontext_type& context) { 
       logstream(LOG_FATAL) << "Apply not implemented!" << std::endl;
     };
     
@@ -174,7 +174,7 @@ namespace graphlab {
      * Scatter is invoked on all scatter_edges() after calling
      * init_scatter() and may be called in parallel.
      */
-    virtual void scatter(icontext_type& context, const edge_type& edge) { 
+    inline virtual void scatter(icontext_type& context, const edge_type& edge) { 
       logstream(LOG_FATAL) << "Scatter not implemented!" << std::endl;
     }
   };  // end of iupdate_functor

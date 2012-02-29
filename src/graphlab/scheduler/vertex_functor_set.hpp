@@ -82,14 +82,10 @@ namespace graphlab {
             uf = pool.alloc();
             (*uf) = toinsert;
             ret = true;
-          }
-          else if (uf == UPDATE_FUNCTOR_PENDING) {
+          } else if (uf == UPDATE_FUNCTOR_PENDING) {
             // a pending is in here. it is not ready for reading. try again.
             continue;
-          }
-          else {
-            (*uf) += toinsert;
-          }
+          } else { (*uf) += toinsert; }
           // swap it back in
           ASSERT_TRUE(uf != UPDATE_FUNCTOR_PENDING);
           atomic_exchange(functor, uf);
@@ -123,12 +119,10 @@ namespace graphlab {
             uf = pool.alloc();
             (*uf) = toinsert;
             ret = true;
-          }
-          else if (uf == UPDATE_FUNCTOR_PENDING) {
+          } else if (uf == UPDATE_FUNCTOR_PENDING) {
             // a pending is in here. it is not ready for reading. try again.
             continue;
-          }
-          else {
+          } else {
             prev_priority = uf->priority();
             (*uf) += toinsert;
           }

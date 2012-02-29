@@ -51,8 +51,8 @@ class pagerank_update :
   double prio;
 public:
   pagerank_update(const double& prio = 0) : prio(prio) { }
-  double priority() const { return prio; }
-  void operator+=(const pagerank_update& other) { prio += other.prio; }
+  inline double priority() const { return prio; }
+  inline void operator+=(const pagerank_update& other) { prio += other.prio; }
   void operator()(icontext_type& context) {
     vertex_data& vdata = context.vertex_data(); ++vdata.nupdates;
     // Compute weighted sum of neighbors

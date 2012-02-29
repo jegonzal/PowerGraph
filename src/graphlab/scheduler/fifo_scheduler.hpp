@@ -112,14 +112,15 @@ namespace graphlab {
         // http://www.eecs.harvard.edu/~michaelm/postscripts/mythesis.
         size_t idx = 0;
         if(queues.size() > 1) {
-          const size_t prod = 
-            random::fast_uniform(size_t(0), queues.size() * queues.size() - 1);
-          const size_t r1 = prod / queues.size();
-          const size_t r2 = prod % queues.size();
+          const uint32_t prod = 
+            random::fast_uniform(uint32_t(0), 
+                                 uint32_t(queues.size() * queues.size() - 1));
+          const uint32_t r1 = prod / queues.size();
+          const uint32_t r2 = prod % queues.size();
           idx = (queues[r1].size() < queues[r2].size()) ? r1 : r2;  
         }
+        term.new_job(idx / multi);
         locks[idx].lock(); queues[idx].push_back(vid); locks[idx].unlock();
-        term.new_job(idx);
       }
     } // end of schedule
 
@@ -149,9 +150,9 @@ namespace graphlab {
         if(!queues[idx].empty()) {
           ret_vid = queues[idx].front();
           queues[idx].pop_front();
+          locks[idx].unlock();
           const bool get_success = vfun_set.test_and_get(ret_vid, ret_fun);
           ASSERT_TRUE(get_success);
-          locks[idx].unlock();
           return sched_status::NEW_TASK;          
         }
         locks[idx].unlock();
@@ -164,9 +165,9 @@ namespace graphlab {
           if(!queues[idx].empty()) {
             ret_vid = queues[idx].front();
             queues[idx].pop_front();
+            locks[idx].unlock();
             const bool get_success = vfun_set.test_and_get(ret_vid, ret_fun);
             ASSERT_TRUE(get_success);
-            locks[idx].unlock();
             return sched_status::NEW_TASK;          
           }
           locks[idx].unlock();
