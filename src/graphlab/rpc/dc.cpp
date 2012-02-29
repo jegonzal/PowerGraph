@@ -189,66 +189,83 @@ void distributed_control::exec_function_call(procid_t source,
 }
 
 void distributed_control::deferred_function_call_chunk(char* buf, size_t len) {
-  fcallqueue[0].
-      enqueue(function_call_block(buf, len));
+  fcallqueue_entry* fc = new fcallqueue_entry;
+  fc->chunk_src = buf;
+  fc->chunk_len = len;
+  fc->chunk_ref_counter = NULL;
+  fc->is_chunk = true;
+  fcallqueue[0].enqueue(fc);
 }
 
-void distributed_control::deferred_function_call(const dc_impl::packet_hdr& hdr,
-                                                char* buf, size_t len,char* chunk,
-                                                atomic<size_t>* refctr) {
 
-  if (hdr.sequentialization_key == 0) {
-    // fcallqueue[random::fast_uniform<size_t>(0, fcallqueue.size() - 1)].
-    //   enqueue_conditional_signal(function_call_block(source, hdr, buf, len), buffer_size_wait);
-    fcallqueue[random::fast_uniform<size_t>(1, fcallqueue.size() - 1)].
-      enqueue(function_call_block(hdr.packet_type_mask, hdr.src, buf, len, chunk, refctr));
-
-  }
-  else {
-    fcallqueue[1 + (hdr.sequentialization_key % (fcallqueue.size() - 1))].
-      enqueue(function_call_block(hdr.packet_type_mask, hdr.src, buf, len, chunk, refctr));
-  }
-}
-
-void distributed_control::process_fcall_block(function_call_block &fcallblock) {
+void distributed_control::process_fcall_block(fcallqueue_entry &fcallblock) {
   if (fcallblock.is_chunk == false) {
-    exec_function_call(fcallblock.source, fcallblock.packet_mask,
-                       fcallblock.data, fcallblock.len);
+    for (size_t i = 0;i < fcallblock.calls.size(); ++i) {
+      exec_function_call(fcallblock.source, fcallblock.calls[i].packet_mask,
+                        fcallblock.calls[i].data, fcallblock.calls[i].len);
+    }
     if (fcallblock.chunk_ref_counter != NULL) {
-      if (fcallblock.chunk_ref_counter->dec() == 0) {
+      if (fcallblock.chunk_ref_counter->dec(fcallblock.calls.size()) == 0) {
         delete fcallblock.chunk_ref_counter;
         free(fcallblock.chunk_src);
       }
     }
   }
   else {
-    //parse the data in fcallblock.data
-    char* data = fcallblock.data;
-    size_t remaininglen = fcallblock.len;
+    fcallqueue_entry* queuebufs[fcallqueue.size()];
     atomic<size_t>* refctr = new atomic<size_t>(0);
-    refctr->inc();
     
+    for (size_t i = 0;i < fcallqueue.size(); ++i) {
+      queuebufs[i] = new fcallqueue_entry;
+      queuebufs[i]->chunk_src = fcallblock.chunk_src;
+      queuebufs[i]->chunk_ref_counter = fcallblock.chunk_ref_counter;
+      queuebufs[i]->chunk_len = 0;
+      queuebufs[i]->is_chunk = false;
+      // this is silly but we do not know the source yet...
+    }
+    procid_t src;
+    
+    //parse the data in fcallblock.data
+    char* data = fcallblock.chunk_src;
+    size_t remaininglen = fcallblock.chunk_len;
+
+    size_t stripe = 1;
     while(remaininglen > 0) {
       ASSERT_GE(remaininglen, sizeof(dc_impl::packet_hdr));
       dc_impl::packet_hdr hdr = *reinterpret_cast<dc_impl::packet_hdr*>(data);
       ASSERT_LE(hdr.len, remaininglen);
+      src = hdr.src;
+      
       if ((hdr.packet_type_mask & CONTROL_PACKET) == 0) {
         global_bytes_received[hdr.src].inc(hdr.len);
       }
-      refctr->inc();
-//      exec_function_call(hdr.src, hdr.packet_type_mask,
-//                        data + sizeof(dc_impl::packet_hdr), hdr.len);
-
-      deferred_function_call(hdr, data + sizeof(dc_impl::packet_hdr),
-                             hdr.len, fcallblock.data, refctr);
+      refctr->value++;
+      if (hdr.sequentialization_key == 0) {
+        queuebufs[stripe]->calls.push_back(function_call_block(
+                                            data + sizeof(dc_impl::packet_hdr), 
+                                            hdr.len,
+                                            hdr.packet_type_mask));
+        ++stripe;
+        if (stripe == fcallqueue.size()) stripe = 1;
+      }
+      else {
+        size_t idx = 1 + (hdr.sequentialization_key % (fcallqueue.size() - 1));
+        queuebufs[idx]->calls.push_back(function_call_block(
+                                            data + sizeof(dc_impl::packet_hdr), 
+                                            hdr.len,
+                                            hdr.packet_type_mask));
+      }
       data += sizeof(dc_impl::packet_hdr) + hdr.len;
       remaininglen -= sizeof(dc_impl::packet_hdr) + hdr.len;
     }
-
-    // decrement reference counter
-    if (refctr->dec() == 0) {
-      delete refctr;
-      free(fcallblock.data);
+    for (size_t i = 0;i < fcallqueue.size(); ++i) { 
+      if (queuebufs[i]->calls.size() > 0) {
+        queuebufs[i]->source = src;
+        fcallqueue[i].enqueue(queuebufs[i]);
+      }
+      else {
+        delete queuebufs[i];
+      }
     }
   }
 }
@@ -260,14 +277,15 @@ void distributed_control::fcallhandler_loop(size_t id) {
     fcallqueue[id].wait_for_data();
     if (fcallqueue[id].is_alive() == false) break;
     
-    std::deque<function_call_block> q;
+    std::deque<fcallqueue_entry*> q;
     fcallqueue[id].swap(q);
     while (!q.empty()) {
-      function_call_block entry;
+      fcallqueue_entry* entry;
       entry = q.front();
       q.pop_front();
       
-      process_fcall_block(entry);
+      process_fcall_block(*entry);
+      delete entry;
     }
     //  std::cerr << "Handler " << id << " died." << std::endl;
   }

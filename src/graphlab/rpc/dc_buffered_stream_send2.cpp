@@ -82,7 +82,7 @@ namespace dc_impl {
      * (as compared to the thread wake up time.)
      * I would like to buffer it otherwise. 
      */
-    return writebuffer.len >= 1024 * 1024;
+    return writebuffer.len >= 10 * 1024 * 1024;
     if (prevtime == 0) {
       prevtime = rdtsc();
     }

@@ -171,24 +171,12 @@ class distributed_control{
     struct function_call_block{
       function_call_block() {}
 
-      function_call_block(char* data, size_t len):
-                          data(data), len(len), chunk_src(NULL),
-                          chunk_ref_counter(NULL), is_chunk(true),
-                          source((procid_t)-1), packet_mask(0) {}
-
-      function_call_block(unsigned char packet_mask, procid_t source,
-                          char* data, size_t len,
-                          char* chunk_src, atomic<size_t>* refctr):
-                          data(data), len(len), chunk_src(chunk_src),
-                          chunk_ref_counter(refctr), is_chunk(false),
-                          source(source), packet_mask(packet_mask){}
+      function_call_block(char* data, size_t len,
+                          unsigned char packet_mask):
+                          data(data), len(len), packet_mask(packet_mask){}
 
       char* data;
       size_t len;
-      char* chunk_src;
-      atomic<size_t>* chunk_ref_counter;
-      bool is_chunk;
-      procid_t source;
       unsigned char packet_mask;
     };
   private:
@@ -209,8 +197,16 @@ class distributed_control{
   /// A thread group of function call handlers
   thread_group fcallhandlers;
   
+  struct fcallqueue_entry {
+    std::vector<function_call_block> calls;
+    char* chunk_src;
+    size_t chunk_len;
+    atomic<size_t>* chunk_ref_counter;
+    procid_t source;
+    bool is_chunk;
+  };
   /// a queue of functions to be executed
-  std::vector<blocking_queue<function_call_block> > fcallqueue;
+  std::vector<blocking_queue<fcallqueue_entry*> > fcallqueue;
 
   /// object registrations;
   std::vector<void*> registered_objects;
@@ -412,18 +408,9 @@ class distributed_control{
   
   
   /**
-  Performs a deferred function call using the information
-  inside the buffer. This function will take over ownership of 
-  the buffer and will free it when done
-  */
-  void deferred_function_call(const dc_impl::packet_hdr& hdr,
-                              char* buf, size_t len, char* chunk = NULL,
-                              atomic<size_t>* refctr = NULL);
-
-  /**
    * Called by handler threads to process the function call block
    */
-  void process_fcall_block(function_call_block &fcallblock);
+  void process_fcall_block(fcallqueue_entry &fcallblock);
   /**
    * Receive a collection of serialized function calls.
    * This function will take ownership of the pointer
