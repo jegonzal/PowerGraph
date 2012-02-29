@@ -184,6 +184,9 @@ namespace graphlab {
 
     iterminator& terminator() { return term; }
 
+    size_t num_joins() const {
+      return vfun_set.num_joins();
+    }
     /**
      * Print a help string describing the options that this scheduler
      * accepts.

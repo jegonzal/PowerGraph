@@ -179,6 +179,10 @@ namespace graphlab {
 
     iterminator& terminator() { return term; }
 
+    size_t num_joins() const {
+      return vfun_set.num_joins();
+    }
+
     static void print_options_help(std::ostream& out) { 
       out << "\t mult=3: number of queues per thread." << std::endl;
     }

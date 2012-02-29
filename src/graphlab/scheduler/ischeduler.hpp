@@ -142,7 +142,13 @@ namespace graphlab {
      */
     virtual iterminator& terminator() = 0;
     
-
+    /**
+     * Optional to implement. Count the number of update function +=
+     * operations performed. Returns (size_t)(-1) if not available.
+     */
+    virtual size_t num_joins() const {
+      return (size_t)(-1);
+    }
 
     /**
      * Print a help string describing the options that this scheduler
