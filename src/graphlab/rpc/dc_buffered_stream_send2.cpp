@@ -30,7 +30,6 @@
 namespace graphlab {
 namespace dc_impl {
 
-  double dc_buffered_stream_send2::calls_per_ms = 0;
   atomic<size_t> dc_buffered_stream_send2::callcount;
   unsigned long long dc_buffered_stream_send2::prevtime = 0;
   mutex dc_buffered_stream_send2::callcountmutex;
@@ -82,25 +81,7 @@ namespace dc_impl {
      * (as compared to the thread wake up time.)
      * I would like to buffer it otherwise. 
      */
-    return writebuffer.len >= 5 * 1024 * 1024;
-    if (prevtime == 0) {
-      prevtime = rdtsc();
-    }
-    else {
-      unsigned long long curtime = rdtsc();
-      callcount.inc();
-      if (curtime - prevtime > rtdsc_per_ms && callcountmutex.try_lock()) {
-        calls_per_ms = (calls_per_ms + double(callcount)  * rtdsc_per_ms / (curtime - prevtime)) / 2;
-        callcount = 0;
-        prevtime = curtime;
-        callcountmutex.unlock();
-//        std::cout << calls_per_ms << std::endl;
-      }
-      if (calls_per_ms < 50) {
-        return true;
-      }
-    }
-    return false;
+    return writebuffer.len >= buffer_length_trigger;
   }
 
   void dc_buffered_stream_send2::send_data(procid_t target, 
@@ -174,6 +155,8 @@ namespace dc_impl {
         // fill in the chunk header with the length of the chunk
         *reinterpret_cast<block_header_type*>(sendbuffer.str) = (block_header_type)(sendbuffer.len - sizeof(block_header_type));
         comm->send(target, sendbuffer.str, sendbuffer.len);
+        buffer_length_trigger = (buffer_length_trigger + std::min(buffer_length_trigger, sendbuffer.len)) / 2;
+        buffer_length_trigger += (buffer_length_trigger == 0);
         // shrink if we are not using much buffer
         if (sendbuffer.len < sendbuffer.buffer_size / 2 
             && sendbuffer.buffer_size > 10240) {
@@ -233,6 +216,10 @@ namespace dc_impl {
     if (opt == "nanosecond_wait") {
       prevval = nanosecond_wait;
       nanosecond_wait = val;
+    }
+    else if (opt == "max_buffer_length") {
+      prevval = max_buffer_length;
+      max_buffer_length = val;
     }
     return prevval;
   }

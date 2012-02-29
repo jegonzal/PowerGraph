@@ -66,6 +66,8 @@ class dc_buffered_stream_send2: public dc_send{
                                    procid_t target) : 
                   dc(dc),  comm(comm), target(target), done(false), 
                   flush_flag(false), return_signal(false),
+                  buffer_length_trigger(5*1024*1024), 
+                  max_buffer_length(5*1024*1024),
                   rtdsc_per_ms(estimate_ticks_per_second() / 1000) {
     char bufpad[sizeof(block_header_type)];
     writebuffer.write(bufpad, sizeof(block_header_type));
@@ -146,7 +148,8 @@ class dc_buffered_stream_send2: public dc_send{
   bool return_signal;
   conditional flush_return_cond;
   
-  static double calls_per_ms;
+  size_t buffer_length_trigger;
+  size_t max_buffer_length;
   
   size_t nanosecond_wait;
   static unsigned long long prevtime;
