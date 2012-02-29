@@ -181,9 +181,7 @@ namespace graphlab {
         begin_iter(lgraph_edge_list.begin(), edge_functor(graph_ptr)),
         end_iter(lgraph_edge_list.end(), edge_functor(graph_ptr)) { }
       size_t size() const { return end_iter - begin_iter; }
-      edge_type operator[](size_t i) const {
-        ASSERT_LT(i, size()); return *(begin_iter + i);
-      }
+      edge_type operator[](size_t i) const { return *(begin_iter + i); }
       const_iterator begin() const { return begin_iter; }
       const_iterator end() const { return end_iter; }
       bool empty() const { return size() == 0; }  
