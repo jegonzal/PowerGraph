@@ -712,7 +712,22 @@ class distributed_chandy_misra {
     rmi.dc().set_sequentialization_key(pkey);
     local_philosopher_stops_eating(p_id);
   }
-  
+
+  void philosopher_stops_eating_local_party(vertex_id_type p_id) {
+    const vertex_record &rec = distgraph.l_get_vertex_record(p_id);
+    if (rec.get_owner() == rmi.procid()) {
+      logstream(LOG_DEBUG) << rmi.procid() <<
+              ": Global STOP Eating " << distgraph.global_vid(p_id) << std::endl;
+
+      philosopherset[p_id].lock.lock();
+      ASSERT_EQ(philosopherset[p_id].state, (int)EATING);
+      philosopherset[p_id].counter = 0;
+      philosopherset[p_id].lock.unlock();
+    }
+    local_philosopher_stops_eating(p_id);
+  }
+
+
   void no_locks_consistency_check() {
     // make sure all forks are dirty
     for (size_t i = 0;i < forkset.size(); ++i) ASSERT_TRUE(fork_dirty(i));

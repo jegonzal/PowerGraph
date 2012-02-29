@@ -700,6 +700,10 @@ namespace graphlab {
 
           do_scatter(lvid);
           completed_tasks.inc();
+          BEGIN_TRACEPOINT(disteng_chandy_misra);
+          cmlocks->philosopher_stops_eating_local_party(lvid);
+          END_TRACEPOINT(disteng_chandy_misra);
+
           if (vstate[lvid].hasnext) {
             // stick next back into the scheduler
             schedule_local(lvid, vstate[lvid].next);
@@ -707,15 +711,13 @@ namespace graphlab {
           } 
           vstate[lvid].current = update_functor_type();
           vstate[lvid].state = NONE;
-          BEGIN_TRACEPOINT(disteng_chandy_misra);
-          cmlocks->philosopher_stops_eating(lvid);
-          END_TRACEPOINT(disteng_chandy_misra);
           break;
         }
       case MIRROR_SCATTERING: {
           logstream(LOG_DEBUG) << rmi.procid() << ": Scattering: " 
                               << graph.global_vid(lvid) << ": MIRROR_SCATTERING" << std::endl;
           do_scatter(lvid);
+          cmlocks->philosopher_stops_eating_local_party(lvid);
           if(vstate[lvid].hasnext) {
             vstate[lvid].state = MIRROR_GATHERING;
             vstate[lvid].current = vstate[lvid].next;
@@ -852,7 +854,7 @@ namespace graphlab {
       issued_tasks.inc();
       if (prelocked == false) {
         BEGIN_TRACEPOINT(disteng_waiting_for_vstate_locks);
-        vstate_locks[sched_lvid].lock();\
+        vstate_locks[sched_lvid].lock();
         END_TRACEPOINT(disteng_waiting_for_vstate_locks);
       }
       if (vstate[sched_lvid].state == NONE) {
