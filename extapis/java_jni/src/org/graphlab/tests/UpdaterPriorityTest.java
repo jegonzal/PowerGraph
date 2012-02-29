@@ -35,6 +35,7 @@ public class UpdaterPriorityTest {
   @Test
   public void testPriority(){
     
+    // update counter
     final AtomicInteger flag = new AtomicInteger(0);
     
     // load graph
@@ -43,28 +44,29 @@ public class UpdaterPriorityTest {
     graph.addVertex(new ScalarVertex(0));
     graph.addVertex(new ScalarVertex(1));
     
-    core.setSchedulerType(Scheduler.PRIORITY);
-    core.setNCpus(1);
+    core.setSchedulerType(Scheduler.PRIORITY);  // priority scheduler
+    core.setNCpus(1); // serial execution
     core.setGraph(graph);
     
     Iterator<ScalarVertex> it = graph.vertexSet().iterator();
     
-    core.schedule(it.next(), new Updater<ScalarVertex>(){
+    core.schedule(it.next(), new FlagUpdater(){
       @Override
       public void update(Context context, ScalarVertex vertex) {
         synchronized(flag){
+          // this should be incremented second
           assertEquals(flag.getAndIncrement(), 1);
         }
       }
       @Override
-      public double priority(){ return 6; }
+      public double priority(){ return 6; } // low priority
       @Override
-      protected Updater<ScalarVertex> clone() {
+      protected FlagUpdater clone() {
         return this;
       }
     });
     
-    core.schedule(it.next(), new Updater<ScalarVertex>(){
+    core.schedule(it.next(), new FlagUpdater(){
       @Override
       public void update(Context context, ScalarVertex v) {
         synchronized(flag){
@@ -73,9 +75,9 @@ public class UpdaterPriorityTest {
         }
       }
       @Override
-      public double priority(){ return 10; }
+      public double priority(){ return 10; } // high priority
       @Override
-      protected Updater<ScalarVertex> clone() {
+      protected FlagUpdater clone() {
         return this;
       }
     });
@@ -88,5 +90,7 @@ public class UpdaterPriorityTest {
   public void tearDown() throws Exception {
     core.destroy();
   }
+  
+  private abstract class FlagUpdater extends Updater<ScalarVertex, FlagUpdater>{}
 
 }

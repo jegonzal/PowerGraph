@@ -68,7 +68,7 @@ public class AddUpdaterTest {
    * value of its counter.
    * @author Jiunn Haur Lim <jiunnhal@cmu.edu>
    */
-  private static class CounterUpdater extends Updater<ScalarVertex> {
+  private static class CounterUpdater extends Updater<ScalarVertex, CounterUpdater> {
 
     private Graph<ScalarVertex, DefaultWeightedEdge> mGraph;
     
@@ -104,14 +104,14 @@ public class AddUpdaterTest {
      * @see org.graphlab.Updater#add(org.graphlab.Updater)
      */
     @Override
-    public void add(Updater<ScalarVertex> updater) {
+    public void add(CounterUpdater updater) {
       if (!(updater instanceof CounterUpdater)) return;
       CounterUpdater cu = (CounterUpdater) updater;
       counter += cu.counter;
     }
 
     @Override
-    protected Updater<ScalarVertex> clone() {
+    protected CounterUpdater clone() {
       CounterUpdater clone = new CounterUpdater(mGraph);
       clone.counter = counter;
       return clone;

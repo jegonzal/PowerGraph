@@ -69,14 +69,14 @@ public class BeforeStartConfigurationTest {
       Iterator<ScalarVertex> it = graph.vertexSet().iterator();
       
       // updater will set value to 1
-      core.schedule(it.next(), new Updater<ScalarVertex>(){
+      core.schedule(it.next(), new DefaultUpdater(){
         @Override
         public void update(Context context, ScalarVertex vertex) {
           vertex.setValue(1);
         }
 
         @Override
-        protected Updater<ScalarVertex> clone() {
+        protected DefaultUpdater clone() {
           return this;
         }
       });
@@ -110,14 +110,14 @@ public class BeforeStartConfigurationTest {
       
       // updater will set value to 1
       Iterator<ScalarVertex> it = graph.vertexSet().iterator();
-      core.schedule(it.next(), new Updater<ScalarVertex>(){
+      core.schedule(it.next(), new DefaultUpdater(){
         @Override
         public void update(Context context, ScalarVertex vertex) {
           vertex.setValue(1);
         }
 
         @Override
-        protected Updater<ScalarVertex> clone() {
+        protected DefaultUpdater clone() {
           return this;
         }
       });
@@ -151,14 +151,14 @@ public class BeforeStartConfigurationTest {
       
       // updater will set value to 1
       Iterator<ScalarVertex> it = graph.vertexSet().iterator();
-      core.schedule(it.next(), new Updater<ScalarVertex>(){
+      core.schedule(it.next(), new DefaultUpdater(){
         @Override
         public void update(Context context, ScalarVertex vertex) {
           vertex.setValue(1);
         }
 
         @Override
-        protected Updater<ScalarVertex> clone() {
+        protected DefaultUpdater clone() {
           return this;
         }
       });
@@ -177,4 +177,6 @@ public class BeforeStartConfigurationTest {
     
   }
 
+  private abstract class DefaultUpdater extends Updater<ScalarVertex, DefaultUpdater> {}
+  
 }
