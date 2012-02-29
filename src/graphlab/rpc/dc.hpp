@@ -171,9 +171,10 @@ class distributed_control{
     struct function_call_block{
       function_call_block() {}
 
-      function_call_block(char* data, size_t len, bool is_chunk):
+      function_call_block(char* data, size_t len):
                           data(data), len(len), chunk_src(NULL),
-                          chunk_ref_counter(NULL), is_chunk(is_chunk) {}
+                          chunk_ref_counter(NULL), is_chunk(true),
+                          source((procid_t)-1), packet_mask(0) {}
 
       function_call_block(unsigned char packet_mask, procid_t source,
                           char* data, size_t len,
@@ -572,8 +573,6 @@ class distributed_control{
   __attribute__((__deprecated__)) dc_services& services();
   
   /// \endcond
-<<<<<<< local
-=======
   
   /**
    This comm barrier is not a true "barrier" but is

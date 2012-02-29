@@ -180,7 +180,7 @@ namespace graphlab {
   
  
 #ifdef COMM_DEBUG
-      logstream(LOG_INFO) << len << " bytes --> " << target  << std::endl;
+      logstream(LOG_INFO) << len1+len2 << " bytes --> " << target  << std::endl;
 #endif
       // amount of data to transmit
       size_t dataleft = len1 + len2;
@@ -222,15 +222,6 @@ namespace graphlab {
     }
 
     int dc_tcp_comm::sendtosock(int sockfd, const char* buf, size_t len) {
-      if (len > 1024*1024) {
-        while (len > 0) {
-          size_t res = std::min(len, (size_t)1024*1024);
-          sendtosock(sockfd, buf, res);
-          buf += res;
-          len -= res;
-        }
-        return 0;
-      }
       size_t numsent = 0;
       BEGIN_TRACEPOINT(tcp_send_call);
       while (numsent < len) {

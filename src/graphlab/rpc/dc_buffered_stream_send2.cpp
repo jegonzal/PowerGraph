@@ -171,7 +171,8 @@ namespace dc_impl {
         sendlock.lock();
         sendbuffer.swap(writebuffer);
         lock.unlock();
-        *reinterpret_cast<block_header_type*>(sendbuffer.str) = (block_header_type)(sendbuffer.len);
+        // fill in the chunk header with the length of the chunk
+        *reinterpret_cast<block_header_type*>(sendbuffer.str) = (block_header_type)(sendbuffer.len - sizeof(block_header_type));
         comm->send(target, sendbuffer.str, sendbuffer.len);
         // shrink if we are not using much buffer
         if (sendbuffer.len < sendbuffer.buffer_size / 2 

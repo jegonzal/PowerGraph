@@ -25,7 +25,7 @@ include(extern/metisextern.cmake)
 
 #build the graphlab library
 if(Sctp-FOUND)
-  set(sctp_source rpc/dc_sctp_comm.cpp)
+#  set(sctp_source rpc/dc_sctp_comm.cpp)
 endif()
 
 if (MPI_FOUND)
@@ -67,7 +67,7 @@ add_library(graphlab STATIC
   ${util_mpi_tools}
   rpc/dc_comm_base.cpp
   rpc/dc_tcp_comm.cpp
-  ${sctp_source}
+#  ${sctp_source}
   rpc/circular_char_buffer.cpp
   rpc/dc_stream_receive.cpp
   rpc/dc_buffered_stream_send2.cpp
@@ -88,10 +88,10 @@ if (MPI_FOUND)
 endif()
 
 
-if(Sctp-FOUND)
-  set_property(TARGET graphlab APPEND PROPERTY COMPILE_FLAGS -DHAS_SCTP)
-  target_link_libraries(graphlab sctp)
-endif()
+# if(Sctp-FOUND)
+#   set_property(TARGET graphlab APPEND PROPERTY COMPILE_FLAGS -DHAS_SCTP)
+#   target_link_libraries(graphlab sctp)
+# endif()
 
 
 

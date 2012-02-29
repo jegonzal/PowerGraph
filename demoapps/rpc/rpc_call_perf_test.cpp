@@ -209,17 +209,17 @@ int main(int argc, char** argv) {
   dc.barrier();
   teststruct ts(dc);
   ts.run_short_sends_0();
- /*   ts.run_short_sends_0();
+    ts.run_short_sends_0();
     ts.run_threaded_short_sends_0(2);
     ts.run_threaded_short_sends_0(4);
     ts.run_threaded_short_sends_0(8);
-    ts.run_threaded_short_sends_0(16); */
-    //ts.run_short_pod_sends_0();
-    /*ts.run_threaded_short_pod_sends_0(2);
+    ts.run_threaded_short_sends_0(16); 
+    ts.run_short_pod_sends_0();
+    ts.run_threaded_short_pod_sends_0(2);
     ts.run_threaded_short_pod_sends_0(4);
     ts.run_threaded_short_pod_sends_0(8);
-    ts.run_threaded_short_pod_sends_0(16);*/
-/*    ts.run_long_sends_0(1024);
+    ts.run_threaded_short_pod_sends_0(16);
+    ts.run_long_sends_0(1024);
     ts.run_threaded_long_sends_0(1024, 2);
     ts.run_threaded_long_sends_0(1024, 4);
     ts.run_threaded_long_sends_0(1024, 8);
@@ -228,7 +228,7 @@ int main(int argc, char** argv) {
     ts.run_threaded_long_sends_0(10240, 2);
     ts.run_threaded_long_sends_0(10240, 4);
     ts.run_threaded_long_sends_0(10240, 8);
-    ts.run_threaded_long_sends_0(10240, 16);*/
+    ts.run_threaded_long_sends_0(10240, 16);
 
   dc.barrier();
   mpi_tools::finalize();

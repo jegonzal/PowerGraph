@@ -41,7 +41,7 @@
 
 #include <graphlab/rpc/dc.hpp>
 #include <graphlab/rpc/dc_tcp_comm.hpp>
-#include <graphlab/rpc/dc_sctp_comm.hpp>
+//#include <graphlab/rpc/dc_sctp_comm.hpp>
 
 #include <graphlab/rpc/dc_stream_receive.hpp>
 #include <graphlab/rpc/dc_buffered_stream_send2.hpp>
@@ -139,6 +139,7 @@ distributed_control::~distributed_control() {
   
   size_t bytessent = bytes_sent();
   for (size_t i = 0;i < senders.size(); ++i) {
+    senders[i]->flush();
     senders[i]->shutdown();
     delete senders[i];
   }
@@ -189,7 +190,7 @@ void distributed_control::exec_function_call(procid_t source,
 
 void distributed_control::deferred_function_call_chunk(char* buf, size_t len) {
   fcallqueue[random::fast_uniform<size_t>(0, fcallqueue.size() - 1)].
-      enqueue(function_call_block(buf, len, true));
+      enqueue(function_call_block(buf, len));
 }
 
 void distributed_control::deferred_function_call(const dc_impl::packet_hdr& hdr,
@@ -224,26 +225,27 @@ void distributed_control::process_fcall_block(function_call_block &fcallblock) {
     //parse the data in fcallblock.data
     char* data = fcallblock.data;
     size_t remaininglen = fcallblock.len;
-    atomic<size_t>* refctr = new atomic<size_t>();
+    atomic<size_t>* refctr = new atomic<size_t>(0);
     refctr->inc();
     
     while(remaininglen > 0) {
       ASSERT_GE(remaininglen, sizeof(dc_impl::packet_hdr));
-      dc_impl::packet_hdr* hdr = reinterpret_cast<dc_impl::packet_hdr*>(data);
-      if ((hdr->packet_type_mask & CONTROL_PACKET) == 0) {
-        global_bytes_received[hdr->src].inc(hdr->len);
+      dc_impl::packet_hdr hdr = *reinterpret_cast<dc_impl::packet_hdr*>(data);
+      ASSERT_LE(hdr.len, remaininglen);
+      if ((hdr.packet_type_mask & CONTROL_PACKET) == 0) {
+        global_bytes_received[hdr.src].inc(hdr.len);
       }
       refctr->inc();
-      deferred_function_call(*hdr, data + sizeof(dc_impl::packet_hdr),
-                             hdr->len, fcallblock.data, refctr);
-      data += sizeof(dc_impl::packet_hdr) + hdr->len;
-      remaininglen -= sizeof(dc_impl::packet_hdr) + hdr->len;
+      deferred_function_call(hdr, data + sizeof(dc_impl::packet_hdr),
+                             hdr.len, fcallblock.data, refctr);
+      data += sizeof(dc_impl::packet_hdr) + hdr.len;
+      remaininglen -= sizeof(dc_impl::packet_hdr) + hdr.len;
     }
 
     // decrement reference counter
     if (refctr->dec() == 0) {
       delete refctr;
-      free(data);
+      free(fcallblock.data);
     }
   }
 }
@@ -320,14 +322,14 @@ void distributed_control::init(const std::vector<std::string> &machines,
     comm = new dc_impl::dc_tcp_comm();
     std::cerr << "TCP Communication layer constructed." << std::endl;
   }
-  else if (commtype == SCTP_COMM) {
+/*  else if (commtype == SCTP_COMM) {
     #ifdef HAS_SCTP
     comm = new dc_impl::dc_sctp_comm();
     std::cerr << "SCTP Communication layer constructed." << std::endl;
     #else
     logger(LOG_FATAL, "SCTP support was not compiled");
     #endif
-  }
+  }*/
   else {
     ASSERT_MSG(false, "Unexpected value for comm type");
   }
