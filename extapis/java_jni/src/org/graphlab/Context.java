@@ -40,7 +40,7 @@ public final class Context {
    * @throws NullPointerException
    *           if <tt>updater</tt> or <tt>vertex</tt> was null.
    */
-  public void schedule (Vertex vertex, Updater<?> updater){
+  public void schedule (Vertex vertex, Updater<?, ?> updater){
     
     if (null == updater || null == vertex)
       throw new NullPointerException("updater and vertex must not be null.");
@@ -61,6 +61,6 @@ public final class Context {
    * @param vertex
    *          graphlab id of vertex to update
    */
-  private native void schedule(long context_ptr, Updater<?> updater, int vertexId);
+  private native void schedule(long context_ptr, Updater<?, ?> updater, int vertexId);
   
 }

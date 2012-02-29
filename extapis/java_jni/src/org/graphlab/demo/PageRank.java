@@ -169,7 +169,7 @@ public class PageRank {
     
   }
 
-  private static class PageRankUpdater extends Updater<ScalarVertex> {
+  private static class PageRankUpdater extends Updater<ScalarVertex, PageRankUpdater> {
 
     /** Global reset probability */
     public static final double RESET_PROB = 0.15;
@@ -224,14 +224,12 @@ public class PageRank {
     }
     
     @Override
-    public void add(Updater<ScalarVertex> other){
-      if (!(other instanceof PageRankUpdater))
-        throw new IllegalStateException("incompatible updaters added.");
-      mPriority += ((PageRankUpdater) other).priority();
+    public void add(PageRankUpdater other){
+      mPriority += other.priority();
     }
 
     @Override
-    protected Updater<ScalarVertex> clone() {
+    protected PageRankUpdater clone() {
       return new PageRankUpdater(mGraph, mPriority);
     }
 

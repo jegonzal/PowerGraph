@@ -154,7 +154,7 @@ public class ShortestPath {
     
   }
   
-  private static class ShortestPathUpdater extends Updater<ScalarVertex> {
+  private static class ShortestPathUpdater extends Updater<ScalarVertex, ShortestPathUpdater> {
 
     private DirectedGraph<ScalarVertex, DefaultWeightedEdge> mGraph;
 
@@ -186,7 +186,7 @@ public class ShortestPath {
     }
 
     @Override
-    protected Updater<ScalarVertex> clone() {
+    protected ShortestPathUpdater clone() {
       return new ShortestPathUpdater(mGraph);
     }
 
