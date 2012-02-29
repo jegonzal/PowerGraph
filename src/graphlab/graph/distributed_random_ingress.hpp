@@ -157,6 +157,7 @@ namespace graphlab {
       BEGIN_TRACEPOINT(random_ingress_finalize);
       BEGIN_TRACEPOINT(random_ingress_recv_edges);
       edge_exchange.flush(); vertex_exchange.flush();
+      rpc.full_barrier();
       // add all the edges to the local graph --------------------------------
       {
         typedef typename buffered_exchange<edge_buffer_record>::buffer_type 

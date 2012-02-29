@@ -84,6 +84,7 @@ namespace graphlab {
 
 
     /// The type of the local graph used to store the graph data 
+    // typedef graphlab::graph<VertexData, EdgeData> local_graph_type;
     typedef graphlab::graph2<VertexData, EdgeData> local_graph_type;
 
     typedef idistributed_ingress<VertexData, EdgeData> 
@@ -459,7 +460,7 @@ namespace graphlab {
     /** The map from global vertex ids to vertex records */
     lvid2record_type lvid2record;
     
-    /** The map from local vertex ids back to global vertex ids */
+    /** The map from global vertex ids back to local vertex ids */
     boost::unordered_map<vertex_id_type, lvid_type> vid2lvid;
         
     /** The global number of vertices and edges */

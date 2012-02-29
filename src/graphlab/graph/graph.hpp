@@ -156,6 +156,7 @@ namespace graphlab {
 
     /** The type of the edge data stored in the graph */
     typedef EdgeData   edge_data_type;
+
     
     /** This class represents an edge with source() and target()*/
     class edge_type {
@@ -165,6 +166,9 @@ namespace graphlab {
                 const edge_id_type id) : 
         graph_ptr(graph_ptr), _id(id) { }     
     public:
+      // part of type interface for graph.
+      enum edge_dir{OUTEDGE, INEDGE, NONE};
+
       edge_type() : graph_ptr(NULL), _id(-1) { }
       inline vertex_id_type source() const {
         ASSERT_FALSE(empty()); 
@@ -340,6 +344,9 @@ namespace graphlab {
      */
     void add_edge(vertex_id_type source, vertex_id_type target, 
                   const EdgeData& edata = EdgeData());
+
+    void add_block_edges(std::vector<vertex_id_type> sourceArray, std::vector<vertex_id_type> targetArray, std::vector<EdgeData> edata);
+
 
 
     /** \brief Returns the vertex color of a vertex.
@@ -665,6 +672,14 @@ namespace graphlab {
        edge_id_less(*(out_edge_ids[source].end()-2),
                     *(out_edge_ids[source].end()-1)));
   } // End of add edge
+
+  template<typename VertexData, typename EdgeData>
+  void graph<VertexData, EdgeData>:: 
+  add_block_edges(std::vector<vertex_id_type> sourceArray, std::vector<vertex_id_type> targetArray, std::vector<EdgeData> edata) {
+    for (size_t i = 0; i < sourceArray.size(); ++i) {
+      add_edge(sourceArray[i], targetArray[i], edata[i]);
+    }
+  }
 
 
 
