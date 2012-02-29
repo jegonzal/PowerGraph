@@ -66,11 +66,11 @@ namespace graphlab {
     
   /// \brief scope types
   enum consistency_model {
+    DEFAULT_CONSISTENCY = 0,     ///< use externally described default
     NULL_CONSISTENCY,        ///< No locks are acquired at all
     VERTEX_CONSISTENCY,      ///< write to self. no lock on adjacent
     EDGE_CONSISTENCY,        ///< write to self, read from adjacent structures
     FULL_CONSISTENCY,        ///< write to self and adjacent structures
-    DEFAULT_CONSISTENCY,     ///< use externally described default
   };
 
 

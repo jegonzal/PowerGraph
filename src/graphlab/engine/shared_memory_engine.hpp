@@ -60,8 +60,9 @@
 #include <graphlab/graph/graph.hpp>
 
 #include <graphlab/context/icontext.hpp>
+#include <graphlab/context/context.hpp>
 #include <graphlab/context/iglobal_context.hpp>
-#include <graphlab/context/context_manager.hpp>
+#include <graphlab/engine/rw_lock_manager.hpp>
 
 #include <graphlab/scheduler/ischeduler.hpp>
 #include <graphlab/scheduler/scheduler_factory.hpp>
@@ -98,7 +99,7 @@ namespace graphlab {
     
     typedef typename iengine_base::icontext_type  icontext_type;
     typedef context<shared_memory_engine>         context_type;
-    typedef context_manager<shared_memory_engine> context_manager_type;
+    typedef rw_lock_manager<graph_type>           lock_manager_type;
    
    
     typedef typename iengine_base::termination_function_type 
@@ -121,14 +122,23 @@ namespace graphlab {
      */
     size_t nverts;
     
-    //! The context factory
-    context_manager_type* context_manager_ptr;
-    
+    /**
+     * The lock manager manages the locking of contexts.
+     */
+    lock_manager_type* lock_manager_ptr;
+
+    /** The default consistency model to use when none is provided by
+        the update function */
+    consistency_model default_consistency_model; 
+
     //! The scheduler
     ischeduler_type* scheduler_ptr;
+
     
-    //! A boolean indicating that tasks have been added to the
-    //! scheduler since the last run
+    /** 
+     * A boolean indicating that tasks have been added to the
+     * scheduler since the last run 
+     */
     bool new_tasks_added;
 
 
@@ -162,6 +172,7 @@ namespace graphlab {
      */
     struct thread_state_type {
       size_t update_count;
+      context_type context;
       char FALSE_CACHE_SHARING_PAD[64];
     }; //end of thread_state
     std::vector<thread_state_type> tls_array; 
@@ -434,10 +445,7 @@ namespace graphlab {
     DECLARE_TRACER(eng_evalbasic);
     DECLARE_TRACER(eng_lockrelease);
     DECLARE_EVENT_LOG(eventlog);
-    enum {
-      SCHEDULE_EVENT = 0,
-      UPDATE_EVENT = 1
-    };
+    enum { SCHEDULE_EVENT = 0, UPDATE_EVENT = 1 };
   }; // end of shared_memory engine
 
 
@@ -451,7 +459,7 @@ namespace graphlab {
   shared_memory_engine(graph_type& graph) : 
     graph(graph), 
     nverts(graph.num_vertices()),
-    context_manager_ptr(NULL),
+    lock_manager_ptr(NULL),
     scheduler_ptr(NULL),
     new_tasks_added(false),
     threads(opts.get_ncpus()),
@@ -610,9 +618,9 @@ namespace graphlab {
   clear() {
     join_all_threads();
     // Delete any local datastructures if necessary
-    if(context_manager_ptr != NULL) {
-      delete context_manager_ptr;
-      context_manager_ptr = NULL;
+    if(lock_manager_ptr != NULL) {
+      delete lock_manager_ptr;
+      lock_manager_ptr = NULL;
     }
     if(scheduler_ptr != NULL) {
       if(new_tasks_added) {
@@ -648,7 +656,7 @@ namespace graphlab {
 
     // Check internal data-structures
     ASSERT_EQ(graph.num_vertices(), nverts);
-    ASSERT_TRUE(context_manager_ptr != NULL);
+    ASSERT_TRUE(lock_manager_ptr != NULL);
     ASSERT_TRUE(scheduler_ptr != NULL);
     ASSERT_EQ(tls_array.size(), opts.get_ncpus());
     ASSERT_EQ(sync_vlocks.size(), nverts);
@@ -656,14 +664,14 @@ namespace graphlab {
     // -------------------- Reset Internal Counters ------------------------ //
     for(size_t i = 0; i < tls_array.size(); ++i) { // Reset thread local state
       tls_array[i].update_count = 0;
+      tls_array[i].context = context_type(this, &graph);
     }
     exec_status = execution_status::RUNNING;  // Reset active flag
     exception_message = NULL;
     start_time_millis = lowres_time_millis(); 
     // Initialize the scheduler
     scheduler_ptr->start();
-    // Initialize the context manager
-    context_manager_ptr->start();
+    
 
     // -------------------------- Initialize Syncs ------------------------- //
     {
@@ -907,7 +915,7 @@ namespace graphlab {
     // If everything is already properly initialized then we don't
     // need to do anything.
     if(nverts == graph.num_vertices() &&
-       context_manager_ptr != NULL &&
+       lock_manager_ptr != NULL &&
        scheduler_ptr != NULL &&
        !tls_array.empty()) {
       return;
@@ -931,15 +939,12 @@ namespace graphlab {
       ASSERT_TRUE(scheduler_ptr != NULL);
 
       // construct the context manager
-      ASSERT_TRUE(context_manager_ptr == NULL);
-      const consistency_model context_range =
+      ASSERT_TRUE(lock_manager_ptr == NULL);
+      default_consistency_model = 
         string_to_consistency_model(opts.get_scope_type());
-      context_manager_ptr = 
-        new context_manager_type(this,
-                                 &graph,
-                                 opts.get_ncpus(),
-                                 context_range);
-      ASSERT_TRUE(context_manager_ptr != NULL);
+      
+      lock_manager_ptr = new lock_manager_type(graph);
+      ASSERT_TRUE(lock_manager_ptr != NULL);
       
       // Determine if the engine should use affinities
       std::string affinity = "false";
@@ -1032,7 +1037,6 @@ namespace graphlab {
   shared_memory_engine<Graph, UpdateFunctor>::
   thread_mainloop(size_t cpuid) {  
     while(exec_status == execution_status::RUNNING) { run_once(cpuid); }
-    context_manager_ptr->flush_cache(cpuid);
   } // end of thread_mainloop
 
 
@@ -1046,9 +1050,6 @@ namespace graphlab {
       const size_t cpuid = random::fast_uniform<size_t>(0, last_cpuid);
       run_once(cpuid);
     }
-    // flush the final cache
-    for(size_t i = 0; i < opts.get_ncpus(); ++i) 
-      context_manager_ptr->flush_cache(i);
   } // end of run_simulated
 
 
@@ -1138,17 +1139,30 @@ namespace graphlab {
                           update_functor_type& ufun, 
                           size_t cpuid) {              
     BEGIN_TRACEPOINT(eng_locktime);
-    // Get the context
-    context_type& context = 
-      context_manager_ptr->get_context(cpuid, vid, ufun.consistency());
+    
+    // Determin the lock consistency level
+    const consistency_model ufun_consistency = ufun.consistency();
+    const consistency_model consistency = (ufun_consistency == DEFAULT_CONSISTENCY)?
+      default_consistency_model : ufun_consistency;
+    // Get and initialize the context
+    context_type& context = tls_array[cpuid].context;
+    context.init(vid, consistency);
+    switch(consistency) {
+    case VERTEX_CONSISTENCY: lock_manager_ptr->writelock_vertex(vid); break;
+    case FULL_CONSISTENCY: lock_manager_ptr->lock_full_context(vid); break;
+    default: lock_manager_ptr->lock_edge_context(vid); break;
+    } // end of lock switch
     END_AND_BEGIN_TRACEPOINT(eng_locktime, eng_basicupdate);
     // Apply the update functor
     ufun(context);
-    END_AND_BEGIN_TRACEPOINT(eng_basicupdate, eng_lockrelease);
     // Finish any pending transactions in the context
     context.commit();
-    // Release the context (and all corresponding locks)
-    context_manager_ptr->release_context(cpuid, context); 
+    END_AND_BEGIN_TRACEPOINT(eng_basicupdate, eng_lockrelease);
+    // release the locks
+    switch(consistency) {
+    case VERTEX_CONSISTENCY: lock_manager_ptr->release_vertex(vid); break;
+    default: lock_manager_ptr->release_context(vid); break;
+    } // end of lock switch
     END_TRACEPOINT(eng_lockrelease);
   }
 
@@ -1162,91 +1176,138 @@ namespace graphlab {
     CREATE_ACCUMULATING_TRACEPOINT(eng_locktime); 
     CREATE_ACCUMULATING_TRACEPOINT(eng_factorized);
     CREATE_ACCUMULATING_TRACEPOINT(eng_lockrelease);
-    // std::cout << "Running vid " << vid << " on " << cpuid << std::endl;
+
+    // Get and initialize the context
+    context_type& context = tls_array[cpuid].context;
     // Gather phase -----------------------------------------------------------
-    {
-      iglobal_context& context = context_manager_ptr->get_global_context(cpuid);
-      ufun.init_gather(context);
-    }
     const consistency_model gather_consistency = ufun.gather_consistency();
+    context.init(vid, gather_consistency);
+    iglobal_context& global_context = context; 
+    ufun.init_gather(global_context);
+
     if(ufun.gather_edges() == graphlab::IN_EDGES || 
        ufun.gather_edges() == graphlab::ALL_EDGES) {
       const edge_list_type edges = graph.in_edges(vid);
-
-      foreach(const edge_type& edge, edges) {
+      for(size_t i = 0; i < edges.size(); ++i) {
+        const vertex_id_type neighbor = edges[i].source();
+        // Lock the edge
         BEGIN_ACCUMULATING_TRACEPOINT(eng_locktime);
-        context_type& context = 
-          context_manager_ptr->get_single_edge_context(cpuid, vid, edge, 
-                                                       gather_consistency);
+        if(gather_consistency != NULL_CONSISTENCY) {
+          if(i > 0) { // if this is not the first lock
+            const vertex_id_type old_neighbor = edges[i-1].source();
+            lock_manager_ptr->swap_single_edge(vid, old_neighbor, neighbor);
+          } else lock_manager_ptr->lock_single_edge(vid, neighbor);
+        }
+        // Execute the gather
         END_AND_BEGIN_ACCUMULATING_TRACEPOINT(eng_locktime, eng_factorized);
-        ufun.gather(context, edge);
-        END_AND_BEGIN_ACCUMULATING_TRACEPOINT(eng_factorized, eng_lockrelease);
+        ufun.gather(context, edges[i]);
         context.commit();
-        context_manager_ptr->release_single_edge_context(cpuid, context, edge);
+        // Release the lock if necessary
+        END_AND_BEGIN_ACCUMULATING_TRACEPOINT(eng_factorized, eng_lockrelease);
+        if(gather_consistency != NULL_CONSISTENCY) {
+          if(i + 1 == edges.size()) // if this is the last lock
+            lock_manager_ptr->release_single_edge(vid, neighbor);
+        }
         END_ACCUMULATING_TRACEPOINT(eng_lockrelease);
-       }
-     }
-
+      }
+    } // end of gather in edges
+    
     if(ufun.gather_edges() == graphlab::OUT_EDGES ||
        ufun.gather_edges() == graphlab::ALL_EDGES) {
       const edge_list_type edges = graph.out_edges(vid);
-      foreach(const edge_type& edge, edges) {
+      for(size_t i = 0; i < edges.size(); ++i) {
+        const vertex_id_type neighbor = edges[i].target();
+        // Lock the edge
         BEGIN_ACCUMULATING_TRACEPOINT(eng_locktime);
-        context_type& context = 
-          context_manager_ptr->get_single_edge_context(cpuid, vid, edge, 
-                                                       gather_consistency);
+        if(gather_consistency != NULL_CONSISTENCY) {      
+          if(i > 0) { // if this is not the first lock
+            const vertex_id_type old_neighbor = edges[i-1].target();
+            lock_manager_ptr->swap_single_edge(vid, old_neighbor, neighbor);
+          } else lock_manager_ptr->lock_single_edge(vid, neighbor);
+        }
+        // Execute the gather
         END_AND_BEGIN_ACCUMULATING_TRACEPOINT(eng_locktime, eng_factorized);
-        ufun.gather(context, edge);
-        END_AND_BEGIN_ACCUMULATING_TRACEPOINT(eng_factorized, eng_lockrelease);
+        ufun.gather(context, edges[i]);
         context.commit();
-        context_manager_ptr->release_single_edge_context(cpuid, context, edge);
+        // Release the lock if necessary
+        END_AND_BEGIN_ACCUMULATING_TRACEPOINT(eng_factorized, eng_lockrelease);
+        if(gather_consistency != NULL_CONSISTENCY) {
+          if(i + 1 == edges.size()) // if this is the last lock
+            lock_manager_ptr->release_single_edge(vid, neighbor);
+        }
         END_ACCUMULATING_TRACEPOINT(eng_lockrelease);
       }
-    }
+    } // end of gather out edges
+
     // Apply phase ------------------------------------------------------------
+    context.init(vid, VERTEX_CONSISTENCY);
     BEGIN_ACCUMULATING_TRACEPOINT(eng_locktime);
-    context_type& context = 
-      context_manager_ptr->get_vertex_context(cpuid, vid);
+    lock_manager_ptr->writelock_vertex(vid);
     END_AND_BEGIN_ACCUMULATING_TRACEPOINT(eng_locktime, eng_factorized);
     ufun.apply(context);
+    context.commit(); 
     END_AND_BEGIN_ACCUMULATING_TRACEPOINT(eng_factorized, eng_lockrelease);
-    context.commit();
-    context_manager_ptr->release_context(cpuid, context);
+    lock_manager_ptr->release_vertex(vid);
     END_ACCUMULATING_TRACEPOINT(eng_lockrelease);
+
     // Scatter phase ----------------------------------------------------------
     const consistency_model scatter_consistency = ufun.scatter_consistency();
-    if(ufun.scatter_edges() == graphlab::IN_EDGES ||
+    context.init(vid, scatter_consistency);
+    if(ufun.scatter_edges() == graphlab::IN_EDGES || 
        ufun.scatter_edges() == graphlab::ALL_EDGES) {
       const edge_list_type edges = graph.in_edges(vid);
-      foreach(const edge_type& edge, edges) {
+      for(size_t i = 0; i < edges.size(); ++i) {
+        const vertex_id_type neighbor = edges[i].source();
+        // Lock the edge
         BEGIN_ACCUMULATING_TRACEPOINT(eng_locktime);
-        context_type& context = 
-          context_manager_ptr->get_single_edge_context(cpuid, vid, edge,
-                                                       scatter_consistency);
+        if(scatter_consistency != NULL_CONSISTENCY) {
+          if(i > 0) { // if this is not the first lock
+            const vertex_id_type old_neighbor = edges[i-1].source();
+            lock_manager_ptr->swap_single_edge(vid, old_neighbor, neighbor);
+          } else lock_manager_ptr->lock_single_edge(vid, neighbor);
+        }
+        // Execute the gather
         END_AND_BEGIN_ACCUMULATING_TRACEPOINT(eng_locktime, eng_factorized);
-        ufun.scatter(context, edge);
-        END_AND_BEGIN_ACCUMULATING_TRACEPOINT(eng_factorized, eng_lockrelease);
+        ufun.scatter(context, edges[i]);
         context.commit();
-        context_manager_ptr->release_single_edge_context(cpuid, context, edge);
+        // Release the lock if necessary
+        END_AND_BEGIN_ACCUMULATING_TRACEPOINT(eng_factorized, eng_lockrelease);
+        if(scatter_consistency != NULL_CONSISTENCY) {
+          if(i + 1 == edges.size()) // if this is the last lock
+            lock_manager_ptr->release_single_edge(vid, neighbor);
+        }
         END_ACCUMULATING_TRACEPOINT(eng_lockrelease);
       }
-    }
+    } // end of scatter in edges
+    
     if(ufun.scatter_edges() == graphlab::OUT_EDGES ||
        ufun.scatter_edges() == graphlab::ALL_EDGES) {
       const edge_list_type edges = graph.out_edges(vid);
-      foreach(const edge_type& edge, edges) {
+      for(size_t i = 0; i < edges.size(); ++i) {
+        const vertex_id_type neighbor = edges[i].target();
+        // Lock the edge
         BEGIN_ACCUMULATING_TRACEPOINT(eng_locktime);
-        context_type& context = 
-          context_manager_ptr->get_single_edge_context(cpuid, vid, edge,
-                                                       scatter_consistency);
+        if(scatter_consistency != NULL_CONSISTENCY) {      
+          if(i > 0) { // if this is not the first lock
+            const vertex_id_type old_neighbor = edges[i-1].target();
+            lock_manager_ptr->swap_single_edge(vid, old_neighbor, neighbor);
+          } else lock_manager_ptr->lock_single_edge(vid, neighbor);
+        }
+        // Execute the scatter
         END_AND_BEGIN_ACCUMULATING_TRACEPOINT(eng_locktime, eng_factorized);
-        ufun.scatter(context, edge);
-        END_AND_BEGIN_ACCUMULATING_TRACEPOINT(eng_factorized, eng_lockrelease);
+        ufun.scatter(context, edges[i]);
         context.commit();
-        context_manager_ptr->release_single_edge_context(cpuid, context, edge);
+        // Release the lock if necessary
+        END_AND_BEGIN_ACCUMULATING_TRACEPOINT(eng_factorized, eng_lockrelease);
+        if(scatter_consistency != NULL_CONSISTENCY) {
+          if(i + 1 == edges.size()) // if this is the last lock
+            lock_manager_ptr->release_single_edge(vid, neighbor);
+        }
         END_ACCUMULATING_TRACEPOINT(eng_lockrelease);
       }
-    }
+    } // end of scatter out edges
+
+
     STORE_ACCUMULATING_TRACEPOINT(eng_locktime);
     STORE_ACCUMULATING_TRACEPOINT(eng_factorized);
     STORE_ACCUMULATING_TRACEPOINT(eng_lockrelease);
