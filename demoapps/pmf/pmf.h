@@ -398,14 +398,17 @@ void problem_setup::verify_setup(){
 	logstream(LOG_WARNING) << "Markov chain burn in period is ignored in non-MCMC methods" << std::endl;
 
   if (ac.user_sparsity < 0.5 || ac.user_sparsity >= 1){
-	logstream(LOG_ERROR) << "user_sparsity of factor matrix has to be in the range [0.5 1)" << std::endl;
-        exit(1);
+	logstream(LOG_FATAL) << "user_sparsity of factor matrix has to be in the range [0.5 1)" << std::endl;
   }
   if (ac.movie_sparsity < 0.5 || ac.movie_sparsity >= 1){
-	logstream(LOG_ERROR) << "movie_sparsity of factor matrix has to be in the range [0.5 1)" << std::endl;
-        exit(1);
+	logstream(LOG_FATAL) << "movie_sparsity of factor matrix has to be in the range [0.5 1)" << std::endl;
   }
-
+    if (ac.minval == -DEF_MAX_VAL || ac.maxval == DEF_MAX_VAL){
+      if (ac.algorithm == SVD_PLUS_PLUS || ac.algorithm == TIME_SVD_PLUS_PLUS)
+         logstream(LOG_FATAL)<<"For SVD++/time-SVD++ you are required to specify min and max allowed matrix values using the flags --minval=XX, --maxval=XX. " << std::endl;
+      else 
+         logstream(LOG_WARNING)<<"It is recommended to set min and max allowed matrix values to improve prediction quality, using the flags --minval=XX, --maxval=XX" << std::endl;
+    }
 }
 
 template<> const graph_type *problem_setup::g(testtype type){ return gg[type]; }
