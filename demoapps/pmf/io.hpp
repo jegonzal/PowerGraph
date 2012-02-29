@@ -202,7 +202,7 @@ void fill_factors_uvt<graph_type_svdpp,vertex_data_svdpp>(){
       }
       else {
         set_row(ps.V, i-ps.M, data.pvec);
-        ps.svdpp_movie_bias[i] = data.bias;
+        ps.svdpp_movie_bias[i-ps.M] = data.bias;
       }
    }
    }
