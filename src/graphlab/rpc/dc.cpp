@@ -189,7 +189,7 @@ void distributed_control::exec_function_call(procid_t source,
 }
 
 void distributed_control::deferred_function_call_chunk(char* buf, size_t len) {
-  fcallqueue[random::fast_uniform<size_t>(0, fcallqueue.size() - 1)].
+  fcallqueue[0].
       enqueue(function_call_block(buf, len));
 }
 
@@ -200,12 +200,12 @@ void distributed_control::deferred_function_call(const dc_impl::packet_hdr& hdr,
   if (hdr.sequentialization_key == 0) {
     // fcallqueue[random::fast_uniform<size_t>(0, fcallqueue.size() - 1)].
     //   enqueue_conditional_signal(function_call_block(source, hdr, buf, len), buffer_size_wait);
-    fcallqueue[random::fast_uniform<size_t>(0, fcallqueue.size() - 1)].
+    fcallqueue[random::fast_uniform<size_t>(1, fcallqueue.size() - 1)].
       enqueue(function_call_block(hdr.packet_type_mask, hdr.src, buf, len, chunk, refctr));
 
   }
   else {
-    fcallqueue[hdr.sequentialization_key % fcallqueue.size()].
+    fcallqueue[1 + (hdr.sequentialization_key % (fcallqueue.size() - 1))].
       enqueue(function_call_block(hdr.packet_type_mask, hdr.src, buf, len, chunk, refctr));
   }
 }
@@ -236,6 +236,9 @@ void distributed_control::process_fcall_block(function_call_block &fcallblock) {
         global_bytes_received[hdr.src].inc(hdr.len);
       }
       refctr->inc();
+//      exec_function_call(hdr.src, hdr.packet_type_mask,
+//                        data + sizeof(dc_impl::packet_hdr), hdr.len);
+
       deferred_function_call(hdr, data + sizeof(dc_impl::packet_hdr),
                              hdr.len, fcallblock.data, refctr);
       data += sizeof(dc_impl::packet_hdr) + hdr.len;
