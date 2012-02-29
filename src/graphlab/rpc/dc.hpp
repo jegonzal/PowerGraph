@@ -48,6 +48,7 @@
 #include <graphlab/rpc/reply_increment_counter.hpp>
 #include <graphlab/rpc/function_ret_type.hpp>
 
+#include <graphlab/util/tracepoint.hpp>
 #include <boost/preprocessor.hpp>
 #include <graphlab/rpc/function_arg_types_def.hpp>
 
@@ -247,6 +248,9 @@ class distributed_control{
   
   metrics rpc_metrics;
   
+  DECLARE_TRACER(dc_receive_queuing);
+  DECLARE_TRACER(dc_receive_multiplexing);
+  DECLARE_TRACER(dc_call_dispatch);
  public:
    
 
@@ -257,6 +261,9 @@ class distributed_control{
          initparam.curmachineid, 
          initparam.numhandlerthreads,
          initparam.commtype);
+    INITIALIZE_TRACER(dc_receive_queuing, "dc: time spent on enqueue");
+    INITIALIZE_TRACER(dc_receive_multiplexing, "dc: time spent exploding a chunk");
+    INITIALIZE_TRACER(dc_call_dispatch, "dc: time spent issuing RPC calls");
   }
 
   distributed_control(const std::vector<std::string> &machines,

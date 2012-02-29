@@ -170,6 +170,7 @@ void distributed_control::exec_function_call(procid_t source,
                                             unsigned char packet_type_mask,
                                             const char* data,
                                             const size_t len) {
+  BEGIN_TRACEPOINT(dc_call_dispatch);
   // not a POD call
   if ((packet_type_mask & POD_CALL) == 0) {
     // extract the dispatch function
@@ -186,9 +187,11 @@ void distributed_control::exec_function_call(procid_t source,
     dispatch2(*this, source, packet_type_mask, data, len);
   }
   if ((packet_type_mask & CONTROL_PACKET) == 0) inc_calls_received(source);
+  END_TRACEPOINT(dc_call_dispatch);
 }
 
 void distributed_control::deferred_function_call_chunk(char* buf, size_t len, procid_t src) {
+  BEGIN_TRACEPOINT(dc_receive_queuing);
   fcallqueue_entry* fc = new fcallqueue_entry;
   fc->chunk_src = buf;
   fc->chunk_len = len;
@@ -196,6 +199,7 @@ void distributed_control::deferred_function_call_chunk(char* buf, size_t len, pr
   fc->is_chunk = true;
   fc->source = src;
   fcallqueue[0].enqueue(fc);
+  END_TRACEPOINT(dc_receive_queuing);
 }
 
 
@@ -213,6 +217,7 @@ void distributed_control::process_fcall_block(fcallqueue_entry &fcallblock) {
     }
   }
   else {
+    BEGIN_TRACEPOINT(dc_receive_multiplexing);
     fcallqueue_entry* queuebufs[fcallqueue.size()];
     atomic<size_t>* refctr = new atomic<size_t>(0);
     
@@ -257,6 +262,8 @@ void distributed_control::process_fcall_block(fcallqueue_entry &fcallblock) {
       data += sizeof(dc_impl::packet_hdr) + hdr.len;
       remaininglen -= sizeof(dc_impl::packet_hdr) + hdr.len;
     }
+    END_TRACEPOINT(dc_receive_multiplexing);
+    BEGIN_TRACEPOINT(dc_receive_queuing);
     for (size_t i = 0;i < fcallqueue.size(); ++i) { 
       if (queuebufs[i]->calls.size() > 0) {
         fcallqueue[i].enqueue(queuebufs[i]);
@@ -265,6 +272,7 @@ void distributed_control::process_fcall_block(fcallqueue_entry &fcallblock) {
         delete queuebufs[i];
       }
     }
+    END_TRACEPOINT(dc_receive_queuing);
   }
 }
 
