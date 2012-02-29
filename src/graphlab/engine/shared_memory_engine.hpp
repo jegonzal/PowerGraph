@@ -88,6 +88,11 @@ namespace graphlab {
     typedef iengine<Graph, UpdateFunctor> iengine_base;
     typedef typename iengine_base::graph_type graph_type;
     typedef typename iengine_base::update_functor_type update_functor_type;
+    typedef typename iengine_base::ischeduler_type ischeduler_type;
+    typedef typename iengine_base::icontext_type  icontext_type;
+    
+    typedef scheduler_factory<graph_type, update_functor_type> 
+    scheduler_factory_type;
     
     typedef typename graph_type::vertex_data_type vertex_data_type;
     typedef typename graph_type::vertex_id_type vertex_id_type;
@@ -95,16 +100,10 @@ namespace graphlab {
     typedef typename graph_type::edge_list_type edge_list_type;
     typedef typename graph_type::edge_type edge_type;
 
-    typedef ischeduler<shared_memory_engine>      ischeduler_type;
-    
-    typedef typename iengine_base::icontext_type  icontext_type;
     typedef context<shared_memory_engine>         context_type;
     typedef rw_lock_manager<graph_type>           lock_manager_type;
    
    
-    typedef typename iengine_base::termination_function_type 
-    termination_function_type;
-
     
   private:
 
@@ -185,13 +184,11 @@ namespace graphlab {
       size_t task_budget;
       size_t timeout_millis;
       mutex lock;
-      std::vector<termination_function_type> functions;
       termination_members() { clear(); }
       void clear() { 
         last_check_time_in_millis = 0;
         task_budget = 0;
-        timeout_millis = 0;
-        functions.clear();
+        timeout_millis = 0;   
       }
     };
     termination_members termination;
@@ -311,13 +308,13 @@ namespace graphlab {
                             const update_functor_type& update_fun);
 
 
-    /**
-     * \brief associate a termination function with this engine.
-     */
-    void add_termination_condition(termination_function_type term);
+    // /**
+    //  * \brief associate a termination function with this engine.
+    //  */
+    // void add_termination_condition(termination_function_type term);
 
-    //!  remove all associated termination functions
-    void clear_termination_conditions();
+    // //!  remove all associated termination functions
+    // void clear_termination_conditions();
     
     //! \brief The timeout is the total
     void set_timeout(size_t timeout_in_seconds = 0);
@@ -720,21 +717,21 @@ namespace graphlab {
 
 
 
-  template<typename Graph, typename UpdateFunctor> 
-  void
-  shared_memory_engine<Graph, UpdateFunctor>::
-  clear_termination_conditions() {      
-    termination.clear();
-  } // end of clear_termination_conditions
+  // template<typename Graph, typename UpdateFunctor> 
+  // void
+  // shared_memory_engine<Graph, UpdateFunctor>::
+  // clear_termination_conditions() {      
+  //   termination.clear();
+  // } // end of clear_termination_condition
 
 
-  template<typename Graph, typename UpdateFunctor> 
-  void
-  shared_memory_engine<Graph, UpdateFunctor>::
-  add_termination_condition(termination_function_type fun) {
-    ASSERT_TRUE(fun != NULL);
-    termination.functions.push_back(fun);
-  } // end of clear_termination_conditions
+  // template<typename Graph, typename UpdateFunctor> 
+  // void
+  // shared_memory_engine<Graph, UpdateFunctor>::
+  // add_termination_condition(termination_function_type fun) {
+  //   ASSERT_TRUE(fun != NULL);
+  //   termination.functions.push_back(fun);
+  // } // end of clear_termination_conditions
 
 
 
@@ -931,7 +928,7 @@ namespace graphlab {
       
       // construct the scheduler
       ASSERT_TRUE(scheduler_ptr == NULL);
-      scheduler_ptr = scheduler_factory<shared_memory_engine>::
+      scheduler_ptr = scheduler_factory_type::
         new_scheduler(opts.scheduler_type,
                       opts.scheduler_args,
                       graph,
@@ -1473,12 +1470,12 @@ namespace graphlab {
       exec_status = execution_status::TASK_BUDGET_EXCEEDED;
     }
     // ------------------ Check termination functions ---------------------- //
-    for (size_t i = 0; i < termination.functions.size() && 
-           exec_status == execution_status::RUNNING; ++i) {
-      if (termination.functions[i]()) {
-        exec_status = execution_status::TERM_FUNCTION;
-      }
-    }
+    // for (size_t i = 0; i < termination.functions.size() && 
+    //        exec_status == execution_status::RUNNING; ++i) {
+    //   if (termination.functions[i]()) {
+    //     exec_status = execution_status::TERM_FUNCTION;
+    //   }
+    // }
     // step the termination time forward
     termination.last_check_time_in_millis = lowres_time_millis();
     termination.lock.unlock();

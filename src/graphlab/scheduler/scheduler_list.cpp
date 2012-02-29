@@ -85,7 +85,6 @@ namespace graphlab {
 
 
   void print_scheduler_info(std::string s, std::ostream &out) {
-    typedef iengine<dummy_graph, dummy_functor> dummy_engine_type;
 
     // this is annoying... I need to instantiate the graph<char, char> type to
     // even call the scheduler
@@ -94,10 +93,10 @@ namespace graphlab {
       out << "\n";                                                      \
       out << BOOST_PP_TUPLE_ELEM(3,0,elem) << " scheduler\n";           \
       out << std::string(50, '-') << std::endl;                         \
-      out << add_line_breaks(BOOST_PP_TUPLE_ELEM(3,2,elem), 50) << "\n"; \
-      out << "Options: \n";                                             \
-      BOOST_PP_TUPLE_ELEM(3,1,elem)< dummy_engine_type                  \
-        >::print_options_help(out);                                     \
+      out << add_line_breaks(BOOST_PP_TUPLE_ELEM(3,2,elem), 50) << "\n" \
+          << "Options: \n";                                             \
+      BOOST_PP_TUPLE_ELEM(3,1,elem)< dummy_graph, dummy_functor>        \
+        ::print_options_help(out);                                      \
     }
     /*
      * if (scheduler == "sweep") {

@@ -53,14 +53,13 @@ namespace graphlab {
    * the shared master queue.  Once a processors out queue is empty it
    * grabs the next out_queue from the master.
    */
-  template<typename Engine>
-  class queued_fifo_scheduler : public ischeduler<Engine> {
+  template<typename Graph, typename UpdateFunctor>
+  class queued_fifo_scheduler : public ischeduler<Graph, UpdateFunctor> {
   
   public:
 
-    typedef ischeduler<Engine> base;
+    typedef ischeduler<Graph, UpdateFunctor> base;
     typedef typename base::graph_type graph_type;
-    typedef typename base::engine_type engine_type;
     typedef typename base::vertex_id_type vertex_id_type;
     typedef typename base::update_functor_type update_functor_type;
 

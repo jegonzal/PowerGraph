@@ -147,11 +147,15 @@ namespace graphlab {
     }; // end of class edge_type.
 
     // Internal iterator on edge_types.
-    class edge_iterator : 
-      public std::iterator<std::forward_iterator_tag, edge_type> {
+    class edge_iterator  {
     public:
+      typedef std::random_access_iterator_tag iterator_category;
+      typedef edge_type    value_type;
+      typedef ssize_t      difference_type;
+      typedef edge_type*   pointer;
+      typedef edge_type   reference;
+
       typedef typename edge_type::edge_dir iterator_type;
-      typedef edge_type reference;
     public:
       // Cosntructors
       edge_iterator () : offset(-1), empty(true) { }
@@ -200,14 +204,18 @@ namespace graphlab {
       }
 
 
-      inline int operator-(const edge_iterator& it) const {
+      inline ssize_t operator-(const edge_iterator& it) const {
         ASSERT_TRUE(!empty && itype == it.itype && center == it.center);
         return offset - it.offset;
       }
 
-      inline edge_iterator operator+(size_t i) const {
-        edge_iterator retval(center, offset+i, itype, vid_arr);
-        return retval;
+      inline edge_iterator operator+(difference_type i) const {
+        return edge_iterator(center, offset+i, itype, vid_arr);
+      }
+
+      inline edge_iterator& operator+=(difference_type i) {
+        offset+=i;
+        return *this;
       }
 
       // Generate the ret value of the iterator.

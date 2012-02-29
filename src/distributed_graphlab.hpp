@@ -32,6 +32,7 @@
 #include <graphlab/rpc/dc.hpp>
 #include <graphlab/rpc/dc_init_from_mpi.hpp>
 #include <graphlab/engine/distributed_engine2.hpp>
+#include <graphlab/engine/distributed_fscope_engine.hpp>
 #include <graphlab/graph/distributed_graph.hpp>
 
 

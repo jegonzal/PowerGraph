@@ -58,28 +58,11 @@
 
 namespace graphlab {
   
-  /**
-   * Used to lie to the scheduler about the graph type
-   */
-  template <typename Graph, typename UpdateFunctor>
-  class pseudo_engine {
-  public:
-    typedef iengine<Graph, UpdateFunctor> iengine_base;
-    typedef typename iengine_base::update_functor_type update_functor_type;
-
-    typedef typename Graph::local_graph_type graph_type;
-    
-    typedef typename graph_type::vertex_data_type vertex_data_type;
-    typedef typename graph_type::edge_list_type edge_list_type;
-    typedef typename graph_type::edge_type edge_type;
-    
-    typedef ischeduler<pseudo_engine<Graph, UpdateFunctor> > ischeduler_type;
-  };
   
 
   template<typename Graph, typename UpdateFunctor>
   class distributed_engine: public iengine<Graph, UpdateFunctor> {
-    
+      
   public:
     // Include parent types
     typedef iengine<Graph, UpdateFunctor> iengine_base;
@@ -95,15 +78,17 @@ namespace graphlab {
     typedef typename graph_type::edge_type edge_type;
     typedef typename graph_type::lvid_type lvid_type;
 
-    typedef ischeduler<pseudo_engine<Graph, UpdateFunctor> > ischeduler_type;
+    typedef ischeduler<local_graph_type, update_functor_type > ischeduler_type;
+    typedef scheduler_factory<local_graph_type, update_functor_type> 
+    scheduler_factory_type;
     
     typedef typename iengine_base::icontext_type  icontext_type;
     typedef context<distributed_engine>           context_type;
     //typedef context_manager<distributed_engine> context_manager_type;
    
     
-    typedef typename iengine_base::termination_function_type 
-    termination_function_type;
+    // typedef typename iengine_base::termination_function_type 
+    // termination_function_type;
     
     consistency_model context_range;
     
@@ -315,7 +300,7 @@ namespace graphlab {
      */
     void initialize() {
       logstream(LOG_INFO) << rmi.procid() << ": Initializing..." << std::endl;
-      scheduler_ptr = scheduler_factory<pseudo_engine<Graph, UpdateFunctor> >::
+      scheduler_ptr = scheduler_factory_type::
         new_scheduler(opts.scheduler_type,
                       opts.scheduler_args,
                       graph.get_local_graph(),
@@ -456,27 +441,27 @@ namespace graphlab {
     } // end of schedule neighbors
 
 
-    /**
-     * \brief associate a termination function with this engine.
-     *
-     * An engine can typically have many termination functions
-     * associated with it. A termination function is a function which
-     * takes a constant reference to the shared data and returns a
-     * boolean which is true if the engine should terminate execution.
-     *
-     * A termination function has the following type:
-     * \code
-     * bool term_fun(const ishared_data_type* shared_data)
-     * \endcode
-     */
-    void add_termination_condition(termination_function_type term) { 
-      rmi.barrier();
-    }
+    // /**
+    //  * \brief associate a termination function with this engine.
+    //  *
+    //  * An engine can typically have many termination functions
+    //  * associated with it. A termination function is a function which
+    //  * takes a constant reference to the shared data and returns a
+    //  * boolean which is true if the engine should terminate execution.
+    //  *
+    //  * A termination function has the following type:
+    //  * \code
+    //  * bool term_fun(const ishared_data_type* shared_data)
+    //  * \endcode
+    //  */
+    // void add_termination_condition(termination_function_type term) { 
+    //   rmi.barrier();
+    // }
 
-    //!  remove all associated termination functions
-    void clear_termination_conditions() { 
-      rmi.barrier();
-    };
+    // //!  remove all associated termination functions
+    // void clear_termination_conditions() { 
+    //   rmi.barrier();
+    // };
     
     /**
      *  \brief The timeout is the total

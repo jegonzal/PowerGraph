@@ -103,23 +103,23 @@ namespace graphlab {
 
 
     //! The type of scheduler
-    typedef ischeduler<iengine> ischeduler_type;
+    typedef ischeduler<graph_type, update_functor_type> ischeduler_type;
 
     //! The type of context 
     typedef icontext<graph_type, update_functor_type> icontext_type;
 
     
-    /**
-     * The termination function is a function that reads the shared
-     * data and returns true if the engine should terminate execution.
-     * The termination function is called at fixed millisecond
-     * intervals and therefore the engine may continue to execute even
-     * after a termination function evaluates to true.  Because
-     * termination functions are executed frequently and cannot
-     * directly contribut to the computation, they should return
-     * quickly.
-     */
-    typedef bool (*termination_function_type) ();
+    // /**
+    //  * The termination function is a function that reads the shared
+    //  * data and returns true if the engine should terminate execution.
+    //  * The termination function is called at fixed millisecond
+    //  * intervals and therefore the engine may continue to execute even
+    //  * after a termination function evaluates to true.  Because
+    //  * termination functions are executed frequently and cannot
+    //  * directly contribut to the computation, they should return
+    //  * quickly.
+    //  */
+    // typedef bool (*termination_function_type) ();
     
 
     //! Virtual destructor required for inheritance 
@@ -197,23 +197,23 @@ namespace graphlab {
                                     const update_functor_type& update_fun) = 0;
 
 
-    /**
-     * \brief associate a termination function with this engine.
-     *
-     * An engine can typically have many termination functions
-     * associated with it. A termination function is a function which
-     * takes a constant reference to the shared data and returns a
-     * boolean which is true if the engine should terminate execution.
-     *
-     * A termination function has the following type:
-     * \code
-     * bool term_fun(const ishared_data_type* shared_data)
-     * \endcode
-     */
-    virtual void add_termination_condition(termination_function_type term) = 0;
+    // /**
+    //  * \brief associate a termination function with this engine.
+    //  *
+    //  * An engine can typically have many termination functions
+    //  * associated with it. A termination function is a function which
+    //  * takes a constant reference to the shared data and returns a
+    //  * boolean which is true if the engine should terminate execution.
+    //  *
+    //  * A termination function has the following type:
+    //  * \code
+    //  * bool term_fun(const ishared_data_type* shared_data)
+    //  * \endcode
+    //  */
+    // virtual void add_termination_condition(termination_function_type term) = 0;
 
-    //!  remove all associated termination functions
-    virtual void clear_termination_conditions() = 0;
+    // //!  remove all associated termination functions
+    // virtual void clear_termination_conditions() = 0;
     
     /**
      *  \brief The timeout is the total

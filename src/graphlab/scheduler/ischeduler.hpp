@@ -66,13 +66,12 @@ namespace graphlab {
    * EXACTLY. Note that all functions (with the exception of the
    * constructor and destructor) must be thread-safe.
    */
-  template<typename Engine>
+  template<typename Graph, typename UpdateFunctor>
   class ischeduler {
   public:
 
-    typedef Engine engine_type;
-    typedef typename engine_type::graph_type           graph_type;
-    typedef typename engine_type::update_functor_type  update_functor_type;
+    typedef Graph graph_type;
+    typedef UpdateFunctor update_functor_type;
 
     typedef typename graph_type::vertex_id_type    vertex_id_type;
     typedef typename graph_type::edge_id_type      edge_id_type;

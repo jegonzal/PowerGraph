@@ -113,21 +113,25 @@ namespace graphlab {
     /** This class represents an edge with source() and target()*/
     class edge_type {
     private:
-      vertex_id_type _src;
-      vertex_id_type _tar;
-      edge_id_type _eid;
+      lvid_type lsrc, ltar;
+      vertex_id_type src,  tar;
+      edge_id_type eid;
       procid_t _owner;
       bool _empty;      
-      inline edge_id_type edge_id() const { return _eid; }
+      inline edge_id_type edge_id() const { return eid; }
       friend class distributed_graph;
     public:
-      edge_type (vertex_id_type src, vertex_id_type tar,
+      edge_type (lvid_type lsrc, lvid_type ltar,
+                 vertex_id_type src, vertex_id_type tar,
                  edge_id_type eid, procid_t owner):
-        _src(src), _tar(tar), _eid(eid), _owner(owner), _empty(false) { }
-      edge_type () : _src(-1), _tar(-1), _eid(-1), _owner(-1), _empty(true) { }
-      inline vertex_id_type source() const { ASSERT_FALSE(empty()); return _src; }
-      inline vertex_id_type target() const { ASSERT_FALSE(empty()); return _tar; }
-
+        lsrc(src), ltar(tar), src(src), tar(tar), eid(eid), 
+        _owner(owner), _empty(false) { }
+      edge_type () : lsrc(-1), ltar(-1), src(-1), tar(-1), eid(-1), 
+                     _owner(-1), _empty(true) { }
+      inline vertex_id_type source() const { return src; }
+      inline vertex_id_type target() const { return tar; }
+      inline lvid_type l_source() const { return lsrc; }
+      inline lvid_type l_target() const { return ltar; }
       procid_t owner() const { return _owner; }
       bool empty() const { return _empty; }
     }; // end of class edge_type.
@@ -150,13 +154,14 @@ namespace graphlab {
           if (edge.empty()) {
             return edge_type();
           } else {
-            ASSERT_TRUE(graph_ptr != NULL);
-            const vertex_id_type source = graph_ptr->global_vid(edge.source());
-            const vertex_id_type target = graph_ptr->global_vid(edge.target());
+            const lvid_type lsource = edge.source();
+            const lvid_type ltarget = edge.target();
+            const vertex_id_type source = graph_ptr->global_vid(lsource);
+            const vertex_id_type target = graph_ptr->global_vid(ltarget);
             const vertex_id_type eid = 
               graph_ptr->global_eid(graph_ptr->local_eid(edge));
             const procid_t owner = graph_ptr->rpc.procid();
-            return edge_type(source, target, eid, owner);
+            return edge_type(lsource, ltarget, source, target, eid, owner);
           }
         } // end of operator()
         const distributed_graph* graph_ptr;
@@ -168,7 +173,7 @@ namespace graphlab {
       typedef iterator const_iterator;
       typedef edge_type value_type;
     private:
-      const_iterator begin_iter, end_iter;      
+      const_iterator begin_iter, end_iter;
     public:
       local_edge_list_type(const distributed_graph* graph_ptr = NULL,
                            const lgraph_edge_list_type& lgraph_edge_list =
