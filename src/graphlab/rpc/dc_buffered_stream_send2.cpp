@@ -82,7 +82,7 @@ namespace dc_impl {
      * (as compared to the thread wake up time.)
      * I would like to buffer it otherwise. 
      */
-    return writebuffer.len >= 10 * 1024 * 1024;
+    return writebuffer.len >= 5 * 1024 * 1024;
     if (prevtime == 0) {
       prevtime = rdtsc();
     }
@@ -127,7 +127,7 @@ namespace dc_impl {
     writebuffer.write(reinterpret_cast<char*>(&hdr), sizeof(packet_hdr));
     writebuffer.write(data, len);
     bool send_decision = adaptive_send_decision();
-    if (send_decision && sendlock.try_lock()) {
+    /*if (0 && sendlock.try_lock()) {
       // try to immediately send if we have exceeded the threshold 
       // already nd we can acquire the lock
       sendbuffer.swap(writebuffer);
@@ -147,8 +147,8 @@ namespace dc_impl {
       char bufpad[sizeof(block_header_type)];
       sendbuffer.write(bufpad, sizeof(block_header_type));
       sendlock.unlock();
-    }
-    else if (prevwbufsize == sizeof(block_header_type) ||  send_decision) {
+    }*/
+    if (prevwbufsize == sizeof(block_header_type) ||  send_decision) {
       flush_flag = send_decision;
       cond.signal();
       lock.unlock();

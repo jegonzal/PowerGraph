@@ -208,7 +208,6 @@ int main(int argc, char** argv) {
   distributed_control dc(param);
   dc.barrier();
   teststruct ts(dc);
-  ts.run_short_sends_0();
     ts.run_short_sends_0();
     ts.run_threaded_short_sends_0(2);
     ts.run_threaded_short_sends_0(4);
