@@ -592,15 +592,17 @@ void orthogonalize_vs_all(DistSlicedMat & mat, int curoffset){
   debug = false;
   DistVec current = mat[curoffset];
   //cout<<current.to_vec().transpose() << endl;
-  for (int j=0; j <ortho_repeats; j++){
-    for (int i=0; i< curoffset; i++){
-      DistDouble alpha = mat[i]*current;
-      //cout<<mat[i].to_vec().transpose()<<endl;
-      //cout<<"alpha is: " <<alpha.toDouble()<<endl;
-      if (alpha.toDouble() != 0)
-         current = current - mat[i]*alpha;
-    }
-  }
+  assert(false); // ORTHO_REPEATS NOT DEFINED
+  //// also ortho repeats should not be a global variable
+  // for (int j=0; j <ortho_repeats; j++){
+  //   for (int i=0; i< curoffset; i++){
+  //     DistDouble alpha = mat[i]*current;
+  //     //cout<<mat[i].to_vec().transpose()<<endl;
+  //     //cout<<"alpha is: " <<alpha.toDouble()<<endl;
+  //     if (alpha.toDouble() != 0)
+  //        current = current - mat[i]*alpha;
+  //   }
+  // }
   debug = old_debug;
   current.debug_print(current.name);
 }
