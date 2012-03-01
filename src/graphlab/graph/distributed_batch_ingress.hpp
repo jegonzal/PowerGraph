@@ -121,11 +121,6 @@ namespace graphlab {
     std::vector<EdgeData> edatasend;
     std::vector<std::set<vertex_id_type> > query_set;
 
-    // Local recv buffer
-    std::vector<std::pair<vertex_id_type, vertex_id_type> > edgerecv;
-    std::vector<EdgeData> edatarecv;
-    mutex recvlock;
-
 
     /** The map from proc_id to num_edges on that proc */
     std::vector<size_t> proc_num_edges;
@@ -142,12 +137,11 @@ namespace graphlab {
   public:
     distributed_batch_ingress(distributed_control& dc, graph_type& graph) :
       rpc(dc, this), graph(graph), vertex_exchange(dc),
-      num_edges(0), limit(4000), 
+      num_edges(0), limit(50000), 
       proc_src(dc.numprocs()), proc_dst(dc.numprocs()),
       proc_edata(dc.numprocs()), query_set(dc.numprocs()),
      proc_num_edges(dc.numprocs()) { 
        rpc.barrier(); 
-       std::cout << "Using batch ingress" << std::endl;
       INITIALIZE_TRACER(batch_ingress_add_edge, "Time spent in add edge");
       INITIALIZE_TRACER(batch_ingress_add_edges, "Time spent in add block edges" );
       INITIALIZE_TRACER(batch_ingress_compute_assignments, "Time spent in compute assignment");
@@ -173,7 +167,6 @@ namespace graphlab {
 
 
     // This is a local only method
-    // Copy the rpc sent edge into a local recv buffer.
     void add_edges(const std::vector<vertex_id_type>& source_arr, 
         const std::vector<vertex_id_type>& target_arr, 
         const std::vector<EdgeData>& edata_arr) {
@@ -182,56 +175,20 @@ namespace graphlab {
           && (source_arr.size() == edata_arr.size())); 
       if (source_arr.size() == 0) return;
 
+      std::vector<lvid_type> local_source_arr; 
+      local_source_arr.reserve(source_arr.size());
+      std::vector<lvid_type> local_target_arr;
+      local_target_arr.reserve(source_arr.size());
       /** The map from vertex_id to its degree on this proc.*/
       std::vector<vid2degree_type> local_degree_count(rpc.numprocs());
-      recvlock.lock();
+        
+
+      lvid_type max_lvid = 0;
+
+      lvid2record_lock.lock();
       for (size_t i = 0; i < source_arr.size(); ++i) {
         vertex_id_type source = source_arr[i];
-        vertex_id_type target = target_arr[i];
-        edgerecv.push_back(std::make_pair(source, target));
-        ++local_degree_count[vertex_to_proc(source)][source];
-        ++local_degree_count[vertex_to_proc(target)][target];
-      }
-      edatarecv.insert(edatarecv.end(), edata_arr.begin(), edata_arr.end());
-      recvlock.unlock();
-      END_TRACEPOINT(batch_ingress_add_edges);
-
-      // Send out local_degree count;
-      for (size_t i = 0; i < rpc.numprocs(); ++i) {
-        if (i != rpc.procid()) {
-          rpc.remote_call(i, 
-                          &distributed_batch_ingress::block_add_degree_counts, 
-                          rpc.procid(),
-                          local_degree_count[i]);
-        } else {
-          block_add_degree_counts(rpc.procid(), local_degree_count[i]);
-        }
-        local_degree_count[i].clear();
-      }
-    } // end of add edges
-    
-
-    void add_vertex(vertex_id_type vid, const VertexData& vdata)  { 
-      procid_t owning_proc = vertex_to_proc(vid);
-      const vertex_buffer_record record(vid, vdata);
-      vertex_exchange.send(owning_proc, record);
-    } // end of add vertex
-
-    void finalize() { 
-      flush();
-      rpc.full_barrier();
-
-      // Dump the recv buffer into local graph,
-      std::vector<lvid_type> local_source_arr; 
-      local_source_arr.reserve(edgerecv.size());
-      std::vector<lvid_type> local_target_arr;
-      local_target_arr.reserve(edgerecv.size());
-
-      // the lock shouldn't have any contention here.
-      lvid_type max_lvid = 0;
-      for (size_t i = 0; i < edgerecv.size(); ++i) {
-        vertex_id_type source = edgerecv[i].first;
-        vertex_id_type target = edgerecv[i].second;
+        vertex_id_type target = target_arr[i]; 
         lvid_type lvid_source;
         lvid_type lvid_target;
         typedef typename boost::unordered_map<vertex_id_type, lvid_type>::iterator 
@@ -260,17 +217,47 @@ namespace graphlab {
         local_target_arr.push_back(lvid_target);
         max_lvid = std::max(std::max(lvid_source, lvid_target), 
             max_lvid);
+
+        ++local_degree_count[vertex_to_proc(source)][source];
+        ++local_degree_count[vertex_to_proc(target)][target];
       }
-      std::vector<std::pair<vertex_id_type, vertex_id_type> >().swap(edgerecv);
+      lvid2record_lock.unlock();
 
       // Add edges to local graph
       local_graph_lock.lock();
       if (max_lvid > 0 && max_lvid >= graph.local_graph.num_vertices()) {
         graph.local_graph.resize(max_lvid + 1);
       }
-      graph.local_graph.add_block_edges(local_source_arr, local_target_arr, edatarecv);
+      graph.local_graph.add_block_edges(local_source_arr, local_target_arr, edata_arr);
       local_graph_lock.unlock();
-      std::vector<EdgeData>().swap(edatarecv);
+
+
+      // Send out local_degree count;
+      for (size_t i = 0; i < rpc.numprocs(); ++i) {
+        if (i != rpc.procid()) {
+          rpc.remote_call(i, 
+                          &distributed_batch_ingress::block_add_degree_counts, 
+                          rpc.procid(),
+                          local_degree_count[i]);
+        } else {
+          block_add_degree_counts(rpc.procid(), local_degree_count[i]);
+        }
+        local_degree_count[i].clear();
+      }
+      END_TRACEPOINT(batch_ingress_add_edges);
+    } // end of add edges
+    
+
+    void add_vertex(vertex_id_type vid, const VertexData& vdata)  { 
+      procid_t owning_proc = vertex_to_proc(vid);
+      const vertex_buffer_record record(vid, vdata);
+      vertex_exchange.send(owning_proc, record);
+    } // end of add vertex
+
+    void finalize() { 
+      flush();
+      rpc.full_barrier();
+
       BEGIN_TRACEPOINT(batch_ingress_finalize);
 
       // Check conditions on graph

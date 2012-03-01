@@ -58,6 +58,7 @@
 #include <graphlab/graph/graph2.hpp>
 #include <graphlab/graph/idistributed_ingress.hpp>
 #include <graphlab/graph/distributed_batch_ingress.hpp>
+#include <graphlab/graph/distributed_batch_ingress2.hpp>
 #include <graphlab/graph/distributed_random_ingress.hpp>
 
 
@@ -97,6 +98,12 @@ namespace graphlab {
     typedef distributed_random_ingress<VertexData, EdgeData>
         distributed_random_ingress_type;
     friend class distributed_random_ingress<VertexData, EdgeData>;
+
+    typedef distributed_batch_ingress2<VertexData, EdgeData>
+        distributed_batch_ingress_type2;
+    friend class distributed_batch_ingress2<VertexData, EdgeData>;
+
+
 
 
     /** 
@@ -501,7 +508,10 @@ namespace graphlab {
       if(method == "batch") {
         logstream(LOG_INFO) << "Using batch ingress" << std::endl;
         ingress_ptr = new distributed_batch_ingress_type(rpc.dc(), *this);
-      } else {
+      } else if (method == "batch2") {
+        logstream(LOG_INFO) << "Using batch2 ingress" << std::endl;
+        ingress_ptr = new distributed_batch_ingress_type2(rpc.dc(), *this);
+      }else {
         logstream(LOG_INFO) << "Using random ingress" << std::endl;
         ingress_ptr = new distributed_random_ingress_type(rpc.dc(), *this);
       }
