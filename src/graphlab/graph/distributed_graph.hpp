@@ -190,9 +190,7 @@ namespace graphlab {
         begin_iter(lgraph_edge_list.begin(), edge_functor(graph_ptr)),
         end_iter(lgraph_edge_list.end(), edge_functor(graph_ptr)) { }
       size_t size() const { return end_iter - begin_iter; }
-      edge_type operator[](size_t i) const {
-        ASSERT_LT(i, size()); return *(begin_iter + i);
-      }
+      edge_type operator[](size_t i) const { return *(begin_iter + i); }
       const_iterator begin() const { return begin_iter; }
       const_iterator end() const { return end_iter; }
       bool empty() const { return size() == 0; }  
@@ -506,7 +504,6 @@ namespace graphlab {
     /** The beginning edge id for this machine */
     size_t begin_eid;
 
-
     /** pointer to the distributed ingress object*/
     idistributed_ingress_type* ingress_ptr; 
 
@@ -537,7 +534,7 @@ namespace graphlab {
       } else if (method == "batch2") {
         logstream(LOG_INFO) << "Using batch2 ingress" << std::endl;
         ingress_ptr = new distributed_batch_ingress_type2(rpc.dc(), *this);
-      }else {
+      } else {
         logstream(LOG_INFO) << "Using random ingress" << std::endl;
         ingress_ptr = new distributed_random_ingress_type(rpc.dc(), *this);
       }
@@ -549,9 +546,7 @@ namespace graphlab {
      * ownship and completing local data structures.
      */
     void finalize() {
-      if (finalized)
-        return;
-
+      if (finalized) return;
       ASSERT_NE(ingress_ptr, NULL);
       ingress_ptr->finalize();
       rpc.barrier(); delete ingress_ptr; ingress_ptr = NULL;
@@ -755,6 +750,8 @@ namespace graphlab {
       ASSERT_NE(ingress_ptr, NULL);
       ingress_ptr->add_edge(source, target, edata);
     }
+
+
 
     void resize (size_t n) { }
 
