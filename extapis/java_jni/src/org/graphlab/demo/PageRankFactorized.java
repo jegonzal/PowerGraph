@@ -6,6 +6,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Scanner;
 
 import org.apache.log4j.BasicConfigurator;
 import org.apache.log4j.Level;
@@ -35,6 +36,11 @@ public class PageRankFactorized {
   public static void main (String[] args){
     
     initLogger();
+    
+    ///////// DUMB VISUAL VM HACK ///////////
+    Scanner sc = new Scanner(System.in);
+    sc.next();
+    ///////// DUMB VISUAL VM HACK ///////////
     
     // check arguments
     if (!checkParams(args)) return;

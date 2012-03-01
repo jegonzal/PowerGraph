@@ -5,14 +5,16 @@ import java.io.IOException;
 import org.apache.log4j.BasicConfigurator;
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
+import org.graphlab.Aggregator;
 import org.graphlab.Context;
 import org.graphlab.Core;
 import org.graphlab.Core.CoreException;
+import org.graphlab.CoreConfiguration;
+import org.graphlab.Scheduler;
 import org.graphlab.Updater;
 import org.graphlab.data.ScalarVertex;
 import org.graphlab.util.GraphLoader;
 import org.jgrapht.DirectedGraph;
-import org.jgrapht.Graph;
 import org.jgrapht.graph.DefaultDirectedWeightedGraph;
 import org.jgrapht.graph.DefaultWeightedEdge;
 
@@ -47,7 +49,7 @@ public class ShortestPath {
   public static void main(String[] args) {
 
     initLogger();
-
+    
     logger.trace("Main method in " +
         ShortestPath.class.getCanonicalName() +
         " started.");
@@ -65,6 +67,8 @@ public class ShortestPath {
     final Core core;
     try {
       logger.trace("Initializing GraphLab core ...");
+      CoreConfiguration config = new CoreConfiguration();
+      config.setScheduler(Scheduler.FIFO);
       core = new Core();
     } catch (CoreException e) {
       logger.fatal("Unable to initialize core. Terminating.", e);
@@ -96,13 +100,16 @@ public class ShortestPath {
     core.schedule(root, new ShortestPathUpdater(graph));
 
     logger.trace("Running graphlab ...");
-    logger.trace("Took " + core.start() + " seconds");
+    logger.trace("Runtime: " + core.start() + " s");
+    logger.trace("Update count: " + core.lastUpdateCount());
+    
 
+    core.addAggregator("agg", new ShortestPathAggregator(), 0);
+    core.aggregateNow("agg");
+    
     // destroy core
     logger.trace("Destroying core ...");
     core.destroy();
-
-    printResults(graph);
 
   }
 
@@ -144,16 +151,10 @@ public class ShortestPath {
 
   }
   
-  private static void printResults (Graph<ScalarVertex, ?> g){
-    
-    logger.info("----------------- Results -----------------");
-    logger.info("ID : Distance");
-    for (ScalarVertex v : g.vertexSet()){
-      logger.info(v.id() + " : " + (int) v.value());
-    }
-    
-  }
-  
+  /**
+   * Finds shortest path to a particular vertex
+   * @author Jiunn Haur Lim
+   */
   private static class ShortestPathUpdater extends Updater<ScalarVertex, ShortestPathUpdater> {
 
     private DirectedGraph<ScalarVertex, DefaultWeightedEdge> mGraph;
@@ -192,4 +193,55 @@ public class ShortestPath {
 
   }
 
+  /**
+   * Aggregates shortest path information: total distance, longest distance, and furthest vertex
+   * @author Jiunn Haur Lim
+   */
+  private static class ShortestPathAggregator extends Aggregator<ScalarVertex, ShortestPathAggregator> {
+  
+    /** maximum distance */
+    private double mMaxDist;
+    
+    /** total distance */
+    private double mSumDist;
+    
+    /** furthest vertex */
+    private int mFurthestVertex;
+    
+    @Override
+    protected void exec(Context context, ScalarVertex vertex) {
+      double dist = vertex.value();
+      mSumDist += dist;
+      if (dist > mMaxDist){
+        mMaxDist = dist;
+        mFurthestVertex = vertex.id();
+      }
+    }
+    
+    @Override
+    protected void add (ShortestPathAggregator other) {
+      // add distances
+      mSumDist += other.mSumDist;
+      // take max
+      if (other.mMaxDist > mMaxDist){
+        mMaxDist = other.mMaxDist;
+        mFurthestVertex = other.mFurthestVertex;
+      }
+    }
+    
+    @Override
+    protected void finalize(Context context) {
+       // output results
+       logger.info ("Total Distance:\t\t" + mSumDist + "\n" + 
+                    "Longest Distance:\t" + mMaxDist + "\n" +
+                    "Furthest Vertex:\t"  + mFurthestVertex + "\n");
+    }
+
+    @Override
+    protected ShortestPathAggregator clone() {
+      return new ShortestPathAggregator();
+    }
+    
+  }
+  
 }

@@ -288,7 +288,7 @@ public final class Core {
    * @throws IllegalArgumentException
    *          if <tt>key</tt> has length 0
    */
-	public void addAggregator(String key, Aggregator<?> aggregator, long interval){
+	public void addAggregator(String key, Aggregator<?, ?> aggregator, long interval){
 	  if (null == key || null == aggregator)
 	    throw new NullPointerException ("key and aggregator may not be null.");
 	  if (key.length() <= 0)
@@ -509,7 +509,7 @@ public final class Core {
    * @param interval
    */
 	private native void addAggregator
-	  (long ptr, String key, Aggregator<?> aggregator, long interval);
+	  (long ptr, String key, Aggregator<?, ?> aggregator, long interval);
 	
   /**
    * Performs a sync immediately. This function requires that the shared

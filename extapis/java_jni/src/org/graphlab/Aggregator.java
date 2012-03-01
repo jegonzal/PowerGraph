@@ -12,10 +12,10 @@ import org.graphlab.data.Vertex;
  * @param <V> Vertex type that will be used in {@link #update(Context, Vertex)} 
  * @author Jiunn Haur Lim <jiunnhal@cmu.edu>
  */
-public abstract class Aggregator<V extends Vertex> implements Cloneable {
+public abstract class Aggregator<V extends Vertex, A extends Aggregator<V, A>> implements Cloneable {
 
   protected abstract void exec(Context context, V vertex);
-  protected abstract void add(Aggregator<V> aggregator);
+  protected abstract void add(A aggregator);
   protected abstract void finalize(Context context);
   
   /*
@@ -24,7 +24,7 @@ public abstract class Aggregator<V extends Vertex> implements Cloneable {
    * @see java.lang.Object#clone()
    */
   @Override
-  protected abstract Aggregator<V> clone();
+  protected abstract A clone();
   
   /**
    * Invoked by proxy aggregator. Creates a pseudo-context and hands it

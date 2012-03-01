@@ -51,7 +51,7 @@ public class AggregatorTest {
     mCore.destroy();
   }
   
-  private class SumAggregator extends Aggregator<ScalarVertex>{
+  private class SumAggregator extends Aggregator<ScalarVertex, SumAggregator>{
 
     private int mSum = 0;
     private final int mExpected;
@@ -67,9 +67,8 @@ public class AggregatorTest {
     }
 
     @Override
-    protected void add(Aggregator<ScalarVertex> aggregator) {
-      if (aggregator instanceof SumAggregator)
-         mSum += ((SumAggregator) aggregator).mSum; 
+    protected void add(SumAggregator aggregator) {
+       mSum += ((SumAggregator) aggregator).mSum; 
     }
 
     @Override
@@ -79,7 +78,7 @@ public class AggregatorTest {
     }
     
     @Override
-    public Aggregator<ScalarVertex> clone(){
+    public SumAggregator clone(){
       return new SumAggregator(mExpected);
     }
     
