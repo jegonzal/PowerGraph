@@ -358,12 +358,7 @@ namespace graphlab {
       typedef typename Graph::vertex_color_type  vertex_color_type;
       typedef typename Graph::edge_type          edge_type;
       typedef typename Graph::edge_list_type     edge_list_type;
-      logstream(LOG_INFO) << "Loading adjacency file" << std::endl;
-      if(!fin.good()) {
-        logstream(LOG_WARNING) << "file open failed" << std::endl;
-        return false;
-      }
-      logstream(LOG_INFO) << "file open successful" << std::endl;
+      if(!fin.good()) { return false; }
       size_t self_edges = 0;     
       size_t ctr = 0;
       // Loop over the contents
