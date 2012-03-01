@@ -159,7 +159,7 @@ namespace graphlab {
     pos_opts;
     boost::program_options::variables_map vm;
     
-    bool surpress_graphlab_options;
+    bool suppress_graphlab_options;
     
   public:
     command_line_options(const std::string& desc_str = "GraphLab program.",
@@ -167,7 +167,7 @@ namespace graphlab {
                          const std::string& default_engine = "async",
                          const std::string& default_scope = "edge",
                          const std::string& default_scheduler = "sweep") : 
-      desc(desc_str), surpress_graphlab_options(false) {
+      desc(desc_str), suppress_graphlab_options(false) {
       ncpus = default_ncpus;
       engine_type = default_engine;
       scope_type = default_scope;
@@ -181,9 +181,9 @@ namespace graphlab {
     } // End constructor
 
     command_line_options(const std::string& desc_str,
-                         bool surpress_graphlab_options) : 
+                         bool suppress_graphlab_options) : 
       desc(desc_str), 
-      surpress_graphlab_options(surpress_graphlab_options) {     
+      suppress_graphlab_options(suppress_graphlab_options) {     
       // Add documentation for help
       namespace boost_po = boost::program_options;      
       desc.add_options()("help", "Print this help message.");

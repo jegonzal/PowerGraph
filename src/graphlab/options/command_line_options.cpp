@@ -65,7 +65,7 @@ namespace graphlab {
     std::string metricstype(get_metrics_type());
     std::string graph_opts_string= "";
 
-    if(!surpress_graphlab_options) {
+    if(!suppress_graphlab_options) {
       if (distributed_options == false) {
         // Set the program options
         desc.add_options()
