@@ -340,8 +340,9 @@ class DistSlicedMat{
     assert(end_col <= end_offset);
     assert(pmat.rows() == end-start);
     assert(pmat.cols() >= end_col - start_col);
-    for (int i=start_col; i< end_col; i++)
-      this->operator[](i) = get_col(pmat, i-start_col);
+    assert(false); // The following two lines do not build
+    // for (int i=start_col; i< end_col; i++)
+    //   this->operator[](i) = get_col(pmat, i-start_col);
    }
    mat get_cols(int start_col, int end_col){
      assert(start_col >= start_offset);
