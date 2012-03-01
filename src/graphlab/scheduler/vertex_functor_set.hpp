@@ -56,10 +56,11 @@ namespace graphlab {
     
   private:
     lock_free_pool<update_functor_type> pool;
+    atomic<size_t> joincounter;
+    
     class vfun_type {
     private:
       update_functor_type* volatile functor;
-
     public:
       vfun_type() : functor(NULL) { 
       }
@@ -69,7 +70,8 @@ namespace graphlab {
       }
       /** returns true if set for the first time */
       inline bool set(lock_free_pool<update_functor_type>& pool,
-                      const update_functor_type& other) {
+                      const update_functor_type& other,
+                      atomic<size_t> &joincounter) {
         bool ret = false;
         update_functor_type toinsert = other;
         while(1) {
@@ -85,7 +87,7 @@ namespace graphlab {
           } else if (uf == UPDATE_FUNCTOR_PENDING) {
             // a pending is in here. it is not ready for reading. try again.
             continue;
-          } else { (*uf) += toinsert; }
+          } else { (*uf) += toinsert; joincounter.inc(); }
           // swap it back in
           ASSERT_TRUE(uf != UPDATE_FUNCTOR_PENDING);
           atomic_exchange(functor, uf);
@@ -105,7 +107,8 @@ namespace graphlab {
       inline bool set(lock_free_pool<update_functor_type>& pool,
                       const update_functor_type& other, 
                       double& prev_priority, 
-                      double& new_priority) {
+                      double& new_priority,
+                      atomic<size_t>& joincounter) {
         bool ret = false;
         update_functor_type toinsert = other;
         while(1) {
@@ -125,6 +128,7 @@ namespace graphlab {
           } else {
             prev_priority = uf->priority();
             (*uf) += toinsert;
+            joincounter.inc();
           }
           new_priority = uf->priority();
           // swap it back in
@@ -215,7 +219,7 @@ namespace graphlab {
     bool add(const vertex_id_type& vid, 
              const update_functor_type& fun) {
       ASSERT_LT(vid, vfun_set.size());
-      return vfun_set[vid].set(pool, fun);
+      return vfun_set[vid].set(pool, fun, joincounter);
     } // end of add task to set 
 
     
@@ -226,7 +230,7 @@ namespace graphlab {
              double& new_priority) {
       ASSERT_LT(vid, vfun_set.size());
       double unused = 0;
-      return vfun_set[vid].set(pool, fun, unused, new_priority);
+      return vfun_set[vid].set(pool, fun, unused, new_priority, joincounter);
     } // end of add task to set 
 
 
@@ -240,7 +244,7 @@ namespace graphlab {
              double& prev_priority,
              double& new_priority) {
       ASSERT_LT(vid, vfun_set.size());
-      return vfun_set[vid].set(pool, fun, prev_priority, new_priority);
+      return vfun_set[vid].set(pool, fun, prev_priority, new_priority, joincounter);
     } // end of add task to set 
 
 
@@ -256,6 +260,10 @@ namespace graphlab {
 
     size_t size() const { 
       return vfun_set.size(); 
+    }
+    
+    size_t num_joins() const { 
+      return joincounter.value;
     }
     
     void clear_unsync() {

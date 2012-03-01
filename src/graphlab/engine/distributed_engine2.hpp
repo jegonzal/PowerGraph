@@ -177,9 +177,13 @@ namespace graphlab {
     atomic<size_t> threads_alive;
     std::vector<thread_local_data> thrlocal;
     
-    atomic<uint64_t> blocked_issues; // issued tasks which cannot start
-                                     // and have to be reinjected into the 
-                                     // scheduler
+    atomic<uint64_t> joined_tasks;
+    atomic<uint64_t> blocked_issues; // issued tasks which either
+                                     // 1: cannot start and have to be 
+                                     //    reinjected into the 
+                                     //    scheduler.
+                                     // 2: issued but is combined into a
+                                     //    task which is currently locking
     atomic<uint64_t> issued_tasks;
     atomic<uint64_t> completed_tasks;
     
@@ -699,8 +703,8 @@ namespace graphlab {
             schedule_local(lvid, vstate[lvid].next);
             vstate[lvid].hasnext = false;
           } 
-          vstate[lvid].current = update_functor_type();
           vstate[lvid].state = NONE;
+          vstate[lvid].current = update_functor_type();
           break;
         }
       case MIRROR_SCATTERING: {
@@ -708,6 +712,7 @@ namespace graphlab {
                               << graph.global_vid(lvid) << ": MIRROR_SCATTERING" << std::endl;
           do_scatter(lvid);
           vstate[lvid].state = NONE;
+          vstate[lvid].current = update_functor_type();
           cmlocks->philosopher_stops_eating_per_replica(lvid);
           ASSERT_FALSE(vstate[lvid].hasnext);
           break;
@@ -716,6 +721,7 @@ namespace graphlab {
           logstream(LOG_DEBUG) << rmi.procid() << ": Scattering: " 
                               << graph.global_vid(lvid) << ": MIRROR_SCATTERING_AND_LOCKING" << std::endl;
           do_scatter(lvid);
+          vstate[lvid].current = update_functor_type();
           vstate[lvid].state = LOCKING;
           ASSERT_FALSE(vstate[lvid].hasnext);          
           cmlocks->philosopher_stops_eating_per_replica(lvid);
@@ -887,10 +893,12 @@ namespace graphlab {
       } else if (vstate[sched_lvid].state == LOCKING) {
          blocked_issues.inc();
          vstate[sched_lvid].next += task;
+         joined_tasks.inc();
       } else {
         blocked_issues.inc();
         if (vstate[sched_lvid].hasnext) {
           vstate[sched_lvid].next += task;
+          joined_tasks.inc();
         } else {
           vstate[sched_lvid].hasnext = true;
           vstate[sched_lvid].next = task;
@@ -984,10 +992,18 @@ namespace graphlab {
       ctasks = blocked_issues.value;
       rmi.all_reduce(ctasks);
       blocked_issues.value = ctasks;
+      
+      ctasks = joined_tasks.value;
+      ctasks += scheduler_ptr->num_joins();
+      rmi.all_reduce(ctasks);
+      joined_tasks.value = ctasks;
+      
       if (rmi.procid() == 0) {
         std::cout << "Completed Tasks: " << completed_tasks.value << std::endl;
         std::cout << "Issued Tasks: " << issued_tasks.value << std::endl;
         std::cout << "Blocked Issues: " << blocked_issues.value << std::endl;
+        std::cout << "------------------" << std::endl;
+        std::cout << "Joined Tasks: " << joined_tasks.value << std::endl;
       }
       // test if all schedulers are empty
       for (size_t i = 0;i < ncpus; ++i) {
