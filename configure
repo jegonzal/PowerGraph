@@ -198,8 +198,8 @@ echo -e \
     "Install path:              $INSTALL_DIR \n"\
     "BOOST_ROOT:                $BOOST_ROOT \n"\
     "KC_ROOT:                   $KC_ROOT \n"\
+    "TCMALLOC_ROOT:             $TCMALLOC_ROOT \n"\
     "Build experimental parts:  $EXPERIMENTAL \n" | tee -a $LOG_FILE
-
 
 
 
