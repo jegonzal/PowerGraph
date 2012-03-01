@@ -61,7 +61,7 @@
 #include <graphlab/graph/distributed_batch_ingress2.hpp>
 #include <graphlab/graph/distributed_random_ingress.hpp>
 #include <sstream>
-
+#include <graphlab/util/hdfs.hpp>
 
 
 
@@ -803,14 +803,23 @@ namespace graphlab {
       fname = path.append(fname);
 
       logstream(LOG_INFO) << "Load graph from " << fname << std::endl;
-      std::ifstream fin(fname.c_str());
-      iarchive iarc(fin);
-      iarc >> *this;
-      fin.close();
+      if(boost::starts_with(fname, "hdfs://")) {
+        graphlab::hdfs hdfs;
+        graphlab::hdfs::fstream fin(hdfs, fname);
+        iarchive iarc(fin);
+        iarc >> *this;
+        fin.close();
+      } else {
+        std::ifstream fin(fname.c_str());
+        iarchive iarc(fin);
+        iarc >> *this;
+        fin.close();
+      }
+      logstream(LOG_INFO) << "Finish loading graph from " << fname << std::endl;
     } // end of load
 
     /** \brief Load part of the distributed graph from a path*/
-    void save(std::string& path, std::string& prefix="x") const {
+    void save(std::string& path, std::string& prefix) {
       std::ostringstream ss;
       ss << prefix << rpc.procid() << ".bin";
       std::string fname = ss.str();
@@ -818,12 +827,20 @@ namespace graphlab {
         path.append("/");
       fname = path.append(fname);
       logstream(LOG_INFO) << "Save graph to " << fname << std::endl;
-      std::ofstream fout(fname.c_str());
-      oarchive oarc(fout);
-      oarc << *this;
-      fout.close();
+      if(boost::starts_with(fname, "hdfs://")) {
+        graphlab::hdfs hdfs;
+        graphlab::hdfs::fstream fout(hdfs, fname);
+        oarchive oarc(fout);
+        oarc << *this;
+        fout.close();
+      } else {
+        std::ofstream fout(fname.c_str());
+        oarchive oarc(fout);
+        oarc << *this;
+        fout.close();
+      }
+      logstream(LOG_INFO) << "Finish saving graph to " << fname << std::endl;
     } // end of save
-
   }; // End of graph
 
  
