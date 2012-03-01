@@ -60,6 +60,7 @@
 #include <graphlab/graph/distributed_batch_ingress.hpp>
 #include <graphlab/graph/distributed_batch_ingress2.hpp>
 #include <graphlab/graph/distributed_random_ingress.hpp>
+#include <sstream>
 
 
 
@@ -446,6 +447,27 @@ namespace graphlab {
       procid_t get_owner () const { return owner; }
       const std::vector<procid_t>& mirrors() const { return _mirrors; }
       size_t num_mirrors() const { return _mirrors.size(); }
+
+      void clear() {
+        _mirrors.clear();
+      }
+
+      void load(iarchive& arc) {
+        clear();
+        arc >> owner
+            >> gvid
+            >> num_in_edges
+            >> num_out_edges
+            >> _mirrors;
+      }
+
+      void save(oarchive& arc) const {
+        arc << owner
+            << gvid
+            << num_in_edges
+            << num_out_edges
+            << _mirrors;
+      } // end of save
     }; // end of vertex_record
 
 
@@ -460,6 +482,8 @@ namespace graphlab {
     // PRIVATE DATA MEMBERS ===================================================> 
     /** The rpc interface for this class */
     mutable dc_dist_object<distributed_graph> rpc;
+
+    bool finalized;
 
     /** The local graph data */
     local_graph_type local_graph;
@@ -482,6 +506,7 @@ namespace graphlab {
     /** The beginning edge id for this machine */
     size_t begin_eid;
 
+
     /** pointer to the distributed ingress object*/
     idistributed_ingress_type* ingress_ptr; 
 
@@ -490,7 +515,8 @@ namespace graphlab {
     // CONSTRUCTORS ==========================================================>
     distributed_graph(distributed_control& dc, 
                       const graphlab_options& opts = graphlab_options() ) : 
-      rpc(dc, this), nverts(0), nedges(0), local_own_nverts(0), nreplicas(0),
+      rpc(dc, this), finalized(false), nverts(0), 
+      nedges(0), local_own_nverts(0), nreplicas(0),
       ingress_ptr(NULL) {
       rpc.barrier();
       std::string ingress_method = "random";
@@ -523,9 +549,13 @@ namespace graphlab {
      * ownship and completing local data structures.
      */
     void finalize() {
+      if (finalized)
+        return;
+
       ASSERT_NE(ingress_ptr, NULL);
       ingress_ptr->finalize();
       rpc.barrier(); delete ingress_ptr; ingress_ptr = NULL;
+      finalized = true;
     }
             
     /** \brief Get the number of vertices */
@@ -726,10 +756,76 @@ namespace graphlab {
       ingress_ptr->add_edge(source, target, edata);
     }
 
-
-
     void resize (size_t n) { }
 
+    void clear () { 
+      foreach (vertex_record& vrec, lvid2record)
+        vrec.clear();
+      lvid2record.clear();
+      vid2lvid.clear();
+    }
+
+    /** \brief Load the graph from an archive */
+    void load(iarchive& arc) {
+      // read the vertices and colors
+      arc >> nverts 
+          >> nedges 
+          >> local_own_nverts 
+          >> nreplicas
+          >> begin_eid 
+          >> vid2lvid
+          >> lvid2record
+          >> local_graph;
+      finalized = true;
+      // check the graph condition
+    } // end of load
+
+
+    /** \brief Save the graph to an archive */
+    void save(oarchive& arc) const {
+      ASSERT_TRUE(finalized);
+      // Write the number of edges and vertices
+      arc << nverts 
+          << nedges 
+          << local_own_nverts 
+          << nreplicas 
+          << begin_eid
+          << vid2lvid
+          << lvid2record
+          << local_graph;
+    } // end of save
+
+    /** \brief Load part of the distributed graph from a path*/
+    void load(std::string& path, std::string& prefix) {
+      std::ostringstream ss;
+      ss << prefix << rpc.procid() << ".bin";
+      std::string fname = ss.str();
+
+      if (path.substr(path.length()-1, 1) != "/")
+        path.append("/");
+      fname = path.append(fname);
+
+      logstream(LOG_INFO) << "Load graph from " << fname << std::endl;
+      std::ifstream fin(fname.c_str());
+      iarchive iarc(fin);
+      iarc >> *this;
+      fin.close();
+    } // end of load
+
+    /** \brief Load part of the distributed graph from a path*/
+    void save(std::string& path, std::string& prefix="x") const {
+      std::ostringstream ss;
+      ss << prefix << rpc.procid() << ".bin";
+      std::string fname = ss.str();
+      if (path.substr(path.length()-1, 1) != "/")
+        path.append("/");
+      fname = path.append(fname);
+      logstream(LOG_INFO) << "Save graph to " << fname << std::endl;
+      std::ofstream fout(fname.c_str());
+      oarchive oarc(fout);
+      oarc << *this;
+      fout.close();
+    } // end of save
 
   }; // End of graph
 
