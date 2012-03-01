@@ -535,7 +535,6 @@ namespace graphlab {
           >> vcolors
           >> gstore
           >> finalized;
-      estimate_sizeof();
     } // end of load
 
     /** \brief Save the graph to an archive */

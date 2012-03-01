@@ -123,7 +123,6 @@ namespace graphlab {
     distributed_random_ingress(distributed_control& dc, graph_type& graph) :
       rpc(dc, this), graph(graph), vertex_exchange(dc), edge_exchange(dc) {
       rpc.barrier();
-      std::cout << "Using random ingress" << std::endl;
       INITIALIZE_TRACER(random_ingress, "Time spent in random ingress");
       INITIALIZE_TRACER(random_ingress_add_edge, "Time spent in add edge");
       INITIALIZE_TRACER(random_ingress_add_vertex, "Time spent in add vertex" );
