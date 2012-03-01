@@ -1,6 +1,7 @@
 package org.graphlab.demo;
 
 import java.io.IOException;
+import java.util.Scanner;
 
 import org.apache.log4j.BasicConfigurator;
 import org.apache.log4j.Level;
@@ -49,6 +50,9 @@ public class ShortestPath {
   public static void main(String[] args) {
 
     initLogger();
+    
+    Scanner sc = new Scanner(System.in);
+    sc.next();
     
     logger.trace("Main method in " +
         ShortestPath.class.getCanonicalName() +

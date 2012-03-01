@@ -70,9 +70,6 @@ extern "C" {
       proxy_updater::core::set_jvm(jvm);
     }
     
-    proxy_updater::init(env);
-    proxy_aggregator::init(env);
-    
     // store env for this thread
     thread::get_local(proxy_updater::core::ENV_ID) = env;
     

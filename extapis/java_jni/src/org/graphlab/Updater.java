@@ -19,6 +19,8 @@ import org.graphlab.data.Vertex;
  */
 public abstract class Updater<V extends Vertex, U extends Updater<V,U>> {
   
+  static { initNative(); }
+  
   /*
    * The set of edges that are operated on during gather and scatter
    */
@@ -183,7 +185,6 @@ public abstract class Updater<V extends Vertex, U extends Updater<V,U>> {
    * @param vertexId
    *          application vertex ID
    */
-  @SuppressWarnings("unused")
   private void update(long contextPtr, V vertex) {
     Context context = new Context(contextPtr);
     update(context, vertex);
@@ -194,5 +195,10 @@ public abstract class Updater<V extends Vertex, U extends Updater<V,U>> {
     Context context = new Context(contextPtr);
     scatter(context, source, target);
   }
+  
+  /**
+   * Initialize native class (set field IDs and method IDs)
+   */
+  private static native void initNative();
 
 }
