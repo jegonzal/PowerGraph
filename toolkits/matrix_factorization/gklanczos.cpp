@@ -1,0 +1,330 @@
+/**  
+ * Copyright (c) 2009 Carnegie Mellon University. 
+ *     All rights reserved.
+ *
+ *  Licensed under the Apache License, Version 2.0 (the "License");
+ *  you may not use this file except in compliance with the License.
+ *  You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing,
+ *  software distributed under the License is distributed on an "AS
+ *  IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+ *  express or implied.  See the License for the specific language
+ *  governing permissions and limitations under the License.
+ *
+ * For more about this software visit:
+ *
+ *      http://www.graphlab.ml.cmu.edu
+ *
+ */
+
+
+#include "graphlab.hpp"
+#include "../shared/io.hpp"
+#include "../shared/types.hpp"
+#include "../shared/mathlayer.hpp"
+
+using namespace graphlab;
+using namespace std;
+
+/**
+ *
+ *  Implementation of the Lanczos algorithm, as given in:
+ *  http://en.wikipedia.org/wiki/Lanczos_algorithm
+ * 
+ *  Code written by Danny Bickson, CMU, June 2011
+ * */
+
+
+
+//LANCZOS VARIABLES
+int max_iter = 10;
+bool debug;
+int ortho_repeats = 3; //number of repeated orthogonalization steps. higher is slower but more accurate. 
+int nv = 0;
+int nsv = 0;
+double tol = 1e-8;
+bool finished = false;
+double regularization = 0;
+
+struct vertex_data {
+  vec pvec;
+  double value;
+  double A_ii;
+  vertex_data(){}
+  void add_self_edge(double value) { A_ii = value; }
+
+  void set_val(double value, int field_type) { 
+    pvec[field_type] = value;
+  }
+  //double get_output(int field_type){ return pred_x; }
+}; // end of vertex_data
+
+struct edge_data {
+  real_type weight;
+  edge_data(double weight = 0) : weight(weight) { }
+};
+
+int data_size = max_iter;
+
+typedef graphlab::graph<vertex_data, edge_data> graph_type;
+#include "../shared/math.hpp"
+#include "../shared/printouts.hpp"
+
+
+void init_lanczos(graph_type * g, bipartite_graph_descriptor & info){
+
+
+}
+
+
+
+
+vec lanczos(graphlab::core<graph_type, Axb> & glcore, bipartite_graph_descriptor & info, timer & mytimer){
+   
+
+   glcore.set_global("m", max_iter);
+   init_lanczos(&glcore.graph(), info);
+   int nconv = 0;
+   int its = 0;
+   int mpd = 500;
+   int N = std::min(info.rows, info.cols);
+   DistMat A(info);
+   DistSlicedMat U(0, max_iter, false, info, "U");
+   DistSlicedMat V(0, max_iter, true, info, "V");
+   vec alpha, beta;
+   vec sigma = zeros(nsv);
+   vec errest = zeros(nsv);
+   DistVec v_0(info, 0, true, "v_0");
+   PRINT_VEC2("svd->V[0]", v_0);
+   DistDouble vnorm = norm(v_0);
+   v_0=v_0/vnorm;
+   PRINT_INT(nv);
+
+   while(nconv < nv && its < max_iter){
+     int k = nconv;
+     int n = nv;
+     PRINT_INT(k);
+     PRINT_INT(n);
+
+     alpha = zeros(n);
+     beta = zeros(n);
+
+     U[k] = V[k]*A;
+     orthogonalize_vs_all(U, k);
+     alpha(0)=norm(U[k]).toDouble(); 
+     PRINT_VEC3("alpha", alpha, 0);
+     U[k] = U[k]/alpha(0);
+
+     for (int i=k; i<n; i++){
+       PRINT_INT(i);
+       V[i]=U[i-1]*A._transpose();
+       orthogonalize_vs_all(V, i);
+      
+       beta(i-k)=norm(V[i]).toDouble();
+       V[i] = V[i]/beta(i-k);
+       PRINT_VEC3("beta", beta, i-k); 
+      
+       U[i] = V[i]*A;
+       orthogonalize_vs_all(U, i);
+       alpha(i-k)=norm(U[i]).toDouble();
+       U[i] = U[i]/alpha(i-k);
+       PRINT_VEC3("alpha", alpha, i-k);
+     }
+
+     U[n+1]= U[n]*A._transpose();
+     orthogonalize_vs_all(U, n+1);
+     beta(n-k+1)=norm(U[n+1]).toDouble();
+     PRINT_VEC3("beta", beta, n-k+1);
+  }    
+
+/* compute SVD of bidiagonal matrix */
+
+  PRINT_INT(nv);
+  PRINT_NAMED_INT("svd->nconv", nconv);
+  PRINT_NAMED_INT("svd->mpd", mpd);
+  int n = nv - nconv;
+  PRINT_INT(n);
+
+  PRINT_MAT2("Q",eye(n));
+  PRINT_MAT2("PT",eye(n));
+  PRINT_VEC2("alpha",alpha);
+  PRINT_VEC2("beta",mid(beta,1,n-1));
+ 
+  mat T=diag(alpha);
+  for (int i=0; i<n-1; i++)
+    set_val(T, i, i+1, beta(i+1));
+  PRINT_MAT2("T", T);
+  mat a,PT; vec b;
+  svd(T, a, PT, b);
+  PRINT_MAT2("Q",a.transpose());
+  alpha=diag(b);
+  PRINT_MAT2("alpha", alpha);
+  for (int t=0; t< n-1; t++)
+     beta(t) = 0;
+  PRINT_VEC2("beta",beta);
+  PRINT_MAT2("PT", PT);
+
+  /* compute error estimates */
+  int kk = 0;
+  for (int i=nconv; i < nconv+alpha.size(); i++){
+    int j = i-nconv;
+    PRINT_INT(j);
+    sigma(i) = alpha(j);
+    PRINT_NAMED_DBL("svd->sigma[i]", sigma(i));
+    PRINT_NAMED_DBL("Q[j*n+n-1]",a(n,j));
+    PRINT_NAMED_DBL("beta[n-1]",beta(n+1));
+    errest(i) = abs(a(n,j)*beta(n+1));
+    PRINT_NAMED_DBL("svd->errest[i]", errest(i));
+    if (alpha(j) >  tol){
+      errest(i) = errest(i) / alpha(j);
+      PRINT_NAMED_DBL("svd->errest[i]", errest(i));
+    }
+    if (errest(i) < tol){
+      kk = kk+1;
+      PRINT_NAMED_INT("k",kk);
+    }
+
+    PRINT_NAMED_INT("k",kk);
+
+  if (nconv +kk >= nsv){
+    printf("set status to tol\n");
+    finished = true;
+  }
+
+
+  vec v;
+  if (!finished){
+    vec swork=get_col(PT,kk+1); 
+    PRINT_MAT2("swork", swork);
+    v = zeros(n);
+    for (int ttt=nconv; ttt < nconv+n; ttt++){
+      v = v+swork(ttt-nconv)*V[ttt].to_vec();
+    }
+    PRINT_VEC2("svd->V",V[nconv]);
+    PRINT_VEC2("v[0]",v); 
+  }
+
+  if (kk > 0){
+    PRINT_VEC2("svd->V", V[nconv]);
+    mat tmp= V.get_cols(nconv,nconv+n)*PT;
+    V.set_cols(nconv, nconv+n, get_cols(tmp, 0, kk));
+    PRINT_VEC2("svd->V", V[nconv]);
+    PRINT_VEC2("svd->U", U[nconv]);
+    tmp= U.get_cols(nconv, nconv+n)*a;
+    U.set_cols(nconv, nconv+kk,get_cols(tmp,0,kk));
+    PRINT_VEC2("svd->U", U[nconv]);
+  }
+
+  nconv=nconv+kk;
+  if (finished)
+    break;
+
+  V[nconv]=v;
+  PRINT_VEC2("svd->V", V[nconv]);
+  PRINT_NAMED_INT("svd->nconv", nconv);
+
+  its++;
+  PRINT_NAMED_INT("svd->its", its);
+  PRINT_NAMED_INT("svd->nconv", nconv);
+  nv = min(nconv+mpd, N);
+  if (nsv < 10)
+    nv = 10;
+  PRINT_NAMED_INT("nv",nv);
+
+} // end(while)
+
+printf(" Number of computed signular values %d",nconv);
+printf("\n");
+  for (int i=0; i < nconv; i++){
+    double n1 = norm(V[i]*A -U[i]*sigma(i)).toDouble();
+    double n2 = norm(U[i]*A._transpose()-V[i]*sigma(i)).toDouble();
+    double err=sqrt(n1*n1+n2*n2);
+    if (sigma(i)>1e-8)
+      err = err/sigma(i);
+    printf("\t%13.6g\t%13.6g\n", sigma(i),err);
+  }
+
+  return b;
+}
+
+int main(int argc,  char *argv[]) {
+  
+  global_logger().set_log_level(LOG_INFO);
+  global_logger().set_log_to_console(true);
+
+  graphlab::command_line_options clopts("GraphLab Linear Solver Library");
+
+  std::string datafile, vecfile;
+  std::string format = "matrixmarket";
+  int unittest = 0;
+
+  clopts.attach_option("data", &datafile, datafile,
+                       "matrix input file");
+  clopts.add_positional("data");
+  clopts.attach_option("initial_vector", &vecfile, vecfile,"optional initial vector");
+  clopts.attach_option("debug", &debug, debug, "Display debug output.");
+  clopts.attach_option("unittest", &unittest, unittest, 
+		       "unit testing 0=None, 1=3x3 matrix");
+  clopts.attach_option("max_iter", &max_iter, max_iter, "max iterations");
+  clopts.attach_option("ortho_repeats", &ortho_repeats, ortho_repeats, "orthogonalization iterations. 1 = low accuracy but fast, 2 = medium accuracy, 3 = high accuracy but slow.");
+  clopts.attach_option("nv", &nv, nv, "Number of vectors in each iteration");
+  clopts.attach_option("nsv", &nsv, nsv, "Number of requested singular values to comptue"); 
+  clopts.attach_option("regularization", &regularization, regularization, "regularization");
+
+  // Parse the command line arguments
+  if(!clopts.parse(argc, argv)) {
+    std::cout << "Invalid arguments!" << std::endl;
+    return EXIT_FAILURE;
+  }
+
+  logstream(LOG_WARNING)
+    << "Eigen detected. (This is actually good news!)" << std::endl;
+  logstream(LOG_INFO) 
+    << "GraphLab V2 matrix factorization library code by Danny Bickson, CMU" 
+    << std::endl 
+    << "Send comments and bug reports to danny.bickson@gmail.com" 
+    << std::endl 
+    << "Currently implemented algorithms are: Lanczos" << std::endl;
+
+
+  // Create a core
+  graphlab::core<graph_type, Axb> core;
+  core.set_options(clopts); // Set the engine options
+
+  //unit testing
+  if (unittest == 1){
+    datafile = "gklanczos_testA"; 
+    vecfile = "gklanczos_testA_v0";
+    nsv = 3; nv = 3;
+  }
+
+  std::cout << "Load matrix " << datafile << std::endl;
+  load_graph(datafile, format, info, core.graph());
+  if (vecfile.size() > 0){
+    std::cout << "Load inital vector from file" << vecfile << std::endl;
+    load_vector(vecfile, format, info, core.graph(), 0, true, false);
+  }  
+ 
+  timer mytimer; mytimer.start(); 
+  vec eigenvalues = lanczos(core, info, mytimer);
+ 
+  std::cout << "Lanczos finished in " << mytimer.current_time() << std::endl;
+  std::cout << "\t Updates: " << core.last_update_count() << " per node: " 
+     << core.last_update_count() / core.graph().num_vertices() << std::endl;
+
+  //vec ret = fill_output(&core.graph(), bipartite_graph_descriptor, JACOBI_X);
+
+  //write_output_vector(datafile + "x.out", format, ret);
+
+
+  if (unittest == 1){
+  }//TODO
+
+
+   return EXIT_SUCCESS;
+}
+
+
