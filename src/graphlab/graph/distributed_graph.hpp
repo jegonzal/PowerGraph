@@ -38,11 +38,11 @@
 #include <functional>
 #include <fstream>
 #include <functional>
-#include <fstream>
+#include <sstream>
 
 #include <boost/lexical_cast.hpp>
 #include <boost/random.hpp>
-
+#include <boost/algorithm/string/predicate.hpp>
 
 #include <graphlab/logger/logger.hpp>
 #include <graphlab/logger/assertions.hpp>
@@ -60,7 +60,6 @@
 #include <graphlab/graph/distributed_batch_ingress.hpp>
 #include <graphlab/graph/distributed_batch_ingress2.hpp>
 #include <graphlab/graph/distributed_random_ingress.hpp>
-#include <sstream>
 #include <graphlab/util/hdfs.hpp>
 
 
