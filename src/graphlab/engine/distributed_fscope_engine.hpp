@@ -98,15 +98,15 @@ namespace graphlab {
 
     struct vertex_state {
       mutex lock;
-      uint32_t apply_count_down;    // used to count down the gathers
-      bool hasnext;
-      vertex_execution_state state; // current state of the vertex 
       update_functor_type current;  // What is currently being executed
                                     //  accumulated
       update_functor_type next;     // next is set if the vertex is being
                                     // executed, but for whatever reason
                                     // it got popped from the scheduler
                                     // again
+      uint32_t apply_count_down;    // used to count down the gathers
+      bool hasnext;
+      vertex_execution_state state; // current state of the vertex 
       vertex_state(): apply_count_down(0), hasnext(false), state(NONE) { }      
       std::ostream& operator<<(std::ostream& os) const {
         switch(state) {
@@ -253,13 +253,15 @@ namespace graphlab {
   public:
     distributed_fscope_engine(distributed_control &dc, graph_type& graph, 
                               size_t ncpus) : 
-      rmi(dc, this), graph(graph), threads(ncpus),
-      vlocks(graph.num_vertices()), scheduler_ptr(NULL), 
+      rmi(dc, this), graph(graph), threads(ncpus), scheduler_ptr(NULL), 
       consensus(dc, ncpus), max_pending_tasks(10000) {
       rmi.barrier();
-      // TODO: Remove context creation.
-      // Added context to force compilation.   
-      context_type context;
+
+      logstream(LOG_INFO) 
+        << "Allocating vertices vertex locks: " << graph.num_local_vertices() << std::endl;
+      vlocks.resize(graph.num_local_vertices());
+      logstream(LOG_INFO) << "Finished allocating local locks. " << std::endl;
+      
 
       INITIALIZE_DIST_EVENT_LOG(eventlog, dc, std::cout, 500, 
                                 dist_event_log::RATE_BAR);
@@ -293,19 +295,32 @@ namespace graphlab {
         << rmi.procid() << ": Initializing..." << std::endl;
       // currently this code wipes out any exisiting data structures
       if(scheduler_ptr != NULL) {  delete scheduler_ptr; scheduler_ptr = NULL; }
-  
 
+
+      logstream(LOG_INFO) 
+        << rmi.procid() << ": Alocating Scheduler..." << std::endl;
       // construct the scheduler
       scheduler_ptr = scheduler_factory_type::
         new_scheduler(opts.scheduler_type,
                       opts.scheduler_args,
                       graph.get_local_graph(),
                       threads.size());      
-      // construct the context manager
-      vlocks.resize(graph.num_vertices());
+      // logstream(LOG_INFO) << rmi.procid() << "pausing after scheduler" << std::endl;
+      // my_sleep(60); 
 
 
+      logstream(LOG_INFO) 
+        << rmi.procid() << ": resizing vlocks..." << std::endl;
+      vlocks.resize(graph.num_local_vertices());
+      // logstream(LOG_INFO) << rmi.procid() << "pausing after vlocks resize" << std::endl;
+      // my_sleep(60); 
+
+      logstream(LOG_INFO) 
+        << rmi.procid() << ": resizing vstate..." << std::endl;
       vstate.resize(graph.num_local_vertices());
+      // logstream(LOG_INFO) << rmi.procid() << "pausing after vstate resize" << std::endl;
+      // my_sleep(60); 
+
       
       thrlocal.resize(threads.size());
       rmi.barrier();
