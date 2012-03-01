@@ -324,13 +324,18 @@ endif ( HADOOP_FOUND AND JNI_REALLY_FOUND )
 
 
 
+
 # check for TCMalloc
 if(TCMALLOC_ROOT) 
   link_directories(${TCMALLOC_ROOT}/lib)
   include_directories(${TCMALLOC_ROOT}/include)
+  set(TCMALLOC-FOUND 1)
+  message(STATUS "TCMALLOC_ROOT: " ${TCMALLOC_ROOT})
+else()
+check_library_exists("tcmalloc -lpthread" malloc "" TCMALLOC-FOUND)
 endif()
 
-check_library_exists("tcmalloc -lpthread" malloc "" TCMALLOC-FOUND)
+
 if (TCMALLOC-FOUND)
   message(STATUS "tcmalloc found. Using it everywhere")
   link_libraries(tcmalloc)
