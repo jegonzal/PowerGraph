@@ -40,8 +40,8 @@ namespace graphlab {
   private:
     struct buffer_record {
       procid_t proc;
-      buffer_type* buffer_ptr;
-      buffer_record() : proc(-1), buffer_ptr(NULL) { }
+      buffer_type buffer;
+      buffer_record() : proc(-1) { }
     }; // end of buffer record
 
 
@@ -49,7 +49,7 @@ namespace graphlab {
     /** The rpc interface for this class */
     mutable dc_dist_object<buffered_exchange> rpc;
 
-    std::vector< buffer_record > recv_buffers;
+    std::deque< buffer_record > recv_buffers;
     mutex recv_lock;
 
     std::vector< buffer_type > send_buffers;
@@ -88,6 +88,7 @@ namespace graphlab {
                           rpc.procid(), send_buffers[i]);
         }
         send_buffers[i].clear();
+        buffer_type().swap(send_buffers[i]);
         send_locks[i].unlock();
       }
       rpc.full_barrier();
@@ -99,33 +100,25 @@ namespace graphlab {
       recv_lock.lock();
       if(!recv_buffers.empty()) {
         success = true;
-        buffer_record rec = recv_buffers.back();
-        recv_buffers.pop_back();
+        {
+          buffer_record& rec =  recv_buffers.front();
+          ret_proc = rec.proc; ret_buffer.swap(rec.buffer);
+        }
+        recv_buffers.pop_front();
         recv_lock.unlock();
-        ASSERT_NE(rec.buffer_ptr, NULL);
-        ASSERT_LT(rec.proc, rpc.numprocs());
-        ret_proc = rec.proc;
-        ret_buffer.swap(*rec.buffer_ptr);
-        delete rec.buffer_ptr; rec.buffer_ptr = NULL;
       } else recv_lock.unlock();
       return success;
     } // end of recv
 
   private:
     void rpc_recv(procid_t src_proc, buffer_type& buffer) {
-      buffer_record rec;
-      rec.proc = src_proc; 
-      rec.buffer_ptr = new buffer_type();
-      ASSERT_NE(rec.buffer_ptr, NULL);
-      rec.buffer_ptr->swap(buffer);
       recv_lock.lock();
-      recv_buffers.push_back(rec);
+      recv_buffers.push_back(buffer_record());
+      buffer_record& rec = recv_buffers.back();
       recv_lock.unlock();
+      rec.proc = src_proc;
+      rec.buffer.swap(buffer);
     } // end of rpc rcv
-    
-
-    
-
 
   }; // end of buffered exchange
 
