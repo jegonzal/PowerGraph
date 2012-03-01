@@ -96,7 +96,7 @@ public class ShortestPath {
     core.schedule(root, new ShortestPathUpdater(graph));
 
     logger.trace("Running graphlab ...");
-    core.start();
+    logger.trace("Took " + core.start() + " seconds");
 
     // destroy core
     logger.trace("Destroying core ...");
