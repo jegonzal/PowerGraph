@@ -42,6 +42,7 @@
 #include "Eigen/Sparse"
 #include "Eigen/Cholesky"
 #include "Eigen/Eigenvalues"
+#include "Eigen/SVD"
 using namespace Eigen;
 
 typedef MatrixXd mat;
@@ -220,6 +221,10 @@ inline mat randn(int dx, int dy){
 inline void set_diag(mat &A, vec & v){
    A.diagonal()=v;
 }
+inline mat diag(vec & v){
+   return v.asDiagonal();
+}
+
 template<typename mat>
 inline double sumsum(const mat & A){
    return A.sum();
@@ -302,6 +307,15 @@ inline mat get_cols(const mat&A, ivec & cols){
   mat a(A.rows(), cols.size());
   for (int i=0; i< cols.size(); i++)
     set_col(a, i, get_col(A, cols[i]));
+  return a;
+}
+inline mat get_cols(const mat&A, int start_col, int end_col){
+  assert(end_col > start_col);
+  assert(A.cols() <= end_col);
+  assert(start_col >= 0);
+  mat a(A.rows(), end_col-start_col);
+  for (int i=0; i< end_col-start_col; i++)
+    set_col(a, i, get_col(A, i));
   return a;
 }
 inline void set_val(vec & v, int pos, double val){
@@ -596,5 +610,11 @@ inline vec sqrt(const vec & v){
       ret[i] = std::sqrt(v(i));
    }
    return ret;
+}
+inline void svd(const mat & A, mat & U, mat & V, vec & singular_values){
+        Eigen::JacobiSVD<mat> svdEigen(A, Eigen::ComputeFullU | Eigen::ComputeFullV);
+        U= svdEigen.matrixU();
+        V= svdEigen.matrixV();
+	singular_values =svdEigen.singularValues(); 
 }
 #endif

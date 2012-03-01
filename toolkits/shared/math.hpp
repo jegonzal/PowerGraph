@@ -36,7 +36,7 @@ struct math_info{
   int increment;
   double  c;
   double  d;
-  int x_offset, b_offset , y_offset, r_offset, div_offset, prev_offset;
+  int x_offset, b_offset , y_offset, r_offset, div_offset, prev_offset, div_const;
   bool A_offset;
   std::vector<std::string> names;
   bool use_diag;
@@ -49,6 +49,7 @@ struct math_info{
     increment = 2;
     c=1.0; d=0.0;
     x_offset = b_offset = y_offset = r_offset = div_offset = prev_offset = -1;
+    div_const = 0;
     A_offset = false;
     use_diag = true;
   }
@@ -122,7 +123,6 @@ struct Axb:
   if (mi.div_offset >= 0){
     val /= user.pvec[mi.div_offset];
   }
-
   user.pvec[mi.r_offset] = val;
 }
 };
@@ -210,6 +210,15 @@ class DistVec{
       mi.div_offset = other.offset;
       return *this;
    }
+   DistVec& operator/(const DistDouble & other);
+   
+   DistVec& operator/(double val){
+      assert(val != 0);
+      assert(mi.d == 0);
+      mi.d = 1/val;
+      return *this;
+   }
+
 
    DistVec& operator=(const DistVec & vec){
      assert(offset < data_size);
@@ -282,7 +291,8 @@ class DistVec{
      return *this;
   }
   DistVec& operator*(const DistDouble &dval);
-  
+
+  DistMat &operator*(DistMat & v);
 
   DistVec& _transpose() { 
      /*if (!config.square){
@@ -295,7 +305,68 @@ class DistVec{
  
  };
 
+class DistSlicedMat{
+  public:
+     bipartite_graph_descriptor info;
+     int start_offset;
+     int end_offset; 
+      std::string name; //optional
+     int start;
+     int end;
+     bool transpose;
+ 
+  DistSlicedMat(int _start_offset, int _end_offset, bool _transpose, bipartite_graph_descriptor &_info, std::string _name){
+     init();
+     start_offset = _start_offset;
+     end_offset = _end_offset;
+     info = _info;
+     name = _name;
+  }
 
+   void init(){
+     start = info.get_start_node(!transpose);
+     end = info.get_end_node(!transpose);
+     assert(start < end && start >= 0 && end >= 1);
+     //debug_print(name);
+   };
+
+   int size(int dim){ return (dim == 1) ? (end-start) : (end_offset - start_offset) ; }
+
+   void set_cols(int start_col, int end_col, const mat& pmat){
+    assert(start_col >= start_offset);
+    assert(end_col <= end_offset);
+    assert(pmat.rows() == end-start);
+    assert(pmat.cols() >= end_col - start_col);
+    for (int i=start_col; i< end_col; i++)
+      this->operator[](i) = get_col(pmat, i-start_col);
+   }
+   mat get_cols(int start_col, int end_col){
+     assert(start_col >= start_offset);
+     assert(end_col <= end_offset);
+     mat retmat = zeros(end-start, end_col - start_col);
+     for (int i=start_col; i< end_col; i++)
+        set_col(retmat, i-start_col, this->operator[](i).to_vec());
+     return retmat;
+   }
+
+   void operator=(mat & pmat){
+    assert(end_offset <= pmat.cols());
+    assert(end-start == pmat.rows());
+    set_cols(0, pmat.cols(), pmat);
+   }
+
+   std::string get_name(int pos){
+     assert(pos >= start_offset && pos < end_offset);
+     return name + "[" + boost::lexical_cast<std::string>(pos) + "]" ;
+   }
+
+   DistVec operator[](int pos){
+     assert(pos >= start_offset && pos < end_offset);
+     DistVec ret(info, pos, transpose, get_name(pos));
+     return ret;
+   }
+
+};
 
 /*
  * wrapper for computing r = c*A*x+d*b*y
@@ -359,6 +430,7 @@ class DistMat{
     }   
 };
 
+
 DistVec& DistVec::operator=(DistMat &mat){
   mi.r_offset = offset;
   assert(prev_offset < data_size);
@@ -386,6 +458,11 @@ DistVec& DistVec::operator-(const DistMat & other){
       return *this;
 }
 
+DistMat& DistVec::operator*(DistMat & v){
+      	mi.x_offset = offset;
+        mi.A_offset = true;
+        return v;
+}
 
 
 class DistDouble{
@@ -474,8 +551,7 @@ DistDouble sqrt(DistDouble & dval){
     mval.val=sqrt(dval.val);
     return mval;
 }
-
-DistDouble norm(DistVec & vec){
+DistDouble norm(const DistVec &vec){
     assert(vec.offset>=0);
     assert(vec.start < vec.end);
 
@@ -490,6 +566,13 @@ DistDouble norm(DistVec & vec){
     return mval;
 }
 
+
+DistDouble norm(DistMat & mat){
+   DistVec vec(info, 0, mat.transpose, "norm");
+   vec = mat;
+   return norm((const DistVec&)vec);
+}
+
 vec diag(DistMat & mat){
    assert(info.is_square());
    vec ret = zeros(info.total());
@@ -499,4 +582,21 @@ vec diag(DistMat & mat){
    return ret;
 }
 
+void orthogonalize_vs_all(DistSlicedMat & mat, int curoffset){
+  for (int j=0; j <ortho_repeats; j++){
+  DistVec current = mat[curoffset];
+    for (int i=0; i< curoffset-1; i++){
+      DistDouble alpha = mat[i]*current;
+      current = current - mat[i]*alpha;
+    }
+  }
+}
+
+DistVec& DistVec::operator/(const DistDouble & other){
+      assert(other.val != 0);
+      assert(mi.d == 0);
+      mi.d = 1/other.val;
+      return *this;
+}
+ 
 #endif //_MATH_HPP
