@@ -462,10 +462,20 @@ void load_matrix_market_vector(const std::string & filename, const bipartite_gra
           "Market Market type: " << mm_typecode_to_str(matcode) << std::endl;
 
     /* find out size of sparse matrix .... */
-
-    if ((ret_code = mm_read_mtx_crd_size(f, &M, &N, &nz)) !=0)
-       logstream(LOG_FATAL) << "failed to read matrix market cardinality size " << std::endl; 
-
+    if (mm_is_sparse(matcode)){
+       if ((ret_code = mm_read_mtx_crd_size(f, &M, &N, &nz)) !=0)
+          logstream(LOG_FATAL) << "failed to read matrix market cardinality size " << std::endl; 
+    }
+    else {
+      if ((ret_code = mm_read_mtx_array_size(f, &M, &N))!= 0)
+          logstream(LOG_FATAL) << "failed to read matrix market vector size " << std::endl; 
+         if (N > M){ //if this is a row vector, transpose
+           int tmp = N;
+           N = M;
+           M = tmp;
+         }
+         nz = M*N;
+    }
 
     /* NOTE: when reading in doubles, ANSI C requires the use of the "l"  */
     /*   specifier as in "%lg", "%lf", "%le", otherwise errors will occur */
@@ -476,14 +486,23 @@ void load_matrix_market_vector(const std::string & filename, const bipartite_gra
 
     for (i=0; i<nz; i++)
     {
-        int rc = fscanf(f, "%d %d %lg\n", &row, &col, &val);
-        if (rc != 3){
-	  logstream(LOG_FATAL) << "Failed reading input file: " << filename << "Problm at data row " << i << " (not including header and comment lines)" << std::endl;
-
+        if (mm_is_sparse(matcode)){
+          int rc = fscanf(f, "%d %d %lg\n", &row, &col, &val);
+          if (rc != 3){
+	    logstream(LOG_FATAL) << "Failed reading input file: " << filename << "Problm at data row " << i << " (not including header and comment lines)" << std::endl;
+          }
+          row--;  /* adjust from 1-based to 0-based */
+          col--;
         }
-        row--;  /* adjust from 1-based to 0-based */
-        col--;
-        //some users have gibrish in text file - better check both I and J are >=0 as well
+        else {
+	  int rc = fscanf(f, "%lg\n", &val);
+          if (rc != 1){
+	    logstream(LOG_FATAL) << "Failed reading input file: " << filename << "Problm at data row " << i << " (not including header and comment lines)" << std::endl;
+          }
+          row = i;
+          col = 0;
+        }
+       //some users have gibrish in text file - better check both I and J are >=0 as well
         assert(row >=0 && row< M);
         assert(col == 0);
         if (val == 0 && !allow_zeros)

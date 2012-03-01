@@ -13,7 +13,7 @@ void print_vec(const char * name, const DistVec & vec, bool high = false){
  printf("\n");
 }
 void print_vec(const char * name, const vec & pvec, bool high = false){
- printf("%s[%d]\n", name, 0);
+ printf("%s\n", name);
  for (int i= 0; i< pvec.size(); i++){
   if (high)
    printf("%15.15lg ", pvec[i]);
@@ -23,7 +23,7 @@ void print_vec(const char * name, const vec & pvec, bool high = false){
  printf("\n");
 }
 void print_mat(const char * name, const mat & pmat, bool high = false){
- printf("%s[%d]\n", name, 0);
+ printf("%s\n", name);
  for (int i= 0; i< pmat.rows(); i++){
   for (int j=0; j< pmat.cols(); j++){
     if (high)
@@ -40,11 +40,8 @@ void print_vec_pos(std::string name, vec & v, int i){
   if (i == -1)
     printf("%s\n", name.c_str());
   else {
-    printf("%s[%d]", name.c_str(), i-1);
-    if (v.size() > 1)
-      printf("\n");
-    else
-      printf(": "); 
+    printf("%s[%d]: %.5lg\n", name.c_str(), i, v[i]);
+    return;
   }
   for (int j=0; j< v.size(); j++){
    printf("%.5lg", v(j));
