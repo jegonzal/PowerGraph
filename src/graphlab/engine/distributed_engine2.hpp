@@ -666,11 +666,12 @@ namespace graphlab {
       switch(vstate[lvid].state) {
       case NONE: 
         ASSERT_MSG(false, "Empty Internal Task");
-      case LOCKING:
+      case LOCKING: {
           BEGIN_TRACEPOINT(disteng_chandy_misra);
           cmlocks->make_philosopher_hungry_per_replica(lvid);
           END_TRACEPOINT(disteng_chandy_misra);
           break;
+      }
       case GATHERING: {
           logstream(LOG_DEBUG) << rmi.procid() << ": Internal Task: " 
                               << graph.global_vid(lvid) << ": GATHERING(" << vstate[lvid].apply_count_down << ")" << std::endl;
