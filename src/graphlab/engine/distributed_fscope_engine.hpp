@@ -298,7 +298,7 @@ namespace graphlab {
       // Added context to force compilation.   
       context_type context;
 
-      INITIALIZE_DIST_EVENT_LOG(eventlog, dc, std::cout, 500, 
+      INITIALIZE_DIST_EVENT_LOG(eventlog, dc, std::cout, 3000, 
                                 dist_event_log::RATE_BAR);
       ADD_DIST_EVENT_TYPE(eventlog, SCHEDULE_EVENT, "Schedule");
       ADD_DIST_EVENT_TYPE(eventlog, UPDATE_EVENT, "Updates");
