@@ -514,6 +514,7 @@ namespace graphlab {
       ASSERT_EQ(vstate[lvid].state, (int)LOCKING);
       vstate[lvid].state = GATHERING;
       update_functor_type uf = vstate[lvid].current;
+      do_init_gather(lvid);
       vstate_locks[lvid].unlock();
       master_broadcast_gathering(lvid, uf);
     }
@@ -586,13 +587,18 @@ namespace graphlab {
       END_TRACEPOINT(disteng_evalfac);
     }
     
-    
+    void do_init_gather(lvid_type lvid) {
+      update_functor_type& ufun = vstate[lvid].current;
+      vertex_id_type vid = graph.global_vid(lvid);
+      context_type context(this, &graph, vid, ufun.gather_consistency());
+      ufun.init_gather(context);
+    }   
+ 
     void do_gather(lvid_type lvid) { // Do gather
       BEGIN_TRACEPOINT(disteng_evalfac);
       update_functor_type& ufun = vstate[lvid].current;
       vertex_id_type vid = graph.global_vid(lvid);
       context_type context(this, &graph, vid, ufun.gather_consistency());
-      ufun.init_gather(context);
       if(ufun.gather_edges() == graphlab::IN_EDGES || 
          ufun.gather_edges() == graphlab::ALL_EDGES) {
         const local_edge_list_type edges = graph.l_in_edges(vid);
@@ -674,6 +680,7 @@ namespace graphlab {
       case MIRROR_GATHERING: {
           logstream(LOG_DEBUG) << rmi.procid() << ": Internal Task: " 
                               << graph.global_vid(lvid) << ": MIRROR_GATHERING" << std::endl;
+          do_init_gather(lvid);
           process_gather(lvid);
           break;
         }
