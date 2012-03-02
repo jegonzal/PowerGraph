@@ -437,7 +437,7 @@ namespace graphlab {
           return false;
         }
         const bool success = load_structure_from_stream(fin, format, graph);
-        fin.pop();
+        if (gzip) fin.pop();
         fin.pop();
         in_file.close();
         return success;

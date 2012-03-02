@@ -801,10 +801,17 @@ namespace graphlab {
       logstream(LOG_INFO) << "Load graph from " << fname << std::endl;
       if(boost::starts_with(fname, "hdfs://")) {
         graphlab::hdfs hdfs;
-        graphlab::hdfs::fstream fin(hdfs, fname);
+        graphlab::hdfs::fstream in_file(hdfs, fname);
+        boost::iostreams::filtering_stream<boost::iostreams::input> fin;  
+        fin.push(in_file);
+        if(!fin.good()) {
+          logstream(LOG_FATAL) << "Error opening file: " << fname << std::endl;
+          exit(-1);
+        }
         iarchive iarc(fin);
         iarc >> *this;
-        fin.close();
+        fin.pop();
+        in_file.close();
       } else {
         std::ifstream fin(fname.c_str());
         iarchive iarc(fin);
@@ -825,10 +832,17 @@ namespace graphlab {
       logstream(LOG_INFO) << "Save graph to " << fname << std::endl;
       if(boost::starts_with(fname, "hdfs://")) {
         graphlab::hdfs hdfs;
-        graphlab::hdfs::fstream fout(hdfs, fname);
+        graphlab::hdfs::fstream out_file(hdfs, fname, true);
+        boost::iostreams::filtering_stream<boost::iostreams::output> fout;  
+        fout.push(out_file);
+        if (!fout.good()) {
+          logstream(LOG_FATAL) << "Error opening file: " << fname << std::endl;
+          exit(-1);
+        }
         oarchive oarc(fout);
         oarc << *this;
-        fout.close();
+        fout.pop();
+        out_file.close();
       } else {
         std::ofstream fout(fname.c_str());
         oarchive oarc(fout);
