@@ -112,7 +112,7 @@ vec lanczos(graphlab::core<graph_type, Axb> & glcore, bipartite_graph_descriptor
      alpha = zeros(n);
      beta = zeros(n);
 
-     U[k] = V[k]*AT;
+     U[k] = V[k]*AT._transpose();
      orthogonalize_vs_all(U, k);
      alpha(0)=norm(U[k]).toDouble(); 
      PRINT_VEC3("alpha", alpha, 0);

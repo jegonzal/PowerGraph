@@ -590,7 +590,7 @@ vec diag(DistMat & mat){
 }
 
 void orthogonalize_vs_all(DistSlicedMat & mat, int curoffset){
-  assert(ortho_repeats >=1 && ortho_repeats <= 3);
+  assert(mi.ortho_repeats >=1 && mi.ortho_repeats <= 3);
 
   bool old_debug = debug;
   debug = false;
