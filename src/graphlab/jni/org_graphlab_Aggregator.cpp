@@ -33,32 +33,25 @@ jmethodID proxy_aggregator::java_add      = 0;
 jmethodID proxy_aggregator::java_finalize = 0;
 jmethodID proxy_aggregator::java_clone    = 0;
 
-void proxy_aggregator::init(JNIEnv *env){
+JNIEXPORT void JNICALL
+  Java_org_graphlab_Aggregator_initNative
+  (JNIEnv *env, jclass clazz){
 
-  jclass aggregator_class = env->FindClass("org/graphlab/Aggregator");
-
-  // get the method ID for Aggregator#exec, if we don't have it already
-  if (0 == java_exec){
-    java_exec =
-      env->GetMethodID(aggregator_class, "exec", "(JLorg/graphlab/data/Vertex;)V");
-  }
+  // Aggregator#exec
+  proxy_aggregator::java_exec =
+    env->GetMethodID(clazz, "exec", "(JLorg/graphlab/data/Vertex;)V");
   
-  // get the method ID for Aggregator#add, if we don't have it already
-  if (0 == java_add){
-    java_add =
-      env->GetMethodID(aggregator_class, "add", "(Lorg/graphlab/Aggregator;)V");
-  }
+  // Aggregator#add
+  proxy_aggregator::java_add =
+    env->GetMethodID(clazz, "add", "(Lorg/graphlab/Aggregator;)V");
   
-  // get the method ID for Aggregator#finalize, if we don't have it already
-  if (0 == java_finalize){
-    java_finalize = 
-      env->GetMethodID(aggregator_class, "finalize", "(J)V");
-  }
+  // Aggregator#finalize
+  proxy_aggregator::java_finalize = 
+    env->GetMethodID(clazz, "finalize", "(J)V");
   
-  if (0 == java_clone){
-    java_clone = 
-      env->GetMethodID(aggregator_class, "clone", "()Lorg/graphlab/Aggregator;");
-  }
+  // Aggregator#clone
+  proxy_aggregator::java_clone = 
+    env->GetMethodID(clazz, "clone", "()Lorg/graphlab/Aggregator;");
   
 }
 

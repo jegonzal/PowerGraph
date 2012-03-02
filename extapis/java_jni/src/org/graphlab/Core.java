@@ -237,7 +237,7 @@ public final class Core {
    * @throws IllegalStateException
    *           if {@link #destroy()} was invoked on this object
    */
-	public void schedule(Vertex vertex, Updater<?> updater) {
+	public void schedule(Vertex vertex, Updater<?, ?> updater) {
 
 		if (null == updater || null == vertex)
 			throw new NullPointerException("updater and vertex must not be null.");
@@ -259,7 +259,7 @@ public final class Core {
    * @throws IllegalStateException
    *           if {@link #destroy()} was invoked on this object
 	 */
-	public void scheduleAll(Updater<?> updater){
+	public void scheduleAll(Updater<?, ?> updater){
 	  
 	  if (null == updater)
 	    throw new NullPointerException("updater must not be null.");
@@ -288,7 +288,7 @@ public final class Core {
    * @throws IllegalArgumentException
    *          if <tt>key</tt> has length 0
    */
-	public void addAggregator(String key, Aggregator<?> aggregator, long interval){
+	public void addAggregator(String key, Aggregator<?, ?> aggregator, long interval){
 	  if (null == key || null == aggregator)
 	    throw new NullPointerException ("key and aggregator may not be null.");
 	  if (key.length() <= 0)
@@ -436,7 +436,7 @@ public final class Core {
 	 * @param vertexId
 	 *       graphlab vertex ID
 	 */
-	private native void schedule(long core_ptr, Updater<?> updater, int vertexId);
+	private native void schedule(long core_ptr, Updater<?, ?> updater, int vertexId);
 
 	/**
 	 * Add the given function to all vertices using the given priority
@@ -444,7 +444,7 @@ public final class Core {
 	 *       {@link #mCorePtr}
    * @param updater
 	 */
-	private native void scheduleAll(long core_ptr, Updater<?> updater);
+	private native void scheduleAll(long core_ptr, Updater<?, ?> updater);
 	
   /**
    * Run the engine until a termination condition is reached or there are no
@@ -509,7 +509,7 @@ public final class Core {
    * @param interval
    */
 	private native void addAggregator
-	  (long ptr, String key, Aggregator<?> aggregator, long interval);
+	  (long ptr, String key, Aggregator<?, ?> aggregator, long interval);
 	
   /**
    * Performs a sync immediately. This function requires that the shared

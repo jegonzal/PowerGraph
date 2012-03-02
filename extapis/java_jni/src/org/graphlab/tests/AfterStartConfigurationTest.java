@@ -75,14 +75,14 @@ public class AfterStartConfigurationTest {
       core.setScopeType(scope);
       
       // updater will set value to 1
-      core.schedule(zero, new Updater<ScalarVertex>(){
+      core.schedule(zero, new DefaultUpdater(){
         @Override
         public void update(Context context, ScalarVertex vertex) {
           vertex.setValue(1);
         }
 
         @Override
-        protected Updater<ScalarVertex> clone() {
+        protected DefaultUpdater clone() {
           return this;
         }
       });
@@ -114,14 +114,14 @@ public class AfterStartConfigurationTest {
       core.setSchedulerType(scheduler);
       
       // updater will set value to 1
-      core.schedule(zero, new Updater<ScalarVertex>(){
+      core.schedule(zero, new DefaultUpdater(){
         @Override
         public void update(Context context, ScalarVertex vertex) {
           vertex.setValue(1);
         }
 
         @Override
-        protected Updater<ScalarVertex> clone() {
+        protected DefaultUpdater clone() {
           return this;
         }
       });
@@ -153,14 +153,14 @@ public class AfterStartConfigurationTest {
       core.setNCpus(n);
       
       // updater will set value to 1
-      core.schedule(zero, new Updater<ScalarVertex>(){
+      core.schedule(zero, new DefaultUpdater(){
         @Override
         public void update(Context context, ScalarVertex vertex) {
           vertex.setValue(1);
         }
 
         @Override
-        protected Updater<ScalarVertex> clone() {
+        protected DefaultUpdater clone() {
           return this;
         }
       });
@@ -180,5 +180,7 @@ public class AfterStartConfigurationTest {
   public void tearDown() throws Exception {
     core.destroy();
   }
+  
+  private abstract class DefaultUpdater extends Updater<ScalarVertex, DefaultUpdater> {}
 
 }

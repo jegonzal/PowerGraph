@@ -33,6 +33,8 @@
 #include "org_graphlab_Core.hpp"
 #include "org_graphlab_Updater.hpp"
 
+#include "org_graphlab_Aggregator.h"
+
 namespace graphlab {
   
   /**
@@ -111,11 +113,6 @@ namespace graphlab {
     void operator+=(const proxy_aggregator& other);
     
     void finalize(iglobal_context& context);
-    
-    /**
-     * Initialize JNI method IDs
-     */
-    static void init(JNIEnv *env);
     
   };
 

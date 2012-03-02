@@ -142,7 +142,7 @@ public class Coloring {
 
   }
   
-  private static class ColoringUpdater extends Updater<ScalarVertex> {
+  private static class ColoringUpdater extends Updater<ScalarVertex, ColoringUpdater> {
 
     private DirectedGraph<ScalarVertex, DefaultWeightedEdge> mGraph;
 
@@ -180,7 +180,7 @@ public class Coloring {
     }
 
     @Override
-    protected Updater<ScalarVertex> clone() {
+    protected ColoringUpdater clone() {
       return new ColoringUpdater(mGraph);
     }
 

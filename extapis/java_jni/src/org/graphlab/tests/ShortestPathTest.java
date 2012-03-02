@@ -55,7 +55,7 @@ public class ShortestPathTest {
 		root.setValue(0);
 
 		core.setGraph(graph);
-		Updater<ScalarVertex> shortestPathUpdater = new ShortestPathUpdater(graph);
+		ShortestPathUpdater shortestPathUpdater = new ShortestPathUpdater(graph);
 		core.schedule(root, shortestPathUpdater);
 		core.start();
 		
@@ -84,7 +84,7 @@ public class ShortestPathTest {
 		root.setValue(0);
 
 		core.setGraph(graph);
-		Updater<ScalarVertex> shortestPathUpdater = new ShortestPathUpdater(graph);
+		ShortestPathUpdater shortestPathUpdater = new ShortestPathUpdater(graph);
 		core.schedule(root, shortestPathUpdater);
 		core.start();
 		
@@ -104,7 +104,7 @@ public class ShortestPathTest {
 		core.destroy();
 	}
 
-	private class ShortestPathUpdater extends Updater<ScalarVertex> {
+	private class ShortestPathUpdater extends Updater<ScalarVertex, ShortestPathUpdater> {
 	  
 		private DefaultDirectedWeightedGraph<ScalarVertex, DefaultWeightedEdge> graph;
 
@@ -139,7 +139,7 @@ public class ShortestPathTest {
 		}
 
     @Override
-    protected Updater<ScalarVertex> clone() {
+    protected ShortestPathUpdater clone() {
       return new ShortestPathUpdater(graph);
     }
 

@@ -158,11 +158,6 @@ namespace graphlab {
     void apply(icontext_type& context);
     void scatter(icontext_type& context, const edge_type& edge);
     
-    /**
-     * Initialize JNI method IDs
-     */
-    static void init(JNIEnv *env);
-    
   };
   
 }

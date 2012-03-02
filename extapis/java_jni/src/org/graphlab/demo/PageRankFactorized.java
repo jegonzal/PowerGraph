@@ -6,6 +6,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Scanner;
 
 import org.apache.log4j.BasicConfigurator;
 import org.apache.log4j.Level;
@@ -36,36 +37,32 @@ public class PageRankFactorized {
     
     initLogger();
     
+    ///////// DUMB VISUAL VM HACK ///////////
+    Scanner sc = new Scanner(System.in);
+    sc.next();
+    ///////// DUMB VISUAL VM HACK ///////////
+    
     // check arguments
-    if (!checkParams(args)) {
-      logger.trace("Exiting main method.");
-      return;
-    }
-
+    if (!checkParams(args)) return;
     String filename = args[0];
-    logger.info("Graph file: " + filename);
 
     // initialize graphlab core
     final Core core;
     try {
-      logger.trace("Initializing GraphLab core ...");
       CoreConfiguration config = new CoreConfiguration();
       config.setScheduler(Scheduler.SWEEP);
       core = new Core(config);
     } catch (CoreException e) {
       logger.fatal("Unable to initialize core. Terminating.", e);
-      logger.trace("Exiting main method.");
       return;
     }
 
     // construct graph
-    logger.trace("Constructing graph from " + filename + " ...");
     final DefaultDirectedWeightedGraph<PageRankVertex, DefaultWeightedEdge> graph;
     try {
       graph = constructGraph(filename);
     } catch (IOException e) {
       logger.fatal("Unable to construct graph. Terminating.", e);
-      logger.trace("Exiting main method.");
       core.destroy();
       return;
     }
@@ -73,7 +70,6 @@ public class PageRankFactorized {
     // execute graph updates
     core.setGraph(graph);
     core.scheduleAll(new PageRankUpdater(graph, PageRankUpdater.RESET_PROB));
-    logger.trace("Running graphlab ...");
     logger.info("Took " + core.start() + " seconds.");
     
     // print results
@@ -115,6 +111,12 @@ public class PageRankFactorized {
 
   }
 
+  /**
+   * Constructs graph and normalizes weights
+   * @param filename
+   * @return graph
+   * @throws IOException
+   */
   private static DefaultDirectedWeightedGraph<PageRankVertex, DefaultWeightedEdge>
     constructGraph(String filename)
     throws IOException {
@@ -137,6 +139,7 @@ public class PageRankFactorized {
       for(DefaultWeightedEdge edge : outEdges){
         sum += graph.getEdgeWeight(edge);
       }
+      // set normalized weight
       for(DefaultWeightedEdge edge : outEdges){
         graph.setEdgeWeight(edge, (graph.getEdgeWeight(edge)/sum));
       }
@@ -144,12 +147,16 @@ public class PageRankFactorized {
     
   }
   
-  private static void printResults (DirectedGraph<PageRankVertex, DefaultWeightedEdge> g){
+  /**
+   * Prints results for top 5 pages.
+   * @param graph
+   */
+  private static void printResults (DirectedGraph<PageRankVertex, DefaultWeightedEdge> graph){
       
     logger.info("----------------- Results -----------------");
     logger.info("ID : Rank");
     
-    Collection<PageRankVertex> vertices = g.vertexSet();
+    Collection<PageRankVertex> vertices = graph.vertexSet();
     List<PageRankVertex> verticesList = new ArrayList<PageRankVertex>(vertices.size());
     for (PageRankVertex vertex : vertices){
       verticesList.add(vertex);
@@ -161,6 +168,7 @@ public class PageRankFactorized {
       }
     });
     
+    // print top 5 pages
     for (int i=0; i<Math.min(verticesList.size(), 5); i++){
       PageRankVertex vertex = verticesList.get(i);
       logger.info(vertex.id() + " : " + vertex.value());
@@ -168,7 +176,7 @@ public class PageRankFactorized {
     
   }
 
-  private static class PageRankUpdater extends Updater<PageRankVertex> {
+  private static class PageRankUpdater extends Updater<PageRankVertex, PageRankUpdater> {
 
     /** Global reset probability */
     public static final double RESET_PROB = 0.15;
@@ -183,25 +191,22 @@ public class PageRankFactorized {
     public PageRankUpdater(
         DefaultDirectedWeightedGraph<PageRankVertex, DefaultWeightedEdge> graph,
         double accum) {
-      if (null == graph) throw new NullPointerException ("graph must not be null.");
       mGraph = graph;
       mAccum = accum;
     }
     
     @Override
     public double priority(){
-      return mAccum;
+      return Math.abs(mAccum);
     }
     
     @Override
-    public void add(Updater<PageRankVertex> other){
-      if (!(other instanceof PageRankUpdater))
-        throw new IllegalStateException("incompatible updaters added.");
-      mAccum += ((PageRankUpdater) other).priority();
+    public void add(PageRankUpdater other){
+      mAccum += other.priority();
     }
 
     @Override
-    protected Updater<PageRankVertex> clone() {
+    protected PageRankUpdater clone() {
       return new PageRankUpdater(mGraph, mAccum);
     }
     
@@ -231,13 +236,13 @@ public class PageRankFactorized {
           : Updater.NO_EDGES;
     }
     
-    // Reset the accumulator before running the gather
+    // reset the accumulator before running the gather
     @Override
     protected void initGather(){
       mAccum = 0;
     }
     
-    // Run the gather operation over all in edges
+    // run the gather operation over all in edges
     @Override
     protected void gather(PageRankVertex source, PageRankVertex target) {
       mAccum +=
@@ -246,13 +251,13 @@ public class PageRankFactorized {
     }
     
     @Override
-    protected void merge(Updater<PageRankVertex> updater){
+    protected void merge(PageRankUpdater updater){
       if (! (updater instanceof PageRankUpdater))
         throw new IllegalArgumentException();
       mAccum = ((PageRankUpdater) updater).mAccum;
     }
     
-    // Update the center vertex
+    // update the center vertex
     @Override
     protected void apply(PageRankVertex vertex) {
       vertex.mNUpdates++;
@@ -263,7 +268,7 @@ public class PageRankFactorized {
       }
     } // end of apply
 
-    // Reschedule neighbors 
+    // reschedule neighbors 
     @Override
     protected void scatter(Context context, PageRankVertex source, PageRankVertex target) {
       DefaultWeightedEdge edge = mGraph.getEdge(source, target);

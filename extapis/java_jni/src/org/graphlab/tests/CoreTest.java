@@ -38,12 +38,12 @@ public class CoreTest {
     
     // schedule a simple updater on all 10 vertices
     mCore.setGraph(graph);
-    mCore.scheduleAll(new Updater<ScalarVertex>(){
+    mCore.scheduleAll(new DefaultUpdater(){
       @Override
       public void update(Context context, ScalarVertex vertex){}
 
       @Override
-      protected Updater<ScalarVertex> clone() {
+      protected DefaultUpdater clone() {
         return this;
       }
     });
@@ -69,7 +69,7 @@ public class CoreTest {
     
     // schedule a simple updater on all 10 vertices
     mCore.setGraph(graph);
-    mCore.scheduleAll(new Updater<ScalarVertex>(){
+    mCore.scheduleAll(new DefaultUpdater(){
       @Override
       public void update(Context context, ScalarVertex vertex){
         // get const
@@ -78,7 +78,7 @@ public class CoreTest {
       }
 
       @Override
-      protected Updater<ScalarVertex> clone() {
+      protected DefaultUpdater clone() {
         return this;
       }
     });
@@ -105,7 +105,7 @@ public class CoreTest {
     
     // schedule a simple updater on all 10 vertices
     mCore.setGraph(graph);
-    mCore.scheduleAll(new Updater<ScalarVertex>(){
+    mCore.scheduleAll(new DefaultUpdater(){
       @Override
       public void update(Context context, ScalarVertex vertex){
         // set value to 7
@@ -113,7 +113,7 @@ public class CoreTest {
       }
 
       @Override
-      protected Updater<ScalarVertex> clone() {
+      protected DefaultUpdater clone() {
         return this;
       }
     });
@@ -129,5 +129,7 @@ public class CoreTest {
   public void tearDown() throws Exception {
     mCore.destroy();
   }
+  
+  private abstract class DefaultUpdater extends Updater<ScalarVertex, DefaultUpdater> {}
 
 }
