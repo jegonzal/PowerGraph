@@ -833,7 +833,7 @@ namespace graphlab {
       ASSERT_EQ(vstate[lvid].state, MIRROR_SCATTERING);
       graph.get_local_graph().vertex_data(lvid) = central_vdata;
       vstate[lvid].current = task;
-      vstate_locks[lvid].lock();
+      vstate_locks[lvid].unlock();
       add_internal_task(lvid);
     }
     
