@@ -60,9 +60,21 @@ void __print_back_trace() {
     size = backtrace(array, 1024);
     strings = backtrace_symbols(array, size);
 
-    char demangled_name[10240];
-    size_t length;
-    int status;
+    fprintf(stderr, "Pointers\n");
+    fprintf(stderr, "------------\n");
+    for (i = 0; i < size; ++i) {
+        fprintf(stderr, "%p\n", array[i]);
+    }
+ 
+
+    fprintf(stderr, "Raw\n");
+    fprintf(stderr, "------------\n");
+    for (i = 0; i < size; ++i) {
+        fprintf(stderr, "%s\n", strings[i]);
+    }
+    fprintf(stderr, "\nDemangled\n");
+    fprintf(stderr, "------------\n");
+ 
     for (i = 0; i < size; ++i) {
         std::string ret = demangle(strings[i]);
         fprintf(stderr, "%s\n", ret.c_str());
