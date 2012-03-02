@@ -177,6 +177,6 @@ public class BeforeStartConfigurationTest {
     
   }
 
-  private abstract class DefaultUpdater extends Updater<ScalarVertex, DefaultUpdater> {}
+  private abstract class DefaultUpdater extends Updater<ScalarVertex, DefaultWeightedEdge, DefaultUpdater> {}
   
 }

@@ -91,6 +91,6 @@ public class UpdaterPriorityTest {
     core.destroy();
   }
   
-  private abstract class FlagUpdater extends Updater<ScalarVertex, FlagUpdater>{}
+  private abstract class FlagUpdater extends Updater<ScalarVertex, DefaultWeightedEdge, FlagUpdater>{}
 
 }

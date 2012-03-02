@@ -130,6 +130,6 @@ public class CoreTest {
     mCore.destroy();
   }
   
-  private abstract class DefaultUpdater extends Updater<ScalarVertex, DefaultUpdater> {}
+  private abstract class DefaultUpdater extends Updater<ScalarVertex, DefaultWeightedEdge, DefaultUpdater> {}
 
 }

@@ -104,7 +104,7 @@ public class ShortestPathTest {
 		core.destroy();
 	}
 
-	private class ShortestPathUpdater extends Updater<ScalarVertex, ShortestPathUpdater> {
+	private class ShortestPathUpdater extends Updater<ScalarVertex, DefaultWeightedEdge, ShortestPathUpdater> {
 	  
 		private DefaultDirectedWeightedGraph<ScalarVertex, DefaultWeightedEdge> graph;
 

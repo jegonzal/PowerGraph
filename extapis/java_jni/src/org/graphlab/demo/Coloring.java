@@ -142,7 +142,7 @@ public class Coloring {
 
   }
   
-  private static class ColoringUpdater extends Updater<ScalarVertex, ColoringUpdater> {
+  private static class ColoringUpdater extends Updater<ScalarVertex, DefaultWeightedEdge, ColoringUpdater> {
 
     private DirectedGraph<ScalarVertex, DefaultWeightedEdge> mGraph;
 

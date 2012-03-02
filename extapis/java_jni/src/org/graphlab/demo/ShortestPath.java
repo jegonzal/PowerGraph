@@ -159,7 +159,7 @@ public class ShortestPath {
    * Finds shortest path to a particular vertex
    * @author Jiunn Haur Lim
    */
-  private static class ShortestPathUpdater extends Updater<ScalarVertex, ShortestPathUpdater> {
+  private static class ShortestPathUpdater extends Updater<ScalarVertex, DefaultWeightedEdge, ShortestPathUpdater> {
 
     private DirectedGraph<ScalarVertex, DefaultWeightedEdge> mGraph;
 

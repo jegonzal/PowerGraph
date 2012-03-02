@@ -68,7 +68,7 @@ public class AddUpdaterTest {
    * value of its counter.
    * @author Jiunn Haur Lim <jiunnhal@cmu.edu>
    */
-  private static class CounterUpdater extends Updater<ScalarVertex, CounterUpdater> {
+  private static class CounterUpdater extends Updater<ScalarVertex, DefaultWeightedEdge, CounterUpdater> {
 
     private Graph<ScalarVertex, DefaultWeightedEdge> mGraph;
     

@@ -169,7 +169,7 @@ public class PageRank {
     
   }
 
-  private static class PageRankUpdater extends Updater<ScalarVertex, PageRankUpdater> {
+  private static class PageRankUpdater extends Updater<ScalarVertex, DefaultWeightedEdge, PageRankUpdater> {
 
     /** Global reset probability */
     public static final double RESET_PROB = 0.15;
