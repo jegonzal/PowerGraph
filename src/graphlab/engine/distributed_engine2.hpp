@@ -597,16 +597,16 @@ namespace graphlab {
     void do_gather(lvid_type lvid) { // Do gather
       BEGIN_TRACEPOINT(disteng_evalfac);
       update_functor_type& ufun = vstate[lvid].current;
-      vertex_id_type vid = graph.global_vid(lvid);
+      const vertex_id_type vid = graph.global_vid(lvid);
       context_type context(this, &graph, vid, ufun.gather_consistency());
       if(ufun.gather_edges() == graphlab::IN_EDGES || 
          ufun.gather_edges() == graphlab::ALL_EDGES) {
-        const local_edge_list_type edges = graph.l_in_edges(vid);
+        const local_edge_list_type edges = graph.l_in_edges(lvid);
         foreach(const edge_type& edge, edges) ufun.gather(context, edge);
       }
       if(ufun.gather_edges() == graphlab::OUT_EDGES ||
          ufun.gather_edges() == graphlab::ALL_EDGES) {
-        const local_edge_list_type edges = graph.l_out_edges(vid);
+        const local_edge_list_type edges = graph.l_out_edges(lvid);
         foreach(const edge_type& edge, edges) ufun.gather(context, edge);
       }
       END_TRACEPOINT(disteng_evalfac);
@@ -619,12 +619,12 @@ namespace graphlab {
       context_type context(this, &graph, vid, ufun.scatter_consistency());
       if(ufun.scatter_edges() == graphlab::IN_EDGES || 
          ufun.scatter_edges() == graphlab::ALL_EDGES) {
-        const local_edge_list_type edges = graph.l_in_edges(vid);
+        const local_edge_list_type edges = graph.l_in_edges(lvid);
         foreach(const edge_type& edge, edges) ufun.scatter(context, edge);
       }
       if(ufun.scatter_edges() == graphlab::OUT_EDGES ||
          ufun.scatter_edges() == graphlab::ALL_EDGES) {
-        const local_edge_list_type edges = graph.l_out_edges(vid);
+        const local_edge_list_type edges = graph.l_out_edges(lvid);
         foreach(const edge_type& edge, edges) ufun.scatter(context, edge);
       }
       END_TRACEPOINT(disteng_evalfac);

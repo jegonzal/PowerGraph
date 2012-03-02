@@ -590,7 +590,7 @@ namespace graphlab {
 
     void do_init_gather(lvid_type lvid) {
       update_functor_type& ufun = vstate[lvid].current;
-      vertex_id_type vid = graph.global_vid(lvid);
+      const vertex_id_type vid = graph.global_vid(lvid);
       context_type context(this, &graph, vid, ufun.gather_consistency());
       ufun.init_gather(context);
     }
@@ -598,12 +598,11 @@ namespace graphlab {
     void do_gather(lvid_type lvid) { // Do gather
       BEGIN_TRACEPOINT(disteng_evalfac);
       update_functor_type& ufun = vstate[lvid].current;
-      vertex_id_type vid = graph.global_vid(lvid);
+      const vertex_id_type vid = graph.global_vid(lvid);
       context_type context(this, &graph, vid, ufun.gather_consistency());
       if(ufun.gather_edges() == graphlab::IN_EDGES || 
          ufun.gather_edges() == graphlab::ALL_EDGES) {
-        const local_edge_list_type edges = graph.l_in_edges(vid);
-        ASSERT_LT(edges.size(), graph.num_local_edges());
+        const local_edge_list_type edges = graph.l_in_edges(lvid);
         for(size_t i = 0; i < edges.size(); ++i) {
           const lvid_type lneighbor = edges[i].l_source();
           if(i == 0) lock_single_edge(lvid, lneighbor);
@@ -614,8 +613,7 @@ namespace graphlab {
       }
       if(ufun.gather_edges() == graphlab::OUT_EDGES ||
          ufun.gather_edges() == graphlab::ALL_EDGES) {
-        const local_edge_list_type edges = graph.l_out_edges(vid);
-        ASSERT_LT(edges.size(), graph.num_local_edges());
+        const local_edge_list_type edges = graph.l_out_edges(lvid);
         for(size_t i = 0; i < edges.size(); ++i) {
           const lvid_type lneighbor = edges[i].l_target();
           if(i == 0) lock_single_edge(lvid, lneighbor);
@@ -625,7 +623,7 @@ namespace graphlab {
         }
       }
       END_TRACEPOINT(disteng_evalfac);
-    }
+    } // end of do_gather
     
     void do_scatter(lvid_type lvid) {
       BEGIN_TRACEPOINT(disteng_evalfac);
@@ -634,7 +632,7 @@ namespace graphlab {
       context_type context(this, &graph, vid, ufun.scatter_consistency());
       if(ufun.scatter_edges() == graphlab::IN_EDGES || 
          ufun.scatter_edges() == graphlab::ALL_EDGES) {
-        const local_edge_list_type edges = graph.l_in_edges(vid);
+        const local_edge_list_type edges = graph.l_in_edges(lvid);
         for(size_t i = 0; i < edges.size(); ++i) {
           const lvid_type lneighbor = edges[i].l_source();
           if(i == 0) lock_single_edge(lvid, lneighbor);
@@ -645,7 +643,7 @@ namespace graphlab {
       }
       if(ufun.scatter_edges() == graphlab::OUT_EDGES ||
          ufun.scatter_edges() == graphlab::ALL_EDGES) {
-        const local_edge_list_type edges = graph.l_out_edges(vid);
+        const local_edge_list_type edges = graph.l_out_edges(lvid);
         for(size_t i = 0; i < edges.size(); ++i) {
           const lvid_type lneighbor = edges[i].l_target();
           if(i == 0) lock_single_edge(lvid, lneighbor);
@@ -765,7 +763,7 @@ namespace graphlab {
                                     const update_functor_type& task) {
       BEGIN_TRACEPOINT(disteng_init_gathering);
       ASSERT_I_AM_OWNER(sched_lvid);
-      vertex_id_type sched_vid = graph.global_vid(sched_lvid);
+      const vertex_id_type sched_vid = graph.global_vid(sched_lvid);
       const typename graph_type::vertex_record& vrec = 
         graph.l_get_vertex_record(sched_lvid);
       const unsigned char prevkey = 
@@ -780,7 +778,7 @@ namespace graphlab {
 
     void rpc_begin_scattering(vertex_id_type vid, update_functor_type task,
                               const vertex_data_type &central_vdata) {
-      vertex_id_type lvid = graph.local_vid(vid);
+      const vertex_id_type lvid = graph.local_vid(vid);
       vstate[lvid].lock.lock();
       ASSERT_I_AM_NOT_OWNER(lvid);
       ASSERT_EQ(vstate[lvid].state, MIRROR_SCATTERING);
@@ -798,7 +796,7 @@ namespace graphlab {
                                      const vertex_data_type &central_vdata) {
       BEGIN_TRACEPOINT(disteng_init_scattering);
       ASSERT_I_AM_OWNER(sched_lvid);
-      vertex_id_type sched_vid = graph.global_vid(sched_lvid);
+      const vertex_id_type sched_vid = graph.global_vid(sched_lvid);
       const typename graph_type::vertex_record& vrec = 
         graph.l_get_vertex_record(sched_lvid);
       const unsigned char prevkey = 
