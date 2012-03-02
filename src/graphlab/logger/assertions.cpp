@@ -25,16 +25,29 @@
 #include <iostream>
 #include <cstdlib>
 #include <unistd.h>
+#include <cxxabi.h>
 
 /* Obtain a backtrace and print it to stderr. */
 void __print_back_trace() {
-  const size_t array_size(1024);
-  void *array[array_size];
-  int size;
-  size = backtrace(array, array_size);
-  backtrace_symbols_fd(array, size, STDERR_FILENO);
-  std::cerr << "Use c++filt to process the output." << std::endl;
+    void    *array[1024];
+    size_t  size, i;
+    char    **strings;
 
-  // backtrace_symbols_fd(array, size, STDOUT_FILENO);
+    size = backtrace(array, 1024);
+    strings = backtrace_symbols(array, size);
+
+    char demangled_name[10240];
+    size_t length;
+    int status;
+    for (i = 0; i < size; ++i) {
+        char* ret = abi::__cxa_demangle(strings[i], demangled_name, &length, &status);
+        if (ret != NULL) {
+          fprintf(stderr, "%s\n", ret);
+        }
+        else {
+          fprintf(stderr, "%s\n", strings[i]);
+        }
+    }
+    free(strings);
 }
 
