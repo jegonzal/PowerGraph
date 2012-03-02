@@ -588,13 +588,18 @@ namespace graphlab {
     }
  
 
+    void do_init_gather(lvid_type lvid) {
+      update_functor_type& ufun = vstate[lvid].current;
+      vertex_id_type vid = graph.global_vid(lvid);
+      context_type context(this, &graph, vid, ufun.gather_consistency());
+      ufun.init_gather(context);
+    }
     
     void do_gather(lvid_type lvid) { // Do gather
       BEGIN_TRACEPOINT(disteng_evalfac);
       update_functor_type& ufun = vstate[lvid].current;
       vertex_id_type vid = graph.global_vid(lvid);
       context_type context(this, &graph, vid, ufun.gather_consistency());
-      ufun.init_gather(context);
       if(ufun.gather_edges() == graphlab::IN_EDGES || 
          ufun.gather_edges() == graphlab::ALL_EDGES) {
         const local_edge_list_type edges = graph.l_in_edges(vid);
@@ -679,7 +684,7 @@ namespace graphlab {
       switch(vstate[lvid].state) {
       case NONE: logstream(LOG_FATAL) << "Empty Internal Task";
       case GATHERING: { process_gather(lvid); break; }
-      case MIRROR_GATHERING: { process_gather(lvid); break; }
+      case MIRROR_GATHERING: { do_init_gather(lvid); process_gather(lvid); break; }
       case APPLYING: { 
         do_apply(lvid);
         vstate[lvid].state = SCATTERING;
@@ -852,6 +857,7 @@ namespace graphlab {
         }
       }
       END_TRACEPOINT(disteng_eval_sched_task);
+      if (initiate_gathering) do_init_gather(sched_lvid);
       vstate[sched_lvid].lock.unlock();
 
       // begin gathering
