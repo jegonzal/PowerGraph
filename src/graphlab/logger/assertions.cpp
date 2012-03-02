@@ -27,6 +27,30 @@
 #include <unistd.h>
 #include <cxxabi.h>
 
+
+/** Code from http://mykospark.net/2009/09/runtime-backtrace-in-c-with-name-demangling/ */
+std::string demangle(const char* symbol) {
+  size_t size;
+  int status;
+  char temp[1024];
+  char* demangled;
+  //first, try to demangle a c++ name
+  if (1 == sscanf(symbol, "%*[^(]%*[^_]%127[^)+]", temp)) {
+    if (NULL != (demangled = abi::__cxa_demangle(temp, NULL, &size, &status))) {
+      std::string result(demangled);
+      free(demangled);
+      return result;
+    }
+  }
+  //if that didn't work, try to get a regular c symbol
+  if (1 == sscanf(symbol, "%127s", temp)) {
+    return temp;
+  }
+ 
+  //if all else fails, just return the symbol
+  return symbol;
+}
+
 /* Obtain a backtrace and print it to stderr. */
 void __print_back_trace() {
     void    *array[1024];
@@ -40,13 +64,8 @@ void __print_back_trace() {
     size_t length;
     int status;
     for (i = 0; i < size; ++i) {
-        char* ret = abi::__cxa_demangle(strings[i], demangled_name, &length, &status);
-        if (ret != NULL) {
-          fprintf(stderr, "%s\n", ret);
-        }
-        else {
-          fprintf(stderr, "%s\n", strings[i]);
-        }
+        std::string ret = demangle(strings[i]);
+        fprintf(stderr, "%s\n", ret.c_str());
     }
     free(strings);
 }
