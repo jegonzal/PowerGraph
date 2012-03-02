@@ -164,10 +164,9 @@ public abstract class Updater
    * Scatter is invoked on all scatter_edges() after calling and
    * may be invoked in parallel.
    * @param context     use this to schedule neighbors
-   * @param source      source of edge that scatter is working on
-   * @param target      target of edge that scatter is working on
+   * @param edge
    */
-  protected void scatter(Context context, V source, V target){
+  protected void scatter(Context context, E edge){
     throw new UnsupportedOperationException();
   }
   
@@ -194,9 +193,15 @@ public abstract class Updater
     
   }
   
-  protected void scatter(long contextPtr, V source, V target){
+  /**
+   * Executes scatter on the specified edge. This is <em>only</em> invoked by the
+   * proxy updater in the JNI library.
+   * @param contextPtr
+   * @param edge
+   */
+  private void scatter(long contextPtr, E edge){
     Context context = new Context(contextPtr);
-    scatter(context, source, target);
+    scatter(context, edge);
   }
   
   /**

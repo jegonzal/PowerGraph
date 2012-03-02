@@ -88,7 +88,7 @@ JNIEXPORT void JNICALL
 
   proxy_updater::java_scatter = 
     env->GetMethodID(clazz, "scatter",
-    "(JLorg/graphlab/data/Vertex;Lorg/graphlab/data/Vertex;)V");
+    "(JLjava/lang/Object;)V");
   
 }
 
@@ -239,8 +239,6 @@ void proxy_updater::apply(icontext_type& context){
 void proxy_updater::scatter(icontext_type& context, const edge_type& edge){
   JNIEnv *env = core::get_jni_env();
   env->CallVoidMethod(obj(), java_scatter,
-    &context,
-    context.const_vertex_data(edge.source()).app_vertex,
-    context.const_vertex_data(edge.target()).app_vertex);
+    &context, context.const_edge_data(edge).obj());
   handle_exception(env);
 }

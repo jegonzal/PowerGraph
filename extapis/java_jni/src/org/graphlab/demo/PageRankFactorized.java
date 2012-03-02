@@ -254,29 +254,28 @@ public class PageRankFactorized {
     
     @Override
     protected void merge(PageRankUpdater updater){
-      if (! (updater instanceof PageRankUpdater))
-        throw new IllegalArgumentException();
+      // accumulate pagerank
       mAccum = ((PageRankUpdater) updater).mAccum;
     }
     
-    // update the center vertex
     @Override
     protected void apply(PageRankVertex vertex) {
+      // update the center vertex
       vertex.mNUpdates++;
       vertex.setValue(RESET_PROB + (1 - RESET_PROB) * mAccum);
       mAccum = vertex.value() - vertex.mOldValue;
       if(Math.abs(mAccum) > ACCURACY || vertex.mNUpdates == 1) {
         vertex.mOldValue = vertex.value();    
       }
-    } // end of apply
+    }
 
-    // reschedule neighbors 
     @Override
-    protected void scatter(Context context, PageRankVertex source, PageRankVertex target) {
-      DefaultWeightedEdge edge = mGraph.getEdge(source, target);
+    protected void scatter(Context context, DefaultWeightedEdge edge) {
+      // reschedule neighbors 
       double delta = mAccum * mGraph.getEdgeWeight(edge) * (1 - RESET_PROB);
-      context.schedule(target, new PageRankUpdater(mGraph, delta));
-    } // end of scatter
+      context.schedule(mGraph.getEdgeTarget(edge),
+          new PageRankUpdater(mGraph, delta));
+    }
 
   }
   
