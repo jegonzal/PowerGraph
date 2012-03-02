@@ -40,6 +40,7 @@ struct math_info{
   bool A_offset;
   std::vector<std::string> names;
   bool use_diag;
+  int ortho_repeats;
 
   math_info(){
     reset_offsets();
@@ -340,9 +341,8 @@ class DistSlicedMat{
     assert(end_col <= end_offset);
     assert(pmat.rows() == end-start);
     assert(pmat.cols() >= end_col - start_col);
-    assert(false); // The following two lines do not build
-    // for (int i=start_col; i< end_col; i++)
-    //   this->operator[](i) = get_col(pmat, i-start_col);
+    for (int i=start_col; i< end_col; i++)
+      this->operator[](i) = get_col(pmat, i-start_col);
    }
    mat get_cols(int start_col, int end_col){
      assert(start_col >= start_offset);
@@ -593,17 +593,15 @@ void orthogonalize_vs_all(DistSlicedMat & mat, int curoffset){
   debug = false;
   DistVec current = mat[curoffset];
   //cout<<current.to_vec().transpose() << endl;
-  assert(false); // ORTHO_REPEATS NOT DEFINED
-  //// also ortho repeats should not be a global variable
-  // for (int j=0; j <ortho_repeats; j++){
-  //   for (int i=0; i< curoffset; i++){
-  //     DistDouble alpha = mat[i]*current;
+  for (int j=0; j < mi.ortho_repeats; j++){
+    for (int i=0; i< curoffset; i++){
+      DistDouble alpha = mat[i]*current;
   //     //cout<<mat[i].to_vec().transpose()<<endl;
   //     //cout<<"alpha is: " <<alpha.toDouble()<<endl;
-  //     if (alpha.toDouble() != 0)
-  //        current = current - mat[i]*alpha;
-  //   }
-  // }
+      if (alpha.toDouble() != 0)
+        current = current - mat[i]*alpha;
+    }
+  }
   debug = old_debug;
   current.debug_print(current.name);
 }
