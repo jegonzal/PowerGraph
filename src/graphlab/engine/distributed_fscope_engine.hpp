@@ -782,9 +782,12 @@ namespace graphlab {
     void rpc_begin_scattering(vertex_id_type vid, update_functor_type task,
                               const vertex_data_type &central_vdata) {
       vertex_id_type lvid = graph.local_vid(vid);
+      vstate[lvid].lock.lock();
       ASSERT_I_AM_NOT_OWNER(lvid);
       ASSERT_EQ(vstate[lvid].state, MIRROR_SCATTERING);
       graph.get_local_graph().vertex_data(lvid) = central_vdata;
+      vstate[lvid].current = task;
+      vstate[lvid].lock.unlock();
       add_internal_task(lvid);
     }
     
