@@ -211,12 +211,10 @@ public class PageRank {
       for(DefaultWeightedEdge edge : mGraph.outgoingEdgesOf(vertex)) {    
         double weight = mGraph.getEdgeWeight(edge);
         double residual = weight * Math.abs(vertex.value() - vertex.mOldValue);
-        // If the neighbor changed sufficiently add to scheduler.
+        // if the neighbor changed sufficiently add to scheduler.
         if(residual > ACCURACY) 
-          context.schedule(
-              mGraph.getEdgeTarget(edge),
-              new PageRankUpdater(mGraph, residual)
-          );
+          context.schedule(mGraph.getEdgeTarget(edge),
+              new PageRankUpdater(mGraph, residual));
       }
 
     }
