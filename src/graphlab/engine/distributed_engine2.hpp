@@ -645,7 +645,6 @@ namespace graphlab {
         locked_gather_complete(lvid);
       } else {
         vstate[lvid].state = MIRROR_SCATTERING;
-        vstate[lvid].current = update_functor_type();
         logstream(LOG_DEBUG) << rmi.procid() << ": Send Gather Complete of " << vid  
                              << " to " << vowner << std::endl;
 
@@ -653,6 +652,8 @@ namespace graphlab {
                         &engine_type::rpc_gather_complete,
                         graph.global_vid(lvid),
                         vstate[lvid].current);
+
+        vstate[lvid].current = update_functor_type();
       }
     }
 

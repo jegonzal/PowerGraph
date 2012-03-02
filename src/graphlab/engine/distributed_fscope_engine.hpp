@@ -667,11 +667,11 @@ namespace graphlab {
         gather_complete(lvid);
       } else {
         vstate[lvid].state = MIRROR_SCATTERING;
-        vstate[lvid].current = update_functor_type();
         rmi.remote_call(vowner,
                         &engine_type::rpc_gather_complete,
                         graph.global_vid(lvid),
                         vstate[lvid].current);
+        vstate[lvid].current = update_functor_type();
       }
     } // end of process gather
 
