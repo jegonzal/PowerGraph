@@ -37,7 +37,6 @@
 #include <algorithm>
 #include <functional>
 #include <fstream>
-#include <functional>
 #include <sstream>
 
 #include <boost/lexical_cast.hpp>
