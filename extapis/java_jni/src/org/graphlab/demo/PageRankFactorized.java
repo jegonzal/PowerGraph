@@ -254,7 +254,7 @@ public class PageRankFactorized {
     
     @Override
     protected void merge(PageRankUpdater updater){
-      // accumulate pagerank
+      // accumulate page ranks
       mAccum = ((PageRankUpdater) updater).mAccum;
     }
     
