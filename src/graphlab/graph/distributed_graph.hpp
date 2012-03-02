@@ -604,15 +604,13 @@ namespace graphlab {
       return lvid2record[lvid].gvid;
     } // end of global_vertex_id
 
-    // vertex_record& get_vertex_record(const vertex_id_type vid) {
-    //   ASSERT_LT(local_vid(vid), lvid2record.size());
-    //   return lvid2record[local_vid(vid)];
-    // }
-
     const vertex_record& get_vertex_record(const vertex_id_type vid) const {
-      ASSERT_LT(local_vid(vid), lvid2record.size());
-      return lvid2record[local_vid(vid)];
+      typename boost::unordered_map<vertex_id_type, lvid_type>::
+        const_iterator iter = vid2lvid.find(vid);
+      ASSERT_TRUE(iter != vid2lvid.end());
+      return lvid2record[iter->second];
     }
+
 
     vertex_record& l_get_vertex_record(const lvid_type lvid) {
       ASSERT_LT(lvid, lvid2record.size());
@@ -672,23 +670,23 @@ namespace graphlab {
     }
 
     // Get all the local edge which edge.target() == v
-    local_edge_list_type l_in_edges(const vertex_id_type vid) const {
-      return local_edge_list_type(this, local_graph.in_edges(local_vid(vid)));
+    local_edge_list_type l_in_edges(const lvid_type lvid) const {
+      return local_edge_list_type(this, local_graph.in_edges(lvid));
     }
 
     // Get the number of local edges which edge.target() == v
-    size_t l_num_in_edges(const vertex_id_type vid) const { 
-      return local_graph.num_in_edges(local_vid(vid));
+    size_t l_num_in_edges(const lvid_type lvid) const { 
+      return local_graph.num_in_edges(lvid);
     }
 
     // Get all the local edges which edge.source() == v
-    local_edge_list_type l_out_edges(const vertex_id_type vid) const {
-      return local_edge_list_type(this, local_graph.out_edges(local_vid(vid)));
+    local_edge_list_type l_out_edges(const lvid_type lvid) const {
+      return local_edge_list_type(this, local_graph.out_edges(lvid));
     }
 
     // Get the number of local edges which edge.source() == v
-    size_t l_num_out_edges(const vertex_id_type vid) const {
-      return local_graph.num_out_edges(local_vid(vid));
+    size_t l_num_out_edges(const lvid_type lvid) const {
+      return local_graph.num_out_edges(lvid);
     }
 
     /** \brief Returns a reference to the data stored on the vertex
