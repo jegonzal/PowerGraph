@@ -139,6 +139,7 @@ extern "C" {
     
     // cleanup graph
     proxy_graph graph = (*jni_core)().graph();
+    
     size_t num_vertices = graph.num_vertices();
     for (size_t i=0; i<num_vertices; i++){
       env->DeleteGlobalRef(graph.vertex_data(i).app_vertex);
@@ -191,7 +192,8 @@ extern "C" {
   
   JNIEXPORT void JNICALL
   Java_org_graphlab_Core_addEdge
-  (JNIEnv *env, jobject obj, jlong ptr, jint source, jint target){
+  (JNIEnv *env, jobject obj, jlong ptr,
+  jint source, jint target, jobject app_edge){
   
     if (NULL == env || 0 == ptr){
       proxy_updater::core::throw_exception(
@@ -203,8 +205,12 @@ extern "C" {
     
     proxy_updater::core *jni_core = (proxy_updater::core *) ptr;
     
+    /* 
+     * WARNING: edges are implemented as java_any's, but vertices are not
+     */
+    
     // add to graph
-    (*jni_core)().graph().add_edge(source, target, proxy_edge());
+    (*jni_core)().graph().add_edge(source, target, proxy_edge(env, app_edge));
   
   }
   

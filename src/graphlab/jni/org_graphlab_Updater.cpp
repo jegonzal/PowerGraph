@@ -78,7 +78,7 @@ JNIEXPORT void JNICALL
     env->GetMethodID(clazz, "initGather", "()V");
 
   proxy_updater::java_gather =
-    env->GetMethodID(clazz, "gather", "(Lorg/graphlab/data/Vertex;Lorg/graphlab/data/Vertex;)V");
+    env->GetMethodID(clazz, "gather", "(Ljava/lang/Object;)V");
 
   proxy_updater::java_merge = 
     env->GetMethodID(clazz, "merge", "(Lorg/graphlab/Updater;)V");
@@ -137,7 +137,7 @@ void proxy_updater::operator()(icontext_type& context){
   JNIEnv *env = core::get_jni_env();
   env->CallVoidMethod (obj(), java_update,
                        &context,
-                       context.vertex_data().app_vertex);
+                       context.const_vertex_data().app_vertex);
   handle_exception(env);
 
 }
@@ -220,9 +220,7 @@ void proxy_updater::init_gather(iglobal_context_type& context) {
 
 void proxy_updater::gather(icontext_type& context, const edge_type& edge){
   JNIEnv *env = core::get_jni_env();
-  env->CallVoidMethod(obj(), java_gather,
-    context.const_vertex_data(edge.source()).app_vertex,
-    context.const_vertex_data(edge.target()).app_vertex);
+  env->CallVoidMethod(obj(), java_gather, context.const_edge_data(edge).obj());
   handle_exception(env);
 }
  

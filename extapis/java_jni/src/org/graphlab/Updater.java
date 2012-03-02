@@ -13,11 +13,15 @@ import org.graphlab.data.Vertex;
  * across multiple vertices (this is encouraged).
  * </p>
  * 
- * @param <V> Vertex type that will be used in {@link #update(Context, Vertex)} 
+ * @param <V> Vertex type that will be used in {@link #update(Context, Vertex)}
+ * @param <E> Edge type
+ * @param <U> Updater
  * 
  * @author Jiunn Haur Lim <jiunnhal@cmu.edu>
  */
-public abstract class Updater<V extends Vertex, U extends Updater<V,U>> {
+public abstract class Updater
+  <V extends Vertex, E,     // TODO: easier generics?
+   U extends Updater<V,E,U>> {
   
   static { initNative(); }
   
@@ -133,10 +137,9 @@ public abstract class Updater<V extends Vertex, U extends Updater<V,U>> {
    * Gather is called on all gather_edges() and may be called in parallel. The
    * merge() operation is used to join update functors.
    * 
-   * @param source      source of edge that gather is working on
-   * @param target      target of edge that gather is working on
+   * @param edge
    */
-  protected void gather(V source, V target) {
+  protected void gather(E edge) {
     throw new UnsupportedOperationException();
   }
   

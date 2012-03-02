@@ -176,7 +176,8 @@ public class PageRankFactorized {
     
   }
 
-  private static class PageRankUpdater extends Updater<PageRankVertex, PageRankUpdater> {
+  private static class PageRankUpdater
+    extends Updater<PageRankVertex, DefaultWeightedEdge, PageRankUpdater> {
 
     /** Global reset probability */
     public static final double RESET_PROB = 0.15;
@@ -184,6 +185,7 @@ public class PageRankFactorized {
     /** Global accuracy tolerance */
     public static final double ACCURACY = 1e-5;
     
+    /** Accumulated PageRank */
     private double mAccum;
     
     private DefaultDirectedWeightedGraph<PageRankVertex, DefaultWeightedEdge> mGraph;
@@ -244,10 +246,10 @@ public class PageRankFactorized {
     
     // run the gather operation over all in edges
     @Override
-    protected void gather(PageRankVertex source, PageRankVertex target) {
+    protected void gather(DefaultWeightedEdge edge) {
       mAccum +=
-        source.value() *
-        mGraph.getEdgeWeight(mGraph.getEdge(source, target));
+        mGraph.getEdgeSource(edge).value() *
+        mGraph.getEdgeWeight(edge);
     }
     
     @Override

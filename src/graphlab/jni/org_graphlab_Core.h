@@ -53,7 +53,7 @@ JNIEXPORT jint JNICALL Java_org_graphlab_Core_addVertex
  * Signature: (JII)V
  */
 JNIEXPORT void JNICALL Java_org_graphlab_Core_addEdge
-  (JNIEnv *, jobject, jlong, jint, jint);
+  (JNIEnv *, jobject, jlong, jint, jint, jobject);
 
 /*
  * Class:     org_graphlab_Core

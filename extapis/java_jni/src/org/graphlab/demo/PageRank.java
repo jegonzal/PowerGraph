@@ -193,16 +193,16 @@ public class PageRank {
     @Override
     public void update(Context context, ScalarVertex vertex) {
       
-      // Compute weighted sum of neighbors
+      // compute weighted sum of neighbors
       double sum = 0;
       
-      /* Iterate over edge_id_list and get source is slow in graph2 */
+      // iterate over edge_id_list and get source is slow in graph2
       for(DefaultWeightedEdge edge : mGraph.incomingEdgesOf(vertex)){
         double weight = mGraph.getEdgeWeight(edge);
         sum += weight * mGraph.getEdgeSource(edge).value();
       }
       
-      // Add random reset probability
+      // add random reset probability
       double oldValue = vertex.value();
       vertex.setValue(RESET_PROB + (1-RESET_PROB)*sum);
       for(DefaultWeightedEdge edge : mGraph.outgoingEdgesOf(vertex)) {    
