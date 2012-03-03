@@ -724,15 +724,9 @@ namespace graphlab {
 
     void add_internal_task(lvid_type lvid) {
       BEGIN_TRACEPOINT(disteng_internal_task_queue);
-      const size_t i = random::rand() % threads.size();
-      const size_t j = random::rand() % threads.size();
-      if (thrlocal[i].npending < thrlocal[j].npending) {
-        thrlocal[i].add_task(lvid);
-        consensus.cancel_one(i);
-      } else { 
-        thrlocal[j].add_task(lvid); 
-        consensus.cancel_one(j);
-      }
+      size_t i = lvid % threads.size();
+      thrlocal[i].add_task(lvid);
+      consensus.cancel_one(i);
       END_TRACEPOINT(disteng_internal_task_queue);
     }
     

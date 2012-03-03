@@ -25,16 +25,60 @@
 #include <iostream>
 #include <cstdlib>
 #include <unistd.h>
+#include <cxxabi.h>
+
+
+/** Code from http://mykospark.net/2009/09/runtime-backtrace-in-c-with-name-demangling/ */
+std::string demangle(const char* symbol) {
+  size_t size;
+  int status;
+  char temp[1024];
+  char* demangled;
+  //first, try to demangle a c++ name
+  if (1 == sscanf(symbol, "%*[^(]%*[^_]%127[^)+]", temp)) {
+    if (NULL != (demangled = abi::__cxa_demangle(temp, NULL, &size, &status))) {
+      std::string result(demangled);
+      free(demangled);
+      return result;
+    }
+  }
+  //if that didn't work, try to get a regular c symbol
+  if (1 == sscanf(symbol, "%127s", temp)) {
+    return temp;
+  }
+ 
+  //if all else fails, just return the symbol
+  return symbol;
+}
 
 /* Obtain a backtrace and print it to stderr. */
 void __print_back_trace() {
-  const size_t array_size(1024);
-  void *array[array_size];
-  int size;
-  size = backtrace(array, array_size);
-  backtrace_symbols_fd(array, size, STDERR_FILENO);
-  std::cerr << "Use c++filt to process the output." << std::endl;
+    void    *array[1024];
+    size_t  size, i;
+    char    **strings;
 
-  // backtrace_symbols_fd(array, size, STDOUT_FILENO);
+    size = backtrace(array, 1024);
+    strings = backtrace_symbols(array, size);
+
+    fprintf(stderr, "Pointers\n");
+    fprintf(stderr, "------------\n");
+    for (i = 0; i < size; ++i) {
+        fprintf(stderr, "%p\n", array[i]);
+    }
+ 
+
+    fprintf(stderr, "Raw\n");
+    fprintf(stderr, "------------\n");
+    for (i = 0; i < size; ++i) {
+        fprintf(stderr, "%s\n", strings[i]);
+    }
+    fprintf(stderr, "\nDemangled\n");
+    fprintf(stderr, "------------\n");
+ 
+    for (i = 0; i < size; ++i) {
+        std::string ret = demangle(strings[i]);
+        fprintf(stderr, "%s\n", ret.c_str());
+    }
+    free(strings);
 }
 

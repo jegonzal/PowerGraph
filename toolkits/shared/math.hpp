@@ -129,11 +129,12 @@ struct Axb:
 };
 
 core<graph_type, Axb> * glcore = NULL;
-void init_math(graph_type * _pgraph, core<graph_type, Axb> * _glcore, bipartite_graph_descriptor & _info){
+void init_math(graph_type * _pgraph, core<graph_type, Axb> * _glcore, bipartite_graph_descriptor & _info, double ortho_repeats = 3){
   pgraph = _pgraph;
   glcore = _glcore;
   info = _info;
   mi.reset_offsets();
+  mi.ortho_repeats = ortho_repeats;
 }
 
 
@@ -589,6 +590,8 @@ vec diag(DistMat & mat){
 }
 
 void orthogonalize_vs_all(DistSlicedMat & mat, int curoffset){
+  assert(mi.ortho_repeats >=1 && mi.ortho_repeats <= 3);
+
   bool old_debug = debug;
   debug = false;
   DistVec current = mat[curoffset];
