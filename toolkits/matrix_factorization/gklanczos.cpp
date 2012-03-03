@@ -42,12 +42,12 @@ using namespace std;
 //LANCZOS VARIABLES
 int max_iter = 10;
 bool debug;
-int ortho_repeats = 3; //number of repeated orthogonalization steps. higher is slower but more accurate. 
 int nv = 0;
 int nsv = 0;
 double tol = 1e-8;
 bool finished = false;
 double regularization = 0;
+double ortho_repeats = 3;
 
 struct vertex_data {
   vec pvec;
@@ -83,7 +83,7 @@ void init_lanczos(graph_type * g, bipartite_graph_descriptor & info){
 
 
 
-vec lanczos(graphlab::core<graph_type, Axb> & glcore, bipartite_graph_descriptor & info, timer & mytimer){
+vec lanczos(graphlab::core<graph_type, Axb> & glcore, bipartite_graph_descriptor & info, timer & mytimer, vec & errest){
    
 
    int nconv = 0;
@@ -96,7 +96,7 @@ vec lanczos(graphlab::core<graph_type, Axb> & glcore, bipartite_graph_descriptor
    DistSlicedMat V(0, max_iter, false, info, "V");
    vec alpha, beta, b;
    vec sigma = zeros(nsv);
-   vec errest = zeros(nsv);
+   errest = zeros(nsv);
    DistVec v_0(info, 0, false, "v_0");
    PRINT_VEC2("svd->V", v_0);
    DistDouble vnorm = norm(v_0);
@@ -112,7 +112,7 @@ vec lanczos(graphlab::core<graph_type, Axb> & glcore, bipartite_graph_descriptor
      alpha = zeros(n);
      beta = zeros(n);
 
-     U[k] = V[k]*AT;
+     U[k] = V[k]*AT._transpose();
      orthogonalize_vs_all(U, k);
      alpha(0)=norm(U[k]).toDouble(); 
      PRINT_VEC3("alpha", alpha, 0);
@@ -141,8 +141,7 @@ vec lanczos(graphlab::core<graph_type, Axb> & glcore, bipartite_graph_descriptor
      beta(n-k-1)=norm(V[n]).toDouble();
      PRINT_VEC3("beta-", beta, n-k-1);
 
-/* compute SVD of bidiagonal matrix */
-
+  //compute svd of bidiagonal matrix
   PRINT_INT(nv);
   PRINT_NAMED_INT("svd->nconv", nconv);
   PRINT_NAMED_INT("svd->mpd", mpd);
@@ -168,9 +167,9 @@ vec lanczos(graphlab::core<graph_type, Axb> & glcore, bipartite_graph_descriptor
   PRINT_VEC2("beta",beta);
   PRINT_MAT2("PT", PT);
 
-  /* compute error estimates */
+  //estiamte the error
   int kk = 0;
-  for (int i=nconv; i < nconv+alpha.size(); i++){
+  for (int i=nconv; i < nv; i++){
     int j = i-nconv;
     PRINT_INT(j);
     sigma(i) = alpha(j);
@@ -209,13 +208,14 @@ vec lanczos(graphlab::core<graph_type, Axb> & glcore, bipartite_graph_descriptor
     PRINT_VEC2("v[0]",v); 
   }
 
+   //compute the ritz eigenvectors of the converged singular triplets
   if (kk > 0){
     PRINT_VEC2("svd->V", V[nconv]);
-    mat tmp= V.get_cols(nconv,nconv+n)*PT;
-    V.set_cols(nconv, nconv+n, get_cols(tmp, 0, kk));
+    mat tmp= V.get_cols(nconv,nconv+kk)*PT;
+    V.set_cols(nconv, nconv+kk, get_cols(tmp, 0, kk));
     PRINT_VEC2("svd->V", V[nconv]);
     PRINT_VEC2("svd->U", U[nconv]);
-    tmp= U.get_cols(nconv, nconv+n)*a;
+    tmp= U.get_cols(nconv, nconv+kk)*a;
     U.set_cols(nconv, nconv+kk,get_cols(tmp,0,kk));
     PRINT_VEC2("svd->U", U[nconv]);
   }
@@ -240,17 +240,27 @@ vec lanczos(graphlab::core<graph_type, Axb> & glcore, bipartite_graph_descriptor
 
 printf(" Number of computed signular values %d",nconv);
 printf("\n");
+  DistVec normret(info, nconv, false, "normret");
+  DistVec normret_tranpose(info, nconv, true, "normret_tranpose");
   for (int i=0; i < nconv; i++){
-    debug = false;
-    double n1 = norm(V[i]*A -U[i]*sigma(i)).toDouble();
-    double n2 = norm(U[i]*A._transpose()-V[i]*sigma(i)).toDouble();
+    normret = V[i]*A -U[i]*sigma(i);
+    double n1 = norm(normret).toDouble();
+    PRINT_DBL(n1);
+    normret_tranpose = U[i]*AT._transpose() -V[i]*sigma(i);
+    double n2 = norm(normret_tranpose).toDouble();
+    PRINT_DBL(n2);
     double err=sqrt(n1*n1+n2*n2);
-    if (sigma(i)>1e-8)
+    PRINT_DBL(err);
+    PRINT_DBL(tol);
+    if (sigma(i)>tol){
       err = err/sigma(i);
+    }
+    PRINT_DBL(err);
+    PRINT_DBL(sigma(i));
     printf("Singular value %d \t%13.6g\tError estimate: %13.6g\n", i, sigma(i),err);
   }
 
-  return b;
+  return sigma;
 }
 
 int main(int argc,  char *argv[]) {
@@ -276,6 +286,7 @@ int main(int argc,  char *argv[]) {
   clopts.attach_option("nv", &nv, nv, "Number of vectors in each iteration");
   clopts.attach_option("nsv", &nsv, nsv, "Number of requested singular values to comptue"); 
   clopts.attach_option("regularization", &regularization, regularization, "regularization");
+  clopts.attach_option("tol", &tol, tol, "convergence threshold");
 
   // Parse the command line arguments
   if(!clopts.parse(argc, argv)) {
@@ -304,18 +315,25 @@ int main(int argc,  char *argv[]) {
     nsv = 3; nv = 3;
     debug = true;
   }
+  else if (unittest == 2){
+    datafile = "gklanczos_testB";
+    vecfile = "gklanczos_testB_v0";
+    nsv = 10; nv = 10;
+    debug = true;  max_iter = 100;
+  }
 
   std::cout << "Load matrix " << datafile << std::endl;
   load_graph(datafile, format, info, core.graph());
   init_lanczos(&core.graph(), info);
-  init_math(&core.graph(), &core, info);
+  init_math(&core.graph(), &core, info, ortho_repeats);
   if (vecfile.size() > 0){
     std::cout << "Load inital vector from file" << vecfile << std::endl;
     load_vector(vecfile, format, info, core.graph(), 0, true, false);
   }  
  
   timer mytimer; mytimer.start(); 
-  vec eigenvalues = lanczos(core, info, mytimer);
+  vec errest;
+  vec eigenvalues = lanczos(core, info, mytimer, errest);
  
   std::cout << "Lanczos finished in " << mytimer.current_time() << std::endl;
   std::cout << "\t Updates: " << core.last_update_count() << " per node: " 
@@ -327,7 +345,15 @@ int main(int argc,  char *argv[]) {
 
 
   if (unittest == 1){
-  }//TODO
+    assert(errest.size() == 3);
+    for (int i=0; i< errest.size(); i++)
+      assert(errest[i] < 1e-30);
+  }
+  else if (unittest == 2){
+     assert(errest.size() == 10);
+    for (int i=0; i< errest.size(); i++)
+      assert(errest[i] < 1e-15);
+  }
 
 
    return EXIT_SUCCESS;
