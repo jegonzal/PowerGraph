@@ -14,4 +14,9 @@ public class PageRankVertex extends ScalarVertex {
   public int mNUpdates = 0;
   public double mOldValue = 0.0;
   
+  public PageRankVertex (){
+    // set default value to 1
+    setValue(1);
+  }
+  
 }

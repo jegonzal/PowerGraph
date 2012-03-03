@@ -93,7 +93,7 @@ public class PageRank {
   private static void initLogger(){
     BasicConfigurator.configure();
     Logger.getLogger(Core.class).setLevel(Level.INFO);
-    logger.setLevel(Level.INFO);
+    logger.setLevel(Level.ALL);
   }
   
   /**
@@ -135,7 +135,7 @@ public class PageRank {
     for(PageRankVertex vertex : graph.vertexSet()) {
       double sum = 0;
       Collection<DefaultWeightedEdge> outEdges = graph.outgoingEdgesOf(vertex);
-      // Sum up weight on out edges
+      // sum up weight on out edges
       for(DefaultWeightedEdge edge : outEdges){
         sum += graph.getEdgeWeight(edge);
       }
