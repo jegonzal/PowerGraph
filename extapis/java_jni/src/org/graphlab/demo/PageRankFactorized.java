@@ -234,8 +234,8 @@ public class PageRankFactorized {
     
     @Override
     protected int scatterEdges() {
-      return (Math.abs(mAccum) > ACCURACY) ? Updater.OUT_EDGES
-          : Updater.NO_EDGES;
+      return (Math.abs(mAccum) > ACCURACY) ?
+          Updater.OUT_EDGES : Updater.NO_EDGES;
     }
     
     // reset the accumulator before running the gather

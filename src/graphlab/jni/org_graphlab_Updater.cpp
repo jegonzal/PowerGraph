@@ -35,6 +35,7 @@ jmethodID proxy_updater::java_clone                   = 0;
 jmethodID proxy_updater::java_is_factorizable         = 0;
 jmethodID proxy_updater::java_gather_edges            = 0;
 jmethodID proxy_updater::java_scatter_edges           = 0;
+jmethodID proxy_updater::java_consistency             = 0;
 jmethodID proxy_updater::java_gather_consistency      = 0;
 jmethodID proxy_updater::java_scatter_consistency     = 0;
 jmethodID proxy_updater::java_init_gather             = 0;
@@ -67,6 +68,9 @@ JNIEXPORT void JNICALL
 
   proxy_updater::java_scatter_edges =
     env->GetMethodID(clazz, "scatterEdges", "()I");
+
+  proxy_updater::java_consistency =
+    env->GetMethodID(clazz, "consistency", "()I");
 
   proxy_updater::java_gather_consistency =
     env->GetMethodID(clazz, "gatherConsistency", "()I");
@@ -183,6 +187,19 @@ edge_set proxy_updater::scatter_edges() const {
     case 1:  return OUT_EDGES;
     case 2:  return ALL_EDGES;
     default: return NO_EDGES;
+  }
+}
+
+consistency_model proxy_updater::consistency() const {
+  JNIEnv *env = core::get_jni_env();
+  int c = env->CallIntMethod(obj(), java_consistency);
+  handle_exception(env);
+  switch(c){
+    case 0:  return NULL_CONSISTENCY;
+    case 1:  return VERTEX_CONSISTENCY;
+    case 2:  return EDGE_CONSISTENCY;
+    case 3:  return FULL_CONSISTENCY;
+    default: return DEFAULT_CONSISTENCY;
   }
 }
 

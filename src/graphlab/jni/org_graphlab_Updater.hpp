@@ -101,6 +101,9 @@ namespace graphlab {
     /** Method ID of org.graphlab.Updater#scatterEdges */
     static jmethodID java_scatter_edges;
     
+    /** Method ID of org.graphlab.Updater#consistency */
+    static jmethodID java_consistency;
+    
     /** Method ID of org.graphlab.Updater#gatherConsistency */
     static jmethodID java_gather_consistency;
     
@@ -160,6 +163,7 @@ namespace graphlab {
     bool is_factorizable() const;
     edge_set gather_edges() const;
     edge_set scatter_edges() const;
+    consistency_model consistency() const;
     consistency_model gather_consistency() const;
     consistency_model scatter_consistency() const;
     void init_gather(iglobal_context_type& context);
