@@ -449,7 +449,6 @@ namespace graphlab {
      */
     void resize(size_t num_vertices ) {
      // ASSERT_GE(num_vertices, num_vertices);
-       assert(false); //not implemented yet
       //TODO
     } // End of resize
     

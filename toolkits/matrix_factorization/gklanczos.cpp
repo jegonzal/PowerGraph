@@ -25,7 +25,7 @@
 #include "../shared/io.hpp"
 #include "../shared/types.hpp"
 #include "../shared/mathlayer.hpp"
-
+#include "graphlab/graph/graph3.hpp"
 using namespace graphlab;
 using namespace std;
 
@@ -68,14 +68,14 @@ struct edge_data {
 };
 
 int data_size = max_iter;
-typedef graphlab::graph<vertex_data, edge_data> graph_type;
+typedef graphlab::graph3<vertex_data, edge_data> graph_type;
 #include "../shared/math.hpp"
 #include "../shared/printouts.hpp"
 
 
 void init_lanczos(graph_type * g, bipartite_graph_descriptor & info){
 
-  data_size = nv+1;
+  data_size = nsv + nv+1 + max_iter;
   for (int i=0; i< info.total(); i++)
       g->vertex_data(i).pvec = zeros(info.is_square() ? (2*data_size): data_size);
 }
@@ -345,7 +345,9 @@ int main(int argc,  char *argv[]) {
 
 
   std::cout << "Load matrix " << datafile << std::endl;
-  load_graph(datafile, format, info, core.graph());
+  
+  load_graph(datafile, format, info, core.graph(), MATRIX_MARKET_3, false, true);
+  core.graph().load_directed(datafile, false, false);
   init_lanczos(&core.graph(), info);
   init_math(&core.graph(), &core, info, ortho_repeats);
   if (vecfile.size() > 0){

@@ -310,7 +310,8 @@ bool load_matrixmarket_graph(const std::string& fname,
                              bipartite_graph_descriptor& desc,
                              Graph& graph,
 			     int parse_type = MATRIX_MARKET_3, 
-			     bool allow_zeros = false){ 
+			     bool allow_zeros = false, 
+			     bool header_only = false){ 
   typedef Graph graph_type;
   typedef typename graph_type::vertex_id_type vertex_id_type;
   typedef typename graph_type::edge_data_type edge_data_type;
@@ -342,6 +343,9 @@ bool load_matrixmarket_graph(const std::string& fname,
   std::cout << "Constructing all vertices." << std::endl;
   graph.resize(desc.total());
   bool is_square = desc.is_square();
+
+   if (header_only)
+      return true;
 
   std::cout << "Adding edges." << std::endl;
   for(size_t i = 0; i < size_t(desc.nonzeros); ++i) {    
@@ -409,10 +413,11 @@ bool load_graph(const std::string& fname,
                 bipartite_graph_descriptor& desc,
                 Graph& graph, 
 	        int format_type = MATRIX_MARKET_3, 
-	        bool allow_zeros=false) {
+	        bool allow_zeros=false, 
+	        bool header_only=false) {
 
   if(format == "matrixmarket") 
-    return load_matrixmarket_graph(fname, desc, graph, format_type, allow_zeros);
+    return load_matrixmarket_graph(fname, desc, graph, format_type, allow_zeros, header_only);
   else logstream(LOG_FATAL) << "Invalid file format!" << std::endl;
   return false;
 } // end of load graph
