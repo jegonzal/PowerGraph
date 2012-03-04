@@ -68,7 +68,6 @@ struct edge_data {
 };
 
 int data_size = max_iter;
-
 typedef graphlab::graph<vertex_data, edge_data> graph_type;
 #include "../shared/math.hpp"
 #include "../shared/printouts.hpp"
@@ -76,8 +75,9 @@ typedef graphlab::graph<vertex_data, edge_data> graph_type;
 
 void init_lanczos(graph_type * g, bipartite_graph_descriptor & info){
 
+  data_size = max_iter;
   for (int i=0; i< info.total(); i++)
-      g->vertex_data(i).pvec = zeros(data_size);
+      g->vertex_data(i).pvec = zeros(info.is_square() ? (2*data_size): data_size);
 }
 
 
@@ -91,8 +91,7 @@ vec lanczos(graphlab::core<graph_type, Axb> & glcore, bipartite_graph_descriptor
    int mpd = 500;
    int N = std::min(info.rows, info.cols);
    DistMat A(info);
-   DistMat AT(info); AT._transpose();
-   DistSlicedMat U(0, max_iter, true, info, "U");
+   DistSlicedMat U(info.is_square() ? max_iter : 0, info.is_square() ? 2*max_iter : max_iter, true, info, "U");
    DistSlicedMat V(0, max_iter, false, info, "V");
    vec alpha, beta, b;
    vec sigma = zeros(nsv);
@@ -112,7 +111,7 @@ vec lanczos(graphlab::core<graph_type, Axb> & glcore, bipartite_graph_descriptor
      alpha = zeros(n);
      beta = zeros(n);
 
-     U[k] = V[k]*AT._transpose();
+     U[k] = V[k]*A._transpose();
      orthogonalize_vs_all(U, k);
      alpha(0)=norm(U[k]).toDouble(); 
      PRINT_VEC3("alpha", alpha, 0);
@@ -128,7 +127,7 @@ vec lanczos(graphlab::core<graph_type, Axb> & glcore, bipartite_graph_descriptor
        V[i] = V[i]/beta(i-k-1);
        PRINT_VEC3("beta", beta, i-k-1); 
       
-       U[i] = V[i]*AT._transpose();
+       U[i] = V[i]*A._transpose();
        orthogonalize_vs_all(U, i);
        alpha(i-k)=norm(U[i]).toDouble();
 
@@ -246,7 +245,7 @@ printf("\n");
     normret = V[i]*A -U[i]*sigma(i);
     double n1 = norm(normret).toDouble();
     PRINT_DBL(n1);
-    normret_tranpose = U[i]*AT._transpose() -V[i]*sigma(i);
+    normret_tranpose = U[i]*A._transpose() -V[i]*sigma(i);
     double n2 = norm(normret_tranpose).toDouble();
     PRINT_DBL(n2);
     double err=sqrt(n1*n1+n2*n2);
@@ -314,12 +313,16 @@ int main(int argc,  char *argv[]) {
     vecfile = "gklanczos_testA_v0";
     nsv = 3; nv = 3;
     debug = true;
+    core.set_scheduler_type("sweep(ordering=ascending,strict=true)");
+    core.set_ncpus(1);
   }
   else if (unittest == 2){
     datafile = "gklanczos_testB";
     vecfile = "gklanczos_testB_v0";
     nsv = 10; nv = 10;
     debug = true;  max_iter = 100;
+    core.set_scheduler_type("sweep(ordering=ascending,strict=true)");
+    core.set_ncpus(1);
   }
 
   std::cout << "Load matrix " << datafile << std::endl;

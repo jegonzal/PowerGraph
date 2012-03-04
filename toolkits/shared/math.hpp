@@ -37,7 +37,7 @@ struct math_info{
   double  c;
   double  d;
   int x_offset, b_offset , y_offset, r_offset, div_offset, prev_offset, div_const;
-  bool A_offset;
+  bool A_offset, A_transpose;
   std::vector<std::string> names;
   bool use_diag;
   int ortho_repeats;
@@ -52,6 +52,7 @@ struct math_info{
     x_offset = b_offset = y_offset = r_offset = div_offset = prev_offset = -1;
     div_const = 0;
     A_offset = false;
+    A_transpose = false;
     use_diag = true;
   }
   int increment_offset(){
@@ -86,8 +87,8 @@ struct Axb:
 
   vertex_data& user = context.vertex_data();
   bool rows = context.vertex_id() < (uint)info.get_start_node(false);
-  if (info.is_square())
-    rows = true;
+  if (info.is_square()) 
+    rows = mi.A_transpose;
   assert(mi.r_offset >=0);
   //store previous value for convergence detection
   if (mi.prev_offset >= 0)
@@ -143,7 +144,8 @@ class DistDouble;
 
 class DistVec{
    public:
-   int offset;
+   int offset; //real location in memory
+   int display_offset; //offset to print out
    int prev_offset;
    std::string name; //optional
    bool transpose;
@@ -162,6 +164,7 @@ class DistVec{
 
    DistVec(bipartite_graph_descriptor &_info, int _offset, bool _transpose, const std::string & _name){
      offset = _offset;
+     display_offset = _offset;
      name = _name;
      info = _info;
      transpose = _transpose;
@@ -170,6 +173,7 @@ class DistVec{
    }
    DistVec(bipartite_graph_descriptor &_info, int _offset, bool _transpose, const std::string & _name, int _prev_offset){
      offset = _offset;
+     display_offset = _offset;
      name = _name;
      info = _info;
      transpose = _transpose;
@@ -223,7 +227,7 @@ class DistVec{
 
 
    DistVec& operator=(const DistVec & vec){
-     assert(offset < data_size);
+     assert(offset < (info.is_square() ? 2*data_size: data_size));
      if (mi.x_offset == -1 && mi.y_offset == -1){
          mi.y_offset = vec.offset;
        }  
@@ -272,7 +276,7 @@ class DistVec{
 
   void debug_print(const char * name){
      if (debug){
-       std::cout<<name<<"["<<offset<<"]" << std::endl;
+       std::cout<<name<<"["<<display_offset<<"]" << std::endl;
        for (int i=start; i< std::min(end, start+MAX_PRINT_ITEMS); i++){  
          //std::cout<<pgraph->vertex_data(i).pvec[(mi.r_offset==-1)?offset:mi.r_offset]<<" ";
          printf("%.5lg ", pgraph->vertex_data(i).pvec[(mi.r_offset==-1)?offset:mi.r_offset]);
@@ -320,6 +324,9 @@ class DistSlicedMat{
      bool transpose;
  
   DistSlicedMat(int _start_offset, int _end_offset, bool _transpose, bipartite_graph_descriptor &_info, std::string _name){
+     assert(_start_offset < _end_offset);
+     assert(_start_offset >= 0);
+     assert(_info.total() > 0);
      transpose = _transpose;
      info = _info;
      init();
@@ -338,36 +345,39 @@ class DistSlicedMat{
    int size(int dim){ return (dim == 1) ? (end-start) : (end_offset - start_offset) ; }
 
    void set_cols(int start_col, int end_col, const mat& pmat){
-    assert(start_col >= start_offset);
-    assert(end_col <= end_offset);
+    assert(start_col >= 0);
+    assert(end_col <= end_offset - start_offset);
     assert(pmat.rows() == end-start);
     assert(pmat.cols() >= end_col - start_col);
     for (int i=start_col; i< end_col; i++)
       this->operator[](i) = get_col(pmat, i-start_col);
    }
    mat get_cols(int start_col, int end_col){
-     assert(start_col >= start_offset);
-     assert(end_col <= end_offset);
+     assert(start_col < end_offset - start_offset);
+     assert(start_offset + end_col <= end_offset);
      mat retmat = zeros(end-start, end_col - start_col);
      for (int i=start_col; i< end_col; i++)
-        set_col(retmat, i-start_col, this->operator[](i).to_vec());
+        set_col(retmat, i-start_col, this->operator[](i-start_col).to_vec());
      return retmat;
    }
 
    void operator=(mat & pmat){
-    assert(end_offset <= pmat.cols());
+    assert(end_offset-start_offset <= pmat.cols());
     assert(end-start == pmat.rows());
     set_cols(0, pmat.cols(), pmat);
    }
 
    std::string get_name(int pos){
-     assert(pos >= start_offset && pos < end_offset);
+     assert(pos < end_offset - start_offset);
+     assert(pos >= 0);
      return name;
    }
 
    DistVec operator[](int pos){
-     assert(pos >= start_offset && pos < end_offset);
-     DistVec ret(info, pos, transpose, get_name(pos));
+     assert(pos < end_offset-start_offset);
+     assert(pos >= 0);
+     DistVec ret(info, start_offset + pos, transpose, get_name(pos));
+     ret.display_offset = pos;
      return ret;
    }
 
@@ -426,6 +436,7 @@ class DistMat{
     }
     DistMat & _transpose(){
        transpose = true;
+       mi.A_transpose = true;
        return *this;
     }
     DistMat & operator~(){
