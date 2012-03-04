@@ -75,7 +75,7 @@ typedef graphlab::graph<vertex_data, edge_data> graph_type;
 
 void init_lanczos(graph_type * g, bipartite_graph_descriptor & info){
 
-  data_size = max_iter;
+  data_size = nv+1;
   for (int i=0; i< info.total(); i++)
       g->vertex_data(i).pvec = zeros(info.is_square() ? (2*data_size): data_size);
 }
@@ -83,20 +83,23 @@ void init_lanczos(graph_type * g, bipartite_graph_descriptor & info){
 
 
 
-vec lanczos(graphlab::core<graph_type, Axb> & glcore, bipartite_graph_descriptor & info, timer & mytimer, vec & errest){
+vec lanczos(graphlab::core<graph_type, Axb> & glcore, bipartite_graph_descriptor & info, timer & mytimer, vec & errest, 
+            const std::string & vecfile){
    
 
    int nconv = 0;
-   int its = 0;
+   int its = 1;
    int mpd = 500;
    int N = std::min(info.rows, info.cols);
    DistMat A(info);
-   DistSlicedMat U(info.is_square() ? max_iter : 0, info.is_square() ? 2*max_iter : max_iter, true, info, "U");
-   DistSlicedMat V(0, max_iter, false, info, "V");
+   DistSlicedMat U(info.is_square() ? data_size : 0, info.is_square() ? 2*data_size : data_size, true, info, "U");
+   DistSlicedMat V(0, data_size, false, info, "V");
    vec alpha, beta, b;
-   vec sigma = zeros(nsv);
-   errest = zeros(nsv);
+   vec sigma = zeros(nv);
+   errest = zeros(nv);
    DistVec v_0(info, 0, false, "v_0");
+   if (vecfile.size() == 0)
+     v_0 = randu(size(A,2));
    PRINT_VEC2("svd->V", v_0);
    DistDouble vnorm = norm(v_0);
    v_0=v_0/vnorm;
@@ -138,7 +141,7 @@ vec lanczos(graphlab::core<graph_type, Axb> & glcore, bipartite_graph_descriptor
      V[n]= U[n-1]*A;
      orthogonalize_vs_all(V, n);
      beta(n-k-1)=norm(V[n]).toDouble();
-     PRINT_VEC3("beta-", beta, n-k-1);
+     PRINT_VEC3("beta", beta, n-k-1);
 
   //compute svd of bidiagonal matrix
   PRINT_INT(nv);
@@ -146,6 +149,8 @@ vec lanczos(graphlab::core<graph_type, Axb> & glcore, bipartite_graph_descriptor
   PRINT_NAMED_INT("svd->mpd", mpd);
   n = nv - nconv;
   PRINT_INT(n);
+  alpha.conservativeResize(n);
+  beta.conservativeResize(n);
 
   PRINT_MAT2("Q",eye(n));
   PRINT_MAT2("PT",eye(n));
@@ -158,13 +163,13 @@ vec lanczos(graphlab::core<graph_type, Axb> & glcore, bipartite_graph_descriptor
   PRINT_MAT2("T", T);
   mat a,PT;
   svd(T, a, PT, b);
-  PRINT_MAT2("Q",a.transpose());
+  PRINT_MAT2("Q", a);
   alpha=b.transpose();
   PRINT_MAT2("alpha", alpha);
   for (int t=0; t< n-1; t++)
      beta(t) = 0;
   PRINT_VEC2("beta",beta);
-  PRINT_MAT2("PT", PT);
+  PRINT_MAT2("PT", PT.transpose());
 
   //estiamte the error
   int kk = 0;
@@ -186,22 +191,22 @@ vec lanczos(graphlab::core<graph_type, Axb> & glcore, bipartite_graph_descriptor
       PRINT_NAMED_INT("k",kk);
     }
 
-    PRINT_NAMED_INT("k",kk);
 
     if (nconv +kk >= nsv){
       printf("set status to tol\n");
       finished = true;
     }
   }//end for
+  PRINT_NAMED_INT("k",kk);
 
 
   vec v;
   if (!finished){
-    vec swork=get_col(PT,kk+1); 
+    vec swork=get_col(PT,kk); 
     PRINT_MAT2("swork", swork);
-    v = zeros(n);
+    v = zeros(size(A,1));
     for (int ttt=nconv; ttt < nconv+n; ttt++){
-      v = v+swork(ttt-nconv)*V[ttt].to_vec();
+      v = v+swork(ttt-nconv)*(V[ttt].to_vec());
     }
     PRINT_VEC2("svd->V",V[nconv]);
     PRINT_VEC2("v[0]",v); 
@@ -210,11 +215,11 @@ vec lanczos(graphlab::core<graph_type, Axb> & glcore, bipartite_graph_descriptor
    //compute the ritz eigenvectors of the converged singular triplets
   if (kk > 0){
     PRINT_VEC2("svd->V", V[nconv]);
-    mat tmp= V.get_cols(nconv,nconv+kk)*PT;
+    mat tmp= V.get_cols(nconv,nconv+n)*PT;
     V.set_cols(nconv, nconv+kk, get_cols(tmp, 0, kk));
     PRINT_VEC2("svd->V", V[nconv]);
     PRINT_VEC2("svd->U", U[nconv]);
-    tmp= U.get_cols(nconv, nconv+kk)*a;
+    tmp= U.get_cols(nconv, nconv+n)*a;
     U.set_cols(nconv, nconv+kk,get_cols(tmp,0,kk));
     PRINT_VEC2("svd->U", U[nconv]);
   }
@@ -242,10 +247,10 @@ printf("\n");
   DistVec normret(info, nconv, false, "normret");
   DistVec normret_tranpose(info, nconv, true, "normret_tranpose");
   for (int i=0; i < nconv; i++){
-    normret = V[i]*A -U[i]*sigma(i);
+    normret = V[i]*A._transpose() -U[i]*sigma(i);
     double n1 = norm(normret).toDouble();
     PRINT_DBL(n1);
-    normret_tranpose = U[i]*A._transpose() -V[i]*sigma(i);
+    normret_tranpose = U[i]*A -V[i]*sigma(i);
     double n2 = norm(normret_tranpose).toDouble();
     PRINT_DBL(n2);
     double err=sqrt(n1*n1+n2*n2);
@@ -307,6 +312,11 @@ int main(int argc,  char *argv[]) {
   graphlab::core<graph_type, Axb> core;
   core.set_options(clopts); // Set the engine options
 
+#ifndef UPDATE_FUNC_IMPL
+   Axb mathops;
+   core.add_aggregator("Axb", mathops, 1000);
+#endif
+
   //unit testing
   if (unittest == 1){
     datafile = "gklanczos_testA"; 
@@ -324,6 +334,15 @@ int main(int argc,  char *argv[]) {
     core.set_scheduler_type("sweep(ordering=ascending,strict=true)");
     core.set_ncpus(1);
   }
+  else if (unittest == 3){
+    datafile = "gklanczos_testC";
+    vecfile = "gklanczos_testC_v0";
+    nsv = 4; nv = 10;
+    debug = true;  max_iter = 100;
+    core.set_scheduler_type("sweep(ordering=ascending,strict=true)");
+    core.set_ncpus(1);
+  }
+
 
   std::cout << "Load matrix " << datafile << std::endl;
   load_graph(datafile, format, info, core.graph());
@@ -336,7 +355,7 @@ int main(int argc,  char *argv[]) {
  
   timer mytimer; mytimer.start(); 
   vec errest;
-  vec eigenvalues = lanczos(core, info, mytimer, errest);
+  vec eigenvalues = lanczos(core, info, mytimer, errest, vecfile);
  
   std::cout << "Lanczos finished in " << mytimer.current_time() << std::endl;
   std::cout << "\t Updates: " << core.last_update_count() << " per node: " 

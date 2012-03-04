@@ -311,7 +311,7 @@ inline mat get_cols(const mat&A, ivec & cols){
 }
 inline mat get_cols(const mat&A, int start_col, int end_col){
   assert(end_col > start_col);
-  assert(A.cols() <= end_col);
+  assert(end_col <= A.cols());
   assert(start_col >= 0);
   mat a(A.rows(), end_col-start_col);
   for (int i=0; i< end_col-start_col; i++)

@@ -41,6 +41,7 @@ struct math_info{
   std::vector<std::string> names;
   bool use_diag;
   int ortho_repeats;
+  int start, end;
 
   math_info(){
     reset_offsets();
@@ -54,6 +55,7 @@ struct math_info{
     A_offset = false;
     A_transpose = false;
     use_diag = true;
+    start = end = -1;
   }
   int increment_offset(){
     return increment++;
@@ -66,7 +68,7 @@ struct math_info{
 bipartite_graph_descriptor info;
 math_info mi;
 
-#define MAX_PRINT_ITEMS 21
+#define MAX_PRINT_ITEMS 25
 double runtime = 0;
 
 using namespace graphlab;
@@ -84,6 +86,9 @@ struct Axb:
  public iupdate_functor<graph_type, Axb> {
  
   void operator()(icontext_type &context){
+
+  if (context.vertex_id() < (uint)mi.start || context.vertex_id() >= (uint)mi.end)
+    return;
 
   vertex_data& user = context.vertex_data();
   bool rows = context.vertex_id() < (uint)info.get_start_node(false);
@@ -127,6 +132,13 @@ struct Axb:
   }
   user.pvec[mi.r_offset] = val;
 }
+
+  void operator+=(const Axb& other) { 
+  }
+
+  void finalize(iglobal_context_type& context) {
+  } 
+
 };
 
 core<graph_type, Axb> * glcore = NULL;
@@ -239,9 +251,15 @@ class DistVec{
       transpose = vec.transpose;
       end = vec.end; 
       start = vec.start;
-      for (vertex_id_type i = start; i < (vertex_id_type)end; i++)
+      mi.start = start;
+      mi.end = end;
+ #ifdef UPDATE_FUNC_IMPL
+     for (vertex_id_type i = start; i < (vertex_id_type)end; i++)
         glcore->schedule(i, Axb()); 
       runtime += glcore->start();
+#else
+      glcore->aggregate_now("Axb");
+#endif
       debug_print(name);
       mi.reset_offsets();
       return *this;
@@ -454,9 +472,15 @@ DistVec& DistVec::operator=(DistMat &mat){
   assert(prev_offset < data_size);
   mi.prev_offset = prev_offset;
   transpose = mat.transpose;
+  mi.start = info.get_start_node(!transpose);
+  mi.end = info.get_end_node(!transpose);
+#ifdef UPDATE_FUNC_IMPL
   for (vertex_id_type start = info.get_start_node(!transpose); start< (vertex_id_type)info.get_end_node(!transpose); start++)
     glcore->schedule(start, Axb());
   runtime += glcore->start();
+#else
+  glcore->aggregate_now("Axb");
+#endif
   debug_print(name);
   mi.reset_offsets();
   mat.transpose = false;

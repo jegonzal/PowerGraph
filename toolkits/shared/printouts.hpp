@@ -1,10 +1,11 @@
 #ifndef PRINTOUTS
 #define PRINTOUTS
+#define MAX_PRINTOUT_LEN 25
 
 void print_vec(const char * name, const DistVec & vec, bool high = false){
  int i;
  printf("%s[%d]\n", name, vec.offset);
- for (i=vec.start; i< vec.end; i++){
+ for (i=vec.start; i< std::min(vec.end, MAX_PRINTOUT_LEN); i++){
   if (high)
    printf("%15.15lg ", pgraph->vertex_data(i).pvec[vec.offset]);
   else
@@ -14,7 +15,7 @@ void print_vec(const char * name, const DistVec & vec, bool high = false){
 }
 void print_vec(const char * name, const vec & pvec, bool high = false){
  printf("%s\n", name);
- for (int i= 0; i< pvec.size(); i++){
+ for (int i= 0; i< std::min((int)pvec.size(), MAX_PRINTOUT_LEN); i++){
   if (high)
    printf("%15.15lg ", pvec[i]);
   else
@@ -24,12 +25,15 @@ void print_vec(const char * name, const vec & pvec, bool high = false){
 }
 void print_mat(const char * name, const mat & pmat, bool high = false){
  printf("%s\n", name);
- for (int i= 0; i< pmat.rows(); i++){
-  for (int j=0; j< pmat.cols(); j++){
+ mat pmat2 = transpose((mat&)pmat);
+ if (pmat2.cols() == 1)
+    pmat2 = pmat2.transpose();
+ for (int i= 0; i< std::min((int)pmat2.rows(), MAX_PRINTOUT_LEN); i++){
+  for (int j=0; j< std::min((int)pmat2.cols(), MAX_PRINTOUT_LEN); j++){
     if (high)
-      printf("%15.15lg ", get_val(pmat, i, j));
+      printf("%15.15lg ", get_val(pmat2, i, j));
     else
-     printf("%.5lg ", get_val(pmat, i, j));
+     printf("%.5lg ", get_val(pmat2, i, j));
   }
   printf("\n");
   
@@ -43,7 +47,7 @@ void print_vec_pos(std::string name, vec & v, int i){
     printf("%s[%d]: %.5lg\n", name.c_str(), i, v[i]);
     return;
   }
-  for (int j=0; j< v.size(); j++){
+  for (int j=0; j< std::min((int)v.size(),MAX_PRINTOUT_LEN); j++){
    printf("%.5lg", v(j));
    if (v.size() > 1)
     printf(" ");
