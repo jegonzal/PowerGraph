@@ -47,7 +47,7 @@ struct teststruct{
 void print(std::map<int, teststruct> &data1,  
            std::string data2) {
   std::cout << "1.a = " << data1[1].a << std::endl;
-  std::cout << "10.b = " << data1[10].b << std::endl;
+  std::cout << "2.b = " << data1[2].b << std::endl;
   std::cout << "string = " << data2 << std::endl;
 }
 

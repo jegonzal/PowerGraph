@@ -68,7 +68,7 @@ class  BOOST_PP_CAT(BOOST_PP_TUPLE_ELEM(2,0,FNAME_AND_CALL), N) { \
     Iterator iter = target_begin;                                       \
     while(iter != target_end) {                                         \
       ASSERT_LT((*iter), sender.size());                                 \
-      sender[(*iter)]->send_data((*iter),flags | POD_CALL , reinterpret_cast<char*>(&s), sizeof(s));    \
+      sender[(*iter)]->copy_and_send_data((*iter),flags | POD_CALL , reinterpret_cast<char*>(&s), sizeof(s));    \
       if ((flags & CONTROL_PACKET) == 0)                                  \
         rmi->inc_bytes_sent((*iter), sizeof(s));                  \
       ++iter;                                                             \

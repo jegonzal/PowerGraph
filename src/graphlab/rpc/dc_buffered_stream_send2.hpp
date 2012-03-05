@@ -67,7 +67,8 @@ class dc_buffered_stream_send2: public dc_send{
                   dc(dc),  comm(comm), target(target), done(false), 
                   flush_flag(false), return_signal(false),
                   buffer_length_trigger(5*1024*1024), 
-                  max_buffer_length(5*1024*1024), nanosecond_wait(1000000) {
+                  max_buffer_length(5*1024*1024), nanosecond_wait(1000000),
+                  wakeuptimes(0), sendlength(0){
     char bufpad[sizeof(block_header_type)];
     writebuffer.write(bufpad, sizeof(block_header_type));
     sendbuffer.write(bufpad, sizeof(block_header_type));
@@ -84,15 +85,6 @@ class dc_buffered_stream_send2: public dc_send{
     return comm->channel_active(target);
   }
 
-  /**
-   Called by the controller when there is data to send.
-   if len is -1, the function has to compute the length by itself,
-   or send the data from the stream directly. the strm is not copyable.
-  */
-  void send_data(procid_t target, 
-                 unsigned char packet_type_mask,
-                 std::istream &istrm,
-                 size_t len = size_t(-1));
                  
   /** Another possible interface the controller can
   call with when there is data to send. The caller has
@@ -101,6 +93,9 @@ class dc_buffered_stream_send2: public dc_send{
                  unsigned char packet_type_mask,
                  char* data, size_t len);
 
+  void copy_and_send_data(procid_t target,
+                      unsigned char packet_type_mask,
+                      char* data, size_t len);
   void send_loop();
   
   void flush();
@@ -134,7 +129,8 @@ class dc_buffered_stream_send2: public dc_send{
   charstream_impl::resizing_array_sink<true> sendbuffer;
   
   mutex lock;
-  mutex sendlock;
+  mutex buffer_empty_lock;
+  mutex send_lock;
   conditional cond;
 
   thread thr;
@@ -150,6 +146,11 @@ class dc_buffered_stream_send2: public dc_send{
   size_t max_buffer_length;
   
   size_t nanosecond_wait;
+
+  size_t wakeuptimes;
+  size_t sendlength;
+  void flush_locked();
+
 };
 
 

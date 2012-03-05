@@ -116,6 +116,7 @@ class  BOOST_PP_CAT(FNAME_AND_CALL, N) { \
     sender->send_data(target, flags, strm->c_str(), strm->size());    \
     if ((flags & CONTROL_PACKET) == 0)                       \
       rmi->inc_bytes_sent(target, strm->size());           \
+    strm->relinquish();     \
     reply.wait(); \
     boost::iostreams::stream<boost::iostreams::array_source> retstrm(reply.val.c, reply.val.len);  \
     iarchive iarc(retstrm);  \

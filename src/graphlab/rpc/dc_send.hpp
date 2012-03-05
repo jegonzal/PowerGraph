@@ -42,19 +42,15 @@ class dc_send{
  public:
   dc_send() { }
   virtual ~dc_send() { }
-  /**
-   Called by the controller when there is data to send.
-   if len is -1, the function has to compute the length by itself,
-   or send the data from the stream directly. the strm is not copyable.
-  */
+
+  /** Called to send data to the target. The caller transfers control of
+  the pointer*/
   virtual void send_data(procid_t target, 
                  unsigned char packet_type_mask,
-                 std::istream &istrm,
-                 size_t len = size_t(-1)) = 0;
-  /** Another possible interface the controller can
-  call with when there is data to send. The caller has
-  responsibility for freeing the pointer when this call returns*/
-  virtual void send_data(procid_t target, 
+                 char* data, size_t len) = 0;
+
+  /** Like send_data, control of the point is not transfered */
+  virtual void copy_and_send_data(procid_t target,
                  unsigned char packet_type_mask,
                  char* data, size_t len) = 0;
 

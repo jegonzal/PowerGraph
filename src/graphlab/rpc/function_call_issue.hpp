@@ -169,6 +169,7 @@ class  BOOST_PP_CAT(FNAME_AND_CALL, N) { \
       flags |= REPLY_PACKET; \
     } \
     sender->send_data(target,flags , strm->c_str(), strm->size());    \
+    strm->relinquish(); \
   }\
 }; 
 

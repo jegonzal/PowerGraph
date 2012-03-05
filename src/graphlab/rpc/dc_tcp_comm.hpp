@@ -136,9 +136,8 @@ class dc_tcp_comm:public dc_comm_base {
    * For instance, buf1 could contain a packet header, while buf2 could
    * contain the packet contents.
    */
-  void send2(size_t target, 
-             const char* buf1, const size_t len1,
-             const char* buf2, const size_t len2); 
+  void send_many(size_t target,
+                 std::vector<iovec>& buf);
   
   
   // receiving socket handler

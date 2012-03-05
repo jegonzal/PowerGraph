@@ -95,9 +95,11 @@ class  BOOST_PP_CAT(BOOST_PP_TUPLE_ELEM(2,0,FNAME_AND_CALL), N) { \
     BOOST_PP_REPEAT(N, GENARC, _)                \
     strm.flush();           \
     sender->send_data(target,flags , strm->c_str(), strm->size());    \
-    if ((flags & CONTROL_PACKET) == 0)                       \
+    if ((flags & CONTROL_PACKET) == 0) {                      \
       rmi->inc_bytes_sent(target, strm->size());           \
-  }\
+    } \
+    strm->relinquish(); \
+  } \
 }; 
 
 

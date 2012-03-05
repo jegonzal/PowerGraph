@@ -91,14 +91,21 @@ class  BOOST_PP_CAT(BOOST_PP_TUPLE_ELEM(2,0,FNAME_AND_CALL), N) { \
     BOOST_PP_REPEAT(N, GENARC, _)                                       \
     strm.flush();                                                       \
     Iterator iter = target_begin;                                       \
-    while(iter != target_end) {                                         \
-      ASSERT_LT((*iter), sender.size());                                 \
-      sender[(*iter)]->send_data((*iter),flags , strm->c_str(), strm->size());    \
-      if ((flags & CONTROL_PACKET) == 0)                                  \
-        rmi->inc_bytes_sent((*iter), strm->size());                  \
-      ++iter;                                                             \
-    }                                                                   \
-  }                                                                     \
+    while(iter != target_end) { \
+      Iterator nextiter = iter; ++nextiter; \
+      if (nextiter != target_end) { \
+        char* newbuf = (char*)malloc(strm->size()); memcpy(newbuf, strm->c_str(), strm->size()); \
+        sender[(*iter)]->send_data((*iter),flags , newbuf, strm->size());    \
+      } else {    \
+        sender[(*iter)]->send_data((*iter),flags , strm->c_str(), strm->size());    \
+      } \
+      if ((flags & CONTROL_PACKET) == 0) {                                 \
+        rmi->inc_bytes_sent((*iter), strm->size()); \
+      } \
+      iter = nextiter;  \
+    } \
+    strm->relinquish(); \
+  }  \
 }; 
 
 

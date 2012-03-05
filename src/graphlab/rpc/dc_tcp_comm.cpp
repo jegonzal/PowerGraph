@@ -158,32 +158,30 @@ namespace graphlab {
       ASSERT_EQ(err, 0);
     }
 
-    void dc_tcp_comm::send2(size_t target, 
-                            const char* buf1, const size_t len1,
-                            const char* buf2, const size_t len2) {
-      network_bytessent.inc(len1 + len2);
+    void dc_tcp_comm::send_many(size_t target,
+                                std::vector<iovec>& buf) {
       check_for_out_connection(target);
+      size_t totallen = 0;
+      for (size_t i = 0;i < buf.size(); ++i) {
+        totallen += buf[i].iov_len;
+      }
+      network_bytessent.inc(totallen);
       struct msghdr data;
-      struct iovec vec[2];
-      vec[0].iov_base = (void*)buf1;
-      vec[0].iov_len = len1;
-      vec[1].iov_base = (void*)buf2;
-      vec[1].iov_len = len2;
- 
+
       data.msg_name = NULL;
       data.msg_namelen = 0;
       data.msg_control = NULL;
       data.msg_controllen = 0;
       data.msg_flags = 0;
-      data.msg_iovlen = 2;
-      data.msg_iov = vec;
+      data.msg_iovlen = buf.size();
+      data.msg_iov = &(buf[0]);
   
  
 #ifdef COMM_DEBUG
       logstream(LOG_INFO) << len1+len2 << " bytes --> " << target  << std::endl;
 #endif
       // amount of data to transmit
-      size_t dataleft = len1 + len2;
+      size_t dataleft = totallen;
       // while there is still data to be sent
       BEGIN_TRACEPOINT(tcp_send_call);
       while(dataleft > 0) {

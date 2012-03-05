@@ -90,7 +90,7 @@ class  BOOST_PP_CAT(BOOST_PP_TUPLE_ELEM(2,0,FNAME_AND_CALL), N) { \
     s.dispatch_function = reinterpret_cast<size_t>(d);       \
     s.objid = objid;        \
     BOOST_PP_REPEAT(N, GENARC, _)                \
-    sender->send_data(target,flags | POD_CALL , reinterpret_cast<char*>(&s), sizeof(s));    \
+    sender->copy_and_send_data(target,flags | POD_CALL , reinterpret_cast<char*>(&s), sizeof(s));    \
     if ((flags & CONTROL_PACKET) == 0)                       \
       rmi->inc_bytes_sent(target, sizeof(s));           \
   }\

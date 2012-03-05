@@ -62,9 +62,17 @@ namespace graphlab {
         }        
       }
 
+      /** Gives up the underlying pointer without
+       *  freeing it */
+      void relinquish() {
+        str = NULL;
+        len = 0;
+        buffer_size = 0;
+      }
 
       size_t size() const { return len; }
       char* c_str() { return str; }
+      const char* c_str() const { return str; }
 
       void clear() {
         len = 0;

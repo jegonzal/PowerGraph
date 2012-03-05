@@ -163,6 +163,7 @@ class  BOOST_PP_CAT(FNAME_AND_CALL, N) { \
     BOOST_PP_REPEAT(N, GENARC, _)                \
     strm.flush();           \
     sender->send_data(target, flags, strm->c_str(), strm->size());    \
+    strm->relinquish();     \
     reply.wait(); \
     boost::iostreams::stream<boost::iostreams::array_source> retstrm(reply.val.c, reply.val.len);    \
     iarchive iarc(retstrm);  \

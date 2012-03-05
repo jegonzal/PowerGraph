@@ -65,7 +65,6 @@ add_library(graphlab STATIC
   factors/binary_factor.cpp
   factors/unary_factor.cpp
   ${util_mpi_tools}
-  rpc/dc_comm_base.cpp
   rpc/dc_tcp_comm.cpp
 #  ${sctp_source}
   rpc/circular_char_buffer.cpp
