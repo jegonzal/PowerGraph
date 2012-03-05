@@ -135,7 +135,6 @@ class dc_buffered_stream_send2: public dc_send{
   std::vector<iovec> sendbuffer;
   
   mutex lock;
-  mutex buffer_empty_lock;
   mutex send_lock;
   conditional cond;
 

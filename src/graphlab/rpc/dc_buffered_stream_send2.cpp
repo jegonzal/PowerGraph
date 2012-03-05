@@ -71,13 +71,11 @@ namespace dc_impl {
     bool send_decision = adaptive_send_decision();
     // wake it up from cond sleep
     bool signal_decision = writebuffer.size() == 2;
-    lock.unlock();
     // first insertion into buffer
     if (signal_decision || send_decision) {
-      buffer_empty_lock.lock();
       cond.signal();
-      buffer_empty_lock.unlock();
     }
+    lock.unlock();
   }
 
 
@@ -101,15 +99,15 @@ namespace dc_impl {
         flush_locked();
       } else {
         // sleep for 1 ms or up till we get wait_count_bytes
-        lock.unlock();
-        buffer_empty_lock.lock();
         while(1) {
           if (!done) {
             if(writebuffer_totallen == 0) {
-              cond.wait(buffer_empty_lock);
+              cond.wait(lock);
             }
             else if (writebuffer_totallen < buffer_length_trigger) {
+              lock.unlock();
               my_sleep_ms(1);
+              lock.lock();
               break;
             }
             else {
@@ -120,8 +118,6 @@ namespace dc_impl {
             break;
           }
         }
-        buffer_empty_lock.unlock();
-        lock.lock();
       }
       if (done) {
         break;
@@ -147,10 +143,10 @@ namespace dc_impl {
   void dc_buffered_stream_send2::flush_locked() {
     // if the writebuffer is empty, just return
     if (writebuffer_totallen == 0) return;
+    send_lock.lock();
     sendbuffer.swap(writebuffer);
     size_t sendlen = writebuffer_totallen;
     writebuffer_totallen = 0;
-    send_lock.lock();
     lock.unlock();
     block_header_type blockheader = sendlen;
     // fill the first msg block
