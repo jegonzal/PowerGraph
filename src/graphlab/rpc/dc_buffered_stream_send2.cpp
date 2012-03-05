@@ -30,7 +30,7 @@
 namespace graphlab {
 namespace dc_impl {
 
-  bool dc_buffered_stream_send2::adaptive_send_decision() {
+  inline bool dc_buffered_stream_send2::adaptive_send_decision() {
     /** basically for each call, you have a decision.
      *  1: send it immediately, (either by waking up the sender, 
      *                           or sending it in-line)
@@ -40,54 +40,57 @@ namespace dc_impl {
      * (as compared to the thread wake up time.)
      * I would like to buffer it otherwise. 
      */
-    return writebuffer.len >= buffer_length_trigger;
+    return writebuffer_totallen >= buffer_length_trigger;
   }
 
-  void dc_buffered_stream_send2::copy_and_send_data(procid_t target, 
-                                              unsigned char packet_type_mask,
-                                              char* data, size_t len) {
+  void dc_buffered_stream_send2::send_data(procid_t target,
+                                           unsigned char packet_type_mask,
+                                           char* data, size_t len) {
     if ((packet_type_mask & CONTROL_PACKET) == 0) {
       if (packet_type_mask & (STANDARD_CALL)) {
         dc->inc_calls_sent(target);
       }
-      bytessent.inc(len);
+      bytessent.inc(len - sizeof(packet_hdr));
     }
     
     // build the packet header
-    packet_hdr hdr;
-    memset(&hdr, 0, sizeof(packet_hdr));
+    packet_hdr* hdr = reinterpret_cast<packet_hdr*>(data);
+    memset(hdr, 0, sizeof(packet_hdr));
 
-    hdr.len = len;
-    hdr.src = dc->procid(); 
-    hdr.sequentialization_key = dc->get_sequentialization_key();
-    hdr.packet_type_mask = packet_type_mask;
+    hdr->len = len - sizeof(packet_hdr);
+    hdr->src = dc->procid();
+    hdr->sequentialization_key = dc->get_sequentialization_key();
+    hdr->packet_type_mask = packet_type_mask;
 
-    lock.lock();   
-    size_t prevwbufsize = writebuffer.len;
-    writebuffer.write(reinterpret_cast<char*>(&hdr), sizeof(packet_hdr));
-    writebuffer.write(data, len);
+    iovec msg;
+    msg.iov_base = data;
+    msg.iov_len = len;
+    lock.lock();
+    writebuffer.push_back(msg);
+    writebuffer_totallen += len;
     bool send_decision = adaptive_send_decision();
-
-    if (prevwbufsize == sizeof(block_header_type) || send_decision) {
+    // wake it up from cond sleep
+    bool signal_decision = writebuffer.size() == 2;
+    lock.unlock();
+    // first insertion into buffer
+    if (signal_decision || send_decision) {
       buffer_empty_lock.lock();
       flush_flag = send_decision;
       cond.signal();
       buffer_empty_lock.unlock();
-      lock.unlock();
-    }
-    else {
-      lock.unlock();
     }
   }
 
 
-  void dc_buffered_stream_send2::send_data(procid_t target,
+  void dc_buffered_stream_send2::copy_and_send_data(procid_t target,
                                           unsigned char packet_type_mask,
                                           char* data, size_t len) {
-    copy_and_send_data(target, packet_type_mask, data, len);
-    free(data);
+    char* c = (char*)malloc(sizeof(packet_hdr) + len);
+    memcpy(c + sizeof(packet_hdr), data, len);
+    send_data(target, packet_type_mask, c, len + sizeof(packet_hdr));
   }
-    
+
+
   void dc_buffered_stream_send2::send_loop() {
     graphlab::timer timer;
     timer.start();
@@ -95,27 +98,23 @@ namespace dc_impl {
     //const double second_wait = nanosecond_wait / nano2second;
     lock.lock();
     while (1) {
-      if (writebuffer.len > sizeof(block_header_type)) {
+      if (writebuffer_totallen > 0) {
         flush_locked();
       } else {
         // sleep for 1 ms or up till we get wait_count_bytes
         lock.unlock();
+        buffer_empty_lock.lock();
         while(!flush_flag &&
               !done) {
-          if (return_signal) {
-            return_signal = false;
-            flush_return_cond.signal();
-          }
-          if(writebuffer.len == sizeof(block_header_type)) {
-            buffer_empty_lock.lock();
+          if(writebuffer_totallen == 0) {
             cond.wait(buffer_empty_lock);
-            buffer_empty_lock.unlock();
           }
-          else if (writebuffer.len < buffer_length_trigger) {
+          else if (writebuffer_totallen < buffer_length_trigger) {
             my_sleep_ms(1);
             break;
           }
         }
+        buffer_empty_lock.unlock();
         lock.lock();
         flush_flag = false;
       }
@@ -142,16 +141,22 @@ namespace dc_impl {
 
   void dc_buffered_stream_send2::flush_locked() {
     // if the writebuffer is empty, just return
-    // note that "empty" means it must contain at leat the header byes.
-    if (writebuffer.len == sizeof(block_header_type)) return;
+    if (writebuffer_totallen == 0) return;
     sendbuffer.swap(writebuffer);
+    size_t sendlen = writebuffer_totallen;
+    writebuffer_totallen = 0;
     send_lock.lock();
     lock.unlock();
-    // fill in the chunk header with the length of the chunk
-    *reinterpret_cast<block_header_type*>(sendbuffer.str) = (block_header_type)(sendbuffer.len - sizeof(block_header_type));
-    comm->send(target, sendbuffer.str, sendbuffer.len);
+    block_header_type blockheader = sendlen;
+    // fill the first msg block
+    sendbuffer[0].iov_base = reinterpret_cast<void*>(&blockheader);
+    sendbuffer[0].iov_len = sizeof(block_header_type);
+    //remember what I just sent so that I can free it later. send_many
+    // may modify the vector.
+    std::vector<iovec> prevsend = sendbuffer;
+    comm->send_many(target, sendbuffer);
     wakeuptimes++;
-    sendlength += sendbuffer.len;
+    sendlength += sendlen;
     if (wakeuptimes & 4) {
       sendlength /= wakeuptimes;
       buffer_length_trigger = (buffer_length_trigger + sendlength) / 2;
@@ -159,17 +164,13 @@ namespace dc_impl {
       buffer_length_trigger += (buffer_length_trigger == 0);
       sendlength = 0; wakeuptimes = 0;
     }
-    // shrink if we are not using much buffer
-    if (sendbuffer.len < sendbuffer.buffer_size / 2
-        && sendbuffer.buffer_size > 10240) {
-      sendbuffer.clear(sendbuffer.buffer_size / 2);
-    }
-    else {
-      sendbuffer.clear();
-    }
-    char bufpad[sizeof(block_header_type)];
-    sendbuffer.write(bufpad, sizeof(block_header_type));
+    sendbuffer.resize(1);
     send_lock.unlock();
+
+    // now clear what I just sent. start from '1' to avoid the header
+    for (size_t i = 1; i < prevsend.size(); ++i) {
+      free(prevsend[i].iov_base);
+    }
     lock.lock();
   }
   

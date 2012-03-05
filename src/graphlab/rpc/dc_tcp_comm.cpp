@@ -178,7 +178,7 @@ namespace graphlab {
   
  
 #ifdef COMM_DEBUG
-      logstream(LOG_INFO) << len1+len2 << " bytes --> " << target  << std::endl;
+      logstream(LOG_INFO) << totallen << " bytes --> " << target  << std::endl;
 #endif
       // amount of data to transmit
       size_t dataleft = totallen;

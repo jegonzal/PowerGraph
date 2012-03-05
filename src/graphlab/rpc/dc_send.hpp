@@ -44,12 +44,16 @@ class dc_send{
   virtual ~dc_send() { }
 
   /** Called to send data to the target. The caller transfers control of
-  the pointer*/
+  the pointer. The caller MUST ensure that the data be prefixed
+  with sizeof(packet_hdr) extra bytes at the start for placement of the
+  packet header. */
   virtual void send_data(procid_t target, 
                  unsigned char packet_type_mask,
                  char* data, size_t len) = 0;
 
-  /** Like send_data, control of the point is not transfered */
+  /** Sends the data but without transferring control of the pointer.
+   The function will make a copy of the data before sending it.
+   Unlike send_data, no padding is necessary. */
   virtual void copy_and_send_data(procid_t target,
                  unsigned char packet_type_mask,
                  char* data, size_t len) = 0;

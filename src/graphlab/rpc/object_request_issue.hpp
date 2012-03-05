@@ -105,6 +105,7 @@ class  BOOST_PP_CAT(FNAME_AND_CALL, N) { \
   static typename function_ret_type<__GLRPC_FRESULT>::type exec(dc_dist_object_base* rmi, dc_send* sender, unsigned char flags, procid_t target,size_t objid, F remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_) ) {  \
     boost::iostreams::stream<resizing_array_sink_ref> &strm = get_thread_local_stream();    \
     oarchive arc(strm);                         \
+    strm->advance(sizeof(packet_hdr));            \
     reply_ret_type reply(REQUEST_WAIT_METHOD);      \
     dispatch_type d = BOOST_PP_CAT(dc_impl::OBJECT_NONINTRUSIVE_REQUESTDISPATCH,N)<distributed_control,T,F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N, GENT ,_) >;  \
     arc << reinterpret_cast<size_t>(d);       \

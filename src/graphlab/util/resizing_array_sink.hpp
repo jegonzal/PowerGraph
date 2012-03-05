@@ -57,6 +57,10 @@ namespace graphlab {
     }
 
     inline void relinquish() { ras->relinquish(); }
+
+    inline void advance(std::streamsize n) { ras->advance(n); }
+
+    
     inline std::streamsize write(const char* s, std::streamsize n) {
       return ras->write(s, n);
     }
