@@ -23,7 +23,9 @@
 
 #include <execinfo.h>
 #include <iostream>
-#include <cstdlib>
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
 #include <unistd.h>
 #include <cxxabi.h>
 
