@@ -75,7 +75,6 @@ namespace dc_impl {
     // first insertion into buffer
     if (signal_decision || send_decision) {
       buffer_empty_lock.lock();
-      flush_flag = send_decision;
       cond.signal();
       buffer_empty_lock.unlock();
     }
@@ -104,19 +103,25 @@ namespace dc_impl {
         // sleep for 1 ms or up till we get wait_count_bytes
         lock.unlock();
         buffer_empty_lock.lock();
-        while(!flush_flag &&
-              !done) {
-          if(writebuffer_totallen == 0) {
-            cond.wait(buffer_empty_lock);
+        while(1) {
+          if (!done) {
+            if(writebuffer_totallen == 0) {
+              cond.wait(buffer_empty_lock);
+            }
+            else if (writebuffer_totallen < buffer_length_trigger) {
+              my_sleep_ms(1);
+              break;
+            }
+            else {
+              break;
+            }
           }
-          else if (writebuffer_totallen < buffer_length_trigger) {
-            my_sleep_ms(1);
+          else {
             break;
           }
         }
         buffer_empty_lock.unlock();
         lock.lock();
-        flush_flag = false;
       }
       if (done) {
         break;

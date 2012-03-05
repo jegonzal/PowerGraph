@@ -66,8 +66,7 @@ class dc_buffered_stream_send2: public dc_send{
                                    procid_t target) : 
                   dc(dc),  comm(comm), target(target),
                   writebuffer_totallen(0), done(false),
-                  flush_flag(false), return_signal(false),
-                  buffer_length_trigger(5*1024*1024), 
+                  buffer_length_trigger(5*1024*1024),
                   max_buffer_length(5*1024*1024), nanosecond_wait(1000000),
                   wakeuptimes(0), sendlength(0){
     writebuffer.resize(1);
