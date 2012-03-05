@@ -173,10 +173,13 @@ namespace graphlab {
       data.msg_control = NULL;
       data.msg_controllen = 0;
       data.msg_flags = 0;
-      data.msg_iovlen = buf.size();
+      data.msg_iovlen = std::min<size_t>(buf.size(), IOV_MAX);
       data.msg_iov = &(buf[0]);
-  
- 
+
+      // since there is a limit to the number of message entries I can send
+      // I must keep track of what is remaining
+      size_t iovs_remaining = buf.size() - data.msg_iovlen;
+      
 #ifdef COMM_DEBUG
       logstream(LOG_INFO) << totallen << " bytes --> " << target  << std::endl;
 #endif
@@ -185,8 +188,13 @@ namespace graphlab {
       // while there is still data to be sent
       BEGIN_TRACEPOINT(tcp_send_call);
       while(dataleft > 0) {
-        size_t ret = sendmsg(outsocks[target], &data, 0);
+        ssize_t ret = sendmsg(outsocks[target], &data, 0);
         // decrement the counter
+        if (ret < 0) {
+          logstream(LOG_ERROR) << "send error: " << strerror(errno) << std::endl;
+          END_TRACEPOINT(tcp_send_call);
+          return;
+        }
         dataleft -= ret;
         // restructure the msghdr depending on how much was sent
         struct iovec* newiovecptr = data.msg_iov;
@@ -194,7 +202,7 @@ namespace graphlab {
         for (size_t i = 0;i < (size_t)(data.msg_iovlen); ++i) {
           // amount sent was less than this entry.
           // shift the entry and retry
-          if (ret < data.msg_iov[i].iov_len) {
+          if ((size_t)ret < data.msg_iov[i].iov_len) {
             // shift the data
             data.msg_iov[i].iov_len -= ret;
             char* tmp = (char*) data.msg_iov[i].iov_base;
@@ -206,7 +214,7 @@ namespace graphlab {
             // amount sent exceeds this entry. we need to 
             // erase this entry (increment the iovec_ptr)
             // and go on to the next entry
-            size_t l = std::min(ret, data.msg_iov[i].iov_len);
+            size_t l = std::min<size_t>(ret, data.msg_iov[i].iov_len);
             newiovlen--;
             newiovecptr++;
             ret -= l;
@@ -215,6 +223,10 @@ namespace graphlab {
         }
         data.msg_iov = newiovecptr;
         data.msg_iovlen = newiovlen;
+        // now move some of the remaining iovs into msg_iovlen
+        data.msg_iovlen = std::min<size_t>(data.msg_iovlen + iovs_remaining, IOV_MAX);
+        // update the remainder
+        iovs_remaining -= data.msg_iovlen - newiovlen;
       }
       END_TRACEPOINT(tcp_send_call);
     }
