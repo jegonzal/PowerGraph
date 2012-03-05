@@ -34,6 +34,8 @@ add_distributed_graphlab_executable(distributed_chandy_misra_test distributed_ch
 add_distributed_graphlab_executable(dc_test_sequentialization dc_test_sequentialization.cpp)
 
 add_graphlab_executable(hdfs_test hdfs_test.cpp)
+#add_graphlab_executable(backtrace_test backtrace_test.cpp)
+
 
 
 # copyfile(runtests.sh)

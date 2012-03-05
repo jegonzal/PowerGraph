@@ -55,6 +55,11 @@ namespace graphlab {
     inline std::streamsize optimal_buffer_size() const { 
       return ras->optimal_buffer_size(); 
     }
+
+    inline void relinquish() { ras->relinquish(); }
+
+    inline void advance(std::streamsize n) { ras->advance(n); }
+
     
     inline std::streamsize write(const char* s, std::streamsize n) {
       return ras->write(s, n);

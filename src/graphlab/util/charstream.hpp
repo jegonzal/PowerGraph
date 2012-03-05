@@ -62,9 +62,17 @@ namespace graphlab {
         }        
       }
 
+      /** Gives up the underlying pointer without
+       *  freeing it */
+      void relinquish() {
+        str = NULL;
+        len = 0;
+        buffer_size = 0;
+      }
 
       size_t size() const { return len; }
       char* c_str() { return str; }
+      const char* c_str() const { return str; }
 
       void clear() {
         len = 0;
@@ -93,6 +101,17 @@ namespace graphlab {
       
       /** the optimal buffer size is 0. */
       inline std::streamsize optimal_buffer_size() const { return 0; }
+
+      inline std::streamsize advance(std::streamsize n) {
+         if (len + n > buffer_size) {
+          // double in length if we need more buffer
+          buffer_size = 2 * (len + n);
+          str = (char*)realloc(str, buffer_size);
+          assert(str != NULL);
+        }
+        len += n;
+        return n;
+      }
       
       inline std::streamsize write(const char* s, std::streamsize n) {
         if (len + n > buffer_size) {

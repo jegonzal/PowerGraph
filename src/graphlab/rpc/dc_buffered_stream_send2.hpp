@@ -64,13 +64,13 @@ class dc_buffered_stream_send2: public dc_send{
   dc_buffered_stream_send2(distributed_control* dc, 
                                    dc_comm_base *comm, 
                                    procid_t target) : 
-                  dc(dc),  comm(comm), target(target), done(false), 
-                  flush_flag(false), return_signal(false),
-                  buffer_length_trigger(5*1024*1024), 
-                  max_buffer_length(5*1024*1024), nanosecond_wait(1000000) {
-    char bufpad[sizeof(block_header_type)];
-    writebuffer.write(bufpad, sizeof(block_header_type));
-    sendbuffer.write(bufpad, sizeof(block_header_type));
+                  dc(dc),  comm(comm), target(target),
+                  writebuffer_totallen(0), done(false),
+                  buffer_length_trigger(5*1024*1024),
+                  max_buffer_length(5*1024*1024), nanosecond_wait(1000000),
+                  wakeuptimes(0), sendlength(0){
+    writebuffer.resize(1);
+    sendbuffer.resize(1);
     thr = launch_in_new_thread(boost::bind
                                (&dc_buffered_stream_send2::send_loop, 
                                 this));
@@ -84,23 +84,23 @@ class dc_buffered_stream_send2: public dc_send{
     return comm->channel_active(target);
   }
 
-  /**
-   Called by the controller when there is data to send.
-   if len is -1, the function has to compute the length by itself,
-   or send the data from the stream directly. the strm is not copyable.
-  */
-  void send_data(procid_t target, 
-                 unsigned char packet_type_mask,
-                 std::istream &istrm,
-                 size_t len = size_t(-1));
                  
-  /** Another possible interface the controller can
-  call with when there is data to send. The caller has
-  responsibility for freeing the pointer when this call returns*/
-  void send_data(procid_t target, 
+
+  /** Called to send data to the target. The caller transfers control of
+  the pointer. The caller MUST ensure that the data be prefixed
+  with sizeof(packet_hdr) extra bytes at the start for placement of the
+  packet header. */
+  void send_data(procid_t target,
                  unsigned char packet_type_mask,
                  char* data, size_t len);
 
+
+  /** Sends the data but without transferring control of the pointer.
+   The function will make a copy of the data before sending it.
+   Unlike send_data, no padding is necessary. */
+  void copy_and_send_data(procid_t target,
+                      unsigned char packet_type_mask,
+                      char* data, size_t len);
   void send_loop();
   
   void flush();
@@ -129,12 +129,13 @@ class dc_buffered_stream_send2: public dc_send{
   distributed_control* dc;
   dc_comm_base *comm;
   procid_t target;
-  
-  charstream_impl::resizing_array_sink<true> writebuffer;
-  charstream_impl::resizing_array_sink<true> sendbuffer;
+
+  size_t writebuffer_totallen;
+  std::vector<iovec> writebuffer;
+  std::vector<iovec> sendbuffer;
   
   mutex lock;
-  mutex sendlock;
+  mutex send_lock;
   conditional cond;
 
   thread thr;
@@ -142,14 +143,15 @@ class dc_buffered_stream_send2: public dc_send{
 
   atomic<size_t> bytessent; 
   
-  bool flush_flag;
-  bool return_signal;
-  conditional flush_return_cond;
-  
   size_t buffer_length_trigger;
   size_t max_buffer_length;
   
   size_t nanosecond_wait;
+
+  size_t wakeuptimes;
+  size_t sendlength;
+  void flush_locked();
+
 };
 
 

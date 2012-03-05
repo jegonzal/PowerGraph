@@ -112,8 +112,16 @@ template<Iterator, typename F , typename T0> class remote_call_issue1
         strm.flush();
         Iterator iter = target_begin;
         while(iter != target_end) {
-          sender->send_data((*iter),flags , strm->str, strm->len);
-          ++iter;
+          Iteratator nextiter = iter; ++nextiter;
+          if (nextiter != target_end) {
+            char* newbuf = malloc(strm->len); memcpy(newbuf, strm->str, strm->len);
+            sender->send_data((*iter),flags , newbuf, strm->len);
+          }
+          else {
+            sender->send_data((*iter),flags , strm->str, strm->len);
+          }
+          iter = nextiter;
+          strm->relinquish();
         }
     }
 };
@@ -154,6 +162,7 @@ class  BOOST_PP_CAT(FNAME_AND_CALL, N) { \
   public: \
   static void exec(std::vector<dc_send*>& sender, unsigned char flags, Iterator target_begin, Iterator target_end, F remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_) ) {  \
     boost::iostreams::stream<resizing_array_sink_ref> &strm = get_thread_local_stream();    \
+    strm->advance(sizeof(packet_hdr));            \
     oarchive arc(strm);                         \
     dispatch_type d = BOOST_PP_CAT(function_call_issue_detail::dispatch_selector,N)<typename is_rpc_call<F>::type, F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, T) >::dispatchfn();   \
     arc << reinterpret_cast<size_t>(d);       \
@@ -161,11 +170,18 @@ class  BOOST_PP_CAT(FNAME_AND_CALL, N) { \
     BOOST_PP_REPEAT(N, GENARC, _)                \
     strm.flush();           \
     Iterator iter = target_begin; \
-    while(iter != target_end) {                                         \
-      ASSERT_LT((*iter), sender.size());                                 \
-      sender[(*iter)]->send_data((*iter),flags , strm->c_str(), strm->size());    \
-      ++iter;                                                    \
+    while(iter != target_end) { \
+      Iterator nextiter = iter; ++nextiter; \
+      if (nextiter != target_end) { \
+        char* newbuf = (char*)malloc(strm->size()); memcpy(newbuf, strm->c_str(), strm->size()); \
+        sender[(*iter)]->send_data((*iter),flags , newbuf, strm->size());    \
+      } \
+      else {  \
+        sender[(*iter)]->send_data((*iter),flags , strm->c_str(), strm->size());    \
+      } \
+      iter = nextiter;  \
     } \
+    strm->relinquish(); \
   }\
 }; 
 
