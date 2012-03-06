@@ -59,7 +59,7 @@
 
 
 template<typename T>
-uint array_from_file(std::string filename, T *& array){
+size_t array_from_file(std::string filename, T *& array){
           struct stat sb;
           int fd = open (filename.c_str(), O_RDONLY);
           if (fd == -1) {
@@ -78,9 +78,9 @@ uint array_from_file(std::string filename, T *& array){
           }
 	  close(fd);
  
-	  int toread = sb.st_size/sizeof(T); 
+	  size_t toread = sb.st_size/sizeof(T); 
           array = new T[toread];
-          int total = 0;
+          size_t total = 0;
 	  FILE * f = fopen(filename.c_str(), "r");
           if (f == NULL){
 	     perror("fopen");
@@ -88,8 +88,8 @@ uint array_from_file(std::string filename, T *& array){
           }
          
           while(total < toread){
-	     int rc = fread(array+total, sizeof(T), toread-total,f);
-	     if (rc < 0 ){
+	     size_t rc = fread(array+total, sizeof(T), toread-total,f);
+	     if (rc <= 0 ){
 	       perror("fread");
                logstream(LOG_FATAL) << "Failed to read from input file: " << filename << std::endl;
 	     }
