@@ -55,7 +55,7 @@ class distributed_chandy_misra {
   };
   std::vector<philosopher> philosopherset;
   
-  DECLARE_DIST_EVENT_LOG(eventlog);
+  PERMANENT_DECLARE_DIST_EVENT_LOG(eventlog);
     
   /*
    * Possible values for the philosopher state
@@ -164,7 +164,7 @@ class distributed_chandy_misra {
           return true;
         }
         else if (philosopherset[source].cancellation_sent == false) {
-          ACCUMULATE_DIST_EVENT(eventlog, CANCELLATIONS, 1);
+          PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, CANCELLATIONS, 1);
           philosopherset[source].cancellation_sent = true;
           bool lockid = philosopherset[source].lockid;
           philosopherset[source].lock.unlock();
@@ -192,7 +192,7 @@ class distributed_chandy_misra {
           return true;
         }
         else if (philosopherset[target].cancellation_sent == false) {
-          ACCUMULATE_DIST_EVENT(eventlog, CANCELLATIONS, 1);
+          PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, CANCELLATIONS, 1);
           philosopherset[target].cancellation_sent = true;
           bool lockid = philosopherset[target].lockid;
           philosopherset[source].lock.unlock();
@@ -203,7 +203,7 @@ class distributed_chandy_misra {
         }
       }
     }
-    ACCUMULATE_DIST_EVENT(eventlog, COLLISIONS, 1);
+    PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, COLLISIONS, 1);
     return false;
   }
 
@@ -228,7 +228,7 @@ class distributed_chandy_misra {
                     philosopherset[lvid].state == HUNGRY);
         ++philosopherset[lvid].counter;
         bool lockid = philosopherset[lvid].lockid;
-        ACCUMULATE_DIST_EVENT(eventlog, ACCEPTED_CANCELLATIONS, 1);
+        PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, ACCEPTED_CANCELLATIONS, 1);
         logstream(LOG_DEBUG) << rmi.procid() <<
             ": Cancellation accepted on " << distgraph.global_vid(lvid) <<
             "(" << (int)philosopherset[lvid].counter << ")" << std::endl;
@@ -711,10 +711,14 @@ class distributed_chandy_misra {
     forkset.resize(graph.num_edges(), 0);
     philosopherset.resize(graph.num_vertices());
     compute_initial_fork_arrangement();
-    INITIALIZE_DIST_EVENT_LOG(eventlog, dc, std::cout, 3000, dist_event_log::RATE_BAR);
-    ADD_DIST_EVENT_TYPE(eventlog, COLLISIONS, "Collisions");
-    ADD_DIST_EVENT_TYPE(eventlog, CANCELLATIONS, "Cancels");
-    ADD_DIST_EVENT_TYPE(eventlog, ACCEPTED_CANCELLATIONS, "Accepted Cancels");
+#ifdef USE_EVENT_LOG
+    PERMANENT_INITIALIZE_DIST_EVENT_LOG(eventlog, dc, std::cout, 3000, dist_event_log::RATE_BAR);
+#else
+    PERMANENT_INITIALIZE_DIST_EVENT_LOG(eventlog, dc, std::cout, 3000, dist_event_log::LOG_FILE);
+#endif
+    PERMANENT_ADD_DIST_EVENT_TYPE(eventlog, COLLISIONS, "Collisions");
+    PERMANENT_ADD_DIST_EVENT_TYPE(eventlog, CANCELLATIONS, "Cancels");
+    PERMANENT_ADD_DIST_EVENT_TYPE(eventlog, ACCEPTED_CANCELLATIONS, "Accepted Cancels");
 
     rmi.barrier();
   }

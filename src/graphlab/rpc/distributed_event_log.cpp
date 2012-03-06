@@ -1,4 +1,6 @@
 #include <limits>
+#include <graphlab/rpc/dc.hpp>
+#include <graphlab/rpc/dc_dist_object.hpp>
 #include <graphlab/rpc/distributed_event_log.hpp>
 #include <graphlab/util/timer.hpp>
 #include <graphlab/logger/assertions.hpp>
@@ -6,6 +8,10 @@
 #define EVENT_BAR_WIDTH 40
 
 namespace graphlab {
+
+static std::ofstream eventlog_file;
+static mutex eventlog_file_mutex;
+static bool eventlog_file_open = false;
 
   
 void dist_event_log::initialize(distributed_control& dc,
@@ -17,6 +23,7 @@ void dist_event_log::initialize(distributed_control& dc,
   m.lock();
   out = &ostrm;
   flush_interval = flush_interval_ms;
+  // other processors synchronize here more frequently.
   if (rmi->procid() > 0) {
     flush_interval /= 10;
   }
@@ -24,8 +31,20 @@ void dist_event_log::initialize(distributed_control& dc,
   prevtime = 0;
   ti.start();
   cond.signal();
-  std::cout << "init" << std::endl;
   m.unlock();
+  
+  
+  if (event_print == LOG_FILE) {
+    if (dc.procid() == 0) {
+      eventlog_file_mutex.lock();
+      if (!eventlog_file_open) {
+        eventlog_file_open = true;
+        eventlog_file.open("eventlog.txt");
+      }
+      out = &eventlog_file;
+      eventlog_file_mutex.unlock();
+    }
+  }
 }
 
 dist_event_log::~dist_event_log() {
@@ -33,17 +52,27 @@ dist_event_log::~dist_event_log() {
 }
 
 void dist_event_log::destroy() {
-  uint32_t pos;
-  if (rmi->procid() == 0 && hascounter.first_bit(pos)) {
-    do {
-      (*out) << descriptions[pos]  << ":\t" << totalcounter[pos].value << " Events\n";
-    } while(hascounter.next_bit(pos));
-  }
   finished = true;
   m.lock();
   cond.signal();
   m.unlock();
   printing_thread.join();
+  
+  uint32_t pos;
+  if (print_method != LOG_FILE) {
+    if (rmi->procid() == 0 && hascounter.first_bit(pos)) {
+      do {
+        (*out) << descriptions[pos]  << ":\t" << totalcounter[pos].value << " Events\n";
+      } while(hascounter.next_bit(pos));
+    }
+  }
+  else {
+    if (rmi->procid() == 0 && hascounter.first_bit(pos)) {
+      do {
+        std::cout << descriptions[pos]  << ":\t" << totalcounter[pos].value << " Events\n";
+      } while(hascounter.next_bit(pos));
+    }
+  }
   delete rmi;
 }
 
@@ -66,7 +95,7 @@ void dist_event_log::add_event_type(unsigned char eventid,
   }
 }
 
-void dist_event_log::accumulate_event_aggregator(procid_t proc,
+void dist_event_log::accumulate_event_aggregator(size_t proc,
                                                  unsigned char eventid,
                                                  size_t count) {
   hasevents = true;
@@ -90,7 +119,7 @@ static void compute_statistics(std::vector<atomic<size_t> > &vec,
   for (size_t i = 0; i < vec.size(); ++i) {
     size_t ctr = vec[i].exchange(0);
     c.minimum = std::min(c.minimum, ctr);
-    c.maximum = std::max(c.minimum, ctr);
+    c.maximum = std::max(c.maximum, ctr);
     c.total += ctr;
   }
   c.average = c.total / vec.size();
@@ -148,14 +177,13 @@ void dist_event_log::print_log() {
   } while(hascounter.next_bit(pos));
   
   bool found_events = false;
-  (*out) << "Time: " << "+"<<timegap << "\t" << curtime << "\n";
   
   // reset the counter
   hascounter.first_bit(pos);
   if (print_method == NUMBER) {
     do {
       found_events = found_events || stats[pos].total > 0;
-      (*out) << pos  << ":\t" << stats[pos].minimum << "\t"
+      (*out) << pos  << ":\t" << curtime << "\t" << stats[pos].minimum << "\t"
              << stats[pos].average << "\t" << stats[pos].maximum << "\t"
              << stats[pos].total << "\t" << 1000 * stats[pos].total / timegap << " /s\n";
     } while(hascounter.next_bit(pos));
@@ -163,12 +191,24 @@ void dist_event_log::print_log() {
   else if (print_method == DESCRIPTION) {
     do {
       found_events = found_events || stats[pos].total > 0;
-      (*out) << descriptions[pos]  << ":\t" << stats[pos].minimum << "\t"
+      (*out) << descriptions[pos]  << ":\t" << curtime << "\t" << stats[pos].minimum << "\t"
              << stats[pos].average << "\t" << stats[pos].maximum << "\t"
              << stats[pos].total << "\t" << 1000 * stats[pos].total / timegap << " /s\n";
     } while(hascounter.next_bit(pos));
   }
+  else if (print_method == LOG_FILE) {
+    do {
+      found_events = found_events || stats[pos].total > 0;
+      eventlog_file_mutex.lock();
+      (*out) << descriptions[pos]  << ":\t" << curtime << "\t" << stats[pos].minimum << "\t"
+             << stats[pos].average << "\t" << stats[pos].maximum << "\t"
+             << stats[pos].total << "\t" << 1000 * stats[pos].total / timegap << "\n";
+      eventlog_file_mutex.unlock();
+    } while(hascounter.next_bit(pos));
+  }
   else if (print_method == RATE_BAR) {
+    (*out) << "Time: " << "+"<<timegap << "\t" << curtime << "\n";
+
     char spacebuf[60];
     memset(spacebuf, ' ', EVENT_BAR_WIDTH);
     do {
@@ -196,7 +236,7 @@ void dist_event_log::print_log() {
       // reset the space buffer
       spacebuf[max_desc_length - descriptions[pos].length() + 1] =' ';
 
-       (*out) << "| " << stats[pos].total << " : " << maxcounter[pos] << " /s\n\n";
+       (*out) << "| " << stats[pos].total << " : " << maxcounter[pos] << " \n\n";
     } while(hascounter.next_bit(pos));
   }
   if (found_events == false) {
@@ -206,7 +246,7 @@ void dist_event_log::print_log() {
       noeventctr = 0;
   }
   hasevents = false;
-  (*out) << std::endl;
+  out->flush();
 }
 
 void dist_event_log::flush() {
@@ -228,7 +268,7 @@ void dist_event_log::flush() {
     do {
       size_t ctrval = counters[pos].exchange(0);
       if (ctrval != 0) {
-        rmi->remote_call(0,
+        rmi->control_call(0,
                          &dist_event_log::accumulate_event_aggregator,
                          rmi->procid(),
                          (unsigned char)pos, ctrval);
