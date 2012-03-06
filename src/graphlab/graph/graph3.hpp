@@ -371,7 +371,7 @@ namespace graphlab {
 
     void set_node_vdata_array(const std::vector<VertexData> * _node_vdata_array){
       assert(_node_vdata_array);
-      node_vdata_array = &_node_vdata_array[0];
+      node_vdata_array = (VertexData*)&_node_vdata_array[0];
     }
     
     /**
