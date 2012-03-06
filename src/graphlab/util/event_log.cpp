@@ -6,6 +6,10 @@
 #define BAR_CHARACTER '#'
 
 namespace graphlab {
+  
+static std::ofstream eventlog_file;
+static mutex eventlog_file_mutex;
+static bool eventlog_file_open = false;
 
 void event_log::initialize(std::ostream &ostrm,
                            size_t flush_interval_ms,
@@ -16,23 +20,43 @@ void event_log::initialize(std::ostream &ostrm,
   print_method = event_print;
   prevtime = 0;
   ti.start();
-  cond.signal();
-  std::cout << "init" << std::endl;
+  cond.signal(); 
   m.unlock();
+  
+  if (event_print == LOG_FILE) {
+    eventlog_file_mutex.lock();
+    if (!eventlog_file_open) {
+      eventlog_file_open = true;
+      eventlog_file.open("eventlog.txt");
+    }
+    out = &eventlog_file;
+    eventlog_file_mutex.unlock();
+  }
+
 }
 
 event_log::~event_log() {
-  uint32_t pos;
-  if (hascounter.first_bit(pos)) {
-    do {
-      (*out) << descriptions[pos]  << ":\t" << totalcounter[pos].value << " Events\n";
-    } while(hascounter.next_bit(pos));
-  }
   finished = true;
   m.lock();
   cond.signal();
   m.unlock();
   printing_thread.join();
+  if (print_method != LOG_FILE) {
+    uint32_t pos;
+    if (hascounter.first_bit(pos)) {
+      do {
+        (*out) << descriptions[pos]  << ":\t" << totalcounter[pos].value << " Events\n";
+      } while(hascounter.next_bit(pos));
+    }
+  }
+  else{
+    uint32_t pos;
+    if (hascounter.first_bit(pos)) {
+      do {
+        std::cout << descriptions[pos]  << ":\t" << totalcounter[pos].value << " Events\n";
+      } while(hascounter.next_bit(pos));
+    }
+  }
 }
 
 void event_log::close() {
@@ -62,22 +86,31 @@ void event_log::flush() {
   if (hasevents == false && noeventctr == 1) return;
   
   bool found_events = false;
-  (*out) << "Time: " << "+"<<timegap << "\t" << curtime << "\n";
   if (print_method == NUMBER) {
     do {
       size_t ctrval = counters[pos].exchange(0);
       found_events = found_events || ctrval > 0;
-      (*out) << pos  << ":\t" << ctrval << "\t" << 1000 * ctrval / timegap << " /s\n";
+      (*out) << pos  << ":\t" << curtime << "\t" << ctrval << "\t" << 1000 * ctrval / timegap << " /s\n";
     } while(hascounter.next_bit(pos));
   }
   else if (print_method == DESCRIPTION) {
     do {
       size_t ctrval = counters[pos].exchange(0);
       found_events = found_events || ctrval > 0;
-      (*out) << descriptions[pos]  << ":\t" << ctrval << "\t" << 1000 * ctrval / timegap << " /s\n";
+      (*out) << descriptions[pos]  << ":\t" << curtime << "\t" << ctrval << "\t" << 1000 * ctrval / timegap << " /s\n";
+    } while(hascounter.next_bit(pos));
+  }
+  else if (print_method == LOG_FILE) {
+    do {
+      size_t ctrval = counters[pos].exchange(0);
+      found_events = found_events || ctrval > 0;
+      eventlog_file_mutex.lock();
+      (*out) << descriptions[pos]  << ":\t" << curtime << "\t" << ctrval << "\t" << 1000 * ctrval / timegap << "\n";
+      eventlog_file_mutex.unlock();
     } while(hascounter.next_bit(pos));
   }
   else if (print_method == RATE_BAR) {
+    (*out) << "Time: " << "+"<<timegap << "\t" << curtime << "\n";
     char spacebuf[60];
     char pbuf[61];
     memset(spacebuf, ' ', EVENT_BAR_WIDTH);
@@ -98,7 +131,7 @@ void event_log::flush() {
       pbuf[barlen] = BAR_CHARACTER;
       // now print the remaining spaces
       spacebuf[EVENT_BAR_WIDTH - barlen] = '\0';
-      (*out) << spacebuf << "| " << ctrval << " : " << mc << " /s\n";
+      (*out) << spacebuf << "| " << ctrval << " : " << mc << " \n";
       spacebuf[EVENT_BAR_WIDTH - barlen] = ' ';
       
     } while(hascounter.next_bit(pos));

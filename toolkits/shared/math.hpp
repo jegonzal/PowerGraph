@@ -84,19 +84,51 @@ double runtime = 0;
 using namespace graphlab;
 //std::vector<vertex_id_t> rows,cols;
 
-typedef graph<vertex_data,edge_data>::edge_list_type edge_list_type;
+//typedef graph<vertex_data,edge_data>::edge_list_type edge_list_type;
 typedef graph<vertex_data,edge_data>::edge_type edge_type;
+typedef vertex_data vertex_data_type;
 
 graph_type * pgraph = NULL;
 
 /***
  * UPDATE FUNCTION (ROWS)
  */
+
+
+#ifndef USE_GRAPHLAB_ENGINE
+struct dummy_context{
+  uint id;
+  dummy_context(uint _id){ id = _id; }
+  uint vertex_id(){ return id; }
+  vertex_data_type & vertex_data(){ return pgraph->vertex_data(id); }
+  edge_list out_edges() { return pgraph->out_edges(id); }
+  edge_list in_edges() { return pgraph->in_edges(id); }
+  vertex_data_type & const_vertex_data(int id) { return pgraph->vertex_data(id); }
+};
+
+#endif
+
+
+
+#ifdef USE_GRAPHLAB_ENGINE
 struct Axb:
  public iupdate_functor<graph_type, Axb> {
  
   void operator()(icontext_type &context){
+#else
+struct Axb:
+ public iupdate_functor<graph_type, Axb> {
+ 
+  void operator()(icontext_type &context){
+  }
+  void operator+=(const Axb& other) { 
+  }
+  void finalize(iglobal_context_type& context) {
+  } 
+};
 
+void update_function_Axb(dummy_context &context){
+#endif
   if (context.vertex_id() < (uint)mi.start || context.vertex_id() >= (uint)mi.end)
     return;
 
@@ -115,7 +147,7 @@ struct Axb:
   
   /*** COMPUTE r = c*A*x  ********/
   if (mi.A_offset  && mi.x_offset >= 0){
-   edge_list_type edges = rows?
+   edge_list edges = rows?
 	context.out_edges() : context.in_edges(); 
 #ifdef USE_GRAPH2
    for (size_t i = 0; i < edges.size(); i++){
@@ -158,14 +190,14 @@ struct Axb:
   }
   user.pvec[mi.r_offset] = val;
 }
-
+#ifdef USE_GRAPHLAB_ENGINE
   void operator+=(const Axb& other) { 
   }
 
   void finalize(iglobal_context_type& context) {
   } 
-
 };
+#endif
 
 core<graph_type, Axb> * glcore = NULL;
 void init_math(graph_type * _pgraph, core<graph_type, Axb> * _glcore, bipartite_graph_descriptor & _info, double ortho_repeats = 3, 
@@ -288,7 +320,17 @@ BEGIN_TRACEPOINT(Axbtrace2);
           glcore->schedule(i, Axb()); 
         runtime += glcore->start();
       }
-      else glcore->aggregate_now("Axb");
+      else {
+#ifdef USE_GRAPHLAB_ENGINE
+      glcore->aggregate_now("Axb"); 
+#else
+#pragma omp parallel for
+for (int t=start; t< end; t++){
+   dummy_context con(t);
+   update_function_Axb(con);
+}
+#endif
+      }
 END_TRACEPOINT(Axbtrace2);
       debug_print(name);
       mi.reset_offsets();
@@ -518,7 +560,17 @@ BEGIN_TRACEPOINT(Axbtrace);
       glcore->schedule(start, Axb());
     runtime += glcore->start();
   }
-  else glcore->aggregate_now("Axb");
+  else {
+#ifdef USE_GRAPHLAB_ENGINE
+    glcore->aggregate_now("Axb");
+#else
+#pragma omp parallel for
+for (int start = info.get_start_node(!transpose); start< info.get_end_node(!transpose); start++){
+   dummy_context con(start);
+   update_function_Axb(con);
+}
+#endif
+  }
 END_TRACEPOINT(Axbtrace);
   debug_print(name);
   mi.reset_offsets();
