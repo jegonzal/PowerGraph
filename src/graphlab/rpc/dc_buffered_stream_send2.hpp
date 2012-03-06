@@ -69,8 +69,16 @@ class dc_buffered_stream_send2: public dc_send{
                   buffer_length_trigger(5*1024*1024),
                   max_buffer_length(5*1024*1024), nanosecond_wait(1000000),
                   wakeuptimes(0), sendlength(0){
-    writebuffer.resize(1);
-    sendbuffer.resize(1);
+    buffer[0].buf.resize(100000);
+    buffer[0].numel = 1;
+    buffer[0].numbytes = 0;
+    buffer[0].ref_count = 0;
+    buffer[1].buf.resize(100000);
+    buffer[1].numel = 1;
+    buffer[1].numbytes = 0;
+    buffer[1].ref_count = 0;
+    bufid = 0;
+    writebuffer_totallen.value = 0;
     thr = launch_in_new_thread(boost::bind
                                (&dc_buffered_stream_send2::send_loop, 
                                 this));
@@ -130,12 +138,20 @@ class dc_buffered_stream_send2: public dc_send{
   dc_comm_base *comm;
   procid_t target;
 
-  size_t writebuffer_totallen;
-  std::vector<iovec> writebuffer;
-  std::vector<iovec> sendbuffer;
+  atomic<size_t> writebuffer_totallen;
+  
+  struct buffer_and_refcount{
+    std::vector<iovec> buf;
+    atomic<size_t> numel;
+    atomic<size_t> numbytes;
+    volatile int32_t ref_count; // if negative, means it is sending
+  };
+  buffer_and_refcount buffer[2];
+  size_t bufid;
   
   mutex lock;
   mutex send_lock;
+  mutex send_active_lock;
   conditional cond;
 
   thread thr;
@@ -150,7 +166,7 @@ class dc_buffered_stream_send2: public dc_send{
 
   size_t wakeuptimes;
   size_t sendlength;
-  void flush_locked();
+  void flush_impl();
 
 };
 

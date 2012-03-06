@@ -159,10 +159,12 @@ namespace graphlab {
     }
 
     void dc_tcp_comm::send_many(size_t target,
-                                std::vector<iovec>& buf) {
+                                std::vector<iovec>& buf,
+                                size_t numel) {
+      numel = std::min(numel, buf.size());
       check_for_out_connection(target);
       size_t totallen = 0;
-      for (size_t i = 0;i < buf.size(); ++i) {
+      for (size_t i = 0;i < numel; ++i) {
         totallen += buf[i].iov_len;
       }
       network_bytessent.inc(totallen);
@@ -173,12 +175,12 @@ namespace graphlab {
       data.msg_control = NULL;
       data.msg_controllen = 0;
       data.msg_flags = 0;
-      data.msg_iovlen = std::min<size_t>(buf.size(), IOV_MAX);
+      data.msg_iovlen = std::min<size_t>(numel, IOV_MAX);
       data.msg_iov = &(buf[0]);
 
       // since there is a limit to the number of message entries I can send
       // I must keep track of what is remaining
-      size_t iovs_remaining = buf.size() - data.msg_iovlen;
+      size_t iovs_remaining = numel - data.msg_iovlen;
       
 #ifdef COMM_DEBUG
       logstream(LOG_INFO) << totallen << " bytes --> " << target  << std::endl;

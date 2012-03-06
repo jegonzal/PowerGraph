@@ -133,10 +133,12 @@ class dc_tcp_comm:public dc_comm_base {
   /**
    * Sends a series of buffers one after another to the target machine.
    * Receiver will receive the contents of the buffers consecutively.
-   * After the call to this function, the 'buf' vector may be modified
+   * After the call to this function, the 'buf' vector may be modified.
+   * This will numel elements in buf, or up to length of buf
    */
   void send_many(size_t target,
-                 std::vector<iovec>& buf);
+                 std::vector<iovec>& buf,
+                 size_t numel = (size_t)(-1));
   
   
   // receiving socket handler

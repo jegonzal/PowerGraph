@@ -109,7 +109,8 @@ class dc_comm_base {
    * contain the packet contents.
    */
   virtual void send_many(size_t target,
-                        std::vector<iovec>& buf) = 0;
+                        std::vector<iovec>& buf,
+                        size_t numel = (size_t)(-1)) = 0;
   
   // not required and not used
   virtual void flush(size_t target) = 0;
