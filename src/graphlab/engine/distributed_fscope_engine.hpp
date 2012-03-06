@@ -174,7 +174,7 @@ namespace graphlab {
     
     size_t max_pending_tasks;
 
-    DECLARE_DIST_EVENT_LOG(eventlog);
+    PERMANENT_DECLARE_DIST_EVENT_LOG(eventlog);
     DECLARE_TRACER(disteng_eval_sched_task);
     DECLARE_TRACER(disteng_init_gathering); 
     DECLARE_TRACER(disteng_init_scattering);
@@ -297,13 +297,17 @@ namespace graphlab {
       // TODO: Remove context creation.
       // Added context to force compilation.   
       context_type context;
-
-      INITIALIZE_DIST_EVENT_LOG(eventlog, dc, std::cout, 3000, 
+#ifdef USE_EVENT_LOG
+      PERMANENT_INITIALIZE_DIST_EVENT_LOG(eventlog, dc, std::cout, 3000, 
                                 dist_event_log::RATE_BAR);
-      ADD_DIST_EVENT_TYPE(eventlog, SCHEDULE_EVENT, "Schedule");
-      ADD_DIST_EVENT_TYPE(eventlog, UPDATE_EVENT, "Updates");
-      ADD_DIST_EVENT_TYPE(eventlog, INTERNAL_TASK_EVENT, "Internal");
-      ADD_DIST_EVENT_TYPE(eventlog, NO_WORK_EVENT, "No Work");
+#else
+      PERMANENT_INITIALIZE_DIST_EVENT_LOG(eventlog, dc, std::cout, 3000, 
+                                dist_event_log::LOG_FILE);
+#endif
+      PERMANENT_ADD_DIST_EVENT_TYPE(eventlog, SCHEDULE_EVENT, "Schedule");
+      PERMANENT_ADD_DIST_EVENT_TYPE(eventlog, UPDATE_EVENT, "Updates");
+      PERMANENT_ADD_DIST_EVENT_TYPE(eventlog, INTERNAL_TASK_EVENT, "Internal");
+      PERMANENT_ADD_DIST_EVENT_TYPE(eventlog, NO_WORK_EVENT, "No Work");
 
       INITIALIZE_TRACER(disteng_eval_sched_task, 
                         "distributed_fscope_engine: Evaluate Scheduled Task");
@@ -388,7 +392,7 @@ namespace graphlab {
       BEGIN_TRACEPOINT(disteng_scheduler_task_queue);
       scheduler_ptr->schedule(local_vid, update_functor);
       END_TRACEPOINT(disteng_scheduler_task_queue);
-      ACCUMULATE_DIST_EVENT(eventlog, SCHEDULE_EVENT, 1);
+      PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, SCHEDULE_EVENT, 1);
       consensus.cancel();
     }
     
@@ -402,7 +406,7 @@ namespace graphlab {
       } else {
         scheduler_ptr->schedule(local_vid, update_functor);
       }
-      ACCUMULATE_DIST_EVENT(eventlog, SCHEDULE_EVENT, 1);
+      PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, SCHEDULE_EVENT, 1);
       consensus.cancel();
     }
 
@@ -675,7 +679,7 @@ namespace graphlab {
 
     
     void eval_internal_task(lvid_type lvid) {
-      ACCUMULATE_DIST_EVENT(eventlog, INTERNAL_TASK_EVENT, 1);
+      PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, INTERNAL_TASK_EVENT, 1);
       BEGIN_TRACEPOINT(disteng_waiting_for_vstate_locks);
       vstate[lvid].lock.lock();
       END_TRACEPOINT(disteng_waiting_for_vstate_locks);
@@ -812,7 +816,7 @@ namespace graphlab {
 
     void eval_sched_task(const lvid_type sched_lvid, 
                          const update_functor_type& task) {
-      ACCUMULATE_DIST_EVENT(eventlog, UPDATE_EVENT, 1);
+      PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, UPDATE_EVENT, 1);
       BEGIN_TRACEPOINT(disteng_eval_sched_task);
       // If I am not the owner just forward the task to the other
       // scheduler and return
