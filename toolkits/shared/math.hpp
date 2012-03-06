@@ -36,6 +36,7 @@ DECLARE_TRACER(Axbtrace2);
 DECLARE_TRACER(vecequals);
 DECLARE_TRACER(orthogonalize_vs_alltrace);
 
+
 extern double regularization;
 extern bool debug;
 

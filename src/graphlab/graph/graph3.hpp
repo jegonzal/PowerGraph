@@ -308,7 +308,8 @@ namespace graphlab {
     uint * node_out_degrees;
     uint * node_in_edges;
     uint * node_out_edges;
-    std::vector<VertexData> *node_vdata_array;
+    //std::vector<VertexData> *node_vdata_array;
+    VertexData * node_vdata_array;
     EdgeData * edge_weights;
     EdgeData * in_edge_weights;
     char _color; //not implement yet
@@ -370,7 +371,7 @@ namespace graphlab {
 
     void set_node_vdata_array(const std::vector<VertexData> * _node_vdata_array){
       assert(_node_vdata_array);
-      node_vdata_array = (std::vector<VertexData>*)_node_vdata_array;
+      node_vdata_array = &_node_vdata_array[0];
     }
     
     /**
@@ -466,15 +467,15 @@ namespace graphlab {
         
     
     /** \brief Returns a reference to the data stored on the vertex v. */
-    VertexData& vertex_data(vertex_id_type v) {
-      ASSERT_LT(v, num_nodes);
-      return node_vdata_array->at(v);
+    inline VertexData& vertex_data(vertex_id_type v) {
+      //ASSERT_LT(v, num_nodes);
+      return node_vdata_array[v];
     } // end of data(v)
     
     /** \brief Returns a constant reference to the data stored on the vertex v */
-    const VertexData& vertex_data(vertex_id_type v) const {
-      ASSERT_LT(v, num_nodes);
-      return node_vdata_array->at(v);
+    inline const VertexData& vertex_data(vertex_id_type v) const {
+      //ASSERT_LT(v, num_nodes);
+      return node_vdata_array[v];
     } // end of data(v)
 
     /** \brief Returns a reference to the data stored on the edge source->target. */
@@ -609,8 +610,8 @@ namespace graphlab {
 	 num_nodes = (rc/4)-1;
          if (!no_node_data){
 	    if (node_vdata_array == NULL)
-               node_vdata_array = new std::vector<VertexData>();
-            node_vdata_array->resize(num_nodes);
+               node_vdata_array = new VertexData[num_nodes];
+            assert(node_vdata_array != NULL);
          }
  	 logstream(LOG_INFO) << "Read " << num_nodes << " nodes" << std::endl;
          rc = array_from_file(filename + ".edges", node_out_edges);
@@ -642,8 +643,8 @@ namespace graphlab {
 	 num_nodes = (rc/4)-1;
          if (!no_node_data){
             if (node_vdata_array == NULL)
-              node_vdata_array = new std::vector<VertexData>();
-	    node_vdata_array->resize(num_nodes);
+              node_vdata_array = new VertexData[num_nodes];
+            assert(node_vdata_array != NULL);
          }
          size_t rc2 =array_from_file(filename + "-r.nodes", node_in_degrees);
          assert(rc == rc2);

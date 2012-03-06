@@ -26,7 +26,7 @@
 #include "../shared/types.hpp"
 #include "../shared/mathlayer.hpp"
 
-#define USE_GRAPH2
+//#define USE_GRAPH2
 #ifdef USE_GRAPH2
 #include "graphlab/graph/graph2.hpp"
 #else
@@ -125,6 +125,7 @@ vec lanczos(graphlab::core<graph_type, Axb> & glcore, bipartite_graph_descriptor
    PRINT_INT(nv);
 
    while(nconv < nv && its < max_iter){
+     logstream(LOG_INFO)<<"Starting iteration: " << its << " at time: " << mytimer.current_time() << std::endl;
      int k = nconv;
      int n = nv;
      PRINT_INT(k);
@@ -378,7 +379,7 @@ int main(int argc,  char *argv[]) {
   core.graph().load_directed(datafile, false, false);
 #endif
   init_lanczos(&core.graph(), info);
-  init_math(&core.graph(), &core, info, ortho_repeats);
+  init_math(&core.graph(), &core, info, ortho_repeats, false);
   if (vecfile.size() > 0){
     std::cout << "Load inital vector from file" << vecfile << std::endl;
     load_vector(vecfile, format, info, core.graph(), 0, true, false);
