@@ -25,9 +25,17 @@
 #include "../shared/io.hpp"
 #include "../shared/types.hpp"
 #include "../shared/mathlayer.hpp"
+
+#define USE_GRAPH2
+#ifdef USE_GRAPH2
+#include "graphlab/graph/graph2.hpp"
+#else
 #include "graphlab/graph/graph3.hpp"
+#endif
 using namespace graphlab;
 using namespace std;
+
+DECLARE_TRACER(matproduct)
 
 /**
  *
@@ -68,7 +76,11 @@ struct edge_data {
 };
 
 int data_size = max_iter;
+#ifdef USE_GRAPH2
+typedef graphlab::graph2<vertex_data, edge_data> graph_type;
+#else
 typedef graphlab::graph3<vertex_data, edge_data> graph_type;
+#endif
 #include "../shared/math.hpp"
 #include "../shared/printouts.hpp"
 
@@ -82,14 +94,13 @@ void init_lanczos(graph_type * g, bipartite_graph_descriptor & info){
 
 
 
-
 vec lanczos(graphlab::core<graph_type, Axb> & glcore, bipartite_graph_descriptor & info, timer & mytimer, vec & errest, 
             const std::string & vecfile){
    
 
    int nconv = 0;
    int its = 1;
-   int mpd = 500;
+   int mpd = 24;
    int N = std::min(info.rows, info.cols);
    DistMat A(info);
    DistSlicedMat U(info.is_square() ? data_size : 0, info.is_square() ? 2*data_size : data_size, true, info, "U");
@@ -101,6 +112,14 @@ vec lanczos(graphlab::core<graph_type, Axb> & glcore, bipartite_graph_descriptor
    if (vecfile.size() == 0)
      v_0 = randu(size(A,2));
    PRINT_VEC2("svd->V", v_0);
+/* Example Usage:
+  DECLARE_TRACER(classname_someevent)
+  INITIALIZE_TRACER(classname_someevent, "hello world");
+  Then later on...
+  BEGIN_TRACEPOINT(classname_someevent)
+  ...
+  END_TRACEPOINT(classname_someevent)
+ */
    DistDouble vnorm = norm(v_0);
    v_0=v_0/vnorm;
    PRINT_INT(nv);
@@ -115,32 +134,32 @@ vec lanczos(graphlab::core<graph_type, Axb> & glcore, bipartite_graph_descriptor
      beta = zeros(n);
 
      U[k] = V[k]*A._transpose();
-     orthogonalize_vs_all(U, k);
-     alpha(0)=norm(U[k]).toDouble(); 
+     orthogonalize_vs_all(U, k, alpha(0));
+     //alpha(0)=norm(U[k]).toDouble(); 
      PRINT_VEC3("alpha", alpha, 0);
-     U[k] = U[k]/alpha(0);
+     //U[k] = U[k]/alpha(0);
 
      for (int i=k+1; i<n; i++){
        PRINT_INT(i);
 
        V[i]=U[i-1]*A;
-       orthogonalize_vs_all(V, i);
+       orthogonalize_vs_all(V, i, beta(i-k-1));
       
-       beta(i-k-1)=norm(V[i]).toDouble();
-       V[i] = V[i]/beta(i-k-1);
+       //beta(i-k-1)=norm(V[i]).toDouble();
+       //V[i] = V[i]/beta(i-k-1);
        PRINT_VEC3("beta", beta, i-k-1); 
       
        U[i] = V[i]*A._transpose();
-       orthogonalize_vs_all(U, i);
-       alpha(i-k)=norm(U[i]).toDouble();
+       orthogonalize_vs_all(U, i, alpha(i-k));
+       //alpha(i-k)=norm(U[i]).toDouble();
 
-       U[i] = U[i]/alpha(i-k);
+       //U[i] = U[i]/alpha(i-k);
        PRINT_VEC3("alpha", alpha, i-k);
      }
 
      V[n]= U[n-1]*A;
-     orthogonalize_vs_all(V, n);
-     beta(n-k-1)=norm(V[n]).toDouble();
+     orthogonalize_vs_all(V, n, beta(n-k-1));
+     //beta(n-k-1)=norm(V[n]).toDouble();
      PRINT_VEC3("beta", beta, n-k-1);
 
   //compute svd of bidiagonal matrix
@@ -212,14 +231,18 @@ vec lanczos(graphlab::core<graph_type, Axb> & glcore, bipartite_graph_descriptor
     PRINT_VEC2("v[0]",v); 
   }
 
+
+INITIALIZE_TRACER(matproduct, "computing ritz eigenvectors");
    //compute the ritz eigenvectors of the converged singular triplets
   if (kk > 0){
     PRINT_VEC2("svd->V", V[nconv]);
+BEGIN_TRACEPOINT(matproduct);
     mat tmp= V.get_cols(nconv,nconv+n)*PT;
     V.set_cols(nconv, nconv+kk, get_cols(tmp, 0, kk));
     PRINT_VEC2("svd->V", V[nconv]);
     PRINT_VEC2("svd->U", U[nconv]);
     tmp= U.get_cols(nconv, nconv+n)*a;
+END_TRACEPOINT(matproduct);
     U.set_cols(nconv, nconv+kk,get_cols(tmp,0,kk));
     PRINT_VEC2("svd->U", U[nconv]);
   }
@@ -235,7 +258,7 @@ vec lanczos(graphlab::core<graph_type, Axb> & glcore, bipartite_graph_descriptor
   its++;
   PRINT_NAMED_INT("svd->its", its);
   PRINT_NAMED_INT("svd->nconv", nconv);
-  nv = min(nconv+mpd, N);
+  //nv = min(nconv+mpd, N);
   if (nsv < 10)
     nv = 10;
   PRINT_NAMED_INT("nv",nv);
@@ -310,7 +333,9 @@ int main(int argc,  char *argv[]) {
 
   // Create a core
   graphlab::core<graph_type, Axb> core;
+  omp_set_num_threads(clopts.get_ncpus());
   core.set_options(clopts); // Set the engine options
+  
 
 #ifndef UPDATE_FUNC_IMPL
    Axb mathops;
@@ -345,9 +370,13 @@ int main(int argc,  char *argv[]) {
 
 
   std::cout << "Load matrix " << datafile << std::endl;
-  
+#ifdef USE_GRAPH2
+  load_graph(datafile, format, info, core.graph(), MATRIX_MARKET_3, false, false);
+  core.graph().finalize();
+#else  
   load_graph(datafile, format, info, core.graph(), MATRIX_MARKET_3, false, true);
   core.graph().load_directed(datafile, false, false);
+#endif
   init_lanczos(&core.graph(), info);
   init_math(&core.graph(), &core, info, ortho_repeats);
   if (vecfile.size() > 0){
