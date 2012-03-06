@@ -26,7 +26,7 @@
 #include "../shared/types.hpp"
 #include "../shared/mathlayer.hpp"
 
-//#define USE_GRAPH2
+#define USE_GRAPH2
 #ifdef USE_GRAPH2
 #include "graphlab/graph/graph2.hpp"
 #else
@@ -56,6 +56,10 @@ double tol = 1e-8;
 bool finished = false;
 double regularization = 0;
 double ortho_repeats = 3;
+bool update_function = false;
+bool save_vectors = false;
+std::string datafile; 
+std::string format = "matrixmarket";
 
 struct vertex_data {
   vec pvec;
@@ -141,6 +145,7 @@ vec lanczos(graphlab::core<graph_type, Axb> & glcore, bipartite_graph_descriptor
      //U[k] = U[k]/alpha(0);
 
      for (int i=k+1; i<n; i++){
+       logstream(LOG_INFO) <<"Starting step: " << i << " at time: " << mytimer.current_time() << std::endl;
        PRINT_INT(i);
 
        V[i]=U[i-1]*A;
@@ -288,6 +293,12 @@ printf("\n");
     printf("Singular value %d \t%13.6g\tError estimate: %13.6g\n", i, sigma(i),err);
   }
 
+  if (save_vectors){
+     for (int i=0; i< nconv; i++){
+        write_output_vector(datafile + ".U." + boost::lexical_cast<std::string>(i), format, U[i].to_vec(), false, "GraphLab v2 SVD output. This file contains eigenvector number " + boost::lexical_cast<std::string>(i) + " of the matrix U\n");
+        write_output_vector(datafile + ".V." + boost::lexical_cast<std::string>(i), format, V[i].to_vec(), false, "GraphLab v2 SVD output. This file contains eigenvector number " + boost::lexical_cast<std::string>(i) + " of the matirx V'\n");
+     }
+  }
   return sigma;
 }
 
@@ -298,8 +309,7 @@ int main(int argc,  char *argv[]) {
 
   graphlab::command_line_options clopts("GraphLab Linear Solver Library");
 
-  std::string datafile, vecfile;
-  std::string format = "matrixmarket";
+  std::string vecfile;
   int unittest = 0;
 
   clopts.attach_option("data", &datafile, datafile,
@@ -315,12 +325,16 @@ int main(int argc,  char *argv[]) {
   clopts.attach_option("nsv", &nsv, nsv, "Number of requested singular values to comptue"); 
   clopts.attach_option("regularization", &regularization, regularization, "regularization");
   clopts.attach_option("tol", &tol, tol, "convergence threshold");
-
+  clopts.attach_option("update_function", &update_function, update_function, "true = use update function. false = user aggregator");
+  clopts.attach_option("save_vectors", &save_vectors, save_vectors, "save output matrices U and V.");
   // Parse the command line arguments
   if(!clopts.parse(argc, argv)) {
     std::cout << "Invalid arguments!" << std::endl;
     return EXIT_FAILURE;
   }
+
+  if (update_function)
+    logstream(LOG_INFO)<<"Going to use update function mechanism. " << std::endl;
 
   logstream(LOG_WARNING)
     << "Eigen detected. (This is actually good news!)" << std::endl;
@@ -379,7 +393,7 @@ int main(int argc,  char *argv[]) {
   core.graph().load_directed(datafile, false, false);
 #endif
   init_lanczos(&core.graph(), info);
-  init_math(&core.graph(), &core, info, ortho_repeats, false);
+  init_math(&core.graph(), &core, info, ortho_repeats, update_function);
   if (vecfile.size() > 0){
     std::cout << "Load inital vector from file" << vecfile << std::endl;
     load_vector(vecfile, format, info, core.graph(), 0, true, false);
@@ -387,7 +401,8 @@ int main(int argc,  char *argv[]) {
  
   timer mytimer; mytimer.start(); 
   vec errest;
-  vec eigenvalues = lanczos(core, info, mytimer, errest, vecfile);
+ 
+  vec singular_values = lanczos(core, info, mytimer, errest, vecfile);
  
   std::cout << "Lanczos finished in " << mytimer.current_time() << std::endl;
   std::cout << "\t Updates: " << core.last_update_count() << " per node: " 
@@ -395,8 +410,7 @@ int main(int argc,  char *argv[]) {
 
   //vec ret = fill_output(&core.graph(), bipartite_graph_descriptor, JACOBI_X);
 
-  //write_output_vector(datafile + "x.out", format, ret);
-
+  write_output_vector(datafile + ".singular_values", format, singular_values,false, "%GraphLab SVD Solver library. This file contains the singular values.\n");
 
   if (unittest == 1){
     assert(errest.size() == 3);
