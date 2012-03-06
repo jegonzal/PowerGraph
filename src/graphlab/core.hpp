@@ -291,8 +291,9 @@ namespace graphlab {
     /**
      * \brief Add the given function to all vertices using the given priority
      */
-    void schedule_all(const update_functor_type& fun) {
-      mengine.schedule_all(fun);
+    void schedule_all(const update_functor_type& fun,
+                      const std::string& order = "sequential") {
+      mengine.schedule_all(fun, order);
     }
     
     /**

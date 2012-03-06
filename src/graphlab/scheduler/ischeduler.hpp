@@ -104,13 +104,15 @@ namespace graphlab {
       schedule(vid, fun);
     }
     
-    
+
+
     /** 
      * Creates a collection of tasks on all the vertices in the graph,
      * with the same update function and priority
      * This function may be called at anytime.
      */
-    virtual void schedule_all(const update_functor_type& fun) = 0;
+    virtual void schedule_all(const update_functor_type& fun,
+                              const std::string& order = "sequential") = 0;
 
 
     /**

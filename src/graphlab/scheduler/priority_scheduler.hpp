@@ -80,8 +80,9 @@ namespace graphlab {
     priority_scheduler(const graph_type& graph, 
                        size_t ncpus,
                        const options_map& opts) :
-      vfun_set(graph.num_vertices()), multi(5),
-      current_queue(ncpus), min_priority(-std::numeric_limits<double>::max()),
+      vfun_set(graph.num_vertices()), multi(0),
+      current_queue(ncpus), 
+      min_priority(-std::numeric_limits<double>::max()),
       term(ncpus) {     
       const bool is_set = opts.get_option("min_priority", min_priority);
       if(is_set) {
@@ -108,14 +109,22 @@ namespace graphlab {
       locks[idx].lock(); 
       if (vfun_set.add(vid, fun, priority)) {
         queues[idx].push(vid, priority); 
-        term.new_job(idx);
       } else { queues[idx].update(vid, priority); }
       locks[idx].unlock();
+      // signal thread to weak up if they have not already
+      term.new_job();     
     } // end of schedule
 
-    void schedule_all(const update_functor_type& fun) {
-      for (vertex_id_type vid = 0; vid < vfun_set.size(); ++vid) 
-        schedule(vid, fun);
+    void schedule_all(const update_functor_type& fun,
+                      const std::string& order) {
+      if(order == "shuffle") {
+        std::vector<vertex_id_type> permutation = 
+          random::permutation<vertex_id_type>(vfun_set.size());       
+        foreach(vertex_id_type vid, permutation)  schedule(vid, fun);
+      } else {
+        for (vertex_id_type vid = 0; vid < vfun_set.size(); ++vid)
+          schedule(vid, fun);      
+      }
     } // end of schedule_all
 
     void completed(const size_t cpuid,
@@ -135,8 +144,8 @@ namespace graphlab {
            queues[idx].top().second >= min_priority) {
           ret_vid = queues[idx].pop().first;
           const bool get_success = vfun_set.test_and_get(ret_vid, ret_fun);
-          ASSERT_TRUE(get_success);
           locks[idx].unlock();
+          ASSERT_TRUE(get_success);
           return sched_status::NEW_TASK;          
         }
         locks[idx].unlock();
@@ -150,8 +159,8 @@ namespace graphlab {
              queues[idx].top().second >= min_priority) {
             ret_vid = queues[idx].pop().first;
             const bool get_success = vfun_set.test_and_get(ret_vid, ret_fun);
-            ASSERT_TRUE(get_success);
             locks[idx].unlock();
+            ASSERT_TRUE(get_success);
             return sched_status::NEW_TASK;          
           }
           locks[idx].unlock();
