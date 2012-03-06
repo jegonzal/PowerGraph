@@ -37,6 +37,8 @@
 #include "graphlab.hpp"
 #include "../shared/io.hpp"
 #include "../shared/types.hpp"
+#include "graphlab/graph/graph2.hpp"
+#define USE_GRAPH2
 using namespace graphlab;
 
 enum jacobi_fields{
@@ -240,6 +242,7 @@ int main(int argc,  char *argv[]) {
   std::cout << "Load matrix A" << std::endl;
   bipartite_graph_descriptor matrix_info;
   load_graph(datafile, format, matrix_info, core.graph(), MATRIX_MARKET_3, zero);
+  core.graph().finalize();
   std::cout << "Load Y values" << std::endl;
   load_vector(yfile, format, matrix_info, core.graph(), JACOBI_Y, false, zero);
   std::cout << "Load x values" << std::endl;

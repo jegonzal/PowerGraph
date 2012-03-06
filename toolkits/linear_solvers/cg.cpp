@@ -26,6 +26,8 @@
 #include "../shared/io.hpp"
 #include "../shared/types.hpp"
 #include "../shared/mathlayer.hpp"
+#include "graphlab/graph/graph2.hpp"
+#define USE_GRAPH2
 
 using namespace graphlab;
 double regularization = 0;
@@ -60,7 +62,7 @@ struct edge_data {
 };
 
 
-typedef graphlab::graph<vertex_data, edge_data> graph_type;
+typedef graphlab::graph2<vertex_data, edge_data> graph_type;
 #include "../shared/math.hpp"
 
 /*function [x] = conjgrad(A,b,x)
@@ -238,6 +240,7 @@ int main(int argc,  char *argv[]) {
   std::cout << "Load matrix A" << std::endl;
   bipartite_graph_descriptor matrix_info;
   load_graph(datafile, format, matrix_info, core.graph(), MATRIX_MARKET_3, zero);
+  core.graph().finalize();
   std::cout << "Load Y values" << std::endl;
   load_vector(yfile, format, matrix_info, core.graph(), CG_X, false,  zero);
   std::cout << "Load x values" << std::endl;
