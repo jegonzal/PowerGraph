@@ -81,7 +81,7 @@ namespace graphlab {
       numvertices = g.local_vertices();
         
       /* How many queues per cpu. More queues, less contention */
-      queues_per_cpu = 2;
+      queues_per_cpu = 1;
       num_queues = queues_per_cpu * ncpus;
        
       /* Each cpu keeps record of the queue it last 
@@ -91,10 +91,6 @@ namespace graphlab {
       // Do this in the preconstructor
       task_queues.resize(num_queues);
       queue_locks.resize(num_queues);
-      // for(int i=0; i<num_queues; i++) {
-      //   task_queues.push_back(std::queue<update_task>());
-      //   queue_locks.push_back(spinlock());
-      // }
     }
 
   
