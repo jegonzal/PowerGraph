@@ -29,7 +29,7 @@
 #include <vector>
 
 #include "../shared/mathlayer.hpp"
-#include "matrixmarket/mmio.h"
+#include "../shared/mmio.h"
 
 #include <graphlab.hpp>
 
@@ -37,7 +37,8 @@
 #include <graphlab/macros_def.hpp>
 
 struct matrix_descriptor {
-  int rows, cols, nonzeros;
+  int rows, cols;
+  size_t nonzeros;
   matrix_descriptor() : rows(0), cols(0), nonzeros(0) { }
 }; // end of matrix descriptor
 

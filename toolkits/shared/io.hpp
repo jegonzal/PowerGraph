@@ -189,7 +189,8 @@ bool load_matrixmarket_cpp_graph(const std::string& fname,
   fin.push(in_file); 
     
   MM_typecode matcode;
-  int tmprows, tmpcols, tmpnnz;
+  int tmprows, tmpcols;
+  size_t tmpnnz;
 
     // read Matrix market header
     if(mm_read_cpp_banner(fin, &matcode)) {
@@ -444,8 +445,8 @@ void load_matrix_market_vector(const std::string & filename, const bipartite_gra
     
     int ret_code;
     MM_typecode matcode;
-    int M, N, nz;   
-    int i;
+    int M, N; 
+    size_t i,nz;  
 
     logstream(LOG_INFO) <<"Going to read matrix market vector from input file: " << filename << std::endl;
   
