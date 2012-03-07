@@ -262,8 +262,9 @@ namespace graphlab {
     enum {
       SCHEDULE_EVENT = 0,
       UPDATE_EVENT = 1,
-      INTERNAL_TASK_EVENT = 2,
-      NO_WORK_EVENT = 3
+      WORK_EVENT = 2,
+      INTERNAL_TASK_EVENT = 3,
+      NO_WORK_EVENT = 4
     };
     
   public:
@@ -286,6 +287,7 @@ namespace graphlab {
 
       PERMANENT_ADD_DIST_EVENT_TYPE(eventlog, SCHEDULE_EVENT, "Schedule");
       PERMANENT_ADD_DIST_EVENT_TYPE(eventlog, UPDATE_EVENT, "Updates");
+      PERMANENT_ADD_DIST_EVENT_TYPE(eventlog, WORK_EVENT, "Work");
       PERMANENT_ADD_DIST_EVENT_TYPE(eventlog, INTERNAL_TASK_EVENT, "Internal");
       PERMANENT_ADD_DIST_EVENT_TYPE(eventlog, NO_WORK_EVENT, "No Work");
 
@@ -889,10 +891,11 @@ namespace graphlab {
                            << graph.global_vid(sched_lvid) << std::endl;
       // If I am not the owner just forward the task to the other
       // scheduler and return
-      const procid_t owner = graph.l_get_vertex_record(sched_lvid).owner;
+      const typename graph_type::vertex_record& rec = graph.l_get_vertex_record(sched_lvid);
+      const procid_t owner = rec.owner;
       bool acquirelock = false;
       if (owner != rmi.procid()) {
-        const vertex_id_type vid = graph.global_vid(sched_lvid);
+        const vertex_id_type vid = rec.gvid;
         rmi.remote_call(owner, &engine_type::schedule_from_remote, vid, task);
         return;
       }
@@ -906,6 +909,8 @@ namespace graphlab {
       }
       if (vstate[sched_lvid].state == NONE) {
         PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, UPDATE_EVENT, 1);
+        PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, WORK_EVENT, rec.num_in_edges + rec.num_out_edges);
+
         // we start gather right here.
         // set up the state
         vstate[sched_lvid].state = LOCKING;
