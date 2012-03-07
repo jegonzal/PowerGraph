@@ -81,7 +81,7 @@ namespace graphlab {
       numvertices = g.local_vertices();
         
       /* How many queues per cpu. More queues, less contention */
-      queues_per_cpu = 1;
+      queues_per_cpu = 2;
       num_queues = queues_per_cpu * ncpus;
        
       /* Each cpu keeps record of the queue it last 
@@ -121,6 +121,7 @@ namespace graphlab {
         if (!queue.empty()) {
           ret_task = queue.pop().first;
           found = true;
+          binary_vertex_tasks.remove(ret_task);
           lastqueue[cpuid] = ownq_i;
         }
         queue_locks[queueidx].unlock();
@@ -137,58 +138,24 @@ namespace graphlab {
           queue_locks[queueidx].lock();
           if (!queue.empty()) {
             ret_task = queue.pop().first;
+            binary_vertex_tasks.remove(ret_task);
             found = true;
           }
           queue_locks[queueidx].unlock();
           if (found)  break;
         }
-      }
- 
-      if(!found) {
-        return sched_status::EMPTY;
-      }
-      
-      binary_vertex_tasks.remove(ret_task);
-      
-      if (monitor != NULL) 
-        monitor->scheduler_task_scheduled(ret_task, 0.0);
-      return sched_status::NEWTASK;
+      } 
+      return found? sched_status::NEWTASK : sched_status::EMPTY;
     } // end of get_next_task
 
 
     void add_task(update_task_type task, double priority) {
-      if (binary_vertex_tasks.add(task)) {
-        // Check if task should be pruned
-        /* "Randomize" the task queue task is put in. Note that we do
-           not care if this counter is corrupted in race conditions */
-    
-   
-        /* Find first queue that is not locked and put task there (or
-           after iteration limit)*/
-         
-        /* Choose two random queues and use the one which has smaller
-           size */
-        // M.D. Mitzenmacher The Power of Two Choices in Randomized
-        // Load Balancing (1991)
-        // http://www.eecs.harvard.edu/~michaelm/postscripts/mythesis.pdf
+      const size_t qidx = task.vertex() % task_queues.size();
+      queue_locks[qidx].lock();
+      if (binary_vertex_tasks.add(task))  terminator.new_job();  
+      task_queues[qidx].insert_max(task, priority);     
+      queue_locks[qidx].unlock();
 
-//         size_t r1 = random::rand_int(num_queues - 1);
-//         size_t r2 = random::rand_int(num_queues - 1);
-        // TODO: this can easily be done with some bit operations on the 
-        const size_t prod = 
-          random::fast_uniform<size_t>(0, num_queues * num_queues - 1);
-        const size_t r1 = prod / num_queues;
-        const size_t r2 = prod % num_queues;
-
-        size_t qidx = 
-          (task_queues[r1].size() < task_queues[r2].size()) ? r1 : r2;
-        
-        queue_locks[qidx].lock();
-        task_queues[qidx].push(task, priority);
-        queue_locks[qidx].unlock();
-        terminator.new_job();
-      }
-  
     }
 
     void add_tasks(const std::vector<vertex_id_type> &vertices,
