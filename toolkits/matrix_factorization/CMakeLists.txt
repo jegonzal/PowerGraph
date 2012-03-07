@@ -6,10 +6,10 @@ project(GraphLab)
 
 
 if(HAS_EIGEN)
-  add_graphlab_executable(als als.cpp matrixmarket/mmio.cpp)
-  add_graphlab_executable(lanczos lanczos.cpp matrixmarket/mmio.cpp)
-  add_graphlab_executable(lanczos_acum lanczos_acum.cpp matrixmarket/mmio.cpp)
-  add_graphlab_executable(gklanczos gklanczos.cpp matrixmarket/mmio.cpp)
+  add_graphlab_executable(als als.cpp ../shared/mmio.cpp)
+  add_graphlab_executable(lanczos lanczos.cpp ../shared/mmio.cpp)
+  add_graphlab_executable(lanczos_acum lanczos_acum.cpp ../shared/mmio.cpp)
+  add_graphlab_executable(gklanczos gklanczos.cpp ../shared/mmio.cpp)
 endif()
   
 

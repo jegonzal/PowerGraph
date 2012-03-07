@@ -84,9 +84,15 @@ double runtime = 0;
 using namespace graphlab;
 //std::vector<vertex_id_t> rows,cols;
 
-//typedef graph<vertex_data,edge_data>::edge_list_type edge_list_type;
+#ifdef USE_GRAPH2
+typedef graph_storage<vertex_data,edge_data>::edge_list edge_list;
+typedef graph_storage<vertex_data, edge_data>::edge_type edge_type;
+#else
+//typedef graph<vertex_data,edge_data>::edge_list edge_list;
 typedef graph<vertex_data,edge_data>::edge_type edge_type;
+#endif
 typedef vertex_data vertex_data_type;
+typedef edge_data edge_data_type;
 
 graph_type * pgraph = NULL;
 
@@ -104,6 +110,9 @@ struct dummy_context{
   edge_list out_edges() { return pgraph->out_edges(id); }
   edge_list in_edges() { return pgraph->in_edges(id); }
   vertex_data_type & const_vertex_data(int id) { return pgraph->vertex_data(id); }
+#ifdef USE_GRAPH2
+  edge_data_type &edge_data(const edge_type &i){ return pgraph->edge_data(i); }
+#endif
 };
 
 #endif

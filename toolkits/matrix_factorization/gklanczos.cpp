@@ -50,6 +50,7 @@ DECLARE_TRACER(matproduct)
 //LANCZOS VARIABLES
 int max_iter = 10;
 bool debug;
+bool no_edge_data = false;
 int nv = 0;
 int nsv = 0;
 double tol = 1e-8;
@@ -60,6 +61,7 @@ bool update_function = false;
 bool save_vectors = false;
 std::string datafile; 
 std::string format = "matrixmarket";
+int nodes = 0;
 
 struct vertex_data {
   vec pvec;
@@ -92,6 +94,7 @@ typedef graphlab::graph3<vertex_data, edge_data> graph_type;
 void init_lanczos(graph_type * g, bipartite_graph_descriptor & info){
 
   data_size = nsv + nv+1 + max_iter;
+#pragma omp parallel for
   for (int i=0; i< info.total(); i++)
       g->vertex_data(i).pvec = zeros(info.is_square() ? (2*data_size): data_size);
 }
@@ -327,6 +330,8 @@ int main(int argc,  char *argv[]) {
   clopts.attach_option("tol", &tol, tol, "convergence threshold");
   clopts.attach_option("update_function", &update_function, update_function, "true = use update function. false = user aggregator");
   clopts.attach_option("save_vectors", &save_vectors, save_vectors, "save output matrices U and V.");
+  clopts.attach_option("nodes", &nodes, nodes, "number of rows/cols in square matrix (optional)");
+  clopts.attach_option("no_edge_data", &no_edge_data, no_edge_data, "matrix is binary (optional)");
   // Parse the command line arguments
   if(!clopts.parse(argc, argv)) {
     std::cout << "Invalid arguments!" << std::endl;
@@ -389,8 +394,13 @@ int main(int argc,  char *argv[]) {
   load_graph(datafile, format, info, core.graph(), MATRIX_MARKET_3, false, false);
   core.graph().finalize();
 #else  
+  if (nodes == 0)
   load_graph(datafile, format, info, core.graph(), MATRIX_MARKET_3, false, true);
-  core.graph().load_directed(datafile, false, false);
+  else {
+     info.rows = info.cols = nodes;
+     core.graph().load_directed(datafile, false, no_edge_data);
+     info.nonzeros = core.graph().num_edges();
+  }
 #endif
   init_lanczos(&core.graph(), info);
   init_math(&core.graph(), &core, info, ortho_repeats, update_function);

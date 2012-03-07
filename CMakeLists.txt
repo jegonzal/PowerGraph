@@ -686,6 +686,9 @@ set(GraphLab_LIBRARIES graphlab)
 
 subdirs(src tests)
 
+if(EXPERIMENTAL)
+  subdirs(experimental)
+endif()
 
 if (IS_DIRECTORY ${GraphLab_SOURCE_DIR}/apps)
   subdirs(apps)
