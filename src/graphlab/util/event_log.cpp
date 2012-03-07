@@ -92,6 +92,7 @@ void event_log::flush() {
       found_events = found_events || ctrval > 0;
       (*out) << pos  << ":\t" << curtime << "\t" << ctrval << "\t" << 1000 * ctrval / timegap << " /s\n";
     } while(hascounter.next_bit(pos));
+    out->flush();
   }
   else if (print_method == DESCRIPTION) {
     do {
@@ -99,15 +100,17 @@ void event_log::flush() {
       found_events = found_events || ctrval > 0;
       (*out) << descriptions[pos]  << ":\t" << curtime << "\t" << ctrval << "\t" << 1000 * ctrval / timegap << " /s\n";
     } while(hascounter.next_bit(pos));
+    out->flush();
   }
   else if (print_method == LOG_FILE) {
+    eventlog_file_mutex.lock();
     do {
       size_t ctrval = counters[pos].exchange(0);
       found_events = found_events || ctrval > 0;
-      eventlog_file_mutex.lock();
       (*out) << descriptions[pos]  << ":\t" << curtime << "\t" << ctrval << "\t" << 1000 * ctrval / timegap << "\n";
-      eventlog_file_mutex.unlock();
     } while(hascounter.next_bit(pos));
+    eventlog_file_mutex.unlock();
+    out->flush();
   }
   else if (print_method == RATE_BAR) {
     (*out) << "Time: " << "+"<<timegap << "\t" << curtime << "\n";
@@ -135,6 +138,7 @@ void event_log::flush() {
       spacebuf[EVENT_BAR_WIDTH - barlen] = ' ';
       
     } while(hascounter.next_bit(pos));
+    out->flush();
   }
   if (found_events == false) {
       ++noeventctr;
@@ -143,7 +147,7 @@ void event_log::flush() {
       noeventctr = 0;
   }
   hasevents = false;
-  out->flush();
+
 }
 
 void event_log::thread_loop() {

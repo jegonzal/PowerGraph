@@ -134,6 +134,7 @@ static std::string get_working_dir() {
 }
 
 distributed_control::~distributed_control() {
+  PERMANENT_DESTROY_DIST_EVENT_LOG(eventlog);
   distributed_services->full_barrier();
   logstream(LOG_INFO) << "Shutting down distributed control " << std::endl;
   
@@ -284,9 +285,9 @@ void distributed_control::fcallhandler_loop(size_t id) {
   while(1) {
     fcallqueue[id].wait_for_data();
     if (fcallqueue[id].is_alive() == false) break;
-    
     std::deque<fcallqueue_entry*> q;
     fcallqueue[id].swap(q);
+
     while (!q.empty()) {
       fcallqueue_entry* entry;
       entry = q.front();

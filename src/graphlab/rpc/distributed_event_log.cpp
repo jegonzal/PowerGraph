@@ -187,6 +187,7 @@ void dist_event_log::print_log() {
              << stats[pos].average << "\t" << stats[pos].maximum << "\t"
              << stats[pos].total << "\t" << 1000 * stats[pos].total / timegap << " /s\n";
     } while(hascounter.next_bit(pos));
+    out->flush();
   }
   else if (print_method == DESCRIPTION) {
     do {
@@ -195,16 +196,18 @@ void dist_event_log::print_log() {
              << stats[pos].average << "\t" << stats[pos].maximum << "\t"
              << stats[pos].total << "\t" << 1000 * stats[pos].total / timegap << " /s\n";
     } while(hascounter.next_bit(pos));
+    out->flush();
   }
   else if (print_method == LOG_FILE) {
+    eventlog_file_mutex.lock();
     do {
       found_events = found_events || stats[pos].total > 0;
-      eventlog_file_mutex.lock();
       (*out) << descriptions[pos]  << ":\t" << curtime << "\t" << stats[pos].minimum << "\t"
              << stats[pos].average << "\t" << stats[pos].maximum << "\t"
              << stats[pos].total << "\t" << 1000 * stats[pos].total / timegap << "\n";
-      eventlog_file_mutex.unlock();
     } while(hascounter.next_bit(pos));
+    out->flush();
+    eventlog_file_mutex.unlock();
   }
   else if (print_method == RATE_BAR) {
     (*out) << "Time: " << "+"<<timegap << "\t" << curtime << "\n";
@@ -238,6 +241,7 @@ void dist_event_log::print_log() {
 
        (*out) << "| " << stats[pos].total << " : " << maxcounter[pos] << " \n\n";
     } while(hascounter.next_bit(pos));
+    out->flush();
   }
   if (found_events == false) {
       ++noeventctr;
@@ -246,7 +250,6 @@ void dist_event_log::print_log() {
       noeventctr = 0;
   }
   hasevents = false;
-  out->flush();
 }
 
 void dist_event_log::flush() {

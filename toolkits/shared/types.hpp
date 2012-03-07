@@ -7,7 +7,8 @@ typedef double real_type;
  * store a matrix is a bipartite graph. One side is the rows and the other is the column.
  */
 struct bipartite_graph_descriptor {
-  int rows, cols, nonzeros;
+  int rows, cols;
+  size_t nonzeros;
 
   bipartite_graph_descriptor() : rows(0), cols(0), nonzeros(0) { }
    // is the matrix square?
