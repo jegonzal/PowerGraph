@@ -102,10 +102,10 @@ namespace dc_impl {
     // wake it up from cond sleep
     // first insertion into buffer
     if (signal_decision || send_decision) {
-      if (send_active_lock.try_lock()) {
+      send_active_lock.lock(); 
         cond.signal();
         send_active_lock.unlock();
-      }
+      
     }
   }
 
