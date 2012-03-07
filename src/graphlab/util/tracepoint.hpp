@@ -135,6 +135,7 @@ Example Usage:
  *
 */
 
+
 #ifdef USE_TRACEPOINT
 #define DECLARE_TRACER(name) graphlab::trace_count name;
 

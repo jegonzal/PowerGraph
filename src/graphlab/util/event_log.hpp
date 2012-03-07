@@ -15,7 +15,8 @@ class event_log{
   enum event_print_type{
     NUMBER,
     DESCRIPTION,
-    RATE_BAR
+    RATE_BAR,
+    LOG_FILE
   };
  private:
   std::ostream* out;  // output target
@@ -96,7 +97,10 @@ class event_log{
  * is taken so the stream should not be destroyed until the event log is closed
  * flush_interval is the flush frequency in milliseconds.
  * printdesc is either graphlab::event_log::NUMBER, or graphlab::event_log::DESCRIPTION or
- * graphlab::event_log::RATE_BAR
+ * graphlab::event_log::RATE_BAR. There is also graphlab::event_log::LOG_FILE
+ * which outputs to a centralized log. If this is used, the ostrm argument
+ * is ignored and an output of the DESCRIPTION format will be written to an
+ * eventlog.txt file in the current directory.
  * 
  * ADD_EVENT_TYPE(name, id, desc)
  * Creates an event type with an integer ID, and a description.
@@ -126,5 +130,14 @@ class event_log{
 #define FLUSH_EVENT_LOG(name) 
 #define CLOSE_EVENT_LOG(name)
 #endif
+
+#define PERMANENT_DECLARE_EVENT_LOG(name) graphlab::event_log name;
+#define PERMANENT_INITIALIZE_EVENT_LOG(name, ostrm, flush_interval, printdesc)    \
+                    name.initialize(ostrm, flush_interval, printdesc);
+#define PERMANENT_ADD_EVENT_TYPE(name, id, desc) name.add_event_type(id, desc);
+#define PERMANENT_ACCUMULATE_EVENT(name, id, count) name.accumulate_event(id, count);
+#define PERMANENT_FLUSH_EVENT_LOG(name) name.flush();
+#define PERMANENT_CLOSE_EVENT_LOG(name) name.close();
+
 
 #endif

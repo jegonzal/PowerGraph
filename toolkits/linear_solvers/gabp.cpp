@@ -48,7 +48,8 @@
 #include "graphlab.hpp"
 #include "../shared/io.hpp"
 #include "../shared/types.hpp"
-
+#include "graphlab/graph/graph2.hpp"
+#define USE_GRAPH2
 using namespace graphlab;
 
 #include <graphlab/macros_def.hpp>
@@ -115,7 +116,7 @@ struct edge_data {
   edge_data(real_type weight) : weight(weight), mean(0), prec(0) { }
 };
 
-typedef graphlab::graph<vertex_data, edge_data> graph_type;
+typedef graphlab::graph2<vertex_data, edge_data> graph_type;
 
 #include "../shared/math.hpp" //has to be included after vertex_data and edge_data and graph_type
 #include "../shared/printouts.hpp"
@@ -321,6 +322,7 @@ int main(int argc,  char *argv[]) {
   std::cout << "Load matrix A" << std::endl;
   bipartite_graph_descriptor matrix_info;
   load_graph(datafile, format, matrix_info, core.graph(), MATRIX_MARKET_3,zero);
+  core.graph().finalize();
   std::cout << "Load Y values" << std::endl;
   load_vector(yfile, format, matrix_info, core.graph(), GABP_Y, false, zero);
   if (xfile.size() > 0){

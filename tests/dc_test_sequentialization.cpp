@@ -42,14 +42,15 @@ class seq_test {
   }
   
   void recv(size_t idx, size_t val) {
+    ASSERT_EQ(thread::thread_id(), idx);
     ASSERT_EQ(ctr[idx], val);
     ++ctr[idx];
   }
 
   void run() {
-    for (size_t i = 1; i < 100; ++i) {
+    for (size_t i = 1; i < 2; ++i) {
       rmi.dc().set_sequentialization_key(i);
-      for (size_t j = 0;j < 100000; ++j) {
+      for (size_t j = 0;j < 1000000; ++j) {
         rmi.remote_call(1, &seq_test::recv, i, j);
       }
     }

@@ -59,7 +59,7 @@
 
 
 template<typename T>
-uint array_from_file(std::string filename, T *& array){
+size_t array_from_file(std::string filename, T *& array){
           struct stat sb;
           int fd = open (filename.c_str(), O_RDONLY);
           if (fd == -1) {
@@ -78,9 +78,9 @@ uint array_from_file(std::string filename, T *& array){
           }
 	  close(fd);
  
-	  int toread = sb.st_size/sizeof(T); 
+	  size_t toread = sb.st_size/sizeof(T); 
           array = new T[toread];
-          int total = 0;
+          size_t total = 0;
 	  FILE * f = fopen(filename.c_str(), "r");
           if (f == NULL){
 	     perror("fopen");
@@ -88,8 +88,8 @@ uint array_from_file(std::string filename, T *& array){
           }
          
           while(total < toread){
-	     int rc = fread(array+total, sizeof(T), toread-total,f);
-	     if (rc < 0 ){
+	     size_t rc = fread(array+total, sizeof(T), toread-total,f);
+	     if (rc <= 0 ){
 	       perror("fread");
                logstream(LOG_FATAL) << "Failed to read from input file: " << filename << std::endl;
 	     }
@@ -231,15 +231,16 @@ namespace graphlab {
     iterator_type itype;
     edge_iterator begin_ptr;
     edge_iterator end_iter_ptr;
+    void* weights; 
 
-    edge_list(): start_ptr(NULL), _size(0), source(-1), abs_offset(0), itype(OUTEDGE) { }
-    edge_list(uint * _start_ptr, uint size, uint _source, uint _abs_offset, iterator_type _itype) : 
+    edge_list(): start_ptr(NULL), _size(0), source(-1), abs_offset(0), itype(OUTEDGE), weights(NULL) { }
+    edge_list(uint * _start_ptr, uint size, uint _source, uint _abs_offset, iterator_type _itype, void * _weights): 
       begin_ptr(_source, _abs_offset, _itype, _start_ptr), 
       end_iter_ptr(_source, _abs_offset+size, _itype, _start_ptr){
       start_ptr = _start_ptr; abs_offset = _abs_offset;
       _size = size; source = _source; itype = _itype;
+      weights = _weights;
       assert(source < gnum_nodes); 
-      //logstream(LOG_INFO)<<"creating edge list with start ptr: " << _start_ptr << std::endl;
       assert(_abs_offset+size <= g_num_edges);
       assert(size < gnum_nodes); 
     }
@@ -307,7 +308,8 @@ namespace graphlab {
     uint * node_out_degrees;
     uint * node_in_edges;
     uint * node_out_edges;
-    std::vector<VertexData> *node_vdata_array;
+    //std::vector<VertexData> *node_vdata_array;
+    VertexData * node_vdata_array;
     EdgeData * edge_weights;
     EdgeData * in_edge_weights;
     char _color; //not implement yet
@@ -369,7 +371,7 @@ namespace graphlab {
 
     void set_node_vdata_array(const std::vector<VertexData> * _node_vdata_array){
       assert(_node_vdata_array);
-      node_vdata_array = (std::vector<VertexData>*)_node_vdata_array;
+      node_vdata_array = (VertexData*)&_node_vdata_array[0];
     }
     
     /**
@@ -465,15 +467,15 @@ namespace graphlab {
         
     
     /** \brief Returns a reference to the data stored on the vertex v. */
-    VertexData& vertex_data(vertex_id_type v) {
-      ASSERT_LT(v, num_nodes);
-      return node_vdata_array->at(v);
+    inline VertexData& vertex_data(vertex_id_type v) {
+      //ASSERT_LT(v, num_nodes);
+      return node_vdata_array[v];
     } // end of data(v)
     
     /** \brief Returns a constant reference to the data stored on the vertex v */
-    const VertexData& vertex_data(vertex_id_type v) const {
-      ASSERT_LT(v, num_nodes);
-      return node_vdata_array->at(v);
+    inline const VertexData& vertex_data(vertex_id_type v) const {
+      //ASSERT_LT(v, num_nodes);
+      return node_vdata_array[v];
     } // end of data(v)
 
     /** \brief Returns a reference to the data stored on the edge source->target. */
@@ -506,7 +508,7 @@ namespace graphlab {
        return _edge;
        else
        return edge.direction() == INEDGE ? in_edge_weights[edge.offset()] : edge_weights[edge.offset()];
-    }
+    } 
 
     size_t num_in_edges(const vertex_id_type v) const {
       return node_in_degrees[v+1]-node_in_degrees[v];
@@ -518,22 +520,22 @@ namespace graphlab {
 
     edge_list_type in_edges(vertex_id_type v) {
       ASSERT_LT(v, num_nodes);
-      return edge_list_type(node_in_edges, num_in_edges(v),v,node_in_degrees[v], INEDGE);  
+      return edge_list_type(node_in_edges, num_in_edges(v),v,node_in_degrees[v], INEDGE, in_edge_weights);  
     }
 
     edge_list_type out_edges(vertex_id_type v) {
       ASSERT_LT(v, num_nodes);
-      return edge_list_type(node_out_edges, num_out_edges(v),v, node_out_degrees[v], OUTEDGE);
+      return edge_list_type(node_out_edges, num_out_edges(v),v, node_out_degrees[v], OUTEDGE, edge_weights);
     }
 
     const edge_list_type in_edges(vertex_id_type v) const {
       ASSERT_LT(v, num_nodes);
-      return edge_list_type(node_in_edges, num_in_edges(v),v,node_in_degrees[v], INEDGE);  
+      return edge_list_type(node_in_edges, num_in_edges(v),v,node_in_degrees[v], INEDGE, in_edge_weights);  
      }
 
     const edge_list_type out_edges(vertex_id_type v) const {
       ASSERT_LT(v, num_nodes);
-      return edge_list_type(node_out_edges,num_out_edges(v),v,node_out_degrees[v], OUTEDGE);
+      return edge_list_type(node_out_edges,num_out_edges(v),v,node_out_degrees[v], OUTEDGE, edge_weights);
      }
 
     const vertex_color_type& color(vertex_id_type vertex) const {
@@ -608,8 +610,8 @@ namespace graphlab {
 	 num_nodes = (rc/4)-1;
          if (!no_node_data){
 	    if (node_vdata_array == NULL)
-               node_vdata_array = new std::vector<VertexData>();
-            node_vdata_array->resize(num_nodes);
+               node_vdata_array = new VertexData[num_nodes];
+            assert(node_vdata_array != NULL);
          }
  	 logstream(LOG_INFO) << "Read " << num_nodes << " nodes" << std::endl;
          rc = array_from_file(filename + ".edges", node_out_edges);
@@ -641,8 +643,8 @@ namespace graphlab {
 	 num_nodes = (rc/4)-1;
          if (!no_node_data){
             if (node_vdata_array == NULL)
-              node_vdata_array = new std::vector<VertexData>();
-	    node_vdata_array->resize(num_nodes);
+              node_vdata_array = new VertexData[num_nodes];
+            assert(node_vdata_array != NULL);
          }
          size_t rc2 =array_from_file(filename + "-r.nodes", node_in_degrees);
          assert(rc == rc2);

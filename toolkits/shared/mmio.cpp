@@ -18,8 +18,9 @@ int mm_read_unsymmetric_sparse(const char *fname, int *M_, int *N_, int *nz_,
 {
     FILE *f;
     MM_typecode matcode;
-    int M, N, nz;
-    int i;
+    int M, N;
+    size_t nz;
+    size_t i;
     double *val;
     int *I, *J;
  
@@ -75,7 +76,7 @@ int mm_read_unsymmetric_sparse(const char *fname, int *M_, int *N_, int *nz_,
     {
         int rc = fscanf(f, "%d %d %lg\n", &I[i], &J[i], &val[i]);
         if (rc != 3){
-          printf("Error when reading row %d\n", i);
+          printf("Error when reading row %ld\n", i);
           exit(1);
         }
             
@@ -268,17 +269,17 @@ int mm_read_banner(FILE *f, MM_typecode *matcode)
     return 0;
 }
 
-int mm_write_mtx_crd_size(FILE *f, int M, int N, int nz)
+int mm_write_mtx_crd_size(FILE *f, int M, int N, size_t nz)
 {
-    if (fprintf(f, "%d %d %d\n", M, N, nz) != 3)
+    if (fprintf(f, "%d %d %ld\n", M, N, nz) != 3)
         return MM_COULD_NOT_WRITE_FILE;
     else 
         return 0;
 }
-int mm_write_cpp_mtx_crd_size(boost::iostreams::filtering_stream<boost::iostreams::output>& f, int M, int N, int nz)
+int mm_write_cpp_mtx_crd_size(boost::iostreams::filtering_stream<boost::iostreams::output>& f, int M, int N, size_t nz)
 {
     char line[MM_MAX_LINE_LENGTH];
-    sprintf(line, "%d %d %d\n", M, N, nz);
+    sprintf(line, "%d %d %ld\n", M, N, nz);
     f.write(line, strlen(line));
     if (!f.good())
         return MM_COULD_NOT_WRITE_FILE;
@@ -287,7 +288,7 @@ int mm_write_cpp_mtx_crd_size(boost::iostreams::filtering_stream<boost::iostream
 }
 
 
-int mm_read_cpp_mtx_crd_size(boost::iostreams::filtering_stream<boost::iostreams::input>  & f, int *M, int *N, int *nz )
+int mm_read_cpp_mtx_crd_size(boost::iostreams::filtering_stream<boost::iostreams::input>  & f, int *M, int *N, size_t *nz )
 {
     //int num_items_read;
 
@@ -306,7 +307,7 @@ int mm_read_cpp_mtx_crd_size(boost::iostreams::filtering_stream<boost::iostreams
     while (line[0] == '%');
 
     /* line[] is either blank or has M,N, nz */
-    if (sscanf(line, "%d %d %d", M, N, nz) == 3)
+    if (sscanf(line, "%d %d %ld", M, N, nz) == 3)
         return 0;
         
     else
@@ -321,7 +322,7 @@ int mm_read_cpp_mtx_crd_size(boost::iostreams::filtering_stream<boost::iostreams
 }
 
 
-int mm_read_mtx_crd_size(FILE *f, int *M, int *N, int *nz )
+int mm_read_mtx_crd_size(FILE *f, int *M, int *N, size_t *nz )
 {
     char line[MM_MAX_LINE_LENGTH];
     int num_items_read;
@@ -337,13 +338,13 @@ int mm_read_mtx_crd_size(FILE *f, int *M, int *N, int *nz )
     }while (line[0] == '%');
 
     /* line[] is either blank or has M,N, nz */
-    if (sscanf(line, "%d %d %d", M, N, nz) == 3)
+    if (sscanf(line, "%d %d %ld", M, N, nz) == 3)
         return 0;
         
     else
     do
     { 
-        num_items_read = fscanf(f, "%d %d %d", M, N, nz); 
+        num_items_read = fscanf(f, "%d %d %ld", M, N, nz); 
         if (num_items_read == EOF) return MM_PREMATURE_EOF;
     }
     while (num_items_read != 3);
@@ -465,7 +466,7 @@ int mm_read_mtx_crd_entry(FILE *f, int *I, int *J,
                             (nz pairs of real/imaginary values)
 ************************************************************************/
 
-int mm_read_mtx_crd(char *fname, int *M, int *N, int *nz, int **I, int **J, 
+int mm_read_mtx_crd(char *fname, int *M, int *N, size_t *nz, int **I, int **J, 
         double **val, MM_typecode *matcode)
 {
     int ret_code;

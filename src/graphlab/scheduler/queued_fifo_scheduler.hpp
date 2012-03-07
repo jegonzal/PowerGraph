@@ -137,9 +137,16 @@ namespace graphlab {
       } 
     } // end of schedule
 
-    void schedule_all(const update_functor_type& fun) {
-      for (vertex_id_type vid = 0; vid < vfun_set.size(); ++vid)
-        schedule(vid, fun);      
+    void schedule_all(const update_functor_type& fun,
+                      const std::string& order) {
+      if(order == "shuffle") {
+        std::vector<vertex_id_type> permutation = 
+          random::permutation<vertex_id_type>(vfun_set.size());       
+        foreach(vertex_id_type vid, permutation)  schedule(vid, fun);
+      } else {
+        for (vertex_id_type vid = 0; vid < vfun_set.size(); ++vid)
+          schedule(vid, fun);      
+      }
     } // end of schedule_all
 
     void completed(const size_t cpuid,
@@ -149,36 +156,46 @@ namespace graphlab {
     }
 
 
+    sched_status::status_enum 
+    get_specific(vertex_id_type vid,
+                 update_functor_type& ret_fun) {
+      bool get_success = vfun_set.test_and_get(vid, ret_fun); 
+      if (get_success) return sched_status::NEW_TASK;
+      else return sched_status::EMPTY;
+    }
+
     /** Get the next element in the queue */
     sched_status::status_enum get_next(const size_t cpuid,
                                        vertex_id_type& ret_vid,
                                        update_functor_type& ret_fun) {
       // if the local queue is empty try to get a queue from the master
-      if(out_queues[cpuid].empty()) {
-        master_lock.lock();
-        if(!master_queue.empty()) {
-          out_queues[cpuid].swap(master_queue.front());
-          master_queue.pop_front();
+      while(1) {
+        if(out_queues[cpuid].empty()) {
+          master_lock.lock();
+          if(!master_queue.empty()) {
+            out_queues[cpuid].swap(master_queue.front());
+            master_queue.pop_front();
+          }
+          master_lock.unlock();
         }
-        master_lock.unlock();
-      }
-      // if the local queue is still empty see if there is any local
-      // work left
-      in_queue_locks[cpuid].lock();
-      if(out_queues[cpuid].empty() && !in_queues[cpuid].empty()) {
-        out_queues[cpuid].swap(in_queues[cpuid]);
-      }
-      in_queue_locks[cpuid].unlock();
-      // end of get next
-      queue_type& queue = out_queues[cpuid];
-      if(!queue.empty()) {
-        ret_vid = queue.front();
-        queue.pop_front();
-        const bool get_success = vfun_set.test_and_get(ret_vid, ret_fun);
-        ASSERT_TRUE(get_success);
-        return sched_status::NEW_TASK;
-      } else {
-        return sched_status::EMPTY;
+        // if the local queue is still empty see if there is any local
+        // work left
+        in_queue_locks[cpuid].lock();
+        if(out_queues[cpuid].empty() && !in_queues[cpuid].empty()) {
+          out_queues[cpuid].swap(in_queues[cpuid]);
+        }
+        in_queue_locks[cpuid].unlock();
+        // end of get next
+        queue_type& queue = out_queues[cpuid];
+        if(!queue.empty()) {
+          ret_vid = queue.front();
+          queue.pop_front();
+          if(vfun_set.test_and_get(ret_vid, ret_fun)) {
+            return sched_status::NEW_TASK;
+          }
+        } else {
+          return sched_status::EMPTY;
+        }
       }
     } // end of get_next_task
 

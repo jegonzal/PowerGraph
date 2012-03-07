@@ -340,6 +340,12 @@ namespace graphlab {
       graph.nedges = 0;
       foreach(size_t count, swap_counts) graph.nedges += count;
 
+      const size_t min_ecount = 
+        *(std::min_element(swap_counts.begin(), swap_counts.end()));
+      const size_t max_ecount = 
+        *(std::max_element(swap_counts.begin(), swap_counts.end()));
+      std::cout << "BALANCE: " << (double(max_ecount)/min_ecount) << std::endl;
+
       // compute begin edge id
       graph.begin_eid = 0;
       for(size_t i = 0; i < rpc.procid(); ++i) graph.begin_eid += swap_counts[i];

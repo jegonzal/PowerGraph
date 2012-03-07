@@ -111,8 +111,9 @@ public:
   bp_update(double residual = 1000) : residual(residual) { }
 
   double priority() const { return residual; }
-  void operator+=(const bp_update& other) { residual += other.residual; }
-
+  void operator+=(const bp_update& other) { 
+    residual = std::min(residual + other.residual, double(1));
+  }
   void operator()(icontext_type& context) {
 
     // Grab the state from the context
@@ -391,7 +392,7 @@ int main(int argc, char** argv) {
   
   
 
-  clopts.set_scheduler_type("splash(splash_size=100)");
+  clopts.set_scheduler_type("queued_fifo");
   clopts.set_scope_type("edge");
   
 

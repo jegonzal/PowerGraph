@@ -110,13 +110,13 @@ private:
 
 public:
 
-  bp_update(double residual = 1000) : residual(residual) { }
+  bp_update(double residual = 0) : residual(residual) { }
 
   double priority() const { return residual; }
-  void operator+=(const bp_update& other) { residual += other.residual; }
-
+  void operator+=(const bp_update& other) { 
+    residual = std::min(residual + other.residual, double(1));
+  }
   void operator()(icontext_type& context) {
-
     // Grab the state from the context
     // ---------------------------------------------------------------->
     // Get the vertex data
@@ -172,7 +172,7 @@ public:
       tmp_msg.damp(out_edge.message, DAMPING);
     
       // Compute message residual
-      double residual = tmp_msg.residual(out_edge.old_message);
+      const double residual = tmp_msg.residual(out_edge.old_message);
     
       // Assign the out message
       out_edge.message = tmp_msg;
@@ -263,7 +263,7 @@ int main(int argc, char** argv) {
                        "Predicted image type {map, exp}");
   
 
-  clopts.set_scheduler_type("splash(splash_size=100)");
+  clopts.set_scheduler_type("queued_fifo");
   clopts.set_scope_type("edge");
   
 
@@ -344,8 +344,8 @@ int main(int argc, char** argv) {
 
   
   // Add the bp update to all vertices
-  const bp_update initial_update(1000);
-  core.schedule_all(initial_update);
+  const bp_update initial_update(1);
+  core.schedule_all(initial_update, "shuffle");
   // Starte the engine
   double runtime = core.start();
   
@@ -359,7 +359,7 @@ int main(int argc, char** argv) {
 
 
   // Saving the output -------------------------------------------------------->
-  /*std::cout << "Rendering the cleaned image. " << std::endl;
+  std::cout << "Rendering the cleaned image. " << std::endl;
   if(pred_type == "map") {
     for(size_t v = 0; v < core.graph().num_vertices(); ++v) {
       const vertex_data& vdata = core.graph().vertex_data(v);
@@ -377,7 +377,6 @@ int main(int argc, char** argv) {
   }
   std::cout << "Saving cleaned image. " << std::endl;
   img.save(pred_fn.c_str());
- */
   std::cout << "Done!" << std::endl;
   return EXIT_SUCCESS;
 } // End of main
