@@ -81,7 +81,7 @@ namespace graphlab {
       numvertices = g.local_vertices();
         
       /* How many queues per cpu. More queues, less contention */
-      queues_per_cpu = 2;
+      queues_per_cpu = 1;
       num_queues = queues_per_cpu * ncpus;
        
       /* Each cpu keeps record of the queue it last 
@@ -158,7 +158,6 @@ namespace graphlab {
 
     void add_task(update_task_type task, double priority) {
       if (binary_vertex_tasks.add(task)) {
-        terminator.new_job();
         // Check if task should be pruned
         /* "Randomize" the task queue task is put in. Note that we do
            not care if this counter is corrupted in race conditions */
@@ -187,12 +186,7 @@ namespace graphlab {
         queue_locks[qidx].lock();
         task_queues[qidx].push(task, priority);
         queue_locks[qidx].unlock();
-    
-        if (monitor != NULL) 
-          monitor->scheduler_task_added(task, priority);
-      } else {
-        if (monitor != NULL) 
-          monitor->scheduler_task_pruned(task);
+        terminator.new_job();
       }
   
     }
