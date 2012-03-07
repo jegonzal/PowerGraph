@@ -134,6 +134,7 @@ static std::string get_working_dir() {
 }
 
 distributed_control::~distributed_control() {
+  PERMANENT_DESTROY_DIST_EVENT_LOG(eventlog);
   distributed_services->full_barrier();
   logstream(LOG_INFO) << "Shutting down distributed control " << std::endl;
   

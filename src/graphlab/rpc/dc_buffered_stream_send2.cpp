@@ -61,7 +61,6 @@ namespace dc_impl {
     hdr->src = dc->procid();
     hdr->sequentialization_key = dc->get_sequentialization_key();
     hdr->packet_type_mask = packet_type_mask;
-
     iovec msg;
     msg.iov_base = data;
     msg.iov_len = len;
@@ -75,6 +74,10 @@ namespace dc_impl {
         int32_t cref = buffer[curid].ref_count;
         if (cref < 0 || 
             !atomic_compare_and_swap(buffer[curid].ref_count, cref, cref + 1)) continue;
+
+        if (curid != bufid) {
+          __sync_fetch_and_sub(&(buffer[curid].ref_count), 1);
+        }
         else {
           break;
         }
