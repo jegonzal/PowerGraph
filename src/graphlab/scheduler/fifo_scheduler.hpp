@@ -119,18 +119,34 @@ namespace graphlab {
           const uint32_t r2 = prod % queues.size();
           idx = (queues[r1].size() < queues[r2].size()) ? r1 : r2;  
         }
-        if(multi == 0) term.new_job();
-        else term.new_job(idx / multi);
+        // if(multi == 0) 
+        // else term.new_job(idx / multi);
         locks[idx].lock(); queues[idx].push_back(vid); locks[idx].unlock();
+        term.new_job();
       }
     } // end of schedule
 
-    void schedule_all(const update_functor_type& fun) {
-      for (vertex_id_type vid = 0; vid < vfun_set.size(); ++vid) {
-        if(vfun_set.add(vid,fun)) {
-          term.new_job();
-          const size_t idx = vid % queues.size();
-          locks[idx].lock(); queues[idx].push_back(vid); locks[idx].unlock();
+    void schedule_all(const update_functor_type& fun,
+                      const std::string& order) {
+      if(order == "shuffle") {
+        // add vertices randomly
+        std::vector<vertex_id_type> permutation = 
+          random::permutation<vertex_id_type>(vfun_set.size());       
+        foreach(vertex_id_type vid, permutation) {
+          if(vfun_set.add(vid,fun)) {
+            const size_t idx = vid % queues.size();
+            locks[idx].lock(); queues[idx].push_back(vid); locks[idx].unlock();
+            term.new_job();
+          }
+        }
+      } else {
+        // Add vertices sequentially
+        for (vertex_id_type vid = 0; vid < vfun_set.size(); ++vid) {
+          if(vfun_set.add(vid,fun)) {
+            term.new_job();
+            const size_t idx = vid % queues.size();
+            locks[idx].lock(); queues[idx].push_back(vid); locks[idx].unlock();
+          }
         }
       }
     } // end of schedule_all

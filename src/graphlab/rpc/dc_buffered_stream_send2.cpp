@@ -61,7 +61,6 @@ namespace dc_impl {
     hdr->src = dc->procid();
     hdr->sequentialization_key = dc->get_sequentialization_key();
     hdr->packet_type_mask = packet_type_mask;
-
     iovec msg;
     msg.iov_base = data;
     msg.iov_len = len;
@@ -75,6 +74,10 @@ namespace dc_impl {
         int32_t cref = buffer[curid].ref_count;
         if (cref < 0 || 
             !atomic_compare_and_swap(buffer[curid].ref_count, cref, cref + 1)) continue;
+
+        if (curid != bufid) {
+          __sync_fetch_and_sub(&(buffer[curid].ref_count), 1);
+        }
         else {
           break;
         }
@@ -99,10 +102,10 @@ namespace dc_impl {
     // wake it up from cond sleep
     // first insertion into buffer
     if (signal_decision || send_decision) {
-      if (send_active_lock.try_lock()) {
+      send_active_lock.lock(); 
         cond.signal();
         send_active_lock.unlock();
-      }
+      
     }
   }
 
@@ -200,11 +203,13 @@ namespace dc_impl {
       // reset the buffer;
       buffer[curid].numbytes = 0;
       buffer[curid].numel = 1;
-      buffer[curid].ref_count = 0;
+
       if (numel == sendbuffer.size()) {
          sendbuffer.resize(2 * numel);
 //         std::cout << "r to " << sendbuffer.size() << std::endl;
       }
+
+      __sync_fetch_and_add(&(buffer[curid].ref_count), 1);
       // now clear what I just sent. start from '1' to avoid the header
       for (size_t i = 1; i < prevsend.size(); ++i) {
         free(prevsend[i].iov_base);
@@ -223,7 +228,7 @@ namespace dc_impl {
       // reset the buffer;
       buffer[curid].numbytes = 0;
       buffer[curid].numel = 1;
-      buffer[curid].ref_count = 0;
+      __sync_fetch_and_add(&(buffer[curid].ref_count), 1);
     }
 
     send_lock.unlock();

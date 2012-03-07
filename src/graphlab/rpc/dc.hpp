@@ -49,6 +49,7 @@
 #include <graphlab/rpc/function_ret_type.hpp>
 
 #include <graphlab/util/tracepoint.hpp>
+#include <graphlab/rpc/distributed_event_log.hpp>
 #include <boost/preprocessor.hpp>
 #include <graphlab/rpc/function_arg_types_def.hpp>
 
@@ -248,6 +249,12 @@ class distributed_control{
   
   metrics rpc_metrics;
   
+  enum {
+    CALLS_EVENT = 0,
+    BYTES_EVENT = 1
+  };
+
+  PERMANENT_DECLARE_DIST_EVENT_LOG(eventlog);
   DECLARE_TRACER(dc_receive_queuing);
   DECLARE_TRACER(dc_receive_multiplexing);
   DECLARE_TRACER(dc_call_dispatch);
@@ -430,7 +437,7 @@ class distributed_control{
   void fcallhandler_loop(size_t id);
   
   inline void inc_calls_sent(procid_t procid) {
-//    ASSERT_FALSE(full_barrier_in_effect);
+    PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, CALLS_EVENT, 1);
     global_calls_sent[procid].inc();
   }
 

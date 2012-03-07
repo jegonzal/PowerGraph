@@ -159,7 +159,8 @@ namespace graphlab {
       // Does nothing
     }
 
-    void schedule_all(const update_functor_type& fun) {
+    void schedule_all(const update_functor_type& fun,
+                      const std::string& order) {
       for(size_t i = 0; i < functors.size(); ++i) 
         functors[i] = fun;
     }

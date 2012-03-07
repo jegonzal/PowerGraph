@@ -134,6 +134,7 @@ static std::string get_working_dir() {
 }
 
 distributed_control::~distributed_control() {
+  PERMANENT_DESTROY_DIST_EVENT_LOG(eventlog);
   distributed_services->full_barrier();
   logstream(LOG_INFO) << "Shutting down distributed control " << std::endl;
   
@@ -241,6 +242,7 @@ void distributed_control::process_fcall_block(fcallqueue_entry &fcallblock) {
       ASSERT_LE(hdr.len, remaininglen);
       
       if ((hdr.packet_type_mask & CONTROL_PACKET) == 0) {
+        PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, BYTES_EVENT, hdr.len);
         global_bytes_received[hdr.src].inc(hdr.len);
       }
       refctr->value++;
@@ -283,9 +285,9 @@ void distributed_control::fcallhandler_loop(size_t id) {
   while(1) {
     fcallqueue[id].wait_for_data();
     if (fcallqueue[id].is_alive() == false) break;
-    
     std::deque<fcallqueue_entry*> q;
     fcallqueue[id].swap(q);
+
     while (!q.empty()) {
       fcallqueue_entry* entry;
       entry = q.front();
@@ -392,6 +394,15 @@ void distributed_control::init(const std::vector<std::string> &machines,
               receivers); 
 
   compute_master_ranks();
+  
+#ifdef USE_EVENT_LOG
+    PERMANENT_INITIALIZE_DIST_EVENT_LOG(eventlog, *this, std::cout, 3000, dist_event_log::RATE_BAR);
+#else
+    PERMANENT_INITIALIZE_DIST_EVENT_LOG(eventlog, *this, std::cout, 3000, dist_event_log::LOG_FILE);
+#endif
+    PERMANENT_ADD_DIST_EVENT_TYPE(eventlog, CALLS_EVENT, "Total RPC Calls");
+    PERMANENT_ADD_DIST_EVENT_TYPE(eventlog, BYTES_EVENT, "Total Bytes Communicated");
+
 }
 
 size_t distributed_control::set_sender_option(std::string opt, size_t value) {

@@ -174,7 +174,7 @@ namespace graphlab {
     
     size_t max_pending_tasks;
 
-    DECLARE_DIST_EVENT_LOG(eventlog);
+    PERMANENT_DECLARE_DIST_EVENT_LOG(eventlog);
     DECLARE_TRACER(disteng_eval_sched_task);
     DECLARE_TRACER(disteng_init_gathering); 
     DECLARE_TRACER(disteng_init_scattering);
@@ -190,7 +190,7 @@ namespace graphlab {
                      bool& has_sched_task,
                      lvid_type& sched_lvid,
                      update_functor_type &task) {
-      ACCUMULATE_DIST_EVENT(eventlog, NO_WORK_EVENT, 1);
+      PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, NO_WORK_EVENT, 1);
       if (issued_tasks.value != completed_tasks.value + blocked_issues.value) {
         //        sched_yield();
         return false;
@@ -297,13 +297,17 @@ namespace graphlab {
       // TODO: Remove context creation.
       // Added context to force compilation.   
       context_type context;
-
-      INITIALIZE_DIST_EVENT_LOG(eventlog, dc, std::cout, 3000, 
+#ifdef USE_EVENT_LOG
+      PERMANENT_INITIALIZE_DIST_EVENT_LOG(eventlog, dc, std::cout, 3000, 
                                 dist_event_log::RATE_BAR);
-      ADD_DIST_EVENT_TYPE(eventlog, SCHEDULE_EVENT, "Schedule");
-      ADD_DIST_EVENT_TYPE(eventlog, UPDATE_EVENT, "Updates");
-      ADD_DIST_EVENT_TYPE(eventlog, INTERNAL_TASK_EVENT, "Internal");
-      ADD_DIST_EVENT_TYPE(eventlog, NO_WORK_EVENT, "No Work");
+#else
+      PERMANENT_INITIALIZE_DIST_EVENT_LOG(eventlog, dc, std::cout, 3000, 
+                                dist_event_log::LOG_FILE);
+#endif
+      PERMANENT_ADD_DIST_EVENT_TYPE(eventlog, SCHEDULE_EVENT, "Schedule");
+      PERMANENT_ADD_DIST_EVENT_TYPE(eventlog, UPDATE_EVENT, "Updates");
+      PERMANENT_ADD_DIST_EVENT_TYPE(eventlog, INTERNAL_TASK_EVENT, "Internal");
+      PERMANENT_ADD_DIST_EVENT_TYPE(eventlog, NO_WORK_EVENT, "No Work");
 
       INITIALIZE_TRACER(disteng_eval_sched_task, 
                         "distributed_fscope_engine: Evaluate Scheduled Task");
@@ -388,7 +392,7 @@ namespace graphlab {
       BEGIN_TRACEPOINT(disteng_scheduler_task_queue);
       scheduler_ptr->schedule(local_vid, update_functor);
       END_TRACEPOINT(disteng_scheduler_task_queue);
-      ACCUMULATE_DIST_EVENT(eventlog, SCHEDULE_EVENT, 1);
+      PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, SCHEDULE_EVENT, 1);
       consensus.cancel();
     }
     
@@ -402,7 +406,7 @@ namespace graphlab {
       } else {
         scheduler_ptr->schedule(local_vid, update_functor);
       }
-      ACCUMULATE_DIST_EVENT(eventlog, SCHEDULE_EVENT, 1);
+      PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, SCHEDULE_EVENT, 1);
       consensus.cancel();
     }
 
@@ -422,17 +426,18 @@ namespace graphlab {
      * is forwarded to the scheduler. Must be called by all machines
      * simultaneously
      */
-    void schedule_all(const update_functor_type& update_functor) {
+    void schedule_all(const update_functor_type& update_functor,
+                      const std::string& order = "shuffle") {
       std::vector<vertex_id_type> vtxs;
-      for(lvid_type lvid = 0; lvid < graph.get_local_graph().num_vertices(); 
-          ++lvid) {
-        if (graph.l_get_vertex_record(lvid).owner == rmi.procid()) {
-          vtxs.push_back(lvid);
-        }
+      vtxs.reserve(graph.get_local_graph().num_vertices());
+      for(lvid_type lvid = 0; lvid < graph.get_local_graph().num_vertices(); ++lvid) {
+        if (graph.l_get_vertex_record(lvid).owner == rmi.procid()) 
+          vtxs.push_back(lvid);        
       } 
-      graphlab::random::shuffle(vtxs.begin(), vtxs.end());
-      for (size_t i = 0;i < vtxs.size(); ++i) 
-        scheduler_ptr->schedule(vtxs[i], update_functor);    
+      if(order == "shuffle") 
+        graphlab::random::shuffle(vtxs.begin(), vtxs.end());
+      foreach(lvid_type lvid, vtxs)
+        scheduler_ptr->schedule(lvid, update_functor);    
       if (started) consensus.cancel();
       rmi.barrier();
     } // end of schedule all
@@ -675,7 +680,7 @@ namespace graphlab {
 
     
     void eval_internal_task(lvid_type lvid) {
-      ACCUMULATE_DIST_EVENT(eventlog, INTERNAL_TASK_EVENT, 1);
+      PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, INTERNAL_TASK_EVENT, 1);
       BEGIN_TRACEPOINT(disteng_waiting_for_vstate_locks);
       vstate[lvid].lock.lock();
       END_TRACEPOINT(disteng_waiting_for_vstate_locks);
@@ -812,7 +817,7 @@ namespace graphlab {
 
     void eval_sched_task(const lvid_type sched_lvid, 
                          const update_functor_type& task) {
-      ACCUMULATE_DIST_EVENT(eventlog, UPDATE_EVENT, 1);
+      PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, UPDATE_EVENT, 1);
       BEGIN_TRACEPOINT(disteng_eval_sched_task);
       // If I am not the owner just forward the task to the other
       // scheduler and return

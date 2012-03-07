@@ -6,9 +6,12 @@
 #include <graphlab/parallel/atomic.hpp>
 #include <graphlab/util/timer.hpp>
 #include <graphlab/util/dense_bitset.hpp>
-#include <graphlab/rpc/dc_dist_object.hpp>
-namespace graphlab {
 
+namespace graphlab {
+// forward declaration needed here so that I can use the distributed
+// event log in distributed_control itself
+class distributed_control;
+template <typename T> class dc_dist_object;
 #define EVENT_MAX_COUNTERS 256
 
 class dist_event_log{
@@ -16,7 +19,8 @@ class dist_event_log{
   enum event_print_type{
     NUMBER,
     DESCRIPTION,
-    RATE_BAR
+    RATE_BAR,
+    LOG_FILE
   };
  private:
   std::ostream* out;  // output target
@@ -81,7 +85,7 @@ class dist_event_log{
 
   void add_event_type(unsigned char eventid, std::string description);
 
-  void accumulate_event_aggregator(procid_t proc,
+  void accumulate_event_aggregator(size_t proc,
                                    unsigned char eventid,
                                    size_t count);
   
@@ -146,5 +150,14 @@ class dist_event_log{
 #define CLOSE_DIST_EVENT_LOG(name)
 #define DESTROY_DIST_EVENT_LOG(name)
 #endif
+
+#define PERMANENT_DECLARE_DIST_EVENT_LOG(name) graphlab::dist_event_log name;
+#define PERMANENT_INITIALIZE_DIST_EVENT_LOG(name, dc, ostrm, flush_interval, printdesc)    \
+                    name.initialize(dc, ostrm, flush_interval, printdesc);
+#define PERMANENT_ADD_DIST_EVENT_TYPE(name, id, desc) name.add_event_type(id, desc);
+#define PERMANENT_ACCUMULATE_DIST_EVENT(name, id, count) name.accumulate_event(id, count);
+#define PERMANENT_FLUSH_DIST_EVENT_LOG(name) name.flush();
+#define PERMANENT_CLOSE_DIST_EVENT_LOG(name) name.close();
+#define PERMANENT_DESTROY_DIST_EVENT_LOG(name) name.destroy();
 
 #endif
