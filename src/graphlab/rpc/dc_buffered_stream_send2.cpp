@@ -200,11 +200,13 @@ namespace dc_impl {
       // reset the buffer;
       buffer[curid].numbytes = 0;
       buffer[curid].numel = 1;
-      buffer[curid].ref_count = 0;
+
       if (numel == sendbuffer.size()) {
          sendbuffer.resize(2 * numel);
 //         std::cout << "r to " << sendbuffer.size() << std::endl;
       }
+
+      __sync_fetch_and_add(&(buffer[curid].ref_count), 1);
       // now clear what I just sent. start from '1' to avoid the header
       for (size_t i = 1; i < prevsend.size(); ++i) {
         free(prevsend[i].iov_base);
@@ -223,7 +225,7 @@ namespace dc_impl {
       // reset the buffer;
       buffer[curid].numbytes = 0;
       buffer[curid].numel = 1;
-      buffer[curid].ref_count = 0;
+      __sync_fetch_and_add(&(buffer[curid].ref_count), 1);
     }
 
     send_lock.unlock();
