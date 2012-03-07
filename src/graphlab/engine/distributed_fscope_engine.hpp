@@ -193,6 +193,7 @@ namespace graphlab {
       PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, NO_WORK_EVENT, 1);
       if (issued_tasks.value != completed_tasks.value + blocked_issues.value) {
         //        sched_yield();
+        usleep(1);
         return false;
       }
       has_internal_task = false;
