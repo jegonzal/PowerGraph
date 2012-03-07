@@ -1,6 +1,7 @@
 #include "linear.h"
 
 #include "advanced_config.h"
+#include <boost/algorithm/string/predicate.hpp>
 
 extern problem_setup ps;
 extern advanced_config config;
@@ -59,8 +60,14 @@ void problem_setup::verify_setup(graphlab::command_line_options& clopts){
   if (config.algorithm == CONJUGATE_GRADIENT && config.iter <= 1)
     logstream(LOG_FATAL) << "For conjugate gradient, you need to specify the number of iterations using --max_iter=XX flag" << std::endl;
 
-  if ((config.algorithm == JACOBI || config.algorithm == GaBP) && ((clopts.get_scheduler_type() != "round_robin")|| (clopts.is_set("max_iter"))))
-    logstream(LOG_FATAL) << "Please use command line --scheduler=\"round_robin(max_iterations=XX,block_size=1)\" when running Jacobi/Gaussian BP. The flag --max_iter can not be used." << std::endl;
+
+
+  if ((config.algorithm == JACOBI || config.algorithm == GaBP) && ((!boost::algorithm::starts_with(clopts.get_scheduler_type(), "round_robin"))))
+    logstream(LOG_FATAL) << "Please use command line --scheduler=\"round_robin(max_iterations=XX,block_size=1)\" when running Jacobi/Gaussian BP." << std::endl;
+
+  std::cout<<config.iter<<std::endl;
+  if ((config.algorithm == JACOBI || config.algorithm == GaBP) && clopts.is_set("max_iter") && config.iter != 0)
+    logstream(LOG_FATAL) << "Please use command line --scheduler=\"round_robin(max_iterations=XX,block_size=1)\" when running Jacobi/Gaussian BP, instead of  --max_iter flag." << std::endl;
 
  if (config.algorithm == JACOBI && !clopts.is_set("init_mode"))
      config.init_mode = INIT_RANDOM;
