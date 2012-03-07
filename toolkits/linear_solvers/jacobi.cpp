@@ -77,7 +77,7 @@ struct edge_data {
   edge_data(double weight = 0) : weight(weight) { }
 };
 
-typedef graphlab::graph<vertex_data, edge_data> graph_type;
+typedef graphlab::graph2<vertex_data, edge_data> graph_type;
 #include "../shared/math.hpp"
 
 /***
