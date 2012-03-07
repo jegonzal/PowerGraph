@@ -817,7 +817,7 @@ namespace graphlab {
 
     void eval_sched_task(const lvid_type sched_lvid, 
                          const update_functor_type& task) {
-      PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, UPDATE_EVENT, 1);
+
       BEGIN_TRACEPOINT(disteng_eval_sched_task);
       // If I am not the owner just forward the task to the other
       // scheduler and return
@@ -836,6 +836,7 @@ namespace graphlab {
       END_TRACEPOINT(disteng_waiting_for_vstate_locks);
       bool initiate_gathering = false;
       if (vstate[sched_lvid].state == NONE) {
+        PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, UPDATE_EVENT, 1);
         // we start gather right here.
         // set up the state
         vstate[sched_lvid].state = GATHERING;

@@ -129,7 +129,11 @@ namespace graphlab {
              vertex_id_type& ret_vid,
              update_functor_type& ret_fun) = 0;
 
-
+    virtual sched_status::status_enum 
+    get_specific(vertex_id_type vid,
+                 update_functor_type& ret_fun) {
+      return sched_status::EMPTY;
+    }
 
     /**
      * This is called after a task has been executed
