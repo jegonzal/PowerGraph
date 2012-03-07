@@ -137,9 +137,16 @@ namespace graphlab {
       } 
     } // end of schedule
 
-    void schedule_all(const update_functor_type& fun) {
-      for (vertex_id_type vid = 0; vid < vfun_set.size(); ++vid)
-        schedule(vid, fun);      
+    void schedule_all(const update_functor_type& fun,
+                      const std::string& order) {
+      if(order == "shuffle") {
+        std::vector<vertex_id_type> permutation = 
+          random::permutation<vertex_id_type>(vfun_set.size());       
+        foreach(vertex_id_type vid, permutation)  schedule(vid, fun);
+      } else {
+        for (vertex_id_type vid = 0; vid < vfun_set.size(); ++vid)
+          schedule(vid, fun);      
+      }
     } // end of schedule_all
 
     void completed(const size_t cpuid,

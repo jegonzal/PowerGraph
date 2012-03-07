@@ -176,7 +176,8 @@ namespace graphlab {
      * graph, with the same update function and priority This function
      * is forwarded to the scheduler.
      */
-    virtual void schedule_all(const update_functor_type& update_functor) = 0;
+    virtual void schedule_all(const update_functor_type& update_functor,
+                              const std::string& order = "sequential") = 0;
 
     /**
      * Schedule an update on all the neighbors of a particular vertex

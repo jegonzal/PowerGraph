@@ -287,7 +287,8 @@ namespace graphlab {
      * Schedule the execution of an update functor on all the vertices
      * in the graph.
      */
-    void schedule_all(const update_functor_type& update_functor);
+    void schedule_all(const update_functor_type& update_functor,
+                      const std::string& order);
 
     /**
      * Schedule an update on all the neighbors of a particular vertex
@@ -558,10 +559,11 @@ namespace graphlab {
   template<typename Graph, typename UpdateFunctor> 
   void
   shared_memory_engine<Graph, UpdateFunctor>::
-  schedule_all(const update_functor_type& update_functor) { 
+  schedule_all(const update_functor_type& update_functor,
+               const std::string& order) { 
     initialize_members();
     ASSERT_TRUE(scheduler_ptr != NULL);
-    scheduler_ptr->schedule_all(update_functor);
+    scheduler_ptr->schedule_all(update_functor, order);
   } // end of schedule_all
 
 
