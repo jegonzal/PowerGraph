@@ -190,7 +190,7 @@ namespace graphlab {
                      bool& has_sched_task,
                      lvid_type& sched_lvid,
                      update_functor_type &task) {
-      ACCUMULATE_DIST_EVENT(eventlog, NO_WORK_EVENT, 1);
+      PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, NO_WORK_EVENT, 1);
       if (issued_tasks.value != completed_tasks.value + blocked_issues.value) {
         //        sched_yield();
         return false;

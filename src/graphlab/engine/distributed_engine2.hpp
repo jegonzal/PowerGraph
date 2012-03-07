@@ -284,10 +284,10 @@ namespace graphlab {
                                 dist_event_log::LOG_FILE);
 #endif
 
-      ADD_DIST_EVENT_TYPE(eventlog, SCHEDULE_EVENT, "Schedule");
-      ADD_DIST_EVENT_TYPE(eventlog, UPDATE_EVENT, "Updates");
-      ADD_DIST_EVENT_TYPE(eventlog, INTERNAL_TASK_EVENT, "Internal");
-      ADD_DIST_EVENT_TYPE(eventlog, NO_WORK_EVENT, "No Work");
+      PERMANENT_ADD_DIST_EVENT_TYPE(eventlog, SCHEDULE_EVENT, "Schedule");
+      PERMANENT_ADD_DIST_EVENT_TYPE(eventlog, UPDATE_EVENT, "Updates");
+      PERMANENT_ADD_DIST_EVENT_TYPE(eventlog, INTERNAL_TASK_EVENT, "Internal");
+      PERMANENT_ADD_DIST_EVENT_TYPE(eventlog, NO_WORK_EVENT, "No Work");
 
       INITIALIZE_TRACER(disteng_eval_sched_task, 
                         "distributed_engine: Evaluate Scheduled Task");
