@@ -44,7 +44,15 @@ namespace archive_detail {
   struct deserialize_impl<ArcType, boost::unordered_set<T>, false > {
   static void exec(ArcType& a, boost::unordered_set<T>& vec){
     vec.clear();
-    deserialize_iterator<ArcType, T>(a, std::inserter(vec,vec.end()));
+    // get the number of elements to deserialize
+    size_t length = 0;
+    a >> length;    
+    // iterate through and send to the output iterator
+    for (size_t x = 0; x < length ; ++x){
+      T v;
+      a >> v;
+      vec.insert(v);
+    }
   }
   };
 
