@@ -12,13 +12,14 @@
     <property name="dist" value="dist"/>
     <property name="input" value="test-graphs"/>
     
-    <property name="target" value="1.5"/>
-    <property name="source" value="1.5"/>
+    <property name="target" value="1.6"/>
+    <property name="source" value="1.6"/>
     
     <path id="GraphLab.classpath">
         <pathelement location="${bin}"/>
         <pathelement location="${lib}/log4j-1.2.16.jar"/>
         <pathelement location="${lib}/junit-4.10.jar"/>
+        <pathelement location="${lib}/jgrapht-jdk1.6.jar"/>
     </path>
     
     <path id="run.ShortestPath.classpath">
@@ -93,5 +94,5 @@
             <classpath refid="run.PageRank.classpath"/>
         </java>
     </target>
-    
+
 </project>
