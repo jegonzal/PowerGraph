@@ -210,6 +210,7 @@ public class PageRankFactorized {
     @Override
     protected PageRankUpdater clone() {
       return new PageRankUpdater(mGraph, mAccum);
+      // return this; // this is really not the problem
     }
     
     @Override
