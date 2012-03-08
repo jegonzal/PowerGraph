@@ -35,7 +35,8 @@
 
 #else //eigen is not found
 
-#include "itpp_wrapper.hpp"
+//DB: it++ is not supported yet in version 2. to be completed!
+//#include "itpp_wrapper.hpp"
 
 #endif //eigen
 #endif //MATH_LAYER_GRAPHLAB

@@ -107,7 +107,6 @@ public:
 
   // Reschedule neighbors 
   void scatter(icontext_type& context, const edge_type& edge) {
-    if(context.const_vertex_data(edge.target()).nupdates > 5) return;
     context.schedule(edge.target(), factorized_pagerank(accum));
   } // end of scatter
 }; // end of factorized_pagerank update functor

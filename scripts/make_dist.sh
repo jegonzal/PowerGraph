@@ -1,6 +1,6 @@
 #!/bin/bash
 
-major_version=1
+major_version=2
 
 echo "THIS MUST BE RUN IN GRAPHLAB HOME"
 
