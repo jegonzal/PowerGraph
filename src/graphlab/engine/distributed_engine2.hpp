@@ -330,7 +330,8 @@ namespace graphlab {
                       ncpus);
       // create initial fork arrangement based on the alternate vid mapping
       cmlocks = new lock_set_type(rmi.dc(), graph,
-                                  boost::bind(&engine_type::lock_ready, this, _1));
+                                  boost::bind(&engine_type::lock_ready, this, _1),
+                                  boost::bind(&engine_type::forward_cached_schedule, this, _1));
       cmlocks->compute_initial_fork_arrangement();
       
       vstate.resize(graph.num_local_vertices());
@@ -381,7 +382,19 @@ namespace graphlab {
                               const update_functor_type& update_functor) {
       const lvid_type local_vid = graph.local_vid(vid);
       BEGIN_TRACEPOINT(disteng_scheduler_task_queue);
-      scheduler_ptr->schedule(local_vid, update_functor);
+      bool direct_injection = false;
+      if (vstate[local_vid].state == LOCKING) {
+        vstate_locks[local_vid].lock();
+        if (vstate[local_vid].state == LOCKING) {
+          vstate[local_vid].current += update_functor;
+          direct_injection = true;
+          joined_tasks.inc();
+        }
+        vstate_locks[local_vid].unlock();
+      }
+      if (direct_injection == false) {
+        scheduler_ptr->schedule(local_vid, update_functor);
+      }
       END_TRACEPOINT(disteng_scheduler_task_queue);
       PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, SCHEDULE_EVENT, 1);
       consensus->cancel();
@@ -776,24 +789,22 @@ namespace graphlab {
       consensus->cancel_one(i);
       END_TRACEPOINT(disteng_internal_task_queue);
     }
-    
+
+    void forward_cached_schedule(vertex_id_type lvid) {
+      update_functor_type uf;
+      if (scheduler_ptr->get_specific(lvid, uf) == sched_status::NEW_TASK) {
+        const typename graph_type::vertex_record& rec = graph.l_get_vertex_record(lvid);
+        rmi.remote_call(rec.owner, &engine_type::schedule_from_remote, rec.gvid, uf);
+      }
+    }
 
     void rpc_begin_locking(vertex_id_type sched_vid) {
       logstream(LOG_DEBUG) << rmi.procid() << ": Mirror Begin Locking: " 
                            << sched_vid << std::endl;
-      procid_t owner = graph.get_vertex_record(sched_vid).owner;
-//      ASSERT_NE(owner, rmi.procid());
       // immediately begin issuing the lock requests
       vertex_id_type sched_lvid = graph.local_vid(sched_vid);
       // set the vertex state
       BEGIN_TRACEPOINT(disteng_waiting_for_vstate_locks);
-      update_functor_type uf;
-      if (scheduler_ptr->get_specific(sched_lvid, uf) == sched_status::NEW_TASK) {
-        const unsigned char prevkey = 
-                    rmi.dc().set_sequentialization_key(sched_vid % 254 + 1);
-        rmi.remote_call(owner, &engine_type::schedule_from_remote, sched_vid, uf);
-        rmi.dc().set_sequentialization_key(prevkey);
-      }
       vstate_locks[sched_lvid].lock();
       END_TRACEPOINT(disteng_waiting_for_vstate_locks);
       if (vstate[sched_lvid].state == NONE) {
