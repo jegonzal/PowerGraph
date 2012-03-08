@@ -20,6 +20,7 @@ class distributed_chandy_misra {
   GraphType &distgraph;
   local_graph_type &graph;
   boost::function<void(vertex_id_type)> callback;
+  boost::function<void(vertex_id_type)> hors_doeuvre_callback;
   /*
    * Each "fork" is one character.
    * bit 0: owner. if 0 is src. if 1 is target
@@ -492,6 +493,7 @@ class distributed_chandy_misra {
     }
     else {
       unsigned char pkey = rmi.dc().set_sequentialization_key(rec.gvid % 254 + 1);
+      if (hors_doeuvre_callback != NULL) hors_doeuvre_callback(p_id);
       rmi.pod_call(rec.owner,
                       &dcm_type::rpc_signal_ready,
                       rec.gvid, philosopherset[p_id].lockid);
@@ -711,12 +713,14 @@ class distributed_chandy_misra {
  public:
   inline distributed_chandy_misra(distributed_control &dc,
                                   GraphType &distgraph,
-                                  boost::function<void(vertex_id_type)> callback
+                                  boost::function<void(vertex_id_type)> callback,
+                                  boost::function<void(vertex_id_type)> hors_doeuvre_callback = NULL
                                   ):
                           rmi(dc, this),
                           distgraph(distgraph),
                           graph(distgraph.get_local_graph()),
-                          callback(callback){
+                          callback(callback),
+                          hors_doeuvre_callback(hors_doeuvre_callback){
     forkset.resize(graph.num_edges(), 0);
     philosopherset.resize(graph.num_vertices());
     compute_initial_fork_arrangement();
