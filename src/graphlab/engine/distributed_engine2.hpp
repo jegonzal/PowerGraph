@@ -279,7 +279,7 @@ namespace graphlab {
     distributed_engine(distributed_control &dc, graph_type& graph, 
                        size_t ncpus) : 
       rmi(dc, this), graph(graph), scheduler_ptr(NULL), ncpus(ncpus),
-      max_pending_edges(100000),request_scale_limit(0) {
+      max_pending_edges((size_t)(-1)),request_scale_limit(0) {
       rmi.barrier();
       // TODO: Remove context creation.
       // Added context to force compilation.   
