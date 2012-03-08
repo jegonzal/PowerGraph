@@ -292,7 +292,7 @@ int main(int argc, char** argv) {
       }
     }
   }
-  
+  /*
   if (output) {
     std::string fname = "results_local_";
     fname = fname + graphlab::tostr((size_t)dc.procid());
@@ -304,7 +304,7 @@ int main(int argc, char** argv) {
            << graph.get_local_graph().vertex_data(i).value << "\t"
            << graph.get_local_graph().vertex_data(i).nupdates << "\n";
     }
-  } 
+  } */
 
   if (output) {
     std::string fname = "adj_";
