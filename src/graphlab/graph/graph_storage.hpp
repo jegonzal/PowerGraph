@@ -562,10 +562,26 @@ namespace graphlab {
       }
       // End of counting sort.
 
+#ifdef AVOID_OUTOFPLACE_PERMUTE
+#ifdef DEBUG_GRAPH
+      std::cout << "Inplace permute by dst..." << std::endl;
+#endif
+      inplace_shuffle(edges.source_arr.begin(), edges.source_arr.end(), permute_index);
+      counting_sort(edges.target_arr, counter_array, permute_index); 
+      for (ssize_t i = 0; i < ssize_t(num_vertices); ++i) {
+        if (counter_array[i] < counter_array[i+1]) {
+          std::sort(permute_index.begin()+counter_array[i],
+                    permute_index.begin() + counter_array[i+1],
+                    cmp_by_any_functor<vertex_id_type>(edges.source_arr)); 
+        }
+      }
+#else
 #ifdef DEBUG_GRAPH
       std::cout << "Outplace permute by dst..." << std::endl;
 #endif
       outofplace_shuffle(edges.source_arr, permute_index);
+#endif
+
       /* DEBUG
          printf("c2r_map: \n");
          foreach(edge_id_type e, c2r_map)
