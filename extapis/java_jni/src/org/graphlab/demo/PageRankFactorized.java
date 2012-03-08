@@ -103,7 +103,7 @@ public class PageRankFactorized {
     if (args.length != 1) {
       System.out.println("Please provide filename.");
       System.out.println("Usage: java -Djava.library.path=... "
-          + ShortestPath.class.getCanonicalName() + " path/to/tsv/file");
+          + PageRankFactorized.class.getCanonicalName() + " path/to/tsv/file");
       return false;
     }
 

@@ -109,7 +109,7 @@ public class PageRank {
     if (args.length != 1) {
       System.out.println("Please provide filename.");
       System.out.println("Usage: java -Djava.library.path=... "
-          + ShortestPath.class.getCanonicalName() + " path/to/tsv/file");
+          + PageRank.class.getCanonicalName() + " path/to/tsv/file");
       return false;
     }
 
