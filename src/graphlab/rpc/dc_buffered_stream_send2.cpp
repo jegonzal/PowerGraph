@@ -102,10 +102,10 @@ namespace dc_impl {
     // wake it up from cond sleep
     // first insertion into buffer
     if (signal_decision || send_decision) {
-      send_active_lock.lock(); 
+      if (send_active_lock.try_lock()) {
         cond.signal();
         send_active_lock.unlock();
-      
+      }
     }
   }
 
@@ -120,46 +120,21 @@ namespace dc_impl {
 
 
   void dc_buffered_stream_send2::send_loop() {
-    graphlab::timer timer;
-    timer.start();
-    //const double nano2second = 1000*1000*1000;
-    //const double second_wait = nanosecond_wait / nano2second;
     while (1) {
-      if (writebuffer_totallen.value > 0) {
+     while (writebuffer_totallen.value > 0) {
         flush_impl();
-      } else {
-        // sleep for 1 ms or up till we get wait_count_bytes
-        send_active_lock.lock();
-        while(1) {
-          if (!done) {
-            if(writebuffer_totallen.value == 0) {
-              cond.wait(send_active_lock);
-            }
-            else if (writebuffer_totallen.value < buffer_length_trigger) {
-              send_active_lock.unlock();
-              my_sleep_ms(1);
-              send_active_lock.lock();
-              break;
-            }
-            else {
-              break;
-            }
-          }
-          else {
-            break;
-          }
-        }
-        send_active_lock.unlock();
+      } 
+      if (send_active_lock.try_lock()) {
+        cond.timedwait_ns(send_active_lock, 1000000);
+        send_active_lock.unlock(); 
       }
-      if (done) {
-        break;
-      }
+      if (done) break;
     }
   }
 
   void dc_buffered_stream_send2::shutdown() {
-    send_active_lock.lock();
     done = true;
+    send_active_lock.lock();
     cond.signal();
     send_active_lock.unlock();
     thr.join();

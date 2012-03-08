@@ -141,6 +141,12 @@ namespace graphlab {
         pending_vertices.push_back(v);
         lock.unlock();
       }
+      void add_task_priority(vertex_id_type v) {
+        lock.lock();
+        ++npending;
+        pending_vertices.push_front(v);
+        lock.unlock();
+      }
       bool get_task(std::deque<vertex_id_type> &v) {
         v = std::deque<vertex_id_type>();
         lock.lock();
@@ -187,8 +193,10 @@ namespace graphlab {
     atomic<uint64_t> issued_tasks;
     atomic<uint64_t> completed_tasks;
     
-    size_t max_pending_tasks;
-
+    size_t max_pending_edges;
+    atomic<size_t> pending_edges;
+    float request_scale_limit;
+    
     PERMANENT_DECLARE_DIST_EVENT_LOG(eventlog);
     DECLARE_TRACER(disteng_eval_sched_task);
     DECLARE_TRACER(disteng_chandy_misra);
@@ -271,7 +279,7 @@ namespace graphlab {
     distributed_engine(distributed_control &dc, graph_type& graph, 
                        size_t ncpus) : 
       rmi(dc, this), graph(graph), scheduler_ptr(NULL), ncpus(ncpus),
-      max_pending_tasks(10000) {
+      max_pending_edges(1000000),request_scale_limit(10) {
       rmi.barrier();
       // TODO: Remove context creation.
       // Added context to force compilation.   
@@ -412,7 +420,7 @@ namespace graphlab {
      * simultaneously
      */
     void schedule_all(const update_functor_type& update_functor,
-                      const std::string& order = "random") {
+                      const std::string& order = "shuffle") {
       logstream(LOG_DEBUG) << rmi.procid() << ": Schedule All" << std::endl;
       std::vector<vertex_id_type> vtxs;
       vtxs.reserve(graph.get_local_graph().num_vertices());
@@ -505,8 +513,11 @@ namespace graphlab {
     /** \brief Update the engine options.  */
     void set_options(const graphlab_options& new_opts) {
       opts = new_opts;
-      if(opts.engine_args.get_option("max_pending", max_pending_tasks)) {
-        std::cout << "Max Pending: " << max_pending_tasks << std::endl;
+      if(opts.engine_args.get_option("max_pending_edges", max_pending_edges)) {
+        std::cout << "Max Pending Tasks: " << max_pending_edges << std::endl;
+      }
+      if(opts.engine_args.get_option("request_scale_limit", request_scale_limit)) {
+        std::cout << "Request Scale Limit: " << request_scale_limit << std::endl;
       }
     } 
 
@@ -518,7 +529,7 @@ namespace graphlab {
     void lock_ready(vertex_id_type lvid) {
       logstream(LOG_DEBUG) << "Lock ready on " << "L" << lvid << std::endl;
       vstate_locks[lvid].lock();
-      ASSERT_EQ(vstate[lvid].state, (int)LOCKING);
+//      ASSERT_EQ(vstate[lvid].state, (int)LOCKING);
       vstate[lvid].state = GATHERING;
       update_functor_type uf = vstate[lvid].current;
       do_init_gather(lvid);
@@ -543,11 +554,11 @@ namespace graphlab {
       }
       END_TRACEPOINT(disteng_internal_task_queue);
       
-      const size_t pending_tasks = 
-        issued_tasks - (completed_tasks + blocked_issues);
-        
-      if( pending_tasks > max_pending_tasks ) { return; }
-
+      if( pending_edges.value > max_pending_edges ) { return; }
+      if (request_scale_limit * cmlocks->num_active_requests() >= vstate.size()) {
+          return;
+        }
+ 
 
       sched_status::status_enum stat = 
         scheduler_ptr->get_next(threadid, sched_lvid, task);
@@ -556,9 +567,9 @@ namespace graphlab {
 
     void locked_gather_complete(const lvid_type lvid) {
       // make sure that I am the owner
-      ASSERT_I_AM_OWNER(lvid);
-      ASSERT_TRUE(vstate[lvid].state == GATHERING);
-      ASSERT_GT(vstate[lvid].apply_count_down, 0);
+//      ASSERT_I_AM_OWNER(lvid);
+//      ASSERT_TRUE(vstate[lvid].state == GATHERING);
+//      ASSERT_GT(vstate[lvid].apply_count_down, 0);
       vstate[lvid].apply_count_down--;
       logstream(LOG_DEBUG) << rmi.procid() << ": Partial Gather Complete: " 
                     << graph.global_vid(lvid) << "(" << vstate[lvid].apply_count_down << ")" << std::endl;
@@ -640,8 +651,8 @@ namespace graphlab {
     void process_gather(lvid_type lvid) {
       // in theory I do not need a lock here.
       // but what the hell
-      ASSERT_TRUE(vstate[lvid].state == GATHERING || 
-                  vstate[lvid].state == MIRROR_GATHERING);
+//      ASSERT_TRUE(vstate[lvid].state == GATHERING || 
+//                  vstate[lvid].state == MIRROR_GATHERING);
       const vertex_id_type vid = graph.global_vid(lvid);
       logstream(LOG_DEBUG) << rmi.procid() << ": Gathering on " << vid  
                            << std::endl;
@@ -670,6 +681,7 @@ namespace graphlab {
       BEGIN_TRACEPOINT(disteng_waiting_for_vstate_locks);
       vstate_locks[lvid].lock();
       END_TRACEPOINT(disteng_waiting_for_vstate_locks);
+      const typename graph_type::vertex_record& rec = graph.l_get_vertex_record(lvid);
       switch(vstate[lvid].state) {
       case NONE: 
         ASSERT_MSG(false, "Empty Internal Task");
@@ -710,6 +722,7 @@ namespace graphlab {
 
           do_scatter(lvid);
           completed_tasks.inc();
+          pending_edges.dec(rec.num_in_edges + rec.num_out_edges);
           BEGIN_TRACEPOINT(disteng_chandy_misra);
           cmlocks->philosopher_stops_eating_per_replica(lvid);
           END_TRACEPOINT(disteng_chandy_misra);
@@ -730,7 +743,7 @@ namespace graphlab {
           vstate[lvid].state = NONE;
           vstate[lvid].current = update_functor_type();
           cmlocks->philosopher_stops_eating_per_replica(lvid);
-          ASSERT_FALSE(vstate[lvid].hasnext);
+//          ASSERT_FALSE(vstate[lvid].hasnext);
           break;
         }
       case MIRROR_SCATTERING_AND_NEXT_LOCKING: {
@@ -739,7 +752,7 @@ namespace graphlab {
           do_scatter(lvid);
           vstate[lvid].current = update_functor_type();
           vstate[lvid].state = LOCKING;
-          ASSERT_FALSE(vstate[lvid].hasnext);          
+//          ASSERT_FALSE(vstate[lvid].hasnext);          
           cmlocks->philosopher_stops_eating_per_replica(lvid);
           cmlocks->make_philosopher_hungry_per_replica(lvid);
           break;
@@ -752,7 +765,14 @@ namespace graphlab {
     void add_internal_task(lvid_type lvid) {
       BEGIN_TRACEPOINT(disteng_internal_task_queue);
       size_t i = lvid % ncpus;
-      thrlocal[i].add_task(lvid);
+      if (vstate[lvid].state == APPLYING || vstate[lvid].state == SCATTERING ||
+          vstate[lvid].state == MIRROR_SCATTERING ||
+          vstate[lvid].state == MIRROR_SCATTERING_AND_NEXT_LOCKING) {
+        thrlocal[i].add_task_priority(lvid);
+      }
+      else {
+        thrlocal[i].add_task(lvid); 
+      }
       consensus->cancel_one(i);
       END_TRACEPOINT(disteng_internal_task_queue);
     }
@@ -762,7 +782,7 @@ namespace graphlab {
       logstream(LOG_DEBUG) << rmi.procid() << ": Mirror Begin Locking: " 
                            << sched_vid << std::endl;
       procid_t owner = graph.get_vertex_record(sched_vid).owner;
-      ASSERT_NE(owner, rmi.procid());
+//      ASSERT_NE(owner, rmi.procid());
       // immediately begin issuing the lock requests
       vertex_id_type sched_lvid = graph.local_vid(sched_vid);
       // set the vertex state
@@ -783,10 +803,10 @@ namespace graphlab {
       else if (vstate[sched_lvid].state == MIRROR_SCATTERING) {
         vstate[sched_lvid].state = MIRROR_SCATTERING_AND_NEXT_LOCKING;
       }
-      else {
+/*      else {
         ASSERT_TRUE(vstate[sched_lvid].state == NONE || 
                     vstate[sched_lvid].state == MIRROR_SCATTERING);
-      }
+      }*/
       vstate_locks[sched_lvid].unlock();
     }
     
@@ -795,14 +815,14 @@ namespace graphlab {
                              const update_functor_type& task) {
       logstream(LOG_DEBUG) << rmi.procid() << ": Mirror Begin Gathering: " 
                            << sched_vid << std::endl;
-      ASSERT_NE(graph.get_vertex_record(sched_vid).owner, rmi.procid());
+//      ASSERT_NE(graph.get_vertex_record(sched_vid).owner, rmi.procid());
       // immediately begin issuing the lock requests
       vertex_id_type sched_lvid = graph.local_vid(sched_vid);
       // set the vertex state
       BEGIN_TRACEPOINT(disteng_waiting_for_vstate_locks);
       vstate_locks[sched_lvid].lock();
       END_TRACEPOINT(disteng_waiting_for_vstate_locks);
-      ASSERT_EQ(vstate[sched_lvid].state, LOCKING);
+//      ASSERT_EQ(vstate[sched_lvid].state, LOCKING);
 
       vstate[sched_lvid].state = MIRROR_GATHERING;
       vstate[sched_lvid].current = task;
@@ -817,7 +837,7 @@ namespace graphlab {
     void master_broadcast_locking(lvid_type sched_lvid) {
       logstream(LOG_DEBUG) << rmi.procid() << ": Broadcast Gathering: " 
                            << graph.global_vid(sched_lvid) << std::endl;
-      ASSERT_I_AM_OWNER(sched_lvid);
+//      ASSERT_I_AM_OWNER(sched_lvid);
       vertex_id_type sched_vid = graph.global_vid(sched_lvid);
       const typename graph_type::vertex_record& vrec = 
         graph.l_get_vertex_record(sched_lvid);
@@ -836,7 +856,7 @@ namespace graphlab {
       BEGIN_TRACEPOINT(disteng_init_gathering);
       logstream(LOG_DEBUG) << rmi.procid() << ": Broadcast Gathering: " 
                            << graph.global_vid(sched_lvid) << std::endl;
-      ASSERT_I_AM_OWNER(sched_lvid);
+//      ASSERT_I_AM_OWNER(sched_lvid);
       vertex_id_type sched_vid = graph.global_vid(sched_lvid);
       const typename graph_type::vertex_record& vrec = 
         graph.l_get_vertex_record(sched_lvid);
@@ -853,8 +873,8 @@ namespace graphlab {
                               const vertex_data_type &central_vdata) {
       vertex_id_type lvid = graph.local_vid(vid);
       vstate_locks[lvid].lock();
-      ASSERT_I_AM_NOT_OWNER(lvid);
-      ASSERT_EQ(vstate[lvid].state, MIRROR_SCATTERING);
+//      ASSERT_I_AM_NOT_OWNER(lvid);
+//      ASSERT_EQ(vstate[lvid].state, MIRROR_SCATTERING);
       graph.get_local_graph().vertex_data(lvid) = central_vdata;
       vstate[lvid].current = task;
       vstate_locks[lvid].unlock();
@@ -870,7 +890,7 @@ namespace graphlab {
       BEGIN_TRACEPOINT(disteng_init_scattering);
       logstream(LOG_DEBUG) << rmi.procid() << ": Broadcast Scattering: " 
                            << graph.global_vid(sched_lvid) << std::endl;
-      ASSERT_I_AM_OWNER(sched_lvid);
+//      ASSERT_I_AM_OWNER(sched_lvid);
       vertex_id_type sched_vid = graph.global_vid(sched_lvid);
       const typename graph_type::vertex_record& vrec = 
         graph.l_get_vertex_record(sched_lvid);
@@ -899,7 +919,7 @@ namespace graphlab {
         rmi.remote_call(owner, &engine_type::schedule_from_remote, vid, task);
         return;
       }
-      ASSERT_I_AM_OWNER(sched_lvid);
+//      ASSERT_I_AM_OWNER(sched_lvid);
       // this is in local VIDs
       issued_tasks.inc();
       if (prelocked == false) {
@@ -919,6 +939,7 @@ namespace graphlab {
         vstate[sched_lvid].apply_count_down =   
           graph.l_get_vertex_record(sched_lvid).num_mirrors() + 1;
         acquirelock = true;
+        pending_edges.inc(rec.num_in_edges + rec.num_out_edges);
         // we are going to broadcast after unlock
       } else if (vstate[sched_lvid].state == LOCKING) {
          blocked_issues.inc();
@@ -950,9 +971,13 @@ namespace graphlab {
       std::deque<vertex_id_type> internal_lvid;
       vertex_id_type sched_lvid;
       update_functor_type task;
-      
+//      size_t ctr = 0; 
       while(1) {
-        get_a_task(threadid, 
+/*        ++ctr;
+        if (ctr % 100000 == 0) {
+          std::cout << cmlocks->num_active_requests() << "/" << vstate.size() << "\n";
+        }*/
+       get_a_task(threadid, 
                    has_internal_task, internal_lvid,
                    has_sched_task, sched_lvid, task);
         // if we managed to get a task..

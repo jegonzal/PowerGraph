@@ -54,7 +54,7 @@ class distributed_chandy_misra {
     bool lockid;
   };
   std::vector<philosopher> philosopherset;
-  
+  atomic<size_t> num_locally_active_requests;
   PERMANENT_DECLARE_DIST_EVENT_LOG(eventlog);
     
   /*
@@ -69,6 +69,7 @@ class distributed_chandy_misra {
 
   /** Places a request for the fork. Requires fork to be locked */
   inline void request_for_fork(size_t forkid, bool nextowner) {
+    num_locally_active_requests.inc();
     __sync_fetch_and_or(&forkset[forkid], request_bit(nextowner));
   }
 
@@ -159,6 +160,9 @@ class distributed_chandy_misra {
           if (philosopherset[source].state == HUNGRY) {
             forkset[forkid] |= REQUEST_0;
           }
+          else {
+            num_locally_active_requests.dec();
+          }
           philosopherset[source].forks_acquired--;
           philosopherset[target].forks_acquired++;
           return true;
@@ -186,6 +190,9 @@ class distributed_chandy_misra {
           forkset[forkid] = OWNER_SOURCE;
           if (philosopherset[target].state == HUNGRY) {
             forkset[forkid] |= REQUEST_1;
+          }
+          else {
+            num_locally_active_requests.dec();
           }
           philosopherset[source].forks_acquired++;
           philosopherset[target].forks_acquired--;
@@ -224,8 +231,8 @@ class distributed_chandy_misra {
     
     if (philosopherset[lvid].lockid == lockid) {
       if (philosopherset[lvid].counter > 0) {
-        ASSERT_TRUE(philosopherset[lvid].state == HORS_DOEUVRE || 
-                    philosopherset[lvid].state == HUNGRY);
+        /*ASSERT_TRUE(philosopherset[lvid].state == HORS_DOEUVRE || 
+                    philosopherset[lvid].state == HUNGRY);*/
         ++philosopherset[lvid].counter;
         bool lockid = philosopherset[lvid].lockid;
         PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, ACCEPTED_CANCELLATIONS, 1);
@@ -306,8 +313,8 @@ class distributed_chandy_misra {
     std::vector<vertex_id_type> retval;
     philosopherset[p_id].lock.lock();
     //philosopher is now hungry!
-    ASSERT_EQ (lockid, philosopherset[p_id].lockid);
-    ASSERT_EQ((int)philosopherset[p_id].state, (int)HORS_DOEUVRE);
+    /*ASSERT_EQ (lockid, philosopherset[p_id].lockid);
+    ASSERT_EQ((int)philosopherset[p_id].state, (int)HORS_DOEUVRE); */
     philosopherset[p_id].state = HUNGRY;
     philosopherset[p_id].cancellation_sent = false;
     logstream(LOG_DEBUG) << rmi.procid() <<
@@ -400,10 +407,10 @@ class distributed_chandy_misra {
           ": Local HUNGRY Philosopher  " << gvid << std::endl;
     philosopherset[lvid].lock.lock();
 
-    ASSERT_EQ((int)philosopherset[lvid].state, (int)THINKING);
+    //ASSERT_EQ((int)philosopherset[lvid].state, (int)THINKING);
     philosopherset[lvid].state = HUNGRY;
 
-    ASSERT_NE(philosopherset[lvid].lockid, newlockid);
+//    ASSERT_NE(philosopherset[lvid].lockid, newlockid);
     philosopherset[lvid].lockid = newlockid;
 
     philosopherset[lvid].lock.unlock();
@@ -516,11 +523,11 @@ class distributed_chandy_misra {
             ": BAD Global HORS_DOEUVRE " << distgraph.global_vid(lvid)
             << "(" << (int)philosopherset[lvid].counter << ")" << std::endl;
   
-      ASSERT_TRUE(philosopherset[lvid].state == (int)HUNGRY ||
-                  philosopherset[lvid].state == (int)HORS_DOEUVRE);
+     /* ASSERT_TRUE(philosopherset[lvid].state == (int)HUNGRY ||
+                  philosopherset[lvid].state == (int)HORS_DOEUVRE);*/
     }
     
-    ASSERT_EQ(philosopherset[lvid].lockid, lockid);
+//    ASSERT_EQ(philosopherset[lvid].lockid, lockid);
     philosopherset[lvid].counter--;
 
     logstream(LOG_DEBUG) << rmi.procid() <<
@@ -555,8 +562,8 @@ class distributed_chandy_misra {
             ": EATING " << distgraph.global_vid(lvid)
             << "(" << (int)philosopherset[lvid].counter << ")" << std::endl;
   
-    ASSERT_EQ((int)philosopherset[lvid].state, (int)HORS_DOEUVRE);
-    ASSERT_EQ(philosopherset[lvid].lockid, lockid);
+//    ASSERT_EQ((int)philosopherset[lvid].state, (int)HORS_DOEUVRE);
+//    ASSERT_EQ(philosopherset[lvid].lockid, lockid);
     philosopherset[lvid].state = EATING;
     philosopherset[lvid].cancellation_sent = false;
     philosopherset[lvid].lock.unlock();
@@ -599,6 +606,7 @@ class distributed_chandy_misra {
         forkset[forkid] = OWNER_TARGET;
         philosopherset[source].forks_acquired--;
         philosopherset[target].forks_acquired++;
+        num_locally_active_requests.dec();
         return true;
       }
     }
@@ -612,6 +620,7 @@ class distributed_chandy_misra {
         forkset[forkid] = OWNER_SOURCE;
         philosopherset[source].forks_acquired++;
         philosopherset[target].forks_acquired--;
+        num_locally_active_requests.dec();
         return true;
       }
     }
@@ -627,7 +636,7 @@ class distributed_chandy_misra {
     philosopherset[p_id].lock.lock();
     if (philosopherset[p_id].state != EATING) {
       std::cout << rmi.procid() << ": " << p_id << "FAILED!! Cannot Stop Eating!" << std::endl;
-      ASSERT_EQ((int)philosopherset[p_id].state, (int)EATING);
+//      ASSERT_EQ((int)philosopherset[p_id].state, (int)EATING);
     }
     
     // now forks are dirty
@@ -723,6 +732,10 @@ class distributed_chandy_misra {
     rmi.barrier();
   }
 
+  size_t num_active_requests() const {
+    return num_locally_active_requests.value;
+  }
+
   inline const vertex_id_type invalid_vid() const {
     return (vertex_id_type)(-1);
   }
@@ -737,9 +750,9 @@ class distributed_chandy_misra {
   
   void make_philosopher_hungry(vertex_id_type p_id) {
     const vertex_record &rec = distgraph.l_get_vertex_record(p_id);
-    ASSERT_EQ(rec.get_owner(), rmi.procid());
+//    ASSERT_EQ(rec.get_owner(), rmi.procid());
     philosopherset[p_id].lock.lock();
-    ASSERT_EQ((int)philosopherset[p_id].state, (int)THINKING);
+//    ASSERT_EQ((int)philosopherset[p_id].state, (int)THINKING);
     bool newlockid = !philosopherset[p_id].lockid;
     initialize_master_philosopher_as_hungry_locked(p_id, newlockid);
     
@@ -761,7 +774,7 @@ class distributed_chandy_misra {
   void make_philosopher_hungry_per_replica(vertex_id_type p_id) {
     const vertex_record &rec = distgraph.l_get_vertex_record(p_id);
     philosopherset[p_id].lock.lock();
-    ASSERT_EQ((int)philosopherset[p_id].state, (int)THINKING);
+//    ASSERT_EQ((int)philosopherset[p_id].state, (int)THINKING);
 
     if (rec.get_owner() == rmi.procid()) {
       bool newlockid = !philosopherset[p_id].lockid;
@@ -783,14 +796,14 @@ class distributed_chandy_misra {
   
   void philosopher_stops_eating(vertex_id_type p_id) {
     const vertex_record &rec = distgraph.l_get_vertex_record(p_id);
-    ASSERT_EQ(rec.get_owner(), rmi.procid());
+//    ASSERT_EQ(rec.get_owner(), rmi.procid());
 
 
     logstream(LOG_DEBUG) << rmi.procid() <<
             ": Global STOP Eating " << distgraph.global_vid(p_id) << std::endl;
 
     philosopherset[p_id].lock.lock();
-    ASSERT_EQ(philosopherset[p_id].state, (int)EATING);
+//    ASSERT_EQ(philosopherset[p_id].state, (int)EATING);
     philosopherset[p_id].counter = 0;
     philosopherset[p_id].lock.unlock();
     unsigned char pkey = rmi.dc().set_sequentialization_key(rec.gvid % 254 + 1);
@@ -804,7 +817,7 @@ class distributed_chandy_misra {
     logstream(LOG_DEBUG) << rmi.procid() <<
             ": Global STOP Eating " << distgraph.global_vid(p_id) << std::endl;
 
-    ASSERT_EQ(philosopherset[p_id].state, (int)EATING);
+//    ASSERT_EQ(philosopherset[p_id].state, (int)EATING);
     
     local_philosopher_stops_eating(p_id);
   }
