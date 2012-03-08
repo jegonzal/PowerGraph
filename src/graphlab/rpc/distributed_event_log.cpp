@@ -13,13 +13,17 @@ static std::ofstream eventlog_file;
 static mutex eventlog_file_mutex;
 static bool eventlog_file_open = false;
 
-  
+static timer event_timer;
+static bool event_timer_started = false;
+static mutex event_timer_mutex;
+
 void dist_event_log::initialize(distributed_control& dc,
                            std::ostream &ostrm,
                            size_t flush_interval_ms,
                            event_print_type event_print) {
   rmi = new dc_dist_object<dist_event_log>(dc, this);
   rmi->barrier();
+
   m.lock();
   out = &ostrm;
   flush_interval = flush_interval_ms;
@@ -28,8 +32,15 @@ void dist_event_log::initialize(distributed_control& dc,
     flush_interval /= 10;
   }
   print_method = event_print;
-  prevtime = 0;
-  ti.start();
+  
+  event_timer_mutex.lock();
+  if (event_timer_started == false) {
+    event_timer_started = true;
+    event_timer.start();
+  }
+  event_timer_mutex.unlock();
+  prevtime = event_timer.current_time_millis();
+
   cond.signal();
   m.unlock();
   
@@ -164,7 +175,7 @@ static void print_triple_bar(std::ostream& out,
 void dist_event_log::print_log() {
   uint32_t pos;
   if (!hascounter.first_bit(pos)) return;
-  double curtime = ti.current_time_millis();
+  double curtime = event_timer.current_time_millis();
   double timegap = curtime - prevtime;
   prevtime = curtime;
 

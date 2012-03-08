@@ -11,6 +11,11 @@ static std::ofstream eventlog_file;
 static mutex eventlog_file_mutex;
 static bool eventlog_file_open = false;
 
+static timer event_timer;
+static bool event_timer_started = false;
+static mutex event_timer_mutex;
+
+
 void event_log::initialize(std::ostream &ostrm,
                            size_t flush_interval_ms,
                            event_print_type event_print) {
@@ -18,8 +23,15 @@ void event_log::initialize(std::ostream &ostrm,
   out = &ostrm;
   flush_interval = flush_interval_ms;
   print_method = event_print;
-  prevtime = 0;
-  ti.start();
+  
+  event_timer_mutex.lock();
+  if (event_timer_started == false) {
+    event_timer_started = true;
+    event_timer.start();
+  }
+  event_timer_mutex.unlock();
+  prevtime = event_timer.current_time_millis();
+  
   cond.signal(); 
   m.unlock();
   
@@ -79,7 +91,7 @@ void event_log::add_event_type(unsigned char eventid,
 void event_log::flush() {
   uint32_t pos;
   if (!hascounter.first_bit(pos)) return;
-  double curtime = ti.current_time_millis();
+  double curtime = event_timer.current_time_millis();
   double timegap = curtime - prevtime;
   prevtime = curtime;
 

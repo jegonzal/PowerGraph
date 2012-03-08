@@ -234,7 +234,7 @@ void distributed_control::process_fcall_block(fcallqueue_entry &fcallblock) {
     //parse the data in fcallblock.data
     char* data = fcallblock.chunk_src;
     size_t remaininglen = fcallblock.chunk_len;
-
+    PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, BYTES_EVENT, remaininglen);
     size_t stripe = 0;
     while(remaininglen > 0) {
       ASSERT_GE(remaininglen, sizeof(dc_impl::packet_hdr));
@@ -242,7 +242,6 @@ void distributed_control::process_fcall_block(fcallqueue_entry &fcallblock) {
       ASSERT_LE(hdr.len, remaininglen);
       
       if ((hdr.packet_type_mask & CONTROL_PACKET) == 0) {
-        PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, BYTES_EVENT, hdr.len);
         global_bytes_received[hdr.src].inc(hdr.len);
       }
       refctr->value++;

@@ -43,7 +43,6 @@ class dist_event_log{
   atomic<size_t> totalcounter[EVENT_MAX_COUNTERS];
   size_t maxproc_counter[EVENT_MAX_COUNTERS];  // maximum of per proc maximums
 
-  timer ti;
   double prevtime;  // last time flush() was called
   bool hasevents;   // whether there are logging events
   size_t noeventctr; // how many times flush() was called with no events
