@@ -153,7 +153,7 @@ void update_function_Axb(dummy_context &context){
   double val = 0;
   assert(mi.x_offset >=0 || mi.y_offset>=0);
   timer t; t.start();
-  
+ 
   /*** COMPUTE r = c*A*x  ********/
   if (mi.A_offset  && mi.x_offset >= 0){
    edge_list edges = rows?
@@ -161,10 +161,11 @@ void update_function_Axb(dummy_context &context){
 #ifdef USE_GRAPH2
    for (size_t i = 0; i < edges.size(); i++){
 #else
-   uint * start = edges.start_ptr + edges.abs_offset;
-   for (double * weight = (double*)edges.weights + edges.abs_offset; 
-        weight != (double*)edges.weights + edges.abs_offset + edges._size;
-        weight++){
+   double * weight = (((edges.weights == NULL) ? NULL : ((double*)edges.weights + edges.abs_offset)));
+   for (uint * start = edges.start_ptr + edges.abs_offset; start < edges.start_ptr + edges.abs_offset + edges._size; start++){
+//   for (double * weight = (double*)edges.weights + edges.abs_offset; 
+//        weight != (double*)edges.weights + edges.abs_offset + edges._size;
+//        weight++){
 #endif
 
 #ifdef USE_GRAPH2
@@ -173,8 +174,12 @@ void update_function_Axb(dummy_context &context){
       val += (edge.weight * movie.pvec[mi.x_offset]);
 #else
       const vertex_data& movie = context.const_vertex_data(*start);
-      val += (*weight * movie.pvec[mi.x_offset]); 
-      start++;
+      if (!no_edge_data)
+        val += (*weight * movie.pvec[mi.x_offset]); 
+      else val += movie.pvec[mi.x_offset];
+//      start++;
+
+      if (weight != NULL) weight++;
 #endif
     }
   
