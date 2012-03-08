@@ -126,7 +126,7 @@ namespace graphlab {
       
     }
     
-    static void dump_backtrace(){
+    static void dump_backtrace(int sig){
     
       void *array[10];
       size_t size;

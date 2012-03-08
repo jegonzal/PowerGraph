@@ -61,7 +61,7 @@ extern "C" {
   
     // configure log level (TODO: allow config)
     global_logger().set_log_level(LOG_DEBUG);
-    global_logger().set_log_to_console(true);
+    global_logger().set_log_to_console(false);
 
     // set jvm, if we don't have it already
     if (NULL == proxy_updater::core::get_jvm()){
