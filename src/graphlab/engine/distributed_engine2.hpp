@@ -792,9 +792,11 @@ namespace graphlab {
 
     void forward_cached_schedule(vertex_id_type lvid) {
       update_functor_type uf;
-      if (scheduler_ptr->get_specific(lvid, uf) == sched_status::NEW_TASK) {
-        const typename graph_type::vertex_record& rec = graph.l_get_vertex_record(lvid);
-        rmi.remote_call(rec.owner, &engine_type::schedule_from_remote, rec.gvid, uf);
+      const typename graph_type::vertex_record& rec = graph.l_get_vertex_record(lvid);
+      if (rec.owner != rmi.procid()) {
+        if (scheduler_ptr->get_specific(lvid, uf) == sched_status::NEW_TASK) {
+          rmi.remote_call(rec.owner, &engine_type::schedule_from_remote, rec.gvid, uf);
+        }
       }
     }
 
