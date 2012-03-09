@@ -296,7 +296,7 @@ namespace graphlab {
                               size_t ncpus) : 
       rmi(dc, this), graph(graph), threads(ncpus),
       vlocks(graph.num_local_vertices()), scheduler_ptr(NULL), 
-      consensus(dc, ncpus), max_pending_tasks(10000) {
+      consensus(dc, ncpus), max_pending_tasks((size_t)(-1)) {
       rmi.barrier();
       // TODO: Remove context creation.
       // Added context to force compilation.   
