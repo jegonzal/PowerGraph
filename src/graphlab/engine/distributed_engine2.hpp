@@ -195,7 +195,7 @@ namespace graphlab {
     
     size_t max_pending_edges;
     atomic<size_t> pending_edges;
-    float request_scale_limit;
+    size_t max_clean_forks;
     
     PERMANENT_DECLARE_DIST_EVENT_LOG(eventlog);
     DECLARE_TRACER(disteng_eval_sched_task);
@@ -270,16 +270,18 @@ namespace graphlab {
     enum {
       SCHEDULE_EVENT = 0,
       UPDATE_EVENT = 1,
-      WORK_EVENT = 2,
+      WORK_ISSUED_EVENT = 2,
       INTERNAL_TASK_EVENT = 3,
-      NO_WORK_EVENT = 4
+      NO_WORK_EVENT = 4,
+      SCHEDULE_FROM_REMOTE_EVENT = 5,
+      USER_OP_EVENT = 6
     };
     
   public:
     distributed_engine(distributed_control &dc, graph_type& graph, 
                        size_t ncpus) : 
       rmi(dc, this), graph(graph), scheduler_ptr(NULL), ncpus(ncpus),
-      max_pending_edges((size_t)(-1)),request_scale_limit(0) {
+      max_pending_edges((size_t)(-1)),max_clean_forks((size_t)(-1)) {
       rmi.barrier();
       // TODO: Remove context creation.
       // Added context to force compilation.   
@@ -295,9 +297,12 @@ namespace graphlab {
 
       PERMANENT_ADD_DIST_EVENT_TYPE(eventlog, SCHEDULE_EVENT, "Schedule");
       PERMANENT_ADD_DIST_EVENT_TYPE(eventlog, UPDATE_EVENT, "Updates");
-      PERMANENT_ADD_DIST_EVENT_TYPE(eventlog, WORK_EVENT, "Work");
+      PERMANENT_ADD_DIST_EVENT_TYPE(eventlog, WORK_ISSUED_EVENT, "Work Issued");
       PERMANENT_ADD_DIST_EVENT_TYPE(eventlog, INTERNAL_TASK_EVENT, "Internal");
       PERMANENT_ADD_DIST_EVENT_TYPE(eventlog, NO_WORK_EVENT, "No Work");
+      PERMANENT_ADD_DIST_EVENT_TYPE(eventlog, SCHEDULE_FROM_REMOTE_EVENT, "Remote Schedule");
+      PERMANENT_ADD_DIST_EVENT_TYPE(eventlog, USER_OP_EVENT, "User Ops");
+      
 
       INITIALIZE_TRACER(disteng_eval_sched_task, 
                         "distributed_engine: Evaluate Scheduled Task");
@@ -396,7 +401,7 @@ namespace graphlab {
         scheduler_ptr->schedule(local_vid, update_functor);
       }
       END_TRACEPOINT(disteng_scheduler_task_queue);
-      PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, SCHEDULE_EVENT, 1);
+      PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, SCHEDULE_FROM_REMOTE_EVENT, 1);
       consensus->cancel();
     }
     
@@ -529,8 +534,18 @@ namespace graphlab {
       if(opts.engine_args.get_option("max_pending_edges", max_pending_edges)) {
         std::cout << "Max Pending Tasks: " << max_pending_edges << std::endl;
       }
-      if(opts.engine_args.get_option("request_scale_limit", request_scale_limit)) {
-        std::cout << "Request Scale Limit: " << request_scale_limit << std::endl;
+      if(opts.engine_args.get_option("max_clean_forks", max_clean_forks)) {
+        std::cout << "Max Clean Forks: " << max_clean_forks << std::endl;
+      }
+      
+      float fraction = 0;
+      if(opts.engine_args.get_option("max_pending_fraction", fraction)) {
+        max_pending_edges = fraction * graph.num_local_edges();
+        std::cout << "Max Pending Tasks: " << max_pending_edges << std::endl;
+      }
+      if(opts.engine_args.get_option("max_clean_fraction", fraction)) {
+        max_clean_forks = fraction * graph.num_local_edges();
+        std::cout << "Max Clean Forks: " << max_clean_forks << std::endl;
       }
     } 
 
@@ -568,7 +583,7 @@ namespace graphlab {
       END_TRACEPOINT(disteng_internal_task_queue);
       
       if( pending_edges.value > max_pending_edges ) { return; }
-      if (request_scale_limit * cmlocks->num_active_requests() >= vstate.size()) {
+      if (cmlocks->num_clean_forks() >= max_clean_forks) {
           return;
         }
  
@@ -609,6 +624,7 @@ namespace graphlab {
     
 
     void do_apply(lvid_type lvid) { 
+      PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, USER_OP_EVENT, 1);
       BEGIN_TRACEPOINT(disteng_evalfac);
       const vertex_id_type vid = graph.global_vid(lvid);
       logstream(LOG_DEBUG) << rmi.procid() << ": Apply On " << vid << std::endl;   
@@ -633,11 +649,13 @@ namespace graphlab {
       if(ufun.gather_edges() == graphlab::IN_EDGES || 
          ufun.gather_edges() == graphlab::ALL_EDGES) {
         const local_edge_list_type edges = graph.l_in_edges(lvid);
+        PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, USER_OP_EVENT, edges.size());
         foreach(const edge_type& edge, edges) ufun.gather(context, edge);
       }
       if(ufun.gather_edges() == graphlab::OUT_EDGES ||
          ufun.gather_edges() == graphlab::ALL_EDGES) {
         const local_edge_list_type edges = graph.l_out_edges(lvid);
+        PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, USER_OP_EVENT, edges.size());
         foreach(const edge_type& edge, edges) ufun.gather(context, edge);
       }
       END_TRACEPOINT(disteng_evalfac);
@@ -651,11 +669,13 @@ namespace graphlab {
       if(ufun.scatter_edges() == graphlab::IN_EDGES || 
          ufun.scatter_edges() == graphlab::ALL_EDGES) {
         const local_edge_list_type edges = graph.l_in_edges(lvid);
+        PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, USER_OP_EVENT, edges.size());
         foreach(const edge_type& edge, edges) ufun.scatter(context, edge);
       }
       if(ufun.scatter_edges() == graphlab::OUT_EDGES ||
          ufun.scatter_edges() == graphlab::ALL_EDGES) {
         const local_edge_list_type edges = graph.l_out_edges(lvid);
+        PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, USER_OP_EVENT, edges.size());
         foreach(const edge_type& edge, edges) ufun.scatter(context, edge);
       }
       END_TRACEPOINT(disteng_evalfac);
@@ -942,7 +962,7 @@ namespace graphlab {
       }
       if (vstate[sched_lvid].state == NONE) {
         PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, UPDATE_EVENT, 1);
-        PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, WORK_EVENT, rec.num_in_edges + rec.num_out_edges);
+        PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, WORK_ISSUED_EVENT, rec.num_in_edges + rec.num_out_edges);
 
         // we start gather right here.
         // set up the state
@@ -984,12 +1004,12 @@ namespace graphlab {
       std::deque<vertex_id_type> internal_lvid;
       vertex_id_type sched_lvid;
       update_functor_type task;
-//      size_t ctr = 0; 
+      size_t ctr = 0; 
       while(1) {
-/*        ++ctr;
-        if (ctr % 100000 == 0) {
-          std::cout << cmlocks->num_active_requests() << "/" << vstate.size() << "\n";
-        }*/
+        ++ctr;
+        if (max_clean_forks != (size_t)(-1) && ctr % 10000 == 0) {
+          std::cout << cmlocks->num_clean_forks() << "/" << max_clean_forks << "\n";
+        }
        get_a_task(threadid, 
                    has_internal_task, internal_lvid,
                    has_sched_task, sched_lvid, task);
