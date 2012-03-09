@@ -532,7 +532,7 @@ namespace graphlab {
     void set_options(const graphlab_options& new_opts) {
       opts = new_opts;
       if(opts.engine_args.get_option("max_pending_edges", max_pending_edges)) {
-        std::cout << "Max Pending Tasks: " << max_pending_edges << std::endl;
+        std::cout << "Max Pending Edges: " << max_pending_edges << std::endl;
       }
       if(opts.engine_args.get_option("max_clean_forks", max_clean_forks)) {
         std::cout << "Max Clean Forks: " << max_clean_forks << std::endl;
@@ -541,7 +541,7 @@ namespace graphlab {
       float fraction = 0;
       if(opts.engine_args.get_option("max_pending_fraction", fraction)) {
         max_pending_edges = fraction * graph.num_local_edges();
-        std::cout << "Max Pending Tasks: " << max_pending_edges << std::endl;
+        std::cout << "Max Pending Edges: " << max_pending_edges << std::endl;
       }
       if(opts.engine_args.get_option("max_clean_fraction", fraction)) {
         max_clean_forks = fraction * graph.num_local_edges();
@@ -1004,12 +1004,12 @@ namespace graphlab {
       std::deque<vertex_id_type> internal_lvid;
       vertex_id_type sched_lvid;
       update_functor_type task;
-      size_t ctr = 0; 
+//      size_t ctr = 0; 
       while(1) {
-        ++ctr;
+/*        ++ctr;
         if (max_clean_forks != (size_t)(-1) && ctr % 10000 == 0) {
           std::cout << cmlocks->num_clean_forks() << "/" << max_clean_forks << "\n";
-        }
+        }*/
        get_a_task(threadid, 
                    has_internal_task, internal_lvid,
                    has_sched_task, sched_lvid, task);
