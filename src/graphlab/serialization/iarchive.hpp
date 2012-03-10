@@ -107,9 +107,9 @@ namespace graphlab {
 
     /// constructor. Takes a generic std::istream object
     inline iarchive(const char* buf, size_t buflen)
-          :directbuffer(true),
-           buf(buf), buflen(buflen), bufread(0), buffail(false),
-           i(NULL) { }
+      :directbuffer(true),
+       buf(buf), buflen(buflen), bufread(0), buffail(false),
+       i(NULL) { }
 
     ~iarchive() {}
   };
@@ -188,9 +188,9 @@ namespace graphlab {
 
     /// constructor. Takes a generic std::istream object
     inline iarchive_soft_fail(const char* buf, size_t buflen)
-          :directbuffer(true),
-           buf(buf), buflen(buflen), bufread(0), buffail(false),
-           i(NULL) { }
+      :directbuffer(true),
+       buf(buf), buflen(buflen), bufread(0), buffail(false),
+       i(NULL) { }
 
 
     inline iarchive_soft_fail(iarchive &iarc)
@@ -285,7 +285,8 @@ namespace graphlab {
   /**
      deserializes an arbitrary pointer + length from an archive 
   */
-  inline iarchive_soft_fail& deserialize(iarchive_soft_fail& a, void* const i,const size_t length) {
+  inline iarchive_soft_fail& deserialize(iarchive_soft_fail& a, 
+                                         void* const i,const size_t length) {
     // Save the length and check if lengths match
     size_t length2;
     operator>>(a, length2);
@@ -309,7 +310,8 @@ namespace graphlab {
   */
 #define BEGIN_OUT_OF_PLACE_LOAD(arc, tname, tval)                       \
   namespace graphlab{ namespace archive_detail {                        \
-  template <typename ArcType> struct deserialize_impl<ArcType, tname, false>{ \
+  template <typename ArcType>                                           \
+  struct deserialize_impl<ArcType, tname, false>{                       \
   static void exec(ArcType& arc, tname & tval) {             
 
 #define END_OUT_OF_PLACE_LOAD() } }; } }

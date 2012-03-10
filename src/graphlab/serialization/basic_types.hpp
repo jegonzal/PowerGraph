@@ -40,12 +40,14 @@
 
 
 #define INT_SERIALIZE(tname)                                            \
-  template <typename ArcType> struct serialize_impl<ArcType, tname, false>{ \
+  template <typename ArcType>                                           \
+  struct serialize_impl<ArcType, tname, false>{                         \
     static void exec(ArcType &a, const tname &i_) {                     \
-      a.o->write(reinterpret_cast<const char*>(&i_), sizeof(tname));                                    \
+      a.o->write(reinterpret_cast<const char*>(&i_), sizeof(tname));    \
     }                                                                   \
   };                                                                    \
-  template <typename ArcType> struct deserialize_impl<ArcType, tname, false>{ \
+  template <typename ArcType>                                           \
+  struct deserialize_impl<ArcType, tname, false>{                       \
     static void exec(ArcType &a, tname &t_) {                           \
       decompress_int<ArcType, tname>(a, t_);                            \
     }                                                                   \
