@@ -79,7 +79,9 @@ FILE * open_file(const char * name, const char * mode, bool optional = false){
   return f;
 }
 
-
+FILE * open_file(const std::string name, const char * mode, bool optional = false){
+   return open_file(name.c_str(), mode, optional);
+}
 /*
  * list all existing files inside a specificed directory
  */
