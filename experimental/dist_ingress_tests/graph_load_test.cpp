@@ -2,7 +2,7 @@
 #include <graphlab/util/mpi_tools.hpp>
 #include <graphlab/rpc/dc.hpp>
 #include <graphlab/rpc/dc_init_from_mpi.hpp>
-#include <graphlab/../../toolkits/shared/io.hpp>
+
 
 #define DEBUG_GRAPH
 
