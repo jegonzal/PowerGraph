@@ -53,7 +53,7 @@ struct vertex_data {
   //constructor
   vertex_data() : 
     residual(std::numeric_limits<float>::max()), 
-    nupdates(0) { latent.resize(NLATENT); latent.setZero(); }
+    nupdates(0) { latent.resize(NLATENT); latent.setRandom(); }
   void save(graphlab::oarchive& arc) const { 
     arc << residual << nupdates << latent;        
   }
@@ -156,6 +156,8 @@ public:
     // Compute the prediction on the edge
     const double pred = vdata.latent.dot(neighbor.latent);
     const double error = std::fabs(edata.rating - pred);
+    // std::cout << edata.rating << '\t' << pred 
+    //           << '\t' << vdata.residual << std::endl;
     // Reschedule neighbors ------------------------------------------------
     if( error > TOLERANCE && vdata.residual > TOLERANCE) 
       context.schedule(neighbor_id, als_update(error * vdata.residual));
