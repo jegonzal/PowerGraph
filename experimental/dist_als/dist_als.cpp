@@ -118,6 +118,12 @@ public:
     }
   } // end of gather
 
+  // Merge two updates
+  void merge(const als_update& other) {
+    error += other.error; XtX += other.XtX; Xty += other.Xty;
+  } // end of merge
+
+
   // Update the center vertex
   void apply(icontext_type& context) {
     // Get and reset the vertex data
@@ -136,7 +142,7 @@ public:
     vdata.latent = XtX.ldlt().solve(Xty);
     // Compute the residual change in the latent factor -----------------------
     vdata.residual = 0;
-    for(int i = 0; i < int(NLATENT); ++i)
+    for(int i = 0; i < XtX.rows(); ++i)
       vdata.residual += std::fabs(old_latent(i) - vdata.latent(i));
     vdata.residual /= XtX.rows();
   } // end of apply
@@ -180,12 +186,6 @@ int main(int argc, char** argv) {
   //global_logger().set_log_level(LOG_DEBUG);
   //global_logger().set_log_to_console(true);
 
-  ///! Initialize control plain using mpi
-  graphlab::mpi_tools::init(argc, argv);
-  graphlab::dc_init_param rpc_parameters;
-  graphlab::init_param_from_mpi(rpc_parameters);
-  graphlab::distributed_control dc(rpc_parameters);
-  
   // Parse command line options -----------------------------------------------
   const std::string description = 
     "Compute the ALS factorization of a matrix.";
@@ -218,6 +218,13 @@ int main(int argc, char** argv) {
     std::cout << "Error in parsing command line arguments." << std::endl;
     return EXIT_FAILURE;
   }
+
+  ///! Initialize control plain using mpi
+  graphlab::mpi_tools::init(argc, argv);
+  graphlab::dc_init_param rpc_parameters;
+  graphlab::init_param_from_mpi(rpc_parameters);
+  graphlab::distributed_control dc(rpc_parameters);
+  
 
 
   std::cout << dc.procid() << ": Loading graph." << std::endl;
@@ -375,7 +382,8 @@ void load_graph_stream(graph_type& graph, Stream& fin) {
     float value = 0;
     fin >> source >> target >> value; 
     if(!fin.good()) break;
-    graph.add_edge(source, target, edge_data(value));
+    if(source != target)
+      graph.add_edge(source, target, edge_data(value));
   } // end of loop over file
 } // end of load graph from stream;
 
