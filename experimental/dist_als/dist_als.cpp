@@ -23,7 +23,14 @@
 
 #include <Eigen/Dense>
 
-#include <graphlab.hpp>
+#include <distributed_graphlab.hpp>
+#include <graphlab/util/stl_util.hpp>
+
+
+
+
+
+
 #include <graphlab/macros_def.hpp>
 
 /**
@@ -33,15 +40,15 @@ double TOLERANCE = 1e-2;
 size_t NLATENT = 20;
 double LAMBDA = 0.065;
 
-void save(graphlab::oarchive& arc, const Eigen::VectorXd& vec);
-void load(graphlab::iarchive& arc, Eigen::VectorXd& vec);
-void save(graphlab::oarchive& arc, const Eigen::MatrixXd& mat);
-void load(graphlab::iarchive& arc, Eigen::MatrixXd& mat);
+graphlab::oarchive& operator<<(graphlab::oarchive& arc, const Eigen::VectorXd& vec);
+graphlab::iarchive& operator>>(graphlab::iarchive& arc, Eigen::VectorXd& vec);
+graphlab::oarchive& operator<<(graphlab::oarchive& arc, const Eigen::MatrixXd& mat);
+graphlab::iarchive& operator>>(graphlab::iarchive& arc, Eigen::MatrixXd& mat);
 
 /** Vertex and edge data types **/
 struct vertex_data {
-  uint32_t nupdates; //! the number of times the vertex was updated
   float residual; 
+  uint32_t nupdates; //! the number of times the vertex was updated
   Eigen::VectorXd latent; //! vector of learned values 
   //constructor
   vertex_data() : 
@@ -59,7 +66,7 @@ struct vertex_data {
  * The edge data is just an observation float
  */
 struct edge_data : public graphlab::IS_POD_TYPE {
-  bool is_test; float rating;
+  float rating; bool is_test; 
   edge_data(const float& rating = 0, const bool& is_test = false) : 
     rating(rating), is_test(is_test) { }
 }; // end of edge data
@@ -125,11 +132,11 @@ public:
     // Add regularization
     for(int i = 0; i < XtX.rows(); ++i) XtX(i,i) += (LAMBDA)*nneighbors;
     // Solve the least squares problem using eigen ----------------------------
-    const vec old_latent = vdata.latent;
+    const Eigen::VectorXd old_latent = vdata.latent;
     vdata.latent = XtX.ldlt().solve(Xty);
     // Compute the residual change in the latent factor -----------------------
     vdata.residual = 0;
-    for(int i = 0; i < NLATENT; ++i)
+    for(int i = 0; i < int(NLATENT); ++i)
       vdata.residual += std::fabs(old_latent(i) - vdata.latent(i));
     vdata.residual /= XtX.rows();
   } // end of apply
@@ -161,7 +168,8 @@ typedef graphlab::distributed_engine<graph_type, als_update> engine_type;
 
 
 //! Graph loading code 
-void load_graph_dir(graph_type& graph, const std::string& matrix_dir);
+void load_graph_dir(graph_type& graph, const std::string& matrix_dir,
+                    const size_t procid, const size_t numprocs);
 void load_graph_file(graph_type& graph, const std::string& fname);
 
 
@@ -215,7 +223,7 @@ int main(int argc, char** argv) {
   std::cout << dc.procid() << ": Loading graph." << std::endl;
   graphlab::timer timer; timer.start();
   graph_type graph(dc, clopts);
-  load_graph_dir(graph, matrix_dir);
+  load_graph_dir(graph, matrix_dir, dc.procid(), dc.numprocs());
   std::cout << dc.procid() << ": Finalizing graph." << std::endl;
   graph.finalize();
   std::cout << dc.procid() << ": Finished in " << timer.current_time() << std::endl;
@@ -320,43 +328,41 @@ int main(int argc, char** argv) {
 
 
 
-void save(graphlab::oarchive& arc, const Eigen::VectorXd& vec) {
+graphlab::oarchive& operator<<(graphlab::oarchive& arc, const Eigen::VectorXd& vec) {
   typedef Eigen::VectorXd::Index index_type;
   const index_type size = vec.size();
   arc << size;
-  graphlab::archive_detail::serialize(arc, vec.data(), 
-                                      size * sizeof(double));
+  graphlab::serialize(arc, vec.data(), size * sizeof(double));
+  return arc;
 } // end of save vector
 
-
-void load(graphlab::iarchive& arc, Eigen::VectorXd& vec) {
+graphlab::iarchive& operator>>(graphlab::iarchive& arc, Eigen::VectorXd& vec) {
   typedef Eigen::VectorXd::Index index_type;
   index_type size = 0;
   arc >> size;
   vec.resize(size);
-  graphlab::archive_detail::deserialize(arc, vec.data(), 
-                                        size * sizeof(double));
+  graphlab::deserialize(arc, vec.data(), size * sizeof(double));
+  return arc;
 } // end of save vector
 
 
-void save(graphlab::oarchive& arc, const Eigen::MatrixXd& mat) {
+graphlab::oarchive& operator<<(graphlab::oarchive& arc, const Eigen::MatrixXd& mat) {
   typedef Eigen::MatrixXd::Index index_type;
   const index_type rows = mat.rows();
   const index_type cols = mat.cols();
   arc << rows << cols;
-  graphlab::archive_detail::serialize(arc, mat.data(), 
-                                      rows*cols*sizeof(double));
+  graphlab::serialize(arc, mat.data(), rows*cols*sizeof(double));
+  return arc;
 } // end of save vector
 
-
-void load(graphlab::iarchive& arc,  Eigen::MatrixXd& mat) {
+graphlab::iarchive& operator>>(graphlab::iarchive& arc,  Eigen::MatrixXd& mat) {
   typedef Eigen::MatrixXd::Index index_type; 
   typedef Eigen::MatrixXd::Scalar scalar_type;
   index_type rows=0, cols=0;
   arc >> rows >> cols;
   mat.resize(rows,cols);
-  graphlab::archive_detail::deserialize(arc, mat.data(), 
-                                        rows*cols*sizeof(scalar_type));
+  graphlab::deserialize(arc, mat.data(), rows*cols*sizeof(scalar_type));
+  return arc;
 } // end of save vector
 
 
@@ -367,10 +373,7 @@ void load_graph_stream(graph_type& graph, Stream& fin) {
     // Load a vertex
     graph_type::vertex_id_type source = 0, target = 0;
     float value = 0;
-    try { fin >> source >> target >> value; } catch ( ... ) { 
-      logstream(LOG_WARNING) 
-        << "Error reading source." << std::endl; return false;
-    }
+    fin >> source >> target >> value; 
     if(!fin.good()) break;
     graph.add_edge(source, target, edge_data(value));
   } // end of loop over file
@@ -389,11 +392,10 @@ void load_graph_file(graph_type& graph, const std::string& fname) {
     if(!fin.good()) {
       logstream(LOG_FATAL) << "Error opening file:" << fname << std::endl;
     }
-    load_graph_from_stream(graph, fin);
+    load_graph_stream(graph, fin);
     if (gzip) fin.pop();
     fin.pop();
     in_file.close();
-    return success;
   } else {
     std::ifstream in_file(fname.c_str(), 
                           std::ios_base::in | std::ios_base::binary);
@@ -403,7 +405,7 @@ void load_graph_file(graph_type& graph, const std::string& fname) {
     if(!fin.good()) {
       logstream(LOG_FATAL) << "Error opening file:" << fname << std::endl;
     }
-    const bool success = load_structure_from_stream(fin, format, graph);
+    load_graph_stream(graph, fin);
     if (gzip) fin.pop();
     fin.pop();
     in_file.close();
@@ -411,7 +413,8 @@ void load_graph_file(graph_type& graph, const std::string& fname) {
 } // end of load graph from file
 
 
-void load_graph_dir(graph_type& graph, const std::string& matrix_dir) {
+void load_graph_dir(graph_type& graph, const std::string& matrix_dir,
+                    const size_t procid, const size_t numprocs) {
   std::vector<std::string> graph_files;
   if(boost::starts_with(matrix_dir, "hdfs://")) {
     graphlab::hdfs hdfs;
@@ -424,11 +427,10 @@ void load_graph_dir(graph_type& graph, const std::string& matrix_dir) {
   std::sort(graph_files.begin(), graph_files.end());
   
   for(size_t i = 0; i < graph_files.size(); ++i) {
-    if (i % dc.numprocs() == dc.procid()) {
+    if (i % numprocs == procid) {
       std::cout << "Loading graph from structure file: " 
                 << graph_files[i] << std::endl;
-      load_graph_from_file(graph, fname);
-      ASSERT_TRUE(success);
+      load_graph_file(graph, graph_files[i]);
     }
   }
 } // end of load graph from directory

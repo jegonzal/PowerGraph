@@ -244,6 +244,8 @@ namespace graphlab {
 
   } //namespace archive_detail
 
+
+
   /**
      Allows Use of the "stream" syntax for serialization 
   */
@@ -308,10 +310,10 @@ namespace graphlab {
      \note important! this must be defined in the global namespace!
      See unsupported_serialize for an example
   */
-#define BEGIN_OUT_OF_PLACE_LOAD(arc, tname, tval)                       \
-  namespace graphlab{ namespace archive_detail {                        \
-  template <typename ArcType>                                           \
-  struct deserialize_impl<ArcType, tname, false>{                       \
+#define BEGIN_OUT_OF_PLACE_LOAD(arc, tname, tval)       \
+  namespace graphlab{ namespace archive_detail {        \
+  template <typename ArcType>                           \
+  struct deserialize_impl<ArcType, tname, false>{       \
   static void exec(ArcType& arc, tname & tval) {             
 
 #define END_OUT_OF_PLACE_LOAD() } }; } }

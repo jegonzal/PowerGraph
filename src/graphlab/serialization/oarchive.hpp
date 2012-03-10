@@ -53,7 +53,7 @@ namespace graphlab {
     inline ~oarchive() { }
   };
 
-/**
+  /**
    * An alternate output archive object. 
    * When this object is used to serialize an object,
    * and the object does not support serialization,
