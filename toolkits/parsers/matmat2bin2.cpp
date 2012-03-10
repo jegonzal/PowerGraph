@@ -46,6 +46,7 @@ graphlab::timer mytime;
 unsigned long long total_lines = 0;
 unsigned long long self_edges = 0;
 bool reverse_graph = false;
+bool gzip = false;
 
 struct vertex_data {
   string filename;
@@ -73,7 +74,8 @@ struct stringzipparser_update :
     std::ifstream in_file((dir + vdata.filename).c_str(), std::ios::binary);
     logstream(LOG_INFO)<<"Opening input file: " << dir << vdata.filename << std::endl;
     boost::iostreams::filtering_stream<boost::iostreams::input> fin;
-    fin.push(boost::iostreams::gzip_decompressor());
+    if (gzip)
+      fin.push(boost::iostreams::gzip_decompressor());
     fin.push(in_file);  
 
     bipartite_graph_descriptor info;
@@ -87,56 +89,68 @@ struct stringzipparser_update :
 
     int deg_ptr = 0;
     fwrite(& deg_ptr, sizeof(int), 1, deg_file);
-    
+    int num_degree_written = 1;  
+  
     int last_row = 0, last_col = 0;
     char linebuf[256], buf1[256], buf2[256], buf3[256];
     char saveptr[1024];
     int line = 1;
     size_t edges_so_far = 0;
     int lines = context.get_global<int>("LINES");
-   
+    bool header = true;
+ 
     while(true){
       fin.getline(linebuf, 128);
       if (fin.eof())
         break;
-
-      char *pch = strtok_r(linebuf," \r\n\t",(char**)&saveptr);
+      if (linebuf[0] == '%'){ //skip matrix market header
+         continue;
+      }
+      else if (header){ //skip matrix market size
+          header = false;
+          continue;
+      }
+      char *pch = strtok_r(linebuf," \r\n\t,",(char**)&saveptr);
       if (!pch){
-        logstream(LOG_ERROR) << "Error when parsing file: " << vdata.filename << ":" << line <<std::endl;
+        logstream(LOG_ERROR) << "Error when parsing file: " << vdata.filename << ":" << line <<std::endl << " line is: " << linebuf << std::endl;
         return;
        }
       strncpy(buf1, pch, 20);
-      pch = strtok_r(NULL, " \r\n\t;",(char**)&saveptr);
+      pch = strtok_r(NULL, " \r\n\t;,",(char**)&saveptr);
       if (!pch){
         logstream(LOG_ERROR) << "Error when parsing file: " << vdata.filename << ":" << line <<std::endl;
          return;
        }
        strncpy(buf2, pch, 20);
-        pch = strtok_r(NULL, " ",(char**)&saveptr);
+        pch = strtok_r(NULL, "\r\n\t ;,",(char**)&saveptr);
       if (!pch){
         logstream(LOG_ERROR) << "Error when parsing file: " << vdata.filename << ":" << line <<std::endl;
          return;
        }
 
-         strncpy(buf3, pch, 40);
-        buf3[6] = ' ';
-        pch = strtok_r(NULL, " ",(char**)&saveptr);
-      if (!pch){
-        logstream(LOG_ERROR) << "Error when parsing file: " << vdata.filename << ":" << line <<std::endl;
-         return;
-       }
+       strncpy(buf3, pch, 40);
+        
         uint from, to;
         double val;
         from = atoi(buf1);
-        assert(from > (uint)last_row);
         to = atoi(buf2);
+        assert(to > (uint)last_col);
         val = atof(buf3);
-        edges_so_far++;
+        //matrix market size line- skip
+        if (from == (uint)info.rows && to == (uint)info.cols && (size_t)val == info.nonzeros)
+           continue;
+
+        assert(from >= 1 && from <= (uint)info.rows);
+        assert(to >=1 && to <= (uint)info.cols);
+  	from--; to--;
+
+         edges_so_far++;
         fwrite(&val, sizeof(double), 1, weight_file);
-        fwrite(&to, sizeof(int), 1, edge_file);
-        if (from > (uint)last_row){
-           for (uint k=last_row; k < from; k++){
+        fwrite(&from, sizeof(int), 1, edge_file);
+        if (to > (uint)last_col){
+           for (uint k=last_col; k < to; k++){
              fwrite(&edges_so_far, sizeof(int), 1, deg_file);
+             num_degree_written++;
            }
         }
         if (debug && line <= 10)
@@ -145,7 +159,7 @@ struct stringzipparser_update :
       line++;
       total_lines++;
 
-      last_row = from; last_col = to;
+      last_col = from; last_col = to;
       if (lines && line>=lines)
 	 break;
 
@@ -154,10 +168,16 @@ struct stringzipparser_update :
     } 
 
    logstream(LOG_INFO) <<"Finished parsing total of " << line << " lines in file " << vdata.filename << endl;
-   for (int k=last_row; k < info.rows; k++){
+   for (int k=last_col; k < info.cols; k++){
      fwrite(&edges_so_far, sizeof(int), 1, deg_file);
    }
-    
+   
+    fwrite(&edges_so_far, sizeof(int), 1, deg_file);
+    num_degree_written++;
+    if (!reverse_graph)
+    assert(num_degree_written == info.cols+1); 
+    else
+    assert(num_degree_written == info.rows+1);
     assert((size_t)edges_so_far == info.nonzeros);
     
     fclose(deg_file);
@@ -165,7 +185,7 @@ struct stringzipparser_update :
     fclose(edge_file);
 
     // close file
-    fin.pop(); fin.pop();
+    fin.pop(); if (gzip) fin.pop();
     //fout.pop(); fout.pop();
     in_file.close();
     //out_file.close();
@@ -210,6 +230,7 @@ int main(int argc,  char *argv[]) {
                        "save output map in text file");
   clopts.attach_option("filter", &filter, filter, "Filter input files starting with prefix.. ");
   clopts.attach_option("reverse_graph", &reverse_graph, reverse_graph, "reverse_graph file? ");
+  clopts.attach_option("gzip", &gzip, gzip, "gzipped input file");
 
   // Parse the command line arguments
   if(!clopts.parse(argc, argv)) {
