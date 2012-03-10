@@ -112,8 +112,8 @@ inline mat init_mat(const char * string, int row, int col){
   char *pch = strtok(buf," \r\n\t;");
   for (int i=0; i< row; i++){
     for (int j=0; j< col; j++){
-     out(i,j) = atof(pch);
-     pch = strtok (NULL, " \r\n\t;");
+      out(i,j) = atof(pch);
+      pch = strtok (NULL, " \r\n\t;");
     }
   }
   return out;
@@ -125,8 +125,8 @@ inline imat init_imat(const char * string, int row, int col){
   char *pch = strtok(buf," \r\n\t;");
   for (int i=0; i< row; i++){
     for (int j=0; j< col; j++){
-     out(i,j) = atol(pch);
-     pch = strtok (NULL, " \r\n\t;");
+      out(i,j) = atol(pch);
+      pch = strtok (NULL, " \r\n\t;");
     }
   }
   return out;
@@ -138,11 +138,11 @@ inline vec init_vec(const char * string, int size){
   char *pch = strtok (buf," \r\n\t;");
   int i=0;
   while (pch != NULL)
-  {
-     out(i) =atof(pch);
-     pch = strtok (NULL, " \r\n\t;");
-     i++;
-  }
+    {
+      out(i) =atof(pch);
+      pch = strtok (NULL, " \r\n\t;");
+      i++;
+    }
   assert(i == size);
   return out;
 }
@@ -157,22 +157,22 @@ inline mat zeros(int rows, int cols){
   return mat::Zero(rows, cols);
 }
 inline vec head(const vec& v, int num){
-   return v.head(num);
+  return v.head(num);
 }
 inline vec mid(const vec&v, int start, int num){
-   return v.segment(start, std::min(num, (int)(v.size()-start)));
+  return v.segment(start, std::min(num, (int)(v.size()-start)));
 }
 inline vec tail(const vec&v,  int num){
-   return v.segment(v.size() - num, num);
+  return v.segment(v.size() - num, num);
 }
 inline ivec head(const ivec& v, int num){
-   return v.head(num);
+  return v.head(num);
 }
 inline void sort(ivec &a){
-   std::sort(a.data(), a.data()+a.size());
+  std::sort(a.data(), a.data()+a.size());
 }
 inline void sort(vec & a){
-   std::sort(a.data(), a.data()+a.size());
+  std::sort(a.data(), a.data()+a.size());
 }
 inline ivec sort_index(const vec&a){
   ivec ret(a.size()); 
@@ -183,92 +183,92 @@ inline ivec sort_index(const vec&a){
     D.push_back(std::make_pair<double,int>(a.coeff(i),i));
   std::sort(D.begin(),D.end());
   for (int i=0;i<a.size();i++)
-  { 
-    ret[i]=D[i].second;
-  } 
+    { 
+      ret[i]=D[i].second;
+    } 
   return ret;
 }
 inline void dot2(const vec&  x1, const vec& x3, mat & Q, int j, int len){
-	for (int i=0; i< len; i++){
-		Q(i,j) = (x1(i) * x3(i));
-	}
+  for (int i=0; i< len; i++){
+    Q(i,j) = (x1(i) * x3(i));
+  }
 }
 
 inline bool ls_solve_chol(const mat &A, const vec &b, vec &result){
-    //result = A.jacobiSvd(ComputeThinU | ComputeThinV).solve(b);
-    result = A.ldlt().solve(b);
-    return true;
+  //result = A.jacobiSvd(ComputeThinU | ComputeThinV).solve(b);
+  result = A.ldlt().solve(b);
+  return true;
 }
 inline bool ls_solve(const mat &A, const vec &b, vec &result){
-    //result = A.jacobiSvd(ComputeThinU | ComputeThinV).solve(b);
-    result = A.ldlt().solve(b);
-    return true;
+  //result = A.jacobiSvd(ComputeThinU | ComputeThinV).solve(b);
+  result = A.ldlt().solve(b);
+  return true;
 }
 inline bool chol(mat& sigma, mat& out){
-   out = sigma.llt().matrixLLT();
-   return true;
+  out = sigma.llt().matrixLLT();
+  return true;
 }
 inline bool backslash(const mat& A, const vec & b, vec & x){
-   x = A.jacobiSvd(ComputeThinU | ComputeThinV).solve(b);
-   return true;
+  x = A.jacobiSvd(ComputeThinU | ComputeThinV).solve(b);
+  return true;
 } 
 inline mat transpose(mat & A){
-   return A.transpose();
+  return A.transpose();
 }
 inline mat randn(int dx, int dy){
   return randn1(dx,dy,-1);
 }
 inline void set_diag(mat &A, vec & v){
-   A.diagonal()=v;
+  A.diagonal()=v;
 }
 inline mat diag(vec & v){
-   return v.asDiagonal();
+  return v.asDiagonal();
 }
 
 template<typename mat>
 inline double sumsum(const mat & A){
-   return A.sum();
+  return A.sum();
 }
 inline double norm(const mat &A, int pow=2){
-     return A.squaredNorm();
+  return A.squaredNorm();
 }
 inline mat inv(const mat&A){
-   return A.inverse();
+  return A.inverse();
 }
 inline bool inv(const mat&A, mat &out){
-   out = A.inverse();
-   return true;
+  out = A.inverse();
+  return true;
 }
 inline mat outer_product(const vec&a, const vec&b){
-   return a*b.transpose();
+  return a*b.transpose();
 }
 //Eigen does not sort eigenvalues, as done in matlab
 inline bool eig_sym(const mat & T, vec & eigenvalues, mat & eigenvectors){
-   //
-   //Column  of the returned matrix is an eigenvector corresponding to eigenvalue number  as returned by eigenvalues(). The eigenvectors are normalized to have (Euclidean) norm equal to one.
-   SelfAdjointEigenSolver<mat> solver(T);
-   eigenvectors = solver.eigenvectors();
-   eigenvalues = solver.eigenvalues(); 
-   ivec index = sort_index(eigenvalues);
-   sort(eigenvalues);
-   vec eigenvalues2 = eigenvalues.reverse();
-   mat T2 = zeros(eigenvectors.rows(), eigenvectors.cols());
-   for (int i=0; i< eigenvectors.cols(); i++){
-      set_col(T2, index[i], get_col(eigenvectors, i));
-   }   
-   eigenvectors = T2;
-   eigenvalues = eigenvalues2;
-   return true;
+  //
+  //Column  of the returned matrix is an eigenvector corresponding to eigenvalue number  as returned by eigenvalues(). The eigenvectors are normalized to have (Euclidean) norm equal to one.
+  SelfAdjointEigenSolver<mat> solver(T);
+  eigenvectors = solver.eigenvectors();
+  eigenvalues = solver.eigenvalues(); 
+  ivec index = sort_index(eigenvalues);
+  sort(eigenvalues);
+  vec eigenvalues2 = eigenvalues.reverse();
+  mat T2 = zeros(eigenvectors.rows(), eigenvectors.cols());
+  for (int i=0; i< eigenvectors.cols(); i++){
+    set_col(T2, index[i], get_col(eigenvectors, i));
+  }   
+  eigenvectors = T2;
+  eigenvalues = eigenvalues2;
+  return true;
 }
 
 inline vec elem_mult(const vec&a, const vec&b){
-   vec ret = a;
-   for (int i=0; i<b.size(); i++)
-      ret(i) *= b(i);
-   return ret;
+  vec ret = a;
+  for (int i=0; i<b.size(); i++)
+    ret(i) *= b(i);
+  return ret;
 }
 inline sparse_vec elem_mult(const sparse_vec&a, const sparse_vec&b){
-   return a.cwiseProduct(b);
+  return a.cwiseProduct(b);
 }
 inline double sum(const vec & a){
   return a.sum();
@@ -295,13 +295,13 @@ inline int randi(int from, int to){
   return internal::random<int>(from,to);
 }
 inline ivec concat(const ivec&a, const ivec&b){ 
-   ivec ret(a.size()+b.size());
-   ret << a,b;
-   return ret;
+  ivec ret(a.size()+b.size());
+  ret << a,b;
+  return ret;
 }
 inline void del(ivec&a, int i){
-   memcpy(a.data()+i, a.data() + i+1, (a.size() - i - 1)*sizeof(int)); 
-   a.conservativeResize(a.size() - 1); //resize without deleting values!
+  memcpy(a.data()+i, a.data() + i+1, (a.size() - i - 1)*sizeof(int)); 
+  a.conservativeResize(a.size() - 1); //resize without deleting values!
 }
 inline mat get_cols(const mat&A, ivec & cols){
   mat a(A.rows(), cols.size());
@@ -322,13 +322,13 @@ inline void set_val(vec & v, int pos, double val){
   v(pos) = val;
 }
 inline double dot(const vec&a, const vec& b){
-   return a.dot(b);
+  return a.dot(b);
 }
 inline vec reverse(vec& a){
-   return a.reverse();
+  return a.reverse();
 }
 inline ivec reverse(ivec& a){
-   return a.reverse();
+  return a.reverse();
 }
 inline const double * data(const mat &A){
   return A.data();
@@ -345,53 +345,53 @@ class it_file{
 
 public:
   it_file(const char * name){
-  fb.open(name, std::fstream::in);
-  fb.close();
+    fb.open(name, std::fstream::in);
+    fb.close();
 
-  if (fb.fail()){
-     fb.clear(std::fstream::failbit);
-     fb.open(name, std::fstream::out | std::fstream::trunc );
-  }
-  else {
-     fb.open(name, std::fstream::in);
-  }
+    if (fb.fail()){
+      fb.clear(std::fstream::failbit);
+      fb.open(name, std::fstream::out | std::fstream::trunc );
+    }
+    else {
+      fb.open(name, std::fstream::in);
+    }
    
-   if (!fb.is_open()){
-     perror("Failed opening file ");
-     printf("filename is: %s\n", name);
-     assert(false);
-   }
+    if (!fb.is_open()){
+      perror("Failed opening file ");
+      printf("filename is: %s\n", name);
+      assert(false);
+    }
   
   };
   std::fstream & operator<<(const std::string str){
-   int size = str.size();
-   fb.write((char*)&size, sizeof(int));
-   assert(!fb.fail());
-   fb.write(str.c_str(), size);
-   return fb;
+    int size = str.size();
+    fb.write((char*)&size, sizeof(int));
+    assert(!fb.fail());
+    fb.write(str.c_str(), size);
+    return fb;
   }
   std::fstream &operator<<(mat & A){
-   int rows = A.rows(), cols = A.cols();
-   fb.write( (const char*)&rows, sizeof(int));
-   fb.write( (const char *)&cols, sizeof(int));
-   for (int i=0; i< A.rows(); i++)
+    int rows = A.rows(), cols = A.cols();
+    fb.write( (const char*)&rows, sizeof(int));
+    fb.write( (const char *)&cols, sizeof(int));
+    for (int i=0; i< A.rows(); i++)
       for (int j=0; j< A. cols(); j++){
-         double val = A(i,j);
-         fb.write( (const char *)&val, sizeof(double));
-         assert(!fb.fail());
+        double val = A(i,j);
+        fb.write( (const char *)&val, sizeof(double));
+        assert(!fb.fail());
       }
-   return fb;
+    return fb;
   }
-   std::fstream &operator<<(const vec & v){
-   int size = v.size();
-   fb.write( (const char*)&size, sizeof(int));
-   assert(!fb.fail());
-   for (int i=0; i< v.size(); i++){
+  std::fstream &operator<<(const vec & v){
+    int size = v.size();
+    fb.write( (const char*)&size, sizeof(int));
+    assert(!fb.fail());
+    for (int i=0; i< v.size(); i++){
       double val = v(i);
       fb.write( (const char *)&val, sizeof(double));
       assert(!fb.fail());
-   }
-   return fb;
+    }
+    return fb;
   }
   std::fstream & operator<<(const double &v){
     fb.write((const char*)&v, sizeof(double));
@@ -400,9 +400,9 @@ public:
   std::fstream & operator>>(std::string  str){
     int size = -1;
     fb.read((char*)&size, sizeof(int));
-       if (fb.fail() || fb.eof()){
-       perror("Failed reading file");
-       assert(false);
+    if (fb.fail() || fb.eof()){
+      perror("Failed reading file");
+      assert(false);
     }
      
     char buf[256];
@@ -413,44 +413,44 @@ public:
   }
 
   std::fstream &operator>>(mat & A){
-   int rows, cols;
-   fb.read( (char *)&rows, sizeof(int));
-   assert(!fb.fail());
-   fb.read( (char *)&cols, sizeof(int));
-   assert(!fb.fail());
-   A = mat(rows, cols);
-   double val;
-   for (int i=0; i< A.rows(); i++)
+    int rows, cols;
+    fb.read( (char *)&rows, sizeof(int));
+    assert(!fb.fail());
+    fb.read( (char *)&cols, sizeof(int));
+    assert(!fb.fail());
+    A = mat(rows, cols);
+    double val;
+    for (int i=0; i< A.rows(); i++)
       for (int j=0; j< A. cols(); j++){
         fb.read((char*)&val, sizeof(double));
         assert(!fb.fail());
         A(i,j) = val;
       }
-   return fb;
+    return fb;
   }
-   std::fstream &operator>>(vec & v){
-   int size;
-   fb.read((char*)&size, sizeof(int));
-   assert(!fb.fail());
-   assert(size >0);
-   v = vec(size);
-   double val;
-   for (int i=0; i< v.size(); i++){
+  std::fstream &operator>>(vec & v){
+    int size;
+    fb.read((char*)&size, sizeof(int));
+    assert(!fb.fail());
+    assert(size >0);
+    v = vec(size);
+    double val;
+    for (int i=0; i< v.size(); i++){
       fb.read((char*)& val, sizeof(double));
-     assert(!fb.fail());
+      assert(!fb.fail());
       v(i) = val;
-   }
-   return fb;
+    }
+    return fb;
   }
 
   std::fstream &operator>>(double &v){
     fb.read((char*)&v, sizeof(double));
-     assert(!fb.fail());
-     return fb;
+    assert(!fb.fail());
+    return fb;
   }
 
   void close(){
-     fb.close();
+    fb.close();
   }
 };
 
@@ -470,7 +470,7 @@ inline int get_nz_index(sparse_vec &v, sparse_vec::InnerIterator& i){
 inline double get_nz_data(sparse_vec &v, sparse_vec::InnerIterator& i){
   return i.value();
 }
-#define FOR_ITERATOR(i,v) \
+#define FOR_ITERATOR(i,v)                       \
   for (sparse_vec::InnerIterator i(v); i; ++i)
 
 template<typename T>
@@ -510,7 +510,7 @@ inline void print(sparse_vec & vec){
     std::cout<<get_nz_index(vec, i)<<":"<< get_nz_data(vec, i) << " ";
     cnt++;
     if (cnt >= 20)
-       break;
+      break;
   }
   std::cout<<std::endl;
 }
@@ -536,14 +536,14 @@ inline double dot_prod(sparse_vec &v1, const vec & v2){
 inline vec cumsum(vec& v){
   vec ret = v;
   for (int i=1; i< v.size(); i++)
-     for (int j=0; j< i; j++)
-       ret(i) += v(j);
+    for (int j=0; j< i; j++)
+      ret(i) += v(j);
   return ret;
 }
 inline double get_val(sparse_vec & v1, int i){ //TODO optimize performance
   for (sparse_vec::InnerIterator it(v1); it; ++it)
     if (it.index() == i)
-       return it.value();
+      return it.value();
 
   return 0;
 } 
@@ -551,38 +551,38 @@ inline double get_val(vec & v1, int i){
   return v1(i);
 }
 inline void set_div(sparse_vec&v, sparse_vec::InnerIterator i, double val){
-   v.coeffRef(i.index()) /= val;
+  v.coeffRef(i.index()) /= val;
 }
 inline sparse_vec minus(sparse_vec &v1,sparse_vec &v2){
-   return v1-v2;
+  return v1-v2;
 }
 inline vec minus( sparse_vec &v1,  vec &v2){
-   return v1-sparse_vec(v2);
+  return v1-sparse_vec(v2);
 }
 inline void plus( vec &v1,  sparse_vec &v2){
-   FOR_ITERATOR(i, v2){
-     v1[i.index()] += i.value();
-   }
+  FOR_ITERATOR(i, v2){
+    v1[i.index()] += i.value();
+  }
 }
 inline void minus( vec &v1, sparse_vec &v2){
-   FOR_ITERATOR(i, v2){
-      v1[i.index()] -= i.value();
-   }
+  FOR_ITERATOR(i, v2){
+    v1[i.index()] -= i.value();
+  }
 }
 inline sparse_vec fabs( sparse_vec & dvec1){
-   sparse_vec ret = dvec1;
-   FOR_ITERATOR(i, ret){
-      ret.coeffRef(i.index()) = fabs(i.value()); 
-   }	
-   return ret;
+  sparse_vec ret = dvec1;
+  FOR_ITERATOR(i, ret){
+    ret.coeffRef(i.index()) = fabs(i.value()); 
+  }	
+  return ret;
 };
 
 inline vec fabs( const vec & dvec1){
-   vec ret(dvec1.size());
-   for (int i=0; i< dvec1.size(); i++){
-      ret(i) = fabs(dvec1(i));
-   }	
-   return ret;
+  vec ret(dvec1.size());
+  for (int i=0; i< dvec1.size(); i++){
+    ret(i) = fabs(dvec1(i));
+  }	
+  return ret;
 };
 inline double abs_sum(const mat& A){
   double sum =0;
@@ -594,27 +594,27 @@ inline double abs_sum(const mat& A){
 inline double abs_sum(const vec &v){
   double sum =0;
   for (int i=0; i< v.size(); i++)
-      sum += fabs(v(i));
+    sum += fabs(v(i));
   return sum;
 }
 inline double sum(const sparse_vec &v){
   double sum =0;
   FOR_ITERATOR(i, v){
-      sum += i.value();
+    sum += i.value();
   }
   return sum;
 }
 inline vec sqrt(const vec & v){
-   vec ret(v.size());
-   for (int i=0; i< v.size(); i++){
-      ret[i] = std::sqrt(v(i));
-   }
-   return ret;
+  vec ret(v.size());
+  for (int i=0; i< v.size(); i++){
+    ret[i] = std::sqrt(v(i));
+  }
+  return ret;
 }
 inline void svd(const mat & A, mat & U, mat & V, vec & singular_values){
-        Eigen::JacobiSVD<mat> svdEigen(A, Eigen::ComputeFullU | Eigen::ComputeFullV);
-        U= svdEigen.matrixU();
-        V= svdEigen.matrixV();
-	singular_values =svdEigen.singularValues(); 
+  Eigen::JacobiSVD<mat> svdEigen(A, Eigen::ComputeFullU | Eigen::ComputeFullV);
+  U= svdEigen.matrixU();
+  V= svdEigen.matrixV();
+  singular_values =svdEigen.singularValues(); 
 }
 #endif
