@@ -228,7 +228,7 @@ namespace graphlab {
       // If it is already present update the priority
       size_t i = iter->second;
       heap[i].second = priority;
-      while ((i > 1) && (priority_at(parent(i)) <= priority)) {
+      while ((i > 1) && (priority_at(parent(i)) < priority)) {
         swap(i, parent(i));
         i = parent(i);
       }
@@ -251,7 +251,7 @@ namespace graphlab {
         heap[i].second = std::max(priority, heap[i].second);
         // If the priority went up move the priority until its greater
         // than its parent
-        while ((i > 1) && (priority_at(parent(i)) <= priority)) {
+        while ((i > 1) && (priority_at(parent(i)) < priority)) {
           swap(i, parent(i));
           i = parent(i);
         } 
@@ -280,7 +280,7 @@ namespace graphlab {
         heap[i].second = priority + heap[i].second;
         // If the priority went up move the priority until its greater
         // than its parent
-        while ((i > 1) && (priority_at(parent(i)) <= priority)) {
+        while ((i > 1) && (priority_at(parent(i)) < priority)) {
           swap(i, parent(i));
           i = parent(i);
         } 
@@ -380,7 +380,7 @@ namespace graphlab {
     bool less(size_t i, size_t j) {
       assert( i < heap.size() );
       assert( j < heap.size() );
-      return heap[i].second <= heap[j].second;
+      return heap[i].second < heap[j].second;
     }
 
     //! Swaps the heap locations of two elements.
