@@ -157,6 +157,13 @@ namespace graphlab {
     mutable_queue()
       : heap(1, std::make_pair(T(), Priority())) { }
 
+
+    mutable_queue& operator=(const mutable_queue& other) { 
+      index_map = other.index_map;
+      heap = other.heap;
+      return *this;
+    }
+    
     //! Returns the number of elements in the heap.
     size_t size() const {
       return heap.size() - 1;
