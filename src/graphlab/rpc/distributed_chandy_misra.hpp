@@ -55,7 +55,7 @@ class distributed_chandy_misra {
     bool lockid;
   };
   std::vector<philosopher> philosopherset;
-  atomic<size_t> num_locally_active_requests;
+  atomic<size_t> clean_fork_count;
   PERMANENT_DECLARE_DIST_EVENT_LOG(eventlog);
     
   /*
@@ -70,7 +70,6 @@ class distributed_chandy_misra {
 
   /** Places a request for the fork. Requires fork to be locked */
   inline void request_for_fork(size_t forkid, bool nextowner) {
-    num_locally_active_requests.inc();
     __sync_fetch_and_or(&forkset[forkid], request_bit(nextowner));
   }
 
@@ -83,6 +82,7 @@ class distributed_chandy_misra {
   }
 
   inline void dirty_fork(size_t forkid) {
+      if ((forkset[forkid] & DIRTY_BIT) == 0) clean_fork_count.dec();
     __sync_fetch_and_or(&forkset[forkid], DIRTY_BIT);
   }
 
@@ -158,11 +158,9 @@ class distributed_chandy_misra {
         if (philosopherset[source].state != HORS_DOEUVRE) {
           //  change the owner and clean the fork)
           forkset[forkid] = OWNER_TARGET;
+          clean_fork_count.inc();
           if (philosopherset[source].state == HUNGRY) {
             forkset[forkid] |= REQUEST_0;
-          }
-          else {
-            num_locally_active_requests.dec();
           }
           philosopherset[source].forks_acquired--;
           philosopherset[target].forks_acquired++;
@@ -189,11 +187,9 @@ class distributed_chandy_misra {
         //  change the owner and clean the fork)
         if (philosopherset[target].state != HORS_DOEUVRE) {
           forkset[forkid] = OWNER_SOURCE;
+          clean_fork_count.inc();
           if (philosopherset[target].state == HUNGRY) {
             forkset[forkid] |= REQUEST_1;
-          }
-          else {
-            num_locally_active_requests.dec();
           }
           philosopherset[source].forks_acquired++;
           philosopherset[target].forks_acquired--;
@@ -605,10 +601,10 @@ class distributed_chandy_misra {
         (forkset[forkid] & REQUEST_1)) {
         //  change the owner and clean the fork)
         // keep my request bit if any
+        clean_fork_count.inc();
         forkset[forkid] = OWNER_TARGET;
         philosopherset[source].forks_acquired--;
         philosopherset[target].forks_acquired++;
-        num_locally_active_requests.dec();
         return true;
       }
     }
@@ -619,10 +615,10 @@ class distributed_chandy_misra {
         (forkset[forkid] & REQUEST_0)) {
         //  change the owner and clean the fork)
         // keep my request bit if any
+        clean_fork_count.inc();
         forkset[forkid] = OWNER_SOURCE;
         philosopherset[source].forks_acquired++;
         philosopherset[target].forks_acquired--;
-        num_locally_active_requests.dec();
         return true;
       }
     }
@@ -645,7 +641,7 @@ class distributed_chandy_misra {
     foreach(edge_type edge, graph.in_edges(p_id)) {
       dirty_fork(graph.edge_id(edge));
     }
-
+    
     foreach(edge_type edge, graph.out_edges(p_id)) {
       dirty_fork(graph.edge_id(edge));
     }
@@ -736,8 +732,8 @@ class distributed_chandy_misra {
     rmi.barrier();
   }
 
-  size_t num_active_requests() const {
-    return num_locally_active_requests.value;
+  size_t num_clean_forks() const {
+    return clean_fork_count.value;
   }
 
   inline const vertex_id_type invalid_vid() const {
