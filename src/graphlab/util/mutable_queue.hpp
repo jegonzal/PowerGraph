@@ -157,6 +157,8 @@ namespace graphlab {
     mutable_queue()
       : heap(1, std::make_pair(T(), Priority())) { }
 
+    mutable_queue(const mutable_queue& other) :
+    heap(other.heap), index_map(other.index_map) { }
 
     mutable_queue& operator=(const mutable_queue& other) { 
       index_map = other.index_map;
