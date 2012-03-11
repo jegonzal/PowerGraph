@@ -122,6 +122,7 @@ namespace graphlab {
       if (thread::contains(ENV_ID)) {
         int res = mjvm->DetachCurrentThread();
         assert(res >= 0);
+        thread::get_local(ENV_ID) = NULL;
       }
       
     }

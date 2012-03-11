@@ -43,19 +43,9 @@ extern "C" {
     jlong context_ptr,
     jobject updater,
     jint vertex_id){
-    
-    if (NULL == env ||
-        0 == context_ptr){
-      proxy_updater::core::throw_exception(
-        env,
-        "java/lang/IllegalArgumentException",
-        "context_ptr must not be null.");
-        return;
-    }
 
     // convert longs to pointers
     proxy_updater::context *context = (proxy_updater::context *) context_ptr;
-    
     context->schedule(vertex_id, proxy_updater(env, updater));
     
   }
