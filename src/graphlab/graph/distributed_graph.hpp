@@ -31,6 +31,7 @@
 #include <vector>
 #include <set>
 #include <map>
+#include <graphlab/util/dense_bitset.hpp>
 
 
 #include <queue>
@@ -58,7 +59,7 @@
 #include <graphlab/graph/idistributed_ingress.hpp>
 #include <graphlab/graph/distributed_batch_ingress.hpp>
 #include <graphlab/graph/distributed_oblivious_ingress.hpp>
-#include <graphlab/graph/distributed_semioblivious_ingress.hpp>
+// #include <graphlab/graph/distributed_semioblivious_ingress.hpp>
 #include <graphlab/graph/distributed_random_ingress.hpp>
 #include <graphlab/graph/distributed_localbfs_ingress.hpp>
 #include <graphlab/util/hdfs.hpp>
@@ -86,6 +87,8 @@ namespace graphlab {
     /// Type for vertex colors 
     typedef graphlab::vertex_color_type vertex_color_type;
 
+    enum SizeType {MAX_MACHINES = 128};
+    typedef fixed_dense_bitset<MAX_MACHINES> mirror_type;
 
     /// The type of the local graph used to store the graph data 
     // typedef graphlab::graph<VertexData, EdgeData> local_graph_type;
@@ -102,9 +105,9 @@ namespace graphlab {
         distributed_random_ingress_type;
     friend class distributed_random_ingress<VertexData, EdgeData>;
 
-    typedef distributed_semi_oblivious_ingress<VertexData, EdgeData>
-        distributed_semi_oblivous_ingress_type;
-    friend class distributed_semi_oblivious_ingress<VertexData, EdgeData>;
+    // typedef distributed_semi_oblivious_ingress<VertexData, EdgeData>
+    //     distributed_semi_oblivous_ingress_type;
+    // friend class distributed_semi_oblivious_ingress<VertexData, EdgeData>;
 
     typedef distributed_local_bfs_ingress<VertexData, EdgeData>
         distributed_local_bfs_ingress_type;
@@ -449,17 +452,17 @@ namespace graphlab {
       vertex_id_type num_in_edges, num_out_edges;
       /** The set of proc that mirror this vertex.  The owner should
           NOT be in this set.*/
-      std::vector<procid_t> _mirrors;
+      mirror_type _mirrors;
       vertex_record() : 
         owner(-1), gvid(-1), num_in_edges(0), num_out_edges(0) { }
       vertex_record(const vertex_id_type& vid) : 
         owner(-1), gvid(vid), num_in_edges(0), num_out_edges(0) { }
       procid_t get_owner () const { return owner; }
-      const std::vector<procid_t>& mirrors() const { return _mirrors; }
-      size_t num_mirrors() const { return _mirrors.size(); }
+      const mirror_type& mirrors() const { return _mirrors; }
+      size_t num_mirrors() const { return _mirrors.popcount(); }
 
       void clear() {
-        _mirrors.clear();
+        // _mirrors.clear();
       }
 
       void load(iarchive& arc) {
@@ -532,7 +535,7 @@ namespace graphlab {
       opts.get_graph_options().get_option("ingress", ingress_method);
 
       size_t bufsize = 50000;
-      double seed_percent = 5;
+      double seed_percent = 0.1;
       opts.get_graph_options().get_option("bufsize", bufsize);
       opts.get_graph_options().get_option("seed_percent", seed_percent);
       set_ingress_method(ingress_method, bufsize, seed_percent);
@@ -548,9 +551,9 @@ namespace graphlab {
       if(method == "batch") {
         logstream(LOG_INFO) << "Using batch ingress with buffer size " << bufsize << std::endl;
         ingress_ptr = new distributed_batch_ingress_type(rpc.dc(), *this, bufsize);
-      } else if (method == "semi_oblivious") {
-        logstream(LOG_INFO) << "Using semi oblivious ingress with buffer size " << bufsize << std::endl;
-        ingress_ptr = new distributed_semi_oblivous_ingress_type(rpc.dc(), *this, bufsize);
+      // } else if (method == "semi_oblivious") {
+      //   logstream(LOG_INFO) << "Using semi oblivious ingress with buffer size " << bufsize << std::endl;
+      //   ingress_ptr = new distributed_semi_oblivous_ingress_type(rpc.dc(), *this, bufsize);
       } else if (method == "oblivious") {
         logstream(LOG_INFO) << "Using oblivious ingress with seed percent " << seed_percent << std::endl;
         ingress_ptr = new distributed_oblivious_ingress_type(rpc.dc(), *this, seed_percent);

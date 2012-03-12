@@ -54,6 +54,10 @@ namespace graphlab {
     typedef typename graph_type::vertex_record vertex_record;
 
 
+    // typedef typename graph_type::SizeType SizeType;
+    typedef typename graph_type::mirror_type mirror_type;
+
+
 
     /// The rpc interface for this object
     dc_dist_object<distributed_random_ingress> rpc;
@@ -99,7 +103,7 @@ namespace graphlab {
       vertex_id_type vid;
       vertex_id_type num_in_edges, num_out_edges;
       procid_t owner;
-      std::vector<procid_t> mirrors;
+      mirror_type mirrors;
       vertex_data_type vdata;
       vertex_negotiator_record() : 
         vid(-1), num_in_edges(0), num_out_edges(0), owner(-1) { }
@@ -200,10 +204,10 @@ namespace graphlab {
       END_TRACEPOINT(random_ingress_recv_edges);
       edge_exchange.clear();
 
-       MallocExtension::instance()->GetNumericProperty("generic.heap_size", &value);
-       logstream(LOG_DEBUG) << "Heap Size (local graph constructed): " << (double)value/(1024*1024) << "MB" << "\n";
-       MallocExtension::instance()->GetNumericProperty("generic.current_allocated_bytes", &value);
-       logstream(LOG_DEBUG) << "Allocated Size (local graph constructed): " << (double)value/(1024*1024) << "MB" << "\n";
+      MallocExtension::instance()->GetNumericProperty("generic.heap_size", &value);
+      logstream(LOG_DEBUG) << "Heap Size (local graph constructed): " << (double)value/(1024*1024) << "MB" << "\n";
+      MallocExtension::instance()->GetNumericProperty("generic.current_allocated_bytes", &value);
+      logstream(LOG_DEBUG) << "Allocated Size (local graph constructed): " << (double)value/(1024*1024) << "MB" << "\n";
 
 
 
@@ -289,7 +293,8 @@ namespace graphlab {
           vertex_negotiator_record& negotiator_rec = vrec_map[shuffle_rec.vid];
           negotiator_rec.num_in_edges += shuffle_rec.num_in_edges;
           negotiator_rec.num_out_edges += shuffle_rec.num_out_edges;
-          negotiator_rec.mirrors.push_back(proc);
+          // negotiator_rec.mirrors.push_back(proc);
+          negotiator_rec.mirrors.set_bit(proc);
         }
       }
 
@@ -306,16 +311,24 @@ namespace graphlab {
         const vertex_id_type vid = pair.first;
         vertex_negotiator_record& negotiator_rec = pair.second;
         negotiator_rec.vid = vid; // update the vid if it has not been set
+
         // Find the best (least loaded) processor to assign the vertex.
-        std::pair<size_t, procid_t> 
-          best_asg(counts[negotiator_rec.mirrors[0]], negotiator_rec.mirrors[0]);
-        foreach(procid_t proc, negotiator_rec.mirrors)
-          best_asg = std::min(best_asg, std::make_pair(counts[proc], proc));
+        uint32_t first_mirror = 0; 
+        ASSERT_TRUE(negotiator_rec.mirrors.first_bit(first_mirror));
+        std::pair<size_t, uint32_t> 
+           best_asg(counts[first_mirror], first_mirror);
+        foreach(uint32_t proc, negotiator_rec.mirrors) {
+            best_asg = std::min(best_asg, std::make_pair(counts[proc], proc));
+        }
+
         negotiator_rec.owner = best_asg.second;
         counts[negotiator_rec.owner]++;
         // Notify all machines of the new assignment
-        foreach(procid_t dest, negotiator_rec.mirrors) 
-          negotiator_exchange.send(dest, negotiator_rec);
+        for (size_t i = 0; i < negotiator_rec.mirrors.size(); ++i) {
+          if (negotiator_rec.mirrors.get(i))  {
+            negotiator_exchange.send(i, negotiator_rec);
+          }
+        }
       } // end of loop over vertex records
       END_TRACEPOINT(random_ingress_compute_assignments);
 
@@ -340,14 +353,17 @@ namespace graphlab {
             local_record.num_in_edges = negotiator_rec.num_in_edges;
             ASSERT_EQ(local_record.num_out_edges, 0); // this should have not been set
             local_record.num_out_edges = negotiator_rec.num_out_edges;
-            ASSERT_GT(negotiator_rec.mirrors.size(), 0);
-            local_record._mirrors.reserve(negotiator_rec.mirrors.size()-1);
-            ASSERT_EQ(local_record._mirrors.size(), 0);
+            ASSERT_TRUE(negotiator_rec.mirrors.begin() != negotiator_rec.mirrors.end());
+            local_record._mirrors = negotiator_rec.mirrors;
+            local_record._mirrors.clear_bit(negotiator_rec.owner);
+
+            // local_record._mirrors.reserve(negotiator_rec.mirrors.size()-1);
+            // ASSERT_EQ(local_record._mirrors.size(), 0);
             // copy the mirrors but drop the owner
-            for(size_t i = 0; i < negotiator_rec.mirrors.size(); ++i) {
-              if(negotiator_rec.mirrors[i] != negotiator_rec.owner) 
-                local_record._mirrors.push_back(negotiator_rec.mirrors[i]);
-            }
+            // for(size_t i = 0; i < negotiator_rec.mirrors.size(); ++i) {
+            //   if(negotiator_rec.mirrors[i] != negotiator_rec.owner) 
+            //     local_record._mirrors.push_back(negotiator_rec.mirrors[i]);
+            // }
           }
         }
       }

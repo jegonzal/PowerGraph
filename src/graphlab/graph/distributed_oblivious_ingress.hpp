@@ -53,6 +53,8 @@ namespace graphlab {
     typedef typename graph_type::lvid_type  lvid_type;
     typedef typename graph_type::vertex_record vertex_record;
 
+    typedef typename graph_type::mirror_type mirror_type;
+
     dc_dist_object<distributed_oblivious_ingress> rpc;
     graph_type& graph;
 
@@ -96,7 +98,8 @@ namespace graphlab {
       vertex_id_type vid;
       procid_t owner;
       size_t num_in_edges, num_out_edges;
-      std::vector<procid_t> mirrors;
+      // std::vector<procid_t> mirrors;
+      mirror_type mirrors;
       vertex_data_type vdata;
       vertex_negotiator_record() : 
         vid(-1), owner(-1), num_in_edges(0), num_out_edges(0) { }
@@ -304,7 +307,8 @@ namespace graphlab {
           vertex_negotiator_record& negotiator_rec = vrec_map[shuffle_rec.vid];
           negotiator_rec.num_in_edges += shuffle_rec.num_in_edges;
           negotiator_rec.num_out_edges += shuffle_rec.num_out_edges;
-          negotiator_rec.mirrors.push_back(proc);
+          // negotiator_rec.mirrors.push_back(proc);
+          negotiator_rec.mirrors.set_bit(proc);
         }
       }
 
@@ -321,16 +325,24 @@ namespace graphlab {
         const vertex_id_type vid = pair.first;
         vertex_negotiator_record& negotiator_rec = pair.second;
         negotiator_rec.vid = vid; // update the vid if it has not been set
+
         // Find the best (least loaded) processor to assign the vertex.
-        std::pair<size_t, procid_t> 
-          best_asg(counts[negotiator_rec.mirrors[0]], negotiator_rec.mirrors[0]);
-        foreach(procid_t proc, negotiator_rec.mirrors)
-          best_asg = std::min(best_asg, std::make_pair(counts[proc], proc));
+        uint32_t first_mirror = 0; 
+        ASSERT_TRUE(negotiator_rec.mirrors.first_bit(first_mirror));
+        std::pair<size_t, uint32_t> 
+           best_asg(counts[first_mirror], first_mirror);
+        foreach(uint32_t proc, negotiator_rec.mirrors) {
+            best_asg = std::min(best_asg, std::make_pair(counts[proc], proc));
+        }
+
         negotiator_rec.owner = best_asg.second;
         counts[negotiator_rec.owner]++;
         // Notify all machines of the new assignment
-        foreach(procid_t dest, negotiator_rec.mirrors) 
-          negotiator_exchange.send(dest, negotiator_rec);
+        for (size_t i = 0; i < negotiator_rec.mirrors.size(); ++i) {
+          if (negotiator_rec.mirrors.get(i))  {
+            negotiator_exchange.send(i, negotiator_rec);
+          }
+        }
       } // end of loop over vertex records
 
       negotiator_exchange.flush();
@@ -354,14 +366,20 @@ namespace graphlab {
             local_record.num_in_edges = negotiator_rec.num_in_edges;
             ASSERT_EQ(local_record.num_out_edges, 0); // this should have not been set
             local_record.num_out_edges = negotiator_rec.num_out_edges;
-            ASSERT_GT(negotiator_rec.mirrors.size(), 0);
-            local_record._mirrors.reserve(negotiator_rec.mirrors.size()-1);
-            ASSERT_EQ(local_record._mirrors.size(), 0);
-            // copy the mirrors but drop the owner
-            for(size_t i = 0; i < negotiator_rec.mirrors.size(); ++i) {
-              if(negotiator_rec.mirrors[i] != negotiator_rec.owner) 
-                local_record._mirrors.push_back(negotiator_rec.mirrors[i]);
-            }
+
+            ASSERT_TRUE(negotiator_rec.mirrors.begin() != negotiator_rec.mirrors.end());
+            local_record._mirrors = negotiator_rec.mirrors;
+            local_record._mirrors.clear_bit(negotiator_rec.owner);
+
+
+            // ASSERT_GT(negotiator_rec.mirrors.size(), 0);
+            // local_record._mirrors.reserve(negotiator_rec.mirrors.size()-1);
+            // ASSERT_EQ(local_record._mirrors.size(), 0);
+            // // copy the mirrors but drop the owner
+            // for(size_t i = 0; i < negotiator_rec.mirrors.size(); ++i) {
+            //   if(negotiator_rec.mirrors[i] != negotiator_rec.owner) 
+            //     local_record._mirrors.push_back(negotiator_rec.mirrors[i]);
+            // }
           }
         }
       }
@@ -504,7 +522,13 @@ namespace graphlab {
 
 
      // Hash the edge to one of the best procs.
-     best_proc = top_procs[std::max(src, dst) % top_procs.size()];
+     typedef std::pair<vertex_id_type, vertex_id_type> edge_pair_type;
+      boost::hash< edge_pair_type >  hash_function;
+      const edge_pair_type edge_pair(std::min(src, dst), 
+                                     std::max(src, dst));
+      best_proc = top_procs[hash_function(edge_pair) % top_procs.size()];
+
+     // best_proc = top_procs[std::max(src, dst) % top_procs.size()];
      ASSERT_LT(best_proc, rpc.numprocs());
 
      ++src_degree[best_proc];

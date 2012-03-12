@@ -54,6 +54,9 @@ namespace graphlab {
     typedef typename graph_type::lvid_type  lvid_type;
     typedef typename graph_type::vertex_record vertex_record;
 
+    // typedef typename graph_type::SizeType SizeType;
+    typedef typename graph_type::mirror_type mirror_type;
+
     dc_dist_object<distributed_local_bfs_ingress> rpc;
     graph_type& graph;
 
@@ -94,7 +97,7 @@ namespace graphlab {
       vertex_id_type vid;
       procid_t owner;
       size_t num_in_edges, num_out_edges;
-      std::vector<procid_t> mirrors;
+      mirror_type mirrors;
       vertex_data_type vdata;
       vertex_negotiator_record() : 
         vid(-1), owner(-1), num_in_edges(0), num_out_edges(0) { }
@@ -214,18 +217,45 @@ namespace graphlab {
     vertex_id_type max_vid;
     double seed_percent;
     
+
+    PERMANENT_DECLARE_DIST_EVENT_LOG(eventlog);
     DECLARE_TRACER(ob_ingress_add_edge);
     DECLARE_TRACER(ob_ingress_compute_assignments);
     DECLARE_TRACER(ob_ingress_finalize);
+
+    enum {
+      EVENT_EDGE_SEEN_NONE_UNIQUE = 0,
+      EVENT_EDGE_SEEN_NONE_TIE = 1,
+      EVENT_EDGE_SEEN_ONE_UNIQUE = 2,
+      EVENT_EDGE_SEEN_ONE_TIE = 3,
+      EVENT_EDGE_SEEN_BOTH_UNIQUE =4,
+      EVENT_EDGE_SEEN_BOTH_TIE = 5
+    };
 
   public:
     distributed_local_bfs_ingress(distributed_control& dc, graph_type& graph, double seed_percent = 5) :
       rpc(dc, this), graph(graph), vertex_exchange(dc), edge_exchange(dc),
       proc_num_edges(dc.numprocs()), seed_percent(seed_percent) { 
       rpc.barrier(); 
-
       ASSERT_GT(seed_percent, 0);
       max_vid = 0;
+
+
+#ifdef USE_EVENT_LOG
+      PERMANENT_INITIALIZE_DIST_EVENT_LOG(eventlog, dc, std::cout, 500, 
+                               dist_event_log::RATE_BAR);
+#else
+      PERMANENT_INITIALIZE_DIST_EVENT_LOG(eventlog, dc, std::cout, 500, 
+                                dist_event_log::LOG_FILE);
+#endif
+
+      PERMANENT_ADD_DIST_EVENT_TYPE(eventlog, EVENT_EDGE_SEEN_NONE_UNIQUE, "Zero end (unique)");
+      PERMANENT_ADD_DIST_EVENT_TYPE(eventlog, EVENT_EDGE_SEEN_NONE_TIE, "Zero end (tie)");
+      PERMANENT_ADD_DIST_EVENT_TYPE(eventlog, EVENT_EDGE_SEEN_ONE_UNIQUE, "One end (unique)");
+      PERMANENT_ADD_DIST_EVENT_TYPE(eventlog, EVENT_EDGE_SEEN_ONE_TIE, "One end (tie)");
+      PERMANENT_ADD_DIST_EVENT_TYPE(eventlog, EVENT_EDGE_SEEN_BOTH_UNIQUE, "Both ends (unique)");
+      PERMANENT_ADD_DIST_EVENT_TYPE(eventlog, EVENT_EDGE_SEEN_BOTH_TIE, "Both ends (tie)");
+
 
       INITIALIZE_TRACER(ob_ingress_add_edge, "Time spent in add edge");
       INITIALIZE_TRACER(ob_ingress_compute_assignments, "Time spent in compute assignment");
@@ -376,7 +406,8 @@ namespace graphlab {
           vertex_negotiator_record& negotiator_rec = vrec_map[shuffle_rec.vid];
           negotiator_rec.num_in_edges += shuffle_rec.num_in_edges;
           negotiator_rec.num_out_edges += shuffle_rec.num_out_edges;
-          negotiator_rec.mirrors.push_back(proc);
+          // negotiator_rec.mirrors.push_back(proc);
+          negotiator_rec.mirrors.set_bit(proc);
         }
       }
 
@@ -393,16 +424,24 @@ namespace graphlab {
         const vertex_id_type vid = pair.first;
         vertex_negotiator_record& negotiator_rec = pair.second;
         negotiator_rec.vid = vid; // update the vid if it has not been set
+
         // Find the best (least loaded) processor to assign the vertex.
-        std::pair<size_t, procid_t> 
-          best_asg(counts[negotiator_rec.mirrors[0]], negotiator_rec.mirrors[0]);
-        foreach(procid_t proc, negotiator_rec.mirrors)
-          best_asg = std::min(best_asg, std::make_pair(counts[proc], proc));
+        uint32_t first_mirror = 0; 
+        ASSERT_TRUE(negotiator_rec.mirrors.first_bit(first_mirror));
+        std::pair<size_t, uint32_t> 
+           best_asg(counts[first_mirror], first_mirror);
+        foreach(uint32_t proc, negotiator_rec.mirrors) {
+            best_asg = std::min(best_asg, std::make_pair(counts[proc], proc));
+        }
+
         negotiator_rec.owner = best_asg.second;
         counts[negotiator_rec.owner]++;
         // Notify all machines of the new assignment
-        foreach(procid_t dest, negotiator_rec.mirrors) 
-          negotiator_exchange.send(dest, negotiator_rec);
+        for (size_t i = 0; i < negotiator_rec.mirrors.size(); ++i) {
+          if (negotiator_rec.mirrors.get(i))  {
+            negotiator_exchange.send(i, negotiator_rec);
+          }
+        }
       } // end of loop over vertex records
 
       negotiator_exchange.flush();
@@ -426,14 +465,19 @@ namespace graphlab {
             local_record.num_in_edges = negotiator_rec.num_in_edges;
             ASSERT_EQ(local_record.num_out_edges, 0); // this should have not been set
             local_record.num_out_edges = negotiator_rec.num_out_edges;
-            ASSERT_GT(negotiator_rec.mirrors.size(), 0);
-            local_record._mirrors.reserve(negotiator_rec.mirrors.size()-1);
-            ASSERT_EQ(local_record._mirrors.size(), 0);
-            // copy the mirrors but drop the owner
-            for(size_t i = 0; i < negotiator_rec.mirrors.size(); ++i) {
-              if(negotiator_rec.mirrors[i] != negotiator_rec.owner) 
-                local_record._mirrors.push_back(negotiator_rec.mirrors[i]);
-            }
+            ASSERT_TRUE(negotiator_rec.mirrors.begin() != negotiator_rec.mirrors.end());
+            local_record._mirrors = negotiator_rec.mirrors;
+            local_record._mirrors.clear_bit(negotiator_rec.owner);
+
+            // ASSERT_GT(negotiator_rec.mirrors.size(), 0);
+            // local_record._mirrors.reserve(negotiator_rec.mirrors.size()-1);
+            // ASSERT_EQ(local_record._mirrors.size(), 0);
+
+            // // copy the mirrors but drop the owner
+            // for(size_t i = 0; i < negotiator_rec.mirrors.size(); ++i) {
+            //   if(negotiator_rec.mirrors[i] != negotiator_rec.owner) 
+            //     local_record._mirrors.push_back(negotiator_rec.mirrors[i]);
+            // }
           }
         }
       }
@@ -556,10 +600,33 @@ namespace graphlab {
        if (std::fabs(proc_score[i] - maxscore) < epsilon)
          top_procs.push_back(i);
 
-     // Hash the edge to one of the best procs.
-     best_proc = top_procs[std::max(src, dst) % top_procs.size()];
-     ASSERT_LT(best_proc, rpc.numprocs());
+     if (top_procs.size() > 1) {
+        if (maxscore >= 2) {
+          PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, EVENT_EDGE_SEEN_BOTH_TIE, 1)
+        } else if (maxscore >= 1) {
+          PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, EVENT_EDGE_SEEN_ONE_TIE, 1)
+        } else {
+          PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, EVENT_EDGE_SEEN_NONE_TIE, 1); 
+        }
+      } else {
+        if (maxscore >= 2) {
+          PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, EVENT_EDGE_SEEN_BOTH_UNIQUE, 1);
+        } else if (maxscore >= 1) {
+          PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, EVENT_EDGE_SEEN_ONE_UNIQUE, 1)
+        } else {
+          PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, EVENT_EDGE_SEEN_NONE_UNIQUE, 1); 
+        }
+      }
 
+     // Hash the edge to one of the best procs.
+     typedef std::pair<vertex_id_type, vertex_id_type> edge_pair_type;
+      boost::hash< edge_pair_type >  hash_function;
+      const edge_pair_type edge_pair(std::min(src, dst), 
+                                     std::max(src, dst));
+      best_proc = top_procs[hash_function(edge_pair) % top_procs.size()];
+     // best_proc = top_procs[std::max(src, dst) % top_procs.size()];
+     
+     ASSERT_LT(best_proc, rpc.numprocs());
      ++src_degree[best_proc];
      ++dst_degree[best_proc];
      ++proc_num_edges[best_proc];
