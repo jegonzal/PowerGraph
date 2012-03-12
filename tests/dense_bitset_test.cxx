@@ -8,6 +8,7 @@ public:
   void test_densebitset(void) {
     dense_bitset d;
     d.resize(100);
+    d.clear();
     uint32_t probelocations[7] = {0, 10, 12, 50, 66, 81, 99};
     // test setting
     for (size_t i= 0;i < 7; ++i) {
@@ -34,7 +35,21 @@ public:
       TS_ASSERT_EQUALS(iter, probelocations[ctr]);
       ++ctr;
     }
+    
+    std::stringstream strm;
+    graphlab::oarchive oarc(strm);
+    oarc << d;
+    strm.flush();
+    graphlab::iarchive iarc(strm);
+    dense_bitset d2;
+    iarc >> d2;
 
+
+    for (size_t i = 0;i< 100; ++i) {
+      bool inprobe=false;
+      for (size_t j = 0;j <7; ++j) inprobe |= (probelocations[j] == i);
+      TS_ASSERT_EQUALS(d2.get(i), inprobe);
+    }
     // testclearing
     for (size_t i= 0;i < 7; ++i) {
       d.clear_bit(probelocations[i]);
@@ -75,6 +90,22 @@ public:
       ++ctr;
     }
 
+    std::stringstream strm;
+    graphlab::oarchive oarc(strm);
+    oarc << d;
+    strm.flush();
+    graphlab::iarchive iarc(strm);
+    fixed_dense_bitset<100> d2;
+    iarc >> d2;
+
+
+    for (size_t i = 0;i< 100; ++i) {
+      bool inprobe=false;
+      for (size_t j = 0;j <7; ++j) inprobe |= (probelocations[j] == i);
+      TS_ASSERT_EQUALS(d2.get(i), inprobe);
+    }
+    
+    
     // testclearing
     for (size_t i= 0;i < 7; ++i) {
       d.clear_bit(probelocations[i]);
@@ -82,6 +113,8 @@ public:
     for (size_t i = 0;i< 100; ++i) {
       TS_ASSERT_EQUALS(d.get(i), false);
     }
+
+
   }
 
 

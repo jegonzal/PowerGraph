@@ -76,7 +76,7 @@ namespace graphlab {
     inline void resize(size_t n) {
       len = n;
       //need len bits
-      arrlen = next_powerof2(n) / sizeof(size_t) + 1;
+      arrlen = (n / (sizeof(size_t) * 8)) + (n % (sizeof(size_t) * 8) > 0);
       array = (size_t*)realloc(array, sizeof(size_t) * arrlen);
     }
   
@@ -296,20 +296,6 @@ namespace graphlab {
 
   private:
    
-    inline size_t next_powerof2(size_t val) {
-      --val;
-      val = val | (val >> 1);
-      val = val | (val >> 2);
-      val = val | (val >> 4);
-      val = val | (val >> 8);
-      val = val | (val >> 16);
-#ifdef _LP64
-      val = val | (val >> 32);
-#endif
-      return val + 1; 
-    }
-  
- 
     inline static void bit_to_pos(uint32_t b, uint32_t& arrpos, uint32_t& bitpos) {
       // the compiler better optimize this...
       arrpos = b / (8 * sizeof(size_t));
@@ -551,20 +537,21 @@ namespace graphlab {
     
     /// Serializes this bitset to an archive
     inline void save(oarchive& oarc) const {
-      oarc <<len << arrlen;
-      if (arrlen > 0) serialize(oarc, array, arrlen*sizeof(size_t));
+      //oarc <<len << arrlen;
+      //if (arrlen > 0)
+      serialize(oarc, array, arrlen*sizeof(size_t));
     }
 
     /// Deserializes this bitset from an archive
     inline void load(iarchive& iarc) {
-      size_t l;
+      /*size_t l;
       size_t arl;
       iarc >> l >> arl;
       ASSERT_EQ(l, len);
-      ASSERT_EQ(arl, arrlen);
-      if (arrlen > 0) {
-        deserialize(iarc, array, arrlen*sizeof(size_t));
-      }
+      ASSERT_EQ(arl, arrlen);*/
+      //if (arrlen > 0) {
+      deserialize(iarc, array, arrlen*sizeof(size_t));
+      //}
     }
 
     size_t popcount() const {
@@ -577,21 +564,6 @@ namespace graphlab {
     }
 
   private:
-   
-    inline static size_t next_powerof2(size_t val) {
-      --val;
-      val = val | (val >> 1);
-      val = val | (val >> 2);
-      val = val | (val >> 4);
-      val = val | (val >> 8);
-      val = val | (val >> 16);
-#ifdef _LP64
-      val = val | (val >> 32);
-#endif
-      return val + 1; 
-    }
-  
- 
     inline static void bit_to_pos(uint32_t b, uint32_t &arrpos, uint32_t &bitpos) {
       // the compiler better optimize this...
       arrpos = b / (8 * sizeof(size_t));
@@ -616,11 +588,11 @@ namespace graphlab {
     }
 
     static const size_t arrlen;
-    size_t array[len / sizeof(size_t) + 1];
+    size_t array[len / (sizeof(size_t) * 8) + (len % (sizeof(size_t) * 8) > 0)];
   };
 
   template<int len>
-  const size_t fixed_dense_bitset<len>::arrlen = len / sizeof(size_t) + 1;
+  const size_t fixed_dense_bitset<len>::arrlen = len / (sizeof(size_t) * 8) + (len % (sizeof(size_t) * 8) > 0);
 }
 #endif
 
