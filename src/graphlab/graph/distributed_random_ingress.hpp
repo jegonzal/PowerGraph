@@ -157,6 +157,8 @@ namespace graphlab {
       BEGIN_TRACEPOINT(random_ingress_recv_edges);
       edge_exchange.flush(); vertex_exchange.flush();
       rpc.full_barrier();
+      graph.local_graph.reserve_edge_space(edge_exchange.size());
+
       // add all the edges to the local graph --------------------------------
       {
         typedef typename buffered_exchange<edge_buffer_record>::buffer_type 
@@ -186,10 +188,9 @@ namespace graphlab {
       }
       logstream(LOG_INFO) << "Finalizing local graph" << std::endl;
       END_TRACEPOINT(random_ingress_recv_edges);
+
       // Finalize local graph
       graph.local_graph.finalize();
-      
-
       logstream(LOG_INFO) << "Local graph info: " << std::endl
                           << "\t nverts: " << graph.local_graph.num_vertices()
                           << std::endl

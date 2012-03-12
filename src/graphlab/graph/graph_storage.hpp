@@ -84,6 +84,11 @@ namespace graphlab {
       std::vector<vertex_id_type> target_arr;
     public:
       edge_info () {}
+      void reserve_edge_space(size_t n) {
+        data.reserve(n);
+        source_arr.reserve(n);
+        target_arr.reserve(n);
+      }
       void add_edge(vertex_id_type source, vertex_id_type target, EdgeData _data) {
         data.push_back(_data);
         source_arr.push_back(source);

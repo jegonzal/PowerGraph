@@ -261,8 +261,10 @@ namespace graphlab {
       if (use_vcolor)
         vcolors.resize(vertices.size());
     } // End of resize
-    
-    
+
+    void reserve_edge_space(size_t n) {
+      edges_tmp.reserve_edge_space(n);
+    }
     /**
      * \brief Creates an edge connecting vertex source to vertex target.  Any
      * existing data will be cleared.
