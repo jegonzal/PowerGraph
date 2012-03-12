@@ -93,6 +93,9 @@ typedef graphlab::graph3<vertex_data, edge_data> graph_type;
 
 void init_lanczos(graph_type * g, bipartite_graph_descriptor & info){
 
+  if (g->num_vertices() == 0)
+     logstream(LOG_FATAL)<<"Failed to load graph. Aborting" << std::endl;
+
   data_size = nsv + nv+1 + max_iter;
 #pragma omp parallel for
   for (int i=0; i< info.total(); i++)
@@ -394,13 +397,13 @@ int main(int argc,  char *argv[]) {
   load_graph(datafile, format, info, core.graph(), MATRIX_MARKET_3, false, false);
   core.graph().finalize();
 #else  
-  if (nodes == 0)
-  load_graph(datafile, format, info, core.graph(), MATRIX_MARKET_3, false, true);
-  else {
+  if (nodes == 0){
+    load_graph(datafile, format, info, core.graph(), MATRIX_MARKET_3, false, true);
+   } else {  
      info.rows = info.cols = nodes;
-     core.graph().load_directed(datafile, false, no_edge_data);
-     info.nonzeros = core.graph().num_edges();
-  }
+   }
+   core.graph().load_directed(datafile, false, no_edge_data);
+   info.nonzeros = core.graph().num_edges();
 #endif
   init_lanczos(&core.graph(), info);
   init_math(&core.graph(), &core, info, ortho_repeats, update_function);

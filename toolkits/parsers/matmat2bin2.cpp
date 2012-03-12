@@ -45,8 +45,8 @@ std::string datafile;
 graphlab::timer mytime;
 unsigned long long total_lines = 0;
 unsigned long long self_edges = 0;
-bool reverse_graph = false;
 bool gzip = false;
+bool reverse_edges = true;
 
 struct vertex_data {
   string filename;
@@ -73,6 +73,10 @@ struct stringzipparser_update :
     vertex_data& vdata = context.vertex_data();
     std::ifstream in_file((dir + vdata.filename).c_str(), std::ios::binary);
     logstream(LOG_INFO)<<"Opening input file: " << dir << vdata.filename << std::endl;
+    if (!in_file.good()){
+       logstream(LOG_ERROR)<<"Failed to open file!"<< std::endl;
+       return;
+    }
     boost::iostreams::filtering_stream<boost::iostreams::input> fin;
     if (gzip)
       fin.push(boost::iostreams::gzip_decompressor());
@@ -83,9 +87,9 @@ struct stringzipparser_update :
     //get matrix market header size
     load_graph(vdata.filename, "matrixmarket", info, graph, MATRIX_MARKET_3, false, true);
 
-    FILE * deg_file = open_file(vdata.filename + (reverse_graph? "-r.nodes" : ".nodes"), "w");
-    FILE * edge_file = open_file(vdata.filename + (reverse_graph ? "-r.edges" : ".edges"), "w");
-    FILE * weight_file = open_file(vdata.filename + (reverse_graph ? "-r.weights" : ".weights"), "w");
+    FILE * deg_file = open_file(vdata.filename + ".nodes", "w");
+    FILE * edge_file = open_file(vdata.filename + ".edges", "w");
+    FILE * weight_file = open_file(vdata.filename + ".weights", "w");
 
     int deg_ptr = 0;
     fwrite(& deg_ptr, sizeof(int), 1, deg_file);
@@ -134,7 +138,10 @@ struct stringzipparser_update :
         double val;
         from = atoi(buf1);
         to = atoi(buf2);
-        assert(to > (uint)last_col);
+        if (reverse_edges) //file is sorted by 2nd column
+           assert(to > (uint)last_col);
+        else assert(from > (uint)last_row); //file is sorted by 1st column
+
         val = atof(buf3);
         //matrix market size line- skip
         if (from == (uint)info.rows && to == (uint)info.cols && (size_t)val == info.nonzeros)
@@ -146,20 +153,31 @@ struct stringzipparser_update :
 
          edges_so_far++;
         fwrite(&val, sizeof(double), 1, weight_file);
-        fwrite(&from, sizeof(int), 1, edge_file);
-        if (to > (uint)last_col){
+
+        if (reverse_edges)
+           fwrite(&from, sizeof(int), 1, edge_file);
+        else fwrite(&to, sizeof(int), 1, edge_file);
+
+        if (reverse_edges && to > (uint)last_col){
            for (uint k=last_col; k < to; k++){
              fwrite(&edges_so_far, sizeof(int), 1, deg_file);
              num_degree_written++;
            }
         }
+        else if (!reverse_edges && from > (uint)last_row){
+	   for (uint k=last_row; k < from; k++){
+             fwrite(&edges_so_far, sizeof(int), 1, deg_file);
+             num_degree_written++;
+           }
+        }
+
         if (debug && line <= 10)
             cout<<"Read line: " << line << " From: " << from << " To: " << to << " val: " << val << " total edges so far: " << edges_so_far << endl;
        
       line++;
       total_lines++;
 
-      last_col = from; last_col = to;
+      last_row = from; last_col = to;
       if (lines && line>=lines)
 	 break;
 
@@ -168,16 +186,22 @@ struct stringzipparser_update :
     } 
 
    logstream(LOG_INFO) <<"Finished parsing total of " << line << " lines in file " << vdata.filename << endl;
-   for (int k=last_col; k < info.cols; k++){
-     fwrite(&edges_so_far, sizeof(int), 1, deg_file);
+   if (reverse_edges) {
+     for (int k=last_col; k < info.cols; k++){
+       fwrite(&edges_so_far, sizeof(int), 1, deg_file);
+     }
+   }
+   else {
+     for (int k=last_row; k < info.rows; k++){
+       fwrite(&edges_so_far, sizeof(int), 1, deg_file);
+     }
    }
    
     fwrite(&edges_so_far, sizeof(int), 1, deg_file);
     num_degree_written++;
-    if (!reverse_graph)
+    if (reverse_edges)
     assert(num_degree_written == info.cols+1); 
-    else
-    assert(num_degree_written == info.rows+1);
+    else assert(num_degree_written = info.rows+1);
     assert((size_t)edges_so_far == info.nonzeros);
     
     fclose(deg_file);
@@ -229,9 +253,8 @@ int main(int argc,  char *argv[]) {
   clopts.attach_option("save_to_text", & save_to_text, save_to_text, 
                        "save output map in text file");
   clopts.attach_option("filter", &filter, filter, "Filter input files starting with prefix.. ");
-  clopts.attach_option("reverse_graph", &reverse_graph, reverse_graph, "reverse_graph file? ");
   clopts.attach_option("gzip", &gzip, gzip, "gzipped input file");
-
+  clopts.attach_option("reverse_edges", &reverse_edges, reverse_edges, "true = matrix market file is sorted by 2nd col. False - matrix market file is sorted by 1st column");
   // Parse the command line arguments
   if(!clopts.parse(argc, argv)) {
     std::cout << "Invalid arguments!" << std::endl;
