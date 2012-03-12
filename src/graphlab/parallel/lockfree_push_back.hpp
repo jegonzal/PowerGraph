@@ -40,6 +40,10 @@ namespace lockfree_push_back_impl {
     inline size_t inc_idx() {
       return idx.inc_ret_last();
     }
+
+    inline size_t inc_idx(size_t n) {
+      return idx.inc_ret_last(n);
+    }
   };
 } // lockfree_push_back_impl
   
@@ -69,6 +73,47 @@ class lockfree_push_back {
     size_t size() const {
       return cur.idx.value;
     }
+
+    template <typename Iterator>
+    size_t push_back(Iterator begin, Iterator end) {
+      size_t numel = std::distance(begin, end);
+      size_t putpos = cur.inc_idx(numel);
+      size_t endidx = putpos + numel;
+      while(1) {
+        cur.inc_ref();
+        if (endidx <= container.size()) {
+          while(putpos < endidx) {
+            container[putpos] = (*begin);
+            ++putpos; ++begin;
+          }
+          cur.dec_ref();
+          break;
+        }
+        else {
+          cur.dec_ref();
+
+          if (mut.try_lock()) {
+            // ok. we need to resize
+            // flag the reference and wait till there are no more references
+            cur.flag_ref();
+            cur.wait_till_no_ref();
+            // we are exclusive here. resize
+            if (endidx > container.size()) {
+              container.resize(std::max<size_t>(endidx, container.size() * scalefactor));
+            }
+            while(putpos < endidx) {
+              container[putpos] = (*begin);
+              ++putpos; ++begin;
+            }
+            cur.flag_ref();
+            mut.unlock();
+            break;
+          }
+        }
+      }
+      return putpos;
+    }
+    
     size_t push_back(T& t) {
       size_t putpos = cur.inc_idx();
       while(1) {
