@@ -46,7 +46,7 @@ graphlab::timer mytime;
 unsigned long long total_lines = 0;
 unsigned long long self_edges = 0;
 bool gzip = false;
-bool reverse_edges = true;
+bool reverse_edges = false;
 
 struct vertex_data {
   string filename;
@@ -91,15 +91,22 @@ struct stringzipparser_update :
     FILE * edge_file = open_file(vdata.filename + ".edges", "w");
     FILE * weight_file = open_file(vdata.filename + ".weights", "w");
 
-    int deg_ptr = 0;
-    fwrite(& deg_ptr, sizeof(int), 1, deg_file);
+    //int deg_ptr = 0;
+    uint edges_so_far = 0;
+    fwrite(&edges_so_far, sizeof(int), 1, deg_file);
     int num_degree_written = 1;  
-  
+    
+    if (reverse_edges){
+        for (uint k=0; k < info.rows-1; k++){
+             fwrite(&edges_so_far, sizeof(int), 1, deg_file);
+             num_degree_written++;
+           }
+     }
+    
     int last_row = 0, last_col = 0;
     char linebuf[256], buf1[256], buf2[256], buf3[256];
     char saveptr[1024];
     int line = 1;
-    size_t edges_so_far = 0;
     int lines = context.get_global<int>("LINES");
     bool header = true;
  
@@ -151,12 +158,15 @@ struct stringzipparser_update :
         assert(to >=1 && to <= (uint)info.cols);
   	from--; to--;
 
-         edges_so_far++;
         fwrite(&val, sizeof(double), 1, weight_file);
 
-        if (reverse_edges)
+        if (reverse_edges){
            fwrite(&from, sizeof(int), 1, edge_file);
-        else fwrite(&to, sizeof(int), 1, edge_file);
+        }
+        else {
+           uint abs_dst = to + info.rows;
+           fwrite(&abs_dst, sizeof(int), 1, edge_file);
+        }
 
         if (reverse_edges && to > (uint)last_col){
            for (uint k=last_col; k < to; k++){
@@ -170,6 +180,7 @@ struct stringzipparser_update :
              num_degree_written++;
            }
         }
+        edges_so_far++;
 
         if (debug && line <= 10)
             cout<<"Read line: " << line << " From: " << from << " To: " << to << " val: " << val << " total edges so far: " << edges_so_far << endl;
@@ -189,19 +200,19 @@ struct stringzipparser_update :
    if (reverse_edges) {
      for (int k=last_col; k < info.cols; k++){
        fwrite(&edges_so_far, sizeof(int), 1, deg_file);
+       num_degree_written++;
      }
    }
    else {
-     for (int k=last_row; k < info.rows; k++){
+     for (int k=last_row; k < info.rows+info.cols-1; k++){
        fwrite(&edges_so_far, sizeof(int), 1, deg_file);
+       num_degree_written++;
      }
    }
    
     fwrite(&edges_so_far, sizeof(int), 1, deg_file);
     num_degree_written++;
-    if (reverse_edges)
-    assert(num_degree_written == info.cols+1); 
-    else assert(num_degree_written = info.rows+1);
+    assert(num_degree_written == info.rows+info.cols+1); 
     assert((size_t)edges_so_far == info.nonzeros);
     
     fclose(deg_file);
