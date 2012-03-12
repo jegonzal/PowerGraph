@@ -98,7 +98,6 @@ namespace graphlab {
       vertex_id_type vid;
       procid_t owner;
       size_t num_in_edges, num_out_edges;
-      // std::vector<procid_t> mirrors;
       mirror_type mirrors;
       vertex_data_type vdata;
       vertex_negotiator_record() : 
@@ -307,7 +306,6 @@ namespace graphlab {
           vertex_negotiator_record& negotiator_rec = vrec_map[shuffle_rec.vid];
           negotiator_rec.num_in_edges += shuffle_rec.num_in_edges;
           negotiator_rec.num_out_edges += shuffle_rec.num_out_edges;
-          // negotiator_rec.mirrors.push_back(proc);
           negotiator_rec.mirrors.set_bit(proc);
         }
       }
@@ -338,10 +336,8 @@ namespace graphlab {
         negotiator_rec.owner = best_asg.second;
         counts[negotiator_rec.owner]++;
         // Notify all machines of the new assignment
-        for (size_t i = 0; i < negotiator_rec.mirrors.size(); ++i) {
-          if (negotiator_rec.mirrors.get(i))  {
-            negotiator_exchange.send(i, negotiator_rec);
-          }
+        foreach(uint32_t proc, negotiator_rec.mirrors) {
+            negotiator_exchange.send(proc, negotiator_rec);
         }
       } // end of loop over vertex records
 
@@ -371,15 +367,6 @@ namespace graphlab {
             local_record._mirrors = negotiator_rec.mirrors;
             local_record._mirrors.clear_bit(negotiator_rec.owner);
 
-
-            // ASSERT_GT(negotiator_rec.mirrors.size(), 0);
-            // local_record._mirrors.reserve(negotiator_rec.mirrors.size()-1);
-            // ASSERT_EQ(local_record._mirrors.size(), 0);
-            // // copy the mirrors but drop the owner
-            // for(size_t i = 0; i < negotiator_rec.mirrors.size(); ++i) {
-            //   if(negotiator_rec.mirrors[i] != negotiator_rec.owner) 
-            //     local_record._mirrors.push_back(negotiator_rec.mirrors[i]);
-            // }
           }
         }
       }
