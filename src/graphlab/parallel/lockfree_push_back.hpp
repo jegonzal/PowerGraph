@@ -69,7 +69,7 @@ class lockfree_push_back {
     size_t size() const {
       return cur.idx.value;
     }
-    void push_back(T& t) {
+    size_t push_back(T& t) {
       size_t putpos = cur.inc_idx();
       while(1) {
         cur.inc_ref();
@@ -97,6 +97,7 @@ class lockfree_push_back {
           }
         }
       }
+      return putpos;
     }
 };
 
