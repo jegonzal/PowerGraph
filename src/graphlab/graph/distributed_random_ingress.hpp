@@ -29,7 +29,7 @@
 #include <graphlab/graph/graph_basic_types.hpp>
 #include <graphlab/graph/idistributed_ingress.hpp>
 #include <graphlab/graph/distributed_graph.hpp>
-
+#include <google/malloc_extension.h>
 
 #include <graphlab/macros_def.hpp>
 namespace graphlab {
@@ -156,10 +156,19 @@ namespace graphlab {
       BEGIN_TRACEPOINT(random_ingress_finalize);
       BEGIN_TRACEPOINT(random_ingress_recv_edges);
       edge_exchange.flush(); vertex_exchange.flush();
-      rpc.full_barrier();
-      graph.local_graph.reserve_edge_space(edge_exchange.size());
+
+       size_t value;
+       MallocExtension::instance()->GetNumericProperty("generic.heap_size", &value);
+       logstream(LOG_DEBUG) << "Heap Size (entering finalize): " << (double)value/(1024*1024) << "MB" << "\n";
+       MallocExtension::instance()->GetNumericProperty("generic.current_allocated_bytes", &value);
+       logstream(LOG_DEBUG) << "Allocated Size (entering finalize): " << (double)value/(1024*1024) << "MB" << "\n";
+
 
       // add all the edges to the local graph --------------------------------
+      logstream(LOG_DEBUG) << "Finalize: constructing local graph" << std::endl;
+      size_t nedges = edge_exchange.size()+1;
+      graph.local_graph.reserve_edge_space(nedges + 1);
+      logstream(LOG_INFO) << "Finalize: number of edges adding to the local graph" << nedges << std::endl;
       {
         typedef typename buffered_exchange<edge_buffer_record>::buffer_type 
           edge_buffer_type;
@@ -186,8 +195,17 @@ namespace graphlab {
           } // end of loop over add edges
         } // end for loop over buffers
       }
+
       logstream(LOG_INFO) << "Finalizing local graph" << std::endl;
       END_TRACEPOINT(random_ingress_recv_edges);
+      edge_exchange.clear();
+
+       MallocExtension::instance()->GetNumericProperty("generic.heap_size", &value);
+       logstream(LOG_DEBUG) << "Heap Size (local graph constructed): " << (double)value/(1024*1024) << "MB" << "\n";
+       MallocExtension::instance()->GetNumericProperty("generic.current_allocated_bytes", &value);
+       logstream(LOG_DEBUG) << "Allocated Size (local graph constructed): " << (double)value/(1024*1024) << "MB" << "\n";
+
+
 
       // Finalize local graph
       graph.local_graph.finalize();
@@ -196,6 +214,13 @@ namespace graphlab {
                           << std::endl
                           << "\t nedges: " << graph.local_graph.num_edges()
                           << std::endl;
+
+       MallocExtension::instance()->GetNumericProperty("generic.heap_size", &value);
+       logstream(LOG_DEBUG) << "Heap Size (local graph finalized): " << (double)value/(1024*1024) << "MB" << "\n";
+       MallocExtension::instance()->GetNumericProperty("generic.current_allocated_bytes", &value);
+       logstream(LOG_DEBUG) << "Allocated Size (local graph finalized): " << (double)value/(1024*1024) << "MB" << "\n";
+
+
 
       BEGIN_TRACEPOINT(random_ingress_compute_assignments);
       // Initialize vertex records
@@ -247,6 +272,11 @@ namespace graphlab {
           }
         }
       } // end of loop to populate vrecmap
+
+      MallocExtension::instance()->GetNumericProperty("generic.heap_size", &value);
+      logstream(LOG_DEBUG) << "Heap Size (vertex record shuffle): " << (double)value/(1024*1024) << "MB" << "\n";
+      MallocExtension::instance()->GetNumericProperty("generic.current_allocated_bytes", &value);
+      logstream(LOG_DEBUG) << "Allocated Size (vertex record shuffle): " << (double)value/(1024*1024) << "MB" << "\n";
 
 
    
@@ -321,6 +351,13 @@ namespace graphlab {
           }
         }
       }
+
+      MallocExtension::instance()->GetNumericProperty("generic.heap_size", &value);
+      logstream(LOG_DEBUG) << "Heap Size (vertex record finalize): " << (double)value/(1024*1024) << "MB" << "\n";
+      MallocExtension::instance()->GetNumericProperty("generic.current_allocated_bytes", &value);
+      logstream(LOG_DEBUG) << "Allocated Size (vertex record finalize): " << (double)value/(1024*1024) << "MB" << "\n";
+
+
 
       // Count the number of vertices owned locally
       graph.local_own_nverts = 0;
