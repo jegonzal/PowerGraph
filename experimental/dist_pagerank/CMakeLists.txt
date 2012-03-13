@@ -1,6 +1,9 @@
 project(GraphLab)
 
 add_distributed_graphlab_executable(dist_pagerank dist_pagerank.cpp)
+add_distributed_graphlab_executable(dist_pagerank_exp dist_pagerank.cpp)
 add_distributed_graphlab_executable(dist_fscope_pagerank dist_pagerank.cpp)
 set_target_properties(dist_fscope_pagerank PROPERTIES COMPILE_FLAGS -DFSCOPE)
+set_target_properties(dist_pagerank_exp PROPERTIES COMPILE_FLAGS -DEXPERIMENTAL_LOCKING_3)
+
 copy_files(*.job)

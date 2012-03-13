@@ -164,6 +164,48 @@ namespace graphlab {
       else return sched_status::EMPTY;
     }
 
+    void place(vertex_id_type vid,
+                 const update_functor_type& fun) {
+      vfun_set.add(vid, fun);
+    }
+
+
+    void schedule_from_execution_thread(size_t cpuid, vertex_id_type vid) {
+      if (vfun_set.has_task(vid)) {
+        ASSERT_LT(cpuid, in_queues.size());
+        in_queue_locks[cpuid].lock();
+        queue_type& queue = in_queues[cpuid];
+        queue.push_back(vid);
+        if(queue.size() > sub_queue_size) {
+          master_lock.lock();
+          queue_type emptyq;
+          master_queue.push_back(emptyq);
+          master_queue.back().swap(queue);
+          master_lock.unlock();
+        }
+        in_queue_locks[cpuid].unlock();
+        term.new_job(cpuid);
+      }
+    }
+
+    void schedule(vertex_id_type vid) {
+      if (vfun_set.has_task(vid)) {
+        const size_t cpuid = random::rand() % in_queues.size();
+        in_queue_locks[cpuid].lock();
+        queue_type& queue = in_queues[cpuid];
+        queue.push_back(vid);
+        if(queue.size() > sub_queue_size) {
+          master_lock.lock();
+          queue_type emptyq;
+          master_queue.push_back(emptyq);
+          master_queue.back().swap(queue);
+          master_lock.unlock();
+        }
+        in_queue_locks[cpuid].unlock();
+        term.new_job(cpuid);
+      }
+    }
+    
     /** Get the next element in the queue */
     sched_status::status_enum get_next(const size_t cpuid,
                                        vertex_id_type& ret_vid,
