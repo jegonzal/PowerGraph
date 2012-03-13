@@ -571,16 +571,9 @@ namespace graphlab {
 
      for (size_t i = 0; i < rpc.numprocs(); ++i) {
        size_t sd = src_degree[i];
-       size_t td = src_degree[i];
+       size_t td = dst_degree[i];
        double bal = (maxedges - proc_num_edges[i])/(epsilon + maxedges - minedges);
-       proc_score[i] = bal;
-       if (!(sd || td)) { // proc hasn't seen either src or dst
-         proc_score[i] += 0; 
-       } else if (!(sd && td)) { // proc has seen one but not the other
-         proc_score[i] += 1; 
-       } else {
-         proc_score[i] += 2;
-       }
+       proc_score[i] = bal + ((sd > 0) + (td > 0));
      }
      maxscore = *std::max_element(proc_score.begin(), proc_score.end());
 

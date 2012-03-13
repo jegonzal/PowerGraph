@@ -59,6 +59,7 @@
 #include <graphlab/graph/idistributed_ingress.hpp>
 #include <graphlab/graph/distributed_batch_ingress.hpp>
 #include <graphlab/graph/distributed_oblivious_ingress.hpp>
+#include <graphlab/graph/distributed_greedy_ingress.hpp>
 // #include <graphlab/graph/distributed_semioblivious_ingress.hpp>
 #include <graphlab/graph/distributed_random_ingress.hpp>
 #include <graphlab/graph/distributed_localbfs_ingress.hpp>
@@ -117,6 +118,12 @@ namespace graphlab {
     typedef distributed_oblivious_ingress<VertexData, EdgeData>
         distributed_oblivious_ingress_type;
     friend class distributed_oblivious_ingress<VertexData, EdgeData>;
+
+
+    typedef distributed_greedy_ingress<VertexData, EdgeData>
+        distributed_greedy_ingress_type;
+    friend class distributed_greedy_ingress<VertexData, EdgeData>;
+
 
 
 
@@ -551,6 +558,9 @@ namespace graphlab {
       if(method == "batch") {
         logstream(LOG_INFO) << "Using batch ingress with buffer size " << bufsize << std::endl;
         ingress_ptr = new distributed_batch_ingress_type(rpc.dc(), *this, bufsize);
+      } else if(method == "greedy") {
+        logstream(LOG_INFO) << "Using greedy ingress with buffer size " << bufsize << std::endl;
+        ingress_ptr = new distributed_greedy_ingress_type(rpc.dc(), *this, bufsize);
       // } else if (method == "semi_oblivious") {
       //   logstream(LOG_INFO) << "Using semi oblivious ingress with buffer size " << bufsize << std::endl;
       //   ingress_ptr = new distributed_semi_oblivous_ingress_type(rpc.dc(), *this, bufsize);

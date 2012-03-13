@@ -297,7 +297,7 @@ void add_edge(vertex_id_type source, vertex_id_type target, const EdgeData& edat
     } // end of add vertex
 
     void finalize() { 
-      flush();
+      flush(); vertex_exchange.flush();
       rpc.full_barrier();
 
       BEGIN_TRACEPOINT(batch_ingress_finalize);
@@ -535,25 +535,17 @@ void add_edge(vertex_id_type source, vertex_id_type target, const EdgeData& edat
      double maxscore = 0.0;
      double epsilon = 1e-8;
      std::vector<double> proc_score(rpc.numprocs()); 
+     
+     size_t minedges = *std::min_element(proc_num_edges.begin(), proc_num_edges.end());
+     size_t maxedges = *std::max_element(proc_num_edges.begin(), proc_num_edges.end());
      for (size_t i = 0; i < rpc.numprocs(); ++i) {
        size_t sd = src_degree[i]; 
        size_t td = dst_degree[i];
 
-       size_t minedges = *std::min_element(proc_num_edges.begin(), proc_num_edges.end());
-       size_t maxedges = *std::max_element(proc_num_edges.begin(), proc_num_edges.end());
        double bal = (maxedges - proc_num_edges[i])/(epsilon + maxedges - minedges);
-       proc_score[i] = bal;
-       if (!(sd || td)) { // proc hasn't seen either src or dst
-         proc_score[i] += 0; 
-       } else if (!(sd && td)) { // proc has seen one but not the other
-         proc_score[i] += 1; 
-       } else {
-         proc_score[i] += 2;
-       }
-       if (proc_score[i] > maxscore) {
-         maxscore = proc_score[i];
-       }
+       proc_score[i] = bal + ((sd > 0) + (td > 0));
      }
+     maxscore = *std::max_element(proc_score.begin(), proc_score.end());
 
      std::vector<procid_t> top_procs; 
      for (size_t i = 0; i < rpc.numprocs(); ++i)
