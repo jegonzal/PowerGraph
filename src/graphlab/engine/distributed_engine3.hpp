@@ -129,32 +129,39 @@ namespace graphlab {
 
     // preferred order in the scheduling buffer. order from least preferred
     // to most preferred.
-    struct schedule_preference_comparator{
+    struct schedule_preference_generator{
       local_graph_type* lgraph;
       lock_set_type* lockset;
-      schedule_preference_comparator():lgraph(NULL), lockset(NULL) { }
-      schedule_preference_comparator(local_graph_type* lgraph,
+      schedule_preference_generator():lgraph(NULL), lockset(NULL) { }
+      schedule_preference_generator(local_graph_type* lgraph,
                                      lock_set_type* lockset):lgraph(lgraph), lockset(lockset) { }
 
-      // less than comparator
-      bool operator()(const std::pair<vertex_id_type, update_functor_type>& a,
-                      const std::pair<vertex_id_type, update_functor_type>& b) {
-       /* float pa = (float)lockset->philosopherset[a.first].forks_acquired /
-                   (float)lockset->philosopherset[a.first].num_edges;
-        float pb = (float)lockset->philosopherset[b.first].forks_acquired /
-                   (float)lockset->philosopherset[b.first].num_edges;*/
-        return lgraph->color(a.first) < lgraph->color(b.first);
+      float operator()(vertex_id_type a) {
+        float pa = (float)lockset->philosopherset[a].forks_acquired /
+                   (float)lockset->philosopherset[a].num_edges;
+        return pa;
+        //return lgraph->color(a.first) < lgraph->color(b.first);
       }
     };
     
     struct thread_local_data {
       mutex lock;
+      mutex schedlock;
       size_t extracted_sched_size;
       size_t npending;
-      std::vector<std::pair<vertex_id_type, update_functor_type> > extracted_schedule;
+      
+      struct taskentry {
+        vertex_id_type vid;
+        update_functor_type uf;
+        float pr;
+        bool operator<(const taskentry &te) const {
+          return pr < te.pr;
+        }
+      };
+      std::vector<taskentry> extracted_schedule;
       std::deque<vertex_id_type> pending_vertices;
 
-      schedule_preference_comparator comparator;
+      schedule_preference_generator generator;
       
       thread_local_data() : extracted_sched_size(0), npending(0) { }
 
@@ -167,52 +174,50 @@ namespace graphlab {
           sched_status::status_enum stat =
                         sched->get_next(threadid, vid, task);
           if (stat != sched_status::EMPTY) {
-            extracted_schedule[extracted_sched_size].first = vid;
-            extracted_schedule[extracted_sched_size].second = task;
+            extracted_schedule[extracted_sched_size].vid = vid;
+            extracted_schedule[extracted_sched_size].uf = task;
+            extracted_schedule[extracted_sched_size].pr = generator(vid);
             ++extracted_sched_size;
           }
           else {
             break;
           }
         }
-        
         std::sort(extracted_schedule.begin(),
-                  extracted_schedule.begin() + extracted_sched_size,
-                  comparator);
+                  extracted_schedule.begin() + extracted_sched_size);
       }
     
-      void init_reorder_buffer(size_t bufsize, schedule_preference_comparator comp) {
+      void init_reorder_buffer(size_t bufsize, schedule_preference_generator comp) {
         extracted_schedule.resize(bufsize);
         extracted_sched_size = 0;
-        comparator = comp;
+        generator = comp;
       }
       
       bool get_schedule(size_t threadid,
                         ischeduler_type* sched,
                         vertex_id_type& vid,
                         update_functor_type &task) {
-        lock.lock();
+        schedlock.lock();
         bool retval = false;
         if (extracted_sched_size > 0) {
           // if there is something in the extracted schedule, use it
-          vid = extracted_schedule[extracted_sched_size - 1].first;
-          task = extracted_schedule[extracted_sched_size - 1].second;
           extracted_sched_size--;
+          vid = extracted_schedule[extracted_sched_size].vid;
+          task = extracted_schedule[extracted_sched_size].uf;
           retval = true;
         }
         else {
           // Otherwise, try to fill it from the scheduler,
           // and try again
           fill_extracted_schedule_unsync(threadid, sched);
-          if (extracted_sched_size == 0) retval = false;
-          else {
-            vid = extracted_schedule[extracted_sched_size - 1].first;
-            task = extracted_schedule[extracted_sched_size - 1].second;
+          if (extracted_sched_size > 0) {
             extracted_sched_size--;
+            vid = extracted_schedule[extracted_sched_size].vid;
+            task = extracted_schedule[extracted_sched_size].uf;
             retval = true;
           }
         }
-        lock.unlock();
+        schedlock.unlock();
         return retval;
       }
       
@@ -1169,7 +1174,7 @@ namespace graphlab {
       }
       for (size_t i = 0;i < ncpus; ++i) {
         thrlocal[i].init_reorder_buffer(max_thread_reorder_buffer,
-                                        schedule_preference_comparator(&graph.get_local_graph(),
+                                        schedule_preference_generator(&graph.get_local_graph(),
                                                                        cmlocks));
       }
       rmi.barrier();
