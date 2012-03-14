@@ -399,6 +399,12 @@ namespace graphlab {
             << "Added edata for " << ctr << " vertices: " 
             << source << std::endl; 
       } // end of loop over file
+
+      logstream(LOG_INFO) 
+        << "Finished loading graph with: " << std::endl
+        << "\t Vertices: " << graph.num_vertices() << std::endl
+        << "\t Edges:  " << graph.num_edges() << std::endl;
+
       return true;
     } // end of load_adj_list
 

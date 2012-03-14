@@ -461,7 +461,7 @@ namespace graphlab {
     procid_t edge_to_proc(vertex_id_type src, vertex_id_type dst) {
      procid_t best_proc = -1; 
      double maxscore = 0.0;
-     double epsilon = 1e-5;
+     double epsilon = 0.01; 
      std::vector<double> proc_score(rpc.numprocs()); 
 
      // int seed_hash = try_edge_hash(src, dst);
@@ -494,7 +494,7 @@ namespace graphlab {
 
      std::vector<procid_t> top_procs; 
      for (ssize_t i = 0; i < ssize_t(rpc.numprocs()); ++i)
-       if (std::fabs(proc_score[i] - maxscore) < epsilon)
+       if (std::fabs(proc_score[i] - maxscore) < 1e-5)
          top_procs.push_back(i);
 
      // Hash the edge to one of the best procs.

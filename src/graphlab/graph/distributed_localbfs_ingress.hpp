@@ -170,27 +170,29 @@ namespace graphlab {
             if (iter != edge_list.end()) {
               foreach(adj_entry_type item, iter->second) { 
                 queue.push_back(edge_type(startv, item.first, item.second));
+                ++covered_edge;
               }
               edge_list[startv].clear();
               edge_list.erase(iter);
+
+              // Fill in the subgraph spanned by the seed vertices.
+              while(!queue.empty()) {
+                edge_type e = queue.front();
+                adj_iter_type iter = edge_list.find(e.target());
+                if (iter != edge_list.end()) {
+                  foreach(adj_entry_type item, iter->second) { 
+                    queue.push_back(edge_type(iter->first, item.first, item.second));
+                  }
+                  iter->second.clear();
+                  edge_list.erase(iter);
+                }
+                queue.pop_front();
+                ret.push_back(e);
+                ++covered_edge;
+              }
             }
           }
 
-          // Fill in the subgraph spanned by the seed vertices.
-          while(!queue.empty()) {
-            edge_type e = queue.front();
-            adj_iter_type iter = edge_list.find(e.target());
-            if (iter != edge_list.end()) {
-              foreach(adj_entry_type item, iter->second) { 
-                queue.push_back(edge_type(iter->first, item.first, item.second));
-              }
-              iter->second.clear();
-              edge_list.erase(iter);
-            }
-            queue.pop_front();
-            ret.push_back(e);
-            ++covered_edge;
-          }
           logstream(LOG_DEBUG) << "Number of covered edges from BFS: " << covered_edge<< std::endl;
 
           // Fill in the rest of the dangling edges.
@@ -278,7 +280,14 @@ namespace graphlab {
       logstream(LOG_DEBUG) << "Flushing bfs buffer..." << std::endl;
       std::vector<vertex_id_type> seeds = get_seed_vertices(max_vid);
       std::vector<edge_type> edge_list =  bfs_buffer.bfs_order(seeds);
-      
+
+      std::cout << "First 100 bfs edges: " << std::endl;
+      for (size_t i = 0; i < 100; ++i) {
+        std::cout << "(" << edge_list[i].source() << ", " << edge_list[i].target()
+        << ")\t";
+      }
+        std::cout << std::endl;
+
       foreach(const edge_type& edge, edge_list) {
         const procid_t owning_proc = edge_to_proc(edge.source(), edge.target());
         const edge_buffer_record record(edge.source(), 
@@ -554,7 +563,7 @@ namespace graphlab {
 
      procid_t best_proc = -1; 
      double maxscore = 0.0;
-     double epsilon = 1e-5;
+     double epsilon = 0.01;
      std::vector<double> proc_score(rpc.numprocs()); 
 
      int seed_hash = try_edge_hash(src, dst);
@@ -579,7 +588,7 @@ namespace graphlab {
 
      std::vector<procid_t> top_procs; 
      for (size_t i = 0; i < rpc.numprocs(); ++i)
-       if (std::fabs(proc_score[i] - maxscore) < epsilon)
+       if (std::fabs(proc_score[i] - maxscore) < 1e-5)
          top_procs.push_back(i);
 
      if (top_procs.size() > 1) {

@@ -184,16 +184,21 @@ namespace graphlab {
             if(graph.vid2lvid.find(rec.source) == graph.vid2lvid.end()) {
               source_lvid = graph.vid2lvid.size();
               graph.vid2lvid[rec.source] = source_lvid;
-              graph.local_graph.resize(source_lvid + 1);
+              // graph.local_graph.resize(source_lvid + 1);
             } else source_lvid = graph.vid2lvid[rec.source];
             // Get the target_lvid;
             lvid_type target_lvid(-1);
             if(graph.vid2lvid.find(rec.target) == graph.vid2lvid.end()) {
               target_lvid = graph.vid2lvid.size();
               graph.vid2lvid[rec.target] = target_lvid;
-              graph.local_graph.resize(target_lvid + 1);
+              // graph.local_graph.resize(target_lvid + 1);
             } else target_lvid = graph.vid2lvid[rec.target];
+
             // Add the edge data to the graph
+            if (source_lvid >= graph.local_graph.num_vertices() ||
+                target_lvid >= graph.local_graph.num_vertices())
+              graph.local_graph.resize(std::max(source_lvid, target_lvid) + 1);
+
             graph.local_graph.add_edge(source_lvid, target_lvid, rec.edata);          
           } // end of loop over add edges
         } // end for loop over buffers

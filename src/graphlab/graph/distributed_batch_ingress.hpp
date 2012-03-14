@@ -533,7 +533,7 @@ void add_edge(vertex_id_type source, vertex_id_type target, const EdgeData& edat
 
      procid_t best_proc = -1; 
      double maxscore = 0.0;
-     double epsilon = 1e-8;
+     double epsilon = 0.01;
      std::vector<double> proc_score(rpc.numprocs()); 
      
      size_t minedges = *std::min_element(proc_num_edges.begin(), proc_num_edges.end());
@@ -549,7 +549,7 @@ void add_edge(vertex_id_type source, vertex_id_type target, const EdgeData& edat
 
      std::vector<procid_t> top_procs; 
      for (size_t i = 0; i < rpc.numprocs(); ++i)
-       if (std::fabs(proc_score[i] - maxscore) < epsilon)
+       if (std::fabs(proc_score[i] - maxscore) < 1e-5)
          top_procs.push_back(i);
 
       if (top_procs.size() > 1) {

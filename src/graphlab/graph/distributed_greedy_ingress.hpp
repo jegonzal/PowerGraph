@@ -595,7 +595,7 @@ namespace graphlab {
 
      procid_t best_proc = -1; 
      double maxscore = 0.0;
-     double epsilon = 1e-8;
+     double epsilon = 0.01;
      std::vector<double> proc_score(rpc.numprocs()); 
 
      size_t minedges = *std::min_element(proc_num_edges.begin(), proc_num_edges.end());
@@ -603,15 +603,14 @@ namespace graphlab {
      for (size_t i = 0; i < rpc.numprocs(); ++i) {
        size_t sd = src_degree[i]; 
        size_t td = dst_degree[i];
-
-      double bal = (maxedges - proc_num_edges[i])/(epsilon + maxedges - minedges);
+       double bal = (maxedges - proc_num_edges[i])/(epsilon + maxedges - minedges);
        proc_score[i] = bal + ((sd > 0) + (td > 0));
      }
      maxscore = *std::max_element(proc_score.begin(), proc_score.end());
 
      std::vector<procid_t> top_procs; 
      for (size_t i = 0; i < rpc.numprocs(); ++i)
-       if (std::fabs(proc_score[i] - maxscore) < epsilon)
+       if (std::fabs(proc_score[i] - maxscore) < 1e-5)
          top_procs.push_back(i);
 
       if (top_procs.size() > 1) {
@@ -638,6 +637,24 @@ namespace graphlab {
       const edge_pair_type edge_pair(std::min(src, dst), 
                                      std::max(src, dst));
       best_proc = top_procs[hash_function(edge_pair) % top_procs.size()];
+
+      // if (rpc.procid() == 0) {
+      //   std::cout << "Scores for edge: (" << src << ", " << dst <<  "): " << std::endl; 
+      //   for (size_t i = 0; i < proc_score.size(); ++i) {
+      //     std::cout << proc_score[i] << "\t";
+      //   } 
+      //   // std::cout << "\nSource degrees :" << std::endl; 
+      //   // for (size_t i = 0; i < src_degree.size(); ++i) {
+      //   //   std::cout << src_degree[i] << "\t";
+      //   // }
+      //   // std::cout << "\nTarget degrees :" << std::endl; 
+      //   // for (size_t i = 0; i < dst_degree.size(); ++i) {
+      //   //   std::cout << dst_degree[i] << "\t";
+      //   // }
+      //   std::cout << std::endl;
+      //   std::cout << "Top procs size : " << top_procs.size() << std::endl; 
+      //   std::cout << "Best proc is: " << best_proc << std::endl; 
+      // }
 
      ASSERT_LT(best_proc, rpc.numprocs());
      ++src_degree[best_proc];
@@ -714,6 +731,10 @@ namespace graphlab {
       } // end for
 
       rpc.full_barrier();
+
+      if (rpc.procid() == 0) {
+        std::cout << "Flush and sync dhts... " << std::endl;
+      }
       sync_dhts();
       batch_add = false;
     } // end flush
@@ -744,6 +765,11 @@ namespace graphlab {
         }
       }
       local_degree_table_lock.unlock();
+
+      if (rpc.procid() == 0) {
+        std::cout << "Gather degree_table: recieved table of size " << degree_table.size()
+          << std::endl;
+      }
     }
 
     size_t size() { return num_edges; }
