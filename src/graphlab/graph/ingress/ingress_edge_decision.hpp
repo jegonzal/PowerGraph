@@ -146,8 +146,8 @@ namespace graphlab {
 
         // only counts the recent proc.
         if (userecent) {
-          src_degree.resize(numprocs, 0);
-          dst_degree.resize(numprocs, 0);
+          src_degree.clear();
+          dst_degree.clear();
         }
 
         ++src_degree[best_proc];
@@ -222,9 +222,6 @@ namespace graphlab {
         if (userecent) {
           src_degree.clear();
           dst_degree.clear();
-          // bug here?
-          ASSERT_EQ(src_degree.popcount(), 0);
-          ASSERT_EQ(dst_degree.popcount(), 0);
         }
         src_degree.set_bit(best_proc);
         dst_degree.set_bit(best_proc);
