@@ -222,8 +222,10 @@ namespace graphlab {
         if (userecent) {
           src_degree.clear();
           dst_degree.clear();
+          // bug here?
+          ASSERT_EQ(src_degree.popcount(), 0);
+          ASSERT_EQ(dst_degree.popcount(), 0);
         }
-
         src_degree.set_bit(best_proc);
         dst_degree.set_bit(best_proc);
         ++proc_num_edges[best_proc];
