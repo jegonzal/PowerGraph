@@ -415,7 +415,7 @@ namespace graphlab {
     // Finalize the graph storage. Construct CSC, CSRs.
     void finalize(size_t _num_of_v, edge_info &edges) {
 #ifdef DEBUG_GRAPH
-      std::cout << "Graph finalize..." << std::endl;
+      logstream(LOG_DEBUG) << "Graph2 finalize starts." << std::endl;
 #endif
       num_vertices = _num_of_v;
       num_edges = edges.size();
@@ -430,17 +430,15 @@ namespace graphlab {
       // Sort edges by source;
       // Begin of counting sort.
 #ifdef DEBUG_GRAPH
-      std::cout << "Sort by src..." << std::endl;
+      logstream(LOG_DEBUG) << "Graph2 finalize: Sort by source vertex" << std::endl;
 #endif
       counting_sort(edges.source_arr, counter_array, permute_index); 
-#ifdef DEBUG_GRAPH 
-      std::cout << "finish counting sort." << std::endl;
-#endif
+
       // Parallel sort target for each source= x interval: counter_array[x] - counter_array[x+1];
 #ifndef AVOID_PARALLEL_SORT
 #pragma omp parallel for
 #else
-      logstream(LOG_INFO) << "Parallel sort is disabled." << std::endl;
+      logstream(LOG_DEBUG) << "Graph2 finalize: Parallel sort is disabled." << std::endl;
 #endif
 
       for (ssize_t j = 0; j < ssize_t(num_vertices); ++j) {
@@ -455,7 +453,7 @@ namespace graphlab {
       // Inplace permute of edge_data, edge_src, edge_target array.
       // Modified from src/graphlab/util/generics/shuffle.hpp.
 #ifdef DEBUG_GRAPH
-      std::cout << "Inplace permute by src..." << std::endl;
+      logstream(LOG_DEBUG) << "Graph2 finalize: Inplace permute by source vertex" << std::endl;
 #endif
       vertex_id_type swap_src; vertex_id_type swap_target;
       for (size_t i = 0; i < permute_index.size(); ++i) {
@@ -491,7 +489,7 @@ namespace graphlab {
 
       // Construct CSR_src:
 #ifdef DEBUG_GRAPH
-      std::cout << "Build CSR_src..." << std::endl;
+      logstream(LOG_DEBUG)<< "Graph2 finalize: build CSR_src..." << std::endl;
 #endif
       CSR_src.reserve(num_vertices);
       if (use_skip_list) {
@@ -549,12 +547,9 @@ namespace graphlab {
       // Construct c2r_map, sort the ids according to column first order.
       // Begin of counting sort.
 #ifdef DEBUG_GRAPH
-      std::cout << "Sort by dst..." << std::endl;
+      logstream(LOG_DEBUG) << "Graph2 finalize: Sort by source vertex" << std::endl;
 #endif
       counting_sort(edges.target_arr, counter_array, permute_index); 
-#ifdef DEBUG_GRAPH
-      std::cout << "finish counting sort." << std::endl;
-#endif
 #ifndef AVOID_PARALLEL_SORT
 #pragma omp parallel for
 #endif
@@ -569,7 +564,7 @@ namespace graphlab {
 
 #ifdef AVOID_OUTOFPLACE_PERMUTE
 #ifdef DEBUG_GRAPH
-      std::cout << "Inplace permute by dst..." << std::endl;
+      logstream(LOG_DEBUG) << "Graph2 finalize: Inplace permute by target vertex" << std::endl;
 #endif
       inplace_shuffle(edges.source_arr.begin(), edges.source_arr.end(), permute_index);
       counting_sort(edges.target_arr, counter_array, permute_index); 
@@ -582,7 +577,7 @@ namespace graphlab {
       }
 #else
 #ifdef DEBUG_GRAPH
-      std::cout << "Outplace permute by dst..." << std::endl;
+      logstream(LOG_DEBUG) << "Graph2 finalize: Outofplace permute by target vertex" << std::endl;
 #endif
       outofplace_shuffle(edges.source_arr, permute_index);
 #endif
@@ -602,7 +597,7 @@ namespace graphlab {
       }
       size_t lastDst = -1;
 #ifdef DEBUG_GRAPH
-      std::cout <<"Build CSC_dst..." << std::endl;
+      logstream(LOG_DEBUG) <<"Graph2 finalize: Build CSC_dst..." << std::endl;
 #endif
       // Iterate over the edges. 
       for (size_t it = 0; it < num_edges; ++it) {
@@ -641,7 +636,7 @@ namespace graphlab {
       // Swap edge data and perserve c2r_map.
       edge_data_list.swap(edges.data);
 #ifdef DEBGU_GRAPH
-      std::cout << "End of finalize." << std::endl;
+      logstream(LOG_DEBUG) << "End of finalize." << std::endl;
 #endif
 
       /* DEBUG */
@@ -716,7 +711,7 @@ namespace graphlab {
         sizeof(CSC_dst_skip) + CSR_src_skip.capacity() * vid_size + 
         CSC_dst_skip.capacity() * vid_size;
 
-      std::cout << "CSR size: " 
+      logstream(LOG_DEBUG) << "CSR size: " 
                 << (double)CSR_size/(1024*1024)
                 << " CSC size: " 
                 << (double)CSC_size/(1024*1024) 

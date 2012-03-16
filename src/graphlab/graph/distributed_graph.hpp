@@ -56,13 +56,11 @@
 #include <graphlab/serialization/oarchive.hpp>
 #include <graphlab/graph/graph.hpp>
 #include <graphlab/graph/graph2.hpp>
-#include <graphlab/graph/idistributed_ingress.hpp>
-#include <graphlab/graph/distributed_batch_ingress.hpp>
-#include <graphlab/graph/distributed_oblivious_ingress.hpp>
-#include <graphlab/graph/distributed_greedy_ingress.hpp>
-// #include <graphlab/graph/distributed_semioblivious_ingress.hpp>
-#include <graphlab/graph/distributed_random_ingress.hpp>
-#include <graphlab/graph/distributed_localbfs_ingress.hpp>
+#include <graphlab/graph/ingress/idistributed_ingress.hpp>
+#include <graphlab/graph/ingress/distributed_ingress_base.hpp>
+#include <graphlab/graph/ingress/distributed_batch_ingress2.hpp>
+#include <graphlab/graph/ingress/distributed_oblivious_ingress.hpp>
+#include <graphlab/graph/ingress/distributed_random_ingress.hpp>
 #include <graphlab/util/hdfs.hpp>
 #include <boost/iostreams/stream.hpp>
 #include <boost/iostreams/filtering_stream.hpp>
@@ -97,36 +95,20 @@ namespace graphlab {
 
     typedef idistributed_ingress<VertexData, EdgeData> 
     idistributed_ingress_type;
-   
-    typedef distributed_batch_ingress<VertexData, EdgeData>
-        distributed_batch_ingress_type;
-    friend class distributed_batch_ingress<VertexData, EdgeData>;
+
+    friend class distributed_ingress_base<VertexData, EdgeData>;
 
     typedef distributed_random_ingress<VertexData, EdgeData>
         distributed_random_ingress_type;
     friend class distributed_random_ingress<VertexData, EdgeData>;
 
-    // typedef distributed_semi_oblivious_ingress<VertexData, EdgeData>
-    //     distributed_semi_oblivous_ingress_type;
-    // friend class distributed_semi_oblivious_ingress<VertexData, EdgeData>;
-
-    typedef distributed_local_bfs_ingress<VertexData, EdgeData>
-        distributed_local_bfs_ingress_type;
-    friend class distributed_local_bfs_ingress<VertexData, EdgeData>;
-
+    typedef distributed_batch_ingress<VertexData, EdgeData>
+        distributed_batch_ingress_type;
+    friend class distributed_batch_ingress<VertexData, EdgeData>;
 
     typedef distributed_oblivious_ingress<VertexData, EdgeData>
         distributed_oblivious_ingress_type;
     friend class distributed_oblivious_ingress<VertexData, EdgeData>;
-
-
-    typedef distributed_greedy_ingress<VertexData, EdgeData>
-        distributed_greedy_ingress_type;
-    friend class distributed_greedy_ingress<VertexData, EdgeData>;
-
-
-
-
 
 
     /** 
@@ -542,10 +524,12 @@ namespace graphlab {
       opts.get_graph_options().get_option("ingress", ingress_method);
 
       size_t bufsize = 50000;
-      double seed_percent = 0.1;
+      bool usehash = false;
+      bool userecent = false;
       opts.get_graph_options().get_option("bufsize", bufsize);
-      opts.get_graph_options().get_option("seed_percent", seed_percent);
-      set_ingress_method(ingress_method, bufsize, seed_percent);
+      opts.get_graph_options().get_option("usehash", usehash);
+      opts.get_graph_options().get_option("userecent", userecent);
+      set_ingress_method(ingress_method, bufsize, usehash, userecent);
     }
 
 
@@ -553,26 +537,19 @@ namespace graphlab {
     // METHODS ===============================================================>
 
 
-    void set_ingress_method(const std::string& method, size_t bufsize = 50000, double seed_percent = 5) {
+    void set_ingress_method(const std::string& method, 
+        size_t bufsize = 50000, bool usehash = false, bool userecent = false) {
+
       if(ingress_ptr != NULL) { delete ingress_ptr; ingress_ptr = NULL; }
-      if(method == "batch") {
-        logstream(LOG_INFO) << "Using batch ingress with buffer size " << bufsize << std::endl;
-        ingress_ptr = new distributed_batch_ingress_type(rpc.dc(), *this, bufsize);
-      } else if(method == "greedy") {
-        logstream(LOG_INFO) << "Using greedy ingress with buffer size " << bufsize << std::endl;
-        ingress_ptr = new distributed_greedy_ingress_type(rpc.dc(), *this, bufsize);
-      // } else if (method == "semi_oblivious") {
-      //   logstream(LOG_INFO) << "Using semi oblivious ingress with buffer size " << bufsize << std::endl;
-      //   ingress_ptr = new distributed_semi_oblivous_ingress_type(rpc.dc(), *this, bufsize);
+      if (method == "batch") {
+        logstream(LOG_INFO) << "Use batch ingress, bufsize: " << bufsize  
+          << ", usehash: " << usehash << ", userecent" << userecent << std::endl;
+        ingress_ptr = new distributed_batch_ingress_type(rpc.dc(), *this, bufsize, usehash, userecent);
       } else if (method == "oblivious") {
-        logstream(LOG_INFO) << "Using oblivious ingress with seed percent " << seed_percent << std::endl;
-        ingress_ptr = new distributed_oblivious_ingress_type(rpc.dc(), *this, seed_percent);
-      } else if (method == "local_bfs") {
-        logstream(LOG_INFO) << "Using local bfs ingress with seed percent " << seed_percent << std::endl;
-        ingress_ptr = new distributed_local_bfs_ingress_type(rpc.dc(), *this, seed_percent);
-      }
-      else {
-        logstream(LOG_INFO) << "Using random ingress" << std::endl;
+        logstream(LOG_INFO) << "Use oblivious ingress, usehash: " << usehash 
+          << ", userecent: " << userecent << std::endl;
+        ingress_ptr = new distributed_oblivious_ingress_type(rpc.dc(), *this, usehash, userecent);
+      } else {
         ingress_ptr = new distributed_random_ingress_type(rpc.dc(), *this);
       }
     } // end of set ingress method
@@ -585,6 +562,7 @@ namespace graphlab {
     void finalize() {
       if (finalized) return;
       ASSERT_NE(ingress_ptr, NULL);
+      logstream(LOG_INFO) << "Distributed graph: enter finalize" << std::endl;
       ingress_ptr->finalize();
       rpc.barrier(); delete ingress_ptr; ingress_ptr = NULL;
       finalized = true;

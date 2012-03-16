@@ -20,14 +20,15 @@
  *
  */
 
-#ifndef GRAPHLAB_DISTRIBUTED_RANDOM_INGRESS_HPP
-#define GRAPHLAB_DISTRIBUTED_RANDOM_INGRESS_HPP
+#ifndef GRAPHLAB_DISTRIBUTED_INGRESS_BASE_HPP
+#define GRAPHLAB_DISTRIBUTED_INGRESS_BASE_HPP
 
 #include <boost/functional/hash.hpp>
 
 #include <graphlab/rpc/buffered_exchange.hpp>
 #include <graphlab/graph/graph_basic_types.hpp>
-#include <graphlab/graph/idistributed_ingress.hpp>
+#include <graphlab/graph/ingress/idistributed_ingress.hpp>
+#include <graphlab/graph/ingress/ingress_edge_decision.hpp>
 #include <graphlab/graph/distributed_graph.hpp>
 #include <google/malloc_extension.h>
 
@@ -37,7 +38,7 @@ namespace graphlab {
   class distributed_graph;
 
   template<typename VertexData, typename EdgeData>
-  class distributed_random_ingress : 
+  class distributed_ingress_base : 
     public idistributed_ingress<VertexData, EdgeData> {
   public:
     typedef distributed_graph<VertexData, EdgeData> graph_type;
@@ -45,24 +46,18 @@ namespace graphlab {
     typedef VertexData vertex_data_type;
     /// The type of the edge data stored in the graph 
     typedef EdgeData   edge_data_type;
-
     /// The type of a vertex is a simple size_t
     typedef graphlab::vertex_id_type vertex_id_type;
-
     /// Vertex record
     typedef typename graph_type::lvid_type  lvid_type;
     typedef typename graph_type::vertex_record vertex_record;
-
-
     typedef typename graph_type::mirror_type mirror_type;
 
 
-
     /// The rpc interface for this object
-    dc_dist_object<distributed_random_ingress> rpc;
+    dc_dist_object<distributed_ingress_base> rpc;
     /// The underlying distributed graph object that is being loaded
     graph_type& graph;
-
 
     /// Temporar buffers used to store vertex data on ingress
     struct vertex_buffer_record {
@@ -114,64 +109,37 @@ namespace graphlab {
       }
     };
 
-    DECLARE_TRACER(random_ingress);
-    DECLARE_TRACER(random_ingress_add_edge);
-    DECLARE_TRACER(random_ingress_add_vertex);
-    DECLARE_TRACER(random_ingress_recv_edges);
-    DECLARE_TRACER(random_ingress_compute_assignments);
-    DECLARE_TRACER(random_ingress_finalize);
+    ingress_edge_decision<VertexData, EdgeData> edge_decision;
 
-  public:
-
-    distributed_random_ingress(distributed_control& dc, graph_type& graph) :
-      rpc(dc, this), graph(graph), vertex_exchange(dc), edge_exchange(dc) {
+    public:
+    distributed_ingress_base(distributed_control& dc, graph_type& graph) :
+      rpc(dc, this), graph(graph), vertex_exchange(dc), edge_exchange(dc),
+     edge_decision(dc) {
       rpc.barrier();
-      INITIALIZE_TRACER(random_ingress, "Time spent in random ingress");
-      INITIALIZE_TRACER(random_ingress_add_edge, "Time spent in add edge");
-      INITIALIZE_TRACER(random_ingress_add_vertex, "Time spent in add vertex" );
-      INITIALIZE_TRACER(random_ingress_recv_edges, "Time spent in recv edges");
-      INITIALIZE_TRACER(random_ingress_compute_assignments, "Compute Assignment");
-      INITIALIZE_TRACER(random_ingress_finalize, "Time spent in finalize");
-
     } // end of constructor
 
-    ~distributed_random_ingress() { }
+    ~distributed_ingress_base() { }
 
-    void add_edge(vertex_id_type source, vertex_id_type target,
+virtual void add_edge(vertex_id_type source, vertex_id_type target,
                   const EdgeData& edata) {
-      BEGIN_TRACEPOINT(random_ingress_add_edge);
-      const procid_t owning_proc = edge_to_proc(source, target);
+      const procid_t owning_proc = edge_decision.edge_to_proc_random(source, target, rpc.numprocs());
       const edge_buffer_record record(source, target, edata);
       edge_exchange.send(owning_proc, record);
-      END_TRACEPOINT(random_ingress_add_edge);
     } // end of add edge
 
-    void add_vertex(vertex_id_type vid, const VertexData& vdata)  { 
-      BEGIN_TRACEPOINT(random_ingress_add_vertex);
+virtual void add_vertex(vertex_id_type vid, const VertexData& vdata)  { 
       const procid_t owning_proc = vertex_to_proc(vid);
       const vertex_buffer_record record(vid, vdata);
       vertex_exchange.send(owning_proc, record);
-      END_TRACEPOINT(random_ingress_add_vertex);
     } // end of add vertex
 
 
-    void finalize() {
-      BEGIN_TRACEPOINT(random_ingress_finalize);
-      BEGIN_TRACEPOINT(random_ingress_recv_edges);
+virtual void finalize() {
       edge_exchange.flush(); vertex_exchange.flush();
-
-       size_t value;
-       MallocExtension::instance()->GetNumericProperty("generic.heap_size", &value);
-       logstream(LOG_DEBUG) << "Heap Size (entering finalize): " << (double)value/(1024*1024) << "MB" << "\n";
-       MallocExtension::instance()->GetNumericProperty("generic.current_allocated_bytes", &value);
-       logstream(LOG_DEBUG) << "Allocated Size (entering finalize): " << (double)value/(1024*1024) << "MB" << "\n";
-
-
-      // add all the edges to the local graph --------------------------------
-      logstream(LOG_DEBUG) << "Finalize: constructing local graph" << std::endl;
+      // Add all the edges to the local graph --------------------------------
+      logstream(LOG_INFO) << "Graph Finalize: constructing local graph" << std::endl;
       size_t nedges = edge_exchange.size()+1;
       graph.local_graph.reserve_edge_space(nedges + 1);
-      logstream(LOG_INFO) << "Finalize: number of edges adding to the local graph" << nedges << std::endl;
       {
         typedef typename buffered_exchange<edge_buffer_record>::buffer_type 
           edge_buffer_type;
@@ -203,19 +171,10 @@ namespace graphlab {
           } // end of loop over add edges
         } // end for loop over buffers
       }
-
-      logstream(LOG_INFO) << "Finalizing local graph" << std::endl;
-      END_TRACEPOINT(random_ingress_recv_edges);
       edge_exchange.clear();
 
-      MallocExtension::instance()->GetNumericProperty("generic.heap_size", &value);
-      logstream(LOG_DEBUG) << "Heap Size (local graph constructed): " << (double)value/(1024*1024) << "MB" << "\n";
-      MallocExtension::instance()->GetNumericProperty("generic.current_allocated_bytes", &value);
-      logstream(LOG_DEBUG) << "Allocated Size (local graph constructed): " << (double)value/(1024*1024) << "MB" << "\n";
-
-
-
       // Finalize local graph
+      logstream(LOG_INFO) << "Graph Finalize: finalizing local graph" << std::endl;
       graph.local_graph.finalize();
       logstream(LOG_INFO) << "Local graph info: " << std::endl
                           << "\t nverts: " << graph.local_graph.num_vertices()
@@ -223,14 +182,7 @@ namespace graphlab {
                           << "\t nedges: " << graph.local_graph.num_edges()
                           << std::endl;
 
-       MallocExtension::instance()->GetNumericProperty("generic.heap_size", &value);
-       logstream(LOG_DEBUG) << "Heap Size (local graph finalized): " << (double)value/(1024*1024) << "MB" << "\n";
-       MallocExtension::instance()->GetNumericProperty("generic.current_allocated_bytes", &value);
-       logstream(LOG_DEBUG) << "Allocated Size (local graph finalized): " << (double)value/(1024*1024) << "MB" << "\n";
 
-
-
-      BEGIN_TRACEPOINT(random_ingress_compute_assignments);
       // Initialize vertex records
       graph.lvid2record.resize(graph.vid2lvid.size());
       typedef typename boost::unordered_map<vertex_id_type, lvid_type>::value_type 
@@ -241,7 +193,7 @@ namespace graphlab {
       ASSERT_EQ(graph.local_graph.num_vertices(), graph.lvid2record.size());   
    
 
-      // Begin the shuffle phase For all the vertices that this
+      // Begin the shuffle phase for all the vertices that this
       // processor has seen determine the "negotiator" and send the
       // negotiator the edge information for that vertex.
       typedef std::vector< std::vector<shuffle_record> > proc2vids_type;
@@ -258,11 +210,8 @@ namespace graphlab {
       // The returned local vertices are the vertices from each
       // machine for which this machine is a negotiator.
       logstream(LOG_INFO) 
-        << "Finalize: start exchange shuffle records" << std::endl;
+        << "Graph Finalize: Exchanging shuffle records" << std::endl;
       mpi_tools::all2all(proc2vids, proc2vids);
-      logstream(LOG_INFO) 
-        << "Finalize: finish exchange shuffle records" << std::endl;
-
 
       // Receive any vertex data sent by other machines
       typedef boost::unordered_map<vertex_id_type, vertex_negotiator_record>
@@ -281,17 +230,11 @@ namespace graphlab {
         }
       } // end of loop to populate vrecmap
 
-      MallocExtension::instance()->GetNumericProperty("generic.heap_size", &value);
-      logstream(LOG_DEBUG) << "Heap Size (vertex record shuffle): " << (double)value/(1024*1024) << "MB" << "\n";
-      MallocExtension::instance()->GetNumericProperty("generic.current_allocated_bytes", &value);
-      logstream(LOG_DEBUG) << "Allocated Size (vertex record shuffle): " << (double)value/(1024*1024) << "MB" << "\n";
-
-
    
       // Update the mirror information for all vertices negotiated by
       // this machine
       logstream(LOG_INFO) 
-        << "Finalize: accumulating mirror set for each vertex" << std::endl;
+        << "Graph Finalize: Accumulating mirror set for each vertex" << std::endl;
       for(procid_t proc = 0; proc < rpc.numprocs(); ++proc) {
         foreach(const shuffle_record& shuffle_rec, proc2vids[proc]) {
           vertex_negotiator_record& negotiator_rec = vrec_map[shuffle_rec.vid];
@@ -304,7 +247,7 @@ namespace graphlab {
 
       // Construct the vertex owner assignments and send assignment
       // along with vdata to all the mirrors for each vertex
-      logstream(LOG_INFO) << "Constructing and sending vertex assignments" 
+      logstream(LOG_INFO) << "Graph Finalize: Constructing and sending vertex assignments" 
                           << std::endl;
       std::vector<size_t> counts(rpc.numprocs());      
       typedef typename vrec_map_type::value_type vrec_pair_type;
@@ -331,10 +274,9 @@ namespace graphlab {
             negotiator_exchange.send(proc, negotiator_rec);
         }
       } // end of loop over vertex records
-      END_TRACEPOINT(random_ingress_compute_assignments);
-
       negotiator_exchange.flush();
-      logstream(LOG_INFO) << "Recieving vertex data." << std::endl;
+
+      logstream(LOG_INFO) << "Graph Finalize: Recieving vertex assignments." << std::endl;
       {
         typedef typename buffered_exchange<vertex_negotiator_record>::buffer_type 
           buffer_type;
@@ -361,25 +303,14 @@ namespace graphlab {
         }
       }
 
-      MallocExtension::instance()->GetNumericProperty("generic.heap_size", &value);
-      logstream(LOG_DEBUG) << "Heap Size (vertex record finalize): " << (double)value/(1024*1024) << "MB" << "\n";
-      MallocExtension::instance()->GetNumericProperty("generic.current_allocated_bytes", &value);
-      logstream(LOG_DEBUG) << "Allocated Size (vertex record finalize): " << (double)value/(1024*1024) << "MB" << "\n";
-
-
-
       // Count the number of vertices owned locally
       graph.local_own_nverts = 0;
       foreach(const vertex_record& record, graph.lvid2record)
         if(record.owner == rpc.procid()) ++graph.local_own_nverts;
 
-      logstream(LOG_DEBUG) 
-        << rpc.procid() << ": local owned vertices: " << graph.local_own_nverts
-        << std::endl;
-
       // Finalize global graph statistics. 
-      logstream(LOG_DEBUG)
-        << "Finalize: exchange global statistics " << std::endl;
+      logstream(LOG_INFO)
+        << "Graph Finalize: exchange global statistics " << std::endl;
 
       // Compute edge counts
       std::vector<size_t> swap_counts(rpc.numprocs(), graph.num_local_edges());
@@ -387,58 +318,30 @@ namespace graphlab {
       graph.nedges = 0;
       foreach(size_t count, swap_counts) graph.nedges += count;
 
-      const size_t min_ecount = 
-        *(std::min_element(swap_counts.begin(), swap_counts.end()));
-      const size_t max_ecount = 
-        *(std::max_element(swap_counts.begin(), swap_counts.end()));
-      std::cout << "BALANCE: " << (double(max_ecount)/min_ecount) << std::endl;
-
       // compute begin edge id
       graph.begin_eid = 0;
       for(size_t i = 0; i < rpc.procid(); ++i) graph.begin_eid += swap_counts[i];
 
-      // Computer vertex count
+      // compute vertex count
       swap_counts.assign(rpc.numprocs(), graph.num_local_own_vertices());
       mpi_tools::all2all(swap_counts, swap_counts);
       graph.nverts = 0;
       foreach(size_t count, swap_counts) graph.nverts += count;
 
-      // Computer replicas
+      // compute replicas
       swap_counts.assign(rpc.numprocs(), graph.num_local_vertices());
       mpi_tools::all2all(swap_counts, swap_counts);
       graph.nreplicas = 0;
       foreach(size_t count, swap_counts) graph.nreplicas += count;
-      END_TRACEPOINT(random_ingress_finalize);
     } // end of finalize
 
-  private:
 
-
-  private:
+  protected:
     // HELPER ROUTINES =======================================================>    
     procid_t vertex_to_proc(const vertex_id_type vid) const { 
       return vid % rpc.numprocs();
     }        
-    bool is_local(const vertex_id_type vid) const {
-      return vertex_to_proc(vid) == rpc.procid();
-    }
-
-    procid_t edge_to_proc(const vertex_id_type source, 
-                          const vertex_id_type target) const {
-      typedef std::pair<vertex_id_type, vertex_id_type> edge_pair_type;
-      boost::hash< edge_pair_type >  hash_function;
-      const edge_pair_type edge_pair(std::min(source, target), 
-                                     std::max(source, target));
-      return hash_function(edge_pair) % rpc.numprocs();
-    }    
-    
-    bool is_local(const vertex_id_type source,
-                  const vertex_id_type target) const {
-      return edge_to_proc(source, target) == rpc.procid();
-    }
-
-
-  }; // end of distributed_random_ingress
+  }; // end of distributed_ingress_base
 
 }; // end of namespace graphlab
 #include <graphlab/macros_undef.hpp>
