@@ -283,7 +283,7 @@ void add_edge(vertex_id_type source, vertex_id_type target, const EdgeData& edat
       if (max_lvid > 0 && max_lvid >= graph.local_graph.num_vertices()) {
         graph.local_graph.resize(max_lvid + 1);
       }
-      graph.local_graph.add_block_edges(local_source_arr, local_target_arr, edata_arr);
+      graph.local_graph.add_edges(local_source_arr, local_target_arr, edata_arr);
       local_graph_lock.unlock();
  
       END_TRACEPOINT(batch_ingress_add_edges);

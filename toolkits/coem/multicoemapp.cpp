@@ -539,7 +539,8 @@ loadVertices(core_type& core, short typemask, FILE * f) {
     double randomNum = graphlab::random::rand01();
 		
     if (randomNum <= subsamplingRatio) {
-      vertex_id_type vid = core.graph().add_vertex(vdata);
+      const vertex_id_type vid = core.graph().num_vertices();
+      core.graph().add_vertex(vid, vdata);
       if (vid%50000 == 0) printf("Vertex: %d  %s\n", vid, vdata.text); 
       map.insert(make_pair(std::string(vdata.text), vid));
     } 
@@ -659,13 +660,14 @@ void loadEdges(core_type& core, FILE * fcont_to_nps,
         continue;
       } else {
         // Create vertex
-        vertex_data vdata = vertex_data();
+        vertex_data vdata;
         vdata.flags = CTX_MASK;
         int len = strlen(ctxname.c_str());
         // rather ugly.....
         memcpy(vdata.text, ctxname.c_str(), 
                (TEXT_LENGTH < len+1 ? TEXT_LENGTH : len+1)); 
-        vertex_id_type vid = core.graph().add_vertex(vdata);
+        const vertex_id_type vid = core.graph().num_vertices();
+        core.graph().add_vertex(vid, vdata);
         if (vid%50000 == 0) printf("NEW Vertex: %d  %s\n", vid, vdata.text); 
         ctx_map.insert(make_pair(ctxname, vid));
         iter = ctx_map.find(ctxname);
@@ -724,7 +726,9 @@ void loadEdges(core_type& core, FILE * fcont_to_nps,
           // rather ugly.....
           memcpy(vdata.text, npname.c_str(), 
                  (TEXT_LENGTH < len+1 ? TEXT_LENGTH : len+1)); 
-          vertex_id_type vid = core.graph().add_vertex(vdata);
+          
+          vertex_id_type vid = core.graph().num_vertices();
+          core.graph().add_vertex(vid, vdata);
           if (vid%50000 == 0) printf("NEW Vertex: %d  %s\n", vid, vdata.text); 
           nps_map.insert(make_pair(npname, vid));
           iter = nps_map.find(npname);

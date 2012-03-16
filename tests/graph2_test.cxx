@@ -13,6 +13,7 @@ public:
 
   struct vertex_data {
     size_t num_flips;
+    vertex_data() : num_flips(0) { }
   };
 
   struct edge_data { 
@@ -83,7 +84,7 @@ public:
 
     for (size_t i = 0; i < num_v; ++i) {
       vertex_data vdata;
-      g.add_vertex(vdata);
+      g.add_vertex(vertex_id_type(i), vdata);
     }
 
     g.add_edge(1,3,edge_data(1,3));
@@ -145,6 +146,21 @@ public:
     }
   }
 
+
+  // void test_add_vertex() {
+  //   std::cout << "Building graph" << std::endl;
+  //   graphlab::graph2<std::map<int,int>, edge_data> graph;
+  //   std::map<int, int> data;
+  //   for(size_t i = 0; i < 50; ++i) data[i] = i;
+  //   graphlab::timer time;
+  //   time.start();
+  //   for(vertex_id_type vid = 0; vid < 1000000; ++vid) {
+  //     graph.add_vertex(vid, data);
+  //   }
+  //   std::cout << "add vertex runtime: " << time.current_time() << std::endl;
+  // } // end of test add vertex
+
+
   /**
      In this function, we construct the 3 by 3 grid graph.
   */
@@ -158,12 +174,12 @@ public:
 
 
     // here we create dim * dim vertices.
-    for (size_t i = 0;i < dim * dim; ++i) {
+    for (size_t i = 0; i < dim * dim; ++i) {
       // create the vertex data, randomizing the color
       vertex_data vdata;
       vdata.num_flips = 0;
       // create the vertex
-      g.add_vertex(vdata);
+      g.add_vertex(vertex_id_type(i), vdata);
       ++num_vertices;
     }
 
@@ -261,7 +277,7 @@ public:
       vertex_data vdata;
       vdata.num_flips = 0;
       // create the vertex
-      g.add_vertex(vdata);
+      g.add_vertex(vertex_id_type(i), vdata);
       ++num_vertices;
     }
 
@@ -350,7 +366,7 @@ public:
       vertex_data vdata;
       vdata.num_flips = 0;
       // create the vertex
-      ge.add_vertex(vdata);
+      ge.add_vertex(vertex_id_type(i), vdata);
       ++num_vertices;
     }
 
