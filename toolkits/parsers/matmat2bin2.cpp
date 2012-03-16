@@ -97,16 +97,16 @@ struct stringzipparser_update :
     int num_degree_written = 1;  
     
     if (reverse_edges){
-        for (uint k=0; k < info.rows-1; k++){
-             fwrite(&edges_so_far, sizeof(int), 1, deg_file);
-             num_degree_written++;
-           }
-     }
+      for (int k=0; k < info.rows-1; k++){
+        fwrite(&edges_so_far, sizeof(int), 1, deg_file);
+        num_degree_written++;
+      }
+    }
     
     int last_row = 0, last_col = 0;
     char linebuf[256], buf1[256], buf2[256], buf3[256];
     char saveptr[1024];
-    uint line = 1;
+    int line = 1;
     int lines = context.get_global<int>("LINES");
     bool header = true;
  
@@ -123,19 +123,25 @@ struct stringzipparser_update :
       }
       char *pch = strtok_r(linebuf," \r\n\t,",(char**)&saveptr);
       if (!pch){
-        logstream(LOG_ERROR) << "Error when parsing file: " << vdata.filename << ":" << line <<std::endl << " line is: " << linebuf << std::endl;
+        logstream(LOG_ERROR) 
+          << "Error when parsing file: " << vdata.filename << ":" 
+          << line <<std::endl << " line is: " << linebuf << std::endl;
         return;
        }
       strncpy(buf1, pch, 20);
       pch = strtok_r(NULL, " \r\n\t;,",(char**)&saveptr);
       if (!pch){
-        logstream(LOG_ERROR) << "Error when parsing file: " << vdata.filename << ":" << line <<std::endl;
+        logstream(LOG_ERROR) 
+          << "Error when parsing file: " << vdata.filename << ":" 
+          << line <<std::endl;
          return;
        }
        strncpy(buf2, pch, 20);
         pch = strtok_r(NULL, "\r\n\t ;,",(char**)&saveptr);
       if (!pch){
-        logstream(LOG_ERROR) << "Error when parsing file: " << vdata.filename << ":" << line <<std::endl;
+        logstream(LOG_ERROR) 
+          << "Error when parsing file: " << vdata.filename << ":" 
+          << line <<std::endl;
          return;
        }
 
@@ -151,7 +157,9 @@ struct stringzipparser_update :
 
         val = atof(buf3);
         //matrix market size line- skip
-        if (from == (uint)info.rows && to == (uint)info.cols && (size_t)val == info.nonzeros)
+        if (from == (uint)info.rows && 
+            to == (uint)info.cols && 
+            (size_t)val == info.nonzeros)
            continue;
 
         assert(from >= 1 && from <= (uint)info.rows);
@@ -183,7 +191,9 @@ struct stringzipparser_update :
         edges_so_far++;
 
         if (debug && line <= 10)
-            cout<<"Read line: " << line << " From: " << from << " To: " << to << " val: " << val << " total edges so far: " << edges_so_far << endl;
+            cout << "Read line: " << line << " From: " << from 
+                 << " To: " << to << " val: " << val 
+                 << " total edges so far: " << edges_so_far << endl;
        
       line++;
       total_lines++;
@@ -196,7 +206,9 @@ struct stringzipparser_update :
         logstream(LOG_INFO) << "Parsed line: " << line << endl;
     } 
 
-   logstream(LOG_INFO) <<"Finished parsing total of " << line << " lines in file " << vdata.filename << endl;
+   logstream(LOG_INFO) 
+     << "Finished parsing total of " << line << " lines in file " 
+     << vdata.filename << endl;
    if (reverse_edges) {
      for (int k=last_col; k < info.cols; k++){
        fwrite(&edges_so_far, sizeof(int), 1, deg_file);
@@ -294,10 +306,10 @@ int main(int argc,  char *argv[]) {
   if (datafile.size() > 0)
      in_files.push_back(datafile);
   else in_files = list_all_files_in_dir(dir, filter);
-  assert(in_files.size() >= 1);
+  assert(in_files.size() >= 1); 
   for (int i=0; i< (int)in_files.size(); i++){
       vertex_data data(in_files[i]);
-      core.graph().add_vertex(data);
+      core.graph().add_vertex(vertex_id_type(i), data);
   }
 
   std::cout << "Schedule all vertices" << std::endl;
