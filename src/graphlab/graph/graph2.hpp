@@ -20,21 +20,14 @@
  *
  */
 
-
 /**
- * The original graph.hpp contains code that is Copyright 2011 Yahoo! Inc.  All rights
- * reserved.  
- *
- * Contributed under the iCLA for:
- *    Joseph Gonzalez (jegonzal@yahoo-inc.com) 
- *
- *
  * Modified by Jay (haijieg@cs.cmu.edu)
  *
  * Describe the interface of a graph. The actual implementation is in graph_storage.hpp.
  *
  * Change interface:
- *  edge_id_type add_edge (vertex_id_type src, vertex_d_type dst, const EdgeData& edata) always return 0 as the temporary edge_id.
+ *  edge_id_type add_edge (vertex_id_type src, vertex_d_type dst, 
+ *    const EdgeData& edata) always return 0 as the temporary edge_id.
  *  May want to change the return type into void.
  *
  * Tested:
@@ -131,11 +124,11 @@ namespace graphlab {
      * Create a graph with nverts vertices.
      */
     graph2(size_t nverts) : 
-    vertices(nverts),
-    vcolors(nverts),
-    finalized(false),
-    use_vcolor(true),
-    changeid(0) { }
+      vertices(nverts),
+      vcolors(nverts),
+      finalized(false),
+      use_vcolor(true),
+      changeid(0) { }
 
     void set_is_directed (bool x) {gstore.set_is_directed(x);}
     bool get_is_directed () {return gstore.get_is_directed();}
@@ -190,7 +183,8 @@ namespace graphlab {
       //      std::cout << "Finalizing" << std::endl;
       graphlab::timer mytimer; mytimer.start();
       gstore.finalize(vertices.size(), edges_tmp);
-      logstream(LOG_INFO) << "Graph finalized in " << mytimer.current_time() << " secs" << std::endl;
+      logstream(LOG_INFO) << "Graph finalized in " << mytimer.current_time() 
+                          << " secs" << std::endl;
       finalized = true;
     } // End of finalize
 
@@ -232,21 +226,24 @@ namespace graphlab {
      * of the new vertex id. Vertex ids are assigned in increasing order with
      * the first vertex having id 0.
      */
-    vertex_id_type add_vertex(const VertexData& vdata = VertexData() ) {
-      if (finalized)
-        {
-          logstream(LOG_FATAL)
-            << "Attempting add vertex"
-            << "to a finalized graph." << std::endl;
-          ASSERT_MSG(false, "Add vertex to a finalized graph.");
+    void add_vertex(vertex_id_type vid, const VertexData& vdata = VertexData() ) {
+      if (finalized) {
+        logstream(LOG_FATAL)
+          << "Attempting add vertex to a finalized graph." << std::endl;
+        ASSERT_MSG(false, "Add vertex to a finalized graph.");
+      }
+      if(vid >= vertices.size()) {
+        // Enable capacity doubling if resizing beyond capacity
+        if(vid >= vertices.capacity()) {
+          const size_t new_size = std::max(2 * vertices.capacity(), 
+                                           size_t(vid));
+          vertices.reserve(new_size);
+          if(use_vcolor) vcolors.reserve(new_size);
         }
-
-      vertices.push_back(vdata);
-
-      if (use_vcolor) 
-        vcolors.push_back(vertex_color_type()); // resize(vertices.size());
-
-      return (vertex_id_type)vertices.size() - 1;
+        vertices.resize(vid+1);
+        if(use_vcolor) vcolors.resize(vid+1);
+      }
+      vertices[vid] = vdata;    
     } // End of add vertex;
 
 
@@ -257,9 +254,7 @@ namespace graphlab {
     void resize(size_t num_vertices ) {
       ASSERT_GE(num_vertices, vertices.size());
       vertices.resize(num_vertices);
-
-      if (use_vcolor)
-        vcolors.resize(vertices.size());
+      if (use_vcolor) vcolors.resize(vertices.size());
     } // End of resize
 
     void reserve_edge_space(size_t n) {
@@ -271,26 +266,10 @@ namespace graphlab {
      */
     edge_id_type add_edge(vertex_id_type source, vertex_id_type target, 
                           const EdgeData& edata = EdgeData()) {
-      if (finalized)
-        {
-          logstream(LOG_FATAL)
-            << "Attempting add edge"
-            << "to a finalized graph." << std::endl;
-          ASSERT_MSG(false, "Add edge to a finalized graph.");
-        }
-
-
-      if ( source >= vertices.size() 
-           || target >= vertices.size() ) {
-
-        logstream(LOG_FATAL) 
-          << "Attempting add_edge (" << source
-          << " -> " << target
-          << ") when there are only " << vertices.size() 
-          << " vertices" << std::endl;
-
-        ASSERT_MSG(source < vertices.size(), "Invalid source vertex!");
-        ASSERT_MSG(target < vertices.size(), "Invalid target vertex!");
+      if (finalized) {
+        logstream(LOG_FATAL)
+          << "Attempting add edge to a finalized graph." << std::endl;
+        ASSERT_MSG(false, "Add edge to a finalized graph.");
       }
 
       if(source == target) {
@@ -299,6 +278,8 @@ namespace graphlab {
           << "This operation is not permitted in GraphLab!" << std::endl;
         ASSERT_MSG(source != target, "Attempting to add self edge!");
       }
+      if(source >= vertices.size() || target >= vertices.size()) 
+        add_vertex(std::max(source, target));
 
       // Add the edge to the set of edge data (this copies the edata)
       edges_tmp.add_edge(source, target, edata);
@@ -310,18 +291,15 @@ namespace graphlab {
     /**
      * \brief Add edge in block
      */
-    void add_block_edges(const std::vector<vertex_id_type>& src_arr, 
-                         const std::vector<vertex_id_type>& dst_arr, 
-                         const std::vector<EdgeData>& edata_arr) {
+    void add_edges(const std::vector<vertex_id_type>& src_arr, 
+                   const std::vector<vertex_id_type>& dst_arr, 
+                   const std::vector<EdgeData>& edata_arr) {
       ASSERT_TRUE((src_arr.size() == dst_arr.size())
                   && (src_arr.size() == edata_arr.size()));
-      if (finalized)
-        {
-          logstream(LOG_FATAL)
-            << "Attempting add edges"
-            << "to a finalized graph." << std::endl;
-          ASSERT_MSG(false, "Add edge to a finalized graph.");
-        }
+      if (finalized) {
+        logstream(LOG_FATAL)
+          << "Attempting add edges to a finalized graph." << std::endl;
+      }
 
       for (size_t i = 0; i < src_arr.size(); ++i) {
         vertex_id_type source = src_arr[i];
@@ -515,11 +493,12 @@ namespace graphlab {
     }
 
     size_t estimate_sizeof() const {
-      size_t vlist_size = sizeof(vertices) + sizeof(VertexData) * vertices.capacity();
-      size_t vcolor_size = sizeof(vcolors) + sizeof(vertex_color_type) * vcolors.capacity();
+      const size_t vlist_size = sizeof(vertices) + 
+        sizeof(VertexData) * vertices.capacity();
+      const size_t vcolor_size = sizeof(vcolors) + 
+        sizeof(vertex_color_type) * vcolors.capacity();
       size_t elist_size = edges_tmp.estimate_sizeof();
       size_t store_size = gstore.estimate_sizeof();
-
       std::cout << "graph2: tmplist size: " << (double)elist_size/(1024*1024) 
                 << "  gstoreage size: " << (double)store_size/(1024*1024)
                 << "  vdata list size: " << (double)vlist_size/(1024*1024)
