@@ -561,9 +561,7 @@ void construct_graph(image& img,
       }
       vdata.potential.normalize();
       // Store the actual data in the graph
-      size_t vertid = graph.add_vertex(vdata);
-      // Ensure that we are using a consistent numbering
-      assert(vertid == img.vertid(i, j));
+      graph.add_vertex(img.vertid(i, j), vdata);      
     } // end of for j in cols
   } // end of for i in rows
 

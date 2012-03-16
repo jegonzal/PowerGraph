@@ -107,9 +107,10 @@ namespace graphlab {
   
   
      \code
-     vertex_id_type graph::add_vertex(const VertexData& vdata = VertexData()) 
-     edge_id_type graph::add_edge(vertex_id_type source, vertex_id_type target, 
-     const EdgeData& edata = EdgeData()) 
+     void graph::add_vertex(vertex_id_type vid, 
+       const VertexData& vdata = VertexData()) 
+     edge_id_type graph::add_edge(vertex_id_type source, 
+       vertex_id_type target, const EdgeData& edata = EdgeData()) 
      \endcode
   
      The functions return the id's of the added vertex and edge
@@ -156,6 +157,7 @@ namespace graphlab {
 
     /** The type of the edge data stored in the graph */
     typedef EdgeData   edge_data_type;
+
 
     
     /** This class represents an edge with source() and target()*/
@@ -330,7 +332,7 @@ namespace graphlab {
      * the id of the new vertex id. Vertex ids are assigned in
      * increasing order with the first vertex having id 0.
      */
-    vertex_id_type add_vertex(const VertexData& vdata = VertexData() );
+    void add_vertex(vertex_id_type vid, const VertexData& vdata = VertexData() );
 
     /** 
      * \brief Add additional vertices up to provided num_vertices.  This will
@@ -345,7 +347,9 @@ namespace graphlab {
     void add_edge(vertex_id_type source, vertex_id_type target, 
                   const EdgeData& edata = EdgeData());
 
-    void add_block_edges(std::vector<vertex_id_type> sourceArray, std::vector<vertex_id_type> targetArray, std::vector<EdgeData> edata);
+    void add_edges(const std::vector<vertex_id_type>& sourceArray, 
+                   const std::vector<vertex_id_type>& targetArray, 
+                   const std::vector<EdgeData>& edata);
 
 
 
@@ -601,14 +605,25 @@ namespace graphlab {
 
 
   template<typename VertexData, typename EdgeData>
-  typename graph<VertexData, EdgeData>::vertex_id_type 
-  graph<VertexData, EdgeData>::add_vertex(const VertexData& vdata) {
-    vertices.push_back(vdata);
-    // Resize edge maps
-    out_edge_ids.push_back(std::vector<edge_id_type>()); // resize(vertices.size());
-    in_edge_ids.push_back(std::vector<edge_id_type>()); // resize(vertices.size());
-    vcolors.push_back(vertex_color_type()); // resize(vertices.size());
-    return (vertex_id_type)vertices.size() - 1;
+  void
+  graph<VertexData, EdgeData>::add_vertex(vertex_id_type vid, 
+                                          const VertexData& vdata) {
+    if( vid >= vertices.size() ) {
+      // Enable capacity doubling if resizing beyond capacity
+      if(vid >= vertices.capacity()) {
+        const size_t new_size = std::max(2 * vertices.capacity(), 
+                                         size_t(vid));
+        vertices.reserve(new_size);
+        out_edge_ids.reserve(new_size);
+        in_edge_ids.reserve(new_size);
+        vcolors.reserve(new_size);
+      }
+      vertices.resize(vid+1);
+      out_edge_ids.resize(vid+1); 
+      in_edge_ids.resize(vid+1);
+      vcolors.resize(vid+1);
+    }
+    vertices[vid] = vdata;
   } // End of add vertex;
   
   
@@ -632,16 +647,6 @@ namespace graphlab {
   void graph<VertexData, EdgeData>:: 
   add_edge(vertex_id_type source, vertex_id_type target, 
            const EdgeData& edata) {
-    if ( source >= vertices.size() 
-         || target >= vertices.size() ) {
-      logstream(LOG_FATAL) 
-        << "Attempting add_edge (" << source
-        << " -> " << target
-        << ") when there are only " << vertices.size() 
-        << " vertices" << std::endl;
-      ASSERT_MSG(source < vertices.size(), "Invalid source vertex!");
-      ASSERT_MSG(target < vertices.size(), "Invalid target vertex!");
-    }
     if(source == target) {
       logstream(LOG_FATAL) 
         << "Attempting to add self edge (" 
@@ -649,6 +654,8 @@ namespace graphlab {
         << "This operation is not permitted in GraphLab!" << std::endl;
       ASSERT_MSG(source != target, "Attempting to add self edge!");
     }
+    if(source >= vertices.size() || target >= vertices.size()) 
+      add_vertex(std::max(source, target));
 
     // Add the edge to the set of edge data (this copies the edata)
     edges.push_back( edge_info( source, target, edata ) );
@@ -675,7 +682,9 @@ namespace graphlab {
 
   template<typename VertexData, typename EdgeData>
   void graph<VertexData, EdgeData>:: 
-  add_block_edges(std::vector<vertex_id_type> sourceArray, std::vector<vertex_id_type> targetArray, std::vector<EdgeData> edata) {
+  add_edges(const std::vector<vertex_id_type>& sourceArray, 
+            const std::vector<vertex_id_type>& targetArray, 
+            const std::vector<EdgeData>& edata) {
     for (size_t i = 0; i < sourceArray.size(); ++i) {
       add_edge(sourceArray[i], targetArray[i], edata[i]);
     }

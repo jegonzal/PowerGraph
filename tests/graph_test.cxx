@@ -80,7 +80,7 @@ public:
     for(vertex_id_type i = 0; i < N; ++i) {     
       verts[i].bias = i; 
       verts[i].sum = 0;
-      g.add_vertex(verts[i]);
+      g.add_vertex(i, verts[i]);
       vertex_data& vdata = g.vertex_data(i);
       TS_ASSERT_EQUALS(vdata.bias, verts[i].bias);
       TS_ASSERT_EQUALS(vdata.sum, verts[i].sum);

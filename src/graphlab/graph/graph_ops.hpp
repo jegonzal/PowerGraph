@@ -225,6 +225,10 @@ namespace graphlab {
         neighbors[idx] = j->target();
       ASSERT_EQ(idx, neighbors.size());
     } // end of neighbors
+
+
+
+
     
 
     template<typename Graph, typename Fstream>
@@ -246,9 +250,6 @@ namespace graphlab {
         fin >> source;
         if(!fin.good()) break;
         fin >> target; assert(fin.good());
-        // Ensure that the number of vertices is correct
-        if(source >= graph.num_vertices() || target >= graph.num_vertices())
-          graph.resize(std::max(source, target) + 1);
         if(source != target) graph.add_edge(source, target);
         else if(self_edges++ == 0) 
           logstream(LOG_WARNING) 
@@ -266,6 +267,11 @@ namespace graphlab {
     } // end of load SNAP
 
 
+
+
+
+
+
     template<typename Graph, typename Fstream>
     bool load_edge_list_structure(Fstream& fin, Graph& graph) {
       typedef typename Graph::vertex_id_type     vertex_id_type;
@@ -280,9 +286,6 @@ namespace graphlab {
         fin >> source >> target;
         if(!fin.good()) break;
         // Ensure that the number of vertices is correct
-        if(source >= graph.num_vertices() ||
-           target >= graph.num_vertices())
-          graph.resize(std::max(source, target) + 1);
         if(source != target) graph.add_edge(source, target);
         else if(self_edges++ == 0) 
           logstream(LOG_WARNING) 
@@ -301,11 +304,17 @@ namespace graphlab {
     
 
 
+
+
+
     template<typename Fstream>
     inline void skip_newline(Fstream& fin) {
       char next_char = ' '; fin.get(next_char);
-      ASSERT_EQ(next_char, '\n');  
     }
+
+
+
+
     
     template<typename Graph, typename Fstream>
     bool load_metis_structure(Fstream& fin, Graph& graph) { 
@@ -352,6 +361,8 @@ namespace graphlab {
     } // end of load metis
 
 
+
+
     template<typename Graph, typename Fstream>
     bool load_adj_structure(Fstream& fin, Graph& graph) { 
       typedef typename Graph::vertex_id_type     vertex_id_type;
@@ -365,29 +376,17 @@ namespace graphlab {
       while(fin.good()) {
         // Load a vertex
         size_t source = 0, nneighbors = 0;
-        try { fin >> source >> nneighbors; } catch ( ... ) { 
-          logstream(LOG_WARNING) 
-            << "Error reading source." << std::endl; return false;
-        }
+        fin >> source >> nneighbors; 
         if(!fin.good()) break;
-        // Resize the graph if needed
-        if(source >= graph.num_vertices()) graph.resize(source + 1);
+        graph.add_vertex(source);
         // add neighbors
         for(size_t i = 0; i < nneighbors; ++i) {
           size_t target = 0;
-          try { fin >> target; } catch ( ... ) {
-            logstream(LOG_WARNING) 
-              << "Error reading neighbor" << std::endl; 
-            return false;
-          }
+          fin >> target;
           if(!fin.good()) {
-            logstream(LOG_WARNING) 
-              << "Error reading neighbor" << std::endl; 
+            logstream(LOG_WARNING) << "Error reading neighbor" << std::endl; 
             return false;
           }
-          // Resize the graph if needed
-          if(target >= graph.num_vertices()) graph.resize(target + 1);
-    
           if(source != target) graph.add_edge(source, target);
           else if(self_edges++ == 0) 
             logstream(LOG_WARNING) 
@@ -399,14 +398,14 @@ namespace graphlab {
             << "Added edata for " << ctr << " vertices: " 
             << source << std::endl; 
       } // end of loop over file
-
       logstream(LOG_INFO) 
         << "Finished loading graph with: " << std::endl
         << "\t Vertices: " << graph.num_vertices() << std::endl
         << "\t Edges:  " << graph.num_edges() << std::endl;
-
       return true;
     } // end of load_adj_list
+
+
 
 
     template<typename Graph, typename Fstream>
@@ -423,6 +422,10 @@ namespace graphlab {
       }
       return false;
     } // end of load_structure
+
+
+
+
 
     template<typename Graph>
     bool load_structure(const std::string& fname,
@@ -467,6 +470,9 @@ namespace graphlab {
     } // end of load structure
 
 
+
+
+
     template<typename Graph>
     bool load_structure(const std::string& fname, Graph& graph) {
       const size_t pos = fname.rfind('.');
@@ -483,90 +489,6 @@ namespace graphlab {
     } // end of load
 
 
-
-
-
-
-
-
-
-
-
-
-
-    // template<typename Graph>
-    // bool load_snap_structure(const std::string& filename,
-    //                Graph& graph) {
-    //   std::ifstream fin(filename.c_str());
-    //   if(!fin.good()) return false;
-    //   // Loop through file reading each line
-    //   size_t self_edges = 0;
-    //   while(fin.good() && !fin.eof()) {
-    //     if(fin.peek() == '#') {
-    //       std::string str;
-    //       std::getline(fin, str);
-    //       std::cout << str << std::endl;
-    //       continue;
-    //     }
-    //     size_t source = 0;
-    //     size_t target = 0;
-    //     fin >> source;
-    //     if(!fin.good()) break;
-    //     fin >> target; assert(fin.good());
-    //     // Ensure that the number of vertices is correct
-    //     if(source >= graph.num_vertices() || target >= graph.num_vertices())
-    //       graph.resize(std::max(source, target) + 1);
-    //     if(source != target) graph.add_edge(source, target);
-    //     else if(self_edges++ == 0) 
-    //       logstream(LOG_WARNING) 
-    //         << "Self edge encountered but not supported!" << std::endl
-    //         << "\t Further warnings will be surpressed." << std::endl;
-    //   } // end of while loop       
-    //   fin.close();
-    //   logstream(LOG_INFO) 
-    //     << "Finished loading graph with: " << std::endl
-    //     << "\t Vertices: " << graph.num_vertices() << std::endl
-    //     << "\t Edges:  " << graph.num_edges() << std::endl;
-    //   if(self_edges > 0) 
-    //     logstream(LOG_INFO) << "\t Dropped self edges: " << self_edges 
-    //                         << std::endl;
-    //   return true;
-    // } // end of load SNAP
-
-
-
-    // template<typename Graph>
-    // bool load_edge_list(const std::string& filename,
-    //                     graph_type& graph) {
-    //   typedef typename Graph::vertex_id_type vertex_id_type;
-    //   std::ifstream fin(filename.c_str());
-    //   if(!fin.good()) return false;
-    //   size_t self_edges = 0;
-    //   // Loop through file reading each line
-    //   while(fin.good() && !fin.eof()) {
-    //     vertex_id_type source = 0, target = 0;
-    //     fin >> source >> target;
-    //     if(!fin.good()) break;
-    //     // Ensure that the number of vertices is correct
-    //     if(source >= graph.num_vertices() ||
-    //        target >= graph.num_vertices())
-    //       graph.resize(std::max(source, target) + 1);
-    //     if(source != target) graph.add_edge(source, target);
-    //     else if(self_edges++ == 0) 
-    //       logstream(LOG_WARNING) 
-    //         << "Self edge encountered but not supported!" << std::endl
-    //         << "\t Further warnings will be surpressed." << std::endl
-    //   }            
-    //   fin.close();
-    //   logstream(LOG_INFO) 
-    //     << "Finished loading graph with: " << std::endl
-    //     << "\t Vertices: " << graph.num_vertices() << std::endl
-    //     << "\t Edges: " << graph.num_edges() << std::endl;        
-    //   if(self_edges > 0) 
-    //     logstream(LOG_INFO) << "\t Dropped self edges: " << self_edges 
-    //                         << std::endl;  
-    //   return true;
-    // } // end of load edge list
 
     
     template<typename Graph>
@@ -597,6 +519,10 @@ namespace graphlab {
       fout.close();
       return true;
     } // end of save metis
+
+
+
+
 
     template<typename Graph>
     bool save_edge_list_structure(const std::string& filename,
@@ -649,8 +575,7 @@ namespace graphlab {
             ++curid;
           }
         }
-
-      }
+      } 
 
       size_t numedges = curid;
       // each edge is a vertex, each vertex is an edge
@@ -682,6 +607,8 @@ namespace graphlab {
       fout.close();
       return true;
     } // end of save_patoh_hypergraph_structure
+
+
 
 
     template<typename Graph>
@@ -718,7 +645,6 @@ namespace graphlab {
             ++curid;
           }
         }
-
       }
 
       size_t numedges = curid;
@@ -762,37 +688,6 @@ namespace graphlab {
       return true;
     }  // end of save_zoltan_hypergraph_structure
 
-    // template<typename Graph>
-    // bool save(const std::string& fname,
-    //           const std::string& format,
-    //           const Graph& graph) {
-    //   if (format == "metis") return save_metis(fname, graph);
-    //   else if (format == "snap") return save_snap(fname, graph);
-    //   else if (format == "tsv") return save_edge_list(fname, graph);
-    //   else {
-    //     logstream(LOG_WARNING)
-    //       << "Invalid format \"" << format << "\".  "
-    //       << "Unable to save file \"" << fname << "\"!" << std::endl;     
-    //   }
-    //   return false;
-    // } // end of save
-
-
-    // template<typename Graph>
-    // bool save(const std::string& fname,
-    //           const Graph& graph) {
-    //   const size_t pos = fname.rfind('.');
-    //   if(pos == std::string::npos || pos + 1 >= fname.size()) {
-    //     logstream(LOG_WARNING) 
-    //       << "Filename \"" << fname 
-    //       << "\" does not have a suffix." << std::endl
-    //       << "Unable to infer file format!" << std::endl;
-    //     return false;
-    //   }      
-    //   const std::string format(fname.substr(pos+1, std::string::npos));
-    //   logstream(LOG_INFO) << "File format: " << format << std::endl;
-    //   return save(fname, format, graph);
-    // } // end of save
 
 
 
