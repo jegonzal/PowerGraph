@@ -71,7 +71,10 @@ namespace graphlab {
   
     /** Resizes the current bitset to hold n bits.
     Existing bits will not be changed. If the array size is increased,
-    the value of the new bits are undefined
+    the value of the new bits are undefined.
+    
+    \Warning When shirnking, the current implementation may still leave the
+    "deleted" bits in place which will mess up the popcount. 
     */
     inline void resize(size_t n) {
       len = n;
@@ -286,10 +289,9 @@ namespace graphlab {
 
 
     size_t popcount() const {
-      const uint32_t* tmp = reinterpret_cast<const uint32_t*>(array);
       size_t ret = 0;
-      for (size_t i = 0;i < arrlen * (sizeof(size_t) / sizeof(uint32_t)); ++i) {
-        ret +=  __builtin_popcount(tmp[i]);
+      for (size_t i = 0;i < arrlen; ++i) {
+        ret +=  __builtin_popcountl(array[i]);
       }
       return ret;
     }
@@ -555,10 +557,9 @@ namespace graphlab {
     }
 
     size_t popcount() const {
-      const uint32_t* tmp = reinterpret_cast<const uint32_t*>(array);
       size_t ret = 0;
-      for (size_t i = 0;i < arrlen * (sizeof(size_t) / sizeof(uint32_t)); ++i) {
-        ret +=  __builtin_popcount(tmp[i]);
+      for (size_t i = 0;i < arrlen; ++i) {
+        ret +=  __builtin_popcountl(array[i]);
       }
       return ret;
     }
