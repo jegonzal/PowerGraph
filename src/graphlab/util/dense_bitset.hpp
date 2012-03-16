@@ -82,7 +82,7 @@ namespace graphlab {
   
     /// Sets all bits to 0
     inline void clear() {
-      for (size_t i = 0;i < arrlen; ++i) array[i] = 0;
+      for (size_t i = 0; i < arrlen; ++i) array[i] = 0;
     }
     
     /// Sets all bits to 1
@@ -325,6 +325,29 @@ namespace graphlab {
     template <int len>
     friend class fixed_dense_bitset;
   };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
   
   
