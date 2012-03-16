@@ -57,6 +57,7 @@ unsigned long long self_edges = 0;
 
 struct vertex_data {
   string filename;
+  vertex_data() { }
   vertex_data(std::string _filename) : filename(_filename) { }
 }; // end of vertex_data
 
@@ -311,7 +312,7 @@ int main(int argc,  char *argv[]) {
   assert(in_files.size() >= 1);
   for (int i=0; i< (int)in_files.size(); i++){
       vertex_data data(in_files[i]);
-      core.graph().add_vertex(data);
+      core.graph().add_vertex(vertex_id_type(i), data);
   }
 
   std::cout << "Schedule all vertices" << std::endl;

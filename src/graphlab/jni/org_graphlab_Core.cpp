@@ -186,8 +186,10 @@ extern "C" {
     vertex.app_vertex = env->NewGlobalRef(app_vertex);
     
     // add to graph
-    return (*jni_core)().graph().add_vertex(vertex);
-  
+    // TODO: Change java function for add vertex to take a vertex id
+    const vertex_id_type vid = (*jni_core)().graph().num_vertices();
+    (*jni_core)().graph().add_vertex(vid, vertex);
+    return vid;   
   }
   
   JNIEXPORT void JNICALL
