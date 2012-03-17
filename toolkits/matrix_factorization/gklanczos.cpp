@@ -100,6 +100,7 @@ void init_lanczos(graph_type * g, bipartite_graph_descriptor & info){
 #pragma omp parallel for
   for (int i=0; i< info.total(); i++)
       g->vertex_data(i).pvec = zeros(info.is_square() ? (2*data_size): data_size);
+  logstream(LOG_INFO)<<"Allocated a total of: " << ((double)data_size * g->num_vertices()/ 1e6) << " MB for storing vectors." << std::endl;
 }
 
 
@@ -116,7 +117,7 @@ vec lanczos(graphlab::core<graph_type, Axb> & glcore, bipartite_graph_descriptor
    DistSlicedMat U(info.is_square() ? data_size : 0, info.is_square() ? 2*data_size : data_size, true, info, "U");
    DistSlicedMat V(0, data_size, false, info, "V");
    vec alpha, beta, b;
-   vec sigma = zeros(nv);
+   vec sigma = zeros(data_size);
    errest = zeros(nv);
    DistVec v_0(info, 0, false, "v_0");
    if (vecfile.size() == 0)
@@ -134,7 +135,7 @@ vec lanczos(graphlab::core<graph_type, Axb> & glcore, bipartite_graph_descriptor
    v_0=v_0/vnorm;
    PRINT_INT(nv);
 
-   while(nconv < nv && its < max_iter){
+   while(nconv < nsv && its < max_iter){
      logstream(LOG_INFO)<<"Starting iteration: " << its << " at time: " << mytimer.current_time() << std::endl;
      int k = nconv;
      int n = nv;
@@ -271,8 +272,8 @@ END_TRACEPOINT(matproduct);
   PRINT_NAMED_INT("svd->its", its);
   PRINT_NAMED_INT("svd->nconv", nconv);
   //nv = min(nconv+mpd, N);
-  if (nsv < 10)
-    nv = 10;
+  //if (nsv < 10)
+  //  nv = 10;
   PRINT_NAMED_INT("nv",nv);
 
 } // end(while)
@@ -391,11 +392,12 @@ int main(int argc,  char *argv[]) {
     core.set_ncpus(1);
   }
 
-
+  timer mytimer; mytimer.start(); 
   std::cout << "Load matrix " << datafile << std::endl;
 #ifdef USE_GRAPH2
   load_graph(datafile, format, info, core.graph(), MATRIX_MARKET_3, false, false);
   core.graph().finalize();
+  logstream(LOG_INFO)<<"Finished loading matrix to memory in : " << mytimer.current_time() << std::endl;
 #else  
   if (nodes == 0){
     load_graph(datafile, format, info, core.graph(), MATRIX_MARKET_3, false, true);
@@ -403,6 +405,7 @@ int main(int argc,  char *argv[]) {
      info.rows = info.cols = nodes;
    }
    core.graph().load_directed(datafile, false, no_edge_data);
+    logstream(LOG_INFO)<<"Finished loading matrix to memory in : " << mytimer.current_time() << std::endl;
    info.nonzeros = core.graph().num_edges();
 #endif
   init_lanczos(&core.graph(), info);
@@ -412,7 +415,6 @@ int main(int argc,  char *argv[]) {
     load_vector(vecfile, format, info, core.graph(), 0, true, false);
   }  
  
-  timer mytimer; mytimer.start(); 
   vec errest;
  
   vec singular_values = lanczos(core, info, mytimer, errest, vecfile);

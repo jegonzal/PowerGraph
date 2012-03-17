@@ -648,12 +648,12 @@ namespace graphlab {
          }
          size_t rc2 =array_from_file(filename + "-r.nodes", node_in_degrees);
          assert(rc == rc2);
-         logstream(LOG_INFO) << filename << " Read " << num_nodes << " nodes" << std::endl;
+         logstream(LOG_INFO) << filename << " Read " << num_nodes << " nodes. Allocated size: " << ((double)num_nodes*sizeof(int)/1e6) << " MB." <<std::endl;
          rc = array_from_file(filename + ".edges", node_out_edges);
          _num_edges = (rc/sizeof(uint));
          rc2 = array_from_file(filename + "-r.edges", node_in_edges);
          assert(rc == rc2);
-  	 logstream(LOG_INFO) << filename << " Read " << (undirected? _num_edges/2 : _num_edges) << " edges" << std::endl;
+  	 logstream(LOG_INFO) << filename << " Read " << (undirected? _num_edges/2 : _num_edges) << " edges. Allocated size: " <<((double)_num_edges*sizeof(int)/1e6) << " MB." << std::endl;
          verify_edges(node_out_edges, _num_edges, num_nodes);
          verify_edges(node_in_edges, _num_edges, num_nodes);
          if (!no_edge_data){
@@ -662,7 +662,8 @@ namespace graphlab {
            logstream(LOG_INFO) << filename << " Read: " << _num_edges << " weights " << std::endl;
            rc = array_from_file(filename + "-r.weights", in_edge_weights);
            assert(rc/sizeof(double) == size_t(_num_edges)); 
-           logstream(LOG_INFO) << filename << " Read: " << _num_edges << " reverse weights " << std::endl;
+           logstream(LOG_INFO) << filename << " Read: " << _num_edges << " reverse weights. Allocated size: " << 
+                                  ((double)_num_edges*sizeof(double)/1e6) << " MB." << std::endl;
            
          }
          gnum_nodes = num_nodes;
