@@ -27,6 +27,7 @@
 #include <fstream>
 
 #include <distributed_graphlab.hpp>
+#include <graphlab/engine/distributed_engine3.hpp>
 
 
 #include <graphlab/util/stl_util.hpp>
@@ -113,8 +114,10 @@ public:
 SERIALIZABLE_POD(factorized_pagerank);
 
 
-#ifdef FSCOPE
+#if defined(FSCOPE)
 typedef graphlab::distributed_fscope_engine<graph_type, factorized_pagerank> engine_type;
+#elif defined(EXPERIMENTAL_LOCKING_3)
+typedef graphlab::distributed_engine3<graph_type, factorized_pagerank> engine_type;
 #else
 typedef graphlab::distributed_engine<graph_type, factorized_pagerank> engine_type;
 #endif

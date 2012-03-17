@@ -54,6 +54,7 @@ int total_graphs_done = 0;
 
 struct vertex_data {
   string filename;
+  vertex_data() { }
   vertex_data(std::string _filename) : filename(_filename) { }
 }; // end of vertex_data
 
@@ -286,7 +287,8 @@ int main(int argc,  char *argv[]) {
   for (int i=0; i< (int)in_files.size(); i++){
       if (in_files[i].find(".gz") != string::npos){
         vertex_data data(in_files[i]);
-        core.graph().add_vertex(data);
+        vertex_id_type vid = core.graph().num_vertices();
+        core.graph().add_vertex(vid, data);
      }
   }
 

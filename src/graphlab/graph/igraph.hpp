@@ -93,9 +93,10 @@ namespace graphlab {
   
   
      \code
-     vertex_id_type graph::add_vertex(const VertexData& vdata = VertexData()) 
+     void graph::add_vertex(vertex_id_type vid, 
+       const VertexData& vdata = VertexData()) 
      edge_id_type graph::add_edge(vertex_id_type source, vertex_id_type target, 
-     const EdgeData& edata = EdgeData()) 
+       const EdgeData& edata = EdgeData()) 
      \endcode
   
      The functions return the id's of the added vertex and edge
@@ -208,13 +209,13 @@ namespace graphlab {
       base_graph_ptr->reverse_edge(edge); }
 
     /** 
-     * \brief Creates a vertex containing the vertex data and returns
-     * the id of the new vertex id. Vertex ids are assigned in
-     * increasing order with the first vertex having id 0.
+     * \brief Creates a vertex containing the vertex data with the
+     * given vertex id.
      */
-    vertex_id_type add_vertex(const vertex_data_type& vdata = 
+    vertex_id_type add_vertex(vertex_id_type vid, 
+                              const vertex_data_type& vdata = 
                               vertex_data_type() ) {
-      base_graph_ptr->add_vertex(vdata); 
+      base_graph_ptr->add_vertex(vid, vdata); 
     }
 
     /** 

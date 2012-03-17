@@ -109,14 +109,19 @@ void init_lanczos(graph_type * g, bipartite_graph_descriptor & info){
 
 
 
-vec lanczos(graphlab::core<graph_type, Axb> & glcore, bipartite_graph_descriptor & info, timer & mytimer, vec & errest, 
+vec lanczos(graphlab::core<graph_type, Axb> & glcore, 
+            bipartite_graph_descriptor & info, timer & mytimer, vec & errest, 
             const std::string & vecfile){
    
 
    int nconv = 0;
    int its = 1;
    int mpd = 24;
+<<<<<<< local
    //int N = std::min(info.rows, info.cols);
+=======
+   // int N = std::min(info.rows, info.cols);
+>>>>>>> other
    DistMat A(info);
    DistSlicedMat U(info.is_square() ? data_size : 0, info.is_square() ? 2*data_size : data_size, true, info, "U");
    DistSlicedMat V(0, data_size, false, info, "V");

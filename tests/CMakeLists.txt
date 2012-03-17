@@ -25,6 +25,8 @@ ADD_CXXTEST(md5test.cxx)
 ADD_CXXTEST(asm_test.cxx)
 ADD_CXXTEST(chandy_misra.cxx)
 ADD_CXXTEST(lock_free_pushback.cxx)
+ADD_CXXTEST(union_find_test.cxx)
+
 
 add_graphlab_executable(integer_serialize_validate integer_serialize_validate.cpp)
 add_graphlab_executable(integer_serialize_bench integer_serialize_bench.cpp)

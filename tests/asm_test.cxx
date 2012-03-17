@@ -93,7 +93,7 @@ class AsmTestSuite: public CxxTest::TestSuite {
  public:  
   void test_basic_asm() {
     graph_type g;
-    g.add_vertex();   g.add_vertex();   g.add_vertex();
+    //    g.add_vertex(0);   g.add_vertex(1);   g.add_vertex(2);
     g.add_edge(1, 0);
     g.add_edge(2, 0);
     g.add_edge(1, 2);

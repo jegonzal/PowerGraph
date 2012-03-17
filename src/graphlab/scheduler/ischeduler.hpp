@@ -129,12 +129,46 @@ namespace graphlab {
              vertex_id_type& ret_vid,
              update_functor_type& ret_fun) = 0;
 
-    virtual sched_status::status_enum 
+
+    /**
+     * Extracts the task on vertex vid if available. This function
+     * is optional and need not be implemented.
+     */
+    virtual sched_status::status_enum
     get_specific(vertex_id_type vid,
                  update_functor_type& ret_fun) {
       return sched_status::EMPTY;
     }
 
+
+    /**
+     * Inserts a task for vertex vid to be maintained, but do not
+     * update the schedule. Must be implemented for the distributed
+     * engines.
+     */
+    virtual void
+    place(vertex_id_type vid,
+                 const update_functor_type& fun) {
+    }
+
+
+    /**
+     * Schedules vertex vid using the stored task that was previously
+     * placed using place. Must be implmeented for the distributed engines.
+     */
+    virtual void
+    schedule_from_execution_thread(const size_t cpuid, vertex_id_type vid) {
+      schedule(vid);
+    }
+    
+    /**
+     * Schedules vertex vid using the stored task that was previously
+     * placed using place. Must be implmeented for the distributed engines.
+     */
+    virtual void
+    schedule(vertex_id_type vid) {
+    }
+    
     /**
      * This is called after a task has been executed
      */

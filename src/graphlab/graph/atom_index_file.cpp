@@ -169,6 +169,9 @@ namespace graphlab {
     return 1;
   }
 
+
+
+
   /**
    * Takes in a subset of atoms and bisect its atom subgraph using metis
    */
@@ -184,15 +187,20 @@ namespace graphlab {
 
     typedef graph<size_t, size_t> atom_graph_type;
     atom_graph_type atomgraph;
+
     // add vertices
+    atomgraph.resize(atomsubset.size());
+    size_t vid = 0;
     foreach(size_t i, atomsubset) {
-      atomrevmap[i] = atomgraph.add_vertex(atomindex.atoms[i].nedges + 1);
+      atomrevmap[i] = vid++;
+      atomgraph.add_vertex(atomrevmap[i], atomindex.atoms[i].nedges + 1);
     }
   
     foreach(size_t i, atomsubset) {
       for (size_t j = 0; j < atomindex.atoms[i].adjatoms.size(); ++j) {
         // only add edges which connect within the atomsubset
-        if (atomsubset_set.find(atomindex.atoms[i].adjatoms[j]) != atomsubset_set.end()) {
+        if (atomsubset_set.find(atomindex.atoms[i].adjatoms[j]) 
+            != atomsubset_set.end()) {
           size_t nbr = atomrevmap[atomindex.atoms[i].adjatoms[j]];
           size_t atomweight = 1;
           if (atomindex.atoms[i].optional_weight_to_adjatoms.size() != 0) {

@@ -1,7 +1,6 @@
 package org.graphlab.demo;
 
 import java.io.IOException;
-import java.util.Scanner;
 
 import org.apache.log4j.BasicConfigurator;
 import org.apache.log4j.Level;
@@ -51,8 +50,10 @@ public class ShortestPath {
 
     initLogger();
     
-    Scanner sc = new Scanner(System.in);
-    sc.next();
+    ///////// DUMB VISUAL VM HACK ///////////
+    // Scanner sc = new Scanner(System.in);
+    // sc.next();
+    ///////// DUMB VISUAL VM HACK ///////////
     
     logger.trace("Main method in " +
         ShortestPath.class.getCanonicalName() +

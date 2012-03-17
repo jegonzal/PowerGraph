@@ -20,15 +20,14 @@
  *
  */
 
-#ifndef GRAPHLAB_DISTRIBUTED_LBFS_INGRESS_HPP
-#define GRAPHLAB_DISTRIBUTED_LBFS_INGRESS_HPP
+#ifndef GRAPHLAB_DISTRIBUTED_SEMIOB_INGRESS_HPP
+#define GRAPHLAB_DISTRIBUTED_SEMIOB_INGRESS_HPP
 
 
 #include <graphlab/graph/graph_basic_types.hpp>
 #include <graphlab/graph/idistributed_ingress.hpp>
 #include <graphlab/graph/distributed_graph.hpp>
 #include <graphlab/rpc/buffered_exchange.hpp>
-#include <graphlab/graph/graph.hpp>
 
 
 #include <graphlab/macros_def.hpp>
@@ -37,14 +36,14 @@ namespace graphlab {
     class distributed_graph;
 
   template<typename VertexData, typename EdgeData>
-  class distributed_local_bfs_ingress: 
+  class distributed_semi_oblivious_ingress: 
     public idistributed_ingress<VertexData, EdgeData> {
   public:
     typedef distributed_graph<VertexData, EdgeData> graph_type;
     /// The type of the vertex data stored in the graph 
     typedef VertexData vertex_data_type;
     /// The type of the edge data stored in the graph 
-    typedef EdgeData  edge_data_type;
+    typedef EdgeData   edge_data_type;
 
     /// The type of a vertex is a simple size_t
     typedef graphlab::vertex_id_type vertex_id_type;
@@ -54,10 +53,7 @@ namespace graphlab {
     typedef typename graph_type::lvid_type  lvid_type;
     typedef typename graph_type::vertex_record vertex_record;
 
-    // typedef typename graph_type::SizeType SizeType;
-    typedef typename graph_type::mirror_type mirror_type;
-
-    dc_dist_object<distributed_local_bfs_ingress> rpc;
+    dc_dist_object<distributed_semi_oblivious_ingress> rpc;
     graph_type& graph;
 
     /// Temporar buffers used to store vertex data on ingress
@@ -85,6 +81,9 @@ namespace graphlab {
     };
     buffered_exchange<edge_buffer_record> edge_exchange;
 
+
+
+
     struct shuffle_record : public graphlab::IS_POD_TYPE {
       vertex_id_type vid, num_in_edges, num_out_edges;
       shuffle_record(vertex_id_type vid = 0, vertex_id_type num_in_edges = 0,
@@ -97,7 +96,7 @@ namespace graphlab {
       vertex_id_type vid;
       procid_t owner;
       size_t num_in_edges, num_out_edges;
-      mirror_type mirrors;
+      std::vector<procid_t> mirrors;
       vertex_data_type vdata;
       vertex_negotiator_record() : 
         vid(-1), owner(-1), num_in_edges(0), num_out_edges(0) { }
@@ -112,160 +111,71 @@ namespace graphlab {
     }; // end of vertex_negotiator_record 
 
 
-    typedef typename boost::unordered_map<vertex_id_type, size_t>  vid2degree_type;
-
     /// temporary map for vertexdata
     typedef boost::unordered_map<vertex_id_type, vertex_negotiator_record> vrec_map_type;
     vrec_map_type vrec_map;
 
+    // Local minibatch buffer 
+    size_t num_edges;
+    size_t limit;
+    std::vector<std::pair<vertex_id_type, vertex_id_type> > edgesend;
+    std::vector<EdgeData> edatasend;
+    std::vector<std::set<vertex_id_type> > query_set;
+
     /** The map from proc_id to num_edges on that proc */
     std::vector<size_t> proc_num_edges;
 
+
     /** The map from vertex id to pairs of <pid, local_degree_of_v> */
-    typedef typename boost::unordered_map<vertex_id_type, std::vector<size_t> > degree_hash_table_type;
+    typedef typename std::vector<boost::unordered_map<vertex_id_type, size_t> > degree_hash_table_type;
     degree_hash_table_type dht;
+    std::vector<rwlock> dht_lock;
 
-    class edge_type {
-      vertex_id_type _source;
-      vertex_id_type _target;
-      size_t _eid;
-      public:
-        edge_type(vertex_id_type source, vertex_id_type target, size_t eid):
-         _source(source), _target(target), _eid(eid)  {}
-        vertex_id_type source() const { return _source;}
-        vertex_id_type target() const { return _target;}
-        size_t edge_id() const { return _eid;}
-    }; // end of edge_type
 
-    class bfs_buffer_type {
-      public:
-        typedef std::pair<vertex_id_type, size_t> adj_entry_type;
-        typedef typename boost::unordered_map<vertex_id_type, std::list<adj_entry_type> > adj_list_type;
-        typedef typename adj_list_type::iterator adj_iter_type;
-      public:
-        bfs_buffer_type(){ }
-        void add_edge(vertex_id_type source, vertex_id_type target, const EdgeData& edata) {
-          edata_list.push_back(edata);
-          edge_list[source].push_back(std::make_pair(target, edata_list.size()-1));
-        }
-        EdgeData& edge_data (edge_type edge) { 
-          return edata_list[edge.edge_id()];
-        }
-        void clear() {
-          adj_iter_type iter = edge_list.begin(); 
-          while(iter != edge_list.end())
-            iter->second.clear();
-          edge_list.clear();
-          edata_list.clear();
-        }
-        // Return an list of edge_type ordered by traversing BFS starting from 
-        // the input seed vertices.
-        std::vector<edge_type> bfs_order(const std::vector<vertex_id_type>& seed){
-          std::vector<edge_type> ret;
-          std::deque<edge_type> queue; 
-          int covered_edge = 0;
+    // typedef typename boost::unordered_map<vertex_id_type, std::vector<size_t> > dht_change_type;
+    typedef degree_hash_table_type dht_change_type;
+    dht_change_type dht_change;
+    size_t bufsize;
+    size_t buflimit;
 
-          foreach(vertex_id_type startv, seed) {
-            adj_iter_type iter = edge_list.find(startv);
-            if (iter != edge_list.end()) {
-              foreach(adj_entry_type item, iter->second) { 
-                queue.push_back(edge_type(startv, item.first, item.second));
-              }
-              edge_list[startv].clear();
-              edge_list.erase(iter);
-            }
-          }
-
-          // Fill in the subgraph spanned by the seed vertices.
-          while(!queue.empty()) {
-            edge_type e = queue.front();
-            adj_iter_type iter = edge_list.find(e.target());
-            if (iter != edge_list.end()) {
-              foreach(adj_entry_type item, iter->second) { 
-                queue.push_back(edge_type(iter->first, item.first, item.second));
-              }
-              iter->second.clear();
-              edge_list.erase(iter);
-            }
-            queue.pop_front();
-            ret.push_back(e);
-            ++covered_edge;
-          }
-          logstream(LOG_DEBUG) << "Number of covered edges from BFS: " << covered_edge<< std::endl;
-
-          // Fill in the rest of the dangling edges.
-          size_t dangling_edge = 0;
-          while(!edge_list.empty()) {
-            adj_iter_type iter = edge_list.begin();
-            foreach(adj_entry_type item, iter->second) {
-              ret.push_back(edge_type(iter->first, item.first, item.second));
-              ++dangling_edge;
-            }
-            iter->second.clear();
-            edge_list.erase(iter);
-          }
-          logstream(LOG_DEBUG) << "Number of dangling edges from BFS: " << dangling_edge << std::endl;
-
-          return ret;
-        }
-      private:
-        adj_list_type edge_list;
-        std::vector<EdgeData> edata_list;
-    }; // end of bfs_buffer
-    bfs_buffer_type bfs_buffer;
-
-    vertex_id_type max_vid;
-    double seed_percent;
-    
-
-    PERMANENT_DECLARE_DIST_EVENT_LOG(eventlog);
     DECLARE_TRACER(ob_ingress_add_edge);
     DECLARE_TRACER(ob_ingress_compute_assignments);
+    DECLARE_TRACER(ob_ingress_update_dhtchange);
+    DECLARE_TRACER(ob_ingress_update_dht);
+    DECLARE_TRACER(ob_ingress_sync_dht);
     DECLARE_TRACER(ob_ingress_finalize);
 
-    enum {
-      EVENT_EDGE_SEEN_NONE_UNIQUE = 0,
-      EVENT_EDGE_SEEN_NONE_TIE = 1,
-      EVENT_EDGE_SEEN_ONE_UNIQUE = 2,
-      EVENT_EDGE_SEEN_ONE_TIE = 3,
-      EVENT_EDGE_SEEN_BOTH_UNIQUE =4,
-      EVENT_EDGE_SEEN_BOTH_TIE = 5
-    };
 
   public:
-    distributed_local_bfs_ingress(distributed_control& dc, graph_type& graph, double seed_percent = 5) :
+    distributed_semi_oblivious_ingress(distributed_control& dc, graph_type& graph, size_t buflimit = 50000) :
       rpc(dc, this), graph(graph), vertex_exchange(dc), edge_exchange(dc),
-      proc_num_edges(dc.numprocs()), seed_percent(seed_percent) { 
+      proc_num_edges(dc.numprocs()), dht(rpc.numprocs()), dht_lock(rpc.numprocs()),
+      dht_change(rpc.numprocs()), bufsize(0), buflimit(buflimit) { 
       rpc.barrier(); 
-      ASSERT_GT(seed_percent, 0);
-      max_vid = 0;
-
-
-#ifdef USE_EVENT_LOG
-      PERMANENT_INITIALIZE_DIST_EVENT_LOG(eventlog, dc, std::cout, 500, 
-                               dist_event_log::RATE_BAR);
-#else
-      PERMANENT_INITIALIZE_DIST_EVENT_LOG(eventlog, dc, std::cout, 500, 
-                                dist_event_log::LOG_FILE);
-#endif
-
-      PERMANENT_ADD_DIST_EVENT_TYPE(eventlog, EVENT_EDGE_SEEN_NONE_UNIQUE, "Zero end (unique)");
-      PERMANENT_ADD_DIST_EVENT_TYPE(eventlog, EVENT_EDGE_SEEN_NONE_TIE, "Zero end (tie)");
-      PERMANENT_ADD_DIST_EVENT_TYPE(eventlog, EVENT_EDGE_SEEN_ONE_UNIQUE, "One end (unique)");
-      PERMANENT_ADD_DIST_EVENT_TYPE(eventlog, EVENT_EDGE_SEEN_ONE_TIE, "One end (tie)");
-      PERMANENT_ADD_DIST_EVENT_TYPE(eventlog, EVENT_EDGE_SEEN_BOTH_UNIQUE, "Both ends (unique)");
-      PERMANENT_ADD_DIST_EVENT_TYPE(eventlog, EVENT_EDGE_SEEN_BOTH_TIE, "Both ends (tie)");
-
 
       INITIALIZE_TRACER(ob_ingress_add_edge, "Time spent in add edge");
       INITIALIZE_TRACER(ob_ingress_compute_assignments, "Time spent in compute assignment");
+      INITIALIZE_TRACER(ob_ingress_update_dhtchange, "Time spent in update local dht change");
+      INITIALIZE_TRACER(ob_ingress_update_dht, "Time spent in update dht");
+      INITIALIZE_TRACER(ob_ingress_sync_dht, "Time spent in sync dht");
       INITIALIZE_TRACER(ob_ingress_finalize, "Time spent in finalize");
      }
 
     void add_edge(vertex_id_type source, vertex_id_type target,
                   const EdgeData& edata) {
-      bfs_buffer.add_edge(source, target, edata);
-      max_vid = std::max(std::max(source, target), max_vid);
+      BEGIN_TRACEPOINT(ob_ingress_add_edge);
+      BEGIN_TRACEPOINT(ob_ingress_compute_assignments);
+      const procid_t owning_proc = edge_to_proc(source, target);
+      END_TRACEPOINT(ob_ingress_compute_assignments);
+      const edge_buffer_record record(source, target, edata);
+      edge_exchange.send(owning_proc, record);
+      BEGIN_TRACEPOINT(ob_ingress_update_dhtchange);
+      update_dhtchange(source, target, owning_proc);
+      END_TRACEPOINT(ob_ingress_update_dhtchange);
+      END_TRACEPOINT(ob_ingress_add_edge);
+
+      if (bufsize > buflimit)
+        sync_dhts();
     } // end of add_edge
 
     void add_vertex(vertex_id_type vid, const VertexData& vdata)  { 
@@ -274,31 +184,42 @@ namespace graphlab {
       vertex_exchange.send(owning_proc, record);
     } // end of add vertex
 
-    void flush_bfs_buffer() {
-      logstream(LOG_DEBUG) << "Flushing bfs buffer..." << std::endl;
-      std::vector<vertex_id_type> seeds = get_seed_vertices(max_vid);
-      std::vector<edge_type> edge_list =  bfs_buffer.bfs_order(seeds);
-      
-      foreach(const edge_type& edge, edge_list) {
-        const procid_t owning_proc = edge_to_proc(edge.source(), edge.target());
-        const edge_buffer_record record(edge.source(), 
-            edge.target(), bfs_buffer.edge_data(edge));
-        edge_exchange.send(owning_proc, record);
-      }
-      bfs_buffer.clear();
+    void sync_dhts() {
+      BEGIN_TRACEPOINT(ob_ingress_sync_dht);
+      std::vector<procid_t> procs;
+      for (size_t i = 0; i < rpc.numprocs(); ++i)
+        if (i != rpc.procid())
+          procs.push_back(i);
+
+      rpc.remote_call(procs.begin(), procs.end(), &distributed_semi_oblivious_ingress::update_dht, dht_change);
+      for(size_t i = 0; i < rpc.numprocs(); ++i)
+        dht_change[i].clear();
+      bufsize = 0;
+      END_TRACEPOINT(ob_ingress_sync_dht);
     }
 
-    std::vector<vertex_id_type> get_seed_vertices(vertex_id_type max_vid) {
-      std::vector<vertex_id_type> ret;
-      for (size_t i = 0; i <= max_vid; ++i) {
-        if (is_seed(i))
-          ret.push_back(i);
-      }
-      return ret;
+    inline void update_dhtchange(vertex_id_type v1, vertex_id_type v2, procid_t proc)  {
+       ++dht_change[proc][v1];
+       ++dht_change[proc][v2];
+       ++bufsize;
     }
+
+    void update_dht(dht_change_type& dht_update) {
+      BEGIN_TRACEPOINT(ob_ingress_update_dht);
+      typedef typename boost::unordered_map<vertex_id_type, size_t> :: value_type pair_type;
+      for (size_t i = 0; i < rpc.numprocs(); ++i) {
+        dht_lock[i].writelock();
+        foreach (const pair_type& pair, dht_update[i]) {
+          dht[i][pair.first] += pair.second;
+        }
+        dht_lock[i].unlock();
+      }
+      END_TRACEPOINT(ob_ingress_update_dht);
+    }
+    
+
 
     void finalize() { 
-      flush_bfs_buffer();
       edge_exchange.flush(); vertex_exchange.flush();
       rpc.full_barrier();
       BEGIN_TRACEPOINT(ob_ingress_finalize);
@@ -406,8 +327,7 @@ namespace graphlab {
           vertex_negotiator_record& negotiator_rec = vrec_map[shuffle_rec.vid];
           negotiator_rec.num_in_edges += shuffle_rec.num_in_edges;
           negotiator_rec.num_out_edges += shuffle_rec.num_out_edges;
-          // negotiator_rec.mirrors.push_back(proc);
-          negotiator_rec.mirrors.set_bit(proc);
+          negotiator_rec.mirrors.push_back(proc);
         }
       }
 
@@ -424,22 +344,16 @@ namespace graphlab {
         const vertex_id_type vid = pair.first;
         vertex_negotiator_record& negotiator_rec = pair.second;
         negotiator_rec.vid = vid; // update the vid if it has not been set
-
         // Find the best (least loaded) processor to assign the vertex.
-        uint32_t first_mirror = 0; 
-        ASSERT_TRUE(negotiator_rec.mirrors.first_bit(first_mirror));
-        std::pair<size_t, uint32_t> 
-           best_asg(counts[first_mirror], first_mirror);
-        foreach(uint32_t proc, negotiator_rec.mirrors) {
-            best_asg = std::min(best_asg, std::make_pair(counts[proc], proc));
-        }
-
+        std::pair<size_t, procid_t> 
+          best_asg(counts[negotiator_rec.mirrors[0]], negotiator_rec.mirrors[0]);
+        foreach(procid_t proc, negotiator_rec.mirrors)
+          best_asg = std::min(best_asg, std::make_pair(counts[proc], proc));
         negotiator_rec.owner = best_asg.second;
         counts[negotiator_rec.owner]++;
         // Notify all machines of the new assignment
-        foreach(uint32_t proc, negotiator_rec.mirrors) {
-            negotiator_exchange.send(proc, negotiator_rec);
-        }
+        foreach(procid_t dest, negotiator_rec.mirrors) 
+          negotiator_exchange.send(dest, negotiator_rec);
       } // end of loop over vertex records
 
       negotiator_exchange.flush();
@@ -463,10 +377,14 @@ namespace graphlab {
             local_record.num_in_edges = negotiator_rec.num_in_edges;
             ASSERT_EQ(local_record.num_out_edges, 0); // this should have not been set
             local_record.num_out_edges = negotiator_rec.num_out_edges;
-            ASSERT_TRUE(negotiator_rec.mirrors.begin() != negotiator_rec.mirrors.end());
-            local_record._mirrors = negotiator_rec.mirrors;
-            local_record._mirrors.clear_bit(negotiator_rec.owner);
-
+            ASSERT_GT(negotiator_rec.mirrors.size(), 0);
+            local_record._mirrors.reserve(negotiator_rec.mirrors.size()-1);
+            ASSERT_EQ(local_record._mirrors.size(), 0);
+            // copy the mirrors but drop the owner
+            for(size_t i = 0; i < negotiator_rec.mirrors.size(); ++i) {
+              if(negotiator_rec.mirrors[i] != negotiator_rec.owner) 
+                local_record._mirrors.push_back(negotiator_rec.mirrors[i]);
+            }
           }
         }
       }
@@ -525,92 +443,68 @@ namespace graphlab {
 
     int try_edge_hash (vertex_id_type source, vertex_id_type target) const {
       int hashproc = -1;
-      bool source_hashed = is_seed(source);
-      bool target_hashed = is_seed(target);
-
-      typedef std::pair<vertex_id_type, vertex_id_type> edge_pair_type;
-      boost::hash< edge_pair_type >  hash_function;
-      const edge_pair_type edge_pair(std::min(source, target), 
-                                     std::max(source, target));
-
+      bool source_hashed = source*769 % 101 < 30;
+      bool target_hashed = target*769 % 101 < 30;
       if (source_hashed | target_hashed){
-        return hash_function(edge_pair) % rpc.numprocs();
+        if (source_hashed & target_hashed) {
+          hashproc = source < target ? (source * 101 % rpc.numprocs())
+            : (target * 101 % rpc.numprocs());
+        } else {
+          hashproc = source_hashed ? (source * 101 % rpc.numprocs())
+            : (target * 101 % rpc.numprocs());
+        }
       }
       return hashproc;
     }
-    
-    bool is_seed (vertex_id_type v) const {
-      boost::hash< vertex_id_type>  hash_function;
-      return double(hash_function(v) % 100000)/1000.0 <  seed_percent;
-    }
+
 
     procid_t edge_to_proc(vertex_id_type src, vertex_id_type dst) {
-     std::vector<size_t>& src_degree = dht[src];
-     std::vector<size_t>& dst_degree = dht[dst];
-     if (src_degree.size() == 0)
-       src_degree.resize(rpc.numprocs(), 0);
-     if (dst_degree.size() == 0)
-       dst_degree.resize(rpc.numprocs(), 0);
-
      procid_t best_proc = -1; 
      double maxscore = 0.0;
-     double epsilon = 1e-5;
+     double epsilon = 0.01; 
      std::vector<double> proc_score(rpc.numprocs()); 
 
-     int seed_hash = try_edge_hash(src, dst);
-     if (seed_hash >= 0) {
-       best_proc = (procid_t)seed_hash;
-       ++src_degree[best_proc];
-       ++dst_degree[best_proc];
-       ++proc_num_edges[best_proc];
-       return best_proc;
-     }
+     // int seed_hash = try_edge_hash(src, dst);
+     // if (seed_hash > 0) {
+     //   best_proc = (procid_t)seed_hash;
+     //   ++src_degree[best_proc];
+     //   ++dst_degree[best_proc];
+     //   ++proc_num_edges[best_proc];
+     //   return best_proc;
+     // }
 
      size_t minedges = *std::min_element(proc_num_edges.begin(), proc_num_edges.end());
      size_t maxedges = *std::max_element(proc_num_edges.begin(), proc_num_edges.end());
-
      for (size_t i = 0; i < rpc.numprocs(); ++i) {
-       size_t sd = src_degree[i];
-       size_t td = dst_degree[i];
+       dht_lock[i].readlock();
+       size_t sd = dht[i].find(src) == dht[i].end() ? 0 : dht[i][src];
+       size_t td = dht[i].find(dst) == dht[i].end() ? 0 : dht[i][dst];
+       dht_lock[i].unlock();
        double bal = (maxedges - proc_num_edges[i])/(epsilon + maxedges - minedges);
-       proc_score[i] = bal + ((sd > 0) + (td > 0));
+       proc_score[i] = bal;
+       if (!(sd || td)) { // proc hasn't seen either src or dst
+         proc_score[i] += 0; 
+       } else if (!(sd && td)) { // proc has seen one but not the other
+         proc_score[i] += 1; 
+       } else {
+         proc_score[i] += 2;
+       }
      }
      maxscore = *std::max_element(proc_score.begin(), proc_score.end());
 
      std::vector<procid_t> top_procs; 
-     for (size_t i = 0; i < rpc.numprocs(); ++i)
-       if (std::fabs(proc_score[i] - maxscore) < epsilon)
+     for (ssize_t i = 0; i < ssize_t(rpc.numprocs()); ++i)
+       if (std::fabs(proc_score[i] - maxscore) < 1e-5)
          top_procs.push_back(i);
 
-     if (top_procs.size() > 1) {
-        if (maxscore >= 2) {
-          PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, EVENT_EDGE_SEEN_BOTH_TIE, 1)
-        } else if (maxscore >= 1) {
-          PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, EVENT_EDGE_SEEN_ONE_TIE, 1)
-        } else {
-          PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, EVENT_EDGE_SEEN_NONE_TIE, 1); 
-        }
-      } else {
-        if (maxscore >= 2) {
-          PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, EVENT_EDGE_SEEN_BOTH_UNIQUE, 1);
-        } else if (maxscore >= 1) {
-          PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, EVENT_EDGE_SEEN_ONE_UNIQUE, 1)
-        } else {
-          PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, EVENT_EDGE_SEEN_NONE_UNIQUE, 1); 
-        }
-      }
-
      // Hash the edge to one of the best procs.
-     typedef std::pair<vertex_id_type, vertex_id_type> edge_pair_type;
-      boost::hash< edge_pair_type >  hash_function;
-      const edge_pair_type edge_pair(std::min(src, dst), 
-                                     std::max(src, dst));
-      best_proc = top_procs[hash_function(edge_pair) % top_procs.size()];
-     // best_proc = top_procs[std::max(src, dst) % top_procs.size()];
-     
+     best_proc = top_procs[std::max(src, dst) % top_procs.size()];
      ASSERT_LT(best_proc, rpc.numprocs());
-     ++src_degree[best_proc];
-     ++dst_degree[best_proc];
+
+     dht_lock[best_proc].writelock();
+     ++dht[best_proc][src];
+     ++dht[best_proc][dst];
+     dht_lock[best_proc].unlock();
      ++proc_num_edges[best_proc];
      return best_proc;
    }
