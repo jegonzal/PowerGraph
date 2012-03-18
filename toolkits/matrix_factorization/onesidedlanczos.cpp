@@ -26,7 +26,7 @@
 #include "../shared/types.hpp"
 #include "../shared/mathlayer.hpp"
 
-//#define USE_GRAPH2
+#define USE_GRAPH2
 #ifdef USE_GRAPH2
 #include "graphlab/graph/graph2.hpp"
 #else
@@ -117,8 +117,10 @@ vec lanczos(graphlab::core<graph_type, Axb> & glcore, bipartite_graph_descriptor
    DistSlicedMat V(0, data_size, false, info, "V");
    DistVec v(info, 1, false, "v");
    DistVec u(info, 1, true, "u");
+   DistVec u_1(info, 2, true, "u_1");
+   DistVec tmp(info, 3, true, "tmp");
    vec alpha, beta, b;
-   vec sigma = zeros(nv);
+   vec sigma = zeros(data_size);
    errest = zeros(nv);
    DistVec v_0(info, 0, false, "v_0");
    if (vecfile.size() == 0)
@@ -156,25 +158,40 @@ vec lanczos(graphlab::core<graph_type, Axb> & glcore, bipartite_graph_descriptor
        PRINT_INT(i);
 
        V[i]=u*A;
-       //orthogonalize_vs_all(V, i, beta(i-k-1));
-      
-       U[i] = V[i]*A._transpose();
-       orthogonalize_vs_all(U, i, alpha(i-k));
-       //alpha(i-k)=norm(U[i]).toDouble();
-
-       //U[i] = U[i]/alpha(i-k);
-       PRINT_VEC3("alpha", alpha, i-k);
+       double a = norm(u).toDouble();
+       u = u / a;
+       multiply(V, i, a);
+       PRINT_DBL(a);     
+ 
+       double b;
+       orthogonalize_vs_all(V, i, b);
+       PRINT_DBL(b);
+       u_1 = V[i]*A._transpose();  
+       u_1 = u_1 - u*b;
+       alpha(i-k-1) = a;
+       beta(i-k-1) = b;
+       PRINT_VEC3("alpha", alpha, i-k-1);
+       PRINT_VEC3("beta", beta, i-k-1);
+       tmp = u;
+       u = u_1;
+       u_1 = tmp;
      }
 
-     V[n]= U[n-1]*A;
-     orthogonalize_vs_all(V, n, beta(n-k-1));
-     //beta(n-k-1)=norm(V[n]).toDouble();
+     V[n]= u*A;
+     double a = norm(u).toDouble();
+     PRINT_DBL(a);
+     u = u/a;
+     double b;
+     multiply(V, n, a);
+     orthogonalize_vs_all(V, n, b);
+     alpha(n-k-1)= a;
+     beta(n-k-1) = b;
+     PRINT_VEC3("alpha", alpha, n-k-1);
      PRINT_VEC3("beta", beta, n-k-1);
 
   //compute svd of bidiagonal matrix
   PRINT_INT(nv);
   PRINT_NAMED_INT("svd->nconv", nconv);
-  PRINT_NAMED_INT("svd->mpd", mpd);
   n = nv - nconv;
   PRINT_INT(n);
   alpha.conservativeResize(n);
@@ -189,10 +206,11 @@ vec lanczos(graphlab::core<graph_type, Axb> & glcore, bipartite_graph_descriptor
   for (int i=0; i<n-1; i++)
     set_val(T, i, i+1, beta(i));
   PRINT_MAT2("T", T);
-  mat a,PT;
-  svd(T, a, PT, b);
-  PRINT_MAT2("Q", a);
-  alpha=b.transpose();
+  mat aa,PT;
+  vec bb;
+  svd(T, aa, PT, bb);
+  PRINT_MAT2("Q", aa);
+  alpha=bb.transpose();
   PRINT_MAT2("alpha", alpha);
   for (int t=0; t< n-1; t++)
      beta(t) = 0;
@@ -206,9 +224,9 @@ vec lanczos(graphlab::core<graph_type, Axb> & glcore, bipartite_graph_descriptor
     PRINT_INT(j);
     sigma(i) = alpha(j);
     PRINT_NAMED_DBL("svd->sigma[i]", sigma(i));
-    PRINT_NAMED_DBL("Q[j*n+n-1]",a(n-1,j));
+    PRINT_NAMED_DBL("Q[j*n+n-1]",aa(n-1,j));
     PRINT_NAMED_DBL("beta[n-1]",beta(n-1));
-    errest(i) = abs(a(n-1,j)*beta(n-1));
+    errest(i) = abs(aa(n-1,j)*beta(n-1));
     PRINT_NAMED_DBL("svd->errest[i]", errest(i));
     if (alpha(j) >  tol){
       errest(i) = errest(i) / alpha(j);
@@ -268,8 +286,8 @@ END_TRACEPOINT(matproduct);
   PRINT_NAMED_INT("svd->its", its);
   PRINT_NAMED_INT("svd->nconv", nconv);
   //nv = min(nconv+mpd, N);
-  if (nsv < 10)
-    nv = 10;
+  //if (nsv < 10)
+  //  nv = 10;
   PRINT_NAMED_INT("nv",nv);
 
 } // end(while)
@@ -279,10 +297,13 @@ printf("\n");
   DistVec normret(info, nconv, false, "normret");
   DistVec normret_tranpose(info, nconv, true, "normret_tranpose");
   for (int i=0; i < nconv; i++){
-    normret = V[i]*A._transpose() -U[i]*sigma(i);
+    u = V[i]*A._transpose();
+    double a = norm(u).toDouble();
+    u = u / a;
+    normret = V[i]*A._transpose() - u*sigma(i);
     double n1 = norm(normret).toDouble();
     PRINT_DBL(n1);
-    normret_tranpose = U[i]*A -V[i]*sigma(i);
+    normret_tranpose = u*A -V[i]*sigma(i);
     double n2 = norm(normret_tranpose).toDouble();
     PRINT_DBL(n2);
     double err=sqrt(n1*n1+n2*n2);
