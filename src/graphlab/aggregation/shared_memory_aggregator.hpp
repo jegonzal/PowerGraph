@@ -133,6 +133,20 @@ namespace graphlab {
     shared_memory_aggregator(engine_type& engine) :
       engine(engine) { }
 
+    /** Destroy members of the map */
+    ~shared_memory_aggregator() { 
+      threads.join();
+      sync_master_lock.lock();
+      sync_queue.clear();
+      typedef typename sync_map_type::value_type pair_type;
+      foreach(pair_type& pair, sync_map) {        
+        ASSERT_TRUE(pair.second != NULL);
+        delete pair.second; pair.second = NULL;
+      }     
+      sync_map.clear();
+      sync_master_lock.unlock();
+    }
+
     /**
      * Get a reference to the internal threads in the aggregator.
      * This is used by the engine to join threads and to resize the
@@ -145,9 +159,9 @@ namespace graphlab {
      * aggregation task queue.
      */
     void initialize_queue() { 
-      typedef typename sync_map_type::value_type pair_type;
       sync_master_lock.lock();
       sync_queue.clear();
+      typedef typename sync_map_type::value_type pair_type;
       foreach(const pair_type& pair, sync_map) {        
         ASSERT_TRUE(pair.second != NULL);
         // If their is a sync associated with the global record and
