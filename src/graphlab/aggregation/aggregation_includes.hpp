@@ -19,9 +19,5 @@
  *      http://www.graphlab.ml.cmu.edu
  *
  */
-
-
-
-#include <graphlab/update_functor/iupdate_functor.hpp>
-
-
+ 
+#include <graphlab/aggregation/iaggregator.hpp>

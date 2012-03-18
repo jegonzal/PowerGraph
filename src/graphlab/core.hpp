@@ -383,12 +383,10 @@ namespace graphlab {
     void add_aggregator(const std::string& key,           
                         const Aggregator& zero,                 
                         size_t interval,
-                        bool use_barrier = false,
                         vertex_id_type begin_vid = 0,
                         vertex_id_type end_vid = 
                         std::numeric_limits<vertex_id_type>::max()) {
-      engine().add_aggregator(key, zero, interval,
-                              use_barrier, begin_vid, end_vid);
+      engine().add_aggregator(key, zero, interval, begin_vid, end_vid);
     }    
 
     /**

@@ -117,7 +117,7 @@ namespace graphlab {
 
     size_t num_vertices() const { return graph_ptr->num_vertices(); }
     size_t num_edges() const { return graph_ptr->num_edges(); }
-    size_t num_updates() const { return engine_ptr->last_update_count(); } 
+    size_t num_updates() const { return engine_ptr->num_updates(); } 
     void terminate() { engine_ptr->stop(); }
 
     size_t elapsed_time() const { return engine_ptr->elapsed_time(); }

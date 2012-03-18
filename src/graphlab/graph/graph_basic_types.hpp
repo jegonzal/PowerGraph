@@ -1,6 +1,7 @@
 #ifndef GRAPHLAB_GRAPH_BASIC_TYPES
 #define GRAPHLAB_GRAPH_BASIC_TYPES
 
+#include <stdint.h>
 
 namespace graphlab {
   /// The type of a vertex 
@@ -17,8 +18,6 @@ namespace graphlab {
    * operations.
    */
   enum edge_set {IN_EDGES, OUT_EDGES, ALL_EDGES, NO_EDGES};
-
-
-}
+} // end of namespace graphlab
 
 #endif

@@ -18,9 +18,6 @@
  *
  *      http://www.graphlab.ml.cmu.edu
  *
- * Also contains code that is Copyright 2011 Yahoo! Inc.  All rights
- * reserved. 
- *
  */
 
 /**

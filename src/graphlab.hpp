@@ -19,7 +19,7 @@
  *      http://www.graphlab.ml.cmu.edu
  *
  */
-
+ 
 
 #ifndef GRAPHLAB_MASTER_INCLUDES
 #define GRAPHLAB_MASTER_INCLUDES
@@ -28,6 +28,7 @@
 
 
 
+#include <graphlab/aggregation/aggregation_includes.hpp>
 #include <graphlab/engine/engine_includes.hpp>
 #include <graphlab/factors/factor_includes.hpp>
 #include <graphlab/graph/graph_includes.hpp>
