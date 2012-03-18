@@ -26,7 +26,7 @@
 #include "../shared/types.hpp"
 #include "../shared/mathlayer.hpp"
 
-#define USE_GRAPH2
+//#define USE_GRAPH2
 #ifdef USE_GRAPH2
 #include "graphlab/graph/graph2.hpp"
 #else

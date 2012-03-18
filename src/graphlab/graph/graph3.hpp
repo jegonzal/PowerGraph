@@ -638,7 +638,9 @@ namespace graphlab {
 
     /** \brief Load the graph from a file */
     void load_directed(const std::string& filename, bool no_node_data, bool no_edge_data) {
-      assert(!undirected);
+         assert(!undirected);
+         double total_mb_allocated = 0;
+         //read nodes from file
          size_t rc =array_from_file(filename + ".nodes", node_out_degrees);
 	 num_nodes = (rc/4)-1;
          if (!no_node_data){
@@ -648,24 +650,33 @@ namespace graphlab {
          }
          size_t rc2 =array_from_file(filename + "-r.nodes", node_in_degrees);
          assert(rc == rc2);
-         logstream(LOG_INFO) << filename << " Read " << num_nodes << " nodes. Allocated size: " << ((double)num_nodes*sizeof(int)/1e6) << " MB." <<std::endl;
+         total_mb_allocated += (2.0*num_nodes*sizeof(int))/1e6;
+         logstream(LOG_INFO) << filename << " Read " << num_nodes << " nodes. Allocated size: " << ((double)2*num_nodes*sizeof(int)/1e6) << " MB." <<std::endl;
+
+         //read edges from file
          rc = array_from_file(filename + ".edges", node_out_edges);
          _num_edges = (rc/sizeof(uint));
          rc2 = array_from_file(filename + "-r.edges", node_in_edges);
          assert(rc == rc2);
-  	 logstream(LOG_INFO) << filename << " Read " << (undirected? _num_edges/2 : _num_edges) << " edges. Allocated size: " <<((double)_num_edges*sizeof(int)/1e6) << " MB." << std::endl;
+         total_mb_allocated += (2.0*_num_edges*sizeof(int)/1e6);
+  	 logstream(LOG_INFO) << filename << " Read " << (undirected? _num_edges/2 : _num_edges) << " edges. Allocated size: " <<((double)_num_edges*2*sizeof(int)/1e6) << " MB." << std::endl;
          verify_edges(node_out_edges, _num_edges, num_nodes);
          verify_edges(node_in_edges, _num_edges, num_nodes);
+
+         //read edge weights from file (optional)
          if (!no_edge_data){
            rc = array_from_file(filename + ".weights", edge_weights);
            assert(rc/sizeof(double) == size_t(_num_edges)); 
            logstream(LOG_INFO) << filename << " Read: " << _num_edges << " weights " << std::endl;
            rc = array_from_file(filename + "-r.weights", in_edge_weights);
            assert(rc/sizeof(double) == size_t(_num_edges)); 
+           total_mb_allocated += (2.0*_num_edges*sizeof(double)/1e6);
            logstream(LOG_INFO) << filename << " Read: " << _num_edges << " reverse weights. Allocated size: " << 
-                                  ((double)_num_edges*sizeof(double)/1e6) << " MB." << std::endl;
+                                  ((double)_num_edges*2*sizeof(double)/1e6) << " MB." << std::endl;
            
          }
+         logstream(LOG_INFO) << "Total allocated memory for storing input matrix is: " << total_mb_allocated <<  " MB." << std::endl;
+
          gnum_nodes = num_nodes;
          g_num_edges = _num_edges;
     } // end of load
