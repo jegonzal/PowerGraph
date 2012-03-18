@@ -51,6 +51,7 @@ DECLARE_TRACER(matproduct)
 int max_iter = 10;
 bool debug;
 bool no_edge_data = false;
+int actual_vector_len;
 int nv = 0;
 int nsv = 0;
 double tol = 1e-8;
@@ -97,7 +98,7 @@ void init_lanczos(graph_type * g, bipartite_graph_descriptor & info){
      logstream(LOG_FATAL)<<"Failed to load graph. Aborting" << std::endl;
 
   data_size = nsv + nv+1 + max_iter;
-  int actual_vector_len = data_size;
+  actual_vector_len = data_size;
   if (info.is_square())
      actual_vector_len = 2*data_size;
 #pragma omp parallel for
@@ -118,7 +119,7 @@ vec lanczos(graphlab::core<graph_type, Axb> & glcore,
    int its = 1;
    int mpd = 24;
    DistMat A(info);
-   DistSlicedMat U(info.is_square() ? data_size : 0, info.is_square() ? 2*data_size : data_size, true, info, "U");
+   DistSlicedMat U(info.is_square() ? data_size : 0, actual_vector_len, true, info, "U");
    DistSlicedMat V(0, data_size, false, info, "V");
    vec alpha, beta, b;
    vec sigma = zeros(data_size);

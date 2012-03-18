@@ -49,6 +49,7 @@ DECLARE_TRACER(matproduct)
 
 //LANCZOS VARIABLES
 int max_iter = 10;
+int actual_vector_len;
 bool debug;
 bool no_edge_data = false;
 int nv = 0;
@@ -97,28 +98,35 @@ void init_lanczos(graph_type * g, bipartite_graph_descriptor & info){
      logstream(LOG_FATAL)<<"Failed to load graph. Aborting" << std::endl;
 
   data_size = nsv + nv+1 + max_iter;
+  actual_vector_len = data_size;
+  if (info.is_square())
+     actual_vector_len = data_size + 3;
 #pragma omp parallel for
-  for (int i=0; i< info.total(); i++)
-      g->vertex_data(i).pvec = zeros(info.is_square() ? (2*data_size): data_size);
+  for (int i=0; i< info.total(); i++){
+     if (i < info.get_start_node(false))
+      g->vertex_data(i).pvec = zeros(actual_vector_len);
+     else g->vertex_data(i).pvec = zeros(3);
+   }
+   logstream(LOG_INFO)<<"Allocated a total of: " << 
+     ((double)(actual_vector_len * info.num_nodes(false) +3.0*info.num_nodes(true)) * sizeof(double)/ 1e6) << " MB for storing vectors." << std::endl;
 }
 
 
-
-vec lanczos(graphlab::core<graph_type, Axb> & glcore, bipartite_graph_descriptor & info, timer & mytimer, vec & errest, 
+vec lanczos(graphlab::core<graph_type, Axb> & glcore,
+	  bipartite_graph_descriptor & info, timer & mytimer, vec & errest, 
             const std::string & vecfile){
    
 
    int nconv = 0;
    int its = 1;
    int mpd = 24;
-   int N = std::min(info.rows, info.cols);
    DistMat A(info);
-   DistSlicedMat U(info.is_square() ? data_size : 0, info.is_square() ? 2*data_size : data_size, true, info, "U");
+   DistSlicedMat U(info.is_square() ? data_size : 0, actual_vector_len, true, info, "U");
    DistSlicedMat V(0, data_size, false, info, "V");
    DistVec v(info, 1, false, "v");
-   DistVec u(info, 1, true, "u");
-   DistVec u_1(info, 2, true, "u_1");
-   DistVec tmp(info, 3, true, "tmp");
+   DistVec u(info, 0, true, "u");
+   DistVec u_1(info, 1, true, "u_1");
+   DistVec tmp(info, 2, true, "tmp");
    vec alpha, beta, b;
    vec sigma = zeros(data_size);
    errest = zeros(nv);
@@ -294,8 +302,8 @@ END_TRACEPOINT(matproduct);
 
 printf(" Number of computed signular values %d",nconv);
 printf("\n");
-  DistVec normret(info, nconv, false, "normret");
-  DistVec normret_tranpose(info, nconv, true, "normret_tranpose");
+  DistVec normret(info, 1, true, "normret");
+  DistVec normret_tranpose(info, nconv, false, "normret_tranpose");
   for (int i=0; i < nconv; i++){
     u = V[i]*A._transpose();
     double a = norm(u).toDouble();
