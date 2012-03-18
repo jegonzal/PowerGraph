@@ -412,7 +412,7 @@ int main(int argc,  char *argv[]) {
   else if (unittest == 3){
     datafile = "gklanczos_testC";
     vecfile = "gklanczos_testC_v0";
-    nsv = 4; nv = 10;
+    nsv = 25; nv = 25;
     debug = true;  max_iter = 100;
     core.set_scheduler_type("sweep(ordering=ascending,strict=true)");
     core.set_ncpus(1);
