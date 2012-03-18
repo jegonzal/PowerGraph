@@ -800,6 +800,41 @@ BEGIN_TRACEPOINT(orthogonalize_vs_alltrace);
     }
     END_TRACEPOINT(orthogonalize_vs_alltrace);
 }
+void multiply(DistSlicedMat & mat, int curoffset, double a){
+
+INITIALIZE_TRACER(multiply, "multiply sliced mat");
+BEGIN_TRACEPOINT(multiply);
+  
+  assert(a>0);
+  DistVec current = mat[curoffset];
+  assert(mat.start_offset <= current.offset); 
+  vec result = zeros(curoffset);
+ 
+  if (curoffset > 0){
+
+#pragma omp parallel for
+    for (int i=mat.start_offset; i< current.offset; i++){
+      for (int k=info.get_start_node(!current.transpose); k< info.get_end_node(!current.transpose); k++){
+        result[i-mat.start_offset] += pgraph->vertex_data(k).pvec[i] * pgraph->vertex_data(k).pvec[current.offset];
+      }
+    }
+#pragma omp parallel for
+      for (int k=info.get_start_node(!current.transpose); k< info.get_end_node(!current.transpose); k++){
+        pgraph->vertex_data(k).pvec[curoffset] /= a;
+    }
+     
+    for (int i=mat.start_offset; i< current.offset; i++){
+#pragma omp parallel for
+      for (int k=info.get_start_node(!current.transpose); k< info.get_end_node(!current.transpose); k++){
+        pgraph->vertex_data(k).pvec[current.offset] -= result[i-mat.start_offset]/a  * pgraph->vertex_data(k).pvec[i];
+      }
+    }
+  }
+
+    current.debug_print(current.name);
+    END_TRACEPOINT(multiply);
+}
+
 
 
 DistVec& DistVec::operator/(const DistDouble & other){

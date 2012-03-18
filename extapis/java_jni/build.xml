@@ -10,7 +10,6 @@
     <property name="bin" value="bin"/>
     <property name="lib" value="lib"/>
     <property name="dist" value="dist"/>
-    <property name="input" value="test-graphs"/>
     
     <property name="target" value="1.6"/>
     <property name="source" value="1.6"/>
@@ -31,6 +30,10 @@
     </path>
     
     <path id="run.PageRank.classpath">
+        <path refid="GraphLab.classpath"/>
+    </path>
+    
+    <path id="run.PageRankFactorized.classpath">
         <path refid="GraphLab.classpath"/>
     </path>
     
@@ -72,26 +75,38 @@
     </target>
     
     <target name="ShortestPath">
+        <echo message="Arguments: ${file}"/>
         <java classname="org.graphlab.demo.ShortestPath" failonerror="true" fork="yes">
             <jvmarg line="-Djava.library.path=${lib}"/>
-            <arg line="${input}/toy.tsv"/>
+            <arg line="${file}"/>
             <classpath refid="run.ShortestPath.classpath"/>
         </java>
     </target>
     
     <target name="Coloring">
+        <echo message="Arguments: ${file}"/>
         <java classname="org.graphlab.demo.Coloring" failonerror="true" fork="yes">
             <jvmarg line="-Djava.library.path=${lib}"/>
-            <arg line="${input}/toy.tsv"/>
+            <arg line="${file}"/>
             <classpath refid="run.Coloring.classpath"/>
         </java>
     </target>
     
     <target name="PageRank">
+        <echo message="Arguments: ${file}"/>
         <java classname="org.graphlab.demo.PageRank" failonerror="true" fork="yes">
             <jvmarg line="-Djava.library.path=${lib}"/>
-            <arg line="${input}/random_graph_1.tsv"/>
+            <arg line="${file}"/>
             <classpath refid="run.PageRank.classpath"/>
+        </java>
+    </target>
+    
+    <target name="PageRankFactorized">
+        <echo message="Arguments: ${file}"/>
+        <java classname="org.graphlab.demo.PageRankFactorized" failonerror="true" fork="yes">
+            <jvmarg line="-Djava.library.path=${lib}"/>
+            <arg line="${file}"/>
+            <classpath refid="run.PageRankFactorized.classpath"/>
         </java>
     </target>
 

@@ -10,6 +10,7 @@ if(HAS_EIGEN)
   add_graphlab_executable(lanczos lanczos.cpp ../shared/mmio.cpp)
   add_graphlab_executable(lanczos_acum lanczos_acum.cpp ../shared/mmio.cpp)
   add_graphlab_executable(gklanczos gklanczos.cpp ../shared/mmio.cpp)
+  add_graphlab_executable(onesidedlanczos onesidedlanczos.cpp ../shared/mmio.cpp)
 endif()
   
 

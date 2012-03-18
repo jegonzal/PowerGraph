@@ -49,9 +49,9 @@ DECLARE_TRACER(matproduct)
 
 //LANCZOS VARIABLES
 int max_iter = 10;
+int actual_vector_len;
 bool debug;
 bool no_edge_data = false;
-int actual_vector_len;
 int nv = 0;
 int nsv = 0;
 double tol = 1e-8;
@@ -100,18 +100,20 @@ void init_lanczos(graph_type * g, bipartite_graph_descriptor & info){
   data_size = nsv + nv+1 + max_iter;
   actual_vector_len = data_size;
   if (info.is_square())
-     actual_vector_len = 2*data_size;
+     actual_vector_len = data_size + 3;
 #pragma omp parallel for
-  for (int i=0; i< info.total(); i++)
+  for (int i=0; i< info.total(); i++){
+     if (i < info.get_start_node(false) || info.is_square())
       g->vertex_data(i).pvec = zeros(actual_vector_len);
-
-  logstream(LOG_INFO)<<"Allocated a total of: " << ((double)actual_vector_len * g->num_vertices() * sizeof(double)/ 1e6) << " MB for storing vectors." << std::endl;
+     else g->vertex_data(i).pvec = zeros(3);
+   }
+   logstream(LOG_INFO)<<"Allocated a total of: " << 
+     ((double)(actual_vector_len * info.num_nodes(false) +3.0*info.num_nodes(true)) * sizeof(double)/ 1e6) << " MB for storing vectors." << std::endl;
 }
 
 
-
-vec lanczos(graphlab::core<graph_type, Axb> & glcore, 
-            bipartite_graph_descriptor & info, timer & mytimer, vec & errest, 
+vec lanczos(graphlab::core<graph_type, Axb> & glcore,
+	  bipartite_graph_descriptor & info, timer & mytimer, vec & errest, 
             const std::string & vecfile){
    
 
@@ -119,8 +121,13 @@ vec lanczos(graphlab::core<graph_type, Axb> & glcore,
    int its = 1;
    int mpd = 24;
    DistMat A(info);
-   DistSlicedMat U(info.is_square() ? data_size : 0, info.is_square() ? 2*data_size : data_size, true, info, "U");
+   int other_size_offset = info.is_square() ? data_size : 0;
+   DistSlicedMat U(other_size_offset, other_size_offset + 3, true, info, "U");
    DistSlicedMat V(0, data_size, false, info, "V");
+   DistVec v(info, 1, false, "v");
+   DistVec u(info, other_size_offset+ 0, true, "u");
+   DistVec u_1(info, other_size_offset+ 1, true, "u_1");
+   DistVec tmp(info, other_size_offset + 2, true, "tmp");
    vec alpha, beta, b;
    vec sigma = zeros(data_size);
    errest = zeros(nv);
@@ -146,44 +153,54 @@ vec lanczos(graphlab::core<graph_type, Axb> & glcore,
      int n = nv;
      PRINT_INT(k);
      PRINT_INT(n);
+     PRINT_VEC2("v", v);
+     PRINT_VEC2("u", u);
 
      alpha = zeros(n);
      beta = zeros(n);
 
-     U[k] = V[k]*A._transpose();
-     orthogonalize_vs_all(U, k, alpha(0));
-     //alpha(0)=norm(U[k]).toDouble(); 
-     PRINT_VEC3("alpha", alpha, 0);
-     //U[k] = U[k]/alpha(0);
+     u = V[k]*A._transpose();
+     PRINT_VEC2("u",u);
 
      for (int i=k+1; i<n; i++){
        logstream(LOG_INFO) <<"Starting step: " << i << " at time: " << mytimer.current_time() << std::endl;
        PRINT_INT(i);
 
-       V[i]=U[i-1]*A;
-       orthogonalize_vs_all(V, i, beta(i-k-1));
-      
-       //beta(i-k-1)=norm(V[i]).toDouble();
-       //V[i] = V[i]/beta(i-k-1);
-       PRINT_VEC3("beta", beta, i-k-1); 
-      
-       U[i] = V[i]*A._transpose();
-       orthogonalize_vs_all(U, i, alpha(i-k));
-       //alpha(i-k)=norm(U[i]).toDouble();
-
-       //U[i] = U[i]/alpha(i-k);
-       PRINT_VEC3("alpha", alpha, i-k);
+       V[i]=u*A;
+       double a = norm(u).toDouble();
+       u = u / a;
+       multiply(V, i, a);
+       PRINT_DBL(a);     
+ 
+       double b;
+       orthogonalize_vs_all(V, i, b);
+       PRINT_DBL(b);
+       u_1 = V[i]*A._transpose();  
+       u_1 = u_1 - u*b;
+       alpha(i-k-1) = a;
+       beta(i-k-1) = b;
+       PRINT_VEC3("alpha", alpha, i-k-1);
+       PRINT_VEC3("beta", beta, i-k-1);
+       tmp = u;
+       u = u_1;
+       u_1 = tmp;
      }
 
-     V[n]= U[n-1]*A;
-     orthogonalize_vs_all(V, n, beta(n-k-1));
-     //beta(n-k-1)=norm(V[n]).toDouble();
+     V[n]= u*A;
+     double a = norm(u).toDouble();
+     PRINT_DBL(a);
+     u = u/a;
+     double b;
+     multiply(V, n, a);
+     orthogonalize_vs_all(V, n, b);
+     alpha(n-k-1)= a;
+     beta(n-k-1) = b;
+     PRINT_VEC3("alpha", alpha, n-k-1);
      PRINT_VEC3("beta", beta, n-k-1);
 
   //compute svd of bidiagonal matrix
   PRINT_INT(nv);
   PRINT_NAMED_INT("svd->nconv", nconv);
-  PRINT_NAMED_INT("svd->mpd", mpd);
   n = nv - nconv;
   PRINT_INT(n);
   alpha.conservativeResize(n);
@@ -198,10 +215,11 @@ vec lanczos(graphlab::core<graph_type, Axb> & glcore,
   for (int i=0; i<n-1; i++)
     set_val(T, i, i+1, beta(i));
   PRINT_MAT2("T", T);
-  mat a,PT;
-  svd(T, a, PT, b);
-  PRINT_MAT2("Q", a);
-  alpha=b.transpose();
+  mat aa,PT;
+  vec bb;
+  svd(T, aa, PT, bb);
+  PRINT_MAT2("Q", aa);
+  alpha=bb.transpose();
   PRINT_MAT2("alpha", alpha);
   for (int t=0; t< n-1; t++)
      beta(t) = 0;
@@ -215,9 +233,9 @@ vec lanczos(graphlab::core<graph_type, Axb> & glcore,
     PRINT_INT(j);
     sigma(i) = alpha(j);
     PRINT_NAMED_DBL("svd->sigma[i]", sigma(i));
-    PRINT_NAMED_DBL("Q[j*n+n-1]",a(n-1,j));
+    PRINT_NAMED_DBL("Q[j*n+n-1]",aa(n-1,j));
     PRINT_NAMED_DBL("beta[n-1]",beta(n-1));
-    errest(i) = abs(a(n-1,j)*beta(n-1));
+    errest(i) = abs(aa(n-1,j)*beta(n-1));
     PRINT_NAMED_DBL("svd->errest[i]", errest(i));
     if (alpha(j) >  tol){
       errest(i) = errest(i) / alpha(j);
@@ -258,11 +276,11 @@ BEGIN_TRACEPOINT(matproduct);
     mat tmp= V.get_cols(nconv,nconv+n)*PT;
     V.set_cols(nconv, nconv+kk, get_cols(tmp, 0, kk));
     PRINT_VEC2("svd->V", V[nconv]);
-    PRINT_VEC2("svd->U", U[nconv]);
-    tmp= U.get_cols(nconv, nconv+n)*a;
+    //PRINT_VEC2("svd->U", U[nconv]);
+    //tmp= U.get_cols(nconv, nconv+n)*a;
 END_TRACEPOINT(matproduct);
-    U.set_cols(nconv, nconv+kk,get_cols(tmp,0,kk));
-    PRINT_VEC2("svd->U", U[nconv]);
+    //U.set_cols(nconv, nconv+kk,get_cols(tmp,0,kk));
+    //PRINT_VEC2("svd->U", U[nconv]);
   }
 
   nconv=nconv+kk;
@@ -285,13 +303,16 @@ END_TRACEPOINT(matproduct);
 
 printf(" Number of computed signular values %d",nconv);
 printf("\n");
-  DistVec normret(info, nconv, false, "normret");
-  DistVec normret_tranpose(info, nconv, true, "normret_tranpose");
+  DistVec normret(info, other_size_offset + 1, true, "normret");
+  DistVec normret_tranpose(info, nconv, false, "normret_tranpose");
   for (int i=0; i < nconv; i++){
-    normret = V[i]*A._transpose() -U[i]*sigma(i);
+    u = V[i]*A._transpose();
+    double a = norm(u).toDouble();
+    u = u / a;
+    normret = V[i]*A._transpose() - u*sigma(i);
     double n1 = norm(normret).toDouble();
     PRINT_DBL(n1);
-    normret_tranpose = U[i]*A -V[i]*sigma(i);
+    normret_tranpose = u*A -V[i]*sigma(i);
     double n2 = norm(normret_tranpose).toDouble();
     PRINT_DBL(n2);
     double err=sqrt(n1*n1+n2*n2);
@@ -391,18 +412,17 @@ int main(int argc,  char *argv[]) {
   else if (unittest == 3){
     datafile = "gklanczos_testC";
     vecfile = "gklanczos_testC_v0";
-    nsv = 4; nv = 10;
+    nsv = 25; nv = 25;
     debug = true;  max_iter = 100;
     core.set_scheduler_type("sweep(ordering=ascending,strict=true)");
     core.set_ncpus(1);
   }
 
-  timer mytimer; mytimer.start(); 
+
   std::cout << "Load matrix " << datafile << std::endl;
 #ifdef USE_GRAPH2
   load_graph(datafile, format, info, core.graph(), MATRIX_MARKET_3, false, false);
   core.graph().finalize();
-  logstream(LOG_INFO)<<"Finished loading matrix to memory in : " << mytimer.current_time() << std::endl;
 #else  
   if (nodes == 0){
     load_graph(datafile, format, info, core.graph(), MATRIX_MARKET_3, false, true);
@@ -410,7 +430,6 @@ int main(int argc,  char *argv[]) {
      info.rows = info.cols = nodes;
    }
    core.graph().load_directed(datafile, false, no_edge_data);
-    logstream(LOG_INFO)<<"Finished loading matrix to memory in : " << mytimer.current_time() << std::endl;
    info.nonzeros = core.graph().num_edges();
 #endif
   init_lanczos(&core.graph(), info);
@@ -420,6 +439,7 @@ int main(int argc,  char *argv[]) {
     load_vector(vecfile, format, info, core.graph(), 0, true, false);
   }  
  
+  timer mytimer; mytimer.start(); 
   vec errest;
  
   vec singular_values = lanczos(core, info, mytimer, errest, vecfile);

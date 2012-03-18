@@ -689,17 +689,22 @@ inline void write_output_vector_binary(const std::string & datafile, const T* ou
 class gzip_in_file{
   boost::iostreams::filtering_stream<boost::iostreams::input> fin;
   std::ifstream in_file;
+  bool gzip; 
 
   public:
-  gzip_in_file(const std::string filename){
+  gzip_in_file(const std::string filename, bool _gzip = true){
+    gzip = _gzip;
     in_file.open(filename.c_str(), std::ios::binary);
     logstream(LOG_INFO)<<"Opening input file: " << filename << std::endl;
-    fin.push(boost::iostreams::gzip_decompressor());
+    if (gzip)
+      fin.push(boost::iostreams::gzip_decompressor());
     fin.push(in_file);  
    }
 
   ~gzip_in_file(){
-    fin.pop(); fin.pop();
+    fin.pop(); 
+    if (gzip) 
+      fin.pop();
     in_file.close();
    }
 
@@ -715,12 +720,15 @@ class gzip_out_file{
 
   boost::iostreams::filtering_stream<boost::iostreams::output> fout;
   std::ofstream out_file;
+  bool gzip;
   
   public:
-      gzip_out_file(const std::string filename){
+      gzip_out_file(const std::string filename, bool _gzip = true){
+        gzip = _gzip;
         out_file.open(filename.c_str(), std::ios::binary);
         logstream(LOG_INFO)<<"Opening output file " << filename << std::endl;
-        fout.push(boost::iostreams::gzip_compressor());
+        if (gzip)
+          fout.push(boost::iostreams::gzip_compressor());
         fout.push(out_file);
       }
      
@@ -729,7 +737,9 @@ class gzip_out_file{
       }
 
       ~gzip_out_file(){
-        fout.pop(); fout.pop();
+        fout.pop(); 
+        if (gzip) 
+          fout.pop();
         out_file.close();
       }
 };
@@ -786,6 +796,17 @@ inline void write_output_matrix(const std::string & datafile, const std::string 
   else assert(false);
 }
 
+template<typename T1>
+void save_map_to_text_file(const T1 & map, const std::string filename, bool gzip){
+    typedef typename T1::const_iterator mapiterator;
+    gzip_out_file fout(filename, gzip);
+    uint total = 0;
+    for (mapiterator it = map.begin(); it != map.end(); it++){ 
+     fout.get_sp() << it->first << " " << it->second <<endl;
+     total++;
+    } 
+    logstream(LOG_INFO)<<"Wrote a total of " << total << " map entries to text file: " << filename << std::endl;
+}
 
 template<typename T1>
 void save_map_to_file(const T1 & map, const std::string filename){
