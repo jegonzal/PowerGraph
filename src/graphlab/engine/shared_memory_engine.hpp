@@ -178,18 +178,7 @@ namespace graphlab {
 
     /** en estimate of the update count maintined while the engine is
         running*/
-    size_t update_count_estimate;
-
-
-    /**
-     * Local state for each thread
-     */
-    struct thread_state_type {
-      size_t update_count;
-      char FALSE_CACHE_SHARING_PAD[64];
-    }; //end of thread_state
-    std::vector<thread_state_type> tls_array; 
-
+    atomic<size_t> update_count;
 
 
     //! Termination related variables
@@ -240,10 +229,7 @@ namespace graphlab {
       return exec_status; }
 
     //! \brief Get the number of updates executed by the engine.
-    size_t last_update_count() const;
-
-    //! Estimate the instaneous update count
-    size_t num_updates() const { return update_count_estimate; }
+    size_t last_update_count() const { return update_count; }
 
 
     context_type get_context(const vertex_id_type vid, 
@@ -295,14 +281,6 @@ namespace graphlab {
     void schedule_neighbors(const vertex_id_type& vertex, 
                             const update_functor_type& update_fun);
 
-
-    // /**
-    //  * \brief associate a termination function with this engine.
-    //  */
-    // void add_termination_condition(termination_function_type term);
-
-    // //!  remove all associated termination functions
-    // void clear_termination_conditions();
     
     //! \brief The timeout is the total
     void set_timeout(size_t timeout_in_seconds = 0);
@@ -408,16 +386,6 @@ namespace graphlab {
 
     void thread_mainloop(size_t cpuid);
 
-
-
-    
-
-    // void evaluate_sync_queue();
-    // void launch_sync_prelocked(const std::string& str, 
-    //                            isync* sync);
-    // void schedule_sync_prelocked(const std::string& key, size_t sync_interval);
-
-
     void evaluate_termination_conditions(size_t cpuid);
 
     DECLARE_TRACER(eng_syncqueue);
@@ -452,7 +420,7 @@ namespace graphlab {
     exec_status(execution_status::UNSET),
     exception_message(NULL),   
     start_time_millis(0),
-    update_count_estimate(0) {
+    update_count(0) {
     INITIALIZE_TRACER(eng_syncqueue,
                       "shared_memory_engine: Evaluating Sync Queue");
     INITIALIZE_TRACER(eng_schednext,
@@ -597,16 +565,6 @@ namespace graphlab {
 
   
   
-  template<typename Graph, typename UpdateFunctor> 
-  size_t
-  shared_memory_engine<Graph, UpdateFunctor>::
-  last_update_count() const {
-    size_t count = 0;
-    for(size_t i = 0; i < tls_array.size(); ++i) 
-      count += tls_array[i].update_count;
-    return count;
-  } // end of last update count
-
 
 
 
@@ -631,7 +589,6 @@ namespace graphlab {
       delete scheduler_ptr; 
       scheduler_ptr = NULL;
     }
-    tls_array.clear();
     nverts = 0;
     exec_status = execution_status::UNSET;
   } // end of clear_members
@@ -651,12 +608,8 @@ namespace graphlab {
     ASSERT_EQ(graph.num_vertices(), nverts);
     ASSERT_TRUE(lock_manager_ptr != NULL);
     ASSERT_TRUE(scheduler_ptr != NULL);
-    ASSERT_EQ(tls_array.size(), opts.get_ncpus());
     // -------------------- Reset Internal Counters ------------------------ //
-    for(size_t i = 0; i < tls_array.size(); ++i) { // Reset thread local state
-      tls_array[i].update_count = 0;
-    }
-    update_count_estimate = 0;
+    update_count = 0;
     exec_status = execution_status::RUNNING;  // Reset active flag
     exception_message = NULL;
     start_time_millis = lowres_time_millis(); 
@@ -684,24 +637,6 @@ namespace graphlab {
   stop() { exec_status = execution_status::FORCED_ABORT; } // end of stop
 
 
-
-
-
-  // template<typename Graph, typename UpdateFunctor> 
-  // void
-  // shared_memory_engine<Graph, UpdateFunctor>::
-  // clear_termination_conditions() {      
-  //   termination.clear();
-  // } // end of clear_termination_condition
-
-
-  // template<typename Graph, typename UpdateFunctor> 
-  // void
-  // shared_memory_engine<Graph, UpdateFunctor>::
-  // add_termination_condition(termination_function_type fun) {
-  //   ASSERT_TRUE(fun != NULL);
-  //   termination.functions.push_back(fun);
-  // } // end of clear_termination_conditions
 
 
 
@@ -792,18 +727,6 @@ namespace graphlab {
                  vertex_id_type end_vid) {
     aggregator.add_aggregator(key, zero, interval,
                               begin_vid, end_vid);
-    // isync*& sync_ptr = sync_map[key];
-    // // Clear the old sync and remove from scheduling queue
-    // if(sync_ptr != NULL) { delete sync_ptr; sync_ptr = NULL; }
-    // sync_queue.remove(key);
-    // ASSERT_TRUE(sync_ptr == NULL);
-    // // Attach a new sync type
-    // typedef sync<Aggregator> sync_type;
-    // sync_ptr = new sync_type(zero);
-    // sync_ptr->interval    = interval;
-    // sync_ptr->use_barrier = use_barrier;
-    // sync_ptr->begin_vid   = begin_vid;
-    // sync_ptr->end_vid     = end_vid;
   }// end of add_sync
 
 
@@ -815,20 +738,6 @@ namespace graphlab {
   aggregate_now(const std::string& key) {
     initialize_members();    
     aggregator.aggregate_now(key);
-    // typename sync_map_type::iterator iter = sync_map.find(key);
-    // if(iter == sync_map.end()) {
-    //   logstream(LOG_FATAL) 
-    //     << "Key \"" << key << "\" is not in sync map!"
-    //     << std::endl;
-    //   return;
-    // }
-    // isync* sync = iter->second;
-    // ASSERT_NE(sync, NULL);
-    // // The current implementation will lead to a deadlock if called
-    // // from within an update function
-    // sync_master_lock.lock();
-    // launch_sync_prelocked(key, sync);
-    // sync_master_lock.unlock();
   } // end of sync_now
 
 
@@ -856,7 +765,6 @@ namespace graphlab {
 
 
 
-
   template<typename Graph, typename UpdateFunctor> 
   void
   shared_memory_engine<Graph, UpdateFunctor>::
@@ -868,6 +776,8 @@ namespace graphlab {
     ASSERT_LT(index, rec.locks.size());
     rec.locks[index].lock();
   }
+
+
 
   template<typename Graph, typename UpdateFunctor> 
   void
@@ -891,8 +801,7 @@ namespace graphlab {
     // need to do anything.
     if(nverts == graph.num_vertices() &&
        lock_manager_ptr != NULL &&
-       scheduler_ptr != NULL &&
-       !tls_array.empty()) {
+       scheduler_ptr != NULL) {
       return;
     } else {
       if(nverts != graph.num_vertices() && new_tasks_added) {
@@ -934,10 +843,6 @@ namespace graphlab {
       nverts = graph.num_vertices();
       // reset the execution status
       exec_status = execution_status::UNSET;
-      // reset the thread local state
-      tls_array.resize(opts.get_ncpus());
-      for(size_t i = 0; i < tls_array.size(); ++i) 
-        tls_array[i].update_count = 0;
       // Resize the threads in the aggregator
       aggregator.get_threads().resize(opts.get_ncpus());     
     }      
@@ -1009,11 +914,11 @@ namespace graphlab {
   void
   shared_memory_engine<Graph, UpdateFunctor>::
   thread_mainloop(size_t cpuid) {  
-    while(exec_status == execution_status::RUNNING) { 
+    for(;exec_status == execution_status::RUNNING; ++update_count) { 
       // -------------------- Execute Sync Operations ------------------------ //
       // Evaluate pending sync operations
       BEGIN_TRACEPOINT(eng_syncqueue);
-      aggregator.evaluate_queue(num_updates());
+      aggregator.evaluate_queue(last_update_count());
       END_TRACEPOINT(eng_syncqueue);
       // --------------- Evaluate Termination Conditions --------------------- //
       // Evaluate the available termination conditions and if the
@@ -1062,9 +967,6 @@ namespace graphlab {
       // ----------------------- Post Update Code ---------------------------- //   
       // Mark context as completed in the scheduler
       scheduler_ptr->completed(cpuid, vid, ufun);
-      // Record an increase in the update counts
-      ASSERT_LT(cpuid, tls_array.size());
-      tls_array[cpuid].update_count++;           
     }
   } // end of thread_mainloop
 
@@ -1279,137 +1181,7 @@ namespace graphlab {
     STORE_ACCUMULATING_TRACEPOINT(eng_lockrelease);
   } // end of evaluate_update_functor
 
-  
 
-
-
-
-
-
-  // template<typename Graph, typename UpdateFunctor> 
-  // void
-  // shared_memory_engine<Graph, UpdateFunctor>::
-  // launch_sync_prelocked(const std::string& key,
-  //                       isync* sync) { 
-  //   ASSERT_NE(sync, NULL);
-  //   for(size_t i = 0; i < sync_threads.size(); ++i) {
-  //     const boost::function<void (void)> sync_function = 
-  //       boost::bind(&(isync::run_aggregator), sync, 
-  //                   key, &barrier, &vlocks, 
-  //                   context_type(this, &graph),
-  //                   sync_threads.size(), i);
-  //     sync_threads.launch(sync_function);
-  //   }
-  //   join_threads(sync_threads);
-  // } // end of launch sync prelocked
-
-
-
-  // template<typename Graph, typename UpdateFunctor> 
-  // void
-  // shared_memory_engine<Graph, UpdateFunctor>::
-  // evaluate_sync_queue() {
-  //   // if the engine is no longer running or there is nothing in the
-  //   // sync queue then we terminate early
-  //   if(exec_status != execution_status::RUNNING || sync_queue.empty()) return;
-  //   // Try to grab the lock if we fail just return
-  //   if(!sync_master_lock.try_lock()) return;
-  //   // ASSERT: the lock has been aquired. Test for a task at the top
-  //   // of the queue
-  //   const long negated_next_ucount = sync_queue.top().second;
-  //   ASSERT_LE(negated_next_ucount, 0);
-  //   const size_t next_ucount = size_t(-negated_next_ucount);
-  //   const size_t ucount = last_update_count();
-  //   // if we have more updates than the next update count for this
-  //   // task then run it
-  //   if(next_ucount < ucount) { // Run the actual sync
-  //     const std::string key = sync_queue.top().first;
-  //     sync_queue.pop();
-  //     isync* sync = sync_map[key];
-  //     ASSERT_NE(sync, NULL);
-  //     launch_sync_prelocked(key, sync);
-  //     // Reschedule the sync record
-  //     schedule_sync_prelocked(key, sync->interval);
-  //   }    
-  //   sync_master_lock.unlock();    
-  // } // end of evaluate_sync_queue
-
-  
-  // template<typename Graph, typename UpdateFunctor> 
-  // template<typename Aggregator>
-  // void
-  // shared_memory_engine<Graph, UpdateFunctor>::sync<Aggregator>::
-  // run_aggregator(const std::string key,
-  //                const graphlab::barrier* barrier_ptr,
-  //                const std::vector<mutex>* vlocks_ptr,
-  //                context_type context, size_t ncpus, size_t cpuid) { 
-  //   // Thread zero must initialize the the final shared accumulator
-  //   const size_t nverts = context.num_vertices();
-  //   const std::vector<mutex>& vlocks = *vlocks_ptr;
-  //   const graphlab::barrier& barrier = *barrier_ptr;  
-  //   // Compute partitioning of vertices over threads
-  //   // Compute the true begin and end.
-  //   const size_t global_begin = std::min(nverts, size_t(begin_vid));;
-  //   const size_t global_end = std::min(nverts, size_t(end_vid));
-  //   ASSERT_LE(global_begin, global_end);
-  //   ASSERT_LE(global_end, nverts);
-  //   // Compute the span of each subtask.  The span should not be less
-  //   // than some minimal span.
-  //   const size_t MIN_SPAN(1);    
-  //   const vertex_id_type span = (global_end - global_begin)/ncpus + MIN_SPAN;    
-  //   // Shadow the global begin
-  //   const size_t true_begin_vid = std::min(cpuid*span, nverts);
-  //   const size_t true_end_vid = std::min((cpuid+1)*span, nverts);
-
-  //   // If Barriers are in place go ahead and lock all update functions
-  //   if(use_barrier){
-  //     for(vertex_id_type vid = true_begin_vid; vid < true_end_vid; ++vid) 
-  //       vlocks[vid].lock();
-  //     barrier.wait(); 
-  //   }
-    
-  //   // construct the local (to this thread) accumulator and context
-  //   aggregator_type local_accum(zero);
-  //   // Do map computation;
-  //   for(vertex_id_type vid = true_begin_vid; vid < true_end_vid; ++vid) {
-  //     if(!use_barrier) vlocks[vid].lock();
-  //     context.init(vid, VERTEX_CONSISTENCY);
-  //     local_accum(context);     
-  //     if(!use_barrier) vlocks[vid].unlock();
-  //   }
-  //   context.commit();
-  //   // Merge with master
-  //   lock.lock(); shared_aggregator += local_accum; lock.unlock();
-  //   barrier.wait();  // Wait until all merges are complete
-    
-  //   if(cpuid == 0) {
-  //     // Recast the context as a global context.  This ensures that
-  //     // the user implements finalize correctly;
-  //     iglobal_context& global_context = context;
-  //     shared_aggregator.finalize(global_context);
-  //     context.commit();
-  //     // Zero out the shared accumulator for the next run
-  //     shared_aggregator = zero;
-  //   }
-  //   barrier.wait();   
-  //   // If Barriers are in place go ahead and lock all update functions
-  //   if(use_barrier){
-  //     for(vertex_id_type vid = true_begin_vid; vid < true_end_vid; ++vid) 
-  //       vlocks[vid].unlock();
-  //     barrier.wait(); 
-  //   }    
-  // } // end of run sync
-
-
-
-  // template<typename Graph, typename UpdateFunctor> 
-  // void
-  // shared_memory_engine<Graph, UpdateFunctor>::
-  // schedule_sync_prelocked(const std::string& key, size_t sync_interval) {
-  //   const size_t ucount = last_update_count();
-  //   const long negated_next_ucount = -long(ucount + sync_interval); 
-  //   sync_queue.push(key, negated_next_ucount);
-  // }; // end of schedule_sync
 
 
   template<typename Graph, typename UpdateFunctor> 
@@ -1430,19 +1202,11 @@ namespace graphlab {
     }
     // ----------------------- Check task budget --------------------------- //
     // update the update_count estimate
-    update_count_estimate = last_update_count();
     if(exec_status == execution_status::RUNNING &&
        termination.task_budget > 0 && 
-       update_count_estimate > termination.task_budget) {
+       last_update_count() > termination.task_budget) {
       exec_status = execution_status::TASK_BUDGET_EXCEEDED;
     }
-    // ------------------ Check termination functions ---------------------- //
-    // for (size_t i = 0; i < termination.functions.size() && 
-    //        exec_status == execution_status::RUNNING; ++i) {
-    //   if (termination.functions[i]()) {
-    //     exec_status = execution_status::TERM_FUNCTION;
-    //   }
-    // }
     // step the termination time forward
     termination.last_check_time_in_millis = lowres_time_millis();
     termination.lock.unlock();
