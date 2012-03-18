@@ -103,7 +103,7 @@ void init_lanczos(graph_type * g, bipartite_graph_descriptor & info){
      actual_vector_len = data_size + 3;
 #pragma omp parallel for
   for (int i=0; i< info.total(); i++){
-     if (i < info.get_start_node(false))
+     if (i < info.get_start_node(false) || info.is_square())
       g->vertex_data(i).pvec = zeros(actual_vector_len);
      else g->vertex_data(i).pvec = zeros(3);
    }
@@ -121,12 +121,13 @@ vec lanczos(graphlab::core<graph_type, Axb> & glcore,
    int its = 1;
    int mpd = 24;
    DistMat A(info);
-   DistSlicedMat U(info.is_square() ? data_size : 0, actual_vector_len, true, info, "U");
+   int other_size_offset = info.is_square() ? data_size : 0;
+   DistSlicedMat U(other_size_offset, other_size_offset + 3, true, info, "U");
    DistSlicedMat V(0, data_size, false, info, "V");
    DistVec v(info, 1, false, "v");
-   DistVec u(info, 0, true, "u");
-   DistVec u_1(info, 1, true, "u_1");
-   DistVec tmp(info, 2, true, "tmp");
+   DistVec u(info, other_size_offset+ 0, true, "u");
+   DistVec u_1(info, other_size_offset+ 1, true, "u_1");
+   DistVec tmp(info, other_size_offset + 2, true, "tmp");
    vec alpha, beta, b;
    vec sigma = zeros(data_size);
    errest = zeros(nv);
@@ -275,11 +276,11 @@ BEGIN_TRACEPOINT(matproduct);
     mat tmp= V.get_cols(nconv,nconv+n)*PT;
     V.set_cols(nconv, nconv+kk, get_cols(tmp, 0, kk));
     PRINT_VEC2("svd->V", V[nconv]);
-    PRINT_VEC2("svd->U", U[nconv]);
-    tmp= U.get_cols(nconv, nconv+n)*a;
+    //PRINT_VEC2("svd->U", U[nconv]);
+    //tmp= U.get_cols(nconv, nconv+n)*a;
 END_TRACEPOINT(matproduct);
-    U.set_cols(nconv, nconv+kk,get_cols(tmp,0,kk));
-    PRINT_VEC2("svd->U", U[nconv]);
+    //U.set_cols(nconv, nconv+kk,get_cols(tmp,0,kk));
+    //PRINT_VEC2("svd->U", U[nconv]);
   }
 
   nconv=nconv+kk;
@@ -302,7 +303,7 @@ END_TRACEPOINT(matproduct);
 
 printf(" Number of computed signular values %d",nconv);
 printf("\n");
-  DistVec normret(info, 1, true, "normret");
+  DistVec normret(info, other_size_offset + 1, true, "normret");
   DistVec normret_tranpose(info, nconv, false, "normret_tranpose");
   for (int i=0; i < nconv; i++){
     u = V[i]*A._transpose();
