@@ -150,6 +150,7 @@ int main(int argc, char** argv) {
                        "residual termination threshold");
   clopts.attach_option("resetprob", &RESET_PROB, RESET_PROB,
                        "Random reset probability"); 
+  iterations = 10;
   clopts.attach_option("iterations", &iterations, iterations, "Iterations");
   bool savebin = false;
   clopts.attach_option("savebin", &savebin, savebin,
