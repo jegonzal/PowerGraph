@@ -27,7 +27,7 @@
 #include <fstream>
 
 #include <distributed_graphlab.hpp>
-#include <graphlab/engine/distributed_engine3.hpp>
+#include <graphlab/engine/distributed_synchronous_engine.hpp>
 
 
 #include <graphlab/util/stl_util.hpp>
@@ -116,8 +116,8 @@ SERIALIZABLE_POD(factorized_pagerank);
 
 #if defined(FSCOPE)
 typedef graphlab::distributed_fscope_engine<graph_type, factorized_pagerank> engine_type;
-#elif defined(EXPERIMENTAL_LOCKING_3)
-typedef graphlab::distributed_engine3<graph_type, factorized_pagerank> engine_type;
+#elif defined(SYNCHRONOUS_ENGINE)
+typedef graphlab::distributed_synchronous_engine<graph_type, factorized_pagerank> engine_type;
 #else
 typedef graphlab::distributed_engine<graph_type, factorized_pagerank> engine_type;
 #endif
@@ -309,7 +309,7 @@ int main(int argc, char** argv) {
     }
   } */
 
-  if (output) {
+/*  if (output) {
     std::string fname = "adj_";
     fname = fname + graphlab::tostr((size_t)dc.procid());
     std::ofstream fout(fname.c_str());
@@ -320,7 +320,7 @@ int main(int argc, char** argv) {
         fout << e.source() << "\t" << e.target() << "\n";
       }
     }
-  } 
+  } */
   
 
   graphlab::mpi_tools::finalize();

@@ -88,6 +88,11 @@ namespace graphlab {
       for (size_t i = 0; i < arrlen; ++i) array[i] = 0;
     }
     
+    inline bool empty() const {
+      for (size_t i = 0; i < arrlen; ++i) if (array[i]) return false;
+      return true;
+    }
+    
     /// Sets all bits to 1
     inline void fill() {
       for (size_t i = 0;i < arrlen; ++i) array[i] = (size_t)-1;
@@ -388,6 +393,11 @@ namespace graphlab {
       for (size_t i = 0;i < arrlen; ++i) array[i] = -1;
     }
 
+    inline bool empty() const {
+      for (size_t i = 0; i < arrlen; ++i) if (array[i]) return false;
+      return true;
+    }
+    
     /// Prefetches the word containing the bit b
     inline void prefetch(uint32_t b) const{
       __builtin_prefetch(&(array[b / (8 * sizeof(size_t))]));
