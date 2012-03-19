@@ -276,6 +276,9 @@ namespace graphlab {
 
     // Return the size of in_neighbours.
     size_t num_in_edges (const vertex_id_type v) const {
+      if (v >= num_vertices)
+        return 0;
+
       ASSERT_LT(v, num_vertices);
 
       size_t begin = CSC_dst[v];
@@ -289,6 +292,9 @@ namespace graphlab {
 
     // Return the size of out_neighbours.
     size_t num_out_edges (const vertex_id_type v) const {
+      if (v >= num_vertices)
+        return 0;
+
       ASSERT_LT(v, num_vertices);
       size_t begin = CSR_src[v];
       if (begin >= num_edges) return 0;
@@ -339,6 +345,9 @@ namespace graphlab {
 
     // Return in edge list of a vertex.
     edge_list in_edges(const vertex_id_type v) const {
+      if (v >= num_vertices)
+        return edge_list();
+
       std::pair<bool, edge_range_type> rangePair = inEdgeRange(v);
       if (rangePair.first) {
         edge_range_type range = rangePair.second;
@@ -359,6 +368,9 @@ namespace graphlab {
 
     // Return out edge list of a vertex.
     edge_list out_edges(const vertex_id_type v) const {
+      if (v >= num_vertices)
+        return edge_list();
+
       std::pair<bool, edge_range_type> rangePair = outEdgeRange(v);
       if (rangePair.first) {
         edge_range_type range = rangePair.second;

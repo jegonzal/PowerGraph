@@ -451,7 +451,7 @@ namespace graphlab {
       size_t num_mirrors() const { return _mirrors.popcount(); }
 
       void clear() {
-        // _mirrors.clear();
+        _mirrors.clear();
       }
 
       void load(iarchive& arc) {
