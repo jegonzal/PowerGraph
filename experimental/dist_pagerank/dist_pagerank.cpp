@@ -115,7 +115,8 @@ SERIALIZABLE_POD(factorized_pagerank);
 
 
 #if defined(FSCOPE)
-typedef graphlab::distributed_fscope_engine<graph_type, factorized_pagerank> engine_type;
+typedef graphlab::distributed_fscope_engine<graph_type, factorized_pagerank> 
+engine_type;
 #elif defined(EXPERIMENTAL_LOCKING_3)
 typedef graphlab::distributed_engine3<graph_type, factorized_pagerank> engine_type;
 #else
@@ -204,7 +205,7 @@ int main(int argc, char** argv) {
     logstream(LOG_INFO) << "Load graph from binary." << std::endl;
     graph.load(graph_dir, binprefix);
     dc.barrier();
-  }else {
+  } else {
     std::vector<std::string> graph_files;
     if(boost::starts_with(graph_dir, "hdfs://")) {
       graphlab::hdfs hdfs;
@@ -217,7 +218,8 @@ int main(int argc, char** argv) {
     std::sort(graph_files.begin(), graph_files.end());
     for(size_t i = 0; i < graph_files.size(); ++i) {
       if (i % dc.numprocs() == dc.procid()) {
-        std::cout << "Loading graph from structure file: " << graph_files[i] << std::endl;
+        std::cout << "Loading graph from structure file: " 
+                  << graph_files[i] << std::endl;
         const bool success = 
           graphlab::graph_ops::load_structure(graph_files[i], format, graph);
         ASSERT_TRUE(success);
@@ -232,7 +234,7 @@ int main(int argc, char** argv) {
 
   if(dc.procid() == 0){
     std::cout
-      << "========== Graph statistics on proc " << dc.procid() 
+      << "========== Complete Graph Statistics " << dc.procid() 
       << " ==============="
       << "\n Num vertices: " << graph.num_vertices()
       << "\n Num edges: " << graph.num_edges()
@@ -296,18 +298,18 @@ int main(int argc, char** argv) {
     }
   }
   /*
-  if (output) {
+    if (output) {
     std::string fname = "results_local_";
     fname = fname + graphlab::tostr((size_t)dc.procid());
     std::ofstream fout(fname.c_str());
     for (size_t i = 0;i < graph.get_local_graph().num_vertices(); ++i) {
-      fout << graph.l_get_vertex_record(i).gvid << "\t" 
-           << graph.l_get_vertex_record(i).num_in_edges + 
-        graph.l_get_vertex_record(i).num_out_edges << "\t" 
-           << graph.get_local_graph().vertex_data(i).value << "\t"
-           << graph.get_local_graph().vertex_data(i).nupdates << "\n";
+    fout << graph.l_get_vertex_record(i).gvid << "\t" 
+    << graph.l_get_vertex_record(i).num_in_edges + 
+    graph.l_get_vertex_record(i).num_out_edges << "\t" 
+    << graph.get_local_graph().vertex_data(i).value << "\t"
+    << graph.get_local_graph().vertex_data(i).nupdates << "\n";
     }
-  } */
+    } */
 
   if (output) {
     std::string fname = "adj_";

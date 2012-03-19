@@ -111,30 +111,31 @@ namespace graphlab {
 
     ingress_edge_decision<VertexData, EdgeData> edge_decision;
 
-    public:
+  public:
     distributed_ingress_base(distributed_control& dc, graph_type& graph) :
       rpc(dc, this), graph(graph), vertex_exchange(dc), edge_exchange(dc),
-     edge_decision(dc) {
+      edge_decision(dc) {
       rpc.barrier();
     } // end of constructor
 
     ~distributed_ingress_base() { }
 
-virtual void add_edge(vertex_id_type source, vertex_id_type target,
-                  const EdgeData& edata) {
-      const procid_t owning_proc = edge_decision.edge_to_proc_random(source, target, rpc.numprocs());
+    virtual void add_edge(vertex_id_type source, vertex_id_type target,
+                          const EdgeData& edata) {
+      const procid_t owning_proc = 
+        edge_decision.edge_to_proc_random(source, target, rpc.numprocs());
       const edge_buffer_record record(source, target, edata);
       edge_exchange.send(owning_proc, record);
     } // end of add edge
 
-virtual void add_vertex(vertex_id_type vid, const VertexData& vdata)  { 
+    virtual void add_vertex(vertex_id_type vid, const VertexData& vdata)  { 
       const procid_t owning_proc = vertex_to_proc(vid);
       const vertex_buffer_record record(vid, vdata);
       vertex_exchange.send(owning_proc, record);
     } // end of add vertex
 
 
-virtual void finalize() {
+    virtual void finalize() {
       edge_exchange.flush(); vertex_exchange.flush();
       // Add all the edges to the local graph --------------------------------
       logstream(LOG_INFO) << "Graph Finalize: constructing local graph" << std::endl;
@@ -247,8 +248,9 @@ virtual void finalize() {
 
       // Construct the vertex owner assignments and send assignment
       // along with vdata to all the mirrors for each vertex
-      logstream(LOG_INFO) << "Graph Finalize: Constructing and sending vertex assignments" 
-                          << std::endl;
+      logstream(LOG_INFO) 
+        << "Graph Finalize: Constructing and sending vertex assignments" 
+        << std::endl;
       std::vector<size_t> counts(rpc.numprocs());      
       typedef typename vrec_map_type::value_type vrec_pair_type;
       buffered_exchange<vertex_negotiator_record> negotiator_exchange(rpc.dc());
@@ -262,21 +264,22 @@ virtual void finalize() {
         uint32_t first_mirror = 0; 
         ASSERT_TRUE(negotiator_rec.mirrors.first_bit(first_mirror));
         std::pair<size_t, uint32_t> 
-           best_asg(counts[first_mirror], first_mirror);
+          best_asg(counts[first_mirror], first_mirror);
         foreach(uint32_t proc, negotiator_rec.mirrors) {
-            best_asg = std::min(best_asg, std::make_pair(counts[proc], proc));
+          best_asg = std::min(best_asg, std::make_pair(counts[proc], proc));
         }
 
         negotiator_rec.owner = best_asg.second;
         counts[negotiator_rec.owner]++;
         // Notify all machines of the new assignment
         foreach(uint32_t proc, negotiator_rec.mirrors) {
-            negotiator_exchange.send(proc, negotiator_rec);
+          negotiator_exchange.send(proc, negotiator_rec);
         }
       } // end of loop over vertex records
       negotiator_exchange.flush();
 
-      logstream(LOG_INFO) << "Graph Finalize: Recieving vertex assignments." << std::endl;
+      logstream(LOG_INFO) 
+        << "Graph Finalize: Recieving vertex assignments." << std::endl;
       {
         typedef typename buffered_exchange<vertex_negotiator_record>::buffer_type 
           buffer_type;
@@ -296,7 +299,8 @@ virtual void finalize() {
             local_record.num_in_edges = negotiator_rec.num_in_edges;
             ASSERT_EQ(local_record.num_out_edges, 0); // this should have not been set
             local_record.num_out_edges = negotiator_rec.num_out_edges;
-            ASSERT_TRUE(negotiator_rec.mirrors.begin() != negotiator_rec.mirrors.end());
+            ASSERT_TRUE(negotiator_rec.mirrors.begin() != 
+                        negotiator_rec.mirrors.end());
             local_record._mirrors = negotiator_rec.mirrors;
             local_record._mirrors.clear_bit(negotiator_rec.owner);
           }
