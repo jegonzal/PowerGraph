@@ -34,7 +34,7 @@ namespace graphlab {
     // it is a pod and is not an integer since we have special handlings for integers
 
     BOOST_STATIC_CONSTANT(bool, value = (boost::type_traits::ice_or<
-                                            boost::is_scalar<T>::value,
+                                            boost::is_pod<T>::value,
                                             boost::is_base_of<IS_POD_TYPE, T>::value
                                           >::value));
 

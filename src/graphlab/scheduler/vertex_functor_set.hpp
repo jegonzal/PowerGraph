@@ -68,6 +68,22 @@ namespace graphlab {
       void assign_unsync(const vfun_type &other) {
         functor = other.functor;
       }
+      
+      bool get_nondestructive_unsync(const update_functor_type& other) {
+        if (functor != NULL) {
+          other = (*functor);
+          return true;
+        }
+        else {
+          return false;
+        }
+      }
+      
+      bool get_reference_unsync(update_functor_type*& ret) {
+        ret = functor;
+        return ret != NULL;
+      }
+
       /** returns true if set for the first time */
       inline bool set(lock_free_pool<update_functor_type>& pool,
                       const update_functor_type& other,
@@ -103,6 +119,41 @@ namespace graphlab {
         return ret;
       }
 
+
+      /** returns true if set for the first time */
+      inline bool merge(lock_free_pool<update_functor_type>& pool,
+                        const update_functor_type& other) {
+        bool ret = false;
+        update_functor_type toinsert = other;
+        while(1) {
+          update_functor_type* uf = UPDATE_FUNCTOR_PENDING;
+          // pull it out to process it
+          atomic_exchange(functor, uf);
+          // if there is nothing in there, set it
+          // otherwise add it
+          if (uf == NULL) {
+            uf = pool.alloc();
+            (*uf) = toinsert;
+            ret = true;
+          } else if (uf == UPDATE_FUNCTOR_PENDING) {
+            // a pending is in here. it is not ready for reading. try again.
+            continue;
+          } else { (*uf).merge(toinsert); }
+          // swap it back in
+          ASSERT_TRUE(uf != UPDATE_FUNCTOR_PENDING);
+          atomic_exchange(functor, uf);
+          //aargh! I swapped something else out. Now we have to
+          //try to put it back in
+          if (__unlikely__(uf != NULL && uf != UPDATE_FUNCTOR_PENDING)) {
+            toinsert = (*uf);
+          }
+          else {
+            break;
+          }
+        }
+        return ret;
+      }
+      
       /** returns true if set for the first time */
       inline bool set(lock_free_pool<update_functor_type>& pool,
                       const update_functor_type& other, 
@@ -222,7 +273,15 @@ namespace graphlab {
       return vfun_set[vid].set(pool, fun, joincounter);
     } // end of add task to set 
 
-    
+    /** Add a task to the set returning false if the task was already
+        present. */
+    bool merge(const vertex_id_type& vid, 
+              const update_functor_type& fun) {
+      ASSERT_LT(vid, vfun_set.size());
+      return vfun_set[vid].merge(pool, fun);
+    } // end of add task to set 
+
+
     /** Add a task to the set returning false if the task was already
         present. Also returns the combined priority of the task. */
     bool add(const vertex_id_type& vid, 
@@ -246,6 +305,16 @@ namespace graphlab {
       ASSERT_LT(vid, vfun_set.size());
       return vfun_set[vid].set(pool, fun, prev_priority, new_priority, joincounter);
     } // end of add task to set 
+
+    bool get_nondestructive_unsync(const vertex_id_type& vid,
+                                    update_functor_type& ret_fun) {
+      return vfun_set[vid].get_nondestructive_unsync(ret_fun);
+    }
+
+    bool get_reference_unsync(const vertex_id_type& vid,
+                              update_functor_type*& ret_fun) {
+      return vfun_set[vid].get_reference_unsync(ret_fun);
+    }
 
 
     bool test_and_get(const vertex_id_type& vid,
