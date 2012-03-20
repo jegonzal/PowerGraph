@@ -107,7 +107,8 @@ void write_output(){
 void write_output_itpp(){
 
    FILE * f = fopen((config.datafile+".out").c_str(), "w");
-   assert(f!= NULL);
+   if (f == NULL)
+     logstream(LOG_FATAL)<< "Failed to open file " << config.datafile <<".out" << " for writing." << std::endl;
 
    std::cout<<"Writing result to file: "<<config.datafile<<".out"<<std::endl;
    std::cout<<"You can read the file in Matlab using the load_c_gl.m matlab script"<<std::endl;
@@ -225,11 +226,13 @@ void load_matrix_market_vector(graph_type * g)
         }
          if (config.scalerating != 1.0)
 	     val /= config.scalerating;
-         if (!config.zero)
-	   assert(val!=0 );
-        
-        assert(I< M);
-        assert(J< N);
+         if (!config.zero && val == 0)
+	   logstream(LOG_FATAL)<<"Detected zero value in data line: " << i << ". Use --zero=true to allow zero input values." << std::endl;
+        if (I < 0 || I >=M)
+           logstream(LOG_FATAL)<<"Error in data line: " << i << " 1st column value is: " << I << " where it should be in the range 1 to " << M << std::endl;
+        if (J < 0 || J >=N)
+           logstream(LOG_FATAL)<<"Error in data line: " << i << " 2nd column value is: " << J << " where it should be in the range 1 to " << N << std::endl;
+      
         vertex_data & vdata = g->vertex_data(I);
         int offset = GABP_PRIOR_MEAN_OFFSET;
         if (!config.square && I >= (int)ps.m)
@@ -311,9 +314,11 @@ void load_matrix_market_matrix(graph_type * g)
 	  logstream(LOG_FATAL) << "Encountered zero value in line: " << i << " line is: [ " << I+1<<" " <<J+1<< " "<<val<< " ]."
                                << "Please run with --zero=true to ignore zero values in input matrix." << std::endl;
         
-        assert(I< M);
-        assert(J< N);
-     
+        if (I < 0 || I >=M)
+           logstream(LOG_FATAL)<<"Error in data line: " << i << " 1st column value is: " << I << " where it should be in the range 1 to " << M << std::endl;
+        if (J < 0 || J >=N)
+           logstream(LOG_FATAL)<<"Error in data line: " << i << " 2nd column value is: " << J << " where it should be in the range 1 to " << N << std::endl;
+  
         if (config.square && I == J){
 	   vertex_data & data = g->vertex_data(I);
            init_prior_prec(data, val);

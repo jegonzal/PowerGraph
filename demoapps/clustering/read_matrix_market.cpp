@@ -124,16 +124,18 @@ void load_matrix_market(const char * filename, graph_type_kcores *_g, testtype t
  
         }
         if (I<=0 || J<= 0){
-          logstream(LOG_ERROR) << "Matrix market values should be >= 1, observed values: " << I << " " << J << " In item number " << nz << std::endl;
-          exit(1);
+          logstream(LOG_FATAL) << "Matrix market values should be >= 1, observed values: " << I << " " << J << " In item number " << i << std::endl;
         }
  if (ac.scalerating != 1.0)
 	     val /= ac.scalerating;
-         if (!ac.zero)
-	   assert(val!=0 );
+         if (!ac.zero && val == 0)
+	   logstream(LOG_FATAL)<<"Detected zero value in data line: " << i << ". Use --zero=true to allow zero input values." << std::endl;
         
-        assert(I >= 0 && I< M);
-        assert(J >=0 && J< N);
+        if (I < 0 || I >=M)
+           logstream(LOG_FATAL)<<"Error in data line: " << i << " 1st column value is: " << I << " where it should be in the range 1 to " << M << std::endl;
+        if (J < 0 || J >=N)
+           logstream(LOG_FATAL)<<"Error in data line: " << i << " 2nd column value is: " << J << " where it should be in the range 1 to " << N << std::endl;
+      
         kcores_edge edge;
         edge.weight = val;
         _g->add_edge(I,J, edge);
@@ -190,8 +192,10 @@ void load_matrix_market_clusters(const std::string & filename, graph_type *_g)
         I--;  /* adjust from 1-based to 0-based */
         J--;
         
-        assert(I>=0 && I< ac.K);
-        assert(J >=0 && J< N);
+        if (I < 0 && I >= ac.K)
+          logstream(LOG_FATAL)<<"error in data input line: " << i << " 1st column should be 1 to " << ac.K << std::endl;
+         if (J  < 0 && J >=  N)
+          logstream(LOG_FATAL)<<"error in data input line: " << i << " 2nd column should be 1 to " << ac.N << std::endl;
         set_val(ps.clusts.cluster_vec[I].location, J, val);
 
         if (i % step == 0)
@@ -266,9 +270,12 @@ void load_matrix_market_assignments(const std::string & filename, graph_type *_g
 	  I--;  /* adjust from 1-based to 0-based */
           J--;
         
-          assert(I>=0 && I< nz);
-          assert(J == 0);
-          assert(val >= 0 && val < ac.K);
+          if (I < 0 && I >= nz)
+             logstream(LOG_FATAL)<<"error in data line: " << i << " value should be in the range 0 to " << nz-1 << std::endl;
+          if (J != 0)
+             logstream(LOG_FATAL)<<"error in input data line: " << i << " 2nd columns should be 1" << std::endl;
+          if (val < 0 && val >= ac.K);
+              logstream(LOG_FATAL)<<"error in input data line: " << i << " 3rd column vlue should be 0 to " << ac.K-1 << std::endl;
 	  _g->vertex_data(i).current_cluster = val;
         }
         else {
@@ -316,9 +323,8 @@ void load_matrix_market(const char * filename, graph_type *_g, testtype type)
     if (mm_is_complex(matcode) && mm_is_matrix(matcode) && 
             mm_is_sparse(matcode) )
     {
-        logstream(LOG_ERROR) << "sorry, this application does not support " << std::endl << 
+        logstream(LOG_FATAL) << "sorry, this application does not support " << std::endl << 
           "Market Market type: " << mm_typecode_to_str(matcode) << std::endl;
-        exit(1);
     }
 
     /* find out size of sparse matrix .... */
@@ -380,11 +386,13 @@ void load_matrix_market(const char * filename, graph_type *_g, testtype type)
         
          if (ac.scalerating != 1.0)
 	     val /= ac.scalerating;
-         if (!ac.zero)
-	   assert(val!=0 );
+         if (!ac.zero && val == 0)
+	   logstream(LOG_FATAL)<<"Error in data line: " << i << " zero value is not allowed. Use --zero=true to allow zero value" << std::endl;
         
-        assert(I>=0 && I< M);
-        assert(J >=0 && J< N);
+        if (I < 0 || I >=M)
+           logstream(LOG_FATAL)<<"Error in data line: " << i << " 1st column value is: " << I << " where it should be in the range 1 to " << M << std::endl;
+        if (J < 0 || J >=N)
+           logstream(LOG_FATAL)<<"Error in data line: " << i << " 2nd column value is: " << J << " where it should be in the range 1 to " << N << std::endl;
         vertex_data & vdata = _g->vertex_data(I);
         set_new(vdata.datapoint,J, val);   
 
@@ -430,7 +438,9 @@ void save_matrix_market_matrix(const char * filename, const flt_dbl_mat & a, std
        mm_set_integer(&matcode);
 
     FILE * f = open_file(filename,"w");
-    assert(f != NULL);
+    if(f == NULL)
+       logstream(LOG_FATAL)<<"Failed to open file: " << filename << " for writing." << std::endl;
+
     mm_write_banner(f, matcode); 
     if (comment.size() > 0)
       fprintf(f, "%s%s", "%", comment.c_str());

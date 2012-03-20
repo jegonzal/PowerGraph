@@ -106,10 +106,12 @@ void load_matrix_market(const char * filename, graph_type *_g, testtype data_typ
         I--;  /* adjust from 1-based to 0-based */
         J--;
         edge.weight = val;
-        if (!ac.zero)
-	   assert(val!=0 );
-        assert(I< M);
-        assert(J< N);
+        if (!ac.zero && val == 0)
+	   logstream(LOG_FATAL)<<"Error in data line: " << i << " zero value is not allowed. Use --zero=true to allow zero value" << std::endl;
+        if (I < 0 || I >=M)
+           logstream(LOG_FATAL)<<"Error in data line: " << i << " 1st column value is: " << I << " where it should be in the range 1 to " << M << std::endl;
+        if (J < 0 || J >=N)
+           logstream(LOG_FATAL)<<"Error in data line: " << i << " 2nd column value is: " << J << " where it should be in the range 1 to " << N << std::endl;
         _g->add_edge(I,J+ps.M,edge);
     }
     set_num_edges(nz, data_type);
@@ -150,7 +152,9 @@ void save_matrix_market_matrix(const char * filename, const mat & a, std::string
        mm_set_integer(&matcode);
 
     FILE * f = open_file(filename,"w");
-    assert(f != NULL);
+    if(f == NULL)
+       logstream(LOG_FATAL)<<"Failed to open file: " << filename << " for writing." << std::endl;
+
     mm_write_banner(f, matcode); 
     if (comment.size() > 0)
       fprintf(f, "%s%s", "%", comment.c_str());
