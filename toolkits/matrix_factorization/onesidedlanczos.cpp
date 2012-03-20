@@ -49,9 +49,9 @@ DECLARE_TRACER(matproduct)
 
 //LANCZOS VARIABLES
 int max_iter = 10;
-int actual_vector_len;
 bool debug;
 bool no_edge_data = false;
+int actual_vector_len;
 int nv = 0;
 int nsv = 0;
 double tol = 1e-8;
@@ -119,7 +119,6 @@ vec lanczos(graphlab::core<graph_type, Axb> & glcore,
 
    int nconv = 0;
    int its = 1;
-   int mpd = 24;
    DistMat A(info);
    int other_size_offset = info.is_square() ? data_size : 0;
    DistSlicedMat U(other_size_offset, other_size_offset + 3, true, info, "U");
@@ -309,6 +308,8 @@ printf("\n");
     u = V[i]*A._transpose();
     double a = norm(u).toDouble();
     u = u / a;
+    if (save_vectors)
+       write_output_vector(datafile + ".U." + boost::lexical_cast<std::string>(i), format, u.to_vec(), false, "GraphLab v2 SVD output. This file contains eigenvector number " + boost::lexical_cast<std::string>(i) + " of the matrix U");
     normret = V[i]*A._transpose() - u*sigma(i);
     double n1 = norm(normret).toDouble();
     PRINT_DBL(n1);
@@ -328,7 +329,6 @@ printf("\n");
 
   if (save_vectors){
      for (int i=0; i< nconv; i++){
-        write_output_vector(datafile + ".U." + boost::lexical_cast<std::string>(i), format, U[i].to_vec(), false, "GraphLab v2 SVD output. This file contains eigenvector number " + boost::lexical_cast<std::string>(i) + " of the matrix U");
         write_output_vector(datafile + ".V." + boost::lexical_cast<std::string>(i), format, V[i].to_vec(), false, "GraphLab v2 SVD output. This file contains eigenvector number " + boost::lexical_cast<std::string>(i) + " of the matrix V'");
      }
   }

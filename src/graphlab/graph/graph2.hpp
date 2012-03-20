@@ -228,9 +228,9 @@ namespace graphlab {
      */
     void add_vertex(vertex_id_type vid, const VertexData& vdata = VertexData() ) {
       if (finalized) {
-        logstream(LOG_FATAL)
+        logstream(LOG_INFO)
           << "Attempting add vertex to a finalized graph." << std::endl;
-        ASSERT_MSG(false, "Add vertex to a finalized graph.");
+        // ASSERT_MSG(false, "Add vertex to a finalized graph.");
       }
       if(vid >= vertices.size()) {
         // Enable capacity doubling if resizing beyond capacity

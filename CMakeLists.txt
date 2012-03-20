@@ -75,9 +75,6 @@ if(NOT EXPERIMENTAL)
   components.")
 endif()
 
-if(NOT KC_ROOT)
-  set(KC_ROOT "" CACHE STRING "Kyoto Cabinet Prefix")
-endif()
 
 
 
@@ -236,23 +233,6 @@ endif()
 
 
 
-find_library(KYOTO_SHARED_LIBRARY kyotocabinet PATHS ${KC_ROOT}/lib)
-find_path(KYOTO_INCLUDE_DIR kchashdb.h PATHS ${KC_ROOT}/include)
-if (KYOTO_SHARED_LIBRARY MATCHES KYOTO_LIBRARY-NOTFOUND)
-  message(FATAL_ERROR "Kyoto Cabinet not found. Run bootstrap!")
-endif()
-
-if (KYOTO_INCLUDE_DIR MATCHES KYOTO_INCLUDE_DIR-NOTFOUND)
-  message(FATAL_ERROR "Kyoto Cabinet includes not found. Run bootstrap!")
-else()
-  message(STATUS "Kyoto Cabinet Found")
-endif()
-# get the static version
-string(REGEX REPLACE "\\${CMAKE_SHARED_LIBRARY_SUFFIX}$" ".a" KYOTO_STATIC_LIBRARY ${KYOTO_SHARED_LIBRARY})
-message(STATUS "Kyoto Cabinet: ${KYOTO_STATIC_LIBRARY}" )
-
-
-include_directories(${KYOTO_INCLUDE_DIR})
 
 
 check_library_exists(z zlibVersion "" ZLIB_FOUND)
@@ -562,7 +542,6 @@ macro(add_graphlab_executable NAME)
   add_executable(${NAME} ${ARGN})
   target_link_libraries(${NAME} ${Boost_LIBRARIES})
   target_link_libraries(${NAME} ${GraphLab_LIBRARIES})
-  target_link_libraries(${NAME} ${KYOTO_STATIC_LIBRARY})
 endmacro(add_graphlab_executable)
 
 
@@ -577,7 +556,7 @@ macro(add_distributed_graphlab_executable NAME)
       ${MPI_LIBRARY} 
       ${MPI_EXTRA_LIBRARY} 
       ${Boost_LIBRARIES}
-      ${KYOTO_STATIC_LIBRARY}
+
       )
     set_source_files_properties( ${ARGN}
       PROPERTIES COMPILE_DEFINITIONS "GLDISTRIBUTED2" )

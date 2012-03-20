@@ -35,37 +35,35 @@ as well \ref graphlab::distributed_control might be useful.
 \li \ref page_distributed_graphlab
 
 
-\page page_distributed_graph_creation Distributed Graph Creation
-The goal of distributed GraphLab is to both handle graphs that exceed the memory
-capacity, and to make use of more processors than what is available on a 
-single node. Since the number of machines available may 
-vary with performance demands, the graph representation must 
-support loading of the data graph on varying sized cluster deployments. 
-To resolve these issues, we developed an on-disk graph representation based 
-on a two-phased partitioning scheme. 
+\page page_distributed_graph_creation Distributed Graph Creation The
+goal of distributed GraphLab is to both handle graphs that exceed the
+memory capacity, and to make use of more processors than what is
+available on a single node. Since the number of machines available may
+vary with performance demands, the graph representation must support
+loading of the data graph on varying sized cluster deployments.  To
+resolve these issues, we developed an on-disk graph representation
+based on a two-phased partitioning scheme.
 
-\section sec_disk_graph_atom Atom partitioning
-The initial user graph must first be over-partitioned into 
-more parts than the largest cluster deployment you will ever use for the data.
-Each of these parts is called an <b> atom </b>. An atom not just contains the
-vertices and edges within its partition, but also contains information about the
-vertices and edges immediately adjacent to the partition (also called the 
-<b> ghost </b> of the partition.) 
+\section sec_disk_graph_atom Atom partitioning The initial user graph
+must first be over-partitioned into more parts than the largest
+cluster deployment you will ever use for the data.  Each of these
+parts is called an <b> atom </b>. An atom not just contains the
+vertices and edges within its partition, but also contains information
+about the vertices and edges immediately adjacent to the partition
+(also called the <b> ghost </b> of the partition.)
 
-A collection of atoms which make up a complete graph is called a <b> disk graph </b>.
-The atom file names are of the form "[basename].0", "[basename].1",
-"[basename].2", etc. Each atom is stored a binary format 
-Kyoto Cabinet (http://fallabs.com/kyotocabinet/) hash table. 
-The user should almost never have to interact with the atoms directly, but the format
-is documented briefly in graphlab::disk_atom. 
+A collection of atoms which make up a complete graph is called a <b>
+disk graph </b>.  The atom file names are of the form "[basename].0",
+"[basename].1", "[basename].2", etc.
 
-A proper disk graph must also include an <b> atom index file </b> with 
-filename "[basename].idx". The atom index is an additional human readable/modifiable 
-text file which provides some basic
-information about the graph (number of vertices, number of edges), the adjacency 
-structure of the atoms, and most importantly, the <b> file location / URL </b>
-of the atom files themselves. (Currently only the file:// URL protocol is supported,
-but future enhancements might support additional protocols.)
+A proper disk graph must also include an <b> atom index file </b> with
+filename "[basename].idx". The atom index is an additional human
+readable/modifiable text file which provides some basic information
+about the graph (number of vertices, number of edges), the adjacency
+structure of the atoms, and most importantly, the <b> file location /
+URL </b> of the atom files themselves. (Currently only the file:// URL
+protocol is supported, but future enhancements might support
+additional protocols.)
 
 \note In cases where the atom index is missing, the \ref graphlab::disk_graph does
 provide a constructor to load a disk graph without an atom index. After which 
@@ -119,14 +117,15 @@ This is best illustrated using an example
 */
 
 /**
-\page page_distributed_graphlab Distributed GraphLab
-To work with distributed GraphLab, MPI is needed. We have tested with MPICH2 and the MPI
-distribution that comes with OS X. However, other distributions of MPI (Open MPI) should
-work as well.
+\page page_distributed_graphlab Distributed GraphLab To work with
+distributed GraphLab, MPI is needed. We have tested with MPICH2 and
+the MPI distribution that comes with OS X. However, other
+distributions of MPI (Open MPI) should work as well.
 
-Distributed GraphLab is functionally quite similar to the regular GraphLab. But due to the
-law of leaky abstractions (http://www.joelonsoftware.com/articles/LeakyAbstractions.html), 
-there are some issues the user will have to take into consideration.
+Distributed GraphLab is functionally quite similar to the regular
+GraphLab. But due to the law of leaky abstractions
+(http://www.joelonsoftware.com/articles/LeakyAbstractions.html), there
+are some issues the user will have to take into consideration.
 
 Firstly, the graph cannot be created on the fly, and must be created before-hand and loaded from 
 an atom index file ( \ref page_distributed_graph_creation ).

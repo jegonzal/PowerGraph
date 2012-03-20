@@ -260,17 +260,25 @@ namespace graphlab {
         vertex_negotiator_record& negotiator_rec = pair.second;
         negotiator_rec.vid = vid; // update the vid if it has not been set
 
-        // Find the best (least loaded) processor to assign the vertex.
-        uint32_t first_mirror = 0; 
-        ASSERT_TRUE(negotiator_rec.mirrors.first_bit(first_mirror));
-        std::pair<size_t, uint32_t> 
-          best_asg(counts[first_mirror], first_mirror);
-        foreach(uint32_t proc, negotiator_rec.mirrors) {
-          best_asg = std::min(best_asg, std::make_pair(counts[proc], proc));
+        // The branch here is because singleton edge doesn't participate in
+        // the shuffle phase, so there is no mirror assigned. 
+        if (negotiator_rec.mirrors.popcount() > 0) {
+          // Find the best (least loaded) processor to assign the vertex.
+          uint32_t first_mirror = 0; 
+          ASSERT_TRUE(negotiator_rec.mirrors.first_bit(first_mirror));
+          std::pair<size_t, uint32_t> 
+             best_asg(counts[first_mirror], first_mirror);
+          foreach(uint32_t proc, negotiator_rec.mirrors) {
+              best_asg = std::min(best_asg, std::make_pair(counts[proc], proc));
+          }
+          negotiator_rec.owner = best_asg.second;
+          counts[negotiator_rec.owner]++;
+        } else {
+          // random assign a singleton vertex to a proc
+          size_t proc = negotiator_rec.vid % rpc.numprocs();
+          negotiator_rec.mirrors.set_bit(proc);
+          negotiator_rec.owner = proc;
         }
-
-        negotiator_rec.owner = best_asg.second;
-        counts[negotiator_rec.owner]++;
         // Notify all machines of the new assignment
         foreach(uint32_t proc, negotiator_rec.mirrors) {
           negotiator_exchange.send(proc, negotiator_rec);
@@ -287,11 +295,24 @@ namespace graphlab {
         procid_t proc;
         while(negotiator_exchange.recv(proc, negotiator_buffer)) {
           foreach(const vertex_negotiator_record& negotiator_rec, negotiator_buffer) {
-            ASSERT_TRUE(graph.vid2lvid.find(negotiator_rec.vid) != 
-                        graph.vid2lvid.end());
-            const lvid_type lvid = graph.vid2lvid[negotiator_rec.vid];
-            ASSERT_LT(lvid, graph.local_graph.num_vertices());
-            graph.local_graph.vertex_data(lvid) = negotiator_rec.vdata;
+            // ASSERT_TRUE(graph.vid2lvid.find(negotiator_rec.vid) != 
+            //             graph.vid2lvid.end());
+            
+            // The assertion above is disabled because the receiver could 
+            // receive a singleton edge which it has never seen.
+            lvid_type lvid;
+            if(graph.vid2lvid.find(negotiator_rec.vid) == graph.vid2lvid.end()) {
+              lvid = graph.vid2lvid.size();
+              graph.vid2lvid[negotiator_rec.vid] = lvid;
+              graph.local_graph.add_vertex(lvid, negotiator_rec.vdata);
+              graph.lvid2record.resize(graph.vid2lvid.size());
+              graph.lvid2record[lvid].gvid = negotiator_rec.vid;
+            } else {
+              lvid = graph.vid2lvid[negotiator_rec.vid];
+              ASSERT_LT(lvid, graph.local_graph.num_vertices());
+              graph.local_graph.vertex_data(lvid) = negotiator_rec.vdata;
+            }
+
             ASSERT_LT(lvid, graph.lvid2record.size());
             vertex_record& local_record = graph.lvid2record[lvid];
             local_record.owner = negotiator_rec.owner;
@@ -307,6 +328,9 @@ namespace graphlab {
         }
       }
 
+      ASSERT_EQ(graph.vid2lvid.size(), graph.local_graph.num_vertices());
+      ASSERT_EQ(graph.lvid2record.size(), graph.local_graph.num_vertices());
+ 
       // Count the number of vertices owned locally
       graph.local_own_nverts = 0;
       foreach(const vertex_record& record, graph.lvid2record)

@@ -33,13 +33,13 @@
 #include <graphlab/util/stl_util.hpp>
 #include <graphlab/macros_def.hpp>
 
-
+size_t iterations;
 
 struct vertex_data : public graphlab::IS_POD_TYPE {
+  float value;
   uint32_t nupdates;
-  double value, old_value;
   vertex_data(double value = 1) : 
-    nupdates(0), value(value), old_value(0) { }
+    value(value),nupdates(0)  { }
 }; // End of vertex data
 
 std::ostream& operator<<(std::ostream& out, const vertex_data& vdata) {
@@ -76,7 +76,7 @@ public:
   consistency_model scatter_consistency() { return graphlab::NULL_CONSISTENCY; }
   edge_set gather_edges() const { return graphlab::IN_EDGES; }
   edge_set scatter_edges() const {
-    return (accum > ACCURACY)? graphlab::OUT_EDGES : graphlab::NO_EDGES;
+    return graphlab::NO_EDGES;
   }
 
   // Reset the accumulator before running the gather
@@ -98,29 +98,18 @@ public:
   void apply(icontext_type& context) {
     vertex_data& vdata = context.vertex_data(); ++vdata.nupdates;
     vdata.value =  RESET_PROB + (1 - RESET_PROB) * accum;
-    const size_t num_out_edges = context.num_out_edges(context.vertex_id());
-    if(num_out_edges > 0) {
-      const double weight =  1.0 / double(num_out_edges);
-      accum = std::fabs(vdata.value - vdata.old_value) * weight;
-      if(accum > ACCURACY) vdata.old_value = vdata.value;
+    if (vdata.nupdates < iterations) {
+      context.schedule(context.vertex_id(), factorized_pagerank(0.0));
     }
   } // end of apply
 
   // Reschedule neighbors 
   void scatter(icontext_type& context, const edge_type& edge) {
-    context.schedule(edge.target(), factorized_pagerank(accum));
   } // end of scatter
 }; // end of factorized_pagerank update functor
-SERIALIZABLE_POD(factorized_pagerank);
 
 
-#if defined(FSCOPE)
-typedef graphlab::distributed_fscope_engine<graph_type, factorized_pagerank> engine_type;
-#elif defined(SYNCHRONOUS_ENGINE)
 typedef graphlab::distributed_synchronous_engine<graph_type, factorized_pagerank> engine_type;
-#else
-typedef graphlab::distributed_engine<graph_type, factorized_pagerank> engine_type;
-#endif
 
 
 
@@ -161,7 +150,8 @@ int main(int argc, char** argv) {
                        "residual termination threshold");
   clopts.attach_option("resetprob", &RESET_PROB, RESET_PROB,
                        "Random reset probability"); 
-
+  iterations = 10;
+  clopts.attach_option("iterations", &iterations, iterations, "Iterations");
   bool savebin = false;
   clopts.attach_option("savebin", &savebin, savebin,
                        "Option to save the graph as binary\n");
@@ -204,7 +194,7 @@ int main(int argc, char** argv) {
     logstream(LOG_INFO) << "Load graph from binary." << std::endl;
     graph.load(graph_dir, binprefix);
     dc.barrier();
-  } else {
+  }else {
     std::vector<std::string> graph_files;
     if(boost::starts_with(graph_dir, "hdfs://")) {
       graphlab::hdfs hdfs;
@@ -217,8 +207,7 @@ int main(int argc, char** argv) {
     std::sort(graph_files.begin(), graph_files.end());
     for(size_t i = 0; i < graph_files.size(); ++i) {
       if (i % dc.numprocs() == dc.procid()) {
-        std::cout << "Loading graph from structure file: " 
-                  << graph_files[i] << std::endl;
+        std::cout << "Loading graph from structure file: " << graph_files[i] << std::endl;
         const bool success = 
           graphlab::graph_ops::load_structure(graph_files[i], format, graph);
         ASSERT_TRUE(success);
@@ -233,7 +222,7 @@ int main(int argc, char** argv) {
 
   if(dc.procid() == 0){
     std::cout
-      << "========== Complete Graph Statistics " << dc.procid() 
+      << "========== Graph statistics on proc " << dc.procid() 
       << " ==============="
       << "\n Num vertices: " << graph.num_vertices()
       << "\n Num edges: " << graph.num_edges()

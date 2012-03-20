@@ -35,8 +35,9 @@ For more details on the GraphLab see http://graphlab.ml.cmu.edu
 ============
 Dependencies
 ============
-We require Cmake, Boost and Kyoto Cabinet. If you use distributed
-GraphLab, we also require MPI.
+
+We require Cmake, and Boost. If you use distributed GraphLab, we also
+require MPI.
 
 
 CMake
@@ -66,25 +67,6 @@ To install Boost 1.46 with the minimal set of libraries:
    sudo ./bjam install
 
 
-Kyoto Cabinet
--------------
-We have tested with Kyoto Cabinet 1.2.53. Later versions should work
-as well.
-
-To install Kyoto Cabinet 1.2.53: 
-   # download
-   wget http://fallabs.com/kyotocabinet/pkg/kyotocabinet-1.2.53.tar.gz kyotocabinet.tar.gz
-   cd kyotocabinet-1.2.53
-   
-   # configure
-   ./configure
-   
-   # compile
-   make
-    
-   # install
-   sudo make install
-
 
 MPI
 ---
@@ -109,14 +91,14 @@ To install MPICH2:
 ===========
 Compilation
 ===========
-GraphLab has three dependencies: CMake, Boost and Kyoto Cabinet
+GraphLab has three dependencies: CMake and Boost 
 
 If you already have all dependencies satistied,
 1a: ./configure
 
-Otherwise, autodetect, install and build boost, CMake and Kyoto Cabinet.
-Note that this will install all the dependencies in the deps/ directory
-and not install them globally. We STRONGLY recommend installing all the 
+Otherwise, autodetect, install and build boost and CMake.  Note that
+this will install all the dependencies in the deps/ directory and not
+install them globally. We STRONGLY recommend installing all the
 dependencies globally. See the "Dependencies" section.
 
 1b: ./configure --bootstrap 
