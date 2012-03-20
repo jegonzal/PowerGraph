@@ -109,9 +109,9 @@ void load_matrix_market(const char * filename, graph_type *_g, testtype data_typ
         if (!ac.zero && val == 0)
 	   logstream(LOG_FATAL)<<"Error in data line: " << i << " zero value is not allowed. Use --zero=true to allow zero value" << std::endl;
         if (I < 0 || I >=M)
-           logstream(LOG_FATAL)<<"Error in data line: " << i << " 1st column value is: " << I << " where it should be in the range 1 to " << M << std::endl;
+           logstream(LOG_FATAL)<<"Error in data line: " << i << " 1st column value is: " << I+1 << " where it should be in the range 1 to " << M << std::endl;
         if (J < 0 || J >=N)
-           logstream(LOG_FATAL)<<"Error in data line: " << i << " 2nd column value is: " << J << " where it should be in the range 1 to " << N << std::endl;
+           logstream(LOG_FATAL)<<"Error in data line: " << i << " 2nd column value is: " << J+1 << " where it should be in the range 1 to " << N << std::endl;
         _g->add_edge(I,J+ps.M,edge);
     }
     set_num_edges(nz, data_type);

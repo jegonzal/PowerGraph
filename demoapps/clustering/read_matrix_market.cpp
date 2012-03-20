@@ -132,9 +132,9 @@ void load_matrix_market(const char * filename, graph_type_kcores *_g, testtype t
 	   logstream(LOG_FATAL)<<"Detected zero value in data line: " << i << ". Use --zero=true to allow zero input values." << std::endl;
         
         if (I < 0 || I >=M)
-           logstream(LOG_FATAL)<<"Error in data line: " << i << " 1st column value is: " << I << " where it should be in the range 1 to " << M << std::endl;
+           logstream(LOG_FATAL)<<"Error in data line: " << i << " 1st column value is: " << I+1 << " where it should be in the range 1 to " << M << std::endl;
         if (J < 0 || J >=N)
-           logstream(LOG_FATAL)<<"Error in data line: " << i << " 2nd column value is: " << J << " where it should be in the range 1 to " << N << std::endl;
+           logstream(LOG_FATAL)<<"Error in data line: " << i << " 2nd column value is: " << J+1 << " where it should be in the range 1 to " << N << std::endl;
       
         kcores_edge edge;
         edge.weight = val;
@@ -193,9 +193,9 @@ void load_matrix_market_clusters(const std::string & filename, graph_type *_g)
         J--;
         
         if (I < 0 && I >= ac.K)
-          logstream(LOG_FATAL)<<"error in data input line: " << i << " 1st column should be 1 to " << ac.K << std::endl;
+          logstream(LOG_FATAL)<<"error in data input line: " << i << " 1st column value is: " << I+1 << " where it should be 1 to " << ac.K << std::endl;
          if (J  < 0 && J >=  N)
-          logstream(LOG_FATAL)<<"error in data input line: " << i << " 2nd column should be 1 to " << ac.N << std::endl;
+          logstream(LOG_FATAL)<<"error in data input line: " << i << " 2nd column value is: " <<J+1 << " where it should be 1 to " << ac.N << std::endl;
         set_val(ps.clusts.cluster_vec[I].location, J, val);
 
         if (i % step == 0)
@@ -271,9 +271,9 @@ void load_matrix_market_assignments(const std::string & filename, graph_type *_g
           J--;
         
           if (I < 0 && I >= nz)
-             logstream(LOG_FATAL)<<"error in data line: " << i << " value should be in the range 0 to " << nz-1 << std::endl;
+             logstream(LOG_FATAL)<<"error in data line: " << i << " value is: " << I+1 << " value should be in the range 1 to " << nz << std::endl;
           if (J != 0)
-             logstream(LOG_FATAL)<<"error in input data line: " << i << " 2nd columns should be 1" << std::endl;
+             logstream(LOG_FATAL)<<"error in input data line: " << i << " value is: " << J+1 << "  - 2nd columns should be 1" << std::endl;
           if (val < 0 && val >= ac.K);
               logstream(LOG_FATAL)<<"error in input data line: " << i << " 3rd column vlue should be 0 to " << ac.K-1 << std::endl;
 	  _g->vertex_data(i).current_cluster = val;
@@ -390,9 +390,9 @@ void load_matrix_market(const char * filename, graph_type *_g, testtype type)
 	   logstream(LOG_FATAL)<<"Error in data line: " << i << " zero value is not allowed. Use --zero=true to allow zero value" << std::endl;
         
         if (I < 0 || I >=M)
-           logstream(LOG_FATAL)<<"Error in data line: " << i << " 1st column value is: " << I << " where it should be in the range 1 to " << M << std::endl;
+           logstream(LOG_FATAL)<<"Error in data line: " << i << " 1st column value is: " << I+1 << " where it should be in the range 1 to " << M << std::endl;
         if (J < 0 || J >=N)
-           logstream(LOG_FATAL)<<"Error in data line: " << i << " 2nd column value is: " << J << " where it should be in the range 1 to " << N << std::endl;
+           logstream(LOG_FATAL)<<"Error in data line: " << i << " 2nd column value is: " << J+1 << " where it should be in the range 1 to " << N << std::endl;
         vertex_data & vdata = _g->vertex_data(I);
         set_new(vdata.datapoint,J, val);   
 
