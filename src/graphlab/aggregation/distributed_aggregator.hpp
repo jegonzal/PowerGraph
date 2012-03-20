@@ -27,6 +27,9 @@
 #include <graphlab/logger/assertions.hpp>
 #include <graphlab/parallel/pthread_tools.hpp>
 
+#include <graphlab/rpc/dc_dist_object.hpp>
+
+
 
 #include <graphlab/macros_def.hpp>
 namespace graphlab {
@@ -36,20 +39,29 @@ namespace graphlab {
   public:
     typedef Engine engine_type;
     typedef typename engine_type::graph_type graph_type;
+    typedef typename graph_type::lvid_type lvid_type;
     typedef typename engine_type::update_functor_type update_functor_type;
     typedef typename engine_type::context_type context_type;
+
+    typedef dc_dist_object< distributed_aggregator > rmi_type;
+
 
     // Global Aggregates ------------------------------------------------------
     /**
      * The base class for registered aggregation operation
      */
     struct isync {
-      size_t interval;
-      vertex_id_type begin_vid, end_vid;
+      mutex lock;
+      graphlab::barrier barrier;
+      atomic<size_t> counter;
+      const size_t interval;
+      isync(size_t interval) : counter(0), interval(interval) { }
       virtual ~isync() { }
-      virtual void run_aggregator(engine_type* engine_ptr,                          
-                                  graphlab::barrier* barrier_ptr,
-                                  size_t ncpus, size_t cpuid) = 0;
+      virtual void run_aggregator(std::string key,
+                                  size_t cpuid,
+                                  rmi_type* rmi_ptr,
+                                  engine_type* engine_ptr,                          
+                                  graph_type*  graph_ptr) = 0;
     }; // end of isync
 
     /**
@@ -59,62 +71,78 @@ namespace graphlab {
     template<typename Aggregator >
     struct sync : public isync {
       typedef Aggregator       aggregator_type;
-      using isync::begin_vid;
-      using isync::end_vid;     
+      using isync::lock;
+      using isync::barrier;
+      using isync::counter;
+      using isync::interval;
       const aggregator_type zero;
       aggregator_type shared_aggregator;
-      mutex lock;
-      sync(const aggregator_type& zero) : zero(zero), 
-                                          shared_aggregator(zero) { }
-      void run_aggregator(engine_type* engine_ptr,
-                          graphlab::barrier* barrier_ptr,
-                          size_t ncpus, size_t cpuid) { 
+      sync(const size_t interval, const aggregator_type& zero) : 
+        isync(interval), zero(zero), shared_aggregator(zero) { }
+      void run_aggregator(std::string key,
+                          size_t cpuid,
+                          rmi_type* rmi_ptr, 
+                          engine_type* engine_ptr,
+                          graph_type*  graph_ptr) { 
         // Thread zero must initialize the the final shared accumulator
-        const size_t nverts = engine_ptr->graph.num_vertices();
-        // Compute the true begin and end.
-        const size_t global_begin = std::min(nverts, size_t(begin_vid));;
-        const size_t global_end = std::min(nverts, size_t(end_vid));
-        ASSERT_LE(global_begin, global_end);
-        ASSERT_LE(global_end, nverts);
-        // Compute the span of each subtask.  The span should not be
-        // less than some minimal span.
-        const vertex_id_type span = 
-          std::max((global_end - global_begin)/ncpus, size_t(1));
-        const size_t true_begin_vid = std::min(cpuid*span, nverts);
-        const size_t true_end_vid   = std::min((cpuid+1)*span, nverts);
-    
+        const size_t nverts = graph_ptr->num_local_vertices();
+        
         // construct the local (to this thread) accumulator and
         // context
         aggregator_type local_accum(zero);
-        // Do map computation;
-        for(vertex_id_type vid = true_begin_vid; vid < true_end_vid; ++vid) {
-          engine_ptr->evaluate_update(vid, local_accum);
+        context_type context(engine_ptr, graph_ptr);
+
+        // Apply the update to the local vertices
+        for(lvid_type lvid = counter++; lvid < nverts; lvid = counter++) {
+          if(graph_ptr->l_is_master(lvid)) {
+            context.init(graph_ptr->global_vid(lvid), VERTEX_CONSISTENCY);
+            local_accum(context);
+          }
         }
         // Merge with master
         lock.lock(); 
         shared_aggregator += local_accum; 
         lock.unlock();
-        barrier_ptr->wait();  // Wait until all merges are complete
+        barrier.wait();  // Wait until all merges are complete
+
         if(cpuid == 0) {
-          // Recast the context as a global context.  This ensures
-          // that the user implements finalize correctly;
-          context_type context = engine_ptr->get_context(0);
-          iglobal_context& global_context = context;
-          shared_aggregator.finalize(global_context);
+          std::vector<aggregator_type> result(rmi_ptr->numprocs());
+          result[rmi_ptr->procid()] = shared_aggregator;
+          const size_t ROOT(0);
+          rmi_ptr->gather(result, ROOT);
+          if(rmi_ptr->procid() == ROOT) {
+            // Sum up all the results
+            shared_aggregator = zero;
+            for(size_t i = 0; i < result.size(); ++i) 
+              shared_aggregator += result[i];
+            // Finalize with the global context
+            iglobal_context& global_context = context;
+            shared_aggregator.finalize(global_context);
+          }
           // Zero out the shared accumulator for the next run
           shared_aggregator = zero;
+          // update the sync queue
+          master_lock.lock();
+          schedule_sync_prelocked(key, interval);
+          sync_in_progress = false;
+          master_lock.unlock();          
         }
-        barrier_ptr->wait();
       } // end of run aggregator
     }; // end of sync
 
 
   private:
-    //! The aggregator this engine is operating on. 
+
+    //! The base communication object
+    rmi_type rmi;
+
     engine_type& engine;
+    graph_type& graph;
+
 
     //! A lock used to manage access to internal data-structures
-    mutex sync_master_lock;
+    mutex master_lock;
+    bool sync_in_progress;
     
     //! The container of all registered sync operations
     typedef std::map<std::string, isync*> sync_map_type;
@@ -130,13 +158,16 @@ namespace graphlab {
 
   public:
 
-    distributed_aggregator(engine_type& engine) :
-      engine(engine) { }
+    distributed_aggregator(distributed_control& dc, engine_type& engine,
+                           graph_type& graph) :
+      rmi(dc, this), engine(engine), graph(graph), 
+      sync_in_progress(false) { rmi.barrier(); }
+
 
     /** Destroy members of the map */
     ~distributed_aggregator() { 
       threads.join();
-      sync_master_lock.lock();
+      master_lock.lock();
       sync_queue.clear();
       typedef typename sync_map_type::value_type pair_type;
       foreach(pair_type& pair, sync_map) {        
@@ -144,8 +175,9 @@ namespace graphlab {
         delete pair.second; pair.second = NULL;
       }     
       sync_map.clear();
-      sync_master_lock.unlock();
+      master_lock.unlock();
     }
+
 
     /**
      * Get a reference to the internal threads in the aggregator.
@@ -159,7 +191,9 @@ namespace graphlab {
      * aggregation task queue.
      */
     void initialize_queue() { 
-      sync_master_lock.lock();
+      // Only maintian a queue on processor 0
+      if(rmi.procid() != 0) return;
+      master_lock.lock();
       sync_queue.clear();
       typedef typename sync_map_type::value_type pair_type;
       foreach(const pair_type& pair, sync_map) {        
@@ -167,11 +201,10 @@ namespace graphlab {
         // If their is a sync associated with the global record and
         // the sync has a non-zero interval than schedule it.
         if(pair.second->interval > 0) 
-          schedule_sync_prelocked(pair.first, pair.second->interval);
+          schedule_prelocked(pair.first, pair.second->interval);
       }
-      sync_master_lock.unlock();    
+      master_lock.unlock();    
     } // end of initialize queue
-
 
   
 
@@ -179,27 +212,25 @@ namespace graphlab {
     template<typename Aggregator>
     void add_aggregator(const std::string& key,            
                         const Aggregator& zero,                 
-                        size_t interval,
-                        vertex_id_type begin_vid = 0,
-                        vertex_id_type end_vid = 
-                        std::numeric_limits<vertex_id_type>::max()) {
+                        size_t interval) {
       isync*& sync_ptr = sync_map[key];
       // Clear the old sync and remove from scheduling queue
-      if(sync_ptr != NULL) { delete sync_ptr; sync_ptr = NULL; }
-      sync_queue.remove(key);
+      if(sync_ptr != NULL) { 
+        sync_queue.remove(key);
+        delete sync_ptr; sync_ptr = NULL; 
+      }
       ASSERT_TRUE(sync_ptr == NULL);
       // Attach a new sync type
-      typedef sync<Aggregator> sync_type;
-      sync_ptr = new sync_type(zero);
-      sync_ptr->interval    = interval;
-      sync_ptr->begin_vid   = begin_vid;
-      sync_ptr->end_vid     = end_vid;
+      sync_ptr = new sync<Aggregator>(interval, zero);
     }// end of add_sync
     
 
-    //! Performs a sync immediately.
+    /**
+     * Run an aggregator.  This must be called on all machines
+     */
     void aggregate_now(const std::string& key) {
-      engine.initialize_members();    
+      // BUG: check that the engine is ready to sync?
+      // (engine.initialize_members()?)
       typename sync_map_type::iterator iter = sync_map.find(key);
       if(iter == sync_map.end()) {
         logstream(LOG_FATAL) 
@@ -207,63 +238,82 @@ namespace graphlab {
           << std::endl;
         return;
       }
-      isync* sync = iter->second;
-      ASSERT_NE(sync, NULL);
       // The current implementation will lead to a deadlock if called
       // from within an update function
-      sync_master_lock.lock();
-      aggregate_prelocked(key, sync);
-      sync_master_lock.unlock();
+      master_lock.lock();
+      initiate_aggregate(key);
+      master_lock.unlock();    
     } // end of sync_now
 
 
-    void evaluate_queue(size_t last_update_count) {
+    void evaluate_queue() {
+      if(rmi.procid() != 0) return;
       // if the engine is no longer running or there is nothing in the
       // sync queue then we terminate early
       if(sync_queue.empty()) return;
+      // if there is a sync in progress
+      if(sync_in_progress) return;
       // Try to grab the lock if we fail just return
-      if(!sync_master_lock.try_lock()) return;
-      // ASSERT: the lock has been aquired. Test for a task at the top
-      // of the queue
+      if(!master_lock.try_lock()) return;
+      if(sync_in_progress) { master_lock.unlock(); return; }
+      // Now we are ready to evaluate the update count
       const long negated_next_ucount = sync_queue.top().second;
       ASSERT_LE(negated_next_ucount, 0);
       const size_t next_ucount = size_t(-negated_next_ucount);
-      // if we have more updates than the next update count for this
-      // task then run it
-      if(next_ucount < last_update_count) { // Run the actual sync
+      const size_t time_in_seconds = lowres_time_millis() * 60;
+      // if it is time to run the sync then spin off the threads
+      if(next_ucount < time_in_seconds) { // Run the actual sync
         const std::string key = sync_queue.top().first;
         sync_queue.pop();
-        isync* sync = sync_map[key];
-        ASSERT_NE(sync, NULL);
-        aggregate_prelocked(key, sync);
-        // Reschedule the sync record
-        schedule_sync_prelocked(key, sync->interval);
+        initiate_aggregate(key);
       }    
-      sync_master_lock.unlock();    
+      master_lock.unlock();    
     } // end of evaluate_sync_queue
     
 
-    void aggregate_prelocked(const std::string& key, isync* sync) { 
-      ASSERT_NE(sync, NULL);
-      graphlab::barrier barrier(threads.size());
+    void initiate_aggregate(const std::string& key) {
+      if(rmi.procid() != 0) return;
+      ASSERT_FALSE(sync_in_progress);
+      sync_in_progress = true;
+      for(procid_t proc = 0; proc < rmi.numprocs(); ++proc) {
+        rmi.remote_call(proc, &distributed_aggregator::rpc_aggregate, key);
+      }
+    } // end of innitiate aggregate
+
+    void rpc_aggregate(const std::string& key) {
+      master_lock.lock();    
+      if(rmi.procid() != 0) {
+        ASSERT_FALSE(sync_in_progress);
+        sync_in_progress = true;
+      } else {
+        ASSERT_TRUE(sync_in_progress);
+      }
+      master_lock.unlock();     
+      // Get the sync
+      isync* sync_ptr = sync_map[key];
+      ASSERT_FALSE(sync_ptr == NULL);
+      // Initialize the counter
+      sync_ptr->barrier = graphlab::barrier(threads.size());
+      sync_ptr->counter = 0;
+      // Launch the threads
       for(size_t i = 0; i < threads.size(); ++i) {
         const boost::function<void (void)> sync_function = 
           boost::bind(&(isync::run_aggregator), 
-                      sync, &engine, &barrier, threads.size(), i);
+                      sync_ptr, key, i, &rmi, &engine, &graph);
         threads.launch(sync_function);
       }
-      engine.join_threads(threads);
-    } // end of launch sync prelocked
+    } // end of rpc aggregate
+
   
 
     
 
     
-    void schedule_sync_prelocked(const std::string& key, size_t sync_interval) {
-      const size_t ucount = engine.last_update_count();
-      const long negated_next_ucount = -long(ucount + sync_interval); 
-      sync_queue.push(key, negated_next_ucount);
-    } // end of schedule_sync
+    void schedule_prelocked(const std::string& key, size_t sync_interval) {
+      const size_t time_in_seconds = lowres_time_millis() * 60;
+      const long negated_next = -long(time_in_seconds + sync_interval); 
+      sync_queue.push(key, negated_next);
+    } // end of schedule_prelocked
     
     
     

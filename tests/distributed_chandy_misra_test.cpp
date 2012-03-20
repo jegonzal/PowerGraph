@@ -25,12 +25,13 @@
 #include <vector>
 #include <string>
 #include <boost/unordered_set.hpp>
+#include <graphlab/options/command_line_options.hpp>
 #include <graphlab/rpc/dc.hpp>
+#include <graphlab/util/fs_util.hpp>
+#include <graphlab/graph/graph_ops.hpp>
 #include <graphlab/rpc/dc_init_from_mpi.hpp>
 #include <graphlab/rpc/distributed_chandy_misra.hpp>
 #include <graphlab/graph/distributed_graph.hpp>
-// This is messy
-#include <graphlab/../../toolkits/shared/io.hpp>
 
 
 #include <graphlab/macros_def.hpp>

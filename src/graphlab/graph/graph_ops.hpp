@@ -140,7 +140,7 @@ namespace graphlab {
      */
     template<typename Graph>
     bool topological_sort(const Graph& graph, 
-                          std::vector<vertex_id_type>& topsort) {
+                          std::vector<typename Graph::vertex_id_type>& topsort) {
       typedef typename Graph::vertex_id_type     vertex_id_type;
       typedef typename Graph::vertex_color_type  vertex_color_type;
       typedef typename Graph::edge_type          edge_type;
@@ -200,8 +200,9 @@ namespace graphlab {
 
 
     template<typename Graph>
-    void neighbors(const Graph& graph, const vertex_id_type& vid,   
-                          std::vector<vertex_id_type>& neighbors ) {
+    void neighbors(const Graph& graph, 
+                   const typename Graph::vertex_id_type& vid,   
+                   std::vector<typename Graph::vertex_id_type>& neighbors ) {
       typedef typename Graph::vertex_id_type     vertex_id_type;
       typedef typename Graph::vertex_color_type  vertex_color_type;
       typedef typename Graph::edge_type          edge_type;
@@ -554,12 +555,12 @@ namespace graphlab {
       // ok. I need to uniquely number each edge.
       // how?
       boost::unordered_map<std::pair<vertex_id_type, 
-                                     vertex_id_type>, size_t> edgetoid;
+        vertex_id_type>, size_t> edgetoid;
       size_t curid = 0;
       for(vertex_id_type i = 0; i < graph.num_vertices(); ++i) {
         foreach(const typename Graph::edge_type& edge, graph.in_edges(i)) {
           std::pair<vertex_id_type, vertex_id_type> e = 
-                                  std::make_pair(edge.source(), edge.target());
+            std::make_pair(edge.source(), edge.target());
           if (e.first > e.second) std::swap(e.first, e.second);
           if (edgetoid.find(e) == edgetoid.end()) {
             edgetoid[e] = curid;
@@ -568,7 +569,7 @@ namespace graphlab {
         }
         foreach(const typename Graph::edge_type& edge, graph.out_edges(i)) {
           std::pair<vertex_id_type, vertex_id_type> e = 
-                                  std::make_pair(edge.source(), edge.target());
+            std::make_pair(edge.source(), edge.target());
           if (e.first > e.second) std::swap(e.first, e.second);
           if (edgetoid.find(e) == edgetoid.end()) {
             edgetoid[e] = curid;
@@ -588,13 +589,13 @@ namespace graphlab {
         boost::unordered_set<size_t> adjedges;
         foreach(const typename Graph::edge_type& edge, graph.in_edges(i)) {
           std::pair<vertex_id_type, vertex_id_type> e = 
-                                  std::make_pair(edge.source(), edge.target());
+            std::make_pair(edge.source(), edge.target());
           if (e.first > e.second) std::swap(e.first, e.second);
           adjedges.insert(edgetoid[e]);
         }
         foreach(const typename Graph::edge_type& edge, graph.out_edges(i)) {
           std::pair<vertex_id_type, vertex_id_type> e = 
-                                  std::make_pair(edge.source(), edge.target());
+            std::make_pair(edge.source(), edge.target());
           if (e.first > e.second) std::swap(e.first, e.second);
           adjedges.insert(edgetoid[e]);
         }
@@ -624,12 +625,12 @@ namespace graphlab {
       // ok. I need to uniquely number each edge.
       // how?
       boost::unordered_map<std::pair<vertex_id_type, 
-                                     vertex_id_type>, size_t> edgetoid;
+        vertex_id_type>, size_t> edgetoid;
       size_t curid = 0;
       for(vertex_id_type i = 0; i < graph.num_vertices(); ++i) {
         foreach(const typename Graph::edge_type& edge, graph.in_edges(i)) {
           std::pair<vertex_id_type, vertex_id_type> e = 
-                                  std::make_pair(edge.source(), edge.target());
+            std::make_pair(edge.source(), edge.target());
           if (e.first > e.second) std::swap(e.first, e.second);
           if (edgetoid.find(e) == edgetoid.end()) {
             edgetoid[e] = curid;
@@ -638,7 +639,7 @@ namespace graphlab {
         }
         foreach(const typename Graph::edge_type& edge, graph.out_edges(i)) {
           std::pair<vertex_id_type, vertex_id_type> e = 
-                                  std::make_pair(edge.source(), edge.target());
+            std::make_pair(edge.source(), edge.target());
           if (e.first > e.second) std::swap(e.first, e.second);
           if (edgetoid.find(e) == edgetoid.end()) {
             edgetoid[e] = curid;
@@ -663,13 +664,13 @@ namespace graphlab {
         boost::unordered_set<size_t> adjedges;
         foreach(const typename Graph::edge_type& edge, graph.in_edges(i)) {
           std::pair<vertex_id_type, vertex_id_type> e = 
-                                  std::make_pair(edge.source(), edge.target());
+            std::make_pair(edge.source(), edge.target());
           if (e.first > e.second) std::swap(e.first, e.second);
           adjedges.insert(edgetoid[e]);
         }
         foreach(const typename Graph::edge_type& edge, graph.out_edges(i)) {
           std::pair<vertex_id_type, vertex_id_type> e = 
-                                  std::make_pair(edge.source(), edge.target());
+            std::make_pair(edge.source(), edge.target());
           if (e.first > e.second) std::swap(e.first, e.second);
           adjedges.insert(edgetoid[e]);
         }

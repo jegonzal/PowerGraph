@@ -918,7 +918,7 @@ namespace graphlab {
       // -------------------- Execute Sync Operations ------------------------ //
       // Evaluate pending sync operations
       BEGIN_TRACEPOINT(eng_syncqueue);
-      aggregator.evaluate_queue(last_update_count());
+      aggregator.evaluate_queue();
       END_TRACEPOINT(eng_syncqueue);
       // --------------- Evaluate Termination Conditions --------------------- //
       // Evaluate the available termination conditions and if the

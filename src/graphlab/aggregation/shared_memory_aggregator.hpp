@@ -217,7 +217,7 @@ namespace graphlab {
     } // end of sync_now
 
 
-    void evaluate_queue(size_t last_update_count) {
+    void evaluate_queue() {
       // if the engine is no longer running or there is nothing in the
       // sync queue then we terminate early
       if(sync_queue.empty()) return;
@@ -230,7 +230,7 @@ namespace graphlab {
       const size_t next_ucount = size_t(-negated_next_ucount);
       // if we have more updates than the next update count for this
       // task then run it
-      if(next_ucount < last_update_count) { // Run the actual sync
+      if(next_ucount < engine.last_update_count()) { // Run the actual sync
         const std::string key = sync_queue.top().first;
         sync_queue.pop();
         isync* sync = sync_map[key];

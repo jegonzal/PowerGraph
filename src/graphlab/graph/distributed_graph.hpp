@@ -634,10 +634,16 @@ namespace graphlab {
       return lvid2record[lvid];
     }
 
-    const vertex_record& l_get_vertex_record(const vertex_id_type lvid) const {
+    const vertex_record& l_get_vertex_record(const lvid_type lvid) const {
       ASSERT_LT(lvid, lvid2record.size());
       return lvid2record[lvid];
     }
+
+    bool l_is_master(const lvid_type lvid) const {
+      ASSERT_LT(lvid, lvid2record.size());
+      return lvid2record[lvid].owner == rpc.procid();
+    }
+
 
     local_graph_type& get_local_graph() {
       return local_graph;

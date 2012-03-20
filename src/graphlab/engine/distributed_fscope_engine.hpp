@@ -44,7 +44,7 @@
 #include <graphlab/rpc/dc_dist_object.hpp>
 #include <graphlab/scheduler/ischeduler.hpp>
 #include <graphlab/scheduler/scheduler_factory.hpp>
-
+#include <graphlab/aggregation/distributed_aggregator.hpp>
 
 #include <graphlab/util/tracepoint.hpp>
 #include <graphlab/rpc/distributed_event_log.hpp>
@@ -77,6 +77,8 @@ namespace graphlab {
     typedef ischeduler<local_graph_type, update_functor_type > ischeduler_type;
     typedef scheduler_factory<local_graph_type, update_functor_type> 
     scheduler_factory_type;
+
+    typedef distributed_aggregator<distributed_fscope_engine> aggregator_type;
 
     
     typedef typename iengine_base::icontext_type  icontext_type;
@@ -145,7 +147,7 @@ namespace graphlab {
     }; // end of thread local data
 
   private:
-    dc_dist_object<distributed_fscope_engine<Graph, UpdateFunctor> > rmi;
+    dc_dist_object< distributed_fscope_engine > rmi;
 
     //! The local engine options
     graphlab_options opts; 
@@ -155,9 +157,12 @@ namespace graphlab {
     thread_pool threads;
     //! the context manager
     std::vector<mutex> vlocks;
-    //    std::vector<rwlock> vlocks;
     //! The scheduler
     ischeduler_type* scheduler_ptr;
+    //! The aggregator type
+    aggregator_type aggregator;
+
+
     //! the vertex state
     std::vector<vertex_state> vstate;
     //! Engine state
@@ -292,28 +297,30 @@ namespace graphlab {
     };
     
   public:
-    distributed_fscope_engine(distributed_control &dc, graph_type& graph, 
+    distributed_fscope_engine(distributed_control& dc, graph_type& graph, 
                               size_t ncpus) : 
       rmi(dc, this), graph(graph), threads(ncpus),
-      vlocks(graph.num_local_vertices()), scheduler_ptr(NULL), 
-      consensus(dc, ncpus), max_pending_tasks((size_t)(-1)) {
+      vlocks(graph.num_local_vertices()), 
+      scheduler_ptr(NULL), 
+      aggregator(dc, *this, graph),
+      consensus(dc, ncpus), 
+      max_pending_tasks(-1) {
       rmi.barrier();
-      // TODO: Remove context creation.
-      // Added context to force compilation.   
-      context_type context;
+      aggregator.get_threads().resize(ncpus);
 #ifdef USE_EVENT_LOG
       PERMANENT_INITIALIZE_DIST_EVENT_LOG(eventlog, dc, std::cout, 3000, 
-                                dist_event_log::RATE_BAR);
+                                          dist_event_log::RATE_BAR);
 #else
       PERMANENT_INITIALIZE_DIST_EVENT_LOG(eventlog, dc, std::cout, 3000, 
-                                dist_event_log::LOG_FILE);
+                                          dist_event_log::LOG_FILE);
 #endif
       PERMANENT_ADD_DIST_EVENT_TYPE(eventlog, SCHEDULE_EVENT, "Schedule");
       PERMANENT_ADD_DIST_EVENT_TYPE(eventlog, UPDATE_EVENT, "Updates");
       PERMANENT_ADD_DIST_EVENT_TYPE(eventlog, WORK_ISSUED_EVENT, "Work Issued");
       PERMANENT_ADD_DIST_EVENT_TYPE(eventlog, INTERNAL_TASK_EVENT, "Internal");
       PERMANENT_ADD_DIST_EVENT_TYPE(eventlog, NO_WORK_EVENT, "No Work");
-      PERMANENT_ADD_DIST_EVENT_TYPE(eventlog, SCHEDULE_FROM_REMOTE_EVENT, "Remote Schedule");
+      PERMANENT_ADD_DIST_EVENT_TYPE(eventlog, SCHEDULE_FROM_REMOTE_EVENT, 
+                                    "Remote Schedule");
       PERMANENT_ADD_DIST_EVENT_TYPE(eventlog, USER_OP_EVENT, "User Ops");
 
       INITIALIZE_TRACER(disteng_eval_sched_task, 
@@ -325,7 +332,8 @@ namespace graphlab {
       INITIALIZE_TRACER(disteng_waiting_for_vstate_locks,
                         "distributed_fscope_engine: vstate Lock Contention");
       INITIALIZE_TRACER(disteng_evalfac,
-                        "distributed_fscope_engine: Time in Factorized Update user code");
+                        "distributed_fscope_engine: "
+                        "Time in Factorized Update user code");
       INITIALIZE_TRACER(disteng_internal_task_queue,
                         "distributed_fscope_engine: Time in Internal Task Queue");
       INITIALIZE_TRACER(disteng_scheduler_task_queue,
@@ -336,14 +344,13 @@ namespace graphlab {
      * Unique to the distributed engine. This must be called prior
      * to any schedule() call. 
      */
-    void initialize() {
+    void initialize() {      
       graph.finalize();
       logstream(LOG_INFO) 
         << rmi.procid() << ": Initializing..." << std::endl;
       // currently this code wipes out any exisiting data structures
       if(scheduler_ptr != NULL) {  delete scheduler_ptr; scheduler_ptr = NULL; }
-  
-
+      
       // construct the scheduler
       scheduler_ptr = scheduler_factory_type::
         new_scheduler(opts.scheduler_type,
@@ -437,7 +444,8 @@ namespace graphlab {
                       const std::string& order = "shuffle") {
       std::vector<vertex_id_type> vtxs;
       vtxs.reserve(graph.get_local_graph().num_vertices());
-      for(lvid_type lvid = 0; lvid < graph.get_local_graph().num_vertices(); ++lvid) {
+      for(lvid_type lvid = 0; lvid < graph.get_local_graph().num_vertices(); 
+          ++lvid) {
         if (graph.l_get_vertex_record(lvid).owner == rmi.procid()) 
           vtxs.push_back(lvid);        
       } 
@@ -886,6 +894,7 @@ namespace graphlab {
       update_functor_type task;
       
       while(1) {
+        aggregator.evaluate_queue();
         get_a_task(threadid, 
                    has_internal_task, internal_lvid,
                    has_sched_task, sched_lvid, task);
@@ -923,6 +932,7 @@ namespace graphlab {
       logstream(LOG_INFO) 
         << "Spawning " << threads.size() << " threads" << std::endl;
       ASSERT_TRUE(scheduler_ptr != NULL);
+      aggregator.initialize_queue();
       // start the scheduler
       scheduler_ptr->start();
       started = true;
@@ -943,7 +953,10 @@ namespace graphlab {
           boost::bind(&engine_type::thread_start, this, i);
         threads.launch(run_function);
       }
-      threads.join();
+      // TODO: This should be in a while loop to catch all exceptions
+      join_threads(threads);
+      join_threads(aggregator.get_threads());
+
       size_t ctasks = completed_tasks.value;
       rmi.all_reduce(ctasks);
       completed_tasks.value = ctasks;
@@ -976,22 +989,35 @@ namespace graphlab {
                                  << " on CPU " << i << std::endl;
         }
       }
-      /*for (size_t i = 0;i < vstate.size(); ++i) {
-        if(vstate[i].state != NONE) {
-        std::cout << "Vertex: " << i << ": " << vstate[i].state << " " << (int)(cmlocks->philosopherset[i].state) << " " << cmlocks->philosopherset[i].num_edges << " " << cmlocks->philosopherset[i].forks_acquired << "\n";
-          
-        foreach(typename local_graph_type::edge_type edge, cmlocks->graph.in_edges(i)) {
-        std::cout << (int)(cmlocks->forkset[cmlocks->graph.edge_id(edge)]) << " ";
-        }
-        std::cout << "\n";
-        foreach(typename local_graph_type::edge_type edge, cmlocks->graph.out_edges(i)) {
-        std::cout << (int)(cmlocks->forkset[cmlocks->graph.edge_id(edge)]) << " ";
-        }
-        std::cout << "\n";
-        getchar();
-        }
-        }*/
-    }
+    } // end of start
+
+
+
+    void join_threads(thread_pool& threads) {
+      threads.join();          
+      // // Join all the threads (looping while failed)
+      // bool join_successful = false;   
+      // while(!join_successful) {
+      //   try { 
+      //     // Join blocks until all exection threads return.  However if
+      //     // a thread terminates early due to exception in user code
+      //     // (e.g., update function throws an exception) this join may
+      //     // fail before all threads are joined.  If this happens we
+      //     // catch the exception and then try to kill the rest of the
+      //     // threads and proceed to join again.
+      //     threads.join();
+      //     join_successful = true; 
+      //   } catch (const char* error_str) {
+      //     logstream(LOG_ERROR) 
+      //       << "Exception in execution thread caught: " << error_str 
+      //       << std::endl;     
+      //     // // killall the running threads
+      //     exception_message = error_str;
+      //     exec_status = execution_status::EXCEPTION;
+      //   } 
+      // }
+    } // end of join_threads
+
   
 
 
@@ -1052,18 +1078,16 @@ namespace graphlab {
     template<typename Aggregate>
     void add_aggregator(const std::string& key,
                         const Aggregate& zero,
-                        size_t interval,
-                        bool use_barrier = false,
-                        vertex_id_type begin_vid = 0,
-                        vertex_id_type end_vid =
-                        std::numeric_limits<vertex_id_type>::max()) {
+                        size_t interval) {
       logstream(LOG_DEBUG) << "Add Aggregator : " << key << std::endl;
+      aggregator.add_aggregator(key, zero, interval);
     }
 
 
     //! Performs a sync immediately.
     void aggregate_now(const std::string& key) {
       logstream(LOG_DEBUG) << "Aggregate Now : " << key << std::endl;
+      aggregator.aggregate_now(key);
     }
   }; // end of class
 }; // namespace
