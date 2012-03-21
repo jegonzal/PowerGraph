@@ -311,8 +311,10 @@ public:
       // if there is an element here. erase it and reinsert
       if (!keyeq(data[i].first, IllegalValue)) {
         if (count(data[i].first)) continue;
-        value_type v = data[i];
-        erase(iterator(this, data_begin() + i));
+        non_const_value_type v = data[i];
+        data[i].first = IllegalValue;
+        numel--;
+        //erase(iterator(this, data_begin() + i));
         insert(v);
       }
     }
@@ -356,9 +358,20 @@ public:
     index_type insertpos = (index_type)(-1); // tracks where the current
                                      // inserted value went
     ++numel;
+
     // take a random walk down the tree
-    for (int i = 0;i < 1000; ++i) {
-      index_type idx = compute_hash(v.first, kranddist(drng));
+    for (int i = 0;i < 100; ++i) {
+      // first see if one of the hashes will work
+      index_type idx = 0;
+      bool found = false;
+      for (size_t j = 0; j < CuckooK; ++j) {
+        idx = compute_hash(v.first, j);
+        if (keyeq(data[idx].first, IllegalValue)) {
+          found = true;
+          break;
+        }
+      }
+      if (!found) idx = compute_hash(v.first, kranddist(drng));
       // if insertpos is -1, v holds the current value. and we
       //                     are inserting it into idx
       // if insertpos is idx, we are bumping v again. and v will hold the
@@ -367,7 +380,7 @@ public:
       if (insertpos == (index_type)(-1)) insertpos = idx;
       else if (insertpos == idx) insertpos = (index_type)(-1);
       // there is room here
-      if (keyeq(data[idx].first, IllegalValue)) {
+      if (found || keyeq(data[idx].first, IllegalValue)) {
         data[idx] = v;
         // success!
         return std::make_pair(iterator(this, data_begin() + insertpos), true);

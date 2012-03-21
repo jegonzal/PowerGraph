@@ -92,7 +92,7 @@ void benchmark() {
   }
   
   {
-    graphlab::cuckoo_map_pow2<uint32_t, uint32_t, (size_t)(-1), 3, uint32_t> cm(4);
+    graphlab::cuckoo_map_pow2<uint32_t, uint32_t, (size_t)(-1), 3, uint32_t> cm(128);
     
     //cm.reserve(102400);
     ti.start();
