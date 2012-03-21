@@ -1,6 +1,7 @@
 #include <graphlab/util/cuckoo_map.hpp>
 #include <graphlab/util/cuckoo_map_pow2.hpp>
 #include <graphlab/util/timer.hpp>
+#include <graphlab/util/memory_info.hpp>
 #include <boost/unordered_map.hpp>
 
 void sanity_checks() {
@@ -35,54 +36,81 @@ void sanity_checks() {
 }
 
 void benchmark() {
-  boost::unordered_map<size_t, size_t> um;
-  graphlab::cuckoo_map_pow2<size_t, size_t, (size_t)(-1), 4, uint32_t> cm(32);
-  //graphlab::cuckoo_map<size_t, size_t, (size_t)(-1), 2, uint32_t> cm;
-
   graphlab::timer ti;
-  ti.start();
-  for (size_t i = 0;i < 10000000; ++i) {
-    um[17 * i] = i;
+
+  std::vector<uint32_t> v;
+  uint32_t u = 0;
+  for (size_t i = 0;i < 100000000; ++i) {
+    v.push_back(u);
+    u += rand() % 8;
   }
-  std::cout << "10M unordered map inserts in " << ti.current_time() << " (Load factor = " << um.load_factor() << ")" << std::endl;
+    graphlab::memory_info::print_usage();
 
-  ti.start();
-  for (size_t i = 0;i < 10000000; ++i) {
-    size_t t = um[17 * i];
-    assert(t == i);
+  {
+    boost::unordered_map<uint32_t, uint32_t> um;
+    ti.start();
+    for (size_t i = 0;i < 100000000; ++i) {
+      um[v[i]] = i;
+    }
+    std::cout << "100M unordered map inserts in " << ti.current_time() << " (Load factor = " << um.load_factor() << ")" << std::endl;
+
+    graphlab::memory_info::print_usage();
+    
+    ti.start();
+    for (size_t i = 0;i < 10000000; ++i) {
+      size_t t = um[v[i]];
+      // assert(t == i);
+    }
+    std::cout << "10M unordered map successful probes in " << ti.current_time() << std::endl;
+    um.clear();
   }
-  std::cout << "10M unordered map successful probes in " << ti.current_time() << std::endl;
 
+  {
+    graphlab::cuckoo_map<uint32_t, uint32_t, (uint32_t)(-1), 2, uint32_t> cm(1024);
 
-  ti.start();
-  for (size_t i = 10000000;i < 20000000; ++i) {
-    assert(um.count(17 * i) == 0);
+    //cm.reserve(102400);
+    ti.start();
+    for (size_t i = 0;i < 100000000; ++i) {
+      cm[v[i]] = i;
+      if (i % 1000000 == 0) std::cout << cm.load_factor() << std::endl;
+
+    }
+    std::cout << "100M cuckoo map inserts in " << ti.current_time() << " (Load factor = " << cm.load_factor() << ")" << std::endl;
+
+    graphlab::memory_info::print_usage();
+
+    ti.start();
+    for (size_t i = 0;i < 10000000; ++i) {
+      size_t t = cm[v[i]];
+      // assert(t == i);
+    }
+    std::cout << "10M cuckoo map successful probes in " << ti.current_time() << std::endl;
+
   }
-  std::cout << "10M unordered map failed probes in " << ti.current_time() << std::endl;
-
-  um.clear();
-
-
-  //cm.reserve(12000000);
-  ti.start();
-  for (size_t i = 0;i < 10000000; ++i) {
-    cm[17 * i] = i;
-  }
-  std::cout << "10M cuckoo map inserts in " << ti.current_time() << " (Load factor = " << cm.load_factor() << ")" << std::endl;
-
-  ti.start();
-  for (size_t i = 0;i < 10000000; ++i) {
-    size_t t = cm[17 * i];
-    assert(t == i);
-  }
-  std::cout << "10M cuckoo map successful probes in " << ti.current_time() << std::endl;
-
-  ti.start();
-  for (size_t i = 10000000;i < 20000000; ++i) {
-    assert(cm.count(17 * i) == 0);
-  }
-  std::cout << "10M cuckoo map failed probes in " << ti.current_time() << std::endl;
   
+  {
+    graphlab::cuckoo_map_pow2<size_t, size_t, (size_t)(-1), 3, uint32_t> cm(32);
+    
+    //cm.reserve(102400);
+    ti.start();
+    for (size_t i = 0;i < 100000000; ++i) {
+      cm[v[i]] = i;
+      if (i % 1000000 == 0) std::cout << cm.load_factor() << std::endl;
+
+    }
+    std::cout << "10M cuckoo map pow2 inserts in " << ti.current_time() << " (Load factor = " << cm.load_factor() << ")" << std::endl;
+
+    graphlab::memory_info::print_usage();
+
+    ti.start();
+    for (size_t i = 0;i < 10000000; ++i) {
+      size_t t = cm[v[i]];
+      // assert(t == i);
+    }
+    std::cout << "10M cuckoo map pow2 successful probes in " << ti.current_time() << std::endl;
+
+  }
+
 }
 
 int main(int argc, char** argv) {
@@ -95,6 +123,6 @@ int main(int argc, char** argv) {
   std::cout << "Running Benchmarks" << std::endl;
   benchmark();
 
-  
-  
+
+
 }

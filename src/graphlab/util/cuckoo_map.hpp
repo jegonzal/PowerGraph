@@ -248,12 +248,34 @@ public:
 
   }
 
+   /*
+   * Bob Jenkin's 32 bit integer mix function from
+   * http://home.comcast.net/~bretm/hash/3.html
+   */
+  static size_t mix(size_t state) {
+    state += (state << 12);
+    state ^= (state >> 22);
+    state += (state << 4);
+    state ^= (state >> 9);
+    state += (state << 10);
+    state ^= (state >> 2);
+    state += (state << 7);
+    state ^= (state >> 12);
+    return state;
+  }
   index_type compute_hash(const Key& k , uint32_t seed) const {
-    //static size_t a[5] = {15485867, 217645190, 920419813, 2654435760, 6461333093};
-    // from hash_combine
-    return (seed ^ ((index_type)hashfun(k) + 0x9e3779b9 + (seed << 6) + (seed >> 2))) % (index_type)data.size();
-    //uint32_t h = hashfun(k);
-    //return (boost::hash_value(hashfun(k) ^ seed)) % data.size();
+    // a bunch of random numbers
+    static size_t a[8] = {0x6306AA9DFC13C8E7,
+                          0xA8CD7FBCA2A9FFD4,
+                          0x40D341EB597ECDDC,
+                          0x99CFA1168AF8DA7E,
+                          0x7C55BCC3AF531D42,
+                          0x1BC49DB0842A21DD,
+                          0x2181F03B1DEE299F,
+                          0xD524D92CBFEC63E9};
+
+    size_t s = mix(a[seed] ^ hashfun(k));
+    return s % (index_type)data.size();
   }
 
   void rehash() {
@@ -278,7 +300,9 @@ public:
   }
   
   void reserve(size_t newlen) {
+    data.reserve(newlen);
     data.resize(newlen, std::make_pair<Key, Value>(IllegalValue, Value()));
+    std::cout << data.size() << "/" << data.capacity() << std::endl;
     rehash();
   }
   
