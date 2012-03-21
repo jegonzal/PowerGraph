@@ -38,21 +38,24 @@ void sanity_checks() {
 void benchmark() {
   graphlab::timer ti;
 
+  size_t NUM_ELS = 10000000;
+  
   std::vector<uint32_t> v;
   uint32_t u = 0;
-  for (size_t i = 0;i < 100000000; ++i) {
+  for (size_t i = 0;i < NUM_ELS; ++i) {
     v.push_back(u);
-    u += rand() % 8;
+    u += 1 + rand() % 8;
   }
-    graphlab::memory_info::print_usage();
+  std::random_shuffle(v.begin(), v.end());
+  graphlab::memory_info::print_usage();
 
   {
     boost::unordered_map<uint32_t, uint32_t> um;
     ti.start();
-    for (size_t i = 0;i < 100000000; ++i) {
+    for (size_t i = 0;i < NUM_ELS; ++i) {
       um[v[i]] = i;
     }
-    std::cout << "100M unordered map inserts in " << ti.current_time() << " (Load factor = " << um.load_factor() << ")" << std::endl;
+    std::cout <<  NUM_ELS / 1000000 << "M unordered map inserts in " << ti.current_time() << " (Load factor = " << um.load_factor() << ")" << std::endl;
 
     graphlab::memory_info::print_usage();
     
@@ -64,18 +67,18 @@ void benchmark() {
     std::cout << "10M unordered map successful probes in " << ti.current_time() << std::endl;
     um.clear();
   }
-
+/*
   {
     graphlab::cuckoo_map<uint32_t, uint32_t, (uint32_t)(-1), 2, uint32_t> cm(1024);
 
     //cm.reserve(102400);
     ti.start();
-    for (size_t i = 0;i < 100000000; ++i) {
+    for (size_t i = 0;i < NUM_ELS; ++i) {
       cm[v[i]] = i;
       if (i % 1000000 == 0) std::cout << cm.load_factor() << std::endl;
 
     }
-    std::cout << "100M cuckoo map inserts in " << ti.current_time() << " (Load factor = " << cm.load_factor() << ")" << std::endl;
+    std::cout <<  NUM_ELS / 1000000 << "M cuckoo map inserts in " << ti.current_time() << " (Load factor = " << cm.load_factor() << ")" << std::endl;
 
     graphlab::memory_info::print_usage();
 
@@ -87,18 +90,18 @@ void benchmark() {
     std::cout << "10M cuckoo map successful probes in " << ti.current_time() << std::endl;
 
   }
-  
+  */
   {
     graphlab::cuckoo_map_pow2<size_t, size_t, (size_t)(-1), 3, uint32_t> cm(32);
     
     //cm.reserve(102400);
     ti.start();
-    for (size_t i = 0;i < 100000000; ++i) {
+    for (size_t i = 0;i < NUM_ELS; ++i) {
       cm[v[i]] = i;
       if (i % 1000000 == 0) std::cout << cm.load_factor() << std::endl;
 
     }
-    std::cout << "10M cuckoo map pow2 inserts in " << ti.current_time() << " (Load factor = " << cm.load_factor() << ")" << std::endl;
+    std::cout << NUM_ELS / 1000000 << "M cuckoo map pow2 inserts in " << ti.current_time() << " (Load factor = " << cm.load_factor() << ")" << std::endl;
 
     graphlab::memory_info::print_usage();
 

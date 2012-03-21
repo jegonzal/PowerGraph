@@ -37,26 +37,37 @@ public:
 
 private:
   // internal typedefs
-  typedef std::vector<std::pair<Key, Value> > map_container_type;
+  typedef std::pair<Key,Value> non_const_value_type;
+  typedef non_const_value_type* map_container_type;
+  typedef non_const_value_type* map_container_iterator;
   typedef boost::unordered_map<Key, Value, Hash, Pred> stash_container_type;
 
 
   index_type numel;
   index_type maxstash;
   map_container_type data;
+  size_t datalen;
   stash_container_type stash;
   boost::rand48  drng;
   boost::uniform_int<index_type> kranddist;
   hasher hashfun;
   key_equal keyeq;
   index_type mask;
+
+  map_container_iterator data_begin() {
+    return data;
+  }
+
+  map_container_iterator data_end() {
+    return data + datalen;
+  }
 public:
 
 
   struct const_iterator {
     cuckoo_map_pow2* cmap;
     bool in_stash;
-    typename cuckoo_map_pow2::map_container_type::const_iterator vec_iter;
+    typename cuckoo_map_pow2::map_container_iterator vec_iter;
     typename cuckoo_map_pow2::stash_container_type::const_iterator stash_iter;
 
     typedef std::forward_iterator_tag iterator_category;
@@ -74,9 +85,9 @@ public:
         ++vec_iter;
         // we are in the main vector. try to advance the
         // iterator until I hit another data element
-        while(vec_iter != cmap->data.end() &&
+        while(vec_iter != cmap->data_end() &&
               !cmap->key_eq()(vec_iter->first, IllegalValue)) ++vec_iter;
-        if (vec_iter == cmap->data.end()) {
+        if (vec_iter == cmap->data_end()) {
           in_stash = true;
           stash_iter = cmap->stash.begin();
         }
@@ -115,7 +126,7 @@ public:
     }
 
     private:
-    const_iterator(cuckoo_map_pow2* cmap, typename cuckoo_map_pow2::map_container_type::const_iterator vec_iter):
+    const_iterator(cuckoo_map_pow2* cmap, typename cuckoo_map_pow2::map_container_iterator vec_iter):
       cmap(cmap), in_stash(false), vec_iter(vec_iter), stash_iter(cmap->stash.begin()) { }
 
     const_iterator(cuckoo_map_pow2* cmap, typename cuckoo_map_pow2::stash_container_type::const_iterator stash_iter):
@@ -126,7 +137,7 @@ public:
   struct iterator {
     cuckoo_map_pow2* cmap;
     bool in_stash;
-    typename cuckoo_map_pow2::map_container_type::iterator vec_iter;
+    typename cuckoo_map_pow2::map_container_iterator vec_iter;
     typename cuckoo_map_pow2::stash_container_type::iterator stash_iter;
 
     typedef std::forward_iterator_tag iterator_category;
@@ -153,9 +164,9 @@ public:
         ++vec_iter;
         // we are in the main vector. try to advance the
         // iterator until I hit another data element
-        while(vec_iter != cmap->data.end() &&
+        while(vec_iter != cmap->data_end() &&
               !cmap->key_eq()(vec_iter->first, IllegalValue)) ++vec_iter;
-        if (vec_iter == cmap->data.end()) {
+        if (vec_iter == cmap->data_end()) {
           in_stash = true;
           stash_iter = cmap->stash.begin();
         }
@@ -195,7 +206,7 @@ public:
 
 
     private:
-    iterator(cuckoo_map_pow2* cmap, typename cuckoo_map_pow2::map_container_type::iterator vec_iter):
+    iterator(cuckoo_map_pow2* cmap, typename cuckoo_map_pow2::map_container_iterator vec_iter):
       cmap(cmap), in_stash(false), vec_iter(vec_iter) { }
 
     iterator(cuckoo_map_pow2* cmap, typename cuckoo_map_pow2::stash_container_type::iterator stash_iter):
@@ -207,10 +218,21 @@ public:
   cuckoo_map_pow2(index_type stashsize = 8,
             hasher const& h = hasher(),
             key_equal const& k = key_equal()):numel(0),maxstash(stashsize),
-            data(128, std::make_pair<Key, Value>(IllegalValue, Value())),
+            data(NULL),
             drng(time(NULL)),
             kranddist(0, CuckooK - 1), hashfun(h), keyeq(k), mask(127) {
     stash.max_load_factor(1.0);
+    data = (map_container_type)malloc(sizeof(value_type) * 128);
+    std::uninitialized_fill(data, data + 128, std::make_pair<Key, Value>(IllegalValue, mapped_type()));
+    datalen = 128;
+  }
+
+  ~cuckoo_map_pow2() {
+    // call ze destructors
+    for(size_t i = 0; i < datalen; ++i) {
+      data[i].~non_const_value_type();
+    }
+    free(data);
   }
 
   index_type size() {
@@ -221,9 +243,9 @@ public:
     iterator iter;
     iter.cmap = this;
     iter.in_stash = false;
-    iter.vec_iter = data.begin();
+    iter.vec_iter = data_begin();
 
-    while(iter.vec_iter != data.end() &&
+    while(iter.vec_iter != data_end() &&
           !keyeq(iter.vec_iter->first, IllegalValue)) ++iter.vec_iter;
     return iter;
   }
@@ -237,9 +259,9 @@ public:
     const_iterator iter;
     iter.cmap = this;
     iter.in_stash = false;
-    iter.vec_iter = data.begin();
+    iter.vec_iter = data_begin();
 
-    while(iter.vec_iter != data.end() &&
+    while(iter.vec_iter != data_end() &&
           !keyeq(iter.vec_iter->first, IllegalValue)) ++iter.vec_iter;
     return iter;
   }
@@ -285,12 +307,12 @@ public:
     stmp.swap(stash);
     // effectively, stmp elements are deleted
     numel -= stmp.size();
-    for (size_t i = 0;i < data.size(); ++i) {
+    for (size_t i = 0;i < datalen; ++i) {
       // if there is an element here. erase it and reinsert
       if (!keyeq(data[i].first, IllegalValue)) {
         if (count(data[i].first)) continue;
         value_type v = data[i];
-        erase(iterator(this, data.begin() + i));
+        erase(iterator(this, data_begin() + i));
         insert(v);
       }
     }
@@ -316,16 +338,19 @@ public:
   void reserve(size_t newlen) {
     newlen = next_powerof2(newlen);
     mask = newlen - 1;
-    data.reserve(newlen);
-    data.resize(newlen, std::make_pair<Key, Value>(IllegalValue, Value()));
+    //data.reserve(newlen);
+    //data.resize(newlen, std::make_pair<Key, Value>(IllegalValue, Value()));
+    data = (map_container_type)realloc(data, newlen * sizeof(value_type));
+    std::uninitialized_fill(data_end(), data+newlen, std::make_pair<Key, Value>(IllegalValue, Value()));
+    datalen = newlen;
     rehash();
   }
 
   std::pair<iterator, bool> insert(const value_type& v_) {
-    typename map_container_type::value_type v = v_;
+    typename std::pair<Key, Value> v = v_;
     if (stash.size() > maxstash) {
       // resize
-      reserve(data.size() * 2);
+      reserve(datalen * 2);
     }
 
     index_type insertpos = (index_type)(-1); // tracks where the current
@@ -345,7 +370,7 @@ public:
       if (keyeq(data[idx].first, IllegalValue)) {
         data[idx] = v;
         // success!
-        return std::make_pair(iterator(this, data.begin() + insertpos), true);
+        return std::make_pair(iterator(this, data_begin() + insertpos), true);
       }
       // failed to insert!
       // try again!
@@ -360,7 +385,7 @@ public:
       return std::make_pair(iterator(this, stashiter), true);
     }
     else {
-      return std::make_pair(iterator(this, data.begin() + insertpos), true);
+      return std::make_pair(iterator(this, data_begin() + insertpos), true);
     }
   }
 
@@ -368,7 +393,7 @@ public:
   iterator find(key_type const& k) {
     for (uint32_t i = 0;i < CuckooK; ++i) {
       index_type idx = compute_hash(k, i);
-      if (keyeq(data[idx].first, k)) return iterator(this, data.begin() + idx);
+      if (keyeq(data[idx].first, k)) return iterator(this, data_begin() + idx);
     }
     return iterator(this, stash.find(k));
   }
@@ -376,7 +401,7 @@ public:
   const_iterator find(key_type const& k) const {
     for (uint32_t i = 0;i < CuckooK; ++i) {
       index_type idx = compute_hash(k, i);
-      if (keyeq(data[idx].first, k)) return iterator(this, data.begin() + idx);
+      if (keyeq(data[idx].first, k)) return iterator(this, data_begin() + idx);
     }
     return iterator(this, stash.find(k));
   }
@@ -436,7 +461,7 @@ public:
 
 
   float load_factor() const {
-    return (float)numel / (data.size() + stash.size());
+    return (float)numel / (datalen + stash.size());
   }
 };
 
