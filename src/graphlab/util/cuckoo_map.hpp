@@ -19,7 +19,7 @@ namespace graphlab {
  */
 template <typename Key, typename Value,
           Key IllegalValue, 
-          size_t CuckooK = 2,
+          size_t CuckooK = 3,
           typename IndexType = size_t,
           typename Hash = boost::hash<Key>,
           typename Pred = std::equal_to<Key> >
