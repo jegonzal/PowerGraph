@@ -1,3 +1,4 @@
+#include <sstream>
 #include <graphlab/util/cuckoo_map.hpp>
 #include <graphlab/util/cuckoo_map_pow2.hpp>
 #include <graphlab/util/timer.hpp>
@@ -5,6 +6,7 @@
 #include <graphlab/util/memory_info.hpp>
 #include <boost/unordered_map.hpp>
 #include <graphlab/logger/assertions.hpp>
+#include <graphlab/serialization/serialization_includes.hpp>
 #include <graphlab/macros_def.hpp>
 
 void sanity_checks() {
@@ -143,6 +145,50 @@ void more_interesting_data_types_check() {
   foreach(const vpair& v, cm) {
     ASSERT_EQ(v.second, um[v.first]);
   }
+
+  // test assignment
+  graphlab::cuckoo_map_pow2<std::string, std::string> cm2("");
+  cm2 = cm;
+
+  foreach(vpair& v, um) {
+    ASSERT_EQ(v.second, cm2[v.first]);
+  }
+
+
+  foreach(vpair& v, cm2) {
+    ASSERT_EQ(v.second, um[v.first]);
+  }
+
+
+  foreach(const vpair& v, cm2) {
+    ASSERT_EQ(v.second, um[v.first]);
+  }
+
+  std::stringstream strm;
+  graphlab::oarchive oarc(strm);
+  oarc << cm;
+  strm.flush();
+
+  
+  cm2.clear();
+  ASSERT_EQ(cm2.size(), 0);
+  graphlab::iarchive iarc(strm);
+  iarc >> cm2;
+  ASSERT_EQ(cm2.size(), 10000);
+
+  foreach(vpair& v, um) {
+    ASSERT_EQ(v.second, cm2[v.first]);
+  }
+
+
+  foreach(vpair& v, cm2) {
+    ASSERT_EQ(v.second, um[v.first]);
+  }
+
+
+  foreach(const vpair& v, cm2) {
+    ASSERT_EQ(v.second, um[v.first]);
+  }
 }
 
 
@@ -171,6 +217,52 @@ void more_interesting_data_types_check2() {
 
 
   foreach(const vpair& v, cm) {
+    ASSERT_EQ(v.second, um[v.first]);
+  }
+
+
+  // test assignment
+  graphlab::cuckoo_map<std::string, std::string> cm2("");
+  cm2 = cm;
+
+  foreach(vpair& v, um) {
+    ASSERT_EQ(v.second, cm2[v.first]);
+  }
+
+
+  foreach(vpair& v, cm2) {
+    ASSERT_EQ(v.second, um[v.first]);
+  }
+
+
+  foreach(const vpair& v, cm2) {
+    ASSERT_EQ(v.second, um[v.first]);
+  }
+
+
+  std::stringstream strm;
+  graphlab::oarchive oarc(strm);
+  oarc << cm;
+  strm.flush();
+
+
+  cm2.clear();
+  ASSERT_EQ(cm2.size(), 0);
+  graphlab::iarchive iarc(strm);
+  iarc >> cm2;
+  ASSERT_EQ(cm2.size(), 10000);
+
+  foreach(vpair& v, um) {
+    ASSERT_EQ(v.second, cm2[v.first]);
+  }
+
+
+  foreach(vpair& v, cm2) {
+    ASSERT_EQ(v.second, um[v.first]);
+  }
+
+
+  foreach(const vpair& v, cm2) {
     ASSERT_EQ(v.second, um[v.first]);
   }
 }
