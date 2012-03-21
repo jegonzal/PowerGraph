@@ -302,7 +302,7 @@ public:
   void reserve(size_t newlen) {
     data.reserve(newlen);
     data.resize(newlen, std::make_pair<Key, Value>(IllegalValue, Value()));
-    std::cout << data.size() << "/" << data.capacity() << std::endl;
+    //std::cout << data.size() << "/" << data.capacity() << std::endl;
     rehash();
   }
   
