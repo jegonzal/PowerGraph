@@ -57,6 +57,7 @@ add_library(graphlab STATIC
   util/net_util.cpp
   util/safe_circular_char_buffer.cpp
   util/fs_util.cpp
+  util/memory_info.cpp
   util/tracepoint.cpp
   util/event_log.cpp
   util/md5.cpp

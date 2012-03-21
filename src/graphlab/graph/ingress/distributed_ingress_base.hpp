@@ -25,14 +25,12 @@
 
 #include <boost/functional/hash.hpp>
 
-#include <google/malloc_extension.h>
-
+#include <graphlab/util/memory_info.hpp>
 #include <graphlab/rpc/buffered_exchange.hpp>
 #include <graphlab/graph/graph_basic_types.hpp>
 #include <graphlab/graph/ingress/idistributed_ingress.hpp>
 #include <graphlab/graph/ingress/ingress_edge_decision.hpp>
 #include <graphlab/graph/distributed_graph.hpp>
-// #include <google/malloc_extension.h>
 
 #include <graphlab/macros_def.hpp>
 namespace graphlab {
@@ -90,7 +88,7 @@ namespace graphlab {
     struct vertex_info : public graphlab::IS_POD_TYPE {
       vertex_id_type vid, num_in_edges, num_out_edges;
       vertex_info(vertex_id_type vid = 0, vertex_id_type num_in_edges = 0,
-                     vertex_id_type num_out_edges = 0) : 
+                  vertex_id_type num_out_edges = 0) : 
         vid(vid), num_in_edges(num_in_edges), num_out_edges(num_out_edges) { }     
     }; // end of vertex_info
 
@@ -159,24 +157,7 @@ namespace graphlab {
       // Flush any additional data
       edge_exchange.flush(); vertex_exchange.flush();     
       
-      // { 
-      //   size_t heap_size;
-      //   size_t allocate_size;
-      //   MallocExtension::instance()->
-      //     GetNumericProperty("generic.heap_size", &heap_size);
-      //   MallocExtension::instance()->
-      //     GetNumericProperty("generic.current_allocated_bytes", 
-      //                        &allocate_size);
-      //   if (rpc.procid() == 0) {
-      //     std::cout << "Post Flush" << std::endl;
-      //     std::cout << "Heap Size: " << (double)heap_size/(1024*1024) 
-      //               << "MB" << "\n";
-      //     std::cout << "Allocated Size: " << 
-      //       (double)allocate_size/(1024*1024) 
-      //               << "MB" << "\n";
-      //   }        
-      // }
-
+      memory_info::print_usage("Post Flush");
 
       logstream(LOG_INFO) << "Graph Finalize: constructing local graph" << std::endl;
       { // Add all the edges to the local graph
@@ -205,26 +186,9 @@ namespace graphlab {
         } // end for loop over buffers
         edge_exchange.clear();
       }
-
-      // { 
-      //   size_t heap_size;
-      //   size_t allocate_size;
-      //   MallocExtension::instance()->
-      //     GetNumericProperty("generic.heap_size", &heap_size);
-      //   MallocExtension::instance()->
-      //     GetNumericProperty("generic.current_allocated_bytes", 
-      //                        &allocate_size);
-      //   if (rpc.procid() == 0) {
-      //     std::cout << "Finished Graph2 Populate" << std::endl;
-      //     std::cout << "Heap Size: " << (double)heap_size/(1024*1024) 
-      //               << "MB" << "\n";
-      //     std::cout << "Allocated Size: " << 
-      //       (double)allocate_size/(1024*1024) 
-      //               << "MB" << "\n";
-      //   }
-      // }
-
-
+      memory_info::print_usage("Finished populating graphlab2");
+      
+      
       // Finalize local graph
       logstream(LOG_INFO) << "Graph Finalize: finalizing local graph" 
                           << std::endl;
@@ -234,28 +198,9 @@ namespace graphlab {
                           << std::endl
                           << "\t nedges: " << graph.local_graph.num_edges()
                           << std::endl;
-
-
-
-      // { size_t heap_size;
-      //   size_t allocate_size;
-      //   MallocExtension::instance()->
-      //     GetNumericProperty("generic.heap_size", &heap_size);
-      //   MallocExtension::instance()->
-      //     GetNumericProperty("generic.current_allocated_bytes", 
-      //                        &allocate_size);
-      //   if (rpc.procid() == 0) {
-      //     std::cout << "Finished Graph2 Finalize" << std::endl;
-      //     std::cout << "Heap Size: " << (double)heap_size/(1024*1024) 
-      //               << "MB" << "\n";
-      //     std::cout << "Allocated Size: " << 
-      //       (double)allocate_size/(1024*1024) 
-      //               << "MB" << "\n";
-      //   }
-      // }
-
-     
-
+      
+      memory_info::print_usage("Finished finalizing graph2"); 
+       
       { // Initialize vertex records
         graph.lvid2record.resize(graph.vid2lvid.size());
         foreach(const vid2lvid_pair_type& pair, graph.vid2lvid) 
@@ -263,25 +208,7 @@ namespace graphlab {
         // Check conditions on graph
         ASSERT_EQ(graph.local_graph.num_vertices(), graph.lvid2record.size());
       }
-      
-      // {
-      //   size_t heap_size;
-      //   size_t allocate_size;
-      //   MallocExtension::instance()->
-      //     GetNumericProperty("generic.heap_size", &heap_size);
-      //   MallocExtension::instance()->
-      //     GetNumericProperty("generic.current_allocated_bytes", 
-      //                        &allocate_size);
-      //   if (rpc.procid() == 0) {
-      //     std::cout << "Finished lvid2record" << std::endl;       
-      //     std::cout << "Heap Size: " << (double)heap_size/(1024*1024) 
-      //               << "MB" << "\n";
-      //     std::cout << "Allocated Size: " << 
-      //       (double)allocate_size/(1024*1024) 
-      //               << "MB" << "\n";
-      //   }
-      // }
-
+      memory_info::print_usage("Finished lvid2record");
 
       // Setup the map containing all the vertices being negotiated by
       // this machine
@@ -297,24 +224,7 @@ namespace graphlab {
         vertex_exchange.clear();
       } // end of loop to populate vrecmap
 
-
-      // {
-      //   size_t heap_size;
-      //   size_t allocate_size;
-      //   MallocExtension::instance()->
-      //     GetNumericProperty("generic.heap_size", &heap_size);
-      //   MallocExtension::instance()->
-      //     GetNumericProperty("generic.current_allocated_bytes", 
-      //                        &allocate_size);
-      //   if (rpc.procid() == 0) {
-      //     std::cout << "Depleted vertex buffer exchange" << std::endl;       
-      //     std::cout << "Heap Size: " << (double)heap_size/(1024*1024) 
-      //               << "MB" << "\n";
-      //     std::cout << "Allocated Size: " << 
-      //       (double)allocate_size/(1024*1024) 
-      //               << "MB" << "\n";
-      //   }
-      // }
+      memory_info::print_usage("Emptied vertex data exchange");
 
 
 
@@ -351,25 +261,7 @@ namespace graphlab {
         } // end of recv while loop
       } // end of compute mirror information
 
-      // {
-      //   size_t heap_size;
-      //   size_t allocate_size;
-      //   MallocExtension::instance()->
-      //     GetNumericProperty("generic.heap_size", &heap_size);
-      //   MallocExtension::instance()->
-      //     GetNumericProperty("generic.current_allocated_bytes", 
-      //                        &allocate_size);
-      //   if (rpc.procid() == 0) {
-      //     std::cout << "Exchanged vertex info" << std::endl;       
-      //     std::cout << "Heap Size: " << (double)heap_size/(1024*1024) 
-      //               << "MB" << "\n";
-      //     std::cout << "Allocated Size: " << 
-      //       (double)allocate_size/(1024*1024) 
-      //               << "MB" << "\n";
-      //   }
-      // }
-
-  
+      memory_info::print_usage("Exchanged basic vertex info");
 
       { // Determine masters for all negotiated vertices
         logstream(LOG_INFO) 
@@ -405,6 +297,8 @@ namespace graphlab {
           rec.owner = master;
           rec.mirrors.clear_bit(master); // Master is not a mirror         
         } // end of loop over all vertex negotiation records
+
+        memory_info::print_usage("Finished computing masters");
 
         // Exchange the negotiation records
         typedef std::pair<vertex_id_type, vertex_negotiator_record> 
@@ -475,33 +369,16 @@ namespace graphlab {
             ASSERT_LT(lvid, graph.lvid2record.size());
             vertex_record& local_record = graph.lvid2record[lvid];
             local_record.owner = negotiator_rec.owner;
-              ASSERT_EQ(local_record.num_in_edges, 0); 
-              local_record.num_in_edges = negotiator_rec.num_in_edges;
-              ASSERT_EQ(local_record.num_out_edges, 0);
-              local_record.num_out_edges = negotiator_rec.num_out_edges;
-              local_record._mirrors = negotiator_rec.mirrors;
+            ASSERT_EQ(local_record.num_in_edges, 0); 
+            local_record.num_in_edges = negotiator_rec.num_in_edges;
+            ASSERT_EQ(local_record.num_out_edges, 0);
+            local_record.num_out_edges = negotiator_rec.num_out_edges;
+            local_record._mirrors = negotiator_rec.mirrors;
           }
         } // end of while loop over negotiator_exchange.recv
       } // end of master exchange
 
-      // {
-      //   size_t heap_size;
-      //   size_t allocate_size;
-      //   MallocExtension::instance()->
-      //     GetNumericProperty("generic.heap_size", &heap_size);
-      //   MallocExtension::instance()->
-      //     GetNumericProperty("generic.current_allocated_bytes", 
-      //                        &allocate_size);
-      //   if (rpc.procid() == 0) {
-      //     std::cout << "Computed Masters and updated mirrors" 
-      //               << std::endl;       
-      //     std::cout << "Heap Size: " << (double)heap_size/(1024*1024) 
-      //               << "MB" << "\n";
-      //     std::cout << "Allocated Size: " << 
-      //       (double)allocate_size/(1024*1024) 
-      //               << "MB" << "\n";
-      //   }
-      // }
+      memory_info::print_usage("Finished sending updating mirrors");
 
 
       ASSERT_EQ(graph.vid2lvid.size(), graph.local_graph.num_vertices());
