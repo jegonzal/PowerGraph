@@ -287,16 +287,16 @@ public:
     return state;
   }
 
-  index_type compute_hash(const Key& k , uint32_t seed) const {
+  index_type compute_hash(const Key& k , const uint32_t seed) const {
     // a bunch of random numbers
-    static size_t a[8] = {0x6306AA9DFC13C8E7,
-                          0xA8CD7FBCA2A9FFD4,
-                          0x40D341EB597ECDDC,
-                          0x99CFA1168AF8DA7E,
-                          0x7C55BCC3AF531D42,
-                          0x1BC49DB0842A21DD,
-                          0x2181F03B1DEE299F,
-                          0xD524D92CBFEC63E9};
+    static const size_t a[8] = {0x6306AA9DFC13C8E7,
+                                0xA8CD7FBCA2A9FFD4,
+                                0x40D341EB597ECDDC,
+                                0x99CFA1168AF8DA7E,
+                                0x7C55BCC3AF531D42,
+                                0x1BC49DB0842A21DD,
+                                0x2181F03B1DEE299F,
+                                0xD524D92CBFEC63E9};
 
     index_type s = mix(a[seed] ^ hashfun(k));
     return s & mask;
