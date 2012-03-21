@@ -30,7 +30,7 @@
 #include <graphlab/graph/ingress/idistributed_ingress.hpp>
 #include <graphlab/graph/ingress/distributed_ingress_base.hpp>
 #include <graphlab/graph/distributed_graph.hpp>
-// #include <google/malloc_extension.h>
+
 
 #include <graphlab/macros_def.hpp>
 namespace graphlab {
