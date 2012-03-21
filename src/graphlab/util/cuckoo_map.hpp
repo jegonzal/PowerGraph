@@ -9,7 +9,7 @@
 namespace graphlab {
 
 
-  
+
 /**
  * A cuckoo hash map which requires the user to
  * provide an "illegal" value thus avoiding the need
@@ -18,7 +18,6 @@ namespace graphlab {
  * entirely STL compliant.
  */
 template <typename Key, typename Value,
-          Key IllegalValue, 
           size_t CuckooK = 3,
           typename IndexType = size_t,
           typename Hash = boost::hash<Key>,
@@ -33,29 +32,50 @@ public:
   typedef Hash                                     hasher;
   typedef Pred                                     key_equal;
   typedef IndexType                                index_type;
-  
+
 private:
   // internal typedefs
-  typedef std::vector<std::pair<Key, Value> > map_container_type;
+  typedef std::pair<key_type, mapped_type> non_const_value_type;
+  typedef value_type* map_container_type;
+  typedef value_type* map_container_iterator;
   typedef boost::unordered_map<Key, Value, Hash, Pred> stash_container_type;
-  
-  
+
+  key_type illegalkey;
   index_type numel;
   index_type maxstash;
   map_container_type data;
+  size_t datalen;
   stash_container_type stash;
   boost::rand48  drng;
   boost::uniform_int<index_type> kranddist;
-
   hasher hashfun;
   key_equal keyeq;
+
+  map_container_iterator data_begin() {
+    return data;
+  }
+
+  map_container_iterator data_end() {
+    return data + datalen;
+  }
+
+  // bypass the const key_type with a placement new
+  void replace_in_vector(map_container_iterator iter,
+                         const key_type& key,
+                         const mapped_type& val) {
+    // delete
+    iter->~value_type();
+    // placement new
+    new(iter) value_type(key, val);
+  }
+
 public:
 
 
   struct const_iterator {
     cuckoo_map* cmap;
     bool in_stash;
-    typename cuckoo_map::map_container_type::const_iterator vec_iter;
+    typename cuckoo_map::map_container_iterator vec_iter;
     typename cuckoo_map::stash_container_type::const_iterator stash_iter;
 
     typedef std::forward_iterator_tag iterator_category;
@@ -73,9 +93,9 @@ public:
         ++vec_iter;
         // we are in the main vector. try to advance the
         // iterator until I hit another data element
-        while(vec_iter != cmap->data.end() &&
-              !cmap->key_eq()(vec_iter->first, IllegalValue)) ++vec_iter;
-        if (vec_iter == cmap->data.end()) {
+        while(vec_iter != cmap->data_end() &&
+              cmap->key_eq()(vec_iter->first, cmap->illegal_key())) ++vec_iter;
+        if (vec_iter == cmap->data_end()) {
           in_stash = true;
           stash_iter = cmap->stash.begin();
         }
@@ -83,6 +103,7 @@ public:
       else if (in_stash) {
         if (stash_iter != cmap->stash.end())  ++stash_iter;
       }
+      return *this;
     }
 
     const_iterator operator++(int) {
@@ -114,18 +135,18 @@ public:
     }
 
     private:
-    const_iterator(cuckoo_map* cmap, typename cuckoo_map::map_container_type::const_iterator vec_iter):
+    const_iterator(cuckoo_map* cmap, typename cuckoo_map::map_container_iterator vec_iter):
       cmap(cmap), in_stash(false), vec_iter(vec_iter), stash_iter(cmap->stash.begin()) { }
-      
+
     const_iterator(cuckoo_map* cmap, typename cuckoo_map::stash_container_type::const_iterator stash_iter):
-      cmap(cmap), in_stash(true), vec_iter(cmap->data.begin()), stash_iter(stash_iter) { }
+      cmap(cmap), in_stash(true), vec_iter(cmap->data_begin()), stash_iter(stash_iter) { }
   };
 
 
   struct iterator {
     cuckoo_map* cmap;
     bool in_stash;
-    typename cuckoo_map::map_container_type::iterator vec_iter;
+    typename cuckoo_map::map_container_iterator vec_iter;
     typename cuckoo_map::stash_container_type::iterator stash_iter;
 
     typedef std::forward_iterator_tag iterator_category;
@@ -135,7 +156,7 @@ public:
     typedef value_type& reference;
 
     friend class cuckoo_map;
-    
+
     iterator(): cmap(NULL), in_stash(false) {}
 
 
@@ -146,15 +167,15 @@ public:
       iter.vec_iter = vec_iter;
       iter.stash_iter = stash_iter;
     }
-    
+
     iterator operator++() {
       if (!in_stash) {
         ++vec_iter;
         // we are in the main vector. try to advance the
         // iterator until I hit another data element
-        while(vec_iter != cmap->data.end() &&
-              !cmap->key_eq()(vec_iter->first, IllegalValue)) ++vec_iter;
-        if (vec_iter == cmap->data.end()) {
+        while(vec_iter != cmap->data_end() &&
+              cmap->key_eq()(vec_iter->first, cmap->illegal_key())) ++vec_iter;
+        if (vec_iter == cmap->data_end()) {
           in_stash = true;
           stash_iter = cmap->stash.begin();
         }
@@ -162,6 +183,7 @@ public:
       else if (in_stash) {
         if (stash_iter != cmap->stash.end())  ++stash_iter;
       }
+      return *this;
     }
 
     iterator operator++(int) {
@@ -194,22 +216,41 @@ public:
 
 
     private:
-    iterator(cuckoo_map* cmap, typename cuckoo_map::map_container_type::iterator vec_iter):
+    iterator(cuckoo_map* cmap, typename cuckoo_map::map_container_iterator vec_iter):
       cmap(cmap), in_stash(false), vec_iter(vec_iter) { }
 
     iterator(cuckoo_map* cmap, typename cuckoo_map::stash_container_type::iterator stash_iter):
       cmap(cmap), in_stash(true), stash_iter(stash_iter) { }
 
   };
-  
-  
-  cuckoo_map(index_type stashsize = 8,
-            hasher const& h = hasher(),
-            key_equal const& k = key_equal()):numel(0),maxstash(stashsize),
-            data(128, std::make_pair<Key, Value>(IllegalValue, Value())),
-            drng(time(NULL)),
-            kranddist(0, CuckooK - 1), hashfun(h), keyeq(k) {
+
+
+  cuckoo_map(key_type illegalkey,
+             index_type stashsize = 8,
+             hasher const& h = hasher(),
+            key_equal const& k = key_equal()):
+              illegalkey(illegalkey),
+              numel(0),maxstash(stashsize),
+              data(NULL),
+              drng(time(NULL)),
+              kranddist(0, CuckooK - 1), hashfun(h), keyeq(k) {
     stash.max_load_factor(1.0);
+    data = (map_container_type)malloc(sizeof(value_type) * 128);
+    std::uninitialized_fill(data, data + 128, non_const_value_type(illegalkey, mapped_type()));
+    datalen = 128;
+  }
+
+
+  const key_type& illegal_key() const {
+    return illegalkey;
+  }
+  
+  ~cuckoo_map() {
+    // call ze destructors
+    for(size_t i = 0; i < datalen; ++i) {
+      data[i].~value_type();
+    }
+    free(data);
   }
 
   index_type size() {
@@ -220,10 +261,10 @@ public:
     iterator iter;
     iter.cmap = this;
     iter.in_stash = false;
-    iter.vec_iter = data.begin();
-    
-    while(iter.vec_iter != data.end() &&
-          !keyeq(iter.vec_iter->first, IllegalValue)) ++iter.vec_iter;
+    iter.vec_iter = data_begin();
+
+    while(iter.vec_iter != data_end() &&
+          keyeq(iter.vec_iter->first, illegalkey)) ++iter.vec_iter;
     return iter;
   }
 
@@ -236,10 +277,10 @@ public:
     const_iterator iter;
     iter.cmap = this;
     iter.in_stash = false;
-    iter.vec_iter = data.begin();
+    iter.vec_iter = data_begin();
 
-    while(iter.vec_iter != data.end() &&
-          !keyeq(iter.vec_iter->first, IllegalValue)) ++iter.vec_iter;
+    while(iter.vec_iter != data_end() &&
+          keyeq(iter.vec_iter->first, illegalkey)) ++iter.vec_iter;
     return iter;
   }
 
@@ -248,7 +289,7 @@ public:
 
   }
 
-   /*
+  /*
    * Bob Jenkin's 32 bit integer mix function from
    * http://home.comcast.net/~bretm/hash/3.html
    */
@@ -263,7 +304,8 @@ public:
     state ^= (state >> 12);
     return state;
   }
-  index_type compute_hash(const Key& k , const uint32_t seed) const {
+
+  index_type compute_hash(size_t k , const uint32_t seed) const {
     // a bunch of random numbers
     static const size_t a[8] = {0x6306AA9DFC13C8E7,
                                 0xA8CD7FBCA2A9FFD4,
@@ -274,8 +316,8 @@ public:
                                 0x2181F03B1DEE299F,
                                 0xD524D92CBFEC63E9};
 
-    size_t s = mix(a[seed] ^ hashfun(k));
-    return s % (index_type)data.size();
+    index_type s = mix(a[seed] ^ k);
+    return s % datalen;
   }
 
   void rehash() {
@@ -283,52 +325,60 @@ public:
     stmp.swap(stash);
     // effectively, stmp elements are deleted
     numel -= stmp.size();
-    for (size_t i = 0;i < data.size(); ++i) {
+    for (size_t i = 0;i < datalen; ++i) {
       // if there is an element here. erase it and reinsert
-      if (!keyeq(data[i].first, IllegalValue)) {
-        value_type v = data[i];
-        erase(iterator(this, data.begin() + i));
+      if (!keyeq(data[i].first, illegalkey)) {
+        if (count(data[i].first)) continue;
+        non_const_value_type v = data[i];
+        replace_in_vector(data_begin() + i, illegalkey, mapped_type());
+        numel--;
+        //erase(iterator(this, data_begin() + i));
         insert(v);
       }
     }
-
     typename stash_container_type::const_iterator iter = stmp.begin();
     while(iter != stmp.end()) {
       insert(*iter);
       ++iter;
     }
   }
-  
+
+
+
   void reserve(size_t newlen) {
-    data.reserve(newlen);
-    data.resize(newlen, std::make_pair<Key, Value>(IllegalValue, Value()));
-    //std::cout << data.size() << "/" << data.capacity() << std::endl;
+    //data.reserve(newlen);
+    //data.resize(newlen, std::make_pair<Key, Value>(illegalkey, Value()));
+    data = (map_container_type)realloc(data, newlen * sizeof(value_type));
+    std::uninitialized_fill(data_end(), data+newlen, non_const_value_type(illegalkey, mapped_type()));
+    datalen = newlen;
     rehash();
   }
-  
+
   std::pair<iterator, bool> insert(const value_type& v_) {
-    typename map_container_type::value_type v = v_;
+    non_const_value_type v(v_.first, v_.second);
     if (stash.size() > maxstash) {
       // resize
-      reserve(data.size() * 1.5 + stash.size());
+      reserve(datalen * 1.5);
     }
-    
+
     index_type insertpos = (index_type)(-1); // tracks where the current
                                      // inserted value went
     ++numel;
+
     // take a random walk down the tree
     for (int i = 0;i < 100; ++i) {
+      // first see if one of the hashes will work
       index_type idx = 0;
       bool found = false;
+      size_t hash_of_k = hashfun(v.first);
       for (size_t j = 0; j < CuckooK; ++j) {
-        idx = compute_hash(v.first, j);
-        if (keyeq(data[idx].first, IllegalValue)) {
+        idx = compute_hash(hash_of_k, j);
+        if (keyeq(data[idx].first, illegalkey)) {
           found = true;
           break;
         }
       }
-      if (!found) idx = compute_hash(v.first, kranddist(drng));
-      
+      if (!found) idx = compute_hash(hash_of_k, kranddist(drng));
       // if insertpos is -1, v holds the current value. and we
       //                     are inserting it into idx
       // if insertpos is idx, we are bumping v again. and v will hold the
@@ -337,14 +387,16 @@ public:
       if (insertpos == (index_type)(-1)) insertpos = idx;
       else if (insertpos == idx) insertpos = (index_type)(-1);
       // there is room here
-      if (found || keyeq(data[idx].first, IllegalValue)) {
-        data[idx] = v;
+      if (found || keyeq(data[idx].first, illegalkey)) {
+        replace_in_vector(data_begin() + idx, v.first, v.second);
         // success!
-        return std::make_pair(iterator(this, data.begin() + insertpos), true);
+        return std::make_pair(iterator(this, data_begin() + insertpos), true);
       }
       // failed to insert!
       // try again!
-      std::swap(data[idx], v);
+      non_const_value_type tmp = data[idx];
+      replace_in_vector(data_begin() + idx, v.first, v.second);
+      v = tmp;
     }
     // ok. tried and failed 100 times.
     //stick it in the stash
@@ -355,40 +407,45 @@ public:
       return std::make_pair(iterator(this, stashiter), true);
     }
     else {
-      return std::make_pair(iterator(this, data.begin() + insertpos), true);
+      return std::make_pair(iterator(this, data_begin() + insertpos), true);
     }
   }
 
 
   iterator find(key_type const& k) {
+    size_t hash_of_k = hashfun(k);
     for (uint32_t i = 0;i < CuckooK; ++i) {
-      index_type idx = compute_hash(k, i);
-      if (keyeq(data[idx].first, k)) return iterator(this, data.begin() + idx);
+      index_type idx = compute_hash(hash_of_k, i);
+      if (keyeq(data[idx].first, k)) return iterator(this, data_begin() + idx);
     }
     return iterator(this, stash.find(k));
   }
-  
+
   const_iterator find(key_type const& k) const {
+    size_t hash_of_k = hashfun(k);
     for (uint32_t i = 0;i < CuckooK; ++i) {
-      index_type idx = compute_hash(k, i);
-      if (keyeq(data[idx].first, k)) return iterator(this, data.begin() + idx);
+      index_type idx = compute_hash(hash_of_k, i);
+      if (keyeq(data[idx].first, k)) return iterator(this, data_begin() + idx);
     }
     return iterator(this, stash.find(k));
   }
-  
+
   size_t count(key_type const& k) const {
+    size_t hash_of_k = hashfun(k);
     for (uint32_t i = 0;i < CuckooK; ++i) {
-      index_type idx = compute_hash(k, i);
+      index_type idx = compute_hash(hash_of_k, i);
       if (keyeq(data[idx].first, k)) return true;
     }
     return stash.count(k);
   }
 
+
   void erase(iterator iter) {
     if (iter.in_stash == false) {
-      if (!keyeq(iter.vec_iter->first, IllegalValue)) {
-        iter.vec_iter->first = IllegalValue;
-        iter.vec_iter->second = Value();
+      if (!keyeq(iter.vec_iter->first, illegalkey)) {
+
+        replace_in_vector(&(*(iter.vec_iter)), illegalkey, mapped_type());
+
         --numel;
       }
     }
@@ -402,11 +459,13 @@ public:
     iterator iter = find(k);
     if (iter != end()) erase(iter);
   }
-  
+
   void swap(cuckoo_map& other) {
+    std::swap(illegalkey, other.illegalkey);
     std::swap(numel, other.numel);
     std::swap(maxstash, other.maxstash);
     std::swap(data, other.data);
+    std::swap(datalen, other.datalen);
     std::swap(stash, other.stash);
     std::swap(drng, other.drng);
     std::swap(kranddist, other.kranddist);
@@ -416,7 +475,8 @@ public:
 
   mapped_type& operator[](const key_type& i) {
     iterator iter = find(i);
-    if (iter == end()) iter = insert(std::make_pair(i, mapped_type())).first;
+    value_type tmp(i, mapped_type());
+    if (iter == end()) iter = insert(tmp).first;
     return iter->second;
   }
 
@@ -430,7 +490,7 @@ public:
 
 
   float load_factor() const {
-    return (float)numel / (data.size() + stash.size());
+    return (float)numel / (datalen + stash.size());
   }
 };
 
