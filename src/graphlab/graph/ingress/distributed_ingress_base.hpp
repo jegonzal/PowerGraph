@@ -25,12 +25,14 @@
 
 #include <boost/functional/hash.hpp>
 
+#include <google/malloc_extension.h>
+
 #include <graphlab/rpc/buffered_exchange.hpp>
 #include <graphlab/graph/graph_basic_types.hpp>
 #include <graphlab/graph/ingress/idistributed_ingress.hpp>
 #include <graphlab/graph/ingress/ingress_edge_decision.hpp>
 #include <graphlab/graph/distributed_graph.hpp>
-#include <google/malloc_extension.h>
+// #include <google/malloc_extension.h>
 
 #include <graphlab/macros_def.hpp>
 namespace graphlab {
@@ -153,9 +155,29 @@ namespace graphlab {
       typedef typename buffered_exchange<vertex_info>::buffer_type 
         vinfo_buffer_type;
 
-
+      
       // Flush any additional data
-      edge_exchange.flush(); vertex_exchange.flush();
+      edge_exchange.flush(); vertex_exchange.flush();     
+      
+      // { 
+      //   size_t heap_size;
+      //   size_t allocate_size;
+      //   MallocExtension::instance()->
+      //     GetNumericProperty("generic.heap_size", &heap_size);
+      //   MallocExtension::instance()->
+      //     GetNumericProperty("generic.current_allocated_bytes", 
+      //                        &allocate_size);
+      //   if (rpc.procid() == 0) {
+      //     std::cout << "Post Flush" << std::endl;
+      //     std::cout << "Heap Size: " << (double)heap_size/(1024*1024) 
+      //               << "MB" << "\n";
+      //     std::cout << "Allocated Size: " << 
+      //       (double)allocate_size/(1024*1024) 
+      //               << "MB" << "\n";
+      //   }        
+      // }
+
+
       logstream(LOG_INFO) << "Graph Finalize: constructing local graph" << std::endl;
       { // Add all the edges to the local graph
         const size_t nedges = edge_exchange.size()+1;
@@ -178,21 +200,59 @@ namespace graphlab {
               graph.vid2lvid[rec.target] = target_lvid;
               // graph.local_graph.resize(target_lvid + 1);
             } else target_lvid = graph.vid2lvid[rec.target];
-            graph.local_graph.add_edge(source_lvid, target_lvid, rec.edata);          
+            graph.local_graph.add_edge(source_lvid, target_lvid, rec.edata);
           } // end of loop over add edges
         } // end for loop over buffers
         edge_exchange.clear();
       }
 
+      // { 
+      //   size_t heap_size;
+      //   size_t allocate_size;
+      //   MallocExtension::instance()->
+      //     GetNumericProperty("generic.heap_size", &heap_size);
+      //   MallocExtension::instance()->
+      //     GetNumericProperty("generic.current_allocated_bytes", 
+      //                        &allocate_size);
+      //   if (rpc.procid() == 0) {
+      //     std::cout << "Finished Graph2 Populate" << std::endl;
+      //     std::cout << "Heap Size: " << (double)heap_size/(1024*1024) 
+      //               << "MB" << "\n";
+      //     std::cout << "Allocated Size: " << 
+      //       (double)allocate_size/(1024*1024) 
+      //               << "MB" << "\n";
+      //   }
+      // }
+
 
       // Finalize local graph
-      logstream(LOG_INFO) << "Graph Finalize: finalizing local graph" << std::endl;
+      logstream(LOG_INFO) << "Graph Finalize: finalizing local graph" 
+                          << std::endl;
       graph.local_graph.finalize();
       logstream(LOG_INFO) << "Local graph info: " << std::endl
                           << "\t nverts: " << graph.local_graph.num_vertices()
                           << std::endl
                           << "\t nedges: " << graph.local_graph.num_edges()
                           << std::endl;
+
+
+
+      // { size_t heap_size;
+      //   size_t allocate_size;
+      //   MallocExtension::instance()->
+      //     GetNumericProperty("generic.heap_size", &heap_size);
+      //   MallocExtension::instance()->
+      //     GetNumericProperty("generic.current_allocated_bytes", 
+      //                        &allocate_size);
+      //   if (rpc.procid() == 0) {
+      //     std::cout << "Finished Graph2 Finalize" << std::endl;
+      //     std::cout << "Heap Size: " << (double)heap_size/(1024*1024) 
+      //               << "MB" << "\n";
+      //     std::cout << "Allocated Size: " << 
+      //       (double)allocate_size/(1024*1024) 
+      //               << "MB" << "\n";
+      //   }
+      // }
 
      
 
@@ -201,8 +261,27 @@ namespace graphlab {
         foreach(const vid2lvid_pair_type& pair, graph.vid2lvid) 
           graph.lvid2record[pair.second].gvid = pair.first;      
         // Check conditions on graph
-        ASSERT_EQ(graph.local_graph.num_vertices(), graph.lvid2record.size());   
+        ASSERT_EQ(graph.local_graph.num_vertices(), graph.lvid2record.size());
       }
+      
+      // {
+      //   size_t heap_size;
+      //   size_t allocate_size;
+      //   MallocExtension::instance()->
+      //     GetNumericProperty("generic.heap_size", &heap_size);
+      //   MallocExtension::instance()->
+      //     GetNumericProperty("generic.current_allocated_bytes", 
+      //                        &allocate_size);
+      //   if (rpc.procid() == 0) {
+      //     std::cout << "Finished lvid2record" << std::endl;       
+      //     std::cout << "Heap Size: " << (double)heap_size/(1024*1024) 
+      //               << "MB" << "\n";
+      //     std::cout << "Allocated Size: " << 
+      //       (double)allocate_size/(1024*1024) 
+      //               << "MB" << "\n";
+      //   }
+      // }
+
 
       // Setup the map containing all the vertices being negotiated by
       // this machine
@@ -217,6 +296,26 @@ namespace graphlab {
         }
         vertex_exchange.clear();
       } // end of loop to populate vrecmap
+
+
+      // {
+      //   size_t heap_size;
+      //   size_t allocate_size;
+      //   MallocExtension::instance()->
+      //     GetNumericProperty("generic.heap_size", &heap_size);
+      //   MallocExtension::instance()->
+      //     GetNumericProperty("generic.current_allocated_bytes", 
+      //                        &allocate_size);
+      //   if (rpc.procid() == 0) {
+      //     std::cout << "Depleted vertex buffer exchange" << std::endl;       
+      //     std::cout << "Heap Size: " << (double)heap_size/(1024*1024) 
+      //               << "MB" << "\n";
+      //     std::cout << "Allocated Size: " << 
+      //       (double)allocate_size/(1024*1024) 
+      //               << "MB" << "\n";
+      //   }
+      // }
+
 
 
       { // Compute the mirroring information for all vertices
@@ -252,6 +351,24 @@ namespace graphlab {
         } // end of recv while loop
       } // end of compute mirror information
 
+      // {
+      //   size_t heap_size;
+      //   size_t allocate_size;
+      //   MallocExtension::instance()->
+      //     GetNumericProperty("generic.heap_size", &heap_size);
+      //   MallocExtension::instance()->
+      //     GetNumericProperty("generic.current_allocated_bytes", 
+      //                        &allocate_size);
+      //   if (rpc.procid() == 0) {
+      //     std::cout << "Exchanged vertex info" << std::endl;       
+      //     std::cout << "Heap Size: " << (double)heap_size/(1024*1024) 
+      //               << "MB" << "\n";
+      //     std::cout << "Allocated Size: " << 
+      //       (double)allocate_size/(1024*1024) 
+      //               << "MB" << "\n";
+      //   }
+      // }
+
   
 
       { // Determine masters for all negotiated vertices
@@ -278,7 +395,8 @@ namespace graphlab {
             std::pair<size_t, uint32_t> 
               best_asg(counts[first_mirror], first_mirror);
             foreach(uint32_t proc, rec.mirrors) {
-              best_asg = std::min(best_asg, std::make_pair(counts[proc], proc));
+              best_asg = std::min(best_asg, 
+                                  std::make_pair(counts[proc], proc));
             }
             master =  best_asg.second;
           }
@@ -291,7 +409,8 @@ namespace graphlab {
         // Exchange the negotiation records
         typedef std::pair<vertex_id_type, vertex_negotiator_record> 
           exchange_pair_type;
-        typedef buffered_exchange<exchange_pair_type> negotiator_exchange_type;
+        typedef buffered_exchange<exchange_pair_type> 
+          negotiator_exchange_type;
         negotiator_exchange_type negotiator_exchange(rpc.dc());
         typename negotiator_exchange_type::buffer_type recv_buffer;
         procid_t sending_proc(-1);
@@ -365,6 +484,24 @@ namespace graphlab {
         } // end of while loop over negotiator_exchange.recv
       } // end of master exchange
 
+      // {
+      //   size_t heap_size;
+      //   size_t allocate_size;
+      //   MallocExtension::instance()->
+      //     GetNumericProperty("generic.heap_size", &heap_size);
+      //   MallocExtension::instance()->
+      //     GetNumericProperty("generic.current_allocated_bytes", 
+      //                        &allocate_size);
+      //   if (rpc.procid() == 0) {
+      //     std::cout << "Computed Masters and updated mirrors" 
+      //               << std::endl;       
+      //     std::cout << "Heap Size: " << (double)heap_size/(1024*1024) 
+      //               << "MB" << "\n";
+      //     std::cout << "Allocated Size: " << 
+      //       (double)allocate_size/(1024*1024) 
+      //               << "MB" << "\n";
+      //   }
+      // }
 
 
       ASSERT_EQ(graph.vid2lvid.size(), graph.local_graph.num_vertices());
@@ -380,14 +517,16 @@ namespace graphlab {
         << "Graph Finalize: exchange global statistics " << std::endl;
 
       // Compute edge counts
-      std::vector<size_t> swap_counts(rpc.numprocs(), graph.num_local_edges());
+      std::vector<size_t> swap_counts(rpc.numprocs(), 
+                                      graph.num_local_edges());
       mpi_tools::all2all(swap_counts, swap_counts);
       graph.nedges = 0;
       foreach(size_t count, swap_counts) graph.nedges += count;
 
       // compute begin edge id
       graph.begin_eid = 0;
-      for(size_t i = 0; i < rpc.procid(); ++i) graph.begin_eid += swap_counts[i];
+      for(size_t i = 0; i < rpc.procid(); ++i) 
+        graph.begin_eid += swap_counts[i];
 
       // compute vertex count
       swap_counts.assign(rpc.numprocs(), graph.num_local_own_vertices());
@@ -410,7 +549,8 @@ namespace graphlab {
 
 
   protected:
-    // HELPER ROUTINES =======================================================>    
+    // HELPER ROUTINES
+    // =======================================================>
     procid_t vertex_to_proc(const vertex_id_type vid) const { 
       return vid % rpc.numprocs();
     }        

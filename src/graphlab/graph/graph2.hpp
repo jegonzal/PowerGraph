@@ -23,7 +23,8 @@
 /**
  * Modified by Jay (haijieg@cs.cmu.edu)
  *
- * Describe the interface of a graph. The actual implementation is in graph_storage.hpp.
+ * Describe the interface of a graph. The actual implementation is in
+ * graph_storage.hpp.
  *
  * Change interface:
  *  edge_id_type add_edge (vertex_id_type src, vertex_d_type dst, 
@@ -226,12 +227,13 @@ namespace graphlab {
      * of the new vertex id. Vertex ids are assigned in increasing order with
      * the first vertex having id 0.
      */
-    void add_vertex(vertex_id_type vid, const VertexData& vdata = VertexData() ) {
-      if (finalized) {
-        logstream(LOG_INFO)
-          << "Attempting add vertex to a finalized graph." << std::endl;
-        // ASSERT_MSG(false, "Add vertex to a finalized graph.");
-      }
+    void add_vertex(vertex_id_type vid, 
+                    const VertexData& vdata = VertexData() ) {
+      // if (finalized) {
+      //   logstream(LOG_INFO)
+      //     << "Attempting add vertex to a finalized graph." << std::endl;
+      //   // ASSERT_MSG(false, "Add vertex to a finalized graph.");
+      // }
       if(vid >= vertices.size()) {
         // Enable capacity doubling if resizing beyond capacity
         if(vid >= vertices.capacity()) {
