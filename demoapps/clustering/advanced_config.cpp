@@ -163,7 +163,7 @@ void problem_setup::verify_setup(){
     ps.N = ac.N;
   }
 
-  if (ac.matrixmarket && ac.pmfformat)
+  if (ac.matrixmarket && ac.supportgraphlabcf)
     logstream(LOG_FATAL)<<"When using --matrximarket=true you can not use --pmfformat=true since those are two different input formats." << std::endl;
 
 
