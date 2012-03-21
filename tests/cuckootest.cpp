@@ -67,7 +67,7 @@ void benchmark() {
     std::cout << "10M unordered map successful probes in " << ti.current_time() << std::endl;
     um.clear();
   }
-/*
+
   {
     graphlab::cuckoo_map<uint32_t, uint32_t, (uint32_t)(-1), 2, uint32_t> cm(1024);
 
@@ -90,9 +90,9 @@ void benchmark() {
     std::cout << "10M cuckoo map successful probes in " << ti.current_time() << std::endl;
 
   }
-  */
+  
   {
-    graphlab::cuckoo_map_pow2<size_t, size_t, (size_t)(-1), 3, uint32_t> cm(32);
+    graphlab::cuckoo_map_pow2<uint32_t, uint32_t, (size_t)(-1), 3, uint32_t> cm(4);
     
     //cm.reserve(102400);
     ti.start();
