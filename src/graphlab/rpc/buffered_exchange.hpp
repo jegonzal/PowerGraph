@@ -127,14 +127,8 @@ namespace graphlab {
     } // end of size
 
     void clear() {
-      foreach (buffer_type& buffer, send_buffers) {
-        buffer_type().swap(buffer);
-      }
-      std::vector<buffer_type >().swap(send_buffers);
-
-      foreach (buffer_record& buffer_rec, recv_buffers) {
-        buffer_type().swap(buffer_rec.buffer);
-      }
+      std::vector<buffer_type>().swap(send_buffers);
+      //      send_buffers.resize(rpc.numprocs());
       std::deque<buffer_record>().swap(recv_buffers);
     }
 
