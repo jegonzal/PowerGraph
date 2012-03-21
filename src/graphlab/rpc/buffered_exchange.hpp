@@ -137,9 +137,9 @@ namespace graphlab {
       recv_lock.lock();
       recv_buffers.push_back(buffer_record());
       buffer_record& rec = recv_buffers.back();
-      recv_lock.unlock();
       rec.proc = src_proc;
       rec.buffer.swap(buffer);
+      recv_lock.unlock();
     } // end of rpc rcv
 
   }; // end of buffered exchange
