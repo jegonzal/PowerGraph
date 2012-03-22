@@ -64,6 +64,7 @@
 #include <graphlab/util/hdfs.hpp>
 #include <boost/iostreams/stream.hpp>
 #include <boost/iostreams/filtering_stream.hpp>
+#include <graphlab/util/cuckoo_map_pow2.hpp>
 
 
 
@@ -494,7 +495,10 @@ namespace graphlab {
     lvid2record_type lvid2record;
     
     /** The map from global vertex ids back to local vertex ids */
-    boost::unordered_map<vertex_id_type, lvid_type> vid2lvid;
+    // boost::unordered_map<vertex_id_type, lvid_type> vid2lvid;
+    typedef cuckoo_map_pow2<vertex_id_type, lvid_type, 3, uint32_t> cuckoo_map_type;
+    cuckoo_map_type vid2lvid;
+
         
     /** The global number of vertices and edges */
     size_t nverts, nedges;
@@ -516,8 +520,8 @@ namespace graphlab {
     // CONSTRUCTORS ==========================================================>
     distributed_graph(distributed_control& dc, 
                       const graphlab_options& opts = graphlab_options() ) : 
-      rpc(dc, this), finalized(false), nverts(0), 
-      nedges(0), local_own_nverts(0), nreplicas(0),
+      rpc(dc, this), finalized(false), vid2lvid(-1),
+      nverts(0), nedges(0), local_own_nverts(0), nreplicas(0),
       ingress_ptr(NULL) {
       rpc.barrier();
       std::string ingress_method = "random";
@@ -610,8 +614,9 @@ namespace graphlab {
 
     /** \brief get the local vertex id */
     lvid_type local_vid (const vertex_id_type vid) const {
-      typename boost::unordered_map<vertex_id_type, lvid_type>::
-        const_iterator iter = vid2lvid.find(vid);
+      // typename boost::unordered_map<vertex_id_type, lvid_type>::
+      //   const_iterator iter = vid2lvid.find(vid);
+      typename cuckoo_map_type::const_iterator iter = vid2lvid.find(vid);
       ASSERT_TRUE(iter != vid2lvid.end());
       return iter->second;
     } // end of local_vertex_id
@@ -622,8 +627,9 @@ namespace graphlab {
     } // end of global_vertex_id
 
     const vertex_record& get_vertex_record(const vertex_id_type vid) const {
-      typename boost::unordered_map<vertex_id_type, lvid_type>::
-        const_iterator iter = vid2lvid.find(vid);
+      // typename boost::unordered_map<vertex_id_type, lvid_type>::
+      //   const_iterator iter = vid2lvid.find(vid);
+      typename cuckoo_map_type::const_iterator iter = vid2lvid.find(vid);
       ASSERT_TRUE(iter != vid2lvid.end());
       return lvid2record[iter->second];
     }
