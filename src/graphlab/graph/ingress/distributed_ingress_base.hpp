@@ -94,11 +94,11 @@ namespace graphlab {
 
 
     struct vertex_negotiator_record {
-      vertex_id_type num_in_edges, num_out_edges;
-      procid_t owner;
       mirror_type mirrors;
       vertex_data_type vdata;
-      vertex_negotiator_record() : 
+      vertex_id_type num_in_edges, num_out_edges;
+      procid_t owner;
+       vertex_negotiator_record() : 
         num_in_edges(0), num_out_edges(0), owner(-1) { }
       void load(iarchive& arc) { 
         arc >> num_in_edges >> num_out_edges >> owner >> mirrors >> vdata;
@@ -132,9 +132,6 @@ namespace graphlab {
       const vertex_buffer_record record(vid, vdata);
       vertex_exchange.send(owning_proc, record);
     } // end of add vertex
-
-
-
 
 
 
@@ -202,6 +199,7 @@ namespace graphlab {
       memory_info::print_usage("Finished finalizing graph2"); 
        
       { // Initialize vertex records
+        graph.lvid2record.reserve(graph.vid2lvid.size());
         graph.lvid2record.resize(graph.vid2lvid.size());
         foreach(const vid2lvid_pair_type& pair, graph.vid2lvid) 
           graph.lvid2record[pair.second].gvid = pair.first;      
@@ -267,16 +265,20 @@ namespace graphlab {
         logstream(LOG_INFO) 
           << "Graph Finalize: Constructing and sending vertex assignments" 
           << std::endl;
-        std::vector<size_t> counts(rpc.numprocs());      
+        std::vector<size_t> counts(rpc.numprocs()); 
+        size_t num_singletons = 0;
         // Compute the master assignments
         foreach(vrec_pair_type& pair, vrec_map) {
-          const vertex_id_type vid = pair.first;
+          
           vertex_negotiator_record& rec = pair.second;          
           // Determine the master
           procid_t master(-1);
           if(rec.mirrors.popcount() == 0) {
-            // random assign a singleton vertex to a proc
-            master = vid % rpc.numprocs();        
+            // // random assign a singleton vertex to a proc
+            // const vertex_id_type vid = pair.first;
+            // master = vid % rpc.numprocs();        
+            // For simplicity simply assign it to this machine
+            master = rpc.procid(); ++num_singletons;
           } else {
             // Find the best (least loaded) processor to assign the
             // vertex.
@@ -299,6 +301,12 @@ namespace graphlab {
         } // end of loop over all vertex negotiation records
 
         memory_info::print_usage("Finished computing masters");
+
+        // We have now assigned all the singletons that were
+        // negotiated by this machine to this machine.  We must
+        // therefore extend the local datastructures.
+        graph.lvid2record.reserve(graph.lvid2record.size() + num_singletons);
+        graph.lvid2record.resize(graph.lvid2record.size() + num_singletons);
 
         // Exchange the negotiation records
         typedef std::pair<vertex_id_type, vertex_negotiator_record> 
@@ -329,7 +337,7 @@ namespace graphlab {
                 lvid = graph.vid2lvid.size();
                 graph.vid2lvid[vid] = lvid;
                 graph.local_graph.add_vertex(lvid, negotiator_rec.vdata);
-                graph.lvid2record.push_back(vertex_record());
+                ASSERT_LT(lvid, graph.lvid2record.size());
                 graph.lvid2record[lvid].gvid = vid;
               } else {
                 lvid = graph.vid2lvid[vid];
@@ -359,7 +367,7 @@ namespace graphlab {
               lvid = graph.vid2lvid.size();
               graph.vid2lvid[vid] = lvid;
               graph.local_graph.add_vertex(lvid, negotiator_rec.vdata);
-              graph.lvid2record.push_back(vertex_record());
+              ASSERT_LT(lvid, graph.lvid2record.size());
               graph.lvid2record[lvid].gvid = vid;
             } else {
               lvid = graph.vid2lvid[vid];
