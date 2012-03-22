@@ -153,8 +153,8 @@ namespace graphlab {
       
       // Flush any additional data
       edge_exchange.flush(); vertex_exchange.flush();     
-      
-      memory_info::print_usage("Post Flush");
+      if(rpc.procid() == 0)       
+        memory_info::print_usage("Post Flush");
 
       logstream(LOG_INFO) << "Graph Finalize: constructing local graph" << std::endl;
       { // Add all the edges to the local graph
@@ -183,7 +183,9 @@ namespace graphlab {
         } // end for loop over buffers
         edge_exchange.clear();
       }
-      memory_info::print_usage("Finished populating graphlab2");
+
+      if(rpc.procid() == 0) 
+        memory_info::print_usage("Finished populating graphlab2");
       
       
       // Finalize local graph
@@ -196,7 +198,8 @@ namespace graphlab {
                           << "\t nedges: " << graph.local_graph.num_edges()
                           << std::endl;
       
-      memory_info::print_usage("Finished finalizing graph2"); 
+      if(rpc.procid() == 0)       
+        memory_info::print_usage("Finished finalizing graph2"); 
        
       { // Initialize vertex records
         graph.lvid2record.reserve(graph.vid2lvid.size());
@@ -206,7 +209,8 @@ namespace graphlab {
         // Check conditions on graph
         ASSERT_EQ(graph.local_graph.num_vertices(), graph.lvid2record.size());
       }
-      memory_info::print_usage("Finished lvid2record");
+      if(rpc.procid() == 0)       
+        memory_info::print_usage("Finished lvid2record");
 
       // Setup the map containing all the vertices being negotiated by
       // this machine
@@ -222,7 +226,8 @@ namespace graphlab {
         vertex_exchange.clear();
       } // end of loop to populate vrecmap
 
-      memory_info::print_usage("Emptied vertex data exchange");
+      if(rpc.procid() == 0)         
+        memory_info::print_usage("Emptied vertex data exchange");
 
 
 
@@ -259,7 +264,8 @@ namespace graphlab {
         } // end of recv while loop
       } // end of compute mirror information
 
-      memory_info::print_usage("Exchanged basic vertex info");
+      if(rpc.procid() == 0) 
+        memory_info::print_usage("Exchanged basic vertex info");
 
       { // Determine masters for all negotiated vertices
         logstream(LOG_INFO) 
@@ -300,20 +306,27 @@ namespace graphlab {
           rec.mirrors.clear_bit(master); // Master is not a mirror         
         } // end of loop over all vertex negotiation records
 
-        memory_info::print_usage("Finished computing masters");
+        if(rpc.procid() == 0) 
+          memory_info::print_usage("Finished computing masters");
 
         // We have now assigned all the singletons that were
         // negotiated by this machine to this machine.  We must
         // therefore extend the local datastructures.
+        if(rpc.procid() == 0) 
+          memory_info::print_usage("Resizing lvidrecords for singletons");
         graph.lvid2record.reserve(graph.lvid2record.size() + num_singletons);
         graph.lvid2record.resize(graph.lvid2record.size() + num_singletons);
+        // graph.local_graph.reserve_vdata(graph.local_graph.num_vertices() + 
+        //                                 num_singletons);
+        if(rpc.procid() == 0) 
+          memory_info::print_usage("Finished Resizing lvidrecords for singletons");
 
         // Exchange the negotiation records
         typedef std::pair<vertex_id_type, vertex_negotiator_record> 
           exchange_pair_type;
         typedef buffered_exchange<exchange_pair_type> 
           negotiator_exchange_type;
-        negotiator_exchange_type negotiator_exchange(rpc.dc());
+        negotiator_exchange_type negotiator_exchange(rpc.dc(), 1000);
         typename negotiator_exchange_type::buffer_type recv_buffer;
         procid_t sending_proc(-1);
         foreach(vrec_pair_type& pair, vrec_map) {
@@ -386,7 +399,8 @@ namespace graphlab {
         } // end of while loop over negotiator_exchange.recv
       } // end of master exchange
 
-      memory_info::print_usage("Finished sending updating mirrors");
+      if(rpc.procid() == 0) 
+        memory_info::print_usage("Finished sending updating mirrors");
 
 
       ASSERT_EQ(graph.vid2lvid.size(), graph.local_graph.num_vertices());
