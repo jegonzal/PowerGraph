@@ -36,10 +36,8 @@
 
 
 struct vertex_data : public graphlab::IS_POD_TYPE {
-  uint32_t nupdates;
-  double value, old_value;
-  vertex_data(double value = 1) : 
-    nupdates(0), value(value), old_value(0) { }
+  float value;
+  vertex_data(float value = 1) : value(value) { }
 }; // End of vertex data
 
 std::ostream& operator<<(std::ostream& out, const vertex_data& vdata) {
@@ -65,10 +63,10 @@ class factorized_pagerank :
   public graphlab::iupdate_functor<graph_type, factorized_pagerank>,
   public graphlab::IS_POD_TYPE {
 private:
-  double accum;
+  float accum;
 public:
-  factorized_pagerank(const double& accum = 0) : accum(accum) { }
-  double accumrity() const { return accum; }
+  factorized_pagerank(const float& accum = 0) : accum(accum) { }
+  double priority() const { return accum; }
   void operator+=(const factorized_pagerank& other) { accum += other.accum; }
   bool is_factorizable() const { return true; }
   consistency_model consistency() const { return graphlab::DEFAULT_CONSISTENCY; }
@@ -87,7 +85,7 @@ public:
     const size_t num_out_edges = context.num_out_edges(edge.source());
     ASSERT_EQ(edge.target(), context.vertex_id());
     ASSERT_GT(num_out_edges, 0);
-    const double weight =  1.0 / double(num_out_edges);
+    const float weight =  1.0 / float(num_out_edges);
     accum += context.const_vertex_data(edge.source()).value * weight;
   } // end of gather
 
@@ -96,13 +94,13 @@ public:
 
   // Update the center vertex
   void apply(icontext_type& context) {
-    vertex_data& vdata = context.vertex_data(); ++vdata.nupdates;
+    vertex_data& vdata = context.vertex_data(); 
+    float old_value = vdata.value;
     vdata.value =  RESET_PROB + (1 - RESET_PROB) * accum;
     const size_t num_out_edges = context.num_out_edges(context.vertex_id());
     if(num_out_edges > 0) {
-      const double weight =  1.0 / double(num_out_edges);
-      accum = std::fabs(vdata.value - vdata.old_value) * weight;
-      if(accum > ACCURACY) vdata.old_value = vdata.value;
+      const float weight =  1.0 / float(num_out_edges);
+      accum = std::fabs(vdata.value - old_value) * weight;
     }
   } // end of apply
 
@@ -291,8 +289,8 @@ int main(int argc, char** argv) {
         fout << graph.l_get_vertex_record(i).gvid << "\t" 
              << graph.l_get_vertex_record(i).num_in_edges + 
           graph.l_get_vertex_record(i).num_out_edges << "\t" 
-             << graph.get_local_graph().vertex_data(i).value << "\t"
-             << graph.get_local_graph().vertex_data(i).nupdates << "\n";
+             << graph.get_local_graph().vertex_data(i).value << "\t";
+        //             << graph.get_local_graph().vertex_data(i).nupdates << "\n";
       }
     }
   }
