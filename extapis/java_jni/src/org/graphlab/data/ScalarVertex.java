@@ -4,10 +4,7 @@ package org.graphlab.data;
  * Vertex that holds a single value
  * @author Jiunn Haur Lim <jiunnhal@cmu.edu>
  */
-public class ScalarVertex implements Vertex {
-
-  /** GraphLab (or proxy vertex) ID */
-  private int mRawId = 0;
+public class ScalarVertex extends Vertex {
   
   /** Application ID */
   private int mId;
@@ -52,14 +49,6 @@ public class ScalarVertex implements Vertex {
    */
   public void setId(int id){
     mId = id;
-  }
-  
-  public int rawId() {
-    return mRawId;
-  }
-
-  public void setRawId(int id) {
-    mRawId = id;
   }
   
   /**

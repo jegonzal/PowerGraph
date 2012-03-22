@@ -23,12 +23,17 @@ package org.graphlab.data;
  * @author Jiunn Haur Lim <jiunnhal@cmu.edu>
  * @see <a href="http://www.jgrapht.org/">JGraphT</a>
  */
-public interface Vertex {
+public abstract class Vertex {
 
+  /** GraphLab (or proxy vertex) ID */
+  private int mRawId = 0;
+  
 	/**
 	 * @return ID of corresponding proxy vertex.
 	 */
-	public int rawId();
+  public final int rawId() {
+    return mRawId;
+  }
 
 	/**
 	 * Sets ID of corresponding proxy vertex. This is done during
@@ -37,6 +42,8 @@ public interface Vertex {
 	 * @param id
 	 *            id of this vertex's proxy vertex.
 	 */
-	public void setRawId(int id);
+  public final void setRawId(int id) {
+    mRawId = id;
+  }
 
 }
