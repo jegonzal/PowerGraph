@@ -207,7 +207,7 @@ public:
     iterator(): cmap(NULL), in_stash(false) {}
 
 
-    operator const_iterator() {
+    operator const_iterator() const {
       const_iterator iter;
       iter.cmap = cmap;
       iter.in_stash = in_stash;
@@ -504,9 +504,9 @@ public:
     size_t hash_of_k = hashfun(k);
     for (uint32_t i = 0;i < CuckooK; ++i) {
       index_type idx = compute_hash(hash_of_k, i);
-      if (keyeq(data[idx].first, k)) return iterator(this, data_begin() + idx);
+      if (keyeq(data[idx].first, k)) return const_iterator(this, data_begin() + idx);
     }
-    return iterator(this, stash.find(k));
+    return const_iterator(this, stash.find(k));
   }
 
   size_t count(key_type const& k) const {
