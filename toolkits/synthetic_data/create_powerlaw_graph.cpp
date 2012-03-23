@@ -26,45 +26,37 @@
 #include <fstream>
 #include <set>
 #include <boost/unordered_set.hpp>
+
+#include <boost/graph/graph_traits.hpp>
+#include <boost/graph/adjacency_list.hpp>
+#include <boost/graph/plod_generator.hpp>
+#include <boost/random/linear_congruential.hpp>
+
+#include <graphlab/util/fast_multinomial.hpp>
+
 #include <graphlab.hpp>
 
 #include <graphlab/macros_def.hpp>
 
 
-
-
-int main(int argc, char** argv) {
-
-  double alpha = 2.1;
-  size_t nverts = 10;
-  size_t fanout = 2;
-  std::string fname = "graph.tsv";
-  graphlab::command_line_options 
-    clopts("Generate synthetic graph data.", true);
-  clopts.attach_option("graph", &fname, fname,
-                       "The name of the graph file."); 
-  clopts.attach_option("alpha", &alpha, alpha, 
-                       "Power law constant deg^{-a}.");
-  clopts.attach_option("nverts", &nverts, nverts,
-                       "Number of vertices.");
-  clopts.attach_option("fanout", &fanout, fanout,
-                       "The fanout of each page");
-
-  if(!clopts.parse(argc, argv)) {
-    std::cout << "Error in parsing command line arguments." << std::endl;
-    return EXIT_FAILURE;
-  }
+std::string algorithm = "constant";
+std::string fname = "graph.tsv";
+double alpha = 2.1;
+double beta = 10000;
+size_t nverts = 10;
+size_t fanout = 2;
 
 
 
-  std::vector<double> prob(nverts, 0);
+
+void constant_fanout() {
+ std::vector<double> prob(nverts, 0);
   double Z = 0;
-  for(size_t i = 0; i < nverts; ++i) Z += (prob[i] = std::pow(i+1,-alpha));
+  for(size_t i = 0; i < nverts; ++i) 
+    Z += (prob[i] = beta * std::pow(i+1,-alpha));
   // Normalize and convert to CDF
   for(size_t i = 0; i < nverts; ++i) {
-    //    std::cout << prob[i] << '\t';
     prob[i] = prob[i]/Z + ((i>0)? prob[i-1] : 0);
-    // std::cout << prob[i] << std::endl;
   }
  
   std::ofstream fout(fname.c_str());
@@ -82,7 +74,87 @@ int main(int argc, char** argv) {
       fout << source << '\t' << target << '\n';
   }
   fout.close();
+} // end of constant fanout powerlaw
+
+void boost_powerlaw() {
+  typedef boost::adjacency_list<> Graph;
+  typedef boost::plod_iterator<boost::minstd_rand, Graph> SFGen;
   
+  boost::minstd_rand gen;
+  // Create graph with 100 nodes 
+  Graph graph(SFGen(gen, nverts, alpha, fanout, false), 
+              SFGen(), nverts);
+
+  boost::graph_traits<Graph>::edge_iterator edge, edge_end;
+  std::ofstream fout(fname.c_str());
+  for( boost::tie(edge, edge_end) = boost::edges(graph); edge != edge_end; ++edge)
+    fout << boost::source(*edge, graph) << '\t'
+         << boost::target(*edge, graph) << '\n';
+  fout.close();
+} // end of boost powerlaw
+
+
+
+void preferential_attachment() {
+  graphlab::fast_multinomial multi(nverts, 1);
+  for(size_t i = 0; i < nverts; ++i) multi.set(i, beta);
+  boost::unordered_set<size_t> targets;
+  std::ofstream fout(fname.c_str());
+  for(size_t source = 0; source < nverts; ++source) {
+    targets.clear();
+    while(targets.size() < fanout) {
+      size_t target(-1);
+      multi.sample(target, 0);
+      if(source != target) {
+        multi.add(target, 1);
+        targets.insert(target);
+      }
+    }
+    foreach(size_t target, targets)
+      fout << source << '\t' << target << '\n';
+  }
+  fout.close();
+} // end of boost powerlaw
+
+
+
+int main(int argc, char** argv) {
+  
+  graphlab::command_line_options 
+    clopts("Generate synthetic graph data.", true);
+  clopts.attach_option("alg", &algorithm, algorithm, 
+                       "The algorithm to use."); 
+  clopts.attach_option("graph", &fname, fname,
+                       "The name of the graph file."); 
+  clopts.attach_option("alpha", &alpha, alpha, 
+                       "Power law constant:  beta * deg^{-alpha}.");
+  clopts.attach_option("beta", &beta, beta, 
+                       "Power law constant:  beta * deg^{-beta}.");
+
+  clopts.attach_option("nverts", &nverts, nverts,
+                       "Number of vertices.");
+  clopts.attach_option("fanout", &fanout, fanout,
+                       "The fanout of each page");
+
+  if(!clopts.parse(argc, argv)) {
+    std::cout << "Error in parsing command line arguments." << std::endl;
+    return EXIT_FAILURE;
+  }
+
+  if(algorithm == "constant") constant_fanout();
+  else if(algorithm == "boost") boost_powerlaw();
+  else if(algorithm == "preferential") preferential_attachment();
+  else {
+    std::cout << "Invalid algorithm type \"" << algorithm  << "\" valid types are: " 
+              << std::endl
+              << "\t constant: draw out neigbors according too a powerlaw \n"
+              << "\t           degree distribution."
+              << "\t boost: use the boost power law graph algorithm.\n"
+              << "\t preferential: use the preferential attachment algorithm.\n"
+              << std::endl;
+  }
+
+ 
  
   return EXIT_SUCCESS;
 
