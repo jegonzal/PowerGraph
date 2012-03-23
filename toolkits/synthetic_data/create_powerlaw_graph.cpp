@@ -111,7 +111,7 @@ void boost_powerlaw() {
 
 void preferential_attachment() {
   graphlab::fast_multinomial multi(nverts, 1);
-  for(size_t i = 0; i < nverts; ++i) multi.set(i, 0.01);
+  for(size_t i = 0; i < nverts; ++i) multi.set(i, beta);
   boost::unordered_set<size_t> targets;
   std::ofstream fout(fname.c_str());
   for(size_t source = 0; source < nverts; ++source) {
