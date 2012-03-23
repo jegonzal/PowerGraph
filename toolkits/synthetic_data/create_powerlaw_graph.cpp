@@ -23,9 +23,12 @@
 
 #include <iostream>
 #include <algorithm>
-#include <fstream>
 #include <set>
+#include <fstream>
+
+
 #include <boost/unordered_set.hpp>
+
 
 #include <boost/graph/graph_traits.hpp>
 #include <boost/graph/adjacency_list.hpp>
@@ -53,7 +56,7 @@ void constant_fanout() {
  std::vector<double> prob(nverts, 0);
   double Z = 0;
   for(size_t i = 0; i < nverts; ++i) 
-    Z += (prob[i] = beta * std::pow(i+1,-alpha));
+    Z += (prob[i] = std::pow(double(i+1),-alpha));
   // Normalize and convert to CDF
   for(size_t i = 0; i < nverts; ++i) {
     prob[i] = prob[i]/Z + ((i>0)? prob[i-1] : 0);
@@ -97,7 +100,7 @@ void boost_powerlaw() {
 
 void preferential_attachment() {
   graphlab::fast_multinomial multi(nverts, 1);
-  for(size_t i = 0; i < nverts; ++i) multi.set(i, beta);
+  for(size_t i = 0; i < nverts; ++i) multi.set(i, 0.01);
   boost::unordered_set<size_t> targets;
   std::ofstream fout(fname.c_str());
   for(size_t source = 0; source < nverts; ++source) {
@@ -106,10 +109,11 @@ void preferential_attachment() {
       size_t target(-1);
       multi.sample(target, 0);
       if(source != target) {
-        multi.add(target, 1);
+        multi.add(target, 1.0);
         targets.insert(target);
       }
     }
+    multi.add(source, 1.0);
     foreach(size_t target, targets)
       fout << source << '\t' << target << '\n';
   }
