@@ -51,26 +51,37 @@ size_t fanout = 2;
 
 
 
+void pdf2cdf(std::vector<double>& pdf) {
+  double Z = 0;
+  for(size_t i = 0; i < pdf.size(); ++i) Z += pdf[i];
+  for(size_t i = 0; i < pdf.size(); ++i) 
+    pdf[i] = pdf[i]/Z + ((i>0)? pdf[i-1] : 0);
+} // end of pdf2cdf
+
+size_t sample(const std::vector<double>& cdf) {
+  return std::upper_bound(cdf.begin(), cdf.end(), 
+                          graphlab::random::rand01()) - cdf.begin();  
+} // end of sample
 
 void constant_fanout() {
  std::vector<double> prob(nverts, 0);
-  double Z = 0;
+  std::cout << "constructing pdf" << std::endl;
   for(size_t i = 0; i < nverts; ++i) 
-    Z += (prob[i] = std::pow(double(i+1),-alpha));
-  // Normalize and convert to CDF
-  for(size_t i = 0; i < nverts; ++i) {
-    prob[i] = prob[i]/Z + ((i>0)? prob[i-1] : 0);
-  }
- 
-  std::ofstream fout(fname.c_str());
-  
+    prob[i] = std::pow(double(i+1), -alpha);
+  std::cout << "constructing cdf" << std::endl;
+  pdf2cdf(prob);
+  std::cout << "sampling degrees" << std::endl;
+  std::vector<double> degree(nverts, 0);
+  for(size_t i = 0; i < nverts; ++i) degree[i] = sample(prob);
+  std::cout << "converting degrees to cdf" << std::endl;
+  pdf2cdf(degree);
+  std::cout << "Sampling graph" << std::endl;
+  std::ofstream fout(fname.c_str());  
   boost::unordered_set<size_t> targets;
   for(size_t source = 0; source < nverts; ++source) {
     targets.clear();
     while(targets.size() < fanout) {
-      const size_t target =
-        std::upper_bound(prob.begin(), prob.end(), 
-                         graphlab::random::rand01()) - prob.begin();
+      const size_t target = sample(degree);
       if(source != target) targets.insert(target);
     }
     foreach(size_t target, targets)

@@ -15,7 +15,9 @@ ylabel('log(count)');
 % ordered_degree = sort(degree, 'descend');
 % figure(2); clf(); loglog(1:nverts, ordered_degree, '-x');
 
-
+alpha = 1 + length(degree) / sum(log( degree / min(degree) ));
+disp(['Min Degree: ', num2str(min(degree))]);
+disp(['Alpha estimate: ', num2str(alpha)]);
 end
 
 
