@@ -63,8 +63,6 @@ public class GraphLoader {
 	  
 		// read from file
 		BufferedReader reader = new BufferedReader(new FileReader(filename));
-		
-		// map from number to vertex
 		Map<Integer, V> vertices = new HashMap<Integer, V>();
 		
 		String input;
@@ -84,36 +82,37 @@ public class GraphLoader {
 			float weight = 1;
 			if (3 == tokens.length) weight = Float.parseFloat(tokens[2]);
 
+			if (source == target){
+			  // warn once
+        if (!warned){
+          logger.warn("Dropped self-edge for vertex " + source +
+                      ". Subsequent warnings will be suppressed.");
+          warned = true;
+        }
+			  continue;
+			}
+			
 			// create vertices if encountering them for the first time
 			V srcV = vertices.get(source);
 			if (null == srcV){
 			  srcV = vertexClass.newInstance();
 			  srcV.setId(source);
-			  vertices.put(source, srcV);
 			  graph.addVertex(srcV);
+			  vertices.put(source, srcV);
 			}
 			
 			// create target vertex
 			V trgtV = vertices.get(target);
 			if (null == trgtV){
-			  trgtV = vertexClass.newInstance();
-			  trgtV.setId(target);
-			  vertices.put(target, trgtV);
-			  graph.addVertex(trgtV);
+			    trgtV = vertexClass.newInstance();
+			    trgtV.setId(target);
+			    graph.addVertex(trgtV);
+			    vertices.put(target, trgtV);
 			}
 			
-			// check for self-edges
-			if (source != target) {
-			  DefaultWeightedEdge edge = graph.addEdge(srcV, trgtV);
-			  graph.setEdgeWeight(edge, weight);
-			}else {
-			  // warn once
-			  if (!warned){
-			    logger.warn("Dropped self-edge for vertex " + source +
-			                ". Subsequent warnings will be suppressed.");
-			    warned = true;
-			  }
-			}
+		  DefaultWeightedEdge edge = graph.addEdge(srcV, trgtV);
+		  if (null != edge)
+		    graph.setEdgeWeight(edge, weight);
 
 		} } catch (IllegalAccessException e){
 		  throw new IllegalArgumentException("vertexClass must be a valid vertex class.");
