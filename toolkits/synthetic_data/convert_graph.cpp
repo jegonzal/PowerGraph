@@ -36,42 +36,46 @@
 
 
 typedef uint32_t vertex_id_type;
+typedef std::pair<vertex_id_type, vertex_id_type> edge_type;
+typedef std::vector<edge_type> edge_list_type;
+
+void load_edge_list(const std::string& fname,
+                    edge_list_type& edge_list) {
+  std::ifstream fin(fname.c_str());
+  assert(fin.good());
+  std::cout << "Loading edge list" << std::endl;
+  size_t max_vid = 0;
+  while(fin.good()) {
+    size_t source(-1), target(-1);
+    fin >> source >> target;    
+    if(!fin.good()) break;
+    if(source != target) 
+      edge_list.push_back(edge_type(source, target));
+    max_vid = std::max(max_vid, std::max(source, target) );
+  }
+  fin.close();
+  std::cout << "Nverts: " << (max_vid+1) << std::endl;
+  std::cout << "Nedges: " << edge_list.size() << std::endl;  
+} // end of load edge list
 
 void cumsum(std::vector<size_t>& vec) {
   for(size_t i = 1; i < vec.size(); ++i) vec[i] += vec[i-1];
 }
 
-void compute_out_degree(const std::string& fname,
+void compute_out_degree(const edge_list_type& edge_list,
                         std::vector<size_t>& degree) {
-  std::ifstream fin(fname.c_str());
   std::cout << "Computing max vertex id" << std::endl;
   size_t max_vid = 0;
-  size_t nedges = 0;
-  while(fin.good()) {
-    size_t source(-1), target(-1);
-    fin >> source >> target;    
-    if(!fin.good()) break;
-    nedges++;
-    max_vid = std::max(max_vid, std::max(source, target) );
-  }
-  std::cout << "Max vertex id: " << max_vid << std::endl;
-  std::cout << "Nedges: " << nedges << std::endl;
-  std::cout << "Computing degree table" << std::endl;
+  for(size_t i = 0; i < edge_list.size(); ++i) 
+    max_vid = std::max(max_vid, size_t(std::max(edge_list[i].first, 
+                                                edge_list[i].second)));  
   ASSERT_LT(max_vid, size_t(uint32_t(-1)));
-  degree.clear(); degree.reserve(max_vid+1); degree.resize(max_vid+1,0);
-  fin.clear();
-  fin.seekg(0, std::ios::beg);
-  assert(fin.good());
-  while(fin.good()) {
-    vertex_id_type source(-1), target(-1);
-    fin >> source >> target;    
-    if(!fin.good()) break;
-    ++degree[source];
-  }  
-  std::cout << "Finished computing out degrees" << std::endl;
+  std::cout << "compute degree table" << std::endl;
+  degree.clear(); degree.reserve(max_vid+1); degree.resize(max_vid+1, 0);
+  for(size_t i = 0; i < edge_list.size(); ++i) ++degree[edge_list[i].first];
 } // end of compute out degree
 
-void  build_csr(const std::string& fname,
+void  build_csr(const edge_list_type& edge_list,
                 std::vector<size_t>& degree,
                 std::vector<vertex_id_type>& neighbors) {
   std::cout << "Computing the cumulative sum of the degree" << std::endl;
@@ -83,18 +87,15 @@ void  build_csr(const std::string& fname,
   std::cout << "Allocating the local counters" << std::endl;
   std::vector<size_t> counters(degree.size(),0);
   for(size_t i = 1; i < counters.size(); ++i) counters[i] = degree[i-1];
-  std::ifstream fin(fname.c_str());
   std::cout << "Populating neighbors table." << std::endl;
-  while(fin.good()) {
-    vertex_id_type source(-1), target(-1);
-    fin >> source >> target;    
-    if(!fin.good()) break;
+  for(size_t i = 0; i < edge_list.size(); ++i) {
+    const vertex_id_type source(edge_list[i].first), 
+      target(edge_list[i].second);
     const size_t index = counters[source]++;
     ASSERT_LT(index, neighbors.size());
     ASSERT_EQ(neighbors[index], size_t(-1));
     neighbors[index] = target;
   }
-  fin.close();
   std::cout << "validating neighbors table." << std::endl;
   for(size_t i = 0; i < neighbors.size(); ++i) 
     ASSERT_NE(neighbors[i], size_t(-1));  
@@ -136,8 +137,10 @@ void edge_to_adj(const std::string& in_fname,
 
   std::vector<size_t> offsets;
   std::vector<vertex_id_type> neighbors;
-  compute_out_degree(in_fname, offsets);
-  build_csr(in_fname, offsets, neighbors);
+  edge_list_type edge_list;
+  load_edge_list(in_fname, edge_list);
+  compute_out_degree(edge_list, offsets);
+  build_csr(edge_list, offsets, neighbors);
   sort_neighbors(offsets, neighbors);
   save_adj(out_fname, offsets, neighbors);
   
@@ -164,6 +167,8 @@ void reverse(const std::string& in_fname,
   std::cout << "Nvertices: " << (max_vid+1) << std::endl;
   std::cout << "Nedges:    " << nedges << std::endl;
 } // end of edge to adj
+
+
 
 
 

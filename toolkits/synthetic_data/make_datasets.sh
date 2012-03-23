@@ -11,8 +11,8 @@ alphas=$(seq 1 .2 3)
 mkdir datasets
 cd datasets
 
-
-for alpha in $alphas; do
+function make_graphs {
+    alpha=$1
     dirname=alpha_${alpha}
     echo $dirname
     mkdir $dirname
@@ -31,5 +31,23 @@ for alpha in $alphas; do
     $convert_graph ${graphname}.tsv reverse ${rev_graphname}.tsv
     echo "constructing adj"
     $convert_graph ${rev_graphname}.tsv edge2adj ${rev_graphname}.adj  
+    
+    mkdir ${graphname}_tsv ${graphname}_adj \
+        ${rev_graphname}_tsv ${rev_graphname}_adj 
+
+    gzip ${graphname}.tsv 
+    gzip ${graphname}.adj 
+    gzip ${rev_graphname}.tsv 
+    gzip ${rev_graphname}.adj 
+
+    mv ${graphname}.tsv.gz      ${graphname}_tsv/.
+    mv ${rev_graphname}.tsv.gz  ${rev_graphname}_tsv/.
+    mv ${graphname}.adj.gz      ${graphname}_adj/.
+    mv ${rev_graphname}.adj.gz  ${rev_graphname}_adj/.
     cd ..
+}
+
+
+for alpha in $alphas; do
+    make_graphs $alpha &
 done
