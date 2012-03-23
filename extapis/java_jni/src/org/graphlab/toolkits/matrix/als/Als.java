@@ -225,6 +225,10 @@ public class Als {
     
   }
   
+  /**
+   * Aggregate results of ALS
+   * @author Jiunn Haur Lim
+   */
   private static class AlsAggregator
     extends Aggregator<AlsVertex, AlsAggregator>{
 
