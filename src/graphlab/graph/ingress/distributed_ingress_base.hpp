@@ -204,17 +204,6 @@ namespace graphlab {
       if(rpc.procid() == 0)       
         memory_info::print_usage("Finished finalizing graph2"); 
        
-      { // Initialize vertex records
-        graph.lvid2record.reserve(graph.vid2lvid.size());
-        graph.lvid2record.resize(graph.vid2lvid.size());
-        foreach(const vid2lvid_pair_type& pair, graph.vid2lvid) 
-          graph.lvid2record[pair.second].gvid = pair.first;      
-        // Check conditions on graph
-        ASSERT_EQ(graph.local_graph.num_vertices(), graph.lvid2record.size());
-      }
-      if(rpc.procid() == 0)       
-        memory_info::print_usage("Finished lvid2record");
-
       // Setup the map containing all the vertices being negotiated by
       // this machine
       vrec_map_type vrec_map;
@@ -306,16 +295,18 @@ namespace graphlab {
         if(rpc.procid() == 0) 
           memory_info::print_usage("Finished computing masters");
 
-        // We have now assigned all the singletons that were
-        // negotiated by this machine to this machine.  We must
-        // therefore extend the local datastructures.
-        if(rpc.procid() == 0) 
-          memory_info::print_usage("Resizing lvidrecords for singletons");
-        graph.lvid2record.reserve(graph.lvid2record.size() + num_singletons);
-        graph.lvid2record.resize(graph.lvid2record.size() + num_singletons);
+      { // Initialize vertex records
+        graph.lvid2record.reserve(graph.vid2lvid.size() + num_singletons);
+        graph.lvid2record.resize(graph.vid2lvid.size() + num_singletons);
+        foreach(const vid2lvid_pair_type& pair, graph.vid2lvid) 
+          graph.lvid2record[pair.second].gvid = pair.first;      
+        // Check conditions on graph
+        // ASSERT_EQ(graph.local_graph.num_vertices(), graph.lvid2record.size());
         graph.local_graph.reserve(graph.local_graph.num_vertices() + num_singletons);
-        if(rpc.procid() == 0) 
-          memory_info::print_usage("Finished Resizing lvidrecords for singletons");
+      }
+      if(rpc.procid() == 0)       
+        memory_info::print_usage("Finished lvid2record");
+
 
         // Exchange the negotiation records
         typedef std::pair<vertex_id_type, vertex_negotiator_record> 
@@ -408,8 +399,6 @@ namespace graphlab {
       mpi_tools::all2all(swap_counts, swap_counts);
       graph.nreplicas = 0;
       foreach(size_t count, swap_counts) graph.nreplicas += count;
-
-      std::vector<vertex_record>(graph.lvid2record).swap(graph.lvid2record);
 
     } // end of finalize
 
