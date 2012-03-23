@@ -181,7 +181,7 @@ int main(int argc,  char *argv[]) {
   std::string format = "plain";
   std::string dir = "/mnt/bigbrofs/usr3/bickson/phone_calls/";
   std::string outdir = "/mnt/bigbrofs/usr3/bickson/out_phone_calls/";
-  int unittest = 0;
+  // int unittest = 0;
   uint lines = 0;
   bool load = false;
   bool save_to_text = false;

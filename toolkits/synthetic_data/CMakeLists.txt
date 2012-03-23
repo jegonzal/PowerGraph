@@ -1,0 +1,4 @@
+project(GraphLab)
+
+
+add_graphlab_executable(create_powerlaw_graph create_powerlaw_graph)
