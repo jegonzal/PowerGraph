@@ -5,12 +5,12 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import no.uib.cipr.matrix.io.MatrixSize;
+import no.uib.cipr.matrix.io.MatrixVectorReader;
+
 import org.graphlab.data.Vertex;
 import org.jgrapht.WeightedGraph;
 import org.jgrapht.graph.DefaultWeightedEdge;
-
-import cern.colt.matrix.io.MatrixSize;
-import cern.colt.matrix.io.MatrixVectorReader;
 
 /**
  * Loads a matrix from a MatrixMarket file and constructs the corresponding graph.

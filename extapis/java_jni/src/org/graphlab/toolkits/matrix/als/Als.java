@@ -3,9 +3,14 @@ package org.graphlab.toolkits.matrix.als;
 import java.io.IOException;
 import java.util.Set;
 
+import no.uib.cipr.matrix.DenseCholesky;
+import no.uib.cipr.matrix.DenseMatrix;
+import no.uib.cipr.matrix.DenseVector;
+
 import org.apache.log4j.BasicConfigurator;
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
+import org.graphlab.Aggregator;
 import org.graphlab.Context;
 import org.graphlab.Core;
 import org.graphlab.Core.CoreException;
@@ -20,12 +25,6 @@ import org.jgrapht.WeightedGraph;
 import org.jgrapht.graph.DefaultWeightedEdge;
 import org.jgrapht.graph.SimpleWeightedGraph;
 
-import cern.colt.matrix.tdouble.DoubleFactory1D;
-import cern.colt.matrix.tdouble.DoubleFactory2D;
-import cern.colt.matrix.tdouble.DoubleMatrix1D;
-import cern.colt.matrix.tdouble.DoubleMatrix2D;
-import cern.colt.matrix.tdouble.algo.decomposition.DenseDoubleCholeskyDecomposition;
-
 
 /**
  * Matrix factorization w. alternating least squares.
@@ -36,9 +35,8 @@ import cern.colt.matrix.tdouble.algo.decomposition.DenseDoubleCholeskyDecomposit
 public class Als {
   
   /** Number of latent factors */
-  // TODO
-  // private static final int NLATENT = 20;
-  private static final int NLATENT = 2;
+  private static final int NLATENT = 20;
+  // private static final int NLATENT = 2;
   
   private static final double LAMBDA = 0.065;
   private static final double TOLERANCE = 1e-2;
@@ -72,13 +70,16 @@ public class Als {
     // init graphlab core
     final CoreConfiguration config = new CoreConfiguration();
     config.setScheduler(Scheduler.SWEEP);
-    config.setNCpus(2); // TODO
     final Core core = new Core(config);
     
     // schedule and run
     core.setGraph(graph);
     core.scheduleAll(new AlsUpdater(graph, 10000));
     logger.info("GraphLab engine stopped. Took " + core.start() + " seconds.");
+    
+    // aggregate statistics
+    core.addAggregator("agg", new AlsAggregator(graph), 0);
+    core.aggregateNow("agg");
     
     core.destroy();
     
@@ -114,9 +115,11 @@ public class Als {
   private static void
     randomLatentFactors(Graph<AlsVertex, ?> graph, int nlatent){
     
-    DoubleFactory1D factory = DoubleFactory1D.dense;
-    for (VectorVertex vertex : graph.vertexSet())
-      vertex.setVector(factory.random(nlatent));
+    for (VectorVertex vertex : graph.vertexSet()){
+      double[] values = new double[nlatent];
+      for (int i=0; i<values.length; i++) values[i] = Math.random();
+      vertex.setVector(new DenseVector(values));
+    }
     
   }
   
@@ -128,7 +131,7 @@ public class Als {
   }
   
   /**
-   * Alternating Least Squares updater. TODO
+   * Alternating Least Squares updater.
    * 
    * @author Jiunn Haur Lim <jiunnhal@cmu.edu>
    */
@@ -151,8 +154,6 @@ public class Als {
     @Override
     public void update(Context context, AlsVertex vertex) {
       
-      logger.debug("Updating vertex " + vertex.id());
-      
       vertex.mSquaredError = vertex.mResidual = 0;
       ++vertex.mNUpdates;
       
@@ -161,63 +162,54 @@ public class Als {
       if(edges.isEmpty()) return;
       
       // get the number of latent dimensions
-      DoubleMatrix2D XtX = DoubleFactory2D.dense.make(NLATENT, NLATENT);
-      DoubleMatrix1D Xty = DoubleFactory1D.dense.make(NLATENT);
+      DenseMatrix XtX = new DenseMatrix(NLATENT, NLATENT);
+      DenseVector Xty = new DenseVector(NLATENT);
         
       // Compute X'X and X'y (weighted) -----------------------------------------
       for (final DefaultWeightedEdge edge : edges) {
         // get neighbor
-        DoubleMatrix1D neighbor = Graphs.getOppositeVertex(mGraph, edge, vertex).vector();
+        DenseVector neighbor = Graphs.getOppositeVertex(mGraph, edge, vertex).vector();
         double weight = mGraph.getEdgeWeight(edge);
         // update the X'X and X'y
         for(int i = 0; i < NLATENT; ++i) {
-          double increment = neighbor.getQuick(i)*weight; // weight is the y value
-          Xty.setQuick(i, Xty.getQuick(i) + increment);
+          double increment = neighbor.get(i)*weight; // weight is the y value
+          Xty.set(i, Xty.get(i) + increment);
           for(int j = i; j < NLATENT; ++j){
-            increment = neighbor.getQuick(i)*neighbor.getQuick(j);
-            XtX.setQuick(j, i, XtX.getQuick(j, i) + increment);
+            increment = neighbor.get(i)*neighbor.get(j);
+            XtX.set(j, i, XtX.get(j, i) + increment);
           }
         }
       }
       
       for(int i = 0; i < NLATENT; ++i)
         for(int j = i+1; j < NLATENT; ++j)
-          XtX.setQuick(i, j, XtX.getQuick(j, i));
+          XtX.set(i, j, XtX.get(j, i));
 
       for(int i = 0; i < NLATENT; ++i)
-        XtX.setQuick(i, i, XtX.getQuick(i,i) + (LAMBDA) * edges.size());
-      
-      logger.debug(XtX);
-      logger.debug(Xty);
+        XtX.set(i, i, XtX.get(i,i) + (LAMBDA) * edges.size());
       
       // solve the least squares problem using PColt ----------------------------
-      final DoubleMatrix1D oldLatent = vertex.vector();
-      new DenseDoubleCholeskyDecomposition(XtX).solve(Xty); // in-place
-      vertex.setVector(Xty);
-
-      logger.debug(Xty);
+      final DenseVector oldLatent = vertex.vector();
+      DenseMatrix newLatent = DenseCholesky.factorize(XtX).solve(new DenseMatrix(Xty));
+      vertex.setVector(new DenseVector(newLatent.getData()));
       
       // compute the residual change in the latent factors-----------------------
       vertex.mResidual = 0;
       for(int i = 0; i < NLATENT; ++i)
-        vertex.mResidual += Math.abs(oldLatent.getQuick(i) - vertex.vector().getQuick(i));
+        vertex.mResidual += Math.abs(oldLatent.get(i) - vertex.vector().get(i));
       vertex.mResidual /= NLATENT;
       
       // update the rmse and reschedule neighbors -------------------------------
-      logger.debug("Residual: " + vertex.mResidual);
       for (final DefaultWeightedEdge edge : edges) {
         // get the neighbor id
         AlsVertex neighbor = Graphs.getOppositeVertex(mGraph, edge, vertex);
-        final double pred = vertex.vector().zDotProduct(neighbor.vector());
+        final double pred = vertex.vector().dot(neighbor.vector());
         final double error = Math.abs(mGraph.getEdgeWeight(edge) - pred);
         vertex.mSquaredError += error*error;
         // reschedule neighbors ------------------------------------------------
-        logger.debug("\t" + neighbor.id() + ": " + error);
         if( error > TOLERANCE && vertex.mResidual > TOLERANCE) 
           context.schedule(neighbor, new AlsUpdater(mGraph, error * vertex.mResidual));
       }
-      
-      logger.debug("scheduled.");
       
     } // end of operator()
     
@@ -229,6 +221,53 @@ public class Als {
     @Override
     public double priority(){
       return mError;
+    }
+    
+  }
+  
+  private static class AlsAggregator
+    extends Aggregator<AlsVertex, AlsAggregator>{
+
+    private double mSumSquaredErrors = 0;
+    private double mMaxRootMeanSquaredError = 0;
+    private WeightedGraph<AlsVertex, DefaultWeightedEdge> mGraph;
+    
+    private AlsAggregator(WeightedGraph<AlsVertex, DefaultWeightedEdge> graph){
+      mGraph = graph;
+    }
+    
+    @Override
+    protected void exec(Context context, AlsVertex vertex) {
+      
+      int numEdges = mGraph.edgesOf(vertex).size();
+      if (0 == numEdges) return;
+      
+      mSumSquaredErrors += vertex.mSquaredError;
+      mMaxRootMeanSquaredError =
+          Math.max(mMaxRootMeanSquaredError, Math.sqrt(vertex.mSquaredError/numEdges));
+      
+    }
+
+    @Override
+    protected void add(AlsAggregator other) {
+      mSumSquaredErrors += other.mSumSquaredErrors;
+      mMaxRootMeanSquaredError =
+        Math.max(mMaxRootMeanSquaredError, other.mMaxRootMeanSquaredError);
+    }
+
+    @Override
+    protected void finalize(Context context) {
+      logger.info("Average RMS: " +
+          Math.sqrt(mSumSquaredErrors/(2*mGraph.edgeSet().size())));
+      logger.info("Max RMS: " + mMaxRootMeanSquaredError);
+    }
+
+    @Override
+    protected AlsAggregator clone() {
+      AlsAggregator agg = new AlsAggregator(mGraph);
+      agg.mMaxRootMeanSquaredError = this.mMaxRootMeanSquaredError;
+      agg.mSumSquaredErrors = this.mSumSquaredErrors;
+      return agg;
     }
     
   }

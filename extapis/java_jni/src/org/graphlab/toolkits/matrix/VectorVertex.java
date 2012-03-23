@@ -1,8 +1,8 @@
 package org.graphlab.toolkits.matrix;
 
-import org.graphlab.data.Vertex;
+import no.uib.cipr.matrix.DenseVector;
 
-import cern.colt.matrix.tdouble.DoubleMatrix1D;
+import org.graphlab.data.Vertex;
 
 /**
  * Vertex that holds a vector.
@@ -23,7 +23,7 @@ public class VectorVertex extends Vertex {
   private int mId;
   
   /** Data for this vertex */
-  private DoubleMatrix1D mVector;
+  private DenseVector mVector;
   
   public VectorVertex(){}
   
@@ -45,11 +45,11 @@ public class VectorVertex extends Vertex {
    * Sets the data for this vertex.
    * @param vector
    */
-  public void setVector(DoubleMatrix1D vector){
+  public void setVector(DenseVector vector){
     mVector = vector;
   }
   
-  public DoubleMatrix1D vector(){
+  public DenseVector vector(){
     return mVector;
   }
   

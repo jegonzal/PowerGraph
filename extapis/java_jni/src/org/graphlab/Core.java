@@ -4,7 +4,6 @@ import java.util.Set;
 
 import org.apache.log4j.Logger;
 import org.graphlab.data.Vertex;
-import org.jgrapht.DirectedGraph;
 import org.jgrapht.Graph;
 
 /**
@@ -43,7 +42,10 @@ public final class Core {
 
 	/**
 	 * Creates a new GraphLab core.
-	 * <b>Call {@link #destroy()} when done to free up resources.</b>
+	 * 
+	 * <p><b>Call {@link #destroy()} when done to free up resources.</b>
+	 * The program will not terminate if you forget, because that leaves
+	 * child threads alive.</p>
 	 * 
 	 * @throws CoreException if there was an error creating the core
 	 */
@@ -58,7 +60,10 @@ public final class Core {
 	
 	 /**
    * Creates a new GraphLab core.
-   * <b>Call {@link #destroy()} when done to free up resources.</b>
+   * 
+   * <p><b>Call {@link #destroy()} when done to free up resources.</b>
+   * The program will not terminate if you forget, because that leaves
+   * child threads alive.</p>
    * 
    * @param config
    *          configuration e.g. scheduler, scope
@@ -148,7 +153,7 @@ public final class Core {
 
   /**
    * Run the engine until a termination condition is reached or there are no
-   * more tasks remaining to execute. <b>{@link #setGraph(DirectedGraph)} must
+   * more tasks remaining to execute. <b>{@link #setGraph} must
    * be called before invoking this method</b>.
    * 
    * @return runtime
