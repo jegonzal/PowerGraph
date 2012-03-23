@@ -1247,7 +1247,7 @@ private:
   // used to inform the counter that the full barrier
   // is in effect and all modifications to the calls_recv
   // counter will need to lock and signal
-  bool full_barrier_in_effect;
+  volatile bool full_barrier_in_effect;
   
   /** number of 'source' processor counts which have
   not achieved the right recv count */

@@ -31,6 +31,7 @@
 #include <graphlab/graph/ingress/idistributed_ingress.hpp>
 #include <graphlab/graph/ingress/ingress_edge_decision.hpp>
 #include <graphlab/graph/distributed_graph.hpp>
+#include <graphlab/util/cuckoo_map_pow2.hpp>
 
 #include <graphlab/macros_def.hpp>
 namespace graphlab {
@@ -94,11 +95,11 @@ namespace graphlab {
 
 
     struct vertex_negotiator_record {
-      vertex_id_type num_in_edges, num_out_edges;
-      procid_t owner;
       mirror_type mirrors;
       vertex_data_type vdata;
-      vertex_negotiator_record() : 
+      vertex_id_type num_in_edges, num_out_edges;
+      procid_t owner;
+       vertex_negotiator_record() : 
         num_in_edges(0), num_out_edges(0), owner(-1) { }
       void load(iarchive& arc) { 
         arc >> num_in_edges >> num_out_edges >> owner >> mirrors >> vdata;
@@ -136,12 +137,11 @@ namespace graphlab {
 
 
 
-
-
-
     
     virtual void finalize() {
-      typedef typename boost::unordered_map<vertex_id_type, lvid_type>::value_type 
+      // typedef typename boost::unordered_map<vertex_id_type, lvid_type>::value_type 
+      //   vid2lvid_pair_type;
+      typedef typename cuckoo_map_pow2<vertex_id_type, lvid_type, 3, uint32_t>::value_type
         vid2lvid_pair_type;
       typedef typename buffered_exchange<edge_buffer_record>::buffer_type 
         edge_buffer_type;
@@ -156,8 +156,8 @@ namespace graphlab {
       
       // Flush any additional data
       edge_exchange.flush(); vertex_exchange.flush();     
-      
-      memory_info::print_usage("Post Flush");
+      if(rpc.procid() == 0)       
+        memory_info::print_usage("Post Flush");
 
       logstream(LOG_INFO) << "Graph Finalize: constructing local graph" << std::endl;
       { // Add all the edges to the local graph
@@ -186,7 +186,9 @@ namespace graphlab {
         } // end for loop over buffers
         edge_exchange.clear();
       }
-      memory_info::print_usage("Finished populating graphlab2");
+
+      if(rpc.procid() == 0) 
+        memory_info::print_usage("Finished populating graphlab2");
       
       
       // Finalize local graph
@@ -199,17 +201,9 @@ namespace graphlab {
                           << "\t nedges: " << graph.local_graph.num_edges()
                           << std::endl;
       
-      memory_info::print_usage("Finished finalizing graph2"); 
+      if(rpc.procid() == 0)       
+        memory_info::print_usage("Finished finalizing graph2"); 
        
-      { // Initialize vertex records
-        graph.lvid2record.resize(graph.vid2lvid.size());
-        foreach(const vid2lvid_pair_type& pair, graph.vid2lvid) 
-          graph.lvid2record[pair.second].gvid = pair.first;      
-        // Check conditions on graph
-        ASSERT_EQ(graph.local_graph.num_vertices(), graph.lvid2record.size());
-      }
-      memory_info::print_usage("Finished lvid2record");
-
       // Setup the map containing all the vertices being negotiated by
       // this machine
       vrec_map_type vrec_map;
@@ -224,7 +218,8 @@ namespace graphlab {
         vertex_exchange.clear();
       } // end of loop to populate vrecmap
 
-      memory_info::print_usage("Emptied vertex data exchange");
+      if(rpc.procid() == 0)         
+        memory_info::print_usage("Emptied vertex data exchange");
 
 
 
@@ -232,6 +227,7 @@ namespace graphlab {
         // negotiated by this machine
         buffered_exchange<vertex_info> vinfo_exchange(rpc.dc());
         vinfo_buffer_type recv_buffer; procid_t sending_proc = -1;
+        size_t iter = 0; size_t last_iter = graph.vid2lvid.size() - 1;
         foreach(const vid2lvid_pair_type& pair, graph.vid2lvid) {
           // Send a vertex
           const vertex_id_type vid = pair.first;
@@ -240,6 +236,7 @@ namespace graphlab {
           const vertex_info vinfo(vid, graph.local_graph.num_in_edges(lvid),
                                   graph.local_graph.num_out_edges(lvid));
           vinfo_exchange.send(negotiator, vinfo);
+          if (iter == last_iter)  vinfo_exchange.flush();;
           // recv any buffers if necessary
           while(vinfo_exchange.recv(sending_proc, recv_buffer)) {
             foreach(vertex_info vinfo, recv_buffer) {
@@ -249,34 +246,31 @@ namespace graphlab {
               rec.mirrors.set_bit(sending_proc);
             } // end of for loop over all vertex info
           } // end of recv while loop
+          ++iter;
         } // end of loop over edge info        
-        vinfo_exchange.flush();
-        while(vinfo_exchange.recv(sending_proc, recv_buffer)) {
-          foreach(vertex_info vinfo, recv_buffer) {
-            vertex_negotiator_record& rec = vrec_map[vinfo.vid];
-            rec.num_in_edges += vinfo.num_in_edges;
-            rec.num_out_edges += vinfo.num_out_edges;
-            rec.mirrors.set_bit(sending_proc);
-          } // end of for loop over all vertex info
-        } // end of recv while loop
       } // end of compute mirror information
 
-      memory_info::print_usage("Exchanged basic vertex info");
+      if(rpc.procid() == 0) 
+        memory_info::print_usage("Exchanged basic vertex info");
 
       { // Determine masters for all negotiated vertices
         logstream(LOG_INFO) 
           << "Graph Finalize: Constructing and sending vertex assignments" 
           << std::endl;
-        std::vector<size_t> counts(rpc.numprocs());      
+        std::vector<size_t> counts(rpc.numprocs()); 
+        size_t num_singletons = 0;
         // Compute the master assignments
         foreach(vrec_pair_type& pair, vrec_map) {
-          const vertex_id_type vid = pair.first;
+          
           vertex_negotiator_record& rec = pair.second;          
           // Determine the master
           procid_t master(-1);
           if(rec.mirrors.popcount() == 0) {
-            // random assign a singleton vertex to a proc
-            master = vid % rpc.numprocs();        
+            // // random assign a singleton vertex to a proc
+            // const vertex_id_type vid = pair.first;
+            // master = vid % rpc.numprocs();        
+            // For simplicity simply assign it to this machine
+            master = rpc.procid(); ++num_singletons;
           } else {
             // Find the best (least loaded) processor to assign the
             // vertex.
@@ -298,16 +292,31 @@ namespace graphlab {
           rec.mirrors.clear_bit(master); // Master is not a mirror         
         } // end of loop over all vertex negotiation records
 
-        memory_info::print_usage("Finished computing masters");
+        if(rpc.procid() == 0) 
+          memory_info::print_usage("Finished computing masters");
+
+      { // Initialize vertex records
+        graph.lvid2record.reserve(graph.vid2lvid.size() + num_singletons);
+        graph.lvid2record.resize(graph.vid2lvid.size() + num_singletons);
+        foreach(const vid2lvid_pair_type& pair, graph.vid2lvid) 
+          graph.lvid2record[pair.second].gvid = pair.first;      
+        // Check conditions on graph
+        // ASSERT_EQ(graph.local_graph.num_vertices(), graph.lvid2record.size());
+        graph.local_graph.reserve(graph.local_graph.num_vertices() + num_singletons);
+      }
+      if(rpc.procid() == 0)       
+        memory_info::print_usage("Finished lvid2record");
+
 
         // Exchange the negotiation records
         typedef std::pair<vertex_id_type, vertex_negotiator_record> 
           exchange_pair_type;
         typedef buffered_exchange<exchange_pair_type> 
           negotiator_exchange_type;
-        negotiator_exchange_type negotiator_exchange(rpc.dc());
+        negotiator_exchange_type negotiator_exchange(rpc.dc(), 1000);
         typename negotiator_exchange_type::buffer_type recv_buffer;
         procid_t sending_proc(-1);
+        size_t iter = 0; size_t last_iter = vrec_map.size() - 1;
         foreach(vrec_pair_type& pair, vrec_map) {
           const vertex_id_type& vid = pair.first;
           const vertex_negotiator_record& negotiator_rec = pair.second;
@@ -318,6 +327,7 @@ namespace graphlab {
           foreach(uint32_t mirror, negotiator_rec.mirrors) {
             negotiator_exchange.send(mirror, exchange_pair);
           }
+          if (iter == last_iter) negotiator_exchange.flush();
           // Recevie any records
           while(negotiator_exchange.recv(sending_proc, recv_buffer)) {
             foreach(const exchange_pair_type& pair, recv_buffer) {
@@ -329,7 +339,7 @@ namespace graphlab {
                 lvid = graph.vid2lvid.size();
                 graph.vid2lvid[vid] = lvid;
                 graph.local_graph.add_vertex(lvid, negotiator_rec.vdata);
-                graph.lvid2record.push_back(vertex_record());
+                ASSERT_LT(lvid, graph.lvid2record.size());
                 graph.lvid2record[lvid].gvid = vid;
               } else {
                 lvid = graph.vid2lvid[vid];
@@ -346,39 +356,12 @@ namespace graphlab {
               local_record._mirrors = negotiator_rec.mirrors;
             }
           } // end of while loop over negotiator_exchange.recv
+          ++iter;
         } // end of for loop over local vertex records        
-        negotiator_exchange.flush();        
-        // Recevie any records
-        while(negotiator_exchange.recv(sending_proc, recv_buffer)) {
-          foreach(const vrec_pair_type& pair, recv_buffer) {
-            const vertex_id_type& vid = pair.first;
-            const vertex_negotiator_record& negotiator_rec = pair.second;
-            // Determine the local vid 
-            lvid_type lvid(-1);
-            if(graph.vid2lvid.find(vid) == graph.vid2lvid.end()) {
-              lvid = graph.vid2lvid.size();
-              graph.vid2lvid[vid] = lvid;
-              graph.local_graph.add_vertex(lvid, negotiator_rec.vdata);
-              graph.lvid2record.push_back(vertex_record());
-              graph.lvid2record[lvid].gvid = vid;
-            } else {
-              lvid = graph.vid2lvid[vid];
-              ASSERT_LT(lvid, graph.local_graph.num_vertices());
-              graph.local_graph.vertex_data(lvid) = negotiator_rec.vdata;
-            }
-            ASSERT_LT(lvid, graph.lvid2record.size());
-            vertex_record& local_record = graph.lvid2record[lvid];
-            local_record.owner = negotiator_rec.owner;
-            ASSERT_EQ(local_record.num_in_edges, 0); 
-            local_record.num_in_edges = negotiator_rec.num_in_edges;
-            ASSERT_EQ(local_record.num_out_edges, 0);
-            local_record.num_out_edges = negotiator_rec.num_out_edges;
-            local_record._mirrors = negotiator_rec.mirrors;
-          }
-        } // end of while loop over negotiator_exchange.recv
       } // end of master exchange
 
-      memory_info::print_usage("Finished sending updating mirrors");
+      if(rpc.procid() == 0) 
+        memory_info::print_usage("Finished sending updating mirrors");
 
 
       ASSERT_EQ(graph.vid2lvid.size(), graph.local_graph.num_vertices());
@@ -416,6 +399,7 @@ namespace graphlab {
       mpi_tools::all2all(swap_counts, swap_counts);
       graph.nreplicas = 0;
       foreach(size_t count, swap_counts) graph.nreplicas += count;
+
     } // end of finalize
 
 

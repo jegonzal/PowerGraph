@@ -444,24 +444,22 @@ class distributed_control{
   inline void inc_calls_received(procid_t procid) {
     
     if (!full_barrier_in_effect) {
-        global_calls_received[procid].inc();
-        if (full_barrier_in_effect) {
-
-      if (global_calls_received[procid].inc() == calls_to_receive[procid]) {
-        // if it was me who set the bit
-        if (procs_complete.set_bit(procid) == false) {
-          // then decrement the incomplete count.
-          // if it was me to decreased it to 0
-          // lock and signal
-          full_barrier_lock.lock();
-          if (num_proc_recvs_incomplete.dec() == 0) {
-            full_barrier_cond.signal();
+      global_calls_received[procid].inc();
+      if (full_barrier_in_effect) {
+        if (global_calls_received[procid].inc() == calls_to_receive[procid]) {
+          // if it was me who set the bit
+          if (procs_complete.set_bit(procid) == false) {
+            // then decrement the incomplete count.
+            // if it was me to decreased it to 0
+            // lock and signal
+            full_barrier_lock.lock();
+            if (num_proc_recvs_incomplete.dec() == 0) {
+              full_barrier_cond.signal();
+            }
+            full_barrier_lock.unlock();
           }
-          full_barrier_lock.unlock();
         }
       }
- 
-        }
     }
     else {
       //check the proc I just incremented.
@@ -734,7 +732,7 @@ class distributed_control{
   // used to inform the counter that the full barrier
   // is in effect and all modifications to the calls_recv
   // counter will need to lock and signal
-  bool full_barrier_in_effect;
+  volatile bool full_barrier_in_effect;
   
   /** number of 'source' processor counts which have
   not achieved the right recv count */

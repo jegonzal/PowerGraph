@@ -229,11 +229,9 @@ namespace graphlab {
      */
     void add_vertex(vertex_id_type vid, 
                     const VertexData& vdata = VertexData() ) {
-      // if (finalized) {
-      //   logstream(LOG_INFO)
-      //     << "Attempting add vertex to a finalized graph." << std::endl;
-      //   // ASSERT_MSG(false, "Add vertex to a finalized graph.");
-      // }
+        // logstream(LOG_INFO)
+        //   << "Attempting add vertex to a finalized graph." << std::endl;
+        // // ASSERT_MSG(false, "Add vertex to a finalized graph.");
       if(vid >= vertices.size()) {
         // Enable capacity doubling if resizing beyond capacity
         if(vid >= vertices.capacity()) {
@@ -248,6 +246,12 @@ namespace graphlab {
       vertices[vid] = vdata;    
     } // End of add vertex;
 
+    void reserve(size_t num_vertices) {
+      ASSERT_GE(num_vertices, vertices.size());
+      vertices.reserve(num_vertices);
+      if (use_vcolor) vcolors.reserve(num_vertices);
+    }
+
 
     /** 
      * \brief Add additional vertices up to provided num_vertices.  This will
@@ -255,6 +259,7 @@ namespace graphlab {
      */
     void resize(size_t num_vertices ) {
       ASSERT_GE(num_vertices, vertices.size());
+      vertices.reserve(num_vertices);
       vertices.resize(num_vertices);
       if (use_vcolor) vcolors.resize(vertices.size());
     } // End of resize

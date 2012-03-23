@@ -59,9 +59,9 @@ namespace graphlab {
     size_t max_buffer_size;
     
   public:
-    buffered_exchange(distributed_control& dc) : 
+    buffered_exchange(distributed_control& dc, size_t buffer_size = 1000) : 
     rpc(dc, this), send_buffers(dc.numprocs()), send_locks(dc.numprocs()),
-    max_buffer_size(1000000) { rpc.barrier(); }
+    max_buffer_size(buffer_size) { rpc.barrier(); }
     
     void send(procid_t proc, const T& value) {
       ASSERT_LT(proc, send_locks.size());
@@ -98,6 +98,7 @@ namespace graphlab {
 
 
     bool recv(procid_t& ret_proc, buffer_type& ret_buffer) {
+      ret_buffer = buffer_type();
       bool success = false;
       recv_lock.lock();
       if(!recv_buffers.empty()) {
