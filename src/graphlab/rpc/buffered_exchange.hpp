@@ -98,6 +98,7 @@ namespace graphlab {
 
 
     bool recv(procid_t& ret_proc, buffer_type& ret_buffer) {
+      ret_buffer = buffer_type();
       bool success = false;
       recv_lock.lock();
       if(!recv_buffers.empty()) {
