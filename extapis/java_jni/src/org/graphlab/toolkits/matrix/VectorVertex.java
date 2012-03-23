@@ -8,7 +8,9 @@ import cern.colt.matrix.AbstractMatrix1D;
  * Vertex that holds a vector.
  * 
  * In the context of a recommender system, a vertex is either a user
- * or an object of interest.
+ * or an object of interest, and each vertex contains a vector of latent
+ * factors.
+ * 
  * @author Jiunn Haur Lim <jiunnhal@cmu.edu>
  */
 public class VectorVertex extends Vertex {
@@ -32,6 +34,7 @@ public class VectorVertex extends Vertex {
     mId = id;
   }
   
+  @Override
   public int id(){
     return mId;
   }
@@ -44,30 +47,14 @@ public class VectorVertex extends Vertex {
     mVector = vector;
   }
   
-  /*
-   * IMPORTANT: must override this for JGraphT
-   * (non-Javadoc)
-   * @see java.lang.Object#hashCode()
-   */
-  @Override
-  public int hashCode(){
-    return mId;
-  }
-  
-  /*
-   * IMPORTANT: must override this for JGraphT
-   * (non-Javadoc)
-   * @see java.lang.Object#equals(java.lang.Object)
-   */
-  @Override
-  public boolean equals(Object other){
-    if (!(other instanceof VectorVertex)) return false;
-    return mId == ((VectorVertex) other).mId;
-  }
-  
   @Override
   public String toString(){
     return "id: " + mId + " value: " + mVector;
+  }
+
+  @Override
+  public void setId(int id) {
+    mId = id;    
   }
   
 }

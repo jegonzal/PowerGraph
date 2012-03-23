@@ -2,6 +2,8 @@ package org.graphlab.toolkits.matrix;
 
 import java.io.FileReader;
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 import org.graphlab.data.Vertex;
 import org.jgrapht.WeightedGraph;
@@ -21,8 +23,11 @@ public class MatrixLoader {
    * @param graph       the graph to construct
    * @param filename    name of file containing the matrix
    * @throws IOException
+   *            if file could not be read
    * @throws IllegalAccessException 
+   *            if vertices could not be instantiated
    * @throws InstantiationException 
+   *            if vertices could not be instantiated
    */
   public static <V extends Vertex> void
     loadGraph(
@@ -38,12 +43,8 @@ public class MatrixLoader {
     MatrixVectorReader reader = new MatrixVectorReader(new FileReader(filename));
     MatrixSize size = reader.readMatrixSize(reader.readMatrixInfo());
     
-    // initialize graph size
-    for (int i=0; i<size.numRows() + size.numColumns(); i++){
-      V vertex = vertexClass.newInstance();
-      vertex.setId(i);
-      graph.addVertex(vertex);
-    }
+    // I really need this - hashcode trick doesn't work
+    Map<Integer, V> vertices = new HashMap<Integer, V>();
     
     // iterate through file entries and construct graph
     int[] row = new int[1];
@@ -53,15 +54,32 @@ public class MatrixLoader {
       
       reader.readCoordinate(row, col, data);
       
-      // hopefully JGraphT uses their ID's to get the correct vertices
-      V source = vertexClass.newInstance();
-      source.setId(row[0]);
-      V target = vertexClass.newInstance();
-      target.setId(size.numRows()+col[0]);
+      V source = vertices.get(row[0]);
+      if (null == source){
+        source = vertexClass.newInstance();
+        source.setId(row[0]);
+        graph.addVertex(source);
+        vertices.put(row[0], source);
+      }
+      
+      V target = vertices.get(size.numRows()+col[0]);
+      if (null == target){
+         target = vertexClass.newInstance();
+         target.setId(size.numRows()+col[0]);
+         graph.addVertex(target);
+         vertices.put(size.numRows()+col[0], target);
+      }
       
       DefaultWeightedEdge edge = graph.addEdge(source, target);
       graph.setEdgeWeight(edge, data[0]);
       
+    }
+    
+    // add the remaining vertices
+    for (int i=0; i<size.numRows() + size.numColumns(); i++){
+      V vertex = vertexClass.newInstance();
+      vertex.setId(i);
+      graph.addVertex(vertex);  // does nothing if already exists
     }
     
   }
