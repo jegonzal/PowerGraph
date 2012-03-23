@@ -50,7 +50,6 @@ size_t nverts = 10;
 size_t fanout = 2;
 
 
-
 void pdf2cdf(std::vector<double>& pdf) {
   double Z = 0;
   for(size_t i = 0; i < pdf.size(); ++i) Z += pdf[i];
@@ -64,7 +63,7 @@ size_t sample(const std::vector<double>& cdf) {
 } // end of sample
 
 void constant_fanout() {
- std::vector<double> prob(nverts, 0);
+  std::vector<double> prob(nverts, 0);
   std::cout << "constructing pdf" << std::endl;
   for(size_t i = 0; i < nverts; ++i) 
     prob[i] = std::pow(double(i+1), -alpha);
@@ -85,7 +84,7 @@ void constant_fanout() {
       if(source != target) targets.insert(target);
     }
     foreach(size_t target, targets)
-      fout << source << '\t' << target << '\n';
+      fout << source << '\t' << target << '\n';      
   }
   fout.close();
 } // end of constant fanout powerlaw
@@ -163,14 +162,11 @@ int main(int argc, char** argv) {
     std::cout << "Invalid algorithm type \"" << algorithm  << "\" valid types are: " 
               << std::endl
               << "\t constant: draw out neigbors according too a powerlaw \n"
-              << "\t           degree distribution."
+              << "\t           degree distribution.\n"
               << "\t boost: use the boost power law graph algorithm.\n"
               << "\t preferential: use the preferential attachment algorithm.\n"
               << std::endl;
   }
-
- 
  
   return EXIT_SUCCESS;
-
 } // end of main
