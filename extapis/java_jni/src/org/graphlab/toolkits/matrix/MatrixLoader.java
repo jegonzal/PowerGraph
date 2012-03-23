@@ -13,13 +13,14 @@ import cern.colt.matrix.io.MatrixSize;
 import cern.colt.matrix.io.MatrixVectorReader;
 
 /**
- * Loads a matrix from a MatrixMarket file and populates the corresponding graph.
- * @author Jiunn Haur Lim
+ * Loads a matrix from a MatrixMarket file and constructs the corresponding graph.
+ * @author Jiunn Haur Lim <jiunnhal@cmu.edu>
  */
 public class MatrixLoader {
 
   /**
    * Constructs graph from an MM file (assuming general coordinate format with real values.)
+   * 
    * @param graph       the graph to construct
    * @param filename    name of file containing the matrix
    * @throws IOException
@@ -54,20 +55,23 @@ public class MatrixLoader {
       
       reader.readCoordinate(row, col, data);
       
+      // add vertex if it does not already exist
       V source = vertices.get(row[0]);
       if (null == source){
         source = vertexClass.newInstance();
         source.setId(row[0]);
         graph.addVertex(source);
-        vertices.put(row[0], source);
+        vertices.put(source.id(), source);
       }
       
-      V target = vertices.get(size.numRows()+col[0]);
+      // add vertex if it does not already exist
+      int targetID = size.numRows() + col[0];
+      V target = vertices.get(targetID);
       if (null == target){
          target = vertexClass.newInstance();
-         target.setId(size.numRows()+col[0]);
+         target.setId(targetID);
          graph.addVertex(target);
-         vertices.put(size.numRows()+col[0], target);
+         vertices.put(targetID, target);
       }
       
       DefaultWeightedEdge edge = graph.addEdge(source, target);
@@ -77,9 +81,13 @@ public class MatrixLoader {
     
     // add the remaining vertices
     for (int i=0; i<size.numRows() + size.numColumns(); i++){
+      
+      if (vertices.containsKey(i)) continue;
+      
       V vertex = vertexClass.newInstance();
       vertex.setId(i);
-      graph.addVertex(vertex);  // does nothing if already exists
+      graph.addVertex(vertex);
+      
     }
     
   }

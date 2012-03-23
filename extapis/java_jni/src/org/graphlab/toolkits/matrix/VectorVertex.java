@@ -2,7 +2,7 @@ package org.graphlab.toolkits.matrix;
 
 import org.graphlab.data.Vertex;
 
-import cern.colt.matrix.AbstractMatrix1D;
+import cern.colt.matrix.tdouble.DoubleMatrix1D;
 
 /**
  * Vertex that holds a vector.
@@ -23,7 +23,9 @@ public class VectorVertex extends Vertex {
   private int mId;
   
   /** Data for this vertex */
-  private AbstractMatrix1D mVector;
+  private DoubleMatrix1D mVector;
+  
+  public VectorVertex(){}
   
   /**
    * Constructs a new vector vertex with the given ID
@@ -43,8 +45,12 @@ public class VectorVertex extends Vertex {
    * Sets the data for this vertex.
    * @param vector
    */
-  public void setVector(AbstractMatrix1D vector){
+  public void setVector(DoubleMatrix1D vector){
     mVector = vector;
+  }
+  
+  public DoubleMatrix1D vector(){
+    return mVector;
   }
   
   @Override
