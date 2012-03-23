@@ -8,6 +8,7 @@ import java.util.Map;
 
 import org.apache.log4j.Logger;
 import org.graphlab.data.ScalarVertex;
+import org.graphlab.data.Vertex;
 import org.jgrapht.WeightedGraph;
 import org.jgrapht.graph.DefaultWeightedEdge;
 
@@ -21,7 +22,7 @@ public class GraphLoader {
 	private static final Logger logger = Logger.getLogger(GraphLoader.class);
 	
 	/**
-	 * Defaults to ScalarVertex class
+	 * Defaults to Vertex type to ScalarVertex
 	 * @param graph
 	 * @param filename
 	 * @throws IOException
@@ -50,13 +51,16 @@ public class GraphLoader {
 	 * @param filename
 	 *            the file to read from
 	 */
-	public static <V extends ScalarVertex> void
+	public static <V extends Vertex> void
 	    loadGraphFromTsvFile(
 	    WeightedGraph<V, DefaultWeightedEdge> graph,
 	    Class<V> vertexClass,
 	    String filename)
 			throws IOException {
 
+	  if (null == graph || null == vertexClass || null == filename)
+	    throw new NullPointerException("graph, vertexClass, and filename must not be nill.");
+	  
 		// read from file
 		BufferedReader reader = new BufferedReader(new FileReader(filename));
 		

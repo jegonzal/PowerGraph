@@ -3,38 +3,46 @@ package org.graphlab.toolkits.matrix;
 import java.io.FileReader;
 import java.io.IOException;
 
+import org.graphlab.data.Vertex;
+import org.jgrapht.WeightedGraph;
 import org.jgrapht.graph.DefaultWeightedEdge;
-import org.jgrapht.graph.SimpleWeightedGraph;
 
 import cern.colt.matrix.io.MatrixSize;
 import cern.colt.matrix.io.MatrixVectorReader;
 
 /**
- * Loads a matrix from a Matrix Market file and creates the corresponding graph.
+ * Loads a matrix from a MatrixMarket file and populates the corresponding graph.
  * @author Jiunn Haur Lim
  */
 public class MatrixLoader {
 
   /**
-   * Constructs graph from a MM file (assuming general coordinate format with real values.)
-   * @param filename
-   * @return undirected graph with vector vertices and scalar edges
+   * Constructs graph from an MM file (assuming general coordinate format with real values.)
+   * @param graph       the graph to construct
+   * @param filename    name of file containing the matrix
    * @throws IOException
+   * @throws IllegalAccessException 
+   * @throws InstantiationException 
    */
-  public static
-    SimpleWeightedGraph<VectorVertex, DefaultWeightedEdge>
-    loadGraph(String filename) throws IOException {
+  public static <V extends Vertex> void
+    loadGraph(
+        WeightedGraph<V, DefaultWeightedEdge> graph,
+        Class<V> vertexClass,
+        String filename)
+  throws IOException, InstantiationException, IllegalAccessException {
     
+    if (null == graph || null == vertexClass || null == filename)
+      throw new NullPointerException("graph, vertexClass, and filename cannot be null.");
+    
+    // read matrix metadata
     MatrixVectorReader reader = new MatrixVectorReader(new FileReader(filename));
     MatrixSize size = reader.readMatrixSize(reader.readMatrixInfo());
     
-    // create graph
-    SimpleWeightedGraph<VectorVertex, DefaultWeightedEdge> graph
-    = new SimpleWeightedGraph<VectorVertex, DefaultWeightedEdge>(DefaultWeightedEdge.class);
-    
     // initialize graph size
     for (int i=0; i<size.numRows() + size.numColumns(); i++){
-      graph.addVertex(new VectorVertex(i));
+      V vertex = vertexClass.newInstance();
+      vertex.setId(i);
+      graph.addVertex(vertex);
     }
     
     // iterate through file entries and construct graph
@@ -46,15 +54,15 @@ public class MatrixLoader {
       reader.readCoordinate(row, col, data);
       
       // hopefully JGraphT uses their ID's to get the correct vertices
-      VectorVertex source = new VectorVertex(row[0]);
-      VectorVertex target = new VectorVertex(size.numRows()+col[0]);
+      V source = vertexClass.newInstance();
+      source.setId(row[0]);
+      V target = vertexClass.newInstance();
+      target.setId(size.numRows()+col[0]);
       
       DefaultWeightedEdge edge = graph.addEdge(source, target);
       graph.setEdgeWeight(edge, data[0]);
       
     }
-    
-    return graph;
     
   }
   

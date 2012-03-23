@@ -5,6 +5,7 @@ import java.util.Set;
 import org.apache.log4j.Logger;
 import org.graphlab.data.Vertex;
 import org.jgrapht.DirectedGraph;
+import org.jgrapht.Graph;
 
 /**
  * GraphLab Core.
@@ -95,7 +96,7 @@ public final class Core {
    * @throws IllegalStateException
    *           if {@link #destroy()} was already invoked on this object
    */
-	public <G extends DirectedGraph<V, E>, V extends Vertex, E>
+	public <G extends Graph<V, E>, V extends Vertex, E>
 	void setGraph(G graph) {
 
 		if (null == graph)

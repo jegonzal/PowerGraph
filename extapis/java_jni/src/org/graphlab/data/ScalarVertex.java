@@ -38,15 +38,12 @@ public class ScalarVertex extends Vertex {
     mValue = value;
   }
   
+  @Override
   public int id(){
     return mId;
   }
   
-  /**
-   * Specifies a vertex ID. Required by JGraphT
-   * to differentiate between vertices.
-   * @param id
-   */
+  @Override
   public void setId(int id){
     mId = id;
   }
@@ -63,28 +60,6 @@ public class ScalarVertex extends Vertex {
    */
   public void setValue(double d) {
     this.mValue = d;
-  }
-  
-  /*
-   * IMPORTANT: must override this for JGraphT
-   * (non-Javadoc)
-   * @see java.lang.Object#hashCode()
-   */
-  @Override
-  public int hashCode(){
-    return mId;
-  }
-  
-  /*
-   * IMPORTANT: must override this for JGraphT
-   * (non-Javadoc)
-   * @see java.lang.Object#equals(java.lang.Object)
-   */
-  @Override
-  public boolean equals(Object other){
-    if (!(other instanceof ScalarVertex)) return false;
-    ScalarVertex otherVertex = (ScalarVertex) other;
-    return mId == otherVertex.mId;
   }
   
   @Override
