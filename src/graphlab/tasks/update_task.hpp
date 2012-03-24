@@ -24,6 +24,19 @@
 #ifndef GRAPHLAB_UPDATE_TASK_HPP
 #define GRAPHLAB_UPDATE_TASK_HPP
 
+#include <cstring>
+
+namespace graphlab {
+  template<typename Graph> class update_task;
+}
+namespace boost {
+  template<typename Graph>
+  size_t hash_value(const graphlab::update_task<Graph>& task) {
+    return task.hash();  
+  }
+}
+
+
 #include <graphlab/graph/graph.hpp>
 #include <graphlab/scope/iscope.hpp>
 #include <graphlab/serialization/serialization_includes.hpp>
@@ -33,6 +46,8 @@ namespace graphlab {
   // Predecleration 
   template<typename Graph> class icallback;
   template<typename Graph> class ishared_data;
+
+
 
   
   template<typename Graph>
@@ -110,10 +125,10 @@ namespace graphlab {
       func = reinterpret_cast<update_function_type>(funcptr);
     }
   
-  };
-   
-  
+  };  
 }
+  
+
 #include <graphlab/macros_undef.hpp>
 #endif
 

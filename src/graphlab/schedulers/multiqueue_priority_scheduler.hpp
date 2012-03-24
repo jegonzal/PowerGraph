@@ -32,10 +32,12 @@
 #include <cmath>
 #include <cassert>
 
+#include <graphlab/tasks/update_task.hpp>
+
 #include <graphlab/util/mutable_queue.hpp>
 #include <graphlab/graph/graph.hpp>
 #include <graphlab/scope/iscope.hpp>
-#include <graphlab/tasks/update_task.hpp>
+
 #include <graphlab/schedulers/ischeduler.hpp>
 #include <graphlab/parallel/pthread_tools.hpp>
 #include <graphlab/schedulers/support/direct_callback.hpp>

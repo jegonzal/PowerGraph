@@ -31,6 +31,7 @@
 #include <boost/integer.hpp>
 #include <boost/random.hpp>
 
+
 #include <graphlab/parallel/pthread_tools.hpp>
 #include <graphlab/parallel/atomic.hpp>
 
@@ -40,12 +41,16 @@
 
 #include <graphlab/macros_def.hpp>
 
-// system word length float
-#define float_t float_selector<sizeof(size_t)>::float_type
+
+
 namespace graphlab {
+
   
   /// \ingroup util_internal
-  class fast_multinomial{
+  class fast_multinomial {
+    // system word length float
+    typedef float_selector<sizeof(size_t)>::float_type float_t;
+
     //! First leaf index
     size_t first_leaf_index;
 
@@ -144,7 +149,7 @@ namespace graphlab {
         else {
           // pick from a bernoulli trial
           float_t childsum = left_p + right_p;   
-          float_t rndnumber = random::uniform<float_t>(0,1);
+          float_t rndnumber = graphlab::random::uniform<float_t>(0,1);
           if((childsum * rndnumber)  < left_p)
             loc = left_child(loc);
           else

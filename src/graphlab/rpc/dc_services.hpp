@@ -60,31 +60,6 @@ namespace graphlab {
     const dc_dist_object<dc_services>& rmi_instance() const {
       return rmi;
     }
-  
-    /**
-    This comm barrier is not a true "barrier" but is
-    essentially a sequentialization point. It guarantees that
-    all calls from this machine to the target machine performed
-    before the comm_barrier() call are completed before any call
-    sent after the comm barrier() call.
-    
-      \note This affects the global context
-    */
-    inline void comm_barrier(procid_t targetmachine) {
-      rmi.comm_barrier(targetmachine);
-    }
-
-  /**
-    This is a convenience function which broadcasts a comm_barrier()
-    \note having all machines call the comm barrier does not guarantee
-    that all calls have been processed. Basically 'p' local barriers
-    do not result in a global barrier.
-    
-    \note This affects the global context
-  */
-    inline void comm_barrier() {
-      rmi.comm_barrier();
-    }
     
     /**
     This is a blocking send_to. It send an object T to the target 
@@ -154,6 +129,21 @@ namespace graphlab {
       rmi.all_gather(data, control);
     }
 
+    /**
+    * Each machine issues a piece of data.
+    * After calling all_gather(), all machines will return with identical
+    * values of data which is equal to the sum of everyone's contributions.
+    * Sum is computed using operator+=
+    */
+    template <typename U>
+    inline void all_reduce(U& data, bool control = false) {
+      rmi.all_reduce(data, control);
+    }
+
+    template <typename U, typename PlusEqual>
+    void all_reduce2(U& data, PlusEqual plusequal, bool control = false) {
+      rmi.all_reduce2(data, plusequal, control);
+    }
 
   /**
    * This function is takes a vector of local elements T which must

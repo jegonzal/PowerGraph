@@ -23,6 +23,7 @@
 
 #ifndef DC_COMM_BASE_HPP
 #define DC_COMM_BASE_HPP
+#include <sys/socket.h>
 #include <vector>
 #include <string>
 #include <map>
@@ -39,7 +40,7 @@ The base class of all comms implementations
 class dc_comm_base {
  public:
    
-  dc_comm_base();
+  inline dc_comm_base() { };
   
   virtual size_t capabilities() const  = 0;
   /**
@@ -100,11 +101,17 @@ class dc_comm_base {
    Establishes a connection if necessary
   */
   virtual void send(size_t target, const char* buf, size_t len) = 0;
- 
-  virtual void send2(size_t target, 
-             const char* buf1, const size_t len1,
-             const char* buf2, const size_t len2) = 0; 
 
+  /**
+   * Sends two buffers one after another to the target machine.
+   * Receiver will receive both buf1 and buf2 consecutively.
+   * For instance, buf1 could contain a packet header, while buf2 could
+   * contain the packet contents.
+   */
+  virtual void send_many(size_t target,
+                        std::vector<iovec>& buf,
+                        size_t numel = (size_t)(-1)) = 0;
+  
   // not required and not used
   virtual void flush(size_t target) = 0;
 };

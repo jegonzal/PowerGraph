@@ -35,6 +35,7 @@
 #include <graphlab/rpc/dc_types.hpp>
 #include <graphlab/rpc/dc_internal_types.hpp>
 #include <graphlab/rpc/dc_comm_base.hpp>
+#include <graphlab/util/tracepoint.hpp>
 
 namespace graphlab {
 namespace dc_impl {
@@ -48,7 +49,11 @@ a collection of machines.
 class dc_tcp_comm:public dc_comm_base {
  public:
    
-  dc_tcp_comm() {}
+  DECLARE_TRACER(tcp_send_call);
+  
+  inline dc_tcp_comm() {
+    INITIALIZE_TRACER(tcp_send_call, "dc_tcp_comm: send syscall");
+  }
   
   size_t capabilities() const {
     return COMM_STREAM;
@@ -126,23 +131,26 @@ class dc_tcp_comm:public dc_comm_base {
   void send(size_t target, const char* buf, size_t len);
   
   /**
-   * Sends two buffers one after another to the target machine. 
-   * Receiver will receive both buf1 and buf2 consecutively.
-   * For instance, buf1 could contain a packet header, while buf2 could
-   * contain the packet contents.
+   * Sends a series of buffers one after another to the target machine.
+   * Receiver will receive the contents of the buffers consecutively.
+   * After the call to this function, the 'buf' vector may be modified.
+   * This will numel elements in buf, or up to length of buf
    */
-  void send2(size_t target, 
-             const char* buf1, const size_t len1,
-             const char* buf2, const size_t len2); 
+  void send_many(size_t target,
+                 std::vector<iovec>& buf,
+                 size_t numel = (size_t)(-1));
   
   
   // receiving socket handler
   class socket_handler {
    public:
+    DECLARE_TRACER(process_receive);
     dc_tcp_comm &owner;
     int fd;
     procid_t sourceid;
-    socket_handler(dc_tcp_comm& owner, int fd, procid_t id):owner(owner), fd(fd), sourceid(id) {}
+    socket_handler(dc_tcp_comm& owner, int fd, procid_t id):owner(owner), fd(fd), sourceid(id) {
+      INITIALIZE_TRACER(process_receive, "dc_tcp_comm: process receive buffer");
+    }
     
     void run();
   };

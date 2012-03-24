@@ -21,7 +21,7 @@ add_executable(anytests anytests.cpp)
 add_executable(anytests_loader anytests_loader.cpp)
 
 if (MPI_FOUND)
-add_executable(dc_consensus_test dc_consensus_test.cpp)
+# add_executable(dc_consensus_test dc_consensus_test.cpp)
 
 add_executable(rpc_example1 rpc_example1.cpp)
 add_executable(rpc_example2 rpc_example2.cpp)

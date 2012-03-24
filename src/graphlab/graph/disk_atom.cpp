@@ -40,7 +40,7 @@
 #include <graphlab/parallel/pthread_tools.hpp>
 #include <graphlab/logger/logger.hpp>
 #include <graphlab/graph/disk_atom.hpp>
-#include <kchashdb.h>
+
 
 
 namespace graphlab {

@@ -27,6 +27,7 @@
 
 
 //
+#include <graphlab/tasks/task_includes.hpp>
 #include <graphlab/distributed2/distributed2_includes.hpp>
 #include <graphlab/engine/engine_includes.hpp>
 #include <graphlab/factors/factor_includes.hpp>
@@ -38,7 +39,7 @@
 #include <graphlab/scope/scope_includes.hpp>
 #include <graphlab/serialization/serialization_includes.hpp>
 #include <graphlab/shared_data/shared_data_includes.hpp>
-#include <graphlab/tasks/task_includes.hpp>
+
 #include <graphlab/util/util_includes.hpp>
 
 

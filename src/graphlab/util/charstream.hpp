@@ -62,14 +62,35 @@ namespace graphlab {
         }        
       }
 
+      /** Gives up the underlying pointer without
+       *  freeing it */
+      void relinquish() {
+        str = NULL;
+        len = 0;
+        buffer_size = 0;
+      }
 
       size_t size() const { return len; }
       char* c_str() { return str; }
+      const char* c_str() const { return str; }
 
       void clear() {
         len = 0;
       }
 
+      void clear(size_t new_buffer_size) {
+        len = 0;
+        str = (char*)realloc(str, new_buffer_size);
+        buffer_size = new_buffer_size;
+      }
+
+      void reserve(size_t new_buffer_size) {
+        if (new_buffer_size > buffer_size) {
+          str = (char*)realloc(str, new_buffer_size);
+          buffer_size = new_buffer_size;
+        }
+      }
+      
       char *str;
       size_t len;
       size_t buffer_size;
@@ -80,6 +101,17 @@ namespace graphlab {
       
       /** the optimal buffer size is 0. */
       inline std::streamsize optimal_buffer_size() const { return 0; }
+
+      inline std::streamsize advance(std::streamsize n) {
+         if (len + n > buffer_size) {
+          // double in length if we need more buffer
+          buffer_size = 2 * (len + n);
+          str = (char*)realloc(str, buffer_size);
+          assert(str != NULL);
+        }
+        len += n;
+        return n;
+      }
       
       inline std::streamsize write(const char* s, std::streamsize n) {
         if (len + n > buffer_size) {
@@ -92,8 +124,15 @@ namespace graphlab {
         len += n;
         return n;
       }
-    };
+      
+      inline void swap(resizing_array_sink<self_deleting> &other) {
+        std::swap(str, other.str);
+        std::swap(len, other.len);
+        std::swap(buffer_size, other.buffer_size);
+      }
 
+    };
+    
   }; // end of impl;
   
   

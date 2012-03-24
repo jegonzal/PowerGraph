@@ -90,8 +90,7 @@ namespace graphlab {
           return distribution_type(min, max)(real_rng);
         }
       };
-
-    };
+    }; // end of namespace distributions
 
     /**
      * The generator class is the base underlying type used to
@@ -235,6 +234,16 @@ namespace graphlab {
         return ind;
       } // end of multinomial
 
+      /** 
+       * Construct a random permutation
+       */ 
+      template<typename T>
+      inline std::vector<T> permutation(const size_t nelems) { 
+        std::vector<T> perm(nelems);
+        for(T i = 0; i < nelems; ++i) perm[i] = i;
+        shuffle(perm);
+        return perm;
+      } // end of construct a permutation
       
       /** 
        * Shuffle a standard vector
@@ -251,7 +260,7 @@ namespace graphlab {
         shuffle_functor functor(*this);
         std::random_shuffle(begin, end, functor);
         mut.unlock();
-      }
+      } // end of shuffle
 
     private:
       //////////////////////////////////////////////////////
@@ -400,21 +409,32 @@ namespace graphlab {
     }
 
 
+
+    /** 
+     * \ingroup random
+     * Construct a random permutation
+     */ 
+    template<typename T>
+    inline std::vector<T> permutation(const size_t nelems) { 
+      return get_source().permutation<T>(nelems); 
+    }
+
+
     /** 
      * \ingroup random
      * Shuffle a standard vector
      */ 
     template<typename T>
-    void shuffle(std::vector<T>& vec) { 
+    inline void shuffle(std::vector<T>& vec) { 
       get_source().shuffle(vec); 
     }
-
+   
     /** 
      * \ingroup random
      * Shuffle a range using the begin and end iterators
      */ 
     template<typename Iterator>
-    void shuffle(Iterator begin, Iterator end) {
+    inline void shuffle(Iterator begin, Iterator end) {
       get_source().shuffle(begin, end);
     }
 

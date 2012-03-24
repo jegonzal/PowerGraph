@@ -52,7 +52,6 @@
 #include <graphlab/util/stl_util.hpp>
 #include <graphlab/metrics/metrics.hpp>
 #include <graphlab/graph/atom_index_file.hpp>
-#include <graphlab/graph/disk_atom.hpp>
 #include <graphlab/graph/memory_atom.hpp>
 #include <graphlab/graph/graph_atom.hpp>
 #include <graphlab/graph/disk_graph.hpp>
@@ -290,12 +289,13 @@ namespace graphlab {
       }
       dc.barrier();
       rmi.broadcast(atompartitions, dc.procid() == 0);
-      if (atomtype == disk_graph_atom_type::MEMORY_ATOM || 
-          atomtype == disk_graph_atom_type::DISK_ATOM) {
-        construct_local_fragment(atomindex, atompartitions, rmi.procid(), do_not_load_data, atomtype);
+      if (atomtype == disk_graph_atom_type::MEMORY_ATOM) {
+        construct_local_fragment(atomindex, atompartitions, 
+                                 rmi.procid(), do_not_load_data, atomtype);
       }
       else if(atomtype == disk_graph_atom_type::WRITE_ONLY_ATOM) {
-        construct_local_fragment_playback(atomindex, atompartitions, rmi.procid(), do_not_load_data);
+        construct_local_fragment_playback(atomindex, atompartitions, 
+                                          rmi.procid(), do_not_load_data);
       }
       else {
         ASSERT_MSG(false, "Distributed Graph Invalid Atom Type");
@@ -313,13 +313,11 @@ namespace graphlab {
     void save() {
       atom_index_file atomindex;
       atomindex.read_from_file(indexfilename);
-    
       std::vector<size_t>& atoms_in_curpart = atompartitions[rmi.procid()];
-
 #pragma omp parallel for
       for (int i = 0;i < (int)atoms_in_curpart.size(); ++i) {
         size_t atomid = atoms_in_curpart[i];
-        disk_atom atom(atomindex.atoms[atomid].file, atomid);
+        write_only_disk_atom atom(atomindex.atoms[atomid].file, atomid);
         // go through the set of owned vertices
         foreach(vertex_id_type vid, atom.enumerate_vertices()) {
           // update the data on the vertex. I should own this vertex
@@ -1567,12 +1565,7 @@ namespace graphlab {
         if (atomtype == disk_graph_atom_type::MEMORY_ATOM) {
           atomfiles[i] = new memory_atom(fname + ".fast", 
                                          atoms_in_curpart[i]);
-        }
-        else if(atomtype == disk_graph_atom_type::DISK_ATOM) {
-          atomfiles[i] = new disk_atom(fname, 
-                                       atoms_in_curpart[i]);
-        }
-        else {
+        } else {
           ASSERT_MSG(false, "Invalid Atom Type for construct_local_fragment()");
         }
         vertices_in_atom[i] = atomfiles[i]->enumerate_vertices();
@@ -1853,7 +1846,7 @@ namespace graphlab {
       logger(LOG_INFO, "Finalize");
       localstore.finalize();
       logger(LOG_INFO, "Load complete.");
-      rmi.comm_barrier();
+      rmi.full_barrier();
       std::cout << "Load complete in " << loadtimer.current_time() << std::endl;
     }
 

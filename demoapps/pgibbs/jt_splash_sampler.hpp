@@ -35,7 +35,7 @@
 #include <cassert>
 #include <algorithm>
 
-#include <boost/unordered_set.hpp>
+
 
 
 // Including Standard Libraries
@@ -43,7 +43,7 @@
 #include <graphlab.hpp>
 #include <graphlab/parallel/pthread_tools.hpp>
 #include <graphlab/util/timer.hpp>
-
+#include <boost/unordered_set.hpp>
 
 #include "factorized_model.hpp"
 #include "mrf.hpp"

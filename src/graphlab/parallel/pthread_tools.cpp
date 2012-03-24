@@ -190,17 +190,17 @@ namespace graphlab {
     error = pthread_attr_setstacksize(&attr, m_stack_size);
     ASSERT_TRUE(!error);
     error = pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
-    ASSERT_TRUE(!error);
-    
-    
-    error = pthread_create(&m_p_thread, 
-                            &attr, 
-                            invoke,  
-                            static_cast<void*>(new invoke_args(m_thread_id, spawn_routine)) );
-
+    ASSERT_TRUE(!error);       
+    error =
+      pthread_create(&m_p_thread, 
+                     &attr, 
+                     invoke,  
+                     static_cast<void*>(new invoke_args(m_thread_id, 
+                                                        spawn_routine)) );
     thread_started = true;
     if(error) {
-      std::cout << "Major error in thread_group.launch (pthread_create). Error: " << error << std::endl;
+      std::cout << "Major error in thread_group.launch (pthread_create). Error: " 
+                << error << std::endl;
       exit(EXIT_FAILURE);
     }
     // destroy the attribute object
@@ -208,7 +208,8 @@ namespace graphlab {
     ASSERT_TRUE(!error);
   }
   
-  void thread::launch(const boost::function<void (void)> &spawn_routine, size_t cpu_id){
+  void thread::launch(const boost::function<void (void)> &spawn_routine, 
+                      size_t cpu_id){
       // if this is not a linux based system simply invoke start and
       // return;
 #ifndef __linux__
@@ -252,7 +253,8 @@ namespace graphlab {
       error = pthread_create(&m_p_thread, 
                              &attr, 
                              invoke,
-                             static_cast<void*>(new invoke_args(m_thread_id, spawn_routine)));
+                             static_cast<void*>(new invoke_args(m_thread_id, 
+                                                                spawn_routine)));
       thread_started = true;
       if(error) {
         std::cout << "Major error in thread_group.launch" << std::endl;
@@ -314,8 +316,9 @@ namespace graphlab {
     mut.lock();
     threads_running++;
     mut.unlock();
-    local_thread.launch(boost::bind(thread_group::invoke, spawn_function, this), cpu_id);
-  }
+    local_thread.launch(boost::bind(thread_group::invoke, spawn_function, this), 
+                        cpu_id);
+  } // end of launch
 
   void thread_group::join() {
     mut.lock();
@@ -326,7 +329,8 @@ namespace graphlab {
       std::pair<pthread_t, const char*> joining_thread = joinqueue.front();
       joinqueue.pop();
       threads_running--;
-      
+      // Reset the thread counter after killing all threads
+      if(threads_running == 0) m_thread_counter = 0;
       // unlock here since I might be in join for a little while
       mut.unlock();
       void *unusedstatus = NULL;
@@ -338,9 +342,9 @@ namespace graphlab {
       }
       mut.lock();
     }
-    mut.unlock();
-  }
+    mut.unlock();    
+  } // end of join
 
 
-}
+} // end of namespace graphlab
 

@@ -221,7 +221,7 @@ void distributed_graph<VertexData,EdgeData>::construct_local_fragment_playback(c
   logger(LOG_INFO, "Finalize");
   localstore.finalize();
   logger(LOG_INFO, "Load complete.");
-  rmi.comm_barrier();
+  rmi.full_barrier();
   std::cout << "Load complete in " << loadtimer.current_time() << std::endl;  
 }
 

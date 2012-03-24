@@ -42,19 +42,19 @@ class dc_send{
  public:
   dc_send() { }
   virtual ~dc_send() { }
-  /**
-   Called by the controller when there is data to send.
-   if len is -1, the function has to compute the length by itself,
-   or send the data from the stream directly. the strm is not copyable.
-  */
+
+  /** Called to send data to the target. The caller transfers control of
+  the pointer. The caller MUST ensure that the data be prefixed
+  with sizeof(packet_hdr) extra bytes at the start for placement of the
+  packet header. */
   virtual void send_data(procid_t target, 
                  unsigned char packet_type_mask,
-                 std::istream &istrm,
-                 size_t len = size_t(-1)) = 0;
-  /** Another possible interface the controller can
-  call with when there is data to send. The caller has
-  responsibility for freeing the pointer when this call returns*/
-  virtual void send_data(procid_t target, 
+                 char* data, size_t len) = 0;
+
+  /** Sends the data but without transferring control of the pointer.
+   The function will make a copy of the data before sending it.
+   Unlike send_data, no padding is necessary. */
+  virtual void copy_and_send_data(procid_t target,
                  unsigned char packet_type_mask,
                  char* data, size_t len) = 0;
 
@@ -82,6 +82,12 @@ class dc_send{
    * If the sender multithreads, the sending thread must shut down.
    */
   virtual void shutdown() = 0;
+  
+  virtual void flush() { } 
+  
+  virtual size_t set_option(std::string opt, size_t val) {
+    return 0;
+  }
 
 };
   

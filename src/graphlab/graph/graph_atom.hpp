@@ -1,10 +1,12 @@
-#ifndef GRAPH_ATOM_HPP
-#define GRAPH_ATOM_HPP
+#ifndef GRAPHLAB_GRAPH_ATOM_HPP
+#define GRAPHLAB_GRAPH_ATOM_HPP
 
 #include <sstream>
 #include <map>
 #include <boost/unordered_map.hpp>
 #include <graphlab/serialization/serialization_includes.hpp>
+
+
 #include <graphlab/graph/graph.hpp>
 
 namespace graphlab {

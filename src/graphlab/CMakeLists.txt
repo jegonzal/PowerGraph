@@ -39,10 +39,6 @@ include(metisextern.cmake)
 
 
 
-#build the graphlab library
-if(Sctp-FOUND)
-  set(sctp_source rpc/dc_sctp_comm.cpp)
-endif()
 
 if (MPI_FOUND)
   set(util_mpi_tools util/mpi_tools.cpp)
@@ -52,9 +48,6 @@ IF (EXPERIMENTAL)
   set(mmap_allocator util/mmap_allocator.cpp)
 endif()
 
-if (Kyoto-FOUND)
-  set(disk_graph_files graph/disk_atom.cpp)
-endif()
 
 add_library(graphlab STATIC
   ${metis_sources}
@@ -77,25 +70,26 @@ add_library(graphlab STATIC
   util/safe_circular_char_buffer.cpp
   util/fs_util.cpp
   util/md5.cpp
+  util/tracepoint.cpp
+  util/event_log.cpp
+
   ${mmap_allocator}
   factors/discrete_variable.cpp
   factors/binary_factor.cpp
   factors/unary_factor.cpp
   ${util_mpi_tools}
-  rpc/dc_comm_base.cpp
   rpc/dc_tcp_comm.cpp
-  ${sctp_source}
+  
   rpc/circular_char_buffer.cpp
-  rpc/dc_stream_send.cpp
   rpc/dc_stream_receive.cpp
-  rpc/dc_buffered_stream_send.cpp
-  rpc/dc_buffered_stream_receive.cpp
+  rpc/dc_buffered_stream_send2.cpp
   rpc/dc.cpp
   rpc/reply_increment_counter.cpp
   rpc/dc_comm_services.cpp
   rpc/dc_init_from_env.cpp
   rpc/dc_init_from_mpi.cpp
   rpc/async_consensus.cpp
+  rpc/distributed_event_log.cpp
   distributed2/distributed_scheduler_list.cpp
   ${rpc_compressed}
 )
@@ -107,10 +101,6 @@ target_link_libraries(graphlab ${MPI_LIBRARY} ${MPI_EXTRA_LIBRARY})
 endif()
 
 
-if(Sctp-FOUND)
-  set_property(TARGET graphlab APPEND PROPERTY COMPILE_FLAGS -DHAS_SCTP)
-  target_link_libraries(graphlab sctp)
-endif()
 
 
 

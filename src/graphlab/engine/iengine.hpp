@@ -32,6 +32,7 @@
 #ifndef GRAPHLAB_IENGINE_HPP
 #define GRAPHLAB_IENGINE_HPP
 
+#include <graphlab/tasks/update_task.hpp>
 #include <graphlab/graph/graph.hpp>
 #include <graphlab/schedulers/ischeduler.hpp>
 #include <graphlab/monitoring/imonitor.hpp>

@@ -41,12 +41,10 @@
 
 #include <graphlab/rpc/dc.hpp>
 #include <graphlab/rpc/dc_tcp_comm.hpp>
-#include <graphlab/rpc/dc_sctp_comm.hpp>
+//#include <graphlab/rpc/dc_sctp_comm.hpp>
 
-#include <graphlab/rpc/dc_stream_send.hpp>
 #include <graphlab/rpc/dc_stream_receive.hpp>
-#include <graphlab/rpc/dc_buffered_stream_send.hpp>
-#include <graphlab/rpc/dc_buffered_stream_receive.hpp>
+#include <graphlab/rpc/dc_buffered_stream_send2.hpp>
 #include <graphlab/rpc/reply_increment_counter.hpp>
 #include <graphlab/rpc/dc_services.hpp>
 
@@ -78,7 +76,8 @@ get_thread_local_stream() {
   dc_tls_data* curptr = reinterpret_cast<dc_tls_data*>(
                         pthread_getspecific(thrlocal_resizing_array_key));
   if (curptr != NULL) {
-    curptr->ras.clear();
+    if (curptr->ras.buffer_size > 65536) curptr->ras.clear(1024);
+    else curptr->ras.clear();
     return curptr->strm;
   }
   else {
@@ -134,27 +133,16 @@ static std::string get_working_dir() {
   return ret;
 }
 
- /**
-Callback function. This function is called whenever data is received
-*/
-void dc_recv_callback(void* tag, procid_t src, const char* buf, size_t len) {
-  distributed_control *dc = (distributed_control*)(tag);
-  dc->receivers[src]->incoming_data(src, buf, len);
-}
-
 distributed_control::~distributed_control() {
-  distributed_services->barrier();
+  PERMANENT_DESTROY_DIST_EVENT_LOG(eventlog);
+  distributed_services->full_barrier();
   logstream(LOG_INFO) << "Shutting down distributed control " << std::endl;
+  
   size_t bytessent = bytes_sent();
-  if (single_sender == false) {
-    for (size_t i = 0;i < senders.size(); ++i) {
-      senders[i]->shutdown();
-      delete senders[i];
-    }
-  }
-  else {
-    senders[0]->shutdown();
-    delete senders[0];
+  for (size_t i = 0;i < senders.size(); ++i) {
+    senders[i]->flush();
+    senders[i]->shutdown();
+    delete senders[i];
   }
   
   comm->close();
@@ -178,68 +166,115 @@ distributed_control::~distributed_control() {
 
 }
   
-void distributed_control::exec_function_call(procid_t source, 
-                                            const dc_impl::packet_hdr& hdr, 
-                                            std::istream &istrm) {
-  unsigned char packet_type_mask = hdr.packet_type_mask;
-  // extract the dispatch function
-  iarchive arc(istrm);
-  size_t f; 
-  arc >> f;
-  // a regular funcion call
-  if (f != 0) {
+
+void distributed_control::exec_function_call(procid_t source,
+                                            unsigned char packet_type_mask,
+                                            const char* data,
+                                            const size_t len) {
+  BEGIN_TRACEPOINT(dc_call_dispatch);
+  // not a POD call
+  if ((packet_type_mask & POD_CALL) == 0) {
+    // extract the dispatch function
+    boost::iostreams::stream<boost::iostreams::array_source> strm(data, len);
+    iarchive arc(strm);
+    size_t f;
+    arc >> f;
+    // a regular funcion call
     dc_impl::dispatch_type dispatch = (dc_impl::dispatch_type)f;
-    dispatch(*this, source, packet_type_mask, istrm);
+    dispatch(*this, source, packet_type_mask, strm);
   }
   else {
-    // f is NULL!. This is a portable call. deserialize the function name
-    std::string s;
-    arc >> s;
-    char isrequest;
-    arc >> isrequest;
-    if (isrequest == 0) {
-      // std::cout << "portable call to " << s << std::endl;
-      // look for the registration
-      dc_impl::dispatch_map_type::const_iterator iter = portable_dispatch_call_map.find(s);
-      if (iter == portable_dispatch_call_map.end()) {
-        logstream(LOG_ERROR) << "Unable to locate dispatcher for function " << s << std::endl;
-        return;
-      }
-      // dispatch
-      iter->second(*this, source, packet_type_mask, istrm);
-
-    }
-    else {
-     // std::cout << "portable request to " << s << std::endl;
-     dc_impl::dispatch_map_type::const_iterator iter = portable_dispatch_request_map.find(s);
-      if (iter == portable_dispatch_request_map.end()) {
-        logstream(LOG_ERROR) << "Unable to locate dispatcher for function " << s << std::endl;
-        return;
-      }
-      // dispatch
-      iter->second(*this, source, packet_type_mask, istrm);
-
-    }
+    dc_impl::dispatch_type2 dispatch2 = *reinterpret_cast<const dc_impl::dispatch_type2*>(data);
+    dispatch2(*this, source, packet_type_mask, data, len);
   }
   if ((packet_type_mask & CONTROL_PACKET) == 0) inc_calls_received(source);
-} 
+  END_TRACEPOINT(dc_call_dispatch);
+}
 
-  const size_t buffer_size_wait = 1000; 
-  const size_t nano_wait = 100000;
-  
-void distributed_control::deferred_function_call(procid_t source, const dc_impl::packet_hdr& hdr,
-                                                char* buf, size_t len) {
+void distributed_control::deferred_function_call_chunk(char* buf, size_t len, procid_t src) {
+  BEGIN_TRACEPOINT(dc_receive_queuing);
+  fcallqueue_entry* fc = new fcallqueue_entry;
+  fc->chunk_src = buf;
+  fc->chunk_len = len;
+  fc->chunk_ref_counter = NULL;
+  fc->is_chunk = true;
+  fc->source = src;
+  fcallqueue[src % fcallqueue.size()].enqueue(fc);
+  END_TRACEPOINT(dc_receive_queuing);
+}
 
-  if (hdr.sequentialization_key == 0) {
-    // fcallqueue[random::fast_uniform<size_t>(0, fcallqueue.size() - 1)].
-    //   enqueue_conditional_signal(function_call_block(source, hdr, buf, len), buffer_size_wait);
-    fcallqueue[random::fast_uniform<size_t>(0, fcallqueue.size() - 1)].
-      enqueue(function_call_block(source, hdr, buf, len));
 
+void distributed_control::process_fcall_block(fcallqueue_entry &fcallblock) {
+  if (fcallblock.is_chunk == false) {
+    for (size_t i = 0;i < fcallblock.calls.size(); ++i) {
+      exec_function_call(fcallblock.source, fcallblock.calls[i].packet_mask,
+                        fcallblock.calls[i].data, fcallblock.calls[i].len);
+    }
+    if (fcallblock.chunk_ref_counter != NULL) {
+      if (fcallblock.chunk_ref_counter->dec(fcallblock.calls.size()) == 0) {
+        delete fcallblock.chunk_ref_counter;
+        free(fcallblock.chunk_src);
+      }
+    }
   }
   else {
-    fcallqueue[hdr.sequentialization_key % fcallqueue.size()].
-      enqueue(function_call_block(source, hdr, buf, len));
+    BEGIN_TRACEPOINT(dc_receive_multiplexing);
+    fcallqueue_entry* queuebufs[fcallqueue.size()];
+    atomic<size_t>* refctr = new atomic<size_t>(0);
+    
+    for (size_t i = 0;i < fcallqueue.size(); ++i) {
+      queuebufs[i] = new fcallqueue_entry;
+      queuebufs[i]->chunk_src = fcallblock.chunk_src;
+      queuebufs[i]->chunk_ref_counter = refctr;
+      queuebufs[i]->chunk_len = 0;
+      queuebufs[i]->source = fcallblock.source;
+      queuebufs[i]->is_chunk = false;
+    }
+    
+    //parse the data in fcallblock.data
+    char* data = fcallblock.chunk_src;
+    size_t remaininglen = fcallblock.chunk_len;
+    PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, BYTES_EVENT, remaininglen);
+    size_t stripe = 0;
+    while(remaininglen > 0) {
+      ASSERT_GE(remaininglen, sizeof(dc_impl::packet_hdr));
+      dc_impl::packet_hdr hdr = *reinterpret_cast<dc_impl::packet_hdr*>(data);
+      ASSERT_LE(hdr.len, remaininglen);
+      
+      if ((hdr.packet_type_mask & CONTROL_PACKET) == 0) {
+        global_bytes_received[hdr.src].inc(hdr.len);
+      }
+      refctr->value++;
+      if (hdr.sequentialization_key == 0) {
+        queuebufs[stripe]->calls.push_back(function_call_block(
+                                            data + sizeof(dc_impl::packet_hdr), 
+                                            hdr.len,
+                                            hdr.packet_type_mask));
+        ++stripe;
+        if (stripe == (fcallblock.source % fcallqueue.size())) ++stripe;
+        if (stripe >= fcallqueue.size()) stripe -= fcallqueue.size();
+      }
+      else {
+        size_t idx = (hdr.sequentialization_key % (fcallqueue.size()));
+        queuebufs[idx]->calls.push_back(function_call_block(
+                                            data + sizeof(dc_impl::packet_hdr), 
+                                            hdr.len,
+                                            hdr.packet_type_mask));
+      }
+      data += sizeof(dc_impl::packet_hdr) + hdr.len;
+      remaininglen -= sizeof(dc_impl::packet_hdr) + hdr.len;
+    }
+    END_TRACEPOINT(dc_receive_multiplexing);
+    BEGIN_TRACEPOINT(dc_receive_queuing);
+    for (size_t i = 0;i < fcallqueue.size(); ++i) { 
+      if (queuebufs[i]->calls.size() > 0) {
+        fcallqueue[i].enqueue(queuebufs[i]);
+      }
+      else {
+        delete queuebufs[i];
+      }
+    }
+    END_TRACEPOINT(dc_receive_queuing);
   }
 }
 
@@ -249,29 +284,16 @@ void distributed_control::fcallhandler_loop(size_t id) {
   while(1) {
     fcallqueue[id].wait_for_data();
     if (fcallqueue[id].is_alive() == false) break;
-    
-    std::deque<function_call_block> q;
+    std::deque<fcallqueue_entry*> q;
     fcallqueue[id].swap(q);
+
     while (!q.empty()) {
-      function_call_block entry;
+      fcallqueue_entry* entry;
       entry = q.front();
       q.pop_front();
       
-      // if (id == 0 && lowres_time_seconds() - t > 2)  {
-      //   t = lowres_time_seconds();
-      //   std::cout << "RPC backlog: ";
-      //   for (size_t i = 0 ; i < fcallqueue.get_num_queues();++i) 
-      //     std::cout << fcallqueue.size(i) << " ";
-      //   std::cout << std::endl;
-      // }
-
-      //create a stream containing all the data
-      boost::iostreams::stream<boost::iostreams::array_source> 
-        istrm(entry.data, entry.len);
-      exec_function_call(entry.source, entry.hdr, istrm);
-      receivers[entry.source]->
-        function_call_completed(entry.hdr.packet_type_mask);
-      delete [] entry.data;
+      process_fcall_block(*entry);
+      delete entry;
     }
     //  std::cerr << "Handler " << id << " died." << std::endl;
   }
@@ -322,55 +344,33 @@ void distributed_control::init(const std::vector<std::string> &machines,
   procs_complete.resize(machines.size());
   //-----------------------------------------------
   
-  REGISTER_RPC((*this), reply_increment_counter);
   // parse the initstring
   std::map<std::string,std::string> options = parse_options(initstring);
-  bool buffered_send = true;
-  bool buffered_recv = false;
 
-  if (options["buffered_recv"] == "true" ||
-    options["buffered_recv"] == "1" ||
-    options["buffered_recv"] == "yes") {
-    buffered_recv = true;
-    std::cerr << "Buffered Recv Option is ON." << std::endl;
-  }
-  
   if (commtype == TCP_COMM) {
     comm = new dc_impl::dc_tcp_comm();
     std::cerr << "TCP Communication layer constructed." << std::endl;
   }
-  else if (commtype == SCTP_COMM) {
+/*  else if (commtype == SCTP_COMM) {
     #ifdef HAS_SCTP
     comm = new dc_impl::dc_sctp_comm();
     std::cerr << "SCTP Communication layer constructed." << std::endl;
     #else
     logger(LOG_FATAL, "SCTP support was not compiled");
     #endif
-  }
+  }*/
   else {
     ASSERT_MSG(false, "Unexpected value for comm type");
   }
   global_calls_sent.resize(machines.size());
   global_calls_received.resize(machines.size());
+  global_bytes_received.resize(machines.size());
   fcallqueue.resize(numhandlerthreads);
   // create the receiving objects
   if (comm->capabilities() && dc_impl::COMM_STREAM) {
     for (procid_t i = 0; i < machines.size(); ++i) {
-      if (buffered_recv) {
-        receivers.push_back(new dc_impl::dc_buffered_stream_receive(this));
-      }
-      else {
-        receivers.push_back(new dc_impl::dc_stream_receive(this));
-      }
-  
-      if (buffered_send) {
-        single_sender = false;
-        senders.push_back(new dc_impl::dc_buffered_stream_send(this, comm, i));
-      }
-      else {
-        single_sender = false;
-        senders.push_back(new dc_impl::dc_stream_send(this, comm, i));
-      }
+      receivers.push_back(new dc_impl::dc_stream_receive(this, i));
+      senders.push_back(new dc_impl::dc_buffered_stream_send2(this, comm, i));
     }
   }
   // create the handler threads
@@ -393,34 +393,40 @@ void distributed_control::init(const std::vector<std::string> &machines,
               receivers); 
 
   compute_master_ranks();
-}
   
+#ifdef USE_EVENT_LOG
+    PERMANENT_INITIALIZE_DIST_EVENT_LOG(eventlog, *this, std::cout, 3000, dist_event_log::RATE_BAR);
+#else
+    PERMANENT_INITIALIZE_DIST_EVENT_LOG(eventlog, *this, std::cout, 3000, dist_event_log::LOG_FILE);
+#endif
+    PERMANENT_ADD_DIST_EVENT_TYPE(eventlog, CALLS_EVENT, "Total RPC Calls");
+    PERMANENT_ADD_DIST_EVENT_TYPE(eventlog, BYTES_EVENT, "Total Bytes Communicated");
+
+}
+
+size_t distributed_control::set_sender_option(std::string opt, size_t value) {
+  size_t oldval = 0;
+  // we assume that all senders are identical
+  for (size_t i = 0;i < senders.size(); ++i) {
+    oldval = senders[i]->set_option(opt, value);
+  }
+  return oldval;
+}
+
 dc_services& distributed_control::services() {
   return *distributed_services;
 }
 
 
-void distributed_control::comm_barrier(procid_t targetmachine) {
-  ASSERT_LT(targetmachine, numprocs());
-  if (targetmachine != procid() && senders[targetmachine]->channel_active(targetmachine)) {
-    std::stringstream strm;
-    senders[targetmachine]->send_data(targetmachine, BARRIER | CONTROL_PACKET, strm, 0);
-  }
-}
-
-void distributed_control::comm_barrier() {
-  std::stringstream strm;
-  for (procid_t i = 0;i < senders.size(); ++i) {
-    if (i != procid() && senders[i]->channel_active(i)) {
-      senders[i]->send_data(i, BARRIER | CONTROL_PACKET, strm, 0);
-    }
-  }
-}
-
 void distributed_control::barrier() {
   distributed_services->barrier();
 }
 
+void distributed_control::flush() {
+  for (procid_t i = 0;i < senders.size(); ++i) {
+    if (senders[i]->channel_active(i)) senders[i]->flush();
+  }
+}
 
 
 void distributed_control::compute_master_ranks() {

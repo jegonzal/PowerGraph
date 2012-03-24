@@ -42,12 +42,15 @@
 #include <graphlab/rpc/dc_dist_object_base.hpp>
 
 #include <graphlab/rpc/is_rpc_call.hpp>
-#include <graphlab/rpc/portable_dispatch.hpp>
-#include <graphlab/rpc/portable_issue.hpp>
 #include <graphlab/rpc/function_call_issue.hpp>
+#include <graphlab/rpc/function_broadcast_issue.hpp>
 #include <graphlab/rpc/request_issue.hpp>
 #include <graphlab/rpc/reply_increment_counter.hpp>
 #include <graphlab/rpc/function_ret_type.hpp>
+
+
+#include <graphlab/util/tracepoint.hpp>
+#include <graphlab/rpc/distributed_event_log.hpp>
 
 #include <boost/preprocessor.hpp>
 #include <graphlab/rpc/function_arg_types_def.hpp>
@@ -120,6 +123,15 @@ In addition to the documented functions, the following RPC routines are provided
  \li \b targetmachine: The ID of the machine to run the function on
  \li \b function: The function to run on the target machine
 
+\par void distributed_control::remote_call(Iterator target_begin, Iterater target_end, function, ...)
+ remote_call performs a non-blocking RPC call to all target machines
+ listed in target_begin to target_end to
+ run the provided function pointer. All arguments are transmitted by value
+ and must be serializable.
+ \li \b target_begin: Start of an iterator range containing a list of processors
+ \li \b target_end: End of an iterator range containing a list of processors
+ \li \b function: The function to run on the target machine
+
 \par void distributed_control::fast_remote_call(procid_t targetmachine, function, ...)
  fast_remote_call is the same as remote_call, but the receiver completes the function
  call using the receiving thread instead of a thread pool. This should only be used if
@@ -162,14 +174,14 @@ class distributed_control{
         /**  Each element of the function call queue is a data/len pair */
     struct function_call_block{
       function_call_block() {}
-      function_call_block(procid_t source, const dc_impl::packet_hdr& hdr, 
-                          char* data, size_t len): 
-                          source(source), hdr(hdr), 
-                          data(data), len(len) {}
-      procid_t source;
-      dc_impl::packet_hdr hdr;
+
+      function_call_block(char* data, size_t len,
+                          unsigned char packet_mask):
+                          data(data), len(len), packet_mask(packet_mask){}
+
       char* data;
       size_t len;
+      unsigned char packet_mask;
     };
   private:
    /// initialize receiver threads. private form of the constructor
@@ -189,14 +201,17 @@ class distributed_control{
   /// A thread group of function call handlers
   thread_group fcallhandlers;
   
+  struct fcallqueue_entry {
+    std::vector<function_call_block> calls;
+    char* chunk_src;
+    size_t chunk_len;
+    atomic<size_t>* chunk_ref_counter;
+    procid_t source;
+    bool is_chunk;
+  };
   /// a queue of functions to be executed
-  std::vector<blocking_queue<function_call_block> > fcallqueue;
-  
-  /// A map of function name to dispatch function. Used for "portable" calls
-  dc_impl::dispatch_map_type portable_dispatch_call_map;
-  dc_impl::dispatch_map_type portable_dispatch_request_map;
+  std::vector<blocking_queue<fcallqueue_entry*> > fcallqueue;
 
-  
   /// object registrations;
   std::vector<void*> registered_objects;
   std::vector<dc_impl::dc_dist_object_base*> registered_rmi_instance;
@@ -213,12 +228,8 @@ class distributed_control{
   
   std::vector<atomic<size_t> > global_calls_sent;
   std::vector<atomic<size_t> > global_calls_received;
-  
-  bool single_sender;
-  
-  /// the callback given to the comms class. Called when data is inbound
-  friend void dc_recv_callback(void* tag, procid_t src, const char* buf, size_t len);
-  
+
+  std::vector<atomic<size_t> > global_bytes_received;
   
   /// the callback given to the comms class. Called when data is inbound
   template <typename T> friend class dc_dist_object;
@@ -240,6 +251,15 @@ class distributed_control{
   
   metrics rpc_metrics;
   
+  enum {
+    CALLS_EVENT = 0,
+    BYTES_EVENT = 1
+  };
+
+  PERMANENT_DECLARE_DIST_EVENT_LOG(eventlog);
+  DECLARE_TRACER(dc_receive_queuing);
+  DECLARE_TRACER(dc_receive_multiplexing);
+  DECLARE_TRACER(dc_call_dispatch);
  public:
    
 
@@ -250,6 +270,9 @@ class distributed_control{
          initparam.curmachineid, 
          initparam.numhandlerthreads,
          initparam.commtype);
+    INITIALIZE_TRACER(dc_receive_queuing, "dc: time spent on enqueue");
+    INITIALIZE_TRACER(dc_receive_multiplexing, "dc: time spent exploding a chunk");
+    INITIALIZE_TRACER(dc_call_dispatch, "dc: time spent issuing RPC calls");
   }
 
   distributed_control(const std::vector<std::string> &machines,
@@ -348,9 +371,20 @@ class distributed_control{
   Generates the interface functions. 3rd argument is a tuple (interface name, issue name, flags)
   */
   BOOST_PP_REPEAT(6, RPC_INTERFACE_GENERATOR, (remote_call, dc_impl::remote_call_issue, STANDARD_CALL) )
-  BOOST_PP_REPEAT(6, RPC_INTERFACE_GENERATOR, (fast_remote_call,dc_impl::remote_call_issue, FAST_CALL) )
-  BOOST_PP_REPEAT(6, RPC_INTERFACE_GENERATOR, (control_call, dc_impl::remote_call_issue, (FAST_CALL | CONTROL_PACKET)) )
+  BOOST_PP_REPEAT(6, RPC_INTERFACE_GENERATOR, (fast_remote_call,dc_impl::remote_call_issue, STANDARD_CALL) )
+  BOOST_PP_REPEAT(6, RPC_INTERFACE_GENERATOR, (control_call, dc_impl::remote_call_issue, (STANDARD_CALL | CONTROL_PACKET)) )
  
+  
+#define BROADCAST_INTERFACE_GENERATOR(Z,N,FNAME_AND_CALL) \
+  template<typename Iterator, typename F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, typename T)> \
+  void  BOOST_PP_TUPLE_ELEM(3,0,FNAME_AND_CALL) (Iterator target_begin, Iterator target_end, F remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_) ) {  \
+    if (target_begin == target_end) return;               \
+    BOOST_PP_CAT( BOOST_PP_TUPLE_ELEM(3,1,FNAME_AND_CALL),N) \
+        <Iterator, F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, T)> \
+          ::exec(senders,  BOOST_PP_TUPLE_ELEM(3,2,FNAME_AND_CALL), target_begin, target_end, remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENI ,_) ); \
+  }   \
+  
+  BOOST_PP_REPEAT(6, BROADCAST_INTERFACE_GENERATOR, (remote_call, dc_impl::remote_broadcast_issue, STANDARD_CALL) )
 
   #define REQUEST_INTERFACE_GENERATOR(Z,N,ARGS) \
   template<typename F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, typename T)> \
@@ -367,12 +401,13 @@ class distributed_control{
  // BOOST_PP_REPEAT(6, REQUEST_INTERFACE_GENERATOR, (typename dc_impl::function_ret_type<__GLRPC_FRESULT>::type remote_request, dc_impl::remote_request_issue, 0) )
    BOOST_PP_REPEAT(6, REQUEST_INTERFACE_GENERATOR, (typename dc_impl::function_ret_type<__GLRPC_FRESULT>::type remote_request, dc_impl::remote_request_issue, STANDARD_CALL) )
 
-  BOOST_PP_REPEAT(6, REQUEST_INTERFACE_GENERATOR, (typename dc_impl::function_ret_type<__GLRPC_FRESULT>::type fast_remote_request, dc_impl::remote_request_issue, FAST_CALL) )
-  BOOST_PP_REPEAT(6, REQUEST_INTERFACE_GENERATOR, (typename dc_impl::function_ret_type<__GLRPC_FRESULT>::type control_request, dc_impl::remote_request_issue, (FAST_CALL | CONTROL_PACKET)) )
+  BOOST_PP_REPEAT(6, REQUEST_INTERFACE_GENERATOR, (typename dc_impl::function_ret_type<__GLRPC_FRESULT>::type fast_remote_request, dc_impl::remote_request_issue, STANDARD_CALL) )
+  BOOST_PP_REPEAT(6, REQUEST_INTERFACE_GENERATOR, (typename dc_impl::function_ret_type<__GLRPC_FRESULT>::type control_request, dc_impl::remote_request_issue, (STANDARD_CALL | CONTROL_PACKET)) )
  
 
   
   #undef RPC_INTERFACE_GENERATOR
+  #undef BROADCAST_INTERFACE_GENERATOR
   #undef REQUEST_INTERFACE_GENERATOR
   #undef GENARC
   #undef GENT
@@ -384,50 +419,49 @@ class distributed_control{
   Immediately calls the function described by the data
   inside the buffer. This should not be called directly.
   */
-  void exec_function_call(procid_t source, const dc_impl::packet_hdr& hdr, std::istream &istrm);
+  void exec_function_call(procid_t source, unsigned char packet_type_mask, const char* data, const size_t len);
   
   
   
   /**
-  Performs a deferred function call using the information
-  inside the buffer. This function will take over ownership of 
-  the buffer and will free it when done
-  */
-  void deferred_function_call(procid_t source, const dc_impl::packet_hdr& hdr, 
-                              char* buf, size_t len);
+   * Called by handler threads to process the function call block
+   */
+  void process_fcall_block(fcallqueue_entry &fcallblock);
+  /**
+   * Receive a collection of serialized function calls.
+   * This function will take ownership of the pointer
+   */
+  void deferred_function_call_chunk(char* buf, size_t len, procid_t src);
   
-
   /**
   This is called by the function handler threads
   */
   void fcallhandler_loop(size_t id);
   
   inline void inc_calls_sent(procid_t procid) {
-//    ASSERT_FALSE(full_barrier_in_effect);
+    PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, CALLS_EVENT, 1);
     global_calls_sent[procid].inc();
   }
 
   inline void inc_calls_received(procid_t procid) {
     
     if (!full_barrier_in_effect) {
-        global_calls_received[procid].inc();
-        if (full_barrier_in_effect) {
-
-      if (global_calls_received[procid].inc() == calls_to_receive[procid]) {
-        // if it was me who set the bit
-        if (procs_complete.set_bit(procid) == false) {
-          // then decrement the incomplete count.
-          // if it was me to decreased it to 0
-          // lock and signal
-          full_barrier_lock.lock();
-          if (num_proc_recvs_incomplete.dec() == 0) {
-            full_barrier_cond.signal();
+      global_calls_received[procid].inc();
+      if (full_barrier_in_effect) {
+        if (global_calls_received[procid].inc() == calls_to_receive[procid]) {
+          // if it was me who set the bit
+          if (procs_complete.set_bit(procid) == false) {
+            // then decrement the incomplete count.
+            // if it was me to decreased it to 0
+            // lock and signal
+            full_barrier_lock.lock();
+            if (num_proc_recvs_incomplete.dec() == 0) {
+              full_barrier_cond.signal();
+            }
+            full_barrier_lock.unlock();
           }
-          full_barrier_lock.unlock();
         }
       }
- 
-        }
     }
     else {
       //check the proc I just incremented.
@@ -467,14 +501,9 @@ class distributed_control{
   }
 
   inline size_t bytes_sent() const {
-    if (single_sender) {
-      return senders[0]->bytes_sent();
-    }
-    else {
-      size_t ret = 0;
-      for (size_t i = 0;i < senders.size(); ++i) ret += senders[i]->bytes_sent();
-      return ret;
-    }
+    size_t ret = 0;
+    for (size_t i = 0;i < senders.size(); ++i) ret += senders[i]->bytes_sent();
+    return ret;
   }  
   
   
@@ -484,7 +513,7 @@ class distributed_control{
   
   inline size_t bytes_received() const {
     size_t ret = 0;
-    for (size_t i = 0;i < receivers.size(); ++i) ret += receivers[i]->bytes_received();
+    for (size_t i = 0;i < global_bytes_received.size(); ++i) ret += global_bytes_received[i].value;
     return ret;
   }  
 
@@ -504,32 +533,13 @@ class distributed_control{
   inline procid_t master_rank() const {
     return masterid;
   }
-
+  
   /**
-    registers a portable RPC call.
-  */
-  template <typename F, F f>
-  void register_rpc(std::string c) {
-    portable_dispatch_request_map[c] = (dc_impl::dispatch_type)
-              dc_impl::portable_detail::find_dispatcher<F,        // function type
-                              __GLRPC_FRESULT,                            // result
-                              boost::function_traits<               
-                                    typename boost::remove_pointer<F>::type
-                                                    >::arity ,   // number of arguments
-                              f,                                    // function itself
-                              typename dc_impl::is_rpc_call<F>::type  // whether it is an RPC style call
-                              >::dispatch_request_fn();
-                              
-    portable_dispatch_call_map[c] = (dc_impl::dispatch_type)
-              dc_impl::portable_detail::find_dispatcher<F,        // function type
-                              __GLRPC_FRESULT,                            // result
-                              boost::function_traits<               
-                                    typename boost::remove_pointer<F>::type
-                                                    >::arity ,   // number of arguments
-                              f,                                    // function itself
-                              typename dc_impl::is_rpc_call<F>::type  // whether it is an RPC style call
-                              >::dispatch_call_fn();
-  }
+   * Sets a custom option on the sender. Returning the old value.
+   * Operation does nothing if the option is not recognized.
+   */
+  size_t set_sender_option(std::string opt, size_t value);
+
 
   /// \cond DC_INTERNAL
   inline size_t register_object(void* v, dc_impl::dc_dist_object_base *rmiinstance) {
@@ -582,7 +592,10 @@ class distributed_control{
   */
   void comm_barrier();
 
-
+  /**
+   * Completes a local flush of all send buffers
+   */
+  void flush();
 
 // Temp hack.
   long long int total_bytes_sent;
@@ -652,6 +665,19 @@ class distributed_control{
   template <typename U>
   inline void all_gather(std::vector<U>& data, bool control = false);
 
+
+  /**
+   * Each machine issues a piece of data.
+   * After calling all_gather(), all machines will return with identical
+   * values of data which is equal to the sum of everyone's contributions.
+   * Sum is computed using operator+=
+   */
+  template <typename U>
+  inline void all_reduce(U& data, bool control = false);
+
+
+  template <typename U, typename PlusEqual>
+  inline void all_reduce2(U& data, PlusEqual plusequal, bool control = false);
   
   /**
    * This function is takes a vector of local elements T which must
@@ -708,7 +734,7 @@ class distributed_control{
   // used to inform the counter that the full barrier
   // is in effect and all modifications to the calls_recv
   // counter will need to lock and signal
-  bool full_barrier_in_effect;
+  volatile bool full_barrier_in_effect;
   
   /** number of 'source' processor counts which have
   not achieved the right recv count */
@@ -803,6 +829,17 @@ inline void distributed_control::gather(std::vector<U>& data, procid_t sendto, b
 template <typename U>
 inline void distributed_control::all_gather(std::vector<U>& data, bool control) {
   distributed_services->all_gather(data, control);
+}
+
+template <typename U>
+inline void distributed_control::all_reduce(U& data, bool control) {
+  distributed_services->all_reduce(data, control);
+}
+
+
+template <typename U, typename PlusEqual>
+inline void distributed_control::all_reduce2(U& data, PlusEqual plusequal, bool control) {
+  distributed_services->all_reduce2(data, plusequal, control);
 }
 
 template <typename U>

@@ -20,13 +20,6 @@
  *
  */
 
-
-/**
- * \author akyrola
- * This class defines a multiqueue FIFO scheduler, i.e each thread manages
- * one or more FIFO queues. Tasks are added to queues with an effort to balance
- * load. 
- **/
 #ifndef GRAPHLAB_MULTIQUEUE_FIFO_SCHEDULER_HPP
 #define GRAPHLAB_MULTIQUEUE_FIFO_SCHEDULER_HPP
 

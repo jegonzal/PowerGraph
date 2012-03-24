@@ -38,13 +38,12 @@
 #include <boost/function.hpp>
 #include <graphlab/logger/assertions.hpp>
 #include <graphlab/parallel/atomic.hpp>
-
- #undef _POSIX_SPIN_LOCKS
+#include <graphlab/util/generics/any.hpp>
+#include <graphlab/util/branch_hints.hpp>
+#include <boost/unordered_map.hpp>
+#undef _POSIX_SPIN_LOCKS
 #define _POSIX_SPIN_LOCKS -1
 
-
-#define __likely__(x)       __builtin_expect((x),1)
-#define __unlikely__(x)     __builtin_expect((x),0)
 
 
 
@@ -464,8 +463,7 @@ namespace graphlab {
   class rwlock {
   private:
     mutable pthread_rwlock_t m_rwlock;
-
-  public:
+   public:
     rwlock() {
       int error = pthread_rwlock_init(&m_rwlock, NULL);
       ASSERT_TRUE(!error);
@@ -474,20 +472,22 @@ namespace graphlab {
       int error = pthread_rwlock_destroy(&m_rwlock);
       ASSERT_TRUE(!error);
     }
-    
-    /** Copy constructor which does not copy. Do not use!
-        Required for compatibility with some STL implementations (LLVM).
-        which use the copy constructor for vector resize, 
-        rather than the standard constructor.    */
+ 
+    // not copyable
+    void operator=(const rwlock& m) { }
+   
+    /** 
+     * \todo: Remove!  
+     *
+     * Copy constructor which does not copy. Do not use!  Required for
+     * compatibility with some STL implementations (LLVM).  which use
+     * the copy constructor for vector resize, rather than the
+     * standard constructor.  */
     rwlock(const rwlock &) {
       int error = pthread_rwlock_init(&m_rwlock, NULL);
       ASSERT_TRUE(!error);
     }
-    
-    // not copyable
-    void operator=(const rwlock& m) { }
 
-    
     inline void readlock() const {
       pthread_rwlock_rdlock(&m_rwlock);
       //ASSERT_TRUE(!error);
@@ -495,6 +495,12 @@ namespace graphlab {
     inline void writelock() const {
       pthread_rwlock_wrlock(&m_rwlock);
       //ASSERT_TRUE(!error);
+    }
+    inline bool try_readlock() const {
+      return pthread_rwlock_tryrdlock(&m_rwlock) == 0;
+    }
+    inline bool try_writelock() const {
+      return pthread_rwlock_trywrlock(&m_rwlock) == 0;
     }
     inline void unlock() const {
       pthread_rwlock_unlock(&m_rwlock);
@@ -523,19 +529,18 @@ namespace graphlab {
    */
   class cancellable_barrier {
   private:
-    mutex m;
-    int needed;
-    int called;
-    conditional c;
+    graphlab::mutex mutex;
+    graphlab::conditional conditional;
+    mutable int needed;
+    mutable int called;   
     
-    bool barrier_sense;
-    bool barrier_release;
+    mutable bool barrier_sense;
+    mutable bool barrier_release;
     bool alive;
-    // we need the following to protect against spurious wakeups
-  
 
     // not copyconstructible
     cancellable_barrier(const cancellable_barrier&) { }
+
 
   public:
     /// Construct a barrier which will only fall when numthreads enter
@@ -546,12 +551,9 @@ namespace graphlab {
       barrier_release = true;
       alive = true;
     }
-    
+
     // not copyable
     void operator=(const cancellable_barrier& m) { }
-
-    
-    ~cancellable_barrier() {}
     
     /**
      * \warning: This barrier is safely NOT reusable with this cancel
@@ -559,34 +561,30 @@ namespace graphlab {
      */
     inline void cancel() {
       alive = false;
-      c.broadcast();
+      conditional.broadcast();
     }
-    
     /// Wait on the barrier until numthreads has called wait
-    inline void wait() {
+    inline void wait() const {
       if (!alive) return;
-      m.lock();
+      mutex.lock();
       // set waiting;
       called++;
       bool listening_on = barrier_sense;
-      
       if (called == needed) {
         // if I have reached the required limit, wait up. Set waiting
         // to 0 to make sure everyone wakes up
-
         called = 0;
         barrier_release = barrier_sense;
         barrier_sense = !barrier_sense;
         // clear all waiting
-        c.broadcast();
-      }
-      else {
+        conditional.broadcast();
+      } else {
         // while no one has broadcasted, sleep
-        while(barrier_release != listening_on && alive) c.wait(m);
+        while(barrier_release != listening_on && alive) conditional.wait(mutex);
       }
-      m.unlock();
+      mutex.unlock();
     }
-  };
+  }; // end of conditional
   
 
 
@@ -604,26 +602,20 @@ namespace graphlab {
   class barrier {
   private:
     mutable pthread_barrier_t m_barrier;
-    
-
     // not copyconstructable
     barrier(const barrier&) { }
-
   public:
     /// Construct a barrier which will only fall when numthreads enter
-    barrier(size_t numthreads) { pthread_barrier_init(&m_barrier, NULL, (unsigned)numthreads); }
-    
+    barrier(size_t numthreads) { 
+      pthread_barrier_init(&m_barrier, NULL, (unsigned)numthreads); }    
     // not copyable
     void operator=(const barrier& m) { }
-
-    
     ~barrier() { pthread_barrier_destroy(&m_barrier); }
     /// Wait on the barrier until numthreads has called wait
     inline void wait() const { pthread_barrier_wait(&m_barrier); }
   };
 
-#else
-   
+#else   
    /* In some systems, pthread_barrier is not available.
    */
   typedef cancellable_barrier barrier;
@@ -674,8 +666,16 @@ namespace graphlab {
     public:
       inline tls_data(size_t thread_id) : thread_id_(thread_id) { }
       inline size_t thread_id() { return thread_id_; }
+      any& operator[](const size_t& id) { return local_data[id]; }
+      bool contains(const size_t& id) const {
+        return local_data.find(id) != local_data.end();
+      }
+      size_t erase(const size_t& id) {
+        return local_data.erase(id);
+      }
     private:
       size_t thread_id_;
+      boost::unordered_map<size_t, any> local_data;
     }; // end of thread specific data
 
 
@@ -691,8 +691,28 @@ namespace graphlab {
     /** Get the id of the calling thread.  This will typically be the
         index in the thread group. Between 0 to ncpus. */
     static inline size_t thread_id() { return get_tls_data().thread_id(); }
-    
 
+    /**
+     * Get a reference to an any object
+     */
+    static inline any& get_local(const size_t& id) {
+      return get_tls_data()[id];
+    }
+
+    /**
+     * Check to see if there is an entry in the local map
+     */
+    static inline bool contains(const size_t& id) {
+      return get_tls_data().contains(id);
+    }
+    
+    /**
+     * Removes the entry from the local map.
+     * @return number of elements erased.
+     */
+    static inline size_t erase(const size_t& id){
+      return get_tls_data().erase(id);
+    }
     
     /**
      * This static method joins the invoking thread with the other

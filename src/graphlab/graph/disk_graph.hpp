@@ -39,7 +39,6 @@
 #include <graphlab/util/stl_util.hpp>
 #include <graphlab/graph/graph.hpp>
 #include <graphlab/graph/graph_partitioner.hpp>
-#include <graphlab/graph/disk_atom.hpp>
 #include <graphlab/graph/memory_atom.hpp>
 #include <graphlab/graph/write_only_disk_atom.hpp>
 #include <graphlab/graph/atom_index_file.hpp>
@@ -50,7 +49,6 @@ namespace graphlab {
   
   struct disk_graph_atom_type {
     enum atom_type {
-      DISK_ATOM,
       MEMORY_ATOM,
       WRITE_ONLY_ATOM
     };
@@ -175,29 +173,19 @@ namespace graphlab {
      * which constructor is used.
      */
     disk_graph(std::string fbasename, size_t numfiles, 
-               disk_graph_atom_type::atom_type atype = disk_graph_atom_type::DISK_ATOM) {  
+               disk_graph_atom_type::atom_type atype = 
+               disk_graph_atom_type::MEMORY_ATOM) {  
       atoms.resize(numfiles);
       atomtype = atype;
       numv.value = 0;
       nume.value = 0;
       
       for (size_t i = 0;i < numfiles; ++i) {
-        if (atomtype == disk_graph_atom_type::DISK_ATOM) {
-#ifdef HAS_KYOTO
-          atoms[i] = new disk_atom(fbasename + "." + tostr(i), i);
-          numv.value += atoms[i]->num_vertices();
-          nume.value += atoms[i]->num_edges();
-#else
-          logger(LOG_FATAL, "Disk Atom not compiled. Requires Kyoto Cabinet");
-          ASSERT_TRUE(false);
-#endif
-        }
-        else if (atomtype == disk_graph_atom_type::MEMORY_ATOM) {
+        if (atomtype == disk_graph_atom_type::MEMORY_ATOM) {
           atoms[i] = new memory_atom(fbasename + "." + tostr(i) + ".fast", i);
           numv.value += atoms[i]->num_vertices();
           nume.value += atoms[i]->num_edges();
-        }
-        else if (atomtype == disk_graph_atom_type::WRITE_ONLY_ATOM) {
+        } else if (atomtype == disk_graph_atom_type::WRITE_ONLY_ATOM) {
           atoms[i] = new write_only_disk_atom(fbasename + "." + tostr(i) + ".dump", i, true);
         }
       }
@@ -224,22 +212,11 @@ namespace graphlab {
       nume.value = 0;
 
       for (size_t i = 0;i < idxfile.atoms.size(); ++i) {
-        if (atomtype == disk_graph_atom_type::DISK_ATOM) {
-#ifdef HAS_KYOTO
-          atoms[i] = new disk_atom(idxfile.atoms[i].file, i);
-          numv.value += atoms[i]->num_vertices();
-          nume.value += atoms[i]->num_edges();
-#else
-          logger(LOG_FATAL, "Disk Atom not compiled. Requires Kyoto Cabinet");
-          ASSERT_TRUE(false);
-#endif
-        }
-        else if (atomtype == disk_graph_atom_type::MEMORY_ATOM) {
+        if (atomtype == disk_graph_atom_type::MEMORY_ATOM) {
           atoms[i] = new memory_atom(idxfile.atoms[i].file + ".fast", i);
           numv.value += atoms[i]->num_vertices();
           nume.value += atoms[i]->num_edges();
-        }
-        else if (atomtype == disk_graph_atom_type::WRITE_ONLY_ATOM) {
+        } else if (atomtype == disk_graph_atom_type::WRITE_ONLY_ATOM) {
           atoms[i] = new write_only_disk_atom(idxfile.atoms[i].file + ".dump", i, true);
         }
       }
@@ -335,7 +312,7 @@ namespace graphlab {
         // if end with .fast, strip it out
         if (idx.atoms[i].file.length() >= 5 && 
             (idx.atoms[i].file.substr(idx.atoms[i].file.length() - 5, 5) == ".fast" ||
-            idx.atoms[i].file.substr(idx.atoms[i].file.length() - 5, 5) == ".dump")) {
+             idx.atoms[i].file.substr(idx.atoms[i].file.length() - 5, 5) == ".dump")) {
           idx.atoms[i].file = idx.atoms[i].file.substr(0, idx.atoms[i].file.length() - 5);
         }
         idx.atoms[i].nverts = atoms[i]->num_vertices();
@@ -589,29 +566,29 @@ namespace graphlab {
       for(vertex_id_type vid = 0; vid < num_vertices(); ++vid) {
         neighbor_colors.clear();
         // Get the neighbor colors
-      foreach(vertex_id_type neighbor_vid, in_vertices(vid)){
-        const vertex_color_type& neighbor_color = get_color(neighbor_vid);
-        neighbor_colors.insert(neighbor_color);
-      }
-      foreach(vertex_id_type neighbor_vid, out_vertices(vid)){
-        const vertex_color_type& neighbor_color = get_color(neighbor_vid);
-        neighbor_colors.insert(neighbor_color);
-      }
+        foreach(vertex_id_type neighbor_vid, in_vertices(vid)){
+          const vertex_color_type& neighbor_color = get_color(neighbor_vid);
+          neighbor_colors.insert(neighbor_color);
+        }
+        foreach(vertex_id_type neighbor_vid, out_vertices(vid)){
+          const vertex_color_type& neighbor_color = get_color(neighbor_vid);
+          neighbor_colors.insert(neighbor_color);
+        }
       
-      vertex_color_type vertex_color = 0;
-      foreach(vertex_color_type neighbor_color, neighbor_colors) {
-        if(vertex_color != neighbor_color) break;
-        else vertex_color++;
-        // Ensure no wrap around
-        ASSERT_NE(vertex_color, 0);                
-      }
-      set_color(vid, vertex_color);
-      max_color = std::max(max_color, size_t(vertex_color) );
+        vertex_color_type vertex_color = 0;
+        foreach(vertex_color_type neighbor_color, neighbor_colors) {
+          if(vertex_color != neighbor_color) break;
+          else vertex_color++;
+          // Ensure no wrap around
+          ASSERT_NE(vertex_color, 0);                
+        }
+        set_color(vid, vertex_color);
+        max_color = std::max(max_color, size_t(vertex_color) );
       }
       // Return the NUMBER of colors
       propagate_coloring();
       ncolors = max_color + 1;
-    return max_color + 1;     
+      return max_color + 1;     
     }
   
     std::vector<vertex_id_type> in_vertices(vertex_id_type vid) const {
@@ -663,7 +640,7 @@ namespace graphlab {
     }
     
     void make_memory_atoms() {
-//      #pragma omp parallel for
+      //      #pragma omp parallel for
       for (int i = 0;i < (int)atoms.size(); ++i) {
         std::string fname = atoms[i]->get_filename();
         // Make sure that this is not already a fast file
@@ -688,7 +665,7 @@ namespace graphlab {
   private:
     
     // block copies
-  disk_graph(const disk_graph&);
+    disk_graph(const disk_graph&);
     disk_graph& operator=(const disk_graph&);
     
     mutable std::vector<graph_atom*> atoms;
@@ -704,15 +681,15 @@ namespace graphlab {
     
     void propagate_coloring() {
 #pragma omp parallel for
-    for (int i = 0;i < (int)atoms.size(); ++i) {
-      foreach(vertex_id_type vid, atoms[i]->enumerate_vertices()) {
-        uint16_t owner = atoms[vid % atoms.size()]->get_owner(vid);
-        if (owner != i) {
-          atoms[i]->set_color(vid, atoms[owner]->get_color(vid));
+      for (int i = 0;i < (int)atoms.size(); ++i) {
+        foreach(vertex_id_type vid, atoms[i]->enumerate_vertices()) {
+          uint16_t owner = atoms[vid % atoms.size()]->get_owner(vid);
+          if (owner != i) {
+            atoms[i]->set_color(vid, atoms[owner]->get_color(vid));
+          }
         }
       }
     }
-  }
     
   }; // end of Disk Graph
   

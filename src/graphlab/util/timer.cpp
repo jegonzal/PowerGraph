@@ -25,6 +25,7 @@
 #include <signal.h>
 #include <sys/time.h>
 
+#include <graphlab/parallel/pthread_tools.hpp>
 #include <graphlab/util/timer.hpp>
 
 std::ostream&  operator<<(std::ostream& out, const graphlab::timer& t) {
@@ -80,14 +81,22 @@ namespace graphlab {
 
 
   void my_sleep(size_t sleeplen) {
-    fd_set set;
-    struct timeval timeout;
-    FD_ZERO (&set);
-    timeout.tv_sec = (time_t)sleeplen;
-    timeout.tv_usec = 0;
-    select (FD_SETSIZE, &set, NULL, NULL, &timeout);
+    struct timespec timeout;
+    timeout.tv_sec = sleeplen;
+    timeout.tv_nsec = 0;
+    while (nanosleep(&timeout, &timeout) == -1);
   }
-  
+
+
+  /**
+  Sleeps for sleeplen milliseconds.
+  */
+  void my_sleep_ms(size_t sleeplen) {
+    struct timespec timeout;
+    timeout.tv_sec = sleeplen / 1000;
+    timeout.tv_nsec = (sleeplen % 1000) * 1000000;
+    while (nanosleep(&timeout, &timeout) == -1);
+  }
   
   /**
    * Precision of deciseconds 
@@ -97,5 +106,23 @@ namespace graphlab {
   }
 
   
+  
+static unsigned long long rtdsc_ticks_per_sec = 0; 
+static mutex rtdsc_ticks_per_sec_mutex;
+
+unsigned long long estimate_ticks_per_second() {
+  if (rtdsc_ticks_per_sec == 0) {
+    rtdsc_ticks_per_sec_mutex.lock();
+      if (rtdsc_ticks_per_sec == 0) {
+      unsigned long long tstart = rdtsc();
+      graphlab::my_sleep(1);
+      unsigned long long tend = rdtsc();
+      rtdsc_ticks_per_sec = tend - tstart;
+      }
+    rtdsc_ticks_per_sec_mutex.unlock();
+  }
+  return rtdsc_ticks_per_sec;
+}
+
 }
 

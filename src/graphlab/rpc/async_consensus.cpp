@@ -29,75 +29,151 @@ namespace graphlab {
                                    const dc_impl::dc_dist_object_base *attach)
     :rmi(dc, this), attachedobj(attach),
      last_calls_sent(0), last_calls_received(0),
-     required_threads_in_done(required_threads_in_done),
-     threads_in_done(0),
-     cancelled(0), complete(false), hastoken(dc.procid() == 0) {
+     numactive(required_threads_in_done),
+     ncpus(required_threads_in_done),
+     done(false),
+     trying_to_sleep(0),
+     critical(ncpus, 0),
+     sleeping(ncpus, 0),
+     hastoken(dc.procid() == 0),
+     cond(ncpus){
 
     cur_token.total_calls_sent = 0;
     cur_token.total_calls_received = 0;
     cur_token.last_change = (procid_t)(rmi.numprocs() - 1);
   }
 
-  bool async_consensus::done() {
-    begin_done_critical_section();
-    return end_done_critical_section(true);
-  }
-
-
   void async_consensus::force_done() {
-    begin_done_critical_section();
-    complete = true;
-    end_done_critical_section(true);
+    m.lock();
+    done = true;
+    m.unlock();
+    cancel();
   }
 
-  void async_consensus::begin_done_critical_section() {
-    mut.lock();
+  void async_consensus::begin_done_critical_section(size_t cpuid) {
+    trying_to_sleep.inc();
+    critical[cpuid] = true;
+    m.lock();
   }
 
-  bool async_consensus::end_done_critical_section(bool done) {
-    if (!done) {
-      mut.unlock();
-      return false;
-    }
-    ++threads_in_done;
-    // reset the cancelled flag
+
+  void async_consensus::cancel_critical_section(size_t cpuid) {
+    m.unlock();
+    critical[cpuid] = false;
+    trying_to_sleep.dec();
+  }
   
-    if (threads_in_done == required_threads_in_done && cancelled == 0) {
+  bool async_consensus::end_done_critical_section(size_t cpuid) {
+    // if done flag is set, quit immediately
+    if (done) {
+      m.unlock();
+      critical[cpuid] = false;
+      trying_to_sleep.dec();
+      return true;
+    }
+    /*
+      Assertion: Since numactive is decremented only within 
+      a critical section, and is incremented only within the same critical 
+      section. Therefore numactive is a valid counter of the number of threads 
+      outside of this critical section. 
+    */
+    --numactive;
+  
+    /*
+      Assertion: If numactive is ever 0 at this point, the algorithm is done.
+      WLOG, let the current thread which just decremented numactive be thread 0
+    
+      Since there is only 1 active thread (0), there must be no threads 
+      performing insertions, and are no othe threads which are waking up.
+      All threads must therefore be sleeping in cond.wait().
+    */
+    if (numactive == 0) {
+      logstream(LOG_INFO) << rmi.procid() << ": Termination Possible" << std::endl;
       if (hastoken) pass_the_token();
     }
-    if (complete == false && cancelled == 0)  cond.wait(mut);
-  
-    --threads_in_done;
-    if (cancelled > 0) cancelled--;
-
-    mut.unlock();
-    return complete;
+    sleeping[cpuid] = true;
+    while(1) {
+      // here we are protected by the mutex again.
+      
+      // woken up by someone else. leave the 
+      // terminator
+      if (sleeping[cpuid] == false || done) {
+        break;
+      }
+      cond[cpuid].wait(m);
+    }
+    m.unlock();
+    critical[cpuid] = false;
+    trying_to_sleep.dec();
+    return done;
   }
   
   void async_consensus::cancel() {
-    mut.lock();
-    cond.broadcast();
-    cancelled = threads_in_done;
-    mut.unlock();
+    /*
+      Assertion: numactive > 0 if there is work to do.
+      If there are threads trying to sleep, lets wake them up
+    */
+    if (trying_to_sleep > 0 || numactive < ncpus) {
+      m.lock();
+      size_t oldnumactive = numactive;
+      // once I acquire this lock, all threads must be
+      // in the following states
+      // 1: still running and has not reached begin_critical_section()
+      // 2: is sleeping in cond.wait()
+      // 3: has called begin_critical_section() but has not acquired
+      //    the mutex
+      // In the case of 1,3: These threads will perform one more sweep
+      // of their task queues. Therefore they will see any new job if available
+      // in the case of 2: numactive must be < ncpus since numactive
+      // is mutex protected. Then I can wake them up by
+      // clearing their sleeping flags and broadcasting.
+      if (numactive < ncpus) {
+        // this is safe. Note that it is done from within 
+        // the critical section.
+        for (size_t i = 0;i < ncpus; ++i) {
+          numactive += sleeping[i];
+          if (sleeping[i]) {
+            sleeping[i] = 0;
+            cond[i].signal();
+          }
+        }
+        if (oldnumactive == 0 && !done) {
+          logstream(LOG_INFO) << rmi.procid() << ": Waking" << std::endl;
+        }
+
+      }
+      m.unlock();
+    }
   }
 
-  void async_consensus::cancel_one() {
-    mut.lock();
-    cond.signal();
-    cancelled = std::max<size_t>(threads_in_done, 1);
-    mut.unlock();
+  void async_consensus::cancel_one(size_t cpuhint) {
+    if (critical[cpuhint]) {
+      m.lock();
+      size_t oldnumactive = numactive;
+      // see new_job() for detailed comments
+      if (sleeping[cpuhint]) {
+        numactive += sleeping[cpuhint];
+        sleeping[cpuhint] = 0;
+        if (oldnumactive == 0 && !done) {
+          logstream(LOG_INFO) << rmi.procid() << ": Waking" << std::endl;
+        }
+        cond[cpuhint].signal();
+      }
+      m.unlock();
+    }
   }
 
   void async_consensus::receive_the_token(token &tok) {
-    mut.lock();
+    m.lock();
     // save the token
     hastoken = true;
     cur_token = tok;
     // if I am waiting on done, pass the token.
-    if ((threads_in_done == required_threads_in_done) && (cancelled == 0)) {
+    logstream(LOG_INFO) << rmi.procid() << ": Token Received" << std::endl;
+    if (numactive == 0) {
       pass_the_token();
     }
-    mut.unlock();
+    m.unlock();
   }
 
   void async_consensus::pass_the_token() {
@@ -107,18 +183,34 @@ namespace graphlab {
     // first check if we are done
     if (cur_token.last_change == rmi.procid() && 
         cur_token.total_calls_received == cur_token.total_calls_sent) {
+      logstream(LOG_INFO) << "Completed Token: " 
+                          << cur_token.total_calls_received << " " 
+                          << cur_token.total_calls_sent << std::endl;
       // we have completed a loop around!
       // broadcast a completion
       for (procid_t i = 0;i < rmi.numprocs(); ++i) {
         if (i != rmi.procid()) {
           rmi.control_call(i,
-                           &async_consensus::consensus);
+                           &async_consensus::force_done);
         }
       }
       // set the complete flag
       // we can't call consensus() since it will deadlock
-      complete = true;
-      cond.broadcast();
+      done = true;
+      // this is the same code as cancel(), but we can't call cancel 
+      // since we are holding on to a lock
+      if (numactive < ncpus) {
+        // this is safe. Note that it is done from within 
+        // the critical section.
+        for (size_t i = 0;i < ncpus; ++i) {
+          numactive += sleeping[i];
+          if (sleeping[i]) {
+            sleeping[i] = 0;
+            cond[i].signal();
+          }
+        }
+      }
+
     }
     else {
       // update the token
@@ -147,18 +239,15 @@ namespace graphlab {
       last_calls_received = callsrecv;
       // send it along.
       hastoken = false;
+      logstream(LOG_INFO) << "Passing Token " << rmi.procid() << "-->" 
+                          << (rmi.procid() + 1) % rmi.numprocs() << ": "
+                          << cur_token.total_calls_received << " " 
+                          << cur_token.total_calls_sent << std::endl;
+
       rmi.control_call((procid_t)((rmi.procid() + 1) % rmi.numprocs()),
                        &async_consensus::receive_the_token,
                        cur_token);
     }
-  }
-
-
-  void async_consensus::consensus() {
-    mut.lock();
-    complete = true;
-    cond.broadcast();
-    mut.unlock();
   }
 }
 

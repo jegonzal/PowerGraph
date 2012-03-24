@@ -155,6 +155,7 @@ class  BOOST_PP_CAT(FNAME_AND_CALL, N) { \
   static typename function_ret_type<__GLRPC_FRESULT>::type exec(dc_send* sender, unsigned char flags, procid_t target, F remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_) ) {  \
     boost::iostreams::stream<resizing_array_sink_ref> &strm = get_thread_local_stream();    \
     oarchive arc(strm);                         \
+    strm->advance(sizeof(packet_hdr));            \
     reply_ret_type reply(REQUEST_WAIT_METHOD);      \
     dispatch_type d = BOOST_PP_CAT(request_issue_detail::dispatch_selector,N)<typename is_rpc_call<F>::type, F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, T) >::dispatchfn();   \
     arc << reinterpret_cast<size_t>(d);       \
@@ -163,6 +164,7 @@ class  BOOST_PP_CAT(FNAME_AND_CALL, N) { \
     BOOST_PP_REPEAT(N, GENARC, _)                \
     strm.flush();           \
     sender->send_data(target, flags, strm->c_str(), strm->size());    \
+    strm->relinquish();     \
     reply.wait(); \
     boost::iostreams::stream<boost::iostreams::array_source> retstrm(reply.val.c, reply.val.len);    \
     iarchive iarc(retstrm);  \

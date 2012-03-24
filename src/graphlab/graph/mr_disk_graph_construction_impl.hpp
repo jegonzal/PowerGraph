@@ -26,10 +26,19 @@
 #include <map>
 #include <unistd.h>
 #include <omp.h>
-#include <graphlab/graph/disk_graph.hpp>
+
 #include <graphlab/serialization/serialization_includes.hpp>
 
+
+
+#include <graphlab/graph/disk_graph.hpp>
+
+
+
+
 namespace graphlab {
+
+
   
   namespace mr_disk_graph_construction_impl {
     typedef disk_graph<int,int>::vertex_id_type vertex_id_type;
@@ -95,10 +104,6 @@ namespace graphlab {
         output_disk_atom += ".dump";
         unlink(output_disk_atom.c_str());
         atomout = new write_only_disk_atom(output_disk_atom, idx, true);
-      }
-      else if (atomtype == disk_graph_atom_type::DISK_ATOM) {
-        unlink(output_disk_atom.c_str());
-        atomout = new disk_atom(output_disk_atom, idx);
       }
 
       atomout->clear();

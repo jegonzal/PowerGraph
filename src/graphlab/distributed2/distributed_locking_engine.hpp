@@ -485,7 +485,7 @@ class distributed_locking_engine:public iengine<Graph> {
       if (binary_vertex_tasks.add(task)) {
         scheduler.add_task(task, priority);
         if (threads_alive.value < ncpus) {
-          consensus.cancel_one();
+          consensus.cancel();
         }
       }
     }
@@ -1057,12 +1057,13 @@ class distributed_locking_engine:public iengine<Graph> {
   void snapshot2_add_task(update_task_type task, double priority) {
     if (graph.is_owned(task.vertex())) {
       // translate to local IDs
-      task =  update_task_type(graph.globalvid_to_localvid(task.vertex()), task.function());
+      task =  update_task_type(graph.globalvid_to_localvid(task.vertex()), 
+                               task.function());
       ASSERT_LT(task.vertex(), vertex_deferred_tasks.size());
       if (binary_vertex_tasks.add(task)) {
         scheduler.add_task(task, priority);
         if (threads_alive.value < ncpus) {
-          consensus.cancel_one();
+          consensus.cancel();
         }
       }
     }
@@ -1092,7 +1093,7 @@ class distributed_locking_engine:public iengine<Graph> {
                    sched_status::status_enum& stat, 
                    update_task_type &task) {
     threads_alive.dec();
-    consensus.begin_done_critical_section();
+    consensus.begin_done_critical_section(threadid);
     stat = scheduler.get_next_task(threadid, task);
     if (stat == sched_status::EMPTY) {
       bool ret = consensus.end_done_critical_section(true);
@@ -1367,7 +1368,7 @@ class distributed_locking_engine:public iengine<Graph> {
       if (make_log.length() > 0) {
         fout.open(make_log.c_str());
       }
-      while(consensus.done_noblock() == false) {
+      while(consensus.is_done() == false) {
         reduction_started_mut.lock();
         proc0_reduction_started = true;
         reduction_started_mut.unlock();

@@ -33,10 +33,14 @@
 #include <graphlab/rpc/dc_dist_object_base.hpp>
 #include <graphlab/rpc/object_request_issue.hpp>
 #include <graphlab/rpc/object_call_issue.hpp>
+#include <graphlab/rpc/object_podcall_issue.hpp>
+#include <graphlab/rpc/object_broadcast_issue.hpp>
+#include <graphlab/rpc/object_podcall_broadcast_issue.hpp>
 #include <graphlab/rpc/function_ret_type.hpp>
 #include <graphlab/rpc/mem_function_arg_types_def.hpp>
 #include <graphlab/util/charstream.hpp>
 #include <boost/preprocessor.hpp>
+#include <graphlab/util/tracepoint.hpp>
 #include <graphlab/macros_def.hpp>
 
 #define BARRIER_BRANCH_FACTOR 128
@@ -80,7 +84,7 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
   friend class distributed_control;
   
   
-  
+  DECLARE_TRACER(distobj_remote_call_time);
 
 
  public:
@@ -142,7 +146,7 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
     bytessent.resize(dc_.numprocs());
     //------ Initialize the matched send/recv ------
     recv_froms.resize(dc_.numprocs());
-    
+    non_blocking_recv_from.resize(dc_.numprocs());
     //------ Initialize the gatherer ------
     gather_receive.resize(dc_.numprocs());
 
@@ -180,6 +184,11 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
     // register
     obj_id = dc_.register_object(owner, this);
     control_obj_id = dc_.register_object(this, this);
+    
+    //-------- Initialize Tracer 
+    std::string name = typeid(T).name();
+    INITIALIZE_TRACER(distobj_remote_call_time,
+                      std::string("dc_dist_object ") + name + ": remote_call time");
   }
   
   /// The number of function calls received by this object
@@ -228,30 +237,6 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
     return dc_.numprocs();
   }
 
-  
-  /**
-   This comm barrier is not a true "barrier" but is
-   essentially a sequentialization point. It guarantees that
-   all calls from this machine to the target machine performed
-   before the comm_barrier() call are completed before any call
-   sent after the comm barrier() call.
-   
-    \note This affects the global context
-  */
-  inline void comm_barrier(procid_t targetmachine) {
-    return dc_.comm_barrier(targetmachine);
-  }
-  /**
-    This is a convenience function which broadcasts a comm_barrier()
-    \note having all machines call the comm barrier does not guarantee
-    that all calls have been processed. Basically 'p' local barriers
-    do not result in a global barrier.
-    
-    \note This affects the global context
-  */
-  inline void comm_barrier() {
-    return dc_.comm_barrier();
-  }
 
   /**
     This returns the set of services for the parent DC.
@@ -297,19 +282,44 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
   template<typename F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, typename T)> \
   void  BOOST_PP_TUPLE_ELEM(3,0,FNAME_AND_CALL) (procid_t target, F remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_) ) {  \
     ASSERT_LT(target, dc_.senders.size()); \
+    BEGIN_TRACEPOINT(distobj_remote_call_time); \
     if ((BOOST_PP_TUPLE_ELEM(3,2,FNAME_AND_CALL) & CONTROL_PACKET) == 0) inc_calls_sent(target); \
     BOOST_PP_CAT( BOOST_PP_TUPLE_ELEM(3,1,FNAME_AND_CALL),N) \
         <T, F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, T)> \
           ::exec(this, dc_.senders[target],  BOOST_PP_TUPLE_ELEM(3,2,FNAME_AND_CALL), target,obj_id, remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENI ,_) ); \
+    END_TRACEPOINT(distobj_remote_call_time); \
   }   \
   
   /*
   Generates the interface functions. 3rd argument is a tuple (interface name, issue name, flags)
   */
   BOOST_PP_REPEAT(7, RPC_INTERFACE_GENERATOR, (remote_call, dc_impl::object_call_issue, STANDARD_CALL) )
-  BOOST_PP_REPEAT(7, RPC_INTERFACE_GENERATOR, (fast_remote_call,dc_impl::object_call_issue, FAST_CALL) )
-  BOOST_PP_REPEAT(7, RPC_INTERFACE_GENERATOR, (control_call,dc_impl::object_call_issue, (FAST_CALL | CONTROL_PACKET)) )
+  BOOST_PP_REPEAT(7, RPC_INTERFACE_GENERATOR, (pod_call, dc_impl::object_podcall_issue, STANDARD_CALL) )
+  BOOST_PP_REPEAT(7, RPC_INTERFACE_GENERATOR, (fast_remote_call,dc_impl::object_call_issue, STANDARD_CALL) )
+  BOOST_PP_REPEAT(7, RPC_INTERFACE_GENERATOR, (control_call,dc_impl::object_call_issue, (STANDARD_CALL | CONTROL_PACKET)) )
  
+  
+  #define BROADCAST_INTERFACE_GENERATOR(Z,N,FNAME_AND_CALL) \
+  template<typename Iterator, typename F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, typename T)> \
+  void  BOOST_PP_TUPLE_ELEM(3,0,FNAME_AND_CALL) (Iterator target_begin, Iterator target_end, \
+                      F remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_) ) {  \
+    if (target_begin == target_end) return;               \
+    BEGIN_TRACEPOINT(distobj_remote_call_time); \
+    if ((BOOST_PP_TUPLE_ELEM(3,2,FNAME_AND_CALL) & CONTROL_PACKET) == 0) {            \
+      Iterator iter = target_begin;       \
+      while (iter != target_end){         \
+        inc_calls_sent(*iter);            \
+        ++iter;                           \
+      }                                   \
+    }                                     \
+    BOOST_PP_CAT( BOOST_PP_TUPLE_ELEM(3,1,FNAME_AND_CALL),N) \
+        <Iterator, T, F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, T)> \
+          ::exec(this, dc_.senders,  BOOST_PP_TUPLE_ELEM(3,2,FNAME_AND_CALL), target_begin, target_end,obj_id, remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENI ,_) ); \
+    END_TRACEPOINT(distobj_remote_call_time); \
+  }   
+  
+  BOOST_PP_REPEAT(7, BROADCAST_INTERFACE_GENERATOR, (remote_call, dc_impl::object_broadcast_issue, STANDARD_CALL) )
+  BOOST_PP_REPEAT(7, BROADCAST_INTERFACE_GENERATOR, (pod_call, dc_impl::object_podcall_broadcast_issue, STANDARD_CALL) )
 
   /*
   The generation procedure for requests are the same. The only
@@ -341,12 +351,13 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
   (interface name, issue name, flags)
   */
   BOOST_PP_REPEAT(6, REQUEST_INTERFACE_GENERATOR, (typename dc_impl::function_ret_type<__GLRPC_FRESULT>::type remote_request, dc_impl::object_request_issue, STANDARD_CALL) )
-  BOOST_PP_REPEAT(6, REQUEST_INTERFACE_GENERATOR, (typename dc_impl::function_ret_type<__GLRPC_FRESULT>::type fast_remote_request, dc_impl::object_request_issue, FAST_CALL) )
-  BOOST_PP_REPEAT(6, REQUEST_INTERFACE_GENERATOR, (typename dc_impl::function_ret_type<__GLRPC_FRESULT>::type control_request, dc_impl::object_request_issue, (FAST_CALL | CONTROL_PACKET)) )
+  BOOST_PP_REPEAT(6, REQUEST_INTERFACE_GENERATOR, (typename dc_impl::function_ret_type<__GLRPC_FRESULT>::type fast_remote_request, dc_impl::object_request_issue, STANDARD_CALL) )
+  BOOST_PP_REPEAT(6, REQUEST_INTERFACE_GENERATOR, (typename dc_impl::function_ret_type<__GLRPC_FRESULT>::type control_request, dc_impl::object_request_issue, (STANDARD_CALL | CONTROL_PACKET)) )
  
 
 
   #undef RPC_INTERFACE_GENERATOR
+  #undef BROADCAST_INTERFACE_GENERATOR
   #undef REQUEST_INTERFACE_GENERATOR
   
   /* Now generate the interface functions which allow me to call this
@@ -366,8 +377,8 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
   }   \
   
   BOOST_PP_REPEAT(6, RPC_INTERFACE_GENERATOR, (internal_call,dc_impl::object_call_issue, STANDARD_CALL) )
-  BOOST_PP_REPEAT(6, RPC_INTERFACE_GENERATOR, (internal_fast_call,dc_impl::object_call_issue, FAST_CALL) )
-  BOOST_PP_REPEAT(6, RPC_INTERFACE_GENERATOR, (internal_control_call,dc_impl::object_call_issue, (FAST_CALL | CONTROL_PACKET)) )
+  BOOST_PP_REPEAT(6, RPC_INTERFACE_GENERATOR, (internal_fast_call,dc_impl::object_call_issue, STANDARD_CALL) )
+  BOOST_PP_REPEAT(6, RPC_INTERFACE_GENERATOR, (internal_control_call,dc_impl::object_call_issue, (STANDARD_CALL | CONTROL_PACKET)) )
  
 
   #define REQUEST_INTERFACE_GENERATOR(Z,N,ARGS) \
@@ -384,8 +395,8 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
   Generates the interface functions. 3rd argument is a tuple (interface name, issue name, flags)
   */
   BOOST_PP_REPEAT(6, REQUEST_INTERFACE_GENERATOR, (typename dc_impl::function_ret_type<__GLRPC_FRESULT>::type internal_request, dc_impl::object_request_issue, STANDARD_CALL) )
-  BOOST_PP_REPEAT(6, REQUEST_INTERFACE_GENERATOR, (typename dc_impl::function_ret_type<__GLRPC_FRESULT>::type internal_fast_request, dc_impl::object_request_issue, FAST_CALL) )
-  BOOST_PP_REPEAT(6, REQUEST_INTERFACE_GENERATOR, (typename dc_impl::function_ret_type<__GLRPC_FRESULT>::type internal_control_request, dc_impl::object_request_issue, (FAST_CALL | CONTROL_PACKET)) )
+  BOOST_PP_REPEAT(6, REQUEST_INTERFACE_GENERATOR, (typename dc_impl::function_ret_type<__GLRPC_FRESULT>::type internal_fast_request, dc_impl::object_request_issue, STANDARD_CALL) )
+  BOOST_PP_REPEAT(6, REQUEST_INTERFACE_GENERATOR, (typename dc_impl::function_ret_type<__GLRPC_FRESULT>::type internal_control_request, dc_impl::object_request_issue, (STANDARD_CALL | CONTROL_PACKET)) )
  
 
   #undef RPC_INTERFACE_GENERATOR
@@ -445,7 +456,7 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
     // wait for reply
     rt.wait();
     
-    if (control == false) inc_calls_received(target);
+    if (control == false) inc_calls_sent(target);
   }
   
   
@@ -476,19 +487,101 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
     recvstruct.lock.unlock();
     if (control == false) {
       // remote call to release the sender. Use an empty blob
-      dc_.fast_remote_call(source, reply_increment_counter, tag, dc_impl::blob());
+      dc_.control_call(source, reply_increment_counter, tag, dc_impl::blob());
       // I have to increment the calls sent manually here
       // since the matched send/recv calls do not go through the 
       // typical object calls. It goes through the DC, but I also want to charge
       // it to this object
-      inc_calls_sent(source);
+      inc_calls_received(source);
     }
     else {
       dc_.control_call(source, reply_increment_counter, tag, dc_impl::blob());
     }
   }
 
+  
+  
+/*****************************************************************************
+*             Implementation of non blocking send / recv
+*****************************************************************************/
 
+  
+ private:
+  std::vector<dc_impl::recv_from_struct> non_blocking_recv_from;
+
+  void receive_into_nonblocking_recv(size_t src,
+                                     std::string& str) {
+    non_blocking_recv_from[src].lock.lock();
+    non_blocking_recv_from[src].data = str;
+    ASSERT_FALSE(non_blocking_recv_from[src].hasdata);
+    non_blocking_recv_from[src].hasdata = true;
+    non_blocking_recv_from[src].cond.signal();
+    non_blocking_recv_from[src].lock.unlock();
+  }
+ public:
+  /**
+   This is a non-blocking send_to. It send an object T to the target
+   machine, but DOES NOT wait for the target machine to call recv_from
+   before returning. Target machine must call recv_from_nonblocking
+   as many times as #machines sending. This does not share the same buffers
+   as the regular send_to so both can be used simultaneously.
+   */
+  template <typename U>
+  void send_to_nonblocking(procid_t target, U& t, bool control = false) {
+    std::stringstream strm;
+    oarchive oarc(strm);
+    oarc << t;
+    strm.flush();
+    if (control == false) {
+      internal_call(target, &dc_dist_object<T>::receive_into_nonblocking_recv,
+                    procid(), strm.str());
+    }
+    else {
+      internal_control_call(target, &dc_dist_object<T>::receive_into_nonblocking_recv,
+                            procid(), strm.str());
+    }
+    if (control == false) inc_calls_sent(target);
+  }
+  
+  
+  /**
+   Recieves from sends issued by send_to_nonblocking. Similar in behavior
+   as recv_from but must be matched with a send_to_nonblocking.
+   If no send was issued before the
+   recv_from_nonblocking was called, this function will block.
+   If a second send is issued before the current
+   machine has a chance to receive the first send,
+   an assertion failure will be raised.
+   This does not share the same buffers as the regular send_to so both
+   can be used simultaneously.
+   */
+  template <typename U>
+  void recv_from_nonblocking(procid_t source, U& t, bool control = false) {
+    // wait on the condition variable until I have data
+    dc_impl::recv_from_struct &recvstruct = non_blocking_recv_from[source];
+    recvstruct.lock.lock();
+    while (recvstruct.hasdata == false) {
+      recvstruct.cond.wait(recvstruct.lock);
+    }
+    
+    // got the data. deserialize it
+    std::stringstream strm(recvstruct.data);
+    iarchive iarc(strm);
+    iarc >> t;
+    // clear the data
+    std::string("").swap(recvstruct.data);
+    // clear the has data flag
+    recvstruct.hasdata = false;
+    // unlock
+    recvstruct.lock.unlock();
+    if (control == false) {
+      // I have to increment the calls sent manually here
+      // since the matched send/recv calls do not go through the
+      // typical object calls. It goes through the DC, but I also want to charge
+      // it to this object
+      inc_calls_received(source);
+    }
+  }
 
 
 
@@ -841,8 +934,130 @@ private:
     }
   }
   
+/**
+   * Each machine issues a piece of data.
+   * After calling all_gather(), all machines will return with identical
+   * values of data which is equal to the sum of everyone's contributions.
+   * Sum is computed using operator+=
+   */
+  template <typename U, typename PlusEqual>
+  void all_reduce2(U& data, PlusEqual plusequal, bool control = false) {
+    if (numprocs() == 1) return;
+    // get the string representation of the data
+   /* charstream strm(128);
+    oarchive oarc(strm);
+    oarc << data;
+    strm.flush();*/
+    // upward message
+    int ab_barrier_val = ab_barrier_sense;
+    ab_barrier_mut.lock();
+    // wait for all children to be done
+    while(1) {
+      if ((ab_barrier_sense == -1 && ab_child_barrier_counter.value == 0) ||
+          (ab_barrier_sense == 1 && ab_child_barrier_counter.value == (int)(numchild))) {
+        // flip the barrier sense
+        ab_barrier_sense = -ab_barrier_sense;
+        // call child to parent in parent
+        ab_barrier_mut.unlock();
+        if (procid() != 0) {
+          // accumulate my children data
+          for (procid_t i = 0;i < numchild; ++i) {
+            std::stringstream istrm(ab_children_data[i]);
+            iarchive iarc(istrm);
+            U tmp;
+            iarc >> tmp;
+            plusequal(data, tmp);
+          }
+          // upward message
+          charstream ostrm(128);
+          oarchive oarc(ostrm);
+          oarc << data;
+          ostrm.flush();
+          if (control) {
+            internal_control_call(parent,
+                            &dc_dist_object<T>::__ab_child_to_parent_barrier_trigger,
+                            procid(),
+                            std::string(ostrm->c_str(), ostrm->size()));
+          }
+          else {
+            internal_call(parent,
+                          &dc_dist_object<T>::__ab_child_to_parent_barrier_trigger,
+                          procid(),
+                          std::string(ostrm->c_str(), ostrm->size()));
+          }
+        }
+        break;
+      }
+      ab_barrier_cond.wait(ab_barrier_mut);
+    }
 
 
+    //logger(LOG_DEBUG, "barrier phase 1 complete");
+    // I am root. send the barrier release downwards
+    if (procid() == 0) {
+      ab_barrier_release = ab_barrier_val;
+      for (procid_t i = 0;i < numchild; ++i) {
+        std::stringstream istrm(ab_children_data[i]);
+        iarchive iarc(istrm);
+        U tmp;
+        iarc >> tmp;
+        plusequal(data, tmp);
+      }
+      // build the downward data
+      charstream ostrm(128);
+      oarchive oarc(ostrm);
+      oarc << data;
+      ostrm.flush();
+      ab_alldata = std::string(ostrm->c_str(), ostrm->size());
+      for (procid_t i = 0;i < numchild; ++i) {
+        internal_control_call((procid_t)(childbase + i),
+                             &dc_dist_object<T>::__ab_parent_to_child_barrier_release,
+                             ab_barrier_val,
+                             ab_alldata,
+                             (int)control);
+
+      }
+    }
+    // wait for the downward message releasing the barrier
+    ab_barrier_mut.lock();
+    while(1) {
+      if (ab_barrier_release == ab_barrier_val) break;
+      ab_barrier_cond.wait(ab_barrier_mut);
+    }
+
+    if (procid() != 0) {
+      // read the collected data and release the lock
+      std::string local_ab_alldata = ab_alldata;
+      ab_barrier_mut.unlock();
+
+      //logger(LOG_DEBUG, "barrier phase 2 complete");
+
+      std::stringstream istrm(local_ab_alldata);
+      iarchive iarc(istrm);
+      iarc >> data;
+    }
+    else {
+      ab_barrier_mut.unlock();
+    }
+  }
+
+  
+  template <typename U>
+  struct default_plus_equal {
+    void operator()(U& u, const U& v) {
+      u += v;
+    }
+  };
+  /**
+   * Each machine issues a piece of data.
+   * After calling all_gather(), all machines will return with identical
+   * values of data which is equal to the sum of everyone's contributions.
+   * Sum is computed using operator+=
+   */
+  template <typename U>
+  void all_reduce(U& data, bool control = false) {
+    all_reduce2(data, default_plus_equal<U>(), control);
+  }
 
 ////////////////////////////////////////////////////////////////////////////
 
@@ -1032,7 +1247,7 @@ private:
   // used to inform the counter that the full barrier
   // is in effect and all modifications to the calls_recv
   // counter will need to lock and signal
-  bool full_barrier_in_effect;
+  volatile bool full_barrier_in_effect;
   
   /** number of 'source' processor counts which have
   not achieved the right recv count */

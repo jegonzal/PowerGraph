@@ -66,11 +66,13 @@ namespace graphlab {
      */
     std::pair<bool, ValueType> get(const KeyType &key) const {
       // who owns the data?
+
       const size_t hashvalue = hasher(key);
-      const size_t owningmachine = hashvalue % rpc.dc().numprocs();
+      const size_t owningmachine = hashvalue % rpc.numprocs();
       std::pair<bool, ValueType> retval;
       // if it is me, we can return it
       if (owningmachine == rpc.dc().procid()) {
+
         lock.lock();
         typename storage_type::const_iterator iter = storage.find(hashvalue);
         retval.first = iter != storage.end();
@@ -90,7 +92,8 @@ namespace graphlab {
     void set(const KeyType &key, const ValueType &newval) {  
       // who owns the data?
       const size_t hashvalue = hasher(key);
-      const size_t owningmachine = hashvalue % rpc.dc().numprocs();
+      const size_t owningmachine = hashvalue % rpc.numprocs();
+ 
       // if it is me, set it
       if (owningmachine == rpc.dc().procid()) {
         lock.lock();

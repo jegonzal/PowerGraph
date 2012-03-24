@@ -30,6 +30,7 @@
 #include <graphlab/rpc/dc_send.hpp>
 #include <graphlab/rpc/function_call_dispatch.hpp>
 #include <graphlab/rpc/is_rpc_call.hpp>
+#include <graphlab/rpc/reply_increment_counter.hpp>
 #include <boost/preprocessor.hpp>
 #include <graphlab/rpc/function_arg_types_def.hpp>
 
@@ -159,6 +160,7 @@ class  BOOST_PP_CAT(FNAME_AND_CALL, N) { \
   static void exec(dc_send* sender, unsigned char flags, procid_t target, F remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_) ) {  \
     boost::iostreams::stream<resizing_array_sink_ref> &strm = get_thread_local_stream();    \
     oarchive arc(strm);                         \
+    strm->advance(sizeof(packet_hdr));            \
     dispatch_type d = BOOST_PP_CAT(function_call_issue_detail::dispatch_selector,N)<typename is_rpc_call<F>::type, F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, T) >::dispatchfn();   \
     arc << reinterpret_cast<size_t>(d);       \
     arc << reinterpret_cast<size_t>(remote_function); \
@@ -168,6 +170,7 @@ class  BOOST_PP_CAT(FNAME_AND_CALL, N) { \
       flags |= REPLY_PACKET; \
     } \
     sender->send_data(target,flags , strm->c_str(), strm->size());    \
+    strm->relinquish(); \
   }\
 }; 
 

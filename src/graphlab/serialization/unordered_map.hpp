@@ -31,26 +31,34 @@
 
 namespace graphlab {
 
-namespace archive_detail {
-  /** Serializes a map */
-  template <typename ArcType, typename T, typename U>
-  struct serialize_impl<ArcType, boost::unordered_map<T,U>, false > {
-  static void exec(ArcType& a, const boost::unordered_map<T,U>& vec){
-    serialize_iterator(a,vec.begin(),vec.end(), vec.size());
-  }
-  };
+  namespace archive_detail {
+    /** Serializes a map */
+    template <typename ArcType, typename T, typename U>
+    struct serialize_impl<ArcType, boost::unordered_map<T,U>, false > {
+      static void exec(ArcType& a, const boost::unordered_map<T,U>& vec){
+        serialize_iterator(a,vec.begin(),vec.end(), vec.size());
+      }
+    };
 
-  /** deserializes a map  */
+    /** deserializes a map  */
       
-  template <typename ArcType, typename T, typename U>
-  struct deserialize_impl<ArcType, boost::unordered_map<T,U>, false > {
-  static void exec(ArcType& a, boost::unordered_map<T,U>& vec){
-    vec.clear();
-    deserialize_iterator<ArcType, std::pair<T,U> >(a, std::inserter(vec,vec.end()));
-  }
-  };
+    template <typename ArcType, typename T, typename U>
+    struct deserialize_impl<ArcType, boost::unordered_map<T,U>, false > {
+      static void exec(ArcType& a, boost::unordered_map<T,U>& vec){
+        vec.clear();
+        // get the number of elements to deserialize
+        size_t length = 0;
+        a >> length;    
+        // iterate through and send to the output iterator
+        for (size_t x = 0; x < length ; ++x){
+          std::pair<T, U> v;
+          a >> v;
+          vec[v.first] = v.second;
+        }
+      }
+    };
 
-} // archive_detail  
+  } // archive_detail  
 } // graphlab
 #endif 
 
