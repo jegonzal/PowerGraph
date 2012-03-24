@@ -137,7 +137,11 @@ namespace graphlab {
         iarc >> total_calls_sent >> total_calls_received >> last_change;
       }
     };
-  
+ 
+    bool is_done() const {
+      return done;
+    }
+ 
   private:
     dc_dist_object<async_consensus> rmi;
     const dc_impl::dc_dist_object_base* attachedobj;
