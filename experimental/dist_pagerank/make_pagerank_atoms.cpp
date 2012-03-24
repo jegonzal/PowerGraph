@@ -86,9 +86,9 @@ int main(int argc, char** argv) {
   std::cout << "Partitioning graph: " << std::endl;
   std::vector<graphlab::vertex_id_t> 
     vertex2part(local_graph.num_vertices(), 0);
-  graphlab::graph_partitioner::metis_partition(local_graph, 
-                                               nparts,
-                                               vertex2part);
+  graphlab::graph_partitioner::random_partition(local_graph, 
+                                                nparts,
+                                                vertex2part);
 
   // local_graph.metis_partition(nparts, vertex2part);
 
