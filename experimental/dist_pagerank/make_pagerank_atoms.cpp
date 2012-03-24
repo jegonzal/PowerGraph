@@ -6,7 +6,7 @@
 
 
 
-#include "datastructures.hpp"
+#include "data_structures.hpp"
 
 bool load_graph_from_stdin(local_graph_type& graph) {
   // Loop through file reading each line
