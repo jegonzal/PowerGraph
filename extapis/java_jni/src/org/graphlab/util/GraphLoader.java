@@ -8,6 +8,7 @@ import java.util.Map;
 
 import org.apache.log4j.Logger;
 import org.graphlab.data.ScalarVertex;
+import org.graphlab.data.Vertex;
 import org.jgrapht.WeightedGraph;
 import org.jgrapht.graph.DefaultWeightedEdge;
 
@@ -21,7 +22,7 @@ public class GraphLoader {
 	private static final Logger logger = Logger.getLogger(GraphLoader.class);
 	
 	/**
-	 * Defaults to ScalarVertex class
+	 * Defaults to Vertex type to ScalarVertex
 	 * @param graph
 	 * @param filename
 	 * @throws IOException
@@ -50,17 +51,18 @@ public class GraphLoader {
 	 * @param filename
 	 *            the file to read from
 	 */
-	public static <V extends ScalarVertex> void
+	public static <V extends Vertex> void
 	    loadGraphFromTsvFile(
 	    WeightedGraph<V, DefaultWeightedEdge> graph,
 	    Class<V> vertexClass,
 	    String filename)
 			throws IOException {
 
+	  if (null == graph || null == vertexClass || null == filename)
+	    throw new NullPointerException("graph, vertexClass, and filename must not be nill.");
+	  
 		// read from file
 		BufferedReader reader = new BufferedReader(new FileReader(filename));
-		
-		// map from number to vertex
 		Map<Integer, V> vertices = new HashMap<Integer, V>();
 		
 		String input;
@@ -80,36 +82,37 @@ public class GraphLoader {
 			float weight = 1;
 			if (3 == tokens.length) weight = Float.parseFloat(tokens[2]);
 
+			if (source == target){
+			  // warn once
+        if (!warned){
+          logger.warn("Dropped self-edge for vertex " + source +
+                      ". Subsequent warnings will be suppressed.");
+          warned = true;
+        }
+			  continue;
+			}
+			
 			// create vertices if encountering them for the first time
 			V srcV = vertices.get(source);
 			if (null == srcV){
 			  srcV = vertexClass.newInstance();
 			  srcV.setId(source);
-			  vertices.put(source, srcV);
 			  graph.addVertex(srcV);
+			  vertices.put(source, srcV);
 			}
 			
 			// create target vertex
 			V trgtV = vertices.get(target);
 			if (null == trgtV){
-			  trgtV = vertexClass.newInstance();
-			  trgtV.setId(target);
-			  vertices.put(target, trgtV);
-			  graph.addVertex(trgtV);
+			    trgtV = vertexClass.newInstance();
+			    trgtV.setId(target);
+			    graph.addVertex(trgtV);
+			    vertices.put(target, trgtV);
 			}
 			
-			// check for self-edges
-			if (source != target) {
-			  DefaultWeightedEdge edge = graph.addEdge(srcV, trgtV);
-			  graph.setEdgeWeight(edge, weight);
-			}else {
-			  // warn once
-			  if (!warned){
-			    logger.warn("Dropped self-edge for vertex " + source +
-			                ". Subsequent warnings will be suppressed.");
-			    warned = true;
-			  }
-			}
+		  DefaultWeightedEdge edge = graph.addEdge(srcV, trgtV);
+		  if (null != edge)
+		    graph.setEdgeWeight(edge, weight);
 
 		} } catch (IllegalAccessException e){
 		  throw new IllegalArgumentException("vertexClass must be a valid vertex class.");
