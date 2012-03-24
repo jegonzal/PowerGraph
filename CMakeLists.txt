@@ -620,6 +620,10 @@ if (IS_DIRECTORY ${GraphLab_SOURCE_DIR}/demoapps)
   subdirs(demoapps)
 endif (IS_DIRECTORY ${GraphLab_SOURCE_DIR}/demoapps)
 
+if(EXPERIMENTAL) 
+  subdirs(experimental)
+endif(EXPERIMENTAL)
+
 
 ## ===================================================================
 # Installation rules
