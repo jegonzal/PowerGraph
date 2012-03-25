@@ -30,20 +30,20 @@
 #define USE_GRAPH2
 
 using namespace graphlab;
-double regularization = 0;
 bool calc_residual = false;
 bool final_residual = true;
 double threshold = 1e-5;
-bool debug = false;
 int max_iter = 10;
 int data_size = 7;
 bool zero = false;  //allow for zero entries in sparse matrix market format
 std::string datafile, yfile, xfile;
+extern double regularization;
 
 struct vertex_data {
 
   vec pvec;
   double A_ii;
+  bool value;
   vertex_data() : A_ii(1) {
     pvec = zeros(data_size);
   }

@@ -314,7 +314,8 @@ bool load_matrixmarket_graph(const std::string& fname,
                              Graph& graph,
 			     int parse_type = MATRIX_MARKET_3, 
 			     bool allow_zeros = false, 
-			     bool header_only = false){ 
+			     bool header_only = false, 
+			     bool optional = false){ 
   typedef Graph graph_type;
   typedef typename graph_type::vertex_id_type vertex_id_type;
   typedef typename graph_type::edge_data_type edge_data_type;
@@ -322,7 +323,9 @@ bool load_matrixmarket_graph(const std::string& fname,
 
   // Open the file 
   logstream(LOG_INFO) << "Reading matrix market file: " << fname << std::endl;
-  FILE* fptr = open_file(fname.c_str(), "r");
+  FILE* fptr = open_file(fname.c_str(), "r", optional);
+  if (optional && !fptr)
+    return false;
   
   // read Matrix market header
   MM_typecode matcode;
@@ -334,7 +337,6 @@ bool load_matrixmarket_graph(const std::string& fname,
     logstream(LOG_FATAL) 
       << "Sorry, this application does not support matrixmarket type: "
       <<  mm_typecode_to_str(matcode) << std::endl;
-    return false;
   }
   // load the matrix descriptor
   if(mm_read_mtx_crd_size(fptr, &desc.rows, &desc.cols, &desc.nonzeros)) {
@@ -417,10 +419,11 @@ bool load_graph(const std::string& fname,
                 Graph& graph, 
 	        int format_type = MATRIX_MARKET_3, 
 	        bool allow_zeros=false, 
-	        bool header_only=false) {
+	        bool header_only=false, 
+	        bool optional= false) {
 
   if(format == "matrixmarket") 
-    return load_matrixmarket_graph(fname, desc, graph, format_type, allow_zeros, header_only);
+    return load_matrixmarket_graph(fname, desc, graph, format_type, allow_zeros, header_only, optional);
   else logstream(LOG_FATAL) << "Invalid file format!" << std::endl;
   return false;
 } // end of load graph
