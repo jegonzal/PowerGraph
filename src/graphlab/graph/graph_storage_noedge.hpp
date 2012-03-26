@@ -91,7 +91,7 @@ namespace graphlab {
             const std::vector<vertex_id_type>& dst_arr, 
             const std::vector<EdgeData>& edata_arr) {
           source_arr.insert(source_arr.end(), src_arr.begin(), src_arr.end());
-          dst_arr.insert(target_arr.end(), dst_arr.begin(), dst_arr.end());
+          target_arr.insert(target_arr.end(), dst_arr.begin(), dst_arr.end());
         }
         void clear() {
           std::vector<vertex_id_type>().swap(source_arr);
