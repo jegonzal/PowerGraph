@@ -64,7 +64,7 @@ public class Als {
     // construct graph
     SimpleWeightedGraph<AlsVertex, DefaultWeightedEdge>
       graph = new SimpleWeightedGraph<AlsVertex, DefaultWeightedEdge>(DefaultWeightedEdge.class);
-    MatrixLoader.loadGraph(graph, AlsVertex.class, filename);
+    MatrixLoader.loadGraphFromMM(graph, AlsVertex.class, filename);
     randomLatentFactors(graph, NLATENT);
     
     // init graphlab core
