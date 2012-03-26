@@ -454,7 +454,6 @@ macro(add_graphlab_executable NAME)
   add_executable(${NAME} ${ARGN})
   target_link_libraries(${NAME} ${Boost_LIBRARIES})
   target_link_libraries(${NAME} ${GraphLab_LIBRARIES})
-  target_link_libraries(${NAME} ${KYOTO_STATIC_LIBRARY})
 endmacro(add_graphlab_executable NAME)
 
 
@@ -470,7 +469,6 @@ macro(add_dist2_executable NAME)
       ${MPI_LIBRARY} 
       ${MPI_EXTRA_LIBRARY} 
       ${Boost_LIBRARIES}
-      ${KYOTO_STATIC_LIBRARY}
       )
     set_source_files_properties( ${ARGN}
       PROPERTIES COMPILE_DEFINITIONS "GLDISTRIBUTED2" )
