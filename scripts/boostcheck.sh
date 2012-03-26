@@ -93,7 +93,7 @@ else
     cd boost_1_48_0
     # build boost
     echo "Bootstrapping Boost..."
-    ./bootstrap.sh --with-libraries="filesystem,program_options,system,iostreams" --prefix=$installprefix
+    ./bootstrap.sh --with-libraries="filesystem,program_options,system,iostreams,datetime,random" --prefix=$installprefix
     echo "Compiling Boost..."
     ./bjam --threading=multi --link=static --variant=release | tee bjamlog.txt
     if ! grep -q "were successfully built" bjamlog.txt ; then
