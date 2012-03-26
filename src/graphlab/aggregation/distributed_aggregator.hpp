@@ -298,7 +298,7 @@ namespace graphlab {
       // Launch the threads
       for(size_t i = 0; i < threads.size(); ++i) {
         const boost::function<void (void)> sync_function = 
-          boost::bind(&(isync::run_aggregator), 
+          boost::bind(&isync::run_aggregator, 
                       sync_ptr, key, i, &rmi, &engine, &graph);
         threads.launch(sync_function);
       }
