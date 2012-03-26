@@ -85,7 +85,6 @@ int main(int argc, char** argv) {
   graphlab::command_line_options clopts("Run the PageRank algorithm.");
   clopts.use_distributed_options();
 
-
   // Add some command line options
   std::string graph_file;
   clopts.attach_option("graph",
@@ -98,6 +97,10 @@ int main(int argc, char** argv) {
   clopts.attach_option("resetprob",
                        &random_reset_prob, random_reset_prob,
                        "Random reset probability");
+  // size_t maxdef = 100000;
+  // clopts.attach_option("maxdef",
+  //                      &maxdef, maxdef,
+  //                      "Maximum deferred tasks");
 
   // Parse the command line input
   if(!clopts.parse(argc, argv)) {
@@ -108,7 +111,7 @@ int main(int argc, char** argv) {
 
   graphlab::mpi_tools::init(argc, argv);  
   graphlab::dc_init_param param;
-  param.initstring += ", buffered_multiqueue_send=1";
+  //  param.initstring += ", buffered_multiqueue_send=1";
   if(graphlab::init_param_from_env(param) == false) {
     graphlab::init_param_from_mpi(param); 
   }
@@ -116,10 +119,11 @@ int main(int argc, char** argv) {
   graphlab::distributed_control dc(param);
   // Create the distributed_graph --
   gl_types::distributed_core core(dc, graph_file, 
-                                  graphlab::disk_graph_atom_type::WRITE_ONLY_ATOM);
+                                  graphlab::disk_graph_atom_type::WRITE_ONLY_ATOM);  
   // Set the engine options
   core.set_engine_options(clopts);
   core.build_engine();
+
 
   std::cout << "Scheduling update functions." << std::endl;
   core.sched_options().add_option("update_function", pagerank_update);

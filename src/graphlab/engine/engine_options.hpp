@@ -110,7 +110,7 @@ namespace graphlab {
 
     //! Use distributed options instead of shared memory options
     void use_distributed_options() {
-      engine_type = "dist_chromatic";
+      engine_type = "dist_locking";
       scheduler_type = "sweep";
       distributed_options = true;
     }
