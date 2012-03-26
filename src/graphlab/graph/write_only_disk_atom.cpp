@@ -1,5 +1,5 @@
 #include <graphlab/graph/write_only_disk_atom.hpp>
-#include <graphlab/graph/disk_atom.hpp>
+
 #include <graphlab/graph/memory_atom.hpp>
 
 namespace graphlab {

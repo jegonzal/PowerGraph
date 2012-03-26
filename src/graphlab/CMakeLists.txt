@@ -72,7 +72,6 @@ add_library(graphlab STATIC
   util/md5.cpp
   util/tracepoint.cpp
   util/event_log.cpp
-
   ${mmap_allocator}
   factors/discrete_variable.cpp
   factors/binary_factor.cpp
