@@ -8,7 +8,7 @@ hg up v2
     --force_boost_install \
     --eigen \
     --tcmalloc --force_tcmalloc_install \
-    --yes | tee mac_configure_log.txt
+    --yes | tee v2_install_configure_log.txt
 cd debug
-make -j2 | tee ../mac_debug_log.txt
+make -j2 | tee ../v2_debug_log.txt
 
