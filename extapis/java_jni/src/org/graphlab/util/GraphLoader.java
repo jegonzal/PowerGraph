@@ -21,6 +21,72 @@ public class GraphLoader {
 
 	private static final Logger logger = Logger.getLogger(GraphLoader.class);
 	
+  public static <V extends ScalarVertex> void loadGraphFromAdjFile(
+    WeightedGraph<V, DefaultWeightedEdge> graph,
+    Class<V> vertexClass,
+    String filename)
+    throws IOException {
+
+		// read from file
+		BufferedReader reader = new BufferedReader(new FileReader(filename));
+		
+		// map from number to vertex
+		Map<Integer, V> vertices = new HashMap<Integer, V>();
+		
+		String input;
+		boolean warned = false;
+		
+		// read line by line
+		try { while (null != (input = reader.readLine())) {
+
+		  // break up into source - neighbors
+			String[] tokens = input.trim().split("\\s+");
+			int source = Integer.parseInt(tokens[0]);
+
+			// create vertices if encountering them for the first time
+			V srcV = vertices.get(source);
+			if (null == srcV){
+			  srcV = vertexClass.newInstance();
+			  srcV.setId(source);
+			  vertices.put(source, srcV);
+			  graph.addVertex(srcV);
+			}
+			
+			// create target vertices
+			for (int i=2; i<tokens.length; i++){
+        
+        int target = Integer.parseInt(tokens[i]);
+			  V trgtV = vertices.get(target);
+			  if (null == trgtV){
+			    trgtV = vertexClass.newInstance();
+			    trgtV.setId(target);
+			    vertices.put(target, trgtV);
+			    graph.addVertex(trgtV);
+			  }
+			
+			  // check for self-edges
+			  if (source != target) graph.addEdge(srcV, trgtV);
+			  else {
+			    // warn once
+			    if (!warned){
+			      logger.warn("Dropped self-edge for vertex " + source +
+			                ". Subsequent warnings will be suppressed.");
+			      warned = true;
+			    }
+			  }
+
+      }
+
+		} } catch (IllegalAccessException e){
+		  throw new IllegalArgumentException("vertexClass must be a valid vertex class.");
+		} catch (InstantiationException e) {
+		  throw new IllegalArgumentException("vertexClass must be a valid vertex class.");
+    }
+
+		logger.trace ("Finished loading graph with: " + graph.vertexSet().size() + " vertices.");
+
+  }
+
 	/**
 	 * Defaults to Vertex type to ScalarVertex
 	 * @param graph

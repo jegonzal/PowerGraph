@@ -70,6 +70,7 @@ public class Als {
     // init graphlab core
     final CoreConfiguration config = new CoreConfiguration();
     config.setScheduler(Scheduler.SWEEP);
+    config.setNCpus(8);
     final Core core = new Core(config);
     
     // schedule and run

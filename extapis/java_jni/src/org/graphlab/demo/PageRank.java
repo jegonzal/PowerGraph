@@ -122,6 +122,7 @@ public class PageRank {
 
     DefaultDirectedWeightedGraph<PageRankVertex, DefaultWeightedEdge> graph
       = new DefaultDirectedWeightedGraph<PageRankVertex, DefaultWeightedEdge>(DefaultWeightedEdge.class);
+    // GraphLoader.loadGraphFromAdjFile(graph, PageRankVertex.class, filename);
     GraphLoader.loadGraphFromTsvFile(graph, PageRankVertex.class, filename);
     normalize(graph); 
     
