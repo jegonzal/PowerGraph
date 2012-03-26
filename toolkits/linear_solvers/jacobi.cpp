@@ -49,14 +49,14 @@ enum jacobi_fields{
 };
 
 int data_size = 5;
-bool debug = false;
-double regularization = 0;
+extern double regularization;
 bool final_residual = true;
 bool zero = false;  //allow for zero entries in sparse matrix market format
 
 struct vertex_data {
   vec pvec;
   double A_ii;
+  bool value;
   //real_type y, Aii;
   //real_type pvec[JACOBI_X], pvec[JACOBI_REAL_X], pvec[JACOBI_PREV_X];
   vertex_data(): A_ii(1) { //: y(0), Aii(1), pvec[JACOBI_X](0), pvec[JACOBI_REAL_X](0), 

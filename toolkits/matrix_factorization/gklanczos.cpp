@@ -49,14 +49,12 @@ DECLARE_TRACER(matproduct)
 
 //LANCZOS VARIABLES
 int max_iter = 10;
-bool debug;
 bool no_edge_data = false;
 int actual_vector_len;
 int nv = 0;
 int nsv = 0;
 double tol = 1e-8;
 bool finished = false;
-double regularization = 0;
 double ortho_repeats = 3;
 bool update_function = false;
 bool save_vectors = false;

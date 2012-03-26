@@ -35,12 +35,14 @@ DECLARE_TRACER(Axbtrace);
 DECLARE_TRACER(Axbtrace2);
 DECLARE_TRACER(vecequals);
 DECLARE_TRACER(orthogonalize_vs_alltrace);
+DECLARE_TRACER(als_lapack_trace);
 
-
-extern double regularization;
-extern bool debug;
+double regularization;
+bool debug;
+bool regnormal;
 
 struct math_info{
+  //for Axb operation
   int increment;
   double  c;
   double  d;
@@ -51,6 +53,11 @@ struct math_info{
   int ortho_repeats;
   int start, end;
   bool update_function;
+
+  //for backslash operation
+  bool dist_sliced_mat_backslash;
+  mat eDT;
+  double maxval, minval;
   
   math_info(){
     reset_offsets();
@@ -66,6 +73,7 @@ struct math_info{
     use_diag = true;
     start = end = -1;
     update_function = false;
+    dist_sliced_mat_backslash = false;
   }
   int increment_offset(){
     return increment++;
@@ -89,7 +97,7 @@ typedef graph_storage<vertex_data,edge_data>::edge_list edge_list;
 typedef graph_storage<vertex_data, edge_data>::edge_type edge_type;
 #else
 //typedef graph<vertex_data,edge_data>::edge_list edge_list;
-typedef graph<vertex_data,edge_data>::edge_type edge_type;
+//typedef graph<vertex_data,edge_data>::edge_type edge_type;
 #endif
 typedef vertex_data vertex_data_type;
 typedef edge_data edge_data_type;
@@ -110,25 +118,151 @@ struct dummy_context{
   edge_list out_edges() { return pgraph->out_edges(id); }
   edge_list in_edges() { return pgraph->in_edges(id); }
   vertex_data_type & const_vertex_data(int id) { return pgraph->vertex_data(id); }
-#ifdef USE_GRAPH2
+//#ifdef USE_GRAPH2
   edge_data_type &edge_data(const edge_type &i){ return pgraph->edge_data(i); }
-#endif
+//#endif
 };
 
 #endif
+inline void parse_edge(const edge_data& edge, const vertex_data & pdata, mat & Q, vec & vals, int i){
+       
+  /*for (int j=0; j<D; j++)
+      Q(j,i) = pdata.pvec(j);
+  }*/
+  set_col(Q, i, pdata.pvec);
+  vals(i) = edge.weight;  
+}
+
+float predict(const vertex_data& v1, const vertex_data& v2, float rating, float & prediction){
+   //predict missing value based on dot product of movie and user iterms
+   prediction = dot(v1.pvec, v2.pvec);
+   //truncate prediction to allowed values
+   prediction = std::min((double)prediction, mi.maxval);
+   prediction = std::max((double)prediction, mi.minval);
+   //return the squared error
+   float sq_err = powf(prediction - rating, 2);
+   return sq_err;
+}
 
 
+void compute_least_squares(mat & Q, vec & vals, vec & result, bool isuser, bool toprint, int numedges){
+  
+    //COMPUTE LEAST SQUARES (ALTERNATING LEAST SQUARES)
+    //compute weighted regularization (see section 3.2 of Zhou paper)
+   double reg = regularization;
 
-#ifdef USE_GRAPHLAB_ENGINE
+   if (regnormal)
+	   reg*= Q.cols();
+
+   bool ret = ls_solve(Q*transpose(Q)+ mi.eDT*reg, Q*vals, result);
+   if (!ret)
+     logstream(LOG_FATAL)<<"NUmerical error when computing least square step. Try to increas reglarization using --regularization=XX command line argument" << std::endl;   
+
+  if (toprint){
+    std::cout <<"ALS"<<std::endl<<" result: " << result << " edges: " << numedges << std::endl;
+  }
+}
+
+
+  /***
+ * UPDATE FUNCTION
+ */
+struct als_lapack:
+  public iupdate_functor<graph_type,als_lapack>{
+  void operator()(icontext_type &context){
+#ifndef USE_GRAPHLAB_ENGINE
+  }
+  void operator+=(const als_lapack& other){ 
+  }
+  void finalize(iglobal_context_type& context){
+  }
+};
+
+  void update_function_backslash(dummy_context& context){
+#endif
+  /* GET current vertex data */
+  vertex_data& vdata = context.vertex_data();
+ 
+  int id = context.vertex_id();
+  bool toprint = info.toprint(id);
+  bool isuser = info.is_row_node(id);
+  /* print statistics */
+  if (toprint){
+    printf("entering %s node  %u \n", (!isuser ? "movie":"user"), id);   
+    debug_print_vec((isuser ? "V " : "U") , vdata.pvec, data_size);
+  }
+
+  vdata.value = 0;
+
+  edge_list outs = context.out_edges();
+  edge_list ins = context.in_edges();
+  int numedges = ins.size() + outs.size();
+  if (numedges == 0)
+    return;
+
+  mat Q(data_size,numedges); //linear relation matrix
+  vec vals(numedges); //vector of ratings
+
+  //USER NODES    
+  if (isuser){
+
+    for(int i=0; i< numedges; i++) {
+      const edge_type & edget = outs[i];
+      const edge_data & edge = context.edge_data(edget);
+      const vertex_data  & pdata = context.const_vertex_data(edget.target()); 
+        //go over each rating of a movie and put the movie vector into the matrix Q
+        //and vector vals
+        parse_edge(edge, pdata, Q, vals, i); 
+        if (toprint && (i==0 || i == numedges-1))
+          std::cout<<"set col: "<<i<<" " <<get_col(Q,i)<<" " <<std::endl;
+
+      /*if (!ac.round_robin){
+        gl_types::update_task task(context.target(oedgeid), user_movie_nodes_update_function);
+          scheduler.add_task(task, 1);
+      }*/
+
+    }
+  }
+
+  else {
+
+
+    //MOVIE NODES
+    for (int i=0; i< numedges; i++) {
+      const edge_type & edget = ins[i];
+      const edge_data & edge = context.edge_data(edget);
+      const vertex_data & pdata = context.const_vertex_data(edget.source()); 
+        //go over each rating by user
+        parse_edge(edge, pdata, Q, vals, i); 
+        if (toprint/* && (i==0 || i == numedges-1)*/)
+          std::cout<<"set col: "<<i<<" " <<get_col(Q,i)<<" " <<std::endl;
+
+       float prediction;
+       double trmse = predict(vdata, pdata, edge.weight, prediction); 
+       if (toprint)
+          cout<<"trmse: " << trmse << endl;
+      //aggregate RMSE
+       vdata.value += trmse; 
+
+       /*if (!ac.round_robin && trmse > ac.threshold && ps.iiter < ac.iter){
+        gl_types::update_task task(context.source(iedgeid), user_movie_nodes_update_function);
+          scheduler.add_task(task, 1);
+      }*/
+    }
+
+  }
+
+  vec result;
+  compute_least_squares(Q, vals, result, isuser, toprint, numedges);
+  vdata.pvec = result;
+}
+ 
+
 struct Axb:
   public iupdate_functor<graph_type, Axb> {
  
   void operator()(icontext_type &context){
-#else
-    struct Axb:
-   public iupdate_functor<graph_type, Axb> {
- 
-      void operator()(icontext_type &context){
+#ifndef USE_GRAPHLAB_ENGINE    
       }
       void operator+=(const Axb& other) { 
       }
@@ -214,6 +348,8 @@ struct Axb:
 #endif
 
     core<graph_type, Axb> * glcore = NULL;
+    core<graph_type, als_lapack> * glcore_backslash = NULL;
+
     void init_math(graph_type * _pgraph, core<graph_type, Axb> * _glcore, bipartite_graph_descriptor & _info, double ortho_repeats = 3, 
                    bool update_function = false){
       pgraph = _pgraph;
@@ -223,6 +359,15 @@ struct Axb:
       mi.update_function = update_function;
       mi.ortho_repeats = ortho_repeats;
     }
+    void init_math(graph_type * _pgraph, core<graph_type, als_lapack> * _glcore, bipartite_graph_descriptor & _info, 
+                   bool update_function = false){
+      pgraph = _pgraph;
+      glcore_backslash = _glcore;
+      info = _info;
+      mi.reset_offsets();
+      mi.update_function = update_function;
+    }
+
 
 
     class DistMat; 
@@ -446,6 +591,8 @@ struct Axb:
         name = _name;
       }
 
+      DistSlicedMat& operator=(DistMat & other);
+
       void init(){
         start = info.get_start_node(!transpose);
         end = info.get_end_node(!transpose);
@@ -553,7 +700,11 @@ struct Axb:
       DistMat & operator~(){
         return _transpose();
       }
-
+      DistMat & backslash(DistSlicedMat & U){
+        mi.dist_sliced_mat_backslash = true;
+        transpose = U.transpose;
+        return *this;
+      }
       void set_use_diag(bool use){
         mi.use_diag = use;
       }   
@@ -834,6 +985,34 @@ struct Axb:
       current.debug_print(current.name);
       END_TRACEPOINT(multiply);
     }
+
+      DistSlicedMat& DistSlicedMat::operator=(DistMat & mat){
+        assert(mi.dist_sliced_mat_backslash);
+        assert(start < end);
+        assert(start_offset < end_offset);
+        INITIALIZE_TRACER(als_lapack_trace, "Update function Axb");
+        BEGIN_TRACEPOINT(als_lapack_trace);
+        if (mi.update_function){
+          for (vertex_id_type i = start; i < (vertex_id_type)end; i++)
+            glcore_backslash->schedule(i, als_lapack()); 
+          runtime += glcore->start();
+        }
+        else {
+#ifdef USE_GRAPHLAB_ENGINE
+          glcore->aggregate_now("als_lapack"); 
+#else
+#pragma omp parallel for
+          for (int t=start; t< end; t++){
+            dummy_context con(t);
+            update_function_backslash(con);
+          }
+#endif
+        }
+        END_TRACEPOINT(als_lapack_trace);
+        //debug_print(name);
+        mi.reset_offsets();
+        return *this;
+      }
 
 
 

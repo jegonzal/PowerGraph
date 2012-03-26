@@ -54,12 +54,10 @@ using namespace graphlab;
 
 #include <graphlab/macros_def.hpp>
 
-bool debug = false;
 bool support_null_variance = false;
 bool final_residual = true;
 bool debug_conv_fix = false;
 int fix_conv = 0;
-double regularization = 0;
 bool zero = false; //allow for zero edges
 
 enum gabp_fields{
@@ -80,6 +78,7 @@ int data_size = GABP_MAX_FIELD;
 struct vertex_data {
   vec pvec;
   double A_ii;
+  bool value;
  /* real_type prior_mean;  //prior mean (b_i / A_ii)
   real_type prior_prec;   //prior precision P_ii = A_ii
   real_type real;   //the real solution (if known) x = inv(A)*b for square matrix or x = pinv(A) for skinny matrix
