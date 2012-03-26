@@ -37,6 +37,10 @@
         <path refid="GraphLab.classpath"/>
     </path>
     
+    <path id="run.Als.classpath">
+        <path refid="GraphLab.classpath"/>
+    </path>
+    
     <target name="init">
         <mkdir dir="${bin}"/>
         <mkdir dir="${dist}"/>
@@ -107,6 +111,15 @@
             <jvmarg line="-Djava.library.path=${lib}"/>
             <arg line="${file}"/>
             <classpath refid="run.PageRankFactorized.classpath"/>
+        </java>
+    </target>
+
+    <target name="Als">
+        <echo message="Arguments: ${file}"/>
+        <java classname="org.graphlab.toolkits.matrix.als" failonerror="true" fork="yes">
+            <jvmarg line="-Djava.library.path=${lib}"/>
+            <arg line="${file}"/>
+            <classpath refid="run.Als.classpath"/>
         </java>
     </target>
 
