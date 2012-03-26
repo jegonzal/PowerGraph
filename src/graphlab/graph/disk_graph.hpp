@@ -732,11 +732,11 @@ namespace graphlab {
                                     std::string basename) {
     // get the number of atoms
     size_t nparts = 0;
-    for (size_t i = 0;i < parts.size(); ++i) {
+    for (size_t i = 0; i < parts.size(); ++i) {
       nparts = std::max<size_t>(nparts, parts[i]);
     }
     ++nparts;
-    disk_graph<VertexData, EdgeData> dg(basename, nparts + 1);
+    disk_graph<VertexData, EdgeData> dg(basename, nparts);
     dg.create_from_graph(g, parts);
     dg.finalize();
   }                           

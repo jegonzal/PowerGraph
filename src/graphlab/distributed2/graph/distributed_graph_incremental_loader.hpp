@@ -17,8 +17,9 @@ inline void count_vertices_and_edges(std::string filename,
                                       std::set<vertex_id_t> &vertices,
                                       size_t &localedges) {
   localedges = 0;
-
+  std::cout << "Counting file: " << filename << std::endl;
   std::ifstream in_file(filename.c_str(), std::ios::binary);
+  assert(in_file.good());
   boost::iostreams::filtering_stream<boost::iostreams::input> fin; 
   fin.push(boost::iostreams::zlib_decompressor());
   fin.push(in_file);

@@ -1,12 +1,36 @@
+/**  
+ * Copyright (c) 2009 Carnegie Mellon University. 
+ *     All rights reserved.
+ *
+ *  Licensed under the Apache License, Version 2.0 (the "License");
+ *  you may not use this file except in compliance with the License.
+ *  You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing,
+ *  software distributed under the License is distributed on an "AS
+ *  IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+ *  express or implied.  See the License for the specific language
+ *  governing permissions and limitations under the License.
+ *
+ * For more about this software visit:
+ *
+ *      http://www.graphlab.ml.cmu.edu
+ *
+ */
+
+
 #include <cassert>
 #include <iostream>
 
-#include <graphlab/util/mpi_tools.hpp>
 #include <graphlab.hpp>
 
 
 
 #include "data_structures.hpp"
+
+#include <graphlab/macros_def.hpp>
 
 bool load_graph_from_stdin(local_graph_type& graph) {
   // Loop through file reading each line
@@ -27,7 +51,7 @@ bool load_graph_from_stdin(local_graph_type& graph) {
       graph.resize(std::max(source, target) + 1);
     if(source != target) {
       // Add the edge
-      const edge_data_type edata(1.0);
+      const edge_data edata(1.0);
       graph.add_edge(source, target, edata);
     }       
   }
@@ -91,11 +115,20 @@ int main(int argc, char** argv) {
                                                 vertex2part);
 
   // local_graph.metis_partition(nparts, vertex2part);
+  // graphlab::vertex_id_t maxpart = 0;
+  // foreach(graphlab::vertex_id_t part, vertex2part)
+  //   maxpart = std::max(maxpart, part);
+  // std::cout << "Part: " << maxpart << std::endl;
 
   std::cout << "Making Atoms Files." << std::endl;
-  graph_partition_to_atomindex(local_graph,
-                               vertex2part,
-                               base_fname);
+  gl_types::disk_graph dg(base_fname, 
+                          nparts, 
+                          graphlab::disk_graph_atom_type::WRITE_ONLY_ATOM);
+  dg.create_from_graph(local_graph, vertex2part);
+  dg.finalize();
+  // graph_partition_to_atomindex(local_graph,
+  //                              vertex2part,
+  //                              base_fname);
   std::cout << "Finished" << std::endl;
 
   return EXIT_SUCCESS;

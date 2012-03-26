@@ -1,3 +1,26 @@
+/**  
+ * Copyright (c) 2009 Carnegie Mellon University. 
+ *     All rights reserved.
+ *
+ *  Licensed under the Apache License, Version 2.0 (the "License");
+ *  you may not use this file except in compliance with the License.
+ *  You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing,
+ *  software distributed under the License is distributed on an "AS
+ *  IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+ *  express or implied.  See the License for the specific language
+ *  governing permissions and limitations under the License.
+ *
+ * For more about this software visit:
+ *
+ *      http://www.graphlab.ml.cmu.edu
+ *
+ */
+
+
 #ifndef PAGERANK_DATA_STRUCTURES
 #define PAGERANK_DATA_STRUCTURES
 
@@ -9,34 +32,32 @@
 
 
 #include <graphlab.hpp>
+#include <distributed_graphlab.hpp>
 
 
 
-
-double termination_bound = 1e-5;
-double random_reset_prob = 0.15;   // PageRank random reset probability
 
 
 /**
  * Stores the value and the self weight
  */
-struct vertex_data_type {
+struct vertex_data {
   float value;
   // we save weight of vertex's self-edge in the vertex data
-  vertex_data_type(float value = 1) : value(value) { }
+  vertex_data(float value = 1) : value(value) { }
 }; // End of vertex data
-SERIALIZABLE_POD(vertex_data_type);
+SERIALIZABLE_POD(vertex_data);
 
-typedef char edge_data_type;
-
-
+typedef char edge_data;
 
 
-typedef graphlab::core<vertex_data_type, edge_data_type> core_type;
-typedef core_type::types gl_types;
+
+
+typedef graphlab::core<vertex_data, edge_data> core_type;
 typedef core_type::types::graph local_graph_type;
 
-
+typedef graphlab::distributed_graph<vertex_data, edge_data> graph_type;
+typedef graphlab::distributed_types<graph_type> gl_types;
 
 
 
