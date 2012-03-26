@@ -44,7 +44,10 @@ echo "The script will now proceed to download Eigen and try to set it up"
 echo
 echo "Press Enter to proceed,"
 echo "or Ctrl-C to break and install Eigen"
-read
+if [ -z $always_yes ] ; then
+  read
+fi
+ 
 echo "Downloading Eigen 3.0.2 from www.tuxfamily.com... into `pwd`"
 download_file_with_forward https://bitbucket.org/eigen/eigen/get/3.0.2.tar.gz \
     ./deps/eigen-3.0.2.tar.gz
