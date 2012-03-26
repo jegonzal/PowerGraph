@@ -53,8 +53,8 @@ struct problem_setup{
   timer gt; //timer of tracking program run time
   int M; //number of rows
   int N; //number of columns
-  int pU; //regularization for users
-  int pV; //regularization for movies
+  double pU; //regularization for users
+  double pV; //regularization for movies
 
   problem_setup(){
     L = Le = Lt = 0;
@@ -155,7 +155,7 @@ double calc_obj(double res){
   int edges = 0;
   const graph_type * g = training;
 
-#pragma omp parallel for
+//#pragma omp parallel for
   for (int i=0; i< ps.M; i++){
     const vertex_data * data = &g->vertex_data(i);
     if (data->num_edges > 0){
@@ -165,7 +165,7 @@ double calc_obj(double res){
     }
 
   }
-#pragma omp parallel for
+//#pragma omp parallel for
   for (int i=ps.M; i< ps.M+ps.N; i++){
     const vertex_data * data = &g->vertex_data(i);
     if (data->num_edges > 0 ){
@@ -186,58 +186,70 @@ double calc_obj(double res){
 
 
 
-void calc_rmse_edge(const edge_data & edge, const graph_type *_g, double & rmse, const vertex_data&data, const vertex_data&pdata, int& e, int i){
-   float prediction;
-   double sq_err = predict(data, pdata, sq_err, prediction);
-   rmse+= sq_err;
+float calc_rmse_edge(const edge_data & edge, const graph_type *_g, double & rmse, const vertex_data&data, const vertex_data&pdata, int& e, int i){
+   float prediction, sq_err;
+   e++;
+   return predict(data, pdata, edge.weight, prediction);
 } 
 
-double calc_rmse(const graph_type * _g, bool test, double & res, bipartite_graph_descriptor & info){
-     if (test && ps.Le == 0)
+double calc_rmse(const graph_type * _g, bool validation, double & res, const bipartite_graph_descriptor & info){
+     if (validation && ps.Le == 0)
        return NAN;
      
      res = 0;
      double RMSE = 0;
      int e = 0;
-#pragma omp parallel for
-     for (int i=info.get_start_node(false); i< info.get_end_node(false); i++){
+int i;
+//#pragma omp parallel for private(i) reduction(+: RMSE)
+//#pragma omp parallel for
+     for (i=info.get_start_node(false); i< info.get_end_node(false); i++){
        const vertex_data & data = training->vertex_data(i);
-       for (uint j=0; j< data.num_edges; j++) {
+       for (uint j=0; j< _g->num_in_edges(i); j++) {
          const edge_type & edget = _g->in_edges(i)[j];
+         assert(edget.source() != i);
          const vertex_data & pdata = training->vertex_data(edget.source()); 
-         calc_rmse_edge(_g->edge_data(edget), _g, RMSE, data, pdata, e, i);       
+         RMSE = RMSE + calc_rmse_edge(_g->edge_data(edget), _g, RMSE, data, pdata, e, i);       
      }
    }
    res = RMSE;
-   if (e != (test?ps.Le:ps.L))
-      logstream(LOG_FATAL)<<"Missing ratings in " << testtypename[test] << " file. Expected to have "
-      << (test?ps.Le:ps.L) << " while encountered only " << e << std::endl;
+   if (e != (validation?ps.Le:ps.L))
+      logstream(LOG_FATAL)<<"Missing ratings in " << testtypename[validation] << " file. Expected to have "
+      << (validation?ps.Le:ps.L) << " while encountered only " << e << std::endl;
    return sqrt(RMSE/(double)e);
 
+}
+
+double agg_rmse(){
+  double res = 0;
+  for (int i=info.get_start_node(false); i< info.get_end_node(false); i++){
+     res += training->vertex_data(i).value;
+  }
+  return res;
 }
 
 
 void last_iter(){
   printf("Entering last iter with %d\n", ps.its ); 
   double res,res2;
-  double rmse =0; //TODO (ps.algorithm != STOCHASTIC_GRADIENT_DESCENT && ps.algorithm != NMF) ? agg_rmse_by_movie<graph_type,vertex_data>(res) : agg_rmse_by_user<graph_type,vertex_data>(res);
+  //double rmse = calc_rmse(training, false, res, info); //TODO (ps.algorithm != STOCHASTIC_GRADIENT_DESCENT && ps.algorithm != NMF) ? agg_rmse_by_movie<graph_type,vertex_data>(res) : agg_rmse_by_user<graph_type,vertex_data>(res);
   //rmse=0;
+  res = agg_rmse();
   printf(ac.printhighprecision ? 
   "%g) Iter %s %d  Obj=%g, TRAIN RMSE=%0.12f VALIDATION RMSE=%0.12f.\n":
   "%g) Iter %s %d  Obj=%g, TRAIN RMSE=%0.4f VALIDATION RMSE=%0.4f.\n"
-  , ps.gt.current_time(), "ALS", ps.its, calc_obj(res),  rmse, calc_rmse(&validation, true, res2, info));
+  , ps.gt.current_time(), "ALS", ps.its, calc_obj(res),  sqrt(res/ps.L), calc_rmse(&validation, true, res2, info));
  ps.its++;
 }
 
  
-void init_als(graph_type * g, bipartite_graph_descriptor & info){
+void init_als(graph_type * g, const bipartite_graph_descriptor & info){
 
   if (g->num_vertices() == 0)
      logstream(LOG_FATAL)<<"Failed to load graph. Aborting" << std::endl;
 
 #pragma omp parallel for
   for (int i=0; i< info.total(); i++){
-      g->vertex_data(i).pvec = zeros(ac.D);
+      g->vertex_data(i).pvec = (debug ?  ones(ac.D)*0.1 : randu(ac.D)*0.1);
    }
    logstream(LOG_INFO)<<"Allocated a total of: " << 
      ((double)g->num_vertices() * ac.D * sizeof(double)/ 1e6) << " MB for storing factor matrices." << std::endl;
@@ -246,24 +258,27 @@ void init_als(graph_type * g, bipartite_graph_descriptor & info){
    data_size = ac.D;
    mi.maxval = ac.maxval; 
    mi.minval = ac.minval;
+  ps.pU = ps.pV = regularization;
+   printf("pU=%g, pV=%g, D=%d\n", ps.pU, ps.pV, ac.D);
 }
 
 
 void als(graphlab::core<graph_type, als_lapack> & glcore,
-	  bipartite_graph_descriptor & info, vec & errest, 
+	  const bipartite_graph_descriptor & info, vec & errest, 
             const std::string & vecfile){
    
 
    ps.its = 1;
    DistMat A(info);
-   int other_size_offset = info.is_square() ? data_size : 0;
-   DistSlicedMat U(other_size_offset, other_size_offset + 3, true, info, "U");
+   assert(data_size > 0);
+   DistSlicedMat U(0, data_size, true, info, "U");
    DistSlicedMat V(0, data_size, false, info, "V");
 
    while(ps.its < ac.max_iter){
      logstream(LOG_INFO)<<"Starting ALS iteration: " << ps.its << " at time: " << ps.gt.current_time() << std::endl;
      V = A.backslash(U);
      U = A.backslash(V);
+     last_iter();
    } // end(while)
 
 }
@@ -303,7 +318,6 @@ int main(int argc,  char *argv[]) {
     return EXIT_FAILURE;
   }
 
-  ps.pU = ps.pV = regularization;
 
   if (ac.update_function)
     logstream(LOG_INFO)<<"Going to use update function mechanism. " << std::endl;
@@ -331,8 +345,9 @@ int main(int argc,  char *argv[]) {
 
   //unit testing
   if (unittest == 1){
-    ac.datafile = "gklanczos_testA"; 
-    debug = true;
+    ac.datafile = "ALSA"; 
+    ac.D = 20; ac.max_iter = 50; regularization = 0.001;
+    //debug = true;
     core.set_scheduler_type("sweep(ordering=ascending,strict=true)");
     core.set_ncpus(1);
   }
@@ -350,6 +365,7 @@ int main(int argc,  char *argv[]) {
   }
 
   std::cout << "Load matrix " << ac.datafile << std::endl;
+  info.force_non_square = true;
 #ifdef USE_GRAPH2
   load_graph(ac.datafile, ac.format, info, core.graph(), MATRIX_MARKET_3, false, false);
   core.graph().finalize();
@@ -358,13 +374,26 @@ int main(int argc,  char *argv[]) {
   ps.N = info.cols;
   training = &core.graph();
 #pragma omp parallel for
-  for (int i=0; i< info.total(); i++)
+  for (int i=0; i< info.total(); i++){
     training->vertex_data(i).num_edges = training->num_in_edges(i) + training->num_out_edges(i);
-
-  load_graph(ac.datafile + "e", ac.format, info, validation, MATRIX_MARKET_3, false, false, true);
+     cout << "node: " << i << " num edges: " << training->vertex_data(i).num_edges << std::endl;
+   }
+  bipartite_graph_descriptor infoe;
+  infoe.force_non_square = true;
+  load_graph(ac.datafile + "e", ac.format, infoe, validation, MATRIX_MARKET_3, false, false, true);
+  validation.finalize();
   ps.Le = validation.num_edges();
-  load_graph(ac.datafile + "t", ac.format, info, test, MATRIX_MARKET_3, false, false, true);
+  if (ps.Le > 0 && (info.rows != infoe.rows || info.cols != infoe.cols))
+    logstream(LOG_FATAL) << "Validation file has dimension " << infoe.rows << "x"<< infoe.cols << " while training file has dimension "
+                         << info.rows << "x" << info.cols << ". Please fix your input to have the same dimensions. " << std::endl;
+  bipartite_graph_descriptor infot;
+  infot.force_non_square = true;
+  load_graph(ac.datafile + "t", ac.format, infot, test, MATRIX_MARKET_3, false, false, true);
+  test.finalize();
   ps.Lt = test.num_edges();
+  if (ps.Lt > 0 && (info.rows != infot.rows || info.cols != infot.cols))
+    logstream(LOG_FATAL) << "Test file has dimension " << infot.rows << "x"<< infot.cols << " while training file has dimension "
+                         << info.rows << "x" << info.cols << ". Please fix your input to have the same dimensions. " << std::endl;
 
 #else  
   if (nodes == 0){
@@ -388,9 +417,6 @@ int main(int argc,  char *argv[]) {
   //write_output_vector(ac.datafile + ".singular_values", ac.format, singular_values,false, "%GraphLab SVD Solver library. This file contains the singular values.");
 
   if (unittest == 1){
-    assert(errest.size() == 3);
-    for (int i=0; i< errest.size(); i++)
-      assert(errest[i] < 1e-30);
   }
   else if (unittest == 2){
      assert(errest.size() == 10);

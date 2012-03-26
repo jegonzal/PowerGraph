@@ -41,6 +41,8 @@ double regularization;
 bool debug;
 bool regnormal;
 
+void print_vec(const char * name, const vec & pvec, bool high);
+
 struct math_info{
   //for Axb operation
   int increment;
@@ -154,12 +156,15 @@ void compute_least_squares(mat & Q, vec & vals, vec & result, bool isuser, bool 
    if (regnormal)
 	   reg*= Q.cols();
 
+   //std::cout<<(Q*transpose(Q)+mi.eDT*reg + mi.eDT*reg)<<std::endl;
+   //std::cout<<(Q*vals)<<std::endl;
    bool ret = ls_solve(Q*transpose(Q)+ mi.eDT*reg, Q*vals, result);
    if (!ret)
      logstream(LOG_FATAL)<<"NUmerical error when computing least square step. Try to increas reglarization using --regularization=XX command line argument" << std::endl;   
 
   if (toprint){
-    std::cout <<"ALS"<<std::endl<<" result: " << result << " edges: " << numedges << std::endl;
+    print_vec("ALS", result, false);
+    std::cout << " edges: " << numedges << std::endl;
   }
 }
 
@@ -184,7 +189,7 @@ struct als_lapack:
   vertex_data& vdata = context.vertex_data();
  
   int id = context.vertex_id();
-  bool toprint = info.toprint(id);
+  bool toprint = debug && info.toprint(id);
   bool isuser = info.is_row_node(id);
   /* print statistics */
   if (toprint){
@@ -206,15 +211,17 @@ struct als_lapack:
   //USER NODES    
   if (isuser){
 
-    for(int i=0; i< numedges; i++) {
+    for(uint i=0; i< outs.size(); i++) {
       const edge_type & edget = outs[i];
       const edge_data & edge = context.edge_data(edget);
       const vertex_data  & pdata = context.const_vertex_data(edget.target()); 
         //go over each rating of a movie and put the movie vector into the matrix Q
         //and vector vals
         parse_edge(edge, pdata, Q, vals, i); 
-        if (toprint && (i==0 || i == numedges-1))
-          std::cout<<"set col: "<<i<<" " <<get_col(Q,i)<<" " <<std::endl;
+        if (toprint && (i==0 || i == (uint)numedges-1)){
+          std::cout<<"set col: "<<i<<std::endl; 
+          print_vec("", get_col(Q,i), false);
+        }
 
       /*if (!ac.round_robin){
         gl_types::update_task task(context.target(oedgeid), user_movie_nodes_update_function);
@@ -228,17 +235,22 @@ struct als_lapack:
 
 
     //MOVIE NODES
-    for (int i=0; i< numedges; i++) {
+    for (uint i=0; i< ins.size(); i++) {
       const edge_type & edget = ins[i];
       const edge_data & edge = context.edge_data(edget);
       const vertex_data & pdata = context.const_vertex_data(edget.source()); 
         //go over each rating by user
         parse_edge(edge, pdata, Q, vals, i); 
-        if (toprint/* && (i==0 || i == numedges-1)*/)
-          std::cout<<"set col: "<<i<<" " <<get_col(Q,i)<<" " <<std::endl;
+        if (toprint && (i==0 || i == numedges-1)){
+          std::cout<<"set col: "<<i<<std::endl;
+          print_vec("", get_col(Q,i), false);
+        }
 
        float prediction;
        double trmse = predict(vdata, pdata, edge.weight, prediction); 
+       if (debug && (i== (uint)info.get_start_node(false) || i == (uint)info.get_end_node(false)-1))
+         cout<<"RMSE sq_err: " << trmse << " prediction: " << prediction << endl; 
+  
        if (toprint)
           cout<<"trmse: " << trmse << endl;
       //aggregate RMSE
@@ -393,7 +405,7 @@ struct Axb:
 
       int size(){ return end-start; }
 
-      DistVec(bipartite_graph_descriptor &_info, int _offset, bool _transpose, const std::string & _name){
+      DistVec(const bipartite_graph_descriptor &_info, int _offset, bool _transpose, const std::string & _name){
         offset = _offset;
         display_offset = _offset;
         name = _name;
@@ -402,7 +414,7 @@ struct Axb:
         prev_offset = -1;
         init();
       }
-      DistVec(bipartite_graph_descriptor &_info, int _offset, bool _transpose, const std::string & _name, int _prev_offset){
+      DistVec(const bipartite_graph_descriptor &_info, int _offset, bool _transpose, const std::string & _name, int _prev_offset){
         offset = _offset;
         display_offset = _offset;
         name = _name;
@@ -579,7 +591,7 @@ struct Axb:
       int end;
       bool transpose;
  
-      DistSlicedMat(int _start_offset, int _end_offset, bool _transpose, bipartite_graph_descriptor &_info, std::string _name){
+      DistSlicedMat(int _start_offset, int _end_offset, bool _transpose, const bipartite_graph_descriptor &_info, std::string _name){
         assert(_start_offset < _end_offset);
         assert(_start_offset >= 0);
         assert(_info.total() > 0);
@@ -649,7 +661,7 @@ struct Axb:
       bool transpose;
       bipartite_graph_descriptor info;
 
-      DistMat(bipartite_graph_descriptor& _info) { 
+      DistMat(const bipartite_graph_descriptor& _info) { 
         info = _info;
         transpose = false;
       };
