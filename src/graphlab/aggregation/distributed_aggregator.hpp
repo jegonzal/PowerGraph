@@ -52,11 +52,13 @@ namespace graphlab {
      */
     struct isync {
       mutex lock;
-      graphlab::barrier barrier;
+      graphlab::barrier* barrier_ptr;
       atomic<size_t> counter;
       const size_t interval;
-      isync(size_t interval) : counter(0), interval(interval) { }
-      virtual ~isync() { }
+      isync(size_t interval) : barrier_ptr(NULL), counter(0), interval(interval) { }
+      virtual ~isync() {
+        if(barrier_ptr != NULL) { delete barrier_ptr; barrier_ptr = NULL;}
+      }
       virtual void run_aggregator(std::string key,
                                   size_t cpuid,
                                   rmi_type* rmi_ptr,
@@ -72,7 +74,7 @@ namespace graphlab {
     struct sync : public isync {
       typedef Aggregator       aggregator_type;
       using isync::lock;
-      using isync::barrier;
+      using isync::barrier_ptr;
       using isync::counter;
       using isync::interval;
       const aggregator_type zero;
@@ -103,7 +105,7 @@ namespace graphlab {
         lock.lock(); 
         shared_aggregator += local_accum; 
         lock.unlock();
-        barrier.wait();  // Wait until all merges are complete
+        barrier_ptr->wait();  // Wait until all merges are complete
 
         if(cpuid == 0) {
           std::vector<aggregator_type> result(rmi_ptr->numprocs());
@@ -293,7 +295,7 @@ namespace graphlab {
       isync* sync_ptr = sync_map[key];
       ASSERT_FALSE(sync_ptr == NULL);
       // Initialize the counter
-      sync_ptr->barrier = graphlab::barrier(threads.size());
+      sync_ptr->barrier_ptr = new graphlab::barrier(threads.size());
       sync_ptr->counter = 0;
       // Launch the threads
       for(size_t i = 0; i < threads.size(); ++i) {
