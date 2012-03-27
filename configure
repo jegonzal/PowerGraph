@@ -142,6 +142,8 @@ if [ ! -f $DEPS_PREFIX/bin/cmake ]; then
   echo "This script will now proceed to download CMake and set it up in"
   echo "the local graphlabapi/deps directory. The GraphLab compilation "
   echo "process will be directed to use graphlabapi/deps/cmake."
+  pushd .
+  mkdir deps
   cd deps
 
   # get the cmake software page
@@ -163,7 +165,7 @@ if [ ! -f $DEPS_PREFIX/bin/cmake ]; then
   make -j2
   make install
   set +e
-  cd ..
+  popd 
   CMAKE=$DEPS_PREFIX/bin/cmake
   echo "CMAKE=$CMAKE" >> configure.deps
 fi
