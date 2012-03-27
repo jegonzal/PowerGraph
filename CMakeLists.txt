@@ -53,6 +53,7 @@ ExternalProject_Add(eigen
   CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
   INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local)
 add_definitions(-DHAS_EIGEN)
+include_directories(${GraphLab_SOURCE_DIR}/deps/local/include/eigen3)
 
 # http://downloads.sourceforge.net/project/boost/boost/1.49.0/boost_1_49_0.tar.gz"
 #  URL "http://sourceforge.net/projects/boost/files/boost/1.49.0/boost_1_49_0.tar.gz/download boost.tar.gz"
