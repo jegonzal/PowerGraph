@@ -149,12 +149,12 @@ if [ `which cmake` ]; then
   echo "Detected $currentversion . Required 2.8.3"
   check_version "2.8.3" `cmake --version | tr -dc '[0-9].'`
   versionok=$?
-  if [ versionok -eq 1 ]; then
+  if [ $versionok -eq 1 ]; then
+    echo "CMakeversion is good"
     CMAKE="cmake"
   fi
 fi
-
-if [ -z CMAKE -a ! -f $DEPS_PREFIX/bin/cmake ]; then
+if [ -z CMAKE -o ! -f $DEPS_PREFIX/bin/cmake ]; then
   echo "This script will now proceed to download CMake and set it up in"
   echo "the local graphlabapi/deps directory. The GraphLab compilation "
   echo "process will be directed to use graphlabapi/deps/cmake."
