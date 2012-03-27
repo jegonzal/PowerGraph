@@ -590,6 +590,7 @@ endmacro(EXEC)
 macro(add_graphlab_executable NAME)
   add_executable(${NAME} ${ARGN})
   target_link_libraries(${NAME} ${Boost_LIBRARIES})
+  add_dependencies(${NAME} eigen boost tcmalloc)
   target_link_libraries(${NAME} ${GraphLab_LIBRARIES})
 endmacro(add_graphlab_executable)
 
@@ -607,6 +608,7 @@ macro(add_distributed_graphlab_executable NAME)
       ${Boost_LIBRARIES}
 
       )
+    add_dependencies(${NAME} eigen boost tcmalloc openmpi)
     set_source_files_properties( ${ARGN}
       PROPERTIES COMPILE_DEFINITIONS "GLDISTRIBUTED2" )
     # set_property(TARGET ${NAME} APPEND PROPERTY 
