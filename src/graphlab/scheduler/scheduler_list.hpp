@@ -65,6 +65,9 @@
 
 
 #define __SCHEDULER_LIST__                                              \
+  (("empty", empty_scheduler,                                           \
+    "This scheduler doesn't do anything.  Therefore it has the "        \
+    "smallest memory footprint."))                                      \
   (("fifo", fifo_scheduler,                                             \
     "Standard FIFO task queue, poor parallelism, but task evaluation "  \
     "sequence is highly predictable. "                                  \
@@ -84,7 +87,7 @@
     "threads out queue is too large (greater than \"queuesize\") then " \
     "the thread puts its out queue at the end of the master queue."))   
   
-
+#include <graphlab/scheduler/empty_scheduler.hpp>
 #include <graphlab/scheduler/fifo_scheduler.hpp>
 #include <graphlab/scheduler/chromatic_scheduler.hpp>
 #include <graphlab/scheduler/sweep_scheduler.hpp>
