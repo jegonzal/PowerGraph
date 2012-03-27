@@ -453,6 +453,11 @@ int do_main(int argc, const char *argv[]){
    if (ac.show_version)
       return version;
 
+   //disable omp threading (due to eigen bug)
+    if (!ac.omp_support){
+       omp_set_num_threads(1);
+    }
+
    if (ac.unittest > 0)
         unit_testing(ac.unittest, clopts);
 
