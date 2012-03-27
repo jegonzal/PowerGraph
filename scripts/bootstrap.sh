@@ -4,8 +4,8 @@ IN_BOOTSTRAP=1
 DEPS_DIR=deps
 mkdir -p $DEPS_DIR
 
-source scripts/cmakecheck.sh
-echo "CMAKE=$cmakecmd" >> configure.deps
+# source scripts/cmakecheck.sh
+# echo "CMAKE=$cmakecmd" >> configure.deps
 
 
 source scripts/boostcheck.sh

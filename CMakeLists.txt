@@ -1,3 +1,4 @@
+## ===================================================================
 ## Compiler Switches must come before anything else
 # Force the use of gcc-4.2 as the default compiler on macs
 if(APPLE)
@@ -21,10 +22,11 @@ endif()
 
 project(GraphLab)
 
-include (CheckLibraryExists) 
-include (CheckFunctionExists) 
+cmake_minimum_required(VERSION 2.8)
 
-cmake_minimum_required(VERSION 2.4)
+include(CheckLibraryExists) 
+include(CheckFunctionExists) 
+include(ExternalProject)
 
 if(COMMAND cmake_policy)
   cmake_policy(SET CMP0003 NEW)
@@ -35,12 +37,73 @@ endif(COMMAND cmake_policy)
 # defined
 set(CMAKE_MODULE_PATH ${GraphLab_SOURCE_DIR}/cmake)
 
-if(HAS_EIGEN)
+
+## ===================================================================
+# Build external dependencies
+include_directories(${GraphLab_SOURCE_DIR}/deps/local/include)
+link_directories(${GraphLab_SOURCE_DIR}/deps/local/lib)
+
+
+# Build eigen
+ExternalProject_Add(eigen
+  PREFIX ${GraphLab_SOURCE_DIR}/deps/eigen
+  TMP_DIR ${GraphLab_SOURCE_DIR}/deps/tmp
+  STAMP_DIR ${GraphLab_SOURCE_DIR}/deps/stamp
+  DOWNLOAD_COMMAND hg clone https://bitbucket.org/eigen/eigen/
+  CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
+  INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local)
 add_definitions(-DHAS_EIGEN)
-endif()
+
+# http://downloads.sourceforge.net/project/boost/boost/1.49.0/boost_1_49_0.tar.gz"
+#  URL "http://sourceforge.net/projects/boost/files/boost/1.49.0/boost_1_49_0.tar.gz/download boost.tar.gz"
+# SVN_REPOSITORY http://svn.boost.org/svn/boost/trunk
+#   
+
+# Build Boost
+ExternalProject_Add(boost
+  PREFIX ${GraphLab_SOURCE_DIR}/deps/boost
+  TMP_DIR ${GraphLab_SOURCE_DIR}/deps/tmp
+  STAMP_DIR ${GraphLab_SOURCE_DIR}/deps/stamp
+  DOWNLOAD_DIR ${GraphLab_SOURCE_DIR}/deps/download
+  URL "http://sourceforge.net/projects/boost/files/boost/1.49.0/boost_1_49_0.tar.gz"
+  BUILD_IN_SOURCE 1
+  CONFIGURE_COMMAND ./bootstrap.sh 
+  --with-libraries=filesystem
+  --with-libraries=program_options
+  --with-libraries=system
+  --with-libraries=iostreams
+  --with-libraries=date_time
+  --with-libraries=random
+  --prefix=<INSTALL_DIR>
+  BUILD_COMMAND  ./bjam --threading=multi --link=static --variant=release 
+  INSTALL_COMMAND ./bjam install
+  INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local )
+set(BOOST_ROOT ${GraphLab_SOURCE_DIR}/deps/local )
+set(Boost_USE_STATIC_LIBS TRUE)
+set(Boost_LIBRARIES boost_filesystem boost_program_options boost_system boost_iostreams boost_date_time)
+
+# find_package(Boost 1.49 COMPONENTS 
+#   program_options; filesystem; system; iostreams REQUIRED)
+# if (${Boost_VERSION} LESS 104600)
+#   message(STATUS "Boost Filesystem Version 2")
+#   add_definitions(-DBOOST_FILESYSTEM_VERSION=2)
+# else()  
+#   message(STATUS "Boost Filesystem Version 3")
+#   add_definitions(-DBOOST_FILESYSTEM_VERSION=3)
+# endif()
+# # Stupid hack because Cmake cannot seperate the shared from the static versions
+# set(Boost_SHARED_LIBRARIES "")
+# foreach(blib ${Boost_LIBRARIES})
+#   message(STATUS "Boost libs: " ${blib})
+#   string(REGEX REPLACE "\\.a$" ${CMAKE_SHARED_LIBRARY_SUFFIX} bout ${blib})
+#   message(STATUS "Boost dyn libs: " ${bout})
+#   set(Boost_SHARED_LIBRARIES ${Boost_SHARED_LIBRARIES} ${bout})
+# endforeach()
+# message(STATUS "Boost Shared libs: " ${Boost_SHARED_LIBRARIES})
 
 
 
+### ===================================================================
 # ## Download News update
 # if(NOT DISABLE_NEWS)
 #   message(STATUS
@@ -67,44 +130,14 @@ endif()
 
 
 
+
 ## ===================================================================
 # Process command line arguments defined using cmake -D arg=val
-
 if(NOT EXPERIMENTAL)
   set(EXPERIMENTAL 0 CACHE BOOL "Enables building of experimental
   components.")
 endif()
 
-
-
-
-
-
-## ===================================================================
-# Setup Boost Libraries
-
-# Use the Boost libraries
-set(Boost_USE_STATIC_LIBS TRUE)
-find_package(Boost 1.39 COMPONENTS 
-  program_options; filesystem; system; iostreams REQUIRED)
-if (${Boost_VERSION} LESS 104600)
-  message(STATUS "Boost Filesystem Version 2")
-  add_definitions(-DBOOST_FILESYSTEM_VERSION=2)
-else()  
-  message(STATUS "Boost Filesystem Version 3")
-  add_definitions(-DBOOST_FILESYSTEM_VERSION=3)
-endif()
-
-
-set(Boost_SHARED_LIBRARIES "")
-# Stupid hack because Cmake cannot seperate the shared from the static versions
-foreach(blib ${Boost_LIBRARIES})
-  message(STATUS "Boost libs: " ${blib})
-  string(REGEX REPLACE "\\.a$" ${CMAKE_SHARED_LIBRARY_SUFFIX} bout ${blib})
-  message(STATUS "Boost dyn libs: " ${bout})
-  set(Boost_SHARED_LIBRARIES ${Boost_SHARED_LIBRARIES} ${bout})
-endforeach()
-message(STATUS "Boost Shared libs: " ${Boost_SHARED_LIBRARIES})
 
 ## Not used currently
 # find_package(Java)
@@ -126,13 +159,6 @@ message(STATUS "Boost Shared libs: " ${Boost_SHARED_LIBRARIES})
 # ENDIF(CUDA_FOUND)
 
 
-if (HAS_EIGEN)
-  message(STATUS "Found Eigen linear algebra package")
-  include_directories(${GraphLab_SOURCE_DIR}/deps/eigen-3.0.2)
-else ()
-  message(STATUS "Eigen linear algebra package not found.")
-  message(STATUS "Eigen is only required for the matrix factorization apps.")
-endif()
 
 
 if(HADOOP_HOME)
@@ -676,6 +702,7 @@ endif()
 
 subdirs(demoapps toolkits)
 
+  
 
 
 ## ===================================================================
