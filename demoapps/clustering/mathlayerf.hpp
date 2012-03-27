@@ -380,7 +380,11 @@ inline sparse_fvec minus(sparse_fvec &v1,sparse_fvec &v2){
    return v1-v2;
 }
 inline fvec minus( sparse_fvec &v1,  fvec &v2){
-   return v1-sparse_fvec(v2);
+   fvec ret = -v2;
+   FOR_ITERATOR2(i, v1){
+     ret[i.index()] += i.value();
+   }
+   return ret;
 }
 inline void plus( fvec &v1,  sparse_fvec &v2){
    FOR_ITERATOR2(i, v2){
