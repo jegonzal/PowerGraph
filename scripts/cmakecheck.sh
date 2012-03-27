@@ -31,7 +31,7 @@ else
   fi
   if [ ! -z $force_cmake_install ] || [ -z "$cmake_pos" ] ; then
     # get the current path and remember it. This will be the installation directory
-    installprefix=$PWD
+    installprefix=$PWD/local
 
     # check for cmake in the current directory
 

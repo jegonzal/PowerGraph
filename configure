@@ -1,5 +1,22 @@
 #!/bin/bash
 
+function download_file {
+  # detect wget
+  echo "Downloading $2 from $1 ..."
+  wgetcmd=`which wget`
+  if [ -z $wgetcmd ] ; then
+    curlcmd=`which curl`
+    if [ -z $curlcmd ] ; then
+      echo "Unable to find either curl or wget! Cannot proceed with automatic install."
+      exit 1
+    fi
+    curl $1 -o $2
+  else
+    wget $1 -O $2
+  fi
+}
+
+
 ## Ensure exit on error:
 # set -e
 
@@ -19,13 +36,13 @@ INSTALL_DIR=/usr/local
 EXPERIMENTAL=false
 GRAPHLAB_HOME=$PWD
 
+DEPS_PREFIX=$PWD/deps/local
+
 
 ## Overwrite defaults if they are available
 if [ -f configure.deps ]; then
   source configure.deps
 fi
-
-
 
 
 function print_help {
@@ -38,8 +55,6 @@ function print_help {
   echo "      --bootstrap             bootstrap will install CMake/Boost if they are not detected."
   echo
   echo "      --yes                   automatically install dependencies locally if they are not met."
-  echo
-  echo "      --force_cmake_install   This forces a CMake installation even if CMake is detected."
   echo
   echo "      --force_boost_install   This forces a Boost installation even if Boost is detected."
   echo
@@ -97,8 +112,6 @@ while [ $# -gt 0 ]
     --cleanup)              run_cleanup ;;
     --bootstrap)            bootstrap=1 ;;
     --yes)                  always_yes=1;;
-    --force_cmake_install)  force_cmake_install=1 ;;
-    --force_boost_install)  force_boost_install=1 ;;
     --prefix=*)             prefix=${1##--prefix=} ;;
     --experimental)         experimental=1 ;;
     --itpp)                 itpp=1 ;;
@@ -131,6 +144,39 @@ fi
 if [ ! -z $experimental ]; then
   echo "EXPERIMENTAL=true"       >> configure.deps
 fi
+
+
+
+## Install cmake
+if [ ! -f $DEPS_PREFIX/bin/cmake ]; then
+  echo "This script will now proceed to download CMake and set it up in"
+  echo "the local graphlabapi/deps directory. The GraphLab compilation "
+  echo "process will be directed to use graphlabapi/deps/cmake."
+  cd deps
+
+  # get the cmake software page
+  rm -f software.html
+  download_file "http://www.cmake.org/cmake/resources/software.html" software.html
+  # look for the first tar.gz I can download
+  cmakedownload=`grep -m 1 -o -e "href=\"http://www\\.cmake.*\\.tar\\.gz\"" software.html | grep -o -e "http.*\\.tar\\.gz"`
+  if [ -z "$cmakedownload" ] ; then
+    echo "Unable to locate CMake package. You will have to install it yourself."
+    exit 1
+  fi
+  rm -f cmake.tar.gz
+  set -e
+  download_file $cmakedownload cmake.tar.gz
+  tar -xzvf cmake.tar.gz
+  # cd into the extracted directory and install
+  cd cmake-*
+  ./configure --prefix=$DEPS_PREFIX
+  make -j2
+  make install
+  set +e
+  cd ..
+fi
+CMAKE=$DEPS_PREFIX/bin/cmake
+
 
 
 
@@ -172,12 +218,6 @@ fi
 
 # Run the configure deps
 source configure.deps 
-
-
-#if cmake was not defined then define it
-if [ -z $CMAKE ]; then
-    CMAKE=cmake
-fi
 
 
 echo -e \
