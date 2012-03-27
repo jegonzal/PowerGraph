@@ -557,7 +557,11 @@ inline sparse_vec minus(sparse_vec &v1,sparse_vec &v2){
   return v1-v2;
 }
 inline vec minus( sparse_vec &v1,  vec &v2){
-  return v1-sparse_vec(v2);
+  vec ret = -v2;
+  FOR_ITERATOR(i, v1){
+    ret[i.index()] += i.value();
+  }
+  return ret;
 }
 inline void plus( vec &v1,  sparse_vec &v2){
   FOR_ITERATOR(i, v2){
