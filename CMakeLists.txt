@@ -77,6 +77,14 @@ ExternalProject_Add(boost
 set(BOOST_ROOT ${GraphLab_SOURCE_DIR}/deps/local )
 set(Boost_USE_STATIC_LIBS TRUE)
 set(Boost_LIBRARIES boost_filesystem boost_program_options boost_system boost_iostreams boost_date_time)
+set(Boost_SHARED_LIBRARIES "")
+foreach(blib ${Boost_LIBRARIES})
+  message(STATUS "Boost libs: " ${blib})
+  string(REGEX REPLACE "\\.a$" ${CMAKE_SHARED_LIBRARY_SUFFIX} bout ${blib})
+  message(STATUS "Boost dyn libs: " ${bout})
+  set(Boost_SHARED_LIBRARIES ${Boost_SHARED_LIBRARIES} ${bout})
+endforeach()
+message(STATUS "Boost Shared libs: " ${Boost_SHARED_LIBRARIES})
 
 
 ExternalProject_Add(tcmalloc
