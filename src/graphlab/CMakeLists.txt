@@ -80,8 +80,9 @@ add_library(graphlab STATIC
   rpc/distributed_event_log.cpp
   rpc/delta_dht.cpp
   )
-
+add_dependencies(graphlab eigen boost tcmalloc openmpi)
 target_link_libraries(graphlab ${Boost_LIBRARIES})
+
 
 if (MPI_FOUND)
   target_link_libraries(graphlab ${MPI_LIBRARY} ${MPI_EXTRA_LIBRARY})
@@ -100,6 +101,7 @@ endif()
 get_target_property(graphlab_sources graphlab SOURCES)
 get_property(graphlab_flags TARGET graphlab PROPERTY COMPILE_FLAGS)
 add_library(graphlab_pic STATIC ${graphlab_sources})
+add_dependencies(graphlab_pic eigen boost tcmalloc openmpi)
 set_target_properties(graphlab_pic PROPERTIES 
   COMPILE_FLAGS "${graphlab_flags} -fPIC")
 
