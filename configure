@@ -3,10 +3,8 @@
 function download_file {
   # detect wget
   echo "Downloading $2 from $1 ..."
-  wgetcmd=`which wget`
-  if [ -z $wgetcmd ] ; then
-    curlcmd=`which curl`
-    if [ -z $curlcmd ] ; then
+  if [ -z `which wget` ] ; then
+    if [ -z `which curl` ] ; then
       echo "Unable to find either curl or wget! Cannot proceed with automatic install."
       exit 1
     fi
