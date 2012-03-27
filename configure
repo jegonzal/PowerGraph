@@ -149,7 +149,9 @@ if [ `which cmake` ]; then
   echo "Detected $currentversion . Required 2.8.3"
   check_version "2.8.3" `cmake --version | tr -dc '[0-9].'`
   versionok=$?
-  CMAKE="cmake"
+  if [ versionok -eq 1 ]; then
+    CMAKE="cmake"
+  fi
 fi
 
 if [ -z CMAKE -a ! -f $DEPS_PREFIX/bin/cmake ]; then
