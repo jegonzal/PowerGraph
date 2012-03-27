@@ -142,6 +142,7 @@ int data_size;
 
 #include "../shared/math.hpp"
 #include "../shared/printouts.hpp"
+#include "../shared/least_squares.hpp"
 
 graph_type validation, test;
 graph_type * training = NULL;
