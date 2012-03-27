@@ -47,8 +47,6 @@ link_directories(${GraphLab_SOURCE_DIR}/deps/local/lib)
 # Build eigen
 ExternalProject_Add(eigen
   PREFIX ${GraphLab_SOURCE_DIR}/deps/eigen
-  TMP_DIR ${GraphLab_SOURCE_DIR}/deps/tmp
-  STAMP_DIR ${GraphLab_SOURCE_DIR}/deps/stamp
   DOWNLOAD_COMMAND hg clone https://bitbucket.org/eigen/eigen/
   CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
   INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local)
@@ -63,9 +61,6 @@ include_directories(${GraphLab_SOURCE_DIR}/deps/local/include/eigen3)
 # Build Boost
 ExternalProject_Add(boost
   PREFIX ${GraphLab_SOURCE_DIR}/deps/boost
-  TMP_DIR ${GraphLab_SOURCE_DIR}/deps/tmp
-  STAMP_DIR ${GraphLab_SOURCE_DIR}/deps/stamp
-  DOWNLOAD_DIR ${GraphLab_SOURCE_DIR}/deps/download
   URL "http://sourceforge.net/projects/boost/files/boost/1.49.0/boost_1_49_0.tar.gz"
   BUILD_IN_SOURCE 1
   CONFIGURE_COMMAND ./bootstrap.sh 
@@ -93,6 +88,12 @@ ExternalProject_Add(tcmalloc
 link_libraries(tcmalloc)
 set(TCMALLOC-FOUND 1)
 add_definitions(-DHAS_TCMALLOC)
+
+ExternalProject_Add(openmpi
+  PREFIX ${GraphLab_SOURCE_DIR}/deps/openmpi
+  URL http://www.open-mpi.org/software/ompi/v1.4/downloads/openmpi-1.4.5.tar.gz
+  CONFIGURE_COMMAND <SOURCE_DIR>/configure --prefix=<INSTALL_DIR>
+  INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local)
 
 
 # find_package(Boost 1.49 COMPONENTS 
