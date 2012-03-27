@@ -83,6 +83,18 @@ set(BOOST_ROOT ${GraphLab_SOURCE_DIR}/deps/local )
 set(Boost_USE_STATIC_LIBS TRUE)
 set(Boost_LIBRARIES boost_filesystem boost_program_options boost_system boost_iostreams boost_date_time)
 
+
+ExternalProject_Add(tcmalloc
+  PREFIX ${GraphLab_SOURCE_DIR}/deps/tcmalloc
+  SVN_REPOSITORY http://gperftools.googlecode.com/svn/trunk/
+  UPDATE_COMMAND ""
+  CONFIGURE_COMMAND <SOURCE_DIR>/configure --enable-frame-pointers --prefix=<INSTALL_DIR>
+  INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local)
+link_libraries(tcmalloc)
+set(TCMALLOC-FOUND 1)
+add_definitions(-DHAS_TCMALLOC)
+
+
 # find_package(Boost 1.49 COMPONENTS 
 #   program_options; filesystem; system; iostreams REQUIRED)
 # if (${Boost_VERSION} LESS 104600)
@@ -333,23 +345,23 @@ endif ( HADOOP_FOUND AND JNI_REALLY_FOUND )
 
 
 # check for TCMalloc
-if(TCMALLOC_ROOT) 
-  link_directories(${TCMALLOC_ROOT}/lib)
-  include_directories(${TCMALLOC_ROOT}/include)
-  set(TCMALLOC-FOUND 1)
-  message(STATUS "TCMALLOC_ROOT: " ${TCMALLOC_ROOT})
-  add_definitions(-DHAS_TCMALLOC)
-else()
-check_library_exists("tcmalloc -lpthread" malloc "" TCMALLOC-FOUND)
-endif()
+# if(TCMALLOC_ROOT) 
+#   link_directories(${TCMALLOC_ROOT}/lib)
+#   include_directories(${TCMALLOC_ROOT}/include)
+#   set(TCMALLOC-FOUND 1)
+#   message(STATUS "TCMALLOC_ROOT: " ${TCMALLOC_ROOT})
+#   add_definitions(-DHAS_TCMALLOC)
+# else()
+# check_library_exists("tcmalloc -lpthread" malloc "" TCMALLOC-FOUND)
+# endif()
 
 
-if (TCMALLOC-FOUND)
-  message(STATUS "tcmalloc found. Using it everywhere")
-  link_libraries(tcmalloc)
-else()
-  message(STATUS "tcmalloc was not found but is optional.")
-endif()
+# if (TCMALLOC-FOUND)
+#   message(STATUS "tcmalloc found. Using it everywhere")
+#   link_libraries(tcmalloc)
+# else()
+#   message(STATUS "tcmalloc was not found but is optional.")
+# endif()
 
 
 
