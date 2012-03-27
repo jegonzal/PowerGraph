@@ -46,17 +46,11 @@ fi
 
 
 function print_help {
-  echo "Usage: ./configure [--bootstrap] [--force_cmake_install]"
-  echo "                   [--force_boost_install] [--prefix=PREFIX]"
-  echo "                   [--experimental]"
+  echo "Usage: ./configure [--prefix=PREFIX] [--experimental]"
   echo
   echo "      --cleanup               remove all build directories"
   echo 
-  echo "      --bootstrap             bootstrap will install CMake/Boost if they are not detected."
-  echo
   echo "      --yes                   automatically install dependencies locally if they are not met."
-  echo
-  echo "      --force_boost_install   This forces a Boost installation even if Boost is detected."
   echo
   echo "      --prefix=[PREFIX]       GraphLab Installation target directory. Defaults to /usr/local"
   echo 
@@ -67,8 +61,6 @@ function print_help {
   echo "      --itpp_include_dir=[DIR] specify manually itpp include directories (path to itpp header files)."
   echo 
   echo "      --itpp_link_dir=[DIR]   specify manually itpp link dir (path to libitpp.a lib)."
-  echo
-  echo "      --eigen                 Install Eigen linear algebra package "
   echo
   echo "      --hadoop                Install hadoop tools for HDFS support "
   echo
@@ -110,14 +102,12 @@ while [ $# -gt 0 ]
   do case $1 in
     --help)                 print_help ;;
     --cleanup)              run_cleanup ;;
-    --bootstrap)            bootstrap=1 ;;
     --yes)                  always_yes=1;;
     --prefix=*)             prefix=${1##--prefix=} ;;
     --experimental)         experimental=1 ;;
     --itpp)                 itpp=1 ;;
     --itpp_include_dir=*)   itpp_include_dir=${1##--itpp_include_dir=} ;;
     --itpp_link_dir=*)      itpp_link_dir=${1##--itpp_link_dir=} ;;
-    --eigen)		    install_eigen=1 ;;
     --hadoop)		    install_hadoop=1 ;;
     --force_hadoop_install) force_hadoop_install=1 ;;
     --tcmalloc)		    install_tcmalloc=1 ;;
@@ -174,6 +164,8 @@ if [ ! -f $DEPS_PREFIX/bin/cmake ]; then
   make install
   set +e
   cd ..
+  CMAKE=$DEPS_PREFIX/bin/cmake
+  echo "CMAKE=$CMAKE" >> configure.deps
 fi
 CMAKE=$DEPS_PREFIX/bin/cmake
 
@@ -184,10 +176,7 @@ CMAKE=$DEPS_PREFIX/bin/cmake
 source configure.deps 
 
 
-# Run the bootstrap script which populates configure.deps
-if [ ! -z $bootstrap ]; then
-  source ./scripts/bootstrap.sh | tee -a $LOG_FILE
-fi
+$CMAKE --version | tee -a $LOG_FILE
 
 if [ ! -z $install_eigen ]; then
   source ./scripts/eigen_install.sh  | tee -a $LOG_FILE
@@ -233,7 +222,6 @@ echo -e \
     "Debug build path:          $DEBUG_DIR \n"\
     "Profile build path:        $PROFILE_DIR \n"\
     "Install path:              $INSTALL_DIR \n"\
-    "BOOST_ROOT:                $BOOST_ROOT \n"\
     "TCMALLOC_ROOT:             $TCMALLOC_ROOT \n"\
     "Build experimental parts:  $EXPERIMENTAL \n" | tee -a $LOG_FILE
 
@@ -244,11 +232,6 @@ echo -e \
 if [ ! -z $INSTALL_DIR ]; then
     config_flags="$config_flags -D CMAKE_INSTALL_PREFIX:STRING=$INSTALL_DIR"
 fi
-
-if [ ! -z $BOOST_ROOT ]; then
-    config_flags="$config_flags -D BOOST_ROOT:STRING=$BOOST_ROOT"
-fi
-
 
 
 
@@ -265,9 +248,6 @@ if [ ! -z $itpp_include_dir ]; then
    config_flags="$config_flags -D ITPP_INCLUDE_DIR:STRING=$itpp_include_dir"
 fi
 
-if [ ! -z $HAS_EIGEN ]; then
-   config_flags="$config_flags -D HAS_EIGEN:BOOL=true"
-fi
 
 if [ ! -z $HADOOP_HOME ]; then
    config_flags="$config_flags -D HADOOP_HOME:STRING=$HADOOP_HOME"
