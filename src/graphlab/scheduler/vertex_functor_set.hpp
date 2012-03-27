@@ -189,10 +189,7 @@ namespace graphlab {
           //try to put it back in
           if (__unlikely__(uf != NULL && uf != UPDATE_FUNCTOR_PENDING)) {
             toinsert = (*uf);
-          }
-          else {
-            break;
-          }
+          } else { break; }
         }
         return ret;
       }
@@ -203,7 +200,8 @@ namespace graphlab {
           ret = functor;
           if (ret == NULL) return update_functor_type();
           else if (ret != UPDATE_FUNCTOR_PENDING) {
-            if (__likely__(atomic_compare_and_swap(functor, ret, (update_functor_type*)NULL))) {
+            if (__likely__(atomic_compare_and_swap(functor, ret, 
+                                                   (update_functor_type*)NULL))) {
               update_functor_type r = *ret;
               pool.free(ret);
               return r;
