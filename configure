@@ -255,10 +255,6 @@ if [ ! -z $HADOOP_HOME ]; then
    config_flags="$config_flags -D HADOOP_HOME:STRING=$HADOOP_HOME"
 fi
 
-if [ ! -z $TCMALLOC_ROOT ]; then
-   config_flags="$config_flags -D TCMALLOC_ROOT:STRING=$TCMALLOC_ROOT"
-fi
-
 
 ### CONSTRUCT THE BUILD DIRECTORIES ===========================================
 
