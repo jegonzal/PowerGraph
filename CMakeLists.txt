@@ -97,11 +97,11 @@ link_libraries(tcmalloc)
 set(TCMALLOC-FOUND 1)
 add_definitions(-DHAS_TCMALLOC)
 
-ExternalProject_Add(openmpi
-  PREFIX ${GraphLab_SOURCE_DIR}/deps/openmpi
-  URL http://www.open-mpi.org/software/ompi/v1.4/downloads/openmpi-1.4.5.tar.gz
-  CONFIGURE_COMMAND <SOURCE_DIR>/configure --prefix=<INSTALL_DIR>
-  INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local)
+# ExternalProject_Add(openmpi
+#   PREFIX ${GraphLab_SOURCE_DIR}/deps/openmpi
+#   URL http://www.open-mpi.org/software/ompi/v1.4/downloads/openmpi-1.4.5.tar.gz
+#   CONFIGURE_COMMAND <SOURCE_DIR>/configure --prefix=<INSTALL_DIR>
+#   INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local)
 
 
 # find_package(Boost 1.49 COMPONENTS 
@@ -608,7 +608,7 @@ macro(add_distributed_graphlab_executable NAME)
       ${Boost_LIBRARIES}
 
       )
-    add_dependencies(${NAME} eigen boost tcmalloc openmpi)
+    add_dependencies(${NAME} eigen boost tcmalloc)
     set_source_files_properties( ${ARGN}
       PROPERTIES COMPILE_DEFINITIONS "GLDISTRIBUTED2" )
     # set_property(TARGET ${NAME} APPEND PROPERTY 
