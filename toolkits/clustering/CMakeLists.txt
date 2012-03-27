@@ -1,5 +1,5 @@
 project(GraphLab)
-if (HAS_EIGEN)
+#if (HAS_EIGEN)
 add_graphlab_executable(kcores kcores.cpp ../shared/mmio.cpp)
 add_graphlab_executable(kcores2 kcores2.cpp ../shared/mmio.cpp)
 add_graphlab_executable(oldkcores oldkcores.cpp ../shared/mmio.cpp)
@@ -12,4 +12,4 @@ add_graphlab_executable(find_28_edges find_28_edges.cpp)
  link_libraries(boost_date_time)
 add_graphlab_executable(28_edges_from_map 28_edges_from_map.cpp
  ../parsers/formatconverter.cpp)
-endif()
+#endif()

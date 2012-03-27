@@ -190,7 +190,9 @@ int main(int argc,  char *argv[]) {
   bool gzip = true;
   bool stats = false;
   std::string filter = "day";
-
+  std::string listdir = "/usr2/bickson/daily.sorted/";
+  std::string dirpath = "/usr2/bickson/bin.graphs/";
+ 
   clopts.attach_option("data", &datafile, datafile,
                        "matrix A input file");
   clopts.add_positional("data");
@@ -206,7 +208,9 @@ int main(int argc,  char *argv[]) {
   clopts.attach_option("stats", &stats, stats, "calculate graph stats and exit");
   clopts.attach_option("filter", & filter, filter, "Filter - parse files starting with prefix");
   clopts.attach_option("reference", &reference, reference, "reference graph number");
- 
+  clopts.attach_option("listdir", &listdir, listdir, "Directory with list of files");
+  clopts.attach_option("dirpath", &dirpath, dirpath, "Directory path");
+
   // Parse the command line arguments
   if(!clopts.parse(argc, argv)) {
     std::cout << "Invalid arguments!" << std::endl;
@@ -243,8 +247,8 @@ int main(int argc,  char *argv[]) {
 
   //nodes = 123306178;
   //nodes=149747010;
-  nodes = 121408373;
-  matrix_info.rows = matrix_info.cols = nodes;
+  //nodes = 121408373;
+  //matrix_info.rows = matrix_info.cols = nodes;
   //matrix_info.nonzeros = 1000000000;
   /* Rows:      95526
  * Cols:      3561
@@ -252,23 +256,21 @@ int main(int argc,  char *argv[]) {
  */
   //matrix_info.rows = 95526;  matrix_info.cols = 3561; matrix_info.nonzeros = 3298163;
   //std::string dirpath="/mnt/bigbrofs/usr0/bickson/out_phone_calls/";
-  std::string listdir = "/usr2/bickson/daily.sorted/";
-  std::string dirpath = "/usr2/bickson/bin.graphs/";
-  //core.graph().set_undirected();
+ //core.graph().set_undirected();
   core.set_scope_type("vertex");
 
     
     multigraph_type multigraph;
     multigraph.load(listdir, dirpath, filter, true);
     matrix_info.nonzeros = core.graph().num_edges();
-
+    matrix_info.rows = matrix_info.cols = core.graph().num_vertices();
 
   if (stats){
     calc_multigraph_stats_and_exit<multigraph_type>(&multigraph, matrix_info);
   }
   graphlab::timer mytimer; mytimer.start();
 
-  multigraph.doload(reference);
+  multigraph.doload(reference, false, true);
   reference_graph = multigraph.graph(0);
 
   int pass = 0;
@@ -279,7 +281,7 @@ int main(int argc,  char *argv[]) {
 
       for (int i=0; i< multigraph.num_graphs(); i++){
        aggregator acum;
-       multigraph.doload(i);
+       multigraph.doload(i, true, true);
        core.graph() = *multigraph.graph(0);
        core.add_aggregator("sync", acum, 1000);
        core.add_global("NUM_ACTIVE", int(0));
