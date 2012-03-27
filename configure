@@ -133,10 +133,26 @@ if [ ! -z $experimental ]; then
   echo "EXPERIMENTAL=true"       >> configure.deps
 fi
 
-
+check_version()
+{
+    local version=$1 check=$2
+    local winner=$(echo -e "$version\n$check" | sed '/^$/d' | sort -nr | head -1)
+    [[ "$winner" = "$version" ]] && return 0
+    return 1
+}
 
 ## Install cmake
-if [ ! -f $DEPS_PREFIX/bin/cmake ]; then
+if [ `which cmake` ]; then
+  #test cmake version
+  echo "Testing existing cmake version..."
+  currentversion=`cmake --version | tr -dc '[0-9].'`
+  echo "Detected $currentversion . Required 2.8.3"
+  check_version "2.8.3" `cmake --version | tr -dc '[0-9].'`
+  versionok=$?
+  CMAKE="cmake"
+fi
+
+if [ -z CMAKE -a ! -f $DEPS_PREFIX/bin/cmake ]; then
   echo "This script will now proceed to download CMake and set it up in"
   echo "the local graphlabapi/deps directory. The GraphLab compilation "
   echo "process will be directed to use graphlabapi/deps/cmake."
@@ -167,7 +183,6 @@ if [ ! -f $DEPS_PREFIX/bin/cmake ]; then
   CMAKE=$DEPS_PREFIX/bin/cmake
   echo "CMAKE=$CMAKE" >> configure.deps
 fi
-CMAKE=$DEPS_PREFIX/bin/cmake
 
 
 
