@@ -45,9 +45,14 @@ link_directories(${GraphLab_SOURCE_DIR}/deps/local/lib)
 
 
 # Build eigen
+
+# For now we download eigen from our servers since the eigen servers
+# use SSL which is not supported by cmake
+# DOWNLOAD_COMMAND hg clone  https://bitbucket.org/eigen/eigen/
 ExternalProject_Add(eigen
   PREFIX ${GraphLab_SOURCE_DIR}/deps/eigen
-  DOWNLOAD_COMMAND hg clone https://bitbucket.org/eigen/eigen/
+  URL http://graphlab.org/deps/eigen_3.0.5.tar.gz
+  BUILD_IN_SOURCE 1
   CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
   INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local)
 add_definitions(-DHAS_EIGEN)
