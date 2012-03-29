@@ -106,7 +106,7 @@ void init_lanczos(graph_type * g, bipartite_graph_descriptor & info){
      else g->vertex_data(i).pvec = zeros(3);
    }
    logstream(LOG_INFO)<<"Allocated a total of: " << 
-     ((double)(actual_vector_len * info.num_nodes(false) +3.0*info.num_nodes(true)) * sizeof(double)/ 1e6) << " MB for storing vectors." << std::endl;
+     ((double)(data_size * info.num_nodes(true) +3.0*info.num_nodes(false)) * sizeof(double)/ 1e6) << " MB for storing vectors." << " rows: " << info.num_nodes(true) << std::endl;
 }
 
 

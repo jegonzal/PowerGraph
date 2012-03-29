@@ -41,12 +41,14 @@ using namespace std;
 
 bool debug = false;
 bool quick = true;
+bool square_matrix = false;
 std::string datafile;
 graphlab::timer mytime;
 unsigned long long total_lines = 0;
 unsigned long long self_edges = 0;
 bool gzip = false;
 bool reverse_edges = false;
+bool no_edge_data = false;
 
 struct vertex_data {
   string filename;
@@ -89,14 +91,16 @@ struct stringzipparser_update :
 
     FILE * deg_file = open_file(vdata.filename + ".nodes", "w");
     FILE * edge_file = open_file(vdata.filename + ".edges", "w");
-    FILE * weight_file = open_file(vdata.filename + ".weights", "w");
+    FILE * weight_file = NULL; 
+    if (!no_edge_data)
+        weight_file = open_file(vdata.filename + ".weights", "w");
 
     //int deg_ptr = 0;
     uint edges_so_far = 0;
     fwrite(&edges_so_far, sizeof(int), 1, deg_file);
     int num_degree_written = 1;  
     
-    if (reverse_edges){
+    if (!square_matrix && reverse_edges){
       for (int k=0; k < info.rows-1; k++){
         fwrite(&edges_so_far, sizeof(int), 1, deg_file);
         num_degree_written++;
@@ -106,8 +110,8 @@ struct stringzipparser_update :
     int last_row = 0, last_col = 0;
     char linebuf[256], buf1[256], buf2[256], buf3[256];
     char saveptr[1024];
-    int line = 1;
-    int lines = context.get_global<int>("LINES");
+    uint line = 1;
+    uint lines = context.get_global<uint>("LINES");
     bool header = true;
  
     while(true){
@@ -138,14 +142,14 @@ struct stringzipparser_update :
        }
        strncpy(buf2, pch, 20);
         pch = strtok_r(NULL, "\r\n\t ;,",(char**)&saveptr);
-      if (!pch){
+      if (!pch && !no_edge_data){
         logstream(LOG_ERROR) 
           << "Error when parsing file: " << vdata.filename << ":" 
-          << line <<std::endl;
+          << line << " [ " << linebuf << " ] " << std::endl;
          return;
        }
-
-       strncpy(buf3, pch, 40);
+       if (pch)
+         strncpy(buf3, pch, 40);
         
         uint from, to;
         double val;
@@ -155,7 +159,8 @@ struct stringzipparser_update :
            assert(to > (uint)last_col);
         else assert(from > (uint)last_row); //file is sorted by 1st column
 
-        val = atof(buf3);
+	if (!no_edge_data)
+           val = atof(buf3);
         //matrix market size line- skip
         if (from == (uint)info.rows && 
             to == (uint)info.cols && 
@@ -166,13 +171,16 @@ struct stringzipparser_update :
         assert(to >=1 && to <= (uint)info.cols);
   	from--; to--;
 
-        fwrite(&val, sizeof(double), 1, weight_file);
+        if (!no_edge_data)
+           fwrite(&val, sizeof(double), 1, weight_file);
 
         if (reverse_edges){
            fwrite(&from, sizeof(int), 1, edge_file);
         }
         else {
-           uint abs_dst = to + info.rows;
+           uint abs_dst = to;
+           if (!square_matrix)
+                 abs_dst += info.rows;
            fwrite(&abs_dst, sizeof(int), 1, edge_file);
         }
 
@@ -209,26 +217,32 @@ struct stringzipparser_update :
    logstream(LOG_INFO) 
      << "Finished parsing total of " << line << " lines in file " 
      << vdata.filename << endl;
-   if (reverse_edges) {
-     for (int k=last_col; k < info.cols; k++){
-       fwrite(&edges_so_far, sizeof(int), 1, deg_file);
-       num_degree_written++;
+   if (!square_matrix){
+     if (reverse_edges) {
+       for (int k=last_col; k < info.cols; k++){
+         fwrite(&edges_so_far, sizeof(int), 1, deg_file);
+         num_degree_written++;
+       }
      }
-   }
-   else {
-     for (int k=last_row; k < info.rows+info.cols-1; k++){
-       fwrite(&edges_so_far, sizeof(int), 1, deg_file);
-       num_degree_written++;
+     else {
+       for (int k=last_row; k < info.rows+info.cols-1; k++){
+         fwrite(&edges_so_far, sizeof(int), 1, deg_file);
+         num_degree_written++;
+       }
      }
    }
    
     fwrite(&edges_so_far, sizeof(int), 1, deg_file);
     num_degree_written++;
-    assert(num_degree_written == info.rows+info.cols+1); 
+    if (!square_matrix)
+       assert(num_degree_written == info.rows+info.cols+1); 
+    else 
+       assert(num_degree_written == info.rows+1);
     assert((size_t)edges_so_far == info.nonzeros);
     
     fclose(deg_file);
-    fclose(weight_file);
+    if (!no_edge_data)
+       fclose(weight_file);
     fclose(edge_file);
 
     // close file
@@ -256,7 +270,7 @@ int main(int argc,  char *argv[]) {
   std::string dir = "/mnt/bigbrofs/usr3/bickson/phone_calls/";
   std::string outdir = "/mnt/bigbrofs/usr3/bickson/out_phone_calls/";
   int unittest = 0;
-  int lines = 0;
+  uint lines = 0;
   bool load = false;
   bool save_to_text = false;
   std::string filter = "";
@@ -278,6 +292,8 @@ int main(int argc,  char *argv[]) {
   clopts.attach_option("filter", &filter, filter, "Filter input files starting with prefix.. ");
   clopts.attach_option("gzip", &gzip, gzip, "gzipped input file");
   clopts.attach_option("reverse_edges", &reverse_edges, reverse_edges, "true = matrix market file is sorted by 2nd col. False - matrix market file is sorted by 1st column");
+  clopts.attach_option("no_edge_data", &no_edge_data, no_edge_data, "No edge data (format is <from> <to>\n)");
+  clopts.attach_option("square_matrix", &square_matrix, square_matrix, "Square matrix ? " );
   // Parse the command line arguments
   if(!clopts.parse(argc, argv)) {
     std::cout << "Invalid arguments!" << std::endl;

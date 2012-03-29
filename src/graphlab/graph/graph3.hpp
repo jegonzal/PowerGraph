@@ -60,6 +60,7 @@
 
 template<typename T>
 size_t array_from_file(std::string filename, T *& array){
+
           struct stat sb;
           int fd = open (filename.c_str(), O_RDONLY);
           if (fd == -1) {
@@ -314,7 +315,7 @@ namespace graphlab {
     EdgeData * in_edge_weights;
     char _color; //not implement yet
     EdgeData _edge;
-
+    bool _no_node_data;
   public:
 
     // CONSTRUCTORS ============================================================>
@@ -363,6 +364,7 @@ namespace graphlab {
        if (in_edge_weights != NULL){
          delete [] in_edge_weights; in_edge_weights = NULL;
        }
+       num_nodes = _num_edges = 0;
 }
 
     void clear_reserve() {
@@ -606,6 +608,7 @@ namespace graphlab {
 
     /** \brief Load the graph from a file */
     void load(const std::string& filename, bool no_node_data, bool no_edge_data) {
+         _no_node_data = no_edge_data;
          int rc =array_from_file(filename + ".nodes", node_out_degrees);
 	 num_nodes = (rc/4)-1;
          if (!no_node_data){
@@ -636,47 +639,88 @@ namespace graphlab {
          assert(edges[i] < (uint)n);
     }
 
+
+
+  enum parts{
+    PART_NODE_FILE = 0, 
+    PART_NODE_REVERSE_FILE = 1, 
+    PART_EDGE_FILE = 2, 
+    PART_EDGE_REVERSE_FILE = 3, 
+    PART_EDGE_WEIGHT_FILE = 4, 
+    PART_EDGE_REVERSE_WEIGHT_FILE = 5
+  };
+
+
+   void do_load_directed(const std::string & filename, bool no_node_data, bool no_edge_data, int part, double & total_mb_allocated, bool one_sided){
+     size_t rc = 0;
+     switch(part){
+         case PART_NODE_FILE:
+            rc =array_from_file(filename + ".nodes", node_out_degrees);
+	    num_nodes = (rc/4)-1;
+            if (!no_node_data){
+               if (node_vdata_array == NULL)
+                  node_vdata_array = new VertexData[num_nodes];
+                  assert(node_vdata_array != NULL);
+            }
+            total_mb_allocated += (num_nodes*sizeof(int))/1e6;
+            break;
+
+         case PART_NODE_REVERSE_FILE:
+	    if (one_sided) return;
+            rc =array_from_file(filename + "-r.nodes", node_in_degrees);
+            total_mb_allocated += (num_nodes*sizeof(int))/1e6;
+	    break;
+
+         case PART_EDGE_FILE: 
+             rc = array_from_file(filename + ".edges", node_out_edges);
+              _num_edges = (rc/sizeof(uint));
+             total_mb_allocated += (_num_edges*sizeof(double))/1e6;
+             //verify_edges(node_out_edges, _num_edges, num_nodes);
+
+	     break; 
+         
+         case PART_EDGE_REVERSE_FILE:
+	    if (one_sided) return;
+            rc = array_from_file(filename + "-r.edges", node_in_edges);
+            total_mb_allocated += (_num_edges*sizeof(int)/1e6);
+            //verify_edges(node_in_edges, _num_edges, num_nodes);
+            break;
+
+
+         case PART_EDGE_WEIGHT_FILE:
+            if (!no_edge_data){
+               rc = array_from_file(filename + ".weights", edge_weights);
+               logstream(LOG_INFO) << filename << " Read: " << _num_edges << " weights " << std::endl;
+               total_mb_allocated += (1.0*_num_edges*sizeof(double)/1e6);
+            }
+            break;
+
+
+         case PART_EDGE_REVERSE_WEIGHT_FILE:   
+           if (!no_edge_data){
+	      if (one_sided) return;
+              rc = array_from_file(filename + "-r.weights", in_edge_weights);
+              total_mb_allocated += (1.0*_num_edges*sizeof(double)/1e6);
+           }
+           break;
+   
+         default: assert(false);	
+     }
+
+   }
+
+
     /** \brief Load the graph from a file */
-    void load_directed(const std::string& filename, bool no_node_data, bool no_edge_data) {
+    void load_directed(const std::string& filename, bool no_node_data, bool no_edge_data, bool one_sided = false) {
          assert(!undirected);
          double total_mb_allocated = 0;
-         //read nodes from file
-         size_t rc =array_from_file(filename + ".nodes", node_out_degrees);
-	 num_nodes = (rc/4)-1;
-         if (!no_node_data){
-            if (node_vdata_array == NULL)
-              node_vdata_array = new VertexData[num_nodes];
-            assert(node_vdata_array != NULL);
-         }
-         size_t rc2 =array_from_file(filename + "-r.nodes", node_in_degrees);
-         assert(rc == rc2);
-         total_mb_allocated += (2.0*num_nodes*sizeof(int))/1e6;
-         logstream(LOG_INFO) << filename << " Read " << num_nodes << " nodes. Allocated size: " << ((double)2*num_nodes*sizeof(int)/1e6) << " MB." <<std::endl;
-
-         //read edges from file
-         rc = array_from_file(filename + ".edges", node_out_edges);
-         _num_edges = (rc/sizeof(uint));
-         rc2 = array_from_file(filename + "-r.edges", node_in_edges);
-         assert(rc == rc2);
-         total_mb_allocated += (2.0*_num_edges*sizeof(int)/1e6);
-  	 logstream(LOG_INFO) << filename << " Read " << (undirected? _num_edges/2 : _num_edges) << " edges. Allocated size: " <<((double)_num_edges*2*sizeof(int)/1e6) << " MB." << std::endl;
-         verify_edges(node_out_edges, _num_edges, num_nodes);
-         verify_edges(node_in_edges, _num_edges, num_nodes);
-
+ #pragma omp parallel for
+       for (int i=0; i< 6; i++){
+          do_load_directed(filename, no_node_data, no_edge_data, i, total_mb_allocated, one_sided);
+       } 
          //read edge weights from file (optional)
-         if (!no_edge_data){
-           rc = array_from_file(filename + ".weights", edge_weights);
-           assert(rc/sizeof(double) == size_t(_num_edges)); 
-           logstream(LOG_INFO) << filename << " Read: " << _num_edges << " weights " << std::endl;
-           rc = array_from_file(filename + "-r.weights", in_edge_weights);
-           assert(rc/sizeof(double) == size_t(_num_edges)); 
-           total_mb_allocated += (2.0*_num_edges*sizeof(double)/1e6);
-           logstream(LOG_INFO) << filename << " Read: " << _num_edges << " reverse weights. Allocated size: " << 
-                                  ((double)_num_edges*2*sizeof(double)/1e6) << " MB." << std::endl;
-           
-         }
-         logstream(LOG_INFO) << "Total allocated memory for storing input matrix is: " << total_mb_allocated <<  " MB." << std::endl;
-
+        logstream(LOG_INFO) << "Total allocated memory for storing input matrix is: " << total_mb_allocated <<  " MB." << std::endl;
+        logstream(LOG_INFO) << "Loaded a graph size of : " << num_nodes << " and " << _num_edges << " edges. " << std::endl;
          gnum_nodes = num_nodes;
          g_num_edges = _num_edges;
     } // end of load
