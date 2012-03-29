@@ -397,7 +397,7 @@ int main(int argc,  char *argv[]) {
   std::cout<<retmat<<std::endl;
 
 
-  vec ret = fill_output(&core.graph(), matrix_info, KCORE_INDEX);
+  vec ret = fill_output(pmultigraph, matrix_info, KCORE_INDEX);
   write_output_vector(datafile + "x.out", format, ret,false);
 
   if (unittest == 1){

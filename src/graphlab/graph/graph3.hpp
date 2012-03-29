@@ -720,7 +720,7 @@ namespace graphlab {
        } 
          //read edge weights from file (optional)
         logstream(LOG_INFO) << "Total allocated memory for storing input matrix is: " << total_mb_allocated <<  " MB." << std::endl;
-
+        logstream(LOG_INFO) << "Loaded a graph size of : " << num_nodes << " and " << _num_edges << " edges. " << std::endl;
          gnum_nodes = num_nodes;
          g_num_edges = _num_edges;
     } // end of load
