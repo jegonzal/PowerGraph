@@ -28,6 +28,7 @@
 #include <iostream>
 #include "graphlab.hpp"
 #include "graphlab/graph/graph3.hpp"
+#include "graphlab/graph/multigraph.hpp"
 #include "../shared/io.hpp"
 #include "../shared/types.hpp"
 using namespace graphlab;
@@ -35,10 +36,11 @@ using namespace graphlab;
 
 bool debug = false;
 int max_iter = 50;
-ivec active_nodes_num;
-ivec active_links_num;
+size_t * active_nodes_num;
+size_t * active_links_num;
 int iiter = 0; //current iteration
 int nodes = 0;
+timer gt;
 
 enum kcore_output_fields{
   KCORE_INDEX = 1
@@ -46,9 +48,9 @@ enum kcore_output_fields{
 
 struct vertex_data {
   bool active;
-  int kcore, degree;
+  unsigned char kcore;
 
-  vertex_data() : active(true), kcore(-1), degree(0)  {}
+  vertex_data() : active(true), kcore(-1){}
 
   void add_self_edge(double value) { }
 
@@ -68,23 +70,24 @@ struct edge_data {
   edge_data(double val)  { }
 };
 
+typedef graphlab::multigraph<vertex_data, edge_data> multigraph_type;
 typedef graphlab::graph3<vertex_data, edge_data> graph_type;
 
-void calc_initial_degree(graph_type * g, bipartite_graph_descriptor & desc){
-  int active = 0;
-  for (int i=0; i< desc.total(); i++){
-     vertex_data & data = g->vertex_data(i);
-     data.degree = g->out_edges(i).size() + g->in_edges(i).size();
-     assert(data.degree>= 0 && data.degree < nodes);
-     data.active = data.degree > 0;
-     if (data.active)
-       active++;
-  }
-  printf("Number of active nodes in round 0 is %d\n", active);
-  printf("Number of active links in round 0 is %d\n", (int)g->num_edges());
+typedef vertex_data vertex_data_type;
+typedef edge_data edge_data_type;
+typedef edge_list edge_list_type;
 
-  active_nodes_num[0] = active;
-  active_links_num[0] = g->num_edges();
+graph_type * pgraph;
+multigraph_type * pmultigraph;
+
+
+
+vec  fill_output(multigraph_type * g, bipartite_graph_descriptor & matrix_info, int field_type){
+  vec out = zeros(matrix_info.total());
+  for (int i = 0; i < matrix_info.total(); i++){
+    out[i] = g->get_vertex_data(i).get_output(field_type);
+  }
+  return out;
 }
 
 
@@ -182,6 +185,7 @@ int main(int argc,  char *argv[]) {
   global_logger().set_log_level(LOG_INFO);
   global_logger().set_log_to_console(true);
 
+  gt.start();
   graphlab::command_line_options clopts("GraphLab Linear Solver Library");
 
   std::string datafile;
@@ -189,7 +193,11 @@ int main(int argc,  char *argv[]) {
   int unittest = 0;
   int lineformat = MATRIX_MARKET_3;
   bool gzip = true;
-
+  bool stats = false;
+  std::string filter = "day";
+  std::string listdir = "/usr2/bickson/daily.sorted/";
+  std::string dirpath = "/usr2/bickson/bin.graphs/";
+ 
   clopts.attach_option("data", &datafile, datafile,
                        "matrix A input file");
   clopts.add_positional("data");
@@ -202,14 +210,24 @@ int main(int argc,  char *argv[]) {
   clopts.attach_option("max_iter", &max_iter, max_iter, "maximal number of cores");
   clopts.attach_option("nodes", &nodes, nodes, "number of nodes"); 
   clopts.attach_option("gzip", &gzip, gzip, "gzipped input file?");
+  clopts.attach_option("stats", &stats, stats, "calculate graph stats and exit");
+  clopts.attach_option("filter", & filter, filter, "Filter - parse files starting with prefix");
+  clopts.attach_option("listdir", &listdir, listdir, "Directory with list of files");
+  clopts.attach_option("dirpath", &dirpath, dirpath, "Directory path");
+
   // Parse the command line arguments
   if(!clopts.parse(argc, argv)) {
     std::cout << "Invalid arguments!" << std::endl;
     return EXIT_FAILURE;
   }
 
-  active_nodes_num = ivec(max_iter+1);
-  active_links_num = ivec(max_iter+1);
+   omp_set_num_threads(clopts.get_ncpus());
+
+  active_nodes_num = new size_t[max_iter+1];
+  active_links_num = new size_t[max_iter+1];
+  memset(active_links_num, 0, sizeof(size_t)*(max_iter+1));
+  memset(active_nodes_num, 0, sizeof(size_t)*(max_iter+1));
+
 
 
   logstream(LOG_WARNING)
@@ -235,26 +253,19 @@ int main(int argc,  char *argv[]) {
 
   std::cout << "Load graph" << std::endl;
   bipartite_graph_descriptor matrix_info;
-//  load_graph(datafile, format, matrix_info, core.graph(), lineformat);
-
-  //nodes=149747010;
-  nodes = 121408373;
-  int max_files = 1;
+  
+    multigraph_type multigraph;
+    multigraph.load(listdir, dirpath, filter, true);
+    pmultigraph = &multigraph;
+  if (stats){
+    calc_multigraph_stats_and_exit<multigraph_type>(&multigraph, matrix_info);
+  }
+ 
   matrix_info.rows = matrix_info.cols = nodes;
-  //matrix_info.nonzeros = 1000000000;
-  //std::string dirpath="/mnt/bigbrofs/usr0/bickson/out_phone_calls/";
-  //std::vector<std::string> in_files = list_all_files_in_dir(dirpath);
-  std::vector<std::string> in_files;
-  in_files.push_back(datafile);
-  std::string dirpath;
-  //core.graph().set_undirected();
-  core.set_scope_type("vertex");
+  core.set_scope_type("none");
   assert(in_files.size() > 0);
   for (int i=0; i< std::min(max_files, (int)in_files.size()); i++){
       graphlab::timer mt; mt.start();
-      /*load_cpp_graph(dirpath + in_files[i], format, 
-    	           matrix_info, core.graph(), 
-	           false, MATRIX_MARKET_3);*/
       core.graph().load_directed(dirpath + in_files[i], false, false);
 
     matrix_info.nonzeros = core.graph().num_edges();
@@ -271,15 +282,20 @@ int main(int argc,  char *argv[]) {
   } 
 
 
-  calc_initial_degree(&core.graph(), matrix_info);
-
-  //std::cout << "Schedule all vertices" << std::endl;
   core.schedule_all(kcore_update());
  
   aggregator acum;
   core.add_aggregator("sync", acum, 1000000000);
   core.add_global("NUM_ACTIVE", int(0));
 
+
+    multigraph_type multigraph;
+    multigraph.load(listdir, dirpath, filter, true);
+    pmultigraph = &multigraph;
+  if (stats){
+    calc_multigraph_stats_and_exit<multigraph_type>(&multigraph, matrix_info);
+  }
+ 
   graphlab::timer mytimer; mytimer.start();
 
   for (iiter=1; iiter< max_iter+1; iiter++){

@@ -82,22 +82,6 @@ struct edge_data {
 
 typedef graphlab::graph2<vertex_data, edge_data> graph_type;
 
-void calc_initial_degree(graph_type * g, bipartite_graph_descriptor & desc){
-  int active = 0;
-  for (int i=0; i< desc.total(); i++){
-     vertex_data & data = g->vertex_data(i);
-     data.degree = g->out_edges(i).size() + g->in_edges(i).size();
-     data.active = data.degree > 0;
-     if (data.active)
-       active++;
-  }
-  printf("Number of active nodes in round 0 is %d\n", active);
-  printf("Number of active links in round 0 is %d\n", (int)g->num_edges());
-
-  active_nodes_num[0] = active;
-  active_links_num[0] = g->num_edges();
-}
-
 
 struct kcore_update :
   public graphlab::iupdate_functor<graph_type, kcore_update> {
@@ -137,23 +121,6 @@ public:
           increasing_links++;
         }
     }
-
-    /* Version 2 */
-    // foreach(edge_type e, context.out_edges()) {
-    //   const vertex_data &other = context.const_vertex_data(e.target());
-    //   if (other.active){
-    //   	  cur_links++;
-    //       increasing_links++;
-    //     }
-    // }
-
-    // foreach(edge_type e, context.in_edges()) {
-    //   const vertex_data &other = context.const_vertex_data(e.source());
-    //   if (other.active){
-    //     cur_links++;
-    //     increasing_links++;
-    //   }
-    // }
 
     if (cur_links <= cur_iter){
         vdata.active = false;

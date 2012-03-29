@@ -106,7 +106,7 @@ struct stringzipparser_update :
     int last_row = 0, last_col = 0;
     char linebuf[256], buf1[256], buf2[256], buf3[256];
     char saveptr[1024];
-    int line = 1;
+    uint line = 1;
     int lines = context.get_global<int>("LINES");
     bool header = true;
  

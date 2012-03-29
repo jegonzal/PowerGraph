@@ -51,7 +51,8 @@ enum kcore_output_fields{
 
 struct vertex_data {
   bool active;
-  int kcore, degree;
+  unsigned char kcore;
+  uint degree;
 
   vertex_data() : active(true), kcore(-1), degree(0)  {}
 
@@ -75,6 +76,7 @@ struct edge_data {
 
 typedef graphlab::graph3<vertex_data, edge_data> graph_type;
 
+/*
 void calc_initial_degree(graph_type * g, bipartite_graph_descriptor & desc){
   int active = 0;
   for (int i=0; i< desc.total(); i++){
@@ -90,7 +92,7 @@ void calc_initial_degree(graph_type * g, bipartite_graph_descriptor & desc){
   active_nodes_num[0] = active;
   active_links_num[0] = g->num_edges();
 }
-
+*/
 
 
 
