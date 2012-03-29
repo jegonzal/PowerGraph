@@ -116,6 +116,7 @@ namespace graphlab {
 
 
     const std::vector<VertexData> *get_node_vdata(){ return &node_vdata_array; }
+    inline VertexData & get_vertex_data(vertex_id_type v){ return node_vdata_array[v]; }
 
     edge_list_type in_edges(const vertex_id_type v) const{
       assert(false);
@@ -360,10 +361,10 @@ namespace graphlab {
        return in_files[ref];
     }  
  
-		void doload(int i, bool no_node_data = false, bool no_edge_data = false){
+		void doload(int i, bool no_node_data = false, bool no_edge_data = false, bool one_sided = false){
        graphlab::timer mt; mt.start();
        graph3<VertexData,EdgeData> *graph = new graph3<VertexData,EdgeData>();
-       graph->load_directed(in_files[i], no_node_data, no_edge_data);
+       graph->load_directed(in_files[i], no_node_data, no_edge_data, one_sided);
        logstream(LOG_INFO)<<"Time taken to load: " << mt.current_time() << std::endl;
        num_nodes = graph->num_vertices();
        if (node_vdata_array.size() == 0)
@@ -373,7 +374,7 @@ namespace graphlab {
         }
 
     void unload_all(){
-       for (int i=0; i< num_graphs(); i++){
+       for (int i=0; i< graphs.size(); i++){
            graphs[i]->clear();
            delete graphs[i];
        }

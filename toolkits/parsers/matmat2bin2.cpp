@@ -47,6 +47,7 @@ unsigned long long total_lines = 0;
 unsigned long long self_edges = 0;
 bool gzip = false;
 bool reverse_edges = false;
+bool no_edge_data = false;
 
 struct vertex_data {
   string filename;
@@ -89,7 +90,9 @@ struct stringzipparser_update :
 
     FILE * deg_file = open_file(vdata.filename + ".nodes", "w");
     FILE * edge_file = open_file(vdata.filename + ".edges", "w");
-    FILE * weight_file = open_file(vdata.filename + ".weights", "w");
+    FILE * weight_file = NULL; 
+    if (!no_edge_data)
+        weight_file = open_file(vdata.filename + ".weights", "w");
 
     //int deg_ptr = 0;
     uint edges_so_far = 0;
@@ -138,14 +141,14 @@ struct stringzipparser_update :
        }
        strncpy(buf2, pch, 20);
         pch = strtok_r(NULL, "\r\n\t ;,",(char**)&saveptr);
-      if (!pch){
+      if (!pch && !no_edge_data){
         logstream(LOG_ERROR) 
           << "Error when parsing file: " << vdata.filename << ":" 
-          << line <<std::endl;
+          << line << " [ " << linebuf << " ] " << std::endl;
          return;
        }
-
-       strncpy(buf3, pch, 40);
+       if (pch)
+         strncpy(buf3, pch, 40);
         
         uint from, to;
         double val;
@@ -155,7 +158,8 @@ struct stringzipparser_update :
            assert(to > (uint)last_col);
         else assert(from > (uint)last_row); //file is sorted by 1st column
 
-        val = atof(buf3);
+	if (!no_edge_data)
+           val = atof(buf3);
         //matrix market size line- skip
         if (from == (uint)info.rows && 
             to == (uint)info.cols && 
@@ -166,7 +170,8 @@ struct stringzipparser_update :
         assert(to >=1 && to <= (uint)info.cols);
   	from--; to--;
 
-        fwrite(&val, sizeof(double), 1, weight_file);
+        if (!no_edge_data)
+           fwrite(&val, sizeof(double), 1, weight_file);
 
         if (reverse_edges){
            fwrite(&from, sizeof(int), 1, edge_file);
@@ -228,7 +233,8 @@ struct stringzipparser_update :
     assert((size_t)edges_so_far == info.nonzeros);
     
     fclose(deg_file);
-    fclose(weight_file);
+    if (!no_edge_data)
+       fclose(weight_file);
     fclose(edge_file);
 
     // close file
@@ -278,6 +284,7 @@ int main(int argc,  char *argv[]) {
   clopts.attach_option("filter", &filter, filter, "Filter input files starting with prefix.. ");
   clopts.attach_option("gzip", &gzip, gzip, "gzipped input file");
   clopts.attach_option("reverse_edges", &reverse_edges, reverse_edges, "true = matrix market file is sorted by 2nd col. False - matrix market file is sorted by 1st column");
+  clopts.attach_option("no_edge_data", &no_edge_data, no_edge_data, "No edge data (format is <from> <to>\n)");
   // Parse the command line arguments
   if(!clopts.parse(argc, argv)) {
     std::cout << "Invalid arguments!" << std::endl;
