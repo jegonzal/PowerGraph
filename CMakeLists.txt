@@ -52,6 +52,7 @@ link_directories(${GraphLab_SOURCE_DIR}/deps/local/lib)
 ExternalProject_Add(eigen
   PREFIX ${GraphLab_SOURCE_DIR}/deps/eigen
   URL http://graphlab.org/deps/eigen_3.0.5.tar.gz
+  URL_MD5 73f47ddc6a2b540356864bfc8a34f5d7
   CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
   -DEIGEN_BUILD_PKGCONFIG=NO
   INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local)
@@ -67,6 +68,7 @@ include_directories(${GraphLab_SOURCE_DIR}/deps/local/include/eigen3)
 ExternalProject_Add(boost
   PREFIX ${GraphLab_SOURCE_DIR}/deps/boost
   URL "http://sourceforge.net/projects/boost/files/boost/1.49.0/boost_1_49_0.tar.gz"
+  URL_MD5 e0defc8c818e4f1c5bbb29d0292b76ca 
   BUILD_IN_SOURCE 1
   CONFIGURE_COMMAND ./bootstrap.sh 
   --with-libraries=filesystem
