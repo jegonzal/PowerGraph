@@ -321,7 +321,8 @@ int main(int argc,  char *argv[]) {
     calc_multigraph_stats_and_exit<multigraph_type>(&multigraph, matrix_info);
   }
   graphlab::timer mytimer; mytimer.start();
-
+  bool single_graph = (pmultigraph->num_graphs() == 1);
+  bool first_time = true;
 
   int pass = 0;
   for (iiter=1; iiter< max_iter+1; iiter++){
@@ -331,7 +332,8 @@ int main(int argc,  char *argv[]) {
       num_active = 0; links = 0;
 
       for (int i=0; i< multigraph.num_graphs(); i++){
-       multigraph.doload(i, true, true, true);
+        if (!single_graph || first_time)
+           multigraph.doload(i, true, true, true);
        core.graph() = *multigraph.graph(0);
        matrix_info.nonzeros = core.graph().num_edges();
        matrix_info.rows = matrix_info.cols = core.graph().num_vertices();
@@ -349,7 +351,9 @@ int main(int argc,  char *argv[]) {
               update_function_Axb(con);
             }
        }
-       multigraph.unload_all(); 
+       if (!single_graph)
+          multigraph.unload_all(); 
+       else first_time = false;
       }
       int t;
 #pragma omp parallel for private(t) reduction(+: num_active)
@@ -384,6 +388,11 @@ int main(int argc,  char *argv[]) {
 
   std::cout<<active_nodes_num<<std::endl;
   std::cout<<active_links_num<<std::endl;
+  active_nodes_num[0] = pmultigraph->num_vertices();
+  active_links_num[0] = pmultigraph->num_edges();
+  set_val(retmat, 0, 1, active_nodes_num[0]);
+  set_val(retmat, 0, 2, active_nodes_num[0]);
+  set_val(retmat, 0, 3, active_links_num[0]);
 
   for (int i=0; i <= max_iter; i++){
     set_val(retmat, i, 0, i);
