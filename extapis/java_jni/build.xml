@@ -16,7 +16,8 @@
     
     <path id="GraphLab.classpath">
         <pathelement location="${bin}"/>
-        <pathelement location="${lib}/*"/>
+        <pathelement location="${lib}"/>
+        <fileset dir="${lib}/" includes="*.jar"/>
     </path>
     
     <path id="run.ShortestPath.classpath">
