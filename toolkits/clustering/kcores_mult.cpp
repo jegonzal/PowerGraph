@@ -37,6 +37,7 @@
 using namespace graphlab;
 
 bool debug = false;
+bool twosided = false;
 int max_iter = 50;
 size_t * active_nodes_num;
 size_t * active_links_num;
@@ -50,7 +51,7 @@ enum kcore_output_fields{
 
 struct vertex_data {
   bool active;
-  unsigned char kcore;
+  unsigned short kcore;
   uint cur_links;
 
   vertex_data() : active(true), kcore(-1), cur_links(0)  {}
@@ -172,7 +173,7 @@ public:
     int increasing_links = 0;
     
     edge_list_type edges = context.out_edges();
-    //edge_list_type inedgeid = context.in_edges();
+    edge_list_type inedges = context.in_edges();
    for (uint * start = edges.start_ptr + edges.abs_offset; start < edges.start_ptr + edges.abs_offset + edges._size; start++){
     //for(size_t i = 0; i < outedgeid.size(); i++) {
       const vertex_data & other = context.const_vertex_data(*start);
@@ -181,11 +182,15 @@ public:
           increasing_links++;
         }
     }
-    /*for (size_t i =0; i < inedgeid.size(); i++){
-      const vertex_data & other = context.const_vertex_data(inedgeid[i].source());
-        if (other.active)
-          vdata.cur_links++;
-    }*/
+
+   if (twosided){
+     for (uint * start = inedges.start_ptr + inedges.abs_offset; start < inedges.start_ptr + inedges.abs_offset + inedges._size; start++){
+     //for (size_t i =0; i < inedgeid.size(); i++){
+        const vertex_data & other = context.const_vertex_data(*start);
+          if (other.active)
+            vdata.cur_links++;
+     }
+    }
    links += increasing_links;
    if (debug)
        logstream(LOG_INFO)<<"Exting node: " << id << " with: " << vdata.cur_links << " status: " << vdata.active << std::endl;
@@ -199,11 +204,11 @@ public:
   }
 
   void finalize(iglobal_context_type& context) {
-   active_nodes_num[iiter] = num_active;
    if (num_active == 0)
 	links = 0;
    printf("Number of active nodes in round %d is %ld, links: %ld at time %lg\n", iiter, num_active, links, gt.current_time());
    active_links_num[iiter] = links;
+   active_nodes_num[iiter] = num_active;
 
    if (num_active == 0){
      context.terminate(); 
@@ -213,11 +218,11 @@ public:
 }; // end of  aggregator
 #else
   void finalize() {
-   active_nodes_num[iiter] = num_active;
    if (num_active == 0)
 	links = 0;
    printf("Number of active nodes in round %d is %ld, links: %ld at time %lg\n", iiter, num_active, links, gt.current_time());
    active_links_num[iiter] = links;
+   active_nodes_num[iiter] = num_active;
 
    if (num_active == 0){
      max_iter = iiter;
@@ -261,7 +266,7 @@ int main(int argc,  char *argv[]) {
   clopts.attach_option("filter", & filter, filter, "Filter - parse files starting with prefix");
   clopts.attach_option("listdir", &listdir, listdir, "Directory with list of files");
   clopts.attach_option("dirpath", &dirpath, dirpath, "Directory path");
-
+  clopts.attach_option("twosided", &twosided, twosided, "count incoming and outgoing links as two edges");
   // Parse the command line arguments
   if(!clopts.parse(argc, argv)) {
     std::cout << "Invalid arguments!" << std::endl;
@@ -328,12 +333,12 @@ int main(int argc,  char *argv[]) {
   for (iiter=1; iiter< max_iter+1; iiter++){
     logstream(LOG_INFO)<<mytimer.current_time() << ") Going to run k-cores iteration " << iiter << " at time: " << gt.current_time() << std::endl;
     while(true){
-      int prev_nodes = active_nodes_num[iiter];
+      size_t prev_nodes = active_nodes_num[iiter];
       num_active = 0; links = 0;
 
       for (int i=0; i< multigraph.num_graphs(); i++){
         if (!single_graph || first_time)
-           multigraph.doload(i, true, true, true);
+           multigraph.doload(i, true, true, !twosided);
        core.graph() = *multigraph.graph(0);
        matrix_info.nonzeros = core.graph().num_edges();
        matrix_info.rows = matrix_info.cols = core.graph().num_vertices();
@@ -356,6 +361,7 @@ int main(int argc,  char *argv[]) {
        else first_time = false;
       }
       int t;
+      num_active = 0;
 #pragma omp parallel for private(t) reduction(+: num_active)
      for (t=0; t< matrix_info.total(); t++){
          vertex_data& vdata = pmultigraph->get_vertex_data(t);
@@ -373,7 +379,7 @@ int main(int argc,  char *argv[]) {
       finalize();
 #endif
       pass++;
-      int cur_nodes = active_nodes_num[iiter];
+      size_t cur_nodes = active_nodes_num[iiter];
       if (prev_nodes == cur_nodes)
         break; 
     }
@@ -383,8 +389,7 @@ int main(int argc,  char *argv[]) {
  
   std::cout << "KCORES finished in " << mytimer.current_time() << std::endl;
   std::cout << "Number of updates: " << pass*core.graph().num_vertices() << " pass: " << pass << std::endl;
-  imat retmat = imat(max_iter+1, 4);
-  memset((int*)data(retmat),0,sizeof(int)*retmat.size());
+  imat retmat = imat::Zero(max_iter+1, 4);
 
   std::cout<<active_nodes_num<<std::endl;
   std::cout<<active_links_num<<std::endl;
@@ -397,7 +402,7 @@ int main(int argc,  char *argv[]) {
   for (int i=0; i <= max_iter; i++){
     set_val(retmat, i, 0, i);
     if (i >= 1){
-      set_val(retmat, i, 1, active_nodes_num[i-1]-active_nodes_num[i]);
+      set_val(retmat, i, 1, active_nodes_num[i]);
       set_val(retmat, i, 2, active_nodes_num[0]-active_nodes_num[i]);
       set_val(retmat, i, 3, active_links_num[i]);
     }
