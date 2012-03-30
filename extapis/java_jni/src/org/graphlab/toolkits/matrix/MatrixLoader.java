@@ -118,19 +118,18 @@ public class MatrixLoader {
   public static <V extends Vertex> void
     loadGraphFromMM(
         WeightedGraph<V, DefaultWeightedEdge> graph,
+        Map<Integer, V> vertices,
         Class<V> vertexClass,
         String filename)
   throws IOException, InstantiationException, IllegalAccessException {
     
-    if (null == graph || null == vertexClass || null == filename)
+    if (null == graph || null ==vertices ||
+        null == vertexClass || null == filename)
       throw new NullPointerException("graph, vertexClass, and filename cannot be null.");
     
     // read matrix metadata
     MatrixVectorReader reader = new MatrixVectorReader(new FileReader(filename));
     MatrixSize size = reader.readMatrixSize(reader.readMatrixInfo());
-    
-    // I really need this - hashcode trick doesn't work
-    Map<Integer, V> vertices = new HashMap<Integer, V>();
     
     // iterate through file entries and construct graph
     int[] row = new int[1];
@@ -171,6 +170,7 @@ public class MatrixLoader {
       
       V vertex = vertexClass.newInstance();
       vertex.setId(i);
+      vertices.put(i, vertex);
       graph.addVertex(vertex);
       
     }

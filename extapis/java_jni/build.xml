@@ -118,10 +118,10 @@
     </target>
 
     <target name="Als">
-        <echo message="Arguments: ${file}"/>
+        <echo message="Arguments: ${train-data} ${test-data}"/>
         <java classname="org.graphlab.toolkits.matrix.als.Als" failonerror="true" fork="yes">
             <jvmarg line="-Djava.library.path=${lib}"/>
-            <arg line="${file}"/>
+            <arg line="--train-data=${train-data} --test-data=${test-data}"/>
             <classpath refid="run.Als.classpath"/>
         </java>
     </target>

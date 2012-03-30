@@ -1,11 +1,16 @@
 package org.graphlab.toolkits.matrix.als;
 
+import java.io.FileReader;
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 
 import no.uib.cipr.matrix.DenseCholesky;
 import no.uib.cipr.matrix.DenseMatrix;
 import no.uib.cipr.matrix.DenseVector;
+import no.uib.cipr.matrix.io.MatrixSize;
+import no.uib.cipr.matrix.io.MatrixVectorReader;
 
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
@@ -52,6 +57,12 @@ public class Als {
   /** Convergence tolerance */
   private static final double TOLERANCE = 1e-2;
   
+  /** Maximum possible rating */
+  private static double UPPER_BOUND = Double.MAX_VALUE;
+  
+  /** Minimum possible rating */
+  private static double LOWER_BOUND = Double.MIN_VALUE;
+  
   private static final Logger logger = Logger.getLogger(Als.class);
   
   /**
@@ -70,12 +81,21 @@ public class Als {
     CommandLine cmd = parseCommandLine(args);
     String filename = cmd.getOptionValue("train-data");
     
+    if (cmd.hasOption("upper-bound")){
+      UPPER_BOUND = Double.parseDouble(cmd.getOptionValue("upper-bound"));
+    }
+    
+    if (cmd.hasOption("lower-bound")){
+      LOWER_BOUND = Double.parseDouble(cmd.getOptionValue("lower-bound"));
+    }
+    
     initLogger();
     
     // construct graph
+    Map<Integer, AlsVertex> vertices = new HashMap<Integer, AlsVertex>();
     SimpleWeightedGraph<AlsVertex, DefaultWeightedEdge>
       graph = new SimpleWeightedGraph<AlsVertex, DefaultWeightedEdge>(DefaultWeightedEdge.class);
-    MatrixLoader.loadGraphFromMM(graph, AlsVertex.class, filename);
+    MatrixLoader.loadGraphFromMM(graph, vertices, AlsVertex.class, filename);
     randomLatentFactors(graph, NLATENT);
     
     // init graphlab core
@@ -96,6 +116,11 @@ public class Als {
     // done
     core.destroy();
     
+    // validate
+    if (cmd.hasOption("test-data")){
+      validate(vertices, cmd.getOptionValue("test-data"));
+    }
+    
   }
   
   /**
@@ -115,28 +140,36 @@ public class Als {
       
       Option trainData = OptionBuilder
                            .withArgName("train-data")
-                           .withDescription("training matrix")
+                           .withDescription("File containing training matrix")
                            .withLongOpt("train-data")
                            .withType("")
                            .isRequired()
                            .hasArg()
                            .create();
+      Option testData = OptionBuilder
+                          .withArgName("test-data")
+                          .withDescription("File containing test matrix")
+                          .withLongOpt("test-data")
+                          .withType("")
+                          .hasArg()
+                          .create();
       Option upperBound = OptionBuilder
                             .withArgName("upper-bound")
-                            .withDescription("maximum rating")
+                            .withDescription("Maximum rating")
                             .withLongOpt("upper-bound")
                             .withType(0.0)
                             .hasArg()
                             .create();
       Option lowerBound = OptionBuilder
                             .withArgName("lower-bound")
-                            .withDescription("minimum rating")
+                            .withDescription("Minimum rating")
                             .withLongOpt("lower-bound")
                             .withType(0.0)
                             .hasArg()
                             .create();
       
       options.addOption(trainData);
+      options.addOption(testData);
       options.addOption(upperBound);
       options.addOption(lowerBound);
       
@@ -174,6 +207,54 @@ public class Als {
     BasicConfigurator.configure();
     Logger.getLogger(Core.class).setLevel(Level.INFO);
     logger.setLevel(Level.ALL);
+  }
+  
+  /**
+   * Validates learned model against training data. Prints test error.
+   * @param vertices
+   *          Map containing ALS vertices; each vertex contains a vector of latent factors.
+   * @param filename
+   *          Path to test file.
+   * @throws IOException
+   */
+  private static void
+    validate(Map<Integer, AlsVertex> vertices, String filename)
+    throws IOException{
+    
+    // read matrix meta-data
+    MatrixVectorReader reader = new MatrixVectorReader(new FileReader(filename));
+    MatrixSize size = reader.readMatrixSize(reader.readMatrixInfo());
+    
+    int[] row = new int[1];
+    int[] col = new int[1];
+    double[] data = new double[1];
+    double sumSquaredErrors = 0;
+    
+    // iterate through file entries and test
+    for (int i=0; i<size.numEntries(); i++){
+      
+      reader.readCoordinate(row, col, data);
+      
+      int sourceID = row[0];
+      int targetID = size.numRows() + col[0];
+      double expected = data[0];
+      
+      AlsVertex source = vertices.get(sourceID);
+      AlsVertex target = vertices.get(targetID);
+      if (null == source)
+        throw new IOException ("Vertex " + sourceID + " not found.");
+      if (null == target)
+        throw new IOException ("Vertex " + targetID + " not found.");
+      
+      double error = source.vector().dot(target.vector()) - expected;
+      sumSquaredErrors = error * error;
+      
+    }
+    
+    double rms = sumSquaredErrors/size.numEntries();
+    logger.info("-------- Test Results --------");
+    logger.info("RMS: " + rms);
+    
   }
   
   /**
@@ -247,14 +328,22 @@ public class Als {
       
       // update the rmse and reschedule neighbors -------------------------------
       for (final DefaultWeightedEdge edge : edges) {
+        
         // get the neighbor id
         AlsVertex neighbor = Graphs.getOppositeVertex(mGraph, edge, vertex);
-        final double pred = vertex.vector().dot(neighbor.vector());
+        double pred = vertex.vector().dot(neighbor.vector());
+        
+        // truncate
+        pred = Math.min(pred, UPPER_BOUND);
+        pred = Math.max(pred, LOWER_BOUND);
+        
         final double error = Math.abs(mGraph.getEdgeWeight(edge) - pred);
         vertex.mSquaredError += error*error;
+        
         // reschedule neighbors ------------------------------------------------
         if( error > TOLERANCE && vertex.mResidual > TOLERANCE) 
           context.schedule(neighbor, new AlsUpdater(mGraph, error * vertex.mResidual));
+        
       }
       
     } // end of operator()
@@ -307,6 +396,7 @@ public class Als {
 
     @Override
     protected void finalize(Context context) {
+      logger.info("-------- Train Results --------");
       logger.info("Average RMS: " +
           Math.sqrt(mSumSquaredErrors/(2*mGraph.edgeSet().size())));
       logger.info("Max RMS: " + mMaxRootMeanSquaredError);
