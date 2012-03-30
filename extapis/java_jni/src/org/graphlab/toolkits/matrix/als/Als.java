@@ -251,7 +251,7 @@ public class Als {
       
     }
     
-    double rms = sumSquaredErrors/size.numEntries();
+    double rms = Math.sqrt(sumSquaredErrors/size.numEntries());
     logger.info("-------- Test Results --------");
     logger.info("RMS: " + rms);
     
