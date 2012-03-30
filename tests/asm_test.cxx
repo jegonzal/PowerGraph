@@ -1,5 +1,5 @@
 #include <graphlab/graph/graph.hpp>
-#include <graphlab/asm/abstract_asm.hpp>
+#include <graphlab/util/asm/abstract_asm.hpp>
 
 using namespace graphlab;
 
