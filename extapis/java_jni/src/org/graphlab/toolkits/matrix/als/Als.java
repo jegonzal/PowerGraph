@@ -7,6 +7,14 @@ import no.uib.cipr.matrix.DenseCholesky;
 import no.uib.cipr.matrix.DenseMatrix;
 import no.uib.cipr.matrix.DenseVector;
 
+import org.apache.commons.cli.CommandLine;
+import org.apache.commons.cli.CommandLineParser;
+import org.apache.commons.cli.HelpFormatter;
+import org.apache.commons.cli.Option;
+import org.apache.commons.cli.OptionBuilder;
+import org.apache.commons.cli.Options;
+import org.apache.commons.cli.ParseException;
+import org.apache.commons.cli.PosixParser;
 import org.apache.log4j.BasicConfigurator;
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
@@ -25,20 +33,23 @@ import org.jgrapht.WeightedGraph;
 import org.jgrapht.graph.DefaultWeightedEdge;
 import org.jgrapht.graph.SimpleWeightedGraph;
 
-
 /**
  * Matrix factorization w. alternating least squares.
- * TODO allow edge to store observation and weights
+ * Adapted from Gonzalez's original ALS code.
+ * 
  * @author Jiunn Haur Lim <jiunnhal@cmu.edu>
- * Adapted from Danny Bickson's original ALS code
+ * @see
+ * <a href="http://code.google.com/p/graphlabapi/source/browse/toolkits/matrix_factorization/als.cpp?name=v2">GraphLab ALS</a>
  */
 public class Als {
   
   /** Number of latent factors */
   private static final int NLATENT = 20;
-  // private static final int NLATENT = 2;
   
+  /** Regularization parameter */
   private static final double LAMBDA = 0.065;
+  
+  /** Convergence tolerance */
   private static final double TOLERANCE = 1e-2;
   
   private static final Logger logger = Logger.getLogger(Als.class);
@@ -55,9 +66,9 @@ public class Als {
   public static void main(String[] args)
     throws IOException, CoreException, InstantiationException, IllegalAccessException {
     
-    // check arguments
-    if (!checkParams(args)) return;
-    String filename = args[0];
+    // parse command line
+    CommandLine cmd = parseCommandLine(args);
+    String filename = cmd.getOptionValue("train-data");
     
     initLogger();
     
@@ -82,29 +93,63 @@ public class Als {
     core.addAggregator("agg", new AlsAggregator(graph), 0);
     core.aggregateNow("agg");
     
+    // done
     core.destroy();
     
   }
   
   /**
-   * Checks that required input parameters are available and valid. Prints
-   * instructions if not all parameters were valid.
-   * 
+   * Parses command line arguments. Prints help message and exits on
+   * ParseException.
    * @param args
-   *          array of program arguments
-   * @return true if parameters are OK; false otherwise
+   * @return parser
    */
-  private static boolean checkParams(String[] args) {
-
-    if (args.length != 1) {
-      System.out.println("Please provide filename.");
-      System.out.println("Usage: java -Djava.library.path=... "
-          + Als.class.getCanonicalName() + " path/to/matrix/file");
-      return false;
+  @SuppressWarnings("static-access")
+  private static CommandLine parseCommandLine(String[] args){
+    
+    CommandLineParser parser = new PosixParser();
+    Options options = new Options();
+    CommandLine cmd = null;
+    
+    try {
+      
+      Option trainData = OptionBuilder
+                           .withArgName("train-data")
+                           .withDescription("training matrix")
+                           .withLongOpt("train-data")
+                           .withType("")
+                           .isRequired()
+                           .hasArg()
+                           .create();
+      Option upperBound = OptionBuilder
+                            .withArgName("upper-bound")
+                            .withDescription("maximum rating")
+                            .withLongOpt("upper-bound")
+                            .withType(0.0)
+                            .hasArg()
+                            .create();
+      Option lowerBound = OptionBuilder
+                            .withArgName("lower-bound")
+                            .withDescription("minimum rating")
+                            .withLongOpt("lower-bound")
+                            .withType(0.0)
+                            .hasArg()
+                            .create();
+      
+      options.addOption(trainData);
+      options.addOption(upperBound);
+      options.addOption(lowerBound);
+      
+      cmd = parser.parse(options, args);
+    
+    }catch (ParseException e){
+      // automatically generate the help statement
+      new HelpFormatter().printHelp( Als.class.getCanonicalName(), options );
+      System.exit(2);
     }
-
-    return true;
-
+    
+    return cmd;
+    
   }
   
   /**
