@@ -17,13 +17,6 @@ add_custom_command(
   COMMENT "Copying graphlabjni to extapis/java_jni/lib")
   
 # if ant is found, build Java classes
-find_file(ANT_EXEC NAMES ant ant.sh ant.bat PATHS $ENV{ANT_HOME}/bin)
-
-INCLUDE(FindPackageHandleStandardArgs)
-FIND_PACKAGE_HANDLE_STANDARD_ARGS(ANT DEFAULT_MSG ANT_EXEC)
-
-MARK_AS_ADVANCED(ANT_EXEC)
-
 if(ANT_FOUND)
   add_custom_command(
     TARGET graphlabjni
@@ -31,5 +24,6 @@ if(ANT_FOUND)
     COMMAND cd ${CMAKE_SOURCE_DIR}/extapis/java_jni && ant
     COMMENT "Building Java classes using Ant.")
 else()
-  message(STATUS "Ant not detected. Java classes will not be built.") 
+  message(STATUS
+    "Ant not detected. Java classes will not be built.") 
 endif()

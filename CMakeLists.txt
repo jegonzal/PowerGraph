@@ -168,6 +168,7 @@ endif()
 
 ## Not used currently
 # find_package(Java)
+find_package(Ant)
 
 
 ## ===================================================================
@@ -730,7 +731,7 @@ if (IS_DIRECTORY ${GraphLab_SOURCE_DIR}/apps)
 endif()
 
 subdirs(demoapps toolkits)
-
+subdirs(extapis)
   
 
 
