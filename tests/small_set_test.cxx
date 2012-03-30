@@ -146,7 +146,6 @@ public:
               set2 - set1);
   }
 
-
   void test_range_iteration() {
     typedef std::pair<int, std::string> pair_type;
     typedef small_set<20, pair_type > set_type;
@@ -159,64 +158,6 @@ public:
     std::cout << std::endl;
   }
 
-  void test_union_speed() {
-    typedef small_set<20, int> set_type;
-    typedef std::set<int> true_set_type;
-    typedef boost::unordered_set<int> boost_set_type;
-    size_t max_iter = 1000000;
-    true_set_type true_set1;
-    set_type set1;
-    boost_set_type boost_set1;
-    for(size_t i = 0; i < 15; ++i) {
-      true_set1.insert(i);
-      set1.insert(i);
-      boost_set1.insert(i);
-    }
-    ASSERT_EQ(set_type(true_set1), set1);
-    true_set_type true_set2;
-    set_type set2;
-    boost_set_type boost_set2;
-    for(size_t i = 5; i < 20; ++i) {
-      true_set2.insert(i);
-      set2.insert(i);
-      boost_set2.insert(i);
-    }
-    ASSERT_EQ(set_type(true_set2), set2);
-    
-
-    timer time;
-
-
-
-    set_type set3;
-    time.start();
-    for(size_t i = 0; i < max_iter; ++i) {
-      set3 = set1 + set2;
-    }
-    std::cout << "small set time: " << time.current_time() << std::endl;
-
-
-    boost_set_type boost_set3;
-    time.start();
-    for(size_t i = 0; i < max_iter; ++i) {
-      boost_set3.clear();
-      boost_set3.insert(boost_set1.begin(), boost_set1.end());
-      boost_set3.insert(boost_set2.begin(), boost_set2.end());
-    }
-    std::cout << "boost set time: " << time.current_time() << std::endl;
-
-
-    true_set_type true_set3;
-    time.start();
-    for(size_t i = 0; i < max_iter; ++i) {
-      true_set3 = set_union(true_set1, true_set2);
-    }
-    std::cout << "Std set time: " << time.current_time() << std::endl;
-
-    ASSERT_EQ(set_type(true_set3), set3);
-
-
-  }
   
 
 };
