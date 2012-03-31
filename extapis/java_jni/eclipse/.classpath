@@ -9,6 +9,10 @@
 	<classpathentry kind="lib" path="lib/mtj-0.9.14.jar"/>
 	<classpathentry kind="lib" path="lib/netlib-java-0.9.3.jar"/>
 	<classpathentry kind="lib" path="lib/commons-cli-1.2.jar"/>
-	<classpathentry kind="lib" path="lib/graphlab.jar"/>
+	<classpathentry kind="lib" path="lib/graphlab.jar">
+    <attributes>
+			<attribute name="javadoc_location" value=""/>
+		</attributes>
+  </classpathentry>
 	<classpathentry kind="output" path="bin"/>
 </classpath>
