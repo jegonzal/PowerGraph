@@ -173,7 +173,9 @@ public:
     int increasing_links = 0;
     
     edge_list_type edges = context.out_edges();
-    edge_list_type inedges = context.in_edges();
+    edge_list_type inedges;
+    if (twosided)
+       inedges = context.in_edges();
    for (uint * start = edges.start_ptr + edges.abs_offset; start < edges.start_ptr + edges.abs_offset + edges._size; start++){
     //for(size_t i = 0; i < outedgeid.size(); i++) {
       const vertex_data & other = context.const_vertex_data(*start);
@@ -328,7 +330,7 @@ int main(int argc,  char *argv[]) {
   graphlab::timer mytimer; mytimer.start();
   bool single_graph = (pmultigraph->num_graphs() == 1);
   bool first_time = true;
-
+  std::vector<uint> oldvec, newvec;
   int pass = 0;
   for (iiter=1; iiter< max_iter+1; iiter++){
     logstream(LOG_INFO)<<mytimer.current_time() << ") Going to run k-cores iteration " << iiter << " at time: " << gt.current_time() << std::endl;
@@ -342,6 +344,11 @@ int main(int argc,  char *argv[]) {
        core.graph() = *multigraph.graph(0);
        matrix_info.nonzeros = core.graph().num_edges();
        matrix_info.rows = matrix_info.cols = core.graph().num_vertices();
+       if (newvec.size() == 0){
+         for (uint i=0; i< matrix_info.total(); i++){
+           newvec.push_back(i);
+         }
+       }
        pgraph = multigraph.graph(0);
 #ifdef USE_GRAPHLAB_ENGINE
        aggregator acum;
@@ -350,11 +357,15 @@ int main(int argc,  char *argv[]) {
        glcore->aggregate_now("sync"); 
 #else
 #pragma omp parallel for
-       for (int t=0; t< matrix_info.total(); t++){
-            if (pmultigraph->get_vertex_data(t).active){
-              dummy_context con(t);
+    
+
+       //for (int t=0; t< matrix_info.total(); t++){
+       for (int t=0; t< newvec.size(); t++){
+            //if (pmultigraph->get_vertex_data(t).active){
+              //assert(pmultigraph->get_vertex_data(newvec[t]).active);
+              dummy_context con(newvec[t]);
               update_function_Axb(con);
-            }
+            //}
        }
        if (!single_graph)
           multigraph.unload_all(); 
@@ -362,10 +373,12 @@ int main(int argc,  char *argv[]) {
       }
       int t;
       num_active = 0;
+
 #pragma omp parallel for private(t) reduction(+: num_active)
-     for (t=0; t< matrix_info.total(); t++){
-         vertex_data& vdata = pmultigraph->get_vertex_data(t);
-        if (vdata.cur_links <= iiter){
+     //for (t=0; t< matrix_info.total(); t++){
+     for (t =0; t< newvec.size(); t++){
+         vertex_data& vdata = pmultigraph->get_vertex_data(newvec[t]);
+        if ((vdata.cur_links <= iiter) && vdata.active){
           vdata.active = false;
           vdata.kcore = iiter;
 	//links -= (outedgeid.size() + inedgeid.size());
@@ -373,10 +386,17 @@ int main(int argc,  char *argv[]) {
        vdata.cur_links = 0;
        if (vdata.active)
          num_active = num_active + 1;
-
      }
  
       finalize();
+    
+     oldvec = newvec;
+     newvec.clear();
+     for (int i=0; i< oldvec.size(); i++){
+        if (pmultigraph->get_vertex_data(oldvec[i]).active)
+            newvec.push_back(oldvec[i]);
+     } 
+
 #endif
       pass++;
       size_t cur_nodes = active_nodes_num[iiter];
