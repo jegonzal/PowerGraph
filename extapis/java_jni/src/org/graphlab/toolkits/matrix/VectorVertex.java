@@ -1,7 +1,6 @@
 package org.graphlab.toolkits.matrix;
 
 import no.uib.cipr.matrix.DenseVector;
-
 import org.graphlab.data.Vertex;
 
 /**
