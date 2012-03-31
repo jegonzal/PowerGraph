@@ -343,6 +343,14 @@ void distributed_control::init(const std::vector<std::string> &machines,
   full_barrier_in_effect = false;
   procs_complete.resize(machines.size());
   //-----------------------------------------------
+
+  // initialize the counters
+  
+  global_calls_sent.resize(machines.size());
+  global_calls_received.resize(machines.size());
+  global_bytes_received.resize(machines.size());
+  fcallqueue.resize(numhandlerthreads);
+
   
   // parse the initstring
   std::map<std::string,std::string> options = parse_options(initstring);
@@ -362,10 +370,6 @@ void distributed_control::init(const std::vector<std::string> &machines,
   else {
     ASSERT_MSG(false, "Unexpected value for comm type");
   }
-  global_calls_sent.resize(machines.size());
-  global_calls_received.resize(machines.size());
-  global_bytes_received.resize(machines.size());
-  fcallqueue.resize(numhandlerthreads);
   // create the receiving objects
   if (comm->capabilities() && dc_impl::COMM_STREAM) {
     for (procid_t i = 0; i < machines.size(); ++i) {

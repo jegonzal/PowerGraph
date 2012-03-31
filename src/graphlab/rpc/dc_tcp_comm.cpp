@@ -32,6 +32,8 @@
 #include <ifaddrs.h>
 #include <poll.h>
 
+#include <event2/event.h>
+
 #include <limits>
 #include <vector>
 #include <string>
@@ -62,10 +64,11 @@ namespace graphlab {
       all_addrs.resize(nprocs);
       portnums.resize(nprocs);
       // fill all the socks
-      socks.resize(nprocs, -1);
-      handlers.resize(nprocs, NULL);
-      handlerthreads.resize(nprocs, NULL);
-      outsocks.resize(nprocs, -1);
+      sock.resize(nprocs);
+      for (size_t i = 0;i < nprocs; ++i) {
+        sock[i].outsock = -1;
+        sock[i].insock = -1;
+      }
       // parse the machines list, and extract the relevant address information
       for (size_t i = 0;i < machines.size(); ++i) {
         // extract the port number
@@ -91,6 +94,10 @@ namespace graphlab {
       } else {
         open_listening();
       }
+      // connect all
+      my_sleep(1);
+      
+      for(size_t i = 0;i < nprocs; ++i) connect(i); 
     }
 
     void dc_tcp_comm::close() {
@@ -111,42 +118,24 @@ namespace graphlab {
       // sleep for a while so the sender threads have time to flush
       logstream(LOG_INFO) << "Closing outgoing sockets" << std::endl;
       // close all outgoing sockets
-      for (size_t i = 0;i < outsocks.size(); ++i) {
-        if (outsocks[i] > 0) {
-          ::close(outsocks[i]);
-          outsocks[i] = -1;
+      for (size_t i = 0;i < sock.size(); ++i) {
+        if (sock[i].outsock > 0) {
+          ::close(sock[i].outsock);
+          sock[i].outsock = -1;
         }
       }
       logstream(LOG_INFO) << "Closing incoming sockets" << std::endl;
       // close all incoming sockets
-      for (size_t i = 0;i < socks.size(); ++i) {
-        if (socks[i] > 0) {
-          // join the receiving threads
-          // remember that the receiving handler is self deleting
-          if (handlerthreads[i] != NULL) {
-            handlerthreads[i]->join();
-            delete handlerthreads[i];
-          }
-          ::close(socks[i]);
-          socks[i] = -1;
-          handlerthreads[i] = NULL;
-          handlers[i] = NULL;
+      handlerthread.join();
+      for (size_t i = 0;i < sock.size(); ++i) {
+        if (sock[i].insock > 0) {
+          ::close(sock[i].insock);
+          sock[i].insock = -1;
         }
       }
     }
-    void dc_tcp_comm::check_for_out_connection(size_t target) {
-      // do we have an outgoing socket to that target?
-      // if we don't try to establish a connection
-      if (outsocks[target] == -1) {
-#ifdef COMM_DEBUG
-        logstream(LOG_INFO) << "No existing connection to " << target 
-                            << ". Creating now." << std::endl;
-#endif
-        connect(target);
-      }
-      ASSERT_NE(outsocks[target], -1);
-    }
-  
+    
+    
     void dc_tcp_comm::send(size_t target, const char* buf, size_t len) {
       network_bytessent.inc(len);
       check_for_out_connection(target);
@@ -282,15 +271,9 @@ namespace graphlab {
       ASSERT_LT(id, all_addrs.size());
       ASSERT_EQ(all_addrs[id], addr);
       ASSERT_EQ(socks[id], -1);
-      socks[id] = newsock;
+      sock[id].insock = newsock;
       logstream(LOG_INFO) << "Proc " << procid() << " accepted connection "
                           << "from machine " << id << std::endl;
-  
-      handlers[id] = new socket_handler(*this, newsock, (procid_t)id);
-      if (handlerthreads[id] != NULL) delete handlerthreads[id];
-      handlerthreads[id] = new thread();
-      handlerthreads[id]->launch(boost::bind(&socket_handler::run, 
-                                             handlers[id]));
     }
 
 
@@ -325,7 +308,6 @@ namespace graphlab {
       listenthread->launch(boost::bind(&accept_handler::run, listenhandler));
     } // end of open_listening
 
-
     void dc_tcp_comm::connect(size_t target) {
       if (outsocks[target] != -1) {
         return;
@@ -351,7 +333,7 @@ namespace graphlab {
             logstream(LOG_WARNING) 
               << "connect " << curid << " to " << target << ": "
               << strerror(errno) << ". Retrying...\n";
-            sleep(1);
+            my_sleep(1);
             // posix says that 
             /* If connect() fails, the state of the socket is unspecified. 
                Conforming applications should close the file descriptor and 
@@ -371,7 +353,8 @@ namespace graphlab {
           logstream(LOG_FATAL) << "Failed to establish connection" << std::endl;
         }
         // remember the socket
-        outsocks[target] = newsock;
+        sock[target].outsock = newsock;
+        sock[target].outev = bufferevent_socket_new(base, -1, BEV_OPT_CLOSE_ON_FREE);
         logstream(LOG_INFO) << "connection from " << curid << " to " << target
                             << " established." << std::endl;
 
@@ -444,6 +427,13 @@ namespace graphlab {
       delete this;
     } // end of run
 
+
+    void recieve_loop() {
+      // construct the receive event set
+      struct event_base* ebase = event_base_new(void);
+  
+
+    }
 
   }; // end of namespace dc_impl
 }; // end of namespace graphlab

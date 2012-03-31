@@ -140,20 +140,7 @@ class dc_tcp_comm:public dc_comm_base {
                  std::vector<iovec>& buf,
                  size_t numel = (size_t)(-1));
   
-  
-  // receiving socket handler
-  class socket_handler {
-   public:
-    DECLARE_TRACER(process_receive);
-    dc_tcp_comm &owner;
-    int fd;
-    procid_t sourceid;
-    socket_handler(dc_tcp_comm& owner, int fd, procid_t id):owner(owner), fd(fd), sourceid(id) {
-      INITIALIZE_TRACER(process_receive, "dc_tcp_comm: process receive buffer");
-    }
-    
-    void run();
-  };
+
   
   // listening socket handler
   class accept_handler {
@@ -184,10 +171,7 @@ class dc_tcp_comm:public dc_comm_base {
   /// wrapper around the standard send. but loops till the buffer is all sent
   int sendtosock(int sockfd, const char* buf, size_t len);
   
-  /** checks for the existance of an outgoing connectino to the target
-   if none exists, it will create one
-     */
-  void check_for_out_connection(size_t target);
+  
   
   /// all_addrs[i] will contain the IP address of machine i
   std::vector<uint32_t> all_addrs;
@@ -208,11 +192,15 @@ class dc_tcp_comm:public dc_comm_base {
   /// socks[i] is the socket to machine i.
   /// There is no socket to the local process ( socks[procid()] is invalid )
   /// If socks[i] == int(-1) then the sock is invalid
-  std::vector<int> socks; 
-  std::vector<socket_handler*> handlers;
-  std::vector<thread*> handlerthreads;
   
-  std::vector<int> outsocks; 
+  struct socket_info{
+    int outsock;
+    int insock;
+  };
+  
+  std::vector<socket_info> sock; 
+  
+  thread handlerthread; 
   
   atomic<size_t> network_bytessent;
   atomic<size_t> network_bytesreceived;
