@@ -51,10 +51,11 @@ enum kcore_output_fields{
 
 struct vertex_data {
   bool active;
+  bool needs_inspection;
   unsigned short kcore;
   uint cur_links;
 
-  vertex_data() : active(true), kcore(-1), cur_links(0)  {}
+  vertex_data() : active(true), kcore(-1), cur_links(0), needs_inspection(true)  {}
 
   void add_self_edge(double value) { }
 
@@ -381,6 +382,7 @@ int main(int argc,  char *argv[]) {
         if ((vdata.cur_links <= iiter) && vdata.active){
           vdata.active = false;
           vdata.kcore = iiter;
+         
 	//links -= (outedgeid.size() + inedgeid.size());
         }
        vdata.cur_links = 0;

@@ -42,6 +42,7 @@ using namespace std;
 bool debug = false;
 bool quick = true;
 bool square_matrix = false;
+bool binary_input_format = false;
 std::string datafile;
 graphlab::timer mytime;
 unsigned long long total_lines = 0;
@@ -113,64 +114,78 @@ struct stringzipparser_update :
     uint line = 1;
     uint lines = context.get_global<uint>("LINES");
     bool header = true;
- 
+    uint from, to;
+    double val;
+	
     while(true){
-      fin.getline(linebuf, 128);
-      if (fin.eof())
-        break;
-      if (linebuf[0] == '%'){ //skip matrix market header
-         continue;
-      }
-      else if (header){ //skip matrix market size
-          header = false;
-          continue;
-      }
-      char *pch = strtok_r(linebuf," \r\n\t,",(char**)&saveptr);
-      if (!pch){
-        logstream(LOG_ERROR) 
-          << "Error when parsing file: " << vdata.filename << ":" 
-          << line <<std::endl << " line is: " << linebuf << std::endl;
-        return;
-       }
-      strncpy(buf1, pch, 20);
-      pch = strtok_r(NULL, " \r\n\t;,",(char**)&saveptr);
-      if (!pch){
-        logstream(LOG_ERROR) 
-          << "Error when parsing file: " << vdata.filename << ":" 
-          << line <<std::endl;
-         return;
-       }
-       strncpy(buf2, pch, 20);
-        pch = strtok_r(NULL, "\r\n\t ;,",(char**)&saveptr);
-      if (!pch && !no_edge_data){
-        logstream(LOG_ERROR) 
-          << "Error when parsing file: " << vdata.filename << ":" 
-          << line << " [ " << linebuf << " ] " << std::endl;
-         return;
-       }
-       if (pch)
-         strncpy(buf3, pch, 40);
-        
-        uint from, to;
-        double val;
-        from = atoi(buf1);
-        to = atoi(buf2);
-        if (reverse_edges) //file is sorted by 2nd column
-           assert(to > (uint)last_col);
-        else assert(from > (uint)last_row); //file is sorted by 1st column
 
-	if (!no_edge_data)
-           val = atof(buf3);
-        //matrix market size line- skip
-        if (from == (uint)info.rows && 
-            to == (uint)info.cols && 
-            (size_t)val == info.nonzeros)
-           continue;
+      if (!binary_input_format){
+	      fin.getline(linebuf, 128);
+	      if (fin.eof())
+		break;
+	      if (linebuf[0] == '%'){ //skip matrix market header
+		 continue;
+	      }
+	      else if (header){ //skip matrix market size
+		  header = false;
+		  continue;
+	      }
+	      char *pch = strtok_r(linebuf," \r\n\t,",(char**)&saveptr);
+	      if (!pch){
+		logstream(LOG_ERROR) 
+		  << "Error when parsing file: " << vdata.filename << ":" 
+		  << line <<std::endl << " line is: " << linebuf << std::endl;
+		return;
+	       }
+	      strncpy(buf1, pch, 20);
+	      pch = strtok_r(NULL, " \r\n\t;,",(char**)&saveptr);
+	      if (!pch){
+		logstream(LOG_ERROR) 
+		  << "Error when parsing file: " << vdata.filename << ":" 
+		  << line <<std::endl;
+		 return;
+	       }
+	       strncpy(buf2, pch, 20);
+		pch = strtok_r(NULL, "\r\n\t ;,",(char**)&saveptr);
+	      if (!pch && !no_edge_data){
+		logstream(LOG_ERROR) 
+		  << "Error when parsing file: " << vdata.filename << ":" 
+		  << line << " [ " << linebuf << " ] " << std::endl;
+		 return;
+	       }
+	       if (pch)
+		 strncpy(buf3, pch, 40);
+		
+		from = atoi(buf1);
+		to = atoi(buf2);
+		if (reverse_edges) //file is sorted by 2nd column
+		   assert(to > (uint)last_col);
+		else assert(from > (uint)last_row); //file is sorted by 1st column
 
+		if (!no_edge_data)
+		   val = atof(buf3);
+		//matrix market size line- skip
+		if (from == (uint)info.rows && 
+		    to == (uint)info.cols && 
+		    (size_t)val == info.nonzeros)
+		   continue;
+
+	}
+        else //binary input format
+        {
+             if (fin.eof())
+                break;
+             fin >> from;
+             if (fin.eof() || !fin.good())
+  		logstream(LOG_ERROR) 
+		  << "Error when parsing file: " << vdata.filename << ":" 
+		  << line << " [ " << from << " ] " << std::endl;
+             fin >> to;
+        }
         assert(from >= 1 && from <= (uint)info.rows);
         assert(to >=1 && to <= (uint)info.cols);
-  	from--; to--;
-
+        from--; to--;
+	 
         if (!no_edge_data)
            fwrite(&val, sizeof(double), 1, weight_file);
 
@@ -294,6 +309,7 @@ int main(int argc,  char *argv[]) {
   clopts.attach_option("reverse_edges", &reverse_edges, reverse_edges, "true = matrix market file is sorted by 2nd col. False - matrix market file is sorted by 1st column");
   clopts.attach_option("no_edge_data", &no_edge_data, no_edge_data, "No edge data (format is <from> <to>\n)");
   clopts.attach_option("square_matrix", &square_matrix, square_matrix, "Square matrix ? " );
+  clopts.attach_option("binary_input_format", &binary_input_format, binary_input_format, "binary input format (uint 32 src,dest array)");
   // Parse the command line arguments
   if(!clopts.parse(argc, argv)) {
     std::cout << "Invalid arguments!" << std::endl;
