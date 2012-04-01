@@ -100,8 +100,7 @@ namespace dc_impl {
   }
 
 
-  bool dc_buffered_stream_send2::get_outgoing_data(std::vector<iovec>& outdata,
-                                                   size_t& numel) {
+  bool dc_buffered_stream_send2::get_outgoing_data(circular_iovec_buffer& outdata) {
     if (writebuffer_totallen.value == 0) return false;
     
     // swap the buffer
@@ -116,7 +115,7 @@ namespace dc_impl {
     size_t sendlen = buffer[curid].numbytes;
     if (sendlen > 0) {
       size_t oldbsize = buffer[curid].buf.size();
-      numel = std::min((size_t)(buffer[curid].numel.value), buffer[curid].buf.size());
+      size_t numel = std::min((size_t)(buffer[curid].numel.value), buffer[curid].buf.size());
       bool buffull = (numel == buffer[curid].buf.size());
       std::vector<iovec> &sendbuffer = buffer[curid].buf;
       
@@ -128,7 +127,9 @@ namespace dc_impl {
       sendbuffer[0].iov_base = reinterpret_cast<void*>(blockheader);
       sendbuffer[0].iov_len = sizeof(block_header_type);
       // give the buffer away
-      outdata.swap(sendbuffer);
+      for (size_t i = 0;i < numel; ++i) {
+        outdata.write(sendbuffer[i]);
+      }
       // reset the buffer;
       buffer[curid].numbytes = 0;
       buffer[curid].numel = 1;

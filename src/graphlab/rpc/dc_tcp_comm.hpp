@@ -35,6 +35,7 @@
 #include <graphlab/rpc/dc_types.hpp>
 #include <graphlab/rpc/dc_internal_types.hpp>
 #include <graphlab/rpc/dc_comm_base.hpp>
+#include <graphlab/rpc/circular_iovec_buffer.hpp>
 #include <graphlab/util/tracepoint.hpp>
 
 namespace graphlab {
@@ -185,27 +186,11 @@ class dc_tcp_comm:public dc_comm_base {
     int insock;   /// FD of the incoming socket
     struct event* inevent;  /// event object for incoming information
     struct event* outevent;  /// event object for outgoing information
-
+    bool wouldblock;
     mutex m;
 
-    std::vector<iovec> original_outvec;  /// outgoing data
-    std::vector<iovec> active_outvec;  /// A copy of original_outvec, with possibly shifted pointers
-    size_t outnumel;            /// number of elements in active_outvec 
-    size_t iovs_remaining;      /// Number of elements not sent
+    circular_iovec_buffer outvec;  /// outgoing data
     struct msghdr data; 
-    
-    inline void reset_msghdr() {
-      data.msg_name = NULL;
-      data.msg_namelen = 0;
-      data.msg_control = NULL;
-      data.msg_controllen = 0;
-      data.msg_flags = 0;
-      data.msg_iovlen = std::min<size_t>(outnumel, IOV_MAX);
-      if (outnumel) {
-        data.msg_iov = &(active_outvec[0]);
-        iovs_remaining = outnumel - data.msg_iovlen;
-      }
-    }
   };
   
   struct timeout_event {
@@ -223,9 +208,9 @@ class dc_tcp_comm:public dc_comm_base {
    * Returns true when the buffer has been completely sent
    * If wouldblock returns true, the next call to send_till_block may block
    */
-  bool send_till_block(socket_info& sockinfo, bool& wouldblock);
-  bool check_for_new_data(socket_info& sockinfo);
-    
+  void send_all(socket_info& sockinfo);
+  bool send_till_block(socket_info& sockinfo);
+  void check_for_new_data(socket_info& sockinfo);
   void construct_events(size_t sockets_per_thread = 4);
   
 
