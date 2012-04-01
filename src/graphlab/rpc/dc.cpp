@@ -141,11 +141,13 @@ distributed_control::~distributed_control() {
   size_t bytessent = bytes_sent();
   for (size_t i = 0;i < senders.size(); ++i) {
     senders[i]->flush();
-    senders[i]->shutdown();
-    delete senders[i];
   }
   
   comm->close();
+  
+  for (size_t i = 0;i < senders.size(); ++i) {
+    delete senders[i];
+  }
   size_t bytesreceived = bytes_received();
   for (size_t i = 0;i < receivers.size(); ++i) {
     receivers[i]->shutdown();
@@ -394,7 +396,7 @@ void distributed_control::init(const std::vector<std::string> &machines,
   
   // start the machines
   comm->init(machines, options, curmachineid, 
-              receivers); 
+              receivers, senders); 
 
   compute_master_ranks();
   
@@ -428,7 +430,7 @@ void distributed_control::barrier() {
 
 void distributed_control::flush() {
   for (procid_t i = 0;i < senders.size(); ++i) {
-    if (senders[i]->channel_active(i)) senders[i]->flush();
+    senders[i]->flush();
   }
 }
 

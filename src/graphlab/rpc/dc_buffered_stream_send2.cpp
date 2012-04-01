@@ -30,19 +30,6 @@
 namespace graphlab {
 namespace dc_impl {
 
-  inline bool dc_buffered_stream_send2::adaptive_send_decision() {
-    /** basically for each call, you have a decision.
-     *  1: send it immediately, (either by waking up the sender, 
-     *                           or sending it in-line)
-     *  2: buffer it for sending.
-     * 
-     * I would like to send immediately if the callrate is low
-     * (as compared to the thread wake up time.)
-     * I would like to buffer it otherwise. 
-     */
-    return writebuffer_totallen.value >= buffer_length_trigger;
-  }
-
   void dc_buffered_stream_send2::send_data(procid_t target,
                                            unsigned char packet_type_mask,
                                            char* data, size_t len) {
@@ -64,9 +51,7 @@ namespace dc_impl {
     iovec msg;
     msg.iov_base = data;
     msg.iov_len = len;
-
-    bool send_decision = false;
-    bool signal_decision = false;
+    bool trigger = false;
     while(1) {
       size_t curid;
       while(1) {
@@ -92,23 +77,18 @@ namespace dc_impl {
       }
       buffer[curid].buf[insertloc] = msg;
       buffer[curid].numbytes.inc(len);    
-      writebuffer_totallen.inc(len);
-      send_decision = adaptive_send_decision();
-      signal_decision = (insertloc == 1);
+      trigger = ((writebuffer_totallen.inc_ret_last(len)) == 0);
       // decrement the reference count
       __sync_fetch_and_sub(&(buffer[curid].ref_count), 1);
       break;
     }
-    // wake it up from cond sleep
-    // first insertion into buffer
-    if (signal_decision || send_decision) {
-      if (send_active_lock.try_lock()) {
-        cond.signal();
-        send_active_lock.unlock();
-      }
-    }
+    
+    if (trigger) comm->trigger_send_timeout(target);
   }
 
+  void dc_buffered_stream_send2::flush() {
+    while(writebuffer_totallen.value) usleep(1);
+  }
 
   void dc_buffered_stream_send2::copy_and_send_data(procid_t target,
                                           unsigned char packet_type_mask,
@@ -119,35 +99,10 @@ namespace dc_impl {
   }
 
 
-  void dc_buffered_stream_send2::send_loop() {
-    while (1) {
-     while (writebuffer_totallen.value > 0) {
-        flush_impl();
-      } 
-      if (send_active_lock.try_lock()) {
-        cond.timedwait_ns(send_active_lock, 1000000);
-        send_active_lock.unlock(); 
-      }
-      if (done) break;
-    }
-  }
-
-  void dc_buffered_stream_send2::shutdown() {
-    done = true;
-    send_active_lock.lock();
-    cond.signal();
-    send_active_lock.unlock();
-    thr.join();
-  }
-  
-  void dc_buffered_stream_send2::flush() {
-    flush_impl();
-  }
-
-  void dc_buffered_stream_send2::flush_impl() {
-    // if the writebuffer is empty, just return
-    if (writebuffer_totallen.value == 0) return;
-    send_lock.lock();
+  bool dc_buffered_stream_send2::get_outgoing_data(std::vector<iovec>& outdata,
+                                                   size_t& numel) {
+    if (writebuffer_totallen.value == 0) return false;
+    
     // swap the buffer
     size_t curid = bufid;
     bufid = !bufid;
@@ -156,73 +111,43 @@ namespace dc_impl {
     // wait till the reference count is negative
     while(buffer[curid].ref_count >= 0) usleep(1);
     
-    // ok. Now we have exclusive access to this buffer
-    // take a reference for convenience
+    // ok now we have exclusive access to the buffer
     size_t sendlen = buffer[curid].numbytes;
     if (sendlen > 0) {
-      size_t numel = std::min((size_t)(buffer[curid].numel.value), buffer[curid].buf.size());
+      numel = std::min((size_t)(buffer[curid].numel.value), buffer[curid].buf.size());
+      bool buffull = (numel == buffer[curid].buf.size());
       std::vector<iovec> &sendbuffer = buffer[curid].buf;
       
       writebuffer_totallen.dec(sendlen);    
-      sendlength += sendlen;
-      block_header_type blockheader = sendlen;
+      block_header_type* blockheader = new block_header_type;
+      (*blockheader) = sendlen;
       
       // fill the first msg block
-      sendbuffer[0].iov_base = reinterpret_cast<void*>(&blockheader);
+      sendbuffer[0].iov_base = reinterpret_cast<void*>(blockheader);
       sendbuffer[0].iov_len = sizeof(block_header_type);
-      //remember what I just sent so that I can free it later. send_many
-      // may modify the vector.
-      std::vector<iovec> prevsend(sendbuffer.begin(), 
-                                  sendbuffer.begin() + numel);
-      comm->send_many(target, sendbuffer, numel);
+      // give the buffer away
+      outdata.swap(sendbuffer);
       // reset the buffer;
       buffer[curid].numbytes = 0;
       buffer[curid].numel = 1;
 
-      if (numel == sendbuffer.size()) {
-         sendbuffer.resize(2 * numel);
-//         std::cout << "r to " << sendbuffer.size() << std::endl;
+      if (buffull) {
+        sendbuffer.resize(2 * numel);
       }
-
+      else {
+        sendbuffer.resize(numel);
+      }
       __sync_fetch_and_add(&(buffer[curid].ref_count), 1);
-      // now clear what I just sent. start from '1' to avoid the header
-      for (size_t i = 1; i < prevsend.size(); ++i) {
-        free(prevsend[i].iov_base);
-      }
-      
-      wakeuptimes++;
-      if (wakeuptimes & 4) {
-        sendlength /= wakeuptimes;
-        buffer_length_trigger = (buffer_length_trigger + sendlength) / 2;
-        buffer_length_trigger = std::min(buffer_length_trigger, max_buffer_length);
-        buffer_length_trigger += (buffer_length_trigger == 0);
-        sendlength = 0; wakeuptimes = 0;
-      }
+      return true;
     }
     else {
       // reset the buffer;
       buffer[curid].numbytes = 0;
       buffer[curid].numel = 1;
       __sync_fetch_and_add(&(buffer[curid].ref_count), 1);
+      return false;
     }
-
-    send_lock.unlock();
   }
-  
-  size_t dc_buffered_stream_send2::set_option(std::string opt, 
-                                             size_t val) {
-    size_t prevval = 0;
-    if (opt == "nanosecond_wait") {
-      prevval = nanosecond_wait;
-      nanosecond_wait = val;
-    }
-    else if (opt == "max_buffer_length") {
-      prevval = max_buffer_length;
-      max_buffer_length = val;
-    }
-    return prevval;
-  }
-  
 } // namespace dc_impl
 } // namespace graphlab
 

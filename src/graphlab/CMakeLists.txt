@@ -69,7 +69,6 @@ add_library(graphlab STATIC
   rpc/dc_buffered_stream_send2.cpp
   rpc/dc.cpp
   rpc/reply_increment_counter.cpp
-  rpc/dc_comm_services.cpp
   rpc/dc_init_from_env.cpp
   rpc/dc_init_from_mpi.cpp
   rpc/async_consensus.cpp

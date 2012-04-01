@@ -33,6 +33,7 @@
 #include <poll.h>
 
 #include <event2/event.h>
+#include <event2/thread.h>
 
 #include <limits>
 #include <vector>
@@ -45,6 +46,8 @@
 #include <graphlab/rpc/dc_tcp_comm.hpp>
 #include <graphlab/rpc/dc_internal_types.hpp>
 
+#define compile_barrier() asm volatile("": : :"memory")
+
 //#define COMM_DEBUG
 namespace graphlab {
  
@@ -53,21 +56,29 @@ namespace graphlab {
     void dc_tcp_comm::init(const std::vector<std::string> &machines,
                            const std::map<std::string,std::string> &initopts,
                            procid_t curmachineid,
-                           std::vector<dc_receive*> receiver_){ 
+                           std::vector<dc_receive*> receiver_,
+                           std::vector<dc_send*> sender_) {
 
       curid = curmachineid;
       ASSERT_LT(machines.size(), std::numeric_limits<procid_t>::max());
       nprocs = (procid_t)(machines.size());
       receiver = receiver_;
-      listenthread = NULL;
+      sender = sender_;
+      
       // insert machines into the address map
       all_addrs.resize(nprocs);
       portnums.resize(nprocs);
       // fill all the socks
       sock.resize(nprocs);
       for (size_t i = 0;i < nprocs; ++i) {
+        sock[i].id = i;
+        sock[i].owner = this;
         sock[i].outsock = -1;
         sock[i].insock = -1;
+        sock[i].inevent = NULL;
+        sock[i].outevent = NULL;
+        sock[i].outnumel = 0;
+        sock[i].reset_msghdr();
       }
       // parse the machines list, and extract the relevant address information
       for (size_t i = 0;i < machines.size(); ++i) {
@@ -94,13 +105,84 @@ namespace graphlab {
       } else {
         open_listening();
       }
-      // connect all
-      my_sleep(1);
       
       for(size_t i = 0;i < nprocs; ++i) connect(i); 
+      // wait for all incoming connections
+      while(1) {
+        compile_barrier();
+        size_t connected = 0;
+        for (size_t i = 0;i < sock.size(); ++i) {
+          connected += (sock[i].insock != -1);
+        }
+        if (connected == sock.size()) break;
+        logstream(LOG_INFO) << "Waiting for " << sock.size() - connected 
+                            << " more hosts..." << std::endl;
+        my_sleep(1);
+      }
+      
+      // everyone is connected.
+      // Construct the eventbase
+      iter = initopts.find("sockets_per_thread");
+      if (iter != initopts.end()) {
+        construct_events(atoi(iter->second.c_str()));
+      }
+      else {
+        construct_events();
+      }
+      for (size_t i = 0;i < inevbase.size(); ++i) {
+        inthreads.launch(boost::bind(&dc_tcp_comm::receive_loop, this, inevbase[i]));
+      }
+      for (size_t i = 0;i < outevbase.size(); ++i) {
+        outthreads.launch(boost::bind(&dc_tcp_comm::send_loop, this, outevbase[i]));
+      }
+      is_closed = false;
+    }
+
+    void dc_tcp_comm::construct_events(size_t sockets_per_thread) {
+      if (sockets_per_thread == 0) sockets_per_thread = 1;
+      int ret = evthread_use_pthreads();
+      if (ret < 0) logstream(LOG_FATAL) << "Unable to initialize libevent with pthread support!" << std::endl;
+      // number of evs to create.
+      size_t nevs = sock.size() / sockets_per_thread + (sock.size() % sockets_per_thread > 0);
+      inevbase.resize(nevs);
+      outevbase.resize(nevs);
+      for (size_t i = 0;i < nevs; ++i) {
+        inevbase[i] = event_base_new();
+        if (!inevbase[i]) logstream(LOG_FATAL) << "Unable to construct libevent base" << std::endl;
+        outevbase[i] = event_base_new();
+        if (!outevbase[i]) logstream(LOG_FATAL) << "Unable to construct libevent base" << std::endl;
+      }
+      
+      //register all event objects
+      for (size_t i = 0;i < sock.size(); ++i) {
+        size_t evid = i / sockets_per_thread;
+        sock[i].inevent = event_new(inevbase[evid], sock[i].insock, EV_READ | EV_PERSIST | EV_ET,
+                                     on_receive_event, &(sock[i]));
+        if (sock[i].inevent == NULL) {
+          logstream(LOG_FATAL) << "Unable to register socket read event" << std::endl;
+        }
+
+        sock[i].outevent = event_new(outevbase[evid], sock[i].outsock, EV_WRITE | EV_PERSIST | EV_ET,
+                                     on_send_event, &(sock[i]));
+        if (sock[i].inevent == NULL) {
+          logstream(LOG_FATAL) << "Unable to register socket write event" << std::endl;
+        }
+        
+        event_add(sock[i].inevent, NULL);
+        
+        event_add(sock[i].outevent, NULL);
+      }
+    }
+
+    void dc_tcp_comm::trigger_send_timeout(procid_t target) {
+      event_active(sock[target].outevent, EV_TIMEOUT, 1);
+//      std::cout << "trigger" << std::endl;
+      //struct timeval t = {0, 1};
+      //event_add(sock[target].outevent, &t);
     }
 
     void dc_tcp_comm::close() {
+      if (is_closed) return;
       logstream(LOG_INFO) << "Closing listening socket" << std::endl;
       // close the listening socket
       if (listensock > 0) {
@@ -108,14 +190,17 @@ namespace graphlab {
         listensock = -1;
       }
       // shutdown the listening thread
-      // remember that the listening handler is self deleting
-      if (listenthread != NULL) {
-        listenthread->join();
-        delete listenthread;
-        listenthread = NULL;
+      listenthread.join();
+      
+      // clear the outevent loop
+      for (size_t i = 0;i < outevbase.size(); ++i) event_base_loopbreak(outevbase[i]);
+      outthreads.join();
+      for (size_t i = 0;i < sock.size(); ++i) {
+        event_free(sock[i].outevent);
       }
-      listenhandler = NULL;
-      // sleep for a while so the sender threads have time to flush
+      for (size_t i = 0;i < outevbase.size(); ++i) event_base_free(outevbase[i]);
+
+      
       logstream(LOG_INFO) << "Closing outgoing sockets" << std::endl;
       // close all outgoing sockets
       for (size_t i = 0;i < sock.size(); ++i) {
@@ -124,102 +209,90 @@ namespace graphlab {
           sock[i].outsock = -1;
         }
       }
+      
+      // clear the inevent loop
+      for (size_t i = 0;i < inevbase.size(); ++i) event_base_loopbreak(inevbase[i]);
+      inthreads.join();
+      for (size_t i = 0;i < sock.size(); ++i) {
+        event_free(sock[i].inevent);
+      }
+      for (size_t i = 0;i < inevbase.size(); ++i) event_base_free(inevbase[i]);
+      
+      
       logstream(LOG_INFO) << "Closing incoming sockets" << std::endl;
       // close all incoming sockets
-      handlerthread.join();
       for (size_t i = 0;i < sock.size(); ++i) {
         if (sock[i].insock > 0) {
           ::close(sock[i].insock);
           sock[i].insock = -1;
         }
       }
-    }
-    
-    
-    void dc_tcp_comm::send(size_t target, const char* buf, size_t len) {
-      network_bytessent.inc(len);
-      check_for_out_connection(target);
-#ifdef COMM_DEBUG
-      logstream(LOG_INFO) << len << " bytes --> " << target  << std::endl;
-#endif
-
-      int err = sendtosock(outsocks[target], buf, len);
-      ASSERT_EQ(err, 0);
+      is_closed = true;
     }
 
-    void dc_tcp_comm::send_many(size_t target,
-                                std::vector<iovec>& buf,
-                                size_t numel) {
-      numel = std::min(numel, buf.size());
-      check_for_out_connection(target);
-      size_t totallen = 0;
-      for (size_t i = 0;i < numel; ++i) {
-        totallen += buf[i].iov_len;
-      }
-      network_bytessent.inc(totallen);
-      struct msghdr data;
 
-      data.msg_name = NULL;
-      data.msg_namelen = 0;
-      data.msg_control = NULL;
-      data.msg_controllen = 0;
-      data.msg_flags = 0;
-      data.msg_iovlen = std::min<size_t>(numel, IOV_MAX);
-      data.msg_iov = &(buf[0]);
-
+    bool dc_tcp_comm::send_till_block(socket_info& sockinfo, bool& wouldblock) {
+      wouldblock = false;
       // since there is a limit to the number of message entries I can send
       // I must keep track of what is remaining
-      size_t iovs_remaining = numel - data.msg_iovlen;
+      size_t iovs_remaining = sockinfo.outnumel - sockinfo.data.msg_iovlen;
       
-#ifdef COMM_DEBUG
-      logstream(LOG_INFO) << totallen << " bytes --> " << target  << std::endl;
-#endif
-      // amount of data to transmit
-      size_t dataleft = totallen;
       // while there is still data to be sent
       BEGIN_TRACEPOINT(tcp_send_call);
-      while(dataleft > 0) {
-        ssize_t ret = sendmsg(outsocks[target], &data, 0);
+      while(1) {
+        ssize_t ret = sendmsg(sockinfo.outsock, &sockinfo.data, 0);
         // decrement the counter
         if (ret < 0) {
-          logstream(LOG_ERROR) << "send error: " << strerror(errno) << std::endl;
           END_TRACEPOINT(tcp_send_call);
-          return;
+          if (errno == EWOULDBLOCK || errno == EAGAIN) {
+            wouldblock = true;
+            return false;
+          }
+          else {
+            logstream(LOG_FATAL) << "send error: " << strerror(errno) << std::endl;
+            return false;
+          }
         }
-        dataleft -= ret;
+        
+#ifdef COMM_DEBUG
+      logstream(LOG_INFO) << ret << " bytes --> " << sockinfo.id << std::endl;
+#endif
+        network_bytessent.inc(ret);
         // restructure the msghdr depending on how much was sent
-        struct iovec* newiovecptr = data.msg_iov;
-        size_t newiovlen = data.msg_iovlen;
-        for (size_t i = 0;i < (size_t)(data.msg_iovlen); ++i) {
+        struct iovec* newiovecptr = sockinfo.data.msg_iov;
+        size_t newiovlen = sockinfo.data.msg_iovlen;
+        for (size_t i = 0;i < (size_t)(sockinfo.data.msg_iovlen); ++i) {
           // amount sent was less than this entry.
           // shift the entry and retry
-          if ((size_t)ret < data.msg_iov[i].iov_len) {
+          if ((size_t)ret < sockinfo.data.msg_iov[i].iov_len) {
             // shift the data
-            data.msg_iov[i].iov_len -= ret;
-            char* tmp = (char*) data.msg_iov[i].iov_base;
+            sockinfo.data.msg_iov[i].iov_len -= ret;
+            char* tmp = (char*) sockinfo.data.msg_iov[i].iov_base;
             tmp += ret;
-            data.msg_iov[i].iov_base = (void*)tmp;
+            sockinfo.data.msg_iov[i].iov_base = (void*)tmp;
             break;
           }
           else {
             // amount sent exceeds this entry. we need to 
             // erase this entry (increment the iovec_ptr)
             // and go on to the next entry
-            size_t l = std::min<size_t>(ret, data.msg_iov[i].iov_len);
+            size_t l = std::min<size_t>(ret, sockinfo.data.msg_iov[i].iov_len);
             newiovlen--;
             newiovecptr++;
             ret -= l;
             if (ret == 0) break;
           }
         }
-        data.msg_iov = newiovecptr;
-        data.msg_iovlen = newiovlen;
+        sockinfo.data.msg_iov = newiovecptr;
+        sockinfo.data.msg_iovlen = newiovlen;
         // now move some of the remaining iovs into msg_iovlen
-        data.msg_iovlen = std::min<size_t>(data.msg_iovlen + iovs_remaining, IOV_MAX);
+        sockinfo.data.msg_iovlen = std::min<size_t>(sockinfo.data.msg_iovlen + iovs_remaining, IOV_MAX);
         // update the remainder
-        iovs_remaining -= data.msg_iovlen - newiovlen;
+        iovs_remaining -= sockinfo.data.msg_iovlen - newiovlen;
+        if (sockinfo.data.msg_iovlen == 0) break;
       }
       END_TRACEPOINT(tcp_send_call);
+      return true;
     }
 
     int dc_tcp_comm::sendtosock(int sockfd, const char* buf, size_t len) {
@@ -238,7 +311,7 @@ namespace graphlab {
       return 0;
     }
   
-    void dc_tcp_comm::set_socket_options(int fd) {
+    void dc_tcp_comm::set_tcp_no_delay(int fd) {
       int flag = 1;
       int result = setsockopt(fd,            /* socket affected */
                               IPPROTO_TCP,     /* set option at TCP level */
@@ -250,14 +323,19 @@ namespace graphlab {
           << "Unable to disable Nagle. Performance may be signifantly reduced"
           << std::endl;
       }
+      // set nonblocking
     }
+    
+    void dc_tcp_comm::set_non_blocking(int fd) {
+      int flag = fcntl(fd, F_GETFL);
+      if (flag < 0) {
+        logstream(LOG_FATAL) << "Unable to get socket flags" << std::endl;
+      }
+      flag |= O_NONBLOCK;
+      if (fcntl(fd, F_SETFL, flag) < 0) {
+        logstream(LOG_FATAL) << "Unable to set socket as non-blocking" << std::endl;
+      }
 
-    void dc_tcp_comm::flush(size_t target) {
-      /*  ASSERT_NE(outsocks[target], -1);
-          int one = 1;
-          int zero = 0;
-          setsockopt(outsocks[target], IPPROTO_TCP, TCP_CORK, &zero, sizeof(zero));
-          setsockopt(outsocks[target], IPPROTO_TCP, TCP_CORK, &one, sizeof(one)); */
     }
 
 
@@ -270,7 +348,7 @@ namespace graphlab {
                           << inet_ntoa(otheraddr->sin_addr) << std::endl;
       ASSERT_LT(id, all_addrs.size());
       ASSERT_EQ(all_addrs[id], addr);
-      ASSERT_EQ(socks[id], -1);
+      ASSERT_EQ(sock[id].insock, -1);
       sock[id].insock = newsock;
       logstream(LOG_INFO) << "Proc " << procid() << " accepted connection "
                           << "from machine " << id << std::endl;
@@ -303,17 +381,15 @@ namespace graphlab {
                           << " listening on " << portnums[curid] << "\n";
       ASSERT_EQ(0, listen(listensock, 128));
       // spawn a thread which loops around accept
-      listenhandler = new accept_handler(*this, listensock);
-      listenthread = new thread();
-      listenthread->launch(boost::bind(&accept_handler::run, listenhandler));
+      listenthread.launch(boost::bind(&dc_tcp_comm::accept_handler, this));
     } // end of open_listening
 
     void dc_tcp_comm::connect(size_t target) {
-      if (outsocks[target] != -1) {
+      if (sock[target].outsock != -1) {
         return;
       } else {
         int newsock = socket(AF_INET, SOCK_STREAM, 0);
-        set_socket_options(newsock);
+        set_tcp_no_delay(newsock);
         sockaddr_in serv_addr;
         serv_addr.sin_family = AF_INET;
         // set the target port
@@ -340,11 +416,12 @@ namespace graphlab {
                create a new socket before attempting to reconnect. */
             ::close(newsock);
             newsock = socket(AF_INET, SOCK_STREAM, 0);
-            set_socket_options(newsock);
+            set_tcp_no_delay(newsock);
 
           } else {
             // send my machine id
             sendtosock(newsock, reinterpret_cast<char*>(&curid), sizeof(curid));
+            set_non_blocking(newsock);
             success = true;
             break;
           }
@@ -354,61 +431,43 @@ namespace graphlab {
         }
         // remember the socket
         sock[target].outsock = newsock;
-        sock[target].outev = bufferevent_socket_new(base, -1, BEV_OPT_CLOSE_ON_FREE);
         logstream(LOG_INFO) << "connection from " << curid << " to " << target
                             << " established." << std::endl;
-
       }
     } // end of connect
 
 
 
-    void dc_tcp_comm::socket_handler::run() {
-      // get a direct pointer to my receiver
-      dc_receive* receiver = owner.receiver[sourceid];
-      // we have direct buffer access!
-      size_t buflength;
-      char *c = receiver->get_buffer(buflength);
-      while(1) {
-        ssize_t msglen = recv(fd, c, buflength, 0);
-        // if msglen == 0, the scoket is closed
-        if (msglen <= 0) {
-          owner.socks[sourceid] = -1;
-          // self deleting
-          delete this;
-          break;
-        }
-        owner.network_bytesreceived.inc(msglen);
-#ifdef COMM_DEBUG
-        logstream(LOG_INFO) << msglen << " bytes <-- "
-                            << sourceid  << std::endl;
-#endif
-        c = receiver->advance_buffer(c, msglen, buflength);
-      }
-    } // end of run
 
 
-    void dc_tcp_comm::accept_handler::run() {
+////////////////////////////////////////////////////////////////////////////
+//       These stuff run in seperate threads                              //
+////////////////////////////////////////////////////////////////////////////
+
+    // waits for incoming connections
+    void dc_tcp_comm::accept_handler() {
       pollfd pf;
       pf.fd = listensock;
       pf.events = POLLIN;
       pf.revents = 0;
-
-      while(1) {
+      size_t numsocks_connected = 0;
+      logstream(LOG_INFO) << "Listening thread launched." << std::endl;
+      while(numsocks_connected < sock.size()) {
         // wait for incoming event
         poll(&pf, 1, 1000);
         // if we have a POLLIN, we have an incoming socket request
         if (pf.revents && POLLIN) {
+          logstream(LOG_INFO) << "Accepting...." << std::endl;
           // accept the socket
           sockaddr_in their_addr;
           socklen_t namelen = sizeof(sockaddr_in);
           int newsock = accept(listensock, (sockaddr*)&their_addr, &namelen);
+          logstream(LOG_INFO) << "Accepted" << std::endl;
           if (newsock < 0) {
             break;
           }
-          // set the socket options and inform the owner (dc_tcp_comm) that 
-          // a socket has been established
-          owner.set_socket_options(newsock);
+          // set the socket options and inform the 
+          set_tcp_no_delay(newsock);
           // before accepting the socket, get the machine number
           procid_t remotemachineid = (procid_t)(-1);
           ssize_t msglen = 0;
@@ -416,7 +475,10 @@ namespace graphlab {
             msglen += recv(newsock, (char*)(&remotemachineid) + msglen, 
                            sizeof(procid_t) - msglen, 0);
           }
-          owner.new_socket(newsock, &their_addr, remotemachineid);
+          // register the new socket
+          set_non_blocking(newsock);
+          new_socket(newsock, &their_addr, remotemachineid);
+          ++numsocks_connected;
         }
         if (listensock == -1) {
           // the owner has closed
@@ -424,17 +486,111 @@ namespace graphlab {
         }
       }
       logstream(LOG_INFO) << "Listening thread quitting" << std::endl;
-      delete this;
     } // end of run
 
 
-    void recieve_loop() {
-      // construct the receive event set
-      struct event_base* ebase = event_base_new(void);
-  
+    // libevent receive handler
+    void on_receive_event(int fd, short ev, void* arg) {
+      dc_tcp_comm::socket_info* sockinfo = (dc_tcp_comm::socket_info*)(arg);
+      dc_tcp_comm* comm = sockinfo->owner;
+      if (ev & EV_READ) {
+        // get a direct pointer to my receiver
+        dc_receive* receiver = comm->receiver[sockinfo->id];
 
+        size_t buflength;
+        char *c = receiver->get_buffer(buflength);
+        while(1) {
+          ssize_t msglen = recv(fd, c, buflength, 0);
+          if (msglen < 0) {
+            if (errno == EAGAIN || errno == EWOULDBLOCK) break;
+            else {
+              logstream(LOG_FATAL) << "receive error: " << strerror(errno) << std::endl;
+              break;
+            }
+          }
+          else if (msglen == 0) {
+            // socket closed
+            break;
+          }
+          else if (msglen > 0) {
+            comm->network_bytesreceived.inc(msglen);
+    #ifdef COMM_DEBUG
+            logstream(LOG_INFO) << msglen << " bytes <-- "
+                                << sockinfo->id  << std::endl;
+    #endif
+            c = receiver->advance_buffer(c, msglen, buflength);
+          }
+        }
+      }
     }
 
+    void dc_tcp_comm::receive_loop(struct event_base* ev) {
+      logstream(LOG_INFO) << "Receive loop Started" << std::endl;
+      int ret = event_base_dispatch(ev);
+      if (ret != 0) {
+        logstream(LOG_FATAL) << "Receive loop Quit with " << ret << std::endl;
+      }
+      else {
+        logstream(LOG_INFO) << "Receive loop Stopped" << std::endl;
+      }
+    }
+
+    // libevent receive handler
+    void on_send_event(int fd, short ev, void* arg) {
+      dc_tcp_comm::socket_info* sockinfo = (dc_tcp_comm::socket_info*)(arg);
+      dc_tcp_comm* comm = sockinfo->owner;
+      if ((ev & EV_WRITE) || (ev & EV_TIMEOUT)) {
+        // get a direct pointer to my receiver
+        dc_send* sender = comm->sender[sockinfo->id];
+        bool wouldblock = false;
+        while(1) {
+          // do we have data to send?
+          if (sockinfo->active_outvec.empty()) {
+            // nope! check for data to send
+            if (sender->get_outgoing_data(sockinfo->original_outvec, sockinfo->outnumel)) {
+              // we have stuff to send!
+              // copy to active
+#ifdef COMM_DEBUG
+              logstream(LOG_INFO) << "Got data to send." << std::endl;
+#endif
+              sockinfo->active_outvec = sockinfo->original_outvec;
+              sockinfo->reset_msghdr();
+            }
+            else {
+              break;
+            }
+          }
+          
+            
+          if (!sockinfo->active_outvec.empty()) {
+            // yup! we have data to send
+            if (wouldblock) break;
+            if (sockinfo->owner->send_till_block(*sockinfo, wouldblock)) {
+              // we finished the current block. free it
+              sockinfo->active_outvec.clear();
+              // delete the original outvec
+              for (size_t i = 0;i < sockinfo->original_outvec.size(); ++i) {
+                free(sockinfo->original_outvec[i].iov_base);
+              }
+              sockinfo->original_outvec.clear();
+              sockinfo->outnumel = 0;
+            }
+          }
+        }
+      }
+    }
+
+
+    void dc_tcp_comm::send_loop(struct event_base* ev) {
+      logstream(LOG_INFO) << "Send loop Started" << std::endl;
+      int ret = event_base_dispatch(ev);
+      if (ret != 0) {
+        logstream(LOG_FATAL) << "Send loop Quit with " << ret << std::endl;
+      }
+      else {
+        logstream(LOG_INFO) << "Send loop Stopped" << std::endl;
+      }
+    }
   }; // end of namespace dc_impl
 }; // end of namespace graphlab
 

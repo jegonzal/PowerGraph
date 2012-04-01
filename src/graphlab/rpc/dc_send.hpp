@@ -23,6 +23,9 @@
 
 #ifndef DC_SEND_HPP
 #define DC_SEND_HPP
+#include <sys/types.h>
+#include <sys/socket.h>
+
 #include <iostream>
 #include <graphlab/rpc/dc_internal_types.hpp>
 #include <graphlab/rpc/dc_types.hpp>
@@ -35,25 +38,26 @@ Base class of the data sending class.
 This class forms the sending side of a "multiplexer"
 send_data() will be called with a packet mask as well as a
 character stream containing the contents of the packet.
-This class must then transmit the data out of the associated 
-comms.
+The class should accumulate the data in an iovec structure
+and relinquish it on get_outgoing_data()
 */
 class dc_send{
  public:
   dc_send() { }
+  
   virtual ~dc_send() { }
 
   /** Called to send data to the target. The caller transfers control of
   the pointer. The caller MUST ensure that the data be prefixed
   with sizeof(packet_hdr) extra bytes at the start for placement of the
-  packet header. */
+  packet header. This function must be reentrant. */
   virtual void send_data(procid_t target, 
                  unsigned char packet_type_mask,
                  char* data, size_t len) = 0;
 
   /** Sends the data but without transferring control of the pointer.
    The function will make a copy of the data before sending it.
-   Unlike send_data, no padding is necessary. */
+   Unlike send_data, no padding is necessary. This function must be reentrant. */
   virtual void copy_and_send_data(procid_t target,
                  unsigned char packet_type_mask,
                  char* data, size_t len) = 0;
@@ -64,30 +68,19 @@ class dc_send{
   */
   virtual size_t bytes_sent() = 0;
   
-
-  /** returns true if the channel to the target
-  machine is truly open. The dc_comm_base specification allows
-  for lazy channels which are not created until it is used.
-  For such implementations, this function should return true
-  if the channel has been created, and false otherwise. Non-lazy
-  implementations should return true all the time.
-  The invariant to ensure is that this function must return true
-  for a target machine ID if a packet has been sent from this machine
-  to the target before this call.
-  */
-  virtual bool channel_active(procid_t target) const = 0;
-
-  /**
-   * Last call sent to any instance of dc_send.
-   * If the sender multithreads, the sending thread must shut down.
-   */
-  virtual void shutdown() = 0;
-  
-  virtual void flush() { } 
+  virtual void flush() = 0;
   
   virtual size_t set_option(std::string opt, size_t val) {
     return 0;
   }
+
+  /**
+   * Returns true if there is data, false otherwise. This function
+   * must be reentrant, but it is guaranteed that only one thread will
+   * call this function at anytime. 
+   * numel may be less than outdata.size()
+   */
+  virtual bool get_outgoing_data(std::vector<iovec>& outdata, size_t &numel) = 0;
 
 };
   

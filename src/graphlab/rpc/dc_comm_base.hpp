@@ -30,6 +30,7 @@
 #include <graphlab/rpc/dc_types.hpp>
 #include <graphlab/rpc/dc_internal_types.hpp>
 #include <graphlab/rpc/dc_receive.hpp>
+#include <graphlab/rpc/dc_send.hpp>
 namespace graphlab {
 namespace dc_impl {  
 
@@ -69,10 +70,13 @@ class dc_comm_base {
   virtual void init(const std::vector<std::string> &machines,
             const std::map<std::string,std::string> &initopts,
             procid_t curmachineid,
-            std::vector<dc_receive*> receiver) = 0;
+            std::vector<dc_receive*> receiver,
+            std::vector<dc_send*> sender) = 0;
 
   /// Must close all connections when this function is called
   virtual void close() = 0;
+  
+  virtual void trigger_send_timeout(procid_t target) = 0;
   
   virtual ~dc_comm_base() {}
   virtual procid_t numprocs() const = 0;
@@ -81,39 +85,6 @@ class dc_comm_base {
   
   virtual size_t network_bytes_sent() const = 0;
   virtual size_t network_bytes_received() const = 0;
-
-  
-  /** returns true if the channel to the target
-  machine is truly open. The dc_comm_base specification allows
-  for lazy channels which are not created until it is used.
-  For such implementations, this function should return true
-  if the channel has been created, and false otherwise. Non-lazy
-  implementations should return true all the time.
-  The invariant to ensure is that this function must return true
-  for a target machine ID if a packet has been sent from this machine
-  to the target before this call.
-  */
-  virtual bool channel_active(size_t target) const = 0;
-  
-  /**
-   Sends the string of length len to the target machine dest.
-   Only valid after call to init();
-   Establishes a connection if necessary
-  */
-  virtual void send(size_t target, const char* buf, size_t len) = 0;
-
-  /**
-   * Sends two buffers one after another to the target machine.
-   * Receiver will receive both buf1 and buf2 consecutively.
-   * For instance, buf1 could contain a packet header, while buf2 could
-   * contain the packet contents.
-   */
-  virtual void send_many(size_t target,
-                        std::vector<iovec>& buf,
-                        size_t numel = (size_t)(-1)) = 0;
-  
-  // not required and not used
-  virtual void flush(size_t target) = 0;
 };
 
 } // namespace dc_impl

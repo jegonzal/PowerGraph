@@ -65,10 +65,7 @@ class dc_buffered_stream_send2: public dc_send{
                                    dc_comm_base *comm, 
                                    procid_t target) : 
                   dc(dc),  comm(comm), target(target),
-                  writebuffer_totallen(0), done(false),
-                  buffer_length_trigger(5*1024*1024),
-                  max_buffer_length(5*1024*1024), nanosecond_wait(1000000),
-                  wakeuptimes(0), sendlength(0){
+                  writebuffer_totallen(0) {
     buffer[0].buf.resize(100000);
     buffer[0].numel = 1;
     buffer[0].numbytes = 0;
@@ -79,18 +76,11 @@ class dc_buffered_stream_send2: public dc_send{
     buffer[1].ref_count = 0;
     bufid = 0;
     writebuffer_totallen.value = 0;
-    thr = launch_in_new_thread(boost::bind
-                               (&dc_buffered_stream_send2::send_loop, 
-                                this));
   }
   
   ~dc_buffered_stream_send2() {
   }
   
-
-  inline bool channel_active(procid_t target) const {
-    return comm->channel_active(target);
-  }
 
                  
 
@@ -109,28 +99,15 @@ class dc_buffered_stream_send2: public dc_send{
   void copy_and_send_data(procid_t target,
                       unsigned char packet_type_mask,
                       char* data, size_t len);
-  void send_loop();
+
+  bool get_outgoing_data(std::vector<iovec>& outdata, size_t &numel);
   
-  void flush();
-  
-  void shutdown();
-  
-  bool adaptive_send_decision();
   
   inline size_t bytes_sent() {
     return bytessent.value;
   }
 
-  /**
-   * Possible Options include 
-   * nanosecond_wait: Maximum amount of time remote calls can age 
-   *                  in the queue before the queue is flushed. (1000000)
-   * wait_count_bytes: Maximum number of bytes in the buffer before
-   *                   the queue is flushed. This number is self adjusting
-   *                   with an exponential scaling rate and should not need
-   *                   to be modified. (initial = 1024000)
-   */
-  size_t set_option(std::string opt, size_t val);
+  void flush();
 
  private:
   /// pointer to the owner
@@ -149,24 +126,9 @@ class dc_buffered_stream_send2: public dc_send{
   buffer_and_refcount buffer[2];
   size_t bufid;
   
-  mutex lock;
-  mutex send_lock;
-  mutex send_active_lock;
-  conditional cond;
-
-  thread thr;
-  bool done;
 
   atomic<size_t> bytessent; 
   
-  size_t buffer_length_trigger;
-  size_t max_buffer_length;
-  
-  size_t nanosecond_wait;
-
-  size_t wakeuptimes;
-  size_t sendlength;
-  void flush_impl();
 
 };
 
