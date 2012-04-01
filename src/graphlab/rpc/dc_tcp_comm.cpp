@@ -77,9 +77,14 @@ namespace graphlab {
         sock[i].insock = -1;
         sock[i].inevent = NULL;
         sock[i].outevent = NULL;
-        sock[i].outnumel = 0;
-        sock[i].iovs_remaining = 0;
-        sock[i].reset_msghdr();
+        sock[i].wouldblock = false;
+        sock[i].data.msg_name = NULL;
+        sock[i].data.msg_namelen = 0;
+        sock[i].data.msg_control = NULL;
+        sock[i].data.msg_controllen = 0;
+        sock[i].data.msg_flags = 0;
+        sock[i].data.msg_iovlen = 0;
+        sock[i].data.msg_iov = NULL;
       }
       // parse the machines list, and extract the relevant address information
       for (size_t i = 0;i < machines.size(); ++i) {
@@ -172,19 +177,22 @@ namespace graphlab {
           logstream(LOG_FATAL) << "Unable to register socket read event" << std::endl;
         }
 
-        sock[i].outevent = event_new(outevbase[evid], sock[i].outsock, EV_WRITE | EV_PERSIST | EV_ET,
+        sock[i].outevent = event_new(outevbase[evid], sock[i].outsock, EV_WRITE,
                                      on_send_event, &(sock[i]));
         if (sock[i].outevent == NULL) {
           logstream(LOG_FATAL) << "Unable to register socket write event" << std::endl;
         }
         
         event_add(sock[i].inevent, NULL);
+        //struct timeval t = {0, 10};
         event_add(sock[i].outevent, NULL);
       }
     }
 
     void dc_tcp_comm::trigger_send_timeout(procid_t target) {
-      event_active(sock[target].outevent, EV_WRITE, 1);
+      //event_add(sock[target].outevent, NULL);
+      if (!sock[target].wouldblock) event_active(sock[target].outevent, EV_WRITE, 1);
+      //event_active(out_timeouts[target / sock.size()]
 //      std::cout << "trigger" << std::endl;
       //struct timeval t = {0, 1};
       //event_add(sock[target].outevent, &t);
@@ -240,18 +248,18 @@ namespace graphlab {
     }
 
 
-    bool dc_tcp_comm::send_till_block(socket_info& sockinfo, bool& wouldblock) {
-      wouldblock = false;
-      
+    bool dc_tcp_comm::send_till_block(socket_info& sockinfo) {
+      sockinfo.wouldblock = false;
       // while there is still data to be sent
       BEGIN_TRACEPOINT(tcp_send_call);
-      while(1) {
+      while(!sockinfo.outvec.empty()) {
+        sockinfo.outvec.fill_msghdr(sockinfo.data);
         ssize_t ret = sendmsg(sockinfo.outsock, &sockinfo.data, 0);
         // decrement the counter
         if (ret < 0) {
           END_TRACEPOINT(tcp_send_call);
           if (errno == EWOULDBLOCK || errno == EAGAIN) {
-            wouldblock = true;
+            sockinfo.wouldblock = true;
             return false;
           }
           else {
@@ -264,38 +272,7 @@ namespace graphlab {
       logstream(LOG_INFO) << ret << " bytes --> " << sockinfo.id << std::endl;
 #endif
         network_bytessent.inc(ret);
-        // restructure the msghdr depending on how much was sent
-        struct iovec* newiovecptr = sockinfo.data.msg_iov;
-        size_t newiovlen = sockinfo.data.msg_iovlen;
-        for (size_t i = 0;i < (size_t)(sockinfo.data.msg_iovlen); ++i) {
-          // amount sent was less than this entry.
-          // shift the entry and retry
-          if ((size_t)ret < sockinfo.data.msg_iov[i].iov_len) {
-            // shift the data
-            sockinfo.data.msg_iov[i].iov_len -= ret;
-            char* tmp = (char*) sockinfo.data.msg_iov[i].iov_base;
-            tmp += ret;
-            sockinfo.data.msg_iov[i].iov_base = (void*)tmp;
-            break;
-          }
-          else {
-            // amount sent exceeds this entry. we need to 
-            // erase this entry (increment the iovec_ptr)
-            // and go on to the next entry
-            size_t l = std::min<size_t>(ret, sockinfo.data.msg_iov[i].iov_len);
-            newiovlen--;
-            newiovecptr++;
-            ret -= l;
-            if (ret == 0) break;
-          }
-        }
-        sockinfo.data.msg_iov = newiovecptr;
-        sockinfo.data.msg_iovlen = newiovlen;
-        // now move some of the remaining iovs into msg_iovlen
-        sockinfo.data.msg_iovlen = std::min<size_t>(sockinfo.data.msg_iovlen + sockinfo.iovs_remaining, IOV_MAX);
-        // update the remainder
-        sockinfo.iovs_remaining -= sockinfo.data.msg_iovlen - newiovlen;
-        if (sockinfo.data.msg_iovlen == 0) break;
+        sockinfo.outvec.sent(ret);
       }
       END_TRACEPOINT(tcp_send_call);
       return true;
@@ -542,72 +519,42 @@ namespace graphlab {
     }
 
 
-    bool dc_tcp_comm::check_for_new_data(dc_tcp_comm::socket_info& sockinfo) {
-      // check for data to send
-      if (sockinfo.active_outvec.empty()) {
-        if (sender[sockinfo.id]->get_outgoing_data(sockinfo.original_outvec, sockinfo.outnumel)) {
-          // we have stuff to send!
-          sockinfo.active_outvec = sockinfo.original_outvec;
-          sockinfo.reset_msghdr();
-          return true;
-        }
-        return false;
-      }
-      return false;
+    void dc_tcp_comm::check_for_new_data(dc_tcp_comm::socket_info& sockinfo) {
+      sender[sockinfo.id]->get_outgoing_data(sockinfo.outvec);
     }
+    
 
     // libevent receive handler
     void on_send_event(int fd, short ev, void* arg) {
       if (ev & EV_WRITE) {
         dc_tcp_comm::socket_info* sockinfo = (dc_tcp_comm::socket_info*)(arg);
+        sockinfo->wouldblock = false;
         dc_tcp_comm* comm = sockinfo->owner;
         // get a direct pointer to my receiver
-        bool wouldblock = false;
-        while(1) {
+        while(sockinfo->wouldblock == false) {
           comm->check_for_new_data(*sockinfo);
-          if (!sockinfo->active_outvec.empty()) {
-            // yup! we have data to send
-            if (wouldblock) break;
-            if (comm->send_till_block(*sockinfo, wouldblock)) {
-              // we finished the current block. free it
-              sockinfo->active_outvec.clear();
-              // delete the original outvec
-              for (size_t i = 0;i < sockinfo->original_outvec.size(); ++i) {
-                free(sockinfo->original_outvec[i].iov_base);
-              }
-              sockinfo->original_outvec.clear();
-              sockinfo->outnumel = 0;
-            }
+          if (!sockinfo->outvec.empty()) {
+            comm->send_till_block(*sockinfo);
           }
           else {
             break;
           }
         }
+        if (sockinfo->wouldblock) event_add(sockinfo->outevent, NULL);
       }
       else if (ev & EV_TIMEOUT) {
-        // timeout event
-        // loop through all existing socks and see if there is anything I need to do
-        dc_tcp_comm::timeout_event* ev = (dc_tcp_comm::timeout_event*)(arg);
-        dc_tcp_comm* comm = ev->owner;
-        for (size_t i = ev->sockstart;i < ev->sockend; ++i) {
+        dc_tcp_comm::timeout_event* te =  (dc_tcp_comm::timeout_event*)(arg);
+        dc_tcp_comm* comm = te->owner;
+        for (size_t i = te->sockstart;i < te->sockend; ++i) {
           dc_tcp_comm::socket_info* sockinfo = &(comm->sock[i]);
-          if (sockinfo->active_outvec.empty()) {
-            comm->check_for_new_data(*sockinfo);
-            // if we have data, try to send it
-            if (!sockinfo->active_outvec.empty()) {
-              bool wouldblock = false;
-              if (comm->send_till_block(*sockinfo, wouldblock)) {
-                // we finished the current block. free it
-                sockinfo->active_outvec.clear();
-                // delete the original outvec
-                for (size_t i = 0;i < sockinfo->original_outvec.size(); ++i) {
-                  free(sockinfo->original_outvec[i].iov_base);
-                }
-                sockinfo->original_outvec.clear();
-                sockinfo->outnumel = 0;
-              }
-            }
+          comm->check_for_new_data(*sockinfo);
+          if (!sockinfo->outvec.empty()) {
+            comm->send_till_block(*sockinfo);
           }
+          else {
+            break;
+          }
+          if (sockinfo->wouldblock) event_add(sockinfo->outevent, NULL);
         }
       }
     }

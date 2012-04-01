@@ -27,6 +27,7 @@
 #include <sys/socket.h>
 
 #include <iostream>
+#include <graphlab/rpc/circular_iovec_buffer.hpp>
 #include <graphlab/rpc/dc_internal_types.hpp>
 #include <graphlab/rpc/dc_types.hpp>
 namespace graphlab {
@@ -77,10 +78,9 @@ class dc_send{
   /**
    * Returns true if there is data, false otherwise. This function
    * must be reentrant, but it is guaranteed that only one thread will
-   * call this function at anytime. 
-   * numel may be less than outdata.size()
+   * call this function at anytime.
    */
-  virtual bool get_outgoing_data(std::vector<iovec>& outdata, size_t &numel) = 0;
+  virtual bool get_outgoing_data(circular_iovec_buffer& outdata) = 0;
 
 };
   
