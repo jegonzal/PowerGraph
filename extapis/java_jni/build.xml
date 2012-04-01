@@ -66,8 +66,7 @@
     
     <target name="dist" depends="build, javadoc" description="generate the distribution" >
       <mkdir dir="${dist}/lib"/>
-      <tstamp/>
-      <jar jarfile="${dist}/lib/graphlabjni-${DSTAMP}.jar" basedir="${bin}"/>
+      <jar jarfile="${dist}/lib/graphlab.jar" basedir="${bin}"/>
     </target>
 
     <target name="javadoc" depends="build" description="Create Javadoc API documentation">
