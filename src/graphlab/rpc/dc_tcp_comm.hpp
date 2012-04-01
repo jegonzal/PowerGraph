@@ -190,7 +190,8 @@ class dc_tcp_comm:public dc_comm_base {
 
     std::vector<iovec> original_outvec;  /// outgoing data
     std::vector<iovec> active_outvec;  /// A copy of original_outvec, with possibly shifted pointers
-    size_t outnumel;            /// remaining number of elements in active_outvec which have not been sent
+    size_t outnumel;            /// number of elements in active_outvec 
+    size_t iovs_remaining;      /// Number of elements not sent
     struct msghdr data; 
     
     inline void reset_msghdr() {
@@ -200,9 +201,19 @@ class dc_tcp_comm:public dc_comm_base {
       data.msg_controllen = 0;
       data.msg_flags = 0;
       data.msg_iovlen = std::min<size_t>(outnumel, IOV_MAX);
-      if (outnumel) data.msg_iov = &(active_outvec[0]);
+      if (outnumel) {
+        data.msg_iov = &(active_outvec[0]);
+        iovs_remaining = outnumel - data.msg_iovlen;
+      }
     }
   };
+  
+  struct timeout_event {
+    size_t sockstart;
+    size_t sockend;
+    dc_tcp_comm* owner;
+  };
+  
   std::vector<socket_info> sock; 
   
     
@@ -213,7 +224,7 @@ class dc_tcp_comm:public dc_comm_base {
    * If wouldblock returns true, the next call to send_till_block may block
    */
   bool send_till_block(socket_info& sockinfo, bool& wouldblock);
-  
+  bool check_for_new_data(socket_info& sockinfo);
     
   void construct_events(size_t sockets_per_thread = 4);
   
@@ -234,6 +245,8 @@ class dc_tcp_comm:public dc_comm_base {
   void send_loop(struct event_base*);
   friend void on_send_event(int fd, short ev, void* arg);
   std::vector<struct event_base*> outevbase;
+  std::vector<struct event*> out_timeouts;
+  std::vector<timeout_event> timeoutevents;
   
   ////////////       Listening Sockets     //////////////////////
   int listensock;

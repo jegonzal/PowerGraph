@@ -52,6 +52,7 @@ namespace dc_impl {
     msg.iov_base = data;
     msg.iov_len = len;
     bool trigger = false;
+    size_t insertloc;
     while(1) {
       size_t curid;
       while(1) {
@@ -68,7 +69,7 @@ namespace dc_impl {
         }
       }
       // ok, we have a reference count into curid, we can write to it
-      size_t insertloc = buffer[curid].numel.inc_ret_last();
+      insertloc = buffer[curid].numel.inc_ret_last();
       // ooops out of buffer room. release the reference count, flush and retry
       if (insertloc >= buffer[curid].buf.size()) {
         __sync_fetch_and_sub(&(buffer[curid].ref_count), 1);
@@ -109,11 +110,12 @@ namespace dc_impl {
     // decrement the reference count
     __sync_fetch_and_sub(&(buffer[curid].ref_count), 1);
     // wait till the reference count is negative
-    while(buffer[curid].ref_count >= 0) usleep(1);
+    while(buffer[curid].ref_count >= 0);
     
     // ok now we have exclusive access to the buffer
     size_t sendlen = buffer[curid].numbytes;
     if (sendlen > 0) {
+      size_t oldbsize = buffer[curid].buf.size();
       numel = std::min((size_t)(buffer[curid].numel.value), buffer[curid].buf.size());
       bool buffull = (numel == buffer[curid].buf.size());
       std::vector<iovec> &sendbuffer = buffer[curid].buf;
@@ -135,7 +137,7 @@ namespace dc_impl {
         sendbuffer.resize(2 * numel);
       }
       else {
-        sendbuffer.resize(numel);
+        sendbuffer.resize(oldbsize);
       }
       __sync_fetch_and_add(&(buffer[curid].ref_count), 1);
       return true;

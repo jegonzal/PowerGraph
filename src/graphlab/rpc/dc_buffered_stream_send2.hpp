@@ -66,11 +66,11 @@ class dc_buffered_stream_send2: public dc_send{
                                    procid_t target) : 
                   dc(dc),  comm(comm), target(target),
                   writebuffer_totallen(0) {
-    buffer[0].buf.resize(100000);
+    buffer[0].buf.resize(1000);
     buffer[0].numel = 1;
     buffer[0].numbytes = 0;
     buffer[0].ref_count = 0;
-    buffer[1].buf.resize(100000);
+    buffer[1].buf.resize(1000);
     buffer[1].numel = 1;
     buffer[1].numbytes = 0;
     buffer[1].ref_count = 0;
