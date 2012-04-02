@@ -154,7 +154,7 @@ namespace graphlab {
       outevbase.resize(nevs);
       out_timeouts.resize(nevs);
       timeoutevents.resize(nevs);
-      
+      sockets_per_thread = sock.size() / nevs + (sock.size() % nevs > 0);
       for (size_t i = 0;i < nevs; ++i) {
         inevbase[i] = event_base_new();
         if (!inevbase[i]) logstream(LOG_FATAL) << "Unable to construct libevent base" << std::endl;
