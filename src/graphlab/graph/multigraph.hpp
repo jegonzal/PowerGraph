@@ -374,7 +374,7 @@ namespace graphlab {
         }
 
     void unload_all(){
-       for (int i=0; i< graphs.size(); i++){
+       for (uint i=0; i< graphs.size(); i++){
            graphs[i]->clear();
            delete graphs[i];
        }

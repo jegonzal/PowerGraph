@@ -51,11 +51,10 @@ enum kcore_output_fields{
 
 struct vertex_data {
   bool active;
-  bool needs_inspection;
   unsigned short kcore;
   uint cur_links;
 
-  vertex_data() : active(true), kcore(-1), cur_links(0), needs_inspection(true)  {}
+  vertex_data() : active(true), kcore(-1), cur_links(0) {}
 
   void add_self_edge(double value) { }
 
@@ -344,9 +343,12 @@ int main(int argc,  char *argv[]) {
            multigraph.doload(i, true, true, !twosided);
        core.graph() = *multigraph.graph(0);
        matrix_info.nonzeros = core.graph().num_edges();
-       matrix_info.rows = matrix_info.cols = core.graph().num_vertices();
+       if (nodes > 0)
+         matrix_info.rows = matrix_info.cols = nodes;
+       else
+         matrix_info.rows = matrix_info.cols = core.graph().num_vertices();
        if (newvec.size() == 0){
-         for (uint i=0; i< matrix_info.total(); i++){
+         for (uint i=0; i< std::min((size_t)matrix_info.total(),core.graph().num_vertices()); i++){
            newvec.push_back(i);
          }
        }
@@ -361,7 +363,7 @@ int main(int argc,  char *argv[]) {
     
 
        //for (int t=0; t< matrix_info.total(); t++){
-       for (int t=0; t< newvec.size(); t++){
+       for (uint t=0; t< newvec.size(); t++){
             //if (pmultigraph->get_vertex_data(t).active){
               //assert(pmultigraph->get_vertex_data(newvec[t]).active);
               dummy_context con(newvec[t]);
@@ -372,14 +374,14 @@ int main(int argc,  char *argv[]) {
           multigraph.unload_all(); 
        else first_time = false;
       }
-      int t;
+      uint t;
       num_active = 0;
 
 #pragma omp parallel for private(t) reduction(+: num_active)
      //for (t=0; t< matrix_info.total(); t++){
      for (t =0; t< newvec.size(); t++){
          vertex_data& vdata = pmultigraph->get_vertex_data(newvec[t]);
-        if ((vdata.cur_links <= iiter) && vdata.active){
+        if ((vdata.cur_links <= (uint)iiter) && vdata.active){
           vdata.active = false;
           vdata.kcore = iiter;
          
@@ -394,7 +396,7 @@ int main(int argc,  char *argv[]) {
     
      oldvec = newvec;
      newvec.clear();
-     for (int i=0; i< oldvec.size(); i++){
+     for (uint i=0; i< oldvec.size(); i++){
         if (pmultigraph->get_vertex_data(oldvec[i]).active)
             newvec.push_back(oldvec[i]);
      } 
