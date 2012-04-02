@@ -103,7 +103,6 @@ link_libraries(tcmalloc)
 set(TCMALLOC-FOUND 1)
 add_definitions(-DHAS_TCMALLOC)
 
-if(EXPERIMENTAL)
 # Add Libevent
 ExternalProject_Add(event
   PREFIX ${GraphLab_SOURCE_DIR}/deps/event
@@ -113,7 +112,6 @@ ExternalProject_Add(event
   INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local)
 link_libraries(event)
 link_libraries(event_pthreads)
-endif()
 
 # ExternalProject_Add(openmpi
 #   PREFIX ${GraphLab_SOURCE_DIR}/deps/openmpi
