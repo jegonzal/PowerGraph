@@ -49,7 +49,8 @@ class dc_stream_receive: public dc_receive{
  public:
   
   dc_stream_receive(distributed_control* dc, procid_t associated_proc): 
-                  writebuffer(NULL), dc(dc), associated_proc(associated_proc)
+                  header_read(0), writebuffer(NULL), 
+                  write_buffer_written(0), dc(dc), associated_proc(associated_proc)
                    { }
 
  private:
@@ -63,7 +64,6 @@ class dc_stream_receive: public dc_receive{
   distributed_control* dc;
 
   procid_t associated_proc;
-  
   
   void shutdown();
 

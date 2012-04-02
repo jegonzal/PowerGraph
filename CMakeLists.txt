@@ -94,6 +94,7 @@ endforeach()
 message(STATUS "Boost Shared libs: " ${Boost_SHARED_LIBRARIES})
 
 
+
 ExternalProject_Add(tcmalloc
   PREFIX ${GraphLab_SOURCE_DIR}/deps/tcmalloc
   SVN_REPOSITORY http://gperftools.googlecode.com/svn/trunk/
@@ -103,6 +104,15 @@ ExternalProject_Add(tcmalloc
 link_libraries(tcmalloc)
 set(TCMALLOC-FOUND 1)
 add_definitions(-DHAS_TCMALLOC)
+
+# Add Libevent
+ExternalProject_Add(event
+  PREFIX ${GraphLab_SOURCE_DIR}/deps/event
+  URL http://iweb.dl.sourceforge.net/project/levent/libevent/libevent-2.0/libevent-2.0.18-stable.tar.gz
+  CONFIGURE_COMMAND <SOURCE_DIR>/configure --prefix=<INSTALL_DIR>
+  INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local)
+link_libraries(event)
+link_libraries(event_pthreads)
 
 # ExternalProject_Add(openmpi
 #   PREFIX ${GraphLab_SOURCE_DIR}/deps/openmpi
@@ -170,6 +180,7 @@ endif()
 
 ## Not used currently
 # find_package(Java)
+find_package(Ant)
 
 
 ## ===================================================================
@@ -732,7 +743,7 @@ if (IS_DIRECTORY ${GraphLab_SOURCE_DIR}/apps)
 endif()
 
 subdirs(demoapps toolkits)
-
+subdirs(extapis)
   
 
 

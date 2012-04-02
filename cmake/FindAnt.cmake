@@ -1,0 +1,7 @@
+# - Try to find Ant
+find_file(ANT_EXEC NAMES ant ant.sh ant.bat PATHS $ENV{ANT_HOME}/bin)
+
+INCLUDE(FindPackageHandleStandardArgs)
+FIND_PACKAGE_HANDLE_STANDARD_ARGS(ANT DEFAULT_MSG ANT_EXEC)
+
+MARK_AS_ADVANCED(ANT_EXEC)

@@ -4,15 +4,13 @@ project(GraphLab)
 
 
 
-
-if(HAS_EIGEN)
   add_graphlab_executable(als als.cpp ../shared/mmio.cpp)
   #add_graphlab_executable(lanczos lanczos.cpp ../shared/mmio.cpp)
   #add_graphlab_executable(lanczos_acum lanczos_acum.cpp ../shared/mmio.cpp)
   add_graphlab_executable(gklanczos gklanczos.cpp ../shared/mmio.cpp)
   add_graphlab_executable(onesidedlanczos onesidedlanczos.cpp ../shared/mmio.cpp)
   add_graphlab_executable(als_lapack als_lapack.cpp ../shared/mmio.cpp)
-endif()
+
   
 
   #   add_graphlab_executable(pmf pmf.cpp advanced_config.cpp  ../../libs/matrixmarket/mmio.cpp main.cpp)

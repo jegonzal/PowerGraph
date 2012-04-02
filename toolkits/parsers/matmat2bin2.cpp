@@ -40,8 +40,11 @@ using namespace std;
 
 
 bool debug = false;
+size_t nodes = 0;
+unsigned long nonzeros = 0;
 bool quick = true;
 bool square_matrix = false;
+bool binary_input_format = false;
 std::string datafile;
 graphlab::timer mytime;
 unsigned long long total_lines = 0;
@@ -87,7 +90,9 @@ struct stringzipparser_update :
     bipartite_graph_descriptor info;
     graph_type graph;
     //get matrix market header size
-    load_graph(vdata.filename, "matrixmarket", info, graph, MATRIX_MARKET_3, false, true);
+    if (!binary_input_format)
+       load_graph(vdata.filename, "matrixmarket", info, graph, MATRIX_MARKET_3, false, true);
+    else { info.rows = info.cols = nodes; info.nonzeros = nonzeros; }
 
     FILE * deg_file = open_file(vdata.filename + ".nodes", "w");
     FILE * edge_file = open_file(vdata.filename + ".edges", "w");
@@ -107,70 +112,86 @@ struct stringzipparser_update :
       }
     }
     
-    int last_row = 0, last_col = 0;
+    uint last_row = 0, last_col = 0;
     char linebuf[256], buf1[256], buf2[256], buf3[256];
     char saveptr[1024];
-    uint line = 1;
-    uint lines = context.get_global<uint>("LINES");
+    size_t line = 1;
+    size_t lines = context.get_global<size_t>("LINES");
     bool header = true;
- 
+    uint from, to;
+    double val;
+	
     while(true){
-      fin.getline(linebuf, 128);
-      if (fin.eof())
-        break;
-      if (linebuf[0] == '%'){ //skip matrix market header
-         continue;
-      }
-      else if (header){ //skip matrix market size
-          header = false;
-          continue;
-      }
-      char *pch = strtok_r(linebuf," \r\n\t,",(char**)&saveptr);
-      if (!pch){
-        logstream(LOG_ERROR) 
-          << "Error when parsing file: " << vdata.filename << ":" 
-          << line <<std::endl << " line is: " << linebuf << std::endl;
-        return;
-       }
-      strncpy(buf1, pch, 20);
-      pch = strtok_r(NULL, " \r\n\t;,",(char**)&saveptr);
-      if (!pch){
-        logstream(LOG_ERROR) 
-          << "Error when parsing file: " << vdata.filename << ":" 
-          << line <<std::endl;
-         return;
-       }
-       strncpy(buf2, pch, 20);
-        pch = strtok_r(NULL, "\r\n\t ;,",(char**)&saveptr);
-      if (!pch && !no_edge_data){
-        logstream(LOG_ERROR) 
-          << "Error when parsing file: " << vdata.filename << ":" 
-          << line << " [ " << linebuf << " ] " << std::endl;
-         return;
-       }
-       if (pch)
-         strncpy(buf3, pch, 40);
-        
-        uint from, to;
-        double val;
-        from = atoi(buf1);
-        to = atoi(buf2);
-        if (reverse_edges) //file is sorted by 2nd column
-           assert(to > (uint)last_col);
-        else assert(from > (uint)last_row); //file is sorted by 1st column
 
-	if (!no_edge_data)
-           val = atof(buf3);
-        //matrix market size line- skip
-        if (from == (uint)info.rows && 
-            to == (uint)info.cols && 
-            (size_t)val == info.nonzeros)
-           continue;
+      if (!binary_input_format){
+	      fin.getline(linebuf, 128);
+	      if (fin.eof())
+		break;
+	      if (linebuf[0] == '%'){ //skip matrix market header
+		 continue;
+	      }
+	      else if (header){ //skip matrix market size
+		  header = false;
+		  continue;
+	      }
+	      char *pch = strtok_r(linebuf," \r\n\t,",(char**)&saveptr);
+	      if (!pch){
+		logstream(LOG_ERROR) 
+		  << "Error when parsing file: " << vdata.filename << ":" 
+		  << line <<std::endl << " line is: " << linebuf << std::endl;
+		return;
+	       }
+	      strncpy(buf1, pch, 20);
+	      pch = strtok_r(NULL, " \r\n\t;,",(char**)&saveptr);
+	      if (!pch){
+		logstream(LOG_ERROR) 
+		  << "Error when parsing file: " << vdata.filename << ":" 
+		  << line <<std::endl;
+		 return;
+	       }
+	       strncpy(buf2, pch, 20);
+		pch = strtok_r(NULL, "\r\n\t ;,",(char**)&saveptr);
+	      if (!pch && !no_edge_data){
+		logstream(LOG_ERROR) 
+		  << "Error when parsing file: " << vdata.filename << ":" 
+		  << line << " [ " << linebuf << " ] " << std::endl;
+		 return;
+	       }
+	       if (pch)
+		 strncpy(buf3, pch, 40);
+		
+		from = atoi(buf1);
+		to = atoi(buf2);
+		if (reverse_edges) //file is sorted by 2nd column
+		   assert(to > (uint)last_col);
+		else assert(from > (uint)last_row); //file is sorted by 1st column
 
-        assert(from >= 1 && from <= (uint)info.rows);
-        assert(to >=1 && to <= (uint)info.cols);
-  	from--; to--;
+		if (!no_edge_data)
+		   val = atof(buf3);
+		//matrix market size line- skip
+		if (from == (uint)info.rows && 
+		    to == (uint)info.cols && 
+		    (size_t)val == info.nonzeros)
+		   continue;
 
+              from--; to--;
+	}
+        else //binary input format
+        {
+             if (fin.eof())
+                break;
+             fin.read((char*)&from, 4);
+             if (fin.eof() || !fin.good()){
+                perror("reading error");
+  		logstream(LOG_FATAL) 
+		  << "Error when parsing file: " << vdata.filename << ":" 
+		  << line << " [ " << from << " ] " << std::endl;
+             }
+             fin.read((char*)&to,4);
+        }
+        assert(from >= 0 && from < (uint)info.rows);
+        assert(to >=0 && to < (uint)info.cols);
+	 
         if (!no_edge_data)
            fwrite(&val, sizeof(double), 1, weight_file);
 
@@ -197,8 +218,10 @@ struct stringzipparser_update :
            }
         }
         edges_so_far++;
+        if (edges_so_far == 0)
+          cout<<"Edges so far is zero at: " << num_degree_written << endl;
 
-        if (debug && line <= 10)
+        if (debug && (line <= 10 || (lines > 0 && line >= lines-10)))
             cout << "Read line: " << line << " From: " << from 
                  << " To: " << to << " val: " << val 
                  << " total edges so far: " << edges_so_far << endl;
@@ -219,13 +242,13 @@ struct stringzipparser_update :
      << vdata.filename << endl;
    if (!square_matrix){
      if (reverse_edges) {
-       for (int k=last_col; k < info.cols; k++){
+       for (uint k=last_col; k < info.cols; k++){
          fwrite(&edges_so_far, sizeof(int), 1, deg_file);
          num_degree_written++;
        }
      }
      else {
-       for (int k=last_row; k < info.rows+info.cols-1; k++){
+       for (uint k=last_row; k < info.rows+info.cols+1; k++){
          fwrite(&edges_so_far, sizeof(int), 1, deg_file);
          num_degree_written++;
        }
@@ -236,9 +259,13 @@ struct stringzipparser_update :
     num_degree_written++;
     if (!square_matrix)
        assert(num_degree_written == info.rows+info.cols+1); 
-    else 
-       assert(num_degree_written == info.rows+1);
-    assert((size_t)edges_so_far == info.nonzeros);
+    else {
+       if (num_degree_written != info.rows+1)
+          logstream(LOG_WARNING)<<"Number degree written: " << num_degree_written <<
+          " is not equatl to: " << info.rows+1 << std::endl;
+    }
+    if (edges_so_far != info.nonzeros)
+        logstream(LOG_WARNING)<<"Number of edge written: " << edges_so_far << " != number of non zeros:" << info.nonzeros << endl;
     
     fclose(deg_file);
     if (!no_edge_data)
@@ -270,7 +297,7 @@ int main(int argc,  char *argv[]) {
   std::string dir = "/mnt/bigbrofs/usr3/bickson/phone_calls/";
   std::string outdir = "/mnt/bigbrofs/usr3/bickson/out_phone_calls/";
   int unittest = 0;
-  uint lines = 0;
+  size_t lines = 0;
   bool load = false;
   bool save_to_text = false;
   std::string filter = "";
@@ -282,7 +309,7 @@ int main(int argc,  char *argv[]) {
   clopts.attach_option("debug", &debug, debug, "Display debug output.");
   clopts.attach_option("unittest", &unittest, unittest, 
 		       "unit testing 0=None, 1=3x3 matrix");
-  clopts.attach_option("lines", &lines, lines, "limit number of read lines to XX");
+  //clopts.attach_option("lines", &lines, lines, "limit number of read lines to XX");
   clopts.attach_option("quick", &quick, quick, "quick mode");
   clopts.attach_option("dir", &dir, dir, "path to files");
   clopts.attach_option("outdir", &outdir, outdir, "output directory");
@@ -294,6 +321,11 @@ int main(int argc,  char *argv[]) {
   clopts.attach_option("reverse_edges", &reverse_edges, reverse_edges, "true = matrix market file is sorted by 2nd col. False - matrix market file is sorted by 1st column");
   clopts.attach_option("no_edge_data", &no_edge_data, no_edge_data, "No edge data (format is <from> <to>\n)");
   clopts.attach_option("square_matrix", &square_matrix, square_matrix, "Square matrix ? " );
+  clopts.attach_option("binary_input_format", &binary_input_format, binary_input_format, "binary input format (uint 32 src,dest array)");
+  clopts.attach_option("nodes", &nodes, nodes, "number of graph nodes (optional)");
+  //clopts.attach_option("nnz", &nonzeros, nonzeros "number of graph edges (optional)");
+  nonzeros = 5397526093; 
+  lines = 5397526093;
   // Parse the command line arguments
   if(!clopts.parse(argc, argv)) {
     std::cout << "Invalid arguments!" << std::endl;
@@ -310,7 +342,7 @@ int main(int argc,  char *argv[]) {
     << "Currently implemented algorithms are: Gaussian Belief Propagation, "
     << "Jacobi method, Conjugate Gradient" << std::endl;
 
-
+  logstream(LOG_INFO) << "Number of nodes: " << nodes << " nnz: " << nonzeros << " lines: " << lines << std::endl;
 
   // Create a core
   graphlab::core<graph_type, stringzipparser_update> core;

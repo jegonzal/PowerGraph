@@ -49,6 +49,7 @@ typedef MatrixXd mat;
 typedef VectorXd vec;
 typedef VectorXi ivec;
 typedef MatrixXi imat;
+typedef Matrix<size_t, Dynamic, Dynamic> matst;
 typedef SparseVector<double> sparse_vec;
 
 inline void debug_print_vec(const char * name,const vec& _vec, int len){
@@ -69,10 +70,8 @@ inline void debug_print_vec(const char * name,const double* _vec, int len){
 }
 mat randn1(int dx, int dy, int col);
 
-inline void set_val(mat &A, int row, int col, double val){
-  A(row, col) = val;
-}
-inline void set_val(imat &A, int row, int col, int val){
+template<typename mat, typename data>
+inline void set_val(mat &A, int row, int col, data val){
   A(row, col) = val;
 }
 inline double get_val(const mat &A, int row, int col){
