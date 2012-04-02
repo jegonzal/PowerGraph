@@ -203,7 +203,7 @@ double calc_rmse(const graph_type * _g, bool validation, double & res, const bip
      uint i;
 //#pragma omp parallel for private(i) reduction(+: RMSE)
 //#pragma omp parallel for
-     for (i=info.get_start_node(false); i< info.get_end_node(false); i++){
+     for (i=info.get_start_node(false); i< (uint)info.get_end_node(false); i++){
        const vertex_data & data = training->vertex_data(i);
        for (uint j=0; j< _g->num_in_edges(i); j++) {
          const edge_type & edget = _g->in_edges(i)[j];
