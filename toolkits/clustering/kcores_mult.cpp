@@ -173,6 +173,9 @@ public:
     int increasing_links = 0;
     
     edge_list_type edges = context.out_edges();
+    // A HACK, to be fixed later
+    if (nodes == 133633042 && id > 67273916)
+      edges.abs_offset += 4294967296;
     edge_list_type inedges;
     if (twosided)
        inedges = context.in_edges();

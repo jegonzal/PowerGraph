@@ -242,13 +242,13 @@ struct stringzipparser_update :
      << vdata.filename << endl;
    if (!square_matrix){
      if (reverse_edges) {
-       for (uint k=last_col; k < info.cols; k++){
+       for (uint k=last_col; k < (uint)info.cols; k++){
          fwrite(&edges_so_far, sizeof(int), 1, deg_file);
          num_degree_written++;
        }
      }
      else {
-       for (uint k=last_row; k < info.rows+info.cols+1; k++){
+       for (uint k=last_row; k < (uint)info.rows+info.cols+1; k++){
          fwrite(&edges_so_far, sizeof(int), 1, deg_file);
          num_degree_written++;
        }
