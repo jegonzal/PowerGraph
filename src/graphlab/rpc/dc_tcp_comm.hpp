@@ -35,11 +35,16 @@
 #include <graphlab/rpc/dc_types.hpp>
 #include <graphlab/rpc/dc_internal_types.hpp>
 #include <graphlab/rpc/dc_comm_base.hpp>
+#include <graphlab/rpc/circular_iovec_buffer.hpp>
 #include <graphlab/util/tracepoint.hpp>
 
 namespace graphlab {
 namespace dc_impl {
   
+  
+void on_receive_event(int fd, short ev, void* arg);
+void on_send_event(int fd, short ev, void* arg);
+
 /**
  \ingroup rpc_internal
 TCP implementation of the communications subsystem.
@@ -52,6 +57,7 @@ class dc_tcp_comm:public dc_comm_base {
   DECLARE_TRACER(tcp_send_call);
   
   inline dc_tcp_comm() {
+    is_closed = true;
     INITIALIZE_TRACER(tcp_send_call, "dc_tcp_comm: send syscall");
   }
   
@@ -77,7 +83,8 @@ class dc_tcp_comm:public dc_comm_base {
   void init(const std::vector<std::string> &machines,
             const std::map<std::string,std::string> &initopts,
             procid_t curmachineid,
-            std::vector<dc_receive*> receiver);
+            std::vector<dc_receive*> receiver,
+            std::vector<dc_send*> senders);
 
   /** shuts down all sockets and cleans up */
   void close();
@@ -87,7 +94,7 @@ class dc_tcp_comm:public dc_comm_base {
   }
   
   inline bool channel_active(size_t target) const {
-    return (outsocks[target] != -1);
+    return (sock[target].outsock != -1);
   }
 
   /**
@@ -120,8 +127,6 @@ class dc_tcp_comm:public dc_comm_base {
     return network_bytesreceived.value;
   }
  
-  /// Flushes the TCP stream. \note Not Implemented.
-  void flush(size_t target);
   
   /**
    Sends the string of length len to the target machine dest.
@@ -130,44 +135,13 @@ class dc_tcp_comm:public dc_comm_base {
   */
   void send(size_t target, const char* buf, size_t len);
   
-  /**
-   * Sends a series of buffers one after another to the target machine.
-   * Receiver will receive the contents of the buffers consecutively.
-   * After the call to this function, the 'buf' vector may be modified.
-   * This will numel elements in buf, or up to length of buf
-   */
-  void send_many(size_t target,
-                 std::vector<iovec>& buf,
-                 size_t numel = (size_t)(-1));
-  
-  
-  // receiving socket handler
-  class socket_handler {
-   public:
-    DECLARE_TRACER(process_receive);
-    dc_tcp_comm &owner;
-    int fd;
-    procid_t sourceid;
-    socket_handler(dc_tcp_comm& owner, int fd, procid_t id):owner(owner), fd(fd), sourceid(id) {
-      INITIALIZE_TRACER(process_receive, "dc_tcp_comm: process receive buffer");
-    }
-    
-    void run();
-  };
-  
-  // listening socket handler
-  class accept_handler {
-   public:
-    dc_tcp_comm &owner;
-    int listensock;
-    
-    accept_handler(dc_tcp_comm& owner, int listensock):owner(owner),listensock(listensock) {}
-    void run();
-  };
+  void trigger_send_timeout(procid_t target);
   
  private:
   /// Sets TCP_NO_DELAY on the socket passed in fd
-  void set_socket_options(int fd);
+  void set_tcp_no_delay(int fd);
+  
+  void set_non_blocking(int fd);
 
   /// called when listener receives an incoming socket request
   void new_socket(int newsock, sockaddr_in* otheraddr, procid_t remotemachineid);
@@ -183,40 +157,86 @@ class dc_tcp_comm:public dc_comm_base {
 
   /// wrapper around the standard send. but loops till the buffer is all sent
   int sendtosock(int sockfd, const char* buf, size_t len);
+
+
+  procid_t curid;   /// if od the current processor
+  procid_t nprocs;  /// number of processors
+  bool is_closed;   /// whether this socket is closed
   
-  /** checks for the existance of an outgoing connectino to the target
-   if none exists, it will create one
-     */
-  void check_for_out_connection(size_t target);
-  
+
   /// all_addrs[i] will contain the IP address of machine i
   std::vector<uint32_t> all_addrs;
   std::map<uint32_t, procid_t> addr2id;
   std::vector<uint16_t> portnums;
-
-  
-  procid_t curid; 
-  procid_t nprocs;
-  
-  /// the socket we use to listen on 
-  int listensock;
-  accept_handler* listenhandler;
-  thread* listenthread;
   
   std::vector<dc_receive*> receiver;
+  std::vector<dc_send*> sender;
+
   
-  /// socks[i] is the socket to machine i.
-  /// There is no socket to the local process ( socks[procid()] is invalid )
-  /// If socks[i] == int(-1) then the sock is invalid
-  std::vector<int> socks; 
-  std::vector<socket_handler*> handlers;
-  std::vector<thread*> handlerthreads;
+ 
   
-  std::vector<int> outsocks; 
   
+  
+  /// All information about stuff regarding a particular sock
+  /// Passed to the receive handler
+  struct socket_info{
+    size_t id;    /// which machine this is connected to
+    dc_tcp_comm* owner; /// this object
+    int outsock;  /// FD of the outgoing socket
+    int insock;   /// FD of the incoming socket
+    struct event* inevent;  /// event object for incoming information
+    struct event* outevent;  /// event object for outgoing information
+    bool wouldblock;
+    mutex m;
+
+    circular_iovec_buffer outvec;  /// outgoing data
+    struct msghdr data; 
+  };
+  
+  struct timeout_event {
+    size_t sockstart;
+    size_t sockend;
+    dc_tcp_comm* owner;
+  };
+  
+  std::vector<socket_info> sock; 
+  
+    
+  /**
+   * Sends as much of the buffer inside the sockinfo as possible
+   * until the send call will block or all sends are complete. 
+   * Returns true when the buffer has been completely sent
+   * If wouldblock returns true, the next call to send_till_block may block
+   */
+  void send_all(socket_info& sockinfo);
+  bool send_till_block(socket_info& sockinfo);
+  void check_for_new_data(socket_info& sockinfo);
+  void construct_events(size_t sockets_per_thread = 4);
+  
+
+  // counters
   atomic<size_t> network_bytessent;
   atomic<size_t> network_bytesreceived;
 
+  ////////////       Receiving Sockets      //////////////////////
+  thread_group inthreads;
+  void receive_loop(struct event_base*);
+  friend void on_receive_event(int fd, short ev, void* arg);
+  std::vector<struct event_base*> inevbase;
+  
+  
+  ////////////       Sending Sockets      //////////////////////
+  thread_group outthreads;
+  void send_loop(struct event_base*);
+  friend void on_send_event(int fd, short ev, void* arg);
+  std::vector<struct event_base*> outevbase;
+  std::vector<struct event*> out_timeouts;
+  std::vector<timeout_event> timeoutevents;
+  
+  ////////////       Listening Sockets     //////////////////////
+  int listensock;
+  thread listenthread;
+  void accept_handler();
 };
 
 } // namespace dc_impl

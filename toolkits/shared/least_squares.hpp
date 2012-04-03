@@ -22,7 +22,7 @@ float predict(const vertex_data& v1, const vertex_data& v2, float rating, float 
 }
 
 
-void compute_least_squares(mat & Q, vec & vals, vec & result, bool isuser, bool toprint, int numedges){
+void compute_least_squares(mat & Q, vec & vals, vec & result, bool isuser, bool toprint, uint numedges){
   
     //COMPUTE LEAST SQUARES (ALTERNATING LEAST SQUARES)
     //compute weighted regularization (see section 3.2 of Zhou paper)
@@ -76,7 +76,7 @@ struct als_lapack:
 
   edge_list outs = context.out_edges();
   edge_list ins = context.in_edges();
-  int numedges = ins.size() + outs.size();
+  uint numedges = ins.size() + outs.size();
   if (numedges == 0)
     return;
 

@@ -52,6 +52,7 @@ link_directories(${GraphLab_SOURCE_DIR}/deps/local/lib)
 ExternalProject_Add(eigen
   PREFIX ${GraphLab_SOURCE_DIR}/deps/eigen
   URL http://graphlab.org/deps/eigen_3.0.5.tar.gz
+  URL_MD5 73f47ddc6a2b540356864bfc8a34f5d7
   CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
   -DEIGEN_BUILD_PKGCONFIG=NO
   INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local)
@@ -67,6 +68,7 @@ include_directories(${GraphLab_SOURCE_DIR}/deps/local/include/eigen3)
 ExternalProject_Add(boost
   PREFIX ${GraphLab_SOURCE_DIR}/deps/boost
   URL "http://sourceforge.net/projects/boost/files/boost/1.49.0/boost_1_49_0.tar.gz"
+  URL_MD5 e0defc8c818e4f1c5bbb29d0292b76ca 
   BUILD_IN_SOURCE 1
   CONFIGURE_COMMAND ./bootstrap.sh 
   --with-libraries=filesystem
@@ -92,6 +94,7 @@ endforeach()
 message(STATUS "Boost Shared libs: " ${Boost_SHARED_LIBRARIES})
 
 
+
 ExternalProject_Add(tcmalloc
   PREFIX ${GraphLab_SOURCE_DIR}/deps/tcmalloc
   SVN_REPOSITORY http://gperftools.googlecode.com/svn/trunk/
@@ -103,16 +106,28 @@ set(TCMALLOC-FOUND 1)
 add_definitions(-DHAS_TCMALLOC)
 
 
+# Add Libevent
+ExternalProject_Add(event
+  PREFIX ${GraphLab_SOURCE_DIR}/deps/event
+  URL http://iweb.dl.sourceforge.net/project/levent/libevent/libevent-2.0/libevent-2.0.18-stable.tar.gz
+  URL_MD5 aa1ce9bc0dee7b8084f6855765f2c86a
+  CONFIGURE_COMMAND <SOURCE_DIR>/configure --prefix=<INSTALL_DIR>
+  INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local)
+link_libraries(event)
+link_libraries(event_pthreads)
+
+
 # /Users/jegonzal/tmp/hadoop-1.0.1.tar.gz  
 # ExternalProject_Add(hadoop
 #   PREFIX ${GraphLab_SOURCE_DIR}/deps/hadoop
 #   URL http://www.reverse.net/pub/apache/hadoop/common/stable/hadoop-1.0.1.tar.gz
-#   MD5_SUM e627d9b688c4de03cba8313bd0bba148
+#   URL_MD5 e627d9b688c4de03cba8313bd0bba148
 #   UPDATE_COMMAND chmod +x src/c++/libhdfs/install-sh
 #   PATCH_COMMAND patch -p1 < ${GraphLab_SOURCE_DIR}/patches/libhdfs-compile-osx.patch
 #   CONFIGURE_COMMAND bash <SOURCE_DIR>/src/c++/libhdfs/configure --enable-static 
 #   --disable-shared JVM_ARCH=tune=i686 --prefix=<INSTALL_DIR>
 #   INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local)
+
 
 # ExternalProject_Add(openmpi
 #   PREFIX ${GraphLab_SOURCE_DIR}/deps/openmpi
@@ -180,6 +195,7 @@ endif()
 
 ## Not used currently
 # find_package(Java)
+find_package(Ant)
 
 
 ## ===================================================================
@@ -225,7 +241,7 @@ if(EXISTS ${JAVA_INCLUDE_PATH}/jni.h  )
 else( )
   set(JNI_REALLY_FOUND 0 CACHE BOOL "Tests whether the header
   actually exists")
-message(STATUS "jni.h was not found at " ${JAVA_INCLUDE_PATH}/jni.h)
+  #  message(STATUS "jni.h was not found at " ${JAVA_INCLUDE_PATH}/jni.h)
 endif( )
 
 
@@ -447,9 +463,7 @@ link_directories(
 
 
 # Add posix threads on non-windows systems
-if(NOT ${CMAKE_SYSTEM} MATCHES Windows)
-  link_libraries(pthread gomp)   
-endif(NOT ${CMAKE_SYSTEM} MATCHES Windows)
+link_libraries(pthread gomp)
 
 
 
@@ -742,7 +756,7 @@ if (IS_DIRECTORY ${GraphLab_SOURCE_DIR}/apps)
 endif()
 
 subdirs(demoapps toolkits)
-
+subdirs(extapis)
   
 
 

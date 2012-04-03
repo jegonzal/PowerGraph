@@ -96,12 +96,13 @@ size_t array_from_file(std::string filename, T *& array){
 	     }
 	     total += rc; 
           }
+          fclose(f);
           return sb.st_size;
 }
 
 enum iterator_type {INEDGE, OUTEDGE}; 
 uint gnum_nodes;
-uint g_num_edges;
+size_t g_num_edges;
 
 uint mmap_from_file(std::string filename, uint *& array);
 
@@ -109,10 +110,10 @@ namespace graphlab {
   struct edge_type_impl{
    uint _source; 
    uint _target;
-   uint _offset;
+   size_t _offset;
    iterator_type _direction;
 
-   edge_type_impl(uint source, uint target, uint offset, iterator_type direction) : _source(source), _target(target), _offset(offset), _direction(direction) {
+   edge_type_impl(uint source, uint target, size_t offset, iterator_type direction) : _source(source), _target(target), _offset(offset), _direction(direction) {
      assert(source != target);
      assert(source <= gnum_nodes);
      assert(target <= gnum_nodes);
@@ -120,7 +121,7 @@ namespace graphlab {
    edge_type_impl() : _source(-1), _target(-1), _offset(-1) { }
    uint source() const { return _source; }
    uint target() const { return _target; }
-   uint offset() const { return _offset; }
+   size_t offset() const { return _offset; }
    iterator_type direction() const { return _direction; }
   };
 
@@ -137,7 +138,7 @@ namespace graphlab {
       // Cosntructors
       edge_iterator () : center(-1), offset(-1), empty(true), data_ptr(NULL) { }
      
-      edge_iterator (vertex_id_type _center, uint _offset, 
+      edge_iterator (vertex_id_type _center, size_t _offset, 
                      iterator_type _itype, const uint* _data_ptr) : 
         center(_center), offset(_offset), itype(_itype), empty(false), 
         data_ptr(_data_ptr) { 

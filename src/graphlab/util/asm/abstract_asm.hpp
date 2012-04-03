@@ -24,7 +24,7 @@
 #ifndef GRAPHLAB_ASYNC_STATE_MACHINE_HPP
 #define GRAPHLAB_ASYNC_STATE_MACHINE_HPP
 
-#include <graphlab/asm/async_state_machine_types.hpp>
+#include <graphlab/util/asm/async_state_machine_types.hpp>
 #include <graphlab/parallel/atomic.hpp>
 
 namespace graphlab {

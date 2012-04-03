@@ -1,0 +1,3 @@
+project(GraphLab)
+
+subdirs(java_jni)
