@@ -226,7 +226,7 @@ if(EXISTS ${JAVA_INCLUDE_PATH}/jni.h  )
 else( )
   set(JNI_REALLY_FOUND 0 CACHE BOOL "Tests whether the header
   actually exists")
-message(STATUS "jni.h was not found at " ${JAVA_INCLUDE_PATH}/jni.h)
+  #  message(STATUS "jni.h was not found at " ${JAVA_INCLUDE_PATH}/jni.h)
 endif( )
 
 
@@ -448,9 +448,7 @@ link_directories(
 
 
 # Add posix threads on non-windows systems
-if(NOT ${CMAKE_SYSTEM} MATCHES Windows)
-  link_libraries(pthread gomp)   
-endif(NOT ${CMAKE_SYSTEM} MATCHES Windows)
+link_libraries(pthread gomp)
 
 
 

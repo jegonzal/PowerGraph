@@ -1,6 +1,6 @@
 project(GraphLab)
 
-if(ANT_FOUND)
+if(JNI_REALLY_FOUND AND ANT_FOUND)
   add_custom_target(java_app
     COMMAND ant dist
     COMMAND mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/my-app/src
@@ -13,9 +13,9 @@ if(ANT_FOUND)
     COMMAND cp -R eclipse/ ${CMAKE_CURRENT_BINARY_DIR}/my-app/
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     COMMENT "Generating new Eclipse project")
+  add_dependencies(java_app graphlabjni)
 else()
   message(STATUS
     "Ant not detected. You will not be able to generate Eclipse project files from CMake.") 
 endif()
 
-add_dependencies(java_app graphlabjni)
