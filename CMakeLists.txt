@@ -102,6 +102,18 @@ link_libraries(tcmalloc)
 set(TCMALLOC-FOUND 1)
 add_definitions(-DHAS_TCMALLOC)
 
+
+# /Users/jegonzal/tmp/hadoop-1.0.1.tar.gz  
+# ExternalProject_Add(hadoop
+#   PREFIX ${GraphLab_SOURCE_DIR}/deps/hadoop
+#   URL http://www.reverse.net/pub/apache/hadoop/common/stable/hadoop-1.0.1.tar.gz
+#   MD5_SUM e627d9b688c4de03cba8313bd0bba148
+#   UPDATE_COMMAND chmod +x src/c++/libhdfs/install-sh
+#   PATCH_COMMAND patch -p1 < ${GraphLab_SOURCE_DIR}/patches/libhdfs-compile-osx.patch
+#   CONFIGURE_COMMAND bash <SOURCE_DIR>/src/c++/libhdfs/configure --enable-static 
+#   --disable-shared JVM_ARCH=tune=i686 --prefix=<INSTALL_DIR>
+#   INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local)
+
 # ExternalProject_Add(openmpi
 #   PREFIX ${GraphLab_SOURCE_DIR}/deps/openmpi
 #   URL http://www.open-mpi.org/software/ompi/v1.4/downloads/openmpi-1.4.5.tar.gz
