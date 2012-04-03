@@ -215,6 +215,8 @@ void svd_plus_plus_update_function(gl_types_svdpp::iscope &scope,
   user.rmse = 0;
 
   if (user.num_edges == 0){
+   if (scope.vertex() == (uint)(ps.M-1))
+    	svd_post_iter();
     return; //if this user/movie have no ratings do nothing
   }
 

@@ -42,7 +42,7 @@
 #include "Eigen/Sparse"
 #include "Eigen/Cholesky"
 #include "Eigen/Eigenvalues"
-
+#define EIGEN_DONT_PARALLELIZE  //don't let eigen parallelize matrix ops since this conflicts with our own threads and create deadlocks.
 
 using namespace Eigen;
 
