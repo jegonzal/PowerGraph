@@ -73,7 +73,7 @@ public:
   consistency_model scatter_consistency() { return graphlab::NULL_CONSISTENCY; }
   edge_set gather_edges() const { return graphlab::IN_EDGES; }
   edge_set scatter_edges() const {
-    return graphlab::OUT_EDGES;
+    return graphlab::ALL_EDGES;
   }
 
   // Reset the accumulator before running the gather
@@ -81,20 +81,16 @@ public:
 
   // Run the gather operation over all in edges
   void gather(icontext_type& context, const edge_type& edge) {
-    vertex_data & data = context.vertex_data();
-    data.cur_links = 0;
-    //const size_t num_out_edges = context.num_out_edges(edge.source());
-    ASSERT_EQ(edge.target(), context.vertex_id());
-    const vertex_data & vdata = context.const_vertex_data(edge.source());
+   vertex_data & data = context.vertex_data();
+   const vertex_id_type neighbor_id = context.vertex_id() == edge.target()?
+   edge.source() : edge.target();
+  
+   data.cur_links = 0;
+    const vertex_data & vdata = context.const_vertex_data(neighbor_id);
     if (vdata.active)
           data.cur_links++;
   }
 
-    /*foreach(const graph_type::edge_type e, context.in_edges()){
-        const vertex_data & vdata = context.const_vertex_data(e.target());
-        if (vdata.active)
-           data.cur_links++;
-    }*/
 
         //ASSERT_GT(num_out_edges, 0);
     //const float weight =  1.0 / float(num_out_edges);
@@ -124,19 +120,16 @@ public:
   // Reschedule neighbors 
   void scatter(icontext_type& context, const edge_type& edge) {
     uint cur_iter = iiter;
-    vertex_data & data = context.vertex_data();
+   const vertex_id_type neighbor_id = context.vertex_id() == edge.target()?
+   edge.source() : edge.target();
+     vertex_data & data = context.vertex_data();
     if (data.cur_links <= cur_iter){
         data.active = false;
         data.kcore = cur_iter;
-        const vertex_data & other = context.const_vertex_data(edge.target());
+        const vertex_data & other = context.const_vertex_data(neighbor_id);
            if (other.active){
-             context.schedule(edge.target(), factorized_kcores());
+             context.schedule(neighbor_id, factorized_kcores());
            }
-        /*foreach( graph_type::edge_type e, context.in_edges()){
-          const vertex_data & other = context.const_vertex_data(e.target());
-           if (other.active)
-	     context.schedule(e.target(), factorized_kcores());    
-        }*/
     }
  
 //context.schedule(edge.target(), factorized_kcores(accum));
