@@ -3,3 +3,4 @@ project(GraphLab)
 
 add_graphlab_executable(create_powerlaw_graph create_powerlaw_graph.cpp)
 add_graphlab_executable(convert_graph convert_graph.cpp)
+add_graphlab_executable(count_degrees count_degrees.cpp)
