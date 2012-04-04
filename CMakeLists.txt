@@ -140,7 +140,7 @@ ExternalProject_Add(hadoop
   URL http://www.gtlib.gatech.edu/pub/apache/hadoop/common/stable/hadoop-1.0.1.tar.gz
   #  URL http://www.reverse.net/pub/apache/hadoop/common/stable/hadoop-1.0.1.tar.gz
   URL_MD5 e627d9b688c4de03cba8313bd0bba148
-  #UPDATE_COMMAND chmod +x src/c++/libhdfs/install-sh
+  UPDATE_COMMAND chmod +x src/c++/libhdfs/install-sh
   PATCH_COMMAND patch -p1 < ${GraphLab_SOURCE_DIR}/patches/libhdfs-compile-osx.patch
   # CONFIGURE_COMMAND ""
   # COMPILE_COMMAND ant -Dcompile.c++=true -Dlibhdfs=true 
