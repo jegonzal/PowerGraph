@@ -76,6 +76,11 @@ add_library(graphlab STATIC
   rpc/delta_dht.cpp
   )
 add_dependencies(graphlab eigen boost tcmalloc event)
+if(JNI_REALLY_FOUND)
+  add_dependencies(graphlab hadoop)
+endif(JNI_REALLY_FOUND)
+
+
 target_link_libraries(graphlab ${Boost_LIBRARIES})
 
 
@@ -97,6 +102,11 @@ get_target_property(graphlab_sources graphlab SOURCES)
 get_property(graphlab_flags TARGET graphlab PROPERTY COMPILE_FLAGS)
 add_library(graphlab_pic STATIC ${graphlab_sources})
 add_dependencies(graphlab_pic eigen boost tcmalloc event)
+if(JNI_REALLY_FOUND)
+  add_dependencies(graphlab_pic hadoop)
+endif(JNI_REALLY_FOUND)
+
+
 set_target_properties(graphlab_pic PROPERTIES 
   COMPILE_FLAGS "${graphlab_flags} -fPIC")
 
