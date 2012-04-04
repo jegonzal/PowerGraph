@@ -105,14 +105,60 @@ link_libraries(tcmalloc)
 set(TCMALLOC-FOUND 1)
 add_definitions(-DHAS_TCMALLOC)
 
+
 # Add Libevent
 ExternalProject_Add(event
   PREFIX ${GraphLab_SOURCE_DIR}/deps/event
   URL http://iweb.dl.sourceforge.net/project/levent/libevent/libevent-2.0/libevent-2.0.18-stable.tar.gz
+  URL_MD5 aa1ce9bc0dee7b8084f6855765f2c86a
   CONFIGURE_COMMAND <SOURCE_DIR>/configure --prefix=<INSTALL_DIR>
   INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local)
 link_libraries(event)
 link_libraries(event_pthreads)
+
+
+
+
+#Find the JNI library
+find_package(JNI)
+if(EXISTS ${JAVA_INCLUDE_PATH}/jni.h  )
+  set(JNI_REALLY_FOUND 1 CACHE BOOL "Tests whether the header
+  actually exists")
+  message(STATUS "jni.h was found at " ${JAVA_INCLUDE_PATH}/jni.h)
+  include_directories(${JNI_INCLUDE_DIRS})
+else( )
+  set(JNI_REALLY_FOUND 0 CACHE BOOL "Tests whether the header
+  actually exists")
+  #  message(STATUS "jni.h was not found at " ${JAVA_INCLUDE_PATH}/jni.h)
+endif( )
+
+
+
+if( JNI_REALLY_FOUND )
+ExternalProject_Add(hadoop
+  PREFIX ${GraphLab_SOURCE_DIR}/deps/hadoop
+  URL http://www.gtlib.gatech.edu/pub/apache/hadoop/common/stable/hadoop-1.0.1.tar.gz
+  #  URL http://www.reverse.net/pub/apache/hadoop/common/stable/hadoop-1.0.1.tar.gz
+  URL_MD5 e627d9b688c4de03cba8313bd0bba148
+  #UPDATE_COMMAND chmod +x src/c++/libhdfs/install-sh
+  PATCH_COMMAND patch -p1 < ${GraphLab_SOURCE_DIR}/patches/libhdfs-compile-osx.patch
+  # CONFIGURE_COMMAND ""
+  # COMPILE_COMMAND ant -Dcompile.c++=true -Dlibhdfs=true 
+  # -Dinstall.c++=${GraphLab_SOURCE_DIR}/deps/local
+  # compile-c++-libhdfs
+  # INSTALL_COMMAND ""
+  CONFIGURE_COMMAND bash <SOURCE_DIR>/src/c++/libhdfs/configure 
+  ac_cv_func_malloc_0_nonnull=yes 
+  #  --enable-static --disable-shared 
+  JVM_ARCH=tune=i686 --prefix=<INSTALL_DIR>
+  INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local
+  TEST_COMMAND cp <SOURCE_DIR>/src/c++/libhdfs/hdfs.h <INSTALL_DIR>/include )
+set(HADOOP_FOUND 1 CACHE BOOL "Hadoop was found")
+add_definitions(-DHAS_HADOOP)
+link_libraries(hdfs ${JAVA_JVM_LIBRARY})
+endif( JNI_REALLY_FOUND )
+
+
 
 # ExternalProject_Add(openmpi
 #   PREFIX ${GraphLab_SOURCE_DIR}/deps/openmpi
@@ -201,33 +247,20 @@ find_package(Ant)
 
 
 
-if(HADOOP_HOME)
-  message(STATUS "Found hadoop home: " ${HADOOP_HOME})
-  set(HADOOP_FOUND 1 CACHE BOOL "Hadoop was found")
-  include_directories(${HADOOP_HOME}/src/c++/libhdfs)
-  link_directories(${HADOOP_HOME}/c++/Linux-amd64-64/lib)   
-else(HADOOP_HOME)
-  message(STATUS "Hadoop was not found but is strictly optional")      
-endif(HADOOP_HOME)
+# if(HADOOP_HOME)
+#   message(STATUS "Found hadoop home: " ${HADOOP_HOME})
+#   set(HADOOP_FOUND 1 CACHE BOOL "Hadoop was found")
+#   include_directories(${HADOOP_HOME}/src/c++/libhdfs)
+#   link_directories(${HADOOP_HOME}/c++/Linux-amd64-64/lib)   
+# else(HADOOP_HOME)
+#   message(STATUS "Hadoop was not found but is strictly optional")      
+# endif(HADOOP_HOME)
 
 
 
 
 
 
-
-#Find the JNI library
-find_package(JNI)
-if(EXISTS ${JAVA_INCLUDE_PATH}/jni.h  )
-  set(JNI_REALLY_FOUND 1 CACHE BOOL "Tests whether the header
-  actually exists")
-  message(STATUS "jni.h was found at " ${JAVA_INCLUDE_PATH}/jni.h)
-  include_directories(${JNI_INCLUDE_DIRS})
-else( )
-  set(JNI_REALLY_FOUND 0 CACHE BOOL "Tests whether the header
-  actually exists")
-  #  message(STATUS "jni.h was not found at " ${JAVA_INCLUDE_PATH}/jni.h)
-endif( )
 
 
 
@@ -355,10 +388,6 @@ set(CMAKE_REQUIRED_LIBRARIES ${crlbackup})
 
 
 
-if( HADOOP_FOUND AND JNI_REALLY_FOUND )
-  add_definitions(-DHAS_HADOOP)
-  link_libraries(hdfs ${JAVA_JVM_LIBRARY})
-endif ( HADOOP_FOUND AND JNI_REALLY_FOUND )
 
 
 

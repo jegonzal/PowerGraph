@@ -60,14 +60,6 @@ function print_help {
   echo 
   echo "      --itpp_link_dir=[DIR]   specify manually itpp link dir (path to libitpp.a lib)."
   echo
-  echo "      --hadoop                Install hadoop tools for HDFS support "
-  echo
-  echo "      --force_hadoop_install  Force install hadoop tools for HDFS support "
-  echo
-  echo "      --tcmalloc              Install tcmalloc parallel memory allocator"
-  echo
-  echo "      --force_tcmalloc_install  Force installation of tcmalloc"
-  echo
   echo "      -D something=something  specify definitions to be passed on to cmake."
   echo
   exit 1
@@ -106,10 +98,6 @@ while [ $# -gt 0 ]
     --itpp)                 itpp=1 ;;
     --itpp_include_dir=*)   itpp_include_dir=${1##--itpp_include_dir=} ;;
     --itpp_link_dir=*)      itpp_link_dir=${1##--itpp_link_dir=} ;;
-    --hadoop)		    install_hadoop=1 ;;
-    --force_hadoop_install) force_hadoop_install=1 ;;
-    --tcmalloc)		    install_tcmalloc=1 ;;
-    --force_tcmalloc_install) force_tcmalloc_install=1 ;;
     -D)                     config_flags="$config_flags -D $2"; shift ;;
     *) unknown_option $1 ;;
   esac
@@ -219,13 +207,6 @@ elif [ ! -z $itpp ]; then
   source ./scripts/itpp_install.sh | tee -a $LOG_FILE
 fi
 
-if [ ! -z $install_hadoop ]; then
-  source ./scripts/hadoop_install.sh  | tee -a $LOG_FILE
-fi
-
-if [ ! -z $install_tcmalloc ]; then
-  source ./scripts/tcmalloc_install.sh  | tee -a $LOG_FILE
-fi
 
 
 
@@ -254,7 +235,6 @@ echo -e \
     "Debug build path:          $DEBUG_DIR \n"\
     "Profile build path:        $PROFILE_DIR \n"\
     "Install path:              $INSTALL_DIR \n"\
-    "TCMALLOC_ROOT:             $TCMALLOC_ROOT \n"\
     "Build experimental parts:  $EXPERIMENTAL \n" | tee -a $LOG_FILE
 
 
@@ -279,12 +259,6 @@ fi
 if [ ! -z $itpp_include_dir ]; then
    config_flags="$config_flags -D ITPP_INCLUDE_DIR:STRING=$itpp_include_dir"
 fi
-
-
-if [ ! -z $HADOOP_HOME ]; then
-   config_flags="$config_flags -D HADOOP_HOME:STRING=$HADOOP_HOME"
-fi
-
 
 ### CONSTRUCT THE BUILD DIRECTORIES ===========================================
 
