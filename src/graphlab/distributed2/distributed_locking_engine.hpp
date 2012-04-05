@@ -307,6 +307,18 @@ namespace graphlab {
     size_t total_update_count;
   
     dc_services reduction_services;
+    
+    PERMANENT_DECLARE_DIST_EVENT_LOG(eventlog);
+
+    enum {
+      SCHEDULE_EVENT = 0,
+      BEGIN_VERTEX_EVENT = 1,
+      LOCK_REQUEST_EVENT = 2,
+      UPDATE_EVENT = 3,
+      WORK_ISSUED_EVENT = 4,
+      ENGINE_START_EVENT = 5,
+      ENGINE_STOP_EVENT = 6,
+    };
   public:
     distributed_locking_engine(distributed_control &dc,
                                Graph& graph,
@@ -353,6 +365,23 @@ namespace graphlab {
       reduction_services(dc),
       reduction_barrier(ncpus) { 
       graph.allocate_scope_callbacks();
+      
+#ifdef USE_EVENT_LOG
+      PERMANENT_INITIALIZE_DIST_EVENT_LOG(eventlog, dc, std::cout, 3000, 
+                                          dist_event_log::RATE_BAR);
+#else
+      PERMANENT_INITIALIZE_DIST_EVENT_LOG(eventlog, dc, std::cout, 3000, 
+                                          dist_event_log::LOG_FILE);
+#endif
+      PERMANENT_ADD_DIST_EVENT_TYPE(eventlog, SCHEDULE_EVENT, "Schedule");
+      PERMANENT_ADD_DIST_EVENT_TYPE(eventlog, BEGIN_VERTEX_EVENT, "Vertex Activated");
+      PERMANENT_ADD_DIST_EVENT_TYPE(eventlog, LOCK_REQUEST_EVENT, "Locks Requested (Upper Approx.)");
+      PERMANENT_ADD_DIST_EVENT_TYPE(eventlog, UPDATE_EVENT, "Updates");
+      PERMANENT_ADD_DIST_EVENT_TYPE(eventlog, WORK_ISSUED_EVENT, "Work Issued");
+      PERMANENT_ADD_IMMEDIATE_DIST_EVENT_TYPE(eventlog, ENGINE_START_EVENT, "Engine Start");
+      PERMANENT_ADD_IMMEDIATE_DIST_EVENT_TYPE(eventlog, ENGINE_STOP_EVENT, "Engine Stop");
+
+      
       dc.barrier();
     }
   
@@ -477,6 +506,7 @@ namespace graphlab {
     void add_task(update_task_type task, double priority) {
       if (graph.is_owned(task.vertex())) {
         // translate to local IDs
+        PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, SCHEDULE_EVENT, 1);
         task =  update_task_type(graph.globalvid_to_localvid(task.vertex()), task.function());
         //if (graph.get_local_store().num_in_neighbors(task.vertex()) + 
         //graph.get_local_store().num_out_neighbors(task.vertex()) > 1000) return;
@@ -1157,6 +1187,7 @@ namespace graphlab {
         
           //if scheduler game me a task
           if (stat != sched_status::EMPTY) {
+            PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, BEGIN_VERTEX_EVENT, 1);
             //added a deffered task
             num_deferred_tasks.inc();
             // translate the task back to globalids
@@ -1170,11 +1201,19 @@ namespace graphlab {
             // if a lock was not requested. request for it
             if (vertex_deferred_tasks[task.vertex()].lockrequested == false) {
               vertex_deferred_tasks[task.vertex()].lockrequested = true;
+              size_t degree = graph.get_local_store().num_in_neighbors(task.vertex()) + 
+                              graph.get_local_store().num_out_neighbors(task.vertex());
               bool priority = (priority_degree_limit > 0 && 
-                               graph.get_local_store().num_in_neighbors(task.vertex()) + 
-                               graph.get_local_store().num_out_neighbors(task.vertex()) >= priority_degree_limit);
+                               degree >= priority_degree_limit);
             
               if (strength_reduction == false || graph.color(globalvid) != weak_color) {
+                if (default_scope_range == scope_range::EDGE_CONSISTENCY || 
+                    default_scope_range == scope_range::FULL_CONSISTENCY) {
+                  PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, LOCK_REQUEST_EVENT, degree + 1);
+                }
+                else {
+                  PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, LOCK_REQUEST_EVENT, 1);
+                }
                 graphlock->scope_request(globalvid, handler, default_scope_range, priority);
               }
               else {
@@ -1232,7 +1271,10 @@ namespace graphlab {
             update_function_type ut = vertex_deferred_tasks[curv].updates.front();
             vertex_deferred_tasks[curv].updates.pop_front();
             //  vertex_deferred_tasks[curv].lock.unlock();
-
+            PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, UPDATE_EVENT, 1);
+            size_t degree = graph.get_local_store().num_in_neighbors(curv) + 
+                              graph.get_local_store().num_out_neighbors(curv);
+            PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, WORK_ISSUED_EVENT, degree);
             scope.init(&graph, globalvid);
           
             binary_vertex_tasks.remove(update_task_type(curv, ut));
@@ -1340,6 +1382,9 @@ namespace graphlab {
       logstream(LOG_INFO) << "priority_degree_limit = " << priority_degree_limit << std::endl;
       rmi.dc().full_barrier();
       // reset indices
+      if (rmi.procid() == 0) {
+        PERMANENT_IMMEDIATE_DIST_EVENT(eventlog, ENGINE_START_EVENT);
+      }
       ti.start();
       // spawn worker threads
       thread_group thrgrp; 
@@ -1402,6 +1447,10 @@ namespace graphlab {
       thrgrp_reduction.join();    
       rmi.barrier();
     
+      if (rmi.procid() == 0) {
+        PERMANENT_IMMEDIATE_DIST_EVENT(eventlog, ENGINE_STOP_EVENT);
+      }
+      
       if (termination_reason == EXEC_UNSET) termination_reason = EXEC_TASK_DEPLETION;
 
 
