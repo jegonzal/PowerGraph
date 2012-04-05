@@ -72,8 +72,23 @@ void constant_fanout() {
   std::cout << "sampling degrees" << std::endl;
   std::vector<double> degree(nverts, 0);
   for(size_t i = 0; i < nverts; ++i) degree[i] = sample(prob);
+  std::cout << "sorting degrees to prevent numeric underflow" << std::endl;
+  std::sort(degree.begin(), degree.end());
+  std::cout << "Saving degree distribution" << std::endl;
+  const std::string degree_fname = fname + ".degree";
+  std::ofstream degree_fout(degree_fname.c_str());
+  for(size_t i = 0; i < degree.size(); ++i) 
+    degree_fout << size_t(degree[i]) << '\n';
+  degree_fout.close();
   std::cout << "converting degrees to cdf" << std::endl;
   pdf2cdf(degree);
+  std::cout << "Saving cdf" << std::endl;
+  const std::string cdf_fname = fname + ".cdf.bin";
+  std::ofstream cdf_fout(cdf_fname.c_str(), std::ios::binary | std::ios::out);
+  cdf_fout.write(reinterpret_cast<char*>(&(degree[0])), 
+                 sizeof(double) * degree.size());
+  cdf_fout.close();
+
   std::cout << "Sampling graph" << std::endl;
   std::ofstream fout(fname.c_str());  
   boost::unordered_set<size_t> targets;
