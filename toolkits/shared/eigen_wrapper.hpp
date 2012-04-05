@@ -43,6 +43,7 @@
 #include "Eigen/Cholesky"
 #include "Eigen/Eigenvalues"
 #include "Eigen/SVD"
+#define EIGEN_DONT_PARALLELIZE //eigen parallel for loop interfers with ours.
 using namespace Eigen;
 
 typedef MatrixXd mat;
