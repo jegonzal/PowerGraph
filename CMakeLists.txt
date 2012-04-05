@@ -82,9 +82,15 @@ ExternalProject_Add(boost
   INSTALL_COMMAND ./bjam install
   INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local )
 set(BOOST_ROOT ${GraphLab_SOURCE_DIR}/deps/local )
-set(Boost_USE_STATIC_LIBS TRUE)
-set(Boost_LIBRARIES boost_filesystem boost_program_options boost_system boost_iostreams boost_date_time)
-set(Boost_SHARED_LIBRARIES "")
+set(BOOST_LIBS_DIR ${GraphLab_SOURCE_DIR}/deps/local/lib)
+set(Boost_LIBRARIES 
+  ${BOOST_LIBS_DIR}/libboost_filesystem.a 
+  ${BOOST_LIBS_DIR}/libboost_program_options.a
+  ${BOOST_LIBS_DIR}/libboost_system.a 
+  ${BOOST_LIBS_DIR}/libboost_iostreams.a 
+  ${BOOST_LIBS_DIR}/libboost_date_time.a)
+message(STATUS "Boost libs: " ${Boost_LIBRARIES})
+# set(Boost_SHARED_LIBRARIES "")
 foreach(blib ${Boost_LIBRARIES})
   message(STATUS "Boost libs: " ${blib})
   string(REGEX REPLACE "\\.a$" ${CMAKE_SHARED_LIBRARY_SUFFIX} bout ${blib})
@@ -476,7 +482,6 @@ set(BUILD_SHARED_LIBS ON)
 include_directories(
   ${GraphLab_SOURCE_DIR}/src
   ${GraphLab_SOURCE_DIR}/cxxtest
-  ${Boost_INCLUDE_DIR}
   )
 
 IF(MPI_FOUND)
@@ -485,13 +490,6 @@ IF(MPI_FOUND)
     )
 ENDIF(MPI_FOUND)
 
-
-
-
-# add boost to link directories and link libraries
-link_directories(
-  ${Boost_LIBRARY_DIRS}
-  )
 
 
 # Add posix threads on non-windows systems
@@ -653,7 +651,7 @@ endmacro(EXEC)
 macro(add_graphlab_executable NAME)
   add_executable(${NAME} ${ARGN})
   target_link_libraries(${NAME} ${Boost_LIBRARIES})
-  add_dependencies(${NAME} eigen boost tcmalloc)
+  add_dependencies(${NAME} eigen boost tcmalloc graphlab)
   target_link_libraries(${NAME} ${GraphLab_LIBRARIES})
 endmacro(add_graphlab_executable)
 
@@ -669,9 +667,8 @@ macro(add_distributed_graphlab_executable NAME)
       ${MPI_LIBRARY} 
       ${MPI_EXTRA_LIBRARY} 
       ${Boost_LIBRARIES}
-
       )
-    add_dependencies(${NAME} eigen boost tcmalloc)
+    add_dependencies(${NAME} eigen boost tcmalloc event graphlab)
     set_source_files_properties( ${ARGN}
       PROPERTIES COMPILE_DEFINITIONS "GLDISTRIBUTED2" )
     # set_property(TARGET ${NAME} APPEND PROPERTY 
