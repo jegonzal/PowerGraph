@@ -130,11 +130,11 @@ if(EXISTS ${JAVA_INCLUDE_PATH}/jni.h  )
   ## Guess java home location   
   if(EXISTS $ENV{JAVA_HOME} )
     set(JAVA_HOME $ENV{JAVA_HOME} CACHE STRING "Location of Java Home")
-    message("Java home set by user: " ${JAVA_HOME})
+    message(STATUS "Java home set by user: " ${JAVA_HOME})
   else()
     string(REGEX REPLACE "\\/include" "" JAVA_HOME_GUESS  ${JAVA_AWT_INCLUDE_PATH})
     set(JAVA_HOME ${JAVA_HOME_GUESS} CACHE STRING "Location of Java Home")
-    message("Java Home guessed: " ${JAVA_HOME})
+    message(STATUS "Java Home guessed: " ${JAVA_HOME})
   endif()
 
 else( )
@@ -149,31 +149,32 @@ endif( )
 
 
 
-if( JNI_REALLY_FOUND )
-ExternalProject_Add(hadoop
-  PREFIX ${GraphLab_SOURCE_DIR}/deps/hadoop
-  URL http://www.gtlib.gatech.edu/pub/apache/hadoop/common/stable/hadoop-1.0.1.tar.gz
-  #  URL http://www.reverse.net/pub/apache/hadoop/common/stable/hadoop-1.0.1.tar.gz
-  URL_MD5 e627d9b688c4de03cba8313bd0bba148
-  UPDATE_COMMAND chmod +x src/c++/libhdfs/install-sh
-  PATCH_COMMAND patch -p1 < ${GraphLab_SOURCE_DIR}/patches/libhdfs-compile-osx.patch
-  # CONFIGURE_COMMAND ""
-  # COMPILE_COMMAND ant -Dcompile.c++=true -Dlibhdfs=true 
-  # -Dinstall.c++=${GraphLab_SOURCE_DIR}/deps/local
-  # compile-c++-libhdfs
-  # INSTALL_COMMAND ""
-  CONFIGURE_COMMAND 
-  bash <SOURCE_DIR>/src/c++/libhdfs/configure 
-  ac_cv_func_malloc_0_nonnull=yes 
-  #  --enable-static --disable-shared 
-  JVM_ARCH=tune=i686 --prefix=<INSTALL_DIR>
-  --with-java=${JAVA_HOME}
-  INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local
-  TEST_COMMAND cp <SOURCE_DIR>/src/c++/libhdfs/hdfs.h <INSTALL_DIR>/include )
-set(HADOOP_FOUND 1 CACHE BOOL "Hadoop was found")
-add_definitions(-DHAS_HADOOP)
-link_libraries(hdfs ${JAVA_JVM_LIBRARY})
-endif( JNI_REALLY_FOUND )
+if( JNI_REALLY_FOUND AND EXPERIMENTAL )
+  message(STATUS "Building libhdfs")
+  ExternalProject_Add(hadoop
+    PREFIX ${GraphLab_SOURCE_DIR}/deps/hadoop
+    URL http://www.gtlib.gatech.edu/pub/apache/hadoop/common/stable/hadoop-1.0.1.tar.gz
+    #  URL http://www.reverse.net/pub/apache/hadoop/common/stable/hadoop-1.0.1.tar.gz
+    URL_MD5 e627d9b688c4de03cba8313bd0bba148
+    UPDATE_COMMAND chmod +x src/c++/libhdfs/install-sh
+    PATCH_COMMAND patch -p1 < ${GraphLab_SOURCE_DIR}/patches/libhdfs-compile-osx.patch
+    # CONFIGURE_COMMAND ""
+    # COMPILE_COMMAND ant -Dcompile.c++=true -Dlibhdfs=true 
+    # -Dinstall.c++=${GraphLab_SOURCE_DIR}/deps/local
+    # compile-c++-libhdfs
+    # INSTALL_COMMAND ""
+    CONFIGURE_COMMAND 
+    bash <SOURCE_DIR>/src/c++/libhdfs/configure 
+    ac_cv_func_malloc_0_nonnull=yes 
+    #  --enable-static --disable-shared 
+    JVM_ARCH=tune=i686 --prefix=<INSTALL_DIR>
+    --with-java=${JAVA_HOME}
+    INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local
+    TEST_COMMAND cp <SOURCE_DIR>/src/c++/libhdfs/hdfs.h <INSTALL_DIR>/include )
+  set(HADOOP_FOUND 1 CACHE BOOL "Hadoop was found")
+  add_definitions(-DHAS_HADOOP)
+  link_libraries(hdfs ${JAVA_JVM_LIBRARY})
+endif( JNI_REALLY_FOUND AND EXPERIMENTAL )
 
 
 
