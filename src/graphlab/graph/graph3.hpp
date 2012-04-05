@@ -102,7 +102,7 @@ size_t array_from_file(std::string filename, T *& array){
 
 enum iterator_type {INEDGE, OUTEDGE}; 
 uint gnum_nodes;
-size_t g_num_edges;
+//size_t g_num_edges;
 
 uint mmap_from_file(std::string filename, uint *& array);
 
@@ -143,7 +143,7 @@ namespace graphlab {
         center(_center), offset(_offset), itype(_itype), empty(false), 
         data_ptr(_data_ptr) { 
           assert(center < gnum_nodes);
-          assert(offset <= g_num_edges);
+          //assert(offset <= g_num_edges);
           ASSERT_NE(data_ptr, NULL); 
         }
       
@@ -151,7 +151,7 @@ namespace graphlab {
         center(it.center), offset(it.offset), itype(it.itype), 
         empty(it.empty), data_ptr(it.data_ptr) { 
         assert(center < gnum_nodes);
-        assert(offset <= g_num_edges);
+        //assert(offset <= g_num_edges);
         ASSERT_NE(data_ptr, NULL);
       }
   
@@ -203,7 +203,7 @@ namespace graphlab {
       // Generate the ret value of the iterator.
       inline edge_type make_value() const {
           ASSERT_NE(data_ptr, NULL);
-          assert(offset < g_num_edges);
+          //assert(offset < g_num_edges);
           assert(center < gnum_nodes);
           assert(data_ptr[offset] < gnum_nodes);
           //logstream(LOG_INFO)<<"Make value called with center"<<center<<" offset: " << offset << " location: " << data_ptr[offset] << " data_ptr: " << data_ptr << std::endl;
@@ -243,7 +243,7 @@ namespace graphlab {
       _size = size; source = _source; itype = _itype;
       weights = _weights;
       assert(source < gnum_nodes); 
-      assert(_abs_offset+size <= g_num_edges);
+      //assert(_abs_offset+size <= g_num_edges);
       assert(size < gnum_nodes); 
     }
 
@@ -723,7 +723,7 @@ namespace graphlab {
         logstream(LOG_INFO) << "Total allocated memory for storing input matrix is: " << total_mb_allocated <<  " MB." << std::endl;
         logstream(LOG_INFO) << "Loaded a graph size of : " << num_nodes << " and " << _num_edges << " edges. " << std::endl;
          gnum_nodes = num_nodes;
-         g_num_edges = _num_edges;
+         //g_num_edges = _num_edges;
     } // end of load
 
  

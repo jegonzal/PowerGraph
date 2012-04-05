@@ -26,7 +26,7 @@
 #include "../shared/types.hpp"
 #include "../shared/mathlayer.hpp"
 
-#define USE_GRAPH2
+//#define USE_GRAPH2
 #ifdef USE_GRAPH2
 #include "graphlab/graph/graph2.hpp"
 #else
@@ -63,6 +63,7 @@ struct problem_setup{
   }
 };
 
+bool no_edge_data; //ugly, to be fixed later
 
 struct advanced_config{
 
@@ -70,7 +71,7 @@ struct advanced_config{
   bool printhighprecision; //print RMSE using more decimal digits
   int D; //feature vector length
   mat eDT; //eye() matrix used for regularization
-  bool no_edge_data;
+  //bool no_edge_data;
   double tol;
   bool finished;
   double maxval; //maximum allowed value
@@ -156,7 +157,7 @@ double calc_obj(double res){
   int edges = 0;
   const graph_type * g = training;
 
-//#pragma omp parallel for
+#pragma omp parallel for
   for (int i=0; i< ps.M; i++){
     const vertex_data * data = &g->vertex_data(i);
     if (data->num_edges > 0){
@@ -166,7 +167,7 @@ double calc_obj(double res){
     }
 
   }
-//#pragma omp parallel for
+#pragma omp parallel for
   for (int i=ps.M; i< ps.M+ps.N; i++){
     const vertex_data * data = &g->vertex_data(i);
     if (data->num_edges > 0 ){
@@ -181,7 +182,7 @@ double calc_obj(double res){
   if (debug)
      cout<<"OBJECTIVE: res: " << res << "sumU " << sumU << " sumV: " << sumV << " pu " << ps.pU << " pV: " << ps.pV << endl;
 
-  assert(edges == 2*ps.L);
+  //assert(edges == 2*ps.L);
   return obj;
 }
 
@@ -306,7 +307,7 @@ int main(int argc,  char *argv[]) {
   clopts.attach_option("update_function", &ac.update_function, ac.update_function, "true = use update function. false = user aggregator");
   clopts.attach_option("save_vectors", &ac.save_vectors, ac.save_vectors, "save output matrices U and V.");
   clopts.attach_option("nodes", &ac.nodes, ac.nodes, "number of rows/cols in square matrix (optional)");
-  clopts.attach_option("no_edge_data", &ac.no_edge_data, ac.no_edge_data, "matrix is binary (optional)");
+  clopts.attach_option("no_edge_data", &no_edge_data, no_edge_data, "matrix is binary (optional)");
   clopts.attach_option("maxval", &ac.maxval, ac.maxval, "maximum allowed value in matrix");
   clopts.attach_option("minval", &ac.minval, ac.minval, "minimum allowed value in matrix");
   clopts.attach_option("regnormal", &regnormal, regnormal, "Weight regularization with the number of neighbors for each graph node");
@@ -370,41 +371,56 @@ int main(int argc,  char *argv[]) {
 #ifdef USE_GRAPH2
   load_graph(ac.datafile, ac.format, info, core.graph(), MATRIX_MARKET_3, false, false);
   core.graph().finalize();
+#else
+  load_graph(ac.datafile, ac.format, info, core.graph(), MATRIX_MARKET_3, false, true);
+   core.graph().load_directed(ac.datafile, false, no_edge_data);
+   info.nonzeros = core.graph().num_edges();
+#endif
   ps.L = core.graph().num_edges();
   ps.M = info.rows;
   ps.N = info.cols;
   training = &core.graph();
+
+
 #pragma omp parallel for
   for (int i=0; i< info.total(); i++){
     training->vertex_data(i).num_edges = training->num_in_edges(i) + training->num_out_edges(i);
-     cout << "node: " << i << " num edges: " << training->vertex_data(i).num_edges << std::endl;
+     //cout << "node: " << i << " num edges: " << training->vertex_data(i).num_edges << std::endl;
    }
+
   bipartite_graph_descriptor infoe;
   infoe.force_non_square = true;
-  load_graph(ac.datafile + "e", ac.format, infoe, validation, MATRIX_MARKET_3, false, false, true);
+#ifdef USE_GRAPH2  
+  bool found = load_graph(ac.datafile + "e", ac.format, infoe, validation, MATRIX_MARKET_3, false, false, true);
   validation.finalize();
+#else
+  bool found = load_graph(ac.datafile + "e", ac.format, infoe, validation, MATRIX_MARKET_3, false, true, true);
+  if (found){
+   validation.load_directed(ac.datafile + "e", false, no_edge_data);
+   infoe.nonzeros = core.graph().num_edges();
+  }
+#endif
   ps.Le = validation.num_edges();
   if (ps.Le > 0 && (info.rows != infoe.rows || info.cols != infoe.cols))
     logstream(LOG_FATAL) << "Validation file has dimension " << infoe.rows << "x"<< infoe.cols << " while training file has dimension "
                          << info.rows << "x" << info.cols << ". Please fix your input to have the same dimensions. " << std::endl;
   bipartite_graph_descriptor infot;
   infot.force_non_square = true;
-  load_graph(ac.datafile + "t", ac.format, infot, test, MATRIX_MARKET_3, false, false, true);
+#ifdef USE_GRAPH2
+  bool found = load_graph(ac.datafile + "t", ac.format, infot, test, MATRIX_MARKET_3, false, false, true);
   test.finalize();
+#else
+   found = load_graph(ac.datafile + "t", ac.format, infot, validation, MATRIX_MARKET_3, false, true, true);
+   if (found){
+     test.load_directed(ac.datafile + "t", false, no_edge_data);
+     infot.nonzeros = core.graph().num_edges(); 
+   }
+#endif
   ps.Lt = test.num_edges();
   if (ps.Lt > 0 && (info.rows != infot.rows || info.cols != infot.cols))
     logstream(LOG_FATAL) << "Test file has dimension " << infot.rows << "x"<< infot.cols << " while training file has dimension "
                          << info.rows << "x" << info.cols << ". Please fix your input to have the same dimensions. " << std::endl;
 
-#else  
-  if (nodes == 0){
-    load_graph(datafile, format, info, core.graph(), MATRIX_MARKET_3, false, true);
-   } else {  
-     info.rows = info.cols = nodes;
-   }
-   core.graph().load_directed(datafile, false, no_edge_data);
-   info.nonzeros = core.graph().num_edges();
-#endif
   init_als(&core.graph(), info);
   init_math(&core.graph(), &core, info, ac.update_function);
   vec errest;
