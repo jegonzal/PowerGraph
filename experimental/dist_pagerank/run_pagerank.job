@@ -1,14 +1,18 @@
-#PBS -N run_pagerank
+#PBS -N pagerank
 #PBS -l nodes=7:ppn=8 -k oe
 
-echo $PBS_NODEFILE && cat $PBS_NODEFILE | uniq > .mfile
+cd $PBS_O_WORKDIR
+cat $PBS_NODEFILE | uniq > .mfile
 CLASSPATH=$CLASSPATH:`hadoop classpath`
 
-/opt/openmpi/bin/mpiexec -machinefile .mfile -np 14 \
+/opt/openmpi/bin/mpiexec \
+        --hostfile .mfile -n 14 \
         -x CLASSPATH \
-        ./distributed_pagerank --graph hdfs://bros.ml.cmu.edu/users/jegonzal/webgraphs/domain_graph/edata_splits/ \
+        ./dist_fscope_pagerank \
+        --graph hdfs://bros.ml.cmu.edu/data/webgraphs/domain_graph/edata_random_snap/ \
+        --format=snap \
         --ncpus=8 \
-        --dgraphopts="(ingress=random)"
+        --dgraphopts="(ingress=oblivious)"
 
 rm .mfile
 exit 0
