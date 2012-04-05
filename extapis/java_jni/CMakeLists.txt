@@ -2,7 +2,7 @@ project(GraphLab)
 
 if(JNI_REALLY_FOUND AND ANT_FOUND)
   add_custom_target(java_app
-    COMMAND ant dist
+    COMMAND env JAVA_HOME=${JAVA_HOME} ant dist
     COMMAND mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/my-app/src
     COMMAND mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/my-app/bin
     COMMAND mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/my-app/lib
