@@ -33,6 +33,8 @@ class event_log{
   atomic<size_t> counters[EVENT_MAX_COUNTERS];
   atomic<size_t> totalcounter[EVENT_MAX_COUNTERS];
 
+  std::vector<std::pair<unsigned char, size_t> > immediate_events;
+  
   double prevtime;  // last time flush() was called
   bool hasevents;   // whether there are logging events
   size_t noeventctr; // how many times flush() was called with no events
@@ -66,6 +68,7 @@ class event_log{
   void thread_loop();
 
   void add_event_type(unsigned char eventid, std::string description);
+  void add_immediate_event_type(unsigned char eventid, std::string description);
 
   inline void accumulate_event(unsigned char eventid,
                                size_t count)  __attribute__((always_inline)) {
@@ -73,6 +76,8 @@ class event_log{
     counters[eventid].inc(count);
     totalcounter[eventid].inc(count);
   }
+
+  void immediate_event(unsigned char eventid);
 
   void flush();
 
@@ -118,7 +123,9 @@ class event_log{
 #define INITIALIZE_EVENT_LOG(name, ostrm, flush_interval, printdesc)    \
                     name.initialize(ostrm, flush_interval, printdesc);
 #define ADD_EVENT_TYPE(name, id, desc) name.add_event_type(id, desc);
+#define ADD_IMMEDIATE_EVENT_TYPE(name, id, desc) name.add_immediate_event_type(id, desc);
 #define ACCUMULATE_EVENT(name, id, count) name.accumulate_event(id, count);
+#define IMMEDIATE_EVENT(name, id) name.immediate_event(id);
 #define FLUSH_EVENT_LOG(name) name.flush();
 #define CLOSE_EVENT_LOG(name) name.close();
 
@@ -126,7 +133,9 @@ class event_log{
 #define DECLARE_EVENT_LOG(name) 
 #define INITIALIZE_EVENT_LOG(name, ostrm, flush_interval, printdesc)
 #define ADD_EVENT_TYPE(name, id, desc) 
+#define ADD_IMMEDIATE_EVENT_TYPE(name, id, desc) 
 #define ACCUMULATE_EVENT(name, id, count) 
+#define IMMEDIATE_EVENT(name, id)
 #define FLUSH_EVENT_LOG(name) 
 #define CLOSE_EVENT_LOG(name)
 #endif
@@ -135,7 +144,9 @@ class event_log{
 #define PERMANENT_INITIALIZE_EVENT_LOG(name, ostrm, flush_interval, printdesc)    \
                     name.initialize(ostrm, flush_interval, printdesc);
 #define PERMANENT_ADD_EVENT_TYPE(name, id, desc) name.add_event_type(id, desc);
+#define PERMANENT_ADD_IMMEDIATE_EVENT_TYPE(name, id, desc) name.add_immediate_event_type(id, desc);
 #define PERMANENT_ACCUMULATE_EVENT(name, id, count) name.accumulate_event(id, count);
+#define PERMANENT_IMMEDIATE_EVENT(name, id) name.immediate_event(id);
 #define PERMANENT_FLUSH_EVENT_LOG(name) name.flush();
 #define PERMANENT_CLOSE_EVENT_LOG(name) name.close();
 

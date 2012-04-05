@@ -51,6 +51,8 @@ class dist_event_log{
   size_t max_desc_length; // maximum descriptor length
   fixed_dense_bitset<EVENT_MAX_COUNTERS> hascounter;
 
+  std::vector<std::pair<unsigned char, size_t> > immediate_events;
+  
   dc_dist_object<dist_event_log> *rmi;
  public:
   inline dist_event_log():out(NULL),
@@ -83,15 +85,21 @@ class dist_event_log{
   void thread_loop();
 
   void add_event_type(unsigned char eventid, std::string description);
+  
+  void add_immediate_event_type(unsigned char eventid, std::string description);
 
   void accumulate_event_aggregator(size_t proc,
                                    unsigned char eventid,
                                    size_t count);
   
+  void immediate_event_aggregator(const std::vector<std::pair<unsigned char, size_t> >& im);
+  
   inline void accumulate_event(unsigned char eventid,
                                size_t count)  __attribute__((always_inline)) {
     counters[eventid].inc(count);
   }
+
+  void immediate_event(unsigned char eventid);
 
   void print_log();
   void flush();
@@ -135,7 +143,9 @@ class dist_event_log{
 #define INITIALIZE_DIST_EVENT_LOG(name, dc, ostrm, flush_interval, printdesc)    \
                     name.initialize(dc, ostrm, flush_interval, printdesc);
 #define ADD_DIST_EVENT_TYPE(name, id, desc) name.add_event_type(id, desc);
+#define ADD_IMMEDIATE_DIST_EVENT_TYPE(name, id, desc) name.add_immediate_event_type(id, desc);
 #define ACCUMULATE_DIST_EVENT(name, id, count) name.accumulate_event(id, count);
+#define IMMEDIATE_DIST_EVENT(name, id) name.immediate_event(id);
 #define FLUSH_DIST_EVENT_LOG(name) name.flush();
 #define CLOSE_DIST_EVENT_LOG(name) name.close();
 #define DESTROY_DIST_EVENT_LOG(name) name.destroy();
@@ -144,7 +154,9 @@ class dist_event_log{
 #define DECLARE_DIST_EVENT_LOG(name) 
 #define INITIALIZE_DIST_EVENT_LOG(name, dc, ostrm, flush_interval, printdesc)
 #define ADD_DIST_EVENT_TYPE(name, id, desc) 
-#define ACCUMULATE_DIST_EVENT(name, id, count) 
+#define ADD_IMMEDIATE_DIST_EVENT_TYPE(name, id, desc) 
+#define ACCUMULATE_DIST_EVENT(name, id, count)
+#define IMMEDIATE_DIST_EVENT(name, id)
 #define FLUSH_DIST_EVENT_LOG(name) 
 #define CLOSE_DIST_EVENT_LOG(name)
 #define DESTROY_DIST_EVENT_LOG(name)
@@ -154,7 +166,9 @@ class dist_event_log{
 #define PERMANENT_INITIALIZE_DIST_EVENT_LOG(name, dc, ostrm, flush_interval, printdesc)    \
                     name.initialize(dc, ostrm, flush_interval, printdesc);
 #define PERMANENT_ADD_DIST_EVENT_TYPE(name, id, desc) name.add_event_type(id, desc);
+#define PERMANENT_ADD_IMMEDIATE_DIST_EVENT_TYPE(name, id, desc) name.add_immediate_event_type(id, desc);
 #define PERMANENT_ACCUMULATE_DIST_EVENT(name, id, count) name.accumulate_event(id, count);
+#define PERMANENT_IMMEDIATE_DIST_EVENT(name, id) name.immediate_event(id);
 #define PERMANENT_FLUSH_DIST_EVENT_LOG(name) name.flush();
 #define PERMANENT_CLOSE_DIST_EVENT_LOG(name) name.close();
 #define PERMANENT_DESTROY_DIST_EVENT_LOG(name) name.destroy();
