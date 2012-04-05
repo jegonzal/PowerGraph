@@ -71,7 +71,12 @@
 
     <target name="javadoc" depends="build" description="Create Javadoc API documentation">
       <mkdir dir="${dist}/docs/api"/>
-      <javadoc sourcepath="${src}" destdir="${dist}/docs/api" packagenames="*">
+      <javadoc
+        sourcepath="${src}"
+        destdir="${dist}/docs/api"
+        packagenames="*"
+        windowtitle="GraphLab Documentation"
+        charset="utf-8">
         <classpath refid="GraphLab.classpath"/>
       </javadoc>
     </target>
