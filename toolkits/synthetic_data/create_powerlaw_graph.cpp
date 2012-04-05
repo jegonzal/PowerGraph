@@ -62,44 +62,57 @@ size_t sample(const std::vector<double>& cdf) {
                           graphlab::random::rand01()) - cdf.begin();  
 } // end of sample
 
-void constant_fanout() {
-  std::vector<double> prob(nverts, 0);
+void constant_fanin(bool count_edges_only) {
+  std::vector<double> prob(nverts-1, 0);
   std::cout << "constructing pdf" << std::endl;
-  for(size_t i = 0; i < nverts; ++i) 
+  for(size_t i = 0; i < prob.size(); ++i) 
     prob[i] = std::pow(double(i+1), -alpha);
   std::cout << "constructing cdf" << std::endl;
   pdf2cdf(prob);
   std::cout << "sampling degrees" << std::endl;
-  std::vector<double> degree(nverts, 0);
-  for(size_t i = 0; i < nverts; ++i) degree[i] = sample(prob);
-  std::cout << "sorting degrees to prevent numeric underflow" << std::endl;
-  std::sort(degree.begin(), degree.end());
+  std::vector<size_t> degree(nverts, 0);
+  size_t edge_count = 0;
+  for(size_t i = 0; i < nverts; ++i) 
+    edge_count += (degree[i] = sample(prob) + 1);
+  std::cout << "Edges: " << edge_count << std::endl;
+  if(count_edges_only) return;
+
   std::cout << "Saving degree distribution" << std::endl;
   const std::string degree_fname = fname + ".degree";
   std::ofstream degree_fout(degree_fname.c_str());
   for(size_t i = 0; i < degree.size(); ++i) 
-    degree_fout << size_t(degree[i]) << '\n';
+    degree_fout << degree[i] << '\n';
   degree_fout.close();
-  std::cout << "converting degrees to cdf" << std::endl;
-  pdf2cdf(degree);
-  std::cout << "Saving cdf" << std::endl;
-  const std::string cdf_fname = fname + ".cdf.bin";
-  std::ofstream cdf_fout(cdf_fname.c_str(), std::ios::binary | std::ios::out);
-  cdf_fout.write(reinterpret_cast<char*>(&(degree[0])), 
-                 sizeof(double) * degree.size());
-  cdf_fout.close();
-
   std::cout << "Sampling graph" << std::endl;
   std::ofstream fout(fname.c_str());  
   boost::unordered_set<size_t> targets;
   for(size_t source = 0; source < nverts; ++source) {
     targets.clear();
-    while(targets.size() < fanout) {
-      const size_t target = sample(degree);
+    // Determine if we are computing degree targets are nverts -
+    // degree not targets
+    const size_t tmp_degree = degree[source] < nverts/2? 
+      degree[source] : nverts - degree[source];
+    // uniformly sample targets (or anit-targets)
+    while(targets.size() < tmp_degree) {
+      const size_t target = graphlab::random::fast_uniform<size_t>(0, nverts-1);
       if(source != target) targets.insert(target);
     }
-    foreach(size_t target, targets)
-      fout << source << '\t' << target << '\n';      
+    // if tmp_degree == degree then we were sampling targets
+    if(tmp_degree == degree[source]) {
+      foreach(size_t target, targets)
+        fout << source << '\t' << target << '\n';
+    } else {
+      // Otherwise we sampled anti targets so everything that is not
+      // in the targets set is a target.
+      size_t count = 0;
+      for(size_t target = 0; target < nverts; ++target) {
+        if(targets.count(target) == 0) {
+          fout << source << '\t' << target << '\n';
+          count++;
+        }
+      }
+      ASSERT_EQ(count, degree[source]);
+    }  
   }
   fout.close();
 } // end of constant fanout powerlaw
@@ -151,8 +164,11 @@ int main(int argc, char** argv) {
   
   graphlab::command_line_options 
     clopts("Generate synthetic graph data.", true);
+  bool count_edges_only = false;
   clopts.attach_option("alg", &algorithm, algorithm, 
                        "The algorithm to use."); 
+  clopts.attach_option("count_edges", &count_edges_only, 
+                       count_edges_only, "just count edges and return");
   clopts.attach_option("graph", &fname, fname,
                        "The name of the graph file."); 
   clopts.attach_option("alpha", &alpha, alpha, 
@@ -170,7 +186,7 @@ int main(int argc, char** argv) {
     return EXIT_FAILURE;
   }
 
-  if(algorithm == "constant") constant_fanout();
+  if(algorithm == "constant") constant_fanin(count_edges_only);
   else if(algorithm == "boost") boost_powerlaw();
   else if(algorithm == "preferential") preferential_attachment();
   else {
