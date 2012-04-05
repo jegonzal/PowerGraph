@@ -436,7 +436,7 @@ namespace graphlab {
 
       // test to see if the graph_dir is an hadoop path
       if(boost::starts_with(fname, "hdfs://")) {
-        graphlab::hdfs hdfs;
+        static graphlab::hdfs hdfs;
         graphlab::hdfs::fstream in_file(hdfs, fname);
         boost::iostreams::filtering_stream<boost::iostreams::input> fin;  
         fin.set_auto_close(false);

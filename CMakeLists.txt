@@ -82,9 +82,15 @@ ExternalProject_Add(boost
   INSTALL_COMMAND ./bjam install
   INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local )
 set(BOOST_ROOT ${GraphLab_SOURCE_DIR}/deps/local )
-set(Boost_USE_STATIC_LIBS TRUE)
-set(Boost_LIBRARIES boost_filesystem boost_program_options boost_system boost_iostreams boost_date_time)
-set(Boost_SHARED_LIBRARIES "")
+set(BOOST_LIBS_DIR ${GraphLab_SOURCE_DIR}/deps/local/lib)
+set(Boost_LIBRARIES 
+  ${BOOST_LIBS_DIR}/libboost_filesystem.a 
+  ${BOOST_LIBS_DIR}/libboost_program_options.a
+  ${BOOST_LIBS_DIR}/libboost_system.a 
+  ${BOOST_LIBS_DIR}/libboost_iostreams.a 
+  ${BOOST_LIBS_DIR}/libboost_date_time.a)
+message(STATUS "Boost libs: " ${Boost_LIBRARIES})
+# set(Boost_SHARED_LIBRARIES "")
 foreach(blib ${Boost_LIBRARIES})
   message(STATUS "Boost libs: " ${blib})
   string(REGEX REPLACE "\\.a$" ${CMAKE_SHARED_LIBRARY_SUFFIX} bout ${blib})
@@ -126,6 +132,17 @@ if(EXISTS ${JAVA_INCLUDE_PATH}/jni.h  )
   actually exists")
   message(STATUS "jni.h was found at " ${JAVA_INCLUDE_PATH}/jni.h)
   include_directories(${JNI_INCLUDE_DIRS})
+
+  ## Guess java home location   
+  if(EXISTS $ENV{JAVA_HOME} )
+    set(JAVA_HOME $ENV{JAVA_HOME} CACHE STRING "Location of Java Home")
+    message(STATUS "Java home set by user: " ${JAVA_HOME})
+  else()
+    string(REGEX REPLACE "\\/include" "" JAVA_HOME_GUESS  ${JAVA_AWT_INCLUDE_PATH})
+    set(JAVA_HOME ${JAVA_HOME_GUESS} CACHE STRING "Location of Java Home")
+    message(STATUS "Java Home guessed: " ${JAVA_HOME})
+  endif()
+
 else( )
   set(JNI_REALLY_FOUND 0 CACHE BOOL "Tests whether the header
   actually exists")
@@ -134,29 +151,36 @@ endif( )
 
 
 
-if( JNI_REALLY_FOUND )
-ExternalProject_Add(hadoop
-  PREFIX ${GraphLab_SOURCE_DIR}/deps/hadoop
-  URL http://www.gtlib.gatech.edu/pub/apache/hadoop/common/stable/hadoop-1.0.1.tar.gz
-  #  URL http://www.reverse.net/pub/apache/hadoop/common/stable/hadoop-1.0.1.tar.gz
-  URL_MD5 e627d9b688c4de03cba8313bd0bba148
-  UPDATE_COMMAND chmod +x src/c++/libhdfs/install-sh
-  PATCH_COMMAND patch -p1 < ${GraphLab_SOURCE_DIR}/patches/libhdfs-compile-osx.patch
-  # CONFIGURE_COMMAND ""
-  # COMPILE_COMMAND ant -Dcompile.c++=true -Dlibhdfs=true 
-  # -Dinstall.c++=${GraphLab_SOURCE_DIR}/deps/local
-  # compile-c++-libhdfs
-  # INSTALL_COMMAND ""
-  CONFIGURE_COMMAND bash <SOURCE_DIR>/src/c++/libhdfs/configure 
-  ac_cv_func_malloc_0_nonnull=yes 
-  #  --enable-static --disable-shared 
-  JVM_ARCH=tune=i686 --prefix=<INSTALL_DIR>
-  INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local
-  TEST_COMMAND cp <SOURCE_DIR>/src/c++/libhdfs/hdfs.h <INSTALL_DIR>/include )
-set(HADOOP_FOUND 1 CACHE BOOL "Hadoop was found")
-add_definitions(-DHAS_HADOOP)
-link_libraries(hdfs ${JAVA_JVM_LIBRARY})
-endif( JNI_REALLY_FOUND )
+
+
+
+
+if( JNI_REALLY_FOUND AND EXPERIMENTAL )
+  message(STATUS "Building libhdfs")
+  ExternalProject_Add(hadoop
+    PREFIX ${GraphLab_SOURCE_DIR}/deps/hadoop
+    URL http://www.gtlib.gatech.edu/pub/apache/hadoop/common/stable/hadoop-1.0.1.tar.gz
+    #  URL http://www.reverse.net/pub/apache/hadoop/common/stable/hadoop-1.0.1.tar.gz
+    URL_MD5 e627d9b688c4de03cba8313bd0bba148
+    UPDATE_COMMAND chmod +x src/c++/libhdfs/install-sh
+    PATCH_COMMAND patch -p1 < ${GraphLab_SOURCE_DIR}/patches/libhdfs-compile-osx.patch
+    # CONFIGURE_COMMAND ""
+    # COMPILE_COMMAND ant -Dcompile.c++=true -Dlibhdfs=true 
+    # -Dinstall.c++=${GraphLab_SOURCE_DIR}/deps/local
+    # compile-c++-libhdfs
+    # INSTALL_COMMAND ""
+    CONFIGURE_COMMAND 
+    bash <SOURCE_DIR>/src/c++/libhdfs/configure 
+    ac_cv_func_malloc_0_nonnull=yes 
+    #  --enable-static --disable-shared 
+    JVM_ARCH=tune=i686 --prefix=<INSTALL_DIR>
+    --with-java=${JAVA_HOME}
+    INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local
+    TEST_COMMAND cp <SOURCE_DIR>/src/c++/libhdfs/hdfs.h <INSTALL_DIR>/include )
+  set(HADOOP_FOUND 1 CACHE BOOL "Hadoop was found")
+  add_definitions(-DHAS_HADOOP)
+  link_libraries(hdfs ${JAVA_JVM_LIBRARY})
+endif( JNI_REALLY_FOUND AND EXPERIMENTAL )
 
 
 
@@ -458,7 +482,6 @@ set(BUILD_SHARED_LIBS ON)
 include_directories(
   ${GraphLab_SOURCE_DIR}/src
   ${GraphLab_SOURCE_DIR}/cxxtest
-  ${Boost_INCLUDE_DIR}
   )
 
 IF(MPI_FOUND)
@@ -467,13 +490,6 @@ IF(MPI_FOUND)
     )
 ENDIF(MPI_FOUND)
 
-
-
-
-# add boost to link directories and link libraries
-link_directories(
-  ${Boost_LIBRARY_DIRS}
-  )
 
 
 # Add posix threads on non-windows systems
@@ -635,7 +651,7 @@ endmacro(EXEC)
 macro(add_graphlab_executable NAME)
   add_executable(${NAME} ${ARGN})
   target_link_libraries(${NAME} ${Boost_LIBRARIES})
-  add_dependencies(${NAME} eigen boost tcmalloc)
+  add_dependencies(${NAME} eigen boost tcmalloc graphlab)
   target_link_libraries(${NAME} ${GraphLab_LIBRARIES})
 endmacro(add_graphlab_executable)
 
@@ -651,9 +667,8 @@ macro(add_distributed_graphlab_executable NAME)
       ${MPI_LIBRARY} 
       ${MPI_EXTRA_LIBRARY} 
       ${Boost_LIBRARIES}
-
       )
-    add_dependencies(${NAME} eigen boost tcmalloc)
+    add_dependencies(${NAME} eigen boost tcmalloc event graphlab)
     set_source_files_properties( ${ARGN}
       PROPERTIES COMPILE_DEFINITIONS "GLDISTRIBUTED2" )
     # set_property(TARGET ${NAME} APPEND PROPERTY 
