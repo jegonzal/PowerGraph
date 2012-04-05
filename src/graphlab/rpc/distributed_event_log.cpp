@@ -106,6 +106,18 @@ void dist_event_log::add_event_type(unsigned char eventid,
   }
 }
 
+void dist_event_log::add_immediate_event_type(unsigned char eventid,
+                               std::string description) {
+  descriptions[eventid] = description;
+  max_desc_length = std::max(max_desc_length, description.length());
+  ASSERT_MSG(max_desc_length <= 30, "Event Description length must be <= 30 characters");
+  counters[eventid].value = 0;
+  if (rmi->procid() == 0) {
+    globalcounters[eventid].resize(rmi->numprocs());
+  }
+}
+
+
 void dist_event_log::accumulate_event_aggregator(size_t proc,
                                                  unsigned char eventid,
                                                  size_t count) {
@@ -113,7 +125,21 @@ void dist_event_log::accumulate_event_aggregator(size_t proc,
   totalcounter[eventid].inc(count);
   globalcounters[eventid][proc].inc(count);
 }
-  
+
+void dist_event_log::immediate_event_aggregator(const std::vector<std::pair<unsigned char, size_t> >& im) {
+  hasevents = true;
+  m.lock();
+  std::copy(im.begin(), im.end(), 
+            std::inserter(immediate_events, immediate_events.end()));
+  m.unlock();
+}
+
+void dist_event_log::immediate_event(unsigned char eventid) {
+  m.lock();
+  immediate_events.push_back(std::make_pair(eventid, event_timer.current_time_millis()));
+  m.unlock();
+}
+
 struct counter_statistics{
   size_t minimum;
   size_t maximum;
@@ -198,6 +224,16 @@ void dist_event_log::print_log() {
              << stats[pos].average << "\t" << stats[pos].maximum << "\t"
              << stats[pos].total << "\t" << 1000 * stats[pos].total / timegap << " /s\n";
     } while(hascounter.next_bit(pos));
+    if (!immediate_events.empty()) { 
+      m.lock();
+      std::vector<std::pair<unsigned char, size_t> > cur;
+      cur.swap(immediate_events);
+      m.unlock();
+      for (size_t i = 0;i < cur.size(); ++i) {
+        (*out) << (size_t)cur[i].first << ":\t" << cur[i].second << "\t" << -1 << "\t"
+              << -1 << "\t" << -1 << "\t" << -1 << "\t" << 0 << " /s\n";
+      }
+    }
     out->flush();
   }
   else if (print_method == DESCRIPTION) {
@@ -207,6 +243,14 @@ void dist_event_log::print_log() {
              << stats[pos].average << "\t" << stats[pos].maximum << "\t"
              << stats[pos].total << "\t" << 1000 * stats[pos].total / timegap << " /s\n";
     } while(hascounter.next_bit(pos));
+    if (!immediate_events.empty()) { 
+      std::vector<std::pair<unsigned char, size_t> > cur;
+      cur.swap(immediate_events);
+      for (size_t i = 0;i < cur.size(); ++i) {
+        (*out) << descriptions[cur[i].first] << ":\t" << cur[i].second << "\t" << -1 << "\t"
+              << -1 << "\t" << -1 << "\t" << -1 << "\t" << 0 << " /s\n";
+      }
+    }
     out->flush();
   }
   else if (print_method == LOG_FILE) {
@@ -217,6 +261,14 @@ void dist_event_log::print_log() {
              << stats[pos].average << "\t" << stats[pos].maximum << "\t"
              << stats[pos].total << "\t" << 1000 * stats[pos].total / timegap << "\n";
     } while(hascounter.next_bit(pos));
+    if (!immediate_events.empty()) { 
+      std::vector<std::pair<unsigned char, size_t> > cur;
+      cur.swap(immediate_events);
+      for (size_t i = 0;i < cur.size(); ++i) {
+        (*out) << descriptions[cur[i].first] << ":\t" << cur[i].second << "\t" << -1 << "\t"
+              << -1 << "\t" << -1 << "\t" << -1 << "\t" << 0 << " /s\n";
+      }
+    }
     out->flush();
     eventlog_file_mutex.unlock();
   }
@@ -288,6 +340,11 @@ void dist_event_log::flush() {
                          (unsigned char)pos, ctrval);
       }
     } while(hascounter.next_bit(pos));
+    if (!immediate_events.empty()) {
+      std::vector<std::pair<unsigned char, size_t> > cur;
+      cur.swap(immediate_events);
+      rmi->control_call(0, &dist_event_log::immediate_event_aggregator, cur);
+    }
   }
 }
 

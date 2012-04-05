@@ -116,7 +116,9 @@ namespace graphlab {
     enum {
       SCHEDULE_EVENT = 0,
       UPDATE_EVENT = 1,
-      USER_OP_EVENT = 2
+      USER_OP_EVENT = 2,
+      ENGINE_START_EVENT = 3,
+      ENGINE_STOP_EVENT = 4,     
     };
     
     enum {
@@ -151,6 +153,8 @@ namespace graphlab {
       PERMANENT_ADD_DIST_EVENT_TYPE(eventlog, SCHEDULE_EVENT, "Schedule");
       PERMANENT_ADD_DIST_EVENT_TYPE(eventlog, UPDATE_EVENT, "Updates");
       PERMANENT_ADD_DIST_EVENT_TYPE(eventlog, USER_OP_EVENT, "User Ops");
+      PERMANENT_ADD_IMMEDIATE_DIST_EVENT_TYPE(eventlog, ENGINE_START_EVENT, "Engine Start");
+      PERMANENT_ADD_IMMEDIATE_DIST_EVENT_TYPE(eventlog, ENGINE_STOP_EVENT, "Engine Stop");
       
       rmi.barrier();
     }
@@ -769,7 +773,10 @@ namespace graphlab {
 
       started = true;
       rmi.barrier();
-      
+      if (rmi.procid() == 0) {
+        PERMANENT_IMMEDIATE_DIST_EVENT(eventlog, ENGINE_START_EVENT);
+      }
+
       parallel_transmit_schedule();
       rmi.full_barrier();
       size_t iterationnumber = 1;
@@ -794,7 +801,10 @@ namespace graphlab {
         rmi.full_barrier();
         if (has_schedule_entries == false) break;
       }
-      
+      if (rmi.procid() == 0) {
+        PERMANENT_IMMEDIATE_DIST_EVENT(eventlog, ENGINE_STOP_EVENT);
+      }
+
       size_t ctasks = completed_tasks.value;
       rmi.all_reduce(ctasks);
       completed_tasks.value = ctasks;

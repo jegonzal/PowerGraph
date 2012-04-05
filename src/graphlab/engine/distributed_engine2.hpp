@@ -272,7 +272,9 @@ namespace graphlab {
       INTERNAL_TASK_EVENT = 3,
       NO_WORK_EVENT = 4,
       SCHEDULE_FROM_REMOTE_EVENT = 5,
-      USER_OP_EVENT = 6
+      USER_OP_EVENT = 6,
+      ENGINE_START_EVENT = 7,
+      ENGINE_STOP_EVENT = 8
     };
 
 
@@ -318,6 +320,8 @@ namespace graphlab {
       PERMANENT_ADD_DIST_EVENT_TYPE(eventlog, NO_WORK_EVENT, "No Work");
       PERMANENT_ADD_DIST_EVENT_TYPE(eventlog, SCHEDULE_FROM_REMOTE_EVENT, "Remote Schedule");
       PERMANENT_ADD_DIST_EVENT_TYPE(eventlog, USER_OP_EVENT, "User Ops");
+      PERMANENT_ADD_IMMEDIATE_DIST_EVENT_TYPE(eventlog, ENGINE_START_EVENT, "Engine Start");
+      PERMANENT_ADD_IMMEDIATE_DIST_EVENT_TYPE(eventlog, ENGINE_STOP_EVENT, "Engine Stop");
       
 
       INITIALIZE_TRACER(disteng_eval_sched_task, 
@@ -1081,10 +1085,16 @@ namespace graphlab {
         std::cout << "Consistency Model is: Vertex" << std::endl;      
       }
       rmi.barrier();
+      if (rmi.procid() == 0) {
+        PERMANENT_IMMEDIATE_DIST_EVENT(eventlog, ENGINE_START_EVENT);
+      }
       for (size_t i = 0; i < ncpus; ++i) {
         thrgroup.launch(boost::bind(&engine_type::thread_start, this, i));
       }
       thrgroup.join();
+      if (rmi.procid() == 0) {
+        PERMANENT_IMMEDIATE_DIST_EVENT(eventlog, ENGINE_STOP_EVENT);
+      }
       size_t ctasks = completed_tasks.value;
       rmi.all_reduce(ctasks);
       completed_tasks.value = ctasks;
