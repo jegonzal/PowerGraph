@@ -25,9 +25,6 @@ include(extern/metisextern.cmake)
 
 
 #build the graphlab library
-if(Sctp-FOUND)
-#  set(sctp_source rpc/dc_sctp_comm.cpp)
-endif()
 
 if (MPI_FOUND)
   set(util_mpi_tools util/mpi_tools.cpp)
@@ -67,20 +64,23 @@ add_library(graphlab STATIC
   factors/unary_factor.cpp
   ${util_mpi_tools}
   rpc/dc_tcp_comm.cpp
-#  ${sctp_source}
   rpc/circular_char_buffer.cpp
   rpc/dc_stream_receive.cpp
   rpc/dc_buffered_stream_send2.cpp
   rpc/dc.cpp
   rpc/reply_increment_counter.cpp
-  rpc/dc_comm_services.cpp
   rpc/dc_init_from_env.cpp
   rpc/dc_init_from_mpi.cpp
   rpc/async_consensus.cpp
   rpc/distributed_event_log.cpp
   rpc/delta_dht.cpp
   )
-add_dependencies(graphlab eigen boost tcmalloc)
+add_dependencies(graphlab eigen boost tcmalloc event)
+if(JNI_REALLY_FOUND)
+  add_dependencies(graphlab hadoop)
+endif(JNI_REALLY_FOUND)
+
+
 target_link_libraries(graphlab ${Boost_LIBRARIES})
 
 
@@ -101,7 +101,12 @@ endif()
 get_target_property(graphlab_sources graphlab SOURCES)
 get_property(graphlab_flags TARGET graphlab PROPERTY COMPILE_FLAGS)
 add_library(graphlab_pic STATIC ${graphlab_sources})
-add_dependencies(graphlab_pic eigen boost tcmalloc)
+add_dependencies(graphlab_pic eigen boost tcmalloc event)
+if(JNI_REALLY_FOUND)
+  add_dependencies(graphlab_pic hadoop)
+endif(JNI_REALLY_FOUND)
+
+
 set_target_properties(graphlab_pic PROPERTIES 
   COMPILE_FLAGS "${graphlab_flags} -fPIC")
 
