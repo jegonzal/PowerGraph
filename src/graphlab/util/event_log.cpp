@@ -71,6 +71,13 @@ event_log::~event_log() {
   }
 }
 
+
+void event_log::immediate_event(unsigned char eventid) {
+  m.lock();
+  immediate_events.push_back(std::make_pair(eventid, event_timer.current_time_millis()));
+  m.unlock();
+}
+
 void event_log::close() {
   out = NULL;
   m.lock();
@@ -87,6 +94,12 @@ void event_log::add_event_type(unsigned char eventid,
   hascounter.set_bit(eventid);
 }
 
+void event_log::add_immediate_event_type(unsigned char eventid, std::string description) {
+  descriptions[eventid] = description;
+  max_desc_length = std::max(max_desc_length, description.length());
+  ASSERT_MSG(max_desc_length <= 30, "Event Description length must be <= 30 characters");
+  counters[eventid].value = 0;
+}
 
 void event_log::flush() {
   uint32_t pos;
@@ -104,6 +117,14 @@ void event_log::flush() {
       found_events = found_events || ctrval > 0;
       (*out) << pos  << ":\t" << curtime << "\t" << ctrval << "\t" << 1000 * ctrval / timegap << " /s\n";
     } while(hascounter.next_bit(pos));
+    // flush immediate events
+    if (!immediate_events.empty()) { 
+      std::vector<std::pair<unsigned char, size_t> > cur;
+      cur.swap(immediate_events);
+      for (size_t i = 0;i < cur.size(); ++i) {
+        (*out) << (size_t)cur[i].first << ":\t" << cur[i].second << "\t" << -1 << "\t" << 0 << " /s\n";
+      }
+    }
     out->flush();
   }
   else if (print_method == DESCRIPTION) {
@@ -112,6 +133,13 @@ void event_log::flush() {
       found_events = found_events || ctrval > 0;
       (*out) << descriptions[pos]  << ":\t" << curtime << "\t" << ctrval << "\t" << 1000 * ctrval / timegap << " /s\n";
     } while(hascounter.next_bit(pos));
+    if (!immediate_events.empty()) { 
+      std::vector<std::pair<unsigned char, size_t> > cur;
+      cur.swap(immediate_events);
+      for (size_t i = 0;i < cur.size(); ++i) {
+        (*out) << descriptions[cur[i].first] << ":\t" << cur[i].second << "\t" << -1 << "\t" << 0 << " /s\n";
+      }
+    }
     out->flush();
   }
   else if (print_method == LOG_FILE) {
@@ -121,6 +149,13 @@ void event_log::flush() {
       found_events = found_events || ctrval > 0;
       (*out) << descriptions[pos]  << ":\t" << curtime << "\t" << ctrval << "\t" << 1000 * ctrval / timegap << "\n";
     } while(hascounter.next_bit(pos));
+    if (!immediate_events.empty()) { 
+      std::vector<std::pair<unsigned char, size_t> > cur;
+      cur.swap(immediate_events);
+      for (size_t i = 0;i < cur.size(); ++i) {
+        (*out) << descriptions[cur[i].first] << ":\t" << cur[i].second << "\t" << -1 << "\t" << 0 << " /s\n";
+      }
+    }
     eventlog_file_mutex.unlock();
     out->flush();
   }
