@@ -62,7 +62,57 @@ size_t sample(const std::vector<double>& cdf) {
                           graphlab::random::rand01()) - cdf.begin();  
 } // end of sample
 
+
+
 void constant_fanin(bool count_edges_only) {
+  std::vector<double> prob(nverts-1, 0);
+  std::cout << "constructing pdf" << std::endl;
+  for(size_t i = 0; i < prob.size(); ++i) 
+    prob[i] = std::pow(double(i+1), -alpha);
+  std::cout << "constructing cdf" << std::endl;
+  pdf2cdf(prob);
+  std::cout << "sampling out_degrees" << std::endl;
+  std::vector<size_t> out_degree(nverts, 0);
+  size_t edge_count = 0;
+  for(size_t i = 0; i < nverts; ++i) 
+    edge_count += (out_degree[i] = sample(prob) + 1);
+  std::cout << "Edges: " << edge_count << std::endl;
+  if(count_edges_only) return;
+
+  std::cout << "Saving out_degree distribution" << std::endl;
+  const std::string out_degree_fname = fname + ".out_degree";
+  std::ofstream out_degree_fout(out_degree_fname.c_str());
+  for(size_t i = 0; i < out_degree.size(); ++i) 
+    out_degree_fout << out_degree[i] << '\n';
+  out_degree_fout.close();
+  std::cout << "Sampling graph" << std::endl;
+  std::ofstream fout(fname.c_str());  
+  std::vector<size_t> in_degree(nverts);
+  std::vector<size_t> target_perm = graphlab::random::permutation<size_t>(nverts);
+  size_t target_index = 0;
+  for(size_t source = 0; source < nverts; ++source) {
+    for(size_t i = 0; i < out_degree[source]; ++i, ++target_index) {
+      if(source == target_perm[target_index % nverts]) 
+        ++target_index;
+      const size_t target = target_perm[target_index % nverts];
+      fout << source << '\t' << target << '\n';
+      ++in_degree[target];
+    }
+  }
+  fout.close();
+
+  std::cout << "Saving in_degree distribution" << std::endl;
+  const std::string in_degree_fname = fname + ".in_degree";
+  std::ofstream in_degree_fout(in_degree_fname.c_str());
+  for(size_t i = 0; i < in_degree.size(); ++i) 
+    in_degree_fout << in_degree[i] << '\n';
+  in_degree_fout.close();
+
+} // end of constant fanout powerlaw
+
+
+
+void random_constant_fanin(bool count_edges_only) {
   std::vector<double> prob(nverts-1, 0);
   std::cout << "constructing pdf" << std::endl;
   for(size_t i = 0; i < prob.size(); ++i) 
@@ -111,9 +161,11 @@ void constant_fanin(bool count_edges_only) {
       size_t count = 0;
       for(size_t target = 0; target < nverts; ++target) {
         if(targets.count(target) == 0) {
-          fout << source << '\t' << target << '\n';
+          if(source != target) {
+            fout << source << '\t' << target << '\n';
+            in_degree[target]++;
+          }
           count++;
-          in_degree[target]++;
         }
       }
       ASSERT_EQ(count, out_degree[source]);
