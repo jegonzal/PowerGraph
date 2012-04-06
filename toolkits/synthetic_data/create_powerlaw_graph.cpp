@@ -69,38 +69,42 @@ void constant_fanin(bool count_edges_only) {
     prob[i] = std::pow(double(i+1), -alpha);
   std::cout << "constructing cdf" << std::endl;
   pdf2cdf(prob);
-  std::cout << "sampling degrees" << std::endl;
-  std::vector<size_t> degree(nverts, 0);
+  std::cout << "sampling out_degrees" << std::endl;
+  std::vector<size_t> out_degree(nverts, 0);
   size_t edge_count = 0;
   for(size_t i = 0; i < nverts; ++i) 
-    edge_count += (degree[i] = sample(prob) + 1);
+    edge_count += (out_degree[i] = sample(prob) + 1);
   std::cout << "Edges: " << edge_count << std::endl;
   if(count_edges_only) return;
 
-  std::cout << "Saving degree distribution" << std::endl;
-  const std::string degree_fname = fname + ".degree";
-  std::ofstream degree_fout(degree_fname.c_str());
-  for(size_t i = 0; i < degree.size(); ++i) 
-    degree_fout << degree[i] << '\n';
-  degree_fout.close();
+  std::cout << "Saving out_degree distribution" << std::endl;
+  const std::string out_degree_fname = fname + ".out_degree";
+  std::ofstream out_degree_fout(out_degree_fname.c_str());
+  for(size_t i = 0; i < out_degree.size(); ++i) 
+    out_degree_fout << out_degree[i] << '\n';
+  out_degree_fout.close();
   std::cout << "Sampling graph" << std::endl;
   std::ofstream fout(fname.c_str());  
   boost::unordered_set<size_t> targets;
+  std::vector<size_t> in_degree(nverts);
   for(size_t source = 0; source < nverts; ++source) {
     targets.clear();
-    // Determine if we are computing degree targets are nverts -
-    // degree not targets
-    const size_t tmp_degree = degree[source] < nverts/2? 
-      degree[source] : nverts - degree[source];
+    // Determine if we are computing out_degree targets are nverts -
+    // out_degree not targets
+    const size_t tmp_out_degree = out_degree[source] < nverts/2? 
+      out_degree[source] : nverts - out_degree[source];
+    ASSERT_LE(tmp_out_degree, nverts);
     // uniformly sample targets (or anit-targets)
-    while(targets.size() < tmp_degree) {
+    while(targets.size() < tmp_out_degree) {
       const size_t target = graphlab::random::fast_uniform<size_t>(0, nverts-1);
       if(source != target) targets.insert(target);
     }
-    // if tmp_degree == degree then we were sampling targets
-    if(tmp_degree == degree[source]) {
-      foreach(size_t target, targets)
+    // if tmp_out_degree == out_degree then we were sampling targets
+    if(tmp_out_degree == out_degree[source]) {
+      foreach(size_t target, targets) {
         fout << source << '\t' << target << '\n';
+        in_degree[target]++;
+      }
     } else {
       // Otherwise we sampled anti targets so everything that is not
       // in the targets set is a target.
@@ -109,12 +113,21 @@ void constant_fanin(bool count_edges_only) {
         if(targets.count(target) == 0) {
           fout << source << '\t' << target << '\n';
           count++;
+          in_degree[target]++;
         }
       }
-      ASSERT_EQ(count, degree[source]);
+      ASSERT_EQ(count, out_degree[source]);
     }  
   }
   fout.close();
+
+  std::cout << "Saving in_degree distribution" << std::endl;
+  const std::string in_degree_fname = fname + ".in_degree";
+  std::ofstream in_degree_fout(in_degree_fname.c_str());
+  for(size_t i = 0; i < in_degree.size(); ++i) 
+    in_degree_fout << in_degree[i] << '\n';
+  in_degree_fout.close();
+
 } // end of constant fanout powerlaw
 
 void boost_powerlaw() {
