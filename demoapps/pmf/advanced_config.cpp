@@ -23,6 +23,7 @@ void advanced_config::init_command_line_options(graphlab::command_line_options &
   clopts.attach_option("stats", &stats, stats, "compute graph statistics");  
   clopts.attach_option("binaryoutput", &binaryoutput, binaryoutput, "export U,V,T to a binary file"); 
   clopts.attach_option("matrixmarket", &matrixmarket, matrixmarket, "give input in matrix market format"); 
+  clopts.attach_option("matrixmarkettokensperrow", &matrixmarkettokensperrow, matrixmarkettokensperrow, "Number of matrix market token per row. Default is 3: [from ] [to ] [ val ] ");
  
   //BPTF related switches
   clopts.attach_option("bptf_alpha", &bptf_alpha, bptf_alpha, "BPTF alpha (noise parameter)");  

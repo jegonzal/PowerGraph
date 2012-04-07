@@ -91,15 +91,22 @@ void load_matrix_market(const char * filename, graph_type *_g, testtype data_typ
 
     int I,J; 
     double val;
-
+    double dtime;
 
     edge_data edge;
     for (i=0; i<nz; i++)
     {
+       if (ac.matrixmarkettokensperrow == 3){
         int rec = fscanf(f, "%d %d %lg\n", &I, &J, &val);
         if (rec != 3)
            logstream(LOG_FATAL)<<"Error reading input line " << i << std::endl;
+      }
+      else if (ac.matrixmarkettokensperrow == 4){
+        int rec = fscanf(f, "%d %d %lg %lg \n", &I, &J, &val, &dtime);
+        if (rec != 4)
+           logstream(LOG_FATAL)<<"Error reading input line " << i << std::endl;
 
+      }
         if (I<=0 || J<= 0){
           logstream(LOG_FATAL) << "Matrix market values should be >= 1, observed values: " << I << " " << J << " In item number " << nz << std::endl;
         }
