@@ -171,13 +171,13 @@ int main(int argc, char** argv) {
 
 
   { std::cout << "Saving in degree information" << std::endl;
-    std::ofstream fout ("in_degree.bin", std::ios::binary | std::ios::in);
+    std::ofstream fout ("in_degree.bin", std::ios::binary | std::ios::out);
     fout.write(reinterpret_cast<char*>(&in_degree[0]), nverts * sizeof(uint32_t));
     fout.close();
   }
 
-  { std::cout << "Saving in degree information" << std::endl;
-    std::ofstream fout ("out_degree.bin", std::ios::binary | std::ios::in);
+  { std::cout << "Saving out degree information" << std::endl;
+    std::ofstream fout ("out_degree.bin", std::ios::binary | std::ios::out);
     fout.write(reinterpret_cast<char*>(&out_degree[0]), nverts * sizeof(uint32_t));
     fout.close();
   }
