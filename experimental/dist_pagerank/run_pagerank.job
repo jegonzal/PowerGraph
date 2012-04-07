@@ -1,7 +1,6 @@
 #PBS -N pagerank
-#PBS -l nodes=7:ppn=8 -k oe
+#PBS -l nodes=7:ppn=8 -k oe -d
 
-cd $PBS_O_WORKDIR
 cat $PBS_NODEFILE | uniq > .mfile
 CLASSPATH=$CLASSPATH:`hadoop classpath`
 
