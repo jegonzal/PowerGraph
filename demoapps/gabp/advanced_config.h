@@ -52,6 +52,8 @@ public:
   //input output related stuff
   std::string datafile;
   bool matrixmarket; //martix market input format
+  int matrixmarkettokensperrow; //how many values are expected to be in each
+  //row of sparse mm file.
   bool loadfactors; //start from a previous solution instead of a random point
   bool savefactors; //save solution to file
   bool loadgraph; //load graph from a binary saved file
@@ -190,6 +192,7 @@ advanced_config(){
     outputvalidation = false; //experimental: output validation results of kdd format
     binaryoutput = false; //export the factors U,V,T to a binary file
     matrixmarket = false; //is input/output in matrix market format
+    matrixmarkettokensperrow = 3; //default number of tokens per row (from,to,val)
     printhighprecision = false; //print RMSE output with high precision
     scaling = 1.0; //aggregate time values into bins? (default =1, no aggregation)
     truncating = 0.0; // truncate unused time bins (optional, default = 0, no truncation)
