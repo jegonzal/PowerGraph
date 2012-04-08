@@ -20,11 +20,10 @@
  *
  */
 
-
-
 #include <vector>
 #include <string>
 #include <fstream>
+
 
 #include <distributed_graphlab.hpp>
 #include <graphlab/engine/distributed_synchronous_engine.hpp>
@@ -36,89 +35,59 @@
 
 
 struct vertex_data : public graphlab::IS_POD_TYPE {
-  float value;
-  vertex_data(float value = 1) : value(value) { }
-}; // End of vertex data
-
-std::ostream& operator<<(std::ostream& out, const vertex_data& vdata) {
-  return out << "Rank=" << vdata.value;
-}
-
-struct edge_data : public graphlab::IS_POD_TYPE { }; // End of edge data
+  uint32_t dist;
+  vertex_data() : dist(std::numeric_limits<uint32_t>::max()) { }
+}; // end of vertex_data
+//struct edge_data : public graphlab::IS_POD_TYPE { }; // End of edge data
+typedef char edge_data;
 
 
 typedef graphlab::distributed_graph<vertex_data, edge_data> graph_type;
 
 
-//! Global random reset probability
-double RESET_PROB = 0.15;
 
-//! Global accuracy tolerance
-double ACCURACY = 1e-5;
-
-/**
- * The factorized page rank update function
- */
-class factorized_pagerank : 
-  public graphlab::iupdate_functor<graph_type, factorized_pagerank>,
+class delta_sssp :   
+  public graphlab::iupdate_functor<graph_type, delta_sssp>,
   public graphlab::IS_POD_TYPE {
 private:
-  float accum;
+  uint32_t dist;
 public:
-  factorized_pagerank(const float& accum = 0) : accum(accum) { }
-  double priority() const { return accum; }
-  void operator+=(const factorized_pagerank& other) { accum += other.accum; }
+  delta_sssp(const float& dist = 0) : dist(dist) { }
+  double priority() const { return -double(dist); }
+  void operator+=(const delta_sssp& other){ dist = std::min(dist, other.dist); }
   bool is_factorizable() const { return true; }
   consistency_model consistency() const { return graphlab::DEFAULT_CONSISTENCY; }
   consistency_model gather_consistency() { return graphlab::EDGE_CONSISTENCY; }
   consistency_model scatter_consistency() { return graphlab::NULL_CONSISTENCY; }
-  edge_set gather_edges() const { return graphlab::IN_EDGES; }
-  edge_set scatter_edges() const {
-    return (accum > ACCURACY)? graphlab::OUT_EDGES : graphlab::NO_EDGES;
+  edge_set gather_edges() const { return graphlab::NO_EDGES; }
+  edge_set scatter_edges() const { 
+    return dist == uint32_t(-1)? graphlab::NO_EDGES : graphlab::ALL_EDGES; 
   }
-
-  // Reset the accumulator before running the gather
-  void init_gather(iglobal_context_type& context) { accum = 0; }
-
-  // Run the gather operation over all in edges
-  void gather(icontext_type& context, const edge_type& edge) {
-    const size_t num_out_edges = context.num_out_edges(edge.source());
-    ASSERT_EQ(edge.target(), context.vertex_id());
-    ASSERT_GT(num_out_edges, 0);
-    const float weight =  1.0 / float(num_out_edges);
-    accum += context.const_vertex_data(edge.source()).value * weight;
-  } // end of gather
-
-  // Merge two factorized_pagerank accumulators after running gather
-  void merge(const factorized_pagerank& other) { accum += other.accum; }
-
-  // Update the center vertex
-  void apply(icontext_type& context) {
-    vertex_data& vdata = context.vertex_data(); 
-    float old_value = vdata.value;
-    vdata.value =  RESET_PROB + (1 - RESET_PROB) * accum;
-    const size_t num_out_edges = context.num_out_edges(context.vertex_id());
-    if(num_out_edges > 0) {
-      const float weight =  1.0 / float(num_out_edges);
-      accum = std::fabs(vdata.value - old_value) * weight;
-    } else accum = 0;
-  } // end of apply
-
+  void apply(icontext_type& context) {  
+    vertex_data& vdata = context.vertex_data();
+    if (dist < vdata.dist){  
+      vdata.dist = dist; ++dist;
+    } else { dist = uint32_t(-1); }    
+  }
   // Reschedule neighbors 
   void scatter(icontext_type& context, const edge_type& edge) {
-    context.schedule(edge.target(), factorized_pagerank(accum));
+    const vertex_id_type neighbor_id = edge.source() == context.vertex_id()?
+      edge.target() : edge.source();
+    if(context.const_vertex_data(neighbor_id).dist > dist)
+      context.schedule(neighbor_id, delta_sssp(dist));
   } // end of scatter
-}; // end of factorized_pagerank update functor
+}; // end of shortest path update functor
 
 
 
-#if defined(FSCOPE)
-typedef graphlab::distributed_fscope_engine<graph_type, factorized_pagerank> engine_type;
-#elif defined(SYNCHRONOUS_ENGINE)
-typedef graphlab::distributed_synchronous_engine<graph_type, factorized_pagerank> engine_type;
+
+
+#if defined(SYNCHRONOUS_ENGINE)
+typedef graphlab::distributed_synchronous_engine<graph_type, delta_sssp> engine_type;
 #else
-typedef graphlab::distributed_engine<graph_type, factorized_pagerank> engine_type;
+typedef graphlab::distributed_fscope_engine<graph_type, delta_sssp> engine_type;
 #endif
+
 
 
 
@@ -126,15 +95,10 @@ int main(int argc, char** argv) {
   //global_logger().set_log_level(LOG_DEBUG);
   //global_logger().set_log_to_console(true);
 
-  ///! Initialize control plain using mpi
-  graphlab::mpi_tools::init(argc, argv);
-  graphlab::dc_init_param rpc_parameters;
-  graphlab::init_param_from_mpi(rpc_parameters);
-  graphlab::distributed_control dc(rpc_parameters);
  
 
   // Parse command line options -----------------------------------------------
-  graphlab::command_line_options clopts("PageRank algorithm.");
+  graphlab::command_line_options clopts("SSSP algorithm.");
   clopts.use_distributed_options();
   std::string graph_dir; 
   std::string format = "adj";
@@ -155,10 +119,6 @@ int main(int argc, char** argv) {
   bool output = false;
   clopts.attach_option("output", &output, output,
                        "Output results");
-  clopts.attach_option("accuracy", &ACCURACY, ACCURACY,
-                       "residual termination threshold");
-  clopts.attach_option("resetprob", &RESET_PROB, RESET_PROB,
-                       "Random reset probability"); 
 
   bool savebin = false;
   clopts.attach_option("savebin", &savebin, savebin,
@@ -175,6 +135,13 @@ int main(int argc, char** argv) {
     std::cout << "Error in parsing command line arguments." << std::endl;
     return EXIT_FAILURE;
   }
+
+  ///! Initialize control plain using mpi
+  graphlab::mpi_tools::init(argc, argv);
+  graphlab::dc_init_param rpc_parameters;
+  graphlab::init_param_from_mpi(rpc_parameters);
+  graphlab::distributed_control dc(rpc_parameters);
+
 
   std::cout << dc.procid() << ": Starting." << std::endl;
   graphlab::timer timer; timer.start();
@@ -249,6 +216,7 @@ int main(int argc, char** argv) {
       << std::endl;
   }
 
+
   if (savebin) {
     graph.save(binpath, binprefix);
   }
@@ -259,13 +227,20 @@ int main(int argc, char** argv) {
   std::cout << dc.procid() << ": Intializing engine" << std::endl;
   engine.set_options(clopts);
   engine.initialize();
-  std::cout << dc.procid() << ": Scheduling all" << std::endl;
-  engine.schedule_all(factorized_pagerank(1.0));
+  std::cout << "Determing the highest degree vertex" << std::endl;
+  const graphlab::vertex_id_type max_vid = graph.max_degree_vertex();
+  if(graph.is_master(max_vid)) {
+    std::cout << "Max degree vertex " << max_vid 
+              << " found on " << dc.procid() 
+              << " with in-degree " << graph.num_in_edges(max_vid)
+              << " and out-degree " << graph.num_out_edges(max_vid) 
+              << std::endl;
+    engine.schedule(max_vid, delta_sssp(0));
+  }
   dc.full_barrier();
   
-  // Run the PageRank ---------------------------------------------------------
-
-  std::cout << "Running pagerank!" << std::endl;
+  // Run the Sssp ---------------------------------------------------------
+  std::cout << "Running sssp!" << std::endl;
   timer.start();
   engine.start();  // Run the engine
 
@@ -289,8 +264,7 @@ int main(int argc, char** argv) {
         fout << graph.l_get_vertex_record(i).gvid << "\t" 
              << graph.l_get_vertex_record(i).num_in_edges + 
           graph.l_get_vertex_record(i).num_out_edges << "\t" 
-             << graph.get_local_graph().vertex_data(i).value << "\t";
-        //             << graph.get_local_graph().vertex_data(i).nupdates << "\n";
+             << graph.get_local_graph().vertex_data(i).dist << "\n";
       }
     }
   }
@@ -325,5 +299,8 @@ int main(int argc, char** argv) {
   graphlab::mpi_tools::finalize();
   return EXIT_SUCCESS;
 } // End of main
+
+
+
 
 

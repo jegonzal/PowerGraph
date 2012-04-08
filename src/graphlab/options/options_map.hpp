@@ -117,7 +117,12 @@ namespace graphlab {
 
 
 
-
+    /**
+     * Test if the option has been created
+     */
+    inline bool is_set(const std::string& opt) const { 
+      return options.find(opt) != options.end();
+    }
 
 
     /**
