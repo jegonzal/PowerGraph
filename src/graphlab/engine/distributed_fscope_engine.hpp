@@ -709,7 +709,7 @@ namespace graphlab {
       vstate[lvid].lock.lock();
       END_TRACEPOINT(disteng_waiting_for_vstate_locks);
       switch(vstate[lvid].state) {
-      case NONE: logstream(LOG_FATAL) << "Empty Internal Task";
+      case NONE: { logstream(LOG_FATAL) << "Empty Internal Task"; }// break;
       case GATHERING: { process_gather(lvid); break; }
       case MIRROR_GATHERING: { do_init_gather(lvid); process_gather(lvid); break; }
       case APPLYING: { 
@@ -790,6 +790,17 @@ namespace graphlab {
      */
     void master_broadcast_gathering(lvid_type sched_lvid,
                                     const update_functor_type& task) {
+      // check to see if there are no edges to gather on.  If this is
+      // the case we can skip the broadcast 
+      vstate[sched_lvid].lock.lock();
+      if(task.gather_edges() == graphlab::NO_EDGES) {
+        vstate[sched_lvid].apply_count_down = 1;
+        gather_complete(sched_lvid);
+        vstate[sched_lvid].lock.unlock();
+        return;
+      }
+      vstate[sched_lvid].lock.unlock();
+      // Assert that we do want to proceed with a gather
       BEGIN_TRACEPOINT(disteng_init_gathering);
       ASSERT_I_AM_OWNER(sched_lvid);
       const vertex_id_type sched_vid = graph.global_vid(sched_lvid);
@@ -810,7 +821,7 @@ namespace graphlab {
       const vertex_id_type lvid = graph.local_vid(vid);
       vstate[lvid].lock.lock();
       ASSERT_I_AM_NOT_OWNER(lvid);
-      ASSERT_EQ(vstate[lvid].state, MIRROR_SCATTERING);
+      vstate[lvid].state = MIRROR_SCATTERING;
       graph.get_local_graph().vertex_data(lvid) = central_vdata;
       vstate[lvid].current = task;
       vstate[lvid].lock.unlock();
@@ -862,7 +873,8 @@ namespace graphlab {
       bool initiate_gathering = false;
       if (vstate[sched_lvid].state == NONE) {
         PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, UPDATE_EVENT, 1);
-        PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, WORK_ISSUED_EVENT, rec.num_in_edges + rec.num_out_edges);
+        PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, WORK_ISSUED_EVENT, 
+                                        rec.num_in_edges + rec.num_out_edges);
         // we start gather right here.
         // set up the state
         vstate[sched_lvid].state = GATHERING;
@@ -886,6 +898,7 @@ namespace graphlab {
 
       // begin gathering
       if (initiate_gathering) {
+        // Broadcast the uninitialized task to all mirrors
         master_broadcast_gathering(sched_lvid, task);
       }
     } // eval sched task

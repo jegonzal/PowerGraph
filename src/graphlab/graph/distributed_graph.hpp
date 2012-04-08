@@ -607,17 +607,21 @@ namespace graphlab {
     /** Determine the id of the vertex with highest degree */
     vertex_id_type max_degree_vertex() const { 
       // First compute the locally maximum vertex
-      vertex_id_type max_vid = 0;
+      vertex_id_type max_vid = -1;
       size_t max_degree = 0;
-      for(vertex_id_type vid = 0; vid < local_graph.num_vertices(); ++vid) {
-        const size_t degree = 
-          local_graph.num_in_edges(vid) + local_graph.num_out_edges(vid);
-        if(degree > max_degree) { max_vid = vid; max_degree = degree; }
+      foreach(const vertex_record& vrec, lvid2record) {
+        if(vrec.owner == rpc.procid()) {
+          const size_t degree = vrec.num_in_edges + vrec.num_out_edges;
+          if(degree > max_degree || max_vid == vertex_id_type(-1)) {
+            max_vid = vrec.gvid; max_degree = degree; 
+          }
+        }
       }
+      ASSERT_NE(max_vid, vertex_id_type(-1));
       // Exchange with other machines
       typedef std::pair<size_t, vertex_id_type> pair_type;
       std::vector<pair_type> local_bests(rpc.numprocs());
-      local_bests[rpc.procid()] = pair_type(max_degree, global_vid(max_vid));
+      local_bests[rpc.procid()] = pair_type(max_degree, max_vid);
       rpc.all_gather(local_bests);
       return std::max_element(local_bests.begin(), local_bests.end())->second;      
     } // end of max_degree_vertex

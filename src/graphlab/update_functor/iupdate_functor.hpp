@@ -158,7 +158,7 @@ namespace graphlab {
      * Merges update functors during the gather process.
      */
     inline virtual void merge(const update_functor_type& other) {
-      logstream(LOG_FATAL) << "Gather not implemented!" << std::endl;
+      logstream(LOG_FATAL) << "Merge not implemented!" << std::endl;
     }
 
     /**
