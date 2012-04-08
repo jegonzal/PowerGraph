@@ -377,9 +377,9 @@ namespace graphlab {
         << "Graph Finalize: exchange global statistics " << std::endl;
 
       // Compute edge counts
-      std::vector<size_t> swap_counts(rpc.numprocs(), 
-                                      graph.num_local_edges());
-      mpi_tools::all2all(swap_counts, swap_counts);
+      std::vector<size_t> swap_counts(rpc.numprocs());
+      swap_counts[rpc.procid()] = graph.num_local_edges();
+      rpc.all_gather(swap_counts);
       graph.nedges = 0;
       foreach(size_t count, swap_counts) graph.nedges += count;
 
@@ -389,14 +389,14 @@ namespace graphlab {
         graph.begin_eid += swap_counts[i];
 
       // compute vertex count
-      swap_counts.assign(rpc.numprocs(), graph.num_local_own_vertices());
-      mpi_tools::all2all(swap_counts, swap_counts);
+      swap_counts[rpc.procid()] = graph.num_local_own_vertices();
+      rpc.all_gather(swap_counts);
       graph.nverts = 0;
       foreach(size_t count, swap_counts) graph.nverts += count;
 
       // compute replicas
-      swap_counts.assign(rpc.numprocs(), graph.num_local_vertices());
-      mpi_tools::all2all(swap_counts, swap_counts);
+      swap_counts[rpc.procid()] = graph.num_local_vertices();
+      rpc.all_gather(swap_counts);
       graph.nreplicas = 0;
       foreach(size_t count, swap_counts) graph.nreplicas += count;
 

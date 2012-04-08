@@ -603,6 +603,25 @@ namespace graphlab {
       return edge_type();
     }
 
+
+    /** Determine the id of the vertex with highest degree */
+    vertex_id_type max_degree_vertex() const { 
+      // First compute the locally maximum vertex
+      vertex_id_type max_vid = 0;
+      size_t max_degree = 0;
+      for(vertex_id_type vid = 0; vid < local_graph.num_vertices(); ++vid) {
+        const size_t degree = 
+          local_graph.num_in_edges(vid) + local_graph.num_out_edges(vid);
+        if(degree > max_degree) { max_vid = vid; max_degree = degree; }
+      }
+      // Exchange with other machines
+      typedef std::pair<size_t, vertex_id_type> pair_type;
+      std::vector<pair_type> local_bests(rpc.numprocs());
+      local_bests[rpc.procid()] = pair_type(max_degree, global_vid(max_vid));
+      rpc.all_gather(local_bests);
+      return std::max_element(local_bests.begin(), local_bests.end())->second;      
+    } // end of max_degree_vertex
+
     /** \brief Get the number of vertices local to this proc */
     size_t num_local_vertices() const { return local_graph.num_vertices(); }
 
@@ -621,7 +640,7 @@ namespace graphlab {
       return iter->second;
     } // end of local_vertex_id
 
-    vertex_id_type global_vid (const lvid_type lvid) const { 
+    vertex_id_type global_vid(const lvid_type lvid) const { 
       ASSERT_LT(lvid, lvid2record.size());
       return lvid2record[lvid].gvid;
     } // end of global_vertex_id
@@ -643,6 +662,11 @@ namespace graphlab {
     const vertex_record& l_get_vertex_record(const lvid_type lvid) const {
       ASSERT_LT(lvid, lvid2record.size());
       return lvid2record[lvid];
+    }
+
+    bool is_master(const vertex_id_type vid) const {
+      typename cuckoo_map_type::const_iterator iter = vid2lvid.find(vid);
+      return (iter != vid2lvid.end()) && l_is_master(iter->second);
     }
 
     bool l_is_master(const lvid_type lvid) const {
