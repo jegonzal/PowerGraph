@@ -5,7 +5,7 @@ package org.graphlab.data;
  * {@link org.graphlab.Core} must use this vertex type.
  * 
  * <p>
- * When {@link org.graphlab.Core#setGraph(org.jgrapht.DirectedGraph)} is called,
+ * When {@link org.graphlab.Core#setGraph} is called,
  * a proxy C++ graph is created and a proxy vertex is created for each Vertex
  * object. {@link #setRawId(int)} is called to save the ID of the proxy vertex
  * in the corresponding Vertex object.
@@ -42,7 +42,7 @@ public abstract class Vertex {
 
 	/**
 	 * Sets ID of corresponding proxy vertex. This is done during
-	 * {@link org.graphlab.Core#setGraph(org.jgrapht.DirectedGraph)}.
+	 * {@link org.graphlab.Core#setGraph}.
 	 * Applications should <em>not</em> invoke this method.
 	 * @param id
 	 *            id of this vertex's proxy vertex.

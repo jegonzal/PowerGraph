@@ -234,8 +234,7 @@ public final class Core {
   /**
    * Schedule the execution of an update function on a particular vertex.
    * 
-   * @param vertexId
-   *          application vertex ID
+   * @param vertex
    * @param updater
    *          updater to execute
    * @throws NullPointerException

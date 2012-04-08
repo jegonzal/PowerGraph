@@ -76,7 +76,8 @@
         destdir="${dist}/docs/api"
         packagenames="*"
         windowtitle="GraphLab Documentation"
-        charset="utf-8">
+        charset="utf-8"
+        excludepackagenames="org.graphlab.tests">
         <classpath refid="GraphLab.classpath"/>
       </javadoc>
     </target>

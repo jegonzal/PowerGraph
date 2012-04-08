@@ -28,6 +28,43 @@ import org.graphlab.data.Vertex;
  * <p>We recommend that you follow this pattern closely, unless you are very
  * familiar with generics.</p>
  * 
+ * <h3>Example</h3>
+ * <p>Suppose we would like to sum over all vertices in the graph. To do so, we
+ * implement an aggregator as follows:</p>
+<pre>
+  private static class SumAggregator extends Aggregator<ScalarVertex, SumAggregator> {
+
+    private int sum;
+    
+    protected void add(SumAggregator agg) {
+      sum += agg.sum;
+    }
+
+    protected SumAggregator clone() {
+      SumAggregator agg = new SumAggregator();
+      agg.sum = sum;
+      return agg;
+    }
+
+    protected void exec(Context context, ScalarVertex vertex) {
+      sum += vertex.value();
+    }
+
+    protected void finalize(Context context) {
+      System.out.println("Sum: " + sum);
+    }
+    
+  }
+</pre>
+ * <p>Then, to add it to the core and manually execute it, we use</p>
+<pre>
+  core.addAggregator("agg", new SumAggregator(), 0);
+  core.aggregateNow("agg");
+</pre>
+ * <p>Instead of using 0 in the third parameter, you may also specify the
+ * frequency at which the aggregator should be executed. For more information,
+ * refer to {@link Core#addAggregator}.</p>
+ * 
  * @param <V>
  *          Vertex type that will be used in {@link #exec(Context, Vertex)}.
  * @param <A>
@@ -42,17 +79,36 @@ public abstract class Aggregator<V extends Vertex, A extends Aggregator<V, A>>
   
   /**
    * Executes operation on a single vertex.
+   * 
+   * When the core performs an aggregation, the following happens:
+   * <ol>
+   *  <li>The associated aggregator is cloned (number of clones may vary.)</li>
+   *  <li><code>exec</code> is invoked once per vertex.</li>
+   *  <li>{@link #add(Aggregator)} is invoked to merge the results of pairs of aggregators.</li>
+   *  <li>When there are no more vertices to <code>exec</code> and no pairs of aggregators
+   *  to merge, {@link #finalize(Context)} is invoked.</li>
+   * </ol>
+   * 
    * @param context
    * @param vertex
-   *          The vertex from which data may be collected.
-   *          
+   *          the vertex from which data may be collected.      
    */
   protected abstract void exec(Context context, V vertex);
   
   /**
    * Merges results of multiple aggregators.
+   * 
+   * When the core performs an aggregation, the following happens:
+   * <ol>
+   *  <li>The associated aggregator is cloned (number of clones may vary.)</li>
+   *  <li>{@link #exec(Context, Vertex)} is invoked once per vertex.</li>
+   *  <li><code>add</code> is invoked to merge the results of pairs of aggregators.</li>
+   *  <li>When there are no more vertices to <code>exec</code> and no pairs of aggregators
+   *  to merge, {@link #finalize(Context)} is invoked.</li>
+   * </ol>
+   * 
    * @param aggregator
-   *          Another aggregator whose results may be merged with
+   *          another aggregator whose results may be merged with
    *          those of this aggregator.
    */
   protected abstract void add(A aggregator);
@@ -69,6 +125,7 @@ public abstract class Aggregator<V extends Vertex, A extends Aggregator<V, A>>
    * Aggregation is often executed in parallel by making copies of existing
    * aggregators.
    * @see java.lang.Object#clone()
+   * @see #add(Aggregator)
    */
   @Override
   protected abstract A clone();
