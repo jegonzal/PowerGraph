@@ -38,8 +38,7 @@ size_t iterations;
 struct vertex_data : public graphlab::IS_POD_TYPE {
   float value;
   uint32_t nupdates;
-  vertex_data(double value = 1) : 
-    value(value),nupdates(0)  { }
+  vertex_data(double value = 1) : value(value), nupdates(0)  { }
 }; // End of vertex data
 
 std::ostream& operator<<(std::ostream& out, const vertex_data& vdata) {
