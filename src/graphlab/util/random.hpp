@@ -188,8 +188,8 @@ namespace graphlab {
        * variance.
        */
       inline double gaussian(const double mean = double(0), 
-                             const double var = double(1)) {
-        boost::normal_distribution<double> normal_dist(mean,var);
+                             const double stdev = double(1)) {
+        boost::normal_distribution<double> normal_dist(mean,stdev);
         mut.lock();
         const double result = normal_dist(real_rng);
         mut.unlock();
@@ -376,11 +376,11 @@ namespace graphlab {
     /**
      * \ingroup random
      * Generate a gaussian random variable with zero mean and unit
-     * variance.
+     * standard deviation.
      */
     inline double gaussian(const double mean = double(0), 
-                    const double var = double(1)) {
-      return get_source().gaussian(mean, var);
+                           const double stdev = double(1)) {
+      return get_source().gaussian(mean, stdev);
     }
 
     /**

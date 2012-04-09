@@ -941,17 +941,25 @@ namespace graphlab {
     void build_lognormal(const size_t nverts, const bool in_degree = false,  
                          const double mu = 4, const double sigma = 1.3) {
       random::seed(rpc.procid());
-      const double var = sigma*sigma;
-      size_t target_index = rpc.procid();
+      atomic<size_t> target_index = rpc.procid();
+      size_t edges_added = 0;
+      //#pragma omp parallel for
       for(size_t source = rpc.procid(); source < nverts; 
           source += rpc.numprocs()) {
         const size_t out_degree = 
-          std::min(size_t(std::exp(random::gaussian(mu, var))), nverts);
+          std::min(size_t(std::exp(random::gaussian(mu, sigma))), nverts-1);
         for(size_t i = 0; i < out_degree; ++i, ++target_index) {
           size_t target = permutation(nverts, target_index);
           if(source == target) target = permutation(nverts, ++target_index);
           if(in_degree) add_edge(target, source); 
           else add_edge(source, target);
+          edges_added++;
+        }
+        if(edges_added % 1000000 == 0) {
+          std::cout << "Edges: " << edges_added 
+                    << "\t Vertices:  " << (source/rpc.numprocs())
+                    << "\t Ratio:  "  << double(edges_added) / (source/rpc.numprocs())
+                    << std::endl;
         }
       }
     } // end of build lognormal

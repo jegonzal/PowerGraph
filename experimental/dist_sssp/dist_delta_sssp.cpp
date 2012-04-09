@@ -271,7 +271,7 @@ int main(int argc, char** argv) {
   std::cout << dc.procid() << ": Intializing engine" << std::endl;
   engine.set_options(clopts);
   engine.initialize();
-  engine.add_aggregator("count", finite_distance_aggregator(), 1000);
+  //  engine.add_aggregator("count", finite_distance_aggregator(), 1000);
   std::cout << "Determing the highest degree vertex" << std::endl;
   const graphlab::vertex_id_type max_vid = graph.max_degree_vertex();
   if(graph.is_master(max_vid)) {
@@ -298,7 +298,7 @@ int main(int argc, char** argv) {
             << engine.last_update_count() / runtime
             << std::endl;
 
-  engine.aggregate_now("count");
+  //  engine.aggregate_now("count");
   
   if (output) {
     std::string fname = "results_";
