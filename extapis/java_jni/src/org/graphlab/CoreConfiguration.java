@@ -10,7 +10,11 @@ import org.graphlab.util.StringUtils;
 
 /**
  * Set of configuration options for {@link org.graphlab.Core}.
- * Pass an instance of this class to {@link Core#Core(CoreConfiguration)}.
+ * 
+ * <h3>Usage</h3>
+ * <p>To use, create an instance of this class and call the necessary <code>set*</code>
+ * methods to specify your desired configuration. Then, pass the instance to
+ * {@link Core#Core(CoreConfiguration)}.</p>
  * 
  * @author Jiunn Haur Lim <jiunnhal@cmu.edu>
  */
@@ -19,7 +23,17 @@ public class CoreConfiguration {
   /** Options Map - options keys to options values */
   private Map<String, String> mOptions = new HashMap<String, String>();
   
-  /** Default options */
+  /**
+   * Creates a configuration with the default options.
+   * <dl>
+   *  <dt>Scheduler<dt>
+   *  <dd>{@link org.graphlab.Scheduler#SWEEP}</dd>
+   *  <dt>Scope</dt>
+   *  <dd>{@link org.graphlab.Scope#EDGE}</dd>
+   *  <dt>Number of CPUs</dt>
+   *  <dd>Number of CPUs available on the system</dd>
+   * </dl>
+   */
   public CoreConfiguration(){}
   
   /**
@@ -27,8 +41,11 @@ public class CoreConfiguration {
    * CPUs.
    * 
    * @param scheduler
+   *          one of {@link org.graphlab.Scheduler}
    * @param scope
+   *          one of {@link org.graphlab.Scope}
    * @param ncpus
+   *          number of CPUs 
    */
   public CoreConfiguration(Scheduler scheduler, Scope scope, int ncpus){
     setScheduler(scheduler);
@@ -37,7 +54,10 @@ public class CoreConfiguration {
   }
   
   /**
+   * Specifies the scheduler to use.
+   * 
    * @param scheduler
+   *          one of {@link org.graphlab.Scheduler}
    * @throws NullPointerException
    *          if <tt>scheduler</tt> was null.
    */
@@ -48,7 +68,10 @@ public class CoreConfiguration {
   }
   
   /**
+   * Specifies the scope to use.
+   * 
    * @param scope
+   *          one of {@link org.graphlab.Scope}
    * @throws NullPointerException
    *          if <tt>scope</tt> was null.
    */
@@ -59,6 +82,9 @@ public class CoreConfiguration {
   }
   
   /**
+   * Specifies the number of CPUs GraphLab should use. This roughly corresponds to
+   * the number of threads that will be spawned by the scheduler.
+   * 
    * @param n
    *      number of CPUs
    * @throws IllegalArgumentException
@@ -71,7 +97,7 @@ public class CoreConfiguration {
   }
   
   /*
-   * Creates the command line string by concatentating option keys
+   * Creates the command line string by concatenating option keys
    * and values.
    * (non-Javadoc)
    * @see java.lang.Object#toString()

@@ -3,27 +3,38 @@ package org.graphlab;
 import org.graphlab.data.Vertex;
 
 /**
- * Updater
+ * Performs computation on a given vertex.
  * 
  * <p>
  * The GraphLab engine will invoke an updater on each scheduled node. Extend
- * this class to provide an update function for that node. Note that the update
- * function may update node data, modify edge data, and schedule neighbors, but
- * may not modify the graph structure. You may reuse the updater object on
- * across multiple vertices (this is encouraged).
+ * this class to provide an update function for your application. Note that the
+ * updater may update node data, modify edge data, and schedule neighbors, but
+ * may not modify the graph structure. You may reuse the updater object across
+ * multiple vertices (this is encouraged).
  * </p>
+ * 
+ * <h3>Generics</h3>
+ * <p>
+ * Most of the time, <tt>V</tt> will take the type of vertex that your graph has
+ * and <tt>U</tt> will take the type of your updater. Your class signature
+ * should look like the following:
+ * </p>
+ * <pre>
+ *   private static class Up extends Updater&lt;MyVertex, MyEdge, Up&gt;
+ * </pre>
+ * <p>We recommend that you follow this pattern closely, unless you are very
+ * familiar with generics.</p>
  * 
  * @param <V>
  *          Vertex type that will be used in {@link #update(Context, Vertex)}
  * @param <E>
  *          Edge type
  * @param <U>
- *          Updater
- * 
+ *          Updater (For self-templating.)
  * @author Jiunn Haur Lim <jiunnhal@cmu.edu>
  */
-public abstract class Updater<V extends Vertex, E, // TODO: easier generics?
-U extends Updater<V, E, U>> {
+public abstract class Updater
+  <V extends Vertex, E, U extends Updater<V, E, U>> {
 
   static {
     initNative();

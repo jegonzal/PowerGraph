@@ -32,8 +32,8 @@ public final class Context {
   /**
    * Schedules an update on the given vertex.
    * 
-   * <p>When GraphLab invokes the updater on a vertex, it passes the
-   * updater the context (this object) and the vertex. When the updater
+   * <p>When GraphLab invokes the updater on a vertex, it passes
+   * the context (this object) and the vertex to the updater. When the updater
    * has completed its computation, it may use the context object to
    * schedule updates on neighboring vertices (by calling this method.)</p>
    * 
