@@ -59,9 +59,9 @@ extern "C" {
 
   static jlong createCore (JNIEnv *env, jobject obj, int argc, char **argv){
   
-    // configure log level (TODO: allow config)
+    // configure log level
     global_logger().set_log_level(LOG_DEBUG);
-    global_logger().set_log_to_console(false);
+    global_logger().set_log_to_console(true);
 
     // set jvm, if we don't have it already
     if (NULL == proxy_updater::core::get_jvm()){
@@ -506,7 +506,7 @@ extern "C" {
     // add aggregator
     const char * key_str = env->GetStringUTFChars(key, NULL);
     (*jni_core)().aggregate_now(std::string(key_str));
-     env->ReleaseStringUTFChars(key, key_str);
+    env->ReleaseStringUTFChars(key, key_str);
   
   }
 
