@@ -78,8 +78,10 @@ namespace graphlab {
         ASSERT_LE(global_end, nverts);
         // Compute the span of each subtask.  The span should not be
         // less than some minimal span.
-        const vertex_id_type span = 
-          std::max((global_end - global_begin)/ncpus, size_t(1));
+        // const vertex_id_type span = 
+        //  std::max((global_end - global_begin)/ncpus, size_t(1));
+        const vertex_id_type span =
+           (global_end - global_begin)/ncpus + ((global_end - global_begin) % ncpus > 0);
         const size_t true_begin_vid = std::min(cpuid*span, nverts);
         const size_t true_end_vid   = std::min((cpuid+1)*span, nverts);
     

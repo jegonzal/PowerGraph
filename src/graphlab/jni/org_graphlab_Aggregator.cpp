@@ -63,7 +63,8 @@ proxy_aggregator::
   proxy_aggregator(JNIEnv *env, jobject &obj)
   : java_any(env, obj){}
 
-proxy_aggregator::proxy_aggregator(){}
+proxy_aggregator::proxy_aggregator()
+  : java_any(){}
 
 proxy_aggregator::
   proxy_aggregator(const proxy_aggregator& other) {
