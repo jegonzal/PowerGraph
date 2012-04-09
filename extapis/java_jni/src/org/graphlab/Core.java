@@ -6,19 +6,34 @@ import org.apache.log4j.Logger;
 import org.graphlab.data.Vertex;
 import org.jgrapht.Graph;
 
+/*
+ * This interfaces with the C++ library via JNI and
+ * mirrors graphlab::core.
+ */
+
 /**
- * GraphLab Core.
+ * Core engine.
  * 
- * <p>
- * This interfaces with the C++ library via
- * <abbr title="Java Native Interface">JNI</abbr> and
- * mirrors <tt>graphlab::core</tt>.
- * </p>
+ * <p>Refer to the classes in {@link org.graphlab.demo} for examples on how
+ * to use GraphLab. A tutorial is also available on the official website.</p>
  * 
- * <p>
- * All logging from this core is done via {@link org.apache.log4j.Logger}.
+ * <h3>Usage</h3>
+ * <p>In general, your applications should be structured as follows:</p>
+ * <pre>
+Core c = new Core();
+c.setGraph(graph);
+c.scheduleAll(...);
+c.destroy();
+ * </pre>
+ * <b>Important</b>
+ * <p>All applications must invoke {@link #destroy} at the end of its execution;
+ * this terminates remaining threads and terminates the application.</p>
+ * 
+ * <h3>Logging</h3>
+ * <p>All logging from the GraphLab Core is done via {@link org.apache.log4j.Logger}.
  * To configure, retrieve the logger using <tt>Logger.getClass(Core.class)</tt>.
- * </p>
+ * At the very least, you will need to invoke <code>BasicConfigurator.configure()</code>
+ * at the beginning of your code to setup a basic configuration of log4j.</p>
  * 
  * @author Jiunn Haur Lim <jiunnhal@cmu.edu>
  * @see <a href="http://logging.apache.org/log4j/1.2/manual.html">Log4J</a>

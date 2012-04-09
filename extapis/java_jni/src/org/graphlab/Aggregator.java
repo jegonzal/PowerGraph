@@ -29,6 +29,7 @@ import org.graphlab.data.Vertex;
  * familiar with generics.</p>
  * 
  * <h3>Example</h3>
+ * <p>The complete source for this example is available as {@link org.graphlab.demo.Sum}.</p>
  * <p>Suppose we would like to sum over all vertices in the graph. To do so, we
  * implement an aggregator as follows:</p>
 <pre>
