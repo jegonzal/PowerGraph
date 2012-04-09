@@ -97,8 +97,6 @@ proxy_aggregator::~proxy_aggregator(){}
 
 void proxy_aggregator::operator()(icontext_type& context){
   
-  logstream(LOG_DEBUG) << "()." << std::endl;
-  
   // forward call to org.graphlab.Aggregator#exec
   JNIEnv *env = core::get_jni_env();
   env->CallVoidMethod (obj(), java_exec,
