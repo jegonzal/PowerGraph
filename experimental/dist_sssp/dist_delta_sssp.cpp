@@ -60,8 +60,13 @@ public:
   consistency_model gather_consistency() { return graphlab::EDGE_CONSISTENCY; }
   consistency_model scatter_consistency() { return graphlab::NULL_CONSISTENCY; }
   edge_set gather_edges() const { return graphlab::NO_EDGES; }
+  
+
+  void init_gather(iglobal_context_type& context) { }
+  void merge(const delta_sssp& other) { }
+
   edge_set scatter_edges() const { 
-    return dist == uint32_t(-1)? graphlab::NO_EDGES : graphlab::ALL_EDGES; 
+    return dist == uint32_t(-1)? graphlab::NO_EDGES : graphlab::OUT_EDGES; 
   }
   void apply(icontext_type& context) {  
     vertex_data& vdata = context.vertex_data();
@@ -79,6 +84,30 @@ public:
 }; // end of shortest path update functor
 
 
+
+
+
+
+/**
+ * This aggregator finds the number of touched vertices
+ */       
+class finite_distance_aggregator :
+  public graphlab::iaggregator<graph_type, delta_sssp, finite_distance_aggregator>,
+  public graphlab::IS_POD_TYPE {
+private:
+  size_t count;
+public:
+  finite_distance_aggregator() : count(0) { }
+  void operator()(icontext_type& context) {
+    count += context.const_vertex_data().dist < std::numeric_limits<uint32_t>::max();
+  } // end of operator()
+  void operator+=(const finite_distance_aggregator& other) {
+    count += other.count;
+  }
+  void finalize(iglobal_context_type& context) {
+    std::cout << "Touched:\t\t" << count << std::endl;
+  }
+}; //
 
 
 
@@ -112,6 +141,17 @@ int main(int argc, char** argv) {
   clopts.attach_option("ring", &ring, ring,
                        "The size of the ring. " 
                        "If ring=0 then the graph file is used.");
+
+  size_t lognormal = 0;
+  clopts.attach_option("lognormal", &lognormal, lognormal,
+                       "Generate a synthetic lognormal out-degree graph. ");
+
+  size_t powerlaw = 0;
+  clopts.attach_option("powerlaw", &powerlaw, powerlaw,
+                       "Generate a synthetic powerlaw out-degree graph. ");
+
+
+
   size_t randomconnect = 0;
   clopts.attach_option("randomconnect", &randomconnect, randomconnect,
                        "The size of a randomly connected network. "
@@ -146,7 +186,11 @@ int main(int argc, char** argv) {
   std::cout << dc.procid() << ": Starting." << std::endl;
   graphlab::timer timer; timer.start();
   graph_type graph(dc, clopts);
-  if(ring > 0) {
+  if(powerlaw > 0) {
+    graph.build_powerlaw(powerlaw);
+  } else if(lognormal > 0) {
+    graph.build_lognormal(lognormal);
+  } else if(ring > 0) {
     if(dc.procid() == 0) {
       for(size_t i = 0; i < ring; ++i) graph.add_edge(i, i + 1);      
       graph.add_edge(ring, 0);
@@ -227,6 +271,7 @@ int main(int argc, char** argv) {
   std::cout << dc.procid() << ": Intializing engine" << std::endl;
   engine.set_options(clopts);
   engine.initialize();
+  engine.add_aggregator("count", finite_distance_aggregator(), 1000);
   std::cout << "Determing the highest degree vertex" << std::endl;
   const graphlab::vertex_id_type max_vid = graph.max_degree_vertex();
   if(graph.is_master(max_vid)) {
@@ -253,7 +298,7 @@ int main(int argc, char** argv) {
             << engine.last_update_count() / runtime
             << std::endl;
 
-
+  engine.aggregate_now("count");
   
   if (output) {
     std::string fname = "results_";

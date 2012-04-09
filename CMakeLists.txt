@@ -176,7 +176,7 @@ if( JNI_REALLY_FOUND AND EXPERIMENTAL )
     JVM_ARCH=tune=i686 --prefix=<INSTALL_DIR>
     --with-java=${JAVA_HOME}
     INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local
-    TEST_COMMAND cp <SOURCE_DIR>/src/c++/libhdfs/hdfs.h <INSTALL_DIR>/include )
+    TEST_COMMAND bash -c "mkdir -p <INSTALL_DIR>/include && cp <SOURCE_DIR>/src/c++/libhdfs/hdfs.h <INSTALL_DIR>/include")
   set(HADOOP_FOUND 1 CACHE BOOL "Hadoop was found")
   add_definitions(-DHAS_HADOOP)
   link_libraries(hdfs ${JAVA_JVM_LIBRARY})
