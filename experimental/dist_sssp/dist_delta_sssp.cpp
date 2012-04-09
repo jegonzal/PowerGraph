@@ -60,6 +60,11 @@ public:
   consistency_model gather_consistency() { return graphlab::EDGE_CONSISTENCY; }
   consistency_model scatter_consistency() { return graphlab::NULL_CONSISTENCY; }
   edge_set gather_edges() const { return graphlab::NO_EDGES; }
+  
+
+  void init_gather(iglobal_context_type& context) { }
+  void merge(const delta_sssp& other) { }
+
   edge_set scatter_edges() const { 
     return dist == uint32_t(-1)? graphlab::NO_EDGES : graphlab::OUT_EDGES; 
   }
@@ -136,6 +141,17 @@ int main(int argc, char** argv) {
   clopts.attach_option("ring", &ring, ring,
                        "The size of the ring. " 
                        "If ring=0 then the graph file is used.");
+
+  size_t lognormal = 0;
+  clopts.attach_option("lognormal", &lognormal, lognormal,
+                       "Generate a synthetic lognormal out-degree graph. ");
+
+  size_t powerlaw = 0;
+  clopts.attach_option("powerlaw", &powerlaw, powerlaw,
+                       "Generate a synthetic powerlaw out-degree graph. ");
+
+
+
   size_t randomconnect = 0;
   clopts.attach_option("randomconnect", &randomconnect, randomconnect,
                        "The size of a randomly connected network. "
@@ -170,7 +186,11 @@ int main(int argc, char** argv) {
   std::cout << dc.procid() << ": Starting." << std::endl;
   graphlab::timer timer; timer.start();
   graph_type graph(dc, clopts);
-  if(ring > 0) {
+  if(powerlaw > 0) {
+    graph.build_powerlaw(powerlaw);
+  } else if(lognormal > 0) {
+    graph.build_lognormal(lognormal);
+  } else if(ring > 0) {
     if(dc.procid() == 0) {
       for(size_t i = 0; i < ring; ++i) graph.add_edge(i, i + 1);      
       graph.add_edge(ring, 0);

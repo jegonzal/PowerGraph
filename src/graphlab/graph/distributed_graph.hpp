@@ -49,7 +49,7 @@
 
 #include <graphlab/rpc/dc.hpp>
 #include <graphlab/rpc/dc_dist_object.hpp>
-#include <graphlab/util/mpi_tools.hpp>
+#include <graphlab/util/random.hpp>
 
 #include <graphlab/options/graphlab_options.hpp>
 #include <graphlab/serialization/iarchive.hpp>
@@ -908,6 +908,75 @@ namespace graphlab {
       }
       logstream(LOG_INFO) << "Finish saving graph to " << fname << std::endl;
     } // end of save
+
+
+
+
+
+
+    // Synthetic Generators ===================================================>
+    void build_powerlaw(const size_t nverts, const bool in_degree = false, 
+                        const double alpha = 2.1) {
+      std::vector<double> prob(nverts-1, 0);
+      std::cout << "constructing pdf" << std::endl;
+      for(size_t i = 0; i < prob.size(); ++i) 
+        prob[i] = std::pow(double(i+1), -alpha);
+      std::cout << "constructing cdf" << std::endl;
+      pdf2cdf(prob);
+      std::cout << "Building graph" << std::endl;
+      size_t target_index = rpc.procid();
+      for(size_t source = rpc.procid(); source < nverts; 
+          source += rpc.numprocs()) {
+        const size_t out_degree = sample(prob) + 1;
+        for(size_t i = 0; i < out_degree; ++i, ++target_index) {
+          size_t target = permutation(nverts, target_index);
+          if(source == target) target = permutation(nverts, ++target_index);
+          if(in_degree) add_edge(target, source); 
+          else add_edge(source, target);
+        }
+      }
+    } // end of build powerlaw
+
+
+    void build_lognormal(const size_t nverts, const bool in_degree = false,  
+                         const double mu = 4, const double sigma = 1.3) {
+      random::seed(rpc.procid());
+      const double var = sigma*sigma;
+      size_t target_index = rpc.procid();
+      for(size_t source = rpc.procid(); source < nverts; 
+          source += rpc.numprocs()) {
+        const size_t out_degree = 
+          std::min(size_t(std::exp(random::gaussian(mu, var))), nverts);
+        for(size_t i = 0; i < out_degree; ++i, ++target_index) {
+          size_t target = permutation(nverts, target_index);
+          if(source == target) target = permutation(nverts, ++target_index);
+          if(in_degree) add_edge(target, source); 
+          else add_edge(source, target);
+        }
+      }
+    } // end of build lognormal
+
+  private:
+      
+    inline size_t permutation(size_t nverts, size_t x) const  {
+      return ((x + rpc.procid()) * 2654435761) % nverts;
+    }
+
+    void pdf2cdf(std::vector<double>& pdf) const {
+      double Z = 0;
+      for(size_t i = 0; i < pdf.size(); ++i) Z += pdf[i];
+      for(size_t i = 0; i < pdf.size(); ++i) 
+        pdf[i] = pdf[i]/Z + ((i>0)? pdf[i-1] : 0);
+    } // end of pdf2cdf
+    
+    size_t sample(const std::vector<double>& cdf) const {
+      return std::upper_bound(cdf.begin(), cdf.end(), 
+                              graphlab::random::rand01()) - cdf.begin();  
+    } // end of sample
+
+
+
+
   }; // End of graph
 
  
