@@ -61,14 +61,10 @@ JNIEXPORT void JNICALL
 
 proxy_aggregator::
   proxy_aggregator(JNIEnv *env, jobject &obj)
-  : java_any(env, obj){
-  logstream(LOG_DEBUG) << "constructed." << std::endl;
-}
+  : java_any(env, obj){}
 
 proxy_aggregator::proxy_aggregator()
-  : java_any(){
-  logstream(LOG_DEBUG) << "constructed w. nothing." << std::endl;
-}
+  : java_any(){}
 
 proxy_aggregator::
   proxy_aggregator(const proxy_aggregator& other) {
@@ -83,13 +79,9 @@ proxy_aggregator::
   JNIEnv *env = core::get_jni_env();
   set_obj(env->CallObjectMethod(other.obj(), java_clone));
   
-  logstream(LOG_DEBUG) << "cloned." << std::endl;
-  
 }
 
 proxy_aggregator &proxy_aggregator::operator=(const proxy_aggregator& other){
-  
-  logstream(LOG_DEBUG) << "equaled." << std::endl;
     
   if (this == &other) return *this;
   java_any::operator=(other);
@@ -122,8 +114,6 @@ void proxy_aggregator::operator()(icontext_type& context){
 
 void proxy_aggregator::operator+=(const proxy_aggregator& other) {
   
-  logstream(LOG_INFO) << "added." << std::endl;
-  
   // forward call to org.graphlab.Aggregator#add
   JNIEnv *env = core::get_jni_env();
   env->CallVoidMethod (obj(), java_add, other.obj());
@@ -136,8 +126,6 @@ void proxy_aggregator::operator+=(const proxy_aggregator& other) {
 //---------------------------------------------------------------
 
 void proxy_aggregator::finalize(iglobal_context& context){
-
-  logstream(LOG_DEBUG) << "finalized." << std::endl;
 
   // forward call to org.graphlab.Aggregator#finalize
   JNIEnv *env = core::get_jni_env();

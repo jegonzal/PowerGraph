@@ -61,7 +61,7 @@ extern "C" {
   
     // configure log level
     global_logger().set_log_level(LOG_DEBUG);
-    global_logger().set_log_to_console(true);
+    global_logger().set_log_to_console(false);
 
     // set jvm, if we don't have it already
     if (NULL == proxy_updater::core::get_jvm()){
@@ -189,7 +189,8 @@ extern "C" {
     // TODO: Change java function for add vertex to take a vertex id
     const vertex_id_type vid = (*jni_core)().graph().num_vertices();
     (*jni_core)().graph().add_vertex(vid, vertex);
-    return vid;   
+    return vid;
+       
   }
   
   JNIEXPORT void JNICALL
@@ -483,7 +484,7 @@ extern "C" {
     (*jni_core)().add_aggregator(std::string(key_str),
                                 proxy_aggregator(env, aggregator),
                                 frequency);
-     env->ReleaseStringUTFChars(key, key_str);
+    env->ReleaseStringUTFChars(key, key_str);
     
   }
   
