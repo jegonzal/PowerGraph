@@ -47,6 +47,7 @@
 #include <graphlab/aggregation/distributed_aggregator.hpp>
 
 #include <graphlab/util/tracepoint.hpp>
+#include <graphlab/util/memory_info.hpp>
 #include <graphlab/rpc/distributed_event_log.hpp>
 #include <graphlab/rpc/async_consensus.hpp>
 
@@ -99,8 +100,8 @@ namespace graphlab {
 
 
     struct vertex_state {
-      mutex lock;
       uint32_t apply_count_down;    // used to count down the gathers
+      simple_spinlock lock;
       bool hasnext;
       bool empty_task; // may only be set on mirrors. 
                        // may happens when gather has no_edges, but there is
@@ -354,6 +355,7 @@ namespace graphlab {
      */
     void initialize() {      
       graph.finalize();
+      if (rmi.procid() == 0) memory_info::print_usage("Before Engine Initialization");
       logstream(LOG_INFO) 
         << rmi.procid() << ": Initializing..." << std::endl;
       // currently this code wipes out any exisiting data structures
@@ -370,6 +372,7 @@ namespace graphlab {
       vstate.resize(graph.num_local_vertices());
       
       thrlocal.resize(threads.size());
+      if (rmi.procid() == 0) memory_info::print_usage("After Engine Initialization");
       rmi.barrier();
     }
     

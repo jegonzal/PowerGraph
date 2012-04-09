@@ -49,8 +49,10 @@
 #include <graphlab/scheduler/ischeduler.hpp>
 #include <graphlab/scheduler/scheduler_factory.hpp>
 #include <graphlab/rpc/distributed_chandy_misra.hpp>
+#include <graphlab/aggregation/distributed_aggregator.hpp>
 
 #include <graphlab/util/tracepoint.hpp>
+#include <graphlab/util/memory_info.hpp>
 #include <graphlab/rpc/distributed_event_log.hpp>
 #include <graphlab/rpc/async_consensus.hpp>
 
@@ -81,6 +83,7 @@ namespace graphlab {
     typedef ischeduler<local_graph_type, update_functor_type > ischeduler_type;
     typedef scheduler_factory<local_graph_type, update_functor_type> 
     scheduler_factory_type;
+    typedef distributed_aggregator<distributed_engine> aggregator_type;
     
     typedef typename iengine_base::icontext_type  icontext_type;
     typedef context<distributed_engine>           context_type;
@@ -169,9 +172,10 @@ namespace graphlab {
     
     //! The scheduler
     ischeduler_type* scheduler_ptr;
+    aggregator_type aggregator;
     
     std::vector<vertex_state> vstate;
-    std::vector<mutex> vstate_locks;
+    std::vector<simple_spinlock> vstate_locks;
     
     size_t ncpus;
     bool started;
@@ -298,8 +302,10 @@ namespace graphlab {
   public:
     distributed_engine(distributed_control &dc, graph_type& graph, 
                        size_t ncpus) : 
-      rmi(dc, this), graph(graph), scheduler_ptr(NULL), ncpus(ncpus),
+      rmi(dc, this), graph(graph), scheduler_ptr(NULL), 
+      aggregator(dc, *this, graph), ncpus(ncpus),
       max_pending_edges((size_t)(-1)),max_clean_forks((size_t)(-1)) {
+      aggregator.get_threads().resize(ncpus);
       rmi.barrier();
       // TODO: Remove context creation.
       // Added context to force compilation.   
@@ -347,6 +353,8 @@ namespace graphlab {
      * to any schedule() call. 
      */
     void initialize() {
+      graph.finalize();
+      if (rmi.procid() == 0) memory_info::print_usage("Before Engine Initialization");
       logstream(LOG_INFO) << rmi.procid() << ": Initializing..." << std::endl;
       scheduler_ptr = scheduler_factory_type::
         new_scheduler(opts.scheduler_type,
@@ -364,6 +372,7 @@ namespace graphlab {
       consensus = new async_consensus(rmi.dc(), ncpus);
       
       thrlocal.resize(ncpus);
+      if (rmi.procid() == 0) memory_info::print_usage("After Engine Initialization");
       rmi.barrier();
     }
     
@@ -1026,6 +1035,7 @@ namespace graphlab {
       update_functor_type task;
 //      size_t ctr = 0; 
       while(1) {
+        aggregator.evaluate_queue();
 /*        ++ctr;
         if (max_clean_forks != (size_t)(-1) && ctr % 10000 == 0) {
           std::cout << cmlocks->num_clean_forks() << "/" << max_clean_forks << "\n";
@@ -1070,6 +1080,7 @@ namespace graphlab {
     void start() {
       logstream(LOG_INFO) << "Spawning " << ncpus << " threads" << std::endl;
       ASSERT_TRUE(scheduler_ptr != NULL);
+      aggregator.initialize_queue();
       // start the scheduler
       scheduler_ptr->start();
       started = true;
@@ -1092,6 +1103,7 @@ namespace graphlab {
         thrgroup.launch(boost::bind(&engine_type::thread_start, this, i));
       }
       thrgroup.join();
+      aggregator.get_threads().join();
       if (rmi.procid() == 0) {
         PERMANENT_IMMEDIATE_DIST_EVENT(eventlog, ENGINE_STOP_EVENT);
       }
@@ -1211,18 +1223,16 @@ namespace graphlab {
     template<typename Aggregate>
     void add_aggregator(const std::string& key,
                         const Aggregate& zero,
-                        size_t interval,
-                        bool use_barrier = false,
-                        vertex_id_type begin_vid = 0,
-                        vertex_id_type end_vid =
-                        std::numeric_limits<vertex_id_type>::max()) {
+                        size_t interval) {
       logstream(LOG_DEBUG) << "Add Aggregator : " << key << std::endl;
+      aggregator.add_aggregator(key, zero, interval);
     }
 
 
     //! Performs a sync immediately.
     void aggregate_now(const std::string& key) {
       logstream(LOG_DEBUG) << "Aggregate Now : " << key << std::endl;
+      aggregator.aggregate_now(key);
     }
   }; // end of class
 } // namespace

@@ -61,6 +61,7 @@ namespace graphlab {
       }
       virtual void run_aggregator(std::string key,
                                   size_t cpuid,
+                                  distributed_aggregator* dist_aggregator,
                                   rmi_type* rmi_ptr,
                                   engine_type* engine_ptr,                          
                                   graph_type*  graph_ptr) = 0;
@@ -83,6 +84,7 @@ namespace graphlab {
         isync(interval), zero(zero), shared_aggregator(zero) { }
       void run_aggregator(std::string key,
                           size_t cpuid,
+                          distributed_aggregator* dist_aggregator,
                           rmi_type* rmi_ptr, 
                           engine_type* engine_ptr,
                           graph_type*  graph_ptr) { 
@@ -124,17 +126,23 @@ namespace graphlab {
           // Zero out the shared accumulator for the next run
           shared_aggregator = zero;
           // update the sync queue
-          master_lock.lock();
-          schedule_sync_prelocked(key, interval);
-          sync_in_progress = false;
-          master_lock.unlock();          
+          dist_aggregator->master_lock.lock();
+          dist_aggregator->schedule_prelocked(key, interval);
+          dist_aggregator->sync_in_progress = false;
+          rmi_ptr->barrier();
+          dist_aggregator->master_lock.unlock();          
         }
       } // end of run aggregator
     }; // end of sync
 
 
-  private:
 
+  private:
+    friend class isync;
+    
+    template <typename Aggregator>
+    friend class sync;
+    
     //! The base communication object
     rmi_type rmi;
 
@@ -301,7 +309,7 @@ namespace graphlab {
       for(size_t i = 0; i < threads.size(); ++i) {
         const boost::function<void (void)> sync_function = 
           boost::bind(&isync::run_aggregator, 
-                      sync_ptr, key, i, &rmi, &engine, &graph);
+                      sync_ptr, key,  i, this, &rmi, &engine, &graph);
         threads.launch(sync_function);
       }
     } // end of rpc aggregate

@@ -43,9 +43,10 @@
 #include <graphlab/rpc/dc_dist_object.hpp>
 #include <graphlab/scheduler/ischeduler.hpp>
 #include <graphlab/scheduler/scheduler_factory.hpp>
-
+#include <graphlab/aggregation/distributed_aggregator.hpp>
 
 #include <graphlab/util/tracepoint.hpp>
+#include <graphlab/util/memory_info.hpp>
 #include <graphlab/rpc/distributed_event_log.hpp>
 #include <graphlab/rpc/async_consensus.hpp>
 
@@ -78,7 +79,7 @@ namespace graphlab {
     typedef typename iengine_base::icontext_type  icontext_type;
     typedef context<distributed_synchronous_engine>  context_type;
 
-    
+    typedef distributed_aggregator<distributed_synchronous_engine> aggregator_type;
     
     consistency_model default_consistency;
     
@@ -92,6 +93,9 @@ namespace graphlab {
     graph_type& graph;
     //! local threads object
     thread_pool threads;
+
+    aggregator_type aggregator;
+    
     size_t ncpus;
     
     size_t max_iterations;
@@ -140,7 +144,8 @@ namespace graphlab {
   public:
     distributed_synchronous_engine(distributed_control &dc, graph_type& graph,
                               size_t ncpus) : 
-      rmi(dc, this), graph(graph), threads(ncpus), ncpus(ncpus), max_iterations(-1),
+      rmi(dc, this), graph(graph), threads(ncpus), 
+      aggregator(dc, *this, graph), ncpus(ncpus), max_iterations(-1),
       started(false), has_schedule_entries(false) {
 
 #ifdef USE_EVENT_LOG
@@ -155,7 +160,7 @@ namespace graphlab {
       PERMANENT_ADD_DIST_EVENT_TYPE(eventlog, USER_OP_EVENT, "User Ops");
       PERMANENT_ADD_IMMEDIATE_DIST_EVENT_TYPE(eventlog, ENGINE_START_EVENT, "Engine Start");
       PERMANENT_ADD_IMMEDIATE_DIST_EVENT_TYPE(eventlog, ENGINE_STOP_EVENT, "Engine Stop");
-      
+      aggregator.get_threads().resize(ncpus);
       rmi.barrier();
     }
 
@@ -165,6 +170,10 @@ namespace graphlab {
      */
     void initialize() {
       graph.finalize();
+      if (rmi.procid() == 0) memory_info::print_usage("Before Engine Initialization");
+      logstream(LOG_INFO) 
+        << rmi.procid() << ": Initializing..." << std::endl;
+
       vlocks.resize(graph.num_local_vertices());
       perthread_scheduleset_bits.resize(ncpus);
       perthread_workingset_bits.resize(ncpus);
@@ -178,8 +187,7 @@ namespace graphlab {
       workingset = new vertex_functor_set<update_functor_type>();
       scheduleset->resize(graph.num_local_vertices());
       workingset->resize(graph.num_local_vertices());
-      logstream(LOG_INFO) 
-        << rmi.procid() << ": Initializing..." << std::endl;
+      if (rmi.procid() == 0) memory_info::print_usage("After Engine Initialization");
       rmi.barrier();
     }
     
@@ -769,6 +777,7 @@ namespace graphlab {
      * true or the scheduler has no tasks remaining.
      */
     void start() {
+      aggregator.initialize_queue();
       logstream(LOG_INFO) 
         << "Spawning " << threads.size() << " threads" << std::endl;
 
@@ -786,7 +795,6 @@ namespace graphlab {
       parallel_transmit_schedule();
       rmi.full_barrier();
       size_t iterationnumber = 1;
-
       for (size_t i = 0;i < max_iterations; ++i) {
         if (rmi.procid() == 0) std::cout << "Iteration " << iterationnumber << std::endl;
         ++iterationnumber;
@@ -810,7 +818,7 @@ namespace graphlab {
         // after this point only working set has tasks.
         parallel_apply_and_issue_scatter();
         rmi.full_barrier();
-        
+        aggregator.evaluate_queue();
         // complete the scatter on each vertex
         parallel_scatter();
         rmi.all_reduce(has_schedule_entries);
@@ -891,18 +899,17 @@ namespace graphlab {
     template<typename Aggregate>
     void add_aggregator(const std::string& key,
                         const Aggregate& zero,
-                        size_t interval,
-                        bool use_barrier = false,
-                        vertex_id_type begin_vid = 0,
-                        vertex_id_type end_vid =
-                        std::numeric_limits<vertex_id_type>::max()) {
+                        size_t interval) {
       logstream(LOG_DEBUG) << "Add Aggregator : " << key << std::endl;
+      aggregator.add_aggregator(key, zero, interval);
     }
+
 
 
     //! Performs a sync immediately.
     void aggregate_now(const std::string& key) {
       logstream(LOG_DEBUG) << "Aggregate Now : " << key << std::endl;
+      aggregator.aggregate_now(key);
     }
   }; // end of class
 }; // namespace
