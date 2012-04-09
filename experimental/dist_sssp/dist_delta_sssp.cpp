@@ -61,7 +61,7 @@ public:
   consistency_model scatter_consistency() { return graphlab::NULL_CONSISTENCY; }
   edge_set gather_edges() const { return graphlab::NO_EDGES; }
   edge_set scatter_edges() const { 
-    return dist == uint32_t(-1)? graphlab::NO_EDGES : graphlab::ALL_EDGES; 
+    return dist == uint32_t(-1)? graphlab::NO_EDGES : graphlab::OUT_EDGES; 
   }
   void apply(icontext_type& context) {  
     vertex_data& vdata = context.vertex_data();

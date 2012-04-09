@@ -102,6 +102,9 @@ namespace graphlab {
       mutex lock;
       uint32_t apply_count_down;    // used to count down the gathers
       bool hasnext;
+      bool empty_task; // may only be set on mirrors. 
+                       // may happens when gather has no_edges, but there is
+                       // a previous scatter which must be complete first
       vertex_execution_state state; // current state of the vertex 
       update_functor_type current;  // What is currently being executed
                                     //  accumulated
@@ -109,7 +112,8 @@ namespace graphlab {
                                     // executed, but for whatever reason
                                     // it got popped from the scheduler
                                     // again
-      vertex_state(): apply_count_down(0), hasnext(false), state(NONE) { }      
+      vertex_state(): apply_count_down(0), hasnext(false), 
+                      empty_task(false), state(NONE) { }      
       std::ostream& operator<<(std::ostream& os) const {
         switch(state) {
         case NONE: { os << "NONE"; break; }
@@ -598,7 +602,16 @@ namespace graphlab {
       gather_complete(lvid);
       vstate[lvid].lock.unlock();
     } // end of rpc gather complete
-    
+
+    void rpc_gather_complete_no_task(vertex_id_type vid) {
+      const vertex_id_type lvid = graph.local_vid(vid);
+      BEGIN_TRACEPOINT(disteng_waiting_for_vstate_locks);
+      vstate[lvid].lock.lock();
+      END_TRACEPOINT(disteng_waiting_for_vstate_locks);
+      gather_complete(lvid);
+      vstate[lvid].lock.unlock();
+    } // end of rpc gather complete
+
 
     void do_apply(lvid_type lvid) { 
       PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, USER_OP_EVENT, 1);
@@ -693,7 +706,6 @@ namespace graphlab {
       if (vowner == rmi.procid()) {
         gather_complete(lvid);
       } else {
-        vstate[lvid].state = MIRROR_SCATTERING;
         rmi.remote_call(vowner,
                         &engine_type::rpc_gather_complete,
                         graph.global_vid(lvid),
@@ -709,9 +721,14 @@ namespace graphlab {
       vstate[lvid].lock.lock();
       END_TRACEPOINT(disteng_waiting_for_vstate_locks);
       switch(vstate[lvid].state) {
-      case NONE: { logstream(LOG_FATAL) << "Empty Internal Task"; }// break;
+      case NONE: { logstream(LOG_FATAL) << "Empty Internal Task"; break; }// break;
       case GATHERING: { process_gather(lvid); break; }
-      case MIRROR_GATHERING: { do_init_gather(lvid); process_gather(lvid); break; }
+      case MIRROR_GATHERING: { 
+        do_init_gather(lvid); process_gather(lvid); 
+        // mirrors are dumb upon complete of a gather, they go straight to NONE
+        vstate[lvid].state = NONE;
+        break; 
+      }
       case APPLYING: { 
         do_apply(lvid);
         vstate[lvid].state = SCATTERING;
@@ -735,11 +752,23 @@ namespace graphlab {
       case MIRROR_SCATTERING: {
         do_scatter(lvid);
         if(vstate[lvid].hasnext) {
-          vstate[lvid].state = MIRROR_GATHERING;
-          vstate[lvid].current = vstate[lvid].next;
-          vstate[lvid].hasnext = false;
-          vstate[lvid].next = update_functor_type();
-          add_internal_task(lvid);
+          if (vstate[lvid].empty_task == false) {
+            vstate[lvid].state = MIRROR_GATHERING;
+            vstate[lvid].current = vstate[lvid].next;
+            vstate[lvid].hasnext = false;
+            vstate[lvid].next = update_functor_type();
+            add_internal_task(lvid);
+          }
+          else { // empty_task = true
+            // fast path back
+            vstate[lvid].current = update_functor_type();
+            vstate[lvid].state = NONE;
+            vstate[lvid].empty_task = false;
+            vstate[lvid].hasnext = false;
+            rmi.remote_call(graph.l_get_vertex_record(lvid).owner,
+                        &distributed_fscope_engine::rpc_gather_complete_no_task,
+                        graph.global_vid(lvid));
+          }
         } else {
           vstate[lvid].current = update_functor_type();
           vstate[lvid].state = NONE;
@@ -758,7 +787,32 @@ namespace graphlab {
       consensus.cancel_one(i);
       END_TRACEPOINT(disteng_internal_task_queue);
     }
-    
+
+    // If I receive the call I am a mirror of this vid
+    void rpc_begin_gathering_no_task(vertex_id_type sched_vid) {
+      ASSERT_NE(graph.get_vertex_record(sched_vid).owner, rmi.procid());
+      // immediately begin issuing the lock requests
+      vertex_id_type sched_lvid = graph.local_vid(sched_vid);
+      // set the vertex state
+      BEGIN_TRACEPOINT(disteng_waiting_for_vstate_locks);
+      vstate[sched_lvid].lock.lock();
+      END_TRACEPOINT(disteng_waiting_for_vstate_locks);
+      if (vstate[sched_lvid].state != NONE) {
+        ASSERT_EQ(vstate[sched_lvid].state, MIRROR_SCATTERING);
+        ASSERT_FALSE(vstate[sched_lvid].hasnext);
+        vstate[sched_lvid].hasnext = true;
+        vstate[sched_lvid].empty_task = true;
+        vstate[sched_lvid].next = update_functor_type();
+        vstate[sched_lvid].lock.unlock();
+      } else {    
+        // fast call back
+        vstate[sched_lvid].lock.unlock();
+        rmi.remote_call(graph.l_get_vertex_record(sched_lvid).owner,
+                        &distributed_fscope_engine::rpc_gather_complete_no_task,
+                        sched_vid);
+      }
+    } // end of rpc begin gathering
+
 
     // If I receive the call I am a mirror of this vid
     void rpc_begin_gathering(vertex_id_type sched_vid, 
@@ -775,6 +829,7 @@ namespace graphlab {
         ASSERT_FALSE(vstate[sched_lvid].hasnext);
         vstate[sched_lvid].next = task;
         vstate[sched_lvid].hasnext = true;
+        vstate[sched_lvid].empty_task = false;
         vstate[sched_lvid].lock.unlock();
       } else {    
         vstate[sched_lvid].state = MIRROR_GATHERING;
@@ -793,7 +848,8 @@ namespace graphlab {
       // check to see if there are no edges to gather on.  If this is
       // the case we can skip the broadcast 
       vstate[sched_lvid].lock.lock();
-      if(task.gather_edges() == graphlab::NO_EDGES) {
+      if(task.gather_edges() == graphlab::NO_EDGES && 
+         task.scatter_edges() == graphlab::NO_EDGES) {
         vstate[sched_lvid].apply_count_down = 1;
         gather_complete(sched_lvid);
         vstate[sched_lvid].lock.unlock();
@@ -806,13 +862,25 @@ namespace graphlab {
       const vertex_id_type sched_vid = graph.global_vid(sched_lvid);
       const typename graph_type::vertex_record& vrec = 
         graph.l_get_vertex_record(sched_lvid);
-      const unsigned char prevkey = 
-        rmi.dc().set_sequentialization_key(sched_vid % 254 + 1);
-      rmi.remote_call(vrec.mirrors().begin(), vrec.mirrors().end(),
+
+      if (task.gather_edges() == graphlab::NO_EDGES) {
+        const unsigned char prevkey = 
+          rmi.dc().set_sequentialization_key(sched_vid % 254 + 1);
+        rmi.remote_call(vrec.mirrors().begin(), vrec.mirrors().end(),
+                      &engine_type::rpc_begin_gathering_no_task, sched_vid);
+        rmi.dc().set_sequentialization_key(prevkey);
+        gather_complete(sched_lvid);
+      }
+      else {
+        const unsigned char prevkey = 
+          rmi.dc().set_sequentialization_key(sched_vid % 254 + 1);
+        rmi.remote_call(vrec.mirrors().begin(), vrec.mirrors().end(),
                       &engine_type::rpc_begin_gathering, sched_vid, task);
-      rmi.dc().set_sequentialization_key(prevkey);
-      END_TRACEPOINT(disteng_init_gathering);
+        rmi.dc().set_sequentialization_key(prevkey);
       add_internal_task(sched_lvid);
+      }
+
+      END_TRACEPOINT(disteng_init_gathering);
     }
 
 
@@ -821,11 +889,13 @@ namespace graphlab {
       const vertex_id_type lvid = graph.local_vid(vid);
       vstate[lvid].lock.lock();
       ASSERT_I_AM_NOT_OWNER(lvid);
-      vstate[lvid].state = MIRROR_SCATTERING;
       graph.get_local_graph().vertex_data(lvid) = central_vdata;
-      vstate[lvid].current = task;
+      if (task.scatter_edges() != NO_EDGES) {
+        vstate[lvid].state = MIRROR_SCATTERING;
+        vstate[lvid].current = task;
+        add_internal_task(lvid);
+      }
       vstate[lvid].lock.unlock();
-      add_internal_task(lvid);
     }
     
     /**

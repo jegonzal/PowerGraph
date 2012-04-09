@@ -708,6 +708,7 @@ namespace graphlab {
     void parallel_transmit_schedule() {
       std::swap(scheduleset, workingset);
       std::swap(perthread_scheduleset_bits, perthread_workingset_bits);
+      rmi.barrier();
       for (size_t i = 0;i < ncpus; ++i) {
         threads.launch(boost::bind(&distributed_synchronous_engine::transmit_schedule,
                                    this,
@@ -777,28 +778,46 @@ namespace graphlab {
         PERMANENT_IMMEDIATE_DIST_EVENT(eventlog, ENGINE_START_EVENT);
       }
 
+      // the execution switches between the schedule set and the working set
+      // in an unfortunately annoyingly complicated way.
+      // parallel_transmit_schedule, moves the schedule set into the working set
+      // and joins all mirrored tasks with owner tasks
+      // after this point, only workingset owned vertices have tasks.
       parallel_transmit_schedule();
       rmi.full_barrier();
       size_t iterationnumber = 1;
+
       for (size_t i = 0;i < max_iterations; ++i) {
         if (rmi.procid() == 0) std::cout << "Iteration " << iterationnumber << std::endl;
         ++iterationnumber;
         has_schedule_entries = false;
+        
+        // init gather broadcasts the task 
+        // for each owned vertex to mirrored vertices. after this,
+        // only workingset has tasks
         parallel_init_gather();
         rmi.full_barrier();
+
         
+        // parallel gather completes the gather on each workingset tasks
+        // (mirror or owner), and sends them to the owned vertices.
+        // after this point, only working set owned vertices has tasks
         parallel_gather();
         rmi.full_barrier();
         
+        // This performs the apply for each owned vertex, and if a scatter
+        // is scheduled, broadcasts the task to each mirror
+        // after this point only working set has tasks.
         parallel_apply_and_issue_scatter();
         rmi.full_barrier();
         
+        // complete the scatter on each vertex
         parallel_scatter();
         rmi.all_reduce(has_schedule_entries);
         if (has_schedule_entries) {
           parallel_transmit_schedule();
+          rmi.full_barrier();
         }
-        rmi.full_barrier();
         if (has_schedule_entries == false) break;
       }
       if (rmi.procid() == 0) {
