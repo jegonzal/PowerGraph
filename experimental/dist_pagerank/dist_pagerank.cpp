@@ -82,11 +82,7 @@ public:
 
   // Run the gather operation over all in edges
   void gather(icontext_type& context, const edge_type& edge) {
-    const size_t num_out_edges = context.num_out_edges(edge.source());
-    ASSERT_EQ(edge.target(), context.vertex_id());
-    ASSERT_GT(num_out_edges, 0);
-    const float weight =  1.0 / float(num_out_edges);
-    accum += context.const_vertex_data(edge.source()).value * weight;
+    accum += context.const_vertex_data(edge.source()).value;
   } // end of gather
 
   // Merge two factorized_pagerank accumulators after running gather
@@ -95,13 +91,11 @@ public:
   // Update the center vertex
   void apply(icontext_type& context) {
     vertex_data& vdata = context.vertex_data(); 
-    float old_value = vdata.value;
-    vdata.value =  RESET_PROB + (1 - RESET_PROB) * accum;
-    const size_t num_out_edges = context.num_out_edges(context.vertex_id());
-    if(num_out_edges > 0) {
-      const float weight =  1.0 / float(num_out_edges);
-      accum = std::fabs(vdata.value - old_value) * weight;
-    } else accum = 0;
+    const float old_value = vdata.value;
+    const float num_out_edges = 
+      std::max(size_t(1), context.num_out_edges(context.vertex_id()));
+    vdata.value = (RESET_PROB + (1 - RESET_PROB) * accum) / num_out_edges; 
+    accum = std::fabs(vdata.value - old_value);
   } // end of apply
 
   // Reschedule neighbors 
