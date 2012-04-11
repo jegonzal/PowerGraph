@@ -273,7 +273,7 @@ void truncate_and_scale(float & prediction){
 }
 	
 template<typename graph_type, typename vertex_data, typename edge_data>
-void kdd_all_prediction(const graph_type &g, const graph_type & _g, const vertex_data& data,int i, int &lineNum, double& sumPreds, FILE * outFp, bool dosave){
+void common_prediction(const graph_type &g, const graph_type & _g, const vertex_data& data,int i, int &lineNum, double& sumPreds, vec& test_predictions, bool dosave){
       foreach(edge_id_t iedgeid, _g.out_edge_ids(i)) {
           const vertex_data & pdata = g.vertex_data(_g.target(iedgeid)); 
 	  const edge_data & edge = _g.edge_data(iedgeid);
@@ -289,19 +289,18 @@ void kdd_all_prediction(const graph_type &g, const graph_type & _g, const vertex
                   edge.weight, 
                   prediction);
     
-       truncate_and_scale(prediction);      
-       if (ac.debug && (i== 0 || i == ps.M))
+         truncate_and_scale(prediction);      
+         if (ac.debug && (i== 0 || i == ps.M))
             cout<<lineNum<<") prediction:"<<prediction<<endl; 
-          unsigned char roundScore = (unsigned char)(2.55*prediction + 0.5); 
-          if (dosave)
-	  	fwrite(&roundScore,1,1,outFp);
-	  sumPreds += prediction;
-
- 	  lineNum++; 
+         if (dosave)
+            test_predictions[lineNum] = prediction;
+	       sumPreds += prediction;
+ 	       lineNum++; 
        }
 }
 
-void kdd_predict(vertex_data_svdpp & data, int i, int& lineNum, double & sumPreds, FILE * outFp, bool dosave, const graph_type_svdpp &g, const graph_type_svdpp & _g){
+//compute predictions for SVD++
+void test_predict(vertex_data_svdpp & data, int i, int& lineNum, double & sumPreds, vec& test_predictions, bool dosave, const graph_type_svdpp &g, const graph_type_svdpp & _g){
        int n = data.num_edges; //+1.0 ? //regularization
        data.weight = zeros(ac.D);
        foreach(edge_id_t oedgeid, g.out_edge_ids(i)) {
@@ -310,14 +309,16 @@ void kdd_predict(vertex_data_svdpp & data, int i, int& lineNum, double & sumPred
        }
        float usrnorm = float(1.0/sqrt(n));
        data.weight *= usrnorm;
-       kdd_all_prediction<graph_type_svdpp,vertex_data_svdpp,edge_data>(g, _g,data,i,lineNum, sumPreds, outFp, dosave);
+       common_prediction<graph_type_svdpp,vertex_data_svdpp,edge_data>(g, _g,data,i,lineNum, sumPreds, test_predictions, dosave);
 }
 
-void kdd_predict(vertex_data & data, int i, int& lineNum, double& sumPreds, FILE * outFp, bool dosave, const graph_type &g, const graph_type& _g){
-  kdd_all_prediction<graph_type,vertex_data,edge_data>(g,_g,data,i,lineNum, sumPreds, outFp, dosave);
+//compute predictions for all others
+void test_predict(vertex_data & data, int i, int& lineNum, double& sumPreds, vec& test_predictions, bool dosave, const graph_type &g, const graph_type& _g){
+  common_prediction<graph_type,vertex_data,edge_data>(g,_g,data,i,lineNum, sumPreds, test_predictions, dosave);
 }
 
-void kdd_predict(vertex_data & data, int i, int&lineNum, double& sumPreds, FILE * outFp, bool dosave, const graph_type_mcmc& g, const graph_type_mcmc &_g){
+//compute predictions for BPTF/PMF
+void test_predict(vertex_data & data, int i, int&lineNum, double& sumPreds, vec& test_predictions, bool dosave, const graph_type_mcmc& g, const graph_type_mcmc &_g){
       foreach(edge_id_t iedgeid, _g.out_edge_ids(i)) {
         const vertex_data & pdata = g.vertex_data(_g.target(iedgeid)); 
 	  edge_data_mcmc & edge = (edge_data_mcmc&)_g.edge_data(iedgeid);
@@ -339,19 +340,17 @@ void kdd_predict(vertex_data & data, int i, int&lineNum, double& sumPreds, FILE 
               prediction = (edge.avgprd / (ps.iiter - ac.bptf_burn_in));
            }
           
-	  truncate_and_scale(prediction);
+	         truncate_and_scale(prediction);
           if (ac.debug && (i== 0 || i == ps.M))
             cout<<lineNum<<") prediction:"<<prediction<<endl; 
-          unsigned char roundScore = (unsigned char)(2.55*prediction + 0.5); 
           if (dosave)
-	  	fwrite(&roundScore,1,1,outFp);
-	  sumPreds += prediction;
-
- 	  lineNum++; 
+            test_predictions[lineNum] = prediction;
+	        sumPreds += prediction;
+ 	        lineNum++; 
        }
 }
 
-void kdd_predict(vertex_data & data, int i, int&lineNum, double & sumPreds, FILE * outFp, bool dosave, const graph_type_mult_edge&g, const graph_type_mult_edge &_g){
+void test_predict(vertex_data & data, int i, int&lineNum, double & sumPreds, vec& test_predictions, bool dosave, const graph_type_mult_edge&g, const graph_type_mult_edge &_g){
       foreach(edge_id_t iedgeid, _g.out_edge_ids(i)) {
         const multiple_edges & edges = _g.edge_data(iedgeid);
         const vertex_data & pdata = g.vertex_data(_g.target(iedgeid)); 
@@ -370,68 +369,47 @@ void kdd_predict(vertex_data & data, int i, int&lineNum, double & sumPreds, FILE
                   prediction);
           if (ps.BPTF && ps.iiter > ac.bptf_burn_in){
              edge.avgprd += prediction;
-             //add = powf((edge.avgprd / (iiter - bptf_burn_in)) - edge.weight, 2);
               prediction = (edge.avgprd / (ps.iiter - ac.bptf_burn_in));
            }
-	  truncate_and_scale(prediction);
+	        truncate_and_scale(prediction);
           if (ac.debug && (i== 0 || i == ps.M))
             cout<<lineNum<<") prediction:"<<prediction<<endl; 
-          unsigned char roundScore = (unsigned char)(2.55*prediction + 0.5); 
           if (dosave)
-	  	fwrite(&roundScore,1,1,outFp);
-	  sumPreds += prediction;
-
- 	  lineNum++; 
+           test_predictions[lineNum] = prediction;
+	        sumPreds += prediction;
+ 	        lineNum++; 
          }
        }
  }
 
-//
-//The input prediction file should contain 6005940 lines, corresponding
-//to the 6005940 user-item pairs in the test set.
-//Each line contains a predicted score (a real number between 0 and 100).
-//The generated output file can be submitted to the KDD-Cup'11 evaluation
-//system.
+
 template<typename graph_type, typename vertex_data, typename edge_data>
-void export_kdd_format(const graph_type & _g, testtype type, bool dosave) {
+void export_test_file(const graph_type & _g, testtype type, bool dosave) {
        
   const graph_type * g = ps.g<graph_type>(TRAINING);
   double sumPreds;
+  int lineNum = 0;
   if (!dosave)
     assert(ps.BPTF);	
+  if (ps.Lt == 0 && type == TEST)
+    logstream(LOG_FATAL) << "Empty or missing test data file, can not compute predictions!" << std::endl;
 
-    FILE * outFp = NULL;
-    if (dosave){
-      printf("Exporting KDD cup %s graph: %s\n", testtypename[type], (ac.datafile+"t.kdd.out").c_str());
-      outFp = open_file((ac.datafile+"t.kdd.out").c_str(), "w");
-      assert(outFp);
-    }
-    const int ExpectedTestSize = 6005940;
-    int lineNum = 0;
+  vec out_predictions = zeros(type == VALIDATION ? ps.Le : ps.Lt);
 
     for (int i=0; i< ps.M; i++){ //TODO: optimize to start from N?
       vertex_data & data = (vertex_data&)g->vertex_data(i);
-      kdd_predict(data, i, lineNum, sumPreds, outFp, dosave, *g, _g);
+      test_predict(data, i, lineNum, sumPreds, out_predictions, dosave, *g, _g);
     }
 
-   switch(type){
-     case TEST:
-        if (lineNum!= ExpectedTestSize)
-  	   logstream(LOG_WARNING) << "KDD test data has wrong length." << " current length is: " << ps.Lt << " correct length " << ExpectedTestSize << std::endl;
-           assert(lineNum==ps.Lt); 
-        break;
-     case VALIDATION:
-       assert(lineNum==ps.Le);
-       break;
-     case TRAINING:
-       assert(false);
-       break; 
-  }
+  if (type == TEST)
+    assert(lineNum==ps.Lt); 
+  else     
+    assert(lineNum==ps.Le);
 
-  if (dosave){
-    fclose(outFp);
-    fprintf(stderr, "**Completed successfully (mean prediction: %lf)**\n",sumPreds/lineNum);
-  }
+  logstream(LOG_INFO)<< "**Completed successfully (mean prediction: " << sumPreds/lineNum << std::endl;
+  if (dosave)
+    save_matrix_market_vector((ac.datafile + (type == TEST ? ".test.predictions" : ".validation.predictions")).c_str(), 
+     out_predictions, (type == TEST ? "output predictions for test data\n" : "output predictions for validation data\n"), false, false);
 }
 
 

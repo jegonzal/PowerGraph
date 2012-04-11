@@ -323,7 +323,7 @@ void last_iter_bptf(double res){
     }
     sample_hyperpriors<graph_type>(res);
     if (ac.datafile == "kddcup" || ac.datafile == "kddcup2")
-	export_kdd_format<graph_type, vertex_data, edge_data>(*ps.g<graph_type>(TEST), TEST, false);
+	  export_test_file<graph_type, vertex_data, edge_data>(*ps.g<graph_type>(TEST), TEST, false);
     if (ac.bptf_additional_output && ps.iiter >= ac.bptf_burn_in)
         write_output<graph_type, vertex_data>();
 }

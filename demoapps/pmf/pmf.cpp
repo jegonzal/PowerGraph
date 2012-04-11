@@ -413,12 +413,12 @@ void start(command_line_options& clopts) {
   }
 
  if (ps.algorithm != LANCZOS && ps.algorithm != SVD){
-    /**** OUTPUT KDD FORMAT *****/
-    if (ac.datafile == "kddcup" || ac.datafile == "kddcup2"){
+    /**** OUTPUT TEST FORMAT *****/
+    if (ac.exporttest){
       if (ac.outputvalidation) //experimental: output prediction of validation data
- 	     export_kdd_format<graph_type, vertex_data, edge_data>(validation_graph, VALIDATION, true);
+ 	     export_test_file<graph_type, vertex_data, edge_data>(validation_graph, VALIDATION, true);
       else //output prediction of test data, as required by KDD 
-	     export_kdd_format<graph_type, vertex_data, edge_data>(test_graph, TEST, true);
+	     export_test_file<graph_type, vertex_data, edge_data>(test_graph, TEST, true);
     }
  }
   print_runtime_counters(); 
