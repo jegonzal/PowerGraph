@@ -33,7 +33,9 @@ using namespace graphlab;
 using namespace std;
 
 string datafile;
+string datafileB;
 string prediction_file;
+string prediction_fileB;
 bool debug = false;
 
 struct vertex_data {
@@ -127,6 +129,7 @@ typedef graphlab::graph<vertex_data2, edge_data2>::edge_list_type edge_list;
      fclose(pfile);
     ASSERT_EQ(cnt, ret.size());
     logstream(LOG_INFO)<<"Finished going over " << cnt << " rating " << " for " << users << " unique users " << std::endl; 
+    logstream(LOG_INFO)<<"Successfully created output file: " << vdata.filename << ".out" << std::endl;
     } //operator()    
 }; //update_functor
 
@@ -142,12 +145,16 @@ int main(int argc,  char *argv[]) {
 
   int numnodes = 2421057; // 1420949264;//121408373;
   
-  clopts.attach_option("data", &datafile, datafile,
-                       "matrix A input file");
-  clopts.add_positional("data");
-  clopts.attach_option("prediction_file", &prediction_file, prediction_file, "prediction file name");
-  clopts.add_positional("prediction_file");
-  clopts.attach_option("num_nodes", &numnodes, numnodes, "Number of nodes");
+  clopts.attach_option("dataA", &datafile, datafile,
+                       "test A input file");
+  clopts.add_positional("dataA");
+  clopts.attach_option("prediction_fileA", &prediction_file, prediction_file, "prediction file name for testA");
+  clopts.add_positional("prediction_fileA");
+  clopts.attach_option("dataB", &datafileB, datafileB,
+                       "test B input file");
+  clopts.add_positional("dataB");
+  clopts.attach_option("prediction_fileB", &prediction_fileB, prediction_fileB, "prediction file name for testB");
+  clopts.add_positional("prediction_fileB");
 
   // Parse the command line arguments
   if(!clopts.parse(argc, argv)) {
@@ -168,15 +175,43 @@ int main(int argc,  char *argv[]) {
   core.set_options(clopts); // Set the engine options
 
   vertex_data data(datafile, prediction_file);
+  vertex_data dataB(datafileB, prediction_fileB);
   core.graph().add_vertex(0, data);
+  core.graph().add_vertex(1, dataB);
 
   std::cout << "Schedule all vertices" << std::endl;
   core.schedule_all(kdd_output_builder());
  
   core.add_global("NUM_NODES", numnodes);
   double runtime= core.start();
- 
   std::cout << "Finished in " << runtime << std::endl;
+
+  logstream(LOG_INFO)<<"Merging the two files together"<<endl;
+  int rc = system((string("cat ") + datafileB + ".out >> " + datafile + ".out").c_str());
+  if (rc == -1){
+     perror("failed cat");
+     logstream(LOG_FATAL)<<"failed to concatanate the two test files"<<endl;
+  }
+     
+  rc = remove((datafileB + ".out").c_str());
+  if (rc == -1){
+     perror("failed delete");
+     logstream(LOG_FATAL)<<"failed to remove temp file"<< datafileB << " .out" << endl;
+  }
+ 
+
+  rc = system(("zip submission.zip " + datafile + ".out").c_str());
+  if (rc == -1){
+     perror("failed zip");
+     logstream(LOG_FATAL)<<"failed to zip submisison file"<< datafile << " .out" << endl;
+  }
+  logstream(LOG_INFO)<<"Successfully created zip file: submission.zip" << endl;
+  rc = remove((datafile + ".out").c_str());
+  if (rc == -1){
+     perror("failed delete");
+     logstream(LOG_FATAL)<<"failed to remove temp file"<< datafile << " .out" << endl;
+  }
+  logstream(LOG_INFO)<<"removed temporary files" << endl;
    return EXIT_SUCCESS;
 }
 
