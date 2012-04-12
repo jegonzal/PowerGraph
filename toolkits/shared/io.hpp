@@ -356,6 +356,7 @@ bool load_matrixmarket_graph(const std::string& fname,
   for(size_t i = 0; i < size_t(desc.nonzeros); ++i) {    
     int row = 0, col = 0;  
     double val = 0;
+    double dtime = 0;
 
     //regular matrix market format. [from] [to] [val]
     if (parse_type == MATRIX_MARKET_3){ 
@@ -365,6 +366,13 @@ bool load_matrixmarket_graph(const std::string& fname,
         return false;
       }
      //extended matrix market format. [from] [to] [val from->to] [val to->from] [ignored] [ignored]
+    } else if (parse_type == MATRIX_MARKET_4){
+      if(fscanf(fptr, "%d %d %lg %lg\n", &row, &col, &val, &dtime) != 4) {
+        logstream(LOG_ERROR) 
+          << "Error reading file on line: " << i << std::endl;
+        return false;
+      }
+     
     } else if (parse_type == MATRIX_MARKET_6){
       double val2, zero, zero1;
       if(fscanf(fptr, "%d %d %lg %lg %lg %lg\n", &row, &col, &val, &val2, &zero, &zero1) != 6) {
@@ -488,6 +496,7 @@ void load_matrix_market_vector(const std::string & filename, const bipartite_gra
          nz = M*N;
     }
 
+
     /* NOTE: when reading in doubles, ANSI C requires the use of the "l"  */
     /*   specifier as in "%lg", "%lf", "%le", otherwise errors will occur */
     /*  (ANSI C X3.159-1989, Sec. 4.9.6.2, p. 136 lines 13-15)            */
@@ -525,6 +534,87 @@ void load_matrix_market_vector(const std::string & filename, const bipartite_gra
     fclose(f);
 
 }
+
+void load_matrix_market_vector(const std::string & filename, const bipartite_graph_descriptor & desc, vec& ret, bool optional_field, bool allow_zeros)
+{
+    int ret_code;
+    MM_typecode matcode;
+    int M, N; 
+    size_t i,nz;  
+
+    logstream(LOG_INFO) <<"Going to read matrix market vector from input file: " << filename << std::endl;
+  
+    FILE * f = open_file(filename.c_str(), "r", optional_field);
+    //if optional file not found return
+    if (f== NULL && optional_field){
+       return;
+    }
+
+    if (mm_read_banner(f, &matcode) != 0)
+        logstream(LOG_FATAL) << "Could not process Matrix Market banner." << std::endl;
+
+    /*  This is how one can screen matrix types if their application */
+    /*  only supports a subset of the Matrix Market data types.      */
+
+    if (mm_is_complex(matcode) && mm_is_matrix(matcode) && 
+            mm_is_sparse(matcode) )
+        logstream(LOG_FATAL) << "sorry, this application does not support " << std::endl << 
+          "Market Market type: " << mm_typecode_to_str(matcode) << std::endl;
+
+    /* find out size of sparse matrix .... */
+    if (mm_is_sparse(matcode)){
+       if ((ret_code = mm_read_mtx_crd_size(f, &M, &N, &nz)) !=0)
+          logstream(LOG_FATAL) << "failed to read matrix market cardinality size " << std::endl; 
+    }
+    else {
+      if ((ret_code = mm_read_mtx_array_size(f, &M, &N))!= 0)
+          logstream(LOG_FATAL) << "failed to read matrix market vector size " << std::endl; 
+         if (N > M){ //if this is a row vector, transpose
+           int tmp = N;
+           N = M;
+           M = tmp;
+         }
+         nz = M*N;
+    }
+    ret = zeros(nz);
+
+    /* NOTE: when reading in doubles, ANSI C requires the use of the "l"  */
+    /*   specifier as in "%lg", "%lf", "%le", otherwise errors will occur */
+    /*  (ANSI C X3.159-1989, Sec. 4.9.6.2, p. 136 lines 13-15)            */
+
+    int row,col; 
+    double val;
+
+    for (i=0; i<nz; i++)
+    {
+        if (mm_is_sparse(matcode)){
+          int rc = fscanf(f, "%d %d %lg\n", &row, &col, &val);
+          if (rc != 3){
+	    logstream(LOG_FATAL) << "Failed reading input file: " << filename << "Problm at data row " << i << " (not including header and comment lines)" << std::endl;
+          }
+          row--;  /* adjust from 1-based to 0-based */
+          col--;
+        }
+        else {
+	  int rc = fscanf(f, "%lg\n", &val);
+          if (rc != 1){
+	    logstream(LOG_FATAL) << "Failed reading input file: " << filename << "Problm at data row " << i << " (not including header and comment lines)" << std::endl;
+          }
+          row = i;
+          col = 0;
+        }
+       //some users have gibrish in text file - better check both I and J are >=0 as well
+        assert(row >=0 && row< M);
+        assert(col == 0);
+        if (val == 0 && !allow_zeros)
+           logstream(LOG_FATAL)<<"Zero entries are not allowed in a sparse matrix market vector. Use --zero=true to avoid this error"<<std::endl;
+        ret[i] = val;
+    }
+    fclose(f);
+
+}
+
+
 
 
 template<typename Graph>
