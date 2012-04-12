@@ -40,7 +40,7 @@ public final class Context {
    * @param vertex
    *          vertex to update
    * @param updater
-   *          ID of updater to apply on the vertex
+   *          updater to apply on the vertex
    * @throws NullPointerException
    *           if <tt>updater</tt> or <tt>vertex</tt> was null.
    */
@@ -49,8 +49,8 @@ public final class Context {
     if (null == updater || null == vertex)
       throw new NullPointerException("updater and vertex must not be null.");
 
-    // schedules an update on the vertex using the proxy ID
-    schedule(mContextPtr, updater, vertex.rawId());
+    // schedules an update on the vertex
+    schedule(mContextPtr, updater, vertex.id());
     
   }
   
@@ -63,7 +63,7 @@ public final class Context {
    *          address of the associated <tt>graphlab::icontext_type</tt> object.
    * @param updater
    * @param vertex
-   *          graphlab id of vertex to update
+   *          id of vertex to update
    */
   private native void schedule(long context_ptr, Updater<?, ?, ?> updater, int vertexId);
   

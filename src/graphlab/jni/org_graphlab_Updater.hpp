@@ -40,7 +40,7 @@ namespace graphlab {
   public:
     /**
      * Creates a new proxy_edge and a new reference to the associated
-     * Java org.graphlab.Core object (so that it doesn't get garbage collected.)
+     * Java Edge object (so that it doesn't get garbage collected.)
      * @param[in] env   JNI environment, which will be used to create the
      *                  reference to the Java object.
      * @param[in] obj   associated org.graphlab.Core object.
@@ -49,9 +49,17 @@ namespace graphlab {
   };
   
   /** Proxy vertex */
-  struct proxy_vertex {
-    /** corresponding application vertex */
-    jobject app_vertex;
+  class proxy_vertex : public java_any {
+  public:
+    proxy_vertex () : java_any () {}
+    /**
+     * Creates a new proxy_vertex and a new reference to the associated
+     * Java Vertex object (so that it doesn't get garbage collected.)
+     * @param[in] env   JNI environment, which will be used to create the
+     *                  reference to the Java object.
+     * @param[in] obj   associated org.graphlab.Core object.
+     */
+    proxy_vertex (JNIEnv *env, jobject &obj) : java_any (env, obj) {}
   };
   
   /** Proxy graph */

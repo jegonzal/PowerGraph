@@ -133,11 +133,11 @@ public final class Core {
 
 		// add vertices
 		for (Vertex vertex : vertices)
-		  vertex.setRawId(addVertex(mCorePtr, vertex));
+		  addVertex(mCorePtr, vertex, vertex.id());
 
 		// add edges
 		for (E edge : graph.edgeSet())
-		  addEdge(mCorePtr, graph.getEdgeSource(edge).rawId(), graph.getEdgeTarget(edge).rawId(), edge);
+		  addEdge(mCorePtr, graph.getEdgeSource(edge).id(), graph.getEdgeTarget(edge).id(), edge);
 
 		long elapsed = System.currentTimeMillis() - startTime;
 		logger.info ("Graph transferring took: " + elapsed + " ms.");
@@ -271,7 +271,7 @@ public final class Core {
 		if (mDestroyed)
 			throw new IllegalStateException("Core has been destroyed and may not be reused.");
 
-		schedule(mCorePtr, updater, vertex.rawId());
+		schedule(mCorePtr, updater, vertex.id());
 		
 	}
 	
@@ -450,11 +450,11 @@ public final class Core {
 	 * @param ptr
 	 * 			{@link #mCorePtr}
 	 * @param vertex
-	 * 			application vertex ID
-	 * @return
-	 * 			graphlab vertex ID
+	 * 			vertex
+	 * @param vertexID
+	 *       id of vertex
 	 */
-	private native int addVertex(long ptr, Vertex vertex);
+	private native void addVertex(long ptr, Vertex vertex, int vertexID);
 
 	/**
 	 * Adds an edge to the native graph.

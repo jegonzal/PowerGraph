@@ -137,11 +137,14 @@ proxy_updater::~proxy_updater(){}
 
 void proxy_updater::operator()(icontext_type& context){
   
+  jobject vertex = context.const_vertex_data().obj();
+  if (NULL == vertex) return; // BUG?
+  
   // forward call to org.graphlab.Updater#update
   JNIEnv *env = core::get_jni_env();
   env->CallVoidMethod (obj(), java_update,
                        &context,
-                       context.const_vertex_data().app_vertex);
+                       vertex);
   handle_exception(env);
 
 }
@@ -151,7 +154,7 @@ void proxy_updater::operator()(icontext_type& context){
 //---------------------------------------------------------------
 
 void proxy_updater::operator+=(const proxy_updater& other) const {
-  
+
   // forward call to org.graphlab.Updater#add
   JNIEnv *env = core::get_jni_env();
   env->CallVoidMethod (obj(), java_add, other.obj());
@@ -249,7 +252,7 @@ void proxy_updater::merge(const update_functor_type& other){
 
 void proxy_updater::apply(icontext_type& context){
   JNIEnv *env = core::get_jni_env();
-  env->CallVoidMethod(obj(), java_apply, context.const_vertex_data().app_vertex);
+  env->CallVoidMethod(obj(), java_apply, context.const_vertex_data().obj());
   handle_exception(env);
 }
  
