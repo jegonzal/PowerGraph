@@ -365,7 +365,7 @@ bool load_matrixmarket_graph(const std::string& fname,
           << "Error reading file on line: " << i << std::endl;
         return false;
       }
-     //extended matrix market format. [from] [to] [val from->to] [val to->from] [ignored] [ignored]
+     //extended matrix market format. [from] [to] [val] [time]
     } else if (parse_type == MATRIX_MARKET_4){
       if(fscanf(fptr, "%d %d %lg %lg\n", &row, &col, &val, &dtime) != 4) {
         logstream(LOG_ERROR) 
@@ -373,6 +373,7 @@ bool load_matrixmarket_graph(const std::string& fname,
         return false;
       }
      
+     //extended matrix market format. [from] [to] [val from->to] [val to->from] [ignored] [ignored]
     } else if (parse_type == MATRIX_MARKET_6){
       double val2, zero, zero1;
       if(fscanf(fptr, "%d %d %lg %lg %lg %lg\n", &row, &col, &val, &val2, &zero, &zero1) != 6) {
@@ -391,11 +392,9 @@ bool load_matrixmarket_graph(const std::string& fname,
     ASSERT_GE(row, 0);
     ASSERT_GE(col, 0);
 
-   if (val == 0){
-     if (!allow_zeros)
-       logstream(LOG_FATAL)<<"Zero values are not allowed in sparse matrix market format. Use --zero=true to ignore this error." <<std::endl;
-     else 
-       continue;
+    if (val == 0){
+      if (!allow_zeros)
+        logstream(LOG_FATAL)<<"Zero values are not allowed in sparse matrix market format. Use --zero=true to ignore this error." <<std::endl;
     }
     const vertex_id_type source = row;
     const vertex_id_type target = col + (is_square ? 0 : desc.rows);
