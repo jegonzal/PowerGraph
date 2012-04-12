@@ -3,15 +3,12 @@ package org.graphlab;
 import org.graphlab.data.Vertex;
 
 /**
- * GraphLab Context.
+ * Execution context.
  * 
- * <p>
- * This mirrors <tt>graphlab::icontext_type</tt>. Applications should
- * <em>never</em> instantiate this class; instances of this class will be passed
- * to the {@link org.graphlab.Updater updater} when the updater is invoked by
- * the GraphLab scheduler. The updater may then use the context object to
- * schedule updates on vertices.
- * </p>
+ * <p>Applications should <em>never</em> instantiate this class; instances of this
+ * class will be passed to the {@link org.graphlab.Updater updater} when the
+ * updater is invoked by the GraphLab scheduler. The updater may then use the
+ * context object to schedule updates on vertices.</p>
  * 
  * @author Jiunn Haur Lim <jiunnhal@cmu.edu>
  */
@@ -22,6 +19,8 @@ public final class Context {
   
   /**
    * Creates a new context.
+   * 
+   * <p>Applications should <em>never</em> instantiate this class.</p>
    * @param contextPtr
    *          address of the <tt>graphlab::icontext_type</tt> object associated
    *          with this context.
@@ -32,6 +31,11 @@ public final class Context {
   
   /**
    * Schedules an update on the given vertex.
+   * 
+   * <p>When GraphLab invokes the updater on a vertex, it passes
+   * the context (this object) and the vertex to the updater. When the updater
+   * has completed its computation, it may use the context object to
+   * schedule updates on neighboring vertices (by calling this method.)</p>
    * 
    * @param vertex
    *          vertex to update

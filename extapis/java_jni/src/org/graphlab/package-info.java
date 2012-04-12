@@ -84,8 +84,14 @@
  *  <li><code>docs</code> contains this documentation</li>
  *  <li><code>lib</code> contains the necessary libraries</li>
  * </ul>
+ * <p>The project contains a simple example of a GraphLab program in <tt>src/HelloGraphLab.java</tt>. It shows
+ * you how to construct a graph and how to schedule updates on the vertices. Please feel free to use this as 
+ * a starting point to explore the other features of GraphLab.</p>
+ * 
  * <p>Every time you create a new Run Configuration, remember to add "<code>-Djava.library.path=${resource_loc:/GraphLab-App/lib}</code>"
  * to the VM arguments.</p>
+ * 
+ * @see <a href="http://www.jgrapht.org/">JGraphT</a>
  */
 package org.graphlab;
 

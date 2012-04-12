@@ -3,27 +3,95 @@ package org.graphlab;
 import org.graphlab.data.Vertex;
 
 /**
- * Updater
+ * Performs computation on a given vertex.
  * 
  * <p>
- * The GraphLab engine will invoke an updater on each scheduled node. Extend
- * this class to provide an update function for that node. Note that the update
- * function may update node data, modify edge data, and schedule neighbors, but
- * may not modify the graph structure. You may reuse the updater object on
- * across multiple vertices (this is encouraged).
+ * To schedule an update, use {@link Core#schedule(Vertex, Updater)} or
+ * {@link Core#scheduleAll(Updater)}. Depending on the scheduler used and the
+ * consistency constraints, the GraphLab engine will invoke the scheduled update
+ * when appropriate.
  * </p>
+ * 
+ * <p>
+ * Extend this class to provide an update function for your application. Note
+ * that the updater may update vertex data, modify edge data, and schedule
+ * neighbors, but may not modify the graph structure. You may reuse the updater
+ * object across multiple vertices.
+ * </p>
+ * 
+ * <h3>Generics</h3>
+ * <p>
+ * Most of the time, <tt>V</tt> will take the type of vertex that your graph has
+ * and <tt>U</tt> will take the type of your updater. Your class signature
+ * should look like the following:
+ * </p>
+ * 
+<pre>
+   private static class Up extends Updater&lt;MyVertex, MyEdge, Up&gt;
+</pre>
+ * <p>
+ * We recommend that you follow this pattern closely, unless you are very
+ * familiar with generics.
+ * </p>
+ * 
+ * <h3>Creating an Updater</h3>
+ * <p>
+ * Extend this class and implement the {@link #update(Context, Vertex)} method
+ * to provide your own update function. For example, a shortest path algorithm
+ * may use the following updater:
+ * </p>
+ * 
+<pre>
+ public void update(Context context, Vertex vertex) {
+  
+   // find shortest known distance into this node
+   for (Edge edge : graph.incomingEdgesOf(vertex)) {
+     Vertex neighbor = graph.getEdgeSource(edge);
+     double weight = graph.getEdgeWeight(edge);
+     vertex
+         .setValue((float) Math.min(vertex.value(), neighbor.value() + weight));
+   }
+ 
+   // reschedule any affected neighbors
+   for (Edge edge : graph.outgoingEdgesOf(vertex)) {
+     Vertex neighbor = graph.getEdgeTarget(edge);
+     double weight = graph.getEdgeWeight(edge);
+     if (neighbor.value() &gt; (vertex.value() + weight)) {
+       context.schedule(neighbor, this);
+     }
+   }
+ 
+ }
+</pre>
+ * <p>
+ * Within your update function, you may use
+ * {@link Context#schedule(Vertex, Updater)} to schedule updates on neighboring
+ * vertices.The engine terminates when there are no more scheduled updates to
+ * execute.
+ * </p>
+ * 
+ * <h3>Creating Factorized Updaters</h3>
+ * <p>Most updater methods follow the following structure:</p>
+ * <ol>
+ *  <li>Gather data</li>
+ *  <li>Update value of current vertex</li>
+ *  <li>Schedule updates on neighbors</li>
+ * </ol>
+ * <p>Updaters may be factorized (broken up) into several pieces to take advantage
+ * of this pattern. Factorized updaters give more opportunities for parallelism. For
+ * an example of a factorized updater, refer to the source for
+ * {@link org.graphlab.demo.PageRankFactorized}.</p>
  * 
  * @param <V>
  *          Vertex type that will be used in {@link #update(Context, Vertex)}
  * @param <E>
  *          Edge type
  * @param <U>
- *          Updater
- * 
+ *          Updater (For self-templating.)
  * @author Jiunn Haur Lim <jiunnhal@cmu.edu>
  */
-public abstract class Updater<V extends Vertex, E, // TODO: easier generics?
-U extends Updater<V, E, U>> {
+public abstract class Updater
+  <V extends Vertex, E, U extends Updater<V, E, U>> {
 
   static {
     initNative();
