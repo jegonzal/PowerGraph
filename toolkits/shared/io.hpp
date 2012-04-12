@@ -315,7 +315,8 @@ bool load_matrixmarket_graph(const std::string& fname,
 			     int parse_type = MATRIX_MARKET_3, 
 			     bool allow_zeros = false, 
 			     bool header_only = false, 
-			     bool optional = false){ 
+			     bool optional = false, 
+           bool body_only = false){ 
   typedef Graph graph_type;
   typedef typename graph_type::vertex_id_type vertex_id_type;
   typedef typename graph_type::edge_data_type edge_data_type;
@@ -329,19 +330,22 @@ bool load_matrixmarket_graph(const std::string& fname,
   
   // read Matrix market header
   MM_typecode matcode;
-  if(mm_read_banner(fptr, &matcode)) {
-    logstream(LOG_FATAL) << "Unable to read banner" << std::endl;
-  }
-  // Screen header type
-  if (mm_is_complex(matcode) || !mm_is_matrix(matcode)) {
-    logstream(LOG_FATAL) 
+  if (!body_only){
+    if(mm_read_banner(fptr, &matcode)) {
+      logstream(LOG_FATAL) << "Unable to read banner" << std::endl;
+    }
+    // Screen header type
+    if (mm_is_complex(matcode) || !mm_is_matrix(matcode)) {
+      logstream(LOG_FATAL) 
       << "Sorry, this application does not support matrixmarket type: "
       <<  mm_typecode_to_str(matcode) << std::endl;
+    }
+    // load the matrix descriptor
+    if(mm_read_mtx_crd_size(fptr, &desc.rows, &desc.cols, &desc.nonzeros)) {
+      logstream(LOG_FATAL) << "Error reading dimensions" << std::endl;
+    }
   }
-  // load the matrix descriptor
-  if(mm_read_mtx_crd_size(fptr, &desc.rows, &desc.cols, &desc.nonzeros)) {
-    logstream(LOG_FATAL) << "Error reading dimensions" << std::endl;
-  }
+
   std::cout << "Rows:      " << desc.rows << std::endl
             << "Cols:      " << desc.cols << std::endl
             << "Nonzeros:  " << desc.nonzeros << std::endl;
@@ -367,7 +371,7 @@ bool load_matrixmarket_graph(const std::string& fname,
       }
      //extended matrix market format. [from] [to] [val] [time]
     } else if (parse_type == MATRIX_MARKET_4){
-      if(fscanf(fptr, "%d %d %lg %lg\n", &row, &col, &val, &dtime) != 4) {
+      if(fscanf(fptr, "%d %d %lg %lg\n", &row, &col, &dtime, &val) != 4) {
         logstream(LOG_ERROR) 
           << "Error reading file on line: " << i << std::endl;
         return false;
@@ -427,10 +431,11 @@ bool load_graph(const std::string& fname,
 	        int format_type = MATRIX_MARKET_3, 
 	        bool allow_zeros=false, 
 	        bool header_only=false, 
-	        bool optional= false) {
+	        bool optional= false, 
+          bool body_only=false) {
 
   if(format == "matrixmarket") 
-    return load_matrixmarket_graph(fname, desc, graph, format_type, allow_zeros, header_only, optional);
+    return load_matrixmarket_graph(fname, desc, graph, format_type, allow_zeros, header_only, optional, body_only);
   else logstream(LOG_FATAL) << "Invalid file format!" << std::endl;
   return false;
 } // end of load graph
