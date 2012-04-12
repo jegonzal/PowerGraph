@@ -102,7 +102,7 @@
     
     <target name="PageRank">
         <echo message="Arguments: ${file}"/>
-        <java classname="org.graphlab.demo.PageRank" failonerror="true" fork="yes">
+        <java classname="org.graphlab.demo.pagerank.PageRank" failonerror="true" fork="yes">
             <jvmarg line="-Djava.library.path=${lib}"/>
             <arg line="${file}"/>
             <classpath refid="run.PageRank.classpath"/>
@@ -111,7 +111,7 @@
     
     <target name="PageRankFactorized">
         <echo message="Arguments: ${file}"/>
-        <java classname="org.graphlab.demo.PageRankFactorized" failonerror="true" fork="yes">
+        <java classname="org.graphlab.demo.pagerank.PageRankFactorized" failonerror="true" fork="yes">
             <jvmarg line="-Djava.library.path=${lib}"/>
             <arg line="${file}"/>
             <classpath refid="run.PageRankFactorized.classpath"/>

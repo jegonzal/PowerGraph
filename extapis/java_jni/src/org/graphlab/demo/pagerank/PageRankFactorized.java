@@ -1,11 +1,6 @@
-package org.graphlab.demo;
+package org.graphlab.demo.pagerank;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.List;
 
 import org.apache.log4j.BasicConfigurator;
 import org.apache.log4j.Level;
@@ -16,16 +11,13 @@ import org.graphlab.Core.CoreException;
 import org.graphlab.CoreConfiguration;
 import org.graphlab.Scheduler;
 import org.graphlab.Updater;
-import org.graphlab.util.GraphLoader;
-import org.jgrapht.DirectedGraph;
 import org.jgrapht.graph.DefaultDirectedWeightedGraph;
 import org.jgrapht.graph.DefaultWeightedEdge;
 
 /**
  * PageRank Algorithm
  * 
- * <p>Demonstrates GraphLab over JNI.</p>
- * 
+ * <p>Demonstrates GraphLab Java with factorized updaters.</p>
  * @author Jiunn Haur Lim <jiunnhal@cmu.edu>
  */
 public class PageRankFactorized {
@@ -36,13 +28,8 @@ public class PageRankFactorized {
     
     initLogger();
     
-    ///////// DUMB VISUAL VM HACK ///////////
-    // Scanner sc = new Scanner(System.in);
-    // sc.next();
-    ///////// DUMB VISUAL VM HACK ///////////
-    
     // check arguments
-    if (!checkParams(args)) return;
+    if (!PageRank.checkParams(args)) return;
     String filename = args[0];
 
     // initialize graphlab core
@@ -59,10 +46,10 @@ public class PageRankFactorized {
     // construct graph
     final DefaultDirectedWeightedGraph<PageRankVertex, DefaultWeightedEdge> graph;
     try {
-      graph = constructGraph(filename);
+      graph = PageRank.constructGraph(filename);
     } catch (IOException e) {
       logger.fatal("Unable to construct graph. Terminating.", e);
-      core.destroy();
+      core.destroy();   // cleanup
       return;
     }
     
@@ -72,11 +59,9 @@ public class PageRankFactorized {
     logger.info("Took " + core.start() + " seconds.");
     
     // print results
-    printResults (graph);
+    PageRank.printResults (graph);
     logger.info("Update count: " + core.lastUpdateCount());
-    
-    // done
-    core.destroy();
+    core.destroy(); // cleanup
     
     return;
 
@@ -87,92 +72,6 @@ public class PageRankFactorized {
     BasicConfigurator.configure();
     Logger.getLogger(Core.class).setLevel(Level.INFO);
     logger.setLevel(Level.INFO);
-  }
-  
-  /**
-   * Checks that required input parameters are available and valid. Prints
-   * instructions if not all parameters were valid.
-   * 
-   * @param args
-   *          array of program arguments
-   * @return true if parameters are OK; false otherwise
-   */
-  private static boolean checkParams(String[] args) {
-
-    if (args.length != 1) {
-      System.out.println("Please provide filename.");
-      System.out.println("Usage: java -Djava.library.path=... "
-          + PageRankFactorized.class.getCanonicalName() + " path/to/tsv/file");
-      return false;
-    }
-
-    return true;
-
-  }
-
-  /**
-   * Constructs graph and normalizes weights
-   * @param filename
-   * @return graph
-   * @throws IOException
-   */
-  private static DefaultDirectedWeightedGraph<PageRankVertex, DefaultWeightedEdge>
-    constructGraph(String filename)
-    throws IOException {
-
-    DefaultDirectedWeightedGraph<PageRankVertex, DefaultWeightedEdge> graph
-      = new DefaultDirectedWeightedGraph<PageRankVertex, DefaultWeightedEdge>(DefaultWeightedEdge.class);
-    GraphLoader.loadGraphFromTsvFile(graph, PageRankVertex.class, filename);
-    normalize(graph); 
-    
-    return graph;
-
-  }
-  
-  private static void normalize(DefaultDirectedWeightedGraph<PageRankVertex, DefaultWeightedEdge> graph){
-    
-    for(PageRankVertex vertex : graph.vertexSet()) {
-      double sum = 0;
-      Collection<DefaultWeightedEdge> outEdges = graph.outgoingEdgesOf(vertex);
-      // sum up weight on out edges
-      for(DefaultWeightedEdge edge : outEdges){
-        sum += graph.getEdgeWeight(edge);
-      }
-      // set normalized weight
-      for(DefaultWeightedEdge edge : outEdges){
-        graph.setEdgeWeight(edge, (graph.getEdgeWeight(edge)/sum));
-      }
-    }
-    
-  }
-  
-  /**
-   * Prints results for top 5 pages.
-   * @param graph
-   */
-  private static void printResults (DirectedGraph<PageRankVertex, DefaultWeightedEdge> graph){
-      
-    logger.info("----------------- Results -----------------");
-    logger.info("ID : Rank");
-    
-    Collection<PageRankVertex> vertices = graph.vertexSet();
-    List<PageRankVertex> verticesList = new ArrayList<PageRankVertex>(vertices.size());
-    for (PageRankVertex vertex : vertices){
-      verticesList.add(vertex);
-    }
-    
-    Collections.sort(verticesList, new Comparator<PageRankVertex>(){
-      public int compare(PageRankVertex left, PageRankVertex right) {
-        return Double.compare(right.value(), left.value());
-      }
-    });
-    
-    // print top 5 pages
-    for (int i=0; i<Math.min(verticesList.size(), 5); i++){
-      PageRankVertex vertex = verticesList.get(i);
-      logger.info(vertex.id() + " : " + vertex.value());
-    }
-    
   }
 
   private static class PageRankUpdater

@@ -14,9 +14,6 @@ import org.jgrapht.graph.DefaultWeightedEdge;
 /**
  * Sums over all vertices.
  * 
- * Before running, add "-Djava.library.path=${resource_loc:/GraphLab-App/lib}" to the
- * VM arguments in the Run Configuration.
- * 
  * @author Jiunn Haur Lim
  */
 public class Sum {

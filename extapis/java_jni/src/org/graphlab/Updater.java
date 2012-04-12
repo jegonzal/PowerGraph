@@ -80,7 +80,7 @@ import org.graphlab.data.Vertex;
  * <p>Updaters may be factorized (broken up) into several pieces to take advantage
  * of this pattern. Factorized updaters give more opportunities for parallelism. For
  * an example of a factorized updater, refer to the source for
- * {@link org.graphlab.demo.PageRankFactorized}.</p>
+ * {@link org.graphlab.demo.pagerank.PageRankFactorized}.</p>
  * 
  * @param <V>
  *          Vertex type that will be used in {@link #update(Context, Vertex)}

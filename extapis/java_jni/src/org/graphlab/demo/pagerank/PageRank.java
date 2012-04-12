@@ -1,4 +1,4 @@
-package org.graphlab.demo;
+package org.graphlab.demo.pagerank;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -25,7 +25,7 @@ import org.jgrapht.graph.DefaultWeightedEdge;
 /**
  * PageRank Algorithm
  * 
- * <p>Demonstrates GraphLab over JNI.</p>
+ * <p>Demonstrates GraphLab Java.</p>
  * 
  * @author Jiunn Haur Lim <jiunnhal@cmu.edu>
  */
@@ -37,11 +37,6 @@ public class PageRank {
     
     initLogger();
     
-    ///////// DUMB VISUAL VM HACK ///////////
-    // Scanner sc = new Scanner(System.in);
-    // sc.next();
-    ///////// DUMB VISUAL VM HACK ///////////
-    
     // check arguments
     if (!checkParams(args)) return;
     String filename = args[0];
@@ -49,39 +44,32 @@ public class PageRank {
     // initialize graphlab core
     final Core core;
     try {
-      logger.trace("Initializing GraphLab core ...");
       CoreConfiguration config = new CoreConfiguration();
       config.setScheduler(Scheduler.SWEEP);
       core = new Core(config);
     } catch (CoreException e) {
       logger.fatal("Unable to initialize core. Terminating.", e);
-      logger.trace("Exiting main method.");
       return;
     }
 
     // construct graph
-    logger.trace("Constructing graph from " + filename + " ...");
     final DefaultDirectedWeightedGraph<PageRankVertex, DefaultWeightedEdge> graph;
     try {
       graph = constructGraph(filename);
     } catch (IOException e) {
       logger.fatal("Unable to construct graph. Terminating.", e);
-      logger.trace("Exiting main method.");
-      core.destroy();
+      core.destroy();   // cleanup
       return;
     }
     
     // execute graph updates
     core.setGraph(graph);
     core.scheduleAll(new PageRankUpdater(graph, PageRankUpdater.RESET_PROB));
-    logger.trace("Running graphlab ...");
     logger.info("Took " + core.start() + " seconds.");
     
     // print results
     printResults (graph);
     logger.info("Update count: " + core.lastUpdateCount());
-    
-    // done
     core.destroy();
     
     return;
@@ -98,25 +86,15 @@ public class PageRank {
   /**
    * Checks that required input parameters are available and valid. Prints
    * instructions if not all parameters were valid.
-   * 
-   * @param args
-   *          array of program arguments
-   * @return true if parameters are OK; false otherwise
    */
-  private static boolean checkParams(String[] args) {
-
-    if (args.length != 1) {
-      System.out.println("Please provide filename.");
-      System.out.println("Usage: java -Djava.library.path=... "
-          + PageRank.class.getCanonicalName() + " path/to/tsv/file");
-      return false;
-    }
-
-    return true;
-
+  protected static boolean checkParams(String[] args) {
+    if (1 == args.length) return true;
+    System.out.println("Please provide filename.");
+    System.out.println("Usage: ant PageRank -Dfile=path/to/tsv/file");
+    return false;
   }
 
-  private static DefaultDirectedWeightedGraph<PageRankVertex, DefaultWeightedEdge>
+  protected static DefaultDirectedWeightedGraph<PageRankVertex, DefaultWeightedEdge>
     constructGraph(String filename)
     throws IOException {
 
@@ -136,17 +114,15 @@ public class PageRank {
       double sum = 0;
       Collection<DefaultWeightedEdge> outEdges = graph.outgoingEdgesOf(vertex);
       // sum up weight on out edges
-      for(DefaultWeightedEdge edge : outEdges){
+      for(DefaultWeightedEdge edge : outEdges)
         sum += graph.getEdgeWeight(edge);
-      }
-      for(DefaultWeightedEdge edge : outEdges){
+      for(DefaultWeightedEdge edge : outEdges)
         graph.setEdgeWeight(edge, (graph.getEdgeWeight(edge)/sum));
-      }
     }
     
   }
   
-  private static void printResults (DirectedGraph<PageRankVertex, DefaultWeightedEdge> g){
+  protected static void printResults (DirectedGraph<PageRankVertex, DefaultWeightedEdge> g){
       
     logger.info("----------------- Results -----------------");
     logger.info("ID : Rank");
@@ -170,7 +146,8 @@ public class PageRank {
     
   }
 
-  private static class PageRankUpdater extends Updater<PageRankVertex, DefaultWeightedEdge, PageRankUpdater> {
+  private static class PageRankUpdater
+    extends Updater<PageRankVertex, DefaultWeightedEdge, PageRankUpdater> {
 
     /** Global reset probability */
     public static final double RESET_PROB = 0.15;

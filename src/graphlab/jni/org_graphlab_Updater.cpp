@@ -251,8 +251,10 @@ void proxy_updater::merge(const update_functor_type& other){
 }
 
 void proxy_updater::apply(icontext_type& context){
+  jobject vertex = context.const_vertex_data().obj();
+  if (NULL == vertex) return; // BUG?
   JNIEnv *env = core::get_jni_env();
-  env->CallVoidMethod(obj(), java_apply, context.const_vertex_data().obj());
+  env->CallVoidMethod(obj(), java_apply, vertex);
   handle_exception(env);
 }
  

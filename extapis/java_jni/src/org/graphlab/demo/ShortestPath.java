@@ -22,23 +22,15 @@ import org.jgrapht.graph.DefaultWeightedEdge;
  * Shortest Path algorithm.
  * 
  * <p>
- * Demonstrates GraphLab over JNI. To run this class, provide a path to a tsv
+ * Demonstrates GraphLab Java. To run this class, provide a path to a tsv
  * file in the program arguments. Some examples are available in the
  * <tt>java_jni/test-graphs</tt> directory.
  * </p>
  * 
- * <p>
- * For example:
- * 
- * <pre>
- * cd extapis/java_jni
- * java \
- *  -classpath bin:lib/log4j-1.2.16.jar \
- *  -Djava.library.path=../../release/src/graphlab/jni \
- *  org.graphlab.demo.ShortestPath test-graphs/toy.tsv
- * </pre>
- * 
- * </p>
+ * <p>To run this demo, use</p>
+<pre>
+  ant ShortestPath -Dfile=&lt;path to tsv file&gt;
+</pre>
  * 
  * @author Jiunn Haur Lim <jiunnhal@cmu.edu>
  */
@@ -49,53 +41,33 @@ public class ShortestPath {
   public static void main(String[] args) {
 
     initLogger();
-    
-    ///////// DUMB VISUAL VM HACK ///////////
-    // Scanner sc = new Scanner(System.in);
-    // sc.next();
-    ///////// DUMB VISUAL VM HACK ///////////
-    
-    logger.trace("Main method in " +
-        ShortestPath.class.getCanonicalName() +
-        " started.");
 
     // check arguments
-    if (!checkParams(args)) {
-      logger.trace("Exiting main method.");
-      return;
-    }
-
+    if (!checkParams(args)) return;
     String filename = args[0];
-    logger.info("Graph file: " + filename);
 
     // initialize graphlab core
     final Core core;
     try {
-      logger.trace("Initializing GraphLab core ...");
       CoreConfiguration config = new CoreConfiguration();
       config.setScheduler(Scheduler.FIFO);
       core = new Core();
     } catch (CoreException e) {
       logger.fatal("Unable to initialize core. Terminating.", e);
-      logger.trace("Exiting main method.");
       return;
     }
 
     // construct graph
-    logger.trace("Constructing graph from " + filename + " ...");
     final DirectedGraph<ScalarVertex, DefaultWeightedEdge> graph;
     try {
       graph = constructGraph(filename);
     } catch (IOException e) {
-      logger.fatal("Unable to construct graph. Terminating.", e);
       core.destroy();
-      logger.trace("Exiting main method.");
       return;
     }
 
-    for (ScalarVertex v : graph.vertexSet()) {
+    for (ScalarVertex v : graph.vertexSet())
       v.setValue(Integer.MAX_VALUE);
-    }
 
     // start from root
     ScalarVertex root = graph.vertexSet().iterator().next();
@@ -103,17 +75,13 @@ public class ShortestPath {
 
     core.setGraph(graph);
     core.schedule(root, new ShortestPathUpdater(graph));
-
-    logger.trace("Running graphlab ...");
     logger.trace("Runtime: " + core.start() + " s");
     logger.trace("Update count: " + core.lastUpdateCount());
-    
 
     core.addAggregator("agg", new ShortestPathAggregator(), 0);
     core.aggregateNow("agg");
     
     // destroy core
-    logger.trace("Destroying core ...");
     core.destroy();
 
   }
@@ -127,22 +95,16 @@ public class ShortestPath {
   /**
    * Checks that required input parameters are available and valid. Prints
    * instructions if not all parameters were valid.
-   * 
-   * @param args
-   *          array of program arguments
-   * @return true if parameters are OK; false otherwise
    */
   private static boolean checkParams(String[] args) {
 
-    if (args.length != 1) {
-      System.out.println("Please provide filename.");
-      System.out.println("Usage: java -Djava.library.path=... "
-          + ShortestPath.class.getCanonicalName() + " path/to/tsv/file");
-      return false;
-    }
-
-    return true;
-
+    if (1 == args.length) return true;
+    
+    System.out.println("Please provide filename.");
+    System.out.println("Usage: java -Djava.library.path=... "
+        + ShortestPath.class.getCanonicalName() + " path/to/tsv/file");
+    return false;
+      
   }
 
   private static DirectedGraph<ScalarVertex, DefaultWeightedEdge>
@@ -160,7 +122,8 @@ public class ShortestPath {
    * Finds shortest path to a particular vertex
    * @author Jiunn Haur Lim
    */
-  private static class ShortestPathUpdater extends Updater<ScalarVertex, DefaultWeightedEdge, ShortestPathUpdater> {
+  private static class ShortestPathUpdater
+    extends Updater<ScalarVertex, DefaultWeightedEdge, ShortestPathUpdater> {
 
     private DirectedGraph<ScalarVertex, DefaultWeightedEdge> mGraph;
 
@@ -202,7 +165,8 @@ public class ShortestPath {
    * Aggregates shortest path information: total distance, longest distance, and furthest vertex
    * @author Jiunn Haur Lim
    */
-  private static class ShortestPathAggregator extends Aggregator<ScalarVertex, ShortestPathAggregator> {
+  private static class ShortestPathAggregator
+    extends Aggregator<ScalarVertex, ShortestPathAggregator> {
   
     /** maximum distance */
     private double mMaxDist;
