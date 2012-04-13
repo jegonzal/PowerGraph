@@ -81,6 +81,7 @@ struct advanced_config{
   std::string datafile; //input file name
   std::string format; //input file format
   int nodes;
+  bool zero; //support zero ratings
 
   advanced_config(){ 
 		max_iter = 10;
@@ -96,6 +97,7 @@ struct advanced_config{
 		save_vectors = false;
 		format = "matrixmarket";
 		nodes = 0;
+    zero = false;
   }
 };
 
@@ -297,10 +299,10 @@ void common_prediction(const graph_type &g, const graph_type & _g, const vertex_
           float prediction = 0;
           predict(data, pdata, edge.weight, prediction);
     
-         if (ac.debug && (i== 0 || i == ps.M))
+         if (debug && (i== 0 || i == ps.M))
             cout<<lineNum<<") prediction:"<<prediction<<endl; 
             
-         test_predictions[lineNum] = prediction;
+         test_prediction[lineNum] = prediction;
 	       sumPreds += prediction;
  	       lineNum++; 
        }
@@ -460,13 +462,13 @@ int main(int argc,  char *argv[]) {
 
     for (int i=0; i< ps.M; i++){
       vertex_data & data = (vertex_data&)training->vertex_data(i);
-      common_prediction(data, i, lineNum, sumPreds, out_predictions, training, test);
+      common_prediction(*training, test, data, i, lineNum, sumPreds, out_predictions);
     }
 
     assert(lineNum==ps.Lt); 
   logstream(LOG_INFO)<< "**Completed successfully (mean prediction: " << sumPreds/lineNum << std::endl;
-    save_matrix_market_vector((ac.datafile + ".test.predictions").c_str(), 
-     out_predictions, "output predictions for test data\n", false, false);
+    save_matrix_market_format_vector(ac.datafile + ".test.predictions",
+     out_predictions, false, "output predictions for test data\n");
    }
 
 
