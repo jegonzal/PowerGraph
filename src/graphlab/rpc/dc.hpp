@@ -334,7 +334,10 @@ class distributed_control{
   /// gets the current sequentialization key. This function is not generally useful.
   static unsigned char get_sequentialization_key();
 
-  
+ 
+  void flush_counters() {
+    eventlog.flush_and_reset_counters();
+  } 
   /*
   This generates the interface functions for the standard calls, basic calls, and fast calls
   The generated code looks like this:

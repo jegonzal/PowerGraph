@@ -94,12 +94,13 @@ namespace graphlab {
     //! local threads object
     thread_pool threads;
 
+    barrier bar;
     aggregator_type aggregator;
     
     size_t ncpus;
-    
+    size_t vertex_per_cpu;
     size_t max_iterations;
-    
+    std::vector<size_t> bal;  
     //! Engine state
     bool started;
     bool has_schedule_entries;
@@ -130,21 +131,21 @@ namespace graphlab {
     };
 
     inline size_t lvid_to_thread(vertex_id_type lvid) const {
-      return lvid % ncpus;
+      return lvid / vertex_per_cpu;
     }
     
     inline size_t lvid_to_bit(vertex_id_type lvid) const {
-      return lvid / ncpus;
+      return lvid % vertex_per_cpu;
     }
     
     inline size_t bit_and_thread_to_lvid(size_t bit, size_t threadid) const {
-      return bit * ncpus + threadid;
+      return bit + threadid * vertex_per_cpu;
     }
     
   public:
     distributed_synchronous_engine(distributed_control &dc, graph_type& graph,
                               size_t ncpus) : 
-      rmi(dc, this), graph(graph), threads(ncpus), 
+      rmi(dc, this), graph(graph), threads(ncpus), bar(ncpus), 
       aggregator(dc, *this, graph), ncpus(ncpus), max_iterations(-1),
       started(false), has_schedule_entries(false) {
 
@@ -183,6 +184,8 @@ namespace graphlab {
         perthread_scheduleset_bits[i].clear();
         perthread_workingset_bits[i].clear();
       }
+      vertex_per_cpu = vlocks.size() / ncpus + (vlocks.size() % ncpus > 0);
+      bal.resize(ncpus);
       scheduleset = new vertex_functor_set<update_functor_type>();
       workingset = new vertex_functor_set<update_functor_type>();
       scheduleset->resize(graph.num_local_vertices());
@@ -501,7 +504,6 @@ namespace graphlab {
         // try to read a task
         if (vrec.owner == rmi.procid() && 
             workingset->get_reference_unsync(local_vid, uf)) {
-          do_init_gather(local_vid, *uf);
         
           if (!vrec.mirrors().empty() && uf->gather_edges() != graphlab::NO_EDGES) {
             // loop it to the mirrors
@@ -544,6 +546,9 @@ namespace graphlab {
         const typename graph_type::vertex_record& vrec = graph.l_get_vertex_record(local_vid);
         // If there is a task
         if (workingset->test_and_get(local_vid, uf)) {
+          ++bal[threadid];
+
+          do_init_gather(local_vid, uf);
           do_gather(local_vid, uf);
           // send it back to the owner if I am not the owner
           // otherwise just merge it back
@@ -643,8 +648,8 @@ namespace graphlab {
         if (vrec.owner == rmi.procid() && 
             workingset->test_and_get(local_vid, uf)) {
           perthread_workingset_bits[threadid].clear_bit(b);
+          ++bal[threadid];
           do_apply(local_vid, uf);
-          
           if (uf.scatter_edges() != graphlab::NO_EDGES) {
             // scatter!
             workingset_add_local(local_vid, uf);
@@ -702,6 +707,8 @@ namespace graphlab {
         vertex_id_type local_vid = bit_and_thread_to_lvid(b, threadid);
         // If there is a task
         if (workingset->test_and_get(local_vid, uf)) {
+
+          ++bal[threadid];
           perthread_workingset_bits[threadid].clear_bit(b);
           do_scatter(local_vid, uf);
         }
@@ -769,6 +776,48 @@ namespace graphlab {
       }
       threads.join();
     }
+
+
+
+    void main_stuff(size_t i) {
+
+      init_gather(i);
+      bar.wait();
+      if (i == 0) {
+        rmi.full_barrier();
+//        if (rmi.procid() == 0) rmi.dc().flush_counters();
+      }
+      bar.wait();
+      
+      perform_gather(i);
+      bar.wait();
+      if (i == 0) {
+        rmi.full_barrier();
+//        if (rmi.procid() == 0) rmi.dc().flush_counters();
+      }
+      bar.wait();
+ 
+      perform_apply_and_issue_scatter(i);
+      
+      bar.wait();
+      if (i == 0) {
+        rmi.full_barrier();
+//        if (rmi.procid() == 0) rmi.dc().flush_counters();
+      }
+      bar.wait();
+ 
+ 
+ 
+    }
+
+    void parallel_main_stuff() {
+       for (size_t i = 0;i < ncpus; ++i) {
+        threads.launch(boost::bind(&distributed_synchronous_engine::main_stuff,
+                                   this,
+                                   i));
+      }
+      threads.join();
+    }
     /**
      * \brief Start the engine execution.
      *
@@ -783,7 +832,14 @@ namespace graphlab {
 
       started = true;
       rmi.barrier();
+      size_t allocatedmem = memory_info::allocated_bytes();
+      rmi.all_reduce(allocatedmem);
+ 
+      rmi.dc().flush_counters();
+
+
       if (rmi.procid() == 0) {
+        logstream(LOG_INFO) << "Total Allocated Bytes: " << allocatedmem << std::endl;
         PERMANENT_IMMEDIATE_DIST_EVENT(eventlog, ENGINE_START_EVENT);
       }
 
@@ -803,31 +859,22 @@ namespace graphlab {
         // init gather broadcasts the task 
         // for each owned vertex to mirrored vertices. after this,
         // only workingset has tasks
-        parallel_init_gather();
-        rmi.full_barrier();
-
-        
-        // parallel gather completes the gather on each workingset tasks
-        // (mirror or owner), and sends them to the owned vertices.
-        // after this point, only working set owned vertices has tasks
-        parallel_gather();
-        rmi.full_barrier();
-        
-        // This performs the apply for each owned vertex, and if a scatter
-        // is scheduled, broadcasts the task to each mirror
-        // after this point only working set has tasks.
-        parallel_apply_and_issue_scatter();
-        rmi.full_barrier();
+        parallel_main_stuff();
         aggregator.evaluate_queue();
+
         // complete the scatter on each vertex
         parallel_scatter();
+        // there is no schedule, if this is the last iteration
+        if (i == (max_iterations - 1)) has_schedule_entries = false;
         rmi.all_reduce(has_schedule_entries);
         if (has_schedule_entries) {
           parallel_transmit_schedule();
           rmi.full_barrier();
         }
+
         if (has_schedule_entries == false) break;
       }
+      rmi.dc().flush_counters();
       if (rmi.procid() == 0) {
         PERMANENT_IMMEDIATE_DIST_EVENT(eventlog, ENGINE_STOP_EVENT);
       }

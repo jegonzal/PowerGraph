@@ -84,7 +84,7 @@ namespace dc_impl {
       break;
     }
     
-    if (trigger) comm->trigger_send_timeout(target);
+    if (trigger || (packet_type_mask & CONTROL_PACKET)) comm->trigger_send_timeout(target);
   }
 
   void dc_buffered_stream_send2::flush() {

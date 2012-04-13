@@ -200,10 +200,11 @@ namespace graphlab {
                      bool& has_sched_task,
                      lvid_type& sched_lvid,
                      update_functor_type &task) {
+      static size_t ctr = 0;
       PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, NO_WORK_EVENT, 1);
       if (issued_tasks.value != completed_tasks.value + blocked_issues.value) {
-        //        sched_yield();
-        usleep(1);
+        ++ctr;
+        if (ctr % 10 == 0) usleep(1);
         return false;
       }
       has_internal_task = false;
@@ -1038,7 +1039,14 @@ namespace graphlab {
         std::cout << "Consistency Model is: Vertex" << std::endl;      
       }
       rmi.barrier();
+
+      size_t allocatedmem = memory_info::allocated_bytes();
+      rmi.all_reduce(allocatedmem);
+ 
+
+      rmi.dc().flush_counters();
       if (rmi.procid() == 0) {
+        logstream(LOG_INFO) << "Total Allocated Bytes: " << allocatedmem << std::endl;
         PERMANENT_IMMEDIATE_DIST_EVENT(eventlog, ENGINE_START_EVENT);
       }
 
@@ -1050,6 +1058,8 @@ namespace graphlab {
       // TODO: This should be in a while loop to catch all exceptions
       join_threads(threads);
       join_threads(aggregator.get_threads());
+      
+      rmi.dc().flush_counters();
       if (rmi.procid() == 0) {
         PERMANENT_IMMEDIATE_DIST_EVENT(eventlog, ENGINE_STOP_EVENT);
       }

@@ -1096,7 +1096,13 @@ namespace graphlab {
         std::cout << "Consistency Model is: Vertex" << std::endl;      
       }
       rmi.barrier();
+
+      size_t allocatedmem = memory_info::allocated_bytes();
+      rmi.all_reduce(allocatedmem);
+ 
+      rmi.dc().flush_counters();
       if (rmi.procid() == 0) {
+        logstream(LOG_INFO) << "Total Allocated Bytes: " << allocatedmem << std::endl;
         PERMANENT_IMMEDIATE_DIST_EVENT(eventlog, ENGINE_START_EVENT);
       }
       for (size_t i = 0; i < ncpus; ++i) {
@@ -1104,6 +1110,8 @@ namespace graphlab {
       }
       thrgroup.join();
       aggregator.get_threads().join();
+      
+      rmi.dc().flush_counters();
       if (rmi.procid() == 0) {
         PERMANENT_IMMEDIATE_DIST_EVENT(eventlog, ENGINE_STOP_EVENT);
       }
