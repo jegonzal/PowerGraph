@@ -21,8 +21,8 @@
  */
 
 
-#ifndef GRAPHLAB_ASYNC_TERMINATOR_HPP
-#define GRAPHLAB_ASYNC_TERMINATOR_HPP
+#ifndef ASYNC_TERMINATOR_HPP
+#define ASYNC_TERMINATOR_HPP
 
 #include <graphlab/parallel/pthread_tools.hpp>
 
@@ -118,7 +118,6 @@ namespace graphlab {
      */
     void force_done();
   
-    bool is_done() { return done; }
     
     /// Wakes up all local threads waiting in done()
     void cancel();
@@ -138,7 +137,11 @@ namespace graphlab {
         iarc >> total_calls_sent >> total_calls_received >> last_change;
       }
     };
-  
+ 
+    bool is_done() const {
+      return done;
+    }
+ 
   private:
     dc_dist_object<async_consensus> rmi;
     const dc_impl::dc_dist_object_base* attachedobj;

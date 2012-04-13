@@ -166,6 +166,16 @@ class distributed_chromatic_engine : public iengine<Graph> {
 
   metrics engine_metrics;  
 
+  PERMANENT_DECLARE_DIST_EVENT_LOG(eventlog);
+
+    enum {
+      SCHEDULE_EVENT = 0,
+      UPDATE_EVENT = 1,
+      ENGINE_START_EVENT = 3,
+      ENGINE_STOP_EVENT = 4,
+    };
+
+    
  public:
   distributed_chromatic_engine(distributed_control &dc,
                                     Graph& graph,
@@ -190,8 +200,19 @@ class distributed_chromatic_engine : public iengine<Graph> {
                             const_nbr_vertices(true),
                             const_edges(false),
                             engine_metrics("engine"),
-                            thread_color_barrier(ncpus){ 
+                            thread_color_barrier(ncpus){
     rmi.barrier();
+#ifdef USE_EVENT_LOG
+    PERMANENT_INITIALIZE_DIST_EVENT_LOG(eventlog, dc, std::cout, 3000,
+                                dist_event_log::RATE_BAR);
+#else
+    PERMANENT_INITIALIZE_DIST_EVENT_LOG(eventlog, dc, std::cout, 3000,
+                                dist_event_log::LOG_FILE);
+#endif
+    PERMANENT_ADD_DIST_EVENT_TYPE(eventlog, SCHEDULE_EVENT, "Schedule");
+    PERMANENT_ADD_DIST_EVENT_TYPE(eventlog, UPDATE_EVENT, "Updates");
+    PERMANENT_ADD_IMMEDIATE_DIST_EVENT_TYPE(eventlog, ENGINE_START_EVENT, "Engine Start");
+    PERMANENT_ADD_IMMEDIATE_DIST_EVENT_TYPE(eventlog, ENGINE_STOP_EVENT, "Engine Stop");
   }
   
   ~distributed_chromatic_engine() {
@@ -306,6 +327,7 @@ class distributed_chromatic_engine : public iengine<Graph> {
     else update_function = task.function();
     
     if (graph.is_owned(task.vertex())) {
+      PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, SCHEDULE_EVENT, 1);
       num_pending_tasks.inc(!
               scheduled_vertices.set_bit(graph.globalvid_to_localvid(task.vertex())) 
                           );
@@ -672,6 +694,7 @@ class distributed_chromatic_engine : public iengine<Graph> {
             // check if there are tasks to run
             if (hassynctasks) eval_syncs(globalvid, scope, threadid);
             scope.commit_async_untracked();
+            PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, UPDATE_EVENT, 1);
             update_counts[threadid]++;
           }
           else {
@@ -755,6 +778,10 @@ class distributed_chromatic_engine : public iengine<Graph> {
     // two full barrers to complete flush replies
     rmi.dc().full_barrier();
     rmi.dc().full_barrier();
+    rmi.dc().flush_counters();
+    if (rmi.procid() == 0) {
+      PERMANENT_IMMEDIATE_DIST_EVENT(eventlog, ENGINE_START_EVENT);
+    }
 
     // reset indices
     curidx.value = 0;
@@ -769,10 +796,11 @@ class distributed_chromatic_engine : public iengine<Graph> {
     }
     
     thrgrp.join();              
-    rmi.barrier();
-    
-
-    
+    rmi.dc().full_barrier();
+    rmi.dc().flush_counters();
+    if (rmi.procid() == 0) {
+      PERMANENT_IMMEDIATE_DIST_EVENT(eventlog, ENGINE_STOP_EVENT);
+    }
     // proc 0 gathers all update counts
     std::vector<size_t> procupdatecounts(rmi.numprocs(), 0);
     procupdatecounts[rmi.procid()] = thisproc_update_counts();

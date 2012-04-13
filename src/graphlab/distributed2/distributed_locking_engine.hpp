@@ -375,7 +375,7 @@ namespace graphlab {
 #endif
       PERMANENT_ADD_DIST_EVENT_TYPE(eventlog, SCHEDULE_EVENT, "Schedule");
       PERMANENT_ADD_DIST_EVENT_TYPE(eventlog, BEGIN_VERTEX_EVENT, "Vertex Activated");
-      PERMANENT_ADD_DIST_EVENT_TYPE(eventlog, LOCK_REQUEST_EVENT, "Locks Requested (Upper Approx.)");
+      PERMANENT_ADD_DIST_EVENT_TYPE(eventlog, LOCK_REQUEST_EVENT, "Locks Requested (Approx.)");
       PERMANENT_ADD_DIST_EVENT_TYPE(eventlog, UPDATE_EVENT, "Updates");
       PERMANENT_ADD_DIST_EVENT_TYPE(eventlog, WORK_ISSUED_EVENT, "Work Issued");
       PERMANENT_ADD_IMMEDIATE_DIST_EVENT_TYPE(eventlog, ENGINE_START_EVENT, "Engine Start");
@@ -1126,11 +1126,11 @@ namespace graphlab {
       consensus.begin_done_critical_section(threadid);
       stat = scheduler.get_next_task(threadid, task);
       if (stat == sched_status::EMPTY) {
-        bool ret = consensus.end_done_critical_section(true);
+        bool ret = consensus.end_done_critical_section(threadid);
         threads_alive.inc();
         return ret;
       } else {
-        consensus.end_done_critical_section(false);
+        consensus.cancel_critical_section(threadid);
         threads_alive.inc();
         return false;
       }
@@ -1382,6 +1382,7 @@ namespace graphlab {
       logstream(LOG_INFO) << "priority_degree_limit = " << priority_degree_limit << std::endl;
       rmi.dc().full_barrier();
       // reset indices
+      rmi.dc().flush_counters();
       if (rmi.procid() == 0) {
         PERMANENT_IMMEDIATE_DIST_EVENT(eventlog, ENGINE_START_EVENT);
       }
@@ -1446,7 +1447,9 @@ namespace graphlab {
       reduction_mut.unlock();
       thrgrp_reduction.join();    
       rmi.barrier();
-    
+
+      rmi.dc().flush_counters();
+
       if (rmi.procid() == 0) {
         PERMANENT_IMMEDIATE_DIST_EVENT(eventlog, ENGINE_STOP_EVENT);
       }

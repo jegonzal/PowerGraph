@@ -48,10 +48,8 @@
 #include <graphlab/rpc/reply_increment_counter.hpp>
 #include <graphlab/rpc/function_ret_type.hpp>
 
-
 #include <graphlab/util/tracepoint.hpp>
 #include <graphlab/rpc/distributed_event_log.hpp>
-
 #include <boost/preprocessor.hpp>
 #include <graphlab/rpc/function_arg_types_def.hpp>
 
@@ -336,7 +334,10 @@ class distributed_control{
   /// gets the current sequentialization key. This function is not generally useful.
   static unsigned char get_sequentialization_key();
 
-  
+ 
+  void flush_counters() {
+    eventlog.flush_and_reset_counters();
+  } 
   /*
   This generates the interface functions for the standard calls, basic calls, and fast calls
   The generated code looks like this:
