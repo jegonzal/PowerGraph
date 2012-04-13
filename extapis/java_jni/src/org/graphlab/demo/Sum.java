@@ -43,7 +43,8 @@ public class Sum {
     
   }
   
-  private static class SumAggregator extends Aggregator<ScalarVertex, SumAggregator> {
+  private static class SumAggregator
+    extends Aggregator<ScalarVertex, SumAggregator> {
 
     private int sum;
     
