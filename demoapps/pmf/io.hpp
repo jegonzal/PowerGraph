@@ -302,14 +302,21 @@ void common_prediction(const graph_type &g, const graph_type & _g, const vertex_
 //compute predictions for SVD++
 void test_predict(vertex_data_svdpp & data, int i, int& lineNum, double & sumPreds, vec& test_predictions, bool dosave, const graph_type_svdpp &g, const graph_type_svdpp & _g){
        int n = data.num_edges; //+1.0 ? //regularization
-       data.weight = zeros(ac.D);
-       foreach(edge_id_t oedgeid, g.out_edge_ids(i)) {
-         vertex_data_svdpp & movie = (vertex_data_svdpp&)g.vertex_data(g.target(oedgeid)); 
-	 data.weight += movie.weight;
+       if (n > 0 ){
+         data.weight = zeros(ac.D);
+         foreach(edge_id_t oedgeid, g.out_edge_ids(i)) {
+           vertex_data_svdpp & movie = (vertex_data_svdpp&)g.vertex_data(g.target(oedgeid)); 
+	         data.weight += movie.weight;
+         }
+         float usrnorm = float(1.0/sqrt(n));
+         data.weight *= usrnorm;
+         common_prediction<graph_type_svdpp,vertex_data_svdpp,edge_data>(g, _g,data,i,lineNum, sumPreds, test_predictions, dosave);
        }
-       float usrnorm = float(1.0/sqrt(n));
-       data.weight *= usrnorm;
-       common_prediction<graph_type_svdpp,vertex_data_svdpp,edge_data>(g, _g,data,i,lineNum, sumPreds, test_predictions, dosave);
+       else { //cold start, we did not encounter this user in training!
+         data.weight = ones(ac.D);
+         data.pvec = zeros(ac.D);
+         common_prediction<graph_type_svdpp,vertex_data_svdpp,edge_data>(g, _g,data,i,lineNum, sumPreds, test_predictions, dosave);
+        }
 }
 
 //compute predictions for all others
@@ -387,7 +394,7 @@ template<typename graph_type, typename vertex_data, typename edge_data>
 void export_test_file(const graph_type & _g, testtype type, bool dosave) {
        
   const graph_type * g = ps.g<graph_type>(TRAINING);
-  double sumPreds;
+  double sumPreds = 0;
   int lineNum = 0;
   if (!dosave)
     assert(ps.BPTF);	
