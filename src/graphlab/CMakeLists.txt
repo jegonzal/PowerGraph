@@ -59,7 +59,6 @@ IF (EXPERIMENTAL)
     rpc/dc_init_from_mpi.cpp
     rpc/async_consensus.cpp
     rpc/distributed_event_log.cpp
-    distributed2/distributed_scheduler_list.cpp
    )
 endif()
 
@@ -92,6 +91,7 @@ add_library(graphlab STATIC
   factors/binary_factor.cpp
   factors/unary_factor.cpp
   ${rpc_files}
+  distributed2/distributed_scheduler_list.cpp
 )
 
 target_link_libraries(graphlab ${Boost_LIBRARIES})
