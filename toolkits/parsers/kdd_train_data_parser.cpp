@@ -92,13 +92,14 @@ typedef graphlab::graph<vertex_data2, edge_data2>::edge_list_type edge_list;
     mm_set_sparse(&out_typecode); 
     mm_set_matrix(&out_typecode);
     mm_write_cpp_banner(fout.get_sp(), out_typecode);
-    //mm_write_cpp_mtx_crd_size(fout, 987654321, 987654321, 987654322);
+    mm_write_cpp_mtx_crd_size(fout.get_sp(), nodes, nodes, 39752418);
 
     char linebuf[24000];
     char saveptr[1024];
     int added = 0;
     int last_from = -1, last_to = -1, last_rating = 0, last_time = 0;
     int ignore_last_to = -1, ignore_last_from = -1;
+    int positive_examples = 0, negative_examples = 0;
     graph_type2 out_graph;
     out_graph.resize(2*nodes);
  
@@ -169,6 +170,9 @@ typedef graphlab::graph<vertex_data2, edge_data2>::edge_list_type edge_list;
             edge_data2 edge(last_rating, last_time);
             out_graph.add_edge(from - 1, to+nodes-1, edge);
             added++;
+            if (last_rating == -1)
+	            negative_examples++;
+            else positive_examples++;
          }
       }
    
@@ -194,7 +198,7 @@ typedef graphlab::graph<vertex_data2, edge_data2>::edge_list_type edge_list;
        }
     }
 
-    logstream(LOG_INFO)<<"Finished exporting a total of " << total_edges << " ratings " << std::endl;
+    logstream(LOG_INFO)<<"Finished exporting a total of " << total_edges << " ratings " << std::endl << " Positive ratings: " << positive_examples << " Negative ratings: " << negative_examples << std::endl;
 
   }
 
