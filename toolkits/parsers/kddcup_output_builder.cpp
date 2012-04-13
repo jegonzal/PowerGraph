@@ -83,8 +83,9 @@ typedef graphlab::graph<vertex_data2, edge_data2>::edge_list_type edge_list;
    int nodes = context.get_global<int>("NUM_NODES");
 
     vertex_data& vdata = context.vertex_data();
-    FILE * pfile = open_file(vdata.filename + ".out", "w");
-    fprintf(pfile, "id,clicks\n"); 
+    FILE * pfile = open_file(vdata.filename + ".csv", "w");
+    if (vdata.filename == datafile)
+      fprintf(pfile, "id,clicks\n"); 
     graph_type2 _graph; 
     bipartite_graph_descriptor info;
     info.force_non_square = true;
@@ -129,7 +130,7 @@ typedef graphlab::graph<vertex_data2, edge_data2>::edge_list_type edge_list;
      fclose(pfile);
     ASSERT_EQ(cnt, ret.size());
     logstream(LOG_INFO)<<"Finished going over " << cnt << " rating " << " for " << users << " unique users " << std::endl; 
-    logstream(LOG_INFO)<<"Successfully created output file: " << vdata.filename << ".out" << std::endl;
+    logstream(LOG_INFO)<<"Successfully created csvput file: " << vdata.filename << ".csv" << std::endl;
     } //operator()    
 }; //update_functor
 
@@ -187,29 +188,29 @@ int main(int argc,  char *argv[]) {
   std::cout << "Finished in " << runtime << std::endl;
 
   logstream(LOG_INFO)<<"Merging the two files together"<<endl;
-  int rc = system((string("cat ") + datafileB + ".out >> " + datafile + ".out").c_str());
+  int rc = system((string("cat ") + datafileB + ".csv >> " + datafile + ".csv").c_str());
   if (rc == -1){
      perror("failed cat");
      logstream(LOG_FATAL)<<"failed to concatanate the two test files"<<endl;
   }
      
-  rc = remove((datafileB + ".out").c_str());
+  rc = remove((datafileB + ".csv").c_str());
   if (rc == -1){
      perror("failed delete");
-     logstream(LOG_FATAL)<<"failed to remove temp file"<< datafileB << " .out" << endl;
+     logstream(LOG_FATAL)<<"failed to remove temp file"<< datafileB << " .csv" << endl;
   }
  
 
-  rc = system(("zip submission.zip " + datafile + ".out").c_str());
+  rc = system(("zip submission.zip " + datafile + ".csv").c_str());
   if (rc == -1){
      perror("failed zip");
-     logstream(LOG_FATAL)<<"failed to zip submisison file"<< datafile << " .out" << endl;
+     logstream(LOG_FATAL)<<"failed to zip submisison file"<< datafile << " .csv" << endl;
   }
   logstream(LOG_INFO)<<"Successfully created zip file: submission.zip" << endl;
-  rc = remove((datafile + ".out").c_str());
+  rc = remove((datafile + ".csv").c_str());
   if (rc == -1){
      perror("failed delete");
-     logstream(LOG_FATAL)<<"failed to remove temp file"<< datafile << " .out" << endl;
+     logstream(LOG_FATAL)<<"failed to remove temp file"<< datafile << " .csv" << endl;
   }
   logstream(LOG_INFO)<<"removed temporary files" << endl;
    return EXIT_SUCCESS;

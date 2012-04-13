@@ -55,13 +55,8 @@ typedef graphlab::graph<vertex_data, edge_data> graph_type;
 struct vertex_data2 {
   double A_ii;
   double value;
-  //real_type y, Aii;
-  //real_type pvec[JACOBI_X], pvec[JACOBI_REAL_X], pvec[JACOBI_PREV_X];
-  vertex_data2(): A_ii(1) { //: y(0), Aii(1), pvec[JACOBI_X](0), pvec[JACOBI_REAL_X](0), 
-                 // pvec[JACOBI_PREV_X](-1) 
-  }
+  vertex_data2(): A_ii(1) { } 
   void add_self_edge(double value) { A_ii = value; }
-
   void set_val(double value, int field_type) { 
   }  
   double get_output(int field_type){ return -1; }
