@@ -46,6 +46,21 @@ endif()
 
 IF (EXPERIMENTAL)
   set(mmap_allocator util/mmap_allocator.cpp)
+
+  set(rpc_files
+    ${util_mpi_tools}
+    rpc/dc_tcp_comm.cpp  
+    rpc/circular_char_buffer.cpp
+    rpc/dc_stream_receive.cpp
+    rpc/dc_buffered_stream_send2.cpp
+    rpc/dc.cpp
+    rpc/reply_increment_counter.cpp
+    rpc/dc_init_from_env.cpp
+    rpc/dc_init_from_mpi.cpp
+    rpc/async_consensus.cpp
+    rpc/distributed_event_log.cpp
+    distributed2/distributed_scheduler_list.cpp
+   )
 endif()
 
 
@@ -76,20 +91,7 @@ add_library(graphlab STATIC
   factors/discrete_variable.cpp
   factors/binary_factor.cpp
   factors/unary_factor.cpp
-  ${util_mpi_tools}
-  rpc/dc_tcp_comm.cpp
-  
-  rpc/circular_char_buffer.cpp
-  rpc/dc_stream_receive.cpp
-  rpc/dc_buffered_stream_send2.cpp
-  rpc/dc.cpp
-  rpc/reply_increment_counter.cpp
-  rpc/dc_init_from_env.cpp
-  rpc/dc_init_from_mpi.cpp
-  rpc/async_consensus.cpp
-  rpc/distributed_event_log.cpp
-  distributed2/distributed_scheduler_list.cpp
-  ${rpc_compressed}
+  ${rpc_files}
 )
 
 target_link_libraries(graphlab ${Boost_LIBRARIES})
@@ -101,13 +103,13 @@ endif()
 
 
 
-
+if (EXPERIMENTAL)
 #build distributed graphlab
 add_library(graphlab_dist2 STATIC
     distributed2/distributed_glshared_base.cpp
     distributed2/distributed_glshared_manager.cpp
     distributed2/graph/dgraph_edge_list.cpp)
-
+endif()
 
 #build PIC versions of everything
 
