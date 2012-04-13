@@ -72,13 +72,13 @@ const size_t COMM_DATAGRAM = 0;
  * 
  * The header form of each packet */
 struct packet_hdr {
-  uint64_t len; /// length of the packet
+  uint32_t len; /// length of the packet
   procid_t src; /// source machine
   unsigned char packet_type_mask; /// the types are in dc_packet_mask.hpp
   unsigned char sequentialization_key;
 };
 
-typedef uint64_t block_header_type;
+typedef uint32_t block_header_type;
 
 /** 
  * \ingroup rpc_internal

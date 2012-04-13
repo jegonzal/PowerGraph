@@ -54,8 +54,9 @@ void pagerank_update(gl_types::iscope &scope,
     const vertex_data& neighbor_vdata =
       scope.const_neighbor_vertex_data(scope.source(eid));    
     // Add the contribution to the sum
-    sum += neighbor_vdata.value /  float(scope.out_edge_ids(scope.source(eid)).size());
+    sum += neighbor_vdata.value;
   }
+  sum = sum / scope.out_edge_ids(scope.vertex()).size();
   // compute the jumpweight
   const float old_value = vdata.value;
   vdata.value = random_reset_prob + (1-random_reset_prob)*sum;
@@ -63,12 +64,12 @@ void pagerank_update(gl_types::iscope &scope,
   // Schedule the neighbors as needed
   const float weight = 1.0/float(scope.out_edge_ids().size());
   const float residual =  std::fabs(old_value - vdata.value)*weight;
-  if(residual > termination_bound) {  
+  /*if(residual > termination_bound) {  
     foreach(graphlab::edge_id_t eid, scope.out_edge_ids()) {
       gl_types::update_task task(scope.target(eid), pagerank_update);
       scheduler.add_task(task, residual);
     }
-  }
+  }*/
 } // end of pagerank update function
 
 

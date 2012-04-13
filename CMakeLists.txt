@@ -469,6 +469,8 @@ macro(add_dist2_executable NAME)
       ${MPI_LIBRARY} 
       ${MPI_EXTRA_LIBRARY} 
       ${Boost_LIBRARIES}
+      event
+      event_pthreads
       )
     set_source_files_properties( ${ARGN}
       PROPERTIES COMPILE_DEFINITIONS "GLDISTRIBUTED2" )

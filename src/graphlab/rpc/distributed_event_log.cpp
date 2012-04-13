@@ -62,28 +62,40 @@ dist_event_log::~dist_event_log() {
   if (!finished) destroy();
 }
 
-void dist_event_log::destroy() {
-  finished = true;
-  m.lock();
-  cond.signal();
-  m.unlock();
-  printing_thread.join();
-  
+
+void dist_event_log::flush_and_reset_counters() {
+  flush();
+  rmi->full_barrier();
   uint32_t pos;
   if (print_method != LOG_FILE) {
     if (rmi->procid() == 0 && hascounter.first_bit(pos)) {
       do {
-        (*out) << descriptions[pos]  << ":\t" << totalcounter[pos].value << " Events\n";
+        size_t r = totalcounter[pos].value;
+        totalcounter[pos].dec(r);
+        (*out) << descriptions[pos]  << ":\t" << r << " Events\n";
       } while(hascounter.next_bit(pos));
     }
   }
   else {
     if (rmi->procid() == 0 && hascounter.first_bit(pos)) {
       do {
-        std::cout << descriptions[pos]  << ":\t" << totalcounter[pos].value << " Events\n";
+        size_t r = totalcounter[pos].value;
+        totalcounter[pos].dec(r);
+        std::cout << descriptions[pos]  << ":\t" << r << " Events\n";
       } while(hascounter.next_bit(pos));
     }
   }
+}
+
+
+void dist_event_log::destroy() {
+  finished = true;
+  m.lock();
+  cond.signal();
+  m.unlock();
+  printing_thread.join();
+  flush_and_reset_counters();
+  rmi->barrier();
   delete rmi;
 }
 

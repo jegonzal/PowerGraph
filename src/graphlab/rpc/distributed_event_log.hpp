@@ -101,6 +101,9 @@ class dist_event_log{
 
   void immediate_event(unsigned char eventid);
 
+  void flush_and_reset_counters();
+
+
   void print_log();
   void flush();
   ~dist_event_log();

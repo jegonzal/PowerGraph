@@ -35,144 +35,106 @@
 #include <graphlab/util/resizing_array_sink.hpp>
 #include <graphlab/logger/logger.hpp>
 namespace graphlab {
-  class distributed_control;
+class distributed_control;
 
-  namespace dc_impl {
+namespace dc_impl {
 
 
-    /**
-       \ingroup rpc
-       Sender for the dc class.
-       The job of the sender is to take as input data blocks of
-       pieces which should be sent to a single destination socket.
-       This can be thought of as a sending end of a multiplexor.
-       This class performs buffered transmissions using an blocking 
-       queue with one call per queue entry.
-       A seperate thread is used to transmit queue entries. Rudimentary
-       write combining is used to decrease transmission overhead.
-       This is typically the best performing sender.
+/**
+   \ingroup rpc
+Sender for the dc class.
+  The job of the sender is to take as input data blocks of
+  pieces which should be sent to a single destination socket.
+  This can be thought of as a sending end of a multiplexor.
+  This class performs buffered transmissions using an blocking 
+  queue with one call per queue entry.
+  A seperate thread is used to transmit queue entries. Rudimentary
+  write combining is used to decrease transmission overhead.
+  This is typically the best performing sender.
   
-       This can be enabled by passing "buffered_queued_send=yes"
-       in the distributed control initstring.
+  This can be enabled by passing "buffered_queued_send=yes"
+  in the distributed control initstring.
   
-       dc_buffered_stream_send22 is similar, but does not perform write combining.
+  dc_buffered_stream_send22 is similar, but does not perform write combining.
   
-    */
+*/
 
-    class dc_buffered_stream_send2: public dc_send{
-    public:
-      dc_buffered_stream_send2(distributed_control* dc, 
-                               dc_comm_base *comm, 
-                               procid_t target) : 
-        dc(dc),  comm(comm), target(target),
-        writebuffer_totallen(0), done(false),
-        buffer_length_trigger(5*1024*1024),
-        max_buffer_length(5*1024*1024), nanosecond_wait(1000000),
-        wakeuptimes(0), sendlength(0){
-        buffer[0].buf.resize(100000);
-        buffer[0].numel = 1;
-        buffer[0].numbytes = 0;
-        buffer[0].ref_count = 0;
-        buffer[1].buf.resize(100000);
-        buffer[1].numel = 1;
-        buffer[1].numbytes = 0;
-        buffer[1].ref_count = 0;
-        bufid = 0;
-        writebuffer_totallen.value = 0;
-        thr = launch_in_new_thread(boost::bind
-                                   (&dc_buffered_stream_send2::send_loop, 
-                                    this));
-      }
+class dc_buffered_stream_send2: public dc_send{
+ public:
+  dc_buffered_stream_send2(distributed_control* dc, 
+                                   dc_comm_base *comm, 
+                                   procid_t target) : 
+                  dc(dc),  comm(comm), target(target),
+                  writebuffer_totallen(0) {
+    buffer[0].buf.resize(100000);
+    buffer[0].numel = 1;
+    buffer[0].numbytes = 0;
+    buffer[0].ref_count = 0;
+    buffer[1].buf.resize(100000);
+    buffer[1].numel = 1;
+    buffer[1].numbytes = 0;
+    buffer[1].ref_count = 0;
+    bufid = 0;
+    writebuffer_totallen.value = 0;
+  }
   
-      ~dc_buffered_stream_send2() {
-      }
+  ~dc_buffered_stream_send2() {
+  }
   
-
-      inline bool channel_active(procid_t target) const {
-        return comm->channel_active(target);
-      }
 
                  
 
-      /** Called to send data to the target. The caller transfers control of
-          the pointer. The caller MUST ensure that the data be prefixed
-          with sizeof(packet_hdr) extra bytes at the start for placement of the
-          packet header. */
-      void send_data(procid_t target,
-                     unsigned char packet_type_mask,
-                     char* data, size_t len);
+  /** Called to send data to the target. The caller transfers control of
+  the pointer. The caller MUST ensure that the data be prefixed
+  with sizeof(packet_hdr) extra bytes at the start for placement of the
+  packet header. */
+  void send_data(procid_t target,
+                 unsigned char packet_type_mask,
+                 char* data, size_t len);
 
 
-      /** Sends the data but without transferring control of the pointer.
-          The function will make a copy of the data before sending it.
-          Unlike send_data, no padding is necessary. */
-      void copy_and_send_data(procid_t target,
-                              unsigned char packet_type_mask,
-                              char* data, size_t len);
-      void send_loop();
+  /** Sends the data but without transferring control of the pointer.
+   The function will make a copy of the data before sending it.
+   Unlike send_data, no padding is necessary. */
+  void copy_and_send_data(procid_t target,
+                      unsigned char packet_type_mask,
+                      char* data, size_t len);
+
+  bool get_outgoing_data(circular_iovec_buffer& outdata);
   
-      void flush();
   
-      void shutdown();
+  inline size_t bytes_sent() {
+    return bytessent.value;
+  }
+
+  void flush();
+
+ private:
+  /// pointer to the owner
+  distributed_control* dc;
+  dc_comm_base *comm;
+  procid_t target;
+
+  atomic<size_t> writebuffer_totallen;
   
-      bool adaptive_send_decision();
+  struct buffer_and_refcount{
+    std::vector<iovec> buf;
+    atomic<size_t> numel;
+    atomic<size_t> numbytes;
+    volatile int32_t ref_count; // if negative, means it is sending
+  };
+  buffer_and_refcount buffer[2];
+  size_t bufid;
   
-      inline size_t bytes_sent() {
-        return bytessent.value;
-      }
 
-      /**
-       * Possible Options include 
-       * nanosecond_wait: Maximum amount of time remote calls can age 
-       *                  in the queue before the queue is flushed. (1000000)
-       * wait_count_bytes: Maximum number of bytes in the buffer before
-       *                   the queue is flushed. This number is self adjusting
-       *                   with an exponential scaling rate and should not need
-       *                   to be modified. (initial = 1024000)
-       */
-      size_t set_option(std::string opt, size_t val);
-
-    private:
-      /// pointer to the owner
-      distributed_control* dc;
-      dc_comm_base *comm;
-      procid_t target;
-
-      atomic<size_t> writebuffer_totallen;
+  atomic<size_t> bytessent; 
   
-      struct buffer_and_refcount{
-        std::vector<iovec> buf;
-        atomic<size_t> numel;
-        atomic<size_t> numbytes;
-        volatile int32_t ref_count; // if negative, means it is sending
-      };
-      buffer_and_refcount buffer[2];
-      size_t bufid;
-  
-      mutex lock;
-      mutex send_lock;
-      mutex send_active_lock;
-      conditional cond;
 
-      thread thr;
-      bool done;
-
-      atomic<size_t> bytessent; 
-  
-      size_t buffer_length_trigger;
-      size_t max_buffer_length;
-  
-      size_t nanosecond_wait;
-
-      size_t wakeuptimes;
-      size_t sendlength;
-      void flush_impl();
-
-    };
+};
 
 
 
-  } // namespace dc_impl
+} // namespace dc_impl
 } // namespace graphlab
 #endif // DC_BUFFERED_STREAM_SEND_EXPQUEUE_HPP
 

@@ -35,15 +35,19 @@ namespace dc_impl {
 
 
 char* dc_stream_receive::get_buffer(size_t& retbuflength) {
-  header_read = 0;
-  retbuflength = sizeof(block_header_type);
-  return reinterpret_cast<char*>(&cur_chunk_header);
+  if (header_read < sizeof(block_header_type)) {
+    retbuflength = sizeof(block_header_type) - header_read;
+    return (reinterpret_cast<char*>(&cur_chunk_header) + header_read);
+  }
+  else {
+    retbuflength = cur_chunk_header - write_buffer_written;
+    return writebuffer + write_buffer_written;
+  }
 }
 
 
 char* dc_stream_receive::advance_buffer(char* c, size_t wrotelength, 
                             size_t& retbuflength) {
-  
   if (header_read != sizeof(block_header_type)) {
     // tcp is still writing into cur`writelen
     header_read += wrotelength;
@@ -55,7 +59,8 @@ char* dc_stream_receive::advance_buffer(char* c, size_t wrotelength,
       return (reinterpret_cast<char*>(&cur_chunk_header) + header_read);
     }
     else {
-      // ok now lets switch it to the write buffer
+      // ok header is full. construct the return
+      // bufer and switch to it.
       ASSERT_TRUE(writebuffer == NULL);
       writebuffer = (char*)malloc(cur_chunk_header);
       retbuflength = cur_chunk_header;
