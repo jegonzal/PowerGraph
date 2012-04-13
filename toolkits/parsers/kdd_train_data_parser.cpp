@@ -96,7 +96,7 @@ typedef graphlab::graph<vertex_data2, edge_data2>::edge_list_type edge_list;
 
     char linebuf[24000];
     char saveptr[1024];
-    uint line = 1;
+    int added = 0;
     int last_from = -1, last_to = -1, last_rating = 0, last_time = 0;
     int ignore_last_to = -1, ignore_last_from = -1;
     graph_type2 out_graph;
@@ -109,52 +109,53 @@ typedef graphlab::graph<vertex_data2, edge_data2>::edge_list_type edge_list;
 
       char *pch = strtok_r(linebuf," \r\n\t",(char**)&saveptr);
       if (!pch){
-        logstream(LOG_ERROR) << "Error when parsing file: " << vdata.filename << ":" << line << "[" << linebuf << "]" << std::endl;
+        logstream(LOG_ERROR) << "Error when parsing file: " << vdata.filename << ":" << total_lines << "[" << linebuf << "]" << std::endl;
         return;
        }
       int from = atoi(pch);
       if (from <= 0){
-         logstream(LOG_ERROR) << "Error when parsing file: " << vdata.filename << ":" << line << " document ID is zero or less: " << from << std::endl;
+         logstream(LOG_ERROR) << "Error when parsing file: " << vdata.filename << ":" << total_lines << " document ID is zero or less: " << from << std::endl;
          return;
       }
       pch = strtok_r(NULL," \r\n\t",(char**)&saveptr);
       if (!pch){
-        logstream(LOG_ERROR) << "Error when parsing file: " << vdata.filename << ":" << line << "[" << linebuf << "]" << std::endl;
+        logstream(LOG_ERROR) << "Error when parsing file: " << vdata.filename << ":" << total_lines << "[" << linebuf << "]" << std::endl;
         return;
        }
       int to = atoi(pch);
       if (to <= 0){
-         logstream(LOG_ERROR) << "Error when parsing file: " << vdata.filename << ":" << line << " document ID is zero or less: " << from << std::endl;
+         logstream(LOG_ERROR) << "Error when parsing file: " << vdata.filename << ":" << total_lines << " document ID is zero or less: " << from << std::endl;
          return;
       }
       pch = strtok_r(NULL," \r\n\t",(char**)&saveptr);
       if (!pch){
-        logstream(LOG_ERROR) << "Error when parsing file: " << vdata.filename << ":" << line << "[" << linebuf << "]" << std::endl;
+        logstream(LOG_ERROR) << "Error when parsing file: " << vdata.filename << ":" << total_lines << "[" << linebuf << "]" << std::endl;
         return;
        }
       int rating = atoi(pch);
       if (rating != -1 && rating != 1){
-         logstream(LOG_ERROR) << "Error when parsing file: " << vdata.filename << ":" << line << " invalid rating, not -1 or 1 " << from << std::endl;
+         logstream(LOG_ERROR) << "Error when parsing file: " << vdata.filename << ":" << total_lines << " invalid rating, not -1 or 1 " << from << std::endl;
          return;
       }
       pch = strtok_r(NULL," \r\n\t",(char**)&saveptr);
       if (!pch){
-        logstream(LOG_ERROR) << "Error when parsing file: " << vdata.filename << ":" << line << "[" << linebuf << "]" << std::endl;
+        logstream(LOG_ERROR) << "Error when parsing file: " << vdata.filename << ":" << total_lines << "[" << linebuf << "]" << std::endl;
         return;
        }
       int time = atoi(pch);
       if (time <= 0){
-         logstream(LOG_ERROR) << "Error when parsing file: " << vdata.filename << ":" << line << " invalid time " << from << std::endl;
+         logstream(LOG_ERROR) << "Error when parsing file: " << vdata.filename << ":" << total_lines << " invalid time " << from << std::endl;
          return;
       }
 
       total_lines++;
       if (debug && (total_lines % 50000 == 0))
-        logstream(LOG_INFO) << "Parsed line: " << total_lines << std::endl;
+        logstream(LOG_INFO) << "Parsed line: " << total_lines << " selected lines: " << added << std::endl;
 
       //duplicate entry in different time, nothing to do. 
-      if (last_from == from && last_to == to && last_rating == rating)
-         continue; 
+      if (last_from == from && last_to == to && last_rating == rating){
+
+      }
       //item with opposite ratings, ignore
       else if (last_from == from && last_to == to && last_rating != rating){
          ignore_last_from = from;
@@ -162,11 +163,12 @@ typedef graphlab::graph<vertex_data2, edge_data2>::edge_list_type edge_list;
       }
       //a different rating encountered
       else if ((last_from > -1) && (last_from != from || last_to != to)){
-         if (last_from == ignore_last_from && last_to == ignore_last_to)
-            continue; //don't add edge 
+         if (last_from == ignore_last_from && last_to == ignore_last_to){
+         }
          else { 
             edge_data2 edge(last_rating, last_time);
             out_graph.add_edge(from - 1, to+nodes-1, edge);
+            added++;
          }
       }
    
