@@ -19,7 +19,32 @@ struct timesvdpp_params{
   }
 };
 
+struct svdpp_params{
+	float itmBiasStep;
+	float itmBiasReg;
+	float usrBiasStep;
+	float usrBiasReg;
+	float usrFctrStep;
+	float usrFctrReg;
+	float itmFctrStep;
+	float itmFctrReg; //gamma7
+	float itmFctr2Step;
+	float itmFctr2Reg;
 
+  svdpp_params(){
+		itmBiasStep = 1e-1f;
+		itmBiasReg = 1e-3f;
+		usrBiasStep = 1e-1f;
+		usrBiasReg = 5e-3f;
+		usrFctrStep = 1e-1f;
+		usrFctrReg = 2e-2f;
+		itmFctrStep = 1e-1f;
+		itmFctrReg = 1e-2f; //gamma7
+		itmFctr2Step = 1e-1f;
+		itmFctr2Reg = 1e-3f;
+  }
+  
+};
 
 class advanced_config{
 
@@ -99,6 +124,7 @@ double bptf_chol_diagonal_weighting;
 /* Variables for SVD++ */
 float svdpp_step_dec;//step decrement size for SVD++
 timesvdpp_params tsp; //for time-SVD++
+svdpp_params svdp; //for SVD++
 
 /* Variables for SGD */
 float sgd_gamma; //step size

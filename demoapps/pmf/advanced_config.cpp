@@ -46,6 +46,22 @@ void advanced_config::init_command_line_options(graphlab::command_line_options &
 
   //SVD++ related switches
   clopts.attach_option("svdpp_step_dec", &svdpp_step_dec, svdpp_step_dec, "SVD++ step decrement ");
+  clopts.attach_option("svdpp_item_bias_step", &svdp.itmBiasStep, svdp.itmBiasStep, "SVD++ item bias step");
+  clopts.attach_option("svdpp_item_bias_reg", &svdp.itmBiasReg, svdp.itmBiasReg, "SVD++ item bias regularization");
+  clopts.attach_option("svdpp_usr_bias_step", &svdp.usrBiasStep, svdp.usrBiasStep, "SVD++ user bias step");
+  clopts.attach_option("svdpp_usr_bias_reg", &svdp.usrBiasReg, svdp.usrBiasReg, "SVD++ user bias regularization");
+  clopts.attach_option("svdpp_usr_fctr_step", &svdp.usrFctrStep, svdp.usrFctrStep, "SVD++ user factor step");
+  clopts.attach_option("svdpp_usr_fctr_reg", &svdp.usrFctrReg, svdp.usrFctrReg, "SVD++ user factor regularization");
+ clopts.attach_option("svdpp_itm_fctr_step", &svdp.itmFctrStep, svdp.itmFctrStep, "SVD++ item factor step");
+  clopts.attach_option("svdpp_itm_fctr_reg", &svdp.itmFctrReg, svdp.itmFctrReg, "SVD++ item factor regularization");
+clopts.attach_option("svdpp_itm_fctr2_step", &svdp.itmFctr2Step, svdp.itmFctr2Step, "SVD++ item factor2 step");
+  clopts.attach_option("svdpp_itm_fctr2_reg", &svdp.itmFctr2Reg, svdp.itmFctr2Reg, "SVD++ item factor2 regularization");
+
+
+
+
+
+
 
   //time-SVD++ related switches
   clopts.attach_option("timesvdpp_lrate", &tsp.lrate, tsp.lrate, "time-SVD++ learn rate");

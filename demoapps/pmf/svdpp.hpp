@@ -38,21 +38,6 @@
 extern advanced_config ac;
 extern problem_setup ps;
 
-float itmBiasStep = 5e-3f;
-float itmBiasReg = 1e-3f;
-float usrBiasStep = 2e-4f;
-float usrBiasReg = 5e-3f;
-float usrFctrStep = 1e-3f;
-float usrFctrReg = 2e-2f;
-float itmFctrStep = 1e-3f;
-float itmFctrReg = 1e-2f; //gamma7
-float itmFctr2Step = 1e-4f;
-float itmFctr2Reg = 1e-2f;
-
-extern advanced_config ac;
-extern problem_setup ps;
-double regularization = 15e-3;
-
 using namespace graphlab;
 
 //constructor
@@ -171,11 +156,11 @@ void svd_post_iter(){
   double rmse = agg_rmse_by_user<graph_type_svdpp, vertex_data_svdpp>(res);
   printf("%g) Iter %s %d, TRAIN RMSE=%0.4f VALIDATION RMSE=%0.4f.\n", ps.gt.current_time(), "SVD", ps.iiter,  rmse, calc_svd_rmse(ps.g<graph_type_svdpp>(VALIDATION), true, res2));
 
-  itmFctrStep *= ac.svdpp_step_dec;
-  itmFctr2Step *= ac.svdpp_step_dec;
-  usrFctrStep *= ac.svdpp_step_dec;
-  itmBiasStep *= ac.svdpp_step_dec;
-  usrBiasStep *= ac.svdpp_step_dec;
+  ac.svdp.itmFctrStep *= ac.svdpp_step_dec;
+  ac.svdp.itmFctr2Step *= ac.svdpp_step_dec;
+  ac.svdp.usrFctrStep *= ac.svdpp_step_dec;
+  ac.svdp.itmBiasStep *= ac.svdpp_step_dec;
+  ac.svdp.usrBiasStep *= ac.svdpp_step_dec;
 
   ps.iiter++;
 }
@@ -264,25 +249,25 @@ void svd_plus_plus_update_function(gl_types_svdpp::iscope &scope,
       assert(!std::isnan(movie.pvec[0]));
    
       //q_i = q_i + gamma2     *(e_ui*(p_u      +  sqrt(N(U))\sum_j y_j) - gamma7    *q_i)
-      movie.pvec += itmFctrStep*(err*(usrFactor +  user.weight)             - itmFctrReg*itmFctr);
+      movie.pvec += ac.svdp.itmFctrStep*(err*(usrFactor +  user.weight)             - ac.svdp.itmFctrReg*itmFctr);
       assert(!std::isnan(user.weight[0]));      
       assert(!std::isnan(movie.pvec[0]));
       //p_u = p_u + gamma2    *(e_ui*q_i   -gamma7     *p_u)
       assert(!std::isnan(user.pvec[0]));
-      user.pvec += usrFctrStep*(err *itmFctr-usrFctrReg*usrFactor);
+      user.pvec += ac.svdp.usrFctrStep*(err *itmFctr-ac.svdp.usrFctrReg*usrFactor);
       assert(!std::isnan(user.pvec[0]));
       step += err*itmFctr;
 
       //b_i = b_i + gamma1*(e_ui - gmma6 * b_i) 
-      movie.bias += itmBiasStep*(err-itmBiasReg*movie.bias);
+      movie.bias += ac.svdp.itmBiasStep*(err-ac.svdp.itmBiasReg*movie.bias);
       //b_u = b_u + gamma1*(e_ui - gamma6 * b_u)
-      user.bias += usrBiasStep*(err-usrBiasReg*user.bias);
+      user.bias += ac.svdp.usrBiasStep*(err-ac.svdp.usrBiasReg*user.bias);
    }
 
-   step *= float(itmFctr2Step*usrNorm);
+   step *= float(ac.svdp.itmFctr2Step*usrNorm);
    assert(!std::isnan(step[0]));
    //gamma7 
-   double mult = itmFctr2Step*itmFctr2Reg;
+   double mult = ac.svdp.itmFctr2Step*ac.svdp.itmFctr2Reg;
    assert(!std::isnan(mult));
    foreach(graphlab::edge_id_t oedgeid, outs){
       vertex_data_svdpp  & movie = scope.neighbor_vertex_data(scope.target(oedgeid));
