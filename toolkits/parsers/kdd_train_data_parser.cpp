@@ -168,7 +168,7 @@ typedef graphlab::graph<vertex_data2, edge_data2>::edge_list_type edge_list;
          }
          else { 
             edge_data2 edge(last_rating, last_time);
-            out_graph.add_edge(from - 1, to+nodes-1, edge);
+            out_graph.add_edge(last_from - 1, last_to+nodes-1, edge);
             added++;
             if (last_rating == -1)
 	            negative_examples++;
