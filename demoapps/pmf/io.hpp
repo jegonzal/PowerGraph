@@ -408,8 +408,10 @@ void export_test_file(const graph_type & _g, testtype type, bool dosave) {
       test_predict(data, i, lineNum, sumPreds, out_predictions, dosave, *g, _g);
     }
 
-  if (type == TEST)
-    assert(lineNum==ps.Lt); 
+  if (type == TEST){
+    ASSERT_EQ(lineNum, ps.Lt);
+    ASSERT_EQ(lineNum, out_predictions.size());
+  }
   else     
     assert(lineNum==ps.Le);
 

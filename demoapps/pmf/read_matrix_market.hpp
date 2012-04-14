@@ -235,7 +235,8 @@ void save_matrix_market_vector(const char * filename, const vec & a, std::string
       }
     }
 
-    logstream(LOG_INFO) << "Saved output vector to file: " << filename << std::endl;
+    fclose(f);
+    logstream(LOG_INFO) << "Saved output vector to file: " << filename << " vector size: " << a.size() << std::endl;
     logstream(LOG_INFO) << "You can read it with Matlab/Octave using the script mmread.m found on http://graphlab.org/mmread.m" << std::endl;
 }
 
