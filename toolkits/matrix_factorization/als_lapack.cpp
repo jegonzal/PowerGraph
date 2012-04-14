@@ -81,6 +81,7 @@ struct advanced_config{
   std::string datafile; //input file name
   std::string format; //input file format
   int nodes;
+  bool zero; //support zero ratings
 
   advanced_config(){ 
 		max_iter = 10;
@@ -96,6 +97,7 @@ struct advanced_config{
 		save_vectors = false;
 		format = "matrixmarket";
 		nodes = 0;
+    zero = false;
   }
 };
 
@@ -285,6 +287,28 @@ void als(graphlab::core<graph_type, als_lapack> & glcore,
 
 }
 
+void common_prediction(const graph_type &g, const graph_type & _g, const vertex_data& data,int i, int &lineNum, double& sumPreds, vec& test_prediction){
+      edge_list edges = _g.in_edges(i);
+      for (uint j=0; j< edges.size(); j++) {
+          const vertex_data & pdata = g.vertex_data(edges[j].target()); 
+	        const edge_data & edge = _g.edge_data(edges[j]);
+          
+          if (!ac.zero)
+           	assert(edge.weight != 0);
+
+          float prediction = 0;
+          predict(data, pdata, edge.weight, prediction);
+    
+         if (debug && (i== 0 || i == ps.M))
+            cout<<lineNum<<") prediction:"<<prediction<<endl; 
+            
+         test_prediction[lineNum] = prediction;
+	       sumPreds += prediction;
+ 	       lineNum++; 
+       }
+}
+
+
 int main(int argc,  char *argv[]) {
   
   global_logger().set_log_level(LOG_INFO);
@@ -429,6 +453,23 @@ int main(int argc,  char *argv[]) {
   std::cout << "Lanczos finished in " << ps.gt.current_time() << std::endl;
   std::cout << "\t Updates: " << core.last_update_count() << " per node: " 
      << core.last_update_count() / core.graph().num_vertices() << std::endl;
+
+
+  if (ps.Lt > 0){
+    double sumPreds = 0;
+    int lineNum = 0;
+    vec out_predictions = zeros(ps.Lt);
+
+    for (int i=0; i< ps.M; i++){
+      vertex_data & data = (vertex_data&)training->vertex_data(i);
+      common_prediction(*training, test, data, i, lineNum, sumPreds, out_predictions);
+    }
+
+    assert(lineNum==ps.Lt); 
+  logstream(LOG_INFO)<< "**Completed successfully (mean prediction: " << sumPreds/lineNum << std::endl;
+    save_matrix_market_format_vector(ac.datafile + ".test.predictions",
+     out_predictions, false, "output predictions for test data\n");
+   }
 
 
   //write_output_vector(ac.datafile + ".singular_values", ac.format, singular_values,false, "%GraphLab SVD Solver library. This file contains the singular values.");
