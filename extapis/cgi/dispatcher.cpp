@@ -39,8 +39,8 @@ dispatcher_update::dispatcher_update(const dispatcher_update& other){}
 inline void dispatcher_update::operator+=(const dispatcher_update& other){}
 
 void dispatcher_update::operator()(icontext_type& context){
-  process p = process::get_process();
-  p << "oh yeah...";
+  process& p = process::get_process();
+  p.write("oh yeah!\n");
 }
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -52,7 +52,8 @@ int main(int argc, char** argv) {
   
   // Parse command line options -----------------------------------------------
   command_line_options clopts("GraphLab Dispatcher");
-  std::string graph_file = "toy.tsv", updater;
+  std::string graph_file = "toy.tsv";
+  std::string updater = "";
   std::string format = "tsv";
   clopts.attach_option("graph", &graph_file, graph_file,
                        "The graph file.  If none is provided "
@@ -76,6 +77,12 @@ int main(int argc, char** argv) {
   if(!success) {
     std::cout << "Error in reading file: " << graph_file << std::endl;
   }
+  
+  // Signal Handling ----------------------------------------------------------
+  // struct sigaction sa;
+  // std::memset( &sa, 0, sizeof(sa) );
+  // sa.sa_handler = SIG_IGN;
+  // CHECK(!::sigaction( SIGPIPE, &sa, NULL));
 
   // Run the Dispatcher -------------------------------------------------------
   process::set_executable(updater);

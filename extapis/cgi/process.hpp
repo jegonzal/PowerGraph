@@ -27,11 +27,9 @@
  
 #ifndef GRAPHLAB_PROCESS_HPP
 #define GRAPHLAB_PROCESS_HPP
-#define BOOST_IOSTREAMS_USE_DEPRECATED
 
 #include <iostream>
-#include <boost/iostreams/stream.hpp>
-#include <boost/iostreams/device/file_descriptor.hpp>
+#include <boost/asio.hpp>
 #include <graphlab.hpp>
 
 namespace graphlab {
@@ -44,8 +42,8 @@ namespace graphlab {
   class process {
   
   public:
-    typedef boost::iostreams::file_descriptor_sink sink;
-    typedef boost::iostreams::stream<sink> sinkstream;
+    typedef boost::asio::posix::stream_descriptor stream_descriptor;
+    typedef boost::asio::io_service io_service;
     
   private:
   
@@ -53,17 +51,18 @@ namespace graphlab {
     static std::string executable;
     
     /** output stream to write to process */
-    sinkstream *pout;
+    io_service ios;
+    stream_descriptor pout;
     
     /** private constructor */
     process();
   
   public:
     
-    ~process();
+    virtual ~process();
     
     /** Write output to process */
-    friend std::ostream& operator<<(process &proc, const std::string str);
+    std::size_t write(const std::string str);
     
     /** ID of process in thread local store */
     static const size_t PROC_ID;

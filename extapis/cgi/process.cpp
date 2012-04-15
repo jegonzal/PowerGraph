@@ -28,48 +28,54 @@
 #include "process.hpp"
 
 using namespace graphlab;
-namespace io = boost::iostreams;
+namespace io = boost::asio;
 
 /////////////////////////////// INSTANCE MEMBERS ///////////////////////////////
 
 process::
-  process() : pout(NULL) {
+  process() : ios(), pout(ios) {
   
   if (executable.empty()) return;
   
   int pipefd[2];
-  CHECK (!pipe(pipefd));      // assert pipe created
+  CHECK (!::pipe(pipefd));    // assert pipe created
   
-  pid_t pid = fork();
+  pid_t pid = ::fork();
   CHECK (0 <= pid);           // assert child created
   
   if (0 == pid){              // child process
-    CHECK (!close(pipefd[1]));
-    CHECK (0 <= dup2(pipefd[0], 0));
-    CHECK (!close(pipefd[0]));
+    CHECK (!::close(pipefd[1]));
+    CHECK (0 <= ::dup2(pipefd[0], 0));
+    CHECK (!::close(pipefd[0]));
     CHECK (0 <= execve(executable.c_str(), NULL, NULL));
   } /* child process goes no further than here */
 
   // parent process
-  CHECK (!close(pipefd[0]));
-  pout = new sinkstream(sink(pipefd[1], io::close_handle));
-  CHECK (pout);
+  CHECK (!::close(pipefd[0]));
+  pout.assign(pipefd[1]);
   return;
   
 }
 
 process::~process(){
   // TODO: tell child process to terminate
-  // close if child is still alive (done by Boost?)
-  // if (0 <= pout) close(pout);
-  if (pout) delete pout;
-  pout = NULL;
+  // close if child is still alive
+  if (pout.is_open()) pout.close();
 }
 
-std::ostream& graphlab::operator<<(process &proc, const std::string str){
-  CHECK (proc.pout);
-  (*proc.pout) << str;
-  return (*proc.pout);
+std::size_t process::write(const std::string str){
+  
+  if (!pout.is_open()){
+    std::cerr << "Pipe closed unexpectedly." << std::endl;
+    return 0;
+  }
+
+  boost::system::error_code ec;
+  std::size_t bytes = io::write(pout, io::buffer(str), ec);
+  if (ec) std::cerr << boost::system::system_error(ec).what() << std::endl;
+  
+  return bytes;
+  
 }
 
 ///////////////////////////////// CLASS MEMBERS ////////////////////////////////
@@ -85,7 +91,7 @@ process& process::get_process(){
        
   if (!thread::contains(PROC_ID)) {
     // store process in thread-local storage
-    process *p = new process();
+    process *p = new process;
     thread::get_local(PROC_ID) = p;
     thread::set_thread_destroy_callback(detach_process);   
   }
