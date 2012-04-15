@@ -251,6 +251,8 @@ namespace graphlab {
         fin >> source;
         if(!fin.good()) break;
         fin >> target; assert(fin.good());
+        // ignore if there is data field
+        fin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
         if(source != target) graph.add_edge(source, target);
         else if(self_edges++ == 0) 
           logstream(LOG_WARNING) 
