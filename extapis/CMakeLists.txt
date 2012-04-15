@@ -1,3 +1,3 @@
 project(GraphLab)
 
-subdirs(java_jni)
+subdirs(java_jni cgi)
