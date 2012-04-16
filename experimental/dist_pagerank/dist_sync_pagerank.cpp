@@ -35,10 +35,11 @@
 
 size_t iterations;
 
-struct vertex_data : public graphlab::IS_POD_TYPE {
+struct vertex_data {
   float value;
-  uint32_t nupdates;
-  vertex_data(double value = 1) : value(value), nupdates(0)  { }
+  vertex_data(float value = 1) : value(value)  { }
+  void save(graphlab::oarchive &oarc) const { oarc << value; };
+  void load(graphlab::iarchive &iarc) { iarc >> value; };
 }; // End of vertex data
 
 std::ostream& operator<<(std::ostream& out, const vertex_data& vdata) {
@@ -52,22 +53,22 @@ typedef graphlab::distributed_graph<vertex_data, edge_data> graph_type;
 
 
 //! Global random reset probability
-double RESET_PROB = 0.15;
+float RESET_PROB = 0.15;
 
 //! Global accuracy tolerance
-double ACCURACY = 1e-5;
+float ACCURACY = 1e-5;
 
 /**
  * The factorized page rank update function
  */
 class factorized_pagerank : 
-  public graphlab::iupdate_functor<graph_type, factorized_pagerank>,
-  public graphlab::IS_POD_TYPE {
+  public graphlab::iupdate_functor<graph_type, factorized_pagerank>
+  {
 private:
-  double accum;
+  float accum;
 public:
-  factorized_pagerank(const double& accum = 0) : accum(accum) { }
-  double accumrity() const { return accum; }
+  factorized_pagerank(const float& accum = 0) : accum(accum) { }
+  float accumrity() const { return accum; }
   void operator+=(const factorized_pagerank& other) { accum += other.accum; }
   bool is_factorizable() const { return true; }
   consistency_model consistency() const { return graphlab::DEFAULT_CONSISTENCY; }
@@ -77,6 +78,14 @@ public:
   edge_set scatter_edges() const {
     return graphlab::NO_EDGES;
   }
+  void save(graphlab::oarchive &oarc) const { 
+    oarc << bool(accum != 0.0);
+    if (accum != 0.0) oarc << accum; 
+  };
+  void load(graphlab::iarchive &iarc) { 
+    bool b; iarc >> b; 
+    if (b) iarc >> accum;
+    else accum = 0.0; };
 
   // Reset the accumulator before running the gather
   void init_gather(iglobal_context_type& context) { accum = 0; }
@@ -86,7 +95,7 @@ public:
     const size_t num_out_edges = context.num_out_edges(edge.source());
     ASSERT_EQ(edge.target(), context.vertex_id());
     ASSERT_GT(num_out_edges, 0);
-    const double weight =  1.0 / double(num_out_edges);
+    const float weight =  1.0 / float(num_out_edges);
     accum += context.const_vertex_data(edge.source()).value * weight;
   } // end of gather
 
@@ -95,11 +104,9 @@ public:
 
   // Update the center vertex
   void apply(icontext_type& context) {
-    vertex_data& vdata = context.vertex_data(); ++vdata.nupdates;
+    vertex_data& vdata = context.vertex_data(); 
     vdata.value =  RESET_PROB + (1 - RESET_PROB) * accum;
-    if (vdata.nupdates < iterations) {
-      context.schedule(context.vertex_id(), factorized_pagerank(0.0));
-    }
+    context.schedule(context.vertex_id(), factorized_pagerank(0.0));
   } // end of apply
 
   // Reschedule neighbors 
@@ -262,6 +269,7 @@ int main(int argc, char** argv) {
   std::cout << dc.procid() << ": Creating engine" << std::endl;
   engine_type engine(dc, graph, clopts.get_ncpus());
   std::cout << dc.procid() << ": Intializing engine" << std::endl;
+  clopts.engine_args.add_option("max_iterations", iterations);
   engine.set_options(clopts);
   engine.initialize();
   std::cout << dc.procid() << ": Scheduling all" << std::endl;
@@ -294,8 +302,7 @@ int main(int argc, char** argv) {
         fout << graph.l_get_vertex_record(i).gvid << "\t" 
              << graph.l_get_vertex_record(i).num_in_edges + 
           graph.l_get_vertex_record(i).num_out_edges << "\t" 
-             << graph.get_local_graph().vertex_data(i).value << "\t"
-             << graph.get_local_graph().vertex_data(i).nupdates << "\n";
+             << graph.get_local_graph().vertex_data(i).value << "\n";
       }
     }
   }

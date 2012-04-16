@@ -12,6 +12,7 @@ add_distributed_graphlab_executable(dist_sync_pagerank dist_sync_pagerank.cpp)
 
 add_distributed_graphlab_executable(dist_delta_pagerank dist_delta_pagerank.cpp)
 
+add_distributed_graphlab_executable(dist_ccount dist_ccount.cpp )
 
 
 
