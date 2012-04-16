@@ -46,3 +46,11 @@ unsigned long int datestr2uint64(const std::string & data, int & timeret, int & 
   cache[thread_id].cached_data = data;
   return myTimeFromEpoch.ticks();
 }
+
+int get_day(time_t pt){
+  boost::posix_time::ptime t = boost::posix_time::from_time_t(pt);
+  tm ptm = to_tm(t);
+  return ptm.tm_yday;
+}
+
+

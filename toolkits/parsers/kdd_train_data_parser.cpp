@@ -31,16 +31,18 @@ using namespace graphlab;
 using namespace std;
 
 int nodes = 2421057;
-int num_edges = 34910937;
+int num_edges = 39752419;
 int split_time = 1321891200; //time to split test data
 int ratingA = 19349608;
 int ratingB = 15561329;
-
+int split_day_of_year = 310;
 
 bool debug = false;
 std::string datafile;
 unsigned long long total_lines = 0;
 bool gzip = false;
+
+int get_day(time_t pt);
 
 struct vertex_data {
   string filename;
@@ -85,6 +87,7 @@ typedef graphlab::graph<vertex_data2, edge_data2>::edge_list_type edge_list;
    vertex_data& vdata = context.vertex_data();
    gzip_in_file fin((vdata.filename), gzip);
    gzip_out_file fout((vdata.filename + ".out"), gzip);
+   gzip_out_file fout_validation((vdata.filename + ".oute"), gzip);
     
     MM_typecode out_typecode;
     mm_clear_typecode(&out_typecode);
@@ -92,16 +95,20 @@ typedef graphlab::graph<vertex_data2, edge_data2>::edge_list_type edge_list;
     mm_set_sparse(&out_typecode); 
     mm_set_matrix(&out_typecode);
     mm_write_cpp_banner(fout.get_sp(), out_typecode);
-    mm_write_cpp_mtx_crd_size(fout.get_sp(), nodes, nodes, 39752418);
-
+    mm_write_cpp_banner(fout_validation.get_sp(), out_typecode);
     char linebuf[24000];
     char saveptr[1024];
     int added = 0;
     int last_from = -1, last_to = -1, last_rating = 0, last_time = 0;
     int ignore_last_to = -1, ignore_last_from = -1;
     int positive_examples = 0, negative_examples = 0;
+    int maxdayofyear = 0; 
+    int mindayofyear = 10000000;
     graph_type2 out_graph;
     out_graph.resize(2*nodes);
+    graph_type2 out_graph_validation;
+
+  
  
     while(true){
       fin.get_sp().getline(linebuf, 24000);
@@ -167,12 +174,20 @@ typedef graphlab::graph<vertex_data2, edge_data2>::edge_list_type edge_list;
          if (last_from == ignore_last_from && last_to == ignore_last_to){
          }
          else { 
-            edge_data2 edge(last_rating, last_time);
-            out_graph.add_edge(last_from - 1, last_to+nodes-1, edge);
+            int dayofyear = get_day(last_time);
+            if (dayofyear < mindayofyear)
+                mindayofyear = dayofyear;
+            if (dayofyear > maxdayofyear)
+                maxdayofyear = dayofyear;
+            edge_data2 edge(last_rating, dayofyear);
+            if (dayofyear >= split_day_of_year)
+              out_graph_validation.add_edge(last_from - 1, last_to+nodes-1, edge);
+            else out_graph.add_edge(last_from - 1, last_to+nodes-1, edge);
             added++;
             if (last_rating == -1)
 	            negative_examples++;
             else positive_examples++;
+                       //cout<<"day of year: " << get_day(last_time) << endl;
          }
       }
    
@@ -183,9 +198,24 @@ typedef graphlab::graph<vertex_data2, edge_data2>::edge_list_type edge_list;
     } 
 
    logstream(LOG_INFO) <<"Finished parsing total of " << total_lines << " lines in file " << vdata.filename << endl;
+   logstream(LOG_INFO) <<"Min day of year " << mindayofyear << " maxday " << maxdayofyear << endl;
+    
+   int dayofyear = get_day(last_time);
+   if (dayofyear < mindayofyear)
+                mindayofyear = dayofyear;
+   if (dayofyear > maxdayofyear)
+                maxdayofyear = dayofyear;
+   edge_data2 last_edge(last_rating, dayofyear);
+   if (dayofyear >= split_day_of_year)
+      out_graph_validation.add_edge(last_from - 1, last_to+nodes-1, last_edge);
+   else out_graph.add_edge(last_from - 1, last_to+nodes-1, last_edge);
+
    out_graph.finalize();
+   out_graph_validation.finalize();
 
     int total_edges = 0;
+    mm_write_cpp_mtx_crd_size(fout.get_sp(), nodes, nodes, out_graph.num_edges());
+
     for (int j=0; j< nodes; j++){
        edge_list out_edges = out_graph.out_edges(j);
        for (uint k=0; k < out_edges.size(); k++){
@@ -199,6 +229,24 @@ typedef graphlab::graph<vertex_data2, edge_data2>::edge_list_type edge_list;
     }
 
     logstream(LOG_INFO)<<"Finished exporting a total of " << total_edges << " ratings " << std::endl << " Positive ratings: " << positive_examples << " Negative ratings: " << negative_examples << std::endl;
+    ASSERT_EQ(out_graph.num_edges(), total_edges);
+    int total_edges_validation = 0;
+    mm_write_cpp_mtx_crd_size(fout_validation.get_sp(), nodes, nodes, out_graph_validation.num_edges());
+    for (int j=0; j< nodes; j++){
+       edge_list out_edges = out_graph_validation.out_edges(j);
+       for (uint k=0; k < out_edges.size(); k++){
+          total_edges_validation++;
+          fout_validation.get_sp() << (out_edges[k].source() +1) << " " <<
+							    (out_edges[k].target() + 1 - nodes) << " " <<
+                  out_graph_validation.edge_data(out_edges[k]).rating << " " <<
+                  out_graph_validation.edge_data(out_edges[k]).time << std::endl;
+				          
+       }
+    }
+
+    logstream(LOG_INFO)<<"Finished exporting a total of " << total_edges_validation << " ratings to validation graph. " << endl;
+    ASSERT_EQ(total_edges_validation + total_edges, num_edges);
+    ASSERT_EQ(out_graph_validation.num_edges(), total_edges_validation);
 
   }
 
@@ -218,6 +266,7 @@ int main(int argc,  char *argv[]) {
   clopts.add_positional("data");
   clopts.attach_option("debug", &debug, debug, "Display debug output.");
   clopts.attach_option("gzip", &gzip, gzip, "Gzipped input file?");
+  clopts.attach_option("split_day_of_year", &split_day_of_year, split_day_of_year, "split training set to validation set, for days >= split_day_of_year");
 
   // Parse the command line arguments
   if(!clopts.parse(argc, argv)) {
