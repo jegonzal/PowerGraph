@@ -504,7 +504,8 @@ namespace graphlab {
         // try to read a task
         if (vrec.owner == rmi.procid() && 
             workingset->get_reference_unsync(local_vid, uf)) {
-        
+          update_functor_type ufcopy = (*uf); 
+          do_init_gather(local_vid, *uf);
           if (!vrec.mirrors().empty() && uf->gather_edges() != graphlab::NO_EDGES) {
             // loop it to the mirrors
             vertex_id_type global_vid = graph.global_vid(local_vid);
@@ -515,7 +516,7 @@ namespace graphlab {
                             global_vid,
                             *uf);*/
             foreach(uint32_t m, vrec.mirrors()) {
-              outbuffer[m].push_back(std::make_pair(global_vid, *uf));
+              outbuffer[m].push_back(std::make_pair(global_vid, ufcopy));
               if (outbuffer[m].size() > BUFFER_LIMIT) {
                 rmi.remote_call((procid_t)m,
                             &distributed_synchronous_engine::workingset_add_batch, 
