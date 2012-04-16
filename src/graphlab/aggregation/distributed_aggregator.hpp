@@ -42,6 +42,8 @@ namespace graphlab {
     typedef typename graph_type::lvid_type lvid_type;
     typedef typename engine_type::update_functor_type update_functor_type;
     typedef typename engine_type::context_type context_type;
+    typedef typename graph_type::local_edge_list_type local_edge_list_type;
+    typedef typename graph_type::edge_type edge_type;
 
     typedef dc_dist_object< distributed_aggregator > rmi_type;
 
@@ -98,6 +100,16 @@ namespace graphlab {
 
         // Apply the update to the local vertices
         for(lvid_type lvid = counter++; lvid < nverts; lvid = counter++) {
+          if(local_accum.is_factorizable()) {       
+            const local_edge_list_type in_edges = graph_ptr->l_in_edges(lvid);
+            const local_edge_list_type out_edges = graph_ptr->l_out_edges(lvid);
+            context.init(graph_ptr->global_vid(lvid), EDGE_CONSISTENCY);
+            foreach(const edge_type& edge, in_edges) 
+              local_accum.gather(context, edge);
+            foreach(const edge_type& edge, out_edges) 
+              local_accum.gather(context, edge);
+          }
+
           if(graph_ptr->l_is_master(lvid)) {
             context.init(graph_ptr->global_vid(lvid), VERTEX_CONSISTENCY);
             local_accum(context);
@@ -270,9 +282,11 @@ namespace graphlab {
       const long negated_next_ucount = sync_queue.top().second;
       ASSERT_LE(negated_next_ucount, 0);
       const size_t next_ucount = size_t(-negated_next_ucount);
-      const size_t time_in_seconds = lowres_time_millis() * 60;
+      const size_t time_in_seconds = lowres_time_millis() / 1000;
       // if it is time to run the sync then spin off the threads
       if(next_ucount < time_in_seconds) { // Run the actual sync
+        std::cout << "Time pair: " 
+                  << next_ucount << "\t" << time_in_seconds << std::endl;
         const std::string key = sync_queue.top().first;
         sync_queue.pop();
         initiate_aggregate(key);
@@ -320,7 +334,7 @@ namespace graphlab {
 
     
     void schedule_prelocked(const std::string& key, size_t sync_interval) {
-      const size_t time_in_seconds = lowres_time_millis() * 60;
+      const size_t time_in_seconds = lowres_time_millis() / 1000;
       const long negated_next = -long(time_in_seconds + sync_interval); 
       sync_queue.push(key, negated_next);
     } // end of schedule_prelocked
