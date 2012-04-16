@@ -174,7 +174,7 @@ namespace graphlab {
     consistency_model consistency() const;
     consistency_model gather_consistency() const;
     consistency_model scatter_consistency() const;
-    void init_gather(iglobal_context_type& context);
+    void init_gather(icontext_type& context);
     void gather(icontext_type& context, const edge_type& edge);
     void merge(const update_functor_type& other);
     void apply(icontext_type& context);

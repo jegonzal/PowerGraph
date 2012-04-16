@@ -232,7 +232,7 @@ consistency_model proxy_updater::scatter_consistency() const {
   }
 }
 
-void proxy_updater::init_gather(iglobal_context_type& context) {
+void proxy_updater::init_gather(icontext_type& context) {
   JNIEnv *env = core::get_jni_env();
   env->CallVoidMethod(obj(), java_init_gather);
   handle_exception(env);
