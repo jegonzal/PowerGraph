@@ -552,7 +552,7 @@ void load_graph_dir(graphlab::distributed_control& dc,
     std::cout << max_vid << std::endl;
   }
   std::cout << "Adding vertex data" << std::endl;
-  for(size_t vid = dc.procid(); vid < max_vid; vid += dc.numprocs()) 
+  for(size_t vid = dc.procid(); vid <= max_vid; vid += dc.numprocs()) 
     graph.add_vertex(vid);
  
 
