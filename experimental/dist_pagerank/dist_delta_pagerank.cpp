@@ -36,8 +36,8 @@
 
 
 struct vertex_data : public graphlab::IS_POD_TYPE {
-  float value;
-  vertex_data(float value = 1) : value(value) { }
+  float old_value, value;
+  vertex_data(float value = 0) : old_value(value), value(value) { }
 }; // End of vertex data
 
 std::ostream& operator<<(std::ostream& out, const vertex_data& vdata) {
@@ -66,28 +66,30 @@ private:
   float accum;
 public:
   delta_pagerank(const float& accum = 0) : accum(accum) { }
-  double priority() const { return accum; }
+  double priority() const { return std::fabs(accum); }
   void operator+=(const delta_pagerank& other) { accum += other.accum; }
   bool is_factorizable() const { return true; }
   consistency_model consistency() const { return graphlab::DEFAULT_CONSISTENCY; }
   consistency_model gather_consistency() { return graphlab::EDGE_CONSISTENCY; }
   consistency_model scatter_consistency() { return graphlab::NULL_CONSISTENCY; }
   edge_set gather_edges() const { return graphlab::NO_EDGES; }
-  edge_set scatter_edges() const { return graphlab::OUT_EDGES; }
+  edge_set scatter_edges() const { 
+    return (accum >= ACCURACY)? graphlab::OUT_EDGES : graphlab::NO_EDGES;
+  }
 
   // Merge two delta_pagerank accumulators after running gather
-  void merge(const delta_pagerank& other) { accum += other.accum; }
+  void init_gather(iglobal_context_type& context) { }
+  void merge(const delta_pagerank& other) { }
 
   // Update the center vertex
   void apply(icontext_type& context) {
     vertex_data& vdata = context.vertex_data(); 
-    float old_value = vdata.value;
     vdata.value += accum;
-    const size_t num_out_edges = context.num_out_edges(context.vertex_id());
-    if(num_out_edges > 0) {
-      const float weight =  1.0 / float(num_out_edges);
-      accum = std::fabs(vdata.value - old_value) * weight * (1-RESET_PROB);
-    };
+    const size_t num_out_edges = 
+      std::max(context.num_out_edges(context.vertex_id()), size_t(1));
+    accum = 
+      (vdata.value - vdata.old_value) * (1-RESET_PROB) / float(num_out_edges);
+    if(std::fabs(accum) >= ACCURACY) vdata.old_value = vdata.value;
   } // end of apply
 
   // Reschedule neighbors 
@@ -243,8 +245,8 @@ int main(int argc, char** argv) {
   std::cout << dc.procid() << ": Creating engine" << std::endl;
   engine_type engine(dc, graph, clopts.get_ncpus());
   std::cout << dc.procid() << ": Intializing engine" << std::endl;
-  if(!clopts.get_scheduler_args().is_set("min_priority"))
-    clopts.get_scheduler_args().add_option("min_priority", ACCURACY);
+  // if(!clopts.get_scheduler_args().is_set("min_priority"))
+  //   clopts.get_scheduler_args().add_option("min_priority", ACCURACY);
   engine.set_options(clopts);
   engine.initialize();
   std::cout << dc.procid() << ": Scheduling all" << std::endl;
