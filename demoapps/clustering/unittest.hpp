@@ -20,7 +20,10 @@ void verify_result(double obj, double train_rmse, double validation_rmse){
          assert(fabs(ps.cost - 0.522652) < 1e-5);
          break;
 
-
+      case 31:
+         assert(fabs(ps.cost - -89600) < 1);
+         break;
+      
       case 101:
          //three clusters, 0->19, 20-> 39, 40 -> 59,
 	 assert(get_val(ps.output_assignements,0,0) == 0);
@@ -68,6 +71,14 @@ void unit_testing(int unittest, graphlab::command_line_options& clopts){
       clopts.set_ncpus(1);
       ac.K = 3;
    
+   }
+   else if (unittest == 31){
+      ac.datafile = "train.mtx";
+      ac.algorithm = LDA;
+      ac.iter = 20;
+      ac.init_mode = 0;
+      ac.K = 3;
+      ac.matrixmarket = true;
    }
    else if (unittest == 4){
      test_fmath();

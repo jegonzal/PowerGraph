@@ -222,6 +222,7 @@ lda_learn (double *alpha, double **beta)
 		 *
 		 */
 		lik = lda_lik(beta, gammas, ps.M);
+    ps.cost = lik;
 		elapsed = ps.gt.current_time();
 		logstream(LOG_INFO) << "likelihood " << lik << std::endl;
 		if ((t > 1) && (fabs((lik - plik)/lik) < ac.threshold)) {
