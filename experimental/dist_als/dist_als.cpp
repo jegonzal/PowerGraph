@@ -116,6 +116,7 @@ public:
     const vertex_id_type neighbor_id = context.vertex_id() == edge.target()?
       edge.source() : edge.target();
     const vertex_data& neighbor = context.const_vertex_data(neighbor_id);
+    ASSERT_EQ(neighbor.latent.size(), NLATENT);
     for(int i = 0; i < XtX.rows(); ++i) {
       Xty(i) += neighbor.latent(i) * edata.rating;
       // Compute the upper triangular component of XtX
@@ -126,6 +127,12 @@ public:
 
   // Merge two updates
   void merge(const als_update& other) {
+    ASSERT_EQ(XtX.rows(), NLATENT);
+    ASSERT_EQ(XtX.cols(), NLATENT);
+    ASSERT_EQ(other.XtX.rows(), NLATENT);
+    ASSERT_EQ(other.XtX.cols(), NLATENT);
+    ASSERT_EQ(Xty.size(), NLATENT);
+    ASSERT_EQ(other.Xty.size(), NLATENT);
     error += other.error; XtX += other.XtX; Xty += other.Xty;
   } // end of merge
 
@@ -134,6 +141,7 @@ public:
   void apply(icontext_type& context) {
     // Get and reset the vertex data
     vertex_data& vdata = context.vertex_data(); ++vdata.nupdates;
+    ASSERT_EQ(vdata.latent.size(), NLATENT);
     // Determine the number of neighbors.  Each vertex has only in or
     // out edges depending on which side of the graph it is located
     const size_t nneighbors = context.num_in_edges() + context.num_out_edges();
@@ -553,7 +561,7 @@ void load_graph_dir(graphlab::distributed_control& dc,
   }
   std::cout << "Adding vertex data" << std::endl;
   for(size_t vid = dc.procid(); vid <= max_vid; vid += dc.numprocs()) 
-    graph.add_vertex(vid);
+    graph.add_vertex(vid, vertex_data());
  
 
 } // end of load graph from directory

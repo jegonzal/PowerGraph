@@ -484,7 +484,7 @@ namespace graphlab {
       }
     }
     
-      /**
+    /**
      * Conceptual inverse of transmit_schedule.
      * Picks up all tasks on vertices I own, and send them to their 
      * mirrors.
@@ -811,7 +811,7 @@ namespace graphlab {
     }
 
     void parallel_main_stuff() {
-       for (size_t i = 0;i < ncpus; ++i) {
+      for (size_t i = 0; i < ncpus; ++i) {
         threads.launch(boost::bind(&distributed_synchronous_engine::main_stuff,
                                    this,
                                    i));
