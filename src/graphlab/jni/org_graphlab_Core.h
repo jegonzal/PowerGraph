@@ -44,8 +44,8 @@ JNIEXPORT void JNICALL Java_org_graphlab_Core_resizeGraph
  * Method:    addVertex
  * Signature: (JLorg/graphlab/data/Vertex;)I
  */
-JNIEXPORT jint JNICALL Java_org_graphlab_Core_addVertex
-  (JNIEnv *, jobject, jlong, jobject);
+JNIEXPORT void JNICALL Java_org_graphlab_Core_addVertex
+  (JNIEnv *, jobject, jlong, jobject, jint);
 
 /*
  * Class:     org_graphlab_Core

@@ -6,19 +6,34 @@ import org.apache.log4j.Logger;
 import org.graphlab.data.Vertex;
 import org.jgrapht.Graph;
 
+/*
+ * This interfaces with the C++ library via JNI and
+ * mirrors graphlab::core.
+ */
+
 /**
- * GraphLab Core.
+ * Core engine.
  * 
- * <p>
- * This interfaces with the C++ library via
- * <abbr title="Java Native Interface">JNI</abbr> and
- * mirrors <tt>graphlab::core</tt>.
- * </p>
+ * <p>Refer to the classes in {@link org.graphlab.demo} for examples on how
+ * to use GraphLab. A tutorial is also available on the official website.</p>
  * 
- * <p>
- * All logging from this core is done via {@link org.apache.log4j.Logger}.
+ * <h3>Usage</h3>
+ * <p>In general, your applications should be structured as follows:</p>
+ * <pre>
+Core c = new Core();
+c.setGraph(graph);
+c.scheduleAll(...);
+c.destroy();
+ * </pre>
+ * <b>Important</b>
+ * <p>All applications must invoke {@link #destroy} at the end of its execution;
+ * this terminates remaining threads and terminates the application.</p>
+ * 
+ * <h3>Logging</h3>
+ * <p>All logging from the GraphLab Core is done via {@link org.apache.log4j.Logger}.
  * To configure, retrieve the logger using <tt>Logger.getClass(Core.class)</tt>.
- * </p>
+ * At the very least, you will need to invoke <code>BasicConfigurator.configure()</code>
+ * at the beginning of your code to setup a basic configuration of log4j.</p>
  * 
  * @author Jiunn Haur Lim <jiunnhal@cmu.edu>
  * @see <a href="http://logging.apache.org/log4j/1.2/manual.html">Log4J</a>
@@ -41,7 +56,7 @@ public final class Core {
 	}
 
 	/**
-	 * Creates a new GraphLab core.
+	 * Creates a new GraphLab core with the default configuration options.
 	 * 
 	 * <p><b>Call {@link #destroy()} when done to free up resources.</b>
 	 * The program will not terminate if you forget, because that leaves
@@ -59,7 +74,7 @@ public final class Core {
 	}
 	
 	 /**
-   * Creates a new GraphLab core.
+   * Creates a new GraphLab core the specified configuration options.
    * 
    * <p><b>Call {@link #destroy()} when done to free up resources.</b>
    * The program will not terminate if you forget, because that leaves
@@ -80,12 +95,11 @@ public final class Core {
   }
 
   /**
-   * Tells core to operate on this graph. This creates a proxy graph in the
-   * GraphLab engine. Updates are forwarded to the Java updater (which you will
-   * provide through {@link #schedule(Vertex, Updater)}.)
+   * Tells the GraphLab core to operate on this graph. This creates a proxy
+   * graph in the GraphLab engine. Updates are forwarded to the Java updaters
+   * that are scheduled using {@link #schedule(Vertex, Updater)}.
    * 
-   * <b> Once this is called, your graph must not be modified (or there be
-   * dragons!) </b>
+   * <p><b>Once this is called, your graph must not be modified.</b></p>
    * 
    * @param graph
    *          the graph for the core operate on.
@@ -119,11 +133,11 @@ public final class Core {
 
 		// add vertices
 		for (Vertex vertex : vertices)
-		  vertex.setRawId(addVertex(mCorePtr, vertex));
+		  addVertex(mCorePtr, vertex, vertex.id());
 
 		// add edges
 		for (E edge : graph.edgeSet())
-		  addEdge(mCorePtr, graph.getEdgeSource(edge).rawId(), graph.getEdgeTarget(edge).rawId(), edge);
+		  addEdge(mCorePtr, graph.getEdgeSource(edge).id(), graph.getEdgeTarget(edge).id(), edge);
 
 		long elapsed = System.currentTimeMillis() - startTime;
 		logger.info ("Graph transferring took: " + elapsed + " ms.");
@@ -133,7 +147,7 @@ public final class Core {
   /**
    * Destroys the GraphLab core. Once destroyed, this object may not be used.
    * Calling {@link #destroy()} more than once on the same object will generate
-   * a warning in the logs but will not any other effects.
+   * a warning in the logs but will not have any other effects.
    */
 	public void destroy() {
 
@@ -152,11 +166,14 @@ public final class Core {
 	}
 
   /**
-   * Run the engine until a termination condition is reached or there are no
-   * more tasks remaining to execute. <b>{@link #setGraph} must
-   * be called before invoking this method</b>.
+   * Runs the engine until a termination condition is reached or there are no
+   * more tasks remaining to execute.
    * 
-   * @return runtime
+   * <p>
+   * <b>{@link #setGraph} must be called before invoking this method</b>.
+   * </p>
+   * 
+   * @return amount of time taken in seconds
    * @throws IllegalStateException
    *           if {@link #destroy()} was invoked on this object
    */
@@ -171,7 +188,7 @@ public final class Core {
 	}
 	
 	/**
-	 * Get the number of updates executed by the engine.
+	 * Gets the number of updates executed by the engine.
 	 * @return update count
    * @throws IllegalStateException
    *           if {@link #destroy()} was invoked on this object
@@ -232,9 +249,13 @@ public final class Core {
   }
 
   /**
-   * Schedule the execution of an update function on a particular vertex.
+   * Schedules the execution of an updater on the specified vertex.
+   * 
+   * <p>The GraphLab schedulers will execute the update on the vertex when
+   * it is safe to do so (as defined by the consistency model.)</p>
    * 
    * @param vertex
+   *          vertex to schedule
    * @param updater
    *          updater to execute
    * @throws NullPointerException
@@ -250,20 +271,25 @@ public final class Core {
 		if (mDestroyed)
 			throw new IllegalStateException("Core has been destroyed and may not be reused.");
 
-		schedule(mCorePtr, updater, vertex.rawId());
+		schedule(mCorePtr, updater, vertex.id());
 		
 	}
 	
-	/**
-	 * Schedules the execution of the update function on all vertices.
-	 * 
-	 * @param updater
-	 *         updater to execute
+  /**
+   * Schedules the execution of the update function on all vertices.
+   * 
+   * <p>
+   * The GraphLab schedulers will execute the updates it is safe to do so (as
+   * defined by the consistency model.)
+   * </p>
+   * 
+   * @param updater
+   *          updater to execute
    * @throws NullPointerException
    *           if <tt>updater</tt> was null
    * @throws IllegalStateException
    *           if {@link #destroy()} was invoked on this object
-	 */
+   */
 	public void scheduleAll(Updater<?, ?, ?> updater){
 	  
 	  if (null == updater)
@@ -277,7 +303,7 @@ public final class Core {
 	}
 	
   /**
-   * Registers a aggregator with the engine. The aggregator is used to collect
+   * Registers an aggregator with the engine. The aggregator is used to collect
    * data about the graph every "interval" updates.
    * 
    * @param key
@@ -302,11 +328,10 @@ public final class Core {
 	}
 	
   /**
-   * Performs a sync immediately. This function requires that the shared
-   * variable already be registered with the engine.
+   * Executes the specified aggregator immediately.
    * 
    * @param key
-   *          name of the aggregator to sync
+   *          name of the aggregator to execute
    * @throws NullPointerException
    *          if <tt>key</tt> is null
    * @throws IllegalArgumentException
@@ -323,6 +348,9 @@ public final class Core {
   /**
    * Sets the number of CPUs that the engine will use. This will destroy the
    * current engine and any tasks associated with the current scheduler.
+   * 
+   * <p>Using {@link #Core(CoreConfiguration)} to configure the core is preferred
+   * over using this method.</p>
    * 
    * @param ncpus
    *          number of CPUs that the engine will use.
@@ -345,6 +373,9 @@ public final class Core {
    * scheduler options. This will destroy the current engine and any tasks
    * currently associated with the scheduler.
    * 
+   * <p>Using {@link #Core(CoreConfiguration)} to configure the core is preferred
+   * over using this method.</p>
+   * 
    * @param scheduler
    * @throws NullPointerException
    *           if <tt>scheduler</tt> was null
@@ -363,6 +394,9 @@ public final class Core {
    * Sets the scope consistency model that the engine will use. This will
    * destroy the current engine and any tasks currently associated with the
    * scheduler.
+   * 
+   * <p>Using {@link #Core(CoreConfiguration)} to configure the core is preferred
+   * over using this method.</p>
    * 
    * @param scope
    * @throws NullPointerException
@@ -416,11 +450,11 @@ public final class Core {
 	 * @param ptr
 	 * 			{@link #mCorePtr}
 	 * @param vertex
-	 * 			application vertex ID
-	 * @return
-	 * 			graphlab vertex ID
+	 * 			vertex
+	 * @param vertexID
+	 *       id of vertex
 	 */
-	private native int addVertex(long ptr, Vertex vertex);
+	private native void addVertex(long ptr, Vertex vertex, int vertexID);
 
 	/**
 	 * Adds an edge to the native graph.
@@ -561,7 +595,8 @@ public final class Core {
 	private native void setScopeType(long ptr, String scopeType);
 	
 	/**
-	 * Generic exception for dealing with GraphLab cores
+	 * Generic exception for dealing with GraphLab cores. Usually thrown when an error
+	 * is encountered while trying to allocate memory for the core.
 	 * 
 	 * @author Jiunn Haur Lim
 	 */

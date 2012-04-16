@@ -224,9 +224,9 @@ namespace graphlab {
 
   struct edge_list{
     uint * start_ptr;
-    uint _size;
+    size_t _size;
     uint source;
-    uint abs_offset;
+    size_t abs_offset;
     typedef edge_iterator iterator;
     typedef edge_iterator const_iterator;
     typedef edge_type value_type;
@@ -236,18 +236,19 @@ namespace graphlab {
     void* weights; 
 
     edge_list(): start_ptr(NULL), _size(0), source(-1), abs_offset(0), itype(OUTEDGE), weights(NULL) { }
-    edge_list(uint * _start_ptr, uint size, uint _source, uint _abs_offset, iterator_type _itype, void * _weights): 
+    edge_list(uint * _start_ptr, size_t size, uint _source, size_t _abs_offset, iterator_type _itype, void * _weights): 
       begin_ptr(_source, _abs_offset, _itype, _start_ptr), 
       end_iter_ptr(_source, _abs_offset+size, _itype, _start_ptr){
       start_ptr = _start_ptr; abs_offset = _abs_offset;
       _size = size; source = _source; itype = _itype;
       weights = _weights;
-      assert(source < gnum_nodes); 
+      ASSERT_LT(source , gnum_nodes); 
       //assert(_abs_offset+size <= g_num_edges);
-      assert(size < gnum_nodes); 
+      assert(size<gnum_nodes);
+      ASSERT_LT(size , gnum_nodes); 
     }
 
-    uint size() const { return _size; }
+    size_t size() const { return _size; }
 
     edge_type operator[](uint i) const{
       ASSERT_LT(i, _size);
@@ -712,13 +713,17 @@ namespace graphlab {
 
 
     /** \brief Load the graph from a file */
-    void load_directed(const std::string& filename, bool no_node_data, bool no_edge_data, bool one_sided = false) {
+    void load_directed(const std::string& filename, bool no_node_data, bool no_edge_data, bool one_sided = false, int nodes = 0) {
          assert(!undirected);
          double total_mb_allocated = 0;
  #pragma omp parallel for
        for (int i=0; i< 6; i++){
           do_load_directed(filename, no_node_data, no_edge_data, i, total_mb_allocated, one_sided);
        } 
+
+       if (nodes > 0 ) //override the number of nodes if requested (in case there are more nodes without edges, or less nodes
+       //are requested
+        num_nodes = nodes;
          //read edge weights from file (optional)
         logstream(LOG_INFO) << "Total allocated memory for storing input matrix is: " << total_mb_allocated <<  " MB." << std::endl;
         logstream(LOG_INFO) << "Loaded a graph size of : " << num_nodes << " and " << _num_edges << " edges. " << std::endl;

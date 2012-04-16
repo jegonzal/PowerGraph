@@ -12,10 +12,7 @@ import org.jgrapht.graph.DefaultDirectedWeightedGraph;
 import org.jgrapht.graph.DefaultWeightedEdge;
 
 /**
- * Say HELLO! to GraphLab.
- * 
- * Before running, add "-Djava.library.path=${resource_loc:/GraphLab-App/lib}" to the
- * VM arguments in the Run Configuration.
+ * Sums over all vertices.
  * 
  * @author Jiunn Haur Lim
  */
@@ -46,7 +43,8 @@ public class Sum {
     
   }
   
-  private static class SumAggregator extends Aggregator<ScalarVertex, SumAggregator> {
+  private static class SumAggregator
+    extends Aggregator<ScalarVertex, SumAggregator> {
 
     private int sum;
     

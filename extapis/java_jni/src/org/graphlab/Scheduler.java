@@ -9,7 +9,15 @@ import java.util.Map.Entry;
 import org.graphlab.util.StringUtils;
 
 /**
- * Mirrors scheduler_list.hpp
+ * Collection of built-in basic schedulers.
+ * 
+ * <p>Schedulers decide when to execute updates on the vertices of a graph.</p>
+ * 
+ * <p>The GraphLab framework provides a collection of built-in basic schedulers as
+ * well as some more exotic specialized dynamic schedules. Here, we provide a
+ * brief description of each scheduler as well as the options available for each
+ * scheduler.</p>
+ * 
  * @author Jiunn Haur Lim <jiunnhal@cmu.edu>
  * @see <a href="http://graphlab.org/doxygen/html/Schedulers.html">Schedulers</a>
  */

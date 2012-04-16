@@ -67,6 +67,9 @@
     <target name="dist" depends="build, javadoc" description="generate the distribution" >
       <mkdir dir="${dist}/lib"/>
       <jar jarfile="${dist}/lib/graphlab.jar" basedir="${bin}"/>
+      <copy todir="${dist}/lib">
+        <fileset dir="${lib}"/>
+      </copy>
     </target>
 
     <target name="javadoc" depends="build" description="Create Javadoc API documentation">
@@ -102,7 +105,7 @@
     
     <target name="PageRank">
         <echo message="Arguments: ${file}"/>
-        <java classname="org.graphlab.demo.PageRank" failonerror="true" fork="yes">
+        <java classname="org.graphlab.demo.pagerank.PageRank" failonerror="true" fork="yes">
             <jvmarg line="-Djava.library.path=${lib}"/>
             <arg line="${file}"/>
             <classpath refid="run.PageRank.classpath"/>
@@ -111,7 +114,7 @@
     
     <target name="PageRankFactorized">
         <echo message="Arguments: ${file}"/>
-        <java classname="org.graphlab.demo.PageRankFactorized" failonerror="true" fork="yes">
+        <java classname="org.graphlab.demo.pagerank.PageRankFactorized" failonerror="true" fork="yes">
             <jvmarg line="-Djava.library.path=${lib}"/>
             <arg line="${file}"/>
             <classpath refid="run.PageRankFactorized.classpath"/>

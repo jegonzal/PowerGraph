@@ -1,4 +1,4 @@
-package org.graphlab.demo;
+package org.graphlab.demo.pagerank;
 
 import org.graphlab.data.ScalarVertex;
 
@@ -6,8 +6,7 @@ import org.graphlab.data.ScalarVertex;
  * PageRankVertex.
  * 
  * Contains some additional data.
- * @author Jiunn Haur Lim
- *
+ * @author Jiunn Haur Lim <jiunnhal@cmu.edu>
  */
 public class PageRankVertex extends ScalarVertex {
 
