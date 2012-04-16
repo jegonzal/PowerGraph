@@ -38,8 +38,9 @@
  */
 double TOLERANCE = 1e-2;
 size_t NLATENT = 20;
-double LAMBDA = 0.065;
-
+double LAMBDA = 0.01;
+size_t max_wordid = 0;
+size_t max_vid = 0;
 graphlab::oarchive& operator<<(graphlab::oarchive& arc, const Eigen::VectorXd& vec);
 graphlab::iarchive& operator>>(graphlab::iarchive& arc, Eigen::VectorXd& vec);
 graphlab::oarchive& operator<<(graphlab::oarchive& arc, const Eigen::MatrixXd& mat);
@@ -53,7 +54,12 @@ struct vertex_data {
   //constructor
   vertex_data() : 
     residual(std::numeric_limits<float>::max()), 
-    nupdates(0) { latent.resize(NLATENT); latent.setRandom(); }
+    nupdates(0) { 
+    latent.resize(NLATENT);
+    // Initialize the latent variables
+    for(size_t i = 0; i < NLATENT; ++i) 
+      latent(i) = graphlab::random::gaussian();
+  }
   void save(graphlab::oarchive& arc) const { 
     arc << residual << nupdates << latent;        
   }
@@ -66,9 +72,9 @@ struct vertex_data {
  * The edge data is just an observation float
  */
 struct edge_data : public graphlab::IS_POD_TYPE {
-  float rating; bool is_test; 
-  edge_data(const float& rating = 0, const bool& is_test = false) : 
-    rating(rating), is_test(is_test) { }
+  float rating, error;
+  edge_data(const float& rating = 0) :
+    rating(rating), error(std::numeric_limits<float>::max()) { }
 }; // end of edge data
 
 /**
@@ -106,7 +112,7 @@ public:
   void gather(icontext_type& context, const edge_type& edge) {
     // Get the edge data and skip the edge if it is for testing only
     const edge_data& edata = context.const_edge_data(edge);
-    if(edata.is_test) return;
+    //if(edata.is_test) return;
     const vertex_id_type neighbor_id = context.vertex_id() == edge.target()?
       edge.source() : edge.target();
     const vertex_data& neighbor = context.const_vertex_data(neighbor_id);
@@ -136,7 +142,7 @@ public:
     for(size_t i = 0; i < NLATENT; ++i) 
       for(size_t j = i+1; j < NLATENT; ++j) XtX(i,j) = XtX(j,i);
     // Add regularization
-    for(int i = 0; i < XtX.rows(); ++i) XtX(i,i) += (LAMBDA)*nneighbors;
+    for(int i = 0; i < XtX.rows(); ++i) XtX(i,i) += LAMBDA*nneighbors;
     // Solve the least squares problem using eigen ----------------------------
     const Eigen::VectorXd old_latent = vdata.latent;
     vdata.latent = XtX.ldlt().solve(Xty);
@@ -145,6 +151,13 @@ public:
     for(int i = 0; i < XtX.rows(); ++i)
       vdata.residual += std::fabs(old_latent(i) - vdata.latent(i));
     vdata.residual /= XtX.rows();
+    // if(context.vertex_id() % 1000 == 0) {
+    //   std::cout << context.vertex_id() << ": r = " 
+    //             << vdata.residual << "; [";
+    //   for(int i = 0; i < XtX.rows(); ++i)
+    //     std::cout << vdata.latent(i) << " ";
+    //   std::cout << "]" << std::endl;
+    // } // display output
   } // end of apply
 
   void scatter(icontext_type& context, const edge_type& edge) {
@@ -152,14 +165,15 @@ public:
     const vertex_id_type neighbor_id = context.vertex_id() == edge.target()?
       edge.source() : edge.target();
     const vertex_data& neighbor = context.const_vertex_data(neighbor_id);
-    const edge_data& edata = context.const_edge_data(edge);
+    edge_data& edata = context.edge_data(edge);
     // Compute the prediction on the edge
     const double pred = vdata.latent.dot(neighbor.latent);
     const double error = std::fabs(edata.rating - pred);
+    edata.error = error;
     // std::cout << edata.rating << '\t' << pred 
     //           << '\t' << vdata.residual << std::endl;
     // Reschedule neighbors ------------------------------------------------
-    if( error > TOLERANCE && vdata.residual > TOLERANCE) 
+    if( (error * vdata.residual) > TOLERANCE ) 
       context.schedule(neighbor_id, als_update(error * vdata.residual));
   } // end of scatter
   void save(graphlab::oarchive& arc) const { arc << XtX << Xty << error; }
@@ -167,8 +181,67 @@ public:
 }; // end of class ALS update
 
 
+
+
+class aggregator :
+  public graphlab::iaggregator<graph_type, als_update, aggregator>, 
+  public graphlab::IS_POD_TYPE {
+private:
+  float rmse, max_error, residual, max_residual;
+  size_t nedges, min_updates, max_updates, total_updates;
+public:
+  aggregator() : 
+    rmse(0), max_error(0), residual(0), max_residual(0),
+    nedges(0), min_updates(-1), max_updates(0), total_updates(0) { }
+  inline bool is_factorizable() const { return true; }
+
+  void gather(icontext_type& context, const edge_type& edge) {
+    const edge_data& edata = context.const_edge_data(edge);
+    rmse += (edata.error * edata.error);
+    ++nedges;
+    max_error = std::max(max_error, edata.error);
+  }
+
+  void operator()(icontext_type& context) {
+    const vertex_data& vdata = context.const_vertex_data();
+    residual += vdata.residual;
+    max_residual = std::max(max_residual, vdata.residual);
+    min_updates = std::min(min_updates, size_t(vdata.nupdates));
+    max_updates = std::max(max_updates, size_t(vdata.nupdates));
+    total_updates += vdata.nupdates;
+  }
+
+  void operator+=(const aggregator& other) { 
+    rmse += other.rmse; 
+    nedges += other.nedges;
+    max_error = std::max(max_error, other.max_error);
+    residual += other.residual;
+    max_residual = std::max(max_residual, other.residual);
+    min_updates = std::min(min_updates, other.min_updates);
+    max_updates = std::max(max_updates, other.max_updates);
+    total_updates += other.total_updates;
+  }
+
+  void finalize(iglobal_context_type& context) {
+    std::cout 
+      << std::setw(10) << sqrt( rmse / nedges ) << '\t'
+      << std::setw(10) << max_error << '\t'
+      << std::setw(10) << max_residual << '\t'
+      << std::setw(10) << max_updates << '\t'
+      << std::setw(10) << min_updates << '\t'
+      << std::setw(10) << (double(total_updates) / context.num_vertices()) 
+      << std::endl;
+  }
+}; // end of  aggregator
+
+
+
+
+
 #ifdef FSCOPE
 typedef graphlab::distributed_fscope_engine<graph_type, als_update> engine_type;
+#elif SYNC
+typedef graphlab::distributed_synchronous_engine<graph_type, als_update> engine_type;
 #else
 typedef graphlab::distributed_engine<graph_type, als_update> engine_type;
 #endif
@@ -176,7 +249,8 @@ typedef graphlab::distributed_engine<graph_type, als_update> engine_type;
 
 
 //! Graph loading code 
-void load_graph_dir(graph_type& graph, const std::string& matrix_dir,
+void load_graph_dir(graphlab::distributed_control& dc,
+                    graph_type& graph, const std::string& matrix_dir,
                     const size_t procid, const size_t numprocs);
 void load_graph_file(graph_type& graph, const std::string& fname);
 
@@ -201,7 +275,7 @@ int main(int argc, char** argv) {
   clopts.attach_option("matrix", &matrix_dir, matrix_dir,
                        "The directory containing the matrix file");
   clopts.add_positional("matrix");
-   clopts.attach_option("D",
+  clopts.attach_option("D",
                        &NLATENT, NLATENT,
                        "Number of latent parameters to use.");
   clopts.attach_option("LAMBDA", &LAMBDA, LAMBDA, "ALS regularization weight"); 
@@ -232,11 +306,10 @@ int main(int argc, char** argv) {
   std::cout << dc.procid() << ": Loading graph." << std::endl;
   graphlab::timer timer; timer.start();
   graph_type graph(dc, clopts);
-  load_graph_dir(graph, matrix_dir, dc.procid(), dc.numprocs());
+  load_graph_dir(dc, graph, matrix_dir, dc.procid(), dc.numprocs());
   std::cout << dc.procid() << ": Finalizing graph." << std::endl;
   graph.finalize();
   std::cout << dc.procid() << ": Finished in " << timer.current_time() << std::endl;
-
 
   if(dc.procid() == 0){
     std::cout
@@ -258,6 +331,11 @@ int main(int argc, char** argv) {
       << float(graph.num_local_edges())/graph.num_edges()
       << std::endl;
   }
+  std::cout << dc.procid() << ": Initializign vertex data. " 
+            << timer.current_time() << std::endl;
+
+
+
 
   if (savebin) graph.save(binpath, binprefix);
  
@@ -267,10 +345,19 @@ int main(int argc, char** argv) {
   std::cout << dc.procid() << ": Intializing engine" << std::endl;
   engine.set_options(clopts);
   engine.initialize();
+  engine.add_aggregator("error", aggregator(), 10); 
+  std::cout << "Precomputing the error" << std::endl;
+  // engine.aggregate_now("error");
+
   std::cout << dc.procid() << ": Scheduling all" << std::endl;
-  engine.schedule_all(als_update(10000));
+  for(size_t lvid = 0; lvid < graph.num_local_vertices(); ++lvid) {
+    if(graph.l_is_master(lvid) && graph.global_vid(lvid) < max_wordid)  
+      engine.schedule_local(lvid, als_update(10000));
+  }
+  //  engine.schedule_all(als_update(10000));
   dc.full_barrier();
   
+
   // Run the PageRank ---------------------------------------------------------
   std::cout << "Running ALS" << std::endl;
   timer.start();
@@ -380,12 +467,14 @@ void load_graph_stream(graph_type& graph, Stream& fin) {
   // Loop over the contents
   while(fin.good()) {
     // Load a vertex
-    graph_type::vertex_id_type source = 0, target = 0;
+    size_t source = 0, target = 0;
     float value = 0;
     fin >> source >> target >> value; 
     if(!fin.good()) break;
-    if(source != target)
-      graph.add_edge(source, target, edge_data(value));
+    ASSERT_LT(target, source);
+    max_wordid = std::max(target, max_wordid);
+    max_vid = std::max(max_vid, std::max(target, source));
+    graph.add_edge(source, target, edge_data(value));
   } // end of loop over file
 } // end of load graph from stream;
 
@@ -423,7 +512,8 @@ void load_graph_file(graph_type& graph, const std::string& fname) {
 } // end of load graph from file
 
 
-void load_graph_dir(graph_type& graph, const std::string& matrix_dir,
+void load_graph_dir(graphlab::distributed_control& dc,
+                    graph_type& graph, const std::string& matrix_dir,
                     const size_t procid, const size_t numprocs) {
   std::vector<std::string> graph_files;
   if(boost::starts_with(matrix_dir, "hdfs://")) {
@@ -443,4 +533,27 @@ void load_graph_dir(graph_type& graph, const std::string& matrix_dir,
       load_graph_file(graph, graph_files[i]);
     }
   }
+  {
+    std::cout << "Determining max wordid: ";
+    std::vector<size_t> max_wordids(dc.numprocs());
+    max_wordids[dc.procid()] = max_wordid;
+    dc.all_gather(max_wordids);
+    for(size_t i = 0; i < max_wordids.size(); ++i)
+      max_wordid = std::max(max_wordid, max_wordids[i]);
+    std::cout << max_wordid << std::endl;
+  }
+  {
+    std::cout << "Determining max vid: ";
+    std::vector<size_t> max_vids(dc.numprocs());
+    max_vids[dc.procid()] = max_vid;
+    dc.all_gather(max_vids);
+    for(size_t i = 0; i < max_vids.size(); ++i)
+      max_vid = std::max(max_vid, max_vids[i]);
+    std::cout << max_vid << std::endl;
+  }
+  std::cout << "Adding vertex data" << std::endl;
+  for(size_t vid = dc.procid(); vid < max_vid; vid += dc.numprocs()) 
+    graph.add_vertex(vid);
+ 
+
 } // end of load graph from directory
