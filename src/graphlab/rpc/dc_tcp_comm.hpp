@@ -211,7 +211,8 @@ class dc_tcp_comm:public dc_comm_base {
   void send_all(socket_info& sockinfo);
   bool send_till_block(socket_info& sockinfo);
   void check_for_new_data(socket_info& sockinfo);
-  void construct_events(size_t sockets_per_thread = 4);
+  void construct_events(size_t send_sockets_per_thread = 16,
+                        size_t recv_sockets_per_thread = 4);
   
 
   // counters

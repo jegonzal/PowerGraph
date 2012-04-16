@@ -129,8 +129,10 @@ namespace graphlab {
       // everyone is connected.
       // Construct the eventbase
       iter = initopts.find("sockets_per_thread");
-      if (iter != initopts.end()) {
-        construct_events(atoi(iter->second.c_str()));
+     if (iter != initopts.end()) {
+        size_t sendsocks_per_thread = atoi(iter->second.c_str());
+        size_t recvsocks_per_thread = atoi(iter->second.c_str());
+        construct_events(sendsocks_per_thread, recvsocks_per_thread);
       }
       else {
         construct_events();
@@ -144,40 +146,51 @@ namespace graphlab {
       is_closed = false;
     }
 
-    void dc_tcp_comm::construct_events(size_t sockets_per_thread) {
-      if (sockets_per_thread == 0) sockets_per_thread = 1;
+    void dc_tcp_comm::construct_events(size_t send_sockets_per_thread, size_t recv_sockets_per_thread) {
+      send_sockets_per_thread += (send_sockets_per_thread == 0);
+      recv_sockets_per_thread += (recv_sockets_per_thread == 0); 
       int ret = evthread_use_pthreads();
       if (ret < 0) logstream(LOG_FATAL) << "Unable to initialize libevent with pthread support!" << std::endl;
       // number of evs to create.
-      size_t nevs = sock.size() / sockets_per_thread + (sock.size() % sockets_per_thread > 0);
-      inevbase.resize(nevs);
-      outevbase.resize(nevs);
-      out_timeouts.resize(nevs);
-      timeoutevents.resize(nevs);
-      sockets_per_thread = sock.size() / nevs + (sock.size() % nevs > 0);
-      for (size_t i = 0;i < nevs; ++i) {
-        inevbase[i] = event_base_new();
-        if (!inevbase[i]) logstream(LOG_FATAL) << "Unable to construct libevent base" << std::endl;
+      size_t n_send_evs = sock.size() / send_sockets_per_thread + (sock.size() % send_sockets_per_thread > 0);
+      size_t n_recv_evs = sock.size() / recv_sockets_per_thread + (sock.size() % recv_sockets_per_thread > 0);
+
+      inevbase.resize(n_recv_evs);
+      outevbase.resize(n_send_evs);
+      out_timeouts.resize(n_send_evs);
+      timeoutevents.resize(n_send_evs);
+      // update socks per thread to redistribute the events better
+      send_sockets_per_thread = sock.size() / n_send_evs + (sock.size() % n_send_evs > 0);
+      recv_sockets_per_thread = sock.size() / n_recv_evs + (sock.size() % n_recv_evs > 0);
+
+      for (size_t i = 0;i < n_send_evs; ++i) {
         outevbase[i] = event_base_new();
         if (!outevbase[i]) logstream(LOG_FATAL) << "Unable to construct libevent base" << std::endl;
         timeoutevents[i].owner = this;
-        timeoutevents[i].sockstart = i * sockets_per_thread;
-        timeoutevents[i].sockend = std::min(sock.size(), (i + 1) * sockets_per_thread);
+        timeoutevents[i].sockstart = i * send_sockets_per_thread;
+        timeoutevents[i].sockend = std::min(sock.size(), (i + 1) * send_sockets_per_thread);
         out_timeouts[i] = event_new(outevbase[i], -1, EV_TIMEOUT | EV_PERSIST, on_send_event, &(timeoutevents[i]));
         struct timeval t = {0, 10};
         event_add(out_timeouts[i], &t);
       }
-      
+
+      for (size_t i = 0;i < n_recv_evs; ++i) {
+        inevbase[i] = event_base_new();
+        if (!inevbase[i]) logstream(LOG_FATAL) << "Unable to construct libevent base" << std::endl;
+      }
+
+
       //register all event objects
       for (size_t i = 0;i < sock.size(); ++i) {
-        size_t evid = i / sockets_per_thread;
-        sock[i].inevent = event_new(inevbase[evid], sock[i].insock, EV_READ | EV_PERSIST | EV_ET,
+        size_t ev_in_id = i / recv_sockets_per_thread;
+        size_t ev_out_id = i / send_sockets_per_thread;
+        sock[i].inevent = event_new(inevbase[ev_in_id], sock[i].insock, EV_READ | EV_PERSIST | EV_ET,
                                      on_receive_event, &(sock[i]));
         if (sock[i].inevent == NULL) {
           logstream(LOG_FATAL) << "Unable to register socket read event" << std::endl;
         }
 
-        sock[i].outevent = event_new(outevbase[evid], sock[i].outsock, EV_WRITE,
+        sock[i].outevent = event_new(outevbase[ev_out_id], sock[i].outsock, EV_WRITE,
                                      on_send_event, &(sock[i]));
         if (sock[i].outevent == NULL) {
           logstream(LOG_FATAL) << "Unable to register socket write event" << std::endl;
