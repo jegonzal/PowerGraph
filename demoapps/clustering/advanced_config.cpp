@@ -121,6 +121,11 @@ void problem_setup::verify_setup(){
      output_comment4 += std::string("%%This file contains the eigenvectors of A'A\n");
       break;
 
+   case LDA:
+     output_assignements_comment += std::string("%%This file contains gammas, K-dimensional vector for each document (where K is the number of topics), and that represents the variational posterior Dirichlet parameters for a particular document.  In other words, if K=3, and gamma = [1 2 2], it means that the posterior distribution over theta for this document is distributed Dirichlet(1, 2, 2), and thus if you just want to take the posterior mean topic distribution for this particular document, it would be [0.2 0.4 0.4], based on the properties of a Dirichlet distribution.\n");
+     output_clusters_comment += std::string("%%This file contains a matrix betas of size words x topics, in each entry we have P(word|topic)\n");
+     break;
+
    default:
       break;
    };

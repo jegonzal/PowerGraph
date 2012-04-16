@@ -76,6 +76,24 @@ void init_scratch_buffers(){
 }
 
 
+void fill_output_lda(){
+
+     ps.output_clusters = zeros(ps.N, ps.K);
+     for (int i=0; i<ps.N; i++){
+        flt_dbl_vec row(ac.K);
+        for (int j=0; j< ac.K; j++)
+           row[j] = beta[i][j];
+        set_row(ps.output_clusters, i, row);
+     }
+     ps.output_assignements = zeros(ps.M, ac.K);
+     for (int i=0; i< ps.M; i++){ 
+        flt_dbl_vec row(ac.K);
+        for (int j=0; j< ac.K; j++)
+           row[j] = gammas[i][j];
+        set_row(ps.output_assignements,i,row);
+     }	
+}
+
 void
 lda_learn (double *alpha, double **beta)
 {
@@ -230,31 +248,13 @@ lda_learn (double *alpha, double **beta)
 		       (int)((double) elapsed / (t + 1) + 0.5));
 	}
  
-
-        //fill_output_lda();
+  fill_output_lda();
        
 	free_dmatrix(gammas, n);
 	free_dmatrix(betas, ps.N);
         free(scratch);	
 	return;
 }
-
-/*
-void fill_output_lda(){
-
-     //ps.output_clusters = zeros(ps.K, ps.N);
-        //for (int i=0; i<ps.K; i++)
-        //  ps.output_clusters.set_row(i, ps.clusts.cluster_vec[i].location);
-     //TODO
-     //
-     ps.output_assignements = zeros(ps.M, ac.K);
-     for (int i=0; i< ps.M; i++){ 
-        flt_dbl_vec row(ac.K);
-        for (int j=0; j< ac.K; j++)
-           row[j] = gammas[i][j];
-        set_row(ps.output_assignements,i,row);
-     }	
-}*/
 
 /*void
 accum_gammas (double **gammas, double *_gamma, int n, int K)
@@ -270,12 +270,14 @@ void
 accum_betas (double **betas, int K, vertex_data & data)
 {
 	int k;
-        FOR_ITERATOR_(i, data.datapoint){
+  int pos = 0;
+  FOR_ITERATOR_(i, data.datapoint){
 		int id = get_nz_index(data.datapoint, i);
-                int cnt = (int)get_nz_data(data.datapoint, i);
+    int cnt = (int)get_nz_data(data.datapoint, i);
 		for (k = 0; k < ac.K; k++)
-			betas[id][k] += data.distances[i*ac.K+k] * cnt;
-        }
+			betas[id][k] += data.distances[pos*ac.K+k] * cnt;
+    pos++;
+  }
 }
 
 
@@ -334,9 +336,6 @@ lda_lik (double **beta, double **gammas, int m)
 		        int cnt = get_nz_data(data.datapoint, j);
 			for (k = 0, z = 0; k < ac.K; k++)
 				z += beta[pos][k] * egammas[i][k];
-                        if (ps.iiter == ac.iter - 1 ) //last iteration
-			    for (k = 0; k < ac.K; k++)
-                                set_val(ps.output_assignements,i,k, beta[pos][k]*egammas[i][k]);
 			lik += cnt * log(z);
 		}
 	}

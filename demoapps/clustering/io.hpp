@@ -258,12 +258,16 @@ void export_to_itpp_file(){
   if (ps.output_clusters.size() > 0){
     if (ps.algorithm == USER_KNN || ps.algorithm == ITEM_KNN)
        output << Name("Distances");
+    else if (ps.algorithm == LDA)
+       output << Name("Betas");
     else output << Name("Clusters");
     mat a = fmat2mat(ps.output_clusters);
     output << a; //DB: Eigen fails when trying to output << fmat2mat(ps.output_clusters)
   }  
   if (ps.output_assignements.size() > 0){
-    output << Name("Assignments");
+    if (ps.algorithm == LDA)
+        output << Name("gammas");
+    else output << Name("Assignments");
     mat a= fmat2mat(ps.output_assignements);
     output << a;
   }
