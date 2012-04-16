@@ -189,7 +189,7 @@ public:
    * This is called before the gather and is used to allocate local
    * data structures.  In this case it is the internal counter
    */
-  void init_gather(iglobal_context_type& context) { 
+  void init_gather(icontext_type& context) { 
     delta_n_t.resize(ntopics, 0); 
     // Update global and local n_t counts
     if(!context.is_local("n_t")) {

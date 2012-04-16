@@ -88,7 +88,7 @@ public:
     else accum = 0.0; };
 
   // Reset the accumulator before running the gather
-  void init_gather(iglobal_context_type& context) { accum = 0; }
+  void init_gather(icontext_type& context) { accum = 0; }
 
   // Run the gather operation over all in edges
   void gather(icontext_type& context, const edge_type& edge) {

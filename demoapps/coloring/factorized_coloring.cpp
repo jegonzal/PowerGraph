@@ -91,7 +91,7 @@ public:
   }
   
   // reset neighbor_colors before running next gather
-  void init_gather(iglobal_context_type& context) {
+  void init_gather(icontext_type& context) {
     neighbor_colors.clear();
   }
 

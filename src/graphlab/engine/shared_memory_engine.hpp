@@ -1052,8 +1052,7 @@ namespace graphlab {
     // Gather phase -----------------------------------------------------------
     const consistency_model gather_consistency = ufun.gather_consistency();
     context.init(vid, gather_consistency);
-    iglobal_context& global_context = context; 
-    ufun.init_gather(global_context);
+    ufun.init_gather(context);
 
     if(ufun.gather_edges() == graphlab::IN_EDGES || 
        ufun.gather_edges() == graphlab::ALL_EDGES) {

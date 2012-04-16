@@ -62,7 +62,7 @@ public:
   edge_set gather_edges() const { return graphlab::NO_EDGES; }
   
 
-  void init_gather(iglobal_context_type& context) { }
+  void init_gather(icontext_type& context) { }
   void merge(const delta_sssp& other) { }
 
   edge_set scatter_edges() const { 

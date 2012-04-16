@@ -78,7 +78,7 @@ public:
   }
 
   // Merge two delta_pagerank accumulators after running gather
-  void init_gather(iglobal_context_type& context) { }
+  void init_gather(icontext_type& context) { }
   void merge(const delta_pagerank& other) { }
 
   // Update the center vertex

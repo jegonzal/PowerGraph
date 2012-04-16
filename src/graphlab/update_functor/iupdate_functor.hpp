@@ -143,7 +143,7 @@ namespace graphlab {
     /**
      * Init gather is called before gathering
      */
-    inline virtual void init_gather(iglobal_context_type& context) { };
+    inline virtual void init_gather(icontext_type& context) { };
 
     /**
      * Gather is called on all gather_edges() and may be called in

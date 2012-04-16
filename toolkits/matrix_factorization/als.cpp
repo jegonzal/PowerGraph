@@ -87,7 +87,7 @@ public:
   bool is_factorizable() const { return FACTORIZED; }
 
   // Reset the accumulator before running the gather
-  void init_gather(iglobal_context_type& context) {    
+  void init_gather(icontext_type& context) {    
     XtX.resize(NLATENT, NLATENT); XtX.setZero();
     Xty.resize(NLATENT); Xty.setZero();
   } // end of init gather
