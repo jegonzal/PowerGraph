@@ -99,7 +99,7 @@ namespace graphlab {
       vertex_data_type vdata;
       vertex_id_type num_in_edges, num_out_edges;
       procid_t owner;
-       vertex_negotiator_record() : 
+      vertex_negotiator_record() : 
         num_in_edges(0), num_out_edges(0), owner(-1) { }
       void load(iarchive& arc) { 
         arc >> num_in_edges >> num_out_edges >> owner >> mirrors >> vdata;
@@ -141,7 +141,8 @@ namespace graphlab {
     virtual void finalize() {
       // typedef typename boost::unordered_map<vertex_id_type, lvid_type>::value_type 
       //   vid2lvid_pair_type;
-      typedef typename cuckoo_map_pow2<vertex_id_type, lvid_type, 3, uint32_t>::value_type
+      typedef typename cuckoo_map_pow2<vertex_id_type, lvid_type, 3, 
+                                       uint32_t>::value_type
         vid2lvid_pair_type;
       typedef typename buffered_exchange<edge_buffer_record>::buffer_type 
         edge_buffer_type;
@@ -236,7 +237,7 @@ namespace graphlab {
           const vertex_info vinfo(vid, graph.local_graph.num_in_edges(lvid),
                                   graph.local_graph.num_out_edges(lvid));
           vinfo_exchange.send(negotiator, vinfo);
-          if (iter == last_iter)  vinfo_exchange.flush();;
+          if (iter == last_iter)  vinfo_exchange.flush();
           // recv any buffers if necessary
           while(vinfo_exchange.recv(sending_proc, recv_buffer)) {
             foreach(vertex_info vinfo, recv_buffer) {
@@ -295,17 +296,17 @@ namespace graphlab {
         if(rpc.procid() == 0) 
           memory_info::print_usage("Finished computing masters");
 
-      { // Initialize vertex records
-        graph.lvid2record.reserve(graph.vid2lvid.size() + num_singletons);
-        graph.lvid2record.resize(graph.vid2lvid.size() + num_singletons);
-        foreach(const vid2lvid_pair_type& pair, graph.vid2lvid) 
-          graph.lvid2record[pair.second].gvid = pair.first;      
-        // Check conditions on graph
-        // ASSERT_EQ(graph.local_graph.num_vertices(), graph.lvid2record.size());
-        graph.local_graph.reserve(graph.local_graph.num_vertices() + num_singletons);
-      }
-      if(rpc.procid() == 0)       
-        memory_info::print_usage("Finished lvid2record");
+        { // Initialize vertex records
+          graph.lvid2record.reserve(graph.vid2lvid.size() + num_singletons);
+          graph.lvid2record.resize(graph.vid2lvid.size() + num_singletons);
+          foreach(const vid2lvid_pair_type& pair, graph.vid2lvid) 
+            graph.lvid2record[pair.second].gvid = pair.first;      
+          // Check conditions on graph
+          // ASSERT_EQ(graph.local_graph.num_vertices(), graph.lvid2record.size());
+          graph.local_graph.reserve(graph.local_graph.num_vertices() + num_singletons);
+        }
+        if(rpc.procid() == 0)       
+          memory_info::print_usage("Finished lvid2record");
 
 
         // Exchange the negotiation records
