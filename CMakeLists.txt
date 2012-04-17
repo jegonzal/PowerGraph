@@ -103,8 +103,8 @@ message(STATUS "Boost Shared libs: " ${Boost_SHARED_LIBRARIES})
 
 ExternalProject_Add(tcmalloc
   PREFIX ${GraphLab_SOURCE_DIR}/deps/tcmalloc
-  SVN_REPOSITORY http://gperftools.googlecode.com/svn/trunk/
-  UPDATE_COMMAND ""
+  URL http://gperftools.googlecode.com/files/gperftools-2.0.tar.gz
+  URL_MD5 13f6e8961bc6a26749783137995786b6
   CONFIGURE_COMMAND <SOURCE_DIR>/configure --enable-frame-pointers --prefix=<INSTALL_DIR>
   INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local)
 link_libraries(tcmalloc)
