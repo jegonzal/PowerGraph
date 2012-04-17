@@ -87,10 +87,16 @@ public:
   void delta_functor_update(icontext_type& context) { 
     vertex_data& vdata = context.vertex_data(); 
     ++vdata.nupdates; vdata.value += accum;
-    if(std::fabs(accum) > ACCURACY || vdata.nupdates == 1) {
-      vdata.old_value = vdata.value;
-      reschedule_neighbors(context);
-    }
+    const size_t num_out_edges = context.out_edges().size();
+    accum = 0;
+    if(num_out_edges > 0) {
+      accum = (vdata.value - vdata.old_value) *
+        1.0/double(num_out_edges) * (1 - RESET_PROB);
+      if(std::fabs(accum) > ACCURACY) {
+        reschedule_neighbors(context);
+        vdata.old_value = vdata.value;    
+      }
+    } else { vdata.old_value = vdata.value; }
   } // end of delta_functor_update
 
 
@@ -101,16 +107,22 @@ public:
     // Compute weighted sum of neighbors
     double sum = 0;
     foreach(const edge_type& edge, context.in_edges()) {
-      sum += context.const_edge_data(edge).weight * 
+      sum += 1.0/double(context.num_out_edges(edge.source())) *
        context.const_vertex_data(edge.source()).value;
     }
     // Add random reset probability
     vdata.value = RESET_PROB + (1 - RESET_PROB) * sum;
-    accum = (vdata.value - vdata.old_value);
-    if(std::fabs(accum) > ACCURACY || vdata.nupdates == 1) {
-      vdata.old_value = vdata.value;
-      reschedule_neighbors(context);
-    }
+    // Reschedule neighbors if residual is greater than accuracy
+    const size_t num_out_edges = context.out_edges().size();
+    accum = 0;
+    if(num_out_edges > 0) {
+      accum = (vdata.value - vdata.old_value) * 
+        1.0/double(num_out_edges) * (1 - RESET_PROB);
+      if( std::fabs(accum) > ACCURACY ) {
+        reschedule_neighbors(context);
+        vdata.old_value = vdata.value;
+      }
+    } else { vdata.old_value = vdata.value; }
   } // end of operator()  
 
   // Reset the accumulator before running the gather
@@ -120,7 +132,7 @@ public:
   void gather(icontext_type& context, const edge_type& edge) {
     accum +=
       context.const_vertex_data(edge.source()).value *
-      context.const_edge_data(edge).weight;
+      1.0/double(context.num_out_edges(edge.source()));
   } // end of gather
 
   // Merge two pagerank_update accumulators after running gather
@@ -130,17 +142,20 @@ public:
   void apply(icontext_type& context) {
     vertex_data& vdata = context.vertex_data(); ++vdata.nupdates;
     vdata.value =  RESET_PROB + (1 - RESET_PROB) * accum;
-    accum = vdata.value - vdata.old_value;
-    if(std::fabs(accum) > ACCURACY || vdata.nupdates == 1) {
-      vdata.old_value = vdata.value;    
-    }
+    const size_t num_out_edges = context.out_edges().size();
+    accum = 0;
+    if(num_out_edges > 0) {
+      accum = (vdata.value - vdata.old_value) *
+        1.0/double(num_out_edges) * (1 - RESET_PROB);
+      if(std::fabs(accum) > ACCURACY) {
+        vdata.old_value = vdata.value;    
+      }
+    } else { vdata.old_value = vdata.value; }
   } // end of apply
 
   // Reschedule neighbors 
   void scatter(icontext_type& context, const edge_type& edge) {
-    const edge_data& edata = context.const_edge_data(edge);
-    const double delta = accum * edata.weight * (1 - RESET_PROB);
-    context.schedule(edge.target(), pagerank_update(delta));
+    context.schedule(edge.target(), pagerank_update(accum));
   } // end of scatter
 
 private:
@@ -210,9 +225,8 @@ int main(int argc, char** argv) {
     if(!success) {
       std::cout << "Error in reading file: " << graph_file << std::endl;
     }
-    normalize_graph(core.graph());
   }
-
+  core.graph().finalize();
   if(!vinfo_fname.empty()) {
     std::cout << "Coloring the graph." << std::endl;
     const size_t num_colors = graphlab::graph_ops::color(core.graph());
@@ -245,7 +259,7 @@ int main(int argc, char** argv) {
       core.graph().vertex_data(vid).value = 0;   
   }
 
-  core.schedule_all(pagerank_update(initial_delta));
+  core.schedule_all(pagerank_update(initial_delta), "shuffle");
   std::cout << "Running pagerank!" << std::endl;
   const double runtime = core.start();  // Run the engine
   std::cout << "Graphlab finished, runtime: " << runtime << " seconds." 

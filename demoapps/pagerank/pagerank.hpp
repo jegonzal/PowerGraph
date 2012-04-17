@@ -48,8 +48,8 @@
  */
 struct vertex_data {
   uint32_t nupdates;
-  double value, old_value;
-  vertex_data(double value = 1) : 
+  float value, old_value;
+  vertex_data(float value = 1) : 
     nupdates(0), value(value), old_value(0) { }
 }; // End of vertex data
 SERIALIZABLE_POD(vertex_data);
@@ -61,11 +61,12 @@ std::ostream& operator<<(std::ostream& out, const vertex_data& vdata);
  * Edge data represents the weight as well as the weight times the
  * last value of the source vertex when the target value was computed.
  */
-struct edge_data {
-  double weight;
-  edge_data(double weight = 1) : weight(weight) { } 
-}; // End of edge data
-SERIALIZABLE_POD(edge_data);
+typedef char edge_data;
+// struct edge_data {
+//   double weight;
+//   edge_data(double weight = 1) : weight(weight) { } 
+// }; // End of edge data
+//SERIALIZABLE_POD(edge_data);
 
 //! Print the edge data
 std::ostream& operator<<(std::ostream& out, const edge_data& edata);
@@ -82,7 +83,7 @@ typedef graphlab::graph2<vertex_data, edge_data> graph_type;
 
 /// Utility routines defined in utility.cpp ------------------------------->
 std::ostream& operator<<(std::ostream& out, const edge_data& edata) {
-  return out << "E(w: " << edata.weight << ")";
+  return out;
 }
 
 std::ostream& operator<<(std::ostream& out, const vertex_data& vdata) {
@@ -124,25 +125,25 @@ void get_top_pages(const graph_type& graph, size_t num_pages,
 } // end of top pages
 
 
-void normalize_graph(graph_type& graph) {
-  logstream(LOG_INFO)
-    << "Optimizing graph layout in memory." << std::endl;
-  graph.finalize();
-  logstream(LOG_INFO)
-    << "Renormalizing transition probabilities." << std::endl;
-  typedef graph_type::vertex_id_type vertex_id_type;
-  for(vertex_id_type vid = 0; vid < graph.num_vertices(); ++vid) {  
-    double sum = 0;
-    const graph_type::edge_list_type out_edges = graph.out_edges(vid);
-    // Sum up weight on out edges
-    for(size_t i = 0; i < out_edges.size(); ++i) 
-      sum += graph.edge_data(out_edges[i]).weight;
-    for(size_t i = 0; i < out_edges.size(); ++i) 
-      graph.edge_data(out_edges[i]).weight /= sum;
-  }
-  logstream(LOG_INFO)
-    << "Finished normalizing transition probabilities." << std::endl;
-} // end of normalize_graph
+// void normalize_graph(graph_type& graph) {
+//   logstream(LOG_INFO)
+//     << "Optimizing graph layout in memory." << std::endl;
+//   graph.finalize();
+//   logstream(LOG_INFO)
+//     << "Renormalizing transition probabilities." << std::endl;
+//   typedef graph_type::vertex_id_type vertex_id_type;
+//   for(vertex_id_type vid = 0; vid < graph.num_vertices(); ++vid) {  
+//     double sum = 0;
+//     const graph_type::edge_list_type out_edges = graph.out_edges(vid);
+//     // Sum up weight on out edges
+//     for(size_t i = 0; i < out_edges.size(); ++i) 
+//       sum += graph.edge_data(out_edges[i]).weight;
+//     for(size_t i = 0; i < out_edges.size(); ++i) 
+//       graph.edge_data(out_edges[i]).weight /= sum;
+//   }
+//   logstream(LOG_INFO)
+//     << "Finished normalizing transition probabilities." << std::endl;
+// } // end of normalize_graph
 
 
 

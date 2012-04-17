@@ -58,18 +58,22 @@ public:
     // Compute weighted sum of neighbors
     double sum = 0;
     /* Iterate over edge_id_list and get source is slow in graph2 */
-    foreach( edge_type edge, context.in_edges() ) 
-      sum += context.const_edge_data(edge).weight * 
+    foreach( edge_type edge, context.in_edges() ) {
+      sum += 1.0/double(context.num_out_edges(edge.source())) *
         context.const_vertex_data(edge.source()).value;
+    }
     // Add random reset probability
-    vdata.old_value = vdata.value;
     vdata.value = RESET_PROB + (1-RESET_PROB)*sum;
-    foreach(edge_type edge, context.out_edges()) {    
-      const double residual = context.const_edge_data(edge).weight * 
+    // Reschedule neighbors if residual is greater than accuracy
+    const size_t num_out_edges = context.out_edges().size();
+    if(num_out_edges > 0) {
+      const double residual = 1.0/double(num_out_edges) *
         std::fabs(vdata.value - vdata.old_value);
-      // If the neighbor changed sufficiently add to scheduler.
-      if(residual > ACCURACY) 
-        context.schedule(edge.target(), pagerank_update(residual));      
+      if(residual > ACCURACY) {
+        foreach(const edge_type& edge, context.out_edges()) 
+          context.schedule(edge.target(), pagerank_update(residual));
+        vdata.old_value = vdata.value;   
+      }
     }
   } // end of operator()  
 }; // end of pagerank update functor
@@ -111,10 +115,9 @@ int main(int argc, char** argv) {
   if(!success) {
     std::cout << "Error in reading file: " << graph_file << std::endl;
   }
-  normalize_graph(core.graph());
 
   // Run the PageRank ---------------------------------------------------------
-  core.schedule_all(pagerank_update(1));
+  core.schedule_all(pagerank_update(1), "shuffle");
   std::cout << "Running pagerank!" << std::endl;
   const double runtime = core.start();  // Run the engine
   std::cout << "Graphlab finished, runtime: " << runtime 

@@ -485,7 +485,7 @@ namespace graphlab {
   schedule(vertex_id_type vid,
            const update_functor_type& update_functor) { 
     initialize_members();
-    ASSERT_TRUE(scheduler_ptr != NULL);
+    // ASSERT_TRUE(scheduler_ptr != NULL);
     ACCUMULATE_EVENT(eventlog, SCHEDULE_EVENT, 1);
     if (exec_status == execution_status::RUNNING) 
       scheduler_ptr->schedule_from_execution_thread(thread::thread_id(),
@@ -499,7 +499,7 @@ namespace graphlab {
   schedule(const std::vector<vertex_id_type>& vids,
            const update_functor_type& update_functor) { 
     initialize_members();
-    ASSERT_TRUE(scheduler_ptr != NULL);
+    // ASSERT_TRUE(scheduler_ptr != NULL);
     ACCUMULATE_EVENT(eventlog, SCHEDULE_EVENT, vids.size());
     if (exec_status == execution_status::RUNNING) {
       foreach(const vertex_id_type& vid, vids) 
@@ -959,8 +959,8 @@ namespace graphlab {
         END_TRACEPOINT(eng_schedcrit);
       } // end of while loop
       // ------------------- Run The Update Functor -------------------------- //    
-      ASSERT_EQ(stat, sched_status::NEW_TASK);
-      ASSERT_LT(vid, graph.num_vertices());
+      //      ASSERT_EQ(stat, sched_status::NEW_TASK);
+      //   ASSERT_LT(vid, graph.num_vertices());
       // Call the correct update functor
       ACCUMULATE_EVENT(eventlog, UPDATE_EVENT, 1);
       evaluate_update(vid, ufun);
@@ -1019,7 +1019,7 @@ namespace graphlab {
     // Apply the update functor
     ufun(context);
     // Finish any pending transactions in the context
-    context.commit();
+    //    context.commit();
     END_AND_BEGIN_TRACEPOINT(eng_basicupdate, eng_lockrelease);
     // release the locks
     switch(consistency) {
