@@ -184,6 +184,9 @@ double knn_sample_percent;
 double fuzzy_exponent;
 double fuzzy_scatter;
 
+/*  statistics */
+bool calc_ap; //calc AP@3 statistics
+
 bool show_version;
 
 bool reduce_mem_consumption;
@@ -292,6 +295,8 @@ advanced_config(){
    /* for fuzzy k-means */
    fuzzy_exponent = 2.0;
    fuzzy_scatter = 0.1;
+
+   calc_ap = false;
 
    shuffle = false;
 

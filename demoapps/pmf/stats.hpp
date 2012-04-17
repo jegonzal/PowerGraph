@@ -348,8 +348,8 @@ double calc_rmse(const graph_type * _g, bool test, double & res){
        foreach(edge_id_t iedgeid, _g->in_edge_ids(i)) {
          const vertex_data & pdata = ps.g<graph_type>(TRAINING)->vertex_data(_g->source(iedgeid)); 
          calc_rmse_edge<graph_type, vertex_data>(iedgeid, _g, RMSE, data, pdata, e, i);       
+       }
      }
-   }
    res = RMSE;
    if (e != (test?ps.Le:ps.L))
       logstream(LOG_FATAL)<<"issing ratings in " << testtypename[test] << " file. Expected to have "
@@ -401,6 +401,59 @@ double agg_rmse_by_user(double & res){
   ps.counter[CALC_RMSE_Q] += t.current_time();
   return sqrt(RMSE/(double)ps.L);
 
+}
+
+//calc average percision AP@3 (for kdd cup 2012 track 1)
+template<typename graph_type, typename vertex_data, typename edge_data>
+double calc_ap(const graph_type * _g){
+
+   int users = 0;
+   double sum_ap = 0;
+   for (int i=0; i< ps.M; i++){
+       const vertex_data & data = ps.g<graph_type>(TRAINING)->vertex_data(i);
+       vec ratings = zeros(_g->num_out_neighbors(i));
+       vec real_vals = zeros(_g->num_out_neighbors(i));
+       if (ratings.size() > 0){
+         users++;
+         int j=0;
+         int real_click_count = 0;
+         foreach(edge_id_t oedgeid, _g->out_edge_ids(i)) {
+           const vertex_data & pdata = ps.g<graph_type>(TRAINING)->vertex_data(_g->target(oedgeid)); 
+           float prediction = 0; 
+           const edge_data &edge = _g->edge_data(oedgeid);
+           predict(data, pdata, NULL, NULL, edge.weight, prediction);
+           ratings[j] = prediction;
+           real_vals[j] = edge.weight;
+           if (edge.weight > 0)
+             real_click_count++;
+           j++;
+         }
+				 int count = 0;
+				 double ap = 0;
+				 ivec pos = sort_index(ratings);
+				 for (int j=0; j< std::min(3, (int)ratings.size()); j++){
+					 if (real_vals[pos[ratings.size() - j - 1]] > 0)
+						 ap += (++count * 1.0/(j+1));    
+				 }
+         if (real_click_count > 0 )
+				    ap /= real_click_count;
+         else ap = 0;
+         sum_ap += ap;
+       } //ratings.size() > 0
+    } //for i
+    assert(users > 0); 
+    return sum_ap / users;
+}
+
+template<>
+double calc_ap<graph_type_mult_edge, vertex_data, multiple_edges>(const graph_type_mult_edge * _g){
+   logstream(LOG_FATAL)<<"This run mode does not support calculation of AP@3" << std::endl;
+   return NAN;
+}
+template<>
+double calc_ap<graph_type_mult_edge, vertex_data, edge_data_mcmc>(const graph_type_mult_edge * _g){
+   logstream(LOG_FATAL)<<"This run mode does not support calculation of AP@3" << std::endl;
+   return NAN;
 }
 
 #include <graphlab/macros_undef.hpp>

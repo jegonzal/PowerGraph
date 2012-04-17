@@ -95,6 +95,9 @@ clopts.attach_option("svdpp_itm_fctr2_step", &svdp.itmFctr2Step, svdp.itmFctr2St
   clopts.attach_option("show_version", &show_version, show_version, "show linear algebra package version and exist");
   clopts.attach_option("threshold", &threshold, threshold, "convergence threshold (experimental)");
   clopts.attach_option("omp_support", &omp_support, omp_support, "allow support for open mp threading");
+
+  //statistics related switched
+  clopts.attach_option("calc_ap", &calc_ap, calc_ap, "calc AP@3 for KDD CUP 2012");
 }  
 
 

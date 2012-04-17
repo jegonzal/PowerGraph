@@ -61,6 +61,11 @@ void last_iter(){
         "%g) Iter %s %d  Obj=%g, TRAIN RMSE=%0.12f VALIDATION RMSE=%0.12f.\n":
         "%g) Iter %s %d  Obj=%g, TRAIN RMSE=%0.4f VALIDATION RMSE=%0.4f.\n"
         , ps.gt.current_time(), runmodesname[ps.algorithm], ps.iiter,calc_obj<graph_type, vertex_data>(res),  rmse, calc_rmse_wrapper<graph_type, vertex_data>(ps.g<graph_type>(VALIDATION), true, res2));
+
+  if (ac.calc_ap){
+     logstream(LOG_INFO)<<"AP@3 for training: " << calc_ap<graph_type,vertex_data,edge_data>(ps.g<graph_type>(TRAINING)) << " AP@3 for validation: " << calc_ap<graph_type,vertex_data,edge_data>(ps.g<graph_type>(VALIDATION)) << std::endl;
+  }
+
   ps.iiter++;
 
   if (ps.BPTF)
