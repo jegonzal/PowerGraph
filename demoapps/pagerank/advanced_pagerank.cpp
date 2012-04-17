@@ -29,8 +29,8 @@
  *  http://en.wikipedia.org/wiki/Pagerank
  */
 
+#include <graphlab/util/timer.hpp>
 #include "pagerank.hpp"
-
 
 
 #include <graphlab/macros_def.hpp>
@@ -118,7 +118,7 @@ public:
     if(num_out_edges > 0) {
       accum = (vdata.value - vdata.old_value) * 
         1.0/double(num_out_edges) * (1 - RESET_PROB);
-      if( std::fabs(accum) > ACCURACY ) {
+      if( std::fabs(accum) > ACCURACY) { // || vdata.nupdates == 1) {
         reschedule_neighbors(context);
         vdata.old_value = vdata.value;
       }
@@ -217,7 +217,9 @@ int main(int argc, char** argv) {
   core.set_options(clopts); // attach the command line options to the core
   if(format == "bin") {
     std::cout << "Loading binary graph." << std::endl;
+    graphlab::timer timer; timer.start();
     core.graph().load(graph_file);
+    std::cout << "Loaded binary in: " << timer.current_time() << std::endl;
   } else {
     std::cout << "Loading graph from structure file." << std::endl;
     const bool success = graphlab::graph_ops::
