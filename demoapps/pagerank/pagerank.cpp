@@ -69,7 +69,7 @@ public:
     if(num_out_edges > 0) {
       const double residual = 1.0/double(num_out_edges) *
         std::fabs(vdata.value - vdata.old_value);
-      if(residual > ACCURACY) {
+      if(residual > ACCURACY) {// || vdata.nupdates == 1) {
         foreach(const edge_type& edge, context.out_edges()) 
           context.schedule(edge.target(), pagerank_update(residual));
         vdata.old_value = vdata.value;   
