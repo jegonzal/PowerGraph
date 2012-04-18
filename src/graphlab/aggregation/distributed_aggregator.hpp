@@ -263,9 +263,11 @@ namespace graphlab {
       // The current implementation will lead to a deadlock if called
       // from within an update function
       master_lock.lock();
-      initiate_aggregate(key);
+      rpc_aggregate(key);
+      rmi.barrier();
+      threads.join();
       master_lock.unlock();    
-    } // end of sync_now
+    } // end of aggregate_now
 
 
     void evaluate_queue() {
@@ -303,6 +305,7 @@ namespace graphlab {
         rmi.remote_call(proc, &distributed_aggregator::rpc_aggregate, key);
       }
     } // end of innitiate aggregate
+
 
     void rpc_aggregate(const std::string& key) {
       master_lock.lock();    
