@@ -49,6 +49,7 @@
 
 #include <graphlab/rpc/dc.hpp>
 #include <graphlab/rpc/dc_dist_object.hpp>
+#include <graphlab/rpc/buffered_exchange.hpp>
 #include <graphlab/util/random.hpp>
 
 #include <graphlab/options/graphlab_options.hpp>
@@ -803,6 +804,40 @@ namespace graphlab {
       ASSERT_NE(ingress_ptr, NULL);
       ingress_ptr->add_edge(source, target, edata);
     }
+
+
+
+    /**
+     * This function synchronizes the master vertex data with all the mirrors.
+     * This function must be called simultaneously by all machines
+     */
+    void synchronize() {
+      typedef std::pair<vertex_id_type, vertex_data_type> pair_type;
+      buffered_exchange<pair_type> vertex_exchange(rpc.dc());
+      typename buffered_exchange<pair_type>::buffer_type recv_buffer;
+      procid_t sending_proc;
+      // Loop over all the local vertex records
+      for(lvid_type lvid = 0; lvid < lvid2record.size(); ++lvid) {
+        const vertex_record& record = lvid2record[lvid];
+        // if this machine is the owner of a record then send the
+        // vertex data to all mirrors
+        if(record.owner == rpc.procid()) {
+          foreach(uint32_t proc, record.mirrors()) {
+            const pair_type pair(record.gvid, local_graph.vertex_data(lvid));
+            vertex_exchange.send(proc, pair);
+          }
+        }
+        // Be sure to flush on the last vertex
+        if(lvid+1 == lvid2record.size()) vertex_exchange.flush();
+        // Receive any vertex data and update local mirrors
+        while(vertex_exchange.recv(sending_proc, recv_buffer)) {
+          foreach(const pair_type& pair, recv_buffer) 
+            vertex_data(pair.first) = pair.second;
+          recv_buffer.clear();
+        }
+      }
+      ASSERT_TRUE(vertex_exchange.empty());
+    } // end of synchronize
 
 
 
