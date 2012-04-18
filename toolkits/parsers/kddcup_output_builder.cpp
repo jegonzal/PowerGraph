@@ -96,7 +96,7 @@ typedef graphlab::graph<vertex_data2, edge_data2>::edge_list_type edge_list;
     vec ret;
     bipartite_graph_descriptor vecinfo;
     load_matrix_market_vector(vdata.prediction_file, vecinfo, ret, false, true);
-    ASSERT_EQ(ret.size(), _graph.num_edges()); 
+    //ASSERT_EQ(ret.size(), _graph.num_edges()); 
  
     int cnt = 0;
     int users = 0;

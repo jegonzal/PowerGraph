@@ -180,7 +180,7 @@ typedef graphlab::graph<vertex_data2, edge_data2>::edge_list_type edge_list;
             if (dayofyear > maxdayofyear)
                 maxdayofyear = dayofyear;
             edge_data2 edge(last_rating, dayofyear);
-            if (dayofyear >= split_day_of_year)
+            if (dayofyear >=  split_day_of_year)
               out_graph_validation.add_edge(last_from - 1, last_to+nodes-1, edge);
             else out_graph.add_edge(last_from - 1, last_to+nodes-1, edge);
             added++;
@@ -209,7 +209,10 @@ typedef graphlab::graph<vertex_data2, edge_data2>::edge_list_type edge_list;
    if (dayofyear >= split_day_of_year)
       out_graph_validation.add_edge(last_from - 1, last_to+nodes-1, last_edge);
    else out_graph.add_edge(last_from - 1, last_to+nodes-1, last_edge);
-
+   if (last_rating == -1)
+	   negative_examples++;
+   else positive_examples++;
+   
    out_graph.finalize();
    out_graph_validation.finalize();
 
