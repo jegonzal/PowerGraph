@@ -68,31 +68,28 @@ void init_svdpp(graph_type* _g){
 template<>
 void init_svdpp<graph_type_svdpp>(graph_type_svdpp *_g){
    fprintf(stderr, "SVD++ %d factors\n", ac.D);
+   double factor = 0.1/sqrt(ac.D);
    for (int i=0; i<ps.M+ps.N; i++){
        vertex_data_svdpp & data = _g->vertex_data(i);
-       data.weight = ac.debug ? ones(ac.D) : randu(ac.D);
+       data.weight = (ac.debug ? (ones(ac.D)*0.1) : (randu(ac.D)*factor));
+       data.bias = 0;
    } 
 }
 
-float predict(const vertex_data_svdpp& user, const vertex_data_svdpp& movie, const edge_data * edge, const vertex_data * nothing, float rating, float & prediction){
+float predict(const vertex_data_svdpp& user, const vertex_data_svdpp& movie, const edge_data * edge, const vertex_data * nothing, const float rating, float & prediction){
       assert(nothing == NULL);
 
       //\hat(r_ui) = \mu + 
       prediction = ps.globalMean[0];
-      assert(!std::isnan(prediction));
                  // + b_u  +    b_i +
       prediction += user.bias + movie.bias;
-      assert(!std::isnan(prediction));
                  // + q_i^T   *(p_u      +sqrt(|N(u)|)\sum y_j)
-      prediction += dot_prod(movie.pvec,(user.pvec+user.weight));
-      assert(!std::isnan(movie.pvec[0]));
-      assert(!std::isnan(user.pvec[0]));
-      assert(!std::isnan(user.weight[0]));
+      if (ps.algorithm == BIAS_SGD)
+        prediction += dot_prod(movie.pvec, user.pvec);
+      else prediction += dot_prod(movie.pvec,(user.pvec+user.weight));
 
-      assert(!std::isnan(prediction));
       prediction = std::min((double)prediction, (double)ac.maxval);
       prediction = std::max((double)prediction, (double)ac.minval);
-      assert(!std::isnan(prediction));
       float err = rating - prediction;
       assert(!std::isnan(err));
       return err*err; 

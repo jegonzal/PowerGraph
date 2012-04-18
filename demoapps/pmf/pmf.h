@@ -209,10 +209,11 @@ enum runmodes{
    ALS_SPARSE_USR_MOVIE_FACTORS = 11,
    ALS_SPARSE_MOVIE_FACTOR = 12,
    SVD = 13, //simular value decompoistion via double sided Lanczos
-   TIME_SVD_PLUS_PLUS = 14 //time-SVD++ (see reference 12)
+   TIME_SVD_PLUS_PLUS = 14, //time-SVD++ (see reference 12)
+   BIAS_SGD = 15
 };
 
-#define MAX_RUNMODE 12
+#define MAX_RUNMODE 16
 
 //counters for debugging running time of different modules
 enum countervals{
@@ -364,6 +365,7 @@ void problem_setup::verify_setup(){
   case LANCZOS:
   case NMF:
   case SVD:
+  case BIAS_SGD:
     tensor = false; BPTF = false;
     break;
 
@@ -382,6 +384,7 @@ void problem_setup::verify_setup(){
   case TIME_SVD_PLUS_PLUS:
     tensor = true; BPTF = false;
     break;
+    
   default:
     assert(0);
   }

@@ -678,7 +678,13 @@ void verify_size(testtype data_type, int _M, int _N, int _K){
   if (data_type != TRAINING && ps.K != _K)
 	logstream(LOG_WARNING) << " wrong number of time bins: " << _K << " instead of " << ps.K << " in " << testtypename[data_type] <<std::endl;
 
-  printf("Matrix size is: USERS %d MOVIES %d TIME BINS %d\n", ps.M, ps.N, ps.K);
+  uint edges = 0;
+  if (data_type == TRAINING)
+     edges = ps.L;
+  else if (data_type == VALIDATION)
+     edges = ps.Le;
+  else edges = ps.Lt;
+  printf("Matrix size is: USERS %d MOVIES %d TIME BINS %d - ratings %u \n", ps.M, ps.N, ps.K, edges);
 }
 
 
