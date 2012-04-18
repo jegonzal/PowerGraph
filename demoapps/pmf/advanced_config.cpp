@@ -68,6 +68,7 @@ clopts.attach_option("svdpp_itm_fctr2_step", &svdp.itmFctr2Step, svdp.itmFctr2St
   clopts.attach_option("timesvdpp_beta", &tsp.beta, tsp.beta, "time-SVD++ beta");
   clopts.attach_option("timesvdpp_gamma", &tsp.garma, tsp.garma, "time-SVD++ gamma");
   clopts.attach_option("timesvdpp_step_dec", &tsp.lrate_mult_dec, tsp.lrate_mult_dec, "time-SVD++ multiplicative learning decrement");
+  clopts.attach_option("K", &K, K, "Number of time bins");
  
   //SGD related switches
   clopts.attach_option("sgd_lambda", &sgd_lambda, sgd_lambda, "SGD step size");

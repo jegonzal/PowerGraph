@@ -81,7 +81,7 @@ void add_vertices(graph_type * _g, testtype data_type){
   vertex_data vdata;
   // add M user nodes (ps.tensor dim 1)
   for (int i=0; i<ps.M; i++){
-    vdata.pvec = ac.debug? (ones(ac.D)*0.1) : (randu(ac.D)*0.1);
+    vdata.pvec = ac.debug? (ones(ac.D)*0.1) : (randu(ac.D)*(0.1/sqrt(ac.D)));
     _g->add_vertex(vdata);
     if (ac.debug && (i<= 5 || i == ps.M-1))
       debug_print_vec("U: ", vdata.pvec, ac.D);
@@ -89,7 +89,7 @@ void add_vertices(graph_type * _g, testtype data_type){
   
   // add N movie node (ps.tensor dim 2) 
   for (int i=0; i<ps.N; i++){
-    vdata.pvec = ac.debug? (ones(ac.D)*0.1) : (randu(ac.D)*0.1);
+    vdata.pvec = ac.debug? (ones(ac.D)*0.1) : (randu(ac.D)*(0.1/sqrt(ac.D)));
     _g->add_vertex(vdata);
     if (ac.debug && (i<=5 || i==ps.N-1))
       debug_print_vec("V: ", vdata.pvec, ac.D);

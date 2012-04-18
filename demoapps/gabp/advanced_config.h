@@ -67,7 +67,7 @@ public:
   int M; //number of rows in bipartite graph
   int N; //number of columns in bipartite graph
   /* clustering related fields */
-  int K; //number of clusters 
+  int K; //number of clusters (for glcluster) or number of time bins for time-svd++/BPTF
   bool clusterdump; //dump cluster locations into a text file
   bool tfidf; //deploy tf-idf transformation on matrix values
   bool init_clusters_from_file;

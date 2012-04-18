@@ -159,7 +159,7 @@ double calc_obj(double res){
   if (ac.debug)
      cout<<"OBJECTIVE: res: " << res << "sumU " << sumU << " sumV: " << sumV << " pu " << ps.pU << " pV: " << ps.pV << endl; 
 
-  assert(edges == 2*ps.L);
+  ASSERT_EQ(edges , 2*ps.L);
   return obj;
 }
 template<typename graph_type, typename vertex_data, typename edge_data>

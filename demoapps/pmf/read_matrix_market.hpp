@@ -77,8 +77,9 @@ void load_matrix_market(const char * filename, graph_type *_g, testtype data_typ
        logstream(LOG_FATAL) << "failed to read matrix market cardinality size " << std::endl; 
    
    
- 
-    ps.M = M; ps.N = N; ps.K = 1;
+    if (ac.K == 0) //no input from users about number of time bins, setting time bins to 1 (no tensor)
+      ps.K = 1;  
+    ps.M = M; ps.N = N; 
     ps.last_node = M+N;
     verify_size(data_type, M, N, 1);
     add_vertices<graph_type, vertex_data>(_g, data_type); 
@@ -120,7 +121,14 @@ void load_matrix_market(const char * filename, graph_type *_g, testtype data_typ
         if (J < 0 || J >=N)
            logstream(LOG_FATAL)<<"Error in data line: " << i << " 2nd column value is: " << J+1 << " where it should be in the range 1 to " << N << std::endl;
         _g->add_edge(I,J+ps.M,edge);
+        if (data_type == VALIDATION && ac.aggregatevalidation)
+          ((graph_type*)ps.g<graph_type>(TRAINING))->add_edge(I,J+ps.M,edge);
     }
+
+    if (data_type==TRAINING && ps.tensor && ps.K>1) 
+    edges = new std::vector<edge_id_t>[ps.K]();
+
+ 
     set_num_edges(nz, data_type);
     verify_edges<graph_type,edge_data>(_g, data_type);
  
@@ -129,8 +137,10 @@ void load_matrix_market(const char * filename, graph_type *_g, testtype data_typ
        add_implicit_edges<graph_type, edge_data>(_g);
 
  
-    if (data_type == TRAINING || (ac.aggregatevalidation && data_type == VALIDATION)){
-      count_all_edges<graph_type>(_g);
+    if (data_type == TRAINING)
+      count_all_edges(_g);
+    else if (ac.aggregatevalidation && data_type == VALIDATION){
+      count_all_edges<graph_type>((graph_type*)ps.g<graph_type>(TRAINING));
     }
 
     fclose(f);

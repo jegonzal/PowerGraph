@@ -409,6 +409,10 @@ void problem_setup::verify_setup(){
       else 
          logstream(LOG_WARNING)<<"It is recommended to set min and max allowed matrix values to improve prediction quality, using the flags --minval=XX, --maxval=XX" << std::endl;
     }
+
+   if (ac.K > 0)
+      if (tensor && ac.matrixmarket)
+         K = ac.K; //set the number of time bins via command line for tensor read from matrix market file
 }
 
 template<> const graph_type *problem_setup::g(testtype type){ return gg[type]; }

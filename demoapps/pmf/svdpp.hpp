@@ -156,6 +156,11 @@ void svd_post_iter(){
   double rmse = agg_rmse_by_user<graph_type_svdpp, vertex_data_svdpp>(res);
   printf("%g) Iter %s %d, TRAIN RMSE=%0.4f VALIDATION RMSE=%0.4f.\n", ps.gt.current_time(), "SVD", ps.iiter,  rmse, calc_svd_rmse(ps.g<graph_type_svdpp>(VALIDATION), true, res2));
 
+  if (ac.calc_ap){
+     logstream(LOG_INFO)<<"AP@3 for training: " << calc_ap<graph_type_svdpp,vertex_data_svdpp,edge_data>(ps.g<graph_type_svdpp>(TRAINING)) << " AP@3 for validation: " << calc_ap<graph_type_svdpp,vertex_data_svdpp,edge_data>(ps.g<graph_type_svdpp>(VALIDATION)) << std::endl;
+  }
+
+ 
   ac.svdp.itmFctrStep *= ac.svdpp_step_dec;
   ac.svdp.itmFctr2Step *= ac.svdpp_step_dec;
   ac.svdp.usrFctrStep *= ac.svdpp_step_dec;
