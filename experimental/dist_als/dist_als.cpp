@@ -418,12 +418,15 @@ int main(int argc, char** argv) {
   engine.start();  
 
   const double runtime = timer.current_time();
-  std::cout << "Runtime: " << runtime << " seconds." 
-            << std::endl
-            << "Updates executed: " << engine.last_update_count() << std::endl
-            << "Update Rate (updates/second): " 
-            << engine.last_update_count() / runtime << std::endl;
-
+  if(dc.procid() == 0) {
+    std::cout << "----------------------------------------------------------"
+              << std::endl;
+    std::cout << "Final Runtime (seconds):   " << runtime 
+              << std::endl
+              << "Updates executed: " << engine.last_update_count() << std::endl
+              << "Update Rate (updates/second): " 
+              << engine.last_update_count() / runtime << std::endl;
+  }
 
   if (output) save_graph_info(dc.procid(), graph);
 
