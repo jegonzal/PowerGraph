@@ -127,6 +127,8 @@ namespace graphlab {
       return count;
     } // end of size
 
+    bool empty() const { return recv_buffers.empty(); }
+
     void clear() {
       std::vector<buffer_type>().swap(send_buffers);
       //      send_buffers.resize(rpc.numprocs());
