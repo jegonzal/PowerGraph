@@ -121,6 +121,8 @@ namespace graphlab {
             local_accum(context);
           }
         }
+        std::cout << "Finished local sync: " 
+                  << lowres_time_millis() / 1000 << std::endl;
         // Merge with master
         lock.lock(); 
         shared_aggregator += local_accum; 
@@ -128,6 +130,8 @@ namespace graphlab {
         barrier_ptr->wait();  // Wait until all merges are complete
 
         if(cpuid == 0) {
+          std::cout << "Merging sync: " 
+                    << lowres_time_millis() / 1000 << std::endl;
           std::vector<aggregator_type> result(rmi_ptr->numprocs());
           result[rmi_ptr->procid()] = shared_aggregator;
           const size_t ROOT(0);
@@ -140,6 +144,9 @@ namespace graphlab {
             // Finalize with the global context
             iglobal_context& global_context = context;
             shared_aggregator.finalize(global_context);
+            const size_t time_in_seconds = lowres_time_millis() / 1000;
+            std::cout << "Sync Finished: " << time_in_seconds << std::endl;
+
           }
           // Zero out the shared accumulator for the next run
           shared_aggregator = zero;
@@ -293,8 +300,8 @@ namespace graphlab {
       const size_t time_in_seconds = lowres_time_millis() / 1000;
       // if it is time to run the sync then spin off the threads
       if(next_ucount < time_in_seconds) { // Run the actual sync
-        std::cout << "Time pair: " 
-                  << next_ucount << "\t" << time_in_seconds << std::endl;
+        std::cout << "Time requested:    \t" << next_ucount << std::endl;
+        std::cout << "Sync initiated at: \t" << time_in_seconds << std::endl;
         const std::string key = sync_queue.top().first;
         sync_queue.pop();
         initiate_aggregate(key);
