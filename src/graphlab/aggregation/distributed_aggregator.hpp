@@ -104,10 +104,16 @@ namespace graphlab {
             const local_edge_list_type in_edges = graph_ptr->l_in_edges(lvid);
             const local_edge_list_type out_edges = graph_ptr->l_out_edges(lvid);
             context.init(graph_ptr->global_vid(lvid), EDGE_CONSISTENCY);
-            foreach(const edge_type& edge, in_edges) 
-              local_accum.gather(context, edge);
-            foreach(const edge_type& edge, out_edges) 
-              local_accum.gather(context, edge);
+            if(local_accum.gather_edges() == IN_EDGES || 
+               local_accum.gather_edges() == ALL_EDGES) {
+              foreach(const edge_type& edge, in_edges) 
+                local_accum.gather(context, edge);
+            }
+            if(local_accum.gather_edges() == OUT_EDGES || 
+               local_accum.gather_edges() == ALL_EDGES) {
+              foreach(const edge_type& edge, out_edges) 
+                local_accum.gather(context, edge);
+            }
           }
 
           if(graph_ptr->l_is_master(lvid)) {

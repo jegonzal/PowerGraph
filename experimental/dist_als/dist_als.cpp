@@ -127,13 +127,6 @@ public:
     Xty += edata.rating * neighbor.latent;
     XtX.triangularView<Eigen::Upper>() += 
       (neighbor.latent * neighbor.latent.transpose());
-
-    // for(int i = 0; i < XtX.rows(); ++i) {
-    //   Xty(i) += neighbor.latent(i) * edata.rating;
-    //   // Compute the upper triangular component of XtX
-    //   for(int j = i; j < XtX.rows(); ++j) 
-    //     XtX(j,i) += neighbor.latent(i) * neighbor.latent(j);
-    // }
   } // end of gather
 
   // Merge two updates
@@ -159,9 +152,6 @@ public:
     // out edges depending on which side of the graph it is located
     const size_t nneighbors = context.num_in_edges() + context.num_out_edges();
     if(nneighbors == 0) return;
-    // Fill in the lower triangular components of XtX
-    // for(size_t i = 0; i < NLATENT; ++i) 
-    //   for(size_t j = i+1; j < NLATENT; ++j) XtX(i,j) = XtX(j,i);
     // Add regularization
     for(size_t i = 0; i < NLATENT; ++i) XtX(i,i) += LAMBDA*nneighbors;
     // Solve the least squares problem using eigen ----------------------------
@@ -184,8 +174,6 @@ public:
     const double pred = vdata.latent.dot(neighbor.latent);
     const double error = std::fabs(edata.rating - pred);
     edata.error = error;
-    // std::cout << edata.rating << '\t' << pred 
-    //           << '\t' << vdata.residual << std::endl;
     // Reschedule neighbors ------------------------------------------------
     if( (error * vdata.residual) > TOLERANCE ) 
       context.schedule(neighbor_id, als_update(error * vdata.residual));
@@ -202,18 +190,25 @@ class aggregator :
   public graphlab::iaggregator<graph_type, als_update, aggregator>, 
   public graphlab::IS_POD_TYPE {
 private:
-  float rmse, max_error, residual, max_residual;
-  size_t nedges, min_updates, max_updates, total_updates;
+  float max_priority, rmse, max_error, residual, max_residual;
+  size_t min_updates, max_updates, 
+    total_vupdates, total_eupdates;
 public:
   aggregator() : 
-    rmse(0), max_error(0), residual(0), max_residual(0),
-    nedges(0), min_updates(-1), max_updates(0), total_updates(0) { }
+    max_priority(0), rmse(0), max_error(0), residual(0), max_residual(0),
+    min_updates(-1), max_updates(0), 
+    total_vupdates(0), total_eupdates(0) { }
   inline bool is_factorizable() const { return true; }
+  inline edge_set gather_edges() const { return graphlab::IN_EDGES; }
 
   void gather(icontext_type& context, const edge_type& edge) {
     const edge_data& edata = context.const_edge_data(edge);
+    const vertex_data& source_vdata = context.const_vertex_data(edge.source());
+    const vertex_data& target_vdata = context.const_vertex_data(edge.target());
     rmse += (edata.error * edata.error);
-    ++nedges;
+    max_priority =  std::max(std::max(edata.error * source_vdata.residual, 
+                                      edata.error * target_vdata.residual),
+                             max_priority);
     max_error = std::max(max_error, edata.error);
   }
 
@@ -223,31 +218,38 @@ public:
     max_residual = std::max(max_residual, vdata.residual);
     min_updates = std::min(min_updates, size_t(vdata.nupdates));
     max_updates = std::max(max_updates, size_t(vdata.nupdates));
-    total_updates += vdata.nupdates;
+    total_vupdates += vdata.nupdates;
+    total_eupdates += vdata.nupdates *
+      (context.num_in_edges() + context.num_out_edges());
   }
 
   void operator+=(const aggregator& other) { 
+    max_priority = std::max(max_priority, other.max_priority);
     rmse += other.rmse; 
-    nedges += other.nedges;
     max_error = std::max(max_error, other.max_error);
     residual += other.residual;
     max_residual = std::max(max_residual, other.residual);
     min_updates = std::min(min_updates, other.min_updates);
     max_updates = std::max(max_updates, other.max_updates);
-    total_updates += other.total_updates;
+    total_vupdates += other.total_vupdates;
+    total_eupdates += other.total_eupdates;
   }
 
   void finalize(iglobal_context_type& context) {
     std::cout 
       << "results:\t" 
       << timer.current_time() << '\t'
-      << std::setw(10) << sqrt( rmse / nedges ) << '\t'
+      << std::setw(10) << max_priority << '\t'
+      << std::setw(10) << sqrt( rmse / context.num_edges() ) << '\t'
       << std::setw(10) << max_error << '\t'
       << std::setw(10) << max_residual << '\t'
       << std::setw(10) << max_updates << '\t'
       << std::setw(10) << min_updates << '\t'
-      << std::setw(10) << total_updates << '\t'
-      << std::setw(10) << (double(total_updates) / context.num_vertices()) 
+      << std::setw(10) << total_vupdates << '\t'
+      << std::setw(10) << (double(total_vupdates) / context.num_vertices()) 
+      << '\t'
+      << std::setw(10) << total_eupdates << '\t'
+      << std::setw(10) << (double(total_eupdates) / context.num_edges())
       << std::endl;
   }
 }; // end of  aggregator
@@ -296,13 +298,14 @@ int main(int argc, char** argv) {
   std::string binpath = "./";
   std::string binprefix = "als_graph";
   bool output = false;
+  size_t interval = 10;
   clopts.attach_option("matrix", &matrix_dir, matrix_dir,
                        "The directory containing the matrix file");
   clopts.add_positional("matrix");
   clopts.attach_option("D",
                        &NLATENT, NLATENT,
                        "Number of latent parameters to use.");
-  clopts.attach_option("LAMBDA", &LAMBDA, LAMBDA, "ALS regularization weight"); 
+  clopts.attach_option("lambda", &LAMBDA, LAMBDA, "ALS regularization weight"); 
   clopts.attach_option("tol",
                        &TOLERANCE, TOLERANCE,
                        "residual termination threshold");
@@ -314,6 +317,8 @@ int main(int argc, char** argv) {
                        "The path for save binary file\n");
   clopts.attach_option("binprefix", &binprefix, binprefix,
                        "The prefix for load/save binary file\n");
+  clopts.attach_option("interval", &interval, interval,
+                       "statistics reporting interval");
   if(!clopts.parse(argc, argv)) {
     std::cout << "Error in parsing command line arguments." << std::endl;
     return EXIT_FAILURE;
@@ -359,8 +364,7 @@ int main(int argc, char** argv) {
   std::cout << dc.procid() << ": Initializign vertex data. " 
             << timer.current_time() << std::endl;
   initialize_vertex_data(dc, graph);
-  make_tfidf(graph);
-  save_graph_info(dc.procid(), graph);
+  //make_tfidf(graph);
   std::cout << dc.procid() << ": Finished initializign vertex data. " 
             << timer.current_time() << std::endl;
 
@@ -374,9 +378,7 @@ int main(int argc, char** argv) {
   std::cout << dc.procid() << ": Intializing engine" << std::endl;
   engine.set_options(clopts);
   engine.initialize();
-  engine.add_aggregator("error", aggregator(), 10); 
-  std::cout << "Precomputing the error" << std::endl;
-  // engine.aggregate_now("error");
+  engine.add_aggregator("error", aggregator(), interval); 
 
   std::cout << dc.procid() << ": Scheduling all" << std::endl;
   for(size_t lvid = 0; lvid < graph.num_local_vertices(); ++lvid) {
@@ -386,7 +388,6 @@ int main(int argc, char** argv) {
       engine.schedule_local(lvid, als_update(10000));
     }
   }
-  //  engine.schedule_all(als_update(10000));
   dc.full_barrier();
   
 
@@ -396,39 +397,14 @@ int main(int argc, char** argv) {
   engine.start();  
 
   const double runtime = timer.current_time();
-  std::cout << "Graphlab finished, runtime: " << runtime << " seconds." 
+  std::cout << "Runtime: " << runtime << " seconds." 
             << std::endl
             << "Updates executed: " << engine.last_update_count() << std::endl
             << "Update Rate (updates/second): " 
             << engine.last_update_count() / runtime << std::endl;
 
 
-  if (output) {
-    std::string fname = "results_";
-    fname = fname + graphlab::tostr(size_t(dc.procid()));
-    std::ofstream fout(fname.c_str());
-    for (size_t i = 0;i < graph.get_local_graph().num_vertices(); ++i) {
-      if (graph.l_get_vertex_record(i).owner == dc.procid()) {
-        const vertex_data& vdata = graph.get_local_graph().vertex_data(i);
-        fout << graph.l_get_vertex_record(i).gvid << "\t" 
-             << graph.l_get_vertex_record(i).num_in_edges + 
-          graph.l_get_vertex_record(i).num_out_edges << "\t" 
-             << vdata.residual << "\t" << vdata.nupdates << "\n";
-      }
-    }
-  }
-  
-  // if (output) {
-  //   std::string fname = "adj_";
-  //   fname = fname + graphlab::tostr((size_t)dc.procid());
-  //   std::ofstream fout(fname.c_str());
-  //   typedef graph_type::local_graph_type::edge_type etype;
-  //   for (size_t i = 0;i < graph.get_local_graph().num_vertices(); ++i) {
-  //     foreach(graph_type::edge_type e, graph.l_in_edges(i)) {
-  //       fout << e.source() << "\t" << e.target() << "\n";
-  //     }
-  //   }
-  // } 
+  if (output) save_graph_info(dc.procid(), graph);
 
   graphlab::mpi_tools::finalize();
   return EXIT_SUCCESS;
@@ -551,15 +527,6 @@ void load_graph_dir(graphlab::distributed_control& dc,
       load_graph_file(graph, graph_files[i]);
     }
   }
-  // {
-  //   std::cout << "Determining max wordid: ";
-  //   std::vector<size_t> max_wordids(dc.numprocs());
-  //   max_wordids[dc.procid()] = max_wordid;
-  //   dc.all_gather(max_wordids);
-  //   for(size_t i = 0; i < max_wordids.size(); ++i)
-  //     max_wordid = std::max(max_wordid, max_wordids[i]);
-  //   std::cout << max_wordid << std::endl;
-  // }
   {
     std::cout << "Determining max vid: ";
     std::vector<size_t> max_vids(dc.numprocs());
@@ -645,7 +612,8 @@ void make_tfidf(graph_type& graph) {
       const float doc_freq = 
         1 + graph.num_in_edges(edge.target());
       edge_data& edata = graph.edge_data(edge);
-      edata.rating = (edata.rating / words_in_doc) * log( NDOCS / doc_freq );
+      edata.rating = 
+        log((edata.rating / words_in_doc) * log( NDOCS / doc_freq ));
     }
   }
 } // end of make tfidf
