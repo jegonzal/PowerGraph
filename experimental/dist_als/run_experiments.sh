@@ -23,7 +23,8 @@ for d in 10; do
 
         mkdir fscope
         cd fscope
-        commandstr="mpiexec --hostfile ./machines -n $p 
+        commandstr="mpiexec --hostfile ./machines -n $p
+            -x CLASSPATH 
             $dist_fscope_als 
             --matrix hdfs://bros.ml.cmu.edu/data/wikipedia/termdoc_graph 
             --ncpus=8 --tol=0 --maxupdates=2 --dgraphopts=\"(ingress=oblivious)\" 
@@ -39,6 +40,7 @@ for d in 10; do
         mkdir sync
         cd sync
         commandstr="mpiexec --hostfile ./machines -n $p 
+            -x CLASSPATH  
             $dist_sync_als 
             --matrix hdfs://bros.ml.cmu.edu/data/wikipedia/termdoc_graph 
             --ncpus=8 --tol=0 --maxupdates=2 --dgraphopts=\"(ingress=oblivious)\" 
@@ -55,6 +57,7 @@ for d in 10; do
         mkdir locking
         cd locking
         commandstr="mpiexec --hostfile ./machines -n $p 
+            -x CLASSPATH 
             $dist_als 
             --matrix hdfs://bros.ml.cmu.edu/data/wikipedia/termdoc_graph 
             --ncpus=8 --tol=0 --maxupdates=2 --dgraphopts=\"(ingress=oblivious)\" 
