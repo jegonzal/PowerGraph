@@ -125,7 +125,7 @@ public:
       edge.source() : edge.target();
     const vertex_data& neighbor = context.const_vertex_data(neighbor_id);     
     ASSERT_EQ(neighbor.latent.size(), NLATENT);
-    Xty += edata.rating * neighbor.latent;
+    Xty +=  neighbor.latent * edata.rating;
     XtX.triangularView<Eigen::Upper>() += 
       (neighbor.latent * neighbor.latent.transpose());
   } // end of gather
