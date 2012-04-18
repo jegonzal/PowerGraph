@@ -39,8 +39,12 @@
 double TOLERANCE = 1e-2;
 size_t NLATENT = 20;
 double LAMBDA = 0.01;
-size_t max_wordid = 0;
-size_t max_vid = 0;
+
+size_t MAX_VID = 0;
+size_t NWORDS = 0;
+size_t NDOCS = 0;
+
+
 graphlab::oarchive& operator<<(graphlab::oarchive& arc, const Eigen::VectorXd& vec);
 graphlab::iarchive& operator>>(graphlab::iarchive& arc, Eigen::VectorXd& vec);
 graphlab::oarchive& operator<<(graphlab::oarchive& arc, const Eigen::MatrixXd& mat);
@@ -49,22 +53,25 @@ graphlab::iarchive& operator>>(graphlab::iarchive& arc, Eigen::MatrixXd& mat);
 /** Vertex and edge data types **/
 struct vertex_data {
   float residual; 
+  float neighborhood_total; //! sum of values on edges
   uint32_t nupdates; //! the number of times the vertex was updated
+
   Eigen::VectorXd latent; //! vector of learned values 
   //constructor
   vertex_data() : 
     residual(std::numeric_limits<float>::max()), 
-    nupdates(0) { 
+    neighborhood_total(0), nupdates(0) { }
+  void randomize() {
     latent.resize(NLATENT);
     // Initialize the latent variables
     for(size_t i = 0; i < NLATENT; ++i) 
       latent(i) = graphlab::random::gaussian();
   }
   void save(graphlab::oarchive& arc) const { 
-    arc << residual << nupdates << latent;        
+    arc << residual << neighborhood_total << nupdates << latent;        
   }
   void load(graphlab::iarchive& arc) { 
-    arc >> residual >> nupdates >> latent;
+    arc >> residual >> neighborhood_total >> nupdates >> latent;
   }
 }; // end of vertex data
 
@@ -115,14 +122,18 @@ public:
     //if(edata.is_test) return;
     const vertex_id_type neighbor_id = context.vertex_id() == edge.target()?
       edge.source() : edge.target();
-    const vertex_data& neighbor = context.const_vertex_data(neighbor_id);
+    const vertex_data& neighbor = context.const_vertex_data(neighbor_id);     
     ASSERT_EQ(neighbor.latent.size(), NLATENT);
-    for(int i = 0; i < XtX.rows(); ++i) {
-      Xty(i) += neighbor.latent(i) * edata.rating;
-      // Compute the upper triangular component of XtX
-      for(int j = i; j < XtX.rows(); ++j) 
-        XtX(j,i) += neighbor.latent(i) * neighbor.latent(j);
-    }
+    Xty += edata.rating * neighbor.latent;
+    XtX.triangularView<Eigen::Upper>() += 
+      (neighbor.latent * neighbor.latent.transpose());
+
+    // for(int i = 0; i < XtX.rows(); ++i) {
+    //   Xty(i) += neighbor.latent(i) * edata.rating;
+    //   // Compute the upper triangular component of XtX
+    //   for(int j = i; j < XtX.rows(); ++j) 
+    //     XtX(j,i) += neighbor.latent(i) * neighbor.latent(j);
+    // }
   } // end of gather
 
   // Merge two updates
@@ -133,7 +144,9 @@ public:
     ASSERT_EQ(other.XtX.cols(), NLATENT);
     ASSERT_EQ(Xty.size(), NLATENT);
     ASSERT_EQ(other.Xty.size(), NLATENT);
-    error += other.error; XtX += other.XtX; Xty += other.Xty;
+    error += other.error; 
+    XtX.triangularView<Eigen::Upper>() += other.XtX;
+    Xty += other.Xty;
   } // end of merge
 
 
@@ -147,25 +160,18 @@ public:
     const size_t nneighbors = context.num_in_edges() + context.num_out_edges();
     if(nneighbors == 0) return;
     // Fill in the lower triangular components of XtX
-    for(size_t i = 0; i < NLATENT; ++i) 
-      for(size_t j = i+1; j < NLATENT; ++j) XtX(i,j) = XtX(j,i);
+    // for(size_t i = 0; i < NLATENT; ++i) 
+    //   for(size_t j = i+1; j < NLATENT; ++j) XtX(i,j) = XtX(j,i);
     // Add regularization
-    for(int i = 0; i < XtX.rows(); ++i) XtX(i,i) += LAMBDA*nneighbors;
+    for(size_t i = 0; i < NLATENT; ++i) XtX(i,i) += LAMBDA*nneighbors;
     // Solve the least squares problem using eigen ----------------------------
     const Eigen::VectorXd old_latent = vdata.latent;
-    vdata.latent = XtX.ldlt().solve(Xty);
+    vdata.latent = XtX.selfadjointView<Eigen::Upper>().ldlt().solve(Xty);
     // Compute the residual change in the latent factor -----------------------
     vdata.residual = 0;
     for(int i = 0; i < XtX.rows(); ++i)
       vdata.residual += std::fabs(old_latent(i) - vdata.latent(i));
     vdata.residual /= XtX.rows();
-    // if(context.vertex_id() % 1000 == 0) {
-    //   std::cout << context.vertex_id() << ": r = " 
-    //             << vdata.residual << "; [";
-    //   for(int i = 0; i < XtX.rows(); ++i)
-    //     std::cout << vdata.latent(i) << " ";
-    //   std::cout << "]" << std::endl;
-    // } // display output
   } // end of apply
 
   void scatter(icontext_type& context, const edge_type& edge) {
@@ -266,6 +272,12 @@ void load_graph_dir(graphlab::distributed_control& dc,
                     const size_t procid, const size_t numprocs);
 void load_graph_file(graph_type& graph, const std::string& fname);
 
+void initialize_vertex_data(graphlab::distributed_control& dc, 
+                            graph_type& graph);
+void make_tfidf(graph_type& graph);
+
+void save_graph_info(const size_t procid,
+                     const graph_type& graph);
 
 
 
@@ -343,9 +355,14 @@ int main(int argc, char** argv) {
       << float(graph.num_local_edges())/graph.num_edges()
       << std::endl;
   }
+
   std::cout << dc.procid() << ": Initializign vertex data. " 
             << timer.current_time() << std::endl;
-
+  initialize_vertex_data(dc, graph);
+  make_tfidf(graph);
+  save_graph_info(dc.procid(), graph);
+  std::cout << dc.procid() << ": Finished initializign vertex data. " 
+            << timer.current_time() << std::endl;
 
 
 
@@ -363,8 +380,11 @@ int main(int argc, char** argv) {
 
   std::cout << dc.procid() << ": Scheduling all" << std::endl;
   for(size_t lvid = 0; lvid < graph.num_local_vertices(); ++lvid) {
-    if(graph.l_is_master(lvid) && graph.global_vid(lvid) < max_wordid)  
+    // Schedule only "left side" vertices
+    if(graph.l_is_master(lvid) && 
+       graph.l_get_vertex_record(lvid).num_in_edges == 0) {
       engine.schedule_local(lvid, als_update(10000));
+    }
   }
   //  engine.schedule_all(als_update(10000));
   dc.full_barrier();
@@ -389,39 +409,26 @@ int main(int argc, char** argv) {
     std::ofstream fout(fname.c_str());
     for (size_t i = 0;i < graph.get_local_graph().num_vertices(); ++i) {
       if (graph.l_get_vertex_record(i).owner == dc.procid()) {
+        const vertex_data& vdata = graph.get_local_graph().vertex_data(i);
         fout << graph.l_get_vertex_record(i).gvid << "\t" 
              << graph.l_get_vertex_record(i).num_in_edges + 
           graph.l_get_vertex_record(i).num_out_edges << "\t" 
-             << graph.get_local_graph().vertex_data(i).residual << "\t"
-             << graph.get_local_graph().vertex_data(i).nupdates << "\n";
+             << vdata.residual << "\t" << vdata.nupdates << "\n";
       }
     }
   }
   
-  if (output) {
-    std::string fname = "results_local_";
-    fname = fname + graphlab::tostr((size_t)dc.procid());
-    std::ofstream fout(fname.c_str());
-    for (size_t i = 0;i < graph.get_local_graph().num_vertices(); ++i) {
-      fout << graph.l_get_vertex_record(i).gvid << "\t" 
-           << graph.l_get_vertex_record(i).num_in_edges + 
-        graph.l_get_vertex_record(i).num_out_edges << "\t" 
-           << graph.get_local_graph().vertex_data(i).residual << "\t"
-           << graph.get_local_graph().vertex_data(i).nupdates << "\n";
-    }
-  } 
-
-  if (output) {
-    std::string fname = "adj_";
-    fname = fname + graphlab::tostr((size_t)dc.procid());
-    std::ofstream fout(fname.c_str());
-    typedef graph_type::local_graph_type::edge_type etype;
-    for (size_t i = 0;i < graph.get_local_graph().num_vertices(); ++i) {
-      foreach(graph_type::edge_type e, graph.l_in_edges(i)) {
-        fout << e.source() << "\t" << e.target() << "\n";
-      }
-    }
-  } 
+  // if (output) {
+  //   std::string fname = "adj_";
+  //   fname = fname + graphlab::tostr((size_t)dc.procid());
+  //   std::ofstream fout(fname.c_str());
+  //   typedef graph_type::local_graph_type::edge_type etype;
+  //   for (size_t i = 0;i < graph.get_local_graph().num_vertices(); ++i) {
+  //     foreach(graph_type::edge_type e, graph.l_in_edges(i)) {
+  //       fout << e.source() << "\t" << e.target() << "\n";
+  //     }
+  //   }
+  // } 
 
   graphlab::mpi_tools::finalize();
   return EXIT_SUCCESS;
@@ -484,8 +491,7 @@ void load_graph_stream(graph_type& graph, Stream& fin) {
     fin >> source >> target >> value; 
     if(!fin.good()) break;
     ASSERT_LT(target, source);
-    max_wordid = std::max(target, max_wordid);
-    max_vid = std::max(max_vid, std::max(target, source));
+    MAX_VID = std::max(MAX_VID, std::max(target, source));
     graph.add_edge(source, target, edge_data(value));
   } // end of loop over file
 } // end of load graph from stream;
@@ -545,27 +551,143 @@ void load_graph_dir(graphlab::distributed_control& dc,
       load_graph_file(graph, graph_files[i]);
     }
   }
-  {
-    std::cout << "Determining max wordid: ";
-    std::vector<size_t> max_wordids(dc.numprocs());
-    max_wordids[dc.procid()] = max_wordid;
-    dc.all_gather(max_wordids);
-    for(size_t i = 0; i < max_wordids.size(); ++i)
-      max_wordid = std::max(max_wordid, max_wordids[i]);
-    std::cout << max_wordid << std::endl;
-  }
+  // {
+  //   std::cout << "Determining max wordid: ";
+  //   std::vector<size_t> max_wordids(dc.numprocs());
+  //   max_wordids[dc.procid()] = max_wordid;
+  //   dc.all_gather(max_wordids);
+  //   for(size_t i = 0; i < max_wordids.size(); ++i)
+  //     max_wordid = std::max(max_wordid, max_wordids[i]);
+  //   std::cout << max_wordid << std::endl;
+  // }
   {
     std::cout << "Determining max vid: ";
     std::vector<size_t> max_vids(dc.numprocs());
-    max_vids[dc.procid()] = max_vid;
+    max_vids[dc.procid()] = MAX_VID;
     dc.all_gather(max_vids);
     for(size_t i = 0; i < max_vids.size(); ++i)
-      max_vid = std::max(max_vid, max_vids[i]);
-    std::cout << max_vid << std::endl;
+      MAX_VID = std::max(MAX_VID, max_vids[i]);
+    std::cout << MAX_VID << std::endl;
   }
   std::cout << "Adding vertex data" << std::endl;
-  for(size_t vid = dc.procid(); vid <= max_vid; vid += dc.numprocs()) 
+  for(size_t vid = dc.procid(); vid <= MAX_VID; vid += dc.numprocs()) 
     graph.add_vertex(vid, vertex_data());
- 
-
 } // end of load graph from directory
+
+
+
+void initialize_vertex_data(graphlab::distributed_control& dc, 
+                            graph_type& graph) {
+  typedef graph_type::vertex_id_type vertex_id_type;
+  typedef graph_type::edge_type edge_type;
+  typedef std::pair<vertex_id_type, float> pair_type;
+  std::cout << "Computing neighborhood totals" << std::endl;
+  graphlab::buffered_exchange<pair_type> vertex_exchange(dc, 100000);
+  graphlab::buffered_exchange<pair_type>::buffer_type recv_buffer;
+  graphlab::procid_t sending_proc;
+  for(size_t lvid = 0; lvid < graph.num_local_vertices(); ++lvid) {
+    if(graph.l_is_master(lvid) ) {
+      if(graph.l_get_vertex_record(lvid).num_out_edges > 0) ++NDOCS;
+      else ++NWORDS;
+      graph.get_local_graph().vertex_data(lvid).randomize();
+    }
+    float sum = 0;
+    // Compute the sum of the neighborhood (either in or out edges)
+    foreach(const edge_type& edge, graph.l_in_edges(lvid))
+      sum += graph.edge_data(edge).rating;
+    foreach(const edge_type& edge, graph.l_out_edges(lvid))
+      sum += graph.edge_data(edge).rating;
+
+    const pair_type rec(graph.global_vid(lvid), sum);
+    const graphlab::procid_t owner = graph.l_get_vertex_record(lvid).owner;
+    vertex_exchange.send(owner, rec);
+    // recv any buffers if necessary
+    if(lvid + 1 == graph.num_local_vertices()) vertex_exchange.flush();
+    while(vertex_exchange.recv(sending_proc, recv_buffer)) {
+      foreach(const pair_type& pair, recv_buffer) 
+        graph.vertex_data(pair.first).neighborhood_total += pair.second;
+      recv_buffer.clear();
+    }    
+  }
+  ASSERT_TRUE(vertex_exchange.empty());
+  std::cout << "Synchronizing neighborhood totals" << std::endl;
+  graph.synchronize();
+  {
+    std::cout << "Determining NWORDS: ";
+    std::vector<size_t> counts(dc.numprocs());
+    counts[dc.procid()] = NWORDS;
+    dc.all_gather(counts);
+    NWORDS = 0;
+    for(size_t i = 0; i < counts.size(); ++i) NWORDS += counts[i];
+     std::cout << NWORDS << std::endl;
+  }
+  {
+    std::cout << "Determining NDOCS: ";
+    std::vector<size_t> counts(dc.numprocs());
+    counts[dc.procid()] = NDOCS;
+    dc.all_gather(counts);
+    NDOCS = 0;
+    for(size_t i = 0; i < counts.size(); ++i) NDOCS += counts[i];
+     std::cout << NDOCS << std::endl;
+  }
+} // end of initialize_vertex_data
+
+
+
+void make_tfidf(graph_type& graph) {
+  typedef graph_type::edge_type edge_type;
+  std::cout << "Updating edge values with TFIDF information." << std::endl;
+  for(size_t lvid = 0; lvid < graph.num_local_vertices(); ++lvid) {
+    foreach(const edge_type& edge, graph.l_in_edges(lvid)) {    
+      const float words_in_doc = 
+        graph.vertex_data(edge.source()).neighborhood_total;
+      ASSERT_GT(words_in_doc, 0);
+      const float doc_freq = 
+        1 + graph.num_in_edges(edge.target());
+      edge_data& edata = graph.edge_data(edge);
+      edata.rating = (edata.rating / words_in_doc) * log( NDOCS / doc_freq );
+    }
+  }
+} // end of make tfidf
+
+
+
+
+void save_graph_info(const size_t procid,
+                     const graph_type& graph) {
+  typedef graph_type::vertex_id_type vertex_id_type;
+  typedef graph_type::edge_type edge_type;
+
+  std::stringstream sstrm;
+  sstrm << "vinfo_" << procid;
+  const std::string vinfo_fname = sstrm.str();
+  sstrm.str("");
+  sstrm << "einfo_" << procid;
+  const std::string einfo_fname = sstrm.str();
+  std::cout << "[" << vinfo_fname << ", " << einfo_fname << "]" << std::endl;
+
+  std::ofstream vfout(vinfo_fname.c_str());
+  std::ofstream efout(einfo_fname.c_str());
+  for(size_t lvid = 0; lvid < graph.num_local_vertices(); ++lvid) {
+    const size_t gvid = graph.global_vid(lvid);
+    const vertex_data& vdata = graph.vertex_data(gvid);
+    vfout << gvid << '\t'
+          << graph.l_is_master(lvid) << '\t'
+          << vdata.residual << '\t'
+          << vdata.neighborhood_total << '\t'
+          << vdata.nupdates << '\t';
+    ASSERT_EQ(vdata.latent.size(), NLATENT);
+    for(size_t i = 0; i < NLATENT; ++i)
+      vfout << vdata.latent(i) << ( (i+1) < NLATENT ? '\t' : '\n');
+   
+    // save edge information
+    foreach(const edge_type& edge, graph.l_in_edges(lvid)) {
+      const edge_data& edata = graph.edge_data(edge);
+      efout << edge.source() << '\t' << edge.target() << '\t'
+            << edata.rating << '\t' << edata.error << '\n';
+    }
+  }
+  vfout.close();
+  efout.close();
+
+} // end of save graph info
