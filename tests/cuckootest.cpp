@@ -34,6 +34,7 @@
 void sanity_checks() {
   boost::unordered_map<size_t, size_t> um;
   graphlab::cuckoo_map_pow2<size_t, size_t> cm(-1);
+  ASSERT_TRUE(cm.begin() == cm.end());
   for (size_t i = 0;i < 10000; ++i) {
     cm[17 * i] = i;
     um[17 * i] = i;
@@ -86,6 +87,8 @@ void sanity_checks() {
 void sanity_checks2() {
   boost::unordered_map<size_t, size_t> um;
   graphlab::cuckoo_map<size_t, size_t> cm(-1);
+  ASSERT_TRUE(cm.begin() == cm.end());
+
   for (size_t i = 0;i < 10000; ++i) {
     cm[17 * i] = i;
     um[17 * i] = i;
@@ -457,13 +460,15 @@ void save_load_test() {
   for(uint32_t i = 0; i < 10000; ++i) map[i] = i;
   std::ofstream fout("tmp.txt");
   graphlab::oarchive oarc(fout);
-  oarc << map << "The end.";
+  std::string t = "The end.";
+  oarc << map << t;
   fout.close();
   std::ifstream fin("tmp.txt");
   graphlab::iarchive iarc(fin);
   cuckoo_map_type map2(-1);
   std::string txt;
-  iarc >> map2 >> txt;
+  iarc >> map2;
+  iarc >> txt;
   ASSERT_EQ(txt, std::string("The end."));
   for(uint32_t i = 0; i < 10000; ++i) 
     ASSERT_EQ(map[i], i);
