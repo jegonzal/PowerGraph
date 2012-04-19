@@ -314,7 +314,7 @@ namespace graphlab {
       consensus(dc, ncpus), 
       max_pending_tasks(-1) {
       rmi.barrier();
-      aggregator.get_threads().resize(ncpus);
+      aggregator.get_threads().resize(2);
 #ifdef USE_EVENT_LOG
       PERMANENT_INITIALIZE_DIST_EVENT_LOG(eventlog, dc, std::cout, 3000, 
                                           dist_event_log::RATE_BAR);

@@ -101,7 +101,7 @@ class als_update :
 public:
   als_update(double error = 0) : error(error) { }
   double priority() const { return error; }
-  void operator+=(const als_update& other) { error += other.error; }
+  void operator+=(const als_update& other) { error=std::max(error,other.error); }
   consistency_model gather_consistency() { return graphlab::EDGE_CONSISTENCY; }
   consistency_model scatter_consistency() { return graphlab::EDGE_CONSISTENCY; }
   edge_set gather_edges() const { return graphlab::ALL_EDGES; }
@@ -311,7 +311,7 @@ int main(int argc, char** argv) {
   clopts.use_distributed_options();
   std::string matrix_dir; 
   bool savebin = false;
-  std::string binpath = "./";
+  std::string binpath = "";
   std::string binprefix = "als_graph";
   bool output = false;
   size_t interval = 10;
@@ -355,10 +355,16 @@ int main(int argc, char** argv) {
   std::cout << dc.procid() << ": Loading graph." << std::endl;
   timer.start();
   graph_type graph(dc, clopts);
-  load_graph_dir(dc, graph, matrix_dir, dc.procid(), dc.numprocs());
-  std::cout << dc.procid() << ": Finalizing graph." << std::endl;
-  graph.finalize();
-  std::cout << dc.procid() << ": Finished in " << timer.current_time() << std::endl;
+  if(!savebin && !binpath.empty() && !binprefix.empty() ) {
+    std::cout << "Loading from binary" << std::endl;
+    graph.load(binpath, binprefix);
+  } else {
+    std::cout << "Loading text matrix file" << std::endl;
+    load_graph_dir(dc, graph, matrix_dir, dc.procid(), dc.numprocs());
+    std::cout << dc.procid() << ": Finalizing graph." << std::endl;
+    graph.finalize();
+    std::cout << dc.procid() << ": Finished in " << timer.current_time() << std::endl;
+  }
 
   if(dc.procid() == 0){
     std::cout
@@ -389,8 +395,15 @@ int main(int argc, char** argv) {
             << timer.current_time() << std::endl;
 
 
+  dc.full_barrier();
 
-  if (savebin) graph.save(binpath, binprefix);
+  if (savebin) {
+    std::cout << "saveing graph as binary" << std::endl;
+    graph.save(binpath, binprefix);
+  }
+
+
+  
  
  
   std::cout << dc.procid() << ": Creating engine" << std::endl;
@@ -405,7 +418,7 @@ int main(int argc, char** argv) {
     // Schedule only "left side" vertices
     if(graph.l_is_master(lvid) && 
        graph.l_get_vertex_record(lvid).num_in_edges == 0) {
-      engine.schedule_local(lvid, als_update(10000));
+      engine.schedule_local(lvid, als_update(std::numeric_limits<float>::max()));
     }
   }
   dc.full_barrier();

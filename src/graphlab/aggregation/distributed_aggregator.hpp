@@ -121,8 +121,8 @@ namespace graphlab {
             local_accum(context);
           }
         }
-        std::cout << "Finished local sync: " 
-                  << lowres_time_millis() / 1000 << std::endl;
+        // std::cout << "Finished local sync: " 
+        //           << lowres_time_millis() / 1000 << std::endl;
         // Merge with master
         lock.lock(); 
         shared_aggregator += local_accum; 
@@ -130,8 +130,8 @@ namespace graphlab {
         barrier_ptr->wait();  // Wait until all merges are complete
 
         if(cpuid == 0) {
-          std::cout << "Merging sync: " 
-                    << lowres_time_millis() / 1000 << std::endl;
+          // std::cout << "Merging sync: " 
+          //           << lowres_time_millis() / 1000 << std::endl;
           std::vector<aggregator_type> result(rmi_ptr->numprocs());
           result[rmi_ptr->procid()] = shared_aggregator;
           const size_t ROOT(0);

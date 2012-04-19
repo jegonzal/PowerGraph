@@ -40,12 +40,10 @@ namespace graphlab {
   template <typename ArcType, typename RandomAccessIterator>
   void serialize_iterator(ArcType& a, RandomAccessIterator begin,
                                       RandomAccessIterator end){
-    size_t vsize = std::distance(begin, end);
+    const size_t vsize = std::distance(begin, end);
     a << vsize;
-    //store each element
-    for(; begin != end; ++begin) {
-      a << *begin;
-    }
+    // store each element
+    for(; begin != end; ++begin) a << *begin;
   }
 
 
@@ -61,12 +59,9 @@ namespace graphlab {
     a << vsize;
     //store each element
     size_t count = 0;
-    for(; begin != end; ++begin) {
-      ++count;
-      a << *begin;
-    }
+    for(; begin != end; ++begin) { a << *begin;  ++count; }
     // fail if count does not match
-    assert(count == vsize);
+    ASSERT_EQ(count, vsize);
   }
 
   /**
