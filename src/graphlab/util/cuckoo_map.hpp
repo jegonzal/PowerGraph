@@ -584,7 +584,8 @@ public:
     size_t tmpnumel = 0;
     iarc >> tmpnumel >> illegalkey;
     reserve(tmpnumel * 1.5);
-    deserialize_iterator<iarchive, non_const_value_type>(iarc, std::inserter(*this, begin()));
+    deserialize_iterator<iarchive, non_const_value_type>
+      (iarc, std::inserter(*this, begin()));
   }
   
 };

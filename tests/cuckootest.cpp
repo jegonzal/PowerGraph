@@ -1,3 +1,25 @@
+/**  
+ * Copyright (c) 2009 Carnegie Mellon University. 
+ *     All rights reserved.
+ *
+ *  Licensed under the Apache License, Version 2.0 (the "License");
+ *  you may not use this file except in compliance with the License.
+ *  You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing,
+ *  software distributed under the License is distributed on an "AS
+ *  IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+ *  express or implied.  See the License for the specific language
+ *  governing permissions and limitations under the License.
+ *
+ * For more about this software visit:
+ *
+ *      http://www.graphlab.ml.cmu.edu
+ *
+ */
+
 #include <sstream>
 #include <graphlab/util/cuckoo_map.hpp>
 #include <graphlab/util/cuckoo_map_pow2.hpp>
@@ -427,6 +449,28 @@ void benchmark_strings() {
 
   }
 }
+
+
+void save_load_test() {
+  typedef graphlab::cuckoo_map_pow2<uint32_t, uint32_t, 3, uint32_t> cuckoo_map_type;
+  cuckoo_map_type map(-1);
+  for(uint32_t i = 0; i < 10000; ++i) map[i] = i;
+  std::ofstream fout("tmp.txt");
+  graphlab::oarchive oarc(fout);
+  oarc << map << "The end.";
+  fout.close();
+  std::ifstream fin("tmp.txt");
+  graphlab::iarchive iarc(fin);
+  cuckoo_map_type map2(-1);
+  std::string txt;
+  iarc >> map2 >> txt;
+  ASSERT_EQ(txt, std::string("The end."));
+  for(uint32_t i = 0; i < 10000; ++i) 
+    ASSERT_EQ(map[i], i);
+} // end of save load test
+
+
+
 int main(int argc, char** argv) {
   std::cout << "Basic Sanity Checks... ";
   std::cout.flush();
@@ -434,15 +478,16 @@ int main(int argc, char** argv) {
   sanity_checks2();
   more_interesting_data_types_check();
   more_interesting_data_types_check2();
+  save_load_test();
 
   std::cout << "Done" << std::endl;
 
 
-  std::cout << "\n\n\nRunning Benchmarks. uint32-->uint32" << std::endl;
-  benchmark();
+  // std::cout << "\n\n\nRunning Benchmarks. uint32-->uint32" << std::endl;
+  // benchmark();
 
 
-  std::cout << "\n\n\nRunning Benchmarks. string-->string" << std::endl;
-  benchmark_strings();
+  // std::cout << "\n\n\nRunning Benchmarks. string-->string" << std::endl;
+  // benchmark_strings();
 
 }
