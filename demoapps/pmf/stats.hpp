@@ -163,7 +163,7 @@ double calc_obj(double res){
   return obj;
 }
 template<typename graph_type, typename vertex_data, typename edge_data>
-void calc_stats2(const graph_type * gr, double&minU, double& maxU, int &moviewithoutedges, int& numedges, double &avgval, double& avgtime, double &minval, double &maxval, double&mintime, double&maxtime, int&timewithoutedges){
+void calc_stats2(const graph_type * gr, double&minU, double& maxU, int &moviewithoutedges, int& numedges, double &avgval, double& avgtime, double &minval, double &maxval, double&mintime, double&maxtime, int&timewithoutedges, uint & negativevals, uint & positivevals){
  bool * timeslots = new bool[ps.K];
  for (int i=0; i<ps.K; i++)
     timeslots[i] = false;
@@ -179,6 +179,9 @@ void calc_stats2(const graph_type * gr, double&minU, double& maxU, int &moviewit
 	edge_data & data = (edge_data&)gr->edge_data(iedgeid);
 	numedges++;
 	avgval += data.weight;
+  if (data.weight >= 0)
+     positivevals++;
+  else negativevals++;
 	avgtime += data.time;
         timeslots[(int)data.time]=true;
 	if (data.weight<minval)
@@ -197,7 +200,7 @@ void calc_stats2(const graph_type * gr, double&minU, double& maxU, int &moviewit
 }
 
 template<>
-void calc_stats2<graph_type_mult_edge, vertex_data, multiple_edges>(const graph_type_mult_edge * gr, double&minU, double& maxU, int &moviewithoutedges, int& numedges, double &avgval, double& avgtime, double &minval, double &maxval,double&mintime, double&maxtime, int&timewithoutedges){
+void calc_stats2<graph_type_mult_edge, vertex_data, multiple_edges>(const graph_type_mult_edge * gr, double&minU, double& maxU, int &moviewithoutedges, int& numedges, double &avgval, double& avgtime, double &minval, double &maxval,double&mintime, double&maxtime, int&timewithoutedges, uint & negativevals, uint & positivevals){
 
  bool * timeslots = new bool[ac.K];
  for (int i=0; i< ps.K; i++)
@@ -218,6 +221,9 @@ void calc_stats2<graph_type_mult_edge, vertex_data, multiple_edges>(const graph_
 	const edge_data_mcmc & data = edges.medges[j];
 	numedges++;
 	avgval += data.weight;
+  if (data.weight >= 0)
+    positivevals++;
+  else negativevals++;
 	avgtime += data.time;
 	if (data.weight<minval)
 	   minval=data.weight;
@@ -266,8 +272,9 @@ void calc_stats(testtype type){
   int moviewithoutedges = 0;
   int userwithoutedges = 0;
   int timewithoutedges = 0;
+  uint negativevals = 0, positivevals = 0;
   int numedges = 0;
-  calc_stats2<graph_type, vertex_data, edge_data>(gr, minU, maxU, moviewithoutedges, numedges, avgval, avgtime, minval, maxval, mintime, maxtime, timewithoutedges);
+  calc_stats2<graph_type, vertex_data, edge_data>(gr, minU, maxU, moviewithoutedges, numedges, avgval, avgtime, minval, maxval, mintime, maxtime, timewithoutedges, negativevals, positivevals);
  
   for (int i=0; i< ps.M; i++){ 
    const vertex_data * data = &gr->vertex_data(i);
@@ -286,7 +293,7 @@ void calc_stats(testtype type){
  printf("%s Avg time value %g min val %g max value %g\n", testtypename[type], avgtime, mintime, maxtime);
  printf("%s User without edges: %d movie without edges: %d\n", testtypename[type], userwithoutedges, moviewithoutedges);
  printf("%s Min V: %g Max V: %g Min U: %g, Max U: %g \n", testtypename[type], minV, maxV, minU, maxU);
-
+ printf("%s Negative values: %u, Positive values: %u\n", testtypename[type], negativevals, positivevals);
  //verify we did not miss any ratings (nnz values)
  switch(type){
    case TRAINING: assert(numedges==ps.L); break;

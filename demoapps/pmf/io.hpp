@@ -678,13 +678,7 @@ void verify_size(testtype data_type, int _M, int _N, int _K){
   if (data_type != TRAINING && ps.K != _K)
 	logstream(LOG_WARNING) << " wrong number of time bins: " << _K << " instead of " << ps.K << " in " << testtypename[data_type] <<std::endl;
 
-  uint edges = 0;
-  if (data_type == TRAINING)
-     edges = ps.L;
-  else if (data_type == VALIDATION)
-     edges = ps.Le;
-  else edges = ps.Lt;
-  printf("Matrix size is: USERS %d MOVIES %d TIME BINS %d - ratings %u \n", ps.M, ps.N, ps.K, edges);
+  printf("Matrix size is: USERS %d MOVIES %d TIME BINS %d\n", ps.M, ps.N, ps.K);
 }
 
 
@@ -763,6 +757,7 @@ void load_pmf_graph(const char* filename, graph_type * g, graph_type * _g, testt
     edges = new std::vector<edge_id_t>[ps.K]();
 
   set_num_edges(val, data_type);
+  logstream(LOG_INFO)<<"Loaded total ratings: " << val <<std::endl;
   verify_edges<graph_type, edge_data>(_g, data_type);
 
   fclose(f);

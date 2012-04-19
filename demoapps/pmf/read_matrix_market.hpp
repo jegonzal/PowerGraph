@@ -130,6 +130,7 @@ void load_matrix_market(const char * filename, graph_type *_g, testtype data_typ
 
  
     set_num_edges(nz, data_type);
+    logstream(LOG_INFO)<<"Loaded total edges: " << nz << std::endl;
     verify_edges<graph_type,edge_data>(_g, data_type);
  
     //add implicit edges if requested
