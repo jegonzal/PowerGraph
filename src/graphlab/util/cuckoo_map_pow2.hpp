@@ -120,7 +120,33 @@ namespace graphlab {
     }
 
   public:
+    struct insert_iterator{
+      cuckoo_map_pow2* cmap;
+      typedef std::forward_iterator_tag iterator_category;
+      typedef typename cuckoo_map_pow2::value_type value_type;
 
+      insert_iterator(cuckoo_map_pow2* c):cmap(c) {}
+      
+      insert_iterator operator++() {
+        return (*this);
+      }
+      insert_iterator operator++(int) {
+        return (*this);
+      }
+
+      insert_iterator& operator*() {
+        return *this;
+      }
+      insert_iterator& operator=(const insert_iterator& i) {
+        cmap = i.cmap;
+        return *this;
+      }
+      
+      insert_iterator& operator=(const value_type& v) {
+        cmap->insert(v);
+        return *this;
+      }
+    };
 
     struct const_iterator {
       const cuckoo_map_pow2* cmap;
@@ -395,6 +421,11 @@ namespace graphlab {
 
       while(iter.vec_iter != data_end() &&
             keyeq(iter.vec_iter->first, illegalkey)) ++iter.vec_iter;
+
+      if (iter.vec_iter == data_end()) {
+        iter.in_stash = true;
+        iter.stash_iter = stash.begin();
+      }
       return iter;
     }
 
@@ -599,10 +630,10 @@ namespace graphlab {
       clear();
       index_type tmpnumel = 0;
       iarc >> tmpnumel >> illegalkey;
-      std::cout << tmpnumel << ", " << illegalkey << std::endl;
+      //std::cout << tmpnumel << ", " << illegalkey << std::endl;
       reserve(tmpnumel * 1.5);
       deserialize_iterator<iarchive, non_const_value_type>
-        (iarc, std::inserter(*this, begin()));
+        (iarc, insert_iterator(this));
       // for(size_t i = 0; i < tmpnumel; ++i) {
       //   non_const_value_type pair;
       //   iarc >> pair; 

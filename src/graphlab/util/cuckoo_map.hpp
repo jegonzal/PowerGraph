@@ -117,7 +117,33 @@ private:
   }
 
 public:
+  struct insert_iterator{
+    cuckoo_map* cmap;
+    typedef std::forward_iterator_tag iterator_category;
+    typedef typename cuckoo_map::value_type value_type;
 
+    insert_iterator(cuckoo_map* c):cmap(c) {}
+
+    insert_iterator operator++() {
+      return (*this);
+    }
+    insert_iterator operator++(int) {
+      return (*this);
+    }
+
+    insert_iterator& operator*() {
+      return *this;
+    }
+    insert_iterator& operator=(const insert_iterator& i) {
+      cmap = i.cmap;
+      return *this;
+    }
+
+    insert_iterator& operator=(const value_type& v) {
+      cmap->insert(v);
+      return *this;
+    }
+  };
 
   struct const_iterator {
     const cuckoo_map* cmap;
@@ -390,6 +416,13 @@ public:
 
     while(iter.vec_iter != data_end() &&
           keyeq(iter.vec_iter->first, illegalkey)) ++iter.vec_iter;
+
+
+    if (iter.vec_iter == data_end()) {
+      iter.in_stash = true;
+      iter.stash_iter = stash.begin();
+    }
+      
     return iter;
   }
 
@@ -585,7 +618,7 @@ public:
     iarc >> tmpnumel >> illegalkey;
     reserve(tmpnumel * 1.5);
     deserialize_iterator<iarchive, non_const_value_type>
-      (iarc, std::inserter(*this, begin()));
+      (iarc, insert_iterator(this));
   }
   
 };
