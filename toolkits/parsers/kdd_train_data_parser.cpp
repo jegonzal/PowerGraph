@@ -33,12 +33,14 @@ using namespace std;
 int nodes = 2421057;
 int num_edges = 39752419;
 int split_time = 1321891200; //time to split test data
+int split_training_time = 1320595199;
 int ratingA = 19349608;
 int ratingB = 15561329;
 int split_day_of_year = 310;
-
+int level = 2;
 bool debug = false;
-std::string datafile;
+string datafile;
+string example_submission; 
 unsigned long long total_lines = 0;
 bool gzip = false;
 
@@ -70,14 +72,29 @@ struct edge_data2 {
   edge_data2(int _rating, int _time) : rating(_rating),time(_time) { }
 };
 
+struct singlerating{
+   int user;
+   int item;
+   int rating;
+   int time;
+
+   singlerating(int _user, int _item, int _rating, int _time) : user(_user), item(_item), rating(_rating), time(_time){ };
+};
+
+
 typedef graphlab::graph<vertex_data, edge_data> graph_type;
 typedef graphlab::graph<vertex_data2, edge_data2> graph_type2;
-/***
-* Line format is:
-1::gift card
-2::
-3::
-4::might have art deco roots but the exaggerated basket weave pattern */
+typedef graph_type2::edge_type edge_type;
+
+void add_single_edge(int from, int to, edge_data2 & edge, graph_type2 & pgraph, int & examples_added){
+
+  edge_type found = pgraph.find(from - 1, to+nodes-1);
+  if (!found.empty())
+    return;
+  pgraph.add_edge(from - 1, to+nodes-1, edge); 
+  examples_added++;
+}
+
 struct stringzipparser_update :
    public graphlab::iupdate_functor<graph_type, stringzipparser_update>{
    void operator()(icontext_type& context) {
@@ -85,7 +102,8 @@ struct stringzipparser_update :
 typedef graphlab::graph<vertex_data2, edge_data2>::edge_list_type edge_list;
     
    vertex_data& vdata = context.vertex_data();
-   gzip_in_file fin((vdata.filename), gzip);
+   gzip_in_file fin(vdata.filename, gzip);
+   gzip_in_file fin_example(example_submission, gzip);
    gzip_out_file fout((vdata.filename + ".out"), gzip);
    gzip_out_file fout_validation((vdata.filename + ".oute"), gzip);
     
@@ -108,7 +126,7 @@ typedef graphlab::graph<vertex_data2, edge_data2>::edge_list_type edge_list;
     out_graph.resize(2*nodes);
     graph_type2 out_graph_validation;
 
-  
+    std::vector<singlerating> multiple_ratings; 
  
     while(true){
       fin.get_sp().getline(linebuf, 24000);
@@ -151,27 +169,32 @@ typedef graphlab::graph<vertex_data2, edge_data2>::edge_list_type edge_list;
         return;
        }
       int time = atoi(pch);
-      if (time <= 0){
+      //131834878,1321027199
+      if (time < 131834878 || time > 1321027199){
          logstream(LOG_ERROR) << "Error when parsing file: " << vdata.filename << ":" << total_lines << " invalid time " << from << std::endl;
          return;
       }
 
       total_lines++;
+      singlerating thisrating(from, to, rating, time);
       if (debug && (total_lines % 50000 == 0))
         logstream(LOG_INFO) << "Parsed line: " << total_lines << " selected lines: " << added << std::endl;
 
-      //duplicate entry in different time, nothing to do. 
+      //duplicate entry in different time -  store to choose at random one of rating later
       if (last_from == from && last_to == to && last_rating == rating){
-
+         multiple_ratings.push_back(thisrating);
       }
       //item with opposite ratings, ignore
       else if (last_from == from && last_to == to && last_rating != rating){
          ignore_last_from = from;
          ignore_last_to = to;
+         multiple_ratings.clear();
       }
       //a different rating encountered
       else if ((last_from > -1) && (last_from != from || last_to != to)){
+         //if we marked this entry to ignore it, don't add it.
          if (last_from == ignore_last_from && last_to == ignore_last_to){
+            multiple_ratings.clear();
          }
          else { 
             int dayofyear = get_day(last_time);
@@ -179,17 +202,24 @@ typedef graphlab::graph<vertex_data2, edge_data2>::edge_list_type edge_list;
                 mindayofyear = dayofyear;
             if (dayofyear > maxdayofyear)
                 maxdayofyear = dayofyear;
-            edge_data2 edge(last_rating, dayofyear);
-            if (dayofyear >=  split_day_of_year)
-              out_graph_validation.add_edge(last_from - 1, last_to+nodes-1, edge);
-            else out_graph.add_edge(last_from - 1, last_to+nodes-1, edge);
+            assert(multiple_ratings.size() > 0);
+            int randint = rand() % multiple_ratings.size();
+            singlerating chosen = multiple_ratings[randint];
+            edge_data2 edge(chosen.rating, chosen.time);
+            //if (dayofyear >=  split_day_of_year)
+            if (chosen.time > split_training_time)
+              out_graph_validation.add_edge(chosen.user - 1, chosen.item+nodes-1, edge);
+            else out_graph.add_edge(chosen.user - 1, chosen.item+nodes-1, edge);
             added++;
-            if (last_rating == -1)
+            if (chosen.rating == -1)
 	            negative_examples++;
             else positive_examples++;
-                       //cout<<"day of year: " << get_day(last_time) << endl;
+            multiple_ratings.clear();
+            //cout<<"day of year: " << get_day(last_time) << endl;
          }
+          multiple_ratings.push_back(thisrating); 
       }
+      else multiple_ratings.push_back(thisrating);
    
       last_from = from;
       last_to = to;
@@ -205,14 +235,66 @@ typedef graphlab::graph<vertex_data2, edge_data2>::edge_list_type edge_list;
                 mindayofyear = dayofyear;
    if (dayofyear > maxdayofyear)
                 maxdayofyear = dayofyear;
-   edge_data2 last_edge(last_rating, dayofyear);
-   if (dayofyear >= split_day_of_year)
+   edge_data2 last_edge(last_rating, last_time);
+   //if (dayofyear >= split_day_of_year)
+   if (last_time > split_training_time)
       out_graph_validation.add_edge(last_from - 1, last_to+nodes-1, last_edge);
    else out_graph.add_edge(last_from - 1, last_to+nodes-1, last_edge);
    if (last_rating == -1)
 	   negative_examples++;
    else positive_examples++;
-   
+
+    /* handle addition of synthetit time example taken from the test data */
+    int examples_added = 0;
+    bool first = true; 
+    while(true){
+      fin_example.get_sp().getline(linebuf, 24000);
+      if (fin_example.get_sp().eof())
+        break;
+      if (first){ //skip the line: id,clicks
+        first = false;
+        continue;
+      }
+
+      char *pch = strtok_r(linebuf," ,\r\n\t",(char**)&saveptr);
+      if (!pch){
+        logstream(LOG_ERROR) << "Error when parsing example file: " << endl; 
+        return;
+       }
+      int from = atoi(pch);
+      if (from <= 0){
+         logstream(LOG_ERROR) << "Error when parsing file: " << example_submission << " line was: " << linebuf <<endl;
+         return;
+      }
+      pch = strtok_r(NULL," ,\r\n\t",(char**)&saveptr);
+      if (!pch){
+        logstream(LOG_ERROR) << "Error when parsing file: " << vdata.filename << ":" << total_lines << "[" << linebuf << "]" << std::endl;
+        return;
+       }
+      int to = atoi(pch), to2 = 0, to3 = 0;
+      if (to <= 0){
+         logstream(LOG_ERROR) << "Error when parsing file: " << vdata.filename << ":" << total_lines << " document ID is zero or less: " << from << std::endl;
+         return;
+      }
+      pch = strtok_r(NULL," \r\n\t",(char**)&saveptr);
+      if (pch){
+         to2 = atoi(pch);
+         pch = strtok_r(NULL," \r\n\t",(char**)&saveptr);
+         if (pch)
+            to3 = atoi(pch);
+      }
+      edge_data2 edge(1, 131834878);
+      add_single_edge(from, to, edge, out_graph, examples_added);
+      if (level >=2 && to2 > 0 ){
+        add_single_edge(from, to2, edge, out_graph, examples_added);
+       if (level>= 3 && to3> 0){
+         add_single_edge(from, to3, edge, out_graph, examples_added);
+       }
+      } 
+
+   }
+   logstream(LOG_ERROR)<<"Added a total of " << examples_added << " from test data" << endl;
+   positive_examples+= examples_added;
    out_graph.finalize();
    out_graph_validation.finalize();
 
@@ -231,7 +313,7 @@ typedef graphlab::graph<vertex_data2, edge_data2>::edge_list_type edge_list;
        }
     }
 
-    logstream(LOG_INFO)<<"Finished exporting a total of " << total_edges << " ratings " << std::endl << " Positive ratings: " << positive_examples << " Negative ratings: " << negative_examples << std::endl;
+    logstream(LOG_INFO)<<"Finished exporting a total of " << total_edges << " ratings to training graph " << std::endl << " Positive ratings: " << positive_examples << " Negative ratings: " << negative_examples << std::endl;
     ASSERT_EQ(out_graph.num_edges(), total_edges);
     int total_edges_validation = 0;
     mm_write_cpp_mtx_crd_size(fout_validation.get_sp(), nodes, nodes, out_graph_validation.num_edges());
@@ -248,7 +330,8 @@ typedef graphlab::graph<vertex_data2, edge_data2>::edge_list_type edge_list;
     }
 
     logstream(LOG_INFO)<<"Finished exporting a total of " << total_edges_validation << " ratings to validation graph. " << endl;
-    ASSERT_EQ(total_edges_validation + total_edges, num_edges);
+    logstream(LOG_INFO)<<"Total unique entries are: " << total_edges_validation + total_edges << endl;
+    ASSERT_EQ(total_edges_validation + total_edges, num_edges+examples_added);
     ASSERT_EQ(out_graph_validation.num_edges(), total_edges_validation);
 
   }
@@ -267,10 +350,12 @@ int main(int argc,  char *argv[]) {
   clopts.attach_option("data", &datafile, datafile,
                        "training data input file");
   clopts.add_positional("data");
+  clopts.attach_option("example_submission", &example_submission, example_submission, "example 2 column submission file location");
+  clopts.add_positional("example_submission");
   clopts.attach_option("debug", &debug, debug, "Display debug output.");
   clopts.attach_option("gzip", &gzip, gzip, "Gzipped input file?");
   clopts.attach_option("split_day_of_year", &split_day_of_year, split_day_of_year, "split training set to validation set, for days >= split_day_of_year");
-
+  clopts.attach_option("level", &level, level, "take XX examples for each user from test data and add to training. 0 means no examples.");
   // Parse the command line arguments
   if(!clopts.parse(argc, argv)) {
     std::cout << "Invalid arguments!" << std::endl;
