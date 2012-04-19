@@ -853,18 +853,14 @@ namespace graphlab {
     /** \brief Load the graph from an archive */
     void load(iarchive& arc) {
       // read the vertices and colors
-      std::cout << "Loading count " << std::endl;
       arc >> nverts 
           >> nedges 
           >> local_own_nverts 
           >> nreplicas
-          >> begin_eid ;
-      std::cout << "loading cuckoo" << std::endl;    
-      arc >> vid2lvid;
-     std::cout << "loading records" << std::endl;    
-      arc >> lvid2record;
-      std::cout << "Loacing local graph" << std::endl;
-      arc >> local_graph;
+          >> begin_eid
+          >> vid2lvid
+          >> lvid2record
+          >> local_graph;
       finalized = true;
       // check the graph condition
     } // end of load

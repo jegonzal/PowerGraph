@@ -159,15 +159,15 @@ public:
     const size_t nneighbors = context.num_in_edges() + context.num_out_edges();
     if(nneighbors == 0) return;
     // Add regularization
-    for(size_t i = 1; i < NLATENT; ++i) XtX(i,i) += LAMBDA; // /nneighbors;
+    for(size_t i = 0; i < NLATENT; ++i) XtX(i,i) += LAMBDA; // /nneighbors;
     // Solve the least squares problem using eigen ----------------------------
     const Eigen::VectorXd old_latent = vdata.latent;
     vdata.latent = XtX.selfadjointView<Eigen::Upper>().ldlt().solve(Xty);
     // Compute the residual change in the latent factor -----------------------
-    vdata.residual = 0;
+    double residual = 0;
     for(int i = 0; i < XtX.rows(); ++i)
-      vdata.residual += std::fabs(old_latent(i) - vdata.latent(i));
-    vdata.residual /= XtX.rows();
+      residual += std::fabs(old_latent(i) - vdata.latent(i));
+    vdata.residual = residual / XtX.rows();
   } // end of apply
 
 
@@ -219,10 +219,10 @@ public:
     rmse += (edata.error * edata.error);
     // priority depends on the residual having been
     // evaluated. Initially the residual is negative
-    if(source_vdata.residual >= 0) 
+    if(source_vdata.nupdates == 0) 
       max_priority =  std::max(edata.error * source_vdata.residual,       
                                max_priority);
-    if(target_vdata.residual >= 0) 
+    if(target_vdata.nupdates == 0) 
       max_priority =  std::max(edata.error * target_vdata.residual,       
                                max_priority);
     max_error = std::max(max_error, edata.error);
@@ -364,6 +364,13 @@ int main(int argc, char** argv) {
     std::cout << dc.procid() << ": Finalizing graph." << std::endl;
     graph.finalize();
     std::cout << dc.procid() << ": Finished in " << timer.current_time() << std::endl;
+    std::cout << dc.procid() << ": Initializign vertex data. " 
+              << timer.current_time() << std::endl;
+    initialize_vertex_data(dc, graph);
+    make_tfidf(graph);
+    std::cout << dc.procid() << ": Finished initializign vertex data. " 
+              << timer.current_time() << std::endl;
+
   }
 
   if(dc.procid() == 0){
@@ -387,12 +394,6 @@ int main(int argc, char** argv) {
       << std::endl;
   }
 
-  std::cout << dc.procid() << ": Initializign vertex data. " 
-            << timer.current_time() << std::endl;
-  initialize_vertex_data(dc, graph);
-  make_tfidf(graph);
-  std::cout << dc.procid() << ": Finished initializign vertex data. " 
-            << timer.current_time() << std::endl;
 
 
   dc.full_barrier();
@@ -572,9 +573,9 @@ void load_graph_dir(graphlab::distributed_control& dc,
       MAX_VID = std::max(MAX_VID, max_vids[i]);
     std::cout << MAX_VID << std::endl;
   }
-  std::cout << "Adding vertex data" << std::endl;
-  for(size_t vid = dc.procid(); vid <= MAX_VID; vid += dc.numprocs()) 
-    graph.add_vertex(vid, vertex_data());
+  // std::cout << "Adding vertex data" << std::endl;
+  // for(size_t vid = dc.procid(); vid <= MAX_VID; vid += dc.numprocs()) 
+  //   graph.add_vertex(vid, vertex_data());
 } // end of load graph from directory
 
 
@@ -648,8 +649,11 @@ void make_tfidf(graph_type& graph) {
       const float doc_freq = 
         1 + graph.num_in_edges(edge.target());
       edge_data& edata = graph.edge_data(edge);
-      edata.rating = 
-        -log(edata.rating / words_in_doc) * log( NDOCS / doc_freq );
+      // edata.rating = 
+      //   -log(edata.rating / words_in_doc) * log( NDOCS / doc_freq );
+      // edata.rating = edata.rating * log( NDOCS / doc_freq );
+      edata.rating = (edata.rating / words_in_doc) * log( NDOCS / doc_freq );
+
     }
   }
 } // end of make tfidf
