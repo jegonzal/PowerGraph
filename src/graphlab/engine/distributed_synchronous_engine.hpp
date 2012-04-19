@@ -100,6 +100,10 @@ namespace graphlab {
     size_t ncpus;
     size_t vertex_per_cpu;
     size_t max_iterations;
+    bool no_background_comms;
+
+    spinlock compute_time_lock;
+    double compute_time;
     std::vector<size_t> bal;  
     //! Engine state
     bool started;
@@ -111,9 +115,9 @@ namespace graphlab {
     
     // if scheduleset[i] has a task 
     // perthread_scheduleset_bits[i % ncpus] will have bit i / ncpus set
-    std::vector<dense_bitset> perthread_scheduleset_bits;
-    std::vector<dense_bitset> perthread_workingset_bits; 
-    
+    dense_bitset scheduleset_bits;
+    dense_bitset workingset_bits; 
+    dense_bitset temporary_bits; 
     atomic<uint64_t> completed_tasks;
     
     PERMANENT_DECLARE_DIST_EVENT_LOG(eventlog);
@@ -130,23 +134,12 @@ namespace graphlab {
       BUFFER_LIMIT = 100
     };
 
-    inline size_t lvid_to_thread(vertex_id_type lvid) const {
-      return lvid / vertex_per_cpu;
-    }
-    
-    inline size_t lvid_to_bit(vertex_id_type lvid) const {
-      return lvid % vertex_per_cpu;
-    }
-    
-    inline size_t bit_and_thread_to_lvid(size_t bit, size_t threadid) const {
-      return bit + threadid * vertex_per_cpu;
-    }
     
   public:
     distributed_synchronous_engine(distributed_control &dc, graph_type& graph,
                               size_t ncpus) : 
       rmi(dc, this), graph(graph), threads(ncpus), bar(ncpus), 
-      aggregator(dc, *this, graph), ncpus(ncpus), max_iterations(-1),
+      aggregator(dc, *this, graph), ncpus(ncpus), max_iterations(-1), no_background_comms(false), compute_time(0.0),
       started(false), has_schedule_entries(false) {
 
 #ifdef USE_EVENT_LOG
@@ -176,14 +169,12 @@ namespace graphlab {
         << rmi.procid() << ": Initializing..." << std::endl;
 
       vlocks.resize(graph.num_local_vertices());
-      perthread_scheduleset_bits.resize(ncpus);
-      perthread_workingset_bits.resize(ncpus);
-      for (size_t i = 0;i < ncpus; ++i) {
-        perthread_scheduleset_bits[i].resize(graph.num_local_vertices() / ncpus + 1);
-        perthread_workingset_bits[i].resize(graph.num_local_vertices() / ncpus + 1);
-        perthread_scheduleset_bits[i].clear();
-        perthread_workingset_bits[i].clear();
-      }
+      scheduleset_bits.resize(graph.num_local_vertices());
+      workingset_bits.resize(graph.num_local_vertices());
+      temporary_bits.resize(graph.num_local_vertices());
+      scheduleset_bits.clear();
+      workingset_bits.clear();
+      temporary_bits.clear();
       vertex_per_cpu = vlocks.size() / ncpus + (vlocks.size() % ncpus > 0);
       bal.resize(ncpus);
       scheduleset = new vertex_functor_set<update_functor_type>();
@@ -233,7 +224,6 @@ namespace graphlab {
     void workingset_merge_local(vertex_id_type local_vid ,
                      const update_functor_type& update_functor) {
       workingset->merge(local_vid, update_functor);
-      perthread_workingset_bits[lvid_to_thread(local_vid)].set_bit(lvid_to_bit(local_vid));
     }
 
     void workingset_merge(vertex_id_type vid,
@@ -244,7 +234,7 @@ namespace graphlab {
     void workingset_add_local(vertex_id_type local_vid ,
                      const update_functor_type& update_functor) {
       workingset->add(local_vid, update_functor);
-      perthread_workingset_bits[lvid_to_thread(local_vid)].set_bit(lvid_to_bit(local_vid));
+      workingset_bits.set_bit((local_vid));
     }
 
     void workingset_add(vertex_id_type vid,
@@ -258,7 +248,7 @@ namespace graphlab {
       scheduleset->add(local_vid, update_functor);
       has_schedule_entries = true;
       PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, SCHEDULE_EVENT, 1);
-      perthread_scheduleset_bits[lvid_to_thread(local_vid)].set_bit(lvid_to_bit(local_vid));
+      scheduleset_bits.set_bit((local_vid));
     }
 
     /**
@@ -366,6 +356,9 @@ namespace graphlab {
       if(opts.engine_args.get_option("max_iterations", max_iterations)) {
         std::cout << "Max Iterations: " << max_iterations << std::endl;
       }
+      if(opts.engine_args.get_option("no_background_comms", no_background_comms)) {
+        std::cout << "No Background Comm: " << no_background_comms << std::endl;
+      }
     } 
 
     /** \brief get the current engine options. */
@@ -449,13 +442,14 @@ namespace graphlab {
       update_functor_type uf;
       std::vector<std::vector<std::pair<vertex_id_type, update_functor_type> > > outbuffer;
       outbuffer.resize(rmi.numprocs());
-      foreach(uint32_t b, perthread_workingset_bits[threadid]) {
+      foreach(uint32_t b, workingset_bits) {
         // convert back to local vid
-        vertex_id_type local_vid = bit_and_thread_to_lvid(b, threadid);
+        vertex_id_type local_vid = b;
         procid_t owner = graph.l_get_vertex_record(local_vid).owner;
         // if I am not the owner,  and there is a task, and I managed to 
         // extract it
         if (owner != rmi.procid() &&
+            workingset_bits.clear_bit(b) &&
             workingset->has_task(local_vid) && 
             workingset->test_and_get(local_vid, uf)) {
           // send it on to the right owner
@@ -471,7 +465,6 @@ namespace graphlab {
           // this operation may clear working set entries on vertices I do not own
           // note that this may only be called once for any given bit in this phase.
           // since I may not receive workingset_adds to vertices I do not own 
-          perthread_workingset_bits[threadid].clear_bit(b);
         }
       }
       // forward to destination
@@ -490,14 +483,20 @@ namespace graphlab {
      * mirrors.
      */
     void init_gather(size_t threadid) {
+      timer ti; ti.start();
       update_functor_type* uf = NULL;
       std::vector<std::vector<std::pair<vertex_id_type, update_functor_type> > > outbuffer;
       outbuffer.resize(rmi.numprocs());
-      // 
-      foreach(uint32_t b, perthread_workingset_bits[threadid]) {
+      size_t s = (workingset_bits.size() / ncpus) + (workingset_bits.size() % ncpus > 0);
+      uint32_t bstart = s * threadid;
+      uint32_t bend = std::min<uint32_t>(s * (1+threadid), workingset_bits.size());
+      uint32_t b = bstart;
+      bool good = true;
+      if (workingset_bits.get(b) == false) good = workingset_bits.next_bit(b);
+      while(good && b < bend) {
         // convert back to local vid
         
-        vertex_id_type local_vid = bit_and_thread_to_lvid(b, threadid);
+        vertex_id_type local_vid = b;
         const typename graph_type::vertex_record& vrec = graph.l_get_vertex_record(local_vid);
         // if I am the owner
         // and there are other mirrors
@@ -517,7 +516,7 @@ namespace graphlab {
                             *uf);*/
             foreach(uint32_t m, vrec.mirrors()) {
               outbuffer[m].push_back(std::make_pair(global_vid, ufcopy));
-              if (outbuffer[m].size() > BUFFER_LIMIT) {
+              if (!no_background_comms && outbuffer[m].size() > BUFFER_LIMIT) {
                 rmi.remote_call((procid_t)m,
                             &distributed_synchronous_engine::workingset_add_batch, 
                             outbuffer[m]);
@@ -526,6 +525,14 @@ namespace graphlab {
             }
           }
         }
+        good = workingset_bits.next_bit(b);
+      }
+      if (no_background_comms) {
+        double cfinish = ti.current_time();
+        compute_time_lock.lock(); compute_time += cfinish; compute_time_lock.unlock();
+        bar.wait();
+        if (threadid == 0) rmi.barrier();
+        bar.wait();
       }
       // forward to destination
       for (size_t i = 0; i < outbuffer.size(); ++i) {
@@ -538,17 +545,21 @@ namespace graphlab {
     }
 
     void perform_gather(size_t threadid) {
+      timer ti; ti.start();
       update_functor_type uf;
       std::vector<std::vector<std::pair<vertex_id_type, update_functor_type> > > outbuffer;
       outbuffer.resize(rmi.numprocs());
-      foreach(uint32_t b, perthread_workingset_bits[threadid]) {
+      // overload the use of the gather set. 
+      foreach(uint32_t b, temporary_bits) {
         // convert back to local vid
-        vertex_id_type local_vid = bit_and_thread_to_lvid(b, threadid);
+        vertex_id_type local_vid = b;
         const typename graph_type::vertex_record& vrec = graph.l_get_vertex_record(local_vid);
         // If there is a task
-        if (workingset->test_and_get(local_vid, uf)) {
+        if (temporary_bits.clear_bit(b) &&
+            workingset->test_and_get(local_vid, uf)) {
           ++bal[threadid];
-
+          
+          if (vrec.owner == rmi.procid()) workingset_bits.set_bit(b);
           do_init_gather(local_vid, uf);
           do_gather(local_vid, uf);
           // send it back to the owner if I am not the owner
@@ -556,7 +567,7 @@ namespace graphlab {
           if (vrec.owner != rmi.procid()) {
             vertex_id_type global_vid = graph.global_vid(local_vid);
             outbuffer[vrec.owner].push_back(std::make_pair(global_vid, uf));
-            if (outbuffer[vrec.owner].size() > BUFFER_LIMIT) {
+            if (!no_background_comms && outbuffer[vrec.owner].size() > BUFFER_LIMIT) {
               rmi.remote_call((procid_t)vrec.owner,
                           &distributed_synchronous_engine::workingset_merge_batch, 
                           outbuffer[vrec.owner]);
@@ -565,13 +576,21 @@ namespace graphlab {
             // this operation may clear working set entries on vertices I do not own
             // note that this may only be called once for any given bit in this phase.
             // since I may not receive workingset_adds to vertices I do not own 
-            perthread_workingset_bits[threadid].clear_bit(b);
           }
           else {
             workingset_merge_local(local_vid, uf);
           }
         }
       }
+
+      if (no_background_comms) {
+        double cfinish = ti.current_time();
+        compute_time_lock.lock(); compute_time += cfinish; compute_time_lock.unlock();
+        bar.wait();
+        if (threadid == 0) rmi.barrier();
+        bar.wait();
+      }
+ 
       // forward to destination
       for (size_t i = 0; i < outbuffer.size(); ++i) {
         if (outbuffer[i].size() > 0) {
@@ -638,21 +657,23 @@ namespace graphlab {
     }
     
     void perform_apply_and_issue_scatter(size_t threadid) {
+      timer ti; ti.start();
       update_functor_type uf;
       std::vector<std::vector<apply_scatter_data> > outbuffer;
       outbuffer.resize(rmi.numprocs());
-      foreach(uint32_t b, perthread_workingset_bits[threadid]) {
+      foreach(uint32_t b, workingset_bits) {
         // convert back to local vid
-        vertex_id_type local_vid = bit_and_thread_to_lvid(b, threadid);
+        vertex_id_type local_vid = b;
         const typename graph_type::vertex_record& vrec = graph.l_get_vertex_record(local_vid);
         // If there is a task
-        if (vrec.owner == rmi.procid() && 
+        if (vrec.owner == rmi.procid() &&
+            workingset_bits.clear_bit(b) &&  
             workingset->test_and_get(local_vid, uf)) {
-          perthread_workingset_bits[threadid].clear_bit(b);
           ++bal[threadid];
           do_apply(local_vid, uf);
           if (uf.scatter_edges() != graphlab::NO_EDGES) {
             // scatter!
+            workingset_bits.set_bit(b);
             workingset_add_local(local_vid, uf);
 /*            rmi.remote_call(vrec.mirrors().begin(), vrec.mirrors().end(),
                 &distributed_synchronous_engine::workingset_add_with_data,
@@ -662,7 +683,7 @@ namespace graphlab {
             foreach(uint32_t m, vrec.mirrors()) {
               outbuffer[m].push_back(apply_scatter_data(graph.get_local_graph().vertex_data(local_vid),
                                                         uf, vrec.gvid));
-              if (outbuffer[m].size() > BUFFER_LIMIT) {
+              if (!no_background_comms && outbuffer[m].size() > BUFFER_LIMIT) {
                 rmi.remote_call((procid_t)m,
                             &distributed_synchronous_engine::workingset_add_batch_with_data, 
                             outbuffer[m]);
@@ -679,7 +700,7 @@ namespace graphlab {
             foreach(uint32_t m, vrec.mirrors()) {
               outbuffer[m].push_back(apply_scatter_data(vrec.gvid, 
                                                         graph.get_local_graph().vertex_data(local_vid)));
-              if (outbuffer[m].size() > BUFFER_LIMIT) {
+              if (!no_background_comms &&outbuffer[m].size() > BUFFER_LIMIT) {
                 rmi.remote_call((procid_t)m,
                             &distributed_synchronous_engine::workingset_add_batch_with_data, 
                             outbuffer[m]);
@@ -689,6 +710,15 @@ namespace graphlab {
           }
         }
       }
+
+      if (no_background_comms) {
+        double cfinish = ti.current_time();
+        compute_time_lock.lock(); compute_time += cfinish; compute_time_lock.unlock();
+        bar.wait();
+        if (threadid == 0) rmi.barrier();
+        bar.wait();
+      }
+ 
       // forward to destination
       for (size_t i = 0; i < outbuffer.size(); ++i) {
         if (outbuffer[i].size() > 0) {
@@ -703,18 +733,18 @@ namespace graphlab {
 
     void perform_scatter(size_t threadid) {
       update_functor_type uf;
-      foreach(uint32_t b, perthread_workingset_bits[threadid]) {
+      foreach(uint32_t b, workingset_bits) {
         // convert back to local vid
-        vertex_id_type local_vid = bit_and_thread_to_lvid(b, threadid);
+        vertex_id_type local_vid = b;
         // If there is a task
-        if (workingset->test_and_get(local_vid, uf)) {
+        if (workingset_bits.clear_bit(b) &&
+            workingset->test_and_get(local_vid, uf)) {
 
           ++bal[threadid];
-          perthread_workingset_bits[threadid].clear_bit(b);
           do_scatter(local_vid, uf);
         }
       }
-      ASSERT_TRUE(perthread_workingset_bits[threadid].empty());
+      ASSERT_TRUE(workingset_bits.empty());
     }
     
     /**
@@ -723,7 +753,7 @@ namespace graphlab {
      */
     void parallel_transmit_schedule() {
       std::swap(scheduleset, workingset);
-      std::swap(perthread_scheduleset_bits, perthread_workingset_bits);
+      std::swap(scheduleset_bits, workingset_bits);
       rmi.barrier();
       for (size_t i = 0;i < ncpus; ++i) {
         threads.launch(boost::bind(&distributed_synchronous_engine::transmit_schedule,
@@ -779,21 +809,28 @@ namespace graphlab {
     }
 
 
-
+    double barrier_time;
     void main_stuff(size_t i) {
-
+    
       init_gather(i);
       bar.wait();
       if (i == 0) {
+        timer ti; ti.start();
         rmi.full_barrier();
+        barrier_time += ti.current_time();
 //        if (rmi.procid() == 0) rmi.dc().flush_counters();
+        std::swap(workingset_bits, temporary_bits);
+        ASSERT_TRUE(workingset_bits.empty());
       }
       bar.wait();
       
       perform_gather(i);
       bar.wait();
       if (i == 0) {
+        timer ti; ti.start();
+
         rmi.full_barrier();
+        barrier_time += ti.current_time();
 //        if (rmi.procid() == 0) rmi.dc().flush_counters();
       }
       bar.wait();
@@ -803,6 +840,9 @@ namespace graphlab {
       bar.wait();
       if (i == 0) {
         rmi.full_barrier();
+
+        timer ti; ti.start();
+        barrier_time += ti.current_time();
 //        if (rmi.procid() == 0) rmi.dc().flush_counters();
       }
       bar.wait();
@@ -832,6 +872,7 @@ namespace graphlab {
         << "Spawning " << threads.size() << " threads" << std::endl;
 
       started = true;
+      barrier_time = 0.0;
       rmi.barrier();
       size_t allocatedmem = memory_info::allocated_bytes();
       rmi.all_reduce(allocatedmem);
@@ -885,6 +926,10 @@ namespace graphlab {
       completed_tasks.value = ctasks;
       if (rmi.procid() == 0) {
         std::cout << "Completed Tasks: " << completed_tasks.value << std::endl;
+      }
+      std::cout << "Barrier time: " << barrier_time << std::endl;
+      if (no_background_comms) {
+        std::cout << "Compute time: " << compute_time << std::endl;
       }
     }
   
