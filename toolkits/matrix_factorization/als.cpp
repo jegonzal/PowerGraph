@@ -97,12 +97,18 @@ public:
       edge.source() : edge.target();
     const vertex_data& neighbor = context.const_vertex_data(neighbor_id);
     const edge_data& edata = context.const_edge_data(edge);
-    for(int i = 0; i < XtX.rows(); ++i) {
-      Xty(i) += neighbor.latent(i)*(edata.observation*edata.weight);
-      for(int j = i; j < XtX.rows(); ++j) 
-        XtX(j,i) += neighbor.latent(i)*neighbor.latent(j)*edata.weight;
-    }
+    Xty += neighbor.latent * (edata.observation*edata.weight);
+    XtX.triangularView<Eigen::Upper>() += 
+      (neighbor.latent * neighbor.latent.transpose());
   } // end of gather
+
+  // Merge two updates
+  void merge(const als_update& other) {
+    error += other.error; 
+    XtX.triangularView<Eigen::Upper>() += other.XtX;
+    Xty += other.Xty;
+  } // end of merge
+ 
 
   // Update the center vertex
   void apply(icontext_type& context) {
@@ -110,13 +116,10 @@ public:
     vdata.squared_error = 0; vdata.residual = 0; ++vdata.nupdates;
     const size_t nneighbors = context.num_in_edges() + context.num_out_edges();
     if(nneighbors == 0) return;    
-    for(size_t i = 0; i < NLATENT; ++i) 
-      for(size_t j = i+1; j < NLATENT; ++j) XtX(i,j) = XtX(j,i);
-
     for(int i = 0; i < XtX.rows(); ++i) XtX(i,i) += (LAMBDA)*nneighbors;
     // Solve the least squares problem using eigen ----------------------------
     const vec old_latent = vdata.latent;
-    vdata.latent = XtX.ldlt().solve(Xty);
+    vdata.latent = XtX.selfadjointView<Eigen::Upper>().ldlt().solve(Xty);
     // Compute the residual change in the latent factor -----------------------
     vdata.residual = 0;
     for(int i = 0; i < XtX.rows(); ++i)
@@ -133,9 +136,10 @@ public:
     const double pred = vdata.latent.dot(neighbor.latent);
     const double error = std::fabs(edata.observation - pred);
     vdata.squared_error += error*error;
+    const double priority = error * vdata.residual;
     // Reschedule neighbors ------------------------------------------------
-    if( error > TOLERANCE && vdata.residual > TOLERANCE) 
-      context.schedule(neighbor_id, als_update(error * vdata.residual));
+    if( priority > TOLERANCE)
+      context.schedule(neighbor_id, als_update(priority));
   } // end of scatter
   
   void operator()(icontext_type& context) {
@@ -160,20 +164,14 @@ public:
         is_in_edges? edge.source() : edge.target();
       const vertex_data& neighbor = context.const_vertex_data(neighbor_id);
       const edge_data& edata = context.const_edge_data(edge);
-      // Update the X'X and X'y (eigen calls are too slow)
-      for(size_t i = 0; i < NLATENT; ++i) {
-        Xty(i) += neighbor.latent(i)*(edata.observation*edata.weight);
-        for(size_t j = i; j < NLATENT; ++j) 
-          XtX(j,i) += neighbor.latent(i)*neighbor.latent(j)*edata.weight;
-      }
+      Xty += neighbor.latent * (edata.observation*edata.weight);
+      XtX.triangularView<Eigen::Upper>() += 
+        (neighbor.latent * neighbor.latent.transpose());
     }
-    for(size_t i = 0; i < NLATENT; ++i) 
-      for(size_t j = i+1; j < NLATENT; ++j) XtX(i,j) = XtX(j,i);
-
     for(size_t i = 0; i < NLATENT; ++i) XtX(i,i) += (LAMBDA)*edges.size();
     // Solve the least squares problem using eigen ----------------------------
     const vec old_latent = vdata.latent;
-    vdata.latent = XtX.ldlt().solve(Xty);
+    vdata.latent = XtX.selfadjointView<Eigen::Upper>().ldlt().solve(Xty);
     // Compute the residual change in the latent factor -----------------------
     vdata.residual = 0;
     for(size_t i = 0; i < NLATENT; ++i)
@@ -190,9 +188,10 @@ public:
       const double pred = vdata.latent.dot(neighbor.latent);
       const double error = std::fabs(edata.observation - pred);
       vdata.squared_error += error*error;
+      const double priority = error * vdata.residual;
       // Reschedule neighbors ------------------------------------------------
-      if( error > TOLERANCE && vdata.residual > TOLERANCE) 
-        context.schedule(neighbor_id, als_update(error * vdata.residual));
+      if( priority > TOLERANCE )
+        context.schedule(neighbor_id, als_update(priority));
     }
   } // end of operator()
 }; // end of class user_movie_nodes_update_function
@@ -321,7 +320,11 @@ int main(int argc, char** argv) {
 
 
   // Run the PageRank ---------------------------------------------------------
-  core.schedule_all(als_update(10000));
+  //core.schedule_all(als_update(10000));
+  for(graph_type::vertex_id_type vid = 0; vid < core.graph().num_vertices(); 
+      ++vid) {
+    if(core.graph().num_in_edges(vid) == 0) core.schedule(vid, als_update(10000));
+  }
   std::cout 
     << std::setw(10) << "Avg RMSE" << '\t'
     << std::setw(10) << "Max RMSE" << '\t'

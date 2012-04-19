@@ -44,6 +44,7 @@ size_t MAX_VID = 0;
 size_t NWORDS = 0;
 size_t NDOCS = 0;
 
+size_t MAX_UPDATES = -1;
 
 graphlab::oarchive& operator<<(graphlab::oarchive& arc, const Eigen::VectorXd& vec);
 graphlab::iarchive& operator>>(graphlab::iarchive& arc, Eigen::VectorXd& vec);
@@ -55,17 +56,15 @@ struct vertex_data {
   float residual; 
   float neighborhood_total; //! sum of values on edges
   uint32_t nupdates; //! the number of times the vertex was updated
-
   Eigen::VectorXd latent; //! vector of learned values 
   //constructor
-  vertex_data() : 
-    residual(std::numeric_limits<float>::max()), 
-    neighborhood_total(0), nupdates(0) { }
+  vertex_data() : residual(-1), neighborhood_total(0), nupdates(0) { }
   void randomize() {
     latent.resize(NLATENT);
-    // Initialize the latent variables
-    for(size_t i = 0; i < NLATENT; ++i) 
-      latent(i) = graphlab::random::gaussian();
+    latent.setRandom();
+    // // Initialize the latent variables
+    // for(size_t i = 0; i < NLATENT; ++i) 
+    //   latent(i) = graphlab::random::gaussian();
   }
   void save(graphlab::oarchive& arc) const { 
     arc << residual << neighborhood_total << nupdates << latent;        
@@ -115,6 +114,8 @@ public:
     Xty.resize(NLATENT); Xty.setZero();
   } // end of init gather
 
+
+
   // Gather the XtX and Xty matrices from the neighborhood of this vertex
   void gather(icontext_type& context, const edge_type& edge) {
     // Get the edge data and skip the edge if it is for testing only
@@ -124,10 +125,12 @@ public:
       edge.source() : edge.target();
     const vertex_data& neighbor = context.const_vertex_data(neighbor_id);     
     ASSERT_EQ(neighbor.latent.size(), NLATENT);
-    Xty += edata.rating * neighbor.latent;
+    Xty +=  neighbor.latent * edata.rating;
     XtX.triangularView<Eigen::Upper>() += 
       (neighbor.latent * neighbor.latent.transpose());
   } // end of gather
+
+
 
   // Merge two updates
   void merge(const als_update& other) {
@@ -148,6 +151,9 @@ public:
     // Get and reset the vertex data
     vertex_data& vdata = context.vertex_data(); ++vdata.nupdates;
     ASSERT_EQ(vdata.latent.size(), NLATENT);
+    ASSERT_EQ(XtX.rows(), NLATENT);
+    ASSERT_EQ(XtX.cols(), NLATENT);
+    ASSERT_EQ(Xty.size(), NLATENT);
     // Determine the number of neighbors.  Each vertex has only in or
     // out edges depending on which side of the graph it is located
     const size_t nneighbors = context.num_in_edges() + context.num_out_edges();
@@ -164,6 +170,8 @@ public:
     vdata.residual /= XtX.rows();
   } // end of apply
 
+
+
   void scatter(icontext_type& context, const edge_type& edge) {
     const vertex_data& vdata = context.const_vertex_data();
     const vertex_id_type neighbor_id = context.vertex_id() == edge.target()?
@@ -174,10 +182,13 @@ public:
     const double pred = vdata.latent.dot(neighbor.latent);
     const double error = std::fabs(edata.rating - pred);
     edata.error = error;
+    const double priority = (error * vdata.residual); 
     // Reschedule neighbors ------------------------------------------------
-    if( (error * vdata.residual) > TOLERANCE ) 
-      context.schedule(neighbor_id, als_update(error * vdata.residual));
+    if( priority > TOLERANCE && neighbor.nupdates < MAX_UPDATES ) 
+      context.schedule(neighbor_id, als_update(priority));
   } // end of scatter
+
+
   void save(graphlab::oarchive& arc) const { arc << XtX << Xty << error; }
   void load(graphlab::iarchive& arc) { arc >> XtX >> Xty >> error; }  
 }; // end of class ALS update
@@ -206,9 +217,15 @@ public:
     const vertex_data& source_vdata = context.const_vertex_data(edge.source());
     const vertex_data& target_vdata = context.const_vertex_data(edge.target());
     rmse += (edata.error * edata.error);
-    max_priority =  std::max(std::max(edata.error * source_vdata.residual, 
-                                      edata.error * target_vdata.residual),
-                             max_priority);
+    // priority depends on the residual having been
+    // evaluated. Initially the residual is negative
+    if(source_vdata.residual >= 0) 
+      max_priority =  std::max(edata.error * source_vdata.residual,       
+                               max_priority);
+    if(target_vdata.residual >= 0) 
+      max_priority =  std::max(edata.error * target_vdata.residual,       
+                               max_priority);
+
     max_error = std::max(max_error, edata.error);
   }
 
@@ -305,6 +322,10 @@ int main(int argc, char** argv) {
   clopts.attach_option("D",
                        &NLATENT, NLATENT,
                        "Number of latent parameters to use.");
+  clopts.attach_option("maxupdates",
+                       &MAX_UPDATES, MAX_UPDATES,
+                       "The maxumum number of udpates allowed for a vertex");
+
   clopts.attach_option("lambda", &LAMBDA, LAMBDA, "ALS regularization weight"); 
   clopts.attach_option("tol",
                        &TOLERANCE, TOLERANCE,
@@ -397,12 +418,15 @@ int main(int argc, char** argv) {
   engine.start();  
 
   const double runtime = timer.current_time();
-  std::cout << "Runtime: " << runtime << " seconds." 
-            << std::endl
-            << "Updates executed: " << engine.last_update_count() << std::endl
-            << "Update Rate (updates/second): " 
-            << engine.last_update_count() / runtime << std::endl;
-
+  if(dc.procid() == 0) {
+    std::cout << "----------------------------------------------------------"
+              << std::endl;
+    std::cout << "Final Runtime (seconds):   " << runtime 
+              << std::endl
+              << "Updates executed: " << engine.last_update_count() << std::endl
+              << "Update Rate (updates/second): " 
+              << engine.last_update_count() / runtime << std::endl;
+  }
 
   if (output) save_graph_info(dc.procid(), graph);
 
