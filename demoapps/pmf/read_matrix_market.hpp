@@ -103,9 +103,9 @@ void load_matrix_market(const char * filename, graph_type *_g, testtype data_typ
            logstream(LOG_FATAL)<<"Error reading input line " << i << std::endl;
       }
       else if (ac.matrixmarkettokensperrow == 4){
-        int rec = fscanf(f, "%d %d %lg %lg \n", &I, &J, &val, &dtime);
+        int rec = fscanf(f, "%d %d %lg %lg\n", &I, &J, &val, &dtime);
         if (rec != 4)
-           logstream(LOG_FATAL)<<"Error reading input line " << i << std::endl;
+           logstream(LOG_FATAL)<<"Error reading input line " << i << " returned tokens: " << rec << " I: " <<I<< "J:" <<J<<" val: " <<val << " dtime: " <<dtime <<std::endl;
 
       }
         if (I<=0 || J<= 0){

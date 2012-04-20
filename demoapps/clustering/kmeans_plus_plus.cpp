@@ -67,6 +67,7 @@ void initialize_clusters(gl_types::core &glcore){
 
       while(true){ 
         loc = randu();
+        assert(loc >= 0 && loc <= 1);
         //D.B: avoid a crazy heizenbug where becuase of numerical error sum of distance is a bit lower than one
         //and loc is larger than the sum, so no node is choosen
         if (loc < distances[ps.M])

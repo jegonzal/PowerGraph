@@ -284,11 +284,14 @@ inline double min(const vec &a){
 inline double max(const vec & a){
   return a.maxCoeff();
 }
-inline vec randu(int size){
-  return vec::Random(size);
-}
 inline double randu(){
-  return vec::Random(1)(0);
+  return graphlab::random::rand01();
+}
+inline vec randu(int size){
+  vec ret = zeros(size);
+  for (int i=0; i< size; i++)
+     ret[i] = randu();
+  return ret;
 }
 inline ivec randi(int size, int from, int to){
   ivec ret(size);

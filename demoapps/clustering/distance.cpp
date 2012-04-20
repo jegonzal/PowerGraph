@@ -82,7 +82,7 @@ flt_dbl calc_euclidian_distance( sparse_flt_dbl_vec & datapoint,  flt_dbl_vec &c
       int pos = get_nz_index(datapoint, i);
       dist -= 2*val*cluster[pos];
    }
-  if (dist < 0){
+  if (ac.debug && fabs(dist) > 1e-8){
      logstream(LOG_WARNING)<<"Found a negative distance: " << dist << " initial sum: " << sqr_sum_datapoint + sqr_sum << std::endl;
      logstream(LOG_WARNING)<<"sqr sum: " << sqr_sum << " sqr_sum_datapoint: " <<sqr_sum_datapoint<<std::endl;
      FOR_ITERATOR_(i, datapoint){
@@ -90,11 +90,10 @@ flt_dbl calc_euclidian_distance( sparse_flt_dbl_vec & datapoint,  flt_dbl_vec &c
         logstream(LOG_WARNING)<<"Data: " << get_nz_data(datapoint, i) << " Pos: " << get_nz_index(datapoint, i) <<" cluster valu: " << cluster[pos] 
             << "reduction: " << 2*get_nz_data(datapoint,i)*cluster[pos] << std::endl;
      } 
-     exit(1);
      dist = 0;
   
   }
-  return sqrt(dist);
+  return sqrt(fabs(dist)); //should not happen, but distance is sometime negative because of the shortcut we make to calculate it..
 }
 
 flt_dbl calc_chebychev_distance( sparse_flt_dbl_vec & datapoint,  sparse_flt_dbl_vec &cluster){
