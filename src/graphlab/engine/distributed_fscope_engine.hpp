@@ -316,7 +316,7 @@ namespace graphlab {
       consensus(dc, ncpus), 
       max_pending_tasks(-1),
       recv_throttle_threshold(-1),
-      send_throttle_threshold(5000000){
+      send_throttle_threshold(-1){
       rmi.barrier();
       aggregator.get_threads().resize(8);
 #ifdef USE_EVENT_LOG
@@ -556,8 +556,7 @@ namespace graphlab {
       std::cout << "Throttle Threshold (calls): " << recv_throttle_threshold << std::endl;
 
       opts.engine_args.get_option("send_throttle_threshold", send_throttle_threshold);
-      std::cout << "Send Throttle Threshold (bytes per node): " << send_throttle_threshold << std::endl;
-      send_throttle_threshold *= (rmi.numprocs() - 1);
+      std::cout << "Send Throttle Threshold: " << send_throttle_threshold << std::endl;
     } 
 
     /** \brief get the current engine options. */
@@ -595,7 +594,8 @@ namespace graphlab {
       }
       size_t sq = rmi.dc().send_queue_length();
       if (sq > send_throttle_threshold) {
-          usleep(1000);
+        usleep(1);
+        return;
       }
       // Get a fresh task from the scheduler
       sched_status::status_enum stat = 

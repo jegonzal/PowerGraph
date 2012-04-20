@@ -308,7 +308,7 @@ namespace graphlab {
       aggregator(dc, *this, graph), ncpus(ncpus),
       max_pending_edges((size_t)(-1)),max_clean_forks((size_t)(-1)),
       recv_throttle_threshold(-1),
-      send_throttle_threshold(5000000){
+      send_throttle_threshold(-1){
       aggregator.get_threads().resize(ncpus);
       rmi.barrier();
       // TODO: Remove context creation.
@@ -585,8 +585,7 @@ namespace graphlab {
       std::cout << "Throttle Threshold (calls): " << recv_throttle_threshold << std::endl;
 
       opts.engine_args.get_option("send_throttle_threshold", send_throttle_threshold);
-      std::cout << "Send Throttle Threshold (bytes per node): " << send_throttle_threshold << std::endl;
-      send_throttle_threshold *= (rmi.numprocs() - 1);
+      std::cout << "Send Throttle Threshold: " << send_throttle_threshold << std::endl;
     } 
 
     /** \brief get the current engine options. */
@@ -634,7 +633,8 @@ namespace graphlab {
       }
       size_t sq = rmi.dc().send_queue_length();
       if (sq > send_throttle_threshold) {
-          usleep(1000);
+          usleep(1);
+          return;
       }
 
  
