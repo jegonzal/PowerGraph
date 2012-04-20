@@ -595,7 +595,6 @@ namespace graphlab {
       }
       size_t sq = rmi.dc().send_queue_length();
       if (sq > send_throttle_threshold) {
-          std::cout << "send_throttle: " << sq << std::endl;
           usleep(1000);
       }
       // Get a fresh task from the scheduler
