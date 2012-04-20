@@ -268,7 +268,6 @@ namespace graphlab {
       while(!sockinfo.outvec.empty()) {
         sockinfo.outvec.fill_msghdr(sockinfo.data);
         ssize_t ret = sendmsg(sockinfo.outsock, &sockinfo.data, 0);
-        // decrement the counter
         if (ret < 0) {
           END_TRACEPOINT(tcp_send_call);
           if (errno == EWOULDBLOCK || errno == EAGAIN) {
@@ -533,7 +532,10 @@ namespace graphlab {
 
 
     void dc_tcp_comm::check_for_new_data(dc_tcp_comm::socket_info& sockinfo) {
+      size_t plen = sockinfo.outvec.size();
       sender[sockinfo.id]->get_outgoing_data(sockinfo.outvec);
+      size_t newlen = sockinfo.outvec.size();
+      buffered_len.inc(newlen - plen);
     }
     
 

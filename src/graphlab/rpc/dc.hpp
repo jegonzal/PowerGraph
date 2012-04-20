@@ -301,11 +301,7 @@ class distributed_control{
   }
 
   size_t send_queue_length() const {
-    size_t ret = 0;
-    for (size_t i = 0;i < senders.size(); ++i) {
-      ret += senders[i]->send_queue_length();
-    }
-    return ret;
+    return comm->send_queue_length();
   }
   
   /**

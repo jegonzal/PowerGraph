@@ -127,7 +127,10 @@ class dc_tcp_comm:public dc_comm_base {
     return network_bytesreceived.value;
   }
  
-  
+  inline size_t send_queue_length() const {
+    return buffered_len.value - network_bytessent.value;
+  }
+ 
   /**
    Sends the string of length len to the target machine dest.
    Only valid after call to init();
@@ -171,7 +174,7 @@ class dc_tcp_comm:public dc_comm_base {
   
   std::vector<dc_receive*> receiver;
   std::vector<dc_send*> sender;
-
+  atomic<size_t> buffered_len;
   
  
   

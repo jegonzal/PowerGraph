@@ -315,7 +315,7 @@ namespace graphlab {
       aggregator(dc, *this, graph),
       consensus(dc, ncpus), 
       max_pending_tasks(-1),
-      recv_throttle_threshold(1000000),
+      recv_throttle_threshold(-1),
       send_throttle_threshold(5000000){
       rmi.barrier();
       aggregator.get_threads().resize(8);
@@ -556,7 +556,8 @@ namespace graphlab {
       std::cout << "Throttle Threshold (calls): " << recv_throttle_threshold << std::endl;
 
       opts.engine_args.get_option("send_throttle_threshold", send_throttle_threshold);
-      std::cout << "Send Throttle Threshold (bytes): " << send_throttle_threshold << std::endl;
+      std::cout << "Send Throttle Threshold (bytes per node): " << send_throttle_threshold << std::endl;
+      send_throttle_threshold *= (rmi.numprocs() - 1);
     } 
 
     /** \brief get the current engine options. */
@@ -571,7 +572,6 @@ namespace graphlab {
       // reset return task booleans
       has_internal_task = false;
       has_sched_task = false;
-      
       BEGIN_TRACEPOINT(disteng_internal_task_queue);
       if (thrlocal[threadid].get_task(internal_lvid)) {
         has_internal_task = true;
@@ -588,7 +588,16 @@ namespace graphlab {
       if( pending_tasks > max_pending_tasks ) { return; }
       // Assert the number of pending tasks is less than max pending
       // so proceed to start another task
-      
+
+      if (rmi.dc().recv_queue_length() > recv_throttle_threshold) {
+        // std::cout << rmi.procid() << ": Throttle: " << rmi.dc().pending_queue_length() << std::endl;
+        usleep(1000);
+      }
+
+      if (rmi.dc().send_queue_length() > send_throttle_threshold) {
+          std::cout << "send_throttle: " << rmi.dc().send_queue_length() << std::endl;
+          my_sleep(10000);
+      }
       // Get a fresh task from the scheduler
       sched_status::status_enum stat = 
         scheduler_ptr->get_next(threadid, sched_lvid, task);
@@ -992,18 +1001,7 @@ namespace graphlab {
       std::deque<vertex_id_type> internal_lvid;
       vertex_id_type sched_lvid;
       update_functor_type task;
-      size_t probe_interval = 0;
       while(1) {
-        if (rmi.dc().recv_queue_length() > recv_throttle_threshold) {
-         // std::cout << rmi.procid() << ": Throttle: " << rmi.dc().pending_queue_length() << std::endl;
-          usleep(1000);
-        }
-        if ((++probe_interval & 1024)) {
-          if (rmi.dc().send_queue_length() > send_throttle_threshold) {
-          // std::cout << rmi.procid() << ": Throttle: " << rmi.dc().pending_queue_length() << std::endl;
-            usleep(10000);
-          }
-        }
         aggregator.evaluate_queue();
         get_a_task(threadid, 
                    has_internal_task, internal_lvid,
