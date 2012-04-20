@@ -103,15 +103,23 @@ double calc_cost(){
  
 
 int calc_cluster_centers(){
+
    int total = 0;
+   for (int i = 0; i< ac.K; i++)
+     total += ps.clusts.cluster_vec[i].num_assigned_points;
+   assert(total == ps.M);
+
+   total = 0;
    if (ps.algorithm == K_MEANS){
 #ifdef OMP_SUPPORT
 #pragma omp parallel for
 #endif    
      for (int i=0; i< ps.K; i++){
          if (ps.clusts.cluster_vec[i].num_assigned_points == 0){
-	   if (ps.iiter == 0)
-	       assert(false);
+	   if (ps.iiter == 0){
+	     logstream(LOG_WARNING)<<"Cluster " << i << " has no assigned points!" << std::endl; 
+       assert(false);
+       }
           }
           else {
               ps.clusts.cluster_vec[i].location = ps.clusts.cluster_vec[i].cur_sum_of_points / (flt_dbl)ps.clusts.cluster_vec[i].num_assigned_points;

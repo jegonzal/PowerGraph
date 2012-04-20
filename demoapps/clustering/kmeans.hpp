@@ -207,7 +207,11 @@ void last_iter(){
 
 void update_kmeans_clusters(){
 
-
+   int total = 0;
+   for (int i=0; i< ac.K; i++)
+      total+= ps.clusts.cluster_vec[i].num_assigned_points;
+   if (ps.init_type != INIT_KMEANS_PLUS_PLUS)
+        ASSERT_EQ(total, ps.M);
 
    for (int i=0; i< ps.M; i++){
        vertex_data & data = ps.g<graph_type>()->vertex_data(i);

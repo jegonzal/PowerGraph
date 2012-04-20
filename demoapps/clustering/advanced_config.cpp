@@ -86,7 +86,11 @@ void problem_setup::verify_setup(){
      logstream(LOG_WARNING) << "When running with --init_mode=2 (Kmeans++), algorithm should be Kmeans++ (--algorithm=1)" << std::endl;
      ac.algorithm = K_MEANS_PLUS_PLUS;
   }
-
+  if (ac.algorithm == K_MEANS_PLUS_PLUS && ac.init_mode != INIT_KMEANS_PLUS_PLUS){
+   logstream(LOG_WARNING) << "When running with Kmeans++ (algorithm=1), set --init_mode=" << INIT_KMEANS_PLUS_PLUS << std::endl;
+     ac.init_mode = INIT_KMEANS_PLUS_PLUS;
+     ps.init_type = INIT_KMEANS_PLUS_PLUS;
+  }
   output_assignements_comment = "%%GraphLab clustering library output file\n";
   output_clusters_comment = output_assignements_comment;
 

@@ -58,6 +58,16 @@ void unit_testing(int unittest, graphlab::command_line_options& clopts){
       test_distance();
       exit(0);
    }
+   else if (unittest == 11){
+      //lanczos2 1 3 1 --matrixmarket=true --debug=true --ncpus=dd2
+      ac.datafile = "lanczos2";
+      ac.algorithm = K_MEANS_PLUS_PLUS;
+      ac.K = 3;
+      ac.init_mode = 1;
+      ac.matrixmarket = true;
+      ac.debug=true;
+      clopts.set_ncpus(2);
+   }
    /*if (unittest == 1){ //ALTERNATING LEAST SQUARES
       //ac.datafile = "als"; ps.algorithm = ALS_MATRIX; ac.algorithm = ALS_MATRIX; ac.FLOAT = true; ac.als_lambda = 0.001;
       //clopts.set_scheduler_type("round_robin(max_iterations=100,block_size=1)");

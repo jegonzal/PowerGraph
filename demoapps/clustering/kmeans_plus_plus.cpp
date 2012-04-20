@@ -29,10 +29,10 @@ void initialize_clusters(gl_types::core &glcore){
    assign(first_clust.location, ps.g<graph_type>()->vertex_data(first).datapoint, ps.N);
    first_clust.sum_sqr =sum_sqr(ps.g<graph_type>()->vertex_data(first).datapoint); 
    ps.g<graph_type>()->vertex_data(first).clusterhead = true;
-   ps.g<graph_type>()->vertex_data(first).current_cluster = ac.K-1; //start from last to first
+   ps.g<graph_type>()->vertex_data(first).current_cluster = 0; 
    first_clust.num_assigned_points = 1;
    assign(first_clust.cur_sum_of_points, ps.g<graph_type>()->vertex_data(first).datapoint, ps.N);
-   std::vector<cluster>::iterator it = ps.clusts.cluster_vec.begin();
+   std::vector<cluster>::iterator it = ps.clusts.cluster_vec.end();
    ps.clusts.cluster_vec.insert(it,first_clust);
 
    flt_dbl_vec distances = zeros(ps.M+1);
@@ -90,8 +90,8 @@ void initialize_clusters(gl_types::core &glcore){
       cur_clust.num_assigned_points = 1;
       assign(cur_clust.cur_sum_of_points, ps.g<graph_type>()->vertex_data(thenode).datapoint, ps.N);
       ps.g<graph_type>()->vertex_data(thenode).clusterhead = true;
-      ps.g<graph_type>()->vertex_data(thenode).current_cluster = ac.K-2-i;
-      it = ps.clusts.cluster_vec.begin();
+      ps.g<graph_type>()->vertex_data(thenode).current_cluster = i+1;
+      it = ps.clusts.cluster_vec.end();
       ps.clusts.cluster_vec.insert(it,cur_clust);     
  
       if (ac.debug){
