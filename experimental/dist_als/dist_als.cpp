@@ -311,8 +311,8 @@ void save_graph_info(const size_t procid,
 
 
 int main(int argc, char** argv) {
-  //global_logger().set_log_level(LOG_DEBUG);
-  //global_logger().set_log_to_console(true);
+  global_logger().set_log_level(LOG_INFO);
+  global_logger().set_log_to_console(true);
 
   // Parse command line options -----------------------------------------------
   const std::string description = 
@@ -411,6 +411,8 @@ int main(int argc, char** argv) {
   if (savebin) {
     std::cout << "saveing graph as binary" << std::endl;
     graph.save(binpath, binprefix);
+    dc.barrier();
+    std::cout << "Finished saving graph as binary" << std::endl;
   }
  
   std::cout << dc.procid() << ": Creating engine" << std::endl;
@@ -471,28 +473,31 @@ int main(int argc, char** argv) {
 
 graphlab::oarchive& operator<<(graphlab::oarchive& arc, const Eigen::VectorXd& vec) {
   typedef Eigen::VectorXd::Index index_type;
+  typedef Eigen::VectorXd::Scalar scalar_type;
   const index_type size = vec.size();
   arc << size;
-  graphlab::serialize(arc, vec.data(), size * sizeof(double));
+  graphlab::serialize(arc, vec.data(), size * sizeof(scalar_type));
   return arc;
 } // end of save vector
 
 graphlab::iarchive& operator>>(graphlab::iarchive& arc, Eigen::VectorXd& vec) {
   typedef Eigen::VectorXd::Index index_type;
+  typedef Eigen::VectorXd::Scalar scalar_type;
   index_type size = 0;
   arc >> size;
   vec.resize(size);
-  graphlab::deserialize(arc, vec.data(), size * sizeof(double));
+  graphlab::deserialize(arc, vec.data(), size * sizeof(scalar_type));
   return arc;
 } // end of save vector
 
 
 graphlab::oarchive& operator<<(graphlab::oarchive& arc, const Eigen::MatrixXd& mat) {
   typedef Eigen::MatrixXd::Index index_type;
+  typedef Eigen::MatrixXd::Scalar scalar_type;
   const index_type rows = mat.rows();
   const index_type cols = mat.cols();
   arc << rows << cols;
-  graphlab::serialize(arc, mat.data(), rows*cols*sizeof(double));
+  graphlab::serialize(arc, mat.data(), rows*cols*sizeof(scalar_type));
   return arc;
 } // end of save vector
 
