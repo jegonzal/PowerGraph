@@ -868,7 +868,7 @@ namespace graphlab {
                                     const update_functor_type& task) {
       // check to see if there are no edges to gather on.  If this is
       // the case we can skip the broadcast 
-      vstate[sched_lvid].lock.lock();
+/*      vstate[sched_lvid].lock.lock();
       if(task.gather_edges() == graphlab::NO_EDGES && 
          task.scatter_edges() == graphlab::NO_EDGES) {
         vstate[sched_lvid].apply_count_down = 1;
@@ -876,7 +876,7 @@ namespace graphlab {
         vstate[sched_lvid].lock.unlock();
         return;
       }
-      vstate[sched_lvid].lock.unlock();
+      vstate[sched_lvid].lock.unlock();  */
       // Assert that we do want to proceed with a gather
       BEGIN_TRACEPOINT(disteng_init_gathering);
       ASSERT_I_AM_OWNER(sched_lvid);
