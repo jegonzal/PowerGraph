@@ -196,7 +196,8 @@ namespace graphlab {
     size_t max_pending_edges;
     atomic<size_t> pending_edges;
     size_t max_clean_forks;
-    
+    size_t throttle_threshold;
+
     PERMANENT_DECLARE_DIST_EVENT_LOG(eventlog);
     DECLARE_TRACER(disteng_eval_sched_task);
     DECLARE_TRACER(disteng_chandy_misra);
@@ -304,7 +305,7 @@ namespace graphlab {
                        size_t ncpus) : 
       rmi(dc, this), graph(graph), scheduler_ptr(NULL), 
       aggregator(dc, *this, graph), ncpus(ncpus),
-      max_pending_edges((size_t)(-1)),max_clean_forks((size_t)(-1)) {
+      max_pending_edges((size_t)(-1)),max_clean_forks((size_t)(-1)), throttle_threshold(1000000) {
       aggregator.get_threads().resize(ncpus);
       rmi.barrier();
       // TODO: Remove context creation.
@@ -575,6 +576,10 @@ namespace graphlab {
       if(opts.engine_args.get_option("max_clean_fraction", fraction)) {
         max_clean_forks = fraction * graph.num_local_edges();
         std::cout << "Max Clean Forks: " << max_clean_forks << std::endl;
+      }
+
+      if(opts.engine_args.get_option("throttle_threshold", throttle_threshold)) {
+        std::cout << "Throttle Threshold: " << throttle_threshold << std::endl;
       }
     } 
 
@@ -1035,6 +1040,10 @@ namespace graphlab {
       update_functor_type task;
 //      size_t ctr = 0; 
       while(1) {
+        if (rmi.dc().pending_queue_length() > throttle_threshold) {
+         // std::cout << "Throttle: " << rmi.dc().pending_queue_length() << std::endl;
+          my_sleep_ms(10);
+        }
         aggregator.evaluate_queue();
 /*        ++ctr;
         if (max_clean_forks != (size_t)(-1) && ctr % 10000 == 0) {

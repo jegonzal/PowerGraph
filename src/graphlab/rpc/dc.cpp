@@ -201,6 +201,7 @@ void distributed_control::deferred_function_call_chunk(char* buf, size_t len, pr
   fc->chunk_ref_counter = NULL;
   fc->is_chunk = true;
   fc->source = src;
+  fcallqueue_length.inc();
   fcallqueue[src % fcallqueue.size()].enqueue(fc);
   END_TRACEPOINT(dc_receive_queuing);
 }
@@ -209,6 +210,7 @@ void distributed_control::deferred_function_call_chunk(char* buf, size_t len, pr
 void distributed_control::process_fcall_block(fcallqueue_entry &fcallblock) {
   if (fcallblock.is_chunk == false) {
     for (size_t i = 0;i < fcallblock.calls.size(); ++i) {
+      fcallqueue_length.dec();
       exec_function_call(fcallblock.source, fcallblock.calls[i].packet_mask,
                         fcallblock.calls[i].data, fcallblock.calls[i].len);
     }
@@ -220,6 +222,7 @@ void distributed_control::process_fcall_block(fcallqueue_entry &fcallblock) {
     }
   }
   else {
+    fcallqueue_length.dec();
     BEGIN_TRACEPOINT(dc_receive_multiplexing);
     fcallqueue_entry* queuebufs[fcallqueue.size()];
     atomic<size_t>* refctr = new atomic<size_t>(0);
@@ -270,6 +273,7 @@ void distributed_control::process_fcall_block(fcallqueue_entry &fcallblock) {
     BEGIN_TRACEPOINT(dc_receive_queuing);
     for (size_t i = 0;i < fcallqueue.size(); ++i) { 
       if (queuebufs[i]->calls.size() > 0) {
+        fcallqueue_length.inc(queuebufs[i]->calls.size());
         fcallqueue[i].enqueue(queuebufs[i]);
       }
       else {

@@ -183,6 +183,7 @@ namespace graphlab {
     atomic<uint64_t> completed_tasks;
     
     size_t max_pending_tasks;
+    size_t throttle_threshold;
 
     PERMANENT_DECLARE_DIST_EVENT_LOG(eventlog);
     DECLARE_TRACER(disteng_eval_sched_task);
@@ -312,7 +313,8 @@ namespace graphlab {
       scheduler_ptr(NULL), 
       aggregator(dc, *this, graph),
       consensus(dc, ncpus), 
-      max_pending_tasks(-1) {
+      max_pending_tasks(-1),
+      throttle_threshold(1000000) {
       rmi.barrier();
       aggregator.get_threads().resize(8);
 #ifdef USE_EVENT_LOG
@@ -547,6 +549,9 @@ namespace graphlab {
       opts = new_opts;
       if(opts.engine_args.get_option("max_pending", max_pending_tasks)) {
         std::cout << "Max Pending: " << max_pending_tasks << std::endl;
+      }
+      if(opts.engine_args.get_option("throttle_threshold", throttle_threshold)) {
+        std::cout << "Throttle Threshold: " << throttle_threshold << std::endl;
       }
     } 
 
@@ -985,6 +990,10 @@ namespace graphlab {
       update_functor_type task;
       
       while(1) {
+        if (rmi.dc().pending_queue_length() > throttle_threshold) {
+         // std::cout << rmi.procid() << ": Throttle: " << rmi.dc().pending_queue_length() << std::endl;
+          my_sleep_ms(10);
+        }
         aggregator.evaluate_queue();
         get_a_task(threadid, 
                    has_internal_task, internal_lvid,

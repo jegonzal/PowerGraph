@@ -209,7 +209,10 @@ class distributed_control{
   };
   /// a queue of functions to be executed
   std::vector<blocking_queue<fcallqueue_entry*> > fcallqueue;
-
+  // number of blocks waiting to be deserialized + the number of
+  // incomplete function calls
+  atomic<size_t> fcallqueue_length;
+  
   /// object registrations;
   std::vector<void*> registered_objects;
   std::vector<dc_impl::dc_dist_object_base*> registered_rmi_instance;
@@ -291,6 +294,10 @@ class distributed_control{
   /// returns the number of processors in total.
   inline procid_t numprocs() const {
     return localnumprocs;
+  }
+
+  size_t pending_queue_length() const {
+    return fcallqueue_length.value;
   }
   
   /**
