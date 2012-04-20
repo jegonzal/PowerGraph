@@ -172,6 +172,8 @@ public:
     }
     vdata.residual = residual / XtX.rows();
     ++vdata.nupdates;
+    XtX = Eigen::MatrixXd();
+    Xty = Eigen::VectorXd();
   } // end of apply
 
 
