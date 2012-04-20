@@ -113,6 +113,7 @@ namespace dc_impl {
     
     // ok now we have exclusive access to the buffer
     size_t sendlen = buffer[curid].numbytes;
+    size_t real_send_len = 0;
     if (sendlen > 0) {
       size_t oldbsize = buffer[curid].buf.size();
       size_t numel = std::min((size_t)(buffer[curid].numel.value), buffer[curid].buf.size());
@@ -128,6 +129,7 @@ namespace dc_impl {
       sendbuffer[0].iov_len = sizeof(block_header_type);
       // give the buffer away
       for (size_t i = 0;i < numel; ++i) {
+        real_send_len += sendbuffer[i].iov_len;
         outdata.write(sendbuffer[i]);
       }
       // reset the buffer;
@@ -141,7 +143,7 @@ namespace dc_impl {
         sendbuffer.resize(oldbsize);
       }
       __sync_fetch_and_add(&(buffer[curid].ref_count), 1);
-      return sendlen + sizeof(block_header_type);
+      return real_send_len;
     }
     else {
       // reset the buffer;

@@ -128,7 +128,9 @@ class dc_tcp_comm:public dc_comm_base {
   }
  
   inline size_t send_queue_length() const {
-    return buffered_len.value - network_bytessent.value;
+    size_t a = network_bytessent.value;
+    size_t b = buffered_len.value;
+    return b - a;
   }
  
   /**

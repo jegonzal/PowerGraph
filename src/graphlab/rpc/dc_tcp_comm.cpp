@@ -563,6 +563,7 @@ namespace graphlab {
           comm->check_for_new_data(*sockinfo);
           if (!sockinfo->outvec.empty()) {
             comm->send_till_block(*sockinfo);
+
           }
           else {
             break;
