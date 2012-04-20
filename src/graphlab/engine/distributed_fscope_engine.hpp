@@ -185,7 +185,10 @@ namespace graphlab {
     size_t max_pending_tasks;
     size_t recv_throttle_threshold;
     size_t send_throttle_threshold;
+    size_t timed_termination;
+    float engine_start_time;
 
+    
     PERMANENT_DECLARE_DIST_EVENT_LOG(eventlog);
     DECLARE_TRACER(disteng_eval_sched_task);
     DECLARE_TRACER(disteng_init_gathering); 
@@ -202,9 +205,16 @@ namespace graphlab {
                      bool& has_sched_task,
                      lvid_type& sched_lvid,
                      update_functor_type &task) {
+
       static size_t ctr = 0;
       PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, NO_WORK_EVENT, 1);
-      if (issued_tasks.value != completed_tasks.value + blocked_issues.value) {
+      
+      bool timeout = false;
+      if (lowres_time_seconds() - engine_start_time > timed_termination) {
+        timeout = true;
+      }
+      if (!timeout &&
+          issued_tasks.value != completed_tasks.value + blocked_issues.value) {
         ++ctr;
         if (ctr % 10 == 0) usleep(1);
         return false;
@@ -316,7 +326,8 @@ namespace graphlab {
       consensus(dc, ncpus), 
       max_pending_tasks(-1),
       recv_throttle_threshold(-1),
-      send_throttle_threshold(-1){
+      send_throttle_threshold(-1),
+      timed_termination(-1){
       rmi.barrier();
       aggregator.get_threads().resize(8);
 #ifdef USE_EVENT_LOG
@@ -552,6 +563,9 @@ namespace graphlab {
       if(opts.engine_args.get_option("max_pending", max_pending_tasks)) {
         std::cout << "Max Pending: " << max_pending_tasks << std::endl;
       }
+      if(opts.engine_args.get_option("timed_termination", timed_termination)) {
+        std::cout << "Timed Termination (s): " << timed_termination << std::endl;
+      }
       opts.engine_args.get_option("recv_throttle_threshold", recv_throttle_threshold);
       std::cout << "Throttle Threshold (calls): " << recv_throttle_threshold << std::endl;
 
@@ -568,6 +582,9 @@ namespace graphlab {
                     bool& has_sched_task,
                     lvid_type& sched_lvid,
                     update_functor_type &task) {
+      if (lowres_time_seconds() - engine_start_time > timed_termination) {
+        return;
+      }
       // reset return task booleans
       has_internal_task = false;
       has_sched_task = false;
@@ -1059,7 +1076,8 @@ namespace graphlab {
       size_t allocatedmem = memory_info::allocated_bytes();
       rmi.all_reduce(allocatedmem);
  
-
+      engine_start_time = lowres_time_seconds();
+      
       rmi.dc().flush_counters();
       if (rmi.procid() == 0) {
         logstream(LOG_INFO) << "Total Allocated Bytes: " << allocatedmem << std::endl;
