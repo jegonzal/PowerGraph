@@ -196,7 +196,8 @@ namespace graphlab {
     size_t max_pending_edges;
     atomic<size_t> pending_edges;
     size_t max_clean_forks;
-    size_t throttle_threshold;
+    size_t recv_throttle_threshold;
+    size_t send_throttle_threshold;
 
     PERMANENT_DECLARE_DIST_EVENT_LOG(eventlog);
     DECLARE_TRACER(disteng_eval_sched_task);
@@ -305,7 +306,9 @@ namespace graphlab {
                        size_t ncpus) : 
       rmi(dc, this), graph(graph), scheduler_ptr(NULL), 
       aggregator(dc, *this, graph), ncpus(ncpus),
-      max_pending_edges((size_t)(-1)),max_clean_forks((size_t)(-1)), throttle_threshold(1000000) {
+      max_pending_edges((size_t)(-1)),max_clean_forks((size_t)(-1)),
+      recv_throttle_threshold(1000000),
+      send_throttle_threshold(5000000){
       aggregator.get_threads().resize(ncpus);
       rmi.barrier();
       // TODO: Remove context creation.
@@ -578,9 +581,11 @@ namespace graphlab {
         std::cout << "Max Clean Forks: " << max_clean_forks << std::endl;
       }
 
-      if(opts.engine_args.get_option("throttle_threshold", throttle_threshold)) {
-        std::cout << "Throttle Threshold: " << throttle_threshold << std::endl;
-      }
+      opts.engine_args.get_option("recv_throttle_threshold", recv_throttle_threshold);
+      std::cout << "Throttle Threshold (calls): " << recv_throttle_threshold << std::endl;
+
+      opts.engine_args.get_option("send_throttle_threshold", send_throttle_threshold);
+      std::cout << "Send Throttle Threshold (bytes): " << send_throttle_threshold << std::endl;
     } 
 
     /** \brief get the current engine options. */
@@ -1038,11 +1043,18 @@ namespace graphlab {
       std::deque<vertex_id_type> internal_lvid;
       vertex_id_type sched_lvid;
       update_functor_type task;
+      size_t probe_interval = 0;
 //      size_t ctr = 0; 
       while(1) {
-        if (rmi.dc().pending_queue_length() > throttle_threshold) {
+        if (rmi.dc().recv_queue_length() > recv_throttle_threshold) {
          // std::cout << "Throttle: " << rmi.dc().pending_queue_length() << std::endl;
-          my_sleep_ms(10);
+          usleep(1000);
+        }
+        if ((++probe_interval & 1024)) {
+          if (rmi.dc().send_queue_length() > send_throttle_threshold) {
+          // std::cout << rmi.procid() << ": Throttle: " << rmi.dc().pending_queue_length() << std::endl;
+            usleep(10000);
+          }
         }
         aggregator.evaluate_queue();
 /*        ++ctr;

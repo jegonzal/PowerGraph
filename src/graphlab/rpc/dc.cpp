@@ -42,9 +42,8 @@
 #include <graphlab/rpc/dc.hpp>
 #include <graphlab/rpc/dc_tcp_comm.hpp>
 //#include <graphlab/rpc/dc_sctp_comm.hpp>
-
-#include <graphlab/rpc/dc_stream_receive.hpp>
 #include <graphlab/rpc/dc_buffered_stream_send2.hpp>
+#include <graphlab/rpc/dc_stream_receive.hpp>
 #include <graphlab/rpc/reply_increment_counter.hpp>
 #include <graphlab/rpc/dc_services.hpp>
 
@@ -400,7 +399,7 @@ void distributed_control::init(const std::vector<std::string> &machines,
   
   // start the machines
   comm->init(machines, options, curmachineid, 
-              receivers, senders); 
+              receivers, senders);
 
   compute_master_ranks();
   

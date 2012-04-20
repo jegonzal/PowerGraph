@@ -107,6 +107,10 @@ class dc_buffered_stream_send2: public dc_send{
     return bytessent.value;
   }
 
+  size_t send_queue_length() const {
+    return writebuffer_totallen.value;
+  }
+  
   void flush();
 
  private:

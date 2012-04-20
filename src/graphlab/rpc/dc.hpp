@@ -296,8 +296,16 @@ class distributed_control{
     return localnumprocs;
   }
 
-  size_t pending_queue_length() const {
+  size_t recv_queue_length() const {
     return fcallqueue_length.value;
+  }
+
+  size_t send_queue_length() const {
+    size_t ret = 0;
+    for (size_t i = 0;i < senders.size(); ++i) {
+      ret += senders[i]->send_queue_length();
+    }
+    return ret;
   }
   
   /**
