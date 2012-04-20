@@ -58,7 +58,8 @@ struct vertex_data {
   uint32_t nupdates; //! the number of times the vertex was updated
   Eigen::VectorXd latent; //! vector of learned values 
   //constructor
-  vertex_data() : residual(-1), neighborhood_total(0), nupdates(0) { }
+  vertex_data() : residual(std::numeric_limits<float>::max()), 
+                  neighborhood_total(0), nupdates(0) { }
   void randomize() {
     latent.resize(NLATENT);
     latent.setRandom();
@@ -95,13 +96,13 @@ typedef graphlab::distributed_graph<vertex_data, edge_data> graph_type;
  */
 class als_update : 
   public graphlab::iupdate_functor<graph_type, als_update> {
-  double error;
+  double prio;
   Eigen::MatrixXd XtX;
   Eigen::VectorXd Xty;
 public:
-  als_update(double error = 0) : error(error) { }
-  double priority() const { return error; }
-  void operator+=(const als_update& other) { error=std::max(error,other.error); }
+  als_update(double prio = 0) : prio(prio) { }
+  double priority() const { return prio; }
+  void operator+=(const als_update& other) { prio = std::max(prio, other.prio); }
   consistency_model gather_consistency() { return graphlab::EDGE_CONSISTENCY; }
   consistency_model scatter_consistency() { return graphlab::EDGE_CONSISTENCY; }
   edge_set gather_edges() const { return graphlab::ALL_EDGES; }
@@ -140,7 +141,6 @@ public:
     ASSERT_EQ(other.XtX.cols(), NLATENT);
     ASSERT_EQ(Xty.size(), NLATENT);
     ASSERT_EQ(other.Xty.size(), NLATENT);
-    error += other.error; 
     XtX.triangularView<Eigen::Upper>() += other.XtX;
     Xty += other.Xty;
   } // end of merge
@@ -149,7 +149,7 @@ public:
   // Update the center vertex
   void apply(icontext_type& context) {
     // Get and reset the vertex data
-    vertex_data& vdata = context.vertex_data(); ++vdata.nupdates;
+    vertex_data& vdata = context.vertex_data(); 
     ASSERT_EQ(vdata.latent.size(), NLATENT);
     ASSERT_EQ(XtX.rows(), NLATENT);
     ASSERT_EQ(XtX.cols(), NLATENT);
@@ -157,7 +157,7 @@ public:
     // Determine the number of neighbors.  Each vertex has only in or
     // out edges depending on which side of the graph it is located
     const size_t nneighbors = context.num_in_edges() + context.num_out_edges();
-    if(nneighbors == 0) return;
+    if(nneighbors == 0) { vdata.residual = 0; ++vdata.nupdates; return; }
     // Add regularization
     for(size_t i = 0; i < NLATENT; ++i) XtX(i,i) += LAMBDA; // /nneighbors;
     // Solve the least squares problem using eigen ----------------------------
@@ -165,9 +165,13 @@ public:
     vdata.latent = XtX.selfadjointView<Eigen::Upper>().ldlt().solve(Xty);
     // Compute the residual change in the latent factor -----------------------
     double residual = 0;
-    for(int i = 0; i < XtX.rows(); ++i)
+    for(int i = 0; i < XtX.rows(); ++i) {
+      assert(!std::isinf(vdata.latent(i)));
+      assert(!std::isnan(vdata.latent(i)));
       residual += std::fabs(old_latent(i) - vdata.latent(i));
+    }
     vdata.residual = residual / XtX.rows();
+    ++vdata.nupdates;
   } // end of apply
 
 
@@ -179,18 +183,23 @@ public:
     const vertex_data& neighbor = context.const_vertex_data(neighbor_id);
     edge_data& edata = context.edge_data(edge);
     // Compute the prediction on the edge
+    ASSERT_EQ(neighbor.latent.size(), NLATENT);
     const double pred = vdata.latent.dot(neighbor.latent);
-    const double error = std::fabs(edata.rating - pred);
+    const float error = std::fabs(edata.rating - pred);
     edata.error = error;
+    assert(!std::isinf(error));
+    assert(!std::isnan(error));
     const double priority = (error * vdata.residual); 
+    assert(!std::isinf(priority));
+    assert(!std::isnan(priority));
     // Reschedule neighbors ------------------------------------------------
-    if( priority > TOLERANCE && neighbor.nupdates < MAX_UPDATES ) 
+    if( priority > TOLERANCE && neighbor.nupdates < MAX_UPDATES) 
       context.schedule(neighbor_id, als_update(priority));
   } // end of scatter
 
 
-  void save(graphlab::oarchive& arc) const { arc << XtX << Xty << error; }
-  void load(graphlab::iarchive& arc) { arc >> XtX >> Xty >> error; }  
+  void save(graphlab::oarchive& arc) const { arc << XtX << Xty << prio; }
+  void load(graphlab::iarchive& arc) { arc >> XtX >> Xty >> prio; }  
 }; // end of class ALS update
 
 
@@ -201,7 +210,7 @@ class aggregator :
   public graphlab::iaggregator<graph_type, als_update, aggregator>, 
   public graphlab::IS_POD_TYPE {
 private:
-  float max_priority, rmse, max_error, residual, max_residual;
+  double max_priority, rmse, max_error, residual, max_residual;
   size_t min_updates, max_updates, 
     total_vupdates, total_eupdates;
 public:
@@ -219,19 +228,19 @@ public:
     rmse += (edata.error * edata.error);
     // priority depends on the residual having been
     // evaluated. Initially the residual is negative
-    if(source_vdata.nupdates == 0) 
-      max_priority =  std::max(edata.error * source_vdata.residual,       
+    if(source_vdata.nupdates > 0) 
+      max_priority =  std::max(double(edata.error * source_vdata.residual),       
                                max_priority);
-    if(target_vdata.nupdates == 0) 
-      max_priority =  std::max(edata.error * target_vdata.residual,       
+    if(target_vdata.nupdates > 0) 
+      max_priority =  std::max(double(edata.error * target_vdata.residual),       
                                max_priority);
-    max_error = std::max(max_error, edata.error);
+    max_error = std::max(max_error, double(edata.error));
   }
 
   void operator()(icontext_type& context) {
     const vertex_data& vdata = context.const_vertex_data();
     residual += vdata.residual;
-    max_residual = std::max(max_residual, vdata.residual);
+    max_residual = std::max(max_residual, double(vdata.residual));
     min_updates = std::min(min_updates, size_t(vdata.nupdates));
     max_updates = std::max(max_updates, size_t(vdata.nupdates));
     total_vupdates += vdata.nupdates;
@@ -244,7 +253,7 @@ public:
     rmse += other.rmse; 
     max_error = std::max(max_error, other.max_error);
     residual += other.residual;
-    max_residual = std::max(max_residual, other.residual);
+    max_residual = std::max(max_residual,  other.residual);
     min_updates = std::min(min_updates, other.min_updates);
     max_updates = std::max(max_updates, other.max_updates);
     total_vupdates += other.total_vupdates;
@@ -259,13 +268,14 @@ public:
       << std::setw(10) << sqrt( rmse / context.num_edges() ) << '\t'
       << std::setw(10) << max_error << '\t'
       << std::setw(10) << max_residual << '\t'
+      << std::setw(10) << residual << '\t'
       << std::setw(10) << max_updates << '\t'
       << std::setw(10) << min_updates << '\t'
       << std::setw(10) << total_vupdates << '\t'
-      << std::setw(10) << (double(total_vupdates) / context.num_vertices()) 
-      << '\t'
+      //      << std::setw(10) << (double(total_vupdates) / context.num_vertices()) 
+      // << '\t'
       << std::setw(10) << total_eupdates << '\t'
-      << std::setw(10) << (double(total_eupdates) / context.num_edges())
+      //      << std::setw(10) << (double(total_eupdates) / context.num_edges())
       << std::endl;
   }
 }; // end of  aggregator
@@ -372,7 +382,7 @@ int main(int argc, char** argv) {
               << timer.current_time() << std::endl;
 
   }
-
+  
   if(dc.procid() == 0){
     std::cout
       << "========== Graph statistics on proc " << dc.procid() 
@@ -402,10 +412,6 @@ int main(int argc, char** argv) {
     std::cout << "saveing graph as binary" << std::endl;
     graph.save(binpath, binprefix);
   }
-
-
-  
- 
  
   std::cout << dc.procid() << ": Creating engine" << std::endl;
   engine_type engine(dc, graph, clopts.get_ncpus());
@@ -414,14 +420,21 @@ int main(int argc, char** argv) {
   engine.initialize();
   engine.add_aggregator("error", aggregator(), interval); 
 
-  std::cout << dc.procid() << ": Scheduling all" << std::endl;
-  for(size_t lvid = 0; lvid < graph.num_local_vertices(); ++lvid) {
-    // Schedule only "left side" vertices
+
+  std::cout << dc.procid() << ": Scheduling all documents" << std::endl;
+  const double initial_priority = std::numeric_limits<double>::max();
+  //  engine.schedule_all(als_update(initial_priority));
+  std::vector<graph_type::vertex_id_type> vtxs;
+  vtxs.reserve(graph.num_local_vertices());
+  for(graph_type::lvid_type lvid = 0; lvid < graph.num_local_vertices(); 
+      ++lvid) {
     if(graph.l_is_master(lvid) && 
-       graph.l_get_vertex_record(lvid).num_in_edges == 0) {
-      engine.schedule_local(lvid, als_update(std::numeric_limits<float>::max()));
-    }
+       graph.l_get_vertex_record(lvid).num_in_edges == 0)
+      vtxs.push_back(lvid);             
   }
+  graphlab::random::shuffle(vtxs.begin(), vtxs.end());
+  foreach(graph_type::lvid_type lvid, vtxs)
+    engine.schedule_local(lvid, als_update(initial_priority));  
   dc.full_barrier();
   
 
