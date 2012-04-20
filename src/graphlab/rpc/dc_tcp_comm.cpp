@@ -103,6 +103,7 @@ namespace graphlab {
         portnums[i] = (uint16_t)(port);
       }
       network_bytessent = 0;
+      buffered_len = 0;
       // if sock handle is set
       std::map<std::string, std::string>::const_iterator iter = 
         initopts.find("__sockhandle__");
@@ -532,10 +533,7 @@ namespace graphlab {
 
 
     void dc_tcp_comm::check_for_new_data(dc_tcp_comm::socket_info& sockinfo) {
-      size_t plen = sockinfo.outvec.size();
-      sender[sockinfo.id]->get_outgoing_data(sockinfo.outvec);
-      size_t newlen = sockinfo.outvec.size();
-      buffered_len.inc(newlen - plen);
+      buffered_len.inc(sender[sockinfo.id]->get_outgoing_data(sockinfo.outvec));
     }
     
 

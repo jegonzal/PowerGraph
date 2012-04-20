@@ -100,8 +100,8 @@ namespace dc_impl {
   }
 
 
-  bool dc_buffered_stream_send2::get_outgoing_data(circular_iovec_buffer& outdata) {
-    if (writebuffer_totallen.value == 0) return false;
+  size_t dc_buffered_stream_send2::get_outgoing_data(circular_iovec_buffer& outdata) {
+    if (writebuffer_totallen.value == 0) return 0;
     
     // swap the buffer
     size_t curid = bufid;
@@ -141,14 +141,14 @@ namespace dc_impl {
         sendbuffer.resize(oldbsize);
       }
       __sync_fetch_and_add(&(buffer[curid].ref_count), 1);
-      return true;
+      return sendlen + sizeof(block_header_type);
     }
     else {
       // reset the buffer;
       buffer[curid].numbytes = 0;
       buffer[curid].numel = 1;
       __sync_fetch_and_add(&(buffer[curid].ref_count), 1);
-      return false;
+      return 0;
     }
   }
 } // namespace dc_impl

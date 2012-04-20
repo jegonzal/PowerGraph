@@ -78,11 +78,11 @@ class dc_send{
   }
 
   /**
-   * Returns true if there is data, false otherwise. This function
+   * Returns length if there is data, 0 otherwise. This function
    * must be reentrant, but it is guaranteed that only one thread will
    * call this function at anytime.
    */
-  virtual bool get_outgoing_data(circular_iovec_buffer& outdata) = 0;
+  virtual size_t get_outgoing_data(circular_iovec_buffer& outdata) = 0;
 
 };
   

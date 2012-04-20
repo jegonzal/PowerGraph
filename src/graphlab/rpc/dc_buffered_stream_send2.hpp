@@ -100,7 +100,7 @@ class dc_buffered_stream_send2: public dc_send{
                       unsigned char packet_type_mask,
                       char* data, size_t len);
 
-  bool get_outgoing_data(circular_iovec_buffer& outdata);
+  size_t get_outgoing_data(circular_iovec_buffer& outdata);
   
   
   inline size_t bytes_sent() {

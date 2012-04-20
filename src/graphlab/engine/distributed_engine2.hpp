@@ -632,10 +632,10 @@ namespace graphlab {
         // std::cout << "Throttle: " << rmi.dc().pending_queue_length() << std::endl;
         usleep(1000);
       }
-      
-      if (rmi.dc().send_queue_length() > send_throttle_threshold) {
-          std::cout << "send_throttle: " << rmi.dc().send_queue_length() << std::endl;
-          my_sleep(10000);
+      size_t sq = rmi.dc().send_queue_length();
+      if (sq > send_throttle_threshold) {
+          std::cout << "send_throttle: " << sq << std::endl;
+          usleep(1000);
       }
 
  
