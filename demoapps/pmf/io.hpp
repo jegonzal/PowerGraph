@@ -188,7 +188,7 @@ void fill_factors_uvt(){
 template<>
 void fill_factors_uvt<graph_type_svdpp,vertex_data_svdpp>(){
 
-   if (ps.algorithm == SVD_PLUS_PLUS){
+   if (ps.algorithm == SVD_PLUS_PLUS || ps.algorithm == BIAS_SGD){
    ps.U = zeros(ps.M,ac.D);
    ps.V = zeros(ps.N,ac.D);
    ps.svdpp_usr_bias = zeros(ps.M);
