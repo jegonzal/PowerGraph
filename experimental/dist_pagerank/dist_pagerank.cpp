@@ -35,9 +35,12 @@
 
 
 
-struct vertex_data : public graphlab::IS_POD_TYPE {
+struct vertex_data {
   float value;
-  vertex_data(float value = 1) : value(value) { }
+  float old_value;
+  vertex_data(float value = 1) : value(value),old_value(value) { }
+  void save(graphlab::oarchive &oarc) const { oarc << value << old_value; }
+  void load(graphlab::iarchive &iarc) { iarc >> value >> old_value; }
 }; // End of vertex data
 
 std::ostream& operator<<(std::ostream& out, const vertex_data& vdata) {
@@ -94,6 +97,7 @@ public:
   void apply(icontext_type& context) {
     vertex_data& vdata = context.vertex_data(); 
     const float old_value = vdata.value;
+    vdata.old_value = vdata.value;
     vdata.value = RESET_PROB + (1 - RESET_PROB) * accum;
     accum = std::fabs(vdata.value - old_value);
   } // end of apply
@@ -114,6 +118,29 @@ typedef graphlab::distributed_synchronous_engine<graph_type, factorized_pagerank
 typedef graphlab::distributed_engine<graph_type, factorized_pagerank> engine_type;
 #endif
 
+
+
+
+/**
+ * This aggregator finds the number of touched vertices
+ */
+class sum_residual_aggregator :
+  public graphlab::iaggregator<graph_type, factorized_pagerank, sum_residual_aggregator>,
+  public graphlab::IS_POD_TYPE {
+private:
+  float count;
+public:
+  sum_residual_aggregator() : count(0) { }
+  void operator()(icontext_type& context) {
+    count += std::fabs(context.const_vertex_data().value - context.const_vertex_data().old_value);
+  } // end of operator()
+  void operator+=(const sum_residual_aggregator& other) {
+    count += other.count;
+  }
+  void finalize(iglobal_context_type& context) {
+    std::cout << "Sum Change:\t\t" << count << std::endl;
+  }
+}; //
 
 
 int main(int argc, char** argv) {
@@ -266,6 +293,7 @@ int main(int argc, char** argv) {
   std::cout << dc.procid() << ": Intializing engine" << std::endl;
   engine.set_options(clopts);
   engine.initialize();
+  engine.add_aggregator("residual", sum_residual_aggregator(), 3);
   std::cout << dc.procid() << ": Scheduling all" << std::endl;
   engine.schedule_all(factorized_pagerank(1.0));
   dc.full_barrier();
@@ -277,6 +305,7 @@ int main(int argc, char** argv) {
   engine.start();  // Run the engine
 
   const double runtime = timer.current_time();
+  engine.aggregate_now("residual");
   std::cout << "Graphlab finished, runtime: " << runtime << " seconds." 
             << std::endl
             << "Updates executed: " << engine.last_update_count() 

@@ -267,6 +267,14 @@ namespace graphlab {
      * Run an aggregator.  This must be called on all machines
      */
     void aggregate_now(const std::string& key) {
+      // make sure any previous syncs are done
+      bool s = true;
+      while(s) {
+        master_lock.lock();
+        s = sync_in_progress;
+        master_lock.unlock();
+        my_sleep(1);
+      }
       // BUG: check that the engine is ready to sync?
       // (engine.initialize_members()?)
       typename sync_map_type::iterator iter = sync_map.find(key);
@@ -276,13 +284,14 @@ namespace graphlab {
           << std::endl;
         return;
       }
+      // emulate initiate_aggregate.
+      // if I am proc 0, set sync in progress
+      if (rmi.procid() == 0) sync_in_progress = true;
       // The current implementation will lead to a deadlock if called
       // from within an update function
-      master_lock.lock();
       rpc_aggregate(key);
-      rmi.barrier();
       threads.join();
-      master_lock.unlock();    
+      rmi.barrier();
     } // end of aggregate_now
 
 

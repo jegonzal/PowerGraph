@@ -37,9 +37,10 @@ size_t iterations;
 
 struct vertex_data {
   float value;
-  vertex_data(float value = 1) : value(value)  { }
-  void save(graphlab::oarchive &oarc) const { oarc << value; };
-  void load(graphlab::iarchive &iarc) { iarc >> value; };
+  float old_value;
+  vertex_data(float value = 1) : value(value),old_value(value)  { }
+  void save(graphlab::oarchive &oarc) const { oarc << value << old_value; }
+  void load(graphlab::iarchive &iarc) { iarc >> value >> old_value; }
 }; // End of vertex data
 
 std::ostream& operator<<(std::ostream& out, const vertex_data& vdata) {
@@ -104,7 +105,8 @@ public:
 
   // Update the center vertex
   void apply(icontext_type& context) {
-    vertex_data& vdata = context.vertex_data(); 
+    vertex_data& vdata = context.vertex_data();
+    vdata.old_value = vdata.value;
     vdata.value =  RESET_PROB + (1 - RESET_PROB) * accum;
     context.schedule(context.vertex_id(), factorized_pagerank(0.0));
   } // end of apply
@@ -113,6 +115,32 @@ public:
   void scatter(icontext_type& context, const edge_type& edge) {
   } // end of scatter
 }; // end of factorized_pagerank update functor
+
+
+
+
+
+/**
+ * This aggregator finds the number of touched vertices
+ */
+class sum_residual_aggregator :
+  public graphlab::iaggregator<graph_type, factorized_pagerank, sum_residual_aggregator>,
+  public graphlab::IS_POD_TYPE {
+private:
+  float count;
+public:
+  sum_residual_aggregator() : count(0) { }
+  void operator()(icontext_type& context) {
+    count += std::fabs(context.const_vertex_data().value - context.const_vertex_data().old_value);
+  } // end of operator()
+  void operator+=(const sum_residual_aggregator& other) {
+    count += other.count;
+  }
+  void finalize(iglobal_context_type& context) {
+    std::cout << "Sum Change:\t\t" << count << std::endl;
+  }
+}; //
+
 
 
 typedef graphlab::distributed_synchronous_engine<graph_type, factorized_pagerank> engine_type;
@@ -272,6 +300,8 @@ int main(int argc, char** argv) {
   clopts.engine_args.add_option("max_iterations", iterations);
   engine.set_options(clopts);
   engine.initialize();
+  engine.add_aggregator("residual", sum_residual_aggregator(), 3);
+
   std::cout << dc.procid() << ": Scheduling all" << std::endl;
   engine.schedule_all(factorized_pagerank(1.0));
   dc.full_barrier();
@@ -282,7 +312,9 @@ int main(int argc, char** argv) {
   timer.start();
   engine.start();  // Run the engine
 
+  
   const double runtime = timer.current_time();
+  engine.aggregate_now("residual");
   std::cout << "Graphlab finished, runtime: " << runtime << " seconds." 
             << std::endl
             << "Updates executed: " << engine.last_update_count() 
