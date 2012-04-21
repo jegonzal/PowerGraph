@@ -37,7 +37,7 @@
 
 struct vertex_data : public graphlab::IS_POD_TYPE {
   float old_value, value;
-  vertex_data(float value = 0) : old_value(value), value(value) { }
+  vertex_data(float value = 0) : old_value(-1), value(value) { }
   void save(graphlab::oarchive &oarc) const { oarc << value << old_value; }
   void load(graphlab::iarchive &iarc) { iarc >> value >> old_value; }
 }; // End of vertex data
@@ -76,7 +76,7 @@ public:
   consistency_model scatter_consistency() { return graphlab::NULL_CONSISTENCY; }
   edge_set gather_edges() const { return graphlab::NO_EDGES; }
   edge_set scatter_edges() const { 
-    return (accum >= ACCURACY)? graphlab::OUT_EDGES : graphlab::NO_EDGES;
+    return (accum != 0)? graphlab::OUT_EDGES : graphlab::NO_EDGES;
   }
 
   // Merge two delta_pagerank accumulators after running gather
@@ -89,14 +89,21 @@ public:
     vdata.value += accum;
     const size_t num_out_edges = 
       std::max(context.num_out_edges(context.vertex_id()), size_t(1));
-    accum = 
-      (vdata.value - vdata.old_value) * (1-RESET_PROB) / float(num_out_edges);
-    if(std::fabs(accum) >= ACCURACY) vdata.old_value = vdata.value;
+   // vdata.old_value < 0 forces that the 1st PR iteration will always be performed.
+   if(vdata.old_value < 0 || std::fabs(vdata.value - vdata.old_value) >= ACCURACY) {
+      if (vdata.old_value < 0 ) vdata.old_value = 0;
+      accum = 
+        (vdata.value - vdata.old_value) * (1-RESET_PROB) / float(num_out_edges);
+      vdata.old_value = vdata.value;
+    }
+    else {
+     accum = 0; 
+    }
   } // end of apply
 
   // Reschedule neighbors 
   void scatter(icontext_type& context, const edge_type& edge) {
-    if (accum >= ACCURACY) context.schedule(edge.target(), delta_pagerank(accum));
+    if (accum != 0) context.schedule(edge.target(), delta_pagerank(accum));
   } // end of scatter
 }; // end of delta_pagerank update functor
 
