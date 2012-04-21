@@ -202,17 +202,21 @@ class sum_residual_aggregator :
   public graphlab::iaggregator<graph_type, factorized_pagerank, sum_residual_aggregator>,
   public graphlab::IS_POD_TYPE {
 private:
-  float count;
+  float error_norm;
+  float vector_norm;
 public:
-  sum_residual_aggregator() : count(0) { }
+  sum_residual_aggregator() : error_norm(0),vector_norm(0) { }
   void operator()(icontext_type& context) {
-    count += std::fabs(context.const_vertex_data().value - context.const_vertex_data().old_value);
+    float e = context.const_vertex_data().value - context.const_vertex_data().old_value;
+    error_norm += e * e;
+    vector_norm += context.const_vertex_data().old_value * context.const_vertex_data().old_value;
   } // end of operator()
   void operator+=(const sum_residual_aggregator& other) {
-    count += other.count;
+    error_norm += other.error_norm;
+    vector_norm += vector_norm;
   }
   void finalize(iglobal_context_type& context) {
-    std::cout << "Sum Change:\t\t" << count << std::endl;
+    std::cout << "|x-Ax|/|x| :\t\t" << sqrt(error_norm) / sqrt(vector_norm) << std::endl;
   }
 }; //
 
