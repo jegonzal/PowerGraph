@@ -203,7 +203,7 @@ public:
     vector_norm += other.vector_norm;
   }
   void finalize(iglobal_context_type& context) {
-    std::cout << "|x-Ax|/|x| :\t\t" << sqrt(error_norm) / sqrt(vector_norm) << std::endl;
+    std::cout << "|x-Ax|/|Ax| :\t\t" << sqrt(error_norm) / sqrt(vector_norm) << std::endl;
   }
 }; 
 
