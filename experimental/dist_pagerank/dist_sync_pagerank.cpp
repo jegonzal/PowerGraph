@@ -129,18 +129,18 @@ private:
   float error_norm;
   float vector_norm;
 public:
-  sum_residual_aggregator() : count(0) { }
+  sum_residual_aggregator() : error_norm(0),vector_norm(0) { }
   void operator()(icontext_type& context) {
-    float e = context.const_vertex_data().value - context.const_vertex_data().old_value;
-    error_norm += e * e;
-    vector_norm += context.const_vertex_data().value * context.const_vertex_data().value;
+    float e = context.const_vertex_data().value * context.const_vertex_data().old_value;
+    error_norm += e;
+    vector_norm += context.const_vertex_data().old_value * context.const_vertex_data().old_value;
   } // end of operator()
   void operator+=(const sum_residual_aggregator& other) {
     error_norm += other.error_norm;
     vector_norm += other.vector_norm;
   }
   void finalize(iglobal_context_type& context) {
-    std::cout << "|x-Ax|/|Ax| :\t\t" << error_norm / vector_norm << std::endl;
+    std::cout << "|x'Ax|/|x'x| :\t\t" << (error_norm) / (vector_norm) << std::endl;
   }
 }; //
 
