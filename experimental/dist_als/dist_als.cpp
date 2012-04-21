@@ -224,9 +224,13 @@ public:
   inline edge_set gather_edges() const { return graphlab::IN_EDGES; }
 
   void gather(icontext_type& context, const edge_type& edge) {
-    const edge_data& edata = context.const_edge_data(edge);
+    edge_data& edata = context.edge_data(edge);
     const vertex_data& source_vdata = context.const_vertex_data(edge.source());
     const vertex_data& target_vdata = context.const_vertex_data(edge.target());
+    if(edata.error == std::numeric_limits<float>::max()) {
+      const double pred = source_vdata.latent.dot(target_vdata.latent);    
+      edata.error =std::fabs(edata.rating - pred);
+    }
     rmse += (edata.error * edata.error);
     // priority depends on the residual having been
     // evaluated. Initially the residual is negative
