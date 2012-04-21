@@ -213,7 +213,7 @@ public:
   } // end of operator()
   void operator+=(const sum_residual_aggregator& other) {
     error_norm += other.error_norm;
-    vector_norm += vector_norm;
+    vector_norm += other.vector_norm;
   }
   void finalize(iglobal_context_type& context) {
     std::cout << "|x-Ax|/|x| :\t\t" << sqrt(error_norm) / sqrt(vector_norm) << std::endl;
