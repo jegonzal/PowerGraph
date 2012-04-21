@@ -139,7 +139,6 @@ public:
   // Merge two updates
   void merge(const als_update& other) {
     if(other.X.size() == 0) return;
-    ASSERT_EQ(X.cols(), other.X.cols());
     ASSERT_EQ(X.rows(), y.size());
     ASSERT_EQ(other.X.rows(), other.y.size());
     const size_t oldX_rows = X.rows();

@@ -162,7 +162,7 @@ public:
         ASSERT_EQ(X.rows(), y.size());
         XtX.triangularView<Eigen::Upper>() = X.transpose() * X;
         Xty = X.transpose() * y;
-      }      
+      } else { XtX.setZero(); Xty.setZero(); }
       // Clear the matrix
       X = Eigen::MatrixXd(); y = Eigen::VectorXd();
       useXtX = true;      
@@ -238,8 +238,10 @@ public:
   } // end of scatter
 
 
-  void save(graphlab::oarchive& arc) const { arc << X << y << prio; }
-  void load(graphlab::iarchive& arc) { arc >> X >> y >> prio; }  
+  void save(graphlab::oarchive& arc) const { 
+    arc << X << y << XtX << Xty << useXtX << prio; }
+  void load(graphlab::iarchive& arc) { 
+    arc >> X >> y >> XtX >> Xty >> useXtX >> prio; }  
 }; // end of class ALS update
 
 
