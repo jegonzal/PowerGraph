@@ -209,14 +209,14 @@ public:
   void operator()(icontext_type& context) {
     float e = context.const_vertex_data().value - context.const_vertex_data().old_value;
     error_norm += e * e;
-    vector_norm += context.const_vertex_data().old_value * context.const_vertex_data().old_value;
+    vector_norm += context.const_vertex_data().value * context.const_vertex_data().value;
   } // end of operator()
   void operator+=(const sum_residual_aggregator& other) {
     error_norm += other.error_norm;
     vector_norm += other.vector_norm;
   }
   void finalize(iglobal_context_type& context) {
-    std::cout << "|x-Ax|/|x| :\t\t" << sqrt(error_norm) / sqrt(vector_norm) << std::endl;
+    std::cout << "|x-Ax|/|Ax| :\t\t" << sqrt(error_norm) / sqrt(vector_norm) << std::endl;
   }
 }; //
 
