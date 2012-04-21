@@ -77,7 +77,7 @@ public:
   consistency_model scatter_consistency() { return graphlab::NULL_CONSISTENCY; }
   edge_set gather_edges() const { return graphlab::IN_EDGES; }
   edge_set scatter_edges() const {
-    return (accum > ACCURACY)? graphlab::OUT_EDGES : graphlab::NO_EDGES;
+    return (accum != 0) ? graphlab::OUT_EDGES : graphlab::NO_EDGES;
   }
 
   // Reset the accumulator before running the gather
@@ -95,16 +95,20 @@ public:
 
   // Update the center vertex
   void apply(icontext_type& context) {
-    vertex_data& vdata = context.vertex_data(); 
-    const float old_value = vdata.value;
-    vdata.old_value = vdata.value;
+    vertex_data& vdata = context.vertex_data();
     vdata.value = RESET_PROB + (1 - RESET_PROB) * accum;
-    accum = std::fabs(vdata.value - old_value);
+    if (std::fabs(vdata.value - vdata.old_value) >= ACCURACY) {
+      accum = std::fabs(vdata.value - vdata.old_value);
+      vdata.old_value = vdata.value;
+    }
+    else {
+      accum = 0;
+    }
   } // end of apply
 
   // Reschedule neighbors 
   void scatter(icontext_type& context, const edge_type& edge) {
-    context.schedule(edge.target(), factorized_pagerank(accum));
+    if (accum != 0) context.schedule(edge.target(), factorized_pagerank(accum));
   } // end of scatter
 }; // end of factorized_pagerank update functor
 
