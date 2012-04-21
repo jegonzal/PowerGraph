@@ -82,7 +82,8 @@ public:
 
   // Run the gather operation over all in edges
   void gather(icontext_type& context, const edge_type& edge) {
-    accum += context.const_vertex_data(edge.source()).value;
+    const float weight =  1.0 / float(num_out_edges);
+    accum += context.const_vertex_data(edge.source()).value * weight;
   } // end of gather
 
   // Merge two factorized_pagerank accumulators after running gather
@@ -94,7 +95,7 @@ public:
     const float old_value = vdata.value;
     const float num_out_edges = 
       std::max(size_t(1), context.num_out_edges(context.vertex_id()));
-    vdata.value = (RESET_PROB + (1 - RESET_PROB) * accum) / num_out_edges; 
+    vdata.value = RESET_PROB + (1 - RESET_PROB) * accum;
     accum = std::fabs(vdata.value - old_value);
   } // end of apply
 
