@@ -200,7 +200,8 @@ namespace graphlab {
     size_t send_throttle_threshold;
     size_t timed_termination;
     float engine_start_time;
-
+    bool timeout;
+    
     PERMANENT_DECLARE_DIST_EVENT_LOG(eventlog);
     DECLARE_TRACER(disteng_eval_sched_task);
     DECLARE_TRACER(disteng_chandy_misra);
@@ -220,7 +221,6 @@ namespace graphlab {
                      update_functor_type &task) {
       static size_t ctr = 0;
       PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, NO_WORK_EVENT, 1);
-      bool timeout = false;
       if (lowres_time_seconds() - engine_start_time > timed_termination) {
         timeout = true;
       }
@@ -293,7 +293,7 @@ namespace graphlab {
 
 
     void schedule_local_next(vertex_id_type local_vid) {
-      logstream(LOG_DEBUG) << rmi.procid() << ": Schedule " << local_vid << std::endl;
+      if (timeout) return;
       if (started) {
         BEGIN_TRACEPOINT(disteng_scheduler_task_queue);
         scheduler_ptr->schedule_from_execution_thread(thread::thread_id(),
@@ -426,6 +426,7 @@ namespace graphlab {
            
     void schedule_from_remote(vertex_id_type vid,
                               const update_functor_type& update_functor) {
+      if (timeout) return;
       const lvid_type local_vid = graph.local_vid(vid);
       BEGIN_TRACEPOINT(disteng_scheduler_task_queue);
       bool direct_injection = false;
@@ -448,7 +449,7 @@ namespace graphlab {
     
     void schedule_local(vertex_id_type local_vid ,
                         const update_functor_type& update_functor) {
-      logstream(LOG_DEBUG) << rmi.procid() << ": Schedule " << local_vid << std::endl;
+      if (timeout) return;
       if (started) {
         BEGIN_TRACEPOINT(disteng_scheduler_task_queue);
         scheduler_ptr->schedule_from_execution_thread(thread::thread_id(),
@@ -623,11 +624,11 @@ namespace graphlab {
                     bool& has_sched_task,
                     lvid_type& sched_lvid,
                     update_functor_type &task) {
+      has_internal_task = false;
+      has_sched_task = false;
       if (lowres_time_seconds() - engine_start_time > timed_termination) {
         return;
       }
-      has_internal_task = false;
-      has_sched_task = false;
       BEGIN_TRACEPOINT(disteng_internal_task_queue);
       if (thrlocal[threadid].get_task(internal_lvid)) {
         has_internal_task = true;
@@ -861,6 +862,7 @@ namespace graphlab {
 
 
     void add_internal_task(lvid_type lvid) {
+      if (timeout) return;
       BEGIN_TRACEPOINT(disteng_internal_task_queue);
       size_t i = lvid % ncpus;
       if (vstate[lvid].state == APPLYING || vstate[lvid].state == SCATTERING ||
@@ -1137,6 +1139,7 @@ namespace graphlab {
       rmi.all_reduce(allocatedmem);
 
       engine_start_time = lowres_time_seconds();
+      timeout = false;
       
       rmi.dc().flush_counters();
       if (rmi.procid() == 0) {
