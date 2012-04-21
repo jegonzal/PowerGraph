@@ -38,7 +38,7 @@
 struct vertex_data {
   float value;
   float old_value;
-  vertex_data(float value = 1) : value(value),old_value(value) { }
+  vertex_data(float value = 1) : value(value),old_value(0) { }
   void save(graphlab::oarchive &oarc) const { oarc << value << old_value; }
   void load(graphlab::iarchive &iarc) { iarc >> value >> old_value; }
 }; // End of vertex data
