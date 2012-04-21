@@ -68,7 +68,24 @@ void bias_sgd_post_iter(){
   ps.iiter++;
 }
 
-
+float bias_sgd_predict(const vertex_data_svdpp& user, 
+                const vertex_data_svdpp& movie, 
+                const edge_data * edge,
+                const vertex_data* nothing,
+                const float rating, 
+                float & prediction){
+  
+  prediction = ps.globalMean[0] + user.bias + movie.bias;
+  prediction += dot(user.pvec, movie.pvec);	
+  //truncate prediction to allowed values
+  prediction = std::min((double)prediction, ac.maxval);
+  prediction = std::max((double)prediction, ac.minval);
+  //return the squared error
+  float err = rating - prediction;
+  assert(!std::isnan(err));
+  return err*err; 
+ 
+}
 
  /***
  * UPDATE FUNCTION
@@ -110,7 +127,7 @@ void bias_sgd_update_function(gl_types_svdpp::iscope &scope,
       edge_data & edge = scope.edge_data(oedgeid);
       vertex_data_svdpp  & movie = scope.neighbor_vertex_data(scope.target(oedgeid));
       float estScore;
-      float sqErr = predict(user, movie, &edge, NULL, edge.weight, estScore);
+      float sqErr = bias_sgd_predict(user, movie, &edge, NULL, edge.weight, estScore);
       user.rmse += sqErr;
       assert(!std::isnan(user.rmse));
       float err = edge.weight - estScore;

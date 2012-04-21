@@ -428,7 +428,7 @@ double calc_ap(const graph_type * _g){
            const vertex_data & pdata = ps.g<graph_type>(TRAINING)->vertex_data(_g->target(oedgeid)); 
            float prediction = 0; 
            const edge_data &edge = _g->edge_data(oedgeid);
-           predict(data, pdata, NULL, NULL, edge.weight, prediction);
+           predict(data, pdata, &edge, NULL, edge.weight, prediction);
            ratings[j] = prediction;
            real_vals[j] = edge.weight;
            if (edge.weight > 0)

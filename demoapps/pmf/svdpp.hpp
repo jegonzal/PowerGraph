@@ -76,23 +76,48 @@ void init_svdpp<graph_type_svdpp>(graph_type_svdpp *_g){
    } 
 }
 
+
+float time_svdpp_predict(const vertex_data_svdpp& user, 
+                const vertex_data_svdpp& movie, 
+                const edge_data * edge,
+                const vertex_data* nothing,
+                const float rating, 
+                float & prediction);
+
+float bias_sgd_predict(const vertex_data_svdpp& user, 
+                const vertex_data_svdpp& movie, 
+                const edge_data * edge,
+                const vertex_data* nothing,
+                const float rating, 
+                float & prediction);
+
+
+
 float predict(const vertex_data_svdpp& user, const vertex_data_svdpp& movie, const edge_data * edge, const vertex_data * nothing, const float rating, float & prediction){
       assert(nothing == NULL);
 
-      //\hat(r_ui) = \mu + 
-      prediction = ps.globalMean[0];
+      if (ps.algorithm == SVD_PLUS_PLUS){
+        //\hat(r_ui) = \mu + 
+        prediction = ps.globalMean[0];
                  // + b_u  +    b_i +
-      prediction += user.bias + movie.bias;
+        prediction += user.bias + movie.bias;
                  // + q_i^T   *(p_u      +sqrt(|N(u)|)\sum y_j)
-      if (ps.algorithm == BIAS_SGD)
-        prediction += dot_prod(movie.pvec, user.pvec);
-      else prediction += dot_prod(movie.pvec,(user.pvec+user.weight));
+        prediction += dot_prod(movie.pvec,(user.pvec+user.weight));
 
-      prediction = std::min((double)prediction, (double)ac.maxval);
-      prediction = std::max((double)prediction, (double)ac.minval);
-      float err = rating - prediction;
-      assert(!std::isnan(err));
-      return err*err; 
+        prediction = std::min((double)prediction, ac.maxval);
+        prediction = std::max((double)prediction, ac.minval);
+        float err = rating - prediction;
+        assert(!std::isnan(err));
+        return err*err; 
+      }
+      else if (ps.algorithm == TIME_SVD_PLUS_PLUS){
+        return time_svdpp_predict(user, movie, edge, NULL, rating, prediction);
+      }
+      else if (ps.algorithm == BIAS_SGD){
+        return bias_sgd_predict(user, movie, edge, NULL, rating, prediction);
+      }
+      else assert(false);
+      
 }
 
 void predict_missing_value(const vertex_data_svdpp&data, const vertex_data_svdpp& pdata, edge_data& edge, double & sq_err, int&e, int i){

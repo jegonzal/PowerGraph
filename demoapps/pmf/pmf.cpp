@@ -68,8 +68,10 @@ advanced_config ac;
 problem_setup ps;
 
 
-
 float predict(const vertex_data& v1, const vertex_data& v2, const edge_data * edge, float rating, float & prediction){
+
+   assert(!ps.tensor && ps.isals);
+
    //predict missing value based on dot product of movie and user iterms
    prediction = dot(v1.pvec, v2.pvec);	
    //truncate prediction to allowed values
@@ -84,8 +86,9 @@ template<typename vertex_data>
 double predict(const vertex_data& user, const vertex_data &movie, const edge_data * edge, float rating, float & prediction){
    return predict(user, movie, edge, rating, prediction);
 } 
-
-
+float predict(const vertex_data& v1, const vertex_data& v2, const edge_data_mcmc * edge, const vertex_data *v3, float rating, float &prediction){
+  return predict(v1, v2, (edge_data*)NULL, v3, rating, prediction);	
+}
 float predict(const vertex_data& v1, const vertex_data& v2, const edge_data * edge, const vertex_data *v3, float rating, float &prediction){
 	if (v3 == NULL) //matrix	
 		return predict(v1,v2,edge, rating,prediction);
