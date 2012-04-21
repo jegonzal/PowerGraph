@@ -205,7 +205,7 @@ typedef graphlab::graph<vertex_data2, edge_data2>::edge_list_type edge_list;
             assert(multiple_ratings.size() > 0);
             int randint = rand() % multiple_ratings.size();
             singlerating chosen = multiple_ratings[randint];
-            edge_data2 edge(chosen.rating, chosen.time);
+            edge_data2 edge(chosen.rating, get_day(chosen.time)-283);
             //if (dayofyear >=  split_day_of_year)
             if (chosen.time > split_training_time)
               out_graph_validation.add_edge(chosen.user - 1, chosen.item+nodes-1, edge);
@@ -235,7 +235,7 @@ typedef graphlab::graph<vertex_data2, edge_data2>::edge_list_type edge_list;
                 mindayofyear = dayofyear;
    if (dayofyear > maxdayofyear)
                 maxdayofyear = dayofyear;
-   edge_data2 last_edge(last_rating, last_time);
+   edge_data2 last_edge(last_rating, dayofyear-283/*last_time*/);
    //if (dayofyear >= split_day_of_year)
    if (last_time > split_training_time)
       out_graph_validation.add_edge(last_from - 1, last_to+nodes-1, last_edge);
@@ -283,7 +283,7 @@ typedef graphlab::graph<vertex_data2, edge_data2>::edge_list_type edge_list;
          if (pch)
             to3 = atoi(pch);
       }
-      edge_data2 edge(1, 131834878);
+      edge_data2 edge(1,0/* 131834878*/);
       add_single_edge(from, to, edge, out_graph, examples_added);
       if (level >=2 && to2 > 0 ){
         add_single_edge(from, to2, edge, out_graph, examples_added);
