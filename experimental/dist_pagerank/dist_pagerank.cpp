@@ -94,8 +94,6 @@ public:
   void apply(icontext_type& context) {
     vertex_data& vdata = context.vertex_data(); 
     const float old_value = vdata.value;
-    const float num_out_edges = 
-      std::max(size_t(1), context.num_out_edges(context.vertex_id()));
     vdata.value = RESET_PROB + (1 - RESET_PROB) * accum;
     accum = std::fabs(vdata.value - old_value);
   } // end of apply
