@@ -198,6 +198,8 @@ namespace graphlab {
     size_t max_clean_forks;
     size_t recv_throttle_threshold;
     size_t send_throttle_threshold;
+    size_t timed_termination;
+    float engine_start_time;
 
     PERMANENT_DECLARE_DIST_EVENT_LOG(eventlog);
     DECLARE_TRACER(disteng_eval_sched_task);
@@ -218,7 +220,12 @@ namespace graphlab {
                      update_functor_type &task) {
       static size_t ctr = 0;
       PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, NO_WORK_EVENT, 1);
-      if (issued_tasks.value != completed_tasks.value + blocked_issues.value) {
+      bool timeout = false;
+      if (lowres_time_seconds() - engine_start_time > timed_termination) {
+        timeout = true;
+      }
+      if (!timeout &&
+          issued_tasks.value != completed_tasks.value + blocked_issues.value) {
         ++ctr;
         if (ctr % 10 == 0) usleep(1);
         return false;
@@ -308,7 +315,8 @@ namespace graphlab {
       aggregator(dc, *this, graph), ncpus(ncpus),
       max_pending_edges((size_t)(-1)),max_clean_forks((size_t)(-1)),
       recv_throttle_threshold(-1),
-      send_throttle_threshold(-1){
+      send_throttle_threshold(-1),
+      timed_termination(-1){
       aggregator.get_threads().resize(ncpus);
       rmi.barrier();
       // TODO: Remove context creation.
@@ -581,6 +589,10 @@ namespace graphlab {
         std::cout << "Max Clean Forks: " << max_clean_forks << std::endl;
       }
 
+      if(opts.engine_args.get_option("timed_termination", timed_termination)) {
+        std::cout << "Timed Termination (s): " << timed_termination << std::endl;
+      }
+
       opts.engine_args.get_option("recv_throttle_threshold", recv_throttle_threshold);
       std::cout << "Throttle Threshold (calls): " << recv_throttle_threshold << std::endl;
 
@@ -611,6 +623,9 @@ namespace graphlab {
                     bool& has_sched_task,
                     lvid_type& sched_lvid,
                     update_functor_type &task) {
+      if (lowres_time_seconds() - engine_start_time > timed_termination) {
+        return;
+      }
       has_internal_task = false;
       has_sched_task = false;
       BEGIN_TRACEPOINT(disteng_internal_task_queue);
@@ -1120,7 +1135,9 @@ namespace graphlab {
 
       size_t allocatedmem = memory_info::allocated_bytes();
       rmi.all_reduce(allocatedmem);
- 
+
+      engine_start_time = lowres_time_seconds();
+      
       rmi.dc().flush_counters();
       if (rmi.procid() == 0) {
         logstream(LOG_INFO) << "Total Allocated Bytes: " << allocatedmem << std::endl;
