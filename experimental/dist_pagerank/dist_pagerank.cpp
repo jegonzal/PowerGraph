@@ -82,6 +82,7 @@ public:
 
   // Run the gather operation over all in edges
   void gather(icontext_type& context, const edge_type& edge) {
+    const size_t num_out_edges = context.num_out_edges(edge.source());
     const float weight =  1.0 / float(num_out_edges);
     accum += context.const_vertex_data(edge.source()).value * weight;
   } // end of gather
