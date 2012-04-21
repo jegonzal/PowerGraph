@@ -63,8 +63,7 @@ double ACCURACY = 1e-5;
  * The factorized page rank update function
  */
 class factorized_pagerank : 
-  public graphlab::iupdate_functor<graph_type, factorized_pagerank>,
-  public graphlab::IS_POD_TYPE {
+  public graphlab::iupdate_functor<graph_type, factorized_pagerank> {
 private:
   float accum;
 public:
@@ -83,6 +82,14 @@ public:
   // Reset the accumulator before running the gather
   void init_gather(icontext_type& context) { accum = 0; }
 
+
+  void save(graphlab::oarchive &oarc) const {
+    oarc << accum;
+  };
+  void load(graphlab::iarchive &iarc) {
+    iarc >> accum;
+  };
+  
   // Run the gather operation over all in edges
   void gather(icontext_type& context, const edge_type& edge) {
     const size_t num_out_edges = context.num_out_edges(edge.source());
@@ -114,6 +121,68 @@ public:
 
 
 
+/**
+ * The factorized page rank update function
+ */
+class synchronous_pagerank :
+  public graphlab::iupdate_functor<graph_type, synchronous_pagerank>  {
+private:
+  float accum;
+public:
+  synchronous_pagerank(const float& accum = 0) : accum(accum) { }
+  double priority() const { return accum; }
+  void operator+=(const synchronous_pagerank& other) { accum += other.accum; }
+  bool is_factorizable() const { return true; }
+  consistency_model consistency() const { return graphlab::DEFAULT_CONSISTENCY; }
+  consistency_model gather_consistency() { return graphlab::EDGE_CONSISTENCY; }
+  consistency_model scatter_consistency() { return graphlab::NULL_CONSISTENCY; }
+  edge_set gather_edges() const { return graphlab::IN_EDGES; }
+  edge_set scatter_edges() const {
+    return graphlab::NO_EDGES;
+  }
+  void save(graphlab::oarchive &oarc) const {
+    oarc << accum;
+  };
+  void load(graphlab::iarchive &iarc) {
+    iarc >> accum;
+  };
+
+  // Reset the accumulator before running the gather
+  void init_gather(icontext_type& context) { accum = 0; }
+
+  // Run the gather operation over all in edges
+  void gather(icontext_type& context, const edge_type& edge) {
+    const size_t num_out_edges = context.num_out_edges(edge.source());
+    ASSERT_EQ(edge.target(), context.vertex_id());
+    ASSERT_GT(num_out_edges, 0);
+    const float weight =  1.0 / float(num_out_edges);
+    accum += context.const_vertex_data(edge.source()).value * weight;
+  } // end of gather
+
+  // Merge two factorized_pagerank accumulators after running gather
+  void merge(const synchronous_pagerank& other) { accum += other.accum; }
+
+  // Update the center vertex
+  void apply(icontext_type& context) {
+    vertex_data& vdata = context.vertex_data();
+    vdata.old_value = vdata.value;
+    vdata.value =  RESET_PROB + (1 - RESET_PROB) * accum;
+  } // end of apply
+
+  // Reschedule neighbors
+  void scatter(icontext_type& context, const edge_type& edge) {
+  } // end of scatter
+}; // end of factorized_pagerank update functor
+
+
+
+
+
+
+
+
+
+
 #if defined(FSCOPE)
 typedef graphlab::distributed_fscope_engine<graph_type, factorized_pagerank> engine_type;
 #elif defined(SYNCHRONOUS_ENGINE)
@@ -123,6 +192,7 @@ typedef graphlab::distributed_engine<graph_type, factorized_pagerank> engine_typ
 #endif
 
 
+typedef graphlab::distributed_synchronous_engine<graph_type, synchronous_pagerank> synchronous_engine_type;
 
 
 /**
@@ -309,8 +379,7 @@ int main(int argc, char** argv) {
   engine.start();  // Run the engine
 
   const double runtime = timer.current_time();
-  engine.aggregate_now("residual");
-  std::cout << "Graphlab finished, runtime: " << runtime << " seconds." 
+  std::cout << "Graphlab finished, runtime: " << runtime << " seconds."
             << std::endl
             << "Updates executed: " << engine.last_update_count() 
             << std::endl
@@ -318,7 +387,16 @@ int main(int argc, char** argv) {
             << engine.last_update_count() / runtime
             << std::endl;
 
-
+  std::cout << "Running one synchronous iteration for the error...";
+  // run one more synchronous round to check the error
+  synchronous_engine_type sync_engine(dc, graph, clopts.get_ncpus());
+  sync_engine.set_options(clopts);
+  sync_engine.initialize();
+  sync_engine.schedule_all(synchronous_pagerank(1.0));
+  dc.full_barrier();
+  sync_engine.start();
+  
+  engine.aggregate_now("residual");
   
   if (output) {
     std::string fname = "results_";
@@ -327,9 +405,7 @@ int main(int argc, char** argv) {
     for (size_t i = 0;i < graph.get_local_graph().num_vertices(); ++i) {
       if (graph.l_get_vertex_record(i).owner == dc.procid()) {
         fout << graph.l_get_vertex_record(i).gvid << "\t" 
-             << graph.l_get_vertex_record(i).num_in_edges + 
-          graph.l_get_vertex_record(i).num_out_edges << "\t" 
-             << graph.get_local_graph().vertex_data(i).value << "\t";
+             << graph.get_local_graph().vertex_data(i).value << "\n";
         //             << graph.get_local_graph().vertex_data(i).nupdates << "\n";
       }
     }

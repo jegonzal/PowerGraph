@@ -63,13 +63,14 @@ float ACCURACY = 1e-5;
  * The factorized page rank update function
  */
 class factorized_pagerank : 
-  public graphlab::iupdate_functor<graph_type, factorized_pagerank>
+  public graphlab::iupdate_functor<graph_type, factorized_pagerank>,
+  public graphlab::IS_POD_TYPE
   {
 private:
   float accum;
 public:
   factorized_pagerank(const float& accum = 0) : accum(accum) { }
-  float accumrity() const { return accum; }
+  double priority() const { return accum; }
   void operator+=(const factorized_pagerank& other) { accum += other.accum; }
   bool is_factorizable() const { return true; }
   consistency_model consistency() const { return graphlab::DEFAULT_CONSISTENCY; }
@@ -80,13 +81,11 @@ public:
     return graphlab::NO_EDGES;
   }
   void save(graphlab::oarchive &oarc) const { 
-    oarc << bool(accum != 0.0);
-    if (accum != 0.0) oarc << accum; 
+    oarc << accum;
   };
   void load(graphlab::iarchive &iarc) { 
-    bool b; iarc >> b; 
-    if (b) iarc >> accum;
-    else accum = 0.0; };
+    iarc >> accum;
+  };
 
   // Reset the accumulator before running the gather
   void init_gather(icontext_type& context) { accum = 0; }
@@ -332,8 +331,6 @@ int main(int argc, char** argv) {
     for (size_t i = 0;i < graph.get_local_graph().num_vertices(); ++i) {
       if (graph.l_get_vertex_record(i).owner == dc.procid()) {
         fout << graph.l_get_vertex_record(i).gvid << "\t" 
-             << graph.l_get_vertex_record(i).num_in_edges + 
-          graph.l_get_vertex_record(i).num_out_edges << "\t" 
              << graph.get_local_graph().vertex_data(i).value << "\n";
       }
     }
