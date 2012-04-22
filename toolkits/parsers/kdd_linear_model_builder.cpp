@@ -42,6 +42,9 @@ int nodes = 2421057;
 int split_training_time = 1320595199;
 int MAX_FEATURE = 410;
 int pos_offset = 0;
+const int MATRIX_MARKET = 1;
+const int VW = 2;
+int output_format = 1;
 
 struct vertex_data {
   vertex_data(){ 
@@ -162,6 +165,10 @@ int main(int argc,  char *argv[]) {
          missing++;
          continue;
        }
+         
+       training_rating[training_instance-1] = rating;
+       if (output_format == VW)
+         fout2.get_sp() << rating << " | ";
        
        for (uint k=0; k < user_features.size(); k++){
          assert(user_features[k].source() == user);
@@ -171,10 +178,13 @@ int main(int argc,  char *argv[]) {
          edge_data edge2 = user_data.edge_data(user_features[k]);
          ASSERT_GE(edge2.weight , 0);
          //edge_data newedge(edge2.weight);
-         fout2.get_sp()<<training_instance+1<<" "<<pos+1<<" "<<edge2.weight<<endl;
+         if (output_format == MATRIX_MARKET)
+             fout2.get_sp()<<training_instance+1<<" "<<pos+1<<" "<<edge2.weight<<endl;
+         else 
+             fout2.get_sp()<<pos+1<<" "<<edge2.weight<<" ";     
+         
          //out_graph.add_edge(training_instance, training.num_edges() + pos, newedge);
          added_training++;
-         training_rating[training_instance-1] = rating;
        }//for user features
        for (uint k=0; k < item_features.size(); k++){
          assert(item_features[k].source() == item);
@@ -185,19 +195,20 @@ int main(int argc,  char *argv[]) {
          ASSERT_GE(edge2.weight , 0);
          //edge_data newedge(edge2.weight);
          //out_graph.add_edge(training_instance, training.num_edges() + pos, newedge);
-         fout2.get_sp()<<training_instance+1<<" "<<pos+1<<" "<<edge2.weight<<endl;
+         if (output_format == VW)
+           fout2.get_sp()<<pos+1<<" "<<edge2.weight<<" ";
+         else
+           fout2.get_sp()<<training_instance+1<<" "<<pos+1<<" "<<edge2.weight<<endl;
          added_training++;
         }//for item features
      }//for out_edges
+     if (output_format == VW)
+        fout2.get_sp()<<endl;
   } //for nodes
-  /*bipartite_graph_descriptor out_info;
-  out_info.rows = training.num_edges();
-  out_info.cols = MAX_FEATURE;
-  out_info.nonzeros = out_graph.num_edges();
-  out_graph.finalize();*/
-    mm_write_cpp_mtx_crd_size(fout.get_sp(), training_instance, MAX_FEATURE, added_training);
-    save_matrix_market_format_vector(training_data+".vec", training_rating, true, "%vector of ratings\n");
-  merge(training_data+".info", training_data+".data");
+  mm_write_cpp_mtx_crd_size(fout.get_sp(), training_instance, MAX_FEATURE, added_training);
+  //save_matrix_market_format_vector(training_data+".vec", training_rating, true, "%vector of ratings\n");
+  if (output_format == MATRIX_MARKET)
+    merge(training_data+".info", training_data+".data");
   std::cout << "Finished in " << mytimer.current_time() << " missing entries: " << missing << std::endl;
   return EXIT_SUCCESS;
 } //main
