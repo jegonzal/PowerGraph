@@ -66,6 +66,8 @@ struct vertex_data2 {
 struct edge_data2 {
   double weight;
   edge_data2(double weight = 0) : weight(weight) { }
+  void set_field(int pos, double val){ weight = val; }
+  double get_field(int pos){ return weight; }
 };
 
 

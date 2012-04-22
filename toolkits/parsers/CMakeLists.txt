@@ -15,3 +15,5 @@ add_graphlab_executable(kddcup_output_builder kddcup_output_builder.cpp ../share
 add_graphlab_executable(kdd_test_splitter kdd_test_splitter.cpp ../shared/mmio.cpp)
 add_graphlab_executable(kdd_train_data_parser kdd_train_data_parser.cpp ../shared/mmio.cpp formatconverter.cpp)
 add_graphlab_executable(kdd_usr_itm_feature_parser kdd_usr_itm_feature_parser.cpp ../shared/mmio.cpp)
+add_graphlab_executable(kdd_linear_model_builder kdd_linear_model_builder.cpp
+../shared/mmio.cpp)

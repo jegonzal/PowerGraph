@@ -37,6 +37,7 @@ bool gzip = false;
 std::string datafile;
 unsigned long long total_lines = 0;
 int pos_offset = 0;
+int nodes = 2421057;
 
 struct vertex_data {
   string filename;
@@ -82,6 +83,7 @@ struct stringzipparser_update :
     int pos = 0;
     double val = 0;
     int items = 0; 
+    int min_pos = 99999999, max_pos = 0;
 
     while(true){
       fin.get_sp().getline(linebuf, 24000);
@@ -105,6 +107,8 @@ struct stringzipparser_update :
              break;
          pos = atoi(pch);
          ASSERT_GE(pos, 0);
+         min_pos = std::min(pos, min_pos);
+         max_pos = std::max(pos, max_pos);
          pch = strtok_r(NULL, " \r\n\t:",(char**)&saveptr);
          ASSERT_NE(pch, NULL);
          val = atof(pch);
@@ -125,7 +129,7 @@ struct stringzipparser_update :
   }
 
    logstream(LOG_INFO) <<"Finished parsing total of " << line << " lines in file " << vdata.filename << endl <<
-	                 "total nnz " << items << endl;
+	                 " wrote total items (nnz) " << items << endl;
 
 
  }
