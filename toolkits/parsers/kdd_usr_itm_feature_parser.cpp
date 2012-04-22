@@ -38,17 +38,33 @@ std::string datafile;
 unsigned long long total_lines = 0;
 int pos_offset = 0;
 int nodes = 2421057;
+int MAX_FEATURE = 410;
 
 struct vertex_data {
   string filename;
   vertex_data() { }
   vertex_data(std::string _filename) : filename(_filename) { }
 }; // end of vertex_data
+struct vertex_data2 {
+  vertex_data2(){ 
+  }
+  void add_self_edge(double value) { }
 
-struct edge_data {
+  void set_val(double value, int field_type) { 
+  }  
+  double get_output(int field_type){ return NAN; }
+}; 
+
+struct edge_data2{
+  double weight;
+  edge_data2(double weight): weight(weight) { }
+  void set_field(int pos, double val){}
+  double get_field(int pos) { return weight; }
 };
 
+struct edge_data{};
 typedef graphlab::graph<vertex_data, edge_data> graph_type;
+typedef graphlab::graph<vertex_data2, edge_data2> graph_type2;
 
 
 /***
@@ -66,15 +82,8 @@ struct stringzipparser_update :
     
    vertex_data& vdata = context.vertex_data();
    gzip_in_file fin((vdata.filename), gzip);
-   gzip_out_file fout((vdata.filename + ".out"), gzip);
-    MM_typecode out_typecode;
-    mm_clear_typecode(&out_typecode);
-    mm_set_real(&out_typecode); 
-    mm_set_sparse(&out_typecode); 
-    mm_set_matrix(&out_typecode);
-    mm_write_cpp_banner(fout.get_sp(), out_typecode);
-    mm_write_cpp_mtx_crd_size(fout.get_sp(), 987654321, 987654321, 987654322);
-
+   graph_type2 out_graph;
+   out_graph.resize(nodes+MAX_FEATURE);
 
     char linebuf[24000];
     char saveptr[1024];
@@ -95,11 +104,12 @@ struct stringzipparser_update :
         logstream(LOG_ERROR) << "Error when parsing file: " << vdata.filename << ":" << line << "[" << linebuf << "]" << std::endl;
         return;
        }
-      int from = atoi(pch);
+      int from = atoi(pch) - 1;
       if (from <= 10000){
          logstream(LOG_ERROR) << "Error when parsing file: " << vdata.filename << ":" << line << " document ID is zero or less: " << from << std::endl;
          return;
       }
+      ASSERT_LT(from, nodes);
   
       while(true){
          pch = strtok_r(NULL, " \r\n\t:",(char**)&saveptr);
@@ -107,13 +117,16 @@ struct stringzipparser_update :
              break;
          pos = atoi(pch);
          ASSERT_GE(pos, 0);
+         ASSERT_LT(pos, MAX_FEATURE);
          min_pos = std::min(pos, min_pos);
          max_pos = std::max(pos, max_pos);
          pch = strtok_r(NULL, " \r\n\t:",(char**)&saveptr);
          ASSERT_NE(pch, NULL);
          val = atof(pch);
-
-         fout.get_sp() << from << " " << pos << " " << val << endl; 
+         ASSERT_GE(val, 0);
+         edge_data2 edge(val);
+         ASSERT_NE(from, pos+nodes);
+         out_graph.add_edge(from, pos+nodes, edge);
          items++;
          if (fin.get_sp().eof() || pch == NULL)
            break;
@@ -128,8 +141,14 @@ struct stringzipparser_update :
         logstream(LOG_INFO) << "Parsed line: " << line << endl;
   }
 
+  bipartite_graph_descriptor out_info;
+  out_info.rows = nodes; out_info.cols = MAX_FEATURE;
+  out_info.nonzeros = out_graph.num_edges();
+  out_info.force_non_square = true;
+  out_graph.finalize();
+  save_matrixmarket_graph(vdata.filename +".out", out_info, out_graph);
    logstream(LOG_INFO) <<"Finished parsing total of " << line << " lines in file " << vdata.filename << endl <<
-	                 " wrote total items (nnz) " << items << endl;
+	                 " wrote total items (nnz) " << items << " min pos: " << min_pos << " max pos: " << max_pos << endl;
 
 
  }

@@ -1125,7 +1125,7 @@ bool save_matrixmarket_graph(const std::string& fname,
     if (desc.cols == 0)
        desc.cols = out_graph.num_vertices();
     int total_edges = 0;
-    mm_write_cpp_mtx_crd_size(fout.get_sp(), desc.cols, desc.rows, out_graph.num_edges());
+    mm_write_cpp_mtx_crd_size(fout.get_sp(), desc.rows, desc.cols, out_graph.num_edges());
       
     for (int j=0; j< desc.rows; j++){
        edge_list out_edges = out_graph.out_edges(j);
@@ -1144,7 +1144,34 @@ bool save_matrixmarket_graph(const std::string& fname,
    logstream(LOG_INFO)<<"Finished exporting a total of " << total_edges << " ratings to  graph " << fname << endl;
    return true;
 }
- 
 
+void merge(string datafileA, string datafileB){ 
+  logstream(LOG_INFO)<<"Merging the two files together"<<endl;
+  int rc = system((string("cat ") + datafileB + " >> " + datafileA).c_str());
+  if (rc == -1){
+     perror("failed cat");
+     logstream(LOG_FATAL)<<"failed to concatanate the two test files"<<endl;
+  }
+     
+  rc = remove((datafileB).c_str());
+  if (rc == -1){
+     perror("failed delete");
+     logstream(LOG_FATAL)<<"failed to remove temp file"<< datafileB << " .csv" << endl;
+  }
+}
+void zip(string datafile){
+  int rc = system(("zip submission.zip " + datafile).c_str());
+  if (rc == -1){
+     perror("failed zip");
+     logstream(LOG_FATAL)<<"failed to zip submisison file"<< datafile << " .csv" << endl;
+  }
+  logstream(LOG_INFO)<<"Successfully created zip file: submission.zip" << endl;
+  rc = remove((datafile).c_str());
+  if (rc == -1){
+     perror("failed delete");
+     logstream(LOG_FATAL)<<"failed to remove temp file"<< datafile << " .csv" << endl;
+  }
+ logstream(LOG_INFO)<<"removed temporary files" << endl;
+ }
 #include <graphlab/macros_undef.hpp>
 #endif // end of matrix_loader_hpp
