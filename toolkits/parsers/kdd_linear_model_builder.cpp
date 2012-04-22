@@ -148,6 +148,7 @@ int main(int argc,  char *argv[]) {
 
      for (uint j=0; j < out_edges.size(); j++){
        training_instance++;
+       ASSERT_LE(training_instance, training_rating.size());
        if (training_instance % 100000 == 0)
           logstream(LOG_INFO)<<"Handling training sample: " << training_instance<< endl;
        uint user = out_edges[j].source();
@@ -173,7 +174,7 @@ int main(int argc,  char *argv[]) {
          fout2.get_sp()<<training_instance+1<<" "<<pos+1<<" "<<edge2.weight<<endl;
          //out_graph.add_edge(training_instance, training.num_edges() + pos, newedge);
          added_training++;
-         training_rating[training_instance] = rating;
+         training_rating[training_instance-1] = rating;
        }//for user features
        for (uint k=0; k < item_features.size(); k++){
          assert(item_features[k].source() == item);
