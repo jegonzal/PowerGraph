@@ -171,8 +171,6 @@ if( JNI_REALLY_FOUND AND EXPERIMENTAL )
     # INSTALL_COMMAND ""
     CONFIGURE_COMMAND 
     bash <SOURCE_DIR>/src/c++/libhdfs/configure 
-    ac_cv_func_malloc_0_nonnull=yes 
-    #  --enable-static --disable-shared 
     JVM_ARCH=tune=i686 --prefix=<INSTALL_DIR>
     --with-java=${JAVA_HOME}
     INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local
@@ -182,6 +180,7 @@ if( JNI_REALLY_FOUND AND EXPERIMENTAL )
   link_libraries(hdfs ${JAVA_JVM_LIBRARY})
 endif( JNI_REALLY_FOUND AND EXPERIMENTAL )
 
+#extra configure commands:  ac_cv_func_malloc_0_nonnull=yes --enable-static --disable-shared 
 
 
 # ExternalProject_Add(openmpi
