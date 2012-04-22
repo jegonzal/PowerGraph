@@ -121,66 +121,6 @@ public:
 
 
 
-/**
- * The factorized page rank update function
- */
-class synchronous_pagerank :
-  public graphlab::iupdate_functor<graph_type, synchronous_pagerank>  {
-private:
-  float accum;
-public:
-  synchronous_pagerank(const float& accum = 0) : accum(accum) { }
-  double priority() const { return accum; }
-  void operator+=(const synchronous_pagerank& other) { accum += other.accum; }
-  bool is_factorizable() const { return true; }
-  consistency_model consistency() const { return graphlab::DEFAULT_CONSISTENCY; }
-  consistency_model gather_consistency() { return graphlab::EDGE_CONSISTENCY; }
-  consistency_model scatter_consistency() { return graphlab::NULL_CONSISTENCY; }
-  edge_set gather_edges() const { return graphlab::IN_EDGES; }
-  edge_set scatter_edges() const {
-    return graphlab::NO_EDGES;
-  }
-  void save(graphlab::oarchive &oarc) const {
-    oarc << accum;
-  };
-  void load(graphlab::iarchive &iarc) {
-    iarc >> accum;
-  };
-
-  // Reset the accumulator before running the gather
-  void init_gather(icontext_type& context) { accum = 0; }
-
-  // Run the gather operation over all in edges
-  void gather(icontext_type& context, const edge_type& edge) {
-    const size_t num_out_edges = context.num_out_edges(edge.source());
-    ASSERT_EQ(edge.target(), context.vertex_id());
-    ASSERT_GT(num_out_edges, 0);
-    const float weight =  1.0 / float(num_out_edges);
-    accum += context.const_vertex_data(edge.source()).value * weight;
-  } // end of gather
-
-  // Merge two factorized_pagerank accumulators after running gather
-  void merge(const synchronous_pagerank& other) { accum += other.accum; }
-
-  // Update the center vertex
-  void apply(icontext_type& context) {
-    vertex_data& vdata = context.vertex_data();
-    vdata.old_value = vdata.value;
-    vdata.value =  RESET_PROB + (1 - RESET_PROB) * accum;
-  } // end of apply
-
-  // Reschedule neighbors
-  void scatter(icontext_type& context, const edge_type& edge) {
-  } // end of scatter
-}; // end of factorized_pagerank update functor
-
-
-
-
-
-
-
-
 
 
 #if defined(FSCOPE)
@@ -192,7 +132,6 @@ typedef graphlab::distributed_engine<graph_type, factorized_pagerank> engine_typ
 #endif
 
 
-typedef graphlab::distributed_synchronous_engine<graph_type, synchronous_pagerank> synchronous_engine_type;
 
 
 /**
@@ -203,22 +142,24 @@ class sum_residual_aggregator :
   public graphlab::IS_POD_TYPE {
 private:
   float error_norm;
-  float vector_norm;
+  float max_error_norm;
 public:
-  sum_residual_aggregator() : error_norm(0),vector_norm(0) { }
+  sum_residual_aggregator() : error_norm(0),max_error_norm(0) { }
   void operator()(icontext_type& context) {
-    float e = context.const_vertex_data().value * context.const_vertex_data().old_value;
+    float e = std::fabs(context.const_vertex_data().value - context.const_vertex_data().old_value);
     error_norm += e;
-    vector_norm += context.const_vertex_data().old_value * context.const_vertex_data().old_value;
+    max_error_norm = std::max(e, max_error_norm);
   } // end of operator()
   void operator+=(const sum_residual_aggregator& other) {
     error_norm += other.error_norm;
-    vector_norm += other.vector_norm;
+    max_error_norm = std::max(other.max_error_norm, max_error_norm);
   }
   void finalize(iglobal_context_type& context) {
-    std::cout << "|x'Ax|/|x'x| :\t\t" << (error_norm) / (vector_norm) << std::endl;
+    std::cout << "|old_x-new_x|_1 :\t" << error_norm << std::endl;
+    std::cout << "|old_x-new_x|_inf :\t" << max_error_norm << std::endl;
   }
-}; //
+};
+
 
 
 int main(int argc, char** argv) {
@@ -390,15 +331,6 @@ int main(int argc, char** argv) {
             << "Update Rate (updates/second): " 
             << engine.last_update_count() / runtime
             << std::endl;
-
-  std::cout << "Running one synchronous iteration for the error...";
-  // run one more synchronous round to check the error
-  synchronous_engine_type sync_engine(dc, graph, clopts.get_ncpus());
-  sync_engine.set_options(clopts);
-  sync_engine.initialize();
-  sync_engine.schedule_all(synchronous_pagerank(1.0));
-  dc.full_barrier();
-  sync_engine.start();
   
   engine.aggregate_now("residual");
   
