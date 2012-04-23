@@ -164,6 +164,7 @@ if( JNI_REALLY_FOUND AND EXPERIMENTAL )
     URL_MD5 e627d9b688c4de03cba8313bd0bba148
     UPDATE_COMMAND chmod +x src/c++/libhdfs/install-sh
     PATCH_COMMAND patch -p1 < ${GraphLab_SOURCE_DIR}/patches/libhdfs-compile-osx.patch
+    BUILD_IN_SOURCE 1
     # CONFIGURE_COMMAND ""
     # COMPILE_COMMAND ant -Dcompile.c++=true -Dlibhdfs=true 
     # -Dinstall.c++=${GraphLab_SOURCE_DIR}/deps/local
