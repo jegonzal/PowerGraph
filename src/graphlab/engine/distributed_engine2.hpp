@@ -317,7 +317,7 @@ namespace graphlab {
       recv_throttle_threshold(-1),
       send_throttle_threshold(-1),
       timed_termination(-1){
-      aggregator.get_threads().resize(ncpus);
+      aggregator.get_threads().resize(2);
       rmi.barrier();
       // TODO: Remove context creation.
       // Added context to force compilation.   

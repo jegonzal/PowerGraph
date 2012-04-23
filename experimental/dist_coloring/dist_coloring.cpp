@@ -317,7 +317,23 @@ int main(int argc, char** argv) {
   engine.initialize();
   engine.add_aggregator("color_match", color_match_aggregator(), 3);
   std::cout << dc.procid() << ": Scheduling all" << std::endl;
-  engine.schedule_all(color_update());
+
+ 
+  //  engine.schedule_all(color_update());
+  typedef std::pair<uint32_t, graph_type::vertex_id_type> pair_type;
+  std::vector< pair_type > vtxs;
+  vtxs.reserve(graph.num_local_vertices());
+  for(graph_type::lvid_type lvid = 0; lvid < graph.num_local_vertices(); 
+      ++lvid) {
+    if(graph.l_is_master(lvid)) {
+      const uint32_t degree = 
+        graph.l_num_in_edges(lvid) + graph.l_num_out_edges(lvid);
+      vtxs.push_back(pair_type(degree, lvid));
+    }  
+  }
+  std::sort(vtxs.rbegin(), vtxs.rend());
+  foreach(pair_type pair, vtxs)
+    engine.schedule_local(pair.second, color_update());
   dc.full_barrier();
   
   // Run the Coloring ---------------------------------------------------------
