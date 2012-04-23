@@ -23,7 +23,7 @@ set_target_properties(dist_sync_als2 PROPERTIES COMPILE_FLAGS -DSYNC)
 
 add_distributed_graphlab_executable(dist_als3 dist_als3.cpp)
 add_distributed_graphlab_executable(dist_fscope_als3 dist_als3.cpp)
-set_target_properties(dist_fscope_als PROPERTIES COMPILE_FLAGS -DFSCOPE)
+set_target_properties(dist_fscope_als3 PROPERTIES COMPILE_FLAGS -DFSCOPE)
 
 add_distributed_graphlab_executable(dist_sync_als3 dist_als3.cpp)
 set_target_properties(dist_sync_als3 PROPERTIES COMPILE_FLAGS -DSYNC)
