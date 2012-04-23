@@ -70,6 +70,8 @@ struct edge_data2 {
   int rating;
   int time;
   edge_data2(int _rating, int _time) : rating(_rating),time(_time) { }
+  int get_field(int pos){ return pos == 0 ? rating : time; }
+  void set_field(int pos, int val){ if (pos == 0) rating = val; else time = val; }
 };
 
 struct singlerating{
@@ -104,16 +106,7 @@ typedef graphlab::graph<vertex_data2, edge_data2>::edge_list_type edge_list;
    vertex_data& vdata = context.vertex_data();
    gzip_in_file fin(vdata.filename, gzip);
    gzip_in_file fin_example(example_submission, gzip);
-   gzip_out_file fout((vdata.filename + ".out"), gzip);
-   gzip_out_file fout_validation((vdata.filename + ".oute"), gzip);
     
-    MM_typecode out_typecode;
-    mm_clear_typecode(&out_typecode);
-    mm_set_integer(&out_typecode); 
-    mm_set_sparse(&out_typecode); 
-    mm_set_matrix(&out_typecode);
-    mm_write_cpp_banner(fout.get_sp(), out_typecode);
-    mm_write_cpp_banner(fout_validation.get_sp(), out_typecode);
     char linebuf[24000];
     char saveptr[1024];
     int added = 0;
@@ -297,42 +290,12 @@ typedef graphlab::graph<vertex_data2, edge_data2>::edge_list_type edge_list;
    positive_examples+= examples_added;
    out_graph.finalize();
    out_graph_validation.finalize();
-
-    int total_edges = 0;
-    mm_write_cpp_mtx_crd_size(fout.get_sp(), nodes, nodes, out_graph.num_edges());
-
-    for (int j=0; j< nodes; j++){
-       edge_list out_edges = out_graph.out_edges(j);
-       for (uint k=0; k < out_edges.size(); k++){
-          total_edges++;
-          fout.get_sp() << (out_edges[k].source() +1) << " " <<
-							    (out_edges[k].target() + 1 - nodes) << " " <<
-                  out_graph.edge_data(out_edges[k]).rating << " " <<
-                  out_graph.edge_data(out_edges[k]).time << std::endl;
-				          
-       }
-    }
-
-    logstream(LOG_INFO)<<"Finished exporting a total of " << total_edges << " ratings to training graph " << std::endl << " Positive ratings: " << positive_examples << " Negative ratings: " << negative_examples << std::endl;
-    ASSERT_EQ(out_graph.num_edges(), total_edges);
-    int total_edges_validation = 0;
-    mm_write_cpp_mtx_crd_size(fout_validation.get_sp(), nodes, nodes, out_graph_validation.num_edges());
-    for (int j=0; j< nodes; j++){
-       edge_list out_edges = out_graph_validation.out_edges(j);
-       for (uint k=0; k < out_edges.size(); k++){
-          total_edges_validation++;
-          fout_validation.get_sp() << (out_edges[k].source() +1) << " " <<
-							    (out_edges[k].target() + 1 - nodes) << " " <<
-                  out_graph_validation.edge_data(out_edges[k]).rating << " " <<
-                  out_graph_validation.edge_data(out_edges[k]).time << std::endl;
-				          
-       }
-    }
-
-    logstream(LOG_INFO)<<"Finished exporting a total of " << total_edges_validation << " ratings to validation graph. " << endl;
-    logstream(LOG_INFO)<<"Total unique entries are: " << total_edges_validation + total_edges << endl;
-    ASSERT_EQ(total_edges_validation + total_edges, num_edges+examples_added);
-    ASSERT_EQ(out_graph_validation.num_edges(), total_edges_validation);
+    
+    bipartite_graph_descriptor training_info, validation_info;
+    training_info.rows = training_info.cols = nodes;
+    validation_info.rows = validation_info.cols = nodes;
+    save_matrixmarket_graph(vdata.filename +".out", training_info, out_graph, MATRIX_MARKET_4);
+    logstream(LOG_INFO)<<"Finished exporting a total of " << out_graph.num_edges() << " ratings to training graph " << std::endl << " Positive ratings: " << positive_examples << " Negative ratings: " << negative_examples << std::endl;
 
   }
 

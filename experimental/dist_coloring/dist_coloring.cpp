@@ -34,129 +34,136 @@
 #include <graphlab/macros_def.hpp>
 
 
-
+typedef uint32_t color_type;
 struct vertex_data {
-  float value;
-  float old_value;
-  vertex_data(float value = 1) : value(value),old_value(0) { }
-  void save(graphlab::oarchive &oarc) const { oarc << value << old_value; }
-  void load(graphlab::iarchive &iarc) { iarc >> value >> old_value; }
+  color_type color;
+  uint32_t nupdates;
+  vertex_data(uint32_t color = 0) : color(color), nupdates(nupdates) { }
+  void save(graphlab::oarchive &oarc) const { oarc << color << nupdates; }
+  void load(graphlab::iarchive &iarc) { iarc >> color >> nupdates; }
 }; // End of vertex data
 
 std::ostream& operator<<(std::ostream& out, const vertex_data& vdata) {
-  return out << "Rank=" << vdata.value;
+  return out << "Color=" << vdata.color;
 }
 
-struct edge_data : public graphlab::IS_POD_TYPE { }; // End of edge data
+typedef char edge_data;
 
 
 typedef graphlab::distributed_graph<vertex_data, edge_data> graph_type;
 
 
-//! Global random reset probability
-double RESET_PROB = 0.15;
-
-//! Global accuracy tolerance
-double ACCURACY = 1e-5;
 
 /**
- * The factorized page rank update function
+ * The factorized page color update function
  */
-class factorized_pagerank : 
-  public graphlab::iupdate_functor<graph_type, factorized_pagerank> {
+class color_update : 
+  public graphlab::iupdate_functor<graph_type, color_update> {
 private:
-  float accum;
+  //  typedef std::set<color_type> set_type;
+  typedef boost::unordered_set<color_type> set_type;
+  set_type colors;
 public:
-  factorized_pagerank(const float& accum = 0) : accum(accum) { }
-  double priority() const { return accum; }
-  void operator+=(const factorized_pagerank& other) { accum += other.accum; }
+  color_update() { }
+  void operator+=(const color_update& other) { 
+    if(!other.colors.empty()) 
+      colors.insert(other.colors.begin(), other.colors.end());
+  }
   bool is_factorizable() const { return true; }
   consistency_model consistency() const { return graphlab::DEFAULT_CONSISTENCY; }
   consistency_model gather_consistency() { return graphlab::EDGE_CONSISTENCY; }
   consistency_model scatter_consistency() { return graphlab::NULL_CONSISTENCY; }
-  edge_set gather_edges() const { return graphlab::IN_EDGES; }
-  edge_set scatter_edges() const {
-    return (accum != 0) ? graphlab::OUT_EDGES : graphlab::NO_EDGES;
+  edge_set gather_edges() const { return graphlab::ALL_EDGES; }
+  edge_set scatter_edges() const { 
+#ifdef FSCOPE
+    return graphlab::ALL_EDGES;
+#else
+    return graphlab::NO_EDGES;
+#endif
   }
-
   // Reset the accumulator before running the gather
-  void init_gather(icontext_type& context) { accum = 0; }
-
-
-  void save(graphlab::oarchive &oarc) const {
-    oarc << accum;
-  };
-  void load(graphlab::iarchive &iarc) {
-    iarc >> accum;
-  };
+  void init_gather(icontext_type& context) { colors.clear(); }
+  void save(graphlab::oarchive &oarc) const { oarc << colors; }
+  void load(graphlab::iarchive &iarc) { iarc >> colors; }
   
   // Run the gather operation over all in edges
   void gather(icontext_type& context, const edge_type& edge) {
-    const size_t num_out_edges = context.num_out_edges(edge.source());
-    const float weight =  1.0 / float(num_out_edges);
-    accum += context.const_vertex_data(edge.source()).value * weight;
+    const vertex_id_type neighbor_id = context.vertex_id() == edge.target()?
+      edge.source() : edge.target();
+    const vertex_data& neighbor = context.const_vertex_data(neighbor_id);     
+    colors.insert(neighbor.color);
   } // end of gather
 
-  // Merge two factorized_pagerank accumulators after running gather
-  void merge(const factorized_pagerank& other) { accum += other.accum; }
+  // Merge two color_update accumulators after running gather
+  void merge(const color_update& other) {
+    colors.insert(other.colors.begin(), other.colors.end());
+  }
 
   // Update the center vertex
   void apply(icontext_type& context) {
     vertex_data& vdata = context.vertex_data();
-    vdata.value = RESET_PROB + (1 - RESET_PROB) * accum;
-    if (std::fabs(vdata.value - vdata.old_value) >= ACCURACY) {
-      accum = std::fabs(vdata.value - vdata.old_value);
-      vdata.old_value = vdata.value;
-    }
-    else {
-      accum = 0;
-    }
+    color_type new_color = 0;
+    for( ; colors.count(new_color) > 0; ++new_color);
+    vdata.color = new_color;
+    vdata.nupdates++;
+    colors.clear();
   } // end of apply
 
   // Reschedule neighbors 
   void scatter(icontext_type& context, const edge_type& edge) {
-    if (accum != 0) context.schedule(edge.target(), factorized_pagerank(accum));
+    const vertex_data& vdata = context.const_vertex_data();
+    const vertex_id_type neighbor_id = context.vertex_id() == edge.target()?
+      edge.source() : edge.target();
+    const vertex_data& neighbor = context.const_vertex_data(neighbor_id);     
+    if(vdata.color == neighbor.color) context.schedule(neighbor_id, color_update());
   } // end of scatter
-}; // end of factorized_pagerank update functor
+}; // end of color_update update functor
 
 
 
 
 
 #if defined(FSCOPE)
-typedef graphlab::distributed_fscope_engine<graph_type, factorized_pagerank> engine_type;
+typedef graphlab::distributed_fscope_engine<graph_type, color_update> engine_type;
 #elif defined(SYNCHRONOUS_ENGINE)
-typedef graphlab::distributed_synchronous_engine<graph_type, factorized_pagerank> engine_type;
+typedef graphlab::distributed_synchronous_engine<graph_type, color_update> engine_type;
 #else
-typedef graphlab::distributed_engine<graph_type, factorized_pagerank> engine_type;
+typedef graphlab::distributed_engine<graph_type, color_update> engine_type;
 #endif
 
 
-
+graphlab::timer agg_timer;
 
 /**
  * This aggregator finds the number of touched vertices
  */
-class sum_residual_aggregator :
-  public graphlab::iaggregator<graph_type, factorized_pagerank, sum_residual_aggregator>,
+class color_match_aggregator :
+  public graphlab::iaggregator<graph_type, color_update, color_match_aggregator>,
   public graphlab::IS_POD_TYPE {
 private:
-  float error_norm;
-  float max_error_norm;
+  size_t errors;
+  color_type max_color;
 public:
-  sum_residual_aggregator() : error_norm(0),max_error_norm(0) { }
+  color_match_aggregator() : errors(0), max_color(0) { }
+  inline bool is_factorizable() const { return true; }
+  inline edge_set gather_edges() const { return graphlab::IN_EDGES; }
+  void gather(icontext_type& context, const edge_type& edge) {
+    const vertex_data& source = context.const_vertex_data(edge.source());
+    const vertex_data& target = context.const_vertex_data(edge.target());
+    if(source.color == target.color) ++errors;
+  } // end of scatter
   void operator()(icontext_type& context) {
-    float e = std::fabs(context.const_vertex_data().value - context.const_vertex_data().old_value);
-    error_norm += e;
-    max_error_norm = std::max(e, max_error_norm);
-  } // end of operator()
-  void operator+=(const sum_residual_aggregator& other) {
-    error_norm += other.error_norm;
-    max_error_norm = std::max(other.max_error_norm, max_error_norm);
+    max_color = std::max(max_color, context.const_vertex_data().color); 
+  }
+  void operator+=(const color_match_aggregator& other) { 
+    errors += other.errors;
+    max_color = std::max(max_color, other.max_color);
   }
   void finalize(iglobal_context_type& context) {
-    std::cout << "|old_x-new_x|_1 :\t" << error_norm << std::endl;
-    std::cout << "|old_x-new_x|_inf :\t" << max_error_norm << std::endl;
+    std::cout << "results: \t" 
+              << agg_timer.current_time() << '\t'
+              << errors << '\t' 
+              << max_color << std::endl;
   }
 };
 
@@ -174,7 +181,7 @@ int main(int argc, char** argv) {
  
 
   // Parse command line options -----------------------------------------------
-  graphlab::command_line_options clopts("PageRank algorithm.");
+  graphlab::command_line_options clopts("Coloring algorithm.");
   clopts.use_distributed_options();
   std::string graph_dir; 
   std::string format = "adj";
@@ -204,11 +211,7 @@ int main(int argc, char** argv) {
   bool output = false;
   clopts.attach_option("output", &output, output,
                        "Output results");
-  clopts.attach_option("accuracy", &ACCURACY, ACCURACY,
-                       "residual termination threshold");
-  clopts.attach_option("resetprob", &RESET_PROB, RESET_PROB,
-                       "Random reset probability"); 
-
+  
   bool savebin = false;
   clopts.attach_option("savebin", &savebin, savebin,
                        "Option to save the graph as binary\n");
@@ -312,14 +315,31 @@ int main(int argc, char** argv) {
   std::cout << dc.procid() << ": Intializing engine" << std::endl;
   engine.set_options(clopts);
   engine.initialize();
-  engine.add_aggregator("residual", sum_residual_aggregator(), 3);
+  engine.add_aggregator("color_match", color_match_aggregator(), 3);
   std::cout << dc.procid() << ": Scheduling all" << std::endl;
-  engine.schedule_all(factorized_pagerank(1.0));
+
+ 
+  //  engine.schedule_all(color_update());
+  typedef std::pair<uint32_t, graph_type::vertex_id_type> pair_type;
+  std::vector< pair_type > vtxs;
+  vtxs.reserve(graph.num_local_vertices());
+  for(graph_type::lvid_type lvid = 0; lvid < graph.num_local_vertices(); 
+      ++lvid) {
+    if(graph.l_is_master(lvid)) {
+      const uint32_t degree = 
+        graph.l_num_in_edges(lvid) + graph.l_num_out_edges(lvid);
+      vtxs.push_back(pair_type(degree, lvid));
+    }  
+  }
+  std::sort(vtxs.rbegin(), vtxs.rend());
+  foreach(pair_type pair, vtxs)
+    engine.schedule_local(pair.second, color_update());
   dc.full_barrier();
   
-  // Run the PageRank ---------------------------------------------------------
+  // Run the Coloring ---------------------------------------------------------
 
-  std::cout << "Running pagerank!" << std::endl;
+  std::cout << "Running coloring!" << std::endl;
+  agg_timer.start();
   timer.start();
   engine.start();  // Run the engine
 
@@ -332,7 +352,7 @@ int main(int argc, char** argv) {
             << engine.last_update_count() / runtime
             << std::endl;
   
-  engine.aggregate_now("residual");
+  engine.aggregate_now("color_match");
   
   if (output) {
     std::string fname = "results_";
@@ -341,7 +361,7 @@ int main(int argc, char** argv) {
     for (size_t i = 0;i < graph.get_local_graph().num_vertices(); ++i) {
       if (graph.l_get_vertex_record(i).owner == dc.procid()) {
         fout << graph.l_get_vertex_record(i).gvid << "\t" 
-             << graph.get_local_graph().vertex_data(i).value << "\n";
+             << graph.get_local_graph().vertex_data(i).color << "\n";
         //             << graph.get_local_graph().vertex_data(i).nupdates << "\n";
       }
     }

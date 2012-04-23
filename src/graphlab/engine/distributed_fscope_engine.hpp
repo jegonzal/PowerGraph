@@ -328,7 +328,7 @@ namespace graphlab {
       send_throttle_threshold(-1),
       timed_termination(-1){
       rmi.barrier();
-      aggregator.get_threads().resize(8);
+      aggregator.get_threads().resize(2);
 #ifdef USE_EVENT_LOG
       PERMANENT_INITIALIZE_DIST_EVENT_LOG(eventlog, dc, std::cout, 3000, 
                                           dist_event_log::RATE_BAR);

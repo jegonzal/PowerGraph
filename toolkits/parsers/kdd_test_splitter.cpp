@@ -66,6 +66,8 @@ struct vertex_data2 {
 struct edge_data2 {
   double weight;
   edge_data2(double weight = 0) : weight(weight) { }
+  void set_field(int pos, double val){ weight = val; }
+  double get_field(int pos){ return weight; }
 };
 
 
@@ -113,7 +115,7 @@ typedef graphlab::graph<vertex_data2, edge_data2>::edge_list_type edge_list;
             total_ratings++;
             fprintf(pfile, "%d %d %d %d\n", 
                     edges[j].source() + 1, 
-                    edges[j].target() -nodes + 1, 0, 
+                    edges[j].target() -nodes + 1, 1, 
                     (int)_graph.edge_data(edges[j]).weight);
             }
         }

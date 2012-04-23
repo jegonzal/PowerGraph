@@ -39,6 +39,8 @@ struct vertex_data{
 struct edge_data{ 
  double val;
  edge_data(double _val){ val = _val; };
+  void set_field(int pos, double _val){ val = _val; }
+  double get_field(int pos){ return val; }
 };
 
 typedef graphlab::graph2<vertex_data, edge_data> graph_type;

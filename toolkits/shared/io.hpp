@@ -371,7 +371,7 @@ bool load_matrixmarket_graph(const std::string& fname,
       }
      //extended matrix market format. [from] [to] [val] [time]
     } else if (parse_type == MATRIX_MARKET_4){
-      if(fscanf(fptr, "%d %d %lg %lg\n", &row, &col, &dtime, &val) != 4) {
+      if(fscanf(fptr, "%d %d %lg %lg\n", &row, &col, &val, &dtime) != 4) {
         logstream(LOG_ERROR) 
           << "Error reading file on line: " << i << std::endl;
         return false;
@@ -402,7 +402,9 @@ bool load_matrixmarket_graph(const std::string& fname,
     }
     const vertex_id_type source = row;
     const vertex_id_type target = col + (is_square ? 0 : desc.rows);
-    const edge_data_type edata(val);
+    edge_data_type edata(val);
+    if (parse_type == MATRIX_MARKET_4)
+      edata.set_field(1, dtime);
 
     if (debug && desc.nonzeros < 100)
       logstream(LOG_INFO)<<"Adding an edge: " << source << "->" << target << " with val: " << std::endl;
@@ -1095,7 +1097,81 @@ void save_to_bin(const std::string &filename, Graph& graph, bool edge_weight) {
   delete[] nodes;
   delete [] innodes;
 }
+template<typename Graph>
+bool save_matrixmarket_graph(const std::string& fname,
+                             bipartite_graph_descriptor& desc,
+                             Graph& out_graph,
+			     int parse_type = MATRIX_MARKET_3, 
+			     bool allow_zeros = false, 
+			     bool header_only = false, 
+			     bool optional = false, 
+           bool body_only = false, 
+	         bool gzip = false){ 
+  typedef Graph graph_type;
+  typedef typename graph_type::vertex_id_type vertex_id_type;
+  typedef typename graph_type::edge_data_type edge_data_type;
+  typedef typename graph_type::edge_list_type edge_list;
+   
 
+    gzip_out_file fout(fname, gzip);
+    MM_typecode out_typecode;
+    mm_clear_typecode(&out_typecode);
+    mm_set_real(&out_typecode); 
+    mm_set_sparse(&out_typecode); 
+    mm_set_matrix(&out_typecode);
+    mm_write_cpp_banner(fout.get_sp(), out_typecode);
+    if (desc.rows == 0)
+       desc.rows = out_graph.num_vertices();
+    if (desc.cols == 0)
+       desc.cols = out_graph.num_vertices();
+    int total_edges = 0;
+    mm_write_cpp_mtx_crd_size(fout.get_sp(), desc.rows, desc.cols, out_graph.num_edges());
+      
+    for (int j=0; j< desc.rows; j++){
+       edge_list out_edges = out_graph.out_edges(j);
+       for (uint k=0; k < out_edges.size(); k++){
+          total_edges++;
+          fout.get_sp() << (out_edges[k].source() +1) << " " <<
+							    (out_edges[k].target() + 1 - desc.rows) << " " <<
+                  out_graph.edge_data(out_edges[k]).get_field(0) << " ";
+          if (parse_type == MATRIX_MARKET_4) 
+             fout.get_sp() << out_graph.edge_data(out_edges[k]).get_field(1);
+          fout.get_sp() << std::endl;
+				          
+       }
+    }
+    ASSERT_EQ(total_edges, out_graph.num_edges());
+   logstream(LOG_INFO)<<"Finished exporting a total of " << total_edges << " ratings to  graph " << fname << endl;
+   return true;
+}
 
+void merge(string datafileA, string datafileB){ 
+  logstream(LOG_INFO)<<"Merging the two files together"<<endl;
+  int rc = system((string("cat ") + datafileB + " >> " + datafileA).c_str());
+  if (rc == -1){
+     perror("failed cat");
+     logstream(LOG_FATAL)<<"failed to concatanate the two test files"<<endl;
+  }
+     
+  rc = remove((datafileB).c_str());
+  if (rc == -1){
+     perror("failed delete");
+     logstream(LOG_FATAL)<<"failed to remove temp file"<< datafileB << " .csv" << endl;
+  }
+}
+void zip(string datafile){
+  int rc = system(("zip submission.zip " + datafile).c_str());
+  if (rc == -1){
+     perror("failed zip");
+     logstream(LOG_FATAL)<<"failed to zip submisison file"<< datafile << " .csv" << endl;
+  }
+  logstream(LOG_INFO)<<"Successfully created zip file: submission.zip" << endl;
+  rc = remove((datafile).c_str());
+  if (rc == -1){
+     perror("failed delete");
+     logstream(LOG_FATAL)<<"failed to remove temp file"<< datafile << " .csv" << endl;
+  }
+ logstream(LOG_INFO)<<"removed temporary files" << endl;
+ }
 #include <graphlab/macros_undef.hpp>
 #endif // end of matrix_loader_hpp

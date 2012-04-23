@@ -164,6 +164,7 @@ if( JNI_REALLY_FOUND AND EXPERIMENTAL )
     URL_MD5 e627d9b688c4de03cba8313bd0bba148
     UPDATE_COMMAND chmod +x src/c++/libhdfs/install-sh
     PATCH_COMMAND patch -p1 < ${GraphLab_SOURCE_DIR}/patches/libhdfs-compile-osx.patch
+    BUILD_IN_SOURCE 1
     # CONFIGURE_COMMAND ""
     # COMPILE_COMMAND ant -Dcompile.c++=true -Dlibhdfs=true 
     # -Dinstall.c++=${GraphLab_SOURCE_DIR}/deps/local
@@ -171,8 +172,6 @@ if( JNI_REALLY_FOUND AND EXPERIMENTAL )
     # INSTALL_COMMAND ""
     CONFIGURE_COMMAND 
     bash <SOURCE_DIR>/src/c++/libhdfs/configure 
-    ac_cv_func_malloc_0_nonnull=yes 
-    #  --enable-static --disable-shared 
     JVM_ARCH=tune=i686 --prefix=<INSTALL_DIR>
     --with-java=${JAVA_HOME}
     INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local
@@ -182,6 +181,7 @@ if( JNI_REALLY_FOUND AND EXPERIMENTAL )
   link_libraries(hdfs ${JAVA_JVM_LIBRARY})
 endif( JNI_REALLY_FOUND AND EXPERIMENTAL )
 
+#extra configure commands:  ac_cv_func_malloc_0_nonnull=yes --enable-static --disable-shared 
 
 
 # ExternalProject_Add(openmpi

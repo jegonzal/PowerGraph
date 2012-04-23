@@ -78,6 +78,8 @@ struct vertex_data {
 struct edge_data {
   real_type weight;
   edge_data(double weight = 0) : weight(weight) { }
+  void set_field(int pos, double val){ weight = val; }
+  double get_field(int pos){ return weight; }
 };
 
 int data_size = max_iter;

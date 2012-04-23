@@ -24,14 +24,6 @@
 #include <cstdio>
 #include <map>
 #include <iostream>
-#include <boost/iostreams/filtering_streambuf.hpp>
-#include <boost/iostreams/filtering_stream.hpp>
-#include <boost/iostreams/filter/gzip.hpp>
-#include <boost/unordered_map.hpp>
-#include <boost/archive/text_oarchive.hpp>
-#include <graphlab/serialization/oarchive.hpp>
-#include <graphlab/serialization/iarchive.hpp>
-#include <graphlab/serialization/unordered_map.hpp>
 #include "graphlab.hpp"
 #include "../shared/io.hpp"
 #include "../shared/types.hpp"
@@ -42,51 +34,37 @@ using namespace std;
 bool debug = false;
 bool quick = true;
 bool gzip = false;
-boost::unordered_map<string,uint> string2nodeid;
-boost::unordered_map<uint,string> nodeid2hash;
 std::string datafile;
-uint conseq_id;
-graphlab::mutex mymutex;
-graphlab::timer mytime;
 unsigned long long total_lines = 0;
-unsigned long long self_edges = 0;
+int pos_offset = 0;
+int nodes = 2421057;
+int MAX_FEATURE = 410;
 
 struct vertex_data {
   string filename;
   vertex_data() { }
   vertex_data(std::string _filename) : filename(_filename) { }
 }; // end of vertex_data
+struct vertex_data2 {
+  vertex_data2(){ 
+  }
+  void add_self_edge(double value) { }
 
-struct edge_data {
+  void set_val(double value, int field_type) { 
+  }  
+  double get_output(int field_type){ return NAN; }
+}; 
+
+struct edge_data2{
+  double weight;
+  edge_data2(double weight): weight(weight) { }
+  void set_field(int pos, double val){}
+  double get_field(int pos) { return weight; }
 };
 
+struct edge_data{};
 typedef graphlab::graph<vertex_data, edge_data> graph_type;
-unsigned long int datestr2uint64(const std::string & data, int & dateret, int & timeret, int thread_id);
-
-
-
-void assign_id(uint & outval, const string &name, const int line, const string &filename){
-
-  boost::unordered_map<string,uint>::iterator it = string2nodeid.find(name);
-  if (it != string2nodeid.end()){
-     outval = it->second;
-     return;
-  }
-  mymutex.lock();
-  outval = string2nodeid[name];
-  if (outval == 0){
-     string2nodeid[name] = ++conseq_id;
-     outval = conseq_id;
-     nodeid2hash[outval] = name;
-  }
-  mymutex.unlock();
-}
-
-
-
-void find_ids(uint & to, const string& buf2, const int line, const string &filename){
-   assign_id(to, buf2, line, filename);
-}
+typedef graphlab::graph<vertex_data2, edge_data2> graph_type2;
 
 
 /***
@@ -102,21 +80,10 @@ struct stringzipparser_update :
    public graphlab::iupdate_functor<graph_type, stringzipparser_update>{
    void operator()(icontext_type& context) {
     
-   std::string dir = context.get_global<std::string>("PATH");
-   std::string outdir = context.get_global<std::string>("OUTPATH");
-   //int mythreadid = thread::thread_id();
-    //open file
    vertex_data& vdata = context.vertex_data();
-   gzip_in_file fin((dir + vdata.filename), gzip);
-   gzip_out_file fout((outdir + vdata.filename + ".out"), gzip);
-    MM_typecode out_typecode;
-    mm_clear_typecode(&out_typecode);
-    mm_set_real(&out_typecode); 
-    mm_set_sparse(&out_typecode); 
-    mm_set_matrix(&out_typecode);
-    mm_write_cpp_banner(fout.get_sp(), out_typecode);
-    mm_write_cpp_mtx_crd_size(fout.get_sp(), 987654321, 987654321, 987654322);
-
+   gzip_in_file fin((vdata.filename), gzip);
+   graph_type2 out_graph;
+   out_graph.resize(nodes+MAX_FEATURE);
 
     char linebuf[24000];
     char saveptr[1024];
@@ -125,6 +92,7 @@ struct stringzipparser_update :
     int pos = 0;
     double val = 0;
     int items = 0; 
+    int min_pos = 99999999, max_pos = 0;
 
     while(true){
       fin.get_sp().getline(linebuf, 24000);
@@ -136,21 +104,29 @@ struct stringzipparser_update :
         logstream(LOG_ERROR) << "Error when parsing file: " << vdata.filename << ":" << line << "[" << linebuf << "]" << std::endl;
         return;
        }
-      int from = atoi(pch);
+      int from = atoi(pch) - 1;
       if (from <= 10000){
          logstream(LOG_ERROR) << "Error when parsing file: " << vdata.filename << ":" << line << " document ID is zero or less: " << from << std::endl;
          return;
       }
+      ASSERT_LT(from, nodes);
   
-      while(pch != NULL){
+      while(true){
          pch = strtok_r(NULL, " \r\n\t:",(char**)&saveptr);
+         if (pch == NULL)
+             break;
          pos = atoi(pch);
          ASSERT_GE(pos, 0);
+         ASSERT_LT(pos, MAX_FEATURE);
+         min_pos = std::min(pos, min_pos);
+         max_pos = std::max(pos, max_pos);
          pch = strtok_r(NULL, " \r\n\t:",(char**)&saveptr);
          ASSERT_NE(pch, NULL);
          val = atof(pch);
-
-         fout.get_sp() << from << " " << pos << " " << val << endl; 
+         ASSERT_GE(val, 0);
+         edge_data2 edge(val);
+         ASSERT_NE(from, pos+nodes);
+         out_graph.add_edge(from, pos+nodes, edge);
          items++;
          if (fin.get_sp().eof() || pch == NULL)
            break;
@@ -163,11 +139,17 @@ struct stringzipparser_update :
 
       if (debug && (line % 50000 == 0))
         logstream(LOG_INFO) << "Parsed line: " << line << endl;
-
-   logstream(LOG_INFO) <<"Finished parsing total of " << line << " lines in file " << vdata.filename << endl <<
-	                 "total nnz " << nnz << endl;
-
   }
+
+  bipartite_graph_descriptor out_info;
+  out_info.rows = nodes; out_info.cols = MAX_FEATURE;
+  out_info.nonzeros = out_graph.num_edges();
+  out_info.force_non_square = true;
+  out_graph.finalize();
+  save_matrixmarket_graph(vdata.filename +".out", out_info, out_graph);
+   logstream(LOG_INFO) <<"Finished parsing total of " << line << " lines in file " << vdata.filename << endl <<
+	                 " wrote total items (nnz) " << items << " min pos: " << min_pos << " max pos: " << max_pos << endl;
+
 
  }
 };
@@ -186,22 +168,15 @@ int main(int argc,  char *argv[]) {
   std::string outdir = "/mnt/bigbrofs/usr3/bickson/out_phone_calls/";
   // int unittest = 0;
   uint lines = 0;
-  bool load = false;
-  bool save_to_text = false;
-  std::string filter = "";
-
   clopts.attach_option("data", &datafile, datafile,
-                       "matrix A input file");
+                       "feature input file");
   clopts.add_positional("data");
   clopts.attach_option("debug", &debug, debug, "Display debug output.");
   clopts.attach_option("lines", &lines, lines, "limit number of read lines to XX");
   clopts.attach_option("dir", &dir, dir, "path to files");
   clopts.attach_option("outdir", &outdir, outdir, "output directory");
-  clopts.attach_option("load", &load, load, "load map from file");
-  clopts.attach_option("save_to_text", & save_to_text, save_to_text, 
-                       "save output map in text file");
-  clopts.attach_option("filter", &filter, filter, "Filter input files starting with prefix.. ");
   clopts.attach_option("gzip", &gzip, gzip, "Gzipped input file?");
+  clopts.attach_option("pos_offset", &pos_offset, pos_offset, "added offset to position values");
 
   // Parse the command line arguments
   if(!clopts.parse(argc, argv)) {
@@ -222,44 +197,18 @@ int main(int argc,  char *argv[]) {
   graphlab::core<graph_type, stringzipparser_update> core;
   core.set_options(clopts); // Set the engine options
   core.set_scope_type("none");
-  mytime.start();
 
-  std::vector<std::string> in_files;
-  if (datafile.size() > 0)
-     in_files.push_back(datafile);
-  else in_files = list_all_files_in_dir(dir, filter);
-  assert(in_files.size() >= 1);
-  for (int i=0; i< (int)in_files.size(); i++){
-    vertex_data data(in_files[i]);
-    core.graph().add_vertex(vertex_id_type(i), data);
-  }
+ vertex_data data(datafile);
+ core.graph().add_vertex(vertex_id_type(0), datafile);
 
   std::cout << "Schedule all vertices" << std::endl;
   core.schedule_all(stringzipparser_update());
  
   core.add_global("LINES", lines); 
-  core.add_global("PATH", dir);
-  core.add_global("OUTPATH", outdir);
-
-  if (load){
-    mytime.start();
-    logstream(LOG_INFO)<<"Opening input file " << outdir << ".map" << std::endl;
-    load_map_from_file(string2nodeid, outdir + ".map");
-    logstream(LOG_INFO)<<"Finished reading input file in " << mytime.current_time() << std::endl;
-  }
-
   double runtime= core.start();
  
   std::cout << "Finished in " << runtime << std::endl;
-  std::cout << "Total number of edges: " << self_edges << std::endl;
 
-    if (save_to_text){
-     save_map_to_text_file(string2nodeid, outdir + ".map.text.gz", gzip);
-     save_map_to_text_file(nodeid2hash, outdir + ".reverse.map.text.gz", gzip);
-   }
-
-    save_map_to_file(string2nodeid, outdir + ".map");
-    save_map_to_file(nodeid2hash, outdir + ".reverse.map");
    return EXIT_SUCCESS;
 }
 

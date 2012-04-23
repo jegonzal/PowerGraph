@@ -70,6 +70,8 @@ struct vertex_data2 {
 struct edge_data2 {
   double weight;
   edge_data2(double weight = 0) : weight(weight) { }
+  void set_field(int pos, double val){ weight = val; }
+  double get_field(int pos){ return weight; }
 };
 
 
@@ -187,32 +189,8 @@ int main(int argc,  char *argv[]) {
   double runtime= core.start();
   std::cout << "Finished in " << runtime << std::endl;
 
-  logstream(LOG_INFO)<<"Merging the two files together"<<endl;
-  int rc = system((string("cat ") + datafileB + ".csv >> " + datafile + ".csv").c_str());
-  if (rc == -1){
-     perror("failed cat");
-     logstream(LOG_FATAL)<<"failed to concatanate the two test files"<<endl;
-  }
-     
-  rc = remove((datafileB + ".csv").c_str());
-  if (rc == -1){
-     perror("failed delete");
-     logstream(LOG_FATAL)<<"failed to remove temp file"<< datafileB << " .csv" << endl;
-  }
- 
-
-  rc = system(("zip submission.zip " + datafile + ".csv").c_str());
-  if (rc == -1){
-     perror("failed zip");
-     logstream(LOG_FATAL)<<"failed to zip submisison file"<< datafile << " .csv" << endl;
-  }
-  logstream(LOG_INFO)<<"Successfully created zip file: submission.zip" << endl;
-  rc = remove((datafile + ".csv").c_str());
-  if (rc == -1){
-     perror("failed delete");
-     logstream(LOG_FATAL)<<"failed to remove temp file"<< datafile << " .csv" << endl;
-  }
-  logstream(LOG_INFO)<<"removed temporary files" << endl;
+  merge(datafile+".csv", datafileB+".csv");
+  zip(datafile+".csv");
    return EXIT_SUCCESS;
 }
 
