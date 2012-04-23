@@ -218,7 +218,8 @@ namespace graphlab {
       if (max_lvid > 0 && max_lvid >= base_type::graph.local_graph.num_vertices()) {
         base_type::graph.local_graph.resize(max_lvid + 1);
       }
-      base_type::graph.local_graph.add_block_edges(local_source_arr, local_target_arr, edata_arr);
+      base_type::graph.local_graph.add_block_edges(local_source_arr, 
+                                                   local_target_arr, edata_arr);
       local_graph_lock.unlock();
  
       END_TRACEPOINT(batch_ingress_add_edges);
