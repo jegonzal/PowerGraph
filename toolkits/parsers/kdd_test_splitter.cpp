@@ -115,7 +115,7 @@ typedef graphlab::graph<vertex_data2, edge_data2>::edge_list_type edge_list;
             total_ratings++;
             fprintf(pfile, "%d %d %d %d\n", 
                     edges[j].source() + 1, 
-                    edges[j].target() -nodes + 1, 0, 
+                    edges[j].target() -nodes + 1, 1, 
                     (int)_graph.edge_data(edges[j]).weight);
             }
         }
