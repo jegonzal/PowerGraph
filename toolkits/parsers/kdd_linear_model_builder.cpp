@@ -98,6 +98,7 @@ int main(int argc,  char *argv[]) {
   clopts.attach_option("debug", &debug, debug, "Display debug output.");
   clopts.attach_option("gzip", &gzip, gzip, "Gzipped input file?");
   clopts.attach_option("pos_offset", &pos_offset, pos_offset, "added offset to position values");
+  clopts.attach_option("output_format", &output_format, output_format, "output format 1=Matrix market, 2=VW");
 
   // Parse the command line arguments
   if(!clopts.parse(argc, argv)) {
@@ -121,7 +122,7 @@ int main(int argc,  char *argv[]) {
   training_info.force_non_square = true;
   validation_info.force_non_square = true; 
   load_matrixmarket_graph(training_data, training_info, 
-                          training, MATRIX_MARKET_4);
+                          training, MATRIX_MARKET_4, true);
   //we allow zero values of user/item features
   load_matrixmarket_graph(user_data_file, user_data_info, user_data, MATRIX_MARKET_3, true);
   load_matrixmarket_graph(item_data_file, item_data_info, item_data, MATRIX_MARKET_3, true);
@@ -158,7 +159,7 @@ int main(int argc,  char *argv[]) {
        uint item = out_edges[j].target() - nodes; 
        edge_data2 & edge = training.edge_data(out_edges[j]);
        int rating = edge.value;
-       assert(rating == -1 || rating == 1);
+       assert(rating == -1 || rating == 1 || rating == 0);
        edge_list user_features = user_data.out_edges(user);
        edge_list item_features = item_data.out_edges(item);
        if (!user_features.size() || !item_features.size()){
@@ -201,10 +202,10 @@ int main(int argc,  char *argv[]) {
            fout2.get_sp()<<training_instance+1<<" "<<pos+1<<" "<<edge2.weight<<endl;
          added_training++;
         }//for item features
-     }//for out_edges
-     if (output_format == VW)
-        fout2.get_sp()<<endl;
-  } //for nodes
+        if (output_format == VW)
+          fout2.get_sp()<<std::endl;
+      }//for out_edges
+ } //for nodes
   mm_write_cpp_mtx_crd_size(fout.get_sp(), training_instance, MAX_FEATURE, added_training);
   //save_matrix_market_format_vector(training_data+".vec", training_rating, true, "%vector of ratings\n");
   if (output_format == MATRIX_MARKET)
