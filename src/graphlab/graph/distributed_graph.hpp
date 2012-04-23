@@ -951,8 +951,9 @@ namespace graphlab {
 
     // Synthetic Generators ===================================================>
     void build_powerlaw(const size_t nverts, const bool in_degree = false, 
-                        const double alpha = 2.1) {
-      std::vector<double> prob(nverts-1, 0);
+                        const double alpha = 2.1, 
+                        const size_t truncate = size_t(-1)) {
+      std::vector<double> prob(std::min(nverts, truncate), 0);
       std::cout << "constructing pdf" << std::endl;
       for(size_t i = 0; i < prob.size(); ++i) 
         prob[i] = std::pow(double(i+1), -alpha);
@@ -960,6 +961,7 @@ namespace graphlab {
       pdf2cdf(prob);
       std::cout << "Building graph" << std::endl;
       size_t target_index = rpc.procid();
+      size_t addedvtx = 0;
       for(size_t source = rpc.procid(); source < nverts; 
           source += rpc.numprocs()) {
         const size_t out_degree = sample(prob) + 1;
@@ -968,6 +970,10 @@ namespace graphlab {
           if(source == target) target = permutation(nverts, ++target_index);
           if(in_degree) add_edge(target, source); 
           else add_edge(source, target);
+        }
+        ++addedvtx;
+        if (addedvtx % 10000000 == 0) {
+          std::cout << addedvtx << " inserted\n";
         }
       }
     } // end of build powerlaw
