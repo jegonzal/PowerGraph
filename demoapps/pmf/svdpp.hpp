@@ -120,6 +120,13 @@ float predict(const vertex_data_svdpp& user, const vertex_data_svdpp& movie, con
       
 }
 
+float predict_new_user(const vertex_data_svdpp& user, const vertex_data_svdpp& movie, const edge_data * edge, const vertex_data * nothing, const float rating, float & prediction){
+  prediction = ps.globalMean[0] + movie.bias;
+  prediction = std::min((double)prediction, ac.maxval);
+  prediction = std::max((double)prediction, ac.minval);
+  float err = rating - prediction;
+  return err*err;
+}
 void predict_missing_value(const vertex_data_svdpp&data, const vertex_data_svdpp& pdata, edge_data& edge, double & sq_err, int&e, int i){
     float prediction = 0;
     predict(data, pdata, &edge, NULL, edge.weight, prediction);
@@ -161,7 +168,10 @@ double calc_svd_rmse(const graph_type_svdpp * _g, bool test, double & res){
          const edge_data & item = _g->edge_data(oedgeid);
          const vertex_data_svdpp & movie = g->vertex_data(_g->target(oedgeid)); 
          float estScore;
-         sqErr += predict(usr, movie, NULL, NULL, item.weight, estScore);
+        if (n == 0) //no ratings observed in training data, give the item average
+           sqErr += predict_new_user(usr, movie, NULL, NULL, item.weight, estScore);
+        else
+           sqErr += predict(usr, movie, NULL, NULL, item.weight, estScore);
          nCases++;
        }
    }
