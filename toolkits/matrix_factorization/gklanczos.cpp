@@ -26,7 +26,7 @@
 #include "../shared/types.hpp"
 #include "../shared/mathlayer.hpp"
 
-//#define USE_GRAPH2
+#define USE_GRAPH2
 #ifdef USE_GRAPH2
 #include "graphlab/graph/graph2.hpp"
 #else
@@ -345,6 +345,10 @@ int main(int argc,  char *argv[]) {
   if(!clopts.parse(argc, argv)) {
     std::cout << "Invalid arguments!" << std::endl;
     return EXIT_FAILURE;
+  }
+
+  if (nv < nsv){
+    logstream(LOG_FATAL)<<"Please set the number of vectors --nv=XX, to be at least the number of support vectors --nsv=XX or larger" << std::endl;
   }
 
   if (update_function)

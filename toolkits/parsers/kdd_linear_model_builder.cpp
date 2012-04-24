@@ -37,7 +37,7 @@ bool gzip = false;
 string user_data_file;
 string item_data_file;
 string training_data, validation_data;
-string outfile;
+string keywords_data_file;
 int nodes = 2421057;
 int split_training_time = 1320595199;
 int MAX_FEATURE = 410;
@@ -93,12 +93,13 @@ int main(int argc,  char *argv[]) {
   clopts.add_positional("item_data");
   clopts.attach_option("training_data", &training_data, training_data, "training data");
   clopts.add_positional("training_data");
-  clopts.attach_option("out_file", &outfile, outfile, "output file");
-  clopts.add_positional("out_file");  
+  clopts.attach_option("keywords_data", &keywords_data_file, keywords_data_file, "user keyword file");
+  clopts.add_positional("keywords_data");
   clopts.attach_option("debug", &debug, debug, "Display debug output.");
   clopts.attach_option("gzip", &gzip, gzip, "Gzipped input file?");
   clopts.attach_option("pos_offset", &pos_offset, pos_offset, "added offset to position values");
   clopts.attach_option("output_format", &output_format, output_format, "output format 1=Matrix market, 2=VW");
+  clopts.attach_option("max_feature", &MAX_FEATURE, MAX_FEATURE, "max number of feature");
 
   // Parse the command line arguments
   if(!clopts.parse(argc, argv)) {
@@ -117,8 +118,8 @@ int main(int argc,  char *argv[]) {
 
   timer mytimer; mytimer.start();
   graph_type2 training, validation;
-  graph_type user_data, item_data;
-  bipartite_graph_descriptor training_info, validation_info, user_data_info, item_data_info;
+  graph_type user_data, item_data, keywords_data;
+  bipartite_graph_descriptor training_info, validation_info, user_data_info, item_data_info, keywords_data_info;
   training_info.force_non_square = true;
   validation_info.force_non_square = true; 
   load_matrixmarket_graph(training_data, training_info, 
@@ -126,7 +127,8 @@ int main(int argc,  char *argv[]) {
   //we allow zero values of user/item features
   load_matrixmarket_graph(user_data_file, user_data_info, user_data, MATRIX_MARKET_3, true);
   load_matrixmarket_graph(item_data_file, item_data_info, item_data, MATRIX_MARKET_3, true);
-
+  if (keywords_data_file != "")
+     load_matrixmarket_graph(keywords_data_file, keywords_data_info, keywords_data, MATRIX_MARKET_3, true);
   vec training_rating = zeros(training.num_edges());
 
   graph_type  out_graph;
@@ -134,7 +136,8 @@ int main(int argc,  char *argv[]) {
   int training_instance = 0;
   int added_training = 0;
   int missing = 0;
-  
+  int keyword_items = 0;
+ 
   gzip_out_file fout(training_data + ".info", gzip);
   gzip_out_file fout2(training_data + ".data", gzip);
   MM_typecode out_typecode;
@@ -162,6 +165,7 @@ int main(int argc,  char *argv[]) {
        assert(rating == -1 || rating == 1 || rating == 0);
        edge_list user_features = user_data.out_edges(user);
        edge_list item_features = item_data.out_edges(item);
+       edge_list keywords_features = keywords_data.out_edges(user);
        if (!user_features.size() || !item_features.size()){
          missing++;
          continue;
@@ -202,15 +206,33 @@ int main(int argc,  char *argv[]) {
            fout2.get_sp()<<training_instance+1<<" "<<pos+1<<" "<<edge2.weight<<endl;
          added_training++;
         }//for item features
+
+      for (uint k=0; k < keywords_features.size(); k++){
+         assert(keywords_features[k].source() == user);
+         int pos = keywords_features[k].target() - nodes;
+         ASSERT_GE(pos , 0);
+         ASSERT_LE(pos, MAX_FEATURE);
+         edge_data edge2 = keywords_data.edge_data(keywords_features[k]);
+         ASSERT_GE(edge2.weight , 0);
+         if (output_format == VW)
+           fout2.get_sp()<<pos+1<<" "<<edge2.weight<<" ";
+         else
+           fout2.get_sp()<<training_instance+1<<" "<<pos+1<<" "<<edge2.weight<<endl;
+         added_training++;
+         keyword_items++;
+        }//for item features
         if (output_format == VW)
           fout2.get_sp()<<std::endl;
       }//for out_edges
+
+
  } //for nodes
   mm_write_cpp_mtx_crd_size(fout.get_sp(), training_instance, MAX_FEATURE, added_training);
   //save_matrix_market_format_vector(training_data+".vec", training_rating, true, "%vector of ratings\n");
   if (output_format == MATRIX_MARKET)
     merge(training_data+".info", training_data+".data");
   std::cout << "Finished in " << mytimer.current_time() << " missing entries: " << missing << std::endl;
+  logstream(LOG_INFO)<<"keyword items: " << keyword_items << std::endl;
   return EXIT_SUCCESS;
 } //main
 
