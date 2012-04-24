@@ -65,7 +65,7 @@ struct edge_data2{
 struct edge_data{};
 typedef graphlab::graph<vertex_data, edge_data> graph_type;
 typedef graphlab::graph<vertex_data2, edge_data2> graph_type2;
-
+typedef graph_type2::edge_type edge_type2;
 
 /***
 * Line format is:
@@ -75,6 +75,12 @@ typedef graphlab::graph<vertex_data2, edge_data2> graph_type2;
 100080	0:26	39:1	2:34.65736	4:1	6:10	8:0	10:0	12:3	14:0	16:0	18:2	20:0	22:13	24:0	26:13	28:1	30:30	32:0
 100086	0:26	39:1	2:48.67535	4:5	6:0	8:0	10:1	12:1	14:0	16:1	18:0	20:6.931472	22:26	24:0.03703704	26:24	28:0	30:0	32:11
 100097	0:31	39:1	2:43.30733	4:1	6:0	8:0	10:0	12:0	14:0	16:0	18:0	20:0	22:28	24:0	26:28	28:0	30:0	32:27
+* LIne format could be:
+1000000	183:0.6673;2:0.3535;359:0.304;363:0.1835;377:0.1831;10:0.1747;58:0.1725;127:0.1624;459:0.1482;54:0.142;330:0.1361;1480:0.1358;40:0.1136;672:0.1037
+1000001	92:1.0
+1000002	112:1.0
+1000003	154435:0.746;30:0.3902;220:0.2803;238:0.2781;232:0.2717;1928:0.2479
+1000004	118:1.0
 */
 struct stringzipparser_update :
    public graphlab::iupdate_functor<graph_type, stringzipparser_update>{
@@ -99,7 +105,7 @@ struct stringzipparser_update :
       if (fin.get_sp().eof())
         break;
 
-      char *pch = strtok_r(linebuf," \r\n\t:",(char**)&saveptr);
+      char *pch = strtok_r(linebuf," \r\n\t:;",(char**)&saveptr);
       if (!pch){
         logstream(LOG_ERROR) << "Error when parsing file: " << vdata.filename << ":" << line << "[" << linebuf << "]" << std::endl;
         return;
@@ -112,7 +118,7 @@ struct stringzipparser_update :
       ASSERT_LT(from, nodes);
   
       while(true){
-         pch = strtok_r(NULL, " \r\n\t:",(char**)&saveptr);
+         pch = strtok_r(NULL, " \r\n\t:;",(char**)&saveptr);
          if (pch == NULL)
              break;
          pos = atoi(pch);
@@ -120,13 +126,16 @@ struct stringzipparser_update :
          ASSERT_LT(pos, MAX_FEATURE);
          min_pos = std::min(pos, min_pos);
          max_pos = std::max(pos, max_pos);
-         pch = strtok_r(NULL, " \r\n\t:",(char**)&saveptr);
+         pch = strtok_r(NULL, " \r\n\t:;",(char**)&saveptr);
          ASSERT_NE(pch, NULL);
          val = atof(pch);
          ASSERT_GE(val, 0);
          edge_data2 edge(val);
          ASSERT_NE(from, pos+nodes);
-         out_graph.add_edge(from, pos+nodes, edge);
+         edge_type2 found = out_graph.find(from, pos+nodes+pos_offset-1);
+         if (found.empty())
+            out_graph.add_edge(from, pos+nodes+pos_offset-1, edge);
+         else logstream(LOG_WARNING)<<"duplicate edge found: " << from+1<<" "<<pos<<endl;
          items++;
          if (fin.get_sp().eof() || pch == NULL)
            break;
@@ -142,7 +151,7 @@ struct stringzipparser_update :
   }
 
   bipartite_graph_descriptor out_info;
-  out_info.rows = nodes; out_info.cols = MAX_FEATURE;
+  out_info.rows = nodes; out_info.cols = MAX_FEATURE + pos_offset;
   out_info.nonzeros = out_graph.num_edges();
   out_info.force_non_square = true;
   out_graph.finalize();
@@ -177,7 +186,7 @@ int main(int argc,  char *argv[]) {
   clopts.attach_option("outdir", &outdir, outdir, "output directory");
   clopts.attach_option("gzip", &gzip, gzip, "Gzipped input file?");
   clopts.attach_option("pos_offset", &pos_offset, pos_offset, "added offset to position values");
-
+  clopts.attach_option("max_feature", &MAX_FEATURE, MAX_FEATURE, "maximal value of feature");
   // Parse the command line arguments
   if(!clopts.parse(argc, argv)) {
     std::cout << "Invalid arguments!" << std::endl;
