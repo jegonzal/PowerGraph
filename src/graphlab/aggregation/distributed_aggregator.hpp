@@ -345,6 +345,9 @@ namespace graphlab {
       isync* sync_ptr = sync_map[key];
       ASSERT_FALSE(sync_ptr == NULL);
       // Initialize the counter
+      if(sync_ptr->barrier_ptr != NULL) {
+        delete sync_ptr->barrier_ptr; sync_ptr->barrier_ptr = NULL;
+      }
       sync_ptr->barrier_ptr = new graphlab::barrier(threads.size());
       sync_ptr->counter = 0;
       // Launch the threads
