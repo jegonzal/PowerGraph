@@ -915,6 +915,7 @@ namespace graphlab {
 
     /** \brief Load part of the distributed graph from a path*/
     void save(std::string& path, std::string& prefix) {
+      timer savetime;  savetime.start();
       std::ostringstream ss;
       ss << prefix << rpc.procid() << ".bin";
       std::string fname = ss.str();
@@ -941,7 +942,10 @@ namespace graphlab {
         oarc << *this;
         fout.close();
       }
+      rpc.full_barrier();
       logstream(LOG_INFO) << "Finish saving graph to " << fname << std::endl;
+      std::cout << "Finished saving binary graph: " 
+                << savetime.current_time() << std::endl;
     } // end of save
 
 
