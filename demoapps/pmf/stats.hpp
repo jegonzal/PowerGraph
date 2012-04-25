@@ -414,6 +414,9 @@ double agg_rmse_by_user(double & res){
 template<typename graph_type, typename vertex_data, typename edge_data>
 double calc_ap(const graph_type * _g){
 
+   if (_g == NULL || _g->num_edges() == 0)
+     return NAN;
+
    int users = 0;
    double sum_ap = 0;
    for (int i=0; i< ps.M; i++){

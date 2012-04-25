@@ -313,8 +313,9 @@ void test_predict(vertex_data_svdpp & data, int i, int& lineNum, double & sumPre
          common_prediction<graph_type_svdpp,vertex_data_svdpp,edge_data>(g, _g,data,i,lineNum, sumPreds, test_predictions, dosave);
        }
        else { //cold start, we did not encounter this user in training!
-         data.weight = ones(ac.D);
+         data.weight = zeros(ac.D);
          data.pvec = zeros(ac.D);
+         data.bias = 0;
          common_prediction<graph_type_svdpp,vertex_data_svdpp,edge_data>(g, _g,data,i,lineNum, sumPreds, test_predictions, dosave);
         }
 }
