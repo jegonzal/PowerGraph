@@ -291,7 +291,6 @@ void distributed_control::fcallhandler_loop(size_t id) {
     if (fcallqueue[id].is_alive() == false) break;
     std::deque<fcallqueue_entry*> q;
     fcallqueue[id].swap(q);
-
     while (!q.empty()) {
       fcallqueue_entry* entry;
       entry = q.front();

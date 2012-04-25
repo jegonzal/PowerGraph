@@ -171,7 +171,7 @@ namespace graphlab {
         timeoutevents[i].sockstart = i * send_sockets_per_thread;
         timeoutevents[i].sockend = std::min(sock.size(), (i + 1) * send_sockets_per_thread);
         out_timeouts[i] = event_new(outevbase[i], -1, EV_TIMEOUT | EV_PERSIST, on_send_event, &(timeoutevents[i]));
-        struct timeval t = {0, 10};
+        struct timeval t = {0, 100};
         event_add(out_timeouts[i], &t);
       }
 
