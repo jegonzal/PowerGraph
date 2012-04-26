@@ -560,7 +560,7 @@ namespace graphlab {
           ++bal[threadid];
           
           if (vrec.owner == rmi.procid()) workingset_bits.set_bit(b);
-          do_init_gather(local_vid, uf);
+          if (vrec.owner != rmi.procid()) do_init_gather(local_vid, uf);
           do_gather(local_vid, uf);
           // send it back to the owner if I am not the owner
           // otherwise just merge it back
