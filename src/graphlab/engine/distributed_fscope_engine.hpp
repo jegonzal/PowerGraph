@@ -835,8 +835,7 @@ namespace graphlab {
       BEGIN_TRACEPOINT(disteng_internal_task_queue);
       size_t i = lvid % threads.size();
 
-      if (vstate[lvid].state == APPLYING || vstate[lvid].state == SCATTERING ||
-          vstate[lvid].state == MIRROR_SCATTERING) {
+      if (vstate[lvid].state == APPLYING) {
         thrlocal[i].add_task_priority(lvid);
       }
       else {
