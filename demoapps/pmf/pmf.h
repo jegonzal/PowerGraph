@@ -416,6 +416,10 @@ void problem_setup::verify_setup(){
    if (ac.K > 0)
       if (tensor && ac.matrixmarket)
          K = ac.K; //set the number of time bins via command line for tensor read from matrix market file
+
+   if (boost::starts_with(ac.scheduler, "round_robin") && ac.algorithm == NMF)
+     logstream(LOG_FATAL)<<"For NMF please do not specify a scheduler using the command --scheduler" << std::endl;
+
 }
 
 template<> const graph_type *problem_setup::g(testtype type){ return gg[type]; }

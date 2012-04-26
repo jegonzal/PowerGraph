@@ -97,6 +97,9 @@ void unit_testing(int unittest, command_line_options& clopts){
    else if (unittest == 71){ //Lanczos
      ac.datafile = "lanczos2t"; ps.algorithm = LANCZOS;  ac.algorithm = LANCZOS; ac.matrixmarket= true; clopts.set_ncpus(1); ac.debug = true; clopts.set_scheduler_type("sweep");
    }
+   else if (unittest == 81){ //NMF
+     ac.datafile = "panel7_mmwritten.dat"; ps.algorithm = NMF; ac.algorithm = NMF; ac.matrixmarket = true;
+  }
    else if (unittest == 91){ //WEIGHTED ALTERNATING LEAST SQUARES
       ac.datafile = "wals"; ac.algorithm = WEIGHTED_ALS; ps.algorithm = WEIGHTED_ALS; ac.FLOAT = true; ac.als_lambda = 0.001;
       clopts.set_scheduler_type("round_robin(max_iterations=100,block_size=1)");

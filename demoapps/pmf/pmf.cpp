@@ -26,7 +26,7 @@
 #include <cmath>
 #include <cstdio>
 #include <stdlib.h>
-
+#include  <boost/algorithm/string/predicate.hpp>
 #include "graphlab.hpp"
 #include "pmf.h"
 #include "prob.hpp"
@@ -239,7 +239,9 @@ template<typename core, typename graph_type, typename vertex_data>
 void run_graphlab(core &glcore, graph_type * validation_graph){
 
      logstream(LOG_INFO) << "starting with scheduler: " << ac.scheduler << std::endl;
-     if (ac.scheduler == "round_robin"){
+     if (boost::starts_with(ac.scheduler,"round_robin")){
+        if (ps.algorithm == NMF)
+           logstream(LOG_FATAL)<<"NMF should not be used with round_robin scheduler. Please don't specify a scheduler using the --scheduler= command" << std::endl;
         ac.round_robin = true;
      }
      glcore.start();
