@@ -26,6 +26,7 @@
 
 #include "graphlab.hpp"
 #include "../gabp/advanced_config.h"
+#include "stats.hpp"
 #include <graphlab/macros_def.hpp>
 
 extern advanced_config ac;
@@ -149,6 +150,22 @@ void nmf_init(){
   for (int i=0; i<ac.D; i++){
      x1[i] = x2[i] = 0;
   }
+  graph_type *g = (graph_type*)ps.g<graph_type>(TRAINING);
+#pragma omp parallel for
+  for (int i=0; i<ps.M; i++){
+    vertex_data &data = g->vertex_data(i);
+    if (ac.debug)
+       data.pvec = ones(ac.D) * 0.1;
+    if (g->num_out_neighbors(i) == 0)
+      logstream(LOG_FATAL)<<"NMF algorithm can not work when the row " << i << " of the matrix contains all zeros" << std::endl;
+    foreach(gl_types::edge_id oegeid, g->out_edge_ids(i)){
+       const edge_data& edge = g->edge_data(oegeid);
+        if (edge.weight < 0 ){
+          logstream(LOG_FATAL)<<"Found a negative edge in data row " << i << " with value: " << edge.weight << std::endl;
+        }
+    }
+
+  }
 }
 const gl_types::edge_list get_edges(bool isuser, gl_types::iscope & scope){
      return isuser ? scope.out_edge_ids(): scope.in_edge_ids();
@@ -238,7 +255,7 @@ void pre_user_iter(){
    const graph_type *g = ps.g<graph_type>(TRAINING); 
    for (int i=0; i<ac.D; i++)
       x1[i] = 0;
-
+//#pragma omp parallel for
    for (int i=ps.M; i<ps.M+ps.N; i++){
     const vertex_data & data = g->vertex_data(i);
     for (int i=0; i<ac.D; i++){
@@ -251,7 +268,7 @@ void pre_movie_iter(){
   const graph_type *g = ps.g<graph_type>(TRAINING);    
   for (int i=0; i<ac.D; i++)
       x2[i] = 0;
-
+//#pragma omp parallel for
    for (int i=0; i<ps.M; i++){
     const vertex_data & data = g->vertex_data(i);
     for (int i=0; i<ac.D; i++){
@@ -260,6 +277,14 @@ void pre_movie_iter(){
   }
 }
 
+void nmf_post_iter(){
+  printf("Entering last iter with %d\n", ps.iiter);
+
+  double res,res2;
+  printf("%g) Iter %s %d, TRAIN RMSE=%0.4f VALIDATION RMSE=%0.4f.\n", ps.gt.current_time(), "NMF", ps.iiter,  calc_rmse<graph_type,vertex_data>(ps.g<graph_type>(TRAINING), false, res), calc_rmse<graph_type,vertex_data>(ps.g<graph_type>(VALIDATION), true, res2));
+
+}
+ 
 template<typename core>
 void nmf(core * glcore){
    assert(false);
@@ -294,7 +319,7 @@ void nmf<>(gl_types::core * _glcore){
      glcore->start();
      
 
-     //last_iter();  //TODO
+     nmf_post_iter();  //TODO
    }
 }
 

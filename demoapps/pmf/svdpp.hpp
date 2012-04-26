@@ -69,6 +69,7 @@ template<>
 void init_svdpp<graph_type_svdpp>(graph_type_svdpp *_g){
    fprintf(stderr, "SVD++ %d factors\n", ac.D);
    double factor = 0.1/sqrt(ac.D);
+#pragma omp parallel for
    for (int i=0; i<ps.M+ps.N; i++){
        vertex_data_svdpp & data = _g->vertex_data(i);
        data.weight = (ac.debug ? (ones(ac.D)*0.1) : (randu(ac.D)*factor));
