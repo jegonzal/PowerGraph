@@ -661,13 +661,13 @@ namespace graphlab {
       update_functor_type uf;
       std::vector<std::vector<apply_scatter_data> > outbuffer;
       outbuffer.resize(rmi.numprocs());
-      foreach(uint32_t b, workingset_bits) {
+      foreach(uint32_t b, temporary_bits) {
         // convert back to local vid
         vertex_id_type local_vid = b;
         const typename graph_type::vertex_record& vrec = graph.l_get_vertex_record(local_vid);
         // If there is a task
         if (vrec.owner == rmi.procid() &&
-            workingset_bits.clear_bit(b) &&  
+            temporary_bits.clear_bit(b) &&  
             workingset->test_and_get(local_vid, uf)) {
           ++bal[threadid];
           do_apply(local_vid, uf);
@@ -820,7 +820,6 @@ namespace graphlab {
         barrier_time += ti.current_time();
 //        if (rmi.procid() == 0) rmi.dc().flush_counters();
         std::swap(workingset_bits, temporary_bits);
-        ASSERT_TRUE(workingset_bits.empty());
       }
       bar.wait();
       
@@ -832,6 +831,7 @@ namespace graphlab {
         rmi.full_barrier();
         barrier_time += ti.current_time();
 //        if (rmi.procid() == 0) rmi.dc().flush_counters();
+        std::swap(workingset_bits, temporary_bits);
       }
       bar.wait();
  
