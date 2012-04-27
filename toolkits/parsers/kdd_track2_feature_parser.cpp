@@ -104,7 +104,6 @@ struct stringzipparser_update :
     char linebuf[24000];
     char saveptr[1024];
     uint line = 1;
-    uint lines = context.get_global<uint>("LINES");
     int pos = 0;
     int items = 0; 
     int min_pos = 99999999, max_pos = 0;
@@ -116,7 +115,7 @@ struct stringzipparser_update :
 
       char *pch = strtok_r(linebuf," \r\n\t:;|",(char**)&saveptr);
       ASSERT_NE(pch, NULL);
-      int from = atoi(pch) - 1;
+      int from = atoi(pch);
       ASSERT_GE(from, 0);
   
       while(true){
@@ -133,7 +132,7 @@ struct stringzipparser_update :
          edge_type2 found = out_graph.find(from, pos+nodes+pos_offset-1);
          if (found.empty())
             out_graph.add_edge(from, pos+nodes+pos_offset-1, edge);
-         else logstream(LOG_WARNING)<<"duplicate edge found: " << from+1<<" "<<pos<<endl;
+         //else logstream(LOG_WARNING)<<"duplicate edge found: " << from+1<<" "<<pos<<endl;
          items++;
          if (fin.get_sp().eof() || pch == NULL)
            break;
@@ -141,9 +140,6 @@ struct stringzipparser_update :
 
       line++;
       total_lines++;
-      if (lines && line>=lines)
-	 break;
-
       if (debug && (line % 50000 == 0))
         logstream(LOG_INFO) << "Parsed line: " << line << endl;
   }
@@ -170,19 +166,14 @@ int main(int argc,  char *argv[]) {
 
   graphlab::command_line_options clopts("GraphLab Linear Solver Library");
 
-  std::string format = "plain";
-  std::string dir = "/mnt/bigbrofs/usr3/bickson/phone_calls/";
-  std::string outdir = "/mnt/bigbrofs/usr3/bickson/out_phone_calls/";
-  // int unittest = 0;
-  uint lines = 0;
   clopts.attach_option("data", &datafile, datafile,
                        "feature input file");
   clopts.add_positional("data");
   clopts.attach_option("debug", &debug, debug, "Display debug output.");
-  clopts.attach_option("lines", &lines, lines, "limit number of read lines to XX");
   clopts.attach_option("gzip", &gzip, gzip, "Gzipped input file?");
   clopts.attach_option("pos_offset", &pos_offset, pos_offset, "added offset to position values");
   clopts.attach_option("max_feature", &MAX_FEATURE, MAX_FEATURE, "maximal value of feature");
+  clopts.attach_option("nodes", &nodes, nodes, "Number of nodes");
   // Parse the command line arguments
   if(!clopts.parse(argc, argv)) {
     std::cout << "Invalid arguments!" << std::endl;
@@ -208,8 +199,6 @@ int main(int argc,  char *argv[]) {
 
   std::cout << "Schedule all vertices" << std::endl;
   core.schedule_all(stringzipparser_update());
- 
-  core.add_global("LINES", lines); 
   double runtime= core.start();
  
   std::cout << "Finished in " << runtime << std::endl;

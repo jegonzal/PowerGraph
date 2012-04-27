@@ -32,6 +32,7 @@ using namespace std;
 
 
 bool debug = false;
+bool test = false;
 bool quick = true;
 bool gzip = false;
 std::string datafile;
@@ -96,14 +97,18 @@ struct stringzipparser_update :
 
       char *pch = strtok_r(linebuf," \r\n\t:;",(char**)&saveptr);
       ASSERT_NE(pch, NULL);
-      size_t val;
+      size_t val = 0;
+      if (!test){
       int click = atoi(pch);
       ASSERT_GE(click, 0);
       pch = strtok_r(NULL, " \r\n\t:;",(char**)&saveptr);
       ASSERT_NE(pch, NULL);
       int impression = atoi(pch);
       ASSERT_GE(impression, 0);
-      fout.get_sp() << ((double)click)/ impression << " | ";
+      fout.get_sp() << (((double)click)/ ((double)impression)) << " | ";
+      }
+      else fout.get_sp() << "0 | " << atoll(pch) << " ";
+
       while(true){
          pch = strtok_r(NULL, " \r\n\t:;",(char**)&saveptr);
          if (pch == NULL)
@@ -164,6 +169,8 @@ int main(int argc,  char *argv[]) {
   core.set_options(clopts); // Set the engine options
   core.set_scope_type("none");
 
+ if (datafile == "test.txt")
+   test = true;
  vertex_data data(datafile);
  core.graph().add_vertex(vertex_id_type(0), datafile);
 
