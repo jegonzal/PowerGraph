@@ -19,3 +19,5 @@ add_graphlab_executable(kdd_linear_model_builder kdd_linear_model_builder.cpp
 ../shared/mmio.cpp)
 add_graphlab_executable(kdd_track2_parser kdd_track2_parser.cpp
 ../shared/mmio.cpp)
+add_graphlab_executable(kdd_track2_feature_parser
+kdd_track2_feature_parser.cpp ../shared/mmio.cpp)
