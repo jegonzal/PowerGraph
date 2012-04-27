@@ -37,7 +37,7 @@ bool gzip = false;
 std::string datafile;
 unsigned long long total_lines = 0;
 int pos_offset = 0;
-int nodes = 2421057;
+int nodes = 26243606;
 int MAX_FEATURE = 410;
 
 struct vertex_data {
@@ -129,9 +129,9 @@ struct stringzipparser_update :
          max_pos = std::max(pos, max_pos);
          edge_data2 edge(1);
          ASSERT_NE(from, pos+nodes);
-         edge_type2 found = out_graph.find(from, pos+nodes+pos_offset-1);
+         edge_type2 found = out_graph.find(from, pos+nodes+pos_offset);
          if (found.empty())
-            out_graph.add_edge(from, pos+nodes+pos_offset-1, edge);
+            out_graph.add_edge(from, pos+nodes+pos_offset, edge);
          //else logstream(LOG_WARNING)<<"duplicate edge found: " << from+1<<" "<<pos<<endl;
          items++;
          if (fin.get_sp().eof() || pch == NULL)
