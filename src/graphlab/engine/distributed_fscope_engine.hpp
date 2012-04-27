@@ -140,6 +140,12 @@ namespace graphlab {
         pending_vertices.push_back(v);
         lock.unlock();
       }
+      void add_task_priority(vertex_id_type v) {
+        lock.lock();
+        ++npending;
+        pending_vertices.push_front(v);
+        lock.unlock();
+      }
       bool get_task(std::deque<vertex_id_type> &v) {
         v = std::deque<vertex_id_type>();
         lock.lock();
@@ -612,6 +618,8 @@ namespace graphlab {
         // std::cout << rmi.procid() << ": Throttle: " << rmi.dc().pending_queue_length() << std::endl;
         usleep(1000);
       }
+
+      
       size_t sq = rmi.dc().send_queue_length();
       if (sq > send_throttle_threshold) {
         usleep(1);
@@ -784,6 +792,7 @@ namespace graphlab {
         if (vstate[lvid].hasnext) {
           // stick next back into the scheduler
           schedule_local(lvid, vstate[lvid].next);
+          vstate[lvid].next = update_functor_type();
           vstate[lvid].hasnext = false;
         } 
         vstate[lvid].current = update_functor_type();
@@ -825,7 +834,13 @@ namespace graphlab {
       if (timeout) return;
       BEGIN_TRACEPOINT(disteng_internal_task_queue);
       size_t i = lvid % threads.size();
-      thrlocal[i].add_task(lvid);
+
+      if (vstate[lvid].state == APPLYING) {
+        thrlocal[i].add_task_priority(lvid);
+      }
+      else {
+        thrlocal[i].add_task(lvid);
+      }
       consensus.cancel_one(i);
       END_TRACEPOINT(disteng_internal_task_queue);
     }
