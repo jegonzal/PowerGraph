@@ -34,7 +34,7 @@
 
 #include <graphlab/scheduler/vertex_functor_set.hpp>
 #include <graphlab/context/icontext.hpp>
-#include <graphlab/context/context.hpp>
+#include <graphlab/context/distributed_context.hpp>
 #include <graphlab/engine/iengine.hpp>
 #include <graphlab/update_functor/iupdate_functor.hpp>
 #include <graphlab/engine/execution_status.hpp>
@@ -77,7 +77,7 @@ namespace graphlab {
     typedef ischeduler<local_graph_type, update_functor_type > ischeduler_type;
     
     typedef typename iengine_base::icontext_type  icontext_type;
-    typedef context<distributed_synchronous_engine>  context_type;
+    typedef distributed_context<distributed_synchronous_engine>  context_type;
 
     typedef distributed_aggregator<distributed_synchronous_engine> aggregator_type;
     
@@ -108,6 +108,7 @@ namespace graphlab {
     //! Engine state
     bool started;
     bool has_schedule_entries;
+    bool block_schedule_insertion;
     
     std::vector<spinlock> vlocks;
     vertex_functor_set<update_functor_type>* scheduleset;
@@ -140,7 +141,7 @@ namespace graphlab {
                               size_t ncpus) : 
       rmi(dc, this), graph(graph), threads(ncpus), bar(ncpus), 
       aggregator(dc, *this, graph), ncpus(ncpus), max_iterations(-1), no_background_comms(false), compute_time(0.0),
-      started(false), has_schedule_entries(false) {
+      started(false), has_schedule_entries(false), block_schedule_insertion(false) {
 
 #ifdef USE_EVENT_LOG
       PERMANENT_INITIALIZE_DIST_EVENT_LOG(eventlog, dc, std::cout, 3000, 
@@ -233,7 +234,7 @@ namespace graphlab {
 
     void workingset_add_local(vertex_id_type local_vid ,
                      const update_functor_type& update_functor) {
-      workingset->add(local_vid, update_functor);
+      workingset->add_unsafe(local_vid, update_functor);
       workingset_bits.set_bit((local_vid));
     }
 
@@ -245,10 +246,11 @@ namespace graphlab {
 
     void schedule_local(vertex_id_type local_vid ,
                         const update_functor_type& update_functor) {
-      scheduleset->add(local_vid, update_functor);
-      has_schedule_entries = true;
-      PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, SCHEDULE_EVENT, 1);
-      scheduleset_bits.set_bit((local_vid));
+      if (!block_schedule_insertion && scheduleset->add(local_vid, update_functor)) {
+        scheduleset_bits.set_bit((local_vid));
+        has_schedule_entries = true;
+      }
+      //PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, SCHEDULE_EVENT, 1);
     }
 
     /**
@@ -365,8 +367,8 @@ namespace graphlab {
     const graphlab_options& get_options() { return opts; }
 
     void do_apply(lvid_type lvid, update_functor_type& ufun) { 
-      const vertex_id_type vid = graph.global_vid(lvid);
-      context_type context(this, &graph, vid, VERTEX_CONSISTENCY);
+      context_type context(this, &graph);
+      context.init_from_local(lvid, VERTEX_CONSISTENCY);
       ufun.apply(context);
       completed_tasks.inc();
       PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, UPDATE_EVENT, 1);
@@ -375,19 +377,20 @@ namespace graphlab {
  
 
     void do_init_gather(lvid_type lvid, update_functor_type& ufun) {
-      const vertex_id_type vid = graph.global_vid(lvid);
-      context_type context(this, &graph, vid, ufun.gather_consistency());
+      context_type context(this, &graph);
+      context.init_from_local(lvid, ufun.gather_consistency());
       ufun.init_gather(context);
     }
     
     void do_gather(lvid_type lvid, update_functor_type& ufun) { // Do gather
-      const vertex_id_type vid = graph.global_vid(lvid);
-      context_type context(this, &graph, vid, ufun.gather_consistency());
+      context_type context(this, &graph);
+      context.init_from_local(lvid, ufun.gather_consistency());
       if(ufun.gather_edges() == graphlab::IN_EDGES || 
          ufun.gather_edges() == graphlab::ALL_EDGES) {
         const local_edge_list_type edges = graph.l_in_edges(lvid);
         PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, USER_OP_EVENT, edges.size());
         for(size_t i = 0; i < edges.size(); ++i) {
+          context.cache_vid_conversion(edges[i].l_source());
           ufun.gather(context, edges[i]);
         }
       }
@@ -396,27 +399,31 @@ namespace graphlab {
         const local_edge_list_type edges = graph.l_out_edges(lvid);
         PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, USER_OP_EVENT, edges.size());
         for(size_t i = 0; i < edges.size(); ++i) {
+          context.cache_vid_conversion(edges[i].l_target());
           ufun.gather(context, edges[i]);
         }
       }
     } // end of do_gather
     
     void do_scatter(lvid_type lvid, update_functor_type& ufun) {
-      const vertex_id_type vid = graph.global_vid(lvid);
-      context_type context(this, &graph, vid, ufun.scatter_consistency());
-      if(ufun.scatter_edges() == graphlab::IN_EDGES || 
-         ufun.scatter_edges() == graphlab::ALL_EDGES) {
+      context_type context(this, &graph);
+      context.init_from_local(lvid, ufun.scatter_consistency());
+      edge_set eset = ufun.scatter_edges();
+      if(eset == graphlab::IN_EDGES ||
+         eset == graphlab::ALL_EDGES) {
         const local_edge_list_type edges = graph.l_in_edges(lvid);
         PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, USER_OP_EVENT, edges.size());
         for(size_t i = 0; i < edges.size(); ++i) {
+          context.cache_vid_conversion(edges[i].l_source());
           ufun.scatter(context, edges[i]);
         }
       }
-      if(ufun.scatter_edges() == graphlab::OUT_EDGES ||
-         ufun.scatter_edges() == graphlab::ALL_EDGES) {
+      if(eset == graphlab::OUT_EDGES ||
+         eset == graphlab::ALL_EDGES) {
         const local_edge_list_type edges = graph.l_out_edges(lvid);
         PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, USER_OP_EVENT, edges.size());
         for(size_t i = 0; i < edges.size(); ++i) {
+          context.cache_vid_conversion(edges[i].l_target());
           ufun.scatter(context, edges[i]);
         }
       }
@@ -450,7 +457,6 @@ namespace graphlab {
         // extract it
         if (owner != rmi.procid() &&
             workingset_bits.clear_bit(b) &&
-            workingset->has_task(local_vid) && 
             workingset->test_and_get(local_vid, uf)) {
           // send it on to the right owner
           vertex_id_type global_vid = graph.global_vid(local_vid);
@@ -733,7 +739,7 @@ namespace graphlab {
 
     void perform_scatter(size_t threadid) {
       update_functor_type uf;
-      foreach(uint32_t b, workingset_bits) {
+      foreach(uint32_t b, workingset_bits){
         // convert back to local vid
         vertex_id_type local_vid = b;
         // If there is a task
@@ -744,7 +750,6 @@ namespace graphlab {
           do_scatter(local_vid, uf);
         }
       }
-      ASSERT_TRUE(workingset_bits.empty());
     }
     
     /**
@@ -806,6 +811,7 @@ namespace graphlab {
                                    i));
       }
       threads.join();
+      ASSERT_TRUE(workingset_bits.empty());
     }
 
 
@@ -872,6 +878,9 @@ namespace graphlab {
         << "Spawning " << threads.size() << " threads" << std::endl;
 
       started = true;
+      has_schedule_entries = true;
+      block_schedule_insertion = false;
+      
       barrier_time = 0.0;
       rmi.barrier();
       size_t allocatedmem = memory_info::allocated_bytes();
@@ -892,9 +901,11 @@ namespace graphlab {
       // after this point, only workingset owned vertices have tasks.
       parallel_transmit_schedule();
       rmi.full_barrier();
+      timer ti;
       size_t iterationnumber = 1;
       for (size_t i = 0;i < max_iterations; ++i) {
-        if (rmi.procid() == 0) std::cout << "Iteration " << iterationnumber << std::endl;
+        ti.start();
+        if (rmi.procid() == 0) std::cout << "Iteration " << iterationnumber << "... ";
         ++iterationnumber;
         has_schedule_entries = false;
         
@@ -905,15 +916,15 @@ namespace graphlab {
         aggregator.evaluate_queue();
 
         // complete the scatter on each vertex
+        if (i == (max_iterations - 1)) block_schedule_insertion = true;
         parallel_scatter();
         // there is no schedule, if this is the last iteration
-        if (i == (max_iterations - 1)) has_schedule_entries = false;
         rmi.all_reduce(has_schedule_entries);
         if (has_schedule_entries) {
           parallel_transmit_schedule();
           rmi.full_barrier();
         }
-
+        if (rmi.procid() == 0) std::cout << ti.current_time() << std::endl;
         if (has_schedule_entries == false) break;
       }
       rmi.dc().flush_counters();
@@ -931,6 +942,11 @@ namespace graphlab {
       if (no_background_comms) {
         std::cout << "Compute time: " << compute_time << std::endl;
       }
+
+      // reset
+      block_schedule_insertion = false;
+      has_schedule_entries = false;
+      started = false;
     }
   
 

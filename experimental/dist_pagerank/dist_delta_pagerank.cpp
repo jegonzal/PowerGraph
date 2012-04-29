@@ -75,7 +75,7 @@ public:
   consistency_model scatter_consistency() { return graphlab::NULL_CONSISTENCY; }
   edge_set gather_edges() const { return graphlab::NO_EDGES; }
   edge_set scatter_edges() const { 
-    return (accum != 0)? graphlab::OUT_EDGES : graphlab::NO_EDGES;
+    return graphlab::OUT_EDGES;
   }
 
   void save(graphlab::oarchive &oarc) const {
@@ -93,22 +93,19 @@ public:
   void apply(icontext_type& context) {
     vertex_data& vdata = context.vertex_data(); 
     vdata.value += accum;
+    if (context.vertex_id() == 908351) std::cout << "v apply " << vdata.value << ":acc(" << accum << ") \n";
+
     const size_t num_out_edges = 
       std::max(context.num_out_edges(context.vertex_id()), size_t(1));
    // vdata.old_value < 0 forces that the 1st PR iteration will always be performed.
-   if(vdata.old_value < 0 || std::fabs(vdata.value - vdata.old_value) >= ACCURACY) {
-      if (vdata.old_value < 0 ) vdata.old_value = 0;
-      accum = 
-        (vdata.value - vdata.old_value) * (1-RESET_PROB) / float(num_out_edges);
-      vdata.old_value = vdata.value;
-    }
-    else {
-     accum = 0; 
-    }
+    vdata.old_value = vdata.value;
+    accum = accum * (1.0-RESET_PROB) / float(num_out_edges);
   } // end of apply
 
   // Reschedule neighbors 
   void scatter(icontext_type& context, const edge_type& edge) {
+    if (edge.target() == 908351) std::cout << "v scatter_to " << ":(" << accum << ") \n";
+
     if (accum != 0) context.schedule(edge.target(), delta_pagerank(accum));
   } // end of scatter
 }; // end of delta_pagerank update functor
@@ -117,7 +114,7 @@ public:
 
 
 
-
+#define SYNCHRONOUS_ENGINE
 
 #if defined(SYNCHRONOUS_ENGINE)
 typedef graphlab::distributed_synchronous_engine<graph_type, delta_pagerank> engine_type;

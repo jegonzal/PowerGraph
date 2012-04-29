@@ -835,12 +835,7 @@ namespace graphlab {
       BEGIN_TRACEPOINT(disteng_internal_task_queue);
       size_t i = lvid % threads.size();
 
-      if (vstate[lvid].state == APPLYING) {
-        thrlocal[i].add_task_priority(lvid);
-      }
-      else {
-        thrlocal[i].add_task(lvid);
-      }
+      thrlocal[i].add_task(lvid);
       consensus.cancel_one(i);
       END_TRACEPOINT(disteng_internal_task_queue);
     }
