@@ -910,9 +910,11 @@ namespace graphlab {
     void rpc_begin_scattering(vertex_id_type vid, update_functor_type task,
                               const vertex_data_type &central_vdata) {
       const vertex_id_type lvid = graph.local_vid(vid);
-      vstate[lvid].lock.lock();
       ASSERT_I_AM_NOT_OWNER(lvid);
+      vlocks[lvid].lock();
       graph.get_local_graph().vertex_data(lvid) = central_vdata;
+      vlocks[lvid].unlock();
+      vstate[lvid].lock.lock();
       if (task.scatter_edges() != NO_EDGES) {
         vstate[lvid].state = MIRROR_SCATTERING;
         vstate[lvid].current = task;
@@ -926,10 +928,10 @@ namespace graphlab {
     void rpc_scatter_data_only(vertex_id_type vid, 
                               const vertex_data_type &central_vdata) {
       const vertex_id_type lvid = graph.local_vid(vid);
-      vstate[lvid].lock.lock();
       ASSERT_I_AM_NOT_OWNER(lvid);
+      vlocks[lvid].lock();
       graph.get_local_graph().vertex_data(lvid) = central_vdata;
-      vstate[lvid].lock.unlock();
+      vlocks[lvid].unlock();
     }
     /**
      * Task was added to the vstate. Now to begin scheduling the gathers
