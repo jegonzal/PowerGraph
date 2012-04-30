@@ -806,7 +806,7 @@ namespace graphlab {
         do_apply(lvid);
         vstate[lvid].state = SCATTERING;
         if (vstate[lvid].current.scatter_edges() == graphlab::NO_EDGES) {
-          vstate[lvid].apply_scatter_count_down = 0;
+          vstate[lvid].apply_scatter_count_down = 1;
         }
         else {
           vstate[lvid].apply_scatter_count_down = graph.l_get_vertex_record(lvid).num_mirrors() + 1;
@@ -817,13 +817,9 @@ namespace graphlab {
         // fall through to scattering
       }
       case SCATTERING: {
-        if (vstate[lvid].current.scatter_edges() != graphlab::NO_EDGES) {
-          do_scatter(lvid);
-          vstate[lvid].current = update_functor_type();
-          // call scatter complete to the owner outside of the locked region
-          call_scatter_complete = true;
-          vstate[lvid].state = WAIT_FOR_SCATTER_COMPLETE;
-        }
+        do_scatter(lvid);
+        vstate[lvid].state = WAIT_FOR_SCATTER_COMPLETE;
+        call_scatter_complete = true;
         completed_tasks.inc();
         break;
       }
