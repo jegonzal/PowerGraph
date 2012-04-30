@@ -658,35 +658,22 @@ namespace graphlab {
       ASSERT_GE(ct, 0);
       
       if (ct == 0) {
-        bool initiate_gathering = false;
-        update_functor_type task;
         ASSERT_EQ(vstate[lvid].state, WAIT_FOR_SCATTER_COMPLETE);
+        update_functor_type uf;
+        bool has_new_task = false;
+      
         vlocks[lvid].lock();
         if (vstate[lvid].hasnext) {
-          // unfortunately I have to complete the transfer from next to current here
-          // this replicates code in eval_sched_task
-          // we need to do it here to avoid changing the counters.
-          // some refactoring may be good....
-          vstate[lvid].current = vstate[lvid].next;
-          task = vstate[lvid].current;
+          uf = vstate[lvid].next;
+          has_new_task = true;
           vstate[lvid].next = update_functor_type();
-          vstate[lvid].hasnext = false;
-          vstate[lvid].state = GATHERING;
-          vstate[lvid].apply_scatter_count_down =
-              graph.l_get_vertex_record(lvid).num_mirrors() + 1;
-          initiate_gathering = true;
-          do_init_gather(lvid);
-        }
-        else {
           vstate[lvid].current = update_functor_type();
-          vstate[lvid].state = NONE;
+          vstate[lvid].hasnext = false;
         }
+        vstate[lvid].state = NONE;
         vlocks[lvid].unlock();
-        // begin gathering
-        if (initiate_gathering) {
-          // Broadcast the uninitialized task to all mirrors
-          master_broadcast_gathering(lvid, task);
-        }
+
+        if (has_new_task) eval_sched_task(lvid, uf);
       }
     } // end of gather complete
 
