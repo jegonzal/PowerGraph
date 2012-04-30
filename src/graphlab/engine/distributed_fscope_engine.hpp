@@ -667,6 +667,7 @@ namespace graphlab {
           uf = vstate[lvid].next;
           has_new_task = true;
           vstate[lvid].next = update_functor_type();
+          vstate[lvid].hasnext = false;
         }
         vstate[lvid].state = NONE;
         vlocks[lvid].unlock();
