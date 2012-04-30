@@ -891,8 +891,10 @@ namespace graphlab {
         graph.l_get_vertex_record(sched_lvid);
 
       if (task.gather_edges() == graphlab::NO_EDGES) {
+        vstate[sched_lvid].lock.lock();
         vstate[sched_lvid].apply_scatter_count_down = 1;
         gather_complete(sched_lvid);
+        vstate[sched_lvid].lock.unlock();
       }
       else {
         const unsigned char prevkey = 
@@ -907,7 +909,7 @@ namespace graphlab {
     }
 
 
-    void rpc_begin_scattering(vertex_id_type vid, update_functor_type task,
+    void rpc_begin_scattering(vertex_id_type vid, const update_functor_type& task,
                               const vertex_data_type &central_vdata) {
       const vertex_id_type lvid = graph.local_vid(vid);
       ASSERT_I_AM_NOT_OWNER(lvid);
@@ -915,7 +917,8 @@ namespace graphlab {
       graph.get_local_graph().vertex_data(lvid) = central_vdata;
       vlocks[lvid].unlock();
       vstate[lvid].lock.lock();
-      if (task.scatter_edges() != NO_EDGES) {
+      if (task.scatter_edges() != graphlab::NO_EDGES) {
+        ASSERT_EQ(vstate[lvid].state, NONE);
         vstate[lvid].state = MIRROR_SCATTERING;
         vstate[lvid].current = task;
       }
