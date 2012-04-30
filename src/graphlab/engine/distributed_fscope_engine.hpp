@@ -662,7 +662,7 @@ namespace graphlab {
         update_functor_type uf;
         bool has_new_task = false;
       
-        vlocks[lvid].lock();
+        vstate[lvid].lock.lock();
         if (vstate[lvid].hasnext) {
           uf = vstate[lvid].next;
           has_new_task = true;
@@ -671,7 +671,7 @@ namespace graphlab {
           vstate[lvid].hasnext = false;
         }
         vstate[lvid].state = NONE;
-        vlocks[lvid].unlock();
+        vstate[lvid].lock.unlock();
 
         if (has_new_task) eval_sched_task(lvid, uf);
       }
