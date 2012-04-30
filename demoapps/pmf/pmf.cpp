@@ -70,7 +70,7 @@ problem_setup ps;
 
 float predict(const vertex_data& v1, const vertex_data& v2, const edge_data * edge, float rating, float & prediction){
 
-   assert((!ps.tensor && ps.isals) || ps.algorithm == NMF);
+   //assert((!ps.tensor && ps.isals) || ps.algorithm == NMF);
 
    //predict missing value based on dot product of movie and user iterms
    prediction = dot(v1.pvec, v2.pvec);	
