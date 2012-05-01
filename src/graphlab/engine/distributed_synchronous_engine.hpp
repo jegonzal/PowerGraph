@@ -532,7 +532,6 @@ namespace graphlab {
           }
         }
         good = workingset_bits.next_bit(b);
-        rmi.dc().handle_incoming_calls(threadid, ncpus);
       }
       if (no_background_comms) {
         double cfinish = ti.current_time();
@@ -549,6 +548,7 @@ namespace graphlab {
                           outbuffer[i]);
         }
       }
+
     }
 
     void perform_gather(size_t threadid) {
@@ -588,7 +588,6 @@ namespace graphlab {
             workingset_merge_local(local_vid, uf);
           }
         }
-        rmi.dc().handle_incoming_calls(threadid, ncpus);
       }
 
       if (no_background_comms) {
@@ -607,6 +606,7 @@ namespace graphlab {
                           outbuffer[i]);
         }
       }
+
     }
     
     struct apply_scatter_data {
@@ -717,7 +717,6 @@ namespace graphlab {
             }
           }
         }
-        rmi.dc().handle_incoming_calls(threadid, ncpus);
       }
 
       if (no_background_comms) {
@@ -820,9 +819,9 @@ namespace graphlab {
 
     double barrier_time;
     void main_stuff(size_t i) {
-      rmi.dc().stop_handler_threads_no_wait(i, ncpus);
+//      rmi.dc().stop_handler_threads(i, ncpus);
       init_gather(i);
-      rmi.dc().start_handler_threads(i, ncpus);
+//      rmi.dc().start_handler_threads(i, ncpus);
       
       bar.wait();
       if (i == 0) {
@@ -834,9 +833,9 @@ namespace graphlab {
       }
       bar.wait();
       
-      rmi.dc().stop_handler_threads_no_wait(i, ncpus);
+//      rmi.dc().stop_handler_threads(i, ncpus);
       perform_gather(i);
-      rmi.dc().start_handler_threads(i, ncpus);
+//      rmi.dc().start_handler_threads(i, ncpus);
 
       
       bar.wait();
@@ -850,9 +849,9 @@ namespace graphlab {
       }
       bar.wait();
       
-      rmi.dc().stop_handler_threads_no_wait(i, ncpus);
+ //     rmi.dc().stop_handler_threads(i, ncpus);
       perform_apply_and_issue_scatter(i);
-      rmi.dc().start_handler_threads(i, ncpus);
+ //     rmi.dc().start_handler_threads(i, ncpus);
 
     
       bar.wait();

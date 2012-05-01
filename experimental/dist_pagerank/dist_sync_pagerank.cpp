@@ -304,7 +304,7 @@ int main(int argc, char** argv) {
   clopts.engine_args.add_option("max_iterations", iterations);
   engine.set_options(clopts);
   engine.initialize();
-  engine.add_aggregator("residual", sum_residual_aggregator(), 3);
+  //engine.add_aggregator("residual", sum_residual_aggregator(), 3);
 
   std::cout << dc.procid() << ": Scheduling all" << std::endl;
   engine.schedule_all(factorized_pagerank(1.0));
@@ -318,7 +318,7 @@ int main(int argc, char** argv) {
 
   
   const double runtime = timer.current_time();
-  engine.aggregate_now("residual");
+  //engine.aggregate_now("residual");
   std::cout << "Graphlab finished, runtime: " << runtime << " seconds." 
             << std::endl
             << "Updates executed: " << engine.last_update_count() 
