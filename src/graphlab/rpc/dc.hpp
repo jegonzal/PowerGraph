@@ -26,6 +26,7 @@
 #include <iostream>
 #include <boost/iostreams/stream.hpp>
 #include <graphlab/parallel/pthread_tools.hpp>
+#include <graphlab/parallel/thread_pool.hpp>
 #include <graphlab/util/resizing_array_sink.hpp>
 #include <graphlab/util/blocking_queue.hpp>
 #include <graphlab/util/multi_blocking_queue.hpp>
@@ -197,7 +198,8 @@ class distributed_control{
   std::vector<dc_impl::dc_send*> senders;
   
   /// A thread group of function call handlers
-  thread_group fcallhandlers;
+  thread_pool fcallhandlers;
+  std::vector<atomic<size_t> > fcall_handler_active;
   
   struct fcallqueue_entry {
     std::vector<function_call_block> calls;
@@ -284,6 +286,12 @@ class distributed_control{
     init(machines, initstring, curmachineid, numhandlerthreads, commtype);
   }
 
+
+  void stop_handler_threads(size_t threadid, size_t total_threadid);
+  void stop_handler_threads_no_wait(size_t threadid, size_t total_threadid);
+  void handle_incoming_calls(size_t threadid, size_t total_threadid);
+  void start_handler_threads(size_t threadid, size_t total_threadid);
+  
   ~distributed_control();
 
   /// returns the id of the current processor

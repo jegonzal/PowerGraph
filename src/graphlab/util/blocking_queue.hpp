@@ -88,6 +88,9 @@ namespace graphlab {
     }
 
 
+    bool empty_unsafe() {
+      return m_queue.empty();
+    }
 
     void begin_critical_section() {
       m_mutex.lock();
