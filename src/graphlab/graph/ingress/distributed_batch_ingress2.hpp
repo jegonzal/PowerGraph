@@ -73,8 +73,11 @@ namespace graphlab {
       if (dht_degree_table.size() <= idx) {
         dht_degree_table_lock.unlock();
         dht_degree_table_lock.writelock();
-        size_t newsize = std::max(dht_degree_table.size() * 2, idx + 1);
-        dht_degree_table.resize(newsize);
+         
+        if (dht_degree_table.size() <= idx) {
+          size_t newsize = std::max(dht_degree_table.size() * 2, idx + 1);
+          dht_degree_table.resize(newsize);
+        }
         dht_degree_table_lock.unlock();
         dht_degree_table_lock.readlock();
       }
@@ -216,6 +219,7 @@ namespace graphlab {
       // Add edges to local graph
       local_graph_lock.lock();
       if (max_lvid > 0 && max_lvid >= base_type::graph.local_graph.num_vertices()) {
+        //std::cout << rpc.procid() << ": " << max_lvid << std::endl;
         base_type::graph.local_graph.resize(max_lvid + 1);
       }
       base_type::graph.local_graph.add_edges(local_source_arr, 
