@@ -32,8 +32,7 @@
 extern advanced_config ac;
 extern problem_setup ps;
 
-double * x1;
-double * x2;
+vec x1, x2;
 void last_iter();
 const double epsilon = 1e-16;
 
@@ -146,11 +145,8 @@ end
 using namespace std;
 
 void nmf_init(){
-  x1 = new double[ac.D];
-  x2 = new double[ac.D];
-  for (int i=0; i<ac.D; i++){
-     x1[i] = x2[i] = 0;
-  }
+  x1 = zeros(ac.D);
+  x2 = zeros(ac.D);
   graph_type *g = (graph_type*)ps.g<graph_type>(TRAINING);
 #pragma omp parallel for
   for (int i=0; i<ps.M; i++){
@@ -194,16 +190,11 @@ void nmf_update_function(gl_types::iscope & scope,
 
   user.rmse = 0;
 
-  if (user.num_edges == 0){
+  if (user.num_edges == 0)
     return; //if this user/movie have no ratings do nothing
-  }
 
-  double * buf = new double[isuser? ps.N:ps.M];
-  double * ret = new double[ac.D];
-  for (int i=0; i<ac.D; i++)
-     ret[i] = 0;
-  for (int i=0; i< (isuser ? ps.N:ps.M); i++)
-     buf[i] = 0;
+  vec buf = zeros(isuser ? ps.N: ps.M);
+  vec ret = zeros(ac.D);
 
   gl_types::edge_list outs = get_edges(isuser, scope);
   timer t; t.start(); 
@@ -233,7 +224,7 @@ void nmf_update_function(gl_types::iscope & scope,
   ps.counter[SVD_MULT_A] += t.current_time();   
 
 
-  double * px;
+  vec px;
   if (isuser)
      px = x1;
   else 
@@ -251,14 +242,12 @@ void nmf_update_function(gl_types::iscope & scope,
     debug_print_vec((isuser ? "V " : "U") , user.pvec, ac.D);
   }
 
-  delete[] buf;
 }
 
 void pre_user_iter(){
    const graph_type *g = ps.g<graph_type>(TRAINING); 
-   for (int i=0; i<ac.D; i++)
-      x1[i] = 0;
-//#pragma omp parallel for
+   x1 = zeros(ac.D);
+ //#pragma omp parallel for
    for (int i=ps.M; i<ps.M+ps.N; i++){
     const vertex_data & data = g->vertex_data(i);
     for (int i=0; i<ac.D; i++){
@@ -269,9 +258,8 @@ void pre_user_iter(){
 void pre_movie_iter(){
 
   const graph_type *g = ps.g<graph_type>(TRAINING);    
-  for (int i=0; i<ac.D; i++)
-      x2[i] = 0;
-//#pragma omp parallel for
+  x2 = zeros(ac.D);
+  //#pragma omp parallel for
    for (int i=0; i<ps.M; i++){
     const vertex_data & data = g->vertex_data(i);
     for (int i=0; i<ac.D; i++){
@@ -307,7 +295,7 @@ void nmf<>(gl_types::core * _glcore){
       cols.push_back(i);
  
 
-   for (int j=1; j<= ac.svd_iter+1; j++){
+   for (int j=1; j<= ac.iter+1; j++){
 
      pre_user_iter();
      if (ac.debug)
@@ -322,7 +310,7 @@ void nmf<>(gl_types::core * _glcore){
      glcore->start();
      
 
-     nmf_post_iter();  //TODO
+     nmf_post_iter(); 
    }
 }
 
