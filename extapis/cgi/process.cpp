@@ -26,6 +26,7 @@
  */
  
 #include "process.hpp"
+#include <sstream>
 
 using namespace graphlab;
 namespace io = boost::asio;
@@ -33,49 +34,99 @@ namespace io = boost::asio;
 /////////////////////////////// INSTANCE MEMBERS ///////////////////////////////
 
 process::
-  process() : ios(), pout(ios) {
-  
+  process() : ios(), pout(ios), pin(ios) {
   if (executable.empty()) return;
-  
-  int pipefd[2];
-  CHECK (!::pipe(pipefd));    // assert pipe created
+  redirect_io();
+  return;
+}
+
+process::~process(){
+  // close if child is still alive
+  json_message exit_message("exit");
+  send(exit_message);
+  if (pout.is_open()) pout.close();
+  if (pin.is_open()) pin.close();
+}
+
+void process::redirect_io (){
+
+  int opipefd[2];             // dispatcher -> child
+  int ipipefd[2];             // dispatcher <- child
+  CHECK (!::pipe(opipefd));   // assert pipe created
+  CHECK (!::pipe(ipipefd));
   
   pid_t pid = ::fork();
   CHECK (0 <= pid);           // assert child created
   
   if (0 == pid){              // child process
-    CHECK (!::close(pipefd[1]));
-    CHECK (0 <= ::dup2(pipefd[0], 0));
-    CHECK (!::close(pipefd[0]));
+    CHECK (!::close(opipefd[1]));
+    CHECK (!::close(ipipefd[0]));
+    CHECK (0 <= ::dup2(opipefd[0], 0));
+    CHECK (0 <= ::dup2(ipipefd[1], 1));
+    CHECK (!::close(opipefd[0]));
+    CHECK (!::close(ipipefd[1]));
     CHECK (0 <= execve(executable.c_str(), NULL, NULL));
   } /* child process goes no further than here */
 
   // parent process
-  CHECK (!::close(pipefd[0]));
-  pout.assign(pipefd[1]);
-  return;
+  CHECK (!::close(opipefd[0]));
+  CHECK (!::close(ipipefd[1]));
+  pout.assign(opipefd[1]);
+  pin.assign(ipipefd[0]);
   
 }
 
-process::~process(){
-  // TODO: tell child process to terminate
-  // close if child is still alive
-  if (pout.is_open()) pout.close();
-}
-
-std::size_t process::write(const std::string str){
+std::size_t process::write(json_message& message) {
   
-  if (!pout.is_open()){
-    std::cerr << "Pipe closed unexpectedly." << std::endl;
-    return 0;
-  }
+  if (!pout.is_open()) throw ("Pipe closed unexpectedly.");
 
+  io::streambuf buffer;
+  std::ostream output(&buffer);
+  output << message << std::flush;
+
+  // TODO: do I have to deal with short counts?
   boost::system::error_code ec;
-  std::size_t bytes = io::write(pout, io::buffer(str), ec);
-  if (ec) std::cerr << boost::system::system_error(ec).what() << std::endl;
+  std::size_t bytes;
+  try {
+    bytes = io::write(pout, buffer, ec);
+    if (ec) std::cerr << boost::system::system_error(ec).what() << std::endl;
+  }catch (boost::system::system_error e){
+    throw ("An error was encountered while writing to child process.");
+  }
+  
+  // Note to self: we don't want async_write here, because our purpose is to 
+  // wait for child to fully receive the message and then wait for child to 
+  // reply. Using async is just beating around the bush to write really complex
+  // code with no additional benefits.
   
   return bytes;
   
+}
+
+json_message& process::read(json_message& message){
+
+  if (!pin.is_open()) throw ("Pipe closed unexpectedly.");
+  
+//   std::size_t bytes;
+//   try {
+//     // TODO: how to stop reading? use JSON?
+//     bytes = io::read_until(pin, buffer, '\r');
+//   }catch (boost::system::system_error e){
+//     throw ("An error was encountered while reading from child process.");
+//   }
+//   
+//   return bytes;
+  
+  return message;
+  
+}
+
+std::size_t process::send(json_message& message){
+  return write(message);
+}
+
+json_message& process::receive(json_message& message){
+  return read(message);
 }
 
 ///////////////////////////////// CLASS MEMBERS ////////////////////////////////

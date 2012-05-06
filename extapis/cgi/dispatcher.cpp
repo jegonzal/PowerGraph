@@ -31,16 +31,37 @@
 using namespace graphlab;
 
 /////////////////////////////// INSTANCE MEMBERS ///////////////////////////////
-// TODO
-dispatcher_update::dispatcher_update(){}
 
-dispatcher_update::dispatcher_update(const dispatcher_update& other){}
+dispatcher_update::dispatcher_update() : mstate() {}
 
-inline void dispatcher_update::operator+=(const dispatcher_update& other){}
+dispatcher_update::dispatcher_update(const dispatcher_update& other) : mstate(other.mstate) {}
+
+inline void dispatcher_update::operator+=(const dispatcher_update& other){
+  // TODO
+}
 
 void dispatcher_update::operator()(icontext_type& context){
+  
+  // TODO
+  
   process& p = process::get_process();
-  p.write("oh yeah!\n");
+  
+  json_message invocation("update", mstate);
+  p.send(invocation);
+  json_message result;
+  p.receive(result);
+  
+//  logstream(LOG_DEBUG) << "writing..." << std::endl;
+//   p.write("oh yeah!\r\n");
+//   logstream(LOG_DEBUG) << "done." << std::endl;
+//   logstream(LOG_DEBUG) << "reading..." << std::endl;
+//   boost::asio::streambuf buffer;
+//   p.read(buffer);
+//   logstream(LOG_DEBUG) << "done." << std::endl;
+//   std::ostringstream ss;
+//   ss << &buffer;
+//   logstream(LOG_DEBUG) << ss.str() << std::endl;
+
 }
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -53,7 +74,7 @@ int main(int argc, char** argv) {
   // Parse command line options -----------------------------------------------
   command_line_options clopts("GraphLab Dispatcher");
   std::string graph_file = "toy.tsv";
-  std::string updater = "";
+  std::string updater;
   std::string format = "tsv";
   clopts.attach_option("graph", &graph_file, graph_file,
                        "The graph file.  If none is provided "
@@ -61,10 +82,16 @@ int main(int argc, char** argv) {
   clopts.add_positional("graph");
   clopts.attach_option("format", &format, format,
                        "The graph file format: {metis, snap, tsv}");
-  clopts.attach_option("updater", &updater, updater,
-                       "The updater to execute.");
+  clopts.attach_option("updater", &updater,
+                       "The updater to execute (required)");
   if(!clopts.parse(argc, argv)) {
     std::cout << "Error in parsing command line arguments." << std::endl;
+    return EXIT_FAILURE;
+  }
+  
+  if(!clopts.is_set("updater")) {
+    std::cout << "Updater not provided." << std::endl;
+    clopts.print_description();
     return EXIT_FAILURE;
   }
 
@@ -79,10 +106,10 @@ int main(int argc, char** argv) {
   }
   
   // Signal Handling ----------------------------------------------------------
-  // struct sigaction sa;
-  // std::memset( &sa, 0, sizeof(sa) );
-  // sa.sa_handler = SIG_IGN;
-  // CHECK(!::sigaction( SIGPIPE, &sa, NULL));
+  struct sigaction sa;
+  std::memset(&sa, 0, sizeof(sa));
+  sa.sa_handler = SIG_IGN;
+  CHECK(!::sigaction(SIGPIPE, &sa, NULL));
 
   // Run the Dispatcher -------------------------------------------------------
   process::set_executable(updater);

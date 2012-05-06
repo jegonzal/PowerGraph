@@ -29,6 +29,7 @@
 #define GRAPHLAB_DISPATCHER_HPP
 
 #include <graphlab.hpp>
+#include "json_message.hpp"
 #include "process.hpp"
 
 struct vertex_data {};
@@ -38,15 +39,20 @@ typedef graphlab::graph<vertex_data, edge_data> graph_type;
 //////////////////////////////// UPDATE FUNCTOR ////////////////////////////////
 
 /** dispatcher update function */
-class dispatcher_update : 
-  public graphlab::iupdate_functor<graph_type, dispatcher_update> {
-private:
-public:
-  dispatcher_update();
-  dispatcher_update(const dispatcher_update& other);
-  inline void operator+=(const dispatcher_update& other);
-  void operator()(icontext_type& context);
-}; // end of dispatcher update functor
+namespace graphlab {
+
+  class dispatcher_update : 
+    public graphlab::iupdate_functor<graph_type, dispatcher_update> {
+  private:
+    std::string mstate;
+  public:
+    dispatcher_update();
+    dispatcher_update(const dispatcher_update& other);
+    inline void operator+=(const dispatcher_update& other);
+    void operator()(icontext_type& context);
+  }; // end of dispatcher update functor
+  
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

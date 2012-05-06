@@ -31,6 +31,7 @@
 #include <iostream>
 #include <boost/asio.hpp>
 #include <graphlab.hpp>
+#include "json_message.hpp"
 
 namespace graphlab {
 //////////////////////////////// PROCESS CLASS ////////////////////////////////
@@ -44,25 +45,41 @@ namespace graphlab {
   public:
     typedef boost::asio::posix::stream_descriptor stream_descriptor;
     typedef boost::asio::io_service io_service;
-    
+    typedef boost::asio::streambuf streambuf;
   private:
   
     /** path to the executable */
     static std::string executable;
     
-    /** output stream to write to process */
     io_service ios;
+    
+    /** output stream to write to process */
     stream_descriptor pout;
+    
+    /** input stream to read from process */
+    stream_descriptor pin;
     
     /** private constructor */
     process();
-  
+    
+    /** Redirects i/o to pipes - used only in constructor */
+    void redirect_io();
+    
+    /** Writes output to process */
+    std::size_t write(json_message& message);
+    
+    /**
+     * Reads input from process, delimited by JSON braces.
+     * TODO Ideally, JSON should be totally abstracted by json_message.
+     */
+    json_message& read(json_message& message);
+    
   public:
     
     virtual ~process();
     
-    /** Write output to process */
-    std::size_t write(const std::string str);
+    std::size_t send(json_message& message);
+    json_message& receive(json_message& message);
     
     /** ID of process in thread local store */
     static const size_t PROC_ID;
@@ -74,14 +91,14 @@ namespace graphlab {
      * Retrieves the associated process for the current thread.
      * If the process can be found in the thread-local store, returns
      * immediately; otherwise, that means that the current thread does not have
-     * an associated process yet. In that case, this function will attach create
-     * a new process and store it in the thread-local store.
+     * an associated process yet. In that case, this function will create a new
+     * process and store it in the thread-local store.
      * @return process associated with the current thread.
      */
     static process& get_process();
     
     /**
-     * Detaches the current thread from the JVM.
+     * Detaches the process from the thread.
      * If a pointer to the process cannot be found in the thread-local
      * store, that means that this thread has already been detached, and the
      * function will return immediately. Otherwise, the thread is detached and
