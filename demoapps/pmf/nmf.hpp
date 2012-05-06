@@ -35,6 +35,7 @@ extern problem_setup ps;
 double * x1;
 double * x2;
 void last_iter();
+const double epsilon = 1e-16;
 
 /*
 function [w,h]=nmf(v,r,verbose)
@@ -241,6 +242,8 @@ void nmf_update_function(gl_types::iscope & scope,
   for (int i=0; i<ac.D; i++){
      assert(px[i] != 0);
      user.pvec[i] *= ret[i] / px[i];
+     if (user.pvec[i] < epsilon)
+        user.pvec[i] = epsilon;
   }
  /* print statistics */
   if (ac.debug&& (id == 0 || (id == ps.M-1) || (id == ps.M) || (id == ps.M+ps.N-1))){
