@@ -49,6 +49,11 @@ eigenvalue 4 val: 0.780815
          //ASSERT_LE(norm(ps.U - init_mat("-0.1235    0.3194    0.7068   -0.3074   -0.5372 -0.4525    0.5548   -0.4707    0.3454   -0.3830 0.8323    0.1010   -0.0972    0.3109   -0.4370 -0.2942   -0.6665    0.1976    0.5373   -0.3761 -0.0279   -0.3684   -0.4800   -0.6332   -0.4819", 5, 5)) , 2);       
          break;
 
+      case 82:
+         assert(pow(train_rmse - 0.6698,2)<1e-8);
+         break;
+
+
       case 91: //WEIGHTED_ALS: -Iter100... UV. objective=0.0207271, RMSE=0.0043/0.6344. Time to finish=0.00hr.
          // On UBUNTU 11.04 with ITPP we get: Final result. Obj=0.0154572, TRAIN RMSE= 0.0032 VALIDATION RMSE= 0.6833.
          // Ubuntu 11.04 with ITPP (Sagar Soni) we get: Final result. Obj=0.0197717, TRAIN RMSE= 0.0043 VALIDATION RMSE= 0.6678.
@@ -100,7 +105,9 @@ void unit_testing(int unittest, command_line_options& clopts){
    else if (unittest == 81){ //NMF
      ac.datafile = "panel7_mmwritten.dat"; ps.algorithm = NMF; ac.algorithm = NMF; ac.matrixmarket = true;
   }
-   else if (unittest == 91){ //WEIGHTED ALTERNATING LEAST SQUARES
+   else if (unittest == 82){ //NMF
+     ac.datafile = "panel7_mmwritten.dat"; ps.algorithm = NMF; ac.algorithm = NMF; ac.matrixmarket = true; ac.D = 5; ac.debug = true; ac.iter = 5;
+   } else if (unittest == 91){ //WEIGHTED ALTERNATING LEAST SQUARES
       ac.datafile = "wals"; ac.algorithm = WEIGHTED_ALS; ps.algorithm = WEIGHTED_ALS; ac.FLOAT = true; ac.als_lambda = 0.001;
       clopts.set_scheduler_type("round_robin(max_iterations=100,block_size=1)");
    }

@@ -298,7 +298,6 @@ void start(command_line_options& clopts) {
     //read the training data
     printf("loading data file %s\n", ac.datafile.c_str());
     if (!ac.manualgraphsetup){
-    if (!ac.loadgraph){
     
     load_pmf_graph<graph_type,gl_types,vertex_data,edge_data>(ac.datafile.c_str(), &g, &g, TRAINING);
     ps.set_graph(&g, TRAINING);
@@ -312,33 +311,7 @@ void start(command_line_options& clopts) {
     printf("loading data file %s\n", (ac.datafile+"t").c_str());
     load_pmf_graph<graph_type,gl_types,vertex_data,edge_data>((ac.datafile+"t").c_str(),&g, &test_graph, TEST);
     ps.set_graph(&test_graph, TEST);
-
-
-    if (ac.savegraph){
-	printf("Saving .graph files\n");
-	char filename[256];
-        sprintf(filename, "%s%d.graph", ac.datafile.c_str(), ac.D);
-        std::ofstream fout(filename, std::fstream::binary);
-        graphlab::oarchive oarc(fout);
-	oarc << ps.M << ps.N << ps.K << ps.L << ps.Le << ps.Lt << ac.D;
-        oarc << g << validation_graph << test_graph;
-        printf("Done!\n");
-        fout.close();
-	exit(0);
-    }
-
-  } else {
-    char filename[256];
-    sprintf(filename, "%s%d.graph", ac.datafile.c_str(), ac.D);
-    std::ifstream fin(filename, std::fstream::binary);
-    graphlab::iarchive iarc(fin);
-    iarc >> ps.M >> ps.N >> ps.K >> ps.L >> ps.Le >> ps.Lt >> ac.D;
-    printf("Loading graph from file\n");
-    iarc >> g >> validation_graph >> test_graph;
-    printf("Matrix size is: USERS %dx MOVIES %dx TIME BINS %d D=%d\n", ps.M, ps.N, ps.K, ac.D);   
-    printf("Creating %d edges (observed ratings)...\n", ps.L);
-  }
-  }
+  }  
 
   if (ac.loadfactors){
      import_uvt_from_file<graph_type>();

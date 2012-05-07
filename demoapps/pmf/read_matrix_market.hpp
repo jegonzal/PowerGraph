@@ -51,16 +51,14 @@ void load_matrix_market(const char * filename, graph_type *_g, testtype data_typ
       return;
     }
 
-    if(data_type==TRAINING && f== NULL){
-	logstream(LOG_FATAL) << " can not find input file. aborting " << std::endl;
-    }
+    if(data_type==TRAINING && f== NULL)
+	    logstream(LOG_FATAL) << " can not find input file. aborting " << std::endl;
 
     if (mm_read_banner(f, &matcode) != 0)
         logstream(LOG_FATAL) << "Could not process Matrix Market banner." << std::endl;
 
     /*  This is how one can screen matrix types if their application */
     /*  only supports a subset of the Matrix Market data types.      */
-
     if (mm_is_complex(matcode) && mm_is_matrix(matcode) && 
             mm_is_sparse(matcode) )
         logstream(LOG_FATAL) << "sOrry, this application does not support " << std::endl << 
@@ -153,6 +151,55 @@ template<>
   assert(false);
 }
 
+
+void load_matrix_market_matrix(const std::string & filename, mat & a){
+    MM_typecode matcode;                        
+    int i,I,J;
+    double val;
+    int rows, cols, nnz;
+    FILE * f = open_file(filename.c_str() ,"r");
+    int rc = mm_read_banner(f, &matcode); 
+    if (rc != 0)
+      logstream(LOG_FATAL)<<"Failed to load matrix market banner in file: " << filename << std::endl;
+
+    if (mm_is_sparse(matcode)){
+       int rc = mm_read_mtx_crd_size(f, &rows, &cols, &nnz);
+       if (rc != 0)
+          logstream(LOG_FATAL)<<"Failed to load matrix market banner in file: " << filename << std::endl;
+    }
+    else { //dense matrix
+      rc = mm_read_mtx_array_size(f, &rows, &cols);
+      if (rc != 0)
+        logstream(LOG_FATAL)<<"Failed to load matrix market banner in file: " << filename << std::endl;
+      nnz = rows * cols;
+    }
+
+    a = zeros(rows, cols);
+    for (i=0; i<nnz; i++){
+     if (mm_is_sparse(matcode) && ac.matrixmarkettokensperrow == 3){
+        rc = fscanf(f, "%d %d %lg\n", &I, &J, &val);
+        if (rc != 3)
+           logstream(LOG_FATAL)<<"Error reading input line " << i << std::endl;
+        I--; J--;
+        assert(I >= 0 && I < rows);
+        assert(J >= 0 && J < cols);
+        set_val(a, I, J, val);
+     }
+     else {
+        rc = fscanf(f, "%lg", &val);
+        if (rc != 1)
+           logstream(LOG_FATAL)<<"Error reading nnz " << i << std::endl;
+        I = i / ac.D;
+        J = i % cols;
+        set_val(a, I, J, val);
+     }
+     }
+     ASSERT_EQ(i, nnz);
+     logstream(LOG_INFO) << "Loaded matrix of size " << rows << " x " << cols << " from file: " << filename << " total of " << nnz << " entries. " << std::endl;
+
+}
+
+
 void save_matrix_market_matrix(const char * filename, const mat & a, std::string comment, bool integer, bool issparse){
     MM_typecode matcode;                        
     int i,j;
@@ -177,8 +224,9 @@ void save_matrix_market_matrix(const char * filename, const mat & a, std::string
     if (comment.size() > 0)
       fprintf(f, "%s%s", "%", comment.c_str());
 
+    if (issparse)
     mm_write_mtx_crd_size(f, a.rows(), a.cols(), a.size());
-           
+    else mm_write_mtx_array_size(f, a.rows(), a.cols());
 
     for (i=0; i<a.rows(); i++){
        for (j=0; j<a.cols(); j++){

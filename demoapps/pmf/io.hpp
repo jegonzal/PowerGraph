@@ -623,6 +623,7 @@ void import_uvt_from_file(){
  
  const graph_type * g =  ps.g<graph_type>(TRAINING);
  mat U,V,T;
+ if (!ac.matrixmarket){
  char dfile[256] = {0};
  sprintf(dfile,"%s%d.out",ac.datafile.c_str(), ac.D);
  printf("Loading factors U,V,T from file\n");
@@ -636,7 +637,21 @@ void import_uvt_from_file(){
     input >> T;
  }
  input.close();
- //saving output to file 
+ }
+ else {
+   load_matrix_market_matrix(ac.datafile + ".U", U);
+   load_matrix_market_matrix(ac.datafile + ".V", V);
+   if (ps.tensor)
+     load_matrix_market_matrix(ac.datafile + ".T", T); 
+   ASSERT_EQ(U.rows(), ps.M);
+   ASSERT_EQ(V.rows(), ps.N);
+   ASSERT_EQ(U.cols(), V.cols());
+   ASSERT_EQ(U.cols(), ac.D);
+ }
+ 
+
+ //initalizing feature vectors from file
+//#pragma omp parallel for
  for (int i=0; i< ps.M+ps.N; i++){ 
     vertex_data & data = (vertex_data&)g->vertex_data(i);
     if (i < ps.M)
@@ -651,6 +666,7 @@ void import_uvt_from_file(){
     }
  } 
 }
+
 
 void set_num_edges(int val, testtype data_type){
   switch(data_type){

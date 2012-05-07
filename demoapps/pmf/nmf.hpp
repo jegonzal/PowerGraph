@@ -247,25 +247,21 @@ void nmf_update_function(gl_types::iscope & scope,
 void pre_user_iter(){
    const graph_type *g = ps.g<graph_type>(TRAINING); 
    x1 = zeros(ac.D);
- //#pragma omp parallel for
    for (int i=ps.M; i<ps.M+ps.N; i++){
     const vertex_data & data = g->vertex_data(i);
-    for (int i=0; i<ac.D; i++){
-      x1[i] += data.pvec[i];
-    }
+    x1 += data.pvec;
   }
+  if (ac.debug) cout<<"summed total " << ps.N << " values for x1 " << endl;
 }
 void pre_movie_iter(){
 
   const graph_type *g = ps.g<graph_type>(TRAINING);    
   x2 = zeros(ac.D);
-  //#pragma omp parallel for
    for (int i=0; i<ps.M; i++){
     const vertex_data & data = g->vertex_data(i);
-    for (int i=0; i<ac.D; i++){
-      x2[i] += data.pvec[i];
-    }
+    x2 += data.pvec;
   }
+  if (ac.debug) cout<<"summed total " << ps.M << " values for x2 " << endl;
 }
 
 void nmf_post_iter(){
@@ -299,13 +295,13 @@ void nmf<>(gl_types::core * _glcore){
 
      pre_user_iter();
      if (ac.debug)
-        cout<<"x1: " << x1[0] <<endl;
+        cout<<"x1: " << x1 <<endl;
      glcore->add_tasks(rows, nmf_update_function, 1);
      glcore->start();
      
      pre_movie_iter();
      if (ac.debug)
-        cout<<"x2:" << x2[0] << endl;
+        cout<<"x2:" << x2 << endl;
      glcore->add_tasks(cols, nmf_update_function, 1);
      glcore->start();
      
