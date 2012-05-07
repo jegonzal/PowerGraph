@@ -59,6 +59,22 @@ ExternalProject_Add(eigen
 add_definitions(-DHAS_EIGEN)
 include_directories(${GraphLab_SOURCE_DIR}/deps/local/include/eigen3)
 
+# Build jsonsl (JSON Lexer)
+
+# For now we download jsonsl from our servers I don't want to assume
+# that our users have git
+ExternalProject_Add(jsonsl
+  PREFIX ${GraphLab_SOURCE_DIR}/deps/jsonsl
+  URL http://graphlab.org/deps/mnunberg-jsonsl-a484126.tar.gz
+  URL_MD5 363bc7b16273b338f9b402558c89d38c
+  CONFIGURE_COMMAND cd .
+  BUILD_COMMAND cd <SOURCE_DIR> && make STATIC_LIB=true LIB_SUFFIX=.a
+  # JSONSL compiles its static library in the source directory, and it does not
+  # have an 'install' target
+  INSTALL_COMMAND cp <SOURCE_DIR>/libjsonsl.a <INSTALL_DIR>/lib/libjsonsl.a
+  INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local)
+set(JSONSL_LIB_DIR ${GraphLab_SOURCE_DIR}/deps/local/lib)
+
 # http://downloads.sourceforge.net/project/boost/boost/1.49.0/boost_1_49_0.tar.gz"
 #  URL "http://sourceforge.net/projects/boost/files/boost/1.49.0/boost_1_49_0.tar.gz/download boost.tar.gz"
 # SVN_REPOSITORY http://svn.boost.org/svn/boost/trunk
