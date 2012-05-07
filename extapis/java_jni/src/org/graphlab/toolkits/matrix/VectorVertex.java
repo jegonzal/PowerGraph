@@ -1,6 +1,7 @@
 package org.graphlab.toolkits.matrix;
 
-import no.uib.cipr.matrix.DenseVector;
+import no.uib.cipr.matrix.Vector;
+
 import org.graphlab.data.Vertex;
 
 /**
@@ -22,7 +23,7 @@ public class VectorVertex extends Vertex {
   private int mId;
   
   /** Data for this vertex */
-  private DenseVector mVector;
+  private Vector mVector;
   
   public VectorVertex(){}
   
@@ -44,11 +45,11 @@ public class VectorVertex extends Vertex {
    * Sets the data for this vertex.
    * @param vector
    */
-  public void setVector(DenseVector vector){
+  public void setVector(Vector vector){
     mVector = vector;
   }
   
-  public DenseVector vector(){
+  public Vector vector(){
     return mVector;
   }
   

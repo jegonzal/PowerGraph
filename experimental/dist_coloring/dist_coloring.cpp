@@ -232,7 +232,7 @@ int main(int argc, char** argv) {
   graphlab::timer timer; timer.start();
   graph_type graph(dc, clopts);
   if(powerlaw > 0) {
-    graph.build_powerlaw(powerlaw);
+    graph.build_powerlaw(powerlaw,false, 2, 10000000);
   } else if(lognormal > 0) {
     graph.build_lognormal(lognormal);
   } else if(ring > 0) {

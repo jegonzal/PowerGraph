@@ -259,7 +259,6 @@ namespace graphlab {
      */
     void resize(size_t num_vertices ) {
       ASSERT_GE(num_vertices, vertices.size());
-      vertices.reserve(num_vertices);
       vertices.resize(num_vertices);
       if (use_vcolor) vcolors.resize(vertices.size());
     } // End of resize

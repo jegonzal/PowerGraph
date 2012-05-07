@@ -85,6 +85,22 @@ namespace graphlab {
       }
 
       /** returns true if set for the first time */
+      inline bool set_unsafe(lock_free_pool<update_functor_type>& pool,
+                              const update_functor_type& other,
+                              atomic<size_t> &joincounter) {
+        if (functor == NULL) {
+          functor = pool.alloc();
+          (*functor) = other;
+          return true;
+        }
+        else {
+          (*functor) += other;
+          joincounter.inc();
+          return false;
+        }
+      }
+      
+      /** returns true if set for the first time */
       inline bool set(lock_free_pool<update_functor_type>& pool,
                       const update_functor_type& other,
                       atomic<size_t> &joincounter) {
@@ -270,6 +286,14 @@ namespace graphlab {
       ASSERT_LT(vid, vfun_set.size());
       return vfun_set[vid].set(pool, fun, joincounter);
     } // end of add task to set 
+
+    /** Add a task to the set returning false if the task was already
+        present. */
+    bool add_unsafe(const vertex_id_type& vid,
+                    const update_functor_type& fun) {
+      ASSERT_LT(vid, vfun_set.size());
+      return vfun_set[vid].set_unsafe(pool, fun, joincounter);
+    } // end of add task to set
 
     /** Add a task to the set returning false if the task was already
         present. */

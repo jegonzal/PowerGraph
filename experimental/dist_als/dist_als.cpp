@@ -174,6 +174,8 @@ public:
     ++vdata.nupdates;
     XtX = Eigen::MatrixXd();
     Xty = Eigen::VectorXd();
+
+    //    context.schedule(context.vertex_id(), als_update(1));
   } // end of apply
 
 
