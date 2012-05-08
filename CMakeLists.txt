@@ -71,7 +71,8 @@ ExternalProject_Add(jsonsl
   BUILD_COMMAND cd <SOURCE_DIR> && make STATIC_LIB=true LIB_SUFFIX=.a
   # JSONSL compiles its static library in the source directory, and it does not
   # have an 'install' target
-  INSTALL_COMMAND cp <SOURCE_DIR>/libjsonsl.a <INSTALL_DIR>/lib/libjsonsl.a
+  INSTALL_COMMAND cp <SOURCE_DIR>/libjsonsl.a <INSTALL_DIR>/lib/libjsonsl.a &&
+                  cp <SOURCE_DIR>/jsonsl.h    <INSTALL_DIR>/include/jsonsl.h
   INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local)
 set(JSONSL_LIB_DIR ${GraphLab_SOURCE_DIR}/deps/local/lib)
 

@@ -25,8 +25,10 @@
  * @author Jiunn Haur Lim <jiunnhal@cmu.edu>
  */
  
-#include "process.hpp"
 #include <sstream>
+#include "process.hpp"
+
+#define NBYTES 1024               // input buffer size
 
 using namespace graphlab;
 namespace io = boost::asio;
@@ -83,15 +85,13 @@ std::size_t process::write(json_message& message) {
   io::streambuf buffer;
   std::ostream output(&buffer);
   output << message << std::flush;
-
-  // TODO: do I have to deal with short counts?
-  boost::system::error_code ec;
+  
   std::size_t bytes;
   try {
-    bytes = io::write(pout, buffer, ec);
-    if (ec) std::cerr << boost::system::system_error(ec).what() << std::endl;
+    // write deals with short counts
+    bytes = io::write(pout, buffer);
   }catch (boost::system::system_error e){
-    throw ("An error was encountered while writing to child process.");
+    throw e;  // TODO error handling
   }
   
   // Note to self: we don't want async_write here, because our purpose is to 
@@ -107,15 +107,23 @@ json_message& process::read(json_message& message){
 
   if (!pin.is_open()) throw ("Pipe closed unexpectedly.");
   
-//   std::size_t bytes;
-//   try {
-//     // TODO: how to stop reading? use JSON?
-//     bytes = io::read_until(pin, buffer, '\r');
-//   }catch (boost::system::system_error e){
-//     throw ("An error was encountered while reading from child process.");
-//   }
-//   
-//   return bytes;
+  json_message::byte data[NBYTES+1];
+  std::size_t nread = 0;
+  data[NBYTES] = NULL;                // make sure last character is NULL
+  
+  try {
+    while (true){
+      // reset buffer
+      nread = 0;
+      memset(data, 0, NBYTES);
+      nread = pin.read_some(io::buffer(data, NBYTES));
+      logstream(LOG_DEBUG) << std::string(data) << std::endl;
+      // feed partial JSON to message, stop if complete
+      if(!message.feed(data, nread)) break;
+    }
+  }catch (boost::system::system_error e){
+    logstream(LOG_ERROR) << e.what() << std::endl;
+  }
   
   return message;
   
