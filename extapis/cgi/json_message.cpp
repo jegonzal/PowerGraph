@@ -35,7 +35,7 @@ namespace json = rapidjson;
 
 /**
  * If parent is an object, adds child to pending key and removes pending key;
- * If parent is an array, adds child to end of array
+ * if parent is an array, adds child to end of array
  * Otherwise, throws error.
  */
 static json::Value &
@@ -64,7 +64,8 @@ add_to_parent(json::Value& parent,
 }
 
 /**
- * Called to create new JSON element
+ * Called to create new JSON element.
+ * Strings are added to their parents after they are closed.
  */
 static void
 create_new_element(jsonsl_t jsn,
@@ -119,6 +120,10 @@ create_new_element(jsonsl_t jsn,
     
 }
 
+/**
+ * Called to close an elements.
+ * Strings are added to their parents after they are closed.
+ */
 static void
 end_element (jsonsl_t jsn,
             jsonsl_action_t action,
@@ -149,14 +154,14 @@ end_element (jsonsl_t jsn,
     
     switch(state->type){
       case JSONSL_T_HKEY: {
-        json::Value child(buf-state->pos_begin+1, allocator);
+        // bug: requires complete strings
+        json::Value child(buf-state->pos_begin+1);
         json::Value &val = parent.AddMember("pending-key", child, allocator);
-        // not copied: this is a bug - lexer requires complete strings
         state->data = &val;
         break;
       }
       case JSONSL_T_STRING: {
-        json::Value child(buf-state->pos_begin+1, allocator);
+        json::Value child(buf-state->pos_begin+1);
         add_to_parent(parent, child, allocator, state);
         break;
       }

@@ -50,17 +50,7 @@ void dispatcher_update::operator()(icontext_type& context){
   p.send(invocation);
   json_message result;
   p.receive(result);
-  
-//  logstream(LOG_DEBUG) << "writing..." << std::endl;
-//   p.write("oh yeah!\r\n");
-//   logstream(LOG_DEBUG) << "done." << std::endl;
-//   logstream(LOG_DEBUG) << "reading..." << std::endl;
-//   boost::asio::streambuf buffer;
-//   p.read(buffer);
-//   logstream(LOG_DEBUG) << "done." << std::endl;
-//   std::ostringstream ss;
-//   ss << &buffer;
-//   logstream(LOG_DEBUG) << ss.str() << std::endl;
+  logstream(LOG_DEBUG) << result << std::endl;
 
 }
 ////////////////////////////////////////////////////////////////////////////////
