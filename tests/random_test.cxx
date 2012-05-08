@@ -129,6 +129,12 @@ class RandomTestSuite: public CxxTest::TestSuite {
   RandomTestSuite() : iterations(1E8) { }
   
  
+  void test_nondet_generator() {
+    graphlab::random::nondet_seed();
+    graphlab::random::nondet_seed();
+    graphlab::random::nondet_seed();
+  }
+
 
   void test_random_number_generators() {
     std::cout << std::endl;
