@@ -1,5 +1,28 @@
-#ifndef DISTRIBUTED_EVENT_LOG_HPP
-#define DISTRIBUTED_EVENT_LOG_HPP
+/**  
+ * Copyright (c) 2009 Carnegie Mellon University. 
+ *     All rights reserved.
+ *
+ *  Licensed under the Apache License, Version 2.0 (the "License");
+ *  you may not use this file except in compliance with the License.
+ *  You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing,
+ *  software distributed under the License is distributed on an "AS
+ *  IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+ *  express or implied.  See the License for the specific language
+ *  governing permissions and limitations under the License.
+ *
+ * For more about this software visit:
+ *
+ *      http://www.graphlab.ml.cmu.edu
+ *
+ */
+
+
+#ifndef GRAPHLAB_DISTRIBUTED_EVENT_LOG_HPP
+#define GRAPHLAB_DISTRIBUTED_EVENT_LOG_HPP
 #include <iostream>
 #include <boost/bind.hpp>
 #include <graphlab/parallel/pthread_tools.hpp>
@@ -8,106 +31,106 @@
 #include <graphlab/util/dense_bitset.hpp>
 
 namespace graphlab {
-// forward declaration needed here so that I can use the distributed
-// event log in distributed_control itself
-class distributed_control;
-template <typename T> class dc_dist_object;
+  // forward declaration needed here so that I can use the distributed
+  // event log in distributed_control itself
+  class distributed_control;
+  template <typename T> class dc_dist_object;
 #define EVENT_MAX_COUNTERS 256
 
-class dist_event_log{
- public:
-  enum event_print_type{
-    NUMBER,
-    DESCRIPTION,
-    RATE_BAR,
-    LOG_FILE
-  };
- private:
-  std::ostream* out;  // output target
-  volatile size_t flush_interval; // flush frequency (ms)
-  event_print_type print_method;  // print method
-  volatile bool finished; // set on destruction
+  class dist_event_log{
+  public:
+    enum event_print_type{
+      NUMBER,
+      DESCRIPTION,
+      RATE_BAR,
+      LOG_FILE
+    };
+  private:
+    std::ostream* out;  // output target
+    volatile size_t flush_interval; // flush frequency (ms)
+    event_print_type print_method;  // print method
+    volatile bool finished; // set on destruction
   
-  mutex m;          
-  conditional cond;
+    mutex m;          
+    conditional cond;
   
-  thread printing_thread;
+    thread printing_thread;
 
-  // Local Counters
-  std::string descriptions[EVENT_MAX_COUNTERS];
-  atomic<size_t> counters[EVENT_MAX_COUNTERS];
+    // Local Counters
+    std::string descriptions[EVENT_MAX_COUNTERS];
+    atomic<size_t> counters[EVENT_MAX_COUNTERS];
 
-  // Global counters on proc 0
-  std::vector<atomic<size_t> > globalcounters[EVENT_MAX_COUNTERS];
-  size_t maxcounter[EVENT_MAX_COUNTERS];
-  atomic<size_t> totalcounter[EVENT_MAX_COUNTERS];
-  size_t maxproc_counter[EVENT_MAX_COUNTERS];  // maximum of per proc maximums
+    // Global counters on proc 0
+    std::vector<atomic<size_t> > globalcounters[EVENT_MAX_COUNTERS];
+    size_t maxcounter[EVENT_MAX_COUNTERS];
+    atomic<size_t> totalcounter[EVENT_MAX_COUNTERS];
+    size_t maxproc_counter[EVENT_MAX_COUNTERS];  // maximum of per proc maximums
 
-  double prevtime;  // last time flush() was called
-  bool hasevents;   // whether there are logging events
-  size_t noeventctr; // how many times flush() was called with no events
-                     // zeroed when the events are next observed.
+    double prevtime;  // last time flush() was called
+    bool hasevents;   // whether there are logging events
+    size_t noeventctr; // how many times flush() was called with no events
+    // zeroed when the events are next observed.
 
-  size_t max_desc_length; // maximum descriptor length
-  fixed_dense_bitset<EVENT_MAX_COUNTERS> hascounter;
+    size_t max_desc_length; // maximum descriptor length
+    fixed_dense_bitset<EVENT_MAX_COUNTERS> hascounter;
 
-  std::vector<std::pair<unsigned char, size_t> > immediate_events;
+    std::vector<std::pair<unsigned char, size_t> > immediate_events;
   
-  dc_dist_object<dist_event_log> *rmi;
- public:
-  inline dist_event_log():out(NULL),
-                        flush_interval(0),
-                        print_method(DESCRIPTION),
-                        finished(false),
-                        prevtime(0),
-                        hasevents(false),
-                        noeventctr(0),
-                        max_desc_length(0),
-                        rmi(NULL) {
-    hascounter.clear();
-    for (size_t i = 0;i < EVENT_MAX_COUNTERS; ++i) {
-      maxcounter[i] = 0;
-      maxproc_counter[i] = 0;
-      totalcounter[i].value = 0;
+    dc_dist_object<dist_event_log> *rmi;
+  public:
+    inline dist_event_log():out(NULL),
+                            flush_interval(0),
+                            print_method(DESCRIPTION),
+                            finished(false),
+                            prevtime(0),
+                            hasevents(false),
+                            noeventctr(0),
+                            max_desc_length(0),
+                            rmi(NULL) {
+      hascounter.clear();
+      for (size_t i = 0;i < EVENT_MAX_COUNTERS; ++i) {
+        maxcounter[i] = 0;
+        maxproc_counter[i] = 0;
+        totalcounter[i].value = 0;
+      }
+      printing_thread.launch(boost::bind(&dist_event_log::thread_loop, this));
     }
-    printing_thread.launch(boost::bind(&dist_event_log::thread_loop, this));
-  }
   
-  void initialize(distributed_control& dc,
-                  std::ostream &ostrm,
-                  size_t flush_interval_ms,
-                  event_print_type event_print);
+    void initialize(distributed_control& dc,
+                    std::ostream &ostrm,
+                    size_t flush_interval_ms,
+                    event_print_type event_print);
 
-  void close();
+    void close();
   
-  void destroy();
+    void destroy();
   
-  void thread_loop();
+    void thread_loop();
 
-  void add_event_type(unsigned char eventid, std::string description);
+    void add_event_type(unsigned char eventid, std::string description);
   
-  void add_immediate_event_type(unsigned char eventid, std::string description);
+    void add_immediate_event_type(unsigned char eventid, std::string description);
 
-  void accumulate_event_aggregator(size_t proc,
-                                   unsigned char eventid,
-                                   size_t count);
+    void accumulate_event_aggregator(size_t proc,
+                                     unsigned char eventid,
+                                     size_t count);
   
-  void immediate_event_aggregator(const std::vector<std::pair<unsigned char, size_t> >& im);
+    void immediate_event_aggregator(const std::vector<std::pair<unsigned char, size_t> >& im);
   
-  inline void accumulate_event(unsigned char eventid,
-                               size_t count)  __attribute__((always_inline)) {
-    counters[eventid].inc(count);
-  }
+    inline void accumulate_event(unsigned char eventid,
+                                 size_t count)  __attribute__((always_inline)) {
+      counters[eventid].inc(count);
+    }
 
-  void immediate_event(unsigned char eventid);
+    void immediate_event(unsigned char eventid);
 
-  void flush_and_reset_counters();
+    void flush_and_reset_counters();
 
 
-  void print_log();
-  void flush();
-  ~dist_event_log();
-};
+    void print_log();
+    void flush();
+    ~dist_event_log();
+  };
 
 }
 /**
@@ -143,8 +166,8 @@ class dist_event_log{
  */
 #ifdef USE_EVENT_LOG
 #define DECLARE_DIST_EVENT_LOG(name) graphlab::dist_event_log name;
-#define INITIALIZE_DIST_EVENT_LOG(name, dc, ostrm, flush_interval, printdesc)    \
-                    name.initialize(dc, ostrm, flush_interval, printdesc);
+#define INITIALIZE_DIST_EVENT_LOG(name, dc, ostrm, flush_interval, printdesc) \
+  name.initialize(dc, ostrm, flush_interval, printdesc);
 #define ADD_DIST_EVENT_TYPE(name, id, desc) name.add_event_type(id, desc);
 #define ADD_IMMEDIATE_DIST_EVENT_TYPE(name, id, desc) name.add_immediate_event_type(id, desc);
 #define ACCUMULATE_DIST_EVENT(name, id, count) name.accumulate_event(id, count);
@@ -166,8 +189,8 @@ class dist_event_log{
 #endif
 
 #define PERMANENT_DECLARE_DIST_EVENT_LOG(name) graphlab::dist_event_log name;
-#define PERMANENT_INITIALIZE_DIST_EVENT_LOG(name, dc, ostrm, flush_interval, printdesc)    \
-                    name.initialize(dc, ostrm, flush_interval, printdesc);
+#define PERMANENT_INITIALIZE_DIST_EVENT_LOG(name, dc, ostrm, flush_interval, printdesc) \
+  name.initialize(dc, ostrm, flush_interval, printdesc);
 #define PERMANENT_ADD_DIST_EVENT_TYPE(name, id, desc) name.add_event_type(id, desc);
 #define PERMANENT_ADD_IMMEDIATE_DIST_EVENT_TYPE(name, id, desc) name.add_immediate_event_type(id, desc);
 #define PERMANENT_ACCUMULATE_DIST_EVENT(name, id, count) name.accumulate_event(id, count);
