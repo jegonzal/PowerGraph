@@ -8,18 +8,11 @@
 #include <vector>
 #include <map>
 
-
-
-
 #include <boost/program_options.hpp>
 #include <boost/math/special_functions/gamma.hpp>
 
 
 #include <graphlab.hpp>
-
-
-
-
 
 
 #include <graphlab/macros_def.hpp>
