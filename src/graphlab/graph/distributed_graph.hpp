@@ -62,6 +62,7 @@
 #include <graphlab/graph/ingress/distributed_batch_ingress2.hpp>
 #include <graphlab/graph/ingress/distributed_oblivious_ingress.hpp>
 #include <graphlab/graph/ingress/distributed_random_ingress.hpp>
+#include <graphlab/graph/ingress/distributed_identity_ingress.hpp>
 #include <graphlab/util/hdfs.hpp>
 #include <boost/iostreams/stream.hpp>
 #include <boost/iostreams/filtering_stream.hpp>
@@ -103,6 +104,11 @@ namespace graphlab {
     typedef distributed_random_ingress<VertexData, EdgeData>
         distributed_random_ingress_type;
     friend class distributed_random_ingress<VertexData, EdgeData>;
+
+    typedef distributed_identity_ingress<VertexData, EdgeData>
+        distributed_identity_ingress_type;
+    friend class distributed_identity_ingress<VertexData, EdgeData>;
+
 
     typedef distributed_batch_ingress<VertexData, EdgeData>
         distributed_batch_ingress_type;
@@ -549,11 +555,16 @@ namespace graphlab {
       if (method == "batch") {
         logstream(LOG_INFO) << "Use batch ingress, bufsize: " << bufsize  
           << ", usehash: " << usehash << ", userecent" << userecent << std::endl;
-        ingress_ptr = new distributed_batch_ingress_type(rpc.dc(), *this, bufsize, usehash, userecent);
+        ingress_ptr = new distributed_batch_ingress_type(rpc.dc(), *this, 
+                                                         bufsize, usehash, userecent);
       } else if (method == "oblivious") {
         logstream(LOG_INFO) << "Use oblivious ingress, usehash: " << usehash 
           << ", userecent: " << userecent << std::endl;
-        ingress_ptr = new distributed_oblivious_ingress_type(rpc.dc(), *this, usehash, userecent);
+        ingress_ptr = new distributed_oblivious_ingress_type(rpc.dc(), *this, 
+                                                             usehash, userecent);
+      } else if (method == "identity") {
+        logstream(LOG_INFO) << "Use identity ingress" << std::endl;
+        ingress_ptr = new distributed_identity_ingress_type(rpc.dc(), *this);
       } else {
         ingress_ptr = new distributed_random_ingress_type(rpc.dc(), *this);
       }

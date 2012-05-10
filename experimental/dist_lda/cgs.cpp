@@ -22,7 +22,7 @@
 
 
 #include <vector>
-
+#include <algorithm>
 #include <distributed_graphlab.hpp>
 #include <graphlab/util/stl_util.hpp>
 
@@ -40,14 +40,16 @@ typedef std::vector<topic_id_type> token_asg_type;
 
 
 // Global variables
+size_t TOPK = 5;
 size_t NTOPICS = 100;
 size_t NWORDS = 0;
 size_t NDOCS = 0;
-double ALPHA = 0.01;
+size_t NITER = -1;
+double ALPHA = 0.1;
 double BETA = 1;
 std::vector< std::string > dictionary;
 std::vector< graphlab::atomic<count_type> > global_factor;
-
+graphlab::timer timer;
 
 
 
@@ -63,10 +65,13 @@ void operator+=(factor_type& a, const factor_type& b) {
  */
 struct vertex_data {
   factor_type factor;
-  vertex_data() : factor(NTOPICS)  { }
-  void save(graphlab::oarchive& arc) const { arc << factor; }
-  void load(graphlab::iarchive& arc) { arc >> factor; }
+  uint32_t nupdates;
+  vertex_data() : factor(NTOPICS), nupdates(0)  { }
+  void save(graphlab::oarchive& arc) const { arc << factor << nupdates; }
+  void load(graphlab::iarchive& arc) { arc >> factor >> nupdates; }
 };
+
+
 
 
 /**
@@ -78,6 +83,8 @@ struct edge_data {
   void save(graphlab::oarchive& arc) const { arc << asgs; }
   void load(graphlab::iarchive& arc) { arc >> asgs; }
 };
+
+
 
 
 /**
@@ -139,6 +146,7 @@ public:
 
   void apply(icontext_type& context) {
     vertex_data& vdata = context.vertex_data();
+    ++vdata.nupdates;
     const size_t nneighbors = context.num_in_edges() + context.num_out_edges();
     ASSERT_TRUE(nneighbors > 0);
     // Assume: Document ----> word    
@@ -193,14 +201,18 @@ public:
       // update the new assignment
       edata.asgs.swap(nbr_info[neighbor_id].first);
       nbr_info.erase(neighbor_id);
+      // reschedule the neighbor to be run again in the future
+      context.schedule(neighbor_id, lda_cgs());
+    } else {
+      const vertex_data& neighbor_vdata = context.const_vertex_data(neighbor_id); 
+      if(neighbor_vdata.nupdates < NITER) 
+        context.schedule(neighbor_id, lda_cgs());
     }
-    // reschedule the neighbor to be run again in the future
-    context.schedule(neighbor_id, lda_cgs());
   } // end of gather
 
-
-
 }; // end of lad
+
+
 
 
 
@@ -215,11 +227,107 @@ typedef graphlab::distributed_engine<graph_type, lda_cgs> engine_type;
 
 
 
-//! Graph loading code 
+
+
+
+class aggregator :
+  public graphlab::iaggregator<graph_type, lda_cgs, aggregator> {
+private:
+  typedef std::pair<float, graphlab::vertex_id_type> pair_type;
+  typedef std::vector<pair_type> heap_type;
+  std::vector<heap_type> topk;
+  size_t min_updates, max_updates, total_updates;
+public:
+  aggregator() : 
+    min_updates(-1), max_updates(0), total_updates(0) { }
+  void load(graphlab::iarchive& arc) {
+    arc >> topk >> min_updates >> max_updates >> total_updates;
+  }
+  void save(graphlab::oarchive& arc) const {
+    arc << topk << min_updates << max_updates << total_updates;
+  }
+  inline bool is_factorizable() const { return false; }
+  void operator()(icontext_type& context) {
+    const vertex_data& vdata = context.const_vertex_data();
+    min_updates = std::min(min_updates, size_t(vdata.nupdates));
+    max_updates = std::max(max_updates, size_t(vdata.nupdates));
+    total_updates += vdata.nupdates;
+    const bool is_word = context.num_in_edges() > 0;
+    if(is_word) {
+      if(topk.size() != NTOPICS) topk.resize(NTOPICS);
+      const factor_type& word_factor = vdata.factor;
+      float Z = 0; 
+      for(size_t t = 0; t < NTOPICS; ++t) Z += (word_factor[t] + BETA);
+      if(Z > 0) {
+        for(size_t t = 0; t < NTOPICS; ++t) {
+          const float prb = (word_factor[t] + BETA)/Z;
+          heap_type& heap = topk[t];
+          heap.push_back(pair_type(-prb, context.vertex_id()));
+          std::push_heap(heap.begin(), heap.end());
+          if(heap.size() > TOPK) {
+            std::pop_heap(heap.begin(), heap.end()); heap.pop_back();
+          }
+        }
+      }
+    } // end of is word
+  } // end of operator()
+
+  void operator+=(const aggregator& other) {
+    ASSERT_NE(this, &other);
+    min_updates = std::min(min_updates, other.min_updates);
+    max_updates = std::max(max_updates, other.max_updates);
+    total_updates += other.total_updates;
+    if(other.topk.empty()) return;
+    std::cout << "merging topk" << std::endl;
+    // Merge the topk
+    if(topk.size() != NTOPICS) topk.resize(NTOPICS);
+    ASSERT_EQ(topk.size(), other.topk.size());
+    for(size_t t = 0; t < other.topk.size(); ++t) {
+      heap_type& heap = topk[t];
+      const heap_type& other_heap = other.topk[t];
+      // Merge the topk
+      foreach(const pair_type& pair, other_heap) {
+        heap.push_back(pair); 
+        std::push_heap(heap.begin(), heap.end());
+        if(heap.size() > TOPK) {
+          std::pop_heap(heap.begin(), heap.end()); 
+          heap.pop_back();
+        }
+      }
+    }
+  } // end of operator +=
+
+  void finalize(iglobal_context_type& context) {
+    // print out the topk words for each topic
+    foreach(heap_type& heap, topk) {
+      std::sort_heap(heap.begin(), heap.end());
+      for(size_t i = 0; i < heap.size(); ++i) {
+        const graphlab::vertex_id_type wordid = heap[i].second;
+        std::cout << dictionary[wordid] 
+                  << ((i+1 < heap.size())?  ", " : "\n");
+      }
+    }
+    // output numeric results
+    std::cout 
+      << "results:\t" 
+      << timer.current_time() << '\t'
+      << std::setw(10) << max_updates << '\t'
+      << std::setw(10) << min_updates << '\t'
+      << std::setw(10) << total_updates << '\t'
+      << std::endl;
+  }
+}; // end of  aggregator
+
+
+
+
+
+
+
 
 /** populate the global dictionary */
 void load_dictionary(const std::string& fname);
-
+//! Graph loading code 
 void load_graph_dir(graphlab::distributed_control& dc,
                     graph_type& graph, const std::string& matrix_dir,
                     const size_t procid, const size_t numprocs);
@@ -251,6 +359,9 @@ int main(int argc, char** argv) {
 
   clopts.attach_option("ntopics", &NTOPICS, NTOPICS,
                        "Number of topics to use.");
+  clopts.attach_option("niter", &NITER, NITER,
+                       "Maximum number of iterations.");
+
   clopts.attach_option("alpha", &ALPHA, ALPHA,
                        "The document hyper-prior");
   clopts.attach_option("beta", &ALPHA, ALPHA,
@@ -274,7 +385,6 @@ int main(int argc, char** argv) {
   dc.barrier();
 
   std::cout << dc.procid() << ": Loading graph." << std::endl;
-  graphlab::timer timer;
   timer.start();
   graph_type graph(dc, clopts);
   std::cout << "Loading text matrix file" << std::endl;
@@ -313,6 +423,7 @@ int main(int argc, char** argv) {
   std::cout << dc.procid() << ": Intializing engine" << std::endl;
   engine.set_options(clopts);
   engine.initialize();
+  engine.add_aggregator("topk", aggregator(), interval); 
 
 
 
