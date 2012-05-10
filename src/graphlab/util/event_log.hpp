@@ -33,79 +33,79 @@ namespace graphlab {
 
 #define EVENT_MAX_COUNTERS 256
 
-class event_log{
- public:
-  enum event_print_type{
-    NUMBER,
-    DESCRIPTION,
-    RATE_BAR,
-    LOG_FILE
-  };
- private:
-  std::ostream* out;  // output target
-  volatile size_t flush_interval; // flush frequency (ms)
-  event_print_type print_method;  // print method
-  volatile bool finished; // set on destruction
+  class event_log{
+  public:
+    enum event_print_type{
+      NUMBER,
+      DESCRIPTION,
+      RATE_BAR,
+      LOG_FILE
+    };
+  private:
+    std::ostream* out;  // output target
+    volatile size_t flush_interval; // flush frequency (ms)
+    event_print_type print_method;  // print method
+    volatile bool finished; // set on destruction
   
-  mutex m;          
-  conditional cond;
+    mutex m;          
+    conditional cond;
   
-  thread printing_thread;
-  std::string descriptions[EVENT_MAX_COUNTERS];
-  size_t maxcounter[EVENT_MAX_COUNTERS];
-  atomic<size_t> counters[EVENT_MAX_COUNTERS];
-  atomic<size_t> totalcounter[EVENT_MAX_COUNTERS];
+    thread printing_thread;
+    std::string descriptions[EVENT_MAX_COUNTERS];
+    size_t maxcounter[EVENT_MAX_COUNTERS];
+    atomic<size_t> counters[EVENT_MAX_COUNTERS];
+    atomic<size_t> totalcounter[EVENT_MAX_COUNTERS];
 
-  std::vector<std::pair<unsigned char, size_t> > immediate_events;
+    std::vector<std::pair<unsigned char, size_t> > immediate_events;
   
-  double prevtime;  // last time flush() was called
-  bool hasevents;   // whether there are logging events
-  size_t noeventctr; // how many times flush() was called with no events
-                     // zeroed when the events are next observed.
+    double prevtime;  // last time flush() was called
+    bool hasevents;   // whether there are logging events
+    size_t noeventctr; // how many times flush() was called with no events
+    // zeroed when the events are next observed.
 
-  size_t max_desc_length; // maximum descriptor length
-  fixed_dense_bitset<EVENT_MAX_COUNTERS> hascounter; 
- public:
-  inline event_log():out(NULL),
-                     flush_interval(0),
-                     print_method(DESCRIPTION),
-                     finished(false),
-                     prevtime(0),
-                     hasevents(false),
-                     noeventctr(0),
-                     max_desc_length(0) {
-    hascounter.clear();
-    for (size_t i = 0;i < EVENT_MAX_COUNTERS; ++i) {
-      maxcounter[i] = 0;
-      totalcounter[i].value = 0;
+    size_t max_desc_length; // maximum descriptor length
+    fixed_dense_bitset<EVENT_MAX_COUNTERS> hascounter; 
+  public:
+    inline event_log():out(NULL),
+                       flush_interval(0),
+                       print_method(DESCRIPTION),
+                       finished(false),
+                       prevtime(0),
+                       hasevents(false),
+                       noeventctr(0),
+                       max_desc_length(0) {
+      hascounter.clear();
+      for (size_t i = 0;i < EVENT_MAX_COUNTERS; ++i) {
+        maxcounter[i] = 0;
+        totalcounter[i].value = 0;
+      }
+      printing_thread.launch(boost::bind(&event_log::thread_loop, this));
     }
-    printing_thread.launch(boost::bind(&event_log::thread_loop, this));
-  }
   
-  void initialize(std::ostream &ostrm,
-                  size_t flush_interval_ms,
-                  event_print_type event_print);
+    void initialize(std::ostream &ostrm,
+                    size_t flush_interval_ms,
+                    event_print_type event_print);
 
-  void close();
+    void close();
   
-  void thread_loop();
+    void thread_loop();
 
-  void add_event_type(unsigned char eventid, std::string description);
-  void add_immediate_event_type(unsigned char eventid, std::string description);
+    void add_event_type(unsigned char eventid, std::string description);
+    void add_immediate_event_type(unsigned char eventid, std::string description);
 
-  inline void accumulate_event(unsigned char eventid,
-                               size_t count)  __attribute__((always_inline)) {
-    hasevents = true;
-    counters[eventid].inc(count);
-    totalcounter[eventid].inc(count);
-  }
+    inline void accumulate_event(unsigned char eventid,
+                                 size_t count)  __attribute__((always_inline)) {
+      hasevents = true;
+      counters[eventid].inc(count);
+      totalcounter[eventid].inc(count);
+    }
 
-  void immediate_event(unsigned char eventid);
+    void immediate_event(unsigned char eventid);
 
-  void flush();
+    void flush();
 
-  ~event_log();
-};
+    ~event_log();
+  };
 
 }
 /**
@@ -144,7 +144,7 @@ class event_log{
 #ifdef USE_EVENT_LOG
 #define DECLARE_EVENT_LOG(name) graphlab::event_log name;
 #define INITIALIZE_EVENT_LOG(name, ostrm, flush_interval, printdesc)    \
-                    name.initialize(ostrm, flush_interval, printdesc);
+  name.initialize(ostrm, flush_interval, printdesc);
 #define ADD_EVENT_TYPE(name, id, desc) name.add_event_type(id, desc);
 #define ADD_IMMEDIATE_EVENT_TYPE(name, id, desc) name.add_immediate_event_type(id, desc);
 #define ACCUMULATE_EVENT(name, id, count) name.accumulate_event(id, count);
@@ -164,8 +164,8 @@ class event_log{
 #endif
 
 #define PERMANENT_DECLARE_EVENT_LOG(name) graphlab::event_log name;
-#define PERMANENT_INITIALIZE_EVENT_LOG(name, ostrm, flush_interval, printdesc)    \
-                    name.initialize(ostrm, flush_interval, printdesc);
+#define PERMANENT_INITIALIZE_EVENT_LOG(name, ostrm, flush_interval, printdesc) \
+  name.initialize(ostrm, flush_interval, printdesc);
 #define PERMANENT_ADD_EVENT_TYPE(name, id, desc) name.add_event_type(id, desc);
 #define PERMANENT_ADD_IMMEDIATE_EVENT_TYPE(name, id, desc) name.add_immediate_event_type(id, desc);
 #define PERMANENT_ACCUMULATE_EVENT(name, id, count) name.accumulate_event(id, count);
