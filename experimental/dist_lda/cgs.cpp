@@ -107,7 +107,9 @@ public:
   bool is_factorizable() const { return true; }
 
   // Reset the accumulator before running the gather
-  void init_gather(icontext_type& context) {  } // end of init gather
+  void init_gather(icontext_type& context) { 
+    factor.clear(); nbr_info.clear();
+  } // end of init gather
 
   void gather(icontext_type& context, const edge_type& edge) {
     // Assume: Document ----> word
@@ -117,7 +119,7 @@ public:
     const vertex_data& neighbor_vdata = context.const_vertex_data(neighbor_id); 
     const edge_data& edata = context.const_edge_data(edge);
     if(is_word) { // accumulating the new count
-      if(factor.empty()) factor.resize(NTOPICS);
+      if(factor.size() != NTOPICS) factor.resize(NTOPICS);
       foreach(const topic_id_type asg, edata.asgs) 
         if(asg != NULL_TOPIC) ++factor[asg];
     } else { // This is a document vertex
@@ -173,9 +175,9 @@ public:
           // ASSERT_GT(normalizer, 0);
           // for(size_t t = 0; t < ntopics; ++t) prob[t] /= normalizer;
           asg = graphlab::random::multinomial(prob);
-          doc_factor[asg]++;
-          word_factor[asg]++;                    
-          global_factor[asg]++;
+          ++doc_factor[asg];
+          ++word_factor[asg];                    
+          ++global_factor[asg];
         } // End of loop over each token
       } // end of loop over neighbors      
     }
@@ -189,7 +191,8 @@ public:
     if(is_doc) {
       edge_data& edata = context.edge_data(edge);
       // update the new assignment
-      edata.asgs.swap(nbr_info[neighbor_id].first);      
+      edata.asgs.swap(nbr_info[neighbor_id].first);
+      nbr_info.erase(neighbor_id);
     }
     // reschedule the neighbor to be run again in the future
     context.schedule(neighbor_id, lda_cgs());
@@ -227,8 +230,8 @@ void load_graph_file(graph_type& graph, const std::string& fname);
 
 
 int main(int argc, char** argv) {
-  global_logger().set_log_level(LOG_INFO);
-  global_logger().set_log_to_console(true);
+  //  global_logger().set_log_level(LOG_INFO);
+  //  global_logger().set_log_to_console(true);
 
   // Parse command line options -----------------------------------------------
   const std::string description = 
@@ -236,14 +239,15 @@ int main(int argc, char** argv) {
   graphlab::command_line_options clopts(description);
   clopts.use_distributed_options();
   std::string matrix_dir; 
-  std::string dictionary_file;
+  std::string dictionary_fname;
   size_t interval = 10;
+  clopts.attach_option("dictionary", &dictionary_fname, dictionary_fname,
+                       "The file containing the list of unique words");
+  clopts.add_positional("dictionary");
+
   clopts.attach_option("matrix", &matrix_dir, matrix_dir,
                        "The directory containing the matrix file");
   clopts.add_positional("matrix");
-  clopts.attach_option("dictionary", &dictionary, dictionary,
-                       "The file containing the list of unique words");
-  clopts.add_positional("dictionary");
 
   clopts.attach_option("ntopics", &NTOPICS, NTOPICS,
                        "Number of topics to use.");
@@ -253,7 +257,7 @@ int main(int argc, char** argv) {
                        "The word hyper-prior");
   clopts.attach_option("interval", &interval, interval,
                        "statistics reporting interval");
-  if(!clopts.parse(argc, argv)) {
+  if(!clopts.parse(argc, argv) || dictionary_fname.empty() || matrix_dir.empty()) {
     std::cout << "Error in parsing command line arguments." << std::endl;
     return EXIT_FAILURE;
   }
@@ -265,7 +269,8 @@ int main(int argc, char** argv) {
   graphlab::distributed_control dc(rpc_parameters);
   
   std::cout << dc.procid() << ": Loading the dictionary." << std::endl;
-  load_dictionary(dictionary_file);
+  load_dictionary(dictionary_fname);
+  global_factor.resize(NTOPICS);
   dc.barrier();
 
   std::cout << dc.procid() << ": Loading graph." << std::endl;
@@ -389,11 +394,12 @@ void load_dictionary(const std::string& fname) {
                            << fname << std::endl;
     }
     std::string term;
-    while(std::getline(fin,term) && fin.good()) dictionary.push_back(term);
+    while(std::getline(fin,term).good()) dictionary.push_back(term);
     if (gzip) fin.pop();
     fin.pop();
     in_file.close();
   } else {
+    std::cout << "opening: " << fname << std::endl;
     std::ifstream in_file(fname.c_str(), 
                           std::ios_base::in | std::ios_base::binary);
     boost::iostreams::filtering_stream<boost::iostreams::input> fin;  
@@ -403,7 +409,8 @@ void load_dictionary(const std::string& fname) {
       logstream(LOG_FATAL) << "Error opening file:" << fname << std::endl;
     }
     std::string term;
-    while(std::getline(fin,term) && fin.good()) dictionary.push_back(term);
+    std::cout << "Loooping" << std::endl;
+    while(std::getline(fin, term).good()) dictionary.push_back(term);
     if (gzip) fin.pop();
     fin.pop();
     in_file.close();
@@ -424,7 +431,6 @@ void load_graph_stream(graph_type& graph, Stream& fin) {
     float value = 0;
     fin >> source >> target >> value; 
     if(!fin.good()) break;
-    ASSERT_LT(target, source);   
     graph.add_edge(source + NWORDS, target, edge_data(value));
   } // end of loop over file
 } // end of load graph from stream;
