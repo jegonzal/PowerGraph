@@ -38,10 +38,6 @@
 extern advanced_config ac;
 extern problem_setup ps;
 
-
-extern advanced_config ac;
-extern problem_setup ps;
-
 using namespace graphlab;
 
 void time_svd_post_iter();

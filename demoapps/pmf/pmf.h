@@ -76,7 +76,7 @@ Koren time-SVD++ is described in the paper:
 
 #include "mathlayer.hpp"
 #include "../gabp/advanced_config.h"
-
+#include <boost/algorithm/string/predicate.hpp>
 
 //starts for holding edge data in file
 struct edge_double{
@@ -210,10 +210,11 @@ enum runmodes{
    ALS_SPARSE_MOVIE_FACTOR = 12,
    SVD = 13, //simular value decompoistion via double sided Lanczos
    TIME_SVD_PLUS_PLUS = 14, //time-SVD++ (see reference 12)
-   BIAS_SGD = 15
+   BIAS_SGD = 15,
+   RBM = 16
 };
 
-#define MAX_RUNMODE 16
+#define MAX_RUNMODE 17
 
 //counters for debugging running time of different modules
 enum countervals{
@@ -366,6 +367,7 @@ void problem_setup::verify_setup(){
   case NMF:
   case SVD:
   case BIAS_SGD:
+  case RBM:
     tensor = false; BPTF = false;
     break;
 
@@ -441,7 +443,11 @@ void save_matrix_market_format(const char * filename, mat &U, mat &V);
 float predict(const vertex_data& v1, const vertex_data & v2, const edge_data * edge, float rating, float & prediction);
 float predict(const vertex_data_svdpp& user, const vertex_data_svdpp& movie, const edge_data * edge, const vertex_data * nothing, float rating, float & prediction);
 float predict(const vertex_data& v1, const vertex_data& v2, const edge_data * edge, const vertex_data *v3, float rating, float &prediction);
-
+void rbm_update_function(gl_types_svdpp::iscope &scope, gl_types_svdpp::icallback &scheduler);
+void rbm_update_function(gl_types::iscope &scope, gl_types::icallback &scheduler){ assert(false); }
+void rbm_update_function(gl_types_mcmc::iscope &scope, gl_types_mcmc::icallback &scheduler) { assert(false); }
+void rbm_update_function(gl_types_mult_edge::iscope &scope, gl_types_mult_edge::icallback &scheduler) { assert(false); }
+void rbm_init(); 
 
 #endif
 

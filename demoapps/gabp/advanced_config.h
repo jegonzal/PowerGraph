@@ -187,6 +187,13 @@ double fuzzy_scatter;
 /*  statistics */
 bool calc_ap; //calc AP@3 statistics
 
+/* for rbm */
+double rbm_mult_step_dec;
+double rbm_alpha;
+double rbm_beta;
+double rbm_scaling;
+int rbm_bins;
+
 bool show_version;
 
 bool reduce_mem_consumption;
@@ -297,6 +304,13 @@ advanced_config(){
    fuzzy_scatter = 0.1;
 
    calc_ap = false;
+
+   /* for RBM */
+   rbm_mult_step_dec = 0.9;
+   rbm_alpha = 0.1;
+   rbm_beta = 0.1;
+   rbm_scaling = 10;
+   rbm_bins = 11;
 
    shuffle = false;
 

@@ -33,6 +33,7 @@ extern advanced_config ac;
 extern problem_setup ps;
 
 using namespace graphlab;
+using namespace std;
 
 extern const char * testtypename[];
 extern const char * countername[];

@@ -47,10 +47,10 @@
 #include "../gabp/advanced_config.h"
 #include "svdpp.hpp"
 #include "timesvdpp.hpp"
-
+#include "rbm.hpp"
 #include <graphlab/macros_def.hpp>
 
-const char * runmodesname[] = {"ALS_MATRIX (Alternating least squares)", "BPTF_MATRIX (Bayesian Prob. Matrix Factorization)", "BPTF_TENSOR (Bayesian Prob. Tensor Factorization)", "BPTF_TENSOR_MULT", "ALS_TENSOR_MULT", "SVD++", "SGD (Stochastic Gradient Descent)", "SVD (Singular Value Decomposition via LANCZOS)", "NMF (non-negative factorization)", "Weighted alternating least squares", "Alternating least squares with sparse user factor matrix", "Alternating least squares with doubly sparse (user/movie) factor matrices", "Alternating least squares with sparse movie factor matrix", "SVD (Singular Value Decomposition)", "Koren's time-SVD++", "Bias-SGD"};
+const char * runmodesname[] = {"ALS_MATRIX (Alternating least squares)", "BPTF_MATRIX (Bayesian Prob. Matrix Factorization)", "BPTF_TENSOR (Bayesian Prob. Tensor Factorization)", "BPTF_TENSOR_MULT", "ALS_TENSOR_MULT", "SVD++", "SGD (Stochastic Gradient Descent)", "SVD (Singular Value Decomposition via LANCZOS)", "NMF (non-negative factorization)", "Weighted alternating least squares", "Alternating least squares with sparse user factor matrix", "Alternating least squares with doubly sparse (user/movie) factor matrices", "Alternating least squares with sparse movie factor matrix", "SVD (Singular Value Decomposition)", "Koren's time-SVD++", "Bias-SGD", "RBM (Restriced Bolzman Machines)"};
 
 const char * countername[] = {"EDGE_TRAVERSAL", "BPTF_SAMPLE_STEP", "CALC_RMSE_Q", "ALS_LEAST_SQUARES", \
   "BPTF_TIME_EDGES", "BPTF_LEAST_SQUARES", "CALC_OBJ", "BPTF_MVN_RNDEX", "BPTF_LEAST_SQUARES2", "SVD_MULT_A", "SVD_MULT_A_TRANSPOSE"};
@@ -170,7 +170,11 @@ void add_tasks(core & glcore){
      case BIAS_SGD:
        glcore.add_tasks(um, bias_sgd_update_function, 1);
        break;
-  
+ 
+     case RBM:
+       glcore.add_tasks(um, rbm_update_function, 1);
+        break;
+ 
      case LANCZOS:
      case NMF:
      case SVD:
@@ -230,6 +234,12 @@ void init(graph_type *g){
    case BPTF_TENSOR:
    case STOCHASTIC_GRADIENT_DESCENT:
       init_pmf(); break;
+
+   case RBM:
+      rbm_init(); break;
+
+
+   default: assert(false);
   }
 
 }
@@ -381,6 +391,7 @@ void start(command_line_options& clopts) {
       case STOCHASTIC_GRADIENT_DESCENT:
       case TIME_SVD_PLUS_PLUS:
       case BIAS_SGD:
+      case RBM:
          run_graphlab<core, graph_type, vertex_data>(glcore, &validation_graph);
          break;
      
@@ -446,12 +457,13 @@ int do_main(int argc, const char *argv[]){
    switch(ac.algorithm){
       case ALS_TENSOR_MULT:
       case BPTF_TENSOR_MULT:
- 	start<gl_types_mult_edge, gl_types_mult_edge::core, graph_type_mult_edge, vertex_data, multiple_edges>(clopts);
+ 	      start<gl_types_mult_edge, gl_types_mult_edge::core, graph_type_mult_edge, vertex_data, multiple_edges>(clopts);
         break;
  
       case SVD_PLUS_PLUS:
       case TIME_SVD_PLUS_PLUS:
       case BIAS_SGD:
+      case RBM:
         start<gl_types_svdpp, gl_types_svdpp::core, graph_type_svdpp, vertex_data_svdpp, edge_data>(clopts);
         break;
 

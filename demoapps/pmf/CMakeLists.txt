@@ -15,7 +15,8 @@ elseif(ITPP-FOUND)
 endif()
 
 if (lapack_found)
-  add_graphlab_executable(pmf pmf.cpp advanced_config.cpp  ../../libs/matrixmarket/mmio.cpp main.cpp)
+  add_graphlab_executable(pmf pmf.cpp advanced_config.cpp
+../../libs/matrixmarket/mmio.cpp main.cpp)
 #  add_library(graphlabpmf STATIC pmf.cpp advanced_config.cpp ../../libs/matrixmarket/mmio.cpp ) 
 #  ADD_DEFINITIONS(-fPIC)
 #  add_library(graphlabpmf_pic STATIC pmf.cpp advanced_config.cpp ../../libs/matrixmarket/mmio.cpp )

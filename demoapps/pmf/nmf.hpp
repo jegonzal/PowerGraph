@@ -213,7 +213,7 @@ void nmf_update_function(gl_types::iscope & scope,
   ps.counter[EDGE_TRAVERSAL] += t.current_time();
 
   t.start();
-    foreach(graphlab::edge_id_t oedgeid, outs){
+  foreach(graphlab::edge_id_t oedgeid, outs){
       
        const vertex_data  & movie = get_neighbor(isuser,scope, oedgeid);
        for (int j=0; j<ac.D; j++){
