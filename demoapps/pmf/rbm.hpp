@@ -105,17 +105,21 @@ float rbm_predict(const vertex_data_svdpp& user,
 	  rbm_user usr(user);
     rbm_movie mov(movie);
     float ret = 0;
-    float nn = 0;
+    double nn = 0;
     for(int r = 0; r < ac.rbm_bins; ++r){               
         //float zz = exp(bi[item][r] + dot(h[user], w[r][item]));
-        float zz = exp(mov.bi[r] + dot(usr.h, &mov.w[r*ac.D]));
+        double zz = exp(mov.bi[r] + dot(usr.h, &mov.w[r*ac.D]));
         ret += zz * (float)(r);
+        assert(!std::isnan(ret));
         nn += zz;
     }
+    assert(std::fabs(nn) > 1e-12);
     ret /= nn;
-    if(ret < 0) ret = 0;
-    if(ret > 10) ret = 10;
+    if(ret < ac.minval) ret = ac.minval;
+    if(ret > ac.maxval) ret = ac.maxval;
+    assert(!std::isnan(ret));
     prediction = ret * ac.rbm_scaling;
+    assert(!std::isnan(prediction));
     return pow(prediction - rating,2);
 }
 
@@ -149,6 +153,7 @@ float rbm_predict1(const vertex_data_svdpp& user,
         }
     }
     prediction = ret * ac.rbm_scaling;
+    assert(!std::isnan(prediction));
     return pow(prediction - rating, 2);
 }
 
@@ -201,6 +206,7 @@ double calc_rbm_rmse(const graph_type_svdpp * _g, bool test, double & res){
          }
        }
    }
+   assert(!std::isnan(sqErr));
    res = sqErr;
    ASSERT_EQ(nCases , (test?ps.Le:ps.L));
    return sqrt(sqErr/(double)nCases);
@@ -263,7 +269,7 @@ void rbm_update_function(gl_types_svdpp::iscope &scope,
     //ItemRating currentItemRating = pItemRatings_training[currentRatingIdx+i];
     //unsigned int item_idx = currentItemRating.item;
     //int r = currentItemRating.score / ac.rbm_scaling;
-    vertex_data_svdpp & movie = scope.neighbor_vertex_data(oedgeid);
+    vertex_data_svdpp & movie = scope.neighbor_vertex_data(scope.target(oedgeid));
     rbm_movie mov(movie);
     edge_data & edge = scope.edge_data(oedgeid);
     int r = edge.weight / ac.rbm_scaling;
@@ -292,9 +298,9 @@ void rbm_update_function(gl_types_svdpp::iscope &scope,
     foreach(graphlab::edge_id_t oedgeid, outs){
       //ItemRating currentItemRating = pItemRatings_training[currentRatingIdx+i];
       //int vi = rating1(currentItemRating, user_idx);
-      vertex_data_svdpp & movie = scope.neighbor_vertex_data(oedgeid);
+      vertex_data_svdpp & movie = scope.neighbor_vertex_data(scope.target(oedgeid));
       edge_data & edge  = scope.edge_data(oedgeid);
-      rbm_predict(user, movie, &edge, NULL, edge.weight, prediction);
+      rbm_predict1(user, movie, &edge, NULL, edge.weight, prediction);
       int vi = prediction / ac.rbm_scaling;
       v1[i] = vi;
       i++;
@@ -307,7 +313,7 @@ void rbm_update_function(gl_types_svdpp::iscope &scope,
     foreach(graphlab::edge_id_t oedgeid, outs){
       //          ItemRating currentItemRating = pItemRatings_training[currentRatingIdx+i];
       //          unsigned int item_idx = currentItemRating.item;
-      vertex_data_svdpp & movie = scope.neighbor_vertex_data(oedgeid);
+      vertex_data_svdpp & movie = scope.neighbor_vertex_data(scope.target(oedgeid));
       rbm_movie mov(movie);
       //edge_data & edge = scope.edge_data(oedgeid);
       int r = v1[i];
@@ -329,10 +335,11 @@ void rbm_update_function(gl_types_svdpp::iscope &scope,
   }
 
   //for (int i = 0; i < userRatings; i++){
+    i = 0;
     foreach(graphlab::edge_id_t oedgeid, outs){
       //          ItemRating currentItemRating = pItemRatings_training[currentRatingIdx+i];
       //          unsigned int item_idx = currentItemRating.item;
-      vertex_data_svdpp & movie = scope.neighbor_vertex_data(oedgeid);
+      vertex_data_svdpp & movie = scope.neighbor_vertex_data(scope.target(oedgeid));
       rbm_movie mov(movie);
       edge_data & edge = scope.edge_data(oedgeid);
  
@@ -349,7 +356,8 @@ void rbm_update_function(gl_types_svdpp::iscope &scope,
       for (int k = 0; k < ac.D; k++){
         mov.w[ac.D*vi0+k] += ac.rbm_alpha * (usr.h0[k] - ac.rbm_beta * mov.w[vi0*ac.D+k]);
         mov.w[ac.D*vi1+k] -= ac.rbm_alpha * (usr.h1[k] + ac.rbm_beta * mov.w[vi1*ac.D+k]);
-     } 
+     }
+     i++; 
    }    
    ps.counter[EDGE_TRAVERSAL] += t.current_time();
 
@@ -369,11 +377,17 @@ void rbm_init(){
     //h0 = vector< vector<float> >(NUSER);
     //h1 = vector< vector<float> >(NUSER);
     //w = vector< vector< vector<float> > >(ac.rbm_bins);
-    
+    graph_type_svdpp * training = (graph_type_svdpp*)ps.g<graph_type_svdpp>(TRAINING);
+    for(int i = 0; i < ps.N; ++i){
+        vertex_data_svdpp & movie = training->vertex_data(ps.M+i);
+        movie.pvec = zeros(ac.rbm_bins);
+        movie.weight = zeros(ac.D*ac.rbm_bins);
+        movie.bias = 0;
+    }
+     
     //v1 = vector<uint8>(TrainingMetaData.trainingTotalRatings);
     //vector<float> ni(NITEM,0);
     int currentRatingIdx = 0;
-    graph_type_svdpp * training = (graph_type_svdpp*)ps.g<graph_type_svdpp>(TRAINING);
     //for (unsigned int user_idx=0; user_idx<TrainingMetaData.nUsers; user_idx++) {
     for (int i=0; i< ps.M; i++){
         //unsigned int userRatings = pUsersData[user_idx].ratings;
@@ -387,10 +401,6 @@ void rbm_init(){
            // unsigned int item_idx = currentItemRating.item;
             vertex_data_svdpp & movie = training->vertex_data(training->target(oedgeid));
             rbm_movie mov(movie);
-            if (movie.pvec.size() == 0){ 
-               movie.pvec = zeros(ac.rbm_bins);
-               
-            }
             edge_data & edge = training->edge_data(oedgeid);
             int r = edge.weight/ac.rbm_scaling;
             mov.bi[r]++;
@@ -400,8 +410,6 @@ void rbm_init(){
     }
     for(int i = 0; i < ps.N; ++i){
         vertex_data_svdpp & movie = training->vertex_data(ps.M+i);
-        movie.weight = zeros(ac.D*ac.rbm_bins);
-        movie.bias = 0;
         rbm_movie mov(movie);
         setRand2(movie.weight, ac.D*ac.rbm_bins, 0.001);
         if((*mov.ni) == 0) 

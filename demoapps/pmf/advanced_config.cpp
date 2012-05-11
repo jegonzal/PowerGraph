@@ -103,6 +103,7 @@ clopts.attach_option("svdpp_itm_fctr2_step", &svdp.itmFctr2Step, svdp.itmFctr2St
   //rbm switches
   clopts.attach_option("rbm_mult_step_dec", & rbm_mult_step_dec, rbm_mult_step_dec, "rbm multiplicate step size decrment");
   clopts.attach_option("rbm_alpha", &rbm_alpha, rbm_alpha, "rbm alpha");
+  clopts.attach_option("rbm_beta",&rbm_beta, rbm_beta, "rbm beta");
   clopts.attach_option("rbm_scaling", &rbm_scaling, rbm_scaling, "rbm scaling");
   clopts.attach_option("rbm_bins", &rbm_bins, rbm_bins, "rbm bins");
 }  

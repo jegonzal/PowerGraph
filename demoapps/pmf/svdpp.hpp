@@ -92,6 +92,13 @@ float bias_sgd_predict(const vertex_data_svdpp& user,
                 const float rating, 
                 float & prediction);
 
+float rbm_predict(const vertex_data_svdpp& user, 
+                const vertex_data_svdpp& movie, 
+                const edge_data * edge,
+                const vertex_data* nothing,
+                const float rating, 
+                float & prediction);
+
 
 
 float predict(const vertex_data_svdpp& user, const vertex_data_svdpp& movie, const edge_data * edge, const vertex_data * nothing, const float rating, float & prediction){
@@ -116,6 +123,9 @@ float predict(const vertex_data_svdpp& user, const vertex_data_svdpp& movie, con
       }
       else if (ps.algorithm == BIAS_SGD){
         return bias_sgd_predict(user, movie, edge, NULL, rating, prediction);
+      }
+      else if (ps.algorithm == RBM){
+        return rbm_predict(user, movie, edge, NULL, rating, prediction);
       }
       else assert(false);
       

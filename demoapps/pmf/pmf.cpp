@@ -130,7 +130,7 @@ void add_tasks(core & glcore){
   std::vector<vertex_id_t> um;
   int start = 0;
   int end = ps.M+ps.N;
-  if (ps.algorithm == SVD_PLUS_PLUS || ps.algorithm == TIME_SVD_PLUS_PLUS)
+  if (ps.algorithm == SVD_PLUS_PLUS || ps.algorithm == TIME_SVD_PLUS_PLUS || ps.algorithm == RBM)
      end = ps.M;
 
   for (int i=start; i< end; i++)
@@ -196,6 +196,8 @@ void add_tasks(core & glcore){
 
 template<typename graph_type>
 void init(graph_type *g){
+
+  srand(time(NULL));
 
   if (ps.tensor){
     ps.dp = GenDiffMat(ps.K)*ps.pT;
