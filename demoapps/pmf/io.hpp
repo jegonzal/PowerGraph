@@ -415,25 +415,47 @@ void export_test_file(const graph_type & _g, testtype type, bool dosave) {
     assert(ps.BPTF);	
   if (ps.Lt == 0 && type == TEST)
     logstream(LOG_FATAL) << "Empty or missing test data file, can not compute predictions!" << std::endl;
+  if (ps.Lt2 == 0 && type == TEST2)
+    logstream(LOG_FATAL) << "Empty or missing test data file, can not compute predictions!" << std::endl;
 
-  vec out_predictions = zeros(type == VALIDATION ? ps.Le : ps.Lt);
+  int size = 0;
+  string suffix = "";
+  string comment = "";
+  switch(type){
+  
+    case VALIDATION: 
+       size = ps.Le; 
+       suffix = ".validation.predictions"; 
+       comment = "output predictions for validation data\n";
+       break;
+  
+    case TEST: 
+       size = ps.Lt; 
+       suffix = ".test.predictions";
+       comment = "output predictions for test data\n";
+       break;
 
-    for (int i=0; i< ps.M; i++){ //TODO: optimize to start from N?
+    case TEST2: 
+       size = ps.Lt2; 
+       suffix = ".test2.predictions"; 
+       comment = "output predictions for test2 data\n";
+       break;
+
+    case TRAINING:
+    default:
+      assert(false);
+  }
+  vec out_predictions = zeros(size);
+  for (int i=0; i< ps.M; i++){ 
       vertex_data & data = (vertex_data&)g->vertex_data(i);
       test_predict(data, i, lineNum, sumPreds, out_predictions, dosave, *g, _g);
-    }
-
-  if (type == TEST){
-    ASSERT_EQ(lineNum, ps.Lt);
-    ASSERT_EQ(lineNum, out_predictions.size());
   }
-  else     
-    assert(lineNum==ps.Le);
 
-  logstream(LOG_INFO)<< "**Completed successfully (mean prediction: " << sumPreds/lineNum << std::endl;
+  ASSERT_EQ(lineNum, size);
+  logstream(LOG_INFO)<< "**Completed successfully (mean prediction: " << (sumPreds/lineNum)-ac.shiftrating << std::endl;
   if (dosave)
-    save_matrix_market_vector((ac.datafile + (type == TEST ? ".test.predictions" : ".validation.predictions")).c_str(), 
-     out_predictions, (type == TEST ? "output predictions for test data\n" : "output predictions for validation data\n"), false, false);
+    save_matrix_market_vector((ac.datafile + suffix).c_str(), 
+     out_predictions, comment, false, false);
 }
 
 
@@ -695,6 +717,9 @@ void set_num_edges(int val, testtype data_type){
      
     case TEST: 
       ps.Lt = val; break;
+
+    case TEST2:
+      ps.Lt2 = val; break;
   }  
 }
 

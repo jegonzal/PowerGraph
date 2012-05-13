@@ -85,6 +85,7 @@ public:
   bool savegraph; //save input file into graph binary file
   bool binaryoutput; //export the factors U,V,T to a binary file
   bool exporttest; //export predictions on test data to file
+  bool test2;  //have a second test file
 
   bool FLOAT; //is data in float format? if false, data in double format
   bool isfloat;//input file in float format
@@ -231,6 +232,7 @@ advanced_config(){
     outputvalidation = false; //experimental: output validation results of kdd format
     binaryoutput = false; //export the factors U,V,T to a binary file
     exporttest = false; // export test data predictions to file
+    test2 = false;
     matrixmarket = false; //is input/output in matrix market format
     matrixmarkettokensperrow = 3; //default number of tokens per row (from,to,val)
     printhighprecision = false; //print RMSE output with high precision

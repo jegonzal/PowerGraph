@@ -23,6 +23,7 @@ void advanced_config::init_command_line_options(graphlab::command_line_options &
   clopts.attach_option("stats", &stats, stats, "compute graph statistics");  
   clopts.attach_option("binaryoutput", &binaryoutput, binaryoutput, "export U,V,T to a binary file"); 
   clopts.attach_option("exporttest", &exporttest, exporttest, "export predictions on test data to file");
+  clopts.attach_option("test2", &test2, test2, "have a second test file (for kdd cup 2012)");
   clopts.attach_option("matrixmarket", &matrixmarket, matrixmarket, "give input in matrix market format"); 
   clopts.attach_option("matrix_market_tokens_per_row", &matrixmarkettokensperrow, matrixmarkettokensperrow, "Number of matrix market token per row. Default is 3: [from ] [to ] [ val ] ");
  

@@ -300,6 +300,7 @@ void calc_stats(testtype type){
    case TRAINING: assert(numedges==ps.L); break;
    case VALIDATION: assert(numedges==ps.Le); break;
    case TEST: assert(numedges==ps.Lt); break;
+   case TEST2: assert(numedges==ps.Lt2); break;
  }
 }
 

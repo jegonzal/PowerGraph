@@ -185,7 +185,8 @@ struct multiple_edges{
 enum testtype{
     TRAINING = 0,
     VALIDATION = 1,
-    TEST = 2
+    TEST = 2,
+    TEST2 = 3//second test file, for kdd cup 2012
 };
 
 enum linear_algebra_support{
@@ -287,6 +288,7 @@ public:
   int M,N,K,L;//training size: users, movies, times, number of edges
   int Le; //number of ratings in validation dataset 
   int Lt;//number of rating in test data set
+  int Lt2;
   int last_node; //index of last node
   bool tensor; //is this tensor or a matrix
   bool isals; //is this algorithm an ALS variant
@@ -299,10 +301,10 @@ public:
   vertex_data * times;
   vertex_data_svdpp * times_svdpp;
   graphlab::core_base* glcore;
-  graph_type * gg[3];
-  graph_type_mcmc * g_mcmc[3];
-  graph_type_mult_edge * g_mult_edge[3];
-  graph_type_svdpp*g_svdpp[3];
+  graph_type * gg[4];
+  graph_type_mcmc * g_mcmc[4];
+  graph_type_mult_edge * g_mult_edge[4];
+  graph_type_svdpp * g_svdpp[4];
 
   vec vones;
   mat eDT; 

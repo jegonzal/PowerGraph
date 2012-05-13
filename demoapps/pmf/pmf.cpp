@@ -55,7 +55,7 @@ const char * runmodesname[] = {"ALS_MATRIX (Alternating least squares)", "BPTF_M
 const char * countername[] = {"EDGE_TRAVERSAL", "BPTF_SAMPLE_STEP", "CALC_RMSE_Q", "ALS_LEAST_SQUARES", \
   "BPTF_TIME_EDGES", "BPTF_LEAST_SQUARES", "CALC_OBJ", "BPTF_MVN_RNDEX", "BPTF_LEAST_SQUARES2", "SVD_MULT_A", "SVD_MULT_A_TRANSPOSE"};
 
-const char * testtypename[] = {"TRAINING", "VALIDATION", "TEST"};
+const char * testtypename[] = {"TRAINING", "VALIDATION", "TEST", "TEST2"};
 
 
 
@@ -300,7 +300,7 @@ void start(command_line_options& clopts) {
  */
     graph_type &g = glcore.graph();
     graph_type validation_graph;
-    graph_type test_graph; 
+    graph_type test_graph, test_graph2; 
 
     ps.verify_setup();
     ps.glcore->set_engine_options(clopts); 
@@ -323,6 +323,13 @@ void start(command_line_options& clopts) {
     printf("loading data file %s\n", (ac.datafile+"t").c_str());
     load_pmf_graph<graph_type,gl_types,vertex_data,edge_data>((ac.datafile+"t").c_str(),&g, &test_graph, TEST);
     ps.set_graph(&test_graph, TEST);
+
+
+    if (ac.test2){
+      printf("loading data file %s\n", (ac.datafile+"t2").c_str());
+      load_pmf_graph<graph_type,gl_types,vertex_data,edge_data>((ac.datafile+"t2").c_str(),&g, &test_graph2, TEST2);
+      ps.set_graph(&test_graph2, TEST2);
+    }
   }  
 
   if (ac.loadfactors){
@@ -415,8 +422,11 @@ void start(command_line_options& clopts) {
     if (ac.exporttest){
       if (ac.outputvalidation) //experimental: output prediction of validation data
  	     export_test_file<graph_type, vertex_data, edge_data>(validation_graph, VALIDATION, true);
-      else //output prediction of test data, as required by KDD 
+      else {//output prediction of test data, as required by KDD 
 	     export_test_file<graph_type, vertex_data, edge_data>(test_graph, TEST, true);
+       if (ac.test2)
+	       export_test_file<graph_type, vertex_data, edge_data>(test_graph2, TEST2, true);
+      }
     }
  }
   print_runtime_counters(); 
