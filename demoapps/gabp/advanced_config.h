@@ -99,6 +99,7 @@ public:
   double scaling; //aggregate time values into bins? (default =1, no aggregation)
   double truncating ; // truncate unused time bins (optional, default = 0, no truncation)
   double scalerating; //scale the rating by dividing to the scalerating factor (optional)
+  double shiftrating; //shift the traing by adding this factor (optional)
 #define DEF_MAX_VAL 1e100
   double minval; //minimal allowed value in matrix/tensor
   double maxval; //maximal allowed value in matrix/tensor
@@ -236,6 +237,7 @@ advanced_config(){
     scaling = 1.0; //aggregate time values into bins? (default =1, no aggregation)
     truncating = 0.0; // truncate unused time bins (optional, default = 0, no truncation)
     scalerating = 1.0; //scale the rating by dividing to the scalerating factor (optional)
+    shiftrating = 0; //shift the rating value by this number
     minval = -DEF_MAX_VAL;
     maxval = DEF_MAX_VAL;
 
@@ -308,7 +310,7 @@ advanced_config(){
    /* for RBM */
    rbm_mult_step_dec = 0.9;
    rbm_alpha = 0.1;
-   rbm_beta = 0.1;
+   rbm_beta = 0.006;
    rbm_scaling = 10;
    rbm_bins = 11;
 

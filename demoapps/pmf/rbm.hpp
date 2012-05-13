@@ -113,10 +113,13 @@ float rbm_predict(const vertex_data_svdpp& user,
         assert(!std::isnan(ret));
         nn += zz;
     }
-    assert(std::fabs(nn) > 1e-12);
+    if (std::fabs(nn) < 1e-32)
+       ret = ac.minval;
+    else {
     ret /= nn;
     if(ret < ac.minval) ret = ac.minval;
-    if(ret > ac.maxval) ret = ac.maxval;
+    else if(ret > ac.maxval) ret = ac.maxval;
+    }
     assert(!std::isnan(ret));
     prediction = ret * ac.rbm_scaling;
     assert(!std::isnan(prediction));
@@ -195,7 +198,9 @@ double calc_rbm_rmse(const graph_type_svdpp * _g, bool test, double & res){
      for (int i=0; i< ps.M; i++){
        vertex_data_svdpp & usr = (vertex_data_svdpp&)g->vertex_data(i);
        int n = usr.num_edges; //+1.0 ? //regularization
-       if (n == 0){}
+       if (n == 0){
+         nCases += _g->out_edge_ids(i).size();
+       }
        else {
          foreach(graphlab::edge_id_t oedgeid, _g->out_edge_ids(i)){
            const edge_data & item = _g->edge_data(oedgeid);

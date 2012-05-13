@@ -105,7 +105,7 @@ float predict(const vertex_data_svdpp& user, const vertex_data_svdpp& movie, con
       assert(nothing == NULL);
 
       if (ps.algorithm == SVD_PLUS_PLUS){
-        //\hat(r_ui) = \mu + 
+           //\hat(r_ui) = \mu + 
         prediction = ps.globalMean[0];
                  // + b_u  +    b_i +
         prediction += user.bias + movie.bias;

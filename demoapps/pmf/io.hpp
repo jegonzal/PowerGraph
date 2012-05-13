@@ -230,7 +230,9 @@ void fill_factors_uvt<graph_type_svdpp,vertex_data_svdpp>(){
       }
 
    }
-   else assert(false);
+   else if (ps.algorithm == RBM){ //TODO
+
+   } else assert(false);
 } 
 
 
@@ -258,10 +260,6 @@ void write_vec(FILE * f, const int len, const T * array){
   }
 }
 
-
-
-
-
 void truncate_and_scale(float & prediction){
   if (prediction<ac.minval)
      prediction=ac.minval;
@@ -274,50 +272,65 @@ void truncate_and_scale(float & prediction){
 	
 template<typename graph_type, typename vertex_data, typename edge_data>
 void common_prediction(const graph_type &g, const graph_type & _g, const vertex_data& data,int i, int &lineNum, double& sumPreds, vec& test_predictions, bool dosave){
-      foreach(edge_id_t iedgeid, _g.out_edge_ids(i)) {
-          const vertex_data & pdata = g.vertex_data(_g.target(iedgeid)); 
+  
+  foreach(edge_id_t iedgeid, _g.out_edge_ids(i)) {
+    const vertex_data & pdata = g.vertex_data(_g.target(iedgeid)); 
 	  const edge_data & edge = _g.edge_data(iedgeid);
           
-          if (!ac.zero)
-           	assert(edge.weight != 0);
+    if (!ac.zero)
+			assert(edge.weight != 0);
 
-          float prediction = 0;
-          predict(data, 
-                  pdata, 
-                  ps.algorithm == WEIGHTED_ALS ? &edge : NULL, 
-                  ps.tensor? (&ps.times[(int)edge.time]):NULL, 
-                  edge.weight, 
-                  prediction);
-    
-         truncate_and_scale(prediction);      
-         if (ac.debug && (i== 0 || i == ps.M))
-            cout<<lineNum<<") prediction:"<<prediction<<endl; 
-         if (dosave)
-            test_predictions[lineNum] = prediction;
-	       sumPreds += prediction;
- 	       lineNum++; 
-       }
+		float prediction = 0;
+    predict(data, 
+			pdata, 
+			ps.algorithm == WEIGHTED_ALS ? &edge : NULL, 
+			ps.tensor? (&ps.times[(int)edge.time]):NULL, 
+			edge.weight, 
+			prediction);
+    truncate_and_scale(prediction);      
+    if (ac.debug && (i== 0 || i == ps.M))
+			cout<<lineNum<<") prediction:"<<prediction<<endl; 
+    if (dosave)
+			test_predictions[lineNum] = prediction;
+	  
+    sumPreds += prediction;
+ 	  lineNum++; 
+  }
 }
 
 //compute predictions for SVD++
-void test_predict(vertex_data_svdpp & data, int i, int& lineNum, double & sumPreds, vec& test_predictions, bool dosave, const graph_type_svdpp &g, const graph_type_svdpp & _g){
-       int n = data.num_edges; //+1.0 ? //regularization
-       if (n > 0 ){
-         data.weight = zeros(ac.D);
-         foreach(edge_id_t oedgeid, g.out_edge_ids(i)) {
-           vertex_data_svdpp & movie = (vertex_data_svdpp&)g.vertex_data(g.target(oedgeid)); 
-	         data.weight += movie.weight;
-         }
-         float usrnorm = float(1.0/sqrt(n));
-         data.weight *= usrnorm;
-         common_prediction<graph_type_svdpp,vertex_data_svdpp,edge_data>(g, _g,data,i,lineNum, sumPreds, test_predictions, dosave);
-       }
-       else { //cold start, we did not encounter this user in training!
-         data.weight = zeros(ac.D);
-         data.pvec = zeros(ac.D);
-         data.bias = 0;
-         common_prediction<graph_type_svdpp,vertex_data_svdpp,edge_data>(g, _g,data,i,lineNum, sumPreds, test_predictions, dosave);
-        }
+void test_predict(vertex_data_svdpp & user, int i, int& lineNum, double & sumPreds, vec& test_predictions, bool dosave, const graph_type_svdpp &g, const graph_type_svdpp & _g){
+  if (ps.algorithm == SVD_PLUS_PLUS){
+		int n = user.num_edges; //+1.0 ? //regularization
+		memset(&user.weight[0], 0, ac.D*sizeof(double));
+		if (n > 0 ){
+			foreach(edge_id_t oedgeid, g.out_edge_ids(i)) {
+				vertex_data_svdpp & movie = (vertex_data_svdpp&)g.vertex_data(g.target(oedgeid)); 
+				user.weight += movie.weight;
+			}
+			float usrnorm = float(1.0/sqrt(n));
+			user.weight *= usrnorm;
+		}
+		else { //cold start, we did not encounter this user in training!
+			memset(&user.pvec[0], 0, ac.D*sizeof(double));
+			user.bias = 0;
+		}
+  }
+  else if (ps.algorithm == BIAS_SGD){
+		int n = user.num_edges; //+1.0 ? //regularization
+    if (n == 0){
+			memset(&user.pvec[0], 0, ac.D*sizeof(double));
+			user.bias = 0;
+    }	
+  }
+  else if (ps.algorithm == TIME_SVD_PLUS_PLUS){
+
+  }
+  else if (ps.algorithm == RBM){
+
+  }
+  else assert(false);
+  common_prediction<graph_type_svdpp,vertex_data_svdpp,edge_data>(g, _g,user,i,lineNum, sumPreds, test_predictions, dosave);
 }
 
 //compute predictions for all others
@@ -358,6 +371,7 @@ void test_predict(vertex_data & data, int i, int&lineNum, double& sumPreds, vec&
        }
 }
 
+//compute predictions of tensors with multiple edges between same pair of nodes
 void test_predict(vertex_data & data, int i, int&lineNum, double & sumPreds, vec& test_predictions, bool dosave, const graph_type_mult_edge&g, const graph_type_mult_edge &_g){
       foreach(edge_id_t iedgeid, _g.out_edge_ids(i)) {
         const multiple_edges & edges = _g.edge_data(iedgeid);

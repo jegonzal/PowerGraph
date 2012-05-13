@@ -111,6 +111,8 @@ void load_matrix_market(const char * filename, graph_type *_g, testtype data_typ
         }
         I--;  /* adjust from 1-based to 0-based */
         J--;
+        val /= ac.scalerating;
+        val += ac.shiftrating;
         edge.weight = val;
         if (!ac.zero && val == 0)
 	   logstream(LOG_FATAL)<<"Error in data line: " << i << " zero value is not allowed. Use --zero=true to allow zero value" << std::endl;

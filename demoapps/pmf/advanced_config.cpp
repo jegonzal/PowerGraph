@@ -38,6 +38,7 @@ void advanced_config::init_command_line_options(graphlab::command_line_options &
   clopts.attach_option("lambda", &als_lambda, als_lambda, "ALS regularization weight");  
   
   clopts.attach_option("scalerating", &scalerating, scalerating, "scale rating value ");  
+  clopts.attach_option("shiftrating", &shiftrating, shiftrating, "shift rating value ");  
   clopts.attach_option("aggregatevalidation", &aggregatevalidation, aggregatevalidation, "aggregate training and validation into one dataset ");  
   clopts.attach_option("maxval", &maxval, maxval, "maximal allowed value in matrix/tensor");
   clopts.attach_option("minval", &minval, minval, "minimal allowed value in matrix/tensor");
