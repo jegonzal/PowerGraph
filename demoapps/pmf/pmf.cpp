@@ -261,13 +261,15 @@ void run_graphlab(core &glcore, graph_type * validation_graph){
      double res, train_rmse =  agg_rmse_by_movie<graph_type,vertex_data>(res), res2;
      
      double obj = -1;
-     if (ps.algorithm != TIME_SVD_PLUS_PLUS) 
-        obj = calc_obj<graph_type, vertex_data>(res);
-     double validation_rmse = calc_rmse_wrapper<graph_type, vertex_data>(validation_graph, true, res2);
-     printf(ac.printhighprecision ? 
-     "Final result. Obj=%g, TRAIN RMSE= %0.12f VALIDATION RMSE= %0.12f.\n":
-     "Final result. Obj=%g, TRAIN RMSE= %0.4f VALIDATION RMSE= %0.4f.\n"
-     , obj,  train_rmse, validation_rmse);
+     double validation_rmse = 0; 
+     if (ps.algorithm != TIME_SVD_PLUS_PLUS && ps.algorithm != RBM && ps.algorithm != BIAS_SGD && ps.algorithm != TIME_SVD_PLUS_PLUS){
+       obj = calc_obj<graph_type, vertex_data>(res);
+			 validation_rmse = calc_rmse_wrapper<graph_type, vertex_data>(validation_graph, true, res2);
+			 printf(ac.printhighprecision ? 
+			  "Final result. Obj=%g, TRAIN RMSE= %0.12f VALIDATION RMSE= %0.12f.\n":
+			  "Final result. Obj=%g, TRAIN RMSE= %0.4f VALIDATION RMSE= %0.4f.\n"
+			   , obj,  train_rmse, validation_rmse);
+     }
      double runtime = ps.gt.current_time();
      printf("Finished in %lf seconds\n", runtime);
      if (ac.unittest > 0){
