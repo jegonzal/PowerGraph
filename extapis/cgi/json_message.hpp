@@ -28,8 +28,6 @@
 #ifndef GRAPHLAB_JSON_MESSAGE_HPP
 #define GRAPHLAB_JSON_MESSAGE_HPP
 
-#define JSONSL_STATE_GENERIC
-#include <jsonsl.h>
 #include <graphlab.hpp>
 #include "rapidjson.hpp"
 
@@ -44,14 +42,10 @@ namespace graphlab {
   private:
 
     rapidjson::Document mdocument;
-    jsonsl_t mjsn;
   
   public:
   
     typedef char byte;
-    
-    /** Maximum recursion depth for lexer */
-    const static int MAX_LEVELS;
   
     /**
      * Create a new message for specified method, with the given updater state.

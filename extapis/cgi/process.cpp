@@ -28,8 +28,6 @@
 #include <sstream>
 #include "process.hpp"
 
-#define NBYTES 1024               // input buffer size
-
 using namespace graphlab;
 namespace io = boost::asio;
 
@@ -86,9 +84,12 @@ std::size_t process::write(json_message& message) {
   std::ostream output(&buffer);
   output << message << std::flush;
   
-  std::size_t bytes;
+  std::size_t bytes = buffer.size();
   try {
     // write deals with short counts
+    std::ostringstream int_os;
+    int_os << bytes << "\r\n";
+    io::write(pout, io::buffer(int_os.str()));
     bytes = io::write(pout, buffer);
   }catch (boost::system::system_error e){
     throw e;  // TODO error handling
@@ -107,21 +108,25 @@ json_message& process::read(json_message& message){
 
   if (!pin.is_open()) throw ("Pipe closed unexpectedly.");
   
-  json_message::byte data[NBYTES+1];
-  std::size_t nread = 0;
-  data[NBYTES] = NULL;                // make sure last character is NULL
+  // get number of bytes
+  io::streambuf size_buf;
+  std::size_t index = io::read_until(pin, size_buf, "\r\n");
   
+  std::istream is(&size_buf);
+  std::size_t bytes = 0;
+  is >> bytes;
+  
+  // remove length portion
+  size_buf.consume(index);
+  
+  json_message::byte data[bytes];
+  std::size_t nread = 0;
+  memset(data, NULL, bytes);
+
   try {
-    while (true){
-      // reset buffer
-      nread = 0;
-      memset(data, 0, NBYTES);
-      nread = pin.read_some(io::buffer(data, NBYTES));
-      logstream(LOG_DEBUG) << std::string(data) << std::endl;
-      // feed partial JSON to message, stop if complete
-      if(!message.feed(data, nread)) break;
-    }
+    nread = io::read(pin, io::buffer(data, bytes), io::transfer_all());
   }catch (boost::system::system_error e){
+    // TODO: handle error
     logstream(LOG_ERROR) << e.what() << std::endl;
   }
   

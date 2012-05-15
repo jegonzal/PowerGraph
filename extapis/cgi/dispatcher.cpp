@@ -49,7 +49,7 @@ void dispatcher_update::operator()(icontext_type& context){
   json_message invocation("update", mstate);
   p.send(invocation);
   json_message result;
-  logstream(LOG_DEBUG) << p.receive(result) << std::endl;
+  // logstream(LOG_DEBUG) << p.receive(result) << std::endl;
 
 }
 ////////////////////////////////////////////////////////////////////////////////
