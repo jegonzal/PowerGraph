@@ -155,13 +155,13 @@ end_element (jsonsl_t jsn,
     switch(state->type){
       case JSONSL_T_HKEY: {
         // bug: requires complete strings
-        json::Value child(buf-state->pos_begin+1);
+        json::Value child(buf-state->pos_begin+1, allocator);
         json::Value &val = parent.AddMember("pending-key", child, allocator);
         state->data = &val;
         break;
       }
       case JSONSL_T_STRING: {
-        json::Value child(buf-state->pos_begin+1);
+        json::Value child(buf-state->pos_begin+1, allocator);
         add_to_parent(parent, child, allocator, state);
         break;
       }
@@ -195,13 +195,13 @@ json_message::
   mdocument.SetObject();
   
   // add method if exists
-  if (method.length() > 0){
+  if (0 < method.length()){
   	json::Value methodv(method.c_str(), mdocument.GetAllocator());
   	mdocument.AddMember("method", methodv, mdocument.GetAllocator());
   }
   
   // add state if exists
-  if (state.length() > 0){
+  if (0 < state.length()){
   	json::Value statev (state.c_str(), mdocument.GetAllocator());
 	  mdocument.AddMember("state", statev, mdocument.GetAllocator());
 	}
@@ -225,6 +225,14 @@ bool json_message::feed(byte *data, std::size_t nread){
 json_message::
   ~json_message(){
   jsonsl_destroy(mjsn);
+}
+
+// important lesson: must use graphlab::
+std::ostream& graphlab::operator<< (std::ostream &out, json_message &message){
+  rapidjson::StringBuffer buffer;
+  rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
+  message.mdocument.Accept(writer);
+  return out << buffer.GetString();
 }
 
 ///////////////////////////////// CLASS MEMBERS ////////////////////////////////

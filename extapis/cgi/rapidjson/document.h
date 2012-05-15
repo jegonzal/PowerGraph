@@ -98,11 +98,11 @@ public:
 	//! Constructor for uint64_t value.
 	GenericValue(uint64_t u64) : flags_(kNumberUint64Flag) {
 		data_.n.u64 = u64;
-		if (!(u64 & 0x8000000000000000L))
+		if (!(u64 & 0x8000000000000000ULL))
 			flags_ |= kInt64Flag;
-		if (!(u64 & 0xFFFFFFFF00000000L))
+		if (!(u64 & 0xFFFFFFFF00000000ULL))
 			flags_ |= kUintFlag;
-		if (!(u64 & 0xFFFFFFFF80000000L))
+		if (!(u64 & 0xFFFFFFFF80000000ULL))
 			flags_ |= kIntFlag;
 	}
 
@@ -270,18 +270,18 @@ public:
 		return *this;
 	}
 
-	GenericValue& AddMember(const char* name, Allocator& nameAllocator, GenericValue& value, Allocator& allocator) {
+	GenericValue& AddMember(const Ch* name, Allocator& nameAllocator, GenericValue& value, Allocator& allocator) {
 		GenericValue n(name, internal::StrLen(name), nameAllocator);
 		return AddMember(n, value, allocator);
 	}
 
-	GenericValue& AddMember(const char* name, GenericValue& value, Allocator& allocator) {
+	GenericValue& AddMember(const Ch* name, GenericValue& value, Allocator& allocator) {
 		GenericValue n(name, internal::StrLen(name));
 		return AddMember(n, value, allocator);
 	}
 
 	template <typename T>
-	GenericValue& AddMember(const char* name, T value, Allocator& allocator) {
+	GenericValue& AddMember(const Ch* name, T value, Allocator& allocator) {
 		GenericValue n(name, internal::StrLen(name));
 		GenericValue v(value);
 		return AddMember(n, v, allocator);
@@ -298,9 +298,9 @@ public:
 			RAPIDJSON_ASSERT(data_.o.size > 0);
 			RAPIDJSON_ASSERT(data_.o.members != 0);
 
-			if (data_.o.size > 1) {
+			Member* last = data_.o.members + (data_.o.size - 1);
+			if (data_.o.size > 1 && m != last) {
 				// Move the last one to this place
-				Member* last = data_.o.members + (data_.o.size - 1);
 				m->name = last->name;
 				m->value = last->value;
 			}
@@ -650,10 +650,10 @@ private:
 	void SetStringRaw(const Ch* s, SizeType length, Allocator& allocator) {
 		RAPIDJSON_ASSERT(s != NULL);
 		flags_ = kCopyStringFlag;
-		data_.s.str = (char *)allocator.Malloc(length + 1);
+		data_.s.str = (Ch *)allocator.Malloc(length + 1);
 		data_.s.length = length;
 		memcpy((void*)data_.s.str, s, length);
-		((char*)data_.s.str)[length] = '\0';
+		((Ch*)data_.s.str)[length] = '\0';
 	}
 
 	//! Assignment without calling destructor
@@ -697,13 +697,13 @@ public:
 		\param stream Input stream to be parsed.
 		\return The document itself for fluent API.
 	*/
-	template <unsigned parseFlags, typename Stream>
-	GenericDocument& ParseStream(Stream& stream) {
+	template <unsigned parseFlags, typename SourceEncoding, typename InputStream>
+	GenericDocument& ParseStream(InputStream& is) {
 		ValueType::SetNull(); // Remove existing root if exist
-		GenericReader<Encoding> reader;
-		if (reader.Parse<parseFlags>(stream, *this)) {
+		GenericReader<SourceEncoding, Encoding> reader;
+		if (reader.Parse<parseFlags>(is, *this)) {
 			RAPIDJSON_ASSERT(stack_.GetSize() == sizeof(ValueType)); // Got one and only one root object
-			RawAssign(*stack_.template Pop<ValueType>(1));
+			this->RawAssign(*stack_.template Pop<ValueType>(1));	// Add this-> to prevent issue 13.
 			parseError_ = 0;
 			errorOffset_ = 0;
 		}
@@ -720,21 +720,31 @@ public:
 		\param str Mutable zero-terminated string to be parsed.
 		\return The document itself for fluent API.
 	*/
-	template <unsigned parseFlags>
+	template <unsigned parseFlags, typename SourceEncoding>
 	GenericDocument& ParseInsitu(Ch* str) {
 		GenericInsituStringStream<Encoding> s(str);
-		return ParseStream<parseFlags | kParseInsituFlag>(s);
+		return ParseStream<parseFlags | kParseInsituFlag, SourceEncoding>(s);
+	}
+
+	template <unsigned parseFlags>
+	GenericDocument& ParseInsitu(Ch* str) {
+		return ParseInsitu<parseFlags, Encoding>(str);
 	}
 
 	//! Parse JSON text from a read-only string.
 	/*! \tparam parseFlags Combination of ParseFlag (must not contain kParseInsituFlag).
 		\param str Read-only zero-terminated string to be parsed.
 	*/
-	template <unsigned parseFlags>
+	template <unsigned parseFlags, typename SourceEncoding>
 	GenericDocument& Parse(const Ch* str) {
 		RAPIDJSON_ASSERT(!(parseFlags & kParseInsituFlag));
-		GenericStringStream<Encoding> s(str);
-		return ParseStream<parseFlags>(s);
+		GenericStringStream<SourceEncoding> s(str);
+		return ParseStream<parseFlags, SourceEncoding>(s);
+	}
+
+	template <unsigned parseFlags>
+	GenericDocument& Parse(const Ch* str) {
+		return Parse<parseFlags, Encoding>(str);
 	}
 
 	//! Whether a parse error was occured in the last parsing.
@@ -752,8 +762,8 @@ public:
 	//! Get the capacity of stack in bytes.
 	size_t GetStackCapacity() const { return stack_.GetCapacity(); }
 
-private:
-	friend class GenericReader<Encoding>;	// for Reader to call the following private handler functions
+//private:
+	//friend class GenericReader<Encoding>;	// for Reader to call the following private handler functions
 
 	// Implementation of Handler
 	void Null()	{ new (stack_.template Push<ValueType>()) ValueType(); }
@@ -785,6 +795,7 @@ private:
 		stack_.template Top<ValueType>()->SetArrayRaw(elements, elementCount, GetAllocator());
 	}
 
+private:
 	void ClearStack() {
 		if (Allocator::kNeedFree)
 			while (stack_.GetSize() > 0)	// Here assumes all elements in stack array are GenericValue (Member is actually 2 GenericValue objects)

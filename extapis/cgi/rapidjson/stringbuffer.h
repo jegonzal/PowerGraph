@@ -19,10 +19,11 @@ struct GenericStringBuffer {
 	GenericStringBuffer(Allocator* allocator = 0, size_t capacity = kDefaultCapacity) : stack_(allocator, capacity) {}
 
 	void Put(Ch c) { *stack_.template Push<Ch>() = c; }
+	void Flush() {}
 
 	void Clear() { stack_.Clear(); }
 
-	const char* GetString() const {
+	const Ch* GetString() const {
 		// Push and pop a null terminator. This is safe.
 		*stack_.template Push<Ch>() = '\0';
 		stack_.template Pop<Ch>(1);
@@ -30,7 +31,7 @@ struct GenericStringBuffer {
 		return stack_.template Bottom<Ch>();
 	}
 
-	size_t Size() const { return stack_.Size(); }
+	size_t GetSize() const { return stack_.GetSize(); }
 
 	static const size_t kDefaultCapacity = 256;
 	mutable internal::Stack<Allocator> stack_;

@@ -29,12 +29,9 @@
 #define GRAPHLAB_JSON_MESSAGE_HPP
 
 #define JSONSL_STATE_GENERIC
-
-#include <graphlab.hpp>
 #include <jsonsl.h>
-#include "rapidjson/writer.h"
-#include "rapidjson/document.h"
-#include "rapidjson/stringbuffer.h"
+#include <graphlab.hpp>
+#include "rapidjson.hpp"
 
 namespace graphlab {
 
@@ -65,12 +62,7 @@ namespace graphlab {
     
     bool feed(byte *data, std::size_t nread);
     
-    friend std::ostream& operator<< (std::ostream &out, json_message &message){
-      rapidjson::StringBuffer buffer;
-      rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
-      message.mdocument.Accept(writer);
-      return out << buffer.GetString();
-    }
+    friend std::ostream& operator<< (std::ostream &out, json_message &message);
   
   };
 
