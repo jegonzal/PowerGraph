@@ -27,6 +27,7 @@
  
 #include <sstream>
 #include "process.hpp"
+#include "json_message.hpp"
 
 using namespace graphlab;
 namespace io = boost::asio;
@@ -108,28 +109,31 @@ json_message& process::read(json_message& message){
 
   if (!pin.is_open()) throw ("Pipe closed unexpectedly.");
   
-  // get number of bytes
-  io::streambuf size_buf;
-  std::size_t index = io::read_until(pin, size_buf, "\r\n");
+  // get first line
+  io::streambuf initial_buffer;
+  std::size_t index = io::read_until(pin, initial_buffer, '\n');
+  std::size_t leftover = initial_buffer.size() - index;
   
-  std::istream is(&size_buf);
+  // extract number of bytes
+  std::istream is(&initial_buffer);
   std::size_t bytes = 0;
   is >> bytes;
   
-  // remove length portion
-  size_buf.consume(index);
-  
-  json_message::byte data[bytes];
-  std::size_t nread = 0;
-  memset(data, NULL, bytes);
+  // prepare buffer and init w. leftovers
+  json_message::byte data[bytes+1]; // plus 1 for null-terminator (temp)
+  memset(data, NULL, bytes+1);
+  is >> data;
 
-  try {
-    nread = io::read(pin, io::buffer(data, bytes), io::transfer_all());
+  if (leftover < bytes) try {
+    io::read(pin, io::buffer(data+leftover, bytes-leftover), io::transfer_all());
   }catch (boost::system::system_error e){
     // TODO: handle error
     logstream(LOG_ERROR) << e.what() << std::endl;
   }
   
+  logstream(LOG_DEBUG) << "json: " << data << std::endl;
+
+  message.parse(data, bytes);
   return message;
   
 }

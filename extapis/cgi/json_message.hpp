@@ -30,6 +30,7 @@
 
 #include <graphlab.hpp>
 #include "rapidjson.hpp"
+#include "dispatcher.hpp"
 
 namespace graphlab {
 
@@ -46,16 +47,42 @@ namespace graphlab {
   public:
   
     typedef char byte;
+    
+    const static byte VERTEX = 0x01;
+    const static byte EDGES = 0x02;
   
     /**
-     * Create a new message for specified method, with the given updater state.
+     * Creates a new message for specified method, with the given updater state.
+     * @param[in]   method    method to invoke
+     * @param[in]   state     state of invocation owner (the updater)
      */
     json_message(const std::string method = "", const std::string state = "");
-    
     virtual ~json_message();
     
-    bool feed(byte *data, std::size_t nread);
+    ////////////////////////////// ACCESSORS ///////////////////////////////////
     
+    const char *updater();
+    const char *vertex();
+    
+    /**
+     * Adds a context parameter to the invocation
+     * @param[in]   context   invocation context
+     * @param[in]   flags     vertex only, or vertex and edges
+     */
+    void add_context(dispatcher_update::icontext_type& context, byte flags);
+    
+    ///////////////////////////////// I/O //////////////////////////////////////
+    
+    /**
+     * Parses input data as a JSON document
+     * @param[in]   data      input data
+     * @param[in]   bytes     size of input data
+     */
+    void parse(byte *data, std::size_t bytes);
+
+    /**
+     * Prints message to output stream
+     */
     friend std::ostream& operator<< (std::ostream &out, json_message &message);
   
   };

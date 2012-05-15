@@ -31,10 +31,11 @@
 #include <iostream>
 #include <boost/asio.hpp>
 #include <graphlab.hpp>
-#include "json_message.hpp"
 
 namespace graphlab {
 //////////////////////////////// PROCESS CLASS ////////////////////////////////
+
+  class json_message;
 
   /**
    * Process

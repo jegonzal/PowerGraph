@@ -30,13 +30,12 @@
 
 using namespace graphlab;
 namespace json = rapidjson;
-
-///////////////////////////////// C CALLBACKS //////////////////////////////////
-
+typedef json_message jm;
+typedef dispatcher_update dp;
 
 /////////////////////////////// INSTANCE MEMBERS ///////////////////////////////
 
-json_message::
+jm::
   json_message(const std::string method, const std::string state) :
   mdocument() {
 
@@ -44,33 +43,78 @@ json_message::
   mdocument.SetObject();
   
   // add method if exists
-  if (0 < method.length()){
-  	json::Value methodv(method.c_str(), mdocument.GetAllocator());
-  	mdocument.AddMember("method", methodv, mdocument.GetAllocator());
-  }
+  json::Value methodv(method.c_str(), mdocument.GetAllocator());
+  mdocument.AddMember("method", methodv, mdocument.GetAllocator());
   
   // add state if exists
-  if (0 < state.length()){
-  	json::Value statev (state.c_str(), mdocument.GetAllocator());
-	  mdocument.AddMember("state", statev, mdocument.GetAllocator());
-	}
+  json::Value statev (state.c_str(), mdocument.GetAllocator());
+	mdocument.AddMember("state", statev, mdocument.GetAllocator());
+	  
+}
+
+void jm::parse(byte *data, std::size_t bytes){
+  
+  CHECK(NULL != data);
+  
+  // assume null-terminated string for now
+  if (mdocument.Parse<0>(data).HasParseError()){/* TODO: error handling */}
   
 }
 
-bool json_message::feed(byte *data, std::size_t nread){
-  return false;
-}
-
-json_message::
+jm::
   ~json_message(){
 }
 
 // important lesson: must use graphlab::
-std::ostream& graphlab::operator<< (std::ostream &out, json_message &message){
+std::ostream& graphlab::operator<< (std::ostream &out, jm &message){
   rapidjson::StringBuffer buffer;
   rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
   message.mdocument.Accept(writer);
   return out << buffer.GetString();
+}
+
+const char * jm::updater(){
+  if (mdocument.HasMember("updater"))
+    return mdocument["updater"].GetString();
+  return NULL;
+}
+
+const char * jm::vertex(){
+  if (mdocument.HasMember("vertex"))
+    return mdocument["vertex"].GetString();
+  return NULL;
+}
+
+void jm::add_context(dp::icontext_type& context, byte flags){
+
+  json::Value contextv;
+  contextv.SetObject();
+  
+  // add params if it does not exists
+  if (!mdocument.HasMember("params")){
+    json::Value paramsv;
+    paramsv.SetObject();
+    mdocument.AddMember("params", paramsv, mdocument.GetAllocator());
+  }
+
+  // add vertex state to document
+  if (flags & VERTEX > 0){
+    json::Value vertexv;
+    vertexv.SetObject();
+    vertexv.AddMember("id",
+      context.vertex_id(),
+      mdocument.GetAllocator());
+    vertexv.AddMember("state",
+      context.const_vertex_data().state.c_str(),
+      mdocument.GetAllocator());
+    contextv.AddMember("vertex", vertexv, mdocument.GetAllocator());
+  }
+  
+//   if (flags & EDGES > 0){
+//   }
+  
+  mdocument["params"].AddMember("context", contextv, mdocument.GetAllocator());
+
 }
 
 ///////////////////////////////// CLASS MEMBERS ////////////////////////////////

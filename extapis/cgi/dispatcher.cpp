@@ -26,30 +26,45 @@
  */
  
 #include "dispatcher.hpp"
+#include "json_message.hpp"
 #include <graphlab/macros_def.hpp>
 
 using namespace graphlab;
+typedef dispatcher_update dp;
+typedef json_message jm;
 
 /////////////////////////////// INSTANCE MEMBERS ///////////////////////////////
 
-dispatcher_update::dispatcher_update() : mstate() {}
+dp::dispatcher_update() : mstate() {}
 
-dispatcher_update::dispatcher_update(const dispatcher_update& other) : mstate(other.mstate) {}
+dp::dispatcher_update(const dp& other) : mstate(other.mstate) {}
 
-inline void dispatcher_update::operator+=(const dispatcher_update& other){
+inline void dp::operator+=(const dp& other){
   // TODO
 }
 
-void dispatcher_update::operator()(icontext_type& context){
+void dp::operator()(icontext_type& context){
   
   // TODO
   
   process& p = process::get_process();
   
-  json_message invocation("update", mstate);
+  // send invocation to child
+  jm invocation("update", mstate);
+  invocation.add_context(context, jm::VERTEX | jm::EDGES);
   p.send(invocation);
-  json_message result;
-  // logstream(LOG_DEBUG) << p.receive(result) << std::endl;
+  
+  // parse results
+  jm result;
+  p.receive(result);
+
+  // update states
+  const char *cstring = result.updater();
+  if (NULL != cstring)
+    mstate = std::string(cstring);                              // copy
+  cstring = result.vertex();
+  if (NULL != cstring)
+    context.vertex_data().state = std::string(cstring); // copy
 
 }
 ////////////////////////////////////////////////////////////////////////////////
@@ -85,7 +100,7 @@ int main(int argc, char** argv) {
   }
 
   // Setup the GraphLab execution core and load graph -------------------------
-  core<graph_type, dispatcher_update> core;
+  core<dp::graph_type, dp> core;
   core.set_options(clopts);      // attach the command line options to the core
   std::cout << "Loading graph from file" << std::endl;
   const bool success = graph_ops::
@@ -102,7 +117,7 @@ int main(int argc, char** argv) {
 
   // Run the Dispatcher -------------------------------------------------------
   process::set_executable(updater);
-  core.schedule_all(dispatcher_update());
+  core.schedule_all(dp());
   std::cout << "Running dispatcher..." << std::endl;
   const double runtime = core.start();  // Run the engine
   std::cout << "Graphlab finished, runtime: " << runtime 
