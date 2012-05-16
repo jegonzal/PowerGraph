@@ -3,7 +3,9 @@
 #include <unistd.h>
 
 #include <graphlab/macros_def.hpp>
+#include "../../rapidjson.hpp"
 
+#define INITIAL_LENGTH 256
 
 // class shortest_path_update : public
 // graphlab::iupdate_functor<graph_type, shortest_path_update> {
@@ -27,15 +29,62 @@
 //   }
 // }; // end of shortest path update functor
 
+// not thread-safe
+const char *handle_invocation(const char *buffer, std::size_t length){
+
+  if (NULL == buffer || 0 == length) return NULL;
+
+  rapidjson::Document document;
+  if (document.Parse<0>(data).HasParseError()){/* TODO: error handling */}
+  
+  if (!strcmp(document["method"], "exit")) return NULL;
+  if (!strcmp(document["method"], "update")){
+  
+    rapidjson::Document return_json;
+    
+    rapidjson::StringBuffer buffer;
+    rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
+    return_json.Accept(writer);
+    
+    return buffer.GetString();
+    
+  }
+
+  return NULL;
+  
+}
 
 int main(int argc, char** argv) {
+
+  std::string line;
+  std::size_t length = 0;
+  std::size_t current_length = INITIAL_LENGTH;
+  char *buffer = new char[current_length];
   
   // loop until exit is received
-  // while (true){
-  //    read message
-  //    break if exit
-  //    process message, construct return
-  // }
+  while (true){
+    
+    std::cin >> length;
+    std::getline(std::cin, first_line);
+    if (length > current_length){
+      current_length = length;
+      delete[] buffer;
+      buffer = new char[current_length];
+    }
+    
+    // read message, break if exit
+    std::cin.read(buffer, length);
+    const char *return_json = handle_invocation(buffer, length);
+    if (!return_json) break;
+    
+    // return
+    std::cout << strlen(return_json) << "\n";
+    std::cout << return_json << std::flush;
+    
+  }
+  
+  delete[] buffer;
+  return 0;
 
 }
 
