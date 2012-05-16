@@ -29,11 +29,9 @@
 #define GRAPHLAB_DISPATCHER_HPP
 
 #include <graphlab.hpp>
-#include "process.hpp"
 
-//////////////////////////////// UPDATE FUNCTOR ////////////////////////////////
+////////////////////////////// CGI UPDATE FUNCTOR //////////////////////////////
 
-/** dispatcher update function */
 namespace graphlab {
 
   struct cgi_vertex {
@@ -44,6 +42,9 @@ namespace graphlab {
     std::string state;
   };
   
+  class json_return;
+  
+  /** dispatcher update functor */  
   class dispatcher_update : 
     public graphlab::iupdate_functor<graph<cgi_vertex, cgi_edge>, dispatcher_update> {
   public:
@@ -51,10 +52,13 @@ namespace graphlab {
   private:
     std::string mstate;
   public:
-    dispatcher_update();
+    dispatcher_update(const std::string& state="");
     dispatcher_update(const dispatcher_update& other);
     inline void operator+=(const dispatcher_update& other);
     void operator()(icontext_type& context);
+  private:
+    /** schedule updates on vertices based on return values */
+    void schedule(icontext_type& context, const json_return& result);
   }; // end of dispatcher update functor
   
 };

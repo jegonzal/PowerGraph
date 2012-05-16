@@ -43,7 +43,7 @@ process::
 
 process::~process(){
   // close if child is still alive
-  json_message exit_message("exit");
+  json_invocation exit_message("exit");
   send(exit_message);
   if (pout.is_open()) pout.close();
   if (pin.is_open()) pin.close();

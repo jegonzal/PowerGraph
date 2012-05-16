@@ -26,16 +26,20 @@
  */
  
 #include "dispatcher.hpp"
+#include "process.hpp"
 #include "json_message.hpp"
 #include <graphlab/macros_def.hpp>
 
 using namespace graphlab;
-typedef dispatcher_update dp;
+typedef json_schedule js;
 typedef json_message jm;
+typedef json_invocation ji;
+typedef json_return jr;
+typedef dispatcher_update dp;
 
 /////////////////////////////// INSTANCE MEMBERS ///////////////////////////////
 
-dp::dispatcher_update() : mstate() {}
+dp::dispatcher_update(const std::string& state) : mstate(state) {}
 
 dp::dispatcher_update(const dp& other) : mstate(other.mstate) {}
 
@@ -45,27 +49,61 @@ inline void dp::operator+=(const dp& other){
 
 void dp::operator()(icontext_type& context){
   
-  // TODO
-  
   process& p = process::get_process();
   
   // send invocation to child
-  jm invocation("update", mstate);
-  invocation.add_context(context, jm::VERTEX | jm::EDGES);
+  ji invocation("update", mstate);
+  invocation.add_context(context, ji::VERTEX | ji::EDGES);
   p.send(invocation);
   
   // parse results
-  jm result;
+  jr result;
   p.receive(result);
 
-  // update states
+  // update states - null means no change
   const char *cstring = result.updater();
   if (NULL != cstring)
-    mstate = std::string(cstring);                              // copy
+    mstate = std::string(cstring);                      // copy
   cstring = result.vertex();
   if (NULL != cstring)
     context.vertex_data().state = std::string(cstring); // copy
+  // TODO: edge states
+    
+  // schedule
+  schedule(context, result);
 
+}
+
+void dp::schedule(icontext_type& context, const jr& result){
+
+  const js schedule = result.schedule();
+  
+  switch (schedule.targets()){
+    case js::IN_NEIGHBORS: {
+      const dp &updater = (schedule.updater() == "self") ? *this : dp(schedule.updater());
+      context.schedule_in_neighbors(context.vertex_id(), updater);
+      break;
+    }
+    case js::OUT_NEIGHBORS: {
+      const dp &updater = (schedule.updater() == "self") ? *this : dp(schedule.updater());
+      context.schedule_out_neighbors(context.vertex_id(), updater);
+      break;
+    }
+    case js::ALL: {
+      const dp &updater = (schedule.updater() == "self") ? *this : dp(schedule.updater());
+      context.schedule_neighbors(context.vertex_id(), updater);
+      break;
+    }
+    case js::SOME: {
+      foreach(vertex_id_type vertex, schedule.vertices()){
+        const dp &updater = (schedule.updater() == "self") ? *this : dp(schedule.updater());
+        context.schedule(vertex, updater);
+      }
+      break;
+    }
+    case js::NONE: {/* do nothing */}
+  }
+  
 }
 ////////////////////////////////////////////////////////////////////////////////
 
