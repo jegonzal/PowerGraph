@@ -120,15 +120,21 @@ void knn_update_function(gl_types::iscope &scope,
 
   graphlab::timer t; t.start();
   graph_type *training = ps.g<graph_type>(TRAINING);
+  graph_type* train_ref = NULL;
+  
+  if (ac.training_ref != "")
+     train_ref = ps.g<graph_type>(TEST);
 
-   int start = (ps.algorithm == USER_KNN ? 0 : ps.M);
-   int end = (ps.algorithm == USER_KNN ? ps.M : ps.M+ps.N);
+  int start = (ps.algorithm == USER_KNN ? 0 : ps.M);
+  int end = (ps.algorithm == USER_KNN ? ps.M : ps.M+ps.N);
   int howmany = (end-start)*ac.knn_sample_percent;
   assert(howmany > 0 );
   vec distances(howmany);
   ivec indices = ivec(howmany);
    if (ac.knn_sample_percent == 1.0){
      for (int i=start; i< end; i++){
+         if (id == i) //distance from a node to itself is always zero, no need to calc
+            continue;
         vertex_data & other = training->vertex_data(i);
         distances[i-start] = calc_distance(vdata.datapoint, other.datapoint, other.min_distance, vdata.min_distance);
         indices[i-start] = i;
@@ -141,7 +147,11 @@ void knn_update_function(gl_types::iscope &scope,
         indices[i] = random_other;
   }
   vec out_dist(ps.K);
-  ivec indices_sorted = sort_index2(distances, indices, out_dist, ps.K);
+  ivec indices_sorted;
+  if (ac.compute_rating)
+    indices_sorted = reverse_sort_index2(distances, indices, out_dist, ps.K);
+  else  
+    indices_sorted = sort_index2(distances, indices, out_dist, ps.K);
   //sort(distances); 
   vdata.distances = wrap_answer(out_dist, indices_sorted, ps.K);
   assert(vdata.distances.size() == ps.K*2);

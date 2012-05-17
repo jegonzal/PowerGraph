@@ -55,8 +55,7 @@ void load_matrix_market(const char * filename, graph_type_kcores *_g, testtype t
 
     if (mm_read_banner(f, &matcode) != 0)
     {
-        logstream(LOG_ERROR) << "Could not process Matrix Market banner." << std::endl;
-        exit(1);
+        logstream(LOG_FATAL) << "Could not process Matrix Market banner." << std::endl;
     }
 
     /*  This is how one can screen matrix types if their application */
@@ -65,9 +64,8 @@ void load_matrix_market(const char * filename, graph_type_kcores *_g, testtype t
     if (mm_is_complex(matcode) && mm_is_matrix(matcode) && 
             mm_is_sparse(matcode) )
     {
-        logstream(LOG_ERROR) << "sorry, this application does not support " << std::endl << 
+        logstream(LOG_FATAL) << "sorry, this application does not support " << std::endl << 
           "Market Market type: " << mm_typecode_to_str(matcode) << std::endl;
-        exit(1);
     }
 
     /* find out size of sparse matrix .... */
@@ -79,6 +77,8 @@ void load_matrix_market(const char * filename, graph_type_kcores *_g, testtype t
     }
     if (ret_code != 0)
        logstream(LOG_FATAL) << "failed to read matrix market cardinality size " << std::endl; 
+
+    logstream(LOG_INFO)<<"Loaded a matrix of size: " << M << " x " << N << " size, non zeros: " << nz << std::endl;
 
     if (type ==TRAINING){
     ps.M = M; ps.N = N; ps.K = ac.K;
@@ -177,6 +177,8 @@ void load_matrix_market_clusters(const std::string & filename, graph_type *_g)
     if (ret_code != 0)
        logstream(LOG_FATAL) << "failed to read matrix market cardinality size " << std::endl; 
 
+
+    logstream(LOG_INFO)<<"Loaded a matrix of size: " << M << " x " << N << std::endl; 
 
     int I,J; 
     double val;
@@ -307,14 +309,12 @@ void load_matrix_market(const char * filename, graph_type *_g, testtype type)
            return;
         if (type == TEST)
            return;
-	logstream(LOG_ERROR) << " can not find input file. aborting " << std::endl;
-	exit(1);
+	    logstream(LOG_FATAL) << " can not find input file. aborting " << std::endl;
     }
 
     if (mm_read_banner(f, &matcode) != 0)
     {
-        logstream(LOG_ERROR) << "Could not process Matrix Market banner." << std::endl;
-        exit(1);
+        logstream(LOG_FATAL) << "Could not process Matrix Market banner." << std::endl;
     }
 
     /*  This is how one can screen matrix types if their application */
@@ -350,6 +350,7 @@ void load_matrix_market(const char * filename, graph_type *_g, testtype type)
     if (ps.algorithm == SVD_EXPERIMENTAL && ac.reduce_mem_consumption && ac.svd_compile_eigenvectors)
       return;
 
+    logstream(LOG_INFO)<<"Loaded a matrix of size: " << M << " x " << N << std::endl;
 
     if (_g->num_vertices() == 0){
       init();

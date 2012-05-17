@@ -54,7 +54,7 @@ using namespace std;
 advanced_config ac;
 problem_setup ps;
 
-const char * runmodesname[] = {"K-Means", "K-Means++", "Fuzzy K-Means", "Latent Dirichlet Allocation", "K-Shell decomposition", "Item-KNN", "User-Knn", "SVD-EXPERIMENTAL"};
+const char * runmodesname[] = {"K-Means", "K-Means++", "Fuzzy K-Means", "Latent Dirichlet Allocation", "K-Shell decomposition", "Item-KNN", "User-Knn", "SVD-EXPERIMENTAL", "Rating"};
 const char * inittypenames[]= {"RANDOM", "ROUND_ROBIN", "KMEANS++", "RANDOM_CLUSTER", "INIT_FROM_FILE"};
 const char * countername[] = {"DISTANCE_CALCULTION", "LDA_NEWTON_METHOD", "LDA_ACCUM_BETA", "LDA_LIKELIHOOD", "LDA_NORMALIZE", "SVD_MULT_A", "SVD_MULT_A_TRANPOSE", "CALC_RMSE_Q"};
 const char * testtypename[] = {"TRAINING", "VALIDATION", "TEST"};
@@ -68,7 +68,10 @@ void dumpcluster();
 void tfidf_weighting();
 void plus_mul(flt_dbl_vec& v1, sparse_flt_dbl_vec &v2, flt_dbl factor);
 void kcores_update_function(gl_types_kcores::iscope & scope, gl_types_kcores::icallback & scheduler);
+void rating_update_function(gl_types::iscope & scope, gl_types::icallback & scheduler);
 void kcores_main();
+void rating_main();
+
 //void init_lanczos();
 void knn_update_function(gl_types::iscope &scope, 
 			 gl_types::icallback &scheduler);
@@ -199,6 +202,10 @@ void add_tasks(gl_types::core & glcore){
 
      case SVD_EXPERIMENTAL:
        break;
+ 
+     case RATING:
+       glcore.add_tasks(um, rating_update_function,1);
+       break;
 
       default: assert(false);
   }
@@ -274,7 +281,9 @@ void init(){
    case LDA:
    case ITEM_KNN:
    case USER_KNN:  
+   case RATING:
     break;
+
 
 
    case KSHELL_DECOMPOSITION:
@@ -322,9 +331,11 @@ void start(command_line_options & clopts) {
     graph_type *training = &glcore.graph();
     graph_type* validation = NULL;		
     if (ac.algorithm == ITEM_KNN || ac.algorithm == USER_KNN){		
-	        validation = training;		
-	        training = new graph_type();	
+	    validation = training;		
+	    training = new graph_type();	
     }	
+    else if (ac.algorithm == RATING)
+      validation = new graph_type();
     ps.set_graph(TRAINING, training);
     load_graph<graph_type>(ac.datafile.c_str(), training, TRAINING);
     if (ac.K > ps.M){
@@ -333,13 +344,15 @@ void start(command_line_options & clopts) {
     }
       
 
-    if (ac.algorithm == ITEM_KNN || ac.algorithm == USER_KNN){
+    if (ac.algorithm == ITEM_KNN || ac.algorithm == USER_KNN || ac.algorithm == RATING){
        ps.set_graph(VALIDATION, validation);
        load_graph<graph_type>((ac.datafile + "e").c_str(), validation, VALIDATION);
 
        graph_type * test_graph = new graph_type();
        ps.set_graph(TEST, test_graph);
-       load_graph<graph_type>((ac.datafile + "t").c_str(), test_graph, TEST); 
+       if (ac.training_ref != "")
+       load_graph<graph_type>((ac.training_ref).c_str(), test_graph, TEST); 
+       else load_graph<graph_type>((ac.datafile + "t").c_str(), test_graph, TEST); 
     } 
     
     if (ps.init_type == INIT_RANDOM_CLUSTER)
@@ -422,6 +435,10 @@ void start(command_line_options & clopts) {
          initialize_clusters(glcore);
      	 break;
 
+      case RATING:
+        rating_main();
+        break;
+
       case LDA:
         lda_main();
 	break;
@@ -503,6 +520,7 @@ int do_main(int argc, const char *argv[]){
     case ITEM_KNN:
     case USER_KNN:
     case SVD_EXPERIMENTAL:
+    case RATING:
        start<gl_types::core, graph_type>(clopts);
        break;
 

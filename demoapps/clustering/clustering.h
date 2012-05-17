@@ -1,8 +1,6 @@
 #ifndef CLUSTERING_H__	 
 #define CLUSTERING_H__
 
-
-
 //#define NDEBUG
 #include "graphlab.hpp"
 #include "../pmf/mathlayer.hpp"
@@ -131,7 +129,8 @@ enum runmodes{
    KSHELL_DECOMPOSITION = 4,
    ITEM_KNN = 5,
    USER_KNN = 6, 
-   SVD_EXPERIMENTAL = 7
+   SVD_EXPERIMENTAL = 7,
+   RATING = 8
 };
 
 //#define MAX_RUNMODE 1
@@ -277,9 +276,6 @@ template<> inline graph_type *problem_setup::g(testtype type){
 
 static graphlab::glshared<clusters> CLUSTERS;
 
-
-
-
 int do_main(int argc, const char * argv[]);
 
 void add_vertices(graph_type * _g, testtype type);
@@ -290,7 +286,6 @@ void save_matrix_market_format(const char * filename);
 
 void test_math();
 void test_fmath();
-
 void lda_main();
 #endif
 

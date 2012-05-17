@@ -20,7 +20,7 @@ if (lapack_found)
   add_graphlab_executable(glcluster clustering.cpp advanced_config.cpp 
 read_matrix_market.cpp ../../libs/matrixmarket/mmio.cpp distance.cpp   
 sparse_math.cpp main.cpp kmeans_plus_plus.cpp dumpcluster.cpp tfidf.cpp
-lda.cpp gamma.cpp kcores.cpp itemknn.cpp)
+lda.cpp gamma.cpp kcores.cpp itemknn.cpp rating.cpp)
     configure_file(${CMAKE_CURRENT_SOURCE_DIR}/clive_test
     ${CMAKE_CURRENT_BINARY_DIR}/clive_test COPYONLY)
     configure_file(${CMAKE_CURRENT_SOURCE_DIR}/train.mtx

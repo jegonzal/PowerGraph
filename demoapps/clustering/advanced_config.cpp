@@ -52,6 +52,8 @@ void advanced_config::init_command_line_options(graphlab::command_line_options &
   clopts.attach_option("fuzzy_scatter", &fuzzy_scatter, fuzzy_scatter, "Fuzzy K-means random initialization variance (between 0.01 -> 2)");
   clopts.attach_option("init_clusters_from_file", &init_clusters_from_file, init_clusters_from_file, "K-MEANS: Init cluster heads from file");
   clopts.attach_option("N", &N, N, "feature width size (number of matrix columns");
+  clopts.attach_option("compute_rating", &compute_rating, compute_rating, "compute highest K ratings using the output of pmf");
+  clopts.attach_option("training_ref", &training_ref, training_ref, "ignore observed training in training file when computing recommendation ratings");
 }
 
 void problem_setup::verify_setup(){

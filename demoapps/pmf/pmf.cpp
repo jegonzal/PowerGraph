@@ -321,18 +321,7 @@ void start(command_line_options& clopts) {
     load_pmf_graph<graph_type,gl_types,vertex_data,edge_data>((ac.datafile+"e").c_str(),&g, &validation_graph, VALIDATION);
     ps.set_graph(&validation_graph, VALIDATION);
 
-  //read the test data (optional)
-    printf("loading data file %s\n", (ac.datafile+"t").c_str());
-    load_pmf_graph<graph_type,gl_types,vertex_data,edge_data>((ac.datafile+"t").c_str(),&g, &test_graph, TEST);
-    ps.set_graph(&test_graph, TEST);
-
-
-    if (ac.test2){
-      printf("loading data file %s\n", (ac.datafile+"t2").c_str());
-      load_pmf_graph<graph_type,gl_types,vertex_data,edge_data>((ac.datafile+"t2").c_str(),&g, &test_graph2, TEST2);
-      ps.set_graph(&test_graph2, TEST2);
-    }
-  }  
+   }  
 
   if (ac.loadfactors){
      import_uvt_from_file<graph_type>();
@@ -421,7 +410,21 @@ void start(command_line_options& clopts) {
 
  if (ps.algorithm != LANCZOS && ps.algorithm != SVD){
     /**** OUTPUT TEST FORMAT *****/
-    if (ac.exporttest){
+ 
+    //read the test data (optional)
+    printf("loading data file %s\n", (ac.datafile+"t").c_str());
+    load_pmf_graph<graph_type,gl_types,vertex_data,edge_data>((ac.datafile+"t").c_str(),&g, &test_graph, TEST);
+    ps.set_graph(&test_graph, TEST);
+
+
+    if (ac.test2){
+      printf("loading data file %s\n", (ac.datafile+"t2").c_str());
+      load_pmf_graph<graph_type,gl_types,vertex_data,edge_data>((ac.datafile+"t2").c_str(),&g, &test_graph2, TEST2);
+      ps.set_graph(&test_graph2, TEST2);
+    }
+
+    //calculate an export prediction on test data
+   if (ac.exporttest){
       if (ac.outputvalidation) //experimental: output prediction of validation data
  	     export_test_file<graph_type, vertex_data, edge_data>(validation_graph, VALIDATION, true);
       else {//output prediction of test data, as required by KDD 

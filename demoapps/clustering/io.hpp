@@ -330,9 +330,9 @@ void add_vertices(graph_type * _g, testtype type){
   if (ps.algorithm == SVD_EXPERIMENTAL)
      howmany = ps.M+ps.N;
 
-  if (ps.algorithm == USER_KNN && type == VALIDATION)
+  if ((ps.algorithm == RATING  || ps.algorithm == USER_KNN) && type == VALIDATION)
     howmany = ps.M_validation;
-  else if (ps.algorithm == USER_KNN && type == TEST)
+  else if ((ps.algorithm == RATING || ps.algorithm == USER_KNN) && type == TEST)
     howmany = ps.M_test;
   else if (ps.algorithm == ITEM_KNN && type == VALIDATION)
     howmany = ps.M_validation + ps.N_validation;
