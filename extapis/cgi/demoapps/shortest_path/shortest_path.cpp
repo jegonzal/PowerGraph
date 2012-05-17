@@ -21,7 +21,8 @@ void shortest_path_update(json::Document & invocation, json::Document& return_js
 
   // TODO: error handling for missing elements
   const char *vertex_state = invocation["params"]["context"]["vertex"]["state"].GetString();
-  double vertex_dist = stof(vertex_state);
+  double vertex_id = invocation["params"]["context"]["vertex"]["id"].GetInt();
+  double vertex_dist = (0 == vertex_id) ? 0 : stof(vertex_state);
   
   // relax all incoming edges
   json::Value& in_edges = invocation["params"]["context"]["in_edges"];
