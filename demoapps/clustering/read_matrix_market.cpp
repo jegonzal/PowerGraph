@@ -528,7 +528,10 @@ void save_matrix_market_format(const char * filename)
       save_matrix_market_matrix((std::string(filename) + ".betas.mtx").c_str(),ps.output_clusters,ps.output_clusters_comment, false,false);
       save_matrix_market_matrix((std::string(filename) + ".gammas.mtx").c_str(),ps.output_assignements, ps.output_assignements_comment, ps.output_assignements_integer,false);
     }
-
+    else if (ps.algorithm == RATING){
+	    save_matrix_market_matrix((std::string(filename) + ".scalar-ratings.mtx").c_str(),ps.output_clusters,ps.output_clusters_comment, false,false);
+      save_matrix_market_matrix((std::string(filename) + ".recommended-items.mtx").c_str(),ps.output_assignements, ps.output_assignements_comment, ps.output_assignements_integer,false);
+    }
     else if (ps.algorithm != SVD_EXPERIMENTAL){
       save_matrix_market_matrix((std::string(filename) + ".clusters.mtx").c_str(),ps.output_clusters,ps.output_clusters_comment, false,false);
       save_matrix_market_matrix((std::string(filename) + ".assignments.mtx").c_str(),ps.output_assignements, ps.output_assignements_comment, ps.output_assignements_integer,false);

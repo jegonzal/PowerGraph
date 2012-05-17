@@ -123,6 +123,10 @@ void rating_update_function(gl_types::iscope &scope,
   assert(howmany > 0 );
   vec distances(howmany);
   ivec indices = ivec(howmany);
+  for (int i=0; i< howmany; i++){
+    indices[i]= -2;
+    distances[i] = 0;
+  }
   vertex_data & thenode = train_ref->vertex_data(id);
   bool *curratings = new bool[ps.M_validation];
   FOR_ITERATOR_(j, thenode.datapoint){

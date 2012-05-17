@@ -235,7 +235,7 @@ inline ivec reverse_sort_index2(const vec&a, const ivec&indices, vec & out, int 
   D.reserve(a.size());
   for (int i=0;i<a.size();i++)
     D.push_back(std::make_pair<double,int>(a[i],indices[i]));
-  std::partial_sort(D.begin(),D.begin()+K, D.end(), myfunc);
+  std::sort(D.rbegin(),D.rend());
   for (int i=0;i<a.size();i++)
   { 
     ret[i]=D[i].second;

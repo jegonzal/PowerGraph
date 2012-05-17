@@ -131,10 +131,11 @@ void knn_update_function(gl_types::iscope &scope,
   assert(howmany > 0 );
   vec distances(howmany);
   ivec indices = ivec(howmany);
+  for (int i=0; i< howmany; i++){
+    distances[i] = 0; indices[i] = -2;
+  }
    if (ac.knn_sample_percent == 1.0){
      for (int i=start; i< end; i++){
-         if (id == i) //distance from a node to itself is always zero, no need to calc
-            continue;
         vertex_data & other = training->vertex_data(i);
         distances[i-start] = calc_distance(vdata.datapoint, other.datapoint, other.min_distance, vdata.min_distance);
         indices[i-start] = i;
