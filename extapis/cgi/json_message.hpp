@@ -95,7 +95,7 @@ namespace graphlab {
      * @param[in]   data      input data
      * @param[in]   bytes     size of input data
      */
-    void parse(byte *data, std::size_t bytes);
+    void parse(const byte *data, std::size_t bytes);
 
     /**
      * Prints message to output stream

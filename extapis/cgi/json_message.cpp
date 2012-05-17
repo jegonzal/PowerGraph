@@ -78,7 +78,7 @@ jm::json_message() : mdocument(), mallocator(mdocument.GetAllocator()) {
   mdocument.SetObject();
 }
 
-void jm::parse(byte *data, std::size_t bytes){
+void jm::parse(const byte *data, std::size_t bytes){
   
   CHECK(NULL != data);
   
@@ -246,7 +246,7 @@ const js jr::schedule() const {
       neighbors = js::OUT_NEIGHBORS;
     else
       neighbors = js::NONE;
-    return json_schedule(neighbors, updater);
+    return js(neighbors, updater);
   }
   
 }

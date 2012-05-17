@@ -7,49 +7,93 @@
 
 #define INITIAL_LENGTH 256
 
-// class shortest_path_update : public
-// graphlab::iupdate_functor<graph_type, shortest_path_update> {
-// public:
-//   void operator()(icontext_type& context) {
-//     vertex_data& vdata = context.vertex_data();    
-//     foreach(edge_type edge, context.in_edges()) {
-//       const vertex_id_type nbr_id = edge.source();
-//       const vertex_data& nbr = context.const_vertex_data(nbr_id);
-//       const edge_data& edata = context.const_edge_data(edge);
-//       vdata.dist = std::min(vdata.dist, nbr.dist + edata.dist);
-//     }
-//     // Reschedule any affected neighbors
-//     foreach(edge_type edge, context.out_edges()) {
-//       const vertex_id_type nbr_id = edge.target();
-//       const vertex_data& nbr = context.const_vertex_data(nbr_id);
-//       const edge_data& edata = context.const_edge_data(edge);
-//       if(nbr.dist > (vdata.dist + edata.dist)) 
-//         context.schedule(nbr_id, *this);    
-//     }
-//   }
-// }; // end of shortest path update functor
+namespace json = rapidjson;
+
+double stof(const char *str){
+  if (0 == strlen(str)) return 1e99;
+  return atof(str);
+}
+
+void shortest_path_update(json::Document & invocation, json::Document& return_json){
+
+  json::Document::AllocatorType& allocator = return_json.GetAllocator();
+  return_json.SetObject();
+
+  // TODO: error handling for missing elements
+  const char *vertex_state = invocation["params"]["context"]["vertex"]["state"].GetString();
+  double vertex_dist = stof(vertex_state);
+  
+  // relax all incoming edges
+  json::Value& in_edges = invocation["params"]["context"]["in_edges"];
+  for (json::SizeType i = 0; i < in_edges.Size(); i++){
+    json::Value& edge = in_edges[i];
+    double edge_dist = std::max(1.0, atof(edge["state"].GetString()));
+    double nbr_dist = stof(edge["source"]["state"].GetString());
+    vertex_dist = std::min(vertex_dist, nbr_dist + edge_dist);
+  }
+  
+  std::stringstream doublestream;
+  doublestream << vertex_dist;
+  const char *doublestr = doublestream.str().c_str();
+  
+  // add shortest distance to return json
+  return_json.AddMember("vertex", doublestr, allocator);
+
+  // construct schedule
+  json::Value schedule;
+  schedule.SetObject();
+  schedule.AddMember("updater", "self", allocator);
+  
+  json::Value vertices;
+  vertices.SetArray();
+  
+  // schedule affected members
+  json::Value& out_edges = invocation["params"]["context"]["out_edges"];
+  for (json::SizeType i = 0; i < out_edges.Size(); i++){
+  
+    json::Value& edge = out_edges[i];
+    int nbr_id = edge["target"]["id"].GetInt();
+    double nbr_dist = stof(edge["target"]["state"].GetString());
+    double edge_dist = std::max(1.0, atof(edge["state"].GetString()));
+    
+    if (nbr_dist > (vertex_dist + edge_dist))
+      vertices.PushBack(nbr_id, allocator);
+    
+  }
+  
+  // add to return json
+  schedule.AddMember("vertices", vertices, allocator);
+  return_json.AddMember("schedule", schedule, allocator);
+
+}
 
 // not thread-safe
-const char *handle_invocation(const char *buffer, std::size_t length){
+const char *handle_invocation(const char *buffer){
 
-  if (NULL == buffer || 0 == length) return NULL;
+  if (NULL == buffer) return NULL;
 
-  rapidjson::Document document;
-  if (document.Parse<0>(data).HasParseError()){/* TODO: error handling */}
+  json::Document invocation;
+  if (invocation.Parse<0>(buffer).HasParseError()){/* TODO: error handling */}
   
-  if (!strcmp(document["method"], "exit")) return NULL;
-  if (!strcmp(document["method"], "update")){
+  // TODO: error handling for missing elements
+  if (!strcmp(invocation["method"].GetString(), "exit")) return NULL;
+  if (!strcmp(invocation["method"].GetString(), "update")){
   
-    rapidjson::Document return_json;
+    json::Document return_json;
     
-    rapidjson::StringBuffer buffer;
-    rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
+    shortest_path_update(invocation, return_json);
+    
+    // this is not thread-safe
+    static json::StringBuffer buffer;
+    buffer.Clear();
+    json::Writer<json::StringBuffer> writer(buffer);
     return_json.Accept(writer);
     
     return buffer.GetString();
     
   }
 
+  // TODO: error handling - method not found?
   return NULL;
   
 }
@@ -64,17 +108,19 @@ int main(int argc, char** argv) {
   // loop until exit is received
   while (true){
     
+    // TODO: assume NULL-terminated string for now
     std::cin >> length;
-    std::getline(std::cin, first_line);
-    if (length > current_length){
-      current_length = length;
+    std::getline(std::cin, line);
+    if (length + 1 > current_length){
+      current_length = length + 1;
       delete[] buffer;
       buffer = new char[current_length];
     }
     
     // read message, break if exit
     std::cin.read(buffer, length);
-    const char *return_json = handle_invocation(buffer, length);
+    buffer[length] = NULL;    // terminate string w. null
+    const char *return_json = handle_invocation(buffer);
     if (!return_json) break;
     
     // return
