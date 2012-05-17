@@ -25,31 +25,22 @@
 
 
 #include "clustering.h"
-#include "../gabp/advanced_config.h"
 #include "distance.h"
+#include "../gabp/advanced_config.h"
 
 extern advanced_config ac;
 extern problem_setup ps;
 extern const char * runmodesname[];
-//double sum_sqr(sparse_vec & v);
-const int matlab_offset = 1;
 
-flt_dbl_vec wrap_answer(const vec& distances, const ivec& indices, int num){
-   flt_dbl_vec ret = zeros(num*2);
-   for (int i=0; i< num; i++){
-      ret[2*i] = distances[i];
-      ret[2*i+1] = indices[i];
-   }
-   return ret;
-}
+flt_dbl_vec wrap_answer(const vec& distances, const ivec& indices, int num);
 
-void init_knn(){
+void init_rating(){
 
    if (ac.distance_measure != EUCLIDEAN && ac.distance_measure != COSINE && ac.distance_measure != TANIMOTO)
      return;
 
-   int start = (ps.algorithm == USER_KNN ? 0 : ps.M);
-   int end = (ps.algorithm == USER_KNN ? ps.M : ps.M+ps.N);
+   int start = 0;
+   int end = ps.M;
   
    graph_type * training = ps.g<graph_type>(TRAINING);
    for (int i=start; i< end; i++){
@@ -58,8 +49,8 @@ void init_knn(){
       assert( data.reported == ( nnz(data.datapoint) > 0));
    }
 
-   int startv = (ps.algorithm == USER_KNN ? 0 : ps.M_validation);
-   int endv = (ps.algorithm == USER_KNN ? ps.M_validation : ps.M_validation+ps.N_validation);
+   int startv = 0;
+   int endv = ps.M_validation;
 
    graph_type * validation = ps.g<graph_type>(VALIDATION);
    for (int i=startv; i< endv; i++){
@@ -71,16 +62,16 @@ void init_knn(){
 }
 
 
-void stats(){
+void rating_stats(){
 
    flt_dbl min=1e100, max=0, avg=0;
    int cnt = 0;
-   graph_type * validation = ps.g<graph_type>(VALIDATION);
-   int startv = (ps.algorithm == USER_KNN ? 0 : ps.M_validation);
-   int endv = (ps.algorithm == USER_KNN ? ps.M_validation : ps.M_validation+ps.N_validation);
+   graph_type * training = ps.g<graph_type>(TRAINING);
+   int startv = 0;
+   int endv = ps.M;
 
    for (int i=startv; i< endv; i++){
-     vertex_data& data = validation->vertex_data(i);
+     vertex_data& data = training->vertex_data(i);
      if (data.distances.size() > 0){
        min = std::min(min, data.distances[0]);
        max = std::max(max, data.distances[0]);
@@ -99,7 +90,7 @@ void stats(){
  /***
  * UPDATE FUNCTION
  */
-void knn_update_function(gl_types::iscope &scope, 
+void rating_update_function(gl_types::iscope &scope, 
 			 gl_types::icallback &scheduler) {
     
 
@@ -111,7 +102,7 @@ void knn_update_function(gl_types::iscope &scope,
   
  /* print statistics */
   if (toprint){
-    printf("Item Knn: entering data point %u, current cluster %d\n",  id, vdata.current_cluster);  
+    printf("Rating: entering user %u\n",  id);  
     print(vdata.datapoint); 
   }
 
@@ -119,36 +110,44 @@ void knn_update_function(gl_types::iscope &scope,
      return;
 
   graphlab::timer t; t.start();
-  graph_type *training = ps.g<graph_type>(TRAINING);
+  graph_type *validation = ps.g<graph_type>(VALIDATION);
   graph_type* train_ref = NULL;
   
-  if (ac.training_ref != "")
-     train_ref = ps.g<graph_type>(TEST);
+  train_ref = ps.g<graph_type>(TEST);
+  if (train_ref == NULL)
+    logstream(LOG_FATAL)<<"Training graph was not supplied using the command line --training_ref" << std::endl;
 
-  int start = (ps.algorithm == USER_KNN ? 0 : ps.M);
-  int end = (ps.algorithm == USER_KNN ? ps.M : ps.M+ps.N);
+  int start = 0;
+  int end = ps.M_validation;
   int howmany = (end-start)*ac.knn_sample_percent;
   assert(howmany > 0 );
   vec distances(howmany);
   ivec indices = ivec(howmany);
+  vertex_data & thenode = train_ref->vertex_data(id);
+  bool *curratings = new bool[ps.M_validation];
+  FOR_ITERATOR_(j, thenode.datapoint){
+  //no need to calculate this rating since it is given in the training data reference
+    curratings[get_nz_index(thenode.datapoint, j)] = true;
+  }
    if (ac.knn_sample_percent == 1.0){
      for (int i=start; i< end; i++){
-         if (id == i) //distance from a node to itself is always zero, no need to calc
-            continue;
-        vertex_data & other = training->vertex_data(i);
+        assert(id != ps.M + i);
+        if (curratings[i])
+          continue;
+        vertex_data & other = validation->vertex_data(i);
         distances[i-start] = calc_distance(vdata.datapoint, other.datapoint, other.min_distance, vdata.min_distance);
         indices[i-start] = i;
      }
   }
   else for (int i=0; i<howmany; i++){
         int random_other = ::randi(start, end-1);
-        vertex_data & other = training->vertex_data(random_other);
+        vertex_data & other = validation->vertex_data(random_other);
         distances[i] = calc_distance(vdata.datapoint, other.datapoint, other.min_distance, vdata.min_distance);
         indices[i] = random_other;
   }
+  delete [] curratings;
   vec out_dist(ps.K);
-  ivec indices_sorted = sort_index2(distances, indices, out_dist, ps.K);
-  //sort(distances); 
+  ivec indices_sorted = reverse_sort_index2(distances, indices, out_dist, ps.K);
   vdata.distances = wrap_answer(out_dist, indices_sorted, ps.K);
   assert(vdata.distances.size() == ps.K*2);
   if (toprint)
@@ -159,30 +158,20 @@ void knn_update_function(gl_types::iscope &scope,
     printf("handling validation row %d at time: %g\n", id, ps.gt.current_time());
 }
 
-void copy_assignments(flt_dbl_mat &a, const flt_dbl_vec& distances, int i, graph_type* validation){
-   bool reported = validation->vertex_data(i).reported;
-   for (int j=0; j<ac.K; j++){
-     set_val(a,j, i, reported? distances[j*2+1]+matlab_offset : -1);
-   }
-}
+void copy_assignments(flt_dbl_mat &a, const flt_dbl_vec& distances, int i, graph_type* validation);
 
-void copy_distances(flt_dbl_mat &a, const flt_dbl_vec& distances, int i, graph_type* validation){
-   bool reported = validation->vertex_data(i).reported;
-   for (int j=0; j<ac.K; j++){
-     set_val(a,j, i, reported? distances[j*2] : -1);
-   }
-}
+void copy_distances(flt_dbl_mat &a, const flt_dbl_vec& distances, int i, graph_type* validation);
 
 
-void prepare_output(){
+void rating_prepare_output(){
 
-  graph_type * validation = ps.g<graph_type>(VALIDATION);
-  ps.output_assignements = zeros(ps.K, validation->num_vertices());
-  ps.output_clusters = zeros(ps.K, validation->num_vertices());
-  for (int i=0; i< (int)validation->num_vertices(); i++){
-     const vertex_data& data = validation->vertex_data(i);
-     copy_assignments(ps.output_assignements, data.distances, i, validation);
-     copy_distances(ps.output_clusters, data.distances, i, validation); 
+  graph_type * training = ps.g<graph_type>(TRAINING);
+  ps.output_assignements = zeros(ps.K, training->num_vertices());
+  ps.output_clusters = zeros(ps.K, training->num_vertices());
+  for (int i=0; i< (int)training->num_vertices(); i++){
+     const vertex_data& data = training->vertex_data(i);
+     copy_assignments(ps.output_assignements, data.distances, i, training);
+     copy_distances(ps.output_clusters, data.distances, i, training); 
   }
   ps.output_clusters = transpose(ps.output_clusters);
   ps.output_assignements = transpose(ps.output_assignements);
@@ -190,13 +179,13 @@ void prepare_output(){
 
 
  
-void knn_main(){
+void rating_main(){
 
-    init_knn();
+    init_rating();
     ps.gt.start();
     ps.glcore->start();
-    stats();
-    prepare_output();
+    rating_stats();
+    rating_prepare_output();
 };
 
 

@@ -56,7 +56,7 @@ FILE * open_file(const char * name, const char * mode){
 
 void fill_output(graph_type * g){
   
-   if (ac.algorithm == LDA || ac.algorithm == USER_KNN || ac.algorithm == ITEM_KNN || ac.algorithm == SVD_EXPERIMENTAL)
+   if (ac.algorithm == LDA || ac.algorithm == USER_KNN || ac.algorithm == ITEM_KNN || ac.algorithm == SVD_EXPERIMENTAL || ac.algorithm == RATING)
 	return;
   
    ps.output_clusters = zeros(ps.K, ps.N);

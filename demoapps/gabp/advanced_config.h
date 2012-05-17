@@ -197,7 +197,6 @@ double rbm_scaling;
 int rbm_bins;
 
 /* for computing rating */
-bool compute_rating;
 std::string training_ref;
 
 bool show_version;
@@ -320,7 +319,6 @@ advanced_config(){
    rbm_scaling = 10;
    rbm_bins = 11;
 
-   compute_rating = false;
    training_ref = "";
 
    shuffle = false;

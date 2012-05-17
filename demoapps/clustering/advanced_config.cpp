@@ -52,7 +52,6 @@ void advanced_config::init_command_line_options(graphlab::command_line_options &
   clopts.attach_option("fuzzy_scatter", &fuzzy_scatter, fuzzy_scatter, "Fuzzy K-means random initialization variance (between 0.01 -> 2)");
   clopts.attach_option("init_clusters_from_file", &init_clusters_from_file, init_clusters_from_file, "K-MEANS: Init cluster heads from file");
   clopts.attach_option("N", &N, N, "feature width size (number of matrix columns");
-  clopts.attach_option("compute_rating", &compute_rating, compute_rating, "compute highest K ratings using the output of pmf");
   clopts.attach_option("training_ref", &training_ref, training_ref, "ignore observed training in training file when computing recommendation ratings");
 }
 
@@ -105,6 +104,11 @@ void problem_setup::verify_setup(){
 	, third column is the distance\n%%Note that -1 means that this point was not assigned to any other close point since it has all zero features\n");
       break;
 
+    case RATING:
+      output_assignements_comment += std::string("%%This file includes the ") + boost::lexical_cast<std::string>(ac.K) + std::string(" the K top items for each user\n");
+      output_clusters_comment += std::string("%%This file includes scalar ratings of each item\n");
+     break;
+ 
    case K_MEANS_PLUS_PLUS:
    case K_MEANS:
       output_assignements_comment += std::string("%%This file contains cluster assignment for each of the data points\n");
