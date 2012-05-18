@@ -224,9 +224,7 @@ inline ivec sort_index2(const vec&a, const ivec&indices, vec & out, int K){
   return ret;
 }
 
-inline bool myfunc(std::pair<double,int>& p1, std::pair<double,int>& p2){
-  return p1.first > p2.first;
-}
+inline bool pair_compare (std::pair<double,int> &x1, std::pair<double,int> & x2) { return (x1.first>x2.first); }
 inline ivec reverse_sort_index2(const vec&a, const ivec&indices, vec & out, int K){
   assert(a.size() == indices.size());
   ivec ret(a.size()); 
@@ -235,7 +233,7 @@ inline ivec reverse_sort_index2(const vec&a, const ivec&indices, vec & out, int 
   D.reserve(a.size());
   for (int i=0;i<a.size();i++)
     D.push_back(std::make_pair<double,int>(a[i],indices[i]));
-  std::sort(D.rbegin(),D.rend());
+  std::partial_sort(D.begin(),D.begin() + K, D.end(), pair_compare);
   for (int i=0;i<a.size();i++)
   { 
     ret[i]=D[i].second;
@@ -727,7 +725,8 @@ inline ivec sort_index2(const vec&a, const ivec&indices, vec & out, int K){
   return ret;
 }
 
-bool myfunction (int i,int j) { return (i>j); }
+inline bool pair_compare (std::pair<double,int> &x1, std::pair<double,int> & x2) { return (x1.first>x2.first); }
+
 inline ivec reverse_sort_index2(const vec&a, const ivec&indices, vec & out, int K){
   assert(a.size() == indices.size());
   ivec ret(a.size()); 
@@ -736,7 +735,7 @@ inline ivec reverse_sort_index2(const vec&a, const ivec&indices, vec & out, int 
   D.reserve(a.size());
   for (int i=0;i<a.size();i++)
     D.push_back(std::make_pair<double,int>(a[i],indices[i]));
-  std::partial_sort(D.begin(),D.begin() + K, D.end(), myfunction);
+  std::partial_sort(D.begin(),D.begin() + K, D.end(), pair_compare);
   for (int i=0;i<a.size();i++)
   { 
     ret[i]=D[i].second;

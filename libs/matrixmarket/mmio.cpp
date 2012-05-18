@@ -180,7 +180,7 @@ int mm_read_banner(FILE *f, MM_typecode *matcode)
 
 int mm_write_mtx_crd_size(FILE *f, int M, int N, int nz)
 {
-    if (fprintf(f, "%d %d %d\n", M, N, nz) != 3)
+    if (fprintf(f, "%d %d %d\n", M, N, nz) < 3)
         return MM_COULD_NOT_WRITE_FILE;
     else 
         return 0;
@@ -248,7 +248,7 @@ int mm_read_mtx_array_size(FILE *f, int *M, int *N)
 
 int mm_write_mtx_array_size(FILE *f, int M, int N)
 {
-    if (fprintf(f, "%d %d\n", M, N) != 2)
+    if (fprintf(f, "%d %d\n", M, N) < 2)
         return MM_COULD_NOT_WRITE_FILE;
     else 
         return 0;
@@ -390,7 +390,7 @@ int mm_write_banner(FILE *f, MM_typecode matcode)
 
     ret_code = fprintf(f, "%s %s\n", MatrixMarketBanner, str);
     free(str);
-    if (ret_code !=2 )
+    if (ret_code < 10 )
         return MM_COULD_NOT_WRITE_FILE;
     else
         return 0;

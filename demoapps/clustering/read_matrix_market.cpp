@@ -442,13 +442,18 @@ void save_matrix_market_matrix(const char * filename, const flt_dbl_mat & a, std
     if(f == NULL)
        logstream(LOG_FATAL)<<"Failed to open file: " << filename << " for writing." << std::endl;
 
-    mm_write_banner(f, matcode); 
+    int rc = mm_write_banner(f, matcode); 
+    if (rc != 0)
+       logstream(LOG_FATAL) << "Failed to write matrix banner" << std::endl;
     if (comment.size() > 0)
       fprintf(f, "%s%s", "%", comment.c_str());
 
-    mm_write_mtx_crd_size(f, a.rows(), a.cols(), a.size());
-           
-
+    if (issparse)
+      rc = mm_write_mtx_crd_size(f, a.rows(), a.cols(), a.size());
+    else rc = mm_write_mtx_array_size(f, a.rows(), a.cols());
+   if (rc != 0)
+       logstream(LOG_FATAL) << "Failed to write matrix banner" << std::endl;
+  
     for (i=0; i<a.rows(); i++){
        for (j=0; j<a.cols(); j++){
           if (issparse){
@@ -468,7 +473,7 @@ void save_matrix_market_matrix(const char * filename, const flt_dbl_mat & a, std
     }
     logstream(LOG_INFO) << "Saved output matrix to file: " << filename << std::endl;
     logstream(LOG_INFO) << "You can read it with Matlab/Octave using the script mmread.m found on http://graphlab.org/mmread.m" << std::endl;
-
+    fclose(f);
 }
 
 
@@ -493,15 +498,19 @@ void save_matrix_market_vector(const char * filename, const flt_dbl_vec & a, std
       mm_set_integer(&matcode);
 
     FILE * f = open_file(filename,"w");
-    mm_write_banner(f, matcode); 
-    if (comment.size() > 0)
+    int rc = mm_write_banner(f, matcode); 
+    if (rc != 0)
+       logstream(LOG_FATAL) << "Failed to write matrix banner" << std::endl;
+     if (comment.size() > 0)
       fprintf(f, "%s%s", "%", comment.c_str());
     
     if (issparse)
-      mm_write_mtx_crd_size(f, a.size(), 1, a.size());
+      rc = mm_write_mtx_crd_size(f, a.size(), 1, a.size());
     else 
-      mm_write_mtx_array_size(f, a.size(), 1);
-
+      rc = mm_write_mtx_array_size(f, a.size(), 1);
+    if (rc != 0)
+       logstream(LOG_FATAL) << "Failed to write matrix banner" << std::endl;
+  
     for (i=0; i<a.size(); i++){
       if (issparse){
         if (integer)
@@ -517,6 +526,7 @@ void save_matrix_market_vector(const char * filename, const flt_dbl_vec & a, std
 
     logstream(LOG_INFO) << "Saved output vector to file: " << filename << std::endl;
     logstream(LOG_INFO) << "You can read it with Matlab/Octave using the script mmread.m found on http://graphlab.org/mmread.m" << std::endl;
+    fclose(f);
 }
 
 
