@@ -131,7 +131,8 @@ check_version()
 
 ## ===================================================================
 # Force the use of gcc-4.2 as the default compiler on macs
-if [[ "$OSTYPE" == "Darwin*" ]]; then
+echo "OS TYPE: $OSTYPE"
+if [[ "$OSTYPE" == "darwin"* ]]; then
   echo "Running on OSX"  
   echo "If no compiler is set we will try to use gcc-4.2"
   if [[ -z $CC ]]; then
