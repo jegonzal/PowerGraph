@@ -30,17 +30,9 @@
 using namespace graphlab;
 using namespace std;
 
-int nodes = 2421057;
-int num_edges = 39752419;
-int split_time = 1321891200; //time to split test data
-int split_training_time = 1320595199;
-int ratingA = 19349608;
-int ratingB = 15561329;
-int split_day_of_year = 310;
-int level = 2;
 bool debug = false;
 string datafile;
-string example_submission; 
+bool info = false;
 unsigned long long total_lines = 0;
 bool gzip = false;
 
@@ -77,24 +69,13 @@ struct edge_data2 {
 struct singlerating{
    int user;
    int item;
-   int rating;
+   double rating;
    //int time;
-   singlerating(int _user, int _item, int _rating/*, int _time*/) : user(_user), item(_item), rating(_rating)/*, time(_time)*/{ };
+   singlerating(int _user, int _item, double _rating/*, int _time*/) : user(_user), item(_item), rating(_rating)/*, time(_time)*/{ };
 };
 
 
 typedef graphlab::graph<vertex_data, edge_data> graph_type;
-typedef graphlab::graph<vertex_data2, edge_data2> graph_type2;
-typedef graph_type2::edge_type edge_type;
-
-void add_single_edge(int from, int to, edge_data2 & edge, graph_type2 & pgraph, int & examples_added){
-
-  edge_type found = pgraph.find(from - 1, to+nodes-1);
-  if (!found.empty())
-    return;
-  pgraph.add_edge(from - 1, to+nodes-1, edge); 
-  examples_added++;
-}
 
 struct stringzipparser_update :
    public graphlab::iupdate_functor<graph_type, stringzipparser_update>{
@@ -103,18 +84,34 @@ struct stringzipparser_update :
 typedef graphlab::graph<vertex_data2, edge_data2>::edge_list_type edge_list;
     
    vertex_data& vdata = context.vertex_data();
-   gzip_in_file fin(vdata.filename, gzip);
+   gzip_in_file fin(vdata.filename +  (info ? ".data" : ""), gzip);
    gzip_out_file fout(vdata.filename + ".out", gzip); 
     char linebuf[24000];
     char saveptr[1024];
-    int added = 0;
     int last_from = -1, last_to = -1;
     std::vector<singlerating> multiple_ratings;
-
+    int rows, cols;
+    size_t nz;
+ 
     MM_typecode matcode;
-    mm_read_cpp_banner(fin.get_sp(), &matcode);
-
-
+    if (!info){
+      int rc = mm_read_cpp_banner(fin.get_sp(), &matcode);
+      if (rc)
+        logstream(LOG_FATAL)<<"Failed to read mm banner" << endl;
+      rc = mm_read_cpp_mtx_crd_size(fin.get_sp(), &rows, &cols, &nz);
+      if (rc)
+        logstream(LOG_FATAL)<<"Failed to read mm banner" << endl;
+    }
+    else {
+     gzip_in_file info_file(vdata.filename + ".info", gzip);
+      int rc = mm_read_cpp_banner(info_file.get_sp(), &matcode);
+      if (rc)
+        logstream(LOG_FATAL)<<"Failed to read mm banner" << endl;
+      rc = mm_read_cpp_mtx_crd_size(info_file.get_sp(), &rows, &cols, &nz);
+      if (rc)
+        logstream(LOG_FATAL)<<"Failed to read mm banner" << endl;
+ 
+    }
 
     while(true){
       fin.get_sp().getline(linebuf, 24000);
@@ -127,8 +124,8 @@ typedef graphlab::graph<vertex_data2, edge_data2>::edge_list_type edge_list;
         return;
        }
       int from = atoi(pch);
-      if (from <= 0){
-         logstream(LOG_ERROR) << "Error when parsing file: " << vdata.filename << ":" << total_lines << " document ID is zero or less: " << from << std::endl;
+      if (from <= 0 || from > rows){
+         logstream(LOG_ERROR) << "Error when parsing file: " << vdata.filename << ":" << total_lines << " first column is out of range " << from << std::endl;
          return;
       }
       pch = strtok_r(NULL," \r\n\t",(char**)&saveptr);
@@ -137,8 +134,8 @@ typedef graphlab::graph<vertex_data2, edge_data2>::edge_list_type edge_list;
         return;
        }
       int to = atoi(pch);
-      if (to <= 0){
-         logstream(LOG_ERROR) << "Error when parsing file: " << vdata.filename << ":" << total_lines << " document ID is zero or less: " << from << std::endl;
+      if (to <= 0 || to > cols){
+         logstream(LOG_ERROR) << "Error when parsing file: " << vdata.filename << ":" << total_lines << " second column is out of range" << to << std::endl;
          return;
       }
       pch = strtok_r(NULL," \r\n\t",(char**)&saveptr);
@@ -149,7 +146,7 @@ typedef graphlab::graph<vertex_data2, edge_data2>::edge_list_type edge_list;
       double val = atof(pch);
       total_lines++;
       if (debug && (total_lines % 50000 == 0))
-        logstream(LOG_INFO) << "Parsed line: " << total_lines << " selected lines: " << added << std::endl;
+        logstream(LOG_INFO) << "Parsed line: " << total_lines << std::endl;
 
       singlerating thisrating(from, to, val);
       if ((last_from > -1) && (last_from != from)){
@@ -169,6 +166,8 @@ typedef graphlab::graph<vertex_data2, edge_data2>::edge_list_type edge_list;
     } 
 
    logstream(LOG_INFO) <<"Finished parsing total of " << total_lines << " lines in file " << vdata.filename << endl;
+   if (total_lines != nz)
+     logstream(LOG_FATAL)<<"Expected a total of " << nz << " lines, while in practice tehre where: " << total_lines << endl;
    assert(multiple_ratings.size() > 0);
    fout.get_sp() << "0 | ";
    for (uint i=0; i< multiple_ratings.size(); i++){
@@ -193,12 +192,9 @@ int main(int argc,  char *argv[]) {
   clopts.attach_option("data", &datafile, datafile,
                        "training data input file");
   clopts.add_positional("data");
-  clopts.attach_option("example_submission", &example_submission, example_submission, "example 2 column submission file location");
-  clopts.add_positional("example_submission");
   clopts.attach_option("debug", &debug, debug, "Display debug output.");
   clopts.attach_option("gzip", &gzip, gzip, "Gzipped input file?");
-  clopts.attach_option("split_day_of_year", &split_day_of_year, split_day_of_year, "split training set to validation set, for days >= split_day_of_year");
-  clopts.attach_option("level", &level, level, "take XX examples for each user from test data and add to training. 0 means no examples.");
+  clopts.attach_option("info", &info, info, "matrix market file is given in .info file");
   // Parse the command line arguments
   if(!clopts.parse(argc, argv)) {
     std::cout << "Invalid arguments!" << std::endl;
