@@ -162,15 +162,21 @@ int main(int argc,  char *argv[]) {
        uint item = out_edges[j].target() - nodes; 
        edge_data2 & edge = training.edge_data(out_edges[j]);
        int rating = edge.value;
+       int time = edge.time;
        assert(rating == -1 || rating == 1 || rating == 0);
        edge_list user_features = user_data.out_edges(user);
        edge_list item_features = item_data.out_edges(item);
-       edge_list keywords_features = keywords_data.out_edges(user);
+       edge_list keywords_features;
+       if (keywords_data_file != "")
+           keywords_features = keywords_data.out_edges(user);
        if (!user_features.size() || !item_features.size()){
          missing++;
          continue;
        }
-         
+        
+       //if (time > split_training_time)
+       //   continue;
+ 
        training_rating[training_instance-1] = rating;
        if (output_format == VW)
          fout2.get_sp() << rating << " | ";

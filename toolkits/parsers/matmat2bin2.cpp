@@ -40,6 +40,7 @@ using namespace std;
 
 
 bool debug = false;
+bool info_file = false;
 size_t nodes = 0;
 unsigned long nonzeros = 0;
 bool quick = true;
@@ -78,8 +79,8 @@ struct stringzipparser_update :
    std::string outdir = context.get_global<std::string>("OUTPATH");
     //open file
     vertex_data& vdata = context.vertex_data();
-    std::ifstream in_file((dir + vdata.filename).c_str(), std::ios::binary);
-    logstream(LOG_INFO)<<"Opening input file: " << dir << vdata.filename << std::endl;
+    std::ifstream in_file(info_file ? (dir + vdata.filename + ".data").c_str() : (dir + vdata.filename).c_str(), std::ios::binary);
+    logstream(LOG_INFO)<<"Opening input file: " << dir << vdata.filename << (info_file ? ".data" : "" )<< std::endl;
     if (!in_file.good()){
        logstream(LOG_ERROR)<<"Failed to open file!"<< std::endl;
        return;
@@ -92,7 +93,10 @@ struct stringzipparser_update :
     bipartite_graph_descriptor info;
     graph_type graph;
     //get matrix market header size
-    if (!binary_input_format)
+    if (info_file){
+       load_graph(dir + vdata.filename + ".info", "matrixmarket", info, graph, MATRIX_MARKET_3, false, true);
+    }
+    else if (!binary_input_format)
        load_graph(vdata.filename, "matrixmarket", info, graph, MATRIX_MARKET_3, false, true);
     else { info.rows = info.cols = nodes; info.nonzeros = nonzeros; }
 
@@ -129,10 +133,10 @@ struct stringzipparser_update :
 	      fin.getline(linebuf, 128);
 	      if (fin.eof())
 		break;
-	      if (linebuf[0] == '%'){ //skip matrix market header
+	      if (!info_file && linebuf[0] == '%'){ //skip matrix market header
 		 continue;
 	      }
-	      else if (header){ //skip matrix market size
+	      else if (!info_file && header){ //skip matrix market size
 		  header = false;
 		  continue;
 	      }
@@ -325,9 +329,10 @@ int main(int argc,  char *argv[]) {
   clopts.attach_option("square_matrix", &square_matrix, square_matrix, "Square matrix ? " );
   clopts.attach_option("binary_input_format", &binary_input_format, binary_input_format, "binary input format (uint 32 src,dest array)");
   clopts.attach_option("nodes", &nodes, nodes, "number of graph nodes (optional)");
+  clopts.attach_option("info", &info_file, info_file, "matrix market header is given in a separate info file");
   //clopts.attach_option("nnz", &nonzeros, nonzeros "number of graph edges (optional)");
-  nonzeros = 5397526093; 
-  lines = 5397526093;
+  nonzeros = 4158052951; //5397526093; 
+  //lines = 5397526093;
   // Parse the command line arguments
   if(!clopts.parse(argc, argv)) {
     std::cout << "Invalid arguments!" << std::endl;

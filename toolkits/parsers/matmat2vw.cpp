@@ -133,16 +133,23 @@ struct stringzipparser_update :
 
       singlerating thisrating(from, to, val);
       if ((last_from > -1) && (last_from != from)){
-        assert(multiple_ratings.size() > 0 && multiple_ratings.size() < 1000000);
+        assert(multiple_ratings.size() > 0);
+	if (multiple_ratings.size() >= 1000000){
+          logstream(LOG_FATAL)<<"Found  bug: " << multiple_ratings[0].user << std::endl;
+        }
+          
         //fout.get_sp() << "0 | ";
         fprintf(pfile, "0 | ");
         for (uint i=0; i< multiple_ratings.size(); i++){
           //fout.get_sp()<<multiple_ratings[i].item<<":"<<multiple_ratings[i].rating<<" ";
           fprintf(pfile, "%d:%lg ", multiple_ratings[i].item, multiple_ratings[i].rating);
+          assert(multiple_ratings[i].user == last_from);
         } 
         //fout.get_sp()<<endl;
         fprintf(pfile, "\n");
         //fout.get_sp().strict_sync();
+        if (thisrating.user < multiple_ratings[0].user)
+           logstream(LOG_FATAL)<<"Input file is not sorted properly in line: " << total_lines << " first column is smaller thna previous first column"<<endl;
         multiple_ratings.clear();
         multiple_ratings.push_back(thisrating);
       }
