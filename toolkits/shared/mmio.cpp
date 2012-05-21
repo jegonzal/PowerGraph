@@ -531,7 +531,7 @@ int mm_write_banner(FILE *f, MM_typecode matcode)
     else
         return 0;
 }
-int mm_write_cpp_banner(boost::iostreams::filtering_stream<boost::iostreams::output> &f, MM_typecode matcode)
+int mm_write_cpp_banner(boost::iostreams::filtering_stream<boost::iostreams::output> &f, MM_typecode & matcode)
 {
     char *str = mm_typecode_to_str(matcode);
     //int ret_code;
