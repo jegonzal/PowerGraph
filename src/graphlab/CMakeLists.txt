@@ -25,37 +25,24 @@ if (MPI_FOUND)
   set(util_mpi_tools util/mpi_tools.cpp)
 endif()
 
-IF (EXPERIMENTAL)
-  set(mmap_allocator util/mmap_allocator.cpp)
-endif()
-
 add_library(graphlab STATIC
   options/command_line_options.cpp
   options/options_map.cpp
   util/timer.cpp
   util/generics/any.cpp
   util/generics/any_vector.cpp
-  graph/write_only_disk_atom.cpp
-  graph/atom_index_file.cpp
-  graph/memory_atom.cpp
   logger/logger.cpp
   logger/assertions.cpp
   parallel/pthread_tools.cpp
   parallel/thread_pool.cpp
   util/random.cpp
   scheduler/scheduler_list.cpp
-  metrics/metrics.cpp
   util/net_util.cpp
   util/safe_circular_char_buffer.cpp
   util/fs_util.cpp
   util/memory_info.cpp
   util/tracepoint.cpp
   util/event_log.cpp
-  util/md5.cpp
-  ${mmap_allocator}
-  factors/discrete_variable.cpp
-  factors/binary_factor.cpp
-  factors/unary_factor.cpp
   ${util_mpi_tools}
   rpc/dc_tcp_comm.cpp
   rpc/circular_char_buffer.cpp

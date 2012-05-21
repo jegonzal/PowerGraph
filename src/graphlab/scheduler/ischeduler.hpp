@@ -36,11 +36,9 @@
 #include <vector>
 #include <sstream>
 #include <ostream>
-#include <graphlab/monitoring/imonitor.hpp>
 #include <graphlab/options/options_map.hpp>
 #include <graphlab/scheduler/terminator/iterminator.hpp>
 
-#include <graphlab/metrics/metrics.hpp>
 
 namespace graphlab {
  
