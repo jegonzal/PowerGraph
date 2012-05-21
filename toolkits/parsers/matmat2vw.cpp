@@ -67,7 +67,8 @@ struct stringzipparser_update :
     
    vertex_data& vdata = context.vertex_data();
    gzip_in_file fin(vdata.filename +  (info ? ".data" : ""), gzip);
-   gzip_out_file fout(vdata.filename + ".out", gzip); 
+   //gzip_out_file fout(vdata.filename + ".out", gzip); 
+   FILE * pfile = open_file((vdata.filename + ".out").c_str(), "w");
     char linebuf[24000];
     char saveptr[1024];
     int last_from = -1, last_to = -1;
@@ -132,13 +133,16 @@ struct stringzipparser_update :
 
       singlerating thisrating(from, to, val);
       if ((last_from > -1) && (last_from != from)){
-        assert(multiple_ratings.size() > 0);
-        fout.get_sp() << "0 | ";
+        assert(multiple_ratings.size() > 0 && multiple_ratings.size() < 1000000);
+        //fout.get_sp() << "0 | ";
+        fprintf(pfile, "0 | ");
         for (uint i=0; i< multiple_ratings.size(); i++){
-          fout.get_sp()<<multiple_ratings[i].item<<":"<<multiple_ratings[i].rating<<" ";
+          //fout.get_sp()<<multiple_ratings[i].item<<":"<<multiple_ratings[i].rating<<" ";
+          fprintf(pfile, "%d:%lg ", multiple_ratings[i].item, multiple_ratings[i].rating);
         } 
-        fout.get_sp()<<endl;
-        fout.get_sp().strict_sync();
+        //fout.get_sp()<<endl;
+        fprintf(pfile, "\n");
+        //fout.get_sp().strict_sync();
         multiple_ratings.clear();
         multiple_ratings.push_back(thisrating);
       }
@@ -152,12 +156,16 @@ struct stringzipparser_update :
    if (total_lines != nz)
      logstream(LOG_FATAL)<<"Expected a total of " << nz << " lines, while in practice tehre where: " << total_lines << endl;
    assert(multiple_ratings.size() > 0);
-   fout.get_sp() << "0 | ";
-   for (uint i=0; i< multiple_ratings.size(); i++){
-     fout.get_sp()<<multiple_ratings[i].item<<":"<<multiple_ratings[i].rating<<" ";
-   } 
-   fout.get_sp()<<endl;
-       
+        fprintf(pfile, "0 | ");
+        for (uint i=0; i< multiple_ratings.size(); i++){
+          //fout.get_sp()<<multiple_ratings[i].item<<":"<<multiple_ratings[i].rating<<" ";
+          fprintf(pfile, "%d:%lg ", multiple_ratings[i].item, multiple_ratings[i].rating);
+        } 
+        //fout.get_sp()<<endl;
+        fprintf(pfile, "\n");
+        //fout.get_sp().strict_sync();
+        multiple_ratings.clear();
+        
 
   }
 
