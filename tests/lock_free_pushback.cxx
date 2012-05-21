@@ -39,8 +39,6 @@ void testthread(size_t range0, size_t range1) {
 class LockFreePushBack : public CxxTest::TestSuite {
 public:
 
-  // Look for the class TestClass() to see the most interesting tutorial on how to
-  // use the serializer
   void test_lockfree_push_back(void) {
     thread_group thr;
     for (size_t i = 0;i < 16; ++i) {

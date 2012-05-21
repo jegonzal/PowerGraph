@@ -24,8 +24,8 @@ macro(add_all_subdirectories retval curdir)
   endforeach()
   set(${retval} ${list_of_dirs})
 endmacro()
-
-add_all_subdirectories(retval, ${CMAKE_CURRENT_SOURCE_DIR})
+# disabling for branch
+#add_all_subdirectories(retval, ${CMAKE_CURRENT_SOURCE_DIR})
 
 
 
