@@ -1,0 +1,8 @@
+#!/bin/bash
+
+src_path=$(hostname):$1
+dest_path=$2
+
+echo "Copying $src_path to $dest_path"
+mpiexec.openmpi -hostfile ~/machines -nolocal -pernode scp -r $src_path $dest_path 
+

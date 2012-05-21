@@ -1,0 +1,45 @@
+#!/bin/bash
+
+if [ ! -e ~/machines ]; then
+echo "A list of machines must be provided in ~/machines"
+echo "Exiting..."
+exit 1
+fi
+
+namenode=$(hostname)
+
+echo "Install Torque"
+mpiexec.openmpi -hostfile ~/machines -pernode \
+    sudo apt-get --yes install torque-server torque-scheduler \
+    torque-client torque-common torque-mom  
+
+echo "Configuring Server"
+sudo bash -c "echo $namenode > /etc/torque/server_name"
+sudo cp ~/machines /var/spool/torque/server_priv/nodes
+sudo qterm
+sudo pbs_server
+
+echo "Configuring MOM on remote machines"
+echo "\$pbsserver      $namenode" > /tmp/config_mom
+mpiexec.openmpi -hostfile ~/machines -pernode \
+    scp $namenode:/tmp/config_mom /tmp/config
+mpiexec.openmpi -hostfile ~/machines -pernode \
+    sudo cp /tmp/config  /var/spool/torque/mom_priv/.
+
+
+mpiexec.openmpi -hostfile ~/machines -pernode sudo momctl -s
+mpiexec.openmpi -hostfile ~/machines -pernode sudo pbs_mom
+
+echo "Configuring queue manager"
+sudo qmgr -c 'create queue batch'
+sudo qmgr -c 'set queue batch queue_type = Execution'
+sudo qmgr -c 'set queue batch resources_default.nodes = 1'
+sudo qmgr -c 'set queue batch enabled = True'
+sudo qmgr -c 'set queue batch started = True'
+sudo qmgr -c 'set server scheduling = True'
+sudo qmgr -c 'set server default_queue = batch'
+sudo qmgr -c 'set server log_events = 511'
+
+
+
+
