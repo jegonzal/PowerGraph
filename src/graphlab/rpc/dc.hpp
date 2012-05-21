@@ -29,7 +29,6 @@
 #include <graphlab/parallel/thread_pool.hpp>
 #include <graphlab/util/resizing_array_sink.hpp>
 #include <graphlab/util/blocking_queue.hpp>
-#include <graphlab/util/multi_blocking_queue.hpp>
 #include <graphlab/util/dense_bitset.hpp>
 #include <graphlab/serialization/serialization_includes.hpp>
 #include <graphlab/metrics/metrics.hpp>
