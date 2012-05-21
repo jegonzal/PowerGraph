@@ -138,6 +138,7 @@ struct stringzipparser_update :
           fout.get_sp()<<multiple_ratings[i].item<<":"<<multiple_ratings[i].rating<<" ";
         } 
         fout.get_sp()<<endl;
+        fout.get_sp().strict_sync();
         multiple_ratings.clear();
         multiple_ratings.push_back(thisrating);
       }
