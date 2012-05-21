@@ -1,0 +1,52 @@
+
+if [ ! -e ~/machines ]; then
+echo "A list of machines must be provided in ~/machines"
+echo "Exiting..."
+exit 1
+fi
+
+
+namenode=$(hostname)
+echo "Setting up namenode information."
+echo "  namenode: " $namenode
+# mpiexec.openmpi -hostfile ~/machines -pernode \
+#     ~/bin/set-namenode.sh $namenode /opt/hadoop-1.0.1/conf/core-site.xml
+
+echo -e \
+    '<?xml version="1.0"?>\n'\
+    '<?xml-stylesheet type="text/xsl" href="configuration.xsl"?>\n'\
+    '<configuration>\n'\
+    '  <property>\n'\
+    '    <name>fs.default.name</name>\n'\
+    '    <value>hdfs://'$namenode'/</value>\n'\
+    '  </property>\n'\
+    '</configuration>\n' > /opt/hadoop-1.0.1/conf/core-site.xml
+
+
+
+mpiexec.openmpi -hostfile ~/machines -pernode \
+    scp $namenode:/opt/hadoop-1.0.1/conf/core-site.xml  /opt/hadoop-1.0.1/conf/core-site.xml
+
+cat /opt/hadoop-1.0.1/conf/core-site.xml
+
+echo "Creating data directories in /mnt"
+echo "   /mnt/tmp    "
+echo "   /mnt/hadoop "
+# mpiexec.openmpi -hostfile ~/machines -pernode ~/bin/setup-mnt.sh
+mpiexec.openmpi -hostfile ~/machines -pernode \
+    sudo rm -rf /mnt/hadoop_data 
+mpiexec.openmpi -hostfile ~/machines -pernode \
+    sudo mkdir /mnt/tmp
+mpiexec.openmpi -hostfile ~/machines -pernode \
+    sudo mkdir /mnt/hadoop_data
+mpiexec.openmpi -hostfile ~/machines -pernode \
+    sudo chown -R ubuntu:users /mnt/tmp
+mpiexec.openmpi -hostfile ~/machines -pernode \
+    sudo chown -R ubuntu:users /mnt/hadoop_data
+
+
+hadoop namenode -format
+
+
+echo "Starting the dfs:"
+start-dfs.sh

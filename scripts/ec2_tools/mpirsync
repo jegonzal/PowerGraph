@@ -1,0 +1,6 @@
+#!/bin/bash
+
+src_path=$(hostname):$PWD
+dest_path=$PWD
+mpiexec.openmpi -hostfile ~/machines -nolocal -pernode mkdir -p $dest_path
+mpiexec.openmpi -hostfile ~/machines -nolocal -pernode rsync -avz $src_path/ $dest_path
