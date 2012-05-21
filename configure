@@ -129,6 +129,23 @@ check_version()
     return 1
 }
 
+## ===================================================================
+# Force the use of gcc-4.2 as the default compiler on macs
+if [[ "$OSTYPE" == "Darwin*" ]]; then
+  echo "Running on OSX"  
+  echo "If no compiler is set we will try to use gcc-4.2"
+  if [[ -z $CC ]]; then
+    echo "switching gcc to gcc-4.2"
+    export CC="gcc-4.2"
+  fi
+  if [[ -z $CXX ]]; then 
+    echo "switching c++ to c++-4.2"
+    export CXX="c++-4.2"
+  fi
+fi
+
+
+
 ## Install cmake
 if [ `which cmake` ]; then
   #test cmake version
@@ -192,8 +209,14 @@ fi
 
 
 
+
+
+
+
 # Run the configure deps
 source configure.deps 
+
+
 
 
 $CMAKE --version | tee -a $LOG_FILE
