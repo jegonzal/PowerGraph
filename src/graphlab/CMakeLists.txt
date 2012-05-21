@@ -7,21 +7,16 @@ subdirs(
   aggregation
   engine
   graph
-  monitoring
   options
   parallel
   scheduler
   context
-  update_functor
   util
   serialization
   logger
-  metrics
   jni
   )
 
-# Defines METIS_SOURCES
-include(extern/metisextern.cmake)
 
 
 #build the graphlab library
@@ -35,7 +30,6 @@ IF (EXPERIMENTAL)
 endif()
 
 add_library(graphlab STATIC
-  ${METIS_SOURCES}
   options/command_line_options.cpp
   options/options_map.cpp
   util/timer.cpp
