@@ -1,193 +1,67 @@
-## ===================================================================
-# Basic Project Declaration 
-
 project(GraphLab)
 
+# We require the most recent version of cmake and automatically
+# install the correct version when using the cmake lists
 cmake_minimum_required(VERSION 2.8)
 
-include(CheckLibraryExists) 
-include(CheckFunctionExists) 
-include(ExternalProject)
-
-if(COMMAND cmake_policy)
-  cmake_policy(SET CMP0003 NEW)
-  cmake_policy(SET CMP0005 NEW)
-endif(COMMAND cmake_policy)
+# Libraries linked via full path no longer produce linker search paths.
+cmake_policy(SET CMP0003 NEW)
+# Preprocessor definition values are now escaped automatically.
+cmake_policy(SET CMP0005 NEW)
 
 # Determine where additional GraphLab specific cmake modules are
 # defined
 set(CMAKE_MODULE_PATH ${GraphLab_SOURCE_DIR}/cmake)
 
+# TODO: what is this used by
+set(BUILD_SHARED_LIBS ON)
 
-## ===================================================================
-# Build external dependencies
-include_directories(${GraphLab_SOURCE_DIR}/deps/local/include)
+include(CheckLibraryExists) 
+include(CheckFunctionExists) 
+include(ExternalProject)
+include(CheckCXXSourceCompiles)
+# # Display information about cmake variables
+# include(CMakePrintSystemInformation)
+
+# set include path
+include_directories(
+  ${GraphLab_SOURCE_DIR}/src
+  ${GraphLab_SOURCE_DIR}/cxxtest
+  ${GraphLab_SOURCE_DIR}/deps/local/include)
+
+# set link path
 link_directories(${GraphLab_SOURCE_DIR}/deps/local/lib)
 
+# Add posix threads on non-windows systems
+link_libraries(pthread gomp)
 
-# Build eigen
+# Shared compiler flags used by all builds (debug, profile, release)
+set(COMPILER_FLAGS "-Wall -g -fopenmp" CACHE STRING "common compiler options")
 
-# For now we download eigen from our servers since the eigen servers
-# use SSL which is not supported by cmake
-# DOWNLOAD_COMMAND hg clone  https://bitbucket.org/eigen/eigen/
-ExternalProject_Add(eigen
-  PREFIX ${GraphLab_SOURCE_DIR}/deps/eigen
-  URL http://graphlab.org/deps/eigen_3.0.5.tar.gz
-  URL_MD5 73f47ddc6a2b540356864bfc8a34f5d7
-  CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
-  -DEIGEN_BUILD_PKGCONFIG=NO
-  INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local)
-add_definitions(-DHAS_EIGEN)
-include_directories(${GraphLab_SOURCE_DIR}/deps/local/include/eigen3)
-
-# http://downloads.sourceforge.net/project/boost/boost/1.49.0/boost_1_49_0.tar.gz"
-#  URL "http://sourceforge.net/projects/boost/files/boost/1.49.0/boost_1_49_0.tar.gz/download boost.tar.gz"
-# SVN_REPOSITORY http://svn.boost.org/svn/boost/trunk
-#   
-
-check_library_exists(z zlibVersion "" ZLIB_FOUND)
-if (ZLIB_FOUND)
-  add_definitions(-DHAS_ZLIB)
-  link_libraries(z)
+# Disable address space randomization for OSX lion and above
+if (APPLE)
+  set(CMAKE_EXE_LINKER_FLAGS "${CNAME_EXE_LINKER_FLAGS} -Xlinker -no_pie")
 endif()
 
+# Set subdirectories
+subdirs(src tests demoapps toolkits extapis)
+if(EXPERIMENTAL)
+  subdirs(experimental)
+endif()
+if (IS_DIRECTORY ${GraphLab_SOURCE_DIR}/apps)
+  subdirs(apps)
+endif()
 
-# Build Boost
-ExternalProject_Add(boost
-  PREFIX ${GraphLab_SOURCE_DIR}/deps/boost
-  URL "http://sourceforge.net/projects/boost/files/boost/1.49.0/boost_1_49_0.tar.gz"
-  URL_MD5 e0defc8c818e4f1c5bbb29d0292b76ca 
-  BUILD_IN_SOURCE 1
-  CONFIGURE_COMMAND ./bootstrap.sh 
-  --with-libraries=filesystem
-  --with-libraries=program_options
-  --with-libraries=system
-  --with-libraries=iostreams
-  --with-libraries=date_time
-  --with-libraries=random
-  --prefix=<INSTALL_DIR>
-  BUILD_COMMAND  ./bjam --threading=multi --link=static --variant=release 
-  INSTALL_COMMAND ./bjam install
-  INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local )
-set(BOOST_ROOT ${GraphLab_SOURCE_DIR}/deps/local )
-set(BOOST_LIBS_DIR ${GraphLab_SOURCE_DIR}/deps/local/lib)
-set(Boost_LIBRARIES 
-  ${BOOST_LIBS_DIR}/libboost_filesystem.a 
-  ${BOOST_LIBS_DIR}/libboost_program_options.a
-  ${BOOST_LIBS_DIR}/libboost_system.a 
-  ${BOOST_LIBS_DIR}/libboost_iostreams.a 
-  ${BOOST_LIBS_DIR}/libboost_date_time.a)
-message(STATUS "Boost libs: " ${Boost_LIBRARIES})
-# set(Boost_SHARED_LIBRARIES "")
-foreach(blib ${Boost_LIBRARIES})
-  message(STATUS "Boost libs: " ${blib})
-  string(REGEX REPLACE "\\.a$" ${CMAKE_SHARED_LIBRARY_SUFFIX} bout ${blib})
-  message(STATUS "Boost dyn libs: " ${bout})
-  set(Boost_SHARED_LIBRARIES ${Boost_SHARED_LIBRARIES} ${bout})
-endforeach()
-message(STATUS "Boost Shared libs: " ${Boost_SHARED_LIBRARIES})
-
-
-
-ExternalProject_Add(tcmalloc
-  PREFIX ${GraphLab_SOURCE_DIR}/deps/tcmalloc
-  URL http://gperftools.googlecode.com/files/gperftools-2.0.tar.gz
-  URL_MD5 13f6e8961bc6a26749783137995786b6
-  CONFIGURE_COMMAND <SOURCE_DIR>/configure --enable-frame-pointers --prefix=<INSTALL_DIR>
-  INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local)
-link_libraries(tcmalloc)
-set(TCMALLOC-FOUND 1)
-add_definitions(-DHAS_TCMALLOC)
-
-
-# Add Libevent
-ExternalProject_Add(event
-  PREFIX ${GraphLab_SOURCE_DIR}/deps/event
-  URL http://iweb.dl.sourceforge.net/project/levent/libevent/libevent-2.0/libevent-2.0.18-stable.tar.gz
-  URL_MD5 aa1ce9bc0dee7b8084f6855765f2c86a
-  CONFIGURE_COMMAND <SOURCE_DIR>/configure --prefix=<INSTALL_DIR>
-  INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local)
-link_libraries(event)
-link_libraries(event_pthreads)
-
-
-
-
-#Find the JNI library
-find_package(JNI)
-if(EXISTS ${JAVA_INCLUDE_PATH}/jni.h  )
-  set(JNI_REALLY_FOUND 1 CACHE BOOL "Tests whether the header
-  actually exists")
-  message(STATUS "jni.h was found at " ${JAVA_INCLUDE_PATH}/jni.h)
-  include_directories(${JNI_INCLUDE_DIRS})
-
-  ## Guess java home location   
-  if(EXISTS $ENV{JAVA_HOME} )
-    set(JAVA_HOME $ENV{JAVA_HOME} CACHE STRING "Location of Java Home")
-    message(STATUS "Java home set by user: " ${JAVA_HOME})
-  else()
-    string(REGEX REPLACE "\\/include" "" JAVA_HOME_GUESS  ${JAVA_AWT_INCLUDE_PATH})
-    set(JAVA_HOME ${JAVA_HOME_GUESS} CACHE STRING "Location of Java Home")
-    message(STATUS "Java Home guessed: " ${JAVA_HOME})
-  endif()
-
-else( )
-  set(JNI_REALLY_FOUND 0 CACHE BOOL "Tests whether the header
-  actually exists")
-  #  message(STATUS "jni.h was not found at " ${JAVA_INCLUDE_PATH}/jni.h)
-endif( )
-
-
-
-
-
-
-
-if( JNI_REALLY_FOUND AND EXPERIMENTAL )
-  message(STATUS "Building libhdfs")
-  ExternalProject_Add(hadoop
-    PREFIX ${GraphLab_SOURCE_DIR}/deps/hadoop
-    URL http://www.gtlib.gatech.edu/pub/apache/hadoop/common/stable/hadoop-1.0.1.tar.gz
-    URL_MD5 e627d9b688c4de03cba8313bd0bba148
-    UPDATE_COMMAND chmod +x <SOURCE_DIR>/src/c++/libhdfs/install-sh <SOURCE_DIR>/src/c++/libhdfs/configure
-    PATCH_COMMAND patch -p1 < ${GraphLab_SOURCE_DIR}/patches/libhdfs-compile-osx.patch
-    BUILD_IN_SOURCE 1
-    CONFIGURE_COMMAND <SOURCE_DIR>/src/c++/libhdfs/configure JVM_ARCH=tune=i686 --prefix=<INSTALL_DIR> --with-java=${JAVA_HOME}
-    INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local
-    TEST_COMMAND bash -c "mkdir -p <INSTALL_DIR>/include && cp <SOURCE_DIR>/src/c++/libhdfs/hdfs.h <INSTALL_DIR>/include")
-  set(HADOOP_FOUND 1 CACHE BOOL "Hadoop was found")
-  add_definitions(-DHAS_HADOOP)
-  link_libraries(hdfs ${JAVA_JVM_LIBRARY})
-endif( JNI_REALLY_FOUND AND EXPERIMENTAL )
-
-#extra configure commands:  ac_cv_func_malloc_0_nonnull=yes --enable-static --disable-shared 
-
-
-# ExternalProject_Add(openmpi
-#   PREFIX ${GraphLab_SOURCE_DIR}/deps/openmpi
-#   URL http://www.open-mpi.org/software/ompi/v1.4/downloads/openmpi-1.4.5.tar.gz
-#   CONFIGURE_COMMAND <SOURCE_DIR>/configure --prefix=<INSTALL_DIR>
-#   INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local)
-
-
-# find_package(Boost 1.49 COMPONENTS 
-#   program_options; filesystem; system; iostreams REQUIRED)
-# if (${Boost_VERSION} LESS 104600)
-#   message(STATUS "Boost Filesystem Version 2")
-#   add_definitions(-DBOOST_FILESYSTEM_VERSION=2)
-# else()  
-#   message(STATUS "Boost Filesystem Version 3")
-#   add_definitions(-DBOOST_FILESYSTEM_VERSION=3)
-# endif()
-# # Stupid hack because Cmake cannot seperate the shared from the static versions
-# set(Boost_SHARED_LIBRARIES "")
-# foreach(blib ${Boost_LIBRARIES})
-#   message(STATUS "Boost libs: " ${blib})
-#   string(REGEX REPLACE "\\.a$" ${CMAKE_SHARED_LIBRARY_SUFFIX} bout ${blib})
-#   message(STATUS "Boost dyn libs: " ${bout})
-#   set(Boost_SHARED_LIBRARIES ${Boost_SHARED_LIBRARIES} ${bout})
-# endforeach()
-# message(STATUS "Boost Shared libs: " ${Boost_SHARED_LIBRARIES})
+  
+# Set installation rules
+install(DIRECTORY src/  
+  DESTINATION include
+  FILES_MATCHING PATTERN "*.hpp"  PATTERN "*.h" 
+  PATTERN ".svn" EXCLUDE
+  )
+install(CODE "execute_process(COMMAND ./scripts/install_deps.sh
+  ${CMAKE_INSTALL_PREFIX} WORKING_DIRECTORY
+  ${CMAKE_CURRENT_SOURCE_DIR})")
 
 
 
@@ -219,347 +93,268 @@ endif( JNI_REALLY_FOUND AND EXPERIMENTAL )
 
 
 
-## ===================================================================
-# Process command line arguments defined using cmake -D arg=val
-if(NOT EXPERIMENTAL)
-  set(EXPERIMENTAL 0 CACHE BOOL "Enables building of experimental
-  components.")
-endif()
 
 
-## Not used currently
-# find_package(Java)
-find_package(Ant)
+## ============================================================================
+## ============================================================================
+## ============================================================================
+# Build external dependencies
+
+# Build eigen =================================================================
+# TODO: Move to toolkits.
+# While eigne is not used in the core GraphLab library we found it
+# useful to have a matrix library. For now we download eigen from
+# our servers since the eigen servers use SSL which is not supported
+# by cmake DOWNLOAD_COMMAND hg clone
+# https://bitbucket.org/eigen/eigen/
+ExternalProject_Add(eigen
+  PREFIX ${GraphLab_SOURCE_DIR}/deps/eigen
+  URL http://graphlab.org/deps/eigen_3.0.5.tar.gz
+  URL_MD5 73f47ddc6a2b540356864bfc8a34f5d7
+  CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
+  -DEIGEN_BUILD_PKGCONFIG=NO
+  INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local)
+add_definitions(-DHAS_EIGEN)
+include_directories(${GraphLab_SOURCE_DIR}/deps/local/include/eigen3)
 
 
-## ===================================================================
-# Setup CUDA libraries
-# # Use CUDA libraries (required only for GPU GraphLab)
-# find_package(CUDA)
-# # If CUDA libraries were not found, ignore commands:
-# #   cuda_add_executable
-# IF(CUDA_FOUND)
-#   message(STATUS "CUDA Found: " ${CUDA_VERSION})
-#   link_libraries(${CUDA_CUBLAS_LIBRARIES})
-# ELSE(CUDA_FOUND)
-#   message(STATUS "CUDA Not Found! GPU Executables will not be compiled.")
-#   macro(CUDA_ADD_EXECUTABLE cuda_target)
-#   endmacro(CUDA_ADD_EXECUTABLE cuda_target)
-# ENDIF(CUDA_FOUND)
+# Build Boost =================================================================
+# GraphLab relies heavily on the boost library for parsing program
+# options, filesystem support, random number generation, and 
+# unordered containers. 
+ExternalProject_Add(boost
+  PREFIX ${GraphLab_SOURCE_DIR}/deps/boost
+  URL "http://sourceforge.net/projects/boost/files/boost/1.49.0/boost_1_49_0.tar.gz"
+  URL_MD5 e0defc8c818e4f1c5bbb29d0292b76ca 
+  BUILD_IN_SOURCE 1
+  CONFIGURE_COMMAND ./bootstrap.sh 
+  --with-libraries=filesystem
+  --with-libraries=program_options
+  --with-libraries=system
+  --with-libraries=iostreams
+  --with-libraries=date_time
+  --with-libraries=random
+  --prefix=<INSTALL_DIR>
+  BUILD_COMMAND  ./bjam --threading=multi --link=static --variant=release 
+  INSTALL_COMMAND ./bjam install
+  INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local )
+set(BOOST_ROOT ${GraphLab_SOURCE_DIR}/deps/local )
+set(BOOST_LIBS_DIR ${GraphLab_SOURCE_DIR}/deps/local/lib)
+set(Boost_LIBRARIES 
+  ${BOOST_LIBS_DIR}/libboost_filesystem.a 
+  ${BOOST_LIBS_DIR}/libboost_program_options.a
+  ${BOOST_LIBS_DIR}/libboost_system.a 
+  ${BOOST_LIBS_DIR}/libboost_iostreams.a 
+  ${BOOST_LIBS_DIR}/libboost_date_time.a)
+message(STATUS "Boost libs: " ${Boost_LIBRARIES})
+# add_definitions(-DBOOST_DATE_TIME_POSIX_TIME_STD_CONFIG)
+# add_definitions(-DBOOST_ALL_DYN_LINK)
+# set(Boost_SHARED_LIBRARIES "")
+foreach(blib ${Boost_LIBRARIES})
+  message(STATUS "Boost libs: " ${blib})
+  string(REGEX REPLACE "\\.a$" ${CMAKE_SHARED_LIBRARY_SUFFIX} bout ${blib})
+  message(STATUS "Boost dyn libs: " ${bout})
+  set(Boost_SHARED_LIBRARIES ${Boost_SHARED_LIBRARIES} ${bout})
+endforeach()
+message(STATUS "Boost Shared libs: " ${Boost_SHARED_LIBRARIES})
 
+# TCMalloc  ===================================================================
+# We use tcmalloc for improved memory allocation performance
+ExternalProject_Add(tcmalloc
+  PREFIX ${GraphLab_SOURCE_DIR}/deps/tcmalloc
+  URL http://gperftools.googlecode.com/files/gperftools-2.0.tar.gz
+  URL_MD5 13f6e8961bc6a26749783137995786b6
+  CONFIGURE_COMMAND <SOURCE_DIR>/configure --enable-frame-pointers --prefix=<INSTALL_DIR>
+  INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local)
+link_libraries(tcmalloc)
+set(TCMALLOC-FOUND 1)
+add_definitions(-DHAS_TCMALLOC)
 
-
-
-# if(HADOOP_HOME)
-#   message(STATUS "Found hadoop home: " ${HADOOP_HOME})
-#   set(HADOOP_FOUND 1 CACHE BOOL "Hadoop was found")
-#   include_directories(${HADOOP_HOME}/src/c++/libhdfs)
-#   link_directories(${HADOOP_HOME}/c++/Linux-amd64-64/lib)   
-# else(HADOOP_HOME)
-#   message(STATUS "Hadoop was not found but is strictly optional")      
-# endif(HADOOP_HOME)
-
-
-
-
-
-
-
-
-
-
-
-
-if(EXPERIMENTAL)
-
-
-  # EXPERIMENTAL (distributed) Capabilities
-  find_package(MPICH2)
-  
-  if(MPI_FOUND)
-    message(STATUS "MPI Found: " ${MPI_LIBRARY} ${MPI_EXTRA_LIBRARY})
-    add_definitions(-DHASMPI)
-  else(MPI_FOUND)
-    message(STATUS "MPI Not Found! Distributed Executables will not be compiled")
-  endif(MPI_FOUND)
-
-
-
-
-  #Find zoltan library
-  set(ZOLTAN_ROOT "/usr/local/glzoltan" CACHE STRING 
-    "The path to zoltan/include and zoltan/lib")
-  if(EXISTS ${ZOLTAN_ROOT} )
-    set(ZOLTAN_FOUND 1 CACHE BOOL "True if the Zoltan library was found")
-    set(ZOLTAN_INCLUDE_DIR 
-      ${ZOLTAN_ROOT}/include 
-      CACHE STRING "Zoltan library include directory")
-    set(ZOLTAN_LINK_DIR 
-      ${ZOLTAN_ROOT}/lib 
-      CACHE STRING "Zoltan library lib directory")
-    set(ZOLTAN_LIBS 
-      zoltan
-      ptscotch
-      ptscotcherr
-      parmetis
-      metis
-      CACHE STRING "Zoltan library include directory")
-    message(STATUS "Zoltan library was found at " ${ZOLTAN_ROOT})
-
-    include_directories( ${ZOLTAN_INCLUDE_DIR} )
-    link_directories( ${ZOLTAN_LINK_DIR}  )
-  else( )
-    set(ZOLTAN_FOUND 0 CACHE BOOL "True if the Zoltan library was found")
-    message(STATUS "Zoltan library was NOT found at " ${ZOLTAN_ROOT})
-  endif( )
-
-  # check for SCTP
-  find_library(Sctp NAMES sctp)
-  if(Sctp MATCHES Sctp-NOTFOUND)
-    message(STATUS "libsctp not found. RPC over SCTP support will not be compiled")
-    set(Sctp-FOUND)
-    set(Sctp-NOTFOUND 1)
-  else()
-    add_definitions(-DHAS_SCTP)
-    set(Sctp-FOUND 1)
-    set(Sctp-NOTFOUND)
-    message(STATUS "libsctp found")
-  endif()
-
-
-
-else()
-  set(Sctp-FOUND)
-  set(Sctp-NOTFOUND 1)
-endif()
-
-
-
-
-
-#check_library_exists(z zlibVersion "" ZLIB_FOUND)
+# zlib  =======================================================================
+# We rely on the zlib library to read gzip compressed files
+# (using boost iostreams).
+check_library_exists(z zlibVersion "" ZLIB_FOUND)
 if (ZLIB_FOUND)
   add_definitions(-DHAS_ZLIB)
   link_libraries(z)
 endif()
 
+# libevent ====================================================================
+# LibEvent is used in the RPC layer to manage the interaction between the 
+# TCP stack and the event handler threads
+ExternalProject_Add(event
+  PREFIX ${GraphLab_SOURCE_DIR}/deps/event
+  URL http://iweb.dl.sourceforge.net/project/levent/libevent/libevent-2.0/libevent-2.0.18-stable.tar.gz
+  URL_MD5 aa1ce9bc0dee7b8084f6855765f2c86a
+  CONFIGURE_COMMAND <SOURCE_DIR>/configure --prefix=<INSTALL_DIR>
+  INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local)
+link_libraries(event)
+link_libraries(event_pthreads)
 
-# check for itpp
-include(CheckCXXSourceCompiles)
+# JNI =========================================================================
+# We use JNI for jvm interfacing and for hdfs support.  We currently only 
+# detect the presence of java and do not install our own version. 
+find_package(JNI)
+if(EXISTS ${JAVA_INCLUDE_PATH}/jni.h  )
+  set(JNI_REALLY_FOUND 1 CACHE BOOL "Tests whether the header
+  actually exists")
+  message(STATUS "jni.h was found at " ${JAVA_INCLUDE_PATH}/jni.h)
+  include_directories(${JNI_INCLUDE_DIRS})
+  ## Guess java home location   
+  if(EXISTS $ENV{JAVA_HOME} )
+    set(JAVA_HOME $ENV{JAVA_HOME} CACHE STRING "Location of Java Home")
+    message(STATUS "Java home set by user: " ${JAVA_HOME})
+  else()
+    string(REGEX REPLACE "\\/include" "" JAVA_HOME_GUESS  ${JAVA_AWT_INCLUDE_PATH})
+    set(JAVA_HOME ${JAVA_HOME_GUESS} CACHE STRING "Location of Java Home")
+    message(STATUS "Java Home guessed: " ${JAVA_HOME})
+  endif()
+else( )
+  set(JNI_REALLY_FOUND 0 CACHE BOOL "Tests whether the header
+  actually exists")
+  #  message(STATUS "jni.h was not found at " ${JAVA_INCLUDE_PATH}/jni.h)
+endif( )
 
-set(crlbackup ${CMAKE_REQUIRED_LIBRARIES})
-set(CMAKE_REQUIRED_LIBRARIES "itpp")
+# Ant =========================================================================
+# Ant is used to build the graphlab JVM interface
+find_package(Ant)
 
-check_cxx_source_compiles("#include <itpp/itbase.h>\nint main(int
-argc, char** argv) { itpp::vec v; return 0; }" ITPP-FOUND)
+# LibHDFS =====================================================================
+# If JNI is found we install libhdfs which allows programs to read and write
+# to hdfs filesystems
+if( JNI_REALLY_FOUND )
+  message(STATUS "Building libhdfs")
+  ExternalProject_Add(hadoop
+    PREFIX ${GraphLab_SOURCE_DIR}/deps/hadoop
+    URL http://www.gtlib.gatech.edu/pub/apache/hadoop/common/stable/hadoop-1.0.1.tar.gz
+    URL_MD5 e627d9b688c4de03cba8313bd0bba148
+    UPDATE_COMMAND chmod +x <SOURCE_DIR>/src/c++/libhdfs/install-sh <SOURCE_DIR>/src/c++/libhdfs/configure
+    PATCH_COMMAND patch -p1 < ${GraphLab_SOURCE_DIR}/patches/libhdfs-compile-osx.patch
+    BUILD_IN_SOURCE 1
+    CONFIGURE_COMMAND <SOURCE_DIR>/src/c++/libhdfs/configure JVM_ARCH=tune=i686 --prefix=<INSTALL_DIR> --with-java=${JAVA_HOME}
+    INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local
+    TEST_COMMAND bash -c "mkdir -p <INSTALL_DIR>/include && cp <SOURCE_DIR>/src/c++/libhdfs/hdfs.h <INSTALL_DIR>/include")
+  set(HADOOP_FOUND 1 CACHE BOOL "Hadoop was found")
+  add_definitions(-DHAS_HADOOP)
+  link_libraries(hdfs ${JAVA_JVM_LIBRARY})
+endif( JNI_REALLY_FOUND )
 
-set(CMAKE_REQUIRED_LIBRARIES ${crlbackup})  
-if (ITPP-FOUND)
-  link_libraries(itpp)
-  add_definitions(-DHAS_ITPP)
-  message(STATUS "ITPP found.")
-else()
-  message(STATUS "ITPP was not found")
-endif()
-
-if (DEFINED ITPP_INCLUDE_DIR)
-  include_directories(${ITPP_INCLUDE_DIR})
-  link_libraries(itpp)
-  #link_libraries(lapack)
-  #link_libraries(blas)
-  add_definitions(-DHAS_ITPP)
-  message(STATUS "Manually setting itpp include dir: " ${ITPP_INCLUDE_DIR})
-  set(ITPP-FOUND 1)
-endif() 
-
-if (DEFINED ITPP_LINK_DIR)
-  link_directories(${ITPP_LINK_DIR})
-  #link_libraries(lapack)
-  #link_libraries(blas)
-  link_libraries(itpp)
-  add_definitions(-DHAS_ITPP)
-  message(STATUS "Manually setting itpp link dir: " ${ITPP_LINK_DIR})
-  set(ITPP-FOUND 1)
-endif() 
+# MPI =========================================================================
+# MPI is currently used to establish communication between rpc nodes
+find_package(MPICH2)
+if(MPI_FOUND)
+  message(STATUS "MPI Found: " ${MPI_LIBRARY} ${MPI_EXTRA_LIBRARY})
+  add_definitions(-DHASMPI)
+  include_directories(${MPI_INCLUDE_PATH})
+else(MPI_FOUND)
+  message(STATUS "MPI Not Found! Distributed Executables will not be compiled")
+endif(MPI_FOUND)
+# ExternalProject_Add(openmpi
+#   PREFIX ${GraphLab_SOURCE_DIR}/deps/openmpi
+#   URL http://www.open-mpi.org/software/ompi/v1.4/downloads/openmpi-1.4.5.tar.gz
+#   CONFIGURE_COMMAND <SOURCE_DIR>/configure --prefix=<INSTALL_DIR>
+#   INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local)
 
 
 
-set(crlbackup ${CMAKE_REQUIRED_LIBRARIES})
+
+
+
+
+
+
+## ============================================================================
+## ============================================================================
+## ============================================================================
+# System Checks
+
+## ============================================================================
+# Test for cpu affinity support
 set(CMAKE_REQUIRED_LIBRARIES "pthread")
 check_function_exists(pthread_setaffinity_np HAS_SET_AFFINITY) 
 set(CMAKE_REQUIRED_LIBRARIES ${crlbackup})  
 
-
-
-
-
-
-
-
-
-# test for system specific features
-
-
-
-
-
-# check for TCMalloc
-# if(TCMALLOC_ROOT) 
-#   link_directories(${TCMALLOC_ROOT}/lib)
-#   include_directories(${TCMALLOC_ROOT}/include)
-#   set(TCMALLOC-FOUND 1)
-#   message(STATUS "TCMALLOC_ROOT: " ${TCMALLOC_ROOT})
-#   add_definitions(-DHAS_TCMALLOC)
-# else()
-# check_library_exists("tcmalloc -lpthread" malloc "" TCMALLOC-FOUND)
-# endif()
-
-
-# if (TCMALLOC-FOUND)
-#   message(STATUS "tcmalloc found. Using it everywhere")
-#   link_libraries(tcmalloc)
-# else()
-#   message(STATUS "tcmalloc was not found but is optional.")
-# endif()
-
-
-
-
-
-
-# architecture detection
-# check 64 bit
+## ============================================================================
+# architecture detection. check 64 bit
+# TODO: do we need this or is there a cleaner way to do this in CMake
 if(CMAKE_SIZEOF_VOID_P MATCHES 4)
   set( HAVE_64_BIT 0 )
 else(CMAKE_SIZEOF_VOID_P MATCHES 4)
   set( HAVE_64_BIT 1 )
 endif(CMAKE_SIZEOF_VOID_P MATCHES 4)
-
-if(CROSS_COMPILE_32_BIT MATCHES 1)
-  set(HAVE_64_BIT 0)
-endif(CROSS_COMPILE_32_BIT MATCHES 1)
-
-
-# add random environment variable definitions
-# deal with Boost time shtuff: we want nanoseconds!
-# add_definitions(-DBOOST_DATE_TIME_POSIX_TIME_STD_CONFIG)
-# add_definitions(-DBOOST_ALL_DYN_LINK)
-
-# add_definitions(-D_SCL_SECURE_NO_WARNINGS) # disable checked_iterator warnings
-# add_definitions(-D_CRT_SECURE_NO_WARNINGS) # disable fopen warnings
-# add_definitions(-D_SECURE_SCL=0)  # necessary for release builds of MSVC
-
-# Remove tracing by default
-# add_definitions(-DTRACE_OFF)
-
-## Here we use our cmake tools
-#set(CMAKE_MODULE_PATH ${PRL_SOURCE_DIR}/cmake)
-
-set(BUILD_SHARED_LIBS ON)
-
-# set include path for this and all subdirs
-include_directories(
-  ${GraphLab_SOURCE_DIR}/src
-  ${GraphLab_SOURCE_DIR}/cxxtest
-  )
-
-IF(MPI_FOUND)
-  include_directories(
-    ${MPI_INCLUDE_PATH}
-    )
-ENDIF(MPI_FOUND)
-
-
-
-# Add posix threads on non-windows systems
-link_libraries(pthread gomp)
-
-
-
-
-
-
-# Flags for the debug and release mode
-## IMPORTANT: we currently assume a GCC compiler when setting flags
-# if(CMAKE_COMPILER_IS_GNUCXX)
-
-## -march=native is not supported on <= gcc-4.2 (i.e., Breaks Mac
-## build);
-
-### Set the debug flags ----------------------------------------------------->
-# Note: -fkeep-inline-functions significantly slows down the compilation
 if (HAVE_64_BIT MATCHES 1)
   set(MARCH "x86-64")
 else()
   set(MARCH "i686")
 endif()
 
-set(COMMON_FLAGS "-Wall -g -fopenmp" CACHE STRING "common compiler options")
 
-if (APPLE)
-  set(CMAKE_EXE_LINKER_FLAGS "${CNAME_EXE_LINKER_FLAGS} -Xlinker -no_pie")
+
+
+
+
+
+
+## ============================================================================
+## ============================================================================
+## ============================================================================
+# Setup compiler
+
+# If profiling mode is enabled then additional profiling flags are set for
+# the compiler
+if (COMPILE_PROFILING MATCHES 1) 
+  set(PROFILING_FLAGS "-DUSE_EVENT_LOG -DUSE_TRACEPOINT")
+else()
+  set(PROFILING_FLAGS "")
 endif()
 
-set(CMAKE_CXX_FLAGS_DEBUG "-ggdb -O0 -march=${MARCH} -Winit-self ${COMMON_FLAGS}") 
-#-fno-implicit-templates")
-### Set the release flags --------------------------------------------------->
-if (CROSS_COMPILE_32_BIT MATCHES 1)
-  set(CMAKE_CXX_FLAGS_RELEASE 
-    "-m32 -O3 -Wextra -march=i686 -mtune=i686 ${COMMON_FLAGS}"
-    CACHE STRING "compiler options" FORCE)
-  set(CMAKE_C_FLAGS_RELEASE 
-    "-m32 -O3 -Wextra -march=i686 -mtune=i686 ${COMMON_FLAGS}"
-    CACHE STRING "compiler options"  FORCE)
-else(CROSS_COMPILE_32_BIT MATCHES 1)
-  
-  # Set the C compiler flags in release mode on 64bit systems
-  set(CMAKE_C_FLAGS_RELEASE
-    "-O3 -march=${MARCH} -mtune=native ${COMMON_FLAGS}"
-    CACHE STRING "compiler options" FORCE)
-  if (COMPILE_PROFILING MATCHES 1) 
-    set(CMAKE_CXX_FLAGS_RELEASE 
-      "-O3 -march=${MARCH} -mtune=native -DUSE_EVENT_LOG -DUSE_TRACEPOINT ${COMMON_FLAGS}"
-      CACHE STRING "compiler options"  FORCE)
-  else(COMPILE_PROFILING MATCHES 1)
-    set(CMAKE_CXX_FLAGS_RELEASE 
-      "-O3 -march=${MARCH} -mtune=native ${COMMON_FLAGS}"
-      CACHE STRING "compiler options"  FORCE)
-  endif(COMPILE_PROFILING MATCHES 1)
 
-endif(CROSS_COMPILE_32_BIT MATCHES 1)
+# Set the debug flags
+set(CMAKE_C_FLAGS_DEBUG 
+  "-ggdb -O0 -march=${MARCH} -Winit-self ${PROFILING_FLAGS} ${COMPILER_FLAGS}"
+  CACHE STRING "compiler options" FORCE) 
+set(CMAKE_CXX_FLAGS_DEBUG 
+  "-ggdb -O0 -march=${MARCH} -Winit-self ${PROFILING_FLAGS} ${COMPILER_FLAGS}"
+  CACHE STRING "compiler options" FORCE) 
 
-# Mex setup
-set(CMAKE_CXX_FLAGS_MEX  "${CMAKE_CXX_FLAGS_RELEASE} -D_GNU_SOURCE -fPIC -fno-omit-frame-pointer -pthread ")
-set(CMAKE_C_FLAGS_MEX  "${CMAKE_C_FLAGS_RELEASE}   -D_GNU_SOURCE  -fexceptions -fPIC -fno-omit-frame-pointer -pthread ")
+set(CMAKE_C_FLAGS_RELEASE 
+  "-O3 -march=${MARCH} -mtune=native ${PROFILING_FLAGS} ${COMPILER_FLAGS}"
+  CACHE STRING "compiler options" FORCE)
+set(CMAKE_CXX_FLAGS_RELEASE 
+  "-O3 -march=${MARCH} -mtune=native ${PROFILING_FLAGS} ${COMPILER_FLAGS}"
+  CACHE STRING "compiler options" FORCE)
+
+
+# # Mex setup
+# set(CMAKE_CXX_FLAGS_MEX  
+#   "${CMAKE_CXX_FLAGS_RELEASE} -D_GNU_SOURCE -fPIC -fno-omit-frame-pointer -pthread ")
+# set(CMAKE_C_FLAGS_MEX  
+#   "${CMAKE_C_FLAGS_RELEASE}   -D_GNU_SOURCE  -fexceptions -fPIC -fno-omit-frame-pointer -pthread ")
 
 
 if (CMAKE_BUILD_TYPE MATCHES "Release")
   message(STATUS "Release build with C++ flags: " ${CMAKE_CXX_FLAGS_RELEASE})
   message(STATUS "Release build with C flags: " ${CMAKE_C_FLAGS_RELEASE})
-  #add_definitions(-DCOMPILEFLAGS=${CMAKE_CXX_FLAGS_RELEASE})
 elseif(CMAKE_BUILD_TYPE MATCHES "Debug")
   message(STATUS "Debug build with C++ flags: " ${CMAKE_CXX_FLAGS_DEBUG})
   message(STATUS "Debug build with C flags: " ${CMAKE_C_FLAGS_DEBUG})     
-  #add_definitions(-DCOMPILEFLAGS=${CMAKE_CXX_FLAGS_DEBUG})
 elseif(CMAKE_BUILD_TYPE MATCHES "Mex")
   message(STATUS "Mex CXX" ${CMAKE_CXX_FLAGS_MEX})
   message(STATUS "Mex C" ${CMAKE_C_FLAGS_MEX})
-  #add_definitions(-DCOMPILEFLAGS=${CMAKE_CXX_FLAGS_MEX})
 else()
   message(WARNING "Unknown build type: " ${CMAKE_BUILD_TYPE} "!")
 endif()
 
-##endif(CMAKE_COMPILER_IS_GNUCXX)
 
 
 
 
 
-# uncomment the following line to get CMake variables to print to screen
-# include(CMakePrintSystemInformation)
 
-## ===================================================================
-# testing tools
+## ============================================================================
+## ============================================================================
+## ============================================================================
+# Setup testing tools
 # Make sure testing is enabled
 enable_testing()
 # Use Python interpreter
@@ -587,25 +382,24 @@ endmacro(ADD_CXXTEST)
 
 
 
-## ===================================================================
-# Useful macros 
+
+
+
+## ============================================================================
+## ============================================================================
+## ============================================================================
+# Build Macros
+
+# copy_file ===================================================================
+# copy a single file into build environment
 macro(copy_file NAME)
   message(STATUS "Copying File: " ${NAME})
   file(INSTALL ${CMAKE_CURRENT_SOURCE_DIR}/${NAME} 
     DESTINATION   ${CMAKE_CURRENT_BINARY_DIR} )
-  ## The new cmake has much better ways to do this.  We should switch
-  ## to cmake 2.8
-  # add_custom_target(
-  #   ${NAME} ALL
-  #   COMMAND 
-  #   ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/${NAME}
-  #   ${CMAKE_CURRENT_BINARY_DIR}/${NAME}
-  #   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-  #   COMMENT "Copying ${NAME}"
-  #   )
 endmacro(copy_file NAME)
 
-
+# copy_files ==================================================================
+# copy all files matching a pattern into the build environment
 macro(copy_files NAME)
   message(STATUS "Copying Files: " ${NAME})
   file(INSTALL ${CMAKE_CURRENT_SOURCE_DIR}/  
@@ -614,91 +408,33 @@ macro(copy_files NAME)
 endmacro(copy_files NAME)
 
 
+# macro(EXEC file prog)
+#   add_custom_command(
+#     OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${file}
+#     COMMAND
+#     ${prog}
+#     DEPENDS ${prog}
+#     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+#     )
+# endmacro(EXEC)
 
-
-macro(EXEC file prog)
-  add_custom_command(
-    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${file}
-    COMMAND
-    ${prog}
-    DEPENDS ${prog}
-    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-    )
-endmacro(EXEC)
-
-
+# add_graphlab_executable =====================================================
+# copy all files matching a pattern into the build environment
 macro(add_graphlab_executable NAME)
   add_executable(${NAME} ${ARGN})
-  target_link_libraries(${NAME} ${Boost_LIBRARIES})
+  target_link_libraries(${NAME} 
+    graphlab
+    ${MPI_LIBRARY} 
+    ${MPI_EXTRA_LIBRARY} 
+    ${Boost_LIBRARIES}
+    )
   add_dependencies(${NAME} eigen boost tcmalloc graphlab)
-  target_link_libraries(${NAME} ${GraphLab_LIBRARIES})
+  target_link_libraries(${NAME} graphlab)
 endmacro(add_graphlab_executable)
 
 
-
-
-
-macro(add_distributed_graphlab_executable NAME)
-  if(MPI_FOUND)
-    add_executable(${NAME} ${ARGN})
-    target_link_libraries(${NAME} 
-      graphlab
-      ${MPI_LIBRARY} 
-      ${MPI_EXTRA_LIBRARY} 
-      ${Boost_LIBRARIES}
-      )
-    add_dependencies(${NAME} eigen boost tcmalloc event graphlab)
-    set_source_files_properties( ${ARGN}
-      PROPERTIES COMPILE_DEFINITIONS "GLDISTRIBUTED2" )
-    # set_property(TARGET ${NAME} APPEND PROPERTY 
-    #   COMPILE_FLAGS -I${MPI_INCLUDE_PATH})
-    #    add_definitions(-DGLDISTRIBUTED)
-
-  else(MPI_FOUND)
-    message(STATUS "Not Building " ${NAME} " since mpi was not found.")
-  endif(MPI_FOUND)
-endmacro(add_distributed_graphlab_executable)
-
-
-
-
-
-
-macro(add_zoltan_executable NAME)
-  if(MPI_FOUND AND ZOLTAN_FOUND)
-    add_executable(${NAME} ${ARGN})   
-    target_link_libraries(${NAME} 
-      graphlab
-      graphlab_dist2
-      graphlab_zoltan
-      ${ZOLTAN_LIBS}
-      ${MPI_LIBRARY} 
-      ${MPI_EXTRA_LIBRARY} )
-  else( )
-    if(EXPERIMENTAL)   
-      message(STATUS "Not Building " ${NAME} " because zoltan was not found")
-    endif()
-  endif( )
-endmacro(add_zoltan_executable)
-
-
-
-
-
-# MACRO(dist2_target_link_libraries NAME)
-#   IF(MPI_FOUND)
-#     TARGET_LINK_LIBRARIES(${NAME} ${ARGN})
-#   ENDIF(MPI_FOUND)
-# ENDMACRO(dist2_target_link_libraries)
-
-# MACRO(dist2_set_target_properties NAME)
-#   IF(MPI_FOUND)
-#     set_target_properties(${NAME} ${ARGN})
-#   ENDIF(MPI_FOUND)
-# ENDMACRO(dist2_set_target_properties)
-
-
-
+# add_jni_library =============================================================
+# If jni was found then create a jni library.  Otherwise generate a warning
 macro(add_jni_library NAME)
   # Only build if JNI was found
   if (JNI_REALLY_FOUND)
@@ -720,65 +456,8 @@ macro(add_jni_library NAME)
 endmacro(add_jni_library)
 
 
-# FIND_PACKAGE(Matlab)
-# MACRO(add_mex_library NAME)
-# IF(MATLAB_FOUND)
-#     SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC  -DMX_COMPAT_32 -DMATLAB_MEX_FILE")
-#     SET(MEX_SAVE_PATH "${CMAKE_SOURCE_DIR}")
-
-#     INCLUDE_DIRECTORIES(${MATLAB_INCLUDE_DIR})
-#     ADD_LIBRARY(${NAME} STATIC ${ARGN}) 
-#     TARGET_LINK_LIBRARIES(${NAME}  graphlab) 
-
-#      ADD_CUSTOM_COMMAND(TARGET ${NAME}
-#       POST_BUILD
-#       COMMAND ${CMAKE_MODULE_PATH}/mex_link.sh ${NAME} ${CMAKE_CURRENT_BINARY_DIR} ${CMAKE_SOURCE_DIR} "lib${NAME}.a ${Boost_LIBRARIES} ${CMAKE_SOURCE_DIR}/matlabmex/src/graphlab/libgraphlab.a  ${CMAKE_SOURCE_DIR}/matlabmex/extern/judy/libJudy.a ${CMAKE_SOURCE_DIR}/matlabmex/extern/include/metis2/libmetis/libmetis2.a   ${CMAKE_SOURCE_DIR}/matlabmex/extern/include/metis2/GKlib/libGKlib.a  "
-#     )
-#    # set(CMAKE_C_FLAGS_RELEASE  "${CMAKE_C_FLAGS_RELEASE} -fPIC")  
-#    # set(CMAKE_CXX_FLAGS_RELEASE  "${CMAKE_CXX_FLAGS_RELEASE} -fPIC")  
-
-#   # INCLUDE_DIRECTORIES(${MATLAB_INCLUDE_DIR})
-#   # ADD_LIBRARY(${NAME} MODULE ${ARGN})
-#   # TARGET_LINK_LIBRARIES(${NAME} ${MATLAB_LIBRARIES} graphlab) 
-#   # SET(MEX_SAVE_PATH "${CMAKE_SOURCE_DIR}")
-#   # SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIC -std=c99 -DMX_COMPAT_32 -DMATLAB_MEX_FILE")
-#   # SET(CMAKE_CPP_FLAGS "${CMAKE_CPP_FLAGS} -fPIC -std=c99 -DMX_COMPAT_32 -DMATLAB_MEX_FILE")
-
-# ENDIF(MATLAB_FOUND)
-# ENDMACRO(add_mex_library)
 
 
-
-
-set(GraphLab_LIBRARIES graphlab)
-
-
-subdirs(src tests)
-
-if(EXPERIMENTAL)
-  subdirs(experimental)
-endif()
-
-if (IS_DIRECTORY ${GraphLab_SOURCE_DIR}/apps)
-  subdirs(apps)
-endif()
-
-subdirs(demoapps toolkits)
-subdirs(extapis)
-  
-
-
-## ===================================================================
-# Installation rules
-install(DIRECTORY src/  
-  DESTINATION include
-  FILES_MATCHING PATTERN "*.hpp"  PATTERN "*.h" 
-  PATTERN ".svn" EXCLUDE
-  )
-
-install(CODE "execute_process(COMMAND ./scripts/install_deps.sh
-  ${CMAKE_INSTALL_PREFIX} WORKING_DIRECTORY
-  ${CMAKE_CURRENT_SOURCE_DIR})")
 
 
 
