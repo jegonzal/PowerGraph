@@ -108,6 +108,7 @@ clopts.attach_option("svdpp_itm_fctr2_step", &svdp.itmFctr2Step, svdp.itmFctr2St
   clopts.attach_option("rbm_beta",&rbm_beta, rbm_beta, "rbm beta");
   clopts.attach_option("rbm_scaling", &rbm_scaling, rbm_scaling, "rbm scaling");
   clopts.attach_option("rbm_bins", &rbm_bins, rbm_bins, "rbm bins");
+  clopts.attach_option("exportlinearmodel", &exportlinearmodel, exportlinearmodel, "export factorized matrices to output file");
 }  
 
 

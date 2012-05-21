@@ -300,7 +300,7 @@ void start(command_line_options& clopts) {
       assert(ac.iter > 0);
     }
  */
-    graph_type &g = glcore.graph();
+    graph_type &training = glcore.graph();
     graph_type validation_graph;
     graph_type test_graph, test_graph2; 
 
@@ -313,12 +313,12 @@ void start(command_line_options& clopts) {
     printf("loading data file %s\n", ac.datafile.c_str());
     if (!ac.manualgraphsetup){
     
-    load_pmf_graph<graph_type,gl_types,vertex_data,edge_data>(ac.datafile.c_str(), &g, &g, TRAINING);
-    ps.set_graph(&g, TRAINING);
+    load_pmf_graph<graph_type,gl_types,vertex_data,edge_data>(ac.datafile.c_str(), &training, &training, TRAINING);
+    ps.set_graph(&training, TRAINING);
 
   //read the vlidation data (optional)
     printf("loading data file %s\n", (ac.datafile+"e").c_str());
-    load_pmf_graph<graph_type,gl_types,vertex_data,edge_data>((ac.datafile+"e").c_str(),&g, &validation_graph, VALIDATION);
+    load_pmf_graph<graph_type,gl_types,vertex_data,edge_data>((ac.datafile+"e").c_str(),&training, &validation_graph, VALIDATION);
     ps.set_graph(&validation_graph, VALIDATION);
 
    }  
@@ -344,7 +344,7 @@ void start(command_line_options& clopts) {
   
   printf("%s for %s (%d, %d, %d):%d.  D=%d\n", runmodesname[ac.algorithm], ps.tensor?"tensor":"matrix", ps.M, ps.N, ps.K, ps.L, ac.D);
   
-   init<graph_type>(&g);
+   init<graph_type>(&training);
 
    if (ac.datafile == "netflix" || ac.datafile == "netflix-r"){
        ac.minval = 1; ac.maxval = 5;
@@ -356,7 +356,7 @@ void start(command_line_options& clopts) {
    double res = 0;
    if (ps.algorithm != LANCZOS && ps.algorithm != SVD && ps.algorithm != TIME_SVD_PLUS_PLUS){
      double res2 = 0;
-     double rmse =  calc_rmse_wrapper<graph_type, vertex_data>(&g, false, res);
+     double rmse =  calc_rmse_wrapper<graph_type, vertex_data>(&training, false, res);
      printf(ac.printhighprecision ? 
            "complete. Objective=%g, TRAIN RMSE=%0.12f VALIDATION RMSE=%0.12f.\n" :
            "complete. Objective=%g, TRAIN RMSE=%0.4f VALIDATION RMSE=%0.4f.\n" 
@@ -373,7 +373,7 @@ void start(command_line_options& clopts) {
     sample_hyperpriors<graph_type>(res);
   }
 
-  g.finalize();  
+  training.finalize();  
   ps.gt.start();
 
   /**** START GRAPHLAB AND RUN UNTIL COMPLETION *****/
@@ -410,16 +410,21 @@ void start(command_line_options& clopts) {
 
  if (ps.algorithm != LANCZOS && ps.algorithm != SVD){
     /**** OUTPUT TEST FORMAT *****/
+    if (ac.reduce_mem_consumption){
+      training.reduce_mem_consumption();
+      validation_graph.reduce_mem_consumption();
+    }
+      
  
     //read the test data (optional)
     printf("loading data file %s\n", (ac.datafile+"t").c_str());
-    load_pmf_graph<graph_type,gl_types,vertex_data,edge_data>((ac.datafile+"t").c_str(),&g, &test_graph, TEST);
+    load_pmf_graph<graph_type,gl_types,vertex_data,edge_data>((ac.datafile+"t").c_str(),&training, &test_graph, TEST);
     ps.set_graph(&test_graph, TEST);
 
 
     if (ac.test2){
       printf("loading data file %s\n", (ac.datafile+"t2").c_str());
-      load_pmf_graph<graph_type,gl_types,vertex_data,edge_data>((ac.datafile+"t2").c_str(),&g, &test_graph2, TEST2);
+      load_pmf_graph<graph_type,gl_types,vertex_data,edge_data>((ac.datafile+"t2").c_str(),&training, &test_graph2, TEST2);
       ps.set_graph(&test_graph2, TEST2);
     }
 
@@ -435,8 +440,8 @@ void start(command_line_options& clopts) {
     }
  }
   print_runtime_counters(); 
-
-  write_output<graph_type, vertex_data>();
+  if (ac.exportlinearmodel)
+    write_output<graph_type, vertex_data>();
 }
 
 
