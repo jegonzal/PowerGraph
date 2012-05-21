@@ -34,41 +34,100 @@
 
 
 
-#ifndef GRAPHLAB_IUPDATE_FUNCTOR_HPP
-#define GRAPHLAB_IUPDATE_FUNCTOR_HPP
+#ifndef GRAPHLAB_IVERTEX_PROGRAM_HPP
+#define GRAPHLAB_IVERTEX_PROGRAM_HPP
 
 
-#include <graphlab/context/consistency_model.hpp>
 #include <graphlab/context/icontext.hpp>
 
 #include <graphlab/graph/graph_basic_types.hpp>
 
 #include <graphlab/macros_def.hpp>
 namespace graphlab {
-
-
-
-
   
   /**
-   * This interface should be used as the base class of all user
-   * defined update functors.
+   * A vertex program represents the primary user define computation
+   * in graphlab.  A unique instance of the vertex program is run on
+   * each vertex in the graph and can interact with neighboring vertex
+   * programs through the gather and scatter functions as well as by
+   * messaging.
    *
-   *  \todo: Provide detailed explanation of standard usage pattern.
+   *
+   * All user define vertex programs must extend the ivertex_program
+   * interface and implement the gather, apply, and scatter
+   * functions. In addition, all vertex programs must provide the
+   * following types:
+   * 
+   *   1) edge_data_type: the type of the edge data
+   *   2) gather_type: the type used in the gather phase
+   *   3) message_type: The type used for messaging
+   *
+   * Both the gather_type and message_type must be serializable (i.e.,
+   * a primitive or implement load/save) and must support the
+   * commutative associative += operation.
+   *   
+   * To enable the interface to be aware of the user defined gather
+   * and message types the ivertex_program interface takes the
+   * vertex_program as an argument.
+   * 
    */
-  template<typename Graph, typename UpdateFunctor> 
-  class iupdate_functor {    
+  template<typename VertexProgram> 
+  class ivertex_program {    
   public:
-    typedef Graph graph_type;
-    typedef UpdateFunctor update_functor_type;
 
-    typedef typename graph_type::vertex_data_type  vertex_data_type;
-    typedef typename graph_type::vertex_id_type    vertex_id_type;   
-    typedef typename graph_type::vertex_color_type vertex_color_type;
+    // User defined type members ==============================================
+    /**
+     * The vertex program interface takes as an argument the vertex
+     * program.
+     */
+    typedef VertexProgram vertex_program_type;
 
-    typedef typename graph_type::edge_data_type    edge_data_type;
-    typedef typename graph_type::edge_type         edge_type;
-    typedef typename graph_type::edge_list_type    edge_list_type;
+    /**
+     * The type of the edge data which must be defined by the
+     * vertex-program.
+     */
+    typedef typename vertex_program_type::edge_data_type edge_data_type;
+
+    /**
+     * The gather type which must be provided by the vertex program.
+     */
+    typedef typename vertex_program_type::gather_type gather_type;
+
+    /**
+     * The message type which must be provided by the vertex_program
+     */
+    typedef typename vertex_program_type::message_type message_type;
+
+
+    // Graph specific type members ============================================
+    /**
+     * The graph type associative with this vertex program.  The
+     * vertex data type is the vertex_program_type and the
+     * edge_data_type is the type specified by the vertex program as
+     * the edge_data_type.
+     */
+    typedef graph<vertex_program_type, edge_data_type> graph_type;
+
+    /**
+     * The unique integer id used to reference vertices in the graph.
+     * TODO: add doc link to definition in graph_type
+     */
+    typedef typename graph_type::vertex_id_type vertex_id_type;
+    
+    /**
+     * The opaque vertex object type used to get vertex information.
+     * TODO: add doc link to definition in graph_type
+     */
+    typedef typename graph_type::vertex_type vertex_type;
+    
+    /**
+     * The opaque edge_object type used to access edge information.
+     * TODO: add doc link to definition in graph_type
+     */
+    typedef typename graph_type::vertex_type edge_type;
+
+    ////// WORKING HERE:
+    ///// ---------------------------------------------------------------
    
     typedef icontext<graph_type, update_functor_type> icontext_type;
     typedef iglobal_context iglobal_context_type;
@@ -77,7 +136,7 @@ namespace graphlab {
     typedef graphlab::consistency_model  consistency_model;
     
 
-    virtual ~iupdate_functor() { }
+    virtual ~ivertex_program() { }
 
     /**
      * Gets the context range required by this update functor.  If not
@@ -177,7 +236,7 @@ namespace graphlab {
     inline virtual void scatter(icontext_type& context, const edge_type& edge) { 
       logstream(LOG_FATAL) << "Scatter not implemented!" << std::endl;
     }
-  };  // end of iupdate_functor
+  };  // end of ivertex_program
  
 }; //end of namespace graphlab
 #include <graphlab/macros_undef.hpp>
