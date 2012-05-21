@@ -33,7 +33,7 @@ using namespace std;
 bool debug = false;
 string datafile;
 bool info = false;
-unsigned long long total_lines = 0;
+size_t total_lines = 0;
 bool gzip = false;
 
 int get_day(time_t pt);
@@ -47,24 +47,7 @@ struct vertex_data {
 struct edge_data {
 };
 
-struct vertex_data2 {
-  double A_ii;
-  double value;
-  vertex_data2(): A_ii(1) { } 
-  void add_self_edge(double value) { A_ii = value; }
-  void set_val(double value, int field_type) { 
-  }  
-  double get_output(int field_type){ return -1; }
-}; // end of vertex_data
 
-
-struct edge_data2 {
-  int rating;
-  int time;
-  edge_data2(int _rating, int _time) : rating(_rating),time(_time) { }
-  int get_field(int pos){ return pos == 0 ? rating : time; }
-  void set_field(int pos, int val){ if (pos == 0) rating = val; else time = val; }
-};
 
 struct singlerating{
    int user;
@@ -81,7 +64,6 @@ struct stringzipparser_update :
    public graphlab::iupdate_functor<graph_type, stringzipparser_update>{
    void operator()(icontext_type& context) {
 
-typedef graphlab::graph<vertex_data2, edge_data2>::edge_list_type edge_list;
     
    vertex_data& vdata = context.vertex_data();
    gzip_in_file fin(vdata.filename +  (info ? ".data" : ""), gzip);
