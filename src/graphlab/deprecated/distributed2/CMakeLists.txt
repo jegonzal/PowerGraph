@@ -1,4 +1,0 @@
-project(GraphLab)
-
-subdirs(graph)
-
