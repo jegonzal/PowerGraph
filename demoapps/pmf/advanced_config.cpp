@@ -109,6 +109,9 @@ clopts.attach_option("svdpp_itm_fctr2_step", &svdp.itmFctr2Step, svdp.itmFctr2St
   clopts.attach_option("rbm_scaling", &rbm_scaling, rbm_scaling, "rbm scaling");
   clopts.attach_option("rbm_bins", &rbm_bins, rbm_bins, "rbm bins");
   clopts.attach_option("exportlinearmodel", &exportlinearmodel, exportlinearmodel, "export factorized matrices to output file");
+
+  //general switches
+  clopts.attach_option("reduce_mem_consumption", &reduce_mem_consumption, reduce_mem_consumption, "reduce memory consumption (for machines with limited memory");
 }  
 
 
