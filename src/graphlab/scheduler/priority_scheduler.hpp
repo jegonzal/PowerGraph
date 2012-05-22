@@ -32,6 +32,8 @@
 #include <cmath>
 #include <cassert>
 
+
+#include <graphlab/graph/graph_basic_types.hpp>
 #include <graphlab/parallel/pthread_tools.hpp>
 
 #include <graphlab/util/mutable_queue.hpp>
@@ -48,15 +50,11 @@ namespace graphlab {
 
   /** \ingroup group_schedulers
    */
-  template<typename Graph, typename Message>
-  class priority_scheduler : public ischeduler<Graph, Message> {  
+  template<typename Message>
+  class priority_scheduler : public ischeduler<Message> {  
   public:
 
-    typedef ischeduler<Graph, Message> base;
-    typedef typename base::graph_type graph_type;
-    typedef typename base::vertex_id_type vertex_id_type;
-    typedef typename base::message_type message_type;
-
+    typedef Message message_type;
 
     typedef mutable_queue<vertex_id_type, double> queue_type;
 
@@ -77,10 +75,10 @@ namespace graphlab {
 
   public:
 
-    priority_scheduler(const graph_type& graph, 
+    priority_scheduler(size_t num_vertices,
                        size_t ncpus,
                        const options_map& opts) :
-      messages(graph.num_vertices()), multi(0),
+      messages(num_vertices), multi(0),
       current_queue(ncpus), 
       min_priority(-std::numeric_limits<double>::max()),
       term(ncpus) {     

@@ -36,8 +36,12 @@
 #include <vector>
 #include <sstream>
 #include <ostream>
+
+#include <graphlab/graph/graph_basic_types.hpp>
+
 #include <graphlab/options/options_map.hpp>
 #include <graphlab/scheduler/terminator/iterminator.hpp>
+
 
 
 namespace graphlab {
@@ -63,13 +67,11 @@ namespace graphlab {
    * this interface EXACTLY. Note that all functions (with the
    * exception of the constructor and destructor) must be thread-safe.
    */
-  template<typename Graph, typename MessageType>
+  template<typename MessageType>
   class ischeduler {
   public:
-
-    typedef Graph graph_type;
+    
     typedef MessageType message_type;
-    typedef typename graph_type::vertex_id_type vertex_id_type;
 
     
     /// destructor
@@ -97,7 +99,6 @@ namespace graphlab {
       schedule(vid, message);
     }
     
-
 
     /** 
      * Schedule the message to be received by all vertices in the

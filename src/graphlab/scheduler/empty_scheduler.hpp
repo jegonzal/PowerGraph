@@ -27,6 +27,7 @@
 #include <cmath>
 #include <cassert>
 
+#include <graphlab/graph/graph_basic_types.hpp>
 #include <graphlab/parallel/cache_line_pad.hpp>
 #include <graphlab/scheduler/ischeduler.hpp>
 #include <graphlab/scheduler/terminator/iterminator.hpp>
@@ -46,23 +47,17 @@ namespace graphlab {
     * nothing but it requires very little memory to do nothing and
     * this makes some of our users happy. :-)
     */
-  template<typename Graph, typename Message>
-  class empty_scheduler : public ischeduler<Graph, Message> {
+  template<typename Message>
+  class empty_scheduler : public ischeduler<Message> {
   public:
 
-
-    typedef ischeduler<Graph, Message> base;
-    typedef typename base::graph_type graph_type;
-    typedef typename base::vertex_id_type vertex_id_type;
-    typedef typename base::message_type message_type;
+    typedef Message message_type;
     typedef critical_termination terminator_type;
-
-
     
   private:
     terminator_type                         term;   
   public:
-    empty_scheduler(const graph_type& graph, 
+    empty_scheduler(size_t num_vertices,
                     size_t ncpus,
                     const options_map& opts) : term(ncpus) { }
 
