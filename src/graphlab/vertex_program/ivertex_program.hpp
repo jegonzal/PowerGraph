@@ -60,9 +60,10 @@ namespace graphlab {
    * functions. In addition, all vertex programs must provide the
    * following types:
    * 
-   *   1) edge_data_type: the type of the edge data
-   *   2) gather_type: the type used in the gather phase
-   *   3) message_type: The type used for messaging
+   *   1) vertex_data_type: the type of the data stored on each vertex
+   *   2) edge_data_type: the type of the edge data
+   *   3) gather_type: the type used in the gather phase
+   *   4) message_type: The type used for messaging
    *
    * Both the gather_type and message_type must be serializable (i.e.,
    * a primitive or implement load/save) and must support the
