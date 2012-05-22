@@ -49,8 +49,7 @@ namespace graphlab {
     typedef EdgeData   edge_data_type;
     /// The type of a vertex is a simple size_t
     typedef graphlab::vertex_id_type vertex_id_type;
-    /// Type for vertex colors 
-    typedef graphlab::vertex_color_type vertex_color_type;
+
     typedef typename graph_type::lvid_type  lvid_type;
     typedef typename graph_type::vertex_record vertex_record;
     typedef typename graph_type::mirror_type mirror_type;

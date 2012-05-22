@@ -129,14 +129,15 @@ namespace graphlab {
     struct vertex_type;
     struct local_edge_type;
     struct local_edge_list_type;
-    typedef bool edge_list_type;
+    typedef bool edge_list_type;  // map it to an impossible type
+    typedef bool edge_type;  // map it to an impossible type
     
     struct vertex_type {
       distributed_graph& g;
       vertex_id_type lvid, gvid;
       vertex_type(distributed_graph& g, vertex_id_type lvid):
             g(g), lvid(lvid), gvid(g.global_vid(lvid)) { }
-  
+
       const vertex_data_type data() const {
         return g.get_local_graph().vertex_data(lvid);
       }
@@ -169,27 +170,11 @@ namespace graphlab {
         ASSERT_TRUE(false);
       }
 
-      const edge_list_type in_edges() __attribute__ ((noreturn)) {
-        ASSERT_TRUE(false);
-      }
-
-      const edge_list_type out_edges() __attribute__ ((noreturn)) {
-        ASSERT_TRUE(false);
-      }
-      
       local_edge_list_type l_in_edges() {
         return g.l_in_edges(lvid);
       }
 
       local_edge_list_type l_out_edges() {
-        return g.l_out_edges(lvid);
-      }
-
-      const local_edge_list_type l_in_edges() const {
-        return g.l_in_edges(lvid);
-      }
-
-      const local_edge_list_type l_out_edges() const {
         return g.l_out_edges(lvid);
       }
     };
@@ -200,12 +185,14 @@ namespace graphlab {
     class local_edge_type {
     private:
       distributed_graph& g;
-      local_graph_type::edge_type e;
+      typename local_graph_type::edge_type e;
     public:
-      edge_type (distributed_graph& g,
-                 local_graph_type::edge_type e): g(g), e(e) { }
-      inline local_vertex_type source() const { return local_vertex_type(g, g.source()); }
-      inline local_vertex_type target() const { return local_vertex_type(g, g.target()); }
+      local_edge_type(distributed_graph& g,
+                      typename local_graph_type::edge_type e): g(g), e(e) { }
+
+      local_vertex_type source() { return local_vertex_type(g, e.source().id()); }
+      local_vertex_type target() { return local_vertex_type(g, e.target().id()); }
+      
       edge_data_type data() { return e.data(); }
       const edge_data_type data() const { return e.data(); }
       procid_t owner() const { return g.rmi.procid(); }
@@ -217,7 +204,7 @@ namespace graphlab {
       typedef typename local_graph_type::edge_type argument_type;
       typedef local_edge_type result_type;
       distributed_graph& g;
-      make_local_edge_type_functor(graph& g):g(g) { }
+      make_local_edge_type_functor(distributed_graph& g):g(g) { }
       result_type operator() (const argument_type et) const {
         return local_edge_type(g, et);
       }
@@ -230,12 +217,13 @@ namespace graphlab {
       typename local_graph_type::edge_list_type elist;
       
       typedef boost::transform_iterator<make_local_edge_type_functor,
-                                      typename local_graph_type::edge_list::iterator> iterator;
+                                      typename local_graph_type::edge_list_type::iterator> iterator;
       typedef iterator const_iterator;
       
-      local_edge_list_type(const distributed_graph& g,
-                           typename local_graph_type::edge_list_type& elist) :
+      local_edge_list_type(distributed_graph& g,
+                           typename local_graph_type::edge_list_type elist) :
                           me_functor(g), elist(elist) { }
+      
       size_t size() const { return elist.size(); }
       local_edge_type operator[](size_t i) const { return me_functor(elist[i]); }
       iterator begin() const { return
@@ -404,21 +392,6 @@ namespace graphlab {
     /** \brief Get the size of replica */
     size_t num_replicas() const { return nreplicas; }
 
-    //! Get the rerverse edge 
-    edge_type reverse_edge(const edge_type& edge) const {      
-      //TODO: IMPLEMENT
-      logstream(LOG_FATAL) << "Reverse edge not implemented" << std::endl; 
-      return edge;
-    }
-
-    //! find a particular edge
-    edge_type find(vertex_id_type source,
-                   vertex_id_type target) const {
-      //TODO: IMPLEMENT
-      logstream(LOG_FATAL) << "find edge not implemented" << std::endl; 
-      return edge_type();
-    }
-
 
     /** Determine the id of the vertex with highest degree */
     vertex_id_type max_degree_vertex() const { 
@@ -503,6 +476,23 @@ namespace graphlab {
       return local_graph;
     }
 
+
+    vertex_type vertex(vertex_id_type vid) {
+      return vertex_type(*this, local_vid(vid));
+    }
+
+    const vertex_type vertex(vertex_id_type vid) const {
+      return vertex_type(*this, local_vid(vid));
+    }
+
+    local_vertex_type l_vertex(vertex_id_type vid) {
+      return local_vertex_type(*this, vid);
+    }
+
+    const local_vertex_type l_vertex(vertex_id_type vid) const {
+      return local_vertex_type(*this, vid);
+    }
+  
     //! Get all the edge which edge.target() == v
     edge_list_type in_edges(const vertex_id_type vid) const __attribute__((noreturn)) {
       // Not implemented.
@@ -529,8 +519,8 @@ namespace graphlab {
     }
 
     // Get all the local edge which edge.target() == v
-    local_edge_list_type l_in_edges(const lvid_type lvid) const {
-      return local_edge_list_type(this, local_graph.in_edges(lvid));
+    local_edge_list_type l_in_edges(const lvid_type lvid) {
+      return local_edge_list_type(*this, local_graph.in_edges(lvid));
     }
 
     // Get the number of local edges which edge.target() == v
@@ -539,8 +529,8 @@ namespace graphlab {
     }
 
     // Get all the local edges which edge.source() == v
-    local_edge_list_type l_out_edges(const lvid_type lvid) const {
-      return local_edge_list_type(this, local_graph.out_edges(lvid));
+    local_edge_list_type l_out_edges(const lvid_type lvid) {
+      return local_edge_list_type(*this, local_graph.out_edges(lvid));
     }
 
     // Get the number of local edges which edge.source() == v

@@ -298,7 +298,7 @@ namespace graphlab {
 
     edge_id_type edge_id(const edge_type& edge) const {
       ASSERT_FALSE(edge.empty());
-      return edge.get_dir() == edge_type::OUTEDGE ? 
+      return edge.get_dir() == OUT_EDGES ?
         edge._edge_id :
         c2r_map[edge._edge_id];
     }

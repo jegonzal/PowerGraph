@@ -92,6 +92,7 @@ namespace graphlab {
       graph& g;
       typename gstore_type::edge_type e;
       edge_type(graph& g, typename gstore_type::edge_type e):g(g),e(e) { }
+
       const edge_data_type data() const {
         return g.gstore.edge_data(e);
       }
@@ -104,6 +105,7 @@ namespace graphlab {
       vertex_type target() {
         return vertex_type(g, e.target());
       }
+
       edge_id_type id() {
         return g.gstore.edge_id(e);
       }
@@ -113,6 +115,7 @@ namespace graphlab {
       graph& g;
       vertex_id_type vid;
       vertex_type(graph& g, vertex_id_type vid):g(g),vid(vid) { }
+      
       const vertex_data_type data() const {
         return g.vertex_data(vid);
       }
@@ -138,14 +141,6 @@ namespace graphlab {
       }
 
       edge_list_type out_edges() {
-        return edge_list_type(g, g.gstore.out_edges(vid));
-      }
-
-      const edge_list_type in_edges() const {
-        return edge_list_type(g, g.gstore.in_edges(vid));
-      }
-
-      const edge_list_type out_edges() const {
         return edge_list_type(g, g.gstore.out_edges(vid));
       }
     };
@@ -433,23 +428,11 @@ namespace graphlab {
     }
 
     edge_list_type in_edges(vertex_id_type v) {
-      ASSERT_TRUE(finalized);
       return edge_list_type(*this, gstore.in_edges(v));
     }
 
     edge_list_type out_edges(vertex_id_type v) {
-      ASSERT_TRUE(finalized);
       return edge_list_type(*this, gstore.out_edges(v));
-    }
-
-    const edge_list_type in_edges(vertex_id_type v) const {
-      ASSERT_TRUE(finalized);
-      return gstore.in_edges(v);
-    }
-
-    const edge_list_type out_edges(vertex_id_type v) const {
-      ASSERT_TRUE(finalized);
-      return gstore.out_edges(v);
     }
 
 

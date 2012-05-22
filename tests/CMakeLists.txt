@@ -25,6 +25,8 @@ ADD_CXXTEST(lock_free_pushback.cxx)
 ADD_CXXTEST(union_find_test.cxx)
 
 ADD_CXXTEST(graph_test.cxx)
+add_graphlab_executable(distributed_graph_test distributed_graph_test.cpp)
+
 add_graphlab_executable(integer_serialize_validate integer_serialize_validate.cpp)
 add_graphlab_executable(integer_serialize_bench integer_serialize_bench.cpp)
 add_graphlab_executable(cuckootest cuckootest.cpp)

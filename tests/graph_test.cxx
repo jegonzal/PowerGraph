@@ -8,7 +8,7 @@
 #include <graphlab/macros_def.hpp>
 
 
-class graph2_test : public CxxTest::TestSuite {
+class graph_test : public CxxTest::TestSuite {
 public:
 
   struct vertex_data {
