@@ -27,7 +27,7 @@
 #include <algorithm>
 #include <queue>
 
-
+#include <graphlab/graph/graph_basic_types.hpp>
 #include <graphlab/parallel/pthread_tools.hpp>
 #include <graphlab/parallel/atomic.hpp>
 
@@ -53,15 +53,13 @@ namespace graphlab {
    * the shared master queue.  Once a processors out queue is empty it
    * grabs the next out_queue from the master.
    */
-  template<typename Graph, typename Message>
-  class fifo_scheduler : public ischeduler<Graph, Message> {
+  template<typename Message>
+  class fifo_scheduler : public ischeduler<Message> {
   
   public:
 
-    typedef ischeduler<Graph, Message> base;
-    typedef typename base::graph_type graph_type;
-    typedef typename base::vertex_id_type vertex_id_type;
-    typedef typename base::message_type message_type;
+    typedef Message message_type;
+
 
     typedef std::deque<vertex_id_type> queue_type;
 
@@ -80,10 +78,10 @@ namespace graphlab {
 
   public:
 
-    fifo_scheduler(const graph_type& graph, 
+    fifo_scheduler(size_t num_vertices,
                    size_t ncpus,
                    const options_map& opts) :
-      messages(graph.num_vertices()), multi(0),
+      messages(num_vertices), multi(0),
       current_queue(ncpus), term(ncpus) {     
       opts.get_option("multi", multi);
       const size_t nqueues = std::max(multi*ncpus, size_t(1));

@@ -44,7 +44,6 @@
 #define GRAPHLAB_IENGINE_HPP
 
 
-#include <graphlab/scheduler/ischeduler.hpp>
 #include <graphlab/vertex_program/icontext.hpp>
 #include <graphlab/engine/execution_status.hpp>
 #include <graphlab/scheduler/terminator/iterminator.hpp>
@@ -82,26 +81,10 @@ namespace graphlab {
   template<typename VertexProgram>
   class iengine {
   public:
-    //! The type of the udpate functor
     typedef VertexProgram vertex_program_type;
-
-    //! The type of graph that the engine operates on
-    typedef typename vertex_program_type::graph_type graph_type;
-    
-    typedef ivertex_program<vertex_program_type> ivertex_program_type;
-
-    //! The edge list type used by the graph
-    typedef typename graph_type::edge_list_type  edge_list_type;
-
-    //! The type of vertex color used by the graph
-    typedef typename graph_type::vertex_color_type vertex_color_type;
-
-
-    //! The type of scheduler
-    typedef ischeduler<graph_type, vertex_program_type> ischeduler_type;
-
-    //! The type of context 
-    typedef icontext<graph_type, vertex_program_type> icontext_type;
+    typedef typename vertex_program_type::message_type message_type;
+    typedef typename vertex_program_type::graph_type graph_type;  
+    typedef typename graph_type::vertex_type vertex_type;
 
 
     //! Virtual destructor required for inheritance 
