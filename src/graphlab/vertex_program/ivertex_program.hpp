@@ -85,6 +85,13 @@ namespace graphlab {
     typedef VertexProgram vertex_program_type;
 
     /**
+     * The type of the vertex data which must be defined by the
+     * vertex-program.
+     */
+    typedef typename vertex_program_type::vertex_data_type vertex_data_type;
+
+
+    /**
      * The type of the edge data which must be defined by the
      * vertex-program.
      */
@@ -164,7 +171,7 @@ namespace graphlab {
      * default implementation (NOP) is used.
      */
     virtual void recv_message(icontext_type& context,
-                              vertex_type& vertex, 
+                              const vertex_type& vertex, 
                               const message_type& msg) { /** NOP */ }
     
     /**
@@ -181,7 +188,8 @@ namespace graphlab {
      * the gather_type which are added to compute the final output of
      * the gather.
      */
-    virtual gather_type gather(icontext_type& context, edge_type& edge) const { 
+    virtual gather_type gather(icontext_type& context, 
+                               edge_type& edge) const {
       logstream(LOG_FATAL) << "Gather not implemented!" << std::endl;
     };
 
@@ -189,7 +197,8 @@ namespace graphlab {
      * The apply function is called once the gather has completed and
      * must be implemented by all vertex programs. 
      */
-    virtual void apply(icontext_type& context, vertex_type& vertex, 
+    virtual void apply(icontext_type& context, 
+                       vertex_type& vertex, 
                        const gather_type& total) = 0;
 
     /**
