@@ -168,8 +168,7 @@ namespace graphlab {
                          const std::string& default_scheduler = "sweep") : 
       desc(desc_str), suppress_graphlab_options(false) {
       ncpus = default_ncpus;
-      engine_type = default_engine;
-      scope_type = default_scope;
+      engine_type = default_engine;     
       scheduler_type = default_scheduler;
       // Add documentation for help
       namespace boost_po = boost::program_options;

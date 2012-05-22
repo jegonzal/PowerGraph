@@ -171,33 +171,19 @@ namespace graphlab {
     }
 
 
-
     bool set_graph_options(const std::string& stype) {
       //! \todo: ADD CHECKING
       graph_options.parse_string(stype);
       return true; 
     }    
+
     const options_map& get_graph_options() const { 
       return graph_options;
     }
+
     options_map& get_graph_options() { 
       return graph_options;
-    }
-
-
-    
-
-    //! Set the metrics type
-    bool set_metrics_type(const std::string& mtype) {
-      metrics_type = mtype;
-      return true; // TODO: ADD CHECKING
-    }
-
-    //! Get the metrics type
-    const std::string& get_metrics_type() const {
-      return metrics_type;
-    }
-    
+    }     
 
     //! Get the compiler options (flags)
     const std::string& get_compile_flags() const {
@@ -212,8 +198,7 @@ namespace graphlab {
       std::cout << "GraphLab Options -------------------\n" 
                 << "ncpus:       " << ncpus << "\n"
                 << "engine:      " << engine_type << "\n"
-                << "scheduler:   " << scheduler_type << "\n"
-                << "metrics:     " << metrics_type << std::endl;
+                << "scheduler:   " << scheduler_type << "\n";
       std::cout << "\n";
       std::cout << "Scheduler Options: \n";
       std::cout << scheduler_args;

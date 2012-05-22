@@ -67,7 +67,7 @@ namespace graphlab {
 
   private:
 
-    vertex_set<message_type> messages;
+    vertex_map<message_type> messages;
     std::vector<queue_type> queues;
     std::vector<spinlock>   locks;
     size_t multi;

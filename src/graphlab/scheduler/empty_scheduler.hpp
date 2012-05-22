@@ -30,7 +30,6 @@
 #include <graphlab/parallel/cache_line_pad.hpp>
 #include <graphlab/scheduler/ischeduler.hpp>
 #include <graphlab/scheduler/terminator/iterminator.hpp>
-#include <graphlab/scheduler/vertex_functor_set.hpp>
 #include <graphlab/scheduler/terminator/critical_termination.hpp>
 #include <graphlab/options/options_map.hpp>
 #include <graphlab/graph/graph_ops.hpp>
@@ -47,15 +46,15 @@ namespace graphlab {
     * nothing but it requires very little memory to do nothing and
     * this makes some of our users happy. :-)
     */
-  template<typename Graph, typename UpdateFunctor>
-  class empty_scheduler : public ischeduler<Graph, UpdateFunctor> {
+  template<typename Graph, typename Message>
+  class empty_scheduler : public ischeduler<Graph, Message> {
   public:
 
 
-    typedef ischeduler<Graph, UpdateFunctor> base;
+    typedef ischeduler<Graph, Message> base;
     typedef typename base::graph_type graph_type;
     typedef typename base::vertex_id_type vertex_id_type;
-    typedef typename base::update_functor_type update_functor_type;
+    typedef typename base::message_type message_type;
     typedef critical_termination terminator_type;
 
 
@@ -70,22 +69,22 @@ namespace graphlab {
     void start() { }
 
     void schedule(const vertex_id_type vid, 
-                  const update_functor_type& fun) { }
+                  const message_type& msg) { }
 
-    void schedule_all(const update_functor_type& fun,
+    void schedule_all(const message_type& msg,
                       const std::string& order) { }
       
     
     sched_status::status_enum get_next(const size_t cpuid,
                                        vertex_id_type& ret_vid,
-                                       update_functor_type& ret_fun) {         
+                                       message_type& ret_msg) {         
       return sched_status::EMPTY;
     } // end of get_next
     
     
     void completed(const size_t cpuid,
                    const vertex_id_type vid,
-                   const update_functor_type& fun) {  } // end of completed
+                   const message_type& msg) {  } // end of completed
 
 
     iterminator& terminator() { return term; };

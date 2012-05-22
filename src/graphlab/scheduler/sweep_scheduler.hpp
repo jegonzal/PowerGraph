@@ -106,15 +106,6 @@ namespace graphlab {
         }
         std::sort(vec.begin(), vec.end());
         for(size_t i = 0; i < vec.size(); ++i) vids[i] = vec[i].second;
-      } else if (ordering == "color") {
-        logstream(LOG_INFO) 
-          << "Constructing a color based sweep ordering." << std::endl;
-        typedef std::pair<vertex_color_type, vertex_id_type> pair_type;        
-        std::vector< pair_type > vec(graph.num_vertices());      
-        for(vertex_id_type i = 0; i < vec.size(); ++i) 
-          vec[i] = pair_type(graph.color(i), i);
-        std::sort(vec.begin(), vec.end());
-        for(size_t i = 0; i < vec.size(); ++i) vids[i] = vec[i].second;
       } else { // Assume random ordering by default
         if(ordering != "random") {
           logstream(LOG_WARNING)
