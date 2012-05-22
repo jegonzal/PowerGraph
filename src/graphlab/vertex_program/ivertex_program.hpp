@@ -41,6 +41,8 @@
 #include <graphlab/context/icontext.hpp>
 
 #include <graphlab/graph/graph_basic_types.hpp>
+#include <graphlab/graph/graph.hpp>
+
 
 #include <graphlab/macros_def.hpp>
 namespace graphlab {
