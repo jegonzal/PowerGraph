@@ -64,7 +64,7 @@ void load_matrix_market(const char * filename, graph_type_kcores *_g, testtype t
     if (mm_is_complex(matcode) && mm_is_matrix(matcode) && 
             mm_is_sparse(matcode) )
     {
-        logstream(LOG_FATAL) << "sorry, this application does not support " << std::endl << 
+        logstream(LOG_FATAL) << "sorry, this application does not support " << 
           "Market Market type: " << mm_typecode_to_str(matcode) << std::endl;
     }
 
@@ -165,7 +165,7 @@ void load_matrix_market_clusters(const std::string & filename, graph_type *_g)
 
     if (mm_is_complex(matcode) && mm_is_matrix(matcode) && 
             mm_is_sparse(matcode) )
-        logstream(LOG_FATAL) << "sorry, this application does not support " << std::endl << 
+        logstream(LOG_FATAL) << "sorry, this application does not support " <<  
           "Market Market type: " << mm_typecode_to_str(matcode) << std::endl;
     if (mm_is_sparse(matcode))
       ret_code = mm_read_mtx_crd_size(f, &M, &N, &nz);
@@ -236,7 +236,7 @@ void load_matrix_market_assignments(const std::string & filename, graph_type *_g
 
     if (mm_is_complex(matcode) && mm_is_matrix(matcode) && 
             mm_is_sparse(matcode) )
-        logstream(LOG_FATAL) << "sorry, this application does not support " << std::endl << 
+        logstream(LOG_FATAL) << "sorry, this application does not support " <<  
           "Market Market type: " << mm_typecode_to_str(matcode) << std::endl;
 
     if (mm_is_sparse(matcode))
@@ -323,7 +323,7 @@ void load_matrix_market(const char * filename, graph_type *_g, testtype type)
     if (mm_is_complex(matcode) && mm_is_matrix(matcode) && 
             mm_is_sparse(matcode) )
     {
-        logstream(LOG_FATAL) << "sorry, this application does not support " << std::endl << 
+        logstream(LOG_FATAL) << "sorry, this application does not support " << 
           "Market Market type: " << mm_typecode_to_str(matcode) << std::endl;
     }
 

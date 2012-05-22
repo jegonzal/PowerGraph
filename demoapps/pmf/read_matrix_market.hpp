@@ -62,7 +62,7 @@ void load_matrix_market(const char * filename, graph_type *_g, testtype data_typ
     /*  only supports a subset of the Matrix Market data types.      */
     if (mm_is_complex(matcode) && mm_is_matrix(matcode) && 
             mm_is_sparse(matcode) )
-        logstream(LOG_FATAL) << "sOrry, this application does not support " << std::endl << 
+        logstream(LOG_FATAL) << "sorry, this application does not support " << 
           "Market Market type: " << mm_typecode_to_str(matcode) << std::endl;
 
     if (mm_is_array(matcode))
