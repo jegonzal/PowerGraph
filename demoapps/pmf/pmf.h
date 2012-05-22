@@ -311,7 +311,8 @@ public:
   double pU; //regularization for users
   double pV; //regularization for movies
 
-
+  double validation_rmse; //stores validation rmse 
+  double training_rmse; //stored training rmse
   template<typename graph_type> const graph_type* g(testtype type);
     
   //template<typename graph_type> void set_graph(graph_type *g, testtype type);
@@ -335,6 +336,9 @@ public:
 
   pU = pV = 0;
   memset(globalMean,0,3*sizeof(double));  //store global mean of matrix/tensor entries
+
+  validation_rmse = 0; 
+  training_rmse = 0;
 
 //performance counters
   memset(counter, 0, MAX_COUNTER*sizeof(double));

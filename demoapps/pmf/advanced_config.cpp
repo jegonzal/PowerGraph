@@ -112,6 +112,7 @@ clopts.attach_option("svdpp_itm_fctr2_step", &svdp.itmFctr2Step, svdp.itmFctr2St
 
   //general switches
   clopts.attach_option("reduce_mem_consumption", &reduce_mem_consumption, reduce_mem_consumption, "reduce memory consumption (for machines with limited memory");
+  clopts.attach_option("halt_on_rmse_increase", &halt_on_rmse_increase, halt_on_rmse_increase, "stop when rmse increases (problem diverges)");
 }  
 
 

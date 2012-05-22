@@ -55,16 +55,29 @@ void last_iter(){
   printf("Entering last iter with %d total updates so far %u\n", ps.iiter, (unsigned int)dynamic_cast<graphlab::core<vertex_data,edge_data>*>(ps.glcore)->engine().last_update_count());
 
   double res,res2;
-  double rmse = (ps.algorithm != STOCHASTIC_GRADIENT_DESCENT && ps.algorithm != NMF) ? agg_rmse_by_movie<graph_type,vertex_data>(res) : agg_rmse_by_user<graph_type,vertex_data>(res);
+  double training_rmse = (ps.algorithm != STOCHASTIC_GRADIENT_DESCENT && ps.algorithm != NMF) ? agg_rmse_by_movie<graph_type,vertex_data>(res) : agg_rmse_by_user<graph_type,vertex_data>(res);
+  double validation_rmse = calc_rmse_wrapper<graph_type, vertex_data>(ps.g<graph_type>(VALIDATION), true, res2);
+
+ 
   //rmse=0;
   printf(ac.printhighprecision ? 
         "%g) Iter %s %d  Obj=%g, TRAIN RMSE=%0.12f VALIDATION RMSE=%0.12f.\n":
         "%g) Iter %s %d  Obj=%g, TRAIN RMSE=%0.4f VALIDATION RMSE=%0.4f.\n"
-        , ps.gt.current_time(), runmodesname[ps.algorithm], ps.iiter,calc_obj<graph_type, vertex_data>(res),  rmse, calc_rmse_wrapper<graph_type, vertex_data>(ps.g<graph_type>(VALIDATION), true, res2));
+        , ps.gt.current_time(), runmodesname[ps.algorithm], ps.iiter, calc_obj<graph_type, vertex_data>(res),  training_rmse, validation_rmse);
 
   if (ac.calc_ap){
      logstream(LOG_INFO)<<"AP@3 for training: " << calc_ap<graph_type,vertex_data,edge_data>(ps.g<graph_type>(TRAINING)) << " AP@3 for validation: " << calc_ap<graph_type,vertex_data,edge_data>(ps.g<graph_type>(VALIDATION)) << std::endl;
   }
+
+  //stop on divergence
+  if (ac.halt_on_rmse_increase)
+    if ((ps.validation_rmse && (ps.validation_rmse < validation_rmse)) ||
+        (ps.training_rmse && (ps.training_rmse < training_rmse)))
+          dynamic_cast<graphlab::core<vertex_data,edge_data>*>(ps.glcore)->engine().stop();
+
+  ps.validation_rmse = validation_rmse; 
+  ps.training_rmse = training_rmse;
+
 
   ps.iiter++;
 

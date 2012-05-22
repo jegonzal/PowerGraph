@@ -268,7 +268,18 @@ void nmf_post_iter(){
   printf("Entering last iter with %d\n", ps.iiter);
 
   double res,res2;
-  printf("%g) Iter %s %d, TRAIN RMSE=%0.4f VALIDATION RMSE=%0.4f.\n", ps.gt.current_time(), "NMF", ps.iiter,  calc_rmse<graph_type,vertex_data>(ps.g<graph_type>(TRAINING), false, res), calc_rmse<graph_type,vertex_data>(ps.g<graph_type>(VALIDATION), true, res2));
+  double training_rmse = agg_rmse_by_user<graph_type, vertex_data>(res);
+  double validation_rmse =  calc_rmse<graph_type,vertex_data>(ps.g<graph_type>(VALIDATION), true, res2);
+  printf("%g) Iter %s %d, TRAIN RMSE=%0.4f VALIDATION RMSE=%0.4f.\n", ps.gt.current_time(), "NMF", ps.iiter, training_rmse, validation_rmse);
+  //stop on divergence
+  if (ac.halt_on_rmse_increase)
+    if ((ps.validation_rmse && (ps.validation_rmse < validation_rmse)) ||
+        (ps.training_rmse && (ps.training_rmse < training_rmse)))
+          dynamic_cast<graphlab::core<vertex_data,edge_data>*>(ps.glcore)->engine().stop();
+
+  ps.validation_rmse = validation_rmse; 
+  ps.training_rmse = training_rmse;
+
 
 }
  

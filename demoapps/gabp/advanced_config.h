@@ -59,7 +59,7 @@ public:
  
   bool omp_support; //support for multithreading in serial (non graphlab) code
 
- 
+  bool halt_on_rmse_increase; //stop graphlab when problem diverges 
   //marix proprties
   bool zero;//allow zero entries in matrix?
   bool square;//is matrix square?
@@ -248,6 +248,7 @@ advanced_config(){
     minval = -DEF_MAX_VAL;
     maxval = DEF_MAX_VAL;
 
+    halt_on_rmse_increase = false;
     mainfunc = true;
     manualgraphsetup = false;
 
