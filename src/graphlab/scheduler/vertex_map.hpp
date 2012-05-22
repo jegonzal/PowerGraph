@@ -32,8 +32,8 @@
 
 
 
-#ifndef GRAPHLAB_VERTEX_FUNCTOR_SET_HPP
-#define GRAPHLAB_VERTEX_FUNCTOR_SET_HPP
+#ifndef GRAPHLAB_VERTEX_MAP_HPP
+#define GRAPHLAB_VERTEX_MAP_HPP
 
 
 #include <vector>
@@ -42,207 +42,203 @@
 #include <graphlab/parallel/pthread_tools.hpp>
 #include <graphlab/util/lock_free_pool.hpp>
 
-#define UPDATE_FUNCTOR_PENDING (update_functor_type*)(size_t)(-1)
+
+#define VALUE_PENDING (value_type*)(size_t)(-1)
 
 namespace graphlab {
 
-
+  /**
+   * \TODO DOCUMENT THIS CLASS
+   */ 
   
-  template<typename UpdateFunctor>
-  class vertex_functor_set {
+  template<typename ValueType>
+  class vertex_map {
   public:
-    typedef UpdateFunctor update_functor_type;
+    typedef ValueType value_type;
 
     
   private:
-    lock_free_pool<update_functor_type> pool;
+    lock_free_pool<value_type> pool;
     atomic<size_t> joincounter;
     
     class vfun_type {
     private:
-      update_functor_type* volatile functor;
+      value_type* volatile value_ptr;
     public:
-      vfun_type() : functor(NULL) { 
-      }
+      vfun_type() : value_ptr(NULL) {  }
       
       void assign_unsync(const vfun_type &other) {
-        functor = other.functor;
+        value_ptr = other.value_ptr;
       }
       
-      bool get_nondestructive_unsync(const update_functor_type& other) {
-        if (functor != NULL) {
-          other = (*functor);
+      bool get_nondestructive_unsync(const value_type& other) {
+        if (value_ptr != NULL) {
+          other = (*value_ptr);
           return true;
-        }
-        else {
-          return false;
-        }
-      }
+        } else { return false; }
+      } // end of get_nondestructive_unsync
       
-      bool get_reference_unsync(update_functor_type*& ret) {
-        ret = functor;
+      bool get_reference_unsync(value_type*& ret) {
+        ret = value_ptr;
         return ret != NULL;
       }
 
       /** returns true if set for the first time */
-      inline bool set_unsafe(lock_free_pool<update_functor_type>& pool,
-                              const update_functor_type& other,
-                              atomic<size_t> &joincounter) {
-        if (functor == NULL) {
-          functor = pool.alloc();
-          (*functor) = other;
+      inline bool set_unsafe(lock_free_pool<value_type>& pool,
+                             const value_type& other,
+                             atomic<size_t> &joincounter) {
+        if (value_ptr == NULL) {
+          value_ptr = pool.alloc();
+          (*value_ptr) = other;
           return true;
-        }
-        else {
-          (*functor) += other;
+        } else {
+          (*value_ptr) += other;
           joincounter.inc();
           return false;
         }
-      }
+      } // end of set_unsafe
       
       /** returns true if set for the first time */
-      inline bool set(lock_free_pool<update_functor_type>& pool,
-                      const update_functor_type& other,
+      inline bool set(lock_free_pool<value_type>& pool,
+                      const value_type& other,
                       atomic<size_t> &joincounter) {
         bool ret = false;
-        update_functor_type toinsert = other;
+        value_type toinsert = other;
         while(1) {
-          update_functor_type* uf = UPDATE_FUNCTOR_PENDING;
+          value_type* vptr = VALUE_PENDING;
           // pull it out to process it
-          atomic_exchange(functor, uf);
+          atomic_exchange(value_ptr, vptr);
           // if there is nothing in there, set it
           // otherwise add it
-          if (uf == NULL) {
-            uf = pool.alloc();
-            (*uf) = toinsert;
+          if (vptr == NULL) {
+            vptr = pool.alloc();
+            (*vptr) = toinsert;
             ret = true;
-          } else if (uf == UPDATE_FUNCTOR_PENDING) {
+          } else if (vptr == VALUE_PENDING) {
             // a pending is in here. it is not ready for reading. try again.
             continue;
-          } else { (*uf) += toinsert; joincounter.inc(); }
+          } else { (*vptr) += toinsert; joincounter.inc(); }
           // swap it back in
-          ASSERT_TRUE(uf != UPDATE_FUNCTOR_PENDING);
-          atomic_exchange(functor, uf);
+          ASSERT_TRUE(vptr != VALUE_PENDING);
+          atomic_exchange(value_ptr, vptr);
           //aargh! I swapped something else out. Now we have to
           //try to put it back in
-          if (__unlikely__(uf != NULL && uf != UPDATE_FUNCTOR_PENDING)) {
-            toinsert = (*uf);
-          }
-          else {
-            break;
-          }
-        }
-        return ret;
-      }
-
-
-      /** returns true if set for the first time */
-      inline bool merge(lock_free_pool<update_functor_type>& pool,
-                        const update_functor_type& other) {
-        bool ret = false;
-        update_functor_type toinsert = other;
-        while(1) {
-          update_functor_type* uf = UPDATE_FUNCTOR_PENDING;
-          // pull it out to process it
-          atomic_exchange(functor, uf);
-          // if there is nothing in there, set it
-          // otherwise add it
-          if (uf == NULL) {
-            uf = pool.alloc();
-            (*uf) = toinsert;
-            ret = true;
-          } else if (uf == UPDATE_FUNCTOR_PENDING) {
-            // a pending is in here. it is not ready for reading. try again.
-            continue;
-          } else { (*uf).merge(toinsert); }
-          // swap it back in
-          ASSERT_TRUE(uf != UPDATE_FUNCTOR_PENDING);
-          atomic_exchange(functor, uf);
-          //aargh! I swapped something else out. Now we have to
-          //try to put it back in
-          if (__unlikely__(uf != NULL && uf != UPDATE_FUNCTOR_PENDING)) {
-            toinsert = (*uf);
-          }
-          else {
-            break;
-          }
-        }
-        return ret;
-      }
-      
-      /** returns true if set for the first time */
-      inline bool set(lock_free_pool<update_functor_type>& pool,
-                      const update_functor_type& other, 
-                      double& prev_priority, 
-                      double& new_priority,
-                      atomic<size_t>& joincounter) {
-        bool ret = false;
-        update_functor_type toinsert = other;
-        while(1) {
-          update_functor_type* uf = UPDATE_FUNCTOR_PENDING;
-          // pull it out to process it
-          atomic_exchange(functor, uf);
-          // if there is nothing in there, set it
-          // otherwise add it
-          if (uf == NULL) {
-            prev_priority = 0;
-            uf = pool.alloc();
-            (*uf) = toinsert;
-            ret = true;
-          } else if (uf == UPDATE_FUNCTOR_PENDING) {
-            // a pending is in here. it is not ready for reading. try again.
-            continue;
-          } else {
-            prev_priority = uf->priority();
-            (*uf) += toinsert;
-            joincounter.inc();
-          }
-          new_priority = uf->priority();
-          // swap it back in
-          ASSERT_TRUE(uf != UPDATE_FUNCTOR_PENDING);
-          atomic_exchange(functor, uf);
-          //aargh! I swapped something else out. Now we have to
-          //try to put it back in
-          if (__unlikely__(uf != NULL && uf != UPDATE_FUNCTOR_PENDING)) {
-            toinsert = (*uf);
+          if (__unlikely__(vptr != NULL && vptr != VALUE_PENDING)) {
+            toinsert = (*vptr);
           } else { break; }
         }
         return ret;
       }
 
-      inline update_functor_type get(lock_free_pool<update_functor_type>& pool) {
-        update_functor_type* ret;
+
+      /** returns true if set for the first time */
+      inline bool merge(lock_free_pool<value_type>& pool,
+                        const value_type& other) {
+        bool ret = false;
+        value_type toinsert = other;
+        while(1) {
+          value_type* vptr = VALUE_PENDING;
+          // pull it out to process it
+          atomic_exchange(value_ptr, vptr);
+          // if there is nothing in there, set it
+          // otherwise add it
+          if (vptr == NULL) {
+            vptr = pool.alloc();
+            (*vptr) = toinsert;
+            ret = true;
+          } else if (vptr == VALUE_PENDING) {
+            // a pending is in here. it is not ready for reading. try again.
+            continue;
+          } else { (*vptr).merge(toinsert); }
+          // swap it back in
+          ASSERT_TRUE(vptr != VALUE_PENDING);
+          atomic_exchange(value_ptr, vptr);
+          //aargh! I swapped something else out. Now we have to
+          //try to put it back in
+          if (__unlikely__(vptr != NULL && vptr != VALUE_PENDING)) {
+            toinsert = (*vptr);
+          }
+          else {
+            break;
+          }
+        }
+        return ret;
+      }
+      
+      /** returns true if set for the first time */
+      inline bool set(lock_free_pool<value_type>& pool,
+                      const value_type& other, 
+                      double& prev_priority, 
+                      double& new_priority,
+                      atomic<size_t>& joincounter) {
+        bool ret = false;
+        value_type toinsert = other;
+        while(1) {
+          value_type* vptr = VALUE_PENDING;
+          // pull it out to process it
+          atomic_exchange(value_ptr, vptr);
+          // if there is nothing in there, set it
+          // otherwise add it
+          if (vptr == NULL) {
+            prev_priority = 0;
+            vptr = pool.alloc();
+            (*vptr) = toinsert;
+            ret = true;
+          } else if (vptr == VALUE_PENDING) {
+            // a pending is in here. it is not ready for reading. try again.
+            continue;
+          } else {
+            prev_priority = vptr->priority();
+            (*vptr) += toinsert;
+            joincounter.inc();
+          }
+          new_priority = vptr->priority();
+          // swap it back in
+          ASSERT_TRUE(vptr != VALUE_PENDING);
+          atomic_exchange(value_ptr, vptr);
+          //aargh! I swapped something else out. Now we have to
+          //try to put it back in
+          if (__unlikely__(vptr != NULL && vptr != VALUE_PENDING)) {
+            toinsert = (*vptr);
+          } else { break; }
+        }
+        return ret;
+      }
+
+      inline value_type get(lock_free_pool<value_type>& pool) {
+        value_type* ret;
         while (1) {
-          ret = functor;
-          if (ret == NULL) return update_functor_type();
-          else if (ret != UPDATE_FUNCTOR_PENDING) {
-            if (__likely__(atomic_compare_and_swap(functor, ret, 
-                                                   (update_functor_type*)NULL))) {
-              update_functor_type r = *ret;
+          ret = value_ptr;
+          if (ret == NULL) return value_type();
+          else if (ret != VALUE_PENDING) {
+            if (__likely__(atomic_compare_and_swap(value_ptr, ret, 
+                                                   (value_type*)NULL))) {
+              value_type r = *ret;
               pool.free(ret);
               return r;
             }
           }
         }
-        return update_functor_type();
+        return value_type();
       }
             
       void reset_unsync() {
-        functor = NULL;
+        value_ptr = NULL;
       }
       
       bool has_task() {
-        return functor != NULL;
+        return value_ptr != NULL;
       }
       
-      inline bool test_and_get(lock_free_pool<update_functor_type>& pool,
-                               update_functor_type& r) {
-        update_functor_type* ret;
+      inline bool test_and_get(lock_free_pool<value_type>& pool,
+                               value_type& r) {
+        value_type* ret;
         while (1) {
-          ret = functor;
+          ret = value_ptr;
           if (__unlikely__(ret == NULL)) return false;
-          else if (__likely__(ret != UPDATE_FUNCTOR_PENDING)) {
-            if (__likely__(atomic_compare_and_swap(functor, ret, (update_functor_type*)NULL))) {
+          else if (__likely__(ret != VALUE_PENDING)) {
+            if (__likely__(atomic_compare_and_swap(value_ptr, ret, 
+                                                   (value_type*)NULL))) {
               r = *ret;
               pool.free(ret);
               return true;
@@ -250,8 +246,10 @@ namespace graphlab {
           }
         }
         return false;
-      }
+      } // end of test_and_get
+
     }; // end of vfun_type;
+
 
    
     typedef std::vector< vfun_type > vfun_set_type; 
@@ -260,7 +258,7 @@ namespace graphlab {
 
   public:
     /** Initialize the per vertex task set */
-    vertex_functor_set(size_t num_vertices = 0) :
+    vertex_map(size_t num_vertices = 0) :
       pool(num_vertices + 256), vfun_set(num_vertices) { }
 
     /**
@@ -271,7 +269,7 @@ namespace graphlab {
       pool.reset_pool(num_vertices + 256);
     }
 
-    void operator=(const vertex_functor_set& other) {
+    void operator=(const vertex_map& other) {
       resize(other.vfun_set.size());
       for (size_t i = 0;i < vfun_set.size(); ++i) {
         vfun_set[i].assign_unsync(other.vfun_set[i]);
@@ -282,7 +280,7 @@ namespace graphlab {
     /** Add a task to the set returning false if the task was already
         present. */
     bool add(const vertex_id_type& vid, 
-             const update_functor_type& fun) {
+             const value_type& fun) {
       ASSERT_LT(vid, vfun_set.size());
       return vfun_set[vid].set(pool, fun, joincounter);
     } // end of add task to set 
@@ -290,7 +288,7 @@ namespace graphlab {
     /** Add a task to the set returning false if the task was already
         present. */
     bool add_unsafe(const vertex_id_type& vid,
-                    const update_functor_type& fun) {
+                    const value_type& fun) {
       ASSERT_LT(vid, vfun_set.size());
       return vfun_set[vid].set_unsafe(pool, fun, joincounter);
     } // end of add task to set
@@ -298,7 +296,7 @@ namespace graphlab {
     /** Add a task to the set returning false if the task was already
         present. */
     bool merge(const vertex_id_type& vid, 
-              const update_functor_type& fun) {
+               const value_type& fun) {
       ASSERT_LT(vid, vfun_set.size());
       return vfun_set[vid].merge(pool, fun);
     } // end of add task to set 
@@ -307,7 +305,7 @@ namespace graphlab {
     /** Add a task to the set returning false if the task was already
         present. Also returns the combined priority of the task. */
     bool add(const vertex_id_type& vid, 
-             const update_functor_type& fun,
+             const value_type& fun,
              double& new_priority) {
       ASSERT_LT(vid, vfun_set.size());
       double unused = 0;
@@ -321,26 +319,27 @@ namespace graphlab {
         insertion. If the task did not exist prior to the add, 
         prev_priority = 0 */
     bool add(const vertex_id_type& vid, 
-             const update_functor_type& fun,
+             const value_type& fun,
              double& prev_priority,
              double& new_priority) {
       ASSERT_LT(vid, vfun_set.size());
-      return vfun_set[vid].set(pool, fun, prev_priority, new_priority, joincounter);
+      return vfun_set[vid].set(pool, fun, prev_priority, new_priority, 
+                               joincounter);
     } // end of add task to set 
 
     bool get_nondestructive_unsync(const vertex_id_type& vid,
-                                    update_functor_type& ret_fun) {
+                                   value_type& ret_fun) {
       return vfun_set[vid].get_nondestructive_unsync(ret_fun);
     }
 
     bool get_reference_unsync(const vertex_id_type& vid,
-                              update_functor_type*& ret_fun) {
+                              value_type*& ret_fun) {
       return vfun_set[vid].get_reference_unsync(ret_fun);
     }
 
 
     bool test_and_get(const vertex_id_type& vid,
-                      update_functor_type& ret_fun) {
+                      value_type& ret_fun) {
       ASSERT_LT(vid, vfun_set.size());
       return vfun_set[vid].test_and_get(pool, ret_fun);
     }
@@ -361,11 +360,11 @@ namespace graphlab {
       for (size_t i = 0; i < vfun_set.size(); ++i) vfun_set[i].reset_unsync();
     }
     
-  }; // end of vertex functor set
+  }; // end of vertex map
 
 }; // end of namespace graphlab
 
-#undef UPDATE_FUNCTOR_PENDING
+#undef VALUE_PENDING
 
 #endif
 

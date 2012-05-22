@@ -45,8 +45,7 @@
 
 
 #include <graphlab/scheduler/ischeduler.hpp>
-#include <graphlab/context/icontext.hpp>
-#include <graphlab/update_functor/iupdate_functor.hpp>
+#include <graphlab/vertex_program/icontext.hpp>
 #include <graphlab/engine/execution_status.hpp>
 #include <graphlab/scheduler/terminator/iterminator.hpp>
 #include <graphlab/options/graphlab_options.hpp>
@@ -80,20 +79,16 @@ namespace graphlab {
      static functions to create
      engines directly from configuration strings.
   */
-  template<typename Graph, typename UpdateFunctor>
+  template<typename VertexProgram>
   class iengine {
   public:
+    //! The type of the udpate functor
+    typedef VertexProgram vertex_program_type;
 
     //! The type of graph that the engine operates on
-    typedef Graph graph_type;
+    typedef typename vertex_program_type::graph_type graph_type;
     
-    //! The type of the udpate functor
-    typedef UpdateFunctor update_functor_type;
-
-    //! The generic iupdate functor type
-    typedef iupdate_functor<graph_type, update_functor_type> 
-    iupdate_functor_type;
-
+    typedef ivertex_program<vertex_program_type> ivertex_program_type;
 
     //! The edge list type used by the graph
     typedef typename graph_type::edge_list_type  edge_list_type;
@@ -103,24 +98,11 @@ namespace graphlab {
 
 
     //! The type of scheduler
-    typedef ischeduler<graph_type, update_functor_type> ischeduler_type;
+    typedef ischeduler<graph_type, vertex_program_type> ischeduler_type;
 
     //! The type of context 
-    typedef icontext<graph_type, update_functor_type> icontext_type;
+    typedef icontext<graph_type, vertex_program_type> icontext_type;
 
-    
-    // /**
-    //  * The termination function is a function that reads the shared
-    //  * data and returns true if the engine should terminate execution.
-    //  * The termination function is called at fixed millisecond
-    //  * intervals and therefore the engine may continue to execute even
-    //  * after a termination function evaluates to true.  Because
-    //  * termination functions are executed frequently and cannot
-    //  * directly contribut to the computation, they should return
-    //  * quickly.
-    //  */
-    // typedef bool (*termination_function_type) ();
-    
 
     //! Virtual destructor required for inheritance 
     virtual ~iengine() {};
@@ -128,9 +110,6 @@ namespace graphlab {
     /**
      * \brief Start the engine execution.
      *
-     * This \b blocking function starts the engine and does not
-     * return until either one of the termination conditions evaluate
-     * true or the scheduler has no tasks remaining.
      */
     virtual void start() = 0;
 
@@ -138,10 +117,6 @@ namespace graphlab {
     /**
      * \brief Force engine to terminate immediately.
      *
-     * This function is used to stop the engine execution by forcing
-     * immediate termination.  Any existing update tasks will finish
-     * but no new update tasks will be started and the call to start()
-     * will return.
      */
     virtual void stop() = 0;
 
@@ -164,57 +139,17 @@ namespace graphlab {
     virtual size_t last_update_count() const = 0;
            
     /**
-     * \brief Adds an update task with a particular priority.
-     * This function is forwarded to the scheduler.
+     * \brief Send a message to a particular vertex
      */
-    virtual void schedule(vertex_id_type vid,
-                          const update_functor_type& update_functor) = 0;
+    virtual void send_message(const vertex_type& vertex,
+                              const message_type& message) = 0;
 
 
     /**
-     * \brief Creates a collection of tasks on all the vertices in the
-     * graph, with the same update function and priority This function
-     * is forwarded to the scheduler.
+     * \brief Send a message to all vertices
      */
-    virtual void schedule_all(const update_functor_type& update_functor,
+    virtual void send_message(const message_type& message,
                               const std::string& order = "sequential") = 0;
-
-    /**
-     * Schedule an update on all the neighbors of a particular vertex
-     */
-    virtual void schedule_in_neighbors(const vertex_id_type& vertex, 
-                                       const update_functor_type& update_fun) = 0;
-
-    /**
-     * Schedule an update on all the out neighbors of a particular vertex
-     */
-    virtual void schedule_out_neighbors(const vertex_id_type& vertex, 
-                                        const update_functor_type& update_fun) = 0;
-                                                  
-    /**
-     * Schedule an update on all the out neighbors of a particular vertex
-     */
-    virtual void schedule_neighbors(const vertex_id_type& vertex, 
-                                    const update_functor_type& update_fun) = 0;
-
-
-    // /**
-    //  * \brief associate a termination function with this engine.
-    //  *
-    //  * An engine can typically have many termination functions
-    //  * associated with it. A termination function is a function which
-    //  * takes a constant reference to the shared data and returns a
-    //  * boolean which is true if the engine should terminate execution.
-    //  *
-    //  * A termination function has the following type:
-    //  * \code
-    //  * bool term_fun(const ishared_data_type* shared_data)
-    //  * \endcode
-    //  */
-    // virtual void add_termination_condition(termination_function_type term) = 0;
-
-    // //!  remove all associated termination functions
-    // virtual void clear_termination_conditions() = 0;
     
     /**
      *  \brief The timeout is the total
@@ -250,17 +185,6 @@ namespace graphlab {
     virtual const graphlab_options& get_options() = 0;
 
 
-    //! Get the global data and lock
-    virtual void get_global(const std::string& key,      
-                            graphlab::any_vector*& ret_values_ptr,
-                            bool& ret_is_const) = 0; 
-
-    //! Get the global data and lock
-    virtual void acquire_global_lock(const std::string& key,      
-                                     size_t index = 0) = 0;
-    //! Release the global data lock
-    virtual void release_global_lock(const std::string& key,      
-                                     size_t index = 0) = 0;
 
     
     

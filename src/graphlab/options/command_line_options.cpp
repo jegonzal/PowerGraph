@@ -19,8 +19,6 @@
  *      http://www.graphlab.ml.cmu.edu
  *
  */
-
-
 #include <graphlab/options/command_line_options.hpp>
 #include <graphlab/scheduler/scheduler_list.hpp>
 
@@ -60,9 +58,7 @@ namespace graphlab {
     
     size_t ncpus(get_ncpus());
     std::string enginetype(get_engine_type());
-    std::string scopetype(get_scope_type());
     std::string schedulertype(get_scheduler_type());
-    std::string metricstype(get_metrics_type());
     std::string graph_opts_string= "";
 
     if(!suppress_graphlab_options) {
@@ -77,14 +73,6 @@ namespace graphlab {
           boost_po::value<std::string>(&(enginetype))->
           default_value(enginetype),
           "Options are {async, async_sim, synchronous}")
-          ("scope",
-          boost_po::value<std::string>(&(scopetype))->
-          default_value(scopetype),
-          "Options are {none, vertex, edge, full}")
-          ("metrics",
-          boost_po::value<std::string>(&(metricstype))->
-          default_value(metricstype),
-          "Options are {none, basic, file, html}")
           ("schedhelp",
           boost_po::value<std::string>()->implicit_value(""),
           "Display help for a particular scheduler.")
@@ -110,14 +98,6 @@ namespace graphlab {
            boost_po::value<std::string>(&(graph_opts_string))->
            default_value(graph_opts_string),
            "String of graph options i.e., (ingress=random)")
-          ("scope",
-          boost_po::value<std::string>(&(scopetype))->
-          default_value(scopetype),
-          "Options are {none, vertex, edge, full}")
-          ("metrics",
-          boost_po::value<std::string>(&(metricstype))->
-          default_value(metricstype),
-          "Options are {none, basic, file, html}")
           ("schedhelp",
           boost_po::value<std::string>()->implicit_value(""),
           "Display help for a particular scheduler.")
@@ -185,24 +165,12 @@ namespace graphlab {
       return false;
     }
 
-    if(!set_scope_type(scopetype)) {
-      std::cout << "Invalid scope type! : " << scopetype
-                << std::endl;
-      return false;
-    }
-
     if(!set_scheduler_type(schedulertype)) {
       std::cout << "Invalid scheduler type! : " << schedulertype 
                 << std::endl;
       return false;
     }
     
-    if(!set_metrics_type(metricstype)) {
-      std::cout << "Invalid metrics type! : " << metricstype
-                << std::endl;
-      return false;
-    }
-
     if(!set_graph_options(graph_opts_string)) {
       std::cout << "Invalid graph options! : " << graph_opts_string
                 << std::endl;

@@ -137,7 +137,6 @@ namespace graphlab {
                          &nsamples, nsamples,
                          "A vector of the number of samples"); 
     clopts.set_scheduler_type("fifo");
-    clopts.set_scope_type("edge");
   
     if(!clopts.parse(argc, argv)) return EXIT_FAILURE;
   
@@ -169,8 +168,7 @@ namespace graphlab {
                          const std::string& default_scheduler = "sweep") : 
       desc(desc_str), suppress_graphlab_options(false) {
       ncpus = default_ncpus;
-      engine_type = default_engine;
-      scope_type = default_scope;
+      engine_type = default_engine;     
       scheduler_type = default_scheduler;
       // Add documentation for help
       namespace boost_po = boost::program_options;

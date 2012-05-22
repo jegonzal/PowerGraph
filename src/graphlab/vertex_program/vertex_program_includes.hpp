@@ -22,6 +22,7 @@
 
 
 
-#include <graphlab/update_functor/iupdate_functor.hpp>
+#include <graphlab/vertex_program/ivertex_program.hpp>
+#include <graphlab/vertex_program/icontext.hpp>
 
 

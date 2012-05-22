@@ -86,16 +86,32 @@ namespace graphlab {
     virtual size_t elapsed_time() const = 0;
 
     /**
+     * Return the current interation number (if supported).
+     */
+    virtual size_t iteration() const = 0;
+
+    /**
      * Force the engine to stop executing additional update functions.
      */
     virtual void terminate() = 0;
-
 
     /**
      * Send a message to a vertex.
      */
     virtual void send_message(const vertex_type& vertex, 
-                              const message_type& message = message_type()) = 0;    
+                              const message_type& message = message_type()) = 0;
+
+    /**
+     * Post a change to the cached sum for the vertex
+     */
+    virtual void post_delta(const vertex_type& vertex, 
+                            const gather_type& delta) = 0;    
+
+    /**
+     * Invalidate the cached gather on the vertex.
+     */
+    virtual void invalidate_gather(const vertex_type& vertex) = 0; 
+
                                                 
 
   }; // end of icontexty
