@@ -37,7 +37,7 @@ namespace graphlab {
    * The set of edges that are operated on during gather and scatter
    * operations.
    */
-  enum edge_dir_type {IN_EDGES, OUT_EDGES, ALL_EDGES, NO_EDGES};
+  enum edge_dir_type {NO_EDGES = 0, IN_EDGES = 1, OUT_EDGES = 2 , ALL_EDGES = 3};
 } // end of namespace graphlab
 
 #endif
