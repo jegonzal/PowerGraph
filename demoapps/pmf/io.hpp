@@ -727,13 +727,21 @@ void set_num_edges(int val, testtype data_type){
  * Verify that matrix size is consistent between training, validation and test files
  */
 void verify_size(testtype data_type, int _M, int _N, int _K){
- if (data_type != TRAINING && ps.M != _M)
-	logstream(LOG_WARNING) << " wrong number of users: " << _M << " instead of " << ps.M << " in " << testtypename[data_type] << std::endl;
-  if (data_type != TRAINING && ps.N != _N)
-	logstream(LOG_WARNING) << " wrong number of movies: " << _N << " instead of " << ps.N << " in " << testtypename[data_type] << std::endl;
-  if (data_type != TRAINING && ps.K != _K && ac.K == 0)
-	logstream(LOG_WARNING) << " wrong number of time bins: " << _K << " instead of " << ps.K << " in " << testtypename[data_type] <<std::endl;
-
+  if (data_type != TRAINING && ps.M != _M){
+	  logstream(LOG_WARNING) << " wrong number of users: " << _M << " instead of " << ps.M << " in " << testtypename[data_type] << std::endl;
+    if (ps.M < _M)
+      logstream(LOG_FATAL)<<"Can not continue. Please fix your input file!" << std::endl;
+  }
+  if (data_type != TRAINING && ps.N != _N){
+	  logstream(LOG_WARNING) << " wrong number of movies: " << _N << " instead of " << ps.N << " in " << testtypename[data_type] << std::endl;
+    if (ps.N < _N)
+      logstream(LOG_FATAL)<<"Can not continue. Please fix your input file!" << std::endl;
+   }
+  if (data_type != TRAINING && ps.K != _K && ac.K == 0){
+	  logstream(LOG_WARNING) << " wrong number of time bins: " << _K << " instead of " << ps.K << " in " << testtypename[data_type] <<std::endl;
+     if (ps.K < _K)
+      logstream(LOG_FATAL)<<"Can not continue. Please fix your input file!" << std::endl;
+  }
   printf("Matrix size is: USERS %d MOVIES %d TIME BINS %d\n", ps.M, ps.N, ps.K);
 }
 

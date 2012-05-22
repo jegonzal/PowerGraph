@@ -164,40 +164,57 @@ double calc_obj(double res){
   return obj;
 }
 template<typename graph_type, typename vertex_data, typename edge_data>
-void calc_stats2(const graph_type * gr, double&minU, double& maxU, int &moviewithoutedges, int& numedges, double &avgval, double& avgtime, double &minval, double &maxval, double&mintime, double&maxtime, int&timewithoutedges, uint & negativevals, uint & positivevals){
+void calc_stats2(const graph_type * gr, 
+								double & minU, 
+								double & maxU, 
+								int & moviewithoutedges, 
+							  int & numedges, 
+								double & avgval, 
+								double & avgtime, 
+								double & minval, 
+								double & maxval, 
+								double & mintime, 
+								double & maxtime, 
+								int & timewithoutedges, 
+								uint & negativevals, 
+								uint & positivevals){
+
  bool * timeslots = new bool[ps.K];
  for (int i=0; i<ps.K; i++)
     timeslots[i] = false;
  for (int i=ps.M; i< ps.M+ps.N; i++){ 
     const vertex_data * data = &gr->vertex_data(i);
-      if (min(data->pvec) < minU)
-	 minU = min(data->pvec);
-      if (max(data->pvec) > maxU)
-	 maxU = max(data->pvec);
-      if (gr->in_edge_ids(i).size() == 0)
-	 moviewithoutedges++;
+    if (min(data->pvec) < minU)
+			minU = min(data->pvec);
+    if (max(data->pvec) > maxU)
+			maxU = max(data->pvec);
+		if (gr->in_edge_ids(i).size() == 0)
+			moviewithoutedges++;
     foreach(edge_id_t iedgeid, gr->in_edge_ids(i)) {
-	edge_data & data = (edge_data&)gr->edge_data(iedgeid);
-	numedges++;
-	avgval += data.weight;
-  if (data.weight >= 0)
-     positivevals++;
-  else negativevals++;
-	avgtime += data.time;
-        timeslots[(int)data.time]=true;
-	if (data.weight<minval)
-	   minval=data.weight;
-	if (data.time <mintime)
-	   mintime = data.time;
-	if (data.weight>maxval)
-	   maxval=data.weight;
-	if (data.time > maxtime)
-	   maxtime =data.time;
+			edge_data & data = (edge_data&)gr->edge_data(iedgeid);
+			numedges++;
+			avgval += data.weight;
+			if (data.weight >= 0)
+				positivevals++;
+			else negativevals++;
+			avgtime += data.time;
+      timeslots[(int)data.time]=true;
+			if (data.weight<minval)
+				minval=data.weight;
+			if (data.time <mintime)
+				mintime = data.time;
+			if (data.weight>maxval)
+				maxval=data.weight;
+			if (data.time > maxtime)
+				maxtime =data.time;
     }
-}
+  }
   for (int i=0; i< ps.K; i++)
     if (!timeslots[i])
       timewithoutedges++;
+
+  delete [] timeslots;
+
 }
 
 template<>
@@ -247,7 +264,7 @@ template<typename graph_type, typename vertex_data,typename edge_data>
 void calc_stats(testtype type){
    const graph_type * gr = ps.g<graph_type>(type);
 
-   if (gr->num_vertices() == 0){
+   if (gr == NULL || gr->num_vertices() == 0){
      printf("%s is missing, skipping data\n", testtypename[type]);
      return;
    } 
@@ -361,7 +378,7 @@ double calc_rmse(const graph_type * _g, bool test, double & res){
      }
    res = RMSE;
    if (e != (test?ps.Le:ps.L))
-      logstream(LOG_FATAL)<<"issing ratings in " << testtypename[test] << " file. Expected to have "
+      logstream(LOG_FATAL)<<"Missing ratings in " << testtypename[test] << " file. Expected to have "
       << (test?ps.Le:ps.L) << " while encountered only " << e << std::endl;
    return sqrt(RMSE/(double)e);
 

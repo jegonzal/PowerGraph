@@ -41,7 +41,8 @@ void load_matrix_market(const char * filename, graph_type *_g, testtype data_typ
 {
     int ret_code;
     MM_typecode matcode;
-    int M, N, nz;   
+    int M, N;
+    int nz;   
     int i;
 
     printf("Loading %s %s\n", filename, testtypename[data_type]);
@@ -77,9 +78,12 @@ void load_matrix_market(const char * filename, graph_type *_g, testtype data_typ
    
     if (ac.K == 0) //no input from users about number of time bins, setting time bins to 1 (no tensor)
       ps.K = 1;  
-    ps.M = M; ps.N = N; 
-    ps.last_node = M+N;
+    
+    if (data_type == TRAINING){
+       ps.M = M; ps.N = N;
+    } 
     verify_size(data_type, M, N, 1);
+    ps.last_node = M+N;
     add_vertices<graph_type, vertex_data>(_g, data_type); 
 
     /* reseve memory for matrices */
@@ -115,7 +119,7 @@ void load_matrix_market(const char * filename, graph_type *_g, testtype data_typ
         val += ac.shiftrating;
         edge.weight = val;
         if (!ac.zero && val == 0)
-	   logstream(LOG_FATAL)<<"Error in data line: " << i << " zero value is not allowed. Use --zero=true to allow zero value" << std::endl;
+	         logstream(LOG_FATAL)<<"Error in data line: " << i << " zero value is not allowed. Use --zero=true to allow zero value" << std::endl;
         if (I < 0 || I >=M)
            logstream(LOG_FATAL)<<"Error in data line: " << i << " 1st column value is: " << I+1 << " where it should be in the range 1 to " << M << std::endl;
         if (J < 0 || J >=N)
@@ -130,6 +134,10 @@ void load_matrix_market(const char * filename, graph_type *_g, testtype data_typ
 
  
     set_num_edges(nz, data_type);
+    if (ac.algorithm != BPTF_TENSOR_MULT && ac.algorithm != ALS_TENSOR_MULT)
+      if ((int)_g->num_edges() != nz)
+        logstream(LOG_FATAL)<<"Missing edges in input file: found: " << _g->num_edges() << " instead of: " << nz << endl;
+
     logstream(LOG_INFO)<<"Loaded total edges: " << nz << std::endl;
     verify_edges<graph_type,edge_data>(_g, data_type);
  

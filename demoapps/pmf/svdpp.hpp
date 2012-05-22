@@ -115,7 +115,8 @@ float predict(const vertex_data_svdpp& user, const vertex_data_svdpp& movie, con
         prediction = std::min((double)prediction, ac.maxval);
         prediction = std::max((double)prediction, ac.minval);
         float err = rating - prediction;
-        assert(!std::isnan(err));
+        if (std::isnan(err))
+          logstream(LOG_FATAL)<<"Got into numerical errors. Try to decrease step size using svdpp command line flags (see ./pmf --help for full list)" << std::endl;
         return err*err; 
       }
       else if (ps.algorithm == TIME_SVD_PLUS_PLUS){
@@ -274,7 +275,6 @@ void svd_plus_plus_update_function(gl_types_svdpp::iscope &scope,
   
    // sqrt(|N(u)|) 
    float usrNorm = double(1.0/sqrt(user.num_edges));
-   assert(!std::isnan(usrNorm));
    //sqrt(|N(u)| * sum_j y_j
    user.weight *= usrNorm;
    assert(!std::isnan(user.weight[0]));      
