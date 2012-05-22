@@ -4,7 +4,7 @@ project(GraphLab)
 
 
 subdirs(
-  aggregation
+#  aggregation
   engine
   graph
   options

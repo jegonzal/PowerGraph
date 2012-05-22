@@ -21,30 +21,10 @@
  */
  
 
-#ifndef GRAPHLAB_MASTER_INCLUDES
-#define GRAPHLAB_MASTER_INCLUDES
+#ifndef GRAPHLAB_RPC_INCLUDES
+#define GRAPHLAB_RPC_INCLUDES
 
-
-
-
-
-// #include <graphlab/aggregation/aggregation_includes.hpp>
-#include <graphlab/engine/engine_includes.hpp>
-#include <graphlab/graph/graph_includes.hpp>
-#include <graphlab/options/options_includes.hpp>
-#include <graphlab/logger/logger_includes.hpp>
-#include <graphlab/monitoring/monitoring_includes.hpp>
-#include <graphlab/parallel/parallel_includes.hpp>
-#include <graphlab/scheduler/scheduler_includes.hpp>
-#include <graphlab/serialization/serialization_includes.hpp>
-#include <graphlab/vertex_program/vertex_program_includes.hpp>
-#include <graphlab/util/util_includes.hpp>
-#include <graphlab/rpc/rpc_includes.hpp>
-
-
-
-
-
+#include <graphlab/rpc/dc.hpp>
+#include <graphlab/rpc/dc_init_from_mpi.hpp>
 
 #endif
-
