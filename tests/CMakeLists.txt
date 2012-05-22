@@ -19,8 +19,8 @@ ADD_CXXTEST(serializetests.cxx)
 ADD_CXXTEST(thread_tools.cxx)
 
 ADD_CXXTEST(test_lock_free_pool.cxx)
-ADD_CXXTEST(engine_terminator_bench.cxx)
-ADD_CXXTEST(chandy_misra.cxx)
+# ADD_CXXTEST(engine_terminator_bench.cxx)
+# ADD_CXXTEST(chandy_misra.cxx)
 ADD_CXXTEST(lock_free_pushback.cxx)
 ADD_CXXTEST(union_find_test.cxx)
 
@@ -31,8 +31,7 @@ add_graphlab_executable(integer_serialize_validate integer_serialize_validate.cp
 add_graphlab_executable(integer_serialize_bench integer_serialize_bench.cpp)
 add_graphlab_executable(cuckootest cuckootest.cpp)
 add_graphlab_executable(dc_consensus_test dc_consensus_test.cpp)
-add_graphlab_executable(delta_dht_test delta_dht_test.cpp)
-add_graphlab_executable(distributed_chandy_misra_test distributed_chandy_misra_test.cpp)
+#add_graphlab_executable(distributed_chandy_misra_test distributed_chandy_misra_test.cpp)
 add_graphlab_executable(dc_test_sequentialization dc_test_sequentialization.cpp)
 add_graphlab_executable(hdfs_test hdfs_test.cpp)
 
