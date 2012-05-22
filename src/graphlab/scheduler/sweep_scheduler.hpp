@@ -27,13 +27,13 @@
 #include <cmath>
 #include <cassert>
 
-#include <graphlab/parallel/cache_line_pad.hpp>
 #include <graphlab/scheduler/ischeduler.hpp>
 #include <graphlab/scheduler/terminator/iterminator.hpp>
 #include <graphlab/scheduler/vertex_map.hpp>
 #include <graphlab/scheduler/terminator/critical_termination.hpp>
 #include <graphlab/options/options_map.hpp>
 #include <graphlab/graph/graph_ops.hpp>
+#include <graphlab/graph/graph_basic_types.hpp>
 
 
 
@@ -43,18 +43,11 @@ namespace graphlab {
 
    /** \ingroup group_schedulers
     */
-  template<typename Graph, typename Message>
-  class sweep_scheduler : public ischeduler<Graph, Message> {
+  template<typename Message>
+  class sweep_scheduler : public ischeduler<Message> {
   public:
-
-
-    typedef ischeduler<Graph, Message> base;
-    typedef typename base::graph_type graph_type;
-    typedef typename base::vertex_id_type vertex_id_type;
-    typedef typename base::message_type message_type;
+    typedef Message message_type;
     typedef critical_termination terminator_type;
-
-
     
   private:
 
@@ -69,20 +62,20 @@ namespace graphlab {
     std::vector<uint16_t>                   vid2cpu;
     std::vector<vertex_id_type>             cpu2index;
 
-    vertex_map<message_type> messages;
+    vertex_map<message_type>                messages;
     double                                  min_priority;
     terminator_type                         term;   
 
 
   public:
-    sweep_scheduler(const graph_type& graph, 
+    sweep_scheduler(size_t num_vertices,
                     size_t ncpus,
                     const options_map& opts) :
       ncpus(ncpus),
       strict_round_robin(false),
       max_iterations(std::numeric_limits<size_t>::max()),
-      vids(graph.num_vertices()),
-      messages(graph.num_vertices()), 
+      vids(num_vertices),
+      messages(num_vertices), 
       min_priority(-std::numeric_limits<double>::max()),
       term(ncpus) {
       
@@ -93,20 +86,8 @@ namespace graphlab {
       if (ordering == "ascending") {
         logstream(LOG_INFO) 
           << "Using an ascending ordering of the vertices." << std::endl;
-        for(size_t i = 0; i < graph.num_vertices(); ++i) vids[i] = i;
-      } else if (ordering == "max_degree" || ordering == "min_degree") {
-        logstream(LOG_INFO) 
-          << "Constructing a " << ordering << " sweep ordering." << std::endl;
-        const bool use_max_degree = (ordering == "max_degree");
-        typedef std::pair<int, vertex_id_type> pair_type;
-        std::vector< pair_type > vec(graph.num_vertices());      
-        for(vertex_id_type i = 0; i < vec.size(); ++i) {
-          const int degree = graph_ops::num_neighbors(graph, i);
-          vec[i] = use_max_degree? pair_type(-degree,i) : pair_type(degree,i);
-        }
-        std::sort(vec.begin(), vec.end());
-        for(size_t i = 0; i < vec.size(); ++i) vids[i] = vec[i].second;
-      } else { // Assume random ordering by default
+        for(size_t i = 0; i < num_vertices; ++i) vids[i] = i;
+      }  else { // Assume random ordering by default
         if(ordering != "random") {
           logstream(LOG_WARNING)
             << "The ordering \"" << ordering << "\" is not supported using default."
@@ -114,7 +95,7 @@ namespace graphlab {
         }
         logstream(LOG_INFO) 
           << "Using a random ordering of the vertices." << std::endl;
-        for(size_t i = 0; i < graph.num_vertices(); ++i) vids[i] = i;
+        for(size_t i = 0; i < num_vertices; ++i) vids[i] = i;
         random::shuffle(vids);
       }
 

@@ -30,6 +30,7 @@
 
 
 // Schedulers
+#include <graphlab/graph/graph_basic_types.hpp>
 #include <graphlab/options/options_map.hpp>
 #include <graphlab/scheduler/scheduler_list.hpp>
 #include <graphlab/scheduler/terminator/iterminator.hpp>
@@ -43,28 +44,23 @@ namespace graphlab {
   /**
    *  helper for constructing graphlab engines.
    **/
-  template<typename Graph, typename UpdateFunctor>
+  template<typename Message>
   struct scheduler_factory {
-    
-    typedef Graph graph_type;
-    typedef UpdateFunctor update_functor_type;
-    typedef ischeduler<graph_type, update_functor_type> ischeduler_type;
-
+    typedef Message message_type;
+    typedef ischeduler<message_type> ischeduler_type;
    
     /**
      * Construct the a scheduler
      */
     template<typename Scheduler>
-    static ischeduler_type* new_scheduler(graph_type& graph,
-                                          const size_t& ncpus,
-                                          const options_map& opts) {
-      ischeduler_type* scheduler_ptr = new Scheduler(graph, ncpus, opts);
+    static ischeduler_type* 
+    new_scheduler(const options_map& opts,
+                  size_t num_vertices, size_t ncpus) {
+      ischeduler_type* scheduler_ptr = 
+        new Scheduler(num_vertices, ncpus, opts);
       ASSERT_TRUE(scheduler_ptr != NULL);
       return scheduler_ptr;
-    }
-  
-   
-
+    } // end of new_scheduler
 
     /**
      * This function returns a new scheduler for a particular engine
@@ -72,15 +68,14 @@ namespace graphlab {
     static ischeduler_type* 
     new_scheduler(const std::string& scheduler_str,
                   const options_map& opts,
-                  graph_type& graph,
-                  const size_t& ncpus) {
+                  size_t num_vertices, size_t ncpus) {
 #define __GENERATE_NEW_SCHEDULER__(r_unused, data_unused, i,  elem)     \
       BOOST_PP_EXPR_IF(i, else)                                         \
         if (scheduler_str == BOOST_PP_TUPLE_ELEM(3,0,elem)) {           \
-          typedef BOOST_PP_TUPLE_ELEM(3,1,elem)<Graph, UpdateFunctor>   \
+          typedef BOOST_PP_TUPLE_ELEM(3,1,elem)<Message>                \
             scheduler_type;                                             \
           return new_scheduler<scheduler_type>                          \
-            ( graph, ncpus, opts );                                     \
+            ( opts, graph, ncpus  );                                    \
         }      
       // generate the construction calls
       BOOST_PP_SEQ_FOR_EACH_I(__GENERATE_NEW_SCHEDULER__, _, __SCHEDULER_LIST__);

@@ -52,13 +52,20 @@ namespace graphlab {
      * The opaque vertex object type 
      * TODO: add a reference back to the graph type
      */
-    typedef typename vertex_program_type::vertex_type vertex_type;
-    
+    typedef typename vertex_program_type::vertex_type vertex_type;   
 
     /**
      * The message type specified by the user-defined vertex-program.
+     * TODO: add a reference back to vertex program type
      */
     typedef typename vertex_program_type::message_type message_type;
+
+    /**
+     * The type returned by the gather operation.
+     * TODO: add a reference back to vertex program type
+     */
+    typedef typename vertex_program_type::gather_type gather_type;
+
    
   public:        
     /** icontext destructor */

@@ -80,7 +80,6 @@ namespace graphlab {
 
 
   void print_scheduler_info(std::string s, std::ostream &out) {
-    typedef graph<char,char> dummy_graph;
     typedef char dummy_message_type;     
     // this is annoying... I need to instantiate the graph<char, char> type to
     // even call the scheduler
@@ -91,7 +90,7 @@ namespace graphlab {
       out << std::string(50, '-') << std::endl;                         \
       out << add_line_breaks(BOOST_PP_TUPLE_ELEM(3,2,elem), 50) << "\n" \
           << "Options: \n";                                             \
-      BOOST_PP_TUPLE_ELEM(3,1,elem)< dummy_graph, dummy_message_type>   \
+      BOOST_PP_TUPLE_ELEM(3,1,elem)< dummy_message_type >               \
         ::print_options_help(out);                                      \
     }
     /*
@@ -106,8 +105,10 @@ namespace graphlab {
       out << "Scheduler " << s << " not found" << "\n";
     }
 #undef __GENERATE_SCHEDULER_HELP__
-  }
-}
+  } // end of print scheduler info
+
+
+} // end of namespace graphlab
 
 
 
