@@ -33,11 +33,10 @@
 #ifndef GRAPHLAB_CONTEXT_HPP
 #define GRAPHLAB_CONTEXT_HPP
 
-//#include <boost/bind.hpp>
 
-#include <graphlab/context/iglobal_context.hpp>
 #include <graphlab/context/icontext.hpp>
-#include <graphlab/context/consistency_model.hpp>
+
+
 
 
 #include <graphlab/macros_def.hpp>
@@ -45,55 +44,45 @@ namespace graphlab {
 
 
   /**
-   * This defines a general scope type 
+   * The context implements the icontext interface and provides the
+   * engine specific callbacks.
    */
   template<typename Engine>
   class context : 
-    public icontext<typename Engine::graph_type, 
-                    typename Engine::update_functor_type> {
+    public icontext<typename Engine::vertex_program_type> {
   public:   
-
+    /** the type of the engine */
     typedef Engine engine_type;
 
-    typedef typename engine_type::graph_type graph_type;
-    typedef typename engine_type::update_functor_type update_functor_type;
-    typedef typename engine_type::ischeduler_type ischeduler_type;
 
-    typedef typename graph_type::vertex_id_type      vertex_id_type;
-    typedef typename graph_type::vertex_color_type   vertex_color_type;
-    typedef typename graph_type::edge_type           edge_type;
-    typedef typename graph_type::vertex_data_type    vertex_data_type;
-    typedef typename graph_type::edge_data_type      edge_data_type;
-    typedef typename graph_type::edge_list_type      edge_list_type;
+    typedef typename engine_type 
+    
+    /** 
+     * The user-defined vertex-program type 
+     * TODO: provide link to vertex program type
+     */
+    typedef typename engine_type::vertex_program_type;
+
+    /** 
+     * The opaque vertex object type 
+     * TODO: add a reference back to the graph type
+     */
+    typedef typename vertex_program_type::vertex_type vertex_type;
+    
+
+    /**
+     * The message type specified by the user-defined vertex-program.
+     */
+    typedef typename vertex_program_type::message_type message_type;
    
-
-
     
   private:    
-    /** a pointer to the engine */
-    engine_type* engine_ptr;
-    /** A pointer to the underlying graph datastructure */
-    graph_type* graph_ptr;   
+    /**
+     * Each context maintains a reference to the engine which is used
+     * to direct the callback.
+     */
+    engine_type& engine;
     
-    /** The vertex that this graph represents*/
-    vertex_id_type vid;
-
-    /** The consistency model that this context ensures */
-    consistency_model _consistency;
- 
-  public:
-
-    // Cache related members --------------------------------------------------
-    // vertex data cache
-    struct cache_entry {
-      vertex_data_type old;
-      vertex_data_type current;
-      uint16_t reads, writes;
-      cache_entry() : reads(0), writes(0) { }
-    };
-    typedef std::map<vertex_id_type, cache_entry> cache_map_type;  
-
-
   public:
     
     /** 
@@ -101,7 +90,8 @@ namespace graphlab {
      * engine when creating an icontext to be passed into an update
      * function.
      */
-    context(engine_type* engine_ptr = NULL,
+    context(engine_type& engine,
+
             graph_type* graph_ptr = NULL,
             vertex_id_type vid = -1,
             consistency_model consistency = EDGE_CONSISTENCY) :
