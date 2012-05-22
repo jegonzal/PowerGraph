@@ -79,20 +79,16 @@ namespace graphlab {
      static functions to create
      engines directly from configuration strings.
   */
-  template<typename Graph, typename VertexProgram>
+  template<typename VertexProgram>
   class iengine {
   public:
-
-    //! The type of graph that the engine operates on
-    typedef Graph graph_type;
-    
     //! The type of the udpate functor
     typedef VertexProgram vertex_program_type;
 
-    //! The generic iupdate functor type
-    typedef iupdate_functor<graph_type, vertex_program_type> 
-    ivertex_program_type;
-
+    //! The type of graph that the engine operates on
+    typedef typename vertex_program_type::graph_type graph_type;
+    
+    typedef ivertex_program<vertex_program_type> ivertex_program_type;
 
     //! The edge list type used by the graph
     typedef typename graph_type::edge_list_type  edge_list_type;
@@ -107,19 +103,6 @@ namespace graphlab {
     //! The type of context 
     typedef icontext<graph_type, vertex_program_type> icontext_type;
 
-    
-    // /**
-    //  * The termination function is a function that reads the shared
-    //  * data and returns true if the engine should terminate execution.
-    //  * The termination function is called at fixed millisecond
-    //  * intervals and therefore the engine may continue to execute even
-    //  * after a termination function evaluates to true.  Because
-    //  * termination functions are executed frequently and cannot
-    //  * directly contribut to the computation, they should return
-    //  * quickly.
-    //  */
-    // typedef bool (*termination_function_type) ();
-    
 
     //! Virtual destructor required for inheritance 
     virtual ~iengine() {};
@@ -127,9 +110,6 @@ namespace graphlab {
     /**
      * \brief Start the engine execution.
      *
-     * This \b blocking function starts the engine and does not
-     * return until either one of the termination conditions evaluate
-     * true or the scheduler has no tasks remaining.
      */
     virtual void start() = 0;
 
@@ -137,10 +117,6 @@ namespace graphlab {
     /**
      * \brief Force engine to terminate immediately.
      *
-     * This function is used to stop the engine execution by forcing
-     * immediate termination.  Any existing update tasks will finish
-     * but no new update tasks will be started and the call to start()
-     * will return.
      */
     virtual void stop() = 0;
 
