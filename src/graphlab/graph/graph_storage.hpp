@@ -262,13 +262,7 @@ namespace graphlab {
   public:
     graph_storage() : use_skip_list(false) {  }
 
-    void set_is_directed (bool x) {
-      logstream(LOG_INFO) 
-        << "Using graph storage that only support directed graphs. "
-        << "\t Undirect setting will be ignored." << std::endl;
-    }
     void set_use_skip_list (bool x) { use_skip_list = x;}
-    void get_is_directed () const { return true; }
 
     size_t edge_size() const { return num_edges; }
 
@@ -579,14 +573,15 @@ namespace graphlab {
       logstream(LOG_DEBUG) << "Graph2 finalize: Inplace permute by target vertex" << std::endl;
 #endif
       inplace_shuffle(edges.source_arr.begin(), edges.source_arr.end(), permute_index);
-      counting_sort(edges.target_arr, counter_array, permute_index); 
-      for (ssize_t i = 0; i < ssize_t(num_vertices); ++i) {
-        if (counter_array[i] < counter_array[i+1]) {
-          std::sort(permute_index.begin()+counter_array[i],
-                    permute_index.begin() + counter_array[i+1],
-                    cmp_by_any_functor<vertex_id_type>(edges.source_arr)); 
-        }
-      }
+      /// YUCHENG to JAY: why is this here? It looks like a copy and paste from above
+//       counting_sort(edges.target_arr, counter_array, permute_index); 
+//       for (ssize_t i = 0; i < ssize_t(num_vertices); ++i) {
+//         if (counter_array[i] < counter_array[i+1]) {
+//           std::sort(permute_index.begin()+counter_array[i],
+//                     permute_index.begin() + counter_array[i+1],
+//                     cmp_by_any_functor<vertex_id_type>(edges.source_arr)); 
+//         }
+//       }
 #else
 #ifdef DEBUG_GRAPH
       logstream(LOG_DEBUG) << "Graph2 finalize: Outofplace permute by target vertex" << std::endl;

@@ -37,7 +37,6 @@
 //#include <graphlab/logger/assertions.hpp>
 #include <graphlab/util/stl_util.hpp>
 #include <graphlab/util/net_util.hpp>
-#include <graphlab/metrics/metrics.hpp>
 
 #include <graphlab/rpc/dc.hpp>
 #include <graphlab/rpc/dc_tcp_comm.hpp>
@@ -372,7 +371,6 @@ void distributed_control::init(const std::vector<std::string> &machines,
             procid_t curmachineid,
             size_t numhandlerthreads,
             dc_comm_type commtype) {
-  rpc_metrics = metrics("RPC");
   
   // initialize thread local storage
   if (dc_impl::thrlocal_resizing_array_key_initialized == false) {
@@ -566,41 +564,6 @@ void distributed_control::full_barrier() {
 //   }
 }
 
-std::map<std::string, size_t> distributed_control::gather_statistics(){
-    std::map<std::string, size_t> ret;
-
-    std::vector<collected_statistics> stats(numprocs());
-    stats[procid()].callssent = calls_sent();
-    stats[procid()].bytessent = bytes_sent();
-    stats[procid()].network_bytessent = network_bytes_sent();
-    gather(stats, 0, true);
-    if (procid() == 0) {
-      collected_statistics cs;
-      for (size_t i = 0;i < numprocs(); ++i) {
-        cs.callssent += stats[i].callssent;
-        cs.bytessent += stats[i].bytessent;
-        rpc_metrics.set_vector_entry_integer("calls_sent", i, stats[i].callssent);
-        rpc_metrics.set_vector_entry_integer("bytes_sent", i, stats[i].bytessent);
-        rpc_metrics.set_vector_entry_integer("network_bytes_sent", i, stats[i].network_bytessent);
-        cs.network_bytessent += stats[i].network_bytessent;
-      }
-      ret["total_calls_sent"] = cs.callssent;
-      ret["total_bytes_sent"] = cs.bytessent;
-      ret["network_bytes_sent"] = cs.network_bytessent;
-    }
-    return ret; 
-}
-
-void distributed_control::fill_metrics() {
-  std::map<std::string, size_t> ret = gather_statistics();
-  if (procid() == 0) {
-    rpc_metrics.set_integer("nodes", numprocs());
-    rpc_metrics.set_integer("total_calls_sent", ret["total_calls_sent"]);
-    rpc_metrics.set_integer("total_bytes_sent", ret["total_bytes_sent"]);
-    rpc_metrics.set_integer("total_network_bytes_sent", ret["network_bytes_sent"]);
-  }
-  total_bytes_sent = ret["total_bytes_sent"];
-}
 
 } //namespace graphlab
 

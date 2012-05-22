@@ -86,8 +86,6 @@ namespace graphlab {
 
     /// The type of a vertex is a simple size_t
     typedef graphlab::vertex_id_type vertex_id_type;
-    /// Type for vertex colors 
-    typedef graphlab::vertex_color_type vertex_color_type;
 
     enum SizeType {MAX_MACHINES = 128};
     typedef fixed_dense_bitset<MAX_MACHINES> mirror_type;
@@ -593,13 +591,6 @@ namespace graphlab {
     /** \brief Get the size of replica */
     size_t num_replicas() const { return nreplicas; }
 
-    /** Return the color of a vertex */
-    vertex_color_type color(vertex_id_type vid) const { 
-      //TODO: IMPLEMENT
-      logstream(LOG_FATAL) << "Color not implemented" << std::endl; 
-      return -1;
-    }
-
     //! Get the rerverse edge 
     edge_type reverse_edge(const edge_type& edge) const {      
       //TODO: IMPLEMENT
@@ -863,7 +854,7 @@ namespace graphlab {
 
     /** \brief Load the graph from an archive */
     void load(iarchive& arc) {
-      // read the vertices and colors
+      // read the vertices 
       arc >> nverts 
           >> nedges 
           >> local_own_nverts 

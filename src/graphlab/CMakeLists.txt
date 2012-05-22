@@ -26,7 +26,7 @@ if (MPI_FOUND)
 endif()
 
 add_library(graphlab STATIC
-  options/command_line_options.cpp
+#  options/command_line_options.cpp
   options/options_map.cpp
   util/timer.cpp
   util/generics/any.cpp
@@ -36,7 +36,7 @@ add_library(graphlab STATIC
   parallel/pthread_tools.cpp
   parallel/thread_pool.cpp
   util/random.cpp
-  scheduler/scheduler_list.cpp
+  #scheduler/scheduler_list.cpp
   util/net_util.cpp
   util/safe_circular_char_buffer.cpp
   util/fs_util.cpp

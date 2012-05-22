@@ -56,81 +56,6 @@ namespace graphlab {
 
   namespace graph_ops {
 
-    /** \brief This function constructs a heuristic coloring for the 
-        graph and returns the number of colors */
-    template<typename Graph>
-    size_t color(Graph& graph) {
-      typedef typename Graph::vertex_id_type     vertex_id_type;
-      typedef typename Graph::vertex_color_type  vertex_color_type;
-      typedef typename Graph::edge_type          edge_type;
-      typedef typename Graph::edge_list_type     edge_list_type;
-
-      // Reset the colors
-      for(vertex_id_type v = 0; v < graph.num_vertices(); ++v) graph.color(v) = 0;
-      // construct a permuation of the vertices to use in the greedy
-      // coloring. 
-      std::vector<std::pair<vertex_id_type, vertex_id_type> > 
-	permutation(graph.num_vertices());
-      for(vertex_id_type v = 0; v < graph.num_vertices(); ++v) 
-        permutation[v] = std::make_pair(-graph.in_edges(v).size(), v);
-      //      std::random_shuffle(permutation.begin(), permutation.end());
-      std::sort(permutation.begin(), permutation.end());
-      // Recolor
-      size_t max_color = 0;
-      std::set<vertex_color_type> neighbor_colors;
-      for(size_t i = 0; i < permutation.size(); ++i) {
-        neighbor_colors.clear();
-        const vertex_id_type& vid = permutation[i].second;
-        // Get the neighbor colors
-        foreach(edge_type edge, graph.in_edges(vid)){
-          const vertex_id_type& neighbor_vid = edge.source();
-          const vertex_color_type& neighbor_color = graph.color(neighbor_vid);
-          neighbor_colors.insert(neighbor_color);
-        }
-        foreach(edge_type edge, graph.out_edges(vid)){
-          const vertex_id_type& neighbor_vid = edge.target();
-          const vertex_color_type& neighbor_color = graph.color(neighbor_vid);
-          neighbor_colors.insert(neighbor_color);
-        }
-
-        vertex_color_type& vertex_color = graph.color(vid);
-        vertex_color = 0;
-        foreach(vertex_color_type neighbor_color, neighbor_colors) {
-          if(vertex_color != neighbor_color) break;
-          else vertex_color++;
-          // Ensure no wrap around
-          ASSERT_NE(vertex_color, 0);                
-        }
-        max_color = std::max(max_color, size_t(vertex_color) );
-      }
-      // Return the NUMBER of colors
-      return max_color + 1;           
-    } // end of compute coloring
-    
-    
-    /**
-     * \brief Check that the colors satisfy a valid coloring of the graph.
-     * return true is coloring is valid;
-     */
-    template<typename Graph>
-    bool valid_coloring(const Graph& graph) {
-      typedef typename Graph::vertex_id_type     vertex_id_type;
-      typedef typename Graph::vertex_color_type  vertex_color_type;
-      typedef typename Graph::edge_type          edge_type;
-      typedef typename Graph::edge_list_type     edge_list_type;
-      for(vertex_id_type vid = 0; vid < graph.num_vertices(); ++vid) {
-        const vertex_color_type& vertex_color = color(vid);
-        // Get the neighbor colors
-        foreach(const edge_type& edge, in_edges(vid)){
-          const vertex_id_type& neighbor_vid = edge.source();
-          const vertex_color_type& neighbor_color = color(neighbor_vid);
-          if(vertex_color == neighbor_color) return false;
-        }
-      }
-      return true;
-    } // end of validate coloring
-
-
     /**
      * builds a topological_sort of the graph returning it in topsort. 
      * 
@@ -142,7 +67,6 @@ namespace graphlab {
     bool topological_sort(const Graph& graph, 
                           std::vector<typename Graph::vertex_id_type>& topsort) {
       typedef typename Graph::vertex_id_type     vertex_id_type;
-      typedef typename Graph::vertex_color_type  vertex_color_type;
       typedef typename Graph::edge_type          edge_type;
       typedef typename Graph::edge_list_type     edge_list_type;
       topsort.clear();
@@ -179,7 +103,6 @@ namespace graphlab {
     size_t num_neighbors(const Graph& graph, 
                          const typename Graph::vertex_id_type& vid) {
       typedef typename Graph::vertex_id_type     vertex_id_type;
-      typedef typename Graph::vertex_color_type  vertex_color_type;
       typedef typename Graph::edge_type          edge_type;
       typedef typename Graph::edge_list_type     edge_list_type;
       const edge_list_type in_edges =  graph.in_edges(vid); 
@@ -204,7 +127,6 @@ namespace graphlab {
                    const typename Graph::vertex_id_type& vid,   
                    std::vector<typename Graph::vertex_id_type>& neighbors ) {
       typedef typename Graph::vertex_id_type     vertex_id_type;
-      typedef typename Graph::vertex_color_type  vertex_color_type;
       typedef typename Graph::edge_type          edge_type;
       typedef typename Graph::edge_list_type     edge_list_type;
       const edge_list_type in_edges =  graph.in_edges(vid); 
@@ -235,7 +157,6 @@ namespace graphlab {
     template<typename Graph, typename Fstream>
     bool load_snap_structure(Fstream& fin, Graph& graph) {
       typedef typename Graph::vertex_id_type     vertex_id_type;
-      typedef typename Graph::vertex_color_type  vertex_color_type;
       typedef typename Graph::edge_type          edge_type;
       typedef typename Graph::edge_list_type     edge_list_type;
       if(!fin.good()) return false;
@@ -278,7 +199,6 @@ namespace graphlab {
     template<typename Graph, typename Fstream>
     bool load_edge_list_structure(Fstream& fin, Graph& graph) {
       typedef typename Graph::vertex_id_type     vertex_id_type;
-      typedef typename Graph::vertex_color_type  vertex_color_type;
       typedef typename Graph::edge_type          edge_type;
       typedef typename Graph::edge_list_type     edge_list_type;
       if(!fin.good()) return false;
@@ -322,7 +242,6 @@ namespace graphlab {
     template<typename Graph, typename Fstream>
     bool load_metis_structure(Fstream& fin, Graph& graph) { 
       typedef typename Graph::vertex_id_type     vertex_id_type;
-      typedef typename Graph::vertex_color_type  vertex_color_type;
       typedef typename Graph::edge_type          edge_type;
       typedef typename Graph::edge_list_type     edge_list_type;
       if(!fin.good()) return false;
@@ -369,7 +288,6 @@ namespace graphlab {
     template<typename Graph, typename Fstream>
     bool load_adj_structure(Fstream& fin, Graph& graph) { 
       typedef typename Graph::vertex_id_type     vertex_id_type;
-      typedef typename Graph::vertex_color_type  vertex_color_type;
       typedef typename Graph::edge_type          edge_type;
       typedef typename Graph::edge_list_type     edge_list_type;
       if(!fin.good()) { return false; }
@@ -498,7 +416,6 @@ namespace graphlab {
     bool save_metis_structure(const std::string& filename,
                               const Graph& graph) { 
       typedef typename Graph::vertex_id_type     vertex_id_type;
-      typedef typename Graph::vertex_color_type  vertex_color_type;
       typedef typename Graph::edge_type          edge_type;
       typedef typename Graph::edge_list_type     edge_list_type;
     
@@ -531,7 +448,6 @@ namespace graphlab {
     bool save_edge_list_structure(const std::string& filename,
                                   const Graph& graph) { 
       typedef typename Graph::vertex_id_type     vertex_id_type;
-      typedef typename Graph::vertex_color_type  vertex_color_type;
       typedef typename Graph::edge_type          edge_type;
       typedef typename Graph::edge_list_type     edge_list_type;
       std::ofstream fout(filename.c_str());
@@ -548,7 +464,6 @@ namespace graphlab {
     bool save_patoh_hypergraph_structure(const std::string& filename,
                                          const Graph& graph) { 
       typedef typename Graph::vertex_id_type     vertex_id_type;
-      typedef typename Graph::vertex_color_type  vertex_color_type;
       typedef typename Graph::edge_type          edge_type;
       typedef typename Graph::edge_list_type     edge_list_type;
       std::ofstream fout(filename.c_str());
@@ -618,7 +533,6 @@ namespace graphlab {
     bool save_zoltan_hypergraph_structure(const std::string& filename,
                                           const Graph& graph) { 
       typedef typename Graph::vertex_id_type     vertex_id_type;
-      typedef typename Graph::vertex_color_type  vertex_color_type;
       typedef typename Graph::edge_type          edge_type;
       typedef typename Graph::edge_list_type     edge_list_type;
       std::ofstream fout(filename.c_str());
