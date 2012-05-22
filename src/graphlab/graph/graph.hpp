@@ -25,8 +25,8 @@
  */
 
 
-#ifndef GRAPHLAB_GRAPH2_HPP
-#define GRAPHLAB_GRAPH2_HPP
+#ifndef GRAPHLAB_GRAPH_HPP
+#define GRAPHLAB_GRAPH_HPP
 
 // #define DEBUG_GRAPH
 
@@ -65,7 +65,7 @@
 namespace graphlab { 
 
   template<typename VertexData, typename EdgeData>
-  class graph2 {
+  class graph {
     
     typedef graph_storage<VertexData, EdgeData> gstore_type;
   public:
@@ -89,9 +89,9 @@ namespace graphlab {
     struct edge_list_type;
 
     struct edge_type {
-      graph2& g;
+      graph& g;
       typename gstore_type::edge_type e;
-      edge_type(graph2& g, typename gstore_type::edge_type e):g(g),e(e) { }
+      edge_type(graph& g, typename gstore_type::edge_type e):g(g),e(e) { }
       const edge_data_type data() const {
         return g.gstore.edge_data(e);
       }
@@ -104,12 +104,15 @@ namespace graphlab {
       vertex_type target() {
         return vertex_type(g, e.target());
       }
+      edge_id_type id() {
+        return g.gstore.edge_id(e);
+      }
     };
-
+    
     struct vertex_type {
-      graph2& g;
+      graph& g;
       vertex_id_type vid;
-      vertex_type(graph2& g, vertex_id_type vid):g(g),vid(vid) { }
+      vertex_type(graph& g, vertex_id_type vid):g(g),vid(vid) { }
       const vertex_data_type data() const {
         return g.vertex_data(vid);
       }
@@ -150,8 +153,8 @@ namespace graphlab {
     struct make_edge_type_functor {
       typedef typename gstore_type::edge_type argument_type;
       typedef edge_type result_type;
-      graph2& g;
-      make_edge_type_functor(graph2& g):g(g) { }
+      graph& g;
+      make_edge_type_functor(graph& g):g(g) { }
       result_type operator() (const argument_type et) const {
         return edge_type(g, et);
       }
@@ -164,9 +167,9 @@ namespace graphlab {
       typedef boost::transform_iterator<make_edge_type_functor, typename gstore_type::edge_list::iterator> iterator;
       typedef iterator const_iterator;
       // Cosntruct an edge_list with begin and end.
-      edge_list_type(graph2& g, typename gstore_type::edge_list elist): me_functor(g), elist(elist) { }
+      edge_list_type(graph& g, typename gstore_type::edge_list elist): me_functor(g), elist(elist) { }
       size_t size() const { return elist.size(); }
-      edge_type operator[](size_t i) const {return edge_type(me_functor.g, elist[i]);}
+      edge_type operator[](size_t i) const {return me_functor(elist[i]);}
       iterator begin() const { return
           boost::make_transform_iterator(elist.begin(), me_functor); }
       iterator end() const { return
@@ -183,12 +186,12 @@ namespace graphlab {
     /**
      * Build a basic graph
      */
-    graph2() : finalized(false) { }
+    graph() : finalized(false) { }
 
     /**
      * Create a graph with nverts vertices.
      */
-    graph2(size_t nverts) : 
+    graph(size_t nverts) :
       vertices(nverts),
       finalized(false) { }
 
@@ -456,7 +459,7 @@ namespace graphlab {
         sizeof(VertexData) * vertices.capacity();
       size_t elist_size = edges_tmp.estimate_sizeof();
       size_t store_size = gstore.estimate_sizeof();
-      std::cout << "graph2: tmplist size: " << (double)elist_size/(1024*1024) 
+      std::cout << "graph: tmplist size: " << (double)elist_size/(1024*1024)
                 << "  gstoreage size: " << (double)store_size/(1024*1024)
                 << "  vdata list size: " << (double)vlist_size/(1024*1024)
                 << std::endl;
@@ -481,7 +484,7 @@ namespace graphlab {
     } // end of save
     
     /** swap two graphs */
-    void swap(graph2& other) {
+    void swap(graph& other) {
       std::swap(vertices, other.vertices);
       std::swap(gstore, other.gstore);
       std::swap(finalized, other.finalized);
@@ -567,15 +570,15 @@ namespace graphlab {
         costly procedure but it can also dramatically improve
         performance. */
     bool finalized;
-  }; // End of class graph2
+  }; // End of class graph
 
 
   template<typename VertexData, typename EdgeData>
   std::ostream& operator<<(std::ostream& out,
-                           const graph2<VertexData, EdgeData>& graph) {
-    typedef typename graphlab::graph2<VertexData, EdgeData>::vertex_id_type
+                           const graph<VertexData, EdgeData>& graph) {
+    typedef typename graphlab::graph<VertexData, EdgeData>::vertex_id_type
       vertex_id_type;
-    typedef typename graphlab::graph2<VertexData, EdgeData>::edge_id_type 
+    typedef typename graphlab::graph<VertexData, EdgeData>::edge_id_type
       edge_id_type;
     for(vertex_id_type vid = 0; vid < graph.num_vertices(); ++vid) {
       foreach(edge_id_type eid, graph.out_edge_ids(vid))
@@ -591,8 +594,8 @@ namespace std {
    * Swap two graphs
    */
   template<typename VertexData, typename EdgeData>
-  inline void swap(graphlab::graph2<VertexData,EdgeData>& a, 
-                   graphlab::graph2<VertexData,EdgeData>& b) { 
+  inline void swap(graphlab::graph<VertexData,EdgeData>& a,
+                   graphlab::graph<VertexData,EdgeData>& b) {
     a.swap(b);
   } // end of swap
 

@@ -122,16 +122,16 @@ namespace graphlab {
       edge_type () : _source(-1), _target(-1), _edge_id(-1), _dir(NONE), _empty(true) { }
       edge_type (const vertex_id_type _source, const vertex_id_type _target, 
                  const edge_id_type _eid, edge_dir _dir) :
-        _source(_source), _target(_target), _edge_id(_eid), _dir(_dir), _empty(false) { }
+        _source(_source), _target(_target), _edge_id(_eid), _dir(_dir), _empty(false) {
+          if (_dir != OUT_EDGE) std::swap(_source, _target);
+        }
     public:
       inline vertex_id_type source() const {
-        // ASSERT_FALSE(empty()); 
-        return _dir==OUTEDGE ? _source : _target; 
+        return _source;
       }
 
       inline vertex_id_type target() const { 
-        // ASSERT_FALSE(empty());
-        return _dir==OUTEDGE ? _target : _source; 
+        return _target;
       }
 
       inline edge_dir get_dir() const {
