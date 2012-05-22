@@ -126,116 +126,88 @@ namespace graphlab {
      */
     typedef typename graph_type::vertex_type edge_type;
 
-    ////// WORKING HERE:
-    ///// ---------------------------------------------------------------
-   
-    typedef icontext<graph_type, update_functor_type> icontext_type;
-    typedef iglobal_context iglobal_context_type;
+    /**
+     * The type used to define the direction of edges used in gather
+     * and scatter.
+     * TODO: add doc link to definition in graph_type
+     */
+    typedef graphlab::edge_dir_type edge_dir_type;
 
-    typedef graphlab::edge_set           edge_set;
-    typedef graphlab::consistency_model  consistency_model;
+    // Additional Types =======================================================
     
-
+    /**
+     * The context type is used by the vertex program to communicate
+     * with the engine and provides facilities for sending messages,
+     * posting deltas, and accessing engine state.
+     */
+    typedef icontext<vertex_program_type> icontext_type;
+   
+    // Functions ==============================================================
     virtual ~ivertex_program() { }
 
     /**
-     * Gets the context range required by this update functor.  If not
-     * implemented by the derived class then the default context range
-     * is returned.
+     * The init function is called once for each vertex before the
+     * start of the GraphLab program.  If the vertex program does not
+     * implement this function then the default implementation (NOP)
+     * is used.
      */
-    inline virtual consistency_model consistency() const {
-      return DEFAULT_CONSISTENCY;
-    }
+    virtual void init(icontext_type& context,
+                      vertex_type& vertex) { /** NOP */ }
 
     /**
-     * When multiple update functors are scheduled to be run on the
-     * same function they are added. The default behavior is to simply
-     * ignore the later update functors.
+     * Recv message is called by the engine to receive a message to
+     * this vertex program.  The vertex program can use this to
+     * initialize any state before entering the gather phase.  If the
+     * vertex program does not implement this function then the
+     * default implementation (NOP) is used.
      */
-    inline virtual void operator+=(const update_functor_type& other) const { }
-
-    /**
-     * Get the priority of the update functor
-     */
-    inline virtual double priority() const { return double(0); }        
-
-    /**
-     * The main part of an update functor
-     */
-    inline virtual void operator()(icontext_type& context) { 
-      logstream(LOG_FATAL) << "Operator() not implemented!" << std::endl;
-    } 
-
-    /**
-     * Returns true if the factorized (gather, apply, scatter) version
-     * of the update functor is to be used.
-     */
-    inline virtual bool is_factorizable() const { return false; }
+    virtual void recv_message(icontext_type& context,
+                              vertex_type& vertex, 
+                              const message_type& msg) { /** NOP */ }
     
     /**
-     * Returns the set of edges to gather 
+     * Returns the set of edges on which to run the gather function.
+     * The default edge direction is the in edges.
      */
-    inline virtual edge_set gather_edges() const { return IN_EDGES; }
-
-    /**
-     * Returns true of the adjacent edge and vertex are modified
-     * during the gather.
-     */
-    inline virtual consistency_model gather_consistency() const { 
-      return DEFAULT_CONSISTENCY;
+    virtual edge_dir_type gather_edges(icontext_type& context,
+                                       const vertex_type& vertex) const { 
+      return IN_EDGES; 
     }
 
     /**
-     * Returns the set of edges to scatter
+     * Gather is called on all gather_edges() in parallel and returns
+     * the gather_type which are added to compute the final output of
+     * the gather.
      */
-    inline virtual edge_set scatter_edges() const { return OUT_EDGES; }
-
-    /**
-     * Returns true of the adjacent edge and vertex are modified
-     * during the gather.
-     */
-    inline virtual consistency_model scatter_consistency() const { 
-      return DEFAULT_CONSISTENCY;
-    }
-
-    
-    /**
-     * Init gather is called before gathering
-     */
-    inline virtual void init_gather(icontext_type& context) { };
-
-    /**
-     * Gather is called on all gather_edges() and may be called in
-     * parallel.  The merge() operation is used to join update
-     * functors.
-     */
-    inline virtual void gather(icontext_type& context, const edge_type& edge) { 
+    virtual gather_type gather(icontext_type& context, edge_type& edge) const { 
       logstream(LOG_FATAL) << "Gather not implemented!" << std::endl;
     };
 
     /**
-     * Merges update functors during the gather process.
+     * The apply function is called once the gather has completed and
+     * must be implemented by all vertex programs. 
      */
-    inline virtual void merge(const update_functor_type& other) {
-      logstream(LOG_FATAL) << "Merge not implemented!" << std::endl;
+    virtual void apply(icontext_type& context, vertex_type& vertex, 
+                       const gather_type& total) = 0;
+
+    /**
+     * Returns the set of edges on which to run the scatter function.
+     * The default edge direction is the out edges.
+     */
+    virtual edge_dir_type scatter_edges(icontext_type& context,
+                                        const vertex_type& vertex) const { 
+      return OUT_EDGES; 
     }
 
     /**
-     * Apply is called within the vertex consistency model on the
-     * center vertex after all gathers have completed.
+     * Scatter is called on all scatter_edges() in parallel after the
+     * apply function has completed.  The scatter function can post
+     * deltas.
      */
-    inline virtual void apply(icontext_type& context) { 
-      logstream(LOG_FATAL) << "Apply not implemented!" << std::endl;
-    };
-    
-    
-    /**
-     * Scatter is invoked on all scatter_edges() after calling
-     * init_scatter() and may be called in parallel.
-     */
-    inline virtual void scatter(icontext_type& context, const edge_type& edge) { 
+    virtual void scatter(icontext_type& context, edge_type& edge) const { 
       logstream(LOG_FATAL) << "Scatter not implemented!" << std::endl;
-    }
+    };
+
   };  // end of ivertex_program
  
 }; //end of namespace graphlab
