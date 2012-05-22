@@ -4,7 +4,7 @@
 #include <cxxtest/TestSuite.h>
 
 // includes the entire graphlab framework
-#include <graphlab/graph/graph2.hpp>
+#include <graphlab/graph/graph.hpp>
 #include <graphlab/macros_def.hpp>
 
 
@@ -24,7 +24,7 @@ public:
 
   struct edge_data_empty { };
 
-  typedef graphlab::graph2<vertex_data, edge_data> graph_type;
+  typedef graphlab::graph<vertex_data, edge_data> graph_type;
   typedef graph_type::edge_list_type edge_list_type;
   typedef graph_type::edge_type edge_type;
   typedef graph_type::vertex_type vertex_type;
@@ -109,7 +109,7 @@ public:
 
   // void test_add_vertex() {
   //   std::cout << "Building graph" << std::endl;
-  //   graphlab::graph2<std::map<int,int>, edge_data> graph;
+  //   graphlab::graph<std::map<int,int>, edge_data> graph;
   //   std::map<int, int> data;
   //   for(size_t i = 0; i < 50; ++i) data[i] = i;
   //   graphlab::timer time;
