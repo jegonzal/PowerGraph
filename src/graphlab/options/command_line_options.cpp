@@ -19,8 +19,6 @@
  *      http://www.graphlab.ml.cmu.edu
  *
  */
-
-
 #include <graphlab/options/command_line_options.hpp>
 #include <graphlab/scheduler/scheduler_list.hpp>
 
@@ -60,7 +58,6 @@ namespace graphlab {
     
     size_t ncpus(get_ncpus());
     std::string enginetype(get_engine_type());
-    std::string scopetype(get_scope_type());
     std::string schedulertype(get_scheduler_type());
     std::string metricstype(get_metrics_type());
     std::string graph_opts_string= "";
@@ -77,10 +74,6 @@ namespace graphlab {
           boost_po::value<std::string>(&(enginetype))->
           default_value(enginetype),
           "Options are {async, async_sim, synchronous}")
-          ("scope",
-          boost_po::value<std::string>(&(scopetype))->
-          default_value(scopetype),
-          "Options are {none, vertex, edge, full}")
           ("metrics",
           boost_po::value<std::string>(&(metricstype))->
           default_value(metricstype),
@@ -110,10 +103,6 @@ namespace graphlab {
            boost_po::value<std::string>(&(graph_opts_string))->
            default_value(graph_opts_string),
            "String of graph options i.e., (ingress=random)")
-          ("scope",
-          boost_po::value<std::string>(&(scopetype))->
-          default_value(scopetype),
-          "Options are {none, vertex, edge, full}")
           ("metrics",
           boost_po::value<std::string>(&(metricstype))->
           default_value(metricstype),
@@ -181,12 +170,6 @@ namespace graphlab {
 
     if(!set_engine_type(enginetype)) {
       std::cout << "Invalid engine type! : " << enginetype 
-                << std::endl;
-      return false;
-    }
-
-    if(!set_scope_type(scopetype)) {
-      std::cout << "Invalid scope type! : " << scopetype
                 << std::endl;
       return false;
     }

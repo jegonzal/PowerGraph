@@ -25,7 +25,6 @@
 #include <graphlab/scheduler/scheduler_list.hpp>
 #include <graphlab/graph/graph.hpp>
 #include <graphlab/engine/iengine.hpp>
-#include <graphlab/update_functor/iupdate_functor.hpp>
 #include <graphlab/util/stl_util.hpp>
 
 
@@ -79,13 +78,10 @@ namespace graphlab {
     return ret;
   }
 
-  typedef graph<char,char> dummy_graph;
-  struct dummy_functor : 
-    public iupdate_functor<dummy_graph, dummy_functor>  { };
-
 
   void print_scheduler_info(std::string s, std::ostream &out) {
-
+    typedef graph<char,char> dummy_graph;
+    typedef char dummy_message_type;     
     // this is annoying... I need to instantiate the graph<char, char> type to
     // even call the scheduler
 #define __GENERATE_SCHEDULER_HELP__(r_unused, data_unused, i,  elem)    \
@@ -95,7 +91,7 @@ namespace graphlab {
       out << std::string(50, '-') << std::endl;                         \
       out << add_line_breaks(BOOST_PP_TUPLE_ELEM(3,2,elem), 50) << "\n" \
           << "Options: \n";                                             \
-      BOOST_PP_TUPLE_ELEM(3,1,elem)< dummy_graph, dummy_functor>        \
+      BOOST_PP_TUPLE_ELEM(3,1,elem)< dummy_graph, dummy_message_type>   \
         ::print_options_help(out);                                      \
     }
     /*

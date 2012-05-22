@@ -34,7 +34,7 @@
 #include <graphlab/util/random.hpp>
 #include <graphlab/scheduler/ischeduler.hpp>
 #include <graphlab/scheduler/terminator/iterminator.hpp>
-#include <graphlab/scheduler/vertex_functor_set.hpp>
+#include <graphlab/scheduler/vertex_map.hpp>
 
 #include <graphlab/scheduler/terminator/critical_termination.hpp>
 #include <graphlab/options/options_map.hpp>
@@ -53,21 +53,21 @@ namespace graphlab {
    * the shared master queue.  Once a processors out queue is empty it
    * grabs the next out_queue from the master.
    */
-  template<typename Graph, typename UpdateFunctor>
-  class fifo_scheduler : public ischeduler<Graph, UpdateFunctor> {
+  template<typename Graph, typename Message>
+  class fifo_scheduler : public ischeduler<Graph, Message> {
   
   public:
 
-    typedef ischeduler<Graph, UpdateFunctor> base;
+    typedef ischeduler<Graph, Message> base;
     typedef typename base::graph_type graph_type;
     typedef typename base::vertex_id_type vertex_id_type;
-    typedef typename base::update_functor_type update_functor_type;
+    typedef typename base::message_type message_type;
 
     typedef std::deque<vertex_id_type> queue_type;
 
   private:
 
-    vertex_functor_set<update_functor_type> vfun_set;
+    vertex_set<message_type> messages;
     std::vector<queue_type> queues;
     std::vector<spinlock>   locks;
     size_t multi;
@@ -83,7 +83,7 @@ namespace graphlab {
     fifo_scheduler(const graph_type& graph, 
                    size_t ncpus,
                    const options_map& opts) :
-      vfun_set(graph.num_vertices()), multi(0),
+      messages(graph.num_vertices()), multi(0),
       current_queue(ncpus), term(ncpus) {     
       opts.get_option("multi", multi);
       const size_t nqueues = std::max(multi*ncpus, size_t(1));
@@ -100,8 +100,8 @@ namespace graphlab {
 
 
     void schedule(const vertex_id_type vid, 
-                  const update_functor_type& fun) {      
-      if (vfun_set.add(vid, fun)) {
+                  const message_type& msg) {      
+      if (messages.add(vid, msg)) {
         /* "Randomize" the task queue task is put in. Note that we do
            not care if this counter is corrupted in race conditions
            Find first queue that is not locked and put task there (or
@@ -126,14 +126,14 @@ namespace graphlab {
       }
     } // end of schedule
 
-    void schedule_all(const update_functor_type& fun,
+    void schedule_all(const message_type& msg,
                       const std::string& order) {
       if(order == "shuffle") {
         // add vertices randomly
         std::vector<vertex_id_type> permutation = 
-          random::permutation<vertex_id_type>(vfun_set.size());       
+          random::permutation<vertex_id_type>(messages.size());       
         foreach(vertex_id_type vid, permutation) {
-          if(vfun_set.add(vid,fun)) {
+          if(messages.add(vid,msg)) {
             const size_t idx = vid % queues.size();
             locks[idx].lock(); queues[idx].push_back(vid); locks[idx].unlock();
             term.new_job();
@@ -141,8 +141,8 @@ namespace graphlab {
         }
       } else {
         // Add vertices sequentially
-        for (vertex_id_type vid = 0; vid < vfun_set.size(); ++vid) {
-          if(vfun_set.add(vid,fun)) {
+        for (vertex_id_type vid = 0; vid < messages.size(); ++vid) {
+          if(messages.add(vid,msg)) {
             term.new_job();
             const size_t idx = vid % queues.size();
             locks[idx].lock(); queues[idx].push_back(vid); locks[idx].unlock();
@@ -153,13 +153,13 @@ namespace graphlab {
 
     void completed(const size_t cpuid,
                    const vertex_id_type vid,
-                   const update_functor_type& fun) { term.completed_job(); }
+                   const message_type& msg) { term.completed_job(); }
 
 
     /** Get the next element in the queue */
     sched_status::status_enum get_next(const size_t cpuid,
                                        vertex_id_type& ret_vid,
-                                       update_functor_type& ret_fun) {
+                                       message_type& ret_msg) {
       /* Check all of my queues for a task */
       for(size_t i = 0; i < multi; ++i) {
         const size_t idx = (++current_queue[cpuid] % multi) + cpuid * multi;
@@ -168,7 +168,7 @@ namespace graphlab {
           ret_vid = queues[idx].front();
           queues[idx].pop_front();
           locks[idx].unlock();
-          const bool get_success = vfun_set.test_and_get(ret_vid, ret_fun);
+          const bool get_success = messages.test_and_get(ret_vid, ret_msg);
           ASSERT_TRUE(get_success);
           return sched_status::NEW_TASK;          
         }
@@ -183,7 +183,7 @@ namespace graphlab {
             ret_vid = queues[idx].front();
             queues[idx].pop_front();
             locks[idx].unlock();
-            const bool get_success = vfun_set.test_and_get(ret_vid, ret_fun);
+            const bool get_success = messages.test_and_get(ret_vid, ret_msg);
             ASSERT_TRUE(get_success);
             return sched_status::NEW_TASK;          
           }
@@ -196,7 +196,7 @@ namespace graphlab {
     iterminator& terminator() { return term; }
 
     size_t num_joins() const {
-      return vfun_set.num_joins();
+      return messages.num_joins();
     }
 
     static void print_options_help(std::ostream& out) { 

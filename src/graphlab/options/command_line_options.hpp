@@ -137,7 +137,6 @@ namespace graphlab {
                          &nsamples, nsamples,
                          "A vector of the number of samples"); 
     clopts.set_scheduler_type("fifo");
-    clopts.set_scope_type("edge");
   
     if(!clopts.parse(argc, argv)) return EXIT_FAILURE;
   

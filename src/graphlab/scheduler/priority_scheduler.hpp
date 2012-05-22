@@ -37,7 +37,7 @@
 #include <graphlab/util/mutable_queue.hpp>
 #include <graphlab/scheduler/ischeduler.hpp>
 #include <graphlab/scheduler/terminator/iterminator.hpp>
-#include <graphlab/scheduler/vertex_functor_set.hpp>
+#include <graphlab/scheduler/vertex_map.hpp>
 
 #include <graphlab/scheduler/terminator/critical_termination.hpp>
 #include <graphlab/options/options_map.hpp>
@@ -48,20 +48,20 @@ namespace graphlab {
 
   /** \ingroup group_schedulers
    */
-  template<typename Graph, typename UpdateFunctor>
-  class priority_scheduler : public ischeduler<Graph, UpdateFunctor> {  
+  template<typename Graph, typename Message>
+  class priority_scheduler : public ischeduler<Graph, Message> {  
   public:
 
-    typedef ischeduler<Graph, UpdateFunctor> base;
+    typedef ischeduler<Graph, Message> base;
     typedef typename base::graph_type graph_type;
     typedef typename base::vertex_id_type vertex_id_type;
-    typedef typename base::update_functor_type update_functor_type;
+    typedef typename base::message_type message_type;
 
 
     typedef mutable_queue<vertex_id_type, double> queue_type;
 
   private:
-    vertex_functor_set<update_functor_type> vfun_set;
+    vertex_map<message_type> messages;
     std::vector<queue_type> queues;
     std::vector<spinlock>   locks;
     size_t multi;
@@ -80,7 +80,7 @@ namespace graphlab {
     priority_scheduler(const graph_type& graph, 
                        size_t ncpus,
                        const options_map& opts) :
-      vfun_set(graph.num_vertices()), multi(0),
+      messages(graph.num_vertices()), multi(0),
       current_queue(ncpus), 
       min_priority(-std::numeric_limits<double>::max()),
       term(ncpus) {     
@@ -103,11 +103,11 @@ namespace graphlab {
    
 
     void schedule(const vertex_id_type vid, 
-                  const update_functor_type& fun) {      
+                  const message_type& msg) {      
       const size_t idx = vid % queues.size();
       double priority = 0;
       locks[idx].lock(); 
-      if (vfun_set.add(vid, fun, priority)) {
+      if (messages.add(vid, msg, priority)) {
         queues[idx].push(vid, priority); 
       } else { queues[idx].update(vid, priority); }
       locks[idx].unlock();
@@ -115,27 +115,27 @@ namespace graphlab {
       term.new_job();     
     } // end of schedule
 
-    void schedule_all(const update_functor_type& fun,
+    void schedule_all(const message_type& msg,
                       const std::string& order) {
       if(order == "shuffle") {
         std::vector<vertex_id_type> permutation = 
-          random::permutation<vertex_id_type>(vfun_set.size());       
-        foreach(vertex_id_type vid, permutation)  schedule(vid, fun);
+          random::permutation<vertex_id_type>(messages.size());       
+        foreach(vertex_id_type vid, permutation)  schedule(vid, msg);
       } else {
-        for (vertex_id_type vid = 0; vid < vfun_set.size(); ++vid)
-          schedule(vid, fun);      
+        for (vertex_id_type vid = 0; vid < messages.size(); ++vid)
+          schedule(vid, msg);      
       }
     } // end of schedule_all
 
     void completed(const size_t cpuid,
                    const vertex_id_type vid,
-                   const update_functor_type& fun) { term.completed_job(); }
+                   const message_type& msg) { term.completed_job(); }
 
 
     /** Get the next element in the queue */
     sched_status::status_enum get_next(const size_t cpuid,
                                        vertex_id_type& ret_vid,
-                                       update_functor_type& ret_fun) {
+                                       message_type& ret_msg) {
       /* Check all of my queues for a task */
       for(size_t i = 0; i < multi; ++i) {
         const size_t idx = (++current_queue[cpuid] % multi) + cpuid * multi;
@@ -143,7 +143,7 @@ namespace graphlab {
         if(!queues[idx].empty() && 
            queues[idx].top().second >= min_priority) {
           ret_vid = queues[idx].pop().first;
-          const bool get_success = vfun_set.test_and_get(ret_vid, ret_fun);
+          const bool get_success = messages.test_and_get(ret_vid, ret_msg);
           locks[idx].unlock();
           ASSERT_TRUE(get_success);
           return sched_status::NEW_TASK;          
@@ -158,7 +158,7 @@ namespace graphlab {
           if(!queues[idx].empty() && 
              queues[idx].top().second >= min_priority) {
             ret_vid = queues[idx].pop().first;
-            const bool get_success = vfun_set.test_and_get(ret_vid, ret_fun);
+            const bool get_success = messages.test_and_get(ret_vid, ret_msg);
             locks[idx].unlock();
             ASSERT_TRUE(get_success);
             return sched_status::NEW_TASK;          
@@ -172,14 +172,14 @@ namespace graphlab {
     iterminator& terminator() { return term; }
 
     size_t num_joins() const {
-      return vfun_set.num_joins();
+      return messages.num_joins();
     }
 
 
     static void print_options_help(std::ostream& out) { 
       out << "\t mult=1: number of queues per thread.\n" 
           << "\t min_priority=-infty Minimum priority required "
-          << "\t    to run the update functor" << std::endl;
+          << "\t    to receive the message." << std::endl;
     }
 
   }; // end of class priority scheduler

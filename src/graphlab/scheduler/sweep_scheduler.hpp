@@ -30,7 +30,7 @@
 #include <graphlab/parallel/cache_line_pad.hpp>
 #include <graphlab/scheduler/ischeduler.hpp>
 #include <graphlab/scheduler/terminator/iterminator.hpp>
-#include <graphlab/scheduler/vertex_functor_set.hpp>
+#include <graphlab/scheduler/vertex_map.hpp>
 #include <graphlab/scheduler/terminator/critical_termination.hpp>
 #include <graphlab/options/options_map.hpp>
 #include <graphlab/graph/graph_ops.hpp>
@@ -43,15 +43,15 @@ namespace graphlab {
 
    /** \ingroup group_schedulers
     */
-  template<typename Graph, typename UpdateFunctor>
-  class sweep_scheduler : public ischeduler<Graph, UpdateFunctor> {
+  template<typename Graph, typename Message>
+  class sweep_scheduler : public ischeduler<Graph, Message> {
   public:
 
 
-    typedef ischeduler<Graph, UpdateFunctor> base;
+    typedef ischeduler<Graph, Message> base;
     typedef typename base::graph_type graph_type;
     typedef typename base::vertex_id_type vertex_id_type;
-    typedef typename base::update_functor_type update_functor_type;
+    typedef typename base::message_type message_type;
     typedef critical_termination terminator_type;
 
 
@@ -69,7 +69,7 @@ namespace graphlab {
     std::vector<uint16_t>                   vid2cpu;
     std::vector<vertex_id_type>             cpu2index;
 
-    vertex_functor_set<update_functor_type> vfun_set;
+    vertex_map<message_type> messages;
     double                                  min_priority;
     terminator_type                         term;   
 
@@ -82,7 +82,7 @@ namespace graphlab {
       strict_round_robin(false),
       max_iterations(std::numeric_limits<size_t>::max()),
       vids(graph.num_vertices()),
-      vfun_set(graph.num_vertices()), 
+      messages(graph.num_vertices()), 
       min_priority(-std::numeric_limits<double>::max()),
       term(ncpus) {
       
@@ -161,24 +161,24 @@ namespace graphlab {
     void start() { term.reset(); }
 
     void schedule(const vertex_id_type vid, 
-                  const update_functor_type& fun) {      
+                  const message_type& msg) {      
       double ret_priority = 0;
-      if(vfun_set.add(vid, fun, ret_priority) && ret_priority >= min_priority) {
+      if(messages.add(vid, msg, ret_priority) && ret_priority >= min_priority) {
         if(!vid2cpu.empty()) term.new_job(vid2cpu[vid]);
         else term.new_job();
       } 
     } // end of schedule
 
-    void schedule_all(const update_functor_type& fun,
+    void schedule_all(const message_type& msg,
                       const std::string& order) {
-      for (vertex_id_type vid = 0; vid < vfun_set.size(); ++vid)
-        schedule(vid, fun);      
+      for (vertex_id_type vid = 0; vid < messages.size(); ++vid)
+        schedule(vid, msg);      
     } // end of schedule_all    
       
     
     sched_status::status_enum get_next(const size_t cpuid,
                                        vertex_id_type& ret_vid,
-                                       update_functor_type& ret_fun) {         
+                                       message_type& ret_msg) {         
       const size_t nverts    = vids.size();
       const size_t max_fails = (nverts/ncpus) + 1;
       // Check to see if max iterations have been achieved 
@@ -194,21 +194,21 @@ namespace graphlab {
         // vertices.  In This case we alwasy return empty
         if(__builtin_expect(idx >= nverts, false)) return sched_status::EMPTY;
         const vertex_id_type vid = vids[idx];
-        bool success = vfun_set.test_and_get(vid, ret_fun);
+        bool success = messages.test_and_get(vid, ret_msg);
         while(success) { // Job found now decide whether to keep it
-          if(ret_fun.priority() >= min_priority) {
+          if(ret_msg.priority() >= min_priority) {
             ret_vid = vid; return sched_status::NEW_TASK;
           } else {
             // Priority is insufficient so return to the schedule
             double ret_priority = 0;
-            vfun_set.add(vid, ret_fun, ret_priority);
+            messages.add(vid, ret_msg, ret_priority);
             // when the job was added back it could boost the
             // priority.  If the priority is sufficiently high we have
             // to try and remove it again. Now it is possible that if
             // strict ordering is used it could be taken again so we
             // may need to repeat the process.
             if(ret_priority >= min_priority) 
-              success = vfun_set.test_and_get(vid, ret_fun);
+              success = messages.test_and_get(vid, ret_msg);
             else success = false;
           } 
         }// end of while loop over success
@@ -219,7 +219,7 @@ namespace graphlab {
     
     void completed(const size_t cpuid,
                    const vertex_id_type vid,
-                   const update_functor_type& fun) {
+                   const message_type& msg) {
       term.completed_job();
     } // end of completed
 
@@ -227,7 +227,7 @@ namespace graphlab {
     iterminator& terminator() { return term; };
 
     size_t num_joins() const {
-      return vfun_set.num_joins();
+      return messages.num_joins();
     }
 
 
@@ -236,9 +236,10 @@ namespace graphlab {
           << "min_degree,color},"
           << "\t vertex ordering, default=random]\n"
           << "strict = [bool, use strict round robin schedule, default=false]\n"
-          << "min_priority = [double, minimum priority required to run an \n"
-          << "\t update functor, default = -infinity]\n"
-          << "niters = [integer, maximum number of iterations (requires strict=true) \n"
+          << "min_priority = [double, minimum priority required to receive \n"
+          << "\t a message, default = -infinity]\n"
+          << "niters = [integer, maximum number of iterations "
+          << " (requires strict=true) \n"
           << "\t default = -infinity]\n";
     } // end of print_options_help
 

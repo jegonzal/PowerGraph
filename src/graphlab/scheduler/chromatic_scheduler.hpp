@@ -61,11 +61,11 @@ namespace graphlab {
    *
    * Chromatic Scheduler
    */
-  template<typename Graph, typename UpdateFunctor>
-  class chromatic_scheduler : public ischeduler<Graph, UpdateFunctor> {
+  template<typename Graph, typename Message>
+  class chromatic_scheduler : public ischeduler<Graph, Message> {
   public:
 
-    typedef ischeduler<Graph, UpdateFunctor> base;
+    typedef ischeduler<Graph, Message> base;
     typedef typename base::graph_type graph_type;
     typedef typename base::vertex_id_type vertex_id_type;
     typedef typename base::update_functor_type update_functor_type;

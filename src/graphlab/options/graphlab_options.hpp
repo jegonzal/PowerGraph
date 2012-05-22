@@ -53,9 +53,6 @@ namespace graphlab {
    <li> std::string engine_type: The type of engine to use.  Currently
    we support {async,  synchronous}. </li>
 
-   <li> std::string scope_type: The type of locking protocol (scope)
-   to use. Currently we support {none, vertex, edge, full}. </li>
-
    <li> std::string scheduler_type: The type of scheduler to user.
    Currently we support a wide range of schedulers: {synchronous,
    fifo, priority, sampling, splash,  sweep, multiqueue_fifo,
@@ -76,16 +73,11 @@ namespace graphlab {
     //! additional arguments to the engine
     options_map engine_args;
     
-    //! The type of scope
-    std::string scope_type;
     //! The type of scheduler to use
     std::string scheduler_type;
+
     //! additional arguments to the scheduler
     options_map scheduler_args;
-
-
-    //! Metrics type
-    std::string metrics_type;
 
     //! The compiler flags
     std::string compile_flags;
@@ -103,9 +95,7 @@ namespace graphlab {
     graphlab_options() :
       ncpus(2),
       engine_type("async"),
-      scope_type("edge"),
       scheduler_type("fifo"),
-      metrics_type("basic"),
       enable_cpu_affinities(false),
       enable_sched_yield(true),
       distributed_options(false){
@@ -120,6 +110,9 @@ namespace graphlab {
         #endif 
       */
     } // end of constructor
+
+
+
 
     virtual ~graphlab_options() {}
 
@@ -155,18 +148,6 @@ namespace graphlab {
     }
 
 
-    //! Set the scope type
-    bool set_scope_type(const std::string& stype) {
-      scope_type = stype;
-      return true; // TODO: ADD CHECKING
-    }
-
-    //! Get the scope type
-    const std::string& get_scope_type() const {
-      return scope_type;
-    }
-
-
     bool set_scheduler_type(const std::string& stype) {
       //! \todo: ADD CHECKING
       scheduler_type = scheduler_args.parse_string(stype);
@@ -174,7 +155,7 @@ namespace graphlab {
     }    
 
 
-    //! Get the scope type
+    //! Get the type of scheduler
     const std::string& get_scheduler_type() const {
       return scheduler_type;
     }
@@ -231,7 +212,6 @@ namespace graphlab {
       std::cout << "GraphLab Options -------------------\n" 
                 << "ncpus:       " << ncpus << "\n"
                 << "engine:      " << engine_type << "\n"
-                << "scope:       " << scope_type  << "\n"
                 << "scheduler:   " << scheduler_type << "\n"
                 << "metrics:     " << metrics_type << std::endl;
       std::cout << "\n";
@@ -244,36 +224,6 @@ namespace graphlab {
 
 
 
-    /**
-     * Save the engine options to a serialized archive
-     * TODO: does not save scheduler options
-     */
-    void save(oarchive& arc) const {
-      arc << ncpus
-          << engine_type
-          << scope_type
-          << scheduler_type
-        //          << scheduler_opts
-          << compile_flags
-          << enable_cpu_affinities
-          << enable_sched_yield;
-    } // end of save
-
-
-    /**
-     * Load the engine options from a serialized archive
-     * TODO: does not save scheduler options
-     */
-    void load(iarchive& arc) {
-      arc >> ncpus
-          >> engine_type
-          >> scope_type
-          >> scheduler_type
-        //          << scheduler_opts
-          >> compile_flags
-          >> enable_cpu_affinities
-          >> enable_sched_yield;
-    } // end of load
   };
 
 
