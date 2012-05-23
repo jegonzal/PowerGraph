@@ -61,13 +61,13 @@ namespace graphlab {
     lock_free_pool<value_type> pool;
     atomic<size_t> joincounter;
     
-    class vfun_type {
+    class vertex_box_type {
     private:
       value_type* volatile value_ptr;
     public:
-      vfun_type() : value_ptr(NULL) {  }
+      vertex_box_type() : value_ptr(NULL) {  }
       
-      void assign_unsync(const vfun_type &other) {
+      void assign_unsync(const vertex_box_type &other) {
         value_ptr = other.value_ptr;
       }
       
@@ -131,39 +131,6 @@ namespace graphlab {
       }
 
 
-      /** returns true if set for the first time */
-      inline bool merge(lock_free_pool<value_type>& pool,
-                        const value_type& other) {
-        bool ret = false;
-        value_type toinsert = other;
-        while(1) {
-          value_type* vptr = VALUE_PENDING;
-          // pull it out to process it
-          atomic_exchange(value_ptr, vptr);
-          // if there is nothing in there, set it
-          // otherwise add it
-          if (vptr == NULL) {
-            vptr = pool.alloc();
-            (*vptr) = toinsert;
-            ret = true;
-          } else if (vptr == VALUE_PENDING) {
-            // a pending is in here. it is not ready for reading. try again.
-            continue;
-          } else { (*vptr).merge(toinsert); }
-          // swap it back in
-          ASSERT_TRUE(vptr != VALUE_PENDING);
-          atomic_exchange(value_ptr, vptr);
-          //aargh! I swapped something else out. Now we have to
-          //try to put it back in
-          if (__unlikely__(vptr != NULL && vptr != VALUE_PENDING)) {
-            toinsert = (*vptr);
-          }
-          else {
-            break;
-          }
-        }
-        return ret;
-      }
       
       /** returns true if set for the first time */
       inline bool set(lock_free_pool<value_type>& pool,
@@ -248,31 +215,31 @@ namespace graphlab {
         return false;
       } // end of test_and_get
 
-    }; // end of vfun_type;
+    }; // end of vertex_box_type;
 
 
    
-    typedef std::vector< vfun_type > vfun_set_type; 
-    vfun_set_type vfun_set;
+    typedef std::vector< vertex_box_type > vertex_box_set_type; 
+    vertex_box_set_type vertex_box_set;
 
 
   public:
     /** Initialize the per vertex task set */
     vertex_map(size_t num_vertices = 0) :
-      pool(num_vertices + 256), vfun_set(num_vertices) { }
+      pool(num_vertices + 256), vertex_box_set(num_vertices) { }
 
     /**
      * Resize the internal locks for a different graph
      */
     void resize(size_t num_vertices) {
-      vfun_set.resize(num_vertices);
+      vertex_box_set.resize(num_vertices);
       pool.reset_pool(num_vertices + 256);
     }
 
     void operator=(const vertex_map& other) {
-      resize(other.vfun_set.size());
-      for (size_t i = 0;i < vfun_set.size(); ++i) {
-        vfun_set[i].assign_unsync(other.vfun_set[i]);
+      resize(other.vertex_box_set.size());
+      for (size_t i = 0;i < vertex_box_set.size(); ++i) {
+        vertex_box_set[i].assign_unsync(other.vertex_box_set[i]);
       }
     }
 
@@ -280,36 +247,28 @@ namespace graphlab {
     /** Add a task to the set returning false if the task was already
         present. */
     bool add(const vertex_id_type& vid, 
-             const value_type& fun) {
-      ASSERT_LT(vid, vfun_set.size());
-      return vfun_set[vid].set(pool, fun, joincounter);
+             const value_type& val) {
+      ASSERT_LT(vid, vertex_box_set.size());
+      return vertex_box_set[vid].set(pool, val, joincounter);
     } // end of add task to set 
 
     /** Add a task to the set returning false if the task was already
         present. */
     bool add_unsafe(const vertex_id_type& vid,
-                    const value_type& fun) {
-      ASSERT_LT(vid, vfun_set.size());
-      return vfun_set[vid].set_unsafe(pool, fun, joincounter);
+                    const value_type& val) {
+      ASSERT_LT(vid, vertex_box_set.size());
+      return vertex_box_set[vid].set_unsafe(pool, val, joincounter);
     } // end of add task to set
-
-    /** Add a task to the set returning false if the task was already
-        present. */
-    bool merge(const vertex_id_type& vid, 
-               const value_type& fun) {
-      ASSERT_LT(vid, vfun_set.size());
-      return vfun_set[vid].merge(pool, fun);
-    } // end of add task to set 
 
 
     /** Add a task to the set returning false if the task was already
         present. Also returns the combined priority of the task. */
     bool add(const vertex_id_type& vid, 
-             const value_type& fun,
+             const value_type& val,
              double& new_priority) {
-      ASSERT_LT(vid, vfun_set.size());
+      ASSERT_LT(vid, vertex_box_set.size());
       double unused = 0;
-      return vfun_set[vid].set(pool, fun, unused, new_priority, joincounter);
+      return vertex_box_set[vid].set(pool, val, unused, new_priority, joincounter);
     } // end of add task to set 
 
 
@@ -319,37 +278,37 @@ namespace graphlab {
         insertion. If the task did not exist prior to the add, 
         prev_priority = 0 */
     bool add(const vertex_id_type& vid, 
-             const value_type& fun,
+             const value_type& val,
              double& prev_priority,
              double& new_priority) {
-      ASSERT_LT(vid, vfun_set.size());
-      return vfun_set[vid].set(pool, fun, prev_priority, new_priority, 
+      ASSERT_LT(vid, vertex_box_set.size());
+      return vertex_box_set[vid].set(pool, val, prev_priority, new_priority, 
                                joincounter);
     } // end of add task to set 
 
     bool get_nondestructive_unsync(const vertex_id_type& vid,
-                                   value_type& ret_fun) {
-      return vfun_set[vid].get_nondestructive_unsync(ret_fun);
+                                   value_type& ret_val) {
+      return vertex_box_set[vid].get_nondestructive_unsync(ret_val);
     }
 
     bool get_reference_unsync(const vertex_id_type& vid,
-                              value_type*& ret_fun) {
-      return vfun_set[vid].get_reference_unsync(ret_fun);
+                              value_type*& ret_val) {
+      return vertex_box_set[vid].get_reference_unsync(ret_val);
     }
 
 
     bool test_and_get(const vertex_id_type& vid,
-                      value_type& ret_fun) {
-      ASSERT_LT(vid, vfun_set.size());
-      return vfun_set[vid].test_and_get(pool, ret_fun);
+                      value_type& ret_val) {
+      ASSERT_LT(vid, vertex_box_set.size());
+      return vertex_box_set[vid].test_and_get(pool, ret_val);
     }
     
     bool has_task(const vertex_id_type& vid) {
-      return vfun_set[vid].has_task();
+      return vertex_box_set[vid].has_task();
     }
 
     size_t size() const { 
-      return vfun_set.size(); 
+      return vertex_box_set.size(); 
     }
     
     size_t num_joins() const { 
@@ -357,7 +316,8 @@ namespace graphlab {
     }
     
     void clear_unsync() {
-      for (size_t i = 0; i < vfun_set.size(); ++i) vfun_set[i].reset_unsync();
+      for (size_t i = 0; i < vertex_box_set.size(); ++i) 
+        vertex_box_set[i].reset_unsync();
     }
     
   }; // end of vertex map
