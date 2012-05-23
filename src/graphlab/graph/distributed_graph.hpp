@@ -725,14 +725,14 @@ namespace graphlab {
        *         local graph of this local vertex
        */
       size_t num_in_edges() const {
-        return g.l_get_vertex_record(lvid).num_in_edges;
+        return g.get_local_graph().num_in_edges(lvid);
       }
 
       /** \brief Returns the number of in edges on the 
        *         local graph of this local vertex
        */
       size_t num_out_edges() const {
-        return g.l_get_vertex_record(lvid).num_out_edges;
+        return g.get_local_graph().num_out_edges(lvid);
       }
 
       /// \brief Returns the local ID of this local vertex
