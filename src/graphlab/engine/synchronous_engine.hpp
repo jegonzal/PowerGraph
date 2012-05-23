@@ -26,29 +26,30 @@
 /*
   fscope engine in the fully synchronous setting  */
 
-#ifndef GRAPHLAB_DISTRIBUTED_SYNCHRONOUS_ENGINE_HPP
-#define GRAPHLAB_DISTRIBUTED_SYNCHRONOUS_ENGINE_HPP
+#ifndef GRAPHLAB_SYNCHRONOUS_ENGINE_HPP
+#define GRAPHLAB_SYNCHRONOUS_ENGINE_HPP
 
 #include <deque>
 #include <boost/bind.hpp>
 
-#include <graphlab/scheduler/vertex_functor_set.hpp>
-#include <graphlab/context/icontext.hpp>
-#include <graphlab/context/distributed_context.hpp>
-#include <graphlab/engine/iengine.hpp>
-#include <graphlab/update_functor/iupdate_functor.hpp>
+#include <graphlab/engine/iengine.hpp>x
+#include <graphlab/vertex_program/icontext.hpp>
 #include <graphlab/engine/execution_status.hpp>
-#include <graphlab/scheduler/vertex_functor_set.hpp>
 #include <graphlab/options/graphlab_options.hpp>
+#include <graphlab/scheduler/vertex_map.hpp>
+#include <graphlab/options/graphlab_options.hpp>
+
 #include <graphlab/rpc/dc_dist_object.hpp>
-#include <graphlab/scheduler/ischeduler.hpp>
-#include <graphlab/scheduler/scheduler_factory.hpp>
-#include <graphlab/aggregation/distributed_aggregator.hpp>
 
 #include <graphlab/util/tracepoint.hpp>
 #include <graphlab/util/memory_info.hpp>
 #include <graphlab/rpc/distributed_event_log.hpp>
-#include <graphlab/rpc/async_consensus.hpp>
+
+
+
+
+
+
 
 #include <graphlab/macros_def.hpp>
 
@@ -56,36 +57,38 @@ namespace graphlab {
   
   
 
-  template<typename Graph, typename UpdateFunctor>
-  class distributed_synchronous_engine : public iengine<Graph, UpdateFunctor> {
- 
+  template<typename VertexProgram>
+  class synchronous_engine : 
+    public iengine<VertexProgram>, icontex<VertexProgram> {
+
   public:
-    // Include parent types
-    typedef iengine<Graph, UpdateFunctor> iengine_base;
-    typedef distributed_synchronous_engine<Graph, UpdateFunctor> engine_type;
-    
-    typedef typename iengine_base::graph_type graph_type;
+
+    typedef VertexProgram vertex_program_type;
+    typedef typename VertexProgram::gather_type gather_type;
+    typedef typename VertexProgram::message_type message_type;
+    typedef typename VertexProgram::vertex_data_type vertex_data_type;
+    typedef typename VertexProgram::edge_data_type edge_data_type;
+    typedef typename VertexProgram::graph_type graph_type;
+
     typedef typename graph_type::local_graph_type local_graph_type;
-    typedef typename iengine_base::update_functor_type update_functor_type;
-    
-    typedef typename graph_type::vertex_data_type vertex_data_type;
-    typedef typename graph_type::edge_list_type edge_list_type;
     typedef typename graph_type::local_edge_list_type local_edge_list_type;
     typedef typename graph_type::edge_type edge_type;
+    typedef typename graph_type::vertex_type vertex_type;
     typedef typename graph_type::lvid_type lvid_type;
 
-    typedef ischeduler<local_graph_type, update_functor_type > ischeduler_type;
+    typedef icontext<VertexProgram> icontext_type;
+
     
     typedef typename iengine_base::icontext_type  icontext_type;
-    typedef distributed_context<distributed_synchronous_engine>  context_type;
+    typedef distributed_context<synchronous_engine>  context_type;
 
-    typedef distributed_aggregator<distributed_synchronous_engine> aggregator_type;
+    typedef distributed_aggregator<synchronous_engine> aggregator_type;
     
     consistency_model default_consistency;
     
     
   private:
-    dc_dist_object<distributed_synchronous_engine<Graph, UpdateFunctor> > rmi;
+    dc_dist_object<synchronous_engine<Graph, VertexProgram> > rmi;
 
     //! The local engine options
     graphlab_options opts; 
@@ -111,8 +114,8 @@ namespace graphlab {
     bool block_schedule_insertion;
     
     std::vector<spinlock> vlocks;
-    vertex_functor_set<update_functor_type>* scheduleset;
-    vertex_functor_set<update_functor_type>* workingset;
+    vertex_functor_set<vertex_program_type>* scheduleset;
+    vertex_functor_set<vertex_program_type>* workingset;
     
     // if scheduleset[i] has a task 
     // perthread_scheduleset_bits[i % ncpus] will have bit i / ncpus set
@@ -137,18 +140,18 @@ namespace graphlab {
 
     
   public:
-    distributed_synchronous_engine(distributed_control &dc, graph_type& graph,
-                              size_t ncpus) : 
+    synchronous_engine(distributed_control &dc, graph_type& graph,
+                       size_t ncpus) : 
       rmi(dc, this), graph(graph), threads(ncpus), bar(ncpus), 
       aggregator(dc, *this, graph), ncpus(ncpus), max_iterations(-1), no_background_comms(false), compute_time(0.0),
       started(false), has_schedule_entries(false), block_schedule_insertion(false) {
 
 #ifdef USE_EVENT_LOG
       PERMANENT_INITIALIZE_DIST_EVENT_LOG(eventlog, dc, std::cout, 3000, 
-                                dist_event_log::RATE_BAR);
+                                          dist_event_log::RATE_BAR);
 #else
       PERMANENT_INITIALIZE_DIST_EVENT_LOG(eventlog, dc, std::cout, 3000, 
-                                dist_event_log::LOG_FILE);
+                                          dist_event_log::LOG_FILE);
 #endif
       PERMANENT_ADD_DIST_EVENT_TYPE(eventlog, SCHEDULE_EVENT, "Schedule");
       PERMANENT_ADD_DIST_EVENT_TYPE(eventlog, UPDATE_EVENT, "Updates");
@@ -178,15 +181,15 @@ namespace graphlab {
       temporary_bits.clear();
       vertex_per_cpu = vlocks.size() / ncpus + (vlocks.size() % ncpus > 0);
       bal.resize(ncpus);
-      scheduleset = new vertex_functor_set<update_functor_type>();
-      workingset = new vertex_functor_set<update_functor_type>();
+      scheduleset = new vertex_functor_set<vertex_program_type>();
+      workingset = new vertex_functor_set<vertex_program_type>();
       scheduleset->resize(graph.num_local_vertices());
       workingset->resize(graph.num_local_vertices());
       if (rmi.procid() == 0) memory_info::print_usage("After Engine Initialization");
       rmi.barrier();
     }
     
-    ~distributed_synchronous_engine() {
+    ~synchronous_engine() {
       delete workingset;
       delete scheduleset;
     }
@@ -223,29 +226,29 @@ namespace graphlab {
     }
 
     void workingset_merge_local(vertex_id_type local_vid ,
-                     const update_functor_type& update_functor) {
+                                const vertex_program_type& update_functor) {
       workingset->merge(local_vid, update_functor);
     }
 
     void workingset_merge(vertex_id_type vid,
-                          const update_functor_type& update_functor) {
+                          const vertex_program_type& update_functor) {
       workingset_merge_local(graph.local_vid(vid), update_functor);
     } // end of schedule
 
     void workingset_add_local(vertex_id_type local_vid ,
-                     const update_functor_type& update_functor) {
+                              const vertex_program_type& update_functor) {
       workingset->add_unsafe(local_vid, update_functor);
       workingset_bits.set_bit((local_vid));
     }
 
     void workingset_add(vertex_id_type vid,
-                          const update_functor_type& update_functor) {
+                        const vertex_program_type& update_functor) {
       workingset_add_local(graph.local_vid(vid), update_functor);
     } // end of schedule
 
 
     void schedule_local(vertex_id_type local_vid ,
-                        const update_functor_type& update_functor) {
+                        const vertex_program_type& update_functor) {
       if (!block_schedule_insertion && scheduleset->add(local_vid, update_functor)) {
         scheduleset_bits.set_bit((local_vid));
         has_schedule_entries = true;
@@ -258,7 +261,7 @@ namespace graphlab {
      * This function is forwarded to the scheduler.
      */
     void schedule(vertex_id_type vid,
-                  const update_functor_type& update_functor) {
+                  const vertex_program_type& update_functor) {
       schedule_local(graph.local_vid(vid), update_functor);
     } // end of schedule
 
@@ -269,7 +272,7 @@ namespace graphlab {
      * is forwarded to the scheduler. Must be called by all machines
      * simultaneously
      */
-    void schedule_all(const update_functor_type& update_functor,
+    void schedule_all(const vertex_program_type& update_functor,
                       const std::string& order = "shuffle") {
       for(lvid_type lvid = 0; lvid < graph.get_local_graph().num_vertices(); ++lvid) {
         if (graph.l_get_vertex_record(lvid).owner == rmi.procid()) {
@@ -284,7 +287,7 @@ namespace graphlab {
      * Schedule an update on all the neighbors of a particular vertex
      */
     void schedule_in_neighbors(const vertex_id_type& vertex, 
-                               const update_functor_type& update_fun) {
+                               const vertex_program_type& update_fun) {
       assert(false); //TODO: IMPLEMENT
     } // end of schedule in neighbors
 
@@ -292,7 +295,7 @@ namespace graphlab {
      * Schedule an update on all the out neighbors of a particular vertex
      */
     void schedule_out_neighbors(const vertex_id_type& vertex, 
-                                const update_functor_type& update_fun) {
+                                const vertex_program_type& update_fun) {
       assert(false); //TODO: IMPLEMENT
     } // end of schedule out neighbors
                                                   
@@ -300,7 +303,7 @@ namespace graphlab {
      * Schedule an update on all the out neighbors of a particular vertex
      */
     virtual void schedule_neighbors(const vertex_id_type& vertex, 
-                                    const update_functor_type& update_fun) {
+                                    const vertex_program_type& update_fun) {
       assert(false); //TODO: IMPLEMENT
     } // end of schedule neighbors
 
@@ -366,7 +369,7 @@ namespace graphlab {
     /** \brief get the current engine options. */
     const graphlab_options& get_options() { return opts; }
 
-    void do_apply(lvid_type lvid, update_functor_type& ufun) { 
+    void do_apply(lvid_type lvid, vertex_program_type& ufun) { 
       context_type context(this, &graph);
       context.init_from_local(lvid, VERTEX_CONSISTENCY);
       ufun.apply(context);
@@ -376,13 +379,13 @@ namespace graphlab {
     }
  
 
-    void do_init_gather(lvid_type lvid, update_functor_type& ufun) {
+    void do_init_gather(lvid_type lvid, vertex_program_type& ufun) {
       context_type context(this, &graph);
       context.init_from_local(lvid, ufun.gather_consistency());
       ufun.init_gather(context);
     }
     
-    void do_gather(lvid_type lvid, update_functor_type& ufun) { // Do gather
+    void do_gather(lvid_type lvid, vertex_program_type& ufun) { // Do gather
       context_type context(this, &graph);
       context.init_from_local(lvid, ufun.gather_consistency());
       if(ufun.gather_edges() == graphlab::IN_EDGES || 
@@ -405,7 +408,7 @@ namespace graphlab {
       }
     } // end of do_gather
     
-    void do_scatter(lvid_type lvid, update_functor_type& ufun) {
+    void do_scatter(lvid_type lvid, vertex_program_type& ufun) {
       context_type context(this, &graph);
       context.init_from_local(lvid, ufun.scatter_consistency());
       edge_set eset = ufun.scatter_edges();
@@ -429,14 +432,14 @@ namespace graphlab {
       }
     } // end of do scatter
     
-    void workingset_add_batch(const std::vector<std::pair<vertex_id_type, update_functor_type> >& batch) {
+    void workingset_add_batch(const std::vector<std::pair<vertex_id_type, vertex_program_type> >& batch) {
       for (size_t i = 0;i < batch.size(); ++i) {
         workingset_add(batch[i].first, batch[i].second);
       }
     }
 
 
-    void workingset_merge_batch(const std::vector<std::pair<vertex_id_type, update_functor_type> >& batch) {
+    void workingset_merge_batch(const std::vector<std::pair<vertex_id_type, vertex_program_type> >& batch) {
       for (size_t i = 0;i < batch.size(); ++i) {
         workingset_merge(batch[i].first, batch[i].second);
       }
@@ -446,8 +449,8 @@ namespace graphlab {
      * not own and forward them to their owners
      */
     void transmit_schedule(size_t threadid) {
-      update_functor_type uf;
-      std::vector<std::vector<std::pair<vertex_id_type, update_functor_type> > > outbuffer;
+      vertex_program_type uf;
+      std::vector<std::vector<std::pair<vertex_id_type, vertex_program_type> > > outbuffer;
       outbuffer.resize(rmi.numprocs());
       foreach(uint32_t b, workingset_bits) {
         // convert back to local vid
@@ -463,8 +466,8 @@ namespace graphlab {
           outbuffer[owner].push_back(std::make_pair(global_vid, uf));
           if (outbuffer[owner].size() > BUFFER_LIMIT) {
             rmi.remote_call((procid_t)owner,
-                        &distributed_synchronous_engine::workingset_add_batch, 
-                        outbuffer[owner]);
+                            &synchronous_engine::workingset_add_batch, 
+                            outbuffer[owner]);
             outbuffer[owner].clear();
           }
           
@@ -477,7 +480,7 @@ namespace graphlab {
       for (size_t i = 0; i < outbuffer.size(); ++i) {
         if (outbuffer[i].size() > 0) {
           rmi.remote_call((procid_t)i,
-                          &distributed_synchronous_engine::workingset_add_batch, 
+                          &synchronous_engine::workingset_add_batch, 
                           outbuffer[i]);
         }
       }
@@ -490,8 +493,8 @@ namespace graphlab {
      */
     void init_gather(size_t threadid) {
       timer ti; ti.start();
-      update_functor_type* uf = NULL;
-      std::vector<std::vector<std::pair<vertex_id_type, update_functor_type> > > outbuffer;
+      vertex_program_type* uf = NULL;
+      std::vector<std::vector<std::pair<vertex_id_type, vertex_program_type> > > outbuffer;
       outbuffer.resize(rmi.numprocs());
       size_t s = (workingset_bits.size() / ncpus) + (workingset_bits.size() % ncpus > 0);
       uint32_t bstart = s * threadid;
@@ -509,23 +512,23 @@ namespace graphlab {
         // try to read a task
         if (vrec.owner == rmi.procid() && 
             workingset->get_reference_unsync(local_vid, uf)) {
-          update_functor_type ufcopy = (*uf); 
+          vertex_program_type ufcopy = (*uf); 
           do_init_gather(local_vid, *uf);
           if (!vrec.mirrors().empty() && uf->gather_edges() != graphlab::NO_EDGES) {
             // loop it to the mirrors
             vertex_id_type global_vid = graph.global_vid(local_vid);
 
                     
-/*            rmi.remote_call(vrec.mirrors().begin(), vrec.mirrors().end(),
-                            &distributed_synchronous_engine::workingset_add,
-                            global_vid,
-                            *uf);*/
+            /*            rmi.remote_call(vrec.mirrors().begin(), vrec.mirrors().end(),
+                          &synchronous_engine::workingset_add,
+                          global_vid,
+                          *uf);*/
             foreach(uint32_t m, vrec.mirrors()) {
               outbuffer[m].push_back(std::make_pair(global_vid, ufcopy));
               if (!no_background_comms && outbuffer[m].size() > BUFFER_LIMIT) {
                 rmi.remote_call((procid_t)m,
-                            &distributed_synchronous_engine::workingset_add_batch, 
-                            outbuffer[m]);
+                                &synchronous_engine::workingset_add_batch, 
+                                outbuffer[m]);
                 outbuffer[m].clear();
               }
             }
@@ -544,7 +547,7 @@ namespace graphlab {
       for (size_t i = 0; i < outbuffer.size(); ++i) {
         if (outbuffer[i].size() > 0) {
           rmi.remote_call((procid_t)i,
-                          &distributed_synchronous_engine::workingset_add_batch, 
+                          &synchronous_engine::workingset_add_batch, 
                           outbuffer[i]);
         }
       }
@@ -553,8 +556,8 @@ namespace graphlab {
 
     void perform_gather(size_t threadid) {
       timer ti; ti.start();
-      update_functor_type uf;
-      std::vector<std::vector<std::pair<vertex_id_type, update_functor_type> > > outbuffer;
+      vertex_program_type uf;
+      std::vector<std::vector<std::pair<vertex_id_type, vertex_program_type> > > outbuffer;
       outbuffer.resize(rmi.numprocs());
       // overload the use of the gather set. 
       foreach(uint32_t b, temporary_bits) {
@@ -576,8 +579,8 @@ namespace graphlab {
             outbuffer[vrec.owner].push_back(std::make_pair(global_vid, uf));
             if (!no_background_comms && outbuffer[vrec.owner].size() > BUFFER_LIMIT) {
               rmi.remote_call((procid_t)vrec.owner,
-                          &distributed_synchronous_engine::workingset_merge_batch, 
-                          outbuffer[vrec.owner]);
+                              &synchronous_engine::workingset_merge_batch, 
+                              outbuffer[vrec.owner]);
               outbuffer[vrec.owner].clear();
             }
             // this operation may clear working set entries on vertices I do not own
@@ -602,7 +605,7 @@ namespace graphlab {
       for (size_t i = 0; i < outbuffer.size(); ++i) {
         if (outbuffer[i].size() > 0) {
           rmi.remote_call((procid_t)i,
-                          &distributed_synchronous_engine::workingset_merge_batch, 
+                          &synchronous_engine::workingset_merge_batch, 
                           outbuffer[i]);
         }
       }
@@ -612,14 +615,14 @@ namespace graphlab {
     struct apply_scatter_data {
       apply_scatter_data() { }
       apply_scatter_data(const vertex_data_type& vdata,
-                         const update_functor_type& uf,
+                         const vertex_program_type& uf,
                          vertex_id_type global_vid):
-                         vdata(vdata),uf(uf),global_vid(global_vid), has_uf(true) { }
+        vdata(vdata),uf(uf),global_vid(global_vid), has_uf(true) { }
       apply_scatter_data(vertex_id_type global_vid, 
                          const vertex_data_type& vdata):
-                         vdata(vdata),global_vid(global_vid), has_uf(false) { }
+        vdata(vdata),global_vid(global_vid), has_uf(false) { }
       vertex_data_type vdata;
-      update_functor_type uf;
+      vertex_program_type uf;
       vertex_id_type global_vid;
       bool has_uf;
       
@@ -650,7 +653,7 @@ namespace graphlab {
 
     void workingset_add_with_data(vertex_id_type global_vid, 
                                   vertex_data_type& vdata,
-                                  update_functor_type& uf) {
+                                  vertex_program_type& uf) {
       lvid_type lvid = graph.local_vid(global_vid);
       graph.get_local_graph().vertex_data(lvid) = vdata;
       workingset_add_local(lvid, uf);
@@ -666,7 +669,7 @@ namespace graphlab {
     
     void perform_apply_and_issue_scatter(size_t threadid) {
       timer ti; ti.start();
-      update_functor_type uf;
+      vertex_program_type uf;
       std::vector<std::vector<apply_scatter_data> > outbuffer;
       outbuffer.resize(rmi.numprocs());
       foreach(uint32_t b, temporary_bits) {
@@ -683,18 +686,18 @@ namespace graphlab {
             // scatter!
             workingset_bits.set_bit(b);
             workingset_add_local(local_vid, uf);
-/*            rmi.remote_call(vrec.mirrors().begin(), vrec.mirrors().end(),
-                &distributed_synchronous_engine::workingset_add_with_data,
-                vrec.gvid,
-                graph.get_local_graph().vertex_data(local_vid),
-                uf);*/
+            /*            rmi.remote_call(vrec.mirrors().begin(), vrec.mirrors().end(),
+                          &synchronous_engine::workingset_add_with_data,
+                          vrec.gvid,
+                          graph.get_local_graph().vertex_data(local_vid),
+                          uf);*/
             foreach(uint32_t m, vrec.mirrors()) {
               outbuffer[m].push_back(apply_scatter_data(graph.get_local_graph().vertex_data(local_vid),
                                                         uf, vrec.gvid));
               if (!no_background_comms && outbuffer[m].size() > BUFFER_LIMIT) {
                 rmi.remote_call((procid_t)m,
-                            &distributed_synchronous_engine::workingset_add_batch_with_data, 
-                            outbuffer[m]);
+                                &synchronous_engine::workingset_add_batch_with_data, 
+                                outbuffer[m]);
                 outbuffer[m].clear();
               }
             }
@@ -702,16 +705,16 @@ namespace graphlab {
           else {
             // only update data
             /*rmi.remote_call(vrec.mirrors().begin(), vrec.mirrors().end(),
-                &distributed_synchronous_engine::update_vertex_data,
-                vrec.gvid,
-                graph.get_local_graph().vertex_data(local_vid));*/
+              &synchronous_engine::update_vertex_data,
+              vrec.gvid,
+              graph.get_local_graph().vertex_data(local_vid));*/
             foreach(uint32_t m, vrec.mirrors()) {
               outbuffer[m].push_back(apply_scatter_data(vrec.gvid, 
                                                         graph.get_local_graph().vertex_data(local_vid)));
               if (!no_background_comms &&outbuffer[m].size() > BUFFER_LIMIT) {
                 rmi.remote_call((procid_t)m,
-                            &distributed_synchronous_engine::workingset_add_batch_with_data, 
-                            outbuffer[m]);
+                                &synchronous_engine::workingset_add_batch_with_data, 
+                                outbuffer[m]);
                 outbuffer[m].clear();
               }
             }
@@ -731,7 +734,7 @@ namespace graphlab {
       for (size_t i = 0; i < outbuffer.size(); ++i) {
         if (outbuffer[i].size() > 0) {
           rmi.remote_call((procid_t)i,
-                          &distributed_synchronous_engine::workingset_add_batch_with_data, 
+                          &synchronous_engine::workingset_add_batch_with_data, 
                           outbuffer[i]);
         }
       }
@@ -740,7 +743,7 @@ namespace graphlab {
 
 
     void perform_scatter(size_t threadid) {
-      update_functor_type uf;
+      vertex_program_type uf;
       foreach(uint32_t b, workingset_bits){
         // convert back to local vid
         vertex_id_type local_vid = b;
@@ -763,7 +766,7 @@ namespace graphlab {
       std::swap(scheduleset_bits, workingset_bits);
       rmi.barrier();
       for (size_t i = 0;i < ncpus; ++i) {
-        threads.launch(boost::bind(&distributed_synchronous_engine::transmit_schedule,
+        threads.launch(boost::bind(&synchronous_engine::transmit_schedule,
                                    this,
                                    i));
       }
@@ -776,7 +779,7 @@ namespace graphlab {
      */
     void parallel_init_gather() {
       for (size_t i = 0;i < ncpus; ++i) {
-        threads.launch(boost::bind(&distributed_synchronous_engine::init_gather,
+        threads.launch(boost::bind(&synchronous_engine::init_gather,
                                    this,
                                    i));
       }
@@ -786,7 +789,7 @@ namespace graphlab {
     void parallel_gather() {
       // go through all the vertices
       for (size_t i = 0;i < ncpus; ++i) {
-        threads.launch(boost::bind(&distributed_synchronous_engine::perform_gather,
+        threads.launch(boost::bind(&synchronous_engine::perform_gather,
                                    this,
                                    i));
       }
@@ -797,7 +800,7 @@ namespace graphlab {
     void parallel_apply_and_issue_scatter() {
       // go through all the vertices
       for (size_t i = 0;i < ncpus; ++i) {
-        threads.launch(boost::bind(&distributed_synchronous_engine::perform_apply_and_issue_scatter,
+        threads.launch(boost::bind(&synchronous_engine::perform_apply_and_issue_scatter,
                                    this,
                                    i));
       }
@@ -808,7 +811,7 @@ namespace graphlab {
     void parallel_scatter() {
       // go through all the vertices
       for (size_t i = 0;i < ncpus; ++i) {
-        threads.launch(boost::bind(&distributed_synchronous_engine::perform_scatter,
+        threads.launch(boost::bind(&synchronous_engine::perform_scatter,
                                    this,
                                    i));
       }
@@ -819,23 +822,23 @@ namespace graphlab {
 
     double barrier_time;
     void main_stuff(size_t i) {
-//      rmi.dc().stop_handler_threads(i, ncpus);
+      //      rmi.dc().stop_handler_threads(i, ncpus);
       init_gather(i);
-//      rmi.dc().start_handler_threads(i, ncpus);
+      //      rmi.dc().start_handler_threads(i, ncpus);
       
       bar.wait();
       if (i == 0) {
         timer ti; ti.start();
         rmi.full_barrier();
         barrier_time += ti.current_time();
-//        if (rmi.procid() == 0) rmi.dc().flush_counters();
+        //        if (rmi.procid() == 0) rmi.dc().flush_counters();
         std::swap(workingset_bits, temporary_bits);
       }
       bar.wait();
       
-//      rmi.dc().stop_handler_threads(i, ncpus);
+      //      rmi.dc().stop_handler_threads(i, ncpus);
       perform_gather(i);
-//      rmi.dc().start_handler_threads(i, ncpus);
+      //      rmi.dc().start_handler_threads(i, ncpus);
 
       
       bar.wait();
@@ -844,14 +847,14 @@ namespace graphlab {
 
         rmi.full_barrier();
         barrier_time += ti.current_time();
-//        if (rmi.procid() == 0) rmi.dc().flush_counters();
+        //        if (rmi.procid() == 0) rmi.dc().flush_counters();
         std::swap(workingset_bits, temporary_bits);
       }
       bar.wait();
       
- //     rmi.dc().stop_handler_threads(i, ncpus);
+      //     rmi.dc().stop_handler_threads(i, ncpus);
       perform_apply_and_issue_scatter(i);
- //     rmi.dc().start_handler_threads(i, ncpus);
+      //     rmi.dc().start_handler_threads(i, ncpus);
 
     
       bar.wait();
@@ -860,7 +863,7 @@ namespace graphlab {
 
         timer ti; ti.start();
         barrier_time += ti.current_time();
-//        if (rmi.procid() == 0) rmi.dc().flush_counters();
+        //        if (rmi.procid() == 0) rmi.dc().flush_counters();
       }
       bar.wait();
  
@@ -870,7 +873,7 @@ namespace graphlab {
 
     void parallel_main_stuff() {
       for (size_t i = 0; i < ncpus; ++i) {
-        threads.launch(boost::bind(&distributed_synchronous_engine::main_stuff,
+        threads.launch(boost::bind(&synchronous_engine::main_stuff,
                                    this,
                                    i));
       }

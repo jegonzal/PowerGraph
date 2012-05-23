@@ -46,7 +46,6 @@
 
 #include <graphlab/vertex_program/icontext.hpp>
 #include <graphlab/engine/execution_status.hpp>
-#include <graphlab/scheduler/terminator/iterminator.hpp>
 #include <graphlab/options/graphlab_options.hpp>
 
 
