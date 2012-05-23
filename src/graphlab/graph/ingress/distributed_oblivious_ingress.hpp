@@ -47,17 +47,14 @@ namespace graphlab {
     typedef VertexData vertex_data_type;
     /// The type of the edge data stored in the graph 
     typedef EdgeData   edge_data_type;
-    /// The type of a vertex is a simple size_t
-    typedef graphlab::vertex_id_type vertex_id_type;
-
-    typedef typename graph_type::lvid_type  lvid_type;
+    
     typedef typename graph_type::vertex_record vertex_record;
     typedef typename graph_type::mirror_type mirror_type;
 
     typedef distributed_ingress_base<VertexData, EdgeData> base_type;
     /** The map from vertex id to pairs of <pid, local_degree_of_v> */
     // typedef typename boost::unordered_map<vertex_id_type, std::vector<size_t> > degree_hash_table_type;
-    typedef fixed_dense_bitset<graph_type::MAX_MACHINES> bin_counts_type; 
+    typedef fixed_dense_bitset<RPC_MAX_N_PROCS> bin_counts_type; 
     typedef cuckoo_map_pow2<vertex_id_type, bin_counts_type,3,uint32_t> degree_hash_table_type;
     degree_hash_table_type dht;
 

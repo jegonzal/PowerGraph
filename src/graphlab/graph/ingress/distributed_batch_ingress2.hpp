@@ -45,10 +45,7 @@ namespace graphlab {
     typedef VertexData vertex_data_type;
     /// The type of the edge data stored in the graph 
     typedef EdgeData edge_data_type;
-    /// The type of a vertex is a simple size_t
-    typedef graphlab::vertex_id_type vertex_id_type;
 
-    typedef typename graph_type::lvid_type  lvid_type;
     typedef typename graph_type::vertex_record vertex_record;
     typedef typename graph_type::mirror_type mirror_type;
 
@@ -58,7 +55,7 @@ namespace graphlab {
     mutex local_graph_lock;
     mutex lvid2record_lock;
 
-    typedef fixed_dense_bitset<graph_type::MAX_MACHINES> bin_counts_type;
+    typedef fixed_dense_bitset<RPC_MAX_N_PROCS> bin_counts_type;
     /** The map from vertex id to pairs of <pid, local_degree_of_v> */
     typedef typename boost::unordered_map<vertex_id_type, bin_counts_type> 
     dht_degree_table_type;

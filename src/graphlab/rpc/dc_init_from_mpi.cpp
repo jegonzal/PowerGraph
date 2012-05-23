@@ -53,7 +53,7 @@ bool init_param_from_mpi(dc_init_param& param,dc_comm_type commtype) {
   // set defaults
   param.curmachineid = (procid_t)(mpi_tools::rank());
 
-  param.numhandlerthreads = DEFAULT_NUMHANDLERTHREADS;
+  param.numhandlerthreads = RPC_DEFAULT_NUMHANDLERTHREADS;
   param.commtype = commtype;
   param.initstring = param.initstring + std::string(" __sockhandle__=") + tostr(sock) + " ";
   return true;

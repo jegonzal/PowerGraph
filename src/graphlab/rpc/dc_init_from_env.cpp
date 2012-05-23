@@ -48,8 +48,8 @@ bool init_param_from_env(dc_init_param& param) {
     param.machines[i] = param.machines[i] + ":" + tostr(10000 + i);
   }
   // set defaults
-  param.numhandlerthreads = DEFAULT_NUMHANDLERTHREADS;
-  param.commtype = DEFAULT_COMMTYPE;
+  param.numhandlerthreads = RPC_DEFAULT_NUMHANDLERTHREADS;
+  param.commtype = RPC_DEFAULT_COMMTYPE;
   return true;
 }
 

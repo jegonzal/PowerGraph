@@ -84,158 +84,98 @@ namespace graphlab {
     /// The type of the edge data stored in the graph 
     typedef EdgeData   edge_data_type;
 
-    /// The type of a vertex is a simple size_t
-    typedef graphlab::vertex_id_type vertex_id_type;
-
-    enum SizeType {MAX_MACHINES = 128};
-    typedef fixed_dense_bitset<MAX_MACHINES> mirror_type;
+    typedef fixed_dense_bitset<RPC_MAX_N_PROCS> mirror_type;
 
     /// The type of the local graph used to store the graph data 
     // typedef graphlab::graph<VertexData, EdgeData> local_graph_type;
     typedef graphlab::graph<VertexData, EdgeData> local_graph_type;
 
-    typedef idistributed_ingress<VertexData, EdgeData> 
-    idistributed_ingress_type;
-
     friend class distributed_ingress_base<VertexData, EdgeData>;
-
-    typedef distributed_random_ingress<VertexData, EdgeData>
-        distributed_random_ingress_type;
     friend class distributed_random_ingress<VertexData, EdgeData>;
-
-    typedef distributed_identity_ingress<VertexData, EdgeData>
-        distributed_identity_ingress_type;
     friend class distributed_identity_ingress<VertexData, EdgeData>;
-
-
-    typedef distributed_batch_ingress<VertexData, EdgeData>
-        distributed_batch_ingress_type;
     friend class distributed_batch_ingress<VertexData, EdgeData>;
-
-    typedef distributed_oblivious_ingress<VertexData, EdgeData>
-        distributed_oblivious_ingress_type;
     friend class distributed_oblivious_ingress<VertexData, EdgeData>;
 
-
-    /** 
-     * The type of the local vertex id and local edge id.
-     * While this is the same as the
-     * vertex_id_type giving it a separate name will make method calls
-     * clearer.
-     */
-    typedef typename local_graph_type::vertex_id_type  lvid_type;
-    typedef typename local_graph_type::edge_id_type    leid_type;
-
-    struct vertex_type;
-    struct local_edge_type;
-    struct local_edge_list_type;
-    typedef bool edge_list_type;  // map it to an impossible type
-    typedef bool edge_type;  // map it to an impossible type
     
+    struct vertex_type;
+    typedef bool edge_list_type;  
+    struct edge_type;
+    
+    struct local_vertex_type;
+    struct local_edge_list_type;
+    struct local_edge_type;
+    
+    /** Vertex object which provides access to the vertex data
+     * and information about it.
+     */
     struct vertex_type {
       distributed_graph& g;
-      vertex_id_type lvid, gvid;
-      vertex_type(distributed_graph& g, vertex_id_type lvid):
-            g(g), lvid(lvid), gvid(g.global_vid(lvid)) { }
-
-      const vertex_data_type data() const {
+      lvid_type lvid;
+      vertex_type(distributed_graph& g, lvid_type lvid):
+            g(g), lvid(lvid) { }
+            
+      /// \brief Returns a constant reference to the data on the vertex
+      const vertex_data_type& data() const {
         return g.get_local_graph().vertex_data(lvid);
       }
 
-      vertex_data_type data() {
+      /// \brief Returns a reference to the data on the vertex
+      vertex_data_type& data() {
         return g.get_local_graph().vertex_data(lvid);
       }
 
+      /// \brief Returns the number of in edges of the vertex
       size_t num_in_edges() const {
         return g.l_get_vertex_record(lvid).num_in_edges;
       }
 
+      /// \brief Returns the number of out edges of the vertex
       size_t num_out_edges() const {
         return g.l_get_vertex_record(lvid).num_out_edges;
       }
       
+      /// \brief Returns the vertex ID of the vertex       
       vertex_id_type id() const {
-        return gvid;
+        return g.global_vid(lvid);
       }
-
-      vertex_id_type l_id() const {
-        return lvid;
-      }
-
+      
+      /// \brief Returns a list of in edges (not implemented) 
       edge_list_type in_edges() __attribute__ ((noreturn)) {
         ASSERT_TRUE(false);
       }
 
+      /// \brief Returns a list of out edges (not implemented) 
       edge_list_type out_edges() __attribute__ ((noreturn)) {
         ASSERT_TRUE(false);
       }
-
-      local_edge_list_type l_in_edges() {
-        return g.l_in_edges(lvid);
-      }
-
-      local_edge_list_type l_out_edges() {
-        return g.l_out_edges(lvid);
-      }
     };
 
-    typedef vertex_type local_vertex_type;
     
-    /** This class represents an edge with source() and target()*/
-    class local_edge_type {
+    /** Edge object which provides access to a single edge
+        on the graph */
+    class edge_type {
     private:
       distributed_graph& g;
       typename local_graph_type::edge_type e;
     public:
-      local_edge_type(distributed_graph& g,
-                      typename local_graph_type::edge_type e): g(g), e(e) { }
+      edge_type(distributed_graph& g,
+                typename local_graph_type::edge_type e): g(g), e(e) { }
 
-      local_vertex_type source() { return local_vertex_type(g, e.source().id()); }
-      local_vertex_type target() { return local_vertex_type(g, e.target().id()); }
+      /// \brief Returns the source vertex of the edge
+      vertex_type source() { return vertex_type(g, e.source().id()); }
+      /// \brief Returns the target vertex of the edge
+      vertex_type target() { return vertex_type(g, e.target().id()); }
       
-      edge_data_type data() { return e.data(); }
-      const edge_data_type data() const { return e.data(); }
-      procid_t owner() const { return g.rmi.procid(); }
-      edge_id_type id() const { return e.id(); }
+      /// \brief Returns a constant reference to the data on the vertex
+      const edge_data_type& data() const { return e.data(); }
+      
+      /// \brief Returns a reference to the data on the vertex
+      edge_data_type& data() { return e.data(); }
     }; 
-
-
-    struct make_local_edge_type_functor {
-      typedef typename local_graph_type::edge_type argument_type;
-      typedef local_edge_type result_type;
-      distributed_graph& g;
-      make_local_edge_type_functor(distributed_graph& g):g(g) { }
-      result_type operator() (const argument_type et) const {
-        return local_edge_type(g, et);
-      }
-    };
-    
-
-    /** This class represents an edge list stored on local machine*/
-    struct local_edge_list_type {
-      make_local_edge_type_functor me_functor;
-      typename local_graph_type::edge_list_type elist;
-      
-      typedef boost::transform_iterator<make_local_edge_type_functor,
-                                      typename local_graph_type::edge_list_type::iterator> iterator;
-      typedef iterator const_iterator;
-      
-      local_edge_list_type(distributed_graph& g,
-                           typename local_graph_type::edge_list_type elist) :
-                          me_functor(g), elist(elist) { }
-      
-      size_t size() const { return elist.size(); }
-      local_edge_type operator[](size_t i) const { return me_functor(elist[i]); }
-      iterator begin() const { return
-          boost::make_transform_iterator(elist.begin(), me_functor); }
-      iterator end() const { return
-          boost::make_transform_iterator(elist.end(), me_functor); }
-      bool empty() const { return elist.empty(); }
-    }; 
-
 
 
     /**
+     * \ingroup graphlab_internal
      * The vertex record stores information associated with each
      * vertex on this proc
      */
@@ -319,7 +259,7 @@ namespace graphlab {
     size_t begin_eid;
 
     /** pointer to the distributed ingress object*/
-    idistributed_ingress_type* ingress_ptr; 
+    idistributed_ingress<VertexData, EdgeData>* ingress_ptr; 
 
   public:
 
@@ -354,18 +294,18 @@ namespace graphlab {
       if (method == "batch") {
         logstream(LOG_INFO) << "Use batch ingress, bufsize: " << bufsize  
           << ", usehash: " << usehash << ", userecent" << userecent << std::endl;
-        ingress_ptr = new distributed_batch_ingress_type(rpc.dc(), *this, 
+        ingress_ptr = new distributed_batch_ingress<VertexData, EdgeData>(rpc.dc(), *this, 
                                                          bufsize, usehash, userecent);
       } else if (method == "oblivious") {
         logstream(LOG_INFO) << "Use oblivious ingress, usehash: " << usehash 
           << ", userecent: " << userecent << std::endl;
-        ingress_ptr = new distributed_oblivious_ingress_type(rpc.dc(), *this, 
+        ingress_ptr = new distributed_oblivious_ingress<VertexData, EdgeData>(rpc.dc(), *this, 
                                                              usehash, userecent);
       } else if (method == "identity") {
         logstream(LOG_INFO) << "Use identity ingress" << std::endl;
-        ingress_ptr = new distributed_identity_ingress_type(rpc.dc(), *this);
+        ingress_ptr = new distributed_identity_ingress<VertexData, EdgeData>(rpc.dc(), *this);
       } else {
-        ingress_ptr = new distributed_random_ingress_type(rpc.dc(), *this);
+        ingress_ptr = new distributed_random_ingress<VertexData, EdgeData>(rpc.dc(), *this);
       }
     } // end of set ingress method
     
@@ -389,111 +329,13 @@ namespace graphlab {
     /** \brief Get the number of edges */
     size_t num_edges() const { return nedges; }
 
-    /** \brief Get the size of replica */
-    size_t num_replicas() const { return nreplicas; }
-
-
-    /** Determine the id of the vertex with highest degree */
-    vertex_id_type max_degree_vertex() const { 
-      // First compute the locally maximum vertex
-      vertex_id_type max_vid = -1;
-      size_t max_degree = 0;
-      foreach(const vertex_record& vrec, lvid2record) {
-        if(vrec.owner == rpc.procid()) {
-          const size_t degree = vrec.num_in_edges + vrec.num_out_edges;
-          if(degree > max_degree || max_vid == vertex_id_type(-1)) {
-            max_vid = vrec.gvid; max_degree = degree; 
-          }
-        }
-      }
-      ASSERT_NE(max_vid, vertex_id_type(-1));
-      // Exchange with other machines
-      typedef std::pair<size_t, vertex_id_type> pair_type;
-      std::vector<pair_type> local_bests(rpc.numprocs());
-      local_bests[rpc.procid()] = pair_type(max_degree, max_vid);
-      rpc.all_gather(local_bests);
-      return std::max_element(local_bests.begin(), local_bests.end())->second;      
-    } // end of max_degree_vertex
-
-    /** \brief Get the number of vertices local to this proc */
-    size_t num_local_vertices() const { return local_graph.num_vertices(); }
-
-    /** \brief Get the number of edges local to this proc */
-    size_t num_local_edges() const { return local_graph.num_edges(); }
-
-    /** \brief Get the number of vertices owned by this proc */
-    size_t num_local_own_vertices() const { return local_own_nverts; }
-
-    /** \brief get the local vertex id */
-    lvid_type local_vid (const vertex_id_type vid) const {
-      // typename boost::unordered_map<vertex_id_type, lvid_type>::
-      //   const_iterator iter = vid2lvid.find(vid);
-      typename cuckoo_map_type::const_iterator iter = vid2lvid.find(vid);
-      ASSERT_TRUE(iter != vid2lvid.end());
-      return iter->second;
-    } // end of local_vertex_id
-
-    vertex_id_type global_vid(const lvid_type lvid) const { 
-      ASSERT_LT(lvid, lvid2record.size());
-      return lvid2record[lvid].gvid;
-    } // end of global_vertex_id
-
-    const vertex_record& get_vertex_record(const vertex_id_type vid) const {
-      // typename boost::unordered_map<vertex_id_type, lvid_type>::
-      //   const_iterator iter = vid2lvid.find(vid);
-      typename cuckoo_map_type::const_iterator iter = vid2lvid.find(vid);
-      ASSERT_TRUE(iter != vid2lvid.end());
-      return lvid2record[iter->second];
-    }
-
-
-    vertex_record& l_get_vertex_record(const lvid_type lvid) {
-      ASSERT_LT(lvid, lvid2record.size());
-      return lvid2record[lvid];
-    }
-
-    const vertex_record& l_get_vertex_record(const lvid_type lvid) const {
-      ASSERT_LT(lvid, lvid2record.size());
-      return lvid2record[lvid];
-    }
-
-    bool is_master(const vertex_id_type vid) const {
-      typename cuckoo_map_type::const_iterator iter = vid2lvid.find(vid);
-      return (iter != vid2lvid.end()) && l_is_master(iter->second);
-    }
-
-    bool l_is_master(const lvid_type lvid) const {
-      ASSERT_LT(lvid, lvid2record.size());
-      return lvid2record[lvid].owner == rpc.procid();
-    }
-
-
-    local_graph_type& get_local_graph() {
-      return local_graph;
-    }
-
-    const local_graph_type& get_local_graph() const {
-      return local_graph;
-    }
-
-
+    /// \brief converts a vertex ID to a vertex object
     vertex_type vertex(vertex_id_type vid) {
       return vertex_type(*this, local_vid(vid));
     }
 
-    const vertex_type vertex(vertex_id_type vid) const {
-      return vertex_type(*this, local_vid(vid));
-    }
 
-    local_vertex_type l_vertex(vertex_id_type vid) {
-      return local_vertex_type(*this, vid);
-    }
-
-    const local_vertex_type l_vertex(vertex_id_type vid) const {
-      return local_vertex_type(*this, vid);
-    }
-  
-    //! Get all the edge which edge.target() == v
+    /** \brief Get a list of all in edges of a given vertex ID. Not Implemented */
     edge_list_type in_edges(const vertex_id_type vid) const __attribute__((noreturn)) {
       // Not implemented.
       logstream(LOG_WARNING) << "in_edges not implemented. " << std::endl;
@@ -501,68 +343,32 @@ namespace graphlab {
     }
 
 
-    //! Get the number of edges which edge.target() == v
+    /**
+     * \brief Returns the number of in edges of a given vertex ID.
+     * 
+     * Returns the number of in edges of a given vertex ID.
+     * Equivalent to vertex(vid).num_in_edges()
+     */
     size_t num_in_edges(const vertex_id_type vid) const {
       return get_vertex_record(vid).num_in_edges;
     }
 
-    //! Get all the edges which edge.source() == v
+    /** Get a list of all out edges of a given vertex ID. Not Implemented */
     edge_list_type out_edges(const vertex_id_type vid) const __attribute__((noreturn)) {
             // Not implemented.
       logstream(LOG_WARNING) << "in_edges not implemented. " << std::endl;
       ASSERT_TRUE(false);
     }
 
-    //! Get the number of edges which edge.source() == v
+    /**
+     * \brief Returns the number of out edges of a given vertex ID.
+     * 
+     * Returns the number of in edges of a given vertex ID.
+     * Equivalent to vertex(vid).num_out_edges()
+     */
     size_t num_out_edges(const vertex_id_type vid) const {
       return get_vertex_record(vid).num_out_edges;
     }
-
-    // Get all the local edge which edge.target() == v
-    local_edge_list_type l_in_edges(const lvid_type lvid) {
-      return local_edge_list_type(*this, local_graph.in_edges(lvid));
-    }
-
-    // Get the number of local edges which edge.target() == v
-    size_t l_num_in_edges(const lvid_type lvid) const { 
-      return local_graph.num_in_edges(lvid);
-    }
-
-    // Get all the local edges which edge.source() == v
-    local_edge_list_type l_out_edges(const lvid_type lvid) {
-      return local_edge_list_type(*this, local_graph.out_edges(lvid));
-    }
-
-    // Get the number of local edges which edge.source() == v
-    size_t l_num_out_edges(const lvid_type lvid) const {
-      return local_graph.num_out_edges(lvid);
-    }
-
-    /** \brief Returns a reference to the data stored on the vertex
-        v. */
-    VertexData& vertex_data(vertex_id_type vid) {
-      return local_graph.vertex_data(local_vid(vid));
-    }
-    
-    /** \brief Returns a constant reference to the data stored on the
-        vertex v */
-    const VertexData& vertex_data(vertex_id_type vid) const {
-      return local_graph.vertex_data(local_vid(vid));
-    }
-
-    /** \brief Returns a reference to the data stored on the edge
-        source->target. */
-    EdgeData& edge_data(vertex_id_type source, vertex_id_type target){
-      return local_graph.edge_data(local_vid(source), local_vid(target));
-    }
-    
-    /** \brief Returns a constant reference to the data stored on the
-        edge source->target */
-    const EdgeData& edge_data(vertex_id_type source, 
-                              vertex_id_type target) const {
-      return local_graph.edge_data(local_vid(source), local_vid(target));
-    }
-
    
     /** 
      * \brief Creates a vertex containing the vertex data
@@ -582,44 +388,7 @@ namespace graphlab {
       ingress_ptr->add_edge(source, target, edata);
     }
 
-
-
-    /**
-     * This function synchronizes the master vertex data with all the mirrors.
-     * This function must be called simultaneously by all machines
-     */
-    void synchronize() {
-      typedef std::pair<vertex_id_type, vertex_data_type> pair_type;
-      buffered_exchange<pair_type> vertex_exchange(rpc.dc());
-      typename buffered_exchange<pair_type>::buffer_type recv_buffer;
-      procid_t sending_proc;
-      // Loop over all the local vertex records
-      for(lvid_type lvid = 0; lvid < lvid2record.size(); ++lvid) {
-        const vertex_record& record = lvid2record[lvid];
-        // if this machine is the owner of a record then send the
-        // vertex data to all mirrors
-        if(record.owner == rpc.procid()) {
-          foreach(uint32_t proc, record.mirrors()) {
-            const pair_type pair(record.gvid, local_graph.vertex_data(lvid));
-            vertex_exchange.send(proc, pair);
-          }
-        }
-        // Be sure to flush on the last vertex
-        if(lvid+1 == lvid2record.size()) vertex_exchange.flush();
-        // Receive any vertex data and update local mirrors
-        while(vertex_exchange.recv(sending_proc, recv_buffer)) {
-          foreach(const pair_type& pair, recv_buffer) 
-            vertex_data(pair.first) = pair.second;
-          recv_buffer.clear();
-        }
-      }
-      ASSERT_TRUE(vertex_exchange.empty());
-    } // end of synchronize
-
-
-
-    void resize (size_t n) { }
-
+    /// \brief Clears the graph. 
     void clear () { 
       foreach (vertex_record& vrec, lvid2record)
         vrec.clear();
@@ -659,6 +428,7 @@ namespace graphlab {
 
     /** \brief Load part of the distributed graph from a path*/
     void load(std::string& path, std::string& prefix) {
+      rpc.full_barrier();
       std::ostringstream ss;
       ss << prefix << rpc.procid() << ".bin";
       std::string fname = ss.str();
@@ -692,6 +462,7 @@ namespace graphlab {
 
     /** \brief Load part of the distributed graph from a path*/
     void save(std::string& path, std::string& prefix) {
+      rpc.full_barrier();
       timer savetime;  savetime.start();
       std::ostringstream ss;
       ss << prefix << rpc.procid() << ".bin";
@@ -726,90 +497,384 @@ namespace graphlab {
     } // end of save
 
 
+/****************************************************************************
+ *                       Internal Functions                                 *
+ *                     ----------------------                               *
+ * These functions functions and types provide internal access to the       *
+ * underlying graph representation. They should not be used unless you      *
+ * *really* know what you are doing.                                        *
+ ****************************************************************************/
+
+    /** \ingroup graphlab_internal 
+     * \brief converts a local vertex ID to a local vertex object
+     */
+    local_vertex_type l_vertex(lvid_type vid) {
+      return local_vertex_type(*this, local_vid(vid));
+    }
+    
+    /** \ingroup graphlab_internal
+     *\brief Get the Total number of vertex replicas in the graph */
+    size_t num_replicas() const { return nreplicas; }
+
+    /** \ingroup graphlab_internal
+     *\brief Get the number of vertices local to this proc */
+    size_t num_local_vertices() const { return local_graph.num_vertices(); }
+
+    /** \ingroup graphlab_internal
+     *\brief Get the number of edges local to this proc */
+    size_t num_local_edges() const { return local_graph.num_edges(); }
+
+    /** \ingroup graphlab_internal
+     *\brief Get the number of vertices owned by this proc */
+    size_t num_local_own_vertices() const { return local_own_nverts; }
+
+    /** \ingroup graphlab_internal
+     *\brief Convert a global vid to a local vid */
+    lvid_type local_vid (const vertex_id_type vid) const {
+      // typename boost::unordered_map<vertex_id_type, lvid_type>::
+      //   const_iterator iter = vid2lvid.find(vid);
+      typename cuckoo_map_type::const_iterator iter = vid2lvid.find(vid);
+      ASSERT_TRUE(iter != vid2lvid.end());
+      return iter->second;
+    } // end of local_vertex_id
+
+    /** \ingroup graphlab_internal
+     *\brief Convert a local vid to a global vid */
+    vertex_id_type global_vid(const lvid_type lvid) const { 
+      ASSERT_LT(lvid, lvid2record.size());
+      return lvid2record[lvid].gvid;
+    } // end of global_vertex_id
 
 
 
-
-    // Synthetic Generators ===================================================>
-    void build_powerlaw(const size_t nverts, const bool in_degree = false, 
-                        const double alpha = 2.1, 
-                        const size_t truncate = size_t(-1)) {
-      std::vector<double> prob(std::min(nverts, truncate), 0);
-      std::cout << "constructing pdf" << std::endl;
-      for(size_t i = 0; i < prob.size(); ++i) 
-        prob[i] = std::pow(double(i+1), -alpha);
-      std::cout << "constructing cdf" << std::endl;
-      pdf2cdf(prob);
-      std::cout << "Building graph" << std::endl;
-      size_t target_index = rpc.procid();
-      size_t addedvtx = 0;
-      for(size_t source = rpc.procid(); source < nverts; 
-          source += rpc.numprocs()) {
-        const size_t out_degree = sample(prob) + 1;
-        for(size_t i = 0; i < out_degree; ++i, ++target_index) {
-          size_t target = permutation(nverts, target_index);
-          if(source == target) target = permutation(nverts, ++target_index);
-          if(in_degree) add_edge(target, source); 
-          else add_edge(source, target);
-        }
-        ++addedvtx;
-        if (addedvtx % 10000000 == 0) {
-          std::cout << addedvtx << " inserted\n";
-        }
-      }
-    } // end of build powerlaw
-
-
-    void build_lognormal(const size_t nverts, const bool in_degree = false,  
-                         const double mu = 4, const double sigma = 1.3) {
-      random::seed(rpc.procid());
-      atomic<size_t> target_index = rpc.procid();
-      size_t edges_added = 0;
-      //#pragma omp parallel for
-      for(size_t source = rpc.procid(); source < nverts; 
-          source += rpc.numprocs()) {
-        const size_t out_degree = 
-          std::min(size_t(std::exp(random::gaussian(mu, sigma))), nverts-1);
-        for(size_t i = 0; i < out_degree; ++i, ++target_index) {
-          size_t target = permutation(nverts, target_index);
-          if(source == target) target = permutation(nverts, ++target_index);
-          if(in_degree) add_edge(target, source); 
-          else add_edge(source, target);
-          edges_added++;
-        }
-        if(edges_added % 1000000 == 0) {
-          std::cout << "Edges: " << edges_added 
-                    << "\t Vertices:  " << (source/rpc.numprocs())
-                    << "\t Ratio:  "  << double(edges_added) / (source/rpc.numprocs())
-                    << std::endl;
-        }
-      }
-    } // end of build lognormal
-
-  private:
-      
-    inline size_t permutation(size_t nverts, size_t x) const  {
-      return ((x + rpc.procid()) * 2654435761) % nverts;
+    /**
+     * \ingroup graphlab_internal
+     * \brief Returns an edge list of all in edges of a local vertex ID
+     *        on the local graph
+     * 
+     * Equivalent to l_vertex(lvid).in_edges()
+     */    
+    local_edge_list_type l_in_edges(const lvid_type lvid) {
+      return local_edge_list_type(*this, local_graph.in_edges(lvid));
     }
 
-    void pdf2cdf(std::vector<double>& pdf) const {
-      double Z = 0;
-      for(size_t i = 0; i < pdf.size(); ++i) Z += pdf[i];
-      for(size_t i = 0; i < pdf.size(); ++i) 
-        pdf[i] = pdf[i]/Z + ((i>0)? pdf[i-1] : 0);
-    } // end of pdf2cdf
+    /**
+     * \ingroup graphlab_internal
+     * \brief Returns the number of in edges of a local vertex ID
+     *        on the local graph
+     * 
+     * Equivalent to l_vertex(lvid).num in_edges()
+     */    
+    size_t l_num_in_edges(const lvid_type lvid) const { 
+      return local_graph.num_in_edges(lvid);
+    }
+
+    /**
+     * \ingroup graphlab_internal
+     * \brief Returns an edge list of all out edges of a local vertex ID
+     *        on the local graph
+     * 
+     * Equivalent to l_vertex(lvid).out_edges()
+     */    
+    local_edge_list_type l_out_edges(const lvid_type lvid) {
+      return local_edge_list_type(*this, local_graph.out_edges(lvid));
+    }
+
+    /**
+     * \ingroup graphlab_internal
+     * \brief Returns the number of out edges of a local vertex ID
+     *        on the local graph
+     * 
+     * Equivalent to l_vertex(lvid).num out_edges()
+     */    
+    size_t l_num_out_edges(const lvid_type lvid) const {
+      return local_graph.num_out_edges(lvid);
+    }
     
-    size_t sample(const std::vector<double>& cdf) const {
-      return std::upper_bound(cdf.begin(), cdf.end(), 
-                              graphlab::random::rand01()) - cdf.begin();  
-    } // end of sample
 
 
 
 
+    /** \ingroup graphlab_internal 
+     * \brief Returns the internal vertex record of a given global vertex ID
+     */
+    const vertex_record& get_vertex_record(vertex_id_type vid) const {
+      // typename boost::unordered_map<vertex_id_type, lvid_type>::
+      //   const_iterator iter = vid2lvid.find(vid);
+      typename cuckoo_map_type::const_iterator iter = vid2lvid.find(vid);
+      ASSERT_TRUE(iter != vid2lvid.end());
+      return lvid2record[iter->second];
+    }
+
+    /** \ingroup graphlab_internal 
+     * \brief Returns the internal vertex record of a given local vertex ID
+     */
+    vertex_record& l_get_vertex_record(lvid_type lvid) {
+      ASSERT_LT(lvid, lvid2record.size());
+      return lvid2record[lvid];
+    }
+
+    /** \ingroup graphlab_internal 
+     * \brief Returns the internal vertex record of a given local vertex ID
+     */
+    const vertex_record& l_get_vertex_record(lvid_type lvid) const {
+      ASSERT_LT(lvid, lvid2record.size());
+      return lvid2record[lvid];
+    }
+
+    /** \ingroup graphlab_internal 
+     * \brief Returns true if the provided global vertex ID is a 
+     *        master vertex on this machine and false otherwise.
+     */
+    bool is_master(vertex_id_type vid) const {
+      typename cuckoo_map_type::const_iterator iter = vid2lvid.find(vid);
+      return (iter != vid2lvid.end()) && l_is_master(iter->second);
+    }
+    /** \ingroup graphlab_internal 
+     * \brief Returns true if the provided local vertex ID is a master vertex.
+     *        Returns false otherwise.
+     */
+    bool l_is_master(lvid_type lvid) const {
+      ASSERT_LT(lvid, lvid2record.size());
+      return lvid2record[lvid].owner == rpc.procid();
+    }
+
+
+    /** \ingroup graphlab_internal
+     *  \brief Returns a reference to the internal graph representation
+     */
+    local_graph_type& get_local_graph() {
+      return local_graph;
+    }
+
+    /** \ingroup graphlab_internal
+     *  \brief Returns a const reference to the internal graph representation
+     */
+    const local_graph_type& get_local_graph() const {
+      return local_graph;
+    }
+
+
+
+
+    /** \ingroup graphlab_internal
+     * This function synchronizes the master vertex data with all the mirrors.
+     * This function must be called simultaneously by all machines
+     */
+    void synchronize() {
+      typedef std::pair<vertex_id_type, vertex_data_type> pair_type;
+      buffered_exchange<pair_type> vertex_exchange(rpc.dc());
+      typename buffered_exchange<pair_type>::buffer_type recv_buffer;
+      procid_t sending_proc;
+      // Loop over all the local vertex records
+      for(lvid_type lvid = 0; lvid < lvid2record.size(); ++lvid) {
+        const vertex_record& record = lvid2record[lvid];
+        // if this machine is the owner of a record then send the
+        // vertex data to all mirrors
+        if(record.owner == rpc.procid()) {
+          foreach(uint32_t proc, record.mirrors()) {
+            const pair_type pair(record.gvid, local_graph.vertex_data(lvid));
+            vertex_exchange.send(proc, pair);
+          }
+        }
+        // Be sure to flush on the last vertex
+        if(lvid+1 == lvid2record.size()) vertex_exchange.flush();
+        // Receive any vertex data and update local mirrors
+        while(vertex_exchange.recv(sending_proc, recv_buffer)) {
+          foreach(const pair_type& pair, recv_buffer) 
+            vertex_data(pair.first) = pair.second;
+          recv_buffer.clear();
+        }
+      }
+      ASSERT_TRUE(vertex_exchange.empty());
+    } // end of synchronize
+
+
+
+
+
+
+    /** \ingroup graphlab_internal 
+     *  vertex type while provides access to local graph vertices.
+     */
+    struct local_vertex_type {
+      distributed_graph& g;
+      lvid_type lvid;
+
+      local_vertex_type(distributed_graph& g, lvid_type lvid):
+            g(g), lvid(lvid) { }
+
+      /// \brief Can be casted from local_vertex_type using an explicit cast
+      explicit local_vertex_type(vertex_type v) :g(v.g),lvid(g.lvid) { }
+      /// \brief Can be casted to vertex_type using an explicit cast
+      operator vertex_type() const {
+        return vertex_type(g, lvid);
+      }
+      
+      /// \brief Returns a reference to the data on the local vertex
+      const vertex_data_type& data() const {
+        return g.get_local_graph().vertex_data(lvid);
+      }
+
+      /// \brief Returns a reference to the data on the local vertex
+      vertex_data_type& data() {
+        return g.get_local_graph().vertex_data(lvid);
+      }
+
+      /** \brief Returns the number of in edges on the 
+       *         local graph of this local vertex
+       */
+      size_t num_in_edges() const {
+        return g.get_local_graph().num_in_edges(lvid);
+      }
+
+      /** \brief Returns the number of in edges on the 
+       *         local graph of this local vertex
+       */
+      size_t num_out_edges() const {
+        return g.get_local_graph().num_out_edges(lvid);
+      }
+
+      /// \brief Returns the local ID of this local vertex
+      lvid_type id() const {
+        return lvid;
+      }
+
+      /// \brief Returns the global ID of this local vertex
+      vertex_id_type global_id() const {
+        return g.global_vid(lvid);
+      }
+
+      /** \brief Returns a list of all in edges on the 
+       *         local graph of this local vertex
+       */
+      local_edge_list_type in_edges() {
+        return g.l_in_edges(lvid);
+      }
+
+      /** \brief Returns a list of all out edges on the 
+       *         local graph of this local vertex
+       */
+      local_edge_list_type out_edges() {
+        return g.l_out_edges(lvid);
+      }
+      
+      /** \brief Returns the vertex record of this
+       *         this local vertex
+       */
+      vertex_record& get_vertex_record() {
+        return g.l_get_vertex_record(lvid);
+      }
+    };
+
+    
+    /** \ingroup graphlab_internal 
+     *  edge type which provides access to local graph edges */
+    class local_edge_type {
+    private:
+      distributed_graph& g;
+      typename local_graph_type::edge_type e;
+    public:
+      local_edge_type(distributed_graph& g,
+                      typename local_graph_type::edge_type e): g(g), e(e) { }
+                      
+      /// \brief Can be converted from edge_type via an explicit cast
+      explicit local_edge_type(edge_type ge) :g(ge.g),e(ge.e) { }
+
+      /// \brief Can be casted to edge_type using an explicit cast
+      operator edge_type() const {
+        return edge_type(g, e);
+      }
+
+      /// \brief Returns the source local vertex of the edge
+      local_vertex_type source() { return local_vertex_type(g, e.source().id()); }
+      
+      /// \brief Returns the target local vertex of the edge
+      local_vertex_type target() { return local_vertex_type(g, e.target().id()); }
+      
+      
+      
+      /// \brief Returns a constant reference to the data on the vertex
+      const edge_data_type& data() const { return e.data(); }
+      
+      /// \brief Returns a reference to the data on the vertex
+      edge_data_type& data() { return e.data(); }
+      
+      /// \brief Returns the internal ID of this edge
+      edge_id_type id() const { return e.id(); }
+    }; 
+
+    /** \ingroup graphlab_internal 
+     * \brief A functor which converts local_graph_type::edge_type to
+     *        local_edge_type 
+     */
+    struct make_local_edge_type_functor {
+      typedef typename local_graph_type::edge_type argument_type;
+      typedef local_edge_type result_type;
+      distributed_graph& g;
+      make_local_edge_type_functor(distributed_graph& g):g(g) { }
+      result_type operator() (const argument_type et) const {
+        return local_edge_type(g, et);
+      }
+    };
+    
+
+    /** \ingroup graphlab_internal 
+     * \brief A list of edges. Used by l_in_edges() and l_out_edges() 
+     */
+    struct local_edge_list_type {
+      make_local_edge_type_functor me_functor;
+      typename local_graph_type::edge_list_type elist;
+      
+      typedef boost::transform_iterator<make_local_edge_type_functor,
+                                      typename local_graph_type::edge_list_type::iterator> iterator;
+      typedef iterator const_iterator;
+      
+      local_edge_list_type(distributed_graph& g,
+                           typename local_graph_type::edge_list_type elist) :
+                          me_functor(g), elist(elist) { }
+      /// \brief Returns the number of edges in the list
+      size_t size() const { return elist.size(); }
+      
+      /// \brief Random access to the list elements
+      local_edge_type operator[](size_t i) const { return me_functor(elist[i]); }
+      
+      /** \brief Returns an iterator to the beginning of the list. 
+       * 
+       * Returns an iterator to the beginning of the list. \see end()
+       * The iterator_type is local_edge_list_type::iterator.
+       * 
+       * \code
+       * local_edge_list_type::iterator iter = elist.begin();
+       * while(iter != elist.end()) {
+       *   ... [do stuff] ...
+       *   ++iter;
+       * }
+       * 
+      */
+      iterator begin() const { return
+          boost::make_transform_iterator(elist.begin(), me_functor); }
+          
+      /** \brief Returns an iterator to the end of the list. 
+       * 
+       * Returns an iterator to the end of the list. \see begin()
+       * The iterator_type is local_edge_list_type::iterator.
+       * 
+       * \code
+       * local_edge_list_type::iterator iter = elist.begin();
+       * while(iter != elist.end()) {
+       *   ... [do stuff] ...
+       *   ++iter;
+       * }
+       * 
+      */
+      iterator end() const { return
+          boost::make_transform_iterator(elist.end(), me_functor); }
+          
+      /// \brief Returns true if the list is empty
+      bool empty() const { return elist.empty(); }
+    }; 
   }; // End of graph
-
- 
 } // end of namespace graphlab
 #include <graphlab/macros_undef.hpp>
 

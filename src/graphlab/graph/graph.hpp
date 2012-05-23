@@ -69,12 +69,6 @@ namespace graphlab {
     
     typedef graph_storage<VertexData, EdgeData> gstore_type;
   public:
-
-    /// The type of a vertex is a simple size_t
-    typedef graphlab::vertex_id_type vertex_id_type;
-    
-    /// The type of an edge id 
-    typedef graphlab::edge_id_type edge_id_type;
     
     /** The type of the vertex data stored in the graph */
     typedef VertexData vertex_data_type;
@@ -93,10 +87,10 @@ namespace graphlab {
       typename gstore_type::edge_type e;
       edge_type(graph& g, typename gstore_type::edge_type e):g(g),e(e) { }
 
-      const edge_data_type data() const {
+      const edge_data_type& data() const {
         return g.gstore.edge_data(e);
       }
-      edge_data_type data() {
+      edge_data_type& data() {
         return g.gstore.edge_data(e);
       }
       vertex_type source() {
@@ -113,14 +107,14 @@ namespace graphlab {
     
     struct vertex_type {
       graph& g;
-      vertex_id_type vid;
-      vertex_type(graph& g, vertex_id_type vid):g(g),vid(vid) { }
+      lvid_type vid;
+      vertex_type(graph& g, lvid_type vid):g(g),vid(vid) { }
       
-      const vertex_data_type data() const {
+      const vertex_data_type& data() const {
         return g.vertex_data(vid);
       }
 
-      vertex_data_type data() {
+      vertex_data_type& data() {
         return g.vertex_data(vid);
       }
 
@@ -132,7 +126,7 @@ namespace graphlab {
         return g.num_out_edges(vid);
       }
 
-      vertex_id_type id() const {
+      lvid_type id() const {
         return vid;
       }
 
@@ -254,8 +248,8 @@ namespace graphlab {
         The value of the first element of the pair will be true if an 
         edge from src to target is found and false otherwise. If the 
         edge is found, the edge ID is returned in the second element of the pair. */
-    edge_type find(const vertex_id_type source,
-                   const vertex_id_type target) const {
+    edge_type find(const lvid_type source,
+                   const lvid_type target) const {
       return gstore.find(source, target);
     } // end of find
 
@@ -269,7 +263,7 @@ namespace graphlab {
      * of the new vertex id. Vertex ids are assigned in increasing order with
      * the first vertex having id 0.
      */
-    void add_vertex(vertex_id_type vid, 
+    void add_vertex(lvid_type vid, 
                     const VertexData& vdata = VertexData() ) {
         // logstream(LOG_INFO)
         //   << "Attempting add vertex to a finalized graph." << std::endl;
@@ -308,7 +302,7 @@ namespace graphlab {
      * \brief Creates an edge connecting vertex source to vertex target.  Any
      * existing data will be cleared.
      */
-    edge_id_type add_edge(vertex_id_type source, vertex_id_type target, 
+    edge_id_type add_edge(lvid_type source, lvid_type target, 
                           const EdgeData& edata = EdgeData()) {
       if (finalized) {
         logstream(LOG_FATAL)
@@ -335,8 +329,8 @@ namespace graphlab {
     /**
      * \brief Add edge in block
      */
-    void add_edges(const std::vector<vertex_id_type>& src_arr, 
-                   const std::vector<vertex_id_type>& dst_arr, 
+    void add_edges(const std::vector<lvid_type>& src_arr, 
+                   const std::vector<lvid_type>& dst_arr, 
                    const std::vector<EdgeData>& edata_arr) {
       ASSERT_TRUE((src_arr.size() == dst_arr.size())
                   && (src_arr.size() == edata_arr.size()));
@@ -346,8 +340,8 @@ namespace graphlab {
       }
 
       for (size_t i = 0; i < src_arr.size(); ++i) {
-        vertex_id_type source = src_arr[i];
-        vertex_id_type target = dst_arr[i];
+        lvid_type source = src_arr[i];
+        lvid_type target = dst_arr[i];
         if ( source >= vertices.size() 
              || target >= vertices.size() ) {
           logstream(LOG_FATAL) 
@@ -370,35 +364,35 @@ namespace graphlab {
     } // End of add block edges
 
 
-    vertex_type vertex(vertex_id_type vid) {
+    vertex_type vertex(lvid_type vid) {
       return vertex_type(*this, vid);
     }
     
-    const vertex_type vertex(vertex_id_type vid) const {
+    const vertex_type vertex(lvid_type vid) const {
       return vertex_type(*this, vid);
     }
     
     /** \brief Returns a reference to the data stored on the vertex v. */
-    VertexData& vertex_data(vertex_id_type v) {
+    VertexData& vertex_data(lvid_type v) {
       ASSERT_LT(v, vertices.size());
       return vertices[v];
     } // end of data(v)
     
     /** \brief Returns a constant reference to the data stored on the vertex v */
-    const VertexData& vertex_data(vertex_id_type v) const {
+    const VertexData& vertex_data(lvid_type v) const {
       ASSERT_LT(v, vertices.size());
       return vertices[v];
     } // end of data(v)
 
     /** \brief Returns a reference to the data stored on the edge source->target. */
-    EdgeData& edge_data(vertex_id_type source, vertex_id_type target) {
+    EdgeData& edge_data(lvid_type source, lvid_type target) {
       ASSERT_TRUE(finalized);
       return gstore.edge_data(source, target);
     } // end of edge_data(u,v)
     
     /** \brief Returns a constant reference to the data stored on the
         edge source->target */
-    const EdgeData& edge_data(vertex_id_type source, vertex_id_type target) const {
+    const EdgeData& edge_data(lvid_type source, lvid_type target) const {
       ASSERT_TRUE(finalized);
       return gstore.edge_data(source, target);
     } // end of edge_data(u,v)
@@ -417,21 +411,21 @@ namespace graphlab {
       return gstore.edge_id(edge.e);
     }
 
-    size_t num_in_edges(const vertex_id_type v) const {
+    size_t num_in_edges(const lvid_type v) const {
       ASSERT_TRUE(finalized);
       return gstore.num_in_edges(v);
     }
 
-    size_t num_out_edges(const vertex_id_type v) const {
+    size_t num_out_edges(const lvid_type v) const {
       ASSERT_TRUE(finalized);
       return gstore.num_out_edges(v);
     }
 
-    edge_list_type in_edges(vertex_id_type v) {
+    edge_list_type in_edges(lvid_type v) {
       return edge_list_type(*this, gstore.in_edges(v));
     }
 
-    edge_list_type out_edges(vertex_id_type v) {
+    edge_list_type out_edges(lvid_type v) {
       return edge_list_type(*this, gstore.out_edges(v));
     }
 
@@ -496,16 +490,16 @@ namespace graphlab {
 
 
 
-    const std::vector<vertex_id_type>& get_out_index_storage() const {
+    const std::vector<lvid_type>& get_out_index_storage() const {
       return gstore.get_csr_src();
     }
-    const std::vector<vertex_id_type>& get_in_index_storage() const {
+    const std::vector<lvid_type>& get_in_index_storage() const {
       return gstore.get_csc_dst(); 
     }
-    const std::vector<vertex_id_type>& get_out_edge_storage() const {
+    const std::vector<lvid_type>& get_out_edge_storage() const {
       return gstore.get_csr_dst();
     }
-    const std::vector<vertex_id_type>& get_in_edge_storage() const {
+    const std::vector<lvid_type>& get_in_edge_storage() const {
       return gstore.get_csc_src();
     }
 
@@ -559,11 +553,7 @@ namespace graphlab {
   template<typename VertexData, typename EdgeData>
   std::ostream& operator<<(std::ostream& out,
                            const graph<VertexData, EdgeData>& graph) {
-    typedef typename graphlab::graph<VertexData, EdgeData>::vertex_id_type
-      vertex_id_type;
-    typedef typename graphlab::graph<VertexData, EdgeData>::edge_id_type
-      edge_id_type;
-    for(vertex_id_type vid = 0; vid < graph.num_vertices(); ++vid) {
+    for(lvid_type vid = 0; vid < graph.num_vertices(); ++vid) {
       foreach(edge_id_type eid, graph.out_edge_ids(vid))
         out << vid << ", " << graph.target(eid) << '\n';      
     }

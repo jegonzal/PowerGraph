@@ -46,10 +46,6 @@ namespace graphlab {
     typedef VertexData vertex_data_type;
     /// The type of the edge data stored in the graph 
     typedef EdgeData   edge_data_type;
-    /// The type of a vertex is a simple size_t
-    typedef graphlab::vertex_id_type vertex_id_type;
-    /// Vertex record
-    typedef typename graph_type::lvid_type  lvid_type;
 
 
     typedef distributed_ingress_base<VertexData, EdgeData> base_type;
