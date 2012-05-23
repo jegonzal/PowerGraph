@@ -307,11 +307,11 @@ void calc_stats(testtype type){
  
  avgval /= numedges;
  avgtime /= numedges; 
- printf("%s Avg matrix value %g min val %g max value %g\n", testtypename[type],avgval, minval, maxval);
- printf("%s Avg time value %g min val %g max value %g\n", testtypename[type], avgtime, mintime, maxtime);
- printf("%s User without edges: %d movie without edges: %d\n", testtypename[type], userwithoutedges, moviewithoutedges);
+ printf("%s Avg rating: %g min rating: %g max rating: %g\n", testtypename[type],avgval, minval, maxval);
+ printf("%s Avg time:   %g min time:   %g max time:   %g\n", testtypename[type], avgtime, mintime, maxtime);
+ printf("%s User without ratings: %d item without ratings: %d\n", testtypename[type], userwithoutedges, moviewithoutedges);
  printf("%s Min V: %g Max V: %g Min U: %g, Max U: %g \n", testtypename[type], minV, maxV, minU, maxU);
- printf("%s Negative values: %u, Positive values: %u\n", testtypename[type], negativevals, positivevals);
+ printf("%s Negative ratings: %u, Positive ratings: %u\n", testtypename[type], negativevals, positivevals);
  //verify we did not miss any ratings (nnz values)
  switch(type){
    case TRAINING: assert(numedges==ps.L); break;

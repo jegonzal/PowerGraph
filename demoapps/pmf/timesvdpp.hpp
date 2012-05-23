@@ -239,8 +239,11 @@ void time_svd_plus_plus_update_function(gl_types_svdpp::iscope &scope,
   user.rmse = 0;
 
   gl_types_svdpp::edge_list outs = scope.out_edge_ids();
-  if (outs.size() == 0)
-     return;
+  if (outs.size() == 0){
+    if (id == ps.M-1)
+      time_svd_post_iter(); 
+      return;
+  }
 
   timer t;
   t.start(); 
@@ -248,34 +251,34 @@ void time_svd_plus_plus_update_function(gl_types_svdpp::iscope &scope,
 
 	unsigned int userRatings = outs.size(); //pUsersData[user_idx].ratings;
 	double rRuNum = 1/sqrt(userRatings+10);
-        int dim = ac.D;
-            double sumY = 0.0;
-           foreach(graphlab::edge_id_t oedgeid, outs){
-               vertex_data_svdpp &movie = scope.neighbor_vertex_data(scope.target(oedgeid));
-               sumY += sum(movie.weight); //y
-           }
-            graph_type_svdpp * validation = (graph_type_svdpp*)ps.g<graph_type_svdpp>(VALIDATION);
-            if (validation != NULL && validation->num_vertices() > 0){
-            foreach(graphlab::edge_id_t oedgeid, validation->out_edge_ids(id)){
-		vertex_data_svdpp & movie = validation->vertex_data(validation->target(oedgeid));
+  int dim = ac.D;
+  double sumY = 0.0;
+  foreach(graphlab::edge_id_t oedgeid, outs){
+		vertex_data_svdpp &movie = scope.neighbor_vertex_data(scope.target(oedgeid));
 		sumY += sum(movie.weight); //y
-            }
-            }
+  }
+            
+  graph_type_svdpp * validation = (graph_type_svdpp*)ps.g<graph_type_svdpp>(VALIDATION);
+  if (validation != NULL && validation->num_vertices() > 0){
+		foreach(graphlab::edge_id_t oedgeid, validation->out_edge_ids(id)){
+			vertex_data_svdpp & movie = validation->vertex_data(validation->target(oedgeid));
+			sumY += sum(movie.weight); //y
+		}
+  }
 	    
-            graph_type_svdpp * test = (graph_type_svdpp*)ps.g<graph_type_svdpp>(TEST);
-            if (test != NULL && test->num_vertices() > 0){
-            foreach(graphlab::edge_id_t oedgeid, test->out_edge_ids(id)){
-                //unsigned int item_idx = pItemRatings_validation[currentRatingIdx_val++].item;
-		vertex_data_svdpp & movie = test->vertex_data(test->target(oedgeid));
-                sumY += sum(movie.weight); //y
-            }
-            }
+  graph_type_svdpp * test = (graph_type_svdpp*)ps.g<graph_type_svdpp>(TEST);
+  if (test != NULL && test->num_vertices() > 0){
+		foreach(graphlab::edge_id_t oedgeid, test->out_edge_ids(id)){
+			vertex_data_svdpp & movie = test->vertex_data(test->target(oedgeid));
+			sumY += sum(movie.weight); //y
+		}
+  }
 
-            for( int k=0; k<dim; ++k) {
-                usr.ptemp[k] = usr.pu[k] + rRuNum * sumY; // pTemp = pu + rRuNum*sumY
-            }
-            vector<double> sum(dim, 0);
-            foreach(graphlab::edge_id_t oedgeid, outs) {
+   for( int k=0; k<dim; ++k) {
+     usr.ptemp[k] = usr.pu[k] + rRuNum * sumY; // pTemp = pu + rRuNum*sumY
+   }
+   vector<double> sum(dim, 0);
+   foreach(graphlab::edge_id_t oedgeid, outs) {
                 edge_data & edge = scope.edge_data(oedgeid);
                 float rui = edge.weight;
                 vertex_data_svdpp& movie = scope.neighbor_vertex_data(scope.target(oedgeid));
@@ -349,7 +352,7 @@ void time_svd_plus_plus_update_function(gl_types_svdpp::iscope &scope,
 
    ps.counter[EDGE_TRAVERSAL] += t.current_time();
 
-   if (scope.vertex() == (uint)(ps.M-1))
+   if (id == ps.M-1)
   	time_svd_post_iter();
  
 }
