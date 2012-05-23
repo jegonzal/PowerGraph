@@ -46,7 +46,7 @@
 #include <graphlab/rpc/request_issue.hpp>
 #include <graphlab/rpc/reply_increment_counter.hpp>
 #include <graphlab/rpc/function_ret_type.hpp>
-
+#include <graphlab/rpc/dc_compile_parameters.hpp>
 #include <graphlab/util/tracepoint.hpp>
 #include <graphlab/rpc/distributed_event_log.hpp>
 #include <boost/preprocessor.hpp>
@@ -97,9 +97,6 @@ struct dc_init_param{
   dc_comm_type commtype;    
 };
 
-#define DEFAULT_NUMHANDLERTHREADS 8
-#define DEFAULT_COMMTYPE TCP_COMM
-#define MAX_N_PROCS 64
 
 // forward declaration for dc services
 class dc_services;
@@ -186,7 +183,7 @@ class distributed_control{
              const std::string &initstring,
              procid_t curmachineid,
              size_t numhandlerthreads,
-             dc_comm_type commtype = DEFAULT_COMMTYPE);
+             dc_comm_type commtype = RPC_DEFAULT_COMMTYPE);
    
   /// a pointer to the communications subsystem
   dc_impl::dc_comm_base* comm; 
@@ -268,8 +265,8 @@ class distributed_control{
   distributed_control(const std::vector<std::string> &machines,
                       const std::string &initstring, 
                       procid_t curmachineid, 
-                      size_t numhandlerthreads = DEFAULT_NUMHANDLERTHREADS,
-                      dc_comm_type commtype = DEFAULT_COMMTYPE) {
+                      size_t numhandlerthreads = RPC_DEFAULT_NUMHANDLERTHREADS,
+                      dc_comm_type commtype = RPC_DEFAULT_COMMTYPE) {
     init(machines, initstring, curmachineid, numhandlerthreads, commtype);
   }
 

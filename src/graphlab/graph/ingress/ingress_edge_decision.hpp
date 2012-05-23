@@ -37,7 +37,7 @@ namespace graphlab {
     public:
       typedef graphlab::vertex_id_type vertex_id_type;
       typedef distributed_graph<VertexData, EdgeData> graph_type;
-      typedef fixed_dense_bitset<graph_type::MAX_MACHINES> bin_counts_type; 
+      typedef fixed_dense_bitset<RPC_MAX_N_PROCS> bin_counts_type; 
 
       PERMANENT_DECLARE_DIST_EVENT_LOG(eventlog);
       enum {

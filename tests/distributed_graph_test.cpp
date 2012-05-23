@@ -23,9 +23,9 @@ struct edge_data: public graphlab::IS_POD_TYPE  {
 struct edge_data_empty { };
 
 typedef graphlab::distributed_graph<vertex_data, edge_data> graph_type;
-typedef graph_type::local_edge_list_type edge_list_type;
-typedef graph_type::local_edge_type edge_type;
-typedef graph_type::local_vertex_type vertex_type;
+typedef graph_type::local_edge_list_type local_edge_list_type;
+typedef graph_type::local_edge_type local_edge_type;
+typedef graph_type::local_vertex_type local_vertex_type;
 
 
 
@@ -94,35 +94,35 @@ int main(int argc, char** argv) {
 
   printf("Test iterate over in/out_edges and get edge data: \n");
   for (vertex_id_type i = 0; i < num_vertices; ++i) {
-    vertex_type v = g.vertex(i);
-    const edge_list_type& out_edges = v.l_out_edges();
-    const edge_list_type& in_edges = v.l_in_edges();
+    local_vertex_type v = g.l_vertex(i);
+    const local_edge_list_type& out_edges = v.out_edges();
+    const local_edge_list_type& in_edges = v.in_edges();
 
     printf("Test v: %u\n", i);
     printf("In edge ids: ");
-    foreach(edge_type edge, in_edges)
+    foreach(local_edge_type edge, in_edges)
       std::cout << "(" << edge.data().from << ","
                 << edge.data().to << ") ";
     std::cout <<std::endl;
 
     printf("Out edge ids: ");
-    foreach(edge_type edge, out_edges)
+    foreach(local_edge_type edge, out_edges)
       std::cout << "(" << edge.data().from << ","
                 << edge.data().to << ") ";
     std::cout <<std::endl;
 
-    foreach(edge_type edge, out_edges) {
+    foreach(local_edge_type edge, out_edges) {
       edge_data edata = edge.data();
-      ASSERT_EQ(edge.source().id(), i);
-      ASSERT_EQ(edata.from, edge.source().id());
-      ASSERT_EQ(edata.to, edge.target().id());
+      ASSERT_EQ(edge.source().global_id(), i);
+      ASSERT_EQ(edata.from, edge.source().global_id());
+      ASSERT_EQ(edata.to, edge.target().global_id());
     }
 
-    foreach(edge_type edge, in_edges) {
+    foreach(local_edge_type edge, in_edges) {
       edge_data edata = edge.data();
-      ASSERT_EQ(edge.target().id(), i);
-      ASSERT_EQ(edata.from, edge.source().id());
-      ASSERT_EQ(edata.to, edge.target().id());
+      ASSERT_EQ(edge.target().global_id(), i);
+      ASSERT_EQ(edata.from, edge.source().global_id());
+      ASSERT_EQ(edata.to, edge.target().global_id());
     }
   }
   printf("+ Pass test: iterate edgelist and get data. :) \n");

@@ -404,7 +404,9 @@ void distributed_control::init(const std::vector<std::string> &machines,
             procid_t curmachineid,
             size_t numhandlerthreads,
             dc_comm_type commtype) {
-  
+  ASSERT_MSG(machines.size() <= RPC_MAX_N_PROCS, 
+             "Number of processes exceeded hard limit of %d", RPC_MAX_N_PROCS);
+    
   // initialize thread local storage
   if (dc_impl::thrlocal_resizing_array_key_initialized == false) {
     dc_impl::thrlocal_resizing_array_key_initialized = true;

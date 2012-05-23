@@ -27,10 +27,13 @@
 #include <stdint.h>
 
 namespace graphlab {
-  /// The type of a vertex 
+  /// Identifier type of a vertex which is globally consistent.
   typedef uint32_t vertex_id_type;
   
-  /// The type of an edge (to deprecate)
+  /// Identifier type of a vertex which is only locally consistent.
+  typedef uint32_t lvid_type;
+  
+  /// Identifier type of an edge which is only locally consistent.
   typedef uint32_t edge_id_type;
   
   /**
