@@ -425,8 +425,20 @@ void problem_setup::verify_setup(){
       if (tensor && ac.matrixmarket)
          K = ac.K; //set the number of time bins via command line for tensor read from matrix market file
 
-   if (boost::starts_with(ac.scheduler, "round_robin") && ac.algorithm == NMF)
-     logstream(LOG_FATAL)<<"For NMF please do not specify a scheduler using the command --scheduler" << std::endl;
+   if (!ac.unittest){
+		 if (boost::starts_with(ac.scheduler, "round_robin") && ac.algorithm == NMF)
+       logstream(LOG_FATAL)<<"For NMF please do not specify a scheduler using the command --scheduler" << std::endl;
+     else if (!boost::starts_with(ac.scheduler, "round_robin") && (ac.algorithm == BIAS_SGD || isals || ac.algorithm == RBM ||
+           ac.algorithm == STOCHASTIC_GRADIENT_DESCENT || ac.algorithm == TIME_SVD_PLUS_PLUS || ac.algorithm == SVD_PLUS_PLUS || tensor)){
+       logstream(LOG_FATAL)<<"Please use round robin scheduler for this algorithm using the command line: --scheduler=\"round_robin(max_iteration=XX,block_size=1)\" XX is the number of required iterations" << std::endl;
+
+     }
+   }
+
+   if (tensor && ac.matrixmarket && ac.matrixmarkettokensperrow == 3){
+     logstream(LOG_WARNING)<<"When running tensor based factorization, with matrix market input format, number of matrix market tokens per row should be 4 (each row has [from] [to] [val] [time]\\n format). Use the command line argument --matrix_market_tokens_per_row=4 to avoid this warning" << std::endl;
+     ac.matrixmarkettokensperrow = 4;
+   }
 
 }
 

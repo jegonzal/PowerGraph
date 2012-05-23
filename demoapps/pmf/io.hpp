@@ -65,7 +65,8 @@ void add_time_nodes(graph_type* _g){
 
 template<>
 void add_time_nodes<graph_type_svdpp,vertex_data_svdpp>(graph_type_svdpp* _g){
-    assert(ps.K > 1);
+    if (ps.K <= 1)
+      logstream(LOG_FATAL)<<"When running a time based algorithm, don't forget to specify the total number of time bins using --K=XX command, where XX is the number of time bins. Note that time binds start from zero and should be integer." << std::endl;
     ps.times_svdpp = new vertex_data_svdpp[ps.K];
     //add T time node (ps.tensor dim 3)
     for (int i=0; i<ps.K; i++){
@@ -113,12 +114,12 @@ void verify_edges(graph_type * _g, testtype data_type){
       assert(to >= ps.M && to < ps.M+ps.N);
 
       const edge_data & data = _g->edge_data(eid);
-	if (!ac.zero)
+	    if (!ac.zero)
           assert(data.weight != 0);  
-        if (ps.algorithm != WEIGHTED_ALS)
+      if (ps.tensor && ps.algorithm != WEIGHTED_ALS)
           assert(data.time < ps.K);
   
-        if (ps.K > 1 && data_type==TRAINING && ps.tensor)
+      if (ps.K > 1 && data_type==TRAINING && ps.tensor)
           edges[(int)data.time].push_back(eid);
     }
   }
