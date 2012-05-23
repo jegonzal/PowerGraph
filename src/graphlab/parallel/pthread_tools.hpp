@@ -252,22 +252,60 @@ namespace graphlab {
       ASSERT_TRUE(!error);
     }
     /// Like wait() but with a time limit of "sec" seconds
-    inline int timedwait(const mutex& mut, int sec) const {
+    inline int timedwait(const mutex& mut, size_t sec) const {
       struct timespec timeout;
       struct timeval tv;
       struct timezone tz;
       gettimeofday(&tv, &tz);
-      timeout.tv_nsec = 0;
-      timeout.tv_sec = tv.tv_sec + sec;
+      timeout.tv_nsec = tv.tv_usec * 1000;
+      timeout.tv_sec = tv.tv_sec + (time_t)sec;
       return pthread_cond_timedwait(&m_cond, &mut.m_mut, &timeout);
     }
-    /// Like wait() but with a time limit of "ns" nanoseconds
-    inline int timedwait_ns(const mutex& mut, int ns) const {
+    /// Like wait() but with a time limit of "ms" milliseconds
+    inline int timedwait_ms(const mutex& mut, size_t ms) const {
       struct timespec timeout;
       struct timeval tv;
       gettimeofday(&tv, NULL);
-      timeout.tv_nsec = (tv.tv_usec * 1000 + ns) % 1000000000;
-      timeout.tv_sec = tv.tv_sec + (tv.tv_usec * 1000 + ns >= 1000000000);
+      // convert ms to s and ns
+      size_t s = ms / 1000;
+      ms = ms % 1000;
+      size_t ns = ms * 1000000;
+      // convert timeval to timespec
+      timeout.tv_nsec = tv.tv_usec * 1000;
+      timeout.tv_sec = tv.tv_sec;
+      
+      // add the time
+      timeout.tv_nsec += (suseconds_t)ns;
+      timeout.tv_sec += (time_t)s;
+      // shift the nsec to sec if overflow
+      if (timeout.tv_nsec > 1000000000) {
+        timeout.tv_sec ++;
+        timeout.tv_nsec -= 1000000000;
+      }
+      return pthread_cond_timedwait(&m_cond, &mut.m_mut, &timeout);
+    }
+    /// Like wait() but with a time limit of "ns" nanoseconds
+    inline int timedwait_ns(const mutex& mut, size_t ns) const {
+      struct timespec timeout;
+      struct timeval tv;
+      gettimeofday(&tv, NULL);
+      assert(ns > 0);
+      // convert ns to s and ns
+      size_t s = ns / 1000000;
+      ns = ns % 1000000;
+
+      // convert timeval to timespec
+      timeout.tv_nsec = tv.tv_usec * 1000;
+      timeout.tv_sec = tv.tv_sec;
+      
+      // add the time
+      timeout.tv_nsec += (suseconds_t)ns;
+      timeout.tv_sec += (time_t)s;
+      // shift the nsec to sec if overflow
+      if (timeout.tv_nsec > 1000000000) {
+        timeout.tv_sec ++;
+        timeout.tv_nsec -= 1000000000;
+      }
       return pthread_cond_timedwait(&m_cond, &mut.m_mut, &timeout);
     }
     /// Signals one waiting thread to wake up

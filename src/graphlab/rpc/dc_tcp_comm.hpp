@@ -197,6 +197,9 @@ class dc_tcp_comm:public dc_comm_base {
     circular_iovec_buffer outvec;  /// outgoing data
     struct msghdr data; 
   };
+
+  mutex insock_lock; /// locks the insock field in socket_info
+  conditional insock_cond; /// triggered when the insock field in socket_info changes
   
   struct timeout_event {
     size_t sockstart;

@@ -31,12 +31,9 @@ typedef graph_type::local_vertex_type vertex_type;
 
 int main(int argc, char** argv) {
   graphlab::mpi_tools::init(argc, argv);
+  global_logger().set_log_level(LOG_INFO);
 
-  graphlab::dc_init_param param;
-  if (graphlab::init_param_from_mpi(param) == false) {
-    return 0;
-  }
-  graphlab::distributed_control dc(param);
+  graphlab::distributed_control dc;
   graph_type g(dc);
 
   std::cout << "-----------Begin Grid Test: Object Accessors--------------------" << std::endl;
