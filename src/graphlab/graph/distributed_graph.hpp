@@ -173,96 +173,6 @@ namespace graphlab {
       edge_data_type& data() { return e.data(); }
     }; 
 
-
-    /**
-     * \ingroup graphlab_internal
-     * The vertex record stores information associated with each
-     * vertex on this proc
-     */
-    struct vertex_record {
-      /// The official owning processor for this vertex
-      procid_t owner; 
-      /// The local vid of this vertex on this proc
-      vertex_id_type gvid;
-      /// The number of in edges
-      vertex_id_type num_in_edges, num_out_edges;
-      /** The set of proc that mirror this vertex.  The owner should
-          NOT be in this set.*/
-      mirror_type _mirrors;
-      vertex_record() : 
-        owner(-1), gvid(-1), num_in_edges(0), num_out_edges(0) { }
-      vertex_record(const vertex_id_type& vid) : 
-        owner(-1), gvid(vid), num_in_edges(0), num_out_edges(0) { }
-      procid_t get_owner () const { return owner; }
-      const mirror_type& mirrors() const { return _mirrors; }
-      size_t num_mirrors() const { return _mirrors.popcount(); }
-
-      void clear() {
-        _mirrors.clear();
-      }
-
-      void load(iarchive& arc) {
-        clear();
-        arc >> owner
-            >> gvid
-            >> num_in_edges
-            >> num_out_edges
-            >> _mirrors;
-      }
-
-      void save(oarchive& arc) const {
-        arc << owner
-            << gvid
-            << num_in_edges
-            << num_out_edges
-            << _mirrors;
-      } // end of save
-    }; // end of vertex_record
-
-
-
-
-    /// The master vertex record map
-    // typedef boost::unordered_map<vertex_id_type, vertex_record>  vid2record_type;
-    typedef std::vector<vertex_record> lvid2record_type;
-
-  private:
-      
-    // PRIVATE DATA MEMBERS ===================================================> 
-    /** The rpc interface for this class */
-    mutable dc_dist_object<distributed_graph> rpc;
-
-    bool finalized;
-
-    /** The local graph data */
-    local_graph_type local_graph;
-    
-    /** The map from global vertex ids to vertex records */
-    lvid2record_type lvid2record;
-    
-    /** The map from global vertex ids back to local vertex ids */
-    // boost::unordered_map<vertex_id_type, lvid_type> vid2lvid;
-    typedef cuckoo_map_pow2<vertex_id_type, lvid_type, 3, uint32_t> cuckoo_map_type;
-    cuckoo_map_type vid2lvid;
-
-        
-    /** The global number of vertices and edges */
-    size_t nverts, nedges;
-
-    /** The number of vertices owned by this proc */
-    size_t local_own_nverts;
-
-    /** The global number of vertex replica */
-    size_t nreplicas;
-
-    /** The beginning edge id for this machine */
-    size_t begin_eid;
-
-    /** pointer to the distributed ingress object*/
-    idistributed_ingress<VertexData, EdgeData>* ingress_ptr; 
-
-  public:
-
     // CONSTRUCTORS ==========================================================>
     distributed_graph(distributed_control& dc, 
                       const graphlab_options& opts = graphlab_options() ) : 
@@ -504,6 +414,55 @@ namespace graphlab {
  * underlying graph representation. They should not be used unless you      *
  * *really* know what you are doing.                                        *
  ****************************************************************************/
+
+
+    /**
+     * \ingroup graphlab_internal
+     * The vertex record stores information associated with each
+     * vertex on this proc
+     */
+    struct vertex_record {
+      /// The official owning processor for this vertex
+      procid_t owner; 
+      /// The local vid of this vertex on this proc
+      vertex_id_type gvid;
+      /// The number of in edges
+      vertex_id_type num_in_edges, num_out_edges;
+      /** The set of proc that mirror this vertex.  The owner should
+          NOT be in this set.*/
+      mirror_type _mirrors;
+      vertex_record() : 
+        owner(-1), gvid(-1), num_in_edges(0), num_out_edges(0) { }
+      vertex_record(const vertex_id_type& vid) : 
+        owner(-1), gvid(vid), num_in_edges(0), num_out_edges(0) { }
+      procid_t get_owner () const { return owner; }
+      const mirror_type& mirrors() const { return _mirrors; }
+      size_t num_mirrors() const { return _mirrors.popcount(); }
+
+      void clear() {
+        _mirrors.clear();
+      }
+
+      void load(iarchive& arc) {
+        clear();
+        arc >> owner
+            >> gvid
+            >> num_in_edges
+            >> num_out_edges
+            >> _mirrors;
+      }
+
+      void save(oarchive& arc) const {
+        arc << owner
+            << gvid
+            << num_in_edges
+            << num_out_edges
+            << _mirrors;
+      } // end of save
+    }; // end of vertex_record
+
+
+
 
     /** \ingroup graphlab_internal 
      * \brief converts a local vertex ID to a local vertex object
@@ -874,6 +833,42 @@ namespace graphlab {
       /// \brief Returns true if the list is empty
       bool empty() const { return elist.empty(); }
     }; 
+    
+
+  private:
+      
+    // PRIVATE DATA MEMBERS ===================================================> 
+    /** The rpc interface for this class */
+    mutable dc_dist_object<distributed_graph> rpc;
+
+    bool finalized;
+
+    /** The local graph data */
+    local_graph_type local_graph;
+    
+    /** The map from global vertex ids to vertex records */
+    std::vector<vertex_record>  lvid2record;
+    
+    // boost::unordered_map<vertex_id_type, lvid_type> vid2lvid;
+    /** The map from global vertex ids back to local vertex ids */
+    typedef cuckoo_map_pow2<vertex_id_type, lvid_type, 3, uint32_t> cuckoo_map_type;
+    cuckoo_map_type vid2lvid;
+
+        
+    /** The global number of vertices and edges */
+    size_t nverts, nedges;
+
+    /** The number of vertices owned by this proc */
+    size_t local_own_nverts;
+
+    /** The global number of vertex replica */
+    size_t nreplicas;
+
+    /** The beginning edge id for this machine */
+    size_t begin_eid;
+
+    /** pointer to the distributed ingress object*/
+    idistributed_ingress<VertexData, EdgeData>* ingress_ptr; 
   }; // End of graph
 } // end of namespace graphlab
 #include <graphlab/macros_undef.hpp>
