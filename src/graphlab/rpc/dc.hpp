@@ -261,18 +261,9 @@ class distributed_control{
   DECLARE_TRACER(dc_call_dispatch);
  public:
    
-
+  distributed_control();
   
-  distributed_control(dc_init_param initparam) {
-    init(initparam.machines, 
-         initparam.initstring, 
-         initparam.curmachineid, 
-         initparam.numhandlerthreads,
-         initparam.commtype);
-    INITIALIZE_TRACER(dc_receive_queuing, "dc: time spent on enqueue");
-    INITIALIZE_TRACER(dc_receive_multiplexing, "dc: time spent exploding a chunk");
-    INITIALIZE_TRACER(dc_call_dispatch, "dc: time spent issuing RPC calls");
-  }
+  distributed_control(dc_init_param initparam);
 
   distributed_control(const std::vector<std::string> &machines,
                       const std::string &initstring, 

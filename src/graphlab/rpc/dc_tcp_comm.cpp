@@ -112,20 +112,22 @@ namespace graphlab {
       } else {
         open_listening();
       }
-      
       for(size_t i = 0;i < nprocs; ++i) connect(i); 
       // wait for all incoming connections
+      insock_lock.lock();
       while(1) {
-        compile_barrier();
         size_t connected = 0;
         for (size_t i = 0;i < sock.size(); ++i) {
           connected += (sock[i].insock != -1);
         }
-        if (connected == sock.size()) break;
+        if (connected == sock.size()) {
+          break;
+        }
         logstream(LOG_INFO) << "Waiting for " << sock.size() - connected 
                             << " more hosts..." << std::endl;
-        my_sleep(1);
+        insock_cond.wait(insock_lock);
       }
+      insock_lock.unlock();
       
       // everyone is connected.
       // Construct the eventbase
@@ -345,7 +347,10 @@ namespace graphlab {
       ASSERT_LT(id, all_addrs.size());
       ASSERT_EQ(all_addrs[id], addr);
       ASSERT_EQ(sock[id].insock, -1);
+      insock_lock.lock();
       sock[id].insock = newsock;
+      insock_cond.signal();
+      insock_lock.unlock();
       logstream(LOG_INFO) << "Proc " << procid() << " accepted connection "
                           << "from machine " << id << std::endl;
     }

@@ -46,6 +46,9 @@
 #include <graphlab/rpc/reply_increment_counter.hpp>
 #include <graphlab/rpc/dc_services.hpp>
 
+#include <graphlab/rpc/dc_init_from_env.hpp>
+#include <graphlab/rpc/dc_init_from_mpi.hpp>
+
 namespace graphlab {
 
 namespace dc_impl {
@@ -130,6 +133,36 @@ static std::string get_working_dir() {
 #endif
   return ret;
 }
+
+
+distributed_control::distributed_control() {
+  dc_init_param initparam;
+  if (init_param_from_env(initparam)) {
+    logstream(LOG_INFO) << "Distributed Control Initialized from Environment" << std::endl;
+  } else if (init_param_from_mpi(initparam)) {
+      logstream(LOG_INFO) << "Distributed Control Initialized from MPI" << std::endl;
+  }
+  init(initparam.machines, 
+        initparam.initstring, 
+        initparam.curmachineid, 
+        initparam.numhandlerthreads,
+        initparam.commtype);
+  INITIALIZE_TRACER(dc_receive_queuing, "dc: time spent on enqueue");
+  INITIALIZE_TRACER(dc_receive_multiplexing, "dc: time spent exploding a chunk");
+  INITIALIZE_TRACER(dc_call_dispatch, "dc: time spent issuing RPC calls");
+}
+
+distributed_control::distributed_control(dc_init_param initparam) {
+  init(initparam.machines, 
+        initparam.initstring, 
+        initparam.curmachineid, 
+        initparam.numhandlerthreads,
+        initparam.commtype);
+  INITIALIZE_TRACER(dc_receive_queuing, "dc: time spent on enqueue");
+  INITIALIZE_TRACER(dc_receive_multiplexing, "dc: time spent exploding a chunk");
+  INITIALIZE_TRACER(dc_call_dispatch, "dc: time spent issuing RPC calls");
+}
+
 
 distributed_control::~distributed_control() {
   PERMANENT_DESTROY_DIST_EVENT_LOG(eventlog);
@@ -404,7 +437,6 @@ void distributed_control::init(const std::vector<std::string> &machines,
 
   if (commtype == TCP_COMM) {
     comm = new dc_impl::dc_tcp_comm();
-    std::cerr << "TCP Communication layer constructed." << std::endl;
   }
 /*  else if (commtype == SCTP_COMM) {
     #ifdef HAS_SCTP
@@ -441,11 +473,10 @@ void distributed_control::init(const std::vector<std::string> &machines,
   
   // construct the services
   distributed_services = new dc_services(*this);
-  
   // start the machines
   comm->init(machines, options, curmachineid, 
               receivers, senders);
-
+  std::cerr << "TCP Communication layer constructed." << std::endl;
   compute_master_ranks();
   
 #ifdef USE_EVENT_LOG

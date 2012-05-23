@@ -114,8 +114,8 @@ namespace graphlab {
 
 
   void dist_event_log::destroy() {
-    finished = true;
     m.lock();
+    finished = true;
     cond.signal();
     m.unlock();
     printing_thread.join();
@@ -392,10 +392,8 @@ namespace graphlab {
         cond.wait(m);
       }
       else {
-        m.unlock();
-        my_sleep_ms(flush_interval);
-        m.lock();
-        if (flush_interval > 0) flush();
+        cond.timedwait_ns(m, flush_interval * 1000000);
+        flush();
       }
     }
     m.unlock();
