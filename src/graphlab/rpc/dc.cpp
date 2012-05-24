@@ -145,9 +145,14 @@ distributed_control::distributed_control() {
   }
   else {
     logstream(LOG_INFO) << "Shared Memory Execution" << std::endl;
-    // shared memory!
-    initparam.machines.push_back("localhost:10000");
+    // get a port and socket
+    std::pair<size_t, int> port_and_sock = get_free_tcp_port();
+    size_t port = port_and_sock.first;
+    int sock = port_and_sock.second;
+
+    initparam.machines.push_back(std::string("localhost:") + tostr(port));
     initparam.curmachineid = 0;
+    initparam.initstring = std::string(" __sockhandle__=") + tostr(sock) + " ";
     initparam.numhandlerthreads = RPC_DEFAULT_NUMHANDLERTHREADS;
     initparam.commtype = RPC_DEFAULT_COMMTYPE;
   }
