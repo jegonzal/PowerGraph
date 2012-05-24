@@ -598,6 +598,14 @@ namespace graphlab {
       return lvid2record[lvid].owner == rpc.procid();
     }
 
+    /** \ingroup graphlab_internal 
+     * \brief Returns the master procid for vertex lvid.
+     */
+    procid_t l_master(lvid_type lvid) const {
+      ASSERT_LT(lvid, lvid2record.size());
+      return lvid2record[lvid].owner;
+    }
+
 
     /** \ingroup graphlab_internal
      *  \brief Returns a reference to the internal graph representation

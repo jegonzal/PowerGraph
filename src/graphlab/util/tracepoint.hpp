@@ -6,6 +6,7 @@
 #include <graphlab/util/timer.hpp>
 #include <graphlab/util/branch_hints.hpp>
 #include <graphlab/parallel/atomic.hpp>
+#include <graphlab/parallel/atomic_ops.hpp>
 
 namespace graphlab{
 
