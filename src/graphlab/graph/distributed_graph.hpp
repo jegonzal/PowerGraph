@@ -96,6 +96,8 @@ namespace graphlab {
     friend class distributed_batch_ingress<VertexData, EdgeData>;
     friend class distributed_oblivious_ingress<VertexData, EdgeData>;
 
+    typedef graphlab::vertex_id_type vertex_id_type;
+    typedef graphlab::edge_id_type edge_id_type;
     
     struct vertex_type;
     typedef bool edge_list_type;  

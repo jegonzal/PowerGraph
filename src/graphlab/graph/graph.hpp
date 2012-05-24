@@ -77,6 +77,9 @@ namespace graphlab {
     typedef EdgeData edge_data_type;
 
     typedef typename gstore_type::edge_info edge_info;
+
+    typedef graphlab::vertex_id_type vertex_id_type;
+    typedef graphlab::edge_id_type edge_id_type;
     
     struct edge_type;
     struct vertex_type;

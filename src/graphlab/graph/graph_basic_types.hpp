@@ -27,13 +27,13 @@
 #include <stdint.h>
 
 namespace graphlab {
-  /// Identifier type of a vertex which is globally consistent.
+  /// Identifier type of a vertex which is globally consistent. Guaranteed to be integral
   typedef uint32_t vertex_id_type;
   
-  /// Identifier type of a vertex which is only locally consistent.
+  /// Identifier type of a vertex which is only locally consistent. Guaranteed to be integral
   typedef uint32_t lvid_type;
   
-  /// Identifier type of an edge which is only locally consistent.
+  /// Identifier type of an edge which is only locally consistent. Guaranteed to be integral
   typedef uint32_t edge_id_type;
   
   /**
