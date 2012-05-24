@@ -155,6 +155,14 @@ namespace graphlab {
       edge_list_type out_edges() __attribute__ ((noreturn)) {
         ASSERT_TRUE(false);
       }
+
+      /** \ingroup graphlab_internal
+       *  \brief Returns the local ID of the vertex
+       */
+      lvid_type local_id() const {
+        return lvid;
+      }
+      
     };
 
     
