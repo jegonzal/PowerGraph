@@ -550,9 +550,14 @@ namespace graphlab {
       return local_graph.num_out_edges(lvid);
     }
     
+    procid_t procid() const {
+      return rpc.procid();
+    }
 
 
-
+    procid_t numprocs() const {
+      return rpc.numprocs();
+    }
 
     /** \ingroup graphlab_internal 
      * \brief Returns the internal vertex record of a given global vertex ID
@@ -664,7 +669,7 @@ namespace graphlab {
             g(g), lvid(lvid) { }
 
       /// \brief Can be casted from local_vertex_type using an explicit cast
-      explicit local_vertex_type(vertex_type v) :g(v.g),lvid(g.lvid) { }
+      explicit local_vertex_type(vertex_type v) :g(v.g),lvid(v.lvid) { }
       /// \brief Can be casted to vertex_type using an explicit cast
       operator vertex_type() const {
         return vertex_type(g, lvid);

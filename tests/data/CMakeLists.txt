@@ -1,4 +1,4 @@
 project(tests)
 
-copy_files(*.tsv)
+copy_files(*)
 

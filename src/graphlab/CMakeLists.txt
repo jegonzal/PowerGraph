@@ -30,6 +30,7 @@ add_library(graphlab STATIC
   util/timer.cpp
   util/generics/any.cpp
   util/generics/any_vector.cpp
+  util/hdfs.cpp
   logger/logger.cpp
   logger/assertions.cpp
   parallel/pthread_tools.cpp

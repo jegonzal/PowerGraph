@@ -130,6 +130,8 @@ namespace graphlab {
     } // end of list_files
 
     inline static bool has_hadoop() { return true; }
+    
+    static hdfs& get_hdfs();
   }; // end of class hdfs
 #else
 
@@ -186,11 +188,12 @@ namespace graphlab {
 
     // No hadoop available
     inline static bool has_hadoop() { return false; }
+    
+    static hdfs& get_hdfs();
   }; // end of class hdfs
 
 
 #endif
-
 
 }; // end of namespace graphlab
 #endif

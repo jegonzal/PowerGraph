@@ -64,7 +64,7 @@ namespace graphlab {
     
     class atomic_box_type {
     private:
-      spinlock lock;
+      simple_spinlock lock;
       bool _empty;
       value_type value;
     public:
