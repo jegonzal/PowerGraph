@@ -100,7 +100,7 @@ namespace graphlab {
     graph_type& graph;
     //! local threads object
     thread_pool threads;
-
+    graphlab::barrier thread_barrier;
 
     size_t max_iterations;
 
@@ -110,12 +110,20 @@ namespace graphlab {
     graphlab::timer timer;
 
 
-    std::vector<spinlock>    vlocks;
+    std::vector<mutex>    vlocks;
     std::vector<vertex_program_type> vertex_programs;
-    atomic_add_vector<message_type> messages;   
-    atomic_add_vector<gather_type>  gather_cache;
-    dense_bitset             active_vertices;
-    dense_bitset             active_next;      
+    std::vector<message_type> messages;
+    dense_bitset              has_message;
+
+    std::vector<gather_type>  gather_cache;
+    dense_bitset              has_cache;
+
+    std::vector<gather_type>  gather_accum;
+
+    
+
+    dense_bitset             active_superstep;
+    dense_bitset             active_minorstep;      
 
     atomic<size_t> completed_tasks;
     
@@ -124,30 +132,27 @@ namespace graphlab {
     typedef std::pair<vertex_id_type, vertex_program_type> vid_prog_pair_type;
     typedef buffered_exchange<vid_prog_pair_type> vprog_exchange_type;
     vprog_exchange_type vprog_exchange;
-
     // Exchange used to swap vertex data between machines
     typedef std::pair<vertex_id_type, vertex_data_type> vid_vdata_pair_type;
     typedef buffered_exchange<vid_vdata_pair_type> vdata_exchange_type;
     vdata_exchange_type vdata_exchange;
+    // Exchange used to transfer gather data
+    typedef std::pair<vertex_id_type, gather_type> vid_gather_pair_type;
+    typedef buffered_exchange<vid_gather_pair_type> gather_exchange_type;
+    gather_exchange_type gather_exchange;
+    // Exchange used to transfer message data
+    typedef std::pair<vertex_id_type, gather_type> vid_message_pair_type;
+    typedef buffered_exchange<vid_message_pair_type> message_exchange_type;
+    message_exchange_type message_exchange;
 
-
-
-
-    // PERMANENT_DECLARE_DIST_EVENT_LOG(eventlog);
-    // enum event_log_events {
-    //   SCHEDULE_EVENT = 0,
-    //   UPDATE_EVENT = 1,
-    //   USER_OP_EVENT = 2,
-    //   ENGINE_START_EVENT = 3,
-    //   ENGINE_STOP_EVENT = 4,     
-    // };    
 
     
   public:
     synchronous_engine(distributed_control &dc, 
                        graph_type& graph,
                        size_t ncpus) : 
-      rmi(dc, this), graph(graph), threads(ncpus), max_iterations(-1) {
+      rmi(dc, this), graph(graph), threads(ncpus), thread_barrier(ncpus), 
+      max_iterations(-1) {
       rmi.barrier();
     } // end of synchronous engine
 
@@ -164,12 +169,14 @@ namespace graphlab {
       vlocks.resize(graph.num_local_vertices());
       vertex_programs.resize(graph.num_local_vertices());
       messages.resize(graph.num_local_vertices());
+      has_message.resize(graph.num_local_vertices());
       gather_cache.resize(graph.num_local_vertices());
-      active_vertices.resize(graph.num_local_vertices());
-      active_vertices.clear();
-      active_next.resize(graph.num_local_vertices());
-      active_next.clear();
+      has_cache.resize(graph.num_local_vertices());
 
+      active_superstep.resize(graph.num_local_vertices());
+      active_superstep.clear();
+      active_minorstep.resize(graph.num_local_vertices());
+      active_minorstep.clear();
       if (rmi.procid() == 0) 
         memory_info::print_usage("After Engine Initialization");
       rmi.barrier();
@@ -228,7 +235,6 @@ namespace graphlab {
      * true or the scheduler has no tasks remaining.
      */
     void start() {
-
       // Initialization code ==================================================     
       // Reset event log counters? 
       rmi.dc().flush_counters();
@@ -240,116 +246,39 @@ namespace graphlab {
       for (size_t iteration = 0; iteration < max_iterations; ++iteration) {
         if (rmi.procid() == 0) 
           std::cout << "Starting iteration: " << iteration << std::endl;
+        exchange_messages();
         receive_messages();
         execute_gathers();
-        
-        
-        
+        execute_applys();
+        execute_scatters();        
       }
     } // end of start
 
-
-
-
-
   private:
-
-    // Data Synchronization ===================================================
-
-    /**
-     * Synchronize the vertex program with its mirrors
-     */
-    void send_vertex_program(lvid_type lvid) {
-      ASSERT_TRUE(graph.l_is_master(lvid));
-      const vertex_id_type vid = graph.global_vid(lvid);
-      foreach(const procid_t& mirror, graph.l_mirrors(lvid)) {
-        vprog_exchange.send(mirror, 
-                            std::make_pair(vid, vertex_programs[lvid]));
-      }
-    } // end of send_vertex_program
-
-    /**
-     * Recv any inbound vertex program data.  If a vertex program is
-     * received then the vertex enters the active state.
-     */
-    void recv_vertex_programs() {
-      procid_t procid(-1);
-      typename vprog_exchange_type::buffer_type buffer;
-      while(vprog_exchange(procid, buffer)) {
-        foreach(const vid_prog_pair_type& pair, buffer) {
-          const lvid_type lvid = graph.local_vid(pair.first);
-          ASSERT_LT(lvid, vertex_programs.size());
-          ASSERT_FALSE(graph.l_is_master(lvid));
-          vertex_programs[lvid] = pair.second;
-          active_next.set_bit(lvid);
-        }
-      }
-    } // end of recv vertex programs
-
-
-
-
-    /**
-     * Synchronize the vertex data with its mirrors
-     */
-    void send_vertex_data(lvid_type lvid) {
-      ASSERT_TRUE(graph.l_is_master(lvid));
-      const vertex_id_type vid = graph.global_vid(lvid);
-      foreach(const procid_t& mirror, graph.l_mirrors(lvid)) {
-        vdata_exchange.send(mirror, 
-                            std::make_pair(vid, graph.l_vertex_data(lvid)));
-      }
-    } // end of send_vertex_data
-
-
-    /**
-     * Recv any inbound vertex data.
-     */
-    void recv_vertex_data() {
-      procid_t procid(-1);
-      typename vdata_exchange_type::buffer_type buffer;
-      while(vdata_exchange(procid, buffer)) {
-        foreach(const vid_vdata_pair_type& pair, buffer) {
-          const lvid_type lvid = graph.local_vid(pair.first);
-          ASSERT_LT(lvid, graph.num_local_vertices());
-          ASSERT_FALSE(graph.l_is_master(lvid));
-          graph.l_vertex_data(lvid) = pair.second;
-        }
-      }
-    } // end of recv vertex programs
-
-
-
 
 
     // Program Steps ==========================================================
     
-    /**
-     * Initiailze vertex programs
-     */
     void initialize_vertex_programs() {
       // launch the initialization threads
-      graphlab::barrier barrier(threads.size());
       for(size_t i = 0; i < threads.size(); ++i) {
         threads.launch(boost::bind(&synchronous_engine::
                                    initialize_vertex_programs,
-                                   this, i, &barrier));
+                                   this, i));
       }
       // Wait for all threads to finish
       threads.join();
       // Initializing the vertex programs activates all the vertices
       // However in this case we don't want to activate the vertices
       // so we clear the active vertices before proceeding
-      active_next.clear();
+      active_minorstep.clear();
       rmi.barrier();
+      ASSERT_TRUE(vprog_exchange.empty());
+      ASSERT_TRUE(vdata_exchange.empty());
     } // end of initialize_vertex_programs
 
 
-    /**
-     * Initialize the vertex programs in parallel
-     */
-    void initialize_vertex_programs(size_t thread_id, 
-                                    barrier* barrier_ptr) {
+    void initialize_vertex_programs(size_t thread_id) {
       // For now we are using the engine as the context interface
       context_type context(*this, graph);
       for(lvid_type lvid = thread_id; lvid < graph.num_local_vertices(); 
@@ -357,110 +286,348 @@ namespace graphlab {
         if(graph.l_is_master(lvid)) {          
           local_vertex_type local_vertex = graph.l_vertex(lvid);
           vertex_programs[lvid].init(context, vertex_type(local_vertex));
-          send_vertex_program(lvid);
+          // send the vertex program and vertex data to all mirrors
+          sync_vertex_program(lvid); sync_vertex_data(lvid);
         }
+        // recv_vertex_programs(); recv_vertex_data();
       }
       // Flush the buffer and finish receiving any remaining vertex
       // programs.
-      if(thread_id == 0) vprog_exchange.flush();
-      barrier_ptr->wait();
+      thread_barrier.wait();
+      if(thread_id == 0) { vprog_exchange.flush(); vdata_exchange.flush(); }
+      thread_barrier.wait();
       recv_vertex_programs();
+      recv_vertex_data();
     } // end of initialize_vertex_programs
 
 
 
 
 
-
-    /**
-     * Receive all messages
-     * Preconditions:
-     *   1) Active vertices is empty
-     *   2) messages contains the messages to this iteration
-     * Postconditions:
-     *   1) vertex programs have received messages
-     *   2) active vertices has been set
-     *   3) their are no messages
-     */
-    void receive_messages() {  
-      graphlab::barrier barrier(threads.size());
+    void exchange_messages() {  
       for(size_t i = 0; i < threads.size(); ++i) {
-        threads.launch(boost::bind(&synchronous_engine::receive_messages,
-                                   this, i, &barrier));
+        threads.launch(boost::bind(&synchronous_engine::exchange_messages,
+                                   this, i));
       }
       // Wait for all threads to finish
       threads.join();
       rmi.barrier();
-    } // end of receive messages
+    } // end of execute_messages
 
-    /**
-     * Thread local receive message code
-     */
-    void receive_messages(size_t thread_id, barrier* barrier_ptr) {      
-      message_type message;
+
+    void exchange_messages(size_t thread_id) {
       context_type context(*this, graph);
       for(lvid_type lvid = thread_id; lvid < graph.num_local_vertices(); 
           lvid += threads.size()) {
-        if(graph.l_is_master(lvid) && message.test_and_get(lvid, message)) {         
-          active_vertices.set_bit(lvid);
+        // if the vertex is not local and has a message send the
+        // message and clear the bit
+        if(!graph.l_is_master(lvid) && has_message.get(lvid)) {
+          send_message(lvid, messages[lvid]); 
+          has_message.clear(lvid);
+          messages[lvid] = message_type();
+        }
+      } // end of loop over vertices to send messages
+      // Finish sending and receiving all messages
+      thread_barrier.wait();
+      if(thread_id == 0) message_exchange.flush(); 
+      thread_barrier.wait();
+      recv_messages();
+    } // end of execute_applys
+
+
+
+
+
+
+
+    void receive_messages() {  
+      // Clear any active vertices at the beginning of this iteration
+      active_superstep.clear(); active_minorstep.clear();
+      for(size_t i = 0; i < threads.size(); ++i)
+        threads.launch(boost::bind(&synchronous_engine::receive_messages,
+                                   this, i));
+      // Wait for all threads to finish
+      threads.join();
+      rmi.barrier();
+      ASSERT_TRUE(vprog_exchange.empty());
+    } // end of receive messages
+
+
+    void receive_messages(size_t thread_id) {
+      context_type context(*this, graph);
+      for(lvid_type lvid = thread_id; lvid < graph.num_local_vertices(); 
+          lvid += threads.size()) {
+        // if this is the master of lvid and we have a message
+        if(graph.l_is_master(lvid) && has_message.get(lvid)) {
+          // The vertex becomes active for this superstep 
+          active_superstep.set_bit(lvid);
+          // Pass the message to the vertex program
           local_vertex_type local_vertex = graph.l_vertex(lvid);
           vertex_programs[lvid].recv_message(context, 
                                              vertex_type(local_vertex), 
-                                             message);
-          if(vertex_programs[lvid].gather_edges() != graphlab::NO_EDGES &&
-             gather_cache.empty(lvid)) {
-            active_next.set_bit(lvid);
-            send_vertex_program(lvid);
-          }          
+                                             messages[lvid]);
+          // clear the message for future accumulation
+          messages[lvid] = message_type();
+          // Determine if the gather should be run
+          if(vertex_programs[lvid].gather_edges() != graphlab::NO_EDGES) {
+            active_minorstep.set_bit(lvid);
+            sync_vertex_program(lvid);
+          }  
         }
+        // recv_vertex_programs();
       }
       // Flush the buffer and finish receiving any remaining vertex
       // programs.
+      thread_barrier.wait();
       if(thread_id == 0) vprog_exchange.flush();
-      barrier_ptr->wait();
+      thread_barrier.wait();
       recv_vertex_programs();
     } // end of receive messages
 
 
-
-
-
-
-    /**
-     * Execute gather operations
-     */
     void execute_gathers() {  
-      graphlab::barrier barrier(threads.size());
-      for(size_t i = 0; i < threads.size(); ++i) {
+      for(size_t i = 0; i < threads.size(); ++i) 
         threads.launch(boost::bind(&synchronous_engine::execute_gathers,
-                                   this, i, &barrier));
-      }
+                                   this, i));
       // Wait for all threads to finish
       threads.join();
       rmi.barrier();
-    } // end of receive messages
+      active_minorstep.clear();
+    } // end of execute_gathers
 
-    /**
-     * Thread local receive message code
-     */
-    void execute_gathers(size_t thread_id, barrier* barrier_ptr) {
-      // First clear the gather cache
+    void execute_gathers(size_t thread_id) {
+      context_type context(*this, graph);
+      const bool caching_enabled = !gather_cache.empty(); 
       for(lvid_type lvid = thread_id; lvid < graph.num_local_vertices(); 
           lvid += threads.size()) {
-        // If this vertex is involved in some form of gather
-        if(active_next.get(lvid)) {
-          // if the Gather cache has already been computed 
-          if(gather_cache.empty(lvid)) {
-            
-
+        // If this vertex is active in the gather minorstep
+        if(active_minorstep.get(lvid)) {
+          gather_type accum; //! This machines contribution to the gather
+         
+          // if caching is enabled and we have a cache entry then use
+          // that as the accum
+          if( caching_enabled || has_cache.get(lvid) ) {
+            accum = gather_cache[lvid];
+          } else {
+            // recompute the local contribution to the gather
+            const vertex_program_type& vprog = vertex_programs[lvid];
+            const edge_dir_type gather_dir = vprog.gather_edges();
+            local_vertex_type local_vertex = graph.l_vertex(lvid);
+            const vertex_type vertex(local_vertex);
+            // Loop over in edges
+            if(gather_dir == IN_EDGES || gather_dir == ALL_EDGES) {
+              foreach(local_edge_type local_edge, local_vertex.in_edges()) {
+                accum += vprog.gather(context, vertex, edge_type(local_edge));
+              }
+            } // end of if in_edges/all_edges
+            // Loop over out edges
+            if(gather_dir == OUT_EDGES || gather_dir == ALL_EDGES) {
+              foreach(local_edge_type local_edge, local_vertex.out_edges()) {
+                accum += vprog.gather(context, vertex, edge_type(local_edge));
+              }
+            } // end of if out_edges/all_edges
+            // If caching is enabled then save the accumulator to the
+            // cache for future iterations
+            if(caching_enabled) {
+              gather_cache[lvid] = accum; has_cache.set_bit(lvid); 
+            } // end of if caching enabled            
           }
-          // // Do the actual gather
-          // for
-          
-          
+          // Assert that accum contains the local estimate for the
+          // gather. We now put that in the gather exchange
+          send_gather(lvid, accum);
+        }
+      } // end of loop over vertices to compute gather accumulators
+      // Finish sending and receiving all gather operations
+      thread_barrier.wait();
+      if(thread_id == 0) gather_exchange.flush();
+      thread_barrier.wait();
+      recv_gathers();
+    } // end of execute_gathers
+
+
+
+
+    void execute_applys() {  
+      for(size_t i = 0; i < threads.size(); ++i) 
+        threads.launch(boost::bind(&synchronous_engine::execute_applys,
+                                   this, i));
+      // Wait for all threads to finish
+      threads.join();
+      rmi.barrier();
+    } // end of execute_applys
+
+
+    void execute_applys(size_t thread_id) {
+      context_type context(*this, graph);
+      for(lvid_type lvid = thread_id; lvid < graph.num_local_vertices(); 
+          lvid += threads.size()) {
+        // If this vertex is active on this super-step
+        if( active_superstep.get(lvid) && graph.l_is_master(lvid) ) {          
+          local_vertex_type local_vertex = graph.l_vertex(lvid);
+          const gather_type& accum = gather_accum[lvid];
+          vertex_programs[lvid].apply(context, vertex_type(local_vertex), 
+                                      accum);
+          sync_vertex_data(lvid);  // send the vertex data
+          // determine if a scatter operation is needed
+          if(vertex_programs[lvid].scatter_edges() != graphlab::NO_EDGES) {
+            active_minorstep.set_bit(lvid);
+            sync_vertex_program(lvid);
+          }  
+        } // end of if apply
+      } // end of loop over vertices to run apply
+      // Finish sending and receiving all changes due to apply operations
+      thread_barrier.wait();
+      if(thread_id == 0) { vprog_exchange.flush(); vdata_exchange.flush(); }
+      thread_barrier.wait();
+      recv_vertex_programs();
+      recv_vertex_data();
+    } // end of execute_applys
+
+
+
+
+
+    void execute_scatters() {  
+      for(size_t i = 0; i < threads.size(); ++i)
+        threads.launch(boost::bind(&synchronous_engine::execute_scatters,
+                                   this, i));
+      // Wait for all threads to finish
+      threads.join();
+      rmi.barrier();
+    } // end of execute_scatters
+
+    void execute_scatters(size_t thread_id) {
+      context_type context(*this, graph);
+      for(lvid_type lvid = thread_id; lvid < graph.num_local_vertices(); 
+          lvid += threads.size()) {
+        // If this vertex is active in the scatter minorstep
+        if(active_minorstep.get(lvid)) {
+          const vertex_program_type& vprog = vertex_programs[lvid];
+          const edge_dir_type scatter_dir = vprog.scatter_edges();
+          local_vertex_type local_vertex = graph.l_vertex(lvid);
+          const vertex_type vertex(local_vertex);
+          // Loop over in edges
+          if(scatter_dir == IN_EDGES || scatter_dir == ALL_EDGES) {
+            foreach(local_edge_type local_edge, local_vertex.in_edges()) {
+              vprog.scatter(context, vertex, edge_type(local_edge));
+            }
+          } // end of if in_edges/all_edges
+          // Loop over out edges
+          if(scatter_dir == OUT_EDGES || scatter_dir == ALL_EDGES) {
+            foreach(local_edge_type local_edge, local_vertex.out_edges()) {
+              vprog.scatter(context, vertex, edge_type(local_edge));
+            }
+          } // end of if out_edges/all_edges
+        } // end of if active on this minor step
+      } // end of loop over vertices to complete scatter operation
+    } // end of execute_scatters
+
+
+
+
+
+    // Data Synchronization ===================================================
+
+
+    void sync_vertex_program(lvid_type lvid) {
+      ASSERT_TRUE(graph.l_is_master(lvid));
+      const vertex_id_type vid = graph.global_vid(lvid);
+      foreach(const procid_t& mirror, graph.l_mirrors(lvid)) {
+        vprog_exchange.send(mirror, 
+                            std::make_pair(vid, vertex_programs[lvid]));
+      }
+    } // end of sync_vertex_program
+
+    void recv_vertex_programs() {
+      procid_t procid(-1);
+      typename vprog_exchange_type::buffer_type buffer;
+      while(vprog_exchange(procid, buffer)) {
+        foreach(const vid_prog_pair_type& pair, buffer) {
+          const lvid_type lvid = graph.local_vid(pair.first);
+          ASSERT_FALSE(graph.l_is_master(lvid));
+          vertex_programs[lvid] = pair.second;
+          active_minorstep.set_bit(lvid);
         }
       }
-    } // end of receive messages
+    } // end of recv vertex programs
+
+
+
+
+
+    void sync_vertex_data(lvid_type lvid) {
+      ASSERT_TRUE(graph.l_is_master(lvid));
+      const vertex_id_type vid = graph.global_vid(lvid);
+      foreach(const procid_t& mirror, graph.l_mirrors(lvid)) {
+        vdata_exchange.send(mirror, 
+                            std::make_pair(vid, graph.l_vertex_data(lvid)));
+      }
+    } // end of sync_vertex_data
+
+    void recv_vertex_data() {
+      procid_t procid(-1);
+      typename vdata_exchange_type::buffer_type buffer;
+      while(vdata_exchange(procid, buffer)) {
+        foreach(const vid_vdata_pair_type& pair, buffer) {
+          const lvid_type lvid = graph.local_vid(pair.first);
+          ASSERT_FALSE(graph.l_is_master(lvid));
+          graph.l_vertex_data(lvid) = pair.second;
+        }
+      }
+    } // end of recv vertex data
+
+
+
+    void send_gather(lvid_type lvid, const gather_type& accum) {
+      if(graph.l_is_master(lvid)) {
+        vlocks[lvid].lock();
+        gather_accum[lvid] += accum;
+        vlocks[lvid].unlock();
+      } else {
+        const procid_t master = graph.l_master(lvid);
+        const vertex_id_type vid = graph.global_vid(lvid);
+        gather_exchange.send(master, std::make_pair(vid, accum));
+      }
+    } // end of send_gather
+
+    void recv_gathers() {
+      procid_t procid(-1);
+      typename gather_exchange_type::buffer_type buffer;
+      while(gather_exchange(procid, buffer)) {
+        foreach(const vid_gather_pair_type& pair, buffer) {
+          const lvid_type lvid = graph.local_vid(pair.first);
+          ASSERT_TRUE(graph.l_is_master(lvid));
+          vlocks[lvid].lock();
+          gather_accum[lvid] += pair.second;
+          vlocks[lvid].unlock();
+        }
+      }
+    } // end of recv_gather
+
+
+
+    void send_message(lvid_type lvid, const message_type& message) {
+      ASSERT_FALSE(graph.l_is_master(lvid));
+      const procid_t master = graph.l_master(lvid);
+      const vertex_id_type vid = graph.global_vid(lvid);
+      gather_exchange.send(master, std::make_pair(vid, message));
+    } // end of send_message
+
+    void recv_messages() {
+      procid_t procid(-1);
+      typename message_exchange_type::buffer_type buffer;
+      while(message_exchange(procid, buffer)) {
+        foreach(const vid_message_pair_type& pair, buffer) {
+          const lvid_type lvid = graph.local_vid(pair.first);
+          ASSERT_TRUE(graph.l_is_master(lvid));
+          vlocks[lvid].lock();
+          messages[lvid] += pair.second;
+          vlocks[lvid].unlock();
+        }
+      }
+    } // end of recv_gather
+
+
 
 
 

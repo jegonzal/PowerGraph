@@ -1,6 +1,8 @@
 #include <iostream>
+
 #include <graphlab/parallel/pthread_tools.hpp>
 #include <graphlab/parallel/thread_pool.hpp>
+#include <graphlab/parallel/atomic.hpp>
 #include <graphlab/logger/assertions.hpp>
 #include <graphlab/util/timer.hpp>
 #include <boost/bind.hpp>

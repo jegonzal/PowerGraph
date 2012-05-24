@@ -190,6 +190,7 @@ namespace graphlab {
      * the gather.
      */
     virtual gather_type gather(icontext_type& context, 
+                              const vertex_type& vertex, 
                                edge_type& edge) const {
       logstream(LOG_FATAL) << "Gather not implemented!" << std::endl;
     };
@@ -216,7 +217,8 @@ namespace graphlab {
      * apply function has completed.  The scatter function can post
      * deltas.
      */
-    virtual void scatter(icontext_type& context, edge_type& edge) const { 
+    virtual void scatter(icontext_type& context, const vertex_type& vertex, 
+                         edge_type& edge) const { 
       logstream(LOG_FATAL) << "Scatter not implemented!" << std::endl;
     };
 
