@@ -359,8 +359,6 @@ namespace graphlab {
           vertex_programs[lvid].init(context, vertex_type(local_vertex));
           send_vertex_program(lvid);
         }
-        // Receive any inbound vertex programs
-        // recv_vertex_programs();
       }
       // Flush the buffer and finish receiving any remaining vertex
       // programs.
@@ -415,8 +413,6 @@ namespace graphlab {
             send_vertex_program(lvid);
           }          
         }
-        // Receive any inbound vertex programs
-        // recv_vertex_programs();
       }
       // Flush the buffer and finish receiving any remaining vertex
       // programs.
@@ -451,8 +447,16 @@ namespace graphlab {
       // First clear the gather cache
       for(lvid_type lvid = thread_id; lvid < graph.num_local_vertices(); 
           lvid += threads.size()) {
+        // If this vertex is involved in some form of gather
         if(active_next.get(lvid)) {
-          //writing code here 
+          // if the Gather cache has already been computed 
+          if(gather_cache.empty(lvid)) {
+            
+
+          }
+          // // Do the actual gather
+          // for
+          
           
         }
       }

@@ -31,7 +31,15 @@
 
 #include <graphlab.hpp>
 
-void add_numbers(graphlab::atomic_add_vector<size_t>* vec_ptr, size_t count) {
+#include <graphlab/parallel/atomic_add_vector.hpp>
+#include <graphlab/parallel/atomic_add_vector2.hpp>
+
+// typedef graphlab::atomic_add_vector<size_t> vector_type;
+typedef graphlab::atomic_add_vector2<size_t> vector_type;
+
+
+
+void add_numbers(vector_type* vec_ptr, size_t count) {
   for(size_t i = 0; i < count; ++i) {
     for(size_t j = 0; j < vec_ptr->size(); ++j) {
       vec_ptr->add(j, 1);
@@ -40,7 +48,7 @@ void add_numbers(graphlab::atomic_add_vector<size_t>* vec_ptr, size_t count) {
 }
 
 
-void add_and_get_numbers(graphlab::atomic_add_vector<size_t>* vec_ptr,
+void add_and_get_numbers(vector_type* vec_ptr,
                          graphlab::atomic<size_t>* shared_count_ptr,
                          size_t count) {
   size_t local_count = 0;
@@ -64,11 +72,11 @@ void add_and_get_numbers(graphlab::atomic_add_vector<size_t>* vec_ptr,
 class atomic_add_vector_tests : public CxxTest::TestSuite {
 public:
   void test_many_adds() {
-    graphlab::atomic_add_vector<size_t> vec;
+    vector_type vec;
     graphlab::thread_pool threads;
 
     const size_t num_threads = 32;
-    const size_t count = 10000;
+    const size_t count = 50000;
     const size_t vec_size = 10;
     threads.resize(num_threads);
     vec.resize(vec_size);
@@ -93,11 +101,11 @@ public:
 
   void test_many_adds_and_gets() {
     
-    graphlab::atomic_add_vector<size_t> vec;
+    vector_type vec;
     graphlab::atomic<size_t> shared_counter; 
     graphlab::thread_pool threads;
     const size_t num_threads = 32;
-    const size_t count = 10000;
+    const size_t count = 50000;
     const size_t vec_size = 10;
     threads.resize(num_threads);
     vec.resize(vec_size);

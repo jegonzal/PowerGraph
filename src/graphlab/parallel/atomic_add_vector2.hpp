@@ -32,8 +32,8 @@
 
 
 
-#ifndef GRAPHLAB_ATOMIC_ADD_VECTOR_HPP
-#define GRAPHLAB_ATOMIC_ADD_VECTOR_HPP
+#ifndef GRAPHLAB_ATOMIC_ADD_VECTOR2_HPP
+#define GRAPHLAB_ATOMIC_ADD_VECTOR2_HPP
 
 
 #include <vector>
@@ -51,7 +51,7 @@ namespace graphlab {
    */ 
   
   template<typename ValueType>
-  class atomic_add_vector {
+  class atomic_add_vector2 {
   public:
     typedef ValueType value_type;
 
@@ -60,106 +60,46 @@ namespace graphlab {
 #define VALUE_PENDING (value_type*)(size_t)(-1)
     
   private:
-    lock_free_pool<value_type> pool;
     atomic<size_t> joincounter;
     
     class atomic_box_type {
     private:
-      value_type* volatile value_ptr;
+      spinlock lock;
+      bool _empty;
+      value_type value;
     public:
-      atomic_box_type() : value_ptr(NULL) {  }
-      
-      // void assign_unsafe(const atomic_box_type &other) {
-      //   value_ptr = other.value_ptr;
-      // }
-      
-      // bool peek_unsafe(const value_type& other) {
-      //   if (value_ptr != NULL) {
-      //     other = (*value_ptr);
-      //     return true;
-      //   } else { return false; }
-      // }
-      
-      // bool get_reference_unsafe(value_type*& ret) {
-      //   ret = value_ptr;
-      //   return ret != NULL;
-      // }
-
-      // /** returns true if set for the first time */
-      // inline bool set_unsafe(lock_free_pool<value_type>& pool,
-      //                        const value_type& other,
-      //                        atomic<size_t> &joincounter) {
-      //   if (value_ptr == NULL) {
-      //     value_ptr = pool.alloc();
-      //     (*value_ptr) = other;
-      //     return true;
-      //   } else {
-      //     (*value_ptr) += other;
-      //     joincounter.inc();
-      //     return false;
-      //   }
-      // } // end of set_unsafe
-      
+      atomic_box_type() : _empty(true) { }
       /** returns true if set for the first time */
-      inline bool set(lock_free_pool<value_type>& pool,
-                      const value_type& other,
+      inline bool set(const value_type& other,
                       value_type& new_value,
                       atomic<size_t>& joincounter) {
-        bool ret = false;
-        value_type toinsert = other;
-        while(1) {
-          value_type* vptr = VALUE_PENDING;
-          // pull it out to process it
-          atomic_exchange(value_ptr, vptr);
-          // if there is nothing in there, set it
-          // otherwise add it
-          if (vptr == NULL) {
-            vptr = pool.alloc();
-            (*vptr) = toinsert;
-            ret = true;
-          } else if (vptr == VALUE_PENDING) {
-            // a pending is in here. it is not ready for reading. try again.
-            continue;
-          } else { (*vptr) += toinsert; joincounter.inc(); }
-          // swap it back in
-          ASSERT_TRUE(vptr != VALUE_PENDING);
-          new_value = *value_ptr;
-          atomic_exchange(value_ptr, vptr);
-          //aargh! I swapped something else out. Now we have to
-          //try to put it back in
-          if (__unlikely__(vptr != NULL && vptr != VALUE_PENDING)) {
-            toinsert = (*vptr);
-          } else { break; }
-        }
-        return ret;
+        bool first_set = false;
+        lock.lock();
+        if(!_empty) value += other; 
+        else { value = other; first_set = true; }
+        new_value = value;
+        _empty = false;
+        lock.unlock();
+        return first_set;
       }
                 
-      void clear(lock_free_pool<value_type>& pool) {
+      void clear() {
         value_type val; test_and_get(val);
       }
       
-      bool empty() { return value_ptr == NULL; }
+      bool empty() { return _empty; }
       
-      inline bool test_and_get(lock_free_pool<value_type>& pool,
-                               value_type& r) {
-        value_type* ret;
-        while (1) {
-          ret = value_ptr;
-          if (ret == NULL) return false;
-          else if (__likely__(ret != VALUE_PENDING)) {
-            if (__likely__(atomic_compare_and_swap(value_ptr, ret, 
-                                                   (value_type*)NULL))) {
-              r = *ret;
-              pool.free(ret);
-              return true;
-            }
-          }
+      inline bool test_and_get(value_type& ret_val) {
+        bool success = false;
+        lock.lock();
+        if(!_empty) {
+          success = true;
+          ret_val = value;
+          _empty = true;
         }
-        return false;
+        lock.unlock();
+        return success;
       } // end of test_and_get
-
-
-
 
     }; // end of atomic_box_type;
 
@@ -170,20 +110,19 @@ namespace graphlab {
 
 
     /** Not assignable */
-    void operator=(const atomic_add_vector& other) { }
+    void operator=(const atomic_add_vector2& other) { }
 
 
   public:
     /** Initialize the per vertex task set */
-    atomic_add_vector(size_t num_vertices = 0) :
-      pool(num_vertices + 256), atomic_box_vec(num_vertices) { }
+    atomic_add_vector2(size_t num_vertices = 0) :
+      atomic_box_vec(num_vertices) { }
 
     /**
      * Resize the internal locks for a different graph
      */
     void resize(size_t num_vertices) {
       atomic_box_vec.resize(num_vertices);
-      pool.reset_pool(num_vertices + 256);
     }
 
     /** Add a task to the set returning false if the task was already
@@ -192,7 +131,7 @@ namespace graphlab {
              const value_type& val) {
       ASSERT_LT(idx, atomic_box_vec.size());
       value_type new_value;
-      return atomic_box_vec[idx].set(pool, val, new_value, joincounter);
+      return atomic_box_vec[idx].set( val, new_value, joincounter);
     } // end of add task to set 
 
 
@@ -209,7 +148,7 @@ namespace graphlab {
              const value_type& val,
              value_type& new_value) {
       ASSERT_LT(idx, atomic_box_vec.size());
-      return atomic_box_vec[idx].set(pool, val, new_value, joincounter);
+      return atomic_box_vec[idx].set(val, new_value, joincounter);
     } // end of add task to set 
 
 
@@ -223,7 +162,7 @@ namespace graphlab {
     //          double& prev_priority,
     //          double& new_priority) {
     //   ASSERT_LT(idx, atomic_box_vec.size());
-    //   return atomic_box_vec[idx].set(pool, val, prev_priority, new_priority, 
+    //   return atomic_box_vec[idx].set( val, prev_priority, new_priority, 
     //                            joincounter);
     // } // end of add task to set 
 
@@ -241,7 +180,7 @@ namespace graphlab {
     bool test_and_get(const size_t& idx,
                       value_type& ret_val) {
       ASSERT_LT(idx, atomic_box_vec.size());
-      return atomic_box_vec[idx].test_and_get(pool, ret_val);
+      return atomic_box_vec[idx].test_and_get( ret_val);
     }
 
     // bool test_peek(const size_t& idx,
@@ -267,7 +206,7 @@ namespace graphlab {
       for (size_t i = 0; i < atomic_box_vec.size(); ++i) clear(i);
     }
 
-    void clear(size_t i) { atomic_box_vec[i].clear(pool); }
+    void clear(size_t i) { atomic_box_vec[i].clear(); }
     
   }; // end of vertex map
 
