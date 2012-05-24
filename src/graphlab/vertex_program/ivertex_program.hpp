@@ -38,7 +38,7 @@
 #define GRAPHLAB_IVERTEX_PROGRAM_HPP
 
 
-#include <graphlab/context/icontext.hpp>
+#include <graphlab/vertex_program/icontext.hpp>
 
 #include <graphlab/graph/graph_basic_types.hpp>
 #include <graphlab/graph/graph.hpp>

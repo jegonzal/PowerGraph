@@ -33,7 +33,6 @@
 #include <graphlab/graph/graph_includes.hpp>
 #include <graphlab/options/options_includes.hpp>
 #include <graphlab/logger/logger_includes.hpp>
-#include <graphlab/monitoring/monitoring_includes.hpp>
 #include <graphlab/parallel/parallel_includes.hpp>
 #include <graphlab/scheduler/scheduler_includes.hpp>
 #include <graphlab/serialization/serialization_includes.hpp>

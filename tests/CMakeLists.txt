@@ -12,6 +12,7 @@ ADD_CXXTEST(random_test.cxx)
 #ADD_CXXTEST(factor_test.cxx)
 ADD_CXXTEST(small_map_test.cxx)
 ADD_CXXTEST(small_set_test.cxx)
+ADD_CXXTEST(atomic_add_vector.cxx)
 
 ADD_CXXTEST(dense_bitset_test.cxx)
 

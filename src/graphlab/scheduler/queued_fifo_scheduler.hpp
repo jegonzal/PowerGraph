@@ -35,7 +35,7 @@
 
 #include <graphlab/scheduler/ischeduler.hpp>
 #include <graphlab/scheduler/terminator/iterminator.hpp>
-#include <graphlab/scheduler/vertex_map.hpp>
+#include <graphlab/parallel/atomic_add_vector.hpp>
 
 #include <graphlab/scheduler/terminator/critical_termination.hpp>
 #include <graphlab/options/options_map.hpp>
@@ -64,7 +64,7 @@ namespace graphlab {
     typedef std::deque<vertex_id_type> queue_type;
 
   private:
-    vertex_map<message_type> messages;
+    atomic_add_vector<message_type> messages;
     std::deque<queue_type> master_queue;
     mutex master_lock;
     size_t sub_queue_size;
@@ -169,7 +169,7 @@ namespace graphlab {
 
 
     void schedule_from_execution_thread(size_t cpuid, vertex_id_type vid) {
-      if (messages.has_task(vid)) {
+      if (!messages.empty(vid)) {
         ASSERT_LT(cpuid, in_queues.size());
         in_queue_locks[cpuid].lock();
         queue_type& queue = in_queues[cpuid];
@@ -187,7 +187,7 @@ namespace graphlab {
     }
 
     void schedule(vertex_id_type vid) {
-      if (messages.has_task(vid)) {
+      if (!messages.empty(vid)) {
         const size_t cpuid = random::rand() % in_queues.size();
         in_queue_locks[cpuid].lock();
         queue_type& queue = in_queues[cpuid];

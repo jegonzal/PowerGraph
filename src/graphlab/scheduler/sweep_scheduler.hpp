@@ -29,7 +29,7 @@
 
 #include <graphlab/scheduler/ischeduler.hpp>
 #include <graphlab/scheduler/terminator/iterminator.hpp>
-#include <graphlab/scheduler/vertex_map.hpp>
+#include <graphlab/parallel/atomic_add_vector.hpp>
 #include <graphlab/scheduler/terminator/critical_termination.hpp>
 #include <graphlab/options/options_map.hpp>
 #include <graphlab/graph/graph_ops.hpp>
@@ -62,7 +62,7 @@ namespace graphlab {
     std::vector<uint16_t>                   vid2cpu;
     std::vector<vertex_id_type>             cpu2index;
 
-    vertex_map<message_type>                messages;
+    atomic_add_vector<message_type>         messages;
     double                                  min_priority;
     terminator_type                         term;   
 

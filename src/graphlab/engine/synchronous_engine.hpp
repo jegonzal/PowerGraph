@@ -32,11 +32,11 @@
 #include <deque>
 #include <boost/bind.hpp>
 
-#include <graphlab/engine/iengine.hpp>x
+#include <graphlab/engine/iengine.hpp>
 #include <graphlab/vertex_program/icontext.hpp>
 #include <graphlab/engine/execution_status.hpp>
 #include <graphlab/options/graphlab_options.hpp>
-#include <graphlab/scheduler/vertex_map.hpp>
+#include <graphlab/parallel/atomic_add_vector.hpp>
 #include <graphlab/options/graphlab_options.hpp>
 
 #include <graphlab/rpc/dc_dist_object.hpp>
@@ -59,7 +59,7 @@ namespace graphlab {
 
   template<typename VertexProgram>
   class synchronous_engine : 
-    public iengine<VertexProgram>, icontex<VertexProgram> {
+    public iengine<VertexProgram> {
 
   public:
 
@@ -77,6 +77,7 @@ namespace graphlab {
     typedef typename graph_type::lvid_type            lvid_type;
 
     typedef icontext<VertexProgram> icontext_type;
+    typedef context<synchronous_engine> context_type;
        
   private:
     dc_dist_object< synchronous_engine<VertexProgram> > rmi;
@@ -98,8 +99,8 @@ namespace graphlab {
     //! Locks for each vertex
     std::vector<spinlock>    vlocks;
     std::vector<vertex_program_type> vertex_programs;
-    vertex_map<message_type> messages;   
-    vertex_map<gather_type>  gather_cache;
+    atomic_add_vector<message_type> messages;   
+    atomic_add_vector<gather_type>  gather_cache;
     dense_bitset             active_vertices;
     dense_bitset             active_next;      
     
@@ -381,12 +382,12 @@ namespace graphlab {
     void initialize_vertex_programs(size_t thread_id, 
                                     barrier* barrier_ptr) {
       // For now we are using the engine as the context interface
-      icontext_type& context = *this;
+      context_type context(*this, graph);
       for(lvid_type lvid = thread_id; lvid < graph.num_local_vertices(); 
           lvid += threads.size()) {
         if(graph.l_is_master(lvid)) {          
           local_vertex_type local_vertex = graph.l_vertex(lvid);
-          vertex_programs[lvid].init(context, local_vertex);
+          vertex_programs[lvid].init(context, vertex_type(local_vertex));
           send_vertex_program(lvid);
         }
         // Receive any inbound vertex programs
@@ -435,8 +436,11 @@ namespace graphlab {
         if(graph.l_is_master(lvid) && message.test_and_get(lvid, message)) {         
           active_vertices.set_bit(lvid);
           local_vertex_type local_vertex = graph.l_vertex(lvid);
-          vertex_programs[lvid].recv_message(context, local_vertex, message);
-          if(vertex_programs[lvid].gather_edges() != NO_EDGES) {
+          vertex_programs[lvid].recv_message(context, 
+                                             vertex_type(local_vertex), 
+                                             message);
+          if(vertex_programs[lvid].gather_edges() != graphlab::NO_EDGES &&
+             gather_cache.empty(lvid)) {
             active_next.set_bit(lvid);
             send_vertex_program(lvid);
           }          
@@ -462,7 +466,7 @@ namespace graphlab {
     void execute_gathers() {  
       graphlab::barrier barrier(threads.size());
       for(size_t i = 0; i < threads.size(); ++i) {
-        threads.launch(boost::bind(&synchronous_engine::receive_messages,
+        threads.launch(boost::bind(&synchronous_engine::execute_gathers,
                                    this, i, &barrier));
       }
       // Wait for all threads to finish
@@ -473,12 +477,16 @@ namespace graphlab {
     /**
      * Thread local receive message code
      */
-    void execute_gathers(size_t thread_id, barrier* barrier_ptr) {      
-      message_type message;
+    void execute_gathers(size_t thread_id, barrier* barrier_ptr) {
+      // First clear the gather cache
       for(lvid_type lvid = thread_id; lvid < graph.num_local_vertices(); 
           lvid += threads.size()) {
+        if(active_next.get(lvid)) {
+          //writing code here 
+          
+        }
         if(graph.l_is_master(lvid) && message.test_and_get(lvid, message)) {         
-          active_vertices.set_bit(lvid);
+
           local_vertex_type local_vertex = graph.l_vertex(lvid);
           vertex_programs[lvid].recv_message(context, local_vertex, message);
           if(vertex_programs[lvid].gather_edges() != NO_EDGES) {
