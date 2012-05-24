@@ -38,4 +38,6 @@ add_graphlab_executable(hdfs_test hdfs_test.cpp)
 add_graphlab_executable(test_parsers test_parsers.cpp)
 
 
+add_graphlab_executable(synchronous_engine_test synchronous_engine_test.cpp)
+
 # copyfile(runtests.sh)

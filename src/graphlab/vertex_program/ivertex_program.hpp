@@ -41,7 +41,7 @@
 #include <graphlab/vertex_program/icontext.hpp>
 
 #include <graphlab/graph/graph_basic_types.hpp>
-#include <graphlab/graph/graph.hpp>
+#include <graphlab/graph/distributed_graph.hpp>
 
 
 #include <graphlab/macros_def.hpp>
@@ -74,49 +74,42 @@ namespace graphlab {
    * vertex_program as an argument.
    * 
    */
-  template<typename VertexProgram> 
+  template<typename VertexData, 
+           typename EdgeData,
+           typename GatherType  = VertexData,
+           typename MessageType = char> 
   class ivertex_program {    
   public:
 
     // User defined type members ==============================================
     /**
-     * The vertex program interface takes as an argument the vertex
-     * program.
-     */
-    typedef VertexProgram vertex_program_type;
-
-    /**
      * The type of the vertex data which must be defined by the
      * vertex-program.
      */
-    typedef typename vertex_program_type::vertex_data_type vertex_data_type;
-
+    typedef VertexData vertex_data_type;
 
     /**
      * The type of the edge data which must be defined by the
      * vertex-program.
      */
-    typedef typename vertex_program_type::edge_data_type edge_data_type;
+    typedef EdgeData edge_data_type;
 
     /**
      * The gather type which must be provided by the vertex program.
      */
-    typedef typename vertex_program_type::gather_type gather_type;
+    typedef GatherType gather_type;
 
     /**
      * The message type which must be provided by the vertex_program
      */
-    typedef typename vertex_program_type::message_type message_type;
+    typedef MessageType message_type;
 
 
     // Graph specific type members ============================================
     /**
-     * The graph type associative with this vertex program.  The
-     * vertex data type is the vertex_program_type and the
-     * edge_data_type is the type specified by the vertex program as
-     * the edge_data_type.
+     * The graph type associative with this vertex program.
      */
-    typedef graph<vertex_program_type, edge_data_type> graph_type;
+    typedef distributed_graph<vertex_data_type, edge_data_type> graph_type;
 
     /**
      * The unique integer id used to reference vertices in the graph.
@@ -134,7 +127,7 @@ namespace graphlab {
      * The opaque edge_object type used to access edge information.
      * TODO: add doc link to definition in graph_type
      */
-    typedef typename graph_type::vertex_type edge_type;
+    typedef typename graph_type::edge_type edge_type;
 
     /**
      * The type used to define the direction of edges used in gather
@@ -150,7 +143,7 @@ namespace graphlab {
      * with the engine and provides facilities for sending messages,
      * posting deltas, and accessing engine state.
      */
-    typedef icontext<vertex_program_type> icontext_type;
+    typedef icontext<vertex_type, gather_type, message_type> icontext_type;
    
     // Functions ==============================================================
     virtual ~ivertex_program() { }

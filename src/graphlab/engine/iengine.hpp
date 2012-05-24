@@ -164,7 +164,7 @@ namespace graphlab {
     virtual void set_options(const graphlab_options& opts) = 0;
 
     /** \brief get the current engine options. */
-    virtual const graphlab_options& get_options() = 0;
+    //    virtual const graphlab_options& get_options() = 0;
 
 
 

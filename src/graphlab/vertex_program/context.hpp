@@ -41,7 +41,10 @@ namespace graphlab {
    * engine's context.  
    */
   template<typename Engine>
-  class context : public icontext<typename Engine::vertex_program_type> {
+  class context : 
+    public icontext<typename Engine::vertex_type,
+                    typename Engine::gather_type,
+                    typename Engine::message_type> {
   public:
     // Type members ===========================================================
 

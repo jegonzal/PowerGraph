@@ -30,4 +30,4 @@
 #include <graphlab/util/cache.hpp>
 #include <graphlab/util/fs_util.hpp>
 #include <graphlab/util/hdfs.hpp>
-
+#include <graphlab/util/mpi_tools.hpp>

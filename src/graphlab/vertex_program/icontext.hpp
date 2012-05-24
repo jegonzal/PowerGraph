@@ -40,31 +40,30 @@ namespace graphlab {
    * Each of the vertex program methods is passed a reference to the
    * engine's context.  
    */
-  template<typename VertexProgram>
+  template<typename VertexType,
+           typename GatherType, 
+           typename MessageType>
   class icontext {
   public:
     // Type members ===========================================================
-
-    /** The type of the user-defined vertex program */
-    typedef VertexProgram vertex_program_type;
 
     /** 
      * The opaque vertex object type 
      * TODO: add a reference back to the graph type
      */
-    typedef typename vertex_program_type::vertex_type vertex_type;   
+    typedef VertexType vertex_type;   
 
     /**
      * The message type specified by the user-defined vertex-program.
      * TODO: add a reference back to vertex program type
      */
-    typedef typename vertex_program_type::message_type message_type;
+    typedef MessageType message_type;
 
     /**
      * The type returned by the gather operation.
      * TODO: add a reference back to vertex program type
      */
-    typedef typename vertex_program_type::gather_type gather_type;
+    typedef GatherType gather_type;
 
    
   public:        
