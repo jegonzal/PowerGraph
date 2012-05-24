@@ -388,7 +388,8 @@ double calc_rmse(const graph_type * _g, bool test, double & res){
 template<typename graph_type, typename vertex_data>
 double calc_rmse_wrapper(const graph_type* _g, bool test, double & res){
    if (ps.algorithm == LANCZOS || ps.algorithm == SVD){
-       res=-1; return -1; //not implemented yet
+       res=-1; 
+			 return -1; //not implemented yet
    }
    else return calc_rmse<graph_type, vertex_data>(_g, test, res);
 }

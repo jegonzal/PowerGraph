@@ -130,7 +130,7 @@ void add_tasks(core & glcore){
   std::vector<vertex_id_t> um;
   int start = 0;
   int end = ps.M+ps.N;
-  if (ps.algorithm == SVD_PLUS_PLUS || ps.algorithm == TIME_SVD_PLUS_PLUS || ps.algorithm == RBM)
+  if (ps.algorithm == SVD_PLUS_PLUS || ps.algorithm == TIME_SVD_PLUS_PLUS || ps.algorithm == RBM || ps.algorithm == STOCHASTIC_GRADIENT_DESCENT)
      end = ps.M;
 
   for (int i=start; i< end; i++)
@@ -354,7 +354,7 @@ void start(command_line_options& clopts) {
    }
 
    double res = 0;
-   if (ps.algorithm != LANCZOS && ps.algorithm != SVD && ps.algorithm != TIME_SVD_PLUS_PLUS){
+   if (ps.algorithm != LANCZOS && ps.algorithm != SVD && ps.algorithm != TIME_SVD_PLUS_PLUS && ps.algorithm != RBM){
      double res2 = 0;
      double rmse =  calc_rmse_wrapper<graph_type, vertex_data>(&training, false, res);
      printf(ac.printhighprecision ? 

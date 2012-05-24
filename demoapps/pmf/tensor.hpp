@@ -39,7 +39,7 @@ void calc_T(int i){
   assert(i >=0 && i < ps.K);
   if (ac.zero && edges[i].size() == 0){
      if (i == ps.K-1)
-        last_iter<graph_type, vertex_data, edge_data>();
+        last_iter<graph_type>();
     return;
   }
   if (edges[i].size() == 0)
@@ -173,7 +173,7 @@ void calc_T(int i){
   //}
 
   if (i == ps.K-1){
-    last_iter<graph_type, vertex_data, edge_data>();
+    last_iter<graph_type>();
   }
           
 
@@ -192,7 +192,7 @@ void time_node_update_function(gl_types::iscope &scope, gl_types::icallback &sch
   } 
   if (ps.K > 1)
     calc_T<graph_type, vertex_data, edge_data>(id); 
-  else last_iter<graph_type, vertex_data, edge_data>();
+  else last_iter<graph_type>();
 }
 // update function for time nodes
 // this function is called only in tensor mode
@@ -207,7 +207,7 @@ void time_node_update_function(gl_types_mcmc::iscope &scope, gl_types_mcmc::ical
   } 
   if (ps.K > 1)
     calc_T<graph_type_mcmc, vertex_data, edge_data_mcmc>(id); 
-  else last_iter<graph_type_mcmc, vertex_data, edge_data_mcmc>();
+  else last_iter<graph_type_mcmc>();
 }
 
 // update function for time nodes
@@ -222,7 +222,7 @@ void time_node_update_function(gl_types_mult_edge::iscope &scope, gl_types_mult_
   } 
   if (ps.K > 1)
     calc_T<graph_type_mult_edge, vertex_data, edge_data_mcmc>(id); 
-  else last_iter<graph_type_mult_edge, vertex_data, multiple_edges>();
+  else last_iter<graph_type_mult_edge>();
 }
 
 // update function for time nodes

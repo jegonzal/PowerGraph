@@ -49,13 +49,17 @@ void init_pmf() {
 /**
  * printout RMSE statistics after each iteration
  */
-template<typename graph_type, typename vertex_data, typename edge_data>
+template<typename graph_type>
 void last_iter(){
-  if (ps.algorithm != BPTF_TENSOR_MULT && ps.algorithm != ALS_TENSOR_MULT)
-  printf("Entering last iter with %d total updates so far %u\n", ps.iiter, (unsigned int)dynamic_cast<graphlab::core<vertex_data,edge_data>*>(ps.glcore)->engine().last_update_count());
+
+  typedef typename graph_type::vertex_data_type vertex_data;
+  typedef typename graph_type::edge_data_type edge_data;
+
+  //if (ps.algorithm != BPTF_TENSOR_MULT && ps.algorithm != ALS_TENSOR_MULT)
+		//printf("Entering last iter with %d total updates so far %u\n", ps.iiter, (unsigned int)dynamic_cast<graphlab::core<vertex_data,edge_data>*>(ps.glcore)->engine().last_update_count());
 
   double res,res2;
-  double training_rmse = (ps.algorithm != STOCHASTIC_GRADIENT_DESCENT && ps.algorithm != NMF) ? agg_rmse_by_movie<graph_type,vertex_data>(res) : agg_rmse_by_user<graph_type,vertex_data>(res);
+  double training_rmse = (ps.algorithm != STOCHASTIC_GRADIENT_DESCENT && ps.algorithm != NMF && ps.algorithm != RBM) ? agg_rmse_by_movie<graph_type,vertex_data>(res) : agg_rmse_by_user<graph_type,vertex_data>(res);
   double validation_rmse = calc_rmse_wrapper<graph_type, vertex_data>(ps.g<graph_type>(VALIDATION), true, res2);
 
  
@@ -262,8 +266,8 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
 
   int numedges = vdata.num_edges;
   if (numedges == 0){
-     if (!ps.tensor && (int)scope.vertex() == ps.M+ps.N-1)
-       last_iter<graph_type, vertex_data, edge_data>();
+     if (!ps.tensor && id == ps.M+ps.N-1)
+       last_iter<graph_type>();
 
    return; //if this user/movie have no ratings do nothing
   }
@@ -335,8 +339,8 @@ void user_movie_nodes_update_function(gl_types::iscope &scope,
   vdata.pvec = result;
 
   //calc post round tasks
-  if (!ps.tensor && (int)scope.vertex() == ps.M+ps.N-1)
-    last_iter<graph_type, vertex_data, edge_data>();
+  if (!ps.tensor && id == ps.M+ps.N-1)
+    last_iter<graph_type>();
 
 }
  /***
@@ -362,8 +366,8 @@ void user_movie_nodes_update_function(gl_types_mcmc::iscope &scope,
 
   int numedges = vdata.num_edges;
   if (numedges == 0){
-     if (!ps.tensor && (int)scope.vertex() == ps.M+ps.N-1)
-       last_iter<graph_type_mcmc, vertex_data, edge_data_mcmc>();
+     if (!ps.tensor && id == ps.M+ps.N-1)
+       last_iter<graph_type_mcmc>();
 
    return; //if this user/movie have no ratings do nothing
   }
@@ -425,7 +429,7 @@ void user_movie_nodes_update_function(gl_types_mcmc::iscope &scope,
 
   //calc post round tasks
   if (!ps.tensor && (int)scope.vertex() == ps.M+ps.N-1)
-    last_iter<gl_types_mcmc::graph, vertex_data, edge_data_mcmc>();
+    last_iter<graph_type_mcmc>();
 
 }
 
@@ -445,7 +449,7 @@ void user_movie_nodes_update_function(gl_types_mult_edge::iscope &scope,
   vertex_data& vdata = scope.vertex_data();
  
   int id = scope.vertex();
-  bool toprint = ac.debug && (id == 0 || (id == ps.M-1) || (id == ps.M) || (id == ps.M+ps.N-1)); 
+  bool toprint = ps.to_print(id); 
   bool isuser = id < ps.M;
   /* print statistics */
   if (toprint){
@@ -457,8 +461,8 @@ void user_movie_nodes_update_function(gl_types_mult_edge::iscope &scope,
 
   int numedges = vdata.num_edges;
   if (numedges == 0){
-     if (!ps.tensor && (int)scope.vertex() == ps.M+ps.N-1)
-       last_iter<graph_type_mult_edge, vertex_data, edge_data_mcmc>();
+     if (!ps.tensor && id == ps.M+ps.N-1)
+       last_iter<graph_type_mult_edge>();
 
    return; //if this user/movie have no ratings do nothing
   }
@@ -525,8 +529,8 @@ void user_movie_nodes_update_function(gl_types_mult_edge::iscope &scope,
   vdata.pvec =  result;
 
   //calc post round tasks
-  if (!ps.tensor && (int)scope.vertex() == ps.M+ps.N-1)
-    last_iter<graph_type_mult_edge, vertex_data, edge_data_mcmc>();
+  if (!ps.tensor &&id == ps.M+ps.N-1)
+    last_iter<graph_type_mult_edge>();
 
 }
 

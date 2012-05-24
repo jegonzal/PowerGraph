@@ -353,10 +353,14 @@ public:
 }
 
   void verify_setup();
-
+  bool to_print(int id);
 };
 
 extern advanced_config ac;
+
+bool problem_setup::to_print(int id){
+  return (ac.debug && (id == 0 || id == M-1 || id == M || M+N));
+}
 
 void problem_setup::verify_setup(){
   switch(algorithm){

@@ -279,76 +279,64 @@ void time_svd_plus_plus_update_function(gl_types_svdpp::iscope &scope,
    }
    vector<double> sum(dim, 0);
    foreach(graphlab::edge_id_t oedgeid, outs) {
-                edge_data & edge = scope.edge_data(oedgeid);
-                float rui = edge.weight;
-                vertex_data_svdpp& movie = scope.neighbor_vertex_data(scope.target(oedgeid));
-                time_svdpp_movie mov(movie);
-                float pui = 0; 
-                time_svdpp_predict(user, movie, &edge, NULL, rui, pui);
+     edge_data & edge = scope.edge_data(oedgeid);
+     float rui = edge.weight;
+     vertex_data_svdpp& movie = scope.neighbor_vertex_data(scope.target(oedgeid));
+     time_svdpp_movie mov(movie);
+     float pui = 0; 
+     time_svdpp_predict(user, movie, &edge, NULL, rui, pui);
 
-                int t = edge.time;
-                double eui = rui - pui;
-	               *usr.bu += ac.tsp.lrate*(eui - beta* *usr.bu);
-                *mov.bi += ac.tsp.lrate * (eui - beta* *mov.bi);
-               time_svdpp_time time(ps.times_svdpp[t]);
+     int t = edge.time;
+     double eui = rui - pui;
+	   *usr.bu += ac.tsp.lrate*(eui - beta* *usr.bu);
+     *mov.bi += ac.tsp.lrate * (eui - beta* *mov.bi);
+     time_svdpp_time time(ps.times_svdpp[t]);
 
-                for (int k = 0; k < dim; k++) {
-                    //double oldValue = mov.q[item_idx][k];
-                    double oldValue = mov.q[k];
-                    //double userValue = ptemp[user_idx][k] + pu[user_idx][k] * pt[t][k];
-                    double userValue = usr.ptemp[k] + usr.pu[k] * time.pt[k];
-                    //sum[k] += eui * q[item_idx][k];
-                    sum[k] += eui * mov.q[k];
-                    mov.q[k] += ac.tsp.lrate * (eui * userValue - ac.tsp.garma*mov.q[k]);
-                    usr.ptemp[k] += ac.tsp.lrate * ( eui * oldValue - ac.tsp.garma * usr.ptemp[k]);
-                    usr.p[k] += ac.tsp.lrate * ( eui * oldValue - ac.tsp.garma*usr.p[k] );
-                    usr.pu[k] += ac.tsp.lrate * (eui * oldValue  * time.pt[k] - ac.tsp.garma * usr.pu[k]);
-                    time.pt[k] += ac.tsp.lrate * (eui * oldValue * usr.pu[k] - ac.tsp.garma * time.pt[k]);
-                    double xOldValue = usr.x[k];
-                    double zOldValue = time.z[k];
-                    usr.x[k] += ac.tsp.lrate * (eui * zOldValue - ac.tsp.garma * xOldValue);
-                    time.z[k] += ac.tsp.lrate * (eui * xOldValue - ac.tsp.garma * zOldValue);
-                }
+     for (int k = 0; k < dim; k++) {
+       double oldValue = mov.q[k];
+       double userValue = usr.ptemp[k] + usr.pu[k] * time.pt[k];
+       sum[k] += eui * mov.q[k];
+       mov.q[k] += ac.tsp.lrate * (eui * userValue - ac.tsp.garma*mov.q[k]);
+       usr.ptemp[k] += ac.tsp.lrate * ( eui * oldValue - ac.tsp.garma * usr.ptemp[k]);
+       usr.p[k] += ac.tsp.lrate * ( eui * oldValue - ac.tsp.garma*usr.p[k] );
+       usr.pu[k] += ac.tsp.lrate * (eui * oldValue  * time.pt[k] - ac.tsp.garma * usr.pu[k]);
+       time.pt[k] += ac.tsp.lrate * (eui * oldValue * usr.pu[k] - ac.tsp.garma * time.pt[k]);
+       double xOldValue = usr.x[k];
+       double zOldValue = time.z[k];
+       usr.x[k] += ac.tsp.lrate * (eui * zOldValue - ac.tsp.garma * xOldValue);
+       time.z[k] += ac.tsp.lrate * (eui * xOldValue - ac.tsp.garma * zOldValue);
+     }
 
-                user.rmse += eui*eui;
-            }
+     user.rmse += eui*eui;
+   }
 
-            foreach(graphlab::edge_id_t oedgeid, outs){
-                vertex_data_svdpp & movie = scope.neighbor_vertex_data(scope.target(oedgeid));
-                time_svdpp_movie mov(movie);
-                for(int k=0;k<dim;k++){
-                    mov.y[k] += ac.tsp.lrate * (rRuNum * sum[k]- ac.tsp.garma*mov.y[k]);
-                }
-            }
+  foreach(graphlab::edge_id_t oedgeid, outs){
+		vertex_data_svdpp & movie = scope.neighbor_vertex_data(scope.target(oedgeid));
+		time_svdpp_movie mov(movie);
+		for(int k=0;k<dim;k++){
+      mov.y[k] += ac.tsp.lrate * (rRuNum * sum[k]- ac.tsp.garma*mov.y[k]);
+    }
+  }
             
-           if (validation != NULL && validation->num_vertices() > 0){
-            foreach(graphlab::edge_id_t oedgeid, validation->out_edge_ids(id)){
-                //unsigned int item_idx = pItemRatings_validation[currentRatingIdx_val++].item;
-		vertex_data_svdpp & movie = validation->vertex_data(validation->target(oedgeid));
-                time_svdpp_movie mov(movie);
-                for(int k=0;k<dim;k++){
-                    mov.y[k] += ac.tsp.lrate * (rRuNum * sum[k]- ac.tsp.garma*mov.y[k]);
-                }
-            }
-            }
+  if (validation != NULL && validation->num_vertices() > 0){
+		foreach(graphlab::edge_id_t oedgeid, validation->out_edge_ids(id)){
+			vertex_data_svdpp & movie = validation->vertex_data(validation->target(oedgeid));
+			time_svdpp_movie mov(movie);
+			for(int k=0;k<dim;k++){
+				mov.y[k] += ac.tsp.lrate * (rRuNum * sum[k]- ac.tsp.garma*mov.y[k]);
+			}
+		}
+  }
 	    
-            //graph_type_svdpp * test = ps.g<graph_type_svdpp>(TEST);
-            /*for(unsigned int j=0; j < 6; ++j) {
-                unsigned int item_idx = pItemRatings_test[currentRatingIdx_test++].item;
-                for(int k=0;k<dim;k++){
-                    y[item_idx][k] += ac.tsp.lrate * (rRuNum * sum[k]- ac.tsp.garma*y[item_idx][k]);
-                }
-            }*/
-            if (test != NULL && test->num_vertices() > 0){
-            foreach(graphlab::edge_id_t oedgeid, test->out_edge_ids(id)){
-                //unsigned int item_idx = pItemRatings_validation[currentRatingIdx_val++].item;
-		vertex_data_svdpp & movie = test->vertex_data(test->target(oedgeid));
-                time_svdpp_movie mov(movie);
-                for(int k=0;k<dim;k++){
-                    mov.y[k] += ac.tsp.lrate * (rRuNum * sum[k]- ac.tsp.garma*mov.y[k]);
-                }
-            }
-            }
+  if (test != NULL && test->num_vertices() > 0){
+		foreach(graphlab::edge_id_t oedgeid, test->out_edge_ids(id)){
+			vertex_data_svdpp & movie = test->vertex_data(test->target(oedgeid));
+     time_svdpp_movie mov(movie);
+     for(int k=0;k<dim;k++){
+			 mov.y[k] += ac.tsp.lrate * (rRuNum * sum[k]- ac.tsp.garma*mov.y[k]);
+     }
+    }
+   }
 
    ps.counter[EDGE_TRAVERSAL] += t.current_time();
 
@@ -368,14 +356,11 @@ void time_svd_plus_plus_update_function(gl_types_svdpp::iscope &scope,
 
   time_svdpp_movie mov((vertex_data_svdpp&)movie);
   time_svdpp_usr usr((vertex_data_svdpp&)user);
-	//unsigned int item = itemRating.item;
 	unsigned int t = edge->time;//itemRating.day;
-	    	//  pui = mu + bu[u] + bi[i];
 	double pui  = ps.globalMean[0] + *usr.bu + *mov.bi;// + bt[t];
 	time_svdpp_time ptime(ps.times_svdpp[t]);	
   int dim = ac.D;
 	for(int k=0;k<dim;k++){
-   //pui += ptemp[user][k] * q[item][k];
 		pui += (usr.ptemp[k] * mov.q[k]);
 		pui += usr.x[k] * ptime.z[k];
 		pui += usr.pu[k] * ptime.pt[k] * mov.q[k];

@@ -173,15 +173,26 @@ double calc_rbm_rmse(const graph_type_svdpp * _g, bool test, double & res){
 
 
 void rbm_post_iter(){
-  printf("Entering last iter with %d\n", ps.iiter);
-
+  //printf("Entering last iter with %d\n", ps.iiter);
   double res,res2;
-  double rmse = agg_rmse_by_user<graph_type_svdpp, vertex_data_svdpp>(res);
-  printf("%g) Iter %s %d, TRAIN RMSE=%0.4f VALIDATION RMSE=%0.4f.\n", ps.gt.current_time(), "SVD", ps.iiter,  rmse, calc_rbm_rmse(ps.g<graph_type_svdpp>(VALIDATION), true, res2));
+  double training_rmse = agg_rmse_by_user<graph_type_svdpp, vertex_data_svdpp>(res);
+  double validation_rmse = calc_rbm_rmse(ps.g<graph_type_svdpp>(VALIDATION), true, res2);
+  printf(ac.printhighprecision ? 
+        "%g) Iter %s %d  TRAIN RMSE=%0.12f VALIDATION RMSE=%0.12f.\n":
+        "%g) Iter %s %d  TRAIN RMSE=%0.4f VALIDATION RMSE=%0.4f.\n",
+         ps.gt.current_time(), runmodesname[ps.algorithm], ps.iiter,  training_rmse, validation_rmse);
 
   if (ac.calc_ap){
      logstream(LOG_INFO)<<"AP@3 for training: " << calc_ap<graph_type_svdpp,vertex_data_svdpp,edge_data>(ps.g<graph_type_svdpp>(TRAINING)) << " AP@3 for validation: " << calc_ap<graph_type_svdpp,vertex_data_svdpp,edge_data>(ps.g<graph_type_svdpp>(VALIDATION)) << std::endl;
   }
+  //stop on divergence
+  if (ac.halt_on_rmse_increase)
+    if ((ps.validation_rmse && (ps.validation_rmse < validation_rmse)) ||
+        (ps.training_rmse && (ps.training_rmse < training_rmse)))
+          dynamic_cast<graphlab::core<vertex_data_svdpp,edge_data>*>(ps.glcore)->engine().stop();
+
+  ps.validation_rmse = validation_rmse; 
+  ps.training_rmse = training_rmse;
 
   ac.rbm_alpha *= ac.rbm_mult_step_dec;
   ps.iiter++;
@@ -202,11 +213,10 @@ void rbm_update_function(gl_types_svdpp::iscope &scope,
   int id = scope.vertex(); 
 
   /* print statistics */
-  if (ac.debug&& (id == 0 || id == ps.M-1)){
-    printf("RBM: entering %s node  %u \n", "user", id);   
+  if (ps.to_print(id)){
+    printf("RBM: entering user node  %u\n", id);   
   }
 
-  assert(id < ps.M);
   user.rmse = 0;
 
   gl_types_svdpp::edge_list outs = scope.out_edge_ids();

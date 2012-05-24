@@ -62,26 +62,20 @@ void sgd_update_function(gl_types::iscope &scope,
 			 gl_types::icallback &scheduler) {
     
 
-  //USER NODES    
-  if ((int)scope.vertex() < ps.M){
-
-
+  int id = scope.vertex();
   /* GET current vertex data */
   vertex_data& user = scope.vertex_data();
- 
-  
-  /* print statistics */
-  if (ac.debug&& (scope.vertex() == 0 || ((int)scope.vertex() == ps.M-1) || ((int)scope.vertex() == ps.M) || ((int)scope.vertex() == ps.M+ps.N-1))){
-    printf("SGD: entering %s node  %u \n", (((int)scope.vertex() < ps.M) ? "movie":"user"), (int)scope.vertex());   
-    debug_print_vec((((int)scope.vertex() < ps.M) ? "V " : "U") , user.pvec, ac.D);
-  }
-
-  assert((int)scope.vertex() < ps.M+ps.N);
-
+  if (ps.to_print(id)){
+    printf("SVDPP: entering user node  %u \n", id);   
+    debug_print_vec("U" , user.pvec, ac.D);
+  } 
   user.rmse = 0;
-
   if (user.num_edges == 0){
-    return; //if this user/movie have no ratings do nothing
+  	 if (id == ps.M - 1){
+       last_iter<graph_type>();
+       ac.sgd_gamma *= ac.sgd_step_dec;
+     }
+     return; //if this user/movie have no ratings do nothing
   }
 
 
@@ -97,7 +91,8 @@ void sgd_update_function(gl_types::iscope &scope,
       float estScore;
       float sqErr = predict(user, movie, NULL, edge.weight, estScore);
       user.rmse += sqErr;
-      assert(!std::isnan(user.rmse));
+      if (std::isnan(user.rmse))
+        logstream(LOG_FATAL)<<"Numerical error occured. Aborting run." << std::endl;
       float err = edge.weight - estScore;
       vec oldmovie = movie.pvec;
       vec olduser = user.pvec;
@@ -107,13 +102,12 @@ void sgd_update_function(gl_types::iscope &scope,
 
 
    ps.counter[EDGE_TRAVERSAL] += t.current_time();
-
-   if (scope.vertex() == (uint)ps.M-1){
-  	last_iter<gl_types::graph,vertex_data,edge_data>();
+ 
+   if (id == ps.M-1){
+  	last_iter<graph_type>();
         ac.sgd_gamma *= ac.sgd_step_dec;
     }
 
-  }
 
 }
 

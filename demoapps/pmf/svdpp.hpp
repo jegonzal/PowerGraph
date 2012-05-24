@@ -139,6 +139,8 @@ float predict_new_user(const vertex_data_svdpp& user, const vertex_data_svdpp& m
   float err = rating - prediction;
   return err*err;
 }
+
+
 void predict_missing_value(const vertex_data_svdpp&data, const vertex_data_svdpp& pdata, edge_data& edge, double & sq_err, int&e, int i){
     float prediction = 0;
     predict(data, pdata, &edge, NULL, edge.weight, prediction);
@@ -168,7 +170,7 @@ double calc_svd_rmse(const graph_type_svdpp * _g, bool test, double & res){
          usr.weight = zeros(ac.D);
          foreach(edge_id_t oedgeid, g->out_edge_ids(i)) {
            vertex_data_svdpp & movie = (vertex_data_svdpp&)g->vertex_data(g->target(oedgeid)); 
-	   usr.weight += movie.weight;
+					 usr.weight += movie.weight;
            assert(usr.weight[0] != NAN);
          }
          float usrnorm = double(1.0/sqrt(n));
@@ -245,48 +247,39 @@ void svd_plus_plus_update_function(gl_types_svdpp::iscope &scope,
     
   /* GET current vertex data */
   vertex_data_svdpp& user = scope.vertex_data();
- 
+  int id = scope.vertex(); 
   
   /* print statistics */
-  if (ac.debug&& (scope.vertex() == 0 || ((int)scope.vertex() == ps.M-1) || ((int)scope.vertex() == ps.M) || ((int)scope.vertex() == ps.M+ps.N-1))){
-    printf("SVDPP: entering %s node  %u \n", (((int)scope.vertex() < ps.M) ? "movie":"user"), (int)scope.vertex());   
-    debug_print_vec((((int)scope.vertex() < ps.M) ? "V " : "U") , user.pvec, ac.D);
+  if (ps.to_print(id)){
+    printf("SVDPP: entering user node  %u \n", id);   
+    debug_print_vec("U" , user.pvec, ac.D);
   }
 
-  assert((int)scope.vertex() < ps.M+ps.N);
-
   user.rmse = 0;
-
   if (user.num_edges == 0){
-   if (scope.vertex() == (uint)(ps.M-1))
+   if (id == ps.M-1)
     	svd_post_iter();
     return; //if this user/movie have no ratings do nothing
   }
 
-
   gl_types_svdpp::edge_list outs = scope.out_edge_ids();
-  gl_types_svdpp::edge_list ins = scope.in_edge_ids();
   timer t;
 
   t.start(); 
   //USER NODES    
   if ((int)scope.vertex() < ps.M){
-
-
     user.weight = zeros(ac.D);
-    
     foreach(graphlab::edge_id_t oedgeid, outs) {
       vertex_data_svdpp  & movie = scope.neighbor_vertex_data(scope.target(oedgeid)); 
       //sum_{j \in N(u)} y_j 
       user.weight += movie.weight; 
-      assert(!std::isnan(user.weight[0]));      
     }
-  
+
+   assert(user.num_edges != 0);  
    // sqrt(|N(u)|) 
    float usrNorm = double(1.0/sqrt(user.num_edges));
    //sqrt(|N(u)| * sum_j y_j
    user.weight *= usrNorm;
-   assert(!std::isnan(user.weight[0]));      
 
    vec step = zeros(ac.D);
  
@@ -300,19 +293,12 @@ void svd_plus_plus_update_function(gl_types_svdpp::iscope &scope,
       float err = edge.weight - estScore;
       assert(!std::isnan(user.rmse));
       vec itmFctr = movie.pvec;
-      assert(!std::isnan(movie.pvec[0]));
       vec usrFactor = user.pvec;
-      assert(!std::isnan(user.pvec[0]));
-      assert(!std::isnan(movie.pvec[0]));
    
       //q_i = q_i + gamma2     *(e_ui*(p_u      +  sqrt(N(U))\sum_j y_j) - gamma7    *q_i)
       movie.pvec += ac.svdp.itmFctrStep*(err*(usrFactor +  user.weight)             - ac.svdp.itmFctrReg*itmFctr);
-      assert(!std::isnan(user.weight[0]));      
-      assert(!std::isnan(movie.pvec[0]));
       //p_u = p_u + gamma2    *(e_ui*q_i   -gamma7     *p_u)
-      assert(!std::isnan(user.pvec[0]));
       user.pvec += ac.svdp.usrFctrStep*(err *itmFctr-ac.svdp.usrFctrReg*usrFactor);
-      assert(!std::isnan(user.pvec[0]));
       step += err*itmFctr;
 
       //b_i = b_i + gamma1*(e_ui - gmma6 * b_i) 
@@ -322,16 +308,12 @@ void svd_plus_plus_update_function(gl_types_svdpp::iscope &scope,
    }
 
    step *= float(ac.svdp.itmFctr2Step*usrNorm);
-   assert(!std::isnan(step[0]));
    //gamma7 
    double mult = ac.svdp.itmFctr2Step*ac.svdp.itmFctr2Reg;
-   assert(!std::isnan(mult));
    foreach(graphlab::edge_id_t oedgeid, outs){
       vertex_data_svdpp  & movie = scope.neighbor_vertex_data(scope.target(oedgeid));
       //y_j = y_j  +   gamma2*sqrt|N(u)| * q_i - gamma7 * y_j
-      assert(!std::isnan(movie.weight[0]));
       movie.weight +=  step                    -  mult  * movie.weight;
-      assert(!std::isnan(movie.weight[0]));
    }
 
 
@@ -339,7 +321,7 @@ void svd_plus_plus_update_function(gl_types_svdpp::iscope &scope,
 
    if (scope.vertex() == (uint)(ps.M-1))
   	svd_post_iter();
-}
+  }
 
 }
 

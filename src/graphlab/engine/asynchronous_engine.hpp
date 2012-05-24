@@ -108,7 +108,7 @@ namespace graphlab {
       } // End of init      
       void run() {
         assert(engine != NULL);
-        logger(LOG_INFO, "Worker %d started.\n", workerid);        
+        logger(LOG_INFO, "Worker %d started.", workerid);        
         /* Start consuming tasks while the engine is active*/
         engine->run_to_terminate(workerid, scheduler, scope_manager);
 //         while(engine->active) {
@@ -116,7 +116,7 @@ namespace graphlab {
 //           // If this was nothing to execute then fail
 //           if (!executed_task) break;
 //         }   
-        logger(LOG_INFO, "Worker %d finished.\n", workerid);
+        logger(LOG_INFO, "Worker %d finished.", workerid);
       }      
     }; // end of task worker
 
@@ -134,9 +134,9 @@ namespace graphlab {
 
       void run() {
         assert(engine != NULL);
-        logger(LOG_INFO, "Worker (Sync) %d started.\n", workerid);        
+        //logger(LOG_INFO, "Worker (Sync) %d started.\n", workerid);        
         engine-> sync_loop(workerid);
-        logger(LOG_INFO, "Worker (Sync) %d finished.\n", workerid);
+        //logger(LOG_INFO, "Worker (Sync) %d finished.\n", workerid);
       }
     };
 
