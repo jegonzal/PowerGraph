@@ -149,6 +149,40 @@ namespace graphlab {
     load(graph, path, callback);
   }
 
+// Synthetic Generators ===================================================>
+    
+  template <typename VertexType, typename EdgeType>
+  void load_synthetic_powerlaw(graphlab::distributed_graph<VertexType, EdgeType>& graph,
+                               size_t nverts, bool in_degree = false,
+                               double alpha = 2.1, size_t truncate = (size_t)(-1)) {
+    std::vector<double> prob(std::min(nverts, truncate), 0);
+    std::cout << "constructing pdf" << std::endl;
+    for(size_t i = 0; i < prob.size(); ++i)
+      prob[i] = std::pow(double(i+1), -alpha);
+    std::cout << "constructing cdf" << std::endl;
+    random::pdf2cdf(prob);
+    std::cout << "Building graph" << std::endl;
+    size_t target_index = graph.procid();
+    size_t addedvtx = 0;
+
+    for(size_t source = graph.procid(); source < nverts;
+        source += graph.numprocs()) {
+      const size_t out_degree = random::sample(prob) + 1;
+      for(size_t i = 0; i < out_degree; ++i) {
+        target_index = (target_index + 2654435761)  % nverts;
+        if(source == target_index) {
+          target_index = (target_index + 2654435761)  % nverts;
+        }
+        if(in_degree) graph.add_edge(target_index, source);
+        else graph.add_edge(source, target_index);
+      }
+      ++addedvtx;
+      if (addedvtx % 10000000 == 0) {
+        std::cout << addedvtx << " inserted\n";
+      }
+    }
+  } // end of load random powerlaw
+
 } // namespace graph_ops
 
 } // namespace graphlab

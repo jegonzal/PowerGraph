@@ -273,6 +273,19 @@ namespace graphlab {
     }
 
 
+    void pdf2cdf(std::vector<double>& pdf) {
+      double Z = 0;
+      for(size_t i = 0; i < pdf.size(); ++i) Z += pdf[i];
+      for(size_t i = 0; i < pdf.size(); ++i)
+        pdf[i] = pdf[i]/Z + ((i>0)? pdf[i-1] : 0);
+    } // end of pdf2cdf
+
+    size_t sample(const std::vector<double>& cdf) {
+      return std::upper_bound(cdf.begin(), cdf.end(),
+                              rand01()) - cdf.begin();
+    } // end of sample
+
+
 
   
   }; // end of namespace random

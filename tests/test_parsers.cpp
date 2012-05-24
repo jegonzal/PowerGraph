@@ -64,10 +64,19 @@ void test_tsv(graphlab::distributed_control& dc) {
   check_structure(graph);  
 }
 
+void test_powerlaw(graphlab::distributed_control& dc) {
+  graphlab::distributed_graph<size_t, size_t> graph(dc);
+  graphlab::graph_ops::load_synthetic_powerlaw(graph, 1000);
+  graph.finalize();
+  ASSERT_EQ(graph.num_vertices(), 1000);
+  std::cout << graph.num_edges() << " Edges\n";
+}
+
 int main(int argc, char** argv) {
   graphlab::distributed_control dc;
   test_adj(dc);
   test_snap(dc);
   test_tsv(dc);
+  test_powerlaw(dc);
 };
 

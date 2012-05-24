@@ -438,6 +438,16 @@ namespace graphlab {
       get_source().shuffle(begin, end);
     }
 
+    /**
+     * Converts a discrete PDF into a CDF
+     */
+    void pdf2cdf(std::vector<double>& pdf);
+
+    /**
+     * Performs a random draw from a discrete CDF
+     */
+    size_t sample(const std::vector<double>& cdf);
+    
   }; // end of random 
 }; // end of graphlab
 
