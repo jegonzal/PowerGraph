@@ -250,7 +250,7 @@ namespace graphlab {
         receive_messages();
         execute_gathers();
         execute_applys();
-        exectue_scatters();        
+        execute_scatters();        
       }
     } // end of start
 
@@ -293,9 +293,9 @@ namespace graphlab {
       }
       // Flush the buffer and finish receiving any remaining vertex
       // programs.
-      barrier.wait();
+      thread_barrier.wait();
       if(thread_id == 0) { vprog_exchange.flush(); vdata_exchange.flush(); }
-      barrier.wait();
+      thread_barrier.wait();
       recv_vertex_programs();
       recv_vertex_data();
     } // end of initialize_vertex_programs
@@ -328,9 +328,9 @@ namespace graphlab {
         }
       } // end of loop over vertices to send messages
       // Finish sending and receiving all messages
-      barrier.wait();
+      thread_barrier.wait();
       if(thread_id == 0) message_exchange.flush(); 
-      barrier.wait();
+      thread_barrier.wait();
       recv_messages();
     } // end of execute_applys
 
@@ -342,7 +342,7 @@ namespace graphlab {
 
     void receive_messages() {  
       // Clear any active vertices at the beginning of this iteration
-      active_superset.clear(); active_minorstep.clear();
+      active_superstep.clear(); active_minorstep.clear();
       for(size_t i = 0; i < threads.size(); ++i)
         threads.launch(boost::bind(&synchronous_engine::receive_messages,
                                    this, i));
@@ -378,9 +378,9 @@ namespace graphlab {
       }
       // Flush the buffer and finish receiving any remaining vertex
       // programs.
-      barrier.wait();
+      thread_barrier.wait();
       if(thread_id == 0) vprog_exchange.flush();
-      barrier.wait();
+      thread_barrier.wait();
       recv_vertex_programs();
     } // end of receive messages
 
@@ -410,18 +410,18 @@ namespace graphlab {
             accum = gather_cache[lvid];
           } else {
             // recompute the local contribution to the gather
-            const vertex_program_type& vprog = vertex_program[lvid];
+            const vertex_program_type& vprog = vertex_programs[lvid];
             const edge_dir_type gather_dir = vprog.gather_edges();
             local_vertex_type local_vertex = graph.l_vertex(lvid);
             const vertex_type vertex(local_vertex);
             // Loop over in edges
-            if(gather_dir == IN_EDGES || gather_dir == ALL_EDGE) {
+            if(gather_dir == IN_EDGES || gather_dir == ALL_EDGES) {
               foreach(local_edge_type local_edge, local_vertex.in_edges()) {
                 accum += vprog.gather(context, vertex, edge_type(local_edge));
               }
             } // end of if in_edges/all_edges
             // Loop over out edges
-            if(gather_dir == OUT_EDGES || gather_dir == ALL_EDGE) {
+            if(gather_dir == OUT_EDGES || gather_dir == ALL_EDGES) {
               foreach(local_edge_type local_edge, local_vertex.out_edges()) {
                 accum += vprog.gather(context, vertex, edge_type(local_edge));
               }
@@ -438,9 +438,9 @@ namespace graphlab {
         }
       } // end of loop over vertices to compute gather accumulators
       // Finish sending and receiving all gather operations
-      barrier.wait();
+      thread_barrier.wait();
       if(thread_id == 0) gather_exchange.flush();
-      barrier.wait();
+      thread_barrier.wait();
       recv_gathers();
     } // end of execute_gathers
 
@@ -476,9 +476,9 @@ namespace graphlab {
         } // end of if apply
       } // end of loop over vertices to run apply
       // Finish sending and receiving all changes due to apply operations
-      barrier.wait();
+      thread_barrier.wait();
       if(thread_id == 0) { vprog_exchange.flush(); vdata_exchange.flush(); }
-      barrier.wait();
+      thread_barrier.wait();
       recv_vertex_programs();
       recv_vertex_data();
     } // end of execute_applys
@@ -502,20 +502,20 @@ namespace graphlab {
           lvid += threads.size()) {
         // If this vertex is active in the scatter minorstep
         if(active_minorstep.get(lvid)) {
-          const vertex_program_type& vprog = vertex_program[lvid];
+          const vertex_program_type& vprog = vertex_programs[lvid];
           const edge_dir_type scatter_dir = vprog.scatter_edges();
           local_vertex_type local_vertex = graph.l_vertex(lvid);
           const vertex_type vertex(local_vertex);
           // Loop over in edges
-          if(scatter_dir == IN_EDGES || scatter_dir == ALL_EDGE) {
+          if(scatter_dir == IN_EDGES || scatter_dir == ALL_EDGES) {
             foreach(local_edge_type local_edge, local_vertex.in_edges()) {
-              accum += vprog.scatter(context, vertex, edge_type(local_edge));
+              vprog.scatter(context, vertex, edge_type(local_edge));
             }
           } // end of if in_edges/all_edges
           // Loop over out edges
-          if(scatter_dir == OUT_EDGES || scatter_dir == ALL_EDGE) {
+          if(scatter_dir == OUT_EDGES || scatter_dir == ALL_EDGES) {
             foreach(local_edge_type local_edge, local_vertex.out_edges()) {
-              accum += vprog.scatter(context, vertex, edge_type(local_edge));
+              vprog.scatter(context, vertex, edge_type(local_edge));
             }
           } // end of if out_edges/all_edges
         } // end of if active on this minor step

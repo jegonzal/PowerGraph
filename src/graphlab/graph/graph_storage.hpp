@@ -58,6 +58,9 @@
 #include <graphlab/util/random.hpp>
 #include <graphlab/util/generics/shuffle.hpp>
 #include <graphlab/graph/graph_basic_types.hpp>
+
+#include <graphlab/parallel/atomic.hpp>
+
 #include <graphlab/macros_def.hpp>
 
 namespace graphlab {
