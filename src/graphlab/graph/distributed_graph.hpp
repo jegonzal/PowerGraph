@@ -741,7 +741,35 @@ namespace graphlab {
       local_edge_list_type out_edges() {
         return g.l_out_edges(lvid);
       }
-      
+
+      /** \brief Returns the owner of this local vertex
+       */
+      procid_t owner() const {
+        return g.l_get_vertex_record(lvid).owner;
+      }
+
+      /** \brief Returns the number of in_edges of this vertex
+       *         on the global graph
+       */
+      size_t global_num_in_edges() const {
+        return g.l_get_vertex_record(lvid).num_in_edges;
+      }
+
+
+      /** \brief Returns the number of out_edges of this vertex
+       *         on the global graph
+       */
+      size_t global_num_out_edges() const {
+        return g.l_get_vertex_record(lvid).num_out_edges;
+      }
+
+
+      /** \brief Returns the set of mirrors of this vertex
+       */
+      const mirror_type& mirrors() const {
+        return g.l_get_vertex_record(lvid)._mirrors;
+      }
+
       /** \brief Returns the vertex record of this
        *         this local vertex
        */
