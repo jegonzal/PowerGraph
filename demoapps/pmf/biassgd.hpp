@@ -57,12 +57,24 @@ void bias_sgd_post_iter(){
   printf("Entering last iter with %d\n", ps.iiter);
 
   double res,res2;
-  double rmse = agg_rmse_by_user<graph_type_svdpp, vertex_data_svdpp>(res);
-  printf("%g) Iter %s %d, TRAIN RMSE=%0.4f VALIDATION RMSE=%0.4f.\n", ps.gt.current_time(), "SVD", ps.iiter,  rmse, calc_svd_rmse(ps.g<graph_type_svdpp>(VALIDATION), true, res2));
+  double training_rmse = agg_rmse_by_user<graph_type_svdpp, vertex_data_svdpp>(res);
+  double validation_rmse = calc_svd_rmse(ps.g<graph_type_svdpp>(VALIDATION), true, res2);
+  printf(ac.printhighprecision ? 
+        "%g) Iter %s %d  TRAIN RMSE=%0.12f VALIDATION RMSE=%0.12f.\n":
+        "%g) Iter %s %d  TRAIN RMSE=%0.4f VALIDATION RMSE=%0.4f.\n",
+  ps.gt.current_time(), runmodesname[ps.algorithm], ps.iiter,  training_rmse, validation_rmse);
 
   if (ac.calc_ap){
      logstream(LOG_INFO)<<"AP@3 for training: " << calc_ap<graph_type_svdpp,vertex_data_svdpp,edge_data>(ps.g<graph_type_svdpp>(TRAINING)) << " AP@3 for validation: " << calc_ap<graph_type_svdpp,vertex_data_svdpp,edge_data>(ps.g<graph_type_svdpp>(VALIDATION)) << std::endl;
   }
+   //stop on divergence
+  if (ac.halt_on_rmse_increase)
+    if ((ps.validation_rmse && (ps.validation_rmse < validation_rmse)) ||
+        (ps.training_rmse && (ps.training_rmse < training_rmse)))
+          dynamic_cast<graphlab::core<vertex_data_svdpp,edge_data>*>(ps.glcore)->engine().stop();
+
+  ps.validation_rmse = validation_rmse; 
+  ps.training_rmse = training_rmse;
   
   ac.sgd_gamma *= ac.sgd_step_dec;
   ps.iiter++;
@@ -94,28 +106,24 @@ void bias_sgd_update_function(gl_types_svdpp::iscope &scope,
 			 gl_types_svdpp::icallback &scheduler) {
     
 
-  //USER NODES    
-  if ((int)scope.vertex() < ps.M){
 
-
+  int id = scope.vertex();
   /* GET current vertex data */
   vertex_data_svdpp& user = scope.vertex_data();
  
-  
   /* print statistics */
-  if (ac.debug&& (scope.vertex() == 0 || ((int)scope.vertex() == ps.M-1) || ((int)scope.vertex() == ps.M) || ((int)scope.vertex() == ps.M+ps.N-1))){
-    printf("biasSVD: entering %s node  %u \n", (((int)scope.vertex() < ps.M) ? "movie":"user"), (int)scope.vertex());   
-    debug_print_vec((((int)scope.vertex() < ps.M) ? "V " : "U") , user.pvec, ac.D);
+  if (ps.to_print(id)){
+    printf("biasSVD: entering user node  %u \n", id);   
+    debug_print_vec("U", user.pvec, ac.D);
   }
-
-  assert((int)scope.vertex() < ps.M+ps.N);
-
   user.rmse = 0;
 
   if (user.num_edges == 0){
-    return; //if this user/movie have no ratings do nothing
+		if (id == ps.M-1){
+  	  bias_sgd_post_iter();
+    }
+		return; //if this user/movie have no ratings do nothing
   }
-
 
   gl_types_svdpp::edge_list outs = scope.out_edge_ids();
   timer t;
@@ -135,16 +143,14 @@ void bias_sgd_update_function(gl_types_svdpp::iscope &scope,
       movie.bias += ac.sgd_gamma*(err - ac.sgd_lambda*movie.bias); 
       movie.pvec = movie.pvec + ac.sgd_gamma*(err*user.pvec - ac.sgd_lambda*movie.pvec);
       user.pvec = user.pvec + ac.sgd_gamma*(err*movie.pvec - ac.sgd_lambda*user.pvec);
-   }
+    }
 
+    ps.counter[EDGE_TRAVERSAL] += t.current_time();
 
-   ps.counter[EDGE_TRAVERSAL] += t.current_time();
-
-   if (scope.vertex() == (uint)ps.M-1){
+    if (id == ps.M-1){
   	  bias_sgd_post_iter();
     }
 
-  }
 
 }
 

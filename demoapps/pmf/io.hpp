@@ -608,7 +608,7 @@ void export_uvt_to_itpp_file<graph_type_svdpp,vertex_data_svdpp>(){
   remove(dfile);
   it_file output(dfile);
 
-  if (ps.algorithm == SVD_PLUS_PLUS){
+  if (ps.algorithm == SVD_PLUS_PLUS || ps.algorithm == BIAS_SGD){
     output << Name("User");
     output << ps.U;
     output << Name("Movie");

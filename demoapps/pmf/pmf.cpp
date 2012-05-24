@@ -130,7 +130,7 @@ void add_tasks(core & glcore){
   std::vector<vertex_id_t> um;
   int start = 0;
   int end = ps.M+ps.N;
-  if (ps.algorithm == SVD_PLUS_PLUS || ps.algorithm == TIME_SVD_PLUS_PLUS || ps.algorithm == RBM || ps.algorithm == STOCHASTIC_GRADIENT_DESCENT)
+  if (ps.algorithm == SVD_PLUS_PLUS || ps.algorithm == TIME_SVD_PLUS_PLUS || ps.algorithm == RBM || ps.algorithm == STOCHASTIC_GRADIENT_DESCENT || ps.algorithm == BIAS_SGD)
      end = ps.M;
 
   for (int i=start; i< end; i++)
