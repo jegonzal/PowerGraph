@@ -37,6 +37,7 @@
 //#include <graphlab/logger/assertions.hpp>
 #include <graphlab/util/stl_util.hpp>
 #include <graphlab/util/net_util.hpp>
+#include <graphlab/util/mpi_tools.hpp>
 
 #include <graphlab/rpc/dc.hpp>
 #include <graphlab/rpc/dc_tcp_comm.hpp>
@@ -139,8 +140,16 @@ distributed_control::distributed_control() {
   dc_init_param initparam;
   if (init_param_from_env(initparam)) {
     logstream(LOG_INFO) << "Distributed Control Initialized from Environment" << std::endl;
-  } else if (init_param_from_mpi(initparam)) {
+  } else if (mpi_tools::initialized() && init_param_from_mpi(initparam)) {
       logstream(LOG_INFO) << "Distributed Control Initialized from MPI" << std::endl;
+  }
+  else {
+    logstream(LOG_INFO) << "Shared Memory Execution" << std::endl;
+    // shared memory!
+    initparam.machines.push_back("localhost:10000");
+    initparam.curmachineid = 0;
+    initparam.numhandlerthreads = RPC_DEFAULT_NUMHANDLERTHREADS;
+    initparam.commtype = RPC_DEFAULT_COMMTYPE;
   }
   init(initparam.machines, 
         initparam.initstring, 

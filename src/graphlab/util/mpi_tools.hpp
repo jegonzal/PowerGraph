@@ -60,6 +60,14 @@ namespace graphlab {
       assert(error == MPI_SUCCESS);
     }
 
+
+    inline bool initialized() {
+      int i;
+      int error = MPI_Initialized(&i);
+      assert(error == MPI_SUCCESS);
+      return i;
+    }
+
     inline size_t rank() {
       int mpi_rank(-1);
       MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);

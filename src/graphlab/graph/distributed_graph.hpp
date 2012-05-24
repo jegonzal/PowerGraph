@@ -113,7 +113,11 @@ namespace graphlab {
       lvid_type lvid;
       vertex_type(distributed_graph& g, lvid_type lvid):
             g(g), lvid(lvid) { }
-            
+
+      bool operator==(vertex_type& v) const {
+        return lvid == v.lvid;
+      }
+      
       /// \brief Returns a constant reference to the data on the vertex
       const vertex_data_type& data() const {
         return g.get_local_graph().vertex_data(lvid);
@@ -681,6 +685,10 @@ namespace graphlab {
       /// \brief Can be casted to vertex_type using an explicit cast
       operator vertex_type() const {
         return vertex_type(g, lvid);
+      }
+
+      bool operator==(local_vertex_type& v) const {
+        return lvid == v.lvid;
       }
       
       /// \brief Returns a reference to the data on the local vertex

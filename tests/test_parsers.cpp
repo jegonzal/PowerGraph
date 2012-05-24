@@ -65,11 +65,9 @@ void test_tsv(graphlab::distributed_control& dc) {
 }
 
 int main(int argc, char** argv) {
-  graphlab::mpi_tools::init(argc, argv);
   graphlab::distributed_control dc;
   test_adj(dc);
   test_snap(dc);
   test_tsv(dc);
-  graphlab::mpi_tools::finalize();
 };
 
