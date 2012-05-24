@@ -37,36 +37,6 @@ typedef double edge_data_type;
 typedef graphlab::graph<vertex_data_type, edge_data_type> graph_type;
 
 
-class update_function :
-  public graphlab::iupdate_functor<graph_type, update_function> {
-public:
-
-  void operator()(icontext_type& context) { 
-    namespace random = graphlab::random;    
-    context.vertex_data() += 
-      (double)random::uniform<int>(0,9) +
-      (double)random::fast_uniform<int>(0,9) +
-      (double)random::uniform<char>(0, 2) +
-      (double)random::fast_uniform<char>(0, 2) +
-      (double)random::uniform<uint32_t>(0, 5) +
-      (double)random::fast_uniform<uint32_t>(0, 5) +
-      (double)(random::rand() % 10) +
-      (double)random::uniform<size_t>(0,9) +
-      (double)random::fast_uniform<size_t>(0, 10) +
-      (double)random::uniform<double>(0,1) +
-      (double)random::fast_uniform<double>(0,1) +
-      (double)random::uniform<float>(0,1) +
-      (double)random::fast_uniform<float>(0,1) +
-      (double)random::gamma() +
-      (double)random::gaussian();
-    std::vector<double> weights(5);
-    for(size_t i = 0; i < weights.size(); ++i) {
-      weights[i] = random::uniform<double>(0,1);
-    }
-    context.vertex_data() += (double)random::multinomial(weights);                 
-  } // end of operator()
-}; // end of update_functor
-
 
 template<typename NumType>
 void uniform_speed(const size_t max_iter) {
@@ -168,28 +138,6 @@ class RandomTestSuite: public CxxTest::TestSuite {
 
 
 
-  void test_randomness_in_engine() {
-    graphlab::core<graph_type, update_function> core;
-    for(size_t i = 0; i < 32; ++i) 
-      core.graph().add_vertex(vertex_data_type(0));
-    for(graph_type::vertex_id_type i = 0; i+1 < core.graph().num_vertices(); ++i) {
-      core.graph().add_edge(i, i+1, edge_data_type(1));
-      core.graph().add_edge(i+1, i, edge_data_type(2));
-    }
-    graphlab::graph_ops::color(core.graph());
-    core.set_scheduler_type("chromatic(max_iterations=2)");
-    core.set_scope_type("vertex");
-    core.set_ncpus(4);
-    core.schedule_all(update_function());
-    for(size_t i = 0; i < 3; ++i) {
-      std::cout << "--------------------------------" << std::endl;
-      core.start();
-      for(graph_type::vertex_id_type i = 0; i < core.graph().num_vertices(); ++i) {
-        std::cout << core.graph().vertex_data(i) << "\t";
-      }
-      std::cout << std::endl;
-    }
-  }
 
   void test_shuffle() {
     namespace random = graphlab::random;

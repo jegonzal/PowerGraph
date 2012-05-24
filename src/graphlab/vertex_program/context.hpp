@@ -21,8 +21,8 @@
  */
 
 
-#ifndef GRAPHLAB_ICONTEXT_HPP
-#define GRAPHLAB_ICONTEXT_HPP
+#ifndef GRAPHLAB_CONTEXT_HPP
+#define GRAPHLAB_CONTEXT_HPP
 
 #include <set>
 #include <vector>
@@ -41,7 +41,7 @@ namespace graphlab {
    * engine's context.  
    */
   template<typename Engine>
-  class context {
+  class context : public icontext<typename Engine::vertex_program_type> {
   public:
     // Type members ===========================================================
 
@@ -52,7 +52,7 @@ namespace graphlab {
     typedef typename graph_type::lvid_type lvid_type;
 
     /** The type of the user-defined vertex program */
-    typedef typename engine_type::vertex_program_type;
+    typedef typename engine_type::vertex_program_type vertex_program_type;
 
 
 

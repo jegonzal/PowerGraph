@@ -33,18 +33,25 @@
 #include <boost/bind.hpp>
 
 #include <graphlab/engine/iengine.hpp>
+
+#include <graphlab/vertex_program/ivertex_program.hpp>
 #include <graphlab/vertex_program/icontext.hpp>
+#include <graphlab/vertex_program/context.hpp>
+
 #include <graphlab/engine/execution_status.hpp>
 #include <graphlab/options/graphlab_options.hpp>
+
+
+
+
+#include <graphlab/parallel/pthread_tools.hpp>
 #include <graphlab/parallel/atomic_add_vector.hpp>
-#include <graphlab/options/graphlab_options.hpp>
-
-#include <graphlab/rpc/dc_dist_object.hpp>
-
 #include <graphlab/util/tracepoint.hpp>
 #include <graphlab/util/memory_info.hpp>
-#include <graphlab/rpc/distributed_event_log.hpp>
 
+#include <graphlab/rpc/dc_dist_object.hpp>
+#include <graphlab/rpc/distributed_event_log.hpp>
+#include <graphlab/rpc/buffered_exchange.hpp>
 
 
 
@@ -68,13 +75,18 @@ namespace graphlab {
     typedef typename VertexProgram::message_type message_type;
     typedef typename VertexProgram::vertex_data_type vertex_data_type;
     typedef typename VertexProgram::edge_data_type edge_data_type;
+
     typedef typename VertexProgram::graph_type graph_type;
 
-    typedef typename graph_type::local_graph_type     local_graph_type;
-    typedef typename graph_type::local_edge_list_type local_edge_list_type;
-    typedef typename graph_type::edge_type            edge_type;
     typedef typename graph_type::vertex_type          vertex_type;
+    typedef typename graph_type::edge_type            edge_type;
+
+    typedef typename graph_type::local_graph_type     local_graph_type;
+    typedef typename graph_type::local_vertex_type    local_vertex_type;
+    typedef typename graph_type::local_edge_type      local_edge_type;
+    typedef typename graph_type::local_edge_list_type local_edge_list_type;
     typedef typename graph_type::lvid_type            lvid_type;
+
 
     typedef icontext<VertexProgram> icontext_type;
     typedef context<synchronous_engine> context_type;
@@ -95,15 +107,16 @@ namespace graphlab {
     //! Engine state
     bool started;
 
+    graphlab::timer timer;
 
-    //! Locks for each vertex
+
     std::vector<spinlock>    vlocks;
     std::vector<vertex_program_type> vertex_programs;
     atomic_add_vector<message_type> messages;   
     atomic_add_vector<gather_type>  gather_cache;
     dense_bitset             active_vertices;
     dense_bitset             active_next;      
-    
+
     atomic<size_t> completed_tasks;
     
 
@@ -200,7 +213,7 @@ namespace graphlab {
      */
     size_t total_memory_usage() {
       size_t allocated_memory = memory_info::allocated_bytes();
-      rmi.all_reduce(allocatedmem);
+      rmi.all_reduce(allocated_memory);
       return allocated_memory;
     } // compute the total memory usage of the GraphLab system
 
@@ -219,64 +232,20 @@ namespace graphlab {
       // Initialization code ==================================================     
       // Reset event log counters? 
       rmi.dc().flush_counters();
-      if (rmi.procid() == 0) {        
-        logstream(LOG_INFO) << "Total Allocated Bytes: " 
-                            << total_memory_usage() << std::end;
-        PERMANENT_IMMEDIATE_DIST_EVENT(eventlog, ENGINE_START_EVENT);
-      }
-      rmi.full_barrier();
-      
-      graphlab::timer timer;
+      // Start the timer
+      timer.start();
       // Initialize all vertex programs
       initialize_vertex_programs();
-
       // Program Main loop ====================================================      
       for (size_t iteration = 0; iteration < max_iterations; ++iteration) {
-        ti.start();
         if (rmi.procid() == 0) 
           std::cout << "Starting iteration: " << iteration << std::endl;
-        receive_messages()
-
-
+        receive_messages();
+        execute_gathers();
         
-        // init gather broadcasts the task 
-        // for each owned vertex to mirrored vertices. after this,
-        // only workingset has tasks
-        parallel_main_stuff();
-        aggregator.evaluate_queue();
-
-        // complete the scatter on each vertex
-        if (i == (max_iterations - 1)) block_schedule_insertion = true;
-        parallel_scatter();
-        // there is no schedule, if this is the last iteration
-        rmi.all_reduce(has_schedule_entries);
-        if (has_schedule_entries) {
-          parallel_transmit_schedule();
-          rmi.full_barrier();
-        }
-        if (rmi.procid() == 0) std::cout << ti.current_time() << std::endl;
-        if (has_schedule_entries == false) break;
+        
+        
       }
-      rmi.dc().flush_counters();
-      if (rmi.procid() == 0) {
-        PERMANENT_IMMEDIATE_DIST_EVENT(eventlog, ENGINE_STOP_EVENT);
-      }
-
-      size_t ctasks = completed_tasks.value;
-      rmi.all_reduce(ctasks);
-      completed_tasks.value = ctasks;
-      if (rmi.procid() == 0) {
-        std::cout << "Completed Tasks: " << completed_tasks.value << std::endl;
-      }
-      std::cout << "Barrier time: " << barrier_time << std::endl;
-      if (no_background_comms) {
-        std::cout << "Compute time: " << compute_time << std::endl;
-      }
-
-      // reset
-      block_schedule_insertion = false;
-      has_schedule_entries = false;
-      started = false;
     } // end of start
 
 
@@ -431,6 +400,7 @@ namespace graphlab {
      */
     void receive_messages(size_t thread_id, barrier* barrier_ptr) {      
       message_type message;
+      context_type context(*this, graph);
       for(lvid_type lvid = thread_id; lvid < graph.num_local_vertices(); 
           lvid += threads.size()) {
         if(graph.l_is_master(lvid) && message.test_and_get(lvid, message)) {         
@@ -485,23 +455,7 @@ namespace graphlab {
           //writing code here 
           
         }
-        if(graph.l_is_master(lvid) && message.test_and_get(lvid, message)) {         
-
-          local_vertex_type local_vertex = graph.l_vertex(lvid);
-          vertex_programs[lvid].recv_message(context, local_vertex, message);
-          if(vertex_programs[lvid].gather_edges() != NO_EDGES) {
-            active_next.set_bit(lvid);
-            send_vertex_program(lvid);
-          }          
-        }
-        // Receive any inbound vertex programs
-        // recv_vertex_programs();
       }
-      // Flush the buffer and finish receiving any remaining vertex
-      // programs.
-      if(thread_id == 0) vprog_exchange.flush();
-      barrier_ptr->wait();
-      recv_vertex_programs();
     } // end of receive messages
 
 
