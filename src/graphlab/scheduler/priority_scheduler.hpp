@@ -39,7 +39,7 @@
 #include <graphlab/util/mutable_queue.hpp>
 #include <graphlab/scheduler/ischeduler.hpp>
 #include <graphlab/scheduler/terminator/iterminator.hpp>
-#include <graphlab/scheduler/vertex_map.hpp>
+#include <graphlab/parallel/atomic_add_vector.hpp>
 
 #include <graphlab/scheduler/terminator/critical_termination.hpp>
 #include <graphlab/options/options_map.hpp>
@@ -59,7 +59,7 @@ namespace graphlab {
     typedef mutable_queue<vertex_id_type, double> queue_type;
 
   private:
-    vertex_map<message_type> messages;
+    atomic_add_vector<message_type> messages;
     std::vector<queue_type> queues;
     std::vector<spinlock>   locks;
     size_t multi;

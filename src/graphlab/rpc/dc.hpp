@@ -338,6 +338,7 @@ class distributed_control{
   static unsigned char get_sequentialization_key();
 
  
+  /** \todo rename to flush_event_counters and document */
   void flush_counters() {
     eventlog.flush_and_reset_counters();
   } 

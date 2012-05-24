@@ -20,16 +20,14 @@
  *
  */
 
+#ifndef GRAPHLAB_GRAPH_INCLUDES
+#define GRAPHLAB_GRAPH_INCLUDES
+
+#include <graphlab/graph/graph_ops.hpp>
+#include <graphlab/graph/distributed_graph.hpp>
+
+#endif
 
 
-
-#include <graphlab/engine/iengine.hpp>
-#include <graphlab/engine/synchronous_engine.hpp>
-// #include <graphlab/engine/asynchronous_consistent_engine.hpp>
-#include <graphlab/engine/execution_status.hpp>
-
-//#include <graphlab/engine/asynchronous_engine.hpp>
-//#include <graphlab/engine/engine_factory.hpp>
-//#include <graphlab/engine/engine_options.hpp>
 
 

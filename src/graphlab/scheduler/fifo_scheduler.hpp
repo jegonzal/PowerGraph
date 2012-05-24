@@ -34,7 +34,7 @@
 #include <graphlab/util/random.hpp>
 #include <graphlab/scheduler/ischeduler.hpp>
 #include <graphlab/scheduler/terminator/iterminator.hpp>
-#include <graphlab/scheduler/vertex_map.hpp>
+#include <graphlab/parallel/atomic_add_vector.hpp>
 
 #include <graphlab/scheduler/terminator/critical_termination.hpp>
 #include <graphlab/options/options_map.hpp>
@@ -65,7 +65,7 @@ namespace graphlab {
 
   private:
 
-    vertex_map<message_type> messages;
+    atomic_add_vector<message_type> messages;
     std::vector<queue_type> queues;
     std::vector<spinlock>   locks;
     size_t multi;

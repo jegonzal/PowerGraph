@@ -57,11 +57,20 @@ namespace graphlab {
     std::vector< buffer_type > send_buffers;
     std::vector< mutex>        send_locks;
     size_t max_buffer_size;
-    
+
+    // typedef boost::function<void (const T& tref)> handler_type;
+    // handler_type recv_handler;
+
   public:
     buffered_exchange(distributed_control& dc, size_t buffer_size = 1000) : 
     rpc(dc, this), send_buffers(dc.numprocs()), send_locks(dc.numprocs()),
     max_buffer_size(buffer_size) { rpc.barrier(); }
+
+    // buffered_exchange(distributed_control& dc, handler_type recv_handler, 
+    //                   size_t buffer_size = 1000) : 
+    // rpc(dc, this), send_buffers(dc.numprocs()), send_locks(dc.numprocs()),
+    // max_buffer_size(buffer_size), recv_handler(recv_handler) { rpc.barrier(); }
+
     
     void send(procid_t proc, const T& value) {
       ASSERT_LT(proc, send_locks.size());

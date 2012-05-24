@@ -28,31 +28,19 @@
 
 
 
-#include <graphlab/aggregation/aggregation_includes.hpp>
+// #include <graphlab/aggregation/aggregation_includes.hpp>
 #include <graphlab/engine/engine_includes.hpp>
-#include <graphlab/factors/factor_includes.hpp>
 #include <graphlab/graph/graph_includes.hpp>
 #include <graphlab/options/options_includes.hpp>
 #include <graphlab/logger/logger_includes.hpp>
-#include <graphlab/monitoring/monitoring_includes.hpp>
 #include <graphlab/parallel/parallel_includes.hpp>
 #include <graphlab/scheduler/scheduler_includes.hpp>
 #include <graphlab/serialization/serialization_includes.hpp>
 #include <graphlab/vertex_program/vertex_program_includes.hpp>
 #include <graphlab/util/util_includes.hpp>
-#include <graphlab/core.hpp>
+#include <graphlab/rpc/rpc_includes.hpp>
 
 
-#include <graphlab.hpp>
-
-#include <graphlab/util/mpi_tools.hpp>
-
-#include <graphlab/rpc/dc.hpp>
-#include <graphlab/rpc/dc_init_from_mpi.hpp>
-#include <graphlab/engine/distributed_engine2.hpp>
-#include <graphlab/engine/distributed_fscope_engine.hpp>
-#include <graphlab/engine/distributed_synchronous_engine.hpp>
-#include <graphlab/graph/distributed_graph.hpp>
 
 
 

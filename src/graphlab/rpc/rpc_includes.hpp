@@ -19,17 +19,12 @@
  *      http://www.graphlab.ml.cmu.edu
  *
  */
+ 
 
+#ifndef GRAPHLAB_RPC_INCLUDES
+#define GRAPHLAB_RPC_INCLUDES
 
+#include <graphlab/rpc/dc.hpp>
+#include <graphlab/rpc/dc_init_from_mpi.hpp>
 
-
-#include <graphlab/engine/iengine.hpp>
-#include <graphlab/engine/synchronous_engine.hpp>
-// #include <graphlab/engine/asynchronous_consistent_engine.hpp>
-#include <graphlab/engine/execution_status.hpp>
-
-//#include <graphlab/engine/asynchronous_engine.hpp>
-//#include <graphlab/engine/engine_factory.hpp>
-//#include <graphlab/engine/engine_options.hpp>
-
-
+#endif

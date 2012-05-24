@@ -40,13 +40,21 @@ namespace graphlab {
    * Each of the vertex program methods is passed a reference to the
    * engine's context.  
    */
-  template<typename VertexProgram>
-  class icontext {
+  template<typename Engine>
+  class context {
   public:
     // Type members ===========================================================
 
+    typedef Engine engine_type;
+
+    /** the graph type used by this context */
+    typedef typename engine_type::graph_type graph_type;
+    typedef typename graph_type::lvid_type lvid_type;
+
     /** The type of the user-defined vertex program */
-    typedef VertexProgram vertex_program_type;
+    typedef typename engine_type::vertex_program_type;
+
+
 
     /** 
      * The opaque vertex object type 
@@ -66,62 +74,98 @@ namespace graphlab {
      */
     typedef typename vertex_program_type::gather_type gather_type;
 
-   
+
+    typedef std::pair<vertex_type, message_type> message_pair_type;
+    typedef std::vector<message_pair_type> message_buffer_type;
+
+    typedef std::pair<vertex_type, gather_type> delta_pair_type;
+    typedef std::vector<delta_pair_type> delta_buffer_type;
+
+
+  private:
+    engine_type& engine;
+    graph_type& graph;
+    
+
+    message_buffer_type message_buffer;
+    delta_buffer_type delta_buffer;
+    
+
+    
   public:        
-    /** icontext destructor */
-    virtual ~icontext() { }
+
+    context(engine_type& engine, graph_type& graph) : 
+      engine(engine), graph(graph) { }
+    
+    /**
+     * Clear the message and delta buffers
+     */
+    void clear() {
+      message_buffer.clear();
+      delta_buffer.clear();
+    } // end of clear
+
+    message_buffer_type messages() { return message_buffer; }
+    delta_buffer_type deltas() { return delta_buffer; }
     
     /**
      * Get the number of vertices in the graph.
      */
-    virtual size_t num_vertices() const = 0;
+    size_t num_vertices() const { return graph.num_vertices(); }
 
     /**
      * Get the number of edges in the graph
      */
-    virtual size_t num_edges() const = 0;
+    size_t num_edges() const { return graph.num_edges(); }
 
     /**
      * Get an estimate of the number of update functions executed up
      * to this point.
      */
-    virtual size_t num_updates() const = 0;
+    size_t num_updates() const { return engine.num_updates(); }
 
     /**
      * Get the elapsed time in seconds
      */
-    virtual size_t elapsed_time() const = 0;
+    size_t elapsed_time() const { return engine.elapsed_time(); }
 
     /**
      * Return the current interation number (if supported).
      */
-    virtual size_t iteration() const = 0;
+    size_t iteration() const { return engine.iteration(); }
 
     /**
      * Force the engine to stop executing additional update functions.
      */
-    virtual void terminate() = 0;
+    void terminate() { engine.stop(); }
 
     /**
      * Send a message to a vertex.
      */
-    virtual void send_message(const vertex_type& vertex, 
-                              const message_type& message = message_type()) = 0;
+    void send_message(const vertex_type& vertex, 
+                      const message_type& message = message_type()) {
+      message_buffer.push_back(message_pair_type(vertex, message));
+    }
 
     /**
      * Post a change to the cached sum for the vertex
      */
-    virtual void post_delta(const vertex_type& vertex, 
-                            const gather_type& delta) = 0;    
+    void post_delta(const vertex_type& vertex, 
+                       const gather_type& delta) {
+      delta_buffer.push_back(delta_pair_type(vertex, delta));
+    }
 
     /**
      * Invalidate the cached gather on the vertex.
      */
-    virtual void clear_gather(const vertex_type& vertex) = 0; 
+    virtual void clear_gather(const vertex_type& vertex) { 
+      
+    }
+
 
                                                 
 
-  }; // end of icontexty
+  }; // end of context
   
 } // end of namespace
 #include <graphlab/macros_undef.hpp>
