@@ -101,11 +101,13 @@ namespace graphlab {
     graphlab::barrier thread_barrier;
 
     size_t max_iterations;
+    size_t iteration_counter;
 
     //! Engine state
     bool started;
 
     graphlab::timer timer;
+    float start_time;
 
 
     std::vector<mutex>    vlocks;
@@ -159,17 +161,23 @@ namespace graphlab {
     void start();
     void stop() { /* implement */ }
     execution_status::status_enum last_exec_status() const;
-    size_t last_update_count() const;
+    size_t num_updates() const;
     void send_message(const vertex_type& vertex,
                       const message_type& message);    
     void send_message(const message_type& message,
                       const std::string& order = "sequential");
 
+    float elapsed_seconds() const;
+    size_t iteration() const; 
 
     void set_timeout(size_t timeout_secs) { /* implement */ }
     size_t elapsed_time() const { return 0; /* implement */ }
     void set_task_budget(size_t max_tasks) { /* implement */ }
     void set_options(const graphlab_options& opts) { /* implement */ }
+
+    void post_delta(const vertex_type& vertex,
+                    const gather_type& delta);
+    void clear_gather_cache(const vertex_type& vertex);
 
   private:
 
@@ -198,7 +206,7 @@ namespace graphlab {
     void recv_vertex_data();
     void sync_gather(lvid_type lvid, const gather_type& accum);
     void recv_gathers();
-    void sync_message(lvid_type lvid, const message_type& message);
+    void sync_message(lvid_type lvid);
     void recv_messages();
 
   }; // end of class synchronous engine
@@ -216,7 +224,9 @@ namespace graphlab {
                      graph_type& graph,
                      size_t ncpus) : 
     rmi(dc, this), graph(graph), threads(ncpus), thread_barrier(ncpus), 
-    max_iterations(-1) {
+    max_iterations(-1), iteration_counter(0),
+    vprog_exchange(dc), vdata_exchange(dc), 
+    gather_exchange(dc), message_exchange(dc) {
     rmi.barrier();
   } // end of synchronous engine
   
@@ -232,7 +242,7 @@ namespace graphlab {
       messages[lvid] += message;
     } else {
       messages[lvid] = message;
-      has_message.set(lvid);
+      has_message.set_bit(lvid);
     }
     vlocks[lvid].unlock();       
   } // end of send message
@@ -248,6 +258,39 @@ namespace graphlab {
   } // end of send message
   
   
+
+  template<typename VertexProgram>
+  void synchronous_engine<VertexProgram>::
+  post_delta(const vertex_type& vertex, const gather_type& delta) {
+    const bool caching_enabled = !gather_cache.empty();
+    if(caching_enabled) {
+      const lvid_type lvid = vertex.local_id();      
+      vlocks[lvid].lock();
+      if( has_cache.get(lvid) ) {
+        gather_cache[lvid] += delta;
+      } else {
+        gather_cache[lvid] = delta;
+        has_cache.set_bit(lvid);
+      }
+      vlocks[lvid].unlock();       
+    }
+  } // end of post_delta
+
+
+  template<typename VertexProgram>
+  void synchronous_engine<VertexProgram>::
+  clear_gather_cache(const vertex_type& vertex) {
+    const bool caching_enabled = !gather_cache.empty();
+    if(caching_enabled) {
+      const lvid_type lvid = vertex.local_id();      
+      vlocks[lvid].lock();
+      gather_cache[lvid] = gather_type();
+      has_cache.clear_bit(lvid);
+      vlocks[lvid].unlock();
+    }
+  } // end of clear_gather_cache
+  
+
 
 
 
@@ -289,7 +332,17 @@ namespace graphlab {
 
   template<typename VertexProgram>
   size_t synchronous_engine<VertexProgram>::
-  last_update_count() const { return completed_tasks.value; }
+  num_updates() const { return completed_tasks.value; }
+
+  template<typename VertexProgram>
+  float synchronous_engine<VertexProgram>::
+  elapsed_seconds() const { return lowres_time_seconds() - start_time; }
+
+  template<typename VertexProgram>
+  size_t synchronous_engine<VertexProgram>::
+  iteration() const { return iteration_counter; }
+
+
 
   template<typename VertexProgram>
   size_t synchronous_engine<VertexProgram>::total_memory_usage() const {
@@ -306,14 +359,17 @@ namespace graphlab {
     rmi.dc().flush_counters();
     // Start the timer
     timer.start();
+    start_time = lowres_time_seconds();
+    iteration_counter = 0;
 
     // Initialize all vertex programs
     run_synchronous( &synchronous_engine::initialize_vertex_programs );
 
     // Program Main loop ====================================================      
-    for (size_t iteration = 0; iteration < max_iterations; ++iteration) {
+    for (iteration_counter = 0; iteration_counter < max_iterations; 
+         ++iteration_counter) {
       if (rmi.procid() == 0) 
-        std::cout << "Starting iteration: " << iteration << std::endl;
+        std::cout << "Starting iteration: " << iteration_counter << std::endl;
       // Reset Active vertices ----------------------------------------------
 
       // Clear the active super-step and minor-step bits which will
@@ -398,8 +454,8 @@ namespace graphlab {
     for(lvid_type lvid = thread_id; lvid < graph.num_local_vertices(); 
         lvid += threads.size()) {
       if(graph.l_is_master(lvid)) {          
-        local_vertex_type local_vertex = graph.l_vertex(lvid);
-        vertex_programs[lvid].init(context, vertex_type(local_vertex));
+        vertex_type vertex = local_vertex_type(graph.l_vertex(lvid));
+        vertex_programs[lvid].init(context, vertex);
         // send the vertex program and vertex data to all mirrors
         sync_vertex_program(lvid); sync_vertex_data(lvid);
       }
@@ -424,8 +480,8 @@ namespace graphlab {
       // if the vertex is not local and has a message send the
       // message and clear the bit
       if(!graph.l_is_master(lvid) && has_message.get(lvid)) {
-        send_message(lvid, messages[lvid]); 
-        has_message.clear(lvid);
+        sync_message(lvid); 
+        has_message.clear_bit(lvid);
         // clear the message to save memory
         messages[lvid] = message_type();
       }
@@ -448,14 +504,16 @@ namespace graphlab {
         // The vertex becomes active for this superstep 
         active_superstep.set_bit(lvid);
         // Pass the message to the vertex program
-        local_vertex_type local_vertex = graph.l_vertex(lvid);
-        vertex_programs[lvid].recv_message(context, 
-                                           vertex_type(local_vertex), 
+        vertex_type vertex = vertex_type(graph.l_vertex(lvid));
+        vertex_programs[lvid].recv_message(context, vertex,
                                            messages[lvid]);
         // clear the message to save memory
         messages[lvid] = message_type();
         // Determine if the gather should be run
-        if(vertex_programs[lvid].gather_edges() != graphlab::NO_EDGES) {
+        const vertex_program_type& const_vprog = vertex_programs[lvid];
+        const vertex_type const_vertex = vertex;
+        if(const_vprog.gather_edges(context, const_vertex) != 
+           graphlab::NO_EDGES) {
           active_minorstep.set_bit(lvid);
           sync_vertex_program(lvid);
         }  
@@ -490,18 +548,17 @@ namespace graphlab {
         } else {
           // recompute the local contribution to the gather
           const vertex_program_type& vprog = vertex_programs[lvid];
-          const edge_dir_type gather_dir = vprog.gather_edges();
           local_vertex_type local_vertex = graph.l_vertex(lvid);
           const vertex_type vertex(local_vertex);
+          const edge_dir_type gather_dir = vprog.gather_edges(context, vertex);
           // Loop over in edges
           if(gather_dir == IN_EDGES || gather_dir == ALL_EDGES) {
             foreach(local_edge_type local_edge, local_vertex.in_edges()) {
-              if(accum_is_set) { // \todo hint likely
-                accum += vprog.gather(context, vertex, 
-                                      edge_type(local_edge));
+              edge_type edge(local_edge);
+              if(accum_is_set) { // \todo hint likely                
+                accum += vprog.gather(context, vertex, edge);
               } else {
-                accum = vprog.gather(context, vertex, 
-                                     edge_type(local_edge));
+                accum = vprog.gather(context, vertex, edge); 
                 accum_is_set = true;
               }
             }
@@ -509,12 +566,11 @@ namespace graphlab {
             // Loop over out edges
           if(gather_dir == OUT_EDGES || gather_dir == ALL_EDGES) {
             foreach(local_edge_type local_edge, local_vertex.out_edges()) {
+              edge_type edge(local_edge);              
               if(accum_is_set) { // \todo hint likely
-                accum += vprog.gather(context, vertex, 
-                                      edge_type(local_edge));
+                accum += vprog.gather(context, vertex, edge);              
               } else {
-                accum = vprog.gather(context, vertex, 
-                                     edge_type(local_edge));
+                accum = vprog.gather(context, vertex, edge);
                 accum_is_set = true;
               }
             }
@@ -529,7 +585,7 @@ namespace graphlab {
         }
         // If the accum contains a value for the local gather we put
         // that estimate in the gather exchange.
-        if(accum_is_set) send_gather(lvid, accum);
+        if(accum_is_set) sync_gather(lvid, accum);
       }
     } // end of loop over vertices to compute gather accumulators
       // Finish sending and receiving all gather operations
@@ -546,14 +602,15 @@ namespace graphlab {
     context_type context(*this, graph);
     for(lvid_type lvid = thread_id; lvid < graph.num_local_vertices(); 
         lvid += threads.size()) {
-      // If this vertex is active on this super-step
-      if( active_superstep.get(lvid) && graph.l_is_master(lvid) ) {          
-        local_vertex_type local_vertex = graph.l_vertex(lvid);
+      // If this vertex is active on this super-step 
+      if( active_superstep.get(lvid) ) {          
+        // Only master vertices can be active in a super-step
+        ASSERT_TRUE(graph.l_is_master(lvid));
+        vertex_type vertex(graph.l_vertex(lvid));
         // Get the local accumulator.  Note that it is possible that
         // the gather_accum was not set during the gather.
         const gather_type& accum = gather_accum[lvid];
-        vertex_programs[lvid].apply(context, vertex_type(local_vertex), 
-                                    accum);
+        vertex_programs[lvid].apply(context, vertex, accum);
         // record an apply as a completed task
         ++completed_tasks;
         // Clear the accumulator to save some memory
@@ -561,7 +618,10 @@ namespace graphlab {
         // synchronize the changed vertex data with all mirrors
         sync_vertex_data(lvid);  
         // determine if a scatter operation is needed
-        if(vertex_programs[lvid].scatter_edges() != graphlab::NO_EDGES) {
+        const vertex_program_type& const_vprog = vertex_programs[lvid];
+        const vertex_type const_vertex = vertex;
+        if(const_vprog.scatter_edges(context, const_vertex) != 
+           graphlab::NO_EDGES) {
           active_minorstep.set_bit(lvid);
           sync_vertex_program(lvid);
         }  
@@ -584,19 +644,21 @@ namespace graphlab {
       // If this vertex is active in the scatter minorstep
       if(active_minorstep.get(lvid)) {
         const vertex_program_type& vprog = vertex_programs[lvid];
-        const edge_dir_type scatter_dir = vprog.scatter_edges();
         local_vertex_type local_vertex = graph.l_vertex(lvid);
         const vertex_type vertex(local_vertex);
+        const edge_dir_type scatter_dir = vprog.scatter_edges(context, vertex);
         // Loop over in edges
         if(scatter_dir == IN_EDGES || scatter_dir == ALL_EDGES) {
           foreach(local_edge_type local_edge, local_vertex.in_edges()) {
-            vprog.scatter(context, vertex, edge_type(local_edge));
+            edge_type edge(local_edge);
+            vprog.scatter(context, vertex, edge);
           }
         } // end of if in_edges/all_edges
           // Loop over out edges
         if(scatter_dir == OUT_EDGES || scatter_dir == ALL_EDGES) {
           foreach(local_edge_type local_edge, local_vertex.out_edges()) {
-            vprog.scatter(context, vertex, edge_type(local_edge));
+            edge_type edge(local_edge);
+            vprog.scatter(context, vertex, edge);
           }
         } // end of if out_edges/all_edges
       } // end of if active on this minor step
@@ -610,7 +672,8 @@ namespace graphlab {
   sync_vertex_program(lvid_type lvid) {
     ASSERT_TRUE(graph.l_is_master(lvid));
     const vertex_id_type vid = graph.global_vid(lvid);
-    foreach(const procid_t& mirror, graph.l_mirrors(lvid)) {
+    local_vertex_type vertex = graph.l_vertex(lvid);
+    foreach(const procid_t& mirror, vertex.mirrors()) {
       vprog_exchange.send(mirror, 
                           std::make_pair(vid, vertex_programs[lvid]));
     }
@@ -620,7 +683,7 @@ namespace graphlab {
   recv_vertex_programs() {
     procid_t procid(-1);
     typename vprog_exchange_type::buffer_type buffer;
-    while(vprog_exchange(procid, buffer)) {
+    while(vprog_exchange.recv(procid, buffer)) {
       foreach(const vid_prog_pair_type& pair, buffer) {
         const lvid_type lvid = graph.local_vid(pair.first);
         ASSERT_FALSE(graph.l_is_master(lvid));
@@ -636,9 +699,9 @@ namespace graphlab {
   sync_vertex_data(lvid_type lvid) {
     ASSERT_TRUE(graph.l_is_master(lvid));
     const vertex_id_type vid = graph.global_vid(lvid);
-    foreach(const procid_t& mirror, graph.l_mirrors(lvid)) {
-      vdata_exchange.send(mirror, 
-                          std::make_pair(vid, graph.l_vertex_data(lvid)));
+    local_vertex_type vertex = graph.l_vertex(lvid);
+    foreach(const procid_t& mirror, vertex.mirrors()) {
+      vdata_exchange.send(mirror, std::make_pair(vid, vertex.data()));
     }
   } // end of sync_vertex_data
 
@@ -647,11 +710,11 @@ namespace graphlab {
   recv_vertex_data() {
     procid_t procid(-1);
     typename vdata_exchange_type::buffer_type buffer;
-    while(vdata_exchange(procid, buffer)) {
+    while(vdata_exchange.recv(procid, buffer)) {
       foreach(const vid_vdata_pair_type& pair, buffer) {
         const lvid_type lvid = graph.local_vid(pair.first);
         ASSERT_FALSE(graph.l_is_master(lvid));
-        graph.l_vertex_data(lvid) = pair.second;
+        graph.l_vertex(lvid).data() = pair.second;
       }
     }
   } // end of recv vertex data
@@ -666,7 +729,7 @@ namespace graphlab {
         gather_accum[lvid] += accum;
       } else {
         gather_accum[lvid] = accum;
-        has_gather_accum.set(lvid);
+        has_gather_accum.set_bit(lvid);
       }
       vlocks[lvid].unlock();
     } else {
@@ -674,13 +737,14 @@ namespace graphlab {
       const vertex_id_type vid = graph.global_vid(lvid);
       gather_exchange.send(master, std::make_pair(vid, accum));
     }
-  } // end of send_gather
+  } // end of sync_gather
+
   template<typename VertexProgram>
   void synchronous_engine<VertexProgram>::
   recv_gathers() {
     procid_t procid(-1);
     typename gather_exchange_type::buffer_type buffer;
-    while(gather_exchange(procid, buffer)) {
+    while(gather_exchange.recv(procid, buffer)) {
       foreach(const vid_gather_pair_type& pair, buffer) {
         const lvid_type lvid = graph.local_vid(pair.first);
         const gather_type& accum = pair.second;
@@ -690,7 +754,7 @@ namespace graphlab {
           gather_accum[lvid] += accum;
         } else {
           gather_accum[lvid] = accum;
-          has_gather_accum.set(lvid);
+          has_gather_accum.set_bit(lvid);
         }
         vlocks[lvid].unlock();
       }
@@ -700,11 +764,11 @@ namespace graphlab {
 
   template<typename VertexProgram>
   void synchronous_engine<VertexProgram>::
-  sync_message(lvid_type lvid, const message_type& message) {
+  sync_message(lvid_type lvid) {
     ASSERT_FALSE(graph.l_is_master(lvid));
     const procid_t master = graph.l_master(lvid);
     const vertex_id_type vid = graph.global_vid(lvid);
-    gather_exchange.send(master, std::make_pair(vid, message));
+    gather_exchange.send(master, std::make_pair(vid, messages[lvid]));
   } // end of send_message
 
   template<typename VertexProgram>
@@ -712,7 +776,7 @@ namespace graphlab {
   recv_messages() {
     procid_t procid(-1);
     typename message_exchange_type::buffer_type buffer;
-    while(message_exchange(procid, buffer)) {
+    while(message_exchange.recv(procid, buffer)) {
       foreach(const vid_message_pair_type& pair, buffer) {
         const lvid_type lvid = graph.local_vid(pair.first);
         ASSERT_TRUE(graph.l_is_master(lvid));
@@ -721,7 +785,7 @@ namespace graphlab {
           messages[lvid] += pair.second;
         } else {
           messages[lvid] = pair.second;
-          has_message.set(lvid);
+          has_message.set_bit(lvid);
         }
         vlocks[lvid].unlock();
       }

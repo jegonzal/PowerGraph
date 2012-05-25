@@ -52,7 +52,7 @@ if (IS_DIRECTORY ${GraphLab_SOURCE_DIR}/apps)
   subdirs(apps)
 endif()
 
-  
+
 # Set installation rules
 install(DIRECTORY src/  
   DESTINATION include
@@ -198,21 +198,21 @@ find_package(JNI)
 if(EXISTS ${JAVA_INCLUDE_PATH}/jni.h  )
   set(JNI_REALLY_FOUND 1 CACHE BOOL "Tests whether the header
   actually exists")
-  message(STATUS "jni.h was found at " ${JAVA_INCLUDE_PATH}/jni.h)
-  include_directories(${JNI_INCLUDE_DIRS})
-  ## Guess java home location   
-  if(EXISTS $ENV{JAVA_HOME} )
-    set(JAVA_HOME $ENV{JAVA_HOME} CACHE STRING "Location of Java Home")
-    message(STATUS "Java home set by user: " ${JAVA_HOME})
-  else()
-    string(REGEX REPLACE "\\/include" "" JAVA_HOME_GUESS  ${JAVA_AWT_INCLUDE_PATH})
-    set(JAVA_HOME ${JAVA_HOME_GUESS} CACHE STRING "Location of Java Home")
-    message(STATUS "Java Home guessed: " ${JAVA_HOME})
-  endif()
+message(STATUS "jni.h was found at " ${JAVA_INCLUDE_PATH}/jni.h)
+include_directories(${JNI_INCLUDE_DIRS})
+## Guess java home location   
+if(EXISTS $ENV{JAVA_HOME} )
+  set(JAVA_HOME $ENV{JAVA_HOME} CACHE STRING "Location of Java Home")
+  message(STATUS "Java home set by user: " ${JAVA_HOME})
+else()
+  string(REGEX REPLACE "\\/include" "" JAVA_HOME_GUESS  ${JAVA_AWT_INCLUDE_PATH})
+  set(JAVA_HOME ${JAVA_HOME_GUESS} CACHE STRING "Location of Java Home")
+  message(STATUS "Java Home guessed: " ${JAVA_HOME})
+endif()
 else( )
   set(JNI_REALLY_FOUND 0 CACHE BOOL "Tests whether the header
   actually exists")
-  #  message(STATUS "jni.h was not found at " ${JAVA_INCLUDE_PATH}/jni.h)
+#  message(STATUS "jni.h was not found at " ${JAVA_INCLUDE_PATH}/jni.h)
 endif( )
 
 # Ant =========================================================================
@@ -375,10 +375,18 @@ macro(ADD_CXXTEST NAME)
   endif(PYTHONINTERP_FOUND)
   add_graphlab_executable(${NAME}test ${CMAKE_CURRENT_BINARY_DIR}/${NAME}.cpp)
   set_source_files_properties( ${CMAKE_CURRENT_BINARY_DIR}/${NAME}.cpp
-                    PROPERTIES COMPILE_FLAGS "-I${CMAKE_CURRENT_SOURCE_DIR}" )
+    PROPERTIES COMPILE_FLAGS "-I${CMAKE_CURRENT_SOURCE_DIR}" )
 
   add_test(${NAME} ${NAME}test)
 endmacro(ADD_CXXTEST)
+
+
+# macro(ADD_CPPTEST NAME)
+#   add_graphlab_executable(${NAME}test ${NAME})
+#   set_source_files_properties(${NAME}
+#     PROPERTIES COMPILE_FLAGS "-I${CMAKE_CURRENT_SOURCE_DIR}" )
+#   add_test(${NAME} ${NAME}test)
+# endmacro(ADD_CPPTEST)
 
 
 

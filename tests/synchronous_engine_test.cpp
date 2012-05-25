@@ -25,26 +25,28 @@
 #include <iostream>
 
 
-#include <cxxtest/TestSuite.h>
+// #include <cxxtest/TestSuite.h>
 
 #include <graphlab.hpp>
 
 
 
 class count_in_neighbors : 
-  public graphlab::ivertex_program<int, int, int> {
+  public graphlab::ivertex_program<int, int, int>,
+  public graphlab::IS_POD_TYPE {
 public:
   edge_dir_type 
   gather_edges(icontext_type& context, const vertex_type& vertex) const {
     return graphlab::IN_EDGES;
   }
   gather_type 
-  gather(icontext_type& context, const vertex_type& vertex) const {
+  gather(icontext_type& context, const vertex_type& vertex, 
+         edge_type& edge) const {
     return 1;
   }
   void apply(icontext_type& context, vertex_type& vertex, 
              const gather_type& total) {
-    TS_ASSERT_EQUALS( total, vertex.num_in_edges() );
+    ASSERT_EQ( total, int(vertex.num_in_edges()) );
   }
   edge_dir_type 
   scatter_edges(icontext_type& context, const vertex_type& vertex) const {

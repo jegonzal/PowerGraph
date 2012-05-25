@@ -183,9 +183,10 @@ namespace graphlab {
      * the gather.
      */
     virtual gather_type gather(icontext_type& context, 
-                              const vertex_type& vertex, 
+                               const vertex_type& vertex, 
                                edge_type& edge) const {
       logstream(LOG_FATAL) << "Gather not implemented!" << std::endl;
+      return gather_type();
     };
 
     /**

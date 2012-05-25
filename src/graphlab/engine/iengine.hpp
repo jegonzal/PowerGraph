@@ -118,7 +118,7 @@ namespace graphlab {
      * 
      * \return the total number of updates
      */
-    virtual size_t last_update_count() const = 0;
+    virtual size_t num_updates() const = 0;
            
     /**
      * \brief Send a message to a particular vertex

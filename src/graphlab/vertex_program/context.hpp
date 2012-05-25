@@ -78,38 +78,14 @@ namespace graphlab {
     typedef typename vertex_program_type::gather_type gather_type;
 
 
-    typedef std::pair<vertex_type, message_type> message_pair_type;
-    typedef std::vector<message_pair_type> message_buffer_type;
-
-    typedef std::pair<vertex_type, gather_type> delta_pair_type;
-    typedef std::vector<delta_pair_type> delta_buffer_type;
-
-
   private:
     engine_type& engine;
     graph_type& graph;
-    
-
-    message_buffer_type message_buffer;
-    delta_buffer_type delta_buffer;
-    
-
-    
+       
   public:        
 
     context(engine_type& engine, graph_type& graph) : 
       engine(engine), graph(graph) { }
-    
-    /**
-     * Clear the message and delta buffers
-     */
-    void clear() {
-      message_buffer.clear();
-      delta_buffer.clear();
-    } // end of clear
-
-    message_buffer_type messages() { return message_buffer; }
-    delta_buffer_type deltas() { return delta_buffer; }
     
     /**
      * Get the number of vertices in the graph.
@@ -130,7 +106,7 @@ namespace graphlab {
     /**
      * Get the elapsed time in seconds
      */
-    size_t elapsed_time() const { return engine.elapsed_time(); }
+    float elapsed_seconds() const { return engine.elapsed_time(); }
 
     /**
      * Return the current interation number (if supported).
@@ -147,22 +123,22 @@ namespace graphlab {
      */
     void send_message(const vertex_type& vertex, 
                       const message_type& message = message_type()) {
-      message_buffer.push_back(message_pair_type(vertex, message));
+      engine.send_message(vertex, message);
     }
 
     /**
      * Post a change to the cached sum for the vertex
      */
     void post_delta(const vertex_type& vertex, 
-                       const gather_type& delta) {
-      delta_buffer.push_back(delta_pair_type(vertex, delta));
+                    const gather_type& delta) {
+      engine.post_delta(vertex, delta);
     }
 
     /**
      * Invalidate the cached gather on the vertex.
      */
-    virtual void clear_gather(const vertex_type& vertex) { 
-      
+    virtual void clear_gather_cache(const vertex_type& vertex) { 
+      engine.clear_gather_cache(vertex);      
     }
 
 

@@ -89,7 +89,7 @@ namespace graphlab {
     /**
      * Get the elapsed time in seconds
      */
-    virtual size_t elapsed_time() const = 0;
+    virtual float elapsed_seconds() const = 0;
 
     /**
      * Return the current interation number (if supported).
@@ -116,7 +116,7 @@ namespace graphlab {
     /**
      * Invalidate the cached gather on the vertex.
      */
-    virtual void clear_gather(const vertex_type& vertex) = 0; 
+    virtual void clear_gather_cache(const vertex_type& vertex) = 0; 
 
                                                 
 
