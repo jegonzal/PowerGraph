@@ -44,7 +44,7 @@ void load_matrix_market(const char * filename, graph_type *_g, testtype data_typ
     int M, N;
     int nz;   
     int i;
-
+    ps.globalMean[data_type] = 0;
     printf("Loading %s %s\n", filename, testtypename[data_type]);
     FILE * f = fopen(filename, "r");
     if (data_type!=TRAINING && f == NULL){//skip optional files, if the file is missing
@@ -102,7 +102,7 @@ void load_matrix_market(const char * filename, graph_type *_g, testtype data_typ
        if (ac.matrixmarkettokensperrow == 3){
         int rec = fscanf(f, "%d %d %lg\n", &I, &J, &val);
         if (rec != 3)
-           logstream(LOG_FATAL)<<"Error reading input line " << i << std::endl;
+           logstream(LOG_FATAL)<<"Error reading input line " << i << " . Expected total rows: " << nz << std::endl;
       }
       else if (ac.matrixmarkettokensperrow == 4){
         int rec = fscanf(f, "%d %d %lg %lg\n", &I, &J, &val, &dtime);
@@ -118,6 +118,7 @@ void load_matrix_market(const char * filename, graph_type *_g, testtype data_typ
         val /= ac.scalerating;
         val += ac.shiftrating;
         edge.weight = val;
+        ps.globalMean[data_type] += edge.weight;
         if (ac.matrixmarkettokensperrow == 4)
            edge.time = dtime;
         if (!ac.zero && val == 0)
@@ -129,8 +130,10 @@ void load_matrix_market(const char * filename, graph_type *_g, testtype data_typ
         if (ac.matrixmarkettokensperrow == 4 && dtime >= ac.K && ps.algorithm != WEIGHTED_ALS)
            logstream(LOG_FATAL)<<"Error in data line: " << i << " time component (4th column) is :" << dtime << " while it should be smaller than K=" << ac.K << std::endl;
         _g->add_edge(I,J+ps.M,edge);
-        if (data_type == VALIDATION && ac.aggregatevalidation)
+        if (data_type == VALIDATION && ac.aggregatevalidation){
           ((graph_type*)ps.g<graph_type>(TRAINING))->add_edge(I,J+ps.M,edge);
+          ps.globalMean[TRAINING] += edge.weight / (double)nz;
+        }
     }
 
     if (data_type==TRAINING && ps.tensor && ps.K>1) 
@@ -142,7 +145,8 @@ void load_matrix_market(const char * filename, graph_type *_g, testtype data_typ
       if ((int)_g->num_edges() != nz)
         logstream(LOG_FATAL)<<"Missing edges in input file: found: " << _g->num_edges() << " instead of: " << nz << endl;
 
-    logstream(LOG_INFO)<<"Loaded total edges: " << nz << std::endl;
+    ps.globalMean[data_type] /= nz;
+    logstream(LOG_INFO)<<"Loaded total edges: " << nz << " global mean: " << ps.globalMean[data_type] << std::endl;
     verify_edges<graph_type,edge_data>(_g, data_type);
  
     //add implicit edges if requested
@@ -155,6 +159,7 @@ void load_matrix_market(const char * filename, graph_type *_g, testtype data_typ
     else if (ac.aggregatevalidation && data_type == VALIDATION){
       count_all_edges<graph_type>((graph_type*)ps.g<graph_type>(TRAINING));
     }
+
 
     fclose(f);
 

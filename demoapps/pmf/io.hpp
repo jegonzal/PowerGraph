@@ -28,6 +28,7 @@
 #include "stats.hpp"
 #include "../../libs/matrixmarket/mmio.h" //matrix market format support
 #include "implicit.hpp"
+#include "svdpp.hpp"
 #include <graphlab/macros_def.hpp>
 
 extern advanced_config config;
@@ -63,7 +64,7 @@ void add_time_nodes(graph_type* _g){
     }
 }; //nothing to be done here 
 
-template<>
+/*template<>
 void add_time_nodes<graph_type_svdpp,vertex_data_svdpp>(graph_type_svdpp* _g){
     if (ps.K <= 1)
       logstream(LOG_FATAL)<<"When running a time based algorithm, don't forget to specify the total number of time bins using --K=XX command, where XX is the number of time bins. Note that time binds start from zero and should be integer." << std::endl;
@@ -72,7 +73,7 @@ void add_time_nodes<graph_type_svdpp,vertex_data_svdpp>(graph_type_svdpp* _g){
     for (int i=0; i<ps.K; i++){
       _g->add_vertex(ps.times_svdpp[i]);
     }
-}
+}*/
 /**
  * Add the graph nodes. We have nodes for each row (user), column (movies) and time bins.
  * 
@@ -82,7 +83,7 @@ void add_vertices(graph_type * _g, testtype data_type){
   vertex_data vdata;
   // add M user nodes (ps.tensor dim 1)
   for (int i=0; i<ps.M; i++){
-    vdata.pvec = ac.debug? (ones(ac.D)*0.1) : (randu(ac.D)*(0.1/sqrt(ac.D)));
+    //vdata.pvec = ac.debug? (ones(ac.D)*0.1) : (randu(ac.D)*(0.1/sqrt(ac.D)));
     _g->add_vertex(vdata);
     if (ac.debug && (i<= 5 || i == ps.M-1))
       debug_print_vec("U: ", vdata.pvec, ac.D);
@@ -90,7 +91,7 @@ void add_vertices(graph_type * _g, testtype data_type){
   
   // add N movie node (ps.tensor dim 2) 
   for (int i=0; i<ps.N; i++){
-    vdata.pvec = ac.debug? (ones(ac.D)*0.1) : (randu(ac.D)*(0.1/sqrt(ac.D)));
+    //vdata.pvec = ac.debug? (ones(ac.D)*0.1) : (randu(ac.D)*(0.1/sqrt(ac.D)));
     _g->add_vertex(vdata);
     if (ac.debug && (i<=5 || i==ps.N-1))
       debug_print_vec("V: ", vdata.pvec, ac.D);
@@ -150,18 +151,25 @@ void verify_edges<graph_type_mult_edge,multiple_edges>(graph_type_mult_edge * _g
   }
 }
 
-
-
+void fill_factors_svdpp();
+void fill_factors_time_svd_plus_plus();
 #include "read_matrix_market.hpp"
 /**
  * fill data structures used for writing output to file
  */
-template<typename graph_type, typename vertex_data>
-void fill_factors_uvt(){
+void fill_factors_uvt(const graph_type *g ){
 
- if (ps.algorithm != LANCZOS && ps.algorithm != SVD){
-   //clear the graph only at the end of the run
-   if (ac.bptf_additional_output != true)
+  if (ps.algorithm == SVD_PLUS_PLUS || ps.algorithm == BIAS_SGD){
+     fill_factors_svdpp();
+  }
+  else if (ps.algorithm == TIME_SVD_PLUS_PLUS){
+     fill_factors_time_svd_plus_plus();
+   }
+   else if (ps.algorithm == RBM){ //TODO
+
+   }
+   else if (ps.isals || ps.algorithm == STOCHASTIC_GRADIENT_DESCENT || ps.algorithm == NMF){
+              if (ac.bptf_additional_output != true)
      ((graph_type*)ps.g<graph_type>(TRAINING))->reduce_mem_consumption();
    ps.U = zeros(ps.M,ac.D);
    ps.V = zeros(ps.N,ac.D);
@@ -183,58 +191,62 @@ void fill_factors_uvt(){
      }
     } 
   }
+  else assert(false);
 } 
 
-/* prepare output for SVD++ algorithm */
-template<>
-void fill_factors_uvt<graph_type_svdpp,vertex_data_svdpp>(){
 
-   if (ps.algorithm == SVD_PLUS_PLUS || ps.algorithm == BIAS_SGD){
+void fill_factors_uvt(const graph_type_mcmc * g){
+   if (ps.algorithm != LANCZOS && ps.algorithm != SVD){
+   //clear the graph only at the end of the run
+   if (ac.bptf_additional_output != true)
+     ((graph_type*)ps.g<graph_type_mcmc>(TRAINING))->reduce_mem_consumption();
    ps.U = zeros(ps.M,ac.D);
    ps.V = zeros(ps.N,ac.D);
-   ps.svdpp_usr_bias = zeros(ps.M);
-   ps.svdpp_movie_bias = zeros(ps.N);
-      
+
    for (int i=0; i< ps.M+ps.N; i++){ 
-      const vertex_data_svdpp & data = ps.g<graph_type_svdpp>(TRAINING)->vertex_data(i);
+      const vertex_data & data = ps.g<graph_type_mcmc>(TRAINING)->vertex_data(i);
       if (i < ps.M){
-         set_row(ps.U, i, data.pvec+ data.weight);
-         ps.svdpp_usr_bias[i] = data.bias;
+        set_row(ps.U, i, data.pvec);
       }
       else {
         set_row(ps.V, i-ps.M, data.pvec);
-        ps.svdpp_movie_bias[i-ps.M] = data.bias;
       }
    }
-   }
-   else if (ps.algorithm == TIME_SVD_PLUS_PLUS){
-      ps.timesvdpp_out.ptemp = zeros(ps.M,ac.D);
-      ps.timesvdpp_out.x = zeros(ps.M,ac.D);
-      ps.timesvdpp_out.pu = zeros(ps.M,ac.D);
-      ps.timesvdpp_out.q = zeros(ps.N,ac.D);
-      ps.timesvdpp_out.z = zeros(ac.K,ac.D);
-      ps.timesvdpp_out.pt = zeros(ac.K,ac.D);
-      for (int i=0; i< ps.M; i++){
-        const vertex_data_svdpp & data = ps.g<graph_type_svdpp>(TRAINING)->vertex_data(i);
-        set_row(ps.timesvdpp_out.ptemp, i, tail(data.weight, ac.D));
-        set_row(ps.timesvdpp_out.x, i, head(data.weight, ac.D));
-        set_row(ps.timesvdpp_out.pu, i, tail(data.pvec, ac.D));
-      }
-      for (int i=ps.M; i < ps.M+ps.N; i++){
-        const vertex_data_svdpp & data = ps.g<graph_type_svdpp>(TRAINING)->vertex_data(i);
-        set_row(ps.timesvdpp_out.q, i-ps.M, data.pvec);
-      }
-      for (int i=0; i< ac.K; i++){
-        const vertex_data_svdpp & data = ps.times_svdpp[i];
-        set_row(ps.timesvdpp_out.z, i, data.pvec);
-        set_row(ps.timesvdpp_out.pt, i, data.weight);
-      }
 
-   }
-   else if (ps.algorithm == RBM){ //TODO
+   if (ps.tensor){ 
+     ps.T = zeros(ps.K,ac.D);
+     for (int i=0; i<ps.K; i++){
+        set_row(ps.T, i, ps.times[i].pvec);
+     }
+    } 
+  }
+}
+void fill_factors_uvt(const graph_type_mult_edge * g){
+   if (ps.algorithm != LANCZOS && ps.algorithm != SVD){
+   //clear the graph only at the end of the run
+   if (ac.bptf_additional_output != true)
+     ((graph_type*)ps.g<graph_type_mult_edge>(TRAINING))->reduce_mem_consumption();
+   ps.U = zeros(ps.M,ac.D);
+   ps.V = zeros(ps.N,ac.D);
 
-   } else assert(false);
-} 
+   for (int i=0; i< ps.M+ps.N; i++){ 
+      const vertex_data & data = ps.g<graph_type_mult_edge>(TRAINING)->vertex_data(i);
+      if (i < ps.M){
+        set_row(ps.U, i, data.pvec);
+      }
+      else {
+        set_row(ps.V, i-ps.M, data.pvec);
+      }
+   }
+
+   if (ps.tensor){ 
+     ps.T = zeros(ps.K,ac.D);
+     for (int i=0; i<ps.K; i++){
+        set_row(ps.T, i, ps.times[i].pvec);
+     }
+    } 
+  }
+}
 
 
 template<typename edgedata, typename graph_type, typename edge_data>
@@ -299,18 +311,21 @@ void common_prediction(const graph_type &g, const graph_type & _g, const vertex_
   }
 }
 
-//compute predictions for SVD++
-void test_predict(vertex_data_svdpp & user, int i, int& lineNum, double & sumPreds, vec& test_predictions, bool dosave, const graph_type_svdpp &g, const graph_type_svdpp & _g){
+//compute predictions 
+void test_predict(vertex_data & usr, int i, int& lineNum, double & sumPreds, vec& test_predictions, bool dosave, const graph_type &g, const graph_type & _g){
   if (ps.algorithm == SVD_PLUS_PLUS){
+    vertex_data_svdpp user = usr;
 		int n = user.num_edges; //+1.0 ? //regularization
 		memset(&user.weight[0], 0, ac.D*sizeof(double));
 		if (n > 0 ){
 			foreach(edge_id_t oedgeid, g.out_edge_ids(i)) {
 				vertex_data_svdpp & movie = (vertex_data_svdpp&)g.vertex_data(g.target(oedgeid)); 
-				user.weight += movie.weight;
+				for (int j=0; j< ac.D; j++)
+          user.weight[j] += movie.weight[j];
 			}
 			float usrnorm = float(1.0/sqrt(n));
-			user.weight *= usrnorm;
+			for (int j=0; j< ac.D; j++)
+			  user.weight[j] *= usrnorm;
 		}
 		else { //cold start, we did not encounter this user in training!
 			memset(&user.pvec[0], 0, ac.D*sizeof(double));
@@ -318,6 +333,7 @@ void test_predict(vertex_data_svdpp & user, int i, int& lineNum, double & sumPre
 		}
   }
   else if (ps.algorithm == BIAS_SGD){
+    vertex_data_svdpp user = usr;
 		int n = user.num_edges; //+1.0 ? //regularization
     if (n == 0){
 			memset(&user.pvec[0], 0, ac.D*sizeof(double));
@@ -330,13 +346,9 @@ void test_predict(vertex_data_svdpp & user, int i, int& lineNum, double & sumPre
   else if (ps.algorithm == RBM){
 
   }
-  else assert(false);
-  common_prediction<graph_type_svdpp,vertex_data_svdpp,edge_data>(g, _g,user,i,lineNum, sumPreds, test_predictions, dosave);
-}
+  common_prediction<graph_type,vertex_data,edge_data>(g, _g,usr,i,lineNum, sumPreds, test_predictions, dosave);
 
-//compute predictions for all others
-void test_predict(vertex_data & data, int i, int& lineNum, double& sumPreds, vec& test_predictions, bool dosave, const graph_type &g, const graph_type& _g){
-  common_prediction<graph_type,vertex_data,edge_data>(g,_g,data,i,lineNum, sumPreds, test_predictions, dosave);
+
 }
 
 //compute predictions for BPTF/PMF
@@ -461,190 +473,10 @@ void export_test_file(const graph_type & _g, testtype type, bool dosave) {
 
 
 
-//OUTPUT: SAVE FACTORS U,V,T to a binary file
-
-// FORMAT:  M N K D (4 x ints)
-// MATRIX U ( M x D doubles)
-// MATRIX V ( N x D doubles)
-// MATRIX K ( K x D doubles - optional, only for ps.tensor)
-// TOTAL FILE SIZE: 4 ints + (M+N+K)*D - for ps.tensor
-//                  4 ints + (M+N)*D - for matrix
 template<typename graph_type, typename vertex_data>
-void export_uvt_to_binary_file(){
-
-  char dfile[256] = {0};
-  sprintf(dfile,"%s-%d-%d.out",ac.datafile.c_str(),ac.D,ps.iiter);
-  FILE * f = open_file(dfile, "w");
-
-  logstream(LOG_INFO)<<"Saving output in binary format to: " << dfile << std::endl;
-
-  int rc = fwrite(&ps.M, 1, 4, f);
-  assert(rc == 4);
-  rc = fwrite(&ps.N, 1, 4, f);
-  assert(rc == 4);
-  rc = fwrite(&ps.K, 1, 4, f);
-  assert(rc == 4);
-  rc = fwrite(&ac.D, 1, 4, f);
-  assert(rc == 4);
-
-  for (int i=0; i< ps.M+ps.N; i++){ 
-      const vertex_data & vdata = ps.g<graph_type>(TRAINING)->vertex_data(i);
-      if (i < ps.M){
-        write_vec(f, vdata.pvec.size(), data(vdata.pvec));
-      }
-      else {
-        write_vec(f, vdata.pvec.size(), data(vdata.pvec));
-      }
-   }
-
-   if (ps.tensor){ 
-     for (int i=0; i<ps.K; i++){
-        write_vec(f, ps.times[i].pvec.size(), data(ps.times[i].pvec));
-     }
-    } 
-
-  fclose(f); 
-
-}
-
-//OUTPUT: SAVE FACTORS U,V,T to a binary file
-
-// FORMAT:  M N K D (4 x ints)
-// MATRIX U ( M x D doubles)
-// MATRIX V ( N x D doubles)
-// usr_bias ( M x 1 doubles)
-// movie bias (N x 1 doubles)
-// global mean (1 double)
-// TOTAL FILE SIZE: 4 ints + (M+N)*D + M + N + 1
-template<>
-void export_uvt_to_binary_file<graph_type_svdpp,vertex_data_svdpp>(){
-
-  if (ps.algorithm == TIME_SVD_PLUS_PLUS){
-    logstream(LOG_FATAL) <<"time-svd++ does not support binary output format" << std::endl;
-  }
-
-  char dfile[256] = {0};
-  sprintf(dfile,"%s-%d-%d.out",ac.datafile.c_str(),ac.D,ps.iiter);
-  FILE * f = open_file(dfile, "w");
-
-  logstream(LOG_INFO)<<"Saving output in binary format to: " << dfile << std::endl;
-
-  int rc = fwrite(&ps.M, 1, 4, f);
-  assert(rc == 4);
-  rc = fwrite(&ps.N, 1, 4, f);
-  assert(rc == 4);
-  rc = fwrite(&ps.K, 1, 4, f);
-  assert(rc == 4);
-  rc = fwrite(&ac.D, 1, 4, f);
-  assert(rc == 4);
-
-  ps.svdpp_usr_bias = zeros(ps.M);
-  ps.svdpp_movie_bias = zeros(ps.N);
- 
-  for (int i=0; i< ps.M+ps.N; i++){ 
-      const vertex_data_svdpp & vdata = ps.g<graph_type_svdpp>(TRAINING)->vertex_data(i);
-      if (i < ps.M){
-        write_vec(f, vdata.pvec.size(), data(vdata.pvec));
-        ps.svdpp_usr_bias[i] = vdata.bias;
-      }
-      else {
-        write_vec(f, vdata.pvec.size(), data(vdata.pvec));
-        ps.svdpp_movie_bias[i-ps.M] = vdata.bias;
-      }
-   }
-
-  write_vec(f, ps.svdpp_usr_bias.size(), data(ps.svdpp_usr_bias));
-  write_vec(f, ps.svdpp_movie_bias.size(), data(ps.svdpp_movie_bias));
-  write_vec(f, 1, ps.globalMean); 
-  fclose(f); 
-}
-
-
-
-//OUTPUT: SAVE FACTORS U,V,T TO IT++ FILE
-template<typename graph_type, typename vertex_data>
-void export_uvt_to_itpp_file(){
-
-  if (ps.algorithm != LANCZOS && ps.algorithm != SVD) 
-     fill_factors_uvt<graph_type, vertex_data>();
-  char dfile[256] = {0};
-  sprintf(dfile,"%s-%d-%d.out",ac.datafile.c_str(), ac.D, ps.iiter);
-  remove(dfile);
-  it_file output(dfile);
-  /* for all other algos */
-  if (ps.algorithm != SVD){
-  output << Name("User");
-  output << ps.U;
-  output << Name("Movie");
-  output << ps.V;
-  if (ps.tensor){
-    output << Name("Time");
-    output << ps.T;
-  }
-  }
-  else{ /* for SVD */
-    output << Name("U"); /* for conforming to wikipeida conversion i swap u and v*/
-    output << ps.V;
-    output << Name("V");
-    output << ps.U;
-    output << Name("EigenValues_AAT");
-    output << get_col(ps.T,0);
-    output << Name("EigenValues_ATA");
-    output << get_col(ps.T, 1);
-  }
-  
-  output.close();
-  logstream(LOG_INFO) << "Saved output to file: " << dfile << " You can read it using the script itload.m available from http://graphloab.org/pmf.html " << std::endl;
-
-}
-//OUTPUT: SAVE FACTORS U,V,T TO IT++ FILE
-template<>
-void export_uvt_to_itpp_file<graph_type_svdpp,vertex_data_svdpp>(){
-
-  fill_factors_uvt<graph_type_svdpp, vertex_data_svdpp>();
-
-  char dfile[256] = {0};
-  sprintf(dfile,"%s-%d-%d.out",ac.datafile.c_str(), ac.D, ps.iiter);
-  remove(dfile);
-  it_file output(dfile);
-
-  if (ps.algorithm == SVD_PLUS_PLUS || ps.algorithm == BIAS_SGD){
-    output << Name("User");
-    output << ps.U;
-    output << Name("Movie");
-    output << ps.V;
- }
-  else if (ps.algorithm == TIME_SVD_PLUS_PLUS){
-    output << Name("User_ptemp");
-    output << ps.timesvdpp_out.ptemp;
-    output << Name("User_x");
-    output << ps.timesvdpp_out.x;
-    output << Name("User_pu");
-    output << ps.timesvdpp_out.pu;
-    output << Name("Movie_q");
-    output << ps.timesvdpp_out.q;
-    output << Name("Time_z");
-    output << ps.timesvdpp_out.z;
-    output << Name("Time_pt");
-    output << ps.timesvdpp_out.pt;
-  }
-  else assert(false);
-
-  output << Name("UserBias");
-  output << ps.svdpp_usr_bias;
-  output << Name("MovieBias");
-  output << ps.svdpp_movie_bias;
-  output << Name("GlobalMean");
-  output << ps.globalMean[0];
- 
-  output.close();
-}
-
-
-template<typename graph_type, typename vertex_data>
-void export_uvt_to_matrixmarket(){
+void export_uvt_to_matrixmarket(const graph_type * g){
   if (ps.algorithm != LANCZOS && ps.algorithm != SVD)
-     fill_factors_uvt<graph_type, vertex_data>();
+     fill_factors_uvt(g);
   char dfile[256] = {0};
   sprintf(dfile,"%s-%d-%d.out",ac.datafile.c_str(), ac.D,ps.iiter);
   if (ps.tensor)
@@ -654,55 +486,6 @@ void export_uvt_to_matrixmarket(){
  
 }
 
-//LOAD FACTORS FROM FILE
-template<typename graph_type>
-void import_uvt_from_file(){
- 
- const graph_type * g =  ps.g<graph_type>(TRAINING);
- mat U,V,T;
- if (!ac.matrixmarket){
- char dfile[256] = {0};
- sprintf(dfile,"%s%d.out",ac.datafile.c_str(), ac.D);
- printf("Loading factors U,V,T from file\n");
- it_file input(dfile);
- input >> Name("User");
- input >> U;
- input >> Name("Movie");
- input >> V;
-  if (ps.tensor){
-    input >> Name("Time");
-    input >> T;
- }
- input.close();
- }
- else {
-   load_matrix_market_matrix(ac.datafile + ".U", U);
-   load_matrix_market_matrix(ac.datafile + ".V", V);
-   if (ps.tensor)
-     load_matrix_market_matrix(ac.datafile + ".T", T); 
-   ASSERT_EQ(U.rows(), ps.M);
-   ASSERT_EQ(V.rows(), ps.N);
-   ASSERT_EQ(U.cols(), V.cols());
-   ASSERT_EQ(U.cols(), ac.D);
- }
- 
-
- //initalizing feature vectors from file
-//#pragma omp parallel for
- for (int i=0; i< ps.M+ps.N; i++){ 
-    vertex_data & data = (vertex_data&)g->vertex_data(i);
-    if (i < ps.M)
-        data.pvec = get_row(U, i); 
-   else
-        data.pvec = get_row(V, i-ps.M);
- }
-
- if (ps.tensor){ 
-    for (int i=0; i<ps.K; i++){
-        ps.times[i].pvec = get_row(T, i);
-    }
- } 
-}
 
 
 void set_num_edges(int val, testtype data_type){
@@ -767,82 +550,9 @@ void load_pmf_graph(const char* filename, graph_type * g, graph_type * _g, testt
 
 
   if (ac.matrixmarket){
-      printf("Loading Matrix Market file %s %s\n", filename, testtypename[data_type]);
+      //printf("Loading Matrix Market file %s %s\n", filename, testtypename[data_type]);
       load_matrix_market<graph_type, vertex_data, edge_data>(filename, _g, data_type);
       return;
-  }
-
-  printf("Loading %s %s\n", filename, testtypename[data_type]);
-  FILE * f = fopen(filename, "r");
-  if (data_type!=TRAINING && f == NULL){//skip optional files, if the file is missing
-    printf("skipping file\n");
-    return;
-  }
-
-  if(data_type==TRAINING && f== NULL){
-        perror("failed fopen() with error: ");
-	logstream(LOG_ERROR) << " can not load input file: " << filename << " . aborting " << std::endl;
-	exit(1);
-  }
-
-  int _M,_N,_K;
-  int rc = fread(&_M,1,4,f);//movies
-  assert(rc==4); 
-  rc=fread(&_N,1,4,f);//users/
-  assert(rc==4); 
-  rc=fread(&_K,1,4,f);//time
-  assert(rc==4); 
-  assert(_K>=1);
-  assert(_M>=1 && _N>=1); 
-
- if (_M == 1632445733){
-     logstream(LOG_FATAL)<<"Detected matrix market input file. Please rerun using --matrixmarket=true flag" << std::endl;
-   }
-
-
-  if (data_type == TRAINING){
-  	ps.M=_M; ps.N= _N; ps.K= _K;
-        ps.last_node = ps.M+ps.N;
-
-	if (ac.datafile == "kddcup" || ac.datafile == "kddcup2")// DB: ugly - kdd cup data has more time bins for test data than in training data. can fix this buy setting the time bins in training data to 6649.
-		ps.K=6649;
-     ps.K=ceil((ps.K-ac.truncating)/ac.scaling);
-  }
-  verify_size(data_type, _M,_N,_K);
-  add_vertices<graph_type, vertex_data>(_g, data_type);
- 
-  // read tensor non zero edges from file
-  int val = 0; 
-  if (!ac.FLOAT) 
-     val = read_mult_edges<edge_double, graph_type, edge_data>(f, ps.M+ps.N, data_type, g, _g);
-  else 
-     val = read_mult_edges<edge_float, graph_type, edge_data>(f,ps.M+ps.N, data_type, g, _g);
-
-  if (data_type==TRAINING && ps.tensor && ps.K>1) 
-    edges = new std::vector<edge_id_t>[ps.K]();
-
-  set_num_edges(val, data_type);
-  logstream(LOG_INFO)<<"Loaded total ratings: " << val <<std::endl;
-  verify_edges<graph_type, edge_data>(_g, data_type);
-
-  fclose(f);
-  
-  //add implicit edges if requested
-  if (data_type == TRAINING && ac.implicitratingtype != "none")
-     add_implicit_edges<graph_type, edge_data>(_g);
-
- //store number of edges for each node 
-  if (data_type == TRAINING || (ac.aggregatevalidation && data_type == VALIDATION)){
-    count_all_edges<graph_type>(g);
-  }
- 
-  //verify correct number of edges encourntered
-  if (data_type==TRAINING && ps.tensor && ps.K>1){
-    int cnt = 0;
-    for (int i=0; i<ps.K; i++){
-      cnt+= edges[i].size();
-    }
-    assert(cnt == ps.L);
   }
 
 }
@@ -924,67 +634,42 @@ void add_edge(int i, edgedata &ed, graph_type *g, graph_type *_g, edge_data_mcmc
 }
 
 
+//LOAD FACTORS FROM FILE
+template<typename graph_type>
+void import_uvt_from_file(){
+ 
+ const graph_type * g =  ps.g<graph_type>(TRAINING);
+ mat U,V,T;
+   load_matrix_market_matrix(ac.datafile + ".U", U);
+   load_matrix_market_matrix(ac.datafile + ".V", V);
+   if (ps.tensor)
+     load_matrix_market_matrix(ac.datafile + ".T", T); 
+   ASSERT_EQ(U.rows(), ps.M);
+   ASSERT_EQ(V.rows(), ps.N);
+   ASSERT_EQ(U.cols(), V.cols());
+   ASSERT_EQ(U.cols(), ac.D);
+ //initalizing feature vectors from file
+#pragma omp parallel for
+ for (int i=0; i< ps.M+ps.N; i++){ 
+    vertex_data & data = (vertex_data&)g->vertex_data(i);
+    if (i < ps.M)
+        data.pvec = get_row(U, i); 
+   else
+        data.pvec = get_row(V, i-ps.M);
+ }
 
-/**
- * read edges from file, with support with multiple edges between the same pair of nodes (in different times)
- */
-template<typename edgedata, typename graph_type, typename edge_data>
-int read_mult_edges(FILE * f, int nodes, testtype type, graph_type *g, graph_type * _g, bool symmetry = false){
-     
-  //typedef typename graph::edge_data_type edge_data;
-  if (ps.algorithm == BPTF_TENSOR_MULT || ps.algorithm == ALS_TENSOR_MULT){
-    flags = new bool[nodes];
-    memset(flags, 0, sizeof(bool)*nodes);
-  }
-
- if (ps.algorithm == WEIGHTED_ALS)
-    matlab_offset_time = 0; //for weighted ALS there are no time bins which are integers, so no need to convert them
-
-  unsigned int e;
-  int rc = fread(&e,1,4,f);
-  assert(rc == 4);
-  printf("Creating %d edges (observed ratings)...\n", e);
-  assert(e>0);
-  int total = 0;
-  edgedata* ed = new edgedata[200000];
-  int edgecount_in_file = e;
-  while(true){
-    //memset(ed, 0, 200000*sizeof(edge_float));
-    rc = (int)fread(ed, sizeof(edgedata), std::min(200000, edgecount_in_file - total), f);
-    total += rc;
-
-    //go over each rating (edges)
-    for (int i=0; i<rc; i++){
-      edge_data edge;
-      add_edge<edgedata, graph_type>(total - rc + i, ed[i], g, _g, edge, type);
-    } 
-   printf(".");
-    fflush(0);
-    if (rc == 0 || total >= edgecount_in_file)
-      break;
-  }
-  if (total != (int)e){
-      logstream(LOG_ERROR) << "Missing edges in " << testtypename[type] << "file. Should be " << e << edges << " but in file we counted only " << total << " edges. Please check your conversion script and verify the file is not truncated and edges are not missing. " << endl;
-  }
-  assert(total == (int)e);
-  ps.globalMean[type] /= e;
-  delete [] ed; ed = NULL;
-  if (flags != NULL)
-    delete[] flags;
-  return e;
+ if (ps.tensor){ 
+    for (int i=0; i<ps.K; i++){
+        ps.times[i].pvec = get_row(T, i);
+    }
+ } 
 }
 
 
 template<typename graph_type, typename vertex_data>
-void write_output(){
+void write_output(const graph_type * g){
   //write output matrices U,V,T to file
-  if (ac.binaryoutput)
-     export_uvt_to_binary_file<graph_type, vertex_data>();
-  else if (ac.matrixmarket)
-     export_uvt_to_matrixmarket<graph_type, vertex_data>();
-  else // it++ output
-   export_uvt_to_itpp_file<graph_type, vertex_data>();
-
+     export_uvt_to_matrixmarket<graph_type, vertex_data>(g);
 }
 #include <graphlab/macros_undef.hpp>
 #endif

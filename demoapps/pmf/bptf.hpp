@@ -110,10 +110,6 @@ mat calc_MMT(int start_pos, int end_pos, vec &Umean){
   return MMT;
 }
 template<>
-mat calc_MMT<graph_type_svdpp>(int start_pos, int end_pos, vec &Umean){
-  assert(false);
-}
-template<>
 mat calc_MMT<graph_type>(int start_pos, int end_pos, vec &Umean){
   assert(false);
 }
@@ -325,7 +321,7 @@ void last_iter_bptf(double res){
     if (ac.datafile == "kddcup" || ac.datafile == "kddcup2")
 	  export_test_file<graph_type, vertex_data, edge_data>(*ps.g<graph_type>(TEST), TEST, false);
     if (ac.bptf_additional_output && ps.iiter >= ac.bptf_burn_in)
-        write_output<graph_type, vertex_data>();
+        write_output<graph_type, vertex_data>(ps.g<graph_type>(TRAINING));
 }
 
 

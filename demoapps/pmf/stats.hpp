@@ -56,9 +56,6 @@ int count_edges(gl_types::edge_list es, const graph_type *_g){
 int count_edges(gl_types_mcmc::edge_list es, const graph_type_mcmc *_g){
    return es.size();
 }
-int count_edges(gl_types_svdpp::edge_list es, const graph_type_svdpp *_g){
-   return es.size();
-}
 
 //count the number of edges connecting a user/movie to its neighbors
 //(when there are multiple edges in different times we count the total)
@@ -329,10 +326,6 @@ void predict_missing_value(const vertex_data& data,
 			   const vertex_data& pdata,
 			   const edge_data& edge,
 			   double &sq_err, int &e, int i);
-void predict_missing_value(const vertex_data_svdpp&data, 
-			   const vertex_data_svdpp& pdata, 
-		           edge_data& edge, 
-			   double & sq_err, int&e, int i);
  
 template<typename graph_type, typename vertex_data>
 void calc_rmse_edge(edge_id_t iedgeid, const graph_type *_g, double & rmse, const vertex_data&data, const vertex_data&pdata, int&e, int i){
@@ -429,7 +422,13 @@ double agg_rmse_by_user(double & res){
   return sqrt(RMSE/(double)ps.L);
 
 }
-
+float time_svdpp_predict(const vertex_data& user, 
+                const vertex_data& movie, 
+                const edge_data * edge,
+                const vertex_data* nothing,
+                const float rating, 
+                float & prediction);
+ 
 //calc average percision AP@3 (for kdd cup 2012 track 1)
 template<typename graph_type, typename vertex_data, typename edge_data>
 double calc_ap(const graph_type * _g){
@@ -451,7 +450,14 @@ double calc_ap(const graph_type * _g){
            const vertex_data & pdata = ps.g<graph_type>(TRAINING)->vertex_data(_g->target(oedgeid)); 
            float prediction = 0; 
            const edge_data &edge = _g->edge_data(oedgeid);
-           predict(data, pdata, &edge, NULL, edge.weight, prediction);
+           if (ps.algorithm == BIAS_SGD)
+             bias_sgd_predict(vertex_data_svdpp((vertex_data&)data), vertex_data_svdpp((vertex_data&)pdata), &edge, NULL, edge.weight, prediction);
+           else if (ps.algorithm == SVD_PLUS_PLUS)
+              svdpp_predict(vertex_data_svdpp((vertex_data&)data), vertex_data_svdpp((vertex_data&)pdata), &edge, NULL, edge.weight, prediction);
+           else if (ps.algorithm == TIME_SVD_PLUS_PLUS)
+              time_svdpp_predict(data, pdata, &edge, NULL, edge.weight, prediction);
+					 else
+             predict(data, pdata, &edge, NULL, edge.weight, prediction);
            ratings[j] = prediction;
            real_vals[j] = edge.weight;
            if (edge.weight > 0)

@@ -39,12 +39,19 @@ extern const char * runmodesname[];
 
 vec CoSaMP(const mat &Phi, const vec &u, int K, int max_iter, double tol1, int D);
 
-void init_pmf() {
+template<typename graph_type>
+void init_pmf(graph_type * g) {
   if (ps.BPTF)
     ps.pT=10;
   ps.eDT = eye(ac.D)*ps.pT;
   ps.vones = ones(ac.D);
+  double factor = 0.1/sqrt(ac.D);
   printf("pU=%g, pV=%g, pT=%g, D=%d\n", ps.pU, ps.pV, ps.pT,ac.D);  
+#pragma omp parallel for
+   for (int i=0; i<ps.M+ps.N; i++){
+       vertex_data & vdata = g->vertex_data(i);
+       vdata.pvec = ac.debug ? ps.vones * 0.1 : randu(ac.D)*factor;
+   } 
 }
 /**
  * printout RMSE statistics after each iteration
@@ -433,10 +440,6 @@ void user_movie_nodes_update_function(gl_types_mcmc::iscope &scope,
 
 }
 
-void user_movie_nodes_update_function(gl_types_svdpp::iscope &scope, 
-			 gl_types_svdpp::icallback &scheduler){
-   assert(false);
-}
  
  /***
  * UPDATE FUNCTION

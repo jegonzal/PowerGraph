@@ -67,7 +67,7 @@ echo "Running application tests"| tee -a $stdoutfname
 echo "========================="| tee -a $stdoutfname
 echo "GraphLab collaborative filtering library"| tee -a $stdoutfname
 somefailed=0
-if [ -f ../demoapps/pmf/pmf ] && [ -f ../demoapps/pmf/itdiff ]; then
+if [ -f ../demoapps/pmf/pmf ]; then
   pushd . > /dev/null
   cd ../demoapps/pmf
   echo "---------PMF-------------" >> $stdoutfname
@@ -79,28 +79,18 @@ if [ -f ../demoapps/pmf/pmf ] && [ -f ../demoapps/pmf/itdiff ]; then
   else
     echo "detected it++ based pmf"| tee -a $stdoutfname
   fi
-  rm -f smalltest-20-21.out
   echo "********************TEST1************************" >> $stdoutfname
-  ./pmf smalltest 0 --scheduler="round_robin(max_iterations=20,block_size=1)" --ncpus=1 --float=true --debug=true >> $stdoutfname 2>& 1 
-  
-  if ./itdiff smalltest-20-21.out $OUTFILE ; then
-    echo "PASS TEST 1 (Alternating least sqaures)"| tee -a $stdoutfname
-  else
-     somefailed=1
-    echo "FAIL: Output differs!"| tee -a $stdoutfname
-  fi
-  echo "********************TEST2************************" >> $stdoutfname
   ./pmf --unittest 1 --ncpus=1 --debug=true >> $stdoutfname 2>& 1
   if [ $? -eq 0 ]; then
-     echo "PASS TEST 2 (Alternating least squares)"| tee -a $stdoutfname
+     echo "PASS TEST 1 (Alternating least squares)"| tee -a $stdoutfname
   else
      somefailed=1
      echo "FAIL --unittest=1"| tee -a $stdoutfname
   fi
-  echo "********************TEST3************************" >> $stdoutfname
+  echo "********************TEST2************************" >> $stdoutfname
   ./pmf --unittest 71 --ncpus=1 --debug=true >> $stdoutfname 2>& 1
   if [ $? -eq 0 ]; then
-     echo "PASS TEST 3 (Lanczos)"| tee -a $stdoutfname
+     echo "PASS TEST 2 (Lanczos)"| tee -a $stdoutfname
   else
      somefailed=1
      echo "FAIL --unittest=71 (Lanczos)"| tee -a $stdoutfname
@@ -108,7 +98,7 @@ if [ -f ../demoapps/pmf/pmf ] && [ -f ../demoapps/pmf/itdiff ]; then
   echo "********************TEST4************************" >> $stdoutfname
   ./pmf --unittest 91 --ncpus=1 --debug=true >> $stdoutfname 2>& 1
   if [ $? -eq 0 ]; then
-     echo "PASS TEST 4 (Weighted ALS)"| tee -a $stdoutfname
+     echo "PASS TEST 3 (Weighted ALS)"| tee -a $stdoutfname
   else
      somefailed=1
      echo "FAIL --unittest=91 (weighted alternating least squares)"| tee -a $stdoutfname
@@ -116,7 +106,7 @@ if [ -f ../demoapps/pmf/pmf ] && [ -f ../demoapps/pmf/itdiff ]; then
   echo "********************TEST5************************" >> $stdoutfname
  ./pmf --unittest 101 --ncpus=1 >> $stdoutfname 2>& 1 
   if [ $? -eq 0 ]; then
-     echo "PASS TEST 5 (CoSaMP)"| tee -a $stdoutfname
+     echo "PASS TEST 4 (CoSaMP)"| tee -a $stdoutfname
   else
      echo "FAIL --unittest=101 (CoSaMP)"| tee -a $stdoutfname
      somefailed=1
@@ -124,7 +114,7 @@ if [ -f ../demoapps/pmf/pmf ] && [ -f ../demoapps/pmf/itdiff ]; then
   echo "********************TEST6************************" >> $stdoutfname
  ./pmf --unittest 131  >> $stdoutfname 2>& 1 
   if [ $? -eq 0 ]; then
-     echo "PASS TEST 6 (SVD)"| tee -a $stdoutfname
+     echo "PASS TEST 5 (SVD)"| tee -a $stdoutfname
   else
      echo "FAIL --unittest=131 (SVD)"| tee -a $stdoutfname
      somefailed=1
