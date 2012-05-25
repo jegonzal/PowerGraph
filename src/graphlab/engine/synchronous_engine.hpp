@@ -354,6 +354,7 @@ namespace graphlab {
 
   template<typename VertexProgram>
   void synchronous_engine<VertexProgram>::start() {
+    graph.finalize();
     // Initialization code ==================================================     
     // Reset event log counters? 
     rmi.dc().flush_counters();
