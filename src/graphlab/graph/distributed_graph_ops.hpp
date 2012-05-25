@@ -43,12 +43,14 @@ namespace graphlab {
   void load(graphlab::distributed_graph<VertexType, EdgeType>& graph, 
             std::string path, 
             boost::function<bool(graphlab::distributed_graph<VertexType, EdgeType>&, std::string)> callback) {
-    if(boost::starts_with(path, "hdfs://")) {
+    graph.dc().full_barrier();
+		if(boost::starts_with(path, "hdfs://")) {
       load_from_hdfs(graph, path, callback);
     }
     else {
       load_from_posixfs(graph, path, callback);
     }
+    graph.dc().full_barrier();
   }
 
   template <typename VertexType, typename EdgeType>
@@ -155,7 +157,8 @@ namespace graphlab {
   void load_synthetic_powerlaw(graphlab::distributed_graph<VertexType, EdgeType>& graph,
                                size_t nverts, bool in_degree = false,
                                double alpha = 2.1, size_t truncate = (size_t)(-1)) {
-    std::vector<double> prob(std::min(nverts, truncate), 0);
+    graph.dc().full_barrier(); 
+		std::vector<double> prob(std::min(nverts, truncate), 0);
     std::cout << "constructing pdf" << std::endl;
     for(size_t i = 0; i < prob.size(); ++i)
       prob[i] = std::pow(double(i+1), -alpha);
@@ -181,6 +184,7 @@ namespace graphlab {
         std::cout << addedvtx << " inserted\n";
       }
     }
+    graph.dc().full_barrier(); 
   } // end of load random powerlaw
 
 } // namespace graph_ops

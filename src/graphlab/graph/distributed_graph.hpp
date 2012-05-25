@@ -574,6 +574,12 @@ namespace graphlab {
       return rpc.numprocs();
     }
 
+    distributed_control& dc() {
+      return return rpc.dc();
+    }
+
+
+
     /** \ingroup graphlab_internal 
      * \brief Returns the internal vertex record of a given global vertex ID
      */
