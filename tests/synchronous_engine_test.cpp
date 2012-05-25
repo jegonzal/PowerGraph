@@ -57,22 +57,6 @@ public:
 
 
 
-// class synchronous_engine_tests : public CxxTest::TestSuite {
-// public:
-//   void count_in_neighbors() {
-//     typedef count_in_neighbors::graph_type graph_type;
-//     typedef synchronous_engine<count_in_neighbors> engine_type;
-//     graph_type graph; 
-
-
-
-//   }
-
-
-
-// }; // end of synchronous engine tests
-
-
 int main(int argc, char** argv) {
 
   ///! Initialize control plain using mpi
@@ -85,16 +69,22 @@ int main(int argc, char** argv) {
   graphlab::command_line_options clopts("Test code.");
   clopts.use_distributed_options();
   
+  std::cout << "Creating a powerlaw graph" << std::endl;
   typedef count_in_neighbors::graph_type graph_type;
   graph_type graph(dc, clopts);
+  graphlab::graph_ops::load_synthetic_powerlaw(graph, 100);
 
-
+  std::cout << "Constructing a syncrhonous engine" << std::endl;
   typedef graphlab::synchronous_engine<count_in_neighbors> engine_type;
   engine_type engine(dc, graph, clopts.get_ncpus());
   engine.initialize();
+  std::cout << "Scheduling all vertices to count their neighbors" << std::endl;
+  engine.signal_all();
 
+  std::cout << "Running!" << std::endl;
+  engine.start();
 
-
+  std::cout << "Finished" << std::endl;
 
 
 

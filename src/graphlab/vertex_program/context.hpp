@@ -121,9 +121,9 @@ namespace graphlab {
     /**
      * Send a message to a vertex.
      */
-    void send_message(const vertex_type& vertex, 
-                      const message_type& message = message_type()) {
-      engine.send_message(vertex, message);
+    void signal(const vertex_type& vertex, 
+                const message_type& message = message_type()) {
+      engine.signal(vertex, message);
     }
 
     /**

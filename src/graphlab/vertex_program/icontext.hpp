@@ -104,8 +104,8 @@ namespace graphlab {
     /**
      * Send a message to a vertex.
      */
-    virtual void send_message(const vertex_type& vertex, 
-                              const message_type& message = message_type()) = 0;
+    virtual void signal(const vertex_type& vertex, 
+                        const message_type& message = message_type()) = 0;
 
     /**
      * Post a change to the cached sum for the vertex

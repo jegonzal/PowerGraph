@@ -115,22 +115,22 @@ namespace graphlab {
 
     std::vector<message_type> messages;
     dense_bitset              has_message;
+ 
 
     std::vector<gather_type>  gather_accum;
     dense_bitset              has_gather_accum;
 
 
     std::vector<gather_type>  gather_cache;
-    dense_bitset              has_cache;
-
-
-    
+    dense_bitset              has_cache;   
 
     dense_bitset             active_superstep;
+    atomic<size_t>           num_active_vertices;
     dense_bitset             active_minorstep;      
 
     atomic<size_t> completed_tasks;
-    
+   
+    execution_status::status_enum termination_reason; 
 
     // Exchange used to swap vertex programs
     typedef std::pair<vertex_id_type, vertex_program_type> vid_prog_pair_type;
@@ -162,10 +162,10 @@ namespace graphlab {
     void stop() { /* implement */ }
     execution_status::status_enum last_exec_status() const;
     size_t num_updates() const;
-    void send_message(const vertex_type& vertex,
-                      const message_type& message);    
-    void send_message(const message_type& message,
-                      const std::string& order = "sequential");
+    void signal(const vertex_type& vertex,
+                const message_type& message = message_type());    
+    void signal_all(const message_type& message = message_type(),
+                    const std::string& order = "sequential");
 
     float elapsed_seconds() const;
     size_t iteration() const; 
@@ -234,8 +234,8 @@ namespace graphlab {
 
   template<typename VertexProgram>
   void synchronous_engine<VertexProgram>::
-  send_message(const vertex_type& vertex,
-               const message_type& message) {
+  signal(const vertex_type& vertex,
+         const message_type& message) {
     const lvid_type lvid = vertex.local_id();
     vlocks[lvid].lock();
     if( has_message.get(lvid) ) {
@@ -250,10 +250,10 @@ namespace graphlab {
 
   template<typename VertexProgram>
   void synchronous_engine<VertexProgram>::
-  send_message(const message_type& message, const std::string& order) {
+  signal_all(const message_type& message, const std::string& order) {
     for(lvid_type lvid = 0; lvid < graph.num_local_vertices(); ++lvid) {
       if(graph.l_is_master(lvid)) 
-        send_message(vertex_type(graph.l_vertex(lvid)), message);
+        signal(vertex_type(graph.l_vertex(lvid)), message);
     }
   } // end of send message
   
@@ -326,7 +326,7 @@ namespace graphlab {
 
   template<typename VertexProgram>
   execution_status::status_enum synchronous_engine<VertexProgram>::
-  last_exec_status() const { return execution_status::UNSET;  }
+  last_exec_status() const { return termination_reason;  }
 
 
 
@@ -389,6 +389,7 @@ namespace graphlab {
       // Receive Messages ---------------------------------------------------
       // Receive messages to master vertices and then synchronize
       // vertex programs with mirrors if gather is required
+      num_active_vertices = 0;
       run_synchronous( &synchronous_engine::receive_messages );
       /**
        * Post conditions:
@@ -398,7 +399,17 @@ namespace graphlab {
        *   3) All masters and mirrors that are to participate in the
        *      next gather phases have their active_minorstep bit
        *      set.
+       *   4) num_active_vertices is the number of vertices that
+       *      received messages.
        */
+      
+      // Check termination condition  ---------------------------------------
+      size_t total_active_vertices = num_active_vertices; 
+      rmi.all_reduce(total_active_vertices);
+      if(total_active_vertices == 0 ) {
+        termination_reason = execution_status::TASK_DEPLETION;
+        break;
+      }
 
 
       // Execute gather operations-------------------------------------------
@@ -441,6 +452,8 @@ namespace graphlab {
        *   1) NONE
        */
     }
+    // Final barrier to ensure that all engines terminate at the same time
+    rmi.barrier();
   } // end of start
 
 
@@ -503,6 +516,7 @@ namespace graphlab {
       if(graph.l_is_master(lvid) && has_message.get(lvid)) {
         // The vertex becomes active for this superstep 
         active_superstep.set_bit(lvid);
+        ++num_active_vertices;       
         // Pass the message to the vertex program
         vertex_type vertex = vertex_type(graph.l_vertex(lvid));
         vertex_programs[lvid].recv_message(context, vertex,

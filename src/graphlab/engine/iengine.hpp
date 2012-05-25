@@ -123,15 +123,15 @@ namespace graphlab {
     /**
      * \brief Send a message to a particular vertex
      */
-    virtual void send_message(const vertex_type& vertex,
-                              const message_type& message) = 0;
+    virtual void signal(const vertex_type& vertex,
+                        const message_type& message) = 0;
 
 
     /**
      * \brief Send a message to all vertices
      */
-    virtual void send_message(const message_type& message,
-                              const std::string& order = "sequential") = 0;
+    virtual void signal_all(const message_type& message,
+                            const std::string& order = "sequential") = 0;
     
     /**
      *  \brief The timeout is the total
