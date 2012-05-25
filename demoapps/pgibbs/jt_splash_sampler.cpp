@@ -453,17 +453,11 @@ jt_worker::jt_worker(size_t worker_id,
   terminator_ptr(&terminator),
   ncollisions(0) {  
   // Initialize local jtcore
-  if(settings.subthreads > 1) {
-    jt_core.set_scheduler_type("multiqueue_fifo");
-    jt_core.set_scope_type("edge");
-    jt_core.set_ncpus(settings.subthreads);
-    jt_core.set_engine_type("async");
-  } else {
-    jt_core.set_scheduler_type("fifo");
-    jt_core.set_scope_type("none");
-    jt_core.set_ncpus(1);
-    jt_core.set_engine_type("async_sim");
-  }
+  jt_core.set_scheduler_type("multiqueue_fifo");
+  jt_core.set_scope_type("edge");
+  jt_core.set_ncpus(2);
+  jt_core.set_engine_type("async");
+  
 } // end of init
 
 
