@@ -225,12 +225,6 @@ void time_node_update_function(gl_types_mult_edge::iscope &scope, gl_types_mult_
   else last_iter<graph_type_mult_edge>();
 }
 
-// update function for time nodes
-// this function is called only in tensor mode
-void time_node_update_function(gl_types_svdpp::iscope &scope, gl_types_svdpp::icallback &scheduler) {
-  assert(ps.tensor);
-}
-
 
 
 

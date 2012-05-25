@@ -113,16 +113,6 @@ vertex_data::vertex_data(){
     num_edges = 0;
 }
 
-void vertex_data::save(graphlab::oarchive& archive) const {  
-    ////TODO archive << pvec;
-    archive << rmse << num_edges; 
-}  
-   
-void vertex_data::load(graphlab::iarchive& archive) {  
-     //TODO archive >> pvec;
-   archive >> rmse >> num_edges;  
-}
-
 
 template<typename core>
 void add_tasks(core & glcore){
@@ -210,8 +200,10 @@ void init(graph_type *g){
 
   switch(ps.algorithm){
    case SVD_PLUS_PLUS:
+     init_svdpp(g); break;
+  
    case BIAS_SGD:
-     init_svdpp<graph_type>(g); break;
+     init_biassgd(g); break;
 
    case TIME_SVD_PLUS_PLUS:
      init_time_svdpp<graph_type>(g); break;
@@ -235,7 +227,7 @@ void init(graph_type *g){
    case BPTF_MATRIX:
    case BPTF_TENSOR:
    case STOCHASTIC_GRADIENT_DESCENT:
-      init_pmf(); break;
+      init_pmf<graph_type>(g); break;
 
    case RBM:
       rbm_init(); break;
@@ -441,7 +433,7 @@ void start(command_line_options& clopts) {
  }
   print_runtime_counters(); 
   if (ac.exportlinearmodel)
-    write_output<graph_type, vertex_data>();
+    write_output<graph_type, vertex_data>(&training);
 }
 
 
@@ -482,19 +474,16 @@ int do_main(int argc, const char *argv[]){
  	      start<gl_types_mult_edge, gl_types_mult_edge::core, graph_type_mult_edge, vertex_data, multiple_edges>(clopts);
         break;
  
-      case SVD_PLUS_PLUS:
-      case TIME_SVD_PLUS_PLUS:
-      case BIAS_SGD:
-      case RBM:
-        start<gl_types_svdpp, gl_types_svdpp::core, graph_type_svdpp, vertex_data_svdpp, edge_data>(clopts);
-        break;
-
       case BPTF_TENSOR:
       case BPTF_MATRIX:
         start<gl_types_mcmc, gl_types_mcmc::core, graph_type_mcmc, vertex_data, edge_data_mcmc>(clopts);
         break;
  
-      case ALS_MATRIX:
+      case SVD_PLUS_PLUS:
+      case TIME_SVD_PLUS_PLUS:
+      case BIAS_SGD:
+      case RBM:
+       case ALS_MATRIX:
       case ALS_SPARSE_USR_FACTOR:
       case ALS_SPARSE_USR_MOVIE_FACTORS:
       case ALS_SPARSE_MOVIE_FACTOR:

@@ -50,10 +50,6 @@ void sgd_update_function(gl_types_mult_edge::iscope &scope,
 			 gl_types_mult_edge::icallback &scheduler) {
    assert(false);
 }
-void sgd_update_function(gl_types_svdpp::iscope &scope, 
-			 gl_types_svdpp::icallback &scheduler) {
-   assert(false);
-} 
 
  /***
  * UPDATE FUNCTION

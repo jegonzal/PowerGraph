@@ -48,24 +48,83 @@ void bias_sgd_update_function(gl_types_mult_edge::iscope &scope,
 			 gl_types_mult_edge::icallback &scheduler) {
    assert(false);
 }
-void bias_sgd_update_function(gl_types::iscope &scope, 
-			 gl_types::icallback &scheduler) {
-   assert(false);
-} 
+template<typename graph_type>
+void init_biassgd(graph_type* _g){
+  assert(false);
+}
+
+template<>
+void init_biassgd/*<gc>*/(graph_type/*_svdpp*/ *_g){
+   fprintf(stderr, "SVD++ %d factors\n", ac.D);
+   double factor = 0.1/sqrt(ac.D);
+#pragma omp parallel for
+   for (int i=0; i<ps.M+ps.N; i++){
+       vertex_data & vdata = _g->vertex_data(i);
+       vdata.pvec = zeros(2*ac.D);
+       vertex_data_svdpp data(_g->vertex_data(i));
+       for (int j=0; j < ac.D; j++){
+          data.weight[j] = (ac.debug ? 0.1 : (randu()*factor));
+          data.pvec[j] = (ac.debug ? 0.1 : (randu()*factor));
+       }
+       data.bias = 0;
+   } 
+}
+
+float bias_sgd_predict_new_user(const vertex_data_svdpp& user, const vertex_data_svdpp& movie, const edge_data * edge, const vertex_data * nothing, const float rating, float & prediction){
+  prediction = ps.globalMean[0] + *movie.bias;
+  prediction = std::min((double)prediction, ac.maxval);
+  prediction = std::max((double)prediction, ac.minval);
+  float err = rating - prediction;
+  return err*err;
+}
+
+
+//calculate RMSE. This function is called only before and after grahplab is run.
+//during run, agg_rmse_by_movie is called 0 which is much lighter function (only aggregate sums of squares)
+double calc_biassgd_rmse(const graph_type * _g, bool test, double & res){
+
+     graph_type * g = (graph_type*)ps.g<graph_type>(TRAINING);
+
+     if (test && ps.Le == 0)
+       return NAN;
+      
+     
+     res = 0;
+     double sqErr =0;
+     int nCases = 0;
+
+     for (int i=0; i< ps.M; i++){
+       vertex_data_svdpp usr = g->vertex_data(i);
+       foreach(edge_id_t oedgeid, _g->out_edge_ids(i)){
+         const edge_data & item = _g->edge_data(oedgeid);
+         const vertex_data_svdpp movie(g->vertex_data(_g->target(oedgeid))); 
+         float estScore;
+        if (usr.num_edges == 0) //no ratings observed in training data, give the item average
+           sqErr += bias_sgd_predict_new_user(usr, movie, NULL, NULL, item.weight, estScore);
+        else
+           sqErr += bias_sgd_predict(usr, movie, NULL, NULL, item.weight, estScore);
+         nCases++;
+       }
+   }
+   res = sqErr;
+   assert(nCases == (test?ps.Le:ps.L));
+   return sqrt(sqErr/(double)nCases);
+}
+
 
 void bias_sgd_post_iter(){
   printf("Entering last iter with %d\n", ps.iiter);
 
   double res,res2;
-  double training_rmse = agg_rmse_by_user<graph_type_svdpp, vertex_data_svdpp>(res);
-  double validation_rmse = calc_svd_rmse(ps.g<graph_type_svdpp>(VALIDATION), true, res2);
+  double training_rmse = agg_rmse_by_user<graph_type, vertex_data>(res);
+  double validation_rmse = calc_biassgd_rmse(ps.g<graph_type>(VALIDATION), true, res2);
   printf(ac.printhighprecision ? 
         "%g) Iter %s %d  TRAIN RMSE=%0.12f VALIDATION RMSE=%0.12f.\n":
         "%g) Iter %s %d  TRAIN RMSE=%0.4f VALIDATION RMSE=%0.4f.\n",
   ps.gt.current_time(), runmodesname[ps.algorithm], ps.iiter,  training_rmse, validation_rmse);
 
   if (ac.calc_ap){
-     logstream(LOG_INFO)<<"AP@3 for training: " << calc_ap<graph_type_svdpp,vertex_data_svdpp,edge_data>(ps.g<graph_type_svdpp>(TRAINING)) << " AP@3 for validation: " << calc_ap<graph_type_svdpp,vertex_data_svdpp,edge_data>(ps.g<graph_type_svdpp>(VALIDATION)) << std::endl;
+     logstream(LOG_INFO)<<"AP@3 for training: " << calc_ap<graph_type,vertex_data,edge_data>(ps.g<graph_type>(TRAINING)) << " AP@3 for validation: " << calc_ap<graph_type,vertex_data,edge_data>(ps.g<graph_type>(VALIDATION)) << std::endl;
   }
    //stop on divergence
   if (ac.halt_on_rmse_increase)
@@ -79,7 +138,14 @@ void bias_sgd_post_iter(){
   ac.sgd_gamma *= ac.sgd_step_dec;
   ps.iiter++;
 }
-
+float bias_sgd_predict(const vertex_data_svdpp& user, 
+                const vertex_data_svdpp& movie, 
+                const edge_data_mcmc * edge,
+                const vertex_data* nothing,
+                const float rating, 
+                float & prediction){ assert(false); }
+  
+ 
 float bias_sgd_predict(const vertex_data_svdpp& user, 
                 const vertex_data_svdpp& movie, 
                 const edge_data * edge,
@@ -87,8 +153,10 @@ float bias_sgd_predict(const vertex_data_svdpp& user,
                 const float rating, 
                 float & prediction){
   
-  prediction = ps.globalMean[0] + user.bias + movie.bias;
-  prediction += dot(user.pvec, movie.pvec);	
+  prediction = ps.globalMean[0] + *user.bias + *movie.bias;
+  for (int j=0; j< ac.D; j++)
+    prediction += user.pvec[j]* movie.pvec[j];	
+
   //truncate prediction to allowed values
   prediction = std::min((double)prediction, ac.maxval);
   prediction = std::max((double)prediction, ac.minval);
@@ -102,21 +170,21 @@ float bias_sgd_predict(const vertex_data_svdpp& user,
  /***
  * UPDATE FUNCTION
  */
-void bias_sgd_update_function(gl_types_svdpp::iscope &scope, 
-			 gl_types_svdpp::icallback &scheduler) {
+void bias_sgd_update_function(gl_types::iscope &scope, 
+			 gl_types::icallback &scheduler) {
     
 
 
   int id = scope.vertex();
   /* GET current vertex data */
-  vertex_data_svdpp& user = scope.vertex_data();
+  vertex_data_svdpp user(scope.vertex_data());
  
   /* print statistics */
   if (ps.to_print(id)){
     printf("biasSVD: entering user node  %u \n", id);   
     debug_print_vec("U", user.pvec, ac.D);
   }
-  user.rmse = 0;
+  *user.rmse = 0;
 
   if (user.num_edges == 0){
 		if (id == ps.M-1){
@@ -125,7 +193,7 @@ void bias_sgd_update_function(gl_types_svdpp::iscope &scope,
 		return; //if this user/movie have no ratings do nothing
   }
 
-  gl_types_svdpp::edge_list outs = scope.out_edge_ids();
+  gl_types::edge_list outs = scope.out_edge_ids();
   timer t;
   t.start(); 
 
@@ -133,16 +201,18 @@ void bias_sgd_update_function(gl_types_svdpp::iscope &scope,
    //compute bias SVD Step 
    foreach(graphlab::edge_id_t oedgeid, outs) {
       edge_data & edge = scope.edge_data(oedgeid);
-      vertex_data_svdpp  & movie = scope.neighbor_vertex_data(scope.target(oedgeid));
+      vertex_data_svdpp movie(scope.neighbor_vertex_data(scope.target(oedgeid)));
       float estScore;
       float sqErr = bias_sgd_predict(user, movie, &edge, NULL, edge.weight, estScore);
-      user.rmse += sqErr;
-      assert(!std::isnan(user.rmse));
+      *user.rmse += sqErr;
+      assert(!std::isnan(*user.rmse));
       float err = edge.weight - estScore;
-      user.bias += ac.sgd_gamma*(err - ac.sgd_lambda*user.bias);
-      movie.bias += ac.sgd_gamma*(err - ac.sgd_lambda*movie.bias); 
-      movie.pvec = movie.pvec + ac.sgd_gamma*(err*user.pvec - ac.sgd_lambda*movie.pvec);
-      user.pvec = user.pvec + ac.sgd_gamma*(err*movie.pvec - ac.sgd_lambda*user.pvec);
+      *user.bias += ac.sgd_gamma*(err - ac.sgd_lambda* *user.bias);
+      *movie.bias += ac.sgd_gamma*(err - ac.sgd_lambda* *movie.bias); 
+      for (int j=0; j< ac.D; j++)
+        movie.pvec [j] += ac.sgd_gamma*(err*user.pvec[j] - ac.sgd_lambda*movie.pvec[j]);
+      for (int j=0; j< ac.D; j++)
+				user.pvec[j] += ac.sgd_gamma*(err*movie.pvec[j] - ac.sgd_lambda*user.pvec[j]);
     }
 
     ps.counter[EDGE_TRAVERSAL] += t.current_time();

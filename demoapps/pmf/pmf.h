@@ -98,17 +98,30 @@ struct edge_float{
 struct vertex_data {
   vec pvec; //vector of learned values U,V,T
   float rmse; //root of mean square error
+  float bias;
   int num_edges; //number of edges
 
   //constructor
   vertex_data();
 
-  void save(graphlab::oarchive& archive) const; 
+  //void save(graphlab::oarchive& archive) const; 
    
-  void load(graphlab::iarchive& archive); 
+  //void load(graphlab::iarchive& archive); 
+};
+struct vertex_data_svdpp {
+  double* pvec; //vector of learned values U,V,T
+  float* rmse; //root of mean square error
+  int num_edges; //number of edges
+  float* bias; //bias for this user/movie
+  double* weight; //weight vector for this user/movie
+
+  //constructor
+  vertex_data_svdpp(vertex_data & data);
+  vertex_data_svdpp & operator=(vertex_data & data);
 };
 
 
+/*
 struct vertex_data_svdpp {
   vec pvec; //vector of learned values U,V,T
   float rmse; //root of mean square error
@@ -122,7 +135,8 @@ struct vertex_data_svdpp {
   void save(graphlab::oarchive& archive) const; 
    
   void load(graphlab::iarchive& archive); 
-};
+};*/
+
 
 
 struct edge_data {
@@ -245,10 +259,10 @@ typedef graphlab::types<graph_type> gl_types;
 
 typedef graphlab::graph<vertex_data, multiple_edges> graph_type_mult_edge;
 typedef graphlab::types<graph_type_mult_edge> gl_types_mult_edge;
-
+/*
 typedef graphlab::graph<vertex_data_svdpp, edge_data> graph_type_svdpp;
 typedef graphlab::types<graph_type_svdpp> gl_types_svdpp;
-
+*/
 typedef graphlab::graph<vertex_data, edge_data_mcmc> graph_type_mcmc;
 typedef graphlab::types<graph_type_mcmc> gl_types_mcmc;
 
@@ -299,12 +313,12 @@ public:
   double counter[MAX_COUNTER];
  
   vertex_data * times;
-  vertex_data_svdpp * times_svdpp;
+  //vertex_data_svdpp * times_svdpp;
   graphlab::core_base* glcore;
   graph_type * gg[4];
   graph_type_mcmc * g_mcmc[4];
   graph_type_mult_edge * g_mult_edge[4];
-  graph_type_svdpp * g_svdpp[4];
+  //graph_type_svdpp * g_svdpp[4];
 
   vec vones;
   mat eDT; 
@@ -315,10 +329,10 @@ public:
   double training_rmse; //stored training rmse
   template<typename graph_type> const graph_type* g(testtype type);
     
-  //template<typename graph_type> void set_graph(graph_type *g, testtype type);
+  template<typename graph_type> void set_graph(graph_type *g, testtype type);
   void set_graph(graph_type*_g, testtype type){gg[type]=_g;};
   void set_graph(graph_type_mcmc*_g, testtype type){g_mcmc[type]=_g;};
-  void set_graph(graph_type_svdpp*_g, testtype type){g_svdpp[type]=_g;};
+  //void set_graph(graph_type_svdpp*_g, testtype type){g_svdpp[type]=_g;};
   void set_graph(graph_type_mult_edge*_g, testtype type){g_mult_edge[type]=_g;};
 
   
@@ -343,13 +357,13 @@ public:
 //performance counters
   memset(counter, 0, MAX_COUNTER*sizeof(double));
   times = NULL;
-  times_svdpp = NULL;
+  //times_svdpp = NULL;
   glcore = NULL;
   //engine = NULL;
   memset(gg, 0, 3*sizeof(graph_type*));
   memset(g_mcmc, 0, 3*sizeof(graph_type_mcmc*));
   memset(g_mult_edge, 0, 3*sizeof(graph_type_mult_edge*));
-  memset(g_svdpp, 0, 3*sizeof(graph_type_svdpp*));
+  //memset(g_svdpp, 0, 3*sizeof(graph_type_svdpp*));
 }
 
   void verify_setup();
@@ -449,7 +463,7 @@ void problem_setup::verify_setup(){
 template<> const graph_type *problem_setup::g(testtype type){ return gg[type]; }
 template<> const graph_type_mcmc *problem_setup::g(testtype type){ return g_mcmc[type]; }
 template<> const graph_type_mult_edge *problem_setup::g(testtype type){ return g_mult_edge[type]; }
-template<> const graph_type_svdpp *problem_setup::g(testtype type){ return g_svdpp[type]; }
+/*template<> const graph_type_svdpp *problem_setup::g(testtype type){ return g_svdpp[type]; }*/
 
 
  
@@ -463,10 +477,7 @@ void load_matrix_market(const char * filename, graph_type * _g, testtype data_ty
 void verify_size(testtype data_type, int M, int N, int K);
 void save_matrix_market_format(const char * filename, mat &U, mat &V);
 float predict(const vertex_data& v1, const vertex_data & v2, const edge_data * edge, float rating, float & prediction);
-float predict(const vertex_data_svdpp& user, const vertex_data_svdpp& movie, const edge_data * edge, const vertex_data * nothing, float rating, float & prediction);
 float predict(const vertex_data& v1, const vertex_data& v2, const edge_data * edge, const vertex_data *v3, float rating, float &prediction);
-void rbm_update_function(gl_types_svdpp::iscope &scope, gl_types_svdpp::icallback &scheduler);
-void rbm_update_function(gl_types::iscope &scope, gl_types::icallback &scheduler){ assert(false); }
 void rbm_update_function(gl_types_mcmc::iscope &scope, gl_types_mcmc::icallback &scheduler) { assert(false); }
 void rbm_update_function(gl_types_mult_edge::iscope &scope, gl_types_mult_edge::icallback &scheduler) { assert(false); }
 void rbm_init(); 
