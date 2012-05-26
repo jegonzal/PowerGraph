@@ -164,6 +164,13 @@ void nmf_init(){
     }
 
   }
+#pragma omp parallel for
+  for (int i=ps.M; i<ps.M+ps.N; i++){
+    vertex_data &data = g->vertex_data(i);
+    if (ac.debug)
+       data.pvec = ones(ac.D) * 0.1;
+    else data.pvec = randu(ac.D);
+  }
 }
 const gl_types::edge_list get_edges(bool isuser, gl_types::iscope & scope){
      return isuser ? scope.out_edge_ids(): scope.in_edge_ids();
