@@ -81,13 +81,13 @@ struct rbm_movie{
    rbm_movie(const vertex_data& vdata){
      ni = (float*)&vdata.bias;
      bi = (double*)&vdata.pvec[0];
-     w = bi + ac.D;
+     w = bi + ac.rbm_bins;
    }
 
    rbm_movie & operator=(vertex_data & data){
      ni = (float*)&data.bias;
      bi = (double*)&data.pvec[0];
-     w = bi + ac.D;
+     w = bi + ac.rbm_bins;
      return * this;
    }
 };
@@ -201,7 +201,7 @@ void rbm_post_iter(){
   if (ac.halt_on_rmse_increase)
     if ((ps.validation_rmse && (ps.validation_rmse < validation_rmse)) ||
         (ps.training_rmse && (ps.training_rmse < training_rmse)))
-          dynamic_cast<graphlab::core<vertex_data_svdpp,edge_data>*>(ps.glcore)->engine().stop();
+          dynamic_cast<graphlab::core<vertex_data,edge_data>*>(ps.glcore)->engine().stop();
 
   ps.validation_rmse = validation_rmse; 
   ps.training_rmse = training_rmse;
@@ -218,7 +218,7 @@ void rbm_update_function(gl_types::iscope &scope,
 			 gl_types::icallback &scheduler) {
    
    /* GET current vertex data */
-  vertex_data user = scope.vertex_data();
+  vertex_data & user = scope.vertex_data();
   user.pvec = zeros(ac.D*3);
   rbm_user usr(user); 
   int id = scope.vertex(); 
@@ -246,9 +246,10 @@ void rbm_update_function(gl_types::iscope &scope,
     rbm_movie mov = scope.neighbor_vertex_data(scope.target(oedgeid));
     edge_data & edge = scope.edge_data(oedgeid);
     int r = edge.weight / ac.rbm_scaling;
-            
+    assert(r < ac.rbm_bins);      
     for(int k=0; k < ac.D; k++){
       usr.h[k] += mov.w[ac.D*r + k];
+      assert(!std::isnan(usr.h[k]));
     }
   } 
     for(int k=0; k < ac.D; k++){
@@ -300,7 +301,9 @@ void rbm_update_function(gl_types::iscope &scope,
       int vi1 = v1[i];
       for (int k = 0; k < ac.D; k++){
         mov.w[ac.D*vi0+k] += ac.rbm_alpha * (usr.h0[k] - ac.rbm_beta * mov.w[vi0*ac.D+k]);
+        assert(!std::isnan(mov.w[ac.D*vi0+k]));
         mov.w[ac.D*vi1+k] -= ac.rbm_alpha * (usr.h1[k] + ac.rbm_beta * mov.w[vi1*ac.D+k]);
+        assert(!std::isnan(mov.w[ac.D*vi1+k]));
      }
      i++; 
    }    
@@ -314,14 +317,15 @@ void rbm_update_function(gl_types::iscope &scope,
  
 void rbm_init(){
     graph_type * training = (graph_type*)ps.g<graph_type>(TRAINING);
+#pragma omp parallel for
     for(int i = 0; i < ps.N; ++i){
-        vertex_data movie(training->vertex_data(ps.M+i));
+        vertex_data & movie = training->vertex_data(ps.M+i);
         movie.pvec = zeros(ac.rbm_bins + ac.D * ac.rbm_bins);
         movie.bias = 0;
     }
     int currentRatingIdx = 0;
     for (int i=0; i< ps.M; i++){
-        vertex_data user = training->vertex_data(i);
+        vertex_data &user = training->vertex_data(i);
         user.pvec = zeros(ac.D*3);
          gl_types::edge_list outs = training->out_edge_ids(i);
          foreach(graphlab::edge_id_t oedgeid, outs){

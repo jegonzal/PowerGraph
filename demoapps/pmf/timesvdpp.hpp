@@ -106,7 +106,7 @@ void init_time_svdpp<graph_type>(graph_type *_g){
    int k = ac.D;
 
 	for (int u = 0; u < ps.M; u++) {
-    vertex_data data = _g->vertex_data(u);
+    vertex_data & data = _g->vertex_data(u);
     data.pvec = zeros(4*k);
     time_svdpp_usr usr(data);
     *usr.bu = 0;
