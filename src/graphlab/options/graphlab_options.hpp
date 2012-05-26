@@ -67,38 +67,21 @@ namespace graphlab {
   public:
     //! The number of cpus
     size_t ncpus;
-    //! The type of engine {async,  synchronous}
-    std::string engine_type;
-
-    //! additional arguments to the engine
-    options_map engine_args;
     
     //! The type of scheduler to use
     std::string scheduler_type;
-
+    
+    //! additional arguments to the engine
+    options_map engine_args;
+    
     //! additional arguments to the scheduler
     options_map scheduler_args;
 
-    //! The compiler flags
-    std::string compile_flags;
-
     //! Options for the graph
-    options_map graph_options;
-    
-    //! Use CPU affinities
-    bool enable_cpu_affinities;
+    options_map graph_args;
 
-    bool enable_sched_yield;
- 
-    bool distributed_options;
-    
     graphlab_options() :
-      ncpus(2),
-      engine_type("async"),
-      scheduler_type("fifo"),
-      enable_cpu_affinities(false),
-      enable_sched_yield(true),
-      distributed_options(false){
+      ncpus(2) {
       // Grab all the compiler flags 
       /* \todo: Add these back at some point
         #ifdef COMPILEFLAGS
@@ -116,13 +99,6 @@ namespace graphlab {
 
     virtual ~graphlab_options() {}
 
-    //! Use distributed options instead of shared memory options
-    void use_distributed_options() {
-      scheduler_type = "queued_fifo";
-      distributed_options = true;
-    }
-
-
 
     //! Set the number of cpus
     void set_ncpus(size_t n) { ncpus = n; }
@@ -130,28 +106,9 @@ namespace graphlab {
     //! Get the number of cpus
     size_t get_ncpus() const { return ncpus; }
 
-    //! Set the engine type
-    bool set_engine_type(const std::string& etype) {
+    void set_scheduler_type(const std::string& stype) {
       //! \todo: ADD CHECKING
-      engine_type = engine_args.parse_string(etype);
-      return true; 
-    }
-
-    //! Get the engine type
-    const std::string& get_engine_type() const {
-      return engine_type;
-    }
-
-    //! Get the engine arguments
-    const options_map& get_engine_args() const { 
-      return engine_args;
-    }
-
-
-    bool set_scheduler_type(const std::string& stype) {
-      //! \todo: ADD CHECKING
-      scheduler_type = scheduler_args.parse_string(stype);
-      return true; 
+      scheduler_type = stype;
     }    
 
 
@@ -160,36 +117,32 @@ namespace graphlab {
       return scheduler_type;
     }
 
-    //! Get the scheduler options
-    const options_map& get_scheduler_args() const { 
-      return scheduler_args;
+    //! Get the engine arguments
+    const options_map& get_engine_args() const {
+      return engine_args;
     }
 
-    //! Get the scheduler options
-    options_map& get_scheduler_args() { 
-      return scheduler_args;
+    //! Get the engine arguments
+    options_map& get_engine_args() {
+      return engine_args;
     }
 
-
-    bool set_graph_options(const std::string& stype) {
-      //! \todo: ADD CHECKING
-      graph_options.parse_string(stype);
-      return true; 
-    }    
-
-    const options_map& get_graph_options() const { 
-      return graph_options;
+    const options_map& get_graph_args() const {
+      return graph_args;
     }
 
-    options_map& get_graph_options() { 
-      return graph_options;
+    options_map& get_graph_args() {
+      return graph_args;
     }     
 
-    //! Get the compiler options (flags)
-    const std::string& get_compile_flags() const {
-      return compile_flags;
+
+    const options_map& get_scheduler_args() const {
+      return scheduler_args;
     }
 
+    options_map& get_scheduler_args() {
+      return scheduler_args;
+    }
 
     /**
      * Display the current engine options
@@ -197,12 +150,13 @@ namespace graphlab {
     virtual void print() const {
       std::cout << "GraphLab Options -------------------\n" 
                 << "ncpus:       " << ncpus << "\n"
-                << "engine:      " << engine_type << "\n"
                 << "scheduler:   " << scheduler_type << "\n";
       std::cout << "\n";
       std::cout << "Scheduler Options: \n";
       std::cout << scheduler_args;
-      std::cout << "Additional Engine Options: \n";
+      std::cout << "Graph Options: \n";
+      std::cout << graph_args;
+      std::cout << "Engine Options: \n";
       std::cout << engine_args;
       std::cout << std::endl;
     }

@@ -40,27 +40,16 @@
 
 namespace graphlab {
   
-  std::string 
-  options_map::parse_string(std::string options_raw) {
+   
+  void options_map::parse_string(std::string arguments) {
     std::pair<std::string, options_map> ret;
     // Break the string appart
-    size_t first_paren = options_raw.find_first_of('(');
-    size_t last_paren = options_raw.find_last_of(')');
-    std::string fun_name = options_raw.substr(0, first_paren);
-    std::string arguments;
-    // Fill in the arguments if such are possibe
-    if(first_paren != std::string::npos &&
-       last_paren != std::string::npos) {
-      arguments = options_raw.substr(first_paren + 1,
-                                     last_paren - first_paren - 1 );
-    }
     if(!arguments.empty()) {
       std::replace(arguments.begin(), arguments.end(), ',', ' ');
       std::replace(arguments.begin(), arguments.end(), ';', ' ');        
       std::stringstream arg_strm(arguments);
       parse_options(arg_strm);
     }     
-    return fun_name;
   }
 
 
@@ -78,7 +67,7 @@ namespace graphlab {
       out << std::setw(18) << std::left << i->first;    
       out << std::setw(2) << "= ";    
       //out.setf(std::ios::right);
-      i->second.anyval.print(out);
+      out << i->second.strval;
       out << std::endl;
       ++i;
     }

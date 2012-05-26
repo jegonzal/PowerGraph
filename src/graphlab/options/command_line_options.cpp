@@ -57,64 +57,49 @@ namespace graphlab {
     namespace boost_po = boost::program_options;
     
     size_t ncpus(get_ncpus());
-    std::string enginetype(get_engine_type());
+    std::string engine_opts_string;
     std::string schedulertype(get_scheduler_type());
-    std::string graph_opts_string= "";
+    std::string scheduler_opts_string = "";
+    std::string graph_opts_string = "";
 
     if(!suppress_graphlab_options) {
-      if (distributed_options == false) {
-        // Set the program options
-        desc.add_options()
-          ("ncpus",
-          boost_po::value<size_t>(&(ncpus))->
-          default_value(ncpus),
-          "Number of cpus to use.")
-          ("engine",
-          boost_po::value<std::string>(&(enginetype))->
-          default_value(enginetype),
-          "Options are {async, async_sim, synchronous}")
-          ("schedhelp",
-          boost_po::value<std::string>()->implicit_value(""),
-          "Display help for a particular scheduler.")
-          ("scheduler",
+      // Set the program options
+      desc.add_options()
+        ("ncpus",
+        boost_po::value<size_t>(&(ncpus))->
+        default_value(ncpus),
+        "Number of cpus to use per machine")
+        ("scheduler",
           boost_po::value<std::string>(&(schedulertype))->
           default_value(schedulertype),
-          (std::string("Supported schedulers are: ")
-            + get_scheduler_names_str() +
-            ". Too see options for each scheduler, run the program with the option"
-            " ---schedhelp=[scheduler_name]").c_str());
-      } else {
-        // Set the program options
-        desc.add_options()
-          ("ncpus",
-          boost_po::value<size_t>(&(ncpus))->
-          default_value(ncpus),
-          "Number of cpus to use per machine")
-          ("engine",
-          boost_po::value<std::string>(&(enginetype))->
-          default_value(enginetype),
-          "Options are {dist_chromatic}")
-          ("dgraphopts",
-           boost_po::value<std::string>(&(graph_opts_string))->
-           default_value(graph_opts_string),
-           "String of graph options i.e., (ingress=random)")
-          ("schedhelp",
+          (std::string("Supported schedulers are: "
+          + get_scheduler_names_str() +
+          ". Too see options for each scheduler, run the program with the option"
+          " ---schedhelp=[scheduler_name]").c_str()))
+        ("engineopts",
+        boost_po::value<std::string>(&(engine_opts_string))->
+        default_value(engine_opts_string),
+        "string of engine options i.e., (background_comms=true)")
+        ("graphopts",
+          boost_po::value<std::string>(&(graph_opts_string))->
+          default_value(graph_opts_string),
+          "String of graph options i.e., (ingress=random)")
+        ("scheduleropts",
+          boost_po::value<std::string>(&(scheduler_opts_string))->
+          default_value(scheduler_opts_string),
+          "String of scheduler options i.e., (strict=true)")
+        ("enginehelp",
           boost_po::value<std::string>()->implicit_value(""),
-          "Display help for a particular scheduler.")
-          ("scheduler",
-           boost_po::value<std::string>(&(schedulertype))->
-           default_value(schedulertype),
-           (std::string("Supported schedulers are: ")
-           + get_scheduler_names_str() +
-            ". Too see options for each scheduler, run the program with the option"
-            " ---schedhelp=[scheduler_name]").c_str())
-          ("enghelp",
-           boost_po::value<std::string>()->implicit_value(""),
-           "Display help for a particular engine.");
-      }
+          "Display help for engine options.")
+        ("graphhelp",
+        boost_po::value<std::string>()->implicit_value(""),
+        "Display help for the distributed graph.")
+        ("schedulerhelp",
+          boost_po::value<std::string>()->implicit_value(""),
+          "Display help for schedulers.");
     }
     // Parse the arguments
-    try{
+    try {
       std::vector<std::string> arguments;
       std::copy(argv + 1, argv + argc + !argc, 
                 std::inserter(arguments, arguments.end()));
@@ -134,8 +119,8 @@ namespace graphlab {
       print_description();
       return false;
     }
-    if (vm.count("schedhelp")) {
-      std::string schedname = vm["schedhelp"].as<std::string>();
+    if (vm.count("schedulerhelp")) {
+      std::string schedname = vm["schedulerhelp"].as<std::string>();
       if (schedname != "") {
         print_scheduler_info(schedname, std::cout);
       } else {
@@ -146,38 +131,24 @@ namespace graphlab {
       }
       return false;
     }    
-    if (vm.count("enghelp")) {
+    if (vm.count("enginehelp")) {
       /// TODO put the options somewhere! Move this out of here!
       /// Problem is I do not want to instantiate dist_chromatic_engine here
       /// since that is rather costly...
-      std::cout << "dist_chromatic engine\n";   
-      std::cout << std::string(50, '-') << std::endl;
-      std::cout << "Options: \n";
-      std::cout << "max_iterations = [integer, default = 0]\n";
-      std::cout << "randomize_schedule = [integer, default = 0]\n";
+      std::cout << "TODO\n";
+      return false;
+    }
+    if (vm.count("graphhelp")) {
+      std::cout << "TODO\n";
       return false;
     } 
     set_ncpus(ncpus);
 
-    if(!set_engine_type(enginetype)) {
-      std::cout << "Invalid engine type! : " << enginetype 
-                << std::endl;
-      return false;
-    }
+    set_scheduler_type(schedulertype);
 
-    if(!set_scheduler_type(schedulertype)) {
-      std::cout << "Invalid scheduler type! : " << schedulertype 
-                << std::endl;
-      return false;
-    }
-    
-    if(!set_graph_options(graph_opts_string)) {
-      std::cout << "Invalid graph options! : " << graph_opts_string
-                << std::endl;
-      return false;
-    }
-
-
+    get_scheduler_args().parse_string(scheduler_opts_string);
+    get_engine_args().parse_string(engine_opts_string);
+    get_graph_args().parse_string(graph_opts_string);
     return true;
   } // end of parse
 
