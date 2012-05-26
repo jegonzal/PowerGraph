@@ -153,6 +153,7 @@ void nmf_init(){
     vertex_data &data = g->vertex_data(i);
     if (ac.debug)
        data.pvec = ones(ac.D) * 0.1;
+    else data.pvec = randu(ac.D);
     if (g->num_out_neighbors(i) == 0)
       logstream(LOG_FATAL)<<"NMF algorithm can not work when the row " << i << " of the matrix contains all zeros" << std::endl;
     foreach(gl_types::edge_id oegeid, g->out_edge_ids(i)){
