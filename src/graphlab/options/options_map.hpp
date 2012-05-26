@@ -39,7 +39,6 @@
 #include <boost/lexical_cast.hpp>
 #include <graphlab/logger/logger.hpp>
 #include <graphlab/util/stl_util.hpp>
-#include <graphlab/util/generics/any.hpp>
 #include <graphlab/util/generics/robust_cast.hpp>
 
 namespace graphlab {
@@ -67,7 +66,7 @@ namespace graphlab {
                                const std::string &val) {
       options[opt].strval = val;
       try {
-        options[opt].intval = boost::lexical_cast<size_t>(val);
+        options[opt].intval = boost::lexical_cast<int>(val);
       } catch(boost::bad_lexical_cast& error) {options[opt].intval = 0; }
       try {
         options[opt].dblval = boost::lexical_cast<double>(val);
@@ -75,47 +74,19 @@ namespace graphlab {
 
       if (val == "true" || val == "TRUE" || 
           val == "yes" || val == "YES" || val == "1") options[opt].boolval = true;
-      // try {
-      //        options[opt].boolval = boost::lexical_cast<bool>(val);
-      // } catch(boost::bad_lexical_cast& error) { options[opt].boolval = false; }
-      options[opt].anyval = val;
     }
 
-    /**
-     * Add an option -> value pair where value is a string.
-     * There are two version of this function implemented since
-     * The any cannot store functions, but only function pointers,
-     * we need to be able to differentiate between them
-     */
     template <typename T>
-    typename boost::disable_if_c<boost::is_function<T>::value, void>::type
-    add_option(const std::string& opt, const T& val) {
+    void add_option(const std::string& opt, const T& val) {
       if (boost::is_convertible<T, std::string>::value) {
         add_option_str(opt, robust_cast<std::string>(val));
       } else {
         options[opt].strval  = robust_cast<std::string>(val);
-        options[opt].intval  = robust_cast<size_t>(val);
+        options[opt].intval  = robust_cast<int>(val);
         options[opt].dblval  = robust_cast<double>(val);
         options[opt].boolval = robust_cast<bool>(val);
-        options[opt].anyval  = val;
       }
     }
-
-    template <typename T>
-    typename boost::enable_if_c<boost::is_function<T>::value, void>::type
-    add_option(const std::string& opt, const T& val) {
-      if (boost::is_convertible<T, std::string>::value) {
-        add_option_str(opt, robust_cast<std::string>(val));
-      } else {
-        options[opt].strval = robust_cast<std::string>(val);
-        options[opt].intval = robust_cast<size_t>(val);
-        options[opt].dblval = robust_cast<double>(val);
-        options[opt].boolval = robust_cast<bool>(val);
-        options[opt].anyval = &val;
-      }
-    }
-
-
 
     /**
      * Test if the option has been created
@@ -178,49 +149,11 @@ namespace graphlab {
     }
 
 
-
-    /**
-     * Reads an any option
-     */
-    inline bool get_option(const std::string& opt, any &val) const {
-      std::map<std::string, option_values>::const_iterator i = options.find(opt);
-      if (i == options.end()) return false;
-      val = i->second.anyval;
-      return true;
-    }
-
     /**
      * Erases an option
      */
     template <typename T>
     inline void erase_option(const std::string &opt) { options.erase(opt); }
-
-    /**
-     * Combines two options. Warns if options intersects
-     */
-    inline void apply_options(const options_map& other) {
-      std::set<std::string> commonopts = 
-        set_intersect(keys(options),  keys(other.options));
-      if (commonopts.size() > 0) {
-        std::set<std::string>::const_iterator i = commonopts.begin();
-        while(i != commonopts.end()) {
-          std::string myval, otherval;
-          this->get_option(*i, myval);
-          other.get_option(*i, otherval);
-          if (myval != otherval) {
-            logger(LOG_WARNING,
-                   "Common options detected between options set\n"
-                   "programmatically and options set on the command line.\n");
-            logstream(LOG_WARNING) << "\t" << *i << " = " << myval << " || " 
-                                   << otherval << "\n";
-          }
-          ++i;
-        }
-      }
-      std::map<std::string, option_values> res;
-      res = map_union(other.options, options);
-      options = res;
-    }
 
 
     /**
@@ -250,20 +183,18 @@ namespace graphlab {
     /// The internal storage of the options
     struct option_values{
       std::string strval;
-      size_t intval;
+      int intval;
       double dblval;
       bool boolval;
-      any anyval;
       option_values () : intval(0), dblval(0), boolval(false) { }
     };
 
 
     
     /**
-     * Parse the scheduler string returning the scheduler and storing
-     * all the options.
+     * Parse a comma delimited series of key1=value1,key2=value2 
      */
-    std::string parse_string(std::string options_raw);
+    void parse_string(std::string arguments);
 
     std::map<std::string, option_values> options;
 
