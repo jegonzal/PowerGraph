@@ -360,18 +360,18 @@ void fill_factors_time_svd_plus_plus(){
       for (int i=0; i< ps.M; i++){
         const time_svdpp_usr  data = (vertex_data&)ps.g<graph_type>(TRAINING)->vertex_data(i);
        
-        set_row(ps.timesvdpp_out.ptemp, i, vec(data.ptemp,ac.D));
-        set_row(ps.timesvdpp_out.x, i, vec(data.x, ac.D));
-        set_row(ps.timesvdpp_out.pu, i, vec(data.pu, ac.D));
+        set_row(ps.timesvdpp_out.ptemp, i, _vec(data.ptemp,ac.D));
+        set_row(ps.timesvdpp_out.x, i, _vec(data.x, ac.D));
+        set_row(ps.timesvdpp_out.pu, i, _vec(data.pu, ac.D));
       }
       for (int i=ps.M; i < ps.M+ps.N; i++){
         const time_svdpp_movie movie = (vertex_data&)ps.g<graph_type>(TRAINING)->vertex_data(i);
-        set_row(ps.timesvdpp_out.q, i-ps.M, vec(movie.q, ac.D));
+        set_row(ps.timesvdpp_out.q, i-ps.M, _vec(movie.q, ac.D));
       }
       for (int i=0; i< ac.K; i++){
         const time_svdpp_time  data = ps.times[i];
-        set_row(ps.timesvdpp_out.z, i, vec(data.z,ac.D));
-        set_row(ps.timesvdpp_out.pt, i, vec(data.pt, ac.D));
+        set_row(ps.timesvdpp_out.z, i, _vec(data.z,ac.D));
+        set_row(ps.timesvdpp_out.pt, i, _vec(data.pt, ac.D));
       }
 }
 #include "graphlab/macros_undef.hpp"

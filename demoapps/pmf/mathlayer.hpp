@@ -65,6 +65,11 @@ inline vec zeros(int size){
 inline mat zeros(int rows, int cols){
   return mat::Zero(rows, cols);
 }
+inline vec _vec(double * array, int size){
+  vec ret(size);
+  memcpy(&ret[0], array, size*sizeof(double));
+  return ret;
+}
 inline void debug_print_vec(const char * name,const vec& _vec, int len){
   printf("%s ) ", name);
   for (int i=0; i< std::min(len, (int)_vec.size()); i++)
@@ -651,7 +656,9 @@ using namespace itpp;
 inline void compact(sparse_vec & a){
   //TODO
 }
-
+inline vec _vec(double* array, int size){
+  return vec(array, size);
+}
 inline void set_val(mat& A, int row, int col, double val){
   A.set(row, col, val);
 }

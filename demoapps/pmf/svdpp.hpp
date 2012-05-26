@@ -291,8 +291,8 @@ void svd_plus_plus_update_function(gl_types::iscope &scope,
       // e_ui = r_ui - \hat{r_ui}
       float err = edge.weight - estScore;
       assert(!std::isnan(*user.rmse));
-      vec itmFctr = vec(movie.pvec, ac.D);
-      vec usrFactor = vec(user.pvec, ac.D) ;
+      vec itmFctr = _vec(movie.pvec, ac.D);
+      vec usrFactor = _vec(user.pvec, ac.D) ;
    
       //q_i = q_i + gamma2     *(e_ui*(p_u      +  sqrt(N(U))\sum_j y_j) - gamma7    *q_i)
       for (int j=0; j< ac.D; j++)
@@ -339,7 +339,7 @@ void fill_factors_svdpp(){
          ps.svdpp_usr_bias[i] = *data.bias;
       }
       else {
-        set_row(ps.V, i-ps.M, vec(data.pvec, ac.D));
+        set_row(ps.V, i-ps.M, _vec(data.pvec, ac.D));
         ps.svdpp_movie_bias[i-ps.M] = *data.bias;
       }
 		}
