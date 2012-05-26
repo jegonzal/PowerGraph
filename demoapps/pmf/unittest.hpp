@@ -104,11 +104,13 @@ void unit_testing(int unittest, command_line_options& clopts){
    }
    else if (unittest == 81){ //NMF
      ac.datafile = "panel7_mmwritten.dat"; ps.algorithm = NMF; ac.algorithm = NMF; ac.matrixmarket = true;
-  }
+   }
    else if (unittest == 82){ //NMF
      ac.datafile = "panel7_mmwritten.dat"; ps.algorithm = NMF; ac.algorithm = NMF; ac.matrixmarket = true; ac.D = 5; ac.debug = true; ac.iter = 5;
-   } else if (unittest == 91){ //WEIGHTED ALTERNATING LEAST SQUARES
-      ac.datafile = "wals"; ac.algorithm = WEIGHTED_ALS; ps.algorithm = WEIGHTED_ALS; ac.FLOAT = true; ac.als_lambda = 0.001;
+   } 
+   else if (unittest == 91){ //WEIGHTED ALTERNATING LEAST SQUARES
+      ac.datafile = "wals"; ac.algorithm = WEIGHTED_ALS; ps.algorithm = WEIGHTED_ALS; ac.FLOAT = true; ac.als_lambda = 0.001; ac.matrixmarket = true;
+      ac.matrixmarkettokensperrow= 4;
       clopts.set_scheduler_type("round_robin(max_iterations=100,block_size=1)");
    }
    else if (unittest == 92){ //WEIGHTED ALTERNATING LEAST SQUARES, IMPLICIT RATING

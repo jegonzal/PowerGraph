@@ -65,16 +65,26 @@ void load_matrix_market(const char * filename, graph_type *_g, testtype data_typ
         logstream(LOG_FATAL) << "sorry, this application does not support " << 
           "Market Market type: " << mm_typecode_to_str(matcode) << std::endl;
 
-    if (mm_is_array(matcode))
-       logstream(LOG_FATAL) << "Only sparse matrix format is supported. It seems your input file has dense formati (array format)" << std::endl;
+    //if (mm_is_array(matcode))
+    //   logstream(LOG_FATAL) << "Only sparse matrix format is supported. It seems your input file has dense formati (array format)" << std::endl;
 
     if (mm_is_symmetric(matcode))
        logstream(LOG_FATAL) << "Symmetic matrix market matrices are not supported in pmf. " << std::endl;
 
-    /* find out size of sparse matrix .... */
+    /* find out size of matrix .... */
+    if (mm_is_array(matcode)){
+      /*if ((ret_code = mm_read_mtx_array_size(f, &M, &N)) !=0)
+        logstream(LOG_FATAL) << "failed to read matrix market cardinality size " << std::endl; 
+      if (N != 3 && N != 4)
+         logstream(LOG_FATAL)<<"Allowed dense matrix market size is either 3 or 4 columns" << " observed columns: " << N << std::endl;
+      ac.matrixmarkettokensperrow = N;
+      nz = M;*/
+      logstream(LOG_FATAL)<<"Sorry, dense matrix market format as input is not supported yet. Please preparse a SPARSE matrix market format input" << std::endl;
+    }
+    else {
     if ((ret_code = mm_read_mtx_crd_size(f, &M, &N, &nz)) !=0)
        logstream(LOG_FATAL) << "failed to read matrix market cardinality size " << std::endl; 
-   
+    }
    
     if (ac.K == 0) //no input from users about number of time bins, setting time bins to 1 (no tensor)
       ps.K = 1;  
@@ -92,14 +102,14 @@ void load_matrix_market(const char * filename, graph_type *_g, testtype data_typ
     /*   specifier as in "%lg", "%lf", "%le", otherwise errors will occur */
     /*  (ANSI C X3.159-1989, Sec. 4.9.6.2, p. 136 lines 13-15)            */
 
-    int I,J; 
     double val;
     double dtime;
+    int I,J;
 
     edge_data edge;
     for (i=0; i<nz; i++)
     {
-       if (ac.matrixmarkettokensperrow == 3){
+      if (ac.matrixmarkettokensperrow == 3){
         int rec = fscanf(f, "%d %d %lg\n", &I, &J, &val);
         if (rec != 3)
            logstream(LOG_FATAL)<<"Error reading input line " << i << " . Expected total rows: " << nz << std::endl;
