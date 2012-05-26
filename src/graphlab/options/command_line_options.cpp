@@ -76,25 +76,25 @@ namespace graphlab {
           + get_scheduler_names_str() +
           ". Too see options for each scheduler, run the program with the option"
           " ---schedhelp=[scheduler_name]").c_str()))
-        ("engineopts",
+        ("engine_opts",
         boost_po::value<std::string>(&(engine_opts_string))->
         default_value(engine_opts_string),
         "string of engine options i.e., (background_comms=true)")
-        ("graphopts",
+        ("graph_opts",
           boost_po::value<std::string>(&(graph_opts_string))->
           default_value(graph_opts_string),
           "String of graph options i.e., (ingress=random)")
-        ("scheduleropts",
+        ("scheduler_opts",
           boost_po::value<std::string>(&(scheduler_opts_string))->
           default_value(scheduler_opts_string),
           "String of scheduler options i.e., (strict=true)")
-        ("enginehelp",
+        ("engine_help",
           boost_po::value<std::string>()->implicit_value(""),
           "Display help for engine options.")
-        ("graphhelp",
+        ("graph_help",
         boost_po::value<std::string>()->implicit_value(""),
         "Display help for the distributed graph.")
-        ("schedulerhelp",
+        ("scheduler_help",
           boost_po::value<std::string>()->implicit_value(""),
           "Display help for schedulers.");
     }
@@ -119,7 +119,7 @@ namespace graphlab {
       print_description();
       return false;
     }
-    if (vm.count("schedulerhelp")) {
+    if (vm.count("scheduler_help")) {
       std::string schedname = vm["schedulerhelp"].as<std::string>();
       if (schedname != "") {
         print_scheduler_info(schedname, std::cout);
@@ -131,14 +131,14 @@ namespace graphlab {
       }
       return false;
     }    
-    if (vm.count("enginehelp")) {
+    if (vm.count("engine_help")) {
       /// TODO put the options somewhere! Move this out of here!
       /// Problem is I do not want to instantiate dist_chromatic_engine here
       /// since that is rather costly...
       std::cout << "TODO\n";
       return false;
     }
-    if (vm.count("graphhelp")) {
+    if (vm.count("graph_help")) {
       std::cout << "TODO\n";
       return false;
     } 

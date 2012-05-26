@@ -540,6 +540,10 @@ namespace graphlab {
 
     // not copyable
     void operator=(const cancellable_barrier& m) { }
+
+    void resize_unsafe(size_t numthreads) {
+      needed = numthreads;
+    }
     
     /**
      * \warning: This barrier is safely NOT reusable with this cancel
@@ -596,6 +600,10 @@ namespace graphlab {
       pthread_barrier_init(&m_barrier, NULL, (unsigned)numthreads); }    
     // not copyable
     void operator=(const barrier& m) { }
+    void resize_unsafe(size_t numthreads) {
+      pthread_barrier_destroy(&m_barrier);
+      pthread_barrier_init(&m_barrier, NULL, (unsigned)numthreads);
+    }
     ~barrier() { pthread_barrier_destroy(&m_barrier); }
     /// Wait on the barrier until numthreads has called wait
     inline void wait() const { pthread_barrier_wait(&m_barrier); }

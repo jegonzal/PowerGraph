@@ -92,10 +92,9 @@ namespace graphlab {
 
     dc_dist_object< synchronous_engine<VertexProgram> > rmi;
 
-    //! The local engine options
-    graphlab_options opts; 
     //! the distributed graph
     graph_type& graph;
+    size_t ncpus;     // number of CPUS
     //! local threads object
     thread_pool threads;
     graphlab::barrier thread_barrier;
@@ -103,6 +102,8 @@ namespace graphlab {
     size_t max_iterations;
     size_t iteration_counter;
 
+    bool use_cache;
+    
     //! Engine state
     bool started;
 
@@ -154,7 +155,7 @@ namespace graphlab {
   public:
     synchronous_engine(distributed_control &dc, 
                        graph_type& graph,
-                       size_t ncpus);
+                       const graphlab_options& opts);
     void initialize();
     size_t total_memory_usage() const;
 
@@ -170,10 +171,8 @@ namespace graphlab {
     float elapsed_seconds() const;
     size_t iteration() const; 
 
-    void set_timeout(size_t timeout_secs) { /* implement */ }
     size_t elapsed_time() const { return 0; /* implement */ }
-    void set_task_budget(size_t max_tasks) { /* implement */ }
-    void set_options(const graphlab_options& opts) { /* implement */ }
+    void set_options(const graphlab_options& opts);
 
     void post_delta(const vertex_type& vertex,
                     const gather_type& delta);
@@ -222,14 +221,43 @@ namespace graphlab {
   synchronous_engine<VertexProgram>::
   synchronous_engine(distributed_control &dc, 
                      graph_type& graph,
-                     size_t ncpus) : 
-    rmi(dc, this), graph(graph), threads(ncpus), thread_barrier(ncpus), 
-    max_iterations(-1), iteration_counter(0),
+                     const graphlab_options& opts) :
+    rmi(dc, this), graph(graph), ncpus(opts.get_ncpus()),
+    threads(opts.get_ncpus()), thread_barrier(opts.get_ncpus()),
+    max_iterations(-1), iteration_counter(0), use_cache(true),
     vprog_exchange(dc), vdata_exchange(dc), 
     gather_exchange(dc), message_exchange(dc) {
     rmi.barrier();
+    set_options(opts);
+    rmi.barrier();
   } // end of synchronous engine
   
+  template<typename VertexProgram>
+  void synchronous_engine<VertexProgram>::
+  set_options(const graphlab_options& opts) {
+    rmi.barrier();
+    // read ncpus
+    size_t new_ncpus = opts.get_ncpus();
+    if (new_ncpus != ncpus) {
+      logstream(LOG_INFO) << "Changing ncpus from " << ncpus << " to " << new_ncpus << std::endl;
+      ASSERT_GE(new_ncpus, 1);
+      ncpus = new_ncpus;
+      threads.resize(ncpus);
+      thread_barrier.resize_unsafe(ncpus);
+    }
+    std::vector<std::string> keys = opts.get_engine_args().get_option_keys();
+    foreach(std::string opt, keys) {
+      if (opt == "max_iterations") {
+        opts.get_engine_args().get_option("max_iterations", max_iterations);
+      } else if (opt == "use_cache") {
+        opts.get_engine_args().get_option("use_cache", use_cache);
+      }
+      else {
+        logstream(LOG_ERROR) << "Unexpected Engine Option: " << opt << std::endl;
+      }
+    }
+    rmi.barrier();
+  }
 
 
   template<typename VertexProgram>
@@ -262,7 +290,7 @@ namespace graphlab {
   template<typename VertexProgram>
   void synchronous_engine<VertexProgram>::
   post_delta(const vertex_type& vertex, const gather_type& delta) {
-    const bool caching_enabled = !gather_cache.empty();
+    const bool caching_enabled = use_cache && !gather_cache.empty();
     if(caching_enabled) {
       const lvid_type lvid = vertex.local_id();      
       vlocks[lvid].lock();
@@ -280,7 +308,7 @@ namespace graphlab {
   template<typename VertexProgram>
   void synchronous_engine<VertexProgram>::
   clear_gather_cache(const vertex_type& vertex) {
-    const bool caching_enabled = !gather_cache.empty();
+    const bool caching_enabled = use_cache && !gather_cache.empty();
     if(caching_enabled) {
       const lvid_type lvid = vertex.local_id();      
       vlocks[lvid].lock();
@@ -310,9 +338,11 @@ namespace graphlab {
     gather_accum.resize(graph.num_local_vertices());
     has_gather_accum.resize(graph.num_local_vertices());
 
-    gather_cache.resize(graph.num_local_vertices());
-    has_cache.resize(graph.num_local_vertices());
-
+    if (use_cache) {
+      gather_cache.resize(graph.num_local_vertices());
+      has_cache.resize(graph.num_local_vertices());
+    }
+    
     active_superstep.resize(graph.num_local_vertices());
     active_superstep.clear();
     active_minorstep.resize(graph.num_local_vertices());
@@ -548,7 +578,7 @@ namespace graphlab {
   void synchronous_engine<VertexProgram>::
   execute_gathers(size_t thread_id) {
     context_type context(*this, graph);
-    const bool caching_enabled = !gather_cache.empty(); 
+    const bool caching_enabled = use_cache && !gather_cache.empty();
     for(lvid_type lvid = thread_id; lvid < graph.num_local_vertices(); 
         lvid += threads.size()) {
       // If this vertex is active in the gather minorstep

@@ -67,7 +67,6 @@ int main(int argc, char** argv) {
 
 
   graphlab::command_line_options clopts("Test code.");
-  clopts.use_distributed_options();
   
   std::cout << "Creating a powerlaw graph" << std::endl;
   typedef count_in_neighbors::graph_type graph_type;
@@ -76,7 +75,7 @@ int main(int argc, char** argv) {
 
   std::cout << "Constructing a syncrhonous engine" << std::endl;
   typedef graphlab::synchronous_engine<count_in_neighbors> engine_type;
-  engine_type engine(dc, graph, clopts.get_ncpus());
+  engine_type engine(dc, graph, clopts);
   engine.initialize();
   std::cout << "Scheduling all vertices to count their neighbors" << std::endl;
   engine.signal_all();

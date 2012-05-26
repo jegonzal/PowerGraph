@@ -195,46 +195,34 @@ namespace graphlab {
       nverts(0), nedges(0), local_own_nverts(0), nreplicas(0),
       ingress_ptr(NULL) {
       rpc.barrier();
-      std::string ingress_method = "random";
-      opts.get_graph_options().get_option("ingress", ingress_method);
 
-      size_t bufsize = 50000;
-      bool usehash = false;
-      bool userecent = false;
-      opts.get_graph_options().get_option("bufsize", bufsize);
-      opts.get_graph_options().get_option("usehash", usehash);
-      opts.get_graph_options().get_option("userecent", userecent);
-      set_ingress_method(ingress_method, bufsize, usehash, userecent);
+      set_options(opts);
     }
 
 
+    void set_options(const graphlab_options& opts) {
+      size_t bufsize = 50000;
+      bool usehash = false;
+      bool userecent = false;
+      std::string ingress_method = "random";
+      std::vector<std::string> keys = opts.get_graph_args().get_option_keys();
+      foreach(std::string opt, keys) {
+        if (opt == "ingress") {
+          opts.get_graph_args().get_option("ingress", ingress_method);
+        } else if (opt == "bufsize") {
+          opts.get_graph_args().get_option("bufsize", bufsize);
+        } else if (opt == "usehash") {
+          opts.get_graph_args().get_option("usehash", usehash);
+        } else if (opt == "userecent") {
+          opts.get_graph_args().get_option("userecent", userecent);
+        } else {
+          logstream(LOG_ERROR) << "Unexpected Graph Option: " << opt << std::endl;
+        }
+      }
+      set_ingress_method(ingress_method, bufsize, usehash, userecent);
+    }
 
     // METHODS ===============================================================>
-
-
-    void set_ingress_method(const std::string& method, 
-        size_t bufsize = 50000, bool usehash = false, bool userecent = false) {
-
-      if(ingress_ptr != NULL) { delete ingress_ptr; ingress_ptr = NULL; }
-      if (method == "batch") {
-        logstream(LOG_INFO) << "Use batch ingress, bufsize: " << bufsize  
-          << ", usehash: " << usehash << ", userecent" << userecent << std::endl;
-        ingress_ptr = new distributed_batch_ingress<VertexData, EdgeData>(rpc.dc(), *this, 
-                                                         bufsize, usehash, userecent);
-      } else if (method == "oblivious") {
-        logstream(LOG_INFO) << "Use oblivious ingress, usehash: " << usehash 
-          << ", userecent: " << userecent << std::endl;
-        ingress_ptr = new distributed_oblivious_ingress<VertexData, EdgeData>(rpc.dc(), *this, 
-                                                             usehash, userecent);
-      } else if (method == "identity") {
-        logstream(LOG_INFO) << "Use identity ingress" << std::endl;
-        ingress_ptr = new distributed_identity_ingress<VertexData, EdgeData>(rpc.dc(), *this);
-      } else {
-        ingress_ptr = new distributed_random_ingress<VertexData, EdgeData>(rpc.dc(), *this);
-      }
-    } // end of set ingress method
-    
-
     /**
      * Finalize is used to complete graph ingress by resolving vertex
      * ownship and completing local data structures.
@@ -483,7 +471,7 @@ namespace graphlab {
      * \brief converts a local vertex ID to a local vertex object
      */
     local_vertex_type l_vertex(lvid_type vid) {
-      return local_vertex_type(*this, local_vid(vid));
+      return local_vertex_type(*this, vid);
     }
     
     /** \ingroup graphlab_internal
@@ -575,7 +563,7 @@ namespace graphlab {
     }
 
     distributed_control& dc() {
-      return return rpc.dc();
+      return rpc.dc();
     }
 
 
@@ -934,7 +922,33 @@ namespace graphlab {
     size_t begin_eid;
 
     /** pointer to the distributed ingress object*/
-    idistributed_ingress<VertexData, EdgeData>* ingress_ptr; 
+    idistributed_ingress<VertexData, EdgeData>* ingress_ptr;
+
+
+
+    void set_ingress_method(const std::string& method,
+        size_t bufsize = 50000, bool usehash = false, bool userecent = false) {
+
+      if(ingress_ptr != NULL) { delete ingress_ptr; ingress_ptr = NULL; }
+      if (method == "batch") {
+        logstream(LOG_INFO) << "Use batch ingress, bufsize: " << bufsize
+          << ", usehash: " << usehash << ", userecent" << userecent << std::endl;
+        ingress_ptr = new distributed_batch_ingress<VertexData, EdgeData>(rpc.dc(), *this,
+                                                         bufsize, usehash, userecent);
+      } else if (method == "oblivious") {
+        logstream(LOG_INFO) << "Use oblivious ingress, usehash: " << usehash
+          << ", userecent: " << userecent << std::endl;
+        ingress_ptr = new distributed_oblivious_ingress<VertexData, EdgeData>(rpc.dc(), *this,
+                                                             usehash, userecent);
+      } else if (method == "identity") {
+        logstream(LOG_INFO) << "Use identity ingress" << std::endl;
+        ingress_ptr = new distributed_identity_ingress<VertexData, EdgeData>(rpc.dc(), *this);
+      } else {
+        ingress_ptr = new distributed_random_ingress<VertexData, EdgeData>(rpc.dc(), *this);
+      }
+    } // end of set ingress method
+
+
   }; // End of graph
 } // end of namespace graphlab
 #include <graphlab/macros_undef.hpp>

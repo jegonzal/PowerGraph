@@ -28,8 +28,4 @@ endmacro()
 #add_all_subdirectories(retval, ${CMAKE_CURRENT_SOURCE_DIR})
 
 
-
-
-
-
-
+add_subdirectory(dist_pagerank)

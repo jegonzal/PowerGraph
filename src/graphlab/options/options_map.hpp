@@ -190,6 +190,15 @@ namespace graphlab {
     };
 
 
+    std::vector<std::string> get_option_keys() const {
+      std::map<std::string, option_values>::const_iterator iter = options.begin();
+      std::vector<std::string> ret;
+      while (iter != options.end()) {
+        ret.push_back(iter->first);
+        ++iter;
+      }
+      return ret;
+    }
     
     /**
      * Parse a comma delimited series of key1=value1,key2=value2 
