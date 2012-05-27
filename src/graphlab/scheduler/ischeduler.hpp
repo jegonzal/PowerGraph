@@ -39,8 +39,7 @@
 
 #include <graphlab/graph/graph_basic_types.hpp>
 
-#include <graphlab/options/options_map.hpp>
-#include <graphlab/scheduler/terminator/iterminator.hpp>
+#include <graphlab/options/graphlab_options.hpp>
 
 
 
@@ -138,7 +137,7 @@ namespace graphlab {
      *
      * TODO: do we need this functionality
      */
-    virtual void place(vertex_id_type vid, const message_type& msg) {  }
+    virtual void place(vertex_id_type vid, const message_type& msg) = 0;
 
 
     /**
@@ -149,9 +148,7 @@ namespace graphlab {
      * TODO: do we need this functionality
      */
     virtual void
-    schedule_from_execution_thread(const size_t cpuid, vertex_id_type vid) {
-      schedule(vid);
-    }
+    schedule_from_execution_thread(const size_t cpuid, vertex_id_type vid) = 0;
     
     /**
      * Schedules vertex vid using the stored message that was previously
@@ -169,11 +166,6 @@ namespace graphlab {
                            const message_type& message) { }
 
 
-    /**
-     * Get the terminator associated with this scheduler
-     */
-    virtual iterminator& terminator() = 0;
-    
     /**
      * Optional to implement. Count the number of message combination
      * operations performed. Returns (size_t)(-1) if not available.

@@ -28,14 +28,12 @@
 #include <cassert>
 
 #include <graphlab/scheduler/ischeduler.hpp>
-#include <graphlab/scheduler/terminator/iterminator.hpp>
 #include <graphlab/parallel/atomic_add_vector.hpp>
-#include <graphlab/scheduler/terminator/critical_termination.hpp>
-#include <graphlab/options/options_map.hpp>
 #include <graphlab/graph/graph_ops.hpp>
 #include <graphlab/graph/graph_basic_types.hpp>
 
-
+#include <graphlab/scheduler/get_message_priority.hpp>
+#include <graphlab/options/graphlab_options.hpp>
 
 #include <graphlab/macros_def.hpp>
 
@@ -47,7 +45,6 @@ namespace graphlab {
   class sweep_scheduler : public ischeduler<Message> {
   public:
     typedef Message message_type;
-    typedef critical_termination terminator_type;
     
   private:
 
@@ -64,82 +61,88 @@ namespace graphlab {
 
     atomic_add_vector<message_type>         messages;
     double                                  min_priority;
-    terminator_type                         term;   
-
+    std::string                             ordering;
 
   public:
     sweep_scheduler(size_t num_vertices,
-                    size_t ncpus,
-                    const options_map& opts) :
-      ncpus(ncpus),
+                    const graphlab_options& opts) :
+      ncpus(opts.get_ncpus()),
       strict_round_robin(false),
       max_iterations(std::numeric_limits<size_t>::max()),
       vids(num_vertices),
       messages(num_vertices), 
-      min_priority(-std::numeric_limits<double>::max()),
-      term(ncpus) {
-      
-      // Determin the orering of updates
-      std::string ordering = "random";
-      opts.get_option("ordering", ordering) || 
-        opts.get_option("order", ordering);
-      if (ordering == "ascending") {
-        logstream(LOG_INFO) 
-          << "Using an ascending ordering of the vertices." << std::endl;
-        for(size_t i = 0; i < num_vertices; ++i) vids[i] = i;
-      }  else { // Assume random ordering by default
-        if(ordering != "random") {
-          logstream(LOG_WARNING)
-            << "The ordering \"" << ordering << "\" is not supported using default."
-            << std::endl;
+      min_priority(-std::numeric_limits<double>::max()) {
+        // initialize defaults
+        ordering = "random";
+        set_options(opts);
+        
+    } // end of constructor
+        
+   
+
+    void set_options(const graphlab_options& opts) {
+      size_t new_ncpus = opts.get_ncpus();
+      if (new_ncpus != ncpus) {
+        logstream(LOG_INFO) << "Changing ncpus from " << ncpus << " to " << new_ncpus << std::endl;
+        ASSERT_GE(new_ncpus, 1);
+        ncpus = new_ncpus;
+      }
+      std::vector<std::string> keys = opts.get_engine_args().get_option_keys();
+      foreach(std::string opt, keys) {
+        if (opt == "order") {
+          opts.get_engine_args().get_option("order", ordering);
+          ASSERT_TRUE(ordering == "random" || ordering == "ascending");
+        } else if (opt == "strict") {
+          opts.get_engine_args().get_option("strict", strict_round_robin);
+        } else if (opt == "max_iterations") {
+          opts.get_engine_args().get_option("max_iterations", max_iterations);
+        } else if (opt == "min_priority") {
+          opts.get_engine_args().get_option("min_priority", min_priority);
+        } else {
+          logstream(LOG_ERROR) << "Unexpected Scheduler Option: " << opt << std::endl;
         }
-        logstream(LOG_INFO) 
-          << "Using a random ordering of the vertices." << std::endl;
-        for(size_t i = 0; i < num_vertices; ++i) vids[i] = i;
+      }
+    }
+   
+    void start() { 
+      for(size_t i = 0; i < vids.size(); ++i) vids[i] = i;
+      if (ordering == "ascending") {
+        logstream(LOG_INFO) << "Using an ascending ordering of the vertices." << std::endl;
+      } else if(ordering == "random") {
+        logstream(LOG_INFO)  << "Using a random ordering of the vertices." << std::endl;
         random::shuffle(vids);
       }
 
-
-      // Determine whether a strict ordering is to be used
-      opts.get_option("strict", strict_round_robin);
       if(strict_round_robin) {
         logstream(LOG_INFO) 
           << "Using a strict round robin schedule." << std::endl;
         // Max iterations only applies to strict round robin
-        if(opts.get_option("niters", max_iterations) ) 
+        if(max_iterations != std::numeric_limits<size_t>::max()) {
           logstream(LOG_INFO) 
             << "Using maximum iterations: " << max_iterations << std::endl;
-        // Initialize the round robin index
+        }
         rr_index = 0;
-      } else { // each cpu is responsible for its own subset of vertices
+      } else { 
+        // each cpu is responsible for its own subset of vertices
         // Initialize the cpu2index counters
         cpu2index.resize(ncpus);
         for(size_t i = 0; i < cpu2index.size(); ++i) cpu2index[i] = i;
         // Initialze the reverse map vid2cpu assignment
         vid2cpu.resize(vids.size());
         for(size_t i = 0; i < vids.size(); ++i) vid2cpu[vids[i]] = i % ncpus;
-      }
-
-      // Get Min priority
-      const bool is_set = opts.get_option("min_priority", min_priority);
-      if(is_set) {
-        logstream(LOG_INFO) 
-          << "The minimum scheduling priority was set to " 
-          << min_priority << std::endl;
-      }
-    } // end of constructor
-        
-   
-    void start() { term.reset(); }
+      }    
+    }
 
     void schedule(const vertex_id_type vid, 
                   const message_type& msg) {      
-      double ret_priority = 0;
-      if(messages.add(vid, msg, ret_priority) && ret_priority >= min_priority) {
-        if(!vid2cpu.empty()) term.new_job(vid2cpu[vid]);
-        else term.new_job();
-      } 
+      messages.add(vid, msg);
     } // end of schedule
+
+
+    void schedule_from_execution_thread(const size_t cpuid,
+                                        const vertex_id_type vid) {      
+    } // end of schedule
+
 
     void schedule_all(const message_type& msg,
                       const std::string& order) {
@@ -147,6 +150,19 @@ namespace graphlab {
         schedule(vid, msg);      
     } // end of schedule_all    
       
+    
+    sched_status::status_enum 
+    get_specific(vertex_id_type vid,
+                 message_type& ret_msg) {
+      bool get_success = messages.test_and_get(vid, ret_msg); 
+      if (get_success) return sched_status::NEW_TASK;
+      else return sched_status::EMPTY;
+    }
+
+    void place(vertex_id_type vid,
+                 const message_type& msg) {
+      messages.add(vid, msg);
+    }
     
     sched_status::status_enum get_next(const size_t cpuid,
                                        vertex_id_type& ret_vid,
@@ -168,20 +184,23 @@ namespace graphlab {
         const vertex_id_type vid = vids[idx];
         bool success = messages.test_and_get(vid, ret_msg);
         while(success) { // Job found now decide whether to keep it
-          if(ret_msg.priority() >= min_priority) {
+          if(scheduler_impl::get_message_priority(ret_msg) >= min_priority) {
             ret_vid = vid; return sched_status::NEW_TASK;
           } else {
             // Priority is insufficient so return to the schedule
-            double ret_priority = 0;
-            messages.add(vid, ret_msg, ret_priority);
+            message_type combined_message;
+            messages.add(vid, ret_msg, combined_message);
+            double ret_priority = scheduler_impl::get_message_priority(combined_message);
             // when the job was added back it could boost the
             // priority.  If the priority is sufficiently high we have
             // to try and remove it again. Now it is possible that if
             // strict ordering is used it could be taken again so we
             // may need to repeat the process.
-            if(ret_priority >= min_priority) 
+            if(ret_priority >= min_priority) {
               success = messages.test_and_get(vid, ret_msg);
-            else success = false;
+            } else {
+              success = false;
+            }
           } 
         }// end of while loop over success
       } // end of for loop
@@ -192,27 +211,23 @@ namespace graphlab {
     void completed(const size_t cpuid,
                    const vertex_id_type vid,
                    const message_type& msg) {
-      term.completed_job();
     } // end of completed
 
-
-    iterminator& terminator() { return term; };
 
     size_t num_joins() const {
       return messages.num_joins();
     }
 
 
+
     static void print_options_help(std::ostream &out) {
-      out << "ordering = [string: {random, ascending, max_degree, "
-          << "min_degree,color},"
-          << "\t vertex ordering, default=random]\n"
+      out << "order = [string: {random, ascending} default=random]\n"
           << "strict = [bool, use strict round robin schedule, default=false]\n"
           << "min_priority = [double, minimum priority required to receive \n"
-          << "\t a message, default = -infinity]\n"
-          << "niters = [integer, maximum number of iterations "
+          << "\t a message, default = -inf]\n"
+          << "max_iterations = [integer, maximum number of iterations "
           << " (requires strict=true) \n"
-          << "\t default = -infinity]\n";
+          << "\t default = inf]\n";
     } // end of print_options_help
 
 

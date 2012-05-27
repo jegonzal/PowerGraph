@@ -38,11 +38,9 @@
 
 #include <graphlab/util/mutable_queue.hpp>
 #include <graphlab/scheduler/ischeduler.hpp>
-#include <graphlab/scheduler/terminator/iterminator.hpp>
 #include <graphlab/parallel/atomic_add_vector.hpp>
-
-#include <graphlab/scheduler/terminator/critical_termination.hpp>
-#include <graphlab/options/options_map.hpp>
+#include <graphlab/scheduler/get_message_priority.hpp>
+#include <graphlab/options/graphlab_options.hpp>
 
 
 #include <graphlab/macros_def.hpp>
@@ -65,53 +63,100 @@ namespace graphlab {
     size_t multi;
     std::vector<size_t>     current_queue;
 
-    /** Max priority */
     double min_priority;
 
     // Terminator
-    critical_termination term;
  
 
 
   public:
 
     priority_scheduler(size_t num_vertices,
-                       size_t ncpus,
-                       const options_map& opts) :
-      messages(num_vertices), multi(0),
-      current_queue(ncpus), 
-      min_priority(-std::numeric_limits<double>::max()),
-      term(ncpus) {     
-      const bool is_set = opts.get_option("min_priority", min_priority);
-      if(is_set) {
-        logstream(LOG_INFO) << "The minimum scheduling priority was set to " 
-                            << min_priority << std::endl;
-      }
-      opts.get_option("multi", multi);
-      const size_t nqueues = std::max(multi*ncpus, size_t(1));
-      if(multi > 0) {
-        logstream(LOG_INFO) << "Using " << multi 
-                            << " queues per thread." << std::endl;
-      }
-      queues.resize(nqueues);
-      locks.resize(nqueues);
+                       const graphlab_options& opts) :
+      messages(num_vertices), multi(3),
+      current_queue(opts.get_ncpus()), 
+      min_priority(-std::numeric_limits<double>::max()) {     
+      set_options(opts);
     }
 
-    void start() { term.reset(); }
+    void set_options(const graphlab_options& opts) {
+      size_t new_ncpus = opts.get_ncpus();
+      // check if ncpus changed
+      if (new_ncpus != current_queue.size()) {
+        logstream(LOG_INFO) << "Changing ncpus from " << current_queue.size()
+                            << " to " << new_ncpus << std::endl;
+        ASSERT_GE(new_ncpus, 1);
+        current_queue.resize(new_ncpus);
+      }
+      
+      std::vector<std::string> keys = opts.get_engine_args().get_option_keys();
+      foreach(std::string opt, keys) {
+        if (opt == "multi") {
+          opts.get_engine_args().get_option("multi", multi);
+        } else if (opt == "min_priority") {
+          opts.get_engine_args().get_option("min_priority", min_priority);
+        } else {
+          logstream(LOG_ERROR) << "Unexpected Scheduler Option: " << opt << std::endl;
+        }
+      }
+      
+      const size_t nqueues = std::max(multi*current_queue.size(), size_t(1));
+      // changing the number of queues.
+      // reinsert everything
+      if (nqueues != queues.size()) {
+        std::vector<queue_type> old_queues;
+        std::swap(old_queues, queues);
+        queues.resize(nqueues);
+        locks.resize(nqueues);
+        
+        size_t idx = 0;
+        for (size_t i = 0;i < old_queues.size(); ++i) {
+          while (!old_queues[i].empty()) {
+            queues[idx].push(old_queues[i].top().first, 
+                            old_queues[i].top().second);
+            old_queues[i].pop();
+            ++idx;
+          }
+        }
+      }
+    }
+
+    void start() {  }
    
 
     void schedule(const vertex_id_type vid, 
                   const message_type& msg) {      
       const size_t idx = vid % queues.size();
-      double priority = 0;
-      locks[idx].lock(); 
-      if (messages.add(vid, msg, priority)) {
-        queues[idx].push(vid, priority); 
-      } else { queues[idx].update(vid, priority); }
-      locks[idx].unlock();
-      // signal thread to weak up if they have not already
-      term.new_job();     
+      message_type combined_message;
+      
+      messages.add(vid, msg, combined_message);
+      // If the new priority will is above priority, put it in the queue
+      if (scheduler_impl::get_message_priority(combined_message) >= min_priority) {
+        locks[idx].lock(); 
+        queues[idx].push_or_update(vid, 
+                                    scheduler_impl::get_message_priority(combined_message)); 
+        locks[idx].unlock();
+      }
     } // end of schedule
+
+
+
+    void schedule_from_execution_thread(const size_t cpuid,
+                                        const vertex_id_type vid) {
+      const size_t idx = vid % queues.size();
+      message_type combined_message;
+      
+      messages.peek(vid, combined_message);
+      // If the new priority will is above priority, put it in the queue
+      if (scheduler_impl::get_message_priority(combined_message) >= min_priority) {
+        locks[idx].lock(); 
+        queues[idx].push_or_update(vid, 
+                                    scheduler_impl::get_message_priority(combined_message)); 
+        locks[idx].unlock();
+      }
+    } // end of schedule
+
+
 
     void schedule_all(const message_type& msg,
                       const std::string& order) {
@@ -127,57 +172,74 @@ namespace graphlab {
 
     void completed(const size_t cpuid,
                    const vertex_id_type vid,
-                   const message_type& msg) { term.completed_job(); }
+                   const message_type& msg) { }
 
 
     /** Get the next element in the queue */
     sched_status::status_enum get_next(const size_t cpuid,
                                        vertex_id_type& ret_vid,
                                        message_type& ret_msg) {
-      /* Check all of my queues for a task */
-      for(size_t i = 0; i < multi; ++i) {
-        const size_t idx = (++current_queue[cpuid] % multi) + cpuid * multi;
-        locks[idx].lock();
-        if(!queues[idx].empty() && 
-           queues[idx].top().second >= min_priority) {
-          ret_vid = queues[idx].pop().first;
-          const bool get_success = messages.test_and_get(ret_vid, ret_msg);
-          locks[idx].unlock();
-          ASSERT_TRUE(get_success);
-          return sched_status::NEW_TASK;          
-        }
-        locks[idx].unlock();
-      }
-      /* Check all the queues */
-      for(size_t i = 0; i < queues.size(); ++i) {
-        const size_t idx = ++current_queue[cpuid] % queues.size();
-        if(!queues[idx].empty()) { // quick pretest
+      while(1) {
+        /* Check all of my queues for a task */
+        for(size_t i = 0; i < multi; ++i) {
+          const size_t idx = (++current_queue[cpuid] % multi) + cpuid * multi;
           locks[idx].lock();
           if(!queues[idx].empty() && 
-             queues[idx].top().second >= min_priority) {
+            queues[idx].top().second >= min_priority) {
             ret_vid = queues[idx].pop().first;
             const bool get_success = messages.test_and_get(ret_vid, ret_msg);
             locks[idx].unlock();
-            ASSERT_TRUE(get_success);
-            return sched_status::NEW_TASK;          
+            if(get_success) return sched_status::NEW_TASK;
+            else continue;
           }
           locks[idx].unlock();
         }
+        /* Check all the queues */
+        for(size_t i = 0; i < queues.size(); ++i) {
+          const size_t idx = ++current_queue[cpuid] % queues.size();
+          if(!queues[idx].empty()) { // quick pretest
+            locks[idx].lock();
+            if(!queues[idx].empty() && 
+              queues[idx].top().second >= min_priority) {
+              ret_vid = queues[idx].pop().first;
+              const bool get_success = messages.test_and_get(ret_vid, ret_msg);
+              locks[idx].unlock();
+              if(get_success) return sched_status::NEW_TASK;
+              else continue;
+            }
+            locks[idx].unlock();
+          }
+        }
+        break;
       }
       return sched_status::EMPTY;     
     } // end of get_next_task
 
-    iterminator& terminator() { return term; }
 
     size_t num_joins() const {
       return messages.num_joins();
     }
 
 
+
+    sched_status::status_enum 
+    get_specific(vertex_id_type vid,
+                 message_type& ret_msg) {
+      bool get_success = messages.test_and_get(vid, ret_msg); 
+      if (get_success) return sched_status::NEW_TASK;
+      else return sched_status::EMPTY;
+    }
+
+    void place(vertex_id_type vid,
+                 const message_type& msg) {
+      messages.add(vid, msg);
+    }
+
+
     static void print_options_help(std::ostream& out) { 
-      out << "\t mult=1: number of queues per thread.\n" 
-          << "\t min_priority=-infty Minimum priority required "
-          << "\t    to receive the message." << std::endl;
+      out << "\t multi = [number of queues per thread. Default = 3].\n" 
+          << "min_priority = [double, minimum priority required to receive \n"
+          << "\t a message, default = -inf]\n";
     }
 
   }; // end of class priority scheduler

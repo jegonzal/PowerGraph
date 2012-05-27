@@ -30,8 +30,6 @@
 #include <graphlab/graph/graph_basic_types.hpp>
 #include <graphlab/parallel/cache_line_pad.hpp>
 #include <graphlab/scheduler/ischeduler.hpp>
-#include <graphlab/scheduler/terminator/iterminator.hpp>
-#include <graphlab/scheduler/terminator/critical_termination.hpp>
 #include <graphlab/options/options_map.hpp>
 #include <graphlab/graph/graph_ops.hpp>
 
@@ -52,14 +50,10 @@ namespace graphlab {
   public:
 
     typedef Message message_type;
-    typedef critical_termination terminator_type;
-    
-  private:
-    terminator_type                         term;   
   public:
     empty_scheduler(size_t num_vertices,
                     size_t ncpus,
-                    const options_map& opts) : term(ncpus) { }
+                    const options_map& opts) { }
 
     void start() { }
 
@@ -81,8 +75,6 @@ namespace graphlab {
                    const vertex_id_type vid,
                    const message_type& msg) {  } // end of completed
 
-
-    iterminator& terminator() { return term; };
 
     size_t num_joins() const { return 0; }
 

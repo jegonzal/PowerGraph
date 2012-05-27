@@ -16,4 +16,4 @@ add_graphlab_executable(dist_sync_pagerank_minimal dist_sync_pagerank_minimal.cp
 
 
 
-copy_files(*.job)
+#copy_files(*.job)

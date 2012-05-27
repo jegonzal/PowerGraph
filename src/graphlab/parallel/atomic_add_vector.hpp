@@ -99,7 +99,37 @@ namespace graphlab {
       //     return false;
       //   }
       // } // end of set_unsafe
-      
+
+      inline bool peek(lock_free_pool<value_type>& pool,
+                       const value_type& new_value,
+                       atomic<size_t>& joincounter) {
+        bool retval = false;
+        
+        while(1) {
+          value_type* vptr = VALUE_PENDING;
+          // pull it out to process it
+          atomic_exchange(value_ptr, vptr);
+          if (vptr == VALUE_PENDING) {
+            // nothing. try again
+            continue;
+          } else {
+            // read the value
+            new_value = (*vptr);  
+          }
+          // swap it back 
+          atomic_exchange(value_ptr, vptr);
+          //aargh! I swapped something else out. Now we have to
+          //try to put it back in
+          if (__unlikely__(vptr != NULL && vptr != VALUE_PENDING)) {
+            retval = set(pool, (*vptr), new_value, joincounter);
+            pool.free(vptr);
+          } 
+          break;
+        }
+        return retval;
+      }
+
+
       /** returns true if set for the first time */
       inline bool set(lock_free_pool<value_type>& pool,
                       const value_type& other,
@@ -129,6 +159,7 @@ namespace graphlab {
           //try to put it back in
           if (__unlikely__(vptr != NULL && vptr != VALUE_PENDING)) {
             toinsert = (*vptr);
+            pool.free(vptr);
           } else { break; }
         }
         return ret;
@@ -244,11 +275,11 @@ namespace graphlab {
       return atomic_box_vec[idx].test_and_get(pool, ret_val);
     }
 
-    // bool test_peek(const size_t& idx,
-    //                value_type& ret_val) {
-    //   ASSERT_LT(idx, atomic_box_vec.size());
-    //   return atomic_box_vec[idx].test_and_peek(pool, ret_val);
-    // }
+    bool peek(const size_t& idx,
+              value_type& ret_val) {
+      ASSERT_LT(idx, atomic_box_vec.size());
+      return atomic_box_vec[idx].peek(pool, ret_val, joincounter);
+    }
     
     bool empty(const size_t& idx) {
       return atomic_box_vec[idx].empty();

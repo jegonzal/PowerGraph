@@ -88,7 +88,19 @@ namespace graphlab {
       }
       
       bool empty() { return _empty; }
-      
+     
+     
+      inline bool peek(value_type& ret_val) {
+        bool success = false;
+        lock.lock();
+        if(!_empty) {
+          success = true;
+          ret_val = value;
+        }
+        lock.unlock();
+        return success;
+      } // end of peek
+     
       inline bool test_and_get(value_type& ret_val) {
         bool success = false;
         lock.lock();
@@ -183,11 +195,11 @@ namespace graphlab {
       return atomic_box_vec[idx].test_and_get( ret_val);
     }
 
-    // bool test_peek(const size_t& idx,
-    //                value_type& ret_val) {
-    //   ASSERT_LT(idx, atomic_box_vec.size());
-    //   return atomic_box_vec[idx].test_and_peek(pool, ret_val);
-    // }
+    bool peek(const size_t& idx,
+                   value_type& ret_val) {
+      ASSERT_LT(idx, atomic_box_vec.size());
+      return atomic_box_vec[idx].peek(ret_val);
+    }
     
     bool empty(const size_t& idx) {
       return atomic_box_vec[idx].empty();

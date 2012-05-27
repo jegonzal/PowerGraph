@@ -243,6 +243,28 @@ namespace graphlab {
       heapify(i);
     }
 
+    /** 
+     * Updates the priority associated with a item in the queue. 
+     * If the item is not already present, insert it.
+    */
+    void push_or_update(T item, Priority priority) {
+      // Verify that the item is currently in the queue
+      typename index_map_type::const_iterator iter = index_map.find(item);
+      if(iter != index_map.end()) {
+        // If it is already present update the priority
+        size_t i = iter->second;
+        heap[i].second = priority;
+        while ((i > 1) && (priority_at(parent(i)) < priority)) {
+          swap(i, parent(i));
+          i = parent(i);
+        }
+        heapify(i);
+      }
+      else {
+        push(item, priority);
+      }
+    }
+    
     /**
      * If item is already in the queue, sets its priority to the maximum
      * of the old priority and the new one. If the item is not in the queue,

@@ -34,11 +34,10 @@
 
 
 #include <graphlab/scheduler/ischeduler.hpp>
-#include <graphlab/scheduler/terminator/iterminator.hpp>
 #include <graphlab/parallel/atomic_add_vector.hpp>
 
-#include <graphlab/scheduler/terminator/critical_termination.hpp>
-#include <graphlab/options/options_map.hpp>
+#include <graphlab/scheduler/get_message_priority.hpp>
+#include <graphlab/options/graphlab_options.hpp>
 
 
 #include <graphlab/macros_def.hpp>
@@ -71,21 +70,52 @@ namespace graphlab {
     std::vector<queue_type> in_queues;
     std::vector<mutex> in_queue_locks;
     std::vector<queue_type> out_queues;
+    double min_priority;
     // Terminator
-    critical_termination term;
-
   public:
 
     queued_fifo_scheduler(size_t num_vertices,
-                          size_t ncpus,
-                          const options_map& opts) :
+                          const graphlab_options& opts) :
       messages(num_vertices), 
       sub_queue_size(100), 
-      in_queues(ncpus), in_queue_locks(ncpus), 
-      out_queues(ncpus), term(ncpus) { 
-      opts.get_option("queuesize", sub_queue_size);
+      in_queues(opts.get_ncpus()), in_queue_locks(opts.get_ncpus()), 
+      out_queues(opts.get_ncpus()),
+      min_priority(-std::numeric_limits<double>::max()){ 
+      set_options(opts);
     }
 
+    void set_options(const graphlab_options& opts) {
+      size_t new_ncpus = opts.get_ncpus();
+      // check if ncpus changed
+      if (new_ncpus != in_queues.size()) {
+        logstream(LOG_INFO) << "Changing ncpus from " << in_queues.size()
+                            << " to " << new_ncpus << std::endl;
+        ASSERT_GE(new_ncpus, 1);
+        // if increasing ncpus, we just resize the queues
+        // push everything in in_queues to the master queue
+        for (size_t i = 0;i < in_queues.size(); ++i) {
+          master_queue.push_back(in_queues[i]);
+          in_queues[i].clear();
+        }
+        // resize the queues
+        in_queues.resize(new_ncpus);
+        in_queue_locks.resize(new_ncpus);
+        out_queues.resize(new_ncpus);
+      }
+      
+      // read the remaining options.
+      std::vector<std::string> keys = opts.get_engine_args().get_option_keys();
+      foreach(std::string opt, keys) {
+        if (opt == "queuesize") {
+          opts.get_engine_args().get_option("queuesize", sub_queue_size);
+        } else if (opt == "min_priority") {
+          opts.get_engine_args().get_option("min_priority", min_priority);
+        } else {
+          logstream(LOG_ERROR) << "Unexpected Scheduler Option: " << opt << std::endl;
+        }
+      }
+    }
+    
     void start() { 
       master_lock.lock();
       for (size_t i = 0;i < in_queues.size(); ++i) {
@@ -93,11 +123,12 @@ namespace graphlab {
         in_queues[i].clear();
       }
       master_lock.unlock();
-      term.reset(); 
     }
 
     void schedule(const vertex_id_type vid, 
-                  const message_type& msg) {      
+                  const message_type& msg) {
+      // If this is a new message, schedule it
+      // the min priority will be taken care of by the get_next function
       if (messages.add(vid, msg)) {
         const size_t cpuid = random::rand() % in_queues.size();
         in_queue_locks[cpuid].lock();
@@ -111,14 +142,12 @@ namespace graphlab {
           master_lock.unlock();
         }
         in_queue_locks[cpuid].unlock();
-        term.new_job(cpuid);
       } 
     } // end of schedule
 
     void schedule_from_execution_thread(const size_t cpuid,
-                                        const vertex_id_type vid, 
-                                        const message_type& msg) {      
-      if (messages.add(vid, msg)) {
+                                        const vertex_id_type vid) {      
+      if (!messages.empty(vid)) {
         ASSERT_LT(cpuid, in_queues.size());
         in_queue_locks[cpuid].lock();
         queue_type& queue = in_queues[cpuid];
@@ -131,7 +160,6 @@ namespace graphlab {
           master_lock.unlock();
         }
         in_queue_locks[cpuid].unlock();
-        term.new_job(cpuid);
       } 
     } // end of schedule
 
@@ -150,7 +178,6 @@ namespace graphlab {
     void completed(const size_t cpuid,
                    const vertex_id_type vid,
                    const message_type& msg) {
-      term.completed_job();
     }
 
 
@@ -167,42 +194,6 @@ namespace graphlab {
       messages.add(vid, msg);
     }
 
-
-    void schedule_from_execution_thread(size_t cpuid, vertex_id_type vid) {
-      if (!messages.empty(vid)) {
-        ASSERT_LT(cpuid, in_queues.size());
-        in_queue_locks[cpuid].lock();
-        queue_type& queue = in_queues[cpuid];
-        queue.push_back(vid);
-        if(queue.size() > sub_queue_size) {
-          master_lock.lock();
-          queue_type emptyq;
-          master_queue.push_back(emptyq);
-          master_queue.back().swap(queue);
-          master_lock.unlock();
-        }
-        in_queue_locks[cpuid].unlock();
-        term.new_job(cpuid);
-      }
-    }
-
-    void schedule(vertex_id_type vid) {
-      if (!messages.empty(vid)) {
-        const size_t cpuid = random::rand() % in_queues.size();
-        in_queue_locks[cpuid].lock();
-        queue_type& queue = in_queues[cpuid];
-        queue.push_back(vid);
-        if(queue.size() > sub_queue_size) {
-          master_lock.lock();
-          queue_type emptyq;
-          master_queue.push_back(emptyq);
-          master_queue.back().swap(queue);
-          master_lock.unlock();
-        }
-        in_queue_locks[cpuid].unlock();
-        term.new_job(cpuid);
-      }
-    }
     
     /** Get the next element in the queue */
     sched_status::status_enum get_next(const size_t cpuid,
@@ -231,7 +222,22 @@ namespace graphlab {
           ret_vid = queue.front();
           queue.pop_front();
           if(messages.test_and_get(ret_vid, ret_msg)) {
-            return sched_status::NEW_TASK;
+            if (scheduler_impl::get_message_priority(ret_msg) >= min_priority) {
+              return sched_status::NEW_TASK;
+            } else {
+                // it is below priority. try to put it back. If putting it back
+                // makes it exceed priority, reschedule it
+              message_type combined_message;
+              messages.add(ret_vid, ret_msg, combined_message);
+              double ret_priority = scheduler_impl::get_message_priority(combined_message);
+              if(ret_priority >= min_priority) {
+                // aargh. we put it back and it exceeded priority
+                // stick it back in the queue.
+                in_queue_locks[cpuid].lock();
+                in_queues[cpuid].push_back(ret_vid);
+                in_queue_locks[cpuid].unlock();
+              }
+            }
           }
         } else {
           return sched_status::EMPTY;
@@ -239,7 +245,6 @@ namespace graphlab {
       }
     } // end of get_next_task
 
-    iterminator& terminator() { return term; }
 
     size_t num_joins() const {
       return messages.num_joins();
@@ -249,8 +254,10 @@ namespace graphlab {
      * accepts.
      */
     static void print_options_help(std::ostream& out) { 
-      out << "\t queuesize=100: the size at which a subqueue is "
-          << "placed in the master queue" << std::endl;
+      out << "\t queuesize: [the size at which a subqueue is "
+          << "placed in the master queue. default = 100]\n"
+          << "min_priority = [double, minimum priority required to receive \n"
+          << "\t a message, default = -inf]\n";
     }
 
 
