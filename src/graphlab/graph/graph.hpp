@@ -48,7 +48,6 @@
 #include <boost/unordered_set.hpp>
 #include <boost/type_traits.hpp>
 #include <boost/typeof/typeof.hpp>
-#include <boost/lambda/construct.hpp>
 #include <boost/iterator/transform_iterator.hpp>
 
 #include <graphlab/graph/graph_basic_types.hpp>

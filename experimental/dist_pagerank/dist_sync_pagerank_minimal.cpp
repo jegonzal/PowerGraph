@@ -31,6 +31,8 @@
 //! Global random reset probability
 float RESET_PROB = 0.15;
 
+float float_identity(float f) { return f; }
+
 /**
  * The factorized page rank update function
  */
@@ -38,13 +40,18 @@ class pagerank :
   public graphlab::ivertex_program<float, char>,
   public graphlab::IS_POD_TYPE {
 public:
+  
+  void init(icontext_type& context,
+            vertex_type& vertex) { vertex.data() = 1.0; }
+
   float gather(icontext_type& context, const vertex_type& vertex,
          edge_type& edge) const {
-    return vertex.data() / vertex.num_in_edges() * (1.0 - RESET_PROB);
+    return (edge.source().data() / edge.source().num_out_edges()) * (1.0 - RESET_PROB);
   }
   void apply(icontext_type& context, vertex_type& vertex,
              const gather_type& total) {
     vertex.data() = total + RESET_PROB;
+    if (vertex.id() == 0) std::cout << "v0: " << total << " " << vertex.data() << std::endl;
     context.signal(vertex);
   }
   
@@ -87,7 +94,8 @@ int main(int argc, char** argv) {
     graphlab::graph_ops::load(graph, graph_dir, format);
   }
   graph.finalize();
-
+  std::cout << "#vertices: " << graph.num_vertices() << " #edges:" << graph.num_edges() << std::endl;
+  
   std::cout << dc.procid() << ": Creating engine" << std::endl;
   graphlab::synchronous_engine<pagerank> engine(dc, graph, clopts);
   engine.initialize();
@@ -95,6 +103,11 @@ int main(int argc, char** argv) {
   std::cout << dc.procid() << ": Scheduling all" << std::endl;
   engine.signal_all();
   engine.start();
+  
+  
+  float sum_of_graph = graph.map_reduce_vertices(float_identity);
+  std::cout << "Sum of graph: " << sum_of_graph << std::endl;
+  
   graphlab::mpi_tools::finalize();
   return EXIT_SUCCESS;
 } // End of main

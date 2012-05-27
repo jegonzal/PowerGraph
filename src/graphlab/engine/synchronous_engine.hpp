@@ -224,7 +224,7 @@ namespace graphlab {
                      const graphlab_options& opts) :
     rmi(dc, this), graph(graph), ncpus(opts.get_ncpus()),
     threads(opts.get_ncpus()), thread_barrier(opts.get_ncpus()),
-    max_iterations(-1), iteration_counter(0), use_cache(true),
+    max_iterations(-1), iteration_counter(0), use_cache(false),
     vprog_exchange(dc), vdata_exchange(dc), 
     gather_exchange(dc), message_exchange(dc) {
     rmi.barrier();
@@ -332,14 +332,14 @@ namespace graphlab {
     vlocks.resize(graph.num_local_vertices());
     vertex_programs.resize(graph.num_local_vertices());
 
-    messages.resize(graph.num_local_vertices());
+    messages.resize(graph.num_local_vertices(), message_type());
     has_message.resize(graph.num_local_vertices());
 
-    gather_accum.resize(graph.num_local_vertices());
+    gather_accum.resize(graph.num_local_vertices(), gather_type());
     has_gather_accum.resize(graph.num_local_vertices());
 
     if (use_cache) {
-      gather_cache.resize(graph.num_local_vertices());
+      gather_cache.resize(graph.num_local_vertices(), gather_type());
       has_cache.resize(graph.num_local_vertices());
     }
     
@@ -584,10 +584,10 @@ namespace graphlab {
       // If this vertex is active in the gather minorstep
       if(active_minorstep.get(lvid)) {
         bool accum_is_set = false;
-        gather_type accum; //! This machines contribution to the gather          
+        gather_type accum = gather_type(); //! This machines contribution to the gather          
         // if caching is enabled and we have a cache entry then use
         // that as the accum
-        if( caching_enabled || has_cache.get(lvid) ) {
+        if( caching_enabled && has_cache.get(lvid) ) {
           accum = gather_cache[lvid];
           accum_is_set = true;
         } else {

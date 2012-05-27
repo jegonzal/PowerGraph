@@ -40,8 +40,7 @@
 #include <fstream>
 #include <sstream>
 
-#include <boost/lexical_cast.hpp>
-#include <boost/random.hpp>
+#include <boost/functional.hpp>
 #include <boost/algorithm/string/predicate.hpp>
 
 #include <graphlab/logger/logger.hpp>
@@ -301,6 +300,76 @@ namespace graphlab {
       ingress_ptr->add_edge(source, target, edata);
     }
 
+
+    /**
+     * The function will execute the MapFunction over all vertices in the graph
+     * and sum the result using the += operator. The result of the reduction
+     * is available on all machines.
+     * 
+     * \tparam MapFunction must be a unary function from vertices to a result_type
+     * \retval result_type must have commutative associative +=. And it must also be
+     * serializable, default constructable, copy constructable
+     */
+    template <typename MapFunction>
+    typename boost::unary_traits<MapFunction>::result_type map_reduce_vertices(MapFunction& mf) {
+      rpc.barrier();
+      typedef typename boost::unary_traits<MapFunction>::result_type result_type;
+      result_type global_result = result_type();
+#pragma omp parallel 
+      {
+        result_type result = result_type();
+        #pragma omp for
+        for (int i = 0;i < (int)local_graph.num_vertices(); ++i) {
+          if (lvid2record[i].owner == rpc.procid()) {
+            result += mf(local_graph.vertex_data(i));
+          }
+        }
+        #pragma omp critical
+        {
+          global_result += result;
+        }
+      }
+      
+      rpc.all_reduce(global_result);
+      return global_result;
+    }
+
+
+    /**
+     * The function will execute the MapFunction over all edges in the graph
+     * and sum the result using the += operator. The result of the reduction
+     * is available on all machines.
+     * 
+     * \tparam MapFunction must be a unary function from edges to a result_type
+     * \retval result_type must have commutative associative +=. And it must also be
+     * serializable, default constructable, copy constructable
+     */
+    template <typename MapFunction>
+    typename boost::unary_traits<MapFunction>::result_type map_reduce_edges(MapFunction& mf) {
+      rpc.barrier();
+      typedef typename boost::unary_traits<MapFunction>::result_type result_type;
+      result_type global_result = result_type();
+#pragma omp parallel 
+      {
+        result_type result = result_type();
+        #pragma omp for
+        for (int i = 0;i < (int)local_graph.num_vertices(); ++i) {
+          foreach(const typename local_graph_type::edge_type& e, 
+                  local_graph.in_edges(i)) {
+            result += mf(e.data());
+          }
+        }
+        #pragma omp critical
+        {
+          global_result += result;
+        }
+      }
+      
+      rpc.all_reduce(global_result);
+      return global_result;
+    }
+    
+    
     /// \brief Clears the graph. 
     void clear () { 
       foreach (vertex_record& vrec, lvid2record)

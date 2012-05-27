@@ -46,10 +46,7 @@
 #include <graphlab/scheduler/terminator/iterminator.hpp>
 #include <graphlab/options/graphlab_options.hpp>
 #include <graphlab/rpc/dc_dist_object.hpp>
-#include <graphlab/scheduler/ischeduler.hpp>
-#include <graphlab/scheduler/scheduler_factory.hpp>
 #include <graphlab/rpc/distributed_chandy_misra.hpp>
-#include <graphlab/aggregation/distributed_aggregator.hpp>
 
 #include <graphlab/util/tracepoint.hpp>
 #include <graphlab/util/memory_info.hpp>
