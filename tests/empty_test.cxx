@@ -20,6 +20,7 @@ public:
     TS_ASSERT_EQUALS(v.size(), (size_t)100);
     size_t c = 0;
     foreach(empty e, v) {
+      e = empty();
       ++c;
     }
     TS_ASSERT_EQUALS(c, (size_t)100);
