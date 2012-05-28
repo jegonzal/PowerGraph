@@ -163,7 +163,7 @@ class vector<graphlab::empty, allocator<graphlab::empty> > {
     return len == 0;
   }
 
-  void resize(size_t s) { len = s; }
+  void resize(size_t s, const graphlab::empty& e = graphlab::empty()) { len = s; }
 
   void reserve(size_t s) {}
 
