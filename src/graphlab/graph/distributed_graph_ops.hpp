@@ -20,15 +20,18 @@ namespace graphlab {
    
 
   template<typename VertexType, typename EdgeType, typename Fstream>
-  bool load_from_stream(graphlab::distributed_graph<VertexType, EdgeType>& graph, 
+  bool load_from_stream(graphlab::distributed_graph<VertexType, EdgeType>& graph,
+                        const std::string& srcfilename,
                         Fstream& fin, 
-                        boost::function<bool(graphlab::distributed_graph<VertexType, EdgeType>&, std::string)> callback) {
+                        boost::function<bool(graphlab::distributed_graph<VertexType, EdgeType>&,
+                                 const std::string&,
+                                 const std::string&)> callback) {
     size_t linecount = 0;
     timer ti; ti.start();
     while(fin.good() && !fin.eof()) {
       std::string str;
       std::getline(fin, str);
-      if (!callback(graph, str)) return false;
+      if (!callback(graph, srcfilename, str)) return false;
       ++linecount;
       
       if (ti.current_time() > 5.0) {
@@ -42,7 +45,9 @@ namespace graphlab {
   template <typename VertexType, typename EdgeType>
   void load(graphlab::distributed_graph<VertexType, EdgeType>& graph, 
             std::string path, 
-            boost::function<bool(graphlab::distributed_graph<VertexType, EdgeType>&, std::string)> callback) {
+            boost::function<bool(graphlab::distributed_graph<VertexType, EdgeType>&,
+                                 const std::string&,
+                                 const std::string&)> callback) {
     graph.dc().full_barrier();
 		if(boost::starts_with(path, "hdfs://")) {
       load_from_hdfs(graph, path, callback);
@@ -56,7 +61,9 @@ namespace graphlab {
   template <typename VertexType, typename EdgeType>
   void load_from_posixfs(graphlab::distributed_graph<VertexType, EdgeType>& graph, 
                         std::string path, 
-                        boost::function<bool(graphlab::distributed_graph<VertexType, EdgeType>&, std::string)> callback) {
+                        boost::function<bool(graphlab::distributed_graph<VertexType, EdgeType>&,
+                                 const std::string&,
+                                 const std::string&)> callback) {
     // force a "/" at the end of the path
     // make sure to check that the path is non-empty. (you do not
     // want to make the empty path "" the root path "/" )
@@ -82,7 +89,7 @@ namespace graphlab {
         if (gzip) fin.push(boost::iostreams::gzip_decompressor());
         fin.push(in_file);
         const bool success = 
-              graphlab::graph_ops::load_from_stream(graph, fin, callback);
+              graphlab::graph_ops::load_from_stream(graph, graph_files[i], fin, callback);
         ASSERT_TRUE(success);
         fin.pop();
         if (gzip) fin.pop();
@@ -95,7 +102,9 @@ namespace graphlab {
   template <typename VertexType, typename EdgeType>
   void load_from_hdfs(graphlab::distributed_graph<VertexType, EdgeType>& graph, 
                       std::string path, 
-                      boost::function<bool(graphlab::distributed_graph<VertexType, EdgeType>&, std::string)> callback) {
+                      boost::function<bool(graphlab::distributed_graph<VertexType, EdgeType>&,
+                                 const std::string&,
+                                 const std::string&)> callback) {
     // force a "/" at the end of the path
     // make sure to check that the path is non-empty. (you do not
     // want to make the empty path "" the root path "/" )
@@ -119,7 +128,7 @@ namespace graphlab {
         if(gzip) fin.push(boost::iostreams::gzip_decompressor());
         fin.push(in_file);      
         const bool success = 
-              graphlab::graph_ops::load_from_stream(graph, fin, callback);
+              graphlab::graph_ops::load_from_stream(graph, graph_files[i], fin, callback);
         ASSERT_TRUE(success);
         fin.pop();
         if (gzip) fin.pop();
@@ -133,7 +142,9 @@ namespace graphlab {
   void load(graphlab::distributed_graph<VertexType, EdgeType>& graph, 
             std::string path, 
             std::string format) {
-    boost::function<bool(graphlab::distributed_graph<VertexType, EdgeType>&, std::string)> callback;
+  boost::function<bool(graphlab::distributed_graph<VertexType, EdgeType>&,
+                                 const std::string&,
+                                 const std::string&)> callback;
     if (format == "snap") {
       callback = builtin_parsers::snap_parser<VertexType, EdgeType>;
     }

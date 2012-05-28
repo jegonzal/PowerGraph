@@ -31,8 +31,6 @@
 //! Global random reset probability
 float RESET_PROB = 0.15;
 
-float float_identity(float f) { return f; }
-
 /**
  * The factorized page rank update function
  */
@@ -61,6 +59,9 @@ public:
   }
 }; // end of factorized_pagerank update functor
 
+typedef graphlab::distributed_graph<float, char> graph_type;
+
+float float_identity(graph_type::vertex_type f) { return f.data(); }
 
 
 int main(int argc, char** argv) {
@@ -87,7 +88,7 @@ int main(int argc, char** argv) {
     return EXIT_FAILURE;
   }
   std::cout << dc.procid() << ": Starting." << std::endl;
-  graphlab::distributed_graph<float, char> graph(dc, clopts);
+  graph_type graph(dc, clopts);
   if(powerlaw > 0) {
     graphlab::graph_ops::load_synthetic_powerlaw(graph, powerlaw);
   } else {
@@ -105,7 +106,7 @@ int main(int argc, char** argv) {
   engine.start();
   
   
-  float sum_of_graph = graph.map_reduce_vertices(float_identity);
+  float sum_of_graph = graph.map_reduce_vertices<float>(float_identity);
   std::cout << "Sum of graph: " << sum_of_graph << std::endl;
   
   graphlab::mpi_tools::finalize();

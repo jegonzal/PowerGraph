@@ -7,7 +7,9 @@ namespace graphlab {
 namespace builtin_parsers {
   
 template <typename VertexType, typename EdgeType>
-bool snap_parser(graphlab::distributed_graph<VertexType, EdgeType>& graph, std::string str) {
+bool snap_parser(graphlab::distributed_graph<VertexType, EdgeType>& graph,
+                 const std::string& srcfilename,
+                 const std::string& str) {
   if (str.empty()) return true;
   else if (str[0] == '#') {
     std::cout << str << std::endl;
@@ -23,7 +25,9 @@ bool snap_parser(graphlab::distributed_graph<VertexType, EdgeType>& graph, std::
 
 
 template <typename VertexType, typename EdgeType>
-bool tsv_parser(graphlab::distributed_graph<VertexType, EdgeType>& graph, std::string str) {
+bool tsv_parser(graphlab::distributed_graph<VertexType, EdgeType>& graph,
+                const std::string& srcfilename,
+                const std::string& str) {
   if (str.empty()) return true;
   std::stringstream strm(str);
   size_t source, target;
@@ -33,7 +37,9 @@ bool tsv_parser(graphlab::distributed_graph<VertexType, EdgeType>& graph, std::s
 }
 
 template <typename VertexType, typename EdgeType>
-bool adj_parser(graphlab::distributed_graph<VertexType, EdgeType>& graph, std::string str) {
+bool adj_parser(graphlab::distributed_graph<VertexType, EdgeType>& graph,
+                const std::string& srcfilename,
+                const std::string& str) {
   if (str.empty()) return true;
   std::stringstream strm(str);
   

@@ -301,27 +301,31 @@ namespace graphlab {
     }
 
 
+
     /**
-     * The function will execute the MapFunction over all vertices in the graph
-     * and sum the result using the += operator. The result of the reduction
-     * is available on all machines.
+     * The function will execute the mapfunction over all vertices in the
+     * graph passed as a vertex_type, and sum the result using the += operator.
+     * The result of the reduction is available on all machines.
      * 
-     * \tparam MapFunction must be a unary function from vertices to a result_type
-     * \retval result_type must have commutative associative +=. And it must also be
-     * serializable, default constructable, copy constructable
+     * \tparam ResultType The return type of the map function. Also the return
+     * type of the map_reduce_vertices function. It must be serializable,
+     * default constructable, copy constructable, and must have commutative
+     * associative +=.
+     * \param mapfunction must be a unary function from vertex_type to
+     * ResultType. it may be a unary functor or a function pointer.
      */
-    template <typename MapFunction>
-    typename boost::unary_traits<MapFunction>::result_type map_reduce_vertices(MapFunction& mf) {
+    template <typename ResultType>
+    ResultType map_reduce_vertices(
+        boost::function<ResultType(vertex_type)> mapfunction) {
       rpc.barrier();
-      typedef typename boost::unary_traits<MapFunction>::result_type result_type;
-      result_type global_result = result_type();
-#pragma omp parallel 
+      ResultType global_result = ResultType();
+#pragma omp parallel
       {
-        result_type result = result_type();
+        ResultType result = ResultType();
         #pragma omp for
         for (int i = 0;i < (int)local_graph.num_vertices(); ++i) {
           if (lvid2record[i].owner == rpc.procid()) {
-            result += mf(local_graph.vertex_data(i));
+            result += mapfunction(vertex_type(l_vertex(i)));
           }
         }
         #pragma omp critical
@@ -329,34 +333,36 @@ namespace graphlab {
           global_result += result;
         }
       }
-      
+
       rpc.all_reduce(global_result);
       return global_result;
     }
 
 
     /**
-     * The function will execute the MapFunction over all edges in the graph
-     * and sum the result using the += operator. The result of the reduction
-     * is available on all machines.
-     * 
-     * \tparam MapFunction must be a unary function from edges to a result_type
-     * \retval result_type must have commutative associative +=. And it must also be
-     * serializable, default constructable, copy constructable
+     * The function will execute the mapfunction over all edges in the
+     * graph passed as an edge_type, and sum the result using the += operator.
+     * The result of the reduction is available on all machines.
+     *
+     * \tparam ResultType The return type of the map function. Also the return
+     * type of the map_reduce_edges function. It must be serializable,
+     * default constructable, copy constructable, and must have commutative
+     * associative +=.
+     * \param mapfunction must be a unary function from edge_type to ResultType
+     * it may be a unary functor or a function pointer.
      */
-    template <typename MapFunction>
-    typename boost::unary_traits<MapFunction>::result_type map_reduce_edges(MapFunction& mf) {
+    template <typename ResultType>
+    ResultType map_reduce_edges(
+        boost::function<ResultType(edge_type)> mapfunction) {
       rpc.barrier();
-      typedef typename boost::unary_traits<MapFunction>::result_type result_type;
-      result_type global_result = result_type();
-#pragma omp parallel 
+      ResultType global_result = ResultType();
+#pragma omp parallel
       {
-        result_type result = result_type();
+        ResultType result = ResultType();
         #pragma omp for
         for (int i = 0;i < (int)local_graph.num_vertices(); ++i) {
-          foreach(const typename local_graph_type::edge_type& e, 
-                  local_graph.in_edges(i)) {
-            result += mf(e.data());
+          foreach(const local_edge_type& e, l_vertex(i).in_edges()) {
+            result += mapfunction(edge_type(e));
           }
         }
         #pragma omp critical
@@ -364,11 +370,12 @@ namespace graphlab {
           global_result += result;
         }
       }
-      
+
       rpc.all_reduce(global_result);
       return global_result;
     }
-    
+
+
     
     /// \brief Clears the graph. 
     void clear () { 
