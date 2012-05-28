@@ -111,40 +111,97 @@ namespace graphlab {
     float start_time;
 
 
+    /**
+     * Vertex locks are used to gaurd access to vertex specific fields
+     */
     std::vector<mutex>    vlocks;
     std::vector<vertex_program_type> vertex_programs;
 
+    /**
+     * Vector of messages associated with each vertex.
+     */
     std::vector<message_type> messages;
+
+    /**
+     * Bit indicating whether a message is present for each vertex.
+     */
     dense_bitset              has_message;
  
 
+    /**
+     * Gather accumulator used for each master vertex to merge the
+     * result of all the machine specific accumulators (or caches).
+     *
+     * The gather accumulator can be accessed by multiple threads at
+     * once and therefore must be guarded by a vertex lock.
+     */
     std::vector<gather_type>  gather_accum;
+    
+    /**
+     * Bit indicating if the gather has accumulator contains any
+     * values.  Access to this bit is protected by the vertex lock
+     * since it must change with the gather accumulator.
+     */
     dense_bitset              has_gather_accum;
 
 
+    /**
+     * This optional vector contains caches of previous gather
+     * contributions for each machine.  Caching is done locally and
+     * therefore a high-degree vertex may have multiple caches (one
+     * per machine).
+     */
     std::vector<gather_type>  gather_cache;
+
+    /**
+     * A bit indicating if the local gather for that vertex is
+     * available.
+     */
     dense_bitset              has_cache;   
 
+    /**
+     * A bit (for master vertices) indicating if that vertex is active
+     * (received a message on this iteration).
+     */
     dense_bitset             active_superstep;
+
+    /**
+     * The number of local vertices (masters) that are active on this
+     * iteration.
+     */
     atomic<size_t>           num_active_vertices;
+
+    /**
+     * A bit indicating (for all vertices) whether to participate in
+     * the current minor-step (gather or scatter).  
+     */
     dense_bitset             active_minorstep;      
 
-    atomic<size_t> completed_tasks;
-   
+    /**
+     * A counter measuring the number of applys that have been completed
+     */
+    atomic<size_t> completed_applys;
+
+    /**
+     * The reason for termination.
+     */
     execution_status::status_enum termination_reason; 
 
     // Exchange used to swap vertex programs
     typedef std::pair<vertex_id_type, vertex_program_type> vid_prog_pair_type;
     typedef buffered_exchange<vid_prog_pair_type> vprog_exchange_type;
     vprog_exchange_type vprog_exchange;
+
     // Exchange used to swap vertex data between machines
     typedef std::pair<vertex_id_type, vertex_data_type> vid_vdata_pair_type;
     typedef buffered_exchange<vid_vdata_pair_type> vdata_exchange_type;
     vdata_exchange_type vdata_exchange;
+
     // Exchange used to transfer gather data
     typedef std::pair<vertex_id_type, gather_type> vid_gather_pair_type;
     typedef buffered_exchange<vid_gather_pair_type> gather_exchange_type;
     gather_exchange_type gather_exchange;
+
     // Exchange used to transfer message data
     typedef std::pair<vertex_id_type, gather_type> vid_message_pair_type;
     typedef buffered_exchange<vid_message_pair_type> message_exchange_type;
@@ -251,8 +308,7 @@ namespace graphlab {
         opts.get_engine_args().get_option("max_iterations", max_iterations);
       } else if (opt == "use_cache") {
         opts.get_engine_args().get_option("use_cache", use_cache);
-      }
-      else {
+      } else {
         logstream(LOG_ERROR) << "Unexpected Engine Option: " << opt << std::endl;
       }
     }
@@ -362,7 +418,7 @@ namespace graphlab {
 
   template<typename VertexProgram>
   size_t synchronous_engine<VertexProgram>::
-  num_updates() const { return completed_tasks.value; }
+  num_updates() const { return completed_applys.value; }
 
   template<typename VertexProgram>
   float synchronous_engine<VertexProgram>::
@@ -422,6 +478,7 @@ namespace graphlab {
       // vertex programs with mirrors if gather is required
       num_active_vertices = 0;
       run_synchronous( &synchronous_engine::receive_messages );
+      has_message.clear();
       /**
        * Post conditions:
        *   1) there are no messages remaining
@@ -657,7 +714,7 @@ namespace graphlab {
         const gather_type& accum = gather_accum[lvid];
         vertex_programs[lvid].apply(context, vertex, accum);
         // record an apply as a completed task
-        ++completed_tasks;
+        ++completed_applys;
         // Clear the accumulator to save some memory
         gather_accum[lvid] = gather_type();
         // synchronize the changed vertex data with all mirrors
