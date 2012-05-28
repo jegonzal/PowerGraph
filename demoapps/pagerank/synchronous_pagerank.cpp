@@ -28,33 +28,84 @@
 
 #include <graphlab.hpp>
 #include <graphlab/macros_def.hpp>
+
 //! Global random reset probability
 float RESET_PROB = 0.15;
 
+/**
+ * Simple function used at the end of pagerank to extract the rank of
+ * each page.  See: graph.map_reduce_vertices(float_identity);
+ */
 float float_identity(float f) { return f; }
 
 /**
+ * The type of data associated with each vertex
+ */
+typedef float vertex_data_type;
+
+/**
+ * The type of data associated with each edge.  Since there is no data
+ * we set the edge type to graphlab empty which lets graphlab know not
+ * to allocate memory for edge data.
+ */
+typedef graphlab::EMPTY edge_data_type;
+
+
+/**
+ * The graph type naturally depends on the vertex and edge data type.
+ */
+typedef graphlab::distributed_graph<vertex_data_type, edge_data_type> graph_type;
+
+
+/**
  * The factorized page rank update function
+ * extends ivertex_program specifying the:
+ *   1) vertex_data_type: vertex_data_type
+ *   2) edge_data_type: edge data type
+ *   3) gather_type: float (returned by the gather function). Note
+ *      that the gather type is not strictly needed here since it is
+ *      assumed to be the same as the vertex_data_type unless
+ *      otherwise specified
+ *
+ * In addition ivertex program also takes a message type which is
+ * assumed to be empty. Since we do not need messages no message type
+ * is provided.
+ *
+ * pagerank also extends graphlab::IS_POD_TYP (is plain old data type)
+ * which tells graphlab that the pagerank program can be serialized
+ * (converted to a byte stream) by directly reading its in memory
+ * representation.  If a vertex program does not exted
+ * graphlab::IS_POD_TYPE it must implement load and save functions
+ * (\todo see ref).
+ *
  */
 class pagerank :
-  public graphlab::ivertex_program<float, char>,
+  public graphlab::ivertex_program<vertex_data_type, 
+                                   edge_data_type,
+                                   float>,
   public graphlab::IS_POD_TYPE {
-public:
-  
-  void init(icontext_type& context,
-            vertex_type& vertex) { vertex.data() = 1.0; }
-
-  float gather(icontext_type& context, const vertex_type& vertex,
-         edge_type& edge) const {
-    return (edge.source().data() / edge.source().num_out_edges()) * (1.0 - RESET_PROB);
+public:  
+  /** Initialize the vertex program and vertex data */
+  void init(icontext_type& context, vertex_type& vertex) { 
+    vertex.data() = 1.0; 
   }
+
+  /** Gather the weighted rank of the adjacent page   */
+  float gather(icontext_type& context, const vertex_type& vertex,
+               edge_type& edge) const {
+    return ((1.0 - RESET_PROB) / edge.source().num_out_edges()) * 
+      edge.source().data();
+  }
+  
+  /** Use the total rank of adjacent pages to update this page */
   void apply(icontext_type& context, vertex_type& vertex,
              const gather_type& total) {
     vertex.data() = total + RESET_PROB;
-    if (vertex.id() == 0) std::cout << "v0: " << total << " " << vertex.data() << std::endl;
+    // Schedule this vertex to run again in the future
     context.signal(vertex);
   }
   
+  /** Skip the scatter phase */
   edge_dir_type scatter_edges(icontext_type& context,
                               const vertex_type& vertex) const {
     return graphlab::NO_EDGES;

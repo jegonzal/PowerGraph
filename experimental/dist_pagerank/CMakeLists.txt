@@ -12,7 +12,7 @@ project(GraphLab)
 
 #add_distributed_graphlab_executable(dist_delta_pagerank dist_delta_pagerank.cpp)
 
-add_graphlab_executable(dist_sync_pagerank_minimal dist_sync_pagerank_minimal.cpp)
+#add_graphlab_executable(dist_sync_pagerank_minimal dist_sync_pagerank_minimal.cpp)
 
 
 
