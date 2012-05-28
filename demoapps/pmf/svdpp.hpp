@@ -98,14 +98,15 @@ void init_svdpp/*<gc>*/(graph_type/*_svdpp*/ *_g){
    } 
 }
 
+float svdpp_predict_new_user(const vertex_data_svdpp& user, const vertex_data_svdpp& movie, const edge_data * edge, const vertex_data * nothing, const float rating, float & prediction){
+  prediction = ps.globalMean[0] + *movie.bias;
+  prediction = std::min((double)prediction, ac.maxval);
+  prediction = std::max((double)prediction, ac.minval);
+  float err = rating - prediction;
+  return err*err;
+}
 
 
-float bias_sgd_predict(const vertex_data_svdpp& user, 
-                const vertex_data_svdpp& movie, 
-                const edge_data * edge,
-                const vertex_data* nothing,
-                const float rating, 
-                float & prediction);
 
 
 float svdpp_predict(const vertex_data_svdpp& user, const vertex_data_svdpp& movie, const edge_data_mcmc * edge, const vertex_data * nothing, const float rating, float & prediction){
@@ -113,8 +114,11 @@ float svdpp_predict(const vertex_data_svdpp& user, const vertex_data_svdpp& movi
 }
 float svdpp_predict(const vertex_data_svdpp& user, const vertex_data_svdpp& movie, const edge_data * edge, const vertex_data * nothing, const float rating, float & prediction){
       assert(nothing == NULL);
+      assert(ps.algorithm == SVD_PLUS_PLUS);
 
-      if (ps.algorithm == SVD_PLUS_PLUS){
+       if (user.num_edges == 0)
+        return svdpp_predict_new_user(user, movie, edge, nothing, rating, prediction);
+
            //\hat(r_ui) = \mu + 
         prediction = ps.globalMean[0];
                  // + b_u  +    b_i +
@@ -130,25 +134,24 @@ float svdpp_predict(const vertex_data_svdpp& user, const vertex_data_svdpp& movi
         if (std::isnan(err))
           logstream(LOG_FATAL)<<"Got into numerical errors. Try to decrease step size using svdpp command line flags (see ./pmf --help for full list)" << std::endl;
         return err*err; 
-      }
-      else assert(false);
       
 }
 
-float svdpp_predict_new_user(const vertex_data_svdpp& user, const vertex_data_svdpp& movie, const edge_data * edge, const vertex_data * nothing, const float rating, float & prediction){
-  prediction = ps.globalMean[0] + *movie.bias;
-  prediction = std::min((double)prediction, ac.maxval);
-  prediction = std::max((double)prediction, ac.minval);
-  float err = rating - prediction;
-  return err*err;
+float svdpp_predict(const vertex_data& user, 
+                const vertex_data& movie, 
+                const edge_data * edge,
+                const vertex_data* nothing,
+                const float rating, 
+                float & prediction){
+  return svdpp_predict(vertex_data_svdpp((vertex_data&)user), vertex_data_svdpp((vertex_data&)movie), edge, nothing, rating, prediction);
 }
 
 
-void predict_missing_value(const vertex_data_svdpp&data, const vertex_data_svdpp& pdata, edge_data& edge, double & sq_err, int&e, int i){
+/*void predict_missing_value(const vertex_data_svdpp&data, const vertex_data_svdpp& pdata, edge_data& edge, double & sq_err, int&e, int i){
     float prediction = 0;
     svdpp_predict(data, pdata, &edge, NULL, edge.weight, prediction);
     e++;
-}
+}*/
  
 
 //calculate RMSE. This function is called only before and after grahplab is run.
@@ -185,10 +188,7 @@ double calc_svd_rmse(const graph_type * _g, bool test, double & res){
          const edge_data & item = _g->edge_data(oedgeid);
          const vertex_data_svdpp movie(g->vertex_data(_g->target(oedgeid))); 
          float estScore;
-        if (n == 0) //no ratings observed in training data, give the item average
-           sqErr += svdpp_predict_new_user(usr, movie, NULL, NULL, item.weight, estScore);
-        else
-           sqErr += svdpp_predict(usr, movie, (edge_data*)NULL, NULL, item.weight, estScore);
+        sqErr += svdpp_predict(usr, movie, (edge_data*)NULL, NULL, item.weight, estScore);
          nCases++;
        }
    }

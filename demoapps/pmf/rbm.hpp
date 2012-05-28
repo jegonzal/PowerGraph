@@ -117,6 +117,15 @@ float predict(const rbm_user & usr,
     return pow(prediction - rating,2);
 }
 
+float rbm_predict(const vertex_data & usr, 
+                const vertex_data & mov, 
+                const edge_data * edge,
+                const vertex_data* nothing,
+                const float rating, 
+                float & prediction){
+  return predict(rbm_user((vertex_data&)usr), rbm_movie((vertex_data&)mov), edge, nothing, rating, prediction);
+}	
+
 float predict1(const rbm_user & usr, 
                 const rbm_movie & mov, 
                 const edge_data * edge,

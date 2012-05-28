@@ -161,13 +161,6 @@ float time_svdpp_predict(const vertex_data& user,
                 float & prediction){
    return predict(time_svdpp_usr((vertex_data&)user), time_svdpp_movie((vertex_data&)movie), edge,nothing, rating, prediction);
 }
-float time_svdpp_predict(const vertex_data& user, 
-                const vertex_data& movie, 
-                const edge_data_mcmc * edge,
-                const vertex_data* nothing,
-                const float rating, 
-                float & prediction){ assert(false); }
- 
 
                    
 /***

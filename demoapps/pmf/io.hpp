@@ -282,7 +282,31 @@ void truncate_and_scale(float & prediction){
   if (ac.scalerating != 1)
      prediction *= ac.scalerating;
 }
-	
+float rbm_predict(const vertex_data& user, 
+                const vertex_data& movie, 
+                const edge_data * edge,
+                const vertex_data* nothing,
+                const float rating, 
+                float & prediction);
+float bias_sgd_predict(const vertex_data& user, 
+                const vertex_data& movie, 
+                const edge_data * edge,
+                const vertex_data* nothing,
+                const float rating, 
+                float & prediction);
+float svdpp_predict(const vertex_data& user, 
+                const vertex_data& movie, 
+                const edge_data * edge,
+                const vertex_data* nothing,
+                const float rating, 
+                float & prediction);
+float time_svdpp_predict(const vertex_data& user, 
+                const vertex_data& movie, 
+                const edge_data * edge,
+                const vertex_data* nothing,
+                const float rating, 
+                float & prediction);
+   	
 template<typename graph_type, typename vertex_data, typename edge_data>
 void common_prediction(const graph_type &g, const graph_type & _g, const vertex_data& data,int i, int &lineNum, double& sumPreds, vec& test_predictions, bool dosave){
   
@@ -294,12 +318,16 @@ void common_prediction(const graph_type &g, const graph_type & _g, const vertex_
 			assert(edge.weight != 0);
 
 		float prediction = 0;
-    predict(data, 
-			pdata, 
-			ps.algorithm == WEIGHTED_ALS ? &edge : NULL, 
-			ps.tensor? (&ps.times[(int)edge.time]):NULL, 
-			edge.weight, 
-			prediction);
+    if (ps.algorithm == BIAS_SGD)
+      bias_sgd_predict(data, pdata, (edge_data*)NULL, NULL, edge.weight, prediction);
+    else if (ps.algorithm == SVD_PLUS_PLUS)
+      svdpp_predict(data, pdata, (edge_data*)NULL, NULL, edge.weight, prediction);
+    else if (ps.algorithm == TIME_SVD_PLUS_PLUS)
+      time_svdpp_predict(data, pdata, (edge_data*)NULL, NULL, edge.weight, prediction);
+    else if (ps.algorithm == RBM)
+      rbm_predict(data, pdata, (edge_data*)NULL, NULL, edge.weight, prediction);
+    else
+     predict(data, pdata, ps.algorithm == WEIGHTED_ALS ? &edge : NULL, ps.tensor? (&ps.times[(int)edge.time]):NULL, edge.weight, prediction);
     truncate_and_scale(prediction);      
     if (ac.debug && (i== 0 || i == ps.M))
 			cout<<lineNum<<") prediction:"<<prediction<<endl; 

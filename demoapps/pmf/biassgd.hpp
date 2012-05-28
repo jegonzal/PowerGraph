@@ -70,6 +70,8 @@ void init_biassgd/*<gc>*/(graph_type/*_svdpp*/ *_g){
    } 
 }
 
+float bias_sgd_predict(const vertex_data_svdpp & user, const vertex_data_svdpp & movie, const edge_data * edge, const vertex_data * nothing, const float rating, float & prediction);
+
 float bias_sgd_predict_new_user(const vertex_data_svdpp& user, const vertex_data_svdpp& movie, const edge_data * edge, const vertex_data * nothing, const float rating, float & prediction){
   prediction = ps.globalMean[0] + *movie.bias;
   prediction = std::min((double)prediction, ac.maxval);
@@ -99,10 +101,7 @@ double calc_biassgd_rmse(const graph_type * _g, bool test, double & res){
          const edge_data & item = _g->edge_data(oedgeid);
          const vertex_data_svdpp movie(g->vertex_data(_g->target(oedgeid))); 
          float estScore;
-        if (usr.num_edges == 0) //no ratings observed in training data, give the item average
-           sqErr += bias_sgd_predict_new_user(usr, movie, NULL, NULL, item.weight, estScore);
-        else
-           sqErr += bias_sgd_predict(usr, movie, NULL, NULL, item.weight, estScore);
+        sqErr += bias_sgd_predict(usr, movie, NULL, NULL, item.weight, estScore);
          nCases++;
        }
    }
@@ -144,6 +143,7 @@ float bias_sgd_predict(const vertex_data_svdpp& user,
                 const vertex_data* nothing,
                 const float rating, 
                 float & prediction){ assert(false); }
+
   
  
 float bias_sgd_predict(const vertex_data_svdpp& user, 
@@ -152,7 +152,10 @@ float bias_sgd_predict(const vertex_data_svdpp& user,
                 const vertex_data* nothing,
                 const float rating, 
                 float & prediction){
-  
+ 
+  if (user.num_edges == 0)
+     return bias_sgd_predict_new_user(user, movie, edge, nothing, rating, prediction);
+
   prediction = ps.globalMean[0] + *user.bias + *movie.bias;
   for (int j=0; j< ac.D; j++)
     prediction += user.pvec[j]* movie.pvec[j];	
@@ -166,7 +169,16 @@ float bias_sgd_predict(const vertex_data_svdpp& user,
   return err*err; 
  
 }
-
+float bias_sgd_predict(const vertex_data& user, 
+                const vertex_data& movie, 
+                const edge_data * edge,
+                const vertex_data* nothing,
+                const float rating, 
+                float & prediction){
+   
+  return bias_sgd_predict(vertex_data_svdpp((vertex_data&)user), vertex_data_svdpp((vertex_data&)movie), edge, nothing, rating, prediction);
+}
+ 
  /***
  * UPDATE FUNCTION
  */

@@ -455,7 +455,9 @@ double calc_ap(const graph_type * _g){
            else if (ps.algorithm == SVD_PLUS_PLUS)
               svdpp_predict(vertex_data_svdpp((vertex_data&)data), vertex_data_svdpp((vertex_data&)pdata), &edge, NULL, edge.weight, prediction);
            else if (ps.algorithm == TIME_SVD_PLUS_PLUS)
-              time_svdpp_predict(data, pdata, &edge, NULL, edge.weight, prediction);
+              time_svdpp_predict(data, pdata, NULL, NULL, edge.weight, prediction);
+           else if (ps.algorithm == RBM)
+              rbm_predict(data, pdata, NULL, NULL, edge.weight, prediction);
 					 else
              predict(data, pdata, &edge, NULL, edge.weight, prediction);
            ratings[j] = prediction;
