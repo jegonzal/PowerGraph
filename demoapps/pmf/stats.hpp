@@ -147,18 +147,18 @@ double calc_obj(double res){
   }
   ps.counter[CALC_OBJ]+= t.current_time();
   
-  double obj = (res +ps.pU*sumU + ps.pV*sumV + sumT + (ps.tensor?trace(T*ps.dp*T.transpose()):0)) / 2.0;
+  ps.obj = (res +ps.pU*sumU + ps.pV*sumV + sumT + (ps.tensor?trace(T*ps.dp*T.transpose()):0)) / 2.0;
 
   if (ps.algorithm == ALS_SPARSE_USR_MOVIE_FACTORS || ps.algorithm == ALS_SPARSE_USR_FACTOR || ps.algorithm == ALS_SPARSE_MOVIE_FACTOR){ //add L1 penalty to objective
      cout<<"Current user sparsity : " << ((double)user_sparsity / ((double)ac.D*user_cnt)) << " movie sparsity: "  << ((double)movie_sparsity / ((double)ac.D*movie_cnt)) << endl;
-     obj += absSum;
+     ps.obj += absSum;
   }
 
   if (ac.debug)
      cout<<"OBJECTIVE: res: " << res << "sumU " << sumU << " sumV: " << sumV << " pu " << ps.pU << " pV: " << ps.pV << endl; 
 
   ASSERT_EQ(edges , 2*ps.L);
-  return obj;
+  return ps.obj;
 }
 template<typename graph_type, typename vertex_data, typename edge_data>
 void calc_stats2(const graph_type * gr, 
@@ -455,7 +455,7 @@ double calc_ap(const graph_type * _g){
            else if (ps.algorithm == SVD_PLUS_PLUS)
               svdpp_predict(vertex_data_svdpp((vertex_data&)data), vertex_data_svdpp((vertex_data&)pdata), &edge, NULL, edge.weight, prediction);
            else if (ps.algorithm == TIME_SVD_PLUS_PLUS)
-              time_svdpp_predict(data, pdata, NULL, NULL, edge.weight, prediction);
+              time_svdpp_predict(data, pdata, &edge, NULL, edge.weight, prediction);
            else if (ps.algorithm == RBM)
               rbm_predict(data, pdata, NULL, NULL, edge.weight, prediction);
 					 else

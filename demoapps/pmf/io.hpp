@@ -53,8 +53,12 @@ FILE * open_file(const char * name, const char * mode){
 template<typename graph_type, typename vertex_data>
 void add_time_nodes(graph_type* _g){
     //init times
+    
+    int size = ac.D;
+    if (ps.algorithm == TIME_SVD_PLUS_PLUS)
+      size = 2*ac.D;
     ps.times = new vertex_data[ps.K];
-    vec tones = ones(ac.D)*(ps.K==1?1:0.1);
+    vec tones = ones(size)*(ps.K==1?1:0.1);
     //add T time node (ps.tensor dim 3)
     for (int i=0; i<ps.K; i++){
       ps.times[i].pvec =tones;
@@ -323,7 +327,7 @@ void common_prediction(const graph_type &g, const graph_type & _g, const vertex_
     else if (ps.algorithm == SVD_PLUS_PLUS)
       svdpp_predict(data, pdata, (edge_data*)NULL, NULL, edge.weight, prediction);
     else if (ps.algorithm == TIME_SVD_PLUS_PLUS)
-      time_svdpp_predict(data, pdata, (edge_data*)NULL, NULL, edge.weight, prediction);
+      time_svdpp_predict(data, pdata, &edge, NULL, edge.weight, prediction);
     else if (ps.algorithm == RBM)
       rbm_predict(data, pdata, (edge_data*)NULL, NULL, edge.weight, prediction);
     else
@@ -355,20 +359,9 @@ void test_predict(vertex_data & usr, int i, int& lineNum, double & sumPreds, vec
 			for (int j=0; j< ac.D; j++)
 			  user.weight[j] *= usrnorm;
 		}
-		else { //cold start, we did not encounter this user in training!
-			memset(&user.pvec[0], 0, ac.D*sizeof(double));
-			user.bias = 0;
-		}
   }
-  else if (ps.algorithm == BIAS_SGD){
-    vertex_data_svdpp user = usr;
-		int n = user.num_edges; //+1.0 ? //regularization
-    if (n == 0){
-			memset(&user.pvec[0], 0, ac.D*sizeof(double));
-			user.bias = 0;
-    }	
-  }
-  else if (ps.algorithm == TIME_SVD_PLUS_PLUS){
+  else if (ps.algorithm == BIAS_SGD){}
+   else if (ps.algorithm == TIME_SVD_PLUS_PLUS){
 
   }
   else if (ps.algorithm == RBM){

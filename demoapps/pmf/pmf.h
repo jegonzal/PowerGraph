@@ -327,6 +327,7 @@ public:
 
   double validation_rmse; //stores validation rmse 
   double training_rmse; //stored training rmse
+  double obj; //objective value
   template<typename graph_type> const graph_type* g(testtype type);
     
   template<typename graph_type> void set_graph(graph_type *g, testtype type);
@@ -353,6 +354,7 @@ public:
 
   validation_rmse = 0; 
   training_rmse = 0;
+  obj = 0;
 
 //performance counters
   memset(counter, 0, MAX_COUNTER*sizeof(double));

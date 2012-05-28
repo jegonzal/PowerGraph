@@ -108,7 +108,7 @@ float predict(const vertex_data& v1, const vertex_data& v2, const edge_data * ed
 
   //constructor
 vertex_data::vertex_data(){
-    pvec = zeros(ac.D);
+    //pvec = zeros(ac.D);
     rmse = 0;
     num_edges = 0;
 }
@@ -206,7 +206,8 @@ void init(graph_type *g){
      init_biassgd(g); break;
 
    case TIME_SVD_PLUS_PLUS:
-     init_time_svdpp<graph_type>(g); break;
+     init_time_svdpp<graph_type>(g); 
+      break;
 
    case LANCZOS: 
      init_lanczos(); break;
@@ -250,9 +251,9 @@ void run_graphlab(core &glcore, graph_type * validation_graph){
      }
      glcore.start();
      // calculate final RMSE
-     double res, train_rmse =  agg_rmse_by_movie<graph_type,vertex_data>(res), res2;
+     //double res, train_rmse =  agg_rmse_by_movie<graph_type,vertex_data>(res), res2;
      
-     double obj = -1;
+     /*double obj = -1;
      double validation_rmse = 0; 
      if (ps.algorithm != TIME_SVD_PLUS_PLUS && ps.algorithm != RBM && ps.algorithm != BIAS_SGD && ps.algorithm != TIME_SVD_PLUS_PLUS){
        obj = calc_obj<graph_type, vertex_data>(res);
@@ -261,11 +262,11 @@ void run_graphlab(core &glcore, graph_type * validation_graph){
 			  "Final result. Obj=%g, TRAIN RMSE= %0.12f VALIDATION RMSE= %0.12f.\n":
 			  "Final result. Obj=%g, TRAIN RMSE= %0.4f VALIDATION RMSE= %0.4f.\n"
 			   , obj,  train_rmse, validation_rmse);
-     }
+     }*/
      double runtime = ps.gt.current_time();
      printf("Finished in %lf seconds\n", runtime);
      if (ac.unittest > 0){
-        verify_result(obj, train_rmse, validation_rmse);
+        verify_result(ps.obj, ps.training_rmse, ps.validation_rmse);
      }
 }
 
@@ -314,6 +315,21 @@ void start(command_line_options& clopts) {
     ps.set_graph(&validation_graph, VALIDATION);
 
    }  
+
+   //UGLY: for time_svd++ , test files can not be loaded late.. to be fixed later
+   if (ps.algorithm == TIME_SVD_PLUS_PLUS){
+    //read the test data (optional)
+    printf("loading data file %s\n", (ac.datafile+"t").c_str());
+    load_pmf_graph<graph_type,gl_types,vertex_data,edge_data>((ac.datafile+"t").c_str(),&training, &test_graph, TEST);
+    ps.set_graph(&test_graph, TEST);
+
+
+    if (ac.test2){
+      printf("loading data file %s\n", (ac.datafile+"t2").c_str());
+      load_pmf_graph<graph_type,gl_types,vertex_data,edge_data>((ac.datafile+"t2").c_str(),&training, &test_graph2, TEST2);
+      ps.set_graph(&test_graph2, TEST2);
+    }
+  }
 
   if (ac.loadfactors){
      import_uvt_from_file<graph_type>();
@@ -406,8 +422,10 @@ void start(command_line_options& clopts) {
       training.reduce_mem_consumption();
       validation_graph.reduce_mem_consumption();
     }
-      
- 
+     
+
+    //for all other algos we can delay loading of test data to after the run
+    if (ps.algorithm != TIME_SVD_PLUS_PLUS){ 
     //read the test data (optional)
     printf("loading data file %s\n", (ac.datafile+"t").c_str());
     load_pmf_graph<graph_type,gl_types,vertex_data,edge_data>((ac.datafile+"t").c_str(),&training, &test_graph, TEST);
@@ -419,7 +437,7 @@ void start(command_line_options& clopts) {
       load_pmf_graph<graph_type,gl_types,vertex_data,edge_data>((ac.datafile+"t2").c_str(),&training, &test_graph2, TEST2);
       ps.set_graph(&test_graph2, TEST2);
     }
-
+    }
     //calculate an export prediction on test data
    if (ac.exporttest){
       if (ac.outputvalidation) //experimental: output prediction of validation data

@@ -48,7 +48,8 @@ vertex_data_svdpp::vertex_data_svdpp(vertex_data & vdata){
     rmse = &vdata.rmse;
     num_edges = vdata.num_edges;
     bias = &vdata.bias;
-    assert(vdata.pvec.size() == 2*ac.D); //TO REMOVE
+    if (ps.algorithm == SVD_PLUS_PLUS)
+      assert(vdata.pvec.size() == 2*ac.D); //TO REMOVE
     pvec = &vdata.pvec[0];
     weight = &vdata.pvec[ac.D];
 }
@@ -154,8 +155,6 @@ float svdpp_predict(const vertex_data& user,
 }*/
  
 
-//calculate RMSE. This function is called only before and after grahplab is run.
-//during run, agg_rmse_by_movie is called 0 which is much lighter function (only aggregate sums of squares)
 double calc_svd_rmse(const graph_type * _g, bool test, double & res){
 
      graph_type * g = (graph_type*)ps.g<graph_type>(TRAINING);

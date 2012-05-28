@@ -78,6 +78,7 @@ struct time_svdpp_movie{
    double * y;
 
    time_svdpp_movie(vertex_data& vdata){
+     assert(vdata.pvec.size() == ac.D*2);
      bi = &vdata.bias;
      q = &vdata.pvec[0];
      y = q+ac.D;
@@ -93,18 +94,17 @@ struct time_svdpp_time{
      bt = &vdata.bias;
      z = &vdata.pvec[0];
      pt = z+ac.D;
+     assert(vdata.pvec.size() == ac.D*2);
    }
 };
 
 template<typename graph_type>
 void init_time_svdpp(graph_type * _g){ assert(false); }
 
-template<>
-void init_time_svdpp<graph_type>(graph_type *_g){
-   fprintf(stderr, "time-SVD++ %d factors\n", ac.D);
 
-   int k = ac.D;
-
+void init_time_svdpp_node_data(graph_type * _g){
+  int k = ac.D;
+#pragma omp parallel for
 	for (int u = 0; u < ps.M; u++) {
     vertex_data & data = _g->vertex_data(u);
     data.pvec = zeros(4*k);
@@ -118,6 +118,7 @@ void init_time_svdpp<graph_type>(graph_type *_g){
     }
   }
 
+  #pragma omp parallel for
 	for (int i = ps.M; i < ps.N+ps.M; i++) {
     vertex_data & data = _g->vertex_data(i);
     data.pvec = zeros(2*k);
@@ -128,7 +129,18 @@ void init_time_svdpp<graph_type>(graph_type *_g){
 			movie.y[m] = 0.001 * graphlab::random::rand01() / (double) (k);
 		}
 	}
-  for (int i = ps.M+ps.N; i < ps.M+ps.N+ps.K; i++) {
+}
+
+
+template<>
+void init_time_svdpp<graph_type>(graph_type *_g){
+
+   fprintf(stderr, "time-SVD++ %d factors\n", ac.D);
+
+   int k = ac.D;
+   init_time_svdpp_node_data(_g);
+  #pragma omp parallel for
+   for (int i = ps.M+ps.N; i < ps.M+ps.N+ps.K; i++) {
     vertex_data & data = _g->vertex_data(i);
     data.pvec = zeros(2*k);
 		time_svdpp_time timenode(data);
@@ -139,8 +151,19 @@ void init_time_svdpp<graph_type>(graph_type *_g){
     }
 	}
 
+  graph_type * validation = (graph_type*)ps.g<graph_type>(VALIDATION);
+  if (validation != NULL && validation->num_vertices() > 0){
+    init_time_svdpp_node_data(validation); 
+  }
+  graph_type * test = (graph_type*)ps.g<graph_type>(TEST);
+  if (test != NULL && test->num_vertices() > 0){
+    init_time_svdpp_node_data(test);
+   }
+   graph_type * test2 = (graph_type*)ps.g<graph_type>(TEST2);
+  if (test2 != NULL && test2->num_vertices() > 0){
+    init_time_svdpp_node_data(test2);
+  }
 }
-
 
 /*
  * predict missing rating for time-SVD++ algorithm
@@ -162,7 +185,16 @@ float time_svdpp_predict(const vertex_data& user,
    return predict(time_svdpp_usr((vertex_data&)user), time_svdpp_movie((vertex_data&)movie), edge,nothing, rating, prediction);
 }
 
-                   
+float time_svdpp_predict(const vertex_data& user, 
+                const vertex_data& movie, 
+                const edge_data_mcmc * edge,
+                const vertex_data* nothing,
+                const float rating, 
+                float & prediction){
+  assert(false);
+}
+
+                    
 /***
  * UPDATE FUNCTION
  */
