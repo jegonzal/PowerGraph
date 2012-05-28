@@ -26,8 +26,9 @@
 #include <graphlab/util/timer.hpp>
 #include <graphlab/util/random.hpp>
 #include <graphlab/util/small_set.hpp>
-#include <graphlab/util/charstream.hpp>
-#include <graphlab/util/cache.hpp>
+// #include <graphlab/util/charstream.hpp>
+// #include <graphlab/util/cache.hpp>
 #include <graphlab/util/fs_util.hpp>
 #include <graphlab/util/hdfs.hpp>
 #include <graphlab/util/mpi_tools.hpp>
+#include <graphlab/util/empty.hpp>

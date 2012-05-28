@@ -39,7 +39,7 @@
 
 
 #include <graphlab/vertex_program/icontext.hpp>
-
+#include <graphlab/util/empty.hpp>
 #include <graphlab/graph/graph_basic_types.hpp>
 #include <graphlab/graph/distributed_graph.hpp>
 
@@ -77,7 +77,7 @@ namespace graphlab {
   template<typename VertexData, 
            typename EdgeData,
            typename GatherType  = VertexData,
-           typename MessageType = char> 
+           typename MessageType = graphlab::empty> 
   class ivertex_program {    
   public:
 
