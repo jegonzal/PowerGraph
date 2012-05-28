@@ -33,12 +33,6 @@
 float RESET_PROB = 0.15;
 
 /**
- * Simple function used at the end of pagerank to extract the rank of
- * each page.  See: graph.map_reduce_vertices(float_identity);
- */
-float float_identity(float f) { return f; }
-
-/**
  * The type of data associated with each vertex
  */
 typedef float vertex_data_type;
@@ -113,6 +107,10 @@ public:
 }; // end of factorized_pagerank update functor
 
 
+/**
+ * Simple function used at the end of pagerank to extract the rank of
+ * each page.  See: graph.map_reduce_vertices(float_identity);
+ */
 float float_identity(graph_type::vertex_type f) { return f.data(); }
 
 

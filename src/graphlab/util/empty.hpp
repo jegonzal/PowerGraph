@@ -3,9 +3,15 @@
 #include <vector>
 #include <algorithm>
 #include <stdexcept>
+#include <graphlab/serialization/iarchive.hpp>
+#include <graphlab/serialization/oarchive.hpp>
 namespace graphlab {
 
-struct empty{};
+struct empty{
+  void save(oarchive&) const { }
+  void load(iarchive&) { }
+  empty& operator+=(empty&) { return *this; }
+};
 
 } // namespace graphlab;
 
