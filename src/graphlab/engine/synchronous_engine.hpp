@@ -203,7 +203,7 @@ namespace graphlab {
     gather_exchange_type gather_exchange;
 
     // Exchange used to transfer message data
-    typedef std::pair<vertex_id_type, gather_type> vid_message_pair_type;
+    typedef std::pair<vertex_id_type, message_type> vid_message_pair_type;
     typedef buffered_exchange<vid_message_pair_type> message_exchange_type;
     message_exchange_type message_exchange;
 
@@ -870,7 +870,7 @@ namespace graphlab {
     ASSERT_FALSE(graph.l_is_master(lvid));
     const procid_t master = graph.l_master(lvid);
     const vertex_id_type vid = graph.global_vid(lvid);
-    gather_exchange.send(master, std::make_pair(vid, messages[lvid]));
+    message_exchange.send(master, std::make_pair(vid, messages[lvid]));
   } // end of send_message
 
   template<typename VertexProgram>
