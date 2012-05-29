@@ -30,7 +30,7 @@
 #include <graphlab/serialization/oarchive.hpp>
 namespace graphlab {
 
-struct empty{
+struct empty {
   void save(oarchive&) const { }
   void load(iarchive&) { }
   empty& operator+=(const empty&) { return *this; }
@@ -43,7 +43,7 @@ namespace std {
 
 template <>
 class vector<graphlab::empty, allocator<graphlab::empty> > {
- private:
+ public:
   size_t len;
   graphlab::empty e;
 
@@ -263,5 +263,19 @@ class vector<graphlab::empty, allocator<graphlab::empty> > {
 };
   
 } // namespace std
+
+// serialization of the empty vector is a problem since it will
+// preferentially dispatch to the general vector serialize implementation
+// instead of the one built into vector<empty>. Using the out of place
+// save/load will fix this
+
+BEGIN_OUT_OF_PLACE_SAVE(arc, std::vector<graphlab::empty>, tval)
+  arc<< tval.len;
+END_OUT_OF_PLACE_SAVE()
+
+BEGIN_OUT_OF_PLACE_LOAD(arc, std::vector<graphlab::empty>, tval)
+  arc >> tval.len;
+END_OUT_OF_PLACE_LOAD()
+
 
 #endif

@@ -113,6 +113,16 @@ public:
  */
 float float_identity(graph_type::vertex_type f) { return f.data(); }
 
+struct pagerank_writer {
+  std::string save_vertex(graph_type::vertex_type v) {
+    std::stringstream strm;
+    strm << v.id() << "\t" << v.data() << "\n";
+    return strm.str();
+  }
+  std::string save_edge(graph_type::edge_type e) {
+    return "";
+  }
+};
 
 int main(int argc, char** argv) {
   //global_logger().set_log_level(LOG_DEBUG);
@@ -133,6 +143,10 @@ int main(int argc, char** argv) {
   size_t powerlaw = 0;
   clopts.attach_option("powerlaw", &powerlaw, powerlaw,
                        "Generate a synthetic powerlaw out-degree graph. ");
+  std::string saveprefix;
+  clopts.attach_option("saveprefix", &saveprefix, saveprefix,
+                       "If set, will save the resultant pagerank to a "
+                       "sequence of files with prefix saveprefix");
   if(!clopts.parse(argc, argv)) {
     std::cout << "Error in parsing command line arguments." << std::endl;
     return EXIT_FAILURE;
@@ -158,6 +172,15 @@ int main(int argc, char** argv) {
   
   float sum_of_graph = graph.map_reduce_vertices<float>(float_identity);
   std::cout << "Sum of graph: " << sum_of_graph << std::endl;
+
+  if (saveprefix != "") {
+    graphlab::graph_ops::save(graph,
+                              saveprefix,
+                              pagerank_writer(),
+                              false,    // do not gzip
+                              true,     // save vertices
+                              false);   // do not save edges
+  }
   
   graphlab::mpi_tools::finalize();
   return EXIT_SUCCESS;

@@ -22,26 +22,24 @@ namespace graphlab {
 
   template<typename VertexDataType, typename EdgeDataType, typename Fstream, typename Writer>
   void save_vertex_to_stream(const typename distributed_graph<VertexDataType,EdgeDataType>::vertex_type& vtype,
-                              const std::string& targetfilename,
                               Fstream& fout,
-                              const Writer &writer) {
-    fout << writer.save_vertex(vtype, targetfilename);
+                              Writer writer) {
+    fout << writer.save_vertex(vtype);
   }
 
 
   template<typename VertexDataType, typename EdgeDataType, typename Fstream, typename Writer>
   void save_edge_to_stream(const typename distributed_graph<VertexDataType,EdgeDataType>::edge_type& etype,
-                              const std::string& targetfilename,
                               Fstream& fout,
-                              const Writer &writer) {
-    std::string ret = writer.save_edge(etype, targetfilename);
+                              Writer writer) {
+    std::string ret = writer.save_edge(etype);
     fout << ret;
   }
   
   template <typename VertexDataType, typename EdgeDataType, typename Writer>
   void save(graphlab::distributed_graph<VertexDataType, EdgeDataType>& graph,
             std::string prefix,
-            const Writer &writer,
+            Writer writer,
             bool gzip = true,
             bool save_vertex = true,
             bool save_edge = true,
@@ -59,7 +57,7 @@ namespace graphlab {
   template <typename VertexDataType, typename EdgeDataType, typename Writer>
   void save_to_posixfs(graphlab::distributed_graph<VertexDataType, EdgeDataType>& graph,
                        std::string prefix,
-                       const Writer &writer,
+                       Writer writer,
                        bool gzip = true,
                        bool save_vertex = true,
                        bool save_edge = true,
@@ -111,12 +109,12 @@ namespace graphlab {
       vertex_callbacks[i] = boost::bind(
             save_vertex_to_stream<VertexDataType, EdgeDataType,
                                   boost_fstream_type, Writer>,
-            _1, graph_files[i], boost::ref(*fout), boost::ref(writer));
+            _1, boost::ref(*fout), boost::ref(writer));
 
       edge_callbacks[i] = boost::bind(
             save_edge_to_stream<VertexDataType, EdgeDataType,
                                 boost_fstream_type, Writer>,
-            _1, graph_files[i], boost::ref(*fout), boost::ref(writer));
+            _1, boost::ref(*fout), boost::ref(writer));
     }
 
     if (save_vertex) graph.parallel_for_vertices(vertex_callbacks);
@@ -142,7 +140,7 @@ namespace graphlab {
   template <typename VertexDataType, typename EdgeDataType, typename Writer>
   void save_to_hdfs(graphlab::distributed_graph<VertexDataType, EdgeDataType>& graph,
                     std::string prefix,
-                    const Writer &writer,
+                    Writer writer,
                     bool gzip = true,
                     bool save_vertex = true,
                     bool save_edge = true,
@@ -196,12 +194,12 @@ namespace graphlab {
       vertex_callbacks[i] = boost::bind(
             save_vertex_to_stream<VertexDataType, EdgeDataType,
                                   boost_fstream_type, Writer>,
-            _1, graph_files[i], boost::ref(*fout), boost::ref(writer));
+            _1, boost::ref(*fout), writer);
 
       edge_callbacks[i] = boost::bind(
             save_edge_to_stream<VertexDataType, EdgeDataType,
                                 boost_fstream_type, Writer>,
-            _1, graph_files[i], boost::ref(*fout), boost::ref(writer));
+            _1, boost::ref(*fout), writer);
     }
 
     if (save_vertex) graph.parallel_for_vertices(vertex_callbacks);

@@ -73,8 +73,8 @@ struct tsv_writer{
   typedef typename graphlab::distributed_graph<VertexDataType, EdgeDataType>::vertex_type vertex_type;
   typedef typename graphlab::distributed_graph<VertexDataType, EdgeDataType>::edge_type edge_type;
 
-  std::string save_vertex(vertex_type, std::string targetfilename) const { return ""; }
-  std::string save_edge(edge_type e, std::string targetfilename) const {
+  std::string save_vertex(vertex_type) { return ""; }
+  std::string save_edge(edge_type e) {
     return tostr(e.source().id()) + "\t" + tostr(e.target().id()) + "\n";
   }
 };
