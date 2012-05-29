@@ -93,6 +93,8 @@ public:
   const uint32_t& var() const { return _var; }
   uint16_t arity() const { return (uint16_t)_data.size(); }
   size_t size() const { return _data.size(); }
+  bool empty() const { return _data.empty(); }
+
 
   inline double& logP(size_t asg) {
     assert(asg < arity()); return _data[asg];

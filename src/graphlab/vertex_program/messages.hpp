@@ -32,28 +32,28 @@ namespace graphlab {
     /**
      * The priority of two messages is the sum
      */
-    struct sum : public graphlab::IS_POD_TYPE {
-      double prio;
-      sum(const double prio = 0) : prio(prio) { }
-      double priority() const { return prio; }
-      sum& operator+=(const sum& other) {
-        prio += other.prio;
+    struct sum_priority : public graphlab::IS_POD_TYPE {
+      double value;
+      sum_priority(const double value = 0) : value(value) { }
+      double priority() const { return value; }
+      sum_priority& operator+=(const sum_priority& other) {
+        value += other.value;
         return *this;
       }
-    }; // end of sum message
+    }; // end of sum_priority message
 
     /**
      * The priority of two messages is the max
      */
-    struct max : public graphlab::IS_POD_TYPE {
-      double prio;
-      max(const double prio = 0) : prio(prio) { }
-      double priority() const { return prio; }
-      max& operator+=(const sum& other) {
-        prio = std::max(prio, other.prio);
+    struct max_priority : public graphlab::IS_POD_TYPE {
+      double value;
+      max_priority(const double value = 0) : value(value) { }
+      double priority() const { return value; }
+      max_priority& operator+=(const max_priority& other) {
+        value = std::max(value, other.value);
         return *this;
       }
-    }; // end of max message
+    }; // end of max_priority message
 
 
   }; // end of messages namespace

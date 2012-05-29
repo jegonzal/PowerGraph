@@ -69,6 +69,18 @@ double DAMPING;
 // STRUCTS (Edge and Vertex data) =============================================>
 
 /**
+ * The data associated with each variable in the pairwise markov
+ * random field
+ */
+struct vertex_data : graphlab::IS_POD_TYPE {
+  float obs_color;
+  uint16_t true_color, pred_color;
+  vertex_data(float obs_color = 0, uint16_t true_color = 0) : 
+    obs_color(obs_color), true_color(true_color), pred_color(obs_color) { }
+}; // End of vertex data
+
+
+/**
  * The data associated with each directed edge in the pairwise markov
  * random field
  */
@@ -110,16 +122,6 @@ public:
 }; // End of edge data
 
 
-/**
- * The data associated with each variable in the pairwise markov
- * random field
- */
-struct vertex_data : graphlab::IS_POD_TYPE {
-  float obs_color;
-  uint16_t true_color, pred_color;
-  vertex_data(float obs_color = 0, uint16_t true_color = 0) : 
-    obs_color(obs_color), true_color(true_color), pred_color(obs_color) { }
-}; // End of vertex data
 
 /**
  * The type of the distributed graph representing the MRF.
@@ -149,7 +151,7 @@ struct factor_product {
  */
 class bp_vertex_program : 
   public graphlab::ivertex_program< graph_type, factor_product,
-                                    graphlab::messages::sum > {
+                                    graphlab::messages::sum_priority > {
 private:
   /**
    * The belief estimate for this vertex program
@@ -184,9 +186,8 @@ public:
   /**
    * Multiply message product by node potential and update the belief.
    */
-  virtual void apply(icontext_type& context, 
-                     vertex_type& vertex, 
-                     const gather_type& total) {
+  void apply(icontext_type& context, vertex_type& vertex, 
+             const gather_type& total) {
     // construct the node potential
     belief = make_potential(vertex);
     // multiply in the rest of the message product;
