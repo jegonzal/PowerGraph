@@ -115,6 +115,7 @@ namespace graphlab {
       for(size_t i = 0;i < nprocs; ++i) connect(i); 
       // wait for all incoming connections
       insock_lock.lock();
+      size_t prevconnected = -1;
       while(1) {
         size_t connected = 0;
         for (size_t i = 0;i < sock.size(); ++i) {
@@ -123,8 +124,11 @@ namespace graphlab {
         if (connected == sock.size()) {
           break;
         }
-        logstream(LOG_INFO) << "Waiting for " << sock.size() - connected 
+        if (prevconnected != connected) {
+          logstream(LOG_INFO) << curmachineid << ": Waiting for " << sock.size() - connected
                             << " more hosts..." << std::endl;
+        }
+        prevconnected = connected;
         insock_cond.wait(insock_lock);
       }
       insock_lock.unlock();
@@ -346,8 +350,8 @@ namespace graphlab {
                           << inet_ntoa(otheraddr->sin_addr) << std::endl;
       ASSERT_LT(id, all_addrs.size());
       ASSERT_EQ(all_addrs[id], addr);
-      ASSERT_EQ(sock[id].insock, -1);
       insock_lock.lock();
+      ASSERT_EQ(sock[id].insock, -1);
       sock[id].insock = newsock;
       insock_cond.signal();
       insock_lock.unlock();
@@ -418,7 +422,6 @@ namespace graphlab {
             ::close(newsock);
             newsock = socket(AF_INET, SOCK_STREAM, 0);
             set_tcp_no_delay(newsock);
-
           } else {
             // send my machine id
             sendtosock(newsock, reinterpret_cast<char*>(&curid), sizeof(curid));
@@ -473,13 +476,32 @@ namespace graphlab {
           procid_t remotemachineid = (procid_t)(-1);
           ssize_t msglen = 0;
           while(msglen != sizeof(procid_t)) {
-            msglen += recv(newsock, (char*)(&remotemachineid) + msglen, 
+            int retval = recv(newsock, (char*)(&remotemachineid) + msglen,
                            sizeof(procid_t) - msglen, 0);
+            if (retval < 0) {
+              if (errno == EWOULDBLOCK || errno == EAGAIN) {
+                continue;
+              }
+              else {
+                logstream(LOG_FATAL) << "error: " << errno <<  " receive error: " << strerror(errno) << std::endl;
+              }
+            }
+            else if (retval > 0) {
+              msglen += retval;
+            }
+            else if (retval == 0) {
+              std::cout << "error: connection dropped." << std::endl;
+              ::close(newsock);
+              newsock = -1;
+              break;
+            }
           }
-          // register the new socket
-          set_non_blocking(newsock);
-          new_socket(newsock, &their_addr, remotemachineid);
-          ++numsocks_connected;
+          if (newsock != -1) {
+            // register the new socket
+            set_non_blocking(newsock);
+            new_socket(newsock, &their_addr, remotemachineid);
+            ++numsocks_connected;
+          }
         }
         if (listensock == -1) {
           // the owner has closed
