@@ -24,8 +24,9 @@
 #define GRAPHLAB_GRAPH_INCLUDES
 
 #include <graphlab/graph/graph_ops.hpp>
-#include <graphlab/graph/distributed_graph_ops.hpp>
 #include <graphlab/graph/distributed_graph.hpp>
+#include <graphlab/graph/distributed_graph_load.hpp>
+#include <graphlab/graph/distributed_graph_save.hpp>
 
 #endif
 

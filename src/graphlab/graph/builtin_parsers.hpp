@@ -1,13 +1,17 @@
+#ifndef GRAPHLAB_GRAPH_BUILTIN_PARSERS_HPP
+#define GRAPHLAB_GRAPH_BUILTIN_PARSERS_HPP
+
 #include <string>
 #include <sstream>
 #include <iostream>
+#include <graphlab/util/stl_util.hpp>
 #include <graphlab/logger/logger.hpp>
 namespace graphlab {
 
 namespace builtin_parsers {
   
-template <typename VertexType, typename EdgeType>
-bool snap_parser(graphlab::distributed_graph<VertexType, EdgeType>& graph,
+template <typename VertexDataType, typename EdgeDataType>
+bool snap_parser(graphlab::distributed_graph<VertexDataType, EdgeDataType>& graph,
                  const std::string& srcfilename,
                  const std::string& str) {
   if (str.empty()) return true;
@@ -24,8 +28,8 @@ bool snap_parser(graphlab::distributed_graph<VertexType, EdgeType>& graph,
 }
 
 
-template <typename VertexType, typename EdgeType>
-bool tsv_parser(graphlab::distributed_graph<VertexType, EdgeType>& graph,
+template <typename VertexDataType, typename EdgeDataType>
+bool tsv_parser(graphlab::distributed_graph<VertexDataType, EdgeDataType>& graph,
                 const std::string& srcfilename,
                 const std::string& str) {
   if (str.empty()) return true;
@@ -36,8 +40,8 @@ bool tsv_parser(graphlab::distributed_graph<VertexType, EdgeType>& graph,
   return true;
 }
 
-template <typename VertexType, typename EdgeType>
-bool adj_parser(graphlab::distributed_graph<VertexType, EdgeType>& graph,
+template <typename VertexDataType, typename EdgeDataType>
+bool adj_parser(graphlab::distributed_graph<VertexDataType, EdgeDataType>& graph,
                 const std::string& srcfilename,
                 const std::string& str) {
   if (str.empty()) return true;
@@ -63,5 +67,20 @@ bool adj_parser(graphlab::distributed_graph<VertexType, EdgeType>& graph,
   return true;
 }
 
-} // namespace builtin_callbacks
+
+template <typename VertexDataType, typename EdgeDataType>
+struct tsv_writer{
+  typedef typename graphlab::distributed_graph<VertexDataType, EdgeDataType>::vertex_type vertex_type;
+  typedef typename graphlab::distributed_graph<VertexDataType, EdgeDataType>::edge_type edge_type;
+
+  std::string save_vertex(vertex_type, std::string targetfilename) const { return ""; }
+  std::string save_edge(edge_type e, std::string targetfilename) const {
+    return tostr(e.source().id()) + "\t" + tostr(e.target().id()) + "\n";
+  }
+};
+
+
+} // namespace builtin_parsers
 } // namespace graphlab
+
+#endif
