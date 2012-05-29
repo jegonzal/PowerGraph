@@ -50,6 +50,8 @@
 #include <graphlab/rpc/dc_dist_object.hpp>
 #include <graphlab/rpc/buffered_exchange.hpp>
 #include <graphlab/util/random.hpp>
+#include <graphlab/util/branch_hints.hpp>
+#include <graphlab/util/generics/conditional_addition_wrapper.hpp>
 
 #include <graphlab/options/graphlab_options.hpp>
 #include <graphlab/serialization/iarchive.hpp>
@@ -318,24 +320,38 @@ namespace graphlab {
     ResultType map_reduce_vertices(
         boost::function<ResultType(vertex_type)> mapfunction) {
       rpc.barrier();
+      bool global_result_set = false;
       ResultType global_result = ResultType();
 #pragma omp parallel
       {
-        ResultType result = ResultType();
+        bool result_set = false;
+        ResultType result;
         #pragma omp for
         for (int i = 0;i < (int)local_graph.num_vertices(); ++i) {
           if (lvid2record[i].owner == rpc.procid()) {
-            result += mapfunction(vertex_type(l_vertex(i)));
+            if (!result_set) {
+              result = mapfunction(vertex_type(l_vertex(i)));
+              result_set = true;
+            }
+            else if (result_set){
+              result += mapfunction(vertex_type(l_vertex(i)));
+            }
           }
         }
         #pragma omp critical
         {
-          global_result += result;
+          if (!global_result_set) {
+            global_result = result;
+            global_result_set = true;
+          }
+          else {
+            global_result += result;
+          }
         }
       }
-
-      rpc.all_reduce(global_result);
-      return global_result;
+      conditional_addition_wrapper<ResultType> wrapper(global_result, global_result_set);
+      rpc.all_reduce(wrapper);
+      return wrapper.value;
     }
 
 
@@ -355,24 +371,39 @@ namespace graphlab {
     ResultType map_reduce_edges(
         boost::function<ResultType(edge_type)> mapfunction) {
       rpc.barrier();
+      bool global_result_set = false;
       ResultType global_result = ResultType();
 #pragma omp parallel
       {
+        bool result_set = false;
         ResultType result = ResultType();
         #pragma omp for
         for (int i = 0;i < (int)local_graph.num_vertices(); ++i) {
           foreach(const local_edge_type& e, l_vertex(i).in_edges()) {
-            result += mapfunction(edge_type(e));
+            if (!result_set) {
+              result = mapfunction(edge_type(e));
+              result_set = true;
+            }
+            else if (result_set){
+              result += mapfunction(edge_type(e));
+            }
           }
         }
         #pragma omp critical
         {
-          global_result += result;
+         if (!global_result_set) {
+            global_result = result;
+            global_result_set = true;
+          }
+          else {
+            global_result += result;
+          }
         }
       }
 
-      rpc.all_reduce(global_result);
-      return global_result;
+      conditional_addition_wrapper<ResultType> wrapper(global_result, global_result_set);
+      rpc.all_reduce(wrapper);
+      return wrapper.value;
     }
 
 
