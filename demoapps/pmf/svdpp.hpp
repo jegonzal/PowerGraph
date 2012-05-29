@@ -64,18 +64,6 @@ vertex_data_svdpp & vertex_data_svdpp::operator=(vertex_data & vdata){
     weight = &vdata.pvec[ac.D];
     return *this;
 }
-/*
-void vertex_data_svdpp::save(graphlab::oarchive& archive) const {  
-    ////TODO archive << pvec;
-    archive << rmse << num_edges << bias; 
-    ///TODO archive << weight;
-  }  
-   
-void vertex_data_svdpp::load(graphlab::iarchive& archive) {  
-     //TODO archive >> pvec;
-     archive >> rmse >> num_edges >> bias;  
-     //TODO archive >> weight;
-}*/
 
 template<typename graph_type>
 void init_svdpp(graph_type* _g){
@@ -83,7 +71,7 @@ void init_svdpp(graph_type* _g){
 }
 
 template<>
-void init_svdpp/*<gc>*/(graph_type/*_svdpp*/ *_g){
+void init_svdpp(graph_type *_g){
    fprintf(stderr, "SVD++ %d factors\n", ac.D);
    double factor = 0.1/sqrt(ac.D);
 #pragma omp parallel for
@@ -147,84 +135,19 @@ float svdpp_predict(const vertex_data& user,
   return svdpp_predict(vertex_data_svdpp((vertex_data&)user), vertex_data_svdpp((vertex_data&)movie), edge, nothing, rating, prediction);
 }
 
-
-/*void predict_missing_value(const vertex_data_svdpp&data, const vertex_data_svdpp& pdata, edge_data& edge, double & sq_err, int&e, int i){
-    float prediction = 0;
-    svdpp_predict(data, pdata, &edge, NULL, edge.weight, prediction);
-    e++;
-}*/
  
 
-double calc_svd_rmse(const graph_type * _g, bool test, double & res){
-
-     graph_type * g = (graph_type*)ps.g<graph_type>(TRAINING);
-
-     if (test && ps.Le == 0)
-       return NAN;
-      
-     
-     res = 0;
-     double sqErr =0;
-     int nCases = 0;
-
-     for (int i=0; i< ps.M; i++){
-       vertex_data_svdpp usr(g->vertex_data(i));
-       int n = usr.num_edges; //+1.0 ? //regularization
-       if (n == 0){}
-       else {
-         memset( usr.weight, 0 , ac.D * sizeof(double));
-         foreach(edge_id_t oedgeid, g->out_edge_ids(i)) {
-           vertex_data_svdpp movie(g->vertex_data(g->target(oedgeid))); 
-           for (int j=0; j < ac.D; j++)
-					   usr.weight[j] += movie.weight[j];
-         }
-         float usrnorm = double(1.0/sqrt(n));
-         for (int j=0; j < ac.D; j++)
-           usr.weight[j] *= usrnorm;
-       }
-
-       foreach(edge_id_t oedgeid, _g->out_edge_ids(i)){
-         const edge_data & item = _g->edge_data(oedgeid);
-         const vertex_data_svdpp movie(g->vertex_data(_g->target(oedgeid))); 
-         float estScore;
-        sqErr += svdpp_predict(usr, movie, (edge_data*)NULL, NULL, item.weight, estScore);
-         nCases++;
-       }
-   }
-   res = sqErr;
-   assert(nCases == (test?ps.Le:ps.L));
-   return sqrt(sqErr/(double)nCases);
-}
 
 
 void svd_post_iter(){
-  printf("Entering last iter with %d\n", ps.iiter);
 
-  double res,res2;
-  double training_rmse = agg_rmse_by_user<graph_type, vertex_data>(res);
-  double validation_rmse =  calc_svd_rmse(ps.g<graph_type>(VALIDATION), true, res2);
-  printf("%g) Iter %s %d, TRAIN RMSE=%0.4f VALIDATION RMSE=%0.4f.\n", ps.gt.current_time(), "SVD", ps.iiter,  training_rmse, validation_rmse);
-
-  if (ac.calc_ap){
-     logstream(LOG_INFO)<<"AP@3 for training: " << calc_ap<graph_type,vertex_data,edge_data>(ps.g<graph_type>(TRAINING)) << " AP@3 for validation: " << calc_ap<graph_type,vertex_data,edge_data>(ps.g<graph_type>(VALIDATION)) << std::endl;
-  }
-
-  //stop on divergence
-  if (ac.halt_on_rmse_increase)
-    if ((ps.validation_rmse && (ps.validation_rmse < validation_rmse)) ||
-        (ps.training_rmse && (ps.training_rmse < training_rmse)))
-          dynamic_cast<graphlab::core<vertex_data_svdpp,edge_data>*>(ps.glcore)->engine().stop();
-
-  ps.validation_rmse = validation_rmse; 
-  ps.training_rmse = training_rmse;
-
+  post_iter_stats<graph_type>();
   ac.svdp.itmFctrStep *= ac.svdpp_step_dec;
   ac.svdp.itmFctr2Step *= ac.svdpp_step_dec;
   ac.svdp.usrFctrStep *= ac.svdpp_step_dec;
   ac.svdp.itmBiasStep *= ac.svdpp_step_dec;
   ac.svdp.usrBiasStep *= ac.svdpp_step_dec;
 
-  ps.iiter++;
 }
 
 

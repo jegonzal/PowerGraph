@@ -180,7 +180,7 @@ void add_tasks(core & glcore){
  }
 
   // add update function for time nodes (dim 3)
-  if (ps.tensor && ps.algorithm != TIME_SVD_PLUS_PLUS){
+  if (ps.tensor && ps.algorithm != TIME_SVD_PLUS_PLUS && ps.algorithm != LIBFM){
     std::vector<vertex_id_t> tv;
     for (int i=ps.M+ps.N; i< ps.M+ps.N+ps.K; i++)
       tv.push_back(i);

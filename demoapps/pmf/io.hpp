@@ -143,7 +143,7 @@ void verify_edges<graph_type_mult_edge,multiple_edges>(graph_type_mult_edge * _g
 
       for (int j=0; j< (int)tedges.medges.size(); j++){
         const edge_data_mcmc & data= tedges.medges[j];
-	if (!ac.zero)
+	      if (!ac.zero)
           assert(data.weight != 0);  
         if (ps.algorithm != WEIGHTED_ALS)
           assert(data.time < ps.K);
@@ -157,12 +157,15 @@ void verify_edges<graph_type_mult_edge,multiple_edges>(graph_type_mult_edge * _g
 
 void fill_factors_svdpp();
 void fill_factors_time_svd_plus_plus();
+void fill_factors_libfm();
 #include "read_matrix_market.hpp"
 /**
  * fill data structures used for writing output to file
  */
 void fill_factors_uvt(const graph_type *g ){
-
+  if (ac.bptf_additional_output != true)
+       ((graph_type*)ps.g<graph_type>(TRAINING))->reduce_mem_consumption();
+ 
   if (ps.algorithm == SVD_PLUS_PLUS || ps.algorithm == BIAS_SGD){
      fill_factors_svdpp();
   }
@@ -172,11 +175,12 @@ void fill_factors_uvt(const graph_type *g ){
    else if (ps.algorithm == RBM){ //TODO
 
    }
+   else if (ps.algorithm == LIBFM){
+     fill_factors_libfm();
+   }
    else if (ps.isals || ps.algorithm == STOCHASTIC_GRADIENT_DESCENT || ps.algorithm == NMF){
-              if (ac.bptf_additional_output != true)
-     ((graph_type*)ps.g<graph_type>(TRAINING))->reduce_mem_consumption();
-   ps.U = zeros(ps.M,ac.D);
-   ps.V = zeros(ps.N,ac.D);
+    ps.U = zeros(ps.M,ac.D);
+     ps.V = zeros(ps.N,ac.D);
 
    for (int i=0; i< ps.M+ps.N; i++){ 
       const vertex_data & data = ps.g<graph_type>(TRAINING)->vertex_data(i);
@@ -310,7 +314,13 @@ float time_svdpp_predict(const vertex_data& user,
                 const vertex_data* nothing,
                 const float rating, 
                 float & prediction);
-   	
+float libfm_predict(const vertex_data& user, 
+                const vertex_data& movie, 
+                const edge_data * edge,
+                const vertex_data* nothing,
+                const float rating, 
+                float & prediction);
+    	
 template<typename graph_type, typename vertex_data, typename edge_data>
 void common_prediction(const graph_type &g, const graph_type & _g, const vertex_data& data,int i, int &lineNum, double& sumPreds, vec* test_predictions, bool dosave, double & RMSE, double &  MAE){
   
@@ -330,6 +340,8 @@ void common_prediction(const graph_type &g, const graph_type & _g, const vertex_
       time_svdpp_predict(data, pdata, &edge, NULL, edge.weight, prediction);
     else if (ps.algorithm == RBM)
       rbm_predict(data, pdata, (edge_data*)NULL, NULL, edge.weight, prediction);
+    else if (ps.algorithm == LIBFM)
+      libfm_predict(data, pdata, &edge, &ps.times[(int)edge.time], edge.weight, prediction);
     else
      predict(data, pdata, ps.algorithm == WEIGHTED_ALS ? &edge : NULL, ps.tensor? (&ps.times[(int)edge.time]):NULL, edge.weight, prediction);
     truncate_and_scale(prediction);      
@@ -504,8 +516,6 @@ void export_uvt_to_matrixmarket(const graph_type * g){
      fill_factors_uvt(g);
   char dfile[256] = {0};
   sprintf(dfile,"%s-%d-%d.out",ac.datafile.c_str(), ac.D,ps.iiter);
-  if (ps.tensor)
-    logstream(LOG_WARNING)<<" matrix market IO does not support tensor mode" << std::endl;
   remove(dfile);
   save_matrix_market_format(dfile, ps.U, ps.V);  
  

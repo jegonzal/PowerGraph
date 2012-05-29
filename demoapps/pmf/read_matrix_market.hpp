@@ -274,7 +274,7 @@ void save_matrix_market_matrix(const char * filename, const mat & a, std::string
           }
        }
     }
-    logstream(LOG_INFO) << "Saved output matrix to file: " << filename << std::endl;
+    logstream(LOG_INFO) << "Saved output matrix to file: " << filename << " matrix size: " << a.rows() << " x " << a.cols() << std::endl;
     logstream(LOG_INFO) << "You can read it with Matlab/Octave using the script mmread.m found on http://graphlab.org/mmread.m" << std::endl;
 
 }
@@ -331,7 +331,7 @@ void save_matrix_market_vector(const char * filename, const vec & a, std::string
 
 void save_matrix_market_format(const char * filename, mat &U, mat& V)
 {
-    if (ps.algorithm != SVD && ps.algorithm != SVD_PLUS_PLUS && ps.algorithm != TIME_SVD_PLUS_PLUS && ps.algorithm != BIAS_SGD){
+    if (ps.algorithm != SVD && ps.algorithm != SVD_PLUS_PLUS && ps.algorithm != TIME_SVD_PLUS_PLUS && ps.algorithm != BIAS_SGD && ps.algorithm != RBM && ps.algorithm != LIBFM){
       save_matrix_market_matrix((std::string(filename) + ".V").c_str(),V, "%%GraphLab Collaborative filtering library. This file holds the matrix V. Row i holds the feature vector for movie i. You can compute prediction in matlab for user i movie j using U(i,:)*V(j,:)'\n", false, false);
       save_matrix_market_matrix((std::string(filename) + ".U").c_str(),U, "%%GraphLab Collaborative filtering library. This file holds the matrix U. Row i holds the feature vector for user i. You can compute prediction in matlab for user i movie j using U(i,:)*V(j,:)'\n", false, false);
       return;
@@ -345,7 +345,7 @@ void save_matrix_market_format(const char * filename, mat &U, mat& V)
       return;
     }
 
-    if (ps.algorithm == SVD_PLUS_PLUS || ps.algorithm == BIAS_SGD){
+    if (ps.algorithm == SVD_PLUS_PLUS || ps.algorithm == BIAS_SGD || ps.algorithm == LIBFM){
       save_matrix_market_vector((std::string(filename) + ".UserBias").c_str(),ps.svdpp_usr_bias, "%%GraphLab collaborative filtering library. This file holds user bias vector. In row i we have bias of user i.\n", false, false);
       save_matrix_market_vector((std::string(filename) + ".MovieBias").c_str(),ps.svdpp_movie_bias, "%%GraphLab collaborative filtering library. This file holds user bias vector. In row i we have bias of movie i.\n", false, false);
       save_matrix_market_matrix((std::string(filename) + ".Users").c_str(),ps.U,"%%GraphLab Collaborative filtering library. This file holds the matrix U. Row i holds the feature vector for user i.\n", false, false);
@@ -353,6 +353,11 @@ void save_matrix_market_format(const char * filename, mat &U, mat& V)
       mat gmean = mat(1,1);
       set_val(gmean,0,0,ps.globalMean[0]);
       save_matrix_market_matrix((std::string(filename) + ".GlobalMean").c_str(),gmean, "%%GraphLab collaborative filtering library. This file holds the global mean value.\n", false, false);
+
+      if (ps.algorithm == LIBFM){
+        save_matrix_market_vector((std::string(filename) + ".TimeBias").c_str(),ps.svdpp_time_bias, "%%GraphLab collaborative filtering library. This file holds user bias vector. In row i we have bias of time i.\n", false, false);
+        save_matrix_market_matrix((std::string(filename) + ".Times").c_str(),ps.T,"%%GraphLab Collaborative filtering library. This file holds the matrix T. Row i holds the feature vector for time bin i.\n", false, false);
+      }
       return;
     }
 

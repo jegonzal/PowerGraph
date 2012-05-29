@@ -294,7 +294,8 @@ public:
 
   vec svdpp_usr_bias;//for storing the output of SVD++
   vec svdpp_movie_bias; 
-  
+  vec svdpp_time_bias;
+ 
   timesvdpp_output timesvdpp_out; //for storing the ouptut of timesvd++
 
   mat dp;
