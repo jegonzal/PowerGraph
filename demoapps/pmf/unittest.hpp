@@ -82,6 +82,11 @@ eigenvalue 4 val: 0.780815
          assert(pow(get_val(ps.T,1,1) - sqrt(1015578),2) < 10);
          assert(pow(get_val(ps.T,0,1) - sqrt(10736707),2) < 10);
          break;
+
+     case 161:
+         assert(pow(ps.validation_rmse-1.35,2)<0.1);
+         assert(pow(ps.training_rmse-0.45,2)<0.1);
+         break;
   
     }
 }
@@ -125,8 +130,13 @@ void unit_testing(int unittest, command_line_options& clopts){
    else if (unittest == 131){ //SVD
      ac.datafile = "lanczos2"; ps.algorithm = SVD;  ac.algorithm = SVD; ac.matrixmarket= true; clopts.set_ncpus(1); ac.debug = true; clopts.set_scheduler_type("fifo"); ac.iter=4;
    }
-  else if (unittest == 132){ //SVD
+   else if (unittest == 132){ //SVD
      ac.datafile = "netflix"; ps.algorithm = SVD;  ac.algorithm = SVD; ac.isfloat=false; clopts.set_ncpus(1); ac.debug = true; clopts.set_scheduler_type("fifo"); ac.iter=3;
+   }
+   else if (unittest == 161){ //libfm
+     //wals 17 --scheduler="round_robin(max_iterations=1,block_size=1)" --matrixmarket=1 --K=2
+     ac.datafile = "wals"; ps.algorithm = LIBFM; ac.algorithm = LIBFM; clopts.set_ncpus(1); ac.debug=true; ac.libfm_rate = 0.1; 
+     clopts.set_scheduler_type("round_robin(max_iterations=10,block_size=1)"); ac.matrixmarket = 1; ac.K = 2;
    }
   
     else {

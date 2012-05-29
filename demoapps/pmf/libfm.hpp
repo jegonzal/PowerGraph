@@ -41,23 +41,25 @@ extern problem_setup ps;
 
 using namespace graphlab;
 
+std::vector<vertex_data> last_items;
+
 struct vertex_data_libfm{
    float * bias;
    double * v;
-   int num_edges; 
+   int *last_item; 
    float * rmse;
 
    vertex_data_libfm(const vertex_data & vdata){
      v = (double*)&vdata.pvec[0];
      bias = (float*)&vdata.bias;
-     num_edges = vdata.num_edges;
+     last_item = (int*)&vdata.num_edges;
      rmse = (float*)& vdata.rmse;
    }
    
    vertex_data_libfm & operator=(vertex_data & data){
      v = (double*)&data.pvec[0];
      bias = (float*)&data.bias;
-     num_edges = data.num_edges;
+     last_item = (int*)&data.num_edges;
      rmse = (float*)&data.rmse;
 		 return * this;
     }   
@@ -91,7 +93,25 @@ void init_libfm(graph_type *_g){
        for (int j=0; j < ac.D; j++){
           data.v[j] = (ac.debug ? 0.1 : (randu()*factor));
        }
-   } 
+       if (i >= ps.M){
+         vertex_data data;
+         data.pvec = (ac.debug ? ones(ac.D)*0.1 : randu(ac.D) * factor);
+         last_items.push_back(data);
+       }
+       else { //user node. find the last rated item and store it
+         gl_types::edge_list outs = _g->out_edge_ids(i);
+         int max_time = 0;
+         vdata.num_edges = -1;
+         foreach(graphlab::edge_id_t oedgeid, outs) {
+           edge_data & edge = _g->edge_data(oedgeid);
+           if (edge.time >= max_time){
+             max_time = edge.time;
+             vdata.num_edges = _g->target(oedgeid) - ps.M;
+           }
+         }
+      }
+  } 
+   assert((int)last_items.size() == ps.N);
 
    for (int i=0; i< ac.K; i++){
       vertex_data & data = ps.times[i];
@@ -116,16 +136,16 @@ void libfm_post_iter(){
   post_iter_stats<graph_type>();  
   ac.libfm_rate *= ac.libfm_mult_dec;
 }
-
+/*
 float libfm_predict(const vertex_data_libfm& user, 
                 const vertex_data_libfm& movie, 
                 const edge_data_mcmc * edge,
                 const vertex_data* nothing,
                 const float rating, 
                 float & prediction, vec * sum){ assert(false); }
+*/
 
   
- 
 float libfm_predict(const vertex_data_libfm& user, 
                 const vertex_data_libfm& movie, 
                 const edge_data * edge,
@@ -133,15 +153,16 @@ float libfm_predict(const vertex_data_libfm& user,
                 const float rating, 
                 float & prediction, vec * sum){
  
-  if (user.num_edges == 0)
+  if (*user.last_item == -1)
      return libfm_predict_new_user(user, movie, edge, time, rating, prediction, sum);
 
+  vertex_data & last_item = last_items[*user.last_item];
   vec sum_sqr = zeros(ac.D);
   *sum = zeros(ac.D);
-  prediction = ps.globalMean[0] + *user.bias + *movie.bias + time->bias;
+  prediction = ps.globalMean[0] + *user.bias + *movie.bias + time->bias + last_item.bias;
   for (int j=0; j< ac.D; j++){
-    sum->operator[](j) += user.v[j] + movie.v[j] + time->pvec[j];	 //TODO + last item
-    sum_sqr[j] = pow(user.v[j],2) + pow(movie.v[j],2) + pow(time->pvec[j],2); //TODO + last item
+    sum->operator[](j) += user.v[j] + movie.v[j] + time->pvec[j] + last_item.pvec[j];	 
+    sum_sqr[j] = pow(user.v[j],2) + pow(movie.v[j],2) + pow(time->pvec[j],2) + pow(last_item.pvec[j],2); 
     prediction += 0.5 * (pow(sum->operator[](j),2) - sum_sqr[j]);
   }
   //truncate prediction to allowed values
@@ -181,30 +202,21 @@ void libfm_update_function(gl_types::iscope &scope,
     debug_print_vec("U", user.v, ac.D);
   }
   *user.rmse = 0;
+  gl_types::edge_list outs = scope.out_edge_ids();
 
-  if (user.num_edges == 0){
+  if (outs.size() == 0){
 		if (id == ps.M-1){
   	  libfm_post_iter();
     }
 		return; //if this user/movie have no ratings do nothing
   }
+  
 
-  gl_types::edge_list outs = scope.out_edge_ids();
   timer t;
   t.start(); 
-            
-
-  int max_time = 0;
-  graphlab::edge_id_t lastItemRating = -1;
-  foreach(graphlab::edge_id_t oedgeid, outs) {
-    edge_data & edge = scope.edge_data(oedgeid);
-    if (edge.time > max_time){
-      max_time = edge.time;
-      lastItemRating = oedgeid;
-    }
-  } 
-  edge_data & last_rating = scope.edge_data(lastItemRating);
- 
+  assert(*user.last_item >= 0 && *user.last_item < ps.N);
+  vertex_data & last_item = last_items[*user.last_item]; 
+  
   foreach(graphlab::edge_id_t oedgeid, outs) {
       edge_data & edge = scope.edge_data(oedgeid);
       vertex_data_libfm movie(scope.neighbor_vertex_data(scope.target(oedgeid)));
@@ -213,18 +225,14 @@ void libfm_update_function(gl_types::iscope &scope,
 				float pui;
         vec sum;
         vertex_data & time = ps.times[(int)edge.time];
-        float sqErr = libfm_predict(user, movie, &last_rating, &time, edge.weight, pui, &sum);
+        float sqErr = libfm_predict(user, movie, &edge, &time, edge.weight, pui, &sum);
 			  float eui = pui - rui;
                 
         ps.globalMean[0] -= ac.libfm_rate * (eui + reg0 * ps.globalMean[0]);
-        /*        w[user_idx] -= libfm_lrate * (eui + libfm_regw * w[user_idx]);
-                w[item_idx] -= libfm_lrate * (eui + libfm_regw * w[item_idx]);
-                w[time_idx] -= libfm_lrate * (eui + libfm_regw * w[time_idx]);
-                w[last_item_idx] -= libfm_lrate * (eui + libfm_regw * w[last_item_idx]);*/
         *user.bias -= ac.libfm_rate * (eui + ac.libfm_regw * *user.bias);
         *movie.bias -= ac.libfm_rate * (eui + ac.libfm_regw * *movie.bias);
         time.bias -= ac.libfm_regw * (eui + ac.libfm_regw * time.bias);
-        //TODO *last_rating.bias -= ac.libfm_regw * (eru + ac.libfm_regw * *last_rating.bias);
+        last_item.bias -= ac.libfm_regw * (eui + ac.libfm_regw * last_item.bias);
         
         for(int f = 0; f < ac.D; f++){
                     // user
@@ -237,10 +245,10 @@ void libfm_update_function(gl_types::iscope &scope,
           grad = sum[f] - time.pvec[f];
           time.pvec[f] -= ac.libfm_rate * (eui * grad + ac.libfm_regv * time.pvec[f]);
                     // last item
-                    //grad = sum[f] - v[last_item_idx][f];
-                    //v[last_item_idx][f] -= libfm_rate * (eui * grad + ac.libfm_regv * v[last_item_idx][f]);
+          grad = sum[f] - last_item.pvec[f];
+          last_item.pvec[f] -= ac.libfm_rate * (eui * grad + ac.libfm_regv * last_item.pvec[f]);
 
-                }
+       }
                 
 				*user.rmse += sqErr;
 		}
