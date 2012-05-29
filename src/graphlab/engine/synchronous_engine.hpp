@@ -463,6 +463,7 @@ namespace graphlab {
       // Clear the active super-step and minor-step bits which will
       // be set upon receiving messages
       active_superstep.clear(); active_minorstep.clear();
+      has_gather_accum.clear(); 
       rmi.barrier();
 
 
@@ -495,6 +496,8 @@ namespace graphlab {
       // Check termination condition  ---------------------------------------
       size_t total_active_vertices = num_active_vertices; 
       rmi.all_reduce(total_active_vertices);
+      if (rmi.procid() == 0) 
+        std::cout << "\tActive vertices: " << total_active_vertices << std::endl;
       if(total_active_vertices == 0 ) {
         termination_reason = execution_status::TASK_DEPLETION;
         break;
@@ -520,7 +523,6 @@ namespace graphlab {
       // Execute Apply Operations -------------------------------------------
       // Run the apply function on all active vertices
       run_synchronous( &synchronous_engine::execute_applys );
-      has_gather_accum.clear();  // rmi.barrier();
       /**
        * Post conditions:
        *   1) any changes to the vertex data have been synchronized
@@ -642,7 +644,7 @@ namespace graphlab {
       // If this vertex is active in the gather minorstep
       if(active_minorstep.get(lvid)) {
         bool accum_is_set = false;
-        gather_type accum = gather_type(); //! This machines contribution to the gather          
+        gather_type accum = gather_type();         
         // if caching is enabled and we have a cache entry then use
         // that as the accum
         if( caching_enabled && has_cache.get(lvid) ) {
@@ -682,7 +684,7 @@ namespace graphlab {
             // cache for future iterations.  Note that it is possible
             // that the accumulator was never set in which case we are
             // effectively "zeroing out" the cache.
-          if(caching_enabled) {              
+          if(caching_enabled && accum_is_set) {              
             gather_cache[lvid] = accum; has_cache.set_bit(lvid); 
           } // end of if caching enabled            
         }

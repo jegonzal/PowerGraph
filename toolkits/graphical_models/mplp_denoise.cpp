@@ -442,7 +442,7 @@ void create_synthetic_mrf(graphlab::distributed_control& dc,
   const double max_radius = std::min(rows, cols) / 2.0;
  
   for(size_t r = dc.procid(); r < rows; r += dc.numprocs()) {
-    for(size_t c = dc.procid(); c < cols; c += dc.numprocs()) {
+    for(size_t c = 0; c < cols; ++c) {
       // Compute the true pixel value
       const double distance = sqrt((r-center_r)*(r-center_r) + 
                                    (c-center_c)*(c-center_c));

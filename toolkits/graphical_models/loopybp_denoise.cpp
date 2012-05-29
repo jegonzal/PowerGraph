@@ -87,7 +87,7 @@ struct vertex_data : graphlab::IS_POD_TYPE {
 class edge_data {
   unary_factor messages[4];
   size_t message_idx(size_t source_id, size_t target_id, bool is_new) {
-    return (source_id < target_id)  + 2 * (is_new);
+    return size_t(source_id < target_id)  + 2 * size_t(is_new);
   }
 public:
   edge_data() { }
@@ -137,6 +137,7 @@ struct factor_product {
   factor_product(const unary_factor& factor = unary_factor()) : 
     factor(factor) { }
   factor_product& operator+=(const factor_product& other) {
+    ASSERT_EQ(factor.arity(), other.factor.arity());
     factor *= other.factor;
     return *this;
   }
@@ -157,9 +158,15 @@ private:
    * The belief estimate for this vertex program
    */
   unary_factor belief;
+  size_t iteration;
 public:
-  void save(graphlab::oarchive& arc) const { arc << belief; }
-  void load(graphlab::iarchive& arc) { arc >> belief; }
+  void save(graphlab::oarchive& arc) const { arc << belief << iteration; }
+  void load(graphlab::iarchive& arc) { arc >> belief >> iteration; }
+
+  void recv_message(icontext_type& context, const vertex_type& vertex,
+                    const message_type& msg) {
+    iteration = context.iteration();
+  }
 
   /**
    * Since the MRF is undirected we will use all edges for gather and
@@ -177,6 +184,7 @@ public:
   gather_type gather(icontext_type& context, 
                      const vertex_type& vertex, 
                      edge_type& edge) const {
+    ASSERT_EQ(iteration, context.iteration());
     const vertex_type other_vertex = get_other_vertex(edge, vertex);
     edge_data& edata = edge.data();
     edata.update_old(other_vertex.id(), vertex.id());
@@ -188,8 +196,10 @@ public:
    */
   void apply(icontext_type& context, vertex_type& vertex, 
              const gather_type& total) {
+    ASSERT_EQ(iteration, context.iteration());
     // construct the node potential
     belief = make_potential(vertex);
+    ASSERT_EQ(belief.arity(), total.factor.arity());
     // multiply in the rest of the message product;
     belief *= total.factor;
     belief.normalize();
@@ -211,23 +221,27 @@ public:
    */
   void scatter(icontext_type& context, const vertex_type& vertex, 
                edge_type& edge) const {  
+    ASSERT_EQ(iteration, context.iteration());
     const vertex_type other_vertex = get_other_vertex(edge, vertex);
     edge_data& edata = edge.data();
     // construct the cavity
     unary_factor cavity = belief;
-    cavity /= edata.old_message(vertex.id(), other_vertex.id());
+    cavity /= edata.old_message(other_vertex.id(), vertex.id());
     cavity.normalize();
     // compute the new message
-    unary_factor& new_message = edata.message(vertex.id(), other_vertex.id());
+    unary_factor& new_message = 
+      edata.message(vertex.id(), other_vertex.id());
     const unary_factor& old_message = 
       edata.old_message(vertex.id(), other_vertex.id());
+    ASSERT_NE(&new_message, &old_message);
     new_message.convolve(EDGE_FACTOR, cavity);
     new_message.normalize();
     new_message.damp(old_message, DAMPING);
     // Compute message residual
     const double residual = new_message.residual(old_message);
+    context.signal(vertex, residual);
     // Schedule the adjacent vertex
-    if(residual > BOUND) context.signal(other_vertex, residual);
+    //    if(residual > BOUND) context.signal(other_vertex, residual);
  }; // end of scatter
 
 private:
@@ -331,7 +345,6 @@ int main(int argc, char** argv) {
   std::string orig_fn = "source_img.pgm";
   std::string noisy_fn = "noisy_img.pgm";
   std::string pred_fn = "pred_img.pgm";
-  std::string pred_type = "map";
 
 
 
@@ -370,9 +383,6 @@ int main(int argc, char** argv) {
   clopts.attach_option("pred",
                        &pred_fn, pred_fn,
                        "Predicted image file name.");
-  clopts.attach_option("pred_type",
-                       &pred_type, pred_type,
-                       "Predicted image type {map, exp}");
     
 
   ///! Initialize control plain using mpi
@@ -398,8 +408,7 @@ int main(int argc, char** argv) {
               << "scheduler:      " << clopts.get_scheduler_type() << std::endl
               << "orig_fn:        " << orig_fn << std::endl
               << "noisy_fn:       " << noisy_fn << std::endl
-              << "pred_fn:        " << pred_fn << std::endl
-              << "pred_type:      " << pred_type << std::endl;
+              << "pred_fn:        " << pred_fn << std::endl;
   }
 
   
@@ -411,6 +420,10 @@ int main(int argc, char** argv) {
   create_synthetic_mrf(dc, graph, nrows, ncols);
   std::cout << "Finalizing the graph." << std::endl;
   graph.finalize();
+  if(dc.procid() == 0) {
+    std::cout << "Number of vertices: " << graph.num_vertices() << std::endl
+              << "Number of edges:    " << graph.num_edges() << std::endl;
+  }
 
   std::cout << "Collect the noisy image. " << std::endl;
   merge_reduce_type obs_image = 
@@ -419,7 +432,7 @@ int main(int argc, char** argv) {
   if(dc.procid() == 0) {
     save_image(nrows, ncols, obs_image.values, noisy_fn);
   }
-  
+
   // Initialze the edge factor ----------------------------------------------->
   std::cout << "Initializing shared edge agreement factor. " << std::endl;
   // dummy variables 0 and 1 and num_rings by num_rings
@@ -485,7 +498,7 @@ void create_synthetic_mrf(graphlab::distributed_control& dc,
   const double max_radius = std::min(rows, cols) / 2.0;
  
   for(size_t r = dc.procid(); r < rows; r += dc.numprocs()) {
-    for(size_t c = dc.procid(); c < cols; c += dc.numprocs()) {
+    for(size_t c = 0; c < cols; ++c) {
       // Compute the true pixel value
       const double distance = sqrt((r-center_r)*(r-center_r) + 
                                    (c-center_c)*(c-center_c));
@@ -517,6 +530,7 @@ void create_synthetic_mrf(graphlab::distributed_control& dc,
 void save_image(const size_t rows, const size_t cols,
                 const std::vector<pred_pair_type>& values,
                 const std::string& fname) {
+  std::cout << "NPixels: " << values.size() << std::endl;
   image img(rows, cols);
   foreach(pred_pair_type pair, values) 
     img.pixel(pair.first) = pair.second;
