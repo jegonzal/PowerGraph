@@ -37,6 +37,7 @@ using namespace std;
 
 extern const char * testtypename[];
 extern const char * countername[];
+extern const char * runmodesname[];
 extern std::vector<edge_id_t> * edges;
 
 
@@ -317,7 +318,7 @@ void calc_stats(testtype type){
    case TEST2: assert(numedges==ps.Lt2); break;
  }
 }
-
+/*
 void predict_missing_value(const vertex_data& data, 
 			   const vertex_data& pdata,
 			   edge_data_mcmc& edge,
@@ -346,46 +347,66 @@ void calc_rmse_edge<graph_type_mult_edge, vertex_data>(edge_id_t iedgeid, const 
          }
 } 
 
-
+*/
 
 
 //calculate RMSE. This function is called only before and after grahplab is run.
 //during run, agg_rmse_by_movie is called 0 which is much lighter function (only aggregate sums of squares)
 template<typename graph_type, typename vertex_data>
-double calc_rmse(const graph_type * _g, bool test, double & res){
-     if (test && ps.Le == 0)
+double calc_rmse(const graph_type * _g, testtype type, double & res, double & MAE, vec * out_predictions = NULL){
+
+
+     if (type == VALIDATION && ps.Le == 0)
        return NAN;
      
      if (ps.algorithm == LANCZOS || ps.algorithm == SVD) //not implemented yet
        return NAN;
+  
+     const graph_type * g = ps.g<graph_type>(TRAINING);
  
      res = 0;
      double RMSE = 0;
-     int e = 0;
-     for (int i=ps.M; i< ps.M+ps.N; i++){
-       const vertex_data & data = ps.g<graph_type>(TRAINING)->vertex_data(i);
-       foreach(edge_id_t iedgeid, _g->in_edge_ids(i)) {
-         const vertex_data & pdata = ps.g<graph_type>(TRAINING)->vertex_data(_g->source(iedgeid)); 
-         calc_rmse_edge<graph_type, vertex_data>(iedgeid, _g, RMSE, data, pdata, e, i);       
-       }
+     int size = 0;
+     switch(type){
+       case VALIDATION: 
+         size = ps.Le; 
+         break;
+  
+      case TEST: 
+       size = ps.Lt; 
+       break;
+
+      case TEST2: 
+       size = ps.Lt2; 
+       break;
+
+      case TRAINING:
+       size = ps.L;
+       break;
+
+      default:
+        assert(false);
      }
-   res = RMSE;
-   if (e != (test?ps.Le:ps.L))
-      logstream(LOG_FATAL)<<"Missing ratings in " << testtypename[test] << " file. Expected to have "
-      << (test?ps.Le:ps.L) << " while encountered only " << e << std::endl;
+     if (out_predictions)
+      *out_predictions = zeros(size);
+     double sumPreds = 0; 
+     int e = 0;
+     for (int i=0; i< ps.M; i++){
+       vertex_data & data = ((graph_type*)ps.g<graph_type>(TRAINING))->vertex_data(i);
+       //foreach(edge_id_t iedgeid, _g->in_edge_ids(i)) {
+       //  const vertex_data & pdata = ps.g<graph_type>(TRAINING)->vertex_data(_g->source(iedgeid)); 
+       //  calc_rmse_edge<graph_type, vertex_data>(iedgeid, _g, RMSE, data, pdata, e, i);       
+        test_predict(data, i, e, sumPreds, out_predictions, true, *g, *_g, RMSE, MAE);
+       }
+   if (e != size)
+      logstream(LOG_FATAL)<<"Missing ratings in " << testtypename[type] << " file. Expected to have "
+      << size << " while encountered only " << e << std::endl;
+   MAE /= e;
    return sqrt(RMSE/(double)e);
 
 }
  
 
-template<typename graph_type, typename vertex_data>
-double calc_rmse_wrapper(const graph_type* _g, bool test, double & res){
-   if (ps.algorithm == LANCZOS || ps.algorithm == SVD){
-       res=-1; 
-			 return -1; //not implemented yet
-   }
-   else return calc_rmse<graph_type, vertex_data>(_g, test, res);
-}
 
   
 // go over all movie edges and aggregate RMSE by summing up the squares, computing the
@@ -422,22 +443,17 @@ double agg_rmse_by_user(double & res){
   return sqrt(RMSE/(double)ps.L);
 
 }
-float time_svdpp_predict(const vertex_data& user, 
-                const vertex_data& movie, 
-                const edge_data * edge,
-                const vertex_data* nothing,
-                const float rating, 
-                float & prediction);
  
 //calc average percision AP@3 (for kdd cup 2012 track 1)
 template<typename graph_type, typename vertex_data, typename edge_data>
-double calc_ap(const graph_type * _g){
+double calc_ap(const graph_type * _g, vec * predictions = NULL){
 
    if (_g == NULL || _g->num_edges() == 0)
      return NAN;
 
    int users = 0;
    double sum_ap = 0;
+   int edges = 0;
    for (int i=0; i< ps.M; i++){
        const vertex_data & data = ps.g<graph_type>(TRAINING)->vertex_data(i);
        vec ratings = zeros(_g->num_out_neighbors(i));
@@ -448,9 +464,12 @@ double calc_ap(const graph_type * _g){
          int real_click_count = 0;
          foreach(edge_id_t oedgeid, _g->out_edge_ids(i)) {
            const vertex_data & pdata = ps.g<graph_type>(TRAINING)->vertex_data(_g->target(oedgeid)); 
-           float prediction = 0; 
+           float prediction;
+           edges++; 
            const edge_data &edge = _g->edge_data(oedgeid);
-           if (ps.algorithm == BIAS_SGD)
+           if (predictions && predictions->size() > 0 )
+              prediction = predictions->operator[](edges);
+           else if (ps.algorithm == BIAS_SGD)
              bias_sgd_predict(vertex_data_svdpp((vertex_data&)data), vertex_data_svdpp((vertex_data&)pdata), &edge, NULL, edge.weight, prediction);
            else if (ps.algorithm == SVD_PLUS_PLUS)
               svdpp_predict(vertex_data_svdpp((vertex_data&)data), vertex_data_svdpp((vertex_data&)pdata), &edge, NULL, edge.weight, prediction);
@@ -484,15 +503,44 @@ double calc_ap(const graph_type * _g){
 }
 
 template<>
-double calc_ap<graph_type_mult_edge, vertex_data, multiple_edges>(const graph_type_mult_edge * _g){
+double calc_ap<graph_type_mult_edge, vertex_data, multiple_edges>(const graph_type_mult_edge * _g, vec * prediction){
    logstream(LOG_FATAL)<<"This run mode does not support calculation of AP@3" << std::endl;
    return NAN;
 }
 template<>
-double calc_ap<graph_type_mult_edge, vertex_data, edge_data_mcmc>(const graph_type_mult_edge * _g){
+double calc_ap<graph_type_mult_edge, vertex_data, edge_data_mcmc>(const graph_type_mult_edge * _g, vec * predictions){
    logstream(LOG_FATAL)<<"This run mode does not support calculation of AP@3" << std::endl;
    return NAN;
 }
 
+template<typename graph_type>
+double post_iter_stats(){
+
+typedef typename graph_type::vertex_data_type vertex_data;
+typedef typename graph_type::edge_data_type edge_data;
+
+  double res,res2,MAE;
+  double training_rmse = ps.isals ? agg_rmse_by_movie<graph_type, vertex_data>(res) : agg_rmse_by_user<graph_type, vertex_data>(res);
+  vec predictions;
+  double validation_rmse = calc_rmse<graph_type, vertex_data>((graph_type*)ps.g<graph_type>(VALIDATION), VALIDATION, res2, MAE, &predictions);
+  printf(ac.printhighprecision ? 
+        "%g) Iter %s %d  TRAIN RMSE=%0.12f VALIDATION RMSE=%0.12f VALIDATION MAE=%0.12f.\n":
+        "%g) Iter %s %d  TRAIN RMSE=%0.4f VALIDATION RMSE=%0.4f VALIDATION MAE=%0.4f.\n",
+  ps.gt.current_time(), runmodesname[ps.algorithm], ps.iiter,  training_rmse, validation_rmse, MAE);
+
+  if (ac.calc_ap){
+     logstream(LOG_INFO)<<"AP@3 for training: " << calc_ap<graph_type,vertex_data,edge_data>(ps.g<graph_type>(TRAINING)) << " AP@3 for validation: " << calc_ap<graph_type,vertex_data,edge_data>(ps.g<graph_type>(VALIDATION), &predictions) << std::endl;
+  }
+   //stop on divergence
+  if (ac.halt_on_rmse_increase)
+    if ((ps.validation_rmse && (ps.validation_rmse < validation_rmse)) ||
+        (ps.training_rmse && (ps.training_rmse < training_rmse)))
+          dynamic_cast<graphlab::core<vertex_data,edge_data>*>(ps.glcore)->engine().stop();
+
+  ps.validation_rmse = validation_rmse; 
+  ps.training_rmse = training_rmse;
+  ps.iiter++;
+  return res;
+}
 #include <graphlab/macros_undef.hpp>
 #endif //_STATS_HPP

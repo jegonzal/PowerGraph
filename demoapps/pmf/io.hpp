@@ -63,8 +63,8 @@ void add_time_nodes(graph_type* _g){
     for (int i=0; i<ps.K; i++){
       ps.times[i].pvec =tones;
       _g->add_vertex(ps.times[i]);
-      if (ac.debug && (i <= 5 || i == ps.K-1))
-        debug_print_vec("T: ", ps.times[i].pvec, ac.D);
+      //if (ac.debug && (i <= 5 || i == ps.K-1))
+      //  debug_print_vec("T: ", ps.times[i].pvec, ac.D);
     }
 }; //nothing to be done here 
 
@@ -89,16 +89,16 @@ void add_vertices(graph_type * _g, testtype data_type){
   for (int i=0; i<ps.M; i++){
     //vdata.pvec = ac.debug? (ones(ac.D)*0.1) : (randu(ac.D)*(0.1/sqrt(ac.D)));
     _g->add_vertex(vdata);
-    if (ac.debug && (i<= 5 || i == ps.M-1))
-      debug_print_vec("U: ", vdata.pvec, ac.D);
+    //if (ac.debug && (i<= 5 || i == ps.M-1))
+    //  debug_print_vec("U: ", vdata.pvec, ac.D);
   }
   
   // add N movie node (ps.tensor dim 2) 
   for (int i=0; i<ps.N; i++){
     //vdata.pvec = ac.debug? (ones(ac.D)*0.1) : (randu(ac.D)*(0.1/sqrt(ac.D)));
     _g->add_vertex(vdata);
-    if (ac.debug && (i<=5 || i==ps.N-1))
-      debug_print_vec("V: ", vdata.pvec, ac.D);
+    //if (ac.debug && (i<=5 || i==ps.N-1))
+    //  debug_print_vec("V: ", vdata.pvec, ac.D);
   }
   
   //add time nodes (if needed)
@@ -312,7 +312,7 @@ float time_svdpp_predict(const vertex_data& user,
                 float & prediction);
    	
 template<typename graph_type, typename vertex_data, typename edge_data>
-void common_prediction(const graph_type &g, const graph_type & _g, const vertex_data& data,int i, int &lineNum, double& sumPreds, vec& test_predictions, bool dosave){
+void common_prediction(const graph_type &g, const graph_type & _g, const vertex_data& data,int i, int &lineNum, double& sumPreds, vec* test_predictions, bool dosave, double & RMSE, double &  MAE){
   
   foreach(edge_id_t iedgeid, _g.out_edge_ids(i)) {
     const vertex_data & pdata = g.vertex_data(_g.target(iedgeid)); 
@@ -333,10 +333,12 @@ void common_prediction(const graph_type &g, const graph_type & _g, const vertex_
     else
      predict(data, pdata, ps.algorithm == WEIGHTED_ALS ? &edge : NULL, ps.tensor? (&ps.times[(int)edge.time]):NULL, edge.weight, prediction);
     truncate_and_scale(prediction);      
+    RMSE += pow(prediction - edge.weight, 2);
+    MAE += fabs(prediction - edge.weight);
     if (ac.debug && (i== 0 || i == ps.M))
 			cout<<lineNum<<") prediction:"<<prediction<<endl; 
     if (dosave)
-			test_predictions[lineNum] = prediction;
+			test_predictions->operator[](lineNum) = prediction;
 	  
     sumPreds += prediction;
  	  lineNum++; 
@@ -344,7 +346,7 @@ void common_prediction(const graph_type &g, const graph_type & _g, const vertex_
 }
 
 //compute predictions 
-void test_predict(vertex_data & usr, int i, int& lineNum, double & sumPreds, vec& test_predictions, bool dosave, const graph_type &g, const graph_type & _g){
+void test_predict(vertex_data & usr, int i, int& lineNum, double & sumPreds, vec* test_predictions, bool dosave, const graph_type &g, const graph_type & _g, double & RMSE, double & MAE){
   if (ps.algorithm == SVD_PLUS_PLUS){
     vertex_data_svdpp user = usr;
 		int n = user.num_edges; //+1.0 ? //regularization
@@ -361,19 +363,16 @@ void test_predict(vertex_data & usr, int i, int& lineNum, double & sumPreds, vec
 		}
   }
   else if (ps.algorithm == BIAS_SGD){}
-   else if (ps.algorithm == TIME_SVD_PLUS_PLUS){
-
-  }
-  else if (ps.algorithm == RBM){
-
-  }
-  common_prediction<graph_type,vertex_data,edge_data>(g, _g,usr,i,lineNum, sumPreds, test_predictions, dosave);
+   else if (ps.algorithm == TIME_SVD_PLUS_PLUS){ }
+  else if (ps.algorithm == RBM){ }
+  common_prediction<graph_type,vertex_data,edge_data>(g, _g,usr,i,lineNum, sumPreds, test_predictions, dosave, RMSE, MAE);
 
 
 }
 
 //compute predictions for BPTF/PMF
-void test_predict(vertex_data & data, int i, int&lineNum, double& sumPreds, vec& test_predictions, bool dosave, const graph_type_mcmc& g, const graph_type_mcmc &_g){
+void test_predict(vertex_data & data, int i, int&lineNum, double& sumPreds, vec * test_predictions, bool dosave, const graph_type_mcmc& g, const graph_type_mcmc &_g, double & RMSE, double & MAE){
+
       foreach(edge_id_t iedgeid, _g.out_edge_ids(i)) {
         const vertex_data & pdata = g.vertex_data(_g.target(iedgeid)); 
 	  edge_data_mcmc & edge = (edge_data_mcmc&)_g.edge_data(iedgeid);
@@ -395,7 +394,9 @@ void test_predict(vertex_data & data, int i, int&lineNum, double& sumPreds, vec&
               prediction = (edge.avgprd / (ps.iiter - ac.bptf_burn_in));
            }
           
-	         truncate_and_scale(prediction);
+          RMSE+= pow(prediction - edge.weight, 2);
+          MAE += fabs(prediction - edge.weight);
+	        truncate_and_scale(prediction);
           if (ac.debug && (i== 0 || i == ps.M))
             cout<<lineNum<<") prediction:"<<prediction<<endl; 
           if (dosave)
@@ -406,7 +407,7 @@ void test_predict(vertex_data & data, int i, int&lineNum, double& sumPreds, vec&
 }
 
 //compute predictions of tensors with multiple edges between same pair of nodes
-void test_predict(vertex_data & data, int i, int&lineNum, double & sumPreds, vec& test_predictions, bool dosave, const graph_type_mult_edge&g, const graph_type_mult_edge &_g){
+void test_predict(vertex_data & data, int i, int&lineNum, double & sumPreds, vec* test_predictions, bool dosave, const graph_type_mult_edge&g, const graph_type_mult_edge &_g, double & RMSE, double & MAE){
       foreach(edge_id_t iedgeid, _g.out_edge_ids(i)) {
         const multiple_edges & edges = _g.edge_data(iedgeid);
         const vertex_data & pdata = g.vertex_data(_g.target(iedgeid)); 
@@ -432,6 +433,8 @@ void test_predict(vertex_data & data, int i, int&lineNum, double & sumPreds, vec
             cout<<lineNum<<") prediction:"<<prediction<<endl; 
           if (dosave)
            test_predictions[lineNum] = prediction;
+          RMSE += pow(prediction - edge.weight, 2);
+          MAE += fabs(prediction - edge.weight);
 	        sumPreds += prediction;
  	        lineNum++; 
          }
@@ -480,9 +483,10 @@ void export_test_file(const graph_type & _g, testtype type, bool dosave) {
       assert(false);
   }
   vec out_predictions = zeros(size);
+  double RMSE = 0, MAE = 0;
   for (int i=0; i< ps.M; i++){ 
       vertex_data & data = (vertex_data&)g->vertex_data(i);
-      test_predict(data, i, lineNum, sumPreds, out_predictions, dosave, *g, _g);
+      test_predict(data, i, lineNum, sumPreds, &out_predictions, dosave, *g, _g, RMSE, MAE);
   }
 
   ASSERT_EQ(lineNum, size);

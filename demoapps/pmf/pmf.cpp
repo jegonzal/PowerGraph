@@ -361,14 +361,9 @@ void start(command_line_options& clopts) {
        ac.minval = 0; ac.maxval = 100;
    }
 
-   double res = 0;
-   if (ps.algorithm != LANCZOS && ps.algorithm != SVD && ps.algorithm != TIME_SVD_PLUS_PLUS && ps.algorithm != RBM){
-     double res2 = 0;
-     double rmse =  calc_rmse_wrapper<graph_type, vertex_data>(&training, false, res);
-     printf(ac.printhighprecision ? 
-           "complete. Objective=%g, TRAIN RMSE=%0.12f VALIDATION RMSE=%0.12f.\n" :
-           "complete. Objective=%g, TRAIN RMSE=%0.4f VALIDATION RMSE=%0.4f.\n" 
-           , calc_obj<graph_type, vertex_data>(res), rmse, calc_rmse<graph_type, vertex_data>(ps.g<graph_type>(VALIDATION), true, res2));
+   double res = 0, MAE = 0;
+   if (ps.BPTF){
+     calc_rmse<graph_type, vertex_data>(&training, TRAINING, res, MAE, NULL);
   } else if (ps.algorithm == LANCZOS || ps.algorithm == SVD){
      //In Lanczos, we limit the number of eigenvalues to matrix smaller dimension
      if (ac.iter > ps.M || ac.iter > ps.N)

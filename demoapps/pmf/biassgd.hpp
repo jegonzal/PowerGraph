@@ -54,8 +54,8 @@ void init_biassgd(graph_type* _g){
 }
 
 template<>
-void init_biassgd/*<gc>*/(graph_type/*_svdpp*/ *_g){
-   fprintf(stderr, "SVD++ %d factors\n", ac.D);
+void init_biassgd(graph_type *_g){
+   fprintf(stderr, "%s %d factors\n", runmodesname[ps.algorithm], ac.D);
    double factor = 0.1/sqrt(ac.D);
 #pragma omp parallel for
    for (int i=0; i<ps.M+ps.N; i++){
@@ -66,7 +66,7 @@ void init_biassgd/*<gc>*/(graph_type/*_svdpp*/ *_g){
           data.weight[j] = (ac.debug ? 0.1 : (randu()*factor));
           data.pvec[j] = (ac.debug ? 0.1 : (randu()*factor));
        }
-       data.bias = 0;
+       vdata.bias = 0;
    } 
 }
 
@@ -81,61 +81,12 @@ float bias_sgd_predict_new_user(const vertex_data_svdpp& user, const vertex_data
 }
 
 
-//calculate RMSE. This function is called only before and after grahplab is run.
-//during run, agg_rmse_by_movie is called 0 which is much lighter function (only aggregate sums of squares)
-double calc_biassgd_rmse(const graph_type * _g, bool test, double & res){
-
-     graph_type * g = (graph_type*)ps.g<graph_type>(TRAINING);
-
-     if (test && ps.Le == 0)
-       return NAN;
-      
-     
-     res = 0;
-     double sqErr =0;
-     int nCases = 0;
-
-     for (int i=0; i< ps.M; i++){
-       vertex_data_svdpp usr = g->vertex_data(i);
-       foreach(edge_id_t oedgeid, _g->out_edge_ids(i)){
-         const edge_data & item = _g->edge_data(oedgeid);
-         const vertex_data_svdpp movie(g->vertex_data(_g->target(oedgeid))); 
-         float estScore;
-        sqErr += bias_sgd_predict(usr, movie, NULL, NULL, item.weight, estScore);
-         nCases++;
-       }
-   }
-   res = sqErr;
-   assert(nCases == (test?ps.Le:ps.L));
-   return sqrt(sqErr/(double)nCases);
-}
-
-
 void bias_sgd_post_iter(){
   printf("Entering last iter with %d\n", ps.iiter);
-
-  double res,res2;
-  double training_rmse = agg_rmse_by_user<graph_type, vertex_data>(res);
-  double validation_rmse = calc_biassgd_rmse(ps.g<graph_type>(VALIDATION), true, res2);
-  printf(ac.printhighprecision ? 
-        "%g) Iter %s %d  TRAIN RMSE=%0.12f VALIDATION RMSE=%0.12f.\n":
-        "%g) Iter %s %d  TRAIN RMSE=%0.4f VALIDATION RMSE=%0.4f.\n",
-  ps.gt.current_time(), runmodesname[ps.algorithm], ps.iiter,  training_rmse, validation_rmse);
-
-  if (ac.calc_ap){
-     logstream(LOG_INFO)<<"AP@3 for training: " << calc_ap<graph_type,vertex_data,edge_data>(ps.g<graph_type>(TRAINING)) << " AP@3 for validation: " << calc_ap<graph_type,vertex_data,edge_data>(ps.g<graph_type>(VALIDATION)) << std::endl;
-  }
-   //stop on divergence
-  if (ac.halt_on_rmse_increase)
-    if ((ps.validation_rmse && (ps.validation_rmse < validation_rmse)) ||
-        (ps.training_rmse && (ps.training_rmse < training_rmse)))
-          dynamic_cast<graphlab::core<vertex_data_svdpp,edge_data>*>(ps.glcore)->engine().stop();
-
-  ps.validation_rmse = validation_rmse; 
-  ps.training_rmse = training_rmse;
   
+  post_iter_stats<graph_type>();
+ 
   ac.sgd_gamma *= ac.sgd_step_dec;
-  ps.iiter++;
 }
 float bias_sgd_predict(const vertex_data_svdpp& user, 
                 const vertex_data_svdpp& movie, 
