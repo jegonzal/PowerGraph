@@ -70,6 +70,13 @@ SVD is implemented using two sided Lanczos, see:
 
 Koren time-SVD++ is described in the paper:
 13) Yehuda Koren. 2009. Collaborative filtering with temporal dynamics. In Proceedings of the 15th ACM SIGKDD international conference on Knowledge discovery and data mining (KDD '09). ACM, New York, NY, USA, 447-456. DOI=10.1145/1557019.1557072 
+
+14) Y. Koren. Factorization Meets the Neighborhood: a Multifaceted Collaborative Filtering Model. Equation (5).
+
+15) G. Hinton. A Practical Guide to Training Restricted Boltzmann Machines. University of Toronto Tech report UTML TR 2010-003
+
+16) Steffen Rendle (2010): Factorization Machines, in Proceedings of the 10th IEEE International Conference on Data Mining (ICDM 2010), Sydney, Australia. 
+
 */
 #include <vector>
 #define GL_NO_MULT_EDGES //comment this flag, if you want to have support for multiple edges in different times between the same user and movie

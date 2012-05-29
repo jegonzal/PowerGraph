@@ -20,6 +20,12 @@
  *
  */
 
+/*
+ * This file contains an implementation of the mehod: Steffen Rendle (2010): Factorization Machines, in Proceedings of the 10th IEEE International Conference on Data Mining (ICDM 2010), Sydney, Australia.
+ * Original implementation by Qiang Yan, Chinese Academy of Science.
+ * Adapted to GraphLab by Danny Bickson, CMU
+ *
+ */
 
 #ifndef __LIBFM_HPP
 #define __LIBFM_HPP
