@@ -200,6 +200,12 @@ int rbm_bins;
 /* for computing rating */
 std::string training_ref;
 
+/* for lib fm */
+double libfm_rate;
+double libfm_mult_dec;
+double libfm_regw;
+double libfm_regv;
+
 bool show_version;
 
 bool reduce_mem_consumption;
@@ -321,7 +327,13 @@ advanced_config(){
    rbm_beta = 0.006;
    rbm_scaling = 10;
    rbm_bins = 11;
-
+ 
+   /* for libfm */
+   libfm_rate = 0.0001;
+   libfm_mult_dec = 0.9;
+   libfm_regw = 0.0001;
+   libfm_regv = 0.0001;
+   
    training_ref = "";
 
    shuffle = false;

@@ -110,6 +110,12 @@ clopts.attach_option("svdpp_itm_fctr2_step", &svdp.itmFctr2Step, svdp.itmFctr2St
   clopts.attach_option("rbm_bins", &rbm_bins, rbm_bins, "rbm bins");
   clopts.attach_option("exportlinearmodel", &exportlinearmodel, exportlinearmodel, "export factorized matrices to output file");
 
+  //libfm switches
+  clopts.attach_option("libfm_rate", &libfm_rate, libfm_rate, "libfm step size");
+  clopts.attach_option("libfm_mult_dec", &libfm_mult_dec, libfm_mult_dec, "libfm multiplicative decrement of step size");
+  clopts.attach_option("libfm_regw", &libfm_regw, libfm_regw, "libfm weight regularization");
+  clopts.attach_option("libfm_regv", &libfm_regv, libfm_regv, "libfm feature vector regularization");
+
   //general switches
   clopts.attach_option("reduce_mem_consumption", &reduce_mem_consumption, reduce_mem_consumption, "reduce memory consumption (for machines with limited memory");
   clopts.attach_option("halt_on_rmse_increase", &halt_on_rmse_increase, halt_on_rmse_increase, "stop when rmse increases (problem diverges)");

@@ -226,7 +226,8 @@ enum runmodes{
    SVD = 13, //simular value decompoistion via double sided Lanczos
    TIME_SVD_PLUS_PLUS = 14, //time-SVD++ (see reference 12)
    BIAS_SGD = 15,
-   RBM = 16
+   RBM = 16,
+   LIBFM = 17
 };
 
 #define MAX_RUNMODE 17
@@ -410,6 +411,7 @@ void problem_setup::verify_setup(){
    // tensor factorization
   case ALS_TENSOR_MULT:
   case TIME_SVD_PLUS_PLUS:
+  case LIBFM:
     tensor = true; BPTF = false;
     break;
     
