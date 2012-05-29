@@ -1,4 +1,5 @@
-/* Copyright (c) 2009 Carnegie Mellon University. 
+/**  
+ * Copyright (c) 2009 Carnegie Mellon University. 
  *     All rights reserved.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,344 +17,745 @@
  * For more about this software visit:
  *
  *      http://www.graphlab.ml.cmu.edu
- *  
- *  Code written by Danny Bickson, CMU
- *  Any changes to the code must include this original license notice in full.
+ *
  */
 
 
-
-
-
+#include <Eigen/Dense>
+#include <graphlab/util/stl_util.hpp>
 #include <graphlab.hpp>
 
-#include "../shared/mathlayer.hpp"
-#include "matrix_loader.hpp"
+
+
+#include "eigen_serialization.hpp"
+
 #include <graphlab/macros_def.hpp>
+
 /**
  * Define global constants for debugging.
  */
-bool debug = false;
-bool FACTORIZED = false;
 double TOLERANCE = 1e-2;
 size_t NLATENT = 20;
-double LAMBDA = 0.065;
+double LAMBDA = 0.01;
+
+size_t MAX_VID = 0;
+size_t NWORDS = 0;
+size_t NDOCS = 0;
+
+size_t MAX_UPDATES = -1;
+
+
 
 
 /** Vertex and edge data types **/
 struct vertex_data {
-  vec latent; //! vector of learned values 
-  double squared_error; //!root of mean square error
-  double residual;
-  size_t nupdates; //! the number of times the vertex was updated
+  float residual; 
+  float neighborhood_total; //! sum of values on edges
+  uint32_t nupdates; //! the number of times the vertex was updated
+  Eigen::VectorXd latent; //! vector of learned values 
   //constructor
-  vertex_data() : 
-    squared_error(std::numeric_limits<double>::max()), 
-    residual(std::numeric_limits<double>::max()), 
-    nupdates(0) { }
-  void save(graphlab::oarchive& arc) const { }
-  void load(graphlab::iarchive& arc) { }
+  vertex_data() : residual(std::numeric_limits<float>::max()), 
+                  neighborhood_total(0), nupdates(0) { }
+  void randomize() {
+    latent.resize(NLATENT);
+    latent.setRandom();
+    // // Initialize the latent variables
+    // for(size_t i = 0; i < NLATENT; ++i) 
+    //   latent(i) = graphlab::random::gaussian();
+  }
+  void save(graphlab::oarchive& arc) const { 
+    arc << residual << neighborhood_total << nupdates << latent;        
+  }
+  void load(graphlab::iarchive& arc) { 
+    arc >> residual >> neighborhood_total >> nupdates >> latent;
+  }
 }; // end of vertex data
 
-struct edge_data {
-  float observation, weight;
-  edge_data(const float observation = 0, const float weight = 1) : 
-    observation(observation), weight(weight)  { } 
-  void save(graphlab::oarchive& archive) const { 
-    archive << observation << weight; }     
-  void load(graphlab::iarchive& archive) { 
-    archive >> observation >> weight; }
+/**
+ * The edge data is just an observation float
+ */
+struct edge_data : public graphlab::IS_POD_TYPE {
+  float rating, error;
+  edge_data(const float& rating = 0) :
+    rating(rating), error(std::numeric_limits<float>::max()) { }
 }; // end of edge data
 
-typedef graphlab::graph<vertex_data, edge_data> graph_type;
+/**
+ * The graph type;
+ */
+typedef graphlab::distributed_graph<vertex_data, edge_data> graph_type;
+
 
 
 /***
  * UPDATE FUNCTION
  */
 class als_update : 
-  public graphlab::iupdate_functor<graph_type, als_update > {
-  double error;
-  mat XtX;
-  vec Xty;
+  public graphlab::iupdate_functor<graph_type, als_update> {
+  double prio;
+  Eigen::MatrixXd X;
+  Eigen::VectorXd y;
+  Eigen::MatrixXd XtX;
+  Eigen::VectorXd Xty;
+  bool useXtX;
+
+
 public:
-  als_update(double error = 0) : error(error) { }
-  double priority() const { return error; }
-  void operator+=(const als_update& other) { error += other.error; }
+  als_update(double prio = 0) : prio(prio), useXtX(false) { }
+  double priority() const { return prio; }
+  void operator+=(const als_update& other) { prio = std::max(prio, other.prio); }
   consistency_model gather_consistency() { return graphlab::EDGE_CONSISTENCY; }
   consistency_model scatter_consistency() { return graphlab::EDGE_CONSISTENCY; }
   edge_set gather_edges() const { return graphlab::ALL_EDGES; }
   edge_set scatter_edges() const { return graphlab::ALL_EDGES; }
-  bool is_factorizable() const { return FACTORIZED; }
+  bool is_factorizable() const { return true; }
 
   // Reset the accumulator before running the gather
-  void init_gather(icontext_type& context) {    
-    XtX.resize(NLATENT, NLATENT); XtX.setZero();
-    Xty.resize(NLATENT); Xty.setZero();
-  } // end of init gather
+  void init_gather(icontext_type& context) { 
+    X = Eigen::MatrixXd();
+    y = Eigen::VectorXd(); 
+  } 
 
+  // Gather the XtX and Xty matrices from the neighborhood of this vertex
   void gather(icontext_type& context, const edge_type& edge) {
-    const vertex_id_type neighbor_id = context.num_in_edges() > 0 ? 
-      edge.source() : edge.target();
-    const vertex_data& neighbor = context.const_vertex_data(neighbor_id);
+    // Get the edge data and skip the edge if it is for testing only
     const edge_data& edata = context.const_edge_data(edge);
-    Xty += neighbor.latent * (edata.observation*edata.weight);
-    XtX.triangularView<Eigen::Upper>() += 
-      (neighbor.latent * neighbor.latent.transpose());
+    //if(edata.is_test) return;
+    const vertex_id_type neighbor_id = context.vertex_id() == edge.target()?
+      edge.source() : edge.target();
+    const vertex_data& neighbor = context.const_vertex_data(neighbor_id);     
+    ASSERT_EQ(neighbor.latent.size(), NLATENT);
+    if(size_t(X.rows()) == NLATENT) {
+      ASSERT_FALSE(useXtX);
+      XtX.resize(NLATENT,NLATENT); Xty.resize(NLATENT,NLATENT);
+      XtX.triangularView<Eigen::Upper>() = X.transpose() * X;
+      Xty = X.transpose() * y;
+      // Clear the matrix
+      X = Eigen::MatrixXd(); y = Eigen::VectorXd();
+      useXtX = true;
+    }
+    if(useXtX) {
+      Xty +=  neighbor.latent * edata.rating;
+      XtX.triangularView<Eigen::Upper>() += 
+        (neighbor.latent * neighbor.latent.transpose());
+    } else {
+      X.conservativeResize(X.rows()+1, neighbor.latent.size());
+      ASSERT_GT(X.rows(), 0);
+      X.block(X.rows()-1, 0, 1, NLATENT) = neighbor.latent.transpose(); 
+      y.conservativeResize(y.size()+1);
+      y(y.size()-1) = edata.rating;
+    }
   } // end of gather
+
+
 
   // Merge two updates
   void merge(const als_update& other) {
-    error += other.error; 
-    XtX.triangularView<Eigen::Upper>() += other.XtX;
-    Xty += other.Xty;
+    if(!useXtX) {
+      XtX.resize(NLATENT,NLATENT); Xty.resize(NLATENT,NLATENT);
+      if(X.rows() > 0) {
+        ASSERT_EQ(X.cols(), NLATENT);
+        ASSERT_EQ(X.rows(), y.size());
+        XtX.triangularView<Eigen::Upper>() = X.transpose() * X;
+        Xty = X.transpose() * y;
+      } else { XtX.setZero(); Xty.setZero(); }
+      // Clear the matrix
+      X = Eigen::MatrixXd(); y = Eigen::VectorXd();
+      useXtX = true;      
+    } 
+    if(other.useXtX) {
+      ASSERT_EQ(XtX.rows(), NLATENT);
+      ASSERT_EQ(XtX.cols(), NLATENT);
+      ASSERT_EQ(other.XtX.rows(), NLATENT);
+      ASSERT_EQ(other.XtX.cols(), NLATENT);
+      ASSERT_EQ(Xty.size(), NLATENT);
+      ASSERT_EQ(other.Xty.size(), NLATENT);
+      XtX.triangularView<Eigen::Upper>() += other.XtX;
+      Xty += other.Xty;
+    } else {
+      ASSERT_EQ(other.X.rows(), other.y.size());      
+      if(other.X.rows() == 0) return;
+      XtX.triangularView<Eigen::Upper>() += (other.X.transpose() * other.X);
+      Xty += (other.X.transpose() * other.y);
+    }
   } // end of merge
- 
+
 
   // Update the center vertex
   void apply(icontext_type& context) {
+    // Get and reset the vertex data
     vertex_data& vdata = context.vertex_data(); 
-    vdata.squared_error = 0; vdata.residual = 0; ++vdata.nupdates;
+    ASSERT_EQ(vdata.latent.size(), NLATENT);
+    // Determine the number of neighbors.  Each vertex has only in or
+    // out edges depending on which side of the graph it is located
     const size_t nneighbors = context.num_in_edges() + context.num_out_edges();
-    if(nneighbors == 0) return;    
-    for(int i = 0; i < XtX.rows(); ++i) XtX(i,i) += (LAMBDA)*nneighbors;
+    if(nneighbors == 0) { vdata.residual = 0; ++vdata.nupdates; return; }
+    // ugly hack to for useXtX to be true using the merge code
+    merge(als_update());
+    // Add regularization
+    for(size_t i = 0; i < NLATENT; ++i) XtX(i,i) += LAMBDA; // /nneighbors;
     // Solve the least squares problem using eigen ----------------------------
-    const vec old_latent = vdata.latent;
+    const Eigen::VectorXd old_latent = vdata.latent;
     vdata.latent = XtX.selfadjointView<Eigen::Upper>().ldlt().solve(Xty);
     // Compute the residual change in the latent factor -----------------------
-    vdata.residual = 0;
-    for(int i = 0; i < XtX.rows(); ++i)
-      vdata.residual += std::fabs(old_latent(i) - vdata.latent(i));
-    vdata.residual /= XtX.rows();
+    double residual = 0;
+    for(int i = 0; i < XtX.rows(); ++i) {
+      assert(!std::isinf(vdata.latent(i)));
+      assert(!std::isnan(vdata.latent(i)));
+      residual += std::fabs(old_latent(i) - vdata.latent(i));
+    }
+    vdata.residual = residual / XtX.rows();
+    ++vdata.nupdates;
+    XtX = Eigen::MatrixXd();
+    Xty = Eigen::VectorXd();
   } // end of apply
 
+
+
   void scatter(icontext_type& context, const edge_type& edge) {
-    vertex_data& vdata = context.vertex_data();
-    const vertex_id_type neighbor_id = context.num_in_edges() > 0? 
+    const vertex_data& vdata = context.const_vertex_data();
+    const vertex_id_type neighbor_id = context.vertex_id() == edge.target()?
       edge.source() : edge.target();
     const vertex_data& neighbor = context.const_vertex_data(neighbor_id);
-    const edge_data& edata = context.const_edge_data(edge);
+    edge_data& edata = context.edge_data(edge);
+    // Compute the prediction on the edge
+    ASSERT_EQ(neighbor.latent.size(), NLATENT);
     const double pred = vdata.latent.dot(neighbor.latent);
-    const double error = std::fabs(edata.observation - pred);
-    vdata.squared_error += error*error;
-    const double priority = error * vdata.residual;
+    const float error = std::fabs(edata.rating - pred);
+    edata.error = error;
+    assert(!std::isinf(error));
+    assert(!std::isnan(error));
+    const double priority = (error * vdata.residual); 
+    assert(!std::isinf(priority));
+    assert(!std::isnan(priority));
     // Reschedule neighbors ------------------------------------------------
-    if( priority > TOLERANCE)
+    if( priority > TOLERANCE && neighbor.nupdates < MAX_UPDATES) 
       context.schedule(neighbor_id, als_update(priority));
   } // end of scatter
-  
-  void operator()(icontext_type& context) {
-    vertex_data& vdata = context.vertex_data(); 
-    if (debug)
-      std::cout << "Entering node" << context.vertex_id() << std::endl 
-                << "Latest is: " << vdata.latent << std::endl;
-    vdata.squared_error = 0; vdata.residual = 0; ++vdata.nupdates;
-    // If there are no neighbors just return
-    if(context.num_out_edges() + context.num_in_edges() == 0) return;
-    // Get the number of latent dimensions
-    mat XtX(NLATENT, NLATENT); XtX.setZero();
-    vec Xty(NLATENT); Xty.setZero();
-    // Get the non-zero edge list
-    const bool is_in_edges = context.num_in_edges() > 0;
-    const edge_list_type edges = is_in_edges? 
-      context.in_edges() : context.out_edges();    
-    // Compute X'X and X'y (weighted) -----------------------------------------
-    foreach(const edge_type& edge, edges) {
-      // get the neighbor id
-      const vertex_id_type neighbor_id = 
-        is_in_edges? edge.source() : edge.target();
-      const vertex_data& neighbor = context.const_vertex_data(neighbor_id);
-      const edge_data& edata = context.const_edge_data(edge);
-      Xty += neighbor.latent * (edata.observation*edata.weight);
-      XtX.triangularView<Eigen::Upper>() += 
-        (neighbor.latent * neighbor.latent.transpose());
-    }
-    for(size_t i = 0; i < NLATENT; ++i) XtX(i,i) += (LAMBDA)*edges.size();
-    // Solve the least squares problem using eigen ----------------------------
-    const vec old_latent = vdata.latent;
-    vdata.latent = XtX.selfadjointView<Eigen::Upper>().ldlt().solve(Xty);
-    // Compute the residual change in the latent factor -----------------------
-    vdata.residual = 0;
-    for(size_t i = 0; i < NLATENT; ++i)
-      vdata.residual += std::fabs(old_latent(i) - vdata.latent(i));
-    vdata.residual /= NLATENT;
-    // Update the rmse and reschedule neighbors -------------------------------
-    vdata.squared_error = 0;
-    foreach(const edge_type& edge, edges) {
-      // get the neighbor id
-      const vertex_id_type neighbor_id = 
-        is_in_edges? edge.source() : edge.target();
-      const vertex_data& neighbor = context.const_vertex_data(neighbor_id);
-      const edge_data& edata = context.const_edge_data(edge);
-      const double pred = vdata.latent.dot(neighbor.latent);
-      const double error = std::fabs(edata.observation - pred);
-      vdata.squared_error += error*error;
-      const double priority = error * vdata.residual;
-      // Reschedule neighbors ------------------------------------------------
-      if( priority > TOLERANCE )
-        context.schedule(neighbor_id, als_update(priority));
-    }
-  } // end of operator()
-}; // end of class user_movie_nodes_update_function
 
+
+  void save(graphlab::oarchive& arc) const { 
+    arc << X << y << XtX << Xty << useXtX << prio; }
+  void load(graphlab::iarchive& arc) { 
+    arc >> X >> y >> XtX >> Xty >> useXtX >> prio; }  
+}; // end of class ALS update
+
+
+graphlab::timer timer;
 
 
 class aggregator :
-  public graphlab::iaggregator<graph_type, als_update, aggregator> {
+  public graphlab::iaggregator<graph_type, als_update, aggregator>, 
+  public graphlab::IS_POD_TYPE {
 private:
-  double rmse, max_rmse, residual, max_residual;
-  size_t min_updates, max_updates, total_updates;
+  double max_priority, rmse, max_error, residual, max_residual;
+  size_t min_updates, max_updates, 
+    total_vupdates, total_eupdates;
 public:
   aggregator() : 
-    rmse(0), max_rmse(0), residual(0), max_residual(0),
-    min_updates(-1), max_updates(0), total_updates(0) { }
-  void operator()(icontext_type& context) {
-    const vertex_data& vdata = context.vertex_data();
-    const size_t num_edges = context.num_in_edges() +
-      context.num_out_edges();
-    if(num_edges == 0) return;
-    rmse += vdata.squared_error;
-    max_rmse = 
-      std::max(max_rmse, 
-               std::sqrt(vdata.squared_error/num_edges));
-    residual += vdata.residual;
-    max_residual = std::max(max_residual, vdata.residual);
-    min_updates = std::min(min_updates, vdata.nupdates);
-    max_updates = std::max(max_updates, vdata.nupdates);
-    total_updates += vdata.nupdates;
+    max_priority(0), rmse(0), max_error(0), residual(0), max_residual(0),
+    min_updates(-1), max_updates(0), 
+    total_vupdates(0), total_eupdates(0) { }
+  inline bool is_factorizable() const { return true; }
+  inline edge_set gather_edges() const { return graphlab::IN_EDGES; }
+
+  void gather(icontext_type& context, const edge_type& edge) {
+    edge_data& edata = context.edge_data(edge);
+    const vertex_data& source_vdata = context.const_vertex_data(edge.source());
+    const vertex_data& target_vdata = context.const_vertex_data(edge.target());
+    if(edata.error == std::numeric_limits<float>::max()) {
+      const double pred = source_vdata.latent.dot(target_vdata.latent);    
+      edata.error =std::fabs(edata.rating - pred);
+    }
+    rmse += (edata.error * edata.error);
+    // priority depends on the residual having been
+    // evaluated. Initially the residual is negative
+    if(source_vdata.nupdates > 0) 
+      max_priority =  std::max(double(edata.error * source_vdata.residual),       
+                               max_priority);
+    if(target_vdata.nupdates > 0) 
+      max_priority =  std::max(double(edata.error * target_vdata.residual),       
+                               max_priority);
+    max_error = std::max(max_error, double(edata.error));
   }
+
+  void operator()(icontext_type& context) {
+    const vertex_data& vdata = context.const_vertex_data();
+    residual += vdata.residual;
+    max_residual = std::max(max_residual, double(vdata.residual));
+    min_updates = std::min(min_updates, size_t(vdata.nupdates));
+    max_updates = std::max(max_updates, size_t(vdata.nupdates));
+    total_vupdates += vdata.nupdates;
+    total_eupdates += vdata.nupdates *
+      (context.num_in_edges() + context.num_out_edges());
+  }
+
   void operator+=(const aggregator& other) { 
+    max_priority = std::max(max_priority, other.max_priority);
     rmse += other.rmse; 
-    max_rmse = std::max(max_rmse, other.max_rmse);
+    max_error = std::max(max_error, other.max_error);
     residual += other.residual;
-    max_residual = std::max(max_residual, other.residual);
+    max_residual = std::max(max_residual,  other.residual);
     min_updates = std::min(min_updates, other.min_updates);
     max_updates = std::max(max_updates, other.max_updates);
-    total_updates += other.total_updates;
+    total_vupdates += other.total_vupdates;
+    total_eupdates += other.total_eupdates;
   }
+
   void finalize(iglobal_context_type& context) {
     std::cout 
-      << std::setw(10) << sqrt(rmse /(2*context.num_edges())) << '\t'
-      << std::setw(10) << max_rmse << '\t'
-      << std::setw(10) << (residual / context.num_vertices()) << '\t'
+      << "results:\t" 
+      << timer.current_time() << '\t'
+      << std::setw(10) << max_priority << '\t'
+      << std::setw(10) << sqrt( rmse / context.num_edges() ) << '\t'
+      << std::setw(10) << max_error << '\t'
       << std::setw(10) << max_residual << '\t'
+      << std::setw(10) << residual << '\t'
       << std::setw(10) << max_updates << '\t'
       << std::setw(10) << min_updates << '\t'
-      << std::setw(10) << (double(total_updates) / context.num_vertices()) 
+      << std::setw(10) << total_vupdates << '\t'
+      //      << std::setw(10) << (double(total_vupdates) / context.num_vertices()) 
+      // << '\t'
+      << std::setw(10) << total_eupdates << '\t'
+      //      << std::setw(10) << (double(total_eupdates) / context.num_edges())
       << std::endl;
   }
 }; // end of  aggregator
 
 
 
+
+
+#ifdef FSCOPE
+typedef graphlab::distributed_fscope_engine<graph_type, als_update> engine_type;
+#elif SYNC
+typedef graphlab::distributed_synchronous_engine<graph_type, als_update> engine_type;
+#else
+typedef graphlab::distributed_engine<graph_type, als_update> engine_type;
+#endif
+
+
+
+//! Graph loading code 
+void load_graph_dir(graphlab::distributed_control& dc,
+                    graph_type& graph, const std::string& matrix_dir,
+                    const size_t procid, const size_t numprocs);
+void load_graph_file(graph_type& graph, const std::string& fname);
+
+void initialize_vertex_data(graphlab::distributed_control& dc, 
+                            graph_type& graph);
+void make_tfidf(graph_type& graph);
+
+void save_graph_info(const size_t procid,
+                     const graph_type& graph);
+
+
+
+
 int main(int argc, char** argv) {
-  global_logger().set_log_level(LOG_DEBUG);
+  global_logger().set_log_level(LOG_INFO);
   global_logger().set_log_to_console(true);
-  
+
   // Parse command line options -----------------------------------------------
   const std::string description = 
     "Compute the ALS factorization of a matrix.";
   graphlab::command_line_options clopts(description);
-  std::string matrix_file;
-  std::string test_file;
-  std::string format = "matrixmarket";
-  size_t freq = 100000;
-  clopts.attach_option("matrix",
-                       &matrix_file, matrix_file,
-                       "The file containing the matrix. If none is provided"
-                       "then a toy matrix will be created");
+  clopts.use_distributed_options();
+  std::string matrix_dir; 
+  bool savebin = false;
+  std::string binpath = "";
+  std::string binprefix = "als_graph";
+  bool output = false;
+  size_t interval = 10;
+  clopts.attach_option("matrix", &matrix_dir, matrix_dir,
+                       "The directory containing the matrix file");
   clopts.add_positional("matrix");
-  clopts.attach_option("test",
-                       &test_file, test_file,
-                       "The file containing the test.");
-  clopts.add_positional("test");
-
-  clopts.attach_option("format",
-                       &format, format,
-                       "The matrix file format: {matrixmarket, binary}");
   clopts.attach_option("D",
                        &NLATENT, NLATENT,
                        "Number of latent parameters to use.");
-  clopts.attach_option("LAMBDA", &LAMBDA, LAMBDA, "ALS regularization weight"); 
+  clopts.attach_option("maxupdates",
+                       &MAX_UPDATES, MAX_UPDATES,
+                       "The maxumum number of udpates allowed for a vertex");
+
+  clopts.attach_option("lambda", &LAMBDA, LAMBDA, "ALS regularization weight"); 
   clopts.attach_option("tol",
                        &TOLERANCE, TOLERANCE,
                        "residual termination threshold");
-  clopts.attach_option("freq",
-                       &freq, freq,
-                       "The number of updates between rmse calculations");
-  clopts.attach_option("factorized", 
-		       &FACTORIZED, FACTORIZED, "Use factorized updates.");
-  clopts.attach_option("debug", &debug, debug, "debug (Verbose mode)");
-  clopts.set_scheduler_type("sweep");
+  clopts.attach_option("output", &output, output,
+                       "Output results");
+  clopts.attach_option("savebin", &savebin, savebin,
+                       "Option to save the graph as binary\n");
+  clopts.attach_option("binpath", &binpath, binpath,
+                       "The path for save binary file\n");
+  clopts.attach_option("binprefix", &binprefix, binprefix,
+                       "The prefix for load/save binary file\n");
+  clopts.attach_option("interval", &interval, interval,
+                       "statistics reporting interval");
   if(!clopts.parse(argc, argv)) {
     std::cout << "Error in parsing command line arguments." << std::endl;
     return EXIT_FAILURE;
   }
 
-  // Setup the GraphLab execution core and load graph -------------------------
-  graphlab::core<graph_type, als_update> core;
-  core.set_options(clopts); // attach the command line options to the core
-  typedef matrix_entry<graph_type> matrix_entry_type;
-  matrix_descriptor desc;
-  std::cout << "Loading graph-------------------------------" << std::endl;
-  const bool success = 
-    load_graph(matrix_file, format, desc, core.graph());
-  if(!success) {
-    std::cout << "Error in reading file: " << matrix_file << std::endl;
-    return EXIT_FAILURE;
-  }
-  std::vector< matrix_entry_type > test_set;
-  if(!test_file.empty()) {
-    matrix_descriptor desc;
-    const bool success =  load_matrixmarket(test_file, desc, test_set);
-    if(!success) {
-      std::cout << "Error in reading test file: " << test_file << std::endl;
-      return EXIT_FAILURE;
-    }
-  }
-  std::cout << "Randomizing initial latent factors----------" << std::endl;
-  initialize_vertex_data(NLATENT, core.graph());
-  std::cout << "Finished initializing all vertices." << std::endl;
+  ///! Initialize control plain using mpi
+  graphlab::mpi_tools::init(argc, argv);
+  graphlab::dc_init_param rpc_parameters;
+  graphlab::init_param_from_mpi(rpc_parameters);
+  graphlab::distributed_control dc(rpc_parameters);
+  
 
-  // Set global variables -----------------------------------------------------
-  core.add_aggregator("rmse", aggregator(), freq);
 
+  std::cout << dc.procid() << ": Loading graph." << std::endl;
+  timer.start();
+  graph_type graph(dc, clopts);
+  if(!savebin && !binpath.empty() && !binprefix.empty() ) {
+    std::cout << "Loading from binary" << std::endl;
+    graph.load(binpath, binprefix);
+  } else {
+    std::cout << "Loading text matrix file" << std::endl;
+    load_graph_dir(dc, graph, matrix_dir, dc.procid(), dc.numprocs());
+    std::cout << dc.procid() << ": Finalizing graph." << std::endl;
+    graph.finalize();
+    std::cout << dc.procid() << ": Finished in " << timer.current_time() << std::endl;
+    std::cout << dc.procid() << ": Initializign vertex data. " 
+              << timer.current_time() << std::endl;
+    initialize_vertex_data(dc, graph);
+    make_tfidf(graph);
+    std::cout << dc.procid() << ": Finished initializign vertex data. " 
+              << timer.current_time() << std::endl;
+
+  }
+  
+  if(dc.procid() == 0){
+    std::cout
+      << "========== Graph statistics on proc " << dc.procid() 
+      << " ==============="
+      << "\n Num vertices: " << graph.num_vertices()
+      << "\n Num edges: " << graph.num_edges()
+      << "\n Num replica: " << graph.num_replicas()
+      << "\n Replica to vertex ratio: " 
+      << float(graph.num_replicas())/graph.num_vertices()
+      << "\n --------------------------------------------" 
+      << "\n Num local own vertices: " << graph.num_local_own_vertices()
+      << "\n Num local vertices: " << graph.num_local_vertices()
+      << "\n Replica to own ratio: " 
+      << (float)graph.num_local_vertices()/graph.num_local_own_vertices()
+      << "\n Num local edges: " << graph.num_local_edges()
+      //<< "\n Begin edge id: " << graph.global_eid(0)
+      << "\n Edge balance ratio: " 
+      << float(graph.num_local_edges())/graph.num_edges()
+      << std::endl;
+  }
+
+
+
+  dc.full_barrier();
+
+  if (savebin) {
+    std::cout << "saveing graph as binary" << std::endl;
+    graph.save(binpath, binprefix);
+    dc.barrier();
+    std::cout << "Finished saving graph as binary" << std::endl;
+  }
+ 
+  std::cout << dc.procid() << ": Creating engine" << std::endl;
+  engine_type engine(dc, graph, clopts.get_ncpus());
+  std::cout << dc.procid() << ": Intializing engine" << std::endl;
+  engine.set_options(clopts);
+  engine.initialize();
+  engine.add_aggregator("error", aggregator(), interval); 
+
+
+  std::cout << dc.procid() << ": Scheduling all documents" << std::endl;
+  const double initial_priority = std::numeric_limits<double>::max();
+  //  engine.schedule_all(als_update(initial_priority));
+  std::vector<graph_type::vertex_id_type> vtxs;
+  vtxs.reserve(graph.num_local_vertices());
+  for(graph_type::lvid_type lvid = 0; lvid < graph.num_local_vertices(); 
+      ++lvid) {
+    if(graph.l_is_master(lvid) && 
+       graph.l_get_vertex_record(lvid).num_in_edges == 0)
+      vtxs.push_back(lvid);             
+  }
+  graphlab::random::shuffle(vtxs.begin(), vtxs.end());
+  foreach(graph_type::lvid_type lvid, vtxs)
+    engine.schedule_local(lvid, als_update(initial_priority));  
+  dc.full_barrier();
+  
 
   // Run the PageRank ---------------------------------------------------------
-  //core.schedule_all(als_update(10000));
-  for(graph_type::vertex_id_type vid = 0; vid < core.graph().num_vertices(); 
-      ++vid) {
-    if(core.graph().num_in_edges(vid) == 0) core.schedule(vid, als_update(10000));
-  }
-  std::cout 
-    << std::setw(10) << "Avg RMSE" << '\t'
-    << std::setw(10) << "Max RMSE" << '\t'
-    << std::setw(10) << "Residual" << '\t'
-    << std::setw(10) << "Max Resid" << '\t'
-    << std::setw(10) << "Max Update" << '\t'
-    << std::setw(10) << "Min Update" << '\t'
-    << std::setw(10) << "Avg Update" << std::endl;
-  const double runtime = core.start();  // Run the engine
-  std::cout << "Graphlab finished, runtime: " << runtime 
-            << " seconds." << std::endl;
-  std::cout << "Updates executed: " << core.last_update_count() 
-            << std::endl;
-  std::cout << "Update Rate (updates/second): " 
-            << core.last_update_count() / runtime
-            << std::endl;
-  
-  // Output Results -----------------------------------------------------------
-  double squared_error = 0, weight = 0;
-  foreach(const matrix_entry_type& entry, test_set) {
-    const vertex_data& v1 = core.graph().vertex_data(entry.source);
-    const vertex_data& v2 = core.graph().vertex_data(entry.target);
-    const double prediction = dot_prod(v1.latent, v2.latent);
-    const double error = entry.edata.observation - prediction;
-    squared_error += entry.edata.weight * error * error;
-    weight += entry.edata.weight;
-  }
-  std::cout << "Test Error: " << std::sqrt(squared_error/weight) << std::endl;
+  std::cout << "Running ALS" << std::endl;
+  timer.start();
+  engine.start();  
 
+  const double runtime = timer.current_time();
+  if(dc.procid() == 0) {
+    std::cout << "----------------------------------------------------------"
+              << std::endl;
+    std::cout << "Final Runtime (seconds):   " << runtime 
+              << std::endl
+              << "Updates executed: " << engine.last_update_count() << std::endl
+              << "Update Rate (updates/second): " 
+              << engine.last_update_count() / runtime << std::endl;
+  }
 
+  if (output) save_graph_info(dc.procid(), graph);
+
+  graphlab::mpi_tools::finalize();
   return EXIT_SUCCESS;
+
+
 } // end of main
+
+
+
+
+
+
+
+
+graphlab::oarchive& operator<<(graphlab::oarchive& arc, const Eigen::VectorXd& vec) {
+  typedef Eigen::VectorXd::Index index_type;
+  typedef Eigen::VectorXd::Scalar scalar_type;
+  const index_type size = vec.size();
+  arc << size;
+  graphlab::serialize(arc, vec.data(), size * sizeof(scalar_type));
+  return arc;
+} // end of save vector
+
+graphlab::iarchive& operator>>(graphlab::iarchive& arc, Eigen::VectorXd& vec) {
+  typedef Eigen::VectorXd::Index index_type;
+  typedef Eigen::VectorXd::Scalar scalar_type;
+  index_type size = 0;
+  arc >> size;
+  vec.resize(size);
+  graphlab::deserialize(arc, vec.data(), size * sizeof(scalar_type));
+  return arc;
+} // end of save vector
+
+
+graphlab::oarchive& operator<<(graphlab::oarchive& arc, const Eigen::MatrixXd& mat) {
+  typedef Eigen::MatrixXd::Index index_type;
+  typedef Eigen::MatrixXd::Scalar scalar_type;
+  const index_type rows = mat.rows();
+  const index_type cols = mat.cols();
+  arc << rows << cols;
+  graphlab::serialize(arc, mat.data(), rows*cols*sizeof(scalar_type));
+  return arc;
+} // end of save vector
+
+graphlab::iarchive& operator>>(graphlab::iarchive& arc,  Eigen::MatrixXd& mat) {
+  typedef Eigen::MatrixXd::Index index_type; 
+  typedef Eigen::MatrixXd::Scalar scalar_type;
+  index_type rows=0, cols=0;
+  arc >> rows >> cols;
+  mat.resize(rows,cols);
+  graphlab::deserialize(arc, mat.data(), rows*cols*sizeof(scalar_type));
+  return arc;
+} // end of save vector
+
+
+template<typename Stream>
+void load_graph_stream(graph_type& graph, Stream& fin) {
+  // Loop over the contents
+  while(fin.good()) {
+    // Load a vertex
+    size_t source = 0, target = 0;
+    float value = 0;
+    fin >> source >> target >> value; 
+    if(!fin.good()) break;
+    ASSERT_LT(target, source);
+    MAX_VID = std::max(MAX_VID, std::max(target, source));
+    graph.add_edge(source, target, edge_data(value));
+  } // end of loop over file
+} // end of load graph from stream;
+
+void load_graph_file(graph_type& graph, const std::string& fname) {
+  const bool gzip = boost::ends_with(fname, ".gz");
+  // test to see if the graph_dir is an hadoop path
+  if(boost::starts_with(fname, "hdfs://")) {
+    graphlab::hdfs hdfs;
+    graphlab::hdfs::fstream in_file(hdfs, fname);
+    boost::iostreams::filtering_stream<boost::iostreams::input> fin;  
+    fin.set_auto_close(false);
+    if(gzip) fin.push(boost::iostreams::gzip_decompressor());
+    fin.push(in_file);
+    if(!fin.good()) {
+      logstream(LOG_FATAL) << "Error opening file:" << fname << std::endl;
+    }
+    load_graph_stream(graph, fin);
+    if (gzip) fin.pop();
+    fin.pop();
+    in_file.close();
+  } else {
+    std::ifstream in_file(fname.c_str(), 
+                          std::ios_base::in | std::ios_base::binary);
+    boost::iostreams::filtering_stream<boost::iostreams::input> fin;  
+    if (gzip) fin.push(boost::iostreams::gzip_decompressor());
+    fin.push(in_file);
+    if(!fin.good()) {
+      logstream(LOG_FATAL) << "Error opening file:" << fname << std::endl;
+    }
+    load_graph_stream(graph, fin);
+    if (gzip) fin.pop();
+    fin.pop();
+    in_file.close();
+  } // end of else
+} // end of load graph from file
+
+
+void load_graph_dir(graphlab::distributed_control& dc,
+                    graph_type& graph, const std::string& matrix_dir,
+                    const size_t procid, const size_t numprocs) {
+  std::vector<std::string> graph_files;
+  if(boost::starts_with(matrix_dir, "hdfs://")) {
+    graphlab::hdfs hdfs;
+    graph_files = hdfs.list_files(matrix_dir);
+  } else {
+    graphlab::fs_util::list_files_with_prefix(matrix_dir, "", graph_files);
+    for(size_t i = 0; i < graph_files.size(); ++i)
+      graph_files[i] = matrix_dir + graph_files[i];
+  }
+  std::sort(graph_files.begin(), graph_files.end());
+  
+  for(size_t i = 0; i < graph_files.size(); ++i) {
+    if (i % numprocs == procid) {
+      std::cout << "Loading graph from structure file: " 
+                << graph_files[i] << std::endl;
+      load_graph_file(graph, graph_files[i]);
+    }
+  }
+  {
+    std::cout << "Determining max vid: ";
+    std::vector<size_t> max_vids(dc.numprocs());
+    max_vids[dc.procid()] = MAX_VID;
+    dc.all_gather(max_vids);
+    for(size_t i = 0; i < max_vids.size(); ++i)
+      MAX_VID = std::max(MAX_VID, max_vids[i]);
+    std::cout << MAX_VID << std::endl;
+  }
+  // std::cout << "Adding vertex data" << std::endl;
+  // for(size_t vid = dc.procid(); vid <= MAX_VID; vid += dc.numprocs()) 
+  //   graph.add_vertex(vid, vertex_data());
+} // end of load graph from directory
+
+
+
+void initialize_vertex_data(graphlab::distributed_control& dc, 
+                            graph_type& graph) {
+  typedef graph_type::vertex_id_type vertex_id_type;
+  typedef graph_type::edge_type edge_type;
+  typedef std::pair<vertex_id_type, float> pair_type;
+  std::cout << "Computing neighborhood totals" << std::endl;
+  graphlab::buffered_exchange<pair_type> vertex_exchange(dc, 100000);
+  graphlab::buffered_exchange<pair_type>::buffer_type recv_buffer;
+  graphlab::procid_t sending_proc;
+  for(size_t lvid = 0; lvid < graph.num_local_vertices(); ++lvid) {
+    if(graph.l_is_master(lvid) ) {
+      if(graph.l_get_vertex_record(lvid).num_out_edges > 0) ++NDOCS;
+      else ++NWORDS;
+      graph.get_local_graph().vertex_data(lvid).randomize();
+    }
+    float sum = 0;
+    // Compute the sum of the neighborhood (either in or out edges)
+    foreach(const edge_type& edge, graph.l_in_edges(lvid))
+      sum += graph.edge_data(edge).rating;
+    foreach(const edge_type& edge, graph.l_out_edges(lvid))
+      sum += graph.edge_data(edge).rating;
+
+    const pair_type rec(graph.global_vid(lvid), sum);
+    const graphlab::procid_t owner = graph.l_get_vertex_record(lvid).owner;
+    vertex_exchange.send(owner, rec);
+    // recv any buffers if necessary
+    if(lvid + 1 == graph.num_local_vertices()) vertex_exchange.flush();
+    while(vertex_exchange.recv(sending_proc, recv_buffer)) {
+      foreach(const pair_type& pair, recv_buffer) 
+        graph.vertex_data(pair.first).neighborhood_total += pair.second;
+      recv_buffer.clear();
+    }    
+  }
+  ASSERT_TRUE(vertex_exchange.empty());
+  std::cout << "Synchronizing neighborhood totals" << std::endl;
+  graph.synchronize();
+  {
+    std::cout << "Determining NWORDS: ";
+    std::vector<size_t> counts(dc.numprocs());
+    counts[dc.procid()] = NWORDS;
+    dc.all_gather(counts);
+    NWORDS = 0;
+    for(size_t i = 0; i < counts.size(); ++i) NWORDS += counts[i];
+     std::cout << NWORDS << std::endl;
+  }
+  {
+    std::cout << "Determining NDOCS: ";
+    std::vector<size_t> counts(dc.numprocs());
+    counts[dc.procid()] = NDOCS;
+    dc.all_gather(counts);
+    NDOCS = 0;
+    for(size_t i = 0; i < counts.size(); ++i) NDOCS += counts[i];
+     std::cout << NDOCS << std::endl;
+  }
+} // end of initialize_vertex_data
+
+
+
+void make_tfidf(graph_type& graph) {
+  typedef graph_type::edge_type edge_type;
+  std::cout << "Updating edge values with TFIDF information." << std::endl;
+  for(size_t lvid = 0; lvid < graph.num_local_vertices(); ++lvid) {
+    foreach(const edge_type& edge, graph.l_in_edges(lvid)) {    
+      const float words_in_doc = 
+        graph.vertex_data(edge.source()).neighborhood_total;
+      ASSERT_GT(words_in_doc, 0);
+      const float doc_freq = 
+        1 + graph.num_in_edges(edge.target());
+      edge_data& edata = graph.edge_data(edge);
+      // edata.rating = 
+      //   -log(edata.rating / words_in_doc) * log( NDOCS / doc_freq );
+      // edata.rating = edata.rating * log( NDOCS / doc_freq );
+      edata.rating = (edata.rating / words_in_doc) * log( NDOCS / doc_freq );
+
+    }
+  }
+} // end of make tfidf
+
+
+
+
+void save_graph_info(const size_t procid,
+                     const graph_type& graph) {
+  typedef graph_type::vertex_id_type vertex_id_type;
+  typedef graph_type::edge_type edge_type;
+
+  std::stringstream sstrm;
+  sstrm << "vinfo_" << procid;
+  const std::string vinfo_fname = sstrm.str();
+  sstrm.str("");
+  sstrm << "einfo_" << procid;
+  const std::string einfo_fname = sstrm.str();
+  std::cout << "[" << vinfo_fname << ", " << einfo_fname << "]" << std::endl;
+
+  std::ofstream vfout(vinfo_fname.c_str());
+  std::ofstream efout(einfo_fname.c_str());
+  for(size_t lvid = 0; lvid < graph.num_local_vertices(); ++lvid) {
+    const size_t gvid = graph.global_vid(lvid);
+    const vertex_data& vdata = graph.vertex_data(gvid);
+    vfout << gvid << '\t'
+          << graph.l_is_master(lvid) << '\t'
+          << vdata.residual << '\t'
+          << vdata.neighborhood_total << '\t'
+          << vdata.nupdates << '\t';
+    ASSERT_EQ(vdata.latent.size(), NLATENT);
+    for(size_t i = 0; i < NLATENT; ++i)
+      vfout << vdata.latent(i) << ( (i+1) < NLATENT ? '\t' : '\n');
+   
+    // save edge information
+    foreach(const edge_type& edge, graph.l_in_edges(lvid)) {
+      const edge_data& edata = graph.edge_data(edge);
+      efout << edge.source() << '\t' << edge.target() << '\t'
+            << edata.rating << '\t' << edata.error << '\n';
+    }
+  }
+  vfout.close();
+  efout.close();
+
+} // end of save graph info

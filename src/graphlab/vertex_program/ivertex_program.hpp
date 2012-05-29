@@ -60,10 +60,10 @@ namespace graphlab {
    * functions. In addition, all vertex programs must provide the
    * following types:
    * 
-   *   1) vertex_data_type: the type of the data stored on each vertex
-   *   2) edge_data_type: the type of the edge data
-   *   3) gather_type: the type used in the gather phase
-   *   4) message_type: The type used for messaging
+   *   1) Graph: the type of graph used to store the data for this
+   *      vertex program.  This is typically distributed_graph.
+   *   2) gather_type: the type used in the gather phase
+   *   3) message_type: The type used for messaging
    *
    * Both the gather_type and message_type must be serializable (i.e.,
    * a primitive or implement load/save) and must support the
@@ -74,9 +74,8 @@ namespace graphlab {
    * vertex_program as an argument.
    * 
    */
-  template<typename VertexData, 
-           typename EdgeData,
-           typename GatherType  = VertexData,
+  template<typename Graph,
+           typename GatherType,
            typename MessageType = graphlab::empty> 
   class ivertex_program {    
   public:
@@ -86,13 +85,13 @@ namespace graphlab {
      * The type of the vertex data which must be defined by the
      * vertex-program.
      */
-    typedef VertexData vertex_data_type;
+    typedef typename Graph::vertex_data_type vertex_data_type;
 
     /**
      * The type of the edge data which must be defined by the
      * vertex-program.
      */
-    typedef EdgeData edge_data_type;
+    typedef typename Graph::edge_data_type edge_data_type;
 
     /**
      * The gather type which must be provided by the vertex program.
@@ -109,7 +108,7 @@ namespace graphlab {
     /**
      * The graph type associative with this vertex program.
      */
-    typedef distributed_graph<vertex_data_type, edge_data_type> graph_type;
+    typedef Graph graph_type;
 
     /**
      * The unique integer id used to reference vertices in the graph.

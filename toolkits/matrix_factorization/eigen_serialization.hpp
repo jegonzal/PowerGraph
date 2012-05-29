@@ -20,9 +20,20 @@
  *
  */
 
+#ifndef EIGEN_SERIALIZATION_HPP
+#define EIGEN_SERIALIZATION_HPP
 
-#include "discrete_variable.hpp"
-#include "unary_factor.hpp"
-#include "binary_factor.hpp"
-#include "table_factor.hpp"
 
+
+#include <Eigen/Dense>
+
+#include <graphlab.hpp>
+
+
+graphlab::oarchive& operator<<(graphlab::oarchive& arc, const Eigen::VectorXd& vec);
+graphlab::iarchive& operator>>(graphlab::iarchive& arc, Eigen::VectorXd& vec);
+graphlab::oarchive& operator<<(graphlab::oarchive& arc, const Eigen::MatrixXd& mat);
+graphlab::iarchive& operator>>(graphlab::iarchive& arc, Eigen::MatrixXd& mat);
+
+
+#endif

@@ -183,6 +183,7 @@ namespace graphlab {
         return result;
       } // end of gamma
 
+
       /**
        * Generate a gaussian random variable with zero mean and unit
        * variance.
@@ -195,6 +196,16 @@ namespace graphlab {
         mut.unlock();
         return result;
       } // end of gaussian
+
+      /**
+       * Generate a gaussian random variable with zero mean and unit
+       * variance.
+       */
+      inline double normal(const double mean = double(0), 
+                           const double stdev = double(1)) {
+        return gaussian(mean, stdev);
+      } // end of normal
+
 
       inline bool bernoulli(const double p = double(0.5)) {
         boost::bernoulli_distribution<double> dist(p);
@@ -381,6 +392,16 @@ namespace graphlab {
     inline double gaussian(const double mean = double(0), 
                            const double stdev = double(1)) {
       return get_source().gaussian(mean, stdev);
+    }
+
+    /**
+     * \ingroup random
+     * Generate a gaussian random variable with zero mean and unit
+     * standard deviation.
+     */
+    inline double normal(const double mean = double(0), 
+                         const double stdev = double(1)) {
+      return get_source().normal(mean, stdev);
     }
 
     /**
