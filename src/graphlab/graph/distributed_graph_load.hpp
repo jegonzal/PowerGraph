@@ -1,5 +1,5 @@
-#ifndef GRAPHLAB_DISTRIBUTED_GRAPH_OPS_HPP
-#define GRAPHLAB_DISTRIBUTED_GRAPH_OPS_HPP
+#ifndef GRAPHLAB_DISTRIBUTED_GRAPH_LOAD_HPP
+#define GRAPHLAB_DISTRIBUTED_GRAPH_LOAD_HPP
 #include <boost/function.hpp>
 #include <boost/algorithm/string/predicate.hpp>
 #include <boost/iostreams/stream.hpp>
@@ -19,11 +19,11 @@ namespace graphlab {
   namespace graph_ops {
    
 
-  template<typename VertexType, typename EdgeType, typename Fstream>
-  bool load_from_stream(graphlab::distributed_graph<VertexType, EdgeType>& graph,
+  template<typename VertexDataType, typename EdgeDataType, typename Fstream>
+  bool load_from_stream(graphlab::distributed_graph<VertexDataType, EdgeDataType>& graph,
                         const std::string& srcfilename,
                         Fstream& fin, 
-                        boost::function<bool(graphlab::distributed_graph<VertexType, EdgeType>&,
+                        boost::function<bool(graphlab::distributed_graph<VertexDataType, EdgeDataType>&,
                                  const std::string&,
                                  const std::string&)> callback) {
     size_t linecount = 0;
@@ -42,10 +42,10 @@ namespace graphlab {
     return true;
   }
   
-  template <typename VertexType, typename EdgeType>
-  void load(graphlab::distributed_graph<VertexType, EdgeType>& graph, 
+  template <typename VertexDataType, typename EdgeDataType>
+  void load(graphlab::distributed_graph<VertexDataType, EdgeDataType>& graph,
             std::string path, 
-            boost::function<bool(graphlab::distributed_graph<VertexType, EdgeType>&,
+            boost::function<bool(graphlab::distributed_graph<VertexDataType, EdgeDataType>&,
                                  const std::string&,
                                  const std::string&)> callback) {
     graph.dc().full_barrier();
@@ -58,10 +58,10 @@ namespace graphlab {
     graph.dc().full_barrier();
   }
 
-  template <typename VertexType, typename EdgeType>
-  void load_from_posixfs(graphlab::distributed_graph<VertexType, EdgeType>& graph, 
+  template <typename VertexDataType, typename EdgeDataType>
+  void load_from_posixfs(graphlab::distributed_graph<VertexDataType, EdgeDataType>& graph,
                         std::string path, 
-                        boost::function<bool(graphlab::distributed_graph<VertexType, EdgeType>&,
+                        boost::function<bool(graphlab::distributed_graph<VertexDataType, EdgeDataType>&,
                                  const std::string&,
                                  const std::string&)> callback) {
     // force a "/" at the end of the path
@@ -99,10 +99,10 @@ namespace graphlab {
 
 
 
-  template <typename VertexType, typename EdgeType>
-  void load_from_hdfs(graphlab::distributed_graph<VertexType, EdgeType>& graph, 
+  template <typename VertexDataType, typename EdgeDataType>
+  void load_from_hdfs(graphlab::distributed_graph<VertexDataType, EdgeDataType>& graph,
                       std::string path, 
-                      boost::function<bool(graphlab::distributed_graph<VertexType, EdgeType>&,
+                      boost::function<bool(graphlab::distributed_graph<VertexDataType, EdgeDataType>&,
                                  const std::string&,
                                  const std::string&)> callback) {
     // force a "/" at the end of the path
@@ -138,21 +138,21 @@ namespace graphlab {
 
 
 
-  template <typename VertexType, typename EdgeType>
-  void load(graphlab::distributed_graph<VertexType, EdgeType>& graph, 
+  template <typename VertexDataType, typename EdgeDataType>
+  void load(graphlab::distributed_graph<VertexDataType, EdgeDataType>& graph,
             std::string path, 
             std::string format) {
-  boost::function<bool(graphlab::distributed_graph<VertexType, EdgeType>&,
+  boost::function<bool(graphlab::distributed_graph<VertexDataType, EdgeDataType>&,
                                  const std::string&,
                                  const std::string&)> callback;
     if (format == "snap") {
-      callback = builtin_parsers::snap_parser<VertexType, EdgeType>;
+      callback = builtin_parsers::snap_parser<VertexDataType, EdgeDataType>;
     }
     else if (format == "adj") {
-      callback = builtin_parsers::adj_parser<VertexType, EdgeType>;
+      callback = builtin_parsers::adj_parser<VertexDataType, EdgeDataType>;
     }
     else if (format == "tsv") {
-      callback = builtin_parsers::tsv_parser<VertexType, EdgeType>;
+      callback = builtin_parsers::tsv_parser<VertexDataType, EdgeDataType>;
     }
     else {
       logstream(LOG_ERROR)
@@ -164,8 +164,8 @@ namespace graphlab {
 
 // Synthetic Generators ===================================================>
     
-  template <typename VertexType, typename EdgeType>
-  void load_synthetic_powerlaw(graphlab::distributed_graph<VertexType, EdgeType>& graph,
+  template <typename VertexDataType, typename EdgeDataType>
+  void load_synthetic_powerlaw(graphlab::distributed_graph<VertexDataType, EdgeDataType>& graph,
                                size_t nverts, bool in_degree = false,
                                double alpha = 2.1, size_t truncate = (size_t)(-1)) {
     graph.dc().full_barrier(); 

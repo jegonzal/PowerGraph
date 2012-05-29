@@ -50,6 +50,8 @@
 #include <graphlab/rpc/dc_dist_object.hpp>
 #include <graphlab/rpc/buffered_exchange.hpp>
 #include <graphlab/util/random.hpp>
+#include <graphlab/util/branch_hints.hpp>
+#include <graphlab/util/generics/conditional_addition_wrapper.hpp>
 
 #include <graphlab/options/graphlab_options.hpp>
 #include <graphlab/serialization/iarchive.hpp>
@@ -318,24 +320,38 @@ namespace graphlab {
     ResultType map_reduce_vertices(
         boost::function<ResultType(vertex_type)> mapfunction) {
       rpc.barrier();
+      bool global_result_set = false;
       ResultType global_result = ResultType();
 #pragma omp parallel
       {
-        ResultType result = ResultType();
+        bool result_set = false;
+        ResultType result;
         #pragma omp for
         for (int i = 0;i < (int)local_graph.num_vertices(); ++i) {
           if (lvid2record[i].owner == rpc.procid()) {
-            result += mapfunction(vertex_type(l_vertex(i)));
+            if (!result_set) {
+              result = mapfunction(vertex_type(l_vertex(i)));
+              result_set = true;
+            }
+            else if (result_set){
+              result += mapfunction(vertex_type(l_vertex(i)));
+            }
           }
         }
         #pragma omp critical
         {
-          global_result += result;
+          if (!global_result_set) {
+            global_result = result;
+            global_result_set = true;
+          }
+          else {
+            global_result += result;
+          }
         }
       }
-
-      rpc.all_reduce(global_result);
-      return global_result;
+      conditional_addition_wrapper<ResultType> wrapper(global_result, global_result_set);
+      rpc.all_reduce(wrapper);
+      return wrapper.value;
     }
 
 
@@ -355,26 +371,92 @@ namespace graphlab {
     ResultType map_reduce_edges(
         boost::function<ResultType(edge_type)> mapfunction) {
       rpc.barrier();
+      bool global_result_set = false;
       ResultType global_result = ResultType();
 #pragma omp parallel
       {
+        bool result_set = false;
         ResultType result = ResultType();
         #pragma omp for
         for (int i = 0;i < (int)local_graph.num_vertices(); ++i) {
           foreach(const local_edge_type& e, l_vertex(i).in_edges()) {
-            result += mapfunction(edge_type(e));
+            if (!result_set) {
+              result = mapfunction(edge_type(e));
+              result_set = true;
+            }
+            else if (result_set){
+              result += mapfunction(edge_type(e));
+            }
           }
         }
         #pragma omp critical
         {
-          global_result += result;
+         if (!global_result_set) {
+            global_result = result;
+            global_result_set = true;
+          }
+          else {
+            global_result += result;
+          }
         }
       }
 
-      rpc.all_reduce(global_result);
-      return global_result;
+      conditional_addition_wrapper<ResultType> wrapper(global_result, global_result_set);
+      rpc.all_reduce(wrapper);
+      return wrapper.value;
     }
 
+
+    /**
+     * parallel_for_vertices will partition the set of vertices among the
+     * vector of accfunctions. Each accfunction is then executed sequentially
+     * on the set of vertices it was assigned.
+     *
+      * \param accfunction must be a void function which takes a single
+      * vertex_type argument. It may be a functor and contain state.
+      * The function need not be reentrant as it is only called sequentially
+     */
+    void parallel_for_vertices(
+        std::vector<boost::function<void(vertex_type)> >& accfunction) {
+      rpc.barrier();
+      int numaccfunctions = (int)accfunction.size();
+      ASSERT_GE(numaccfunctions, 1);
+      #pragma omp parallel for
+      for (int i = 0;i < (int)accfunction.size(); ++i) {
+        for (int j = i;j < (int)local_graph.num_vertices(); j+=numaccfunctions) {
+          if (lvid2record[j].owner == rpc.procid()) {
+            accfunction[i](vertex_type(l_vertex(j)));
+          }
+        }
+      }
+      rpc.barrier();
+    }
+
+
+    /**
+     * parallel_for_edges will partition the set of edges among the
+     * vector of accfunctions. Each accfunction is then executed sequentially
+     * on the set of edges it was assigned.
+     *
+      * \param accfunction must be a void function which takes a single
+      * edge_type argument. It may be a functor and contain state.
+      * The function need not be reentrant as it is only called sequentially
+     */
+    void parallel_for_edges(
+        std::vector<boost::function<void(edge_type)> >& accfunction) {
+      rpc.barrier();
+      int numaccfunctions = (int)accfunction.size();
+      ASSERT_GE(numaccfunctions, 1);
+      #pragma omp parallel for
+      for (int i = 0;i < (int)accfunction.size(); ++i) {
+        for (int j = i;j < (int)local_graph.num_vertices(); j+=numaccfunctions) {
+          foreach(const local_edge_type& e, l_vertex(j).in_edges()) {
+            accfunction[i](edge_type(e));
+          }
+        }
+      }
+      rpc.barrier();
+    }
 
     
     /// \brief Clears the graph. 

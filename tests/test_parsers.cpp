@@ -1,5 +1,6 @@
 #include <graphlab/graph/distributed_graph.hpp>
-#include <graphlab/graph/distributed_graph_ops.hpp>
+#include <graphlab/graph/distributed_graph_save.hpp>
+#include <graphlab/graph/distributed_graph_load.hpp>
 #include <graphlab/macros_def.hpp>
 
 typedef graphlab::distributed_graph<size_t, size_t> graph_type;
@@ -47,7 +48,9 @@ void test_adj(graphlab::distributed_control& dc) {
   graphlab::distributed_graph<size_t, size_t> graph(dc);
   graphlab::graph_ops::load(graph, "data/test_adj", "adj");
   graph.finalize();
-  check_structure(graph);  
+  check_structure(graph);
+  
+  graphlab::graph_ops::save_structure(graph, "./testgraphsave", "tsv");
 }
 
 void test_snap(graphlab::distributed_control& dc) {
