@@ -158,15 +158,9 @@ private:
    * The belief estimate for this vertex program
    */
   unary_factor belief;
-  size_t iteration;
 public:
-  void save(graphlab::oarchive& arc) const { arc << belief << iteration; }
-  void load(graphlab::iarchive& arc) { arc >> belief >> iteration; }
-
-  void recv_message(icontext_type& context, const vertex_type& vertex,
-                    const message_type& msg) {
-    iteration = context.iteration();
-  }
+  void save(graphlab::oarchive& arc) const { arc << belief; }
+  void load(graphlab::iarchive& arc) { arc >> belief; }
 
   /**
    * Since the MRF is undirected we will use all edges for gather and
@@ -184,7 +178,6 @@ public:
   gather_type gather(icontext_type& context, 
                      const vertex_type& vertex, 
                      edge_type& edge) const {
-    ASSERT_EQ(iteration, context.iteration());
     const vertex_type other_vertex = get_other_vertex(edge, vertex);
     edge_data& edata = edge.data();
     edata.update_old(other_vertex.id(), vertex.id());
@@ -196,7 +189,6 @@ public:
    */
   void apply(icontext_type& context, vertex_type& vertex, 
              const gather_type& total) {
-    ASSERT_EQ(iteration, context.iteration());
     // construct the node potential
     belief = make_potential(vertex);
     ASSERT_EQ(belief.arity(), total.factor.arity());
@@ -221,7 +213,6 @@ public:
    */
   void scatter(icontext_type& context, const vertex_type& vertex, 
                edge_type& edge) const {  
-    ASSERT_EQ(iteration, context.iteration());
     const vertex_type other_vertex = get_other_vertex(edge, vertex);
     edge_data& edata = edge.data();
     // construct the cavity
@@ -238,10 +229,10 @@ public:
     new_message.normalize();
     new_message.damp(old_message, DAMPING);
     // Compute message residual
-    const double residual = new_message.residual(old_message);
-    context.signal(vertex, residual);
+    const double residual = new_message.residual(old_message);  
+    context.clear_gather_cache(other_vertex);
     // Schedule the adjacent vertex
-    //    if(residual > BOUND) context.signal(other_vertex, residual);
+    if(residual > BOUND) context.signal(other_vertex, residual);
  }; // end of scatter
 
 private:

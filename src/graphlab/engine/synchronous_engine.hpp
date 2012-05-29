@@ -365,8 +365,8 @@ namespace graphlab {
   void synchronous_engine<VertexProgram>::
   clear_gather_cache(const vertex_type& vertex) {
     const bool caching_enabled = use_cache && !gather_cache.empty();
-    if(caching_enabled) {
-      const lvid_type lvid = vertex.local_id();      
+    const lvid_type lvid = vertex.local_id();
+    if(caching_enabled && has_cache.get(lvid)) {
       vlocks[lvid].lock();
       gather_cache[lvid] = gather_type();
       has_cache.clear_bit(lvid);
@@ -390,13 +390,16 @@ namespace graphlab {
 
     messages.resize(graph.num_local_vertices(), message_type());
     has_message.resize(graph.num_local_vertices());
+    has_message.clear();
 
     gather_accum.resize(graph.num_local_vertices(), gather_type());
     has_gather_accum.resize(graph.num_local_vertices());
+    has_gather_accum.clear();
 
     if (use_cache) {
       gather_cache.resize(graph.num_local_vertices(), gather_type());
       has_cache.resize(graph.num_local_vertices());
+      has_cache.clear();
     }
     
     active_superstep.resize(graph.num_local_vertices());
