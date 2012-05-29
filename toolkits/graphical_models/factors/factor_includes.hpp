@@ -21,8 +21,8 @@
  */
 
 
-
-#include <graphlab/factors/unary_factor.hpp>
-#include <graphlab/factors/binary_factor.hpp>
-#include <graphlab/factors/table_factor.hpp>
+#include "discrete_variable.hpp"
+#include "unary_factor.hpp"
+#include "binary_factor.hpp"
+#include "table_factor.hpp"
 

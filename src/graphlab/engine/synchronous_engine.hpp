@@ -440,6 +440,7 @@ namespace graphlab {
 
   template<typename VertexProgram>
   void synchronous_engine<VertexProgram>::start() {
+    rmi.barrier();
     graph.finalize();
     // Initialization code ==================================================     
     // Reset event log counters? 

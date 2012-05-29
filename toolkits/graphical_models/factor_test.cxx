@@ -30,9 +30,8 @@
 
 #include <graphlab/parallel/pthread_tools.hpp>
 
-#include <graphlab/factors/unary_factor.hpp>
-#include <graphlab/factors/binary_factor.hpp>
-#include <graphlab/factors/table_factor.hpp>
+#include "factors/factor_includes.hpp"
+
 
 
 using namespace graphlab;
@@ -158,7 +157,7 @@ public:
   void test_table_factor() {
     std::cout << "Testing factors" << std::endl;
     const size_t max_dim = 5;
-    typedef graphlab::table_factor<max_dim> factor_type;
+    typedef table_factor<max_dim> factor_type;
     typedef factor_type::domain_type domain_type;
     typedef factor_type::assignment_type assignment_type;
 
