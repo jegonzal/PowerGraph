@@ -33,7 +33,7 @@ typedef graphlab::distributed_graph<int,int> graph_type;
 
 
 class count_in_neighbors : 
-  public graphlab::ivertex_program<int, int, int>,
+  public graphlab::ivertex_program<graph_type, int>,
   public graphlab::IS_POD_TYPE {
 public:
   edge_dir_type 
@@ -73,7 +73,7 @@ void test_in_neighbors(graphlab::distributed_control& dc,
 
 
 class count_out_neighbors : 
-  public graphlab::ivertex_program<int, int, int>,
+  public graphlab::ivertex_program<graph_type, int>,
   public graphlab::IS_POD_TYPE {
 public:
   edge_dir_type 
@@ -112,7 +112,7 @@ void test_out_neighbors(graphlab::distributed_control& dc,
 
 
 class count_all_neighbors : 
-  public graphlab::ivertex_program<int, int, int>,
+  public graphlab::ivertex_program<graph_type, int>,
   public graphlab::IS_POD_TYPE {
 public:
   edge_dir_type 
@@ -153,7 +153,7 @@ void test_all_neighbors(graphlab::distributed_control& dc,
 
 
 class basic_messages : 
-  public graphlab::ivertex_program<int, int, int, int>,
+  public graphlab::ivertex_program<graph_type, int, int>,
   public graphlab::IS_POD_TYPE {
   int message_value;
 public:

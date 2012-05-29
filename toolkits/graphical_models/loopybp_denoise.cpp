@@ -148,9 +148,7 @@ struct factor_product {
  *
  */
 class bp_vertex_program : 
-  public graphlab::ivertex_program< vertex_data,
-                                    edge_data,
-                                    factor_product,
+  public graphlab::ivertex_program< graph_type, factor_product,
                                     graphlab::messages::sum > {
 private:
   /**
