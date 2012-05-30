@@ -46,15 +46,18 @@ fi
 function print_help {
   echo "Usage: ./configure [--prefix=PREFIX] [--experimental]"
   echo
-  echo "  --cleanup               remove all build directories"
+  echo "  --cleanup           remove all build directories"
   echo 
-  echo "  --yes                   automatically install dependencies locally if they are not met."
+  echo "  --yes               automatically install dependencies locally if they are not met."
   echo
-  echo "  --prefix=[PREFIX]       GraphLab Installation target directory. Defaults to /usr/local"
+  echo "  --prefix=[PREFIX]   GraphLab Installation target directory. Defaults to /usr/local"
   echo
-  echo "  --ide=[Unix Makefiles]   Specify the ide to use when building GraphLab."
+  echo "  --ide=[Xcode]       Specify the ide to use when building GraphLab."
   echo
-  echo "  -D something=something  specify definitions to be passed on to cmake."
+  echo "  --experimental      Turns on undocumented experimental distributed capabilities. "
+  echo 
+  echo
+  echo "  -D var=value        Specify definitions to be passed on to cmake."
   exit 1
 }
 
@@ -86,6 +89,7 @@ while [ $# -gt 0 ]
     --help)                 print_help ;;
     --cleanup)              run_cleanup ;;
     --yes)                  always_yes=1;;
+    --experimental)         experimental=1 ;;
     --prefix=*)             prefix=${1##--prefix=} ;;
     --ide=*)                ide=${1##--ide=} ;;
     -D)                     config_flags="$config_flags -D $2"; shift ;;
