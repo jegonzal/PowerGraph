@@ -206,13 +206,13 @@ public:
     vector thetaj = make_unary_potentail(vertex, 'j');
     // Update del fi
     vdata.del_fi = -(thetai + sum.del_fi)/2 +
-      + (thetaij + sum.del_fj.rowwise().replicate(arity).transpose()).
-      colwise().maxCoeff();
+      + (thetaij + sum.del_fj.rowwise().replicate(thetaij.rows())).
+      rowwise().maxCoeff()/2;
     // Update del fj
     vdata.del_fj = -(thetaj + sum.del_fj)/2 +
-      + (thetaij.transpose() + 
-         sum.del_fi.rowwise().replicate(arity).transpose()).
-      colwise().maxCoeff();              
+      + ((thetaij + 
+          sum.del_fi.rowwise().replicate(thetaij.cols()).transpose()).
+         colwise().maxCoeff()).transpose()/2;       
   } // end of apply
   
   /** reschedule neighbors with a given priority and updated
@@ -437,11 +437,15 @@ void create_synthetic_mrf(graphlab::distributed_control& dc,
                           graph_type& graph,
                           const size_t rows, const size_t cols) {
   dc.barrier();
+  // Generate the image on all machines --------------------------------------->
+  // Need to ensure that all machines generate the same noisy image
+  graphlab::random::generator gen; gen.seed(314);
+  std::vector<float>    obs_pixels(rows * cols);
+  std::vector<uint16_t> true_pixels(rows * cols);
   const double center_r = rows / 2.0;
   const double center_c = cols / 2.0;
   const double max_radius = std::min(rows, cols) / 2.0;
- 
-  for(size_t r = dc.procid(); r < rows; r += dc.numprocs()) {
+  for(size_t r = 0; r < rows; ++r) {
     for(size_t c = 0; c < cols; ++c) {
       // Compute the true pixel value
       const double distance = sqrt((r-center_r)*(r-center_r) + 
@@ -452,19 +456,30 @@ void create_synthetic_mrf(graphlab::distributed_control& dc,
       // Compute the true pixel color by masking with the horizon
       const uint16_t true_color = r < rows/2 ? ring_color : 0;
       // compute the predicted color
-      const float obs_color = true_color + graphlab::random::normal(0, SIGMA);
+      const float obs_color = true_color + gen.normal(0, SIGMA);
       // determine the true pixel id
       const graphlab::vertex_id_type vid = sub2ind(rows,cols,r,c);
-      const vertex_data vdata(obs_color, true_color);
-      graph.add_vertex(vid, vdata);
-      // Add the edges
-      if(r + 1 < rows) 
-        graph.add_edge(vid, sub2ind(rows,cols,r+1,c),
-                       edge_data(vid, sub2ind(rows,cols,r+1,c), NCOLORS));
-      if(c + 1 < cols) 
-        graph.add_edge(vid, sub2ind(rows,cols,r,c+1),
-                       edge_data(vid, sub2ind(rows,cols,r,c+1), NCOLORS));
+      true_pixels[vid] = true_color; obs_pixels[vid] = obs_color;
     } // end of loop over cols
   } // end of loop over rows
+
+  // load the graph
+  for(size_t r = dc.procid(); r < rows; r += dc.numprocs()) {
+    for(size_t c = 0; c < cols; ++c) {
+      if(r + 1 < rows) {
+        vertex_data vdata;
+        vdata.i = sub2ind(rows,cols,r,c);
+        vdata.j = sub2ind(rows,cols,r+1,c);
+        vdata.obs_color_i = obs_pixels[vdata.i];
+        vdata.obs_color_j = obs_pixels[vdata.j];
+        //        graph.add_vertex(
+        graph.add_edge(vid, sub2ind(rows,cols,r+1,c),
+                       edge_data(vid, sub2ind(rows,cols,r+1,c), NCOLORS));
+      }
+    }
+  }
+
+
+
   dc.barrier();
 }; // end of create synthetic mrf
