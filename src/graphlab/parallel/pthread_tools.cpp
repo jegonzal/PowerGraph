@@ -36,7 +36,21 @@ namespace graphlab {
                          destroy_tls_data);
     }
   };
-  static const thread_keys keys;
+  // This function is to be called prior to any thread starting
+  // execution to ensure that the static member keys is constructed
+  // prior to any threads launching
+  static pthread_key_t get_tsd_id() {
+    static thread_keys keys;
+    return keys.GRAPHLAB_TSD_ID;
+  }
+  // This forces get_tsd_id to be called prior to main.
+  static pthread_key_t __unused_init_keys__(get_tsd_id());
+  
+  // the combination of the two mechanisms above will force the
+  // thread local store to be initialized
+  // 1: before main
+  // 2: before any other global variables which spawn threads
+  
   // END MAGIC =============================================================>
 
 // -----------------------------------------------------------------
@@ -49,13 +63,13 @@ namespace graphlab {
    */
   thread::tls_data* create_tls_data(size_t thread_id = 0) {
     // Require that the data not yet exist
-    assert(pthread_getspecific(keys.GRAPHLAB_TSD_ID) == NULL);
+    assert(pthread_getspecific(get_tsd_id()) == NULL);
     // Create the data
     thread::tls_data* data =
       new thread::tls_data(thread_id);
     assert(data != NULL);
     // Set the data
-    pthread_setspecific(keys.GRAPHLAB_TSD_ID, data);
+    pthread_setspecific(get_tsd_id(), data);
     // Return the associated tsd
     return data;
   } // end create the thread specific data
@@ -69,7 +83,7 @@ namespace graphlab {
     // get the tsd
     tls_data* tsd =
       reinterpret_cast<tls_data*>
-      (pthread_getspecific(keys.GRAPHLAB_TSD_ID));
+      (pthread_getspecific(get_tsd_id()));
     // If no tsd be has been associated, create one
     if(tsd == NULL) tsd = create_tls_data();
     assert(tsd != NULL);
@@ -181,6 +195,7 @@ namespace graphlab {
 
   
   void thread::launch(const boost::function<void (void)> &spawn_routine) {
+    get_tsd_id();
     ASSERT_FALSE(thread_started);
     // fill in the thread attributes
     pthread_attr_t attr;
@@ -210,6 +225,7 @@ namespace graphlab {
   
   void thread::launch(const boost::function<void (void)> &spawn_routine, 
                       size_t cpu_id){
+      get_tsd_id();
       // if this is not a linux based system simply invoke start and
       // return;
 #ifndef __linux__

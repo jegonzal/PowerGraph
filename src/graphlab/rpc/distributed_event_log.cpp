@@ -34,14 +34,24 @@
 
 namespace graphlab {
 
-  static std::ofstream eventlog_file;
-  static mutex eventlog_file_mutex;
-  static bool eventlog_file_open = false;
+  struct distributed_event_log_state {
+    distributed_event_log_state():
+      eventlog_file_open(false),event_timer_started(false) { }
+      
+    std::ofstream eventlog_file;
+    mutex eventlog_file_mutex;
+    bool eventlog_file_open;
 
-  static timer event_timer;
-  static bool event_timer_started = false;
-  static mutex event_timer_mutex;
+    timer event_timer;
+    bool event_timer_started;
+    mutex event_timer_mutex;
+  };
 
+  static distributed_event_log_state& get_state() {
+    static distributed_event_log_state state;
+    return state;
+  }
+  
   void dist_event_log::initialize(distributed_control& dc,
                                   std::ostream &ostrm,
                                   size_t flush_interval_ms,
@@ -58,13 +68,13 @@ namespace graphlab {
     }
     print_method = event_print;
   
-    event_timer_mutex.lock();
-    if (event_timer_started == false) {
-      event_timer_started = true;
-      event_timer.start();
+    get_state().event_timer_mutex.lock();
+    if (get_state().event_timer_started == false) {
+      get_state().event_timer_started = true;
+      get_state().event_timer.start();
     }
-    event_timer_mutex.unlock();
-    prevtime = event_timer.current_time_millis();
+    get_state().event_timer_mutex.unlock();
+    prevtime = get_state().event_timer.current_time_millis();
 
     cond.signal();
     m.unlock();
@@ -72,13 +82,13 @@ namespace graphlab {
   
     if (event_print == LOG_FILE) {
       if (dc.procid() == 0) {
-        eventlog_file_mutex.lock();
-        if (!eventlog_file_open) {
-          eventlog_file_open = true;
-          eventlog_file.open("eventlog.txt");
+        get_state().eventlog_file_mutex.lock();
+        if (!get_state().eventlog_file_open) {
+          get_state().eventlog_file_open = true;
+          get_state().eventlog_file.open("eventlog.txt");
         }
-        out = &eventlog_file;
-        eventlog_file_mutex.unlock();
+        out = &get_state().eventlog_file;
+        get_state().eventlog_file_mutex.unlock();
       }
     }
   }
@@ -173,7 +183,7 @@ namespace graphlab {
 
   void dist_event_log::immediate_event(unsigned char eventid) {
     m.lock();
-    immediate_events.push_back(std::make_pair(eventid, event_timer.current_time_millis()));
+    immediate_events.push_back(std::make_pair(eventid, get_state().event_timer.current_time_millis()));
     m.unlock();
   }
 
@@ -238,7 +248,7 @@ namespace graphlab {
   void dist_event_log::print_log() {
     uint32_t pos;
     if (!hascounter.first_bit(pos)) return;
-    double curtime = event_timer.current_time_millis();
+    double curtime = get_state().event_timer.current_time_millis();
     double timegap = curtime - prevtime;
     prevtime = curtime;
 
@@ -291,7 +301,7 @@ namespace graphlab {
       out->flush();
     }
     else if (print_method == LOG_FILE) {
-      eventlog_file_mutex.lock();
+      get_state().eventlog_file_mutex.lock();
       do {
         found_events = found_events || stats[pos].total > 0;
         (*out) << descriptions[pos]  << ":\t" << curtime << "\t" << stats[pos].minimum << "\t"
@@ -307,7 +317,7 @@ namespace graphlab {
         }
       }
       out->flush();
-      eventlog_file_mutex.unlock();
+      get_state().eventlog_file_mutex.unlock();
     }
     else if (print_method == RATE_BAR) {
       (*out) << "Time: " << "+"<<timegap << "\t" << curtime << "\n";

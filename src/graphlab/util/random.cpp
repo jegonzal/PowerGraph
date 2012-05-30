@@ -216,13 +216,24 @@ namespace graphlab {
         pthread_key_create(&TLS_RANDOM_SOURCE_KEY,
                            destroy_tls_data);
       }
-    }; 
-    /**
-     * This static constant instantiates forces the pthread key
-     * allocation.
-     */
-    const tls_key_creator key;     
+    };
+    // This function is to be called prior to any access to the random
+    // source
+    static pthread_key_t get_random_source_key() {
+      static const tls_key_creator key;
+      return key.TLS_RANDOM_SOURCE_KEY;
+    }
+    // This forces __init_keys__ to be called prior to main.
+    static pthread_key_t __unused_init_keys__(get_random_source_key());
 
+  // the combination of the two mechanisms above will force the
+  // thread local store to be initialized
+  // 1: before main
+  // 2: before any use of random by global variables.
+  // KNOWN_ISSUE: if a global variable (initialized before main)
+  //               spawns threads which then call random. Things explode.
+  
+    
     /////////////////////////////////////////////////////////////
     //// Implementation of header functions
     
@@ -232,14 +243,14 @@ namespace graphlab {
       // get the thread local storage
       generator* tls_rnd_ptr = 
         reinterpret_cast<generator*>
-        (pthread_getspecific(key.TLS_RANDOM_SOURCE_KEY));
+        (pthread_getspecific(get_random_source_key()));
       // Create a tls_random_source if none was provided
       if(tls_rnd_ptr == NULL) {
         tls_rnd_ptr = new generator();      
         assert(tls_rnd_ptr != NULL);
         // This will seed it with the master rng
         source_registry::global().register_generator(tls_rnd_ptr);
-        pthread_setspecific(key.TLS_RANDOM_SOURCE_KEY, 
+        pthread_setspecific(get_random_source_key(), 
                             tls_rnd_ptr);      
       }
       // assert(tls_rnd_ptr != NULL);
