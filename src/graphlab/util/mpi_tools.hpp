@@ -24,7 +24,9 @@
 #ifndef GRAPHLAB_MPI_TOOLS
 #define GRAPHLAB_MPI_TOOLS
 
+#ifdef HAS_MPI
 #include <mpi.h>
+#endif
 
 #include <vector>
 
@@ -46,46 +48,68 @@ namespace graphlab {
   namespace mpi_tools {
 
 
-
+    /**
+     * The init function is used to initialize MPI and must be called
+     * to clean the command line arguments.
+     */
     inline void init(int& argc, char**& argv) {
+#ifdef HAS_MPI
       const int required(MPI_THREAD_SINGLE);
       int provided(-1);
       int error = MPI_Init_thread(&argc, &argv, required, &provided);
       assert(provided == required);
       assert(error == MPI_SUCCESS);
-    }
+#else
+      logstream(LOG_WARNING) << "MPI not installed!" << std::endl;
+#endif
+    } // end of init
 
     inline void finalize() {
+#ifdef HAS_MPI
       int error = MPI_Finalize();
       assert(error == MPI_SUCCESS);
-    }
+#endif
+    } // end of finalize
 
 
     inline bool initialized() {
-      int i;
-      int error = MPI_Initialized(&i);
+#ifdef HAS_MPI
+      int ret_value = 0;
+      int error = MPI_Initialized(&ret_value);
       assert(error == MPI_SUCCESS);
-      return i;
-    }
+      return ret_value;
+#else
+      return false;
+#endif
+    } // end of initialized
 
     inline size_t rank() {
+#ifdef HAS_MPI
       int mpi_rank(-1);
       MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
       assert(mpi_rank >= 0);
       return size_t(mpi_rank);
+#else
+      return 0;
+#endif
     }
 
     inline size_t size() {
+#ifdef HAS_MPI
       int mpi_size(-1);
       MPI_Comm_size(MPI_COMM_WORLD, &mpi_size);
       assert(mpi_size >= 0);
       return size_t(mpi_size);
+#else
+      return 1;
+#endif
     }
 
     
 
     template<typename T>
     void all_gather(const T& elem, std::vector<T>& results) {
+#ifdef HAS_MPI
       // Get the mpi rank and size
       size_t mpi_size(size());
       if(results.size() != mpi_size) results.resize(mpi_size);
@@ -143,7 +167,10 @@ namespace graphlab {
       for(size_t i = 0; i < results.size(); ++i) {
         iarc >> results[i];
       }  
-    }
+#else
+      logstream(LOG_FATAL) << "MPI not installed!" << std::endl;
+#endif
+    } // end of mpi all gather
 
 
 
@@ -151,6 +178,7 @@ namespace graphlab {
     template<typename T>
     void all2all(const std::vector<T>& send_data, 
                  std::vector<T>& recv_data) {
+#ifdef HAS_MPI
       // Get the mpi rank and size
       size_t mpi_size(size());
       ASSERT_EQ(send_data.size(), mpi_size);
@@ -217,7 +245,10 @@ namespace graphlab {
       for(size_t i = 0; i < recv_data.size(); ++i) {
         iarc >> recv_data[i];
       }  
-    }
+#else
+      logstream(LOG_FATAL) << "MPI not installed!" << std::endl;
+#endif
+    } // end of mpi all to all
 
 
 
@@ -230,6 +261,7 @@ namespace graphlab {
      */
     template<typename T>
     void gather(size_t root, const T& elem) {
+#ifdef HAS_MPI
        // Get the mpi rank and size
       assert(root < size_t(std::numeric_limits<int>::max()));
       int mpi_root(root);
@@ -268,6 +300,9 @@ namespace graphlab {
                           mpi_root,            // root rank
                           MPI_COMM_WORLD);
       assert(error == MPI_SUCCESS);
+#else
+      logstream(LOG_FATAL) << "MPI not installed!" << std::endl;
+#endif
     } // end of gather
 
 
@@ -280,6 +315,7 @@ namespace graphlab {
      */
     template<typename T>
     void gather(const T& elem, std::vector<T>& results) {
+#ifdef HAS_MPI
       // Get the mpi rank and size
       size_t mpi_size(size());
       int mpi_rank(rank());
@@ -340,7 +376,10 @@ namespace graphlab {
       for(size_t i = 0; i < results.size(); ++i) {
         iarc >> results[i];
       }  
-    } // end of gether
+#else
+      logstream(LOG_FATAL) << "MPI not installed!" << std::endl;
+#endif
+    } // end of gather
 
 
 
@@ -349,6 +388,7 @@ namespace graphlab {
      */
     template<typename T>
     void bcast(const size_t& root, T& elem) {
+#ifdef HAS_MPI
       // Get the mpi rank and size
       if(mpi_tools::rank() == root) {
         // serialize the object
@@ -402,12 +442,16 @@ namespace graphlab {
         iarc >> elem;
 
       }
-    } // end of scatter
+#else
+      logstream(LOG_FATAL) << "MPI not installed!" << std::endl;
+#endif
+    } // end of bcast
 
 
 
     template<typename T>
     void send(const T& elem, const size_t id, const int tag = 0) {
+#ifdef HAS_MPI
       // Get the mpi rank and size
       assert(id < size());
       // Serialize the local map
@@ -437,12 +481,16 @@ namespace graphlab {
                        tag,
                        MPI_COMM_WORLD);
       assert(error == MPI_SUCCESS);
+#else
+      logstream(LOG_FATAL) << "MPI not installed!" << std::endl;
+#endif
     } // end of send
 
 
 
     template<typename T>
     void recv(T& elem, const size_t id, const int tag = 0) {
+#ifdef HAS_MPI
       // Get the mpi rank and size
       assert(id < size());
 
@@ -477,6 +525,9 @@ namespace graphlab {
       icharstream strm(&(recv_buffer[0]), recv_buffer.size());
       graphlab::iarchive iarc(strm);
       iarc >> elem;
+#else
+      logstream(LOG_FATAL) << "MPI not installed!" << std::endl;
+#endif
     }
 
 
