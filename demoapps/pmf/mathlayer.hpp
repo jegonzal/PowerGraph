@@ -689,6 +689,16 @@ inline vec init_vec(const char * string, int size){
 inline vec init_dbl_vec(const char * string, int size){
   return vec(string);
 }
+inline double randu(){
+  return graphlab::random::rand01();
+}
+inline vec randu(int size){
+  /*vec ret = zeros(size);
+  for (int i=0; i< size; i++)
+     ret[i] = ::randu();
+  return ret;*/
+  return itpp::randu(size);
+}
 inline vec head(const vec &v, int num){
   return v.mid(0,num);
 }

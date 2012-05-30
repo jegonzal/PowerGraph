@@ -151,9 +151,12 @@ void nmf_init(){
 #pragma omp parallel for
   for (int i=0; i<ps.M; i++){
     vertex_data &data = g->vertex_data(i);
-    if (ac.debug)
-       data.pvec = ones(ac.D) * 0.1;
-    else data.pvec = randu(ac.D);
+    //if feature vectors where loaded from file, don't intialize again
+    if (!ac.loadfactors){
+      if (ac.debug)
+         data.pvec = ones(ac.D) * 0.1;
+      else data.pvec = ::randu(ac.D);
+    }
     if (g->num_out_neighbors(i) == 0)
       logstream(LOG_FATAL)<<"NMF algorithm can not work when the row " << i << " of the matrix contains all zeros" << std::endl;
     foreach(gl_types::edge_id oegeid, g->out_edge_ids(i)){
@@ -167,9 +170,11 @@ void nmf_init(){
 #pragma omp parallel for
   for (int i=ps.M; i<ps.M+ps.N; i++){
     vertex_data &data = g->vertex_data(i);
-    if (ac.debug)
-       data.pvec = ones(ac.D) * 0.1;
-    else data.pvec = randu(ac.D);
+    if (!ac.loadfactors){
+      if (ac.debug)
+         data.pvec = ones(ac.D) * 0.1;
+      else data.pvec = ::randu(ac.D);
+    }
   }
 }
 const gl_types::edge_list get_edges(bool isuser, gl_types::iscope & scope){

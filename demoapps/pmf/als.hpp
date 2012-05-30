@@ -45,19 +45,23 @@ void init_pmf(graph_type * g) {
     ps.pT=10;
   ps.eDT = eye(ac.D)*ps.pT;
   ps.vones = ones(ac.D);
+ 
+  //if initial feature vectors were loaded from file, don't initilize 
+  if (!ac.loadfactors){
   double factor = 0.1/sqrt(ac.D);
   printf("pU=%g, pV=%g, pT=%g, D=%d\n", ps.pU, ps.pV, ps.pT,ac.D);  
 #pragma omp parallel for
    for (int i=0; i<ps.M+ps.N; i++){
        vertex_data & vdata = g->vertex_data(i);
-       vdata.pvec = ac.debug ? ps.vones * 0.1 : randu(ac.D)*factor;
+       vdata.pvec = ac.debug ? ps.vones * 0.1 : ::randu(ac.D)*factor;
    } 
 
    if (ps.tensor){
 #pragma omp parallel for
    for (int i=ps.M+ps.N; i<ps.M+ps.N+ps.K; i++){
        vertex_data & vdata = g->vertex_data(i);
-       vdata.pvec = ac.debug ? ps.vones * 0.1 : randu(ac.D)*factor;
+       vdata.pvec = ac.debug ? ps.vones * 0.1 : ::randu(ac.D)*factor;
+   }
    }
    }
 }

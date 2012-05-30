@@ -65,6 +65,22 @@ vertex_data_svdpp & vertex_data_svdpp::operator=(vertex_data & vdata){
     return *this;
 }
 
+void init_svdpp_node_data(graph_type * _g){
+
+   double factor = 0.1/sqrt(ac.D);
+#pragma omp parallel for
+   for (int i=0; i<ps.M+ps.N; i++){
+       vertex_data & vdata = _g->vertex_data(i);
+       vdata.pvec = ac.debug ? ones(2*ac.D)*0.1 : ::randu(2*ac.D)*factor;
+       vertex_data_svdpp data(_g->vertex_data(i));
+       /*for (int j=0; j < ac.D; j++){
+          data.weight[j] = (ac.debug ? 0.1 : (randu()*factor));
+          data.pvec[j] = (ac.debug ? 0.1 : (randu()*factor));
+       }*/
+       data.bias = 0;
+   } 
+}
+
 template<typename graph_type>
 void init_svdpp(graph_type* _g){
   assert(false);
@@ -73,18 +89,21 @@ void init_svdpp(graph_type* _g){
 template<>
 void init_svdpp(graph_type *_g){
    fprintf(stderr, "SVD++ %d factors\n", ac.D);
-   double factor = 0.1/sqrt(ac.D);
-#pragma omp parallel for
-   for (int i=0; i<ps.M+ps.N; i++){
-       vertex_data & vdata = _g->vertex_data(i);
-       vdata.pvec = zeros(2*ac.D);
-       vertex_data_svdpp data(_g->vertex_data(i));
-       for (int j=0; j < ac.D; j++){
-          data.weight[j] = (ac.debug ? 0.1 : (randu()*factor));
-          data.pvec[j] = (ac.debug ? 0.1 : (randu()*factor));
-       }
-       data.bias = 0;
-   } 
+
+   init_svdpp_node_data(_g);
+  graph_type * validation = (graph_type*)ps.g<graph_type>(VALIDATION);
+  if (validation != NULL && validation->num_vertices() > 0){
+    init_svdpp_node_data(validation); 
+  }
+  graph_type * test = (graph_type*)ps.g<graph_type>(TEST);
+  if (test != NULL && test->num_vertices() > 0){
+    init_svdpp_node_data(test);
+   }
+   graph_type * test2 = (graph_type*)ps.g<graph_type>(TEST2);
+  if (test2 != NULL && test2->num_vertices() > 0){
+    init_svdpp_node_data(test2);
+  }
+
 }
 
 float svdpp_predict_new_user(const vertex_data_svdpp& user, const vertex_data_svdpp& movie, const edge_data * edge, const vertex_data * nothing, const float rating, float & prediction){

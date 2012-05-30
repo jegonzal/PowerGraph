@@ -324,7 +324,7 @@ void start(command_line_options& clopts) {
    }  
 
    //UGLY: for time_svd++ , test files can not be loaded late.. to be fixed later
-   if (ps.algorithm == TIME_SVD_PLUS_PLUS){
+   if (ps.algorithm == TIME_SVD_PLUS_PLUS || ps.algorithm == SVD_PLUS_PLUS){
     //read the test data (optional)
     printf("loading data file %s\n", (ac.datafile+"t").c_str());
     load_pmf_graph<graph_type,gl_types,vertex_data,edge_data>((ac.datafile+"t").c_str(),&training, &test_graph, TEST);
@@ -428,7 +428,7 @@ void start(command_line_options& clopts) {
      
 
     //for all other algos we can delay loading of test data to after the run
-    if (ps.algorithm != TIME_SVD_PLUS_PLUS){ 
+    if (ps.algorithm != TIME_SVD_PLUS_PLUS && ps.algorithm != SVD_PLUS_PLUS){ 
     //read the test data (optional)
     printf("loading data file %s\n", (ac.datafile+"t").c_str());
     load_pmf_graph<graph_type,gl_types,vertex_data,edge_data>((ac.datafile+"t").c_str(),&training, &test_graph, TEST);

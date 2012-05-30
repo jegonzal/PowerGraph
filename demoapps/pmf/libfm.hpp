@@ -97,11 +97,11 @@ void init_libfm(graph_type *_g){
        vdata.bias = 0;
        vertex_data_libfm data(_g->vertex_data(i));
        for (int j=0; j < ac.D; j++){
-          data.v[j] = (ac.debug ? 0.1 : (randu()*factor));
+          data.v[j] = (ac.debug ? 0.1 : (::randu()*factor));
        }
        if (i >= ps.M){
          vertex_data data;
-         data.pvec = (ac.debug ? ones(ac.D)*0.1 : randu(ac.D) * factor);
+         data.pvec = (ac.debug ? ones(ac.D)*0.1 : ::randu(ac.D) * factor);
          last_items.push_back(data);
        }
        else { //user node. find the last rated item and store it
@@ -121,7 +121,7 @@ void init_libfm(graph_type *_g){
 
    for (int i=0; i< ac.K; i++){
       vertex_data & data = ps.times[i];
-      data.pvec  = (ac.debug ? 0.1*ones(ac.D) : randu(ac.D)*factor);
+      data.pvec  = (ac.debug ? 0.1*ones(ac.D) : ::randu(ac.D)*factor);
    }
 }
 

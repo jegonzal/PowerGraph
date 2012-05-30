@@ -63,8 +63,8 @@ void init_biassgd(graph_type *_g){
        vdata.pvec = zeros(2*ac.D);
        vertex_data_svdpp data(_g->vertex_data(i));
        for (int j=0; j < ac.D; j++){
-          data.weight[j] = (ac.debug ? 0.1 : (randu()*factor));
-          data.pvec[j] = (ac.debug ? 0.1 : (randu()*factor));
+          data.weight[j] = (ac.debug ? 0.1 : (::randu()*factor));
+          data.pvec[j] = (ac.debug ? 0.1 : (::randu()*factor));
        }
        vdata.bias = 0;
    } 

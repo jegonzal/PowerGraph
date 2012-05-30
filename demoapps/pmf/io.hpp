@@ -365,7 +365,7 @@ void test_predict(vertex_data & usr, int i, int& lineNum, double & sumPreds, vec
 		memset(&user.weight[0], 0, ac.D*sizeof(double));
 		if (n > 0 ){
 			foreach(edge_id_t oedgeid, g.out_edge_ids(i)) {
-				vertex_data_svdpp & movie = (vertex_data_svdpp&)g.vertex_data(g.target(oedgeid)); 
+				vertex_data_svdpp movie = (vertex_data&)g.vertex_data(g.target(oedgeid)); 
 				for (int j=0; j< ac.D; j++)
           user.weight[j] += movie.weight[j];
 			}
