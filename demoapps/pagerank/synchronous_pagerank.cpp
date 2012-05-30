@@ -74,9 +74,7 @@ typedef graphlab::distributed_graph<vertex_data_type, edge_data_type> graph_type
  *
  */
 class pagerank :
-  public graphlab::ivertex_program<vertex_data_type, 
-                                   edge_data_type,
-                                   float>,
+  public graphlab::ivertex_program<graph_type, float>,
   public graphlab::IS_POD_TYPE {
 public:  
   /** Initialize the vertex program and vertex data */
