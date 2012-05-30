@@ -135,11 +135,14 @@ echo "OS TYPE: $OSTYPE"
 if [[ "$OSTYPE" == "darwin"* ]]; then
   echo "Running on OSX"  
   echo "If no compiler is set we will try to use gcc-4.2"
-  if [[ -z $CC ]]; then
+  echo "Testing for gcc-4.2"
+  gcc42=$(which gcc-4.2)
+  cxx42=$(which c++-4.2)
+  if [[ -z $CC ]] && [[ -n $gcc42 ]]; then
     echo "switching gcc to gcc-4.2"
     export CC="gcc-4.2"
   fi
-  if [[ -z $CXX ]]; then 
+  if [[ -z $CXX ]] && [[ -n $gxx42 ]]; then 
     echo "switching c++ to c++-4.2"
     export CXX="c++-4.2"
   fi

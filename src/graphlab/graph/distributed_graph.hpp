@@ -325,7 +325,7 @@ namespace graphlab {
 #pragma omp parallel
       {
         bool result_set = false;
-        ResultType result;
+        ResultType result = ResultType();
         #pragma omp for
         for (int i = 0;i < (int)local_graph.num_vertices(); ++i) {
           if (lvid2record[i].owner == rpc.procid()) {
