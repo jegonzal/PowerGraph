@@ -359,7 +359,7 @@ endif()
 enable_testing()
 # Use Python interpreter
 find_package(PythonInterp)
-set(CXXTESTGEN ${CMAKE_SOURCE_DIR}/cxxtest/cxxtestgen.py)
+set(CXXTESTGEN ${CMAKE_SOURCE_DIR}/cxxtest/cxxtestgen)
 # create a macro to define a test
 macro(ADD_CXXTEST NAME)
   if(PYTHONINTERP_FOUND)
