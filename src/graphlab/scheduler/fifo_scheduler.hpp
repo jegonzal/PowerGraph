@@ -225,13 +225,15 @@ namespace graphlab {
                 if(ret_priority >= min_priority) {
                   locks[idx].lock();
                   queues[idx].push_back(ret_vid);
-                   locks[idx].unlock();
+                  locks[idx].unlock();
                 }
               }
             }
             else continue;
           }
-          locks[idx].unlock();
+          else {
+            locks[idx].unlock();
+          }
         }
         /* Check all the queues */
         for(size_t i = 0; i < queues.size(); ++i) {
@@ -261,7 +263,9 @@ namespace graphlab {
                 }
               }
             }
-            locks[idx].unlock();
+            else {
+              locks[idx].unlock();
+            }
           }
         }
         break;
