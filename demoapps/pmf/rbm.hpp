@@ -158,41 +158,6 @@ inline float sigmoid(float x){
     return 1 / (1 + exp(-1 * x));
 }
 
-double calc_rbm_rmse(const graph_type * _g, bool test, double & res){
-
-  graph_type * g = (graph_type*)ps.g<graph_type>(TRAINING);
-  if (test && ps.Le == 0)
-       return NAN;
-      
-     
-     res = 0;
-     double sqErr =0;
-     int nCases = 0;
-
-     for (int i=0; i< ps.M; i++){
-       rbm_user usr = g->vertex_data(i);
-       int n = usr.num_edges; //+1.0 ? //regularization
-       if (n == 0){
-         nCases += _g->out_edge_ids(i).size();
-       }
-       else {
-         foreach(graphlab::edge_id_t oedgeid, _g->out_edge_ids(i)){
-           const edge_data & item = _g->edge_data(oedgeid);
-           const rbm_movie movie = g->vertex_data(_g->target(oedgeid)); 
-           float estScore;
-           sqErr += predict(usr, movie, NULL, NULL, item.weight, estScore);
-           nCases++;
-         }
-       }
-   }
-   assert(!std::isnan(sqErr));
-   res = sqErr;
-   ASSERT_EQ(nCases , (test?ps.Le:ps.L));
-   return sqrt(sqErr/(double)nCases);
-}
-
-
-
 void rbm_post_iter(){
 
   post_iter_stats<graph_type>();

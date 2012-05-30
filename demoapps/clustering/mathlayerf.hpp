@@ -722,7 +722,7 @@ inline fmat mat2fmat(const mat  & a){
 
 
 inline fvec frandu(int size){
-  return vec2fvec(randu(size));
+  return vec2fvec(::randu(size));
 }
 
 inline void debug_print_vec(const char * name,const fvec& _vec, int len){

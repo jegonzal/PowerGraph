@@ -116,7 +116,7 @@ lda_learn (double *alpha, double **beta)
         n=ps.M;
 
 	for (i = 0; i < ac.K; i++)
-		alpha[i] = randu();
+		alpha[i] = ::randu();
 	for (i = 0, z = 0; i < ac.K; i++)
 		z += alpha[i];
 	for (i = 0; i < ac.K; i++)
