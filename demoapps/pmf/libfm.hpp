@@ -291,7 +291,7 @@ void fill_factors_libfm(){
       vertex_data &data = ps.times[i];
       assert(data.pvec.size() == ac.D);
       set_row(ps.T, i, data.pvec);
-      ps.svdpp_time_bias = data.bias;
+      ps.svdpp_time_bias[i] = data.bias;
    }
 }
 

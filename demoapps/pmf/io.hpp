@@ -412,7 +412,7 @@ void test_predict(vertex_data & data, int i, int&lineNum, double& sumPreds, vec 
           if (ac.debug && (i== 0 || i == ps.M))
             cout<<lineNum<<") prediction:"<<prediction<<endl; 
           if (dosave)
-            test_predictions[lineNum] = prediction;
+            test_predictions->operator[](lineNum) = prediction;
 	        sumPreds += prediction;
  	        lineNum++; 
        }
@@ -444,7 +444,7 @@ void test_predict(vertex_data & data, int i, int&lineNum, double & sumPreds, vec
           if (ac.debug && (i== 0 || i == ps.M))
             cout<<lineNum<<") prediction:"<<prediction<<endl; 
           if (dosave)
-           test_predictions[lineNum] = prediction;
+            test_predictions->operator[](lineNum) =  prediction;
           RMSE += pow(prediction - edge.weight, 2);
           MAE += fabs(prediction - edge.weight);
 	        sumPreds += prediction;
