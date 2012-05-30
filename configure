@@ -46,22 +46,15 @@ fi
 function print_help {
   echo "Usage: ./configure [--prefix=PREFIX] [--experimental]"
   echo
-  echo "      --cleanup               remove all build directories"
+  echo "  --cleanup               remove all build directories"
   echo 
-  echo "      --yes                   automatically install dependencies locally if they are not met."
+  echo "  --yes                   automatically install dependencies locally if they are not met."
   echo
-  echo "      --prefix=[PREFIX]       GraphLab Installation target directory. Defaults to /usr/local"
-  echo 
-  echo "      --experimental          Turns on undocumented experimental distributed capabilities. "
-  echo 
-  echo "      --itpp                  Try to automatically build itpp"
+  echo "  --prefix=[PREFIX]       GraphLab Installation target directory. Defaults to /usr/local"
   echo
-  echo "      --itpp_include_dir=[DIR] specify manually itpp include directories (path to itpp header files)."
-  echo 
-  echo "      --itpp_link_dir=[DIR]   specify manually itpp link dir (path to libitpp.a lib)."
+  echo "  --ide=[Unix Makefiles]   Specify the ide to use when building GraphLab."
   echo
-  echo "      -D something=something  specify definitions to be passed on to cmake."
-  echo
+  echo "  -D something=something  specify definitions to be passed on to cmake."
   exit 1
 }
 
@@ -94,10 +87,7 @@ while [ $# -gt 0 ]
     --cleanup)              run_cleanup ;;
     --yes)                  always_yes=1;;
     --prefix=*)             prefix=${1##--prefix=} ;;
-    --experimental)         experimental=1 ;;
-    --itpp)                 itpp=1 ;;
-    --itpp_include_dir=*)   itpp_include_dir=${1##--itpp_include_dir=} ;;
-    --itpp_link_dir=*)      itpp_link_dir=${1##--itpp_link_dir=} ;;
+    --ide=*)                ide=${1##--ide=} ;;
     -D)                     config_flags="$config_flags -D $2"; shift ;;
     *) unknown_option $1 ;;
   esac
@@ -291,10 +281,13 @@ fi
 
 set -e
 
+if [[ -n $ide ]]; then
+  generator="-G $ide"
+fi
+
+
 echo -e "\n\n\n======================= Release ========================" \
     | tee -a $LOG_FILE 
-
-
 
 if [ ! -d $RELEASE_DIR ]; then
     mkdir $RELEASE_DIR
@@ -302,6 +295,7 @@ fi
 cd $RELEASE_DIR
 rm -f CMakeCache.txt
 build_cmd="$CMAKE \
+    $generator \
     -D CMAKE_BUILD_TYPE=Release \
     $config_flags \
     ../."
@@ -319,6 +313,7 @@ fi
 cd $DEBUG_DIR
 rm -f CMakeCache.txt
 build_cmd="$CMAKE \
+    $generator \
     -D CMAKE_BUILD_TYPE=Debug \
     $config_flags \
     ../."
@@ -336,6 +331,7 @@ fi
 cd $PROFILE_DIR
 rm -f CMakeCache.txt
 build_cmd="$CMAKE \
+    $generator \
     -D CMAKE_BUILD_TYPE=Release \
     -D COMPILE_PROFILING=1 \
     $config_flags \
@@ -344,5 +340,8 @@ build_cmd="$CMAKE \
 echo $build_cmd | tee -a ../$LOG_FILE
 eval $build_cmd | tee -a ../$LOG_FILE
 cd $GRAPHLAB_HOME
+
+
+
 
 
