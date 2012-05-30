@@ -101,7 +101,7 @@ namespace graphlab {
       // } // end of set_unsafe
 
       inline bool peek(lock_free_pool<value_type>& pool,
-                       const value_type& new_value,
+                       value_type& new_value,
                        atomic<size_t>& joincounter) {
         bool retval = false;
         
@@ -122,7 +122,6 @@ namespace graphlab {
           //try to put it back in
           if (__unlikely__(vptr != NULL && vptr != VALUE_PENDING)) {
             retval = set(pool, (*vptr), new_value, joincounter);
-            pool.free(vptr);
           } 
           break;
         }
@@ -153,13 +152,12 @@ namespace graphlab {
           } else { (*vptr) += toinsert; joincounter.inc(); }
           // swap it back in
           ASSERT_TRUE(vptr != VALUE_PENDING);
-          new_value = *value_ptr;
+          new_value = (*vptr);
           atomic_exchange(value_ptr, vptr);
           //aargh! I swapped something else out. Now we have to
           //try to put it back in
           if (__unlikely__(vptr != NULL && vptr != VALUE_PENDING)) {
             toinsert = (*vptr);
-            pool.free(vptr);
           } else { break; }
         }
         return ret;

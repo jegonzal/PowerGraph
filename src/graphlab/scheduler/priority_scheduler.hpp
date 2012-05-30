@@ -89,12 +89,12 @@ namespace graphlab {
         current_queue.resize(new_ncpus);
       }
       
-      std::vector<std::string> keys = opts.get_engine_args().get_option_keys();
+      std::vector<std::string> keys = opts.get_scheduler_args().get_option_keys();
       foreach(std::string opt, keys) {
         if (opt == "multi") {
-          opts.get_engine_args().get_option("multi", multi);
+          opts.get_scheduler_args().get_option("multi", multi);
         } else if (opt == "min_priority") {
-          opts.get_engine_args().get_option("min_priority", min_priority);
+          opts.get_scheduler_args().get_option("min_priority", min_priority);
         } else {
           logstream(LOG_ERROR) << "Unexpected Scheduler Option: " << opt << std::endl;
         }

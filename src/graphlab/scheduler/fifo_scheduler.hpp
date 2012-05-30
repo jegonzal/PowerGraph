@@ -93,12 +93,12 @@ namespace graphlab {
         current_queue.resize(new_ncpus);
       }
       
-      std::vector<std::string> keys = opts.get_engine_args().get_option_keys();
+      std::vector<std::string> keys = opts.get_scheduler_args().get_option_keys();
       foreach(std::string opt, keys) {
         if (opt == "multi") {
-          opts.get_engine_args().get_option("multi", multi);
+          opts.get_scheduler_args().get_option("multi", multi);
         } else if (opt == "min_priority") {
-          opts.get_engine_args().get_option("min_priority", min_priority);
+          opts.get_scheduler_args().get_option("min_priority", min_priority);
         } else {
           logstream(LOG_ERROR) << "Unexpected Scheduler Option: " << opt << std::endl;
         }
@@ -264,9 +264,25 @@ namespace graphlab {
             locks[idx].unlock();
           }
         }
+        break;
       }
       return sched_status::EMPTY;     
     } // end of get_next_task
+
+
+
+    sched_status::status_enum
+    get_specific(vertex_id_type vid,
+                 message_type& ret_msg) {
+      bool get_success = messages.test_and_get(vid, ret_msg);
+      if (get_success) return sched_status::NEW_TASK;
+      else return sched_status::EMPTY;
+    }
+
+    void place(vertex_id_type vid,
+                 const message_type& msg) {
+      messages.add(vid, msg);
+    }
 
 
     size_t num_joins() const {

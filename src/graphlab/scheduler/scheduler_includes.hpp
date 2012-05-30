@@ -19,23 +19,15 @@
  *      http://www.graphlab.ml.cmu.edu
  *
  */
+#ifndef GRAPHLAB_SCHEDULER_INCLUDES_HPP
+#define GRAPHLAB_SCHEDULER_INCLUDES_HPP
 
-
-// #include <graphlab/scheduler/clustered_priority_scheduler.hpp>
-
-
-// #include <graphlab/scheduler/chromatic_scheduler.hpp>
-// #include <graphlab/scheduler/sweep_scheduler.hpp>
-// #include <graphlab/scheduler/priority_scheduler.hpp>
-
-// #include <graphlab/scheduler/ischeduler.hpp>
-// #include <graphlab/scheduler/icallback.hpp>
-
-// #include <graphlab/scheduler/multiqueue_fifo_scheduler.hpp>
-// #include <graphlab/scheduler/multiqueue_priority_scheduler.hpp>
- 
-// #include <graphlab/scheduler/round_robin_scheduler.hpp>
-
-// #include <graphlab/scheduler/sampling_scheduler.hpp>
-
-
+#include <graphlab/scheduler/fifo_scheduler.hpp>
+#include <graphlab/scheduler/get_message_priority.hpp>
+#include <graphlab/scheduler/ischeduler.hpp>
+#include <graphlab/scheduler/priority_scheduler.hpp>
+#include <graphlab/scheduler/queued_fifo_scheduler.hpp>
+#include <graphlab/scheduler/scheduler_factory.hpp>
+#include <graphlab/scheduler/scheduler_list.hpp>
+#include <graphlab/scheduler/sweep_scheduler.hpp>
+#endif

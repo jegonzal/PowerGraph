@@ -27,6 +27,7 @@ ADD_CXXTEST(union_find_test.cxx)
 
 ADD_CXXTEST(graph_test.cxx)
 ADD_CXXTEST(empty_test.cxx)
+ADD_CXXTEST(scheduler_test.cxx)
 
 add_graphlab_executable(distributed_graph_test distributed_graph_test.cpp)
 

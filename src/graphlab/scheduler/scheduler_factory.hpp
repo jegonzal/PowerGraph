@@ -31,9 +31,8 @@
 
 // Schedulers
 #include <graphlab/graph/graph_basic_types.hpp>
-#include <graphlab/options/options_map.hpp>
+#include <graphlab/options/graphlab_options.hpp>
 #include <graphlab/scheduler/scheduler_list.hpp>
-#include <graphlab/scheduler/terminator/iterminator.hpp>
 
 #include <boost/preprocessor.hpp>
 
@@ -54,10 +53,9 @@ namespace graphlab {
      */
     template<typename Scheduler>
     static ischeduler_type* 
-    new_scheduler(const options_map& opts,
-                  size_t num_vertices, size_t ncpus) {
+    new_scheduler(size_t num_vertices, const graphlab_options& opts) {
       ischeduler_type* scheduler_ptr = 
-        new Scheduler(num_vertices, ncpus, opts);
+        new Scheduler(num_vertices, opts);
       ASSERT_TRUE(scheduler_ptr != NULL);
       return scheduler_ptr;
     } // end of new_scheduler
@@ -67,15 +65,14 @@ namespace graphlab {
      */    
     static ischeduler_type* 
     new_scheduler(const std::string& scheduler_str,
-                  const options_map& opts,
-                  size_t num_vertices, size_t ncpus) {
+                  size_t num_vertices, const graphlab_options& opts) {
 #define __GENERATE_NEW_SCHEDULER__(r_unused, data_unused, i,  elem)     \
       BOOST_PP_EXPR_IF(i, else)                                         \
         if (scheduler_str == BOOST_PP_TUPLE_ELEM(3,0,elem)) {           \
           typedef BOOST_PP_TUPLE_ELEM(3,1,elem)<Message>                \
             scheduler_type;                                             \
           return new_scheduler<scheduler_type>                          \
-            ( opts, graph, ncpus  );                                    \
+            ( num_vertices, opts);                                      \
         }      
       // generate the construction calls
       BOOST_PP_SEQ_FOR_EACH_I(__GENERATE_NEW_SCHEDULER__, _, __SCHEDULER_LIST__);

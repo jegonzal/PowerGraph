@@ -29,7 +29,6 @@
 
 #include <graphlab/scheduler/ischeduler.hpp>
 #include <graphlab/parallel/atomic_add_vector.hpp>
-#include <graphlab/graph/graph_ops.hpp>
 #include <graphlab/graph/graph_basic_types.hpp>
 
 #include <graphlab/scheduler/get_message_priority.hpp>
@@ -48,7 +47,7 @@ namespace graphlab {
     
   private:
 
-    const size_t ncpus;
+    size_t ncpus;
 
     bool strict_round_robin;
     atomic<size_t> rr_index;
@@ -87,17 +86,17 @@ namespace graphlab {
         ASSERT_GE(new_ncpus, 1);
         ncpus = new_ncpus;
       }
-      std::vector<std::string> keys = opts.get_engine_args().get_option_keys();
+      std::vector<std::string> keys = opts.get_scheduler_args().get_option_keys();
       foreach(std::string opt, keys) {
         if (opt == "order") {
-          opts.get_engine_args().get_option("order", ordering);
+          opts.get_scheduler_args().get_option("order", ordering);
           ASSERT_TRUE(ordering == "random" || ordering == "ascending");
         } else if (opt == "strict") {
-          opts.get_engine_args().get_option("strict", strict_round_robin);
+          opts.get_scheduler_args().get_option("strict", strict_round_robin);
         } else if (opt == "max_iterations") {
-          opts.get_engine_args().get_option("max_iterations", max_iterations);
+          opts.get_scheduler_args().get_option("max_iterations", max_iterations);
         } else if (opt == "min_priority") {
-          opts.get_engine_args().get_option("min_priority", min_priority);
+          opts.get_scheduler_args().get_option("min_priority", min_priority);
         } else {
           logstream(LOG_ERROR) << "Unexpected Scheduler Option: " << opt << std::endl;
         }

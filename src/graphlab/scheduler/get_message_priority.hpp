@@ -9,11 +9,11 @@ namespace graphlab {
 namespace scheduler_impl {
   
 template <typename T>
-class implements_priority_member {
+struct implements_priority_member {
   template<typename U, double (U::*)() const> struct SFINAE {};
-  template <typename U> char test(SFINAE<U, &U::priority>*);
-  template <typename U> int test(...);
-  static const bool value = sizeof(test<T>(0)) == sizeof(char);
+  template <typename U> static char test(SFINAE<U, &U::priority>*);
+  template <typename U> static int test(...);
+  static const bool value = (sizeof(test<T>(0) == sizeof(char)));
 };
 
 template <typename MessageType>

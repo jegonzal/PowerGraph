@@ -60,9 +60,9 @@ namespace graphlab {
 
     /**
      * Add an option -> value pair where value is a string.
-     * Don't use. add_option() prefered.
+     * Don't use. set_option() prefered.
      */
-    inline void add_option_str(const std::string &opt, 
+    inline void set_option_str(const std::string &opt,
                                const std::string &val) {
       options[opt].strval = val;
       try {
@@ -77,9 +77,9 @@ namespace graphlab {
     }
 
     template <typename T>
-    void add_option(const std::string& opt, const T& val) {
+    void set_option(const std::string& opt, const T& val) {
       if (boost::is_convertible<T, std::string>::value) {
-        add_option_str(opt, robust_cast<std::string>(val));
+        set_option_str(opt, robust_cast<std::string>(val));
       } else {
         options[opt].strval  = robust_cast<std::string>(val);
         options[opt].intval  = robust_cast<int>(val);
@@ -152,9 +152,16 @@ namespace graphlab {
     /**
      * Erases an option
      */
-    template <typename T>
-    inline void erase_option(const std::string &opt) { options.erase(opt); }
+    inline void erase_option(const std::string &opt) {
+      options.erase(opt);
+    }
 
+    /**
+     * Clears all options
+     */
+    void clear_options() {
+      options.clear();
+    }
 
     /**
      * Parses an option stream  of the form "a=b c=d ..."
@@ -169,6 +176,7 @@ namespace graphlab {
      * Parses an option stream  of the form "a=b c=d ..."
      */
     inline void parse_options(std::istream& s) {
+      options.clear();
       std::string opt, value;
       // read till the equal
       while(s.good()) {
@@ -176,7 +184,7 @@ namespace graphlab {
         if (s.bad() || s.eof()) break;
         getline(s, value, ' ');
         if (s.bad()) break;
-        add_option_str(trim(opt), trim(value));
+        set_option_str(trim(opt), trim(value));
       }
     }
 
