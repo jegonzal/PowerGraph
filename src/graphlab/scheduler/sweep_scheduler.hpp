@@ -28,7 +28,7 @@
 #include <cassert>
 
 #include <graphlab/scheduler/ischeduler.hpp>
-#include <graphlab/parallel/atomic_add_vector.hpp>
+#include <graphlab/parallel/atomic_add_vector2.hpp>
 #include <graphlab/graph/graph_basic_types.hpp>
 
 #include <graphlab/scheduler/get_message_priority.hpp>
@@ -58,7 +58,7 @@ namespace graphlab {
     std::vector<uint16_t>                   vid2cpu;
     std::vector<vertex_id_type>             cpu2index;
 
-    atomic_add_vector<message_type>         messages;
+    atomic_add_vector2<message_type>         messages;
     double                                  min_priority;
     std::string                             ordering;
 

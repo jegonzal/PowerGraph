@@ -34,7 +34,7 @@
 
 
 #include <graphlab/scheduler/ischeduler.hpp>
-#include <graphlab/parallel/atomic_add_vector.hpp>
+#include <graphlab/parallel/atomic_add_vector2.hpp>
 
 #include <graphlab/scheduler/get_message_priority.hpp>
 #include <graphlab/options/graphlab_options.hpp>
@@ -63,7 +63,7 @@ namespace graphlab {
     typedef std::deque<vertex_id_type> queue_type;
 
   private:
-    atomic_add_vector<message_type> messages;
+    atomic_add_vector2<message_type> messages;
     std::deque<queue_type> master_queue;
     mutex master_lock;
     size_t sub_queue_size;
