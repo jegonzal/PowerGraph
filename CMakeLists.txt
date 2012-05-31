@@ -209,8 +209,9 @@ link_libraries(event_pthreads)
 # JNI =========================================================================
 # We use JNI for jvm interfacing and for hdfs support.  We currently only 
 # detect the presence of java and do not install our own version. 
+find_package(Java)
 find_package(JNI)
-if(EXISTS ${JAVA_INCLUDE_PATH}/jni.h  )
+if(EXISTS ${JAVA_INCLUDE_PATH}/jni.h AND NOT BROKEN_JAVAC )
   set(JNI_REALLY_FOUND 1 CACHE BOOL "Tests whether the header
   actually exists")
 message(STATUS "jni.h was found at " ${JAVA_INCLUDE_PATH}/jni.h)

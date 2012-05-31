@@ -144,6 +144,8 @@ check_version()
 
 
 
+
+
 ## Install cmake
 if [ `which cmake` ]; then
   #test cmake version
@@ -273,12 +275,9 @@ if [ ! -z $EXPERIMENTAL ]; then
 fi
 
 
-if [ ! -z $itpp_link_dir ]; then
-    config_flags="$config_flags -D ITPP_LINK_DIR:STRING=$itpp_link_dir"
-fi
-
-if [ ! -z $itpp_include_dir ]; then
-   config_flags="$config_flags -D ITPP_INCLUDE_DIR:STRING=$itpp_include_dir"
+working_javac=$(javac -version 2> /dev/null)
+if [ ! $working_javac; ]; then
+    config_flags="$config_flags -D BROKEN_JAVAC:BOOL=1"
 fi
 
 ### CONSTRUCT THE BUILD DIRECTORIES ===========================================
