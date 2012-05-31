@@ -102,7 +102,7 @@ namespace graphlab {
         return vertex_type(g, e.target());
       }
 
-      edge_id_type id() {
+      edge_id_type id() const {
         return g.gstore.edge_id(e);
       }
     };

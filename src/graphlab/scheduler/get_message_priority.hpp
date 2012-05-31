@@ -35,7 +35,7 @@ namespace scheduler_impl {
     template<typename U, double (U::*)() const> struct SFINAE {};
     template <typename U> static char test(SFINAE<U, &U::priority>*);
     template <typename U> static int test(...);
-    static const bool value = (sizeof(test<T>(0) == sizeof(char)));
+    static const bool value = (sizeof(test<T>(0)) == sizeof(char));
   };
 
   template <typename MessageType>
