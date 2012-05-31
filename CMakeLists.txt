@@ -160,9 +160,8 @@ ExternalProject_Add(boost
   # C_INCLUDE_PATH=${GraphLab_SOURCE_DIR}/deps/local/include 
   # CPLUS_INCLUDE_PATH=${GraphLab_SOURCE_DIR}/deps/local/include 
   # LIBRARY_PATH=${GraphLab_SOURCE_DIR}/deps/local/lib
-  NO_BZIP2=1
-  ./b2 --link=static --variant=release --threading=multi
-  INSTALL_COMMAND ./b2 install
+  NO_BZIP2=1 ./b2 --link=static --variant=release --threading=multi install
+  INSTALL_COMMAND ""
   INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local )
 set(BOOST_ROOT ${GraphLab_SOURCE_DIR}/deps/local )
 set(BOOST_LIBS_DIR ${GraphLab_SOURCE_DIR}/deps/local/lib)
