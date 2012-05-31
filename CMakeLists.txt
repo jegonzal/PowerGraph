@@ -164,13 +164,13 @@ message(STATUS "Boost Shared libs: " ${Boost_SHARED_LIBRARIES})
 
 # TCMalloc  ===================================================================
 # We use tcmalloc for improved memory allocation performance
-ExternalProject_Add(tcmalloc
+ExternalProject_Add(libtcmalloc
   PREFIX ${GraphLab_SOURCE_DIR}/deps/tcmalloc
   URL http://gperftools.googlecode.com/files/gperftools-2.0.tar.gz
   URL_MD5 13f6e8961bc6a26749783137995786b6
   CONFIGURE_COMMAND <SOURCE_DIR>/configure --enable-frame-pointers --prefix=<INSTALL_DIR>
   INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local)
-link_libraries(tcmalloc)
+# link_libraries(tcmalloc)
 set(TCMALLOC-FOUND 1)
 add_definitions(-DHAS_TCMALLOC)
 
@@ -197,14 +197,14 @@ endif()
 # libevent ====================================================================
 # LibEvent is used in the RPC layer to manage the interaction between the 
 # TCP stack and the event handler threads
-ExternalProject_Add(event
+ExternalProject_Add(libevent
   PREFIX ${GraphLab_SOURCE_DIR}/deps/event
   URL http://iweb.dl.sourceforge.net/project/levent/libevent/libevent-2.0/libevent-2.0.18-stable.tar.gz
   URL_MD5 aa1ce9bc0dee7b8084f6855765f2c86a
   CONFIGURE_COMMAND <SOURCE_DIR>/configure --prefix=<INSTALL_DIR>
   INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local)
-link_libraries(event)
-link_libraries(event_pthreads)
+#link_libraries(event)
+#link_libraries(event_pthreads)
 
 # JNI =========================================================================
 # We use JNI for jvm interfacing and for hdfs support.  We currently only 
@@ -456,9 +456,11 @@ macro(add_graphlab_executable NAME)
     ${MPI_LIBRARY} 
     ${MPI_EXTRA_LIBRARY} 
     ${Boost_LIBRARIES}
+    tcmalloc
+    event
+    event_pthreads
     )
-  add_dependencies(${NAME} eigen boost tcmalloc graphlab)
-  target_link_libraries(${NAME} graphlab)
+  add_dependencies(${NAME} eigen boost libtcmalloc libevent graphlab)
 endmacro(add_graphlab_executable)
 
 
