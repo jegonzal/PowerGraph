@@ -1,5 +1,5 @@
-/**  
- * Copyright (c) 2009 Carnegie Mellon University. 
+/**
+ * Copyright (c) 2009 Carnegie Mellon University.
  *     All rights reserved.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
@@ -32,25 +32,24 @@
 typedef graphlab::distributed_graph<int,int> graph_type;
 
 
-class count_in_neighbors : 
+class count_in_neighbors :
   public graphlab::ivertex_program<graph_type, int>,
   public graphlab::IS_POD_TYPE {
 public:
-  edge_dir_type 
+  edge_dir_type
   gather_edges(icontext_type& context, const vertex_type& vertex) const {
     return graphlab::IN_EDGES;
   }
-  gather_type 
-  gather(icontext_type& context, const vertex_type& vertex, 
+  gather_type
+  gather(icontext_type& context, const vertex_type& vertex,
          edge_type& edge) const {
-    return 1;    
+    return 1;
   }
-  void apply(icontext_type& context, vertex_type& vertex, 
+  void apply(icontext_type& context, vertex_type& vertex,
              const gather_type& total) {
     ASSERT_EQ( total, int(vertex.num_in_edges()) );
-    context.signal(vertex);
   }
-  edge_dir_type 
+  edge_dir_type
   scatter_edges(icontext_type& context, const vertex_type& vertex) const {
     return graphlab::NO_EDGES;
   }
@@ -60,8 +59,8 @@ public:
 void test_in_neighbors(graphlab::distributed_control& dc,
                        graphlab::command_line_options& clopts,
                        graph_type& graph) {
-  std::cout << "Constructing a syncrhonous engine for in neighbors" << std::endl;
-  typedef graphlab::synchronous_engine<count_in_neighbors> engine_type;
+  std::cout << "Constructing an engine for in neighbors" << std::endl;
+  typedef graphlab::async_consistent_engine<count_in_neighbors> engine_type;
   engine_type engine(dc, graph, clopts);
   engine.initialize();
   std::cout << "Scheduling all vertices to count their neighbors" << std::endl;
@@ -72,25 +71,24 @@ void test_in_neighbors(graphlab::distributed_control& dc,
 }
 
 
-class count_out_neighbors : 
+class count_out_neighbors :
   public graphlab::ivertex_program<graph_type, int>,
   public graphlab::IS_POD_TYPE {
 public:
-  edge_dir_type 
+  edge_dir_type
   gather_edges(icontext_type& context, const vertex_type& vertex) const {
     return graphlab::OUT_EDGES;
   }
-  gather_type 
-  gather(icontext_type& context, const vertex_type& vertex, 
+  gather_type
+  gather(icontext_type& context, const vertex_type& vertex,
          edge_type& edge) const {
     return 1;
   }
-  void apply(icontext_type& context, vertex_type& vertex, 
+  void apply(icontext_type& context, vertex_type& vertex,
              const gather_type& total) {
     ASSERT_EQ( total, int(vertex.num_out_edges()) );
-    context.signal(vertex);
   }
-  edge_dir_type 
+  edge_dir_type
   scatter_edges(icontext_type& context, const vertex_type& vertex) const {
     return graphlab::NO_EDGES;
   }
@@ -99,8 +97,8 @@ public:
 void test_out_neighbors(graphlab::distributed_control& dc,
                         graphlab::command_line_options& clopts,
                         graph_type& graph) {
-  std::cout << "Constructing a syncrhonous engine for out neighbors" << std::endl;
-  typedef graphlab::synchronous_engine<count_out_neighbors> engine_type;
+  std::cout << "Constructing an engine for out neighbors" << std::endl;
+  typedef graphlab::async_consistent_engine<count_out_neighbors> engine_type;
   engine_type engine(dc, graph, clopts);
   engine.initialize();
   std::cout << "Scheduling all vertices to count their neighbors" << std::endl;
@@ -111,25 +109,29 @@ void test_out_neighbors(graphlab::distributed_control& dc,
 }
 
 
-class count_all_neighbors : 
-  public graphlab::ivertex_program<graph_type, int>,
+class count_all_neighbors :
+  public graphlab::ivertex_program<graph_type, int, int>,
   public graphlab::IS_POD_TYPE {
 public:
-  edge_dir_type 
+  void recv_message(icontext_type& context, const vertex_type& vertex,
+                    const message_type& msg) {
+    ASSERT_EQ(msg, 100);
+  }
+  
+  edge_dir_type
   gather_edges(icontext_type& context, const vertex_type& vertex) const {
     return graphlab::ALL_EDGES;
   }
-  gather_type 
-  gather(icontext_type& context, const vertex_type& vertex, 
+  gather_type
+  gather(icontext_type& context, const vertex_type& vertex,
          edge_type& edge) const {
     return 1;
   }
-  void apply(icontext_type& context, vertex_type& vertex, 
+  void apply(icontext_type& context, vertex_type& vertex,
              const gather_type& total) {
     ASSERT_EQ( total, int(vertex.num_in_edges() + vertex.num_out_edges() ) );
-    context.signal(vertex);
   }
-  edge_dir_type 
+  edge_dir_type
   scatter_edges(icontext_type& context, const vertex_type& vertex) const {
     return graphlab::NO_EDGES;
   }
@@ -138,77 +140,18 @@ public:
 void test_all_neighbors(graphlab::distributed_control& dc,
                         graphlab::command_line_options& clopts,
                         graph_type& graph) {
-  std::cout << "Constructing a syncrhonous engine for all neighbors" << std::endl;
-  typedef graphlab::synchronous_engine<count_all_neighbors> engine_type;
+  std::cout << "Constructing an engine for all neighbors" << std::endl;
+  typedef graphlab::async_consistent_engine<count_all_neighbors> engine_type;
   engine_type engine(dc, graph, clopts);
   engine.initialize();
   std::cout << "Scheduling all vertices to count their neighbors" << std::endl;
-  engine.signal_all();
+  engine.signal_all(100);
   std::cout << "Running!" << std::endl;
   engine.start();
   std::cout << "Finished" << std::endl;
 }
 
 
-
-
-class basic_messages : 
-  public graphlab::ivertex_program<graph_type, int, int>,
-  public graphlab::IS_POD_TYPE {
-  int message_value;
-public:
-
-  void recv_message(icontext_type& context, const vertex_type& vertex,
-                    const message_type& msg) {
-    message_value = msg;
-  } 
-
-  edge_dir_type 
-  gather_edges(icontext_type& context, const vertex_type& vertex) const {
-    return graphlab::IN_EDGES;
-  }
- 
-  gather_type gather(icontext_type& context, const vertex_type& vertex, 
-         edge_type& edge) const {
-    return 1;
-  }
-
-  void apply(icontext_type& context, vertex_type& vertex, 
-             const gather_type& total) {
-    context.signal(vertex, 0);
-    if(message_value < 0) {
-      // first iteration has wrong messages
-      return;
-    }
-    ASSERT_EQ(total, message_value);
-
-  }
-
-  edge_dir_type 
-  scatter_edges(icontext_type& context, const vertex_type& vertex) const {
-    return graphlab::OUT_EDGES;
-  }
-
-  void scatter(icontext_type& context, const vertex_type& vertex, 
-               edge_type& edge) const {
-    context.signal(edge.target(), 1);
-  }
-
-}; // end of test_messages
-
-void test_messages(graphlab::distributed_control& dc,
-                   graphlab::command_line_options& clopts,
-                   graph_type& graph) {
-  std::cout << "Testing messages" << std::endl;
-  typedef graphlab::synchronous_engine<basic_messages> engine_type;
-  engine_type engine(dc, graph, clopts);
-  engine.initialize();
-  std::cout << "Scheduling all vertices to test messages" << std::endl;
-  engine.signal_all(-1);
-  std::cout << "Running!" << std::endl;
-  engine.start();
-  std::cout << "Finished" << std::endl;
-}
 
 
 
@@ -225,7 +168,7 @@ int main(int argc, char** argv) {
   graphlab::distributed_control dc(rpc_parameters);
 
   graphlab::command_line_options clopts("Test code.");
-  clopts.engine_args.set_option("max_iterations", 10);
+  clopts.set_scheduler_type("queued_fifo");
   std::cout << "Creating a powerlaw graph" << std::endl;
   graph_type graph(dc, clopts);
   graphlab::graph_ops::load_synthetic_powerlaw(graph, 100);
@@ -233,7 +176,6 @@ int main(int argc, char** argv) {
   test_in_neighbors(dc, clopts, graph);
   test_out_neighbors(dc, clopts, graph);
   test_all_neighbors(dc, clopts, graph);
-  test_messages(dc, clopts, graph);
 
   graphlab::mpi_tools::finalize();
 } // end of main

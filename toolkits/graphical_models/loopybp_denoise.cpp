@@ -269,7 +269,8 @@ private:
 /**
  * Define the engine type
  */
-typedef graphlab::synchronous_engine<bp_vertex_program> engine_type;
+//typedef graphlab::synchronous_engine<bp_vertex_program> engine_type;
+typedef graphlab::async_consistent_engine<bp_vertex_program> engine_type;
 
 
 /**

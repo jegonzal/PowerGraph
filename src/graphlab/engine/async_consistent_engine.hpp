@@ -355,6 +355,10 @@ namespace graphlab {
         }
       }
       opts_copy = opts;
+      // set a default scheduler if none
+      if (opts_copy.get_scheduler_type() == "") {
+        opts_copy.set_scheduler_type("queued_fifo");
+      }
       rmi.barrier();
       
     }
@@ -602,6 +606,7 @@ namespace graphlab {
                                               vertex_type(graph.l_vertex(lvid)), 
                                               vstate[lvid].current_message);
       vstate[lvid].current_message = message_type();
+      vstate[lvid].combined_gather.clear();
     }   
  
     void post_delta(const vertex_type& vertex, 
@@ -619,7 +624,6 @@ namespace graphlab {
       local_vertex_type lvertex(graph.l_vertex(lvid));
       vertex_type vertex(lvertex);
 
-      vstate[lvid].combined_gather.clear();
       context_type context(*this, graph);
       
       edge_dir_type gatherdir = vstate[lvid].vertex_program.gather_edges(context, vertex);
@@ -833,6 +837,7 @@ namespace graphlab {
 
       vstate[sched_lvid].state = MIRROR_GATHERING;
       vstate[sched_lvid].vertex_program = prog;
+      vstate[sched_lvid].combined_gather.clear();
       vstate[sched_lvid].unlock();
       // lets go
       add_internal_task(sched_lvid);
