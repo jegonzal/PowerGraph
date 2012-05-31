@@ -121,16 +121,16 @@ add_definitions(-DHAS_EIGEN)
 include_directories(${GraphLab_SOURCE_DIR}/deps/local/include/eigen3)
 
 
-# libbz  =================================================================
-ExternalProject_Add(libbz2
-  PREFIX ${GraphLab_SOURCE_DIR}/deps/libbz2
-  URL http://www.bzip.org/1.0.6/bzip2-1.0.6.tar.gz
-  URL_MD5 00b516f4704d4a7cb50a1d97e6e8e15b
-  INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local
-  CONFIGURE_COMMAND ""
-  BUILD_IN_SOURCE 1
-  BUILD_COMMAND make
-  INSTALL_COMMAND make install PREFIX=<INSTALL_DIR>)
+# # libbz  =================================================================
+# ExternalProject_Add(libbz2
+#   PREFIX ${GraphLab_SOURCE_DIR}/deps/libbz2
+#   URL http://www.bzip.org/1.0.6/bzip2-1.0.6.tar.gz
+#   URL_MD5 00b516f4704d4a7cb50a1d97e6e8e15b
+#   INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local
+#   CONFIGURE_COMMAND ""
+#   BUILD_IN_SOURCE 1
+#   BUILD_COMMAND CFLAGS=-fPIC make 
+#   INSTALL_COMMAND CFLAGS=-fPIC make install PREFIX=<INSTALL_DIR>)
 
 
 
@@ -144,7 +144,11 @@ ExternalProject_Add(boost
   URL "http://sourceforge.net/projects/boost/files/boost/1.49.0/boost_1_49_0.tar.gz"
   URL_MD5 e0defc8c818e4f1c5bbb29d0292b76ca 
   BUILD_IN_SOURCE 1
-  CONFIGURE_COMMAND ./bootstrap.sh 
+  CONFIGURE_COMMAND 
+  # C_INCLUDE_PATH=${GraphLab_SOURCE_DIR}/deps/local/include 
+  # CPLUS_INCLUDE_PATH=${GraphLab_SOURCE_DIR}/deps/local/include
+  # LIBRARY_PATH=${GraphLab_SOURCE_DIR}/deps/local/lib
+  ./bootstrap.sh 
   --with-libraries=filesystem
   --with-libraries=program_options
   --with-libraries=system
@@ -152,8 +156,13 @@ ExternalProject_Add(boost
   --with-libraries=date_time
   --with-libraries=random
   --prefix=<INSTALL_DIR>
-  BUILD_COMMAND  ./bjam --threading=multi --link=static --variant=release 
-  INSTALL_COMMAND ./bjam install
+  BUILD_COMMAND  
+  # C_INCLUDE_PATH=${GraphLab_SOURCE_DIR}/deps/local/include 
+  # CPLUS_INCLUDE_PATH=${GraphLab_SOURCE_DIR}/deps/local/include 
+  # LIBRARY_PATH=${GraphLab_SOURCE_DIR}/deps/local/lib
+  NO_BZIP2=1
+  ./b2 --link=static --variant=release --threading=multi
+  INSTALL_COMMAND ./b2 install
   INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local )
 set(BOOST_ROOT ${GraphLab_SOURCE_DIR}/deps/local )
 set(BOOST_LIBS_DIR ${GraphLab_SOURCE_DIR}/deps/local/lib)
@@ -163,7 +172,7 @@ set(Boost_LIBRARIES
   ${BOOST_LIBS_DIR}/libboost_system.a 
   ${BOOST_LIBS_DIR}/libboost_iostreams.a 
   ${BOOST_LIBS_DIR}/libboost_date_time.a)
-add_dependencies(boost libbz2)
+# add_dependencies(boost libbz2)
 message(STATUS "Boost libs: " ${Boost_LIBRARIES})
 # add_definitions(-DBOOST_DATE_TIME_POSIX_TIME_STD_CONFIG)
 # add_definitions(-DBOOST_ALL_DYN_LINK)
