@@ -460,7 +460,7 @@ macro(add_graphlab_executable NAME)
     event
     event_pthreads
     )
-  add_dependencies(${NAME} eigen boost libtcmalloc libevent graphlab)
+  add_dependencies(${NAME} boost libtcmalloc libevent graphlab)
 endmacro(add_graphlab_executable)
 
 
