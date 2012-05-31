@@ -120,6 +120,10 @@ ExternalProject_Add(eigen
 add_definitions(-DHAS_EIGEN)
 include_directories(${GraphLab_SOURCE_DIR}/deps/local/include/eigen3)
 
+macro(requires_eigen NAME)
+  add_dependencies(${NAME} eigen)
+endmacro(requires_eigen)
+
 
 # libbz  =================================================================
 ExternalProject_Add(libbz2
@@ -228,6 +232,12 @@ ExternalProject_Add(imagemagick
 include_directories(${GraphLab_SOURCE_DIR}/deps/local/include/ImageMagick)
 add_dependencies(imagemagick libjpeg)
 
+macro(requires_imagemagick NAME)
+  target_link_libraries(${NAME} Magick++)
+  add_dependencies(${NAME} imagemagick)
+endmacro(requires_imagemagick)
+
+
 
 # zlib  =======================================================================
 # We rely on the zlib library to read gzip compressed files
@@ -317,6 +327,32 @@ else(MPI_FOUND)
   #   CONFIGURE_COMMAND <SOURCE_DIR>/configure --prefix=<INSTALL_DIR>
   #   INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local)
 endif(MPI_FOUND)
+
+
+
+
+
+## =============================================================
+# Core graphlab requirements 
+macro(requires_core_deps NAME)
+  target_link_libraries(${NAME} 
+    ${Boost_LIBRARIES}
+    tcmalloc
+    event event_pthreads)
+  add_dependencies(${NAME} boost libtcmalloc libevent)
+  if(MPI_FOUND)
+    target_link_libraries(${NAME} ${MPI_LIBRARY} ${MPI_EXTRA_LIBRARY})
+  endif(MPI_FOUND)
+  if(HADOOP_FOUND)
+    target_link_libraries(${NAME} hdfs ${JAVA_JVM_LIBRARY})
+    add_dependencies(${NAME} hadoop)
+  endif(HADOOP_FOUND)
+endmacro(requires_core_deps)
+
+
+
+
+
 
 
 
@@ -495,18 +531,9 @@ endmacro(copy_files NAME)
 # copy all files matching a pattern into the build environment
 macro(add_graphlab_executable NAME)
   add_executable(${NAME} ${ARGN})
-  target_link_libraries(${NAME} 
-    graphlab
-    ${MPI_LIBRARY} 
-    ${MPI_EXTRA_LIBRARY} 
-    ${Boost_LIBRARIES}
-    tcmalloc
-    event
-    event_pthreads
-    hdfs 
-    ${JAVA_JVM_LIBRARY}
-    )
-  add_dependencies(${NAME} boost libtcmalloc libevent graphlab hadoop)
+  target_link_libraries(${NAME} graphlab)
+  add_dependencies(${NAME} graphlab)
+  requires_core_deps(${NAME})
 endmacro(add_graphlab_executable)
 
 

@@ -19,11 +19,6 @@ subdirs(
 
 
 #build the graphlab library
-
-if (MPI_FOUND)
-  set(util_mpi_tools util/mpi_tools.cpp)
-endif()
-
 add_library(graphlab STATIC
   options/command_line_options.cpp
   options/options_map.cpp
@@ -43,7 +38,7 @@ add_library(graphlab STATIC
   util/memory_info.cpp
   util/tracepoint.cpp
   util/event_log.cpp
-  ${util_mpi_tools}
+  util/mpi_tools.cpp
   rpc/dc_tcp_comm.cpp
   rpc/circular_char_buffer.cpp
   rpc/dc_stream_receive.cpp
@@ -56,19 +51,7 @@ add_library(graphlab STATIC
   rpc/distributed_event_log.cpp
   rpc/delta_dht.cpp
   )
-add_dependencies(graphlab boost libtcmalloc libevent hadoop)
-if(JNI_REALLY_FOUND)
-  add_dependencies(graphlab hadoop)
-endif(JNI_REALLY_FOUND)
-
-
-target_link_libraries(graphlab ${Boost_LIBRARIES}
-  tcmalloc event event_pthreads hdfs ${JAVA_JVM_LIBRARY})
-
-
-if (MPI_FOUND)
-  target_link_libraries(graphlab ${MPI_LIBRARY} ${MPI_EXTRA_LIBRARY})
-endif()
+requires_core_deps(graphlab)
 
 
 # if(Sctp-FOUND)
@@ -83,10 +66,8 @@ endif()
 get_target_property(graphlab_sources graphlab SOURCES)
 get_property(graphlab_flags TARGET graphlab PROPERTY COMPILE_FLAGS)
 add_library(graphlab_pic STATIC ${graphlab_sources})
-add_dependencies(graphlab_pic boost libtcmalloc libevent)
-if(JNI_REALLY_FOUND)
-  add_dependencies(graphlab_pic hadoop)
-endif(JNI_REALLY_FOUND)
+requires_core_deps(graphlab_pic)
+target_link_libraries(graphlab_pic ${Boost_SHARED_LIBRARIES})
 
 
 set_target_properties(graphlab_pic PROPERTIES 
@@ -107,4 +88,4 @@ INSTALL(FILES matlab/get_mex_params.sh
   PERMISSIONS OWNER_WRITE OWNER_READ OWNER_EXECUTE)
 
 
-target_link_libraries(graphlab_pic ${Boost_SHARED_LIBRARIES})
+
