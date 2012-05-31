@@ -121,16 +121,17 @@ add_definitions(-DHAS_EIGEN)
 include_directories(${GraphLab_SOURCE_DIR}/deps/local/include/eigen3)
 
 
-# # libbz  =================================================================
-# ExternalProject_Add(libbz2
-#   PREFIX ${GraphLab_SOURCE_DIR}/deps/libbz2
-#   URL http://www.bzip.org/1.0.6/bzip2-1.0.6.tar.gz
-#   URL_MD5 00b516f4704d4a7cb50a1d97e6e8e15b
-#   INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local
-#   CONFIGURE_COMMAND ""
-#   BUILD_IN_SOURCE 1
-#   BUILD_COMMAND CFLAGS=-fPIC make 
-#   INSTALL_COMMAND CFLAGS=-fPIC make install PREFIX=<INSTALL_DIR>)
+# libbz  =================================================================
+ExternalProject_Add(libbz2
+  PREFIX ${GraphLab_SOURCE_DIR}/deps/libbz2
+  URL http://www.bzip.org/1.0.6/bzip2-1.0.6.tar.gz
+  URL_MD5 00b516f4704d4a7cb50a1d97e6e8e15b
+  INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local
+  CONFIGURE_COMMAND ""
+  PATCH_COMMAND patch -p0 < ${GraphLab_SOURCE_DIR}/patches/libbz2_fpic.patch
+  BUILD_IN_SOURCE 1
+  BUILD_COMMAND make install PREFIX=<INSTALL_DIR>
+  INSTALL_COMMAND "" )
 
 
 
@@ -157,10 +158,10 @@ ExternalProject_Add(boost
   --with-libraries=random
   --prefix=<INSTALL_DIR>
   BUILD_COMMAND  
-  # C_INCLUDE_PATH=${GraphLab_SOURCE_DIR}/deps/local/include 
-  # CPLUS_INCLUDE_PATH=${GraphLab_SOURCE_DIR}/deps/local/include 
-  # LIBRARY_PATH=${GraphLab_SOURCE_DIR}/deps/local/lib
-  NO_BZIP2=1 ./b2 --link=static --variant=release --threading=multi install
+  C_INCLUDE_PATH=${GraphLab_SOURCE_DIR}/deps/local/include 
+  CPLUS_INCLUDE_PATH=${GraphLab_SOURCE_DIR}/deps/local/include 
+  LIBRARY_PATH=${GraphLab_SOURCE_DIR}/deps/local/lib
+  ./b2 install --link=static --variant=release --threading=multi --runtime-link=static
   INSTALL_COMMAND ""
   INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local )
 set(BOOST_ROOT ${GraphLab_SOURCE_DIR}/deps/local )
@@ -171,7 +172,7 @@ set(Boost_LIBRARIES
   ${BOOST_LIBS_DIR}/libboost_system.a 
   ${BOOST_LIBS_DIR}/libboost_iostreams.a 
   ${BOOST_LIBS_DIR}/libboost_date_time.a)
-# add_dependencies(boost libbz2)
+add_dependencies(boost libbz2)
 message(STATUS "Boost libs: " ${Boost_LIBRARIES})
 # add_definitions(-DBOOST_DATE_TIME_POSIX_TIME_STD_CONFIG)
 # add_definitions(-DBOOST_ALL_DYN_LINK)
