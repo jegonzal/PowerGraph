@@ -274,15 +274,16 @@ if [ ! -z $EXPERIMENTAL ]; then
     config_flags="$config_flags -D EXPERIMENTAL:BOOL=$EXPERIMENTAL"
 fi
 
-
-working_javac=$(javac -version 2> /dev/null)
-if [ ! $working_javac; ]; then
+set -e
+set -o pipefail
+if ! javac -version | tee -a $LOG_FILE; then
+    echo "BROKEN JAVAC"
     config_flags="$config_flags -D BROKEN_JAVAC:BOOL=1"
 fi
 
 ### CONSTRUCT THE BUILD DIRECTORIES ===========================================
 
-set -e
+
 
 if [[ -n $ide ]]; then
   generator="-G $ide"

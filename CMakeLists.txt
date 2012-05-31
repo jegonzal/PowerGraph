@@ -211,25 +211,26 @@ link_libraries(event_pthreads)
 # detect the presence of java and do not install our own version. 
 find_package(Java)
 find_package(JNI)
-if(EXISTS ${JAVA_INCLUDE_PATH}/jni.h AND NOT BROKEN_JAVAC )
-  set(JNI_REALLY_FOUND 1 CACHE BOOL "Tests whether the header
-  actually exists")
-message(STATUS "jni.h was found at " ${JAVA_INCLUDE_PATH}/jni.h)
-include_directories(${JNI_INCLUDE_DIRS})
-## Guess java home location   
-if(EXISTS $ENV{JAVA_HOME} )
-  set(JAVA_HOME $ENV{JAVA_HOME} CACHE STRING "Location of Java Home")
-  message(STATUS "Java home set by user: " ${JAVA_HOME})
-else()
-  string(REGEX REPLACE "\\/include" "" JAVA_HOME_GUESS  ${JAVA_AWT_INCLUDE_PATH})
-  set(JAVA_HOME ${JAVA_HOME_GUESS} CACHE STRING "Location of Java Home")
-  message(STATUS "Java Home guessed: " ${JAVA_HOME})
+
+if(NOT BROKEN_JAVAC)
+  if((EXISTS ${JAVA_INCLUDE_PATH}/jni.h))
+    set(JNI_REALLY_FOUND 1 CACHE BOOL "Tests whether the header actually exists")
+    message(STATUS "jni.h was found at " ${JAVA_INCLUDE_PATH}/jni.h)
+    include_directories(${JNI_INCLUDE_DIRS})
+    ## Guess java home location   
+    if(EXISTS $ENV{JAVA_HOME} )
+      set(JAVA_HOME $ENV{JAVA_HOME} CACHE STRING "Location of Java Home")
+      message(STATUS "Java home set by user: " ${JAVA_HOME})
+    else()
+      string(REGEX REPLACE "\\/include" "" JAVA_HOME_GUESS  ${JAVA_AWT_INCLUDE_PATH})
+      set(JAVA_HOME ${JAVA_HOME_GUESS} CACHE STRING "Location of Java Home")
+      message(STATUS "Java Home guessed: " ${JAVA_HOME})
+    endif()
+  else( )
+    set(JNI_REALLY_FOUND 0 CACHE BOOL "Tests whether the header actually exists")
+    message(STATUS "jni.h was not found at " ${JAVA_INCLUDE_PATH}/jni.h)
+  endif( )
 endif()
-else( )
-  set(JNI_REALLY_FOUND 0 CACHE BOOL "Tests whether the header
-  actually exists")
-#  message(STATUS "jni.h was not found at " ${JAVA_INCLUDE_PATH}/jni.h)
-endif( )
 
 # Ant =========================================================================
 # Ant is used to build the graphlab JVM interface
