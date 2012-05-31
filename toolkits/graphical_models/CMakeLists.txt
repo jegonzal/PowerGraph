@@ -8,6 +8,6 @@ target_link_libraries(loopybp_denoise  Magick++)
 
 
 add_graphlab_executable(mplp_denoise mplp_denoise.cpp)
-# add_dependencies(mplp_denoise imagemagick eigen)
+add_dependencies(mplp_denoise  eigen)
 # target_link_libraries(mplp_denoise  Magick++)
 
