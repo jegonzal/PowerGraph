@@ -297,7 +297,7 @@ if( JNI_REALLY_FOUND )
     TEST_COMMAND bash -c "mkdir -p <INSTALL_DIR>/include && cp <SOURCE_DIR>/src/c++/libhdfs/hdfs.h <INSTALL_DIR>/include")
   set(HADOOP_FOUND 1 CACHE BOOL "Hadoop was found")
   add_definitions(-DHAS_HADOOP)
-  link_libraries(hdfs ${JAVA_JVM_LIBRARY})
+  # link_libraries(hdfs ${JAVA_JVM_LIBRARY})
 endif( JNI_REALLY_FOUND )
 
 # MPI =========================================================================
@@ -503,6 +503,8 @@ macro(add_graphlab_executable NAME)
     tcmalloc
     event
     event_pthreads
+    hdfs 
+    ${JAVA_JVM_LIBRARY}
     )
   add_dependencies(${NAME} boost libtcmalloc libevent graphlab hadoop)
 endmacro(add_graphlab_executable)

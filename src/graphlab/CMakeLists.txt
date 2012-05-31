@@ -63,7 +63,7 @@ endif(JNI_REALLY_FOUND)
 
 
 target_link_libraries(graphlab ${Boost_LIBRARIES}
-  tcmalloc event event_pthreads)
+  tcmalloc event event_pthreads hdfs ${JAVA_JVM_LIBRARY})
 
 
 if (MPI_FOUND)
