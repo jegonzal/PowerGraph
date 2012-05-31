@@ -63,9 +63,9 @@ install(CODE "execute_process(COMMAND ./scripts/install_deps.sh
   ${CMAKE_INSTALL_PREFIX} WORKING_DIRECTORY
   ${CMAKE_CURRENT_SOURCE_DIR})")
 
-set(ENV{C_INCLUDE_PATH} ${GraphLab_SOURCE_DIR}/deps/local/include)
-set(ENV{CPLUS_INCLUDE_PATH} ${GraphLab_SOURCE_DIR}/deps/local/include)
-set(ENV{LIBRARY_PATH} ${GraphLab_SOURCE_DIR}/deps/local/lib)
+# set(EXTERNAL_PROJECT_FLAGS 
+#   "-I${GraphLab_SOURCE_DIR}/deps/local/include -L${GraphLab_SOURCE_DIR}/deps/local/lib")
+
 
 
 ### ===================================================================
@@ -146,9 +146,6 @@ ExternalProject_Add(boost
   URL_MD5 e0defc8c818e4f1c5bbb29d0292b76ca 
   BUILD_IN_SOURCE 1
   CONFIGURE_COMMAND 
-  # C_INCLUDE_PATH=${GraphLab_SOURCE_DIR}/deps/local/include 
-  # CPLUS_INCLUDE_PATH=${GraphLab_SOURCE_DIR}/deps/local/include
-  # LIBRARY_PATH=${GraphLab_SOURCE_DIR}/deps/local/lib
   ./bootstrap.sh 
   --with-libraries=filesystem
   --with-libraries=program_options
@@ -198,15 +195,38 @@ ExternalProject_Add(libtcmalloc
 set(TCMALLOC-FOUND 1)
 add_definitions(-DHAS_TCMALLOC)
 
+
+
+# Lib Jpeg =================================================================
+ExternalProject_Add(libjpeg
+  PREFIX ${GraphLab_SOURCE_DIR}/deps/libjpeg
+  URL http://www.ijg.org/files/jpegsrc.v8d.tar.gz
+  INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local
+  CONFIGURE_COMMAND <SOURCE_DIR>/configure --prefix=<INSTALL_DIR>
+  BUILD_IN_SOURCE 1)
+
+
+
 # ImageMagick =================================================================
 ExternalProject_Add(imagemagick
   PREFIX ${GraphLab_SOURCE_DIR}/deps/imagemagick
   URL http://www.imagemagick.org/download/ImageMagick.tar.gz
   # URL_MD5 010b63a2542c4ec4918c8cb431c00356
-  CONFIGURE_COMMAND <SOURCE_DIR>/configure --prefix=<INSTALL_DIR>
+  CONFIGURE_COMMAND 
+  C_INCLUDE_PATH=${GraphLab_SOURCE_DIR}/deps/local/include 
+  CPLUS_INCLUDE_PATH=${GraphLab_SOURCE_DIR}/deps/local/include 
+  LIBRARY_PATH=${GraphLab_SOURCE_DIR}/deps/local/lib
+  LDFLAGS=-L${GraphLab_SOURCE_DIR}/deps/local/lib	
+  <SOURCE_DIR>/configure --prefix=<INSTALL_DIR>
+  BUILD_COMMAND
+  C_INCLUDE_PATH=${GraphLab_SOURCE_DIR}/deps/local/include 
+  CPLUS_INCLUDE_PATH=${GraphLab_SOURCE_DIR}/deps/local/include 
+  LIBRARY_PATH=${GraphLab_SOURCE_DIR}/deps/local/lib
+  LDFLAGS=-L${GraphLab_SOURCE_DIR}/deps/local/lib	
+  make
   INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local)
 include_directories(${GraphLab_SOURCE_DIR}/deps/local/include/ImageMagick)
-
+add_dependencies(imagemagick libjpeg)
 
 
 # zlib  =======================================================================
