@@ -59,38 +59,31 @@ namespace graphlab {
   
   
 
-  template<typename Graph, typename UpdateFunctor>
-  class distributed_engine: public iengine<Graph, UpdateFunctor> {
+  template<typename VertexProgram>
+  class distributed_engine: public iengine<VertexProgram> {
       
   public:
     // Include parent types
-    typedef iengine<Graph, UpdateFunctor> iengine_base;
-    typedef distributed_engine<Graph, UpdateFunctor> engine_type;
-    
-    typedef typename iengine_base::graph_type graph_type;
-    typedef typename graph_type::local_graph_type local_graph_type;
-    typedef typename iengine_base::update_functor_type update_functor_type;
-    
-    typedef typename graph_type::vertex_data_type vertex_data_type;
-    typedef typename graph_type::edge_list_type edge_list_type;
-    typedef typename graph_type::local_edge_list_type local_edge_list_type;
-    typedef typename graph_type::edge_type edge_type;
-    typedef typename graph_type::lvid_type lvid_type;
+    VertexProgram vertex_program_type;
+    typedef typename VertexProgram::gather_type gather_type;
+    typedef typename VertexProgram::message_type message_type;
+    typedef typename VertexProgram::vertex_data_type vertex_data_type;
+    typedef typename VertexProgram::edge_data_type edge_data_type;
 
-    typedef ischeduler<local_graph_type, update_functor_type > ischeduler_type;
-    typedef scheduler_factory<local_graph_type, update_functor_type> 
-    scheduler_factory_type;
-    typedef distributed_aggregator<distributed_engine> aggregator_type;
-    
-    typedef typename iengine_base::icontext_type  icontext_type;
-    typedef context<distributed_engine>           context_type;
-    //typedef context_manager<distributed_engine> context_manager_type;
-   
-    
-    // typedef typename iengine_base::termination_function_type 
-    // termination_function_type;
-    
-    consistency_model context_range;
+    typedef distributed_graph<vertex_data_type, edge_data_type> graph_type;
+
+    typedef typename graph_type::vertex_type          vertex_type;
+    typedef typename graph_type::edge_type            edge_type;
+
+    typedef typename graph_type::local_vertex_type    local_vertex_type;
+    typedef typename graph_type::local_edge_type      local_edge_type;
+    typedef typename graph_type::lvid_type            lvid_type;
+
+    typedef ischeduler<message_type> ischeduler_type;
+
+
+    typedef icontext<vertex_type, gather_type, message_type> icontext_type;
+    typedef context<synchronous_engine> context_type;
     
     enum vertex_execution_state {
       NONE = 0,
@@ -105,12 +98,10 @@ namespace graphlab {
 
 
     struct vertex_state {
-      uint32_t apply_count_down; // used to count down the gathers
+      uint32_t apply_count_down;    // used to count down the gathers
       bool hasnext;
       vertex_execution_state state; // current state of the vertex 
-      update_functor_type current; // What is currently being executed
-                                   //  accumulatedn
-      vertex_state(): apply_count_down(0), hasnext(false), state(NONE) { }      
+      vertex_state(): apply_count_down(0), hasnext(false), state(NONE) { }
       std::ostream& operator<<(std::ostream& os) const {
         switch(state) {
         case NONE: { os << "NONE"; break; }
