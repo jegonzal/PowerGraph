@@ -36,6 +36,10 @@
 
 #include <Eigen/Dense>
 
+
+#include <Magick++.h> 
+#undef restrict
+
 #include <graphlab.hpp>
 
 
@@ -64,27 +68,36 @@ struct vertex_data {
   int i, j; 
   /** observed color for each variable */
   float obs_color_i, obs_color_j;
+  /** predicted color for each variable */
+  float pred_color_i, pred_color_j;
   /** dual variables being optimized (or messages) */
   vector delf_i, delf_j;  
   // constructor
   vertex_data(): i(-1), j(-1), obs_color_i(-1), obs_color_j(-1) { }
   void save(graphlab::oarchive& arc) const {
-    arc << i << j << obs_color_i << obs_color_j << delf_i << delf_j;
+    arc << i << j 
+        << obs_color_i << obs_color_j 
+        << pred_color_i << pred_color_j 
+        << delf_i << delf_j;
   }
   void load(graphlab::iarchive& arc) {
-    arc >> i >> j >> obs_color_i >> obs_color_j >> delf_i >> delf_j;
+    arc >> i >> j 
+        >> obs_color_i >> obs_color_j 
+        >> pred_color_i >> pred_color_j 
+        >> delf_i >> delf_j;
   }
 }; // End of vertex data
 
 
-/**
- * The data associated with a pair of factors in a pairwise MRF
- */
-struct edge_data : public graphlab::IS_POD_TYPE {
-  // primal labelling; We assume pairwise factors, so intersection has
-  // a single node
-  int pred_label; 
-}; // End of edge data
+// /**
+//  * The data associated with a pair of factors in a pairwise MRF
+//  */
+// struct edge_data : public graphlab::IS_POD_TYPE {
+//   // primal labelling; We assume pairwise factors, so intersection has
+//   // a single node
+//   int pred_label; 
+// }; // End of edge data
+typedef graphlab::empty edge_data;
 
 /**
  * The graph type
@@ -125,7 +138,8 @@ struct gather_type {
  */
 class mplp_vertex_program : 
   public graphlab::ivertex_program<graph_type, gather_type, 
-                                   graphlab::messages::sum_priority> {
+                                   graphlab::messages::sum_priority>,
+  public graphlab::IS_POD_TYPE {
 public:
 
   // void save(graphlab::oarchive& arc) const { /** save members */ }
@@ -183,21 +197,16 @@ public:
   void apply(icontext_type& context, vertex_type& vertex, 
              const gather_type& sum) {
     vertex_data& vdata = vertex.data();  
-    vector theta_i = make_unary_potentail(vertex, 'i');
-    vector theta_j = make_unary_potentail(vertex, 'j');
+    vector theta_i = make_unary_potential(vertex, 'i');
+    vector theta_j = make_unary_potential(vertex, 'j');
     ASSERT_EQ(THETA_ij.rows(), theta_i.size());
     ASSERT_EQ(THETA_ij.rows(), sum.delf_i.size());
     ASSERT_EQ(THETA_ij.cols(), theta_j.size());
     ASSERT_EQ(THETA_ij.cols(), sum.delf_j.size());   
     // Update del fi
-    vdata.delf_i = -(theta_i + sum.delf_i)/2 +
-      + (THETA_ij + sum.delf_j.rowwise().replicate(THETA_ij.rows())).
-      rowwise().maxCoeff()/2;
+    vdata.delf_i = -(theta_i + sum.delf_i)/2 + (THETA_ij + sum.delf_j.rowwise().replicate(THETA_ij.rows())).rowwise().maxCoeff()/2;
     // Update del fj
-    vdata.delf_j = -(theta_j + sum.delf_j)/2 +
-      + ((THETA_ij + 
-          sum.delf_i.rowwise().replicate(THETA_ij.cols()).transpose()).
-         colwise().maxCoeff()).transpose()/2;       
+    vdata.delf_j = -(theta_j + sum.delf_j)/2 + ((THETA_ij + sum.delf_i.rowwise().replicate(THETA_ij.cols()).transpose()).colwise().maxCoeff()).transpose()/2;       
   } // end of apply
 
   /**
@@ -214,8 +223,6 @@ public:
       predictions on each edge*/
   void scatter(icontext_type& context, const vertex_type& vertex, 
                edge_type& edge) const {  
-    // do something with the edge data? (set the prediction)
-    //  edge_data& edata = edge.data();
     // Nothing yet. Will hold the LPDG scheduling scheme. 
     const double priority = 1;
     context.signal(get_other_vertex(edge, vertex), priority);
@@ -232,7 +239,7 @@ private:
     const double obs = varid == 'i'? 
       vertex.data().obs_color_i : vertex.data().obs_color_j;
     const double sigmaSq = SIGMA*SIGMA;
-    for(size_t pred = 0; pred < potential.arity(); ++pred) {
+    for(int pred = 0; pred < potential.size(); ++pred) {
       potential(pred) = -(obs - pred)*(obs - pred) / (2.0 * sigmaSq);
     }
     potential /= potential.sum();
@@ -248,6 +255,8 @@ private:
   } // end of other_vertex
 
 }; // end of MPLP vertex program
+
+
 
 
 /**
@@ -324,8 +333,7 @@ void create_synthetic_cluster_graph(graphlab::distributed_control& dc,
           vdata.j = pixel_ind(rows,cols,r+1,c);
           vdata.obs_color_i = obs_pixels[vdata.i];
           vdata.obs_color_j = obs_pixels[vdata.j];
-          const graphlab::vertex_id_type vid = factor_ind(rows,cols,i,j);
-          graph.add_vertex(vid, vdata);
+          graph.add_vertex(factor_ind(rows,cols,vdata.i,vdata.j), vdata);
         }
         if(c + 1 < cols) {
           vertex_data vdata;
@@ -333,8 +341,7 @@ void create_synthetic_cluster_graph(graphlab::distributed_control& dc,
           vdata.j = pixel_ind(rows,cols,r,c+1);
           vdata.obs_color_i = obs_pixels[vdata.i];
           vdata.obs_color_j = obs_pixels[vdata.j];
-          const graphlab::vertex_id_type vid = factor_ind(rows,cols,vdata.i,vdata.j);
-          graph.add_vertex(vid, vdata);
+          graph.add_vertex(factor_ind(rows,cols,vdata.i,vdata.j), vdata);
 
         }
         // Compute all the factors that contain this pixel
@@ -368,30 +375,95 @@ void create_synthetic_cluster_graph(graphlab::distributed_control& dc,
 } // end of create synthetic cluster graph
 
 
+
+
+
 void initialize_theta_ij(const std::string& smoothing,
                          const double lambda) {
   THETA_ij.resize(NCOLORS, NCOLORS);
   // Set the smoothing type
   if(smoothing == "laplace") {
-    for(size_t i = 0; i < THETA_ij.rows(); ++i) {
-      for(size_t j = 0; j < THETA_ij.rows(); ++j) {
+    for(int i = 0; i < THETA_ij.rows(); ++i) {
+      for(int j = 0; j < THETA_ij.cols(); ++j) {
         THETA_ij(i,j) = -std::abs(double(i) - double(j)) * lambda;
       }
     }
   } else {   
-    for(size_t i = 0; i < THETA_ij.rows(); ++i) {
-      for(size_t j = 0; j < THETA_ij.rows(); ++j) {
+    for(int i = 0; i < THETA_ij.rows(); ++i) {
+      for(int j = 0; j < THETA_ij.cols(); ++j) {
         THETA_ij(i,j) = -(i == j? 0 : lambda);
       }
     }
   } 
-  if(dc.procid() == 0)
-    std::cout << THETA_ij << std::endl;
-
 } // end of initialize_theta_ij
 
 
 
+template<typename T>
+struct merge_reduce {
+  std::set<T> values;
+  void save(graphlab::oarchive& arc) const { arc << values; }
+  void load(graphlab::iarchive& arc) { arc >> values; }
+  merge_reduce& operator+=(const merge_reduce& other) {
+    values.insert(other.values.begin(), other.values.end());
+    return *this;
+  }
+}; // end of merge_reduce
+
+typedef std::pair<graphlab::vertex_id_type, float> pred_pair_type; 
+typedef merge_reduce<pred_pair_type> merge_reduce_type;
+
+merge_reduce_type pred_map_function(graph_type::vertex_type vertex) {
+  merge_reduce<pred_pair_type> ret;
+  ret.values.insert(pred_pair_type(vertex.data().i, vertex.data().pred_color_i));
+  ret.values.insert(pred_pair_type(vertex.data().j, vertex.data().pred_color_j));
+  return ret;
+} // end of pred_map_function
+
+merge_reduce_type obs_map_function(graph_type::vertex_type vertex) {
+  merge_reduce<pred_pair_type> ret;
+  ret.values.insert(pred_pair_type(vertex.data().i, vertex.data().obs_color_i));
+  ret.values.insert(pred_pair_type(vertex.data().j, vertex.data().obs_color_j));
+  return ret;
+} // end of obs_map_function
+
+
+
+
+std::pair<int,int> ind2sub(size_t rows, size_t cols,
+                           size_t ind) {
+  return std::make_pair(ind / cols, ind % cols);
+}; // end of sub2ind
+
+
+/**
+ * Saving an image as a pgm file.
+ */
+void save_image(const size_t rows, const size_t cols,
+                const std::set<pred_pair_type>& values,
+                const std::string& fname) {
+  using namespace Magick;
+  std::cout << "NPixels: " << values.size() << std::endl;
+  // determine the max and min colors
+  float max_color = 0;
+  float min_color = 0;
+  foreach(pred_pair_type pair, values) {
+    max_color = std::max(max_color, pair.second);
+    min_color = std::min(min_color, pair.second);
+  }
+
+  Image img(Magick::Geometry(rows, cols), "white");
+  // img.modifyImage();
+  // Pixels img_cache(img);
+  // PixelPackets* pixels = img_cache.
+  foreach(pred_pair_type pair, values) {
+    std::pair<int,int> coords = ind2sub(rows,cols, pair.first);
+    float value = (pair.second - min_color) / (max_color - min_color);
+    Color color(MaxRGB * value, MaxRGB * value, MaxRGB * value, 0);
+    img.pixelColor(coords.second, coords.first, color);
+  }
+  img.write(fname);  
+} // end of save_image
 
 
 
@@ -468,7 +540,6 @@ int main(int argc, char** argv) {
   if(dc.procid() == 0) {
     std::cout << "ncpus:          " << clopts.get_ncpus() << std::endl
               << "bound:          " << BOUND << std::endl
-              << "damping:        " << DAMPING << std::endl
               << "colors:         " << NCOLORS << std::endl
               << "nrows:           " << nrows << std::endl
               << "ncols:           " << ncols << std::endl
@@ -503,6 +574,8 @@ int main(int argc, char** argv) {
   std::cout << "Initializing shared edge factor. " << std::endl;
   // dummy variables 0 and 1 and num_rings by num_rings
   initialize_theta_ij(smoothing, lambda);
+  if(dc.procid() == 0) std::cout << THETA_ij << std::endl;
+
   // Create the engine -------------------------------------------------------->
   std::cout << "Creating the engine. " << std::endl;
   engine_type engine(dc, graph, clopts);

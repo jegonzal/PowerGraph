@@ -118,6 +118,9 @@ add_definitions(-DHAS_EIGEN)
 include_directories(${GraphLab_SOURCE_DIR}/deps/local/include/eigen3)
 
 
+
+
+
 # Build Boost =================================================================
 # GraphLab relies heavily on the boost library for parsing program
 # options, filesystem support, random number generation, and 
@@ -158,6 +161,7 @@ foreach(blib ${Boost_LIBRARIES})
 endforeach()
 message(STATUS "Boost Shared libs: " ${Boost_SHARED_LIBRARIES})
 
+
 # TCMalloc  ===================================================================
 # We use tcmalloc for improved memory allocation performance
 ExternalProject_Add(tcmalloc
@@ -169,6 +173,17 @@ ExternalProject_Add(tcmalloc
 link_libraries(tcmalloc)
 set(TCMALLOC-FOUND 1)
 add_definitions(-DHAS_TCMALLOC)
+
+# ImageMagick =================================================================
+ExternalProject_Add(imagemagick
+  PREFIX ${GraphLab_SOURCE_DIR}/deps/imagemagick
+  URL http://www.imagemagick.org/download/ImageMagick.tar.gz
+  URL_MD5 010b63a2542c4ec4918c8cb431c00356
+  CONFIGURE_COMMAND <SOURCE_DIR>/configure --prefix=<INSTALL_DIR>
+  INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local)
+include_directories(${GraphLab_SOURCE_DIR}/deps/local/include/ImageMagick)
+
+
 
 # zlib  =======================================================================
 # We rely on the zlib library to read gzip compressed files

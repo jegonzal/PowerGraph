@@ -54,9 +54,8 @@ typedef graphlab::distributed_graph<vertex_data_type, edge_data_type> graph_type
 /**
  * The factorized page rank update function
  * extends ivertex_program specifying the:
- *   1) vertex_data_type: vertex_data_type
- *   2) edge_data_type: edge data type
- *   3) gather_type: float (returned by the gather function). Note
+ *   1) graph_type: the type of graph 
+ *   2) gather_type: float (returned by the gather function). Note
  *      that the gather type is not strictly needed here since it is
  *      assumed to be the same as the vertex_data_type unless
  *      otherwise specified
@@ -74,7 +73,8 @@ typedef graphlab::distributed_graph<vertex_data_type, edge_data_type> graph_type
  *
  */
 class pagerank :
-  public graphlab::ivertex_program<graph_type, float>,
+  public graphlab::ivertex_program<graph_type, 
+                                   float /* gather_type */ >,
   public graphlab::IS_POD_TYPE {
 public:  
   /** Initialize the vertex program and vertex data */
