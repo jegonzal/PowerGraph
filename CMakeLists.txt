@@ -462,6 +462,7 @@ macro(add_graphlab_executable NAME)
 endmacro(add_graphlab_executable)
 
 
+
 # add_jni_library =============================================================
 # If jni was found then create a jni library.  Otherwise generate a warning
 macro(add_jni_library NAME)
