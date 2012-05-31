@@ -312,7 +312,7 @@ merge_reduce_type obs_map_function(graph_type::vertex_type vertex) {
  * Save the image data in the vector of pairs to an image file
  */
 void save_image(const size_t rows, const size_t cols,
-                std::vector<pred_pair_type>& values,
+                const std::vector<pred_pair_type>& values,
                 const std::string& fname);
 
 
@@ -338,9 +338,13 @@ int main(int argc, char** argv) {
   double lambda = 2;
 
   std::string smoothing = "laplace";
-  std::string orig_fn = "source_img.jpeg";
-  std::string noisy_fn = "noisy_img.jpeg";
-  std::string pred_fn = "pred_img.jpeg";
+  // std::string orig_fn = "source_img.jpeg";
+  // std::string noisy_fn = "noisy_img.jpeg";
+  // std::string pred_fn = "pred_img.jpeg";
+
+  std::string orig_fn = "source_img.pgm";
+  std::string noisy_fn = "noisy_img.pgm";
+  std::string pred_fn = "pred_img.pgm";
 
 
 
@@ -527,30 +531,38 @@ void create_synthetic_mrf(graphlab::distributed_control& dc,
 }; // end of create synthetic mrf
 
 
-
 void save_image(const size_t rows, const size_t cols,
-                std::vector<pred_pair_type>& values,
+                const std::vector<pred_pair_type>& values,
                 const std::string& fname) {
-  using namespace Magick;
   std::cout << "NPixels: " << values.size() << std::endl;
-  // determine the max and min colors
-
-  float max_color = 0;
-  float min_color = 0;
-  foreach(pred_pair_type& pair, values) {
-    max_color = std::max(max_color, pair.second);
-    min_color = std::min(min_color, pair.second);
-  }
-
-  Image img(Magick::Geometry(rows, cols), "white");
-  // img.modifyImage();
-  // Pixels img_cache(img);
-  // PixelPackets* pixels = img_cache.
-  foreach(pred_pair_type pair, values) {
-    std::pair<int,int> coords = ind2sub(rows,cols, pair.first);
-    float value = (pair.second - min_color) / (max_color - min_color);
-    Color color(MaxRGB * value, MaxRGB * value, MaxRGB * value, 0);
-    img.pixelColor(coords.second, coords.first, color);
-  }
-  img.write(fname);
+  image img(rows, cols);
+  foreach(pred_pair_type pair, values) 
+    img.pixel(pair.first) = pair.second;
+  img.save(fname);
 }
+
+
+// void save_image(const size_t rows, const size_t cols,
+//                 std::vector<pred_pair_type>& values,
+//                 const std::string& fname) {
+//   using namespace Magick;
+//   std::cout << "NPixels: " << values.size() << std::endl;
+//   // determine the max and min colors
+//   float max_color = 0;
+//   float min_color = 0;
+//   foreach(pred_pair_type& pair, values) {
+//     max_color = std::max(max_color, pair.second);
+//     min_color = std::min(min_color, pair.second);
+//   }
+//   Image img(Magick::Geometry(rows, cols), "white");
+//   // img.modifyImage();
+//   // Pixels img_cache(img);
+//   // PixelPackets* pixels = img_cache.
+//   foreach(pred_pair_type pair, values) {
+//     std::pair<int,int> coords = ind2sub(rows,cols, pair.first);
+//     float value = (pair.second - min_color) / (max_color - min_color);
+//     Color color(MaxRGB * value, MaxRGB * value, MaxRGB * value, 0);
+//     img.pixelColor(coords.second, coords.first, color);
+//   }
+//   img.write(fname);
+// }
