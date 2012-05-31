@@ -56,7 +56,7 @@ add_library(graphlab STATIC
   rpc/distributed_event_log.cpp
   rpc/delta_dht.cpp
   )
-add_dependencies(graphlab boost libtcmalloc libevent)
+add_dependencies(graphlab boost libtcmalloc libevent hadoop)
 if(JNI_REALLY_FOUND)
   add_dependencies(graphlab hadoop)
 endif(JNI_REALLY_FOUND)
