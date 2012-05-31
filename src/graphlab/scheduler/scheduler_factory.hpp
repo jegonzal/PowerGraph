@@ -25,12 +25,8 @@
 #define GRAPHLAB_SCHEDULER_FACTORY_HPP
 
 #include <string>
-#include <sstream>
-
-
 
 // Schedulers
-#include <graphlab/graph/graph_basic_types.hpp>
 #include <graphlab/options/graphlab_options.hpp>
 #include <graphlab/scheduler/scheduler_list.hpp>
 
@@ -53,7 +49,7 @@ namespace graphlab {
      */
     template<typename Scheduler>
     static ischeduler_type* 
-    new_scheduler(size_t num_vertices, const graphlab_options& opts) {
+    new_scheduler_impl(size_t num_vertices, const graphlab_options& opts) {
       ischeduler_type* scheduler_ptr = 
         new Scheduler(num_vertices, opts);
       ASSERT_TRUE(scheduler_ptr != NULL);
@@ -64,14 +60,14 @@ namespace graphlab {
      * This function returns a new scheduler for a particular engine
      */    
     static ischeduler_type* 
-    new_scheduler(const std::string& scheduler_str,
-                  size_t num_vertices, const graphlab_options& opts) {
+    new_scheduler(size_t num_vertices, const graphlab_options& opts) {
+      std::string scheduler_str = opts.get_scheduler_type();
 #define __GENERATE_NEW_SCHEDULER__(r_unused, data_unused, i,  elem)     \
       BOOST_PP_EXPR_IF(i, else)                                         \
         if (scheduler_str == BOOST_PP_TUPLE_ELEM(3,0,elem)) {           \
           typedef BOOST_PP_TUPLE_ELEM(3,1,elem)<Message>                \
             scheduler_type;                                             \
-          return new_scheduler<scheduler_type>                          \
+          return new_scheduler_impl<scheduler_type>                     \
             ( num_vertices, opts);                                      \
         }      
       // generate the construction calls

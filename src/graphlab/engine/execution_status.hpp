@@ -40,13 +40,8 @@ namespace graphlab {
       RUNNING,        /** The engine is currently running */
       TASK_DEPLETION, /**<Execution completed successfully due to
                               task depletion */      
-      TERM_FUNCTION,  /**< Execution completed successfully due to
-                              termination function. */      
       TIMEOUT,        /**< The execution completed after timing
                               out */
-      TASK_BUDGET_EXCEEDED, /**< The execution completed because
-                                    the maximum number of tasks was
-                                    exceeded */
       
       FORCED_ABORT,     /**< the engine was stopped by calling force
                                 abort */
@@ -57,16 +52,14 @@ namespace graphlab {
     // Convenience function.
     static std::string to_string(status_enum es) {
       switch(es) {
-      case UNSET: return "engine not run!";
-      case RUNNING: return "engine is still running!"; 
-      case FORCED_ABORT: return "forced abort";
-      case TASK_BUDGET_EXCEEDED: return "budget exceed";
-      case TERM_FUNCTION: return "termination function";
-      case TASK_DEPLETION: return "task depletion (natural)";
-      case TIMEOUT: return "timeout";
-      case EXCEPTION: return "exception";
+        case UNSET: return "engine not run!";
+        case RUNNING: return "engine is still running!"; 
+        case TASK_DEPLETION: return "task depletion (natural)";
+        case TIMEOUT: return "timeout";
+        case FORCED_ABORT: return "forced abort";
+        case EXCEPTION: return "exception";
+        default: return "unknown";
       };
-      return "unknown";
     } // end of to_string
   };
 

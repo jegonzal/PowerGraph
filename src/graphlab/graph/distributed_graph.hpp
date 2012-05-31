@@ -930,6 +930,10 @@ namespace graphlab {
         return g.l_get_vertex_record(lvid)._mirrors;
       }
 
+      size_t num_mirrors() const {
+        return g.l_get_vertex_record(lvid).num_mirrors();
+      }
+
       /** \brief Returns the vertex record of this
        *         this local vertex
        */

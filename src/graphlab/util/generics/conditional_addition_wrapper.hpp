@@ -41,6 +41,19 @@ struct conditional_addition_wrapper {
     return *this;
   }
 
+  conditional_addition_wrapper& operator+=(const T &c) {
+    if (has_value) {
+      value += c;
+    }
+    else if (!has_value) {
+      // I have no value, but other has value. Use the other
+      has_value = true;
+      value = c;
+    }
+    return *this;
+  }
+
+
   void save(oarchive& oarc) const {
     oarc << has_value;
     if (has_value) oarc << value;
