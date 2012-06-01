@@ -182,21 +182,22 @@ namespace graphlab {
   }; // end of small map
 
 
+  template<size_t MAX_DIM, typename KeyT, typename ValueT>
+  std::ostream&
+  operator<<(std::ostream& out,
+            const graphlab::small_map<MAX_DIM, KeyT, ValueT>& map) {
+    typedef std::pair<KeyT, ValueT> pair_type;
+    size_t index = 0;
+    out << '{';
+    foreach(const pair_type& pair, map) {
+      out << pair.first << "->" << pair.second;
+      if(++index < map.size()) out << ", ";
+    }
+    return out << '}';
+  }
+
 }; // end graphlab
 
-template<size_t MAX_DIM, typename KeyT, typename ValueT>
-std::ostream& 
-operator<<(std::ostream& out, 
-           const graphlab::small_map<MAX_DIM, KeyT, ValueT>& map) {
-  typedef std::pair<KeyT, ValueT> pair_type;
-  size_t index = 0;
-  out << '{';
-  foreach(const pair_type& pair, map) {
-    out << pair.first << "->" << pair.second;
-    if(++index < map.size()) out << ", ";
-  }
-  return out << '}';
-}
 #include <graphlab/macros_undef.hpp>
 #endif
 

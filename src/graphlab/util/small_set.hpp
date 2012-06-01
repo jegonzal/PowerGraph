@@ -387,19 +387,20 @@ namespace graphlab {
       T& operator*() { ASSERT_LT(begin, end); return *begin; }
     };   
   }; // end of small_set
+
+  template<size_t MAX_DIM, typename T>
+  std::ostream&
+  operator<<(std::ostream& out, const graphlab::small_set<MAX_DIM, T>& set) {
+    out << "{";
+    for(size_t i = 0; i < set.size(); ++i) {
+      out << set[i];
+      if(i + 1 < set.size()) out << ", ";
+    }
+    out << "}";
+    return out;
+  }
 }; // end of graphlab namespace
 
-template<size_t MAX_DIM, typename T>
-std::ostream&
-operator<<(std::ostream& out, const graphlab::small_set<MAX_DIM, T>& set) {
-  out << "{";
-  for(size_t i = 0; i < set.size(); ++i) {
-    out << set[i];
-    if(i + 1 < set.size()) out << ", "; 
-  }
-  out << "}";
-  return out;
-}
 
 
 
