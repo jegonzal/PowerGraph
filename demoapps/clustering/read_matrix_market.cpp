@@ -350,7 +350,7 @@ void load_matrix_market(const char * filename, graph_type *_g, testtype type)
     if (ps.algorithm == SVD_EXPERIMENTAL && ac.reduce_mem_consumption && ac.svd_compile_eigenvectors)
       return;
 
-    logstream(LOG_INFO)<<"Loaded a matrix of size: " << M << " x " << N << std::endl;
+    logstream(LOG_INFO)<<"Loaded a matrix of size: " << M << " x " << N <<  " with: " << nz << " non-zeros" << std::endl;
 
     if (_g->num_vertices() == 0){
       init();

@@ -350,8 +350,11 @@ void start(command_line_options & clopts) {
 
        graph_type * test_graph = new graph_type();
        ps.set_graph(TEST, test_graph);
-       if (ac.training_ref != "")
-       load_graph<graph_type>((ac.training_ref).c_str(), test_graph, TEST); 
+       if (ac.training_ref != ""){
+         load_graph<graph_type>((ac.training_ref).c_str(), test_graph, TEST); 
+         if (test_graph->num_vertices() == 0)
+           logstream(LOG_FATAL)<<"Failed to load reference ratings file: " << ac.training_ref << std::endl;
+       }
        else load_graph<graph_type>((ac.datafile + "t").c_str(), test_graph, TEST); 
     } 
     
