@@ -460,7 +460,7 @@ namespace graphlab {
         // wait for incoming event
         poll(&pf, 1, 1000);
         // if we have a POLLIN, we have an incoming socket request
-        if (pf.revents && POLLIN) {
+        if (pf.revents & POLLIN) {
           logstream(LOG_INFO) << "Accepting...." << std::endl;
           // accept the socket
           sockaddr_in their_addr;
