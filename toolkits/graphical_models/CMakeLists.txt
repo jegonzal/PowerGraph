@@ -9,5 +9,5 @@ requires_imagemagick(loopybp_denoise)
 
 add_graphlab_executable(mplp_denoise mplp_denoise.cpp)
 requires_eigen(mplp_denoise)
-
+requires_imagemagick(mplp_denoise)
 
