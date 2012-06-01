@@ -36,7 +36,7 @@ link_directories(${GraphLab_SOURCE_DIR}/deps/local/lib)
 link_libraries(pthread gomp)
 
 # Shared compiler flags used by all builds (debug, profile, release)
-set(COMPILER_FLAGS "-Wall -g -fopenmp -wunknown-pragmas" CACHE STRING "common compiler options")
+set(COMPILER_FLAGS "-Wall -g -fopenmp" CACHE STRING "common compiler options")
 
 # Disable address space randomization for OSX lion and above
 if (APPLE)
