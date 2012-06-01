@@ -30,10 +30,6 @@
 
 // #define DEBUG_GRAPH
 
-#ifndef __APPLE__
-#include <omp.h>
-#endif
-
 #include <cmath>
 
 #include <string>

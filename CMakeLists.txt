@@ -32,11 +32,21 @@ include_directories(
 # set link path
 link_directories(${GraphLab_SOURCE_DIR}/deps/local/lib)
 
-# Add posix threads on non-windows systems
-link_libraries(pthread gomp)
+
+if(NO_OPENMP)
+  set(OPENMP_C_FLAGS "")
+  set(OPENMP_LIBRARIES "")
+  add_definitions(-D__NO_OPENMP__)
+else()
+  set(OPENMP_C_FLAGS "-fopenmp")
+  set(OPENMP_LIBRARIES "gomp")
+endif()
+
+
+link_libraries(pthread ${OPENMP_LIBRARIES})
 
 # Shared compiler flags used by all builds (debug, profile, release)
-set(COMPILER_FLAGS "-Wall -g -fopenmp" CACHE STRING "common compiler options")
+set(COMPILER_FLAGS "-Wall -g ${OPENMP_C_FLAGS}" CACHE STRING "common compiler options")
 
 # Disable address space randomization for OSX lion and above
 if (APPLE)
@@ -416,10 +426,10 @@ endif()
 
 # Set the debug flags
 set(CMAKE_C_FLAGS_DEBUG 
-  "-ggdb -O0 -march=${MARCH} -Winit-self ${PROFILING_FLAGS} ${COMPILER_FLAGS}"
+  "-O0 -march=${MARCH} -Winit-self ${PROFILING_FLAGS} ${COMPILER_FLAGS}"
   CACHE STRING "compiler options" FORCE) 
 set(CMAKE_CXX_FLAGS_DEBUG 
-  "-ggdb -O0 -march=${MARCH} -Winit-self ${PROFILING_FLAGS} ${COMPILER_FLAGS}"
+  "-O0 -march=${MARCH} -Winit-self ${PROFILING_FLAGS} ${COMPILER_FLAGS}"
   CACHE STRING "compiler options" FORCE) 
 
 set(CMAKE_C_FLAGS_RELEASE 

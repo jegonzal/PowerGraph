@@ -28,7 +28,7 @@
 #include <cassert>
 #include <iterator>
 
-#ifndef __APPLE__
+#ifndef __NO_OPENMP__
 #include <omp.h>
 #endif
 
@@ -80,8 +80,9 @@ template <typename Container, typename sizetype>
 void outofplace_shuffle(Container &c,
                         const std::vector<sizetype> &targets) {  
   Container result(targets.size());
-
+#ifdef _OPENMP
 #pragma omp parallel for
+#endif
   for (ssize_t i = 0;i < ssize_t(targets.size()); ++i) {
     result[i] = c[targets[i]];
   }

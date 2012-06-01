@@ -42,20 +42,20 @@ if [ -f configure.deps ]; then
   source configure.deps
 fi
 
+rm configure.deps
 
 function print_help {
   echo "Usage: ./configure [--prefix=PREFIX] [--experimental]"
   echo
   echo "  --cleanup           remove all build directories"
   echo 
-  echo "  --yes               automatically install dependencies locally if they are not met."
-  echo
   echo "  --prefix=[PREFIX]   GraphLab Installation target directory. Defaults to /usr/local"
   echo
   echo "  --ide=[Xcode]       Specify the ide to use when building GraphLab."
   echo
+  echo "  --no_openmp         Disables OpenMP. Disabled by default on Mac."
+  echo
   echo "  --experimental      Turns on undocumented experimental distributed capabilities. "
-  echo 
   echo
   echo "  -D var=value        Specify definitions to be passed on to cmake."
   exit 1
@@ -83,12 +83,12 @@ function unknown_option {
 }
 
 config_flags=""
-
+# parse options
 while [ $# -gt 0 ]
   do case $1 in
     --help)                 print_help ;;
     --cleanup)              run_cleanup ;;
-    --yes)                  always_yes=1;;
+    --no_openmp)            no_openmp=1 ;;
     --experimental)         experimental=1 ;;
     --prefix=*)             prefix=${1##--prefix=} ;;
     --ide=*)                ide=${1##--ide=} ;;
@@ -97,7 +97,16 @@ while [ $# -gt 0 ]
   esac
   shift
 done
+# if mac detected, force no_openmp flags
+if [[ $OSTYPE == darwin* ]]; then
+echo "Mac build detected. OpenMP disabled"
+no_openmp=1
+fi
 
+if [ ! -z $no_openmp ]; then
+  config_flags="$config_flags -D NO_OPENMP:BOOL=true"
+fi
+  
 ##==========================================================
 ##  Construct configure.deps file specifying the necessary environment
 ##  variables
@@ -209,35 +218,10 @@ fi
 
 
 
-
-
-
-
-# Run the configure deps
-source configure.deps 
-
-
-
-
-$CMAKE --version | tee -a $LOG_FILE
-
-if [ ! -z $install_eigen ]; then
-  source ./scripts/eigen_install.sh  | tee -a $LOG_FILE
-  echo "Eigen setup OK"
-  echo "HAS_EIGEN=true"      >> configure.deps
-# Try to build itpp
-elif [ ! -z $itpp ]; then
-  source ./scripts/itpp_install.sh | tee -a $LOG_FILE
-fi
-
-
-
-
 #if the prefix is not specified
 if [ ! -z $prefix ]; then
   echo "INSTALL_DIR=$prefix"     >> configure.deps
 fi
-
 
 
 

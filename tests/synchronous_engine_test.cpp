@@ -50,7 +50,7 @@ public:
     ASSERT_EQ( total, int(vertex.num_in_edges()) );
     context.signal(vertex);
   }
-  edge_dir_type 
+  edge_dir_type
   scatter_edges(icontext_type& context, const vertex_type& vertex) const {
     return graphlab::NO_EDGES;
   }

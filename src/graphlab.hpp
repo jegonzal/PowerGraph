@@ -25,8 +25,6 @@
 #define GRAPHLAB_MASTER_INCLUDES
 
 
-#pragma GCC diagnostic ignored "-Wunknown-pragmas"
-
 
 
 // #include <graphlab/aggregation/aggregation_includes.hpp>
@@ -40,9 +38,6 @@
 #include <graphlab/vertex_program/vertex_program_includes.hpp>
 #include <graphlab/util/util_includes.hpp>
 #include <graphlab/rpc/rpc_includes.hpp>
-
-
-#pragma GCC diagnostic pop
 
 
 

@@ -23,7 +23,7 @@
 #ifndef GRAPHLAB_DISTRIBUTED_GRAPH_HPP
 #define GRAPHLAB_DISTRIBUTED_GRAPH_HPP
 
-#ifndef __APPLE__
+#ifndef __NO_OPENMP__
 #include <omp.h>
 #endif
 
@@ -325,11 +325,15 @@ namespace graphlab {
       rpc.barrier();
       bool global_result_set = false;
       ResultType global_result = ResultType();
+#ifdef _OPENMP
 #pragma omp parallel
+#endif
       {
         bool result_set = false;
         ResultType result = ResultType();
+#ifdef _OPENMP
         #pragma omp for
+#endif
         for (int i = 0;i < (int)local_graph.num_vertices(); ++i) {
           if (lvid2record[i].owner == rpc.procid()) {
             if (!result_set) {
@@ -341,7 +345,9 @@ namespace graphlab {
             }
           }
         }
+#ifdef _OPENMP
         #pragma omp critical
+#endif
         {
           if (!global_result_set) {
             global_result = result;
@@ -376,11 +382,15 @@ namespace graphlab {
       rpc.barrier();
       bool global_result_set = false;
       ResultType global_result = ResultType();
+#ifdef _OPENMP
 #pragma omp parallel
+#endif
       {
         bool result_set = false;
         ResultType result = ResultType();
+#ifdef _OPENMP
         #pragma omp for
+#endif
         for (int i = 0;i < (int)local_graph.num_vertices(); ++i) {
           foreach(const local_edge_type& e, l_vertex(i).in_edges()) {
             if (!result_set) {
@@ -392,7 +402,9 @@ namespace graphlab {
             }
           }
         }
+#ifdef _OPENMP
         #pragma omp critical
+#endif
         {
          if (!global_result_set) {
             global_result = result;
@@ -424,7 +436,9 @@ namespace graphlab {
       rpc.barrier();
       int numaccfunctions = (int)accfunction.size();
       ASSERT_GE(numaccfunctions, 1);
+#ifdef _OPENMP
       #pragma omp parallel for
+#endif
       for (int i = 0;i < (int)accfunction.size(); ++i) {
         for (int j = i;j < (int)local_graph.num_vertices(); j+=numaccfunctions) {
           if (lvid2record[j].owner == rpc.procid()) {
@@ -450,7 +464,9 @@ namespace graphlab {
       rpc.barrier();
       int numaccfunctions = (int)accfunction.size();
       ASSERT_GE(numaccfunctions, 1);
+#ifdef _OPENMP
       #pragma omp parallel for
+#endif
       for (int i = 0;i < (int)accfunction.size(); ++i) {
         for (int j = i;j < (int)local_graph.num_vertices(); j+=numaccfunctions) {
           foreach(const local_edge_type& e, l_vertex(j).in_edges()) {
