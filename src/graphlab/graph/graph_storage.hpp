@@ -29,7 +29,7 @@
 
 #ifndef GRAPHLAB_GRAPH_STORAGE_HPP
 #define GRAPHLAB_GRAPH_STORAGE_HPP
-#include <omp.h>
+// #include <omp.h>
 #include <cmath>
 
 #include <string>

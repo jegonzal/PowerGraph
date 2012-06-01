@@ -36,14 +36,13 @@ namespace graphlab {
    * Simple wrapper around pthread's mutex.
    * Before you use, see \ref parallel_object_intricacies.
    */
-  template< size_t spin_count = 0 >
-  class adaptive_mutex {
+  class mutex {
   private:
     // mutable not actually needed
     mutable pthread_mutex_t m_mut;
   public:
     /// constructs a mutex
-    adaptive_mutex() {
+    mutex() {
       int error = pthread_mutex_init(&m_mut, NULL);
       ASSERT_TRUE(!error);
     }
@@ -51,16 +50,21 @@ namespace graphlab {
         Required for compatibility with some STL implementations (LLVM).
         which use the copy constructor for vector resize, 
         rather than the standard constructor.    */
-    adaptive_mutex(const adaptive_mutex&) {
+    mutex(const mutex&) {
       int error = pthread_mutex_init(&m_mut, NULL);
       ASSERT_TRUE(!error);
     }
+
+    ~mutex(){
+      int error = pthread_mutex_destroy( &m_mut );
+      ASSERT_TRUE(!error);
+    }
+
     // not copyable
-    void operator=(const adaptive_mutex& m) { }
+    void operator=(const mutex& m) { }
     
     /// Acquires a lock on the mutex
     inline void lock() const {
-      for(size_t i = 0; i < spin_count; ++i) { if(try_lock()) return; }
       int error = pthread_mutex_lock( &m_mut  );
       // if (error) std::cout << "mutex.lock() error: " << error << std::endl;
       ASSERT_TRUE(!error);
@@ -74,14 +78,10 @@ namespace graphlab {
     inline bool try_lock() const {
       return pthread_mutex_trylock( &m_mut ) == 0;
     }
-    ~adaptive_mutex(){
-      int error = pthread_mutex_destroy( &m_mut );
-      ASSERT_TRUE(!error);
-    }
     friend class conditional;
-  }; // End of Adaptive_Mutex
+  }; // End of Mutex
   
-  typedef adaptive_mutex<0> mutex;
+
 } // end of graphlab namespace
 
 

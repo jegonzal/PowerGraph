@@ -23,7 +23,7 @@
 #ifndef GRAPHLAB_DISTRIBUTED_GRAPH_HPP
 #define GRAPHLAB_DISTRIBUTED_GRAPH_HPP
 
-#include <omp.h>
+// #include <omp.h>
 #include <cmath>
 
 #include <string>
@@ -103,11 +103,11 @@ namespace graphlab {
     
     struct vertex_type;
     typedef bool edge_list_type;  
-    struct edge_type;
+    class edge_type;
     
     struct local_vertex_type;
     struct local_edge_list_type;
-    struct local_edge_type;
+    class local_edge_type;
     
     /** Vertex object which provides access to the vertex data
      * and information about it.

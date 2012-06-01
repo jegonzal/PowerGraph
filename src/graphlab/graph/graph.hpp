@@ -30,7 +30,9 @@
 
 // #define DEBUG_GRAPH
 
-#include <omp.h>
+
+// #include <omp.h>
+
 #include <cmath>
 
 #include <string>
@@ -520,7 +522,7 @@ namespace graphlab {
     void save_adjacency(const std::string& filename) const {
       std::ofstream fout(filename.c_str());
       ASSERT_TRUE(fout.good());
-      for(size_t i = 0; i < num_edges; ++i) {
+      for(size_t i = 0; i < num_edges(); ++i) {
         fout << gstore.source(i) << ", " << gstore.target(i) << "\n";
         ASSERT_TRUE(fout.good());
       }          
