@@ -280,7 +280,7 @@ ExternalProject_Add(libevent
 find_package(Java)
 find_package(JNI)
 
-if(NOT BROKEN_JAVAC)
+if(NOT NO_JAVAC)
   if((EXISTS ${JAVA_INCLUDE_PATH}/jni.h))
     set(JNI_REALLY_FOUND 1 CACHE BOOL "Tests whether the header actually exists")
     message(STATUS "jni.h was found at " ${JAVA_INCLUDE_PATH}/jni.h)
