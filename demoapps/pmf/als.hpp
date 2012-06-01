@@ -106,8 +106,6 @@ void last_iter(){
              edge.avgprd += prediction;
              sq_err = pow((edge.avgprd / (ps.iiter - ac.bptf_burn_in)) - edge.weight, 2);
            }
-           if (ps.algorithm == WEIGHTED_ALS)
-              sq_err *= edge.time;
      e++;
 } 
 
@@ -134,8 +132,6 @@ void predict_missing_value(const vertex_data& data,
     if (ac.debug && (i== ps.M || i == ps.M+ps.N-1))
        cout<<"RMSE sq_err: " << sq_err << " prediction: " << prediction << endl; 
 
-     if (ps.algorithm == WEIGHTED_ALS)
-        sq_err *= edge.time;
      e++;
 } 
 

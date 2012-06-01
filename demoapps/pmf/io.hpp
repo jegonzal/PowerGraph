@@ -333,19 +333,18 @@ void common_prediction(const graph_type &g, const graph_type & _g, const vertex_
 
 		float prediction = 0;
     if (ps.algorithm == BIAS_SGD)
-      bias_sgd_predict(data, pdata, (edge_data*)NULL, NULL, edge.weight, prediction);
+      RMSE += bias_sgd_predict(data, pdata, (edge_data*)NULL, NULL, edge.weight, prediction);
     else if (ps.algorithm == SVD_PLUS_PLUS)
-      svdpp_predict(data, pdata, (edge_data*)NULL, NULL, edge.weight, prediction);
+      RMSE += svdpp_predict(data, pdata, (edge_data*)NULL, NULL, edge.weight, prediction);
     else if (ps.algorithm == TIME_SVD_PLUS_PLUS)
-      time_svdpp_predict(data, pdata, &edge, NULL, edge.weight, prediction);
+      RMSE += time_svdpp_predict(data, pdata, &edge, NULL, edge.weight, prediction);
     else if (ps.algorithm == RBM)
-      rbm_predict(data, pdata, (edge_data*)NULL, NULL, edge.weight, prediction);
+      RMSE += rbm_predict(data, pdata, (edge_data*)NULL, NULL, edge.weight, prediction);
     else if (ps.algorithm == LIBFM)
-      libfm_predict(data, pdata, &edge, &ps.times[(int)edge.time], edge.weight, prediction);
+      RMSE += libfm_predict(data, pdata, &edge, &ps.times[(int)edge.time], edge.weight, prediction);
     else
-     predict(data, pdata, ps.algorithm == WEIGHTED_ALS ? &edge : NULL, ps.tensor? (&ps.times[(int)edge.time]):NULL, edge.weight, prediction);
+     RMSE += predict(data, pdata, ps.algorithm == WEIGHTED_ALS ? &edge : NULL, ps.tensor? (&ps.times[(int)edge.time]):NULL, edge.weight, prediction);
     truncate_and_scale(prediction);      
-    RMSE += pow(prediction - edge.weight, 2);
     MAE += fabs(prediction - edge.weight);
     if (ac.debug && (i== 0 || i == ps.M))
 			cout<<lineNum<<") prediction:"<<prediction<<endl; 

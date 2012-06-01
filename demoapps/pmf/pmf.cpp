@@ -80,6 +80,8 @@ float predict(const vertex_data& v1, const vertex_data& v2, const edge_data * ed
    prediction = std::max((double)prediction, ac.minval);
    //return the squared error
    float sq_err = powf(prediction - rating, 2);
+   if (ps.algorithm == WEIGHTED_ALS)
+     sq_err *= edge->time;
    return sq_err;
 }
 
@@ -103,6 +105,8 @@ float predict(const vertex_data& v1, const vertex_data& v2, const edge_data * ed
    prediction = std::min((double)prediction, ac.maxval);
    prediction = std::max((double)prediction, ac.minval);
    float sq_err = powf(prediction - rating, 2);
+   if (ps.algorithm == WEIGHTED_ALS)
+     sq_err *= edge->time;
    return sq_err;
    
 }
