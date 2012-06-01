@@ -25,6 +25,7 @@
 #define GRAPHLAB_MASTER_INCLUDES
 
 
+#pragma GCC diagnostic ignored "-Wunknown-pragmas"
 
 
 
@@ -41,7 +42,7 @@
 #include <graphlab/rpc/rpc_includes.hpp>
 
 
-
+#pragma GCC diagnostic pop
 
 
 

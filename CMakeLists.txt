@@ -36,7 +36,7 @@ link_directories(${GraphLab_SOURCE_DIR}/deps/local/lib)
 link_libraries(pthread gomp)
 
 # Shared compiler flags used by all builds (debug, profile, release)
-set(COMPILER_FLAGS "-Wall -g -fopenmp" CACHE STRING "common compiler options")
+set(COMPILER_FLAGS "-Wall -g -fopenmp -wunknown-pragmas" CACHE STRING "common compiler options")
 
 # Disable address space randomization for OSX lion and above
 if (APPLE)
@@ -221,7 +221,11 @@ ExternalProject_Add(imagemagick
   CPLUS_INCLUDE_PATH=${GraphLab_SOURCE_DIR}/deps/local/include 
   LIBRARY_PATH=${GraphLab_SOURCE_DIR}/deps/local/lib
   LDFLAGS=-L${GraphLab_SOURCE_DIR}/deps/local/lib	
-  <SOURCE_DIR>/configure --prefix=<INSTALL_DIR>
+  <SOURCE_DIR>/configure 
+  --prefix=<INSTALL_DIR>
+  --without-threads
+  --disable-openmp
+  --disable-opencl
   BUILD_COMMAND
   C_INCLUDE_PATH=${GraphLab_SOURCE_DIR}/deps/local/include 
   CPLUS_INCLUDE_PATH=${GraphLab_SOURCE_DIR}/deps/local/include 
