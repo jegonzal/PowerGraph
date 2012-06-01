@@ -27,7 +27,11 @@
 #include <vector>
 #include <cassert>
 #include <iterator>
-// #include <omp.h>
+
+#ifndef __APPLE__
+#include <omp.h>
+#endif
+
 
 
 namespace graphlab {

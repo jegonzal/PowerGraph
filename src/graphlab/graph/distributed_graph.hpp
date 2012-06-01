@@ -23,7 +23,10 @@
 #ifndef GRAPHLAB_DISTRIBUTED_GRAPH_HPP
 #define GRAPHLAB_DISTRIBUTED_GRAPH_HPP
 
-// #include <omp.h>
+#ifndef __APPLE__
+#include <omp.h>
+#endif
+
 #include <cmath>
 
 #include <string>

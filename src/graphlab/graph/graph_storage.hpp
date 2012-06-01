@@ -29,7 +29,13 @@
 
 #ifndef GRAPHLAB_GRAPH_STORAGE_HPP
 #define GRAPHLAB_GRAPH_STORAGE_HPP
-// #include <omp.h>
+
+
+#ifndef __APPLE__
+#include <omp.h>
+#endif
+
+
 #include <cmath>
 
 #include <string>
