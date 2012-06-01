@@ -11,6 +11,7 @@ deps/*
 configure.deps
 config.log
 new_news.txt
+cxxtest/cxxtest/*.pyc
 
 extapis/java_jni/dist
 extapis/java_jni/bin
