@@ -262,11 +262,13 @@ echo "Compiler Information: " | tee -a $LOG_FILE
 $CC --version      | tee -a $LOG_FILE
 $CXX --version     | tee -a $LOG_FILE
 $CMAKE --version   | tee -a $LOG_FILE
-if [ -z $JAVAC ]; then
+if [[ -n $JAVAC ]]; then
   $JAVAC -version  | tee -a $LOG_FILE
 fi
-cat configure.deps | tee -a $LOG_FILE
 
+echo "======================= Config File ================================"
+
+cat configure.deps | tee -a $LOG_FILE
 
 
 ### Add addition config flags =================================================
