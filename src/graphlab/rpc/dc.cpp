@@ -466,7 +466,7 @@ void distributed_control::init(const std::vector<std::string> &machines,
     ASSERT_MSG(false, "Unexpected value for comm type");
   }
   // create the receiving objects
-  if (comm->capabilities() && dc_impl::COMM_STREAM) {
+  if (comm->capabilities() & dc_impl::COMM_STREAM) {
     for (procid_t i = 0; i < machines.size(); ++i) {
       receivers.push_back(new dc_impl::dc_stream_receive(this, i));
       senders.push_back(new dc_impl::dc_buffered_stream_send2(this, comm, i));
