@@ -366,6 +366,7 @@ void load_matrix_market(const char * filename, graph_type *_g, testtype type)
     int I,J; 
     double val;
     int step=nz/10;
+    size_t edges = 0;
 
     for (int i=0; i<nz; i++)
     {
@@ -375,12 +376,13 @@ void load_matrix_market(const char * filename, graph_type *_g, testtype type)
 	    logstream(LOG_FATAL)<<"Failed to read matrix market file: " << filename << " on line: " << i << std::endl;
           I--;  /* adjust from 1-based to 0-based */
           J--;
-
+          edges++;
         }
         else {
           int rc = fscanf(f, "%lg", &val);
           I = i / N;
           J = i % N;
+          edges++;
           if (rc != 1)
 	    logstream(LOG_FATAL)<<"Failed to read matrix market file: " << filename << " on line: " << I << " column : " << J << std::endl;
         }
@@ -417,7 +419,8 @@ void load_matrix_market(const char * filename, graph_type *_g, testtype type)
     ps.L = nz;
     fclose(f);
 
-
+    if (edges != nz)
+      logstream(LOG_FATAL)<<"Wrong number of non-zeros in matrix market file. Expected: " << nz << " observed: " << (uint)edges << std::endl;
     if (ac.reduce_mem_consumption)
       compact(_g);
 }
