@@ -236,7 +236,7 @@ echo -e "\t GRAPHLAB_HOME=$GRAPHLAB_HOME" >> configure.deps
 echo -e "# The directory in which graphlab installs external dependencies:" >> configure.deps
 echo -e "\t DEPS_PREFIX=$DEPS_PREFIX" >> configure.deps
 
-echo -e "# Use OpenMP?  This can accelerate soem graph building code: " >> configure.deps
+echo -e "# Use OpenMP?  This can accelerate some graph building code: " >> configure.deps
 echo -e "\t NO_OPENMP=$NO_OPENMP" >> configure.deps
 
 echo -e "# The c compiler to use: " >> configure.deps
