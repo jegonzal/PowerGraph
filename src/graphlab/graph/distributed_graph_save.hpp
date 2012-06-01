@@ -226,7 +226,22 @@ namespace graphlab {
 
 
 
-
+    template <typename VertexDataType, typename EdgeDataType, typename Writer>
+    void save(graphlab::distributed_graph<VertexDataType, EdgeDataType>& graph,
+              std::string prefix,
+              Writer writer,
+              bool gzip = true,
+              bool save_vertex = true,
+              bool save_edge = true,
+              size_t files_per_machine = 4) {
+      graph.dc().full_barrier();
+      if(boost::starts_with(prefix, "hdfs://")) {
+        save_to_hdfs(graph, prefix, writer, gzip, save_vertex, save_edge, files_per_machine);
+      } else {
+        save_to_posixfs(graph, prefix, writer, gzip, save_vertex, save_edge, files_per_machine);
+      }
+      graph.dc().full_barrier();
+    } // end of save
 
 
 
@@ -252,24 +267,6 @@ namespace graphlab {
         return;
       }
     } // end of save structure
-
-
-    template <typename VertexDataType, typename EdgeDataType, typename Writer>
-    void save(graphlab::distributed_graph<VertexDataType, EdgeDataType>& graph,
-              std::string prefix,
-              Writer writer,
-              bool gzip = true,
-              bool save_vertex = true,
-              bool save_edge = true,
-              size_t files_per_machine = 4) {
-      graph.dc().full_barrier();
-      if(boost::starts_with(prefix, "hdfs://")) {
-        save_to_hdfs(graph, prefix, writer, gzip, save_vertex, save_edge, files_per_machine);
-      } else {
-        save_to_posixfs(graph, prefix, writer, gzip, save_vertex, save_edge, files_per_machine);
-      }
-      graph.dc().full_barrier();
-    } // end of save
 
 
   } // namespace graph_ops
