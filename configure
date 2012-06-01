@@ -249,9 +249,18 @@ echo -e \
     "======================= BUILD CONFIGURATION ========================\n"\
     "System Information: " | tee -a $LOG_FILE
 uname -v | tee -a $LOG_FILE
-echo "GCC Information: " | tee -a $LOG_FILE
-gcc --version | tee -a $LOG_FILE
-g++ --version | tee -a $LOG_FILE
+echo "Compiler Information: " | tee -a $LOG_FILE
+if [[ -z $CC ]] ; then
+  gcc --version | tee -a $LOG_FILE
+else
+  $CC --version | tee -a $LOG_FILE
+fi
+
+if [[ -z $CXX ]] ; then
+  g++ --version | tee -a $LOG_FILE
+else
+  $CXX --version | tee -a $LOG_FILE
+fi
 
 echo -e \
     "Release build path:        $RELEASE_DIR \n"\
