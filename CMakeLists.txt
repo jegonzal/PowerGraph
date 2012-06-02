@@ -124,11 +124,13 @@ ExternalProject_Add(eigen
   PREFIX ${GraphLab_SOURCE_DIR}/deps/eigen
   URL http://graphlab.org/deps/eigen_3.0.5.tar.gz
   URL_MD5 73f47ddc6a2b540356864bfc8a34f5d7
-  CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
-  -DEIGEN_BUILD_PKGCONFIG=NO
-  INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local)
+  CONFIGURE_COMMAND ""
+  BUILD_COMMAND ""
+  BUILD_IN_SOURCE 1  
+  INSTALL_COMMAND cp -r Eigen <INSTALL_DIR>/.
+  INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local/include)
 add_definitions(-DHAS_EIGEN)
-include_directories(${GraphLab_SOURCE_DIR}/deps/local/include/eigen3)
+
 
 macro(requires_eigen NAME)
   add_dependencies(${NAME} eigen)
