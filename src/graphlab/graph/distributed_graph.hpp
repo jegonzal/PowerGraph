@@ -160,7 +160,7 @@ namespace graphlab {
         ASSERT_TRUE(false);
       }
 
-      /** \ingroup graphlab_internal
+      /** \internal
        *  \brief Returns the local ID of the vertex
        */
       lvid_type local_id() const {
@@ -597,7 +597,7 @@ namespace graphlab {
 
 
     /**
-     * \ingroup graphlab_internal
+     * \internal
      * The vertex record stores information associated with each
      * vertex on this proc
      */
@@ -644,30 +644,30 @@ namespace graphlab {
 
 
 
-    /** \ingroup graphlab_internal 
+    /** \internal
      * \brief converts a local vertex ID to a local vertex object
      */
     local_vertex_type l_vertex(lvid_type vid) {
       return local_vertex_type(*this, vid);
     }
     
-    /** \ingroup graphlab_internal
+    /** \internal
      *\brief Get the Total number of vertex replicas in the graph */
     size_t num_replicas() const { return nreplicas; }
 
-    /** \ingroup graphlab_internal
+    /** \internal
      *\brief Get the number of vertices local to this proc */
     size_t num_local_vertices() const { return local_graph.num_vertices(); }
 
-    /** \ingroup graphlab_internal
+    /** \internal
      *\brief Get the number of edges local to this proc */
     size_t num_local_edges() const { return local_graph.num_edges(); }
 
-    /** \ingroup graphlab_internal
+    /** \internal
      *\brief Get the number of vertices owned by this proc */
     size_t num_local_own_vertices() const { return local_own_nverts; }
 
-    /** \ingroup graphlab_internal
+    /** \internal
      *\brief Convert a global vid to a local vid */
     lvid_type local_vid (const vertex_id_type vid) const {
       // typename boost::unordered_map<vertex_id_type, lvid_type>::
@@ -677,7 +677,7 @@ namespace graphlab {
       return iter->second;
     } // end of local_vertex_id
 
-    /** \ingroup graphlab_internal
+    /** \internal
      *\brief Convert a local vid to a global vid */
     vertex_id_type global_vid(const lvid_type lvid) const { 
       ASSERT_LT(lvid, lvid2record.size());
@@ -687,7 +687,7 @@ namespace graphlab {
 
 
     /**
-     * \ingroup graphlab_internal
+     * \internal
      * \brief Returns an edge list of all in edges of a local vertex ID
      *        on the local graph
      * 
@@ -698,7 +698,7 @@ namespace graphlab {
     }
 
     /**
-     * \ingroup graphlab_internal
+     * \internal
      * \brief Returns the number of in edges of a local vertex ID
      *        on the local graph
      * 
@@ -709,7 +709,7 @@ namespace graphlab {
     }
 
     /**
-     * \ingroup graphlab_internal
+     * \internal
      * \brief Returns an edge list of all out edges of a local vertex ID
      *        on the local graph
      * 
@@ -720,7 +720,7 @@ namespace graphlab {
     }
 
     /**
-     * \ingroup graphlab_internal
+     * \internal
      * \brief Returns the number of out edges of a local vertex ID
      *        on the local graph
      * 
@@ -745,7 +745,7 @@ namespace graphlab {
 
 
 
-    /** \ingroup graphlab_internal 
+    /** \internal
      * \brief Returns the internal vertex record of a given global vertex ID
      */
     const vertex_record& get_vertex_record(vertex_id_type vid) const {
@@ -756,7 +756,7 @@ namespace graphlab {
       return lvid2record[iter->second];
     }
 
-    /** \ingroup graphlab_internal 
+    /** \internal
      * \brief Returns the internal vertex record of a given local vertex ID
      */
     vertex_record& l_get_vertex_record(lvid_type lvid) {
@@ -764,7 +764,7 @@ namespace graphlab {
       return lvid2record[lvid];
     }
 
-    /** \ingroup graphlab_internal 
+    /** \internal
      * \brief Returns the internal vertex record of a given local vertex ID
      */
     const vertex_record& l_get_vertex_record(lvid_type lvid) const {
@@ -772,7 +772,7 @@ namespace graphlab {
       return lvid2record[lvid];
     }
 
-    /** \ingroup graphlab_internal 
+    /** \internal
      * \brief Returns true if the provided global vertex ID is a 
      *        master vertex on this machine and false otherwise.
      */
@@ -780,7 +780,7 @@ namespace graphlab {
       typename cuckoo_map_type::const_iterator iter = vid2lvid.find(vid);
       return (iter != vid2lvid.end()) && l_is_master(iter->second);
     }
-    /** \ingroup graphlab_internal 
+    /** \internal
      * \brief Returns true if the provided local vertex ID is a master vertex.
      *        Returns false otherwise.
      */
@@ -789,7 +789,7 @@ namespace graphlab {
       return lvid2record[lvid].owner == rpc.procid();
     }
 
-    /** \ingroup graphlab_internal 
+    /** \internal
      * \brief Returns the master procid for vertex lvid.
      */
     procid_t l_master(lvid_type lvid) const {
@@ -798,14 +798,14 @@ namespace graphlab {
     }
 
 
-    /** \ingroup graphlab_internal
+    /** \internal
      *  \brief Returns a reference to the internal graph representation
      */
     local_graph_type& get_local_graph() {
       return local_graph;
     }
 
-    /** \ingroup graphlab_internal
+    /** \internal
      *  \brief Returns a const reference to the internal graph representation
      */
     const local_graph_type& get_local_graph() const {
@@ -815,7 +815,7 @@ namespace graphlab {
 
 
 
-    /** \ingroup graphlab_internal
+    /** \internal
      * This function synchronizes the master vertex data with all the mirrors.
      * This function must be called simultaneously by all machines
      */
@@ -852,7 +852,7 @@ namespace graphlab {
 
 
 
-    /** \ingroup graphlab_internal 
+    /** \internal
      *  vertex type while provides access to local graph vertices.
      */
     struct local_vertex_type {
@@ -962,7 +962,7 @@ namespace graphlab {
     };
 
     
-    /** \ingroup graphlab_internal 
+    /** \internal
      *  edge type which provides access to local graph edges */
     class local_edge_type {
     private:
@@ -998,7 +998,7 @@ namespace graphlab {
       edge_id_type id() const { return e.id(); }
     }; 
 
-    /** \ingroup graphlab_internal 
+    /** \internal
      * \brief A functor which converts local_graph_type::edge_type to
      *        local_edge_type 
      */
@@ -1013,7 +1013,7 @@ namespace graphlab {
     };
     
 
-    /** \ingroup graphlab_internal 
+    /** \internal
      * \brief A list of edges. Used by l_in_edges() and l_out_edges() 
      */
     struct local_edge_list_type {
