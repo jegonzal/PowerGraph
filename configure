@@ -1,49 +1,20 @@
 #!/bin/bash
-
+##=============================================================================
+## Support code
 function download_file {
   # detect wget
   echo "Downloading $2 from $1 ..."
   if [ -z `which wget` ] ; then
     if [ -z `which curl` ] ; then
-      echo "Unable to find either curl or wget! Cannot proceed with automatic install."
+      echo "Unable to find either curl or wget! Cannot proceed with 
+            automatic install."
       exit 1
     fi
     curl $1 -o $2
   else
     wget $1 -O $2
   fi
-}
-
-
-## Ensure exit on error:
-# set -e
-
-
-
-
-## Begin logging in config.log
-LOG_FILE=config.log
-date | tee $LOG_FILE
-
-## Define some defaults which are modified by the script and whatever
-## is defined in configure.deps
-RELEASE_DIR=release
-DEBUG_DIR=debug
-PROFILE_DIR=profile
-INSTALL_DIR=/usr/local
-EXPERIMENTAL=false
-GRAPHLAB_HOME=$PWD
-
-DEPS_PREFIX=$PWD/deps/local
-
-
-## Overwrite defaults if they are available
-if [ -f configure.deps ]; then
-  source configure.deps
-fi
-
-rm configure.deps
-
+} # end of download file
 function print_help {
   echo "Usage: ./configure [--prefix=PREFIX] [--experimental]"
   echo
@@ -59,8 +30,7 @@ function print_help {
   echo
   echo "  -D var=value        Specify definitions to be passed on to cmake."
   exit 1
-}
-
+} # end of print help
 function run_cleanup {
   #!/bin/bash
   echo "This script completely erases all build folders including dependencies!!!"
@@ -73,87 +43,119 @@ function run_cleanup {
     echo "Doing nothing!";
   fi 
   exit 1
-}
-
-
+} # end of run cleanup
 function unknown_option {
   echo "Unrecognized option: $1"
   echo "To get help, run ./configure --help"
   exit 1
-}
+} # end of unknown option
+function check_version {
+  local version=$1 check=$2
+  local winner=$(echo -e "$version\n$check" | sed '/^$/d' | sort -nr | head -1)
+  [[ "$winner" = "$version" ]] && return 0
+  return 1
+} # end of check version
 
-config_flags=""
-# parse options
+
+
+##=============================================================================
+## Main configuration processing
+
+## Define some defaults which are modified by the script and whatever
+## is defined in configure.deps
+RELEASE_DIR=release
+DEBUG_DIR=debug
+PROFILE_DIR=profile
+INSTALL_DIR=/usr/local
+EXPERIMENTAL=false
+GRAPHLAB_HOME=$PWD
+DEPS_PREFIX=$PWD/deps/local
+NO_OPENMP=false
+CFLAGS="" 
+
+# if mac detected, force no_openmp flags by default
+if [[ $OSTYPE == darwin* ]]; then
+  NO_OPENMP=true
+fi
+
+
+## The defaults can be overwritten be editing the configure.deps file
+if [ -f configure.deps ]; then
+  source configure.deps
+  # We delete the configure deps and then recreate it each time using
+  # the original values along with any modifications made by the
+  # configure logic.
+  rm configure.deps
+fi
+
+
+# Parse command line configure flags ------------------------------------------
 while [ $# -gt 0 ]
   do case $1 in
-    --help)                 print_help ;;
-    --cleanup)              run_cleanup ;;
+    --help)                 print_help=1 ;;
+    --cleanup)              run_cleanup=1 ;;
     --no_openmp)            no_openmp=1 ;;
     --experimental)         experimental=1 ;;
     --prefix=*)             prefix=${1##--prefix=} ;;
     --ide=*)                ide=${1##--ide=} ;;
-    -D)                     config_flags="$config_flags -D $2"; shift ;;
+    -D)                     CFLAGS="$CFLAGS -D $2"; shift ;;
     *) unknown_option $1 ;;
   esac
   shift
 done
-# if mac detected, force no_openmp flags
-if [[ $OSTYPE == darwin* ]]; then
-echo "Mac build detected. OpenMP disabled"
-no_openmp=1
+
+if [ $run_cleanup ]; then
+  run_cleanup
 fi
 
-if [ ! -z $no_openmp ]; then
-  config_flags="$config_flags -D NO_OPENMP:BOOL=true"
+# Extra generator setting (passed in as an argument)
+if [[ -n $ide ]]; then
+  GENERATOR="-G $ide"
 fi
-  
-##==========================================================
-##  Construct configure.deps file specifying the necessary environment
-##  variables
+if [ $no_openmp ]; then
+  NO_OPENMP=true
+fi
+if [ $experimental ]; then
+  EXPERIMENTAL=true
+fi
+if [[ -n $prefix ]]; then
+  INSTALL_DIR=$prefix
+fi  
 
-# Create a configure deps if no such file already exists
-if [ ! -f configure.deps ]; then
-  # Initialize with default settings
-  echo "RELEASE_DIR=$RELEASE_DIR"     >> configure.deps
-  echo "DEBUG_DIR=$DEBUG_DIR"         >> configure.deps
-  echo "PROFILE_DIR=$PROFILE_DIR"     >> configure.deps
+
+# If not specified we assume gcc and g++ are the default c and c++
+# compilers
+if [[ -z $CC ]]; then
+  CC=gcc
+fi
+if [[ -z $CXX ]]; then
+  CXX=g++
 fi
 
-# Enable or disable experimental graphlab components
-if [ ! -z $experimental ]; then
-  echo "EXPERIMENTAL=true"       >> configure.deps
+# Test java
+if [[ -z $JAVAC ]]; then
+  JAVAC=javac
+fi
+# set -e
+# set -o pipefail
+if ! $JAVAC -version >> /dev/null; then
+    JAVAC="" 
 fi
 
-check_version()
-{
-    local version=$1 check=$2
-    local winner=$(echo -e "$version\n$check" | sed '/^$/d' | sort -nr | head -1)
-    [[ "$winner" = "$version" ]] && return 0
-    return 1
-}
+## Begin logging in config.log
+LOG_FILE=config.log
+date | tee $LOG_FILE
+
+
+
+
+
+
 
 ## ===================================================================
-# Force the use of gcc-4.2 as the default compiler on macs
-#echo "OS TYPE: $OSTYPE"
-#if [[ "$OSTYPE" == "darwin"* ]]; then
-#  echo "Running on OSX"  
-#  echo "If no compiler is set we will try to use gcc-4.2"
-#  echo "Testing for gcc-4.2"
-#  gcc42=$(which gcc-4.2)
-#  cxx42=$(which c++-4.2)
-#  if [[ -z $CC ]] && [[ -n $gcc42 ]]; then
-#    echo "switching gcc to gcc-4.2"
-#    export CC="gcc-4.2"
-#  fi
-#  if [[ -z $CXX ]] && [[ -n $gxx42 ]]; then 
-#    echo "switching c++ to c++-4.2"
-#    export CXX="c++-4.2"
-#  fi
-#fi
-
-
-
-
+## Setup CMake
+# Automatically detect and install a sufficiently new version of 
+# cmake
 
 ## Install cmake
 if [ `which cmake` ]; then
@@ -215,72 +217,79 @@ if [ -z $CMAKE ]; then
   echo "CMAKE=$CMAKE" >> configure.deps
 fi
 
+## ============================================================================
+# Regenerate the configure.deps
+echo -e "# Release build directory:" >> configure.deps
+echo -e "\t RELEASE_DIR=$RELEASE_DIR" >> configure.deps
+
+echo -e "# Debug build directory (optimization disabled):" >> configure.deps
+echo -e "\t DEBUG_DIR=$DEBUG_DIR" >> configure.deps
+
+echo -e "# Profile build directory (extra counters enabled):" >> configure.deps
+echo -e "\t PROFILE_DIR=$PROFILE_DIR" >> configure.deps
+
+echo -e "# Directory in which graphlab is installed (prefix):" >> configure.deps
+echo -e "\t INSTALL_DIR=$INSTALL_DIR" >> configure.deps
+
+echo -e "# Is experimental (research) code enabled:" >> configure.deps
+echo -e "\t EXPERIMENTAL=$EXPERIMENTAL" >> configure.deps
+
+echo -e "# The graphlab home directory: " >> configure.deps
+echo -e "\t GRAPHLAB_HOME=$GRAPHLAB_HOME" >> configure.deps
+
+echo -e "# The directory in which graphlab installs external dependencies:" >> configure.deps
+echo -e "\t DEPS_PREFIX=$DEPS_PREFIX" >> configure.deps
+
+echo -e "# Use OpenMP?  This can accelerate some graph building code: " >> configure.deps
+echo -e "\t NO_OPENMP=$NO_OPENMP" >> configure.deps
+
+echo -e "# The c compiler to use: " >> configure.deps
+echo -e "\t CC=$CC" >> configure.deps
+
+echo -e "# The c++ compiler to use: " >> configure.deps
+echo -e "\t CXX=$CXX" >> configure.deps
+
+echo -e "# Any addition user defined CFLAGS: " >> configure.deps
+echo -e "\t CFLAGS=$CFLAGS" >> configure.deps
+
+echo -e "# The Java compiler: " >> configure.deps
+echo -e "\t JAVAC=$JAVAC" >> configure.deps
+
+echo -e "# The cmake binary used to geneate the project:" >> configure.deps
+echo -e "\t CMAKE=$CMAKE" >> configure.deps
 
 
-
-#if the prefix is not specified
-if [ ! -z $prefix ]; then
-  echo "INSTALL_DIR=$prefix"     >> configure.deps
-fi
-
-
-
-# Run the configure deps
-source configure.deps 
-
-
-echo -e \
-    "======================= BUILD CONFIGURATION ========================\n"\
-    "System Information: " | tee -a $LOG_FILE
+echo "======================= BUILD CONFIGURATION ========================"
+echo "System Information: " | tee -a $LOG_FILE
 uname -v | tee -a $LOG_FILE
 echo "Compiler Information: " | tee -a $LOG_FILE
-if [[ -z $CC ]] ; then
-  gcc --version | tee -a $LOG_FILE
-else
-  $CC --version | tee -a $LOG_FILE
+$CC --version      | tee -a $LOG_FILE
+$CXX --version     | tee -a $LOG_FILE
+$CMAKE --version   | tee -a $LOG_FILE
+if [[ -n $JAVAC ]]; then
+  $JAVAC -version  | tee -a $LOG_FILE
 fi
 
-if [[ -z $CXX ]] ; then
-  g++ --version | tee -a $LOG_FILE
-else
-  $CXX --version | tee -a $LOG_FILE
+echo "======================= Config File ================================"
+
+cat configure.deps | tee -a $LOG_FILE
+
+
+### Add addition config flags =================================================
+CFLAGS="$CFLAGS -D NO_OPENMP:BOOL=$NO_OPENMP"
+CFLAGS="$CFLAGS -D CMAKE_INSTALL_PREFIX:STRING=$INSTALL_DIR"
+CFLAGS="$CFLAGS -D EXPERIMENTAL:BOOL=$EXPERIMENTAL"
+if [ -z $JAVAC ]; then
+  CFLAGS="$CFLAGS -D NO_JAVAC:BOOL=1"
 fi
 
-echo -e \
-    "Release build path:        $RELEASE_DIR \n"\
-    "Debug build path:          $DEBUG_DIR \n"\
-    "Profile build path:        $PROFILE_DIR \n"\
-    "Install path:              $INSTALL_DIR \n"\
-    "Build experimental parts:  $EXPERIMENTAL \n" | tee -a $LOG_FILE
+## ============================================================================
+# Run Cmake
 
-
-
-
-# Construct config flags for cmake
-if [ ! -z $INSTALL_DIR ]; then
-    config_flags="$config_flags -D CMAKE_INSTALL_PREFIX:STRING=$INSTALL_DIR"
-fi
-
-
-
-if [ ! -z $EXPERIMENTAL ]; then
-    config_flags="$config_flags -D EXPERIMENTAL:BOOL=$EXPERIMENTAL"
-fi
 
 set -e
 set -o pipefail
-if ! javac -version | tee -a $LOG_FILE; then
-    echo "BROKEN JAVAC"
-    config_flags="$config_flags -D BROKEN_JAVAC:BOOL=1"
-fi
 
-### CONSTRUCT THE BUILD DIRECTORIES ===========================================
-
-
-
-if [[ -n $ide ]]; then
-  generator="-G $ide"
-fi
 
 
 echo -e "\n\n\n======================= Release ========================" \
@@ -292,9 +301,9 @@ fi
 cd $RELEASE_DIR
 rm -f CMakeCache.txt
 build_cmd="$CMAKE \
-    $generator \
+    $GENERATOR \
     -D CMAKE_BUILD_TYPE=Release \
-    $config_flags \
+    $CFLAGS \
     ../."
 echo $build_cmd | tee -a "../$LOG_FILE"
 eval $build_cmd | tee -a "../$LOG_FILE"
@@ -310,9 +319,9 @@ fi
 cd $DEBUG_DIR
 rm -f CMakeCache.txt
 build_cmd="$CMAKE \
-    $generator \
+    $GENERATOR \
     -D CMAKE_BUILD_TYPE=Debug \
-    $config_flags \
+    $CFLAGS \
     ../."
 echo $build_cmd | tee -a ../$LOG_FILE
 eval $build_cmd | tee -a ../$LOG_FILE
@@ -328,10 +337,10 @@ fi
 cd $PROFILE_DIR
 rm -f CMakeCache.txt
 build_cmd="$CMAKE \
-    $generator \
+    $GENERATOR \
     -D CMAKE_BUILD_TYPE=Release \
     -D COMPILE_PROFILING=1 \
-    $config_flags \
+    $CFLAGS \
     ../."
 
 echo $build_cmd | tee -a ../$LOG_FILE
