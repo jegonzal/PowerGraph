@@ -17,14 +17,6 @@ endif()
 if (lapack_found)
   add_graphlab_executable(pmf pmf.cpp advanced_config.cpp
 ../../libs/matrixmarket/mmio.cpp main.cpp)
-    configure_file(${CMAKE_CURRENT_SOURCE_DIR}/smalltest
-    ${CMAKE_CURRENT_BINARY_DIR}/smalltest COPYONLY)
-    configure_file(${CMAKE_CURRENT_SOURCE_DIR}/smallteste
-    ${CMAKE_CURRENT_BINARY_DIR}/smallteste COPYONLY)
-    configure_file(${CMAKE_CURRENT_SOURCE_DIR}/smalltest.out
-    ${CMAKE_CURRENT_BINARY_DIR}/smalltest.out COPYONLY)
-    configure_file(${CMAKE_CURRENT_SOURCE_DIR}/smalltest_eigen.out
-    ${CMAKE_CURRENT_BINARY_DIR}/smalltest_eigen.out COPYONLY)
     configure_file(${CMAKE_CURRENT_SOURCE_DIR}/als
     ${CMAKE_CURRENT_BINARY_DIR}/als COPYONLY)
     configure_file(${CMAKE_CURRENT_SOURCE_DIR}/alse
