@@ -252,6 +252,7 @@ public:
     (vdata.delf_j - old_delf_j).cwiseAbs().sum();
 
     priority = residual;
+    std::cout << "priority: " << priority << std::endl;
   } // end of apply
   
   /**
