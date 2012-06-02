@@ -64,29 +64,29 @@ matrix THETA_ij;
  * Each GraphLab vertex is a (pairwise) factor from the MRF
  */
 struct vertex_data {
-    /** variable ids */
-    int i, j; 
-    /** observed color for each variable */
-    float obs_color_i, obs_color_j;
-    /** predicted color for each variable */
-    float pred_color_i, pred_color_j;
-    /** dual variables being optimized (or messages) */
-    vector delf_i, delf_j;  
-    // constructor
-    vertex_data(): i(-1), j(-1), obs_color_i(-1), obs_color_j(-1) { }
-    void save(graphlab::oarchive& arc) const 
-    {
-        arc << i << j 
-        << obs_color_i << obs_color_j 
-        << pred_color_i << pred_color_j 
-        << delf_i << delf_j;
-    }
-    void load(graphlab::iarchive& arc) {
-        arc >> i >> j 
-        >> obs_color_i >> obs_color_j 
-        >> pred_color_i >> pred_color_j 
-        >> delf_i >> delf_j;
-    }
+  /** variable ids */
+  int i, j; 
+  /** observed color for each variable */
+  float obs_color_i, obs_color_j;
+  /** predicted color for each variable */
+  float pred_color_i, pred_color_j;
+  /** dual variables being optimized (or messages) */
+  vector delf_i, delf_j;  
+  // constructor
+  vertex_data(): i(-1), j(-1), obs_color_i(-1), obs_color_j(-1) { }
+  void save(graphlab::oarchive& arc) const 
+  {
+    arc << i << j 
+    << obs_color_i << obs_color_j 
+    << pred_color_i << pred_color_j 
+    << delf_i << delf_j;
+  }
+  void load(graphlab::iarchive& arc) {
+    arc >> i >> j 
+    >> obs_color_i >> obs_color_j 
+    >> pred_color_i >> pred_color_j 
+    >> delf_i >> delf_j;
+  }
 }; // End of vertex data
 
 
@@ -112,30 +112,30 @@ typedef graphlab::distributed_graph<vertex_data, edge_data> graph_type;
  */
 struct gather_type 
 {
-    vector delf_i, delf_j;
-    
-    gather_type& operator+=(const gather_type& other) 
+  vector delf_i, delf_j;
+  
+  gather_type& operator+=(const gather_type& other) 
+  {
+    if(!other.delf_i.size() == 0) 
     {
-        if(!other.delf_i.size() == 0) 
-        {
-            if(delf_i.size() == 0) delf_i = other.delf_i;
-            else delf_i += other.delf_i;
-        }
-        if(!other.delf_j.size() == 0) 
-        {
-            if(delf_j.size() == 0) delf_j = other.delf_j;
-            else delf_j += other.delf_j;
-        }
-        return *this;
-    } // end of operator +=
-    void save(graphlab::oarchive& arc) const 
-    {
-        arc << delf_i << delf_j;
+      if(delf_i.size() == 0) delf_i = other.delf_i;
+      else delf_i += other.delf_i;
     }
-    void load(graphlab::iarchive& arc) 
+    if(!other.delf_j.size() == 0) 
     {
-        arc >> delf_i >> delf_j;
+      if(delf_j.size() == 0) delf_j = other.delf_j;
+      else delf_j += other.delf_j;
     }
+    return *this;
+  } // end of operator +=
+  void save(graphlab::oarchive& arc) const 
+  {
+    arc << delf_i << delf_j;
+  }
+  void load(graphlab::iarchive& arc) 
+  {
+    arc >> delf_i >> delf_j;
+  }
 }; // end of gather type
 
 
@@ -148,131 +148,155 @@ class mplp_vertex_program :
 public graphlab::ivertex_program<graph_type, gather_type, 
 graphlab::messages::sum_priority>,
 public graphlab::IS_POD_TYPE {
-public:
-    
-    // void save(graphlab::oarchive& arc) const { /** save members */ }
-    // void load(graphlab::iarchive& arc) { /** load members */ }
-    
-    /**
-     * The init function is called once for each vertex before the
-     * start of the GraphLab program.  If the vertex program does not
-     * implement this function then the default implementation (NOP)
-     * is used.
-     */
-    // void init(icontext_type& context, vertex_type& vertex) { /** NOP */ }
-    
-    /**
-     * Recv message is called by the engine to receive a message to this
-     * vertex program.  The vertex program can use this to initialize
-     * any state before entering the gather phase.  If the vertex
-     * program does not implement this function then the default
-     * implementation (NOP) is used.
-     */
-    // void recv_message(icontext_type& context, const vertex_type& vertex, 
-    //                   const message_type& msg) { /** NOP */ }
-    
-    /**
-     * Since the MRF is undirected we will use all edges for gather and
-     * scatter
-     */
-    edge_dir_type gather_edges(icontext_type& context,
-                               const vertex_type& vertex) const { 
-        return graphlab::ALL_EDGES; 
-    }; // end of gather_edges 
-    
-    
-    // Run the gather operation over all in edges
-    gather_type gather(icontext_type& context, const vertex_type& target_vertex, 
-                       edge_type& edge) const 
-    {
-        const vertex_type source_vertex = get_other_vertex(edge, target_vertex);   
-        const vertex_data& source_vdata = source_vertex.data();
-        const vertex_data& target_vdata = target_vertex.data();
-
-        // Accumulate message
-        gather_type ret_value;
-        if (target_vdata.i == source_vdata.i)
-            ret_value.delf_i = source_vdata.delf_i;
-        else if (target_vdata.j == source_vdata.i)
-            ret_value.delf_j = source_vdata.delf_i;
-        else if (target_vdata.i == source_vdata.j)
-            ret_value.delf_i = source_vdata.delf_j;
-        else if (target_vdata.j == source_vdata.j)
-            ret_value.delf_j = source_vdata.delf_j;
-        else assert(false); // invalid state
-        
-        return ret_value;
-    } // end of gather
-    
-    /** Update the dual parameters */
-    void apply(icontext_type& context, vertex_type& vertex, 
-               const gather_type& sum) {
-        // Make sure this vertex has neighbours. Everyone should have neighbours
-        ASSERT_GT(vertex.num_in_edges() + vertex.num_out_edges(), 0);
-        
-        vertex_data& vdata = vertex.data();  
-        vector theta_i = make_unary_potential(vertex, 'i');
-        vector theta_j = make_unary_potential(vertex, 'j');
-        
-        
-        ASSERT_EQ(THETA_ij.rows(), theta_i.size());
-        ASSERT_EQ(THETA_ij.rows(), sum.delf_i.size());
-        ASSERT_EQ(THETA_ij.cols(), theta_j.size());
-        ASSERT_EQ(THETA_ij.cols(), sum.delf_j.size());   
-        
-        // Update del fi
-        vdata.delf_i = -(theta_i + sum.delf_i)/2 + 
-          (THETA_ij + sum.delf_j.rowwise().replicate(THETA_ij.rows())).rowwise().maxCoeff()/2;
-        // Update del fj
-        vdata.delf_j = -(theta_j + sum.delf_j)/2 + 
-          ((THETA_ij + sum.delf_i.rowwise().replicate(THETA_ij.cols()).transpose()).colwise().maxCoeff()).transpose()/2;       
-    } // end of apply
-    
-    /**
-     * Since the MRF is undirected we will use all edges for gather and
-     * scatter
-     */
-    edge_dir_type scatter_edges(icontext_type& context,
-                                const vertex_type& vertex) const { 
-        return graphlab::ALL_EDGES; 
-    }; // end of gather_edges 
-    
-    
-    /** reschedule neighbors with a given priority and updated
-     predictions on each edge*/
-    void scatter(icontext_type& context, const vertex_type& vertex, 
-                 edge_type& edge) const {  
-        // Nothing yet. Will hold the LPDG scheduling scheme. 
-        const double priority = 1;
-        context.signal(get_other_vertex(edge, vertex), priority);
-    } // end of scatter
-    
 private:
+  double priority;
+public:
+  
+  mplp_vertex_program() : priority(0) { }
+  
+  // void save(graphlab::oarchive& arc) const { /** save members */ }
+  // void load(graphlab::iarchive& arc) { /** load members */ }
+  
+  /**
+   * The init function is called once for each vertex before the
+   * start of the GraphLab program.  If the vertex program does not
+   * implement this function then the default implementation (NOP)
+   * is used.
+   */
+  void init(icontext_type& context, vertex_type& vertex)
+  { 
+    vertex.data().delf_i = vector::Zero(NCOLORS);
+    vertex.data().delf_j = vector::Zero(NCOLORS);
+  }
+  
+  /**
+   * Recv message is called by the engine to receive a message to this
+   * vertex program.  The vertex program can use this to initialize
+   * any state before entering the gather phase.  If the vertex
+   * program does not implement this function then the default
+   * implementation (NOP) is used.
+   */
+  // void recv_message(icontext_type& context, const vertex_type& vertex, 
+  //                   const message_type& msg) { /** NOP */ }
+  
+  /**
+   * Since the MRF is undirected we will use all edges for gather and
+   * scatter
+   */
+  edge_dir_type gather_edges(icontext_type& context,
+                             const vertex_type& vertex) const { 
+    return graphlab::ALL_EDGES; 
+  }; // end of gather_edges 
+  
+  
+  // Run the gather operation over all in edges
+  gather_type gather(icontext_type& context, const vertex_type& target_vertex, 
+                     edge_type& edge) const 
+  {
+    const vertex_type source_vertex = get_other_vertex(edge, target_vertex);   
+    const vertex_data& source_vdata = source_vertex.data();
+    const vertex_data& target_vdata = target_vertex.data();
     
-    /**
-     * Construct the unary evidence potential
-     */
-    vector make_unary_potential(const vertex_type& vertex, 
-                                const char varid) const {    
-        vector potential(NCOLORS);
-        const double obs = varid == 'i'? 
-        vertex.data().obs_color_i : vertex.data().obs_color_j;
-        const double sigmaSq = SIGMA*SIGMA;
-        for(int pred = 0; pred < potential.size(); ++pred) {
-            potential(pred) = -(obs - pred)*(obs - pred) / (2.0 * sigmaSq);
-        }
-        potential /= potential.sum();
-        return potential;
-    } // end of make_potentail
+    // Accumulate message
+    gather_type ret_value;
+    if (target_vdata.i == source_vdata.i)
+      ret_value.delf_i = source_vdata.delf_i;
+    else if (target_vdata.j == source_vdata.i)
+      ret_value.delf_j = source_vdata.delf_i;
+    else if (target_vdata.i == source_vdata.j)
+      ret_value.delf_i = source_vdata.delf_j;
+    else if (target_vdata.j == source_vdata.j)
+      ret_value.delf_j = source_vdata.delf_j;
+    else assert(false); // invalid state
     
-    /**
-     * Return the other vertex
-     */
-    vertex_type get_other_vertex(edge_type& edge, 
-                                 const vertex_type& vertex) const {
-        return vertex.id() == edge.source().id()? edge.target() : edge.source();
-    } // end of other_vertex
+    return ret_value;
+  } // end of gather
+  
+  /** Update the dual parameters */
+  void apply(icontext_type& context, vertex_type& vertex, 
+             const gather_type& sum) {
+    // Make sure this vertex has neighbours. Everyone should have neighbours
+    ASSERT_GT(vertex.num_in_edges() + vertex.num_out_edges(), 0);
+    vertex_data& vdata = vertex.data();  
+    vector theta_i = make_unary_potential(vertex, 'i');
+    vector theta_j = make_unary_potential(vertex, 'j');
     
+    
+    ASSERT_EQ(THETA_ij.rows(), theta_i.size());
+    ASSERT_EQ(THETA_ij.rows(), sum.delf_i.size());
+    ASSERT_EQ(THETA_ij.cols(), theta_j.size());
+    ASSERT_EQ(THETA_ij.cols(), sum.delf_j.size());   
+    
+    
+    // Compute the prediction
+    Eigen::MatrixXf::Index maxI = 0, maxJ = 0;
+    (theta_i + sum.delf_i).maxCoeff(&maxI);
+    (theta_j + sum.delf_j).maxCoeff(&maxJ);
+    vdata.pred_color_j = maxI;
+    vdata.pred_color_j = maxJ;
+    
+    // Backup the old prediction
+    const vector old_delf_i = vdata.delf_i;
+    const vector old_delf_j = vdata.delf_j;
+    
+    // Update del fi
+    vdata.delf_i = -(theta_i + sum.delf_i)/2 + 
+    (THETA_ij + sum.delf_j.rowwise().replicate(THETA_ij.rows())).
+    rowwise().maxCoeff()/2;
+    // Update del fj
+    vdata.delf_j = -(theta_j + sum.delf_j)/2 + 
+    ((THETA_ij + sum.delf_i.rowwise().replicate(THETA_ij.cols()).transpose()).
+     colwise().maxCoeff()).transpose()/2;
+    
+    const double residual = (vdata.delf_i - old_delf_i).cwiseAbs().sum() +
+    (vdata.delf_j - old_delf_j).cwiseAbs().sum();
+
+    priority = residual;
+  } // end of apply
+  
+  /**
+   * Since the MRF is undirected we will use all edges for gather and
+   * scatter
+   */
+  edge_dir_type scatter_edges(icontext_type& context,
+                              const vertex_type& vertex) const { 
+    return priority < BOUND? graphlab::NO_EDGES : graphlab::ALL_EDGES; 
+  }; // end of gather_edges 
+  
+  
+  /** reschedule neighbors with a given priority and updated
+   predictions on each edge*/
+  void scatter(icontext_type& context, const vertex_type& vertex, 
+               edge_type& edge) const {  
+    context.signal(get_other_vertex(edge, vertex), priority);
+  } // end of scatter
+  
+private:
+  
+  /**
+   * Construct the unary evidence potential
+   */
+  vector make_unary_potential(const vertex_type& vertex, 
+                              const char varid) const {    
+    vector potential(NCOLORS);
+    const double obs = varid == 'i'? 
+    vertex.data().obs_color_i : vertex.data().obs_color_j;
+    const double sigmaSq = SIGMA*SIGMA;
+    for(int pred = 0; pred < potential.size(); ++pred) {
+      potential(pred) = -(obs - pred)*(obs - pred) / (2.0 * sigmaSq);
+    }
+    potential /= potential.sum();
+    return potential;
+  } // end of make_potentail
+  
+  /**
+   * Return the other vertex
+   */
+  vertex_type get_other_vertex(edge_type& edge, 
+                               const vertex_type& vertex) const {
+    return vertex.id() == edge.source().id()? edge.target() : edge.source();
+  } // end of other_vertex
+  
 }; // end of MPLP vertex program
 
 
@@ -298,114 +322,110 @@ typedef graphlab::synchronous_engine<mplp_vertex_program> engine_type;
 // Helper functions ===========================================================>
 graphlab::vertex_id_type pixel_ind(size_t rows, size_t cols,
                                    size_t r, size_t c) {
-    return r * cols + c;
+  return r * cols + c;
 }; // end of pixel_ind
 
 
 graphlab::vertex_id_type factor_ind(size_t rows, size_t cols,
                                     size_t i, size_t j) {
-    if(i > j) std::swap(i,j);
-    return i * (rows * cols) + j;
+  if(i > j) std::swap(i,j);
+  return i * (rows * cols) + j;
 }; // end of factor_ind
 
 
 void create_synthetic_cluster_graph(graphlab::distributed_control& dc,
                                     graph_type& graph,
                                     const size_t rows, const size_t cols) {
-    dc.barrier();
-    // Generate the image on all machines --------------------------------------->
-    // Need to ensure that all machines generate the same noisy image
-    graphlab::random::generator gen; gen.seed(314);
-    std::vector<float>    obs_pixels(rows * cols);
-    std::vector<uint16_t> true_pixels(rows * cols);
-    const double center_r = rows / 2.0;
-    const double center_c = cols / 2.0;
-    const double max_radius = std::min(rows, cols) / 2.0;
+  dc.barrier();
+  // Generate the image on all machines --------------------------------------->
+  // Need to ensure that all machines generate the same noisy image
+  graphlab::random::generator gen; gen.seed(314);
+  std::vector<float>    obs_pixels(rows * cols);
+  std::vector<uint16_t> true_pixels(rows * cols);
+  const double center_r = rows / 2.0;
+  const double center_c = cols / 2.0;
+  const double max_radius = std::min(rows, cols) / 2.0;
+  for(size_t r = 0; r < rows; ++r) 
+  {
+    for(size_t c = 0; c < cols; ++c) 
+    {
+      // Compute the true pixel value
+      const double distance = sqrt((r-center_r)*(r-center_r) + 
+                                   (c-center_c)*(c-center_c));
+      // Compute ring of sunset
+      const uint16_t ring_color =  
+      std::floor(std::min(1.0, distance/max_radius) * (NCOLORS - 1) );
+      // Compute the true pixel color by masking with the horizon
+      const uint16_t true_color = r < rows/2 ? ring_color : 0;
+      // compute the predicted color
+      const float obs_color = true_color + gen.normal(0, SIGMA);
+      // determine the true pixel id
+      const size_t pixel = pixel_ind(rows,cols,r,c);
+      true_pixels[pixel] = true_color; obs_pixels[pixel] = obs_color;
+    } // end of loop over cols
+  } // end of loop over rows
+  
+  if(dc.procid() == 0) 
+  {
+    std::vector<graphlab::vertex_id_type> nbrs;
+    // load the graph
     for(size_t r = 0; r < rows; ++r) 
     {
-        for(size_t c = 0; c < cols; ++c) 
+      for(size_t c = 0; c < cols; ++c) 
+      {
+        // Add the two vertices (factors to the right and below this
+        // pixel)
+        if(r + 1 < rows) 
         {
-            // Compute the true pixel value
-            const double distance = sqrt((r-center_r)*(r-center_r) + 
-                                         (c-center_c)*(c-center_c));
-            // Compute ring of sunset
-            const uint16_t ring_color =  
-            std::floor(std::min(1.0, distance/max_radius) * (NCOLORS - 1) );
-            // Compute the true pixel color by masking with the horizon
-            const uint16_t true_color = r < rows/2 ? ring_color : 0;
-            // compute the predicted color
-            const float obs_color = true_color + gen.normal(0, SIGMA);
-            // determine the true pixel id
-            const size_t pixel = pixel_ind(rows,cols,r,c);
-            true_pixels[pixel] = true_color; obs_pixels[pixel] = obs_color;
-        } // end of loop over cols
-    } // end of loop over rows
-    
-    if(dc.procid() == 0) 
-    {
-        std::vector<graphlab::vertex_id_type> nbrs;
-        // load the graph
-        for(size_t r = 0; r < rows; ++r) 
+          vertex_data vdata;
+          vdata.i = pixel_ind(rows,cols,r,c);
+          vdata.j = pixel_ind(rows,cols,r+1,c);
+          vdata.obs_color_i = obs_pixels[vdata.i];
+          vdata.obs_color_j = obs_pixels[vdata.j];
+          graph.add_vertex(factor_ind(rows,cols,vdata.i,vdata.j), vdata);
+        }
+        if(c + 1 < cols) 
         {
-            for(size_t c = 0; c < cols; ++c) 
-            {
-                // Add the two vertices (factors to the right and below this
-                // pixel)
-                if(r + 1 < rows) 
-                {
-                    vertex_data vdata;
-                    vdata.i = pixel_ind(rows,cols,r,c);
-                    vdata.j = pixel_ind(rows,cols,r+1,c);
-                    vdata.obs_color_i = obs_pixels[vdata.i];
-                    vdata.obs_color_j = obs_pixels[vdata.j];
-                    vdata.delf_i = vector::Zero(NCOLORS);
-                    vdata.delf_j = vector::Zero(NCOLORS);
-                    graph.add_vertex(factor_ind(rows,cols,vdata.i,vdata.j), vdata);
-                }
-                if(c + 1 < cols) 
-                {
-                    vertex_data vdata;
-                    vdata.i = pixel_ind(rows,cols,r,c);
-                    vdata.j = pixel_ind(rows,cols,r,c+1);
-                    vdata.obs_color_i = obs_pixels[vdata.i];
-                    vdata.obs_color_j = obs_pixels[vdata.j];
-                    vdata.delf_i = vector::Zero(NCOLORS);
-                    vdata.delf_j = vector::Zero(NCOLORS);
-                    graph.add_vertex(factor_ind(rows,cols,vdata.i,vdata.j), vdata);
-                    
-                }
-                // Compute all the factors that contain this pixel
-                nbrs.clear();
-                if(r+1 < rows)
-                    nbrs.push_back(factor_ind(rows,cols,
-                                              pixel_ind(rows,cols,r,c),
-                                              pixel_ind(rows,cols,r+1,c)));
-                if(r-1 < rows)
-                //if(r-1 >= 0)
-                    nbrs.push_back(factor_ind(rows,cols,
-                                              pixel_ind(rows,cols,r-1,c),
-                                              pixel_ind(rows,cols,r,c)));
-                if(c+1 < cols)
-                    nbrs.push_back(factor_ind(rows,cols,
-                                              pixel_ind(rows,cols,r,c),
-                                              pixel_ind(rows,cols,r,c+1)));
-                if(c-1 < cols)
-                //if(c-1 >= 0)
-                    nbrs.push_back(factor_ind(rows,cols,
-                                              pixel_ind(rows,cols,r,c-1),
-                                              pixel_ind(rows,cols,r,c)));
-                // construct the clique over the factors
-                for(size_t i = 0; i < nbrs.size(); ++i) 
-                {
-                    for(size_t j = i+1; j < nbrs.size(); ++j) 
-                    {
-                        graph.add_edge(nbrs[i], nbrs[j]);
-                    }
-                }
-            } // end of for cols
-        } // end of for rows
-    } // end of if proc 0
-    dc.barrier();
+          vertex_data vdata;
+          vdata.i = pixel_ind(rows,cols,r,c);
+          vdata.j = pixel_ind(rows,cols,r,c+1);
+          vdata.obs_color_i = obs_pixels[vdata.i];
+          vdata.obs_color_j = obs_pixels[vdata.j];
+          graph.add_vertex(factor_ind(rows,cols,vdata.i,vdata.j), vdata);
+          
+        }
+        // Compute all the factors that contain this pixel
+        nbrs.clear();
+        if(r+1 < rows)
+          nbrs.push_back(factor_ind(rows,cols,
+                                    pixel_ind(rows,cols,r,c),
+                                    pixel_ind(rows,cols,r+1,c)));
+        if(r-1 < rows)
+          //if(r-1 >= 0)
+          nbrs.push_back(factor_ind(rows,cols,
+                                    pixel_ind(rows,cols,r-1,c),
+                                    pixel_ind(rows,cols,r,c)));
+        if(c+1 < cols)
+          nbrs.push_back(factor_ind(rows,cols,
+                                    pixel_ind(rows,cols,r,c),
+                                    pixel_ind(rows,cols,r,c+1)));
+        if(c-1 < cols)
+          //if(c-1 >= 0)
+          nbrs.push_back(factor_ind(rows,cols,
+                                    pixel_ind(rows,cols,r,c-1),
+                                    pixel_ind(rows,cols,r,c)));
+        // construct the clique over the factors
+        for(size_t i = 0; i < nbrs.size(); ++i) 
+        {
+          for(size_t j = i+1; j < nbrs.size(); ++j) 
+          {
+            graph.add_edge(nbrs[i], nbrs[j]);
+          }
+        }
+      } // end of for cols
+    } // end of for rows
+  } // end of if proc 0
+  dc.barrier();
 } // end of create synthetic cluster graph
 
 
@@ -415,50 +435,50 @@ void create_synthetic_cluster_graph(graphlab::distributed_control& dc,
 void initialize_theta_ij(const std::string& smoothing,
                          const double lambda) 
 {
-    THETA_ij.resize(NCOLORS, NCOLORS);
-    // Set the smoothing type
-    if(smoothing == "laplace") 
-    {
-        for(int i = 0; i < THETA_ij.rows(); ++i) 
-            for(int j = 0; j < THETA_ij.cols(); ++j) 
-                THETA_ij(i,j) = -std::abs(double(i) - double(j)) * lambda;
-    } 
-    else 
-    {   
-        for(int i = 0; i < THETA_ij.rows(); ++i) 
-            for(int j = 0; j < THETA_ij.cols(); ++j) 
-                THETA_ij(i,j) = -(i == j? 0 : lambda);
-    } 
+  THETA_ij.resize(NCOLORS, NCOLORS);
+  // Set the smoothing type
+  if(smoothing == "laplace") 
+  {
+    for(int i = 0; i < THETA_ij.rows(); ++i) 
+      for(int j = 0; j < THETA_ij.cols(); ++j) 
+        THETA_ij(i,j) = -std::abs(double(i) - double(j)) * lambda;
+  } 
+  else 
+  {   
+    for(int i = 0; i < THETA_ij.rows(); ++i) 
+      for(int j = 0; j < THETA_ij.cols(); ++j) 
+        THETA_ij(i,j) = -(i == j? 0 : lambda);
+  } 
 } // end of initialize_theta_ij
 
 
 
 template<typename T>
 struct merge_reduce {
-    std::set<T> values;
-    void save(graphlab::oarchive& arc) const { arc << values; }
-    void load(graphlab::iarchive& arc) { arc >> values; }
-    merge_reduce& operator+=(const merge_reduce& other) {
-        values.insert(other.values.begin(), other.values.end());
-        return *this;
-    }
+  std::set<T> values;
+  void save(graphlab::oarchive& arc) const { arc << values; }
+  void load(graphlab::iarchive& arc) { arc >> values; }
+  merge_reduce& operator+=(const merge_reduce& other) {
+    values.insert(other.values.begin(), other.values.end());
+    return *this;
+  }
 }; // end of merge_reduce
 
 typedef std::pair<graphlab::vertex_id_type, float> pred_pair_type; 
 typedef merge_reduce<pred_pair_type> merge_reduce_type;
 
 merge_reduce_type pred_map_function(graph_type::vertex_type vertex) {
-    merge_reduce<pred_pair_type> ret;
-    ret.values.insert(pred_pair_type(vertex.data().i, vertex.data().pred_color_i));
-    ret.values.insert(pred_pair_type(vertex.data().j, vertex.data().pred_color_j));
-    return ret;
+  merge_reduce<pred_pair_type> ret;
+  ret.values.insert(pred_pair_type(vertex.data().i, vertex.data().pred_color_i));
+  ret.values.insert(pred_pair_type(vertex.data().j, vertex.data().pred_color_j));
+  return ret;
 } // end of pred_map_function
 
 merge_reduce_type obs_map_function(graph_type::vertex_type vertex) {
-    merge_reduce<pred_pair_type> ret;
-    ret.values.insert(pred_pair_type(vertex.data().i, vertex.data().obs_color_i));
-    ret.values.insert(pred_pair_type(vertex.data().j, vertex.data().obs_color_j));
-    return ret;
+  merge_reduce<pred_pair_type> ret;
+  ret.values.insert(pred_pair_type(vertex.data().i, vertex.data().obs_color_i));
+  ret.values.insert(pred_pair_type(vertex.data().j, vertex.data().obs_color_j));
+  return ret;
 } // end of obs_map_function
 
 
@@ -466,7 +486,7 @@ merge_reduce_type obs_map_function(graph_type::vertex_type vertex) {
 
 std::pair<int,int> ind2sub(size_t rows, size_t cols,
                            size_t ind) {
-    return std::make_pair(ind / cols, ind % cols);
+  return std::make_pair(ind / cols, ind % cols);
 }; // end of sub2ind
 
 
@@ -499,7 +519,7 @@ void save_image(const size_t rows, const size_t cols,
     max_color = std::max(max_color, pair.second);
     min_color = std::min(min_color, pair.second);
   }
-
+  
   Image img(Magick::Geometry(rows, cols), "white");
   // img.modifyImage();
   // Pixels img_cache(img);
@@ -517,151 +537,151 @@ void save_image(const size_t rows, const size_t cols,
 
 // MAIN =======================================================================>
 int main(int argc, char** argv) {
-    std::cout << "This program creates and denoises a synthetic " << std::endl
-    << "image using loopy belief propagation inside " << std::endl
-    << "the graphlab framework." << std::endl;
-    
-    // // set the global logger
-    // global_logger().set_log_level(LOG_WARNING);
-    // global_logger().set_log_to_console(true);
-    
-    // Set initial values for members ------------------------------------------->
-    NCOLORS = 5;
-    SIGMA = 2;
-    BOUND = 1E-4;
-    
-    
-    size_t nrows = 200;
-    size_t ncols = 200;
-    double lambda = 2;
-    
-    std::string smoothing = "square";
-    
-    std::string orig_fn =  "source_img.jpeg";
-    std::string noisy_fn = "noisy_img.jpeg";
-    std::string pred_fn = "pred_img.jpeg";
-    
-    // std::string orig_fn =  "source_img.pgm";
-    // std::string noisy_fn = "noisy_img.pgm";
-    // std::string pred_fn = "pred_img.pgm";
-    
-    
-    
-    // Parse command line arguments --------------------------------------------->
-    graphlab::command_line_options clopts("Loopy BP image denoising");
-    clopts.attach_option("bound",
-                         &BOUND, BOUND,
-                         "Residual termination bound");
-    clopts.attach_option("ncolors",
-                         &NCOLORS, NCOLORS,
-                         "The number of colors in the noisy image");
-    clopts.attach_option("sigma",
-                         &SIGMA, SIGMA,
-                         "Standard deviation of noise.");
-    clopts.attach_option("nrows",
-                         &nrows, nrows,
-                         "The number of rows in the noisy image");
-    clopts.attach_option("ncols",
-                         &ncols, ncols,
-                         "The number of columns in the noisy image");
-    clopts.attach_option("lambda",
-                         &lambda, lambda,
-                         "Smoothness parameter (larger => smoother).");
-    clopts.attach_option("smoothing",
-                         &smoothing, smoothing,
-                         "Options are {square, laplace}");
-    clopts.attach_option("orig",
-                         &orig_fn, orig_fn,
-                         "Original image file name.");
-    clopts.attach_option("noisy",
-                         &noisy_fn, noisy_fn,
-                         "Noisy image file name.");
-    clopts.attach_option("pred",
-                         &pred_fn, pred_fn,
-                         "Predicted image file name.");
-    
-    ///! Initialize control plain using mpi
-    graphlab::mpi_tools::init(argc, argv);
-    const bool success = clopts.parse(argc, argv);
-    if(!success) {
-        graphlab::mpi_tools::finalize();
-        return EXIT_FAILURE;
-    }
-    
-    ///! Create a distributed control object 
-    graphlab::distributed_control dc;
-    ///! display settings  
-    if(dc.procid() == 0) {
-        std::cout << "ncpus:          " << clopts.get_ncpus() << std::endl
-        << "bound:          " << BOUND << std::endl
-        << "colors:         " << NCOLORS << std::endl
-        << "nrows:           " << nrows << std::endl
-        << "ncols:           " << ncols << std::endl
-        << "sigma:          " << SIGMA << std::endl
-        << "lambda:         " << lambda << std::endl
-        << "smoothing:      " << smoothing << std::endl
-        << "scheduler:      " << clopts.get_scheduler_type() << std::endl
-        << "orig_fn:        " << orig_fn << std::endl
-        << "noisy_fn:       " << noisy_fn << std::endl
-        << "pred_fn:        " << pred_fn << std::endl;
-    }
-    
-    
-    
-    
-    // Create synthetic images -------------------------------------------------->
-    std::cout << "Creating a synthetic noisy image." << std::endl;
-    graph_type graph(dc, clopts);
-    create_synthetic_cluster_graph(dc, graph, nrows, ncols);
-    std::cout << "Finalizing the graph." << std::endl;
-    graph.finalize();
-    
-    std::cout << "Collect the noisy image. " << std::endl;
-    merge_reduce_type obs_image = 
-    graph.map_reduce_vertices<merge_reduce_type>(obs_map_function);
-    std::cout << "saving the noisy image." << std::endl;
-    if(dc.procid() == 0) {
-        save_image(nrows, ncols, obs_image.values, noisy_fn);
-    }
-    
-    // Initialze the edge factor ----------------------------------------------->
-    std::cout << "Initializing shared edge factor. " << std::endl;
-    // dummy variables 0 and 1 and num_rings by num_rings
-    initialize_theta_ij(smoothing, lambda);
-    if(dc.procid() == 0) std::cout << THETA_ij << std::endl;
-    
-    // Create the engine -------------------------------------------------------->
-    std::cout << "Creating the engine. " << std::endl;
-    engine_type engine(dc, graph, clopts);
-    engine.initialize();
-    
-    std::cout << "Scheduling all vertices" << std::endl;
-    engine.signal_all();
-    std::cout << "Starting the engine" << std::endl;
-    engine.start();
-    const float runtime = engine.elapsed_time();
-    size_t update_count = engine.num_updates();
-    std::cout << "Finished Running engine in " << runtime 
-    << " seconds." << std::endl
-    << "Total updates: " << update_count << std::endl
-    << "Efficiency: " << (double(update_count) / runtime)
-    << " updates per second "
-    << std::endl;  
-    
-    
-    // Saving the output -------------------------------------------------------->
-    std::cout << "Saving the predicted image" << std::endl;
-    std::cout << "Collect the noisy image. " << std::endl;
-    merge_reduce_type pred_image = 
-    graph.map_reduce_vertices<merge_reduce_type>(pred_map_function);
-    std::cout << "saving the pred image." << std::endl;
-    if(dc.procid() == 0) {
-        save_image(nrows, ncols, pred_image.values, pred_fn);
-    }
-    
-    std::cout << "Done!" << std::endl;
+  std::cout << "This program creates and denoises a synthetic " << std::endl
+  << "image using loopy belief propagation inside " << std::endl
+  << "the graphlab framework." << std::endl;
+  
+  // // set the global logger
+  // global_logger().set_log_level(LOG_WARNING);
+  // global_logger().set_log_to_console(true);
+  
+  // Set initial values for members ------------------------------------------->
+  NCOLORS = 5;
+  SIGMA = 2;
+  BOUND = 1E-4;
+  
+  
+  size_t nrows = 200;
+  size_t ncols = 200;
+  double lambda = 2;
+  
+  std::string smoothing = "square";
+  
+  std::string orig_fn =  "source_img.jpeg";
+  std::string noisy_fn = "noisy_img.jpeg";
+  std::string pred_fn = "pred_img.jpeg";
+  
+  // std::string orig_fn =  "source_img.pgm";
+  // std::string noisy_fn = "noisy_img.pgm";
+  // std::string pred_fn = "pred_img.pgm";
+  
+  
+  
+  // Parse command line arguments --------------------------------------------->
+  graphlab::command_line_options clopts("Loopy BP image denoising");
+  clopts.attach_option("bound",
+                       &BOUND, BOUND,
+                       "Residual termination bound");
+  clopts.attach_option("ncolors",
+                       &NCOLORS, NCOLORS,
+                       "The number of colors in the noisy image");
+  clopts.attach_option("sigma",
+                       &SIGMA, SIGMA,
+                       "Standard deviation of noise.");
+  clopts.attach_option("nrows",
+                       &nrows, nrows,
+                       "The number of rows in the noisy image");
+  clopts.attach_option("ncols",
+                       &ncols, ncols,
+                       "The number of columns in the noisy image");
+  clopts.attach_option("lambda",
+                       &lambda, lambda,
+                       "Smoothness parameter (larger => smoother).");
+  clopts.attach_option("smoothing",
+                       &smoothing, smoothing,
+                       "Options are {square, laplace}");
+  clopts.attach_option("orig",
+                       &orig_fn, orig_fn,
+                       "Original image file name.");
+  clopts.attach_option("noisy",
+                       &noisy_fn, noisy_fn,
+                       "Noisy image file name.");
+  clopts.attach_option("pred",
+                       &pred_fn, pred_fn,
+                       "Predicted image file name.");
+  
+  ///! Initialize control plain using mpi
+  graphlab::mpi_tools::init(argc, argv);
+  const bool success = clopts.parse(argc, argv);
+  if(!success) {
     graphlab::mpi_tools::finalize();
-    return EXIT_SUCCESS;
+    return EXIT_FAILURE;
+  }
+  
+  ///! Create a distributed control object 
+  graphlab::distributed_control dc;
+  ///! display settings  
+  if(dc.procid() == 0) {
+    std::cout << "ncpus:          " << clopts.get_ncpus() << std::endl
+    << "bound:          " << BOUND << std::endl
+    << "colors:         " << NCOLORS << std::endl
+    << "nrows:           " << nrows << std::endl
+    << "ncols:           " << ncols << std::endl
+    << "sigma:          " << SIGMA << std::endl
+    << "lambda:         " << lambda << std::endl
+    << "smoothing:      " << smoothing << std::endl
+    << "scheduler:      " << clopts.get_scheduler_type() << std::endl
+    << "orig_fn:        " << orig_fn << std::endl
+    << "noisy_fn:       " << noisy_fn << std::endl
+    << "pred_fn:        " << pred_fn << std::endl;
+  }
+  
+  
+  
+  
+  // Create synthetic images -------------------------------------------------->
+  std::cout << "Creating a synthetic noisy image." << std::endl;
+  graph_type graph(dc, clopts);
+  create_synthetic_cluster_graph(dc, graph, nrows, ncols);
+  std::cout << "Finalizing the graph." << std::endl;
+  graph.finalize();
+  
+  std::cout << "Collect the noisy image. " << std::endl;
+  merge_reduce_type obs_image = 
+  graph.map_reduce_vertices<merge_reduce_type>(obs_map_function);
+  std::cout << "saving the noisy image." << std::endl;
+  if(dc.procid() == 0) {
+    save_image(nrows, ncols, obs_image.values, noisy_fn);
+  }
+  
+  // Initialze the edge factor ----------------------------------------------->
+  std::cout << "Initializing shared edge factor. " << std::endl;
+  // dummy variables 0 and 1 and num_rings by num_rings
+  initialize_theta_ij(smoothing, lambda);
+  if(dc.procid() == 0) std::cout << THETA_ij << std::endl;
+  
+  // Create the engine -------------------------------------------------------->
+  std::cout << "Creating the engine. " << std::endl;
+  engine_type engine(dc, graph, clopts);
+  engine.initialize();
+  
+  std::cout << "Scheduling all vertices" << std::endl;
+  engine.signal_all();
+  std::cout << "Starting the engine" << std::endl;
+  engine.start();
+  const float runtime = engine.elapsed_time();
+  size_t update_count = engine.num_updates();
+  std::cout << "Finished Running engine in " << runtime 
+  << " seconds." << std::endl
+  << "Total updates: " << update_count << std::endl
+  << "Efficiency: " << (double(update_count) / runtime)
+  << " updates per second "
+  << std::endl;  
+  
+  
+  // Saving the output -------------------------------------------------------->
+  std::cout << "Saving the predicted image" << std::endl;
+  std::cout << "Collect the noisy image. " << std::endl;
+  merge_reduce_type pred_image = 
+  graph.map_reduce_vertices<merge_reduce_type>(pred_map_function);
+  std::cout << "saving the pred image." << std::endl;
+  if(dc.procid() == 0) {
+    save_image(nrows, ncols, pred_image.values, pred_fn);
+  }
+  
+  std::cout << "Done!" << std::endl;
+  graphlab::mpi_tools::finalize();
+  return EXIT_SUCCESS;
 } // End of main
 
 
