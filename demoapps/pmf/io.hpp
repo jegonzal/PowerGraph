@@ -588,7 +588,7 @@ void load_pmf_graph(const char* filename, graph_type * g, graph_type * _g, testt
       load_matrix_market<graph_type, vertex_data, edge_data>(filename, _g, data_type);
       return;
   }
-
+  else logstream(LOG_FATAL)<<"Please use sparse matrix market format as input, using --matrixmarket=true command line argument. All other formats are now deprecated" << std::endl;
 }
 
 template<typename edgedata, typename edge_data>
