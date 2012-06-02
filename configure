@@ -104,6 +104,10 @@ while [ $# -gt 0 ]
   shift
 done
 
+if [ $run_cleanup ]; then
+  run_cleanup
+fi
+
 # Extra generator setting (passed in as an argument)
 if [[ -n $ide ]]; then
   GENERATOR="-G $ide"
