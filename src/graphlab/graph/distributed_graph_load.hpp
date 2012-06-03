@@ -51,9 +51,15 @@ namespace graphlab {
       size_t linecount = 0;
       timer ti; ti.start();
       while(fin.good() && !fin.eof()) {
-        std::string str;
-        std::getline(fin, str);
-        if (!callback(graph, srcfilename, str)) return false;
+        std::string line;
+        std::getline(fin, line);
+        if (!callback(graph, srcfilename, line)) {
+          logstream(LOG_WARNING) 
+            << "Error parsing line " << linecount << " in "
+            << srcfilename << ": " << std::endl
+            << "\t\"" << line << "\"" << std::endl;  
+          return false;
+        }
         ++linecount;      
         if (ti.current_time() > 5.0) {
           logstream(LOG_INFO) << linecount << " Lines read" << std::endl;
@@ -154,8 +160,7 @@ namespace graphlab {
       graph.dc().full_barrier();
       if(boost::starts_with(path, "hdfs://")) {
         load_from_hdfs(graph, path, callback);
-      }
-      else {
+      } else {
         load_from_posixfs(graph, path, callback);
       }
       graph.dc().full_barrier();
