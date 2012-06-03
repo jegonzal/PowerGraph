@@ -4,7 +4,12 @@ project(GraphLab)
 
 
 
-  # add_graphlab_executable(als als.cpp ../shared/mmio.cpp)
+add_graphlab_executable(als 
+  als.cpp als_vertex_program.cpp eigen_serialization.cpp)
+requires_eigen(als) # build and attach eigen
+
+
+
   # #add_graphlab_executable(lanczos lanczos.cpp ../shared/mmio.cpp)
   # #add_graphlab_executable(lanczos_acum lanczos_acum.cpp ../shared/mmio.cpp)
   # add_graphlab_executable(gklanczos gklanczos.cpp ../shared/mmio.cpp)

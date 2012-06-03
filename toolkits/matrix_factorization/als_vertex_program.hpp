@@ -25,17 +25,16 @@
 
 
 #include <Eigen/Dense>
+
 #include <graphlab.hpp>
 
 
 /** Vertex and edge data types **/
 struct vertex_data {
-  float residual; 
-  float neighborhood_total; //! sum of values on edges
+  static size_t NLATENT;
   uint32_t nupdates; //! the number of times the vertex was updated
   Eigen::VectorXd latent; //! vector of learned values 
-  vertex_data() : residual(std::numeric_limits<float>::max()), 
-                  neighborhood_total(0), nupdates(0) { }
+  vertex_data(); 
   void randomize();
   void save(graphlab::oarchive& arc) const;
   void load(graphlab::iarchive& arc);
@@ -45,16 +44,17 @@ struct vertex_data {
  * The edge data is just an observation float
  */
 struct edge_data : public graphlab::IS_POD_TYPE {
-  float obs, error;
-  edge_data(const float& obs = 0) :
-    obs(obs), error(std::numeric_limits<float>::max()) { }
+  float obs;
+  float error;
+  uint32_t nupdates;
+  edge_data(const float& obs = 0);
 }; // end of edge data
 
 
 /**
  * The graph type
  */ 
-graphlab::distributed_graph<vertex_data, edge_data> graph_type;
+typedef graphlab::distributed_graph<vertex_data, edge_data> graph_type;
 
 
 /**
@@ -76,32 +76,67 @@ public:
 /**
  * ALS vertex program type
  */ 
-class als_vertex_program : public ivertex_program<vertex_data,
-                                                  edge_data,
-                                                  gather_type> {
+class als_vertex_program : 
+  public graphlab::ivertex_program<graph_type, gather_type,
+                                   graphlab::messages::sum_priority>,
+  public graphlab::IS_POD_TYPE {
 public:
-  edge_dir_type gather_edges(icontext_type& context,
-                             const vertex_type& vertex) const { 
-    return graphlab::ALL_EDGES; 
-  }; // end of gather_edges 
-  edge_dir_type scatter_edges(icontext_type& context,
-                              const vertex_type& vertex) const { 
-    return graphlab::ALL_EDGES; 
-  }; // end of scatter edges
+  /** The convergence tolerance */
+  static double TOLERANCE;
+  static double LAMBDA;
+  static size_t MAX_UPDATES;
 
-  gather_type gather(icontext_type& context, 
-                     const vertex_type& vertex, 
+  /** Initialize the vertex data */
+  void init(icontext_type& context, vertex_type& vertex);
+
+  /** The set of edges to gather along */
+  edge_dir_type gather_edges(icontext_type& context, 
+                             const vertex_type& vertex) const;
+
+  /** The gather function computes XtX and Xy */
+  gather_type gather(icontext_type& context, const vertex_type& vertex, 
                      edge_type& edge) const;
 
+  /** apply collects the sum of XtX and Xy */
+  void apply(icontext_type& context, vertex_type& vertex,
+             const gather_type& sum);
+  
+  /** The edges to scatter along */
+  edge_dir_type scatter_edges(icontext_type& context,
+                              const vertex_type& vertex) const;
+
+  /** Scatter reschedules neighbors */  
+  void scatter(icontext_type& context, const vertex_type& vertex, 
+               edge_type& edge) const;
+  
 private:
-  vertex_type get_other_vertex(edge_type& edge, 
-                               const vertex_type& vertex) const {
-    return vertex.id() == edge.source().id()? edge.target() : edge.source();
-  }; // end of other_vertex
-
-
+  /** Since the edges are undirected we use this helper function to
+      get the vertex on the other side of the edge */
+  vertex_type get_other_vertex(edge_type& edge, const vertex_type& vertex) const;
 
 }; // end of als vertex program
+
+
+
+
+
+//=============================================================================
+// Graph operations 
+
+
+/**
+ *  the extract trian error function is used to compute the error on
+ *  an edge
+ */
+double extract_train_error(const graph_type::edge_type& edge);
+
+
+/**
+ * The graph loader function is a line parser used for distributed
+ * graph construction.
+ */
+bool graph_loader(graph_type& graph, const std::string& filename,
+                  const std::string& line);
 
 
 #endif
