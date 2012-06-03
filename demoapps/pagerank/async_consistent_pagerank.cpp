@@ -171,7 +171,6 @@ int main(int argc, char** argv) {
   
   std::cout << dc.procid() << ": Creating engine" << std::endl;
   graphlab::async_consistent_engine<pagerank> engine(dc, graph, clopts);
-  engine.initialize();
 
   std::cout << dc.procid() << ": Scheduling all" << std::endl;
   engine.signal_all();

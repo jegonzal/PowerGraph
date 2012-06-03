@@ -654,7 +654,6 @@ int main(int argc, char** argv) {
   // Create the engine -------------------------------------------------------->
   std::cout << "Creating the engine. " << std::endl;
   engine_type engine(dc, graph, clopts);
-  engine.initialize();
   
   std::cout << "Scheduling all vertices" << std::endl;
   engine.signal_all();

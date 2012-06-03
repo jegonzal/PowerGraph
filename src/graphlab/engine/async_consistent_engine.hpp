@@ -223,12 +223,27 @@ namespace graphlab {
 
     /**
      * Constructs an asynchronous consistent distributed engine.
+     * The number of threads to create are read from 
+     * opts::get_ncpus(). The scheduler to construct is read from
+     * graphlab_options::get_scheduler_type(). The default scheduler
+     * is the queued_fifo scheduler. For details on the scheduler types
+     * \see scheduler_types
+     *
+     * Valid engine options (graphlab_options::get_engine_args()):
+     * \arg \c max_clean_fraction The maximum proportion of edges which
+     * can be locked at any one time. (This is a simplification of the actual
+     * clean/dirty concept in the Chandy Misra locking algorithm used in this
+     * implementation.
+     * \arg \c timed_termination Maximum time in seconds the engine will run
+     * for. The actual runtime may be marginally greater as the engine 
+     * waits for all threads and processes to flush all active tasks before
+     * returning.
+     * 
      * \param dc Distributed controller to associate with
      * \param graph The graph to schedule over. The graph need not be
      *              filled at this point.
      * \param opts A graphlab_options object containing options and parameters
-     *             for the scheduler and the engine. The options
-     *             are the same as that in set_options. 
+     *             for the scheduler and the engine.
      */
     async_consistent_engine(distributed_control &dc,
                             graph_type& graph, 
@@ -277,10 +292,14 @@ namespace graphlab {
                       "distributed_engine: Time in Internal Task Queue");
       INITIALIZE_TRACER(disteng_chandy_misra,
                       "distributed_engine: Time in Chandy Misra");
+      initialize();
+      rmi.barrier();
     }
-
+    
+  private:
 
     /**
+     * \internal
      * Configures the engine with the provided options.
      * The number of threads to create are read from 
      * opts::get_ncpus(). The scheduler to construct is read from
@@ -323,6 +342,7 @@ namespace graphlab {
     }
 
     /**
+     * \internal
      * Initializes the engine with respect to the associated graph.
      * This call will initialize all internal and scheduling datastructures.
      * This function must be called prior to any signal function. 
@@ -359,7 +379,8 @@ namespace graphlab {
       if (rmi.procid() == 0) memory_info::print_usage("After Engine Initialization");
       rmi.barrier();
     }
-    
+  
+  public:
     ~async_consistent_engine() {
       thrlocal.clear();
       delete consensus;
@@ -1301,11 +1322,13 @@ namespace graphlab {
     /**
       * \brief Start the engine execution.
       *
-      * This \b blocking function starts the engine and does not
-      * return until either one of the termination conditions evaluate
-      * true or the scheduler has no tasks remaining.
+      * This function starts the engine and does not
+      * return until the scheduler has no tasks remaining.
+      * 
+      * \param perform_init_vertex_program If true, runs init on each
+      * vertex program. Defaults to true.
       */
-    void start() {
+    void start(bool perform_init_vertex_program = true) {
       logstream(LOG_INFO) << "Spawning " << ncpus << " threads" << std::endl;
       ASSERT_TRUE(scheduler_ptr != NULL);
       // start the scheduler
@@ -1325,12 +1348,13 @@ namespace graphlab {
 
       termination_reason = execution_status::RUNNING;
 
+      if (perform_init_vertex_program) {
         logstream(LOG_INFO) << "Initialize Vertex Programs: " << allocatedmem << std::endl;
-      for (size_t i = 0; i < ncpus; ++i) {
-        thrgroup.launch(boost::bind(&engine_type::initialize_vertex_programs, this, i));
+        for (size_t i = 0; i < ncpus; ++i) {
+          thrgroup.launch(boost::bind(&engine_type::initialize_vertex_programs, this, i));
+        }
+        thrgroup.join();
       }
-      thrgroup.join();
-
 
       if (rmi.procid() == 0) {
         logstream(LOG_INFO) << "Total Allocated Bytes: " << allocatedmem << std::endl;

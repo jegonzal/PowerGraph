@@ -62,7 +62,6 @@ void test_in_neighbors(graphlab::distributed_control& dc,
   std::cout << "Constructing an engine for in neighbors" << std::endl;
   typedef graphlab::async_consistent_engine<count_in_neighbors> engine_type;
   engine_type engine(dc, graph, clopts);
-  engine.initialize();
   std::cout << "Scheduling all vertices to count their neighbors" << std::endl;
   engine.signal_all();
   std::cout << "Running!" << std::endl;
@@ -100,7 +99,6 @@ void test_out_neighbors(graphlab::distributed_control& dc,
   std::cout << "Constructing an engine for out neighbors" << std::endl;
   typedef graphlab::async_consistent_engine<count_out_neighbors> engine_type;
   engine_type engine(dc, graph, clopts);
-  engine.initialize();
   std::cout << "Scheduling all vertices to count their neighbors" << std::endl;
   engine.signal_all();
   std::cout << "Running!" << std::endl;
@@ -143,7 +141,6 @@ void test_all_neighbors(graphlab::distributed_control& dc,
   std::cout << "Constructing an engine for all neighbors" << std::endl;
   typedef graphlab::async_consistent_engine<count_all_neighbors> engine_type;
   engine_type engine(dc, graph, clopts);
-  engine.initialize();
   std::cout << "Scheduling all vertices to count their neighbors" << std::endl;
   engine.signal_all(100);
   std::cout << "Running!" << std::endl;

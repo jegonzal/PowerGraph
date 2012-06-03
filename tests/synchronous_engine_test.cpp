@@ -63,7 +63,6 @@ void test_in_neighbors(graphlab::distributed_control& dc,
   std::cout << "Constructing a syncrhonous engine for in neighbors" << std::endl;
   typedef graphlab::synchronous_engine<count_in_neighbors> engine_type;
   engine_type engine(dc, graph, clopts);
-  engine.initialize();
   std::cout << "Scheduling all vertices to count their neighbors" << std::endl;
   engine.signal_all();
   std::cout << "Running!" << std::endl;
@@ -102,7 +101,6 @@ void test_out_neighbors(graphlab::distributed_control& dc,
   std::cout << "Constructing a syncrhonous engine for out neighbors" << std::endl;
   typedef graphlab::synchronous_engine<count_out_neighbors> engine_type;
   engine_type engine(dc, graph, clopts);
-  engine.initialize();
   std::cout << "Scheduling all vertices to count their neighbors" << std::endl;
   engine.signal_all();
   std::cout << "Running!" << std::endl;
@@ -141,7 +139,6 @@ void test_all_neighbors(graphlab::distributed_control& dc,
   std::cout << "Constructing a syncrhonous engine for all neighbors" << std::endl;
   typedef graphlab::synchronous_engine<count_all_neighbors> engine_type;
   engine_type engine(dc, graph, clopts);
-  engine.initialize();
   std::cout << "Scheduling all vertices to count their neighbors" << std::endl;
   engine.signal_all();
   std::cout << "Running!" << std::endl;
@@ -202,7 +199,6 @@ void test_messages(graphlab::distributed_control& dc,
   std::cout << "Testing messages" << std::endl;
   typedef graphlab::synchronous_engine<basic_messages> engine_type;
   engine_type engine(dc, graph, clopts);
-  engine.initialize();
   std::cout << "Scheduling all vertices to test messages" << std::endl;
   engine.signal_all(-1);
   std::cout << "Running!" << std::endl;
