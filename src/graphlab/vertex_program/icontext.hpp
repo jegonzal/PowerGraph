@@ -115,10 +115,14 @@ namespace graphlab {
                         const message_type& message = message_type()) = 0;
 
     /**
-     * Send a message to a vertex.
+     * Send a message to a vertex ID.
+     * \warning This function will be slow since the current machine do
+     * not know the location of the vertex ID.
+     * \warning This may be unreliable. signals issued near to engine
+     * termination may be lost.
      */
-    virtual void signal(vertex_id_type gvid, 
-                        const message_type& message = message_type()) = 0;
+    virtual void signal_vid(vertex_id_type gvid, 
+                            const message_type& message = message_type()) = 0;
 
     /**
      * Post a change to the cached sum for the vertex

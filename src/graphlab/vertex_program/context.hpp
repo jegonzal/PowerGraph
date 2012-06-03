@@ -129,14 +129,14 @@ namespace graphlab {
     }
 
     /**
-     * Send a message to a vertex.
-     * \warning This function may be slow since the current machine may
+     * Send a message to a vertex ID.
+     * \warning This function will be slow since the current machine do
      * not know the location of the vertex ID.
      * \warning This may be unreliable. signals issued near to engine
      * termination may be lost.
      */
-    void signal(vertex_id_type vid, 
-                const message_type& message = message_type()) {
+    void signal_vid(vertex_id_type vid, 
+                    const message_type& message = message_type()) {
       engine.signal_broadcast(vid, message);
     }
 
