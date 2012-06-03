@@ -13,7 +13,7 @@ subdirs(
   util
   serialization
   logger
-  jni
+#  jni
   )
 
 
