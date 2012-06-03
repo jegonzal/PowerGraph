@@ -84,7 +84,7 @@ namespace graphlab {
 
 
 
-    typedef icontext<vertex_type, gather_type, message_type> icontext_type;
+    typedef icontext<vertex_type, gather_type, message_type, vertex_id_type> icontext_type;
     typedef context<synchronous_engine> context_type;
        
   private:
@@ -219,11 +219,19 @@ namespace graphlab {
     void stop() { /* implement */ }
     execution_status::status_enum last_exec_status() const;
     size_t num_updates() const;
-    void signal(const vertex_type& vertex,
+    void signal_internal(const vertex_type& vertex,
                 const message_type& message = message_type());    
+    void signal_internal_gvid(vertex_id_type gvid,
+                            const message_type& message = message_type());
+    void signal_broadcast(vertex_id_type gvid,
+                          const message_type& message = message_type());
+    void signal(vertex_id_type gvid,
+                const message_type& message = message_type());
+    
     void signal_all(const message_type& message = message_type(),
                     const std::string& order = "sequential");
 
+    
     float elapsed_seconds() const;
     size_t iteration() const; 
 
@@ -318,8 +326,8 @@ namespace graphlab {
 
   template<typename VertexProgram>
   void synchronous_engine<VertexProgram>::
-  signal(const vertex_type& vertex,
-         const message_type& message) {
+  signal_internal(const vertex_type& vertex,
+                  const message_type& message) {
     const lvid_type lvid = vertex.local_id();
     vlocks[lvid].lock();
     if( has_message.get(lvid) ) {
@@ -329,7 +337,39 @@ namespace graphlab {
       has_message.set_bit(lvid);
     }
     vlocks[lvid].unlock();       
-  } // end of send message
+  } // end of signal_internal
+
+
+  template<typename VertexProgram>
+  void synchronous_engine<VertexProgram>::
+  signal_internal_gvid(vertex_id_type gvid,
+                      const message_type& message) {
+    if (graph.is_master(gvid)) {
+      signal_internal(graph.vertex(gvid), message);
+    }
+  } // end of signal_internal_gvid
+
+  template<typename VertexProgram>
+  void synchronous_engine<VertexProgram>::
+  signal_broadcast(vertex_id_type gvid,
+                   const message_type& message) {
+    for (size_t i = 0;i < rmi.numprocs(); ++i) {
+      rmi.remote_call(i, &synchronous_engine<VertexProgram>::signal_internal_gvid,
+                      gvid, message);
+    }
+  } // end of signal_broadcast
+
+
+
+  template<typename VertexProgram>
+  void synchronous_engine<VertexProgram>::
+  signal(vertex_id_type gvid,
+         const message_type& message) {
+    rmi.barrier();
+    signal_internal_gvid(gvid, message);
+    rmi.barrier();
+  } // end of signal_internal
+
 
 
   template<typename VertexProgram>
@@ -337,7 +377,7 @@ namespace graphlab {
   signal_all(const message_type& message, const std::string& order) {
     for(lvid_type lvid = 0; lvid < graph.num_local_vertices(); ++lvid) {
       if(graph.l_is_master(lvid)) 
-        signal(vertex_type(graph.l_vertex(lvid)), message);
+        signal_internal(vertex_type(graph.l_vertex(lvid)), message);
     }
   } // end of send message
   
@@ -548,7 +588,7 @@ namespace graphlab {
        */
     }
     // Final barrier to ensure that all engines terminate at the same time
-    rmi.barrier();
+    rmi.full_barrier();
   } // end of start
 
 

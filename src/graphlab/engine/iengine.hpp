@@ -82,7 +82,8 @@ namespace graphlab {
   public:
     typedef VertexProgram vertex_program_type;
     typedef typename vertex_program_type::message_type message_type;
-    typedef typename vertex_program_type::graph_type graph_type;  
+    typedef typename vertex_program_type::graph_type graph_type;
+    typedef typename graph_type::vertex_id_type vertex_id_type;  
     typedef typename graph_type::vertex_type vertex_type;
 
 
@@ -121,12 +122,45 @@ namespace graphlab {
     virtual size_t num_updates() const = 0;
            
     /**
-     * \brief Send a message to a particular vertex
+     * \brief Signals a vertex with an optional message
+     * 
+     * Signals a vertex and schedules it to be executed in the future
+     * Must be called on all machines simultaneously.
      */
-    virtual void signal(const vertex_type& vertex,
-                        const message_type& message) = 0;
+    virtual void signal(vertex_id_type vertex,
+                        const message_type& message = message_type()) = 0;
+
+    /**
+     * \brief Signals a vertex with an optional message
+     * 
+     * Signals a vertex, and schedules it to be executed in the future.
+     * must be called on a vertex accessible by the current machine.
+     */
+    virtual void signal_internal(const vertex_type& vertex,
+                                 const message_type& message = message_type()) = 0;
 
 
+                                 
+    /**
+     * \brief Signals a global vid with an optional message. Ignored if current
+     *        machine does not own it
+     * 
+     * Signals a global vid, and schedules it to be executed in the future.
+     * If current machine does not contain the vertex, it is ignored.
+     */
+    virtual void signal_internal_gvid(vertex_id_type gvid,
+                                 const message_type& message = message_type()) = 0;
+
+
+    /**
+     * \brief Signals a global vid with an optional message. 
+     * Signals a global vid, and schedules it to be executed in the future.
+     * Broadcast to all machines to guarantee gvid is signaled.
+     */
+    virtual void signal_broadcast(vertex_id_type gvid,
+                                  const message_type& message = message_type()) = 0;
+
+                                 
     /**
      * \brief Send a message to all vertices
      */

@@ -42,7 +42,8 @@ namespace graphlab {
    */
   template<typename VertexType,
            typename GatherType, 
-           typename MessageType>
+           typename MessageType,
+           typename VertexIdType>
   class icontext {
   public:
     // Type members ===========================================================
@@ -52,6 +53,12 @@ namespace graphlab {
      * TODO: add a reference back to the graph type
      */
     typedef VertexType vertex_type;   
+
+        /** 
+     * The opaque vertex object type 
+     * TODO: add a reference back to the graph type
+     */
+    typedef VertexIdType vertex_id_type;   
 
     /**
      * The message type specified by the user-defined vertex-program.
@@ -105,6 +112,12 @@ namespace graphlab {
      * Send a message to a vertex.
      */
     virtual void signal(const vertex_type& vertex, 
+                        const message_type& message = message_type()) = 0;
+
+    /**
+     * Send a message to a vertex.
+     */
+    virtual void signal(vertex_id_type gvid, 
                         const message_type& message = message_type()) = 0;
 
     /**
