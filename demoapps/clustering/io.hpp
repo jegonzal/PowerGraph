@@ -362,6 +362,8 @@ void add_vertices(graph_type * _g, testtype type){
 
     if (ps.algorithm == RATING && type == TEST)
       set_size(vdata.datapoint, ps.N_test);
+    else if (ps.algorithm == RATING && type == VALIDATION)
+      set_size(vdata.datapoint, ps.N_validation);
     else set_size(vdata.datapoint, i < ps.M ? ps.N : ps.M);
     if (ps.algorithm == K_MEANS_FUZZY)
 	vdata.distances = zeros(ps.K);
