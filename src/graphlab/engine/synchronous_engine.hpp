@@ -213,10 +213,9 @@ namespace graphlab {
     synchronous_engine(distributed_control &dc, 
                        graph_type& graph,
                        const graphlab_options& opts);
-    void initialize();
     size_t total_memory_usage() const;
 
-    void start();
+    void start(bool perform_init_vtx_program = true);
     void stop() { /* implement */ }
     execution_status::status_enum last_exec_status() const;
     size_t num_updates() const;
@@ -229,14 +228,14 @@ namespace graphlab {
     size_t iteration() const; 
 
     size_t elapsed_time() const { return 0; /* implement */ }
-    void set_options(const graphlab_options& opts);
 
     void post_delta(const vertex_type& vertex,
                     const gather_type& delta);
     void clear_gather_cache(const vertex_type& vertex);
 
   private:
-
+    void initialize();
+    void set_options(const graphlab_options& opts);
     // Program Steps ==========================================================
     template<typename MemberFunction>       
     void run_synchronous(MemberFunction member_fun) {
@@ -286,6 +285,7 @@ namespace graphlab {
     gather_exchange(dc), message_exchange(dc) {
     rmi.barrier();
     set_options(opts);
+    initialize();
     rmi.barrier();
   } // end of synchronous engine
   
@@ -442,7 +442,7 @@ namespace graphlab {
 
 
   template<typename VertexProgram>
-  void synchronous_engine<VertexProgram>::start() {
+  void synchronous_engine<VertexProgram>::start(bool perform_init_vtx_program) {
     rmi.barrier();
     graph.finalize();
     // Initialization code ==================================================     
@@ -453,9 +453,10 @@ namespace graphlab {
     start_time = lowres_time_seconds();
     iteration_counter = 0;
 
-    // Initialize all vertex programs
-    run_synchronous( &synchronous_engine::initialize_vertex_programs );
-
+    if (perform_init_vtx_program) {
+      // Initialize all vertex programs
+      run_synchronous( &synchronous_engine::initialize_vertex_programs );
+    }
     // Program Main loop ====================================================      
     for (iteration_counter = 0; iteration_counter < max_iterations; 
          ++iteration_counter) {

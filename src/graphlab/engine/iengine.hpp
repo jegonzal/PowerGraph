@@ -93,7 +93,7 @@ namespace graphlab {
      * \brief Start the engine execution.
      *
      */
-    virtual void start() = 0;
+    virtual void start(bool perform_init_vtx_program = true) = 0;
 
 
     /**
@@ -137,9 +137,6 @@ namespace graphlab {
      */
     virtual size_t elapsed_time() const = 0;
 
-
-    /** \brief Update the engine options.  */
-    virtual void set_options(const graphlab_options& opts) = 0;
 
     /** \brief get the current engine options. */
     //    virtual const graphlab_options& get_options() = 0;
