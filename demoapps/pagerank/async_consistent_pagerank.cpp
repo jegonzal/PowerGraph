@@ -65,7 +65,7 @@ typedef graphlab::distributed_graph<vertex_data_type, edge_data_type> graph_type
  * assumed to be empty. Since we do not need messages no message type
  * is provided.
  *
- * pagerank also extends graphlab::IS_POD_TYP (is plain old data type)
+ * pagerank also extends graphlab::IS_POD_TYPE (is plain old data type)
  * which tells graphlab that the pagerank program can be serialized
  * (converted to a byte stream) by directly reading its in memory
  * representation.  If a vertex program does not exted
