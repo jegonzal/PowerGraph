@@ -68,7 +68,7 @@ gather_type& gather_type::operator+=(const gather_type& other) {
 //=============================================================================
 // Vertex program
 
-double als_vertex_program::TOLERANCE = 1e-2;
+double als_vertex_program::TOLERANCE = 1e-3;
 double als_vertex_program::LAMBDA = 0.01;
 size_t als_vertex_program::MAX_UPDATES = -1;
 
