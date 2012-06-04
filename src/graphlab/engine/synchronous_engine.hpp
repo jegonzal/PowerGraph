@@ -59,16 +59,65 @@
 namespace graphlab {
   
   
+  /**
+     \brief The synchronous engine executes all active vertex program
+     synchronously on each super-step (iteration).
+      
+     Each super-step is divided into the following minor-steps:
+     \li Receive all incoming messages (signals) by invoking the \ref
+     graphlab::ivertex_program::recv_meessage function on all
+     vertex-programs that have incoming messages.  If a vertex-program
+     does not have any incoming messages then it is not active during
+     this super-step.
+     \li Execute all gathers for active vertex programs by invoking
+     the user defined \ref graphlab::ivertex_program::gather function
+     on the edges returned by the \ref
+     graphlab::ivertex_program::gather_edges function.  The gather
+     functions can modify edge data but cannot modify the vertex
+     program or vertex data and therefore can be executed on multiple
+     edges in parallel.  The gather type is used to accumulate (sum)
+     the result of the gather function calls.
+     \li Execute all apply functions for active vertex-programs by
+     invoking the user defined \ref graphlab::ivertex_program::apply
+     function passing the sum of the gather functions.  If \ref
+     graphlab::ivertex_program::gather_edges returns no edges then the
+     default gather value is passed to apply.  The apply function can
+     modify the vertex program and vertex data.
 
+     \tparam VertexProgram The user defined vertex program which
+     should implement the \ref graphlab::ivertex_program interface. 
+   
+   */
   template<typename VertexProgram>
   class synchronous_engine : 
     public iengine<VertexProgram> {
 
   public:
-
+    /**
+     * The user defined vertex program type which should implement the
+     * \ref graphlab::ivertex_program interface.
+     */
     typedef VertexProgram vertex_program_type;
+
+    /**
+     * The gather type is defined in the \ref
+     * graphlab::ivertex_program interface and is the value returned by
+     * the \ref graphlab::ivertex_program::gather function.  The
+     * gather type must have an <code>operator+=(const gather_type&
+     * other)</code> function and must be \ref serializable.
+     */
     typedef typename VertexProgram::gather_type gather_type;
+
+
+    /**
+     * The message type is defined in the \ref
+     * graphlab::ivertex_program interface and used in the call to
+     * \ref graphlab::icontext::signal.  The message type must have an
+     * <code>operator+=(const gather_type& other)</code> function and
+     * must be \ref serializable.
+     */
     typedef typename VertexProgram::message_type message_type;
+
     typedef typename VertexProgram::vertex_data_type vertex_data_type;
     typedef typename VertexProgram::edge_data_type edge_data_type;
 
@@ -84,7 +133,9 @@ namespace graphlab {
 
 
 
-    typedef icontext<vertex_type, gather_type, message_type, vertex_id_type> icontext_type;
+    typedef icontext<vertex_type, gather_type, message_type, vertex_id_type> 
+    icontext_type;
+    
     typedef context<synchronous_engine> context_type;
        
   private:
