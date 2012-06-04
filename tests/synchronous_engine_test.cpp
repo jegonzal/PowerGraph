@@ -213,7 +213,6 @@ void test_messages(graphlab::distributed_control& dc,
 
 
 int main(int argc, char** argv) {
-
   ///! Initialize control plain using mpi
   graphlab::mpi_tools::init(argc, argv);
   graphlab::dc_init_param rpc_parameters;
@@ -224,7 +223,7 @@ int main(int argc, char** argv) {
   clopts.engine_args.set_option("max_iterations", 10);
   std::cout << "Creating a powerlaw graph" << std::endl;
   graph_type graph(dc, clopts);
-  graphlab::graph_ops::load_synthetic_powerlaw(graph, 100);
+  graph.load_synthetic_powerlaw(100);
 
   test_in_neighbors(dc, clopts, graph);
   test_out_neighbors(dc, clopts, graph);

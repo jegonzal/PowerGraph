@@ -33,6 +33,7 @@
 struct vertex_data {
   static size_t NLATENT;
   uint32_t nupdates; //! the number of times the vertex was updated
+  float residual; //! how much the latent value has changed
   Eigen::VectorXd latent; //! vector of learned values 
   vertex_data(); 
   void randomize();
@@ -135,7 +136,8 @@ double extract_train_error(const graph_type::edge_type& edge);
  * The graph loader function is a line parser used for distributed
  * graph construction.
  */
-bool graph_loader(graph_type& graph, const std::string& filename,
+bool graph_loader(graph_type& graph, 
+                  const std::string& filename,
                   const std::string& line);
 
 

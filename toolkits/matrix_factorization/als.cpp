@@ -75,7 +75,7 @@ int main(int argc, char** argv) {
   std::cout << dc.procid() << ": Loading graph." << std::endl;
   graphlab::timer timer; timer.start();
   graph_type graph(dc, clopts);  
-  graphlab::graph_ops::load(graph, input_dir, graph_loader); 
+  graph.load(input_dir, graph_loader); 
   std::cout << dc.procid() << ": Loading graph. Finished in " 
             << timer.current_time() << std::endl;
   std::cout << dc.procid() << ": Finalizing graph." << std::endl;
@@ -119,9 +119,9 @@ int main(int argc, char** argv) {
               << std::endl;
     std::cout << "Final Runtime (seconds):   " << runtime 
               << std::endl
-              << "Updates executed: " << engine.last_update_count() << std::endl
+              << "Updates executed: " << engine.num_updates() << std::endl
               << "Update Rate (updates/second): " 
-              << engine.last_update_count() / runtime << std::endl;
+              << engine.num_updates() / runtime << std::endl;
   }
 
 

@@ -45,6 +45,12 @@
 
 #include <boost/functional.hpp>
 #include <boost/algorithm/string/predicate.hpp>
+#include <boost/iostreams/stream.hpp>
+#include <boost/iostreams/filtering_streambuf.hpp>
+#include <boost/iostreams/filtering_stream.hpp>
+#include <boost/iostreams/copy.hpp>
+#include <boost/iostreams/filter/gzip.hpp>
+
 
 #include <graphlab/logger/logger.hpp>
 #include <graphlab/logger/assertions.hpp>
@@ -59,7 +65,7 @@
 #include <graphlab/options/graphlab_options.hpp>
 #include <graphlab/serialization/iarchive.hpp>
 #include <graphlab/serialization/oarchive.hpp>
-#include <graphlab/graph/graph.hpp>
+
 #include <graphlab/graph/graph.hpp>
 #include <graphlab/graph/ingress/idistributed_ingress.hpp>
 #include <graphlab/graph/ingress/distributed_ingress_base.hpp>
@@ -67,11 +73,16 @@
 #include <graphlab/graph/ingress/distributed_oblivious_ingress.hpp>
 #include <graphlab/graph/ingress/distributed_random_ingress.hpp>
 #include <graphlab/graph/ingress/distributed_identity_ingress.hpp>
-#include <graphlab/util/hdfs.hpp>
+
 #include <boost/iostreams/stream.hpp>
 #include <boost/iostreams/filtering_stream.hpp>
 #include <graphlab/util/cuckoo_map_pow2.hpp>
 
+#include <graphlab/util/fs_util.hpp>
+#include <graphlab/util/hdfs.hpp>
+
+
+#include <graphlab/graph/builtin_parsers.hpp>
 
 
 #include <graphlab/macros_def.hpp>
@@ -87,6 +98,21 @@ namespace graphlab {
     typedef VertexData vertex_data_type;
     /// The type of the edge data stored in the graph 
     typedef EdgeData   edge_data_type;
+
+    /**
+       The line parse is any function (or functor) that has the form:
+     
+       <code>
+        bool line_parser(distributed_graph& graph, const std::string& filename,
+                         const std::string& textline);
+       </code>
+
+       the line parser returns true if the line is parsed successfully and
+       calls graph.add_vertex(...) or graph.add_edge(...)
+     */
+    typedef boost::function<bool(distributed_graph&, const std::string&,
+                                 const std::string&)> line_parser_type;
+
 
     typedef fixed_dense_bitset<RPC_MAX_N_PROCS> mirror_type;
 
@@ -516,13 +542,14 @@ namespace graphlab {
           << local_graph;
     } // end of save
 
+
     /** \brief Load part of the distributed graph from a path*/
-    void load(std::string& path, std::string& prefix) {
+    void load_binary(const std::string& path_arg, std::string& prefix) {  
       rpc.full_barrier();
       std::ostringstream ss;
       ss << prefix << rpc.procid() << ".bin";
       std::string fname = ss.str();
-
+      std::string path = path_arg;
       if (path.substr(path.length()-1, 1) != "/")
         path.append("/");
       fname = path.append(fname);
@@ -548,14 +575,17 @@ namespace graphlab {
         fin.close();
       }
       logstream(LOG_INFO) << "Finish loading graph from " << fname << std::endl;
+      rpc.full_barrier();
     } // end of load
 
+
     /** \brief Load part of the distributed graph from a path*/
-    void save(std::string& path, std::string& prefix) {
+    void save_binary(const std::string& path_arg, std::string& prefix) {
       rpc.full_barrier();
       timer savetime;  savetime.start();
       std::ostringstream ss;
       ss << prefix << rpc.procid() << ".bin";
+      std::string path = path_arg;
       std::string fname = ss.str();
       if (path.substr(path.length()-1, 1) != "/")
         path.append("/");
@@ -580,11 +610,349 @@ namespace graphlab {
         oarc << *this;
         fout.close();
       }
+      logstream(LOG_INFO) << "Finish saving graph to " << fname << std::endl
+                          << "Finished saving binary graph: " 
+                          << savetime.current_time() << std::endl;
       rpc.full_barrier();
-      logstream(LOG_INFO) << "Finish saving graph to " << fname << std::endl;
-      std::cout << "Finished saving binary graph: " 
-                << savetime.current_time() << std::endl;
     } // end of save
+
+
+
+
+
+    template<typename Writer>
+    void save_to_posixfs(const std::string& prefix, Writer writer,
+                         bool gzip = true,
+                         bool save_vertex = true,
+                         bool save_edge = true,
+                         size_t files_per_machine = 4) {
+      typedef boost::function<void(vertex_type)> vertex_function_type;
+      typedef boost::function<void(edge_type)> edge_function_type;
+      typedef std::ofstream base_fstream_type;
+      typedef boost::iostreams::filtering_stream<boost::iostreams::output>
+        boost_fstream_type;
+      rpc.full_barrier();
+      // figure out the filenames
+      std::vector<std::string> graph_files;
+      std::vector<base_fstream_type*> outstreams;
+      std::vector<boost_fstream_type*> booststreams;
+      graph_files.resize(files_per_machine);
+      for(size_t i = 0; i < files_per_machine; ++i) {
+        graph_files[i] = prefix + "." + tostr(1 + i + rpc.procid() * files_per_machine)
+          + "_of_" + tostr(rpc.numprocs() * files_per_machine);
+        if (gzip) graph_files[i] += ".gz";
+      }
+
+      // create the vector of callbacks
+      std::vector<vertex_function_type> vertex_callbacks(graph_files.size());
+      std::vector<edge_function_type> edge_callbacks(graph_files.size());
+    
+      for(size_t i = 0; i < graph_files.size(); ++i) {
+        std::cout << "Saving to file: " << graph_files[i] << std::endl;
+        // open the stream
+        base_fstream_type* out_file = 
+          new base_fstream_type(graph_files[i].c_str(),
+                                std::ios_base::out | std::ios_base::binary);
+        // attach gzip if the file is gzip
+        boost_fstream_type* fout = new boost_fstream_type;
+        // Using gzip filter
+        if (gzip) fout->push(boost::iostreams::gzip_compressor());
+        fout->push(*out_file);
+
+        outstreams.push_back(out_file);
+        booststreams.push_back(fout);
+        // construct the callback for the parallel for
+        vertex_callbacks[i] = 
+          boost::bind(&distributed_graph::
+                      save_vertex_to_stream<boost_fstream_type, Writer>,
+                      this, _1, boost::ref(*fout), boost::ref(writer));
+        edge_callbacks[i] =
+          boost::bind(&distributed_graph::
+                      save_edge_to_stream<boost_fstream_type, Writer>,
+                      this, _1, boost::ref(*fout), boost::ref(writer));
+      }
+
+      if (save_vertex) parallel_for_vertices(vertex_callbacks);
+      if (save_edge) parallel_for_edges(edge_callbacks);
+
+      // cleanup
+      for(size_t i = 0; i < graph_files.size(); ++i) {    
+        booststreams[i]->pop();
+        if (gzip) booststreams[i]->pop();
+        delete booststreams[i];
+        delete outstreams[i];
+      }
+      vertex_callbacks.clear();
+      edge_callbacks.clear();
+      outstreams.clear();
+      booststreams.clear();
+      rpc.full_barrier();
+    } // end of save to posixfs
+
+
+
+
+    template<typename Writer>
+    void save_to_hdfs(const std::string& prefix, Writer writer,
+                      bool gzip = true,
+                      bool save_vertex = true,
+                      bool save_edge = true,
+                      size_t files_per_machine = 4) {
+      typedef boost::function<void(vertex_type)> vertex_function_type;
+      typedef boost::function<void(edge_type)> edge_function_type;
+      typedef graphlab::hdfs::fstream base_fstream_type;
+      typedef boost::iostreams::filtering_stream<boost::iostreams::output>
+        boost_fstream_type;
+      rpc.full_barrier();
+      // figure out the filenames
+      std::vector<std::string> graph_files;
+      std::vector<base_fstream_type*> outstreams;
+      std::vector<boost_fstream_type*> booststreams;
+      graph_files.resize(files_per_machine);
+      for(size_t i = 0; i < files_per_machine; ++i) {
+        graph_files[i] = prefix + "." + tostr(1 + i + rpc.procid() * files_per_machine)
+          + "_of_" + tostr(rpc.numprocs() * files_per_machine);
+        if (gzip) graph_files[i] += ".gz";
+      }
+
+      ASSERT_TRUE(hdfs::has_hadoop());
+      hdfs& hdfs = hdfs::get_hdfs();
+    
+      // create the vector of callbacks
+
+      std::vector<vertex_function_type> vertex_callbacks(graph_files.size());
+      std::vector<edge_function_type> edge_callbacks(graph_files.size());
+
+      for(size_t i = 0; i < graph_files.size(); ++i) {
+        std::cout << "Saving to file: " << graph_files[i] << std::endl;
+        // open the stream
+        base_fstream_type* out_file = new base_fstream_type(hdfs,
+                                                            graph_files[i],
+                                                            true);
+        // attach gzip if the file is gzip
+        boost_fstream_type* fout = new boost_fstream_type;
+        // Using gzip filter
+        if (gzip) fout->push(boost::iostreams::gzip_compressor());
+        fout->push(*out_file);
+
+        outstreams.push_back(out_file);
+        booststreams.push_back(fout);
+        // construct the callback for the parallel for
+        vertex_callbacks[i] = 
+          boost::bind(&distributed_graph::
+                      save_vertex_to_stream<boost_fstream_type, Writer>,
+                      this, _1, boost::ref(*fout), writer);
+
+        edge_callbacks[i] =
+          boost::bind(&distributed_graph::
+                      save_edge_to_stream<boost_fstream_type, Writer>,
+                      this, _1, boost::ref(*fout), writer);
+      }
+
+      if (save_vertex) parallel_for_vertices(vertex_callbacks);
+      if (save_edge) parallel_for_edges(edge_callbacks);
+
+      // cleanup
+      for(size_t i = 0; i < graph_files.size(); ++i) {
+        booststreams[i]->pop();
+        if (gzip) booststreams[i]->pop();
+        delete booststreams[i];
+        delete outstreams[i];
+      }
+      vertex_callbacks.clear();
+      edge_callbacks.clear();
+      outstreams.clear();
+      booststreams.clear();
+      rpc.full_barrier();
+    } // end of save to hdfs
+
+
+
+    template<typename Writer>
+    void save(const std::string& prefix, Writer writer,
+              bool gzip = true, bool save_vertex = true, bool save_edge = true,
+              size_t files_per_machine = 4) {
+      if(boost::starts_with(prefix, "hdfs://")) {
+        save_to_hdfs(prefix, writer, gzip, save_vertex, save_edge, files_per_machine);
+      } else {
+        save_to_posixfs(prefix, writer, gzip, save_vertex, save_edge, files_per_machine);
+      }
+    } // end of save
+
+
+
+
+    void save_structure(const std::string& prefix, const std::string& format,
+                        bool gzip = true, size_t files_per_machine = 4) {
+      if (format == "snap" || format == "tsv") {
+        save(prefix, builtin_parsers::tsv_writer<distributed_graph>(),
+             gzip, false, true, files_per_machine);
+      } else {
+        logstream(LOG_ERROR)
+          << "Unrecognized Format \"" << format << "\"!" << std::endl;
+        return;
+      }
+    } // end of save structure
+
+
+
+
+    /**
+       Load a graph from a collection of files in stored in path using
+       the user defined line parser.
+     */
+    void load_from_posixfs(const std::string& original_path, line_parser_type line_parser) {
+      // force a "/" at the end of the path
+      // make sure to check that the path is non-empty. (you do not
+      // want to make the empty path "" the root path "/" )
+      std::string path = original_path;
+      if (path.length() > 0 && path[path.length() - 1] != '/') path += "/";
+      std::vector<std::string> graph_files;
+      fs_util::list_files_with_prefix(path, "", graph_files);
+      for(size_t i = 0; i < graph_files.size(); ++i) {
+        graph_files[i] = path + graph_files[i];
+      }
+      for(size_t i = 0; i < graph_files.size(); ++i) {
+        if (i % rpc.numprocs() == rpc.procid()) {
+          std::cout << "Loading graph from file: " << graph_files[i] << std::endl;
+          // is it a gzip file ?
+          const bool gzip = boost::ends_with(graph_files[i], ".gz");
+          // open the stream
+          std::ifstream in_file(graph_files[i].c_str(), 
+                                std::ios_base::in | std::ios_base::binary);
+          // attach gzip if the file is gzip
+          boost::iostreams::filtering_stream<boost::iostreams::input> fin;  
+          // Using gzip filter
+          if (gzip) fin.push(boost::iostreams::gzip_decompressor());
+          fin.push(in_file);
+          const bool success = load_from_stream(graph_files[i], fin, line_parser);
+          if(!success) {
+            logstream(LOG_FATAL) 
+              << "Error parsing file: " << graph_files[i] << std::endl;
+          }
+          fin.pop();
+          if (gzip) fin.pop();
+        }
+      }
+      rpc.full_barrier();
+    } // end of load from posixfs
+
+
+    /**
+       Load a graph from a collection of files in stored in path using
+       the user defined line parser.
+    */
+    void load_from_hdfs(const std::string& original_path, line_parser_type line_parser) {
+      // force a "/" at the end of the path
+      // make sure to check that the path is non-empty. (you do not
+      // want to make the empty path "" the root path "/" )
+      std::string path = original_path;
+      if (path.length() > 0 && path[path.length() - 1] != '/') path = path + "/";
+      ASSERT_TRUE(hdfs::has_hadoop());
+      hdfs& hdfs = hdfs::get_hdfs();    
+      std::vector<std::string> graph_files;
+      graph_files = hdfs.list_files(path);    
+      for(size_t i = 0; i < graph_files.size(); ++i) {
+        if (i % rpc.numprocs() == rpc.procid()) {
+          std::cout << "Loading graph from file: " << graph_files[i] << std::endl;
+          // is it a gzip file ?
+          const bool gzip = boost::ends_with(graph_files[i], ".gz");
+          // open the stream
+          graphlab::hdfs::fstream in_file(hdfs, graph_files[i]);
+          boost::iostreams::filtering_stream<boost::iostreams::input> fin;  
+          fin.set_auto_close(false);
+          if(gzip) fin.push(boost::iostreams::gzip_decompressor());
+          fin.push(in_file);      
+          const bool success = load_from_stream(graph_files[i], fin, line_parser);
+          if(!success) {
+            logstream(LOG_FATAL) 
+              << "Error parsing file: " << graph_files[i] << std::endl;
+          }
+          fin.pop();
+          if (gzip) fin.pop();
+        }
+      }
+      rpc.full_barrier();
+    } // end of load from hdfs
+
+
+    /**
+       Load a the graph from a given path using the user defined line parser.
+     */  
+    void load(const std::string& path, line_parser_type line_parser) {
+      rpc.full_barrier();
+      if(boost::starts_with(path, "hdfs://")) {
+        load_from_hdfs(path, line_parser);
+      } else {
+        load_from_posixfs(path, line_parser);
+      }
+      rpc.full_barrier();
+    } // end of load
+  
+
+    // Synthetic Generators ===================================================>
+    void load_synthetic_powerlaw(size_t nverts, bool in_degree = false,
+                                 double alpha = 2.1, size_t truncate = (size_t)(-1)) {
+      rpc.full_barrier(); 
+      std::vector<double> prob(std::min(nverts, truncate), 0);
+      std::cout << "constructing pdf" << std::endl;
+      for(size_t i = 0; i < prob.size(); ++i)
+        prob[i] = std::pow(double(i+1), -alpha);
+      std::cout << "constructing cdf" << std::endl;
+      random::pdf2cdf(prob);
+      std::cout << "Building graph" << std::endl;
+      size_t target_index = rpc.procid();
+      size_t addedvtx = 0;
+
+      for(size_t source = rpc.procid(); source < nverts;
+          source += rpc.numprocs()) {
+        const size_t out_degree = random::sample(prob) + 1;
+        for(size_t i = 0; i < out_degree; ++i) {
+          target_index = (target_index + 2654435761)  % nverts;
+          if(source == target_index) {
+            target_index = (target_index + 2654435761)  % nverts;
+          }
+          if(in_degree) add_edge(target_index, source);
+          else add_edge(source, target_index);
+        }
+        ++addedvtx;
+        if (addedvtx % 10000000 == 0) {
+          std::cout << addedvtx << " inserted\n";
+        }
+      }
+      rpc.full_barrier(); 
+    } // end of load random powerlaw
+
+
+    /**
+       load a graph with a standard format
+       \todo: finish documentation of formats
+     */
+    void load_format(const std::string& path, const std::string& format) {
+      line_parser_type line_parser;
+      if (format == "snap") {
+        line_parser = builtin_parsers::snap_parser<distributed_graph>;
+      } else if (format == "adj") {
+        line_parser = builtin_parsers::adj_parser<distributed_graph>;
+      } else if (format == "tsv") {
+        line_parser = builtin_parsers::tsv_parser<distributed_graph>;
+      } else {
+        logstream(LOG_ERROR)
+          << "Unrecognized Format \"" << format << "\"!" << std::endl;
+        return;
+      }
+      load(path, line_parser);
+    } // end of load
+
+
+
+
+
+
+
+
+
+
 
 
 /****************************************************************************
@@ -1128,6 +1496,51 @@ namespace graphlab {
         ingress_ptr = new distributed_random_ingress<VertexData, EdgeData>(rpc.dc(), *this);
       }
     } // end of set ingress method
+
+
+    /**
+       \internal
+       This internal function is used to load a single line from an input stream
+     */
+    template<typename Fstream>
+    bool load_from_stream(const std::string& filename, Fstream& fin, 
+                          line_parser_type& line_parser) {
+      size_t linecount = 0;
+      timer ti; ti.start();
+      while(fin.good() && !fin.eof()) {
+        std::string line;
+        std::getline(fin, line);
+        const bool success = line_parser(*this, filename, line);
+        if (!success) {
+          logstream(LOG_WARNING) 
+            << "Error parsing line " << linecount << " in "
+            << filename << ": " << std::endl
+            << "\t\"" << line << "\"" << std::endl;  
+          return false;
+        }
+        ++linecount;      
+        if (ti.current_time() > 5.0) {
+          logstream(LOG_INFO) << linecount << " Lines read" << std::endl;
+          ti.start();
+        }
+      }
+      return true;
+    } // end of load from stream
+
+
+    template<typename Fstream, typename Writer>
+    void save_vertex_to_stream(vertex_type& vertex, Fstream& fout, Writer writer) {
+      fout << writer.save_vertex(vertex);
+    } // end of save_vertex_to_stream
+
+
+    template<typename Fstream, typename Writer>
+    void save_edge_to_stream(edge_type& edge, Fstream& fout, Writer writer) {
+      std::string ret = writer.save_edge(edge);
+      fout << ret;
+    } // end of save_edge_to_stream
+  
+
 
 
   }; // End of graph

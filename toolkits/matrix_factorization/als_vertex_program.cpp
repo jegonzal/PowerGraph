@@ -27,15 +27,15 @@
 // Vertex data
 size_t vertex_data::NLATENT = 20;
 
-vertex_data::vertex_data() : nupdates(0) { }
+vertex_data::vertex_data() : nupdates(0), residual(1) { }
 
 void vertex_data::randomize()  { latent.resize(NLATENT); latent.setRandom(); }
 
 void vertex_data::save(graphlab::oarchive& arc) const { 
-  arc << nupdates << latent;        
+  arc << nupdates << residual << latent;        
 }
 void vertex_data::load(graphlab::iarchive& arc) { 
-  arc >> nupdates >> latent;
+  arc >> nupdates >> residual >> latent;
 }
 
 //=============================================================================
@@ -80,7 +80,7 @@ init(icontext_type& context, vertex_type& vertex) {
 } // end of init
 
 
-edge_dir_type als_vertex_program::
+graphlab::edge_dir_type als_vertex_program::
 gather_edges(icontext_type& context, const vertex_type& vertex) const { 
   return graphlab::ALL_EDGES; 
 }; // end of gather_edges 
@@ -90,8 +90,7 @@ gather_type als_vertex_program::
 gather(icontext_type& context, const vertex_type& vertex, 
        edge_type& edge) const {
   const vertex_type other_vertex = get_other_vertex(edge, vertex);
-  edge_data& edata = edge.data();
-  return gather_type(vertex.data().latent, edge.data().obs);
+  return gather_type(other_vertex.data().latent, edge.data().obs);
 } // end of gather function
 
 
@@ -101,7 +100,7 @@ apply(icontext_type& context, vertex_type& vertex, const gather_type& sum) {
   vertex_data& vdata = vertex.data(); 
   // Determine the number of neighbors.  Each vertex has only in or
   // out edges depending on which side of the graph it is located
-  const size_t nneighbors = context.num_in_edges() + context.num_out_edges();
+  const size_t nneighbors = vertex.num_in_edges() + vertex.num_out_edges();
   if(nneighbors == 0) { vdata.residual = 0; ++vdata.nupdates; return; }
   Eigen::MatrixXd XtX = sum.XtX;
   Eigen::VectorXd Xy = sum.Xy;
@@ -111,18 +110,12 @@ apply(icontext_type& context, vertex_type& vertex, const gather_type& sum) {
   const Eigen::VectorXd old_latent = vdata.latent;
   vdata.latent = XtX.selfadjointView<Eigen::Upper>().ldlt().solve(Xy);
   // Compute the residual change in the latent factor -----------------------
-  double residual = 0;
-  for(int i = 0; i < XtX.rows(); ++i) {
-    assert(!std::isinf(vdata.latent(i)));
-    assert(!std::isnan(vdata.latent(i)));
-    residual += std::fabs(old_latent(i) - vdata.latent(i));
-  }
-  vdata.residual = residual / XtX.rows();
+  vdata.residual = (vdata.latent - old_latent).cwiseAbs().sum() / XtX.rows();
   ++vdata.nupdates;
 } // end of apply
 
 
-edge_dir_type als_vertex_program::
+graphlab::edge_dir_type als_vertex_program::
 scatter_edges(icontext_type& context, const vertex_type& vertex) const { 
   return graphlab::ALL_EDGES; 
 }; // end of scatter edges
@@ -135,7 +128,7 @@ scatter(icontext_type& context, const vertex_type& vertex,
   edge_data& edata = edge.data();
   const vertex_data& vdata = vertex.data();
   const vertex_data& other_vdata = other_vertex.data();
-  const double pred = vdata.latent.dot(neighbor.latent);
+  const double pred = vdata.latent.dot(other_vdata.latent);
   const float error = std::fabs(edata.obs - pred);
   edata.error = error;
   edata.nupdates++;
@@ -145,8 +138,8 @@ scatter(icontext_type& context, const vertex_type& vertex,
   assert(!std::isinf(priority));
   assert(!std::isnan(priority));
   // Reschedule neighbors ------------------------------------------------
-  if( priority > TOLERANCE && neighbor.nupdates < MAX_UPDATES) 
-    context.signal(neighbor_id, priority);
+  if( priority > TOLERANCE && other_vdata.nupdates < MAX_UPDATES) 
+    context.signal(other_vertex, priority);
 } // end of scatter function
 
 
@@ -158,10 +151,9 @@ get_other_vertex(edge_type& edge, const vertex_type& vertex) const {
 
 //=============================================================================
 // Graph operations 
-
-double extract_train_error(const graph_type::edge_type& edge) {
+double extract_train_error(graph_type::edge_type edge) {
   const double pred = 
-    edge.source().latent.data().dot(edge.target().data().latent);
+    edge.source().data().latent.dot(edge.target().data().latent);
   return std::fabs(edge.data().obs - pred);
 } // end of extract_train_error
 

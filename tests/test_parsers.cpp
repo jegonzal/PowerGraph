@@ -1,6 +1,4 @@
 #include <graphlab/graph/distributed_graph.hpp>
-#include <graphlab/graph/distributed_graph_save.hpp>
-#include <graphlab/graph/distributed_graph_load.hpp>
 #include <graphlab/macros_def.hpp>
 
 typedef graphlab::distributed_graph<size_t, size_t> graph_type;
@@ -46,30 +44,29 @@ void check_structure(graph_type &graph) {
 
 void test_adj(graphlab::distributed_control& dc) {
   graphlab::distributed_graph<size_t, size_t> graph(dc);
-  graphlab::graph_ops::load(graph, "data/test_adj", "adj");
+  graph.load_format("data/test_adj", "adj");
   graph.finalize();
-  check_structure(graph);
-  
-  graphlab::graph_ops::save_structure(graph, "./testgraphsave", "tsv");
+  check_structure(graph);  
+  graph.save_structure("./testgraphsave", "tsv");
 }
 
 void test_snap(graphlab::distributed_control& dc) {
   graphlab::distributed_graph<size_t, size_t> graph(dc);
-  graphlab::graph_ops::load(graph, "data/test_snap", "snap");
+  graph.load_format("data/test_snap", "snap");
   graph.finalize();
   check_structure(graph);  
 }
 
 void test_tsv(graphlab::distributed_control& dc) {
   graphlab::distributed_graph<size_t, size_t> graph(dc);
-  graphlab::graph_ops::load(graph, "data/test_tsv", "tsv");
+  graph.load_format("data/test_tsv", "tsv");
   graph.finalize();
   check_structure(graph);  
 }
 
 void test_powerlaw(graphlab::distributed_control& dc) {
   graphlab::distributed_graph<size_t, size_t> graph(dc);
-  graphlab::graph_ops::load_synthetic_powerlaw(graph, 1000);
+  graph.load_synthetic_powerlaw(1000);
   graph.finalize();
   ASSERT_EQ(graph.num_vertices(), 1000);
   std::cout << graph.num_edges() << " Edges\n";

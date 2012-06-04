@@ -162,9 +162,9 @@ int main(int argc, char** argv) {
   std::cout << dc.procid() << ": Starting." << std::endl;
   graph_type graph(dc, clopts);
   if(powerlaw > 0) {
-    graphlab::graph_ops::load_synthetic_powerlaw(graph, powerlaw);
-  } else {
-    graphlab::graph_ops::load(graph, graph_dir, format);
+    graph.load_synthetic_powerlaw(powerlaw);
+  } else { 
+    graph.load_format(graph_dir, format);
   }
   graph.finalize();
   std::cout << "#vertices: " << graph.num_vertices() << " #edges:" << graph.num_edges() << std::endl;
@@ -181,12 +181,10 @@ int main(int argc, char** argv) {
   std::cout << "Sum of graph: " << sum_of_graph << std::endl;
 
   if (saveprefix != "") {
-    graphlab::graph_ops::save(graph,
-                              saveprefix,
-                              pagerank_writer(),
-                              false,    // do not gzip
-                              true,     // save vertices
-                              false);   // do not save edges
+    graph.save(saveprefix, pagerank_writer(),
+               false,    // do not gzip
+               true,     // save vertices
+               false);   // do not save edges
   }
   
   graphlab::mpi_tools::finalize();
