@@ -124,12 +124,15 @@ int main(int argc, char** argv) {
               << engine.num_updates() / runtime << std::endl;
   }
 
+  // Compute the final training error -----------------------------------------
+  const double total_squared_error = 
+    graph.map_reduce_edges<double>(extract_error);
+  std::cout << "RMSE: " << std::sqrt(total_squared_error / graph.num_edges())
+            << std::endl;
 
 
   graphlab::mpi_tools::finalize();
   return EXIT_SUCCESS;
-
-
 } // end of main
 
 

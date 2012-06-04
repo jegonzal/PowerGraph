@@ -110,19 +110,19 @@ json_message& process::read(json_message& message){
   if (!pin.is_open()) throw ("Pipe closed unexpectedly.");
   
   // get first line
-  io::streambuf initial_buffer;
-  std::size_t index = io::read_until(pin, initial_buffer, '\n');
-  std::size_t leftover = initial_buffer.size() - index;
+  io::streambuf fl_buffer;
+  std::size_t fl_count = io::read_until(pin, fl_buffer, '\n');
+  std::size_t leftover = fl_buffer.in_avail() - fl_count;
   
   // extract number of bytes
-  std::istream is(&initial_buffer);
-  std::size_t bytes = 0;
-  is >> bytes;
-  
+  std::istream fs(&fl_buffer);
+  std::size_t bytes = 0; fs >> bytes;
+  std::string line; std::getline(fs, line);
+
   // prepare buffer and init w. leftovers
   json_message::byte data[bytes+1]; // plus 1 for null-terminator (temp)
   memset(data, NULL, bytes+1);
-  is >> data;
+  fl_buffer.sgetn(data, leftover);
 
   if (leftover < bytes) try {
     io::read(pin, io::buffer(data+leftover, bytes-leftover), io::transfer_all());
@@ -131,7 +131,7 @@ json_message& process::read(json_message& message){
     logstream(LOG_ERROR) << e.what() << std::endl;
   }
   
-  logstream(LOG_DEBUG) << "json: " << data << std::endl;
+  // logstream(LOG_DEBUG) << "json: " << data << std::endl;
 
   message.parse(data, bytes);
   return message;

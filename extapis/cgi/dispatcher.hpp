@@ -30,39 +30,52 @@
 
 #include <graphlab.hpp>
 
-////////////////////////////// CGI UPDATE FUNCTOR //////////////////////////////
+////////////////////////////// CGI VERTEX PROGRAM //////////////////////////////
 
 namespace graphlab {
-
-  struct cgi_vertex {
-    std::string state;
-  };
   
-  struct cgi_edge {
-    std::string state;
-  };
+  class json_return; // forward declaration
   
-  class json_return;
-  
-  /** dispatcher update functor */  
-  class dispatcher_update : 
-    public graphlab::iupdate_functor<graph<cgi_vertex, cgi_edge>, dispatcher_update> {
-  public:
-    typedef graphlab::graph<cgi_vertex, cgi_edge> graph_type;
+  /**
+   * The gather type for CGI programs is just a string. To merge two gathers,
+   * a merge is invoked on the child process.
+   */
+  class cgi_gather_type {
   private:
     std::string mstate;
   public:
-    dispatcher_update(const std::string& state="");
-    dispatcher_update(const dispatcher_update& other);
-    inline void operator+=(const dispatcher_update& other);
-    void operator()(icontext_type& context);
+    void operator+=(const cgi_gather_type& other);
+    void save(oarchive& oarc) const;
+    void load(iarchive& iarc);
+  }; // end of cgi_gather_type
+  
+  /**
+   * The dispatcher vertex program extends ivertex_program and specifies the
+   * vertex type, edge type, and gather type. It receives calls from the engine
+   * and forwards them to child processes using JSON via UNIX pipes.
+   * @internal
+   */  
+  class dispatcher :
+    public ivertex_program<distributed_graph<std::string, std::string>, cgi_gather_type> {
+  public:
+    /** vertex state is just a string - user decides format */
+    typedef std::string cgi_vertex;
+    /** edge state is just a string - user decides format */
+    typedef std::string cgi_edge;
+    /** distributed graph with cgi_vertex and cgi_edge */
+    typedef distributed_graph<cgi_vertex, cgi_edge> graph_type;
   private:
-    /** schedule updates on vertices based on return values */
-    void schedule(icontext_type& context, const json_return& result);
-  }; // end of dispatcher update functor
+    /** vertex program state - */
+    std::string mstate;
+  public:
+    dispatcher(const std::string& state="");
+    void save(oarchive& oarc) const;
+    void load(iarchive& iarc);
+  }; // end of dispatcher
   
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 #endif /* #ifndef GRAPHLAB_DISPATCHER_HPP */
+

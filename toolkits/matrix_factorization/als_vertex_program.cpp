@@ -68,7 +68,7 @@ gather_type& gather_type::operator+=(const gather_type& other) {
 //=============================================================================
 // Vertex program
 
-double als_vertex_program::TOLERANCE = 1e-2;
+double als_vertex_program::TOLERANCE = 1e-3;
 double als_vertex_program::LAMBDA = 0.01;
 size_t als_vertex_program::MAX_UPDATES = -1;
 
@@ -151,10 +151,10 @@ get_other_vertex(edge_type& edge, const vertex_type& vertex) const {
 
 //=============================================================================
 // Graph operations 
-double extract_train_error(graph_type::edge_type edge) {
+double extract_error(graph_type::edge_type edge) {
   const double pred = 
     edge.source().data().latent.dot(edge.target().data().latent);
-  return std::fabs(edge.data().obs - pred);
+  return (edge.data().obs - pred) * (edge.data().obs - pred);
 } // end of extract_train_error
 
 
