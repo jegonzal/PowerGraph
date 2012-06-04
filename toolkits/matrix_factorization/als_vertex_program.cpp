@@ -151,10 +151,10 @@ get_other_vertex(edge_type& edge, const vertex_type& vertex) const {
 
 //=============================================================================
 // Graph operations 
-double extract_train_error(graph_type::edge_type edge) {
+double extract_error(graph_type::edge_type edge) {
   const double pred = 
     edge.source().data().latent.dot(edge.target().data().latent);
-  return std::fabs(edge.data().obs - pred);
+  return (edge.data().obs - pred) * (edge.data().obs - pred);
 } // end of extract_train_error
 
 

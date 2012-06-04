@@ -97,23 +97,23 @@ struct edge_data2 {
 
 
 /***
-* Line format is: PnLaCsEnqei atslBvPNusB 050803 235959 590 
-*/
+ * Line format is: PnLaCsEnqei atslBvPNusB 050803 235959 590 
+ */
 /*
-YVjAeZQjnVA IfrTTVlatui 050803 000000 156
-GNgrmichxmG GNgriWokEhN 050803 000000 143
-YnRdCKZkLao MHexzaXWCPL 050803 000000 0
-RGNReqpKcZw RGNRSTDdqew 050803 000000 0
-LPHSeuGhYkN ZFwbovKzAxY 050803 000000 1
-sijmyRRfkwl XtqJaHYFEPqbZqNGPCr 050803 000000 68
+  YVjAeZQjnVA IfrTTVlatui 050803 000000 156
+  GNgrmichxmG GNgriWokEhN 050803 000000 143
+  YnRdCKZkLao MHexzaXWCPL 050803 000000 0
+  RGNReqpKcZw RGNRSTDdqew 050803 000000 0
+  LPHSeuGhYkN ZFwbovKzAxY 050803 000000 1
+  sijmyRRfkwl XtqJaHYFEPqbZqNGPCr 050803 000000 68
 */
 struct stringzipparser_update :
-   public graphlab::iupdate_functor<graph_type, stringzipparser_update>{
-   void operator()(icontext_type& context) {
+  public graphlab::iupdate_functor<graph_type, stringzipparser_update>{
+  void operator()(icontext_type& context) {
     
-   std::string dir = context.get_global<std::string>("PATH");
-   std::string outdir = context.get_global<std::string>("OUTPATH");
-   int mythreadid = thread::thread_id();
+    std::string dir = context.get_global<std::string>("PATH");
+    std::string outdir = context.get_global<std::string>("OUTPATH");
+    int mythreadid = thread::thread_id();
 
     //open file
     vertex_data& vdata = context.vertex_data();
@@ -140,63 +140,63 @@ struct stringzipparser_update :
       if (!pch){
         logstream(LOG_ERROR) << "Error when parsing file: " << vdata.filename << ":" << line <<std::endl;
         return;
-       }
+      }
       strncpy(buf1, pch, 20);
       pch = strtok_r(NULL, " \r\n\t;",(char**)&saveptr);
       if (!pch){
         logstream(LOG_ERROR) << "Error when parsing file: " << vdata.filename << ":" << line <<std::endl;
-         return;
-       }
-       strncpy(buf2, pch, 20);
-       if (buf1[0] == '9' && buf2[0] == '9') //placeholder for matrix market size, to be done later
-           continue;
+        return;
+      }
+      strncpy(buf2, pch, 20);
+      if (buf1[0] == '9' && buf2[0] == '9') //placeholder for matrix market size, to be done later
+        continue;
        
       pch = strtok_r(NULL, " ",(char**)&saveptr);
       if (!pch){
         logstream(LOG_ERROR) << "Error when parsing file: " << vdata.filename << ":" << line <<std::endl;
-         return;
-       }
-         strncpy(buf3, pch, 6);
-        buf3[6] = ' ';
-        pch = strtok_r(NULL, " ",(char**)&saveptr);
-        if (!pch){
+        return;
+      }
+      strncpy(buf3, pch, 6);
+      buf3[6] = ' ';
+      pch = strtok_r(NULL, " ",(char**)&saveptr);
+      if (!pch){
         logstream(LOG_ERROR) << "Error when parsing file: " << vdata.filename << ":" << line <<std::endl;
-         return;
-       }
-         strncpy(buf3+7,pch,6);
-        pch = strtok_r(NULL, " \r\n\t",(char**)&saveptr);
-       if (!pch){
+        return;
+      }
+      strncpy(buf3+7,pch,6);
+      pch = strtok_r(NULL, " \r\n\t",(char**)&saveptr);
+      if (!pch){
         logstream(LOG_ERROR) << "Error when parsing file: " << vdata.filename << ":" << line <<std::endl;
-         return;
-       }
-        duration = atoi(pch);
-        if (duration < 0)
-         logstream(LOG_ERROR) <<"Duration error: " << duration << std::endl;
-        datestr2uint64(std::string(buf3), timeret, dateret, mythreadid);
+        return;
+      }
+      duration = atoi(pch);
+      if (duration < 0)
+        logstream(LOG_ERROR) <<"Duration error: " << duration << std::endl;
+      datestr2uint64(std::string(buf3), timeret, dateret, mythreadid);
    
-        string hour = boost::lexical_cast<string>(timeret/3600);
-        std::string srcid = std::string(buf1);
-        std::string dstid = std::string(buf2);
-        /*if (srcid == "AAcUaaLaupm" && dstid =="gusGhkZFsth")
-           logstream(LOG_FATAL) << "Found!" << endl;
+      string hour = boost::lexical_cast<string>(timeret/3600);
+      std::string srcid = std::string(buf1);
+      std::string dstid = std::string(buf2);
+      /*if (srcid == "AAcUaaLaupm" && dstid =="gusGhkZFsth")
+        logstream(LOG_FATAL) << "Found!" << endl;
         if (srcid == "AAcUPRgoNQV" && dstid == "jsbkmQlIDWg")
-           logstream(LOG_FATAL) << "Found!" << endl;*/
-        uint srcint = hash2nodeid[buf1];
-        uint dstint = hash2nodeid[buf2];
-        if (srcint <= 0 || dstint <= 0)
-         logstream(LOG_WARNING)<<"Problem with id of node: " << buf1 << " " << buf2 << endl;
-        if (srcid.size() != 11 && srcid.size() != 19)
-         logstream(LOG_WARNING)<<"Invalid string: " << srcid << " in line: " << line << endl;
-       if (dstid.size() != 11 && dstid.size() != 19)
-         logstream(LOG_WARNING) <<"Invalid string dst: " << dstid << " in line : " << line<< endl;
+        logstream(LOG_FATAL) << "Found!" << endl;*/
+      uint srcint = hash2nodeid[buf1];
+      uint dstint = hash2nodeid[buf2];
+      if (srcint <= 0 || dstint <= 0)
+        logstream(LOG_WARNING)<<"Problem with id of node: " << buf1 << " " << buf2 << endl;
+      if (srcid.size() != 11 && srcid.size() != 19)
+        logstream(LOG_WARNING)<<"Invalid string: " << srcid << " in line: " << line << endl;
+      if (dstid.size() != 11 && dstid.size() != 19)
+        logstream(LOG_WARNING) <<"Invalid string dst: " << dstid << " in line : " << line<< endl;
 
-       if (edges_in_28.find(srcid + " " + dstid) != edges_in_28.end()){
-         //fout.get_sp() << hash2nodeid[buf1] << " " << hash2nodeid[buf2] << " " << buf1 << " " << buf2 << " "
-         //<< duration << " " << timeret << " " << dateret << endl;
-         edges_in_28_count[srcid + " " + dstid]++;
-         edges_in_28_duration[srcid + " " + dstid]+=duration;
-         edges_in_28_data[srcid + " " + dstid] = boost::lexical_cast<std::string>(srcint) + " " + boost::lexical_cast<std::string>(dstint);
-         total_selected++;
+      if (edges_in_28.find(srcid + " " + dstid) != edges_in_28.end()){
+        //fout.get_sp() << hash2nodeid[buf1] << " " << hash2nodeid[buf2] << " " << buf1 << " " << buf2 << " "
+        //<< duration << " " << timeret << " " << dateret << endl;
+        edges_in_28_count[srcid + " " + dstid]++;
+        edges_in_28_duration[srcid + " " + dstid]+=duration;
+        edges_in_28_data[srcid + " " + dstid] = boost::lexical_cast<std::string>(srcint) + " " + boost::lexical_cast<std::string>(dstint);
+        total_selected++;
       }
 
       line++;
@@ -205,11 +205,11 @@ struct stringzipparser_update :
         logstream(LOG_INFO) << mytime.current_time() << ") " << vdata.filename << " edges: " << total_lines << " seleted: " << total_selected << endl;
 
       if (lines && line>=lines)
-	 break;
+        break;
 
     } 
 
-   logstream(LOG_INFO) <<mytime.current_time() << ") Finished parsing total of " << line << " lines in file " << vdata.filename << " total selected: " << total_selected << endl;
+    logstream(LOG_INFO) <<mytime.current_time() << ") Finished parsing total of " << line << " lines in file " << vdata.filename << " total selected: " << total_selected << endl;
 
   }
 
@@ -218,11 +218,11 @@ struct stringzipparser_update :
 
 
 /*
-class accumulator :
+  class accumulator :
   public graphlab::iaccumulator<graph_type, stringparser_update, accumulator> {
-private:
+  private:
   real_type real_norm, relative_norm;
-public:
+  public:
   accumulator() {}
   void operator()(icontext_type& context) {
   }
@@ -230,7 +230,7 @@ public:
   }
   void finalize(iglobal_context_type& context) {
   }
-}; // end of  accumulator
+  }; // end of  accumulator
 */
 
 
@@ -279,7 +279,7 @@ int main(int argc,  char *argv[]) {
 
   std::vector<std::string> in_files;
   if (datafile.size() > 0)
-     in_files.push_back(datafile);
+    in_files.push_back(datafile);
   else in_files = list_all_files_in_dir(dir, filter);
   assert(in_files.size() >= 1);
   for (int i=0; i< (int)in_files.size(); i++){
@@ -298,24 +298,24 @@ int main(int argc,  char *argv[]) {
   core.add_global("NUM_NODES", numnodes);
   core.add_global("OUT_DIR", outdir);
 
-   gzip_in_file fin("/usr0/bickson/day01.sorted.gz");
-    char linebuf[256];
+  gzip_in_file fin("/usr0/bickson/day01.sorted.gz");
+  char linebuf[256];
    
-    while(true){
-      fin.get_sp().getline(linebuf, 128);
-      if (fin.get_sp().eof())
-        break;
+  while(true){
+    fin.get_sp().getline(linebuf, 128);
+    if (fin.get_sp().eof())
+      break;
 
-      edges_in_28[linebuf] = true;
-    } 
-   assert(edges_in_28.size() == 619850);
+    edges_in_28[linebuf] = true;
+  } 
+  assert(edges_in_28.size() == 619850);
   //load_map_from_file(edges_in_28, outdir + ".28.edges");
   //logstream(LOG_INFO) << "Loaded a total of " << edges_in_28.size() << " edges" << endl;
   //assert(edges_in_28.find("AAcUPRgoNQV jsbkmQlIDWg") != edges_in_28.end());
   /*boost::unordered_map<std::string, bool>::const_iterator it2;
-  for (it2 = edges_in_28.begin(); it2 != edges_in_28.end(); it2++){
+    for (it2 = edges_in_28.begin(); it2 != edges_in_28.end(); it2++){
     cout << it2->first << " " << it2->second << endl;
-  }*/
+    }*/
 
   hash2nodeid.rehash(numnodes);
   load_map_from_file(hash2nodeid, "/usr0/bickson/.map");
@@ -328,7 +328,7 @@ int main(int argc,  char *argv[]) {
     cnter.get_sp() << it->first << " " << edges_in_28_data[it->first] << " " << edges_in_28_duration[it->first] << " " << it->second << endl;
   }
   logstream(LOG_INFO) << "Found total unique entries: " << edges_in_28_count.size() << endl;
-   return EXIT_SUCCESS;
+  return EXIT_SUCCESS;
 }
 
 

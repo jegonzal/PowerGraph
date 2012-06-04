@@ -126,10 +126,9 @@ private:
 
 
 /**
- *  the extract trian error function is used to compute the error on
- *  an edge
+ *  the extract error function is used to compute the error on an edge
  */
-double extract_train_error(const graph_type::edge_type& edge);
+double extract_error(graph_type::edge_type edge);
 
 
 /**
