@@ -44,6 +44,7 @@
 #include <graphlab/util/memory_info.hpp>
 #include <graphlab/rpc/distributed_event_log.hpp>
 #include <graphlab/rpc/async_consensus.hpp>
+#include <graphlab/aggregation/distributed_aggregator.hpp>
 
 #include <graphlab/macros_def.hpp>
 
@@ -75,6 +76,8 @@ namespace graphlab {
     typedef ischeduler<message_type> ischeduler_type;
 
     typedef context<async_consistent_engine> context_type;
+    typedef typename context<async_consistent_engine>::icontext_type icontext_type;
+
     typedef async_consistent_engine<VertexProgram> engine_type;
     
     enum vertex_execution_state {
@@ -119,26 +122,37 @@ namespace graphlab {
       }
     }; // end of vertex_state
     
-    
+    /**
+     * \internal
+     * This stores the internal scheduler for each thread.
+     * The representation is a single deque of pending vertices
+     * which is continuually appended to.
+     * If the vertex ID in the deque is < #local vertices, it is a task on
+     * the vertex in question. The actual task will depend on the state
+     * the vertex is currently in.
+     * However, if the vertex ID is >= #local vertices, the task is an
+     * aggregation. The aggregation key can be found in
+     * aggregate_id_to_key[-id]
+      */
     struct thread_local_data {
       mutex lock;
       size_t npending;
-      std::deque<vertex_id_type> pending_vertices;
+      std::deque<lvid_type> pending_vertices;
       thread_local_data() : npending(0) { }       
-      void add_task(vertex_id_type v) {
+      void add_task(lvid_type v) {
         lock.lock();
         ++npending;
         pending_vertices.push_back(v);
         lock.unlock();
       }
-      void add_task_priority(vertex_id_type v) {
+      void add_task_priority(lvid_type v) {
         lock.lock();
         ++npending;
         pending_vertices.push_front(v);
         lock.unlock();
       }
-      bool get_task(std::deque<vertex_id_type> &v) {
-        v = std::deque<vertex_id_type>();
+      bool get_task(std::deque<lvid_type> &v) {
+        v = std::deque<lvid_type>();
         lock.lock();
         if (npending == 0) { lock.unlock(); return false; }
         npending = 0;
@@ -161,7 +175,8 @@ namespace graphlab {
     ischeduler_type* scheduler_ptr;
     
     std::vector<vertex_state> vstate;
-    
+
+    distributed_aggregator<graph_type, context_type> aggregator;
     size_t ncpus;
     bool started;
     async_consensus* consensus;
@@ -248,7 +263,8 @@ namespace graphlab {
     async_consistent_engine(distributed_control &dc,
                             graph_type& graph, 
                             const graphlab_options& opts) : 
-        rmi(dc, this), graph(graph), scheduler_ptr(NULL), started(false),
+        rmi(dc, this), graph(graph), scheduler_ptr(NULL),
+        aggregator(dc, graph, new context_type(*this, graph)), started(false),
         engine_start_time(lowres_time_seconds()), timeout(false),
         vdata_exchange(dc),thread_barrier(opts.get_ncpus()) {
       rmi.barrier();
@@ -953,7 +969,13 @@ namespace graphlab {
      * Advances the state of a vertex based on its state
      * as decribed in the vertex_state.
      */
-    void eval_internal_task(lvid_type lvid) {
+    void eval_internal_task(size_t threadid, lvid_type lvid) {
+      // if lvid is >= #local vertices, this is an aggregator task
+      if (lvid >= vstate.size()) {
+        aggregator.tick_asynchronous_compute(threadid,
+                                             aggregate_id_to_key[-lvid]);
+        return;
+      }
       PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, INTERNAL_TASK_EVENT, 1);
       vstate[lvid].lock();
       switch(vstate[lvid].state) {
@@ -1156,6 +1178,17 @@ namespace graphlab {
       END_TRACEPOINT(disteng_internal_task_queue);
     }
 
+    void add_internal_aggregation_task(const std::string& key) {
+      ASSERT_GT(aggregate_key_to_id.count(key), 0);
+      lvid_type id = -aggregate_key_to_id[key];
+      // add to all internal task queues
+      for (size_t i = 0;i < ncpus; ++i) {
+        thrlocal[i].add_task_priority(id);
+      }
+      consensus->cancel();
+    }
+    
+    
     /**
      * \internal
      * Callback from the Chandy misra implementation.
@@ -1248,8 +1281,14 @@ namespace graphlab {
       std::deque<vertex_id_type> internal_lvid;
       vertex_id_type sched_lvid;
       message_type msg;
-//      size_t ctr = 0; 
+//      size_t ctr = 0;
+      float last_aggregator_check = lowres_time_seconds();
       while(1) {
+        if (lowres_time_seconds() != last_aggregator_check) {
+          last_aggregator_check = lowres_time_seconds();
+          std::string key = aggregator.tick_asynchronous();
+          if (key != "") add_internal_aggregation_task(key);
+        }
 /*        ++ctr;
         if (max_clean_forks != (size_t)(-1) && ctr % 10000 == 0) {
           std::cout << cmlocks->num_clean_forks() << "/" << max_clean_forks << "\n";
@@ -1260,7 +1299,7 @@ namespace graphlab {
         // if we managed to get a task..
         if (has_internal_task) {
           while(!internal_lvid.empty()) {
-            eval_internal_task(internal_lvid.front());
+            eval_internal_task(threadid, internal_lvid.front());
             internal_lvid.pop_front();
           }
         } else if (has_sched_msg) {
@@ -1274,7 +1313,7 @@ namespace graphlab {
                               has_sched_msg, sched_lvid, msg)) {
           if (has_internal_task) {
             while(!internal_lvid.empty()) {
-              eval_internal_task(internal_lvid.front());
+              eval_internal_task(threadid, internal_lvid.front());
               internal_lvid.pop_front();
             }
           } else if (has_sched_msg) {
@@ -1376,6 +1415,19 @@ namespace graphlab {
       ASSERT_TRUE(scheduler_ptr != NULL);
       // start the scheduler
       scheduler_ptr->start();
+      
+      // start the aggregator
+      aggregator.start(ncpus);
+      aggregator.aggregate_all_periodic();
+      generate_aggregate_keys();
+      // now since I am overloading the internal task queue IDs to also
+      // hold aggregator keys, this constraints the number of vertices
+      // I can handle. Check for overflow
+      {
+        lvid_type lv = (lvid_type)graph.num_local_vertices();
+        ASSERT_MSG(lv + aggregate_id_to_key.size() >= lv,
+                   "Internal Queue IDs numeric overflow");
+      }
       started = true;
       threads_alive.value = ncpus;
 
@@ -1407,7 +1459,7 @@ namespace graphlab {
         thrgroup.launch(boost::bind(&engine_type::thread_start, this, i));
       }
       thrgroup.join();
-
+      aggregator.stop();
       // if termination reason was not changed, then it must be depletion
       if (termination_reason == execution_status::RUNNING) {
         termination_reason = execution_status::TASK_DEPLETION;
@@ -1458,6 +1510,79 @@ namespace graphlab {
           }
         }*/
       }
+
+/************************************************************
+ *                  Aggregators                             *
+ ************************************************************/
+  private:
+    std::map<std::string, lvid_type> aggregate_key_to_id;
+    std::vector<std::string> aggregate_id_to_key;
+
+    /**
+     * \internal
+     * Assigns each periodic aggregation key a unique ID so we can use it in
+     * internal task scheduling.
+     */
+    void generate_aggregate_keys() {
+      aggregate_key_to_id.clear();
+      aggregate_id_to_key.clear();
+      // no ID 0. since we are using negatives for scheduling
+      aggregate_id_to_key.push_back("");  
+      std::set<std::string> keys = aggregator.get_all_periodic_keys();
+      
+      foreach(std::string key, keys) {
+        aggregate_id_to_key.push_back(key);
+        aggregate_key_to_id[key] = (lvid_type)(aggregate_id_to_key.size() - 1);
+        
+      }
+    }
+  public:
+    // Exposed aggregator functionality 
+    /**
+     * \copydoc distributed_aggregator::add_vertex_aggregator()
+     */
+    template <typename ReductionType>
+    bool add_vertex_aggregator(const std::string& key,
+      boost::function<ReductionType(icontext_type&,
+                                    vertex_type&)> map_function,
+      boost::function<void(icontext_type&,
+                           const ReductionType&)> finalize_function) {
+      rmi.barrier();
+      return aggregator.add_vertex_aggregator<ReductionType>(key,
+                                                        map_function,
+                                                        finalize_function);
+    }
+    
+    /**
+     * \copydoc distributed_aggregator::add_edge_aggregator()
+     */
+    template <typename ReductionType>
+    bool add_edge_aggregator(const std::string& key,
+      boost::function<ReductionType(icontext_type&,
+                                    edge_type&)> map_function,
+      boost::function<void(icontext_type&,
+                           const ReductionType&)> finalize_function) {
+      rmi.barrier();
+      return aggregator.add_edge_aggregator<ReductionType>(key,
+                                                           map_function,
+                                                           finalize_function);
+    }
+    
+    /**
+     * \copydoc distributed_aggregator::aggregate_now()
+     */
+    bool aggregate_now(const std::string& key) {
+      rmi.barrier();
+      return aggregator.aggregate_now(key);
+    }
+    
+    /**
+     * \copydoc distributed_aggregator::aggregate_periodic()
+     */
+    bool aggregate_periodic(const std::string& key, float seconds) {
+      rmi.barrier();
+      return aggregator.aggregate_periodic(key, seconds);
+    }
   }; // end of class
 } // namespace
 
