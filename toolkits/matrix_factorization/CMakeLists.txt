@@ -3,10 +3,14 @@ project(GraphLab)
 
 
 
-
+# Build als
 add_graphlab_executable(als 
   als.cpp als_vertex_program.cpp eigen_serialization.cpp)
 requires_eigen(als) # build and attach eigen
+
+# install files
+copy_files(test_data)
+
 
 
 
