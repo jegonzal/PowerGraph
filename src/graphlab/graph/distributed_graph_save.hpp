@@ -251,15 +251,16 @@ namespace graphlab {
                         std::string format,
                         bool gzip = true,
                         size_t files_per_machine = 4) {
+      typedef graphlab::distributed_graph<VertexDataType, EdgeDataType> graph_type;
       if (format == "snap") {
         save(graph,
              prefix,
-             builtin_parsers::tsv_writer<VertexDataType, EdgeDataType>(),
+             builtin_parsers::tsv_writer<graph_type>(),
              gzip, false, true, files_per_machine);
       } else if (format == "tsv") {
         save(graph,
              prefix,
-             builtin_parsers::tsv_writer<VertexDataType, EdgeDataType>(),
+             builtin_parsers::tsv_writer<graph_type>(),
              gzip, false, true, files_per_machine);
       } else {
         logstream(LOG_ERROR)
