@@ -24,355 +24,420 @@
 #ifndef GRAPHLAB_DISTRIBUTED_AGGREGATOR
 #define GRAPHLAB_DISTRIBUTED_AGGREGATOR
 
-#include <graphlab/logger/assertions.hpp>
-#include <graphlab/parallel/pthread_tools.hpp>
+#ifndef __NO_OPENMP__
+#include <omp.h>
+#endif
 
 #include <graphlab/rpc/dc_dist_object.hpp>
-
-
-
+#include <graphlab/vertex_program/icontext.hpp>
+#include <graphlab/graph/distributed_graph.hpp>
+#include <graphlab/util/generics/conditional_addition_wrapper.hpp>
+#include <graphlab/util/generics/any.hpp>
+#include <graphlab/util/timer.hpp>
+#include <graphlab/util/mutable_queue.hpp>
+#include <graphlab/parallel/pthread_tools.hpp>
 #include <graphlab/macros_def.hpp>
 namespace graphlab {
 
-  template<typename Engine>
+  /**
+   * \internal
+   * Implements a distributed aggregator interface which can be plugged
+   * into the engine. This class includes management of periodic aggregators.
+   * 
+   * Essentially, the engine should ideally pass-through all calls to
+   *  - add_vertex_aggregator()
+   *  - add_edge_aggregator()
+   *  - aggregate_now()
+   *  - aggregate_periodic()
+   * 
+   * On engine start(), the engine should call aggregate_all_periodic() 
+   * to ensure all periodic aggregators are called once prior to vertex program
+   * execution. After which, the start() function should be called to prepare
+   * the state of the schedule. At termination of the engine, the stop()
+   * function should be called to reset the state of the aggregator.
+   * 
+   * During engine execution, two modes of operations are permitted: 
+   * synchronous, and asynchronous. In a synchronous mode of execution,
+   * the tick_synchronous() function should be called periodically by 
+   * exactly one thread on each machine, at the same time. In an asynchronous
+   * mode of execution, tick_asynchronous() should be called periodically
+   * on each machine by some arbitrary thread. This polls the state of the 
+   * schedule and activates aggregation jobs which are ready. 
+   * 
+   * tick_synchronous() and tick_asynchronous() should not be used 
+   * simultaneously within the same engine execution . For details on their 
+   * usage, see their respective documentation.
+   * 
+   */
+  template<typename Graph>
   class distributed_aggregator {
   public:
-    typedef Engine engine_type;
-    typedef typename engine_type::graph_type graph_type;
-    typedef typename graph_type::lvid_type lvid_type;
-    typedef typename engine_type::update_functor_type update_functor_type;
-    typedef typename engine_type::context_type context_type;
+    typedef Graph graph_type;
     typedef typename graph_type::local_edge_list_type local_edge_list_type;
+    typedef typename graph_type::local_edge_type local_edge_type;
     typedef typename graph_type::edge_type edge_type;
+    typedef typename graph_type::local_vertex_type local_vertex_type;
+    typedef typename graph_type::vertex_type vertex_type ;
 
-    typedef dc_dist_object< distributed_aggregator > rmi_type;
-
-
-    // Global Aggregates ------------------------------------------------------
-    /**
-     * The base class for registered aggregation operation
-     */
-    struct isync {
-      mutex lock;
-      graphlab::barrier* barrier_ptr;
-      atomic<size_t> counter;
-      const size_t interval;
-      isync(size_t interval) : barrier_ptr(NULL), counter(0), interval(interval) { }
-      virtual ~isync() {
-        if(barrier_ptr != NULL) { delete barrier_ptr; barrier_ptr = NULL;}
-      }
-      virtual void run_aggregator(std::string key,
-                                  size_t cpuid,
-                                  distributed_aggregator* dist_aggregator,
-                                  rmi_type* rmi_ptr,
-                                  engine_type* engine_ptr,                          
-                                  graph_type*  graph_ptr) = 0;
-    }; // end of isync
-
-    /**
-     * The derived class used to store the various aggregation
-     * operations
-     */
-    template<typename Aggregator >
-    struct sync : public isync {
-      typedef Aggregator       aggregator_type;
-      using isync::lock;
-      using isync::barrier_ptr;
-      using isync::counter;
-      using isync::interval;
-      const aggregator_type zero;
-      aggregator_type shared_aggregator;
-      sync(const size_t interval, const aggregator_type& zero) : 
-        isync(interval), zero(zero), shared_aggregator(zero) { }
-      void run_aggregator(std::string key,
-                          size_t cpuid,
-                          distributed_aggregator* dist_aggregator,
-                          rmi_type* rmi_ptr, 
-                          engine_type* engine_ptr,
-                          graph_type*  graph_ptr) { 
-        // Thread zero must initialize the the final shared accumulator
-        const size_t nverts = graph_ptr->num_local_vertices();
-        
-        // construct the local (to this thread) accumulator and
-        // context
-        aggregator_type local_accum(zero);
-        context_type context(engine_ptr, graph_ptr);
-
-        // Apply the update to the local vertices
-        for(lvid_type lvid = counter++; lvid < nverts; lvid = counter++) {
-          if(local_accum.is_factorizable()) {       
-            const local_edge_list_type in_edges = graph_ptr->l_in_edges(lvid);
-            const local_edge_list_type out_edges = graph_ptr->l_out_edges(lvid);
-            context.init(graph_ptr->global_vid(lvid), EDGE_CONSISTENCY);
-            if(local_accum.gather_edges() == IN_EDGES || 
-               local_accum.gather_edges() == ALL_EDGES) {
-              foreach(const edge_type& edge, in_edges) 
-                local_accum.gather(context, edge);
-            }
-            if(local_accum.gather_edges() == OUT_EDGES || 
-               local_accum.gather_edges() == ALL_EDGES) {
-              foreach(const edge_type& edge, out_edges) 
-                local_accum.gather(context, edge);
-            }
-          }
-
-          if(graph_ptr->l_is_master(lvid)) {
-            context.init(graph_ptr->global_vid(lvid), VERTEX_CONSISTENCY);
-            local_accum(context);
-          }
-        }
-        // std::cout << rmi_ptr->procid() << "Finished local sync: " 
-        //           << lowres_time_millis() / 1000 << std::endl;
-        // Merge with master
-        lock.lock(); 
-        shared_aggregator += local_accum; 
-        lock.unlock();
-        barrier_ptr->wait();  // Wait until all merges are complete
-
-        if(cpuid == 0) {
-          std::cout << rmi_ptr->procid() << " Merging sync: " 
-                    << lowres_time_millis() / 1000 << std::endl;
-          std::vector<aggregator_type> result(rmi_ptr->numprocs());
-          result[rmi_ptr->procid()] = shared_aggregator;
-          const size_t ROOT(0);
-          rmi_ptr->gather(result, ROOT);
-          std::cout << rmi_ptr->procid() << " Finished Gather: " 
-                    << lowres_time_millis() / 1000 << std::endl;
-
-          if(rmi_ptr->procid() == ROOT) {
-            // Sum up all the results
-            shared_aggregator = zero;
-            for(size_t i = 0; i < result.size(); ++i) 
-              shared_aggregator += result[i];
-            // Finalize with the global context
-            iglobal_context& global_context = context;
-            shared_aggregator.finalize(global_context);
-            const size_t time_in_seconds = lowres_time_millis() / 1000;
-            std::cout << "Sync Finished: " << time_in_seconds << std::endl;
-
-          }
-          // Zero out the shared accumulator for the next run
-          shared_aggregator = zero;
-          // update the sync queue
-          dist_aggregator->master_lock.lock();
-          dist_aggregator->schedule_prelocked(key, interval);
-          dist_aggregator->sync_in_progress = false;
-          rmi_ptr->barrier();
-          dist_aggregator->master_lock.unlock();          
-        }
-      } // end of run aggregator
-    }; // end of sync
-
-
-
-  private:
-    friend class isync;
-    
-    template <typename Aggregator>
-    friend class sync;
-    
-    //! The base communication object
-    rmi_type rmi;
-
-    engine_type& engine;
+    dc_dist_object<distributed_aggregator> rmi;
     graph_type& graph;
-
-
-    //! A lock used to manage access to internal data-structures
-    mutex master_lock;
-    bool sync_in_progress;
+    icontext_type* context;
     
-    //! The container of all registered sync operations
-    typedef std::map<std::string, isync*> sync_map_type;
-    sync_map_type sync_map;
-   
-    //! The priority queue over sync operations
-    typedef mutable_queue<std::string, long> sync_queue_type;   
-    sync_queue_type sync_queue;
+  private:
+    
+    /**
+     * \internal
+     * A base class which contains a "type-free" specification of the reduction
+     * operation, thus allowing the aggregation to be performs at runtime
+     * with no other type information whatsoever.
+     */
+    struct imap_reduce_base {
+      /** \brief makes a copy of the current map reduce spec without copying 
+       *         accumulator data     */
+      virtual imap_reduce_base* clone_empty() const = 0;
+      
+      /** \brief Performs a map operation on the given vertex adding to the
+       *         internal accumulator */
+      virtual void perform_map_vertex(icontext_type&,
+                                      vertex_type&) = 0;
+                                      
+      /** \brief Performs a map operation on the given edge adding to the
+       *         internal accumulator */
+      virtual void perform_map_edge(icontext_type&,
+                                    edge_type&) = 0;
+                                    
+      /** \brief Returns true if the accumulation is over vertices. 
+                 Returns false if it is over edges.*/
+      virtual bool is_vertex_map() const = 0;      
+      
+      /** \brief Returns the accumulator stored in an any. 
+                 (by some magic, any's can be serialized) */
+      virtual any get_accumulator() const = 0;
+      
+      /** \brief Combines accumulators using a second accumulator 
+                 stored in an any (as returned by get_accumulator) */
+      virtual void add_accumulator_any(any& other) = 0;
+      
+      /** \brief Combines accumulators using a second accumulator 
+                 stored in a second imap_reduce_base class) */
+      virtual void add_accumulator(imap_reduce_base* other) = 0;
+      
+      /** \brief Resets the accumulator */
+      virtual void clear_accumulator();
+      
+      /** \brief Calls the finalize operation on internal accumulator */
+      virtual void finalize(icontext_type&) = 0;
+    };
+    
+    /**
+     * \internal
+     * A templated implementation of the imap_reduce_base above.
+     * \tparam ReductionType The reduction type. (The type the map function returns)
+     */
+    template <typename ReductionType>
+    struct map_reduce_type : public imap_reduce_base {
+      conditional_addition_wrapper<ReductionType> acc;
+      boost::function<ReductionType(icontext_type&, vertex_type&)> map_vtx_function;
+      boost::function<ReductionType(icontext_type&, edge_type&)> map_edge_function;
+      boost::function<icontext_type&, const ReductionType&> finalize_function;
+      
+      bool vertex_map;
+      
+      /**
+       * \brief Constructor which constructs a vertex reduction
+       */
+      map_reduce_type(
+       boost::function<ReductionType(icontext_type&,vertex_type&)> map_vtx_function,
+       boost::function<icontext_type&,  const ReductionType&> finalize_function)
+          : map_vtx_function(map_vtx_function), finalize_function(finalize_function), vertex_map(true) { }
 
-    //! The pool of threads used to run the sync
-    thread_pool threads;
+      /**
+       * \brief Constructor which constructs an edge reduction. The last bool
+       * is unused and allows for disambiguation between the two constructors
+       */
+      map_reduce_type(
+       boost::function<ReductionType(icontext_type&, edge_type&)> map_edge_function,
+       boost::function<icontext_type&,  const ReductionType&> finalize_function,
+        bool)
+          : map_edge_function(map_edge_function), finalize_function(finalize_function), vertex_map(false) { }
 
 
+      void perform_map_vertex(icontext_type& context, vertex_type& vertex) {
+        acc += map_vtx_function(context, vertex);
+      }
+      
+      void perform_map_edge(icontext_type& context, edge_type& vertex) {
+        acc += map_edge_function(context, vertex);
+      }
+      
+      bool is_vertex_map() const {
+        return vertex_map;
+      }
+      
+      any get_accumulator() const {
+        return acc;
+      }
+      
+      void add_accumulator_any(any& other) {
+        acc += other.as<conditional_addition_wrapper<ReductionType> >();
+      }
+
+      void add_accumulator(imap_reduce_base* other) {
+        acc += dynamic_cast<map_reduce_type<Reduction_type>*>(other)->acc;
+      }
+
+      void clear_accumulator() {
+        acc.clear();
+      }
+
+      void finalize(icontext_type& context) {
+        finalize_function(acc.value, other);
+      }
+      
+      imap_reduce_base* clone_empty() const {
+        map_reduce_type<ReductionType>* copy;
+        if (is_vertex_map) {
+          copy = new map_reduce_type<Reduction_type(map_vtx_function, 
+                                                    finalize_function);
+        }
+        else {
+          copy = new map_reduce_type<Reduction_type(map_edge_function, 
+                                                    finalize_function,
+                                                    true);
+        }
+        return copy;
+      }
+    };
+    
+
+    std::map<std::string, imap_reduce_base*> aggregators;
+    std::map<std::string, float> aggregate_period;
+    
+    float start_time;
+    
+    /* annoyingly the mutable queue is a max heap when I need a min-heap
+     * to track the next thing to activate. So we need to keep 
+     *  negative priorities... */
+    mutable_queue<std::string, float> schedule;
+    size_t ncpus;
   public:
 
-    distributed_aggregator(distributed_control& dc, engine_type& engine,
-                           graph_type& graph) :
-      rmi(dc, this), engine(engine), graph(graph), 
-      sync_in_progress(false) { rmi.barrier(); }
-
-
-    /** Destroy members of the map */
-    ~distributed_aggregator() { 
-      threads.join();
-      master_lock.lock();
-      sync_queue.clear();
-      typedef typename sync_map_type::value_type pair_type;
-      foreach(pair_type& pair, sync_map) {        
-        ASSERT_TRUE(pair.second != NULL);
-        delete pair.second; pair.second = NULL;
-      }     
-      sync_map.clear();
-      master_lock.unlock();
-    }
-
-
-    /**
-     * Get a reference to the internal threads in the aggregator.
-     * This is used by the engine to join threads and to resize the
-     * thread pool.
-     */
-    thread_pool& get_threads() { return threads; }
-
-    /**
-     * This is used by the engine at start to initialize the
-     * aggregation task queue.
-     */
-    void initialize_queue() { 
-      // Only maintian a queue on processor 0
-      if(rmi.procid() != 0) return;
-      master_lock.lock();
-      sync_queue.clear();
-      typedef typename sync_map_type::value_type pair_type;
-      foreach(const pair_type& pair, sync_map) {        
-        ASSERT_TRUE(pair.second != NULL);
-        // If their is a sync associated with the global record and
-        // the sync has a non-zero interval than schedule it.
-        if(pair.second->interval > 0) 
-          schedule_prelocked(pair.first, pair.second->interval);
-      }
-      master_lock.unlock();    
-    } // end of initialize queue
-
-  
-
-    //! \brief Registers an aggregator with the engine
-    template<typename Aggregator>
-    void add_aggregator(const std::string& key,            
-                        const Aggregator& zero,                 
-                        size_t interval) {
-      isync*& sync_ptr = sync_map[key];
-      // Clear the old sync and remove from scheduling queue
-      if(sync_ptr != NULL) { 
-        sync_queue.remove(key);
-        delete sync_ptr; sync_ptr = NULL; 
-      }
-      ASSERT_TRUE(sync_ptr == NULL);
-      // Attach a new sync type
-      sync_ptr = new sync<Aggregator>(interval, zero);
-    }// end of add_sync
     
+    distributed_aggregator(distributed_control& dc, 
+                           graph_type& graph, 
+                           icontext_type* context):
+                            rmi(dc, this), graph(graph), 
+                            context(context), ncpus(0) { }
 
-    /**
-     * Run an aggregator.  This must be called on all machines
-     */
-    void aggregate_now(const std::string& key) {
-      // make sure any previous syncs are done
-      bool s = true;
-      while(s) {
-        master_lock.lock();
-        s = sync_in_progress;
-        master_lock.unlock();
-        my_sleep(1);
+    /** \brief Creates a vertex aggregator. Returns true on success.
+               Returns false if an aggregator of the same name already exists */
+    template <typename ReductionType>
+    bool add_vertex_aggregator(std::string key,
+      boost::function<ReductionType(icontext_type&, vertex_type&)> map_function,
+      boost::function<icontext_type&, const ReductionType&> finalize_function) {
+      
+      if (aggregators.count(key) == 0) {
+        aggregators[key] = new map_reduce_type<ReductionType>(map_function, 
+                                                              inalize_function);
+        return true;
       }
-      // BUG: check that the engine is ready to sync?
-      // (engine.initialize_members()?)
-      typename sync_map_type::iterator iter = sync_map.find(key);
-      if(iter == sync_map.end()) {
-        logstream(LOG_FATAL) 
-          << "Key \"" << key << "\" is not in sync map!"
-          << std::endl;
+      else {
+        // aggregator already exists. fail 
+        return false;
+      }
+    }
+    
+    
+    /** \brief Creates a edge aggregator. Returns true on success.
+               Returns false if an aggregator of the same name already exists */
+    template <typename ReductionType>
+    bool add_edge_aggregator(std::string key,
+      boost::function<ReductionType(icontext_type&, edge_type&)> map_function,
+      boost::function<icontext_type&, const ReductionType&> finalize_function) {
+      
+      if (aggregators.count(key) == 0) {
+        aggregators[key] = new map_reduce_type<ReductionType>(map_function, 
+                                                              finalize_function, 
+                                                              true);
+        return true;
+      }
+      else {
+        // aggregator already exists. fail 
+        return false;
+      }
+    }
+    
+    
+    /**
+     * Performs an immediate aggregation on a key. All machines must
+     * call this simultaneously. An assertion failure is triggered if
+     * the key is not found. This function uses OpenMP parallelism
+     * if compiled for it.
+     */
+    void aggregate_now(std::string& s) {
+      if (aggregators.count(key) == 0) {
+        ASSERT_MSG(false, "Requested aggregator %s not found", s.c_str());
         return;
       }
-      // emulate initiate_aggregate.
-      // if I am proc 0, set sync in progress
-      if (rmi.procid() == 0) sync_in_progress = true;
-      // The current implementation will lead to a deadlock if called
-      // from within an update function
-      rpc_aggregate(key);
-      threads.join();
+      
+      imap_reduce_base* mr = aggregators[s];
+      mr->clear();
+      // ok. now we perform reduction on local data in parallel
+#ifdef _OPENMP
+#pragma omp parallel
+#endif
+      {
+        imap_reduce_base* localmr = mr->clone_empty();
+        if (localmr->is_vertex_map()) {
+#ifdef _OPENMP
+        #pragma omp for
+#endif
+          for (int i = 0;i < (int)graph.num_local_vertices(); ++i) {
+            local_vertex_type lvertex = graph.l_vertex(i);
+            if (lvertex.owner() == rmi.procid()) {
+              vertex_type vertex(lvertex);
+              localmr->perform_map_vertex(*context, vertex);
+            }
+          }
+        }
+        else {
+          for (int i = 0;i < (int)graph.num_local_vertices(); ++i) {
+            foreach(local_edge_type& e, l_vertex(i).in_edges()) {
+              edge_type edge(e);
+              localmr->perform_map_edge(*context, edge);
+            }
+          }
+        }
+#ifdef _OPENMP
+        #pragma omp critical
+#endif
+        {
+          mr->add_accumulator(localmr);
+        }
+        delete localmr;
+      }
+      
+      std::vector<any> gathervec(rmi.numprocs());
+      gathervec[rmi.procid()] = mr->get_accumulator();
+      
+      rmi.gather(gathervec, 0);
+      
+      if (rmi.procid() == 0) {
+        for (procid_t i = 1; i < rmi.numprocs(); ++i) {
+          mr->add_accumulator_any(gathervec[i]);
+        }
+        mr->finalize(*context);
+      }
+      mr->clear();
+      gathervec.clear();
+    }
+    
+    
+    /**
+     * Requests that the aggregator with a given key be aggregated
+     * every certain number of seconds when the engine is running.
+     * Note that the period is prescriptive: in practice the actual
+     * period will be larger than the requested period. 
+     * Seconds must be > 0;
+     * 
+     * All machines must call simultaneously.
+     * Returns true if key is found, and false otherwise.
+     */
+    bool aggregate_periodic(std::string& key, float seconds) {
       rmi.barrier();
-    } // end of aggregate_now
-
-
-    void evaluate_queue() {
-      if(rmi.procid() != 0) return;
-      // if the engine is no longer running or there is nothing in the
-      // sync queue then we terminate early
-      if(sync_queue.empty()) return;
-      // if there is a sync in progress
-      if(sync_in_progress) return;
-      // Try to grab the lock if we fail just return
-      if(!master_lock.try_lock()) return;
-      if(sync_in_progress) { master_lock.unlock(); return; }
-      // Now we are ready to evaluate the update count
-      const long negated_next_ucount = sync_queue.top().second;
-      ASSERT_LE(negated_next_ucount, 0);
-      const size_t next_ucount = size_t(-negated_next_ucount);
-      const size_t time_in_seconds = lowres_time_millis() / 1000;
-      // if it is time to run the sync then spin off the threads
-      if(next_ucount < time_in_seconds) { // Run the actual sync
-        std::cout << "Time requested:    \t" << next_ucount << std::endl;
-        std::cout << "Sync initiated at: \t" << time_in_seconds << std::endl;
-        const std::string key = sync_queue.top().first;
-        sync_queue.pop();
-        initiate_aggregate(key);
-      }    
-      master_lock.unlock();    
-    } // end of evaluate_sync_queue
+      if (seconds <= 0) return;
+      if (aggregators.count(key) == 0) return false;
+      else aggregate_period[key] = seconds;
+      return true;
+    }
     
-
-    void initiate_aggregate(const std::string& key) {
-      if(rmi.procid() != 0) return;
-      ASSERT_FALSE(sync_in_progress);
-      sync_in_progress = true;
-      for(procid_t proc = 0; proc < rmi.numprocs(); ++proc) {
-        rmi.remote_call(proc, &distributed_aggregator::rpc_aggregate, key);
+    /**
+     * Performs aggregation on all keys registered with a period.
+     * May be used on engine start() to ensure all periodic 
+     * aggregators are executed before engine execution.
+     */
+    void aggregate_all_periodic() {
+      std::map<std::string, size_t>::iterator iter = aggregate_period.begin();
+      while (iter != aggregate_period.end()) { 
+        aggregate_now(iter->first);
+        ++iter;
       }
-    } // end of innitiate aggregate
-
-
-    void rpc_aggregate(const std::string& key) {
-      master_lock.lock();    
-      if(rmi.procid() != 0) {
-        ASSERT_FALSE(sync_in_progress);
-        sync_in_progress = true;
-      } else {
-        ASSERT_TRUE(sync_in_progress);
+    }
+    
+    
+    /**
+     * Must be called on engine start. Initializes the internal scheduler.
+     * Must be called on all machines simultaneously.
+     * ncpus is really only important for the asynchronous implementation.
+     * It must be equal to the number of engine threads.
+     */
+    void start(size_t ncpus) {
+      rmi.barrier();
+      schedule.clear();
+      start_time = lowres_time_seconds();
+      std::map<std::string, size_t>::iterator iter = aggregate_period.begin();
+      while (iter != aggregate_period.end()) {
+        // schedule is a max heap. To treat it like a min heap
+        // I need to insert negative keys
+        schedule.push(iter->first, -(start_time + iter->second));
+        ++iter;
       }
-      master_lock.unlock();     
-      // Get the sync
-      isync* sync_ptr = sync_map[key];
-      ASSERT_FALSE(sync_ptr == NULL);
-      // Initialize the counter
-      if(sync_ptr->barrier_ptr != NULL) {
-        delete sync_ptr->barrier_ptr; sync_ptr->barrier_ptr = NULL;
+      this->ncpus = ncpus;
+      ti.start();
+    }
+    
+    
+    /**
+     * If asynchronous aggregation is desired, this function is
+     * to be called periodically on each machine. This polls the schedule to see 
+     * if there is an aggregator which needs to be activated. If there is an 
+     * aggregator to be started, this function will return a non-negative value. 
+     * This function is thread 
+     * reentrant and each activated aggregator will only return a non-negative 
+     * value call to one call to tick_asynchronous().
+     * 
+     * If a non-negative value is returned, the asynchronous engine
+     * must ensure 
+     */ 
+    int tick_asynchronous() {
+      
+    }
+    
+    /**
+     * If synchronous aggregation is desired, this function is
+     * To be called simultaneously by one thread on each machine. 
+     * This polls the schedule to see if there
+     * is an aggregator which needs to be activated. If there is an aggregator 
+     * to be started, this function will perform aggregation.
+     */ 
+    void tick_synchronous() {
+      // if timer has exceeded our top key
+      float curtime = lowres_time_seconds();
+      // note that we do not call lowres_time_seconds everytime
+      // this ensures that each key will only be run at most once.
+      // each time tick_synchronous is called.
+      while(-schedule.top().second < curtime) {
+        std::string key = schedule.top().first;
+        aggregate_now(key);
+        schedule.pop();
+        schedule.push(key, -(lowres_time_seconds() + aggregate_period[key]));
       }
-      sync_ptr->barrier_ptr = new graphlab::barrier(threads.size());
-      sync_ptr->counter = 0;
-      // Launch the threads
-      for(size_t i = 0; i < threads.size(); ++i) {
-        const boost::function<void (void)> sync_function = 
-          boost::bind(&isync::run_aggregator, 
-                      sync_ptr, key,  i, this, &rmi, &engine, &graph);
-        threads.launch(sync_function);
+      
+    }
+
+    /**
+     * Must be called on engine stop. Clears the internal scheduler
+     * And resets all incomplete states.
+     */
+    void stop() {
+      schedule.clear();
+      std::map<std::string, imap_reduce_base*>::iterator iter = aggregators.begin();
+      while (iter != aggregators.end()) {
+        iter->second->clear();
+        ++iter;
       }
-    } // end of rpc aggregate
-
-  
-
-    
-
-    
-    void schedule_prelocked(const std::string& key, size_t sync_interval) {
-      const size_t time_in_seconds = lowres_time_millis() / 1000;
-      const long negated_next = -long(time_in_seconds + sync_interval); 
-      sync_queue.push(key, negated_next);
-    } // end of schedule_prelocked
-    
-    
-    
-  }; // end of class shared memory aggregator
+    }
+  }; 
 
 
 }; // end of graphlab namespace
