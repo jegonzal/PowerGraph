@@ -29,6 +29,7 @@
 #define GRAPHLAB_JSON_MESSAGE_HPP
 
 #include <graphlab.hpp>
+
 #include "rapidjson.hpp"
 #include "dispatcher.hpp"
 
@@ -129,6 +130,18 @@ namespace graphlab {
      */
     void add_context(dispatcher_update::icontext_type& context, byte flags);
     
+    /**
+     * Adds an edge parameter to the invocation
+     * @param[in]   edge      edge
+     */
+    void add_edge(dispatcher_update::icontext_type& context, const dispatcher_update::graph_type::edge_type& edge);
+    
+    /**
+     * Adds other updater state to the invocation
+     * @param[in]   other     updater state
+     */
+    void add_other(const std::string& other);
+    
   private:
     void add_in_edges(dispatcher_update::icontext_type& context, rapidjson::Value& parent);
     void add_out_edges(dispatcher_update::icontext_type& context, rapidjson::Value& parent);
@@ -160,6 +173,17 @@ namespace graphlab {
      * @return schedule, extracted from return JSON
      */
     const json_schedule schedule() const;
+    const char *scatter_schedule() const;
+    
+    /**
+     * @return consistency model, extracted from return JSON
+     */
+    const graphlab::consistency_model consistency() const;
+    
+    /**
+     * @return edge set, extracted from return JSON
+     */
+    const graphlab::edge_set edge_set() const;
     
   };
 

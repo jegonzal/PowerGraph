@@ -71,7 +71,6 @@ namespace graphlab {
     
     /**
      * Reads input from process, delimited by JSON braces.
-     * TODO Ideally, JSON should be totally abstracted by json_message.
      */
     json_message& read(json_message& message);
     

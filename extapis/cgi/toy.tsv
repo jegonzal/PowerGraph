@@ -1,22 +1,15 @@
-1 2
-3 2
-4 3
-2 0
-3 5
-3 6
-7 6
-2 8
-8 9
-8 11
-10 11
-2 1
-2 3
-3 4
-0 2
-5 3
-6 3
-6 7
-8 2
-9 8
-11 8
-11 10
+# file starts with vertex states, followed by edge states and structure
+# vertex 1 has distance 0 (root)
+:1 0
+# format: <vertex id> <vertex id> <edge state>
+1 2 2
+3 2 3
+4 3 4
+2 0 2
+3 5 5
+3 6 4
+7 6 2
+2 8 6
+8 9 1
+8 11 0
+10 11 2
