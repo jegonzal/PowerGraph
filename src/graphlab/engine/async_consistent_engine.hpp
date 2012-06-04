@@ -507,10 +507,13 @@ namespace graphlab {
     
   public:
     /**
+     * \internal
      * \brief Signals a vertex with an optional message
+     * 
      * Signals a vertex, and schedules it to be executed in the future.
+     * must be called on a vertex accessible by the current machine.
      */
-    void signal(const vertex_type& vtx,
+    void signal_internal(const vertex_type& vtx,
                 const message_type& message = message_type()) {
       if (timeout) return;
       if (started) {
@@ -528,7 +531,47 @@ namespace graphlab {
 
 
     /**
+     * \internal
+     * \brief Signals a vertex with an optional message
+     * 
+     * Signals a global vid, and schedules it to be executed in the future.
+     * If current machine does not contain the vertex, it is ignored.
+     */
+    void signal_internal_gvid(vertex_id_type gvid,
+                const message_type& message = message_type()) {
+      if (timeout) return;
+      if (graph.is_master(gvid)) {
+        signal_internal(graph.vertex(gvid), message);
+      }
+    } // end of schedule
+
+
+    void signal_broadcast(vertex_id_type gvid,
+                          const message_type& message = message_type()) {
+      for (size_t i = 0;i < rmi.numprocs(); ++i) {
+        rmi.remote_call(i, &async_consistent_engine::signal_internal_gvid,
+                        gvid, message);
+      }
+    } // end of signal_broadcast
+
+
+
+    /**
+     * \brief Signals a vertex with a particular global ID
+     * 
+     * Signals a vertex and schedules it to be executed in the future
+     * Must be called on all machines.
+     */
+    void signal(vertex_id_type gvid,
+                const message_type& message = message_type()) {
+      rmi.barrier();
+      signal_internal_gvid(gvid, message);
+      rmi.barrier();
+    }
+
+    /**
      * \brief Signals every vertex to be executed in the future.
+     * 
      * Sends a signal to every vertex in the graph, and schedules
      * them to be executed in the future.
      */

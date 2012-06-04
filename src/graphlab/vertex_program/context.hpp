@@ -44,7 +44,8 @@ namespace graphlab {
   class context : 
     public icontext<typename Engine::vertex_type,
                     typename Engine::gather_type,
-                    typename Engine::message_type> {
+                    typename Engine::message_type,
+                    typename Engine::vertex_id_type> {
   public:
     // Type members ===========================================================
 
@@ -52,6 +53,7 @@ namespace graphlab {
 
     /** the graph type used by this context */
     typedef typename engine_type::graph_type graph_type;
+    typedef typename graph_type::vertex_id_type vertex_id_type;
     typedef typename graph_type::lvid_type lvid_type;
 
     /** The type of the user-defined vertex program */
@@ -123,8 +125,21 @@ namespace graphlab {
      */
     void signal(const vertex_type& vertex, 
                 const message_type& message = message_type()) {
-      engine.signal(vertex, message);
+      engine.signal_internal(vertex, message);
     }
+
+    /**
+     * Send a message to a vertex ID.
+     * \warning This function will be slow since the current machine do
+     * not know the location of the vertex ID.
+     * \warning This may be unreliable. signals issued near to engine
+     * termination may be lost.
+     */
+    void signal_vid(vertex_id_type vid, 
+                    const message_type& message = message_type()) {
+      engine.signal_broadcast(vid, message);
+    }
+
 
     /**
      * Post a change to the cached sum for the vertex
