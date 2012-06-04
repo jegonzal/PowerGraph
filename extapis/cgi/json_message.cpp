@@ -287,34 +287,34 @@ const js jr::schedule() const {
   
 }
 
-const graphlab::consistency_model jr::consistency() const {
+const consistency_model jr::consistency() const {
 
   if (!mdocument.HasMember("consistency")){
     // TODO: throw error
   }
   
   std::string consistency = std::string(mdocument["consistency"].GetString());
-  if ("VERTEX" == consistency) return graphlab::VERTEX_CONSISTENCY;
-  if ("EDGE" == consistency) return graphlab::EDGE_CONSISTENCY;
-  if ("FULL" == consistency) return graphlab::FULL_CONSISTENCY;
-  if ("NULL" == consistency) return graphlab::NULL_CONSISTENCY;
+  if ("VERTEX" == consistency) return VERTEX_CONSISTENCY;
+  if ("EDGE" == consistency) return EDGE_CONSISTENCY;
+  if ("FULL" == consistency) return FULL_CONSISTENCY;
+  if ("NULL" == consistency) return NULL_CONSISTENCY;
   
   // TODO: throw error
-  return graphlab::NULL_CONSISTENCY;
+  return NULL_CONSISTENCY;
 
 }
 
-const graphlab::edge_set jr::edge_set() const {
+const edge_dir_type jr::edge_dir() const {
 
   if (!mdocument.HasMember("edges")){
     // TODO: throw error
   }
   
   std::string edge_set = std::string(mdocument["edges"].GetString());
-  if ("IN_EDGES" == edge_set) return graphlab::IN_EDGES;
-  if ("OUT_EDGES" == edge_set) return graphlab::OUT_EDGES;
-  if ("ALL_EDGES" == edge_set) return graphlab::ALL_EDGES;
-  if ("NO_EDGES" == edge_set) return graphlab::NO_EDGES;
+  if ("IN_EDGES" == edge_set) return IN_EDGES;
+  if ("OUT_EDGES" == edge_set) return OUT_EDGES;
+  if ("ALL_EDGES" == edge_set) return ALL_EDGES;
+  if ("NO_EDGES" == edge_set) return NO_EDGES;
   
   // TODO: throw error
   return graphlab::NO_EDGES;

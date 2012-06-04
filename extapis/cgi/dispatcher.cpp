@@ -28,25 +28,25 @@
 #include "dispatcher.hpp"
 #include "process.hpp"
 #include "json_message.hpp"
-#include "dispatcher_ops.hpp"
 
 #include <graphlab/macros_def.hpp>
 
 using namespace graphlab;
-typedef json_schedule   js;
 typedef json_invocation ji;
 typedef json_return     jr;
 
-/////////////////////////////// CGI_GATHER_TYPE ////////////////////////////////
-void cgi_gather_type::save(oarchive& oarc) const {
+///////////////////////////////// CGI_GATHER ///////////////////////////////////
+cgi_gather::cgi_gather(const std::string& state) : mstate(state){}
+
+void cgi_gather::save(oarchive& oarc) const {
   oarc << mstate;
 }
 
-void cgi_gather_type::load(iarchive& iarc) {
+void cgi_gather::load(iarchive& iarc) {
   iarc >> mstate;
 }
 
-void operator+=(const cgi_gather_type& other){
+void cgi_gather::operator+=(const cgi_gather& other){
   
   // invoke
   process& p = process::get_process();
@@ -58,296 +58,240 @@ void operator+=(const cgi_gather_type& other){
   jr result;
   p.receive(result);
   
-  // update states
-  const char *cstring = result.updater();
-  mstate = std::string(cstring);
+  // update states (if none received, no change)
+  const char *cstring = result.program();
+  if (NULL != cstring)
+    mstate = std::string(cstring);
   
 }
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////// DISPATCHER //////////////////////////////////
+dispatcher::dispatcher(const std::string& state) : mstate(state){}
 
-dp::dispatcher_update(const std::string& state) : mstate(state) {}
-
-dp::dispatcher_update(const dp& other) : mstate(other.mstate) {}
-
-bool dp::is_factorizable() const { return UPDATE_STYLE == FACTORIZED; }
-
-consistency_model dp::consistency() const { return graphlab::DEFAULT_CONSISTENCY; }
-
-consistency_model dp::gather_consistency() {
-  
-  process& p = process::get_process();
-  
-  // send invocation to child
-  ji invocation("gather_consistency", mstate);
-  p.send(invocation);
-  
-  // parse results
-  jr result;
-  p.receive(result);
-  
-  return result.consistency();
-  
+void dispatcher::save(oarchive& oarc) const {
+  oarc << mstate;
 }
 
-consistency_model dp::scatter_consistency() {
-  
-  process& p = process::get_process();
-  
-  // send invocation to child
-  ji invocation("scatter_consistency", mstate);
-  p.send(invocation);
-  
-  // parse results
-  jr result;
-  p.receive(result);
-  
-  return result.consistency();
-  
+void dispatcher::load(iarchive& iarc){
+  iarc >> mstate;
 }
 
-edge_set dp::gather_edges() const {
+/** initialize the vertex program and vertex data */
+void dispatcher::init(icontext_type& context, vertex_type& vertex) { 
+
+  // invoke
+  process& p = process::get_process();
+  ji invocation("init", mstate);
+  p.send(invocation);
+  
+  // receive
+  jr result;
+  p.receive(result);
+
+  // update vertex program state (if none received, defaults to "")
+  const char *cstring = result.program();
+  mstate = std::string(cstring);
+  
+  // update vertex state (if none received, no change)
+  cstring = result.vertex();
+  if (NULL != cstring)
+    vertex.data() = std::string(cstring);
+    
+}
+
+edge_dir_type dispatcher::gather_edges
+                             (icontext_type& context,
+                              const vertex_type& vertex) const {
   
   // invoke
   process& p = process::get_process();
   ji invocation("gather_edges", mstate);
+  invocation.add_vertex(vertex);
   p.send(invocation);
   
   // receive
   jr result;
   p.receive(result);
   
-  return result.edge_set();
+  return result.edge_dir();
   
 }
 
-edge_set dp::scatter_edges() const {
+edge_dir_type dispatcher::scatter_edges
+                            (icontext_type& context,
+                             const vertex_type& vertex) const {
   
   // invoke
   process& p = process::get_process();
   ji invocation("scatter_edges", mstate);
+  invocation.add_vertex(vertex);
   p.send(invocation);
   
   // receive
   jr result;
   p.receive(result);
   
-  return result.edge_set();
+  return result.edge_dir();
   
 }
 
-void dp::init_gather(icontext_type& context) {
-
-  // invoke
-  process& p = process::get_process();
-  ji invocation("init_gather", mstate);
-  p.send(invocation);
-  
-  // receive
-  jr result;
-  p.receive(result);
-
-  // update states - null means no change
-  const char *cstring = result.updater();
-  if (NULL != cstring)
-    mstate = std::string(cstring);
-
-}
-
-void dp::gather(icontext_type& context, const edge_type& edge) {
+dispatcher::gather_type dispatcher::gather
+                             (icontext_type& context,
+                              const vertex_type& vertex,
+                              edge_type& edge) const {
 
   // invoke
   process& p = process::get_process();
   ji invocation("gather", mstate);
-  invocation.add_context(context, ji::VERTEX);
-  invocation.add_edge(context, edge);
+  invocation.add_vertex(vertex);
+  invocation.add_edge(edge);
   p.send(invocation);
   
   // receive
   jr result;
   p.receive(result);
   
-  // update states - null means no change
-  const char *cstring = result.updater();
-  if (NULL != cstring)
-    mstate = std::string(cstring);
+  // return result
+  const char *cstring = result.result();
+  return cgi_gather(std::string(cstring));
 
 }
 
-void dp::apply(icontext_type& context) {
-  
+void dispatcher::apply(icontext_type& context,
+                       vertex_type& vertex,
+                       const gather_type& total) {
+
   // invoke
   process &p = process::get_process();
   ji invocation("apply", mstate);
-  invocation.add_context(context, ji::VERTEX);
+  invocation.add_vertex(vertex);
+  invocation.add_gather(total);
   p.send(invocation);
   
   // receive
   jr result;
   p.receive(result);
   
-  // update states - null means no change
-  const char *cstring = result.updater();
+  // update states (null means no change)
+  const char *cstring = result.program();
   if (NULL != cstring)
     mstate = std::string(cstring);                      // copy
   cstring = result.vertex();
   if (NULL != cstring)
-    context.vertex_data().state = std::string(cstring); // copy
-  
+    vertex.data() = std::string(cstring);               // copy
+
 }
 
-void dp::scatter(icontext_type& context, const edge_type& edge) {
-
+void dispatcher::scatter(icontext_type& context,
+                         const vertex_type& vertex,
+                         edge_type& edge) const {
+                         
   process& p = process::get_process();
   
   // invoke
   ji invocation("scatter", mstate);
-  invocation.add_context(context, ji::VERTEX);
-  invocation.add_edge(context, edge);
+  invocation.add_vertex(vertex);
+  invocation.add_edge(edge);
   p.send(invocation);
   
   // parse results
   jr result;
   p.receive(result);
 
-  // TODO: edge state
-
-  // update states - null means no schedule
-  const char *cstring = result.scatter_schedule();
+  // null means no signal
+  const char *cstring = result.signal();
   if (NULL == cstring) return;
 
-  const graph_type::vertex_id_type neighbor = (context.vertex_id() == edge.source()) ? edge.target() : edge.source();
-    
-  // schedule
-  if (strcmp("self", cstring)) context.schedule(neighbor, dp(std::string(cstring)));
-  else context.schedule(neighbor, *this);
-  
-}
-
-inline void dp::operator+=(const dp& other){
-  // TODO
-}
-
-void dp::operator()(icontext_type& context){
-  
-  process& p = process::get_process();
-  
-  // send invocation to child
-  ji invocation("update", mstate);
-  invocation.add_context(context, ji::VERTEX | ji::EDGES);
-  p.send(invocation);
-  
-  // parse results
-  jr result;
-  p.receive(result);
-
-  // update states - null means no change
-  const char *cstring = result.updater();
-  if (NULL != cstring)
-    mstate = std::string(cstring);                      // copy
-  cstring = result.vertex();
-  if (NULL != cstring)
-    context.vertex_data().state = std::string(cstring); // copy
-  
-  // TODO: edge states
-    
-  // schedule
-  schedule(context, result);
-
-}
-
-void dp::schedule(icontext_type& context, const jr& result){
-
-  const js schedule = result.schedule();
-  
-  switch (schedule.targets()){
-    case js::IN_NEIGHBORS: {
-      const dp &updater = (schedule.updater() == "self") ? *this : dp(schedule.updater());
-      context.schedule_in_neighbors(context.vertex_id(), updater);
-      break;
-    }
-    case js::OUT_NEIGHBORS: {
-      const dp &updater = (schedule.updater() == "self") ? *this : dp(schedule.updater());
-      context.schedule_out_neighbors(context.vertex_id(), updater);
-      break;
-    }
-    case js::ALL: {
-      const dp &updater = (schedule.updater() == "self") ? *this : dp(schedule.updater());
-      context.schedule_neighbors(context.vertex_id(), updater);
-      break;
-    }
-    case js::SOME: {
-      foreach(vertex_id_type vertex, schedule.vertices()){
-        const dp &updater = (schedule.updater() == "self") ? *this : dp(schedule.updater());
-        context.schedule(vertex, updater);
-      }
-      break;
-    }
-    case js::NONE: {/* do nothing */}
-  }
+  if (strcmp("SOURCE", cstring)){
+    context.signal(edge.source());
+  }else if (strcmp("TARGET", cstring)){
+    context.signal(edge.target());
+  }else throw("unrecognized signal");
   
 }
 ////////////////////////////////////////////////////////////////////////////////
 
+struct dispatcher_writer {
+  std::string save_vertex(dispatcher::vertex_type vertex) {
+    std::stringstream strm;
+    strm << ":" << vertex.id() << "\t" << vertex.data() << "\n";
+    return strm.str();
+  }
+  std::string save_edge(dispatcher::edge_type edge) {
+    std::stringstream strm;
+    strm << edge.source().id() << "\t" << edge.target().id() << "\t" << edge.data() << "\n";
+    return strm.str();
+  }
+};
+
 ////////////////////////////////// MAIN METHOD /////////////////////////////////
 int main(int argc, char** argv) {
 
-  global_logger().set_log_level(LOG_DEBUG);
-  global_logger().set_log_to_console(true);
+  // Initialize control plain using mpi
+  graphlab::mpi_tools::init(argc, argv);
+  graphlab::distributed_control dc;
   
-  // Parse command line options -----------------------------------------------
+  // Parse command line options ------------------------------------------------
   command_line_options clopts("GraphLab Dispatcher");
-  std::string graph_file = "toy.tsv";
-  std::string updater;
-  std::string format = "tsv";
-  clopts.attach_option("graph", &graph_file, graph_file,
+  
+  std::string graph_dir = "toy.tsv";
+  clopts.attach_option("graph", &graph_dir, graph_dir,
                        "The graph file.  If none is provided "
                        "then a toy graph will be created");
   clopts.add_positional("graph");
+  std::string format = "tsv";
   clopts.attach_option("format", &format, format,
-                       "The graph file format: {metis, snap, tsv}");
-  clopts.attach_option("updater", &updater,
-                       "The updater to execute (required)");
+                       "The graph file format: {metis, snap, tsv, adj, bin}");
+  std::string program;
+  clopts.attach_option("program", &program,
+                       "The program to execute (required)");
+  std::string saveprefix;
+  clopts.attach_option("saveprefix", &saveprefix, saveprefix,
+                       "If set, will save the resultant graph to a "
+                       "sequence of files with prefix saveprefix");
+                       
   if(!clopts.parse(argc, argv)) {
     std::cout << "Error in parsing command line arguments." << std::endl;
     return EXIT_FAILURE;
   }
   
-  if(!clopts.is_set("updater")) {
+  if(!clopts.is_set("program")) {
     std::cout << "Updater not provided." << std::endl;
     clopts.print_description();
     return EXIT_FAILURE;
   }
-
-  // Setup the GraphLab execution core and load graph -------------------------
-  core<dp::graph_type, dp> core;
-  core.set_options(clopts);      // attach the command line options to the core
-  std::cout << "Loading graph from file" << std::endl;
-  const bool success = dispatcher_ops::load_structure(graph_file, core.graph());
-  if(!success)
-    std::cout << "Error in reading file: " << graph_file << std::endl;
   
-  // Signal Handling ----------------------------------------------------------
+  process::set_executable(program);
+  
+  // Signal Handling -----------------------------------------------------------
   struct sigaction sa;
   std::memset(&sa, 0, sizeof(sa));
   sa.sa_handler = SIG_IGN;
   CHECK(!::sigaction(SIGPIPE, &sa, NULL));
+  
+  // Load graph ----------------------------------------------------------------
+  std::cout << dc.procid() << ": Starting." << std::endl;
+  dispatcher::graph_type graph(dc, clopts);
+  graph.load_format(graph_dir, format);
+  graph.finalize();
+  
+  std::cout << "#vertices: " << graph.num_vertices() << " #edges:" << graph.num_edges() << std::endl;
+  
+  // Schedule vertices
+  std::cout << dc.procid() << ": Creating engine" << std::endl;
+  async_consistent_engine<dispatcher> engine(dc, graph, clopts);
+  // TODO: need a way for user to tell us which vertices to schedule
+  std::cout << dc.procid() << ": Scheduling all" << std::endl;
+  engine.signal_all();
+  
+  // Run the dispatcher --------------------------------------------------------
+  engine.start();
 
-  // Run the Dispatcher -------------------------------------------------------
-  process::set_executable(updater);
-  core.schedule_all(dp());
-  std::cout << "Running dispatcher..." << std::endl;
-  const double runtime = core.start();  // Run the engine
-  std::cout << "Graphlab finished, runtime: " << runtime 
-            << " seconds." << std::endl;
-  std::cout << "Updates executed: " << core.last_update_count() 
-            << std::endl;
-  std::cout << "Update Rate (updates/second): " 
-            << core.last_update_count() / runtime
-            << std::endl;
-
-  // Output Results -----------------------------------------------------------
-  dispatcher_ops::save_structure("output.graph", core.graph());
+  // Save output ---------------------------------------------------------------
+  if(!clopts.is_set("saveprefix"))
+    graph.save(saveprefix, dispatcher_writer(), false);
+  
+  mpi_tools::finalize();
   return EXIT_SUCCESS;
   
 }
