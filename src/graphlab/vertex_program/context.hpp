@@ -59,6 +59,11 @@ namespace graphlab {
     /** The type of the user-defined vertex program */
     typedef typename engine_type::vertex_program_type vertex_program_type;
 
+    /** The parent type */
+    typedef icontext<typename Engine::vertex_type,
+                     typename Engine::gather_type,
+                     typename Engine::message_type,
+                     typename Engine::vertex_id_type> icontext_type;
 
 
     /** 

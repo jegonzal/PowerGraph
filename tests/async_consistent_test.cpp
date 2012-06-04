@@ -156,8 +156,84 @@ void test_all_neighbors(graphlab::distributed_control& dc,
 
 
 
+
+
+// Make a slow version so that the asynchronous aggregators get a change
+// to run. Basically, sleep a bit on apply.
+class count_all_neighbors_slow :
+  public graphlab::ivertex_program<graph_type, int, int>,
+  public graphlab::IS_POD_TYPE {
+public:
+  void recv_message(icontext_type& context, const vertex_type& vertex,
+                    const message_type& msg) {
+    ASSERT_EQ(msg, 100);
+  }
+
+  edge_dir_type
+  gather_edges(icontext_type& context, const vertex_type& vertex) const {
+    return graphlab::ALL_EDGES;
+  }
+  gather_type
+  gather(icontext_type& context, const vertex_type& vertex,
+         edge_type& edge) const {
+    return 1;
+  }
+  void apply(icontext_type& context, vertex_type& vertex,
+             const gather_type& total) {
+    graphlab::my_sleep_ms(100);
+    ASSERT_EQ( total, int(vertex.num_in_edges() + vertex.num_out_edges() ) );
+  }
+  edge_dir_type
+  scatter_edges(icontext_type& context, const vertex_type& vertex) const {
+    return graphlab::NO_EDGES;
+  }
+}; // end of count neighbors
+
+
+
+
+
+
+typedef graphlab::async_consistent_engine<count_all_neighbors_slow> agg_engine_type;
+
+size_t agg_map(agg_engine_type::icontext_type& context,
+              agg_engine_type::vertex_type& vtx) {
+  return 1;
+}
+
+
+void agg_finalize(agg_engine_type::icontext_type& context,
+                  const size_t& result) {
+  std::cout << "Aggregator: #vertices = " << result << std::endl;
+}
+
+
+void test_aggregator(graphlab::distributed_control& dc,
+                     graphlab::command_line_options& clopts,
+                     graph_type& graph) {
+  std::cout << "Constructing an engine for all neighbors" << std::endl;
+  agg_engine_type engine(dc, graph, clopts);
+  engine.add_vertex_aggregator<size_t>("num_vertices_counter", agg_map, agg_finalize);
+  ASSERT_TRUE(engine.aggregate_now("num_vertices_counter"));
+  ASSERT_TRUE(engine.aggregate_periodic("num_vertices_counter", 0.2));
+  std::cout << "Scheduling all vertices to count their neighbors" << std::endl;
+  engine.signal_all(100);
+  std::cout << "Running!" << std::endl;
+  engine.start();
+  std::cout << "Finished" << std::endl;
+}
+
+
+
+
+
+
+
+
+
 int main(int argc, char** argv) {
 
+  global_logger().set_log_level(LOG_INFO);
   ///! Initialize control plain using mpi
   graphlab::mpi_tools::init(argc, argv);
   graphlab::dc_init_param rpc_parameters;
@@ -173,7 +249,7 @@ int main(int argc, char** argv) {
   test_in_neighbors(dc, clopts, graph);
   test_out_neighbors(dc, clopts, graph);
   test_all_neighbors(dc, clopts, graph);
-
+  test_aggregator(dc, clopts, graph);
   graphlab::mpi_tools::finalize();
 } // end of main
 
