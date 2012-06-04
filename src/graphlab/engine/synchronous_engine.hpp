@@ -60,33 +60,32 @@ namespace graphlab {
   
   
   /**
-     \brief The synchronous engine executes all active vertex program
-     synchronously on each super-step (iteration).
-      
-     Each super-step is divided into the following minor-steps:
-     \li Receive all incoming messages (signals) by invoking the \ref
-     graphlab::ivertex_program::recv_meessage function on all
-     vertex-programs that have incoming messages.  If a vertex-program
-     does not have any incoming messages then it is not active during
-     this super-step.
-     \li Execute all gathers for active vertex programs by invoking
-     the user defined \ref graphlab::ivertex_program::gather function
-     on the edges returned by the \ref
-     graphlab::ivertex_program::gather_edges function.  The gather
-     functions can modify edge data but cannot modify the vertex
-     program or vertex data and therefore can be executed on multiple
-     edges in parallel.  The gather type is used to accumulate (sum)
-     the result of the gather function calls.
-     \li Execute all apply functions for active vertex-programs by
-     invoking the user defined \ref graphlab::ivertex_program::apply
-     function passing the sum of the gather functions.  If \ref
-     graphlab::ivertex_program::gather_edges returns no edges then the
-     default gather value is passed to apply.  The apply function can
-     modify the vertex program and vertex data.
+   * \brief The synchronous engine executes all active vertex program
+   *  synchronously on each super-step (iteration).  
 
-     \tparam VertexProgram The user defined vertex program which
-     should implement the \ref graphlab::ivertex_program interface. 
-   
+   *  Each super-step is divided into the following minor-steps:
+   *  \li Receive all incoming messages (signals) by invoking the \ref
+   *  graphlab::ivertex_program::recv_meessage function on all
+   *  vertex-programs that have incoming messages.  If a
+   *  vertex-program does not have any incoming messages then it is
+   *  not active during this super-step.  
+   *  \li Execute all gathers for active vertex programs by invoking
+   *  the user defined \ref graphlab::ivertex_program::gather function
+   *  on the edges returned by the \ref
+   *  graphlab::ivertex_program::gather_edges function.  The gather
+   *  functions can modify edge data but cannot modify the vertex
+   *  program or vertex data and therefore can be executed on multiple
+   *  edges in parallel.  The gather type is used to accumulate (sum)
+   *  the result of the gather function calls.
+   *  \li Execute all apply functions for active vertex-programs by
+   *  invoking the user defined \ref graphlab::ivertex_program::apply
+   *  function passing the sum of the gather functions.  If \ref
+   *  graphlab::ivertex_program::gather_edges returns no edges then
+   *  the default gather value is passed to apply.  The apply function
+   *  can modify the vertex program and vertex data.
+   *  
+   *  \tparam VertexProgram The user defined vertex program which
+   *  should implement the \ref graphlab::ivertex_program interface.   
    */
   template<typename VertexProgram>
   class synchronous_engine : 
@@ -282,12 +281,23 @@ namespace graphlab {
     void signal_all(const message_type& message = message_type(),
                     const std::string& order = "sequential");
 
-    
+    /** 
+     * 
+     * 
+     * 
+     * @return 
+     */
     float elapsed_seconds() const;
     size_t iteration() const; 
 
     size_t elapsed_time() const { return 0; /* implement */ }
 
+    /** 
+     * 
+     * 
+     * @param [in] vertex The vertex to which to post a change in the sum
+     * @param [in] delta The change in that sum
+     */
     void post_delta(const vertex_type& vertex,
                     const gather_type& delta);
     void clear_gather_cache(const vertex_type& vertex);
@@ -306,6 +316,11 @@ namespace graphlab {
       rmi.barrier();
     } // end of run_synchronous
 
+    /** 
+     * 
+     *
+     * @param thread_id 
+     */
     void initialize_vertex_programs(size_t thread_id);
     void exchange_messages(size_t thread_id);
     void receive_messages(size_t thread_id);
