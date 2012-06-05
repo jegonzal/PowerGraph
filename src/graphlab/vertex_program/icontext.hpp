@@ -101,12 +101,12 @@ namespace graphlab {
     /**
      * Return the current interation number (if supported).
      */
-    virtual size_t iteration() const = 0;
+    virtual int iteration() const = 0;
 
     /**
      * Force the engine to stop executing additional update functions.
      */
-    virtual void terminate() = 0;
+    virtual void stop() = 0;
 
     /**
      * Send a message to a vertex.

@@ -113,24 +113,24 @@ namespace graphlab {
     /**
      * Get the elapsed time in seconds
      */
-    float elapsed_seconds() const { return engine.elapsed_time(); }
+    float elapsed_seconds() const { return engine.elapsed_seconds(); }
 
     /**
      * Return the current interation number (if supported).
      */
-    size_t iteration() const { return engine.iteration(); }
+    int iteration() const { return engine.iteration(); }
 
     /**
      * Force the engine to stop executing additional update functions.
      */
-    void terminate() { engine.stop(); }
+    void stop() { engine.internal_stop(); }
 
     /**
      * Send a message to a vertex.
      */
     void signal(const vertex_type& vertex, 
                 const message_type& message = message_type()) {
-      engine.signal_internal(vertex, message);
+      engine.internal_signal(vertex, message);
     }
 
     /**
@@ -142,7 +142,7 @@ namespace graphlab {
      */
     void signal_vid(vertex_id_type vid, 
                     const message_type& message = message_type()) {
-      engine.signal_broadcast(vid, message);
+      engine.internal_signal_broadcast(vid, message);
     }
 
 
@@ -151,14 +151,14 @@ namespace graphlab {
      */
     void post_delta(const vertex_type& vertex, 
                     const gather_type& delta) {
-      engine.post_delta(vertex, delta);
+      engine.internal_post_delta(vertex, delta);
     }
 
     /**
      * Invalidate the cached gather on the vertex.
      */
     virtual void clear_gather_cache(const vertex_type& vertex) { 
-      engine.clear_gather_cache(vertex);      
+      engine.internal_clear_gather_cache(vertex);      
     }
 
 

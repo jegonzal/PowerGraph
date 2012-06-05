@@ -92,24 +92,11 @@ namespace graphlab {
     
     /**
      * \brief Start the engine execution.
-     *
+     * 
+     * @return the reason for termination
      */
-    virtual void start(bool perform_init_vtx_program = true) = 0;
-
-
-    /**
-     * \brief Force engine to terminate immediately.
-     *
-     */
-    virtual void stop() = 0;
-
-    
-    /**
-     * \brief Describe the reason for termination.
-     *
-     * Return the reason for the last termination.
-     */
-    virtual execution_status::status_enum last_exec_status() const = 0;
+    virtual execution_status::status_enum 
+    start(bool perform_init_vtx_program = true) = 0;
    
     /**
      * \brief Get the number of updates executed by the engine.
@@ -120,66 +107,106 @@ namespace graphlab {
      * \return the total number of updates
      */
     virtual size_t num_updates() const = 0;
-           
+
     /**
-     * \brief Signals a vertex with an optional message
+     * \brief Get the elapsed time in seconds since start was last
+     * called.
+     */
+    virtual float elapsed_seconds() const = 0;
+
+    /**
+     * \brief get the current iteration number.  This is not defined
+     * for all engines in which case -1 is returned.
+     */
+    virtual int iteration() const = 0;
+
+     
+    /**
+     * \brief Signals single a vertex with an optional message.
      * 
-     * Signals a vertex and schedules it to be executed in the future
-     * Must be called on all machines simultaneously.
+     * This function sends a message to particular vertex which will
+     * receive that message on start. The signal function must be
+     * invoked on all machines simultaneously.  For example:
+     *
+     * \code
+     * graphlab::synchronous_engine<vprog> engine(dc, graph, opts);
+     * engine.signal(0); // signal vertex zero
+     * \endcode
+     *
+     * and _not_:
+     *
+     * \code
+     * graphlab::synchronous_engine<vprog> engine(dc, graph, opts);
+     * if(dc.procid() == 0) engine.signal(0); // signal vertex zero
+     * \endcode
+     *
+     * Since signal is executed synchronously on all machines it
+     * should only be used to schedule a small set of vertices. The
+     * preferred method to signal a large set of vertices (e.g., all
+     * vertices that are a certain type) is to use either the vertex
+     * program init function or the aggregation framework.  For
+     * example to signal all vertices that have a particular value one
+     * could write:
+     *
+     * \code
+     * struct bipartite_opt : 
+     *   public graphlab::ivertex_program<graph_type, gather_type> {
+     *   // The user defined init function
+     *   void init(icontext_type& context, vertex_type& vertex) {
+     *     // Signal myself if I am a certain type
+     *     if(vertex.data().on_left) context.signal(vertex);
+     *   }
+     *   // other vastly more interesting code
+     * };
+     * \endcode
+     *
+     * @param [in] vid the vertex id to signal
+     * @param [in] message the message to send to that vertex.  The
+     * default message is sent if no message is provided.
      */
     virtual void signal(vertex_id_type vertex,
                         const message_type& message = message_type()) = 0;
-
+    
     /**
-     * \brief Signals a vertex with an optional message
+     * \brief Signal all vertices with a particular message.
      * 
-     * Signals a vertex, and schedules it to be executed in the future.
-     * must be called on a vertex accessible by the current machine.
-     */
-    virtual void signal_internal(const vertex_type& vertex,
-                                 const message_type& message = message_type()) = 0;
-
-
-                                 
-    /**
-     * \brief Signals a global vid with an optional message. Ignored if current
-     *        machine does not own it
-     * 
-     * Signals a global vid, and schedules it to be executed in the future.
-     * If current machine does not contain the vertex, it is ignored.
-     */
-    virtual void signal_internal_gvid(vertex_id_type gvid,
-                                 const message_type& message = message_type()) = 0;
-
-
-    /**
-     * \brief Signals a global vid with an optional message. 
-     * Signals a global vid, and schedules it to be executed in the future.
-     * Broadcast to all machines to guarantee gvid is signaled.
-     */
-    virtual void signal_broadcast(vertex_id_type gvid,
-                                  const message_type& message = message_type()) = 0;
-
-                                 
-    /**
-     * \brief Send a message to all vertices
+     * This function sends the same message to all vertices which will
+     * receive that message on start. The signal_all function must be
+     * invoked on all machines simultaneously.  For example:
+     *
+     * \code
+     * graphlab::synchronous_engine<vprog> engine(dc, graph, opts);
+     * engine.signal_all(); // signal all vertices
+     * \endcode
+     *
+     * and _not_:
+     *
+     * \code
+     * graphlab::synchronous_engine<vprog> engine(dc, graph, opts);
+     * if(dc.procid() == 0) engine.signal_all(); // signal vertex zero
+     * \endcode
+     *
+     * The signal_all function is the most common way to send messages
+     * to the engine.  For example in the pagerank application we want
+     * all vertices to be active on the first round.  Therefore we
+     * would write:
+     *
+     * \code
+     * graphlab::synchronous_engine<pagerank> engine(dc, graph, opts);
+     * engine.signal_all();
+     * engine.start();
+     * \endcode
+     *
+     * @param [in] message the message to send to all vertices.  The
+     * default message is sent if no message is provided.
      */
     virtual void signal_all(const message_type& message,
                             const std::string& order = "sequential") = 0;
-    /**
-     * Get the elapsed time since start was called in milliseconds
-     */
-    virtual size_t elapsed_time() const = 0;
-
-
-    /** \brief get the current engine options. */
-    //    virtual const graphlab_options& get_options() = 0;
-
+   
 
 
     
-    
-  };
+  }; // end of iengine interface
 
 }
 

@@ -291,6 +291,7 @@ namespace graphlab {
      * \internal
      */
     typedef context<synchronous_engine> context_type;
+    friend class context<synchronous_engine>;
 
     /**
      * \brief The object used to communicate with remote copies of the
@@ -332,6 +333,11 @@ namespace graphlab {
      * \brief The time in seconds at which the engine started.
      */
     float start_time;
+    
+    /**
+     * \brief Used to stop the engine prematurely
+     */
+    bool force_abort;
 
     /**
      * \brief The vertex locks protect access to vertex specific
@@ -419,11 +425,6 @@ namespace graphlab {
      * \brief A counter measuring the number of applys that have been completed
      */
     atomic<size_t> completed_applys;
-
-    /**
-     * The reason for termination.
-     */
-    execution_status::status_enum termination_reason; 
 
     /**
      * \brief The pair type used to synchronize vertex programs across machines.
@@ -519,60 +520,170 @@ namespace graphlab {
     synchronous_engine(distributed_control& dc, graph_type& graph,
                        const graphlab_options& opts);
 
-    /**
-     * \brief Compute the total memory used by the entire distributed system.
-     * 
-     * @return The total memory used in bytes.
-     */
-    size_t total_memory_usage() const;
 
     /**
      * \brief Start execution of the synchronous engine.
      * 
      * The start function begins computation and does not return until
      * there are no remaining messages or until max_iterations has
-     * been achieved.
+     * been reached. If perform_init is set to true then the init
+     * function is called once on all vertex programs at start.
+     * 
+     * The starte function modifies the data graph through the vertex
+     * programs and so upon return the data graph should contain the
+     * result of the computation.
      *
-     * \TODO: FINISH DOCUMENTING
+     * @param [in] perform_init If true then run init on all vertex
+     * programs before receiving any messages.  By default
+     * perform_init is set to true.
+     *
+     * @return The reason for termination
      */
-    void start(bool perform_init_vtx_program = true);
-    void stop() { /* implement */ }
-    execution_status::status_enum last_exec_status() const;
+    execution_status::status_enum start(bool perform_init = true);
+
+    /**
+     * \brief Compute the total number of updates (calls to apply)
+     * executed since start was last invoked.
+     *
+     * @return Total number of updates
+     */
     size_t num_updates() const;
-    void signal_internal(const vertex_type& vertex,
-                const message_type& message = message_type());    
-    void signal_internal_gvid(vertex_id_type gvid,
-                            const message_type& message = message_type());
-    void signal_broadcast(vertex_id_type gvid,
-                          const message_type& message = message_type());
-    void signal(vertex_id_type gvid,
+
+    /**
+     * \brief Signals single a vertex with an optional message.
+     * 
+     * This function sends a message to particular vertex which will
+     * receive that message on start. The signal function must be
+     * invoked on all machines simultaneously.  For example:
+     *
+     * \code
+     * graphlab::synchronous_engine<vprog> engine(dc, graph, opts);
+     * engine.signal(0); // signal vertex zero
+     * \endcode
+     *
+     * and _not_:
+     *
+     * \code
+     * graphlab::synchronous_engine<vprog> engine(dc, graph, opts);
+     * if(dc.procid() == 0) engine.signal(0); // signal vertex zero
+     * \endcode
+     *
+     * Since signal is executed synchronously on all machines it
+     * should only be used to schedule a small set of vertices. The
+     * preferred method to signal a large set of vertices (e.g., all
+     * vertices that are a certain type) is to use either the vertex
+     * program init function or the aggregation framework.  For
+     * example to signal all vertices that have a particular value one
+     * could write:
+     *
+     * \code
+     * struct bipartite_opt : 
+     *   public graphlab::ivertex_program<graph_type, gather_type> {
+     *   // The user defined init function
+     *   void init(icontext_type& context, vertex_type& vertex) {
+     *     // Signal myself if I am a certain type
+     *     if(vertex.data().on_left) context.signal(vertex);
+     *   }
+     *   // other vastly more interesting code
+     * };
+     * \endcode
+     *
+     * @param [in] vid the vertex id to signal
+     * @param [in] message the message to send to that vertex.  The
+     * default message is sent if no message is provided.
+     */
+    void signal(vertex_id_type vid,
                 const message_type& message = message_type());
     
+
+    /**
+     * \brief Signal all vertices with a particular message.
+     * 
+     * This function sends the same message to all vertices which will
+     * receive that message on start. The signal_all function must be
+     * invoked on all machines simultaneously.  For example:
+     *
+     * \code
+     * graphlab::synchronous_engine<vprog> engine(dc, graph, opts);
+     * engine.signal_all(); // signal all vertices
+     * \endcode
+     *
+     * and _not_:
+     *
+     * \code
+     * graphlab::synchronous_engine<vprog> engine(dc, graph, opts);
+     * if(dc.procid() == 0) engine.signal_all(); // signal vertex zero
+     * \endcode
+     *
+     * The signal_all function is the most common way to send messages
+     * to the engine.  For example in the pagerank application we want
+     * all vertices to be active on the first round.  Therefore we
+     * would write:
+     *
+     * \code
+     * graphlab::synchronous_engine<pagerank> engine(dc, graph, opts);
+     * engine.signal_all();
+     * engine.start();
+     * \endcode
+     *
+     * @param [in] message the message to send to all vertices.  The
+     * default message is sent if no message is provided.
+     */
     void signal_all(const message_type& message = message_type(),
                     const std::string& order = "sequential");
 
     /** 
+     * \brief Get the elapsed time in seconds since start was last
+     * invoked.
+     *  
      * 
-     * 
-     * 
-     * @return 
+     * @return elapsed time in seconds
      */
     float elapsed_seconds() const;
-    size_t iteration() const; 
+    
+    /**
+     * \brief Get the current iteration number since start was last
+     * invoked.
+     *
+     *  @return the current iteration
+     */
+    int iteration() const; 
 
-    size_t elapsed_time() const { return 0; /* implement */ }
+
+    /**
+     * \brief Compute the total memory used by the entire distributed
+     * system.
+     * 
+     * @return The total memory used in bytes.
+     */
+    size_t total_memory_usage() const;
+
+
+  private:
+
+    void internal_stop();    
+    void rpc_stop();
+
+    void internal_signal(const vertex_type& vertex,
+                         const message_type& message = message_type());    
+    void internal_signal_gvid(vertex_id_type gvid,
+                              const message_type& message = message_type());
+    void internal_signal_broadcast(vertex_id_type gvid,
+                                   const message_type& message = message_type());
+
 
     /** 
-     * 
+     * Post a delta
      * 
      * @param [in] vertex The vertex to which to post a change in the sum
      * @param [in] delta The change in that sum
      */
-    void post_delta(const vertex_type& vertex,
-                    const gather_type& delta);
-    void clear_gather_cache(const vertex_type& vertex);
+    void internal_post_delta(const vertex_type& vertex,
+                             const gather_type& delta);
 
-  private:
+    void internal_clear_gather_cache(const vertex_type& vertex);
+
+
     // Program Steps ==========================================================
     template<typename MemberFunction>       
     void run_synchronous(MemberFunction member_fun) {
@@ -671,8 +782,41 @@ namespace graphlab {
 
 
   template<typename VertexProgram>
+  void synchronous_engine<VertexProgram>::internal_stop() {
+    for (size_t i = 0; i < rmi.numprocs(); ++i) 
+      rmi.remote_call(i, &synchronous_engine<VertexProgram>::rpc_stop);
+  } // end of internal_stop
+
+  template<typename VertexProgram>
+  void synchronous_engine<VertexProgram>::rpc_stop() {
+    force_abort = true;
+  } // end of rpc_stop
+
+
+  template<typename VertexProgram>
   void synchronous_engine<VertexProgram>::
-  signal_internal(const vertex_type& vertex,
+  signal(vertex_id_type gvid, const message_type& message) {
+    rmi.barrier();
+    internal_signal_gvid(gvid, message);
+    rmi.barrier();
+  } // end of signal
+
+
+
+  template<typename VertexProgram>
+  void synchronous_engine<VertexProgram>::
+  signal_all(const message_type& message, const std::string& order) {
+    for(lvid_type lvid = 0; lvid < graph.num_local_vertices(); ++lvid) {
+      if(graph.l_is_master(lvid)) 
+        internal_signal(vertex_type(graph.l_vertex(lvid)), message);
+    }
+  } // end of signal all
+  
+
+
+  template<typename VertexProgram>
+  void synchronous_engine<VertexProgram>::
+  internal_signal(const vertex_type& vertex,
                   const message_type& message) {
     const lvid_type lvid = vertex.local_id();
     vlocks[lvid].lock();
@@ -683,55 +827,33 @@ namespace graphlab {
       has_message.set_bit(lvid);
     }
     vlocks[lvid].unlock();       
-  } // end of signal_internal
+  } // end of internal_signal
 
 
   template<typename VertexProgram>
   void synchronous_engine<VertexProgram>::
-  signal_internal_gvid(vertex_id_type gvid,
-                      const message_type& message) {
+  internal_signal_gvid(vertex_id_type gvid,
+                       const message_type& message) {
     if (graph.is_master(gvid)) {
-      signal_internal(graph.vertex(gvid), message);
+      internal_signal(graph.vertex(gvid), message);
     }
-  } // end of signal_internal_gvid
+  } // end of internal_signal_gvid
 
   template<typename VertexProgram>
   void synchronous_engine<VertexProgram>::
-  signal_broadcast(vertex_id_type gvid,
-                   const message_type& message) {
+  internal_signal_broadcast(vertex_id_type gvid, const message_type& message) {
     for (size_t i = 0;i < rmi.numprocs(); ++i) {
-      rmi.remote_call(i, &synchronous_engine<VertexProgram>::signal_internal_gvid,
+      rmi.remote_call(i, &synchronous_engine<VertexProgram>::internal_signal_gvid,
                       gvid, message);
     }
-  } // end of signal_broadcast
+  } // end of internal_signal_broadcast
 
 
-
-  template<typename VertexProgram>
-  void synchronous_engine<VertexProgram>::
-  signal(vertex_id_type gvid,
-         const message_type& message) {
-    rmi.barrier();
-    signal_internal_gvid(gvid, message);
-    rmi.barrier();
-  } // end of signal_internal
-
-
-
-  template<typename VertexProgram>
-  void synchronous_engine<VertexProgram>::
-  signal_all(const message_type& message, const std::string& order) {
-    for(lvid_type lvid = 0; lvid < graph.num_local_vertices(); ++lvid) {
-      if(graph.l_is_master(lvid)) 
-        signal_internal(vertex_type(graph.l_vertex(lvid)), message);
-    }
-  } // end of send message
-  
   
 
   template<typename VertexProgram>
   void synchronous_engine<VertexProgram>::
-  post_delta(const vertex_type& vertex, const gather_type& delta) {
+  internal_post_delta(const vertex_type& vertex, const gather_type& delta) {
     const bool caching_enabled = !gather_cache.empty();
     if(caching_enabled) {
       const lvid_type lvid = vertex.local_id();      
@@ -749,7 +871,7 @@ namespace graphlab {
 
   template<typename VertexProgram>
   void synchronous_engine<VertexProgram>::
-  clear_gather_cache(const vertex_type& vertex) {
+  internal_clear_gather_cache(const vertex_type& vertex) {
     const bool caching_enabled = !gather_cache.empty();
     const lvid_type lvid = vertex.local_id();
     if(caching_enabled && has_cache.get(lvid)) {
@@ -763,14 +885,6 @@ namespace graphlab {
 
 
 
-
-
-  template<typename VertexProgram>
-  execution_status::status_enum synchronous_engine<VertexProgram>::
-  last_exec_status() const { return termination_reason;  }
-
-
-
   template<typename VertexProgram>
   size_t synchronous_engine<VertexProgram>::
   num_updates() const { return completed_applys.value; }
@@ -780,7 +894,7 @@ namespace graphlab {
   elapsed_seconds() const { return timer::approx_time_seconds() - start_time; }
 
   template<typename VertexProgram>
-  size_t synchronous_engine<VertexProgram>::
+  int synchronous_engine<VertexProgram>::
   iteration() const { return iteration_counter; }
 
 
@@ -793,8 +907,8 @@ namespace graphlab {
   } // compute the total memory usage of the GraphLab system
 
 
-  template<typename VertexProgram>
-  void synchronous_engine<VertexProgram>::start(bool perform_init_vtx_program) {
+  template<typename VertexProgram> execution_status::status_enum
+  synchronous_engine<VertexProgram>::start(bool perform_init_vtx_program) {
     rmi.barrier();
     graph.finalize();
     // Initialization code ==================================================     
@@ -804,16 +918,18 @@ namespace graphlab {
     graphlab::timer timer; timer.start();
     start_time = timer::approx_time_seconds();
     iteration_counter = 0;
-
+    force_abort = false;
+    execution_status::status_enum termination_reason; 
     if (perform_init_vtx_program) {
       // Initialize all vertex programs
       run_synchronous( &synchronous_engine::initialize_vertex_programs );
     }
+    rmi.barrier();
     // Program Main loop ====================================================      
-    for (iteration_counter = 0; iteration_counter < max_iterations; 
-         ++iteration_counter) {
-      if (rmi.procid() == 0) 
-        std::cout << "Starting iteration: " << iteration_counter << std::endl;
+    while(iteration_counter < max_iterations && !force_abort) {
+      logstream(LOG_INFO) 
+        << rmi.procid() << ": Starting iteration: " << iteration_counter 
+        << std::endl;
       // Reset Active vertices ----------------------------------------------
 
       // Clear the active super-step and minor-step bits which will
@@ -898,9 +1014,12 @@ namespace graphlab {
        * Post conditions:
        *   1) NONE
        */
+      ++iteration_counter;
     }
     // Final barrier to ensure that all engines terminate at the same time
     rmi.full_barrier();
+    // return the final reason for termination
+    return termination_reason;
   } // end of start
 
 

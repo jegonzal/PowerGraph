@@ -76,6 +76,8 @@ namespace graphlab {
     typedef ischeduler<message_type> ischeduler_type;
 
     typedef context<async_consistent_engine> context_type;
+    friend class context<async_consistent_engine>;
+
     typedef typename context<async_consistent_engine>::icontext_type icontext_type;
 
     typedef async_consistent_engine<VertexProgram> engine_type;
@@ -405,27 +407,9 @@ namespace graphlab {
       delete scheduler_ptr;
     }
 
-    /**
-     * \brief Force engine to terminate immediately.
-     *
-     * This function is used to stop the engine execution by forcing
-     * immediate termination. 
-     */
-    void stop() { 
-      timeout = true; 
-      termination_reason = execution_status::FORCED_ABORT;
-    }
 
     
-    /**
-     * \brief Describe the reason for termination.
-     *
-     * Return the reason for the last termination.
-     */
-    execution_status::status_enum last_exec_status() const { 
-      return termination_reason; 
-    }
-   
+    
     /**
      * \brief Get the number of updates executed by the engine.
      *
@@ -441,25 +425,19 @@ namespace graphlab {
 
 
 
-    void post_delta(const vertex_type& vertex,
-                    const gather_type& delta) {
-      /* To Implement */
-    }
-
-    void clear_gather_cache(const vertex_type& vertex) {
-      /* To Implement */
-    }
 
     /**
-     * \brief returns the number of milliseconds since engine start up.
+     * \brief returns the time in seconds since the engine started.
      */
-    size_t elapsed_time() const { return 1000 * (timer::approx_time_seconds() - engine_start_time); }
+    float elapsed_seconds() const { 
+      return timer::approx_time_seconds() - engine_start_time; 
+    }
 
 
     /**
      * \brief Not meaningful for the asynchronous engine. Returns 0.
      */
-    size_t iteration() const { return 0; }
+    int iteration() const { return -1; }
 
 
 /**************************************************************************
@@ -467,6 +445,18 @@ namespace graphlab {
  **************************************************************************/
 
   private:
+
+    void internal_post_delta(const vertex_type& vertex,
+                             const gather_type& delta) {
+      /* To Implement */
+    }
+
+    void internal_clear_gather_cache(const vertex_type& vertex) {
+      /* To Implement */
+    }
+
+
+
     /**
      * \internal
      * This is used to receive a message forwarded from another machine
@@ -505,7 +495,6 @@ namespace graphlab {
      * This will inject a "placed" task back to be scheduled.
      */
     void signal_local_next(vertex_id_type local_vid) {
-
      /* This happens when a currently running vertex is activated.
      We cannot return the vertex back into the scheduler since that would
      cause the scheduler to loop indefinitely around a task which
@@ -520,8 +509,6 @@ namespace graphlab {
       consensus->cancel();
     }
 
-    
-  public:
     /**
      * \internal
      * \brief Signals a vertex with an optional message
@@ -529,8 +516,8 @@ namespace graphlab {
      * Signals a vertex, and schedules it to be executed in the future.
      * must be called on a vertex accessible by the current machine.
      */
-    void signal_internal(const vertex_type& vtx,
-                const message_type& message = message_type()) {
+    void internal_signal(const vertex_type& vtx,
+                         const message_type& message = message_type()) {
       if (timeout) return;
       if (started) {
         BEGIN_TRACEPOINT(disteng_scheduler_task_queue);
@@ -553,22 +540,36 @@ namespace graphlab {
      * Signals a global vid, and schedules it to be executed in the future.
      * If current machine does not contain the vertex, it is ignored.
      */
-    void signal_internal_gvid(vertex_id_type gvid,
-                const message_type& message = message_type()) {
+    void internal_signal_gvid(vertex_id_type gvid,
+                              const message_type& message = message_type()) {
       if (timeout) return;
       if (graph.is_master(gvid)) {
-        signal_internal(graph.vertex(gvid), message);
+        internal_signal(graph.vertex(gvid), message);
       }
     } // end of schedule
 
 
-    void signal_broadcast(vertex_id_type gvid,
-                          const message_type& message = message_type()) {
+    void internal_signal_broadcast(vertex_id_type gvid,
+                                   const message_type& message = message_type()) {
       for (size_t i = 0;i < rmi.numprocs(); ++i) {
-        rmi.remote_call(i, &async_consistent_engine::signal_internal_gvid,
+        rmi.remote_call(i, &async_consistent_engine::internal_signal_gvid,
                         gvid, message);
       }
     } // end of signal_broadcast
+
+    /**
+     * \brief Force engine to terminate immediately.
+     *
+     * This function is used to stop the engine execution by forcing
+     * immediate termination. 
+     */
+    void internal_stop() { 
+      timeout = true; 
+      termination_reason = execution_status::FORCED_ABORT;
+    }
+
+    
+  public:
 
 
 
@@ -581,7 +582,7 @@ namespace graphlab {
     void signal(vertex_id_type gvid,
                 const message_type& message = message_type()) {
       rmi.barrier();
-      signal_internal_gvid(gvid, message);
+      internal_signal_gvid(gvid, message);
       rmi.barrier();
     }
 
@@ -1401,6 +1402,7 @@ namespace graphlab {
  **************************************************************************/
 
   public:
+   
     /**
       * \brief Start the engine execution.
       *
@@ -1409,8 +1411,9 @@ namespace graphlab {
       * 
       * \param perform_init_vertex_program If true, runs init on each
       * vertex program. Defaults to true.
+      * @return the reason for termination
       */
-    void start(bool perform_init_vertex_program = true) {
+    execution_status::status_enum start(bool perform_init_vertex_program = true) {
       logstream(LOG_INFO) << "Spawning " << ncpus << " threads" << std::endl;
       ASSERT_TRUE(scheduler_ptr != NULL);
       // start the scheduler
@@ -1509,7 +1512,8 @@ namespace graphlab {
             getchar();
           }
         }*/
-      }
+      return termination_reason; 
+    } // end of start
 
 /************************************************************
  *                  Aggregators                             *
