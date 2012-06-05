@@ -85,6 +85,23 @@ namespace graphlab {
 #endif
     } // end of print_usage
 
+    void log_usage(const std::string& label) {
+#ifdef HAS_TCMALLOC
+        const double BYTES_TO_MB = double(1) / double(1024 * 1024);
+        logstream(LOG_INFO)
+          << "Memory Info: " << label << std::endl
+          << "\t Heap: " << (heap_bytes() * BYTES_TO_MB) << " MB"
+          << std::endl
+          << "\t Allocated: " << (allocated_bytes() * BYTES_TO_MB) << " MB" 
+          << std::endl;
+#else
+        logstream(LOG_WARNING) 
+          << "Unable to print memory info for: " << label << ". "
+          << "No memory extensions api available." << std::endl;
+#endif
+    } // end of log usage
+
+
   }; // end of namespace memory info
 
 }; // end of graphlab namespace

@@ -414,7 +414,7 @@ namespace graphlab {
             logstream(LOG_WARNING) 
               << "connect " << curid << " to " << target << ": "
               << strerror(errno) << ". Retrying...\n";
-            my_sleep(1);
+            timer::sleep(1);
             // posix says that 
             /* If connect() fails, the state of the socket is unspecified. 
                Conforming applications should close the file descriptor and 

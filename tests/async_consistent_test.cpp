@@ -180,7 +180,7 @@ public:
   }
   void apply(icontext_type& context, vertex_type& vertex,
              const gather_type& total) {
-    graphlab::my_sleep_ms(100);
+    graphlab::timer::sleep_ms(100);
     ASSERT_EQ( total, int(vertex.num_in_edges() + vertex.num_out_edges() ) );
   }
   edge_dir_type

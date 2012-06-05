@@ -75,12 +75,19 @@ namespace graphlab {
   /**
    * Precision of deciseconds 
    */
-  float lowres_time_seconds() {
+  float timer::approx_time_seconds() {
     return float(hmstimer.ctr) / 10;
   }
 
+  /**
+   * Precision of deciseconds 
+   */
+  size_t timer::approx_time_millis() {
+    return hmstimer.ctr * 100;
+  }
 
-  void my_sleep(size_t sleeplen) {
+
+  void timer::sleep(size_t sleeplen) {
     struct timespec timeout;
     timeout.tv_sec = sleeplen;
     timeout.tv_nsec = 0;
@@ -91,19 +98,13 @@ namespace graphlab {
   /**
   Sleeps for sleeplen milliseconds.
   */
-  void my_sleep_ms(size_t sleeplen) {
+  void timer::sleep_ms(size_t sleeplen) {
     struct timespec timeout;
     timeout.tv_sec = sleeplen / 1000;
     timeout.tv_nsec = (sleeplen % 1000) * 1000000;
     while (nanosleep(&timeout, &timeout) == -1);
   }
   
-  /**
-   * Precision of deciseconds 
-   */
-  size_t lowres_time_millis() {
-    return hmstimer.ctr * 100;
-  }
 
   
   
@@ -115,7 +116,7 @@ unsigned long long estimate_ticks_per_second() {
     rtdsc_ticks_per_sec_mutex.lock();
       if (rtdsc_ticks_per_sec == 0) {
       unsigned long long tstart = rdtsc();
-      graphlab::my_sleep(1);
+      graphlab::timer::sleep(1);
       unsigned long long tend = rdtsc();
       rtdsc_ticks_per_sec = tend - tstart;
       }

@@ -473,7 +473,7 @@ namespace graphlab {
     void start(size_t ncpus = 0) {
       rmi.barrier();
       schedule.clear();
-      start_time = lowres_time_seconds();
+      start_time = timer::approx_time_seconds();
       typename std::map<std::string, float>::iterator iter =
                                                     aggregate_period.begin();
       while (iter != aggregate_period.end()) {
@@ -523,7 +523,7 @@ namespace graphlab {
       if (!schedule_lock.try_lock()) return "";
       
       // see if there is a key to run
-      float curtime = lowres_time_seconds();
+      float curtime = timer::approx_time_seconds();
       std::string key;
       bool has_entry = false;
       if (!schedule.empty() && -schedule.top().second < curtime) {
@@ -643,7 +643,7 @@ namespace graphlab {
         // tick_asynchronous_compute
         iter->second.root_reducer->clear_accumulator();
         iter->second.distributed_count_down = rmi.numprocs();
-        float next_time = lowres_time_seconds() + aggregate_period[key];
+        float next_time = timer::approx_time_seconds() + aggregate_period[key];
         logstream(LOG_INFO) << rmi.procid() << "Reschedule of " << key
                           << " at " << next_time << std::endl;
         rpc_schedule_key(key, next_time);
@@ -673,15 +673,15 @@ namespace graphlab {
      */ 
     void tick_synchronous() {
       // if timer has exceeded our top key
-      float curtime = lowres_time_seconds();
-      // note that we do not call lowres_time_seconds everytime
+      float curtime = timer::approx_time_seconds();
+      // note that we do not call approx_time_seconds everytime
       // this ensures that each key will only be run at most once.
       // each time tick_synchronous is called.
       while(!schedule.empty() && -schedule.top().second < curtime) {
         std::string key = schedule.top().first;
         aggregate_now(key);
         schedule.pop();
-        schedule.push(key, -(lowres_time_seconds() + aggregate_period[key]));
+        schedule.push(key, -(timer::approx_time_seconds() + aggregate_period[key]));
       }
     }
 

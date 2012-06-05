@@ -31,23 +31,62 @@
 
 namespace graphlab {
   /**
-   * \ingroup util  
-   * A simple class that can be used for
-   * benchmarking/timing up to microsecond resolution.
+   * \ingroup util 
+   *
+   * \brief A simple class that can be used for benchmarking/timing up
+   * to microsecond resolution.
+   *
+   * Standard Usage
+   * =================
+   *
+   * The timer is used by calling \ref graphlab::timer::start and then
+   * by getting the current time since start by calling 
+   * \ref graphlab::timer::current_time.
+   * 
+   * For example:
+   * 
+   * \code
+   * #include <graphlab.hpp>
+   *
+   *
+   * graphlab::timer timer;
+   * timer.start();
+   * // do something
+   * std::cout << "Elapsed time: " << timer.current_time() << std::endl; 
+   * \endcode
+   *
+   * Fast approximate time
+   * ====================
+   *
+   * Calling current item in a tight loop can be costly and so we
+   * provide a faster less accurate timing primitive which reads a
+   * local time variable that is updated roughly every 100 millisecond.
+   * These are the \ref graphlab::timer::approx_time_seconds and
+   * \ref graphlab::timer::approx_time_millis.
    */
   class timer {
   private:
+    /**
+     * \brief The internal start time for this timer object
+     */
     timeval start_time_;   
   public:
-    timer() { }
+    /**
+     * \brief The timer starts on construction but can be restarted by
+     * calling \ref graphlab::timer::start.
+     */
+    timer() { start(); }
     
-    //! Starts the timer. 
+    /**
+     * \brief Reset the timer.
+     */
     void start() { gettimeofday(&start_time_, NULL); }
     
     /** 
-     * Returns the number of seconds since start() was called Behavior
-     *  is undefined if start() was not called before calling
-     *  current_time()
+     * \brief Returns the elapsed time in seconds since 
+     * \ref graphlab::timer::start was last called.
+     *
+     * @return time in seconds since \ref graphlab::timer::start was called.
      */
     double current_time() const {
       timeval current_time;
@@ -58,17 +97,18 @@ namespace graphlab {
         (double)(current_time.tv_sec - start_time_.tv_sec) + 
         ((double)(current_time.tv_usec - start_time_.tv_usec))/1.0E6;
        return answer;
-    }
+    } // end of current_time
+
+    /** 
+     * \brief Returns the elapsed time in milliseconds since 
+     * \ref graphlab::timer::start was last called.
+     *
+     * @return time in milliseconds since \ref graphlab::timer::start was called.
+     */
+    double current_time_millis() const { return current_time() * 1000; }
 
     /**
-     Like current_time but returns in milliseconds
-    */
-    double current_time_millis() const {
-      return current_time() * 1000;      
-    }
-
-    /**
-     * Get the number of seconds (as a floating point value)
+     * \brief Get the number of seconds (as a floating point value)
      * since the Unix Epoch.
      */
     static double sec_of_day() {
@@ -76,13 +116,11 @@ namespace graphlab {
       gettimeofday(&current_time, NULL);
       double answer = 
         (double)current_time.tv_sec + ((double)current_time.tv_usec)/1.0E6;
-//      std::cout << current_time.tv_sec << std::endl;
-//      std::cout << current_time.tv_usec << std::endl;
       return answer;
-    }
+    } // end of sec_of_day
 
     /**
-     * Returns only the micro-second component of the 
+     * \brief Returns only the micro-second component of the 
      * time since the Unix Epoch.
      */
     static size_t usec_of_day() {
@@ -91,32 +129,35 @@ namespace graphlab {
       size_t answer = 
         (size_t)current_time.tv_sec * 1000000 + (size_t)current_time.tv_usec;
       return answer;
-    }
+    } // end of usec_of_day
 
+    /**
+     * \brief Returns the time since program start.
+     * 
+     * This value is only updated once every 100ms and is therefore
+     * approximate (but fast).
+     */
+    static float approx_time_seconds();
+    
+    /**
+     * \brief Returns the time since program start.
+     * 
+     * This value is only updated once every 100ms and is therefore
+     * approximate (but fast).
+     */
+    static size_t approx_time_millis();
 
+    /**
+     * Sleeps for sleeplen seconds
+     */
+    static void sleep(size_t sleeplen);
+
+    /**
+     * Sleeps for sleeplen milliseconds.
+     */
+    static void sleep_ms(size_t sleeplen);
   }; // end of Timer
   
-  /**
-   Returns the time since program start.
-   This value is only updated once every 100ms.
-  */
-  float lowres_time_seconds();
-  
-  /**
-   Returns the number of milliseconds time since program start.
-   This value is only updated once every 100ms.
-  */
-  size_t lowres_time_millis();
-  
-  /**
-  Sleeps for sleeplen seconds
-  */
-  void my_sleep(size_t sleeplen);
-
-  /**
-  Sleeps for sleeplen milliseconds.
-  */
-  void my_sleep_ms(size_t sleeplen);
 
   unsigned long long estimate_ticks_per_second();
 
@@ -132,7 +173,7 @@ namespace graphlab {
   {
     unsigned hi, lo;
     __asm__ __volatile__ ("rdtsc" : "=a"(lo), "=d"(hi));
-    return ( (unsigned long long)lo)|( ((unsigned long long)hi)<<32 );
+    return ( (unsigned long long)lo) | ( ((unsigned long long)hi)<<32 );
   }
   #else
   static inline unsigned long long rdtsc(void) {

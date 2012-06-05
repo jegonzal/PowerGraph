@@ -60,32 +60,116 @@ namespace graphlab {
   
   
   /**
+   * \ingroup engines
+   * 
    * \brief The synchronous engine executes all active vertex program
-   *  synchronously on each super-step (iteration).  
-
-   *  Each super-step is divided into the following minor-steps:
-   *  \li Receive all incoming messages (signals) by invoking the \ref
-   *  graphlab::ivertex_program::recv_meessage function on all
-   *  vertex-programs that have incoming messages.  If a
-   *  vertex-program does not have any incoming messages then it is
-   *  not active during this super-step.  
-   *  \li Execute all gathers for active vertex programs by invoking
-   *  the user defined \ref graphlab::ivertex_program::gather function
-   *  on the edges returned by the \ref
-   *  graphlab::ivertex_program::gather_edges function.  The gather
-   *  functions can modify edge data but cannot modify the vertex
-   *  program or vertex data and therefore can be executed on multiple
-   *  edges in parallel.  The gather type is used to accumulate (sum)
-   *  the result of the gather function calls.
-   *  \li Execute all apply functions for active vertex-programs by
-   *  invoking the user defined \ref graphlab::ivertex_program::apply
-   *  function passing the sum of the gather functions.  If \ref
-   *  graphlab::ivertex_program::gather_edges returns no edges then
-   *  the default gather value is passed to apply.  The apply function
-   *  can modify the vertex program and vertex data.
+   * synchronously in a sequence of super-step (iterations) in both the
+   * shared and distributed memory settings.
+   * 
+   * \tparam VertexProgram The user defined vertex program which
+   * should implement the \ref graphlab::ivertex_program interface.   
+   *
    *  
-   *  \tparam VertexProgram The user defined vertex program which
-   *  should implement the \ref graphlab::ivertex_program interface.   
+   * Execution Semantics
+   * =====================
+   * 
+   * On start the \ref graphlab::ivertex_program::init function is invoked on 
+   * all vertex programs in parallel to initialize the vertex program, 
+   * vertex data, and possibly signal vertices (given the value of the
+   * vertex data).  The engine then proceeds to execute a sequence of 
+   * super-steps (iterations) each of which is further decomposed into a 
+   * sequence of minor-steps which are also executed synchronously:
+   * \li Receive all incoming messages (signals) by invoking the 
+   * \ref graphlab::ivertex_program::recv_message function on all
+   * vertex-programs that have incoming messages.  If a
+   * vertex-program does not have any incoming messages then it is
+   * not active during this super-step.  
+   * \li Execute all gathers for active vertex programs by invoking
+   * the user defined \ref graphlab::ivertex_program::gather function
+   * on the edge direction returned by the 
+   * \ref graphlab::ivertex_program::gather_edges function.  The gather
+   * functions can modify edge data but cannot modify the vertex
+   * program or vertex data and therefore can be executed on multiple
+   * edges in parallel.  The gather type is used to accumulate (sum)
+   * the result of the gather function calls.
+   * \li Execute all apply functions for active vertex-programs by
+   * invoking the user defined \ref graphlab::ivertex_program::apply
+   * function passing the sum of the gather functions.  If \ref
+   * graphlab::ivertex_program::gather_edges returns no edges then
+   * the default gather value is passed to apply.  The apply function
+   * can modify the vertex program and vertex data.
+   * \li Execute all scatters for active vertex programs by invoking
+   * the user defined \ref graphlab::ivertex_program::scatter function
+   * on the edge direction returned by the 
+   * \ref graphlab::ivertex_program::scatter_edges function.  The scatter
+   * functions can modify edge data but cannot modify the vertex
+   * program or vertex data and therefore can be executed on multiple
+   * edges in parallel.  
+   * 
+   * Construction
+   * =====================
+   *
+   * The synchronous engine is constructed by passing in a 
+   * \ref graphlab::distributed_control object which manages coordination 
+   * between engine threads and a \ref graphlab::distributed_graph object 
+   * which is the graph on which the engine should be run.  The graph should
+   * already be populated and cannot change after the engine is constructed. 
+   * In the distributed setting all program instances (running on each machine)
+   * should construct an instance of the engine at the same time.
+   * 
+   * Computation is initiated by signaling vertices using either 
+   * \ref graphlab::synchronous_engine::signal or 
+   * \ref graphlab::synchronous_engine::signal_all.  In either case all
+   * machines should invoke signal or signal all at the same time.  Finally,
+   * computation is initiated by calling the 
+   * \ref graphlab::synchronous_engine::start function. 
+   * 
+   * Example Usage
+   * =====================
+   *
+   * The following is a simple example demonstrating how to use the engine:
+   * \code
+   * #inclue <graphlab.hpp>
+   * 
+   * struct vertex_data { 
+   *   // code
+   * };
+   * struct edge_data { 
+   *   // code
+   * };
+   * typedef graphlab::distributed_graph<vertex_data, edge_data> graph_type;
+   * typedef float gather_type;
+   * struct pagerank_vprog : 
+   *   public graphlab::ivertex_program<graph_type, gather_type> { 
+   *   // code
+   * };
+   * 
+   * int main(int argc, char** argv) {
+   *   // Initialize control plain using mpi
+   *   graphlab::mpi_tools::init(argc, argv);
+   *   graphlab::distributed_control dc;
+   *   // Parse command line options
+   *   graphlab::command_line_options clopts("PageRank algorithm.");
+   *   std::string graph_dir; 
+   *   clopts.attach_option("graph", &graph_dir, graph_dir,
+   *                        "The graph file.");
+   *   if(!clopts.parse(argc, argv)) {
+   *     std::cout << "Error in parsing arguments." << std::endl;
+   *     return EXIT_FAILURE;
+   *   }
+   *   graph_type graph(dc, clopts);
+   *   graph.load_format(graph_dir, "tsv");
+   *   graph.finalize();
+   *   std::cout << "#vertices: " << graph.num_vertices() 
+   *             << " #edges:" << graph.num_edges() << std::endl;
+   *   graphlab::synchronous_engine<pagerank_vprog> engine(dc, graph, clopts);
+   *   engine.signal_all();
+   *   engine.start();
+   *   std::cout << "Runtime: " << engine.elapsed_time();
+   *   graphlab::mpi_tools::finalize();
+   * }
+   * \endcode
+   * 
    */
   template<typename VertexProgram>
   class synchronous_engine : 
@@ -93,142 +177,246 @@ namespace graphlab {
 
   public:
     /**
+     * \brief The user defined vertex program type.
+     * 
      * The user defined vertex program type which should implement the
      * \ref graphlab::ivertex_program interface.
      */
     typedef VertexProgram vertex_program_type;
 
     /**
-     * The gather type is defined in the \ref
-     * graphlab::ivertex_program interface and is the value returned by
-     * the \ref graphlab::ivertex_program::gather function.  The
+     * \brief The user defined type returned by the gather function.
+     * 
+     * The gather type is defined in the \ref graphlab::ivertex_program 
+     * interface and is the value returned by the 
+     * \ref graphlab::ivertex_program::gather function.  The
      * gather type must have an <code>operator+=(const gather_type&
      * other)</code> function and must be \ref serializable.
      */
     typedef typename VertexProgram::gather_type gather_type;
 
 
-    /**
-     * The message type is defined in the \ref
-     * graphlab::ivertex_program interface and used in the call to
-     * \ref graphlab::icontext::signal.  The message type must have an
+    /** 
+     * \brief The user defined message type used to signal neighboring 
+     * vertex programs.
+     * 
+     * The message type is defined in the \ref graphlab::ivertex_program 
+     * interface and used in the call to \ref graphlab::icontext::signal.  
+     * The message type must have an 
      * <code>operator+=(const gather_type& other)</code> function and
      * must be \ref serializable.
      */
     typedef typename VertexProgram::message_type message_type;
 
+    /**
+     * \brief The type of data associated with each vertex in the graph
+     *
+     * The vertex data type must be \ref serializable. 
+     */
     typedef typename VertexProgram::vertex_data_type vertex_data_type;
-    typedef typename VertexProgram::edge_data_type edge_data_type;
-
-    typedef distributed_graph<vertex_data_type, edge_data_type> graph_type;
-
-    typedef typename graph_type::vertex_type          vertex_type;
-    typedef typename graph_type::edge_type            edge_type;
-
-    typedef typename graph_type::local_vertex_type    local_vertex_type;
-    typedef typename graph_type::local_edge_type      local_edge_type;
-    typedef typename graph_type::lvid_type            lvid_type;
-
-
-
-
-    typedef icontext<vertex_type, gather_type, message_type, vertex_id_type> 
-    icontext_type;
-    
-    typedef context<synchronous_engine> context_type;
-       
-  private:
-
-
-    dc_dist_object< synchronous_engine<VertexProgram> > rmi;
-
-    //! the distributed graph
-    graph_type& graph;
-    size_t ncpus;     // number of CPUS
-    //! local threads object
-    thread_pool threads;
-    graphlab::barrier thread_barrier;
-
-    size_t max_iterations;
-    size_t iteration_counter;
-
-    bool use_cache;
-    
-    //! Engine state
-    bool started;
-
-    graphlab::timer timer;
-    float start_time;
-
 
     /**
-     * Vertex locks are used to gaurd access to vertex specific fields
+     * \brief The type of data associated with each edge in the graph
+     *
+     * The edge data type must be \ref serializable. 
      */
-    std::vector<mutex>    vlocks;
+    typedef typename VertexProgram::edge_data_type edge_data_type;
+
+    /**
+     * \brief The type of graph supported by this vertex program
+     * 
+     * See graphlab::distributed_graph 
+     */
+    typedef typename VertexProgram::graph_type  graph_type;
+
+    /**
+     * \brief The type used to represent a vertex in the graph.
+     * See \ref graphlab::distributed_graph::vertex_type for details
+     *
+     * The vertex type contains the function 
+     * \ref graphlab::distributed_graph::vertex_type::data which 
+     * returns a reference to the vertex data as well as other functions 
+     * like \ref graphlab::distributed_graph::vertex_type::num_in_edges
+     * which returns the number of in edges.
+     * 
+     */
+    typedef typename graph_type::vertex_type          vertex_type;
+    
+    /**
+     * \brief The type used to represent an edge in the graph.  
+     * See \ref graphlab::distributed_graph::edge_type for details.
+     * 
+     * The edge type contains the function
+     * \ref graphlab::distributed_graph::edge_type::data which returns a 
+     * reference to the edge data.  In addition the edge type contains 
+     * the function \ref graphlab::distributed_graph::edge_type::source and
+     * \ref graphlab::distributed_graph::edge_type::target.
+     * 
+     */
+    typedef typename graph_type::edge_type            edge_type;
+
+    /**
+     * \brief The type of the callback interface passed by the engine to vertex 
+     * programs.  See \ref graphlab::icontext for details.
+     *
+     * The context callback is passed to the vertex program functions and is
+     * used to signal other vertices, get the current iteration, and access
+     * information about the engine.
+     */
+    typedef icontext<vertex_type, gather_type, message_type, vertex_id_type> 
+    icontext_type;
+           
+  private:
+
+    /**
+     * \brief Local vertex type used by the engine for fast indexing
+     * \internal
+     */
+    typedef typename graph_type::local_vertex_type    local_vertex_type;
+    
+    /**
+     * \brief Local edge type used by the engine for fast indexing
+     * \internal
+     */
+    typedef typename graph_type::local_edge_type      local_edge_type;
+    
+    /**
+     * \brief Local vertex id type used by the engine for fast indexing
+     * \internal
+     */
+    typedef typename graph_type::lvid_type            lvid_type;
+
+    /**
+     * \brief The actual instance of the context type used by this engine.
+     * \internal
+     */
+    typedef context<synchronous_engine> context_type;
+
+    /**
+     * \brief The object used to communicate with remote copies of the
+     * synchronous engine.
+     */
+    dc_dist_object< synchronous_engine<VertexProgram> > rmi;
+
+    /**
+     * \brief A reference to the distributed graph on which this
+     * synchronous engine is running.
+     */
+    graph_type& graph;
+
+    /**
+     * \brief The local worker threads used by this engine
+     */
+    thread_pool threads;
+
+    /**
+     * \brief A thread barrier that is used to control the threads in the
+     * thread pool.
+     */
+    graphlab::barrier thread_barrier;
+
+    /**
+     * \brief The maximum number of super-steps (iterations) to run
+     * before terminating.  If the max iterations is reached the
+     * engine will terminate if their are no messages remaining.
+     */
+    size_t max_iterations;
+
+    /**
+     * \brief A counter that tracks the current iteration number since
+     * start was last invoked.
+     */
+    size_t iteration_counter;
+
+    /**
+     * \brief The time in seconds at which the engine started.
+     */
+    float start_time;
+
+    /**
+     * \brief The vertex locks protect access to vertex specific
+     * data-structures including 
+     * \ref graphlab::synchronous_engine::gather_accum
+     * and \ref graphlab::synchronous_engine::messages.
+     */
+    std::vector<mutex> vlocks;
+
+    /**
+     * \brief The vertex programs associated with each vertex on this
+     * machine.
+     */
     std::vector<vertex_program_type> vertex_programs;
 
     /**
-     * Vector of messages associated with each vertex.
+     * \brief Vector of messages associated with each vertex.
      */
     std::vector<message_type> messages;
 
     /**
-     * Bit indicating whether a message is present for each vertex.
+     * \brief Bit indicating whether a message is present for each vertex.
      */
-    dense_bitset              has_message;
+    dense_bitset has_message;
  
 
     /**
-     * Gather accumulator used for each master vertex to merge the
-     * result of all the machine specific accumulators (or caches).
+     * \brief Gather accumulator used for each master vertex to merge
+     * the result of all the machine specific accumulators (or
+     * caches).
      *
      * The gather accumulator can be accessed by multiple threads at
-     * once and therefore must be guarded by a vertex lock.
+     * once and therefore must be guarded by a vertex locks in 
+     * \ref graphlab::synchronous_engine::vlocks
      */
     std::vector<gather_type>  gather_accum;
     
     /**
-     * Bit indicating if the gather has accumulator contains any
-     * values.  Access to this bit is protected by the vertex lock
-     * since it must change with the gather accumulator.
+     * \brief Bit indicating if the gather has accumulator contains any
+     * values.  
+     *
+     * While dense bitsets are thread safe the value of this bit must
+     * change concurrently with the 
+     * \ref graphlab::synchronous_engine::gather_accum and therefore is
+     * set while holding the lock in
+     * \ref graphlab::synchronous_engine::vlocks.
      */
-    dense_bitset              has_gather_accum;
+    dense_bitset has_gather_accum;
 
 
     /**
-     * This optional vector contains caches of previous gather
-     * contributions for each machine.  Caching is done locally and
-     * therefore a high-degree vertex may have multiple caches (one
-     * per machine).
+     * \brief This optional vector contains caches of previous gather
+     * contributions for each machine.  
+     *
+     * Caching is done locally and therefore a high-degree vertex may
+     * have multiple caches (one per machine).
      */
     std::vector<gather_type>  gather_cache;
 
     /**
-     * A bit indicating if the local gather for that vertex is
+     * \brief A bit indicating if the local gather for that vertex is
      * available.
      */
-    dense_bitset              has_cache;   
+    dense_bitset has_cache;   
 
     /**
-     * A bit (for master vertices) indicating if that vertex is active
+     * \brief A bit (for master vertices) indicating if that vertex is active
      * (received a message on this iteration).
      */
-    dense_bitset             active_superstep;
+    dense_bitset active_superstep;
 
     /**
-     * The number of local vertices (masters) that are active on this
+     * \brief  The number of local vertices (masters) that are active on this
      * iteration.
      */
-    atomic<size_t>           num_active_vertices;
+    atomic<size_t> num_active_vertices;
 
     /**
-     * A bit indicating (for all vertices) whether to participate in
-     * the current minor-step (gather or scatter).  
+     * \brief A bit indicating (for all vertices) whether to
+     * participate in the current minor-step (gather or scatter).
      */
-    dense_bitset             active_minorstep;      
+    dense_bitset active_minorstep;      
 
     /**
-     * A counter measuring the number of applys that have been completed
+     * \brief A counter measuring the number of applys that have been completed
      */
     atomic<size_t> completed_applys;
 
@@ -237,34 +425,116 @@ namespace graphlab {
      */
     execution_status::status_enum termination_reason; 
 
-    // Exchange used to swap vertex programs
+    /**
+     * \brief The pair type used to synchronize vertex programs across machines.
+     */
     typedef std::pair<vertex_id_type, vertex_program_type> vid_prog_pair_type;
+
+    /**
+     * \brief The type of the exchange used to synchronize vertex programs
+     */
     typedef buffered_exchange<vid_prog_pair_type> vprog_exchange_type;
+   
+    /**
+     * \brief The distributed exchange used to synchronize changes to
+     * vertex programs.
+     */
     vprog_exchange_type vprog_exchange;
 
-    // Exchange used to swap vertex data between machines
+    /**
+     * \brief The pair type used to synchronize vertex across across machines.
+     */
     typedef std::pair<vertex_id_type, vertex_data_type> vid_vdata_pair_type;
+
+    /**
+     * \brief The type of the exchange used to synchronize vertex data
+     */
     typedef buffered_exchange<vid_vdata_pair_type> vdata_exchange_type;
+
+    /**
+     * \brief The distributed exchange used to synchronize changes to
+     * vertex programs.
+     */
     vdata_exchange_type vdata_exchange;
 
-    // Exchange used to transfer gather data
+    /**
+     * \brief The pair type used to synchronize the results of the gather phase
+     */
     typedef std::pair<vertex_id_type, gather_type> vid_gather_pair_type;
+
+    /**
+     * \brief The type of the exchange used to synchronize gather
+     * accumulators
+     */
     typedef buffered_exchange<vid_gather_pair_type> gather_exchange_type;
+   
+    /**
+     * \brief The distributed exchange used to synchronize gather
+     * accumulators.
+     */
     gather_exchange_type gather_exchange;
 
-    // Exchange used to transfer message data
+    /**
+     * \brief The pair type used to synchronize messages
+     */
     typedef std::pair<vertex_id_type, message_type> vid_message_pair_type;
+   
+    /**
+     * \brief The type of the exchange used to synchronize messages
+     */
     typedef buffered_exchange<vid_message_pair_type> message_exchange_type;
+
+    /**
+     * \brief The distributed exchange used to synchronize messages
+     */
     message_exchange_type message_exchange;
 
 
     
   public:
-    synchronous_engine(distributed_control &dc, 
-                       graph_type& graph,
+
+    /**
+     * \brief Construct a synchronous engine for a given graph and options.
+     *
+     * The synchronous engine should be constructed after the graph
+     * has been loaded (e.g., \ref graphlab::distributed_graph::load)
+     * and the graphlab options have been set 
+     * (e.g., \ref graphlab::command_line_options).
+     *
+     * In the distributed engine the synchronous engine must be called
+     * on all machines at the same time (in the same order) passing
+     * the \ref graphlab::distributed_control object.  Upon
+     * construction the synchronous engine allocates several
+     * data-structures to store messages, gather accumulants, and
+     * vertex programs and therefore may require considerable memory.
+     *
+     * @param [in] dc The distributed control object used to
+     * coordinate multiple synchronous engines.
+     * @param [in,out] graph A reference to the graph object that this
+     * engine will modify
+     * @param [in] opts The graphlab options object specifying engine
+     * parameters.  This is typically constructed using
+     * \ref graphlab::command_line_options.
+     */
+    synchronous_engine(distributed_control& dc, graph_type& graph,
                        const graphlab_options& opts);
+
+    /**
+     * \brief Compute the total memory used by the entire distributed system.
+     * 
+     * @return The total memory used in bytes.
+     */
     size_t total_memory_usage() const;
 
+    /**
+     * \brief Start execution of the synchronous engine.
+     * 
+     * The start function begins computation and does not return until
+     * there are no remaining messages or until max_iterations has
+     * been achieved.
+     *
+     * \TODO: FINISH DOCUMENTING
+     */
     void start(bool perform_init_vtx_program = true);
     void stop() { /* implement */ }
     execution_status::status_enum last_exec_status() const;
@@ -303,8 +573,6 @@ namespace graphlab {
     void clear_gather_cache(const vertex_type& vertex);
 
   private:
-    void initialize();
-    void set_options(const graphlab_options& opts);
     // Program Steps ==========================================================
     template<typename MemberFunction>       
     void run_synchronous(MemberFunction member_fun) {
@@ -352,31 +620,15 @@ namespace graphlab {
   synchronous_engine(distributed_control &dc, 
                      graph_type& graph,
                      const graphlab_options& opts) :
-    rmi(dc, this), graph(graph), ncpus(opts.get_ncpus()),
-    threads(opts.get_ncpus()), thread_barrier(opts.get_ncpus()),
-    max_iterations(-1), iteration_counter(0), use_cache(false),
+    rmi(dc, this), graph(graph), 
+    threads(opts.get_ncpus()), 
+    thread_barrier(opts.get_ncpus()),
+    max_iterations(-1), iteration_counter(0), 
     vprog_exchange(dc), vdata_exchange(dc), 
     gather_exchange(dc), message_exchange(dc) {
-    rmi.barrier();
-    set_options(opts);
-    initialize();
-    rmi.barrier();
-  } // end of synchronous engine
-  
-  template<typename VertexProgram>
-  void synchronous_engine<VertexProgram>::
-  set_options(const graphlab_options& opts) {
-    rmi.barrier();
-    // read ncpus
-    size_t new_ncpus = opts.get_ncpus();
-    if (new_ncpus != ncpus) {
-      logstream(LOG_INFO) << "Changing ncpus from " << ncpus << " to " << new_ncpus << std::endl;
-      ASSERT_GE(new_ncpus, 1);
-      ncpus = new_ncpus;
-      threads.resize(ncpus);
-      thread_barrier.resize_unsafe(ncpus);
-    }
+    // Process any additional options
     std::vector<std::string> keys = opts.get_engine_args().get_option_keys();
+    bool use_cache = false;
     foreach(std::string opt, keys) {
       if (opt == "max_iterations") {
         opts.get_engine_args().get_option("max_iterations", max_iterations);
@@ -386,8 +638,36 @@ namespace graphlab {
         logstream(LOG_ERROR) << "Unexpected Engine Option: " << opt << std::endl;
       }
     }
+    // Finalize the graph
+    graph.finalize();
+    memory_info::log_usage("Before Engine Initialization");
+    // Allocate vertex locks and vertex programs
+    vlocks.resize(graph.num_local_vertices());
+    vertex_programs.resize(graph.num_local_vertices());
+    // Allocate messages and message bitset
+    messages.resize(graph.num_local_vertices(), message_type());
+    has_message.resize(graph.num_local_vertices()); 
+    has_message.clear();
+    // Allocate gather accumulators and accumulator bitset
+    gather_accum.resize(graph.num_local_vertices(), gather_type());
+    has_gather_accum.resize(graph.num_local_vertices());
+    has_gather_accum.clear();
+    // If caching is used then allocate cache data-structures
+    if (use_cache) {
+      gather_cache.resize(graph.num_local_vertices(), gather_type());
+      has_cache.resize(graph.num_local_vertices());
+      has_cache.clear();
+    }
+    // Allocate bitset to track active vertices on each bitset.
+    active_superstep.resize(graph.num_local_vertices());
+    active_superstep.clear();
+    active_minorstep.resize(graph.num_local_vertices());
+    active_minorstep.clear();
+    // Print memory usage after initialization
+    memory_info::log_usage("After Engine Initialization");
     rmi.barrier();
-  }
+  } // end of synchronous engine
+  
 
 
   template<typename VertexProgram>
@@ -452,7 +732,7 @@ namespace graphlab {
   template<typename VertexProgram>
   void synchronous_engine<VertexProgram>::
   post_delta(const vertex_type& vertex, const gather_type& delta) {
-    const bool caching_enabled = use_cache && !gather_cache.empty();
+    const bool caching_enabled = !gather_cache.empty();
     if(caching_enabled) {
       const lvid_type lvid = vertex.local_id();      
       vlocks[lvid].lock();
@@ -470,7 +750,7 @@ namespace graphlab {
   template<typename VertexProgram>
   void synchronous_engine<VertexProgram>::
   clear_gather_cache(const vertex_type& vertex) {
-    const bool caching_enabled = use_cache && !gather_cache.empty();
+    const bool caching_enabled = !gather_cache.empty();
     const lvid_type lvid = vertex.local_id();
     if(caching_enabled && has_cache.get(lvid)) {
       vlocks[lvid].lock();
@@ -482,40 +762,6 @@ namespace graphlab {
   
 
 
-
-
-  template<typename VertexProgram>
-  void synchronous_engine<VertexProgram>::initialize() {
-    graph.finalize();
-    if (rmi.procid() == 0) 
-      memory_info::print_usage("Before Engine Initialization");
-    logstream(LOG_INFO) 
-      << rmi.procid() << ": Initializing..." << std::endl;
-    vlocks.resize(graph.num_local_vertices());
-    vertex_programs.resize(graph.num_local_vertices());
-
-    messages.resize(graph.num_local_vertices(), message_type());
-    has_message.resize(graph.num_local_vertices());
-    has_message.clear();
-
-    gather_accum.resize(graph.num_local_vertices(), gather_type());
-    has_gather_accum.resize(graph.num_local_vertices());
-    has_gather_accum.clear();
-
-    if (use_cache) {
-      gather_cache.resize(graph.num_local_vertices(), gather_type());
-      has_cache.resize(graph.num_local_vertices());
-      has_cache.clear();
-    }
-    
-    active_superstep.resize(graph.num_local_vertices());
-    active_superstep.clear();
-    active_minorstep.resize(graph.num_local_vertices());
-    active_minorstep.clear();
-    if (rmi.procid() == 0) 
-      memory_info::print_usage("After Engine Initialization");
-    rmi.barrier();
-  } // end of initialize
 
 
 
@@ -531,7 +777,7 @@ namespace graphlab {
 
   template<typename VertexProgram>
   float synchronous_engine<VertexProgram>::
-  elapsed_seconds() const { return lowres_time_seconds() - start_time; }
+  elapsed_seconds() const { return timer::approx_time_seconds() - start_time; }
 
   template<typename VertexProgram>
   size_t synchronous_engine<VertexProgram>::
@@ -555,8 +801,8 @@ namespace graphlab {
     // Reset event log counters? 
     rmi.dc().flush_counters();
     // Start the timer
-    timer.start();
-    start_time = lowres_time_seconds();
+    graphlab::timer timer; timer.start();
+    start_time = timer::approx_time_seconds();
     iteration_counter = 0;
 
     if (perform_init_vtx_program) {
@@ -748,7 +994,7 @@ namespace graphlab {
   void synchronous_engine<VertexProgram>::
   execute_gathers(size_t thread_id) {
     context_type context(*this, graph);
-    const bool caching_enabled = use_cache && !gather_cache.empty();
+    const bool caching_enabled = !gather_cache.empty();
     for(lvid_type lvid = thread_id; lvid < graph.num_local_vertices(); 
         lvid += threads.size()) {
       // If this vertex is active in the gather minorstep

@@ -228,7 +228,7 @@ namespace graphlab {
       }
       else {
         m.unlock();
-        my_sleep_ms(flush_interval);
+        timer::sleep_ms(flush_interval);
         m.lock();
         if (flush_interval > 0) flush();
       }

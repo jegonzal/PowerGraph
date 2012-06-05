@@ -374,7 +374,7 @@ void distributed_control::handle_incoming_calls(size_t threadid,
 
 void distributed_control::fcallhandler_loop(size_t id) {
   // pop an element off the queue
-//  float t = lowres_time_seconds();
+//  float t = timer::approx_time_seconds();
   fcall_handler_active[id].inc();
   while(1) {
     fcallqueue[id].wait_for_data();

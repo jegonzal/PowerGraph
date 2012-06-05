@@ -265,7 +265,7 @@ namespace graphlab {
                             const graphlab_options& opts) : 
         rmi(dc, this), graph(graph), scheduler_ptr(NULL),
         aggregator(dc, graph, new context_type(*this, graph)), started(false),
-        engine_start_time(lowres_time_seconds()), timeout(false),
+        engine_start_time(timer::approx_time_seconds()), timeout(false),
         vdata_exchange(dc),thread_barrier(opts.get_ncpus()) {
       rmi.barrier();
 
@@ -453,7 +453,7 @@ namespace graphlab {
     /**
      * \brief returns the number of milliseconds since engine start up.
      */
-    size_t elapsed_time() const { return 1000 * (lowres_time_seconds() - engine_start_time); }
+    size_t elapsed_time() const { return 1000 * (timer::approx_time_seconds() - engine_start_time); }
 
 
     /**
@@ -1071,7 +1071,7 @@ namespace graphlab {
                     message_type &msg) {
       has_internal_task = false;
       has_sched_msg = false;
-      if (lowres_time_seconds() - engine_start_time > timed_termination) {
+      if (timer::approx_time_seconds() - engine_start_time > timed_termination) {
         return;
       }
       BEGIN_TRACEPOINT(disteng_internal_task_queue);
@@ -1106,7 +1106,7 @@ namespace graphlab {
                      message_type &msg) {
       static size_t ctr = 0;
       PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, NO_WORK_EVENT, 1);
-      if (lowres_time_seconds() - engine_start_time > timed_termination) {
+      if (timer::approx_time_seconds() - engine_start_time > timed_termination) {
         termination_reason = execution_status::TIMEOUT;
         timeout = true;
       }
@@ -1282,10 +1282,10 @@ namespace graphlab {
       vertex_id_type sched_lvid;
       message_type msg;
 //      size_t ctr = 0;
-      float last_aggregator_check = lowres_time_seconds();
+      float last_aggregator_check = timer::approx_time_seconds();
       while(1) {
-        if (lowres_time_seconds() != last_aggregator_check) {
-          last_aggregator_check = lowres_time_seconds();
+        if (timer::approx_time_seconds() != last_aggregator_check) {
+          last_aggregator_check = timer::approx_time_seconds();
           std::string key = aggregator.tick_asynchronous();
           if (key != "") add_internal_aggregation_task(key);
         }
@@ -1436,7 +1436,7 @@ namespace graphlab {
       size_t allocatedmem = memory_info::allocated_bytes();
       rmi.all_reduce(allocatedmem);
 
-      engine_start_time = lowres_time_seconds();
+      engine_start_time = timer::approx_time_seconds();
       timeout = false;
 
       rmi.dc().flush_counters();
