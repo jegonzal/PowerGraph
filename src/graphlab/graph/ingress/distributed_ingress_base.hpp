@@ -35,6 +35,10 @@
 
 #include <graphlab/macros_def.hpp>
 namespace graphlab {
+
+  /**
+   * \brief Implementation of the basic ingress functionality.
+   */
   template<typename VertexData, typename EdgeData>
   class distributed_graph;
 
@@ -57,7 +61,7 @@ namespace graphlab {
     /// The underlying distributed graph object that is being loaded
     graph_type& graph;
 
-    /// Temporar buffers used to store vertex data on ingress
+    /// Temporary buffers used to store vertex data on ingress
     struct vertex_buffer_record {
       vertex_id_type vid;
       vertex_data_type vdata;
@@ -83,6 +87,7 @@ namespace graphlab {
     buffered_exchange<edge_buffer_record> edge_exchange;
 
    
+    /// Struct of minimal vertex information for the first pass coordination. 
     struct vertex_info : public graphlab::IS_POD_TYPE {
       vertex_id_type vid, num_in_edges, num_out_edges;
       vertex_info(vertex_id_type vid = 0, vertex_id_type num_in_edges = 0,
@@ -91,6 +96,7 @@ namespace graphlab {
     }; // end of vertex_info
 
 
+    /// Detail vertex record for the second pass coordination. 
     struct vertex_negotiator_record {
       mirror_type mirrors;
       vertex_data_type vdata;
@@ -106,6 +112,7 @@ namespace graphlab {
       }
     };
 
+    /// Ingress decision object for computing the edge destination. 
     ingress_edge_decision<VertexData, EdgeData> edge_decision;
 
   public:
@@ -117,6 +124,7 @@ namespace graphlab {
 
     ~distributed_ingress_base() { }
 
+    /** \brief Add an edge to the ingress object. */
     virtual void add_edge(vertex_id_type source, vertex_id_type target,
                           const EdgeData& edata) {
       const procid_t owning_proc = 
@@ -125,16 +133,33 @@ namespace graphlab {
       edge_exchange.send(owning_proc, record);
     } // end of add edge
 
+
+    /** \brief Add an vertex to the ingress object. */
     virtual void add_vertex(vertex_id_type vid, const VertexData& vdata)  { 
       const procid_t owning_proc = vertex_to_proc(vid);
       const vertex_buffer_record record(vid, vdata);
       vertex_exchange.send(owning_proc, record);
     } // end of add vertex
 
-
-
-
     
+    /** \brief Finalize completes the local graph data structure 
+     * and the vertex record information. 
+     *
+     * \internal
+     * The finalization goes through 5 steps:
+     *
+     * 1. Construct local graph using the received edges, during which
+     * the vid2lvid map is built.
+     *
+     * 2. Construct lvid2record map (of empty entries) using the received vertices. 
+     *
+     * 3. Complete lvid2record map by exchanging the vertex_info. 
+     *
+     * 4. Exchange the negotiation records, including singletons. (Local graph 
+     * 
+     * handling singletons). 
+     * 5. Exchange global graph statistics.
+     */
     virtual void finalize() {
       // typedef typename boost::unordered_map<vertex_id_type, lvid_type>::value_type 
       //   vid2lvid_pair_type;
@@ -460,6 +485,7 @@ namespace graphlab {
   protected:
     // HELPER ROUTINES
     // =======================================================>
+    /** \brief Returns the random hashed pid of a vertex. */
     procid_t vertex_to_proc(const vertex_id_type vid) const { 
       return vid % rpc.numprocs();
     }        

@@ -77,12 +77,20 @@ namespace graphlab {
     typedef graphlab::vertex_id_type vertex_id_type;
     typedef graphlab::edge_id_type edge_id_type;
 
+    /** The type of the edge data stored in the graph. */
     typedef EdgeData edge_data_type;
+
+    /** The type of the vertex data stored in the graph. */
     typedef VertexData vertex_data_type;
+
+    /** \internal
+     * \brief The type representing a range of edges. Edges
+     * have consecutive internal ids.
+     * */
     typedef std::pair<size_t, size_t>  edge_range_type;
 
     /* ----------------------------------------------------------------------------- */
-    /* Helper data field and structures: edge_data_list, class edge, class edge_list */
+    /* helper data field and structures: edge_data_list, class edge, class edge_list */
     /* ----------------------------------------------------------------------------- */
   public:
     // Edge class for temporary storage. Will be finalized into the CSR+CSC form.
@@ -98,11 +106,13 @@ namespace graphlab {
         source_arr.reserve(n);
         target_arr.reserve(n);
       }
+      // \brief Add an edge to the temporary storage.
       void add_edge(vertex_id_type source, vertex_id_type target, EdgeData _data) {
         data.push_back(_data);
         source_arr.push_back(source);
         target_arr.push_back(target);
       }
+      // \brief Add edges in block to the temporary storage.
       void add_block_edges(const std::vector<vertex_id_type>& src_arr, 
                            const std::vector<vertex_id_type>& dst_arr, 
                            const std::vector<EdgeData>& edata_arr) {
@@ -110,14 +120,17 @@ namespace graphlab {
         source_arr.insert(source_arr.end(), src_arr.begin(), src_arr.end());
         target_arr.insert(target_arr.end(), dst_arr.begin(), dst_arr.end());
       }
+      // \brief Remove all contents in the storage. 
       void clear() {
         std::vector<EdgeData>().swap(data);
         std::vector<vertex_id_type>().swap(source_arr);
         std::vector<vertex_id_type>().swap(target_arr);
       }
+      // \brief Return the size of the storage.
       size_t size() const {
         return source_arr.size();
       }
+      // \brief Return the estimated memory footprint used.
       size_t estimate_sizeof() const {
         return data.capacity()*sizeof(EdgeData) + source_arr.capacity()*sizeof(vertex_id_type)*2 + sizeof(data) + sizeof(source_arr)*2 + sizeof(edge_info);
       }
@@ -126,25 +139,29 @@ namespace graphlab {
     // A class of edge information. Used as value type of the edge_list.
     class edge_type {
     public:
+      /** \brief Creates an empty edge type. */
       edge_type () : _source(-1), _target(-1), _edge_id(-1), _dir(NO_EDGES), _empty(true) { }
+      /** \brief Creates an edge of given source id, target id, edge id and direction enum. 
+       * \internal edge id is used to locate the edge data in the edge_data array.  edge_dir type is defined in graph_basic.hpp. **/
       edge_type (const vertex_id_type _source, const vertex_id_type _target, 
                  const edge_id_type _eid, edge_dir_type _dir) :
         _source(_source), _target(_target), _edge_id(_eid), _dir(_dir), _empty(false) {
           if (_dir != OUT_EDGES) std::swap(this->_source, this->_target);
         }
     public:
+      /** \brief Returns the source vertex id of the edge. */
       inline vertex_id_type source() const {
         return _source;
       }
-
+      /** \brief Returns the target vertex id of the edge. */
       inline vertex_id_type target() const { 
         return _target;
       }
-
+      /** \brief Returns the direction of the edge. */
       inline edge_dir_type get_dir() const {
         return _dir;
       }
-
+      /** \brief Returns whether this is an empty edge. */
       inline bool empty() const { return _empty; }
       // Data fields. 
     private:
@@ -153,7 +170,6 @@ namespace graphlab {
       edge_id_type _edge_id;
       edge_dir_type _dir;
       bool _empty;
-
 
       friend class graph_storage;
     }; // end of class edge_type.
@@ -169,13 +185,17 @@ namespace graphlab {
 
     public:
       // Cosntructors
+      /** \brief Creates an empty iterator. */
       edge_iterator () : offset(-1), empty(true) { }
-     
+      /** \brief Creates an iterator at a specific edge.
+       * The edge location is defined by the follows: 
+       * A center vertex id,  an offset to the center, the direction and the
+       * pointer to the start of edge id array. */
       edge_iterator (vertex_id_type _center, size_t _offset, 
                      edge_dir_type _itype, const edge_id_type* _vid_arr) :
         center(_center), offset(_offset), itype(_itype), vid_arr(_vid_arr), 
         empty(false) { }
-        
+      /** \brief Returns the value of the iterator. An empty iterator always returns empty edge type*/ 
       inline edge_type operator*() const  {
         //  ASSERT_TRUE(!empty);
         return make_value();
@@ -187,47 +207,52 @@ namespace graphlab {
         return arrow_type::make(make_value());
       }
 
-
+      /** \brief Returns if two iterators point to the same edge. */
       inline bool operator==(const edge_iterator& it) const {
         return (empty && it.empty) || 
           (empty == it.empty && itype == it.itype && center == it.center && 
            offset == it.offset);
       }
 
+      /** \brief Returns if two iterators don't point to the same edge. */
       inline bool operator!=(const edge_iterator& it) const { 
         return !(*this == it);
       }
 
+      /** \brief Increases the iterator. */
       inline edge_iterator& operator++() {
-        //        ASSERT_TRUE(!empty);
+        //ASSERT_TRUE(!empty);
         ++offset;
         return *this;
       }
 
+      /** \brief Increases the iterator. */
       inline edge_iterator operator++(int) {
-        //  ASSERT_TRUE(!empty);
+        //ASSERT_TRUE(!empty);
         const edge_iterator copy(*this);
         operator++();
         return copy;
       }
 
-
+      /** \brief Computes the difference of two iterators. */
       inline ssize_t operator-(const edge_iterator& it) const {
         return offset - it.offset;
       }
 
+      /** \brief Returns a new iterator whose value is increased by i difference units. */
       inline edge_iterator operator+(difference_type i) const {
         return edge_iterator(center, offset+i, itype, vid_arr);
       }
 
+      /** \brief Increases the iterator by i difference units. */
       inline edge_iterator& operator+=(difference_type i) {
         offset+=i;
         return *this;
       }
 
-      // Generate the ret value of the iterator.
+      /** \brief Generate the return value of the iterator. */
       inline edge_type make_value() const {
-        return edge_type(center, vid_arr[offset], offset, itype);
+        return empty ? edge_type() : edge_type(center, vid_arr[offset], offset, itype);
       }
 
     private:
@@ -238,10 +263,7 @@ namespace graphlab {
       bool empty;
     }; // end of class edge_iterator.
 
-
-
-
-    // Represents an iteratable list of edge_types.
+    /** Represents an iteratable list of edge_types. */
     class edge_list {
     public:
       typedef edge_iterator iterator;
@@ -250,7 +272,7 @@ namespace graphlab {
     private:
       edge_iterator begin_iter, end_iter;
     public:
-      // Cosntruct an edge_list with begin and end. 
+      /** Cosntructs an edge_list with begin and end.  */
       edge_list(const edge_iterator begin_iter = edge_iterator(), 
                 const edge_iterator end_iter = edge_iterator()) : 
         begin_iter(begin_iter), end_iter(end_iter) { }
@@ -262,19 +284,24 @@ namespace graphlab {
     }; // end of class edge_list.
 
 
-
-
-
   public:
+    // CONSTRUCTORS ============================================================>
     graph_storage() : use_skip_list(false) {  }
 
+    // METHODS =================================================================>
+   
+    /** \internal \brief  Set graph storage to use skip list.
+     * Skip list is used to jump between ...
+     * */ 
     void set_use_skip_list (bool x) { use_skip_list = x;}
 
+    /** \brief Returns the number of edges in the graph. */
     size_t edge_size() const { return num_edges; }
 
+    /** \brief Returns the number of vertices in the graph. */
     size_t vertices_size() const { return num_vertices; }
 
-    // Return the size of in_neighbours.
+    /** \brief Returns the number of in edges of the vertex. */
     size_t num_in_edges (const vertex_id_type v) const {
       if (v >= num_vertices)
         return 0;
@@ -290,7 +317,7 @@ namespace graphlab {
       return (end-begin);
     }
 
-    // Return the size of out_neighbours.
+    /** \brief Returns the number of out edges of the vertex. */
     size_t num_out_edges (const vertex_id_type v) const {
       if (v >= num_vertices)
         return 0;
@@ -304,7 +331,10 @@ namespace graphlab {
       return (end-begin);
     }
 
-
+    /** \brief Returns the edge id of the edge. 
+     * Edges are assigned with consecutive int ids,
+     * ordered first by source and then by target.
+     * */
     edge_id_type edge_id(const edge_type& edge) const {
       ASSERT_FALSE(edge.empty());
       return edge.get_dir() == OUT_EDGES ?
@@ -312,7 +342,7 @@ namespace graphlab {
         c2r_map[edge._edge_id];
     }
 
-
+    /** \brief Returns the reference of edge data of an edge. */
     edge_data_type& edge_data(vertex_id_type source, vertex_id_type target) {
       ASSERT_LT(source, num_vertices);
       ASSERT_LT(target, num_vertices);
@@ -320,6 +350,7 @@ namespace graphlab {
       return edge_data(ans);
     }
 
+    /** \brief Returns the constant reference of edge data of an edge. */
     const edge_data_type& edge_data(vertex_id_type source, 
                                     vertex_id_type target) const {
       ASSERT_LT(source, num_vertices);
@@ -328,6 +359,7 @@ namespace graphlab {
       return edge_data(ans);
     }
 
+    /** \brief Returns the reference of edge data of an edge. */
     edge_data_type& edge_data(edge_type edge) {
       ASSERT_FALSE(edge.empty());
       return edge_data_list[edge.get_dir() == OUT_EDGES ?
@@ -335,6 +367,7 @@ namespace graphlab {
                             c2r_map[edge._edge_id]];
     }
 
+    /** \brief Returns the constant reference of edge data of an edge. */
     const edge_data_type& edge_data(edge_type edge) const {
       ASSERT_FALSE(edge.empty());
       return edge_data_list[edge.get_dir() == OUT_EDGES ?
@@ -342,8 +375,7 @@ namespace graphlab {
                             c2r_map[edge._edge_id]];
     }
 
-
-    // Return in edge list of a vertex.
+    /** \brief Returns a list of in edges of a vertex. */
     edge_list in_edges(const vertex_id_type v) const {
       if (v >= num_vertices)
         return edge_list();
@@ -354,7 +386,6 @@ namespace graphlab {
         edge_dir_type dir = IN_EDGES;
 
         edge_iterator begin (v, range.first, dir, &(CSC_src[0]));
-
         edge_iterator end (v, range.second+1, dir, &(CSC_src[0]));
         // std::cout << "in range (" << range.first << "," <<
         // range.second << ")" << std::endl; std::cout << "in edge
@@ -363,7 +394,7 @@ namespace graphlab {
       } else { return edge_list(); }
     }
 
-    // Return out edge list of a vertex.
+    /** \brief Returns a list of out edges of a vertex. */
     edge_list out_edges(const vertex_id_type v) const {
       if (v >= num_vertices)
         return edge_list();
@@ -380,15 +411,14 @@ namespace graphlab {
       } else { return edge_list(); }
     }
 
-    // Return the edge id given source and destination.
+    /** \brief Returns an edge type of a given source target pair. */
     edge_type find (const vertex_id_type src, 
                     const vertex_id_type dst) const {
-      /* DEBUG
-         printf("Find: %u, %u \n", src, dst);
-      */
+      // DEBUG printf("Find: %u, %u \n", src, dst);
+      
       // Get the out edge range of the src, as well as the in edge
       // range of the dst.
-      // Directed graph, search CSR or CSC, whichever has less candidates.
+      // Search CSR or CSC, whichever has less candidates.
       std::pair<bool, edge_range_type> dstRangePair = outEdgeRange(src);
       std::pair<bool, edge_range_type> srcRangePair = inEdgeRange(dst);
       if( srcRangePair.first && dstRangePair.first) {
@@ -401,27 +431,26 @@ namespace graphlab {
           // Out edge candidate size is smaller, search CSC.
           size_t efind =  binary_search(CSC_src, srcRange.first, 
                                         srcRange.second, src);
-          if (efind >= num_edges) {
-            return edge_type();
-          } else {
-            return edge_type(dst, src, efind, IN_EDGES);
-          }
+          return efind >= num_edges ? 
+            edge_type() : edge_type(dst, src, efind, IN_EDGES);
         } else {
           // In edge candidate size is smaller, search CSR.
           size_t efind = binary_search(CSR_dst, dstRange.first, 
                                        dstRange.second, dst);
-          if (efind >= num_edges) {
-            return edge_type();
-          } else {
-            return edge_type(src, dst, efind, OUT_EDGES);
-          }
+          return efind >= num_edges ? 
+            edge_type() : edge_type(src, dst, efind, OUT_EDGES);
         }
       } else {
         return edge_type();
       }
     } // end of find.
 
-    // Finalize the graph storage. Construct CSC, CSRs.
+     /** \brief Finalize the graph storage. 
+      * Construct the CSC, CSR, by sorting edges to maximize the
+      * efficiency of graphlab.  
+      * This function takes O(|V|log(degree)) time and will 
+      * fail if there are any duplicate edges.
+      */
     void finalize(size_t _num_of_v, edge_info &edges) {
 #ifdef DEBUG_GRAPH
       logstream(LOG_DEBUG) << "Graph2 finalize starts." << std::endl;
@@ -429,9 +458,10 @@ namespace graphlab {
       num_vertices = _num_of_v;
       num_edges = edges.size();
 
-      // Permute_index.
+      // Permute_index, alias of c2r_map. Confusing but efficient.
       std::vector<edge_id_type>& permute_index = c2r_map;
-      permute_index.reserve(num_edges); // aliased as permute index.
+      permute_index.reserve(num_edges); 
+
       // Counter_index.
       std::vector<atomic<int> > counter_array(num_vertices+1, 0);
       permute_index.assign(num_edges, 0);
@@ -492,7 +522,6 @@ namespace graphlab {
           }
         }
       }
-
 
       bool duplicate_edge_warn = false;
 
@@ -679,6 +708,7 @@ namespace graphlab {
      
     } // end of finalize.
 
+    /** \brief Reset the storage. */
     void clear() {
       CSR_src.clear();
       CSR_dst.clear();
@@ -690,6 +720,8 @@ namespace graphlab {
       edge_data_list.clear();
     }
 
+    /** \brief Reset the storage and free the reserved memory. */
+    void clear() {
     void clear_reserve() {
       std::vector<edge_id_type>().swap(CSR_src);
       std::vector<vertex_id_type>().swap(CSR_dst);
@@ -760,16 +792,21 @@ namespace graphlab {
 
     // ------------- Private data storage ----------------
   private:
+    /** Number of vertices in the storage (not counting singletons)*/
     size_t num_vertices;
+    /** Number of edges in the storage. */
     size_t num_edges;
 
-    // Array for storing edge data, sorted by source vid.
+    /** Array of edge data sorted by source vid. */
     std::vector<EdgeData> edge_data_list;
 
-    /** Row of CSR */
+    /** \internal 
+     * Row index of CSR, corresponding to the source vertices. */
     std::vector<edge_id_type> CSR_src;
 
-    /* Suppose CSR_src is: 1 x x 3 x x x x 5
+    /** 
+     * \internal 
+     * Suppose CSR_src is: 1 x x 3 x x x x 5
      * where x means no out edges.
      *     CSR_src_skip =  0 2 2 0 4 0 0 4 0
      * is used to jump to the prev/next valid vertex in CSR_src.  
@@ -777,30 +814,45 @@ namespace graphlab {
      */
     std::vector<vertex_id_type> CSR_src_skip;
 
-    /** Col of CSR */
+    /** \internal 
+     * Col index of CSR, corresponding to the target vertices. */
     std::vector<vertex_id_type> CSR_dst;
 
-    /** Map the sort by col edge id to sort by row edge id */
+    /** \internal 
+     * Map the sort-by-col edge id to sort-by-row edge id */
     std::vector<edge_id_type> c2r_map;
 
-    /** Col of CSC */
+    /** \internal
+     * Row index of CSC, corresponding to the target vertices. */
     std::vector<edge_id_type> CSC_dst;
 
-    /* Suppose CSC_dst is: 1 x x 3 x x x x 5
-     * where x means no out edges.
+    /* 
+     * \internal 
+     * Suppose CSC_dst is: 1 x x 3 x x x x 5
+     * where x means no in edges.
      *     CSC_dst_skip =  0 2 2 0 4 0 0 4 0
      * is used to jump to the prev/next valid vertex in CSC_dst.  
      * Optional.
      */
     std::vector<vertex_id_type> CSC_dst_skip;
-    /** Row of CSC */
+    /** \internal
+     * Col index of CSC, corresponding to the source vertices. */
     std::vector<vertex_id_type> CSC_src;
 
-    // graph traits
+    /** Graph storage traits. */
     bool use_skip_list;
 
+
+ /****************************************************************************
+ *                       Internal Functions                                 *
+ *                     ----------------------                               *
+ * These functions functions and types provide internal access to the       *
+ * underlying graph representation. They should not be used unless you      *
+ * *really* know what you are doing.                                        *
+ ****************************************************************************/
   private:
-    // Get the start, end index of the inbound edge of vertex v.
+    /** \internal
+     *  Returns the begin and end index of the in edge of vertex v. */
     inline std::pair<bool, edge_range_type> inEdgeRange(vertex_id_type v) const {
       ASSERT_LT(v, num_vertices);
 
@@ -818,7 +870,8 @@ namespace graphlab {
       }
     } // End of inEdgeRange;
 
-    // Get the start, end index of the outbound edge of vertex v.
+    /** \internal
+     *  Returns the begin and end index of the out edge of vertex v. */
     inline std::pair<bool, edge_range_type> outEdgeRange(vertex_id_type v) const {
       ASSERT_LT(v, num_vertices);
       size_t row_start = CSR_src[v];
@@ -837,7 +890,8 @@ namespace graphlab {
 
 
     //-------------Private Helper functions------------
-    // Sort by value of vec in the ascending order.
+    /** \internal
+     *  Compare functor of any type*/
     template <typename anyvalue>
     struct cmp_by_any_functor {
       const std::vector<anyvalue>& vec;
@@ -847,6 +901,9 @@ namespace graphlab {
       }
     };
 
+    /** \internal
+     *  Counting sort vector in ascending order and 
+     *  fill the counting array and permute index array. */
     template <typename valuetype>
     void counting_sort(const std::vector<valuetype>& value_array, std::vector< atomic<int> >& counter_array, std::vector<edge_id_type>& permute_index) {
       counter_array.assign(counter_array.size(), 0);
@@ -871,7 +928,9 @@ namespace graphlab {
       }
     }
 
-
+    /** \internal
+     *  Binary search vfind in a vector of vertex_id_type 
+     *  within range [start, end]. Returns (size_t)(-1) if not found. */
     size_t binary_search(const std::vector<vertex_id_type>& vec, 
                          size_t start, size_t end, 
                          vertex_id_type vfind) const {
@@ -891,6 +950,11 @@ namespace graphlab {
       return -1;
     }// End of binary_search
 
+    /** \internal
+     * To be deprecated. */
+    // This is a log(V) operation.
+    // Do not use operations on edge id.
+    // Use edge_list instead.
     vertex_id_type
     lookup_source(edge_id_type eid) const {
       // Binary search: find i such that CSR_src[i] <= eid, CSR_src[i+1] > eid;
@@ -935,12 +999,22 @@ namespace graphlab {
       return start;
     }
     
-    // If use_skip_list, use the Skip array to find the next valid vertex. O(1)
-    //
-    // Else use the vertex_id (CSR_row or CSC_dst) to find the next
-    // vertex. O(V).  Can be applied on invalid vertex in CSR_row or
-    // CSC_dst. Useful in binary search where the middle is not
-    // assumed to be valid.
+    /** \internal
+     * Returns the next valid vertex to the current vertex id in vertex_array.
+     * Return num_vertices if there is no valid vertex next to the curent vertex.
+     *
+     * A vertex is valid if it has out edges (or in edges).
+     *
+     * If use_skip_list = false 
+     * vertex_array can be: CSR_src, or CSC_dst
+     *
+     * If use_skip_list = true
+     * vertex_array can be: CSR_src_skip, or CSC_dst_skip
+     * Uses skip array to find the next valid vertex in O(1).
+     *
+     * Can be applied on invalid vertex. 
+     * This function is useful in binary search where the middle is not
+     * assumed to be valid. */
     inline vertex_id_type 
     nextValid(const std::vector<vertex_id_type>& vertex_array, 
               vertex_id_type curv, bool use_skip_list) const {
@@ -957,7 +1031,11 @@ namespace graphlab {
       }
     }
 
-    // Use the Skip array to find the previous valid vertex. O(1)
+    /** \internal
+     * Symmetric function of nextValid.
+     * Returns the previous valid vertex to the current vertex id in vertex_array.
+     * Return num_vertices if there is no valid vertex previous to the curent vertex.
+     */
     inline vertex_id_type 
     prevValid(const std::vector<vertex_id_type>& vertex_array, 
               vertex_id_type curv, bool use_skip_list) const {
@@ -975,22 +1053,33 @@ namespace graphlab {
 
   public:
 
+    /** \internal
+     * Returns a reference of CSR_src.*/
     const std::vector<vertex_id_type>& get_csr_src() const {
       return CSR_src;
     }
+    /** \internal
+     * Returns a reference of CSR_dst.*/
     const std::vector<edge_id_type>& get_csr_dst() const {
       return CSR_dst;
     }
+    /** \internal
+     * Returns a reference of CSC_src.*/
     const std::vector<edge_id_type>& get_csc_src() const {
       return CSC_src;
     }
+    /** \internal
+     * Returns a reference of CSC_dst.*/
     const std::vector<vertex_id_type>& get_csc_dst() const {
       return CSC_dst;
     }
+    /** \internal
+     * Returns a reference of edge_data_list.*/
     const std::vector<EdgeData>& get_edge_data() const {
       return edge_data_list;
     }
 
+    /** \brief Load the graph from an archive */
     void load(iarchive& arc) {
       clear();
       arc >> use_skip_list
@@ -1006,6 +1095,7 @@ namespace graphlab {
           >> CSC_dst_skip;
     }
 
+    /** \brief Save the graph to an archive */
     void save(oarchive& arc) const {
       arc << use_skip_list
           << num_vertices
@@ -1020,6 +1110,7 @@ namespace graphlab {
           << CSC_dst_skip;
     }
 
+    /** swap two graph storage*/
     void swap(graph_storage& other) {
       std::swap(use_skip_list, other.use_skip_list);
       std::swap(num_vertices, other.num_vertices);

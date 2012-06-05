@@ -37,6 +37,9 @@ namespace graphlab {
   template<typename VertexData, typename EdgeData>
   class distributed_graph;
 
+  /**
+   * \brief Ingress object assigning edges using randoming hash function.
+   */
   template<typename VertexData, typename EdgeData>
   class distributed_random_ingress : 
     public distributed_ingress_base<VertexData, EdgeData> {
@@ -57,6 +60,7 @@ namespace graphlab {
 
     ~distributed_random_ingress() { }
 
+    /** Add an edge to the ingress object using random assignment. */
     void add_edge(vertex_id_type source, vertex_id_type target,
                   const EdgeData& edata) {
       typedef typename base_type::edge_buffer_record edge_buffer_record;
@@ -65,7 +69,7 @@ namespace graphlab {
       base_type::edge_exchange.send(owning_proc, record);
     } // end of add edge
 
-    // Overide edge assignment function
+    /** Helper funtion that computes a random assignment of an edge. */ 
     inline procid_t edge_to_proc(const vertex_id_type source, 
                           const vertex_id_type target) const {
       typedef std::pair<vertex_id_type, vertex_id_type> edge_pair_type;

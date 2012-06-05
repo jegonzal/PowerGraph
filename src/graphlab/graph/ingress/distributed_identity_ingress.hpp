@@ -37,6 +37,9 @@ namespace graphlab {
   template<typename VertexData, typename EdgeData>
   class distributed_graph;
 
+  /**
+   * \brief Ingress object assigning edges to the loading machine itself.
+   */
   template<typename VertexData, typename EdgeData>
   class distributed_identity_ingress : 
     public distributed_ingress_base<VertexData, EdgeData> {
@@ -56,6 +59,7 @@ namespace graphlab {
 
     ~distributed_identity_ingress() { }
 
+    /** Add an edge to the ingress object and assign the edge to itself. */
     void add_edge(vertex_id_type source, vertex_id_type target,
                   const EdgeData& edata) {
       typedef typename base_type::edge_buffer_record edge_buffer_record;

@@ -51,6 +51,7 @@ namespace graphlab {
 
 
     public:
+      /** \brief A decision object for computing the edge assingment. */
       ingress_edge_decision(distributed_control& dc) {
 #ifdef USE_EVENT_LOG
         PERMANENT_INITIALIZE_DIST_EVENT_LOG(eventlog, dc, std::cout, 500, 
