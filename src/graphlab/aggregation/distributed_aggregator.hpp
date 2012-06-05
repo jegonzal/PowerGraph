@@ -74,7 +74,7 @@ namespace graphlab {
    * usage, see their respective documentation.
    * 
    */
-  template<typename Graph, typename Context>
+  template<typename Graph, typename IContext>
   class distributed_aggregator {
   public:
     typedef Graph graph_type;
@@ -83,12 +83,11 @@ namespace graphlab {
     typedef typename graph_type::edge_type edge_type;
     typedef typename graph_type::local_vertex_type local_vertex_type;
     typedef typename graph_type::vertex_type vertex_type ;
-    typedef Context context_type;
-    typedef typename Context::icontext_type icontext_type;
+    typedef IContext icontext_type;
 
     dc_dist_object<distributed_aggregator> rmi;
     graph_type& graph;
-    context_type* context;
+    icontext_type* context;
     
   private:
     
@@ -265,7 +264,7 @@ namespace graphlab {
     
     distributed_aggregator(distributed_control& dc, 
                            graph_type& graph, 
-                           context_type* context):
+                           icontext_type* context):
                             rmi(dc, this), graph(graph), 
                             context(context), ncpus(0) { }
 

@@ -721,7 +721,6 @@ namespace graphlab {
     }
 
     /** \brief Reset the storage and free the reserved memory. */
-    void clear() {
     void clear_reserve() {
       std::vector<edge_id_type>().swap(CSR_src);
       std::vector<vertex_id_type>().swap(CSR_dst);

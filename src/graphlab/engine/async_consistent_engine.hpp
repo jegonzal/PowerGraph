@@ -178,7 +178,7 @@ namespace graphlab {
     
     std::vector<vertex_state> vstate;
 
-    distributed_aggregator<graph_type, context_type> aggregator;
+    distributed_aggregator<graph_type, icontext_type> aggregator;
     size_t ncpus;
     bool started;
     async_consensus* consensus;
