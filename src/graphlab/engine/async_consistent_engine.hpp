@@ -177,6 +177,7 @@ namespace graphlab {
     ischeduler_type* scheduler_ptr;
     
     std::vector<vertex_state> vstate;
+    std::vector<conditional_gather_type> cache;
 
     distributed_aggregator<graph_type, icontext_type> aggregator;
     size_t ncpus;
@@ -197,6 +198,7 @@ namespace graphlab {
     float max_clean_fraction; // engine option
     size_t max_clean_forks; // set at start(). #edges * clean_fraction
     size_t timed_termination; // engine option
+    bool use_cache;
     float engine_start_time;
     bool timeout;
     
@@ -275,7 +277,7 @@ namespace graphlab {
       max_clean_fraction = 1.0;
       max_clean_forks = (size_t)(-1);
       timed_termination = (size_t)(-1);
-
+      use_cache = false;
       termination_reason = execution_status::UNSET;
       set_options(opts);
       
@@ -346,6 +348,8 @@ namespace graphlab {
           opts.get_engine_args().get_option("max_clean_fraction", max_clean_fraction);
         } else if (opt == "timed_termination") {
           opts.get_engine_args().get_option("timed_termination", timed_termination);
+        } else if (opt == "use_cache") {
+          opts.get_engine_args().get_option("use_cache", use_cache);
         } else {
           logstream(LOG_ERROR) << "Unexpected Engine Option: " << opt << std::endl;
         }
@@ -390,9 +394,11 @@ namespace graphlab {
       
       // construct the termination consensus object
       consensus = new async_consensus(rmi.dc(), ncpus);
+
+      // if cache is enabled, allocate the cache
+      if (use_cache) cache.resize(graph.num_local_vertices());
       
       // finally, the thread local queues
-      
       thrlocal.resize(ncpus);
       if (rmi.procid() == 0) memory_info::print_usage("After Engine Initialization");
       rmi.barrier();
@@ -448,11 +454,11 @@ namespace graphlab {
 
     void internal_post_delta(const vertex_type& vertex,
                              const gather_type& delta) {
-      /* To Implement */
+      cache[vertex.local_id()] += delta;
     }
 
     void internal_clear_gather_cache(const vertex_type& vertex) {
-      /* To Implement */
+      cache[vertex.local_id()].clear();
     }
 
 
@@ -806,26 +812,52 @@ namespace graphlab {
       local_vertex_type lvertex(graph.l_vertex(lvid));
       vertex_type vertex(lvertex);
 
+      conditional_gather_type* gather_target = NULL;
+      
+      if (use_cache) {
+        if (cache[lvid].not_empty()) {
+          // there is something in the cache. Return that
+          vstate[lvid].combined_gather += cache[lvid];
+          return;
+        }
+        else {
+          // there is nothing in the cache. Make the cache the
+          // gather target, then later write back to the combined gather
+          gather_target = &(cache[lvid]);
+        }
+      }
+      else {
+        // cache not enabled, gather directly to the combined gather
+        gather_target = &(vstate[lvid].combined_gather);
+      }
+      
       context_type context(*this, graph);
 
       edge_dir_type gatherdir = vstate[lvid].vertex_program.gather_edges(context, vertex);
 
       if(gatherdir == graphlab::IN_EDGES ||
-         gatherdir == graphlab::ALL_EDGES) {
+        gatherdir == graphlab::ALL_EDGES) {
         foreach(const local_edge_type& edge, lvertex.in_edges()) {
           edge_type e(edge);
-          vstate[lvid].combined_gather +=
+          (*gather_target) +=
             vstate[lvid].vertex_program.gather(context, vertex, e);
         }
       }
       if(gatherdir == graphlab::OUT_EDGES ||
-         gatherdir == graphlab::ALL_EDGES) {
+        gatherdir == graphlab::ALL_EDGES) {
         foreach(const local_edge_type& edge, lvertex.out_edges()) {
           edge_type e(edge);
-          vstate[lvid].combined_gather +=
+          (*gather_target) +=
             vstate[lvid].vertex_program.gather(context, vertex, e);
         }
       }
+
+      if (use_cache && cache[lvid].empty()) {
+        // this is the condition where the gather target is the cache
+        // now I need to combine it to the combined gather
+        vstate[lvid].combined_gather += cache[lvid];
+      }
+      
       END_TRACEPOINT(disteng_evalfac);
     }
 

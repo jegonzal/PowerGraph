@@ -27,6 +27,16 @@ struct conditional_addition_wrapper {
     has_value = false;
     value = T();
   }
+
+  bool empty() const {
+    return !has_value;
+  }
+
+  bool not_empty() const {
+    return has_value;
+  }
+  
+  
   conditional_addition_wrapper& operator+=(
                   const conditional_addition_wrapper<T> &c) {
     if (has_value && c.has_value) {
