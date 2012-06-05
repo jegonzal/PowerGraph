@@ -117,7 +117,6 @@ namespace graphlab {
     typedef fixed_dense_bitset<RPC_MAX_N_PROCS> mirror_type;
 
     /// The type of the local graph used to store the graph data 
-    // typedef graphlab::graph<VertexData, EdgeData> local_graph_type;
     typedef graphlab::graph<VertexData, EdgeData> local_graph_type;
 
     friend class distributed_ingress_base<VertexData, EdgeData>;
@@ -211,10 +210,10 @@ namespace graphlab {
       /// \brief Returns the target vertex of the edge
       vertex_type target() { return vertex_type(g, e.target().id()); }
       
-      /// \brief Returns a constant reference to the data on the vertex
+      /// \brief Returns a constant reference to the data on the edge 
       const edge_data_type& data() const { return e.data(); }
       
-      /// \brief Returns a reference to the data on the vertex
+      /// \brief Returns a reference to the data on the edge 
       edge_data_type& data() { return e.data(); }
     }; 
 

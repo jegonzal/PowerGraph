@@ -38,6 +38,9 @@ namespace graphlab {
   template<typename VertexData, typename EdgeData>
     class distributed_graph;
 
+  /**
+   * \brief Ingress object assigning edges using randoming hash function.
+   */
   template<typename VertexData, typename EdgeData>
   class distributed_oblivious_ingress: 
     public distributed_ingress_base<VertexData, EdgeData> {
@@ -52,14 +55,18 @@ namespace graphlab {
     typedef typename graph_type::mirror_type mirror_type;
 
     typedef distributed_ingress_base<VertexData, EdgeData> base_type;
-    /** The map from vertex id to pairs of <pid, local_degree_of_v> */
     // typedef typename boost::unordered_map<vertex_id_type, std::vector<size_t> > degree_hash_table_type;
     typedef fixed_dense_bitset<RPC_MAX_N_PROCS> bin_counts_type; 
+
+    /** Type of the degree hash table: 
+     * a map from vertex id to a bitset of length num_procs. */
     typedef cuckoo_map_pow2<vertex_id_type, bin_counts_type,3,uint32_t> degree_hash_table_type;
     degree_hash_table_type dht;
 
+    /** Array of number of edges on each proc. */
     std::vector<size_t> proc_num_edges;
 
+    /** Ingress tratis. */
     bool usehash;
     bool userecent;
 
@@ -73,6 +80,7 @@ namespace graphlab {
 
     ~distributed_oblivious_ingress() { }
 
+    /** Add an edge to the ingress object using oblivious greedy assignment. */
     void add_edge(vertex_id_type source, vertex_id_type target,
                   const EdgeData& edata) {
       dht[source]; dht[target];

@@ -56,14 +56,17 @@ namespace graphlab {
     mutex lvid2record_lock;
 
     typedef fixed_dense_bitset<RPC_MAX_N_PROCS> bin_counts_type;
-    /** The map from vertex id to pairs of <pid, local_degree_of_v> */
+
+    /** Type of the degree hash table: 
+     * a map from vertex id to a bitset of length num_procs. */
     typedef typename boost::unordered_map<vertex_id_type, bin_counts_type> 
     dht_degree_table_type;
 
     /** distributed hash table stored on local machine */ 
     std::vector<bin_counts_type > dht_degree_table;
 
-    // must be called with a readlock acquired on dht_degree_table_lock
+    /** The map from vertex id to its DHT entry.
+     * Must be called with a readlock acquired on dht_degree_table_lock. */
     size_t vid_to_dht_entry_with_readlock(vertex_id_type vid) {
       size_t idx = (vid - rpc.procid()) / rpc.numprocs();
       if (dht_degree_table.size() <= idx) {
@@ -82,11 +85,14 @@ namespace graphlab {
     rwlock dht_degree_table_lock;
 
     /** Local minibatch buffer */
-    size_t num_edges; // number of edges in the current buffer
-    size_t bufsize; // capacity of the local buffer 
+    /** Number of edges in the current buffer. */
+    size_t num_edges; 
+    /** Capacity of the local buffer. */
+    size_t bufsize; 
     std::vector<std::pair<vertex_id_type, vertex_id_type> > edgesend;
     std::vector<EdgeData> edatasend;
     mutex edgesend_lock;
+    /** A set of vertex in the current batch requiring query the DHT. */
     std::vector<boost::unordered_set<vertex_id_type> > query_set;
     /** The map from proc_id to num_edges on that proc */
     std::vector<size_t> proc_num_edges;
@@ -98,6 +104,7 @@ namespace graphlab {
     DECLARE_TRACER(batch_ingress_get_degree_table);
     DECLARE_TRACER(batch_ingress_update_degree_table);
 
+    /** Ingress tratis. */
     bool usehash;
     bool userecent; 
 
@@ -117,7 +124,7 @@ namespace graphlab {
       INITIALIZE_TRACER(batch_ingress_update_degree_table, "Time spent in update degree table");
      }
 
-// override base::add_edge
+    /** Adds an edge to the batch ingress buffer, and updates the query set. */
     void add_edge(vertex_id_type source, vertex_id_type target, const EdgeData& edata) {
       BEGIN_TRACEPOINT(batch_ingress_add_edge);
       edgesend_lock.lock();
@@ -132,7 +139,7 @@ namespace graphlab {
       if (is_full()) flush();
     } // end of add_edge
 
-    // overide base finalize; 
+    /** Flush the buffer and call base finalize. */; 
     void finalize() { 
       flush(); 
       base_type::finalize();
@@ -142,7 +149,7 @@ namespace graphlab {
   private:
 
     // HELPER ROUTINES =======================================================>    
-    // Add a block of edges to storage.
+    /** Add edges in block to the local current graph. */
     void add_edges(const std::vector<vertex_id_type>& source_arr, 
         const std::vector<vertex_id_type>& target_arr, 
         const std::vector<EdgeData>& edata_arr) {
@@ -155,11 +162,13 @@ namespace graphlab {
       local_source_arr.reserve(source_arr.size());
       std::vector<lvid_type> local_target_arr;
       local_target_arr.reserve(source_arr.size());
-      /** The map from vertex_id to its degree on this proc.*/
+
+      // The map from vertex_id to its degree on this proc.
       std::vector<std::vector<vertex_id_type> > local_degree_count(rpc.numprocs());
 
       lvid_type max_lvid = 0;
 
+      // Lock and update the lvid2record.
       lvid2record_lock.lock();
       for (size_t i = 0; i < source_arr.size(); ++i) {
         vertex_id_type source = source_arr[i];
@@ -199,7 +208,8 @@ namespace graphlab {
         local_degree_count[base_type::vertex_to_proc(target)].push_back(target);
       }
       lvid2record_lock.unlock();
-      // Send out local_degree count;
+
+      // Send out local_degree count.
       for (size_t i = 0; i < rpc.numprocs(); ++i) {
         if (i != rpc.procid()) {
           rpc.remote_call(i, 
@@ -212,7 +222,7 @@ namespace graphlab {
         local_degree_count[i].clear();
       }
 
-      // Add edges to local graph
+      // Lock and add edges to local graph.
       local_graph_lock.lock();
       if (max_lvid > 0 && max_lvid >= base_type::graph.local_graph.num_vertices()) {
         //std::cout << rpc.procid() << ": " << max_lvid << std::endl;
@@ -225,6 +235,7 @@ namespace graphlab {
       END_TRACEPOINT(batch_ingress_add_edges);
     } // end of add edges
 
+    /** Updates the local part of the distributed table. */
     void block_add_degree_counts (procid_t pid, std::vector<vertex_id_type>& whohas) {
       BEGIN_TRACEPOINT(batch_ingress_update_degree_table);
       dht_degree_table_lock.readlock();
@@ -236,7 +247,7 @@ namespace graphlab {
       END_TRACEPOINT(batch_ingress_update_degree_table);
     }
 
-
+    /** Returns the degree counts by querying the distributed table. */
     dht_degree_table_type 
     block_get_degree_table(const boost::unordered_set<vertex_id_type>& vid_query) {
       BEGIN_TRACEPOINT(batch_ingress_get_degree_table);
@@ -251,6 +262,7 @@ namespace graphlab {
     }  // end of block get degree table
 
 
+    /** Assign edges in the buffer greedily using the recent query of DHT. */
    void assign_edges(std::vector<std::vector<vertex_id_type> >& proc_src,
                      std::vector<std::vector<vertex_id_type> >& proc_dst,
                      std::vector<std::vector<EdgeData> >& proc_edata) {
@@ -258,10 +270,11 @@ namespace graphlab {
      if (num_edges == 0) return;
 
      edgesend_lock.lock();
-     // Get the degree table.
+     
      BEGIN_TRACEPOINT(batch_ingress_request_degree_table);
      std::vector<dht_degree_table_type> degree_table(rpc.numprocs());
      
+     // Query the DHT.
      for (size_t i = 0; i < rpc.numprocs(); ++i) {
        if (i == rpc.procid()) {
          degree_table[i] = block_get_degree_table(query_set[i]);
@@ -275,6 +288,7 @@ namespace graphlab {
      }
      END_TRACEPOINT(batch_ingress_request_degree_table);
 
+     // Make assigment.
      for (size_t i = 0; i < num_edges; ++i) {
        std::pair<vertex_id_type, vertex_id_type>& e = 
          edgesend[i];
@@ -293,12 +307,14 @@ namespace graphlab {
        proc_dst[proc].push_back(e.second);
        proc_edata[proc].push_back(edatasend[i]);
      }
+
+     // Clear the sending buffer.
      edgesend.clear();
      edatasend.clear();
      edgesend_lock.unlock();
-   } // end add edge
+   } // end assign edge
 
-    // Flush all edges in the buffer.
+    /** Flushes all edges in the buffer. */
     void flush() {
       std::vector< std::vector<vertex_id_type> > proc_src(rpc.numprocs());
       std::vector< std::vector<vertex_id_type> > proc_dst(rpc.numprocs());
@@ -318,9 +334,11 @@ namespace graphlab {
       } // end for
     } // end flush
 
+    /** Returns the number of edges  in the buffer. */
     size_t size() { return num_edges; }
-    bool is_full() { return size() >= bufsize; }
 
+    /** Returns whether the buffer is full. */
+    bool is_full() { return size() >= bufsize; }
   }; // end of distributed_batch_ingress
 
 }; // end of namespace graphlab

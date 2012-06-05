@@ -29,13 +29,31 @@
 
 namespace graphlab {
 
+  /**
+   * \brief The ingress object handles the graph ingress.
+   *
+   * The ingress load balance the incoming edges with the objective to minimize 
+   * vertex replicas.
+   */
   template<typename VertexData, typename EdgeData>
   class idistributed_ingress {
   public:     
     virtual ~idistributed_ingress() { }
+    /**
+     * Add an edge to the ingress object.
+     */
     virtual void add_edge(vertex_id_type source, vertex_id_type target,
                           const EdgeData& edata) = 0;
+    /**
+     * Add an vertex to the ingress object.
+     */
     virtual void add_vertex(vertex_id_type vid, const VertexData& vdata) = 0;
+
+    /**
+     * Finalize completes local graph data structure,  
+     * and vertex record information by coordinating vertex information
+     * among the machines.
+     */
     virtual void finalize() = 0;
   }; // end of idstributed_ingress
 
