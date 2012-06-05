@@ -36,44 +36,9 @@
 namespace graphlab {
 
   /**
-   * JSON Schedule (extracted from return JSON)
-   */
-  class json_schedule {
-  public:
-    enum neighbors_enum {ALL, SOME, NONE, IN_NEIGHBORS, OUT_NEIGHBORS};
-  private:
-    std::string mupdater;
-    neighbors_enum mtargets;
-    std::vector<unsigned> mvertices;
-  public:
-    
-    json_schedule(neighbors_enum targets,
-      const std::string &updater="");
-    json_schedule(neighbors_enum targets,
-      const std::string &updater,
-      const rapidjson::Value &vertices);
-    
-    /**
-     * Enum representing vertices to schedule
-     */
-    neighbors_enum targets() const;
-    
-    /**
-     * Returns updater state for new updater (or 'self')
-     */
-    const std::string &updater() const;
-    
-    /**
-     * Returns array of vertex IDs if these were specified in the JSON
-     */
-    const std::vector<unsigned> &vertices() const;
-    
-  };
-
-
-  /**
    * JSON Message (Abstract)
    * Formats, sends, receives, and parses JSON messages.
+   * @internal
    */
   class json_message {
   
@@ -112,9 +77,6 @@ namespace graphlab {
   class json_invocation : public json_message {
   public:
   
-    const static byte VERTEX = 0x01;
-    const static byte EDGES = 0x02;
-  
     /**
      * Creates a new message for specified method, with the given updater state.
      * @param[in]   method    method to invoke
@@ -124,66 +86,59 @@ namespace graphlab {
     virtual ~json_invocation();
     
     /**
-     * Adds a context parameter to the invocation
-     * @param[in]   context   invocation context
-     * @param[in]   flags     vertex only, or vertex and edges
-     */
-    void add_context(dispatcher_update::icontext_type& context, byte flags);
+     * Adds a vertex parameter to the invocation
+     * @param[in]   vertex    vertex
+     */ 
+    void add_vertex(const dispatcher::vertex_type& edge);
     
     /**
      * Adds an edge parameter to the invocation
      * @param[in]   edge      edge
      */
-    void add_edge(dispatcher_update::icontext_type& context, const dispatcher_update::graph_type::edge_type& edge);
+    void add_edge(const dispatcher::edge_type& edge);
     
     /**
-     * Adds other updater state to the invocation
-     * @param[in]   other     updater state
+     * Adds other gather state to the invocation
+     * @param[in]   other     gather state
      */
     void add_other(const std::string& other);
     
+    /**
+     * Adds gather total to the invocation
+     * @params[in]  gather    gather total
+     */
+    void add_gather(const dispatcher::gather_type& gather_total);
+    
   private:
-    void add_in_edges(dispatcher_update::icontext_type& context, rapidjson::Value& parent);
-    void add_out_edges(dispatcher_update::icontext_type& context, rapidjson::Value& parent);
-    rapidjson::Value& create_edge(rapidjson::Value& edgev, const dispatcher_update::icontext_type& context, const dispatcher_update::graph_type::edge_type& edge);
-    rapidjson::Value& create_vertex(rapidjson::Value& vertexv, const dispatcher_update::graph_type::vertex_id_type vertex_id, const dispatcher_update::graph_type::vertex_data_type& vertex_data);
+    void add_in_edges(dispatcher::icontext_type& context, rapidjson::Value& parent);
+    void add_out_edges(dispatcher::icontext_type& context, rapidjson::Value& parent);
+    rapidjson::Value& create_edge(rapidjson::Value& edgev, const dispatcher::icontext_type& context, const dispatcher::graph_type::edge_type& edge);
+    rapidjson::Value& create_vertex(rapidjson::Value& vertexv, const dispatcher::graph_type::vertex_id_type vertex_id, const dispatcher::graph_type::vertex_data_type& vertex_data);
     
   };
   
   /**
    * JSON Return
-   * A specific JSON message for return values.
+   * A specific type of json_message for return values.
+   * @internal
    */
   class json_return : public json_message {
   public:
     
     virtual ~json_return();
     
-    /**
-     * @return updater state from return JSON, or null if not available.
-     */
-    const char *updater() const;
+    /** @return program state from return JSON, or null if not available. */
+    const char *program() const;
     
-    /**
-     * @return vertex state from return JSON, or null if not available.
-     */
+    /** @return vertex state from return JSON, or null if not available. */
     const char *vertex() const;
     
-    /**
-     * @return schedule, extracted from return JSON
-     */
-    const json_schedule schedule() const;
-    const char *scatter_schedule() const;
+    /** @return edge direction from return JSON, or null if not available. */ 
+    const edge_dir_type edge_dir() const;
     
-    /**
-     * @return consistency model, extracted from return JSON
-     */
-    const graphlab::consistency_model consistency() const;
+    const char *result() const;
+    const char *signal() const;
     
-    /**
-     * @return edge set, extracted from return JSON
-     */
-    const graphlab::edge_set edge_set() const;
     
   };
 

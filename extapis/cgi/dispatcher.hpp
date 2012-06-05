@@ -40,11 +40,12 @@ namespace graphlab {
    * The gather type for CGI programs is just a string. To merge two gathers,
    * a merge is invoked on the child process.
    */
-  class cgi_gather_type {
+  class cgi_gather {
   private:
     std::string mstate;
   public:
-    void operator+=(const cgi_gather_type& other);
+    cgi_gather(const std::string& state="");
+    void operator+=(const cgi_gather& other);
     void save(oarchive& oarc) const;
     void load(iarchive& iarc);
   }; // end of cgi_gather_type
@@ -56,7 +57,7 @@ namespace graphlab {
    * @internal
    */  
   class dispatcher :
-    public ivertex_program<distributed_graph<std::string, std::string>, cgi_gather_type> {
+    public ivertex_program<distributed_graph<std::string, std::string>, cgi_gather> {
   public:
     /** vertex state is just a string - user decides format */
     typedef std::string cgi_vertex;
@@ -64,11 +65,18 @@ namespace graphlab {
     typedef std::string cgi_edge;
     /** distributed graph with cgi_vertex and cgi_edge */
     typedef distributed_graph<cgi_vertex, cgi_edge> graph_type;
+    typedef cgi_gather gather_type;
   private:
     /** vertex program state - */
     std::string mstate;
   public:
     dispatcher(const std::string& state="");
+    void init(icontext_type& context, vertex_type& vertex);
+    edge_dir_type gather_edges(icontext_type& context, const vertex_type& vertex) const;
+    edge_dir_type scatter_edges(icontext_type& context, const vertex_type& vertex) const;
+    gather_type gather(icontext_type& context, const vertex_type& vertex, edge_type& edge) const;
+    void apply(icontext_type& context, vertex_type& vertex, const gather_type& total);
+    void scatter(icontext_type& context, const vertex_type& vertex, edge_type& edge) const;
     void save(oarchive& oarc) const;
     void load(iarchive& iarc);
   }; // end of dispatcher
