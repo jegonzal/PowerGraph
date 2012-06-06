@@ -81,10 +81,14 @@ namespace graphlab {
   class iengine {
   public:
     typedef VertexProgram vertex_program_type;
+
     typedef typename vertex_program_type::message_type message_type;
+    typedef typename vertex_program_type::icontext_type icontext_type;   
     typedef typename vertex_program_type::graph_type graph_type;
     typedef typename graph_type::vertex_id_type vertex_id_type;  
     typedef typename graph_type::vertex_type vertex_type;
+
+    typedef distributed_aggregator<graph_type, icontext_type> aggregator_type;
 
 
     //! Virtual destructor required for inheritance 
@@ -204,7 +208,58 @@ namespace graphlab {
                             const std::string& order = "sequential") = 0;
    
 
+    
+    /** 
+     * \brief Creates a vertex aggregator. Returns true on success.
+     *  Returns false if an aggregator of the same name already
+     *  exists.
+     * 
+     * See \ref graphlab::distributed_aggregator::add_vertex_aggregator for details.
+     */
+    template <typename ReductionType>
+    bool add_vertex_aggregator
+    (const std::string& key,
+     boost::function<ReductionType(icontext_type&, vertex_type&)> map_function,
+     boost::function<void(icontext_type&, const ReductionType&)> finalize_function) {
+      retrun get_aggregator().add_vertex_aggregator(key, map_function, finalize_function);
+    } // end of add vertex aggregator
 
+
+
+    
+    /** 
+     * \brief Creates a edge aggregator. Returns true on success.
+     * Returns false if an aggregator of the same name already exists
+     *
+     * See \ref graphlab::distributed_aggregator::add_edge_aggregator for details.
+     */
+    template <typename ReductionType>
+    bool add_edge_aggregator
+    (const std::string& key,
+     boost::function<ReductionType(icontext_type&, edge_type&)> map_function,
+      boost::function<void(icontext_type&, const ReductionType&)> finalize_function) {
+      return get_aggregator().add_edge_aggregator(key, map_function, finalize_function);
+    } // end of add edge aggregator
+
+
+    /**
+     * Performs an immediate aggregation on a key. All machines must
+     * call this simultaneously. If the key is not found,
+     * false is returned. Otherwise return true on success.
+     *
+     * \param[in] key Key to aggregate now
+     * \return False if key not found, True on success.
+     */
+    bool aggregate_now(const std::string& key) {
+      return get_aggregator().aggregate_now(key);
+    } // end of aggregate_now
+
+
+
+
+
+  pivate:
+    virtual aggregator_type& get_aggregator() = 0;
     
   }; // end of iengine interface
 

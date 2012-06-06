@@ -491,7 +491,11 @@ namespace graphlab {
     message_exchange_type message_exchange;
 
 
-    
+    /**
+     * \brief the internal aggregator type
+     */
+    aggregator_type aggregator;
+
   public:
 
     /**

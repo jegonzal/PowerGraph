@@ -268,8 +268,10 @@ namespace graphlab {
                             rmi(dc, this), graph(graph), 
                             context(context), ncpus(0) { }
 
-    /** \brief Creates a vertex aggregator. Returns true on success.
-               Returns false if an aggregator of the same name already exists.
+    /** 
+     * \brief Creates a vertex aggregator. Returns true on success.
+     *        Returns false if an aggregator of the same name already
+     *        exists.
      *
      * Creates a vertex aggregator associated to a particular key.
      * The map_function is called over every vertex in the graph, and the
