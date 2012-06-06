@@ -95,7 +95,7 @@ namespace graphlab {
       engine(engine), graph(graph) { }
     
     /**
-     * Get the number of vertices in the graph.
+     * \copydoc icontext::num_vertices
      */
     size_t num_vertices() const { return graph.num_vertices(); }
 
@@ -104,11 +104,15 @@ namespace graphlab {
      */
     size_t num_edges() const { return graph.num_edges(); }
 
-    /**
-     * Get an estimate of the number of update functions executed up
-     * to this point.
-     */
-    size_t num_updates() const { return engine.num_updates(); }
+    // /**
+    //  * Get an estimate of the number of update functions executed up
+    //  * to this point.
+    //  */
+    // size_t num_updates() const { return engine.num_updates(); }
+
+    size_t procid() const { return graph.procid(); }
+      
+    size_t num_procs() const { return graph.numprocs(); }
 
     /**
      * Get the elapsed time in seconds

@@ -87,11 +87,33 @@ namespace graphlab {
      */
     virtual size_t num_edges() const = 0;
 
+    // I don't think we can reliably implement this?
+    // /**
+    //  * Get an estimate of the number of update functions executed up
+    //  * to this point.
+    //  */
+    // virtual size_t num_updates() const = 0;
+
+
     /**
-     * Get an estimate of the number of update functions executed up
-     * to this point.
+     * \brief Get the proc id of the local machine.
+     *
+     * The procid is a number between 0 and 
+     * \ref graphlab::icontext::num_procs
+     * 
+     * \warning there will be more threads (workers) than number of
+     * processors.
+     *
+     *
+     * @return the procid of this machine.
      */
-    virtual size_t num_updates() const = 0;
+    virtual size_t procid() const = 0;
+
+    /**
+     * \brief Get the number of machine in the distributed execution.
+     */
+    virtual size_t num_procs() const = 0;
+
 
     /**
      * Get the elapsed time in seconds

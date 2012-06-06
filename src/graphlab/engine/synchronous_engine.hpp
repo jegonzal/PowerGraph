@@ -270,28 +270,30 @@ namespace graphlab {
 
     /**
      * \brief Local vertex type used by the engine for fast indexing
-     * \internal
      */
     typedef typename graph_type::local_vertex_type    local_vertex_type;
     
     /**
      * \brief Local edge type used by the engine for fast indexing
-     * \internal
      */
     typedef typename graph_type::local_edge_type      local_edge_type;
     
     /**
      * \brief Local vertex id type used by the engine for fast indexing
-     * \internal
      */
     typedef typename graph_type::lvid_type            lvid_type;
 
     /**
      * \brief The actual instance of the context type used by this engine.
-     * \internal
      */
     typedef context<synchronous_engine> context_type;
     friend class context<synchronous_engine>;
+
+
+    /**
+     * \brief The type of the distributed aggregator inherited from iengine
+     */
+    typedef typename iengine<vertex_program_type>::aggregator_type aggregator_type;
 
     /**
      * \brief The object used to communicate with remote copies of the
@@ -492,7 +494,8 @@ namespace graphlab {
 
 
     /**
-     * \brief the internal aggregator type
+     * \brief The distributed aggregator used to manage background
+     * aggregation.
      */
     aggregator_type aggregator;
 
@@ -665,30 +668,99 @@ namespace graphlab {
 
   private:
 
+    /**
+     * \brief Get a pointer to the distributed aggregator object. 
+     *
+     * This is currently used by the \ref graphlab::iengine interface to 
+     * implement the calls to aggregation.
+     *
+     * @return a pointer to the local aggregator.
+     */
+    aggregator_type* get_aggregator();
+
+    /**
+     * \brief This internal stop function is called by the \ref graphlab::context to
+     * terminate execution of the engine.
+     */
     void internal_stop();    
+
+    /**
+     * \brief This function is called remote by the rpc to force the
+     * engine to stop.
+     */
     void rpc_stop();
 
+    /**
+     * \brief Signal a vertex.
+     *
+     * This function is called by the \ref graphlab::context.
+     *
+     * @param [in] vertex the vertex to signal
+     * @param [in] message the message to send to that vertex.
+     */
     void internal_signal(const vertex_type& vertex,
-                         const message_type& message = message_type());    
-    void internal_signal_gvid(vertex_id_type gvid,
-                              const message_type& message = message_type());
+                         const message_type& message = message_type()); 
+
+    /**
+     * \brief Called by the context to signal an arbitrary vertex.
+     * This must be done by finding the owner of that vertex. 
+     *
+     * @param [in] gvid the global vertex id of the vertex to signal
+     * @param [in] message the message to send to that vertex.
+     */
     void internal_signal_broadcast(vertex_id_type gvid,
                                    const message_type& message = message_type());
+    
+    /**
+     * \brief This function tests if this machine is the master of
+     * gvid and signals if successful.
+     */
+    void internal_signal_rpc(vertex_id_type gvid,
+                              const message_type& message = message_type());
 
 
     /** 
-     * Post a delta
-     * 
+     * \brief Post a to a previous gather for a give vertex.
+     *
+     * This function is called by the \ref graphlab::context.
+     *
      * @param [in] vertex The vertex to which to post a change in the sum
      * @param [in] delta The change in that sum
      */
     void internal_post_delta(const vertex_type& vertex,
                              const gather_type& delta);
 
+    /**
+     * \brief Clear the cached gather for a vertex if one is
+     * available.
+     *
+     * This function is called by the \ref graphlab::context.
+     *
+     * @param [in] vertex the vertex for which to clear the cache
+     */
     void internal_clear_gather_cache(const vertex_type& vertex);
 
 
     // Program Steps ==========================================================
+   
+    /**
+     * \brief Executes ncpus copies of a member function each with a
+     * unique consecutive id (thread id). 
+     *
+     * This function is used by the main loop to execute each of the
+     * stages in parallel.
+     *
+     * The member function must have the type:
+     *
+     * \code
+     * void synchronous_engine::member_fun(size_t threadid);
+     * \endcode
+     *
+     * This function runs an rmi barrier after termination
+     *
+     * @tparam the type of the member function.  
+     * @param [in] member_fun the function to call.
+     */
     template<typename MemberFunction>       
     void run_synchronous(MemberFunction member_fun) {
       // launch the initialization threads
@@ -700,25 +772,135 @@ namespace graphlab {
     } // end of run_synchronous
 
     /** 
-     * 
+     * \brief Initialize all vertex programs by invoking 
+     * \ref graphlab::ivertex_program::init on all vertices.
      *
-     * @param thread_id 
+     * @param thread_id the thread to run this as which determines
+     * which vertices to process.
      */
     void initialize_vertex_programs(size_t thread_id);
+
+    /** 
+     * \brief Synchronize all message data.
+     *
+     * @param thread_id the thread to run this as which determines
+     * which vertices to process.
+     */
     void exchange_messages(size_t thread_id);
+
+
+    /** 
+     * \brief Invoke the \ref graphlab::ivertex_program::recv_message function 
+     * on all vertex programs that have inbound messages.
+     *
+     * @param thread_id the thread to run this as which determines
+     * which vertices to process.
+     */
     void receive_messages(size_t thread_id);
+
+
+    /** 
+     * \brief Execute the \ref graphlab::ivertex_program::gather function on all 
+     * vertices that received messages for the edges specified by the 
+     * \ref graphlab::ivertex_program::gather_edges.
+     *
+     * @param thread_id the thread to run this as which determines
+     * which vertices to process.
+     */
     void execute_gathers(size_t thread_id);
+
+
+    /** 
+     * \brief Execute the \ref graphlab::ivertex_program::apply function on all
+     * all vertices that received messages in this super-step (active).
+     *
+     * @param thread_id the thread to run this as which determines
+     * which vertices to process.
+     */
     void execute_applys(size_t thread_id);
+
+    /** 
+     * \brief Execute the \ref graphlab::ivertex_program::scatter function on all 
+     * vertices that received messages for the edges specified by the 
+     * \ref graphlab::ivertex_program::scatter_edges.
+     *
+     * @param thread_id the thread to run this as which determines
+     * which vertices to process.
+     */
     void execute_scatters(size_t thread_id);
 
     // Data Synchronization ===================================================
+    /**
+     * \brief Send the vertex program for the local vertex id to all
+     * of its mirrors. 
+     *
+     * @param [in] lvid the vertex to sync.  This muster must be the
+     * master of that vertex.
+     */
     void sync_vertex_program(lvid_type lvid);
+
+    /**
+     * \brief Receive all incoming vertex programs and update the
+     * local mirrors.
+     *
+     * This function returns when there are no more incoming vertex
+     * programs and should be called after a flush of the vertex
+     * program exchange.
+     */
     void recv_vertex_programs();
+
+    /**
+     * \brief Send the vertex data for the local vertex id to all of
+     * its mirrors.
+     *
+     * @param [in] lvid the vertex to sync.  This machine must be the master
+     * of that vertex.
+     */
     void sync_vertex_data(lvid_type lvid);
+    
+    /**
+     * \brief Receive all incoming vertex data and update the local
+     * mirrors.
+     *
+     * This function returns when there are no more incoming vertex
+     * data and should be called after a flush of the vertex data
+     * exchange.
+     */
     void recv_vertex_data();
+
+    /**
+     * \brief Send the gather value for the vertex id to its master.
+     *
+     * @param [in] lvid the vertex to send the gather value to
+     * @param [in] accum the locally computed gather value. 
+     */
     void sync_gather(lvid_type lvid, const gather_type& accum);
+
+
+    /**
+     * \brief Receive the gather values from the buffered exchange.
+     *
+     * This function returns when there is nothing left in the
+     * buffered exchange and should be called after the buffered
+     * exchange has been flushed
+     */
     void recv_gathers();
+
+    /**
+     * \brief Send the accumulated message for the local vertex to its
+     * master.
+     *
+     * @param [in] lvid the vertex to send 
+     */
     void sync_message(lvid_type lvid);
+
+    /**
+     * \brief Receive the messages from the buffered exchange.
+     *
+     * This function returns when there is nothing left in the
+     * buffered exchange and should be called after the buffered
+     * exchange has been flushed
+     */
     void recv_messages();
 
   }; // end of class synchronous engine
@@ -740,7 +922,8 @@ namespace graphlab {
     thread_barrier(opts.get_ncpus()),
     max_iterations(-1), iteration_counter(0), 
     vprog_exchange(dc), vdata_exchange(dc), 
-    gather_exchange(dc), message_exchange(dc) {
+    gather_exchange(dc), message_exchange(dc),
+    aggregator(dc, graph, new context_type(*this, graph)) {
     // Process any additional options
     std::vector<std::string> keys = opts.get_engine_args().get_option_keys();
     bool use_cache = false;
@@ -785,6 +968,18 @@ namespace graphlab {
   
 
 
+
+
+
+
+  template<typename VertexProgram>
+  typename synchronous_engine<VertexProgram>::aggregator_type*
+  synchronous_engine<VertexProgram>::get_aggregator() {
+    return &aggregator;
+  } // end of get_aggregator
+
+
+
   template<typename VertexProgram>
   void synchronous_engine<VertexProgram>::internal_stop() {
     for (size_t i = 0; i < rmi.numprocs(); ++i) 
@@ -801,7 +996,7 @@ namespace graphlab {
   void synchronous_engine<VertexProgram>::
   signal(vertex_id_type gvid, const message_type& message) {
     rmi.barrier();
-    internal_signal_gvid(gvid, message);
+    internal_signal_rpc(gvid, message);
     rmi.barrier();
   } // end of signal
 
@@ -836,21 +1031,23 @@ namespace graphlab {
 
   template<typename VertexProgram>
   void synchronous_engine<VertexProgram>::
-  internal_signal_gvid(vertex_id_type gvid,
-                       const message_type& message) {
-    if (graph.is_master(gvid)) {
-      internal_signal(graph.vertex(gvid), message);
+  internal_signal_broadcast(vertex_id_type gvid, const message_type& message) {
+    for (size_t i = 0; i < rmi.numprocs(); ++i) {
+      if(i == rmi.procid()) internal_signal_rpc(gvid, message);
+      else rmi.remote_call(i, &synchronous_engine<VertexProgram>::internal_signal_rpc,
+                          gvid, message);
     }
-  } // end of internal_signal_gvid
+  } // end of internal_signal_broadcast
 
   template<typename VertexProgram>
   void synchronous_engine<VertexProgram>::
-  internal_signal_broadcast(vertex_id_type gvid, const message_type& message) {
-    for (size_t i = 0;i < rmi.numprocs(); ++i) {
-      rmi.remote_call(i, &synchronous_engine<VertexProgram>::internal_signal_gvid,
-                      gvid, message);
+  internal_signal_rpc(vertex_id_type gvid,
+                      const message_type& message) {
+    if (graph.is_master(gvid)) {
+      internal_signal(graph.vertex(gvid), message);
     }
-  } // end of internal_signal_broadcast
+  } // end of internal_signal_rpc
+
 
 
   
@@ -929,19 +1126,22 @@ namespace graphlab {
       run_synchronous( &synchronous_engine::initialize_vertex_programs );
     }
     rmi.barrier();
+    // initialize aggregators
+    aggregator.aggregate_all_periodic();
     // Program Main loop ====================================================      
     while(iteration_counter < max_iterations && !force_abort) {
       logstream(LOG_INFO) 
         << rmi.procid() << ": Starting iteration: " << iteration_counter 
         << std::endl;
-      // Reset Active vertices ----------------------------------------------
-
+      // Reset Active vertices ---------------------------------------------- 
       // Clear the active super-step and minor-step bits which will
       // be set upon receiving messages
       active_superstep.clear(); active_minorstep.clear();
       has_gather_accum.clear(); 
       rmi.barrier();
 
+      // probe the aggregator
+      aggregator.tick_synchronous();
 
       // Exchange Messages --------------------------------------------------
       // Exchange any messages in the local message vectors
@@ -1022,6 +1222,8 @@ namespace graphlab {
     }
     // Final barrier to ensure that all engines terminate at the same time
     rmi.full_barrier();
+    // Stop the aggregator
+    aggregator.stop();
     // return the final reason for termination
     return termination_reason;
   } // end of start
@@ -1354,6 +1556,9 @@ namespace graphlab {
     const vertex_id_type vid = graph.global_vid(lvid);
     message_exchange.send(master, std::make_pair(vid, messages[lvid]));
   } // end of send_message
+
+
+
 
   template<typename VertexProgram>
   void synchronous_engine<VertexProgram>::

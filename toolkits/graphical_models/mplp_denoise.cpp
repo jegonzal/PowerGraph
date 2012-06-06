@@ -659,7 +659,7 @@ int main(int argc, char** argv) {
   engine.signal_all();
   std::cout << "Starting the engine" << std::endl;
   engine.start();
-  const float runtime = engine.elapsed_time();
+  const float runtime = engine.elapsed_seconds();
   size_t update_count = engine.num_updates();
   std::cout << "Finished Running engine in " << runtime 
   << " seconds." << std::endl

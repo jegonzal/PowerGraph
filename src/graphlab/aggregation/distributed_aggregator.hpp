@@ -477,7 +477,7 @@ namespace graphlab {
      */
     void aggregate_all_periodic() {
       typename std::map<std::string, float>::iterator iter =
-                                                    aggregate_period.begin();
+        aggregate_period.begin();
       while (iter != aggregate_period.end()) { 
         aggregate_now(iter->first);
         ++iter;

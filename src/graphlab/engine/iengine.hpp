@@ -43,19 +43,19 @@
 #ifndef GRAPHLAB_IENGINE_HPP
 #define GRAPHLAB_IENGINE_HPP
 
+#include <boost/bind.hpp>
+#include <boost/functional.hpp>
 
 #include <graphlab/vertex_program/icontext.hpp>
 #include <graphlab/engine/execution_status.hpp>
 #include <graphlab/options/graphlab_options.hpp>
-
+#include <graphlab/aggregation/distributed_aggregator.hpp>
 
 
 
 namespace graphlab {
   
 
-
-  
   /**
      \brief The abstract interface of a GraphLab engine.
      The graphlab engine interface describes the core functionality
@@ -86,7 +86,8 @@ namespace graphlab {
     typedef typename vertex_program_type::icontext_type icontext_type;   
     typedef typename vertex_program_type::graph_type graph_type;
     typedef typename graph_type::vertex_id_type vertex_id_type;  
-    typedef typename graph_type::vertex_type vertex_type;
+    typedef typename graph_type::vertex_type    vertex_type;
+    typedef typename graph_type::edge_type      edge_type;
 
     typedef distributed_aggregator<graph_type, icontext_type> aggregator_type;
 
@@ -209,57 +210,70 @@ namespace graphlab {
    
 
     
-    /** 
-     * \brief Creates a vertex aggregator. Returns true on success.
-     *  Returns false if an aggregator of the same name already
-     *  exists.
-     * 
-     * See \ref graphlab::distributed_aggregator::add_vertex_aggregator for details.
+    /**
+     * \copydoc distributed_aggregator::add_vertex_aggregator
      */
     template <typename ReductionType>
     bool add_vertex_aggregator
     (const std::string& key,
      boost::function<ReductionType(icontext_type&, vertex_type&)> map_function,
      boost::function<void(icontext_type&, const ReductionType&)> finalize_function) {
-      retrun get_aggregator().add_vertex_aggregator(key, map_function, finalize_function);
+      aggregator_type* aggregator = get_aggregator();
+      if(aggregator == NULL) {
+        logstream(LOG_FATAL) << "Aggregation not supported by this engine!" << std::endl;
+        return false; 
+      }
+      return aggregator->add_vertex_aggregator(key, map_function, finalize_function);
     } // end of add vertex aggregator
 
 
 
     
-    /** 
-     * \brief Creates a edge aggregator. Returns true on success.
-     * Returns false if an aggregator of the same name already exists
-     *
-     * See \ref graphlab::distributed_aggregator::add_edge_aggregator for details.
+    /**
+     * \copydoc distributed_aggregator::add_edge_aggregator
      */
     template <typename ReductionType>
     bool add_edge_aggregator
     (const std::string& key,
      boost::function<ReductionType(icontext_type&, edge_type&)> map_function,
       boost::function<void(icontext_type&, const ReductionType&)> finalize_function) {
-      return get_aggregator().add_edge_aggregator(key, map_function, finalize_function);
+      aggregator_type* aggregator = get_aggregator();
+      if(aggregator == NULL) {
+        logstream(LOG_FATAL) << "Aggregation not supported by this engine!" << std::endl;
+        return false; 
+      }
+      return aggregator->add_edge_aggregator(key, map_function, finalize_function);
     } // end of add edge aggregator
 
 
     /**
-     * Performs an immediate aggregation on a key. All machines must
-     * call this simultaneously. If the key is not found,
-     * false is returned. Otherwise return true on success.
-     *
-     * \param[in] key Key to aggregate now
-     * \return False if key not found, True on success.
+     * \copydoc distributed_aggregator::aggregate_now
      */
     bool aggregate_now(const std::string& key) {
-      return get_aggregator().aggregate_now(key);
+      aggregator_type* aggregator = get_aggregator();
+      if(aggregator == NULL) {
+        logstream(LOG_FATAL) << "Aggregation not supported by this engine!" << std::endl;
+        return false; 
+      }
+      return aggregator->aggregate_now(key);
     } // end of aggregate_now
 
 
+    /**
+     * \copydoc distributed_aggregator::aggregate_periodic()
+     */
+    bool aggregate_periodic(const std::string& key, float seconds) {
+      aggregator_type* aggregator = get_aggregator();
+      if(aggregator == NULL) {
+        logstream(LOG_FATAL) << "Aggregation not supported by this engine!" << std::endl;
+        return false; 
+      }
+      return aggregator->aggregate_periodic(key, seconds);
+    } // end of aggregate_periodic
 
 
-
-  pivate:
-    virtual aggregator_type& get_aggregator() = 0;
+  private:
+    virtual aggregator_type* get_aggregator() = 0;
     
   }; // end of iengine interface
 
