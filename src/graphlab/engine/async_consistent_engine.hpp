@@ -454,11 +454,13 @@ namespace graphlab {
 
     void internal_post_delta(const vertex_type& vertex,
                              const gather_type& delta) {
-      cache[vertex.local_id()] += delta;
+      // only post deltas if caching is enabled
+      if(use_cache) cache[vertex.local_id()] += delta;
     }
 
     void internal_clear_gather_cache(const vertex_type& vertex) {
-      cache[vertex.local_id()].clear();
+      // only post clear cache if caching is enabled
+      if(use_cache) cache[vertex.local_id()].clear();
     }
 
 
