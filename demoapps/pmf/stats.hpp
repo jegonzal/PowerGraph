@@ -524,8 +524,8 @@ typedef typename graph_type::edge_data_type edge_data;
   vec predictions;
   double validation_rmse = calc_rmse<graph_type, vertex_data>((graph_type*)ps.g<graph_type>(VALIDATION), VALIDATION, res2, MAE, &predictions);
   printf(ac.printhighprecision ? 
-        "%g) Iter %s %d  TRAIN RMSE=%0.12f VALIDATION RMSE=%0.12f VALIDATION MAE=%0.12f.\n":
-        "%g) Iter %s %d  TRAIN RMSE=%0.4f VALIDATION RMSE=%0.4f VALIDATION MAE=%0.4f.\n",
+        "%5.3g) Iter %s %3d  TRAIN RMSE=%0.12f VALIDATION RMSE=%0.12f VALIDATION MAE=%0.12f.\n":
+        "%5.3g) Iter %s %3d  TRAIN RMSE=%0.4f VALIDATION RMSE=%0.4f VALIDATION MAE=%0.4f.\n",
   ps.gt.current_time(), runmodesname[ps.algorithm], ps.iiter,  training_rmse, validation_rmse, MAE);
 
   if (ac.calc_ap){
