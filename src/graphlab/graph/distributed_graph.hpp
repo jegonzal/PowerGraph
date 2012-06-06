@@ -661,11 +661,12 @@ namespace graphlab {
         outstreams.push_back(out_file);
         booststreams.push_back(fout);
         // construct the callback for the parallel for
+        typedef distributed_graph<vertex_data_type, edge_data_type> graph_type;
         vertex_callbacks[i] = 
-          boost::bind(&distributed_graph::save_vertex_to_stream<boost_fstream_type, Writer>,
+          boost::bind(&graph_type::save_vertex_to_stream<boost_fstream_type, Writer>,
                       this, _1, boost::ref(*fout), boost::ref(writer));
         edge_callbacks[i] =
-          boost::bind(&distributed_graph::save_edge_to_stream<boost_fstream_type, Writer>,
+          boost::bind(&graph_type::save_edge_to_stream<boost_fstream_type, Writer>,
                       this, _1, boost::ref(*fout), boost::ref(writer));
       }
 
@@ -735,11 +736,12 @@ namespace graphlab {
         outstreams.push_back(out_file);
         booststreams.push_back(fout);
         // construct the callback for the parallel for
+        typedef distributed_graph<vertex_data_type, edge_data_type> graph_type;
         vertex_callbacks[i] = 
-          boost::bind(&distributed_graph::save_vertex_to_stream<boost_fstream_type, Writer>,
+          boost::bind(&graph_type::save_vertex_to_stream<boost_fstream_type, Writer>,
                       this, _1, boost::ref(*fout), writer);
         edge_callbacks[i] =
-          boost::bind(&distributed_graph::save_edge_to_stream<boost_fstream_type, Writer>,
+          boost::bind(&graph_type::save_edge_to_stream<boost_fstream_type, Writer>,
                       this, _1, boost::ref(*fout), writer);
       }
 
