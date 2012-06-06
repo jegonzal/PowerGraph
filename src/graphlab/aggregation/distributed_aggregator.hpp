@@ -124,6 +124,12 @@ namespace graphlab {
                  stored in an any (as returned by get_accumulator).
                  Must be thread safe.*/
       virtual void add_accumulator_any(any& other) = 0;
+
+      /** \brief Sets the value of the accumulator
+                 from an any (as returned by get_accumulator).
+                 Must be thread safe.*/
+      virtual void set_accumulator_any(any& other) = 0;
+
       
       /** \brief Combines accumulators using a second accumulator 
                  stored in a second imap_reduce_base class). Must be
@@ -204,6 +210,13 @@ namespace graphlab {
         acc += other.as<conditional_addition_wrapper<ReductionType> >();
         lock.unlock();
       }
+
+      void set_accumulator_any(any& other) {
+        lock.lock();
+        acc = other.as<conditional_addition_wrapper<ReductionType> >();
+        lock.unlock();
+      }
+
 
       void add_accumulator(imap_reduce_base* other) {
         lock.lock();
@@ -412,11 +425,21 @@ namespace graphlab {
       rmi.gather(gathervec, 0);
       
       if (rmi.procid() == 0) {
+        // machine 0 aggregates the accumulators
+        // sums them together and broadcasts it
         for (procid_t i = 1; i < rmi.numprocs(); ++i) {
           mr->add_accumulator_any(gathervec[i]);
         }
-        mr->finalize(*context);
+        any val = mr->get_accumulator();
+        rmi.broadcast(val, true);
       }
+      else {
+        // all other machines wait for the broadcast value
+        any val;
+        rmi.broadcast(val, false);
+        mr->set_accumulator_any(val);
+      }
+      mr->finalize(*context);
       mr->clear_accumulator();
       gathervec.clear();
       return true;
@@ -480,7 +503,7 @@ namespace graphlab {
       while (iter != aggregate_period.end()) {
         // schedule is a max heap. To treat it like a min heap
         // I need to insert negative keys
-        schedule.push(iter->first, -(start_time + iter->second));
+        schedule.push(iter->first, -iter->second);
         ++iter;
       }
       this->ncpus = ncpus;
@@ -524,7 +547,7 @@ namespace graphlab {
       if (!schedule_lock.try_lock()) return "";
       
       // see if there is a key to run
-      float curtime = timer::approx_time_seconds();
+      float curtime = timer::approx_time_seconds() - start_time;
       std::string key;
       bool has_entry = false;
       if (!schedule.empty() && -schedule.top().second < curtime) {
@@ -624,6 +647,8 @@ namespace graphlab {
      * broadcasts the next scheduled time for the key.
      */
     void decrement_distributed_counter(const std::string& key) {
+      // must be master machine
+      ASSERT_EQ(rmi.procid(), 0);
       // acquire and check the async_aggregator_state 
       typename std::map<std::string, async_aggregator_state>::iterator iter =
                                                       async_state.find(key);
@@ -636,21 +661,58 @@ namespace graphlab {
       ASSERT_GE(countdown_val, 0);
       if (countdown_val == 0) {
         logstream(LOG_INFO) << "Aggregate completion of " << key << std::endl;
-
-        //we have completed all accumulations.
-        //run finalize
-        iter->second.root_reducer->finalize(*context);
-        // done! clear it, reset the states which we missed in
-        // tick_asynchronous_compute
-        iter->second.root_reducer->clear_accumulator();
+        any acc_val = iter->second.root_reducer->get_accumulator();
+        // set distributed count down again for the second phase:
+        // waiting for everyone to finish finalization
         iter->second.distributed_count_down = rmi.numprocs();
-        float next_time = timer::approx_time_seconds() + aggregate_period[key];
+        for (procid_t i = 1;i < rmi.numprocs(); ++i) {
+          rmi.remote_call(i, &distributed_aggregator::rpc_perform_finalize,
+                            key, acc_val);
+        }
+        iter->second.root_reducer->finalize(*context);
+        iter->second.root_reducer->clear_accumulator();
+        decrement_finalize_counter(key);
+      }
+    }
+
+    /**
+     * Called from the root machine to all machines to perform finalization
+     * on the key
+     */
+    void rpc_perform_finalize(const std::string& key, any& acc_val) {
+      ASSERT_NE(rmi.procid(), 0);
+      typename std::map<std::string, async_aggregator_state>::iterator iter =
+                                                  async_state.find(key);
+      ASSERT_MSG(iter != async_state.end(), "Key %s not found", key.c_str());
+      
+      iter->second.root_reducer->set_accumulator_any(acc_val);
+      iter->second.root_reducer->finalize(*context);
+      iter->second.root_reducer->clear_accumulator();
+      // reply to the root machine
+      rmi.remote_call(0, &distributed_aggregator::decrement_finalize_counter,
+                      key);
+    }
+
+
+    void decrement_finalize_counter(const std::string& key) {
+      typename std::map<std::string, async_aggregator_state>::iterator iter =
+                                                      async_state.find(key);
+      ASSERT_MSG(iter != async_state.end(), "Key %s not found", key.c_str());
+      int countdown_val = iter->second.distributed_count_down.dec();
+      if (countdown_val == 0) {
+        // done! all finalization is complete.
+        // reset the counter
+        iter->second.distributed_count_down = rmi.numprocs();
+        // when is the next time we start. 
+        // time is as an offset to start_time
+        float next_time = timer::approx_time_seconds() + 
+                          aggregate_period[key] - start_time;
         logstream(LOG_INFO) << rmi.procid() << "Reschedule of " << key
                           << " at " << next_time << std::endl;
         rpc_schedule_key(key, next_time);
         for (procid_t i = 1;i < rmi.numprocs(); ++i) {
           rmi.remote_call(i, &distributed_aggregator::rpc_schedule_key,
-                          key, next_time);
+                            key, next_time);
         }
       }
     }
@@ -674,7 +736,8 @@ namespace graphlab {
      */ 
     void tick_synchronous() {
       // if timer has exceeded our top key
-      float curtime = timer::approx_time_seconds();
+      float curtime = timer::approx_time_seconds() - start_time;
+      rmi.broadcast(curtime, rmi.procid() == 0);
       // note that we do not call approx_time_seconds everytime
       // this ensures that each key will only be run at most once.
       // each time tick_synchronous is called.
@@ -682,7 +745,12 @@ namespace graphlab {
         std::string key = schedule.top().first;
         aggregate_now(key);
         schedule.pop();
-        schedule.push(key, -(timer::approx_time_seconds() + aggregate_period[key]));
+        // when is the next time we start. 
+        // time is as an offset to start_time
+        float next_time = (timer::approx_time_seconds() + 
+                           aggregate_period[key] - start_time);
+        rmi.broadcast(next_time, rmi.procid() == 0);
+        schedule.push(key, -next_time);
       }
     }
 
