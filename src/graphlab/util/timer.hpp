@@ -75,12 +75,12 @@ namespace graphlab {
      * \brief The timer starts on construction but can be restarted by
      * calling \ref graphlab::timer::start.
      */
-    timer() { start(); }
+    inline timer() { start(); }
     
     /**
      * \brief Reset the timer.
      */
-    void start() { gettimeofday(&start_time_, NULL); }
+    inline void start() { gettimeofday(&start_time_, NULL); }
     
     /** 
      * \brief Returns the elapsed time in seconds since 
@@ -88,7 +88,7 @@ namespace graphlab {
      *
      * @return time in seconds since \ref graphlab::timer::start was called.
      */
-    double current_time() const {
+    inline double current_time() const {
       timeval current_time;
       gettimeofday(&current_time, NULL);
       double answer = 
@@ -105,7 +105,7 @@ namespace graphlab {
      *
      * @return time in milliseconds since \ref graphlab::timer::start was called.
      */
-    double current_time_millis() const { return current_time() * 1000; }
+    inline double current_time_millis() const { return current_time() * 1000; }
 
     /**
      * \brief Get the number of seconds (as a floating point value)

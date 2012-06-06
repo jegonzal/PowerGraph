@@ -563,6 +563,12 @@ namespace graphlab {
       }
     } // end of signal_broadcast
 
+
+    void rpc_internal_stop() { 
+      timeout = true; 
+      termination_reason = execution_status::FORCED_ABORT;
+    }
+
     /**
      * \brief Force engine to terminate immediately.
      *
@@ -570,8 +576,9 @@ namespace graphlab {
      * immediate termination. 
      */
     void internal_stop() { 
-      timeout = true; 
-      termination_reason = execution_status::FORCED_ABORT;
+      for (procid_t i = 0;i < rmi.numprocs(); ++i) {
+        rmi.remote_call(i, &async_consistent_engine::rpc_internal_stop);
+      }
     }
 
     
