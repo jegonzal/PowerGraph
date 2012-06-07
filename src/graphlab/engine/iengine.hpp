@@ -109,7 +109,7 @@ namespace graphlab {
     /**
      * \brief The graph type which is defined in
      * ivertex_program::graph_type and will typically be
-     * \ref distributed_graph.
+     * \ref graphlab::distributed_graph.
      */
     typedef typename vertex_program_type::graph_type graph_type;
     typedef typename graph_type::vertex_id_type vertex_id_type;  
