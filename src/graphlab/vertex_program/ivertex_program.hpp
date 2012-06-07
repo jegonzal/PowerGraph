@@ -142,7 +142,7 @@ namespace graphlab {
      * with the engine and provides facilities for sending messages,
      * posting deltas, and accessing engine state.
      */
-    typedef icontext<vertex_type, gather_type, message_type, vertex_id_type> icontext_type;
+    typedef icontext<graph_type, gather_type, message_type> icontext_type;
    
     // Functions ==============================================================
     virtual ~ivertex_program() { }

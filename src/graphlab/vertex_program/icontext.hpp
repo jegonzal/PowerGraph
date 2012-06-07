@@ -40,25 +40,17 @@ namespace graphlab {
    * Each of the vertex program methods is passed a reference to the
    * engine's context.  
    */
-  template<typename VertexType,
+  template<typename GraphType,
            typename GatherType, 
-           typename MessageType,
-           typename VertexIdType>
+           typename MessageType>
   class icontext {
   public:
     // Type members ===========================================================
+    
 
-    /** 
-     * The opaque vertex object type 
-     * TODO: add a reference back to the graph type
-     */
-    typedef VertexType vertex_type;   
-
-        /** 
-     * The opaque vertex object type 
-     * TODO: add a reference back to the graph type
-     */
-    typedef VertexIdType vertex_id_type;   
+    typedef GraphType graph_type;   
+    typedef typename graph_type::vertex_type vertex_type;
+    typedef typename graph_type::vertex_id_type vertex_id_type;
 
     /**
      * The message type specified by the user-defined vertex-program.
