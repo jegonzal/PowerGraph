@@ -30,6 +30,7 @@ namespace graphlab {
 namespace dc_impl {
 /**
  * \ingroup rpc
+ * \internal
 Provides an interface for extracting and updating counters from dc_dist_objects
 */
 class dc_dist_object_base{

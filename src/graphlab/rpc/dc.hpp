@@ -106,6 +106,8 @@ namespace dc_impl {
 graphlab::distributed_control is the primary distributed RPC object. This class initializes distributed
 communication, as well as provide basic RPC routines and collective operations.
 
+See \ref RPC for a tutorial.
+
 In addition to the documented functions, the following RPC routines are provided.
 
 \par void distributed_control::remote_call(procid_t targetmachine, function, ...)
@@ -302,14 +304,7 @@ class distributed_control{
     return localnumprocs;
   }
 
-  size_t recv_queue_length() const {
-    return fcallqueue_length.value;
-  }
 
-  size_t send_queue_length() const {
-    return comm->send_queue_length();
-  }
-  
   /**
   Sets the sequentialization key to the new value, returning the previous value.
   When the key is set to an arbitrary non-zero value, all 
@@ -356,9 +351,14 @@ class distributed_control{
   static unsigned char get_sequentialization_key();
 
  
+
+  /// \cond GRAPHLAB_INTERNAL
+
   void flush_counters() {
     eventlog.flush_and_reset_counters();
-  } 
+  }
+  
+  
   /*
   This generates the interface functions for the standard calls, basic calls, and fast calls
   The generated code looks like this:
@@ -435,10 +435,11 @@ class distributed_control{
   #undef GENT
   #undef GENI
   #undef GENARGS
-
+  /// \endcond
  private:
   /**
-   * \internal
+   *
+   * l
   Immediately calls the function described by the data
   inside the buffer. This should not be called directly.
   */
@@ -467,6 +468,7 @@ class distributed_control{
   void fcallhandler_loop(size_t id);
 
  public:
+   /// \cond GRAPHLAB_INTERNAL
   /**
    * \internal
    * Stops one group of handler threads and wait for them to complete.
@@ -508,6 +510,17 @@ class distributed_control{
    * \param total_threadid Number of groups
    */
   void start_handler_threads(size_t threadid, size_t total_threadid);
+
+  /// \internal
+  size_t recv_queue_length() const {
+    return fcallqueue_length.value;
+  }
+  /// \internal
+  size_t send_queue_length() const {
+    return comm->send_queue_length();
+  }
+  
+  /// \endcond
   
  private:
   inline void inc_calls_sent(procid_t procid) {
@@ -610,6 +623,7 @@ class distributed_control{
     return masterid;
   }
   
+   /// \cond GRAPHLAB_INTERNAL
 
   /// \internal
   inline size_t register_object(void* v, dc_impl::dc_dist_object_base *rmiinstance) {
@@ -646,7 +660,8 @@ class distributed_control{
    *services().full_barrier() may not work as expected
    */
   __attribute__((__deprecated__)) dc_services& services();
-  
+
+  /// \endcond
   
   /**
    This comm barrier is not a true "barrier" but is

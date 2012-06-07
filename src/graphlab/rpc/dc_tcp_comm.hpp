@@ -46,7 +46,8 @@ void on_receive_event(int fd, short ev, void* arg);
 void on_send_event(int fd, short ev, void* arg);
 
 /**
- \ingroup rpc_internal
+ \ingroup rpc
+ \internal
 TCP implementation of the communications subsystem.
 Provides a single object interface to sending/receiving data streams to
 a collection of machines.

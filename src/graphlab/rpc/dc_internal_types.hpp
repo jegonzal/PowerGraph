@@ -1,4 +1,4 @@
-/**  
+/*  
  * Copyright (c) 2009 Carnegie Mellon University. 
  *     All rights reserved.
  *
@@ -35,24 +35,24 @@ class distributed_control;
 namespace dc_impl {  
 
 /** 
- * \ingroup rpc_internal
- * 
+ * \internal
+ * \ingroup rpc
  * The type of the callback function used by the communications
 classes when data is received*/
 typedef void (*comm_recv_callback_type)(void* tag, procid_t src, 
                                         const char* buf, size_t len);
 
-/** 
- * \ingroup rpc_internal
- * 
+/**
+ * \internal
+ * \ingroup rpc
  * The type of the local function call dispatcher.
  * \see dispatch_type2
  */
 typedef void (*dispatch_type)(distributed_control& dc, procid_t, unsigned char, std::istream&);
 
 /**
- * \ingroup rpc_internal
- *
+ *\internal
+ * \ingroup rpc
  * A second type of the local function call dispatcher.
  * Currently only used by POD calls. TODO: to move all other call
  * systems to use dispatch2.
@@ -67,9 +67,9 @@ typedef boost::unordered_map<std::string, dispatch_type> dispatch_map_type;
 const size_t COMM_STREAM = 1;
 const size_t COMM_DATAGRAM = 0;
 
-/** 
- * \ingroup rpc_internal
- * 
+/**
+ * \internal
+ * \ingroup rpc
  * The header form of each packet */
 struct packet_hdr {
   uint32_t len; /// length of the packet
@@ -80,9 +80,9 @@ struct packet_hdr {
 
 typedef uint32_t block_header_type;
 
-/** 
- * \ingroup rpc_internal
- * 
+/**
+ * \internal
+ * \ingroup rpc
  * special handling for the only pointer datatype 
 we natively support serialization for. Basically,
 we must delete it. if charstring_free is called on a
@@ -90,6 +90,10 @@ char*, it will be deleted. Otherwise it will not do anything*/
 template <typename T> 
 inline void charstring_free(T& t) { }
 
+/**
+ * \internal
+ * \ingroup rpc
+ */
 template <>
 inline void charstring_free<char*>(char* &c){
     delete [] c;
@@ -100,9 +104,9 @@ inline void charstring_free<char*>(char* &c){
 #define REQUEST_WAIT_METHOD 1
 
 
-/** 
- * \ingroup rpc_internal
- * 
+/**
+ * \internal
+ * \ingroup rpc
  * 
  * The data needed to receive the matched send / recvs */
 struct recv_from_struct {
@@ -117,8 +121,8 @@ struct recv_from_struct {
 };
 
 /**
- * \ingroup rpc_internal
- * 
+ * \internal
+ * \ingroup rpc
  * Used for termination detection
  */
 struct terminator_token {

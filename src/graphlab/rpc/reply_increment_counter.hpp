@@ -1,4 +1,4 @@
-/**  
+/*  
  * Copyright (c) 2009 Carnegie Mellon University. 
  *     All rights reserved.
  *
@@ -34,6 +34,7 @@ class distributed_control;
 namespace dc_impl {
 /**
 \ingroup rpc
+\internal
 A wrapper around a char array. This structure 
 is incapable of freeing itself and must be managed externally
 */
@@ -74,11 +75,12 @@ struct blob {
 };
 
 /**
+\internal
+\ingroup rpc
 Defines a really useful function that performs an atomic
 increment of a flag when called. This is useful for waiting
 for a reply to a request
 \note: usemutex = false probably does not work and should be deprecated.
-\ingroup rpc
 \see reply_increment_counter
 */
 struct reply_ret_type{
@@ -116,8 +118,9 @@ struct reply_ret_type{
 
 
 /**
- * Like reply_ret_type but can store a blob for each reply. 
+ * \internal
  * \ingroup rpc
+ * Like reply_ret_type but can store a blob for each reply.
  * \see stored_increment_counter
  */
 struct stored_ret_type{
@@ -149,6 +152,7 @@ struct stored_ret_type{
 
 
 /**
+ * \internal
  * \ingroup rpc
  * A simple RPC call which converts ptr to a pointer to a reply_ret_type,
  * stores the blob in it, and decrements its reply counter.
@@ -158,6 +162,7 @@ void reply_increment_counter(distributed_control &dc, procid_t src,
                              size_t ptr, dc_impl::blob ret);
 
 /**
+ * \internal
  * \ingroup rpc
  * A simple RPC call which converts ptr to a pointer to a stored_ret_type,
  * stores the blob in it, and decrements its reply counter.

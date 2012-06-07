@@ -1,4 +1,4 @@
-/**  
+/*  
  * Copyright (c) 2009 Carnegie Mellon University. 
  *     All rights reserved.
  *
@@ -30,7 +30,9 @@ namespace dc_impl {
 
   
 /**
-\ingroup rpc_internal
+\ingroup rpc
+\internal
+
 This struct performs two duties.
 Firstly, it provides a consistent interface through a function called ::fcallN<F>
 to complete a function call with a variable number of arguments.

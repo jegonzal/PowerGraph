@@ -1,5 +1,5 @@
-/**  
- * Copyright (c) 2009 Carnegie Mellon University. 
+/*  
+ * Copyright (c) 2009 Carnegie Mellon University.
  *     All rights reserved.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
@@ -37,8 +37,9 @@ namespace graphlab{
 namespace dc_impl {
 
 /**
-\ingroup rpc_internal
-\file
+\ingroup rpc
+\internal
+\file object_call_issue.hpp
  This is an internal function and should not be used directly
 
 Marshalls a object function call to a remote machine. 

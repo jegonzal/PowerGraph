@@ -33,7 +33,10 @@
 #include <graphlab/macros_def.hpp>
 namespace graphlab {
 
-
+  /**
+   * \ingroup rpc
+   * \internal
+   */
   template<typename T>
   class buffered_exchange {
   public:

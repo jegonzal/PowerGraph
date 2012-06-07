@@ -1,4 +1,4 @@
-/**  
+/*  
  * Copyright (c) 2009 Carnegie Mellon University. 
  *     All rights reserved.
  *
@@ -38,8 +38,9 @@ namespace graphlab{
 namespace dc_impl {
 
 /**
-\ingroup rpc_internal
-\file
+\ingroup rpc
+\internal
+\file object_podcall_issue.hpp
  This is an internal function and should not be used directly
 
 Marshalls a object function call to a remote machine. 

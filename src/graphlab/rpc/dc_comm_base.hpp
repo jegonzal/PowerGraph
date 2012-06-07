@@ -36,6 +36,8 @@ namespace dc_impl {
 
   
 /**
+ * \ingroup rpc
+ * \internal
 The base class of all comms implementations
 */
 class dc_comm_base {

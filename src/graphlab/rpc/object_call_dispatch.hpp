@@ -1,4 +1,4 @@
-/**  
+/*  
  * Copyright (c) 2009 Carnegie Mellon University. 
  *     All rights reserved.
  *
@@ -35,8 +35,9 @@ namespace dc_impl {
 
 
 /**
-\ingroup rpc_internal
-\file
+\ingroup rpc
+\internal
+\file object_call_dispatch.hpp
 This is an internal function and should not be used directly
 
 This is similar to a regular function call in function_call_dispatch.hpp

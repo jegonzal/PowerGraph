@@ -9,6 +9,10 @@
 #include <graphlab/macros_def.hpp>
 namespace graphlab {
 
+/**
+  * \ingroup rpc
+  * \internal
+  */
 template <typename GraphType>
 class distributed_chandy_misra {
  public:
