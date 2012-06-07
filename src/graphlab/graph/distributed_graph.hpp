@@ -175,15 +175,15 @@ namespace graphlab {
         return g.global_vid(lvid);
       }
       
-      /// \brief Returns a list of in edges (not implemented) 
-      edge_list_type in_edges() __attribute__ ((noreturn)) {
-        ASSERT_TRUE(false);
-      }
+      // /// \brief Returns a list of in edges (not implemented) 
+      // edge_list_type in_edges() __attribute__ ((noreturn)) {
+      //   ASSERT_TRUE(false);
+      // }
 
-      /// \brief Returns a list of out edges (not implemented) 
-      edge_list_type out_edges() __attribute__ ((noreturn)) {
-        ASSERT_TRUE(false);
-      }
+      // /// \brief Returns a list of out edges (not implemented) 
+      // edge_list_type out_edges() __attribute__ ((noreturn)) {
+      //   ASSERT_TRUE(false);
+      // }
 
       /** \internal
        *  \brief Returns the local ID of the vertex
