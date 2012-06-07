@@ -42,7 +42,6 @@
 
 #include <graphlab.hpp>
 
-#include "image.hpp"
 #include "eigen_serialization.hpp"
 
 #include <graphlab/macros_def.hpp>
@@ -589,8 +588,8 @@ void save_image(const size_t rows, const size_t cols,
     using namespace Magick;
     std::cout << "NPixels: " << values.size() << std::endl;
     // determine the max and min colors
-    float max_color = 0;
-    float min_color = 0;
+    float max_color = -std::numeric_limits<float>::max();
+    float min_color =  std::numeric_limits<float>::max();
     foreach(pred_pair_type pair, values) {
         max_color = std::max(max_color, pair.second);
         min_color = std::min(min_color, pair.second);
@@ -734,7 +733,7 @@ int main(int argc, char** argv) {
     engine.signal_all();
     std::cout << "Starting the engine" << std::endl;
     engine.start();
-    const float runtime = engine.elapsed_time();
+    const float runtime = engine.elapsed_seconds();
     size_t update_count = engine.num_updates();
     std::cout << "Finished Running engine in " << runtime 
     << " seconds." << std::endl

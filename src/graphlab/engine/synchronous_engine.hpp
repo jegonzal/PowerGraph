@@ -262,8 +262,7 @@ namespace graphlab {
      * used to signal other vertices, get the current iteration, and access
      * information about the engine.
      */
-    typedef icontext<vertex_type, gather_type, message_type, vertex_id_type> 
-    icontext_type;
+    typedef icontext<graph_type, gather_type, message_type> icontext_type;
            
   private:
 

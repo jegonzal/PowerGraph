@@ -42,10 +42,9 @@ namespace graphlab {
    */
   template<typename Engine>
   class context : 
-    public icontext<typename Engine::vertex_type,
+    public icontext<typename Engine::graph_type,
                     typename Engine::gather_type,
-                    typename Engine::message_type,
-                    typename Engine::vertex_id_type> {
+                    typename Engine::message_type> {
   public:
     // Type members ===========================================================
 
@@ -60,10 +59,9 @@ namespace graphlab {
     typedef typename engine_type::vertex_program_type vertex_program_type;
 
     /** The parent type */
-    typedef icontext<typename Engine::vertex_type,
+    typedef icontext<typename Engine::graph_type,
                      typename Engine::gather_type,
-                     typename Engine::message_type,
-                     typename Engine::vertex_id_type> icontext_type;
+                     typename Engine::message_type> icontext_type;
 
 
     /** 
