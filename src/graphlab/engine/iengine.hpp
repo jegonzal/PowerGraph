@@ -43,19 +43,19 @@
 #ifndef GRAPHLAB_IENGINE_HPP
 #define GRAPHLAB_IENGINE_HPP
 
+#include <boost/bind.hpp>
+#include <boost/functional.hpp>
 
 #include <graphlab/vertex_program/icontext.hpp>
 #include <graphlab/engine/execution_status.hpp>
 #include <graphlab/options/graphlab_options.hpp>
-
+#include <graphlab/aggregation/distributed_aggregator.hpp>
 
 
 
 namespace graphlab {
   
 
-
-  
   /**
      \brief The abstract interface of a GraphLab engine.
      The graphlab engine interface describes the core functionality
@@ -81,10 +81,15 @@ namespace graphlab {
   class iengine {
   public:
     typedef VertexProgram vertex_program_type;
+
     typedef typename vertex_program_type::message_type message_type;
+    typedef typename vertex_program_type::icontext_type icontext_type;   
     typedef typename vertex_program_type::graph_type graph_type;
     typedef typename graph_type::vertex_id_type vertex_id_type;  
-    typedef typename graph_type::vertex_type vertex_type;
+    typedef typename graph_type::vertex_type    vertex_type;
+    typedef typename graph_type::edge_type      edge_type;
+
+    typedef distributed_aggregator<graph_type, icontext_type> aggregator_type;
 
 
     //! Virtual destructor required for inheritance 
@@ -204,7 +209,71 @@ namespace graphlab {
                             const std::string& order = "sequential") = 0;
    
 
+    
+    /**
+     * \copydoc distributed_aggregator::add_vertex_aggregator
+     */
+    template <typename ReductionType>
+    bool add_vertex_aggregator
+    (const std::string& key,
+     boost::function<ReductionType(icontext_type&, vertex_type&)> map_function,
+     boost::function<void(icontext_type&, const ReductionType&)> finalize_function) {
+      aggregator_type* aggregator = get_aggregator();
+      if(aggregator == NULL) {
+        logstream(LOG_FATAL) << "Aggregation not supported by this engine!" << std::endl;
+        return false; 
+      }
+      return aggregator->add_vertex_aggregator(key, map_function, finalize_function);
+    } // end of add vertex aggregator
 
+
+
+    
+    /**
+     * \copydoc distributed_aggregator::add_edge_aggregator
+     */
+    template <typename ReductionType>
+    bool add_edge_aggregator
+    (const std::string& key,
+     boost::function<ReductionType(icontext_type&, edge_type&)> map_function,
+      boost::function<void(icontext_type&, const ReductionType&)> finalize_function) {
+      aggregator_type* aggregator = get_aggregator();
+      if(aggregator == NULL) {
+        logstream(LOG_FATAL) << "Aggregation not supported by this engine!" << std::endl;
+        return false; 
+      }
+      return aggregator->add_edge_aggregator(key, map_function, finalize_function);
+    } // end of add edge aggregator
+
+
+    /**
+     * \copydoc distributed_aggregator::aggregate_now
+     */
+    bool aggregate_now(const std::string& key) {
+      aggregator_type* aggregator = get_aggregator();
+      if(aggregator == NULL) {
+        logstream(LOG_FATAL) << "Aggregation not supported by this engine!" << std::endl;
+        return false; 
+      }
+      return aggregator->aggregate_now(key);
+    } // end of aggregate_now
+
+
+    /**
+     * \copydoc distributed_aggregator::aggregate_periodic()
+     */
+    bool aggregate_periodic(const std::string& key, float seconds) {
+      aggregator_type* aggregator = get_aggregator();
+      if(aggregator == NULL) {
+        logstream(LOG_FATAL) << "Aggregation not supported by this engine!" << std::endl;
+        return false; 
+      }
+      return aggregator->aggregate_periodic(key, seconds);
+    } // end of aggregate_periodic
+
+
+  private:
+    virtual aggregator_type* get_aggregator() = 0;
     
   }; // end of iengine interface
 

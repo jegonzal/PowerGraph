@@ -178,8 +178,8 @@ namespace graphlab {
     
     std::vector<vertex_state> vstate;
     std::vector<conditional_gather_type> cache;
-
-    distributed_aggregator<graph_type, icontext_type> aggregator;
+    typedef distributed_aggregator<graph_type, icontext_type> aggregator_type;
+    aggregator_type aggregator;
     size_t ncpus;
     bool started;
     async_consensus* consensus;
@@ -454,11 +454,13 @@ namespace graphlab {
 
     void internal_post_delta(const vertex_type& vertex,
                              const gather_type& delta) {
-      cache[vertex.local_id()] += delta;
+      // only post deltas if caching is enabled
+      if(use_cache) cache[vertex.local_id()] += delta;
     }
 
     void internal_clear_gather_cache(const vertex_type& vertex) {
-      cache[vertex.local_id()].clear();
+      // only post clear cache if caching is enabled
+      if(use_cache) cache[vertex.local_id()].clear();
     }
 
 
@@ -1580,52 +1582,55 @@ namespace graphlab {
       }
     }
   public:
-    // Exposed aggregator functionality 
-    /**
-     * \copydoc distributed_aggregator::add_vertex_aggregator()
-     */
-    template <typename ReductionType>
-    bool add_vertex_aggregator(const std::string& key,
-      boost::function<ReductionType(icontext_type&,
-                                    vertex_type&)> map_function,
-      boost::function<void(icontext_type&,
-                           const ReductionType&)> finalize_function) {
-      rmi.barrier();
-      return aggregator.add_vertex_aggregator<ReductionType>(key,
-                                                        map_function,
-                                                        finalize_function);
-    }
+    // // Exposed aggregator functionality 
+    // /**
+    //  * \copydoc distributed_aggregator::add_vertex_aggregator()
+    //  */
+    // template <typename ReductionType>
+    // bool add_vertex_aggregator(const std::string& key,
+    //   boost::function<ReductionType(icontext_type&,
+    //                                 vertex_type&)> map_function,
+    //   boost::function<void(icontext_type&,
+    //                        const ReductionType&)> finalize_function) {
+    //   rmi.barrier();
+    //   return aggregator.add_vertex_aggregator<ReductionType>(key,
+    //                                                     map_function,
+    //                                                     finalize_function);
+    // }
     
-    /**
-     * \copydoc distributed_aggregator::add_edge_aggregator()
-     */
-    template <typename ReductionType>
-    bool add_edge_aggregator(const std::string& key,
-      boost::function<ReductionType(icontext_type&,
-                                    edge_type&)> map_function,
-      boost::function<void(icontext_type&,
-                           const ReductionType&)> finalize_function) {
-      rmi.barrier();
-      return aggregator.add_edge_aggregator<ReductionType>(key,
-                                                           map_function,
-                                                           finalize_function);
-    }
+    // /**
+    //  * \copydoc distributed_aggregator::add_edge_aggregator()
+    //  */
+    // template <typename ReductionType>
+    // bool add_edge_aggregator(const std::string& key,
+    //   boost::function<ReductionType(icontext_type&,
+    //                                 edge_type&)> map_function,
+    //   boost::function<void(icontext_type&,
+    //                        const ReductionType&)> finalize_function) {
+    //   rmi.barrier();
+    //   return aggregator.add_edge_aggregator<ReductionType>(key,
+    //                                                        map_function,
+    //                                                        finalize_function);
+    // }
     
-    /**
-     * \copydoc distributed_aggregator::aggregate_now()
-     */
-    bool aggregate_now(const std::string& key) {
-      rmi.barrier();
-      return aggregator.aggregate_now(key);
-    }
+    // /**
+    //  * \copydoc distributed_aggregator::aggregate_now()
+    //  */
+    // bool aggregate_now(const std::string& key) {
+    //   rmi.barrier();
+    //   return aggregator.aggregate_now(key);
+    // }
     
-    /**
-     * \copydoc distributed_aggregator::aggregate_periodic()
-     */
-    bool aggregate_periodic(const std::string& key, float seconds) {
-      rmi.barrier();
-      return aggregator.aggregate_periodic(key, seconds);
-    }
+    // /**
+    //  * \copydoc distributed_aggregator::aggregate_periodic()
+    //  */
+    // bool aggregate_periodic(const std::string& key, float seconds) {
+    //   rmi.barrier();
+    //   return aggregator.aggregate_periodic(key, seconds);
+    // }
+  private:
+    aggregator_type* get_aggregator() { return &aggregator; } 
+
   }; // end of class
 } // namespace
 
