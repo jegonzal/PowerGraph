@@ -88,8 +88,9 @@
 #include <graphlab/macros_def.hpp>
 namespace graphlab { 
 
-
-  // CLASS GRAPH ==============================================================>  
+  /**
+   * 
+   */
   template<typename VertexData, typename EdgeData>
   class distributed_graph {
   public:
@@ -1408,6 +1409,7 @@ namespace graphlab {
        *   ... [do stuff] ...
        *   ++iter;
        * }
+       * \endcode
        * 
       */
       iterator begin() const { return
@@ -1424,6 +1426,7 @@ namespace graphlab {
        *   ... [do stuff] ...
        *   ++iter;
        * }
+       * \endcode
        * 
       */
       iterator end() const { return
