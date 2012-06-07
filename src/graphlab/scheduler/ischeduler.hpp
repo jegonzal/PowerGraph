@@ -60,11 +60,14 @@ namespace graphlab {
 
 
   /**
-   * \ingroup group_schedulers This describes the interface/concept
+   * \ingroup group_schedulers
+   *
+   * This describes the interface/concept
    * for the scheduler. The engine will be passed the scheduler type
    * as a template argument, so the scheduler must inherit and satisfy
    * this interface EXACTLY. Note that all functions (with the
-   * exception of the constructor and destructor) must be thread-safe.
+   * exception of the constructor and destructor and start())
+   * must be thread-safe.
    */
   template<typename MessageType>
   class ischeduler {
@@ -76,10 +79,7 @@ namespace graphlab {
     /// destructor
     virtual ~ischeduler() {};
         
-    /** Called by engine before starting the schedule.
-     *  This function will only be called once throughout the lifetime
-     * of the scheduler.
-     */
+    /** Called by engine before starting the schedule. */
     virtual void start() = 0;
 
 
@@ -113,7 +113,6 @@ namespace graphlab {
      * returned in ret_msg and ret_vid respectively.
      *
      *  \retval NEWTASK There is a new message to process
-     * 
      *  \retval EMPTY There are no messages to process
      */
     virtual sched_status::status_enum 
@@ -132,31 +131,25 @@ namespace graphlab {
 
     /**
      * Inserts a message for vertex vid to be maintained, but do not
-     * update the schedule. Must be implemented for the distributed
-     * engines.
+     * update the schedule.
      *
-     * TODO: do we need this functionality
      */
     virtual void place(vertex_id_type vid, const message_type& msg) = 0;
 
 
     /**
      * Schedules vertex vid using the stored message that was
-     * previously placed using place. Must be implemented for the
-     * distributed engines.
-     *
-     * TODO: do we need this functionality
+     * previously placed using place.
      */
     virtual void
     schedule_from_execution_thread(const size_t cpuid, vertex_id_type vid) = 0;
     
     /**
      * Schedules vertex vid using the stored message that was previously
-     * placed using place. Must be implemented for the distributed engines.
-     *
-     * TODO: do we need this functionality
+     * placed using place.
      */
     virtual void schedule(vertex_id_type vid) { }
+
     
     /**
      * This is called after a message has been received.

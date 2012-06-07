@@ -97,6 +97,13 @@ namespace graphlab {
     
     /**
      * \brief Start the engine execution.
+     *
+     * Behavior details depend on the engine implementation. See the
+     * implementation documentation for specifics.
+     * 
+     * \param [in] perform_init_vertex_program If true, runs init on each
+     * vertex program before any message processing happens.
+     * Defaults to true.
      * 
      * @return the reason for termination
      */
@@ -104,18 +111,18 @@ namespace graphlab {
     start(bool perform_init_vtx_program = true) = 0;
    
     /**
-     * \brief Get the number of updates executed by the engine.
+     * \brief Compute the total number of updates (calls to apply)
+     * executed since start was last invoked.
      *
-     * This function returns the numbe of updates executed by the last
-     * run of this engine.
-     * 
-     * \return the total number of updates
+     * \return Total number of updates
      */
     virtual size_t num_updates() const = 0;
 
     /**
      * \brief Get the elapsed time in seconds since start was last
      * called.
+     * 
+     * \return elapsed time in seconds
      */
     virtual float elapsed_seconds() const = 0;
 
@@ -123,7 +130,9 @@ namespace graphlab {
      * \brief get the current iteration number.  This is not defined
      * for all engines in which case -1 is returned.
      */
-    virtual int iteration() const = 0;
+    virtual int iteration() const {
+      return -1;
+    }
 
      
     /**

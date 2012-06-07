@@ -65,15 +65,42 @@ namespace graphlab {
   public:
     sweep_scheduler(size_t num_vertices,
                     const graphlab_options& opts) :
-      ncpus(opts.get_ncpus()),
-      strict_round_robin(false),
-      max_iterations(std::numeric_limits<size_t>::max()),
-      vids(num_vertices),
-      messages(num_vertices), 
-      min_priority(-std::numeric_limits<double>::max()) {
+          ncpus(opts.get_ncpus()),
+          strict_round_robin(false),
+          max_iterations(std::numeric_limits<size_t>::max()),
+          vids(num_vertices),
+          messages(num_vertices),
+          min_priority(-std::numeric_limits<double>::max()) {
         // initialize defaults
-        ordering = "random";
-        set_options(opts);
+      ordering = "random";
+      set_options(opts);
+
+      for(size_t i = 0; i < vids.size(); ++i) vids[i] = i;
+      if (ordering == "ascending") {
+        logstream(LOG_INFO) << "Using an ascending ordering of the vertices." << std::endl;
+      } else if(ordering == "random") {
+        logstream(LOG_INFO)  << "Using a random ordering of the vertices." << std::endl;
+        random::shuffle(vids);
+      }
+
+      if(strict_round_robin) {
+        logstream(LOG_INFO)
+          << "Using a strict round robin schedule." << std::endl;
+        // Max iterations only applies to strict round robin
+        if(max_iterations != std::numeric_limits<size_t>::max()) {
+          logstream(LOG_INFO)
+            << "Using maximum iterations: " << max_iterations << std::endl;
+        }
+        rr_index = 0;
+      } else {
+        // each cpu is responsible for its own subset of vertices
+        // Initialize the cpu2index counters
+        cpu2index.resize(ncpus);
+        for(size_t i = 0; i < cpu2index.size(); ++i) cpu2index[i] = i;
+        // Initialze the reverse map vid2cpu assignment
+        vid2cpu.resize(vids.size());
+        for(size_t i = 0; i < vids.size(); ++i) vid2cpu[vids[i]] = i % ncpus;
+      }
         
     } // end of constructor
         
@@ -98,38 +125,12 @@ namespace graphlab {
         } else if (opt == "min_priority") {
           opts.get_scheduler_args().get_option("min_priority", min_priority);
         } else {
-          logstream(LOG_ERROR) << "Unexpected Scheduler Option: " << opt << std::endl;
+          logstream(LOG_FATAL) << "Unexpected Scheduler Option: " << opt << std::endl;
         }
       }
     }
    
     void start() { 
-      for(size_t i = 0; i < vids.size(); ++i) vids[i] = i;
-      if (ordering == "ascending") {
-        logstream(LOG_INFO) << "Using an ascending ordering of the vertices." << std::endl;
-      } else if(ordering == "random") {
-        logstream(LOG_INFO)  << "Using a random ordering of the vertices." << std::endl;
-        random::shuffle(vids);
-      }
-
-      if(strict_round_robin) {
-        logstream(LOG_INFO) 
-          << "Using a strict round robin schedule." << std::endl;
-        // Max iterations only applies to strict round robin
-        if(max_iterations != std::numeric_limits<size_t>::max()) {
-          logstream(LOG_INFO) 
-            << "Using maximum iterations: " << max_iterations << std::endl;
-        }
-        rr_index = 0;
-      } else { 
-        // each cpu is responsible for its own subset of vertices
-        // Initialize the cpu2index counters
-        cpu2index.resize(ncpus);
-        for(size_t i = 0; i < cpu2index.size(); ++i) cpu2index[i] = i;
-        // Initialze the reverse map vid2cpu assignment
-        vid2cpu.resize(vids.size());
-        for(size_t i = 0; i < vids.size(); ++i) vid2cpu[vids[i]] = i % ncpus;
-      }    
     }
 
     void schedule(const vertex_id_type vid, 

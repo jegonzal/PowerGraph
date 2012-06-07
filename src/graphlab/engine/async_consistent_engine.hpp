@@ -51,37 +51,318 @@
 namespace graphlab {
   
   
-
+  /**
+   * \ingroup engines
+   *
+   * \brief The asynchronous consistent engine executed vertex programs
+   * asynchronously but ensures mutual exclusion such that adjacent vertices
+   * are never executed simultaneously.
+   *
+   * \tparam VertexProgram
+   * The user defined vertex program type which should implement the
+   * \ref graphlab::ivertex_program interface.
+   *
+   * ### Execution Semantics
+   * 
+   * On start() the \ref graphlab::ivertex_program::init function is invoked
+   * on all vertex programs in parallel to initialize the vertex program,
+   * vertex data, and possibly signal vertices.
+   *
+   * After which, the engine spawns a collection of threads where each thread
+   * individually performs the following tasks:
+   * \li Extract a message from the scheduler. 
+   * \li Perform distributed lock acquisition on the vertex which is supposed
+   * to receive the message. The lock system enforces that no neighboring
+   * vertex is executing at the same time. The implementation is based
+   * on the Chandy-Misra solution to the dining philosophers problem. 
+   * (Chandy, K.M.; Misra, J. (1984). The Drinking Philosophers Problem.
+   *  ACM Trans. Program. Lang. Syst)
+   * \li Once lock acquisition is complete,
+   *  \ref graphlab::ivertex_program::recv_message is called on the vertex
+   * program. As an optimization, any messages sent to this vertex
+   * before completion of lock acquisition is merged into original message
+   * extracted from the scheduler.
+   * \li Execute the gather on the vertex program by invoking
+   * the user defined \ref graphlab::ivertex_program::gather function
+   * on the edge direction returned by the
+   * \ref graphlab::ivertex_program::gather_edges function.  The gather
+   * functions can modify edge data but cannot modify the vertex
+   * program or vertex data and can be executed on multiple
+   * edges in parallel. 
+   * * \li Execute the apply function on the vertex-program by
+   * invoking the user defined \ref graphlab::ivertex_program::apply
+   * function passing the sum of the gather functions.  If \ref
+   * graphlab::ivertex_program::gather_edges returns no edges then
+   * the default gather value is passed to apply.  The apply function
+   * can modify the vertex program and vertex data.
+   * \li Execute the scatter on the vertex program by invoking
+   * the user defined \ref graphlab::ivertex_program::scatter function
+   * on the edge direction returned by the
+   * \ref graphlab::ivertex_program::scatter_edges function.  The scatter
+   * functions can modify edge data but cannot modify the vertex
+   * program or vertex data and can be executed on multiple
+   * edges in parallel.
+   * \li Release all locks acquired in the lock acquisition stage,
+   * and repeat until the scheduler is empty.
+   *
+   * The engine threads multiplexes the above procedure through a secondary
+   * internal queue, allowing an arbitrary large number of vertices to
+   * begin processing at the same time.
+   *
+   * ### Construction
+   *
+   * The asynchronous consistent engine is constructed by passing in a
+   * \ref graphlab::distributed_control object which manages coordination
+   * between engine threads and a \ref graphlab::distributed_graph object
+   * which is the graph on which the engine should be run.  The graph should
+   * already be populated and cannot change after the engine is constructed.
+   * In the distributed setting all program instances (running on each machine)
+   * should construct an instance of the engine at the same time.
+   *
+   * Computation is initiated by signaling vertices using either
+   * \ref graphlab::async_consistent_engine::signal or
+   * \ref graphlab::async_consistent_engine::signal_all.  In either case all
+   * machines should invoke signal or signal all at the same time.  Finally,
+   * computation is initiated by calling the
+   * \ref graphlab::async_consistent_engine::start function.
+   *
+   * ### Example Usage
+   *
+   * The following is a simple example demonstrating how to use the engine:
+   * \code
+   * #include <graphlab.hpp>
+   *
+   * struct vertex_data {
+   *   // code
+   * };
+   * struct edge_data {
+   *   // code
+   * };
+   * typedef graphlab::distributed_graph<vertex_data, edge_data> graph_type;
+   * typedef float gather_type;
+   * struct pagerank_vprog :
+   *   public graphlab::ivertex_program<graph_type, gather_type> {
+   *   // code
+   * };
+   *
+   * int main(int argc, char** argv) {
+   *   // Initialize control plain using mpi
+   *   graphlab::mpi_tools::init(argc, argv);
+   *   graphlab::distributed_control dc;
+   *   // Parse command line options
+   *   graphlab::command_line_options clopts("PageRank algorithm.");
+   *   std::string graph_dir;
+   *   clopts.attach_option("graph", &graph_dir, graph_dir,
+   *                        "The graph file.");
+   *   if(!clopts.parse(argc, argv)) {
+   *     std::cout << "Error in parsing arguments." << std::endl;
+   *     return EXIT_FAILURE;
+   *   }
+   *   graph_type graph(dc, clopts);
+   *   graph.load_format(graph_dir, "tsv");
+   *   graph.finalize();
+   *   std::cout << "#vertices: " << graph.num_vertices()
+   *             << " #edges:" << graph.num_edges() << std::endl;
+   *   graphlab::async_consistent_engine<pagerank_vprog> engine(dc, graph, clopts);
+   *   engine.signal_all();
+   *   engine.start();
+   *   std::cout << "Runtime: " << engine.elapsed_time();
+   *   graphlab::mpi_tools::finalize();
+   * }
+   * \endcode
+   *
+   * \see graphlab::synchronous_engine
+   */
+   */
   template<typename VertexProgram>
   class async_consistent_engine: public iengine<VertexProgram> {
       
   public:
-    // Include parent types
+    /**
+     * \brief The user defined vertex program type. Equivalent to the
+     * VertexProgram template argument.
+     *
+     * The user defined vertex program type which should implement the
+     * \ref graphlab::ivertex_program interface.
+     */
     typedef VertexProgram vertex_program_type;
+
+    /**
+     * \brief The user defined type returned by the gather function.
+     *
+     * The gather type is defined in the \ref graphlab::ivertex_program
+     * interface and is the value returned by the
+     * \ref graphlab::ivertex_program::gather function.  The
+     * gather type must have an <code>operator+=(const gather_type&
+     * other)</code> function and must be \ref serializable.
+     */
     typedef typename VertexProgram::gather_type gather_type;
-    typedef conditional_addition_wrapper<gather_type> conditional_gather_type;
-    
+
+    /**
+     * \brief The user defined message type used to signal neighboring
+     * vertex programs.
+     *
+     * The message type is defined in the \ref graphlab::ivertex_program
+     * interface and used in the call to \ref graphlab::icontext::signal.
+     * The message type must have an
+     * <code>operator+=(const gather_type& other)</code> function and
+     * must be \ref serializable.
+     */
     typedef typename VertexProgram::message_type message_type;
+
+    /**
+     * \brief The type of data associated with each vertex in the graph
+     *
+     * The vertex data type must be \ref serializable.
+     */
     typedef typename VertexProgram::vertex_data_type vertex_data_type;
+
+    /**
+     * \brief The type of data associated with each edge in the graph
+     *
+     * The edge data type must be \ref serializable.
+     */
     typedef typename VertexProgram::edge_data_type edge_data_type;
 
-    typedef distributed_graph<vertex_data_type, edge_data_type> graph_type;
+    /**
+     * \brief The type of graph supported by this vertex program
+     *
+     * See graphlab::distributed_graph
+     */
+    typedef typename VertexProgram::graph_type graph_type;
+
+     /**
+     * \brief The type used to represent a vertex in the graph.
+     * See \ref graphlab::distributed_graph::vertex_type for details
+     *
+     * The vertex type contains the function
+     * \ref graphlab::distributed_graph::vertex_type::data which
+     * returns a reference to the vertex data as well as other functions
+     * like \ref graphlab::distributed_graph::vertex_type::num_in_edges
+     * which returns the number of in edges.
+     *
+     */
     typedef typename graph_type::vertex_type          vertex_type;
+
+    /**
+     * \brief The type used to represent an edge in the graph.
+     * See \ref graphlab::distributed_graph::edge_type for details.
+     *
+     * The edge type contains the function
+     * \ref graphlab::distributed_graph::edge_type::data which returns a
+     * reference to the edge data.  In addition the edge type contains
+     * the function \ref graphlab::distributed_graph::edge_type::source and
+     * \ref graphlab::distributed_graph::edge_type::target.
+     *
+     */
     typedef typename graph_type::edge_type            edge_type;
 
-    typedef typename graph_type::local_vertex_type    local_vertex_type;
-    typedef typename graph_type::local_edge_type      local_edge_type;
-    typedef typename graph_type::lvid_type            lvid_type;
+    /**
+     * \brief The type of the callback interface passed by the engine to vertex
+     * programs.  See \ref graphlab::icontext for details.
+     *
+     * The context callback is passed to the vertex program functions and is
+     * used to signal other vertices, get the current iteration, and access
+     * information about the engine.
+     */
+    typedef typename context<async_consistent_engine>::icontext_type icontext_type;
+    
+  private:
+    /**
+     * \internal
+     * \brief A wrapper around the gather_type to automatically manage
+     * an "empty" state.
+     *
+     * \see conditional_addition_wrapper
+     */
+    typedef conditional_addition_wrapper<gather_type> conditional_gather_type;
 
+    /// \internal \brief The base type of all schedulers
     typedef ischeduler<message_type> ischeduler_type;
 
+    /** \internal
+     * \brief The true type of the callback context interface which
+     * implements icontext. \see graphlab::icontext graphlab::context
+     */
     typedef context<async_consistent_engine> context_type;
+
+    // context needs access to internal functions
     friend class context<async_consistent_engine>;
 
-    typedef typename context<async_consistent_engine>::icontext_type icontext_type;
+    /// \internal \brief The type used to refer to vertices in the local graph
+    typedef typename graph_type::local_vertex_type    local_vertex_type;
+    /// \internal \brief The type used to refer to edges in the local graph
+    typedef typename graph_type::local_edge_type      local_edge_type;
+    /// \internal \brief The type used to refer to vertex IDs in the local graph
+    typedef typename graph_type::lvid_type            lvid_type;
 
+    /// \internal \brief The type of the current engine instantiation
     typedef async_consistent_engine<VertexProgram> engine_type;
-    
+
+    /**
+     * \internal
+     * \brief States in the vertex state machine
+     *
+     * On a master vertex, it transitions sequentially
+     * between the following 5 states
+     * \li \c NONE Nothing is going on and nothing is scheduled on this
+     * vertex. The NONE state transits into the LOCKING state when
+     * a message is popped from the scheduler destined for this vertex.
+     * The popped message is stored in
+     * <code>vertex_state[lvid].current_message</code> and a call to the lock
+     * implementation \ref graphlab::distributed_chandy_misra is made to
+     * acquire exclusive locks on this vertex ( master_broadcast_locking(),
+     * rpc_begin_locking() ) .
+     * \li \c LOCKING  At this point, we have an active message
+     * stored in <code>vertex_state[lvid].current_message</code>, and we
+     * are waiting for lock acquisition to complete. When lock acquisition is
+     * complete, we will be signalled by
+     * \ref graphlab::distributed_chandy_misra via the lock callback
+     * lock_ready() . Once a vertex is in a locking state, if the vertex
+     * is ever signaled, the scheduler is bypassed and the signalled message
+     * is merged into <code>vertex_state[lvid].current_message</code>
+     * directly. When locks acquisition is complete, we broadcast a
+     * remote_call to all mirrors to begin gathering
+     * ( master_broadcast_gathering() ). The master vertex transits into
+     * the GATHERING state, while all mirrored vertices transit into the
+     * MIRROR_GATHERING state ( rpc_begin_gathering() ).
+     * \li \c GATHERING/MIRROR_GATHERING Upon entry into the GATHERING state,
+     * an internal task corresponding to this vertex is put on the intenal
+     * task queue. When the task is popped and executed, it will complete
+     * gathering on the local graph, and send the partial gathered result
+     * back to the master. If the vertex is in MIRROR_GATHERING, it is a
+     * mirror, and it transits back to NONE
+     * ( rpc_gather_complete(), decrement_gather_counter() ) .
+     * If the vertex is in GATHERING, it stays in GATHERING until all partial
+     * gathers are received. After which it transits into APPLYING.
+     * \li \c APPLYING Upon entry into the APPLYING state, an internal task
+     *corresponding to this veretx is put on the internal task queue. When
+     the task is popped and executed, the apply is performed on the master
+     vertex. It then immediately transits into SCATTERING 
+     * \li \c SCATTERING No internal task is generated for scattering. On
+     * the master vertex, scattering is performed immediately after applying.
+     * In SCATTERING, a partial scatter is performed on the local (master)
+     * vertex, and all mirrors are called ( master_broadcast_scattering() )
+     * to transit into MIRROR_SCATTERING. A partial lock release request is
+     * also issued on the master's subgraph. The master vertex than
+     * transits to the NONE state.
+     * \li \c MIRROR_SCATTERING When a mirror enters the MIRROR_SCATTERING
+     * state ( rpc_begin_scattering() ) it inserts a task into the internal
+     * queue. When the task is popped and executed, it will perform
+     * a partial scatter on the local (mirror) vertex, then perform
+     * a partial lock release request on the mirror's subgraph.
+     * \li \c MIRROR_SCATTERING_AND_NEXT_LOCKING Due to the distributed
+     * nature, there is an unusual condition in which the master completes
+     * scattering a new task has been scheduled on the same vertex, but
+     * mirrors have not completed scattering yet. In other words, the master
+     * vertex is in the LOCKING state while some mirrors are still in
+     * MIRROR_SCATTERING. This state is unique on the mirror to handle
+     * this case. If a lock request is received while the vertex is still in
+     * MIRROR_SCATTERING, the vertex transitions into this state. This state
+     * is equivalent to MIRROR_SCATTERING except that after completion
+     * of the scatter, it performs the partial lock release, then
+     * immediately re-requests the locks required on the local subgraph.
+     */
     enum vertex_execution_state {
       NONE = 0,
       LOCKING,     // state on owner
@@ -94,31 +375,58 @@ namespace graphlab {
     }; // end of vertex execution state
 
 
+    /**
+     * \internal
+     * The state machine + additional state maintained for each
+     * vetex and mirrors. 
+     */
     struct vertex_state {
+      /**
+       * This stores the active instance of the vertex program
+       */
       vertex_program_type vertex_program;
+      /**
+       * This stores the current active message being executed.
+       */
       message_type current_message;
+      /**
+       * This is temporary storage for the partial gathers on each mirror,
+       * and the accumulated gather on each machine.
+       */
       conditional_gather_type combined_gather;
-      uint32_t apply_count_down;    // used to count down the gathers
+      /**
+       * This is used to count down the number of gathers completed.
+       * It starts off at #mirrors + 1, and is decremented everytime
+       * one partial gather is received. The decrement is performed
+       * by decrement_gather_counter() . When the counter hits 0,
+       * the master vertex transits into APPLYING
+       */
+      uint32_t apply_count_down;
+      /** This condition happens when a vertex is scheduled (popped from
+       * the scheduler) while the vertex is still running. In which case
+       * the message is placed back in the scheduler (without scheduling it),
+       * and the hasnext flag is set. When the vertex finishes execution,
+       * the scheduler is signaled to schedule the blocked vertex.
+       * This may only be set on a master vertex
+       */
       bool hasnext;
+      /// A 1 byte lock protecting the vertex state
       simple_spinlock slock;
-      vertex_execution_state state; // current state of the vertex 
-      vertex_state(): apply_count_down(0), hasnext(false), state(NONE) { }
-      std::ostream& operator<<(std::ostream& os) const {
-        switch(state) {
-        case NONE: { os << "NONE"; break; }
-        case GATHERING: { os << "GATHERING: " << apply_count_down; break; }
-        case APPLYING: { os << "APPLYING"; break; }
-        case SCATTERING: { os << "SCATTERING"; break; }
-        case MIRROR_GATHERING: { os << "MIRROR_GATHERING"; break; }
-        case MIRROR_SCATTERING: { os << "MIRROR_SCATTERING"; break; }
-        case MIRROR_SCATTERING_AND_NEXT_LOCKING: { os << "MIRROR_SCATTERING_AND_NEXT_LOCKING"; break; }
-        }
-        return os;
-      }
+      /// State of each vertex. \ref vertex_execution_state for details
+      /// on the meaning of each state
+      vertex_execution_state state;
+
+      /// initializes the vertex state to default values.
+      vertex_state(): current_message(message_type()),
+                      apply_count_down(0),
+                      hasnext(false),
+                      state(NONE) { }
       
+      /// Acquires a lock on the vertex state
       void lock() {
         slock.lock();
       }
+      /// releases a lock on the vertex state
       void unlock() {
         slock.unlock();
       }
@@ -164,28 +472,42 @@ namespace graphlab {
       }
     }; // end of thread local data
 
-  private:
+    /// The RPC interface
     dc_dist_object<async_consistent_engine<VertexProgram> > rmi;
 
+    /// A reference to the active graph
     graph_type& graph;
 
+    /// A pointer to the lock implementation
     distributed_chandy_misra<graph_type>* cmlocks;
 
+    /// Engine threads.
     thread_group thrgroup;
     
     //! The scheduler
     ischeduler_type* scheduler_ptr;
-    
+
+    /// vector of vertex states. vstate[lvid] contains the vertex state
+    /// for local VID lvid.
     std::vector<vertex_state> vstate;
+    /// Used if cache is enabled. ("use_cache=true"). Contains the result
+    /// of partial gathers
     std::vector<conditional_gather_type> cache;
+    
     typedef distributed_aggregator<graph_type, icontext_type> aggregator_type;
     aggregator_type aggregator;
+
+    /// Number of engine threads
     size_t ncpus;
+    /// set to true if engine is started
     bool started;
+    /// A pointer to the distributed consensus object
     async_consensus* consensus;
-    atomic<size_t> threads_alive;
+
+    /// Thread local store. Used to hold the internal queus
     std::vector<thread_local_data> thrlocal;
-    
+
+    // Various counters.
     atomic<uint64_t> joined_messages;
     atomic<uint64_t> blocked_issues; // issued messages which either
                                      // 1: cannot start and have to be 
@@ -195,12 +517,20 @@ namespace graphlab {
                                      //    message which is currently locking
     atomic<uint64_t> issued_messages;
     atomic<uint64_t> programs_executed;
-    float max_clean_fraction; // engine option
-    size_t max_clean_forks; // set at start(). #edges * clean_fraction
-    size_t timed_termination; // engine option
+
+    /// engine option. Maximum proportion of clean forks allowed
+    float max_clean_fraction;
+    /// Equals to #edges * max_clean_fraction
+    /// Maximum number of clean forks allowed
+    size_t max_clean_forks;
+    /// Defaults to (-1), defines a timeout
+    size_t timed_termination;
+    /// engine option Sets to true if caching is enabled
     bool use_cache;
+    /// Time when engine is started
     float engine_start_time;
-    bool timeout;
+    /// True when a force stop is triggered (possibly via a timeout)
+    bool force_stop;
     
     graphlab_options opts_copy; // local copy of options to pass to 
                                 // scheduler construction
@@ -257,10 +587,14 @@ namespace graphlab {
      * for. The actual runtime may be marginally greater as the engine 
      * waits for all threads and processes to flush all active tasks before
      * returning.
+     * \arg \c use_cache If set to true, partial gathers are cached.
+     * See \ref gather_caching to understand the behavior of the
+     * gather caching model and how it may be used to accelerate program
+     * performance.
      * 
      * \param dc Distributed controller to associate with
-     * \param graph The graph to schedule over. The graph need not be
-     *              filled at this point.
+     * \param graph The graph to schedule over. The graph must be fully
+     *              constructed and finalized.
      * \param opts A graphlab_options object containing options and parameters
      *             for the scheduler and the engine.
      */
@@ -269,7 +603,7 @@ namespace graphlab {
                             const graphlab_options& opts) : 
         rmi(dc, this), graph(graph), scheduler_ptr(NULL),
         aggregator(dc, graph, new context_type(*this, graph)), started(false),
-        engine_start_time(timer::approx_time_seconds()), timeout(false),
+        engine_start_time(timer::approx_time_seconds()), force_stop(false),
         vdata_exchange(dc),thread_barrier(opts.get_ncpus()) {
       rmi.barrier();
 
@@ -351,7 +685,7 @@ namespace graphlab {
         } else if (opt == "use_cache") {
           opts.get_engine_args().get_option("use_cache", use_cache);
         } else {
-          logstream(LOG_ERROR) << "Unexpected Engine Option: " << opt << std::endl;
+          logstream(LOG_FATAL) << "Unexpected Engine Option: " << opt << std::endl;
         }
       }
       opts_copy = opts;
@@ -416,14 +750,7 @@ namespace graphlab {
 
     
     
-    /**
-     * \brief Get the number of updates executed by the engine.
-     *
-     * This function returns the numbe of updates executed by the last
-     * run of this engine.
-     * 
-     * \return the total number of updates
-     */
+    // documentation inherited from iengine
     size_t num_updates() const { 
       return programs_executed.value; 
     }
@@ -432,16 +759,14 @@ namespace graphlab {
 
 
 
-    /**
-     * \brief returns the time in seconds since the engine started.
-     */
+    // documentation inherited from iengine
     float elapsed_seconds() const { 
       return timer::approx_time_seconds() - engine_start_time; 
     }
 
 
     /**
-     * \brief Not meaningful for the asynchronous engine. Returns 0.
+     * \brief Not meaningful for the asynchronous engine. Returns -1.
      */
     int iteration() const { return -1; }
 
@@ -471,7 +796,7 @@ namespace graphlab {
      */
     void rpc_signal(vertex_id_type vid,
                             const message_type& message) {
-      if (timeout) return;
+      if (force_stop) return;
       const lvid_type local_vid = graph.local_vid(vid);
       BEGIN_TRACEPOINT(disteng_scheduler_task_queue);
       bool direct_injection = false;
@@ -510,7 +835,7 @@ namespace graphlab {
      scheduling it, and set a "hasnext" flag in the vertex_state.
      Then when the vertex finishes execution, we must reschedule the vertex
      in the scheduler */
-      if (timeout) return;
+      if (force_stop) return;
       scheduler_ptr->schedule_from_execution_thread(thread::thread_id(),
                                                       local_vid);
       PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, SCHEDULE_EVENT, 1);
@@ -526,7 +851,7 @@ namespace graphlab {
      */
     void internal_signal(const vertex_type& vtx,
                          const message_type& message = message_type()) {
-      if (timeout) return;
+      if (force_stop) return;
       if (started) {
         BEGIN_TRACEPOINT(disteng_scheduler_task_queue);
         scheduler_ptr->schedule_from_execution_thread(thread::thread_id(),
@@ -550,7 +875,7 @@ namespace graphlab {
      */
     void internal_signal_gvid(vertex_id_type gvid,
                               const message_type& message = message_type()) {
-      if (timeout) return;
+      if (force_stop) return;
       if (graph.is_master(gvid)) {
         internal_signal(graph.vertex(gvid), message);
       }
@@ -567,7 +892,7 @@ namespace graphlab {
 
 
     void rpc_internal_stop() { 
-      timeout = true; 
+      force_stop = true;
       termination_reason = execution_status::FORCED_ABORT;
     }
 
@@ -588,12 +913,6 @@ namespace graphlab {
 
 
 
-    /**
-     * \brief Signals a vertex with a particular global ID
-     * 
-     * Signals a vertex and schedules it to be executed in the future
-     * Must be called on all machines.
-     */
     void signal(vertex_id_type gvid,
                 const message_type& message = message_type()) {
       rmi.barrier();
@@ -601,12 +920,7 @@ namespace graphlab {
       rmi.barrier();
     }
 
-    /**
-     * \brief Signals every vertex to be executed in the future.
-     * 
-     * Sends a signal to every vertex in the graph, and schedules
-     * them to be executed in the future.
-     */
+    
     void signal_all(const message_type& message = message_type(),
                     const std::string& order = "shuffle") {
       logstream(LOG_DEBUG) << rmi.procid() << ": Schedule All" << std::endl;
@@ -1082,7 +1396,7 @@ namespace graphlab {
         }
       case MIRROR_SCATTERING_AND_NEXT_LOCKING: {
           logstream(LOG_DEBUG) << rmi.procid() << ": Scattering: " 
-                              << graph.global_vid(lvid) << ": MIRROR_SCATTERING_AND_LOCKING" << std::endl;
+                              << graph.global_vid(lvid) << ": MIRROR_SCATTERING_AND_NEXT_LOCKING" << std::endl;
           do_scatter(lvid);
           vstate[lvid].state = LOCKING;
 //          ASSERT_FALSE(vstate[lvid].hasnext);          
@@ -1150,9 +1464,9 @@ namespace graphlab {
       PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, NO_WORK_EVENT, 1);
       if (timer::approx_time_seconds() - engine_start_time > timed_termination) {
         termination_reason = execution_status::TIMEOUT;
-        timeout = true;
+        force_stop = true;
       }
-      if (!timeout &&
+      if (!force_stop &&
           issued_messages.value != programs_executed.value + blocked_issues.value) {
         ++ctr;
         if (ctr % 10 == 0) usleep(1);
@@ -1162,7 +1476,6 @@ namespace graphlab {
                            << programs_executed.value << "/" << issued_messages.value << std::endl;
       has_internal_task = false;
       has_sched_msg = false;
-      threads_alive.dec();
       consensus->begin_done_critical_section(threadid);
 
       BEGIN_TRACEPOINT(disteng_internal_task_queue);
@@ -1171,7 +1484,6 @@ namespace graphlab {
                              << "\tCancelled by Internal Task"  << std::endl;
         has_internal_task = true;
         consensus->cancel_critical_section(threadid);
-        threads_alive.inc();
         END_TRACEPOINT(disteng_internal_task_queue);
         return false;
       }
@@ -1183,7 +1495,6 @@ namespace graphlab {
         logstream(LOG_DEBUG) << rmi.procid() << "-" << threadid <<  ": "
                              << "\tTermination Double Checked" << std::endl;
         bool ret = consensus->end_done_critical_section(threadid);
-        threads_alive.inc();
         if (ret == false) {
           logstream(LOG_DEBUG) << rmi.procid() << "-" << threadid <<  ": "
                              << "\tCancelled" << std::endl;
@@ -1194,7 +1505,6 @@ namespace graphlab {
                              << "\tCancelled by Scheduler Task" << std::endl;
         consensus->cancel_critical_section(threadid);
         has_sched_msg = true;
-        threads_alive.inc();
         return false;
       }
     } // end of try to quit
@@ -1205,7 +1515,7 @@ namespace graphlab {
      * Adds a vertex to the internal task queue
      */
     void add_internal_task(lvid_type lvid) {
-      if (timeout) return;
+      if (force_stop) return;
       BEGIN_TRACEPOINT(disteng_internal_task_queue);
       size_t i = lvid % ncpus;
       if (vstate[lvid].state == APPLYING || vstate[lvid].state == SCATTERING ||
@@ -1449,14 +1759,19 @@ namespace graphlab {
       *
       * This function starts the engine and does not
       * return until the scheduler has no tasks remaining.
+      * If perform_init is set to true then the init
+      * function is called once at the beginning of start().
       * 
       * \param perform_init_vertex_program If true, runs init on each
-      * vertex program. Defaults to true.
-      * @return the reason for termination
+      * vertex program before any message processing happens.
+      * Defaults to true.
+      *
+      * \return the reason for termination
       */
     execution_status::status_enum start(bool perform_init_vertex_program = true) {
       logstream(LOG_INFO) << "Spawning " << ncpus << " threads" << std::endl;
       ASSERT_TRUE(scheduler_ptr != NULL);
+      consensus->reset();
       // start the scheduler
       scheduler_ptr->start();
       
@@ -1473,7 +1788,6 @@ namespace graphlab {
                    "Internal Queue IDs numeric overflow");
       }
       started = true;
-      threads_alive.value = ncpus;
 
       rmi.barrier();
 
@@ -1481,7 +1795,7 @@ namespace graphlab {
       rmi.all_reduce(allocatedmem);
 
       engine_start_time = timer::approx_time_seconds();
-      timeout = false;
+      force_stop = false;
 
       rmi.dc().flush_counters();
 
@@ -1553,6 +1867,7 @@ namespace graphlab {
             getchar();
           }
         }*/
+      started = false;
       return termination_reason; 
     } // end of start
 

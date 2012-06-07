@@ -111,7 +111,7 @@ namespace graphlab {
         } else if (opt == "min_priority") {
           opts.get_scheduler_args().get_option("min_priority", min_priority);
         } else {
-          logstream(LOG_ERROR) << "Unexpected Scheduler Option: " << opt << std::endl;
+          logstream(LOG_FATAL) << "Unexpected Scheduler Option: " << opt << std::endl;
         }
       }
     }
