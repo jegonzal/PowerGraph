@@ -24,7 +24,7 @@ public:
 
   struct edge_data_empty { };
 
-  typedef graphlab::graph<vertex_data, edge_data> graph_type;
+  typedef graphlab::local_graph<vertex_data, edge_data> graph_type;
   typedef graph_type::edge_list_type edge_list_type;
   typedef graph_type::edge_type edge_type;
   typedef graph_type::vertex_type vertex_type;
