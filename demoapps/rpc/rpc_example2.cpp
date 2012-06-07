@@ -1,4 +1,4 @@
-/**  
+/* 
  * Copyright (c) 2009 Carnegie Mellon University. 
  *     All rights reserved.
  *
@@ -20,14 +20,15 @@
  *
  */
 
+/// \file rpc_example2.cpp
+/// \code
+
 
 #include <iostream>
 #include <string>
 #include <sstream>
 #include <vector>
-#include <graphlab/util/mpi_tools.hpp>
 #include <graphlab/rpc/dc.hpp>
-#include <graphlab/rpc/dc_init_from_mpi.hpp>
 #include <graphlab/serialization/serialization_includes.hpp>
 using namespace graphlab;
 
@@ -45,30 +46,25 @@ std::vector<int> add_one(std::vector<int> val) {
 int main(int argc, char ** argv) {
   // init MPI
   mpi_tools::init(argc, argv);
+  distributed_control dc;
   
-  if (mpi_tools::size() != 2) {
+  if (dc.numprocs() != 2) {
     std::cout<< "RPC Example 2: Asynchronous RPC with Built-in Serialization\n";
     std::cout << "Run with exactly 2 MPI nodes.\n";
     return 0;
   }
-
-  dc_init_param param;
-  ASSERT_TRUE(init_param_from_mpi(param));
-  global_logger().set_log_level(LOG_INFO);
-  distributed_control dc(param);
-  
   
   dc.barrier();
   if (dc.procid() == 0) {
     dc.remote_call(1, print, "hello world!");
-    /** Create a vector with a few elements */  
+    // Create a vector with a few elements
     std::vector<int> vec;
     vec.push_back(1); vec.push_back(2);
-    /** Call the remote machine */  
+    // Call the remote machine 
     vec = dc.remote_request(1, add_one, vec);
     
     std::stringstream strm;
-    /** Print the vector */  
+    // Print the vector 
     for (size_t i = 0; i < vec.size(); ++i) {
       strm << vec[i] << ", ";
     }
@@ -80,3 +76,5 @@ int main(int argc, char ** argv) {
 
   mpi_tools::finalize();
 }
+
+/// \endcode

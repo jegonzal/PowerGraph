@@ -66,7 +66,7 @@
 #include <graphlab/serialization/iarchive.hpp>
 #include <graphlab/serialization/oarchive.hpp>
 
-#include <graphlab/graph/graph.hpp>
+#include <graphlab/graph/local_graph.hpp>
 #include <graphlab/graph/ingress/idistributed_ingress.hpp>
 #include <graphlab/graph/ingress/distributed_ingress_base.hpp>
 #include <graphlab/graph/ingress/distributed_batch_ingress2.hpp>
@@ -118,7 +118,7 @@ namespace graphlab {
     typedef fixed_dense_bitset<RPC_MAX_N_PROCS> mirror_type;
 
     /// The type of the local graph used to store the graph data 
-    typedef graphlab::graph<VertexData, EdgeData> local_graph_type;
+    typedef graphlab::local_graph<VertexData, EdgeData> local_graph_type;
 
     friend class distributed_ingress_base<VertexData, EdgeData>;
     friend class distributed_random_ingress<VertexData, EdgeData>;
@@ -926,7 +926,7 @@ namespace graphlab {
        load a graph with a standard format
        \todo: finish documentation of formats
      */
-    void load_format(const std::string& path, const std::string& format) {
+    void load_structure(const std::string& path, const std::string& format) {
       line_parser_type line_parser;
       if (format == "snap") {
         line_parser = builtin_parsers::snap_parser<distributed_graph>;

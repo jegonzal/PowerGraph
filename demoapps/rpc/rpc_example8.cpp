@@ -1,4 +1,4 @@
-/**  
+/*  
  * Copyright (c) 2009 Carnegie Mellon University. 
  *     All rights reserved.
  *
@@ -19,12 +19,12 @@
  *      http://www.graphlab.ml.cmu.edu
  *
  */
+/// \file rpc_example8.cpp
+/// \code
 
 #include <vector>
 #include <iostream>
-#include <graphlab/util/mpi_tools.hpp>
 #include <graphlab/rpc/dc.hpp>
-#include <graphlab/rpc/dc_init_from_mpi.hpp>
 using namespace graphlab;
 
 
@@ -35,21 +35,14 @@ void print(distributed_control &dc, procid_t caller, int val) {
 
 
 int main(int argc, char ** argv) {
-  // init MPI
   mpi_tools::init(argc, argv);
-  
-  if (mpi_tools::size() != 4) {
+  distributed_control dc;
+
+  if (dc.numprocs() != 4) {
     std::cout<< "RPC Example 8: Basic Broadcast Test\n";
     std::cout << "Run with exactly 4 MPI nodes.\n";
     return 0;
   }
-  // set up parameters
-  dc_init_param param;
-  ASSERT_TRUE(init_param_from_mpi(param));
-  // not necessary. Set log level. Change to LOG_WARNING to get less output
-  global_logger().set_log_level(LOG_INFO);
-  // create distributed control
-  distributed_control dc(param);
   
   if (dc.procid() == 0) {
     std::cout << "First set of calls... Proc 1 and 3 should receive" << std::endl;
@@ -69,3 +62,4 @@ int main(int argc, char ** argv) {
   // terminate MPI
   mpi_tools::finalize();
 }
+/// \endcode

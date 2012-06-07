@@ -1,4 +1,4 @@
-/**  
+/*  
  * Copyright (c) 2009 Carnegie Mellon University. 
  *     All rights reserved.
  *
@@ -503,15 +503,6 @@ void distributed_control::init(const std::vector<std::string> &machines,
     PERMANENT_ADD_DIST_EVENT_TYPE(eventlog, CALLS_EVENT, "Total RPC Calls");
     PERMANENT_ADD_DIST_EVENT_TYPE(eventlog, BYTES_EVENT, "Total Bytes Communicated");
 
-}
-
-size_t distributed_control::set_sender_option(std::string opt, size_t value) {
-  size_t oldval = 0;
-  // we assume that all senders are identical
-  for (size_t i = 0;i < senders.size(); ++i) {
-    oldval = senders[i]->set_option(opt, value);
-  }
-  return oldval;
 }
 
 dc_services& distributed_control::services() {

@@ -34,7 +34,6 @@
 
 typedef double vertex_data_type;
 typedef double edge_data_type;
-typedef graphlab::graph<vertex_data_type, edge_data_type> graph_type;
 
 
 
