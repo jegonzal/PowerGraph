@@ -31,15 +31,6 @@
  *
  */
 
-
-/* \file iengine.hpp
-   \brief The file containing the iengine description
-   
-   This file contains the description of the engine interface.  All
-   graphlab engines (single_threaded, multi_threaded, distributed, ...)
-   should satisfy the functionality described below.
-*/
-
 #ifndef GRAPHLAB_IENGINE_HPP
 #define GRAPHLAB_IENGINE_HPP
 
@@ -57,38 +48,75 @@ namespace graphlab {
   
 
   /**
-     \brief The abstract interface of a GraphLab engine.
-     The graphlab engine interface describes the core functionality
-     provided by all graphlab engines.  The engine is templatized over
-     the type of graph.
-     
-     The GraphLab engines are a core element of the GraphLab
-     framework.  The engines are responsible for applying a the update
-     tasks and sync operations to a graph and shared data using the
-     scheduler to determine the update schedule. This class provides a
-     generic interface to interact with engines written to execute on
-     different platforms.
-     
-     While users are free to directly instantiate the engine of their
-     choice we highly recommend the use of the \ref core data
-     structure to manage the creation of engines. Alternatively, users
-     can use the 
-     \ref gl_new_engine "graphlab::engine_factory::new_engine"
-     static functions to create
-     engines directly from configuration strings.
+   * \ingroup engine
+   *
+   * \brief The abstract interface of a GraphLab engine.  
+   * 
+   * A GraphLab engine is responsible for executing vertex programs in
+   * parallel on one or more machines.  GraphLab has a collection of
+   * different engines with different guarantees on how
+   * vertex-programs are executed.  However each engine must implement
+   * the iengine interface to allow them to be used "interchangeably."
+   *
+   * In addition to executing vertex programs GraphLab engines also
+   * expose a synchronous aggregation framework. This allows users to
+   * attach "map-reduce" style jobs that are run periodically on all
+   * edges or vertices while GraphLab programs are actively running.
+   *
+   * Example Usage
+   * =================
+   *
+   * One can use the iengine interface to select between different
+   * engines at runtime:
+   *
+   * \code
+   * iengine<pagerank>* engine_ptr = NULL;
+   * if(cmdline_arg == "synchronous") {
+   *   engine_ptr = new synchronous_engine<pagerank>(dc, graph, cmdopts);  
+   * } else {
+   *   engine_ptr = new async_consistent_engine<pagerank>(dc, graph, cmdopts);  
+   * }
+   * // Attach an aggregator
+   * engine_ptr->add_edge_aggregator<float>("edge_map", 
+   *                                        edge_map_fun, finalize_fun);
+   * // Make it run every 3 seconds
+   * engine_ptr->aggregate_periodic("edge_map");
+   * // Signal all vertices
+   * engine_ptr->signal_all();
+   * // Run the engine
+   * engine_ptr->start();
+   * // do something interesting
+   * delete engine_ptr; engine_ptr = NULL;
+   * \endcode  
+   *
   */
   template<typename VertexProgram>
   class iengine {
   public:
+    /**
+     * \brief The user defined vertex program type which should extend
+     * ivertex_program.
+     */
     typedef VertexProgram vertex_program_type;
 
+    /**
+     * \brief The user defined message type which is defined in
+     * ivertex_program::message_type. 
+     *
+     */
     typedef typename vertex_program_type::message_type message_type;
-    typedef typename vertex_program_type::icontext_type icontext_type;   
+
+    /**
+     * \brief The graph type which is defined in
+     * ivertex_program::graph_type and will typically be
+     * \ref distributed_graph.
+     */
     typedef typename vertex_program_type::graph_type graph_type;
     typedef typename graph_type::vertex_id_type vertex_id_type;  
     typedef typename graph_type::vertex_type    vertex_type;
     typedef typename graph_type::edge_type      edge_type;
 
+    typedef typename vertex_program_type::icontext_type icontext_type;   
     typedef distributed_aggregator<graph_type, icontext_type> aggregator_type;
 
 
