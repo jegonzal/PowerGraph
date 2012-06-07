@@ -256,7 +256,7 @@ int main(int argc, char** argv) {
   }
   
   if(!clopts.is_set("program")) {
-    std::cout << "Updater not provided." << std::endl;
+    std::cout << "Program not provided." << std::endl;
     clopts.print_description();
     return EXIT_FAILURE;
   }

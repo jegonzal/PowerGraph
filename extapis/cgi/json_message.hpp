@@ -47,7 +47,7 @@ namespace graphlab {
     /** JSON Document -> think of it as the root */
     rapidjson::Document mdocument;
     rapidjson::Document::AllocatorType& mallocator;
-    
+
     json_message();
   
   public:
@@ -89,13 +89,13 @@ namespace graphlab {
      * Adds a vertex parameter to the invocation
      * @param[in]   vertex    vertex
      */ 
-    void add_vertex(const dispatcher::vertex_type& edge);
+    void add_vertex(const dispatcher::vertex_type& vertex);
     
     /**
      * Adds an edge parameter to the invocation
      * @param[in]   edge      edge
      */
-    void add_edge(const dispatcher::edge_type& edge);
+    void add_edge(dispatcher::edge_type& edge);
     
     /**
      * Adds other gather state to the invocation
@@ -110,10 +110,23 @@ namespace graphlab {
     void add_gather(const dispatcher::gather_type& gather_total);
     
   private:
-    void add_in_edges(dispatcher::icontext_type& context, rapidjson::Value& parent);
-    void add_out_edges(dispatcher::icontext_type& context, rapidjson::Value& parent);
-    rapidjson::Value& create_edge(rapidjson::Value& edgev, const dispatcher::icontext_type& context, const dispatcher::graph_type::edge_type& edge);
-    rapidjson::Value& create_vertex(rapidjson::Value& vertexv, const dispatcher::graph_type::vertex_id_type vertex_id, const dispatcher::graph_type::vertex_data_type& vertex_data);
+    
+    /**
+     * Initializes vertexv with state and id from vertex
+     * @internal
+     */
+    rapidjson::Value& create_vertex(rapidjson::Value& vertexv, const dispatcher::graph_type::vertex_type& vertex);
+    
+    /**
+     * Initializes edgev with source, target, and state from edge
+     * @internal
+     */
+    rapidjson::Value& create_edge(rapidjson::Value& edgev, dispatcher::graph_type::edge_type& edge);
+    
+    /**
+     * Ensures that the "params" element exists in the document
+     */
+    void ensure_params_exist();
     
   };
   
