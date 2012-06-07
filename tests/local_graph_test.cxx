@@ -4,7 +4,7 @@
 #include <cxxtest/TestSuite.h>
 
 // includes the entire graphlab framework
-#include <graphlab/graph/graph.hpp>
+#include <graphlab/graph/local_graph.hpp>
 #include <graphlab/macros_def.hpp>
 
 
