@@ -24,6 +24,7 @@
 // this file contains the additional docs.  
 /**
 \defgroup group_schedulers Schedulers
+\defgroup engine Engines
 \defgroup util_internal Internal Utility Classes
 \defgroup util GraphLab Utility Classes and Functions
 \defgroup rpc GraphLab RPC

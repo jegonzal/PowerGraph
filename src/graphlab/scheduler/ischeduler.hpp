@@ -62,12 +62,11 @@ namespace graphlab {
   /**
    * \ingroup group_schedulers
    *
-   * This describes the interface/concept
-   * for the scheduler. The engine will be passed the scheduler type
-   * as a template argument, so the scheduler must inherit and satisfy
-   * this interface EXACTLY. Note that all functions (with the
-   * exception of the constructor and destructor and start())
-   * must be thread-safe.
+   * This describes the interface/concept for . The
+   * engine will be passed the scheduler type as a template argument,
+   * so the scheduler must inherit and satisfy this interface
+   * EXACTLY. Note that all functions (with the exception of the
+   * constructor and destructor and start()) must be thread-safe.
    */
   template<typename MessageType>
   class ischeduler {
