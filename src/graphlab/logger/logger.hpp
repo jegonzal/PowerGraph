@@ -1,4 +1,4 @@
-/**  
+/*
  * Copyright (c) 2009 Carnegie Mellon University. 
  *     All rights reserved.
  *
@@ -36,8 +36,6 @@
  * The difference between the hard level and the soft level is that the
  * soft level can be changed at runtime, while the hard level optimizes away
  * logging calls at compile time.
- *
- * @author Yucheng Low (ylow)
  */
 
 #ifndef GRAPHLAB_LOG_LOG_HPP

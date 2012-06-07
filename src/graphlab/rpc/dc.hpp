@@ -1,4 +1,4 @@
-/**  
+/*  
  * Copyright (c) 2009 Carnegie Mellon University. 
  *     All rights reserved.
  *
@@ -56,6 +56,7 @@
 namespace graphlab {
 
 
+  
 /**
  * \ingroup rpc
 Distributed control constructor parameters.
@@ -73,15 +74,9 @@ struct dc_init_param{
   
   /** Additional construction options of the form 
     "key1=value1,key2=value2".
-    Available options are:
     
-    \li \b compressed=yes Use ZLib compressed communication
-    \li \b buffered_send=yes Put an circular buffer on outgoing transmission
-    \li \b buffered_queued_send=yes Put a queue buffer on outgoing transmission
-    \li \b buffered_queued_send_single=yes Like buffered_queued but use only one sending thread
-    \li \b buffered_recv=yes Put a buffer on incoming transmissions 
-                             (not recommended. Tends to decrease performance)
-                             
+    There are no available options.
+    
     Internal options which should not be used
     \li \b __socket__=NUMBER Forces TCP comm to use this socket number for its
                              listening socket instead of creating a new one.
@@ -98,11 +93,14 @@ struct dc_init_param{
 };
 
 
-// forward declaration for dc services
+
+// forward declarations
 class dc_services;
-class distributed_control;
 
-
+namespace dc_impl {
+  class dc_buffered_stream_send2;
+  class dc_stream_receive;
+}
 /**
  * \ingroup rpc
 graphlab::distributed_control is the primary distributed RPC object. This class initializes distributed
@@ -231,7 +229,8 @@ class distributed_control{
   
   /// the callback given to the comms class. Called when data is inbound
   template <typename T> friend class dc_dist_object;
-  
+  friend class dc_impl::dc_stream_receive;
+  friend class dc_impl::dc_buffered_stream_send2;
   
   /// disable the operator= by placing it in private 
   distributed_control& operator=(const distributed_control& dc) { return *this; }
@@ -258,10 +257,30 @@ class distributed_control{
   DECLARE_TRACER(dc_call_dispatch);
  public:
    
+  /**
+   * Default constructor. Automatically tries to read the initialization
+   * from environment variables, or from MPI (if MPI is initialized).
+   */
   distributed_control();
-  
-  distributed_control(dc_init_param initparam);
 
+  /**
+   * Passes custom constructed initialization parameters in
+   * \ref dc_init_param
+   * 
+   * Though dc_init_param can be obtained from environment variables using
+   * dc_init_from_env() or from MPI using dc_init_from_mpi(), 
+   * using the default constructor is prefered.
+   */
+  explicit distributed_control(dc_init_param initparam);
+
+  /**
+   * Constructs the distributed control using an explicit list of parameters
+   * See \ref dc_init_param for the meaning of each parameter.
+   *
+   * Though these parameters may be obtained from environment variables using
+   * dc_init_from_env() or from MPI using dc_init_from_mpi(),
+   * using the default constructor is prefered.
+   */
   distributed_control(const std::vector<std::string> &machines,
                       const std::string &initstring, 
                       procid_t curmachineid, 
@@ -271,11 +290,6 @@ class distributed_control{
   }
 
 
-  void stop_handler_threads(size_t threadid, size_t total_threadid);
-  void stop_handler_threads_no_wait(size_t threadid, size_t total_threadid);
-  void handle_incoming_calls(size_t threadid, size_t total_threadid);
-  void start_handler_threads(size_t threadid, size_t total_threadid);
-  
   ~distributed_control();
 
   /// returns the id of the current processor
@@ -305,11 +319,13 @@ class distributed_control{
   All RPC calls made using the same key value will sequentialize.
   
   User should 
-  oldval = set_sequentialization_key(newval)
-  ...
-  ... do stuff
-  ...
-  set_sequentialization_key(oldval)
+  \code
+  oldval = new_sequentialization_key();
+  // ...
+  // ... do stuff
+  // ...
+  set_sequentialization_key(oldval);
+  \endcode
   */
   static unsigned char set_sequentialization_key(unsigned char newkey);
   
@@ -323,12 +339,14 @@ class distributed_control{
   we recommend the use of set_sequentialization_key() especially in the case of
   multi-threaded code.
 
-  User should 
-  oldval = new_sequentialization_key()
-  ...
-  ... do stuff
-  ...
-  set_sequentialization_key(oldval)
+  User should
+  \code
+  oldval = new_sequentialization_key();
+  // ...
+  // ... do stuff
+  // ...
+  set_sequentialization_key(oldval);
+  \endcode
   All RPC calls in while the key is set will be sequentialized on the receiving
   machine.
   */
@@ -338,7 +356,6 @@ class distributed_control{
   static unsigned char get_sequentialization_key();
 
  
-  /** \todo rename to flush_event_counters and document */
   void flush_counters() {
     eventlog.flush_and_reset_counters();
   } 
@@ -418,9 +435,10 @@ class distributed_control{
   #undef GENT
   #undef GENI
   #undef GENARGS
-  
+
+ private:
   /**
-   * \cond DC_INTERNAL
+   * \internal
   Immediately calls the function described by the data
   inside the buffer. This should not be called directly.
   */
@@ -429,20 +447,69 @@ class distributed_control{
   
   
   /**
+   * \internal
    * Called by handler threads to process the function call block
    */
   void process_fcall_block(fcallqueue_entry &fcallblock);
+
+  
   /**
+   * \internal
    * Receive a collection of serialized function calls.
    * This function will take ownership of the pointer
    */
   void deferred_function_call_chunk(char* buf, size_t len, procid_t src);
   
   /**
+   * \internal
   This is called by the function handler threads
   */
   void fcallhandler_loop(size_t id);
+
+ public:
+  /**
+   * \internal
+   * Stops one group of handler threads and wait for them to complete.
+   * May be used to allow external threads to take over RPC processing.
+   *
+   * \param threadid Group number to stop
+   * \param total_threadid Number of groups
+   */
+  void stop_handler_threads(size_t threadid, size_t total_threadid);
+
+  /**
+   * \internal
+   * Stops one group of handler threads and returns immediately without
+   * waiting for them to complete.
+   * May be used to allow external threads to take over RPC processing.
+   *
+   * \param threadid Group number to stop
+   * \param total_threadid Number of groups
+   */
+  void stop_handler_threads_no_wait(size_t threadid, size_t total_threadid);
+
+  /**
+   * \internal
+   * Performs RPC processing for a group of threads in lieu of the built-in
+   * RPC threads. The group must be stopped before using stop_handler_threads
+   *
+   * \param threadid Group number to handle
+   * \param total_threadid Number of groups
+   */
+  void handle_incoming_calls(size_t threadid, size_t total_threadid);
+
+
+  /**
+   * \internal
+   * Restarts internal RPC threads for a group.
+   * The group must be stopped before using stop_handler_threads
+   *
+   * \param threadid Group number to restart
+   * \param total_threadid Number of groups
+   */
+  void start_handler_threads(size_t threadid, size_t total_threadid);
   
+ private:
   inline void inc_calls_sent(procid_t procid) {
     PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, CALLS_EVENT, 1);
     global_calls_sent[procid].inc();
@@ -487,8 +554,9 @@ class distributed_control{
       }
     }
   }
-  /// \endcond
-  
+
+ public:
+   /// Returns the total number of RPC calls made
   inline size_t calls_sent() const {
     size_t ctr = 0;
     for (size_t i = 0;i < numprocs(); ++i) {
@@ -497,6 +565,7 @@ class distributed_control{
     return ctr;
   }
 
+  /// Returns the total number of RPC calls received
   inline size_t calls_received() const {
     size_t ctr = 0;
     for (size_t i = 0;i < numprocs(); ++i) {
@@ -505,17 +574,19 @@ class distributed_control{
     return ctr;
   }
 
+  /// Returns the total number of RPC bytes sent excluding headers.
   inline size_t bytes_sent() const {
     size_t ret = 0;
     for (size_t i = 0;i < senders.size(); ++i) ret += senders[i]->bytes_sent();
     return ret;
   }  
   
-  
+  /// Returns the total number of network bytes sent including headers.
   inline size_t network_bytes_sent() const {
     return comm->network_bytes_sent();
   }  
-  
+
+  /// Returns the total number of bytes received
   inline size_t bytes_received() const {
     size_t ret = 0;
     for (size_t i = 0;i < global_bytes_received.size(); ++i) ret += global_bytes_received[i].value;
@@ -539,14 +610,8 @@ class distributed_control{
     return masterid;
   }
   
-  /**
-   * Sets a custom option on the sender. Returning the old value.
-   * Operation does nothing if the option is not recognized.
-   */
-  size_t set_sender_option(std::string opt, size_t value);
 
-
-  /// \cond DC_INTERNAL
+  /// \internal
   inline size_t register_object(void* v, dc_impl::dc_dist_object_base *rmiinstance) {
     ASSERT_NE(v, (void*)NULL);
     registered_objects.push_back(v);
@@ -554,18 +619,21 @@ class distributed_control{
     return registered_objects.size() - 1;
   }
 
-
+  /// \internal
   inline void* get_registered_object(size_t id) {
     while(id >= num_registered_objects()) sched_yield();
     ASSERT_NE(registered_objects[id], (void*)NULL);
     return registered_objects[id];
   }
 
+  /// \internal
   inline dc_impl::dc_dist_object_base* get_rmi_instance(size_t id) {
     while(id >= num_registered_objects()) sched_yield();
     ASSERT_NE(registered_rmi_instance[id], (void*)NULL);
     return registered_rmi_instance[id];
-  }  
+  }
+
+  /// \internal
   inline void clear_registered_object(size_t id) {
     registered_objects[id] = (void*)NULL;
     registered_rmi_instance[id] = NULL;
@@ -573,12 +641,12 @@ class distributed_control{
   
   
   /**
-  This is depreated. Use the public functions. In particular
-  services().full_barrier() may not work as expected
-  */
+   * \internal
+   *This is depreated. Use the public functions. In particular
+   *services().full_barrier() may not work as expected
+   */
   __attribute__((__deprecated__)) dc_services& services();
   
-  /// \endcond
   
   /**
    This comm barrier is not a true "barrier" but is
@@ -602,11 +670,6 @@ class distributed_control{
    */
   void flush();
 
-// Temp hack.
-  long long int total_bytes_sent;
-  long long int get_total_bytes_sent() {
-     return total_bytes_sent;
-  }
 
   /**
   This is a blocking send_to. It send an object T to the target 
@@ -770,7 +833,6 @@ class distributed_control{
    this function at the same time. However, only proc 0 will
    return values */
   std::map<std::string, size_t> gather_statistics();
-
 };
 
 
@@ -834,5 +896,7 @@ inline void distributed_control::gather_partition(const std::vector<U>& local_co
 
 
 }
+
+#include <graphlab/util/mpi_tools.hpp>
 #endif
 

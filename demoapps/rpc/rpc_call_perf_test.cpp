@@ -197,15 +197,12 @@ struct teststruct {
 int main(int argc, char** argv) {
   // init MPI
   mpi_tools::init(argc, argv);
-   global_logger().set_log_level(LOG_INFO); 
-  if (mpi_tools::size() != 2) {
+  distributed_control dc;
+  
+  if (dc.numprocs() != 2) {
     std::cout << "Run with exactly 2 MPI nodes.\n";
     return 0;
   }
-
-  dc_init_param param;
-  ASSERT_TRUE(init_param_from_mpi(param));
-  distributed_control dc(param);
   dc.barrier();
   teststruct ts(dc);
     ts.run_short_sends_0();

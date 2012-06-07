@@ -1,4 +1,4 @@
-/**  
+/* 
  * Copyright (c) 2009 Carnegie Mellon University. 
  *     All rights reserved.
  *
@@ -45,11 +45,7 @@ using namespace graphlab;
 int main(int argc, char ** argv) {
   mpi_tools::init(argc, argv);
 
-  dc_init_param param;
-  if (init_param_from_mpi(param) == false) {
-    return 0;
-  }
-  distributed_control dc(param);
+  distributed_control dc;
   
   if (dc.procid() == 0 && dc.numprocs() >= 2) {
     dc.remote_call(1, printf, "%d + %f = %s\n", 1, 2.0, "three");
@@ -58,9 +54,18 @@ int main(int argc, char ** argv) {
 }
 \endcode
 
-Once the distributed_control object is created, \ref distributed_control::procid "dc.procid()"
-provides the current machine number, while \ref distributed_control::numprocs "dc.numprocs()"
+The distributed_control constructor will first detect if MPI is initialized,
+and if it is, will use MPI to perform initialization (\ref sec_spawning_mpi).
+If MPI is not initialized, then the constructor will check if an alternate
+spawning process using environment variables is used (\ref sec_spawning_rpcexec).
+The environment variable based spawning process is less reliable, but useful
+in situations where MPI is not available.
+
+
+Once the distributed_control object is created, \ref graphlab::distributed_control::procid "dc.procid()"
+provides the current machine number, while \ref graphlab::distributed_control::numprocs "dc.numprocs()"
 provide the total number of machines.
+
 
 The if-condition is therefore entered by only the first machine, which
 performs a remote call to the second machine (the first argument of remote_call
@@ -80,17 +85,18 @@ We will discuss the different aspects of the RPC library seperately:
          distributed object contexts.
 
 \section Examples
-The tests/ directory include a collection of seven RPC examples demonstrating
+The tests/ directory include a collection of nine RPC examples demonstrating
 all the key features.
 
 \li RPC Example 1: Basic Synchronous RPC \ref rpc_example1.cpp
 \li RPC Example 2: Asynchronous RPC with Built-in Serialization \ref rpc_example2.cpp
 \li RPC Example 3: Asynchronous RPC with Struct POD Serialization \ref rpc_example3.cpp
 \li RPC Example 4: Asynchronous RPC with Manual Serialization \ref rpc_example4.cpp
-\li RPC Example 4: Asynchronous RPC to printf \ref rpc_example5.cpp
-\li RPC Example 4: Asynchronous RPC with any \ref rpc_example6.cpp
-\li RPC Example 4: Distributed Object \ref rpc_example7.cpp
-
+\li RPC Example 5: Asynchronous RPC to printf \ref rpc_example5.cpp
+\li RPC Example 6: Asynchronous RPC with any \ref rpc_example6.cpp
+\li RPC Example 7: Distributed Object \ref rpc_example7.cpp
+\li RPC Example 8: RPC using iterators over machines \ref rpc_example8.cpp
+\li RPC Example 9: Distributed Object RPC using iterators over machines \ref rpc_example9.cpp
 
 
 
@@ -101,8 +107,6 @@ machines. GraphLab RPC supports two spawning methods: MPI or rpcexec.py
 (a script in the tools/ directory). The MPI method is strongly recommended,
 though it does require all machines to have shared access to a common file
 system.
-
-
 
 
 \section sec_spawning_mpi Spawning with MPI
@@ -116,26 +120,17 @@ The GraphLab RPC program should begin with:
 
 \code
 #include <graphlab/rpc/dc.hpp>
-#include <graphlab/rpc/dc_init_from_mpi.hpp>
 using namespace graphlab;
 
 int main(int argc, char ** argv) {
   mpi_tools::init(argc, argv);
-
-  dc_init_param param;
-  // set additional param options here
-  if (init_param_from_mpi(param) == false) {
-    return 0;
-  }
-  distributed_control dc(param);
+  distributed_control dc;
   ...
 }
 \endcode
 
-In this case, init_param_from_mpi uses the MPI ring to exchange port numbers
-and set up the RPC communication layer. 
-See \ref graphlab::dc_init_param "dc_init_param" for details about additional
-configuration options.
+In this case, distributed_control detects that MPI was initialized
+prior and will use MPI to perform initial negotiation of port numbers.
 
 \section sec_spawning_rpcexec Spawning with rpcexec.py
 rpcexec.py provides a simple way to run a process on a collection of machines,
@@ -181,16 +176,10 @@ If rpcexec.py will be used to spawn the program, The GraphLab RPC program should
 begin with:
 \code
 #include <graphlab/rpc/dc.hpp>
-#include <graphlab/rpc/dc_init_from_env.hpp>
 using namespace graphlab;
 
 int main(int argc, char ** argv) {
-  dc_init_param param;
-  // set additional param options here
-  if (init_param_from_env(param) == false) {
-    return 0;
-  }
-  distributed_control dc(param);
+  distributed_control dc;
   ...
 }
 \endcode
@@ -295,10 +284,14 @@ All machines will therefore print '1'.
 int a = 0;
 void set_a_to_1() { a = 1; }
 
-... /* in main after initialization */ ...
-dc.remote_call( /* another machine */, set_a_to_1);
-dc.full_barrier();
-std::cout << a;
+int main(int argc, char** argv) {
+  mpi_tools::init(argc, argv);
+  distributed_control dc;
+
+  dc.remote_call( [ another machine ], set_a_to_1);
+  dc.full_barrier();
+  std::cout << a;
+}
 \endcode
 
 The full_barrier is about 2-3x more costly than the regular barrier and should be
@@ -322,11 +315,13 @@ int a = 0;
 void set_a_to_1() { a = 1; }
 void print_a() { std::cout << a; }
 
-... /* in main after initialization */ ...
-targetmachine = (dc.procid() + 1) % dc.numprocs();
-dc.remote_call(targetmachine, set_a_to_1);
-dc.remote_call(targetmachine, print_a);
-...
+int main(int argc, char** argv) {
+  mpi_tools::init(argc, argv);
+  distributed_control dc;
+  targetmachine = (dc.procid() + 1) % dc.numprocs();
+  dc.remote_call(targetmachine, set_a_to_1);
+  dc.remote_call(targetmachine, print_a);
+}
 \endcode
 Note that due to the asynchronous nature of the remote_call, it is possible for
 <tt>print_a()</tt> to complete on the target machine, before the variable <tt>a</tt> is set to 1.
@@ -381,19 +376,23 @@ which provides RPC communication between distributed instances.
 
 For instance, say we run the following code using two machines:
 \code
-... /* in main after initialization */ ...
-graphlab::dht<std::string, std::string> str_map;
-dc.barrier();
+int main(int argc, char** argv) {
+  mpi_tools::init(argc, argv);
+  distributed_control dc;
 
-if (dc.procid() == 0) {
-  str_map.set("hello", "world");
+  graphlab::dht<std::string, std::string> str_map;
+  dc.barrier();
+
+  if (dc.procid() == 0) {
+    str_map.set("hello", "world");
+  }
+  else if (dc.procid() == 1) {
+    str_map.set("something", "other");
+  }
+  dc.barrier();
+  std::cout << str_map.get("hello").second;
+  std::cout << str_map.get("something").second;
 }
-else if (dc.procid() == 1) {
-  str_map.set("something", "other");
-}
-dc.barrier();
-std::cout << str_map.get("hello").second;
-std::cout << str_map.get("something").second;
 \endcode
 The DHT is a distributed object which provides a distributed key/value
 store (a distributed "Hash Table"). Every entry is stored at a machine 
