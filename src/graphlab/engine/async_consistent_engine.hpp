@@ -173,7 +173,6 @@ namespace graphlab {
    *
    * \see graphlab::synchronous_engine
    */
-   */
   template<typename VertexProgram>
   class async_consistent_engine: public iengine<VertexProgram> {
       

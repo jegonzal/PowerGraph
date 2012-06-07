@@ -37,8 +37,18 @@ namespace graphlab {
    * \brief The context object mediates the interaction between the
    * vertex program and the graphlab execution environment.
    *
-   * Each of the vertex program methods is passed a reference to the
-   * engine's context.  
+   * Each of the vertex program (see \ref ivertex_program) methods is
+   * passed a reference to the engine's context.  The context allows
+   * vertex programs to access information about the current execution
+   * and send information (through icontext::signal,
+   * icontext::post_delta, and icontext::clear_gather_cache) to the
+   * graphlab engines (see \ref iengine).
+   *
+   * \tparam GraphType the type of graph (typically \ref distributed_graph)
+   * \tparam GatherType the user defined gather type (see 
+   * \ref ivertex_program::gather_type).
+   * \tparam MessageType the user defined message type (see 
+   * \ref ivertex_program::message_type).
    */
   template<typename GraphType,
            typename GatherType, 
@@ -47,111 +57,181 @@ namespace graphlab {
   public:
     // Type members ===========================================================
     
-
+    /**
+     * \brief the user graph type (typically \ref distributed_graph)
+     */
     typedef GraphType graph_type;   
+
+    /**
+     * \brief the opaque vertex_type defined in the ivertex_program::graph_type
+     * (typically distributed_graph::vertex_type)
+     */
     typedef typename graph_type::vertex_type vertex_type;
+
+    /**
+     * \brief the global vertex identifier (see
+     * graphlab::vertex_id_type).
+     */
     typedef typename graph_type::vertex_id_type vertex_id_type;
 
     /**
      * The message type specified by the user-defined vertex-program.
-     * TODO: add a reference back to vertex program type
+     * (see ivertex_program::message_type)
      */
     typedef MessageType message_type;
 
     /**
-     * The type returned by the gather operation.
-     * TODO: add a reference back to vertex program type
+     * The type returned by the gather operation.  (see
+     * ivertex_program::gather_type)
      */
     typedef GatherType gather_type;
 
    
   public:        
-    /** icontext destructor */
+    /** \brief icontext destructor */
     virtual ~icontext() { }
     
     /**
-     * Get the number of vertices in the graph.
+     * \brief Get the total number of vertices in the graph.
+     *
+     * \return the total number of vertices in the entire graph.
      */
     virtual size_t num_vertices() const = 0;
 
     /**
-     * Get the number of edges in the graph
+     * \brief Get the number of edges in the graph.
+     *
+     * Each direction counts as a separate edge.
+     *
+     * \return the total number of edges in the entire graph.
      */
     virtual size_t num_edges() const = 0;
 
-    // I don't think we can reliably implement this?
-    // /**
-    //  * Get an estimate of the number of update functions executed up
-    //  * to this point.
-    //  */
-    // virtual size_t num_updates() const = 0;
-
-
     /**
-     * \brief Get the proc id of the local machine.
+     * \brief Get the id of this process.
      *
      * The procid is a number between 0 and 
      * \ref graphlab::icontext::num_procs
      * 
-     * \warning there will be more threads (workers) than number of
-     * processors.
+     * \warning Each process may have many threads
      *
-     *
-     * @return the procid of this machine.
+     * @return the process of this machine.
      */
     virtual size_t procid() const = 0;
 
     /**
-     * \brief Get the number of machine in the distributed execution.
+     * \brief Get the number of processes in the current execution.
+     *
+     * This is typically the number of mpi jobs created:
+     * \code
+     * %> mpiexec -n 16 ./pagerank
+     * \endcode
+     * would imply that num_procs() returns 16.
+     *
+     * @return the number of processes in the current execution
      */
     virtual size_t num_procs() const = 0;
 
-
     /**
-     * Get the elapsed time in seconds
+     * \brief Get the elapsed time in seconds since start was called.
+     * 
+     * \return runtine in seconds
      */
     virtual float elapsed_seconds() const = 0;
 
     /**
-     * Return the current interation number (if supported).
+     * \brief Return the current interation number (if supported).
+     *
+     * \return the current interation number if support or -1
+     * otherwise.
      */
     virtual int iteration() const = 0;
 
     /**
-     * Force the engine to stop executing additional update functions.
+     * \brief Signal the engine to stop executing additional update
+     * functions.
+     *
+     * \warning The execution engine will stop *eventually* and
+     * additional update functions may be executed prior to when the
+     * engine stops. For-example the synchronous engine (see \ref
+     * synchronous_engine) will complete the current super-step before
+     * terminating.
      */
     virtual void stop() = 0;
 
     /**
-     * Send a message to a vertex.
+     * \brief Signal a vertex with a particular message.
+     *
+     * This function is an essential part of the GraphLab abstraction
+     * and is used to encode iterative computation. Typically a vertex
+     * program will signal neighboring vertices during the scatter
+     * phase.  A vertex program may choose to signal neighbors on when
+     * changes made during the previos phases break invariants or warrant
+     * future computation on neighboring vertices.
+     * 
+     * The signal function takes two arguments. The first is mandatory
+     * and specifies which vertex to signal.  The second argument is
+     * optional and is used to send a message.  If no message is
+     * provided then the default message is used.
+     *
+     * \param vertex [in] The vertex to send the message to
+     * \param message [in] The message to send, defaults to message_type(). 
      */
     virtual void signal(const vertex_type& vertex, 
                         const message_type& message = message_type()) = 0;
 
     /**
-     * Send a message to a vertex ID.
-     * \warning This function will be slow since the current machine do
-     * not know the location of the vertex ID.
-     * \warning This may be unreliable. signals issued near to engine
-     * termination may be lost.
+     * \brief Send a message to a vertex ID.
+     *
+     * \warning This function will be slow since the current machine
+     * do not know the location of the vertex ID.  If possible use the
+     * the icontext::signal call instead.
+     *
+     * \param gvid [in] the vertex id of the vertex to signal
+     * \param message [in] the message to send to that vertex, 
+     * defaults to message_type().
      */
     virtual void signal_vid(vertex_id_type gvid, 
                             const message_type& message = message_type()) = 0;
 
     /**
-     * Post a change to the cached sum for the vertex
+     * \brief Post a change to the cached sum for the vertex
+     * 
+     * Often a vertex program will be signaled due to a change in one
+     * or a few of its neighbors.  However the gather operation will
+     * be rerun on all neighbors potentially producing the same value
+     * as previous invocations and wasting computation time.  To
+     * address this some engines support caching (see \ref
+     * gather_caching for details) of the gather phase.
+     *
+     * When caching is enabled the engines save a copy of the previous
+     * gather for each vertex.  On subsequent calls to gather if their
+     * is a cached gather then the gather phase is skipped and the
+     * cached value is passed to the ivertex_program::apply function.
+     * Therefore it is the responsibility of the vertex program to
+     * update the cache values for neighboring vertices. This is
+     * accomplished by using the icontext::post_delta function.
+     * Posted deltas are atomically added to the cache.
+     *
+     * \param vertex [in] the vertex whose cache we want to update
+     * \param delta [in] the change that we want to *add* to the
+     * current cache.
+     *
      */
     virtual void post_delta(const vertex_type& vertex, 
                             const gather_type& delta) = 0;    
 
     /**
-     * Invalidate the cached gather on the vertex.
+     * \brief Invalidate the cached gather on the vertex.
+     *
+     * When caching is enabled clear_gather_cache clears the cache
+     * entry forcing a complete invocation of the subsequent gather.
+     *
+     * \param vertex [in] the vertex whose cache to clear.
      */
     virtual void clear_gather_cache(const vertex_type& vertex) = 0; 
 
-                                                
-
-  }; // end of icontexty
+  }; // end of icontext
   
 } // end of namespace
 #include <graphlab/macros_undef.hpp>

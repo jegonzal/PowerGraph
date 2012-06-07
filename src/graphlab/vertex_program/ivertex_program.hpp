@@ -77,14 +77,21 @@ namespace graphlab {
    * \endcode
    *
    * All user define vertex programs must extend the ivertex_program
-   * interface and implement the \ref ivertex_program::apply function.
-   * Most vertex programs will also implement the 
-   * \ref ivertex_program::gather and \ref ivertex_program::scatter
-   * functions as well as the \ref ivertex_program::init and \ref
+   * interface and implement the ivertex_program::apply function.
+   * Most vertex programs will also implement the
+   * ivertex_program::gather and ivertex_program::scatter functions as
+   * well as the ivertex_program::init and
    * ivertex_program::recv_message functions.
    *
-   * In addition, all vertex programs must provide the following
-   * types:
+   * The state of a vertex program persists between invocations of the
+   * GAS phases and is part of the engine which created the
+   * vertex-program.  However, GraphLab does not provide a mechanism
+   * for users to access vertex-program state and so any output
+   * computational state must be saved in the vertex or edge data of
+   * the graph.
+   *
+   * The vertex program depends on several key types which are
+   * template arguments to ivertex_program interface. 
    * 
    *   1) Graph: the type of graph used to store the data for this
    *      vertex program.  This is typically distributed_graph.
@@ -108,8 +115,17 @@ namespace graphlab {
 
     // User defined type members ==============================================
     /**
-     * The type of the vertex data which must be defined by the
-     * vertex-program.
+     * \brief The user defined vertex data type.  
+     *
+     * The vertex data is the data associated with each vertex in the
+     * graph.  Unlike the vertex-program the vertex data of adjacent
+     * vetices is visible to vertex programs during the gather and
+     * scatter phases. In addition at termination the vertex-data is
+     * accessible through the graph while the vertex-program state is
+     * not.
+     *
+     * The vertex data type must be serializable (see \ref
+     * serializable)
      */
     typedef typename Graph::vertex_data_type vertex_data_type;
 
