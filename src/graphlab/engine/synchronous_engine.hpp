@@ -155,7 +155,7 @@ namespace graphlab {
    *     return EXIT_FAILURE;
    *   }
    *   graph_type graph(dc, clopts);
-   *   graph.load_format(graph_dir, "tsv");
+   *   graph.load_structure(graph_dir, "tsv");
    *   graph.finalize();
    *   std::cout << "#vertices: " << graph.num_vertices() 
    *             << " #edges:" << graph.num_edges() << std::endl;

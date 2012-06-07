@@ -926,7 +926,7 @@ namespace graphlab {
        load a graph with a standard format
        \todo: finish documentation of formats
      */
-    void load_format(const std::string& path, const std::string& format) {
+    void load_structure(const std::string& path, const std::string& format) {
       line_parser_type line_parser;
       if (format == "snap") {
         line_parser = builtin_parsers::snap_parser<distributed_graph>;

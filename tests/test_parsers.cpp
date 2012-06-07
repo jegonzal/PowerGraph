@@ -44,7 +44,7 @@ void check_structure(graph_type &graph) {
 
 void test_adj(graphlab::distributed_control& dc) {
   graphlab::distributed_graph<size_t, size_t> graph(dc);
-  graph.load_format("data/test_adj", "adj");
+  graph.load_structure("data/test_adj", "adj");
   graph.finalize();
   check_structure(graph);  
   graph.save_structure("./testgraphsave", "tsv");
@@ -52,14 +52,14 @@ void test_adj(graphlab::distributed_control& dc) {
 
 void test_snap(graphlab::distributed_control& dc) {
   graphlab::distributed_graph<size_t, size_t> graph(dc);
-  graph.load_format("data/test_snap", "snap");
+  graph.load_structure("data/test_snap", "snap");
   graph.finalize();
   check_structure(graph);  
 }
 
 void test_tsv(graphlab::distributed_control& dc) {
   graphlab::distributed_graph<size_t, size_t> graph(dc);
-  graph.load_format("data/test_tsv", "tsv");
+  graph.load_structure("data/test_tsv", "tsv");
   graph.finalize();
   check_structure(graph);  
 }
