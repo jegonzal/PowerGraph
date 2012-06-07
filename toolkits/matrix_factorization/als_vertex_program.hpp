@@ -29,9 +29,20 @@
 #include <graphlab.hpp>
 
 
-/** Vertex and edge data types **/
+/** 
+ * \brief the vertex data type which contains the latent factor.
+ *
+ */
 struct vertex_data {
+  /**
+   * \brief A shared "constant" that specifies the number of latent
+   * values to use.
+   */
   static size_t NLATENT;
+
+  /**
+   * \brief 
+   */
   uint32_t nupdates; //! the number of times the vertex was updated
   float residual; //! how much the latent value has changed
   Eigen::VectorXd latent; //! vector of learned values 
