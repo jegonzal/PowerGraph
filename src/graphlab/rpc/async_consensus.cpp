@@ -43,7 +43,7 @@ namespace graphlab {
     cur_token.last_change = (procid_t)(rmi.numprocs() - 1);
   }
 
-  void reset() {
+  void async_consensus::reset() {
     last_calls_sent = 0;
     last_calls_received = 0;
     numactive = ncpus;

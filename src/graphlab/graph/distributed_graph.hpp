@@ -89,7 +89,7 @@
 namespace graphlab { 
 
   /**
-   * 
+   * test
    */
   template<typename VertexData, typename EdgeData>
   class distributed_graph {
@@ -142,10 +142,10 @@ namespace graphlab {
      * and information about it.
      */
     struct vertex_type {
-      distributed_graph& g;
+      distributed_graph& graph_ref;
       lvid_type lvid;
-      vertex_type(distributed_graph& g, lvid_type lvid):
-            g(g), lvid(lvid) { }
+      vertex_type(distributed_graph& graph_ref, lvid_type lvid):
+            graph_ref(graph_ref), lvid(lvid) { }
 
       bool operator==(vertex_type& v) const {
         return lvid == v.lvid;
@@ -153,27 +153,27 @@ namespace graphlab {
       
       /// \brief Returns a constant reference to the data on the vertex
       const vertex_data_type& data() const {
-        return g.get_local_graph().vertex_data(lvid);
+        return graph_ref.get_local_graph().vertex_data(lvid);
       }
 
       /// \brief Returns a reference to the data on the vertex
       vertex_data_type& data() {
-        return g.get_local_graph().vertex_data(lvid);
+        return graph_ref.get_local_graph().vertex_data(lvid);
       }
 
       /// \brief Returns the number of in edges of the vertex
       size_t num_in_edges() const {
-        return g.l_get_vertex_record(lvid).num_in_edges;
+        return graph_ref.l_get_vertex_record(lvid).num_in_edges;
       }
 
       /// \brief Returns the number of out edges of the vertex
       size_t num_out_edges() const {
-        return g.l_get_vertex_record(lvid).num_out_edges;
+        return graph_ref.l_get_vertex_record(lvid).num_out_edges;
       }
       
       /// \brief Returns the vertex ID of the vertex       
       vertex_id_type id() const {
-        return g.global_vid(lvid);
+        return graph_ref.global_vid(lvid);
       }
       
       /// \brief Returns a list of in edges (not implemented) 
@@ -200,16 +200,17 @@ namespace graphlab {
         on the graph */
     class edge_type {
     private:
-      distributed_graph& g;
+      distributed_graph& graph_ref;
       typename local_graph_type::edge_type e;
     public:
-      edge_type(distributed_graph& g,
-                typename local_graph_type::edge_type e): g(g), e(e) { }
+      edge_type(distributed_graph& graph_ref,
+                typename local_graph_type::edge_type e):
+                                          graph_ref(graph_ref), e(e) { }
 
       /// \brief Returns the source vertex of the edge
-      vertex_type source() { return vertex_type(g, e.source().id()); }
+      vertex_type source() { return vertex_type(graph_ref, e.source().id()); }
       /// \brief Returns the target vertex of the edge
-      vertex_type target() { return vertex_type(g, e.target().id()); }
+      vertex_type target() { return vertex_type(graph_ref, e.target().id()); }
       
       /// \brief Returns a constant reference to the data on the edge 
       const edge_data_type& data() const { return e.data(); }
@@ -1221,17 +1222,17 @@ namespace graphlab {
      *  vertex type while provides access to local graph vertices.
      */
     struct local_vertex_type {
-      distributed_graph& g;
+      distributed_graph& graph_ref;
       lvid_type lvid;
 
-      local_vertex_type(distributed_graph& g, lvid_type lvid):
-            g(g), lvid(lvid) { }
+      local_vertex_type(distributed_graph& graph_ref, lvid_type lvid):
+            graph_ref(graph_ref), lvid(lvid) { }
 
       /// \brief Can be casted from local_vertex_type using an explicit cast
-      explicit local_vertex_type(vertex_type v) :g(v.g),lvid(v.lvid) { }
+      explicit local_vertex_type(vertex_type v) :graph_ref(v.graph_ref),lvid(v.lvid) { }
       /// \brief Can be casted to vertex_type using an explicit cast
       operator vertex_type() const {
-        return vertex_type(g, lvid);
+        return vertex_type(graph_ref, lvid);
       }
 
       bool operator==(local_vertex_type& v) const {
@@ -1240,26 +1241,26 @@ namespace graphlab {
       
       /// \brief Returns a reference to the data on the local vertex
       const vertex_data_type& data() const {
-        return g.get_local_graph().vertex_data(lvid);
+        return graph_ref.get_local_graph().vertex_data(lvid);
       }
 
       /// \brief Returns a reference to the data on the local vertex
       vertex_data_type& data() {
-        return g.get_local_graph().vertex_data(lvid);
+        return graph_ref.get_local_graph().vertex_data(lvid);
       }
 
       /** \brief Returns the number of in edges on the 
        *         local graph of this local vertex
        */
       size_t num_in_edges() const {
-        return g.get_local_graph().num_in_edges(lvid);
+        return graph_ref.get_local_graph().num_in_edges(lvid);
       }
 
       /** \brief Returns the number of in edges on the 
        *         local graph of this local vertex
        */
       size_t num_out_edges() const {
-        return g.get_local_graph().num_out_edges(lvid);
+        return graph_ref.get_local_graph().num_out_edges(lvid);
       }
 
       /// \brief Returns the local ID of this local vertex
@@ -1269,34 +1270,34 @@ namespace graphlab {
 
       /// \brief Returns the global ID of this local vertex
       vertex_id_type global_id() const {
-        return g.global_vid(lvid);
+        return graph_ref.global_vid(lvid);
       }
 
       /** \brief Returns a list of all in edges on the 
        *         local graph of this local vertex
        */
       local_edge_list_type in_edges() {
-        return g.l_in_edges(lvid);
+        return graph_ref.l_in_edges(lvid);
       }
 
       /** \brief Returns a list of all out edges on the 
        *         local graph of this local vertex
        */
       local_edge_list_type out_edges() {
-        return g.l_out_edges(lvid);
+        return graph_ref.l_out_edges(lvid);
       }
 
       /** \brief Returns the owner of this local vertex
        */
       procid_t owner() const {
-        return g.l_get_vertex_record(lvid).owner;
+        return graph_ref.l_get_vertex_record(lvid).owner;
       }
 
       /** \brief Returns the number of in_edges of this vertex
        *         on the global graph
        */
       size_t global_num_in_edges() const {
-        return g.l_get_vertex_record(lvid).num_in_edges;
+        return graph_ref.l_get_vertex_record(lvid).num_in_edges;
       }
 
 
@@ -1304,25 +1305,25 @@ namespace graphlab {
        *         on the global graph
        */
       size_t global_num_out_edges() const {
-        return g.l_get_vertex_record(lvid).num_out_edges;
+        return graph_ref.l_get_vertex_record(lvid).num_out_edges;
       }
 
 
       /** \brief Returns the set of mirrors of this vertex
        */
       const mirror_type& mirrors() const {
-        return g.l_get_vertex_record(lvid)._mirrors;
+        return graph_ref.l_get_vertex_record(lvid)._mirrors;
       }
 
       size_t num_mirrors() const {
-        return g.l_get_vertex_record(lvid).num_mirrors();
+        return graph_ref.l_get_vertex_record(lvid).num_mirrors();
       }
 
       /** \brief Returns the vertex record of this
        *         this local vertex
        */
       vertex_record& get_vertex_record() {
-        return g.l_get_vertex_record(lvid);
+        return graph_ref.l_get_vertex_record(lvid);
       }
     };
 
@@ -1331,25 +1332,26 @@ namespace graphlab {
      *  edge type which provides access to local graph edges */
     class local_edge_type {
     private:
-      distributed_graph& g;
+      distributed_graph& graph_ref;
       typename local_graph_type::edge_type e;
     public:
-      local_edge_type(distributed_graph& g,
-                      typename local_graph_type::edge_type e): g(g), e(e) { }
+      local_edge_type(distributed_graph& graph_ref,
+                      typename local_graph_type::edge_type e):
+                                                graph_ref(graph_ref), e(e) { }
                       
       /// \brief Can be converted from edge_type via an explicit cast
-      explicit local_edge_type(edge_type ge) :g(ge.g),e(ge.e) { }
+      explicit local_edge_type(edge_type ge) :graph_ref(ge.graph_ref),e(ge.e) { }
 
       /// \brief Can be casted to edge_type using an explicit cast
       operator edge_type() const {
-        return edge_type(g, e);
+        return edge_type(graph_ref, e);
       }
 
       /// \brief Returns the source local vertex of the edge
-      local_vertex_type source() { return local_vertex_type(g, e.source().id()); }
+      local_vertex_type source() { return local_vertex_type(graph_ref, e.source().id()); }
       
       /// \brief Returns the target local vertex of the edge
-      local_vertex_type target() { return local_vertex_type(g, e.target().id()); }
+      local_vertex_type target() { return local_vertex_type(graph_ref, e.target().id()); }
       
       
       
@@ -1370,10 +1372,11 @@ namespace graphlab {
     struct make_local_edge_type_functor {
       typedef typename local_graph_type::edge_type argument_type;
       typedef local_edge_type result_type;
-      distributed_graph& g;
-      make_local_edge_type_functor(distributed_graph& g):g(g) { }
+      distributed_graph& graph_ref;
+      make_local_edge_type_functor(distributed_graph& graph_ref):
+                                                      graph_ref(graph_ref) { }
       result_type operator() (const argument_type et) const {
-        return local_edge_type(g, et);
+        return local_edge_type(graph_ref, et);
       }
     };
     
@@ -1389,9 +1392,9 @@ namespace graphlab {
                                       typename local_graph_type::edge_list_type::iterator> iterator;
       typedef iterator const_iterator;
       
-      local_edge_list_type(distributed_graph& g,
+      local_edge_list_type(distributed_graph& graph_ref,
                            typename local_graph_type::edge_list_type elist) :
-                          me_functor(g), elist(elist) { }
+                          me_functor(graph_ref), elist(elist) { }
       /// \brief Returns the number of edges in the list
       size_t size() const { return elist.size(); }
       
