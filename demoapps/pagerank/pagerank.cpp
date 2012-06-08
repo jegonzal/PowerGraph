@@ -21,6 +21,8 @@
  */
 
 // We render this entire program in the documentation
+
+/// \file pagerank.cpp
 /// \code
 
 #include <vector>
@@ -43,7 +45,7 @@ typedef graphlab::empty edge_data_type;
 typedef graphlab::distributed_graph<vertex_data_type, edge_data_type> graph_type;
 
 
-/**
+/*
  * The factorized page rank update function extends ivertex_program
  * specifying the:
  *
@@ -68,20 +70,20 @@ class pagerank :
   public graphlab::IS_POD_TYPE {
   double lastchange;
 public:  
-  /** Initialize the vertex program and vertex data */
+  /* Initialize the vertex program and vertex data */
   void init(icontext_type& context, vertex_type& vertex) { 
     vertex.data() = 1.0;
     lastchange = 0;
   }
 
-  /** Gather the weighted rank of the adjacent page   */
+  /* Gather the weighted rank of the adjacent page   */
   float gather(icontext_type& context, const vertex_type& vertex,
                edge_type& edge) const {
     return ((1.0 - RESET_PROB) / edge.source().num_out_edges()) * 
       edge.source().data();
   }
   
-  /** Use the total rank of adjacent pages to update this page */
+  /* Use the total rank of adjacent pages to update this page */
   void apply(icontext_type& context, vertex_type& vertex,
              const gather_type& total) {
     double newval = total + RESET_PROB;
@@ -89,14 +91,14 @@ public:
     vertex.data() = newval;
   }
   
-  /** The scatter edges depend on whether the pagerank has converged */
+  /* The scatter edges depend on whether the pagerank has converged */
   edge_dir_type scatter_edges(icontext_type& context,
                               const vertex_type& vertex) const {
     if (lastchange > 1E-2) return graphlab::OUT_EDGES;
     else return graphlab::NO_EDGES;
   }
   
-  /** The scatter function just signal adjacent pages */
+  /* The scatter function just signal adjacent pages */
   void scatter(icontext_type& context, const vertex_type& vertex,
                edge_type& edge) const {
     context.signal(edge.target());
@@ -104,13 +106,13 @@ public:
 }; // end of factorized_pagerank update functor
 
 
-/**
+/*
  * Simple function used at the end of pagerank to extract the rank of
  * each page.  See: graph.map_reduce_vertices(extract_pagerank);
  */
 float extract_pagerank(graph_type::vertex_type f) { return f.data(); }
 
-/**
+/*
  * We want to save the final graph so we define a write which will be
  * used in graph.save("path/prefix", pagerank_writer()) to save the graph.
  */
@@ -126,11 +128,11 @@ struct pagerank_writer {
 
 
 int main(int argc, char** argv) {
-  //global_logger().set_log_level(LOG_DEBUG);
-  ///! Initialize control plain using mpi
+  // Initialize control plain using mpi
   graphlab::mpi_tools::init(argc, argv);
   graphlab::distributed_control dc;
- 
+  global_logger().set_log_level(LOG_INFO); 
+
   // Parse command line options -----------------------------------------------
   graphlab::command_line_options clopts("PageRank algorithm.");
   std::string graph_dir; 
@@ -189,5 +191,6 @@ int main(int argc, char** argv) {
 
 
 // We render this entire program in the documentation
+
 /// \endcode
 
