@@ -308,11 +308,26 @@ namespace graphlab {
      * \warning Pay attention to the types! A slightly erroneous type
      *          can produce screens of errors.
      */
-    template <typename ReductionType>
-    bool add_vertex_aggregator
-    (const std::string& key,
-     boost::function<ReductionType(icontext_type&, vertex_type&)> map_function,
-     boost::function<void(icontext_type&, const ReductionType&)> finalize_function) {
+    template <typename ReductionType,
+              typename VertexMapType,
+              typename FinalizerType>
+    bool add_vertex_aggregator(const std::string& key,
+                               const VertexMapType& map_function,
+                               const FinalizerType& finalize_function) {
+      aggregator_type* aggregator = get_aggregator();
+      if(aggregator == NULL) {
+        logstream(LOG_FATAL) << "Aggregation not supported by this engine!" << std::endl;
+        return false; 
+      }
+      return aggregator->add_vertex_aggregator<ReductionType>(key, map_function, finalize_function);
+    } // end of add vertex aggregator
+
+#if defined(__cplusplus) && __cplusplus >= 201103L
+    template <typename VertexMapType,
+              typename FinalizerType>
+    bool add_vertex_aggregator(const std::string& key,
+                               const VertexMapType& map_function,
+                               const FinalizerType& finalize_function) {
       aggregator_type* aggregator = get_aggregator();
       if(aggregator == NULL) {
         logstream(LOG_FATAL) << "Aggregation not supported by this engine!" << std::endl;
@@ -321,6 +336,7 @@ namespace graphlab {
       return aggregator->add_vertex_aggregator(key, map_function, finalize_function);
     } // end of add vertex aggregator
 
+#endif
     
     /** \brief Creates a edge aggregator. Returns true on success.
      *         Returns false if an aggregator of the same name already exists
@@ -345,11 +361,27 @@ namespace graphlab {
      * \warning Pay attention to the types! A slightly erroneous type
      *          can produce screens of errors
      */
-    template <typename ReductionType>
-    bool add_edge_aggregator
-    (const std::string& key,
-     boost::function<ReductionType(icontext_type&, edge_type&)> map_function,
-      boost::function<void(icontext_type&, const ReductionType&)> finalize_function) {
+    template <typename ReductionType,
+              typename EdgeMapType,
+              typename FinalizerType>
+    bool add_edge_aggregator(const std::string& key,
+                               const EdgeMapType& map_function,
+                               const FinalizerType& finalize_function) {
+      aggregator_type* aggregator = get_aggregator();
+      if(aggregator == NULL) {
+        logstream(LOG_FATAL) << "Aggregation not supported by this engine!" << std::endl;
+        return false; 
+      }
+      return aggregator->add_edge_aggregator<ReductionType>(key, map_function, finalize_function);
+    } // end of add edge aggregator
+
+
+#if defined(__cplusplus) && __cplusplus >= 201103L
+    template <typename EdgeMapType,
+              typename FinalizerType>
+    bool add_edge_aggregator(const std::string& key,
+                               const EdgeMapType& map_function,
+                               const FinalizerType& finalize_function) {
       aggregator_type* aggregator = get_aggregator();
       if(aggregator == NULL) {
         logstream(LOG_FATAL) << "Aggregation not supported by this engine!" << std::endl;
@@ -357,7 +389,7 @@ namespace graphlab {
       }
       return aggregator->add_edge_aggregator(key, map_function, finalize_function);
     } // end of add edge aggregator
-
+#endif
 
     /**
      * Performs an immediate aggregation on a key. All machines must

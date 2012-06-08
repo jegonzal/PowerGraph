@@ -197,15 +197,27 @@ public:
 typedef graphlab::async_consistent_engine<count_all_neighbors_slow> agg_engine_type;
 
 size_t agg_map(agg_engine_type::icontext_type& context,
-              agg_engine_type::vertex_type& vtx) {
+              const agg_engine_type::vertex_type& vtx) {
   return 1;
 }
 
-
 void agg_finalize(agg_engine_type::icontext_type& context,
-                  const size_t& result) {
+                  size_t result) {
   std::cout << "Aggregator: #vertices = " << result << std::endl;
 }
+
+
+size_t agg_edge_map(agg_engine_type::icontext_type& context,
+              const agg_engine_type::edge_type& vtx) {
+  return 1;
+}
+
+void agg_edge_finalize(agg_engine_type::icontext_type& context,
+                  size_t result) {
+  std::cout << "Aggregator: #edges= " << result << std::endl;
+}
+
+
 
 
 void test_aggregator(graphlab::distributed_control& dc,
@@ -214,8 +226,12 @@ void test_aggregator(graphlab::distributed_control& dc,
   std::cout << "Constructing an engine for all neighbors" << std::endl;
   agg_engine_type engine(dc, graph, clopts);
   engine.add_vertex_aggregator<size_t>("num_vertices_counter", agg_map, agg_finalize);
+  engine.add_edge_aggregator<size_t>("num_edges_counter", agg_edge_map, agg_edge_finalize);
+  
   ASSERT_TRUE(engine.aggregate_now("num_vertices_counter"));
+  ASSERT_TRUE(engine.aggregate_now("num_edges_counter"));
   ASSERT_TRUE(engine.aggregate_periodic("num_vertices_counter", 0.2));
+  ASSERT_TRUE(engine.aggregate_periodic("num_edges_counter", 0.2));
   std::cout << "Scheduling all vertices to count their neighbors" << std::endl;
   engine.signal_all(100);
   std::cout << "Running!" << std::endl;
