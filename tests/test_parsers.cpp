@@ -44,22 +44,21 @@ void check_structure(graph_type &graph) {
 
 void test_adj(graphlab::distributed_control& dc) {
   graphlab::distributed_graph<size_t, size_t> graph(dc);
-  graph.load_structure("data/test_adj", "adj");
+  graph.load_format("data/test_adj", "adj");
   graph.finalize();
   check_structure(graph);  
-  graph.save_structure("./testgraphsave", "tsv");
 }
 
 void test_snap(graphlab::distributed_control& dc) {
   graphlab::distributed_graph<size_t, size_t> graph(dc);
-  graph.load_structure("data/test_snap", "snap");
+  graph.load_format("data/test_snap", "snap");
   graph.finalize();
   check_structure(graph);  
 }
 
 void test_tsv(graphlab::distributed_control& dc) {
   graphlab::distributed_graph<size_t, size_t> graph(dc);
-  graph.load_structure("data/test_tsv", "tsv");
+  graph.load_format("data/test_tsv", "tsv");
   graph.finalize();
   check_structure(graph);  
 }
@@ -72,11 +71,36 @@ void test_powerlaw(graphlab::distributed_control& dc) {
   std::cout << graph.num_edges() << " Edges\n";
 }
 
+
+void test_save_load(graphlab::distributed_control& dc) {
+  graphlab::distributed_graph<size_t, size_t> graph(dc);
+  graph.load_synthetic_powerlaw(1000);
+  graph.finalize();
+  ASSERT_EQ(graph.num_vertices(), 1000);
+  graph.save_format("data/plawtest_tsv", "tsv");
+  graph.save_format("data/plawtest_jrl", "graphjrl");
+  // load it back
+  graphlab::distributed_graph<size_t, size_t> graph2(dc);
+  graph2.load_format("data/plawtest_tsv", "tsv");
+  graph2.finalize();
+  ASSERT_EQ(graph.num_vertices(), graph2.num_vertices());
+  ASSERT_EQ(graph.num_edges(), graph2.num_edges());
+
+  graphlab::distributed_graph<size_t, size_t> graph3(dc);
+  graph3.load_format("data/plawtest_jrl", "graphjrl");
+  graph3.finalize();
+  ASSERT_EQ(graph.num_vertices(), graph3.num_vertices());
+  ASSERT_EQ(graph.num_edges(), graph3.num_edges());
+
+}
+
+
 int main(int argc, char** argv) {
   graphlab::distributed_control dc;
   test_adj(dc);
   test_snap(dc);
   test_tsv(dc);
   test_powerlaw(dc);
+  test_save_load(dc);
 };
 

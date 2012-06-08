@@ -105,14 +105,11 @@ list_files_with_prefix(const std::string& pathname,
     for( fs::directory_iterator dir_iter(dir_path) ; 
          dir_iter != end_iter ; ++dir_iter) {
       if (fs::is_regular_file(dir_iter->status()) ) {
-#if BOOST_FILESYSTEM_VERSION >= 3 
         const std::string filename = dir_iter->path().filename().string();
-#else
-        const std::string filename = dir_iter->leaf();
-#endif
-        if (prefix.size() > 0 && !boost::starts_with(filename, prefix)) 
+        if (prefix.size() > 0 && !boost::starts_with(filename, prefix)) {
           continue;
-        files.push_back(filename);
+        }
+        files.push_back(dir_iter->path().string());
       }
     }
   }

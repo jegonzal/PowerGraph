@@ -158,7 +158,7 @@ int main(int argc, char** argv) {
   if(powerlaw > 0) { // make a synthetic graph
     graph.load_synthetic_powerlaw(powerlaw);
   } else { // Load the graph from a file
-    graph.load_structure(graph_dir, format);
+    graph.load_format(graph_dir, format);
   }
   // must call finalize before querying the graph
   graph.finalize();
