@@ -857,6 +857,133 @@ namespace graphlab {
       }
       return ret;
     }
+    
+    
+    
+    
+    template <typename ResultType, typename MapFunctionType>
+    ResultType map_reduce_vertices(MapFunctionType mapfunction) {
+      rmi.barrier();
+      bool global_result_set = false;
+      ResultType global_result = ResultType();
+#ifdef _OPENMP
+#pragma omp parallel
+#endif
+      {
+        bool result_set = false;
+        ResultType result = ResultType();
+#ifdef _OPENMP
+        #pragma omp for
+#endif
+        for (int i = 0;i < (int)graph.num_local_vertices(); ++i) {
+          if (graph.l_vertex(i).owner() == rmi.procid()) {
+            if (!result_set) {
+              result = mapfunction(*context, vertex_type(graph.l_vertex(i)));
+              result_set = true;
+            }
+            else if (result_set){
+              result += mapfunction(*context, vertex_type(graph.l_vertex(i)));
+            }
+          }
+        }
+#ifdef _OPENMP
+        #pragma omp critical
+#endif
+        {
+          if (!global_result_set) {
+            global_result = result;
+            global_result_set = true;
+          }
+          else {
+            global_result += result;
+          }
+        }
+      }
+      conditional_addition_wrapper<ResultType> wrapper(global_result, global_result_set);
+      rmi.all_reduce(wrapper);
+      return wrapper.value;
+    }
+
+
+  
+    template <typename ResultType, typename MapFunctionType>
+    ResultType map_reduce_edges(MapFunctionType mapfunction) {
+      rmi.barrier();
+      bool global_result_set = false;
+      ResultType global_result = ResultType();
+#ifdef _OPENMP
+#pragma omp parallel
+#endif
+      {
+        bool result_set = false;
+        ResultType result = ResultType();
+#ifdef _OPENMP
+        #pragma omp for
+#endif
+        for (int i = 0;i < (int)graph.num_local_vertices(); ++i) {
+          foreach(const local_edge_type& e, graph.l_vertex(i).in_edges()) {
+            if (!result_set) {
+              result = mapfunction(*context, edge_type(e));
+              result_set = true;
+            }
+            else if (result_set){
+              result += mapfunction(*context, edge_type(e));
+            }
+          }
+        }
+#ifdef _OPENMP
+        #pragma omp critical
+#endif
+        {
+         if (!global_result_set) {
+            global_result = result;
+            global_result_set = true;
+          }
+          else {
+            global_result += result;
+          }
+        }
+      }
+
+      conditional_addition_wrapper<ResultType> wrapper(global_result, global_result_set);
+      rmi.all_reduce(wrapper);
+      return wrapper.value;
+    }
+
+    template <typename TransformType>
+    void transform_vertices(TransformType transform_functor) {
+      rmi.barrier();
+#ifdef _OPENMP
+      #pragma omp parallel for
+#endif
+      for (int i = 0;i < (int)graph.num_local_vertices(); ++i) {
+        if (graph.l_vertex(i).owner() == rmi.procid()) {
+          transform_functor(*context, vertex_type(graph.l_vertex(i)));
+        }
+      }
+      rmi.barrier();
+      graph.synchronize();
+    }
+
+
+    template <typename TransformType>
+    void transform_edges(TransformType transform_functor) {
+      rmi.barrier();
+#ifdef _OPENMP
+      #pragma omp parallel for
+#endif
+      for (int i = 0;i < (int)graph.num_local_vertices(); ++i) {
+        foreach(const local_edge_type& e, graph.l_vertex(i).in_edges()) {
+          transform_functor(*context, edge_type(e));
+        }
+      }
+      rmi.barrier();
+    }
+    
+    
+    
+    
+    
     ~distributed_aggregator() {
       delete context;
     }

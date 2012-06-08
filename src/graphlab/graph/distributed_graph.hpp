@@ -1246,14 +1246,20 @@ namespace graphlab {
             vertex_exchange.send(proc, pair);
           }
         }
-        // Be sure to flush on the last vertex
-        if(lvid+1 == lvid2record.size()) vertex_exchange.flush();
         // Receive any vertex data and update local mirrors
         while(vertex_exchange.recv(sending_proc, recv_buffer)) {
-          foreach(const pair_type& pair, recv_buffer) 
-            vertex_data(pair.first) = pair.second;
+          foreach(const pair_type& pair, recv_buffer)  {
+            vertex(pair.first).data() = pair.second;
+          }
           recv_buffer.clear();
         }
+      }
+      vertex_exchange.flush();
+      while(vertex_exchange.recv(sending_proc, recv_buffer)) {
+        foreach(const pair_type& pair, recv_buffer) {
+          vertex(pair.first).data() = pair.second;
+        }
+        recv_buffer.clear();
       }
       ASSERT_TRUE(vertex_exchange.empty());
     } // end of synchronize
