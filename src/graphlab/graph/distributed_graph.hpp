@@ -458,9 +458,13 @@ namespace graphlab {
       * \param accfunction must be a void function which takes a single
       * vertex_type argument. It may be a functor and contain state.
       * The function need not be reentrant as it is only called sequentially
+      *
+      * \param modifies_data (Optional, Default = false) Must be set to true
+      * if the function modifies vertex data.
      */
     void parallel_for_vertices(
-        std::vector<boost::function<void(vertex_type)> >& accfunction) {
+        std::vector<boost::function<void(vertex_type)> >& accfunction,
+        bool modifies_data = false) {
       rpc.barrier();
       int numaccfunctions = (int)accfunction.size();
       ASSERT_GE(numaccfunctions, 1);
@@ -475,6 +479,7 @@ namespace graphlab {
         }
       }
       rpc.barrier();
+      if (modifies_data) synchronize();
     }
 
 
