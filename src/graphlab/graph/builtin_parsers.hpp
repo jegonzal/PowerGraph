@@ -154,7 +154,7 @@ namespace graphlab {
         // real length is string length - escapes
         std::string ret(str.size() - ctr, 0);
 
-        const char escapemap[2] = {'\n', 255};
+        const char escapemap[2] = {'\n', (char)255};
         
         size_t target = 0;
         for (size_t i = 0;i < str.length(); ++i, ++target) {
