@@ -1942,7 +1942,7 @@ namespace graphlab {
     //   rmi.barrier();
     //   return aggregator.aggregate_periodic(key, seconds);
     // }
-  private:
+
     aggregator_type* get_aggregator() { return &aggregator; } 
 
   }; // end of class

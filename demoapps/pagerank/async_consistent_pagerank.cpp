@@ -164,7 +164,7 @@ int main(int argc, char** argv) {
   if(powerlaw > 0) {
     graph.load_synthetic_powerlaw(powerlaw);
   } else { 
-    graph.load_format(graph_dir, format);
+    graph.load_structure(graph_dir, format);
   }
   graph.finalize();
   std::cout << "#vertices: " << graph.num_vertices() << " #edges:" << graph.num_edges() << std::endl;

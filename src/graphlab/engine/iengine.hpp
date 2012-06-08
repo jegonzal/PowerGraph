@@ -278,8 +278,8 @@ namespace graphlab {
      * (See ivertex_program::message_type for details about the
      * message_type). 
      */
-    virtual void signal_all(const message_type& message,
-                            const std::string& order = "sequential") = 0;
+    virtual void signal_all(const message_type& message = message_type(),
+                            const std::string& order = "shuffle") = 0;
    
 
     
@@ -403,7 +403,6 @@ namespace graphlab {
     } // end of aggregate_periodic
 
 
-  private:
 
     /**
      * \brief This is used by iengine to get the 

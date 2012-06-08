@@ -577,9 +577,6 @@ namespace graphlab {
      */
     size_t total_memory_usage() const;
 
-
-  private:
-
     /**
      * \brief Get a pointer to the distributed aggregator object. 
      *
@@ -589,6 +586,8 @@ namespace graphlab {
      * @return a pointer to the local aggregator.
      */
     aggregator_type* get_aggregator();
+
+  private:
 
     /**
      * \brief This internal stop function is called by the \ref graphlab::context to

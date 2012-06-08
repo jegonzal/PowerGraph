@@ -1,4 +1,4 @@
-/**  
+/*  
  * Copyright (c) 2009 Carnegie Mellon University. 
  *     All rights reserved.
  *
@@ -20,41 +20,34 @@
  *
  */
 
-
+// We render this entire program in the documentation
+/// \code
 
 #include <vector>
 #include <string>
 #include <fstream>
 
 #include <graphlab.hpp>
-#include <graphlab/macros_def.hpp>
+// #include <graphlab/macros_def.hpp>
 
-//! Global random reset probability
+// Global random reset probability
 float RESET_PROB = 0.15;
 
-/**
- * The type of data associated with each vertex
- */
+// The vertex data is just the pagerank value (a float)
 typedef float vertex_data_type;
 
-/**
- * The type of data associated with each edge.  Since there is no data
- * we set the edge type to graphlab empty which lets graphlab know not
- * to allocate memory for edge data.
- */
+// There is no edge data in the pagerank application
 typedef graphlab::empty edge_data_type;
 
-
-/**
- * The graph type naturally depends on the vertex and edge data type.
- */
+// The graph type is determined by the vertex and edge data types
 typedef graphlab::distributed_graph<vertex_data_type, edge_data_type> graph_type;
 
 
 /**
- * The factorized page rank update function
- * extends ivertex_program specifying the:
- *   1) graph_type: the type of graph 
+ * The factorized page rank update function extends ivertex_program
+ * specifying the:
+ *
+ *   1) graph_type
  *   2) gather_type: float (returned by the gather function). Note
  *      that the gather type is not strictly needed here since it is
  *      assumed to be the same as the vertex_data_type unless
@@ -64,22 +57,21 @@ typedef graphlab::distributed_graph<vertex_data_type, edge_data_type> graph_type
  * assumed to be empty. Since we do not need messages no message type
  * is provided.
  *
- * pagerank also extends graphlab::IS_POD_TYP (is plain old data type)
+ * pagerank also extends graphlab::IS_POD_TYPE (is plain old data type)
  * which tells graphlab that the pagerank program can be serialized
  * (converted to a byte stream) by directly reading its in memory
  * representation.  If a vertex program does not exted
- * graphlab::IS_POD_TYPE it must implement load and save functions
- * (\todo see ref).
- *
+ * graphlab::IS_POD_TYPE it must implement load and save functions.
  */
 class pagerank :
-  public graphlab::ivertex_program<graph_type, 
-                                   float /* gather_type */ >,
+  public graphlab::ivertex_program<graph_type, float>,
   public graphlab::IS_POD_TYPE {
+  double lastchange;
 public:  
   /** Initialize the vertex program and vertex data */
   void init(icontext_type& context, vertex_type& vertex) { 
-    vertex.data() = 1.0; 
+    vertex.data() = 1.0;
+    lastchange = 0;
   }
 
   /** Gather the weighted rank of the adjacent page   */
@@ -92,35 +84,46 @@ public:
   /** Use the total rank of adjacent pages to update this page */
   void apply(icontext_type& context, vertex_type& vertex,
              const gather_type& total) {
-    vertex.data() = total + RESET_PROB;
-    // Schedule this vertex to run again in the future
-    context.signal(vertex);
+    double newval = total + RESET_PROB;
+    lastchange = std::fabs(newval - vertex.data());
+    vertex.data() = newval;
   }
   
-  /** Skip the scatter phase */
+  /** The scatter edges depend on whether the pagerank has converged */
   edge_dir_type scatter_edges(icontext_type& context,
                               const vertex_type& vertex) const {
-    return graphlab::NO_EDGES;
+    if (lastchange > 1E-2) return graphlab::OUT_EDGES;
+    else return graphlab::NO_EDGES;
+  }
+  
+  /** The scatter function just signal adjacent pages */
+  void scatter(icontext_type& context, const vertex_type& vertex,
+               edge_type& edge) const {
+    context.signal(edge.target());
   }
 }; // end of factorized_pagerank update functor
 
 
 /**
  * Simple function used at the end of pagerank to extract the rank of
- * each page.  See: graph.map_reduce_vertices(float_identity);
+ * each page.  See: graph.map_reduce_vertices(extract_pagerank);
  */
-float float_identity(graph_type::vertex_type f) { return f.data(); }
+float extract_pagerank(graph_type::vertex_type f) { return f.data(); }
 
+/**
+ * We want to save the final graph so we define a write which will be
+ * used in graph.save("path/prefix", pagerank_writer()) to save the graph.
+ */
 struct pagerank_writer {
   std::string save_vertex(graph_type::vertex_type v) {
     std::stringstream strm;
     strm << v.id() << "\t" << v.data() << "\n";
     return strm.str();
   }
-  std::string save_edge(graph_type::edge_type e) {
-    return "";
-  }
-};
+  std::string save_edge(graph_type::edge_type e) { return ""; }
+}; // end of pagerank writer
+
+
 
 int main(int argc, char** argv) {
   //global_logger().set_log_level(LOG_DEBUG);
@@ -149,36 +152,42 @@ int main(int argc, char** argv) {
     std::cout << "Error in parsing command line arguments." << std::endl;
     return EXIT_FAILURE;
   }
-  std::cout << dc.procid() << ": Starting." << std::endl;
+
+  // Build the graph ----------------------------------------------------------
   graph_type graph(dc, clopts);
-  if(powerlaw > 0) {
+  if(powerlaw > 0) { // make a synthetic graph
     graph.load_synthetic_powerlaw(powerlaw);
-  } else {
+  } else { // Load the graph from a file
     graph.load_structure(graph_dir, format);
   }
+  // must call finalize before querying the graph
   graph.finalize();
-  std::cout << "#vertices: " << graph.num_vertices() << " #edges:" << graph.num_edges() << std::endl;
+  std::cout << "#vertices: " << graph.num_vertices() 
+            << " #edges:" << graph.num_edges() << std::endl;
   
-  std::cout << dc.procid() << ": Creating engine" << std::endl;
-  graphlab::synchronous_engine<pagerank> engine(dc, graph, clopts);
-
-  std::cout << dc.procid() << ": Scheduling all" << std::endl;
+  // Running The Engine -------------------------------------------------------
+  graphlab::omni_engine<pagerank> engine(dc, graph, clopts, "synchronous");
   engine.signal_all();
   engine.start();
   
-  
-  float sum_of_graph = graph.map_reduce_vertices<float>(float_identity);
+  // Compute summary stats ----------------------------------------------------  
+  float sum_of_graph = graph.map_reduce_vertices<float>(extract_pagerank);
   std::cout << "Sum of graph: " << sum_of_graph << std::endl;
 
+  // Save the final graph -----------------------------------------------------
   if (saveprefix != "") {
     graph.save(saveprefix, pagerank_writer(),
                false,    // do not gzip
                true,     // save vertices
                false);   // do not save edges
   }
-  
+ 
+  // Tear-down communication layer and quit -----------------------------------
   graphlab::mpi_tools::finalize();
   return EXIT_SUCCESS;
 } // End of main
 
+
+// We render this entire program in the documentation
+/// \endcode
 
