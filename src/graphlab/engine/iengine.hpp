@@ -312,8 +312,8 @@ namespace graphlab {
               typename VertexMapType,
               typename FinalizerType>
     bool add_vertex_aggregator(const std::string& key,
-                               const VertexMapType& map_function,
-                               const FinalizerType& finalize_function) {
+                               VertexMapType map_function,
+                               FinalizerType finalize_function) {
       aggregator_type* aggregator = get_aggregator();
       if(aggregator == NULL) {
         logstream(LOG_FATAL) << "Aggregation not supported by this engine!" << std::endl;
@@ -326,8 +326,8 @@ namespace graphlab {
     template <typename VertexMapType,
               typename FinalizerType>
     bool add_vertex_aggregator(const std::string& key,
-                               const VertexMapType& map_function,
-                               const FinalizerType& finalize_function) {
+                               VertexMapType map_function,
+                               FinalizerType finalize_function) {
       aggregator_type* aggregator = get_aggregator();
       if(aggregator == NULL) {
         logstream(LOG_FATAL) << "Aggregation not supported by this engine!" << std::endl;
@@ -365,8 +365,8 @@ namespace graphlab {
               typename EdgeMapType,
               typename FinalizerType>
     bool add_edge_aggregator(const std::string& key,
-                               const EdgeMapType& map_function,
-                               const FinalizerType& finalize_function) {
+                             EdgeMapType map_function,
+                             FinalizerType finalize_function) {
       aggregator_type* aggregator = get_aggregator();
       if(aggregator == NULL) {
         logstream(LOG_FATAL) << "Aggregation not supported by this engine!" << std::endl;
@@ -380,8 +380,8 @@ namespace graphlab {
     template <typename EdgeMapType,
               typename FinalizerType>
     bool add_edge_aggregator(const std::string& key,
-                               const EdgeMapType& map_function,
-                               const FinalizerType& finalize_function) {
+                             EdgeMapType map_function,
+                             FinalizerType finalize_function) {
       aggregator_type* aggregator = get_aggregator();
       if(aggregator == NULL) {
         logstream(LOG_FATAL) << "Aggregation not supported by this engine!" << std::endl;
@@ -409,6 +409,50 @@ namespace graphlab {
     } // end of aggregate_now
 
 
+
+    template <typename ResultType, typename MapFunctionType>
+    ResultType map_reduce_vertices(MapFunctionType mapfunction) {
+      aggregator_type* aggregator = get_aggregator();
+      if(aggregator == NULL) {
+        logstream(LOG_FATAL) << "Aggregation not supported by this engine!" << std::endl;
+        return false; 
+      }
+      return aggregator->map_reduce_vertices<ResultType>(mapfunction);      
+    }
+
+
+    template <typename ResultType, typename MapFunctionType>
+    ResultType map_reduce_edges(MapFunctionType mapfunction) {
+      aggregator_type* aggregator = get_aggregator();
+      if(aggregator == NULL) {
+        logstream(LOG_FATAL) << "Aggregation not supported by this engine!" << std::endl;
+        return false; 
+      }
+      return aggregator->map_reduce_edges<ResultType>(mapfunction);      
+    }
+    
+    
+    template <typename TransformType>
+    void transform_vertices(TransformType mapfunction) {
+      aggregator_type* aggregator = get_aggregator();
+      if(aggregator == NULL) {
+        logstream(LOG_FATAL) << "Aggregation not supported by this engine!" << std::endl;
+        return; 
+      }
+      aggregator->transform_vertices(mapfunction);      
+    }
+
+
+    template <typename TransformType>
+    void transform_edges(TransformType mapfunction) {
+      aggregator_type* aggregator = get_aggregator();
+      if(aggregator == NULL) {
+        logstream(LOG_FATAL) << "Aggregation not supported by this engine!" << std::endl;
+        return; 
+      }
+      aggregator->transform_edges(mapfunction);      
+    }
+    
     /**
      * Requests that the aggregator with a given key be aggregated
      * every certain number of seconds when the engine is running.
