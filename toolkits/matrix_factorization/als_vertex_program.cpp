@@ -42,7 +42,7 @@ void vertex_data::load(graphlab::iarchive& arc) {
 // Edge data
 
 edge_data::edge_data(const float& obs) :
-  obs(obs), error(std::numeric_limits<float>::max()), nupdates(0) { }
+  obs(obs), error(std::numeric_limits<float>::max()) { }
 
 
 
@@ -131,7 +131,6 @@ scatter(icontext_type& context, const vertex_type& vertex,
   const double pred = vdata.latent.dot(other_vdata.latent);
   const float error = std::fabs(edata.obs - pred);
   edata.error = error;
-  edata.nupdates++;
   assert(!std::isinf(error));
   assert(!std::isnan(error));
   const double priority = (error * vdata.residual); 
