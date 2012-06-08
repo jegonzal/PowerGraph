@@ -347,9 +347,9 @@ namespace graphlab {
      * \param mapfunction must be a unary function from vertex_type to
      * ResultType. it may be a unary functor or a function pointer.
      */
-    template <typename ResultType>
-    ResultType map_reduce_vertices(
-        boost::function<ResultType(vertex_type)> mapfunction) {
+    template <typename ResultType, typename MapFunctionType>
+    ResultType map_reduce_vertices(MapFunctionType mapfunction) {
+      ASSERT_TRUE(finalized);
       rpc.barrier();
       bool global_result_set = false;
       ResultType global_result = ResultType();
@@ -404,9 +404,9 @@ namespace graphlab {
      * \param mapfunction must be a unary function from edge_type to ResultType
      * it may be a unary functor or a function pointer.
      */
-    template <typename ResultType>
-    ResultType map_reduce_edges(
-        boost::function<ResultType(edge_type)> mapfunction) {
+    template <typename ResultType, typename MapFunctionType>
+    ResultType map_reduce_edges(MapFunctionType mapfunction) {
+      ASSERT_TRUE(finalized);
       rpc.barrier();
       bool global_result_set = false;
       ResultType global_result = ResultType();
@@ -449,7 +449,37 @@ namespace graphlab {
       return wrapper.value;
     }
 
+    template <typename TransformType>
+    void transform_vertices(TransformType transform_functor) {
+      ASSERT_TRUE(finalized);
+      rpc.barrier();
+#ifdef _OPENMP
+      #pragma omp parallel for
+#endif
+      for (int i = 0;i < (int)local_graph.num_vertices(); ++i) {
+        if (lvid2record[i].owner == rpc.procid()) {
+          transform_functor(vertex_type(l_vertex(i)));
+        }
+      }
+      rpc.barrier();
+      synchronize();
+    }
 
+
+    template <typename TransformType>
+    void transform_edges(TransformType transform_functor) {
+      ASSERT_TRUE(finalized);
+      rpc.barrier();
+#ifdef _OPENMP
+      #pragma omp parallel for
+#endif
+      for (int i = 0;i < (int)local_graph.num_vertices(); ++i) {
+        foreach(const local_edge_type& e, l_vertex(i).in_edges()) {
+          transform_functor(edge_type(e));
+        }
+      }
+      rpc.barrier();
+    }
     /**
      * parallel_for_vertices will partition the set of vertices among the
      * vector of accfunctions. Each accfunction is then executed sequentially
@@ -458,13 +488,11 @@ namespace graphlab {
       * \param accfunction must be a void function which takes a single
       * vertex_type argument. It may be a functor and contain state.
       * The function need not be reentrant as it is only called sequentially
-      *
-      * \param modifies_data (Optional, Default = false) Must be set to true
-      * if the function modifies vertex data.
      */
+    template <typename VertexFunctorType>
     void parallel_for_vertices(
-        std::vector<boost::function<void(vertex_type)> >& accfunction,
-        bool modifies_data = false) {
+        std::vector<VertexFunctorType>& accfunction) {
+      ASSERT_TRUE(finalized);
       rpc.barrier();
       int numaccfunctions = (int)accfunction.size();
       ASSERT_GE(numaccfunctions, 1);
@@ -479,7 +507,6 @@ namespace graphlab {
         }
       }
       rpc.barrier();
-      if (modifies_data) synchronize();
     }
 
 
@@ -492,8 +519,10 @@ namespace graphlab {
       * edge_type argument. It may be a functor and contain state.
       * The function need not be reentrant as it is only called sequentially
      */
+    template <typename EdgeFunctorType>
     void parallel_for_edges(
-        std::vector<boost::function<void(edge_type)> >& accfunction) {
+        std::vector<EdgeFunctorType>& accfunction) {
+      ASSERT_TRUE(finalized);
       rpc.barrier();
       int numaccfunctions = (int)accfunction.size();
       ASSERT_GE(numaccfunctions, 1);
