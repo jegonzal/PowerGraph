@@ -3,7 +3,7 @@
 #include "../gabp/advanced_config.h"
 
 extern advanced_config ac;
-const char * distance_measure_name[] = {"EUCLIDEAN", "CHEBYCHEV", "MANAHOLIS", "MANHATTAN", "MINKOWSKI", "TANIMOTO", "WEIGTED", "WEIGHTED_MANAHOLIS", "COSINE", "LOGLIKELIHOOD"};
+const char * distance_measure_name[] = {"EUCLIDEAN", "CHEBYCHEV", "MANAHOLIS", "MANHATTAN", "MINKOWSKI", "TANIMOTO", "WEIGTED", "WEIGHTED_MANAHOLIS", "COSINE", "LOGLIKELIHOOD", "DOT_PRODUCT"};
 
 
 
@@ -141,6 +141,13 @@ flt_dbl calc_cosine_distance( sparse_flt_dbl_vec & datapoint,  flt_dbl_vec & clu
    return 1.0 - dotprod / denominator; 
 }
 
+flt_dbl calc_dot_product_distance( sparse_flt_dbl_vec & datapoint,  flt_dbl_vec & cluster){
+	 return dot_prod(datapoint, cluster);
+}
+flt_dbl calc_dot_product_distance( sparse_flt_dbl_vec & datapoint,  sparse_flt_dbl_vec & cluster){
+	 return dot_prod(datapoint, cluster);
+}
+
 
 flt_dbl calc_distance(sparse_flt_dbl_vec &datapoint,  sparse_flt_dbl_vec & cluster, flt_dbl sqr_sum, flt_dbl sqr_sum_datapoint){
    switch(ac.distance_measure){
@@ -156,6 +163,8 @@ flt_dbl calc_distance(sparse_flt_dbl_vec &datapoint,  sparse_flt_dbl_vec & clust
           return calc_tanimoto_distance(datapoint, cluster, sqr_sum , sqr_sum_datapoint);
       case LOGLIKELIHOOD:
           return calc_loglikelihood_distance(datapoint, cluster, sqr_sum, sqr_sum_datapoint);
+			case DOT_PRODUCT:
+					return calc_dot_product_distance(datapoint, cluster);
       case MANAHOLIS:
       case WEIGHTED_MANAHOLIS:
       case WEIGHTED:
@@ -181,6 +190,8 @@ flt_dbl calc_distance(sparse_flt_dbl_vec &datapoint,  flt_dbl_vec & cluster, flt
           return calc_tanimoto_distance(datapoint, cluster, sqr_sum , sqr_sum_datapoint);
       case LOGLIKELIHOOD:
           return calc_loglikelihood_distance(datapoint, cluster, sqr_sum, sqr_sum_datapoint);
+	    case DOT_PRODUCT:
+          return calc_dot_product_distance(datapoint, cluster);
       case MANAHOLIS:
       case WEIGHTED_MANAHOLIS:
       case WEIGHTED:

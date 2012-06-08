@@ -35,10 +35,7 @@ extern const char * runmodesname[];
 flt_dbl_vec wrap_answer(const vec& distances, const ivec& indices, int num);
 
 void init_rating(){
-
-   if (ac.distance_measure != EUCLIDEAN && ac.distance_measure != COSINE && ac.distance_measure != TANIMOTO)
-     return;
-
+   ac.distance_measure= DOT_PRODUCT;
    int start = 0;
    int end = ps.M;
   

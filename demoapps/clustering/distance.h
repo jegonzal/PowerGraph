@@ -16,7 +16,8 @@ enum distance_measure{
    WEIGHTED = 6,
    WEIGHTED_MANAHOLIS = 7,
    COSINE = 8,
-   LOGLIKELIHOOD = 9
+   LOGLIKELIHOOD = 9,
+   DOT_PRODUCT = 10
 };
 
 
