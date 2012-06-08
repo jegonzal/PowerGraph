@@ -45,6 +45,7 @@ void streambuffdestructor(void* v){
 
 const char* messages[] = {  "DEBUG:    ",
                             "INFO:     ",
+                            "INFO:     ",
                             "WARNING:  ",
                             "ERROR:    ",
                             "FATAL:    "};
@@ -154,6 +155,9 @@ void file_logger::_log(int lineloglevel,const char* file,const char* function,
         textcolor(stderr, BRIGHT, RED);
       }
       else if (lineloglevel == LOG_WARNING) {
+        textcolor(stderr, BRIGHT, GREEN);
+      }
+      else if (lineloglevel == LOG_EMPH) {
         textcolor(stderr, BRIGHT, GREEN);
       }
 #endif

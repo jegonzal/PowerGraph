@@ -54,15 +54,19 @@
  *   Used for errors which are recoverable within the scope of the function
  * \def LOG_WARNING
  *   Logs interesting conditions which are probably not fatal
+ * \def LOG_EMPH
+ *   Outputs as LOG_INFO, but in LOG_WARNING colors. Useful for
+ *   outputting information you want to emphasize.
  * \def LOG_INFO
  *   Used for providing general useful information
  * \def LOG_DEBUG
  *   Debugging purposes only
  */
-#define LOG_NONE 5
-#define LOG_FATAL 4
-#define LOG_ERROR 3
-#define LOG_WARNING 2
+#define LOG_NONE 6
+#define LOG_FATAL 5
+#define LOG_ERROR 4
+#define LOG_WARNING 3
+#define LOG_EMPH 2
 #define LOG_INFO 1
 #define LOG_DEBUG 0
 
@@ -74,7 +78,7 @@
  */
 
 #ifndef OUTPUTLEVEL
-#define OUTPUTLEVEL LOG_DEBUG
+#define OUTPUTLEVEL LOG_EMPH
 #endif
 /// If set, logs to screen will be printed in color
 #define COLOROUTPUT
