@@ -174,11 +174,11 @@ int main(int argc, char** argv) {
   
   if(!clopts.parse(argc, argv)) return EXIT_FAILURE;
   if (prefix == "") {
-    std::cout << "--graph is not optional";
+    std::cout << "--graph is not optional\n";
     return EXIT_FAILURE;
   }
   else if (format == "") {
-    std::cout << "--format is not optional";
+    std::cout << "--format is not optional\n";
     return EXIT_FAILURE;
   }
   
