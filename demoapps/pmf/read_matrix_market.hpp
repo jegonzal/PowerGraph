@@ -139,8 +139,13 @@ void load_matrix_market(const char * filename, graph_type *_g, testtype data_typ
            logstream(LOG_FATAL)<<"Error in data line: " << i << " 2nd column value is: " << J+1 << " where it should be in the range 1 to " << N << std::endl;
         if (ac.matrixmarkettokensperrow == 4 && dtime >= ac.K && ps.algorithm != WEIGHTED_ALS)
            logstream(LOG_FATAL)<<"Error in data line: " << i << " time component (4th column) is :" << dtime << " while it should be smaller than K=" << ac.K << std::endl;
+        bool toadd = true;
+        if (ac.subsample < 1.0){
+          toadd = graphlab::random::rand01() < ac.subsample; 
+        }
+        if (toadd)
         _g->add_edge(I,J+ps.M,edge);
-        if (data_type == VALIDATION && ac.aggregatevalidation){
+        if (data_type == VALIDATION && ac.aggregatevalidation && toadd){
           ((graph_type*)ps.g<graph_type>(TRAINING))->add_edge(I,J+ps.M,edge);
           ps.globalMean[TRAINING] += edge.weight / (double)nz;
         }
@@ -149,7 +154,8 @@ void load_matrix_market(const char * filename, graph_type *_g, testtype data_typ
     if (data_type==TRAINING && ps.tensor && ps.K>1) 
     edges = new std::vector<edge_id_t>[ps.K]();
 
- 
+    if (ac.subsample < 1.0)
+       nz = (int)_g->num_edges(); 
     set_num_edges(nz, data_type);
     if (ac.algorithm != BPTF_TENSOR_MULT && ac.algorithm != ALS_TENSOR_MULT)
       if ((int)_g->num_edges() != nz)
