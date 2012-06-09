@@ -103,7 +103,7 @@ namespace graphlab {
       vertex_id_type num_in_edges, num_out_edges;
       procid_t owner;
       vertex_negotiator_record() : 
-        num_in_edges(0), num_out_edges(0), owner(-1) { }
+        vdata(vertex_data_type()), num_in_edges(0), num_out_edges(0), owner(-1) { }
       void load(iarchive& arc) { 
         arc >> num_in_edges >> num_out_edges >> owner >> mirrors >> vdata;
       }
