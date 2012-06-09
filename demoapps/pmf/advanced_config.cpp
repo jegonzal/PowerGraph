@@ -4,9 +4,10 @@ extern advanced_config ac;
 
 void advanced_config::init_command_line_options(graphlab::command_line_options & clopts){
 
-  clopts.attach_option("datafile", &datafile, datafile, "Input matrix/tensor");
-  clopts.add_positional("datafile");
-
+  clopts.attach_option("training_file", &datafile, datafile, "Training data input file name");
+  clopts.add_positional("training_file");
+  clopts.attach_option("validation_file", &validation_file, validation_file, "Validation data input file name. If empty will use training_file + \"e\"");
+  clopts.attach_option("test_file", &test_file, test_file, "Test data input file name. If empty will use training_file = \"t\"");
   clopts.attach_option("algorithm", &algorithm, algorithm, "ps.algorithm");
   clopts.add_positional("algorithm");
   

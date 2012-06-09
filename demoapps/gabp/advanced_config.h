@@ -76,6 +76,8 @@ public:
 
   //input output related stuff
   std::string datafile;
+  std::string validation_file;
+  std::string test_file;
   bool matrixmarket; //martix market input format
   int matrixmarkettokensperrow; //how many values are expected to be in each
   //row of sparse mm file.

@@ -321,12 +321,16 @@ void start(command_line_options& clopts) {
     ps.set_graph(&training, TRAINING);
 
   //read the vlidation data (optional)
-    printf("loading data file %s\n", (ac.datafile+"e").c_str());
+    if (ac.validation_file == "")
+      ac.validation_file = ac.datafile + "e";
+    printf("loading data file %s\n", ac.validation_file.c_str());
     load_pmf_graph<graph_type,gl_types,vertex_data,edge_data>((ac.datafile+"e").c_str(),&training, &validation_graph, VALIDATION);
     ps.set_graph(&validation_graph, VALIDATION);
 
    }  
 
+   if (ac.test_file == "")
+      ac.test_file = ac.datafile + "t";
    //UGLY: for time_svd++ , test files can not be loaded late.. to be fixed later
    if (ps.algorithm == TIME_SVD_PLUS_PLUS || ps.algorithm == SVD_PLUS_PLUS){
     //read the test data (optional)
