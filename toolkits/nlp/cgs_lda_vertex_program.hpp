@@ -20,13 +20,19 @@
  *
  */
 
+#ifndef CGS_LDA_VERTEX_PROGRAM_HPP
+#define CGS_LDA_VERTEX_PROGRAM_HPP
  
 #include <vector>
 #include <algorithm>
 #include <graphlab.hpp>
 
-typedef uint32_t count_type;
+typedef int count_type;
 typedef uint16_t topic_id_type;
+extern const topic_id_type NULL_TOPIC;
+
+typedef std::vector< graphlab::atomic<count_type> > factor_type;
+typedef std::vector< topic_id_type > assignment_type;
 
 
 
@@ -34,23 +40,18 @@ typedef uint16_t topic_id_type;
  * The vertex data type
  */
 struct vertex_data {
-  static size_t NTOPICS;
-  std::vector< graphlab::atomic<count_type> > topic_count;
+  factor_type factor;
+  size_t nupdates;
   void save(graphlab::oarchive& arc) const;
-  void load(graphlab::iarchive& arc); 
-}; // end of vertex_data
+  void load(graphlab::iarchive& arc);  
+};
 
 
 /**
  * The edge data type
  */
-struct edge_data {
-  count_type ntokens;
-  std::vector<topic_id_type> topic_assignment;
-  edge_data(count_type ntokens = 0);
-  void save(graphlab::oarchive& arc) const;
-  void load(graphlab::iarchive& arc);
-}; // end of edge data
+typedef assignment_type edge_data;
+
 
 
 /**
@@ -60,8 +61,8 @@ typedef graphlab::distributed_graph<vertex_data, edge_data> graph_type;
 
 
 
-std::pair<edge_data, vertex_data> edge_pair_type;
-typedef std::map<graphlab::vertex_id_type, edge_pair_type> neighborhood_map_type
+typedef std::pair<factor_type, assignment_type> edge_pair_type;
+typedef std::map<graphlab::vertex_id_type, edge_pair_type> neighborhood_map_type;
 
 
 /**
@@ -70,7 +71,12 @@ typedef std::map<graphlab::vertex_id_type, edge_pair_type> neighborhood_map_type
  */
 struct gather_type {   
   neighborhood_map_type neighborhood_map;
-  std::vector<count_type> topic_count;
+  factor_type topic_count;
+  gather_type() { }
+  gather_type(const factor_type& topic_count);
+  gather_type(graphlab::vertex_id_type vid,
+              const factor_type& factor,
+              const assignment_type& assignment);
   void save(graphlab::oarchive& arc) const;
   void load(graphlab::iarchive& arc);
   gather_type& operator+=(const gather_type& other);
@@ -80,8 +86,17 @@ struct gather_type {
 class cgs_lda_vertex_program :
   public graphlab::ivertex_program<graph_type, gather_type> {
 private:
-  gather_type total;
+  typedef std::map<graphlab::vertex_id_type, assignment_type> edge_data_map_type;
+  edge_data_map_type new_edge_data;
 public:
+  static double ALPHA;
+  static double BETA;
+  static size_t NITERS;
+  static size_t NTOPICS;
+  static size_t NWORDS;
+  static factor_type global_topic_count;
+  static void set_ntopics(size_t ntopics);
+
   edge_dir_type gather_edges(icontext_type& context, 
                              const vertex_type& vertex) const;
   gather_type gather(icontext_type& context, const vertex_type& vertex, 
@@ -101,4 +116,10 @@ private:
       get the vertex on the other side of the edge */
   vertex_type get_other_vertex(edge_type& edge, const vertex_type& vertex) const;
 }; // end of cgs_lda_vertex_program
+
+
+ 
+
+
+#endif
 
