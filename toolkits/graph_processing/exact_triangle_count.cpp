@@ -51,8 +51,22 @@
 
 /*
  * Each vertex maintains a list of all its neighbors.
+ * and a final count for the number of triangles it is involved in
  */
-typedef boost::unordered_set<graphlab::vertex_id_type> vertex_data_type;
+struct vertex_data_type {
+  vertex_data_type():num_triangles(0) { }
+  
+  boost::unordered_set<graphlab::vertex_id_type> vid_set;
+  size_t num_triangles;
+  
+  void save(graphlab::oarchive &oarc) const {
+    oarc << vid_set << num_triangles;
+  }
+  void load(graphlab::iarchive &iarc) {
+    iarc >> vid_set >> num_triangles;
+  }
+};
+
 
 /*
  * Each edge is simply a counter of triangles
@@ -61,6 +75,8 @@ typedef size_t edge_data_type;
 
 // To collect the set of neighbors, we need a message type which is
 // basically a set of vertex IDs
+
+bool PER_VERTEX_COUNT = false;
 
 struct set_union_gather {
   boost::unordered_set<graphlab::vertex_id_type> vid_set;
@@ -107,7 +123,8 @@ public:
     // ID greater than the current vertex
     vertex_id_type otherid = edge.source().id() == vertex.id() ?
                              edge.target().id() : edge.source().id();
-    if (otherid > vertex.id()) gather.vid_set.insert(otherid);
+    if (PER_VERTEX_COUNT ||
+        otherid > vertex.id()) gather.vid_set.insert(otherid);
     return gather;
   }
 
@@ -116,7 +133,7 @@ public:
    */
   void apply(icontext_type& context, vertex_type& vertex,
              const gather_type& neighborhood) {
-    vertex.data() = neighborhood.vid_set;
+    vertex.data().vid_set = neighborhood.vid_set;
   } // end of apply
 
   /*
@@ -144,12 +161,43 @@ public:
               edge_type& edge) const {
     const vertex_data_type& srclist = edge.source().data();
     const vertex_data_type& targetlist = edge.target().data();
-    if (srclist.size() >= targetlist.size()) {
-      edge.data() = count_set_intersect(targetlist, srclist);
+    if (srclist.vid_set.size() >= targetlist.vid_set.size()) {
+      edge.data() = count_set_intersect(targetlist.vid_set, srclist.vid_set);
     }
     else {
-      edge.data() = count_set_intersect(srclist, targetlist);
+      edge.data() = count_set_intersect(srclist.vid_set, targetlist.vid_set);
     }
+  }
+};
+
+
+
+
+class get_per_vertex_count :
+      public graphlab::ivertex_program<graph_type, size_t>,
+      /* I have no data. Just force it to POD */
+      public graphlab::IS_POD_TYPE  {
+public:
+  // Gather on all edges
+  edge_dir_type gather_edges(icontext_type& context,
+                             const vertex_type& vertex) const {
+    return graphlab::ALL_EDGES;
+  }
+
+  size_t gather(icontext_type& context,
+                     const vertex_type& vertex,
+                     edge_type& edge) const {
+    return edge.data();
+  }
+  
+  edge_dir_type scatter_edges(icontext_type& context,
+                             const vertex_type& vertex) const {
+    return graphlab::NO_EDGES;
+  }
+
+  void apply(icontext_type& context, vertex_type& vertex,
+             const gather_type& num_triangles) {
+    vertex.data().num_triangles = num_triangles / 2;
   }
 };
 
@@ -159,18 +207,37 @@ size_t get_edge_data(const graph_type::edge_type& e) {
 }
 
 
+
+
+struct save_triangle_count{
+  std::string save_vertex(graph_type::vertex_type v) { 
+    return graphlab::tostr(v.id()) + "\t" +
+           graphlab::tostr(v.data().num_triangles) + "\n";
+  }
+  std::string save_edge(graph_type::edge_type e) {
+    return "";
+  }
+};
+
+
 int main(int argc, char** argv) {
   std::cout << "This program counts the exact number of triangles in the "
             "provided graph.\n";
 
   graphlab::command_line_options clopts("Exact Triangle Counting");
   std::string prefix, format;
+  std::string per_vertex;
   clopts.attach_option("graph",
                        &prefix, prefix,
                        "Graph Prefix");
   clopts.attach_option("format",
                        &format, format,
                        "The graph format");
+  clopts.attach_option("per_vertex",
+                       &per_vertex, per_vertex,
+                       "If not empty, will count the number of "
+                       "triangles each vertex belongs to and "
+                       "save to file with prefix [per_vertex].");
   
   if(!clopts.parse(argc, argv)) return EXIT_FAILURE;
   if (prefix == "") {
@@ -181,7 +248,8 @@ int main(int argc, char** argv) {
     std::cout << "--format is not optional\n";
     return EXIT_FAILURE;
   }
-  
+
+  if (per_vertex != "") PER_VERTEX_COUNT = true;
   // Initialize control plane using mpi
   graphlab::mpi_tools::init(argc, argv);
   graphlab::distributed_control dc;
@@ -200,11 +268,25 @@ int main(int argc, char** argv) {
   engine.signal_all();
   engine.start();
 
-  size_t count =
-    graph.map_reduce_edges<size_t>(get_edge_data);
-
-  dc.cout() << count << " Triangles"  << std::endl;
   dc.cout() << "Counted in " << ti.current_time() << " seconds" << std::endl;
+
+  if (PER_VERTEX_COUNT == false) {
+    size_t count = graph.map_reduce_edges<size_t>(get_edge_data);
+    dc.cout() << count << " Triangles"  << std::endl;
+  }
+  else {
+    graphlab::synchronous_engine<get_per_vertex_count> engine(dc, graph, clopts);
+    engine.signal_all();
+    engine.start();
+    graph.save(per_vertex,
+            save_triangle_count(),
+            false, /* no compression */
+            true, /* save vertex */
+            false, /* do not save edge */
+            1); /* one file per machine */
+
+  }
+  
   graphlab::mpi_tools::finalize();
   return EXIT_SUCCESS;
 } // End of main

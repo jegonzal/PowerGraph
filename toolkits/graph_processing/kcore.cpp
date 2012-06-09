@@ -176,7 +176,7 @@ int main(int argc, char** argv) {
 
   graphlab::synchronous_engine<k_core> engine(dc, graph, clopts);
   graph.transform_vertices(initialize_vertex_values);
-  // create engine to generate neighborhood
+  
   for (CURRENT_K = kmin; CURRENT_K <= kmax; CURRENT_K++) {
     engine.map_reduce_vertices<graphlab::empty>(signal_vertices_at_k);
     engine.start();
