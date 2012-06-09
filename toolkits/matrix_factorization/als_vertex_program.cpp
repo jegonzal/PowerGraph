@@ -167,8 +167,11 @@ bool graph_loader(graph_type& graph, const std::string& filename,
   // since this is a bipartite graph I need a method to number the
   // left and right vertices differently.  To accomplish I make sure
   // all vertices have non-zero ids and then negate the right vertex.
-  source_id++; target_id++;
+  source_id+=2; target_id+=2;
+  ASSERT_GT(source_id, 1);
+  ASSERT_GT(target_id, 1);
   target_id = -target_id;
+  ASSERT_NE(source_id, target_id);
   // Create an edge and add it to the graph
   graph.add_edge(source_id, target_id, obs); 
   return true; // successful load

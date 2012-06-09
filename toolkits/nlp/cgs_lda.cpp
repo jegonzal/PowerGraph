@@ -30,6 +30,10 @@
 
 #include "cgs_lda_vertex_program.hpp"
 
+#include <graphlab/macros_def.hpp>
+
+std::vector<std::string> dictionary;
+
 
 // Determine the engine type
 typedef graphlab::omni_engine<cgs_lda_vertex_program> engine_type;
@@ -37,7 +41,7 @@ typedef graphlab::omni_engine<cgs_lda_vertex_program> engine_type;
 
 bool graph_loader(graph_type& graph, const std::string& fname, 
                   const std::string& line) {
-    ASSERT_FALSE(line.empty()); 
+  ASSERT_FALSE(line.empty()); 
   std::stringstream strm(line);
   graph_type::vertex_id_type doc_id(-1), word_id(-1);
   size_t count(0);
@@ -45,12 +49,16 @@ bool graph_loader(graph_type& graph, const std::string& fname,
   // since this is a bipartite graph I need a method to number the
   // left and right vertices differently.  To accomplish I make sure
   // all vertices have non-zero ids and then negate the right vertex.
-  doc_id++; word_id++;
+  doc_id += 2; 
+  ASSERT_GT(doc_id, 1); 
   doc_id = -doc_id;
+  ASSERT_NE(doc_id, word_id);
   // Create an edge and add it to the graph
-  graph.add_edge(doc_id, word_id, edge_data(count)); 
+  graph.add_edge(doc_id, word_id, edge_data(count, NULL_TOPIC)); 
   return true; // successful load
 }; // end of graph loader
+
+
 
 
 size_t is_word(const graph_type::vertex_type& vertex) {
@@ -58,14 +66,84 @@ size_t is_word(const graph_type::vertex_type& vertex) {
 }
 
 
-void signal_docs(cgs_lda_vertex_program::icontext_type& context, 
-                 graph_type::vertex_type& vertex) {
+
+
+
+graphlab::empty signal_docs(cgs_lda_vertex_program::icontext_type& context, 
+                            graph_type::vertex_type& vertex) {
   if(vertex.num_out_edges() > 0) context.signal(vertex);
+  return graphlab::empty();
 } // end of signal_docs
 
+
+
+
+struct topk {
+  typedef std::pair<size_t, graphlab::vertex_id_type> cw_pair_type;
+  std::vector< std::set<cw_pair_type> > top_words;
+  static size_t KVALUE;
+  topk& operator+=(const topk& other) {
+    if(other.top_words.empty()) return *this;
+    ASSERT_EQ(top_words.size(), other.top_words.size());
+    ASSERT_FALSE(top_words.empty());
+    for(size_t i = 0; i < top_words.size(); ++i) {
+      // Only if the largest count in the other topk is greater than the 
+      // smallest count in this topk do we do a merge
+      if(other.top_words[i].rbegin()->first > top_words[i].begin()->first) {
+        // Merge the topk
+        top_words[i].insert(other.top_words[i].begin(), 
+                            other.top_words[i].end());
+        // Remove excess elements        
+        while(top_words[i].size() > KVALUE) 
+          top_words[i].erase(top_words[i].begin());
+      }
+    }
+    return *this;
+  } // end of operator +=
+
+  void save(graphlab::oarchive& arc) const { arc << top_words; }
+  void load(graphlab::iarchive& arc) { arc >> top_words; }
+
+  static topk map(cgs_lda_vertex_program::icontext_type& context, 
+                      const graph_type::vertex_type& vertex) {
+    if(is_word(vertex)) {
+      const graphlab::vertex_id_type wordid = vertex.id();
+      const vertex_data& vdata = vertex.data();
+      topk ret_value;
+      ret_value.top_words.resize(vdata.factor.size());
+      for(size_t i = 0; i < vdata.factor.size(); ++i) {
+        const cw_pair_type pair(vdata.factor[i], wordid);
+        ret_value.top_words[i].insert(pair);
+      }
+      return ret_value;
+    } else { return topk(); }
+  } // end of map function
+
+  static void finalize(cgs_lda_vertex_program::icontext_type& context,
+                      const topk& total) {
+    if(context.procid() != 0) return;
+    for(size_t i = 0; i < total.top_words.size(); ++i) {
+      std::cout << "Topic " << i << ": ";
+      rev_foreach(cw_pair_type pair, total.top_words[i])  
+        std::cout << dictionary[pair.second] << ", "; 
+      std::cout << std::endl;
+    }
+  } // end of finalize
+
+}; // end of topk struct
+size_t topk::KVALUE = 5;
+
+
+
+
+
+
+
+
+
+
 /** populate the global dictionary */
-void load_dictionary(const std::string& fname, 
-                     std::vector<std::string>& dictionary) {
+void load_dictionary(const std::string& fname) {
   const bool gzip = boost::ends_with(fname, ".gz");
   // test to see if the graph_dir is an hadoop path
   if(boost::starts_with(fname, "hdfs://")) {
@@ -101,6 +179,7 @@ void load_dictionary(const std::string& fname,
     fin.pop();
     in_file.close();
   } // end of else
+  std::cout << "Dictionary Size: " << dictionary.size() << std::endl;
 } // end of load dictionary
 
 
@@ -153,8 +232,7 @@ int main(int argc, char** argv) {
 
   ///! load the dictionary
   std::cout << dc.procid() << ": Loading the dictionary." << std::endl;
-  std::vector<std::string> dictionary;
-  load_dictionary(dictionary_fname, dictionary);
+  load_dictionary(dictionary_fname);
 
   
   ///! load the graph
@@ -201,11 +279,11 @@ int main(int argc, char** argv) {
   std::cout << dc.procid() << ": Creating engine" << std::endl;
   engine_type engine(dc, graph, clopts, "synchronous");
   ///! Add an aggregator
-  // engine.add_aggregator<topk>("topk", topk::map, topk::finalize)
-  // engine.aggregate_periodic("topk", interval);
+  engine.add_vertex_aggregator<topk>("topk", topk::map, topk::finalize);
+  engine.aggregate_periodic("topk", interval);
 
   ///! schedule only documents
-  engine.transform_vertices(signal_docs);
+  engine.map_reduce_vertices<graphlab::empty>(signal_docs);
 
     
 

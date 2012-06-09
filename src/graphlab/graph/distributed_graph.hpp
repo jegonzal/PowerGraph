@@ -177,15 +177,15 @@ namespace graphlab {
         return graph_ref.global_vid(lvid);
       }
       
-      // /// \brief Returns a list of in edges (not implemented) 
-      // edge_list_type in_edges() __attribute__ ((noreturn)) {
-      //   ASSERT_TRUE(false);
-      // }
+      /// \brief Returns a list of in edges (not implemented) 
+      edge_list_type in_edges() __attribute__ ((noreturn)) {
+        ASSERT_TRUE(false);
+      }
 
-      // /// \brief Returns a list of out edges (not implemented) 
-      // edge_list_type out_edges() __attribute__ ((noreturn)) {
-      //   ASSERT_TRUE(false);
-      // }
+      /// \brief Returns a list of out edges (not implemented) 
+      edge_list_type out_edges() __attribute__ ((noreturn)) {
+        ASSERT_TRUE(false);
+      }
 
       /** \internal
        *  \brief Returns the local ID of the vertex
@@ -285,7 +285,8 @@ namespace graphlab {
 
 
     /** \brief Get a list of all in edges of a given vertex ID. Not Implemented */
-    edge_list_type in_edges(const vertex_id_type vid) const __attribute__((noreturn)) {
+    edge_list_type in_edges(const vertex_id_type vid) const 
+      __attribute__((noreturn)) {
       // Not implemented.
       logstream(LOG_WARNING) << "in_edges not implemented. " << std::endl;
       ASSERT_TRUE(false);
@@ -303,7 +304,8 @@ namespace graphlab {
     }
 
     /** Get a list of all out edges of a given vertex ID. Not Implemented */
-    edge_list_type out_edges(const vertex_id_type vid) const __attribute__((noreturn)) {
+    edge_list_type out_edges(const vertex_id_type vid) const 
+      __attribute__((noreturn)) {
             // Not implemented.
       logstream(LOG_WARNING) << "in_edges not implemented. " << std::endl;
       ASSERT_TRUE(false);
@@ -325,6 +327,12 @@ namespace graphlab {
     void add_vertex(const vertex_id_type& vid, 
                     const VertexData& vdata = VertexData() ) {
       ASSERT_NE(ingress_ptr, NULL);
+      if(vid == vertex_id_type(-1)) {
+        logstream(LOG_FATAL)
+          << "\n\tAdding a vertex with id -1 is not allowed."
+          << "\n\tThe -1 vertex id is reserved for internal use."
+          << std::endl;
+      }
       ingress_ptr->add_vertex(vid, vdata);
     }
 
@@ -334,6 +342,29 @@ namespace graphlab {
     void add_edge(vertex_id_type source, vertex_id_type target, 
                   const EdgeData& edata = EdgeData()) {
       ASSERT_NE(ingress_ptr, NULL);
+      if(source == vertex_id_type(-1)) {
+        logstream(LOG_FATAL)
+          << "\n\tThe source vertex with id vertex_id_type(-1)\n"
+          << "\tor unsigned value " << vertex_id_type(-1) << " in edge \n"
+          << "\t(" << source << "->" << target << ") is not allowed.\n" 
+          << "\tThe -1 vertex id is reserved for internal use."
+          << std::endl;
+      }
+      if(target == vertex_id_type(-1)) {
+        logstream(LOG_FATAL)
+          << "\n\tThe target vertex with id vertex_id_type(-1)\n"
+          << "\tor unsigned value " << vertex_id_type(-1) << " in edge \n"
+          << "\t(" << source << "->" << target << ") is not allowed.\n" 
+          << "\tThe -1 vertex id is reserved for internal use."
+          << std::endl;
+      }
+      if(source == target) {
+        logstream(LOG_FATAL)
+          << "\n\tTrying to add self edge (" << source << "->" << target << ")."
+          << "\n\tSelf edges are not allowed."
+          << std::endl;
+      }
+      ASSERT_NE(source, target);
       ingress_ptr->add_edge(source, target, edata);
     }
 
