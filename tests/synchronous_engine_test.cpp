@@ -223,13 +223,15 @@ public:
   gather_type 
   gather(icontext_type& context, const vertex_type& vertex, 
          edge_type& edge) const {
+    ASSERT_LT(vertex.data(), 100);
+    ASSERT_GE(vertex.data(), 0);
     return vertex.data();
   }
   void apply(icontext_type& context, vertex_type& vertex, 
              const gather_type& total) {
     ASSERT_EQ( total, context.iteration() * vertex.num_in_edges() );
     vertex.data() = context.iteration() + 1; 
-    if(context.iteration() < 100) context.signal(vertex);
+    if(context.iteration() < 10) context.signal(vertex);
   }
   edge_dir_type 
   scatter_edges(icontext_type& context, const vertex_type& vertex) const {
@@ -239,6 +241,7 @@ public:
 
 int iteration_counter(count_aggregators::icontext_type& context,
                       graph_type::vertex_type& vertex) {
+  ASSERT_LT(vertex.data(), 100);
   return vertex.data();
 }
 
