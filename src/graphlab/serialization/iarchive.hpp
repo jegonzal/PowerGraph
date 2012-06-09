@@ -103,7 +103,8 @@ namespace graphlab {
     }
     /// constructor. Takes a generic std::istream object
     inline iarchive(std::istream& is)
-      :directbuffer(false),i(&is) { }
+      :directbuffer(false),buf(NULL), buflen(0), 
+       bufread(0), buffail(false), i(&is) { }
 
     /// constructor. Takes a generic std::istream object
     inline iarchive(const char* buf, size_t buflen)
