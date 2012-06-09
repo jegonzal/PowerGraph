@@ -631,6 +631,7 @@ graphlab::vertex_id_type factor_ind2(size_t rows, size_t cols,
     else
       std::cout << "Problem ";
       //ASSERT_TRUE(false);
+    return 0;
 }; // end of factor_ind
 
 

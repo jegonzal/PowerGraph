@@ -212,6 +212,61 @@ void test_messages(graphlab::distributed_control& dc,
 
 
 
+class count_aggregators : 
+  public graphlab::ivertex_program<graph_type, int>,
+  public graphlab::IS_POD_TYPE {
+public:
+  edge_dir_type 
+  gather_edges(icontext_type& context, const vertex_type& vertex) const {
+    return graphlab::IN_EDGES;
+  }
+  gather_type 
+  gather(icontext_type& context, const vertex_type& vertex, 
+         edge_type& edge) const {
+    return vertex.data();
+  }
+  void apply(icontext_type& context, vertex_type& vertex, 
+             const gather_type& total) {
+    ASSERT_EQ( total, context.iteration() * vertex.num_in_edges() );
+    vertex.data() = context.iteration() + 1; 
+    if(context.iteration() < 100) context.signal(vertex);
+  }
+  edge_dir_type 
+  scatter_edges(icontext_type& context, const vertex_type& vertex) const {
+    return graphlab::NO_EDGES;
+  }
+}; // end of count aggregators
+
+int iteration_counter(count_aggregators::icontext_type& context,
+                      graph_type::vertex_type& vertex) {
+  return vertex.data();
+}
+
+void iteration_finalize(count_aggregators::icontext_type& context,
+                        const int& total) {
+  std::cout << "Finalized" << std::endl;
+  ASSERT_EQ(total, context.num_vertices() * context.iteration());
+}
+
+void test_count_aggregators(graphlab::distributed_control& dc,
+                            graphlab::command_line_options& clopts,
+                            graph_type& graph) {
+  std::cout << "Constructing a syncrhonous engine for aggregators" << std::endl;
+  typedef graphlab::synchronous_engine<count_aggregators> engine_type;
+  engine_type engine(dc, graph, clopts);
+  engine.add_vertex_aggregator<int>("iteration_counter", 
+                                    iteration_counter, iteration_finalize);
+  engine.aggregate_periodic("iteration_counter", 0);
+  std::cout << "Scheduling all vertices to count their neighbors" << std::endl;
+  engine.signal_all();
+  std::cout << "Running!" << std::endl;
+  engine.start();
+  std::cout << "Finished" << std::endl;
+}
+
+
+
+
 int main(int argc, char** argv) {
   ///! Initialize control plain using mpi
   graphlab::mpi_tools::init(argc, argv);
@@ -229,6 +284,7 @@ int main(int argc, char** argv) {
   test_out_neighbors(dc, clopts, graph);
   test_all_neighbors(dc, clopts, graph);
   test_messages(dc, clopts, graph);
+  test_count_aggregators(dc, clopts, graph);
 
   graphlab::mpi_tools::finalize();
 } // end of main

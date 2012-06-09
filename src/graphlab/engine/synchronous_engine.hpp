@@ -1069,9 +1069,6 @@ namespace graphlab {
       has_gather_accum.clear(); 
       rmi.barrier();
 
-      // probe the aggregator
-      aggregator.tick_synchronous();
-
       // Exchange Messages --------------------------------------------------
       // Exchange any messages in the local message vectors
       run_synchronous( &synchronous_engine::exchange_messages );
@@ -1102,7 +1099,8 @@ namespace graphlab {
       size_t total_active_vertices = num_active_vertices; 
       rmi.all_reduce(total_active_vertices);
       if (rmi.procid() == 0) 
-        std::cout << "\tActive vertices: " << total_active_vertices << std::endl;
+        logstream(LOG_INFO)
+          << "\tActive vertices: " << total_active_vertices << std::endl;
       if(total_active_vertices == 0 ) {
         termination_reason = execution_status::TASK_DEPLETION;
         break;
@@ -1147,6 +1145,10 @@ namespace graphlab {
        * Post conditions:
        *   1) NONE
        */
+
+      // probe the aggregator
+      aggregator.tick_synchronous();
+
       ++iteration_counter;
     }
     // Final barrier to ensure that all engines terminate at the same time

@@ -58,6 +58,10 @@ size_t is_word(const graph_type::vertex_type& vertex) {
 }
 
 
+void signal_docs(cgs_lda_vertex_program::icontext_type& context, 
+                 graph_type::vertex_type& vertex) {
+  if(vertex.num_out_edges() > 0) context.signal(vertex);
+} // end of signal_docs
 
 /** populate the global dictionary */
 void load_dictionary(const std::string& fname, 
@@ -199,9 +203,10 @@ int main(int argc, char** argv) {
   ///! Add an aggregator
   // engine.add_aggregator<topk>("topk", topk::map, topk::finalize)
   // engine.aggregate_periodic("topk", interval);
+
   ///! schedule only documents
-  // engine.add_transform("signal_docs", signal_docs);
-  // engine.aggregate_now("signal_docs"0;
+  engine.transform_vertices(signal_docs);
+
     
 
   std::cout << "Running The Collapsed Gibbs Sampler" << std::endl;

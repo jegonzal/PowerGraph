@@ -369,10 +369,12 @@ namespace graphlab {
                              FinalizerType finalize_function) {
       aggregator_type* aggregator = get_aggregator();
       if(aggregator == NULL) {
-        logstream(LOG_FATAL) << "Aggregation not supported by this engine!" << std::endl;
+        logstream(LOG_FATAL) << "Aggregation not supported by this engine!"
+                             << std::endl;
         return false; 
       }
-      return aggregator->add_edge_aggregator<ReductionType>(key, map_function, finalize_function);
+      return aggregator->add_edge_aggregator<ReductionType>
+        (key, map_function, finalize_function);
     } // end of add edge aggregator
 
 
@@ -402,7 +404,8 @@ namespace graphlab {
     bool aggregate_now(const std::string& key) {
       aggregator_type* aggregator = get_aggregator();
       if(aggregator == NULL) {
-        logstream(LOG_FATAL) << "Aggregation not supported by this engine!" << std::endl;
+        logstream(LOG_FATAL) << "Aggregation not supported by this engine!" 
+                             << std::endl;
         return false; 
       }
       return aggregator->aggregate_now(key);
@@ -414,7 +417,8 @@ namespace graphlab {
     ResultType map_reduce_vertices(MapFunctionType mapfunction) {
       aggregator_type* aggregator = get_aggregator();
       if(aggregator == NULL) {
-        logstream(LOG_FATAL) << "Aggregation not supported by this engine!" << std::endl;
+        logstream(LOG_FATAL) << "Aggregation not supported by this engine!"
+                             << std::endl;
         return false; 
       }
       return aggregator->map_reduce_vertices<ResultType>(mapfunction);      
@@ -425,7 +429,8 @@ namespace graphlab {
     ResultType map_reduce_edges(MapFunctionType mapfunction) {
       aggregator_type* aggregator = get_aggregator();
       if(aggregator == NULL) {
-        logstream(LOG_FATAL) << "Aggregation not supported by this engine!" << std::endl;
+        logstream(LOG_FATAL) << "Aggregation not supported by this engine!" 
+                             << std::endl;
         return false; 
       }
       return aggregator->map_reduce_edges<ResultType>(mapfunction);      
@@ -436,7 +441,8 @@ namespace graphlab {
     void transform_vertices(TransformType mapfunction) {
       aggregator_type* aggregator = get_aggregator();
       if(aggregator == NULL) {
-        logstream(LOG_FATAL) << "Aggregation not supported by this engine!" << std::endl;
+        logstream(LOG_FATAL) << "Aggregation not supported by this engine!"
+                             << std::endl;
         return; 
       }
       aggregator->transform_vertices(mapfunction);      

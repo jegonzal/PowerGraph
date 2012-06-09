@@ -450,7 +450,7 @@ namespace graphlab {
 #ifdef _OPENMP
         #pragma omp for
 #endif
-          for (int i = 0;i < (int)graph.num_local_vertices(); ++i) {
+          for (int i = 0; i < (int)graph.num_local_vertices(); ++i) {
             local_vertex_type lvertex = graph.l_vertex(i);
             if (lvertex.owner() == rmi.procid()) {
               vertex_type vertex(lvertex);
@@ -462,7 +462,7 @@ namespace graphlab {
 #ifdef _OPENMP
         #pragma omp for
 #endif
-          for (int i = 0;i < (int)graph.num_local_vertices(); ++i) {
+          for (int i = 0; i < (int)graph.num_local_vertices(); ++i) {
             foreach(local_edge_type e, graph.l_vertex(i).in_edges()) {
               edge_type edge(e);
               localmr->perform_map_edge(*context, edge);
@@ -576,7 +576,7 @@ namespace graphlab {
                                                         (int)rmi.numprocs();
           
           async_state[iter->first].per_thread_aggregation.resize(ncpus);
-          for (size_t i = 0;i < ncpus; ++i) {
+          for (size_t i = 0; i < ncpus; ++i) {
             async_state[iter->first].per_thread_aggregation[i] =
                                     aggregators[iter->first]->clone_empty();
           }
@@ -875,7 +875,7 @@ namespace graphlab {
 #ifdef _OPENMP
         #pragma omp for
 #endif
-        for (int i = 0;i < (int)graph.num_local_vertices(); ++i) {
+        for (int i = 0; i < (int)graph.num_local_vertices(); ++i) {
           if (graph.l_vertex(i).owner() == rmi.procid()) {
             if (!result_set) {
               vertex_type vtx(graph.l_vertex(i));
@@ -922,7 +922,7 @@ namespace graphlab {
 #ifdef _OPENMP
         #pragma omp for
 #endif
-        for (int i = 0;i < (int)graph.num_local_vertices(); ++i) {
+        for (int i = 0; i < (int)graph.num_local_vertices(); ++i) {
           foreach(const local_edge_type& e, graph.l_vertex(i).in_edges()) {
             if (!result_set) {
               edge_type edge(e);
@@ -960,7 +960,7 @@ namespace graphlab {
 #ifdef _OPENMP
       #pragma omp parallel for
 #endif
-      for (int i = 0;i < (int)graph.num_local_vertices(); ++i) {
+      for (int i = 0; i < (int)graph.num_local_vertices(); ++i) {
         if (graph.l_vertex(i).owner() == rmi.procid()) {
           vertex_type vtx(graph.l_vertex(i));
           transform_functor(*context, vtx);
@@ -977,7 +977,7 @@ namespace graphlab {
 #ifdef _OPENMP
       #pragma omp parallel for
 #endif
-      for (int i = 0;i < (int)graph.num_local_vertices(); ++i) {
+      for (int i = 0; i < (int)graph.num_local_vertices(); ++i) {
         foreach(const local_edge_type& e, graph.l_vertex(i).in_edges()) {
           edge_type edge(e);
           transform_functor(*context, edge);

@@ -362,7 +362,7 @@ namespace graphlab {
 #ifdef _OPENMP
         #pragma omp for
 #endif
-        for (int i = 0;i < (int)local_graph.num_vertices(); ++i) {
+        for (int i = 0; i < (int)local_graph.num_vertices(); ++i) {
           if (lvid2record[i].owner == rpc.procid()) {
             if (!result_set) {
               vertex_type vtx(l_vertex(i));
@@ -421,7 +421,7 @@ namespace graphlab {
 #ifdef _OPENMP
         #pragma omp for
 #endif
-        for (int i = 0;i < (int)local_graph.num_vertices(); ++i) {
+        for (int i = 0; i < (int)local_graph.num_vertices(); ++i) {
           foreach(const local_edge_type& e, l_vertex(i).in_edges()) {
             if (!result_set) {
               edge_type edge(e);
@@ -460,7 +460,7 @@ namespace graphlab {
 #ifdef _OPENMP
       #pragma omp parallel for
 #endif
-      for (int i = 0;i < (int)local_graph.num_vertices(); ++i) {
+      for (int i = 0; i < (int)local_graph.num_vertices(); ++i) {
         if (lvid2record[i].owner == rpc.procid()) {
           vertex_type vtx(l_vertex(i));
           transform_functor(vtx);
@@ -478,7 +478,7 @@ namespace graphlab {
 #ifdef _OPENMP
       #pragma omp parallel for
 #endif
-      for (int i = 0;i < (int)local_graph.num_vertices(); ++i) {
+      for (int i = 0; i < (int)local_graph.num_vertices(); ++i) {
         foreach(const local_edge_type& e, l_vertex(i).in_edges()) {
           edge_type edge(e);
           transform_functor(edge);
@@ -505,7 +505,7 @@ namespace graphlab {
 #ifdef _OPENMP
       #pragma omp parallel for
 #endif
-      for (int i = 0;i < (int)accfunction.size(); ++i) {
+      for (int i = 0; i < (int)accfunction.size(); ++i) {
         for (int j = i;j < (int)local_graph.num_vertices(); j+=numaccfunctions) {
           if (lvid2record[j].owner == rpc.procid()) {
             accfunction[i](vertex_type(l_vertex(j)));
@@ -535,7 +535,7 @@ namespace graphlab {
 #ifdef _OPENMP
       #pragma omp parallel for
 #endif
-      for (int i = 0;i < (int)accfunction.size(); ++i) {
+      for (int i = 0; i < (int)accfunction.size(); ++i) {
         for (int j = i;j < (int)local_graph.num_vertices(); j+=numaccfunctions) {
           foreach(const local_edge_type& e, l_vertex(j).in_edges()) {
             accfunction[i](edge_type(e));
@@ -690,7 +690,7 @@ namespace graphlab {
       std::vector<edge_function_type> edge_callbacks(graph_files.size());
     
       for(size_t i = 0; i < graph_files.size(); ++i) {
-        std::cout << "Saving to file: " << graph_files[i] << std::endl;
+        logstream(LOG_INFO) << "Saving to file: " << graph_files[i] << std::endl;
         // open the stream
         base_fstream_type* out_file = 
           new base_fstream_type(graph_files[i].c_str(),
@@ -765,7 +765,7 @@ namespace graphlab {
       std::vector<edge_function_type> edge_callbacks(graph_files.size());
 
       for(size_t i = 0; i < graph_files.size(); ++i) {
-        std::cout << "Saving to file: " << graph_files[i] << std::endl;
+        logstream(LOG_INFO) << "Saving to file: " << graph_files[i] << std::endl;
         // open the stream
         base_fstream_type* out_file = new base_fstream_type(hdfs,
                                                             graph_files[i],
@@ -861,7 +861,7 @@ namespace graphlab {
       fs_util::list_files_with_prefix(directory_name, prefix, graph_files);
       for(size_t i = 0; i < graph_files.size(); ++i) {
         if (i % rpc.numprocs() == rpc.procid()) {
-          std::cout << "Loading graph from file: " << graph_files[i] << std::endl;
+          logstream(LOG_INFO) << "Loading graph from file: " << graph_files[i] << std::endl;
           // is it a gzip file ?
           const bool gzip = boost::ends_with(graph_files[i], ".gz");
           // open the stream
@@ -901,7 +901,7 @@ namespace graphlab {
       graph_files = hdfs.list_files(path);    
       for(size_t i = 0; i < graph_files.size(); ++i) {
         if (i % rpc.numprocs() == rpc.procid()) {
-          std::cout << "Loading graph from file: " << graph_files[i] << std::endl;
+          logstream(LOG_INFO) << "Loading graph from file: " << graph_files[i] << std::endl;
           // is it a gzip file ?
           const bool gzip = boost::ends_with(graph_files[i], ".gz");
           // open the stream
@@ -942,12 +942,12 @@ namespace graphlab {
                                  double alpha = 2.1, size_t truncate = (size_t)(-1)) {
       rpc.full_barrier(); 
       std::vector<double> prob(std::min(nverts, truncate), 0);
-      std::cout << "constructing pdf" << std::endl;
+      logstream(LOG_INFO) << "constructing pdf" << std::endl;
       for(size_t i = 0; i < prob.size(); ++i)
         prob[i] = std::pow(double(i+1), -alpha);
-      std::cout << "constructing cdf" << std::endl;
+      logstream(LOG_INFO) << "constructing cdf" << std::endl;
       random::pdf2cdf(prob);
-      std::cout << "Building graph" << std::endl;
+      logstream(LOG_INFO) << "Building graph" << std::endl;
       size_t target_index = rpc.procid();
       size_t addedvtx = 0;
 
@@ -964,7 +964,7 @@ namespace graphlab {
         }
         ++addedvtx;
         if (addedvtx % 10000000 == 0) {
-          std::cout << addedvtx << " inserted\n";
+          logstream(LOG_INFO) << addedvtx << " inserted\n";
         }
       }
       rpc.full_barrier(); 
