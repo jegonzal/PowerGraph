@@ -465,7 +465,6 @@ double calc_ap(const graph_type * _g, vec * predictions = NULL){
          foreach(edge_id_t oedgeid, _g->out_edge_ids(i)) {
            const vertex_data & pdata = ps.g<graph_type>(TRAINING)->vertex_data(_g->target(oedgeid)); 
            float prediction;
-           edges++; 
            const edge_data &edge = _g->edge_data(oedgeid);
            if (predictions && predictions->size() > 0 )
               prediction = predictions->operator[](edges);
@@ -479,6 +478,7 @@ double calc_ap(const graph_type * _g, vec * predictions = NULL){
               rbm_predict(data, pdata, NULL, NULL, edge.weight, prediction);
 					 else
              predict(data, pdata, &edge, NULL, edge.weight, prediction);
+           edges++; 
            ratings[j] = prediction;
            real_vals[j] = edge.weight;
            if (edge.weight > 0)

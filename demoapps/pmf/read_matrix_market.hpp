@@ -120,6 +120,7 @@ void load_matrix_market(const char * filename, graph_type *_g, testtype data_typ
            logstream(LOG_FATAL)<<"Error reading input line " << i << " returned tokens: " << rec << " I: " <<I<< "J:" <<J<<" val: " <<val << " dtime: " <<dtime <<std::endl;
 
       }
+        //I++;
         if (I<=0 || J<= 0){
           logstream(LOG_FATAL) << "Matrix market values should be >= 1, observed values: " << I << " " << J << " In item number " << nz << std::endl;
         }
