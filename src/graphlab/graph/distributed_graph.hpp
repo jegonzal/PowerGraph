@@ -860,6 +860,7 @@ namespace graphlab {
       else {
         directory_name = path.parent_path().native();
         prefix = path.filename().native();
+        directory_name = (directory_name.empty() ? "." : directory_name);
       }
       std::vector<std::string> graph_files;
       fs_util::list_files_with_prefix(directory_name, prefix, graph_files);
