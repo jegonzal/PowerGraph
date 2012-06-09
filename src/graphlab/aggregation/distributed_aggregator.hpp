@@ -433,6 +433,7 @@ namespace graphlab {
      * \return False if key not found, True on success.
      */
     bool aggregate_now(const std::string& key) {
+      ASSERT_MSG(graph.is_finalized(), "Graph must be finalized");
       if (aggregators.count(key) == 0) {
         ASSERT_MSG(false, "Requested aggregator %s not found", key.c_str());
         return false;
@@ -863,6 +864,7 @@ namespace graphlab {
     
     template <typename ResultType, typename MapFunctionType>
     ResultType map_reduce_vertices(MapFunctionType mapfunction) {
+      ASSERT_MSG(graph.is_finalized(), "Graph must be finalized");
       rmi.barrier();
       bool global_result_set = false;
       ResultType global_result = ResultType();
@@ -910,6 +912,7 @@ namespace graphlab {
   
     template <typename ResultType, typename MapFunctionType>
     ResultType map_reduce_edges(MapFunctionType mapfunction) {
+      ASSERT_MSG(graph.is_finalized(), "Graph must be finalized");
       rmi.barrier();
       bool global_result_set = false;
       ResultType global_result = ResultType();
@@ -956,6 +959,7 @@ namespace graphlab {
 
     template <typename TransformType>
     void transform_vertices(TransformType transform_functor) {
+      ASSERT_MSG(graph.is_finalized(), "Graph must be finalized");
       rmi.barrier();
 #ifdef _OPENMP
       #pragma omp parallel for
@@ -973,6 +977,7 @@ namespace graphlab {
 
     template <typename TransformType>
     void transform_edges(TransformType transform_functor) {
+      ASSERT_MSG(graph.is_finalized(), "Graph must be finalized");
       rmi.barrier();
 #ifdef _OPENMP
       #pragma omp parallel for

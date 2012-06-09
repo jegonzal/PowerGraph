@@ -88,7 +88,7 @@ namespace graphlab {
     void log_usage(const std::string& label) {
 #ifdef HAS_TCMALLOC
         const double BYTES_TO_MB = double(1) / double(1024 * 1024);
-        logstream(LOG_INFO)
+        logstream(LOG_EMPH)
           << "Memory Info: " << label << std::endl
           << "\t Heap: " << (heap_bytes() * BYTES_TO_MB) << " MB"
           << std::endl

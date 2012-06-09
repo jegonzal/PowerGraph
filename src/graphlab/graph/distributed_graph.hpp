@@ -267,6 +267,10 @@ namespace graphlab {
       rpc.barrier(); delete ingress_ptr; ingress_ptr = NULL;
       finalized = true;
     }
+    
+    bool is_finalized() {
+      return finalized;
+    }
             
     /** \brief Get the number of vertices */
     size_t num_vertices() const { return nverts; }
