@@ -45,13 +45,7 @@ inline void decompress_int_from_ref(const char* &arr, IntType &ret) {
 
 template <typename ArcType, typename IntType>
 inline void decompress_int(ArcType &strm, IntType &ret) {
-  if (strm.has_directbuffer()) {
-    const char* arr = strm.get_direct_buffer(sizeof(IntType));
-    ret = *reinterpret_cast<const IntType*>(arr);
-  }
-  else {
-    strm.read(reinterpret_cast<char*>(&ret), sizeof(IntType));
-  }
+  strm.read(reinterpret_cast<char*>(&ret), sizeof(IntType));
 }
 
 
