@@ -16,56 +16,90 @@ double stof(const char *str){
   return atof(str);
 }
 
-void shortest_path_update(json::Document& invocation, json::Document& return_json){
-
+void gather(json::Document& invocation, json::Document& return_json){
   json::Document::AllocatorType& allocator = return_json.GetAllocator();
-  return_json.SetObject();
+  // find distance from source to this vertex thru neighbor
+  const json::Value& edge = invocation["params"]["edge"];
+  double edge_dist = atof(edge["state"].GetString());
+  double nbr_dist = stof(edge["source"]["state"].GetString());
+  double vertex_dist = nbr_dist + edge_dist;
+  // update updater state
+  double best_dist = stof(invocation["state"].GetString());
+  if (vertex_dist < best_dist){
+    std::ostringstream double_stream;
+    double_stream << vertex_dist;
+    const char *double_str = double_stream.str().c_str();
+    json::Value dist(double_str, allocator);
+    return_json.AddMember("updater", dist, allocator);
+  }
+}
 
-  // TODO: error handling for missing elements
+void merge(json::Document& invocation, json::Document& return_json){
+  json::Document::AllocatorType& allocator = return_json.GetAllocator();
+  // keep the shortest distance
+  double left = stof(invocation["state"].GetString());
+  double right = stof(invocation["params"]["other"].GetString());
+  double min_dist = std::min(left, right);
+  // return
+  std::ostringstream double_stream;
+  double_stream << min_dist;
+  const char *double_str = double_stream.str().c_str();
+  json::Value dist(double_str, allocator);
+  return_json.AddMember("updater", dist, allocator);
+}
+
+void apply(json::Document& invocation, json::Document& return_json){
+  json::Document::AllocatorType& allocator = return_json.GetAllocator();
+  // save to vertex if it improves its distance
   const char *vertex_state = invocation["params"]["context"]["vertex"]["state"].GetString();
   double vertex_dist = stof(vertex_state);
-  
-  // relax all incoming edges
-  json::Value& in_edges = invocation["params"]["context"]["in_edges"];
-  for (json::SizeType i = 0; i < in_edges.Size(); i++){
-    const json::Value& edge = in_edges[i];
-    double edge_dist = atof(edge["state"].GetString());
-    double nbr_dist = stof(edge["source"]["state"].GetString());
-    vertex_dist = std::min(vertex_dist, nbr_dist + edge_dist);
+  // update updater state
+  double best_dist = stof(invocation["state"].GetString());
+  if (best_dist < vertex_dist){
+    std::ostringstream double_stream;
+    double_stream << best_dist;
+    const char *double_str = double_stream.str().c_str();
+    json::Value dist(double_str, allocator);
+    return_json.AddMember("vertex", dist, allocator);
   }
-  
-  std::ostringstream double_stream;
-  double_stream << vertex_dist << std::flush;
-  const char *double_str = double_stream.str().c_str();
-  
-  // add shortest distance to return json
-  json::Value vertex(double_str, allocator);
-  return_json.AddMember("vertex", vertex, allocator);
-  
-  json::Value vertices;
-  vertices.SetArray();
-  
-  // schedule affected members
-  const json::Value& out_edges = invocation["params"]["context"]["out_edges"];
-  for (json::SizeType i = 0; i < out_edges.Size(); i++){
-  
-    const json::Value& edge = out_edges[i];
-    int nbr_id = edge["target"]["id"].GetInt();
-    double nbr_dist = stof(edge["target"]["state"].GetString());
-    double edge_dist = atof(edge["state"].GetString());
-   
-     if (nbr_dist > (vertex_dist + edge_dist))
-       vertices.PushBack(nbr_id, allocator);
-    
-  }
-  
-  // add to return json
-  json::Value schedule;
-  schedule.SetObject();
-  schedule.AddMember("updater", "self", allocator);
-  schedule.AddMember("vertices", vertices, allocator);
-  return_json.AddMember("schedule", schedule, allocator);
+}
 
+void scatter(json::Document& invocation, json::Document& return_json){
+  json::Document::AllocatorType& allocator = return_json.GetAllocator();
+  double best_dist = stof(invocation["params"]["context"]["vertex"]["state"].GetString());
+  // parse distances
+  const json::Value& edge = invocation["params"]["edge"];
+  double nbr_dist = stof(edge["target"]["state"].GetString());
+  double edge_dist = atof(edge["state"].GetString());
+  // relax edge
+  if (nbr_dist > (best_dist + edge_dist)){
+    return_json.AddMember("schedule", "self", allocator);
+  }
+}
+
+void init_gather(json::Document& invocation, json::Document& return_json){
+  json::Document::AllocatorType& allocator = return_json.GetAllocator();
+  return_json.AddMember("updater", "", allocator);
+}
+
+void gather_edges(json::Document& invocation, json::Document& return_json){
+  json::Document::AllocatorType& allocator = return_json.GetAllocator();
+  return_json.AddMember("edges", "IN_EDGES", allocator);
+}
+
+void scatter_edges(json::Document& invocation, json::Document& return_json){
+  json::Document::AllocatorType& allocator = return_json.GetAllocator();
+  return_json.AddMember("edges", "OUT_EDGES", allocator);
+}
+
+void gather_consistency(json::Document& invocation, json::Document& return_json){
+  json::Document::AllocatorType& allocator = return_json.GetAllocator();
+  return_json.AddMember("consistency", "EDGE", allocator);
+}
+
+void scatter_consistency(json::Document& invocation, json::Document& return_json){
+  json::Document::AllocatorType& allocator = return_json.GetAllocator();
+  return_json.AddMember("consistency", "EDGE", allocator);
 }
 
 const char *handle_invocation(const char *buffer, json::StringBuffer& return_buffer){
@@ -77,21 +111,41 @@ const char *handle_invocation(const char *buffer, json::StringBuffer& return_buf
   
   // TODO: error handling for missing elements
   if (!strcmp(invocation["method"].GetString(), "exit")) return NULL;
-  if (!strcmp(invocation["method"].GetString(), "update")){
   
-    json::Document return_json;
-    shortest_path_update(invocation, return_json);
-    
-    return_buffer.Clear();
-    json::Writer<json::StringBuffer> writer(return_buffer);
-    return_json.Accept(writer);
-    
-    return return_buffer.GetString();
-    
-  }
-
-  // TODO: error handling - method not found?
-  return NULL;
+  json::Document return_json;
+  return_json.SetObject();
+  
+  if (!strcmp(invocation["method"].GetString(), "gather"))
+    gather(invocation, return_json);
+  
+  if (!strcmp(invocation["method"].GetString(), "init_gather"))
+    init_gather(invocation, return_json);
+  
+  if (!strcmp(invocation["method"].GetString(), "gather_edges"))
+    gather_edges(invocation, return_json);
+  
+  if (!strcmp(invocation["method"].GetString(), "merge"))
+    merge(invocation, return_json);
+  
+  if (!strcmp(invocation["method"].GetString(), "apply"))
+    apply(invocation, return_json);
+  
+  if (!strcmp(invocation["method"].GetString(), "scatter"))
+    scatter(invocation, return_json);
+  
+  if (!strcmp(invocation["method"].GetString(), "scatter_edges"))
+    scatter_edges(invocation, return_json);
+  
+  if (!strcmp(invocation["method"].GetString(), "gather_consistency"))
+    gather_consistency(invocation, return_json);
+  
+  if (!strcmp(invocation["method"].GetString(), "scatter_consistency"))
+    scatter_consistency(invocation, return_json);
+  
+  return_buffer.Clear();
+  json::Writer<json::StringBuffer> writer(return_buffer);
+  return_json.Accept(writer);
+  return return_buffer.GetString();
   
 }
 

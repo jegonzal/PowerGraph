@@ -121,7 +121,7 @@ json_message& process::read(json_message& message){
 
   // prepare buffer and init w. leftovers
   json_message::byte data[bytes+1]; // plus 1 for null-terminator (temp)
-  memset(data, NULL, bytes+1);
+  memset(data, 0, bytes+1);
   fl_buffer.sgetn(data, leftover);
 
   if (leftover < bytes) try {

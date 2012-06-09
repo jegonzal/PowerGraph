@@ -59,7 +59,7 @@ void cgi_gather::operator+=(const cgi_gather& other){
   p.receive(result);
   
   // update states (if none received, no change)
-  const char *cstring = result.program();
+  const char *cstring = result.result();
   if (NULL != cstring)
     mstate = std::string(cstring);
   
@@ -82,6 +82,7 @@ void dispatcher::init(icontext_type& context, vertex_type& vertex) {
   // invoke
   process& p = process::get_process();
   ji invocation("init", mstate);
+  invocation.add_vertex(vertex);
   p.send(invocation);
   
   // receive
@@ -224,6 +225,40 @@ struct dispatcher_writer {
   }
 };
 
+bool dispatcher_reader(dispatcher::graph_type& graph,
+                      const std::string& filename,
+                      const std::string& textline) {
+  
+  // skip blank lines
+  if (textline.empty()) return true;
+  
+  switch(textline[0]){
+    case '#': return true;    // skip comments
+    case ':': {               // load vertices
+      if (textline.length() <= 1) return false;
+      std::istringstream iss(textline.substr(1));
+      dispatcher::graph_type::vertex_id_type vid;
+      dispatcher::graph_type::vertex_data_type vdata;
+      iss >> vid >> vdata;
+      graph.add_vertex(vid, vdata);
+      break;
+    }
+    default: {                // load edges
+      if (textline.length() <= 3) return false;
+      std::istringstream iss(textline);
+      dispatcher::graph_type::vertex_id_type source;
+      dispatcher::graph_type::vertex_id_type target;
+      dispatcher::graph_type::edge_data_type edata;
+      iss >> source >> target >> edata;
+      graph.add_edge(source, target, edata);
+      break;
+    }
+  }
+  
+  return true;
+  
+}
+
 ////////////////////////////////// MAIN METHOD /////////////////////////////////
 int main(int argc, char** argv) {
 
@@ -261,8 +296,6 @@ int main(int argc, char** argv) {
     return EXIT_FAILURE;
   }
   
-  process::set_executable(program);
-  
   // Signal Handling -----------------------------------------------------------
   struct sigaction sa;
   std::memset(&sa, 0, sizeof(sa));
@@ -270,18 +303,26 @@ int main(int argc, char** argv) {
   CHECK(!::sigaction(SIGPIPE, &sa, NULL));
   
   // Load graph ----------------------------------------------------------------
-  std::cout << dc.procid() << ": Starting." << std::endl;
+  logstream(LOG_INFO) << dc.procid() << ": Starting." << std::endl;
+  
+  logstream(LOG_INFO) << "Loading graph from " << graph_dir << std::endl;
   dispatcher::graph_type graph(dc, clopts);
-  graph.load_format(graph_dir, format);
+  graph.load(graph_dir, dispatcher_reader);
   graph.finalize();
   
-  std::cout << "#vertices: " << graph.num_vertices() << " #edges:" << graph.num_edges() << std::endl;
+  logstream(LOG_INFO) << "#vertices: " << graph.num_vertices()
+                      << " #edges:" << graph.num_edges() << std::endl;
+  
+  std::stringstream program_call;
+  program_call << program << "--num-edges=" << graph.num_edges() << "--num-vertices=" << graph.num_vertices();
+  process::set_executable(program_call.str());
+  logstream(LOG_INFO) << "executable: " << program_call.str();
   
   // Schedule vertices
-  std::cout << dc.procid() << ": Creating engine" << std::endl;
+  logstream(LOG_INFO) << dc.procid() << ": Creating engine" << std::endl;
   async_consistent_engine<dispatcher> engine(dc, graph, clopts);
   // TODO: need a way for user to tell us which vertices to schedule
-  std::cout << dc.procid() << ": Scheduling all" << std::endl;
+  logstream(LOG_INFO) << dc.procid() << ": Scheduling all" << std::endl;
   engine.signal_all();
   
   // Run the dispatcher --------------------------------------------------------
