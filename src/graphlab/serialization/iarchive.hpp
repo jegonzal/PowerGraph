@@ -43,73 +43,25 @@ namespace graphlab {
   class iarchive {
   public:
     
-    bool directbuffer; // if false, uses the istream, otherwise uses buf
-    
-    const char* buf; size_t buflen; size_t bufread; bool buffail;
-    
     std::istream* i;
     
     inline char read_char() {
-      if (directbuffer == false) {
-        char c;
-        i->get(c);
-        return c;
-      }
-      else {
-        if (bufread < buflen) {
-          ++bufread;
-          return *buf++;
-        }
-        else {
-          buffail = true;
-          return 0;
-        }
-      }
+      char c;
+      i->get(c);
+      return c;
     }
-    
-    inline bool has_directbuffer() {
-      return directbuffer;
-    }
-    
-    inline const char* get_direct_buffer(size_t len) {
-      if (len + bufread <= buflen) {
-        const char* ret = buf;
-        buf += len;
-        bufread += len;
-        return ret;
-      }
-      else {
-        buffail = true;
-        return NULL;
-      }
-    }
-    
+
     inline void read(char* c, size_t len) {
-      if (directbuffer == false) i->read(c, len);
-      else {
-        if (len + bufread <= buflen) {
-          memcpy(c, buf, len);
-          buf += len;
-          bufread += len;
-        }
-        else {
-          buffail = true;
-        }
-      }
+      i->read(c, len);
     }
     
     inline bool fail() {
-      return (directbuffer == false)?i->fail():buffail;
+      return i->fail();
     }
     /// constructor. Takes a generic std::istream object
     inline iarchive(std::istream& is)
-      :directbuffer(false),i(&is) { }
+      : i(&is) { }
 
-    /// constructor. Takes a generic std::istream object
-    inline iarchive(const char* buf, size_t buflen)
-      :directbuffer(true),
-       buf(buf), buflen(buflen), bufread(0), buffail(false),
-       i(NULL) { }
 
     ~iarchive() {}
   };
@@ -131,71 +83,26 @@ namespace graphlab {
     std::istream* i;
     
     inline char read_char() {
-      if (directbuffer == false) {
-        char c;
-        i->get(c);
-        return c;
-      }
-      else {
-        if (bufread < buflen) {
-          ++bufread;
-          return *buf++;
-        }
-        else {
-          buffail = true;
-          return 0;
-        }
-      }
+      char c;
+      i->get(c);
+      return c;
     }
-    
-    inline bool has_directbuffer() {
-      return directbuffer;
-    }
-    
-    inline const char* get_direct_buffer(size_t len) {
-      if (len + bufread <= buflen) {
-        const char* ret = buf;
-        buf += len;
-        bufread += len;
-        return ret;
-      }
-      else {
-        buffail = true;
-        return NULL;
-      }
-    }
+  
     
     inline void read(char* c, size_t len) {
-      if (directbuffer == false) i->read(c, len);
-      else {
-        if (len + bufread <= buflen) {
-          memcpy(c, buf, len);
-          buf += len;
-          bufread += len;
-        }
-        else {
-          buffail = true;
-        }
-      }
+      i->read(c, len);
     }
     
     inline bool fail() {
-      return (directbuffer == false)?i->fail():buffail;
+      return i->fail();
     }
     
     inline iarchive_soft_fail(std::istream &is)
       : i(&is) {}
 
-    /// constructor. Takes a generic std::istream object
-    inline iarchive_soft_fail(const char* buf, size_t buflen)
-      :directbuffer(true),
-       buf(buf), buflen(buflen), bufread(0), buffail(false),
-       i(NULL) { }
-
 
     inline iarchive_soft_fail(iarchive &iarc)
-      :directbuffer(iarc.directbuffer), buf(iarc.buf), buflen(iarc.buflen),
-       bufread(iarc.bufread), buffail(iarc.buffail), i(iarc.i){}
+      : i(iarc.i){}
   
     ~iarchive_soft_fail() { }
   };

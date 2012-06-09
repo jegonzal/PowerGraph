@@ -1,4 +1,4 @@
-/**  
+/*  
  * Copyright (c) 2009 Carnegie Mellon University. 
  *     All rights reserved.
  *
@@ -37,6 +37,7 @@ class distributed_control;
 namespace dc_impl {
 
 /**
+ * \internal
   \ingroup rpc
   Receiver processor for the dc class.
   The job of the receiver is to take as input a byte stream

@@ -27,6 +27,7 @@
 #include <iostream>
 #include <graphlab/util/stl_util.hpp>
 #include <graphlab/logger/logger.hpp>
+#include <graphlab/serialization/serialization_includes.hpp>
 namespace graphlab {
 
   namespace builtin_parsers {
@@ -96,6 +97,128 @@ namespace graphlab {
     };
 
 
+
+    
+    template <typename Graph>
+    struct graphjrl_writer{
+      typedef typename Graph::vertex_type vertex_type;
+      typedef typename Graph::edge_type edge_type;
+
+      /**
+       * \internal
+       * Replaces \255 with \255\1
+       * Replaces \\n with \255\0
+       */
+      static std::string escape_newline(charstream& strm) {
+        size_t ctr = 0;
+        char *ptr = strm->c_str();
+        size_t strmlen = strm->size();
+        for (size_t i = 0;i < strmlen; ++i) {
+          ctr += (ptr[i] == (char)255 || ptr[i] == '\n');
+        }
+
+        std::string ret(ctr + strmlen, 0);
+
+        size_t target = 0;
+        for (size_t i = 0;i < strmlen; ++i, ++ptr) {
+          if ((*ptr) == (char)255) {
+            ret[target] = (char)255;
+            ret[target + 1] = 1;
+            target += 2;
+          }
+          else if ((*ptr) == '\n') {
+            ret[target] = (char)255;
+            ret[target + 1] = 0;
+            target += 2;
+          }
+          else {
+            ret[target] = (*ptr);
+            ++target;
+          }
+        }
+        assert(target == ctr + strmlen);
+        return ret;
+      }
+
+      /**
+       * \internal
+       * Replaces \255\1 with \255
+       * Replaces \255\0 with \\n
+       */
+      static std::string unescape_newline(const std::string& str) {
+        size_t ctr = 0;
+        // count the number of escapes
+        for (size_t i = 0;i < str.length(); ++i) {
+          ctr += (str[i] == (char)255);
+        }
+        // real length is string length - escapes
+        std::string ret(str.size() - ctr, 0);
+
+        const char escapemap[2] = {'\n', (char)255};
+        
+        size_t target = 0;
+        for (size_t i = 0;i < str.length(); ++i, ++target) {
+          if (str[i] == (char)255) {
+            // escape character
+            ++i;
+            ASSERT_MSG(str[i] == 0 || str[i] == 1,
+                       "Malformed escape sequence in graphjrl file.");
+            ret[target] = escapemap[(int)str[i]];
+          }
+          else {
+            ret[target] = str[i];
+          }
+        }
+        return ret;
+      }
+      
+      std::string save_vertex(vertex_type v) {
+        charstream strm(128);
+        oarchive oarc(strm);
+        oarc << char(0) << v.id() << v.data();
+        strm.flush();
+        return escape_newline(strm) + "\n";
+      }
+      
+      std::string save_edge(edge_type e) {
+        charstream strm(128);
+        oarchive oarc(strm);
+        oarc << char(1) << e.source().id() << e.target().id() << e.data();
+        strm.flush();
+        return escape_newline(strm) + "\n";
+      }
+    };
+
+
+
+    template <typename Graph>
+    bool graphjrl_parser(Graph& graph, const std::string& srcfilename,
+                    const std::string& str) {
+      std::string unescapedstr = graphjrl_writer<Graph>::unescape_newline(str);
+      boost::iostreams::stream<boost::iostreams::array_source>
+                      istrm(unescapedstr.c_str(), unescapedstr.length());
+      iarchive iarc(istrm);
+      
+      char entrytype;
+      iarc >> entrytype;
+      if (entrytype == 0) {
+        typename Graph::vertex_id_type vid;
+        typename Graph::vertex_data_type vdata;
+        iarc >> vid >> vdata;
+        graph.add_vertex(vid, vdata);
+      }
+      else if (entrytype == 1) {
+        typename Graph::vertex_id_type srcvid, destvid;
+        typename Graph::edge_data_type edata;
+        iarc >> srcvid >> destvid >> edata;
+        graph.add_edge(srcvid, destvid, edata);
+      }
+      else {
+        return false;
+      }
+      return true;
+    }
+    
   } // namespace builtin_parsers
 } // namespace graphlab
 

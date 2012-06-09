@@ -548,8 +548,8 @@ void save_image(const size_t rows, const size_t cols,
   using namespace Magick;
   std::cout << "NPixels: " << values.size() << std::endl;
   // determine the max and min colors
-  float max_color = 0;
-  float min_color = 0;
+  float max_color = -std::numeric_limits<float>::max();
+  float min_color =  std::numeric_limits<float>::max();
   foreach(pred_pair_type pair, values) {
     max_color = std::max(max_color, pair.second);
     min_color = std::min(min_color, pair.second);

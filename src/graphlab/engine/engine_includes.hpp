@@ -26,6 +26,8 @@
 #include <graphlab/engine/iengine.hpp>
 #include <graphlab/engine/synchronous_engine.hpp>
 #include <graphlab/engine/async_consistent_engine.hpp>
+#include <graphlab/engine/omni_engine.hpp>
+
 #include <graphlab/engine/execution_status.hpp>
 
 //#include <graphlab/engine/asynchronous_engine.hpp>

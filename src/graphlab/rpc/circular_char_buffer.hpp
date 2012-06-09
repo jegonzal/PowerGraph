@@ -32,6 +32,7 @@ namespace graphlab {
   
   /**
    * \ingroup rpc
+   * \internal
    A self-resizing circular buffer of characters
   */
   class circular_char_buffer {

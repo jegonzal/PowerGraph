@@ -1,4 +1,4 @@
-/**  
+/* 
  * Copyright (c) 2009 Carnegie Mellon University. 
  *     All rights reserved.
  *
@@ -38,6 +38,20 @@ namespace graphlab {
      hastoken(dc.procid() == 0),
      cond(ncpus){
 
+    cur_token.total_calls_sent = 0;
+    cur_token.total_calls_received = 0;
+    cur_token.last_change = (procid_t)(rmi.numprocs() - 1);
+  }
+
+  void async_consensus::reset() {
+    last_calls_sent = 0;
+    last_calls_received = 0;
+    numactive = ncpus;
+    done = false;
+    trying_to_sleep = false;
+    critical = std::vector<char>(ncpus, 0);
+    sleeping = std::vector<char>(ncpus, 0);
+    hastoken = (rmi.procid() == 0);
     cur_token.total_calls_sent = 0;
     cur_token.total_calls_received = 0;
     cur_token.last_change = (procid_t)(rmi.numprocs() - 1);

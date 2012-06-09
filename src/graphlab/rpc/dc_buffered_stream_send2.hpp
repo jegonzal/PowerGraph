@@ -1,4 +1,4 @@
-/**  
+/*  
  * Copyright (c) 2009 Carnegie Mellon University. 
  *     All rights reserved.
  *
@@ -41,6 +41,7 @@ namespace dc_impl {
 
 
 /**
+ * \internal
    \ingroup rpc
 Sender for the dc class.
   The job of the sender is to take as input data blocks of

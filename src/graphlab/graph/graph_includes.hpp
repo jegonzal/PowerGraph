@@ -23,9 +23,7 @@
 #ifndef GRAPHLAB_GRAPH_INCLUDES
 #define GRAPHLAB_GRAPH_INCLUDES
 
-#include <graphlab/graph/graph_ops.hpp>
 #include <graphlab/graph/distributed_graph.hpp>
-
 
 #endif
 

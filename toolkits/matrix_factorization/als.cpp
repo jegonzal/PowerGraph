@@ -21,6 +21,14 @@
  */
 
 
+/**
+ * \file
+ * 
+ * \brief The main file for the ALS matrix factorization algorithm.
+ *
+ * This file contains the main body of the ALS matrix factorization
+ * algorithm. 
+ */
 
 #include <graphlab/util/stl_util.hpp>
 #include <graphlab.hpp>
@@ -30,7 +38,15 @@
 #include <graphlab/macros_def.hpp>
 
 
-typedef graphlab::synchronous_engine<als_vertex_program> engine_type;
+/**
+ * \brief The engine type used by the ALS matrix factorization
+ * algorithm.
+ *
+ * The ALS matrix factorization algorithm currently uses the
+ * synchronous engine.  However we plan to add support for alternative
+ * engines in the future.
+ */
+typedef graphlab::omni_engine<als_vertex_program> engine_type;
 
 int main(int argc, char** argv) {
   global_logger().set_log_level(LOG_INFO);
@@ -106,7 +122,7 @@ int main(int argc, char** argv) {
   }
  
   std::cout << dc.procid() << ": Creating engine" << std::endl;
-  engine_type engine(dc, graph, clopts);
+  engine_type engine(dc, graph, clopts, "synchronous");
  
   // Run the PageRank ---------------------------------------------------------
   std::cout << "Running ALS" << std::endl;

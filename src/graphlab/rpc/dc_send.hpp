@@ -34,7 +34,8 @@ namespace graphlab {
 namespace dc_impl {
 
 /**
-\ingroup rpc_internal
+\ingroup rpc
+\internal
 Base class of the data sending class.
 This class forms the sending side of a "multiplexer"
 send_data() will be called with a packet mask as well as a

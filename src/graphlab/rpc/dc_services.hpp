@@ -1,4 +1,4 @@
-/**  
+/*  
  * Copyright (c) 2009 Carnegie Mellon University. 
  *     All rights reserved.
  *
@@ -32,6 +32,7 @@
 namespace graphlab {
 
   /**
+    \internal
     \ingroup rpc
     Creates a new context for MPI-like global global operations.
     Where all machines create an instance of dc_services at the same time,

@@ -29,6 +29,7 @@ namespace graphlab {
   typedef uint16_t procid_t;
   
   /**
+   * \internal
    * \ingroup rpc
    * The underlying communication protocol
    */

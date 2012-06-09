@@ -26,23 +26,26 @@
 namespace graphlab {
   // ---------  Packet header types --------------
 
-  /** 
-   * \ingroup rpc_internal 
-   * 
+  /**
+   * \internal
+   * \ingroup rpc
    * Used for regular calls which go into a thread pool
    * for evaluation
    */
   const unsigned char STANDARD_CALL = 1;
 
 
-  /** \ingroup rpc_internal
+  /**
+   * \internal
+   * \ingroup rpc
    * 
    * If WAIT_FOR_REPLY is set, the function call's
   return will be passed back to the caller */
   const unsigned char WAIT_FOR_REPLY = 4;
 
   /**
-    \ingroup rpc_internal
+   * \internal
+    \ingroup rpc
    * 
     If control packet flag is set, this packet 
     does not increment any counters.
@@ -50,7 +53,8 @@ namespace graphlab {
   const unsigned char CONTROL_PACKET = 16; 
   
   /**
-   * \ingroup rpc_internal
+   * \internal
+   * \ingroup rpc
    * 
    * Used to identify that this packet was 
    * a reply to a previous request.
@@ -58,8 +62,9 @@ namespace graphlab {
   const unsigned char REPLY_PACKET = 32;
 
   /**
-   * \ingroup rpc_internal
-   *
+   * \internal
+   * \ingroup rpc
+   * 
    * Used to identify that this packet is
    * serialized using a POD mechanism;
    */

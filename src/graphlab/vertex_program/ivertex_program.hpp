@@ -23,17 +23,6 @@
  *
  */
 
-/**
- * Also contains code that is Copyright 2011 Yahoo! Inc.  All rights
- * reserved.  
- *
- * Contributed under the iCLA for:
- *    Joseph Gonzalez (jegonzal@yahoo-inc.com) 
- *
- */
-
-
-
 #ifndef GRAPHLAB_IVERTEX_PROGRAM_HPP
 #define GRAPHLAB_IVERTEX_PROGRAM_HPP
 
@@ -48,17 +37,61 @@
 namespace graphlab {
   
   /**
+   * \brief The ivertex_program class defines the vertex program
+   * interface that all vertex programs should extend and implement.
+   *
+   * Overview
+   * ==================
+   *
    * A vertex program represents the primary user define computation
    * in graphlab.  A unique instance of the vertex program is run on
    * each vertex in the graph and can interact with neighboring vertex
    * programs through the gather and scatter functions as well as by
-   * messaging.
+   * messaging.  The vertex program's state is persistent throughout
+   * the execution of the GraphLab program.
    *
+   * Vertex programs express computation by implementing what we call
+   * the *Gather-Apply-Scatter (GAS)* model which decomposes the
+   * vertex program into a parallel gather phase, followed by an
+   * atomic apply phase, and finally a parallel scatter phase.  This
+   * decomposition allows us to execute a single vertex program on
+   * several machines simultaneously and move computation to the data.
+   *
+   * \code
+   * For vertex vtx:
+   *   // At Program Start
+   *   vprog.init(ctx, vtx);
+   *   // During execution:
+   *   if( there is a message for vtx ) {
+   *     vprog.recv_message(ctx, vtx, msg);
+   *     // Gather Phase: 
+   *     vprog::gather_type sum;
+   *     ParallelFor(adjacent edges in direction vprog.gather_edges(ctx, vtx) )
+   *       sum += vprog.gather(ctx, vtx, edge);
+   *     // Apply Phase
+   *     vprog.apply(ctx, vtx, sum);
+   *     // Scatter Phase
+   *     ParallelFor(adjacent edges in direction vprog.scatter_edges(ctx, vtx) )
+   *       vprog.scatter(ctx, vtx, edge);
+   *   }
+   * \endcode
    *
    * All user define vertex programs must extend the ivertex_program
-   * interface and implement the gather, apply, and scatter
-   * functions. In addition, all vertex programs must provide the
-   * following types:
+   * interface and implement the ivertex_program::apply function.
+   * Most vertex programs will also implement the
+   * ivertex_program::gather and ivertex_program::scatter functions as
+   * well as the ivertex_program::init and
+   * ivertex_program::recv_message functions.
+   *
+   * The state of a vertex program persists between invocations of the
+   * GAS phases and is part of the engine which created the
+   * vertex-program.  However, GraphLab does not provide a mechanism
+   * for users to access vertex-program state and so any output
+   * computational state must be saved in the vertex or edge data of
+   * the graph.
+   *
+   * The vertex program depends on several key types which are
+   * template arguments to ivertex_program interface. 
    * 
    *   1) Graph: the type of graph used to store the data for this
    *      vertex program.  This is typically distributed_graph.
@@ -82,8 +115,17 @@ namespace graphlab {
 
     // User defined type members ==============================================
     /**
-     * The type of the vertex data which must be defined by the
-     * vertex-program.
+     * \brief The user defined vertex data type.  
+     *
+     * The vertex data is the data associated with each vertex in the
+     * graph.  Unlike the vertex-program the vertex data of adjacent
+     * vetices is visible to vertex programs during the gather and
+     * scatter phases. In addition at termination the vertex-data is
+     * accessible through the graph while the vertex-program state is
+     * not.
+     *
+     * The vertex data type must be serializable (see \ref
+     * serializable)
      */
     typedef typename Graph::vertex_data_type vertex_data_type;
 
@@ -142,7 +184,7 @@ namespace graphlab {
      * with the engine and provides facilities for sending messages,
      * posting deltas, and accessing engine state.
      */
-    typedef icontext<vertex_type, gather_type, message_type, vertex_id_type> icontext_type;
+    typedef icontext<graph_type, gather_type, message_type> icontext_type;
    
     // Functions ==============================================================
     virtual ~ivertex_program() { }

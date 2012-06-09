@@ -7,6 +7,8 @@ namespace graphlab{
 namespace dc_impl {
  
 /**
+ * \ingroup rpc
+ * \internal
  * A circular buffer which maintains a parallel sequence of iovecs.
  * One sequence is basic iovecs
  * The other sequence is used for storing the original unomidifed pointers

@@ -1,4 +1,4 @@
-/**  
+/*  
  * Copyright (c) 2009 Carnegie Mellon University. 
  *     All rights reserved.
  *
@@ -68,7 +68,7 @@ namespace dc_impl {
 
 
 
-/**
+/*
  * This macro generates dispatch functions for functions for rpc calls
  * with up to 6 arguments.
  *

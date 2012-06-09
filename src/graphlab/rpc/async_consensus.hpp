@@ -1,4 +1,4 @@
-/**  
+/* 
  * Copyright (c) 2009 Carnegie Mellon University. 
  *     All rights reserved.
  *
@@ -125,6 +125,25 @@ namespace graphlab {
     /// Wakes up one thread waiting in done()
     void cancel_one(size_t cpuid);
 
+    /// Returns true if consensus is achieved.
+    bool is_done() const {
+      return done;
+    }
+    /** Resets the consensus object. Must be called simultaneously by
+     * exactly one thread on each machine.
+     * This function is not safe to call while consensus is being achieved.
+     */
+    void reset();
+ 
+  private:
+
+    /**
+     * The token object that is passed around the machines.
+     * It counts the total number of RPC calls that has been sent
+     * or received, as well as the machine which last changed the value.
+     * When the token goes one full round with no change, consensus is
+     * achieved.
+     */
     struct token {
       size_t total_calls_sent;
       size_t total_calls_received;
@@ -137,12 +156,8 @@ namespace graphlab {
         iarc >> total_calls_sent >> total_calls_received >> last_change;
       }
     };
- 
-    bool is_done() const {
-      return done;
-    }
- 
-  private:
+
+    
     dc_dist_object<async_consensus> rmi;
     const dc_impl::dc_dist_object_base* attachedobj;
   

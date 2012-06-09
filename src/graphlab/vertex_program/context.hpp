@@ -35,68 +35,46 @@ namespace graphlab {
 
   /**
    * \brief The context object mediates the interaction between the
-   * vertex program and the graphlab execution environment.
+   * vertex program and the graphlab execution environment and
+   * implements the \ref icontext interface.
    *
-   * Each of the vertex program methods is passed a reference to the
-   * engine's context.  
+   * \tparam Engine the engine that is using this context.
    */
   template<typename Engine>
   class context : 
-    public icontext<typename Engine::vertex_type,
+    public icontext<typename Engine::graph_type,
                     typename Engine::gather_type,
-                    typename Engine::message_type,
-                    typename Engine::vertex_id_type> {
+                    typename Engine::message_type> {
   public:
     // Type members ===========================================================
-
+    /** The engine that created this context object */
     typedef Engine engine_type;
 
-    /** the graph type used by this context */
-    typedef typename engine_type::graph_type graph_type;
-    typedef typename graph_type::vertex_id_type vertex_id_type;
-    typedef typename graph_type::lvid_type lvid_type;
-
-    /** The type of the user-defined vertex program */
-    typedef typename engine_type::vertex_program_type vertex_program_type;
-
     /** The parent type */
-    typedef icontext<typename Engine::vertex_type,
+    typedef icontext<typename Engine::graph_type,
                      typename Engine::gather_type,
-                     typename Engine::message_type,
-                     typename Engine::vertex_id_type> icontext_type;
+                     typename Engine::message_type> icontext_type;
+    typedef typename icontext_type::graph_type graph_type;
+    typedef typename icontext_type::vertex_id_type vertex_id_type;
+    typedef typename icontext_type::vertex_type vertex_type;   
+    typedef typename icontext_type::message_type message_type;
+    typedef typename icontext_type::gather_type gather_type;
 
-
-    /** 
-     * The opaque vertex object type 
-     * TODO: add a reference back to the graph type
-     */
-    typedef typename vertex_program_type::vertex_type vertex_type;   
-
-    /**
-     * The message type specified by the user-defined vertex-program.
-     * TODO: add a reference back to vertex program type
-     */
-    typedef typename vertex_program_type::message_type message_type;
-
-    /**
-     * The type returned by the gather operation.
-     * TODO: add a reference back to vertex program type
-     */
-    typedef typename vertex_program_type::gather_type gather_type;
 
 
   private:
+    /** A reference to the engine that created this context */
     engine_type& engine;
+    /** A reference to the graph that is being operated on by the engine */
     graph_type& graph;
        
   public:        
-
+    /** 
+     * \brief Construct a context for a particular engine and graph pair.
+     */
     context(engine_type& engine, graph_type& graph) : 
       engine(engine), graph(graph) { }
-    
-    /**
-     * \copydoc icontext::num_vertices
-     */
+
     size_t num_vertices() const { return graph.num_vertices(); }
 
     /**

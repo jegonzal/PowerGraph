@@ -102,15 +102,6 @@ int main(int argc, char** argv) {
   }
 
 
-  { 
-    ti.start();
-    
-    iarchive iarc(chstream->c_str(), chstream->size());
-    iarc >> testvec;
-    std::cout << "Direct Read from buffer at " << testlen * sizeof(a) / ti.current_time()/ (1024 * 1024) << " MBps" << std::endl;
-  }
-
-
   {
     ti.start();
     oarchive oarc(strm);

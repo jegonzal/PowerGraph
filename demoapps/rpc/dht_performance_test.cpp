@@ -20,17 +20,9 @@ std::string randstring(size_t len) {
 }
 
 int main(int argc, char ** argv) {
-  //mpi_tools::init(argc, argv);
-  global_logger().set_log_level(LOG_INFO);
-
-  dc_init_param param;
   mpi_tools::init(argc, argv);
-  if (!init_param_from_mpi(param)) {
-    return 0;
-  }
+  distributed_control dc;
   
-  global_logger().set_log_level(LOG_DEBUG);
-  distributed_control dc(param);
   std::cout << "I am machine id " << dc.procid() 
             << " in " << dc.numprocs() << " machines"<<std::endl;
   dht<std::string, std::string> testdht(dc);

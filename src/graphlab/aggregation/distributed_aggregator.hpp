@@ -145,21 +145,27 @@ namespace graphlab {
       virtual ~imap_reduce_base() { }
     };
     
+    template <typename ReductionType>
+    struct default_map_types{
+      typedef ReductionType (*vertex_map_type)(icontext_type&, vertex_type&);
+      typedef ReductionType (*edge_map_type)(icontext_type&, edge_type&);
+    };
+
     /**
      * \internal
      * A templated implementation of the imap_reduce_base above.
      * \tparam ReductionType The reduction type. (The type the map function
      *                        returns)
      */
-    template <typename ReductionType>
+    template <typename ReductionType, 
+              typename VertexMapperType,
+              typename EdgeMapperType,
+              typename FinalizerType>
     struct map_reduce_type : public imap_reduce_base {
       conditional_addition_wrapper<ReductionType> acc;
-      boost::function<ReductionType(icontext_type&, vertex_type&)>
-                                                            map_vtx_function;
-      boost::function<ReductionType(icontext_type&, edge_type&)>
-                                                            map_edge_function;
-      boost::function<void(icontext_type&, const ReductionType&)>
-                                                            finalize_function;
+      VertexMapperType map_vtx_function;
+      EdgeMapperType map_edge_function;
+      FinalizerType finalize_function;
       
       bool vertex_map;
       mutex lock;
@@ -167,25 +173,21 @@ namespace graphlab {
       /**
        * \brief Constructor which constructs a vertex reduction
        */
-      map_reduce_type(
-            boost::function<ReductionType(icontext_type&,
-                                          vertex_type&)> map_vtx_function,
-            boost::function<void(icontext_type&,
-                                  const ReductionType&)> finalize_function)
+      map_reduce_type(VertexMapperType map_vtx_function,
+                      FinalizerType finalize_function)
                 : map_vtx_function(map_vtx_function),
+                  map_edge_function(NULL),
                   finalize_function(finalize_function), vertex_map(true) { }
 
       /**
        * \brief Constructor which constructs an edge reduction. The last bool
        * is unused and allows for disambiguation between the two constructors
        */
-      map_reduce_type(
-            boost::function<ReductionType(icontext_type&,
-                                          edge_type&)> map_edge_function,
-            boost::function<void(icontext_type&,
-                                  const ReductionType&)> finalize_function,
-            bool)
-                : map_edge_function(map_edge_function),
+      map_reduce_type(EdgeMapperType map_edge_function,
+                      FinalizerType finalize_function,
+                      bool)
+                : map_vtx_function(NULL),
+                map_edge_function(map_edge_function),
                 finalize_function(finalize_function), vertex_map(false) { }
 
 
@@ -220,7 +222,7 @@ namespace graphlab {
 
       void add_accumulator(imap_reduce_base* other) {
         lock.lock();
-        acc += dynamic_cast<map_reduce_type<ReductionType>*>(other)->acc;
+        acc += dynamic_cast<map_reduce_type*>(other)->acc;
         lock.unlock();
       }
 
@@ -233,15 +235,15 @@ namespace graphlab {
       }
       
       imap_reduce_base* clone_empty() const {
-        map_reduce_type<ReductionType>* copy;
+        map_reduce_type* copy;
         if (is_vertex_map()) {
-          copy = new map_reduce_type<ReductionType>(map_vtx_function,
-                                                    finalize_function);
+          copy = new map_reduce_type(map_vtx_function,
+                                     finalize_function);
         }
         else {
-          copy = new map_reduce_type<ReductionType>(map_edge_function,
-                                                    finalize_function,
-                                                    true);
+          copy = new map_reduce_type(map_edge_function,
+                                     finalize_function,
+                                     true);
         }
         return copy;
       }
@@ -306,16 +308,19 @@ namespace graphlab {
      * \warning Pay attention to the types! A slightly erroneous type
      *          can produce screens of errors.
      */
-    template <typename ReductionType>
+    template <typename ReductionType, 
+              typename VertexMapperType, 
+              typename FinalizerType>
     bool add_vertex_aggregator(const std::string& key,
-      boost::function<ReductionType(icontext_type&,
-                                    vertex_type&)> map_function,
-      boost::function<void(icontext_type&,
-                           const ReductionType&)> finalize_function) {
+                               VertexMapperType map_function,
+                               FinalizerType finalize_function) {
       if (key.length() == 0) return false;
       if (aggregators.count(key) == 0) {
-        aggregators[key] = new map_reduce_type<ReductionType>(map_function, 
-                                                              finalize_function);
+        aggregators[key] = new map_reduce_type<ReductionType,
+                                               VertexMapperType,
+                                               typename default_map_types<ReductionType>::edge_map_type,
+                                               FinalizerType>(map_function, 
+                                                             finalize_function);
         return true;
       }
       else {
@@ -324,7 +329,31 @@ namespace graphlab {
       }
     }
     
-    
+#if defined(__cplusplus) && __cplusplus >= 201103L
+    template <typename VertexMapperType, 
+              typename FinalizerType>
+    bool add_vertex_aggregator(const std::string& key,
+                               VertexMapperType map_function,
+                               FinalizerType finalize_function) {
+      //typedef decltype(map_function(*context,graph.vertex(0))) ReductionType;
+      typedef decltype(map_function(*context, graph.vertex(0))) ReductionType;
+      if (key.length() == 0) return false;
+      if (aggregators.count(key) == 0) {
+        aggregators[key] = new map_reduce_type<ReductionType,
+                                               VertexMapperType,
+                                               typename default_map_types<ReductionType>::edge_map_type,
+                                               FinalizerType>(map_function, 
+                                                             finalize_function);
+        return true;
+      }
+      else {
+        // aggregator already exists. fail 
+        return false;
+      }
+    }
+#endif
+
+
     /** \brief Creates a edge aggregator. Returns true on success.
      *         Returns false if an aggregator of the same name already exists
      *
@@ -348,17 +377,20 @@ namespace graphlab {
      * \warning Pay attention to the types! A slightly erroneous type
      *          can produce screens of errors
      */
-    template <typename ReductionType>
+    template <typename ReductionType,
+              typename EdgeMapperType,
+              typename FinalizerType>
     bool add_edge_aggregator(const std::string& key,
-      boost::function<ReductionType(icontext_type&,
-                                    edge_type&)> map_function,
-      boost::function<void(icontext_type&,
-                           const ReductionType&)> finalize_function) {
+                             EdgeMapperType map_function,
+                             FinalizerType finalize_function) {
       if (key.length() == 0) return false;
       if (aggregators.count(key) == 0) {
-        aggregators[key] = new map_reduce_type<ReductionType>(map_function, 
-                                                              finalize_function, 
-                                                              true);
+        aggregators[key] = new map_reduce_type<ReductionType, 
+                                            typename default_map_types<ReductionType>::vertex_map_type,
+                                            EdgeMapperType, 
+                                            FinalizerType>(map_function, 
+                                                           finalize_function, 
+                                                           true);
         return true;
       }
       else {
@@ -367,6 +399,30 @@ namespace graphlab {
       }
     }
     
+#if defined(__cplusplus) && __cplusplus >= 201103L
+    template <typename EdgeMapperType,
+              typename FinalizerType>
+    bool add_edge_aggregator(const std::string& key,
+                             EdgeMapperType map_function,
+                             FinalizerType finalize_function) {
+      // an edge_type is actually hard to get
+      typedef decltype(map_function(*context, edge_type(graph.l_vertex(0).in_edges()[0]) )) ReductionType;
+      if (key.length() == 0) return false;
+      if (aggregators.count(key) == 0) {
+        aggregators[key] = new map_reduce_type<ReductionType, 
+                                            typename default_map_types<ReductionType>::vertex_map_type,
+                                            EdgeMapperType, 
+                                            FinalizerType>(map_function, 
+                                                           finalize_function, 
+                                                           true);
+        return true;
+      }
+      else {
+        // aggregator already exists. fail 
+        return false;
+      }
+    }
+#endif
     
     /**
      * Performs an immediate aggregation on a key. All machines must
@@ -377,6 +433,7 @@ namespace graphlab {
      * \return False if key not found, True on success.
      */
     bool aggregate_now(const std::string& key) {
+      ASSERT_MSG(graph.is_finalized(), "Graph must be finalized");
       if (aggregators.count(key) == 0) {
         ASSERT_MSG(false, "Requested aggregator %s not found", key.c_str());
         return false;
@@ -394,7 +451,7 @@ namespace graphlab {
 #ifdef _OPENMP
         #pragma omp for
 #endif
-          for (int i = 0;i < (int)graph.num_local_vertices(); ++i) {
+          for (int i = 0; i < (int)graph.num_local_vertices(); ++i) {
             local_vertex_type lvertex = graph.l_vertex(i);
             if (lvertex.owner() == rmi.procid()) {
               vertex_type vertex(lvertex);
@@ -403,7 +460,10 @@ namespace graphlab {
           }
         }
         else {
-          for (int i = 0;i < (int)graph.num_local_vertices(); ++i) {
+#ifdef _OPENMP
+        #pragma omp for
+#endif
+          for (int i = 0; i < (int)graph.num_local_vertices(); ++i) {
             foreach(local_edge_type e, graph.l_vertex(i).in_edges()) {
               edge_type edge(e);
               localmr->perform_map_edge(*context, edge);
@@ -517,7 +577,7 @@ namespace graphlab {
                                                         (int)rmi.numprocs();
           
           async_state[iter->first].per_thread_aggregation.resize(ncpus);
-          for (size_t i = 0;i < ncpus; ++i) {
+          for (size_t i = 0; i < ncpus; ++i) {
             async_state[iter->first].per_thread_aggregation[i] =
                                     aggregators[iter->first]->clone_empty();
           }
@@ -798,6 +858,143 @@ namespace graphlab {
       }
       return ret;
     }
+    
+    
+    
+    
+    template <typename ResultType, typename MapFunctionType>
+    ResultType map_reduce_vertices(MapFunctionType mapfunction) {
+      ASSERT_MSG(graph.is_finalized(), "Graph must be finalized");
+      rmi.barrier();
+      bool global_result_set = false;
+      ResultType global_result = ResultType();
+#ifdef _OPENMP
+#pragma omp parallel
+#endif
+      {
+        bool result_set = false;
+        ResultType result = ResultType();
+#ifdef _OPENMP
+        #pragma omp for
+#endif
+        for (int i = 0; i < (int)graph.num_local_vertices(); ++i) {
+          if (graph.l_vertex(i).owner() == rmi.procid()) {
+            if (!result_set) {
+              vertex_type vtx(graph.l_vertex(i));
+              result = mapfunction(*context, vtx);
+              result_set = true;
+            }
+            else if (result_set){
+              vertex_type vtx(graph.l_vertex(i));
+              result += mapfunction(*context, vtx);
+            }
+          }
+        }
+#ifdef _OPENMP
+        #pragma omp critical
+#endif
+        {
+          if (!global_result_set) {
+            global_result = result;
+            global_result_set = true;
+          }
+          else {
+            global_result += result;
+          }
+        }
+      }
+      conditional_addition_wrapper<ResultType> wrapper(global_result, global_result_set);
+      rmi.all_reduce(wrapper);
+      return wrapper.value;
+    }
+
+
+  
+    template <typename ResultType, typename MapFunctionType>
+    ResultType map_reduce_edges(MapFunctionType mapfunction) {
+      ASSERT_MSG(graph.is_finalized(), "Graph must be finalized");
+      rmi.barrier();
+      bool global_result_set = false;
+      ResultType global_result = ResultType();
+#ifdef _OPENMP
+#pragma omp parallel
+#endif
+      {
+        bool result_set = false;
+        ResultType result = ResultType();
+#ifdef _OPENMP
+        #pragma omp for
+#endif
+        for (int i = 0; i < (int)graph.num_local_vertices(); ++i) {
+          foreach(const local_edge_type& e, graph.l_vertex(i).in_edges()) {
+            if (!result_set) {
+              edge_type edge(e);
+              result = mapfunction(*context, edge);
+              result_set = true;
+            }
+            else if (result_set){
+              edge_type edge(e);
+              result += mapfunction(*context, edge);
+            }
+          }
+        }
+#ifdef _OPENMP
+        #pragma omp critical
+#endif
+        {
+         if (!global_result_set) {
+            global_result = result;
+            global_result_set = true;
+          }
+          else {
+            global_result += result;
+          }
+        }
+      }
+
+      conditional_addition_wrapper<ResultType> wrapper(global_result, global_result_set);
+      rmi.all_reduce(wrapper);
+      return wrapper.value;
+    }
+
+    template <typename TransformType>
+    void transform_vertices(TransformType transform_functor) {
+      ASSERT_MSG(graph.is_finalized(), "Graph must be finalized");
+      rmi.barrier();
+#ifdef _OPENMP
+      #pragma omp parallel for
+#endif
+      for (int i = 0; i < (int)graph.num_local_vertices(); ++i) {
+        if (graph.l_vertex(i).owner() == rmi.procid()) {
+          vertex_type vtx(graph.l_vertex(i));
+          transform_functor(*context, vtx);
+        }
+      }
+      rmi.barrier();
+      graph.synchronize();
+    }
+
+
+    template <typename TransformType>
+    void transform_edges(TransformType transform_functor) {
+      ASSERT_MSG(graph.is_finalized(), "Graph must be finalized");
+      rmi.barrier();
+#ifdef _OPENMP
+      #pragma omp parallel for
+#endif
+      for (int i = 0; i < (int)graph.num_local_vertices(); ++i) {
+        foreach(const local_edge_type& e, graph.l_vertex(i).in_edges()) {
+          edge_type edge(e);
+          transform_functor(*context, edge);
+        }
+      }
+      rmi.barrier();
+    }
+    
+    
+    
+    
+    
     ~distributed_aggregator() {
       delete context;
     }

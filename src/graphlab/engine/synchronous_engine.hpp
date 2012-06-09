@@ -70,13 +70,12 @@ namespace graphlab {
    * should implement the \ref graphlab::ivertex_program interface.   
    *
    *  
-   * Execution Semantics
-   * =====================
+   * ### Execution Semantics
    * 
-   * On start the \ref graphlab::ivertex_program::init function is invoked on 
-   * all vertex programs in parallel to initialize the vertex program, 
-   * vertex data, and possibly signal vertices (given the value of the
-   * vertex data).  The engine then proceeds to execute a sequence of 
+   * On start() the \ref graphlab::ivertex_program::init function is invoked
+   * on all vertex programs in parallel to initialize the vertex program,
+   * vertex data, and possibly signal vertices.
+   * The engine then proceeds to execute a sequence of
    * super-steps (iterations) each of which is further decomposed into a 
    * sequence of minor-steps which are also executed synchronously:
    * \li Receive all incoming messages (signals) by invoking the 
@@ -106,8 +105,7 @@ namespace graphlab {
    * program or vertex data and therefore can be executed on multiple
    * edges in parallel.  
    * 
-   * Construction
-   * =====================
+   * ### Construction
    *
    * The synchronous engine is constructed by passing in a 
    * \ref graphlab::distributed_control object which manages coordination 
@@ -124,12 +122,11 @@ namespace graphlab {
    * computation is initiated by calling the 
    * \ref graphlab::synchronous_engine::start function. 
    * 
-   * Example Usage
-   * =====================
+   * ### Example Usage
    *
    * The following is a simple example demonstrating how to use the engine:
    * \code
-   * #inclue <graphlab.hpp>
+   * #include <graphlab.hpp>
    * 
    * struct vertex_data { 
    *   // code
@@ -140,7 +137,7 @@ namespace graphlab {
    * typedef graphlab::distributed_graph<vertex_data, edge_data> graph_type;
    * typedef float gather_type;
    * struct pagerank_vprog : 
-   *   public graphlab::ivertex_program<graph_type, gather_type> { 
+   *   public graphlab::ivertex_program<graph_type, gather_type> {
    *   // code
    * };
    * 
@@ -158,7 +155,7 @@ namespace graphlab {
    *     return EXIT_FAILURE;
    *   }
    *   graph_type graph(dc, clopts);
-   *   graph.load_format(graph_dir, "tsv");
+   *   graph.load_structure(graph_dir, "tsv");
    *   graph.finalize();
    *   std::cout << "#vertices: " << graph.num_vertices() 
    *             << " #edges:" << graph.num_edges() << std::endl;
@@ -169,7 +166,8 @@ namespace graphlab {
    *   graphlab::mpi_tools::finalize();
    * }
    * \endcode
-   * 
+   *
+   * \see graphlab::async_consistent_engine
    */
   template<typename VertexProgram>
   class synchronous_engine : 
@@ -177,7 +175,8 @@ namespace graphlab {
 
   public:
     /**
-     * \brief The user defined vertex program type.
+     * \brief The user defined vertex program type. Equivalent to the
+     * VertexProgram template argument.
      * 
      * The user defined vertex program type which should implement the
      * \ref graphlab::ivertex_program interface.
@@ -263,8 +262,7 @@ namespace graphlab {
      * used to signal other vertices, get the current iteration, and access
      * information about the engine.
      */
-    typedef icontext<vertex_type, gather_type, message_type, vertex_id_type> 
-    icontext_type;
+    typedef icontext<graph_type, gather_type, message_type> icontext_type;
            
   private:
 
@@ -536,7 +534,7 @@ namespace graphlab {
      * been reached. If perform_init is set to true then the init
      * function is called once on all vertex programs at start.
      * 
-     * The starte function modifies the data graph through the vertex
+     * The start() function modifies the data graph through the vertex
      * programs and so upon return the data graph should contain the
      * result of the computation.
      *
@@ -548,111 +546,25 @@ namespace graphlab {
      */
     execution_status::status_enum start(bool perform_init = true);
 
-    /**
-     * \brief Compute the total number of updates (calls to apply)
-     * executed since start was last invoked.
-     *
-     * @return Total number of updates
-     */
+    // documentation inherited from iengine
     size_t num_updates() const;
 
-    /**
-     * \brief Signals single a vertex with an optional message.
-     * 
-     * This function sends a message to particular vertex which will
-     * receive that message on start. The signal function must be
-     * invoked on all machines simultaneously.  For example:
-     *
-     * \code
-     * graphlab::synchronous_engine<vprog> engine(dc, graph, opts);
-     * engine.signal(0); // signal vertex zero
-     * \endcode
-     *
-     * and _not_:
-     *
-     * \code
-     * graphlab::synchronous_engine<vprog> engine(dc, graph, opts);
-     * if(dc.procid() == 0) engine.signal(0); // signal vertex zero
-     * \endcode
-     *
-     * Since signal is executed synchronously on all machines it
-     * should only be used to schedule a small set of vertices. The
-     * preferred method to signal a large set of vertices (e.g., all
-     * vertices that are a certain type) is to use either the vertex
-     * program init function or the aggregation framework.  For
-     * example to signal all vertices that have a particular value one
-     * could write:
-     *
-     * \code
-     * struct bipartite_opt : 
-     *   public graphlab::ivertex_program<graph_type, gather_type> {
-     *   // The user defined init function
-     *   void init(icontext_type& context, vertex_type& vertex) {
-     *     // Signal myself if I am a certain type
-     *     if(vertex.data().on_left) context.signal(vertex);
-     *   }
-     *   // other vastly more interesting code
-     * };
-     * \endcode
-     *
-     * @param [in] vid the vertex id to signal
-     * @param [in] message the message to send to that vertex.  The
-     * default message is sent if no message is provided.
-     */
+    // documentation inherited from iengine
     void signal(vertex_id_type vid,
                 const message_type& message = message_type());
     
-
-    /**
-     * \brief Signal all vertices with a particular message.
-     * 
-     * This function sends the same message to all vertices which will
-     * receive that message on start. The signal_all function must be
-     * invoked on all machines simultaneously.  For example:
-     *
-     * \code
-     * graphlab::synchronous_engine<vprog> engine(dc, graph, opts);
-     * engine.signal_all(); // signal all vertices
-     * \endcode
-     *
-     * and _not_:
-     *
-     * \code
-     * graphlab::synchronous_engine<vprog> engine(dc, graph, opts);
-     * if(dc.procid() == 0) engine.signal_all(); // signal vertex zero
-     * \endcode
-     *
-     * The signal_all function is the most common way to send messages
-     * to the engine.  For example in the pagerank application we want
-     * all vertices to be active on the first round.  Therefore we
-     * would write:
-     *
-     * \code
-     * graphlab::synchronous_engine<pagerank> engine(dc, graph, opts);
-     * engine.signal_all();
-     * engine.start();
-     * \endcode
-     *
-     * @param [in] message the message to send to all vertices.  The
-     * default message is sent if no message is provided.
-     */
+    // documentation inherited from iengine
     void signal_all(const message_type& message = message_type(),
                     const std::string& order = "sequential");
 
-    /** 
-     * \brief Get the elapsed time in seconds since start was last
-     * invoked.
-     *  
-     * 
-     * @return elapsed time in seconds
-     */
+    // documentation inherited from iengine
     float elapsed_seconds() const;
     
     /**
      * \brief Get the current iteration number since start was last
      * invoked.
      *
-     *  @return the current iteration
+     *  \return the current iteration
      */
     int iteration() const; 
 
@@ -665,9 +577,6 @@ namespace graphlab {
      */
     size_t total_memory_usage() const;
 
-
-  private:
-
     /**
      * \brief Get a pointer to the distributed aggregator object. 
      *
@@ -677,6 +586,8 @@ namespace graphlab {
      * @return a pointer to the local aggregator.
      */
     aggregator_type* get_aggregator();
+
+  private:
 
     /**
      * \brief This internal stop function is called by the \ref graphlab::context to
@@ -911,7 +822,25 @@ namespace graphlab {
 
 
 
-
+ /**
+     * Constructs an synchronous distributed engine.
+     * The number of threads to create are read from
+     * opts::get_ncpus().
+     *
+     * Valid engine options (graphlab_options::get_engine_args()):
+     * \arg \c max_iterations Sets the maximum number of iterations the
+     * engine will run for. 
+     * \arg \c use_cache If set to true, partial gathers are cached.
+     * See \ref gather_caching to understand the behavior of the
+     * gather caching model and how it may be used to accelerate program
+     * performance.
+     *
+     * \param dc Distributed controller to associate with
+     * \param graph The graph to schedule over. The graph must be fully
+     *              constructed and finalized.
+     * \param opts A graphlab_options object containing options and parameters
+     *             for the engine.
+     */
   template<typename VertexProgram>
   synchronous_engine<VertexProgram>::
   synchronous_engine(distributed_control &dc, 
@@ -933,7 +862,7 @@ namespace graphlab {
       } else if (opt == "use_cache") {
         opts.get_engine_args().get_option("use_cache", use_cache);
       } else {
-        logstream(LOG_ERROR) << "Unexpected Engine Option: " << opt << std::endl;
+        logstream(LOG_FATAL) << "Unexpected Engine Option: " << opt << std::endl;
       }
     }
     // Finalize the graph
@@ -1140,9 +1069,6 @@ namespace graphlab {
       has_gather_accum.clear(); 
       rmi.barrier();
 
-      // probe the aggregator
-      aggregator.tick_synchronous();
-
       // Exchange Messages --------------------------------------------------
       // Exchange any messages in the local message vectors
       run_synchronous( &synchronous_engine::exchange_messages );
@@ -1173,7 +1099,8 @@ namespace graphlab {
       size_t total_active_vertices = num_active_vertices; 
       rmi.all_reduce(total_active_vertices);
       if (rmi.procid() == 0) 
-        std::cout << "\tActive vertices: " << total_active_vertices << std::endl;
+        logstream(LOG_INFO)
+          << "\tActive vertices: " << total_active_vertices << std::endl;
       if(total_active_vertices == 0 ) {
         termination_reason = execution_status::TASK_DEPLETION;
         break;
@@ -1218,6 +1145,10 @@ namespace graphlab {
        * Post conditions:
        *   1) NONE
        */
+
+      // probe the aggregator
+      aggregator.tick_synchronous();
+
       ++iteration_counter;
     }
     // Final barrier to ensure that all engines terminate at the same time

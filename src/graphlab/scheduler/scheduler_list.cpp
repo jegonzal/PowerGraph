@@ -23,7 +23,6 @@
 
 #include <algorithm>
 #include <graphlab/scheduler/scheduler_list.hpp>
-#include <graphlab/graph/graph.hpp>
 #include <graphlab/engine/iengine.hpp>
 #include <graphlab/util/stl_util.hpp>
 

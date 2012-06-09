@@ -103,7 +103,7 @@ namespace graphlab {
       vertex_id_type num_in_edges, num_out_edges;
       procid_t owner;
       vertex_negotiator_record() : 
-        num_in_edges(0), num_out_edges(0), owner(-1) { }
+        vdata(vertex_data_type()), num_in_edges(0), num_out_edges(0), owner(-1) { }
       void load(iarchive& arc) { 
         arc >> num_in_edges >> num_out_edges >> owner >> mirrors >> vdata;
       }
@@ -180,9 +180,9 @@ namespace graphlab {
       // Flush any additional data
       edge_exchange.flush(); vertex_exchange.flush();     
       if(rpc.procid() == 0)       
-        memory_info::print_usage("Post Flush");
+        memory_info::log_usage("Post Flush");
 
-      logstream(LOG_INFO) << "Graph Finalize: constructing local graph" << std::endl;
+      logstream(LOG_EMPH) << "Graph Finalize: constructing local graph" << std::endl;
       { // Add all the edges to the local graph
         const size_t nedges = edge_exchange.size()+1;
         graph.local_graph.reserve_edge_space(nedges + 1);      
@@ -211,21 +211,21 @@ namespace graphlab {
       }
 
       if(rpc.procid() == 0) 
-        memory_info::print_usage("Finished populating graphlab2");
+        memory_info::log_usage("Finished populating local graph.");
       
       
       // Finalize local graph
-      logstream(LOG_INFO) << "Graph Finalize: finalizing local graph" 
+      logstream(LOG_EMPH) << "Graph Finalize: finalizing local graph." 
                           << std::endl;
       graph.local_graph.finalize();
-      logstream(LOG_INFO) << "Local graph info: " << std::endl
+      logstream(LOG_EMPH) << "Local graph info: " << std::endl
                           << "\t nverts: " << graph.local_graph.num_vertices()
                           << std::endl
                           << "\t nedges: " << graph.local_graph.num_edges()
                           << std::endl;
       
       if(rpc.procid() == 0)       
-        memory_info::print_usage("Finished finalizing graph2"); 
+        memory_info::log_usage("Finished finalizing local graph."); 
        
       // Setup the map containing all the vertices being negotiated by
       // this machine
@@ -242,7 +242,7 @@ namespace graphlab {
       } // end of loop to populate vrecmap
 
       if(rpc.procid() == 0)         
-        memory_info::print_usage("Emptied vertex data exchange");
+        memory_info::log_usage("Emptied vertex data exchange");
 
 
 
@@ -290,10 +290,10 @@ namespace graphlab {
       }
 
       if(rpc.procid() == 0) 
-        memory_info::print_usage("Exchanged basic vertex info");
+        memory_info::log_usage("Exchanged basic vertex info");
 
       { // Determine masters for all negotiated vertices
-        logstream(LOG_INFO) 
+        logstream(LOG_EMPH) 
           << "Graph Finalize: Constructing and sending vertex assignments" 
           << std::endl;
         std::vector<size_t> counts(rpc.numprocs()); 
@@ -331,7 +331,7 @@ namespace graphlab {
         } // end of loop over all vertex negotiation records
 
         if(rpc.procid() == 0) 
-          memory_info::print_usage("Finished computing masters");
+          memory_info::log_usage("Finished computing masters");
 
         { // Initialize vertex records
           graph.lvid2record.reserve(graph.vid2lvid.size() + num_singletons);
@@ -343,7 +343,7 @@ namespace graphlab {
           graph.local_graph.reserve(graph.local_graph.num_vertices() + num_singletons);
         }
         if(rpc.procid() == 0)       
-          memory_info::print_usage("Finished lvid2record");
+          memory_info::log_usage("Finished lvid2record");
 
 
         // Exchange the negotiation records
@@ -434,7 +434,7 @@ namespace graphlab {
       } // end of master exchange
 
       if(rpc.procid() == 0) 
-        memory_info::print_usage("Finished sending updating mirrors");
+        memory_info::log_usage("Finished sending updating mirrors");
 
 
       ASSERT_EQ(graph.vid2lvid.size(), graph.local_graph.num_vertices());
@@ -446,7 +446,7 @@ namespace graphlab {
         if(record.owner == rpc.procid()) ++graph.local_own_nverts;
 
       // Finalize global graph statistics. 
-      logstream(LOG_INFO)
+      logstream(LOG_EMPH)
         << "Graph Finalize: exchange global statistics " << std::endl;
 
       // Compute edge counts
