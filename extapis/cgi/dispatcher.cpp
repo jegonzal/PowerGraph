@@ -225,9 +225,9 @@ struct dispatcher_writer {
   }
 };
 
-bool dispatcher_reader(dispatcher::graph_type& graph,
-                      const std::string& filename,
-                      const std::string& textline) {
+bool dispatcher::read_graph(graph_type& graph,
+                           const std::string& filename,
+                           const std::string& textline) {
   
   // skip blank lines
   if (textline.empty()) return true;
@@ -262,6 +262,8 @@ bool dispatcher_reader(dispatcher::graph_type& graph,
 ////////////////////////////////// MAIN METHOD /////////////////////////////////
 int main(int argc, char** argv) {
 
+  global_logger().set_log_level(LOG_INFO);
+
   // Initialize control plain using mpi
   graphlab::mpi_tools::init(argc, argv);
   graphlab::distributed_control dc;
@@ -276,7 +278,7 @@ int main(int argc, char** argv) {
   clopts.add_positional("graph");
   std::string format = "tsv";
   clopts.attach_option("format", &format, format,
-                       "The graph file format: {metis, snap, tsv, adj, bin}");
+                       "The graph file format: {metis, snap, tsv, adj, bin, cgi}");
   std::string program;
   clopts.attach_option("program", &program,
                        "The program to execute (required)");
@@ -286,17 +288,17 @@ int main(int argc, char** argv) {
                        "sequence of files with prefix saveprefix");
                        
   if(!clopts.parse(argc, argv)) {
-    std::cout << "Error in parsing command line arguments." << std::endl;
+    logstream(LOG_ERROR) << "Error in parsing command line arguments." << std::endl;
     return EXIT_FAILURE;
   }
   
   if(!clopts.is_set("program")) {
-    std::cout << "Program not provided." << std::endl;
+    logstream(LOG_ERROR) << "Program not provided." << std::endl;
     clopts.print_description();
     return EXIT_FAILURE;
   }
   
-  // Signal Handling -----------------------------------------------------------
+  // Signal handling -----------------------------------------------------------
   struct sigaction sa;
   std::memset(&sa, 0, sizeof(sa));
   sa.sa_handler = SIG_IGN;
@@ -304,19 +306,23 @@ int main(int argc, char** argv) {
   
   // Load graph ----------------------------------------------------------------
   logstream(LOG_INFO) << dc.procid() << ": Starting." << std::endl;
-  
-  logstream(LOG_INFO) << "Loading graph from " << graph_dir << std::endl;
+    
+  logstream(LOG_EMPH) << "Loading graph from " << graph_dir << std::endl;
   dispatcher::graph_type graph(dc, clopts);
-  graph.load(graph_dir, dispatcher_reader);
+  if (0 == format.compare("cgi")) graph.load(graph_dir, dispatcher::read_graph);
+  else graph.load_format(graph_dir, format);
   graph.finalize();
   
-  logstream(LOG_INFO) << "#vertices: " << graph.num_vertices()
+  logstream(LOG_EMPH) << "#vertices: " << graph.num_vertices()
                       << " #edges:" << graph.num_edges() << std::endl;
+  logstream(LOG_INFO) << "executable: " << program;
   
-  std::stringstream program_call;
-  program_call << program << "--num-edges=" << graph.num_edges() << "--num-vertices=" << graph.num_vertices();
-  process::set_executable(program_call.str());
-  logstream(LOG_INFO) << "executable: " << program_call.str();
+  process::set_executable(program);
+  
+  std::stringstream arg1; arg1 << "--num-vertices" << graph.num_vertices();
+  std::stringstream arg2; arg2 << "--num-edges" << graph.num_edges();
+  process::add_arg(arg1.str());
+  process::add_arg(arg2.str());
   
   // Schedule vertices
   logstream(LOG_INFO) << dc.procid() << ": Creating engine" << std::endl;

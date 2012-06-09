@@ -51,6 +51,14 @@ process::~process(){
 
 void process::redirect_io (){
 
+  // prepare args
+  char **cargs = new char*[args.size()];
+  unsigned i = 0;
+  for (std::vector<std::string>::iterator it=args.begin(); it!=args.end(); ++it){
+    cargs[i] = new char[it->length()+1];
+    snprintf(cargs[i++], it->length()+1, "%s", it->c_str());
+  }
+
   int opipefd[2];             // dispatcher -> child
   int ipipefd[2];             // dispatcher <- child
   CHECK (!::pipe(opipefd));   // assert pipe created
@@ -66,8 +74,11 @@ void process::redirect_io (){
     CHECK (0 <= ::dup2(ipipefd[1], 1));
     CHECK (!::close(opipefd[0]));
     CHECK (!::close(ipipefd[1]));
-    CHECK (0 <= execve(executable.c_str(), NULL, NULL));
+    CHECK (0 <= ::execv(executable.c_str(), cargs));
   } /* child process goes no further than here */
+  
+  for (i=0; i<args.size(); i++) delete[] cargs[i];
+  delete[] cargs;
 
   // parent process
   CHECK (!::close(opipefd[0]));
@@ -150,9 +161,14 @@ json_message& process::receive(json_message& message){
 
 const size_t process::PROC_ID = 2;
 std::string process::executable = "";
+std::vector<std::string> process::args;
 
 void process::set_executable(const std::string path){
   executable = path;
+}
+
+void process::add_arg(const std::string& arg){
+  args.push_back(arg);
 }
 
 process& process::get_process(){

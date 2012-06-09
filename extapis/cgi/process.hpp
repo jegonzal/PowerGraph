@@ -52,6 +52,9 @@ namespace graphlab {
     /** path to the executable */
     static std::string executable;
     
+    /** arguments for executable */
+    static std::vector<std::string> args;
+    
     io_service ios;
     
     /** output stream to write to process */
@@ -86,6 +89,9 @@ namespace graphlab {
   
     /** Sets the path to the executable */
     static void set_executable(const std::string path);
+    
+    /** Adds an argument to the child executable */
+    static void add_arg(const std::string& arg);
   
     /**
      * Retrieves the associated process for the current thread.
