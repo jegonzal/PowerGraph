@@ -170,7 +170,6 @@ bool graph_loader(graph_type& graph, const std::string& filename,
   source_id++; target_id++;
   target_id = -target_id;
   // Create an edge and add it to the graph
-  const edge_data edata(obs);
   graph.add_edge(source_id, target_id, obs); 
   return true; // successful load
 } // end of graph_loader

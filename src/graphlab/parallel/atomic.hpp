@@ -25,6 +25,7 @@
 #define GRAPHLAB_ATOMIC_HPP
 
 #include <stdint.h>
+#include <graphlab/serialization/serialization_includes.hpp>
 #include <graphlab/parallel/atomic_ops.hpp>
 
 namespace graphlab {
@@ -36,7 +37,7 @@ namespace graphlab {
    * A templated class for creating atomic numbers.
    */
   template<typename T>
-  class atomic {
+  class atomic : public IS_POD_TYPE {
   public:
     //! The current value of the atomic number
     volatile T value;

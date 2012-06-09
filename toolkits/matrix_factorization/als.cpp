@@ -46,7 +46,7 @@
  * synchronous engine.  However we plan to add support for alternative
  * engines in the future.
  */
-typedef graphlab::synchronous_engine<als_vertex_program> engine_type;
+typedef graphlab::omni_engine<als_vertex_program> engine_type;
 
 int main(int argc, char** argv) {
   global_logger().set_log_level(LOG_INFO);
@@ -122,7 +122,7 @@ int main(int argc, char** argv) {
   }
  
   std::cout << dc.procid() << ": Creating engine" << std::endl;
-  engine_type engine(dc, graph, clopts);
+  engine_type engine(dc, graph, clopts, "synchronous");
  
   // Run the PageRank ---------------------------------------------------------
   std::cout << "Running ALS" << std::endl;
