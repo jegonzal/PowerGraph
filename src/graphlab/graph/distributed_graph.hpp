@@ -590,22 +590,18 @@ namespace graphlab {
 
 
     /** \brief Load part of the distributed graph from a path*/
-    void load_binary(const std::string& path_arg, std::string& prefix) {  
+    void load_binary(const std::string& prefix) {
       rpc.full_barrier();
-      std::ostringstream ss;
-      ss << prefix << rpc.procid() << ".bin";
-      std::string fname = ss.str();
-      std::string path = path_arg;
-      if (path.substr(path.length()-1, 1) != "/")
-        path.append("/");
-      fname = path.append(fname);
+      std::string fname = prefix + tostr(rpc.procid()) + ".bin";
 
       logstream(LOG_INFO) << "Load graph from " << fname << std::endl;
       if(boost::starts_with(fname, "hdfs://")) {
         graphlab::hdfs hdfs;
         graphlab::hdfs::fstream in_file(hdfs, fname);
-        boost::iostreams::filtering_stream<boost::iostreams::input> fin;  
+        boost::iostreams::filtering_stream<boost::iostreams::input> fin;
+        fin.push(boost::iostreams::gzip_decompressor());
         fin.push(in_file);
+        
         if(!fin.good()) {
           logstream(LOG_FATAL) << "Error opening file: " << fname << std::endl;
           exit(-1);
@@ -613,12 +609,19 @@ namespace graphlab {
         iarchive iarc(fin);
         iarc >> *this;
         fin.pop();
+        fin.pop();
         in_file.close();
       } else {
-        std::ifstream fin(fname.c_str());
+        std::ifstream in_file(fname.c_str(),
+                              std::ios_base::in | std::ios_base::binary);
+        boost::iostreams::filtering_stream<boost::iostreams::input> fin;
+        fin.push(boost::iostreams::gzip_decompressor());
+        fin.push(in_file);
         iarchive iarc(fin);
         iarc >> *this;
-        fin.close();
+        fin.pop();
+        fin.pop();
+        in_file.close();
       }
       logstream(LOG_INFO) << "Finish loading graph from " << fname << std::endl;
       rpc.full_barrier();
@@ -626,21 +629,16 @@ namespace graphlab {
 
 
     /** \brief Load part of the distributed graph from a path*/
-    void save_binary(const std::string& path_arg, std::string& prefix) {
+    void save_binary(const std::string& prefix) {
       rpc.full_barrier();
       timer savetime;  savetime.start();
-      std::ostringstream ss;
-      ss << prefix << rpc.procid() << ".bin";
-      std::string path = path_arg;
-      std::string fname = ss.str();
-      if (path.substr(path.length()-1, 1) != "/")
-        path.append("/");
-      fname = path.append(fname);
+      std::string fname = prefix + tostr(rpc.procid()) + ".bin";
       logstream(LOG_INFO) << "Save graph to " << fname << std::endl;
       if(boost::starts_with(fname, "hdfs://")) {
         graphlab::hdfs hdfs;
         graphlab::hdfs::fstream out_file(hdfs, fname, true);
-        boost::iostreams::filtering_stream<boost::iostreams::output> fout;  
+        boost::iostreams::filtering_stream<boost::iostreams::output> fout;
+        fout.push(boost::iostreams::gzip_compressor());        
         fout.push(out_file);
         if (!fout.good()) {
           logstream(LOG_FATAL) << "Error opening file: " << fname << std::endl;
@@ -649,12 +647,23 @@ namespace graphlab {
         oarchive oarc(fout);
         oarc << *this;
         fout.pop();
+        fout.pop();
         out_file.close();
       } else {
-        std::ofstream fout(fname.c_str());
+        std::ofstream out_file(fname.c_str(),
+                               std::ios_base::out | std::ios_base::binary);
+        if (!out_file.good()) {
+          logstream(LOG_FATAL) << "Error opening file: " << fname << std::endl;
+          exit(-1);
+        }
+        boost::iostreams::filtering_stream<boost::iostreams::output> fout;
+        fout.push(boost::iostreams::gzip_compressor());        
+        fout.push(out_file);
         oarchive oarc(fout);
         oarc << *this;
-        fout.close();
+        fout.pop();
+        fout.pop();
+        out_file.close();
       }
       logstream(LOG_INFO) << "Finish saving graph to " << fname << std::endl
                           << "Finished saving binary graph: " 
@@ -832,8 +841,10 @@ namespace graphlab {
              gzip, false, true, files_per_machine);
       } else if (format == "graphjrl") {
          save(prefix, builtin_parsers::graphjrl_writer<distributed_graph>(),
-             gzip, false, true, files_per_machine);
-      }else {
+             gzip, true, true, files_per_machine);
+      } else if (format == "bin") {
+         save_binary(prefix);
+      } else {
         logstream(LOG_ERROR)
           << "Unrecognized Format \"" << format << "\"!" << std::endl;
         return;
@@ -863,9 +874,12 @@ namespace graphlab {
       }
       std::vector<std::string> graph_files;
       fs_util::list_files_with_prefix(directory_name, prefix, graph_files);
+      if (graph_files.size() == 0) {
+        logstream(LOG_WARNING) << "No files found matching " << original_path << std::endl;
+      }
       for(size_t i = 0; i < graph_files.size(); ++i) {
         if (i % rpc.numprocs() == rpc.procid()) {
-          logstream(LOG_INFO) << "Loading graph from file: " << graph_files[i] << std::endl;
+          logstream(LOG_EMPH) << "Loading graph from file: " << graph_files[i] << std::endl;
           // is it a gzip file ?
           const bool gzip = boost::ends_with(graph_files[i], ".gz");
           // open the stream
@@ -902,7 +916,10 @@ namespace graphlab {
       ASSERT_TRUE(hdfs::has_hadoop());
       hdfs& hdfs = hdfs::get_hdfs();    
       std::vector<std::string> graph_files;
-      graph_files = hdfs.list_files(path);    
+      graph_files = hdfs.list_files(path);
+      if (graph_files.size() == 0) {
+        logstream(LOG_WARNING) << "No files found matching " << original_path << std::endl;
+      }
       for(size_t i = 0; i < graph_files.size(); ++i) {
         if (i % rpc.numprocs() == rpc.procid()) {
           logstream(LOG_INFO) << "Loading graph from file: " << graph_files[i] << std::endl;
@@ -911,7 +928,6 @@ namespace graphlab {
           // open the stream
           graphlab::hdfs::fstream in_file(hdfs, graph_files[i]);
           boost::iostreams::filtering_stream<boost::iostreams::input> fin;  
-          fin.set_auto_close(false);
           if(gzip) fin.push(boost::iostreams::gzip_decompressor());
           fin.push(in_file);      
           const bool success = load_from_stream(graph_files[i], fin, line_parser);
@@ -989,6 +1005,8 @@ namespace graphlab {
         line_parser = builtin_parsers::tsv_parser<distributed_graph>;
       } else if (format == "graphjrl") {
         line_parser = builtin_parsers::graphjrl_parser<distributed_graph>;
+      } else if (format == "bin") {
+         load_binary(path);
       } else {
         logstream(LOG_ERROR)
           << "Unrecognized Format \"" << format << "\"!" << std::endl;
