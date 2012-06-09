@@ -1,0 +1,3 @@
+project(GraphProcessing)
+
+add_graphlab_executable(exact_triangle_count exact_triangle_count.cpp)
