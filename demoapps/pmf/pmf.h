@@ -469,7 +469,8 @@ void problem_setup::verify_setup(){
      logstream(LOG_WARNING)<<"When running tensor based factorization, with matrix market input format, number of matrix market tokens per row should be 4 (each row has [from] [to] [val] [time]\\n format). Use the command line argument --matrix_market_tokens_per_row=4 to avoid this warning" << std::endl;
      ac.matrixmarkettokensperrow = 4;
    }
-
+   if (ac.subsample > 1 || ac.subsample < 1e-6)
+     logstream(LOG_FATAL)<<"When using --subsample, values should be between 1e-6 to 1. 1 means the full dataset, 0.1 is 10% of the dataset and so on" << std::endl;
 }
 
 template<> const graph_type *problem_setup::g(testtype type){ return gg[type]; }
