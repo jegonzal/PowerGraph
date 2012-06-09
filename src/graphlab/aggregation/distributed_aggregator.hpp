@@ -878,11 +878,13 @@ namespace graphlab {
         for (int i = 0;i < (int)graph.num_local_vertices(); ++i) {
           if (graph.l_vertex(i).owner() == rmi.procid()) {
             if (!result_set) {
-              result = mapfunction(*context, vertex_type(graph.l_vertex(i)));
+              vertex_type vtx(graph.l_vertex(i));
+              result = mapfunction(*context, vtx);
               result_set = true;
             }
             else if (result_set){
-              result += mapfunction(*context, vertex_type(graph.l_vertex(i)));
+              vertex_type vtx(graph.l_vertex(i));
+              result += mapfunction(*context, vtx);
             }
           }
         }
@@ -923,11 +925,13 @@ namespace graphlab {
         for (int i = 0;i < (int)graph.num_local_vertices(); ++i) {
           foreach(const local_edge_type& e, graph.l_vertex(i).in_edges()) {
             if (!result_set) {
-              result = mapfunction(*context, edge_type(e));
+              edge_type edge(e);
+              result = mapfunction(*context, edge);
               result_set = true;
             }
             else if (result_set){
-              result += mapfunction(*context, edge_type(e));
+              edge_type edge(e);
+              result += mapfunction(*context, edge);
             }
           }
         }
@@ -958,7 +962,8 @@ namespace graphlab {
 #endif
       for (int i = 0;i < (int)graph.num_local_vertices(); ++i) {
         if (graph.l_vertex(i).owner() == rmi.procid()) {
-          transform_functor(*context, vertex_type(graph.l_vertex(i)));
+          vertex_type vtx(graph.l_vertex(i));
+          transform_functor(*context, vtx);
         }
       }
       rmi.barrier();
@@ -974,7 +979,8 @@ namespace graphlab {
 #endif
       for (int i = 0;i < (int)graph.num_local_vertices(); ++i) {
         foreach(const local_edge_type& e, graph.l_vertex(i).in_edges()) {
-          transform_functor(*context, edge_type(e));
+          edge_type edge(e);
+          transform_functor(*context, edge);
         }
       }
       rmi.barrier();

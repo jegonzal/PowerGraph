@@ -365,11 +365,13 @@ namespace graphlab {
         for (int i = 0;i < (int)local_graph.num_vertices(); ++i) {
           if (lvid2record[i].owner == rpc.procid()) {
             if (!result_set) {
-              result = mapfunction(vertex_type(l_vertex(i)));
+              vertex_type vtx(l_vertex(i));
+              result = mapfunction(vtx);
               result_set = true;
             }
             else if (result_set){
-              result += mapfunction(vertex_type(l_vertex(i)));
+              vertex_type vtx(l_vertex(i));
+              result += mapfunction(vtx);
             }
           }
         }
@@ -422,11 +424,13 @@ namespace graphlab {
         for (int i = 0;i < (int)local_graph.num_vertices(); ++i) {
           foreach(const local_edge_type& e, l_vertex(i).in_edges()) {
             if (!result_set) {
-              result = mapfunction(edge_type(e));
+              edge_type edge(e);
+              result = mapfunction(edge);
               result_set = true;
             }
             else if (result_set){
-              result += mapfunction(edge_type(e));
+              edge_type edge(e);
+              result += mapfunction(edge);
             }
           }
         }
@@ -458,7 +462,8 @@ namespace graphlab {
 #endif
       for (int i = 0;i < (int)local_graph.num_vertices(); ++i) {
         if (lvid2record[i].owner == rpc.procid()) {
-          transform_functor(vertex_type(l_vertex(i)));
+          vertex_type vtx(l_vertex(i));
+          transform_functor(vtx);
         }
       }
       rpc.barrier();
@@ -475,7 +480,8 @@ namespace graphlab {
 #endif
       for (int i = 0;i < (int)local_graph.num_vertices(); ++i) {
         foreach(const local_edge_type& e, l_vertex(i).in_edges()) {
-          transform_functor(edge_type(e));
+          edge_type edge(e);
+          transform_functor(edge);
         }
       }
       rpc.barrier();
