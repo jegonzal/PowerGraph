@@ -82,30 +82,6 @@ void dispatcher::load(iarchive& iarc){
   iarc >> mstate;
 }
 
-/** initialize the vertex program and vertex data */
-void dispatcher::init(icontext_type& context, vertex_type& vertex) { 
-
-  // invoke
-  process& p = process::get_process();
-  ji invocation("init", mstate);
-  invocation.add_vertex(vertex);
-  p.send(invocation);
-  
-  // receive
-  jr result;
-  p.receive(result);
-
-  // update vertex program state (if none received, defaults to "")
-  const char *cstring = result.program();
-  mstate = std::string(cstring);
-  
-  // update vertex state (if none received, no change)
-  cstring = result.vertex();
-  if (NULL != cstring)
-    vertex.data() = std::string(cstring);
-    
-}
-
 edge_dir_type dispatcher::gather_edges
                              (icontext_type& context,
                               const vertex_type& vertex) const {

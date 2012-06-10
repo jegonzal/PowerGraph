@@ -21,12 +21,6 @@ static double stof(const char *str){
  */
 class cgi_handler : public icgi_handler {
 public:
-
-  void init(json::Document& invocation, json::Document& return_json){
-    // reset state of vertex program
-    json::Document::AllocatorType& allocator = return_json.GetAllocator();
-    return_json.AddMember("program", "", allocator);
-  }
   
   void gather_edges(json::Document& invocation, json::Document& return_json){
     // we want to gather all incoming edges

@@ -46,7 +46,6 @@ namespace graphlab {
   class icgi_handler {
     public:
       virtual ~icgi_handler() {}
-      virtual void init(rapidjson::Document& invocation, rapidjson::Document& return_json) = 0;
       virtual void gather_edges(rapidjson::Document& invocation, rapidjson::Document& return_json) = 0;
       virtual void scatter_edges(rapidjson::Document& invocation, rapidjson::Document& return_json) = 0;
       virtual void gather(rapidjson::Document& invocation, rapidjson::Document& return_json) = 0;
@@ -139,9 +138,7 @@ namespace graphlab {
       return_json.SetObject();
       
       // invoke appropriate method
-      if (!strcmp(invocation["method"].GetString(), "init"))
-        handler.init(invocation, return_json);
-      else if (!strcmp(invocation["method"].GetString(), "gather_edges"))
+      if (!strcmp(invocation["method"].GetString(), "gather_edges"))
         handler.gather_edges(invocation, return_json);
       else if (!strcmp(invocation["method"].GetString(), "scatter_edges"))
         handler.scatter_edges(invocation, return_json);

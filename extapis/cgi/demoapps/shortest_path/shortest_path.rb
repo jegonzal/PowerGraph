@@ -12,10 +12,6 @@ end
 
 class Handler
 
-  def init(json)
-    {:program => ""}
-  end
-
   def gather_edges(json)
     {:edges => :IN_EDGES}
   end

@@ -72,7 +72,6 @@ namespace graphlab {
     std::string mstate;
   public:
     dispatcher(const std::string& state="");
-    void init(icontext_type& context, vertex_type& vertex);
     edge_dir_type gather_edges(icontext_type& context, const vertex_type& vertex) const;
     edge_dir_type scatter_edges(icontext_type& context, const vertex_type& vertex) const;
     gather_type gather(icontext_type& context, const vertex_type& vertex, edge_type& edge) const;
