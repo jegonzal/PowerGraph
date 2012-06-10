@@ -24,6 +24,8 @@
  * @file dispatcher.cpp
  * @author Jiunn Haur Lim <jiunnhal@cmu.edu>
  */
+
+#include <boost/algorithm/string.hpp>
  
 #include "dispatcher.hpp"
 #include "process.hpp"
@@ -287,9 +289,13 @@ int main(int argc, char** argv) {
   clopts.attach_option("program", &program,
                        "The program to execute (required)");
   std::string saveprefix;
-  clopts.attach_option("saveprefix", &saveprefix, saveprefix,
+  clopts.attach_option("saveprefix", &saveprefix,
                        "If set, will save the resultant graph to a "
                        "sequence of files with prefix saveprefix");
+  std::string signal;
+  clopts.attach_option("signal", &signal,
+                       "If set, then only vertices with these IDs will be signalled "
+                       "when the engine is started.");
                        
   if(!clopts.parse(argc, argv)) {
     logstream(LOG_ERROR) << "Error in parsing command line arguments." << std::endl;
@@ -333,8 +339,17 @@ int main(int argc, char** argv) {
   async_consistent_engine<dispatcher> engine(dc, graph, clopts);
   // TODO: need a way for user to tell us which vertices to schedule
   logstream(LOG_INFO) << dc.procid() << ": Scheduling all" << std::endl;
-  engine.signal_all();
-  // engine.signal(1); // TODO
+  
+  if (clopts.is_set("signal")){
+    std::vector<std::string> ids;
+    boost::split(ids, signal, boost::is_any_of(", "), boost::token_compress_on);
+    foreach(std::string id, ids){
+      dispatcher::graph_type::vertex_id_type vid;
+      std::istringstream(id) >> vid;
+      engine.signal(vid);
+    }
+  } else engine.signal_all();
+  
   
   // Run the dispatcher --------------------------------------------------------
   engine.start();
