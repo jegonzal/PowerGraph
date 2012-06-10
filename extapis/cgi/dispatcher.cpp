@@ -333,8 +333,8 @@ int main(int argc, char** argv) {
   async_consistent_engine<dispatcher> engine(dc, graph, clopts);
   // TODO: need a way for user to tell us which vertices to schedule
   logstream(LOG_INFO) << dc.procid() << ": Scheduling all" << std::endl;
-  // engine.signal_all();
-  engine.signal(1); // TODO
+  engine.signal_all();
+  // engine.signal(1); // TODO
   
   // Run the dispatcher --------------------------------------------------------
   engine.start();
