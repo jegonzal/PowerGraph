@@ -810,6 +810,26 @@ class distributed_control{
   \see barrier
   */
   void full_barrier();
+
+  ///\internal
+  boost::iostreams::stream<boost::iostreams::null_sink> nullstrm;
+  
+  /**
+   * A wrapper on cout, that outputs only on machine 0
+   */
+  std::ostream& cout() {
+    if (procid() == 0) return std::cout;
+    else return nullstrm;
+  }
+
+  /**
+   * A wrapper on cerr, that outputs only on machine 0
+   */
+  std::ostream& cerr() {
+    if (procid() == 0) return std::cerr;
+    else return nullstrm;
+  }
+  
  private:
   mutex full_barrier_lock;
   conditional full_barrier_cond;

@@ -293,17 +293,15 @@ namespace graphlab {
      * return value of the map is summed. The finalize_function is then called
      * on the result of the reduction.
      *
-     * \tparam ReductionType The output of the map function. Must be summable
-     *                       and \ref Serializable.
+     * \tparam ReductionType The output of the map function. Must be
+     *   summable and \ref Serializable.
      * \param [in] map_function The Map function to use. Must take an
-     *                          icontext_type& as its first argument, and an
-     *                          vertex_type& as its second argument. Returns a
-     *                          ReductionType which must be summable and
-     *                          \ref Serializable
-     * \param [in] finalize_function The Finalize function to use. Must take
-     *                               an icontext_type& as its first argument
-     *                               and a const ReductionType& as its second
-     *                               argument.
+     *   icontext_type& as its first argument, and an vertex_type& as
+     *   its second argument. Returns a ReductionType which must be
+     *   summable and \ref Serializable
+     * \param [in] finalize_function The Finalize function to
+     *   use. Must take an icontext_type& as its first argument and a
+     *   const ReductionType& as its second argument.
      *
      * \warning Pay attention to the types! A slightly erroneous type
      *          can produce screens of errors.
@@ -316,10 +314,12 @@ namespace graphlab {
                                FinalizerType finalize_function) {
       aggregator_type* aggregator = get_aggregator();
       if(aggregator == NULL) {
-        logstream(LOG_FATAL) << "Aggregation not supported by this engine!" << std::endl;
-        return false; 
+        logstream(LOG_FATAL) << "Aggregation not supported by this engine!" 
+                             << std::endl;
+        return false; // does not return
       }
-      return aggregator->add_vertex_aggregator<ReductionType>(key, map_function, finalize_function);
+      return aggregator->add_vertex_aggregator<ReductionType>(key, map_function, 
+                                                              finalize_function);
     } // end of add vertex aggregator
 
 #if defined(__cplusplus) && __cplusplus >= 201103L
@@ -330,36 +330,37 @@ namespace graphlab {
                                FinalizerType finalize_function) {
       aggregator_type* aggregator = get_aggregator();
       if(aggregator == NULL) {
-        logstream(LOG_FATAL) << "Aggregation not supported by this engine!" << std::endl;
-        return false; 
+        logstream(LOG_FATAL) << "Aggregation not supported by this engine!" 
+                             << std::endl;
+        return false; // does not return
       }
-      return aggregator->add_vertex_aggregator(key, map_function, finalize_function);
+      return aggregator->add_vertex_aggregator(key, map_function, 
+                                               finalize_function);
     } // end of add vertex aggregator
 
 #endif
     
     /** \brief Creates a edge aggregator. Returns true on success.
-     *         Returns false if an aggregator of the same name already exists
+     *    Returns false if an aggregator of the same name already
+     *    exists
      *
-     * Creates an edge aggregator associated to a particular key.
-     * The map_function is called over every edge in the graph, and the return
-     * value of the map is summed. The finalize_function is then called on
-     * the result of the reduction.
+     * Creates an edge aggregator associated to a particular key.  The
+     * map_function is called over every edge in the graph, and the
+     * return value of the map is summed. The finalize_function is
+     * then called on the result of the reduction.
      * 
-     * \tparam ReductionType The output of the map function. Must be summable
-     *                       and \ref Serializable.
+     * \tparam ReductionType The output of the map function. Must be
+     *    summable and \ref Serializable.
      * \param [in] map_function The Map function to use. Must take an
-     *                          icontext_type& as its first argument, and an
-     *                          edge_type& as its second argument. Returns a
-     *                          ReductionType which must be summable and
-     *                          \ref Serializable
-     * \param [in] finalize_function The Finalize function to use. Must take
-     *                               an icontext_type& as its first argument
-     *                               and a const ReductionType& as its second
-     *                               argument.
+     *    icontext_type& as its first argument, and an edge_type& as
+     *    its second argument. Returns a ReductionType which must be
+     *    summable and \ref Serializable
+     * \param [in] finalize_function The Finalize function to
+     *    use. Must take an icontext_type& as its first argument and a
+     *    const ReductionType& as its second argument.
      *
      * \warning Pay attention to the types! A slightly erroneous type
-     *          can produce screens of errors
+     *    can produce screens of errors
      */
     template <typename ReductionType,
               typename EdgeMapType,
@@ -371,7 +372,7 @@ namespace graphlab {
       if(aggregator == NULL) {
         logstream(LOG_FATAL) << "Aggregation not supported by this engine!"
                              << std::endl;
-        return false; 
+        return false; // does not return
       }
       return aggregator->add_edge_aggregator<ReductionType>
         (key, map_function, finalize_function);
@@ -386,10 +387,12 @@ namespace graphlab {
                              FinalizerType finalize_function) {
       aggregator_type* aggregator = get_aggregator();
       if(aggregator == NULL) {
-        logstream(LOG_FATAL) << "Aggregation not supported by this engine!" << std::endl;
-        return false; 
+        logstream(LOG_FATAL) << "Aggregation not supported by this engine!" 
+                             << std::endl;
+        return false; // does not return
       }
-      return aggregator->add_edge_aggregator(key, map_function, finalize_function);
+      return aggregator->add_edge_aggregator(key, map_function, 
+                                             finalize_function);
     } // end of add edge aggregator
 #endif
 
@@ -406,7 +409,7 @@ namespace graphlab {
       if(aggregator == NULL) {
         logstream(LOG_FATAL) << "Aggregation not supported by this engine!" 
                              << std::endl;
-        return false; 
+        return false; // does not return
       }
       return aggregator->aggregate_now(key);
     } // end of aggregate_now
@@ -419,7 +422,7 @@ namespace graphlab {
       if(aggregator == NULL) {
         logstream(LOG_FATAL) << "Aggregation not supported by this engine!"
                              << std::endl;
-        return false; 
+        return ResultType(); // does not return
       }
       return aggregator->map_reduce_vertices<ResultType>(mapfunction);      
     }
@@ -431,7 +434,7 @@ namespace graphlab {
       if(aggregator == NULL) {
         logstream(LOG_FATAL) << "Aggregation not supported by this engine!" 
                              << std::endl;
-        return false; 
+        return ResultType(); // does not return
       }
       return aggregator->map_reduce_edges<ResultType>(mapfunction);      
     }
@@ -443,7 +446,7 @@ namespace graphlab {
       if(aggregator == NULL) {
         logstream(LOG_FATAL) << "Aggregation not supported by this engine!"
                              << std::endl;
-        return; 
+        return;  // does not return
       }
       aggregator->transform_vertices(mapfunction);      
     }
@@ -453,8 +456,9 @@ namespace graphlab {
     void transform_edges(TransformType mapfunction) {
       aggregator_type* aggregator = get_aggregator();
       if(aggregator == NULL) {
-        logstream(LOG_FATAL) << "Aggregation not supported by this engine!" << std::endl;
-        return; 
+        logstream(LOG_FATAL) << "Aggregation not supported by this engine!" 
+                             << std::endl;
+        return; // does not return
       }
       aggregator->transform_edges(mapfunction);      
     }
@@ -467,9 +471,9 @@ namespace graphlab {
      * Seconds must be >= 0;
      *
      * \param [in] key Key to schedule
-     * \param [in] seconds How frequently to schedule. Must be >= 0. In the
-     *                     synchronous engine, seconds == 0 will ensure that
-     *                     this key is recomputed every iteration.
+     * \param [in] seconds How frequently to schedule. Must be >=
+     *    0. In the synchronous engine, seconds == 0 will ensure that
+     *    this key is recomputed every iteration.
      * 
      * All machines must call simultaneously.
      * \return Returns true if key is found and seconds >= 0,
@@ -478,8 +482,9 @@ namespace graphlab {
     bool aggregate_periodic(const std::string& key, float seconds) {
       aggregator_type* aggregator = get_aggregator();
       if(aggregator == NULL) {
-        logstream(LOG_FATAL) << "Aggregation not supported by this engine!" << std::endl;
-        return false; 
+        logstream(LOG_FATAL) << "Aggregation not supported by this engine!" 
+                             << std::endl;
+        return false; // does not return 
       }
       return aggregator->aggregate_periodic(key, seconds);
     } // end of aggregate_periodic

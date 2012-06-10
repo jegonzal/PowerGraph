@@ -494,6 +494,9 @@ void distributed_control::init(const std::vector<std::string> &machines,
               receivers, senders);
   std::cerr << "TCP Communication layer constructed." << std::endl;
   compute_master_ranks();
+
+  // initialize the empty stream
+  nullstrm.open(boost::iostreams::null_sink());
   
 #ifdef USE_EVENT_LOG
     PERMANENT_INITIALIZE_DIST_EVENT_LOG(eventlog, *this, std::cout, 3000, dist_event_log::RATE_BAR);

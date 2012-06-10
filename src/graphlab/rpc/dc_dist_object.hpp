@@ -237,7 +237,21 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
     return dc_.numprocs();
   }
 
+  /**
+   * A wrapper on cout, that outputs only on machine 0
+   */
+  std::ostream& cout() {
+    return dc_.cout();
+  }
 
+  /**
+   * A wrapper on cerr, that outputs only on machine 0
+   */
+  std::ostream& cerr() {
+    return dc_.cout();
+  }
+  
+  
   /**
     This returns the set of services for the parent DC.
     This is deprecated. Use dc() to get access to the global context

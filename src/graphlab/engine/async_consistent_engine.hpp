@@ -1372,6 +1372,8 @@ namespace graphlab {
 
           do_scatter(lvid);
           programs_executed.inc();
+          // clear the vertex program
+          vstate[lvid].vertex_program = vertex_program_type();
           BEGIN_TRACEPOINT(disteng_chandy_misra);
           cmlocks->philosopher_stops_eating_per_replica(lvid);
           END_TRACEPOINT(disteng_chandy_misra);
@@ -1388,6 +1390,7 @@ namespace graphlab {
           logstream(LOG_DEBUG) << rmi.procid() << ": Scattering: " 
                               << graph.global_vid(lvid) << ": MIRROR_SCATTERING" << std::endl;
           do_scatter(lvid);
+          vstate[lvid].vertex_program = vertex_program_type();
           vstate[lvid].state = NONE;
           cmlocks->philosopher_stops_eating_per_replica(lvid);
 //          ASSERT_FALSE(vstate[lvid].hasnext);
@@ -1397,6 +1400,7 @@ namespace graphlab {
           logstream(LOG_DEBUG) << rmi.procid() << ": Scattering: " 
                               << graph.global_vid(lvid) << ": MIRROR_SCATTERING_AND_NEXT_LOCKING" << std::endl;
           do_scatter(lvid);
+          vstate[lvid].vertex_program = vertex_program_type();
           vstate[lvid].state = LOCKING;
 //          ASSERT_FALSE(vstate[lvid].hasnext);          
           cmlocks->philosopher_stops_eating_per_replica(lvid);
