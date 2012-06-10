@@ -175,7 +175,15 @@ int main(int argc, char** argv) {
   graphlab::omni_engine<pagerank> engine(dc, graph, clopts, "synchronous");
   engine.signal_all();
   engine.start();
-  
+  const float runtime = engine.elapsed_seconds();
+  size_t update_count = engine.num_updates();
+  std::cout << "Finished Running engine in " << runtime 
+            << " seconds." << std::endl
+            << "Total updates: " << update_count << std::endl
+            << "Efficiency: " << (double(update_count) / runtime)
+            << " updates per second "
+            << std::endl;  
+
   // Compute summary stats ----------------------------------------------------  
   float sum_of_graph = graph.map_reduce_vertices<float>(extract_pagerank);
   std::cout << "Sum of graph: " << sum_of_graph << std::endl;

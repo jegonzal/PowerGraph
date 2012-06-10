@@ -1,6 +1,5 @@
 project(GraphLab)
-add_graphlab_executable(synchronous_pagerank synchronous_pagerank.cpp)
-add_graphlab_executable(async_consistent_pagerank async_consistent_pagerank.cpp)
+
 
 add_graphlab_executable(pagerank pagerank.cpp)
 
