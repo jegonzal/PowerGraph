@@ -161,14 +161,9 @@ namespace graphlab {
      * Behavior details depend on the engine implementation. See the
      * implementation documentation for specifics.
      * 
-     * \param [in] perform_init_vertex_program If true, runs init on each
-     * vertex program before any message processing happens.
-     * Defaults to true.
-     * 
      * @return the reason for termination
      */
-    virtual execution_status::status_enum 
-    start(bool perform_init_vtx_program = true) = 0;
+    virtual execution_status::status_enum start() = 0;
    
     /**
      * \brief Compute the total number of updates (calls to apply)

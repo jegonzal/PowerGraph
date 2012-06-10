@@ -1725,29 +1725,29 @@ namespace graphlab {
       }
     } // end of recv vertex data
 
-    /**
-    * \internal
-    * Called simultaneously by all machines to initialize all vertex programs
-    */
-    void initialize_vertex_programs(size_t thread_id) {
-      // For now we are using the engine as the context interface
-      context_type context(*this, graph);
-      for(lvid_type lvid = thread_id; lvid < graph.num_local_vertices();
-          lvid += ncpus) {
-        if(graph.l_is_master(lvid)) {
-          vertex_type vertex = local_vertex_type(graph.l_vertex(lvid));
-          vstate[lvid].vertex_program.init(context, vertex);
-          sync_vertex_data(lvid);
-        }
-        recv_vertex_data();
-      }
-      // Flush the buffer and finish receiving any remaining vertex
-      // programs.
-      thread_barrier.wait();
-      if(thread_id == 0) { vdata_exchange.flush(); }
-      thread_barrier.wait();
-      recv_vertex_data();
-    } // end of initialize_vertex_programs
+    // /**
+    // * \internal
+    // * Called simultaneously by all machines to initialize all vertex programs
+    // */
+    // void initialize_vertex_programs(size_t thread_id) {
+    //   // For now we are using the engine as the context interface
+    //   context_type context(*this, graph);
+    //   for(lvid_type lvid = thread_id; lvid < graph.num_local_vertices();
+    //       lvid += ncpus) {
+    //     if(graph.l_is_master(lvid)) {
+    //       vertex_type vertex = local_vertex_type(graph.l_vertex(lvid));
+    //       vstate[lvid].vertex_program.init(context, vertex);
+    //       sync_vertex_data(lvid);
+    //     }
+    //     recv_vertex_data();
+    //   }
+    //   // Flush the buffer and finish receiving any remaining vertex
+    //   // programs.
+    //   thread_barrier.wait();
+    //   if(thread_id == 0) { vdata_exchange.flush(); }
+    //   thread_barrier.wait();
+    //   recv_vertex_data();
+    // } // end of initialize_vertex_programs
 
 
 
@@ -1762,16 +1762,10 @@ namespace graphlab {
       *
       * This function starts the engine and does not
       * return until the scheduler has no tasks remaining.
-      * If perform_init is set to true then the init
-      * function is called once at the beginning of start().
-      * 
-      * \param perform_init_vertex_program If true, runs init on each
-      * vertex program before any message processing happens.
-      * Defaults to true.
       *
       * \return the reason for termination
       */
-    execution_status::status_enum start(bool perform_init_vertex_program = true) {
+    execution_status::status_enum start() {
       logstream(LOG_INFO) << "Spawning " << ncpus << " threads" << std::endl;
       ASSERT_TRUE(scheduler_ptr != NULL);
       consensus->reset();
@@ -1804,13 +1798,14 @@ namespace graphlab {
 
       termination_reason = execution_status::RUNNING;
 
-      if (perform_init_vertex_program) {
-        logstream(LOG_INFO) << "Initialize Vertex Programs: " << allocatedmem << std::endl;
-        for (size_t i = 0; i < ncpus; ++i) {
-          thrgroup.launch(boost::bind(&engine_type::initialize_vertex_programs, this, i));
-        }
-        thrgroup.join();
-      }
+      // if (perform_init_vertex_program) {
+      //   logstream(LOG_INFO) << "Initialize Vertex Programs: " 
+      //                       << allocatedmem << std::endl;
+      //   for (size_t i = 0; i < ncpus; ++i) {
+      //     thrgroup.launch(boost::bind(&engine_type::initialize_vertex_programs, this, i));
+      //   }
+      //   thrgroup.join();
+      // }
 
       if (rmi.procid() == 0) {
         logstream(LOG_INFO) << "Total Allocated Bytes: " << allocatedmem << std::endl;

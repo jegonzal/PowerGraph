@@ -69,7 +69,10 @@ struct vertex_data {
   float residual; //! how much the latent value has changed
   /** \brief The latent factor for this vertex */
   Eigen::VectorXd latent;
-  /** \brief Simple default constructor */
+  /** 
+   * \brief Simple default constructor which randomizes the vertex
+   *  data 
+   */
   vertex_data(); 
   /** \brief Randomizes the latent factor */
   void randomize();
@@ -95,6 +98,8 @@ struct edge_data : public graphlab::IS_POD_TYPE {
  * data.
  */ 
 typedef graphlab::distributed_graph<vertex_data, edge_data> graph_type;
+
+
 
 
 /**
@@ -162,9 +167,6 @@ public:
   static double LAMBDA;
   static size_t MAX_UPDATES;
 
-  /** Initialize the vertex data */
-  void init(icontext_type& context, vertex_type& vertex);
-
   /** The set of edges to gather along */
   edge_dir_type gather_edges(icontext_type& context, 
                              const vertex_type& vertex) const;
@@ -184,7 +186,15 @@ public:
   /** Scatter reschedules neighbors */  
   void scatter(icontext_type& context, const vertex_type& vertex, 
                edge_type& edge) const;
+
+  /**
+   * \brief Signal all vertices on one side of the bipartite graph
+   */
+  static graphlab::empty signal_left(icontext_type& context,
+                                     vertex_type& vertex);
   
+  
+
 private:
   /** Since the edges are undirected we use this helper function to
       get the vertex on the other side of the edge */

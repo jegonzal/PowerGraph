@@ -249,12 +249,10 @@ public:
     // void load(graphlab::iarchive& arc) { /** load members */ }
     
     /**
-     * The init function is called once for each vertex before the
-     * start of the GraphLab program.  If the vertex program does not
-     * implement this function then the default implementation (NOP)
-     * is used.
+     * This function is now called in the main by invoking:
+     * engine.transform_vertices(mplp_vertex_program::init)
      */
-    void init(icontext_type& context, vertex_type& vertex)
+    static void init(icontext_type& context, vertex_type& vertex)
     { 
         vertex_data& vdata = vertex.data();
         
@@ -561,8 +559,8 @@ private:
     /**
      * Construct the unary evidence potential
      */
-    vector make_unary_potential(const vertex_type& vertex, 
-                                const char varid) const {    
+    static vector make_unary_potential(const vertex_type& vertex, 
+                                       const char varid) {
         vector potential(NCOLORS);
         const double obs = varid == 'i'? 
         vertex.data().obs_color_i : vertex.data().obs_color_j;
@@ -1015,7 +1013,8 @@ int main(int argc, char** argv) {
     // Create the engine -------------------------------------------------------->
     std::cout << "Creating the engine. " << std::endl;
     engine_type engine(dc, graph, clopts);
-    
+    engine.transform_vertices(mplp_vertex_program::init);
+
     std::cout << "Scheduling all vertices" << std::endl;
     engine.signal_all();
     std::cout << "Starting the engine" << std::endl;

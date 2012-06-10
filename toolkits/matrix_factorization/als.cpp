@@ -99,7 +99,7 @@ int main(int argc, char** argv) {
   graph.finalize();
   std::cout << dc.procid() << ": Finalizing graph. Finished in " 
             << timer.current_time() << std::endl;
-  
+
   if(dc.procid() == 0){
     std::cout
       << "========== Graph statistics on proc " << dc.procid() 
@@ -123,6 +123,8 @@ int main(int argc, char** argv) {
  
   std::cout << dc.procid() << ": Creating engine" << std::endl;
   engine_type engine(dc, graph, clopts, "synchronous");
+  // Signal all vertices on the vertices on the left (liberals) 
+  engine.map_reduce_vertices<graphlab::empty>(als_vertex_program::signal_left);
  
   // Run the PageRank ---------------------------------------------------------
   std::cout << "Running ALS" << std::endl;

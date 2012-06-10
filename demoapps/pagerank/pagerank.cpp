@@ -44,6 +44,13 @@ typedef graphlab::empty edge_data_type;
 // The graph type is determined by the vertex and edge data types
 typedef graphlab::distributed_graph<vertex_data_type, edge_data_type> graph_type;
 
+/*
+ * A simple function used by graph.transform_vertices(init_vertex);
+ * to initialize the vertes data.
+ */
+void init_vertex(graph_type::vertex_type& vertex) { vertex.data() = 1; }
+
+
 
 /*
  * The factorized page rank update function extends ivertex_program
@@ -68,14 +75,8 @@ typedef graphlab::distributed_graph<vertex_data_type, edge_data_type> graph_type
 class pagerank :
   public graphlab::ivertex_program<graph_type, float>,
   public graphlab::IS_POD_TYPE {
-  double lastchange;
+  double last_change;
 public:  
-  /* Initialize the vertex program and vertex data */
-  void init(icontext_type& context, vertex_type& vertex) { 
-    vertex.data() = 1.0;
-    lastchange = 0;
-  }
-
   /* Gather the weighted rank of the adjacent page   */
   float gather(icontext_type& context, const vertex_type& vertex,
                edge_type& edge) const {
@@ -87,14 +88,14 @@ public:
   void apply(icontext_type& context, vertex_type& vertex,
              const gather_type& total) {
     double newval = total + RESET_PROB;
-    lastchange = std::fabs(newval - vertex.data());
+    last_change = std::fabs(newval - vertex.data());
     vertex.data() = newval;
   }
   
   /* The scatter edges depend on whether the pagerank has converged */
   edge_dir_type scatter_edges(icontext_type& context,
                               const vertex_type& vertex) const {
-    if (lastchange > 1E-2) return graphlab::OUT_EDGES;
+    if (last_change > 1E-2) return graphlab::OUT_EDGES;
     else return graphlab::NO_EDGES;
   }
   
@@ -167,6 +168,9 @@ int main(int argc, char** argv) {
   std::cout << "#vertices: " << graph.num_vertices() 
             << " #edges:" << graph.num_edges() << std::endl;
   
+  // Initialize the vertex data
+  graph.transform_vertices(init_vertex);
+
   // Running The Engine -------------------------------------------------------
   graphlab::omni_engine<pagerank> engine(dc, graph, clopts, "synchronous");
   engine.signal_all();

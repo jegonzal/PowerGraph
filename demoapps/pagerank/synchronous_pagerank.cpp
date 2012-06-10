@@ -77,10 +77,6 @@ class pagerank :
                                    float /* gather_type */ >,
   public graphlab::IS_POD_TYPE {
 public:  
-  /** Initialize the vertex program and vertex data */
-  void init(icontext_type& context, vertex_type& vertex) { 
-    vertex.data() = 1.0; 
-  }
 
   /** Gather the weighted rank of the adjacent page   */
   float gather(icontext_type& context, const vertex_type& vertex,
@@ -103,6 +99,14 @@ public:
     return graphlab::NO_EDGES;
   }
 }; // end of factorized_pagerank update functor
+
+
+/*
+ * Initialize the vertex data value
+ */
+void init_vertex(graph_type::vertex_type& vertex) {
+  vertex.data() = 1;
+}
 
 
 /**
@@ -157,7 +161,11 @@ int main(int argc, char** argv) {
     graph.load_format(graph_dir, format);
   }
   graph.finalize();
-  std::cout << "#vertices: " << graph.num_vertices() << " #edges:" << graph.num_edges() << std::endl;
+  std::cout << "#vertices: " << graph.num_vertices() 
+            << " #edges:" << graph.num_edges() << std::endl;
+
+  // Transform the vertex data
+  graph.transform_vertices(init_vertex);
   
   std::cout << dc.procid() << ": Creating engine" << std::endl;
   graphlab::synchronous_engine<pagerank> engine(dc, graph, clopts);

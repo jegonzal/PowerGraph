@@ -59,8 +59,6 @@ namespace graphlab {
    *
    * \code
    * For vertex vtx:
-   *   // At Program Start
-   *   vprog.init(ctx, vtx);
    *   // During execution:
    *   if( there is a message for vtx ) {
    *     vprog.recv_message(ctx, vtx, msg);
@@ -73,6 +71,8 @@ namespace graphlab {
    *     // Scatter Phase
    *     ParallelFor(adjacent edges in direction vprog.scatter_edges(ctx, vtx) )
    *       vprog.scatter(ctx, vtx, edge);
+   *     // Vertex program is destroyed
+   *     vprog = vertex_program();
    *   }
    * \endcode
    *
@@ -83,12 +83,11 @@ namespace graphlab {
    * well as the ivertex_program::init and
    * ivertex_program::recv_message functions.
    *
-   * The state of a vertex program persists between invocations of the
-   * GAS phases and is part of the engine which created the
-   * vertex-program.  However, GraphLab does not provide a mechanism
-   * for users to access vertex-program state and so any output
-   * computational state must be saved in the vertex or edge data of
-   * the graph.
+   * The state of a vertex program *does not* persist between
+   * invocations of receive message.  Moreover on each call to
+   * recv_message the vertex program's previous state is
+   * cleared. Therefore any persistent state must be saved into the
+   * vertex data.  
    *
    * The vertex program depends on several key types which are
    * template arguments to ivertex_program interface. 
@@ -188,15 +187,6 @@ namespace graphlab {
    
     // Functions ==============================================================
     virtual ~ivertex_program() { }
-
-    /**
-     * The init function is called once for each vertex before the
-     * start of the GraphLab program.  If the vertex program does not
-     * implement this function then the default implementation (NOP)
-     * is used.
-     */
-    virtual void init(icontext_type& context,
-                      vertex_type& vertex) { /** NOP */ }
 
     /**
      * Recv message is called by the engine to receive a message to

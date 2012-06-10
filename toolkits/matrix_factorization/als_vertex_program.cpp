@@ -27,7 +27,7 @@
 // Vertex data
 size_t vertex_data::NLATENT = 20;
 
-vertex_data::vertex_data() : nupdates(0), residual(1) { }
+vertex_data::vertex_data() : nupdates(0), residual(1) { randomize(); }
 
 void vertex_data::randomize()  { latent.resize(NLATENT); latent.setRandom(); }
 
@@ -43,7 +43,6 @@ void vertex_data::load(graphlab::iarchive& arc) {
 
 edge_data::edge_data(const float& obs) :
   obs(obs), error(std::numeric_limits<float>::max()) { }
-
 
 
 
@@ -71,13 +70,6 @@ gather_type& gather_type::operator+=(const gather_type& other) {
 double als_vertex_program::TOLERANCE = 1e-3;
 double als_vertex_program::LAMBDA = 0.01;
 size_t als_vertex_program::MAX_UPDATES = -1;
-
-void als_vertex_program::
-init(icontext_type& context, vertex_type& vertex) {
-  vertex.data().randomize();
-  // Schedule self if on the left side of the bipartite graph
-  if(vertex.num_out_edges() > 0) context.signal(vertex);
-} // end of init
 
 
 graphlab::edge_dir_type als_vertex_program::
@@ -146,6 +138,15 @@ als_vertex_program::vertex_type als_vertex_program::
 get_other_vertex(edge_type& edge, const vertex_type& vertex) const {
   return vertex.id() == edge.source().id()? edge.target() : edge.source();
 }; // end of get_other_vertex
+
+
+// signal all the vertices on the left
+graphlab::empty als_vertex_program::
+signal_left(icontext_type& context, vertex_type& vertex){
+  if(vertex.num_out_edges() > 0) context.signal(vertex);
+  return graphlab::empty();
+} // end of signal_left
+
 
 
 //=============================================================================

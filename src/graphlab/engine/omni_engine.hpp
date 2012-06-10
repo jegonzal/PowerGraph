@@ -165,9 +165,7 @@ namespace graphlab {
       }
     } // end of destructor
 
-    execution_status::status_enum start(bool perform_init_vtx_program = true) {
-      return engine_ptr->start();
-    }
+    execution_status::status_enum start( ) { return engine_ptr->start(); }
 
     size_t num_updates() const { return engine_ptr->num_updates(); }
     float elapsed_seconds() const { return engine_ptr->elapsed_seconds(); }

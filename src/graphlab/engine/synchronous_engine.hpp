@@ -531,20 +531,15 @@ namespace graphlab {
      * 
      * The start function begins computation and does not return until
      * there are no remaining messages or until max_iterations has
-     * been reached. If perform_init is set to true then the init
-     * function is called once on all vertex programs at start.
+     * been reached. 
      * 
      * The start() function modifies the data graph through the vertex
      * programs and so upon return the data graph should contain the
      * result of the computation.
      *
-     * @param [in] perform_init If true then run init on all vertex
-     * programs before receiving any messages.  By default
-     * perform_init is set to true.
-     *
      * @return The reason for termination
      */
-    execution_status::status_enum start(bool perform_init = true);
+    execution_status::status_enum start();
 
     // documentation inherited from iengine
     size_t num_updates() const;
@@ -682,14 +677,14 @@ namespace graphlab {
       rmi.barrier();
     } // end of run_synchronous
 
-    /** 
-     * \brief Initialize all vertex programs by invoking 
-     * \ref graphlab::ivertex_program::init on all vertices.
-     *
-     * @param thread_id the thread to run this as which determines
-     * which vertices to process.
-     */
-    void initialize_vertex_programs(size_t thread_id);
+    // /** 
+    //  * \brief Initialize all vertex programs by invoking 
+    //  * \ref graphlab::ivertex_program::init on all vertices.
+    //  *
+    //  * @param thread_id the thread to run this as which determines
+    //  * which vertices to process.
+    //  */
+    // void initialize_vertex_programs(size_t thread_id);
 
     /** 
      * \brief Synchronize all message data.
@@ -1038,7 +1033,7 @@ namespace graphlab {
 
 
   template<typename VertexProgram> execution_status::status_enum
-  synchronous_engine<VertexProgram>::start(bool perform_init_vtx_program) {
+  synchronous_engine<VertexProgram>::start() {
     rmi.barrier();
     graph.finalize();
     // Initialization code ==================================================     
@@ -1050,10 +1045,10 @@ namespace graphlab {
     iteration_counter = 0;
     force_abort = false;
     execution_status::status_enum termination_reason; 
-    if (perform_init_vtx_program) {
-      // Initialize all vertex programs
-      run_synchronous( &synchronous_engine::initialize_vertex_programs );
-    }
+    // if (perform_init_vtx_program) {
+    //   // Initialize all vertex programs
+    //   run_synchronous( &synchronous_engine::initialize_vertex_programs );
+    // }
     rmi.barrier();
     // initialize aggregators
     aggregator.aggregate_all_periodic();
@@ -1162,29 +1157,29 @@ namespace graphlab {
 
 
 
-  template<typename VertexProgram>
-  void synchronous_engine<VertexProgram>::
-  initialize_vertex_programs(size_t thread_id) {
-    // For now we are using the engine as the context interface
-    context_type context(*this, graph);
-    for(lvid_type lvid = thread_id; lvid < graph.num_local_vertices(); 
-        lvid += threads.size()) {
-      if(graph.l_is_master(lvid)) {          
-        vertex_type vertex = local_vertex_type(graph.l_vertex(lvid));
-        vertex_programs[lvid].init(context, vertex);
-        // send the vertex program and vertex data to all mirrors
-        sync_vertex_program(lvid); sync_vertex_data(lvid);
-      }
-      // recv_vertex_programs(); recv_vertex_data();
-    }
-    // Flush the buffer and finish receiving any remaining vertex
-    // programs.
-    thread_barrier.wait();
-    if(thread_id == 0) { vprog_exchange.flush(); vdata_exchange.flush(); }
-    thread_barrier.wait();
-    recv_vertex_programs();
-    recv_vertex_data();
-  } // end of initialize_vertex_programs
+  // template<typename VertexProgram>
+  // void synchronous_engine<VertexProgram>::
+  // initialize_vertex_programs(size_t thread_id) {
+  //   // For now we are using the engine as the context interface
+  //   context_type context(*this, graph);
+  //   for(lvid_type lvid = thread_id; lvid < graph.num_local_vertices(); 
+  //       lvid += threads.size()) {
+  //     if(graph.l_is_master(lvid)) {          
+  //       vertex_type vertex = local_vertex_type(graph.l_vertex(lvid));
+  //       vertex_programs[lvid].init(context, vertex);
+  //       // send the vertex program and vertex data to all mirrors
+  //       sync_vertex_program(lvid); sync_vertex_data(lvid);
+  //     }
+  //     // recv_vertex_programs(); recv_vertex_data();
+  //   }
+  //   // Flush the buffer and finish receiving any remaining vertex
+  //   // programs.
+  //   thread_barrier.wait();
+  //   if(thread_id == 0) { vprog_exchange.flush(); vdata_exchange.flush(); }
+  //   thread_barrier.wait();
+  //   recv_vertex_programs();
+  //   recv_vertex_data();
+  // } // end of initialize_vertex_programs
 
 
   template<typename VertexProgram>
@@ -1207,7 +1202,7 @@ namespace graphlab {
     if(thread_id == 0) message_exchange.flush(); 
     thread_barrier.wait();
     recv_messages();
-  } // end of execute_applys
+  } // end of exchange_messages
 
   template<typename VertexProgram>
   void synchronous_engine<VertexProgram>::
@@ -1292,18 +1287,23 @@ namespace graphlab {
               }
             }
           } // end of if out_edges/all_edges
-            // If caching is enabled then save the accumulator to the
-            // cache for future iterations.  Note that it is possible
-            // that the accumulator was never set in which case we are
-            // effectively "zeroing out" the cache.
+          // If caching is enabled then save the accumulator to the
+          // cache for future iterations.  Note that it is possible
+          // that the accumulator was never set in which case we are
+          // effectively "zeroing out" the cache.
           if(caching_enabled && accum_is_set) {              
             gather_cache[lvid] = accum; has_cache.set_bit(lvid); 
           } // end of if caching enabled            
         }
         // If the accum contains a value for the local gather we put
         // that estimate in the gather exchange.
-        if(accum_is_set) sync_gather(lvid, accum);
-      }
+        if(accum_is_set) sync_gather(lvid, accum);  
+        if(!graph.l_is_master(lvid)) {
+          // if this is not the master clear the vertex program
+          vertex_programs[lvid] = vertex_program_type();
+        }
+      } // end of if active
+  
     } // end of loop over vertices to compute gather accumulators
       // Finish sending and receiving all gather operations
     thread_barrier.wait();
@@ -1341,7 +1341,9 @@ namespace graphlab {
            graphlab::NO_EDGES) {
           active_minorstep.set_bit(lvid);
           sync_vertex_program(lvid);
-        }  
+        } else { // we are done so clear the vertex program
+          vertex_programs[lvid] = vertex_program_type();
+        }
       } // end of if apply
     } // end of loop over vertices to run apply
       // Finish sending and receiving all changes due to apply operations
@@ -1378,6 +1380,8 @@ namespace graphlab {
             vprog.scatter(context, vertex, edge);
           }
         } // end of if out_edges/all_edges
+        // Clear the vertex program
+        vertex_programs[lvid] = vertex_program_type();
       } // end of if active on this minor step
     } // end of loop over vertices to complete scatter operation
   } // end of execute_scatters
