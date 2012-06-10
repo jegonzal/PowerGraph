@@ -1,4 +1,3 @@
 project(GraphLab)
 
 add_graphlab_executable(shortest_path_cgi shortest_path.cpp)
-# add_graphlab_executable(shortest_path_gas_cgi shortest_path_gas.cpp)

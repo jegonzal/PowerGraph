@@ -25,6 +25,7 @@
  * @author Jiunn Haur Lim <jiunnhal@cmu.edu>
  */
  
+#include <fstream>
 #include <sstream>
 #include "process.hpp"
 #include "json_message.hpp"
@@ -52,12 +53,13 @@ process::~process(){
 void process::redirect_io (){
 
   // prepare args
-  char **cargs = new char*[args.size()];
+  char **cargs = new char*[args.size() + 1];
   unsigned i = 0;
   for (std::vector<std::string>::iterator it=args.begin(); it!=args.end(); ++it){
     cargs[i] = new char[it->length()+1];
     snprintf(cargs[i++], it->length()+1, "%s", it->c_str());
   }
+  cargs[i] = NULL;
 
   int opipefd[2];             // dispatcher -> child
   int ipipefd[2];             // dispatcher <- child
@@ -74,23 +76,24 @@ void process::redirect_io (){
     CHECK (0 <= ::dup2(ipipefd[1], 1));
     CHECK (!::close(opipefd[0]));
     CHECK (!::close(ipipefd[1]));
-    CHECK (0 <= ::execv(executable.c_str(), cargs));
+    CHECK(0 <= ::execv(executable.c_str(), cargs));
   } /* child process goes no further than here */
-  
-  for (i=0; i<args.size(); i++) delete[] cargs[i];
-  delete[] cargs;
 
   // parent process
-  CHECK (!::close(opipefd[0]));
-  CHECK (!::close(ipipefd[1]));
+  for (i=0; i<args.size(); i++) delete[] cargs[i];
+  delete[] cargs;
+  
   pout.assign(opipefd[1]);
   pin.assign(ipipefd[0]);
+  CHECK (!::close(opipefd[0]));
+  CHECK (!::close(ipipefd[1]));
   
 }
 
 std::size_t process::write(json_message& message) {
   
-  if (!pout.is_open()) throw ("Pipe closed unexpectedly.");
+  if (!pout.is_open())
+    logstream(LOG_FATAL) << "Pipe closed unexpectedly." << std::endl;
 
   io::streambuf buffer;
   std::ostream output(&buffer);
@@ -118,7 +121,8 @@ std::size_t process::write(json_message& message) {
 
 json_message& process::read(json_message& message){
 
-  if (!pin.is_open()) throw ("Pipe closed unexpectedly.");
+  if (!pin.is_open())
+    logstream(LOG_FATAL) << "Pipe closed unexpectedly." << std::endl;
   
   // get first line
   io::streambuf fl_buffer;
@@ -142,7 +146,7 @@ json_message& process::read(json_message& message){
     logstream(LOG_ERROR) << e.what() << std::endl;
   }
   
-  // logstream(LOG_DEBUG) << "json: " << data << std::endl;
+  logstream(LOG_INFO) << "json: " << data << std::endl;
 
   message.parse(data, bytes);
   return message;

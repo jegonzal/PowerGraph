@@ -38,6 +38,10 @@ typedef json_return     jr;
 ///////////////////////////////// CGI_GATHER ///////////////////////////////////
 cgi_gather::cgi_gather(const std::string& state) : mstate(state){}
 
+const char *cgi_gather::c_str() const {
+  return mstate.c_str();
+}
+
 void cgi_gather::save(oarchive& oarc) const {
   oarc << mstate;
 }
@@ -203,11 +207,11 @@ void dispatcher::scatter(icontext_type& context,
   const char *cstring = result.signal();
   if (NULL == cstring) return;
 
-  if (strcmp("SOURCE", cstring)){
+  if (!strcmp("SOURCE", cstring)){
     context.signal(edge.source());
-  }else if (strcmp("TARGET", cstring)){
+  }else if (!strcmp("TARGET", cstring)){
     context.signal(edge.target());
-  }else throw("unrecognized signal");
+  }else logstream(LOG_FATAL) << "Unrecognized signal: " << cstring << std::endl;
   
 }
 ////////////////////////////////////////////////////////////////////////////////
@@ -244,7 +248,7 @@ bool dispatcher::read_graph(graph_type& graph,
       break;
     }
     default: {                // load edges
-      if (textline.length() <= 3) return false;
+      if (textline.length() <= 2) return false;
       std::istringstream iss(textline);
       dispatcher::graph_type::vertex_id_type source;
       dispatcher::graph_type::vertex_id_type target;
@@ -262,7 +266,7 @@ bool dispatcher::read_graph(graph_type& graph,
 ////////////////////////////////// MAIN METHOD /////////////////////////////////
 int main(int argc, char** argv) {
 
-  global_logger().set_log_level(LOG_INFO);
+  global_logger().set_log_level(LOG_DEBUG);
 
   // Initialize control plain using mpi
   graphlab::mpi_tools::init(argc, argv);
@@ -329,13 +333,14 @@ int main(int argc, char** argv) {
   async_consistent_engine<dispatcher> engine(dc, graph, clopts);
   // TODO: need a way for user to tell us which vertices to schedule
   logstream(LOG_INFO) << dc.procid() << ": Scheduling all" << std::endl;
-  engine.signal_all();
+  // engine.signal_all();
+  engine.signal(1); // TODO
   
   // Run the dispatcher --------------------------------------------------------
   engine.start();
 
   // Save output ---------------------------------------------------------------
-  if(!clopts.is_set("saveprefix"))
+  if(clopts.is_set("saveprefix"))
     graph.save(saveprefix, dispatcher_writer(), false);
   
   mpi_tools::finalize();

@@ -45,11 +45,11 @@ jm::json_message() : mdocument(), mallocator(mdocument.GetAllocator()) {
 void jm::parse(const byte *data, std::size_t bytes){
   
   if (NULL == data)
-    throw "json must not be empty.";
+    logstream(LOG_FATAL) << "JSON must not be empty." << std::endl;
   
   // TODO: assume null-terminated string for now (may switch to binary)
   if (mdocument.Parse<0>(data).HasParseError())
-    throw "json syntax error.";
+    logstream(LOG_FATAL) << "JSON syntax error: " << data << std::endl;
   
 }
 
@@ -116,7 +116,7 @@ void ji::add_vertex(const dispatcher::vertex_type& vertex){
     
 void ji::add_gather(const dispatcher::gather_type& gather_total){
   ensure_params_exist();
-  mdocument["params"].AddMember("gather", serialize_to_string(gather_total).c_str(), mallocator);
+  mdocument["params"].AddMember("gather", gather_total.c_str(), mallocator);
 }
 
 void ji::add_edge(dispatcher::graph_type::edge_type& edge){
@@ -149,13 +149,13 @@ const char * jr::vertex() const {
 const edge_dir_type jr::edge_dir() const {
 
   if (!mdocument.HasMember("edges"))
-    throw "json missing 'edges' field.";
+    logstream(LOG_FATAL) << "JSON missing edges field" << std::endl;
   
-  std::string edge_set = std::string(mdocument["edges"].GetString());
-  if ("IN_EDGES" == edge_set) return IN_EDGES;
-  if ("OUT_EDGES" == edge_set) return OUT_EDGES;
-  if ("ALL_EDGES" == edge_set) return ALL_EDGES;
-  if ("NO_EDGES" == edge_set) return NO_EDGES;
+  const char *edge_set = mdocument["edges"].GetString();
+  if (!strcmp("IN_EDGES", edge_set)) return IN_EDGES;
+  if (!strcmp("OUT_EDGES", edge_set)) return OUT_EDGES;
+  if (!strcmp("ALL_EDGES", edge_set)) return ALL_EDGES;
+  if (!strcmp("NO_EDGES", edge_set)) return NO_EDGES;
   
   logstream(LOG_ERROR) << "Unrecognized value: " << edge_set << ". Using NO_EDGES." << std::endl;
   return graphlab::NO_EDGES;

@@ -46,6 +46,7 @@ namespace graphlab {
   public:
     cgi_gather(const std::string& state="");
     void operator+=(const cgi_gather& other);
+    const char *c_str() const;
     void save(oarchive& oarc) const;
     void load(iarchive& iarc);
   }; // end of cgi_gather_type
