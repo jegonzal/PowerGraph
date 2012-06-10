@@ -55,6 +55,10 @@ namespace graphlab {
       virtual void scatter(rapidjson::Document& invocation, rapidjson::Document& return_json) = 0;
   };
   
+  /**
+   * CGI client. Parses STDIN, invokes callbacks on handler, and sends results
+   * to STDOUT.
+   */
   class cgi {
   private:
     icgi_handler& handler;
@@ -68,6 +72,10 @@ namespace graphlab {
      */
     cgi(icgi_handler& cgi_handler) : handler(cgi_handler){}
     
+    /**
+     * Start listening for JSON invocation. This method blocks until "exit" is
+     * received.
+     */
     void listen(){
       
       std::string line;
