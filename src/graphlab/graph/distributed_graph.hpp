@@ -1140,7 +1140,7 @@ namespace graphlab {
       }
       for(size_t i = 0; i < graph_files.size(); ++i) {
         if (i % rpc.numprocs() == rpc.procid()) {
-          logstream(LOG_INFO) << "Loading graph from file: " << graph_files[i] << std::endl;
+          logstream(LOG_EMPH) << "Loading graph from file: " << graph_files[i] << std::endl;
           // is it a gzip file ?
           const bool gzip = boost::ends_with(graph_files[i], ".gz");
           // open the stream
@@ -1202,7 +1202,7 @@ namespace graphlab {
         }
         ++addedvtx;
         if (addedvtx % 10000000 == 0) {
-          logstream(LOG_INFO) << addedvtx << " inserted\n";
+          logstream(LOG_EMPH) << addedvtx << " inserted\n";
         }
       }
       rpc.full_barrier(); 
@@ -1779,17 +1779,17 @@ namespace graphlab {
 
       if(ingress_ptr != NULL) { delete ingress_ptr; ingress_ptr = NULL; }
       if (method == "batch") {
-        logstream(LOG_INFO) << "Use batch ingress, bufsize: " << bufsize
+        logstream(LOG_EMPH) << "Use batch ingress, bufsize: " << bufsize
           << ", usehash: " << usehash << ", userecent" << userecent << std::endl;
         ingress_ptr = new distributed_batch_ingress<VertexData, EdgeData>(rpc.dc(), *this,
                                                          bufsize, usehash, userecent);
       } else if (method == "oblivious") {
-        logstream(LOG_INFO) << "Use oblivious ingress, usehash: " << usehash
+        logstream(LOG_EMPH) << "Use oblivious ingress, usehash: " << usehash
           << ", userecent: " << userecent << std::endl;
         ingress_ptr = new distributed_oblivious_ingress<VertexData, EdgeData>(rpc.dc(), *this,
                                                              usehash, userecent);
       } else if (method == "identity") {
-        logstream(LOG_INFO) << "Use identity ingress" << std::endl;
+        logstream(LOG_EMPH) << "Use identity ingress" << std::endl;
         ingress_ptr = new distributed_identity_ingress<VertexData, EdgeData>(rpc.dc(), *this);
       } else {
         ingress_ptr = new distributed_random_ingress<VertexData, EdgeData>(rpc.dc(), *this);
