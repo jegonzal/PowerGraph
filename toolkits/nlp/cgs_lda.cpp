@@ -65,13 +65,23 @@ size_t is_word(const graph_type::vertex_type& vertex) {
   return vertex.num_in_edges() > 0 ? 1 : 0;
 }
 
+size_t is_doc(const graph_type::vertex_type& vertex) {
+  return vertex.num_out_edges() > 0 ? 1 : 0;
+}
+
 
 
 
 
 graphlab::empty signal_docs(cgs_lda_vertex_program::icontext_type& context, 
                             graph_type::vertex_type& vertex) {
-  if(vertex.num_out_edges() > 0) context.signal(vertex);
+  if(is_doc(vertex)) context.signal(vertex);
+  return graphlab::empty();
+} // end of signal_docs
+
+graphlab::empty signal_words(cgs_lda_vertex_program::icontext_type& context, 
+                             graph_type::vertex_type& vertex) {
+  if(is_word(vertex)) context.signal(vertex);
   return graphlab::empty();
 } // end of signal_docs
 
@@ -79,54 +89,67 @@ graphlab::empty signal_docs(cgs_lda_vertex_program::icontext_type& context,
 
 
 struct topk {
-  typedef std::pair<size_t, graphlab::vertex_id_type> cw_pair_type;
+  typedef std::pair<float, graphlab::vertex_id_type> cw_pair_type;
   std::vector< std::set<cw_pair_type> > top_words;
+  size_t nchanges;
   static size_t KVALUE;
+
+  topk(size_t nchanges = 0) : nchanges(nchanges) { }
+
   topk& operator+=(const topk& other) {
+    nchanges += other.nchanges;
     if(other.top_words.empty()) return *this;
-    ASSERT_EQ(top_words.size(), other.top_words.size());
-    ASSERT_FALSE(top_words.empty());
+    if(top_words.size() < other.top_words.size())
+      top_words.resize(other.top_words.size());
     for(size_t i = 0; i < top_words.size(); ++i) {
       // Only if the largest count in the other topk is greater than the 
       // smallest count in this topk do we do a merge
-      if(other.top_words[i].rbegin()->first > top_words[i].begin()->first) {
-        // Merge the topk
-        top_words[i].insert(other.top_words[i].begin(), 
-                            other.top_words[i].end());
-        // Remove excess elements        
-        while(top_words[i].size() > KVALUE) 
-          top_words[i].erase(top_words[i].begin());
-      }
+      //if(other.top_words[i].rbegin()->first > top_words[i].begin()->first) {
+      // Merge the topk
+      top_words[i].insert(other.top_words[i].begin(), 
+                          other.top_words[i].end());
+      // Remove excess elements        
+      while(top_words[i].size() > KVALUE) 
+        top_words[i].erase(top_words[i].begin());
+      // }
     }
     return *this;
   } // end of operator +=
 
-  void save(graphlab::oarchive& arc) const { arc << top_words; }
-  void load(graphlab::iarchive& arc) { arc >> top_words; }
+  void save(graphlab::oarchive& arc) const { arc << top_words << nchanges; }
+  void load(graphlab::iarchive& arc) { arc >> top_words >> nchanges; }
 
   static topk map(cgs_lda_vertex_program::icontext_type& context, 
                       const graph_type::vertex_type& vertex) {
-    if(is_word(vertex)) {
+    if(is_word(vertex) && !vertex.data().factor.empty()) {
       const graphlab::vertex_id_type wordid = vertex.id();
       const vertex_data& vdata = vertex.data();
       topk ret_value;
       ret_value.top_words.resize(vdata.factor.size());
+      float normalizer = 0;
+      foreach(double d, vdata.factor) 
+        normalizer += (d + cgs_lda_vertex_program::BETA);
       for(size_t i = 0; i < vdata.factor.size(); ++i) {
-        const cw_pair_type pair(vdata.factor[i], wordid);
+        const float value = 
+          (vdata.factor[i] + cgs_lda_vertex_program::BETA) / normalizer;
+        //        const float value = vdata.factor[i];
+        const cw_pair_type pair(value, wordid);
         ret_value.top_words[i].insert(pair);
       }
       return ret_value;
-    } else { return topk(); }
+    } else { return topk(vertex.data().nchanges); }
   } // end of map function
 
   static void finalize(cgs_lda_vertex_program::icontext_type& context,
                       const topk& total) {
     if(context.procid() != 0) return;
-    std::cout << "In Finalize:" << std::endl;
+    std::cout << "Number of changes: " << total.nchanges << std::endl;
     for(size_t i = 0; i < total.top_words.size(); ++i) {
       std::cout << "Topic " << i << ": ";
-      rev_foreach(cw_pair_type pair, total.top_words[i])  
+      rev_foreach(cw_pair_type pair, total.top_words[i])  {
+        ASSERT_LT(pair.second, dictionary.size());
         std::cout << dictionary[pair.second] << ", "; 
+      }
       std::cout << std::endl;
     }
   } // end of finalize

@@ -41,7 +41,8 @@ typedef std::vector< topic_id_type > assignment_type;
  */
 struct vertex_data {
   factor_type factor;
-  size_t nupdates;
+  size_t nupdates, nchanges;
+  vertex_data() : nupdates(0), nchanges(0) { }
   void save(graphlab::oarchive& arc) const;
   void load(graphlab::iarchive& arc);  
 };

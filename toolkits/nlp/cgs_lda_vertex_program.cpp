@@ -72,7 +72,7 @@ gather_type& gather_type::operator+=(const gather_type& other) {
 
 
 double cgs_lda_vertex_program::ALPHA   = 0.1;
-double cgs_lda_vertex_program::BETA    = 0.5;
+double cgs_lda_vertex_program::BETA    = 0.1;
 size_t cgs_lda_vertex_program::NITERS  = -1;
 size_t cgs_lda_vertex_program::NTOPICS = 50;
 size_t cgs_lda_vertex_program::NWORDS  = 0;
@@ -107,13 +107,17 @@ void cgs_lda_vertex_program::
 apply(icontext_type& context, vertex_type& vertex, const gather_type& sum) {
   const size_t num_neighbors = vertex.num_in_edges() + vertex.num_out_edges();
   ASSERT_GT(num_neighbors, 0);
+  // There should be no new edge data since the vertex program has been cleared
+  ASSERT_EQ(new_edge_data.size(), 0); 
   if(is_word(vertex)) {
     ASSERT_EQ(sum.topic_count.size(), NTOPICS);
     vertex.data().nupdates++; 
     vertex.data().factor = sum.topic_count;
   } else { ASSERT_TRUE(is_doc(vertex));
-    vertex.data().nupdates++;
-    factor_type& doc_topic_count = vertex.data().factor;
+    vertex_data& vdata = vertex.data();
+    vdata.nupdates++;
+    vdata.nchanges = 0;
+    factor_type& doc_topic_count = vdata.factor;
     if(doc_topic_count.size() != NTOPICS) doc_topic_count.resize(NTOPICS);
     // run the actual gibbs sampling 
     std::vector<double> prob(NTOPICS);
@@ -121,32 +125,46 @@ apply(icontext_type& context, vertex_type& vertex, const gather_type& sum) {
     foreach(const pair_type& nbr_pair, sum.neighborhood_map) {
       const graphlab::vertex_id_type wordid = nbr_pair.first;
       factor_type word_topic_count = nbr_pair.second.first;
-      assignment_type topic_assignment = nbr_pair.second.second;
+      assignment_type assignment = nbr_pair.second.second;
       if(word_topic_count.size() != NTOPICS) word_topic_count.resize(NTOPICS);
       // Resample the topics
-      foreach(topic_id_type& asg, topic_assignment) {
+      foreach(topic_id_type& asg, assignment) {
+        const topic_id_type old_asg = asg;
         if(asg != NULL_TOPIC) { // construct the cavity
           --doc_topic_count[asg];
-          --word_topic_count[asg];
+          if(word_topic_count[asg] > 0) --word_topic_count[asg];
           --global_topic_count[asg];
+          for(size_t t = 0; t < NTOPICS; ++t) {
+            const double n_dt = doc_topic_count[t]; ASSERT_GE(n_dt, 0);
+            const double n_wt = word_topic_count[t]; ASSERT_GE(n_wt, 0);
+            const double n_t  = global_topic_count[t]; ASSERT_GE(n_t, 0);
+            prob[t] = (ALPHA + n_dt) * (BETA + n_wt) / (BETA * NWORDS + n_t);
+          }
+          asg = graphlab::random::multinomial(prob);
+        } else {
+          // draw a completely random initial assignment
+          asg = graphlab::random::fast_uniform(topic_id_type(0), 
+                                               topic_id_type(NTOPICS-1));
         }
-        for(size_t t = 0; t < NTOPICS; ++t) {
-          const double n_dt = doc_topic_count[t]; ASSERT_GE(n_dt, 0);
-          const double n_wt = word_topic_count[t]; ASSERT_GE(n_wt, 0);
-          const double n_t  = global_topic_count[t]; ASSERT_GE(n_t, 0);
-          prob[t] = (ALPHA + n_dt) * (BETA + n_wt) / (BETA * NWORDS + n_t);
-        }
-        asg = graphlab::random::multinomial(prob);
         ++doc_topic_count[asg];
         ++word_topic_count[asg];                    
         ++global_topic_count[asg];
+        // record a change if one occurs
+        if(old_asg != asg) vdata.nchanges++;
       } // End of loop over each token
-      // sort the topic assignment to be in a "canonical order" for
-      // comparison
-      std::sort(topic_assignment.begin(), topic_assignment.end());
-      // save the new topic assignment
-      new_edge_data[wordid] = topic_assignment;
-    } // end of loop over neighbors      
+      // test to see if the topic assignments have change
+      // sort the topic assignment to be in a "canonical order" 
+      std::sort(assignment.begin(), assignment.end());
+      const assignment_type& old_assignment = nbr_pair.second.second;
+      bool is_same = (old_assignment.size() == assignment.size());  
+      for(size_t i = 0; i < assignment.size() && is_same; ++i)
+        is_same = (assignment[i] == old_assignment[i]);
+      if(!is_same) new_edge_data[wordid] = assignment;
+    } // end of loop over neighbors
+
+    // if nothing changed then schedule this document to run again
+    if(vdata.nchanges == 0 && vdata.nupdates < NITERS )
+      context.signal(vertex);
   } // end of else document
 } // end of apply
 
@@ -167,14 +185,10 @@ scatter(icontext_type& context, const vertex_type& vertex,
     // if this is a document then update the topic assignment along the edge
     edge_data_map_type::const_iterator iter = 
       new_edge_data.find(word_vertex.id());
-    ASSERT_FALSE(iter == new_edge_data.end());
-    const assignment_type& new_topic_assignment = iter->second;
-    ASSERT_EQ(new_topic_assignment.size(), edge.data().size());
-    // test to see if the topic assignments have changed
-    bool is_same = true;
-    for(size_t i = 0; i < edge.data().size() && is_same; ++i)
-      is_same = (edge.data()[i] == new_topic_assignment[i]);
-    if(!is_same) {
+    // If there is an assignment then something changed so update and
+    // signal
+    if(iter != new_edge_data.end()) {
+      const assignment_type& new_topic_assignment = iter->second;
       edge.data() = new_topic_assignment;
       context.signal(word_vertex);
     }
