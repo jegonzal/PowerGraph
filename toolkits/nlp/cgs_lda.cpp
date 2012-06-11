@@ -65,13 +65,23 @@ size_t is_word(const graph_type::vertex_type& vertex) {
   return vertex.num_in_edges() > 0 ? 1 : 0;
 }
 
+size_t is_doc(const graph_type::vertex_type& vertex) {
+  return vertex.num_out_edges() > 0 ? 1 : 0;
+}
+
 
 
 
 
 graphlab::empty signal_docs(cgs_lda_vertex_program::icontext_type& context, 
                             graph_type::vertex_type& vertex) {
-  if(vertex.num_out_edges() > 0) context.signal(vertex);
+  if(is_doc(vertex)) context.signal(vertex);
+  return graphlab::empty();
+} // end of signal_docs
+
+graphlab::empty signal_words(cgs_lda_vertex_program::icontext_type& context, 
+                             graph_type::vertex_type& vertex) {
+  if(is_word(vertex)) context.signal(vertex);
   return graphlab::empty();
 } // end of signal_docs
 
@@ -116,13 +126,13 @@ struct topk {
       const vertex_data& vdata = vertex.data();
       topk ret_value;
       ret_value.top_words.resize(vdata.factor.size());
-      // float normalizer = 0;
-      // foreach(double d, vdata.factor) 
-      //   normalizer += (d + cgs_lda_vertex_program::BETA);
+      float normalizer = 0;
+      foreach(double d, vdata.factor) 
+        normalizer += (d + cgs_lda_vertex_program::BETA);
       for(size_t i = 0; i < vdata.factor.size(); ++i) {
-        // const float value = 
-        //   (vdata.factor[i] + cgs_lda_vertex_program::BETA) / normalizer;
-        const float value = vdata.factor[i];
+        const float value = 
+          (vdata.factor[i] + cgs_lda_vertex_program::BETA) / normalizer;
+        //        const float value = vdata.factor[i];
         const cw_pair_type pair(value, wordid);
         ret_value.top_words[i].insert(pair);
       }
