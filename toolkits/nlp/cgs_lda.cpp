@@ -104,14 +104,14 @@ struct topk {
     for(size_t i = 0; i < top_words.size(); ++i) {
       // Only if the largest count in the other topk is greater than the 
       // smallest count in this topk do we do a merge
-      //if(other.top_words[i].rbegin()->first > top_words[i].begin()->first) {
-      // Merge the topk
-      top_words[i].insert(other.top_words[i].begin(), 
-                          other.top_words[i].end());
-      // Remove excess elements        
-      while(top_words[i].size() > KVALUE) 
-        top_words[i].erase(top_words[i].begin());
-      // }
+      if(other.top_words[i].rbegin()->first > top_words[i].begin()->first) {
+        // Merge the topk
+        top_words[i].insert(other.top_words[i].begin(), 
+                            other.top_words[i].end());
+        // Remove excess elements        
+        while(top_words[i].size() > KVALUE) 
+          top_words[i].erase(top_words[i].begin());
+      }
     }
     return *this;
   } // end of operator +=
@@ -120,7 +120,7 @@ struct topk {
   void load(graphlab::iarchive& arc) { arc >> top_words >> nchanges; }
 
   static topk map(cgs_lda_vertex_program::icontext_type& context, 
-                      const graph_type::vertex_type& vertex) {
+                  const graph_type::vertex_type& vertex) {
     if(is_word(vertex) && !vertex.data().factor.empty()) {
       const graphlab::vertex_id_type wordid = vertex.id();
       const vertex_data& vdata = vertex.data();
@@ -129,6 +129,7 @@ struct topk {
       float normalizer = 0;
       foreach(double d, vdata.factor) 
         normalizer += (d + cgs_lda_vertex_program::BETA);
+      normalizer = 1;
       for(size_t i = 0; i < vdata.factor.size(); ++i) {
         const float value = 
           (vdata.factor[i] + cgs_lda_vertex_program::BETA) / normalizer;
@@ -137,11 +138,14 @@ struct topk {
         ret_value.top_words[i].insert(pair);
       }
       return ret_value;
-    } else { return topk(vertex.data().nchanges); }
+    } else { 
+      //      context.signal(vertex);
+      return topk(vertex.data().nchanges);       
+    }
   } // end of map function
 
   static void finalize(cgs_lda_vertex_program::icontext_type& context,
-                      const topk& total) {
+                       const topk& total) {
     if(context.procid() != 0) return;
     std::cout << "Number of changes: " << total.nchanges << std::endl;
     for(size_t i = 0; i < total.top_words.size(); ++i) {
