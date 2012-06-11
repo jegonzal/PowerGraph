@@ -120,6 +120,38 @@ namespace graphlab {
     virtual size_t procid() const = 0;
 
     /**
+     * \brief Returns a standard output object (like cout)
+     *        which only prints once even when running distributed.
+     * 
+     * This returns a C++ standard output stream object
+     * which maps directly to std::cout on machine with 
+     * process ID 0, and to empty output streamss
+     * on all other processes. Calling,
+     * \code
+     *   context.cout() << "Hello World!";
+     * \endcode
+     * will therefore only print if the code is run on machine 0.
+     * This is useful in the finalize operation in aggregators.
+     */
+    virtual std::ostream& cout() const = 0;
+
+    /**
+     * \brief Returns a standard error object (like cerr)
+     *        which only prints once even when running distributed.
+     * 
+     * This returns a C++ standard output stream object
+     * which maps directly to std::cerr on machine with 
+     * process ID 0, and to empty output streamss
+     * on all other processes. Calling,
+     * \code
+     *   context.cerr() << "Hello World!";
+     * \endcode
+     * will therefore only print if the code is run on machine 0.
+     * This is useful in the finalize operation in aggregators.
+     */
+    virtual std::ostream& cerr() const = 0;
+
+    /**
      * \brief Get the number of processes in the current execution.
      *
      * This is typically the number of mpi jobs created:

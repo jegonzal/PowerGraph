@@ -283,30 +283,8 @@ namespace graphlab {
                             rmi(dc, this), graph(graph), 
                             context(context), ncpus(0) { }
 
-    /** 
-     * \brief Creates a vertex aggregator. Returns true on success.
-     *        Returns false if an aggregator of the same name already
-     *        exists.
-     *
-     * Creates a vertex aggregator associated to a particular key.
-     * The map_function is called over every vertex in the graph, and the
-     * return value of the map is summed. The finalize_function is then called
-     * on the result of the reduction.
-     *
-     * \tparam ReductionType The output of the map function. Must be summable
-     *                       and \ref Serializable.
-     * \param [in] map_function The Map function to use. Must take an
-     *                          icontext_type& as its first argument, and an
-     *                          vertex_type& as its second argument. Returns a
-     *                          ReductionType which must be summable and
-     *                          \ref Serializable
-     * \param [in] finalize_function The Finalize function to use. Must take
-     *                               an icontext_type& as its first argument
-     *                               and a const ReductionType& as its second
-     *                               argument.
-     *
-     * \warning Pay attention to the types! A slightly erroneous type
-     *          can produce screens of errors.
+    /**
+     * \copydoc graphlab::iengine::add_vertex_aggregator
      */
     template <typename ReductionType, 
               typename VertexMapperType, 
@@ -330,6 +308,14 @@ namespace graphlab {
     }
     
 #if defined(__cplusplus) && __cplusplus >= 201103L
+    /**
+     * \brief An overload of add_vertex_aggregator for C++11 which does not
+     *        require the user to provide the reduction type.
+     *
+     * This function is available only if the compiler has C++11 support.
+     * Specifically, it uses C++11's decltype operation to infer the
+     * reduction type, thus eliminating the need for the function
+     */
     template <typename VertexMapperType, 
               typename FinalizerType>
     bool add_vertex_aggregator(const std::string& key,
@@ -353,29 +339,8 @@ namespace graphlab {
     }
 #endif
 
-
-    /** \brief Creates a edge aggregator. Returns true on success.
-     *         Returns false if an aggregator of the same name already exists
-     *
-     * Creates an edge aggregator associated to a particular key.
-     * The map_function is called over every edge in the graph, and the return
-     * value of the map is summed. The finalize_function is then called on
-     * the result of the reduction.
-     * 
-     * \tparam ReductionType The output of the map function. Must be summable
-     *                       and \ref Serializable.
-     * \param [in] map_function The Map function to use. Must take an
-     *                          icontext_type& as its first argument, and an
-     *                          edge_type& as its second argument. Returns a
-     *                          ReductionType which must be summable and
-     *                          \ref Serializable
-     * \param [in] finalize_function The Finalize function to use. Must take
-     *                               an icontext_type& as its first argument
-     *                               and a const ReductionType& as its second
-     *                               argument.
-     *
-     * \warning Pay attention to the types! A slightly erroneous type
-     *          can produce screens of errors
+    /**
+     * \copydoc graphlab::iengine::add_edge_aggregator
      */
     template <typename ReductionType,
               typename EdgeMapperType,
@@ -400,6 +365,15 @@ namespace graphlab {
     }
     
 #if defined(__cplusplus) && __cplusplus >= 201103L
+    /**
+     * \brief An overload of add_edge_aggregator for C++11 which does not
+     *        require the user to provide the reduction type.
+     *
+     * This function is available only if the compiler has C++11 support.
+     * Specifically, it uses C++11's decltype operation to infer the
+     * reduction type, thus eliminating the need for the function
+     * call to be templatized over the reduction type. 
+     */
     template <typename EdgeMapperType,
               typename FinalizerType>
     bool add_edge_aggregator(const std::string& key,
@@ -425,12 +399,7 @@ namespace graphlab {
 #endif
     
     /**
-     * Performs an immediate aggregation on a key. All machines must
-     * call this simultaneously. If the key is not found,
-     * false is returned. Otherwise return true on success.
-     *
-     * \param[in] key Key to aggregate now
-     * \return False if key not found, True on success.
+     * \copydoc graphlab::iengine::aggregate_now
      */
     bool aggregate_now(const std::string& key) {
       ASSERT_MSG(graph.is_finalized(), "Graph must be finalized");
@@ -507,20 +476,7 @@ namespace graphlab {
     
     
     /**
-     * Requests that the aggregator with a given key be aggregated
-     * every certain number of seconds when the engine is running.
-     * Note that the period is prescriptive: in practice the actual
-     * period will be larger than the requested period. 
-     * Seconds must be >= 0;
-     *
-     * \param [in] key Key to schedule
-     * \param [in] seconds How frequently to schedule. Must be >= 0. In the
-     *                     synchronous engine, seconds == 0 will ensure that
-     *                     this key is recomputed every iteration.
-     * 
-     * All machines must call simultaneously.
-     * \return Returns true if key is found and seconds >= 0,
-     *         and false otherwise.
+     * \copydoc graphlab::iengine::aggregate_periodic
      */
     bool aggregate_periodic(const std::string& key, float seconds) {
       rmi.barrier();
