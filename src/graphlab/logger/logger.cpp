@@ -54,7 +54,7 @@ const char* messages[] = {  "DEBUG:    ",
 file_logger::file_logger() {
   log_file = "";
   log_to_console = true;
-  log_level = LOG_WARNING;
+  log_level = LOG_EMPH;
   pthread_mutex_init(&mut, NULL);
   pthread_key_create(&streambuffkey, streambuffdestructor);
 }
