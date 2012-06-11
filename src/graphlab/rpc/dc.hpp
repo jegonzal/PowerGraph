@@ -812,12 +812,12 @@ class distributed_control{
   void full_barrier();
 
   ///\internal
-  boost::iostreams::stream<boost::iostreams::null_sink> nullstrm;
+  mutable boost::iostreams::stream<boost::iostreams::null_sink> nullstrm;
   
   /**
    * A wrapper on cout, that outputs only on machine 0
    */
-  std::ostream& cout() {
+  std::ostream& cout() const {
     if (procid() == 0) return std::cout;
     else return nullstrm;
   }
@@ -825,7 +825,7 @@ class distributed_control{
   /**
    * A wrapper on cerr, that outputs only on machine 0
    */
-  std::ostream& cerr() {
+  std::ostream& cerr() const {
     if (procid() == 0) return std::cerr;
     else return nullstrm;
   }

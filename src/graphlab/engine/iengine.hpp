@@ -151,6 +151,7 @@ namespace graphlab {
 
 
     /**
+     * \internal
      * \brief Virtual destructor required for inheritance
      */ 
     virtual ~iengine() {};
@@ -277,8 +278,7 @@ namespace graphlab {
                             const std::string& order = "shuffle") = 0;
    
 
-    
-    /** 
+     /** 
      * \brief Creates a vertex aggregator. Returns true on success.
      *        Returns false if an aggregator of the same name already
      *        exists.
@@ -286,20 +286,133 @@ namespace graphlab {
      * Creates a vertex aggregator associated to a particular key.
      * The map_function is called over every vertex in the graph, and the
      * return value of the map is summed. The finalize_function is then called
-     * on the result of the reduction.
+     * on the result of the reduction. The finalize_function is called on
+     * all machines. The map_function should only read the graph data,
+     * and should not make any modifications.
      *
-     * \tparam ReductionType The output of the map function. Must be
-     *   summable and \ref Serializable.
+     * ### Basic Usage 
+     * For instance, if the graph has float vertex data, and float edge data:
+     * \code
+     *   typedef graphlab::distributed_graph<float, float> graph_type;
+     * \endcode
+     *
+     * An aggregator can be constructed to compute the absolute sum of all the
+     * vertex data. To do this, we define two functions.
+     * \code
+     * float absolute_vertex_data(graphlab::icontext_type& context,
+     *                            graph_type::vertex_type vertex) {
+     *   return std::fabs(vertex.data());
+     * }
+     *
+     * void print_finalize(graphlab::icontext_type& context, 
+     *                     float total) {
+     *   std::cout << total << "\n";
+     * }
+     * \endcode
+     * 
+     * Next, we define the aggregator in the engine by calling 
+     * add_vertex_aggregator(). We must assign it a unique
+     * name which will be used to reference this particular aggregate
+     * operation. We shall call it "absolute_vertex_sum".
+     * \code
+     * engine.add_vertex_aggregator<float>("absolute_vertex_sum",
+     *                                     absolute_vertex_data, 
+     *                                     print_finalize);
+     * \endcode
+     *
+     * When executed, the engine execute <code>absolute_vertex_data()</code>
+     * on each vertex in the graph. <code>absolute_vertex_data()</code> 
+     * reads the vertex data, and returns its absolute value. All return 
+     * values are then summing them together using the float's += operator.
+     * The final result is than passed to the <code>print_finalize</code>
+     * function.  The template argument <code><float></code> is necessary to
+     * provide information about the return type of
+     * <code>absolute_vertex_data</code>.
+     * 
+     *
+     * This aggregator can be run immediately by calling 
+     * aggregate_now() with the name of the aggregator.
+     * \code
+     * engine.aggregate_now("absolute_vertex_sum");
+     * \endcode
+     *
+     * Or can be arranged to run periodically together with the engine 
+     * execution (in this example, every 1.5 seconds).
+     * \code
+     * engine.aggregate_periodic("absolute_vertex_sum", 1.5);
+     * \endcode
+     * 
+     * Note that since finalize is called on <b>all machines</b>, multiple
+     * copies of the total will be printed. If only one copy is desired,
+     * see \ref graphlab::icontext::cout() "context.cout()" or to get 
+     * the actual process ID using 
+     * \ref graphlab::icontext::procid() "context.procid()"
+     *
+     * In practice, the reduction type can be any arbitrary user-defined type
+     * as long as a += operator is defined. This permits great flexibility
+     * in the type of operations the aggregator can perform.
+     *
+     * ### Details
+     * The add_vertex_aggregator() function is also templatized over both
+     * function types and there is no strong enforcement of the exact argument
+     * types of the map function and the reduce function. For instance, in the
+     * above example, the following print_finalize() variants may also be
+     * accepted.
+     *
+     * \code
+     * void print_finalize(icontext_type& context, double total) {
+     *   std::cout << total << "\n";
+     * }
+     *
+     * void print_finalize(icontext_type& context, float& total) {
+     *   std::cout << total << "\n";
+     * }
+     *
+     * void print_finalize(icontext_type& context, const float& total) {
+     *   std::cout << total << "\n";
+     * }
+     * \endcode
+     * In particlar, the last variation may be useful for performance reasons
+     * if the reduction type is large.
+     *
+     * ### Distributed Behavior
+     * To obtain consistent distributed behavior in the distributed setting,
+     * we designed the aggregator to minimize the amount of asymmetry among 
+     * the machines. In particular, the finalize operation is guaranteed to be
+     * called on all machines. This therefore permits global variables to be
+     * modified on finalize since all machines are ensured to be eventually
+     * consistent. 
+     *
+     * For instance, in the above example, print_finalize could
+     * store the result in a global variable:
+     * \code
+     * void print_finalize(icontext_type& context, float total) {
+     *   GLOBAL_TOTAL = total;
+     * }
+     * \endcode 
+     * which will make it accessible to all other running update functions.
+     *
+     * \tparam ReductionType The output of the map function. Must have
+     *                        operator+= defined, and must be \ref Serializable.
+     * \tparam VertexMapperType The type of the map function. 
+     *                          Not generally needed.
+     *                          Can be inferred by the compiler.
+     * \tparam FinalizerType The type of the finalize function. 
+     *                       Not generally needed.
+     *                       Can be inferred by the compiler.
+     *
      * \param [in] map_function The Map function to use. Must take an
-     *   icontext_type& as its first argument, and an vertex_type& as
-     *   its second argument. Returns a ReductionType which must be
-     *   summable and \ref Serializable
-     * \param [in] finalize_function The Finalize function to
-     *   use. Must take an icontext_type& as its first argument and a
-     *   const ReductionType& as its second argument.
-     *
-     * \warning Pay attention to the types! A slightly erroneous type
-     *          can produce screens of errors.
+     * \param [in] key The name of this aggregator. Must be unique.
+     *                          \ref icontext_type& as its first argument, and
+     *                          a \ref vertex_type, or a reference to a 
+     *                          \ref vertex_type as its second argument.
+     *                          Returns a ReductionType which must be summable
+     *                          and \ref Serializable .
+     * \param [in] finalize_function The Finalize function to use. Must take
+     *                               an \ref icontext_type& as its first
+     *                               argument and a ReductionType, or a
+     *                               reference to a ReductionType as its second
+     *                               argument.
      */
     template <typename ReductionType,
               typename VertexMapType,
@@ -318,6 +431,42 @@ namespace graphlab {
     } // end of add vertex aggregator
 
 #if defined(__cplusplus) && __cplusplus >= 201103L
+    /**
+     * \brief An overload of add_vertex_aggregator for C++11 which does not
+     *        require the user to provide the reduction type.
+     *
+     * This function is available only if the compiler has C++11 support.
+     * Specifically, it uses C++11's decltype operation to infer the
+     * reduction type, thus eliminating the need for the function
+     * call to be templatized over the reduction type. For instance,
+     * in the add_vertex_aggregator() example, it allows the following
+     * code to be written:
+     * \code
+     * engine.add_vertex_aggregator("absolute_vertex_sum",
+     *                              absolute_vertex_data, 
+     *                              print_finalize);
+     * \endcode
+     *
+     * \tparam VertexMapperType The type of the map function. 
+     *                          Not generally needed.
+     *                          Can be inferred by the compiler.
+     * \tparam FinalizerType The type of the finalize function. 
+     *                       Not generally needed.
+     *                       Can be inferred by the compiler.
+     *
+     * \param [in] key The name of this aggregator. Must be unique.
+     * \param [in] map_function The Map function to use. Must take an
+     *                          \ref icontext_type& as its first argument, and
+     *                          a \ref vertex_type, or a reference to a 
+     *                          \ref vertex_type as its second argument.
+     *                          Returns a ReductionType which must be summable
+     *                          and \ref Serializable .
+     * \param [in] finalize_function The Finalize function to use. Must take
+     *                               an \ref icontext_type& as its first
+     *                               argument and a ReductionType, or a
+     *                               reference to a ReductionType as its second
+     *                               argument.
+     */
     template <typename VertexMapType,
               typename FinalizerType>
     bool add_vertex_aggregator(const std::string& key,
@@ -334,29 +483,142 @@ namespace graphlab {
     } // end of add vertex aggregator
 
 #endif
-    
-    /** \brief Creates a edge aggregator. Returns true on success.
-     *    Returns false if an aggregator of the same name already
-     *    exists
+   
+
+    /** 
+     * \brief Creates an edge aggregator. Returns true on success.
+     *        Returns false if an aggregator of the same name already
+     *        exists.
      *
-     * Creates an edge aggregator associated to a particular key.  The
-     * map_function is called over every edge in the graph, and the
-     * return value of the map is summed. The finalize_function is
-     * then called on the result of the reduction.
+     * Creates a edge aggregator associated to a particular key.
+     * The map_function is called over every edge in the graph, and the
+     * return value of the map is summed. The finalize_function is then called
+     * on the result of the reduction. The finalize_function is called on
+     * all machines. The map_function should only read the graph data,
+     * and should not make any modifications.
+
+     *
+     * ### Basic Usage 
+     * For instance, if the graph has float vertex data, and float edge data:
+     * \code
+     *   typedef graphlab::distributed_graph<float, float> graph_type;
+     * \endcode
+     *
+     * An aggregator can be constructed to compute the absolute sum of all the
+     * edge data. To do this, we define two functions.
+     * \code
+     * float absolute_edge_data(graphlab::icontext_type& context,
+     *                          graph_type::edge_type edge) {
+     *   return std::fabs(edge.data());
+     * }
+     *
+     * void print_finalize(icontext_type& context, float total) {
+     *   std::cout << total << "\n";
+     * }
+     * \endcode
      * 
-     * \tparam ReductionType The output of the map function. Must be
-     *    summable and \ref Serializable.
-     * \param [in] map_function The Map function to use. Must take an
-     *    icontext_type& as its first argument, and an edge_type& as
-     *    its second argument. Returns a ReductionType which must be
-     *    summable and \ref Serializable
-     * \param [in] finalize_function The Finalize function to
-     *    use. Must take an icontext_type& as its first argument and a
-     *    const ReductionType& as its second argument.
+     * Next, we define the aggregator in the engine by calling 
+     * add_edge_aggregator(). We must assign it a unique
+     * name which will be used to reference this particular aggregate
+     * operation. We shall call it "absolute_edge_sum".
+     * \code
+     * engine.add_edge_aggregator<float>("absolute_edge_sum",
+     *                                     absolute_edge_data, 
+     *                                     print_finalize);
+     * \endcode
      *
-     * \warning Pay attention to the types! A slightly erroneous type
-     *    can produce screens of errors
+      *
+     * When executed, the engine execute <code>absolute_edge_data()</code>
+     * on each edge in the graph. <code>absolute_edge_data()</code> 
+     * reads the edge data, and returns its absolute value. All return 
+     * values are then summing them together using the float's += operator.
+     * The final result is than passed to the <code>print_finalize</code>
+     * function.  The template argument <code><float></code> is necessary to
+     * provide information about the return type of
+     * <code>absolute_edge_data</code>.
+     * 
+     *
+     * This aggregator can be run immediately by calling 
+     * aggregate_now() with the name of the aggregator.
+     * \code
+     * engine.aggregate_now("absolute_edge_sum");
+     * \endcode
+     *
+     * Or can be arranged to run periodically together with the engine 
+     * execution (in this example, every 1.5 seconds).
+     * \code
+     * engine.aggregate_periodic("absolute_edge_sum", 1.5);
+     * \endcode
+     * 
+     * Note that since finalize is called on <b>all machines</b>, multiple
+     * copies of the total will be printed. If only one copy is desired,
+     * see \ref graphlab::icontext::cout() "context.cout()" or to get 
+     * the actual process ID using 
+     * \ref graphlab::icontext::procid() "context.procid()"
+     *
+     * ### Details
+     * The add_edge_aggregator() function is also templatized over both
+     * function types and there is no strong enforcement of the exact argument
+     * types of the map function and the reduce function. For instance, in the
+     * above example, the following print_finalize() variants may also be
+     * accepted.
+     *
+     * \code
+     * void print_finalize(icontext_type& context, double total) {
+     *   std::cout << total << "\n";
+     * }
+     *
+     * void print_finalize(icontext_type& context, float& total) {
+     *   std::cout << total << "\n";
+     * }
+     *
+     * void print_finalize(icontext_type& context, const float& total) {
+     *   std::cout << total << "\n";
+     * }
+     * \endcode
+     * In particlar, the last variation may be useful for performance reasons
+     * if the reduction type is large.
+     *
+     * ### Distributed Behavior
+     * To obtain consistent distributed behavior in the distributed setting,
+     * we designed the aggregator to minimize the amount of asymmetry among 
+     * the machines. In particular, the finalize operation is guaranteed to be
+     * called on all machines. This therefore permits global variables to be
+     * modified on finalize since all machines are ensured to be eventually
+     * consistent. 
+     *
+     * For instance, in the above example, print_finalize could
+     * store the result in a global variable:
+     * \code
+     * void print_finalize(icontext_type& context, float total) {
+     *   GLOBAL_TOTAL = total;
+     * }
+     * \endcode 
+     * which will make it accessible to all other running update functions.
+     *
+     * \tparam ReductionType The output of the map function. Must have
+     *                        operator+= defined, and must be \ref Serializable.
+     * \tparam EdgeMapperType The type of the map function. 
+     *                          Not generally needed.
+     *                          Can be inferred by the compiler.
+     * \tparam FinalizerType The type of the finalize function. 
+     *                       Not generally needed.
+     *                       Can be inferred by the compiler.
+     *
+     * \param [in] key The name of this aggregator. Must be unique.
+     * \param [in] map_function The Map function to use. Must take an
+     *                          \ref icontext_type& as its first argument, and
+     *                          a \ref edge_type, or a reference to a 
+     *                          \ref edge_type as its second argument.
+     *                          Returns a ReductionType which must be summable
+     *                          and \ref Serializable .
+     * \param [in] finalize_function The Finalize function to use. Must take
+     *                               an \ref icontext_type& as its first
+     *                               argument and a ReductionType, or a
+     *                               reference to a ReductionType as its second
+     *                               argument.
      */
+ 
     template <typename ReductionType,
               typename EdgeMapType,
               typename FinalizerType>
@@ -375,6 +637,43 @@ namespace graphlab {
 
 
 #if defined(__cplusplus) && __cplusplus >= 201103L
+
+    /**
+     * \brief An overload of add_edge_aggregator for C++11 which does not
+     *        require the user to provide the reduction type.
+     *
+     * This function is available only if the compiler has C++11 support.
+     * Specifically, it uses C++11's decltype operation to infer the
+     * reduction type, thus eliminating the need for the function
+     * call to be templatized over the reduction type. For instance,
+     * in the add_edge_aggregator() example, it allows the following
+     * code to be written:
+     * \code
+     * engine.add_edge_aggregator("absolute_edge_sum",
+     *                              absolute_edge_data, 
+     *                              print_finalize);
+     * \endcode
+     *
+     * \tparam EdgeMapperType The type of the map function. 
+     *                          Not generally needed.
+     *                          Can be inferred by the compiler.
+     * \tparam FinalizerType The type of the finalize function. 
+     *                       Not generally needed.
+     *                       Can be inferred by the compiler.
+     *
+     * \param [in] key The name of this aggregator. Must be unique.
+     * \param [in] map_function The Map function to use. Must take an
+     *                          \ref icontext_type& as its first argument, and
+     *                          a \ref vertex_type, or a reference to a 
+     *                          \ref vertex_type as its second argument.
+     *                          Returns a ReductionType which must be summable
+     *                          and \ref Serializable .
+     * \param [in] finalize_function The Finalize function to use. Must take
+     *                               an \ref icontext_type& as its first
+     *                               argument and a ReductionType, or a
+     *                               reference to a ReductionType as its second
+     *                               argument.
+     */
     template <typename EdgeMapType,
               typename FinalizerType>
     bool add_edge_aggregator(const std::string& key,
@@ -392,11 +691,21 @@ namespace graphlab {
 #endif
 
     /**
+     * \brief Performs an immediate aggregation on a key
+     *
      * Performs an immediate aggregation on a key. All machines must
      * call this simultaneously. If the key is not found,
-     * false is returned. Otherwise return true on success.
+     * false is returned. Otherwise returns true on success.
      *
-     * \param[in] key Key to aggregate now
+     * For instance, the following code will run the aggregator
+     * with the name "absolute_vertex_sum" immediately.
+     * \code
+     * engine.aggregate_now("absolute_vertex_sum");
+     * \endcode
+     *
+     * \param[in] key Key to aggregate now. Must be a key
+     *                 previously created by add_vertex_aggregator()
+     *                 or add_edge_aggregator().
      * \return False if key not found, True on success.
      */
     bool aggregate_now(const std::string& key) {
@@ -410,9 +719,92 @@ namespace graphlab {
     } // end of aggregate_now
 
 
-
-    template <typename ResultType, typename MapFunctionType>
-    ResultType map_reduce_vertices(MapFunctionType mapfunction) {
+   /**
+    * \brief Performs a map-reduce operation on each vertex in the 
+    * graph returning the result.
+    * 
+    * Given a map function, map_reduce_vertices() call the map function on all
+    * vertices in the graph. The return values are then summed together and the
+    * final result returned. The map function should only read the vertex data
+    * and should not make any modifications. map_reduce_vertices() must be
+    * called on all machines simultaneously.
+    *
+    * ### Basic Usage 
+    * For instance, if the graph has float vertex data, and float edge data:
+    * \code
+    *   typedef graphlab::distributed_graph<float, float> graph_type;
+    * \endcode
+    * 
+    * To compute an absolute sum over all the vertex data, we would write
+    * a function which reads in each a vertex, and returns the absolute
+    * value of the data on the vertex.
+    * \code
+    * float absolute_vertex_data(graphlab::icontext_type& context,
+    *                            graph_type::vertex_type vertex) {
+    *   return std::fabs(vertex.data());
+    * }
+    * \endcode
+    * After which calling:
+    * \code
+    * float sum = engine.map_reduce_vertices<float>(absolute_vertex_data);
+    * \endcode
+    * will call the <code>absolute_vertex_data()</code> function
+    * on each vertex in the graph. <code>absolute_vertex_data()</code>
+    * reads the value of the vertex and returns the absolute result.
+    * This return values are then summed together and returned. 
+    * All machines see the same result.
+    *
+    * The template argument <code><float></code> is needed to inform
+    * the compiler regarding the return type of the mapfunction.
+    *
+    * ### Signalling
+    * Another common use for the map_reduce_vertices() function is 
+    * in signalling. Since the map function is passed a context, it
+    * can be used to perform signalling of vertices for execution
+    * during a later \ref start() "engine.start()" call.
+    *
+    * For instance, the following code will signal all vertices
+    * with value >= 1
+    * \code
+    * graphlab::empty signal_vertices(graphlab::icontext_type& context,
+    *                                 graph_type::vertex_type vertex) {
+    *   if (vertex.data() >= 1) context.signal(vertex);
+    *   return graphlab::empty()
+    * }
+    * \endcode
+    * Note that in this case, we are not interested in a reduction
+    * operation, and thus we return a graphlab::empty object.
+    * Calling:
+    * \code
+    * engine.map_reduce_vertices<graphlab::empty>(signal_vertices);
+    * \endcode
+    * will run <code>signal_vertices()</code> on all vertices,
+    * signalling all vertices with value <= 1
+    *
+    * ### Relations
+    * The map function has the same structure as that in
+    * add_vertex_aggregator() and may be reused in an aggregator.
+    * This function is also very similar to 
+    * graphlab::distributed_graph::map_reduce_vertices()
+    * with the difference that this takes a context and thus
+    * can be used to perform signalling.
+    * Finally transform_vertices() can be used to perform a similar
+    * but may also make modifications to graph data.
+    *
+    * \tparam ResultType The output of the map function. Must have
+    *                    operator+= defined, and must be \ref Serializable.
+    * \tparam VertexMapperType The type of the map function. 
+    *                          Not generally needed.
+    *                          Can be inferred by the compiler.
+    * \param mapfunction The map function to use. Must take an
+    *                   \ref icontext_type& as its first argument, and
+    *                   a \ref vertex_type, or a reference to a 
+    *                   \ref vertex_type as its second argument.
+    *                   Returns a ResultType which must be summable
+    *                   and \ref Serializable .
+    */
+    template <typename ResultType, typename VertexMapperType>
+    ResultType map_reduce_vertices(VertexMapperType mapfunction) {
       aggregator_type* aggregator = get_aggregator();
       if(aggregator == NULL) {
         logstream(LOG_FATAL) << "Aggregation not supported by this engine!"
@@ -422,9 +814,92 @@ namespace graphlab {
       return aggregator->map_reduce_vertices<ResultType>(mapfunction);      
     }
 
-
-    template <typename ResultType, typename MapFunctionType>
-    ResultType map_reduce_edges(MapFunctionType mapfunction) {
+   /**
+    * \brief Performs a map-reduce operation on each edge in the 
+    * graph returning the result.
+    * 
+    * Given a map function, map_reduce_edges() call the map function on all
+    * edges in the graph. The return values are then summed together and the
+    * final result returned. The map function should only read data
+    * and should not make any modifications. map_reduce_edges() must be
+    * called on all machines simultaneously.
+    *
+    * ### Basic Usage 
+    * For instance, if the graph has float vertex data, and float edge data:
+    * \code
+    *   typedef graphlab::distributed_graph<float, float> graph_type;
+    * \endcode
+    * 
+    * To compute an absolute sum over all the edge data, we would write
+    * a function which reads in each a edge, and returns the absolute
+    * value of the data on the edge.
+    * \code
+    * float absolute_edge_data(graphlab::icontext_type& context,
+    *                          graph_type::edge_type edge) {
+    *   return std::fabs(edge.data());
+    * }
+    * \endcode
+    * After which calling:
+    * \code
+    * float sum = engine.map_reduce_edges<float>(absolute_edge_data);
+    * \endcode
+    * will call the <code>absolute_edge_data()</code> function
+    * on each edge in the graph. <code>absolute_edge_data()</code>
+    * reads the value of the edge and returns the absolute result.
+    * This return values are then summed together and returned. 
+    * All machines see the same result.
+    *
+    * The template argument <code><float></code> is needed to inform
+    * the compiler regarding the return type of the mapfunction.
+    *
+    * ### Signalling
+    * Another common use for the map_reduce_edges() function is 
+    * in signalling. Since the map function is passed a context, it
+    * can be used to perform signalling of edges for execution
+    * during a later \ref start() "engine.start()" call.
+    *
+    * For instance, the following code will signal the source
+    * vertex of each edge.
+    * \code
+    * graphlab::empty signal_source(graphlab::icontext_type& context,
+    *                               graph_type::edge_type edge) {
+    *   context.signal(edge.source());
+    *   return graphlab::empty()
+    * }
+    * \endcode
+    * Note that in this case, we are not interested in a reduction
+    * operation, and thus we return a graphlab::empty object.
+    * Calling:
+    * \code
+    * engine.map_reduce_edges<graphlab::empty>(signal_source);
+    * \endcode
+    * will run <code>signal_source()</code> on all edges,
+    * signalling all source vertices.
+    *
+    * ### Relations
+    * The map function has the same structure as that in
+    * add_edge_aggregator() and may be reused in an aggregator.
+    * This function is also very similar to 
+    * graphlab::distributed_graph::map_reduce_edges()
+    * with the difference that this takes a context and thus
+    * can be used to perform signalling.
+    * Finally transform_edges() can be used to perform a similar
+    * but may also make modifications to graph data.
+    *
+    * \tparam ResultType The output of the map function. Must have
+    *                    operator+= defined, and must be \ref Serializable.
+    * \tparam EdgeMapperType The type of the map function. 
+    *                          Not generally needed.
+    *                          Can be inferred by the compiler.
+    * \param mapfunction The map function to use. Must take an
+    *                   \ref icontext_type& as its first argument, and
+    *                   a \ref edge_type, or a reference to a 
+    *                   \ref edge_type as its second argument.
+    *                   Returns a ResultType which must be summable
+    *                   and \ref Serializable .
+    */
+    template <typename ResultType, typename EdgeMapperType>
+    ResultType map_reduce_edges(EdgeMapperType mapfunction) {
       aggregator_type* aggregator = get_aggregator();
       if(aggregator == NULL) {
         logstream(LOG_FATAL) << "Aggregation not supported by this engine!" 
@@ -434,9 +909,76 @@ namespace graphlab {
       return aggregator->map_reduce_edges<ResultType>(mapfunction);      
     }
     
-    
-    template <typename TransformType>
-    void transform_vertices(TransformType mapfunction) {
+   
+    /**
+     * \brief Performs a transformation operation on each vertex in the graph.
+     *
+     * Given a mapfunction, transform_vertices() calls mapfunction on 
+     * every vertex in graph. The map function may make modifications
+     * to the data on the vertex. transform_vertices() must be called by all
+     * machines simultaneously.
+     *
+     * ### Basic Usage 
+     * For instance, if the graph has integer vertex data, and integer edge
+     * data: 
+     * \code
+     *   typedef graphlab::distributed_graph<size_t, size_t> graph_type;
+     * \endcode
+     * 
+     * To set each vertex value to be the number of out-going edges,
+     * we may write the following function:     
+     * \code
+     * void set_vertex_value(graphlab::icontext_type& context,
+     *                          graph_type::vertex_type vertex) {
+     *   vertex.data() = vertex.num_out_edges();
+     * }
+     * \endcode
+     *
+     * Calling transform_vertices():
+     * \code
+     *   engine.transform_vertices(set_vertex_value);
+     * \endcode
+     * will run the <code>set_vertex_value()</code> function
+     * on each vertex in the graph, setting its new value. 
+     *
+     * ### Signalling
+     * Since the mapfunction is provided with a context, the mapfunction
+     * can also be used to perform signalling. For instance, the 
+     * <code>set_vertex_value</code> function above may be modified to set 
+     * the value of the vertex, but to also signal the vertex if
+     * it has more than 5 outgoing edges.
+     *
+     * \code
+     * void set_vertex_value(graphlab::icontext_type& context,
+     *                          graph_type::vertex_type vertex) {
+     *   vertex.data() = vertex.num_out_edges();
+     *   if (vertex.num_out_edges() > 5) context.signal(vertex);
+     * }
+     * \endcode
+     *
+     * However, if the purpose of the function is to only signal
+     * without making modifications, map_reduce_vertices() will be
+     * more efficient as this function will additionally perform
+     * distributed synchronization of modified data.
+     *
+     * ### Relations
+     * map_reduce_vertices() provide similar signalling functionality, 
+     * but should not make modifications to graph data. 
+     * graphlab::distributed_graph::transform_vertices() provide
+     * the same graph modification capabilities, but without a context
+     * and thus cannot perform signalling.
+     *
+     * \tparam VertexMapperType The type of the map function. 
+     *                          Not generally needed.
+     *                          Can be inferred by the compiler.
+     * \param mapfunction The map function to use. Must take an
+     *                   \ref icontext_type& as its first argument, and
+     *                   a \ref vertex_type, or a reference to a 
+     *                   \ref vertex_type as its second argument.
+     *                   Returns void.
+     */ 
+    template <typename VertexMapperType>
+    void transform_vertices(VertexMapperType mapfunction) {
       aggregator_type* aggregator = get_aggregator();
       if(aggregator == NULL) {
         logstream(LOG_FATAL) << "Aggregation not supported by this engine!"
@@ -446,9 +988,74 @@ namespace graphlab {
       aggregator->transform_vertices(mapfunction);      
     }
 
-
-    template <typename TransformType>
-    void transform_edges(TransformType mapfunction) {
+    /**
+     * \brief Performs a transformation operation on each edge in the graph.
+     *
+     * Given a mapfunction, transform_edges() calls mapfunction on 
+     * every edge in graph. The map function may make modifications
+     * to the data on the edge. transform_edges() must be called on
+     * all machines simultaneously.
+     *
+     * ### Basic Usage 
+     * For instance, if the graph has integer vertex data, and integer edge
+     * data: 
+     * \code
+     *   typedef graphlab::distributed_graph<size_t, size_t> graph_type;
+     * \endcode
+     * 
+     * To set each edge value to be the number of out-going edges
+     * of the target vertex, we may write the following:
+     * \code
+     * void set_edge_value(graphlab::icontext_type& context,
+     *                          graph_type::edge_type edge) {
+     *   edge.data() = edge.target().num_out_edges();
+     * }
+     * \endcode
+     *
+     * Calling transform_edges():
+     * \code
+     *   engine.transform_edges(set_edge_value);
+     * \endcode
+     * will run the <code>set_edge_value()</code> function
+     * on each edge in the graph, setting its new value. 
+     *
+     * ### Signalling
+     * Since the mapfunction is provided with a context, the mapfunction
+     * can also be used to perform signalling. For instance, the 
+     * <code>set_edge_value</code> function above may be modified to set 
+     * the value of the edge, but to also signal the target vertex. 
+     *
+     * \code
+     * void set_edge_value(graphlab::icontext_type& context,
+     *                          graph_type::edge_type edge) {
+     *   edge.data() = edge.target().num_out_edges();
+     *   context.signal(edge.target());
+     * }
+     * \endcode
+     *
+     * However, if the purpose of the function is to only signal
+     * without making modifications, map_reduce_edges() will be
+     * more efficient as this function will additionally perform
+     * distributed synchronization of modified data.
+     *
+     * ### Relations
+     * map_reduce_edges() provide similar signalling functionality, 
+     * but should not make modifications to graph data. 
+     * graphlab::distributed_graph::transform_edges() provide
+     * the same graph modification capabilities, but without a context
+     * and thus cannot perform signalling.
+     *
+     * \tparam EdgeMapperType The type of the map function. 
+     *                          Not generally needed.
+     *                          Can be inferred by the compiler.
+     * \param mapfunction The map function to use. Must take an
+     *                   \ref icontext_type& as its first argument, and
+     *                   a \ref edge_type, or a reference to a 
+     *                   \ref edge_type as its second argument.
+     *                   Returns void.
+     */ 
+    template <typename EdgeMapperType>
+    void transform_edges(EdgeMapperType mapfunction) {
       aggregator_type* aggregator = get_aggregator();
       if(aggregator == NULL) {
         logstream(LOG_FATAL) << "Aggregation not supported by this engine!" 
@@ -459,16 +1066,27 @@ namespace graphlab {
     }
     
     /**
+     * \brief Requests that a particular aggregation key
+     * be recomputed periodically when the engine is running.
+     *
      * Requests that the aggregator with a given key be aggregated
      * every certain number of seconds when the engine is running.
      * Note that the period is prescriptive: in practice the actual
      * period will be larger than the requested period. 
      * Seconds must be >= 0;
      *
-     * \param [in] key Key to schedule
+     * For instance, the following code will schedule the aggregator
+     * with the name "absolute_vertex_sum" to run every 1.5 seconds.
+     * \code
+     * engine.aggregate_periodic("absolute_vertex_sum", 1.5);
+     * \endcode
+     *
+     * \param [in] key Key to schedule. Must be a key
+     *                 previously created by add_vertex_aggregator()
+     *                 or add_edge_aggregator().
      * \param [in] seconds How frequently to schedule. Must be >=
-     *    0. In the synchronous engine, seconds == 0 will ensure that
-     *    this key is recomputed every iteration.
+     *    0. seconds == 0 will ensure that this key is continously
+     *    recomputed.
      * 
      * All machines must call simultaneously.
      * \return Returns true if key is found and seconds >= 0,
@@ -487,6 +1105,8 @@ namespace graphlab {
 
 
     /**
+     * \cond GRAPHLAB_INTERNAL
+     * \internal
      * \brief This is used by iengine to get the 
      * \ref distributed_aggregator from the derived class to support
      * the local templated aggregator interface. 
@@ -496,7 +1116,7 @@ namespace graphlab {
      * supported then return NULL.
      */
     virtual aggregator_type* get_aggregator() = 0;
-    
+     /// \endcond
   }; // end of iengine interface
 
 } // end of namespace graphlab

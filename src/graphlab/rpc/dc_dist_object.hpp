@@ -240,14 +240,14 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
   /**
    * A wrapper on cout, that outputs only on machine 0
    */
-  std::ostream& cout() {
+  std::ostream& cout() const {
     return dc_.cout();
   }
 
   /**
    * A wrapper on cerr, that outputs only on machine 0
    */
-  std::ostream& cerr() {
+  std::ostream& cerr() const {
     return dc_.cout();
   }
   
