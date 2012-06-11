@@ -122,6 +122,7 @@ struct topk {
   static void finalize(cgs_lda_vertex_program::icontext_type& context,
                       const topk& total) {
     if(context.procid() != 0) return;
+    std::cout << "In Finalize:" << std::endl;
     for(size_t i = 0; i < total.top_words.size(); ++i) {
       std::cout << "Topic " << i << ": ";
       rev_foreach(cw_pair_type pair, total.top_words[i])  
@@ -279,8 +280,12 @@ int main(int argc, char** argv) {
   std::cout << dc.procid() << ": Creating engine" << std::endl;
   engine_type engine(dc, graph, clopts, "synchronous");
   ///! Add an aggregator
-  engine.add_vertex_aggregator<topk>("topk", topk::map, topk::finalize);
-  engine.aggregate_periodic("topk", interval);
+  bool success = false;
+  success = engine.add_vertex_aggregator<topk>("topk", topk::map, topk::finalize);
+  assert(success);
+  std::cout << "interval: " << interval << std::endl;
+  success = engine.aggregate_periodic("topk", interval);
+  assert(success);
 
   ///! schedule only documents
   engine.map_reduce_vertices<graphlab::empty>(signal_docs);
