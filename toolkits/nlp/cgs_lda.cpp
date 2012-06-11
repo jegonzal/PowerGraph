@@ -104,14 +104,14 @@ struct topk {
     for(size_t i = 0; i < top_words.size(); ++i) {
       // Only if the largest count in the other topk is greater than the 
       // smallest count in this topk do we do a merge
-      if(other.top_words[i].rbegin()->first > top_words[i].begin()->first) {
-        // Merge the topk
-        top_words[i].insert(other.top_words[i].begin(), 
-                            other.top_words[i].end());
-        // Remove excess elements        
-        while(top_words[i].size() > KVALUE) 
-          top_words[i].erase(top_words[i].begin());
-      }
+      // if(other.top_words[i].rbegin()->first > top_words[i].begin()->first) {
+      // Merge the topk
+      top_words[i].insert(other.top_words[i].begin(), 
+                          other.top_words[i].end());
+      // Remove excess elements        
+      while(top_words[i].size() > KVALUE) 
+        top_words[i].erase(top_words[i].begin());
+      //    }
     }
     return *this;
   } // end of operator +=
@@ -152,7 +152,8 @@ struct topk {
       std::cout << "Topic " << i << ": ";
       rev_foreach(cw_pair_type pair, total.top_words[i])  {
         ASSERT_LT(pair.second, dictionary.size());
-        std::cout << dictionary[pair.second] << ", "; 
+        std::cout << dictionary[pair.second] 
+                  << "(" << pair.first << ")" << ", "; 
       }
       std::cout << std::endl;
     }
@@ -305,7 +306,7 @@ int main(int argc, char** argv) {
 
   ///! Setup the engine
   std::cout << dc.procid() << ": Creating engine" << std::endl;
-  engine_type engine(dc, graph, clopts, "synchronous");
+  engine_type engine(dc, graph, clopts, "asynchronous");
   ///! Add an aggregator
   bool success = false;
   success = engine.add_vertex_aggregator<topk>("topk", topk::map, topk::finalize);

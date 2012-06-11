@@ -134,18 +134,22 @@ apply(icontext_type& context, vertex_type& vertex, const gather_type& sum) {
           --doc_topic_count[asg];
           if(word_topic_count[asg] > 0) --word_topic_count[asg];
           --global_topic_count[asg];
-          for(size_t t = 0; t < NTOPICS; ++t) {
-            const double n_dt = doc_topic_count[t]; ASSERT_GE(n_dt, 0);
-            const double n_wt = word_topic_count[t]; ASSERT_GE(n_wt, 0);
-            const double n_t  = global_topic_count[t]; ASSERT_GE(n_t, 0);
-            prob[t] = (ALPHA + n_dt) * (BETA + n_wt) / (BETA * NWORDS + n_t);
-          }
-          asg = graphlab::random::multinomial(prob);
-        } else {
-          // draw a completely random initial assignment
-          asg = graphlab::random::fast_uniform(topic_id_type(0), 
-                                               topic_id_type(NTOPICS-1));
+        } 
+        // else {
+        //   // draw a completely random initial assignment
+        //   asg = graphlab::random::fast_uniform(topic_id_type(0), 
+        //                                        topic_id_type(NTOPICS-1));
+        // }
+
+        for(size_t t = 0; t < NTOPICS; ++t) {
+          const double n_dt = doc_topic_count[t]; ASSERT_GE(n_dt, 0);
+          const double n_wt = word_topic_count[t]; ASSERT_GE(n_wt, 0);
+          const double n_t  = global_topic_count[t]; ASSERT_GE(n_t, 0);
+          prob[t] = (ALPHA + n_dt) * (BETA + n_wt) / (BETA * NWORDS + n_t);
         }
+        asg = graphlab::random::multinomial(prob);
+
+
         ++doc_topic_count[asg];
         ++word_topic_count[asg];                    
         ++global_topic_count[asg];
