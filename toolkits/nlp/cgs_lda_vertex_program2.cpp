@@ -92,16 +92,45 @@ gather_edges(icontext_type& context, const vertex_type& vertex) const {
 gather_type cgs_lda_vertex_program::
 gather(icontext_type& context, const vertex_type& vertex,
        edge_type& edge) const {
-  const vertex_type other_vertex = get_other_vertex(edge, vertex);
-  if(is_doc(other_vertex)) {
-    gather_type ret; ret.topic_count.resize(NTOPICS);
-    const assignment_type& assignment = edge.data();
-    foreach(topic_id_type asg, assignment) ++ret.topic_count[asg];
-    return ret;
-  } else {
-    return gather_type(other_vertex.id(), other_vertex.data().factor,
-                       edge.data());
-  }
+  gather_type ret_val; ret_val.topic_count.resize(NTOPICS);
+  vertex_type other_vertex = get_other_vertex(edge, vertex);
+  // VIOLATING THE ABSTRACTION!
+  vertex_data& vdata = graph_type::vertex_type(vertex).data();
+  // VIOLATING THE ABSTRACTION!
+  vertex_data& other_vdata = other_vertex.data();
+  factor_type& doc_topic_count = 
+    is_doc(vertex) ? vdata.factor : other_vdata.factor;
+  factor_type& word_topic_count = 
+    is_word(vertex) ? vdata.factor : other_vdata.factor;
+  ASSERT_EQ(doc_topic_count.size(), NTOPICS);
+  ASSERT_EQ(word_topic_count.size(), NTOPICS);
+  // run the actual gibbs sampling 
+  std::vector<double> prob(NTOPICS);
+  assignment_type& assignment = edge.data();
+  // Resample the topics
+  foreach(topic_id_type& asg, assignment) {
+    if(asg != NULL_TOPIC) { // construct the cavity
+      --doc_topic_count[asg];
+      --word_topic_count[asg];
+      --global_topic_count[asg];
+    } 
+    for(size_t t = 0; t < NTOPICS; ++t) {
+      const double n_dt = 
+        std::max(count_type(doc_topic_count[t]), count_type(0));
+      ASSERT_GE(n_dt, 0);
+      const double n_wt = 
+        std::max(count_type(word_topic_count[t]), count_type(0)); 
+      ASSERT_GE(n_wt, 0);
+      const double n_t  = global_topic_count[t]; ASSERT_GE(n_t, 0);
+      prob[t] = (ALPHA + n_dt) * (BETA + n_wt) / (BETA * NWORDS + n_t);
+    }
+    asg = graphlab::random::multinomial(prob);
+    ++doc_topic_count[asg];
+    ++word_topic_count[asg];                    
+    ++global_topic_count[asg];
+    ++ret_val.topic_count[asg];
+  } // End of loop over each token
+  return ret_val;
 } // end of scatter
 
 
@@ -110,54 +139,15 @@ void cgs_lda_vertex_program::
 apply(icontext_type& context, vertex_type& vertex, const gather_type& sum) {
   const size_t num_neighbors = vertex.num_in_edges() + vertex.num_out_edges();
   ASSERT_GT(num_neighbors, 0);
-  ASSERT_EQ(new_edge_data.size(), 0); 
-  ASSERT_EQ(vertex.data().factor.size(), NTOPICS);
-  if(is_word(vertex)) {
-    vertex.data().nupdates++; 
-    vertex.data().factor = sum.topic_count;
-  } else { ASSERT_TRUE(is_doc(vertex));
-    vertex_data& vdata = vertex.data();
-    vdata.nupdates++; vdata.nchanges = 0;
-    factor_type& doc_topic_count = vdata.factor;
-    // run the actual gibbs sampling 
-    std::vector<double> prob(NTOPICS);
-    typedef neighborhood_map_type::value_type pair_type; 
-    foreach(const pair_type& nbr_pair, sum.neighborhood_map) {
-      const graphlab::vertex_id_type wordid = nbr_pair.first;
-      factor_type word_topic_count = nbr_pair.second.first;
-      assignment_type assignment = nbr_pair.second.second;
-      ASSERT_EQ(word_topic_count.size(), NTOPICS);
-      // Resample the topics
-      foreach(topic_id_type& asg, assignment) {
-        const topic_id_type old_asg = asg;
-        if(asg != NULL_TOPIC) { // construct the cavity
-          --doc_topic_count[asg];
-          if(word_topic_count[asg] > 0) --word_topic_count[asg];
-          --global_topic_count[asg];
-        }
-        for(size_t t = 0; t < NTOPICS; ++t) {
-          const double n_dt = doc_topic_count[t]; ASSERT_GE(n_dt, 0);
-          const double n_wt = word_topic_count[t]; ASSERT_GE(n_wt, 0);
-          const double n_t  = global_topic_count[t]; ASSERT_GE(n_t, 0);
-          prob[t] = (ALPHA + n_dt) * (BETA + n_wt) / (BETA * NWORDS + n_t);
-        }
-        asg = graphlab::random::multinomial(prob);
-        ++doc_topic_count[asg];
-        ++word_topic_count[asg];                    
-        ++global_topic_count[asg];
-        // record a change if one occurs
-        if(old_asg != asg) vdata.nchanges++;
-      } // End of loop over each token
-      // test to see if the topic assignments have change
-      // sort the topic assignment to be in a "canonical order" 
-      std::sort(assignment.begin(), assignment.end());
-      const assignment_type& old_assignment = nbr_pair.second.second;
-      bool is_same = (old_assignment.size() == assignment.size());  
-      for(size_t i = 0; i < assignment.size() && is_same; ++i)
-        is_same = (assignment[i] == old_assignment[i]);
-      if(!is_same) new_edge_data[wordid] = assignment;
-    } // end of loop over neighbors
-  } // end of else document
+  // There should be no new edge data since the vertex program has been cleared
+  vertex_data& vdata = vertex.data();
+  ASSERT_EQ(sum.topic_count.size(), NTOPICS);
+  ASSERT_EQ(vdata.factor.size(), NTOPICS);
+  vdata.nupdates++; vdata.nchanges = 0; 
+  for(size_t t = 0; t < vdata.factor.size(); ++t) {
+    vdata.nchanges += std::abs(vdata.factor[t] - sum.topic_count[t]);
+    vdata.factor[t] = sum.topic_count[t];
+  }
 } // end of apply
 
 
@@ -171,21 +161,8 @@ scatter_edges(icontext_type& context, const vertex_type& vertex) const {
 void cgs_lda_vertex_program::
 scatter(icontext_type& context, const vertex_type& vertex, 
         edge_type& edge) const {
-  if(is_doc(vertex)) { 
-    const vertex_type word_vertex = get_other_vertex(edge, vertex);
-    ASSERT_TRUE(is_word(word_vertex));
-    // if this is a document then update the topic assignment along the edge
-    edge_data_map_type::const_iterator iter = 
-      new_edge_data.find(word_vertex.id());
-    // If there is an assignment then something changed so update and
-    // signal
-    if(iter != new_edge_data.end()) {
-      const assignment_type& new_topic_assignment = iter->second;
-      ASSERT_EQ(new_topic_assignment.size(), edge.data().size());
-      edge.data() = new_topic_assignment;
-    }
-  } 
-  context.signal(get_other_vertex(edge, vertex));
+  const vertex_type other_vertex = get_other_vertex(edge, vertex);
+  context.signal(other_vertex);
 } // end of scatter function
 
 

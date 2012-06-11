@@ -69,7 +69,9 @@ size_t is_doc(const graph_type::vertex_type& vertex) {
   return vertex.num_out_edges() > 0 ? 1 : 0;
 }
 
-
+void initialize_vertex_data(graph_type::vertex_type& vertex) {
+  vertex.data().factor.resize(cgs_lda_vertex_program::NTOPICS);
+}
 
 
 
@@ -102,16 +104,12 @@ struct topk {
     if(top_words.size() < other.top_words.size())
       top_words.resize(other.top_words.size());
     for(size_t i = 0; i < top_words.size(); ++i) {
-      // Only if the largest count in the other topk is greater than the 
-      // smallest count in this topk do we do a merge
-      // if(other.top_words[i].rbegin()->first > top_words[i].begin()->first) {
       // Merge the topk
       top_words[i].insert(other.top_words[i].begin(), 
                           other.top_words[i].end());
       // Remove excess elements        
       while(top_words[i].size() > KVALUE) 
         top_words[i].erase(top_words[i].begin());
-      //    }
     }
     return *this;
   } // end of operator +=
@@ -129,7 +127,7 @@ struct topk {
       float normalizer = 0;
       foreach(double d, vdata.factor) 
         normalizer += (d + cgs_lda_vertex_program::BETA);
-      normalizer = 1;
+      normalizer=1;
       for(size_t i = 0; i < vdata.factor.size(); ++i) {
         const float value = 
           (vdata.factor[i] + cgs_lda_vertex_program::BETA) / normalizer;
@@ -274,6 +272,7 @@ int main(int argc, char** argv) {
   std::cout << dc.procid() << ": Finalizing graph." << std::endl;
   timer.start();
   graph.finalize();
+  graph.transform_vertices(initialize_vertex_data);
   std::cout << dc.procid() << ": Finalizing graph. Finished in " 
             << timer.current_time() << std::endl;
   
