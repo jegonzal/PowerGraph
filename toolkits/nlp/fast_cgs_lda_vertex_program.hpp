@@ -20,8 +20,8 @@
  *
  */
 
-#ifndef CGS_LDA_VERTEX_PROGRAM_GAS_HPP
-#define CGS_LDA_VERTEX_PROGRAM_GAS_HPP
+#ifndef FAST_CGS_LDA_VERTEX_PROGRAM_HPP
+#define FAST_CGS_LDA_VERTEX_PROGRAM_HPP
  
 #include <vector>
 #include <algorithm>
@@ -30,14 +30,9 @@
 #include "cgs_lda.hpp"
 
 
-void run_cgs_lda(graphlab::distributed_control& dc, 
-                 graph_type& graph,
-                 graphlab::command_line_options& clopts);
-
-
-
-
- 
+void run_fast_cgs_lda(graphlab::distributed_control& dc, 
+                      graph_type& graph,
+                      graphlab::command_line_options& clopts);
 
 
 #endif
