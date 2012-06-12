@@ -222,8 +222,24 @@ int main(int argc, char** argv) {
   graphlab::distributed_control dc;
 
   // Parse command line options -----------------------------------------------
-  const std::string description = 
-    "Run the asynchronous collapsed Gibbs Sampler.";
+  const std::string description =    
+    "\n=========================================================================\n"
+    "The Collapsed Gibbs Sampler for the LDA model implements\n" 
+    "a synchronous version of parallel LDA in which document\n"
+    "counts are mainted consistently but word counts are\n"
+    "maintained in an eventually consistent manner.\n"
+    "\n"
+    "The standard usage is: \n"
+    "\t./cgs_lda --dictionary dictionary.txt --matrix doc_word_count.tsv\n"
+    "where dictionary.txt contains: \n"
+    "\taaa \n\taaai \n\tabalone \n\t   ... \n\n"
+    "and doc_word_count.tsv is formatted <docid> <wordid> <count>:\n"
+    "\t0\t0\t3\n"
+    "\t0\t5\t1\n"
+    "\t ...\n\n"
+    "To learn more about the NLP package and its applications visit\n\n"
+    "\t\t http://graphlab.org \n\n"
+    "Additional Options";
   graphlab::command_line_options clopts(description);
   std::string matrix_dir; 
   std::string dictionary_fname;

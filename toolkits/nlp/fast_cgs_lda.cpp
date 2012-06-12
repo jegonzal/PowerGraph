@@ -137,7 +137,23 @@ int main(int argc, char** argv) {
 
   // Parse command line options -----------------------------------------------
   const std::string description = 
-    "Run the asynchronous collapsed Gibbs Sampler.";
+    "\n=========================================================================\n"
+    "The fast Collapsed Gibbs Sampler for the LDA model implements\n" 
+    "a highly asynchronous version of parallel LDA in which document\n"
+    "and word counts are maintained in an eventually consistent\n"
+    "manner.\n"
+    "\n"
+    "The standard usage is: \n"
+    "\t./fast_cgs_lda --dictionary dictionary.txt --matrix doc_word_count.tsv\n"
+    "where dictionary.txt contains: \n"
+    "\taaa \n\taaai \n\tabalone \n\t   ... \n\n"
+    "and doc_word_count.tsv is formatted <docid> <wordid> <count>:\n"
+    "\t0\t0\t3\n"
+    "\t0\t5\t1\n"
+    "\t ...\n\n"
+    "To learn more about the NLP package and its applications visit\n\n"
+    "\t\t http://graphlab.org \n\n"
+    "Additional Options";
   graphlab::command_line_options clopts(description);
   std::string matrix_dir; 
   std::string dictionary_fname;
@@ -145,7 +161,7 @@ int main(int argc, char** argv) {
                        "The file containing the list of unique words");
   clopts.add_positional("dictionary");
   clopts.attach_option("matrix", &matrix_dir, matrix_dir,
-                       "The directory containing the matrix file");
+                       "The directory or file containing the matrix data.");
   clopts.add_positional("matrix");
   clopts.attach_option("ntopics", &NTOPICS, NTOPICS,
                        "Number of topics to use.");
