@@ -38,6 +38,13 @@
 #include <graphlab/macros_def.hpp>
 
 
+
+size_t vertex_data::NLATENT = 20;
+double als_vertex_program::TOLERANCE = 1e-3;
+double als_vertex_program::LAMBDA = 0.01;
+size_t als_vertex_program::MAX_UPDATES = -1;
+
+
 /**
  * \brief The engine type used by the ALS matrix factorization
  * algorithm.
@@ -57,6 +64,7 @@ int main(int argc, char** argv) {
     "Compute the ALS factorization of a matrix.";
   graphlab::command_line_options clopts(description);
   std::string input_dir, output_dir;
+  size_t interval = 10;
   clopts.attach_option("matrix", &input_dir, input_dir,
                        "The directory containing the matrix file");
   clopts.add_positional("matrix");
@@ -75,6 +83,8 @@ int main(int argc, char** argv) {
                        &(als_vertex_program::TOLERANCE), 
                        als_vertex_program::TOLERANCE,
                        "residual termination threshold");
+  clopts.attach_option("interval",  &interval, interval, 
+                       "The time in seconds between error reports");
   clopts.attach_option("output", &output_dir, output_dir,
                        "Output results");
   if(!clopts.parse(argc, argv)) {
@@ -88,20 +98,20 @@ int main(int argc, char** argv) {
   graphlab::init_param_from_mpi(rpc_parameters);
   graphlab::distributed_control dc(rpc_parameters);
   
-  std::cout << dc.procid() << ": Loading graph." << std::endl;
-  graphlab::timer timer; timer.start();
+  dc.cout() << "Loading graph." << std::endl;
+  graphlab::timer timer; 
   graph_type graph(dc, clopts);  
   graph.load(input_dir, graph_loader); 
-  std::cout << dc.procid() << ": Loading graph. Finished in " 
+  dc.cout() << "Loading graph. Finished in " 
             << timer.current_time() << std::endl;
-  std::cout << dc.procid() << ": Finalizing graph." << std::endl;
+  dc.cout() << "Finalizing graph." << std::endl;
   timer.start();
   graph.finalize();
-  std::cout << dc.procid() << ": Finalizing graph. Finished in " 
+  dc.cout() << "Finalizing graph. Finished in " 
             << timer.current_time() << std::endl;
 
-  if(dc.procid() == 0){
-    std::cout
+
+  dc.cout() 
       << "========== Graph statistics on proc " << dc.procid() 
       << " ==============="
       << "\n Num vertices: " << graph.num_vertices()
@@ -119,34 +129,38 @@ int main(int argc, char** argv) {
       << "\n Edge balance ratio: " 
       << float(graph.num_local_edges())/graph.num_edges()
       << std::endl;
-  }
  
-  std::cout << dc.procid() << ": Creating engine" << std::endl;
+  dc.cout() << "Creating engine" << std::endl;
   engine_type engine(dc, graph, clopts, "synchronous");
+
+  // Add error reporting to the engine
+  const bool success = engine.add_edge_aggregator<error_aggregator>
+    ("error", error_aggregator::map, error_aggregator::finalize) &&
+    engine.aggregate_periodic("error", interval);
+  ASSERT_TRUE(success);
+  
+
   // Signal all vertices on the vertices on the left (liberals) 
   engine.map_reduce_vertices<graphlab::empty>(als_vertex_program::signal_left);
  
+
   // Run the PageRank ---------------------------------------------------------
-  std::cout << "Running ALS" << std::endl;
+  dc.cout() << "Running ALS" << std::endl;
   timer.start();
   engine.start();  
 
   const double runtime = timer.current_time();
-  if(dc.procid() == 0) {
-    std::cout << "----------------------------------------------------------"
-              << std::endl;
-    std::cout << "Final Runtime (seconds):   " << runtime 
-              << std::endl
-              << "Updates executed: " << engine.num_updates() << std::endl
-              << "Update Rate (updates/second): " 
-              << engine.num_updates() / runtime << std::endl;
-  }
+  dc.cout() << "----------------------------------------------------------"
+            << std::endl
+            << "Final Runtime (seconds):   " << runtime 
+            << std::endl
+            << "Updates executed: " << engine.num_updates() << std::endl
+            << "Update Rate (updates/second): " 
+            << engine.num_updates() / runtime << std::endl;
 
   // Compute the final training error -----------------------------------------
-  const double total_squared_error = 
-    graph.map_reduce_edges<double>(extract_error);
-  std::cout << "RMSE: " << std::sqrt(total_squared_error / graph.num_edges())
-            << std::endl;
+  dc.cout() << "Final error: " << std::endl;
+  engine.aggregate_now("error");
 
 
   graphlab::mpi_tools::finalize();

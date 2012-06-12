@@ -428,7 +428,7 @@ namespace graphlab {
     *                   and \ref Serializable .
     */
     template <typename ResultType, typename MapFunctionType>
-    ResultType map_reduce_vertices(MapFunctionType mapfunction) {
+    ResultType map_reduce_vertices(const MapFunctionType mapfunction) {
       ASSERT_TRUE(finalized);
       rpc.barrier();
       bool global_result_set = false;
@@ -445,13 +445,14 @@ namespace graphlab {
         for (int i = 0; i < (int)local_graph.num_vertices(); ++i) {
           if (lvid2record[i].owner == rpc.procid()) {
             if (!result_set) {
-              vertex_type vtx(l_vertex(i));
+              const vertex_type vtx(l_vertex(i));
               result = mapfunction(vtx);
               result_set = true;
             }
             else if (result_set){
-              vertex_type vtx(l_vertex(i));
-              result += mapfunction(vtx);
+              const vertex_type vtx(l_vertex(i));
+              const ResultType tmp = mapfunction(vtx);
+              result += tmp;
             }
           }
         }
@@ -530,7 +531,7 @@ namespace graphlab {
     *                   and \ref Serializable .
     */
    template <typename ResultType, typename MapFunctionType>
-    ResultType map_reduce_edges(MapFunctionType mapfunction) {
+    ResultType map_reduce_edges(const MapFunctionType mapfunction) {
       ASSERT_TRUE(finalized);
       rpc.barrier();
       bool global_result_set = false;
@@ -547,13 +548,14 @@ namespace graphlab {
         for (int i = 0; i < (int)local_graph.num_vertices(); ++i) {
           foreach(const local_edge_type& e, l_vertex(i).in_edges()) {
             if (!result_set) {
-              edge_type edge(e);
+              const edge_type edge(e);
               result = mapfunction(edge);
               result_set = true;
             }
             else if (result_set){
-              edge_type edge(e);
-              result += mapfunction(edge);
+              const edge_type edge(e);
+              const ResultType tmp = mapfunction(edge); 
+              result += tmp;
             }
           }
         }

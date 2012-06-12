@@ -104,13 +104,11 @@ namespace graphlab {
       
       /** \brief Performs a map operation on the given vertex adding to the
        *         internal accumulator */
-      virtual void perform_map_vertex(icontext_type&,
-                                      vertex_type&) = 0;
+      virtual void perform_map_vertex(icontext_type&, const vertex_type&) = 0;
                                       
       /** \brief Performs a map operation on the given edge adding to the
        *         internal accumulator */
-      virtual void perform_map_edge(icontext_type&,
-                                    edge_type&) = 0;
+      virtual void perform_map_edge(icontext_type&, const edge_type&) = 0;
                                     
       /** \brief Returns true if the accumulation is over vertices. 
                  Returns false if it is over edges.*/
@@ -147,8 +145,8 @@ namespace graphlab {
     
     template <typename ReductionType>
     struct default_map_types{
-      typedef ReductionType (*vertex_map_type)(icontext_type&, vertex_type&);
-      typedef ReductionType (*edge_map_type)(icontext_type&, edge_type&);
+      typedef ReductionType (*vertex_map_type)(icontext_type&, const vertex_type&);
+      typedef ReductionType (*edge_map_type)(icontext_type&, const edge_type&);
     };
 
     /**
@@ -163,8 +161,8 @@ namespace graphlab {
               typename FinalizerType>
     struct map_reduce_type : public imap_reduce_base {
       conditional_addition_wrapper<ReductionType> acc;
-      VertexMapperType map_vtx_function;
-      EdgeMapperType map_edge_function;
+      const VertexMapperType map_vtx_function;
+      const EdgeMapperType map_edge_function;
       FinalizerType finalize_function;
       
       bool vertex_map;
@@ -191,13 +189,52 @@ namespace graphlab {
                 finalize_function(finalize_function), vertex_map(false) { }
 
 
-      void perform_map_vertex(icontext_type& context, vertex_type& vertex) {
-        acc += map_vtx_function(context, vertex);
-      }
+      void perform_map_vertex(icontext_type& context, const vertex_type& vertex) {
+        /** 
+         * A compiler error on this line is typically due to the
+         * aggregator map function not having the correct type. 
+         *
+         * Verify that the map function has the following form:
+         *
+         *  ReductionType mapfun(icontext_type& context, const vertex_type& vertex);
+         *
+         * It is also possible the accumulator type 
+         */
+        const ReductionType temp = map_vtx_function(context, vertex);
+        /**
+         * A compiler error on this line is typically due to the
+         * accumulator (ReductionType of the map function not having an
+         * operator+=.  Ensure that the following is available:
+         *
+         *   ReductionType& operator+=(ReductionType& lvalue, 
+         *                             const ReductionType& rvalue);
+         */
+        acc += temp;
+      } // end of perform_map_vertex
       
-      void perform_map_edge(icontext_type& context, edge_type& vertex) {
-        acc += map_edge_function(context, vertex);
-      }
+      void perform_map_edge(icontext_type& context, const edge_type& edge) {
+        /** 
+         * A compiler error on this line is typically due to the
+         * aggregator map function not having the correct type. 
+         *
+         * Verify that the map function has the following form:
+         *
+         *  ReductionType mapfun(icontext_type& context, const edge_type& vertex);
+         *
+         * It is also possible the accumulator type 
+         */
+        const ReductionType temp = 
+          map_edge_function(context, edge);
+        /**
+         * A compiler error on this line is typically due to the
+         * accumulator (ReductionType of the map function not having an
+         * operator+=.  Ensure that the following is available:
+         *
+         *   ReductionType& operator+=(ReductionType& lvalue, 
+         *                             const ReductionType& rvalue);
+         */
+        acc += temp; 
+      } // end of perform_map_edge
       
       bool is_vertex_map() const {
         return vertex_map;
@@ -423,7 +460,7 @@ namespace graphlab {
           for (int i = 0; i < (int)graph.num_local_vertices(); ++i) {
             local_vertex_type lvertex = graph.l_vertex(i);
             if (lvertex.owner() == rmi.procid()) {
-              vertex_type vertex(lvertex);
+              const vertex_type vertex(lvertex);
               localmr->perform_map_vertex(*context, vertex);
             }
           }
@@ -434,7 +471,7 @@ namespace graphlab {
 #endif
           for (int i = 0; i < (int)graph.num_local_vertices(); ++i) {
             foreach(local_edge_type e, graph.l_vertex(i).in_edges()) {
-              edge_type edge(e);
+              const edge_type edge(e);
               localmr->perform_map_edge(*context, edge);
             }
           }
@@ -599,14 +636,14 @@ namespace graphlab {
         for (int i = cpuid;i < (int)graph.num_local_vertices(); i+=ncpus) {
           local_vertex_type lvertex = graph.l_vertex(i);
           if (lvertex.owner() == rmi.procid()) {
-            vertex_type vertex(lvertex);
+            const vertex_type vertex(lvertex);
             localmr->perform_map_vertex(*context, vertex);
           }
         }
       } else {
         for (int i = cpuid;i < (int)graph.num_local_vertices(); i+=ncpus) {
           foreach(local_edge_type e, graph.l_vertex(i).in_edges()) {
-            edge_type edge(e);
+            const edge_type edge(e);
             localmr->perform_map_edge(*context, edge);
           }
         }
