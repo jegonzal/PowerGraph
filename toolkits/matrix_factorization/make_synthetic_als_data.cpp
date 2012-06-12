@@ -93,7 +93,7 @@ int main(int argc, char** argv) {
     }
 
     const std::string validation_fname = 
-      output_folder + "/graph_" + graphlab::tostr(i) + ".tsv.validation";
+      output_folder + "/graph_" + graphlab::tostr(i) + ".tsv.validate";
     validation_files[i] = new std::ofstream(validation_fname.c_str());
     if(!validation_files[i]->good()){
       logstream(LOG_ERROR) 

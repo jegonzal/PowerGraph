@@ -100,11 +100,11 @@ struct edge_data : public graphlab::IS_POD_TYPE {
    * \brief The type of data on the edge;
    *
    * \li *Train:* the observed value is correct and used in training
-   * \li *Validation:* the observed value is correct but not used in training
-   * \li *Test:* The observed value is not correct and should not be
+   * \li *Validate:* the observed value is correct but not used in training
+   * \li *Predict:* The observed value is not correct and should not be
    *        used in training.
    */
-  enum data_role_type { TRAIN, VALIDATION, TEST };
+  enum data_role_type { TRAIN, VALIDATE, PREDICT  };
 
   /** \brief the observed value for the edge */
   float obs;
@@ -113,7 +113,7 @@ struct edge_data : public graphlab::IS_POD_TYPE {
   data_role_type role;
 
   /** \brief basic initialization */
-  edge_data(float obs = 0, data_role_type role = TEST) :
+  edge_data(float obs = 0, data_role_type role = PREDICT) :
     obs(obs), role(role) { }
 
 }; // end of edge data
@@ -157,14 +157,14 @@ inline bool graph_loader(graph_type& graph,
   ASSERT_FALSE(line.empty()); 
   // Determine the role of the data
   edge_data::data_role_type role = edge_data::TRAIN;
-  if(boost::ends_with(filename,".validation")) role = edge_data::VALIDATION;
-  else if(boost::ends_with(filename, ".test")) role = edge_data::TEST;
+  if(boost::ends_with(filename,".validate")) role = edge_data::VALIDATE;
+  else if(boost::ends_with(filename, ".predict")) role = edge_data::PREDICT;
   // Parse the line
   std::stringstream strm(line);
   graph_type::vertex_id_type source_id(-1), target_id(-1);
   float obs(0);
   strm >> source_id >> target_id;
-  if(role == edge_data::TRAIN || role == edge_data::VALIDATION) strm >> obs;
+  if(role == edge_data::TRAIN || role == edge_data::VALIDATE) strm >> obs;
   // Create an edge and add it to the graph
   graph.add_edge(source_id, target_id, edge_data(obs, role)); 
   return true; // successful load
@@ -338,7 +338,7 @@ struct error_aggregator : public graphlab::IS_POD_TYPE {
     error_aggregator agg;
     if(edge.data().role == edge_data::TRAIN) {
       agg.train_error = extract_l2_error(edge); agg.ntrain = 1;
-    } else if(edge.data().role == edge_data::VALIDATION) {
+    } else if(edge.data().role == edge_data::VALIDATE) {
       agg.validation_error = extract_l2_error(edge); agg.nvalidation = 1;
     }
     return agg;
