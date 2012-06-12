@@ -26,7 +26,7 @@
 #include <graphlab.hpp>
 
 
-#include "cgs_lda.hpp"
+#include "cgs_lda_common.hpp"
 
 #include <graphlab/macros_def.hpp>
 
@@ -61,13 +61,9 @@ bool graph_loader(graph_type& graph, const std::string& fname,
 }; // end of graph loader
 
 
-void initialize_vertex_data(graph_type::vertex_type& vertex) {
-  vertex.data().factor.resize(NTOPICS);
-}
-
 
 /** populate the global dictionary */
-void load_dictionary(const std::string& fname) {
+bool load_dictionary(const std::string& fname) {
   const bool gzip = boost::ends_with(fname, ".gz");
   // test to see if the graph_dir is an hadoop path
   if(boost::starts_with(fname, "hdfs://")) {
@@ -78,8 +74,9 @@ void load_dictionary(const std::string& fname) {
     if(gzip) fin.push(boost::iostreams::gzip_decompressor());
     fin.push(in_file);
     if(!fin.good()) {
-      logstream(LOG_FATAL) << "Error loading dictionary: "
+      logstream(LOG_ERROR) << "Error loading dictionary: "
                            << fname << std::endl;
+      return false;
     }
     std::string term;
     while(std::getline(fin,term).good()) DICTIONARY.push_back(term);
@@ -94,7 +91,9 @@ void load_dictionary(const std::string& fname) {
     if (gzip) fin.push(boost::iostreams::gzip_decompressor());
     fin.push(in_file);
     if(!fin.good()) {
-      logstream(LOG_FATAL) << "Error opening file:" << fname << std::endl;
+      logstream(LOG_ERROR) << "Error loading dictionary: "
+                           << fname << std::endl;
+      return false;
     }
     std::string term;
     std::cout << "Loooping" << std::endl;
@@ -104,88 +103,43 @@ void load_dictionary(const std::string& fname) {
     in_file.close();
   } // end of else
   std::cout << "Dictionary Size: " << DICTIONARY.size() << std::endl;
+  return true;
 } // end of load dictionary
 
 
 
-
-
-int main(int argc, char** argv) {
-  global_logger().set_log_level(LOG_INFO);
-  global_logger().set_log_to_console(true);
-
-  // Parse command line options -----------------------------------------------
-  const std::string description = 
-    "Run the asynchronous collapsed Gibbs Sampler.";
-  graphlab::command_line_options clopts(description);
-  std::string matrix_dir; 
-  std::string dictionary_fname;
-  std::string algorithm = "fast";
-  clopts.attach_option("dictionary", &dictionary_fname, dictionary_fname,
-                       "The file containing the list of unique words");
-  clopts.add_positional("dictionary");
-  clopts.attach_option("matrix", &matrix_dir, matrix_dir,
-                       "The directory containing the matrix file");
-  clopts.add_positional("matrix");
-  clopts.attach_option("ntopics", &NTOPICS, NTOPICS,
-                       "Number of topics to use.");
-  clopts.attach_option("niters", &NITERS, NITERS,
-                       "Maximum number of iterations.");
-  clopts.attach_option("alpha", &ALPHA, ALPHA,
-                       "The document hyper-prior");
-  clopts.attach_option("beta", &BETA, BETA,                       
-                       "The word hyper-prior");
-  clopts.attach_option("topk", &TOPK, TOPK,
-                       "The number of words to report");
-  clopts.attach_option("interval", &INTERVAL, INTERVAL,
-                       "statistics reporting interval");
-  clopts.attach_option("algorithm", &algorithm, algorithm,
-                       "algorithm to use (fast, consistent)");
-  if(!clopts.parse(argc, argv) || dictionary_fname.empty() || matrix_dir.empty()) {
-    std::cout << "Error in parsing command line arguments." << std::endl;
-    return EXIT_FAILURE;
-  }
-
-  ///! Initialize control plain using mpi
-  graphlab::mpi_tools::init(argc, argv);
-  graphlab::distributed_control dc;
-
-  ///! Initialize global variables
-  GLOBAL_TOPIC_COUNT.resize(NTOPICS);
-  load_dictionary(dictionary_fname); 
-
-  
-  ///! load the graph
-  dc.cout() << ": Loading graph." << std::endl;
+bool load_and_initialize_graph(graphlab::distributed_control& dc,
+                               graph_type& graph,
+                               const std::string& matrix_dir) {  
+  dc.cout() << "Loading graph." << std::endl;
   graphlab::timer timer; timer.start();
-  graph_type graph(dc, clopts);  
   graph.load(matrix_dir, graph_loader); 
   dc.cout() << ": Loading graph. Finished in " 
-            << timer.current_time() << std::endl;
-  dc.cout() << ": Finalizing graph." << std::endl;
+            << timer.current_time() << " seconds." << std::endl;
+
+  dc.cout() << "Finalizing graph." << std::endl;
   timer.start();
   graph.finalize();
+  dc.cout() << "Finalizing graph. Finished in " 
+            << timer.current_time() << " seconds." << std::endl;
+
+  dc.cout() << "Initializing Vertex Data" << std::endl;
+  timer.start();
   graph.transform_vertices(initialize_vertex_data);
-  dc.cout() << ": Finalizing graph. Finished in " 
-            << timer.current_time() << std::endl;
-  ///! compute the number of words
+  dc.cout() << "Finished initializing Vertex Data in " 
+            << timer.current_time() << " seconds." << std::endl;
+
+  dc.cout() << "Verivying dictionary size." << std::endl;
   NWORDS = graph.map_reduce_vertices<size_t>(is_word);
   dc.cout()  << "Number of words: " << NWORDS;
   ASSERT_EQ(NWORDS, DICTIONARY.size());
 
-  ///! Run the algorithm
-  if(algorithm == "fast") {
-    run_fast_cgs_lda(dc, graph, clopts);
-  } else {
-    run_cgs_lda(dc, graph, clopts);
-  }
+  return true;
+} // end of load and initialize graph
 
 
-  graphlab::mpi_tools::finalize();
-  return EXIT_SUCCESS;
 
 
-} // end of main
 
 
 

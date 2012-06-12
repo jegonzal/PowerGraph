@@ -25,89 +25,189 @@
 #include <algorithm>
 #include <graphlab.hpp>
 
-// #include <graphlab/util/stl_util.hpp>
 
-#include "cgs_lda.hpp"
-#include "cgs_lda_vertex_program.hpp"
-#include "fast_cgs_lda_vertex_program.hpp"
+#include "cgs_lda_common.hpp"
+
 
 #include <graphlab/macros_def.hpp>
 
-double ALPHA    = 0.1;
-double BETA     = 0.1;
-size_t NITERS   = -1;
-size_t NTOPICS  = 50;
-size_t NWORDS   = 0;
-size_t TOPK     = 5;
-size_t INTERVAL = 10;
-factor_type GLOBAL_TOPIC_COUNT;
-std::vector<std::string> DICTIONARY;
 
 
-bool graph_loader(graph_type& graph, const std::string& fname, 
-                  const std::string& line) {
-  ASSERT_FALSE(line.empty()); 
-  std::stringstream strm(line);
-  graph_type::vertex_id_type doc_id(-1), word_id(-1);
-  size_t count(0);
-  strm >> doc_id >> word_id >> count;
-  // since this is a bipartite graph I need a method to number the
-  // left and right vertices differently.  To accomplish I make sure
-  // all vertices have non-zero ids and then negate the right vertex.
-  doc_id += 2; 
-  ASSERT_GT(doc_id, 1); 
-  doc_id = -doc_id;
-  ASSERT_NE(doc_id, word_id);
-  // Create an edge and add it to the graph
-  graph.add_edge(doc_id, word_id, edge_data(count, NULL_TOPIC)); 
-  return true; // successful load
-}; // end of graph loader
 
 
-void initialize_vertex_data(graph_type::vertex_type& vertex) {
-  vertex.data().factor.resize(NTOPICS);
-}
+/**
+ * \brief The gather type used to accumulate information about the
+ * words in a document
+ */
+struct gather_type {   
+  typedef std::pair<factor_type, assignment_type> edge_pair_type;
+  typedef std::map<graphlab::vertex_id_type, edge_pair_type> 
+  neighborhood_map_type;
+  
+  neighborhood_map_type neighborhood_map;
+  factor_type topic_count;
+
+  gather_type() { }
+
+  gather_type(const factor_type& topic_count) :
+    topic_count(topic_count) { } 
+
+  gather_type(graphlab::vertex_id_type vid,
+              const factor_type& factor,
+              const assignment_type& assignment) {
+    neighborhood_map[vid] = edge_pair_type(factor, assignment);
+  }
+
+  void save(graphlab::oarchive& arc) const {
+    arc << neighborhood_map << topic_count;
+  }
+
+  void load(graphlab::iarchive& arc) {
+    arc >> neighborhood_map >> topic_count;
+  }
+
+  gather_type& operator+=(const gather_type& other) {
+    neighborhood_map.insert(other.neighborhood_map.begin(),
+                            other.neighborhood_map.end());
+    if(topic_count.size() < other.topic_count.size()) 
+      topic_count.resize(other.topic_count.size());
+    for(size_t i = 0; i < other.topic_count.size(); ++i) 
+      topic_count[i] += other.topic_count[i];
+    return *this;
+  } // end of operator +=
+
+}; // end of gather type
 
 
-/** populate the global dictionary */
-void load_dictionary(const std::string& fname) {
-  const bool gzip = boost::ends_with(fname, ".gz");
-  // test to see if the graph_dir is an hadoop path
-  if(boost::starts_with(fname, "hdfs://")) {
-    graphlab::hdfs hdfs;
-    graphlab::hdfs::fstream in_file(hdfs, fname);
-    boost::iostreams::filtering_stream<boost::iostreams::input> fin;  
-    fin.set_auto_close(false);
-    if(gzip) fin.push(boost::iostreams::gzip_decompressor());
-    fin.push(in_file);
-    if(!fin.good()) {
-      logstream(LOG_FATAL) << "Error loading dictionary: "
-                           << fname << std::endl;
+
+
+class cgs_lda_vertex_program :
+  public graphlab::ivertex_program<graph_type, gather_type> {
+private:
+  typedef std::map<graphlab::vertex_id_type, assignment_type> edge_data_map_type;
+  edge_data_map_type new_edge_data;
+public:
+  void save(graphlab::oarchive& arc) const {
+    arc << new_edge_data;
+  } // end of save cgs_lda
+
+  void load(graphlab::iarchive& arc) {
+    arc >> new_edge_data;
+  } // end of load cgs_lda
+
+
+  edge_dir_type gather_edges(icontext_type& context, 
+                             const vertex_type& vertex) const {
+    return graphlab::ALL_EDGES;
+  } // end of gather_edges 
+
+  gather_type gather(icontext_type& context, const vertex_type& vertex, 
+                     edge_type& edge) const {
+    const vertex_type other_vertex = get_other_vertex(edge, vertex);
+    if(is_doc(other_vertex)) {
+      gather_type ret; ret.topic_count.resize(NTOPICS);
+      const assignment_type& assignment = edge.data();
+      foreach(topic_id_type asg, assignment) ++ret.topic_count[asg];
+      return ret;
+    } else {
+      return gather_type(other_vertex.id(), other_vertex.data().factor,
+                         edge.data());
     }
-    std::string term;
-    while(std::getline(fin,term).good()) DICTIONARY.push_back(term);
-    if (gzip) fin.pop();
-    fin.pop();
-    in_file.close();
-  } else {
-    std::cout << "opening: " << fname << std::endl;
-    std::ifstream in_file(fname.c_str(), 
-                          std::ios_base::in | std::ios_base::binary);
-    boost::iostreams::filtering_stream<boost::iostreams::input> fin;  
-    if (gzip) fin.push(boost::iostreams::gzip_decompressor());
-    fin.push(in_file);
-    if(!fin.good()) {
-      logstream(LOG_FATAL) << "Error opening file:" << fname << std::endl;
-    }
-    std::string term;
-    std::cout << "Loooping" << std::endl;
-    while(std::getline(fin, term).good()) DICTIONARY.push_back(term);
-    if (gzip) fin.pop();
-    fin.pop();
-    in_file.close();
-  } // end of else
-  std::cout << "Dictionary Size: " << DICTIONARY.size() << std::endl;
-} // end of load dictionary
+  } // end of gather
+  
+
+  void apply(icontext_type& context, vertex_type& vertex,
+             const gather_type& sum) {
+    const size_t num_neighbors = vertex.num_in_edges() + vertex.num_out_edges();
+    ASSERT_GT(num_neighbors, 0);
+    ASSERT_EQ(new_edge_data.size(), 0); 
+    ASSERT_EQ(vertex.data().factor.size(), NTOPICS);
+    if(is_word(vertex)) {
+      vertex.data().nupdates++; 
+      vertex.data().factor = sum.topic_count;
+    } else { ASSERT_TRUE(is_doc(vertex));
+      vertex_data& vdata = vertex.data();
+      vdata.nupdates++; vdata.nchanges = 0;
+      factor_type& doc_topic_count = vdata.factor;
+      // run the actual gibbs sampling 
+      std::vector<double> prob(NTOPICS);
+      typedef gather_type::neighborhood_map_type::value_type pair_type; 
+      foreach(const pair_type& nbr_pair, sum.neighborhood_map) {
+        const graphlab::vertex_id_type wordid = nbr_pair.first;
+        factor_type word_topic_count = nbr_pair.second.first;
+        assignment_type assignment = nbr_pair.second.second;
+        ASSERT_EQ(word_topic_count.size(), NTOPICS);
+        // Resample the topics
+        foreach(topic_id_type& asg, assignment) {
+          const topic_id_type old_asg = asg;
+          if(asg != NULL_TOPIC) { // construct the cavity
+            --doc_topic_count[asg];
+            if(word_topic_count[asg] > 0) --word_topic_count[asg];
+            --GLOBAL_TOPIC_COUNT[asg];
+          }
+          for(size_t t = 0; t < NTOPICS; ++t) {
+            const double n_dt = doc_topic_count[t]; ASSERT_GE(n_dt, 0);
+            const double n_wt = word_topic_count[t]; ASSERT_GE(n_wt, 0);
+            const double n_t  = GLOBAL_TOPIC_COUNT[t]; ASSERT_GE(n_t, 0);
+            prob[t] = (ALPHA + n_dt) * (BETA + n_wt) / (BETA * NWORDS + n_t);
+          }
+          asg = graphlab::random::multinomial(prob);
+          ++doc_topic_count[asg];
+          ++word_topic_count[asg];                    
+          ++GLOBAL_TOPIC_COUNT[asg];
+          // record a change if one occurs
+          if(old_asg != asg) vdata.nchanges++;
+        } // End of loop over each token
+        // test to see if the topic assignments have change
+        // sort the topic assignment to be in a "canonical order" 
+        std::sort(assignment.begin(), assignment.end());
+        const assignment_type& old_assignment = nbr_pair.second.second;
+        bool is_same = (old_assignment.size() == assignment.size());  
+        for(size_t i = 0; i < assignment.size() && is_same; ++i)
+          is_same = (assignment[i] == old_assignment[i]);
+        if(!is_same) new_edge_data[wordid] = assignment;
+      } // end of loop over neighbors
+    } // end of else document
+  } // end of apply
+
+
+  edge_dir_type scatter_edges(icontext_type& context,
+                              const vertex_type& vertex) const { 
+    return graphlab::ALL_EDGES; 
+  }; // end of scatter edges
+
+  void scatter(icontext_type& context, const vertex_type& vertex, 
+               edge_type& edge) const  {
+    if(is_doc(vertex)) { 
+      const vertex_type word_vertex = get_other_vertex(edge, vertex);
+      ASSERT_TRUE(is_word(word_vertex));
+      // if this is a document then update the topic assignment along
+      // the edge
+      edge_data_map_type::const_iterator iter = 
+        new_edge_data.find(word_vertex.id());
+      // If there is an assignment then something changed so update
+      // and signal
+      if(iter != new_edge_data.end()) {
+        const assignment_type& new_topic_assignment = iter->second;
+        ASSERT_EQ(new_topic_assignment.size(), edge.data().size());
+        edge.data() = new_topic_assignment;
+      }
+    } 
+    context.signal(get_other_vertex(edge, vertex));
+  } // end of scatter function
+
+}; // end of cgs_lda_vertex_program
+
+
+
+
+
+
+typedef graphlab::omni_engine<cgs_lda_vertex_program> engine_type;
+typedef cgs_lda_vertex_program::icontext_type icontext_type;
+typedef topk_aggregator<icontext_type> topk_type;
+
+
 
 
 
@@ -117,13 +217,16 @@ int main(int argc, char** argv) {
   global_logger().set_log_level(LOG_INFO);
   global_logger().set_log_to_console(true);
 
+  ///! Initialize control plain using mpi
+  graphlab::mpi_tools::init(argc, argv);
+  graphlab::distributed_control dc;
+
   // Parse command line options -----------------------------------------------
   const std::string description = 
     "Run the asynchronous collapsed Gibbs Sampler.";
   graphlab::command_line_options clopts(description);
   std::string matrix_dir; 
   std::string dictionary_fname;
-  std::string algorithm = "fast";
   clopts.attach_option("dictionary", &dictionary_fname, dictionary_fname,
                        "The file containing the list of unique words");
   clopts.add_positional("dictionary");
@@ -142,47 +245,63 @@ int main(int argc, char** argv) {
                        "The number of words to report");
   clopts.attach_option("interval", &INTERVAL, INTERVAL,
                        "statistics reporting interval");
-  clopts.attach_option("algorithm", &algorithm, algorithm,
-                       "algorithm to use (fast, consistent)");
-  if(!clopts.parse(argc, argv) || dictionary_fname.empty() || matrix_dir.empty()) {
-    std::cout << "Error in parsing command line arguments." << std::endl;
+
+  if(!clopts.parse(argc, argv)) {
+    logstream(LOG_ERROR) << "Error in parsing command line arguments." << std::endl;
+    return EXIT_FAILURE;
+  }
+  if(dictionary_fname.empty()) {
+    logstream(LOG_ERROR) << "No dictionary file was provided." << std::endl;
+    return EXIT_FAILURE;
+  }
+  if(matrix_dir.empty()) {
+    logstream(LOG_ERROR) << "No matrix file was provided." << std::endl;
     return EXIT_FAILURE;
   }
 
-  ///! Initialize control plain using mpi
-  graphlab::mpi_tools::init(argc, argv);
-  graphlab::distributed_control dc;
+
 
   ///! Initialize global variables
   GLOBAL_TOPIC_COUNT.resize(NTOPICS);
-  load_dictionary(dictionary_fname); 
-
+  bool success = load_dictionary(dictionary_fname); 
+  if(!success) {
+    logstream(LOG_ERROR) << "Error loading dictionary." << std::endl;
+    return EXIT_FAILURE;
+  }
   
   ///! load the graph
-  dc.cout() << ": Loading graph." << std::endl;
-  graphlab::timer timer; timer.start();
   graph_type graph(dc, clopts);  
-  graph.load(matrix_dir, graph_loader); 
-  dc.cout() << ": Loading graph. Finished in " 
-            << timer.current_time() << std::endl;
-  dc.cout() << ": Finalizing graph." << std::endl;
-  timer.start();
-  graph.finalize();
-  graph.transform_vertices(initialize_vertex_data);
-  dc.cout() << ": Finalizing graph. Finished in " 
-            << timer.current_time() << std::endl;
-  ///! compute the number of words
-  NWORDS = graph.map_reduce_vertices<size_t>(is_word);
-  dc.cout()  << "Number of words: " << NWORDS;
-  ASSERT_EQ(NWORDS, DICTIONARY.size());
-
-  ///! Run the algorithm
-  if(algorithm == "fast") {
-    run_fast_cgs_lda(dc, graph, clopts);
-  } else {
-    run_cgs_lda(dc, graph, clopts);
+  success = load_and_initialize_graph(dc, graph, matrix_dir);
+  if(!success) {
+    logstream(LOG_ERROR) << "Error loading graph." << std::endl;
+    return EXIT_FAILURE;
   }
 
+
+  
+  engine_type engine(dc, graph, clopts, "synchronous");
+  ///! Add an aggregator
+  success = false;
+  success = engine.add_vertex_aggregator<topk_type>("topk",
+                                                    topk_type::map, 
+                                                    topk_type::finalize);
+  ASSERT_TRUE(success);
+  success = engine.aggregate_periodic("topk", INTERVAL);
+  ASSERT_TRUE(success);
+
+  ///! schedule only documents
+  dc.cout() << "Running The Collapsed Gibbs Sampler" << std::endl;
+  engine.map_reduce_vertices<graphlab::empty>(signal_docs<icontext_type>);
+  graphlab::timer timer;
+  engine.start();  
+  const double runtime = timer.current_time();
+  dc.cout() 
+    << "----------------------------------------------------------" << std::endl
+    << "Final Runtime (seconds):   " << runtime 
+    << std::endl
+    << "Updates executed: " << engine.num_updates() << std::endl
+    << "Update Rate (updates/second): " 
+    << engine.num_updates() / runtime << std::endl;
 
   graphlab::mpi_tools::finalize();
   return EXIT_SUCCESS;

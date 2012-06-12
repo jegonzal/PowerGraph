@@ -83,6 +83,27 @@ typedef assignment_type edge_data;
 typedef graphlab::distributed_graph<vertex_data, edge_data> graph_type;
 
 
+
+
+bool graph_loader(graph_type& graph, const std::string& fname, 
+                  const std::string& line);
+
+inline void initialize_vertex_data(graph_type::vertex_type& vertex) {
+  vertex.data().factor.resize(NTOPICS);
+}
+
+
+bool load_and_initialize_graph(graphlab::distributed_control& dc,
+                               graph_type& graph,
+                               const std::string& matrix_dir);
+
+
+
+
+/** populate the global dictionary */
+bool load_dictionary(const std::string& fname);
+
+
 inline bool is_word(const graph_type::vertex_type& vertex) {
   return vertex.num_in_edges() > 0 ? 1 : 0;
 }
@@ -163,6 +184,7 @@ public:
 
 
 
+
 template<typename IContext> graphlab::empty 
 signal_docs(IContext& context, graph_type::vertex_type& vertex) {
   if(is_doc(vertex)) context.signal(vertex);
@@ -170,11 +192,16 @@ signal_docs(IContext& context, graph_type::vertex_type& vertex) {
 } // end of signal_docs
 
 
+
+
 template<typename IContext> graphlab::empty 
 signal_words(IContext& context, graph_type::vertex_type& vertex) {
   if(is_word(vertex)) context.signal(vertex);
   return graphlab::empty();
 } // end of signal_words
+
+
+
 
 
 
