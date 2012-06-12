@@ -160,8 +160,8 @@ int main(int argc, char** argv) {
   clopts.attach_option("interval", &INTERVAL, INTERVAL,
                        "statistics reporting interval");
   if(!clopts.parse(argc, argv)) {
-    logstream(LOG_ERROR) << "Error in parsing command line arguments." << std::endl;
-    return EXIT_FAILURE;
+    graphlab::mpi_tools::finalize();
+    return clopts.is_set("help")? EXIT_SUCCESS : EXIT_FAILURE;
   }
 
   if(dictionary_fname.empty()) {
