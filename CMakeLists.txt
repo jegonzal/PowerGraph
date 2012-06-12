@@ -225,7 +225,7 @@ ExternalProject_Add(libjpeg
 
 # ImageMagick =================================================================
 set(imagemagick_configure_cmd
-  bash -c "C_INCLUDE_PATH=${GraphLab_SOURCE_DIR}/deps/local/include CPLUS_INCLUDE_PATH=${GraphLab_SOURCE_DIR}/deps/local/include LIBRARY_PATH=${GraphLab_SOURCE_DIR}/deps/local/lib LDFLAGS='$ENV{LDFLAGS} -L${GraphLab_SOURCE_DIR}/deps/local/lib' ./configure  --prefix=${GraphLab_SOURCE_DIR}/deps/local --without-threads --disable-openmp --disable-opencl")
+  bash -c "C_INCLUDE_PATH=${GraphLab_SOURCE_DIR}/deps/local/include CPLUS_INCLUDE_PATH=${GraphLab_SOURCE_DIR}/deps/local/include LIBRARY_PATH=${GraphLab_SOURCE_DIR}/deps/local/lib LDFLAGS='-L${GraphLab_SOURCE_DIR}/deps/local/lib' ./configure  --prefix=${GraphLab_SOURCE_DIR}/deps/local --without-threads --disable-openmp --disable-opencl")
 
 
 ExternalProject_Add(imagemagick
