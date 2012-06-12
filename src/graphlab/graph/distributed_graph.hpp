@@ -1193,7 +1193,7 @@ namespace graphlab {
 
       for(size_t source = rpc.procid(); source < nverts;
           source += rpc.numprocs()) {
-        const size_t out_degree = random::sample(prob) + 1;
+        const size_t out_degree = random::multinomial_cdf(prob) + 1;
         for(size_t i = 0; i < out_degree; ++i) {
           target_index = (target_index + 2654435761)  % nverts;
           while (source == target_index) {
