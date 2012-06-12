@@ -227,8 +227,19 @@ public:
    * tuples value
    */
   gather_type& operator+=(const gather_type& other) {
-    XtX.triangularView<Eigen::Upper>() += other.XtX;  
-    Xy += other.Xy;
+    if(other.Xy.size() == 0) {
+      ASSERT_EQ(other.XtX.rows(), 0);
+      ASSERT_EQ(other.XtX.cols(), 0);
+    } else {
+      if(Xy.size() == 0) {
+        ASSERT_EQ(XtX.rows(), 0); 
+        ASSERT_EQ(XtX.cols(), 0);
+        XtX = other.XtX; Xy = other.Xy;
+      } else {
+        XtX.triangularView<Eigen::Upper>() += other.XtX;  
+        Xy += other.Xy;
+      }
+    }
     return *this;
   } // end of operator+=
 

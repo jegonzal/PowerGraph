@@ -44,7 +44,8 @@ int main(int argc, char** argv) {
   size_t D                 = 20;
   size_t nusers            = 1000;
   size_t nmovies           = 10000;
-  size_t nvalidation       = 2;
+  size_t nvalidate       = 2;
+  size_t npredict          = 1;
   double noise             = 0.1;
   double stdev             = 2;
   double alpha             = 1.8;
@@ -61,8 +62,11 @@ int main(int argc, char** argv) {
                        "The number of movies.");
   clopts.attach_option("alpha", &alpha, alpha,
                        "The power-law constant.");
-  clopts.attach_option("nvalidation", &nvalidation, nvalidation,
-                       "The validation ratings pers user");
+  clopts.attach_option("nvalidate", &nvalidate, nvalidate,
+                       "The validate ratings pers user");
+  clopts.attach_option("npredict", &npredict, npredict,
+                       "The predict ratings pers user");
+
   clopts.attach_option("noise", &noise, noise,
                        "The standard deviation noise parameter");
   clopts.attach_option("stdev", &stdev, stdev,
@@ -78,11 +82,13 @@ int main(int argc, char** argv) {
   if(!boost::filesystem::create_directory(output_folder)) {
     logstream(LOG_ERROR) 
       << "Error creating directory: " << directory << std::endl;
+    return EXIT_FAILURE;
   }
 
   std::cout << "Opening files:" << std::endl;
   std::vector< std::ofstream* > train_files(nfiles);
-  std::vector< std::ofstream* > validation_files(nfiles);
+  std::vector< std::ofstream* > validate_files(nfiles);
+  std::vector< std::ofstream* > predict_files(nfiles);
   for(size_t i = 0; i < nfiles; ++i) {
     const std::string train_fname = 
       output_folder + "/graph_" + graphlab::tostr(i) + ".tsv";
@@ -92,10 +98,18 @@ int main(int argc, char** argv) {
         << "Error creating file: " << train_fname;
     }
 
-    const std::string validation_fname = 
+    const std::string validate_fname = 
       output_folder + "/graph_" + graphlab::tostr(i) + ".tsv.validate";
-    validation_files[i] = new std::ofstream(validation_fname.c_str());
-    if(!validation_files[i]->good()){
+    validate_files[i] = new std::ofstream(validate_fname.c_str());
+    if(!validate_files[i]->good()){
+      logstream(LOG_ERROR) 
+        << "Error creating file: " << train_fname;
+    }       
+
+    const std::string predict_fname = 
+      output_folder + "/graph_" + graphlab::tostr(i) + ".tsv.predict";
+    predict_files[i] = new std::ofstream(predict_fname.c_str());
+    if(!predict_files[i]->good()){
       logstream(LOG_ERROR) 
         << "Error creating file: " << train_fname;
     }       
@@ -126,9 +140,10 @@ int main(int argc, char** argv) {
       factor(d) = gen.gaussian(0, stdev);
   }
 
-  ASSERT_GT(nusers, nvalidation);  
+  size_t nedges_train = 0;
+  ASSERT_GT(nusers, nvalidate + npredict);
   // Make power-law probability vector
-  std::vector<double> prob(nusers - nvalidation);
+  std::vector<double> prob(nusers - nvalidate - npredict);
   for(size_t i = 0; i < prob.size(); ++i)
     prob[i] = std::pow(double(i+1), -alpha);
   graphlab::random::pdf2cdf(prob);
@@ -142,23 +157,35 @@ int main(int argc, char** argv) {
         user_factors[user_id].dot(movie_factors[movie_id]);
       *(train_files[file_id])
         << user_id << '\t' << (movie_id + nusers) << '\t' << rating << '\n';
+      nedges_train++;
     }
-    // Add a few extra validation ratings
-    for(size_t i = 0; i < nvalidation; ++i) {
+    // Add a few extra validate ratings
+    for(size_t i = 0; i < nvalidate; ++i) {
       user_id = (user_id + 2654435761)  % nusers;
       const size_t file_id = user_id % nfiles;
       const double rating = 
         user_factors[user_id].dot(movie_factors[movie_id]);
-      *(validation_files[file_id])
+      *(validate_files[file_id])
         << user_id << '\t' << (movie_id + nusers) << '\t' << rating << '\n';
+    }
+    // Add a few extra predict ratings
+    for(size_t i = 0; i < npredict; ++i) {
+      user_id = (user_id + 2654435761)  % nusers;
+      const size_t file_id = user_id % nfiles;
+      *(predict_files[file_id])
+        << user_id << '\t' << (movie_id + nusers) << '\n';
     }
   } // end of loop over movies
   for(size_t i = 0; i < nfiles; ++i) {
     train_files[i]->close(); 
     delete train_files[i]; train_files[i] = NULL;
-    validation_files[i]->close(); 
-    delete validation_files[i]; validation_files[i] = NULL;
+    validate_files[i]->close(); 
+    delete validate_files[i]; validate_files[i] = NULL;
+    predict_files[i]->close(); 
+    delete predict_files[i]; predict_files[i] = NULL;
   }
+  std::cout << "Created " << nedges_train 
+            << " training edges." << std::endl;
 
 
 
