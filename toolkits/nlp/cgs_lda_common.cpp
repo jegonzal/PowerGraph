@@ -32,7 +32,6 @@
 
 double ALPHA    = 0.1;
 double BETA     = 0.1;
-size_t NITERS   = -1;
 size_t NTOPICS  = 50;
 size_t NWORDS   = 0;
 size_t TOPK     = 5;

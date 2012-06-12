@@ -142,13 +142,19 @@ public:
           const topic_id_type old_asg = asg;
           if(asg != NULL_TOPIC) { // construct the cavity
             --doc_topic_count[asg];
-            if(word_topic_count[asg] > 0) --word_topic_count[asg];
+            --word_topic_count[asg];
             --GLOBAL_TOPIC_COUNT[asg];
           }
           for(size_t t = 0; t < NTOPICS; ++t) {
-            const double n_dt = doc_topic_count[t]; ASSERT_GE(n_dt, 0);
-            const double n_wt = word_topic_count[t]; ASSERT_GE(n_wt, 0);
-            const double n_t  = GLOBAL_TOPIC_COUNT[t]; ASSERT_GE(n_t, 0);
+            const double n_dt = 
+              std::max(count_type(doc_topic_count[t]), count_type(0)); 
+            ASSERT_GE(n_dt, 0);
+            const double n_wt = 
+              std::max(count_type(word_topic_count[t]), count_type(0)); 
+            ASSERT_GE(n_wt, 0);
+            const double n_t  = 
+              std::max(count_type(GLOBAL_TOPIC_COUNT[t]), count_type(0)); 
+            ASSERT_GE(n_t, 0);
             prob[t] = (ALPHA + n_dt) * (BETA + n_wt) / (BETA * NWORDS + n_t);
           }
           asg = graphlab::random::multinomial(prob);
@@ -206,6 +212,8 @@ public:
 typedef graphlab::omni_engine<cgs_lda_vertex_program> engine_type;
 typedef cgs_lda_vertex_program::icontext_type icontext_type;
 typedef topk_aggregator<icontext_type> topk_type;
+typedef selective_signal<icontext_type> signal_only;
+typedef global_counts_aggregator<icontext_type> global_counts_agg;
 
 
 
@@ -251,8 +259,6 @@ int main(int argc, char** argv) {
   clopts.add_positional("matrix");
   clopts.attach_option("ntopics", &NTOPICS, NTOPICS,
                        "Number of topics to use.");
-  clopts.attach_option("niters", &NITERS, NITERS,
-                       "Maximum number of iterations.");
   clopts.attach_option("alpha", &ALPHA, ALPHA,
                        "The document hyper-prior");
   clopts.attach_option("beta", &BETA, BETA,                       
@@ -297,17 +303,21 @@ int main(int argc, char** argv) {
   
   engine_type engine(dc, graph, clopts, "synchronous");
   ///! Add an aggregator
-  success = false;
-  success = engine.add_vertex_aggregator<topk_type>("topk",
-                                                    topk_type::map, 
-                                                    topk_type::finalize);
+  success = 
+    engine.add_vertex_aggregator<topk_type>
+    ("topk", topk_type::map, topk_type::finalize) &&
+    engine.aggregate_periodic("topk", INTERVAL);
   ASSERT_TRUE(success);
-  success = engine.aggregate_periodic("topk", INTERVAL);
-  ASSERT_TRUE(success);
+  // success = 
+  //   engine.add_vertex_aggregator<factor_type>
+  //   ("global_counts", global_counts_agg::map, global_counts_agg::finalize) &&
+  //   engine.aggregate_periodic("global_counts", 5);
+  // ASSERT_TRUE(success);
+
 
   ///! schedule only documents
   dc.cout() << "Running The Collapsed Gibbs Sampler" << std::endl;
-  engine.map_reduce_vertices<graphlab::empty>(signal_docs<icontext_type>);
+  engine.map_reduce_vertices<graphlab::empty>(signal_only::docs);
   graphlab::timer timer;
   engine.start();  
   const double runtime = timer.current_time();

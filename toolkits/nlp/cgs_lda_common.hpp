@@ -37,7 +37,6 @@ typedef std::vector< topic_id_type > assignment_type;
 
 extern double ALPHA;
 extern double BETA;
-extern size_t NITERS;
 extern size_t NTOPICS;
 extern size_t NWORDS;
 extern size_t TOPK;
@@ -169,36 +168,54 @@ public:
   static void finalize(icontext_type& context,
                        const topk_aggregator& total) {
     if(context.procid() != 0) return;
-    std::cout << "Number of changes: " << total.nchanges << std::endl;
     for(size_t i = 0; i < total.top_words.size(); ++i) {
       std::cout << "Topic " << i << ": ";
       rev_foreach(cw_pair_type pair, total.top_words[i])  {
         ASSERT_LT(pair.second, DICTIONARY.size());
-        std::cout << DICTIONARY[pair.second] 
-                  << "(" << pair.first << ")" << ", "; 
+        // std::cout << DICTIONARY[pair.second] 
+        //           << "(" << pair.first << ")" << ", "; 
+        std::cout << DICTIONARY[pair.second] << ",  ";
       }
       std::cout << std::endl;
     }
+    std::cout << "\n Number of token changes: " << total.nchanges << std::endl;
   } // end of finalize
 }; // end of topk_aggregator struct
 
 
 
 
-template<typename IContext> graphlab::empty 
-signal_docs(IContext& context, graph_type::vertex_type& vertex) {
-  if(is_doc(vertex)) context.signal(vertex);
-  return graphlab::empty();
-} // end of signal_docs
+template<typename IContext>
+struct global_counts_aggregator {
+  typedef graph_type::vertex_type vertex_type;
+  static factor_type map(IContext& context, const vertex_type& vertex) {
+    return vertex.data().factor;
+  } // end of map function
+
+  static void finalize(IContext& context, const factor_type& total) {
+    for(size_t t = 0; t < total.size(); ++t)
+      GLOBAL_TOPIC_COUNT[t] =
+        std::max(count_type(total[t]/2), count_type(0));
+  } // end of finalize
+}; // end of global_counts_aggregator struct
 
 
 
 
-template<typename IContext> graphlab::empty 
-signal_words(IContext& context, graph_type::vertex_type& vertex) {
-  if(is_word(vertex)) context.signal(vertex);
-  return graphlab::empty();
-} // end of signal_words
+template<typename IContext>
+struct selective_signal {
+ static graphlab::empty 
+ docs(IContext& context, graph_type::vertex_type& vertex) {
+   if(is_doc(vertex)) context.signal(vertex);
+   return graphlab::empty();
+ } // end of signal_docs
+ static graphlab::empty 
+ words(IContext& context, graph_type::vertex_type& vertex) {
+    if(is_word(vertex)) context.signal(vertex);
+    return graphlab::empty();
+  } // end of signal_words
+}; // end of selective_signal
+
 
 
 
