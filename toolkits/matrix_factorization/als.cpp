@@ -94,9 +94,7 @@ int main(int argc, char** argv) {
 
   ///! Initialize control plain using mpi
   graphlab::mpi_tools::init(argc, argv);
-  graphlab::dc_init_param rpc_parameters;
-  graphlab::init_param_from_mpi(rpc_parameters);
-  graphlab::distributed_control dc(rpc_parameters);
+  graphlab::distributed_control dc;
   
   dc.cout() << "Loading graph." << std::endl;
   graphlab::timer timer; 

@@ -44,6 +44,9 @@
 #include "eigen_serialization.hpp"
 
 
+typedef Eigen::VectorXd vec_type;
+typedef Eigen::MatrixXd mat_type;
+
 
 /** 
  * \ingroup toolkit_matrix_factorization
@@ -68,7 +71,7 @@ struct vertex_data {
   /** \brief The most recent L1 change in the factor value */
   float residual; //! how much the latent value has changed
   /** \brief The latent factor for this vertex */
-  Eigen::VectorXd latent;
+  vec_type latent;
   /** 
    * \brief Simple default constructor which randomizes the vertex
    *  data 
@@ -193,12 +196,12 @@ public:
    * \brief Stores the current sum of nbr.latent.transpose() *
    * nbr.latent
    */
-  Eigen::MatrixXd XtX;
+  mat_type XtX;
 
   /**
    * \brief Stores the current sum of nbr.latent * edge.obs
    */
-  Eigen::VectorXd Xy;
+  vec_type Xy;
 
   /** \brief basic default constructor */
   gather_type() { }
@@ -207,7 +210,7 @@ public:
    * \brief This constructor computes XtX and Xy and stores the result
    * in XtX and Xy
    */
-  gather_type(const Eigen::VectorXd& X, const double y) :
+  gather_type(const vec_type& X, const double y) :
     XtX(X.size(), X.size()), Xy(X.size()) {
     XtX.triangularView<Eigen::Upper>() = X * X.transpose();
     Xy = X * y;
@@ -269,12 +272,12 @@ public:
     // Determine the number of neighbors.  Each vertex has only in or
     // out edges depending on which side of the graph it is located
     if(sum.Xy.size() == 0) { vdata.residual = 0; ++vdata.nupdates; return; }
-    Eigen::MatrixXd XtX = sum.XtX;
-    Eigen::VectorXd Xy = sum.Xy;
+    mat_type XtX = sum.XtX;
+    vec_type Xy = sum.Xy;
     // Add regularization
     for(int i = 0; i < XtX.rows(); ++i) XtX(i,i) += LAMBDA; // /nneighbors;
     // Solve the least squares problem using eigen ----------------------------
-    const Eigen::VectorXd old_latent = vdata.latent;
+    const vec_type old_latent = vdata.latent;
     vdata.latent = XtX.selfadjointView<Eigen::Upper>().ldlt().solve(Xy);
     // Compute the residual change in the latent factor -----------------------
     vdata.residual = (vdata.latent - old_latent).cwiseAbs().sum() / XtX.rows();
