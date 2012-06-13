@@ -71,21 +71,21 @@ struct vertex_data {
   /** \brief The most recent L1 change in the factor value */
   float residual; //! how much the latent value has changed
   /** \brief The latent factor for this vertex */
-  vec_type latent;
+  vec_type factor;
   /** 
    * \brief Simple default constructor which randomizes the vertex
    *  data 
    */
   vertex_data() : nupdates(0), residual(1) { randomize(); } 
   /** \brief Randomizes the latent factor */
-  void randomize() { latent.resize(NLATENT); latent.setRandom(); }
+  void randomize() { factor.resize(NLATENT); factor.setRandom(); }
   /** \brief Save the vertex data to a binary archive */
   void save(graphlab::oarchive& arc) const { 
-    arc << nupdates << residual << latent;        
+    arc << nupdates << residual << factor;        
   }
   /** \brief Load the vertex data from a binary archive */
   void load(graphlab::iarchive& arc) { 
-    arc >> nupdates >> residual >> latent;
+    arc >> nupdates >> residual >> factor;
   }
 }; // end of vertex data
 
@@ -142,7 +142,7 @@ get_other_vertex(graph_type::edge_type& edge,
  */
 double extract_l2_error(graph_type::edge_type edge) {
   const double pred = 
-    edge.source().data().latent.dot(edge.target().data().latent);
+    edge.source().data().factor.dot(edge.target().data().factor);
   return (edge.data().obs - pred) * (edge.data().obs - pred);
 } // end of extract_l2_error
 
@@ -179,8 +179,8 @@ inline bool graph_loader(graph_type& graph,
  *
  * To compute the ALS update we need to compute the sum of 
  * \code
- *  sum: XtX = nbr.latent.transpose() * nbr.latent 
- *  sum: Xy  = nbr.latent * edge.obs
+ *  sum: XtX = nbr.factor.transpose() * nbr.factor 
+ *  sum: Xy  = nbr.factor * edge.obs
  * \endcode
  * For each of the neighbors of a vertex. 
  *
@@ -193,13 +193,13 @@ inline bool graph_loader(graph_type& graph,
 class gather_type {
 public:
   /**
-   * \brief Stores the current sum of nbr.latent.transpose() *
-   * nbr.latent
+   * \brief Stores the current sum of nbr.factor.transpose() *
+   * nbr.factor
    */
   mat_type XtX;
 
   /**
-   * \brief Stores the current sum of nbr.latent * edge.obs
+   * \brief Stores the current sum of nbr.factor * edge.obs
    */
   vec_type Xy;
 
@@ -271,7 +271,7 @@ public:
                      edge_type& edge) const {
     if(edge.data().role == edge_data::TRAIN) {
       const vertex_type other_vertex = get_other_vertex(edge, vertex);
-      return gather_type(other_vertex.data().latent, edge.data().obs);
+      return gather_type(other_vertex.data().factor, edge.data().obs);
     } else return gather_type();
   } // end of gather function
 
@@ -288,10 +288,10 @@ public:
     // Add regularization
     for(int i = 0; i < XtX.rows(); ++i) XtX(i,i) += LAMBDA; // /nneighbors;
     // Solve the least squares problem using eigen ----------------------------
-    const vec_type old_latent = vdata.latent;
-    vdata.latent = XtX.selfadjointView<Eigen::Upper>().ldlt().solve(Xy);
-    // Compute the residual change in the latent factor -----------------------
-    vdata.residual = (vdata.latent - old_latent).cwiseAbs().sum() / XtX.rows();
+    const vec_type old_factor = vdata.factor;
+    vdata.factor = XtX.selfadjointView<Eigen::Upper>().ldlt().solve(Xy);
+    // Compute the residual change in the factor factor -----------------------
+    vdata.residual = (vdata.factor - old_factor).cwiseAbs().sum() / XtX.rows();
     ++vdata.nupdates;
   } // end of apply
   
@@ -309,7 +309,7 @@ public:
       const vertex_type other_vertex = get_other_vertex(edge, vertex);
       const vertex_data& vdata = vertex.data();
       const vertex_data& other_vdata = other_vertex.data();
-      const double pred = vdata.latent.dot(other_vdata.latent);
+      const double pred = vdata.factor.dot(other_vdata.factor);
       const float error = std::fabs(edata.obs - pred);
       const double priority = (error * vdata.residual); 
       // Reschedule neighbors ------------------------------------------------
@@ -366,6 +366,24 @@ struct error_aggregator : public graphlab::IS_POD_TYPE {
     context.cout() << std::endl;
   }
 }; // end of error aggregator
+
+
+struct prediction_saver {
+  typedef graph_type::vertex_type vertex_type;
+  typedef graph_type::edge_type   edge_type;
+  std::string save_vertex(const vertex_type& vertex) const {
+    return ""; //nop
+  }
+  std::string save_edge(const edge_type& edge) const {
+    std::stringstream strm;
+    const double prediction = 
+      edge.source().data().factor.dot(edge.target().data().factor);
+    strm << edge.source().id() << '\t' 
+         << edge.target().id() << '\t'
+         << prediction << '\n';
+    return strm.str();
+  }
+}; // end of prediction_saver
 
 
 

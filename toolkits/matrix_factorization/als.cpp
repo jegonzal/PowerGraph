@@ -64,6 +64,7 @@ int main(int argc, char** argv) {
     "Compute the ALS factorization of a matrix.";
   graphlab::command_line_options clopts(description);
   std::string input_dir, output_dir;
+  std::string predictions;
   size_t interval = 10;
   clopts.attach_option("matrix", &input_dir, input_dir,
                        "The directory containing the matrix file");
@@ -85,6 +86,8 @@ int main(int argc, char** argv) {
                        "residual termination threshold");
   clopts.attach_option("interval",  &interval, interval, 
                        "The time in seconds between error reports");
+  clopts.attach_option("predictions", &predictions, predictions,
+                       "The prefix (folder and filename) to save predictions.");
   clopts.attach_option("output", &output_dir, output_dir,
                        "Output results");
   if(!clopts.parse(argc, argv)) {
@@ -159,6 +162,20 @@ int main(int argc, char** argv) {
   // Compute the final training error -----------------------------------------
   dc.cout() << "Final error: " << std::endl;
   engine.aggregate_now("error");
+
+  // Make predictions ---------------------------------------------------------
+  if(!predictions.empty()) {
+    std::cout << "Saving predictions" << std::endl;
+    const bool gzip_output = false;
+    const bool save_vertices = false;
+    const bool save_edges = true;
+    const size_t threads_per_machine = 2;
+    graph.save(predictions, prediction_saver(),
+               gzip_output, save_vertices, 
+               save_edges, threads_per_machine);
+    
+  }
+             
 
 
   graphlab::mpi_tools::finalize();
