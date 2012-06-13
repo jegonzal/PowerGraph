@@ -333,6 +333,11 @@ namespace graphlab {
      * \brief The time in seconds at which the engine started.
      */
     float start_time;
+
+    /**
+     * \brief The timeout time in seconds
+     */
+    float timeout;
     
     /**
      * \brief Used to stop the engine prematurely
@@ -854,6 +859,8 @@ namespace graphlab {
     foreach(std::string opt, keys) {
       if (opt == "max_iterations") {
         opts.get_engine_args().get_option("max_iterations", max_iterations);
+      } else if (opt == "timeout") {
+        opts.get_engine_args().get_option("timeout", timeout);
       } else if (opt == "use_cache") {
         opts.get_engine_args().get_option("use_cache", use_cache);
       } else {
@@ -1053,7 +1060,16 @@ namespace graphlab {
     aggregator.start();
     rmi.barrier();
     // Program Main loop ====================================================      
-    while(iteration_counter < max_iterations && !force_abort) {
+    while(iteration_counter < max_iterations && 
+          !force_abort ) {
+
+      // Check first to see if we are out of time
+      if(timeout < elapsed_seconds()) {
+        termination_reason = execution_status::TIMEOUT;
+        break;
+      }
+
+
       logstream(LOG_EMPH) 
         << rmi.procid() << ": Starting iteration: " << iteration_counter 
         << std::endl;

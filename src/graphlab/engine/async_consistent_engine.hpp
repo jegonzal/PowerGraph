@@ -681,6 +681,8 @@ namespace graphlab {
           opts.get_engine_args().get_option("max_clean_fraction", max_clean_fraction);
         } else if (opt == "timed_termination") {
           opts.get_engine_args().get_option("timed_termination", timed_termination);
+        } else if (opt == "timeout") {
+          opts.get_engine_args().get_option("timeout", timed_termination);
         } else if (opt == "use_cache") {
           opts.get_engine_args().get_option("use_cache", use_cache);
         } else {
