@@ -86,7 +86,9 @@ namespace graphlab {
     struct edge_type {
       local_graph& lgraph_ref;
       typename gstore_type::edge_type e;
-      edge_type(local_graph& lgraph_ref, typename gstore_type::edge_type e):lgraph_ref(lgraph_ref),e(e) { }
+      edge_type(local_graph& lgraph_ref, 
+                typename gstore_type::edge_type e) : 
+        lgraph_ref(lgraph_ref),e(e) { }
 
       /// \brief Returns a constant reference to the data on the edge.
       const edge_data_type& data() const {
@@ -97,11 +99,11 @@ namespace graphlab {
         return lgraph_ref.gstore.edge_data(e);
       }
       /// \brief Returns the source vertex of the edge.
-      vertex_type source() {
+      vertex_type source() const {
         return vertex_type(lgraph_ref, e.source());
       }
       /// \brief Returns the target vertex of the edge.
-      vertex_type target() {
+      vertex_type target() const {
         return vertex_type(lgraph_ref, e.target());
       }
       /** \internal

@@ -139,7 +139,8 @@ namespace graphlab {
     struct local_edge_list_type;
     class local_edge_type;
     
-    /** Vertex object which provides access to the vertex data
+    /** 
+     * Vertex object which provides access to the vertex data
      * and information about it.
      */
     struct vertex_type {
@@ -199,28 +200,84 @@ namespace graphlab {
     };
 
     
-    /** Edge object which provides access to a single edge
-        on the graph */
+    /** 
+     * \brief The edge represents an edge in the graph and provide
+     * access to the data associated with that edge as well as the
+     * source and target distributed::vertex_type objects.
+     *
+     * An edge object may be copied and has very little internal state
+     * and essentially only a reference to the location of the edge
+     * information in the underlying graph.  Therefore edge objects
+     * can be copied but must not outlive the underlying graph.
+     */
     class edge_type {
     private:
+      /** \brief An internal reference to the underlying graph */
       distributed_graph& graph_ref;
-      typename local_graph_type::edge_type e;
-    public:
-      edge_type(distributed_graph& graph_ref,
-                typename local_graph_type::edge_type e):
-                                          graph_ref(graph_ref), e(e) { }
+      /** \brief The edge in the local graph */
+      typename local_graph_type::edge_type edge;
 
-      /// \brief Returns the source vertex of the edge
-      vertex_type source() { return vertex_type(graph_ref, e.source().id()); }
-      /// \brief Returns the target vertex of the edge
-      vertex_type target() { return vertex_type(graph_ref, e.target().id()); }
+      /**
+       * \internal
+       * \brief Construct an edge from a distributed graph and a local
+       * graph.
+       *
+       * This constructor is used by the distributed graph to create
+       * an edge object and should not be used by users
+       */
+      edge_type(distributed_graph& graph_ref,
+                typename local_graph_type::edge_type edge):
+        graph_ref(graph_ref), edge(edge) { }
+      friend class distributed_graph;
+    public:
+
+      /**
+       * \brief Returns the source vertex of the edge. 
+       *
+       * This function returns a vertex_object by value and as a
+       * consequence it is possible to use the resulting vertex object
+       * to access and *modify* the associated vertex data.
+       *
+       * Modification of vertex data obtained through an edge object
+       * is *usually not safe* and can lead to data corruption.
+       *
+       * \return The vertex object representing the source vertex.
+       */
+      vertex_type source() const { 
+        return vertex_type(graph_ref, edge.source().id()); 
+      }
+
+      /**
+       * \brief Returns the target vertex of the edge. 
+       *
+       * This function returns a vertex_object by value and as a
+       * consequence it is possible to use the resulting vertex object
+       * to access and *modify* the associated vertex data.
+       *
+       * Modification of vertex data obtained through an edge object
+       * is *usually not safe* and can lead to data corruption.
+       *
+       * \return The vertex object representing the target vertex.
+       */
+      vertex_type target() const { 
+        return vertex_type(graph_ref, edge.target().id()); 
+      }
       
-      /// \brief Returns a constant reference to the data on the edge 
-      const edge_data_type& data() const { return e.data(); }
+      /**
+       * \brief Returns a constant reference to the data on the edge 
+       */
+      const edge_data_type& data() const { return edge.data(); }
       
-      /// \brief Returns a reference to the data on the edge 
-      edge_data_type& data() { return e.data(); }
-    }; 
+      /**
+       * \brief Returns a reference to the data on the edge 
+       */
+      edge_data_type& data() { return edge.data(); }
+
+    }; // end of edge_type
+
+
+
+
 
     // CONSTRUCTORS ==========================================================>
     distributed_graph(distributed_control& dc, 
@@ -254,7 +311,9 @@ namespace graphlab {
         }
       }
       set_ingress_method(ingress_method, bufsize, usehash, userecent);
-    }
+    } // end of set_options
+
+
 
     // METHODS ===============================================================>
     /**
@@ -469,10 +528,11 @@ namespace graphlab {
           }
         }
       }
-      conditional_addition_wrapper<ResultType> wrapper(global_result, global_result_set);
+      conditional_addition_wrapper<ResultType> 
+        wrapper(global_result, global_result_set);
       rpc.all_reduce(wrapper);
       return wrapper.value;
-    }
+    } // end of map_reduce_vertices
 
    /**
     * \brief Performs a map-reduce operation on each edge in the 
@@ -573,10 +633,11 @@ namespace graphlab {
         }
       }
 
-      conditional_addition_wrapper<ResultType> wrapper(global_result, global_result_set);
+      conditional_addition_wrapper<ResultType> 
+        wrapper(global_result, global_result_set);
       rpc.all_reduce(wrapper);
       return wrapper.value;
-    }
+   } // end of map_reduce_edges
 
     /**
      * \brief Performs a transformation operation on each vertex in the graph.
