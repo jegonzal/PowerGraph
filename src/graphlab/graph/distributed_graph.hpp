@@ -77,6 +77,8 @@
 
 #include <boost/iostreams/stream.hpp>
 #include <boost/iostreams/filtering_stream.hpp>
+#include <boost/concept/requires.hpp>
+
 #include <graphlab/util/cuckoo_map_pow2.hpp>
 
 #include <graphlab/util/fs_util.hpp>
@@ -284,9 +286,40 @@ namespace graphlab {
   public:
 
     /// The type of the vertex data stored in the graph 
-    typedef VertexData vertex_data_type;
+    typedef VertexData vertex_data_type;   
+
+    /**
+     * \brief GraphLab Requires that vertex data be default
+     * constructible.  That is you must have a public member:
+     *
+     * \code
+     * class vertex_data {
+     * public:
+     *   vertex_data() { }
+     * }; //  
+     * \endcode
+     */
+    BOOST_CONCEPT_ASSERT((boost::DefaultConstructible<VertexData>));
+    
+
+
     /// The type of the edge data stored in the graph 
     typedef EdgeData   edge_data_type;
+
+    /**
+     * \brief GraphLab Requires that edge data be default
+     * constructible.  That is you must have a public member:
+     *
+     * \code
+     * class edge_data {
+     * public:
+     *   edge_data() { }
+     * }; //  
+     * \endcode
+     */
+    BOOST_CONCEPT_ASSERT((boost::DefaultConstructible<EdgeData>));
+    
+
 
     /**
        The line parse is any function (or functor) that has the form:
