@@ -131,7 +131,7 @@ bool load_and_initialize_graph(graphlab::distributed_control& dc,
   dc.cout() << "Verivying dictionary size." << std::endl;
   NWORDS = graph.map_reduce_vertices<size_t>(is_word);
   dc.cout()  << "Number of words: " << NWORDS;
-  ASSERT_EQ(NWORDS, DICTIONARY.size());
+  //ASSERT_LT(NWORDS, DICTIONARY.size());
 
   return true;
 } // end of load and initialize graph
