@@ -1625,6 +1625,7 @@ namespace graphlab {
                            line_parser_type line_parser) {
       std::string directory_name; std::string original_path(prefix);
       boost::filesystem::path path(prefix);
+      std::string search_prefix;
       if (boost::filesystem::is_directory(path)) {
         // if this is a directory
         // force a "/" at the end of the path
@@ -1634,11 +1635,11 @@ namespace graphlab {
       }
       else {
         directory_name = path.parent_path().native();
-        prefix = path.filename().native();
+        search_prefix = path.filename().native();
         directory_name = (directory_name.empty() ? "." : directory_name);
       }
       std::vector<std::string> graph_files;
-      fs_util::list_files_with_prefix(directory_name, prefix, graph_files);
+      fs_util::list_files_with_prefix(directory_name, search_prefix, graph_files);
       if (graph_files.size() == 0) {
         logstream(LOG_WARNING) << "No files found matching " << original_path << std::endl;
       }
