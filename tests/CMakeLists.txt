@@ -44,4 +44,6 @@ add_graphlab_executable(test_parsers test_parsers.cpp)
 add_graphlab_executable(synchronous_engine_test synchronous_engine_test.cpp)
 add_graphlab_executable(async_consistent_test async_consistent_test.cpp)
 
+add_graphlab_executable(sfinae_function_test sfinae_function_test.cpp)
+
 # copyfile(runtests.sh)
