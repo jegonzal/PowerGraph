@@ -82,6 +82,12 @@ namespace graphlab {
     
     // iterate through and send to the output iterator
     for (size_t x = 0; x < length ; ++x){
+      /**
+       * A compiler error on this line means that one of the user
+       * defined types currently trying to be serialized (e.g.,
+       * vertex_data, edge_data, messages, gather_type, or
+       * vertex_programs) does not have a default constructor.
+       */
       T v;
       a >> v;
       (*result) = v;
