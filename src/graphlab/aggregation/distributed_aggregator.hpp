@@ -602,7 +602,7 @@ namespace graphlab {
       float curtime = timer::approx_time_seconds() - start_time;
       std::string key;
       bool has_entry = false;
-      if (!schedule.empty() && -schedule.top().second < curtime) {
+      if (!schedule.empty() && -schedule.top().second <= curtime) {
         key = schedule.top().first;
         has_entry = true;
         schedule.pop();
@@ -793,7 +793,7 @@ namespace graphlab {
       // note that we do not call approx_time_seconds everytime
       // this ensures that each key will only be run at most once.
       // each time tick_synchronous is called.
-      while(!schedule.empty() && -schedule.top().second < curtime) {
+      while(!schedule.empty() && -schedule.top().second <= curtime) {
         std::string key = schedule.top().first;
         aggregate_now(key);
         schedule.pop();
