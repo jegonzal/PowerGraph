@@ -859,7 +859,8 @@ namespace graphlab {
     rmi(dc, this), graph(graph), 
     threads(opts.get_ncpus()), 
     thread_barrier(opts.get_ncpus()),
-    max_iterations(-1), iteration_counter(0), 
+    max_iterations(-1), iteration_counter(0),
+    timeout(0),
     vprog_exchange(dc), vdata_exchange(dc), 
     gather_exchange(dc), message_exchange(dc),
     aggregator(dc, graph, new context_type(*this, graph)) {
@@ -1074,7 +1075,7 @@ namespace graphlab {
           !force_abort ) {
 
       // Check first to see if we are out of time
-      if(timeout < elapsed_seconds()) {
+      if(timeout != 0 && timeout < elapsed_seconds()) {
         termination_reason = execution_status::TIMEOUT;
         break;
       }
