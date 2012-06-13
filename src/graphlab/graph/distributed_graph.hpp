@@ -880,12 +880,12 @@ namespace graphlab {
         for (int i = 0; i < (int)local_graph.num_vertices(); ++i) {
           foreach(const local_edge_type& e, l_vertex(i).in_edges()) {
             if (!result_set) {
-              const edge_type edge(e);
+              edge_type edge(e);
               result = mapfunction(edge);
               result_set = true;
             }
             else if (result_set){
-              const edge_type edge(e);
+              edge_type edge(e);
               const ResultType tmp = mapfunction(edge); 
               result += tmp;
             }
