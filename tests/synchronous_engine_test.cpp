@@ -230,7 +230,7 @@ public:
   void apply(icontext_type& context, vertex_type& vertex, 
              const gather_type& total) {
     ASSERT_EQ( total, context.iteration() * vertex.num_in_edges() );
-    vertex.data() = context.iteration() + 1; 
+    vertex.data() = context.iteration(); 
     if(context.iteration() < 10) context.signal(vertex);
   }
   edge_dir_type 

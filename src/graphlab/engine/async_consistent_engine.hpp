@@ -572,8 +572,10 @@ namespace graphlab {
     /**
      * Constructs an asynchronous consistent distributed engine.
      * The number of threads to create are read from 
-     * opts::get_ncpus(). The scheduler to construct is read from
-     * graphlab_options::get_scheduler_type(). The default scheduler
+     * \ref graphlab_options::get_ncpus "opts.get_ncpus()". The scheduler to
+     * construct is read from 
+     * \ref graphlab_options::get_scheduler_type() "opts.get_scheduler_type()". 
+     * The default scheduler
      * is the queued_fifo scheduler. For details on the scheduler types
      * \see scheduler_types
      *
@@ -594,8 +596,8 @@ namespace graphlab {
      * \param dc Distributed controller to associate with
      * \param graph The graph to schedule over. The graph must be fully
      *              constructed and finalized.
-     * \param opts A graphlab_options object containing options and parameters
-     *             for the scheduler and the engine.
+     * \param opts A graphlab::graphlab_options object containing options and
+     *             parameters for the scheduler and the engine.
      */
     async_consistent_engine(distributed_control &dc,
                             graph_type& graph, 
