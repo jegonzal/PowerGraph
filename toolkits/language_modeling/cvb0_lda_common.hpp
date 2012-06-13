@@ -73,7 +73,16 @@ struct vertex_data {
 /**
  * The edge data type
  */
-typedef factor_type edge_data;
+struct edge_data {
+  uint32_t count; factor_type belief;
+  edge_data(uint32_t count = 0) : count(count), belief(NTOPICS) { }
+  void save(graphlab::oarchive& arc) const { 
+    arc << count << belief;
+  }
+  void load(graphlab::iarchive& arc) { 
+    arc >> count >> belief;
+  }
+}; // end of edge data
 
 
 

@@ -56,10 +56,12 @@ public:
     ASSERT_EQ(doc_topic_count.size(), NTOPICS);
     ASSERT_EQ(word_topic_count.size(), NTOPICS);
     // run the actual gibbs sampling 
-    factor_type belief = edge.data();
+    factor_type& belief = edge.data().belief;
+    const uint32_t count = edge.data().count;
     // Resample the topics
-    double sum = 0;
+    double sum = 0, old_sum = 0;
     for(size_t t = 0; t < NTOPICS; ++t) {
+      old_sum += belief[t];
       doc_topic_count[t] -= belief[t];
       word_topic_count[t] -= belief[t];
       GLOBAL_TOPIC_COUNT[t] -= belief[t];
@@ -76,8 +78,14 @@ public:
       sum += belief[t];
     } // End of loop over each token
     ASSERT_GT(sum, 0);
+    if(old_sum == 0) {
+      size_t asg = graphlab::random::multinomial(belief);
+      for(size_t i = 0; i < NTOPICS; ++i) belief[i] = 0;
+      belief[asg] = count;
+      return belief;
+    }
     for(size_t t = 0; t < NTOPICS; ++t) {
-      belief[t] /= sum;
+      belief[t] = count * (belief[t]/sum);
       doc_topic_count[t] += belief[t];
       word_topic_count[t] += belief[t];
       GLOBAL_TOPIC_COUNT[t] += belief[t];
