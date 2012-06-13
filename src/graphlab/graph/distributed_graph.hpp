@@ -139,7 +139,8 @@ namespace graphlab {
     struct local_edge_list_type;
     class local_edge_type;
     
-    /** Vertex object which provides access to the vertex data
+    /** 
+     * Vertex object which provides access to the vertex data
      * and information about it.
      */
     struct vertex_type {
@@ -176,7 +177,8 @@ namespace graphlab {
       vertex_id_type id() const {
         return graph_ref.global_vid(lvid);
       }
-      
+ 
+      /// \cond GRAPHLAB_INTERNAL     
       /// \brief Returns a list of in edges (not implemented) 
       edge_list_type in_edges() __attribute__ ((noreturn)) {
         ASSERT_TRUE(false);
@@ -186,8 +188,9 @@ namespace graphlab {
       edge_list_type out_edges() __attribute__ ((noreturn)) {
         ASSERT_TRUE(false);
       }
-
-      /** \internal
+      /// \endcond 
+      
+      /** 
        *  \brief Returns the local ID of the vertex
        */
       lvid_type local_id() const {
@@ -197,28 +200,84 @@ namespace graphlab {
     };
 
     
-    /** Edge object which provides access to a single edge
-        on the graph */
+    /** 
+     * \brief The edge represents an edge in the graph and provide
+     * access to the data associated with that edge as well as the
+     * source and target distributed::vertex_type objects.
+     *
+     * An edge object may be copied and has very little internal state
+     * and essentially only a reference to the location of the edge
+     * information in the underlying graph.  Therefore edge objects
+     * can be copied but must not outlive the underlying graph.
+     */
     class edge_type {
     private:
+      /** \brief An internal reference to the underlying graph */
       distributed_graph& graph_ref;
-      typename local_graph_type::edge_type e;
-    public:
-      edge_type(distributed_graph& graph_ref,
-                typename local_graph_type::edge_type e):
-                                          graph_ref(graph_ref), e(e) { }
+      /** \brief The edge in the local graph */
+      typename local_graph_type::edge_type edge;
 
-      /// \brief Returns the source vertex of the edge
-      vertex_type source() { return vertex_type(graph_ref, e.source().id()); }
-      /// \brief Returns the target vertex of the edge
-      vertex_type target() { return vertex_type(graph_ref, e.target().id()); }
+      /**
+       * \internal
+       * \brief Construct an edge from a distributed graph and a local
+       * graph.
+       *
+       * This constructor is used by the distributed graph to create
+       * an edge object and should not be used by users
+       */
+      edge_type(distributed_graph& graph_ref,
+                typename local_graph_type::edge_type edge):
+        graph_ref(graph_ref), edge(edge) { }
+      friend class distributed_graph;
+    public:
+
+      /**
+       * \brief Returns the source vertex of the edge. 
+       *
+       * This function returns a vertex_object by value and as a
+       * consequence it is possible to use the resulting vertex object
+       * to access and *modify* the associated vertex data.
+       *
+       * Modification of vertex data obtained through an edge object
+       * is *usually not safe* and can lead to data corruption.
+       *
+       * \return The vertex object representing the source vertex.
+       */
+      vertex_type source() const { 
+        return vertex_type(graph_ref, edge.source().id()); 
+      }
+
+      /**
+       * \brief Returns the target vertex of the edge. 
+       *
+       * This function returns a vertex_object by value and as a
+       * consequence it is possible to use the resulting vertex object
+       * to access and *modify* the associated vertex data.
+       *
+       * Modification of vertex data obtained through an edge object
+       * is *usually not safe* and can lead to data corruption.
+       *
+       * \return The vertex object representing the target vertex.
+       */
+      vertex_type target() const { 
+        return vertex_type(graph_ref, edge.target().id()); 
+      }
       
-      /// \brief Returns a constant reference to the data on the edge 
-      const edge_data_type& data() const { return e.data(); }
+      /**
+       * \brief Returns a constant reference to the data on the edge 
+       */
+      const edge_data_type& data() const { return edge.data(); }
       
-      /// \brief Returns a reference to the data on the edge 
-      edge_data_type& data() { return e.data(); }
-    }; 
+      /**
+       * \brief Returns a reference to the data on the edge 
+       */
+      edge_data_type& data() { return edge.data(); }
+
+    }; // end of edge_type
+
+
+
+
 
     // CONSTRUCTORS ==========================================================>
     distributed_graph(distributed_control& dc, 
@@ -252,7 +311,9 @@ namespace graphlab {
         }
       }
       set_ingress_method(ingress_method, bufsize, usehash, userecent);
-    }
+    } // end of set_options
+
+
 
     // METHODS ===============================================================>
     /**
@@ -369,21 +430,64 @@ namespace graphlab {
     }
 
 
-
-    /**
-     * The function will execute the mapfunction over all vertices in the
-     * graph passed as a vertex_type, and sum the result using the += operator.
-     * The result of the reduction is available on all machines.
-     * 
-     * \tparam ResultType The return type of the map function. Also the return
-     * type of the map_reduce_vertices function. It must be serializable,
-     * default constructable, copy constructable, and must have commutative
-     * associative +=.
-     * \param mapfunction must be a unary function from vertex_type to
-     * ResultType. it may be a unary functor or a function pointer.
-     */
+   /**
+    * \brief Performs a map-reduce operation on each vertex in the 
+    * graph returning the result.
+    * 
+    * Given a map function, map_reduce_vertices() call the map function on all
+    * vertices in the graph. The return values are then summed together and the
+    * final result returned. The map function should only read the vertex data
+    * and should not make any modifications. map_reduce_vertices() must be
+    * called on all machines simultaneously.
+    *
+    * ### Basic Usage 
+    * For instance, if the graph has float vertex data, and float edge data:
+    * \code
+    *   typedef graphlab::distributed_graph<float, float> graph_type;
+    * \endcode
+    * 
+    * To compute an absolute sum over all the vertex data, we would write
+    * a function which reads in each a vertex, and returns the absolute
+    * value of the data on the vertex.
+    * \code
+    * float absolute_vertex_data(graph_type::vertex_type vertex) {
+    *   return std::fabs(vertex.data());
+    * }
+    * \endcode
+    * After which calling:
+    * \code
+    * float sum = graph.map_reduce_vertices<float>(absolute_vertex_data);
+    * \endcode
+    * will call the <code>absolute_vertex_data()</code> function
+    * on each vertex in the graph. <code>absolute_vertex_data()</code>
+    * reads the value of the vertex and returns the absolute result.
+    * This return values are then summed together and returned. 
+    * All machines see the same result.
+    *
+    * The template argument <code><float></code> is needed to inform
+    * the compiler regarding the return type of the mapfunction.
+    *
+    * ### Relations
+    * This function is similar to 
+    * graphlab::iengine::map_reduce_vertices()
+    * with the difference that this does not take a context
+    * and thus cannot influence engine signalling.
+    * transform_vertices() can be used to perform a similar
+    * but may also make modifications to graph data.
+    *
+    * \tparam ResultType The output of the map function. Must have
+    *                    operator+= defined, and must be \ref Serializable.
+    * \tparam VertexMapperType The type of the map function. 
+    *                          Not generally needed.
+    *                          Can be inferred by the compiler.
+    * \param mapfunction The map function to use. Must take 
+    *                   a \ref vertex_type, or a reference to a 
+    *                   \ref vertex_type as its only argument.
+    *                   Returns a ResultType which must be summable
+    *                   and \ref Serializable .
+    */
     template <typename ResultType, typename MapFunctionType>
-    ResultType map_reduce_vertices(MapFunctionType mapfunction) {
+    ResultType map_reduce_vertices(const MapFunctionType mapfunction) {
       ASSERT_TRUE(finalized);
       rpc.barrier();
       bool global_result_set = false;
@@ -400,13 +504,14 @@ namespace graphlab {
         for (int i = 0; i < (int)local_graph.num_vertices(); ++i) {
           if (lvid2record[i].owner == rpc.procid()) {
             if (!result_set) {
-              vertex_type vtx(l_vertex(i));
+              const vertex_type vtx(l_vertex(i));
               result = mapfunction(vtx);
               result_set = true;
             }
             else if (result_set){
-              vertex_type vtx(l_vertex(i));
-              result += mapfunction(vtx);
+              const vertex_type vtx(l_vertex(i));
+              const ResultType tmp = mapfunction(vtx);
+              result += tmp;
             }
           }
         }
@@ -423,26 +528,70 @@ namespace graphlab {
           }
         }
       }
-      conditional_addition_wrapper<ResultType> wrapper(global_result, global_result_set);
+      conditional_addition_wrapper<ResultType> 
+        wrapper(global_result, global_result_set);
       rpc.all_reduce(wrapper);
       return wrapper.value;
-    }
+    } // end of map_reduce_vertices
 
-
-    /**
-     * The function will execute the mapfunction over all edges in the
-     * graph passed as an edge_type, and sum the result using the += operator.
-     * The result of the reduction is available on all machines.
-     *
-     * \tparam ResultType The return type of the map function. Also the return
-     * type of the map_reduce_edges function. It must be serializable,
-     * default constructable, copy constructable, and must have commutative
-     * associative +=.
-     * \param mapfunction must be a unary function from edge_type to ResultType
-     * it may be a unary functor or a function pointer.
-     */
-    template <typename ResultType, typename MapFunctionType>
-    ResultType map_reduce_edges(MapFunctionType mapfunction) {
+   /**
+    * \brief Performs a map-reduce operation on each edge in the 
+    * graph returning the result.
+    * 
+    * Given a map function, map_reduce_edges() call the map function on all
+    * edges in the graph. The return values are then summed together and the
+    * final result returned. The map function should only read data
+    * and should not make any modifications. map_reduce_edges() must be
+    * called on all machines simultaneously.
+    *
+    * ### Basic Usage 
+    * For instance, if the graph has float vertex data, and float edge data:
+    * \code
+    *   typedef graphlab::distributed_graph<float, float> graph_type;
+    * \endcode
+    * 
+    * To compute an absolute sum over all the edge data, we would write
+    * a function which reads in each a edge, and returns the absolute
+    * value of the data on the edge.
+    * \code
+    * float absolute_edge_data(graph_type::edge_type edge) {
+    *   return std::fabs(edge.data());
+    * }
+    * \endcode
+    * After which calling:
+    * \code
+    * float sum = engine.map_reduce_edges<float>(absolute_edge_data);
+    * \endcode
+    * will call the <code>absolute_edge_data()</code> function
+    * on each edge in the graph. <code>absolute_edge_data()</code>
+    * reads the value of the edge and returns the absolute result.
+    * This return values are then summed together and returned. 
+    * All machines see the same result.
+    *
+    * The template argument <code><float></code> is needed to inform
+    * the compiler regarding the return type of the mapfunction.
+    *
+    * ### Relations
+    * This function similar to 
+    * graphlab::distributed_graph::map_reduce_edges()
+    * with the difference that this does not take a context
+    * and thus cannot influence engine signalling.
+    * Finally transform_edges() can be used to perform a similar
+    * but may also make modifications to graph data.
+    *
+    * \tparam ResultType The output of the map function. Must have
+    *                    operator+= defined, and must be \ref Serializable.
+    * \tparam EdgeMapperType The type of the map function. 
+    *                          Not generally needed.
+    *                          Can be inferred by the compiler.
+    * \param mapfunction The map function to use. Must take 
+    *                   a \ref edge_type, or a reference to a 
+    *                   \ref edge_type as its only argument.
+    *                   Returns a ResultType which must be summable
+    *                   and \ref Serializable .
+    */
+   template <typename ResultType, typename MapFunctionType>
+    ResultType map_reduce_edges(const MapFunctionType mapfunction) {
       ASSERT_TRUE(finalized);
       rpc.barrier();
       bool global_result_set = false;
@@ -459,13 +608,14 @@ namespace graphlab {
         for (int i = 0; i < (int)local_graph.num_vertices(); ++i) {
           foreach(const local_edge_type& e, l_vertex(i).in_edges()) {
             if (!result_set) {
-              edge_type edge(e);
+              const edge_type edge(e);
               result = mapfunction(edge);
               result_set = true;
             }
             else if (result_set){
-              edge_type edge(e);
-              result += mapfunction(edge);
+              const edge_type edge(e);
+              const ResultType tmp = mapfunction(edge); 
+              result += tmp;
             }
           }
         }
@@ -483,11 +633,58 @@ namespace graphlab {
         }
       }
 
-      conditional_addition_wrapper<ResultType> wrapper(global_result, global_result_set);
+      conditional_addition_wrapper<ResultType> 
+        wrapper(global_result, global_result_set);
       rpc.all_reduce(wrapper);
       return wrapper.value;
-    }
+   } // end of map_reduce_edges
 
+    /**
+     * \brief Performs a transformation operation on each vertex in the graph.
+     *
+     * Given a mapfunction, transform_vertices() calls mapfunction on 
+     * every vertex in graph. The map function may make modifications
+     * to the data on the vertex. transform_vertices() must be called by all
+     * machines simultaneously.
+     *
+     * ### Basic Usage 
+     * For instance, if the graph has integer vertex data, and integer edge
+     * data: 
+     * \code
+     *   typedef graphlab::distributed_graph<size_t, size_t> graph_type;
+     * \endcode
+     * 
+     * To set each vertex value to be the number of out-going edges,
+     * we may write the following function:     
+     * \code
+     * void set_vertex_value(graph_type::vertex_type vertex) {
+     *   vertex.data() = vertex.num_out_edges();
+     * }
+     * \endcode
+     *
+     * Calling transform_vertices():
+     * \code
+     *   engine.transform_vertices(set_vertex_value);
+     * \endcode
+     * will run the <code>set_vertex_value()</code> function
+     * on each vertex in the graph, setting its new value. 
+     *
+     * ### Relations
+     * map_reduce_vertices() provide similar signalling functionality, 
+     * but should not make modifications to graph data. 
+     * graphlab::iengine::transform_vertices() provide
+     * the same graph modification capabilities, but with a context
+     * and thus can perform signalling.
+     *
+     * \tparam VertexMapperType The type of the map function. 
+     *                          Not generally needed.
+     *                          Can be inferred by the compiler.
+     * \param mapfunction The map function to use. Must take an
+     *                   \ref icontext_type& as its first argument, and
+     *                   a \ref vertex_type, or a reference to a 
+     *                   \ref vertex_type as its second argument.
+     *                   Returns void.
+     */ 
     template <typename TransformType>
     void transform_vertices(TransformType transform_functor) {
       ASSERT_TRUE(finalized);
@@ -505,7 +702,52 @@ namespace graphlab {
       synchronize();
     }
 
-
+    /**
+     * \brief Performs a transformation operation on each edge in the graph.
+     *
+     * Given a mapfunction, transform_edges() calls mapfunction on 
+     * every edge in graph. The map function may make modifications
+     * to the data on the edge. transform_edges() must be called on
+     * all machines simultaneously.
+     *
+     * ### Basic Usage 
+     * For instance, if the graph has integer vertex data, and integer edge
+     * data: 
+     * \code
+     *   typedef graphlab::distributed_graph<size_t, size_t> graph_type;
+     * \endcode
+     * 
+     * To set each edge value to be the number of out-going edges
+     * of the target vertex, we may write the following:
+     * \code
+     * void set_edge_value(graph_type::edge_type edge) {
+     *   edge.data() = edge.target().num_out_edges();
+     * }
+     * \endcode
+     *
+     * Calling transform_edges():
+     * \code
+     *   engine.transform_edges(set_edge_value);
+     * \endcode
+     * will run the <code>set_edge_value()</code> function
+     * on each edge in the graph, setting its new value. 
+     *
+     * ### Relations
+     * map_reduce_edges() provide similar signalling functionality, 
+     * but should not make modifications to graph data. 
+     * graphlab::iengine::transform_edges() provide
+     * the same graph modification capabilities, but with a context
+     * and thus can perform signalling.
+     *
+     * \tparam EdgeMapperType The type of the map function. 
+     *                          Not generally needed.
+     *                          Can be inferred by the compiler.
+     * \param mapfunction The map function to use. Must take an
+     *                   \ref icontext_type& as its first argument, and
+     *                   a \ref edge_type, or a reference to a 
+     *                   \ref edge_type as its second argument.
+     *                   Returns void.
+     */ 
     template <typename TransformType>
     void transform_edges(TransformType transform_functor) {
       ASSERT_TRUE(finalized);
@@ -521,7 +763,12 @@ namespace graphlab {
       }
       rpc.barrier();
     }
+
+    // disable documentation for parallel_for stuff. These are difficult
+    // to use properly by the user
+    /// \cond GRAPHLAB_INTERNAL
     /**
+     * \internal 
      * parallel_for_vertices will partition the set of vertices among the
      * vector of accfunctions. Each accfunction is then executed sequentially
      * on the set of vertices it was assigned.
@@ -550,15 +797,16 @@ namespace graphlab {
       rpc.barrier();
     }
 
-
+    
     /**
+     * \internal
      * parallel_for_edges will partition the set of edges among the
      * vector of accfunctions. Each accfunction is then executed sequentially
      * on the set of edges it was assigned.
      *
-      * \param accfunction must be a void function which takes a single
-      * edge_type argument. It may be a functor and contain state.
-      * The function need not be reentrant as it is only called sequentially
+     * \param accfunction must be a void function which takes a single
+     * edge_type argument. It may be a functor and contain state.
+     * The function need not be reentrant as it is only called sequentially
      */
     template <typename EdgeFunctorType>
     void parallel_for_edges(
@@ -580,6 +828,7 @@ namespace graphlab {
       rpc.barrier();
     }
 
+    /// \endcond
     
     /// \brief Clears the graph. 
     void clear () { 
@@ -954,7 +1203,7 @@ namespace graphlab {
       }
       for(size_t i = 0; i < graph_files.size(); ++i) {
         if (i % rpc.numprocs() == rpc.procid()) {
-          logstream(LOG_INFO) << "Loading graph from file: " << graph_files[i] << std::endl;
+          logstream(LOG_EMPH) << "Loading graph from file: " << graph_files[i] << std::endl;
           // is it a gzip file ?
           const bool gzip = boost::ends_with(graph_files[i], ".gz");
           // open the stream
@@ -1005,7 +1254,7 @@ namespace graphlab {
 
       for(size_t source = rpc.procid(); source < nverts;
           source += rpc.numprocs()) {
-        const size_t out_degree = random::sample(prob) + 1;
+        const size_t out_degree = random::multinomial_cdf(prob) + 1;
         for(size_t i = 0; i < out_degree; ++i) {
           target_index = (target_index + 2654435761)  % nverts;
           while (source == target_index) {
@@ -1016,7 +1265,7 @@ namespace graphlab {
         }
         ++addedvtx;
         if (addedvtx % 10000000 == 0) {
-          logstream(LOG_INFO) << addedvtx << " inserted\n";
+          logstream(LOG_EMPH) << addedvtx << " inserted\n";
         }
       }
       rpc.full_barrier(); 
@@ -1593,17 +1842,17 @@ namespace graphlab {
 
       if(ingress_ptr != NULL) { delete ingress_ptr; ingress_ptr = NULL; }
       if (method == "batch") {
-        logstream(LOG_INFO) << "Use batch ingress, bufsize: " << bufsize
+        logstream(LOG_EMPH) << "Use batch ingress, bufsize: " << bufsize
           << ", usehash: " << usehash << ", userecent" << userecent << std::endl;
         ingress_ptr = new distributed_batch_ingress<VertexData, EdgeData>(rpc.dc(), *this,
                                                          bufsize, usehash, userecent);
       } else if (method == "oblivious") {
-        logstream(LOG_INFO) << "Use oblivious ingress, usehash: " << usehash
+        logstream(LOG_EMPH) << "Use oblivious ingress, usehash: " << usehash
           << ", userecent: " << userecent << std::endl;
         ingress_ptr = new distributed_oblivious_ingress<VertexData, EdgeData>(rpc.dc(), *this,
                                                              usehash, userecent);
       } else if (method == "identity") {
-        logstream(LOG_INFO) << "Use identity ingress" << std::endl;
+        logstream(LOG_EMPH) << "Use identity ingress" << std::endl;
         ingress_ptr = new distributed_identity_ingress<VertexData, EdgeData>(rpc.dc(), *this);
       } else {
         ingress_ptr = new distributed_random_ingress<VertexData, EdgeData>(rpc.dc(), *this);

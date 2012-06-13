@@ -333,6 +333,11 @@ namespace graphlab {
      * \brief The time in seconds at which the engine started.
      */
     float start_time;
+
+    /**
+     * \brief The timeout time in seconds
+     */
+    float timeout;
     
     /**
      * \brief Used to stop the engine prematurely
@@ -817,25 +822,25 @@ namespace graphlab {
 
 
 
- /**
-     * Constructs an synchronous distributed engine.
-     * The number of threads to create are read from
-     * opts::get_ncpus().
-     *
-     * Valid engine options (graphlab_options::get_engine_args()):
-     * \arg \c max_iterations Sets the maximum number of iterations the
-     * engine will run for. 
-     * \arg \c use_cache If set to true, partial gathers are cached.
-     * See \ref gather_caching to understand the behavior of the
-     * gather caching model and how it may be used to accelerate program
-     * performance.
-     *
-     * \param dc Distributed controller to associate with
-     * \param graph The graph to schedule over. The graph must be fully
-     *              constructed and finalized.
-     * \param opts A graphlab_options object containing options and parameters
-     *             for the engine.
-     */
+  /**
+   * Constructs an synchronous distributed engine.
+   * The number of threads to create are read from
+   * opts::get_ncpus().
+   *
+   * Valid engine options (graphlab_options::get_engine_args()):
+   * \arg \c max_iterations Sets the maximum number of iterations the
+   * engine will run for. 
+   * \arg \c use_cache If set to true, partial gathers are cached.
+   * See \ref gather_caching to understand the behavior of the
+   * gather caching model and how it may be used to accelerate program
+   * performance.
+   *
+   * \param dc Distributed controller to associate with
+   * \param graph The graph to schedule over. The graph must be fully
+   *              constructed and finalized.
+   * \param opts A graphlab_options object containing options and parameters
+   *             for the engine.
+   */
   template<typename VertexProgram>
   synchronous_engine<VertexProgram>::
   synchronous_engine(distributed_control &dc, 
@@ -854,6 +859,8 @@ namespace graphlab {
     foreach(std::string opt, keys) {
       if (opt == "max_iterations") {
         opts.get_engine_args().get_option("max_iterations", max_iterations);
+      } else if (opt == "timeout") {
+        opts.get_engine_args().get_option("timeout", timeout);
       } else if (opt == "use_cache") {
         opts.get_engine_args().get_option("use_cache", use_cache);
       } else {
@@ -1049,12 +1056,21 @@ namespace graphlab {
     //   // Initialize all vertex programs
     //   run_synchronous( &synchronous_engine::initialize_vertex_programs );
     // }
-    rmi.barrier();
-    // initialize aggregators
     aggregator.aggregate_all_periodic();
+    aggregator.start();
+    rmi.barrier();
     // Program Main loop ====================================================      
-    while(iteration_counter < max_iterations && !force_abort) {
-      logstream(LOG_INFO) 
+    while(iteration_counter < max_iterations && 
+          !force_abort ) {
+
+      // Check first to see if we are out of time
+      if(timeout < elapsed_seconds()) {
+        termination_reason = execution_status::TIMEOUT;
+        break;
+      }
+
+
+      logstream(LOG_EMPH) 
         << rmi.procid() << ": Starting iteration: " << iteration_counter 
         << std::endl;
       // Reset Active vertices ---------------------------------------------- 
@@ -1094,7 +1110,7 @@ namespace graphlab {
       size_t total_active_vertices = num_active_vertices; 
       rmi.all_reduce(total_active_vertices);
       if (rmi.procid() == 0) 
-        logstream(LOG_INFO)
+        logstream(LOG_EMPH)
           << "\tActive vertices: " << total_active_vertices << std::endl;
       if(total_active_vertices == 0 ) {
         termination_reason = execution_status::TASK_DEPLETION;
@@ -1140,7 +1156,7 @@ namespace graphlab {
        * Post conditions:
        *   1) NONE
        */
-
+      logstream(LOG_EMPH) << "\t Running Aggregators" << std::endl;
       // probe the aggregator
       aggregator.tick_synchronous();
 

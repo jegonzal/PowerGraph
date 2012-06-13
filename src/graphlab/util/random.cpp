@@ -291,11 +291,6 @@ namespace graphlab {
         pdf[i] = pdf[i]/Z + ((i>0)? pdf[i-1] : 0);
     } // end of pdf2cdf
 
-    size_t sample(const std::vector<double>& cdf) {
-      return std::upper_bound(cdf.begin(), cdf.end(),
-                              rand01()) - cdf.begin();
-    } // end of sample
-
 
 
   

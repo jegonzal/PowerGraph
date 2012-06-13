@@ -92,6 +92,14 @@ namespace graphlab {
       
     size_t num_procs() const { return graph.numprocs(); }
 
+    std::ostream& cout() const {
+      return graph.dc().cout();
+    }
+
+    std::ostream& cerr() const {
+      return graph.dc().cerr();
+    }
+
     /**
      * Get the elapsed time in seconds
      */

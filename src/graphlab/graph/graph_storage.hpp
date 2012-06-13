@@ -132,7 +132,9 @@ namespace graphlab {
       }
       // \brief Return the estimated memory footprint used.
       size_t estimate_sizeof() const {
-        return data.capacity()*sizeof(EdgeData) + source_arr.capacity()*sizeof(vertex_id_type)*2 + sizeof(data) + sizeof(source_arr)*2 + sizeof(edge_info);
+        return data.capacity()*sizeof(EdgeData) + 
+          source_arr.capacity()*sizeof(vertex_id_type)*2 + 
+          sizeof(data) + sizeof(source_arr)*2 + sizeof(edge_info);
       }
     }; // end of class edge_info.
 
@@ -140,12 +142,17 @@ namespace graphlab {
     class edge_type {
     public:
       /** \brief Creates an empty edge type. */
-      edge_type () : _source(-1), _target(-1), _edge_id(-1), _dir(NO_EDGES), _empty(true) { }
-      /** \brief Creates an edge of given source id, target id, edge id and direction enum. 
-       * \internal edge id is used to locate the edge data in the edge_data array.  edge_dir type is defined in graph_basic.hpp. **/
-      edge_type (const vertex_id_type _source, const vertex_id_type _target, 
+      edge_type () : _source(-1), _target(-1), _edge_id(-1), 
+                     _dir(NO_EDGES), _empty(true) { }
+      /** \brief Creates an edge of given source id, target id, edge
+       * id and direction enum.  \internal edge id is used to locate
+       * the edge data in the edge_data array.  edge_dir type is
+       * defined in graph_basic.hpp. **/
+      edge_type (const vertex_id_type _source, 
+                 const vertex_id_type _target, 
                  const edge_id_type _eid, edge_dir_type _dir) :
-        _source(_source), _target(_target), _edge_id(_eid), _dir(_dir), _empty(false) {
+        _source(_source), _target(_target), _edge_id(_eid), 
+        _dir(_dir), _empty(false) {
           if (_dir != OUT_EDGES) std::swap(this->_source, this->_target);
         }
     public:

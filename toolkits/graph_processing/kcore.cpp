@@ -45,10 +45,10 @@ size_t CURRENT_K;
  * with a message of 1.
  */
 class k_core :
-      public graphlab::ivertex_program<graph_type,
-                                       graphlab::empty, // gathers are integral
-                                       int>,   // messages are integral
-      public graphlab::IS_POD_TYPE  {
+  public graphlab::ivertex_program<graph_type,
+                                   graphlab::empty, // gathers are integral
+                                   int>,   // messages are integral
+  public graphlab::IS_POD_TYPE  {
 public:
   // the last received message
   int msg;
@@ -101,7 +101,7 @@ public:
   edge_dir_type scatter_edges(icontext_type& context,
                               const vertex_type& vertex) const {
     return just_deleted ?
-                 graphlab::ALL_EDGES : graphlab::NO_EDGES;
+      graphlab::ALL_EDGES : graphlab::NO_EDGES;
   }
 
   /*
@@ -109,10 +109,10 @@ public:
    * signal it.
    */
   void scatter(icontext_type& context,
-              const vertex_type& vertex,
-              edge_type& edge) const {
+               const vertex_type& vertex,
+               edge_type& edge) const {
     vertex_type other = edge.source().id() == vertex.id() ?
-                          edge.target() : edge.source();
+      edge.target() : edge.source();
     if (other.data() > 0) {
       context.signal(other, 1);
     }
@@ -128,7 +128,7 @@ typedef graphlab::synchronous_engine<k_core> engine_type;
  * Initializes all vertex data to the number of adjacent edges.
  * Can be called from a graph.transform_vertices()
  */
-void initialize_vertex_values(graph_type::vertex_type &v) {
+void initialize_vertex_values(graph_type::vertex_type& v) {
   v.data() = v.num_in_edges() + v.num_out_edges();
 }
 
@@ -138,7 +138,7 @@ void initialize_vertex_values(graph_type::vertex_type &v) {
  * We return empty since no reduction is performed. Only the map.
  */
 graphlab::empty signal_vertices_at_k(engine_type::icontext_type& ctx,
-                          graph_type::vertex_type &vertex) {
+                                     graph_type::vertex_type& vertex) {
   if (vertex.data() > 0 && vertex.data() < CURRENT_K) {
     ctx.signal(vertex, 0);
   }
@@ -148,7 +148,7 @@ graphlab::empty signal_vertices_at_k(engine_type::icontext_type& ctx,
 /*
  * Counts the number of un-deleted vertices.
  */
-size_t count_active_vertices(graph_type::vertex_type &vertex) {
+size_t count_active_vertices(const graph_type::vertex_type& vertex) {
   return vertex.data() > 0;
 }
 
@@ -156,7 +156,7 @@ size_t count_active_vertices(graph_type::vertex_type &vertex) {
  * Counts the degree of each un-deleted vertex. Half of this
  * will be the size of the K-core graph.
  */
-size_t double_count_active_edges(graph_type::vertex_type &vertex) {
+size_t double_count_active_edges(const graph_type::vertex_type& vertex) {
   return (size_t) vertex.data();
 }
 
@@ -167,12 +167,12 @@ size_t double_count_active_edges(graph_type::vertex_type &vertex) {
  * the adjacent vertices have not yet been deleted.
  * This allows saving of the k-core graph.
  */
-struct save_core_at_k{
+struct save_core_at_k {
   std::string save_vertex(graph_type::vertex_type) { return ""; }
   std::string save_edge(graph_type::edge_type e) {
     if (e.source().data() > 0 && e.target().data() > 0) {
       return graphlab::tostr(e.source().id()) + "\t" +
-             graphlab::tostr(e.target().id()) + "\n";
+        graphlab::tostr(e.target().id()) + "\n";
     }
     else return "";
   }
@@ -181,11 +181,12 @@ struct save_core_at_k{
 int main(int argc, char** argv) {
   std::cout << "Computes a k-core decomposition of a graph.\n\n";
 
-  graphlab::command_line_options clopts("K-Core decomposition. This program "
-  "computes the K-Core decomposition of a graph, for K ranging from [kmin] "
-   "to [kmax]. The size of the remaining K-core graph at each K is printed. "
-  "The [savecores] allow the saving of each K-Core graph in a TSV format"
-  );
+  graphlab::command_line_options clopts
+    ("K-Core decomposition. This program "
+     "computes the K-Core decomposition of a graph, for K ranging from [kmin] "
+     "to [kmax]. The size of the remaining K-core graph at each K is printed. "
+     "The [savecores] allow the saving of each K-Core graph in a TSV format"
+     );
   std::string prefix, format;
   size_t kmin = 0;
   size_t kmax = 100;

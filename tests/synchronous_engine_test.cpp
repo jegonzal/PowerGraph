@@ -240,7 +240,7 @@ public:
 }; // end of count aggregators
 
 int iteration_counter(count_aggregators::icontext_type& context,
-                      graph_type::vertex_type& vertex) {
+                      const graph_type::vertex_type& vertex) {
   ASSERT_LT(vertex.data(), 100);
   return vertex.data();
 }

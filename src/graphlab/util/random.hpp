@@ -245,6 +245,19 @@ namespace graphlab {
         return ind;
       } // end of multinomial
 
+
+      /**
+       * Generate a draw from a multinomial using a CDF.  This is
+       * slightly more efficient since normalization is not required
+       * and a binary search can be used.
+       */
+      inline size_t multinomial_cdf(const std::vector<double>& cdf) {
+        return std::upper_bound(cdf.begin(), cdf.end(),
+                                uniform<double>(0,1)) - cdf.begin();
+        
+      } // end of multinomial_cdf
+
+
       /** 
        * Construct a random permutation
        */ 
@@ -430,6 +443,15 @@ namespace graphlab {
     }
 
 
+    /**
+     * \ingroup random
+     * Generate a draw from a cdf;
+     */
+    inline size_t multinomial_cdf(const std::vector<double>& cdf) {
+      return get_source().multinomial_cdf(cdf);
+    }
+
+
 
     /** 
      * \ingroup random
@@ -464,10 +486,7 @@ namespace graphlab {
      */
     void pdf2cdf(std::vector<double>& pdf);
 
-    /**
-     * Performs a random draw from a discrete CDF
-     */
-    size_t sample(const std::vector<double>& cdf);
+
     
   }; // end of random 
 }; // end of graphlab

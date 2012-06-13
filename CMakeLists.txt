@@ -224,6 +224,21 @@ ExternalProject_Add(libjpeg
 
 
 # ImageMagick =================================================================
+# # set(imagemagick_configure_cmd
+# #   bash -c "C_INCLUDE_PATH=${GraphLab_SOURCE_DIR}/deps/local/include CPLUS_INCLUDE_PATH=${GraphLab_SOURCE_DIR}/deps/local/include LIBRARY_PATH=${GraphLab_SOURCE_DIR}/deps/local/lib LDFLAGS='-L${GraphLab_SOURCE_DIR}/deps/local/lib' ./configure  --prefix=${GraphLab_SOURCE_DIR}/deps/local --without-threads --disable-openmp --disable-opencl")
+# # ExternalProject_Add(imagemagick
+# #   PREFIX ${GraphLab_SOURCE_DIR}/deps/imagemagick
+# #   URL http://www.imagemagick.org/download/ImageMagick.tar.gz
+# #   # URL_MD5 010b63a2542c4ec4918c8cb431c00356
+# #   BUILD_IN_SOURCE 1 
+# #   CONFIGURE_COMMAND ${imagemagick_configure_cmd}
+# #   BUILD_COMMAND
+# #   C_INCLUDE_PATH=${GraphLab_SOURCE_DIR}/deps/local/include 
+# #   CPLUS_INCLUDE_PATH=${GraphLab_SOURCE_DIR}/deps/local/include 
+# #   LIBRARY_PATH=${GraphLab_SOURCE_DIR}/deps/local/lib
+# # #  LDFLAGS=-L${GraphLab_SOURCE_DIR}/deps/local/lib	
+# #   make
+# #   INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local)
 ExternalProject_Add(imagemagick
   PREFIX ${GraphLab_SOURCE_DIR}/deps/imagemagick
   URL http://www.imagemagick.org/download/ImageMagick.tar.gz
@@ -232,7 +247,7 @@ ExternalProject_Add(imagemagick
   C_INCLUDE_PATH=${GraphLab_SOURCE_DIR}/deps/local/include 
   CPLUS_INCLUDE_PATH=${GraphLab_SOURCE_DIR}/deps/local/include 
   LIBRARY_PATH=${GraphLab_SOURCE_DIR}/deps/local/lib
-  LDFLAGS=-L${GraphLab_SOURCE_DIR}/deps/local/lib	
+  LDFLAGS=-L${GraphLab_SOURCE_DIR}/deps/local/lib       
   <SOURCE_DIR>/configure 
   --prefix=<INSTALL_DIR>
   --without-threads
@@ -242,15 +257,15 @@ ExternalProject_Add(imagemagick
   C_INCLUDE_PATH=${GraphLab_SOURCE_DIR}/deps/local/include 
   CPLUS_INCLUDE_PATH=${GraphLab_SOURCE_DIR}/deps/local/include 
   LIBRARY_PATH=${GraphLab_SOURCE_DIR}/deps/local/lib
-  LDFLAGS=-L${GraphLab_SOURCE_DIR}/deps/local/lib	
+  LDFLAGS=-L${GraphLab_SOURCE_DIR}/deps/local/lib       
   make
   INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local)
 include_directories(${GraphLab_SOURCE_DIR}/deps/local/include/ImageMagick)
 add_dependencies(imagemagick libjpeg)
 
 macro(requires_imagemagick NAME)
-  target_link_libraries(${NAME} Magick++)
-  add_dependencies(${NAME} imagemagick)
+  target_link_libraries(${NAME} Magick++ jpeg)
+  add_dependencies(${NAME} imagemagick libjpeg)
 endmacro(requires_imagemagick)
 
 

@@ -104,13 +104,11 @@ namespace graphlab {
       
       /** \brief Performs a map operation on the given vertex adding to the
        *         internal accumulator */
-      virtual void perform_map_vertex(icontext_type&,
-                                      vertex_type&) = 0;
+      virtual void perform_map_vertex(icontext_type&, const vertex_type&) = 0;
                                       
       /** \brief Performs a map operation on the given edge adding to the
        *         internal accumulator */
-      virtual void perform_map_edge(icontext_type&,
-                                    edge_type&) = 0;
+      virtual void perform_map_edge(icontext_type&, const edge_type&) = 0;
                                     
       /** \brief Returns true if the accumulation is over vertices. 
                  Returns false if it is over edges.*/
@@ -147,8 +145,8 @@ namespace graphlab {
     
     template <typename ReductionType>
     struct default_map_types{
-      typedef ReductionType (*vertex_map_type)(icontext_type&, vertex_type&);
-      typedef ReductionType (*edge_map_type)(icontext_type&, edge_type&);
+      typedef ReductionType (*vertex_map_type)(icontext_type&, const vertex_type&);
+      typedef ReductionType (*edge_map_type)(icontext_type&, const edge_type&);
     };
 
     /**
@@ -163,8 +161,8 @@ namespace graphlab {
               typename FinalizerType>
     struct map_reduce_type : public imap_reduce_base {
       conditional_addition_wrapper<ReductionType> acc;
-      VertexMapperType map_vtx_function;
-      EdgeMapperType map_edge_function;
+      const VertexMapperType map_vtx_function;
+      const EdgeMapperType map_edge_function;
       FinalizerType finalize_function;
       
       bool vertex_map;
@@ -191,13 +189,52 @@ namespace graphlab {
                 finalize_function(finalize_function), vertex_map(false) { }
 
 
-      void perform_map_vertex(icontext_type& context, vertex_type& vertex) {
-        acc += map_vtx_function(context, vertex);
-      }
+      void perform_map_vertex(icontext_type& context, const vertex_type& vertex) {
+        /** 
+         * A compiler error on this line is typically due to the
+         * aggregator map function not having the correct type. 
+         *
+         * Verify that the map function has the following form:
+         *
+         *  ReductionType mapfun(icontext_type& context, const vertex_type& vertex);
+         *
+         * It is also possible the accumulator type 
+         */
+        const ReductionType temp = map_vtx_function(context, vertex);
+        /**
+         * A compiler error on this line is typically due to the
+         * accumulator (ReductionType of the map function not having an
+         * operator+=.  Ensure that the following is available:
+         *
+         *   ReductionType& operator+=(ReductionType& lvalue, 
+         *                             const ReductionType& rvalue);
+         */
+        acc += temp;
+      } // end of perform_map_vertex
       
-      void perform_map_edge(icontext_type& context, edge_type& vertex) {
-        acc += map_edge_function(context, vertex);
-      }
+      void perform_map_edge(icontext_type& context, const edge_type& edge) {
+        /** 
+         * A compiler error on this line is typically due to the
+         * aggregator map function not having the correct type. 
+         *
+         * Verify that the map function has the following form:
+         *
+         *  ReductionType mapfun(icontext_type& context, const edge_type& vertex);
+         *
+         * It is also possible the accumulator type 
+         */
+        const ReductionType temp = 
+          map_edge_function(context, edge);
+        /**
+         * A compiler error on this line is typically due to the
+         * accumulator (ReductionType of the map function not having an
+         * operator+=.  Ensure that the following is available:
+         *
+         *   ReductionType& operator+=(ReductionType& lvalue, 
+         *                             const ReductionType& rvalue);
+         */
+        acc += temp; 
+      } // end of perform_map_edge
       
       bool is_vertex_map() const {
         return vertex_map;
@@ -283,30 +320,8 @@ namespace graphlab {
                             rmi(dc, this), graph(graph), 
                             context(context), ncpus(0) { }
 
-    /** 
-     * \brief Creates a vertex aggregator. Returns true on success.
-     *        Returns false if an aggregator of the same name already
-     *        exists.
-     *
-     * Creates a vertex aggregator associated to a particular key.
-     * The map_function is called over every vertex in the graph, and the
-     * return value of the map is summed. The finalize_function is then called
-     * on the result of the reduction.
-     *
-     * \tparam ReductionType The output of the map function. Must be summable
-     *                       and \ref Serializable.
-     * \param [in] map_function The Map function to use. Must take an
-     *                          icontext_type& as its first argument, and an
-     *                          vertex_type& as its second argument. Returns a
-     *                          ReductionType which must be summable and
-     *                          \ref Serializable
-     * \param [in] finalize_function The Finalize function to use. Must take
-     *                               an icontext_type& as its first argument
-     *                               and a const ReductionType& as its second
-     *                               argument.
-     *
-     * \warning Pay attention to the types! A slightly erroneous type
-     *          can produce screens of errors.
+    /**
+     * \copydoc graphlab::iengine::add_vertex_aggregator
      */
     template <typename ReductionType, 
               typename VertexMapperType, 
@@ -330,6 +345,14 @@ namespace graphlab {
     }
     
 #if defined(__cplusplus) && __cplusplus >= 201103L
+    /**
+     * \brief An overload of add_vertex_aggregator for C++11 which does not
+     *        require the user to provide the reduction type.
+     *
+     * This function is available only if the compiler has C++11 support.
+     * Specifically, it uses C++11's decltype operation to infer the
+     * reduction type, thus eliminating the need for the function
+     */
     template <typename VertexMapperType, 
               typename FinalizerType>
     bool add_vertex_aggregator(const std::string& key,
@@ -353,29 +376,8 @@ namespace graphlab {
     }
 #endif
 
-
-    /** \brief Creates a edge aggregator. Returns true on success.
-     *         Returns false if an aggregator of the same name already exists
-     *
-     * Creates an edge aggregator associated to a particular key.
-     * The map_function is called over every edge in the graph, and the return
-     * value of the map is summed. The finalize_function is then called on
-     * the result of the reduction.
-     * 
-     * \tparam ReductionType The output of the map function. Must be summable
-     *                       and \ref Serializable.
-     * \param [in] map_function The Map function to use. Must take an
-     *                          icontext_type& as its first argument, and an
-     *                          edge_type& as its second argument. Returns a
-     *                          ReductionType which must be summable and
-     *                          \ref Serializable
-     * \param [in] finalize_function The Finalize function to use. Must take
-     *                               an icontext_type& as its first argument
-     *                               and a const ReductionType& as its second
-     *                               argument.
-     *
-     * \warning Pay attention to the types! A slightly erroneous type
-     *          can produce screens of errors
+    /**
+     * \copydoc graphlab::iengine::add_edge_aggregator
      */
     template <typename ReductionType,
               typename EdgeMapperType,
@@ -400,6 +402,15 @@ namespace graphlab {
     }
     
 #if defined(__cplusplus) && __cplusplus >= 201103L
+    /**
+     * \brief An overload of add_edge_aggregator for C++11 which does not
+     *        require the user to provide the reduction type.
+     *
+     * This function is available only if the compiler has C++11 support.
+     * Specifically, it uses C++11's decltype operation to infer the
+     * reduction type, thus eliminating the need for the function
+     * call to be templatized over the reduction type. 
+     */
     template <typename EdgeMapperType,
               typename FinalizerType>
     bool add_edge_aggregator(const std::string& key,
@@ -425,12 +436,7 @@ namespace graphlab {
 #endif
     
     /**
-     * Performs an immediate aggregation on a key. All machines must
-     * call this simultaneously. If the key is not found,
-     * false is returned. Otherwise return true on success.
-     *
-     * \param[in] key Key to aggregate now
-     * \return False if key not found, True on success.
+     * \copydoc graphlab::iengine::aggregate_now
      */
     bool aggregate_now(const std::string& key) {
       ASSERT_MSG(graph.is_finalized(), "Graph must be finalized");
@@ -454,7 +460,7 @@ namespace graphlab {
           for (int i = 0; i < (int)graph.num_local_vertices(); ++i) {
             local_vertex_type lvertex = graph.l_vertex(i);
             if (lvertex.owner() == rmi.procid()) {
-              vertex_type vertex(lvertex);
+              const vertex_type vertex(lvertex);
               localmr->perform_map_vertex(*context, vertex);
             }
           }
@@ -465,7 +471,7 @@ namespace graphlab {
 #endif
           for (int i = 0; i < (int)graph.num_local_vertices(); ++i) {
             foreach(local_edge_type e, graph.l_vertex(i).in_edges()) {
-              edge_type edge(e);
+              const edge_type edge(e);
               localmr->perform_map_edge(*context, edge);
             }
           }
@@ -507,20 +513,7 @@ namespace graphlab {
     
     
     /**
-     * Requests that the aggregator with a given key be aggregated
-     * every certain number of seconds when the engine is running.
-     * Note that the period is prescriptive: in practice the actual
-     * period will be larger than the requested period. 
-     * Seconds must be >= 0;
-     *
-     * \param [in] key Key to schedule
-     * \param [in] seconds How frequently to schedule. Must be >= 0. In the
-     *                     synchronous engine, seconds == 0 will ensure that
-     *                     this key is recomputed every iteration.
-     * 
-     * All machines must call simultaneously.
-     * \return Returns true if key is found and seconds >= 0,
-     *         and false otherwise.
+     * \copydoc graphlab::iengine::aggregate_periodic
      */
     bool aggregate_periodic(const std::string& key, float seconds) {
       rmi.barrier();
@@ -643,14 +636,14 @@ namespace graphlab {
         for (int i = cpuid;i < (int)graph.num_local_vertices(); i+=ncpus) {
           local_vertex_type lvertex = graph.l_vertex(i);
           if (lvertex.owner() == rmi.procid()) {
-            vertex_type vertex(lvertex);
+            const vertex_type vertex(lvertex);
             localmr->perform_map_vertex(*context, vertex);
           }
         }
       } else {
         for (int i = cpuid;i < (int)graph.num_local_vertices(); i+=ncpus) {
           foreach(local_edge_type e, graph.l_vertex(i).in_edges()) {
-            edge_type edge(e);
+            const edge_type edge(e);
             localmr->perform_map_edge(*context, edge);
           }
         }
