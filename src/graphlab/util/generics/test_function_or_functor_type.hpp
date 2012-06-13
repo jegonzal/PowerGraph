@@ -17,10 +17,10 @@ namespace graphlab {
     struct SFINAE1 {};
 
     template <typename T>
-    static char test1(SFINAE1<T, &T::operator()>*){}
+    static char test1(SFINAE1<T, &T::operator()>*);
 
     template <typename T>
-    static int test1(...){}
+    static int test1(...);
 
     static const bool value = ((sizeof(test1<F>(0)) == sizeof(char)) ||
                                boost::is_same<F, PreferredFunctionForm>::value ||
@@ -40,10 +40,10 @@ namespace graphlab {
     struct SFINAE1 {};
 
     template <typename T>
-    static char test1(SFINAE1<T, &T::operator()>*){}
+    static char test1(SFINAE1<T, &T::operator()>*);
 
     template <typename T>
-    static int test1(...){}
+    static int test1(...);
     
     static const bool value = ((sizeof(test1<F>(0)) == sizeof(char)) ||
                                boost::is_same<F, PreferredFunctionForm>::value ||
@@ -65,10 +65,10 @@ namespace graphlab {
     struct SFINAE1 {};
 
     template <typename T>
-    static char test1(SFINAE1<T, &T::operator()>*){}
+    static char test1(SFINAE1<T, &T::operator()>*);
 
     template <typename T>
-    static int test1(...){}
+    static int test1(...);
 
     static const bool value = ((sizeof(test1<F>(0)) == sizeof(char)) ||
                                boost::is_same<F, PreferredFunctionForm>::value ||
@@ -89,10 +89,10 @@ namespace graphlab {
     struct SFINAE1 {};
 
     template <typename T>
-    static char test1(SFINAE1<T, &T::operator()>*){}
+    static char test1(SFINAE1<T, &T::operator()>*);
 
     template <typename T>
-    static int test1(...){}
+    static int test1(...);
 
     static const bool value = ((sizeof(test1<F>(0)) == sizeof(char)) ||
                                boost::is_same<F, PreferredFunctionForm>::value ||
