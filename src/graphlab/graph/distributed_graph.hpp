@@ -302,6 +302,14 @@ namespace graphlab {
     BOOST_CONCEPT_ASSERT((boost::DefaultConstructible<VertexData>));
     /// \endcond
 
+    /**
+     * \cond GRAPHLAB_INTERNAL
+     * \brief GraphLab Requires that vertex data be default
+     * Serializable.  
+     */
+    BOOST_CONCEPT_ASSERT((graphlab::Serializable<VertexData>));
+    /// \endcond
+
 
     /// The type of the edge data stored in the graph 
     typedef EdgeData   edge_data_type;
@@ -319,6 +327,14 @@ namespace graphlab {
      * \endcode
      */
     BOOST_CONCEPT_ASSERT((boost::DefaultConstructible<EdgeData>));
+    /// \endcond
+
+    /**
+     * \cond GRAPHLAB_INTERNAL
+     * \brief GraphLab Requires that edge data be default
+     * Serializable.  
+     */
+    BOOST_CONCEPT_ASSERT((graphlab::Serializable<EdgeData>));
     /// \endcond
 
 
