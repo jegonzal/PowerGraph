@@ -1051,7 +1051,8 @@ namespace graphlab {
     start_time = timer::approx_time_seconds();
     iteration_counter = 0;
     force_abort = false;
-    execution_status::status_enum termination_reason; 
+    execution_status::status_enum termination_reason = 
+      execution_status::UNSET; 
     // if (perform_init_vtx_program) {
     //   // Initialize all vertex programs
     //   run_synchronous( &synchronous_engine::initialize_vertex_programs );
