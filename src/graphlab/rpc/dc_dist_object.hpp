@@ -674,6 +674,7 @@ private:
       iarchive iarc(strm);
       iarc >> data;
     }
+    barrier();
   }
 
 
