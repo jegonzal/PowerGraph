@@ -519,13 +519,23 @@ namespace graphlab {
      * data-structures to store messages, gather accumulants, and
      * vertex programs and therefore may require considerable memory.
      *
-     * @param [in] dc The distributed control object used to
-     * coordinate multiple synchronous engines.
+     * The number of threads to create are read from 
+     * \ref graphlab_options::get_ncpus "opts.get_ncpus()". 
+     * Valid engine options (graphlab_options::get_engine_args()):
+     * \arg \c use_cache If set to true, partial gathers are cached.
+     * See \ref gather_caching to understand the behavior of the
+     * gather caching model and how it may be used to accelerate program
+     * performance.
+     * \argc \c iterations Limit the number of iterations the engine 
+     * may run.
+     * 
+     * @param [in] dc Distributed controller to associate with
      * @param [in,out] graph A reference to the graph object that this
-     * engine will modify
-     * @param [in] opts The graphlab options object specifying engine
-     * parameters.  This is typically constructed using
-     * \ref graphlab::command_line_options.
+     * engine will modify. The graph must be fully constructed and 
+     * finalized.
+     * @param [in] opts A graphlab::graphlab_options object specifying engine
+     *                  parameters.  This is typically constructed using
+     *                  \ref graphlab::command_line_options.
      */
     synchronous_engine(distributed_control& dc, graph_type& graph,
                        const graphlab_options& opts);

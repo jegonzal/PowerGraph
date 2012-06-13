@@ -104,11 +104,11 @@ namespace graphlab {
       
       /** \brief Performs a map operation on the given vertex adding to the
        *         internal accumulator */
-      virtual void perform_map_vertex(icontext_type&, const vertex_type&) = 0;
+      virtual void perform_map_vertex(icontext_type&, vertex_type&) = 0;
                                       
       /** \brief Performs a map operation on the given edge adding to the
        *         internal accumulator */
-      virtual void perform_map_edge(icontext_type&, const edge_type&) = 0;
+      virtual void perform_map_edge(icontext_type&, edge_type&) = 0;
                                     
       /** \brief Returns true if the accumulation is over vertices. 
                  Returns false if it is over edges.*/
@@ -161,8 +161,8 @@ namespace graphlab {
               typename FinalizerType>
     struct map_reduce_type : public imap_reduce_base {
       conditional_addition_wrapper<ReductionType> acc;
-      const VertexMapperType map_vtx_function;
-      const EdgeMapperType map_edge_function;
+      VertexMapperType map_vtx_function;
+      EdgeMapperType map_edge_function;
       FinalizerType finalize_function;
       
       bool vertex_map;
@@ -189,7 +189,7 @@ namespace graphlab {
                 finalize_function(finalize_function), vertex_map(false) { }
 
 
-      void perform_map_vertex(icontext_type& context, const vertex_type& vertex) {
+      void perform_map_vertex(icontext_type& context, vertex_type& vertex) {
         /** 
          * A compiler error on this line is typically due to the
          * aggregator map function not having the correct type. 
@@ -200,7 +200,7 @@ namespace graphlab {
          *
          * It is also possible the accumulator type 
          */
-        const ReductionType temp = map_vtx_function(context, vertex);
+        ReductionType temp = map_vtx_function(context, vertex);
         /**
          * A compiler error on this line is typically due to the
          * accumulator (ReductionType of the map function not having an
@@ -212,7 +212,7 @@ namespace graphlab {
         acc += temp;
       } // end of perform_map_vertex
       
-      void perform_map_edge(icontext_type& context, const edge_type& edge) {
+      void perform_map_edge(icontext_type& context, edge_type& edge) {
         /** 
          * A compiler error on this line is typically due to the
          * aggregator map function not having the correct type. 
@@ -223,8 +223,7 @@ namespace graphlab {
          *
          * It is also possible the accumulator type 
          */
-        const ReductionType temp = 
-          map_edge_function(context, edge);
+        ReductionType temp = map_edge_function(context, edge);
         /**
          * A compiler error on this line is typically due to the
          * accumulator (ReductionType of the map function not having an
@@ -460,7 +459,7 @@ namespace graphlab {
           for (int i = 0; i < (int)graph.num_local_vertices(); ++i) {
             local_vertex_type lvertex = graph.l_vertex(i);
             if (lvertex.owner() == rmi.procid()) {
-              const vertex_type vertex(lvertex);
+              vertex_type vertex(lvertex);
               localmr->perform_map_vertex(*context, vertex);
             }
           }
@@ -471,7 +470,7 @@ namespace graphlab {
 #endif
           for (int i = 0; i < (int)graph.num_local_vertices(); ++i) {
             foreach(local_edge_type e, graph.l_vertex(i).in_edges()) {
-              const edge_type edge(e);
+              edge_type edge(e);
               localmr->perform_map_edge(*context, edge);
             }
           }
@@ -593,7 +592,7 @@ namespace graphlab {
      * 
      * If an empty is returned, the asynchronous engine
      * must ensure that all threads (ncpus per machine) must eventually
-     * call tick_asynchronous_compute(cpuid, key) where i is the return string.
+     * call tick_asynchronous_compute(cpuid, key) where key is the return string.
      */ 
     std::string tick_asynchronous() {
       // if we fail to acquire the lock, go ahead
@@ -618,8 +617,8 @@ namespace graphlab {
 
     
     /**
-     * Once tick_asynchronous() returns a key, all in the engine
-     * should call tick_asynchronous_compute with a matching key.
+     * Once tick_asynchronous() returns a key, all threads in the engine
+     * should call tick_asynchronous_compute() with a matching key.
      * This function will perform the computation for the key in question
      * and send the accumulated result back to machine 0 when done
      */
@@ -636,14 +635,14 @@ namespace graphlab {
         for (int i = cpuid;i < (int)graph.num_local_vertices(); i+=ncpus) {
           local_vertex_type lvertex = graph.l_vertex(i);
           if (lvertex.owner() == rmi.procid()) {
-            const vertex_type vertex(lvertex);
+            vertex_type vertex(lvertex);
             localmr->perform_map_vertex(*context, vertex);
           }
         }
       } else {
         for (int i = cpuid;i < (int)graph.num_local_vertices(); i+=ncpus) {
           foreach(local_edge_type e, graph.l_vertex(i).in_edges()) {
-            const edge_type edge(e);
+            edge_type edge(e);
             localmr->perform_map_edge(*context, edge);
           }
         }

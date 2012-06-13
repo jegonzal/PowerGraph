@@ -40,9 +40,11 @@ namespace graphlab {
         std::cout << str << std::endl;
       }
       else {
-        std::stringstream strm(str);
         size_t source, target;
-        strm >> source >> target;
+        char* targetptr;
+        source = strtoul(str.c_str(), &targetptr, 10);
+        if (targetptr == NULL) return false;
+        target = strtoul(targetptr, NULL, 10);
         if(source != target) graph.add_edge(source, target);
       }
       return true;
@@ -52,9 +54,11 @@ namespace graphlab {
     bool tsv_parser(Graph& graph, const std::string& srcfilename,
                     const std::string& str) {
       if (str.empty()) return true;
-      std::stringstream strm(str);
       size_t source, target;
-      strm >> source >> target;
+      char* targetptr;
+      source = strtoul(str.c_str(), &targetptr, 10);
+      if (targetptr == NULL) return false;
+      target = strtoul(targetptr, NULL, 10);
       if(source != target) graph.add_edge(source, target);
       return true;
     }
