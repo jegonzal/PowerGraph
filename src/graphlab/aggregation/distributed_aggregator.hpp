@@ -793,6 +793,7 @@ namespace graphlab {
       // note that we do not call approx_time_seconds everytime
       // this ensures that each key will only be run at most once.
       // each time tick_synchronous is called.
+      std::vector<std::pair<std::string, float> > next_schedule;
       while(!schedule.empty() && -schedule.top().second <= curtime) {
         std::string key = schedule.top().first;
         aggregate_now(key);
@@ -802,7 +803,11 @@ namespace graphlab {
         float next_time = (timer::approx_time_seconds() + 
                            aggregate_period[key] - start_time);
         rmi.broadcast(next_time, rmi.procid() == 0);
-        schedule.push(key, -next_time);
+        next_schedule.push_back(std::make_pair(key, -next_time));
+      }
+
+      for (size_t i = 0;i < next_schedule.size(); ++i) {
+        schedule.push(next_schedule[i].first, next_schedule[i].second);
       }
     }
 
