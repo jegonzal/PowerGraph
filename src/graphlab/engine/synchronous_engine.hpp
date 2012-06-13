@@ -1067,7 +1067,6 @@ namespace graphlab {
     //   // Initialize all vertex programs
     //   run_synchronous( &synchronous_engine::initialize_vertex_programs );
     // }
-    aggregator.aggregate_all_periodic();
     aggregator.start();
     rmi.barrier();
     // Program Main loop ====================================================      
