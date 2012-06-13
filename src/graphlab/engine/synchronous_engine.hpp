@@ -1071,8 +1071,7 @@ namespace graphlab {
     aggregator.start();
     rmi.barrier();
     // Program Main loop ====================================================      
-    while(iteration_counter < max_iterations && 
-          !force_abort ) {
+    while(iteration_counter < max_iterations && !force_abort ) {
 
       // Check first to see if we are out of time
       if(timeout != 0 && timeout < elapsed_seconds()) {
