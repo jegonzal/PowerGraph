@@ -55,7 +55,7 @@ bool graph_loader(graph_type& graph, const std::string& fname,
   doc_id = -doc_id;
   ASSERT_NE(doc_id, word_id);
   // Create an edge and add it to the graph
-  graph.add_edge(doc_id, word_id, edge_data(NTOPICS)); 
+  graph.add_edge(doc_id, word_id, edge_data(count));
   return true; // successful load
 }; // end of graph loader
 
