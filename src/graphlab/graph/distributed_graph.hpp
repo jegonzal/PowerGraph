@@ -51,6 +51,7 @@
 #include <boost/iostreams/copy.hpp>
 #include <boost/iostreams/filter/gzip.hpp>
 #include <boost/filesystem.hpp>
+#include <boost/concept/requires.hpp>
 
 
 #include <graphlab/logger/logger.hpp>
@@ -75,9 +76,7 @@
 #include <graphlab/graph/ingress/distributed_random_ingress.hpp>
 #include <graphlab/graph/ingress/distributed_identity_ingress.hpp>
 
-#include <boost/iostreams/stream.hpp>
-#include <boost/iostreams/filtering_stream.hpp>
-#include <boost/concept/requires.hpp>
+
 
 #include <graphlab/util/cuckoo_map_pow2.hpp>
 
@@ -289,6 +288,7 @@ namespace graphlab {
     typedef VertexData vertex_data_type;   
 
     /**
+     * \cond GRAPHLAB_INTERNAL
      * \brief GraphLab Requires that vertex data be default
      * constructible.  That is you must have a public member:
      *
@@ -300,13 +300,14 @@ namespace graphlab {
      * \endcode
      */
     BOOST_CONCEPT_ASSERT((boost::DefaultConstructible<VertexData>));
-    
+    /// \endcond
 
 
     /// The type of the edge data stored in the graph 
     typedef EdgeData   edge_data_type;
 
     /**
+     * \cond GRAPHLAB_INTERNAL
      * \brief GraphLab Requires that edge data be default
      * constructible.  That is you must have a public member:
      *
@@ -318,7 +319,7 @@ namespace graphlab {
      * \endcode
      */
     BOOST_CONCEPT_ASSERT((boost::DefaultConstructible<EdgeData>));
-    
+    /// \endcond
 
 
     /**

@@ -138,11 +138,44 @@ namespace graphlab {
      * The gather type which must be provided by the vertex program.
      */
     typedef GatherType gather_type;
+    
+    /**
+     * \cond GRAPHLAB_INTERNAL
+     * \brief GraphLab Requires that the gather type be default
+     * constructible.
+     *
+     * \code
+     * class gather_type {
+     * public:
+     *   gather_type() { }
+     * };  
+     * \endcode
+     */
+    BOOST_CONCEPT_ASSERT((boost::DefaultConstructible<GatherType>));
+    /// \endcond
 
     /**
      * The message type which must be provided by the vertex_program
      */
     typedef MessageType message_type;
+
+
+    /**
+     * \cond GRAPHLAB_INTERNAL
+     * GraphLab Requires that the message type be default
+     * constructible.
+     *
+     * \code
+     * class message_type {
+     * public:
+     *   message_type() { }
+     * };  
+     * \endcode
+     * 
+     */
+    BOOST_CONCEPT_ASSERT((boost::DefaultConstructible<MessageType>));
+    /// \endcond 
+
 
 
     // Graph specific type members ============================================
