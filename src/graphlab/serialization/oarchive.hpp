@@ -45,11 +45,19 @@ namespace graphlab {
    */
   class oarchive{
   public:
-    std::ostream* o;
+    std::ostream* out;
     /// constructor. Takes a generic std::ostream object
-    inline oarchive(std::ostream& os)
-      : o(&os) {}
+    inline oarchive(std::ostream& outstream)
+      : out(&outstream) {}
 
+    inline void write(const char* c, std::streamsize s) {
+      out->write(c, s);
+    }
+
+    inline bool fail() {
+      return out->fail();
+    }
+    
     inline ~oarchive() { }
   };
 
@@ -62,32 +70,43 @@ namespace graphlab {
    */
   class oarchive_soft_fail{
   public:
-    std::ostream* o;
+    std::ostream* out;
 
-    inline oarchive_soft_fail(std::ostream& os)
-      : o(&os) {}
+    inline oarchive_soft_fail(std::ostream& outstream)
+      : out(&outstream) {}
 
-    inline oarchive_soft_fail(oarchive &oarc):o(oarc.o) {}
-  
+    inline oarchive_soft_fail(oarchive& oarc):out(oarc.out) {}
+    
+    inline void write(const char* c, std::streamsize s) {
+      out->write(c, s);
+    }
+ 
+    inline bool fail() {
+      return out->fail();
+    }
+    
     inline ~oarchive_soft_fail() { }
   };
 
   namespace archive_detail {
 
     /// called by the regular archive The regular archive will do a hard fail
-    template <typename ArcType, typename T>
+    template <typename OutArcType, typename T>
     struct serialize_hard_or_soft_fail {
-      inline static void exec(ArcType &o, const T& t) {
-        t.save(o);
+      inline static void exec(OutArcType& oarc, const T& t) {
+        t.save(oarc);
       }
     };
 
     /// called by the soft fail archive 
     template <typename T>
     struct serialize_hard_or_soft_fail<oarchive_soft_fail, T> {
-      inline static void exec(oarchive_soft_fail &o, const T& t) {
-        oarchive oarc(*(o.o));
-        save_or_fail(oarc, t);
+      inline static void exec(oarchive_soft_fail& oarc, const T& t) {
+        // create a regular oarchive and
+        // use the save_or_fail function which will
+        // perform a soft fail
+        oarchive regular_oarc(*(oarc.out));
+        save_or_fail(regular_oarc, t);
       }
     };
 
@@ -98,80 +117,98 @@ namespace graphlab {
        We therefore call the .save function.
        Here we pick between the archive types using serialize_hard_or_soft_fail
     */
-    template <typename ArcType, typename T, bool IsPOD>
+    template <typename OutArcType, typename T, bool IsPOD>
     struct serialize_impl {
-      static void exec(ArcType &o, const T& t) {
-        serialize_hard_or_soft_fail<ArcType, T>::exec(o, t);
+      static void exec(OutArcType& oarc, const T& t) {
+        serialize_hard_or_soft_fail<OutArcType, T>::exec(oarc, t);
       }
     };
 
     /** Catch if type is a POD */
-    template <typename ArcType, typename T>
-    struct serialize_impl<ArcType, T, true> {
-      inline static void exec(ArcType &a, const T& t) {
-        a.o->write(reinterpret_cast<const char*>(&t), sizeof(T));
+    template <typename OutArcType, typename T>
+    struct serialize_impl<OutArcType, T, true> {
+      inline static void exec(OutArcType& oarc, const T& t) {
+        oarc.write(reinterpret_cast<const char*>(&t), sizeof(T));
       }
     };
 
     /**
        Re-dispatch if for some reasons T already has a const
     */
-    template <typename ArcType, typename T>
-    struct serialize_impl<ArcType, const T, true> {
-      inline static void exec(ArcType &o, const T& t) {
-        serialize_impl<ArcType, T, true>::exec(o, t);
+    template <typename OutArcType, typename T>
+    struct serialize_impl<OutArcType, const T, true> {
+      inline static void exec(OutArcType& oarc, const T& t) {
+        serialize_impl<OutArcType, T, true>::exec(oarc, t);
       }
     };
     
     /**
        Re-dispatch if for some reasons T already has a const
     */
-    template <typename ArcType, typename T>
-    struct serialize_impl<ArcType, const T, false> {
-      inline static void exec(ArcType &o, const T& t) {
-        serialize_impl<ArcType, T, false>::exec(o, t);
+    template <typename OutArcType, typename T>
+    struct serialize_impl<OutArcType, const T, false> {
+      inline static void exec(OutArcType& oarc, const T& t) {
+        serialize_impl<OutArcType, T, false>::exec(oarc, t);
       }
     };
   }// archive_detail
 
 
   /**
-     Allows Use of the "stream" syntax for serialization 
+     Overloads the operator<< in the oarchive to
+     allow the use of the stream syntax for serialization.
+     It simply re-dispatches into the serialize_impl classes 
   */
   template <typename T>
-  inline oarchive& operator<<(oarchive& a, const T& i) {
-    archive_detail::serialize_impl<oarchive, T, gl_is_pod<T>::value >::exec(a, i);
-    return a;
+  inline oarchive& operator<<(oarchive& oarc, const T& t) {
+    archive_detail::serialize_impl<oarchive, 
+                                   T, 
+                                   gl_is_pod<T>::value >::exec(oarc, t);
+    return oarc;
   }
 
+  /**
+     Overloads the operator<< in the oarchive_soft_fail to
+     allow the use of the stream syntax for serialization.
+     It simply re-dispatches into the serialize_impl classes 
+  */
   template <typename T>
-  inline oarchive_soft_fail& operator<<(oarchive_soft_fail& a, const T& i) {
-    archive_detail::serialize_impl<oarchive_soft_fail, T, gl_is_pod<T>::value >::exec(a, i);
-    return a;
+  inline oarchive_soft_fail& operator<<(oarchive_soft_fail& oarc, 
+                                        const T& t) {
+    archive_detail::serialize_impl<oarchive_soft_fail, 
+                                  T, 
+                                  gl_is_pod<T>::value >::exec(oarc, t);
+    return oarc;
   }
 
 
   /**
      Serializes an arbitrary pointer + length to an archive 
   */
-  inline oarchive& serialize(oarchive& a, const void* i,const size_t length) {
+  inline oarchive& serialize(oarchive& oarc, 
+                             const void* str,
+                             const size_t length) {
     // save the length
-    operator<<(a,length);
-    a.o->write(reinterpret_cast<const char*>(i), (std::streamsize)length);
-    assert(!a.o->fail());
-    return a;
+    operator<<(oarc,length);
+    oarc.write(reinterpret_cast<const char*>(str), 
+                    (std::streamsize)length);
+    assert(!oarc.fail());
+    return oarc;
   }
 
 
   /**
      Serializes an arbitrary pointer + length to an archive 
   */
-  inline oarchive_soft_fail& serialize(oarchive_soft_fail& a, const void* i,const size_t length) {
+  inline oarchive_soft_fail& serialize(oarchive_soft_fail& oarc, 
+                                       const void* str,
+                                       const size_t length) {
     // save the length
-    operator<<(a,length);
-    a.o->write(reinterpret_cast<const char*>(i), (std::streamsize)length);
-    assert(!a.o->fail());
-    return a;
+    operator<<(oarc,length);
+    oarc.write(reinterpret_cast<const char*>(str), 
+                    (std::streamsize)length);
+    assert(!oarc.fail());
+    return oarc;
   }
 
 
@@ -189,8 +226,8 @@ namespace graphlab {
 */
 #define BEGIN_OUT_OF_PLACE_SAVE(arc, tname, tval)                       \
   namespace graphlab{ namespace archive_detail {                        \
-  template <typename ArcType> struct serialize_impl<ArcType, tname, false> { \
-  static void exec(ArcType& arc, const tname & tval) {
+  template <typename OutArcType> struct serialize_impl<OutArcType, tname, false> { \
+  static void exec(OutArcType& arc, const tname & tval) {
 
 #define END_OUT_OF_PLACE_SAVE() } }; } }
 

@@ -37,13 +37,13 @@ namespace graphlab {
     This function as implemented will work for other input iterators
     but is extremely inefficient.
     Returns true on success, false on failure  */
-  template <typename ArcType, typename RandomAccessIterator>
-  void serialize_iterator(ArcType& a, RandomAccessIterator begin,
-                                      RandomAccessIterator end){
+  template <typename OutArcType, typename RandomAccessIterator>
+  void serialize_iterator(OutArcType& oarc, RandomAccessIterator begin,
+                                            RandomAccessIterator end){
     const size_t vsize = std::distance(begin, end);
-    a << vsize;
+    oarc << vsize;
     // store each element
-    for(; begin != end; ++begin) a << *begin;
+    for(; begin != end; ++begin) oarc << *begin;
   }
 
 
@@ -53,13 +53,13 @@ namespace graphlab {
     efficiency. This count is checked and will return failure if the number
     of elements serialized does not match the count
     Returns true on success, false on failure  */
-  template <typename ArcType, typename InputIterator>
-  void serialize_iterator(ArcType& a, InputIterator begin,
-                                      InputIterator end, size_t vsize){
-    a << vsize;
+  template <typename OutArcType, typename InputIterator>
+  void serialize_iterator(OutArcType& oarc, InputIterator begin,
+                                            InputIterator end, size_t vsize){
+    oarc << vsize;
     //store each element
     size_t count = 0;
-    for(; begin != end; ++begin) { a << *begin;  ++count; }
+    for(; begin != end; ++begin) { oarc << *begin;  ++count; }
     // fail if count does not match
     ASSERT_EQ(count, vsize);
   }
@@ -74,11 +74,11 @@ namespace graphlab {
     In this case, T=pair<T,U>
 
     Returns true on success, false on failure  */
-  template <typename ArcType, typename T, typename OutputIterator>
-  void deserialize_iterator(ArcType& a, OutputIterator result) {
+  template <typename InArcType, typename T, typename OutputIterator>
+  void deserialize_iterator(InArcType& iarc, OutputIterator result) {
     // get the number of elements to deserialize
     size_t length = 0;
-    a >> length;
+    iarc >> length;
     
     // iterate through and send to the output iterator
     for (size_t x = 0; x < length ; ++x){
@@ -89,7 +89,7 @@ namespace graphlab {
        * vertex_programs) does not have a default constructor.
        */
       T v;
-      a >> v;
+      iarc >> v;
       (*result) = v;
       result++;
     }

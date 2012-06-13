@@ -32,25 +32,26 @@
 namespace graphlab {
 namespace archive_detail {
   /** serializes a set  */
-  template <typename ArcType, typename T>
-  struct serialize_impl<ArcType, boost::unordered_set<T>, false > {
-  static void exec(ArcType& a, const boost::unordered_set<T>& vec){
-    serialize_iterator(a,vec.begin(),vec.end(), vec.size());
+  template <typename OutArcType, typename T>
+  struct serialize_impl<OutArcType, boost::unordered_set<T>, false > {
+  static void exec(OutArcType& oarc, const boost::unordered_set<T>& vec){
+    serialize_iterator(oarc,
+                       vec.begin(), vec.end(), vec.size());
   }
   };
 
   /** deserializes a set  */
-  template <typename ArcType, typename T>
-  struct deserialize_impl<ArcType, boost::unordered_set<T>, false > {
-  static void exec(ArcType& a, boost::unordered_set<T>& vec){
+  template <typename InArcType, typename T>
+  struct deserialize_impl<InArcType, boost::unordered_set<T>, false > {
+  static void exec(InArcType& iarc, boost::unordered_set<T>& vec){
     vec.clear();
     // get the number of elements to deserialize
     size_t length = 0;
-    a >> length;    
+    iarc >> length;    
     // iterate through and send to the output iterator
     for (size_t x = 0; x < length ; ++x){
       T v;
-      a >> v;
+      iarc >> v;
       vec.insert(v);
     }
   }

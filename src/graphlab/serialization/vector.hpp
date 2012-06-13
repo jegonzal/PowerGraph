@@ -35,66 +35,66 @@ namespace graphlab {
      * We re-dispatch vectors because based on the contained type,
      * it is actually possible to serialize them like a POD
      */
-    template <typename ArcType, typename ValueType, bool IsPOD>
+    template <typename OutArcType, typename ValueType, bool IsPOD>
     struct vector_serialize_impl {
-      static void exec(ArcType &a, const ValueType& vec) {
+      static void exec(OutArcType& oarc, const ValueType& vec) {
         // really this is an assert false. But the static assert
         // must depend on a template parameter 
-        BOOST_STATIC_ASSERT(sizeof(ArcType) == 0);
+        BOOST_STATIC_ASSERT(sizeof(OutArcType) == 0);
         assert(false);
       };
     };
     /**
      * We re-dispatch vectors because based on the contained type,
-     * it is actually possible to deserialize them like a POD
+     * it is actually possible to deserialize them like iarc POD
      */
-    template <typename ArcType, typename ValueType, bool IsPOD>
+    template <typename InArcType, typename ValueType, bool IsPOD>
     struct vector_deserialize_impl {
-      static void exec(ArcType &a, ValueType& vec) {
+      static void exec(InArcType& iarc, ValueType& vec) {
         // really this is an assert false. But the static assert
         // must depend on a template parameter 
-        BOOST_STATIC_ASSERT(sizeof(ArcType) == 0);
+        BOOST_STATIC_ASSERT(sizeof(InArcType) == 0);
         assert(false);
       };
     };
     
     /// If contained type is not a POD use the standard serializer
-    template <typename ArcType, typename ValueType>
-    struct vector_serialize_impl<ArcType, ValueType, false > {
-      static void exec(ArcType &a, const std::vector<ValueType>& vec) {
-        serialize_impl<ArcType, size_t, false>::exec(a, vec.size());
-        serialize_iterator(a,vec.begin(), vec.end());
+    template <typename OutArcType, typename ValueType>
+    struct vector_serialize_impl<OutArcType, ValueType, false > {
+      static void exec(OutArcType& oarc, const std::vector<ValueType>& vec) {
+        serialize_impl<OutArcType, size_t, false>::exec(oarc, vec.size());
+        serialize_iterator(oarc,vec.begin(), vec.end());
       }
     };
 
     /// Fast vector serialization if contained type is a POD
-    template <typename ArcType, typename ValueType>
-    struct vector_serialize_impl<ArcType, ValueType, true > {
-      static void exec(ArcType &a, const std::vector<ValueType>& vec) {
-        serialize_impl<ArcType, size_t, false>::exec(a, vec.size());
-        serialize(a, &(vec[0]),sizeof(ValueType)*vec.size());
+    template <typename OutArcType, typename ValueType>
+    struct vector_serialize_impl<OutArcType, ValueType, true > {
+      static void exec(OutArcType& oarc, const std::vector<ValueType>& vec) {
+        serialize_impl<OutArcType, size_t, false>::exec(oarc, vec.size());
+        serialize(oarc, &(vec[0]),sizeof(ValueType)*vec.size());
       }
     };
 
     /// If contained type is not a POD use the standard deserializer
-    template <typename ArcType, typename ValueType>
-    struct vector_deserialize_impl<ArcType, ValueType, false > {
-      static void exec(ArcType& a, std::vector<ValueType>& vec){
+    template <typename InArcType, typename ValueType>
+    struct vector_deserialize_impl<InArcType, ValueType, false > {
+      static void exec(InArcType& iarc, std::vector<ValueType>& vec){
         size_t len;
-        deserialize_impl<ArcType, size_t, false>::exec(a, len);
+        deserialize_impl<InArcType, size_t, false>::exec(iarc, len);
         vec.clear(); vec.reserve(len);
-        deserialize_iterator<ArcType, ValueType>(a, std::inserter(vec, vec.end()));
+        deserialize_iterator<InArcType, ValueType>(iarc, std::inserter(vec, vec.end()));
       }
     };
 
     /// Fast vector deserialization if contained type is a POD
-    template <typename ArcType, typename ValueType>
-    struct vector_deserialize_impl<ArcType, ValueType, true > {
-      static void exec(ArcType& a, std::vector<ValueType>& vec){
+    template <typename InArcType, typename ValueType>
+    struct vector_deserialize_impl<InArcType, ValueType, true > {
+      static void exec(InArcType& iarc, std::vector<ValueType>& vec){
         size_t len;
-        deserialize_impl<ArcType, size_t, false>::exec(a, len);
+        deserialize_impl<InArcType, size_t, false>::exec(iarc, len);
         vec.clear(); vec.resize(len);
-        deserialize(a, &(vec[0]), sizeof(ValueType)*vec.size());
+        deserialize(iarc, &(vec[0]), sizeof(ValueType)*vec.size());
       }
     };
 
@@ -102,20 +102,20 @@ namespace graphlab {
     
     /**
        Serializes a vector */
-    template <typename ArcType, typename ValueType>
-    struct serialize_impl<ArcType, std::vector<ValueType>, false > {
-      static void exec(ArcType &a, const std::vector<ValueType>& vec) {
-        vector_serialize_impl<ArcType, ValueType, 
-          gl_is_pod_or_scaler<ValueType>::value >::exec(a, vec);
+    template <typename OutArcType, typename ValueType>
+    struct serialize_impl<OutArcType, std::vector<ValueType>, false > {
+      static void exec(OutArcType& oarc, const std::vector<ValueType>& vec) {
+        vector_serialize_impl<OutArcType, ValueType, 
+          gl_is_pod_or_scaler<ValueType>::value >::exec(oarc, vec);
       }
     };
     /**
        deserializes a vector */
-    template <typename ArcType, typename ValueType>
-    struct deserialize_impl<ArcType, std::vector<ValueType>, false > {
-      static void exec(ArcType& a, std::vector<ValueType>& vec){
-        vector_deserialize_impl<ArcType, ValueType, 
-          gl_is_pod_or_scaler<ValueType>::value >::exec(a, vec);
+    template <typename InArcType, typename ValueType>
+    struct deserialize_impl<InArcType, std::vector<ValueType>, false > {
+      static void exec(InArcType& iarc, std::vector<ValueType>& vec){
+        vector_deserialize_impl<InArcType, ValueType, 
+          gl_is_pod_or_scaler<ValueType>::value >::exec(iarc, vec);
       }
     };
   } // archive_detail

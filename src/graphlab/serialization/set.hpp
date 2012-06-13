@@ -32,19 +32,21 @@
 namespace graphlab {
 namespace archive_detail {
   /** serializes a set  */
-  template <typename ArcType, typename T>
-  struct serialize_impl<ArcType, std::set<T>, false > {
-  static void exec(ArcType& a, const std::set<T>& vec){
-    serialize_iterator(a,vec.begin(),vec.end(), vec.size());
+  template <typename OutArcType, typename T>
+  struct serialize_impl<OutArcType, std::set<T>, false > {
+  static void exec(OutArcType& oarc, const std::set<T>& vec){
+    serialize_iterator(oarc,
+                       vec.begin(), vec.end(), vec.size());
   }
   };
 
   /** deserializes a set  */
-  template <typename ArcType, typename T>
-  struct deserialize_impl<ArcType, std::set<T>, false > {
-  static void exec(ArcType& a, std::set<T>& vec){
+  template <typename InArcType, typename T>
+  struct deserialize_impl<InArcType, std::set<T>, false > {
+  static void exec(InArcType& iarc, std::set<T>& vec){
     vec.clear();
-    deserialize_iterator<ArcType, T>(a, std::inserter(vec,vec.end()));
+    deserialize_iterator<InArcType, T>(iarc,
+                                       std::inserter(vec,vec.end()));
   }
   };
 

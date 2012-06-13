@@ -40,16 +40,16 @@
 
 
 #define INT_SERIALIZE(tname)                                            \
-  template <typename ArcType>                                           \
-  struct serialize_impl<ArcType, tname, false>{                         \
-    static void exec(ArcType &a, const tname &i_) {                     \
-      a.o->write(reinterpret_cast<const char*>(&i_), sizeof(tname));    \
+  template <typename OutArcType>                                           \
+  struct serialize_impl<OutArcType, tname, false>{                         \
+    static void exec(OutArcType& oarc, const tname& t) {                   \
+      oarc.write(reinterpret_cast<const char*>(&t), sizeof(tname));     \
     }                                                                   \
   };                                                                    \
-  template <typename ArcType>                                           \
-  struct deserialize_impl<ArcType, tname, false>{                       \
-    static void exec(ArcType &a, tname &t_) {                           \
-      decompress_int<ArcType, tname>(a, t_);                            \
+  template <typename InArcType>                                           \
+  struct deserialize_impl<InArcType, tname, false>{                       \
+    static void exec(InArcType& iarc, tname& t) {                         \
+      decompress_int<InArcType, tname>(iarc, t);                          \
     }                                                                   \
   };
 
@@ -64,7 +64,9 @@ namespace graphlab {
 
 namespace graphlab {
   namespace archive_detail {
-
+    /*
+     * Generate serializers and deserializers for all integer types
+     */
     INT_SERIALIZE(short);
     INT_SERIALIZE(unsigned short);
     INT_SERIALIZE(int);
@@ -76,89 +78,90 @@ namespace graphlab {
 
 
     /********Serialization and deserialiation of char* **************/
-    template <typename ArcType>
-    struct serialize_impl<ArcType, const char*, false> {
-      static void exec(ArcType &a, const char* const &s) {
+    template <typename OutArcType>
+    struct serialize_impl<OutArcType, const char*, false> {
+      static void exec(OutArcType& oarc, const char* const& s) {
         // save the length
         // ++ for the \0
         size_t length = strlen(s); length++;
-        serialize_impl<ArcType, size_t, false>::exec(a, length);
-        a.o->write(reinterpret_cast<const char*>(s), length);
-        DASSERT_FALSE(a.o->fail());
+        serialize_impl<OutArcType, size_t, false>::exec(oarc, length);
+        oarc.write(reinterpret_cast<const char*>(s), length);
+        DASSERT_FALSE(oarc.fail());
       }
     };
 
 
-    template <typename ArcType, size_t len>
-    struct serialize_impl<ArcType, char [len], false> {
-      static void exec(ArcType& a, const char s[len] ) { 
+    template <typename OutArcType, size_t len>
+    struct serialize_impl<OutArcType, char [len], false> {
+      static void exec(OutArcType& oarc, const char s[len] ) { 
         size_t length = len;
-        serialize_impl<ArcType, size_t, false>::exec(a, length);
-        a.o->write(reinterpret_cast<const char*>(s), length);
-        DASSERT_FALSE(a.o->fail());
+        serialize_impl<OutArcType, size_t, false>::exec(oarc, length);
+        oarc.write(reinterpret_cast<const char*>(s), length);
+        DASSERT_FALSE(oarc.fail());
       }
     };
 
-    template <typename ArcType>
-    struct serialize_impl<ArcType, char*, false> {
-      static void exec(ArcType &a, char* const &s) {
+    template <typename OutArcType>
+    struct serialize_impl<OutArcType, char*, false> {
+      static void exec(OutArcType& oarc, char* const& s) {
         // save the length
         // ++ for the \0
         size_t length = strlen(s); length++;
-        serialize_impl<ArcType, size_t, false>::exec(a, length);
-        a.o->write(reinterpret_cast<const char*>(s), length);
-        DASSERT_FALSE(a.o->fail());
+        serialize_impl<OutArcType, size_t, false>::exec(oarc, length);
+        oarc.write(reinterpret_cast<const char*>(s), length);
+        DASSERT_FALSE(oarc.fail());
       }
     };
 
-    template <typename ArcType>
-    struct deserialize_impl<ArcType, char*, false> {
-      static void exec(ArcType& a, char*& s) {
+    template <typename InArcType>
+    struct deserialize_impl<InArcType, char*, false> {
+      static void exec(InArcType& iarc, char*& s) {
         // Save the length and check if lengths match
         size_t length;
-        deserialize_impl<ArcType, size_t, false>::exec(a, length);
+        deserialize_impl<InArcType, size_t, false>::exec(iarc, length);
         s = new char[length];
         //operator>> the rest
-        a.read(reinterpret_cast<char*>(s), length);
-        DASSERT_FALSE(a.i->fail());
+        iarc.read(reinterpret_cast<char*>(s), length);
+        DASSERT_FALSE(iarc.fail());
       }
     };
   
-    template <typename ArcType, size_t len>
-    struct deserialize_impl<ArcType, char [len], false> {
-      static void exec(ArcType& a, char s[len]) { 
+    template <typename InArcType, size_t len>
+    struct deserialize_impl<InArcType, char [len], false> {
+      static void exec(InArcType& iarc, char s[len]) { 
         size_t length;
-        deserialize_impl<ArcType, size_t, false>::exec(a, length);
+        deserialize_impl<InArcType, size_t, false>::exec(iarc, length);
         ASSERT_LE(length, len);
-        a.read(reinterpret_cast<char*>(s), length);
-        DASSERT_FALSE(a.i->fail());
+        iarc.read(reinterpret_cast<char*>(s), length);
+        DASSERT_FALSE(iarc.fail());
       }
     };
 
 
 
     /********Serialization and deserialiation of strings **************/
-    template <typename ArcType>
-    struct serialize_impl<ArcType, std::string, false> {
-      static void exec(ArcType &a, const std::string& s) {
+    template <typename OutArcType>
+    struct serialize_impl<OutArcType, std::string, false> {
+      static void exec(OutArcType& oarc, const std::string& s) {
         size_t length = s.length();
-        serialize_impl<ArcType, size_t, false>::exec(a, length);
-        a.o->write(reinterpret_cast<const char*>(s.c_str()), (std::streamsize)length);
-        DASSERT_FALSE(a.o->fail());
+        serialize_impl<OutArcType, size_t, false>::exec(oarc, length);
+        oarc.write(reinterpret_cast<const char*>(s.c_str()), 
+                   (std::streamsize)length);
+        DASSERT_FALSE(oarc.fail());
       }
     };
 
 
-    template <typename ArcType>
-    struct deserialize_impl<ArcType, std::string, false> {
-      static void exec(ArcType &a, std::string &s) {
+    template <typename InArcType>
+    struct deserialize_impl<InArcType, std::string, false> {
+      static void exec(InArcType& iarc, std::string& s) {
         //read the length
         size_t length;
-        deserialize_impl<ArcType, size_t, false>::exec(a, length);
+        deserialize_impl<InArcType, size_t, false>::exec(iarc, length);
         //resize the string and read the characters
         s.resize(length);
-        a.read(const_cast<char*>(s.c_str()), (std::streamsize)length);
-        DASSERT_FALSE(a.fail());
+        iarc.read(const_cast<char*>(s.c_str()), (std::streamsize)length);
+        DASSERT_FALSE(iarc.fail());
       }
     };
 
@@ -166,21 +169,25 @@ namespace graphlab {
 
 
     /********Serialization and deserialiation of strings **************/
-    template <typename ArcType, typename T, typename U>
-    struct serialize_impl<ArcType, std::pair<T, U>, false > {
-      static void exec(ArcType &a, const std::pair<T, U> &s) {
-        serialize_impl<ArcType, T, gl_is_pod<T>::value >::exec(a, s.first);
-        serialize_impl<ArcType, U, gl_is_pod<U>::value >::exec(a, s.second);
+    template <typename OutArcType, typename T, typename U>
+    struct serialize_impl<OutArcType, std::pair<T, U>, false > {
+      static void exec(OutArcType& oarc, const std::pair<T, U>& s) {
+        serialize_impl<OutArcType, 
+                       T, gl_is_pod<T>::value >::exec(oarc, s.first);
+        serialize_impl<OutArcType, 
+                       U, gl_is_pod<U>::value >::exec(oarc, s.second);
       }
     };
 
 
 
-    template <typename ArcType, typename T, typename U>
-    struct deserialize_impl<ArcType, std::pair<T, U>, false > {
-      static void exec(ArcType &a, std::pair<T, U> &s) {
-        deserialize_impl<ArcType, T, gl_is_pod<T>::value >::exec(a, s.first);
-        deserialize_impl<ArcType, U, gl_is_pod<U>::value >::exec(a, s.second);
+    template <typename InArcType, typename T, typename U>
+    struct deserialize_impl<InArcType, std::pair<T, U>, false > {
+      static void exec(InArcType& iarc, std::pair<T, U>& s) {
+        deserialize_impl<InArcType, 
+                         T, gl_is_pod<T>::value >::exec(iarc, s.first);
+        deserialize_impl<InArcType, 
+                         U, gl_is_pod<U>::value >::exec(iarc, s.second);
       }
     };
 

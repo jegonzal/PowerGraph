@@ -43,8 +43,8 @@ inline void decompress_int_from_ref(const char* &arr, IntType &ret) {
 }
 
 
-template <typename ArcType, typename IntType>
-inline void decompress_int(ArcType &strm, IntType &ret) {
+template <typename StreamType, typename IntType>
+inline void decompress_int(StreamType &strm, IntType &ret) {
   strm.read(reinterpret_cast<char*>(&ret), sizeof(IntType));
 }
 

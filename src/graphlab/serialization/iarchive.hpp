@@ -43,24 +43,24 @@ namespace graphlab {
   class iarchive {
   public:
     
-    std::istream* i;
+    std::istream* in;
     
     inline char read_char() {
       char c;
-      i->get(c);
+      in->get(c);
       return c;
     }
 
     inline void read(char* c, size_t len) {
-      i->read(c, len);
+      in->read(c, len);
     }
     
     inline bool fail() {
-      return i->fail();
+      return in->fail();
     }
     /// constructor. Takes a generic std::istream object
-    inline iarchive(std::istream& is)
-      : i(&is) { }
+    inline iarchive(std::istream& instream)
+      : in(&instream) { }
 
 
     ~iarchive() {}
@@ -76,33 +76,30 @@ namespace graphlab {
    */
   class iarchive_soft_fail{
   public:
-    bool directbuffer; // if false, uses the istream, otherwise uses buf
     
-    const char* buf; size_t buflen; size_t bufread; bool buffail;
-    
-    std::istream* i;
+    std::istream* in;
     
     inline char read_char() {
       char c;
-      i->get(c);
+      in->get(c);
       return c;
     }
   
     
     inline void read(char* c, size_t len) {
-      i->read(c, len);
+      in->read(c, len);
     }
     
     inline bool fail() {
-      return i->fail();
+      return in->fail();
     }
     
-    inline iarchive_soft_fail(std::istream &is)
-      : i(&is) {}
+    inline iarchive_soft_fail(std::istream &instream)
+      : in(&instream) {}
 
 
     inline iarchive_soft_fail(iarchive &iarc)
-      : i(iarc.i){}
+      : in(iarc.in){}
   
     ~iarchive_soft_fail() { }
   };
@@ -111,41 +108,42 @@ namespace graphlab {
   namespace archive_detail {
 
     /// called by the regular archive The regular archive will do a hard fail
-    template <typename ArcType, typename T>
+    template <typename InArcType, typename T>
     struct deserialize_hard_or_soft_fail {
-      inline static void exec(ArcType &i, T& t) {
-        t.load(i);
+      inline static void exec(InArcType& iarc, T& t) {
+        t.load(iarc);
       }
     };
 
     /// called by the soft fail archive 
     template <typename T>
     struct deserialize_hard_or_soft_fail<iarchive_soft_fail, T> {
-      inline static void exec(iarchive_soft_fail &i, T& t) {
-        iarchive iarc(*(i.i));
-        load_or_fail(iarc, t);
+      inline static void exec(iarchive_soft_fail& iarc, T& t) {
+        iarchive regular_iarc(*(iarc.in));
+        load_or_fail(regular_iarc, t);
       }
     };
 
 
     /**
-       Implementation of the deserializer for different types.
-       This is the catch-all. If it gets here, it must be a non-POD and is a class.
-       We therefore call the .save function.
-       Here we pick between the archive types using serialize_hard_or_soft_fail
+       Implementation of the deserializer for different types.  This is the
+       catch-all. If it gets here, it must be a non-POD and is a class.  We
+       therefore call the .save function.  Here we pick between the archive
+       types using serialize_hard_or_soft_fail
     */
-    template <typename ArcType, typename T, bool IsPOD>
+    template <typename InArcType, typename T, bool IsPOD>
     struct deserialize_impl {
-      inline static void exec(ArcType &i, T& t) {
-        deserialize_hard_or_soft_fail<ArcType, T>::exec(i, t);
+      inline static void exec(InArcType& iarc, T& t) {
+        deserialize_hard_or_soft_fail<InArcType, T>::exec(iarc, t);
       }
     };
 
     // catch if type is a POD
-    template <typename ArcType, typename T>
-    struct deserialize_impl<ArcType, T, true>{
-      inline static void exec(ArcType &a, T &t) {
-        a.read(reinterpret_cast<char*>(&t), sizeof(T));
+    template <typename InArcType, typename T>
+    struct deserialize_impl<InArcType, T, true>{
+      inline static void exec(InArcType& iarc, T &t) {
+        iarc.read(reinterpret_cast<char*>(&t), 
+                  sizeof(T));
       }
     };
 
@@ -157,9 +155,11 @@ namespace graphlab {
      Allows Use of the "stream" syntax for serialization 
   */
   template <typename T>
-  inline iarchive& operator>>(iarchive& a, T &i) {
-    archive_detail::deserialize_impl<iarchive, T, gl_is_pod<T>::value >::exec(a, i);
-    return a;
+  inline iarchive& operator>>(iarchive& iarc, T &t) {
+    archive_detail::deserialize_impl<iarchive, 
+                                     T, 
+                                     gl_is_pod<T>::value >::exec(iarc, t);
+    return iarc;
   }
 
 
@@ -168,25 +168,29 @@ namespace graphlab {
      Allows Use of the "stream" syntax for serialization 
   */
   template <typename T>
-  inline iarchive_soft_fail& operator>>(iarchive_soft_fail& a, T &i) {
-    archive_detail::deserialize_impl<iarchive_soft_fail, T, gl_is_pod<T>::value >::exec(a, i);
-    return a;
+  inline iarchive_soft_fail& operator>>(iarchive_soft_fail& iarc, T &t) {
+    archive_detail::deserialize_impl<iarchive_soft_fail, 
+                                     T, 
+                                     gl_is_pod<T>::value >::exec(iarc, t);
+    return iarc;
   }
 
 
   /**
      deserializes an arbitrary pointer + length from an archive 
   */
-  inline iarchive& deserialize(iarchive& a, void* const i,const size_t length) {
+  inline iarchive& deserialize(iarchive& iarc, 
+                               void* str,
+                               const size_t length) {
     // Save the length and check if lengths match
     size_t length2;
-    operator>>(a, length2);
+    operator>>(iarc, length2);
     ASSERT_EQ(length, length2);
 
     //operator>> the rest
-    a.read(reinterpret_cast<char*>(i), (std::streamsize)length);
-    assert(!a.fail());
-    return a;
+    iarc.read(reinterpret_cast<char*>(str), (std::streamsize)length);
+    assert(!iarc.fail());
+    return iarc;
   }
 
 
@@ -194,17 +198,18 @@ namespace graphlab {
   /**
      deserializes an arbitrary pointer + length from an archive 
   */
-  inline iarchive_soft_fail& deserialize(iarchive_soft_fail& a, 
-                                         void* const i,const size_t length) {
+  inline iarchive_soft_fail& deserialize(iarchive_soft_fail& iarc, 
+                                         void* str,
+                                         const size_t length) {
     // Save the length and check if lengths match
     size_t length2;
-    operator>>(a, length2);
+    operator>>(iarc, length2);
     ASSERT_EQ(length, length2);
 
     //operator>> the rest
-    a.read(reinterpret_cast<char*>(i), (std::streamsize)length);
-    assert(!a.fail());
-    return a;
+    iarc.read(reinterpret_cast<char*>(str), (std::streamsize)length);
+    assert(!iarc.fail());
+    return iarc;
   }
 
   /**
@@ -219,9 +224,9 @@ namespace graphlab {
   */
 #define BEGIN_OUT_OF_PLACE_LOAD(arc, tname, tval)       \
   namespace graphlab{ namespace archive_detail {        \
-  template <typename ArcType>                           \
-  struct deserialize_impl<ArcType, tname, false>{       \
-  static void exec(ArcType& arc, tname & tval) {             
+  template <typename InArcType>                           \
+  struct deserialize_impl<InArcType, tname, false>{       \
+  static void exec(InArcType& arc, tname & tval) {             
 
 #define END_OUT_OF_PLACE_LOAD() } }; } }
 
