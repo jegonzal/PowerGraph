@@ -48,7 +48,7 @@ extern std::vector<std::string> DICTIONARY;
 inline factor_type& operator+=(factor_type& lvalue, const factor_type& rvalue) {
   if(rvalue.empty()) return lvalue;
   if(lvalue.size() != rvalue.size());
-  for(size_t t = 0; t < lvalue.size(); ++t) lvalue[t] = rvalue[t];
+  for(size_t t = 0; t < lvalue.size(); ++t) lvalue[t] += rvalue[t];
   return lvalue;
 } // end of operator +=
 
@@ -159,6 +159,7 @@ public:
         const cw_pair_type pair(vdata.factor[i], wordid);
         ret_value.top_words[i].insert(pair);
       }
+      ret_value.nchanges = vdata.nchanges;
       return ret_value;
     } else { 
       return topk_aggregator(vertex.data().nchanges);       

@@ -38,7 +38,7 @@ size_t TOPK     = 5;
 size_t INTERVAL = 10;
 factor_type GLOBAL_TOPIC_COUNT;
 std::vector<std::string> DICTIONARY;
-
+bool BINARY_OBS = false;
 
 bool graph_loader(graph_type& graph, const std::string& fname, 
                   const std::string& line) {
@@ -54,6 +54,7 @@ bool graph_loader(graph_type& graph, const std::string& fname,
   ASSERT_GT(doc_id, 1); 
   doc_id = -doc_id;
   ASSERT_NE(doc_id, word_id);
+  if(BINARY_OBS) count = 1;
   // Create an edge and add it to the graph
   graph.add_edge(doc_id, word_id, edge_data(count));
   return true; // successful load

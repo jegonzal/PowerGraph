@@ -103,10 +103,7 @@ public:
     ASSERT_EQ(sum.size(), NTOPICS);
     ASSERT_EQ(vdata.factor.size(), NTOPICS);
     vdata.nupdates++; vdata.nchanges = 0; 
-    for(size_t t = 0; t < vdata.factor.size(); ++t) {
-      vdata.nchanges += std::fabs(vdata.factor[t] - sum[t]);
-      vdata.factor[t] = sum[t];
-    }
+    vdata.factor = sum;
   } // end of apply
 
   edge_dir_type scatter_edges(icontext_type& context,
@@ -181,6 +178,8 @@ int main(int argc, char** argv) {
                        "The number of words to report");
   clopts.attach_option("interval", &INTERVAL, INTERVAL,
                        "statistics reporting interval");
+  clopts.attach_option("binary", &BINARY_OBS, BINARY_OBS,
+                       "use 0/1 counts.");
   if(!clopts.parse(argc, argv)) {
     graphlab::mpi_tools::finalize();
     return clopts.is_set("help")? EXIT_SUCCESS : EXIT_FAILURE;
@@ -221,11 +220,11 @@ int main(int argc, char** argv) {
     ("topk", topk_type::map, topk_type::finalize) &&
     engine.aggregate_periodic("topk", INTERVAL);
   ASSERT_TRUE(success);
-  // success = 
-  //   engine.add_vertex_aggregator<factor_type>
-  //   ("global_counts", global_counts_agg::map, global_counts_agg::finalize) &&
-  //   engine.aggregate_periodic("global_counts", 5);
-  // ASSERT_TRUE(success);
+  success = 
+    engine.add_vertex_aggregator<factor_type>
+    ("global_counts", global_counts_agg::map, global_counts_agg::finalize) &&
+    engine.aggregate_periodic("global_counts", 5);
+  ASSERT_TRUE(success);
 
 
   ///! schedule only documents

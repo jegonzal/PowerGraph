@@ -32,8 +32,22 @@
 #include <graphlab/macros_def.hpp>
 
 
+struct gather_type {
+  factor_type factor;
+  size_t nchanges;
+  gather_type() : nchanges(0) { };
+  void save(graphlab::oarchive& arc) const { arc << factor << nchanges; }
+  void load(graphlab::iarchive& arc) { arc >> factor >> nchanges; }
+  gather_type& operator+=(const gather_type& other) {
+    factor += other.factor;
+    nchanges += other.nchanges;
+    return *this;
+  }
+}; // end of gather type
+
+
 class cgs_lda_vertex_program :
-  public graphlab::ivertex_program<graph_type, factor_type>,
+  public graphlab::ivertex_program<graph_type, gather_type>,
   public graphlab::IS_POD_TYPE {
 public:
 
@@ -42,9 +56,9 @@ public:
     return graphlab::ALL_EDGES;
   } // end of gather_edges 
 
-  factor_type gather(icontext_type& context, const vertex_type& vertex, 
+  gather_type gather(icontext_type& context, const vertex_type& vertex, 
                      edge_type& edge) const {
-    factor_type topic_count; topic_count.resize(NTOPICS);
+    gather_type ret_value; ret_value.factor.resize(NTOPICS);
     vertex_type other_vertex = get_other_vertex(edge, vertex);
     // VIOLATING THE ABSTRACTION!
     vertex_data& vdata = graph_type::vertex_type(vertex).data();
@@ -61,6 +75,7 @@ public:
     assignment_type& assignment = edge.data();
     // Resample the topics
     foreach(topic_id_type& asg, assignment) {
+      const topic_id_type old_asg = asg;
       if(asg != NULL_TOPIC) { // construct the cavity
         --doc_topic_count[asg];
         --word_topic_count[asg];
@@ -82,25 +97,25 @@ public:
       ++doc_topic_count[asg];
       ++word_topic_count[asg];                    
       ++GLOBAL_TOPIC_COUNT[asg];
-      ++topic_count[asg];
+      ++ret_value.factor[asg];
+      if(asg != old_asg) ++ret_value.nchanges;
     } // End of loop over each token
-    return topic_count;
+    return ret_value;
   } // end of gather
 
 
   void apply(icontext_type& context, vertex_type& vertex,
-             const factor_type& sum) {
+             const gather_type& sum) {
     const size_t num_neighbors = vertex.num_in_edges() + vertex.num_out_edges();
     ASSERT_GT(num_neighbors, 0);
     // There should be no new edge data since the vertex program has been cleared
     vertex_data& vdata = vertex.data();
-    ASSERT_EQ(sum.size(), NTOPICS);
+    ASSERT_EQ(sum.factor.size(), NTOPICS);
     ASSERT_EQ(vdata.factor.size(), NTOPICS);
-    vdata.nupdates++; vdata.nchanges = 0; 
-    for(size_t t = 0; t < vdata.factor.size(); ++t) {
-      vdata.nchanges += std::abs(vdata.factor[t] - sum[t]);
-      vdata.factor[t] = sum[t];
-    }
+    vdata.nupdates++; vdata.nchanges = sum.nchanges;
+    vdata.factor = sum.factor;
+    // if(vertex.id() % 1000 == 0) 
+    //   std::cout << vertex.id() << "--> " << vdata.nchanges << std::endl;
   } // end of apply
 
   edge_dir_type scatter_edges(icontext_type& context,
@@ -215,11 +230,11 @@ int main(int argc, char** argv) {
     ("topk", topk_type::map, topk_type::finalize) &&
     engine.aggregate_periodic("topk", INTERVAL);
   ASSERT_TRUE(success);
-  // success = 
-  //   engine.add_vertex_aggregator<factor_type>
-  //   ("global_counts", global_counts_agg::map, global_counts_agg::finalize) &&
-  //   engine.aggregate_periodic("global_counts", 5);
-  // ASSERT_TRUE(success);
+  success = 
+    engine.add_vertex_aggregator<factor_type>
+    ("global_counts", global_counts_agg::map, global_counts_agg::finalize) &&
+    engine.aggregate_periodic("global_counts", 5);
+  ASSERT_TRUE(success);
 
 
   ///! schedule only documents
