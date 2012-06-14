@@ -33,20 +33,23 @@ namespace graphlab {
 
 namespace archive_detail {
   /** Serializes a map */
-  template <typename ArcType, typename T, typename U>
-  struct serialize_impl<ArcType, std::map<T,U>, false > {
-  static void exec(ArcType& a, const std::map<T,U>& vec){
-    serialize_iterator(a,vec.begin(),vec.end(), vec.size());
+  template <typename OutArcType, typename T, typename U>
+  struct serialize_impl<OutArcType, std::map<T,U>, false > {
+  static void exec(OutArcType& oarc, const std::map<T,U>& vec){
+    serialize_iterator(oarc,
+                       vec.begin(), vec.end(), vec.size());
   }
   };
 
   /** deserializes a map  */
       
-  template <typename ArcType, typename T, typename U>
-  struct deserialize_impl<ArcType, std::map<T,U>, false > {
-  static void exec(ArcType& a, std::map<T,U>& vec){
+  template <typename InArcType, typename T, typename U>
+  struct deserialize_impl<InArcType, std::map<T,U>, false > {
+  static void exec(InArcType& iarc, std::map<T,U>& vec){
     vec.clear();
-    deserialize_iterator<ArcType, std::pair<T,U> >(a, std::inserter(vec,vec.end()));
+    deserialize_iterator<InArcType, 
+                         std::pair<T,U> >(iarc, 
+                                          std::inserter(vec,vec.end()));
   }
   };
 

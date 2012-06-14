@@ -1,4 +1,4 @@
-/**  
+/*  
  * Copyright (c) 2009 Carnegie Mellon University. 
  *     All rights reserved.
  *
@@ -21,18 +21,21 @@
  */
 
 
+
+
 #ifndef HAS_SAVE_HPP
 #define HAS_SAVE_HPP
 #include <typeinfo>
 
-/**
-Detects if a class has a save function implemented
-*/
 namespace graphlab {
 namespace archive_detail {
 
- // SFINAE method derived from
- // http://stackoverflow.com/questions/87372/is-there-a-technique-in-c-to-know-if-a-class-has-a-member-function-of-a-given-s/87846#87846
+  /** SFINAE method to detect if a class T 
+   * implements a function void T::save(ArcType&) const
+   * 
+   * If T implements the method, has_save_method<ArcType,T>::value will be 
+   * true. Otherwise it will be false
+   */
   template<typename ArcType, typename T>
   struct has_save_method
   {
@@ -42,13 +45,30 @@ namespace archive_detail {
 	  static const bool value = sizeof(Test<T>(0)) == sizeof(char);
   };
 
-
+  /**
+   *  save_or_fail<ArcType, T>(arc, t)
+   *  will call this version of the function if
+   *  T implements void T::save(ArcType&) const.
+   *  
+   * save_or_fail<ArcType, T>(arc, t) will therefore save the class successfully
+   * if T implements the save function correctly. Otherwise, calling 
+   * save_or_fail will print an error message.
+   */
   template <typename ArcType, typename ValueType>
   typename boost::enable_if_c<has_save_method<ArcType, ValueType>::value, void>::type 
   save_or_fail(ArcType& o, const ValueType &t) { 
     t.save(o);
   }
-  
+ 
+  /**
+   *  save_or_fail<ArcType, T>(arc, t)
+   *  will call this version of the function if
+   *  
+   * save_or_fail<ArcType, T>(arc, t) will therefore save the class successfully
+   * if T implements the save function correctly. Otherwise, calling 
+   * save_or_fail will print an error message.
+   * T does not implement void T::save(ArcType&) const.
+   */
   template <typename ArcType, typename ValueType>
   typename boost::disable_if_c<has_save_method<ArcType, ValueType>::value, void>::type 
   save_or_fail(ArcType& o, const ValueType &t) { 

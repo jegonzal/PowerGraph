@@ -275,10 +275,10 @@ namespace graphlab {
    *
    * \tparam VertexData Type of data stored on vertices. Must be
    *                    Copyable, Default Constructable, Copy 
-   *                    Constructable and \ref Serializable.
+   *                    Constructable and \ref sec_serializable.
    * \tparam EdgeData Type of data stored on edges. Must be 
    *                  Copyable, Default Constructable, Copy
-   *                  Constructable and \ref Serializable.
+   *                  Constructable and \ref sec_serializable.
    */
   template<typename VertexData, typename EdgeData>
   class distributed_graph {
@@ -302,6 +302,14 @@ namespace graphlab {
     BOOST_CONCEPT_ASSERT((boost::DefaultConstructible<VertexData>));
     /// \endcond
 
+    /**
+     * \cond GRAPHLAB_INTERNAL
+     * \brief GraphLab Requires that vertex data be default
+     * Serializable.  
+     */
+    BOOST_CONCEPT_ASSERT((graphlab::Serializable<VertexData>));
+    /// \endcond
+
 
     /// The type of the edge data stored in the graph 
     typedef EdgeData   edge_data_type;
@@ -319,6 +327,14 @@ namespace graphlab {
      * \endcode
      */
     BOOST_CONCEPT_ASSERT((boost::DefaultConstructible<EdgeData>));
+    /// \endcond
+
+    /**
+     * \cond GRAPHLAB_INTERNAL
+     * \brief GraphLab Requires that edge data be default
+     * Serializable.  
+     */
+    BOOST_CONCEPT_ASSERT((graphlab::Serializable<EdgeData>));
     /// \endcond
 
 
@@ -782,7 +798,7 @@ namespace graphlab {
     * but may also make modifications to graph data.
     *
     * \tparam ResultType The output of the map function. Must have
-    *                    operator+= defined, and must be \ref Serializable.
+    *                    operator+= defined, and must be \ref sec_serializable.
     * \tparam VertexMapperType The type of the map function. 
     *                          Not generally needed.
     *                          Can be inferred by the compiler.
@@ -790,7 +806,7 @@ namespace graphlab {
     *                   a \ref vertex_type, or a reference to a 
     *                   \ref vertex_type as its only argument.
     *                   Returns a ResultType which must be summable
-    *                   and \ref Serializable .
+    *                   and \ref sec_serializable .
     */
     template <typename ResultType, typename MapFunctionType>
     ResultType map_reduce_vertices(MapFunctionType mapfunction) {
@@ -886,7 +902,7 @@ namespace graphlab {
     * but may also make modifications to graph data.
     *
     * \tparam ResultType The output of the map function. Must have
-    *                    operator+= defined, and must be \ref Serializable.
+    *                    operator+= defined, and must be \ref sec_serializable.
     * \tparam EdgeMapperType The type of the map function. 
     *                          Not generally needed.
     *                          Can be inferred by the compiler.
@@ -894,7 +910,7 @@ namespace graphlab {
     *                   a \ref edge_type, or a reference to a 
     *                   \ref edge_type as its only argument.
     *                   Returns a ResultType which must be summable
-    *                   and \ref Serializable .
+    *                   and \ref sec_serializable .
     */
     template <typename ResultType, typename MapFunctionType>
     ResultType map_reduce_edges(MapFunctionType mapfunction) {
