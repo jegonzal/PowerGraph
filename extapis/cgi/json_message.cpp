@@ -72,6 +72,12 @@ ji::json_invocation(const std::string& method, const std::string& state){
 	mdocument.AddMember("state", statev, mallocator);
 }
 
+ji::json_invocation(const std::string& method){
+  // add method
+  json::Value methodv(method.c_str(), mallocator);
+  mdocument.AddMember("method", methodv, mallocator);
+}
+
 ji::~json_invocation(){}
 
 json::Value&
@@ -80,6 +86,8 @@ ji::create_vertex(json::Value& vertexv, const dispatcher::graph_type::vertex_typ
   vertexv.SetObject();
   vertexv.AddMember("id", vertex.id(), mallocator);
   vertexv.AddMember("state", vertex.data().c_str(), mallocator);
+  vertexv.AddMember("num_in_edges", (uint64_t) vertex.num_in_edges(), mallocator);
+  vertexv.AddMember("num_out_edges", (uint64_t) vertex.num_out_edges(), mallocator);
   return vertexv;
 }
 
@@ -143,6 +151,12 @@ const char * jr::program() const {
 const char * jr::vertex() const {
   if (mdocument.HasMember("vertex"))
     return mdocument["vertex"].GetString();
+  return NULL;
+}
+
+const char * jr::edge() const {
+  if (mdocument.HasMember("edge"))
+    return mdocument["edge"].GetString();
   return NULL;
 }
 

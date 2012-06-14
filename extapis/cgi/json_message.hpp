@@ -73,6 +73,7 @@ namespace graphlab {
   /**
    * JSON Invocation
    * A specific JSON message for invoking methods.
+   * @internal
    */
   class json_invocation : public json_message {
   public:
@@ -82,7 +83,8 @@ namespace graphlab {
      * @param[in]   method    method to invoke
      * @param[in]   state     state of invocation owner (the updater)
      */
-    json_invocation(const std::string& method = "", const std::string& state = "");
+    json_invocation(const std::string& method, const std::string& state);
+    json_invocation(const std::string& method);
     virtual ~json_invocation();
     
     /**
@@ -145,6 +147,9 @@ namespace graphlab {
     
     /** @return vertex state from return JSON, or null if not available. */
     const char *vertex() const;
+    
+    /** @return edge state from return JSON, or null if not available. */
+    const char *edge() const;
     
     /** @return edge direction from return JSON, or null if not available. */ 
     const edge_dir_type edge_dir() const;

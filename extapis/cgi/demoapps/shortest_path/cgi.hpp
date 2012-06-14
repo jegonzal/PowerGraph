@@ -52,6 +52,8 @@ namespace graphlab {
       virtual void merge(rapidjson::Document& invocation, rapidjson::Document& return_json) = 0;
       virtual void apply(rapidjson::Document& invocation, rapidjson::Document& return_json) = 0;
       virtual void scatter(rapidjson::Document& invocation, rapidjson::Document& return_json) = 0;
+      virtual void init_edge(rapidjson::Document& invocation, rapidjson::Document& return_json){}
+      virtual void init_vertex(rapidjson::Document& invocation, rapidjson::Document& return_json){}
   };
   
   /**
@@ -137,22 +139,28 @@ namespace graphlab {
       rapidjson::Document return_json;
       return_json.SetObject();
       
+      const char *method = invocation["method"].GetString();
+      
       // invoke appropriate method
-      if (!strcmp(invocation["method"].GetString(), "gather_edges"))
+      if (!strcmp(method, "gather_edges"))
         handler.gather_edges(invocation, return_json);
-      else if (!strcmp(invocation["method"].GetString(), "scatter_edges"))
+      else if (!strcmp(method, "scatter_edges"))
         handler.scatter_edges(invocation, return_json);
-      else if (!strcmp(invocation["method"].GetString(), "gather"))
+      else if (!strcmp(method, "gather"))
         handler.gather(invocation, return_json);
-      else if (!strcmp(invocation["method"].GetString(), "merge"))
+      else if (!strcmp(method, "merge"))
         handler.merge(invocation, return_json);
-      else if (!strcmp(invocation["method"].GetString(), "apply"))
+      else if (!strcmp(method, "apply"))
         handler.apply(invocation, return_json);
-      else if (!strcmp(invocation["method"].GetString(), "scatter"))
+      else if (!strcmp(method, "scatter"))
         handler.scatter(invocation, return_json);
+      else if (!strcmp(method, "init_edge"))
+        handler.init_edge(invocation, return_json);
+      else if (!strcmp(method, "init_vertex"))
+        handler.init_vertex(invocation, return_json);
       else {
         std::ostringstream error("Unknown method: ");
-        error << invocation["method"].GetString();
+        error << method;
         throw error.str();
       }
       
