@@ -23,4 +23,4 @@
 
 
 #include <graphlab/serialization/serialize.hpp>
-#include <graphlab/serialization/serializable.hpp>
+#include <graphlab/serialization/serializable_concept.hpp>

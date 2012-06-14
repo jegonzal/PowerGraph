@@ -21,7 +21,7 @@
  */
 
 
-/**
+/*
    This files defines the serializer/deserializer for all basic types
    (as well as string and pair)  
 */
@@ -67,6 +67,9 @@ namespace graphlab {
     /*
      * Generate serializers and deserializers for all integer types
      */
+    INT_SERIALIZE(bool);
+    INT_SERIALIZE(char);
+    INT_SERIALIZE(unsigned char);
     INT_SERIALIZE(short);
     INT_SERIALIZE(unsigned short);
     INT_SERIALIZE(int);
@@ -77,7 +80,12 @@ namespace graphlab {
     INT_SERIALIZE(unsigned long long);
 
 
-    /********Serialization and deserialiation of char* **************/
+    /** Serialization of null terminated const char* strings.
+     * This is necessary to serialize constant strings like
+     * \code 
+     * oarc << "hello world";
+     * \endcode
+     */
     template <typename OutArcType>
     struct serialize_impl<OutArcType, const char*, false> {
       static void exec(OutArcType& oarc, const char* const& s) {
@@ -91,6 +99,7 @@ namespace graphlab {
     };
 
 
+    /// Serialization of fixed length char arrays
     template <typename OutArcType, size_t len>
     struct serialize_impl<OutArcType, char [len], false> {
       static void exec(OutArcType& oarc, const char s[len] ) { 
@@ -101,6 +110,8 @@ namespace graphlab {
       }
     };
 
+
+    /// Serialization of null terminated char* strings
     template <typename OutArcType>
     struct serialize_impl<OutArcType, char*, false> {
       static void exec(OutArcType& oarc, char* const& s) {
@@ -113,6 +124,7 @@ namespace graphlab {
       }
     };
 
+    /// Deserialization of null terminated char* strings
     template <typename InArcType>
     struct deserialize_impl<InArcType, char*, false> {
       static void exec(InArcType& iarc, char*& s) {
@@ -126,6 +138,7 @@ namespace graphlab {
       }
     };
   
+    /// Deserialization of fixed length char arrays 
     template <typename InArcType, size_t len>
     struct deserialize_impl<InArcType, char [len], false> {
       static void exec(InArcType& iarc, char s[len]) { 
@@ -139,7 +152,7 @@ namespace graphlab {
 
 
 
-    /********Serialization and deserialiation of strings **************/
+    /// Serialization of std::string
     template <typename OutArcType>
     struct serialize_impl<OutArcType, std::string, false> {
       static void exec(OutArcType& oarc, const std::string& s) {
@@ -152,6 +165,7 @@ namespace graphlab {
     };
 
 
+    /// Deserialization of std::string
     template <typename InArcType>
     struct deserialize_impl<InArcType, std::string, false> {
       static void exec(InArcType& iarc, std::string& s) {
@@ -165,10 +179,7 @@ namespace graphlab {
       }
     };
 
-    /******** Serialization and deserialization of pairs *************/
-
-
-    /********Serialization and deserialiation of strings **************/
+    /// Serialization of std::pair
     template <typename OutArcType, typename T, typename U>
     struct serialize_impl<OutArcType, std::pair<T, U>, false > {
       static void exec(OutArcType& oarc, const std::pair<T, U>& s) {
@@ -180,7 +191,7 @@ namespace graphlab {
     };
 
 
-
+    /// Deserialization of std::pair
     template <typename InArcType, typename T, typename U>
     struct deserialize_impl<InArcType, std::pair<T, U>, false > {
       static void exec(InArcType& iarc, std::pair<T, U>& s) {

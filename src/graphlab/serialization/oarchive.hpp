@@ -38,10 +38,46 @@
 
 namespace graphlab {
 
-
   /**
-   *  The output archive object.
-   *  It is just a simple wrapper around a ostream. 
+   * \brief The serialization output archive object which, provided
+   * with a reference to an ostream, will write to the ostream, 
+   * providing serialization capabilities.
+   * 
+   * Given a standard output stream, you can construct an oarchive
+   * object by:
+   * \code
+   *   // where strm is an ostream object
+   *   graphlab::oarchive oarc(strm);
+   * \endcode
+   *
+   * For instance, to serialize to a file,
+   * \code
+   *   std::ofstream fout("outputfile.bin");
+   *   graphlab::oarchive oarc(fout);
+   * \endcode
+   *
+   * Once the oarc object is constructed, \ref Serializable objects can be
+   * written to it using the << stream operator.
+   * 
+   * \code
+   *    oarc << a << b << c;
+   * \endcode
+   * 
+   * Written data can be deserialized using graphlab::iarchive.
+   * For more usage details, see \ref Serializable
+   * 
+   * The oarchive object should not be used once the associated stream 
+   * object is closed or is destroyed.  
+   *
+   * The oarc object
+   * does <b> not </b> flush the associated stream, and the user may need to
+   * manually flush the associated stream to clear any stream buffers.
+   * For instance, while the std::stringstream may be used for both output
+   * and input, it is necessary to flush the stream before all bytes written to
+   * the stringstream are available for input.
+   *
+   * To use this class, include 
+   * graphlab/serialization/serialization_includes.hpp 
    */
   class oarchive{
   public:

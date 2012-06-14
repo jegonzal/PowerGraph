@@ -37,8 +37,34 @@
 namespace graphlab {
 
   /**
-   * The input archive object.
-   * It is just a simple wrapper around a istream 
+   * \brief The serialization input archive object which, provided
+   * with a reference to an istream, will read from the istream, 
+   * providing deserialization capabilities.
+   * 
+   * Given a source of serialized bytes (written by an graphlab::oarchive),
+   * in the form of a standard input stream, you can construct an iarchive
+   * object by:
+   * \code
+   *   // where strm is an istream object
+   *   graphlab::iarchive iarc(strm);
+   * \endcode
+   *
+   * For instance, to deserialize from a file,
+   * \code
+   *   std::ifstream fin("inputfile.bin");
+   *   graphlab::iarchive iarc(fin);
+   * \endcode
+   *
+   * Once the iarc object is constructed, \ref Serializable 
+   * objects can be read from it using the >> stream operator.
+   * 
+   * \code
+   *    iarc >> a >> b >> c;
+   * \endcode
+   *
+   * The irchive object should not be used once the associated stream 
+   * object is closed or is destroyed. 
+   * 
    */
   class iarchive {
   public:
