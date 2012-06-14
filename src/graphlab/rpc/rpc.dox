@@ -1,0 +1,45 @@
+/*
+ * This file is necessary to force doxygen to add documentation for the 
+ * macro generated RPC call functions.
+ */
+
+class distributed_control {
+ public: 
+/**
+ * \brief remote_call performs a non-blocking RPC call to the target machine
+ * to run the provided function pointer. 
+ *
+ * remote_call() calls the function "fn" on a target remote machine. Provided 
+ * arguments are serialized and sent to the target. 
+ * Therefore, all arguments are necessarily transmitted by value. 
+ * If the target function has a return value, the return value is lost.
+ * 
+ * remote_call() is non-blocking and does not wait for the target machine
+ * to complete execution of the function. different remote_calls may be handled
+ * by different threads on the target machine and thus the target function
+ * should be made thread-safe. Alternatively, see set_sequentialization_key()
+ * to force sequentialization of groups of remote_calls. A full_barrier()
+ * may also be issued to wait for completion of all RPC calls issued prior 
+ * to the full barrier.
+ * 
+ * Example:
+ * \code
+ * // A print function is defined
+ * void print(std::string s) {
+ *   std::cout << s << "\n";
+ * }
+ * 
+ * ... ...
+ * // call the print function on machine 1 to print "hello"
+ * dc.remote_call(1, print, "hello");
+ * \endcode 
+ * 
+ * 
+ * 
+ * \param targetmachine The ID of the machine to run the function on 
+ * \param fn The function to run on the target machine
+ * \param ... The arguments to send to Fn. Arguments must be serializable.
+ *            and must be castable to the target types.
+ */
+  void remote_call(procid_t targetmachine, Fn fn, ...); 
+}

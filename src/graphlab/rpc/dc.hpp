@@ -58,9 +58,17 @@ namespace graphlab {
 
   
 /**
- * \ingroup rpc
-Distributed control constructor parameters.
-*/
+ *  \ingroup rpc
+ *  \brief Distributed control constructor parameters.
+ *  
+ *  Provides the  communication layer with a list of ip addresses and 
+ *  port numbers which enumerate all the machines to establish connections
+ *  with. 
+ *
+ *  You should not need to this. The default constructor in 
+ *  graphlab::distributed_control does it for you.
+ *  See \ref RPC for usage details. 
+ */
 struct dc_init_param{
   /** A vector containing a list of hostnames/ipaddresses and port numbers
   * of all machines participating in this RPC program.
@@ -75,12 +83,13 @@ struct dc_init_param{
   /** Additional construction options of the form 
     "key1=value1,key2=value2".
     
-    There are no available options.
+    There are no available options at this time.
     
     Internal options which should not be used
     \li \b __socket__=NUMBER Forces TCP comm to use this socket number for its
                              listening socket instead of creating a new one.
-                             The socket must already be bound to the listening port.
+                             The socket must already be bound to the listening
+                             port.
   */
   std::string initstring; 
   
@@ -101,68 +110,62 @@ namespace dc_impl {
   class dc_buffered_stream_send2;
   class dc_stream_receive;
 }
+
 /**
  * \ingroup rpc
-graphlab::distributed_control is the primary distributed RPC object. This class initializes distributed
-communication, as well as provide basic RPC routines and collective operations.
-
-See \ref RPC for a tutorial.
-
-In addition to the documented functions, the following RPC routines are provided.
-
-\par void distributed_control::remote_call(procid_t targetmachine, function, ...)
- remote_call performs a non-blocking RPC call to the target machine to
- run the provided function pointer. All arguments are transmitted by value
- and must be serializable.
- \li \b targetmachine: The ID of the machine to run the function on
- \li \b function: The function to run on the target machine
-
-\par void distributed_control::remote_call(Iterator target_begin, Iterater target_end, function, ...)
- remote_call performs a non-blocking RPC call to all target machines
- listed in target_begin to target_end to
- run the provided function pointer. All arguments are transmitted by value
- and must be serializable.
- \li \b target_begin: Start of an iterator range containing a list of processors
- \li \b target_end: End of an iterator range containing a list of processors
- \li \b function: The function to run on the target machine
-
-\par void distributed_control::fast_remote_call(procid_t targetmachine, function, ...)
- fast_remote_call is the same as remote_call, but the receiver completes the function
- call using the receiving thread instead of a thread pool. This should only be used if
- the function is short and does not block.
- \li \b targetmachine: The ID of the machine to run the function on
- \li \b function: The function to run on the target machine
-
-\par void distributed_control::control_call(procid_t targetmachine, function, ...)
- Same as remote_call, but calls performed using the control_call do not contribute
- to the call counter and has no effect on graphlab::async_consensus.
- \li \b targetmachine: The ID of the machine to run the function on
- \li \b function: The function to run on the target machine
-
-
-\par RetType distributed_control::remote_request(procid_t targetmachine, function, ...)
- remote_request performs a blocking RPC call to the target machine to
- run the provided function pointer. All arguments are transmitted by value
- and must be serializable. This call only returns when the target machine
- completes the function call. The return value of the call is serialized and
- returned.
- \li \b targetmachine: The ID of the machine to run the function on
- \li \b function: The function to run on the target machine
-
-\par RetType distributed_control::fast_remote_request(procid_t targetmachine, function, ...)
- fast_remote_request is the same as remote_request, but the receiver completes the function
- call using the receiving thread instead of a thread pool. This should only be used if
- the function is short and does not block.
- \li \b targetmachine: The ID of the machine to run the function on
- \li \b function: The function to run on the target machine
-
-\par void distributed_control::control_request(procid_t targetmachine, function, ...)
- Same as remote_request, but calls performed using the control_request do not contribute
- to the call counter and has no effect on graphlab::async_consensus.
- \li \b targetmachine: The ID of the machine to run the function on
- \li \b function: The function to run on the target machine
-
-*/
+ * \brief The distributed control object is primary means of communication
+ * between the distributed GraphLab processes.
+ *
+ * See \ref RPC for a tutorial.
+ *
+ * In addition to the documented functions, the following RPC routines are
+ * provided.
+ */ 
+ 
+ /* \par void distributed_control::remote_call(Iterator target_begin, Iterater
+ * target_end, function, ...) remote_call performs a non-blocking RPC call to all
+ * target machines listed in target_begin to target_end to run the provided
+ * function pointer. All arguments are transmitted by value and must be
+ * serializable.  \li \b target_begin: Start of an iterator range containing a
+ * list of processors \li \b target_end: End of an iterator range containing a
+ * list of processors \li \b function: The function to run on the target machine
+ * 
+ * \par void distributed_control::fast_remote_call(procid_t targetmachine,
+ * function, ...) fast_remote_call is the same as remote_call, but the receiver
+ * completes the function call using the receiving thread instead of a thread
+ * pool. This should only be used if the function is short and does not block.
+ * \li \b targetmachine: The ID of the machine to run the function on \li \b
+ * function: The function to run on the target machine
+ * 
+ * \par void distributed_control::control_call(procid_t targetmachine, function,
+ * ...) Same as remote_call, but calls performed using the control_call do not
+ * contribute to the call counter and has no effect on graphlab::async_consensus.
+ * \li \b targetmachine: The ID of the machine to run the function on \li \b
+ * function: The function to run on the target machine
+ * 
+ * 
+ * \par RetType distributed_control::remote_request(procid_t targetmachine,
+ * function, ...) remote_request performs a blocking RPC call to the target
+ * machine to run the provided function pointer. All arguments are transmitted by
+ * value and must be serializable. This call only returns when the target machine
+ * completes the function call. The return value of the call is serialized and
+ * returned.  \li \b targetmachine: The ID of the machine to run the function on
+ * \li \b function: The function to run on the target machine
+ * 
+ * \par RetType distributed_control::fast_remote_request(procid_t targetmachine,
+ * function, ...) fast_remote_request is the same as remote_request, but the
+ * receiver completes the function call using the receiving thread instead of a
+ * thread pool. This should only be used if the function is short and does not
+ * block.  \li \b targetmachine: The ID of the machine to run the function on \li
+ * \b function: The function to run on the target machine
+ * 
+ * \par void distributed_control::control_request(procid_t targetmachine,
+ * function, ...) Same as remote_request, but calls performed using the
+ * control_request do not contribute to the call counter and has no effect on
+ * graphlab::async_consensus.  \li \b targetmachine: The ID of the machine to run
+ * the function on \li \b function: The function to run on the target machine
+ * 
+ */
 class distributed_control{
   public:
         /**  Each element of the function call queue is a data/len pair */
@@ -350,8 +353,13 @@ class distributed_control{
   /// gets the current sequentialization key. This function is not generally useful.
   static unsigned char get_sequentialization_key();
 
- 
-
+  /*
+   * The key RPC communication functions are all macro generated
+   * and doxygen does not like them so much.
+   * Here, we will block all of them out
+   * and have another set of "fake" functions later on which are wrapped
+   * with a #if 0 so C++ will ignore them.
+   */
   /// \cond GRAPHLAB_INTERNAL
 
   void flush_counters() {
@@ -436,6 +444,116 @@ class distributed_control{
   #undef GENI
   #undef GENARGS
   /// \endcond
+  
+/*************************************************************************
+ *           Here begins the Doxygen fake functions block                *
+ *************************************************************************/
+
+#if 0
+  
+/**
+ * \brief Performs a non-blocking RPC call to the target machine
+ * to run the provided function pointer. 
+ *
+ * remote_call() calls the function "fn" on a target remote machine. Provided 
+ * arguments are serialized and sent to the target. 
+ * Therefore, all arguments are necessarily transmitted by value. 
+ * If the target function has a return value, the return value is lost.
+ * 
+ * remote_call() is non-blocking and does not wait for the target machine
+ * to complete execution of the function. different remote_calls may be handled
+ * by different threads on the target machine and thus the target function
+ * should be made thread-safe. Alternatively, see set_sequentialization_key()
+ * to force sequentialization of groups of remote_calls. A full_barrier()
+ * may also be issued to wait for completion of all RPC calls issued prior 
+ * to the full barrier.
+ * 
+ * Example:
+ * \code
+ * // A print function is defined
+ * void print(std::string s) {
+ *   std::cout << s << "\n";
+ * }
+ * 
+ * ... ...
+ * // call the print function on machine 1 to print "hello"
+ * dc.remote_call(1, print, "hello");
+ * \endcode 
+ * 
+ * 
+ * 
+ * \param targetmachine The ID of the machine to run the function on 
+ * \param fn The function to run on the target machine
+ * \param ... The arguments to send to Fn. Arguments must be serializable.
+ *            and must be castable to the target types.
+ */
+  void remote_call(procid_t targetmachine, Fn fn, ...);
+
+
+
+/**
+ * \brief Performs a non-blocking RPC call to a collection of machines
+ * to run the provided function pointer. 
+ *
+ * This function calls the provided function pointer on a collection of 
+ * machines contained in the iterator range [begin, end).
+ * Provided arguments are serialized and sent to the target. 
+ * Therefore, all arguments are necessarily transmitted by value. 
+ * If the target function has a return value, the return value is lost.
+ * 
+ * This function is functionally equivalent to:
+ * 
+ * \code
+ * while(machine_begin != machine_end) {
+ *  remote_call(*machine_begin, fn, ...);
+ *  ++machine_begin;
+ * }
+ * \endcode
+ *
+ * However, this function makes some optimizations to ensure all arguments
+ * are only serialized once instead of \#calls times.
+ *
+ * This function is non-blocking and does not wait for the target machines
+ * to complete execution of the function. different remote_calls may be handled
+ * by different threads on the target machines and thus the target function
+ * should be made thread-safe. Alternatively, see set_sequentialization_key()
+ * to force sequentialization of groups of remote_calls. A full_barrier()
+ * may also be issued to wait for completion of all RPC calls issued prior 
+ * to the full barrier.
+ * 
+ * Example:
+ * \code
+ * // A print function is defined
+ * void print(std::string s) {
+ *   std::cout << s << "\n";
+ * }
+ * 
+ * ... ...
+ * // call the print function on machine 1, 3 and 5 to print "hello"
+ * std::vector<procid_t> procs; 
+ * procs.push_back(1); procs.push_back(3); procs.push_back(5);
+ * dc.remote_call(procs.begin(), procs.end(), print, "hello");
+ * \endcode 
+ * 
+ * 
+ * \param machine_begin The beginning of an iterator range containing a list
+ *                      machines to call.  Iterator::value_type must be
+ *                      castable to procid_t.
+ * \param machine_end   The end of an iterator range containing a list
+ *                      machines to call.  Iterator::value_type must be
+ *                      castable to procid_t.
+ * \param fn The function to run on the target machine
+ * \param ... The arguments to send to Fn. Arguments must be serializable.
+ *            and must be castable to the target types.
+ */
+
+  void remote_call(Iterator machine_begin, Iterator machine_end, Fn fn, ...); 
+#endif
+/*************************************************************************
+ *              Here end the Doxygen fake functions block                *
+ *************************************************************************/
+
+
  private:
   /**
    *
