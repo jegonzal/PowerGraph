@@ -65,7 +65,7 @@ struct corpus_type {
       // Read a collection of tokens
       const size_t NULL_VALUE(-1);
       size_t word = NULL_VALUE, doc = NULL_VALUE, count = NULL_VALUE;
-      fin >> word >> doc >> count;
+      fin >> doc >> word >> count;
       if(fin.good()) {
         assert(word != NULL_VALUE && doc != NULL_VALUE && count != NULL_VALUE);
         // update the doc counter
