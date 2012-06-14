@@ -1,12 +1,12 @@
-nvertices = 10000;
+nvertices = 1000;
 approx_edges = 3*nvertices;
 density = approx_edges / (nvertices^2) ;
 
 %% create random edges
 E = sprand(nvertices, nvertices, density);
 % Add self links
-E = E + sparse(1:nvertices, 1:nvertices, ones(nvertices,1), ...
-    nvertices, nvertices);
+% E = E + sparse(1:nvertices, 1:nvertices, ones(nvertices,1), ...
+%    nvertices, nvertices);
 
 %% Make it symmetric (not strictly necessary)
 E = E + E';
