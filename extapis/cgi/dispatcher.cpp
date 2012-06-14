@@ -27,6 +27,7 @@
 
 #include <boost/algorithm/string.hpp>
  
+#include <signal.h>
 #include "dispatcher.hpp"
 #include "process.hpp"
 #include "json_message.hpp"
@@ -192,6 +193,7 @@ void dispatcher::scatter(icontext_type& context,
   }else logstream(LOG_FATAL) << "Unrecognized signal: " << cstring << std::endl;
   
 }
+ 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct dispatcher_writer {
@@ -232,12 +234,60 @@ bool dispatcher::read_graph(graph_type& graph,
       dispatcher::graph_type::vertex_id_type target;
       dispatcher::graph_type::edge_data_type edata;
       iss >> source >> target >> edata;
-      graph.add_edge(source, target, edata);
+      if (source == target){
+        logstream(LOG_ERROR) << "Self edge not allowed: " << source << std::endl;
+      }else {
+        graph.add_edge(source, target, edata);
+      }
       break;
     }
   }
   
   return true;
+  
+}
+
+void dispatcher::init_edge(graph_type::edge_type edge) {
+
+  process& p = process::get_process();
+  
+  // invoke (not passing state, because we are not supposed to be in a vertex program)
+  std::string method("init_edge");
+  ji invocation(method);
+  invocation.add_edge(edge);
+  p.send(invocation);
+  
+  // parse results
+  jr result;
+  p.receive(result);
+
+  // null means no change
+  const char *cstring = result.edge();
+  if (NULL == cstring) return;
+  
+  edge.data() = std::string(cstring);
+  
+}
+ 
+void dispatcher::init_vertex(graph_type::vertex_type vertex) {
+  
+  process& p = process::get_process();
+  
+  // invoke (not passing state, because we are not supposed to be in a vertex program)
+  std::string method("init_vertex");
+  ji invocation(method);
+  invocation.add_vertex(vertex);
+  p.send(invocation);
+  
+  // parse results
+  jr result;
+  p.receive(result);
+
+  // null means no change
+  const char *cstring = result.vertex();
+  if (NULL == cstring) return;
+  
+  vertex.data() = std::string(cstring);
   
 }
 
@@ -302,7 +352,7 @@ int main(int argc, char** argv) {
   logstream(LOG_EMPH) << "#vertices: " << graph.num_vertices()
                       << " #edges:" << graph.num_edges() << std::endl;
   logstream(LOG_INFO) << "executable: " << program;
-  
+
   process::set_executable(program);
   
   std::stringstream arg1; arg1 << "--num-vertices" << graph.num_vertices();
@@ -315,6 +365,9 @@ int main(int argc, char** argv) {
   async_consistent_engine<dispatcher> engine(dc, graph, clopts);
   // TODO: need a way for user to tell us which vertices to schedule
   logstream(LOG_INFO) << dc.procid() << ": Scheduling all" << std::endl;
+  
+  graph.transform_edges(dispatcher::init_edge);
+  graph.transform_vertices(dispatcher::init_vertex);
   
   if (clopts.is_set("signal")){
     std::vector<std::string> ids;
@@ -335,6 +388,7 @@ int main(int argc, char** argv) {
     graph.save(saveprefix, dispatcher_writer(), false);
   
   mpi_tools::finalize();
+  ::kill(-getpid(), SIGTERM);
   return EXIT_SUCCESS;
   
 }

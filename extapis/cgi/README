@@ -2,5 +2,5 @@ Common GraphLab Interface
 -- Designed by Jiunn Haur Lim <jiunnhal@cmu.edu>
 
 [Shortest Path]
-./dispatcher --graph=toy.tsv --format=cgi --ncpus=2 --program=demoapps/shortest_path/shortest_path_cgi  --saveprefix=out
-./dispatcher --graph=toy.tsv --format=cgi --ncpus=2 --program=demoapps/shortest_path/shortest_path.rb  --saveprefix=out
+./dispatcher --graph=toy.tsv --format=cgi --ncpus=2 --program=demoapps/shortest_path/shortest_path_cgi --saveprefix=out --signal=1
+./dispatcher --graph=toy.tsv --format=cgi --ncpus=2 --program=demoapps/shortest_path/shortest_path.rb  --saveprefix=out --signal=1
