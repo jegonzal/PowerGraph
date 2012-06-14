@@ -1,4 +1,4 @@
-/**  
+/*  
  * Copyright (c) 2009 Carnegie Mellon University. 
  *     All rights reserved.
  *
@@ -37,6 +37,7 @@
 namespace graphlab {
 
   /**
+   * \ingroup group_serialization
    * \brief The serialization input archive object which, provided
    * with a reference to an istream, will read from the istream, 
    * providing deserialization capabilities.
@@ -55,36 +56,56 @@ namespace graphlab {
    *   graphlab::iarchive iarc(fin);
    * \endcode
    *
-   * Once the iarc object is constructed, \ref Serializable 
+   * Once the iarc object is constructed, \ref sec_serializable 
    * objects can be read from it using the >> stream operator.
    * 
    * \code
    *    iarc >> a >> b >> c;
    * \endcode
    *
-   * The irchive object should not be used once the associated stream 
-   * object is closed or is destroyed. 
+   * Alternatively, data can be directly read from the stream using
+   * the iarchive::read() and iarchive::read_char() functions.
    * 
+   * For more usage details, see \ref serialization
+   *
+   * The iarchive object should not be used once the associated stream 
+   * object is closed or is destroyed. 
+   *
+   * To use this class, include 
+   * graphlab/serialization/serialization_includes.hpp 
    */
   class iarchive {
   public:
     
     std::istream* in;
-    
+
+    /// Directly reads a single character from the input stream    
     inline char read_char() {
       char c;
       in->get(c);
       return c;
     }
 
+    /**
+     *  Directly reads a sequence of "len" bytes from the 
+     *  input stream into the location pointed to by "c"
+     */ 
     inline void read(char* c, size_t len) {
       in->read(c, len);
     }
-    
+   
+
+    /// Returns true if the underlying stream is in a failure state
     inline bool fail() {
       return in->fail();
     }
-    /// constructor. Takes a generic std::istream object
+
+    /**
+     * Constructs an iarchive object. 
+     * Takes a reference to a generic std::istream object and associates
+     * the archive with it. Reads from the archive will read from the 
+     * assiciated input stream.
+     */
     inline iarchive(std::istream& instream)
       : in(&instream) { }
 
@@ -94,36 +115,51 @@ namespace graphlab {
 
 
   /**
-   * An alternate input archive object. 
-   * When this object is used to deserialize an object,
+   * \ingroup group_serialization
+   * \brief 
+   * When this archive is used to deserialize an object,
    * and the object does not support serialization,
-   * failure will only occur at runtime.
-   * \see iarchive
+   * failure will only occur at runtime. Otherwise equivalent to 
+   * graphlab::iarchive.
    */
   class iarchive_soft_fail{
   public:
     
     std::istream* in;
     
+    /// Directly reads a single character from the input stream    
     inline char read_char() {
       char c;
       in->get(c);
       return c;
     }
   
-    
+    /**
+     *  Directly reads a sequence of "len" bytes from the 
+     *  input stream into the location pointed to by "c"
+     */ 
     inline void read(char* c, size_t len) {
       in->read(c, len);
     }
     
+    /// Returns true if the underlying stream is in a failure state
     inline bool fail() {
       return in->fail();
     }
     
+    /**
+     * Constructs an iarchive_soft_fail object.
+     * Takes a reference to a generic std::istream object and associates
+     * the archive with it. Reads from the archive will read from the 
+     * assiciated input stream.
+     */
     inline iarchive_soft_fail(std::istream &instream)
       : in(&instream) {}
 
-
+    /** 
+     * Constructs an iarchive_soft_fail object from an iarchive.
+     * Both will share the same input stream
+     */
     inline iarchive_soft_fail(iarchive &iarc)
       : in(iarc.in){}
   
@@ -175,7 +211,7 @@ namespace graphlab {
 
   } //namespace archive_detail
 
-
+  /// \cond GRAPHLAB_INTERNAL
 
   /**
      Allows Use of the "stream" syntax for serialization 
@@ -238,15 +274,20 @@ namespace graphlab {
     return iarc;
   }
 
+  /// \endcond GRAPHLAB_INTERNAL
+
   /**
-     Macro to make it easy to define out-of-place saves (and loads)
-     to define an "out of place" load
-     OUT_OF_PLACE_LOAD(arc, typename, tval) 
-     arc >> tval;    // do whatever deserialization stuff you need here
-     END_OUT_OF_PLACE_LOAD()
+     \ingroup group_serialization
+
+     \brief Macro to make it easy to define out-of-place loads
+    
+     In the event that it is impractical to implement a save() and load()
+     function in the class one wnats to serialize, it is necessary to define
+     an "out of save" save and load.
+
+     See \ref sec_serializable_out_of_place for an example
 
      \note important! this must be defined in the global namespace!
-     See unsupported_serialize for an example
   */
 #define BEGIN_OUT_OF_PLACE_LOAD(arc, tname, tval)       \
   namespace graphlab{ namespace archive_detail {        \

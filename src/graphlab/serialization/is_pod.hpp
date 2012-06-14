@@ -27,8 +27,21 @@
 
 namespace graphlab {
 
+  /** \ingroup group_serialization
+    \brief Inheriting from this type will force the serializer
+    to treat the derived type as a POD type.
+    */
   struct IS_POD_TYPE { };
 
+  /**
+   * \ingroup group_serialization
+   *
+   * \brief Tests if T is a POD type
+   *
+   * gl_is_pod<T>::value is true if T is a POD type (as determined by
+   * boost::is_pod) or if T inherits from IS_POD_TYPE. gl_is_pod<T>::value
+   * is false otherwise.
+   */
   template <typename T>
   struct gl_is_pod{
     // it is a pod and is not an integer since we have special handlings for integers
@@ -56,6 +69,7 @@ namespace graphlab {
 
   };
   
+  /// \internal
 
   template <typename T>
   struct gl_is_pod_or_scaler{

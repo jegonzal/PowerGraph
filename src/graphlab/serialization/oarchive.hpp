@@ -39,6 +39,7 @@
 namespace graphlab {
 
   /**
+   * \ingroup group_serialization
    * \brief The serialization output archive object which, provided
    * with a reference to an ostream, will write to the ostream, 
    * providing serialization capabilities.
@@ -56,15 +57,18 @@ namespace graphlab {
    *   graphlab::oarchive oarc(fout);
    * \endcode
    *
-   * Once the oarc object is constructed, \ref Serializable objects can be
+   * Once the oarc object is constructed, \ref sec_serializable objects can be
    * written to it using the << stream operator.
    * 
    * \code
    *    oarc << a << b << c;
    * \endcode
+   *
+   * Alternatively, data can be directly written to the stream
+   * using the oarchive::write() function.
    * 
    * Written data can be deserialized using graphlab::iarchive.
-   * For more usage details, see \ref Serializable
+   * For more usage details, see \ref serialization
    * 
    * The oarchive object should not be used once the associated stream 
    * object is closed or is destroyed.  
@@ -86,10 +90,14 @@ namespace graphlab {
     inline oarchive(std::ostream& outstream)
       : out(&outstream) {}
 
+    /** Directly writes "s" bytes from the memory location
+     * pointed to by "c" into the stream.
+     */
     inline void write(const char* c, std::streamsize s) {
       out->write(c, s);
     }
 
+    /// Returns true if the underlying stream is in a failure state
     inline bool fail() {
       return out->fail();
     }
@@ -98,11 +106,12 @@ namespace graphlab {
   };
 
   /**
-   * An alternate output archive object. 
-   * When this object is used to serialize an object,
+   * \ingroup group_serialization
+   * \brief 
+   * When this archive is used to serialize an object,
    * and the object does not support serialization,
-   * failure will only occur at runtime.
-   * \see oarchive
+   * failure will only occur at runtime. Otherwise equivalent to
+   * graphlab::oarchive
    */
   class oarchive_soft_fail{
   public:
@@ -113,10 +122,15 @@ namespace graphlab {
 
     inline oarchive_soft_fail(oarchive& oarc):out(oarc.out) {}
     
+    /** Directly writes "s" bytes from the memory location
+     * pointed to by "c" into the stream.
+     */
+
     inline void write(const char* c, std::streamsize s) {
       out->write(c, s);
     }
  
+    /// Returns true if the underlying stream is in a failure state
     inline bool fail() {
       return out->fail();
     }
@@ -190,6 +204,8 @@ namespace graphlab {
   }// archive_detail
 
 
+  /// \cond GRAPHLAB_INTERNAL
+
   /**
      Overloads the operator<< in the oarchive to
      allow the use of the stream syntax for serialization.
@@ -246,20 +262,22 @@ namespace graphlab {
     assert(!oarc.fail());
     return oarc;
   }
-
+  
+  /// \endcond GRAPHLAB_INTERNAL
 
 }
+  /**
+     \ingroup group_serialization
+     \brief Macro to make it easy to define out-of-place saves
+    
+     In the event that it is impractical to implement a save() and load()
+     function in the class one wnats to serialize, it is necessary to define
+     an "out of save" save and load.
 
-/**
-   Macro to make it easy to define out-of-place saves (and loads)
-   to define an "out of place" save
-   OUT_OF_PLACE_SAVE(arc, typename, tval) 
-   arc << tval;    // do whatever serialization stuff you need here
-   END_OUT_OF_PLACE_SAVE()
+     See \ref sec_serializable_out_of_place for an example
 
-   \note important! this must be defined in the global namespace!
-   See unsupported_serialize for an example
-*/
+     \note important! this must be defined in the global namespace!
+  */
 #define BEGIN_OUT_OF_PLACE_SAVE(arc, tname, tval)                       \
   namespace graphlab{ namespace archive_detail {                        \
   template <typename OutArcType> struct serialize_impl<OutArcType, tname, false> { \

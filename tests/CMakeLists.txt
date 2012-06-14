@@ -31,8 +31,6 @@ ADD_CXXTEST(scheduler_test.cxx)
 
 add_graphlab_executable(distributed_graph_test distributed_graph_test.cpp)
 
-add_graphlab_executable(integer_serialize_validate integer_serialize_validate.cpp)
-add_graphlab_executable(integer_serialize_bench integer_serialize_bench.cpp)
 add_graphlab_executable(cuckootest cuckootest.cpp)
 add_graphlab_executable(dc_consensus_test dc_consensus_test.cpp)
 #add_graphlab_executable(distributed_chandy_misra_test distributed_chandy_misra_test.cpp)

@@ -25,11 +25,10 @@
 /**
 \defgroup group_schedulers Schedulers
 \defgroup engine Engines
-\defgroup util_internal Internal Utility Classes
 \defgroup util GraphLab Utility Classes and Functions
 \defgroup rpc GraphLab RPC
-\defgroup rpc_internal GraphLab RPC Internal
 \defgroup random Random Number Generators
+\defgroup group_serialization Serialization
 \mainpage 
    
    \section intro_sec Introduction
@@ -63,7 +62,7 @@
 
   GraphLab is additionally supported by a serialization library, a fast parallel/thread-safe
  random number generator, as well as a flexible command line parsing system.
-  \li \ref Serialization
+  \li \ref serialization
   \li \ref random
   \li \ref graphlab::command_line_options \n
        The \ref detailed_example "detailed example" provides a good example of how this is used

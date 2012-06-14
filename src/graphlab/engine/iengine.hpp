@@ -393,7 +393,7 @@ namespace graphlab {
      * which will make it accessible to all other running update functions.
      *
      * \tparam ReductionType The output of the map function. Must have
-     *                        operator+= defined, and must be \ref Serializable.
+     *                        operator+= defined, and must be \ref sec_serializable.
      * \tparam VertexMapperType The type of the map function. 
      *                          Not generally needed.
      *                          Can be inferred by the compiler.
@@ -407,7 +407,7 @@ namespace graphlab {
      *                          a \ref vertex_type, or a reference to a 
      *                          \ref vertex_type as its second argument.
      *                          Returns a ReductionType which must be summable
-     *                          and \ref Serializable .
+     *                          and \ref sec_serializable .
      * \param [in] finalize_function The Finalize function to use. Must take
      *                               an \ref icontext_type& as its first
      *                               argument and a ReductionType, or a
@@ -460,7 +460,7 @@ namespace graphlab {
      *                          a \ref vertex_type, or a reference to a 
      *                          \ref vertex_type as its second argument.
      *                          Returns a ReductionType which must be summable
-     *                          and \ref Serializable .
+     *                          and \ref sec_serializable .
      * \param [in] finalize_function The Finalize function to use. Must take
      *                               an \ref icontext_type& as its first
      *                               argument and a ReductionType, or a
@@ -597,7 +597,7 @@ namespace graphlab {
      * which will make it accessible to all other running update functions.
      *
      * \tparam ReductionType The output of the map function. Must have
-     *                        operator+= defined, and must be \ref Serializable.
+     *                        operator+= defined, and must be \ref sec_serializable.
      * \tparam EdgeMapperType The type of the map function. 
      *                          Not generally needed.
      *                          Can be inferred by the compiler.
@@ -611,7 +611,7 @@ namespace graphlab {
      *                          a \ref edge_type, or a reference to a 
      *                          \ref edge_type as its second argument.
      *                          Returns a ReductionType which must be summable
-     *                          and \ref Serializable .
+     *                          and \ref sec_serializable .
      * \param [in] finalize_function The Finalize function to use. Must take
      *                               an \ref icontext_type& as its first
      *                               argument and a ReductionType, or a
@@ -667,7 +667,7 @@ namespace graphlab {
      *                          a \ref vertex_type, or a reference to a 
      *                          \ref vertex_type as its second argument.
      *                          Returns a ReductionType which must be summable
-     *                          and \ref Serializable .
+     *                          and \ref sec_serializable .
      * \param [in] finalize_function The Finalize function to use. Must take
      *                               an \ref icontext_type& as its first
      *                               argument and a ReductionType, or a
@@ -792,7 +792,7 @@ namespace graphlab {
     * but may also make modifications to graph data.
     *
     * \tparam ResultType The output of the map function. Must have
-    *                    operator+= defined, and must be \ref Serializable.
+    *                    operator+= defined, and must be \ref sec_serializable.
     * \tparam VertexMapperType The type of the map function. 
     *                          Not generally needed.
     *                          Can be inferred by the compiler.
@@ -801,7 +801,7 @@ namespace graphlab {
     *                   a \ref vertex_type, or a reference to a 
     *                   \ref vertex_type as its second argument.
     *                   Returns a ResultType which must be summable
-    *                   and \ref Serializable .
+    *                   and \ref sec_serializable .
     */
     template <typename ResultType, typename VertexMapperType>
     ResultType map_reduce_vertices(VertexMapperType mapfunction) {
@@ -887,7 +887,7 @@ namespace graphlab {
     * but may also make modifications to graph data.
     *
     * \tparam ResultType The output of the map function. Must have
-    *                    operator+= defined, and must be \ref Serializable.
+    *                    operator+= defined, and must be \ref sec_serializable.
     * \tparam EdgeMapperType The type of the map function. 
     *                          Not generally needed.
     *                          Can be inferred by the compiler.
@@ -896,7 +896,7 @@ namespace graphlab {
     *                   a \ref edge_type, or a reference to a 
     *                   \ref edge_type as its second argument.
     *                   Returns a ResultType which must be summable
-    *                   and \ref Serializable .
+    *                   and \ref sec_serializable .
     */
     template <typename ResultType, typename EdgeMapperType>
     ResultType map_reduce_edges(EdgeMapperType mapfunction) {

@@ -193,7 +193,7 @@ namespace graphlab {
      * interface and is the value returned by the
      * \ref graphlab::ivertex_program::gather function.  The
      * gather type must have an <code>operator+=(const gather_type&
-     * other)</code> function and must be \ref serializable.
+     * other)</code> function and must be \ref sec_serializable.
      */
     typedef typename VertexProgram::gather_type gather_type;
 
@@ -205,21 +205,21 @@ namespace graphlab {
      * interface and used in the call to \ref graphlab::icontext::signal.
      * The message type must have an
      * <code>operator+=(const gather_type& other)</code> function and
-     * must be \ref serializable.
+     * must be \ref sec_serializable.
      */
     typedef typename VertexProgram::message_type message_type;
 
     /**
      * \brief The type of data associated with each vertex in the graph
      *
-     * The vertex data type must be \ref serializable.
+     * The vertex data type must be \ref sec_serializable.
      */
     typedef typename VertexProgram::vertex_data_type vertex_data_type;
 
     /**
      * \brief The type of data associated with each edge in the graph
      *
-     * The edge data type must be \ref serializable.
+     * The edge data type must be \ref sec_serializable.
      */
     typedef typename VertexProgram::edge_data_type edge_data_type;
 

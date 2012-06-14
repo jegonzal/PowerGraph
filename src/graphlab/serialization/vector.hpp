@@ -62,7 +62,7 @@ namespace graphlab {
     template <typename OutArcType, typename ValueType>
     struct vector_serialize_impl<OutArcType, ValueType, false > {
       static void exec(OutArcType& oarc, const std::vector<ValueType>& vec) {
-        serialize_impl<OutArcType, size_t, false>::exec(oarc, vec.size());
+        oarc << size_t(vec.size());
         serialize_iterator(oarc,vec.begin(), vec.end());
       }
     };
@@ -71,7 +71,7 @@ namespace graphlab {
     template <typename OutArcType, typename ValueType>
     struct vector_serialize_impl<OutArcType, ValueType, true > {
       static void exec(OutArcType& oarc, const std::vector<ValueType>& vec) {
-        serialize_impl<OutArcType, size_t, false>::exec(oarc, vec.size());
+        oarc << size_t(vec.size());
         serialize(oarc, &(vec[0]),sizeof(ValueType)*vec.size());
       }
     };
@@ -81,7 +81,7 @@ namespace graphlab {
     struct vector_deserialize_impl<InArcType, ValueType, false > {
       static void exec(InArcType& iarc, std::vector<ValueType>& vec){
         size_t len;
-        deserialize_impl<InArcType, size_t, false>::exec(iarc, len);
+        iarc >> len;
         vec.clear(); vec.reserve(len);
         deserialize_iterator<InArcType, ValueType>(iarc, std::inserter(vec, vec.end()));
       }
@@ -92,7 +92,7 @@ namespace graphlab {
     struct vector_deserialize_impl<InArcType, ValueType, true > {
       static void exec(InArcType& iarc, std::vector<ValueType>& vec){
         size_t len;
-        deserialize_impl<InArcType, size_t, false>::exec(iarc, len);
+        iarc >> len;
         vec.clear(); vec.resize(len);
         deserialize(iarc, &(vec[0]), sizeof(ValueType)*vec.size());
       }

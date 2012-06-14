@@ -1,4 +1,4 @@
-/**  
+/*  
  * Copyright (c) 2009 Carnegie Mellon University. 
  *     All rights reserved.
  *
@@ -26,9 +26,7 @@
 
 #include <typeinfo>
 
-/**
-   Detects if a class has a load function implemented
-*/
+
 namespace graphlab {
   namespace archive_detail {
 

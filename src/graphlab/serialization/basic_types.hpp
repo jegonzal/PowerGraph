@@ -1,4 +1,4 @@
-/**  
+/*  
  * Copyright (c) 2009 Carnegie Mellon University. 
  *     All rights reserved.
  *
@@ -29,31 +29,8 @@
 #define ARCHIVE_BASIC_TYPES_HPP
 
 #include <string>
-#include <graphlab/serialization/integer.hpp>
 #include <graphlab/serialization/serializable_pod.hpp>
 #include <graphlab/logger/assertions.hpp>
-
-/***************************************************************************
- *                        Basic Serializers                                * 
- ***************************************************************************/
-// generate the operator<< call for a whole bunch of integer types
-
-
-#define INT_SERIALIZE(tname)                                            \
-  template <typename OutArcType>                                           \
-  struct serialize_impl<OutArcType, tname, false>{                         \
-    static void exec(OutArcType& oarc, const tname& t) {                   \
-      oarc.write(reinterpret_cast<const char*>(&t), sizeof(tname));     \
-    }                                                                   \
-  };                                                                    \
-  template <typename InArcType>                                           \
-  struct deserialize_impl<InArcType, tname, false>{                       \
-    static void exec(InArcType& iarc, tname& t) {                         \
-      decompress_int<InArcType, tname>(iarc, t);                          \
-    }                                                                   \
-  };
-
-
 
 
 namespace graphlab {
@@ -64,21 +41,6 @@ namespace graphlab {
 
 namespace graphlab {
   namespace archive_detail {
-    /*
-     * Generate serializers and deserializers for all integer types
-     */
-    INT_SERIALIZE(bool);
-    INT_SERIALIZE(char);
-    INT_SERIALIZE(unsigned char);
-    INT_SERIALIZE(short);
-    INT_SERIALIZE(unsigned short);
-    INT_SERIALIZE(int);
-    INT_SERIALIZE(long);
-    INT_SERIALIZE(long long);
-    INT_SERIALIZE(unsigned long);
-    INT_SERIALIZE(unsigned int);
-    INT_SERIALIZE(unsigned long long);
-
 
     /** Serialization of null terminated const char* strings.
      * This is necessary to serialize constant strings like
@@ -92,7 +54,7 @@ namespace graphlab {
         // save the length
         // ++ for the \0
         size_t length = strlen(s); length++;
-        serialize_impl<OutArcType, size_t, false>::exec(oarc, length);
+        oarc << length;
         oarc.write(reinterpret_cast<const char*>(s), length);
         DASSERT_FALSE(oarc.fail());
       }
@@ -104,7 +66,7 @@ namespace graphlab {
     struct serialize_impl<OutArcType, char [len], false> {
       static void exec(OutArcType& oarc, const char s[len] ) { 
         size_t length = len;
-        serialize_impl<OutArcType, size_t, false>::exec(oarc, length);
+        oarc << length;
         oarc.write(reinterpret_cast<const char*>(s), length);
         DASSERT_FALSE(oarc.fail());
       }
@@ -118,7 +80,7 @@ namespace graphlab {
         // save the length
         // ++ for the \0
         size_t length = strlen(s); length++;
-        serialize_impl<OutArcType, size_t, false>::exec(oarc, length);
+        oarc << length;
         oarc.write(reinterpret_cast<const char*>(s), length);
         DASSERT_FALSE(oarc.fail());
       }
@@ -130,7 +92,7 @@ namespace graphlab {
       static void exec(InArcType& iarc, char*& s) {
         // Save the length and check if lengths match
         size_t length;
-        deserialize_impl<InArcType, size_t, false>::exec(iarc, length);
+        iarc >> length;
         s = new char[length];
         //operator>> the rest
         iarc.read(reinterpret_cast<char*>(s), length);
@@ -143,7 +105,7 @@ namespace graphlab {
     struct deserialize_impl<InArcType, char [len], false> {
       static void exec(InArcType& iarc, char s[len]) { 
         size_t length;
-        deserialize_impl<InArcType, size_t, false>::exec(iarc, length);
+        iarc >> length;
         ASSERT_LE(length, len);
         iarc.read(reinterpret_cast<char*>(s), length);
         DASSERT_FALSE(iarc.fail());
@@ -157,7 +119,7 @@ namespace graphlab {
     struct serialize_impl<OutArcType, std::string, false> {
       static void exec(OutArcType& oarc, const std::string& s) {
         size_t length = s.length();
-        serialize_impl<OutArcType, size_t, false>::exec(oarc, length);
+        oarc << length;
         oarc.write(reinterpret_cast<const char*>(s.c_str()), 
                    (std::streamsize)length);
         DASSERT_FALSE(oarc.fail());
@@ -171,7 +133,7 @@ namespace graphlab {
       static void exec(InArcType& iarc, std::string& s) {
         //read the length
         size_t length;
-        deserialize_impl<InArcType, size_t, false>::exec(iarc, length);
+        iarc >> length;
         //resize the string and read the characters
         s.resize(length);
         iarc.read(const_cast<char*>(s.c_str()), (std::streamsize)length);
@@ -183,10 +145,7 @@ namespace graphlab {
     template <typename OutArcType, typename T, typename U>
     struct serialize_impl<OutArcType, std::pair<T, U>, false > {
       static void exec(OutArcType& oarc, const std::pair<T, U>& s) {
-        serialize_impl<OutArcType, 
-                       T, gl_is_pod<T>::value >::exec(oarc, s.first);
-        serialize_impl<OutArcType, 
-                       U, gl_is_pod<U>::value >::exec(oarc, s.second);
+        oarc << s.first << s.second;
       }
     };
 
@@ -195,10 +154,7 @@ namespace graphlab {
     template <typename InArcType, typename T, typename U>
     struct deserialize_impl<InArcType, std::pair<T, U>, false > {
       static void exec(InArcType& iarc, std::pair<T, U>& s) {
-        deserialize_impl<InArcType, 
-                         T, gl_is_pod<T>::value >::exec(iarc, s.first);
-        deserialize_impl<InArcType, 
-                         U, gl_is_pod<U>::value >::exec(iarc, s.second);
+        iarc >> s.first >> s.second;
       }
     };
 
