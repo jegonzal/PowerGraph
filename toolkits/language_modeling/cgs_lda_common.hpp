@@ -43,28 +43,31 @@ extern size_t TOPK;
 extern size_t INTERVAL;
 extern factor_type GLOBAL_TOPIC_COUNT;
 extern std::vector<std::string> DICTIONARY;
-
+extern size_t MAX_COUNT;
 
 inline factor_type& operator+=(factor_type& lvalue, const factor_type& rvalue) {
   if(rvalue.empty()) return lvalue;
-  if(lvalue.size() != rvalue.size());
-  for(size_t t = 0; t < lvalue.size(); ++t) lvalue[t] += rvalue[t];
+  if(lvalue.size() != NTOPICS) lvalue = rvalue;
+  else {
+    for(size_t t = 0; t < lvalue.size(); ++t) lvalue[t] += rvalue[t];
+  }
   return lvalue;
 } // end of operator +=
+
 
 
 /**
  * The vertex data type
  */
 struct vertex_data {
-  factor_type factor;
   size_t nupdates, nchanges;
-  vertex_data() : nupdates(0), nchanges(0) { }
+  factor_type factor;
+  vertex_data() : nupdates(0), nchanges(0), factor(NTOPICS) { }
   void save(graphlab::oarchive& arc) const { 
-    arc << factor << nupdates << nchanges; 
+    arc << nupdates << nchanges << factor; 
   }
   void load(graphlab::iarchive& arc) { 
-    arc >> factor >> nupdates >> nchanges; 
+    arc >> nupdates >> nchanges >> factor; 
   } 
 }; // end of vertex_data
 
@@ -86,6 +89,7 @@ typedef graphlab::distributed_graph<vertex_data, edge_data> graph_type;
 
 bool graph_loader(graph_type& graph, const std::string& fname, 
                   const std::string& line);
+
 
 inline void initialize_vertex_data(graph_type::vertex_type& vertex) {
   vertex.data().factor.resize(NTOPICS);
@@ -135,7 +139,7 @@ public:
   topk_aggregator& operator+=(const topk_aggregator& other) {
     nchanges += other.nchanges;
     if(other.top_words.empty()) return *this;
-    if(top_words.size() < other.top_words.size())
+    if(top_words.empty()) 
       top_words.resize(other.top_words.size());
     for(size_t i = 0; i < top_words.size(); ++i) {
       // Merge the topk
@@ -194,9 +198,13 @@ struct global_counts_aggregator {
   } // end of map function
 
   static void finalize(IContext& context, const factor_type& total) {
-    for(size_t t = 0; t < total.size(); ++t)
+    context.cout() << "Global topic count: ";
+    for(size_t t = 0; t < total.size(); ++t) {
       GLOBAL_TOPIC_COUNT[t] =
         std::max(count_type(total[t]/2), count_type(0));
+      context.cout() << GLOBAL_TOPIC_COUNT[t] << "\t";
+    }
+    std::cout << std::endl;
   } // end of finalize
 }; // end of global_counts_aggregator struct
 

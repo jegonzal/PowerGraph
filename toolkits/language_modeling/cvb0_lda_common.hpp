@@ -43,12 +43,14 @@ extern size_t TOPK;
 extern size_t INTERVAL;
 extern factor_type GLOBAL_TOPIC_COUNT;
 extern std::vector<std::string> DICTIONARY;
-extern bool BINARY_OBS;
+extern size_t MAX_COUNT;
 
 inline factor_type& operator+=(factor_type& lvalue, const factor_type& rvalue) {
   if(rvalue.empty()) return lvalue;
-  if(lvalue.size() != NTOPICS) lvalue.resize(NTOPICS);
-  for(size_t t = 0; t < lvalue.size(); ++t) lvalue[t] += rvalue[t];
+  if(lvalue.size() != NTOPICS) lvalue = rvalue;
+  else {
+    for(size_t t = 0; t < lvalue.size(); ++t) lvalue[t] += rvalue[t];
+  }
   return lvalue;
 } // end of operator +=
 

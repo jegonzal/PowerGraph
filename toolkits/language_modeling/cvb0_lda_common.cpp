@@ -38,15 +38,25 @@ size_t TOPK     = 5;
 size_t INTERVAL = 10;
 factor_type GLOBAL_TOPIC_COUNT;
 std::vector<std::string> DICTIONARY;
-bool BINARY_OBS = false;
+size_t MAX_COUNT = 100;
 
 bool graph_loader(graph_type& graph, const std::string& fname, 
                   const std::string& line) {
   ASSERT_FALSE(line.empty()); 
-  std::stringstream strm(line);
-  graph_type::vertex_id_type doc_id(-1), word_id(-1);
-  size_t count(0);
-  strm >> doc_id >> word_id >> count;
+  const int BASE = 10;
+  char* next_char_ptr = NULL;
+  graph_type::vertex_id_type doc_id = 
+    strtoul(line.c_str(), &next_char_ptr, BASE);
+  if(next_char_ptr == NULL) return false;
+  const graph_type::vertex_id_type word_id = 
+    strtoul(next_char_ptr, &next_char_ptr, BASE);
+  if(next_char_ptr == NULL) return false;
+  size_t count = 
+    strtoul(next_char_ptr, &next_char_ptr, BASE);
+  if(next_char_ptr == NULL) return false;
+  
+  count = std::min(count, MAX_COUNT);
+
   // since this is a bipartite graph I need a method to number the
   // left and right vertices differently.  To accomplish I make sure
   // all vertices have non-zero ids and then negate the right vertex.
@@ -54,7 +64,7 @@ bool graph_loader(graph_type& graph, const std::string& fname,
   ASSERT_GT(doc_id, 1); 
   doc_id = -doc_id;
   ASSERT_NE(doc_id, word_id);
-  if(BINARY_OBS) count = 1;
+
   // Create an edge and add it to the graph
   graph.add_edge(doc_id, word_id, edge_data(count));
   return true; // successful load

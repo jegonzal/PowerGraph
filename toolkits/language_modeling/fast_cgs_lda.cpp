@@ -84,13 +84,10 @@ public:
       for(size_t t = 0; t < NTOPICS; ++t) {
         const double n_dt = 
           std::max(count_type(doc_topic_count[t]), count_type(0));
-        ASSERT_GE(n_dt, 0);
         const double n_wt = 
           std::max(count_type(word_topic_count[t]), count_type(0)); 
-        ASSERT_GE(n_wt, 0);
         const double n_t  = 
           std::max(count_type(GLOBAL_TOPIC_COUNT[t]), count_type(0)); 
-        ASSERT_GE(n_t, 0);
         prob[t] = (ALPHA + n_dt) * (BETA + n_wt) / (BETA * NWORDS + n_t);
       }
       asg = graphlab::random::multinomial(prob);
@@ -190,6 +187,9 @@ int main(int argc, char** argv) {
                        "The number of words to report");
   clopts.attach_option("interval", &INTERVAL, INTERVAL,
                        "statistics reporting interval");
+  clopts.attach_option("max_count", &MAX_COUNT, MAX_COUNT,
+                       "The maximum number of occurences of a word in a document.");
+
   if(!clopts.parse(argc, argv)) {
     graphlab::mpi_tools::finalize();
     return clopts.is_set("help")? EXIT_SUCCESS : EXIT_FAILURE;
@@ -204,6 +204,7 @@ int main(int argc, char** argv) {
     logstream(LOG_ERROR) << "No matrix file was provided." << std::endl;
     return EXIT_FAILURE;
   }
+
 
   ///! Initialize global variables
   GLOBAL_TOPIC_COUNT.resize(NTOPICS);
