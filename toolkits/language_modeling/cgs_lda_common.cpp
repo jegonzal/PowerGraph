@@ -76,8 +76,8 @@ bool graph_loader(graph_type& graph, const std::string& fname,
 
 /** populate the global dictionary */
 bool load_dictionary(const std::string& fname) {
-  std::cout << "staring load on: " 
-            << graphlab::get_local_ip_as_str() << std::endl;
+  // std::cout << "staring load on: " 
+  //           << graphlab::get_local_ip_as_str() << std::endl;
   const bool gzip = boost::ends_with(fname, ".gz");
   // test to see if the graph_dir is an hadoop path
   if(boost::starts_with(fname, "hdfs://")) {
@@ -116,9 +116,8 @@ bool load_dictionary(const std::string& fname) {
     fin.pop();
     in_file.close();
   } // end of else
-  std::cout << "Finished load on: " 
-            << graphlab::get_local_ip_as_str() << std::endl;
-
+  // std::cout << "Finished load on: " 
+  //           << graphlab::get_local_ip_as_str() << std::endl;
   std::cout << "Dictionary Size: " << DICTIONARY.size() << std::endl;
   return true;
 } // end of load dictionary

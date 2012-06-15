@@ -32,22 +32,22 @@
 #include <graphlab/macros_def.hpp>
 
 
-struct gather_type {
-  factor_type factor;
-  size_t nchanges;
-  gather_type() : nchanges(0) { };
-  void save(graphlab::oarchive& arc) const { arc << factor << nchanges; }
-  void load(graphlab::iarchive& arc) { arc >> factor >> nchanges; }
-  gather_type& operator+=(const gather_type& other) {
-    factor += other.factor;
-    nchanges += other.nchanges;
-    return *this;
-  }
-}; // end of gather type
+// struct gather_type {
+//   factor_type factor;
+//   size_t nchanges;
+//   gather_type() : nchanges(0) { };
+//   void save(graphlab::oarchive& arc) const { arc << factor << nchanges; }
+//   void load(graphlab::iarchive& arc) { arc >> factor >> nchanges; }
+//   gather_type& operator+=(const gather_type& other) {
+//     factor += other.factor;
+//     nchanges += other.nchanges;
+//     return *this;
+//   }
+// }; // end of gather type
 
 
 class cgs_lda_vertex_program :
-  public graphlab::ivertex_program<graph_type, gather_type>,
+  public graphlab::ivertex_program<graph_type, factor_type>,
   public graphlab::IS_POD_TYPE {
 public:
 
@@ -56,24 +56,46 @@ public:
     return graphlab::ALL_EDGES;
   } // end of gather_edges 
 
-  gather_type gather(icontext_type& context, const vertex_type& vertex, 
+  factor_type gather(icontext_type& context, const vertex_type& vertex, 
                      edge_type& edge) const {
-    gather_type ret_value; ret_value.factor.resize(NTOPICS);
-    vertex_type other_vertex = get_other_vertex(edge, vertex);
-    // VIOLATING THE ABSTRACTION!
-    vertex_data& vdata = graph_type::vertex_type(vertex).data();
-    // VIOLATING THE ABSTRACTION!
-    vertex_data& other_vdata = other_vertex.data();
-    factor_type& doc_topic_count = 
-      is_doc(vertex) ? vdata.factor : other_vdata.factor;
-    factor_type& word_topic_count = 
-      is_word(vertex) ? vdata.factor : other_vdata.factor;
+    factor_type factor(NTOPICS);
+    const assignment_type& assignment = edge.data();
+    foreach(topic_id_type asg, assignment) {
+      if(asg != NULL_TOPIC) ++factor[asg];
+    }
+    return factor;
+  } // end of gather
+
+  void apply(icontext_type& context, vertex_type& vertex,
+             const factor_type& sum_factor) {
+    const size_t num_neighbors = vertex.num_in_edges() + vertex.num_out_edges();
+    ASSERT_GT(num_neighbors, 0);
+    // There should be no new edge data since the vertex program has been cleared
+    vertex_data& vdata = vertex.data();
+    ASSERT_EQ(sum_factor.size(), NTOPICS);
+    ASSERT_EQ(vdata.factor.size(), NTOPICS);
+    vdata.nupdates++; 
+    vdata.factor = sum_factor;
+  } // end of apply
+
+  edge_dir_type scatter_edges(icontext_type& context,
+                              const vertex_type& vertex) const { 
+    return graphlab::ALL_EDGES; 
+  }; // end of scatter edges
+
+  void scatter(icontext_type& context, const vertex_type& vertex, 
+               edge_type& edge) const {
+    factor_type& doc_topic_count =  is_doc(edge.source()) ? 
+      edge.source().data().factor : edge.target().data().factor;
+    factor_type& word_topic_count = is_word(edge.source()) ? 
+      edge.source().data().factor : edge.target().data().factor;
     ASSERT_EQ(doc_topic_count.size(), NTOPICS);
     ASSERT_EQ(word_topic_count.size(), NTOPICS);
     // run the actual gibbs sampling 
     std::vector<double> prob(NTOPICS);
     assignment_type& assignment = edge.data();
     // Resample the topics
+    size_t nchanges = 0;
     foreach(topic_id_type& asg, assignment) {
       const topic_id_type old_asg = asg;
       if(asg != NULL_TOPIC) { // construct the cavity
@@ -91,39 +113,14 @@ public:
         prob[t] = (ALPHA + n_dt) * (BETA + n_wt) / (BETA * NWORDS + n_t);
       }
       asg = graphlab::random::multinomial(prob);
+      // asg = std::max_element(prob.begin(), prob.end()) - prob.begin();
       ++doc_topic_count[asg];
       ++word_topic_count[asg];                    
       ++GLOBAL_TOPIC_COUNT[asg];
-      ++ret_value.factor[asg];
-      if(asg != old_asg) ++ret_value.nchanges;
+      if(asg != old_asg) ++nchanges;
     } // End of loop over each token
-    return ret_value;
-  } // end of gather
-
-
-  void apply(icontext_type& context, vertex_type& vertex,
-             const gather_type& sum) {
-    const size_t num_neighbors = vertex.num_in_edges() + vertex.num_out_edges();
-    ASSERT_GT(num_neighbors, 0);
-    // There should be no new edge data since the vertex program has been cleared
-    vertex_data& vdata = vertex.data();
-    ASSERT_EQ(sum.factor.size(), NTOPICS);
-    ASSERT_EQ(vdata.factor.size(), NTOPICS);
-    vdata.nupdates++; vdata.nchanges = sum.nchanges;
-    vdata.factor = sum.factor;
-    // if(vertex.id() % 1000 == 0) 
-    //   std::cout << vertex.id() << "--> " << vdata.nchanges << std::endl;
-  } // end of apply
-
-  edge_dir_type scatter_edges(icontext_type& context,
-                              const vertex_type& vertex) const { 
-    return graphlab::ALL_EDGES; 
-  }; // end of scatter edges
-
-  void scatter(icontext_type& context, const vertex_type& vertex, 
-               edge_type& edge) const {
-    const vertex_type other_vertex = get_other_vertex(edge, vertex);
-    context.signal(other_vertex);
+    // singla the other vertex
+    context.signal(get_other_vertex(edge, vertex));
   } // end of scatter function
 
 }; // end of cgs_lda_vertex_program
@@ -221,6 +218,10 @@ int main(int argc, char** argv) {
     logstream(LOG_ERROR) << "Error loading graph." << std::endl;
     return EXIT_FAILURE;
   }
+
+
+  const size_t ntokens = graph.map_reduce_edges<size_t>(count_tokens);
+  dc.cout() << "Total tokens: " << ntokens << std::endl;
 
 
   
