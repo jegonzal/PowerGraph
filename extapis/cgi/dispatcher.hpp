@@ -79,6 +79,8 @@ namespace graphlab {
     void scatter(icontext_type& context, const vertex_type& vertex, edge_type& edge) const;
     void save(oarchive& oarc) const;
     void load(iarchive& iarc);
+    static void init_edge(graph_type::edge_type edge);
+    static void init_vertex(graph_type::vertex_type vertex);
     static bool read_graph(graph_type& graph,
                           const std::string& filename,
                           const std::string& textline);

@@ -6,4 +6,4 @@ add_graphlab_executable(dispatcher rapidjson.cpp dispatcher.cpp json_message.cpp
 # test files
 copy_files(*.tsv)
 
-subdirs(demoapps)
+subdirs(demoapps) 

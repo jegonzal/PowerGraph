@@ -76,6 +76,8 @@ void process::redirect_io (){
     CHECK (0 <= ::dup2(ipipefd[1], 1));
     CHECK (!::close(opipefd[0]));
     CHECK (!::close(ipipefd[1]));
+    pid_t ppid = ::getppid();
+    CHECK(!::setpgid(0, ppid));
     CHECK(0 <= ::execv(executable.c_str(), cargs));
   } /* child process goes no further than here */
 

@@ -70,8 +70,12 @@ begin
   # invoke
   raise IOError, "Missing method field" if (nil == method)
   break if "exit" == method
-  raise IOError, "Unrecognized method: " + method if not h.respond_to? method
-  json = h.send method, json
+  
+  json = if h.respond_to? method
+    h.send method, json
+  else
+    {}
+  end
 
   # return
   return_str = JSON.generate json
@@ -81,4 +85,5 @@ begin
 
 rescue EOFError
   STDERR.write "Pipe broken"
+  exit
 end while true
