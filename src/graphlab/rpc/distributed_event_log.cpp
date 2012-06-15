@@ -30,7 +30,6 @@
 #include <graphlab/util/timer.hpp>
 #include <graphlab/logger/assertions.hpp>
 
-#define EVENT_BAR_WIDTH 40
 
 namespace graphlab {
 
@@ -209,42 +208,6 @@ namespace graphlab {
     c.average = c.total / vec.size();
   }
 
-
-
-  static void print_bar(std::ostream& out,
-                        size_t val,
-                        size_t len) {
-    // compute the bar lengths
-    if (len == 0) return;
-    val = val * EVENT_BAR_WIDTH / len;
-    if (val > EVENT_BAR_WIDTH) val = EVENT_BAR_WIDTH;
-    size_t i = 0;
-    for (i = 0; i < val; ++i) out.put('#');
-    for (; i < EVENT_BAR_WIDTH; ++i) out.put(' ');
-  }
-
-  static void print_triple_bar(std::ostream& out,
-                               size_t low,
-                               size_t mid,
-                               size_t high,
-                               size_t len) {
-    // compute the bar lengths
-    if (len == 0) return;
-    low = low * EVENT_BAR_WIDTH / len;
-    if (low > EVENT_BAR_WIDTH) low = EVENT_BAR_WIDTH;
-
-    mid = mid * EVENT_BAR_WIDTH / len;
-    if (mid > EVENT_BAR_WIDTH) mid = EVENT_BAR_WIDTH;
-  
-    high = high * EVENT_BAR_WIDTH / len;
-    if (high > EVENT_BAR_WIDTH) high = EVENT_BAR_WIDTH;
-    size_t i = 0;
-    for (i = 0; i < low; ++i) out.put('-');
-    for (; i < mid; ++i) out.put('*');
-    for (; i < high; ++i) out.put('#');
-    for (; i < EVENT_BAR_WIDTH; ++i) out.put(' ');
-  }
-  
   void dist_event_log::print_log() {
     uint32_t pos;
     if (!hascounter.first_bit(pos)) return;
@@ -264,26 +227,7 @@ namespace graphlab {
   
     // reset the counter
     hascounter.first_bit(pos);
-    if (print_method == NUMBER) {
-      do {
-        found_events = found_events || stats[pos].total > 0;
-        (*out) << pos  << ":\t" << curtime << "\t" << stats[pos].minimum << "\t"
-               << stats[pos].average << "\t" << stats[pos].maximum << "\t"
-               << stats[pos].total << "\t" << 1000 * stats[pos].total / timegap << " /s\n";
-      } while(hascounter.next_bit(pos));
-      if (!immediate_events.empty()) { 
-        m.lock();
-        std::vector<std::pair<unsigned char, size_t> > cur;
-        cur.swap(immediate_events);
-        m.unlock();
-        for (size_t i = 0;i < cur.size(); ++i) {
-          (*out) << (size_t)cur[i].first << ":\t" << cur[i].second << "\t" << -1 << "\t"
-                 << -1 << "\t" << -1 << "\t" << -1 << "\t" << 0 << " /s\n";
-        }
-      }
-      out->flush();
-    }
-    else if (print_method == DESCRIPTION) {
+    if (print_method == DESCRIPTION) {
       do {
         found_events = found_events || stats[pos].total > 0;
         (*out) << descriptions[pos]  << ":\t" << curtime << "\t" << stats[pos].minimum << "\t"
@@ -318,40 +262,6 @@ namespace graphlab {
       }
       out->flush();
       get_state().eventlog_file_mutex.unlock();
-    }
-    else if (print_method == RATE_BAR) {
-      (*out) << "Time: " << "+"<<timegap << "\t" << curtime << "\n";
-
-      char spacebuf[60];
-      memset(spacebuf, ' ', EVENT_BAR_WIDTH);
-      do {
-        found_events = found_events || stats[pos].total > 0;
-        maxcounter[pos] = std::max(maxcounter[pos], stats[pos].maximum);
-        maxproc_counter[pos] = std::max(maxcounter[pos], stats[pos].maximum);
-      
-        // print the description prefix
-        spacebuf[max_desc_length - descriptions[pos].length() + 1] = 0;
-        (*out) << descriptions[pos]  << spacebuf << "|";
-
-        print_triple_bar(*out,
-                         stats[pos].minimum,
-                         stats[pos].average,
-                         stats[pos].maximum,
-                         maxproc_counter[pos]);
-        (*out) << "| " << stats[pos].minimum << " " <<
-          stats[pos].average << " " <<
-          stats[pos].maximum << "\n";
-
-        // print description prefix again
-        (*out) << descriptions[pos]  << spacebuf << "|";
-
-        print_bar(*out, stats[pos].total, maxcounter[pos]);
-        // reset the space buffer
-        spacebuf[max_desc_length - descriptions[pos].length() + 1] =' ';
-
-        (*out) << "| " << stats[pos].total << " : " << maxcounter[pos] << " \n\n";
-      } while(hascounter.next_bit(pos));
-      out->flush();
     }
     if (found_events == false) {
       ++noeventctr;
