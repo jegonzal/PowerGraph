@@ -34,8 +34,9 @@
 namespace graphlab {
   /**
    * \ingroup rpc
-   * This implements a distributed consensus algorithm which waits
+   * \brief This implements a distributed consensus algorithm which waits
    * for global completion of all computation/RPC events on a given object.
+   *
    * The use case is as follows:
    * 
    * A collection of threads on a collection of distributed machines, each
@@ -68,10 +69,10 @@ namespace graphlab {
    *      consensus.begin_done_critical_section();
    *      // if still no work to be done
    *      if (no work to be done) {
-   *        done = consensus.end_done_critical_section(true);
+   *        done = consensus.end_done_critical_section();
    *      }
    *      else {
-   *        consensus.end_done_critical_section(false);
+   *        consensus.cancel_critical_section();
    *      }
    *    }
    * }
@@ -80,56 +81,81 @@ namespace graphlab {
    * 
    * Additionally, incoming RPC calls which create work must ensure there are
    * active threads which are capable of processing the work. An easy solution 
-   * will be to simply consensus.cancel_one(). Other more optimized solutions
+   * will be to simply cancel_one(). Other more optimized solutions
    * include keeping a counter of the number of active threads, and only calling
    * cancel() or cancel_one() if all threads are asleep. (Note that the optimized
    * solution does require some care to ensure dead-lock free execution).
    */
   class async_consensus {
   public:
-    /// attaches to the "attach" object if provided. if NULL, attaches to the main DC
+    /** \brief Constructs an asynchronous consensus object
+      *
+      * The consensus procedure waits till all threads have no work to do and are 
+      * waiting in consensus, and there is no communication going on which
+      * could wake up a thread. The consensus object is therefore associated
+      * with a communication context, either a graphlab::dc_dist_object,
+      * or the global context (the root distributed_control).
+      * 
+      * \param dc The distributed control object to use for communication
+      * \param required_threads_in_done local consensus is achieved if this many
+      *                                 threads are waiting for consensus locally.
+      * \param attach The context to associate with. If NULL, we associate with
+      *               the global context. 
+      */
     async_consensus(distributed_control &dc, size_t required_threads_in_done = 1,
                     const dc_impl::dc_dist_object_base* attach = NULL);
 
 
     /**
-     * A thread enters the critical section by calling
-     * this function. after which it should check its termination 
-     * condition locally, before calling end_done_critical_section
+     * \brief A thread enters the critical section by calling
+     * this function. 
+     *  
+     * After which it should check its termination 
+     * condition locally. If termination condition
+     * is still fulfilled, end_done_critical_section() should be called.
+     * Otherwise cancel_critical_section() should be called.
+     *
+     * \param cpuid Thread ID of the thread.
      */
     void begin_done_critical_section(size_t cpuid);
 
-    void cancel_critical_section(size_t cpuid);
     /**
-     * end_done_critical_section() closes the critical section.
+     * \brief Leaves the critical section because termination condition
+     * is not fullfilled.
+     *
+     * See begin_done_critical_section()
+     * \param cpuid Thread ID of the thread.
+     */
+    void cancel_critical_section(size_t cpuid);
+
+    /**
+     * \brief Thread must call this function if termination condition
+     * is fullfilled while in the critical section. 
+     *
+     * See begin_done_critical_section()
      * 
-     * If done is set, it is equivalent to calling done() within the
-     * critical section, and the thread will block. 
-     * It will then returns true if global consensus is achieved, or will
-     * return false if cancelled.
-     * 
-     * If done is not set, the thread will close the critical section
-     * and return immediately
+     * \param cpuid Thread ID of the thread.
+     * \returns True if global consensus is achieved. False otherwise. 
      */
     bool end_done_critical_section(size_t cpuid);
 
     /**
-     * Forces the consensus to be set
+     * \brief Forces the consensus to be set
      */
     void force_done();
   
     
-    /// Wakes up all local threads waiting in done()
+    /// \brief Wakes up all local threads waiting in done()
     void cancel();
 
-    /// Wakes up one thread waiting in done()
+    /// \brief Wakes up a specific thread waiting in done()
     void cancel_one(size_t cpuid);
 
-    /// Returns true if consensus is achieved.
+    /// \brief Returns true if consensus is achieved.
     bool is_done() const {
       return done;
     }
-    /** Resets the consensus object. Must be called simultaneously by
+    /** \brief Resets the consensus object. Must be called simultaneously by
      * exactly one thread on each machine.
      * This function is not safe to call while consensus is being achieved.
      */

@@ -121,20 +121,6 @@ unsigned char distributed_control::get_sequentialization_key() {
   return (unsigned char)oldval;
 }
 
-static std::string get_working_dir() {
-#ifdef _GNU_SOURCE
-  char* path = get_current_dir_name();
-  assert(path != NULL);
-  std::string ret = path;
-  free(path);
-#else
-  char path[MAXPATHLEN];
-  assert(getcwd(path, MAXPATHLEN) != NULL);
-  std::string ret = path;
-#endif
-  return ret;
-}
-
 
 distributed_control::distributed_control() {
   dc_init_param initparam;
@@ -493,8 +479,7 @@ void distributed_control::init(const std::vector<std::string> &machines,
   comm->init(machines, options, curmachineid, 
               receivers, senders);
   std::cerr << "TCP Communication layer constructed." << std::endl;
-  compute_master_ranks();
-
+  barrier();
   // initialize the empty stream
   nullstrm.open(boost::iostreams::null_sink());
   
@@ -508,9 +493,6 @@ void distributed_control::init(const std::vector<std::string> &machines,
 
 }
 
-dc_services& distributed_control::services() {
-  return *distributed_services;
-}
 
 
 void distributed_control::barrier() {
@@ -523,20 +505,6 @@ void distributed_control::flush() {
   }
 }
 
-
-void distributed_control::compute_master_ranks() {
-  uint32_t local_ip = get_local_ip();
-  std::string localipandpath = tostr(local_ip) + get_working_dir();
-  std::vector<std::string> ipandpath(numprocs());
-  ipandpath[procid()] = localipandpath;
-  all_gather(ipandpath);
-  for(procid_t i = 0; i < ipandpath.size(); ++i) {
-    if(ipandpath[i] == localipandpath) {
-      masterid = i;
-      break;
-    }
-  }
-}
 
  /*****************************************************************************
                       Implementation of Full Barrier

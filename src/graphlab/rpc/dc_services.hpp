@@ -37,13 +37,10 @@ namespace graphlab {
     Creates a new context for MPI-like global global operations.
     Where all machines create an instance of dc_services at the same time,
     operations performed by the new dc_services instance will not interfere
-    and will run in parallel with other contexts. 
-    i.e. If I have two distributed dc_services instances, one instance can 
+    and will run in parallel with other contexts.  i.e. If I have two
+    distributed dc_services instances, one instance can 
     perform a barrier while another instance performs a broadcast() at the same 
     time.
-    
-    \note Only simple algorithms for the MPI collective operations (barrier, broadcast, etc)
-    are implemented. Significant work is necessary to improve the performance of the collectives.
   */
   class dc_services {
   private:
@@ -63,9 +60,7 @@ namespace graphlab {
     }
     
     /**
-    This is a blocking send_to. It send an object T to the target 
-    machine, but waits for the target machine to call recv_from
-    before returning. Functionally similar to MPI's matched sending/receiving
+      \copydoc distributed_control::send_to()
     */
     template <typename U>
     inline void send_to(procid_t target, U& t, bool control = false) {
@@ -73,123 +68,58 @@ namespace graphlab {
     }
     
     /**
-    A blocking recv_from. Must be matched with a send_to call from the
-    target before both source and target resumes.
-    */
+      \copydoc distributed_control::recv_from()
+     */
     template <typename U>
     inline void recv_from(procid_t source, U& t, bool control = false) {
       rmi.recv_from(source, t, control);
     }
 
-  /**
-     This function allows one machine to broadcasts a variable to all machines.
-
-     The originator calls broadcast with data provided in 
-     in 'data' and originator set to true. 
-     All other callers call with originator set to false.
-
-     The originator will then return 'data'. All other machines
-     will receive the originator's transmission in the "data" parameter.
-
-     This call is guaranteed to have barrier-like behavior. That is to say,
-     this call will block until all machines enter the broadcast function.
-
-     \note Behavior is undefined if more than one machine calls broadcast
-     with originator set to true.
-
-     \note Behavior is undefined if multiple threads on the same machine
-     call broadcast simultaneously. If multiple-thread broadcast is necessary,
-     each thread should use its own instance of the services class.
-  */
+    /**
+      \copydoc distributed_control::broadcast()
+     */
     template <typename U>
     inline void broadcast(U& data, bool originator, bool control = false) { 
       rmi.broadcast(data, originator, control);
     }
 
-  /**
-   * data must be of length data[numprocs].
-   * My data is stored in data[dc.procid()].
-   * when function returns, machine sendto will have the complete vector
-   * where data[i] is the data contributed by machine i.
-   * All machines must have the same parameter for "sendto"
-   */
+    /**
+      \copydoc distributed_control::gather()
+     */
     template <typename U>
     inline void gather(std::vector<U>& data, procid_t sendto, bool control = false) {
       rmi.gather(data, sendto, control);
     }
 
-  /**
-   * Each machine creates a vector 'data' with size equivalent to the number of machines.
-   * Each machine then fills the entry data[procid()] with information that it 
-   * wishes to communicate.
-   * After calling all_gather(), all machines will return with identical
-   * vectors 'data', where data[i] contains the information machine i stored.
-   */
+    /**
+      \copydoc distributed_control::all_gather()
+     */
     template <typename U>
     inline void all_gather(std::vector<U>& data, bool control = false) {
       rmi.all_gather(data, control);
     }
 
     /**
-    * Each machine issues a piece of data.
-    * After calling all_gather(), all machines will return with identical
-    * values of data which is equal to the sum of everyone's contributions.
-    * Sum is computed using operator+=
-    */
+      \copydoc distributed_control::all_reduce()
+     */
     template <typename U>
     inline void all_reduce(U& data, bool control = false) {
       rmi.all_reduce(data, control);
     }
 
+    /// \copydoc distributed_control::all_reduce2()
     template <typename U, typename PlusEqual>
     void all_reduce2(U& data, PlusEqual plusequal, bool control = false) {
       rmi.all_reduce2(data, plusequal, control);
     }
 
-  /**
-   * This function is takes a vector of local elements T which must
-   * be comparable and constructs a vector of length numprocs where
-   * each element is a subset of the local contribution from that
-   * machine and the union of all elements in the union of all local
-   * contributions and all entries are unique:
-   *
-   * Usage: Each process reads the files that are stored locally and
-   * wants to know which subset of local files to read even when
-   * multiple processes see the same files.
-   */
-    template <typename U>
-    inline void gather_partition(const std::vector<U>& local_contribution,
-                          std::vector< std::vector<U> >& ret_partition,
-                          bool control = false) {
-      rmi.gather_partition(local_contribution, ret_partition, control);
-    }
-    
-    /**
-    A regular barrier equivalent to MPI_Barrier.
-    A thread machine entering this barrier will wait until one thread on each 
-    machines enter this barrier.
-    
-    \see full_barrier
-    */
+    /// \copydoc distributed_control::barrier()
     inline void barrier() {
       rmi.barrier();
     }
     
     
-    /**
-  This barrier ensures globally across all machines that
-  all calls issued prior to this barrier are completed before
-  returning. This function could return prematurely if
-  other threads are still issuing function calls since we
-  cannot differentiate between calls issued before the barrier
-  and calls issued while the barrier is being evaluated.
-  
-  Therefore, when used in a multithreaded scenario, the user must ensure
-  that all other threads which may perform operations using this object
-  are stopped before the full barrier is initated.
-  
-  \see barrier
-  */
+    /// \copydoc distributed_control::full_barrier()
     inline void full_barrier() {
       rmi.full_barrier();
     }

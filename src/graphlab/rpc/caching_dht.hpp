@@ -45,7 +45,8 @@ namespace graphlab {
 
   namespace dc_impl {
     /**
-     * \ingroup rpc_internal
+     * \internal 
+     * \ingroup rpc
      A cache entry for the caching_dht. 
      Boost intrusive is used to provide the LRU capabilities here
     */
@@ -68,6 +69,7 @@ namespace graphlab {
   } // namespace dc_impl
 
   /**
+   * \internal
    * \ingroup rpc
    This implements a limited distributed key -> value map with caching capabilities
    It is up to the user to determine cache invalidation policies. User explicitly

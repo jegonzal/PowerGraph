@@ -20,8 +20,6 @@
  *
  */
 
-/// \file rpc_example1.cpp
-/// \code
 
 #include <iostream>
 #include <graphlab/rpc/dc.hpp>
@@ -58,4 +56,3 @@ int main(int argc, char ** argv) {
   mpi_tools::finalize();
 }
 
-/// \endcode

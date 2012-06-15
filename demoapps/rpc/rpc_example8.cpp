@@ -19,8 +19,6 @@
  *      http://www.graphlab.ml.cmu.edu
  *
  */
-/// \file rpc_example8.cpp
-/// \code
 
 #include <vector>
 #include <iostream>
@@ -62,4 +60,3 @@ int main(int argc, char ** argv) {
   // terminate MPI
   mpi_tools::finalize();
 }
-/// \endcode

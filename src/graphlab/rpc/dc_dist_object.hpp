@@ -51,22 +51,65 @@ namespace graphlab {
 
 /**
 \ingroup rpc
-Provides capabilities for distributed objects Your class should either
-inherit this, or instantiate it before any distributed object call.
-The requirement for using the distributed object is that all machines
-must construct the distributed objects in the same order. And, no
-distributed object calls should be make until it is guaranteed that
-all machines have constructed their respective distributed objects.
+\brief Provides a class with its own distributed communication context, allowing
+instances of the class to communicate with other remote instances.
 
-This class also acts as a single "context" spanning multiple machines.
-For instance, the barrier implemented here is fully localized to within 
-a particular instance of this object. That is, multiple instances of the object
-can issue multiple independent barriers.
-The dc_services() object is a thin wrapper around the dc_dist_object.
+The philosophy behind the dc_dist_object is the concept of "distributed
+objects". The idea is that the user should be able to write code:
 
-This class implements several MPI-like primitive ops such as 
-barrier, gather, broadcast, etc. These operations are not particular optimized
-and can be quite inefficient.
+\code
+void main() {
+  // ... initialization of a distributed_control object dc ...
+
+  distributed_vector vec(dc), vec2(dc);
+  distributed_graph g(dc);
+}
+\endcode
+where if run in a distributed setting, the "vec" variable, can behave as if it
+is a single distributed object, and automatically coordinate its operations
+across the network; communicating with the other instances of "vec" on the
+other machines.  Essentially, each object (vec, vec2 and g) constructs its own
+private communication context, which allows every machine's "vec" variable to
+communicate only with other machine's "vec" variable. And similarly for "vec2"
+and "g". This private communication context is provided by this dc_dist_object
+class.
+
+To construct a distributed object requires little work:
+\code
+class distributed_int_vector {
+  private:
+    // creates a local dc_dist_object context
+    graphlab::dc_dist_object<distributed_int_vector> rmi;
+
+  public:
+    // context must be initialized on construction with the 
+    // root distributed_control object
+    distributed_int_vector(distributed_control& dc): rmi(dc, this) {
+      ... other initialization ...
+      // make sure all machines finish constructing this object
+      // before continuing
+      rmi.barrier();
+    }
+};
+\endcode
+
+After which remote_call(), and remote_request() can be used to communicate
+across the network with the same matching instance of the
+distributed_int_vector. 
+
+Each dc_dist_object maintains its own private communication context which
+is not influences by other communication contexts. In other words, the
+<code>rmi.barrier()</code>, and all other operations in each instance of the
+distributed_int_vector are independent of each other. In particular, the
+<code>rmi.full_barrier()</code> only waits for completion of all RPC calls
+from within the current communication context.
+
+See the examples in \ref RPC for more usage examples.
+
+\note While there is no real limit to the number of distributed
+objects that can be created. However, each dc_dist_object does contain 
+a reasonably large amount of state, so frequent construction and deletion
+of objects is not recommended.
 */
 template <typename T>
 class dc_dist_object : public dc_impl::dc_dist_object_base{
@@ -75,7 +118,6 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
   size_t obj_id;
   size_t control_obj_id;  // object id of this object
   T* owner;
-  bool calltracking;
   std::vector<atomic<size_t> > callsreceived;
   std::vector<atomic<size_t> > callssent;
   std::vector<atomic<size_t> > bytessent;
@@ -88,6 +130,9 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
 
 
  public:
+
+  /// \cond GRAPHLAB_INTERNAL
+
   /// Should not be used by the user
   void inc_calls_received(procid_t p) {
     if (!full_barrier_in_effect) {
@@ -138,15 +183,26 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
     bytessent[p].inc(bytes);
   }
 
+  /// \endcond GRAPHLAB_INTERNAL
  public:
-  dc_dist_object(distributed_control &dc_, T* owner, bool calltracking = false):
-    dc_(dc_),owner(owner),calltracking(calltracking) {
+
+  /**
+   * \brief Constructs a distributed object context.
+   * 
+   * The constructor constructs a distributed object context which is 
+   * associated with the "owner" object. 
+   *
+   * \param dc_ The root distributed_control which provides the 
+   *            communication control plane.
+   * \param owner The object to associate with
+   */ 
+  dc_dist_object(distributed_control &dc_, T* owner):
+    dc_(dc_),owner(owner) {
     callssent.resize(dc_.numprocs());
     callsreceived.resize(dc_.numprocs());
     bytessent.resize(dc_.numprocs());
     //------ Initialize the matched send/recv ------
     recv_froms.resize(dc_.numprocs());
-    non_blocking_recv_from.resize(dc_.numprocs());
     //------ Initialize the gatherer ------
     gather_receive.resize(dc_.numprocs());
 
@@ -191,7 +247,7 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
                       std::string("dc_dist_object ") + name + ": remote_call time");
   }
   
-  /// The number of function calls received by this object
+  /// \brief The number of function calls received by this object
   size_t calls_received() const {
     size_t ctr = 0;
     for (size_t i = 0;i < numprocs(); ++i) {
@@ -200,7 +256,7 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
     return ctr;
   }
 
-  /// The number of function calls send from this object
+  /// \brief The number of function calls sent from this object
   size_t calls_sent() const {
     size_t ctr = 0;
     for (size_t i = 0;i < numprocs(); ++i) {
@@ -209,6 +265,9 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
     return ctr;
   }
   
+  /** \brief The number of bytes sent from this object, excluding
+   * headers and other control overhead. 
+   */ 
   size_t bytes_sent() const {
     size_t ctr = 0;
     for (size_t i = 0;i < numprocs(); ++i) {
@@ -217,48 +276,41 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
     return ctr;
   }
   
-  /// A reference to the underlying dc
+  /// \brief A reference to the underlying distributed_control object
   distributed_control& dc() {
     return dc_;
   }
 
-  /// A reference to the underlying dc
+  /// \brief A const reference to the underlying distributed_control object 
   const distributed_control& dc() const {
     return dc_;
   }
   
-  /// The current process ID
+  /// \brief The current process ID
   inline procid_t procid() const {
     return dc_.procid();
   }
 
-  /// The number of processes in the distributed program.
+  /// \brief The number of processes in the distributed program.
   inline procid_t numprocs() const {
     return dc_.numprocs();
   }
 
   /**
-   * A wrapper on cout, that outputs only on machine 0
+   * \brief A wrapper on cout, that outputs only on machine 0
    */
   std::ostream& cout() const {
     return dc_.cout();
   }
 
   /**
-   * A wrapper on cerr, that outputs only on machine 0
+   * \brief A wrapper on cerr, that outputs only on machine 0
    */
   std::ostream& cerr() const {
     return dc_.cout();
   }
   
-  
-  /**
-    This returns the set of services for the parent DC.
-    This is deprecated. Use dc() to get access to the global context
-  */
-   __attribute__((__deprecated__)) inline dc_services& services() {
-    return dc_.services();
-  }
+  /// \cond GRAPHLAB_INTERNAL  
 
     /*
   This generates the interface functions for the standard calls, basic calls, and fast calls
@@ -360,7 +412,7 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
           ::exec(this, dc_.senders[target],  BOOST_PP_TUPLE_ELEM(3,2,ARGS), target,obj_id, remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENI ,_) ); \
   }   \
 
-  /**
+  /*
   Generates the interface functions. 3rd argument is a tuple
   (interface name, issue name, flags)
   */
@@ -420,8 +472,174 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
   #undef GENI
   #undef GENARGS
   
+ /// \endcond 
+  
+#if DOXYGEN_DOCUMENTATION
+  
+/**
+ * \brief Performs a non-blocking RPC call to the target machine
+ * to run the provided function pointer. 
+ *
+ * remote_call() calls the function "fn" on a target remote machine. 
+ * "fn" may be public, private or protected within the owner class; there are
+ * no access restrictions. Provided arguments are serialized and sent to the
+ * target.  Therefore, all arguments are necessarily transmitted by value. 
+ * If the target function has a return value, the return value is lost.
+ * 
+ * remote_call() is non-blocking and does not wait for the target machine
+ * to complete execution of the function. Different remote_calls may be handled
+ * by different threads on the target machine and thus the target function
+ * should be made thread-safe. 
+ * Alternatively, see distributed_control::set_sequentialization_key()
+ * to force sequentialization of groups of remote calls.
+ *
+ * If blocking operation is desired, remote_request() may be used.
+ * Alternatively, a full_barrier() may also be used to wait for completion of 
+ * all incomplete RPC calls.
+ * 
+ * Example:
+ * \code
+ * // A print function is defined in the distributed object
+ * class distributed_obj_example {
+ *  graphlab::dc_dist_object<distributed_obj_example> rmi;
+ *   ... initialization and constructor ...
+ *  private:
+ *    void print(std::string s) {
+ *       std::cout << s << "\n";
+ *    }
+ *  public:
+ *    void print_on_machine_one(std::string s) {
+ *      // calls the print function on machine 1 with the argument "s"
+ *      rmi.remote_call(1, &distributed_obj_example::print, s);
+ *    } 
+ * }
+ * \endcode 
+ *
+ * Note the syntax for obtaining a pointer to a member function. 
+ * 
+ * \param targetmachine The ID of the machine to run the function on 
+ * \param fn The function to run on the target machine. Must be a pointer to
+ *            member function in the owning object.
+ * \param ... The arguments to send to Fn. Arguments must be serializable.
+ *            and must be castable to the target types.
+ */
+  void remote_call(procid_t targetmachine, Fn fn, ...);
 
 
+
+/**
+ * \brief Performs a non-blocking RPC call to a collection of machines
+ * to run the provided function pointer. 
+ *
+ * This function calls the provided function pointer on a collection of 
+ * machines contained in the iterator range [begin, end).
+ * Provided arguments are serialized and sent to the target. 
+ * Therefore, all arguments are necessarily transmitted by value. 
+ * If the target function has a return value, the return value is lost.
+ * 
+ * This function is functionally equivalent to:
+ * 
+ * \code
+ * while(machine_begin != machine_end) {
+ *  remote_call(*machine_begin, fn, ...);
+ *  ++machine_begin;
+ * }
+ * \endcode
+ *
+ * However, this function makes some optimizations to ensure all arguments
+ * are only serialized once instead of \#calls times.
+ *
+ * This function is non-blocking and does not wait for the target machines
+ * to complete execution of the function. Different remote_calls may be handled
+ * by different threads on the target machines and thus the target function
+ * should be made thread-safe. Alternatively, see
+ * distributed_control::set_sequentialization_key() to force sequentialization
+ * of groups of remote_calls. A full_barrier()
+ * may also be issued to wait for completion of all RPC calls issued prior 
+ * to the full barrier.
+ * 
+ * Example:
+ * \code
+ * // A print function is defined in the distributed object
+ * class distributed_obj_example {
+ *  graphlab::dc_dist_object<distributed_obj_example> rmi;
+ *   ... initialization and constructor ...
+ *  private:
+ *    void print(std::string s) {
+ *       std::cout << s << "\n";
+ *    }
+ *  public:
+ *    void print_on_some_machines(std::string s) {
+ *      std::vector<procid_t> procs; 
+ *      procs.push_back(1); procs.push_back(3); procs.push_back(5);
+ *
+ *      // calls the print function on machine 1,3,5 with the argument "s"
+ *      rmi.remote_call(procs.begin(), procs.end(), 
+ *                      &distributed_obj_example::print, s);
+ *    } 
+ * }
+ * \endcode 
+ * 
+ * 
+ * \param machine_begin The beginning of an iterator range containing a list
+ *                      machines to call.  Iterator::value_type must be
+ *                      castable to procid_t.
+ * \param machine_end   The end of an iterator range containing a list
+ *                      machines to call.  Iterator::value_type must be
+ *                      castable to procid_t.
+ * \param fn The function to run on the target machine. Must be a pointer to
+ *            member function in the owning object.
+ * \param ... The arguments to send to Fn. Arguments must be serializable.
+ *            and must be castable to the target types.
+ */
+  void remote_call(Iterator machine_begin, Iterator machine_end, Fn fn, ...); 
+
+
+/**
+ * \brief Performs a blocking RPC call to the target machine
+ * to run the provided function pointer. 
+ *
+ * remote_request() calls the function "fn" on a target remote machine. Provided 
+ * arguments are serialized and sent to the target. 
+ * Therefore, all arguments are necessarily transmitted by value. 
+ * If the target function has a return value, it is sent back to calling 
+ * machine. 
+ * 
+ * Unlike remote_call(), remote_request() is blocking and waits for the target
+ * machine to complete execution of the function. However, different 
+ * remote_requests may be still be handled by different threads on the target
+ * machine.
+ * 
+ * Example:
+ * \code
+ * // A print function is defined in the distributed object
+ * class distributed_obj_example {
+ *  graphlab::dc_dist_object<distributed_obj_example> rmi;
+ *   ... initialization and constructor ...
+ *  private:
+ *    int add_one(int i) {
+ *      return i + 1; 
+ *    }
+ *  public:
+ *    void add_one_from_machine_1(int i) {
+ *      // calls the add_one function on machine 1 with the argument i
+ *      rmi.remote_call(1, &distributed_obj_example::add_one, i);
+ *    } 
+ * }
+ * \endcode 
+ * 
+ * \param targetmachine The ID of the machine to run the function on 
+ * \param fn The function to run on the target machine. Must be a pointer to
+ *            member function in the owning object.
+ * \param ... The arguments to send to Fn. Arguments must be serializable.
+ *            and must be castable to the target types.
+ *
+ * \returns Returns the same return type as the function fn
+ */
+  RetVal remote_request(procid_t targetmachine, Fn fn, ...);
+
+
+#endif
 /*****************************************************************************
                       Implementation of matched send_to / recv_from
  *****************************************************************************/
@@ -444,9 +662,7 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
  public:
 
   /**
-  This is a blocking send_to. It send an object T to the target 
-  machine, but waits for the target machine to call recv_from
-  before returning. Functionally similar to MPI's matched sending/receiving
+    \copydoc distributed_control::send_to()
   */
   template <typename U>
   void send_to(procid_t target, U& t, bool control = false) {
@@ -475,8 +691,7 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
   
   
   /**
-  A blocking recv_from. Must be matched with a send_to call from the
-  target before both source and target resumes.
+    \copydoc distributed_control::recv_from()
   */
   template <typename U>
   void recv_from(procid_t source, U& t, bool control = false) {
@@ -514,90 +729,6 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
   }
 
   
-  
-/*****************************************************************************
-*             Implementation of non blocking send / recv
-*****************************************************************************/
-
-  
- private:
-  std::vector<dc_impl::recv_from_struct> non_blocking_recv_from;
-
-  void receive_into_nonblocking_recv(size_t src,
-                                     std::string& str) {
-    non_blocking_recv_from[src].lock.lock();
-    non_blocking_recv_from[src].data = str;
-    ASSERT_FALSE(non_blocking_recv_from[src].hasdata);
-    non_blocking_recv_from[src].hasdata = true;
-    non_blocking_recv_from[src].cond.signal();
-    non_blocking_recv_from[src].lock.unlock();
-  }
- public:
-  /**
-   This is a non-blocking send_to. It send an object T to the target
-   machine, but DOES NOT wait for the target machine to call recv_from
-   before returning. Target machine must call recv_from_nonblocking
-   as many times as #machines sending. This does not share the same buffers
-   as the regular send_to so both can be used simultaneously.
-   */
-  template <typename U>
-  void send_to_nonblocking(procid_t target, U& t, bool control = false) {
-    std::stringstream strm;
-    oarchive oarc(strm);
-    oarc << t;
-    strm.flush();
-    if (control == false) {
-      internal_call(target, &dc_dist_object<T>::receive_into_nonblocking_recv,
-                    procid(), strm.str());
-    }
-    else {
-      internal_control_call(target, &dc_dist_object<T>::receive_into_nonblocking_recv,
-                            procid(), strm.str());
-    }
-    if (control == false) inc_calls_sent(target);
-  }
-  
-  
-  /**
-   Recieves from sends issued by send_to_nonblocking. Similar in behavior
-   as recv_from but must be matched with a send_to_nonblocking.
-   If no send was issued before the
-   recv_from_nonblocking was called, this function will block.
-   If a second send is issued before the current
-   machine has a chance to receive the first send,
-   an assertion failure will be raised.
-   This does not share the same buffers as the regular send_to so both
-   can be used simultaneously.
-   */
-  template <typename U>
-  void recv_from_nonblocking(procid_t source, U& t, bool control = false) {
-    // wait on the condition variable until I have data
-    dc_impl::recv_from_struct &recvstruct = non_blocking_recv_from[source];
-    recvstruct.lock.lock();
-    while (recvstruct.hasdata == false) {
-      recvstruct.cond.wait(recvstruct.lock);
-    }
-    
-    // got the data. deserialize it
-    std::stringstream strm(recvstruct.data);
-    iarchive iarc(strm);
-    iarc >> t;
-    // clear the data
-    std::string("").swap(recvstruct.data);
-    // clear the has data flag
-    recvstruct.hasdata = false;
-    // unlock
-    recvstruct.lock.unlock();
-    if (control == false) {
-      // I have to increment the calls sent manually here
-      // since the matched send/recv calls do not go through the
-      // typical object calls. It goes through the DC, but I also want to charge
-      // it to this object
-      inc_calls_received(source);
-    }
-  }
-
-
 
 /*****************************************************************************
                       Implementation of Broadcast
@@ -614,26 +745,7 @@ private:
 
  public:
  
-  /**
-     This function allows one machine to broadcasts a variable to all machines.
-
-     The originator calls broadcast with data provided in 
-     in 'data' and originator set to true. 
-     All other callers call with originator set to false.
-
-     The originator will then return 'data'. All other machines
-     will receive the originator's transmission in the "data" parameter.
-
-     This call is guaranteed to have barrier-like behavior. That is to say,
-     this call will block until all machines enter the broadcast function.
-
-     \note Behavior is undefined if more than one machine calls broadcast
-     with originator set to true.
-
-     \note Behavior is undefined if multiple threads on the same machine
-     call broadcast simultaneously. If multiple-thread broadcast is necessary,
-     each thread should use its own instance of the services class.
-  */
+  /// \copydoc distributed_control::broadcast()
   template <typename U>
   void broadcast(U& data, bool originator, bool control = false) { 
     if (originator) {
@@ -679,7 +791,7 @@ private:
 
 
 /*****************************************************************************
-      Implementation of Gather, all_gather and gather_partition
+      Implementation of Gather, all_gather  
  *****************************************************************************/
 
  private:
@@ -691,15 +803,8 @@ private:
     gather_receive[source] = s;
   }
  public:
-  /**
-   * Collects information contributed by each machine onto 
-   * one machine.
-   * data must be of length data[numprocs].
-   * My data is stored in data[dc.procid()].
-   * when function returns, machine sendto will have the complete vector
-   * where data[i] is the data contributed by machine i.
-   * All machines must have the same parameter for "sendto"
-   */
+  
+  /// \copydoc distributed_control::gather()
   template <typename U>
   void gather(std::vector<U>& data, procid_t sendto, bool control = false) {
     // if not root
@@ -813,13 +918,7 @@ private:
 
  public:
    
-  /**
-   * Each machine creates a vector 'data' with size equivalent to the number of machines.
-   * Each machine then fills the entry data[procid()] with information that it 
-   * wishes to communicate.
-   * After calling all_gather(), all machines will return with identical
-   * vectors 'data', where data[i] contains the information machine i stored.
-   */
+  /// \copydoc distributed_control::all_gather()
   template <typename U>
   void all_gather(std::vector<U>& data, bool control = false) {
     if (numprocs() == 1) return;
@@ -949,12 +1048,7 @@ private:
     }
   }
   
-/**
-   * Each machine issues a piece of data.
-   * After calling all_gather(), all machines will return with identical
-   * values of data which is equal to the sum of everyone's contributions.
-   * Sum is computed using operator+=
-   */
+  /// \copydoc distributed_control::all_reduce2()
   template <typename U, typename PlusEqual>
   void all_reduce2(U& data, PlusEqual plusequal, bool control = false) {
     if (numprocs() == 1) return;
@@ -1063,75 +1157,14 @@ private:
       u += v;
     }
   };
-  /**
-   * Each machine issues a piece of data.
-   * After calling all_gather(), all machines will return with identical
-   * values of data which is equal to the sum of everyone's contributions.
-   * Sum is computed using operator+=
-   */
+
+  /// \copydoc distributed_control::all_reduce()
   template <typename U>
   void all_reduce(U& data, bool control = false) {
     all_reduce2(data, default_plus_equal<U>(), control);
   }
 
 ////////////////////////////////////////////////////////////////////////////
-
-  /**
-   * This function is takes a vector of local elements T which must
-   * be comparable and constructs a vector of length numprocs where
-   * each element is a subset of the local contribution from that
-   * machine and the union of all elements in the union of all local
-   * contributions and all entries are unique:
-   *
-   * Usage: Each process reads the files that are stored locally and
-   * wants to know which subset of local files to read even when
-   * multiple processes see the same files.
-   */
-  template <typename U>
-  void gather_partition(const std::vector<U>& local_contribution,
-                        std::vector< std::vector<U> >& ret_partition,
-                        bool control = false) {
-    typedef std::set<U> set_type;
-
-    // Compute the elements on each machine
-    std::vector< std::set<U> > cpu2elems(numprocs());
-    cpu2elems[procid()].insert(local_contribution.begin(), 
-                                   local_contribution.end());
-
-    gather(cpu2elems, 0);
-    // Construct the "balanced" partitioning
-    if(procid() == 0) {
-      ret_partition.clear();
-      ret_partition.resize(numprocs());
-      // Construct the union
-      std::set<U> unassigned_elems;
-      foreach(const set_type& set, cpu2elems) 
-        unassigned_elems.insert(set.begin(), set.end());
-      // Assign elements to each of the machines      
-      for(procid_t cpuid = 0; !unassigned_elems.empty(); 
-          cpuid = (cpuid + 1) % cpu2elems.size()) {
-        // while there are things left to be assigned to this cpu
-        while( !cpu2elems[cpuid].empty() ) {
-          // Get the next element and remove it
-          U elem = *(cpu2elems[cpuid].begin());
-          cpu2elems[cpuid].erase(cpu2elems[cpuid].begin());
-          // if the next element on this cpu is not yet assigned then
-          // assign it to this cpu
-          if(unassigned_elems.count(elem) != 0) {
-            unassigned_elems.erase(elem);
-            ret_partition[cpuid].push_back(elem);
-            break;
-          }
-        
-        } // end of while loop
-      } // end of loop over cpus
-      assert(unassigned_elems.empty());
-    }
-    // Scatter the result
-    broadcast(ret_partition, procid() == 0, control);    
-  } // end of gather_partition
-
-
 
 
 
@@ -1197,14 +1230,8 @@ private:
   
 
  public:
-  /**
-    A regular barrier equivalent to MPI_Barrier.
-    A machine entering this barrier will wait until every machine 
-    reaches this barrier before continuing. Only one thread from each machine
-    should call the barrier.
-    
-    \see full_barrier
-    */
+
+  /// \copydoc distributed_control::barrier()
   void barrier() {
     // upward message
     int barrier_val = barrier_sense;      
@@ -1272,21 +1299,8 @@ private:
   dense_bitset procs_complete;
 
  public:  
-  /**
-  Similar to the barrier(), but provides additional guarantees that 
-  all RMI calls issued prior to this barrier are completed before
-  returning. 
   
-  \note This function could return prematurely if
-  other threads are still issuing function calls since we
-  cannot differentiate between calls issued before the barrier
-  and calls issued while the barrier is being evaluated.
-  Therefore, when used in a multithreaded scenario, the user must ensure
-  that all other threads which may perform operations using this object
-  are stopped before the full barrier is initated.
-  
-  \see barrier
-  */
+  /// \copydoc distributed_control::full_barrier()
   void full_barrier() {
     // gather a sum of all the calls issued to machine 0
     std::vector<size_t> calls_sent_to_target(numprocs(), 0);

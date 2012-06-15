@@ -45,8 +45,8 @@ namespace dc_impl {
 
   
 /**
-\ingroup rpc
 \internal
+\ingroup rpc
 \file object_request_issue.hpp
 
 This is an internal function and should not be used directly

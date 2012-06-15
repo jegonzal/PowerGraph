@@ -44,6 +44,7 @@
 namespace graphlab {
 
   /**
+     \internal
      \ingroup rpc 
 
 

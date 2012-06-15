@@ -20,8 +20,6 @@
  *
  */
 
-/// \file rpc_example4.cpp
-/// \code
 
 #include <iostream>
 #include <string>
@@ -74,4 +72,3 @@ int main(int argc, char ** argv) {
   
   mpi_tools::finalize();
 }
-/// \endcode

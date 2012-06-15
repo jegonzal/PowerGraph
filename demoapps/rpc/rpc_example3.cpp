@@ -20,8 +20,6 @@
  *
  */
 
-/// \file rpc_example3.cpp
-/// \code
 
 
 
@@ -32,11 +30,10 @@
 #include <graphlab/rpc/dc.hpp>
 using namespace graphlab;
 
-struct teststruct{
+struct teststruct: public IS_POD_TYPE{
   int a;
   double b;
 };
-SERIALIZABLE_POD(teststruct);
 
 
 void print(std::map<int, teststruct> &data1,  
@@ -70,4 +67,3 @@ int main(int argc, char ** argv) {
   mpi_tools::finalize();
 }
 
-/// \endcode

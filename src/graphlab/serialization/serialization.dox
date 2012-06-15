@@ -50,7 +50,7 @@ variables in the same order:
 \section sec_serializable Serializable
 So what type of data is serializable?
 
-\subsection sec_serializable_integers "Integer Types"
+\subsection sec_serializable_integers Integer Types
 All integer datatypes are serializable.
 \li <code> bool </code>
 \li <code> char </code> and <code> unsigned char </code>
@@ -82,7 +82,7 @@ The following code will fail in dramatic ways:
   iarc >> j; // this will fail 
 \endcode
 
-\subsection sec_serializable_floats "Floating Point Types"
+\subsection sec_serializable_floats Floating Point Types
 All floating point data types are serializable.
 \li <code>float</code>
 \li <code>double</code>
@@ -93,7 +93,7 @@ without re-encoding. You must deserialize with the same floating point width
 as what was serialized. (i.e. if you serialize a double, you <b>must</b>
 deserialize a double.
 
-\subsection sec_serializable_containers "Containers"
+\subsection sec_serializable_containers Containers
 The following template containers are serializable as long as the contained
 types are all serializable. This can be recursively applied.
 \li <code>std::vector</code>
@@ -166,7 +166,7 @@ iarc >> t2; // read it to a file
 Since <code>TestClass</code> is now serializable, containers of TestClass
 listed in \ref sec_serializable_containers are also serializable.
 
-\section sec_serializable_pod "POD Serialization" 
+\section sec_serializable_pod POD Serialization 
 
 As mentioned in \ref sec_serializable_containers, POD data types 
 occupy a contiguous region in memory and hence can be serialized and 
@@ -206,7 +206,7 @@ A minor concern is that the scope of POD types is still slightly too large,
 since technically pointer types are POD, and those cannot not be 
 serialized automatically.
 
-\section sec_serializable_out_of_place "Out of Place Serialization"
+\section sec_serializable_out_of_place Out of Place Serialization
 In some situations, you may find that you need to make a data type serializable,
 but the data type is implemented by someone else, in a different library,
 making it impossible to extend and write a member save() and load() function

@@ -39,8 +39,9 @@ namespace graphlab {
 namespace dc_impl {
 
 /**
-\ingroup rpc
+
 \internal
+\ingroup rpc
 \file request_issue.hpp
 
 This is an internal function and should not be used directly.

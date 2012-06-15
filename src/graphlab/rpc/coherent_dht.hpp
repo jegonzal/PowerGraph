@@ -39,7 +39,8 @@ namespace graphlab {
 #define COHERENT_DHT_COMPRESSED_HASH 32768
 #define COHERENT_DHT_SUBSCRIBE_IF_ACCESSES_PER_INVALIDATE 10
     /**
-     * \ingroup rpc_internal
+     * \internal
+     * \ingroup rpc
      A cache entry for the coherent_dht. 
      Boost intrusive is used to provide the LRU capabilities here
     */
@@ -64,17 +65,19 @@ namespace graphlab {
 
   /**
    * \ingroup rpc
-   This implements a processor consistent cache coherent distributed hash table.
+   This implements a cache coherent distributed hash table.
+
    Each machine has a part of the hash table as well as a cache. The system
    implements automatic cache invalidation as well as automatic cache subscription
    (currently through a rather poor heuristic). 
-   This class also implements some functionality which provide more fine-grained 
-   control over the invalidation policy, allowing stronger consistency levels to
-   be implemented on top of this class.
+   \warning The implementation is extremely experimental. Use at your own risk 
+
   */
   template<typename KeyType, typename ValueType>
   class coherent_dht{
   public:
+
+    /// \cond GRAPHLAB_INTERNAL
 
     typedef dc_impl::coherent_lru_list<KeyType, ValueType> lru_entry_type;
     /** datatype of the data map. maps from key to the value */
@@ -90,6 +93,7 @@ namespace graphlab {
     typedef boost::intrusive::list<lru_entry_type, 
                                    MemberOption, 
                                    boost::intrusive::constant_time_size<false> > lru_list_type;
+    /// \endcond
 
   private:
 
@@ -119,107 +123,6 @@ namespace graphlab {
 
     boost::hash<KeyType> hasher;
   
-    bool has_mod_trigger;
-    boost::function<void(const KeyType&, const ValueType&,  bool)> modification_trigger;
-
-
-
-
-  public:
-
-    /// Constructor. Creates the integer map.
-    coherent_dht(distributed_control &dc, 
-                 size_t max_cache_size = 1024):rpc(dc, this),data(11) {
-      has_mod_trigger = false;
-                           
-      cache.rehash(max_cache_size);
-      maxcache = max_cache_size;
-      logger(LOG_INFO, "%d Creating distributed_hash_table. Cache Limit = %d", 
-             dc.procid(), maxcache);
-      reqs = 0;
-      misses = 0;
-    
-      for (size_t i = 0;i < COHERENT_DHT_COMPRESSED_HASH; ++i) {
-        subscription[i].resize(dc.numprocs());
-        subscription[i].clear();
-      }
-      dc.barrier();
-    }
-
-
-    ~coherent_dht() {
-      data.clear();
-      typename cache_type::iterator i = cache.begin();
-      while (i != cache.end()) {
-        delete i->second;
-        ++i;
-      }
-      cache.clear();
-    }
-  
-    /**
-       Attaches a modification trigger which is signalled whenever
-       the local cache/storage of any index is updated or invalidated.
-       Only one modification trigger can be attached.
-       The trigger is only signalled after the update/invalidation 
-       is complete.
-       The trigger is called with three parameters, the key, the value as well
-       as a boolean flag "is_in_cache". 
-  
-       The "key" is the key of the entry which was just updated/invalidated.
-       The "value" is the current value of the entry. This is only set if is_in_cache is true
-       Note that the call to the trigger is not locked
-       and the "is_in_cache" flag could very well be outdated when the call is issued.
-       The flag should therefore not be treated as "truth" but simply as a hint
-       about the state of the internal cache.
-
-    */
-    void attach_modification_trigger(boost::function<void(const KeyType&, const ValueType&, bool)> trigger) {
-      ASSERT_FALSE(has_mod_trigger);
-      has_mod_trigger = true;
-      modification_trigger = trigger;
-    }
-  
-    /**
-       Detaches the modification trigger
-    */
-    void detach_modification_trigger() {
-      has_mod_trigger = false;
-    }
-  
-    /** acquire a lock on the key.
-        The lock should be released using end_critical_section() as 
-        soon as possible. There is no guarantee that the lock on this key
-        is fine-grained.
-    */
-    ValueType& begin_critical_section(const KeyType &key) {
-      ASSERT_EQ(owning_machine(key), rpc.procid());
-      // get the compressed hash
-      size_t hashvalue = hasher(key);
-      size_t compressedhash = hashvalue % COHERENT_DHT_COMPRESSED_HASH;
-      // acquire the fine grained lock
-      finegrained_lock[compressedhash].lock();
-      typename map_type::iterator iter = data.find(key);
-      assert(iter != data.end());
-      return iter->second;
-    }
-  
-    /**
-       Releases a lock on the key as a acquired by begin_critical_section()
-    */
-    void end_critical_section(const KeyType &key) {
-      ASSERT_EQ(owning_machine(key), rpc.procid());
-      // get the compressed hash
-      size_t hashvalue = hasher(key);
-      size_t compressedhash = hashvalue % COHERENT_DHT_COMPRESSED_HASH;
-      // release the fine grained lock
-      finegrained_lock[compressedhash].unlock();
-    }  
-  
-  
-    void set(const KeyType& key, const ValueType &newval)  {
-      set_impl(key, newval, rpc.procid());
-    }
 
     /** Sets the key to the value
      * if the key belongs to a remote machine.
@@ -259,15 +162,11 @@ namespace graphlab {
                         key,
                         newval,
                         source);
-        update_cache(key, newval, false);
+        update_cache(key, newval);
       }
     }
 
 
-    void set_synchronous(const KeyType& key, const ValueType &newval) {
-      set_synchronous_impl(key, newval, rpc.procid());
-    }
-  
     /**
        Forces synchronization of this key
        This operation is synchronous. When this function returns
@@ -305,63 +204,64 @@ namespace graphlab {
                            key,
                            newval,
                            source);
-        update_cache(key, newval, false);
+        update_cache(key, newval);
       }
+    }
+ 
+
+  public:
+    /**
+     * \brief Creates a coherent distributed hash table
+     * 
+     * \param dc distributed control to use for communication
+     * \param max_cache_size Size of cache on local machine
+     */
+    coherent_dht(distributed_control &dc, 
+                 size_t max_cache_size = 1024):rpc(dc, this),data(11) {
+                           
+      cache.rehash(max_cache_size);
+      maxcache = max_cache_size;
+      logger(LOG_INFO, "%d Creating distributed_hash_table. Cache Limit = %d", 
+             dc.procid(), maxcache);
+      reqs = 0;
+      misses = 0;
+    
+      for (size_t i = 0;i < COHERENT_DHT_COMPRESSED_HASH; ++i) {
+        subscription[i].resize(dc.numprocs());
+        subscription[i].clear();
+      }
+      dc.barrier();
+    }
+
+
+    ~coherent_dht() {
+      data.clear();
+      typename cache_type::iterator i = cache.begin();
+      while (i != cache.end()) {
+        delete i->second;
+        ++i;
+      }
+      cache.clear();
+    }
+
+    /**
+     *  \brief Sets the value of a key in the background.
+     *
+     * This function sets the value of a key, but uses background communication
+     * to change the key value. When this function returns, it is not guaranteed
+     * that all machines have the updated value.
+     */ 
+    void set(const KeyType& key, const ValueType &newval)  {
+      set_impl(key, newval, rpc.procid());
+    }
+
+    /**
+     *  \brief Sets the value of a key.
+     */ 
+    void set_synchronous(const KeyType& key, const ValueType &newval) {
+      set_synchronous_impl(key, newval, rpc.procid());
     }
   
-    /**
-       Push the current value of the key to all machines.
-       If async=true, when this call returns, all machines are guaranteed to have
-       the most up to date value of the key.
-    */
-    void push_changes(const KeyType& key, bool async, procid_t ignoreproc) {
-      size_t hashvalue = hasher(key);
-      size_t compressedhash = hashvalue % COHERENT_DHT_COMPRESSED_HASH;
-      size_t owningmachine = hashvalue % rpc.dc().numprocs();
-
-      if (owningmachine == rpc.procid()) {
-        // get a copy of the data to call the modification trigger with
-        // local modification trigger,
-        if (has_mod_trigger) {
-          finegrained_lock[compressedhash].lock();
-          typename map_type::const_iterator iter = data.find(key);
-          assert(iter != data.end());
-          ValueType v = iter->second;
-          finegrained_lock[compressedhash].unlock();
-
-          modification_trigger(key,v, true);
-        }
-        // switch to finegrained lock
-        finegrained_lock[compressedhash].lock();
-        typename map_type::iterator iter = data.find(key);
-        finegrained_lock[compressedhash].unlock();
-        assert(iter != data.end());
-        if (async) {
-          update_cache_coherency_set(compressedhash, key, iter->second, ignoreproc);  
-        }
-        else {
-          update_cache_coherency_set_synchronous(compressedhash, key, iter->second, ignoreproc);
-        }
-      }    
-      else {
-        // key is not on this machine. Get the owning machine to do it
-        if (async) {
-          rpc.remote_call(owningmachine,
-                          &coherent_dht<KeyType, ValueType>::push_changes,
-                          key,
-                          async,
-                          ignoreproc);
-        }
-        else {
-          rpc.remote_request(owningmachine,
-                             &coherent_dht<KeyType, ValueType>::push_changes,
-                             key,
-                             async,
-                             ignoreproc);
-        }
-      }
-    }
-
     /** Gets the value associated with the key. returns true on success.
      *  get will read from the cache if data is already available in the cache.
      * If not, get will obtain the data from across the network
@@ -405,7 +305,7 @@ namespace graphlab {
     }
    
     /**
-       Returns true of the key is current in the cache
+       Returns true of the key is currently in the cache
     */
     bool in_cache(const KeyType &key) const {
       // if this is to my current machine, just get it and don't go to cache
@@ -475,10 +375,6 @@ namespace graphlab {
                            rpc.dc().procid());
       }
     }
-
-    void full_barrier() {
-      rpc.full_barrier();
-    }
   
     /// Invalidates the cache entry associated with this key
     void invalidate(const KeyType &key) const{
@@ -503,29 +399,54 @@ namespace graphlab {
         }
       }
       cachelock.unlock();
-      if (haschanges && has_mod_trigger) {
-        if (isincache == false) {
-          modification_trigger(key, ValueType(), isincache);
-        }
-        else {
-      
-          size_t hashvalue = hasher(key);
-          size_t compressedhash = hashvalue % COHERENT_DHT_COMPRESSED_HASH;
-
-          finegrained_lock[compressedhash].lock();
-          typename map_type::const_iterator iter = data.find(key);
-          assert(iter != data.end());
-          ValueType v = iter->second;
-          finegrained_lock[compressedhash].unlock();
-        
-          modification_trigger(key, v, isincache);
-        }
-      }
     }
 
 
 
   private:
+ 
+    /**
+       Push the current value of the key to all machines.
+       If async=true, when this call returns, all machines are guaranteed to have
+       the most up to date value of the key.
+    */
+    void push_changes(const KeyType& key, bool async, procid_t ignoreproc) {
+      size_t hashvalue = hasher(key);
+      size_t compressedhash = hashvalue % COHERENT_DHT_COMPRESSED_HASH;
+      size_t owningmachine = hashvalue % rpc.dc().numprocs();
+
+      if (owningmachine == rpc.procid()) {
+       // switch to finegrained lock
+        finegrained_lock[compressedhash].lock();
+        typename map_type::iterator iter = data.find(key);
+        finegrained_lock[compressedhash].unlock();
+        assert(iter != data.end());
+        if (async) {
+          update_cache_coherency_set(compressedhash, key, iter->second, ignoreproc);  
+        }
+        else {
+          update_cache_coherency_set_synchronous(compressedhash, key, iter->second, ignoreproc);
+        }
+      }    
+      else {
+        // key is not on this machine. Get the owning machine to do it
+        if (async) {
+          rpc.remote_call(owningmachine,
+                          &coherent_dht<KeyType, ValueType>::push_changes,
+                          key,
+                          async,
+                          ignoreproc);
+        }
+        else {
+          rpc.remote_request(owningmachine,
+                             &coherent_dht<KeyType, ValueType>::push_changes,
+                             key,
+                             async,
+                             ignoreproc);
+        }
+      }
+    }
+
 
     void update_cache_from_remote(const KeyType &key, const ValueType &val) const {
       return update_cache(key, val);
@@ -533,7 +454,7 @@ namespace graphlab {
     /** Updates the internal cache with this new value. The cache
      * entry is also moved to the head of the LRU list
      */
-    void update_cache(const KeyType &key, const ValueType &val, bool calltrigger = true) const{
+    void update_cache(const KeyType &key, const ValueType &val) const{
 
       cachelock.lock();
       typename cache_type::iterator i = cache.find(key);
@@ -557,7 +478,6 @@ namespace graphlab {
         lruage.push_front(*(i->second));
       }
       cachelock.unlock();
-      if (has_mod_trigger && calltrigger) modification_trigger(key,val, true);
     }
 
   
