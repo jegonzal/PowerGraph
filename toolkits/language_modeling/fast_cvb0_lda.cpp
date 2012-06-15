@@ -178,8 +178,8 @@ int main(int argc, char** argv) {
                        "The number of words to report");
   clopts.attach_option("interval", &INTERVAL, INTERVAL,
                        "statistics reporting interval");
-  clopts.attach_option("binary", &BINARY_OBS, BINARY_OBS,
-                       "use 0/1 counts.");
+  clopts.attach_option("max_count", &MAX_COUNT, MAX_COUNT,
+                       "The maximum number of occurences of a word in a document.");
   if(!clopts.parse(argc, argv)) {
     graphlab::mpi_tools::finalize();
     return clopts.is_set("help")? EXIT_SUCCESS : EXIT_FAILURE;

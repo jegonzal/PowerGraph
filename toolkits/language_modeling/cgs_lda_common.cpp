@@ -23,6 +23,8 @@
 
 #include <vector>
 #include <algorithm>
+#include <graphlab/util/net_util.hpp>
+
 #include <graphlab.hpp>
 
 
@@ -38,15 +40,26 @@ size_t TOPK     = 5;
 size_t INTERVAL = 10;
 factor_type GLOBAL_TOPIC_COUNT;
 std::vector<std::string> DICTIONARY;
-
+bool BINARY_OBS = false;
+size_t MAX_COUNT = 100;
 
 bool graph_loader(graph_type& graph, const std::string& fname, 
                   const std::string& line) {
   ASSERT_FALSE(line.empty()); 
-  std::stringstream strm(line);
-  graph_type::vertex_id_type doc_id(-1), word_id(-1);
-  size_t count(0);
-  strm >> doc_id >> word_id >> count;
+  const int BASE = 10;
+  char* next_char_ptr = NULL;
+  graph_type::vertex_id_type doc_id = 
+    strtoul(line.c_str(), &next_char_ptr, BASE);
+  if(next_char_ptr == NULL) return false;
+  const graph_type::vertex_id_type word_id = 
+    strtoul(next_char_ptr, &next_char_ptr, BASE);
+  if(next_char_ptr == NULL) return false;
+  size_t count = 
+    strtoul(next_char_ptr, &next_char_ptr, BASE);
+  if(next_char_ptr == NULL) return false;
+
+  count = std::min(count, MAX_COUNT);
+
   // since this is a bipartite graph I need a method to number the
   // left and right vertices differently.  To accomplish I make sure
   // all vertices have non-zero ids and then negate the right vertex.
@@ -63,6 +76,8 @@ bool graph_loader(graph_type& graph, const std::string& fname,
 
 /** populate the global dictionary */
 bool load_dictionary(const std::string& fname) {
+  // std::cout << "staring load on: " 
+  //           << graphlab::get_local_ip_as_str() << std::endl;
   const bool gzip = boost::ends_with(fname, ".gz");
   // test to see if the graph_dir is an hadoop path
   if(boost::starts_with(fname, "hdfs://")) {
@@ -101,6 +116,8 @@ bool load_dictionary(const std::string& fname) {
     fin.pop();
     in_file.close();
   } // end of else
+  // std::cout << "Finished load on: " 
+  //           << graphlab::get_local_ip_as_str() << std::endl;
   std::cout << "Dictionary Size: " << DICTIONARY.size() << std::endl;
   return true;
 } // end of load dictionary
@@ -122,11 +139,11 @@ bool load_and_initialize_graph(graphlab::distributed_control& dc,
   dc.cout() << "Finalizing graph. Finished in " 
             << timer.current_time() << " seconds." << std::endl;
 
-  dc.cout() << "Initializing Vertex Data" << std::endl;
-  timer.start();
-  graph.transform_vertices(initialize_vertex_data);
-  dc.cout() << "Finished initializing Vertex Data in " 
-            << timer.current_time() << " seconds." << std::endl;
+  // dc.cout() << "Initializing Vertex Data" << std::endl;
+  // timer.start();
+  // graph.transform_vertices(initialize_vertex_data);
+  // dc.cout() << "Finished initializing Vertex Data in " 
+  //           << timer.current_time() << " seconds." << std::endl;
 
   dc.cout() << "Verivying dictionary size." << std::endl;
   NWORDS = graph.map_reduce_vertices<size_t>(is_word);

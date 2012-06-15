@@ -43,28 +43,33 @@ extern size_t TOPK;
 extern size_t INTERVAL;
 extern factor_type GLOBAL_TOPIC_COUNT;
 extern std::vector<std::string> DICTIONARY;
+extern size_t MAX_COUNT;
 
 
 inline factor_type& operator+=(factor_type& lvalue, const factor_type& rvalue) {
-  if(rvalue.empty()) return lvalue;
-  if(lvalue.size() != rvalue.size());
-  for(size_t t = 0; t < lvalue.size(); ++t) lvalue[t] += rvalue[t];
+  if(!rvalue.empty()) {
+    if(lvalue.size() != NTOPICS) lvalue = rvalue;
+    else {
+      for(size_t t = 0; t < lvalue.size(); ++t) lvalue[t] += rvalue[t];
+    }
+  }
   return lvalue;
 } // end of operator +=
+
 
 
 /**
  * The vertex data type
  */
 struct vertex_data {
-  factor_type factor;
   size_t nupdates, nchanges;
-  vertex_data() : nupdates(0), nchanges(0) { }
+  factor_type factor;
+  vertex_data() : nupdates(0), nchanges(0), factor(NTOPICS) { }
   void save(graphlab::oarchive& arc) const { 
-    arc << factor << nupdates << nchanges; 
+    arc << nupdates << nchanges << factor; 
   }
   void load(graphlab::iarchive& arc) { 
-    arc >> factor >> nupdates >> nchanges; 
+    arc >> nupdates >> nchanges >> factor; 
   } 
 }; // end of vertex_data
 
@@ -86,6 +91,7 @@ typedef graphlab::distributed_graph<vertex_data, edge_data> graph_type;
 
 bool graph_loader(graph_type& graph, const std::string& fname, 
                   const std::string& line);
+
 
 inline void initialize_vertex_data(graph_type::vertex_type& vertex) {
   vertex.data().factor.resize(NTOPICS);
@@ -111,6 +117,10 @@ inline bool is_doc(const graph_type::vertex_type& vertex) {
   return vertex.num_out_edges() > 0 ? 1 : 0;
 }
 
+inline size_t count_tokens(const graph_type::edge_type& edge) {
+  return edge.data().size();
+}
+
 inline graph_type::vertex_type 
 get_other_vertex(graph_type::edge_type& edge, 
                  const graph_type::vertex_type& vertex) {
@@ -124,9 +134,10 @@ class topk_aggregator {
   typedef std::pair<float, graphlab::vertex_id_type> cw_pair_type;
 private:
   std::vector< std::set<cw_pair_type> > top_words;
-  size_t nchanges;
+  size_t nchanges, nupdates;
 public:
-  topk_aggregator(size_t nchanges = 0) : nchanges(nchanges) { }
+  topk_aggregator(size_t nchanges = 0, size_t nupdates = 0) : 
+    nchanges(nchanges), nupdates(nupdates) { }
 
   void save(graphlab::oarchive& arc) const { arc << top_words << nchanges; }
   void load(graphlab::iarchive& arc) { arc >> top_words >> nchanges; }
@@ -134,9 +145,9 @@ public:
 
   topk_aggregator& operator+=(const topk_aggregator& other) {
     nchanges += other.nchanges;
+    nupdates += other.nupdates;
     if(other.top_words.empty()) return *this;
-    if(top_words.size() < other.top_words.size())
-      top_words.resize(other.top_words.size());
+    if(top_words.empty()) top_words.resize(NTOPICS);
     for(size_t i = 0; i < top_words.size(); ++i) {
       // Merge the topk
       top_words[i].insert(other.top_words[i].begin(), 
@@ -150,20 +161,19 @@ public:
   
   static topk_aggregator map(icontext_type& context, 
                              const graph_type::vertex_type& vertex) {
-    if(is_word(vertex) && !vertex.data().factor.empty()) {
-      const graphlab::vertex_id_type wordid = vertex.id();
-      const vertex_data& vdata = vertex.data();
-      topk_aggregator ret_value;
+    topk_aggregator ret_value;
+    const vertex_data& vdata = vertex.data();
+    ret_value.nchanges = vdata.nchanges;
+    ret_value.nupdates = vdata.nupdates;
+    if(is_word(vertex)) {
+      const graphlab::vertex_id_type wordid = vertex.id();    
       ret_value.top_words.resize(vdata.factor.size());
       for(size_t i = 0; i < vdata.factor.size(); ++i) {
         const cw_pair_type pair(vdata.factor[i], wordid);
         ret_value.top_words[i].insert(pair);
       }
-      ret_value.nchanges = vdata.nchanges;
-      return ret_value;
-    } else { 
-      return topk_aggregator(vertex.data().nchanges);       
-    }
+    } 
+    return ret_value;   
   } // end of map function
 
   static void finalize(icontext_type& context,
@@ -179,7 +189,8 @@ public:
       }
       std::cout << std::endl;
     }
-    std::cout << "\n Number of token changes: " << total.nchanges << std::endl;
+    std::cout << "\nNumber of token changes: " << total.nchanges << std::endl;
+    std::cout << "\nNumber of updates:       " << total.nupdates << std::endl;
   } // end of finalize
 }; // end of topk_aggregator struct
 
@@ -194,9 +205,16 @@ struct global_counts_aggregator {
   } // end of map function
 
   static void finalize(IContext& context, const factor_type& total) {
-    for(size_t t = 0; t < total.size(); ++t)
+    context.cout() << "Global Counts: ";
+    size_t sum = 0;
+    for(size_t t = 0; t < total.size(); ++t) {
       GLOBAL_TOPIC_COUNT[t] =
         std::max(count_type(total[t]/2), count_type(0));
+      sum += GLOBAL_TOPIC_COUNT[t];
+      context.cout() << GLOBAL_TOPIC_COUNT[t] << " ";
+
+    }
+    context.cout() << std::endl << "Total: " << sum << std::endl;
   } // end of finalize
 }; // end of global_counts_aggregator struct
 
@@ -206,12 +224,12 @@ struct global_counts_aggregator {
 template<typename IContext>
 struct selective_signal {
  static graphlab::empty 
- docs(IContext& context, graph_type::vertex_type& vertex) {
+ docs(IContext& context, const graph_type::vertex_type& vertex) {
    if(is_doc(vertex)) context.signal(vertex);
    return graphlab::empty();
  } // end of signal_docs
  static graphlab::empty 
- words(IContext& context, graph_type::vertex_type& vertex) {
+ words(IContext& context, const graph_type::vertex_type& vertex) {
     if(is_word(vertex)) context.signal(vertex);
     return graphlab::empty();
   } // end of signal_words

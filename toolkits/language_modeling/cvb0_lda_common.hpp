@@ -43,14 +43,20 @@ extern size_t TOPK;
 extern size_t INTERVAL;
 extern factor_type GLOBAL_TOPIC_COUNT;
 extern std::vector<std::string> DICTIONARY;
-extern bool BINARY_OBS;
+extern size_t MAX_COUNT;
+
+
 
 inline factor_type& operator+=(factor_type& lvalue, const factor_type& rvalue) {
-  if(rvalue.empty()) return lvalue;
-  if(lvalue.size() != NTOPICS) lvalue.resize(NTOPICS);
-  for(size_t t = 0; t < lvalue.size(); ++t) lvalue[t] += rvalue[t];
+  if(!rvalue.empty()) {
+    if(lvalue.size() != NTOPICS) lvalue = rvalue;
+    else {
+      for(size_t t = 0; t < lvalue.size(); ++t) lvalue[t] += rvalue[t];
+    }
+  }
   return lvalue;
 } // end of operator +=
+
 
 
 /**
@@ -134,19 +140,23 @@ class topk_aggregator {
   typedef std::pair<float, graphlab::vertex_id_type> cw_pair_type;
 private:
   std::vector< std::set<cw_pair_type> > top_words;
-  float nchanges;
+  float nchanges, nupdates;
 public:
-  topk_aggregator(size_t nchanges = 0) : nchanges(nchanges) { }
+  topk_aggregator(size_t nchanges = 0, size_t nupdates = 0) : 
+    nchanges(nchanges), nupdates(nupdates) { }
 
-  void save(graphlab::oarchive& arc) const { arc << top_words << nchanges; }
-  void load(graphlab::iarchive& arc) { arc >> top_words >> nchanges; }
-
+  void save(graphlab::oarchive& arc) const { 
+    arc << top_words << nchanges << nupdates; 
+  }
+  void load(graphlab::iarchive& arc) { 
+    arc >> top_words >> nchanges >> nupdates;
+  }
 
   topk_aggregator& operator+=(const topk_aggregator& other) {
     nchanges += other.nchanges;
+    nupdates += other.nupdates;
     if(other.top_words.empty()) return *this;
-    if(top_words.size() < other.top_words.size())
-      top_words.resize(other.top_words.size());
+    if(top_words.empty()) top_words.resize(NTOPICS);
     for(size_t i = 0; i < top_words.size(); ++i) {
       // Merge the topk
       top_words[i].insert(other.top_words[i].begin(), 
@@ -160,19 +170,19 @@ public:
   
   static topk_aggregator map(icontext_type& context, 
                              const graph_type::vertex_type& vertex) {
-    if(is_word(vertex) && !vertex.data().factor.empty()) {
-      const graphlab::vertex_id_type wordid = vertex.id();
-      const vertex_data& vdata = vertex.data();
-      topk_aggregator ret_value;
+    topk_aggregator ret_value;
+    const vertex_data& vdata = vertex.data();
+    ret_value.nchanges = vdata.nchanges;
+    ret_value.nupdates = vdata.nupdates;
+    if(is_word(vertex)) {
+      const graphlab::vertex_id_type wordid = vertex.id();    
       ret_value.top_words.resize(vdata.factor.size());
       for(size_t i = 0; i < vdata.factor.size(); ++i) {
         const cw_pair_type pair(vdata.factor[i], wordid);
         ret_value.top_words[i].insert(pair);
       }
-      return ret_value;
-    } else { 
-      return topk_aggregator(vertex.data().nchanges);       
-    }
+    } 
+    return ret_value;
   } // end of map function
 
   static void finalize(icontext_type& context,
@@ -188,7 +198,8 @@ public:
       }
       std::cout << std::endl;
     }
-    std::cout << "\n Number of token changes: " << total.nchanges << std::endl;
+    std::cout << "\nNumber of token changes: " << total.nchanges << std::endl;
+    std::cout << "\nNumber of updates:       " << total.nupdates << std::endl;
   } // end of finalize
 }; // end of topk_aggregator struct
 
