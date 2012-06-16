@@ -2,10 +2,12 @@
 
 require 'json'
 
+INFINITY = 1e99
+
 class String
   alias :old_to_f :to_f
   def to_f
-    return 1e99 if 0 >= self.length
+    return INFINITY if 0 >= self.length
     self.old_to_f
   end
 end
@@ -41,8 +43,8 @@ class Handler
     # take min of vertex dist and gather dist
     vertex_dist = json["params"]["vertex"]["state"].to_f
     gather_dist = json["params"]["gather"].to_f
+    return {:vertex => "0.0"} if vertex_dist >= INFINITY 
     return {:vertex => gather_dist.to_s} if (gather_dist < vertex_dist)
-    return {}
   end
 
   def scatter(json)

@@ -70,6 +70,7 @@ public:
     double vertex_dist = stof(vertex_state);
     // best distance found from gather
     double best_dist = stof(invocation["params"]["gather"].GetString());
+    if (best_dist  >= INFINITY) best_dist = 0;
     // if improvement, update
     if (best_dist < vertex_dist){
       std::ostringstream double_stream;
