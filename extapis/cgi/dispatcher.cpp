@@ -119,6 +119,23 @@ edge_dir_type dispatcher::scatter_edges
   
 }
 
+void dispatcher::signal(icontext_type& context,
+                        edge_type& edge,
+                        const jr& result) const {
+  
+  // null means no signal                      
+  const char *cstring = result.signal();
+  if (NULL == cstring) return;
+
+  // either signal source or target
+  if (!strcmp("SOURCE", cstring)){
+    context.signal(edge.source());
+  }else if (!strcmp("TARGET", cstring)){
+    context.signal(edge.target());
+  }else logstream(LOG_FATAL) << "Unrecognized signal: " << cstring << std::endl;
+  
+}
+
 dispatcher::gather_type dispatcher::gather
                              (icontext_type& context,
                               const vertex_type& vertex,
@@ -134,6 +151,9 @@ dispatcher::gather_type dispatcher::gather
   // receive
   jr result;
   p.receive(result);
+  
+  // signal
+  signal(context, edge, result);
   
   // return result
   const char *cstring = result.result();
@@ -178,19 +198,12 @@ void dispatcher::scatter(icontext_type& context,
   invocation.add_edge(edge);
   p.send(invocation);
   
-  // parse results
+  // receive
   jr result;
   p.receive(result);
 
-  // null means no signal
-  const char *cstring = result.signal();
-  if (NULL == cstring) return;
-
-  if (!strcmp("SOURCE", cstring)){
-    context.signal(edge.source());
-  }else if (!strcmp("TARGET", cstring)){
-    context.signal(edge.target());
-  }else logstream(LOG_FATAL) << "Unrecognized signal: " << cstring << std::endl;
+  // signal
+  signal(context, edge, result);
   
 }
  

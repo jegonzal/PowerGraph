@@ -70,6 +70,10 @@ namespace graphlab {
   private:
     /** vertex program state - */
     std::string mstate;
+    /** Parse signals from result and send them via context
+     * @internal
+     */
+    void signal(icontext_type& context, edge_type& edge, const json_return& result) const;
   public:
     dispatcher(const std::string& state="");
     edge_dir_type gather_edges(icontext_type& context, const vertex_type& vertex) const;
@@ -79,7 +83,9 @@ namespace graphlab {
     void scatter(icontext_type& context, const vertex_type& vertex, edge_type& edge) const;
     void save(oarchive& oarc) const;
     void load(iarchive& iarc);
+    /** CGI wrapper for transform_edge invocation */
     static void init_edge(graph_type::edge_type edge);
+    /** CGI wrapper for transform_vertex invocation */
     static void init_vertex(graph_type::vertex_type vertex);
     static bool read_graph(graph_type& graph,
                           const std::string& filename,
