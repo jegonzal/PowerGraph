@@ -23,7 +23,6 @@
 
 #include <vector>
 #include <algorithm>
-#include <graphlab.hpp>
 
 
 #include "cgs_lda_common.hpp"
@@ -32,50 +31,52 @@
 #include <graphlab/macros_def.hpp>
 
 
-// struct gather_type {
-//   factor_type factor;
-//   size_t nchanges;
-//   gather_type() : nchanges(0) { };
-//   void save(graphlab::oarchive& arc) const { arc << factor << nchanges; }
-//   void load(graphlab::iarchive& arc) { arc >> factor >> nchanges; }
-//   gather_type& operator+=(const gather_type& other) {
-//     factor += other.factor;
-//     nchanges += other.nchanges;
-//     return *this;
-//   }
-// }; // end of gather type
+struct gather_type {
+  factor_type factor;
+  uint32_t nchanges;
+  gather_type() : nchanges(0) { };
+  gather_type(uint32_t nchanges) : factor(NTOPICS), nchanges(nchanges) { };
+  void save(graphlab::oarchive& arc) const { arc << factor << nchanges; }
+  void load(graphlab::iarchive& arc) { arc >> factor >> nchanges; }
+  gather_type& operator+=(const gather_type& other) {
+    factor += other.factor;
+    nchanges += other.nchanges;
+    return *this;
+  }
+}; // end of gather type
 
 
 class cgs_lda_vertex_program :
-  public graphlab::ivertex_program<graph_type, factor_type>,
+  public graphlab::ivertex_program<graph_type, gather_type>,
   public graphlab::IS_POD_TYPE {
 public:
-
+  /** \brief gather on all edges */
   edge_dir_type gather_edges(icontext_type& context, 
                              const vertex_type& vertex) const {
     return graphlab::ALL_EDGES;
   } // end of gather_edges 
 
-  factor_type gather(icontext_type& context, const vertex_type& vertex, 
+  gather_type gather(icontext_type& context, const vertex_type& vertex, 
                      edge_type& edge) const {
-    factor_type factor(NTOPICS);
-    const assignment_type& assignment = edge.data();
+    gather_type ret(edge.data().nchanges);
+    const assignment_type& assignment = edge.data().assignment;
     foreach(topic_id_type asg, assignment) {
-      if(asg != NULL_TOPIC) ++factor[asg];
+      if(asg != NULL_TOPIC) ++ret.factor[asg];
     }
-    return factor;
+    return ret;
   } // end of gather
 
   void apply(icontext_type& context, vertex_type& vertex,
-             const factor_type& sum_factor) {
+             const gather_type& sum) {
     const size_t num_neighbors = vertex.num_in_edges() + vertex.num_out_edges();
     ASSERT_GT(num_neighbors, 0);
     // There should be no new edge data since the vertex program has been cleared
     vertex_data& vdata = vertex.data();
-    ASSERT_EQ(sum_factor.size(), NTOPICS);
+    ASSERT_EQ(sum.factor.size(), NTOPICS);
     ASSERT_EQ(vdata.factor.size(), NTOPICS);
-    vdata.nupdates++; 
-    vdata.factor = sum_factor;
+    vdata.nupdates++;
+    vdata.nchanges = sum.nchanges;
+    vdata.factor = sum.factor;
   } // end of apply
 
   edge_dir_type scatter_edges(icontext_type& context,
@@ -93,9 +94,8 @@ public:
     ASSERT_EQ(word_topic_count.size(), NTOPICS);
     // run the actual gibbs sampling 
     std::vector<double> prob(NTOPICS);
-    assignment_type& assignment = edge.data();
-    // Resample the topics
-    size_t nchanges = 0;
+    assignment_type& assignment = edge.data().assignment;
+    edge.data().nchanges = 0;
     foreach(topic_id_type& asg, assignment) {
       const topic_id_type old_asg = asg;
       if(asg != NULL_TOPIC) { // construct the cavity
@@ -117,7 +117,7 @@ public:
       ++doc_topic_count[asg];
       ++word_topic_count[asg];                    
       ++GLOBAL_TOPIC_COUNT[asg];
-      if(asg != old_asg) ++nchanges;
+      if(asg != old_asg) ++edge.data().nchanges;
     } // End of loop over each token
     // singla the other vertex
     context.signal(get_other_vertex(edge, vertex));

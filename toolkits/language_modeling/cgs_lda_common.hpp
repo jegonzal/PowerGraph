@@ -25,30 +25,38 @@
  
 #include <vector>
 #include <algorithm>
-#include <graphlab.hpp>
+#include <graphlab/parallel/atomic.hpp>
 
-#include <graphlab/macros_def.hpp>
+// Global Types
+// ============================================================================
+
 typedef int count_type;
+
 typedef uint16_t topic_id_type;
+
 #define NULL_TOPIC (topic_id_type(-1))
 
+/**
+ * \brief The factor type is used to store the counts of tokens in
+ * each topic for words, documents, and assignments.
+ *
+ * Atomic counts are used because we violate the abstraction by
+ * modifying adjacent vertex data on scatter.  As a consequence
+ * multiple threads on the same machine may try to update the same
+ * vertex data at the same time.  The graphlab::atomic type ensures
+ * that multiple increments are serially consistent.
+ */
 typedef std::vector< graphlab::atomic<count_type> > factor_type;
-typedef std::vector< topic_id_type > assignment_type;
-
-extern double ALPHA;
-extern double BETA;
-extern size_t NTOPICS;
-extern size_t NWORDS;
-extern size_t TOPK;
-extern size_t INTERVAL;
-extern factor_type GLOBAL_TOPIC_COUNT;
-extern std::vector<std::string> DICTIONARY;
-extern size_t MAX_COUNT;
 
 
-inline factor_type& operator+=(factor_type& lvalue, const factor_type& rvalue) {
+/**
+ * \brief We use the factor type in accumulators and so we define an
+ * operator+=
+ */
+inline factor_type& operator+=(factor_type& lvalue, 
+                               const factor_type& rvalue) {
   if(!rvalue.empty()) {
-    if(lvalue.size() != NTOPICS) lvalue = rvalue;
+    if(lvalue.empty()) lvalue = rvalue;
     else {
       for(size_t t = 0; t < lvalue.size(); ++t) lvalue[t] += rvalue[t];
     }
@@ -58,76 +66,222 @@ inline factor_type& operator+=(factor_type& lvalue, const factor_type& rvalue) {
 
 
 
+
+
+#include <graphlab.hpp>
+
+#include <graphlab/macros_def.hpp>
+
+
 /**
- * The vertex data type
+ * \brief The assignment type is used on each edge to store the
+ * assignments of each token.  There can be several occurrences of the
+ * same word in a given document and so a vector is used to store the
+ * assignments of each occurrence.
+ */
+typedef std::vector< topic_id_type > assignment_type;
+
+
+// Global Variables
+// ============================================================================
+
+/**
+ * \brief The alpha parameter determines the sparsity of topics for
+ * each document.
+ */
+double ALPHA = 0.1;
+
+/**
+ * \brief the Beta parameter determines the sparsity of words in each
+ * document.
+ */
+double BETA = 0.1;
+
+/**
+ * \brief the total number of topics to uses
+ */
+size_t NTOPICS = 50;
+
+/**
+ * \brief The total number of words in the corpus.  This is determined
+ * after loading the dictionary.
+ */
+size_t NWORDS = 0;
+
+/**
+ * \brief The number of top words to display during execution (from
+ * each topic).
+ */
+size_t TOPK = 5;
+
+/**
+ * \brief The interval to display topics during execution.
+ */
+size_t INTERVAL = 10;
+
+/**
+ * \brief The global variable storing the global topic count across
+ * all machines.  This is maintained periodically using aggregation.
+ */
+factor_type GLOBAL_TOPIC_COUNT;
+
+/**
+ * \brief A dictionary of words used to print the top words during
+ * execution.
+ */
+std::vector<std::string> DICTIONARY;
+
+/**
+ * \brief The maximum occurences allowed for an individual term-doc
+ * pair. (edge data)
+ */
+size_t MAX_COUNT = 100;
+
+
+
+
+
+
+// Graph Types
+// ============================================================================
+
+/**
+ * \brief The vertex data represents each term and document in the
+ * corpus and contains the counts of tokens in each topic.
  */
 struct vertex_data {
-  size_t nupdates, nchanges;
+  ///! The total number of updates
+  uint32_t nupdates;
+  ///! The total number of changes to adjacent tokens
+  uint32_t nchanges;
+  ///! The count of tokens in each topic
   factor_type factor;
   vertex_data() : nupdates(0), nchanges(0), factor(NTOPICS) { }
-  void save(graphlab::oarchive& arc) const { 
+  void save(graphlab::oarchive& arc) const {
     arc << nupdates << nchanges << factor; 
   }
   void load(graphlab::iarchive& arc) { 
     arc >> nupdates >> nchanges >> factor; 
-  } 
+  }
 }; // end of vertex_data
 
-
 /**
- * The edge data type
+ * \brief The edge data represents the individual tokens (word,doc)
+ * pairs and their assignment to topics. 
  */
-typedef assignment_type edge_data;
-
+struct edge_data {
+  ///! The number of changes on the last update
+  uint16_t nchanges;
+  ///! The assignment of all tokens
+  assignment_type assignment;
+  edge_data(size_t ntokens = 0) : nchanges(0), assignment(ntokens, NULL_TOPIC) { }
+  void save(graphlab::oarchive& arc) const { arc << nchanges << assignment; }
+  void load(graphlab::iarchive& arc) { arc >> nchanges >> assignment; }
+}; // end of edge_daga
 
 
 /**
- * \brief The graph type;
+ * \brief The LDA graph is a bipartite graph with docs connected to
+ * terms if the term occurs in the document.  
+ *
+ * The edges store the number of occurrences of the term in the
+ * document as a vector of the assignments of that term in that
+ * document to topics.
+ *
+ * The vertices store the total topic counts.
  */
 typedef graphlab::distributed_graph<vertex_data, edge_data> graph_type;
 
 
-
-
+/**
+ * \brief The graph loader is used by graph.load to parse lines of the
+ * text data file.
+ *
+ * The global variable MAX_COUNT limits the number of tokens that can
+ * be constructed on a particular edge.  
+ */
 bool graph_loader(graph_type& graph, const std::string& fname, 
-                  const std::string& line);
+                  const std::string& line) {
+  ASSERT_FALSE(line.empty()); 
+  const int BASE = 10;
+  char* next_char_ptr = NULL;
+  graph_type::vertex_id_type doc_id = 
+    strtoul(line.c_str(), &next_char_ptr, BASE);
+  if(next_char_ptr == NULL)  return false;
+  const graph_type::vertex_id_type word_id = 
+    strtoul(next_char_ptr, &next_char_ptr, BASE);
+  if(next_char_ptr == NULL) return false;
+  size_t count = 
+    strtoul(next_char_ptr, &next_char_ptr, BASE);
+  if(next_char_ptr == NULL) return false;
+  // Threshold the count
+  count = std::min(count, MAX_COUNT);
+  // since this is a bipartite graph I need a method to number the
+  // left and right vertices differently.  To accomplish I make sure
+  // all vertices have non-zero ids and then negate the right vertex.
+  // Unfortunatley graphlab reserves -1 and so we add 2 and negate.
+  doc_id += 2; 
+  ASSERT_GT(doc_id, 1); 
+  doc_id = -doc_id;
+  ASSERT_NE(doc_id, word_id);
+  // Create an edge and add it to the graph
+  graph.add_edge(doc_id, word_id, edge_data(count));
+  return true; // successful load
+}; // end of graph loader
 
 
-inline void initialize_vertex_data(graph_type::vertex_type& vertex) {
-  vertex.data().factor.resize(NTOPICS);
-}
-
-
-bool load_and_initialize_graph(graphlab::distributed_control& dc,
-                               graph_type& graph,
-                               const std::string& matrix_dir);
 
 
 
-
-/** populate the global dictionary */
-bool load_dictionary(const std::string& fname);
-
-
+/**
+ * \brief Determine if the given vertex is a word vertex or a doc
+ * vertex.
+ *
+ * For simplicity we connect docs --> words and therefore if a vertex
+ * has in edges then it is a word.
+ */
 inline bool is_word(const graph_type::vertex_type& vertex) {
   return vertex.num_in_edges() > 0 ? 1 : 0;
 }
 
+
+/**
+ * \brief Determine if the given vertex is a doc vertex
+ *
+ * For simplicity we connect docs --> words and therefore if a vertex
+ * has out edges then it is a doc
+ */
 inline bool is_doc(const graph_type::vertex_type& vertex) {
   return vertex.num_out_edges() > 0 ? 1 : 0;
 }
 
+/**
+ * \brief return the number of tokens on a particular edge.
+ */
 inline size_t count_tokens(const graph_type::edge_type& edge) {
-  return edge.data().size();
+  return edge.data().assignment.size();
 }
 
+
+/**
+ * \brief Get the other vertex in the edge.
+ */
 inline graph_type::vertex_type 
-get_other_vertex(graph_type::edge_type& edge, 
+get_other_vertex(const graph_type::edge_type& edge, 
                  const graph_type::vertex_type& vertex) {
   return vertex.id() == edge.source().id()? edge.target() : edge.source();
 }
 
 
+
+/**
+ * \brief The topk aggregator is used to periodically compute and
+ * display the topk most common words in each topic.
+ *
+ * The number of words is determined by the global variable \ref TOPK
+ * and the interval is determined by the global variable \ref INTERVAL.
+ *
+ */
 template<typename IContext>
 class topk_aggregator {
   typedef IContext icontext_type;
@@ -238,6 +392,78 @@ struct selective_signal {
 
 
 
+bool load_and_initialize_graph(graphlab::distributed_control& dc,
+                               graph_type& graph,
+                               const std::string& matrix_dir) {  
+  dc.cout() << "Loading graph." << std::endl;
+  graphlab::timer timer; timer.start();
+  graph.load(matrix_dir, graph_loader); 
+  dc.cout() << ": Loading graph. Finished in " 
+            << timer.current_time() << " seconds." << std::endl;
+
+  dc.cout() << "Finalizing graph." << std::endl;
+  timer.start();
+  graph.finalize();
+  dc.cout() << "Finalizing graph. Finished in " 
+            << timer.current_time() << " seconds." << std::endl;
+
+  dc.cout() << "Verivying dictionary size." << std::endl;
+  NWORDS = graph.map_reduce_vertices<size_t>(is_word);
+  dc.cout()  << "Number of words: " << NWORDS;
+  //ASSERT_LT(NWORDS, DICTIONARY.size());
+  return true;
+} // end of load and initialize graph
+
+
+
+
+/** populate the global dictionary */
+bool load_dictionary(const std::string& fname)  {
+  // std::cout << "staring load on: " 
+  //           << graphlab::get_local_ip_as_str() << std::endl;
+  const bool gzip = boost::ends_with(fname, ".gz");
+  // test to see if the graph_dir is an hadoop path
+  if(boost::starts_with(fname, "hdfs://")) {
+    graphlab::hdfs hdfs;
+    graphlab::hdfs::fstream in_file(hdfs, fname);
+    boost::iostreams::filtering_stream<boost::iostreams::input> fin;  
+    fin.set_auto_close(false);
+    if(gzip) fin.push(boost::iostreams::gzip_decompressor());
+    fin.push(in_file);
+    if(!fin.good()) {
+      logstream(LOG_ERROR) << "Error loading dictionary: "
+                           << fname << std::endl;
+      return false;
+    }
+    std::string term;
+    while(std::getline(fin,term).good()) DICTIONARY.push_back(term);
+    if (gzip) fin.pop();
+    fin.pop();
+    in_file.close();
+  } else {
+    std::cout << "opening: " << fname << std::endl;
+    std::ifstream in_file(fname.c_str(), 
+                          std::ios_base::in | std::ios_base::binary);
+    boost::iostreams::filtering_stream<boost::iostreams::input> fin;  
+    if (gzip) fin.push(boost::iostreams::gzip_decompressor());
+    fin.push(in_file);
+    if(!fin.good() || !fin.good()) {
+      logstream(LOG_ERROR) << "Error loading dictionary: "
+                           << fname << std::endl;
+      return false;
+    }
+    std::string term;
+    std::cout << "Loooping" << std::endl;
+    while(std::getline(fin, term).good()) DICTIONARY.push_back(term);
+    if (gzip) fin.pop();
+    fin.pop();
+    in_file.close();
+  } // end of else
+  // std::cout << "Finished load on: " 
+  //           << graphlab::get_local_ip_as_str() << std::endl;
+  std::cout << "Dictionary Size: " << DICTIONARY.size() << std::endl;
+  return true;
+} // end of load dictionary
 
 
 

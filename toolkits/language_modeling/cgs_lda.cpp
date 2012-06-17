@@ -43,36 +43,25 @@ struct gather_type {
   typedef std::pair<factor_type, assignment_type> edge_pair_type;
   typedef std::map<graphlab::vertex_id_type, edge_pair_type> 
   neighborhood_map_type;
-  
   neighborhood_map_type neighborhood_map;
-  factor_type topic_count;
 
   gather_type() { }
-
-  gather_type(const factor_type& topic_count) :
-    topic_count(topic_count) { } 
-
-  gather_type(graphlab::vertex_id_type vid,
-              const factor_type& factor,
-              const assignment_type& assignment) {
-    neighborhood_map[vid] = edge_pair_type(factor, assignment);
+  
+  gather_type(const graph_type::edge_type& edge,
+              const graph_type::vertex_type& vertex) {
+    const graph_type::vertex_type other_vertex = 
+      get_other_vertex(edge, vertex);
+    neighborhood_map[other_vertex.id()] = 
+      edge_pair_type(other_vertex.data().factor, edge.data().assignment);
   }
 
-  void save(graphlab::oarchive& arc) const {
-    arc << neighborhood_map << topic_count;
-  }
+  void save(graphlab::oarchive& arc) const { arc << neighborhood_map; }
 
-  void load(graphlab::iarchive& arc) {
-    arc >> neighborhood_map >> topic_count;
-  }
-
+  void load(graphlab::iarchive& arc) { arc >> neighborhood_map; }
+  
   gather_type& operator+=(const gather_type& other) {
     neighborhood_map.insert(other.neighborhood_map.begin(),
                             other.neighborhood_map.end());
-    if(topic_count.size() < other.topic_count.size()) 
-      topic_count.resize(other.topic_count.size());
-    for(size_t i = 0; i < other.topic_count.size(); ++i) 
-      topic_count[i] += other.topic_count[i];
     return *this;
   } // end of operator +=
 
@@ -103,16 +92,7 @@ public:
 
   gather_type gather(icontext_type& context, const vertex_type& vertex, 
                      edge_type& edge) const {
-    const vertex_type other_vertex = get_other_vertex(edge, vertex);
-    if(is_doc(other_vertex)) {
-      gather_type ret; ret.topic_count.resize(NTOPICS);
-      const assignment_type& assignment = edge.data();
-      foreach(topic_id_type asg, assignment) ++ret.topic_count[asg];
-      return ret;
-    } else {
-      return gather_type(other_vertex.id(), other_vertex.data().factor,
-                         edge.data());
-    }
+    return gather_type(edge, vertex);
   } // end of gather
   
 
@@ -121,59 +101,68 @@ public:
     const size_t num_neighbors = vertex.num_in_edges() + vertex.num_out_edges();
     ASSERT_GT(num_neighbors, 0);
     ASSERT_EQ(new_edge_data.size(), 0); 
-    ASSERT_EQ(vertex.data().factor.size(), NTOPICS);
-    if(is_word(vertex)) {
-      vertex.data().nupdates++; 
-      vertex.data().factor = sum.topic_count;
-    } else { ASSERT_TRUE(is_doc(vertex));
-      vertex_data& vdata = vertex.data();
-      vdata.nupdates++; vdata.nchanges = 0;
-      factor_type& doc_topic_count = vdata.factor;
-      // run the actual gibbs sampling 
-      std::vector<double> prob(NTOPICS);
-      typedef gather_type::neighborhood_map_type::value_type pair_type; 
-      foreach(const pair_type& nbr_pair, sum.neighborhood_map) {
-        const graphlab::vertex_id_type wordid = nbr_pair.first;
-        factor_type word_topic_count = nbr_pair.second.first;
-        assignment_type assignment = nbr_pair.second.second;
-        ASSERT_EQ(word_topic_count.size(), NTOPICS);
-        // Resample the topics
-        foreach(topic_id_type& asg, assignment) {
-          const topic_id_type old_asg = asg;
-          if(asg != NULL_TOPIC) { // construct the cavity
-            --doc_topic_count[asg];
-            --word_topic_count[asg];
-            --GLOBAL_TOPIC_COUNT[asg];
-          }
-          for(size_t t = 0; t < NTOPICS; ++t) {
-            const double n_dt = 
-              std::max(count_type(doc_topic_count[t]), count_type(0)); 
-            ASSERT_GE(n_dt, 0);
-            const double n_wt = 
-              std::max(count_type(word_topic_count[t]), count_type(0)); 
-            ASSERT_GE(n_wt, 0);
-            const double n_t  = 
-              std::max(count_type(GLOBAL_TOPIC_COUNT[t]), count_type(0)); 
-            ASSERT_GE(n_t, 0);
-            prob[t] = (ALPHA + n_dt) * (BETA + n_wt) / (BETA * NWORDS + n_t);
-          }
-          asg = graphlab::random::multinomial(prob);
-          ++doc_topic_count[asg];
-          ++word_topic_count[asg];                    
-          ++GLOBAL_TOPIC_COUNT[asg];
-          // record a change if one occurs
-          if(old_asg != asg) vdata.nchanges++;
-        } // End of loop over each token
-        // test to see if the topic assignments have change
-        // sort the topic assignment to be in a "canonical order" 
-        std::sort(assignment.begin(), assignment.end());
-        const assignment_type& old_assignment = nbr_pair.second.second;
-        bool is_same = (old_assignment.size() == assignment.size());  
-        for(size_t i = 0; i < assignment.size() && is_same; ++i)
-          is_same = (assignment[i] == old_assignment[i]);
-        if(!is_same) new_edge_data[wordid] = assignment;
-      } // end of loop over neighbors
-    } // end of else document
+    vertex_data& vdata = vertex.data();
+    factor_type& factor = vdata.factor;  
+    ASSERT_EQ(factor.size(), NTOPICS);
+  
+    // first update the factor count for this vertex  
+    typedef gather_type::neighborhood_map_type::value_type pair_type; 
+    foreach(const pair_type& nbr_pair, sum.neighborhood_map) {
+      const assignment_type& assignment = nbr_pair.second.second;
+      foreach(const topic_id_type& asg, assignment) {
+        if(asg != NULL_TOPIC) ++factor[asg];
+      } // end of loop over assignments
+    } // end of loop over neighborhood
+  
+    // Resample the vertex
+    vdata.nchanges = 0;
+    // run the actual gibbs sampling 
+    std::vector<double> prob(NTOPICS);
+    typedef gather_type::neighborhood_map_type::value_type pair_type; 
+    foreach(const pair_type& nbr_pair, sum.neighborhood_map) {
+      const graphlab::vertex_id_type other_id = nbr_pair.first;
+      factor_type other_factor = nbr_pair.second.first;
+      assignment_type assignment = nbr_pair.second.second;
+      factor_type& doc_topic_count  = is_doc(vertex)? factor : other_factor;
+      factor_type& word_topic_count = is_word(vertex)? factor : other_factor;
+      ASSERT_EQ(word_topic_count.size(), NTOPICS);
+      ASSERT_EQ(doc_topic_count.size(), NTOPICS);
+      // Resample the topics
+      foreach(topic_id_type& asg, assignment) {
+        const topic_id_type old_asg = asg;
+        if(asg != NULL_TOPIC) { // construct the cavity
+          --doc_topic_count[asg];
+          --word_topic_count[asg];
+          --GLOBAL_TOPIC_COUNT[asg];
+        }
+        for(size_t t = 0; t < NTOPICS; ++t) {
+          const double n_dt = 
+            std::max(count_type(doc_topic_count[t]), count_type(0)); 
+          ASSERT_GE(n_dt, 0);
+          const double n_wt = 
+            std::max(count_type(word_topic_count[t]), count_type(0)); 
+          ASSERT_GE(n_wt, 0);
+          const double n_t  = 
+            std::max(count_type(GLOBAL_TOPIC_COUNT[t]), count_type(0)); 
+          ASSERT_GE(n_t, 0);
+          prob[t] = (ALPHA + n_dt) * (BETA + n_wt) / (BETA * NWORDS + n_t);
+        }
+        asg = graphlab::random::multinomial(prob);
+        ++doc_topic_count[asg];
+        ++word_topic_count[asg];                    
+        ++GLOBAL_TOPIC_COUNT[asg];
+        // record a change if one occurs
+        if(old_asg != asg) vdata.nchanges++;
+      } // End of loop over each token
+      // test to see if the topic assignments have change
+      // sort the topic assignment to be in a "canonical order" 
+      std::sort(assignment.begin(), assignment.end());
+      const assignment_type& old_assignment = nbr_pair.second.second;
+      bool is_same = (old_assignment.size() == assignment.size());  
+      for(size_t i = 0; i < assignment.size() && is_same; ++i)
+        is_same = (assignment[i] == old_assignment[i]);
+      if(!is_same) new_edge_data[other_id] = assignment;
+    } // end of loop over neighbors
   } // end of apply
 
 
@@ -183,22 +172,17 @@ public:
   }; // end of scatter edges
 
   void scatter(icontext_type& context, const vertex_type& vertex, 
-               edge_type& edge) const  {
-    if(is_doc(vertex)) { 
-      const vertex_type word_vertex = get_other_vertex(edge, vertex);
-      ASSERT_TRUE(is_word(word_vertex));
-      // if this is a document then update the topic assignment along
-      // the edge
-      edge_data_map_type::const_iterator iter = 
-        new_edge_data.find(word_vertex.id());
-      // If there is an assignment then something changed so update
-      // and signal
-      if(iter != new_edge_data.end()) {
-        const assignment_type& new_topic_assignment = iter->second;
-        ASSERT_EQ(new_topic_assignment.size(), edge.data().size());
-        edge.data() = new_topic_assignment;
-      }
-    } 
+               edge_type& edge) const  {  
+    const vertex_type other_vertex = get_other_vertex(edge, vertex);
+    edge_data_map_type::const_iterator iter = 
+      new_edge_data.find(other_vertex.id());
+    // If there is an assignment then something changed
+    if(iter != new_edge_data.end()) {
+      const assignment_type& new_topic_assignment = iter->second;
+      ASSERT_EQ(new_topic_assignment.size(), 
+                edge.data().assignment.size());
+      edge.data().assignment = new_topic_assignment;
+    }
     context.signal(get_other_vertex(edge, vertex));
   } // end of scatter function
 
