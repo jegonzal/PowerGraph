@@ -22,17 +22,17 @@
 
 
 
-#ifndef ALS_VERTEX_PROGRAM_HPP
-#define ALS_VERTEX_PROGRAM_HPP
+#ifndef SGD_VERTEX_PROGRAM_HPP
+#define SGD_VERTEX_PROGRAM_HPP
 
 
 /**
  * \file
- * \ingroup toolkit_matrix_factorization
+ * \ingroup toolkit_matrix_pvecization
  *
  * \brief This file describes the vertex program for the alternating
- * least squares (ALS) matrix factorization algorithm.  See
- * \ref als_vertex_program for description of the ALS Algorithm.
+ * least squares (SGD) matrix pvecization algorithm.  See
+ * \ref sgd_vertex_program for description of the SGD Algorithm.
  */
 
 
@@ -47,18 +47,19 @@
 typedef Eigen::VectorXd vec_type;
 typedef Eigen::MatrixXd mat_type;
 
-
+double sgd_lambda = 0.001;
+double sgd_gamma = 0.001;
 /** 
- * \ingroup toolkit_matrix_factorization
+ * \ingroup toolkit_matrix_pvecization
  *
- * \brief the vertex data type which contains the latent factor.
+ * \brief the vertex data type which contains the latent pvec.
  *
  * Each row and each column in the matrix corresponds to a different
- * vertex in the ALS graph.  Associated with each vertex is a factor
+ * vertex in the SGD graph.  Associated with each vertex is a pvec
  * (vector) of latent parameters that represent that vertex.  The goal
- * of the ALS algorithm is to find the values for these latent
+ * of the SGD algorithm is to find the values for these latent
  * parameters such that the non-zero entries in the matrix can be
- * predicted by taking the dot product of the row and column factors.
+ * predicted by taking the dot product of the row and column pvecs.
  */
 struct vertex_data {
   /**
@@ -68,24 +69,24 @@ struct vertex_data {
   static size_t NLATENT;
   /** \brief The number of times this vertex has been updated. */
   uint32_t nupdates;
-  /** \brief The most recent L1 change in the factor value */
+  /** \brief The most recent L1 change in the pvec value */
   float residual; //! how much the latent value has changed
-  /** \brief The latent factor for this vertex */
-  vec_type factor;
+  /** \brief The latent pvec for this vertex */
+  vec_type pvec;
   /** 
    * \brief Simple default constructor which randomizes the vertex
    *  data 
    */
   vertex_data() : nupdates(0), residual(1) { randomize(); } 
-  /** \brief Randomizes the latent factor */
-  void randomize() { factor.resize(NLATENT); factor.setRandom(); }
+  /** \brief Randomizes the latent pvec */
+  void randomize() { pvec.resize(NLATENT); pvec.setRandom(); }
   /** \brief Save the vertex data to a binary archive */
   void save(graphlab::oarchive& arc) const { 
-    arc << nupdates << residual << factor;        
+    arc << nupdates << residual << pvec;        
   }
   /** \brief Load the vertex data from a binary archive */
   void load(graphlab::iarchive& arc) { 
-    arc >> nupdates >> residual >> factor;
+    arc >> nupdates >> residual >> pvec;
   }
 }; // end of vertex data
 
@@ -93,7 +94,7 @@ struct vertex_data {
 /**
  * \brief The edge data stores the entry in the matrix.
  *
- * In addition the edge data also stores the most recent error estimate.
+ * In addition the edge data sgdo stores the most recent error estimate.
  */
 struct edge_data : public graphlab::IS_POD_TYPE {
   /**
@@ -142,7 +143,7 @@ get_other_vertex(graph_type::edge_type& edge,
  */
 double extract_l2_error(graph_type::edge_type edge) {
   const double pred = 
-    edge.source().data().factor.dot(edge.target().data().factor);
+    edge.source().data().pvec.dot(edge.target().data().pvec);
   return (edge.data().obs - pred) * (edge.data().obs - pred);
 } // end of extract_l2_error
 
@@ -166,7 +167,7 @@ inline bool graph_loader(graph_type& graph,
   strm >> source_id >> target_id;
   if(role == edge_data::TRAIN || role == edge_data::VALIDATE) strm >> obs;
   // Create an edge and add it to the graph
-  graph.add_edge(source_id, target_id+1000000, edge_data(obs, role)); 
+  graph.add_edge(source_id, target_id, edge_data(obs, role)); 
   return true; // successful load
 } // end of graph_loader
 
@@ -174,13 +175,13 @@ inline bool graph_loader(graph_type& graph,
 
 
 /**
- * \brief The gather type used to construct XtX and Xty needed for the ALS
+ * \brief The gather type used to construct XtX and Xty needed for the SGD
  * update
  *
  * To compute the ALS update we need to compute the sum of 
  * \code
- *  sum: XtX = nbr.factor.transpose() * nbr.factor 
- *  sum: Xy  = nbr.factor * edge.obs
+ *  sum: XtX = nbr.pvec.transpose() * nbr.pvec 
+ *  sum: Xy  = nbr.pvec * edge.obs
  * \endcode
  * For each of the neighbors of a vertex. 
  *
@@ -193,15 +194,14 @@ inline bool graph_loader(graph_type& graph,
 class gather_type {
 public:
   /**
-   * \brief Stores the current sum of nbr.factor.transpose() *
-   * nbr.factor
+   * \brief Stores the current sum of nbr.pvec.transpose() *
+   * nbr.pvec
    */
-  mat_type XtX;
 
   /**
-   * \brief Stores the current sum of nbr.factor * edge.obs
+   * \brief Stores the current sum of nbr.pvec * edge.obs
    */
-  vec_type Xy;
+  vec_type pvec;
 
   /** \brief basic default constructor */
   gather_type() { }
@@ -210,36 +210,22 @@ public:
    * \brief This constructor computes XtX and Xy and stores the result
    * in XtX and Xy
    */
-  gather_type(const vec_type& X, const double y) :
-    XtX(X.size(), X.size()), Xy(X.size()) {
-    XtX.triangularView<Eigen::Upper>() = X * X.transpose();
-    Xy = X * y;
+  gather_type(const vec_type& X, const double y) {
+    pvec = X;
   } // end of constructor for gather type
 
   /** \brief Save the values to a binary archive */
-  void save(graphlab::oarchive& arc) const { arc << XtX << Xy; }
+  void save(graphlab::oarchive& arc) const { arc << pvec; }
 
   /** \brief Read the values from a binary archive */
-  void load(graphlab::iarchive& arc) { arc >> XtX >> Xy; }  
+  void load(graphlab::iarchive& arc) { arc >> pvec; }  
 
   /** 
    * \brief Computes XtX += other.XtX and Xy += other.Xy updating this
    * tuples value
    */
   gather_type& operator+=(const gather_type& other) {
-    if(other.Xy.size() == 0) {
-      ASSERT_EQ(other.XtX.rows(), 0);
-      ASSERT_EQ(other.XtX.cols(), 0);
-    } else {
-      if(Xy.size() == 0) {
-        ASSERT_EQ(XtX.rows(), 0); 
-        ASSERT_EQ(XtX.cols(), 0);
-        XtX = other.XtX; Xy = other.Xy;
-      } else {
-        XtX.triangularView<Eigen::Upper>() += other.XtX;  
-        Xy += other.Xy;
-      }
-    }
+    this->pvec += other.pvec;
     return *this;
   } // end of operator+=
 
@@ -248,9 +234,9 @@ public:
 
 
 /**
- * ALS vertex program type
+ * SGD vertex program type
  */ 
-class als_vertex_program : 
+class sgd_vertex_program : 
   public graphlab::ivertex_program<graph_type, gather_type,
                                    graphlab::messages::sum_priority>,
   public graphlab::IS_POD_TYPE {
@@ -271,7 +257,11 @@ public:
                      edge_type& edge) const {
     if(edge.data().role == edge_data::TRAIN) {
       const vertex_type other_vertex = get_other_vertex(edge, vertex);
-      return gather_type(other_vertex.data().factor, edge.data().obs);
+      const double pred = vertex.data().pvec.dot(other_vertex.data().pvec);
+      const float err = (edge.data().obs - pred);
+      //vertex.data().pvec += sgd_gamma*(err*vertex.data().pvec - sgd_lambda*other_vertex.data().pvec);
+      //other_vertex.data().pvec += sgd_gamma*(err*other_vertex.data().pvec - sgd_lambda*vertex.data().pvec);
+      return gather_type(vertex.data().pvec, edge.data().obs);
     } else return gather_type();
   } // end of gather function
 
@@ -282,16 +272,16 @@ public:
     vertex_data& vdata = vertex.data(); 
     // Determine the number of neighbors.  Each vertex has only in or
     // out edges depending on which side of the graph it is located
-    if(sum.Xy.size() == 0) { vdata.residual = 0; ++vdata.nupdates; return; }
-    mat_type XtX = sum.XtX;
-    vec_type Xy = sum.Xy;
+    //if(sum.Xy.size() == 0) { vdata.residual = 0; ++vdata.nupdates; return; }
+    //mat_type XtX = sum.XtX;
+    //vec_type Xy = sum.Xy;
     // Add regularization
-    for(int i = 0; i < XtX.rows(); ++i) XtX(i,i) += LAMBDA; // /nneighbors;
+    //for(int i = 0; i < XtX.rows(); ++i) XtX(i,i) += LAMBDA; // /nneighbors;
     // Solve the least squares problem using eigen ----------------------------
-    const vec_type old_factor = vdata.factor;
-    vdata.factor = XtX.selfadjointView<Eigen::Upper>().ldlt().solve(Xy);
-    // Compute the residual change in the factor factor -----------------------
-    vdata.residual = (vdata.factor - old_factor).cwiseAbs().sum() / XtX.rows();
+    //const vec_type old_pvec = vdata.pvec;
+    //vdata.pvec = XtX.selfadjointView<Eigen::Upper>().ldlt().solve(Xy);
+    // Compute the residual change in the pvec pvec -----------------------
+    //vdata.residual = (vdata.pvec - old_pvec).cwiseAbs().sum() / XtX.rows();
     ++vdata.nupdates;
   } // end of apply
   
@@ -309,7 +299,7 @@ public:
       const vertex_type other_vertex = get_other_vertex(edge, vertex);
       const vertex_data& vdata = vertex.data();
       const vertex_data& other_vdata = other_vertex.data();
-      const double pred = vdata.factor.dot(other_vdata.factor);
+      const double pred = vdata.pvec.dot(other_vdata.pvec);
       const float error = std::fabs(edata.obs - pred);
       const double priority = (error * vdata.residual); 
       // Reschedule neighbors ------------------------------------------------
@@ -328,11 +318,11 @@ public:
     return graphlab::empty();
   } // end of signal_left 
 
-}; // end of als vertex program
+}; // end of sgd vertex program
 
 
 struct error_aggregator : public graphlab::IS_POD_TYPE {
-  typedef als_vertex_program::icontext_type icontext_type;
+  typedef sgd_vertex_program::icontext_type icontext_type;
   typedef graph_type::edge_type edge_type;
   double train_error, validation_error;
   size_t ntrain, nvalidation;
@@ -377,7 +367,7 @@ struct prediction_saver {
   std::string save_edge(const edge_type& edge) const {
     std::stringstream strm;
     const double prediction = 
-      edge.source().data().factor.dot(edge.target().data().factor);
+      edge.source().data().pvec.dot(edge.target().data().pvec);
     strm << edge.source().id() << '\t' 
          << edge.target().id() << '\t'
          << prediction << '\n';

@@ -8,6 +8,11 @@ add_graphlab_executable(als
   als.cpp  eigen_serialization.cpp)
 requires_eigen(als) # build and attach eigen
 
+add_graphlab_executable(sgd
+  sgd.cpp  eigen_serialization.cpp)
+requires_eigen(als) # build and attach eigen
+
+
 
 add_graphlab_executable(make_synthetic_als_data
   make_synthetic_als_data.cpp)
