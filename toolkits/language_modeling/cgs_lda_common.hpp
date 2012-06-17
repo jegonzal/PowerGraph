@@ -165,6 +165,7 @@ struct vertex_data {
   }
 }; // end of vertex_data
 
+
 /**
  * \brief The edge data represents the individual tokens (word,doc)
  * pairs and their assignment to topics. 
@@ -337,9 +338,9 @@ public:
       std::cout << "Topic " << i << ": ";
       rev_foreach(cw_pair_type pair, total.top_words[i])  {
         ASSERT_LT(pair.second, DICTIONARY.size());
-        // std::cout << DICTIONARY[pair.second] 
-        //           << "(" << pair.first << ")" << ", "; 
-        std::cout << DICTIONARY[pair.second] << ",  ";
+         std::cout << DICTIONARY[pair.second] 
+                   << "(" << pair.first << ")" << ", "; 
+        // std::cout << DICTIONARY[pair.second] << ",  ";
       }
       std::cout << std::endl;
     }
@@ -359,16 +360,13 @@ struct global_counts_aggregator {
   } // end of map function
 
   static void finalize(IContext& context, const factor_type& total) {
-    context.cout() << "Global Counts: ";
     size_t sum = 0;
     for(size_t t = 0; t < total.size(); ++t) {
       GLOBAL_TOPIC_COUNT[t] =
         std::max(count_type(total[t]/2), count_type(0));
       sum += GLOBAL_TOPIC_COUNT[t];
-      context.cout() << GLOBAL_TOPIC_COUNT[t] << " ";
-
     }
-    context.cout() << std::endl << "Total: " << sum << std::endl;
+    context.cout() << "Total Tokens: " << sum << std::endl;
   } // end of finalize
 }; // end of global_counts_aggregator struct
 
