@@ -1,0 +1,12 @@
+/**
+
+\page toolkits GraphLab Toolkits
+
+To enable users to use GraphLab out-of-the-box and to demonstrate the
+power of the GraphLab API we have implemented a collection of
+applications to address a wide range of standard tasks in large-scale
+graph computation.  
+
+\todo finish documenting toolkits.dox
+
+*/

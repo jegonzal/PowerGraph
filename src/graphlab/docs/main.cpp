@@ -29,6 +29,7 @@
 \defgroup rpc GraphLab RPC
 \defgroup random Random Number Generators
 \defgroup group_serialization Serialization
+\defgroup toolkits GraphLab Toolkits
 \mainpage 
    
    \section intro_sec Introduction
