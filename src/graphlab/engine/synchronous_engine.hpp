@@ -684,11 +684,18 @@ namespace graphlab {
      */
     template<typename MemberFunction>       
     void run_synchronous(MemberFunction member_fun) {
-      // launch the initialization threads
-      for(size_t i = 0; i < threads.size(); ++i) 
-        threads.launch(boost::bind(member_fun, this, i));
-      // Wait for all threads to finish
-      threads.join();
+      if(threads.size() <= 1) {
+        // Call the function directly to avoid going through the
+        // thread pool and potentially simplify debugging from within
+        // gdb
+        ( (this)->*(member_fun))(0);
+      } else {
+        // launch the initialization threads
+        for(size_t i = 0; i < threads.size(); ++i) 
+          threads.launch(boost::bind(member_fun, this, i));
+        // Wait for all threads to finish
+        threads.join();
+      }
       rmi.barrier();
     } // end of run_synchronous
 
