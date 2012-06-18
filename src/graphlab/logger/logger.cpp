@@ -155,10 +155,10 @@ void file_logger::_log(int lineloglevel,const char* file,const char* function,
         textcolor(stderr, BRIGHT, RED);
       }
       else if (lineloglevel == LOG_WARNING) {
-        textcolor(stderr, BRIGHT, GREEN);
+        textcolor(stderr, BRIGHT, MAGENTA);
       }
       else if (lineloglevel == LOG_EMPH) {
-        textcolor(stderr, BRIGHT, BLUE);
+        textcolor(stderr, BRIGHT, GREEN);
       }
 #endif
       std::cerr << str;;
@@ -214,13 +214,13 @@ void file_logger::_lograw(int lineloglevel, const char* buf, int len) {
       textcolor(stderr, BRIGHT, RED);
     }
     else if (lineloglevel == LOG_WARNING) {
-      textcolor(stderr, BRIGHT, GREEN);
+      textcolor(stderr, BRIGHT, MAGENTA);
     }
     else if (lineloglevel == LOG_DEBUG) {
       textcolor(stderr, BRIGHT, YELLOW);
     }
     else if (lineloglevel == LOG_EMPH) {
-      textcolor(stderr, BRIGHT, BLUE);
+      textcolor(stderr, BRIGHT, GREEN);
     }
 #endif
     std::cerr.write(buf,len);

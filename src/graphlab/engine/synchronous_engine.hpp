@@ -502,6 +502,10 @@ namespace graphlab {
      */
     aggregator_type aggregator;
 
+    DECLARE_EVENT(EVENT_APPLIES);
+    DECLARE_EVENT(EVENT_GATHERS);
+    DECLARE_EVENT(EVENT_SCATTERS);
+    DECLARE_EVENT(EVENT_ACTIVE_CPUS);
   public:
 
     /**
@@ -664,6 +668,13 @@ namespace graphlab {
 
     // Program Steps ==========================================================
    
+
+    void thread_launch_wrapped_event_counter(boost::function<void(void)> fn) {
+      INCREMENT_EVENT(EVENT_ACTIVE_CPUS, 1);
+      fn();
+      DECREMENT_EVENT(EVENT_ACTIVE_CPUS, 1);
+    }
+
     /**
      * \brief Executes ncpus copies of a member function each with a
      * unique consecutive id (thread id). 
@@ -684,18 +695,23 @@ namespace graphlab {
      */
     template<typename MemberFunction>       
     void run_synchronous(MemberFunction member_fun) {
-      if(threads.size() <= 1) {
-        // Call the function directly to avoid going through the
-        // thread pool and potentially simplify debugging from within
-        // gdb
+      if (threads.size() <= 1) {
+        INCREMENT_EVENT(EVENT_ACTIVE_CPUS, 1);
         ( (this)->*(member_fun))(0);
-      } else {
-        // launch the initialization threads
-        for(size_t i = 0; i < threads.size(); ++i) 
-          threads.launch(boost::bind(member_fun, this, i));
-        // Wait for all threads to finish
-        threads.join();
+        DECREMENT_EVENT(EVENT_ACTIVE_CPUS, 1);
       }
+      else {
+        // launch the initialization threads
+        for(size_t i = 0; i < threads.size(); ++i) {
+          boost::function<void(void)> invoke = boost::bind(member_fun, this, i);
+          threads.launch(boost::bind(
+                &synchronous_engine::thread_launch_wrapped_event_counter, 
+                this,
+                invoke));
+        }
+      }
+      // Wait for all threads to finish
+      threads.join();
       rmi.barrier();
     } // end of run_synchronous
 
@@ -885,6 +901,12 @@ namespace graphlab {
         logstream(LOG_FATAL) << "Unexpected Engine Option: " << opt << std::endl;
       }
     }
+    INITIALIZE_EVENT_LOG(dc);
+    ADD_CUMULATIVE_EVENT(EVENT_APPLIES, "Applies");
+    ADD_CUMULATIVE_EVENT(EVENT_GATHERS , "Gathers");
+    ADD_CUMULATIVE_EVENT(EVENT_SCATTERS , "Scatters");
+    ADD_INSTANTANEOUS_EVENT(EVENT_ACTIVE_CPUS, "Active Threads");
+
     // Finalize the graph
     graph.finalize();
     memory_info::log_usage("Before Engine Initialization");
@@ -1063,7 +1085,6 @@ namespace graphlab {
     graph.finalize();
     // Initialization code ==================================================     
     // Reset event log counters? 
-    rmi.dc().flush_counters();
     // Start the timer
     graphlab::timer timer; timer.start();
     start_time = timer::approx_time_seconds();
@@ -1300,6 +1321,7 @@ namespace graphlab {
           if(gather_dir == IN_EDGES || gather_dir == ALL_EDGES) {
             foreach(local_edge_type local_edge, local_vertex.in_edges()) {
               edge_type edge(local_edge);
+              INCREMENT_EVENT(EVENT_GATHERS, 1);
               if(accum_is_set) { // \todo hint likely                
                 accum += vprog.gather(context, vertex, edge);
               } else {
@@ -1311,7 +1333,8 @@ namespace graphlab {
             // Loop over out edges
           if(gather_dir == OUT_EDGES || gather_dir == ALL_EDGES) {
             foreach(local_edge_type local_edge, local_vertex.out_edges()) {
-              edge_type edge(local_edge);              
+              edge_type edge(local_edge);
+              INCREMENT_EVENT(EVENT_GATHERS, 1);
               if(accum_is_set) { // \todo hint likely
                 accum += vprog.gather(context, vertex, edge);              
               } else {
@@ -1360,6 +1383,7 @@ namespace graphlab {
         // Get the local accumulator.  Note that it is possible that
         // the gather_accum was not set during the gather.
         const gather_type& accum = gather_accum[lvid];
+        INCREMENT_EVENT(EVENT_APPLIES, 1);
         vertex_programs[lvid].apply(context, vertex, accum);
         // record an apply as a completed task
         ++completed_applys;
@@ -1402,6 +1426,7 @@ namespace graphlab {
         // Loop over in edges
         if(scatter_dir == IN_EDGES || scatter_dir == ALL_EDGES) {
           foreach(local_edge_type local_edge, local_vertex.in_edges()) {
+            INCREMENT_EVENT(EVENT_SCATTERS, 1);
             edge_type edge(local_edge);
             vprog.scatter(context, vertex, edge);
           }
@@ -1409,6 +1434,7 @@ namespace graphlab {
           // Loop over out edges
         if(scatter_dir == OUT_EDGES || scatter_dir == ALL_EDGES) {
           foreach(local_edge_type local_edge, local_vertex.out_edges()) {
+            INCREMENT_EVENT(EVENT_SCATTERS, 1);
             edge_type edge(local_edge);
             vprog.scatter(context, vertex, edge);
           }

@@ -1,4 +1,4 @@
-/**  
+/*  
  * Copyright (c) 2009 Carnegie Mellon University. 
  *     All rights reserved.
  *
@@ -22,391 +22,382 @@
 
 
 
-
+#include <pthread.h>
+#include <string>
 #include <limits>
 #include <graphlab/rpc/dc.hpp>
 #include <graphlab/rpc/dc_dist_object.hpp>
 #include <graphlab/rpc/distributed_event_log.hpp>
 #include <graphlab/util/timer.hpp>
 #include <graphlab/logger/assertions.hpp>
-
-#define EVENT_BAR_WIDTH 40
+#include <graphlab/util/dense_bitset.hpp>
+#include <graphlab/macros_def.hpp>
 
 namespace graphlab {
 
-  struct distributed_event_log_state {
-    distributed_event_log_state():
-      eventlog_file_open(false),event_timer_started(false) { }
-      
-    std::ofstream eventlog_file;
-    mutex eventlog_file_mutex;
-    bool eventlog_file_open;
-
-    timer event_timer;
-    bool event_timer_started;
-    mutex event_timer_mutex;
-  };
-
-  static distributed_event_log_state& get_state() {
-    static distributed_event_log_state state;
-    return state;
+uint32_t distributed_event_logger::allocate_log_entry(log_group* group) {
+  log_entry_lock.lock();
+  uint32_t id = 0;
+  if (has_log_entry.first_zero_bit(id) == false) {
+    logger(LOG_FATAL, "More than 256 Log entries created. "
+        "New log entries cannot be created");
+    // does not return
   }
-  
-  void dist_event_log::initialize(distributed_control& dc,
-                                  std::ostream &ostrm,
-                                  size_t flush_interval_ms,
-                                  event_print_type event_print) {
-    rmi = new dc_dist_object<dist_event_log>(dc, this);
-    rmi->barrier();
+  logs[id] = group;
+  has_log_entry.set_bit(id);
+  log_entry_lock.unlock();
+  return id;
+}
 
-    m.lock();
-    out = &ostrm;
-    flush_interval = flush_interval_ms;
-    // other processors synchronize here more frequently.
-    if (rmi->procid() > 0) {
-      flush_interval /= 10;
-    }
-    print_method = event_print;
-  
-    get_state().event_timer_mutex.lock();
-    if (get_state().event_timer_started == false) {
-      get_state().event_timer_started = true;
-      get_state().event_timer.start();
-    }
-    get_state().event_timer_mutex.unlock();
-    prevtime = get_state().event_timer.current_time_millis();
+event_log_thread_local_type* distributed_event_logger::get_thread_counter_ref() {
+  void* v = pthread_getspecific(key);
+  if (v == NULL) {
+    // allocate a new thread local entry
+    event_log_thread_local_type* entry = new event_log_thread_local_type;
+    // set all values to 0
+    for (size_t i = 0; i < MAX_LOG_SIZE; ++i) entry->values[i] = 0;
+    // cast and write it to v. We need it later. 
+    // and set the thread local store
+    v = (void*)(entry);
+    pthread_setspecific(key, v);
 
-    cond.signal();
-    m.unlock();
-  
-  
-    if (event_print == LOG_FILE) {
-      if (dc.procid() == 0) {
-        get_state().eventlog_file_mutex.lock();
-        if (!get_state().eventlog_file_open) {
-          get_state().eventlog_file_open = true;
-          get_state().eventlog_file.open("eventlog.txt");
-        }
-        out = &get_state().eventlog_file;
-        get_state().eventlog_file_mutex.unlock();
-      }
+    // register the key entry against the logger
+    thread_local_count_lock.lock();
+    // find an unused entry
+    uint32_t b = 0;
+    if (thread_local_count_slots.first_zero_bit(b) == false) {
+      logger(LOG_FATAL, "More than 1024 active threads. "
+          "Log counters cannot be created");
+      // does not return
     }
+    entry->thlocal_slot = b;
+    thread_local_count[b] = entry;
+    thread_local_count_slots.set_bit(b);
+    thread_local_count_lock.unlock();
   }
 
-  dist_event_log::~dist_event_log() {
-    if (!finished) destroy();
+  event_log_thread_local_type* entry = (event_log_thread_local_type*)(v);
+  return entry;
+}
+
+/**
+ * Receives the log information from each machine
+ */    
+void distributed_event_logger::rpc_collect_log(size_t srcproc, double srctime,
+    std::vector<double> srccounts) {
+  foreach(uint32_t log, has_log_entry) {
+    logs[log]->lock.lock();
+    // insert the new counts
+    logs[log]->machine[srcproc].push_back(log_entry(srccounts[log], srctime));
+    logs[log]->lock.unlock();
   }
+}
 
-
-  void dist_event_log::flush_and_reset_counters() {
-    flush();
-    rmi->full_barrier();
-    uint32_t pos;
-    if (print_method != LOG_FILE) {
-      if (rmi->procid() == 0 && hascounter.first_bit(pos)) {
-        do {
-          size_t r = totalcounter[pos].value;
-          totalcounter[pos].dec(r);
-          (*out) << descriptions[pos]  << ":\t" << r << " Events\n";
-        } while(hascounter.next_bit(pos));
-      }
-    }
-    else {
-      if (rmi->procid() == 0 && hascounter.first_bit(pos)) {
-        do {
-          size_t r = totalcounter[pos].value;
-          totalcounter[pos].dec(r);
-          std::cout << descriptions[pos]  << ":\t" << r << " Events\n";
-        } while(hascounter.next_bit(pos));
-      }
-    }
-  }
-
-
-  void dist_event_log::destroy() {
-    m.lock();
-    finished = true;
-    cond.signal();
-    m.unlock();
-    printing_thread.join();
-    flush_and_reset_counters();
-    rmi->barrier();
-    delete rmi;
-  }
-
-  void dist_event_log::close() {
-    out = NULL;
-    m.lock();
-    flush_interval = 0;
-    m.unlock();
-  }
-
-  void dist_event_log::add_event_type(unsigned char eventid,
-                                      std::string description) {
-    descriptions[eventid] = description;
-    max_desc_length = std::max(max_desc_length, description.length());
-    ASSERT_MSG(max_desc_length <= 30, "Event Description length must be <= 30 characters");
-    counters[eventid].value = 0;
-    hascounter.set_bit(eventid);
-    if (rmi->procid() == 0) {
-      globalcounters[eventid].resize(rmi->numprocs());
-    }
-  }
-
-  void dist_event_log::add_immediate_event_type(unsigned char eventid,
-                                                std::string description) {
-    descriptions[eventid] = description;
-    max_desc_length = std::max(max_desc_length, description.length());
-    ASSERT_MSG(max_desc_length <= 30, "Event Description length must be <= 30 characters");
-    counters[eventid].value = 0;
-    if (rmi->procid() == 0) {
-      globalcounters[eventid].resize(rmi->numprocs());
-    }
-  }
-
-
-  void dist_event_log::accumulate_event_aggregator(size_t proc,
-                                                   unsigned char eventid,
-                                                   size_t count) {
-    hasevents = true;
-    totalcounter[eventid].inc(count);
-    globalcounters[eventid][proc].inc(count);
-  }
-
-  void dist_event_log::immediate_event_aggregator(const std::vector<std::pair<unsigned char, size_t> >& im) {
-    hasevents = true;
-    m.lock();
-    std::copy(im.begin(), im.end(), 
-              std::inserter(immediate_events, immediate_events.end()));
-    m.unlock();
-  }
-
-  void dist_event_log::immediate_event(unsigned char eventid) {
-    m.lock();
-    immediate_events.push_back(std::make_pair(eventid, get_state().event_timer.current_time_millis()));
-    m.unlock();
-  }
-
-  struct counter_statistics{
-    size_t minimum;
-    size_t maximum;
-    size_t average;
-    size_t total;
-  };
-  
-  static void compute_statistics(std::vector<atomic<size_t> > &vec,
-                                 counter_statistics& c) {
-    c.minimum = std::numeric_limits<size_t>::max();
-    c.maximum = std::numeric_limits<size_t>::min();
-    c.average = 0;
-    c.total = 0;
-    for (size_t i = 0; i < vec.size(); ++i) {
-      size_t ctr = vec[i].exchange(0);
-      c.minimum = std::min(c.minimum, ctr);
-      c.maximum = std::max(c.maximum, ctr);
-      c.total += ctr;
-    }
-    c.average = c.total / vec.size();
-  }
-
-
-
-  static void print_bar(std::ostream& out,
-                        size_t val,
-                        size_t len) {
-    // compute the bar lengths
-    if (len == 0) return;
-    val = val * EVENT_BAR_WIDTH / len;
-    if (val > EVENT_BAR_WIDTH) val = EVENT_BAR_WIDTH;
-    size_t i = 0;
-    for (i = 0; i < val; ++i) out.put('#');
-    for (; i < EVENT_BAR_WIDTH; ++i) out.put(' ');
-  }
-
-  static void print_triple_bar(std::ostream& out,
-                               size_t low,
-                               size_t mid,
-                               size_t high,
-                               size_t len) {
-    // compute the bar lengths
-    if (len == 0) return;
-    low = low * EVENT_BAR_WIDTH / len;
-    if (low > EVENT_BAR_WIDTH) low = EVENT_BAR_WIDTH;
-
-    mid = mid * EVENT_BAR_WIDTH / len;
-    if (mid > EVENT_BAR_WIDTH) mid = EVENT_BAR_WIDTH;
-  
-    high = high * EVENT_BAR_WIDTH / len;
-    if (high > EVENT_BAR_WIDTH) high = EVENT_BAR_WIDTH;
-    size_t i = 0;
-    for (i = 0; i < low; ++i) out.put('-');
-    for (; i < mid; ++i) out.put('*');
-    for (; i < high; ++i) out.put('#');
-    for (; i < EVENT_BAR_WIDTH; ++i) out.put(' ');
-  }
-  
-  void dist_event_log::print_log() {
-    uint32_t pos;
-    if (!hascounter.first_bit(pos)) return;
-    double curtime = get_state().event_timer.current_time_millis();
-    double timegap = curtime - prevtime;
-    prevtime = curtime;
-
-    if (hasevents == false && noeventctr == 1) return;
-
-    counter_statistics stats[256];
-    // accumulate the statistics for printing
-    do {
-      compute_statistics(globalcounters[pos], stats[pos]);
-    } while(hascounter.next_bit(pos));
-  
-    bool found_events = false;
-  
-    // reset the counter
-    hascounter.first_bit(pos);
-    if (print_method == NUMBER) {
-      do {
-        found_events = found_events || stats[pos].total > 0;
-        (*out) << pos  << ":\t" << curtime << "\t" << stats[pos].minimum << "\t"
-               << stats[pos].average << "\t" << stats[pos].maximum << "\t"
-               << stats[pos].total << "\t" << 1000 * stats[pos].total / timegap << " /s\n";
-      } while(hascounter.next_bit(pos));
-      if (!immediate_events.empty()) { 
-        m.lock();
-        std::vector<std::pair<unsigned char, size_t> > cur;
-        cur.swap(immediate_events);
-        m.unlock();
-        for (size_t i = 0;i < cur.size(); ++i) {
-          (*out) << (size_t)cur[i].first << ":\t" << cur[i].second << "\t" << -1 << "\t"
-                 << -1 << "\t" << -1 << "\t" << -1 << "\t" << 0 << " /s\n";
-        }
-      }
-      out->flush();
-    }
-    else if (print_method == DESCRIPTION) {
-      do {
-        found_events = found_events || stats[pos].total > 0;
-        (*out) << descriptions[pos]  << ":\t" << curtime << "\t" << stats[pos].minimum << "\t"
-               << stats[pos].average << "\t" << stats[pos].maximum << "\t"
-               << stats[pos].total << "\t" << 1000 * stats[pos].total / timegap << " /s\n";
-      } while(hascounter.next_bit(pos));
-      if (!immediate_events.empty()) { 
-        std::vector<std::pair<unsigned char, size_t> > cur;
-        cur.swap(immediate_events);
-        for (size_t i = 0;i < cur.size(); ++i) {
-          (*out) << descriptions[cur[i].first] << ":\t" << cur[i].second << "\t" << -1 << "\t"
-                 << -1 << "\t" << -1 << "\t" << -1 << "\t" << 0 << " /s\n";
-        }
-      }
-      out->flush();
-    }
-    else if (print_method == LOG_FILE) {
-      get_state().eventlog_file_mutex.lock();
-      do {
-        found_events = found_events || stats[pos].total > 0;
-        (*out) << descriptions[pos]  << ":\t" << curtime << "\t" << stats[pos].minimum << "\t"
-               << stats[pos].average << "\t" << stats[pos].maximum << "\t"
-               << stats[pos].total << "\t" << 1000 * stats[pos].total / timegap << "\n";
-      } while(hascounter.next_bit(pos));
-      if (!immediate_events.empty()) { 
-        std::vector<std::pair<unsigned char, size_t> > cur;
-        cur.swap(immediate_events);
-        for (size_t i = 0;i < cur.size(); ++i) {
-          (*out) << descriptions[cur[i].first] << ":\t" << cur[i].second << "\t" << -1 << "\t"
-                 << -1 << "\t" << -1 << "\t" << -1 << "\t" << 0 << " /s\n";
-        }
-      }
-      out->flush();
-      get_state().eventlog_file_mutex.unlock();
-    }
-    else if (print_method == RATE_BAR) {
-      (*out) << "Time: " << "+"<<timegap << "\t" << curtime << "\n";
-
-      char spacebuf[60];
-      memset(spacebuf, ' ', EVENT_BAR_WIDTH);
-      do {
-        found_events = found_events || stats[pos].total > 0;
-        maxcounter[pos] = std::max(maxcounter[pos], stats[pos].maximum);
-        maxproc_counter[pos] = std::max(maxcounter[pos], stats[pos].maximum);
-      
-        // print the description prefix
-        spacebuf[max_desc_length - descriptions[pos].length() + 1] = 0;
-        (*out) << descriptions[pos]  << spacebuf << "|";
-
-        print_triple_bar(*out,
-                         stats[pos].minimum,
-                         stats[pos].average,
-                         stats[pos].maximum,
-                         maxproc_counter[pos]);
-        (*out) << "| " << stats[pos].minimum << " " <<
-          stats[pos].average << " " <<
-          stats[pos].maximum << "\n";
-
-        // print description prefix again
-        (*out) << descriptions[pos]  << spacebuf << "|";
-
-        print_bar(*out, stats[pos].total, maxcounter[pos]);
-        // reset the space buffer
-        spacebuf[max_desc_length - descriptions[pos].length() + 1] =' ';
-
-        (*out) << "| " << stats[pos].total << " : " << maxcounter[pos] << " \n\n";
-      } while(hascounter.next_bit(pos));
-      out->flush();
-    }
-    if (found_events == false) {
-      ++noeventctr;
-    }
-    else {
-      noeventctr = 0;
-    }
-    hasevents = false;
-  }
-
-  void dist_event_log::flush() {
-    if (rmi->procid() == 0) {
-      // move counters to the aggregator
-      uint32_t pos;
-      if (!hascounter.first_bit(pos)) return;
-      do {
-        size_t ctrval = counters[pos].exchange(0);
-        if (ctrval != 0) {
-          accumulate_event_aggregator(0, pos, ctrval);
-        }
-      } while(hascounter.next_bit(pos));
-      print_log();
-    }
-    else {
-      uint32_t pos;
-      if (!hascounter.first_bit(pos)) return;
-      do {
-        size_t ctrval = counters[pos].exchange(0);
-        if (ctrval != 0) {
-          rmi->control_call(0,
-                            &dist_event_log::accumulate_event_aggregator,
-                            rmi->procid(),
-                            (unsigned char)pos, ctrval);
-        }
-      } while(hascounter.next_bit(pos));
-      if (!immediate_events.empty()) {
-        std::vector<std::pair<unsigned char, size_t> > cur;
-        cur.swap(immediate_events);
-        rmi->control_call(0, &dist_event_log::immediate_event_aggregator, cur);
-      }
-    }
-  }
-
-  void dist_event_log::thread_loop() {
-    m.lock();
-    while(!finished) {
-      if (flush_interval == 0) {
-        cond.wait(m);
+void distributed_event_logger::collect_instantaneous_log() {
+ foreach(uint32_t log, has_log_entry) {
+    if (logs[log]->logtype == log_type::INSTANTANEOUS) {
+      logs[log]->lock.lock();
+      // for each log entry which is a callback entry
+      // call the callback to get the counts
+      if (logs[log]->is_callback_entry) {
+        logs[log]->sum_of_instantaneous_entries += logs[log]->callback();
+        ++logs[log]->count_of_instantaneous_entries;
       }
       else {
-        cond.timedwait_ns(m, flush_interval * 1000000);
-        flush();
+        // sum it across all the threads
+        foreach(uint32_t thr, thread_local_count_slots) {
+          logs[log]->sum_of_instantaneous_entries += thread_local_count[thr]->values[log];
+        }
+        ++logs[log]->count_of_instantaneous_entries;
+      }
+      logs[log]->lock.unlock();
+    }
+  }
+}
+
+/** 
+ *  Collects the machine level
+ *  log entry. and sends it to machine 0
+ */
+void distributed_event_logger::local_collect_log() {
+  // put together an aggregate of all counters 
+  std::vector<double> combined_counts(MAX_LOG_SIZE, 0);
+
+  // for each thread and for each log entry which is 
+  // not a callback entry. Accumulate the number of counts
+  //
+  foreach(uint32_t log, has_log_entry) {
+    logs[log]->lock.lock();
+    // cimulative entry. just add across all threads
+    if (logs[log]->logtype == log_type::CUMULATIVE) {
+      foreach(uint32_t thr, thread_local_count_slots) {
+        double* current_thread_counts = thread_local_count[thr]->values;
+        combined_counts[log] += current_thread_counts[log];
       }
     }
-    m.unlock();
+    else {
+      // take the average 
+      combined_counts[log] = logs[log]->sum_of_instantaneous_entries / 
+                                logs[log]->count_of_instantaneous_entries;
+      logs[log]->sum_of_instantaneous_entries = 0;
+      logs[log]->count_of_instantaneous_entries = 0;
+    }
+    logs[log]->lock.unlock();
   }
 
-} // namespace
+  // send to machine 0
+  if (rmi->procid() != 0) {
+    rmi->remote_call(0, &distributed_event_logger::rpc_collect_log,
+        (size_t)rmi->procid(), (double)ti.current_time(), combined_counts);
+  }
+  else {
+    rpc_collect_log((size_t)0, (double)ti.current_time(), combined_counts);
+  }
+}
+
+// Called only by machine 0 to get the aggregate log
+void distributed_event_logger::build_aggregate_log() {
+  ASSERT_EQ(rmi->procid(), 0);
+  double current_time = ti.current_time();
+  foreach(uint32_t log, has_log_entry) {
+    logs[log]->lock.lock();
+    // what is the previous time the aggregate was computed?
+    double prevtime = 0;
+    if (logs[log]->aggregate.size() > 0) {
+      prevtime = logs[log]->aggregate.rbegin()->time;
+    }
+    // if it is a CUMULATIVE log, take the latest entry from each machine
+    // if it is an INSTANTANEOUS log, take the average of the last times.
+
+    double sum = 0;
+    if (logs[log]->logtype == log_type::CUMULATIVE) {
+      for (procid_t p = 0; p < logs[log]->machine.size(); ++p) {
+        if (logs[log]->machine[p].size() > 0) {
+          sum += logs[log]->machine[p].rbegin()->value;
+        }
+      }
+    }
+    else {
+      // sum all the machine logs from prevtime to current time
+      for (procid_t p = 0; p < logs[log]->machine.size(); ++p) {
+        size_t num_used_entries = 0;
+        double partial_sum = 0;
+        std::vector<log_entry>::const_reverse_iterator iter = 
+                                        logs[log]->machine[p].rbegin();
+        while (iter != logs[log]->machine[p].rend() &&
+            iter->time >= prevtime) {
+          if (iter->time < current_time) {
+            partial_sum += iter->value;
+            ++num_used_entries;
+          }
+          ++iter;
+        }
+        sum += partial_sum / num_used_entries;
+      }
+    }
+    // put into the aggregate count
+    logs[log]->aggregate.push_back(log_entry(sum, current_time));
+    std::cout << logs[log]->name << ": (" << current_time << ", " << sum << ")"
+              << std::endl;
+    logs[log]->lock.unlock();
+  }
+}
+
+void distributed_event_logger::periodic_timer() {
+  periodic_timer_lock.lock();
+  timer ti; ti.start();
+  double prevtime = ti.current_time();
+  while (!periodic_timer_stop){ 
+    collect_instantaneous_log();
+    if (ti.current_time() >= prevtime + RECORD_FREQUENCY) {
+      prevtime = ti.current_time();
+      local_collect_log();
+      if (rmi->procid() == 0)  build_aggregate_log();
+    }
+    periodic_timer_cond.timedwait_ms(periodic_timer_lock, 1000 * TICK_FREQUENCY);
+  }
+  periodic_timer_lock.unlock();
+}
+
+distributed_event_logger::distributed_event_logger():rmi(NULL) {
+  pthread_key_create(&key, NULL);
+  // clear the bit fields
+  has_log_entry.clear();
+  thread_local_count_slots.clear();
+  periodic_timer_stop = false;
+}
+
+void distributed_event_logger::destroy_event_logger() {
+  // kill the tick thread
+  bool thread_was_started = false;
+  periodic_timer_lock.lock();
+  // if periodic_timer_stop is false, then
+  // thread was started. signal it and wait for it later to 
+  // join
+  if (periodic_timer_stop == false) {
+    periodic_timer_stop = true;
+    thread_was_started = true;
+    periodic_timer_cond.signal();
+  }
+  periodic_timer_lock.unlock();
+  if (thread_was_started) tick_thread.join();
+  // make sure everyone has joined before I start freeing stuff
+  rmi->full_barrier();
+  delete rmi;
+  pthread_key_delete(key);
+  // here also free all the allocated memory!
+  foreach(uint32_t thr, thread_local_count_slots) {
+    if (thread_local_count[thr] != NULL) delete thread_local_count[thr];
+  }
+  foreach(uint32_t log, has_log_entry) {
+    if (logs[log] != NULL) delete logs[log];
+  }
+
+
+}
+
+void distributed_event_logger::set_dc(distributed_control& dc) {
+  if (rmi == NULL) {
+    rmi = new dc_dist_object<distributed_event_logger>(dc, this);
+    // register a deletion callback since the distributed_event_logger
+    // will be destroyed only after main
+
+    dc.register_deletion_callback(boost::bind(
+                              &distributed_event_logger::destroy_event_logger, 
+                              this));
+
+    dc.barrier();
+    // everyone starts the timer at the same time
+    // at the one distributed synchronization point we have
+    ti.start();
+    // procid 0 waits 0.2s to skew the local timer a little
+    // so everyone else's log has time to show up
+    if (rmi->procid() == 0) {
+      timer::sleep_ms(200);
+    }
+    periodic_timer_stop = false;
+    // spawn a thread for the tick
+    tick_thread.launch(boost::bind(&distributed_event_logger::periodic_timer,
+          this));
+  }
+}
+    
+size_t distributed_event_logger::create_log_entry(std::string name, 
+                          log_type::log_type_enum logtype) {
+  // look for an entry with the same name
+  bool has_existing = false;
+  size_t existingid = 0;
+  log_entry_lock.lock();
+  foreach(uint32_t log, has_log_entry) {
+    if (logs[log]->name == name) {
+      ASSERT_MSG(logs[log]->is_callback_entry == false,
+                 "Cannot convert callback log to counter log");
+      has_existing = true;
+      existingid = log;
+      break;
+    }
+  }
+  log_entry_lock.unlock();
+  if (has_existing) return existingid;
+
+  log_group* group = new log_group;
+  group->logtype = logtype;
+  group->name = name;
+  group->callback = NULL;
+  group->is_callback_entry = false;
+  group->sum_of_instantaneous_entries = 0.0;
+  group->count_of_instantaneous_entries = 0;
+  // only allocate the machine vector on the root machine.
+  // no one else needs it 
+  if (rmi->procid() == 0) {
+    group->machine.resize(rmi->numprocs());
+  } 
+  // ok. get an ID
+  uint32_t id = allocate_log_entry(group);
+  // enforce that all machines are running this at the same time 
+  rmi->barrier();
+  return id;
+}
+
+size_t distributed_event_logger::create_callback_entry(std::string name, 
+              boost::function<double(void)> callback) {
+  bool has_existing = false;
+  size_t existingid = 0;
+  log_entry_lock.lock();
+  foreach(uint32_t log, has_log_entry) {
+    if (logs[log]->name == name) {
+      has_existing = true;
+      existingid = log;
+      break;
+    }
+  }
+  log_entry_lock.unlock();
+  if (has_existing) {
+    // ok... we have an existing entry. We may
+    // overwrite the callback if the callback is NULL
+    ASSERT_MSG(logs[existingid]->is_callback_entry == true,
+                 "Cannot convert counter log to callback log");
+
+    logs[existingid]->lock.lock();
+    ASSERT_MSG(logs[existingid]->callback == NULL, 
+        "Cannot create another callback log entry with"
+        "the same name %s", name.c_str());
+    logs[existingid]->callback = callback;
+    logs[existingid]->lock.unlock();
+    return existingid;
+  }
+
+  log_group* group = new log_group;
+  group->logtype = log_type::INSTANTANEOUS;
+  group->name = name;
+  group->callback = callback;
+  group->is_callback_entry = true;
+  group->sum_of_instantaneous_entries = 0.0;
+  group->count_of_instantaneous_entries = 0;
+
+  // only allocate the machine vector on the root machine.
+  // no one else needs it 
+  if (rmi->procid() == 0) {
+    group->machine.resize(rmi->numprocs());
+  } 
+  // ok. get an ID
+  uint32_t id = allocate_log_entry(group);
+  // enforce that all machines are running this at the same time 
+  rmi->barrier();
+  return id;
+}
+
+void distributed_event_logger::thr_inc_log_entry(size_t entry, size_t value) {
+  event_log_thread_local_type* ev = get_thread_counter_ref();
+  ASSERT_LT(entry, MAX_LOG_SIZE);
+  ASSERT_EQ(logs[entry]->is_callback_entry, false);
+  ev->values[entry] += value;
+}
+
+void distributed_event_logger::thr_dec_log_entry(size_t entry, size_t value) {
+  event_log_thread_local_type* ev = get_thread_counter_ref();
+  ASSERT_LT(entry, MAX_LOG_SIZE);
+  // does not work for cumulative logs
+  ASSERT_NE((int)logs[entry]->logtype, (int) log_type::CUMULATIVE);
+  ASSERT_EQ(logs[entry]->is_callback_entry, false);
+  ev->values[entry] -= value;
+}
+
+
+void distributed_event_logger::free_callback_entry(size_t entry) {
+  ASSERT_LT(entry, MAX_LOG_SIZE);
+  // does not work for cumulative logs
+  logs[entry]->lock.lock();
+  ASSERT_EQ(logs[entry]->is_callback_entry, true);
+  logs[entry]->callback = NULL;
+  logs[entry]->lock.unlock();
+}
+
+distributed_event_logger& get_event_log() {
+  static distributed_event_logger dist_event_log;
+  return dist_event_log;
+}
+
+
+
+} // namespace graphlab

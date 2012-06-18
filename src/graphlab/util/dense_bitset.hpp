@@ -244,6 +244,21 @@ namespace graphlab {
       return false;
     }
 
+
+    /** Returns true with b containing the position of the 
+        first bit set to false.
+        If such a bit does not exist, this function returns false.
+    */
+    inline bool first_zero_bit(uint32_t &b) const {
+      for (size_t i = 0; i < arrlen; ++i) {
+        if (~array[i]) {
+          b = (uint32_t)(i * (sizeof(size_t) * 8)) + first_bit_in_block(~array[i]);
+          return true;
+        }
+      }
+      return false;
+    }
+
     /** Where b is a bit index, this function will return in b,
         the position of the next bit set to true, and return true.
         If all bits after b are false, this function returns false.
@@ -320,10 +335,10 @@ namespace graphlab {
 
     // returns 0 on failure
     inline uint32_t first_bit_in_block(const size_t& block) const{
-      // use CAS to set the bit
       if (block == 0) return 0;
       else return (uint32_t)__builtin_ctzl(block);
     }
+
 
     size_t* array;
     size_t len;
@@ -538,6 +553,22 @@ namespace graphlab {
       }
       return false;
     }
+
+    /** Returns true with b containing the position of the 
+        first bit set to false.
+        If such a bit does not exist, this function returns false.
+    */
+    inline bool first_zero_bit(uint32_t &b) const {
+      for (size_t i = 0; i < arrlen; ++i) {
+        if (~array[i]) {
+          b = (uint32_t)(i * (sizeof(size_t) * 8)) + first_bit_in_block(~array[i]);
+          return true;
+        }
+      }
+      return false;
+    }
+
+
 
     /** Where b is a bit index, this function will return in b,
         the position of the next bit set to true, and return true.
