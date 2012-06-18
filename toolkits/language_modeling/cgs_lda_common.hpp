@@ -103,10 +103,15 @@ double BETA = 0.1;
 size_t NTOPICS = 50;
 
 /**
- * \brief The total number of words in the corpus.  This is determined
- * after loading the dictionary.
+ * \brief The total number of words in the dataset.
  */
 size_t NWORDS = 0;
+
+/**
+ * \brief The total number of docs in the dataset.
+ */
+size_t NDOCS = 0;
+
 
 /**
  * \brief The number of top words to display during execution (from
@@ -351,7 +356,11 @@ public:
 
 
 
-
+/**
+ * \brief The global counts aggregator computes the total number of
+ * tokens in each topic across all words and documents and then
+ * updates the \ref GLOBAL_TOPIC_COUNT variable.
+ */
 template<typename IContext>
 struct global_counts_aggregator {
   typedef graph_type::vertex_type vertex_type;
@@ -369,6 +378,76 @@ struct global_counts_aggregator {
     context.cout() << "Total Tokens: " << sum << std::endl;
   } // end of finalize
 }; // end of global_counts_aggregator struct
+
+
+
+/**
+ * \brief The Likelihood aggregators maintains the current estimate of
+ * the log-likelihood of the current token assignments.
+ * 
+ *  llik_words_given_topics = ...
+ *    ntopics * (gammaln(nwords * beta) - nwords * gammaln(beta)) - ...
+ *    sum_t(gammaln( n_t + nwords * beta)) +
+ *    sum_w(sum_t(gammaln(n_wt + beta)));
+ *
+ *  llik_topics = ...
+ *    ndocs * (gammaln(ntopics * alpha) - ntopics * gammaln(alpha)) + ...
+ *    sum_d(sum_t(gammaln(n_td + alpha)) - gammaln(sum_t(n_td) + ntopics * alpha));
+ */
+template<typename IContext>
+class likelihood_aggregator : public graphlab::IS_POD_TYPE {
+  typedef graph_type::vertex_type vertex_type;
+  double lik_words_given_topics;
+  double lik_topics;
+public:
+  likelihood_aggregator() : lik_words_given_topics(0), lik_topics(0) { }
+  
+  likelihood_aggregator& operator+=(const likelihood_aggregator& other) {
+    lik_words_given_topics += other.lik_words_given_topics;
+    lik_topics += other.lik_topics;
+    return *this;
+  } // end of operator +=
+
+  static likelihood_aggregator 
+  map(IContext& context, const vertex_type& vertex) {
+    using boost::math::lgamma;
+    const factor_type& factor = vertex.data().factor;
+    ASSERT_EQ(factor.size(), NTOPICS);
+   likelihood_aggregator ret;
+    if(is_word(vertex)) {
+      for(size_t t = 0; t < NTOPICS; ++t) 
+        ret.lik_words_given_topics += lgamma(factor[t] + BETA);
+    } else {  ASSERT_TRUE(is_doc(vertex));
+      size_t ntokens_in_doc = 0;
+      for(size_t t = 0; t < NTOPICS; ++t) {
+        ret.lik_topics += lgamma(factor[t] + ALPHA);
+        ntokens_in_doc += factor[t];
+      }
+      ret.lik_topics -= lgamma(ntokens_in_doc + NTOPICS * ALPHA);
+    }
+    return ret;
+  } // end of map function
+
+  static void finalize(IContext& context, const likelihood_aggregator& total) {
+    using boost::math::lgamma;
+    // Address the global sum terms
+    double denominator = 0;
+    for(size_t t = 0; t < NTOPICS; ++t) {
+      denominator += lgamma(GLOBAL_TOPIC_COUNT[t] + NWORDS * BETA);
+    } // end of for loop
+
+    const double lik_words_given_topics = 
+      NTOPICS * (lgamma(NWORDS * BETA) - NWORDS * lgamma(BETA)) -
+      denominator + total.lik_words_given_topics;
+
+    const double lik_topics =
+      NDOCS * (lgamma(NTOPICS * ALPHA) - NTOPICS * lgamma(ALPHA)) +
+      total.lik_topics;
+    
+    const double lik = lik_words_given_topics + lik_topics;
+    context.cout() << "Likelihood: " << lik << std::endl;
+  } // end of finalize
+}; // end of likelihood_aggregator struct
 
 
 
@@ -395,7 +474,8 @@ bool load_and_initialize_graph(graphlab::distributed_control& dc,
                                const std::string& matrix_dir) {  
   dc.cout() << "Loading graph." << std::endl;
   graphlab::timer timer; timer.start();
-  graph.load(matrix_dir, graph_loader); 
+  graph.load(matrix_dir, graph_loader);
+
   dc.cout() << ": Loading graph. Finished in " 
             << timer.current_time() << " seconds." << std::endl;
 
@@ -405,9 +485,11 @@ bool load_and_initialize_graph(graphlab::distributed_control& dc,
   dc.cout() << "Finalizing graph. Finished in " 
             << timer.current_time() << " seconds." << std::endl;
 
-  dc.cout() << "Verivying dictionary size." << std::endl;
+  dc.cout() << "Computing number of words and documents." << std::endl;
   NWORDS = graph.map_reduce_vertices<size_t>(is_word);
-  dc.cout()  << "Number of words: " << NWORDS;
+  NDOCS = graph.map_reduce_vertices<size_t>(is_doc);
+  dc.cout() << "Number of words:   " << NWORDS;
+  dc.cout() << "Number of docs:    " << NDOCS;
   //ASSERT_LT(NWORDS, DICTIONARY.size());
   return true;
 } // end of load and initialize graph

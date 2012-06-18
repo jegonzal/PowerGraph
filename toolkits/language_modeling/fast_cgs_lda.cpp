@@ -25,6 +25,8 @@
 #include <algorithm>
 
 
+#include <boost/math/special_functions/gamma.hpp>
+
 #include "cgs_lda_common.hpp"
 
 
@@ -134,6 +136,7 @@ typedef cgs_lda_vertex_program::icontext_type icontext_type;
 typedef topk_aggregator<icontext_type> topk_type;
 typedef selective_signal<icontext_type> signal_only;
 typedef global_counts_aggregator<icontext_type> global_counts_agg;
+typedef likelihood_aggregator<icontext_type> likelihood_agg;
 
 
 
@@ -236,6 +239,11 @@ int main(int argc, char** argv) {
     engine.add_vertex_aggregator<factor_type>
     ("global_counts", global_counts_agg::map, global_counts_agg::finalize) &&
     engine.aggregate_periodic("global_counts", 5);
+  ASSERT_TRUE(success);
+  success = 
+    engine.add_vertex_aggregator<likelihood_agg>
+    ("likelihood", likelihood_agg::map, likelihood_agg::finalize) &&
+    engine.aggregate_periodic("likelihood", 10);
   ASSERT_TRUE(success);
 
 
