@@ -698,13 +698,19 @@ namespace graphlab {
      */
     void add_vertex(const vertex_id_type& vid, 
                     const VertexData& vdata = VertexData() ) {
-      ASSERT_NE(ingress_ptr, NULL);
+      if(finalized) {
+        logstream(LOG_FATAL) 
+          << "\n\tAttempting to add a vertex to a finalized graph."
+          << "\n\tVertices cannot be added to a graph after finalization."
+          << std::endl; 
+      }
       if(vid == vertex_id_type(-1)) {
         logstream(LOG_FATAL)
           << "\n\tAdding a vertex with id -1 is not allowed."
           << "\n\tThe -1 vertex id is reserved for internal use."
           << std::endl;
       }
+      ASSERT_NE(ingress_ptr, NULL);
       ingress_ptr->add_vertex(vid, vdata);
     }
 
@@ -724,7 +730,12 @@ namespace graphlab {
      */
     void add_edge(vertex_id_type source, vertex_id_type target, 
                   const EdgeData& edata = EdgeData()) {
-      ASSERT_NE(ingress_ptr, NULL);
+      if(finalized) {
+        logstream(LOG_FATAL) 
+          << "\n\tAttempting to add an edge to a finalized graph."
+          << "\n\tEdges cannot be added to a graph after finalization."
+          << std::endl; 
+      }
       if(source == vertex_id_type(-1)) {
         logstream(LOG_FATAL)
           << "\n\tThe source vertex with id vertex_id_type(-1)\n"
@@ -747,7 +758,7 @@ namespace graphlab {
           << "\n\tSelf edges are not allowed."
           << std::endl;
       }
-      ASSERT_NE(source, target);
+      ASSERT_NE(ingress_ptr, NULL);
       ingress_ptr->add_edge(source, target, edata);
     }
 
@@ -814,7 +825,8 @@ namespace graphlab {
       BOOST_CONCEPT_ASSERT((graphlab::OpPlusEq<ReductionType>));
       if(!finalized) {
         logstream(LOG_FATAL) 
-          << "Attempting to run graph.map_reduce_vertices(...) before calling graph.finalize()."
+          << "\n\tAttempting to run graph.map_reduce_vertices(...) "
+          << "\n\tbefore calling graph.finalize()."
           << std::endl;
       }
 
@@ -925,7 +937,8 @@ namespace graphlab {
       BOOST_CONCEPT_ASSERT((graphlab::OpPlusEq<ReductionType>));
       if(!finalized) {
         logstream(LOG_FATAL) 
-          << "Attempting to run graph.map_reduce_vertices(...) before calling graph.finalize()."
+          << "\n\tAttempting to run graph.map_reduce_vertices(...)"
+          << "\n\tbefore calling graph.finalize()."
           << std::endl;
       }
 
@@ -1025,7 +1038,8 @@ namespace graphlab {
     void transform_vertices(TransformType transform_functor) {
       if(!finalized) {
         logstream(LOG_FATAL) 
-          << "Attempting to call graph.transform_vertices(...) before finalizing the graph."
+          << "\n\tAttempting to call graph.transform_vertices(...)"
+          << "\n\tbefore finalizing the graph."
           << std::endl;
       }      
 
@@ -1093,7 +1107,8 @@ namespace graphlab {
     void transform_edges(TransformType transform_functor) {
       if(!finalized) {
         logstream(LOG_FATAL) 
-          << "Attempting to call graph.transform_edges(...) before finalizing the graph."
+          << "\n\tAttempting to call graph.transform_edges(...)"
+          << "\n\tbefore finalizing the graph."
           << std::endl;
       }      
       rpc.barrier();
@@ -1123,8 +1138,7 @@ namespace graphlab {
       * The function need not be reentrant as it is only called sequentially
      */
     template <typename VertexFunctorType>
-    void parallel_for_vertices(
-        std::vector<VertexFunctorType>& accfunction) {
+    void parallel_for_vertices(std::vector<VertexFunctorType>& accfunction) {
       ASSERT_TRUE(finalized);
       rpc.barrier();
       int numaccfunctions = (int)accfunction.size();
@@ -1154,8 +1168,7 @@ namespace graphlab {
      * The function need not be reentrant as it is only called sequentially
      */
     template <typename EdgeFunctorType>
-    void parallel_for_edges(
-        std::vector<EdgeFunctorType>& accfunction) {
+    void parallel_for_edges(std::vector<EdgeFunctorType>& accfunction) {
       ASSERT_TRUE(finalized);
       rpc.barrier();
       int numaccfunctions = (int)accfunction.size();
@@ -1196,7 +1209,7 @@ namespace graphlab {
     void save(oarchive& arc) const {
       if(!finalized) {
         logstream(LOG_FATAL) 
-          << "Attempting to save a graph before calling graph.finalize()."
+          << "\n\tAttempting to save a graph before calling graph.finalize()."
           << std::endl;
       }
       // Write the number of edges and vertices
@@ -1255,7 +1268,7 @@ namespace graphlab {
         fin.push(in_file);
         
         if(!fin.good()) {
-          logstream(LOG_FATAL) << "Error opening file: " << fname << std::endl;
+          logstream(LOG_FATAL) << "\n\tError opening file: " << fname << std::endl;
           exit(-1);
         }
         iarchive iarc(fin);
@@ -1312,7 +1325,7 @@ namespace graphlab {
         fout.push(boost::iostreams::gzip_compressor());        
         fout.push(out_file);
         if (!fout.good()) {
-          logstream(LOG_FATAL) << "Error opening file: " << fname << std::endl;
+          logstream(LOG_FATAL) << "\n\tError opening file: " << fname << std::endl;
           exit(-1);
         }
         oarchive oarc(fout);
@@ -1324,7 +1337,7 @@ namespace graphlab {
         std::ofstream out_file(fname.c_str(),
                                std::ios_base::out | std::ios_base::binary);
         if (!out_file.good()) {
-          logstream(LOG_FATAL) << "Error opening file: " << fname << std::endl;
+          logstream(LOG_FATAL) << "\n\tError opening file: " << fname << std::endl;
           exit(-1);
         }
         boost::iostreams::filtering_stream<boost::iostreams::output> fout;
@@ -1452,7 +1465,8 @@ namespace graphlab {
 
       if(!hdfs::has_hadoop()) {
         logstream(LOG_FATAL) 
-          << "Attempting to save a graph to HDFS but GraphLab was built without HDFS."
+          << "\n\tAttempting to save a graph to HDFS but GraphLab"
+          << "\n\twas built without HDFS."
           << std::endl;
       }
       hdfs& hdfs = hdfs::get_hdfs();
@@ -1687,7 +1701,7 @@ namespace graphlab {
       } else if (format == "bin") {
          save_binary(prefix);
       } else {
-        logstream(LOG_ERROR)
+        logstream(LOG_FATAL)
           << "Unrecognized Format \"" << format << "\"!" << std::endl;
         return;
       }
@@ -1740,7 +1754,7 @@ namespace graphlab {
           const bool success = load_from_stream(graph_files[i], fin, line_parser);
           if(!success) {
             logstream(LOG_FATAL) 
-              << "Error parsing file: " << graph_files[i] << std::endl;
+              << "\n\tError parsing file: " << graph_files[i] << std::endl;
           }
           fin.pop();
           if (gzip) fin.pop();
@@ -1761,7 +1775,12 @@ namespace graphlab {
       // want to make the empty path "" the root path "/" )
       std::string path = prefix;
       if (path.length() > 0 && path[path.length() - 1] != '/') path = path + "/";
-      ASSERT_TRUE(hdfs::has_hadoop());
+      if(!hdfs::has_hadoop()) {
+        logstream(LOG_FATAL) 
+          << "\n\tAttempting to load a graph from HDFS but GraphLab"
+          << "\n\twas built without HDFS."
+          << std::endl;
+      }
       hdfs& hdfs = hdfs::get_hdfs();    
       std::vector<std::string> graph_files;
       graph_files = hdfs.list_files(path);
@@ -1781,7 +1800,7 @@ namespace graphlab {
           const bool success = load_from_stream(graph_files[i], fin, line_parser);
           if(!success) {
             logstream(LOG_FATAL) 
-              << "Error parsing file: " << graph_files[i] << std::endl;
+              << "\n\tError parsing file: " << graph_files[i] << std::endl;
           }
           fin.pop();
           if (gzip) fin.pop();
