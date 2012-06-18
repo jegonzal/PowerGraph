@@ -41,7 +41,8 @@
 
 size_t vertex_data::NLATENT = 20;
 double sgd_vertex_program::TOLERANCE = 1e-3;
-double sgd_vertex_program::LAMBDA = 0.01;
+double sgd_vertex_program::LAMBDA = 0.001;
+double sgd_vertex_program::GAMMA = 0.001;
 size_t sgd_vertex_program::MAX_UPDATES = -1;
 
 
@@ -79,8 +80,12 @@ int main(int argc, char** argv) {
   clopts.attach_option("lambda", 
                        &(sgd_vertex_program::LAMBDA), 
                        sgd_vertex_program::LAMBDA, 
-                       "ALS regularization weight"); 
-  clopts.attach_option("tol",
+                       "SGD regularization weight"); 
+  clopts.attach_option("gamma", 
+                       &(sgd_vertex_program::GAMMA), 
+                       sgd_vertex_program::GAMMA, 
+                       "SGD step size"); 
+   clopts.attach_option("tol",
                        &(sgd_vertex_program::TOLERANCE), 
                        sgd_vertex_program::TOLERANCE,
                        "residual termination threshold");
@@ -135,7 +140,7 @@ int main(int argc, char** argv) {
   engine_type engine(dc, graph, clopts, "synchronous");
 
   // Add error reporting to the engine
-  const bool success = engine.add_edge_aggregator<error_aggregator>
+  const bool success = engine.add_vertex_aggregator<error_aggregator>
     ("error", error_aggregator::map, error_aggregator::finalize) &&
     engine.aggregate_periodic("error", interval);
   ASSERT_TRUE(success);
