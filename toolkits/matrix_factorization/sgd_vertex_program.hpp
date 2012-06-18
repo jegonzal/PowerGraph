@@ -47,8 +47,6 @@
 typedef Eigen::VectorXd vec_type;
 typedef Eigen::MatrixXd mat_type;
 
-double sgd_lambda = 0.001;
-double sgd_gamma = 0.001;
 /** 
  * \ingroup toolkit_matrix_pvecization
  *
@@ -73,11 +71,14 @@ struct vertex_data {
   float residual; //! how much the latent value has changed
   /** \brief The latent pvec for this vertex */
   vec_type pvec;
+  float RMSE;
+  uint32_t edges;
+
   /** 
    * \brief Simple default constructor which randomizes the vertex
    *  data 
    */
-  vertex_data() : nupdates(0), residual(1) { randomize(); } 
+  vertex_data() : nupdates(0), residual(1), RMSE(0), edges(0) { randomize(); } 
   /** \brief Randomizes the latent pvec */
   void randomize() { pvec.resize(NLATENT); pvec.setRandom(); }
   /** \brief Save the vertex data to a binary archive */
@@ -141,10 +142,10 @@ get_other_vertex(graph_type::edge_type& edge,
 /**
  * \brief Given an edge compute the error associated with that edge
  */
-double extract_l2_error(graph_type::edge_type edge) {
-  const double pred = 
-    edge.source().data().pvec.dot(edge.target().data().pvec);
-  return (edge.data().obs - pred) * (edge.data().obs - pred);
+double extract_l2_error(const graph_type::vertex_type & vertex) {
+   if (vertex.data().edges == 0)
+     return 0;
+   return vertex.data().RMSE / vertex.data().edges;
 } // end of extract_l2_error
 
 
@@ -167,7 +168,7 @@ inline bool graph_loader(graph_type& graph,
   strm >> source_id >> target_id;
   if(role == edge_data::TRAIN || role == edge_data::VALIDATE) strm >> obs;
   // Create an edge and add it to the graph
-  graph.add_edge(source_id, target_id, edge_data(obs, role)); 
+  graph.add_edge(source_id, target_id+1000000, edge_data(obs, role)); 
   return true; // successful load
 } // end of graph_loader
 
@@ -244,6 +245,7 @@ public:
   /** The convergence tolerance */
   static double TOLERANCE;
   static double LAMBDA;
+  static double GAMMA;
   static size_t MAX_UPDATES;
 
   /** The set of edges to gather along */
@@ -255,14 +257,21 @@ public:
   /** The gather function computes XtX and Xy */
   gather_type gather(icontext_type& context, const vertex_type& vertex, 
                      edge_type& edge) const {
-    if(edge.data().role == edge_data::TRAIN) {
-      const vertex_type other_vertex = get_other_vertex(edge, vertex);
+    //if(edge.data().role == edge_data::TRAIN) {
+   if (vertex.num_in_edges() == 0){
+      vertex_type other_vertex(get_other_vertex(edge, vertex));
+      vertex_type my_vertex(vertex);
+      vertex_data & my_data = my_vertex.data();
       const double pred = vertex.data().pvec.dot(other_vertex.data().pvec);
       const float err = (edge.data().obs - pred);
-      //vertex.data().pvec += sgd_gamma*(err*vertex.data().pvec - sgd_lambda*other_vertex.data().pvec);
-      //other_vertex.data().pvec += sgd_gamma*(err*other_vertex.data().pvec - sgd_lambda*vertex.data().pvec);
-      return gather_type(vertex.data().pvec, edge.data().obs);
-    } else return gather_type();
+      my_vertex.data().RMSE += err*err;
+      my_vertex.data().edges++;
+      if (edge.data().role == edge_data::TRAIN){
+        my_vertex.data().pvec += GAMMA*(err*vertex.data().pvec - LAMBDA*other_vertex.data().pvec);
+        other_vertex.data().pvec += GAMMA*(err*other_vertex.data().pvec - LAMBDA*vertex.data().pvec);
+      }
+    } 
+    return gather_type();
   } // end of gather function
 
   /** apply collects the sum of XtX and Xy */
@@ -297,14 +306,12 @@ public:
     edge_data& edata = edge.data();
     if(edata.role == edge_data::TRAIN) {
       const vertex_type other_vertex = get_other_vertex(edge, vertex);
-      const vertex_data& vdata = vertex.data();
-      const vertex_data& other_vdata = other_vertex.data();
-      const double pred = vdata.pvec.dot(other_vdata.pvec);
-      const float error = std::fabs(edata.obs - pred);
-      const double priority = (error * vdata.residual); 
+      //const double pred = vdata.pvec.dot(other_vdata.pvec);
+      //const float error = std::fabs(edata.obs - pred);
+      //const double priority = (error * vdata.residual); 
       // Reschedule neighbors ------------------------------------------------
-      if( priority > TOLERANCE && other_vdata.nupdates < MAX_UPDATES) 
-        context.signal(other_vertex, priority);
+      if(other_vertex.data().nupdates < MAX_UPDATES) 
+        context.signal(other_vertex, 1);
     }
   } // end of scatter function
 
@@ -330,23 +337,23 @@ struct error_aggregator : public graphlab::IS_POD_TYPE {
     train_error(0), validation_error(0), ntrain(0), nvalidation(0) { }
   error_aggregator& operator+=(const error_aggregator& other) {
     train_error += other.train_error;
+    assert(!std::isnan(train_error));
     validation_error += other.validation_error;
     ntrain += other.ntrain;
     nvalidation += other.nvalidation;
     return *this;
   }
-  static error_aggregator map(icontext_type& context, const edge_type& edge) {
+  static error_aggregator map(icontext_type& context, const graph_type::vertex_type& vertex) {
     error_aggregator agg;
-    if(edge.data().role == edge_data::TRAIN) {
-      agg.train_error = extract_l2_error(edge); agg.ntrain = 1;
-    } else if(edge.data().role == edge_data::VALIDATE) {
-      agg.validation_error = extract_l2_error(edge); agg.nvalidation = 1;
-    }
+    agg.train_error = extract_l2_error(vertex); 
+    assert(!std::isnan(agg.train_error));
+    agg.ntrain = vertex.data().edges;
     return agg;
   }
   static void finalize(icontext_type& context, const error_aggregator& agg) {
     ASSERT_GT(agg.ntrain, 0);
     const double train_error = std::sqrt(agg.train_error / agg.ntrain);
+    assert(!std::isnan(train_error));
     context.cout() << context.elapsed_seconds() << "\t" << train_error;
     if(agg.nvalidation > 0) {
       const double validation_error = 
