@@ -65,8 +65,8 @@
 #include <graphlab/util/generics/conditional_addition_wrapper.hpp>
 
 #include <graphlab/options/graphlab_options.hpp>
-#include <graphlab/serialization/iarchive.hpp>
-#include <graphlab/serialization/oarchive.hpp>
+#include <graphlab/serialization/serialization_includes.hpp>
+#include <graphlab/vertex_program/op_plus_eq_concept.hpp>
 
 #include <graphlab/graph/local_graph.hpp>
 #include <graphlab/graph/ingress/idistributed_ingress.hpp>
@@ -797,7 +797,7 @@ namespace graphlab {
     * transform_vertices() can be used to perform a similar
     * but may also make modifications to graph data.
     *
-    * \tparam ResultType The output of the map function. Must have
+    * \tparam ReductionType The output of the map function. Must have
     *                    operator+= defined, and must be \ref sec_serializable.
     * \tparam VertexMapperType The type of the map function. 
     *                          Not generally needed.
@@ -805,21 +805,28 @@ namespace graphlab {
     * \param mapfunction The map function to use. Must take 
     *                   a \ref vertex_type, or a reference to a 
     *                   \ref vertex_type as its only argument.
-    *                   Returns a ResultType which must be summable
+    *                   Returns a ReductionType which must be summable
     *                   and \ref sec_serializable .
     */
-    template <typename ResultType, typename MapFunctionType>
-    ResultType map_reduce_vertices(MapFunctionType mapfunction) {
-      ASSERT_TRUE(finalized);
+    template <typename ReductionType, typename MapFunctionType>
+    ReductionType map_reduce_vertices(MapFunctionType mapfunction) {
+      BOOST_CONCEPT_ASSERT((graphlab::Serializable<ReductionType>));
+      BOOST_CONCEPT_ASSERT((graphlab::OpPlusEq<ReductionType>));
+      if(!finalized) {
+        logstream(LOG_FATAL) 
+          << "Attempting to run graph.map_reduce_vertices(...) before calling graph.finalize()."
+          << std::endl;
+      }
+
       rpc.barrier();
       bool global_result_set = false;
-      ResultType global_result = ResultType();
+      ReductionType global_result = ReductionType();
 #ifdef _OPENMP
 #pragma omp parallel
 #endif
       {
         bool result_set = false;
-        ResultType result = ResultType();
+        ReductionType result = ReductionType();
 #ifdef _OPENMP
         #pragma omp for
 #endif
@@ -832,7 +839,7 @@ namespace graphlab {
             }
             else if (result_set){
               const vertex_type vtx(l_vertex(i));
-              const ResultType tmp = mapfunction(vtx);
+              const ReductionType tmp = mapfunction(vtx);
               result += tmp;
             }
           }
@@ -850,7 +857,7 @@ namespace graphlab {
           }
         }
       }
-      conditional_addition_wrapper<ResultType> 
+      conditional_addition_wrapper<ReductionType> 
         wrapper(global_result, global_result_set);
       rpc.all_reduce(wrapper);
       return wrapper.value;
@@ -901,7 +908,7 @@ namespace graphlab {
     * Finally transform_edges() can be used to perform a similar
     * but may also make modifications to graph data.
     *
-    * \tparam ResultType The output of the map function. Must have
+    * \tparam ReductionType The output of the map function. Must have
     *                    operator+= defined, and must be \ref sec_serializable.
     * \tparam EdgeMapperType The type of the map function. 
     *                          Not generally needed.
@@ -909,21 +916,28 @@ namespace graphlab {
     * \param mapfunction The map function to use. Must take 
     *                   a \ref edge_type, or a reference to a 
     *                   \ref edge_type as its only argument.
-    *                   Returns a ResultType which must be summable
+    *                   Returns a ReductionType which must be summable
     *                   and \ref sec_serializable .
     */
-    template <typename ResultType, typename MapFunctionType>
-    ResultType map_reduce_edges(MapFunctionType mapfunction) {
-      ASSERT_TRUE(finalized);
+    template <typename ReductionType, typename MapFunctionType>
+    ReductionType map_reduce_edges(MapFunctionType mapfunction) {
+      BOOST_CONCEPT_ASSERT((graphlab::Serializable<ReductionType>));
+      BOOST_CONCEPT_ASSERT((graphlab::OpPlusEq<ReductionType>));
+      if(!finalized) {
+        logstream(LOG_FATAL) 
+          << "Attempting to run graph.map_reduce_vertices(...) before calling graph.finalize()."
+          << std::endl;
+      }
+
       rpc.barrier();
       bool global_result_set = false;
-      ResultType global_result = ResultType();
+      ReductionType global_result = ReductionType();
 #ifdef _OPENMP
 #pragma omp parallel
 #endif
       {
         bool result_set = false;
-        ResultType result = ResultType();
+        ReductionType result = ReductionType();
 #ifdef _OPENMP
         #pragma omp for
 #endif
@@ -936,7 +950,7 @@ namespace graphlab {
             }
             else if (result_set){
               edge_type edge(e);
-              const ResultType tmp = mapfunction(edge); 
+              const ReductionType tmp = mapfunction(edge); 
               result += tmp;
             }
           }
@@ -955,7 +969,7 @@ namespace graphlab {
         }
       }
 
-      conditional_addition_wrapper<ResultType> 
+      conditional_addition_wrapper<ReductionType> 
         wrapper(global_result, global_result_set);
       rpc.all_reduce(wrapper);
       return wrapper.value;
@@ -1009,7 +1023,12 @@ namespace graphlab {
      */ 
     template <typename TransformType>
     void transform_vertices(TransformType transform_functor) {
-      ASSERT_TRUE(finalized);
+      if(!finalized) {
+        logstream(LOG_FATAL) 
+          << "Attempting to call graph.transform_vertices(...) before finalizing the graph."
+          << std::endl;
+      }      
+
       rpc.barrier();
 #ifdef _OPENMP
       #pragma omp parallel for
@@ -1072,7 +1091,11 @@ namespace graphlab {
      */ 
     template <typename TransformType>
     void transform_edges(TransformType transform_functor) {
-      ASSERT_TRUE(finalized);
+      if(!finalized) {
+        logstream(LOG_FATAL) 
+          << "Attempting to call graph.transform_edges(...) before finalizing the graph."
+          << std::endl;
+      }      
       rpc.barrier();
 #ifdef _OPENMP
       #pragma omp parallel for
@@ -1171,7 +1194,11 @@ namespace graphlab {
 
     /** \brief Save the graph to an archive */
     void save(oarchive& arc) const {
-      ASSERT_TRUE(finalized);
+      if(!finalized) {
+        logstream(LOG_FATAL) 
+          << "Attempting to save a graph before calling graph.finalize()."
+          << std::endl;
+      }
       // Write the number of edges and vertices
       arc << nverts 
           << nedges 
@@ -1423,7 +1450,11 @@ namespace graphlab {
         if (gzip) graph_files[i] += ".gz";
       }
 
-      ASSERT_TRUE(hdfs::has_hadoop());
+      if(!hdfs::has_hadoop()) {
+        logstream(LOG_FATAL) 
+          << "Attempting to save a graph to HDFS but GraphLab was built without HDFS."
+          << std::endl;
+      }
       hdfs& hdfs = hdfs::get_hdfs();
     
       // create the vector of callbacks

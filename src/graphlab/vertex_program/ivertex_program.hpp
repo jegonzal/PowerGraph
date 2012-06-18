@@ -31,7 +31,8 @@
 #include <graphlab/util/empty.hpp>
 #include <graphlab/graph/graph_basic_types.hpp>
 #include <graphlab/graph/distributed_graph.hpp>
-
+#include <graphlab/serialization/serialization_includes.hpp>
+#include <graphlab/vertex_program/op_plus_eq_concept.hpp>
 
 #include <graphlab/macros_def.hpp>
 namespace graphlab {
@@ -97,8 +98,8 @@ namespace graphlab {
    *   2) gather_type: the type used in the gather phase
    *   3) message_type: The type used for messaging
    *
-   * Both the gather_type and message_type must be serializable (i.e.,
-   * a primitive or implement load/save) and must support the
+   * Both the gather_type and message_type must be serializable 
+   * (\ref sec_serializable) and must support the
    * commutative associative += operation.
    *   
    * To enable the interface to be aware of the user defined gather
@@ -154,6 +155,43 @@ namespace graphlab {
     BOOST_CONCEPT_ASSERT((boost::DefaultConstructible<GatherType>));
     /// \endcond
 
+
+    /**
+     * \cond GRAPHLAB_INTERNAL
+     *
+     * \brief GraphLab Requires that gather type be Serializable.  See
+     * \ref sec_serializable for detials
+     */
+    BOOST_CONCEPT_ASSERT((graphlab::Serializable<GatherType>));
+    /// \endcond
+
+    /**
+     * \cond GRAPHLAB_INTERNAL
+     *
+     * \brief GraphLab Requires that gather type support operator+=.
+     */
+    BOOST_CONCEPT_ASSERT((graphlab::OpPlusEq<GatherType>));
+    /// \endcond
+
+
+
+    /**
+     * \cond GRAPHLAB_INTERNAL
+     *
+     *  \brief GraphLab Requires that the gather type be serializable
+     *
+     * \code
+     * class gather_type {
+     * public:
+     *   gather_type() { }
+     * };  
+     * \endcode
+     */
+    BOOST_CONCEPT_ASSERT((boost::DefaultConstructible<GatherType>));
+    /// \endcond
+
+
+
     /**
      * The message type which must be provided by the vertex_program
      */
@@ -162,7 +200,8 @@ namespace graphlab {
 
     /**
      * \cond GRAPHLAB_INTERNAL
-     * GraphLab Requires that the message type be default
+     *
+     * \brief GraphLab requires that the message type be default
      * constructible.
      *
      * \code
@@ -176,6 +215,22 @@ namespace graphlab {
     BOOST_CONCEPT_ASSERT((boost::DefaultConstructible<MessageType>));
     /// \endcond 
 
+    /**
+     * \cond GRAPHLAB_INTERNAL
+     *
+     * \brief GraphLab requires that the message type be Serializable.
+     * See \ref sec_serializable for detials
+     */
+    BOOST_CONCEPT_ASSERT((graphlab::Serializable<MessageType>));
+    /// \endcond
+
+    /**
+     * \cond GRAPHLAB_INTERNAL
+     *
+     * \brief GraphLab requires that message type support operator+=.
+     */
+    BOOST_CONCEPT_ASSERT((graphlab::OpPlusEq<MessageType>));
+    /// \endcond
 
 
     // Graph specific type members ============================================

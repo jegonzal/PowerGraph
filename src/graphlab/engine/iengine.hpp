@@ -40,7 +40,9 @@
 #include <graphlab/vertex_program/icontext.hpp>
 #include <graphlab/engine/execution_status.hpp>
 #include <graphlab/options/graphlab_options.hpp>
+#include <graphlab/serialization/serialization_includes.hpp>
 #include <graphlab/aggregation/distributed_aggregator.hpp>
+#include <graphlab/vertex_program/op_plus_eq_concept.hpp>
 
 
 
@@ -100,6 +102,33 @@ namespace graphlab {
      * ivertex_program.
      */
     typedef VertexProgram vertex_program_type;
+
+    /**
+     * \cond GRAPHLAB_INTERNAL
+     * \brief GraphLab Requires that vertex programs be default
+     * constructible.
+     *
+     * \code
+     * class vertex_program {
+     * public:
+     *   vertex_program() { }
+     * };  
+     * \endcode
+     */
+    BOOST_CONCEPT_ASSERT((boost::DefaultConstructible<vertex_program_type>));
+    /// \endcond
+
+
+
+    /**
+     * \cond GRAPHLAB_INTERNAL
+     *
+     * \brief GraphLab requires that the vertex programx type be
+     * Serializable.  See \ref sec_serializable for detials.
+     */
+    BOOST_CONCEPT_ASSERT((graphlab::Serializable<vertex_program_type>));
+    /// \endcond
+
 
     /**
      * \brief The user defined message type which is defined in
@@ -420,6 +449,9 @@ namespace graphlab {
     bool add_vertex_aggregator(const std::string& key,
                                VertexMapType map_function,
                                FinalizerType finalize_function) {
+      BOOST_CONCEPT_ASSERT((graphlab::Serializable<ReductionType>));
+      BOOST_CONCEPT_ASSERT((graphlab::OpPlusEq<ReductionType>));
+
       aggregator_type* aggregator = get_aggregator();
       if(aggregator == NULL) {
         logstream(LOG_FATAL) << "Aggregation not supported by this engine!" 
@@ -625,6 +657,8 @@ namespace graphlab {
     bool add_edge_aggregator(const std::string& key,
                              EdgeMapType map_function,
                              FinalizerType finalize_function) {
+      BOOST_CONCEPT_ASSERT((graphlab::Serializable<ReductionType>));
+      BOOST_CONCEPT_ASSERT((graphlab::OpPlusEq<ReductionType>));
       aggregator_type* aggregator = get_aggregator();
       if(aggregator == NULL) {
         logstream(LOG_FATAL) << "Aggregation not supported by this engine!"
@@ -791,7 +825,7 @@ namespace graphlab {
     * Finally transform_vertices() can be used to perform a similar
     * but may also make modifications to graph data.
     *
-    * \tparam ResultType The output of the map function. Must have
+    * \tparam ReductionType The output of the map function. Must have
     *                    operator+= defined, and must be \ref sec_serializable.
     * \tparam VertexMapperType The type of the map function. 
     *                          Not generally needed.
@@ -800,18 +834,21 @@ namespace graphlab {
     *                   \ref icontext_type& as its first argument, and
     *                   a \ref vertex_type, or a reference to a 
     *                   \ref vertex_type as its second argument.
-    *                   Returns a ResultType which must be summable
+    *                   Returns a ReductionType which must be summable
     *                   and \ref sec_serializable .
     */
-    template <typename ResultType, typename VertexMapperType>
-    ResultType map_reduce_vertices(VertexMapperType mapfunction) {
+    template <typename ReductionType, typename VertexMapperType>
+    ReductionType map_reduce_vertices(VertexMapperType mapfunction) {
       aggregator_type* aggregator = get_aggregator();
+      BOOST_CONCEPT_ASSERT((graphlab::Serializable<ReductionType>));
+      BOOST_CONCEPT_ASSERT((graphlab::OpPlusEq<ReductionType>));
+
       if(aggregator == NULL) {
         logstream(LOG_FATAL) << "Aggregation not supported by this engine!"
                              << std::endl;
-        return ResultType(); // does not return
+        return ReductionType(); // does not return
       }
-      return aggregator->map_reduce_vertices<ResultType>(mapfunction);      
+      return aggregator->map_reduce_vertices<ReductionType>(mapfunction);      
     }
 
    /**
@@ -886,7 +923,7 @@ namespace graphlab {
     * Finally transform_edges() can be used to perform a similar
     * but may also make modifications to graph data.
     *
-    * \tparam ResultType The output of the map function. Must have
+    * \tparam ReductionType The output of the map function. Must have
     *                    operator+= defined, and must be \ref sec_serializable.
     * \tparam EdgeMapperType The type of the map function. 
     *                          Not generally needed.
@@ -895,18 +932,20 @@ namespace graphlab {
     *                   \ref icontext_type& as its first argument, and
     *                   a \ref edge_type, or a reference to a 
     *                   \ref edge_type as its second argument.
-    *                   Returns a ResultType which must be summable
+    *                   Returns a ReductionType which must be summable
     *                   and \ref sec_serializable .
     */
-    template <typename ResultType, typename EdgeMapperType>
-    ResultType map_reduce_edges(EdgeMapperType mapfunction) {
+    template <typename ReductionType, typename EdgeMapperType>
+    ReductionType map_reduce_edges(EdgeMapperType mapfunction) {
       aggregator_type* aggregator = get_aggregator();
+      BOOST_CONCEPT_ASSERT((graphlab::Serializable<ReductionType>));
+      BOOST_CONCEPT_ASSERT((graphlab::OpPlusEq<ReductionType>));
       if(aggregator == NULL) {
         logstream(LOG_FATAL) << "Aggregation not supported by this engine!" 
                              << std::endl;
-        return ResultType(); // does not return
+        return ReductionType(); // does not return
       }
-      return aggregator->map_reduce_edges<ResultType>(mapfunction);      
+      return aggregator->map_reduce_edges<ReductionType>(mapfunction);      
     }
     
    
