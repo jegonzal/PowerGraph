@@ -24,179 +24,221 @@
 #ifndef GRAPHLAB_DISTRIBUTED_EVENT_LOG_HPP
 #define GRAPHLAB_DISTRIBUTED_EVENT_LOG_HPP
 #include <iostream>
+#include <string>
+#include <vector>
 #include <boost/bind.hpp>
+#include <boost/function.hpp>
 #include <graphlab/parallel/pthread_tools.hpp>
 #include <graphlab/parallel/atomic.hpp>
 #include <graphlab/util/timer.hpp>
 #include <graphlab/util/dense_bitset.hpp>
 
 namespace graphlab {
-  // forward declaration needed here so that I can use the distributed
-  // event log in distributed_control itself
-  class distributed_control;
-  template <typename T> class dc_dist_object;
-#define EVENT_MAX_COUNTERS 256
 
-  class dist_event_log{
-  public:
-    enum event_print_type{
-      NUMBER,
-      DESCRIPTION,
-      RATE_BAR,
-      LOG_FILE
-    };
-  private:
-    std::ostream* out;  // output target
-    volatile size_t flush_interval; // flush frequency (ms)
-    event_print_type print_method;  // print method
-    volatile bool finished; // set on destruction
-  
-    mutex m;          
-    conditional cond;
-  
-    thread printing_thread;
-
-    // Local Counters
-    std::string descriptions[EVENT_MAX_COUNTERS];
-    atomic<size_t> counters[EVENT_MAX_COUNTERS];
-
-    // Global counters on proc 0
-    std::vector<atomic<size_t> > globalcounters[EVENT_MAX_COUNTERS];
-    size_t maxcounter[EVENT_MAX_COUNTERS];
-    atomic<size_t> totalcounter[EVENT_MAX_COUNTERS];
-    size_t maxproc_counter[EVENT_MAX_COUNTERS];  // maximum of per proc maximums
-
-    double prevtime;  // last time flush() was called
-    bool hasevents;   // whether there are logging events
-    size_t noeventctr; // how many times flush() was called with no events
-    // zeroed when the events are next observed.
-
-    size_t max_desc_length; // maximum descriptor length
-    fixed_dense_bitset<EVENT_MAX_COUNTERS> hascounter;
-
-    std::vector<std::pair<unsigned char, size_t> > immediate_events;
-  
-    dc_dist_object<dist_event_log> *rmi;
-  public:
-    inline dist_event_log():out(NULL),
-                            flush_interval(0),
-                            print_method(DESCRIPTION),
-                            finished(false),
-                            prevtime(0),
-                            hasevents(false),
-                            noeventctr(0),
-                            max_desc_length(0),
-                            rmi(NULL) {
-      hascounter.clear();
-      for (size_t i = 0;i < EVENT_MAX_COUNTERS; ++i) {
-        maxcounter[i] = 0;
-        maxproc_counter[i] = 0;
-        totalcounter[i].value = 0;
-      }
-      printing_thread.launch(boost::bind(&dist_event_log::thread_loop, this));
-    }
-  
-    void initialize(distributed_control& dc,
-                    std::ostream &ostrm,
-                    size_t flush_interval_ms,
-                    event_print_type event_print);
-
-    void close();
-  
-    void destroy();
-  
-    void thread_loop();
-
-    void add_event_type(unsigned char eventid, std::string description);
-  
-    void add_immediate_event_type(unsigned char eventid, std::string description);
-
-    void accumulate_event_aggregator(size_t proc,
-                                     unsigned char eventid,
-                                     size_t count);
-  
-    void immediate_event_aggregator(const std::vector<std::pair<unsigned char, size_t> >& im);
-  
-    inline void accumulate_event(unsigned char eventid,
-                                 size_t count)  __attribute__((always_inline)) {
-      counters[eventid].inc(count);
-    }
-
-    void immediate_event(unsigned char eventid);
-
-    void flush_and_reset_counters();
+// forward declaration because we need this in the
+// class but we want dc_dist_object to be able
+// to use this class too.
+template <typename T>
+class dc_dist_object;
+class distributed_control;
 
 
-    void print_log();
-    void flush();
-    ~dist_event_log();
-  };
 
+const int MAX_LOG_SIZE = 256;
+const int MAX_LOG_THREADS = 1024;
+const double TICK_FREQUENCY = 0.5;
+const double RECORD_FREQUENCY = 5.0;
+
+
+
+/// A single entry in time
+struct log_entry: public IS_POD_TYPE {
+  // The value at the time. If this is a CUMULATIVE entry, this
+  // will contain the total number of events since the start
+  double value;
+
+  // The time the log was taken
+  double time;
+  log_entry(double value, double time): value(value),time(time) { }
+};
+
+
+namespace log_type {
+enum log_type_enum {
+  INSTANTANEOUS = 0, ///< Sum of log values over time are not meaningful 
+  CUMULATIVE = 1    ///< Sum of log values over time are meaningful 
+};
 }
+
+/// Logging information for a particular log entry (say \#updates)
+struct log_group{
+  mutex lock;
+
+  /// name of the group
+  std::string name;
+
+  /// Set to true if this is a callback entry
+  bool is_callback_entry;
+
+  /// The type of log. Instantaneous or Cumulative 
+  log_type::log_type_enum logtype;
+
+  boost::function<double(void)> callback;
+
+  double sum_of_instantaneous_entries;
+  size_t count_of_instantaneous_entries;
+
+  /// machine[i] holds a vector of entries from machine i
+  std::vector<std::vector<log_entry> > machine;
+  /// aggregate holds vector of totals
+  std::vector<log_entry> aggregate;
+};
+
+
 /**
- * DECLARE_DIST_EVENT_LOG(name)
- * creates an event log with a given name. This creates a variable
- * called "name" which is of type event_log. and is equivalent to:
- *
- * graphlab::event_log name;
- *
- * The primary reason to use this macro instead of just writing
- * the code above directly, is that the macro is ignored and compiles
- * to nothing when event logs are disabled.
- *
- *
- * INITIALIZE_DIST_EVENT_LOG(name, dc, ostrm, flush_interval, printdesc)
- * ostrm is the output std::ostream object. A pointer of the stream
- * is taken so the stream should not be destroyed until the event log is closed
- * flush_interval is the flush frequency in milliseconds.
- * printdesc is either graphlab::event_log::NUMBER, or graphlab::event_log::DESCRIPTION or
- * graphlab::event_log::RATE_BAR. This must be called on all machines,
- * but only machine 0 will use the ostrm, and printdesc arguments
- * 
- * ADD_DIST_EVENT_TYPE(name, id, desc)
- * Creates an event type with an integer ID, and a description.
- * Event types should be mostly consecutive since the internal
- * storage format is a array. Valid ID range is [0, 255]
- *
- * ACCUMULATE_DIST_EVENT(name, id, count)
- * Adds 'count' events of type "id"
- *
- * FLUSH_DIST_EVENT_LOG(name)
- * Forces a flush of the accumulated events to the provided output stream
+ * This is the type that is held in the thread local store
  */
-#ifdef USE_EVENT_LOG
-#define DECLARE_DIST_EVENT_LOG(name) graphlab::dist_event_log name;
-#define INITIALIZE_DIST_EVENT_LOG(name, dc, ostrm, flush_interval, printdesc) \
-  name.initialize(dc, ostrm, flush_interval, printdesc);
-#define ADD_DIST_EVENT_TYPE(name, id, desc) name.add_event_type(id, desc);
-#define ADD_IMMEDIATE_DIST_EVENT_TYPE(name, id, desc) name.add_immediate_event_type(id, desc);
-#define ACCUMULATE_DIST_EVENT(name, id, count) name.accumulate_event(id, count);
-#define IMMEDIATE_DIST_EVENT(name, id) name.immediate_event(id);
-#define FLUSH_DIST_EVENT_LOG(name) name.flush();
-#define CLOSE_DIST_EVENT_LOG(name) name.close();
-#define DESTROY_DIST_EVENT_LOG(name) name.destroy();
+struct event_log_thread_local_type {
+  /** The values written to by each thread. 
+   * An array with max length MAX_LOG_SIZE 
+   */
+  double values[MAX_LOG_SIZE];
+  size_t thlocal_slot;
 
-#else
-#define DECLARE_DIST_EVENT_LOG(name) 
-#define INITIALIZE_DIST_EVENT_LOG(name, dc, ostrm, flush_interval, printdesc)
-#define ADD_DIST_EVENT_TYPE(name, id, desc) 
-#define ADD_IMMEDIATE_DIST_EVENT_TYPE(name, id, desc) 
-#define ACCUMULATE_DIST_EVENT(name, id, count)
-#define IMMEDIATE_DIST_EVENT(name, id)
-#define FLUSH_DIST_EVENT_LOG(name) 
-#define CLOSE_DIST_EVENT_LOG(name)
-#define DESTROY_DIST_EVENT_LOG(name)
-#endif
+  // These are used for time averaging instantaneous values
+};
 
-#define PERMANENT_DECLARE_DIST_EVENT_LOG(name) graphlab::dist_event_log name;
-#define PERMANENT_INITIALIZE_DIST_EVENT_LOG(name, dc, ostrm, flush_interval, printdesc) \
-  name.initialize(dc, ostrm, flush_interval, printdesc);
-#define PERMANENT_ADD_DIST_EVENT_TYPE(name, id, desc) name.add_event_type(id, desc);
-#define PERMANENT_ADD_IMMEDIATE_DIST_EVENT_TYPE(name, id, desc) name.add_immediate_event_type(id, desc);
-#define PERMANENT_ACCUMULATE_DIST_EVENT(name, id, count) name.accumulate_event(id, count);
-#define PERMANENT_IMMEDIATE_DIST_EVENT(name, id) name.immediate_event(id);
-#define PERMANENT_FLUSH_DIST_EVENT_LOG(name) name.flush();
-#define PERMANENT_CLOSE_DIST_EVENT_LOG(name) name.close();
-#define PERMANENT_DESTROY_DIST_EVENT_LOG(name) name.destroy();
+
+class distributed_event_logger {
+  private:
+    // a key to allow multiple threads, each to have their
+    // own counter. Decreases performance penalty of the
+    // the event logger.
+    pthread_key_t key;
+
+    dc_dist_object<distributed_event_logger>* rmi;
+    
+    // The array of logs. We can only have a maximum of MAX_LOG_SIZE logs
+    // This is only created on machine 0
+    log_group* logs[MAX_LOG_SIZE];
+    // this bit field is used to identify which log entries are active
+    fixed_dense_bitset<MAX_LOG_THREADS> has_log_entry;
+    mutex log_entry_lock;
+
+    // A collection of slots, one for each thread, to hold 
+    // the current thread's active log counter.
+    // Threads will write directly into here
+    // and a master timer will sum it all up periodically
+    event_log_thread_local_type* thread_local_count[MAX_LOG_THREADS];
+    // a bitset which lets me identify which slots in thread_local_counts
+    // are used.
+    fixed_dense_bitset<MAX_LOG_THREADS> thread_local_count_slots; 
+    mutex thread_local_count_lock;
+
+    // timer managing the frequency at which logs are transmitted to the root
+    timer ti; 
+    thread tick_thread;
+
+    uint32_t allocate_log_entry(log_group* group);
+    /**
+      * Returns a pointer to the current thread log counter
+      * creating one if one does not already exist.
+      */
+    event_log_thread_local_type* get_thread_counter_ref();
+
+    /**
+     * Receives the log information from each machine
+     */    
+    void rpc_collect_log(size_t srcproc, double srctime,
+                         std::vector<double> srccounts);
+
+    void collect_instantaneous_log(); 
+    /** 
+     *  Collects the machine level
+     *  log entry. and sends it to machine 0
+     */
+    void local_collect_log(); 
+    
+    // Called only by machine 0 to get the aggregate log
+    void build_aggregate_log();
+
+    mutex periodic_timer_lock;
+    conditional periodic_timer_cond;
+    bool periodic_timer_stop;
+
+    /** a new thread spawns here and sleeps for 5 seconds at a time
+     *  when it wakes up it will insert log entries
+     */
+    void periodic_timer();
+  public:
+    distributed_event_logger();
+
+    // called by the destruction of distributed_control
+    void destroy_event_logger();
+
+
+    /**
+     * Associates the event log with a DC object.
+     * Must be called by all machines simultaneously.
+     * Can be called more than once, but only the first call will have
+     * an effect.
+     */
+    void set_dc(distributed_control& dc);
+    /**
+     * Creates a new log entry with a given name and log type.
+     * Returns the ID of the log. Must be called by 
+     * all machines simultaneously with the same settings.
+     */
+    size_t create_log_entry(std::string name, log_type::log_type_enum logtype);
+
+    /**
+     * Creates a new callback log entry with a given name and log type.
+     * Returns the ID of the log. Must be called by 
+     * all machines simultaneously with the same settings.
+     * Callback will be triggered periodically.
+     * Callback entries must be deleted once the callback goes
+     * out of scope.
+     */
+    size_t create_callback_entry(std::string name, 
+                                 boost::function<double(void)> callback);
+
+    void free_callback_entry(size_t entry);
+
+    /**
+     * Increments the value of a log entry
+     */
+    void thr_inc_log_entry(size_t entry, size_t value);
+
+    /**
+     * Increments the value of a log entry
+     */
+    void thr_dec_log_entry(size_t entry, size_t value);
+
+
+};
+
+
+extern distributed_event_logger& get_event_log();
+
+
+} // namespace graphlab
+#define DECLARE_EVENT(name) size_t name;
+
+#define INITIALIZE_EVENT_LOG(dc) graphlab::get_event_log().set_dc(dc);
+#define ADD_CUMULATIVE_EVENT(name, desc) \
+    name = graphlab::get_event_log().create_log_entry(desc, log_type::CUMULATIVE);
+
+#define ADD_INSTANTANEOUS_EVENT(name, desc) \
+    name = graphlab::get_event_log().create_log_entry(desc, log_type::INSTANTANEOUS);
+
+#define ADD_CALLBACK_EVENT(name, desc, callback) \
+    name = graphlab::get_event_log().create_callback_entry(desc, callback);
+
+
+#define FREE_CALLBACK_EVENT(name) \
+  graphlab::get_event_log().free_callback_entry(name);
+
+#define INCREMENT_EVENT(name, count) graphlab::get_event_log().thr_inc_log_entry(name, count);
+#define DECREMENT_EVENT(name, count) graphlab::get_event_log().thr_dec_log_entry(name, count);
 
 #endif

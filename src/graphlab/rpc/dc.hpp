@@ -25,6 +25,7 @@
 #define GRAPHLAB_DC_HPP
 #include <iostream>
 #include <boost/iostreams/stream.hpp>
+#include <boost/function.hpp>
 #include <graphlab/parallel/pthread_tools.hpp>
 #include <graphlab/parallel/thread_pool.hpp>
 #include <graphlab/util/resizing_array_sink.hpp>
@@ -262,6 +263,7 @@ class distributed_control{
 
   std::vector<atomic<size_t> > global_bytes_received;
 
+  std::vector<boost::function<void(void)> > deletion_callbacks;
      
   template <typename T> friend class dc_dist_object;
   friend class dc_impl::dc_stream_receive;
@@ -277,14 +279,8 @@ class distributed_control{
     return registered_objects.size();
   }
   
-
+  
     
-  enum {
-    CALLS_EVENT = 0,
-    BYTES_EVENT = 1
-  };
-
-  PERMANENT_DECLARE_DIST_EVENT_LOG(eventlog);
   DECLARE_TRACER(dc_receive_queuing);
   DECLARE_TRACER(dc_receive_multiplexing);
   DECLARE_TRACER(dc_call_dispatch);
@@ -318,6 +314,16 @@ class distributed_control{
     return localnumprocs;
   }
 
+  /**
+   *  \brief Registers a callback which will be called on deletion of the
+   *         distributed_control object.
+   *
+   *  This function is useful for distributed static variables which may
+   *  be only be deleted after main().
+   */
+  void register_deletion_callback(boost::function<void(void)> deleter) {
+    deletion_callbacks.push_back(deleter);
+  }
 
   /**
   \brief Sets the sequentialization key to a new value, returning the
@@ -378,9 +384,6 @@ class distributed_control{
 
   /// \cond GRAPHLAB_INTERNAL
 
-  void flush_counters() {
-    eventlog.flush_and_reset_counters();
-  }
   
   
   /*
@@ -702,7 +705,7 @@ class distributed_control{
   
  private:
   inline void inc_calls_sent(procid_t procid) {
-    PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, CALLS_EVENT, 1);
+    //PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, CALLS_EVENT, 1);
     global_calls_sent[procid].inc();
   }
 

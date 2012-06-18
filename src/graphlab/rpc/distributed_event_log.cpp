@@ -22,6 +22,7 @@
 
 
 
+#include <pthread.h>
 #include <string>
 #include <limits>
 #include <graphlab/rpc/dc.hpp>
@@ -29,287 +30,374 @@
 #include <graphlab/rpc/distributed_event_log.hpp>
 #include <graphlab/util/timer.hpp>
 #include <graphlab/logger/assertions.hpp>
-#include <pthread.h>
 #include <graphlab/util/dense_bitset.hpp>
 #include <graphlab/macros_def.hpp>
-#define EVENT_BAR_WIDTH 40
 
 namespace graphlab {
-namespace log_impl {
 
-/// A single entry in time
-struct log_entry {
-  // The time the log was taken
-  double time;
-  // The value at the time. If this is a CUMULATIVE entry, this
-  // will contain the total number of events since the previous log entry
-  size_t value; 
-};
+uint32_t distributed_event_logger::allocate_log_entry(log_group* group) {
+  log_entry_lock.lock();
+  uint32_t id = 0;
+  if (has_log_entry.first_zero_bit(id) == false) {
+    logger(LOG_FATAL, "More than 256 Log entries created. "
+        "New log entries cannot be created");
+    // does not return
+  }
+  logs[id] = group;
+  has_log_entry.set_bit(id);
+  log_entry_lock.unlock();
+  return id;
+}
 
+event_log_thread_local_type* distributed_event_logger::get_thread_counter_ref() {
+  void* v = pthread_getspecific(key);
+  if (v == NULL) {
+    // allocate a new thread local entry
+    event_log_thread_local_type* entry = new event_log_thread_local_type;
+    // set all values to 0
+    for (size_t i = 0; i < MAX_LOG_SIZE; ++i) entry->values[i] = 0;
+    // cast and write it to v. We need it later. 
+    // and set the thread local store
+    v = (void*)(entry);
+    pthread_setspecific(key, v);
 
+    // register the key entry against the logger
+    thread_local_count_lock.lock();
+    // find an unused entry
+    uint32_t b = 0;
+    if (thread_local_count_slots.first_zero_bit(b) == false) {
+      logger(LOG_FATAL, "More than 1024 active threads. "
+          "Log counters cannot be created");
+      // does not return
+    }
+    entry->thlocal_slot = b;
+    thread_local_count[b] = entry;
+    thread_local_count_slots.set_bit(b);
+    thread_local_count_lock.unlock();
+  }
 
-enum log_type {
-  INSTANTANEOUS = 0, ///< Sum of log values over time are not meaningful 
-  CUMULATIVE = 1    ///< Sum of log values over time are meaningful 
-};
-
-/// Logging information for a particular log entry (say \#updates)
-struct log_group{
-  mutex lock;
-
-  /// name of the group
-  std::string name;
-
-  /// The type of log. Instantaneous or Cumulative 
-  log_type logtype;
-
-  boost::function<size_t(void)> callback;
-
-  /// machine[i] holds a vector of entries from machine i
-  std::vector<std::vector<log_entry> > machine;
-  /// aggregate holds vector of totals
-  std::vector<log_entry> aggregate;
-};
-
-
-const int MAX_LOG_SIZE = 256;
-const int MAX_LOG_THREADS = 1024;
+  event_log_thread_local_type* entry = (event_log_thread_local_type*)(v);
+  return entry;
+}
 
 /**
- * This is the type that is held in the thread local store
- */
-struct event_log_thread_local_type {
-  /** The values written to by each thread. 
-   * An array with max length MAX_LOG_SIZE 
-   */
-  size_t* values;
-  /** The slot index in the thread_local_count datastructure
-   * which holds the storage for the values.
-   */
-  size_t thlocal_slot;
-};
+ * Receives the log information from each machine
+ */    
+void distributed_event_logger::rpc_collect_log(size_t srcproc, double srctime,
+    std::vector<double> srccounts) {
+  foreach(uint32_t log, has_log_entry) {
+    logs[log]->lock.lock();
+    // insert the new counts
+    logs[log]->machine[srcproc].push_back(log_entry(srccounts[log], srctime));
+    logs[log]->lock.unlock();
+  }
+}
 
-
-/// The master event log implementation
-/// Only one instance of this can be created
-class master_event_logger {
-  private:
-    // a key to allow multiple threads, each to have their
-    // own counter. Decreases performance penalty of the
-    // the event logger.
-    pthread_key_t key;
-
-    dc_dist_object<master_event_logger>* rmi;
-    
-    // The array of logs. We can only have a maximum of MAX_LOG_SIZE logs
-    // This is only created on machine 0
-    log_group* logs[MAX_LOG_SIZE];
-    // this bit field is used to identify which log entries are active
-    fixed_dense_bitset<MAX_LOG_THREADS> has_log_entry;
-    mutex log_entry_lock;
-
-    // A collection of slots, one for each thread, to hold 
-    // the current thread's active log counter.
-    // Threads will write directly into here
-    // and a master timer will sum it all up periodically
-    size_t* thread_local_count[MAX_LOG_THREADS];
-    // a bitset which lets me identify which slots in thread_local_counts
-    // are used.
-    fixed_dense_bitset<MAX_LOG_THREADS> thread_local_count_slots; 
-    mutex thread_local_count_lock;
-
-    // timer managing the frequency at which logs are transmitted to the root
-    timer ti; 
-
-
-    uint32_t allocate_log_entry(log_group* group) {
-      log_entry_lock.lock();
-      uint32_t id = 0;
-      if (has_log_entry.first_zero_bit(id) == false) {
-        logger(LOG_FATAL, "More than 256 Log entries created. "
-            "New log entries cannot be created");
-        // does not return
-      }
-      logs[id] = group;
-      has_log_entry.set_bit(id);
-      log_entry_lock.unlock();
-      return id;
-   }
-    /**
-      * Returns a pointer to the current thread log counter
-      * creating one if one does not already exist.
-      */
-    size_t* get_thread_counter_ref() {
-      void* v = pthread_getspecific(key);
-      if (v == NULL) {
-        // allocate a new thread local entry
-        event_log_thread_local_type* entry = new event_log_thread_local_type;
-        // set all values to 0
-        for (size_t i = 0; i < MAX_LOG_SIZE; ++i) entry->values[i] = 0;
-        // cast and write it to v. We need it later. 
-        // and set the thread local store
-        v = (void*)(entry);
-        pthread_setspecific(key, v);
-
-        // register the key entry against the logger
-        thread_local_count_lock.lock();
-        // find an unused entry
-        uint32_t b = 0;
-        if (thread_local_count_slots.first_zero_bit(b) == false) {
-          logger(LOG_FATAL, "More than 1024 active threads. "
-                            "Log counters cannot be created");
-          // does not return
-        }
-        entry->thlocal_slot = b;
-        thread_local_count_slots.set_bit(b);
-        thread_local_count_lock.unlock();
-      }
-
-      event_log_thread_local_type* entry = (event_log_thread_local_type*)(v);
-      return entry->values;
-    }
-
-    /**
-     * Receives the log information from each machine
-     */    
-    void rpc_collect_log(procid_t srcproc, double srctime,
-                         std::vector<size_t> srccounts) {
-      
-    }
-
-    /** 
-     *  Collects the machine level
-     *  log entry. and sends it to machine 0
-     */
-    void local_collect_log() {
-      // put together an aggregate of all counters 
-      std::vector<size_t> combined_counts(MAX_LOG_SIZE, 0);
-      thread_local_count_lock.lock();
-      log_entry_lock.lock();
-
-      // for each thread and for each log entry which is 
-      // not a callback entry. Accumulate the number of counts
-      foreach(uint32_t thr, thread_local_count_slots) {
-        size_t *current_thread_counts = thread_local_counts[thr];
-        foreach(uint32_t log, has_log_entry) {
-          if (logs[log]->callback != NULL) {
-            combined_counts[log] += current_thread_counts[log];
-          }
-        }
-      }
-      log_entry_lock.unlock();
-      thread_local_count_lock.unlock();
-
+void distributed_event_logger::collect_instantaneous_log() {
+ foreach(uint32_t log, has_log_entry) {
+    if (logs[log]->logtype == log_type::INSTANTANEOUS) {
+      logs[log]->lock.lock();
       // for each log entry which is a callback entry
       // call the callback to get the counts
-      for (size_t i = 0; i < num_log_entries; ++i) {
-        if (logs[i]->callback != NULL) {
-          combined_counts[i] = logs[i]->callback();
+      if (logs[log]->is_callback_entry) {
+        logs[log]->sum_of_instantaneous_entries += logs[log]->callback();
+        ++logs[log]->count_of_instantaneous_entries;
+      }
+      else {
+        // sum it across all the threads
+        foreach(uint32_t thr, thread_local_count_slots) {
+          logs[log]->sum_of_instantaneous_entries += thread_local_count[thr]->values[log];
+        }
+        ++logs[log]->count_of_instantaneous_entries;
+      }
+      logs[log]->lock.unlock();
+    }
+  }
+}
+
+/** 
+ *  Collects the machine level
+ *  log entry. and sends it to machine 0
+ */
+void distributed_event_logger::local_collect_log() {
+  // put together an aggregate of all counters 
+  std::vector<double> combined_counts(MAX_LOG_SIZE, 0);
+
+  // for each thread and for each log entry which is 
+  // not a callback entry. Accumulate the number of counts
+  //
+  foreach(uint32_t log, has_log_entry) {
+    logs[log]->lock.lock();
+    // cimulative entry. just add across all threads
+    if (logs[log]->logtype == log_type::CUMULATIVE) {
+      foreach(uint32_t thr, thread_local_count_slots) {
+        double* current_thread_counts = thread_local_count[thr]->values;
+        combined_counts[log] += current_thread_counts[log];
+      }
+    }
+    else {
+      // take the average 
+      combined_counts[log] = logs[log]->sum_of_instantaneous_entries / 
+                                logs[log]->count_of_instantaneous_entries;
+      logs[log]->sum_of_instantaneous_entries = 0;
+      logs[log]->count_of_instantaneous_entries = 0;
+    }
+    logs[log]->lock.unlock();
+  }
+
+  // send to machine 0
+  if (rmi->procid() != 0) {
+    rmi->remote_call(0, &distributed_event_logger::rpc_collect_log,
+        (size_t)rmi->procid(), (double)ti.current_time(), combined_counts);
+  }
+  else {
+    rpc_collect_log((size_t)0, (double)ti.current_time(), combined_counts);
+  }
+}
+
+// Called only by machine 0 to get the aggregate log
+void distributed_event_logger::build_aggregate_log() {
+  ASSERT_EQ(rmi->procid(), 0);
+  double current_time = ti.current_time();
+  foreach(uint32_t log, has_log_entry) {
+    logs[log]->lock.lock();
+    // what is the previous time the aggregate was computed?
+    double prevtime = 0;
+    if (logs[log]->aggregate.size() > 0) {
+      prevtime = logs[log]->aggregate.rbegin()->time;
+    }
+    // if it is a CUMULATIVE log, take the latest entry from each machine
+    // if it is an INSTANTANEOUS log, take the average of the last times.
+
+    double sum = 0;
+    if (logs[log]->logtype == log_type::CUMULATIVE) {
+      for (procid_t p = 0; p < logs[log]->machine.size(); ++p) {
+        if (logs[log]->machine[p].size() > 0) {
+          sum += logs[log]->machine[p].rbegin()->value;
         }
       }
-      // send to machine 0
-      rmi.remote_call(0, &master_event_logger::rpc_collect_log,
-                      rmi.procid(), ti.current_time(), combined_counts);
     }
-  public:
-    master_event_logger():rmi(NULL) {
-      pthread_key_create(&key, NULL);
-      next_log_index.value = 0;
-      // clear the bit fields
-      has_log_entry.clear();
-      thread_local_count_slots.clear();
-    }
-
-    void set_dc(distributed_control& dc) {
-      if (rmi != NULL) {
-        rmi = new dc_dist_object<master_event_logger>(dc, this);
-        dc.barrer();
-        // everyone starts the timer at the same time
-        // at the one distributed synchronization point we have
-        ti.start();
+    else {
+      // sum all the machine logs from prevtime to current time
+      for (procid_t p = 0; p < logs[log]->machine.size(); ++p) {
+        size_t num_used_entries = 0;
+        double partial_sum = 0;
+        std::vector<log_entry>::const_reverse_iterator iter = 
+                                        logs[log]->machine[p].rbegin();
+        while (iter != logs[log]->machine[p].rend() &&
+            iter->time >= prevtime) {
+          if (iter->time < current_time) {
+            partial_sum += iter->value;
+            ++num_used_entries;
+          }
+          ++iter;
+        }
+        sum += partial_sum / num_used_entries;
       }
     }
-    /**
-     * Creates a new log entry with a given name and log type.
-     * Returns the ID of the log. Must be called by 
-     * all machines simultaneously with the same settings.
-     */
-    size_t create_log_entry(std::string name, log_type logtype) {
-      log_group* group = new log_group;
-      group->logtype = logtype;
-      group->name = name;
-      group->callback = NULL;
-      // only allocate the machine vector on the root machine.
-      // no one else needs it 
-      if (rmi.procid() == 0) {
-       group->machine.resize(rmi->numprocs());
-      } 
-      // ok. get an ID
-      uint32_t id = allocate_log_entry(group);
-      // enforce that all machines are running this at the same time 
-      rmi.barrier();
-      return id;
+    // put into the aggregate count
+    logs[log]->aggregate.push_back(log_entry(sum, current_time));
+    std::cout << logs[log]->name << ": (" << current_time << ", " << sum << ")"
+              << std::endl;
+    logs[log]->lock.unlock();
+  }
+}
+
+void distributed_event_logger::periodic_timer() {
+  periodic_timer_lock.lock();
+  timer ti; ti.start();
+  double prevtime = ti.current_time();
+  while (!periodic_timer_stop){ 
+    collect_instantaneous_log();
+    if (ti.current_time() >= prevtime + RECORD_FREQUENCY) {
+      prevtime = ti.current_time();
+      local_collect_log();
+      if (rmi->procid() == 0)  build_aggregate_log();
     }
+    periodic_timer_cond.timedwait_ms(periodic_timer_lock, 1000 * TICK_FREQUENCY);
+  }
+  periodic_timer_lock.unlock();
+}
 
-    /**
-     * Creates a new callback log entry with a given name and log type.
-     * Returns the ID of the log. Must be called by 
-     * all machines simultaneously with the same settings.
-     * Callback will be triggered periodically
-     */
-    size_t create_callback_entry(std::string name, log_type logtype,
-                                 boost::function<size_t(void)> callback) {
-      log_group* group = new log_group;
-      group->logtype = logtype;
-      group->name = name;
-      group->callback = callback;
-      // only allocate the machine vector on the root machine.
-      // no one else needs it 
-      if (rmi.procid() == 0) {
-       group->machine.resize(rmi->numprocs());
-      } 
-      // ok. get an ID
-      uint32_t id = find_free_log_entry(group);
-      // enforce that all machines are running this at the same time 
-      rmi.barrier();
-      return id;
+distributed_event_logger::distributed_event_logger():rmi(NULL) {
+  pthread_key_create(&key, NULL);
+  // clear the bit fields
+  has_log_entry.clear();
+  thread_local_count_slots.clear();
+  periodic_timer_stop = false;
+}
 
+void distributed_event_logger::destroy_event_logger() {
+  // kill the tick thread
+  bool thread_was_started = false;
+  periodic_timer_lock.lock();
+  // if periodic_timer_stop is false, then
+  // thread was started. signal it and wait for it later to 
+  // join
+  if (periodic_timer_stop == false) {
+    periodic_timer_stop = true;
+    thread_was_started = true;
+    periodic_timer_cond.signal();
+  }
+  periodic_timer_lock.unlock();
+  if (thread_was_started) tick_thread.join();
+  // make sure everyone has joined before I start freeing stuff
+  rmi->full_barrier();
+  delete rmi;
+  pthread_key_delete(key);
+  // here also free all the allocated memory!
+  foreach(uint32_t thr, thread_local_count_slots) {
+    if (thread_local_count[thr] != NULL) delete thread_local_count[thr];
+  }
+  foreach(uint32_t log, has_log_entry) {
+    if (logs[log] != NULL) delete logs[log];
+  }
+
+
+}
+
+void distributed_event_logger::set_dc(distributed_control& dc) {
+  if (rmi == NULL) {
+    rmi = new dc_dist_object<distributed_event_logger>(dc, this);
+    // register a deletion callback since the distributed_event_logger
+    // will be destroyed only after main
+
+    dc.register_deletion_callback(boost::bind(
+                              &distributed_event_logger::destroy_event_logger, 
+                              this));
+
+    dc.barrier();
+    // everyone starts the timer at the same time
+    // at the one distributed synchronization point we have
+    ti.start();
+    // procid 0 waits 0.2s to skew the local timer a little
+    // so everyone else's log has time to show up
+    if (rmi->procid() == 0) {
+      timer::sleep_ms(200);
     }
-
-    /**
-     * Deletes a log entry created by create_log_entry()
-     * or create_callback_entry();
-     * Must be called by all machines simultaneously
-     */
-    void free_log_entry(size_t entry) {
-      rmi.barrier();
-      // clear the bit
-      log_entry_lock.lock();
-      ASSERT_TRUE(has_log_entry.get(entry));
-      has_log_entry.clear_bit(entry); 
-      delete logs[entry];
-      log_entry_lock.unlock();
+    periodic_timer_stop = false;
+    // spawn a thread for the tick
+    tick_thread.launch(boost::bind(&distributed_event_logger::periodic_timer,
+          this));
+  }
+}
+    
+size_t distributed_event_logger::create_log_entry(std::string name, 
+                          log_type::log_type_enum logtype) {
+  // look for an entry with the same name
+  bool has_existing = false;
+  size_t existingid = 0;
+  log_entry_lock.lock();
+  foreach(uint32_t log, has_log_entry) {
+    if (logs[log]->name == name) {
+      ASSERT_MSG(logs[log]->is_callback_entry == false,
+                 "Cannot convert callback log to counter log");
+      has_existing = true;
+      existingid = log;
+      break;
     }
-    /**
-     * Increments the value of a log entry
-     */
-    void thr_inc_log_entry(size_t entry, size_t value) {
-      size_t* array = get_thread_counter_ref();
-      ASSERT_LT(entry, MAX_LOG_SIZE);
-      array[entry] += value;
+  }
+  log_entry_lock.unlock();
+  if (has_existing) return existingid;
+
+  log_group* group = new log_group;
+  group->logtype = logtype;
+  group->name = name;
+  group->callback = NULL;
+  group->is_callback_entry = false;
+  group->sum_of_instantaneous_entries = 0.0;
+  group->count_of_instantaneous_entries = 0;
+  // only allocate the machine vector on the root machine.
+  // no one else needs it 
+  if (rmi->procid() == 0) {
+    group->machine.resize(rmi->numprocs());
+  } 
+  // ok. get an ID
+  uint32_t id = allocate_log_entry(group);
+  // enforce that all machines are running this at the same time 
+  rmi->barrier();
+  return id;
+}
+
+size_t distributed_event_logger::create_callback_entry(std::string name, 
+              boost::function<double(void)> callback) {
+  bool has_existing = false;
+  size_t existingid = 0;
+  log_entry_lock.lock();
+  foreach(uint32_t log, has_log_entry) {
+    if (logs[log]->name == name) {
+      has_existing = true;
+      existingid = log;
+      break;
     }
+  }
+  log_entry_lock.unlock();
+  if (has_existing) {
+    // ok... we have an existing entry. We may
+    // overwrite the callback if the callback is NULL
+    ASSERT_MSG(logs[existingid]->is_callback_entry == true,
+                 "Cannot convert counter log to callback log");
 
-    /**
-     * Sets the value of a log entry
-     */
-    void set_log_entry(size_t entry, size_t value) {
-      size_t* array = get_thread_counter_ref();
-      ASSERT_LT(entry, MAX_LOG_SIZE);
-      array[entry] = value;
-    }
+    logs[existingid]->lock.lock();
+    ASSERT_MSG(logs[existingid]->callback == NULL, 
+        "Cannot create another callback log entry with"
+        "the same name %s", name.c_str());
+    logs[existingid]->callback = callback;
+    logs[existingid]->lock.unlock();
+    return existingid;
+  }
 
-};
+  log_group* group = new log_group;
+  group->logtype = log_type::INSTANTANEOUS;
+  group->name = name;
+  group->callback = callback;
+  group->is_callback_entry = true;
+  group->sum_of_instantaneous_entries = 0.0;
+  group->count_of_instantaneous_entries = 0;
 
-} // namespace log_impl
+  // only allocate the machine vector on the root machine.
+  // no one else needs it 
+  if (rmi->procid() == 0) {
+    group->machine.resize(rmi->numprocs());
+  } 
+  // ok. get an ID
+  uint32_t id = allocate_log_entry(group);
+  // enforce that all machines are running this at the same time 
+  rmi->barrier();
+  return id;
+}
+
+void distributed_event_logger::thr_inc_log_entry(size_t entry, size_t value) {
+  event_log_thread_local_type* ev = get_thread_counter_ref();
+  ASSERT_LT(entry, MAX_LOG_SIZE);
+  ASSERT_EQ(logs[entry]->is_callback_entry, false);
+  ev->values[entry] += value;
+}
+
+void distributed_event_logger::thr_dec_log_entry(size_t entry, size_t value) {
+  event_log_thread_local_type* ev = get_thread_counter_ref();
+  ASSERT_LT(entry, MAX_LOG_SIZE);
+  // does not work for cumulative logs
+  ASSERT_NE((int)logs[entry]->logtype, (int) log_type::CUMULATIVE);
+  ASSERT_EQ(logs[entry]->is_callback_entry, false);
+  ev->values[entry] -= value;
+}
+
+
+void distributed_event_logger::free_callback_entry(size_t entry) {
+  ASSERT_LT(entry, MAX_LOG_SIZE);
+  // does not work for cumulative logs
+  logs[entry]->lock.lock();
+  ASSERT_EQ(logs[entry]->is_callback_entry, true);
+  logs[entry]->callback = NULL;
+  logs[entry]->lock.unlock();
+}
+
+distributed_event_logger& get_event_log() {
+  static distributed_event_logger dist_event_log;
+  return dist_event_log;
+}
+
+
 
 } // namespace graphlab

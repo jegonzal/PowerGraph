@@ -536,7 +536,6 @@ namespace graphlab {
     
     execution_status::status_enum termination_reason; 
 
-    PERMANENT_DECLARE_DIST_EVENT_LOG(eventlog);
     DECLARE_TRACER(disteng_eval_sched_task);
     DECLARE_TRACER(disteng_chandy_misra);
     DECLARE_TRACER(disteng_init_gathering); 
@@ -552,19 +551,6 @@ namespace graphlab {
     inline void ASSERT_I_AM_NOT_OWNER(const lvid_type lvid) const {
       ASSERT_NE(graph.l_get_vertex_record(lvid).owner, rmi.procid());
     }
-
-    enum {
-      SCHEDULE_EVENT = 0,
-      UPDATE_EVENT = 1,
-      WORK_ISSUED_EVENT = 2,
-      INTERNAL_TASK_EVENT = 3,
-      NO_WORK_EVENT = 4,
-      SCHEDULE_FROM_REMOTE_EVENT = 5,
-      USER_OP_EVENT = 6,
-      ENGINE_START_EVENT = 7,
-      ENGINE_STOP_EVENT = 8
-    };
-
 
 
   public:
@@ -616,24 +602,7 @@ namespace graphlab {
       termination_reason = execution_status::UNSET;
       set_options(opts);
       
-#ifdef USE_EVENT_LOG
-      PERMANENT_INITIALIZE_DIST_EVENT_LOG(eventlog, dc, std::cout, 3000, 
-                                dist_event_log::RATE_BAR);
-#else
-      PERMANENT_INITIALIZE_DIST_EVENT_LOG(eventlog, dc, std::cout, 3000, 
-                                dist_event_log::LOG_FILE);
-#endif
 
-      PERMANENT_ADD_DIST_EVENT_TYPE(eventlog, SCHEDULE_EVENT, "Schedule");
-      PERMANENT_ADD_DIST_EVENT_TYPE(eventlog, UPDATE_EVENT, "Updates");
-      PERMANENT_ADD_DIST_EVENT_TYPE(eventlog, WORK_ISSUED_EVENT, "Work Issued");
-      PERMANENT_ADD_DIST_EVENT_TYPE(eventlog, INTERNAL_TASK_EVENT, "Internal");
-      PERMANENT_ADD_DIST_EVENT_TYPE(eventlog, NO_WORK_EVENT, "No Work");
-      PERMANENT_ADD_DIST_EVENT_TYPE(eventlog, SCHEDULE_FROM_REMOTE_EVENT, "Remote Schedule");
-      PERMANENT_ADD_DIST_EVENT_TYPE(eventlog, USER_OP_EVENT, "User Ops");
-      PERMANENT_ADD_IMMEDIATE_DIST_EVENT_TYPE(eventlog, ENGINE_START_EVENT, "Engine Start");
-      PERMANENT_ADD_IMMEDIATE_DIST_EVENT_TYPE(eventlog, ENGINE_STOP_EVENT, "Engine Stop");
-      
 
       INITIALIZE_TRACER(disteng_eval_sched_task, 
                         "distributed_engine: Evaluate Scheduled Task");
@@ -821,7 +790,6 @@ namespace graphlab {
         scheduler_ptr->schedule(local_vid, message);
       }
       END_TRACEPOINT(disteng_scheduler_task_queue);
-      PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, SCHEDULE_FROM_REMOTE_EVENT, 1);
       consensus->cancel();
     }
 
@@ -841,7 +809,6 @@ namespace graphlab {
       if (force_stop) return;
       scheduler_ptr->schedule_from_execution_thread(thread::thread_id(),
                                                       local_vid);
-      PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, SCHEDULE_EVENT, 1);
       consensus->cancel();
     }
 
@@ -865,7 +832,6 @@ namespace graphlab {
       else {
         scheduler_ptr->schedule(vtx.local_id(), message);
       }
-      PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, SCHEDULE_EVENT, 1);
     } // end of schedule
 
 
@@ -1226,7 +1192,6 @@ namespace graphlab {
      * Locks should be acquired.
      */
     void do_apply(lvid_type lvid) { 
-      PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, USER_OP_EVENT, 1);
       BEGIN_TRACEPOINT(disteng_evalfac);
       context_type context(*this, graph);
       
@@ -1335,7 +1300,6 @@ namespace graphlab {
                                              aggregate_id_to_key[-lvid]);
         return;
       }
-      PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, INTERNAL_TASK_EVENT, 1);
       vstate[lvid].lock();
       switch(vstate[lvid].state) {
       case NONE: 
@@ -1468,7 +1432,6 @@ namespace graphlab {
                      lvid_type& sched_lvid,
                      message_type &msg) {
       static size_t ctr = 0;
-      PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, NO_WORK_EVENT, 1);
       if (timer::approx_time_seconds() - engine_start_time > timed_termination) {
         termination_reason = execution_status::TIMEOUT;
         force_stop = true;
@@ -1593,8 +1556,6 @@ namespace graphlab {
         vstate[sched_lvid].lock();
       }
       if (vstate[sched_lvid].state == NONE) {
-        PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, UPDATE_EVENT, 1);
-        PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, WORK_ISSUED_EVENT, rec.num_in_edges + rec.num_out_edges);
 
         // we start gather right here.
         // set up the state
@@ -1798,7 +1759,6 @@ namespace graphlab {
       engine_start_time = timer::approx_time_seconds();
       force_stop = false;
 
-      rmi.dc().flush_counters();
 
       termination_reason = execution_status::RUNNING;
 
@@ -1813,7 +1773,6 @@ namespace graphlab {
 
       if (rmi.procid() == 0) {
         logstream(LOG_INFO) << "Total Allocated Bytes: " << allocatedmem << std::endl;
-        PERMANENT_IMMEDIATE_DIST_EVENT(eventlog, ENGINE_START_EVENT);
       }
       for (size_t i = 0; i < ncpus; ++i) {
         thrgroup.launch(boost::bind(&engine_type::thread_start, this, i));
@@ -1825,9 +1784,7 @@ namespace graphlab {
         termination_reason = execution_status::TASK_DEPLETION;
       }
 
-      rmi.dc().flush_counters();
       if (rmi.procid() == 0) {
-        PERMANENT_IMMEDIATE_DIST_EVENT(eventlog, ENGINE_STOP_EVENT);
       }
       size_t ctasks = programs_executed.value;
       rmi.all_reduce(ctasks);

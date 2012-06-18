@@ -165,10 +165,14 @@ distributed_control::distributed_control(dc_init_param initparam) {
 
 
 distributed_control::~distributed_control() {
-  PERMANENT_DESTROY_DIST_EVENT_LOG(eventlog);
   distributed_services->full_barrier();
   logstream(LOG_INFO) << "Shutting down distributed control " << std::endl;
   
+  // call all deletion callbacks
+  for (size_t i = 0; i < deletion_callbacks.size(); ++i) {
+    deletion_callbacks[i]();
+  }
+
   size_t bytessent = bytes_sent();
   for (size_t i = 0;i < senders.size(); ++i) {
     senders[i]->flush();
@@ -270,7 +274,7 @@ void distributed_control::process_fcall_block(fcallqueue_entry &fcallblock) {
     //parse the data in fcallblock.data
     char* data = fcallblock.chunk_src;
     size_t remaininglen = fcallblock.chunk_len;
-    PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, BYTES_EVENT, remaininglen);
+    //PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, BYTES_EVENT, remaininglen);
     size_t stripe = 0;
     while(remaininglen > 0) {
       ASSERT_GE(remaininglen, sizeof(dc_impl::packet_hdr));
@@ -483,14 +487,6 @@ void distributed_control::init(const std::vector<std::string> &machines,
   // initialize the empty stream
   nullstrm.open(boost::iostreams::null_sink());
   
-#ifdef USE_EVENT_LOG
-    PERMANENT_INITIALIZE_DIST_EVENT_LOG(eventlog, *this, std::cout, 3000, dist_event_log::RATE_BAR);
-#else
-    PERMANENT_INITIALIZE_DIST_EVENT_LOG(eventlog, *this, std::cout, 3000, dist_event_log::LOG_FILE);
-#endif
-    PERMANENT_ADD_DIST_EVENT_TYPE(eventlog, CALLS_EVENT, "Total RPC Calls");
-    PERMANENT_ADD_DIST_EVENT_TYPE(eventlog, BYTES_EVENT, "Total Bytes Communicated");
-
 }
 
 

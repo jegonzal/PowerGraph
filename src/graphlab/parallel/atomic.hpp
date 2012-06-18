@@ -191,7 +191,13 @@ namespace graphlab_impl {
 } // namespace graphlab_impl
 
 template <typename T>
-class atomic: public graphlab_impl::atomic_impl<T, boost::is_integral<T>::value> { };
+class atomic: public graphlab_impl::atomic_impl<T, boost::is_integral<T>::value> { 
+ public:
+  //! Creates an atomic number with value "value"
+  atomic(const T& value = T()): 
+    graphlab_impl::atomic_impl<T, boost::is_integral<T>::value>(value) { }
+ 
+};
 
 } // namespace graphlab
 #endif
