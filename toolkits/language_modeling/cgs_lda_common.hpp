@@ -415,12 +415,15 @@ public:
     ASSERT_EQ(factor.size(), NTOPICS);
    likelihood_aggregator ret;
     if(is_word(vertex)) {
-      for(size_t t = 0; t < NTOPICS; ++t) 
-        ret.lik_words_given_topics += lgamma(factor[t] + BETA);
-    } else {  ASSERT_TRUE(is_doc(vertex));
-      size_t ntokens_in_doc = 0;
       for(size_t t = 0; t < NTOPICS; ++t) {
-        ret.lik_topics += lgamma(factor[t] + ALPHA);
+        const double value = std::max(count_type(factor[t]), count_type(0));
+        ret.lik_words_given_topics += lgamma(value + BETA);
+      }
+    } else {  ASSERT_TRUE(is_doc(vertex));
+      double ntokens_in_doc = 0;
+      for(size_t t = 0; t < NTOPICS; ++t) {
+        const double value = std::max(count_type(factor[t]), count_type(0));
+        ret.lik_topics += lgamma(value + ALPHA);
         ntokens_in_doc += factor[t];
       }
       ret.lik_topics -= lgamma(ntokens_in_doc + NTOPICS * ALPHA);
