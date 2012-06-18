@@ -24,7 +24,6 @@ add_library(graphlab STATIC
   options/options_map.cpp
   util/timer.cpp
   util/generics/any.cpp
-  util/generics/any_vector.cpp
   util/hdfs.cpp
   logger/logger.cpp
   logger/assertions.cpp
@@ -37,7 +36,6 @@ add_library(graphlab STATIC
   util/fs_util.cpp
   util/memory_info.cpp
   util/tracepoint.cpp
-  util/event_log.cpp
   util/mpi_tools.cpp
   rpc/dc_tcp_comm.cpp
   rpc/circular_char_buffer.cpp
