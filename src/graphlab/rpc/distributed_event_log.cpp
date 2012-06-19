@@ -439,10 +439,30 @@ static metric_names_json(std::map<std::string, std::string>& vars) {
 
   size_t logcount = 0;
   foreach(uint32_t log, has_log_entry) {
+    double rate_val = 0;
+    size_t len = logs[log]->aggregate.size();
+    if (len >= 1) { 
+      double logtime = logs[log]->aggregate.rbegin()->time;
+      double logval = logs[log]->aggregate.rbegin()->value;
+      double prevtime = 0;
+      double prevval = 0;
+      if (logs[log]->aggregate.size() >= 2) {
+        prevtime = logs[log]->aggregate[len - 2].time;
+        prevval = logs[log]->aggregate[len - 2].value;
+      }
+      if (logs[log]->logtype == log_type::INSTANTANEOUS) {
+        rate_val = (logval - prevval) / (logtime - prevtime);
+      }
+      else {
+        rate_val = logval;
+      }
+    }
+
     strm << "    {\n"
          << "      \"id\":" << log << ",\n"
          << "      \"name\": \"" << logs[log]->name << "\",\n"
          << "      \"cumulative\": " << (int)(logs[log]->logtype) << ",\n"
+         << "      \"rate_val\": " << rate_val << ",\n"
          << "      \"value\": " << ( logs[log]->aggregate.size() > 0 ?
                                               logs[log]->aggregate.rbegin()->value 
                                               : 0 ) << "\n"
