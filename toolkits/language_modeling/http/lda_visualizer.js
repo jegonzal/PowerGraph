@@ -1,25 +1,27 @@
 google.load("jquery", "1.4.2");
 google.load("jqueryui", "1.7.2");
 google.load("visualization", "1", 
-            {"packages":["corechart", "table", "gauge"]});
+            {"packages":["corechart", "table"]});
 
 
-var domain_str = "demo/"
+var domain_str = "localhost:8080/"
 var update_interval = 2000;
 
+var data = [];
+var term_clouds = [];
 
 // Start the rendering of the UI
 google.setOnLoadCallback(function() { 
-    get_job_info();
-    // get_aggregate_info();
+    get_top_words()
+
 });
 
-function get_job_info() {
-    jQuery.getJSON(domain_str + "names.json", process_job_info);
+function get_top_words() {
+    jQuery.getJSON(domain_str + "topwords", process_top_words);
 }
 
 
-var job_info_data = [];
+
 
 function process_job_info(data) {
     $("#program_name").text(data.program_name);

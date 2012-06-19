@@ -55,8 +55,8 @@ namespace graphlab {
     std::map<std::string, std::string> parse_query(const std::string& query) {
       std::vector<std::string> pairs = graphlab::strsplit(query, ",=", true);
       std::map<std::string, std::string> map;
-      for(size_t i = 0; i+1 < pairs.size(); ++i) 
-        map[url_decode(pairs[i])] = url_decode(pairs[++i]);
+      for(size_t i = 0; i+1 < pairs.size(); i+=2) 
+        map[url_decode(pairs[i])] = url_decode(pairs[i+1]);
       return map;
     } // end of parse url query
 
