@@ -144,7 +144,7 @@ size_t MAX_COUNT = 100;
 
 
 graphlab::mutex TOP_WORDS_JSON_LOCK;
-std::string TOP_WORDS_JSON;
+std::string TOP_WORDS_JSON  = "{ values: [] }";
 
 
 
