@@ -3,3 +3,12 @@
     width: 200px;
     height: 200px;
 }
+
+.setting {
+    display: inline-block;
+    width: 100px;
+}
+
+.label {
+    font-size: 14pt;
+}
