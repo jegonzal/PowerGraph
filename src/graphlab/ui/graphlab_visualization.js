@@ -1,6 +1,7 @@
 google.load("jquery", "1.4.2");
-// google.load("jqueryui", "1.7.2");
-// google.load("visualization", "1", {"packages":["corechart","table", "gauge"]});
+google.load("jqueryui", "1.7.2");
+google.load("visualization", "1", 
+            {"packages":["corechart", "table", "gauge"]});
 
 
 var domain_str = "demo/"
@@ -18,6 +19,7 @@ function get_job_info() {
 }
 
 
+var job_info_data = [];
 
 function process_job_info(data) {
     $("#program_name").text(data.program_name);
@@ -25,25 +27,47 @@ function process_job_info(data) {
     $("#current_time").text((data.time/60.0) + " seconds");
 
     // Render all the current values
-    var container = $("#current_values");
+    var container = $("#gauges");
     var sorted_metrics = data.metrics.sort(function(a,b) { 
-        return  a.metric_id < b.metric_id; 
+        return a.id < b.id; 
     });
     // Build an array of divs one for each metric with the name and value
-    var buffer = [];
     jQuery.each(sorted_metrics, function(i, metric) {
-        console.log(metric);
+        var id = metric.id;
         var name = metric.name;
         var value = metric.value;
-        var str = 
-            "<div class=\"summary\" id=\"" + name  + "\">" +
-            "<div class=\"metric_name\">"  + name  + "</div>" +
-            "<div class=\"metric_value\">" + value + "</div>" +
-            "</div>";
-        buffer.push(str);
+        // if no job info has been created then create one as well as
+        // the div to contain the display items
+        if(job_info_data[id] == undefined) {
+            // add a div the container
+            var gauge_div = name + "_info_gauge";
+            var str = 
+                "<div class=\"summary\" id=\"" + name  + "\">" +
+                "<div class=\"metric_name\">"  + name  + "</div>" +
+                "<div class=\"metric_value\">" + value + "</div>" +
+                "<div class=\"gauge\" id=\"" + gauge_div + "\"></div>" +
+                "</div>";
+            container.append(str);
+            var gauge = new google.visualization.Gauge(
+                document.getElementById(gauge_div));
+
+            job_info_data[id] = {
+                gauge_div: gauge_div,
+                gauge:     gauge,
+                options: {
+                    width: 400, height: 120,
+                    min: value, max: value + 1.0E-5},
+                data:  google.visualization.arrayToDataTable([
+                    ['Label', 'Value'], [name, value] ])
+            };
+        }
+        // Get the job info
+        var info = job_info_data[id];
+        info.options.max = Math.max(info.options.max, value);
+        info.options.min = Math.min(info.options.min, value);
+        info.data.setCell(0,1, value);
+        info.gauge.draw(info.data, info.options);
     });
-    container.html(buffer.join(""));
-    
     // Get the job info again
     setTimeout(get_job_info, update_interval);
 }

@@ -6,11 +6,11 @@
         {"id": 0,
 	 "name" : "Applys",
 	 "cumulative": 1,
-	 "value": 15},
+	 "value": 20},
         {"id": 1,
          "name" : "Gathers",
 	 "cumulative": 1,
-	 "value": 23}
+	 "value": 100}
     ]
 }
 
