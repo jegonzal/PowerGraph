@@ -230,10 +230,12 @@ void file_logger::_lograw(int lineloglevel, const char* buf, int len) {
   }
 }
 
-file_logger& file_logger::start_stream(int lineloglevel,const char* file,const char* function, int line) {
+file_logger& file_logger::start_stream(int lineloglevel,const char* file, 
+                                       const char* function, int line, bool do_start) {
   // get the stream buffer
-  logger_impl::streambuff_tls_entry* streambufentry = reinterpret_cast<logger_impl::streambuff_tls_entry*>(
-                                                                                                           pthread_getspecific(streambuffkey));
+  logger_impl::streambuff_tls_entry* streambufentry =
+        reinterpret_cast<logger_impl::streambuff_tls_entry*>(
+                              pthread_getspecific(streambuffkey));
   // create the key if it doesn't exist
   if (streambufentry == NULL) {
     streambufentry = new logger_impl::streambuff_tls_entry;
@@ -242,6 +244,12 @@ file_logger& file_logger::start_stream(int lineloglevel,const char* file,const c
   std::stringstream& streambuffer = streambufentry->streambuffer;
   bool& streamactive = streambufentry->streamactive;
   
+  // if do not start the stream, just quit
+  if (do_start == false) {
+    streamactive = false;
+    return *this;
+  }
+ 
   file = ((strrchr(file, '/') ? : file- 1) + 1);
  
   if (lineloglevel >= log_level){
