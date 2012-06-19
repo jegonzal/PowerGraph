@@ -24,6 +24,8 @@
 #include <vector>
 #include <algorithm>
 
+#include <graphlab/mongoose/mongoose.h>
+
 
 #include <boost/math/special_functions/gamma.hpp>
 
@@ -141,6 +143,30 @@ typedef likelihood_aggregator<icontext_type> likelihood_agg;
 
 
 
+static void *callback(enum mg_event event,
+                      struct mg_connection *conn,
+                      const struct mg_request_info *request_info) {
+  if (event == MG_NEW_REQUEST) {
+    TOP_WORDS_JSON_LOCK.lock();
+    const std::string response =
+      "HTTP/1.1 200 OK\r\n" 
+      "Content-Type: text/plain\r\n" 
+      "Content-Length: " + 
+      graphlab::tostr(TOP_WORDS_JSON.size()) + "\r\n" +
+      "\r\n" + 
+      TOP_WORDS_JSON;
+    TOP_WORDS_JSON_LOCK.unlock();
+    mg_write(conn, response.c_str(), response.size());
+    // Mark as processed
+    return (void*)(1);
+  } else {
+    return NULL;
+  }
+}
+
+
+
+
 
 int main(int argc, char** argv) {
   global_logger().set_log_level(LOG_INFO);
@@ -205,6 +231,11 @@ int main(int argc, char** argv) {
     return EXIT_FAILURE;
   }
 
+  // Start the webserver
+  dc.cout() << "To see wordles visit: http://localhost:8080" << std::endl;
+  const char *options[] = {"listening_ports", "8080", NULL};
+  struct mg_context* ctx = mg_start(&callback, NULL, options);
+
 
   ///! Initialize global variables
   GLOBAL_TOPIC_COUNT.resize(NTOPICS);
@@ -261,8 +292,8 @@ int main(int argc, char** argv) {
     << "Update Rate (updates/second): " 
     << engine.num_updates() / runtime << std::endl;
 
-
-
+    
+  mg_stop(ctx);
   graphlab::mpi_tools::finalize();
   return EXIT_SUCCESS;
 

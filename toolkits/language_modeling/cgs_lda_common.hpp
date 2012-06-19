@@ -143,7 +143,8 @@ std::vector<std::string> DICTIONARY;
 size_t MAX_COUNT = 100;
 
 
-
+graphlab::mutex TOP_WORDS_JSON_LOCK;
+std::string TOP_WORDS_JSON;
 
 
 
@@ -339,16 +340,37 @@ public:
   static void finalize(icontext_type& context,
                        const topk_aggregator& total) {
     if(context.procid() != 0) return;
+
+    std::string json = "{ values: [\n";
+
     for(size_t i = 0; i < total.top_words.size(); ++i) {
       std::cout << "Topic " << i << ": ";
+      json += "\t[\n";
+      size_t counter = 0;
       rev_foreach(cw_pair_type pair, total.top_words[i])  {
         ASSERT_LT(pair.second, DICTIONARY.size());
-         std::cout << DICTIONARY[pair.second] 
-                   << "(" << pair.first << ")" << ", "; 
+
+        json += "\t\t[" + DICTIONARY[pair.second] + ", " + 
+          graphlab::tostr(pair.first) + "]";
+        if(++counter < total.top_words[i].size()) json += ", ";
+        json += '\n';
+
+        std::cout << DICTIONARY[pair.second] 
+                  << "(" << pair.first << ")" << ", "; 
         // std::cout << DICTIONARY[pair.second] << ",  ";
       }
+      json += "\t]";
+      if(i+1 < total.top_words.size()) json += ", ";
+      json += '\n';                      
       std::cout << std::endl;
     }
+    json += "]}";
+
+    // Post the change to the global variable
+    TOP_WORDS_JSON_LOCK.lock();
+    TOP_WORDS_JSON.swap(json);
+    TOP_WORDS_JSON_LOCK.unlock();
+
     std::cout << "\nNumber of token changes: " << total.nchanges << std::endl;
     std::cout << "\nNumber of updates:       " << total.nupdates << std::endl;
   } // end of finalize
