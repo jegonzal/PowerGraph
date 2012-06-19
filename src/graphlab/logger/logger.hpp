@@ -47,6 +47,7 @@
 #include <cstring>
 #include <cstdarg>
 #include <pthread.h>
+#include <graphlab/util/timer.hpp>
 /**
  * \def LOG_FATAL
  *   Used for fatal and probably irrecoverable conditions
@@ -96,7 +97,14 @@
 // totally disable logging
 #define logger(lvl,fmt,...)
 #define logbuf(lvl,fmt,...)
-#define logstream
+#define logstream(lvl) null_stream()
+
+#define logger_once(lvl,fmt,...)
+#define logstream_once(lvl) null_stream()
+
+#define logger_ontick(sec,lvl,fmt,...)
+#define logstream_ontick(sec, lvl) null_stream()
+
 #else
 
 #define logger(lvl,fmt,...)                 \
@@ -109,6 +117,47 @@
 
 #define logstream(lvl)                      \
     (log_stream_dispatch<(lvl >= OUTPUTLEVEL)>::exec(lvl,__FILE__, __func__ ,__LINE__) )
+
+#define logger_once(lvl,fmt,...)                 \
+{    \
+  static bool __printed__ = false;    \
+  if (!__printed__) {                 \
+    __printed__ = true;               \
+    (log_dispatch<(lvl >= OUTPUTLEVEL)>::exec(lvl,__FILE__, __func__ ,__LINE__,fmt,##__VA_ARGS__)); \
+  }  \
+}
+
+#define logstream_once(lvl)                      \
+(*({    \
+  static bool __printed__ = false;    \
+  bool __prev_printed__ = __printed__; \
+  if (!__printed__) __printed__ = true;  \
+  &(log_stream_dispatch<(lvl >= OUTPUTLEVEL)>::exec(lvl,__FILE__, __func__ ,__LINE__, !__prev_printed__) ); \
+}))
+
+#define logger_ontick(sec,lvl,fmt,...)                 \
+{    \
+  static float last_print = -sec - 1;        \
+  float curtime = graphlab::timer::approx_time_seconds(); \
+  if (last_print + sec <= curtime) {                 \
+    last_print = curtime;                     \
+    (log_dispatch<(lvl >= OUTPUTLEVEL)>::exec(lvl,__FILE__, __func__ ,__LINE__,fmt,##__VA_ARGS__)); \
+  }  \
+}
+
+#define logstream_ontick(sec,lvl)                      \
+(*({    \
+  static float last_print = -sec - 1;        \
+  float curtime = graphlab::timer::approx_time_seconds();        \
+  bool print_now = false;             \
+  if (last_print + sec <= curtime) {                 \
+    last_print = curtime;                 \
+    print_now = true;                \
+  }                    \
+  &(log_stream_dispatch<(lvl >= OUTPUTLEVEL)>::exec(lvl,__FILE__, __func__ ,__LINE__, print_now) ); \
+}))
+
+  
 #endif
 
 namespace logger_impl {
@@ -163,7 +212,7 @@ class file_logger{
     return log_level;
   }
 
-  file_logger& start_stream(int lineloglevel,const char* file,const char* function, int line);
+  file_logger& start_stream(int lineloglevel,const char* file,const char* function, int line, bool do_start = true);
   
   template <typename T>
   file_logger& operator<<(T a) {
@@ -317,14 +366,14 @@ struct log_stream_dispatch {};
 
 template <>
 struct log_stream_dispatch<true> {
-  inline static file_logger& exec(int lineloglevel,const char* file,const char* function, int line) {
-    return global_logger().start_stream(lineloglevel, file, function, line);
+  inline static file_logger& exec(int lineloglevel,const char* file,const char* function, int line, bool do_start = true) {
+    return global_logger().start_stream(lineloglevel, file, function, line, do_start);
   }
 };
 
 template <>
 struct log_stream_dispatch<false> {
-  inline static null_stream exec(int lineloglevel,const char* file,const char* function, int line) {
+  inline static null_stream exec(int lineloglevel,const char* file,const char* function, int line, bool do_start = true) {
     return null_stream();
   }
 };
