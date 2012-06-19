@@ -38,6 +38,7 @@ add_library(graphlab STATIC
   util/memory_info.cpp
   util/tracepoint.cpp
   util/mpi_tools.cpp
+  util/web_util.cpp
   rpc/dc_tcp_comm.cpp
   rpc/circular_char_buffer.cpp
   rpc/dc_stream_receive.cpp

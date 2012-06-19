@@ -20,16 +20,32 @@
  *
  */
 
+#ifndef GRAPHLAB_WEB_UTIL_HPP
+#define GRAPHLAB_WEB_UTIL_HPP
+
+#include <string>
+#include <map>
 
 
-#include <graphlab/util/binary_parser.hpp>
-#include <graphlab/util/timer.hpp>
-#include <graphlab/util/random.hpp>
-#include <graphlab/util/small_set.hpp>
-// #include <graphlab/util/charstream.hpp>
-// #include <graphlab/util/cache.hpp>
-#include <graphlab/util/fs_util.hpp>
-#include <graphlab/util/hdfs.hpp>
-#include <graphlab/util/mpi_tools.hpp>
-#include <graphlab/util/empty.hpp>
-#include <graphlab/util/web_util.hpp>
+namespace graphlab {
+  namespace web_util {
+
+    /**
+     * \brief decode a url by converting escape characters
+     */
+    std::string url_decode(const std::string& url); 
+
+    /**
+     * \brief convert a query string into a map
+     */
+    std::map<std::string, std::string> parse_query(const std::string& query);
+
+  } // end of namespace web_util
+ 
+}; // end of namespace GraphLab
+#endif
+
+
+
+
+

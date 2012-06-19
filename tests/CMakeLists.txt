@@ -45,3 +45,6 @@ add_graphlab_executable(async_consistent_test async_consistent_test.cpp)
 add_graphlab_executable(sfinae_function_test sfinae_function_test.cpp)
 
 # copyfile(runtests.sh)
+
+
+add_graphlab_executable(mini_web_server mini_web_server.cpp)
