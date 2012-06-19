@@ -450,7 +450,7 @@ static metric_names_json(std::map<std::string, std::string>& vars) {
         prevtime = logs[log]->aggregate[len - 2].time;
         prevval = logs[log]->aggregate[len - 2].value;
       }
-      if (logs[log]->logtype == log_type::INSTANTANEOUS) {
+      if (logs[log]->logtype == log_type::CUMULATIVE) {
         rate_val = (logval - prevval) / (logtime - prevtime);
       }
       else {
