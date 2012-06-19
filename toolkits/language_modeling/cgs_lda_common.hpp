@@ -89,7 +89,7 @@ typedef std::vector< topic_id_type > assignment_type;
  * \brief The alpha parameter determines the sparsity of topics for
  * each document.
  */
-double ALPHA = 0.1;
+double ALPHA = 1;
 
 /**
  * \brief the Beta parameter determines the sparsity of words in each
@@ -148,15 +148,20 @@ std::vector<std::string> DICTIONARY;
 size_t MAX_COUNT = 100;
 
 
+inline std::string header_string() {
+  return  
+    "\t\"ntopics\": " + graphlab::tostr(NTOPICS) + ",\n" +
+    "\t\"nwords\":  " + graphlab::tostr(NWORDS) + ",\n" +
+    "\t\"ndocs\":   " + graphlab::tostr(NDOCS) + ",\n" +
+    "\t\"ntokens\": " + graphlab::tostr(NTOKENS) + ",\n" +
+    "\t\"alpha\":   " + graphlab::tostr(ALPHA) + ",\n" +
+    "\t\"beta\":    " + graphlab::tostr(BETA) + ",\n";
+}
+
+
 graphlab::mutex TOP_WORDS_JSON_LOCK;
-std::string TOP_WORDS_JSON  = "{\n"
-  "\tntopics: " + graphlab::tostr(NTOPICS) + ",\n" +
-  "\tnwords:  " + graphlab::tostr(NWORDS) + ",\n" +
-  "\tndocs:   " + graphlab::tostr(NDOCS) + ",\n" +
-  "\tntokens: " + graphlab::tostr(NTOKENS) + ",\n" +
-  "\talpha:   " + graphlab::tostr(ALPHA) + ",\n" +
-  "\tbeta:    " + graphlab::tostr(BETA) + ",\n" +
-  "\tvalues: [] \n }";
+std::string TOP_WORDS_JSON = 
+  "{\n" + header_string() + "\tvalues: [] \n }";
 
 
 
@@ -353,14 +358,8 @@ public:
                        const topk_aggregator& total) {
     if(context.procid() != 0) return;
 
-    std::string json = "{\n"
-      "\tntopics: " + graphlab::tostr(NTOPICS) + ",\n" +
-      "\tnwords:  " + graphlab::tostr(NWORDS) + ",\n" +
-      "\tndocs:   " + graphlab::tostr(NDOCS) + ",\n" +
-      "\tntokens: " + graphlab::tostr(NTOKENS) + ",\n" +
-      "\talpha:   " + graphlab::tostr(ALPHA) + ",\n" +
-      "\tbeta:    " + graphlab::tostr(BETA) + ",\n" +
-      "\tvalues: [\n";
+    std::string json = "{\n"+ header_string() + 
+      "\t\"values\": [\n";
 
     for(size_t i = 0; i < total.top_words.size(); ++i) {
       std::cout << "Topic " << i << ": ";
@@ -369,7 +368,7 @@ public:
       rev_foreach(cw_pair_type pair, total.top_words[i])  {
         ASSERT_LT(pair.second, DICTIONARY.size());
 
-        json += "\t\t[" + DICTIONARY[pair.second] + ", " + 
+        json += "\t\t[\"" + DICTIONARY[pair.second] + "\", " + 
           graphlab::tostr(pair.first) + "]";
         if(++counter < total.top_words[i].size()) json += ", ";
         json += '\n';
@@ -537,14 +536,8 @@ bool load_and_initialize_graph(graphlab::distributed_control& dc,
   dc.cout() << "Number of docs:      " << NDOCS;
   dc.cout() << "Number of tokens:    " << NTOKENS;
   TOP_WORDS_JSON_LOCK.lock();
-  TOP_WORDS_JSON  = "{\n"
-    "\tntopics: " + graphlab::tostr(NTOPICS) + ",\n" +
-    "\tnwords:  " + graphlab::tostr(NWORDS) + ",\n" +
-    "\tndocs:   " + graphlab::tostr(NDOCS) + ",\n" +
-    "\tntokens: " + graphlab::tostr(NTOKENS) + ",\n" +
-    "\talpha:   " + graphlab::tostr(ALPHA) + ",\n" +
-    "\tbeta:    " + graphlab::tostr(BETA) + ",\n" +
-    "\tvalues: [] \n }";
+  TOP_WORDS_JSON  = "{\n" + header_string() +
+    "\t\"values\": [] \n }";
   TOP_WORDS_JSON_LOCK.unlock();
 
   //ASSERT_LT(NWORDS, DICTIONARY.size());

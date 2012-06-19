@@ -142,28 +142,14 @@ typedef likelihood_aggregator<icontext_type> likelihood_agg;
 
 
 
-
-static void *callback(enum mg_event event,
-                      struct mg_connection *conn,
-                      const struct mg_request_info *request_info) {
-  if (event == MG_NEW_REQUEST) {
-    TOP_WORDS_JSON_LOCK.lock();
-    const std::string response =
-      "HTTP/1.1 200 OK\r\n" 
-      "Content-Type: text/plain\r\n" 
-      "Content-Length: " + 
-      graphlab::tostr(TOP_WORDS_JSON.size()) + "\r\n" +
-      "\r\n" + 
-      TOP_WORDS_JSON;
-    TOP_WORDS_JSON_LOCK.unlock();
-    mg_write(conn, response.c_str(), response.size());
-    // Mark as processed
-    return (void*)(1);
-  } else {
-    return NULL;
-  }
+std::pair<std::string, std::string> 
+word_cloud_callback(std::map<std::string, std::string>& varmap) {
+  TOP_WORDS_JSON_LOCK.lock();
+  const std::pair<std::string, std::string> 
+    pair("text/html",TOP_WORDS_JSON);
+  TOP_WORDS_JSON_LOCK.unlock();
+  return pair;
 }
-
 
 
 
@@ -174,6 +160,7 @@ int main(int argc, char** argv) {
   ///! Initialize control plain using mpi
   graphlab::mpi_tools::init(argc, argv);
   graphlab::distributed_control dc;
+
 
   // Parse command line options -----------------------------------------------
   const std::string description = 
@@ -232,9 +219,8 @@ int main(int argc, char** argv) {
   }
 
   // Start the webserver
-  dc.cout() << "To see wordles visit: http://localhost:8080" << std::endl;
-  const char *options[] = {"listening_ports", "8080", NULL};
-  struct mg_context* ctx = mg_start(&callback, NULL, options);
+  graphlab::launch_metric_server();
+  graphlab::add_metric_server_callback("wordclouds", word_cloud_callback);
 
 
   ///! Initialize global variables
@@ -293,7 +279,7 @@ int main(int argc, char** argv) {
     << engine.num_updates() / runtime << std::endl;
 
     
-  mg_stop(ctx);
+  graphlab::stop_metric_server_on_eof();
   graphlab::mpi_tools::finalize();
   return EXIT_SUCCESS;
 

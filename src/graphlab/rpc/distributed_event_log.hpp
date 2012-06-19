@@ -44,8 +44,8 @@ class distributed_control;
 
 
 
-const int MAX_LOG_SIZE = 256;
-const int MAX_LOG_THREADS = 1024;
+const size_t MAX_LOG_SIZE = 256;
+const size_t MAX_LOG_THREADS = 1024;
 const double TICK_FREQUENCY = 0.5;
 const double RECORD_FREQUENCY = 5.0;
 
