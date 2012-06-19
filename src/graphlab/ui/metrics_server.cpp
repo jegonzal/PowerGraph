@@ -1,3 +1,25 @@
+/* 
+ * Copyright (c) 2009 Carnegie Mellon University. 
+ *     All rights reserved.
+ *
+ *  Licensed under the Apache License, Version 2.0 (the "License");
+ *  you may not use this file except in compliance with the License.
+ *  You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing,
+ *  software distributed under the License is distributed on an "AS
+ *  IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+ *  express or implied.  See the License for the specific language
+ *  governing permissions and limitations under the License.
+ *
+ * For more about this software visit:
+ *
+ *      http://www.graphlab.ml.cmu.edu
+ *
+ */
+
 #include <unistd.h>
 #include <string>
 #include <map>
@@ -45,9 +67,9 @@ static void* process_request(enum mg_event event,
           // use mg_get_var to read the actual variable.
           // since mg_get_var does http escape sequence decoding
           std::string key = key_val[0];
-          char val_target[1024];
+          char val_target[8192];
           int ret = mg_get_var(qs.c_str(), qs.length(), 
-                               key.c_str(), val_target, 1024);
+                               key.c_str(), val_target, 8192);
           if (ret >= 0) variable_map[key] = val_target;
         }
       }
@@ -65,10 +87,9 @@ static void* process_request(enum mg_event event,
               "HTTP/1.1 200 OK\r\n"
               "Content-Type: %s\r\n"
               "Content-Length: %d\r\n" 
-              "\r\n"
-              "%s",
-              ctype.c_str(),
-              (int)body.length(), body.c_str());
+              "\r\n",
+              ctype.c_str(), (int) body.length());
+      mg_write(conn, body.c_str(), body.length());
     }
     else {
       std::map<std::string, http_redirect_callback_type>::iterator iter404 =
@@ -83,10 +104,9 @@ static void* process_request(enum mg_event event,
               "HTTP/1.1 404 Not Found\r\n"
               "Content-Type: %s\r\n"
               "Content-Length: %d\r\n" 
-              "\r\n"
-              "%s",
-              ctype.c_str(),
-              (int)body.length(), body.c_str());
+              "\r\n",
+              ctype.c_str(), (int)body.length());
+      mg_write(conn, body.c_str(), body.length());
     }
 
     return (void*)"";
