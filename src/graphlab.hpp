@@ -38,7 +38,7 @@
 #include <graphlab/vertex_program/vertex_program_includes.hpp>
 #include <graphlab/util/util_includes.hpp>
 #include <graphlab/rpc/rpc_includes.hpp>
-
+#include <graphlab/ui/metrics_server.hpp>
 
 
 #endif
