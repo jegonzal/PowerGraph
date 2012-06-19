@@ -30,6 +30,7 @@
 \defgroup random Random Number Generators
 \defgroup group_serialization Serialization
 \defgroup toolkits GraphLab Toolkits
+\defgroup httpserver Metrics Reporting Webserver
 \mainpage 
    
    \section intro_sec Introduction

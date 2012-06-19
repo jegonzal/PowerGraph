@@ -7,6 +7,14 @@
 
 
 namespace graphlab {
+
+
+
+/** 
+    \ingroup httpserver
+    The callback type used for add_metric_server_callback()
+    See add_metric_server_callback() for details.
+  */
 typedef boost::function<std::pair<std::string, std::string>
                                 (std::map<std::string, std::string>&)> 
         http_redirect_callback_type;
@@ -15,6 +23,8 @@ typedef boost::function<std::pair<std::string, std::string>
 
 
 /**
+
+  \ingroup httpserver
   \brief This is used to map a URL on the mtrics server 
              to a processing function.
   
@@ -41,6 +51,9 @@ typedef boost::function<std::pair<std::string, std::string>
 
   All callbacks should be registered prior to launching the metric server.
 
+  \note The callbacks are only processed on machine 0 since only machine 0
+  launches the server.
+
   \param page The page to map. For instance <code>page = "a.html"</code>
               will be shown on http://[server]/a.html
   \param callback The callback function to use to process the page
@@ -50,17 +63,18 @@ void add_metric_server_callback(std::string page,
 
 
 /**
+  \ingroup httpserver
   \brief Starts the metrics reporting server.
 
-
   The function may be called by all machines simultaneously since it only
-  does useful work on machine 0.
+  does useful work on machine 0. Only machine 0 will launch the web server.
  */
 void launch_metric_server();
 
 
 
 /**
+  \ingroup httpserver
   \brief Stops the metrics reporting server if one is started.
 
   The function may be called by all machines simultaneously since it only
@@ -69,6 +83,7 @@ void launch_metric_server();
 void stop_metric_server();
 
 /**
+  \ingroup httpserver
   \brief Waits for a ctrl-D on machine 0, and 
          stops the metrics reporting server if one is started.
 
