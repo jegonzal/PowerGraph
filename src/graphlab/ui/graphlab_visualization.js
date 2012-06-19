@@ -37,7 +37,7 @@ function process_job_info(data) {
     jQuery.each(sorted_metrics, function(i, metric) {
         var id = metric.id;
         var name = metric.name;
-        var value = metric.rate;
+        var value = metric.rate_val;
         // if no job info has been created then create one as well as
         // the div to contain the display items
         if(job_info_data[id] == undefined) {
