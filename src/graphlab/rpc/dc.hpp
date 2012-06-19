@@ -56,8 +56,7 @@
 
 namespace graphlab {
 
-
-  
+ 
 /**
  *  \ingroup rpc
  *  \brief Distributed control constructor parameters.

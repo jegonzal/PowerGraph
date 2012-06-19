@@ -28,6 +28,8 @@
 #include <string.h>
 #include <unistd.h>
 #include <cxxabi.h>
+#include <graphlab/parallel/pthread_tools.hpp>
+#include <graphlab/rpc/get_last_dc_procid.hpp>
 
 
 /** Code from http://mykospark.net/2009/09/runtime-backtrace-in-c-with-name-demangling/ */
@@ -53,34 +55,70 @@ std::string demangle(const char* symbol) {
   return symbol;
 }
 
-/* Obtain a backtrace and print it to stderr. */
+
+static graphlab::mutex back_trace_file_lock;
+static size_t write_count = 0;
+static bool write_error = 0;
+/* Obtain a backtrace and print it to ofile. */
 void __print_back_trace() {
     void    *array[1024];
     size_t  size, i;
     char    **strings;
 
+
+    back_trace_file_lock.lock();
+
+    if (write_error) {
+      back_trace_file_lock.unlock();
+      return;
+    }
+    char filename[1024];
+    sprintf(filename, "backtrace.%d", int(graphlab::dc_impl::get_last_dc_procid()));
+
+    FILE* ofile = NULL;
+    if (write_count == 0) {
+      ofile = fopen(filename, "w");
+    }
+    else {
+      ofile = fopen(filename, "a");
+    }
+    // if unable to open the file for output
+    if (ofile == NULL) {
+      // print an error, set the error flag so we don't ever print it again
+      fprintf(stderr, "Unable to open output backtrace file.\n");
+      write_error = 1;
+      back_trace_file_lock.unlock();
+      return;
+    }
+    ++write_count;
+
     size = backtrace(array, 1024);
     strings = backtrace_symbols(array, size);
 
-    fprintf(stderr, "Pointers\n");
-    fprintf(stderr, "------------\n");
+    fprintf(ofile, "Pointers\n");
+    fprintf(ofile, "------------\n");
     for (i = 0; i < size; ++i) {
-        fprintf(stderr, "%p\n", array[i]);
+        fprintf(ofile, "%p\n", array[i]);
     }
  
 
-    fprintf(stderr, "Raw\n");
-    fprintf(stderr, "------------\n");
+    fprintf(ofile, "Raw\n");
+    fprintf(ofile, "------------\n");
     for (i = 0; i < size; ++i) {
-        fprintf(stderr, "%s\n", strings[i]);
+        fprintf(ofile, "%s\n", strings[i]);
     }
-    fprintf(stderr, "\nDemangled\n");
-    fprintf(stderr, "------------\n");
+    fprintf(ofile, "\nDemangled\n");
+    fprintf(ofile, "------------\n");
  
     for (i = 0; i < size; ++i) {
         std::string ret = demangle(strings[i]);
-        fprintf(stderr, "%s\n", ret.c_str());
+        fprintf(ofile, "%s\n", ret.c_str());
     }
     free(strings);
+    
+    fprintf(ofile, "\n\n\n\n\n\n\n\n\n\n\n\n\n");
+
+    fclose(ofile);
+    back_trace_file_lock.unlock();
 }
 

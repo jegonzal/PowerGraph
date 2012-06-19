@@ -54,6 +54,12 @@ namespace graphlab {
 
 namespace dc_impl {
 
+static procid_t last_dc_procid = 0;
+
+procid_t get_last_dc_procid() {
+  return last_dc_procid;
+}
+
 
 bool thrlocal_resizing_array_key_initialized = false;
 pthread_key_t thrlocal_resizing_array_key;
@@ -97,7 +103,7 @@ void thrlocal_destructor(void* v){
   }
   pthread_setspecific(thrlocal_resizing_array_key, NULL);
 }
-}
+} // namespace dc_impl
 
 unsigned char distributed_control::set_sequentialization_key(unsigned char newkey) {
   size_t oldval = reinterpret_cast<size_t>(pthread_getspecific(dc_impl::thrlocal_sequentialization_key));
@@ -476,6 +482,9 @@ void distributed_control::init(const std::vector<std::string> &machines,
   // set the local proc values
   localprocid = curmachineid;
   localnumprocs = machines.size();
+
+  // set the static variable for the global function get_last_dc_procid()
+  dc_impl::last_dc_procid = localprocid;
   
   // construct the services
   distributed_services = new dc_services(*this);
