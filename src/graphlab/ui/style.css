@@ -1,5 +1,14 @@
+.metric_summary {
+    display: inline-block;
+    
+}
 
-.summary {
-    display:inline;
-    background: green;
+.metric_summary .name {
+    display: none;
+    text-align: center;
+}
+
+.metric_summary .value {
+    display: none;
+    text-align: center;
 }

@@ -11,7 +11,7 @@ var update_interval = 2000;
 // Start the rendering of the UI
 google.setOnLoadCallback(function() { 
     get_job_info();
-    get_aggregate_info();
+    // get_aggregate_info();
 });
 
 function get_job_info() {
@@ -27,7 +27,7 @@ function process_job_info(data) {
     $("#current_time").text((data.time/60.0) + " seconds");
 
     // Render all the current values
-    var container = $("#gauges");
+    var container = $("#summary");
     var sorted_metrics = data.metrics.sort(function(a,b) { 
         return a.id < b.id; 
     });
@@ -40,20 +40,19 @@ function process_job_info(data) {
         // the div to contain the display items
         if(job_info_data[id] == undefined) {
             // add a div the container
-            var gauge_div = name + "_info_gauge";
+            var gauge_div_name = name + "_info_gauge";
             var str = 
-                "<div class=\"summary\" id=\"" + name  + "\">" +
-                "<div class=\"metric_name\">"  + name  + "</div>" +
-                "<div class=\"metric_value\">" + value + "</div>" +
-                "<div class=\"gauge\" id=\"" + gauge_div + "\"></div>" +
+                "<div class=\"metric_summary\" id=\"" + gauge_div_name  + "\">" +
+                "<div class=\"name\">"  + name  + "</div>" +
+                "<div class=\"value\">" + value + "</div>" +
+                "<div class=\"gauge\"></div>" +
                 "</div>";
             container.append(str);
-            var gauge = new google.visualization.Gauge(
-                document.getElementById(gauge_div));
-
+            var div = container.children("#" + gauge_div_name);
+            var gauge = new google.visualization.Gauge(div.children(".gauge")[0]);
             job_info_data[id] = {
-                gauge_div: gauge_div,
-                gauge:     gauge,
+                div: div,
+                gauge: gauge,
                 options: {
                     width: 400, height: 120,
                     min: value, max: value + 1.0E-5},
@@ -67,6 +66,7 @@ function process_job_info(data) {
         info.options.min = Math.min(info.options.min, value);
         info.data.setCell(0,1, value);
         info.gauge.draw(info.data, info.options);
+        info.div.children(".value").text(value);
     });
     // Get the job info again
     setTimeout(get_job_info, update_interval);
