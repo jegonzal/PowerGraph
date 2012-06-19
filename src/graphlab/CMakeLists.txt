@@ -51,6 +51,7 @@ add_library(graphlab STATIC
   rpc/distributed_event_log.cpp
   rpc/delta_dht.cpp
   ui/mongoose/mongoose.c
+  ui/metrics_server.cpp
   )
 requires_core_deps(graphlab)
 
