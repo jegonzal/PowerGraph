@@ -32,7 +32,7 @@
 #include <graphlab/parallel/atomic.hpp>
 #include <graphlab/util/timer.hpp>
 #include <graphlab/util/dense_bitset.hpp>
-
+#include <graphlab/util/stl_util.hpp>
 namespace graphlab {
 
 // forward declaration because we need this in the
@@ -122,7 +122,7 @@ class distributed_event_logger {
     // This is only created on machine 0
     log_group* logs[MAX_LOG_SIZE];
     // this bit field is used to identify which log entries are active
-    fixed_dense_bitset<MAX_LOG_THREADS> has_log_entry;
+    fixed_dense_bitset<MAX_LOG_SIZE> has_log_entry;
     mutex log_entry_lock;
 
     // A collection of slots, one for each thread, to hold 
@@ -215,6 +215,21 @@ class distributed_event_logger {
     void thr_dec_log_entry(size_t entry, size_t value);
 
 
+    /// \cond GRAPHLAB_INTERNAL
+    inline double get_current_time() const {
+      return ti.current_time();
+    }
+
+    inline log_group** get_logs_ptr() {
+      return logs;
+    }
+
+    inline fixed_dense_bitset<MAX_LOG_SIZE>& get_logs_bitset() {
+      return has_log_entry;
+    }
+
+    /// \endcond
+    
 };
 
 

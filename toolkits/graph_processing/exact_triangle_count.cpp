@@ -1,5 +1,6 @@
 #include <boost/unordered_set.hpp>
 #include <graphlab.hpp>
+#include <graphlab/ui/metrics_server.hpp>
 #include <graphlab/macros_def.hpp>
 /**
  *  
@@ -316,6 +317,8 @@ int main(int argc, char** argv) {
     return EXIT_FAILURE;
   }
 
+  graphlab::launch_metric_server();
+
   if (per_vertex != "") PER_VERTEX_COUNT = true;
   // Initialize control plane using mpi
   graphlab::mpi_tools::init(argc, argv);
@@ -354,6 +357,8 @@ int main(int argc, char** argv) {
 
   }
   
+  graphlab::stop_metric_server_on_eof();
+
   graphlab::mpi_tools::finalize();
   return EXIT_SUCCESS;
 } // End of main

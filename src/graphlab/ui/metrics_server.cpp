@@ -24,9 +24,11 @@
 #include <string>
 #include <map>
 #include <utility>
+#include <sstream>
 #include <boost/function.hpp>
 
 #include <graphlab/util/stl_util.hpp>
+#include <graphlab/parallel/pthread_tools.hpp>
 #include <graphlab/rpc/distributed_event_log.hpp>
 #include <graphlab/rpc/get_last_dc_procid.hpp>
 
@@ -40,6 +42,7 @@ namespace graphlab {
 
 
 static mg_context* metric_context = NULL;
+rwlock callback_lock;
 static std::map<std::string, http_redirect_callback_type> callbacks;
 
 
@@ -74,17 +77,22 @@ static void* process_request(enum mg_event event,
         }
       }
     }
-
+    callback_lock.readlock();
     // now redirect to the callback handlers. if we find one
     std::map<std::string, http_redirect_callback_type>::iterator iter = 
                                                        callbacks.find(url);
 
     if (iter != callbacks.end()) {
       std::pair<std::string, std::string> returnval = iter->second(variable_map);
+
+      callback_lock.rdunlock();
+
       std::string ctype = returnval.first;
       std::string body = returnval.second;
       mg_printf(conn,
               "HTTP/1.1 200 OK\r\n"
+              "Access-Control-Allow-Origin: *\r\n"
+              "Access-Control-Allow-Methods: GET\r\n"
               "Content-Type: %s\r\n"
               "Content-Length: %d\r\n" 
               "\r\n",
@@ -97,11 +105,14 @@ static void* process_request(enum mg_event event,
       std::pair<std::string, std::string> returnval;
       if (iter404 != callbacks.end()) returnval = iter404->second(variable_map);
       
+      callback_lock.rdunlock();
+
       std::string ctype = returnval.first;
       std::string body = returnval.second;
 
       mg_printf(conn,
               "HTTP/1.1 404 Not Found\r\n"
+              "Access-Control-Allow-Origin: *\r\n"
               "Content-Type: %s\r\n"
               "Content-Length: %d\r\n" 
               "\r\n",
@@ -154,7 +165,9 @@ static void fill_builtin_callbacks() {
 
 void add_metric_server_callback(std::string page, 
                                 http_redirect_callback_type callback) {
+  callback_lock.writelock();
   callbacks[page] = callback;
+  callback_lock.wrunlock();
 }
 
 void launch_metric_server() {
@@ -187,7 +200,7 @@ void stop_metric_server_on_eof() {
   if (dc_impl::get_last_dc_procid() == 0 && metric_context != NULL) {
     char buff[128];
     // wait for ctrl-d
-    std::cout << "Hit Ctrl-D to stop the metrics server" << std::endl;
+    logstream(LOG_EMPH) << "Hit Ctrl-D to stop the metrics server" << std::endl;
     while (fgets(buff, 128, stdin) != NULL );
     stop_metric_server();  
   }

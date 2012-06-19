@@ -71,8 +71,6 @@ typedef boost::function<std::pair<std::string, std::string>
   }
   \endcode
 
-  All callbacks should be registered prior to launching the metric server.
-
   \note The callbacks are only processed on machine 0 since only machine 0
   launches the server.
 

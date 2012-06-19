@@ -4,18 +4,20 @@ google.load("visualization", "1",
             {"packages":["corechart", "table", "gauge"]});
 
 
-var domain_str = "demo/"
+var domain_str = "http://localhost:8090/"
 var update_interval = 2000;
 
 
 // Start the rendering of the UI
 google.setOnLoadCallback(function() { 
-    get_job_info();
+
+    setInterval(get_job_info, update_interval);
+    // get_job_info();
     // get_aggregate_info();
 });
 
 function get_job_info() {
-    jQuery.getJSON(domain_str + "names.json", process_job_info);
+   jQuery.getJSON(domain_str + "names.json", process_job_info);
 }
 
 
@@ -24,12 +26,12 @@ var job_info_data = [];
 function process_job_info(data) {
     $("#program_name").text(data.program_name);
     $("#nprocs").text(data.nprocs + " processes");
-    $("#current_time").text((data.time/60.0) + " seconds");
+    $("#current_time").text((data.time) + " seconds");
 
     // Render all the current values
     var container = $("#summary");
     var sorted_metrics = data.metrics.sort(function(a,b) { 
-        return a.id < b.id; 
+        return a.id - b.id; 
     });
     // Build an array of divs one for each metric with the name and value
     jQuery.each(sorted_metrics, function(i, metric) {
@@ -40,7 +42,7 @@ function process_job_info(data) {
         // the div to contain the display items
         if(job_info_data[id] == undefined) {
             // add a div the container
-            var gauge_div_name = name + "_info_gauge";
+            var gauge_div_name = id + "_info_gauge";
             var str = 
                 "<div class=\"metric_summary\" id=\"" + gauge_div_name  + "\">" +
                 "<div class=\"name\">"  + name  + "</div>" +
@@ -49,7 +51,7 @@ function process_job_info(data) {
                 "</div>";
             container.append(str);
             var div = container.children("#" + gauge_div_name);
-            var gauge = new google.visualization.Gauge(div.children(".gauge")[0]);
+            var gauge = new google.visualization.Gauge($(div).children(".gauge")[0]);
             job_info_data[id] = {
                 div: div,
                 gauge: gauge,
@@ -69,7 +71,6 @@ function process_job_info(data) {
         info.div.children(".value").text(value);
     });
     // Get the job info again
-    setTimeout(get_job_info, update_interval);
 }
 
 

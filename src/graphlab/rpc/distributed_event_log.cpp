@@ -25,15 +25,26 @@
 #include <pthread.h>
 #include <string>
 #include <limits>
+#include <cfloat>
 #include <graphlab/rpc/dc.hpp>
 #include <graphlab/rpc/dc_dist_object.hpp>
 #include <graphlab/rpc/distributed_event_log.hpp>
 #include <graphlab/util/timer.hpp>
 #include <graphlab/logger/assertions.hpp>
 #include <graphlab/util/dense_bitset.hpp>
+#include <graphlab/ui/metrics_server.hpp>
 #include <graphlab/macros_def.hpp>
 
 namespace graphlab {
+
+
+// predeclaration the metric server handlers
+static std::pair<std::string, std::string> 
+metric_names_json(std::map<std::string, std::string>& vars);
+
+static std::pair<std::string, std::string> 
+metric_aggregate_json(std::map<std::string, std::string>& vars);
+
 
 uint32_t distributed_event_logger::allocate_log_entry(log_group* group) {
   log_entry_lock.lock();
@@ -197,8 +208,6 @@ void distributed_event_logger::build_aggregate_log() {
     }
     // put into the aggregate count
     logs[log]->aggregate.push_back(log_entry(sum, current_time));
-    std::cout << logs[log]->name << ": (" << current_time << ", " << sum << ")"
-              << std::endl;
     logs[log]->lock.unlock();
   }
 }
@@ -279,6 +288,10 @@ void distributed_event_logger::set_dc(distributed_control& dc) {
     // spawn a thread for the tick
     tick_thread.launch(boost::bind(&distributed_event_logger::periodic_timer,
           this));
+
+    // register the metric server callbacks
+    add_metric_server_callback("names.json", metric_names_json);
+    add_metric_server_callback("metrics_aggregate.json", metric_aggregate_json);
   }
 }
     
@@ -399,5 +412,129 @@ distributed_event_logger& get_event_log() {
 }
 
 
+
+
+
+/*
+   Used to process the names.json request
+*/
+std::pair<std::string, std::string> 
+static metric_names_json(std::map<std::string, std::string>& vars) {
+  std::stringstream strm;
+  char *pname = getenv("_");
+  std::string progname;
+  if (pname != NULL) progname = pname;
+
+
+  distributed_event_logger& evlog = get_event_log();
+  log_group** logs = evlog.get_logs_ptr();
+  fixed_dense_bitset<MAX_LOG_SIZE>& has_log_entry = evlog.get_logs_bitset();
+
+  strm << "{\n"
+       << "  \"program_name\": \""<< progname << "\",\n"
+       << "  \"time\": " << evlog.get_current_time() << ",\n"
+       << "  \"metrics\": [\n";
+  // output the metrics
+  size_t nlogs = has_log_entry.popcount();
+
+  size_t logcount = 0;
+  foreach(uint32_t log, has_log_entry) {
+    strm << "    {\n"
+         << "      \"id\":" << log << ",\n"
+         << "      \"name\": \"" << logs[log]->name << "\",\n"
+         << "      \"cumulative\": " << (int)(logs[log]->logtype) << ",\n"
+         << "      \"value\": " << ( logs[log]->aggregate.size() > 0 ?
+                                              logs[log]->aggregate.rbegin()->value 
+                                              : 0 ) << "\n"
+         << "    }\n";
+    ++logcount;
+    if (logcount < nlogs) {
+      strm << ",";
+    }
+  }
+  strm << "  ]\n"
+       << "}\n";
+
+  return std::make_pair(std::string("text/plain"), strm.str());
+}
+
+std::pair<std::string, std::string> 
+static metric_aggregate_json(std::map<std::string, std::string>& vars) {
+  double tstart = 0;
+  double tend = DBL_MAX;
+  bool rate = false;
+  std::string name;
+  // see what variables there are
+
+  if (vars.count("name")) name = vars["name"];
+  if (vars.count("tstart")) tstart = atof(vars["tstart"].c_str());
+  if (vars.count("tend")) tend = atof(vars["tend"].c_str());
+  if (vars.count("rate")) rate = (atoi(vars["rate"].c_str()) != 0);
+
+
+  // name is not optional
+  name = trim(name);
+  if (name.length() == 0) {
+    return std::make_pair(std::string("text/plain"), std::string());
+  }
+
+  distributed_event_logger& evlog = get_event_log();
+  log_group** logs = evlog.get_logs_ptr();
+  fixed_dense_bitset<MAX_LOG_SIZE>& has_log_entry = evlog.get_logs_bitset();
+
+  std::stringstream strm;
+
+  foreach(uint32_t log, has_log_entry) {
+    if (logs[log]->name == name) {
+      strm << "    {\n"
+           << "      \"id\":" << log << ",\n"
+           << "      \"name\": \"" << logs[log]->name << "\",\n"
+           << "      \"cumulative\": " << (int)(logs[log]->logtype) << ",\n"
+           << "      \"record\": [";
+
+      std::vector<log_entry> output_entries;
+      // annoyingly, json does not let me put a trailing comma in the array.
+      // thus I need to first write it to a vector, before dumping it to json
+
+      for (size_t i = 0; i < logs[log]->aggregate.size(); ++i) {
+        double logtime = logs[log]->aggregate[i].time;
+        double logval = logs[log]->aggregate[i].value;
+
+        if (logtime > tstart && logtime <= tend) {
+          // only cumulative logs can have rate
+          if (rate == 0 || logs[log]->logtype == log_type::INSTANTANEOUS) {
+            output_entries.push_back(log_entry(logval, logtime));
+          }
+          else {
+            double prevval = 0;
+            double prevtime = 0;
+            if (i > 0) {
+              prevtime = logs[log]->aggregate[i - 1].time;
+              prevval = logs[log]->aggregate[i - 1].value;
+            }
+            double currate = 0;
+            // avoid divide by zero annoyances
+            if (logtime > prevtime) {
+              currate = (logval - prevval) / (logtime - prevtime);
+            }
+            output_entries.push_back(log_entry(currate, logtime));
+          }
+        }
+      }
+
+      for (size_t i = 0 ;i < output_entries.size(); ++i) {
+        strm << " [" 
+             << output_entries[i].time << ", " 
+             << output_entries[i].value 
+             << "] ";
+        // add a comma if this is not the last entry
+        if (i < output_entries.size() - 1) strm << ", ";
+      }
+      strm << "]\n"
+        << "    }\n";
+    }
+  }
+  return std::make_pair(std::string("text/plain"), strm.str());
+}
 
 } // namespace graphlab
