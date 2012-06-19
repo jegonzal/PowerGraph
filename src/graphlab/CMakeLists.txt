@@ -13,6 +13,7 @@ subdirs(
   util
   serialization
   logger
+  mongoose
 #  jni
   )
 
@@ -48,6 +49,7 @@ add_library(graphlab STATIC
   rpc/async_consensus.cpp
   rpc/distributed_event_log.cpp
   rpc/delta_dht.cpp
+  mongoose/mongoose.c
   )
 requires_core_deps(graphlab)
 
