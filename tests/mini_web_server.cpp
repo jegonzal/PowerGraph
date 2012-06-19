@@ -2,7 +2,7 @@
 #include <string.h>
 #include <cassert>
 #include <map>
-#include <graphlab/mongoose/mongoose.h>
+#include <graphlab/ui/mongoose/mongoose.h>
 #include <sstream>
 
 #include <graphlab.hpp>

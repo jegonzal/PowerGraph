@@ -24,7 +24,7 @@
 #include <vector>
 #include <algorithm>
 
-#include <graphlab/mongoose/mongoose.h>
+#include <graphlab/ui/mongoose/mongoose.h>
 
 
 #include <boost/math/special_functions/gamma.hpp>

@@ -112,6 +112,11 @@ size_t NWORDS = 0;
  */
 size_t NDOCS = 0;
 
+/**
+ * \brief The total number of tokens in the corpus
+ */
+size_t NTOKENS = 0;
+
 
 /**
  * \brief The number of top words to display during execution (from
@@ -144,7 +149,14 @@ size_t MAX_COUNT = 100;
 
 
 graphlab::mutex TOP_WORDS_JSON_LOCK;
-std::string TOP_WORDS_JSON  = "{ values: [] }";
+std::string TOP_WORDS_JSON  = "{\n"
+  "\tntopics: " + graphlab::tostr(NTOPICS) + ",\n" +
+  "\tnwords:  " + graphlab::tostr(NWORDS) + ",\n" +
+  "\tndocs:   " + graphlab::tostr(NDOCS) + ",\n" +
+  "\tntokens: " + graphlab::tostr(NTOKENS) + ",\n" +
+  "\talpha:   " + graphlab::tostr(ALPHA) + ",\n" +
+  "\tbeta:    " + graphlab::tostr(BETA) + ",\n" +
+  "\tvalues: [] \n }";
 
 
 
@@ -341,7 +353,14 @@ public:
                        const topk_aggregator& total) {
     if(context.procid() != 0) return;
 
-    std::string json = "{ values: [\n";
+    std::string json = "{\n"
+      "\tntopics: " + graphlab::tostr(NTOPICS) + ",\n" +
+      "\tnwords:  " + graphlab::tostr(NWORDS) + ",\n" +
+      "\tndocs:   " + graphlab::tostr(NDOCS) + ",\n" +
+      "\tntokens: " + graphlab::tostr(NTOKENS) + ",\n" +
+      "\talpha:   " + graphlab::tostr(ALPHA) + ",\n" +
+      "\tbeta:    " + graphlab::tostr(BETA) + ",\n" +
+      "\tvalues: [\n";
 
     for(size_t i = 0; i < total.top_words.size(); ++i) {
       std::cout << "Topic " << i << ": ";
@@ -513,8 +532,21 @@ bool load_and_initialize_graph(graphlab::distributed_control& dc,
   dc.cout() << "Computing number of words and documents." << std::endl;
   NWORDS = graph.map_reduce_vertices<size_t>(is_word);
   NDOCS = graph.map_reduce_vertices<size_t>(is_doc);
-  dc.cout() << "Number of words:   " << NWORDS;
-  dc.cout() << "Number of docs:    " << NDOCS;
+  NTOKENS = graph.map_reduce_edges<size_t>(count_tokens);
+  dc.cout() << "Number of words:     " << NWORDS;
+  dc.cout() << "Number of docs:      " << NDOCS;
+  dc.cout() << "Number of tokens:    " << NTOKENS;
+  TOP_WORDS_JSON_LOCK.lock();
+  TOP_WORDS_JSON  = "{\n"
+    "\tntopics: " + graphlab::tostr(NTOPICS) + ",\n" +
+    "\tnwords:  " + graphlab::tostr(NWORDS) + ",\n" +
+    "\tndocs:   " + graphlab::tostr(NDOCS) + ",\n" +
+    "\tntokens: " + graphlab::tostr(NTOKENS) + ",\n" +
+    "\talpha:   " + graphlab::tostr(ALPHA) + ",\n" +
+    "\tbeta:    " + graphlab::tostr(BETA) + ",\n" +
+    "\tvalues: [] \n }";
+  TOP_WORDS_JSON_LOCK.unlock();
+
   //ASSERT_LT(NWORDS, DICTIONARY.size());
   return true;
 } // end of load and initialize graph
