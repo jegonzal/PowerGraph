@@ -35,10 +35,9 @@
 <body>
 <h1> GraphLab Visualization Dashboard </h1>
 
-<FORM NAME="myform" ACTION="" METHOD="GET">
-<INPUT TYPE="text" NAME="inputbox" VALUE="http://localhost:8090">
-<INPUT TYPE="button" NAME="button" Value="Change Domain" onClick="update_domain(this.form)">
-</FORM>
+<INPUT TYPE="text" NAME="inputbox" id="newdomain" VALUE="http://localhost:8090"
+  onkeydown="if (event.keyCode == 13) document.getElementById('button').click()">
+<INPUT TYPE="button" NAME="button" id="button" Value="Change Domain" onClick="update_domain(document.getElementById('newdomain').value)">
 
 <div id="job_info">
   <div id="program_name"> </div>

@@ -7,8 +7,9 @@ google.load("visualization", "1",
 var domain_str = "http://localhost:8090";
 var update_interval = 2000;
 
-function update_domain(form) {
-    domain_str = form.inputbox.value;
+function update_domain(value) {
+    console.log("Setting domain to " + value);
+    domain_str = value;
     initiate_job_info(); 
     initiate_aggregate_info();
     initiate_node_info();
@@ -87,6 +88,7 @@ function process_job_info(data) {
                 div: div,
                 gauge: gauge,
                 options: {
+                    animation: {duration: 0, easing: "linear"},
                     width: 400, height: 120,
                     min: 0, max: value + 1.0E-5},
                 data:  google.visualization.arrayToDataTable([
@@ -134,7 +136,6 @@ function process_aggregate_info(data) {
             aggregate_charts[id] = {
                 div: div,
                 options: { title: name,
-                           animation: {duration: 1000, easing: "linear"},
                            hAxis: {title: 'Time (seconds)',  
                                    titleTextStyle: {color: 'red'}}},
                 chart: new google.visualization.AreaChart(div),
