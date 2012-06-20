@@ -209,7 +209,7 @@ function process_node_info(data) {
             node_charts[id] = {
                 div: div,
                 options: { title: name,
-                           animation: {duration: 1000, easing: "inAndOut"},
+                           animation: {duration: 0, easing: "linear"},
                            hAxis: {title: 'Time (seconds)',  
                                    titleTextStyle: {color: 'red'}}},
                 chart: new google.visualization.LineChart(div),
