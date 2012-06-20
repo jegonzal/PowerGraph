@@ -85,7 +85,7 @@ function process_job_info(data) {
                 gauge: gauge,
                 options: {
                     width: 400, height: 120,
-                    min: value, max: value + 1.0E-5},
+                    min: 0, max: value + 1.0E-5},
                 data:  google.visualization.arrayToDataTable([
                     ['Label', 'Value'], [name, value] ])
             };
@@ -93,7 +93,7 @@ function process_job_info(data) {
         // Get the job info
         var info = job_info_data[id];
         info.options.max = Math.max(info.options.max, value);
-        info.options.min = Math.min(info.options.min, value);
+        // info.options.min = Math.min(info.options.min, value);
         info.data.setCell(0,1, value);
         info.gauge.draw(info.data, info.options);
         info.div.children(".value").text(value);
