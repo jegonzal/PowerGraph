@@ -55,7 +55,7 @@ namespace graphlab {
     options_map() {};
 
     explicit options_map(std::string &s) {
-      parse_options(s);
+      parse_string(s);
     };
 
     /**
@@ -163,29 +163,23 @@ namespace graphlab {
       options.clear();
     }
 
-    /**
-     * Parses an option stream  of the form "a=b c=d ..."
-     */
-    inline void parse_options(const std::string& s) {
-      std::stringstream strm(s);
-      parse_options(strm);
-    }
-
   
     /**
      * Parses an option stream  of the form "a=b c=d ..."
      */
-    inline void parse_options(std::istream& s) {
+    inline bool parse_options(std::istream& s) {
       options.clear();
       std::string opt, value;
       // read till the equal
       while(s.good()) {
         getline(s, opt, '=');
-        if (s.bad() || s.eof()) break;
+        if (s.bad() || s.eof()) return false;
+        
         getline(s, value, ' ');
-        if (s.bad()) break;
+        if (s.bad()) return false;
         set_option_str(trim(opt), trim(value));
       }
+      return true;
     }
 
     /// The internal storage of the options

@@ -161,6 +161,9 @@ namespace graphlab {
      * 5. Exchange global graph statistics.
      */
     virtual void finalize() {
+      if (rpc.procid() == 0) {
+        logstream(LOG_EMPH) << "Finalizing Graph..." << std::endl;
+      }
       // typedef typename boost::unordered_map<vertex_id_type, lvid_type>::value_type 
       //   vid2lvid_pair_type;
       typedef typename cuckoo_map_pow2<vertex_id_type, lvid_type, 3, 
@@ -182,7 +185,7 @@ namespace graphlab {
       if(rpc.procid() == 0)       
         memory_info::log_usage("Post Flush");
 
-      logstream(LOG_EMPH) << "Graph Finalize: constructing local graph" << std::endl;
+      logstream(LOG_INFO) << "Graph Finalize: constructing local graph" << std::endl;
       { // Add all the edges to the local graph
         const size_t nedges = edge_exchange.size()+1;
         graph.local_graph.reserve_edge_space(nedges + 1);      
@@ -215,10 +218,10 @@ namespace graphlab {
       
       
       // Finalize local graph
-      logstream(LOG_EMPH) << "Graph Finalize: finalizing local graph." 
+      logstream(LOG_INFO) << "Graph Finalize: finalizing local graph." 
                           << std::endl;
       graph.local_graph.finalize();
-      logstream(LOG_EMPH) << "Local graph info: " << std::endl
+      logstream(LOG_INFO) << "Local graph info: " << std::endl
                           << "\t nverts: " << graph.local_graph.num_vertices()
                           << std::endl
                           << "\t nedges: " << graph.local_graph.num_edges()
@@ -293,7 +296,7 @@ namespace graphlab {
         memory_info::log_usage("Exchanged basic vertex info");
 
       { // Determine masters for all negotiated vertices
-        logstream(LOG_EMPH) 
+        logstream(LOG_INFO) 
           << "Graph Finalize: Constructing and sending vertex assignments" 
           << std::endl;
         std::vector<size_t> counts(rpc.numprocs()); 
@@ -446,7 +449,7 @@ namespace graphlab {
         if(record.owner == rpc.procid()) ++graph.local_own_nverts;
 
       // Finalize global graph statistics. 
-      logstream(LOG_EMPH)
+      logstream(LOG_INFO)
         << "Graph Finalize: exchange global statistics " << std::endl;
 
       // Compute edge counts
@@ -473,6 +476,13 @@ namespace graphlab {
       graph.nreplicas = 0;
       foreach(size_t count, swap_counts) graph.nreplicas += count;
 
+
+      if (rpc.procid() == 0) {
+        logstream(LOG_EMPH) << "Graph info: "  
+                            << "\n\t nverts: " << graph.num_vertices()
+                            << "\n\t nedges: " << graph.num_edges()
+                            << std::endl;
+      }
     } // end of finalize
 
 
