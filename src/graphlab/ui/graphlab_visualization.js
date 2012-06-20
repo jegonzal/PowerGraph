@@ -4,7 +4,7 @@ google.load("visualization", "1",
             {"packages":["corechart", "table", "gauge"]});
 
 
-var domain_str = "http://localhost:8090/"
+var domain_str = "http://localhost:8090"
 var update_interval = 2000;
 
 function update_domain(form) {
@@ -18,7 +18,7 @@ google.setOnLoadCallback(function() {
 });
 
 function initiate_job_info() {
-    var jqxhr = jQuery.getJSON(domain_str + "names.json", process_job_info)
+    var jqxhr = jQuery.getJSON(domain_str + "/names.json", process_job_info)
         .error(function() { console.log("Unable to access " + domain_str + " will try again.");})
         .complete(function() {
             setTimeout(initiate_job_info, update_interval);
@@ -26,7 +26,7 @@ function initiate_job_info() {
 }
 
 function initiate_aggregate_info() {
-    var jqxhr =    jQuery.getJSON(domain_str + "metrics_aggregate.json?rate=1", process_aggregate_info)
+    var jqxhr =    jQuery.getJSON(domain_str + "/metrics_aggregate.json?rate=1", process_aggregate_info)
         .error(function() { console.log("Unable to access " + domain_str + " will try again.");})
         .complete(function() {
             setTimeout(initiate_aggregate_info, update_interval);
