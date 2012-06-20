@@ -5,31 +5,30 @@ google.load("visualization", "1",
 
 
 var domain_str = "http://localhost:8090/"
-var update_interval = 2000;
+var update_interval = 1000;
 
 
 // Start the rendering of the UI
 google.setOnLoadCallback(function() { 
-
-    setInterval(get_job_info, update_interval);
-    // get_job_info();
-    // get_aggregate_info();
+    setInterval(initiate_ajax_calls, update_interval);
 });
 
-function get_job_info() {
+
+function initiate_ajax_calls() {
    jQuery.getJSON(domain_str + "names.json", process_job_info);
+   jQuery.getJSON(domain_str + "metrics_aggregate.json?rate=1", process_aggregate_info);
 }
 
 
-var job_info_data = [];
 
+var job_info_data = [];
 function process_job_info(data) {
     $("#program_name").text(data.program_name);
-    $("#nprocs").text(data.nprocs + " processes");
+    // $("#nprocs").text(data.nprocs + " processes");
     $("#current_time").text((data.time) + " seconds");
 
     // Render all the current values
-    var container = $("#summary");
+    var container = $("#gauges");
     var sorted_metrics = data.metrics.sort(function(a,b) { 
         return a.id - b.id; 
     });
@@ -70,58 +69,50 @@ function process_job_info(data) {
         info.gauge.draw(info.data, info.options);
         info.div.children(".value").text(value);
     });
-    // Get the job info again
 }
 
 
-function get_aggregate_info() {
-    jQuery.getJSON(domain_str + "aggregate_all.json", process_aggregate_info);
-}
+
+
+var aggregate_charts = []
 
 function process_aggregate_info(data) {
     console.log(data);
-    // Get the job info again
-    setTimeout(process_aggregate_info, update_interval);
+
+   // Render all the current values
+    var container = $("#aggregate");
+    var sorted_data = data.sort(function(a,b) { 
+        return a.id - b.id; 
+    });
+    // Build an array of divs one for each metric with the name and value
+    jQuery.each(sorted_data, function(i, metric) {
+        var id = metric.id;
+        var name = metric.name;
+      
+        if(aggregate_charts[id] == undefined) {
+            // add a div the container
+            var div_name = id + "_aggregate_chart";
+            var str = 
+                "<div class=\"aggregate\" id=\"" + div_name  + "\">" +
+                "<div class=\"name\">"  + name  + "</div>" +
+                "<div class=\"chart\"></div>" +
+                "</div>";
+            container.append(str);
+            var div = $(container.children("#" +  div_name)).children(".chart")[0]; 
+            aggregate_charts[id] = {
+                div: div,
+                options: { title: name, hAxis: {title: 'Time (seconds)',  
+                                                titleTextStyle: {color: 'red'}}},
+                chart: new google.visualization.AreaChart(div),
+            }
+        }
+        // Update the chart
+        var chart_info = aggregate_charts[id];
+        chart_info.data = google.visualization.arrayToDataTable(
+            [["Time", "Value"]].concat(metric.record));
+        chart_info.chart.draw(chart_info.data, chart_info.options);
+    });
+
 }
 
 
-
-function render_applys(apply) {
-    
-    var data = google.visualization.arrayToDataTable([
-        ['Label', 'Value'],
-        ['Memory', 80],
-        ['CPU', 55],
-        ['Network', 68]
-    ]);
-    
-}
-
-
-// function print_info(data) {
-//     console.log("printinfo");
-//     console.log(data);
-// }
-
-
-
-/**
-function drawChart() {
-    var data = google.visualization.arrayToDataTable([
-        ['Label', 'Value'],
-        ['Memory', 80],
-        ['CPU', 55],
-        ['Network', 68]
-    ]);
-    
-    var options = {
-        width: 400, height: 120,
-        redFrom: 90, redTo: 100,
-        yellowFrom:75, yellowTo: 90,
-        minorTicks: 5
-    };
-    
-    var chart = new google.visualization.Gauge(document.getElementById('chart_div'));
-    chart.draw(data, options);
-}
-*/
