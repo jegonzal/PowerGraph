@@ -5,7 +5,7 @@ google.load("visualization", "1",
 
 
 var domain_str = "http://localhost:8090/"
-var update_interval = 1000;
+var update_interval = 2000;
 
 
 // Start the rendering of the UI
@@ -113,16 +113,20 @@ function process_aggregate_info(data) {
             var div = $(container.children("#" +  div_name)).children(".chart")[0]; 
             aggregate_charts[id] = {
                 div: div,
-                options: { title: name, hAxis: {title: 'Time (seconds)',  
-                                                titleTextStyle: {color: 'red'}}},
+                options: { title: name,
+                           animation: {duration: 1000, easing: "inAndOut"},
+                           hAxis: {title: 'Time (seconds)',  
+                                   titleTextStyle: {color: 'red'}}},
                 chart: new google.visualization.AreaChart(div),
             }
         }
-        // Update the chart
-        var chart_info = aggregate_charts[id];
-        chart_info.data = google.visualization.arrayToDataTable(
-            [["Time", "Value"]].concat(metric.record));
-        chart_info.chart.draw(chart_info.data, chart_info.options);
+        if(metric.record.length > 0) {
+            // Update the chart
+            var chart_info = aggregate_charts[id];
+            chart_info.data = google.visualization.arrayToDataTable(
+                [["Time", "Value"]].concat(metric.record));
+            chart_info.chart.draw(chart_info.data, chart_info.options);
+        }
     });
 
 }
