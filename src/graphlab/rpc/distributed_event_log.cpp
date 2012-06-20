@@ -45,6 +45,8 @@ metric_names_json(std::map<std::string, std::string>& vars);
 static std::pair<std::string, std::string> 
 metric_aggregate_json(std::map<std::string, std::string>& vars);
 
+static std::pair<std::string, std::string> 
+metric_by_machine_json(std::map<std::string, std::string>& vars);
 
 uint32_t distributed_event_logger::allocate_log_entry(log_group* group) {
   log_entry_lock.lock();
@@ -142,12 +144,13 @@ void distributed_event_logger::local_collect_log() {
     // cimulative entry. just add across all threads
     if (logs[log]->logtype == log_type::CUMULATIVE) {
       foreach(uint32_t thr, thread_local_count_slots) {
-        double* current_thread_counts = thread_local_count[thr]->values;
+        size_t* current_thread_counts = thread_local_count[thr]->values;
         combined_counts[log] += current_thread_counts[log];
       }
     }
     else {
       // take the average 
+      ASSERT_GT(logs[log]->count_of_instantaneous_entries, 0);
       combined_counts[log] = logs[log]->sum_of_instantaneous_entries / 
                                 logs[log]->count_of_instantaneous_entries;
       logs[log]->sum_of_instantaneous_entries = 0;
@@ -173,10 +176,15 @@ void distributed_event_logger::build_aggregate_log() {
   foreach(uint32_t log, has_log_entry) {
     logs[log]->lock.lock();
     // what is the previous time the aggregate was computed?
-    double prevtime = 0;
+    // The sum takes the open interval (prevtime, current_time]
+    // thus the first time this is called, we may drop one entry
+    // if we let prevtime initialize at 0
+    double prevtime = -1;
     if (logs[log]->aggregate.size() > 0) {
       prevtime = logs[log]->aggregate.rbegin()->time;
     }
+
+
     // if it is a CUMULATIVE log, take the latest entry from each machine
     // if it is an INSTANTANEOUS log, take the average of the last times.
 
@@ -196,14 +204,23 @@ void distributed_event_logger::build_aggregate_log() {
         std::vector<log_entry>::const_reverse_iterator iter = 
                                         logs[log]->machine[p].rbegin();
         while (iter != logs[log]->machine[p].rend() &&
-            iter->time >= prevtime) {
-          if (iter->time < current_time) {
+            iter->time > prevtime) {
+          if (iter->time <= current_time) {
             partial_sum += iter->value;
             ++num_used_entries;
           }
           ++iter;
         }
-        sum += partial_sum / num_used_entries;
+        if (num_used_entries > 0) {
+          sum += partial_sum / num_used_entries;
+        }
+        else {
+          // I am missing a current up to date entry
+          // just take the most recent value
+          if (logs[log]->machine[p].size() > 0) {
+            sum += logs[log]->machine[p].rbegin()->value;
+          }
+        }
       }
     }
     // put into the aggregate count
@@ -292,6 +309,7 @@ void distributed_event_logger::set_dc(distributed_control& dc) {
     // register the metric server callbacks
     add_metric_server_callback("names.json", metric_names_json);
     add_metric_server_callback("metrics_aggregate.json", metric_aggregate_json);
+    add_metric_server_callback("metrics_by_machine.json", metric_by_machine_json);
   }
 }
     
@@ -567,5 +585,128 @@ static metric_aggregate_json(std::map<std::string, std::string>& vars) {
   strm << "]\n";
   return std::make_pair(std::string("text/plain"), strm.str());
 }
+
+
+std::pair<std::string, std::string> 
+static metric_by_machine_json(std::map<std::string, std::string>& vars) {
+  double tstart = 0;
+  double tend = DBL_MAX;
+  bool rate = false;
+  std::string name;
+  size_t machine = 0;
+  bool has_machine_filter = false;
+  // see what variables there are
+
+  if (vars.count("name")) name = vars["name"];
+  if (vars.count("machine")) {
+    has_machine_filter = true;
+    machine = atoi(vars["machine"].c_str());
+  }
+  if (vars.count("tstart")) tstart = atof(vars["tstart"].c_str());
+  if (vars.count("tend")) tend = atof(vars["tend"].c_str());
+  if (vars.count("rate")) rate = (atoi(vars["rate"].c_str()) != 0);
+
+
+  // name is not optional
+  name = trim(name);
+
+  distributed_event_logger& evlog = get_event_log();
+  log_group** logs = evlog.get_logs_ptr();
+  fixed_dense_bitset<MAX_LOG_SIZE>& has_log_entry = evlog.get_logs_bitset();
+
+  std::stringstream strm;
+
+  size_t nlogs = has_log_entry.popcount();
+  size_t logcount = 0;
+  
+  // if name is empty, I should extract all metrics
+  bool extract_all = (name.length() == 0);
+
+  // make a top level array
+
+  strm << "[\n";
+  foreach(uint32_t log, has_log_entry) {
+    if (logs[log]->name == name || extract_all) {
+      strm << "    {\n"
+           << "      \"id\":" << log << ",\n"
+           << "      \"name\": \"" << logs[log]->name << "\",\n"
+           << "      \"cumulative\": " << (int)(logs[log]->logtype) << ",\n"
+           << "      \"record\": ";
+      
+      std::vector<std::vector<log_entry> > all_output_entries;
+      // annoyingly, json does not let me put a trailing comma in the array.
+      // thus I need to first write it to a vector, before dumping it to json
+      // and annoying 2 dimensional output arrays...
+      //
+      size_t p_start = 0;
+      size_t p_end = logs[log]->machine.size();
+      if (has_machine_filter) {
+        p_start = machine;
+        p_end = machine + 1;
+      }
+      for (size_t p = p_start; p < p_end; ++p) {
+        std::vector<log_entry>& current = logs[log]->machine[p];
+        std::vector<log_entry> output_entries;
+        for (size_t i = 0; i < current.size(); ++i) {
+          double logtime = current[i].time;
+          double logval = current[i].value;
+  
+          if (logtime > tstart && logtime <= tend) {
+            // only cumulative logs can have rate
+            if (rate == 0 || logs[log]->logtype == log_type::INSTANTANEOUS) {
+              output_entries.push_back(log_entry(logval, logtime));
+            }
+            else {
+              double prevval = 0;
+              double prevtime = 0;
+              if (i > 0) {
+                prevtime = logs[log]->aggregate[i - 1].time;
+                prevval = logs[log]->aggregate[i - 1].value;
+              }
+              double currate = 0;
+              // avoid divide by zero annoyances
+              if (logtime > prevtime) {
+                currate = (logval - prevval) / (logtime - prevtime);
+              }
+              output_entries.push_back(log_entry(currate, logtime));
+            }
+          }
+        }
+        all_output_entries.push_back(output_entries);
+      }
+
+      strm << "[ ";
+      for (size_t p = 0; p < all_output_entries.size(); ++p) {
+        std::vector<log_entry>& output_entries = all_output_entries[p];
+        strm << "[ ";
+        for (size_t i = 0 ;i < output_entries.size(); ++i) {
+          strm << " [" 
+              << output_entries[i].time << ", " 
+              << output_entries[i].value 
+              << "] ";
+          // add a comma if this is not the last entry
+          if (i < output_entries.size() - 1) strm << ", ";
+        }
+
+        strm << "] ";
+        if (p < all_output_entries.size() - 1) strm << ", ";
+      }
+      strm << "]\n"
+        << " }\n";
+
+
+      // if I am not supposed to extract all, then I am done here.
+      if (!extract_all) break;
+      ++logcount;
+      if (logcount < nlogs) strm << ",\n";
+    }
+  }
+
+  strm << "]\n";
+  return std::make_pair(std::string("text/plain"), strm.str());
+}
+
+
+
 
 } // namespace graphlab
