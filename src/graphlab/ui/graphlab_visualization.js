@@ -15,10 +15,11 @@ function update_domain(form) {
 google.setOnLoadCallback(function() { 
     initiate_job_info(); 
     initiate_aggregate_info();
+    initiate_node_info();
 });
 
 function initiate_job_info() {
-    var jqxhr = jQuery.getJSON(domain_str + "/names.json", process_job_info)
+    jQuery.getJSON(domain_str + "/names.json", process_job_info)
         .error(function() { console.log("Unable to access " + domain_str + " will try again.");})
         .complete(function() {
             setTimeout(initiate_job_info, update_interval);
@@ -26,10 +27,23 @@ function initiate_job_info() {
 }
 
 function initiate_aggregate_info() {
-    var jqxhr =    jQuery.getJSON(domain_str + "/metrics_aggregate.json?rate=1", process_aggregate_info)
-        .error(function() { console.log("Unable to access " + domain_str + " will try again.");})
+    jQuery.getJSON(domain_str + "/metrics_aggregate.json?rate=1", process_aggregate_info)
+        .error(function() { 
+            console.log("Unable to access " + domain_str + " will try again.");})
         .complete(function() {
             setTimeout(initiate_aggregate_info, update_interval);
+        });
+}
+
+
+
+function initiate_node_info() {
+    jQuery.getJSON(domain_str + "/metrics_by_machine.json", 
+                                process_node_info)
+        .error(function() { 
+            console.log("Unable to access " + domain_str + " will try again.");})
+        .complete(function() {
+            setTimeout(initiate_node_info, 5000);
         });
 }
 
@@ -133,5 +147,84 @@ function process_aggregate_info(data) {
     });
 
 }
+
+
+
+
+
+
+function tensor_to_table(tensor) {
+    var table = new google.visualization.DataTable();
+    table.addColumn("number", "Time");
+    var numLines = tensor.length;
+    var numRows = 0;
+    for(var i = 0; i < numLines; ++i) {
+        table.addColumn("number", "Processor " + i);
+        numRows += tensor[i].length;
+    }
+    table.addRows(numRows)
+    var counter = 0;
+    for(var i = 0; i < numLines; ++i) {
+        for(var j = 0; j < tensor[i].length; ++j) {
+            table.setValue(counter, 0, tensor[i][j][0]);
+            table.setValue(counter, i+1, tensor[i][j][1]);
+            ++counter;
+        }
+    }
+    return table;
+}
+
+
+
+
+
+
+
+
+var node_charts = []
+
+function process_node_info(data) {
+    console.log("Processing node info.");
+
+   // Render all the current values
+    var container = $("#nodes");
+    var sorted_data = data.sort(function(a,b) { 
+        return a.id - b.id; 
+    });
+    // Build an array of divs one for each metric with the name and value
+    jQuery.each(sorted_data, function(i, metric) {
+        var id = metric.id;
+        var name = metric.name;
+      
+        if(node_charts[id] == undefined) {
+            // add a div the container
+            var div_name = id + "_node_chart";
+            var str = 
+                "<div class=\"node\" id=\"" + div_name  + "\">" +
+                "<div class=\"name\">"  + name  + "</div>" +
+                "<div class=\"chart\"></div>" +
+                "</div>";
+            container.append(str);
+            var div = $(container.children("#" +  div_name)).children(".chart")[0]; 
+            node_charts[id] = {
+                div: div,
+                options: { title: name,
+                           animation: {duration: 1000, easing: "inAndOut"},
+                           hAxis: {title: 'Time (seconds)',  
+                                   titleTextStyle: {color: 'red'}}},
+                chart: new google.visualization.LineChart(div),
+            }
+        }
+        if(metric.record.length > 0) {
+            // Update the chart
+            var chart_info = node_charts[id];
+            chart_info.data = tensor_to_table(metric.record);
+            chart_info.chart.draw(chart_info.data, chart_info.options);
+        }
+    });
+
+}
+
+
 
 

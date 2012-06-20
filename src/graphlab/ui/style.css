@@ -33,3 +33,14 @@ body {
 .aggregate .name {
   display: none
 }
+
+
+.aggregate .chart {
+   width: 400px;
+   height: 200px;
+}
+
+
+.node .chart {
+   height: 600px;
+}
