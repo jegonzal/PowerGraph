@@ -31,7 +31,7 @@ function initiate_job_info() {
 }
 
 function initiate_aggregate_info() {
-    jQuery.getJSON(domain_str + "/metrics_aggregate.json?rate=1", process_aggregate_info)
+    jQuery.getJSON(domain_str + "/metrics_aggregate.json?rate=1&rounding=1", process_aggregate_info)
         .error(function() { 
             console.log("Unable to access " + domain_str + " will try again.");})
         .complete(function() {
@@ -42,7 +42,7 @@ function initiate_aggregate_info() {
 
 
 function initiate_node_info() {
-    jQuery.getJSON(domain_str + "/metrics_by_machine.json?rate=1", 
+    jQuery.getJSON(domain_str + "/metrics_by_machine.json?rate=1&align=1", 
                                 process_node_info)
         .error(function() { 
             console.log("Unable to access " + domain_str + " will try again.");})
@@ -155,8 +155,6 @@ function process_aggregate_info(data) {
 
 
 
-
-
 function tensor_to_table(tensor) {
     var table = new google.visualization.DataTable();
     table.addColumn("number", "Time");
@@ -164,19 +162,21 @@ function tensor_to_table(tensor) {
     var numRows = 0;
     for(var i = 0; i < numLines; ++i) {
         table.addColumn("number", "Processor " + i);
-        numRows += tensor[i].length;
     }
-    table.addRows(numRows)
+    numRows = tensor[0].length;
+    table.addRows(numRows);
     var counter = 0;
     for(var i = 0; i < numLines; ++i) {
         for(var j = 0; j < tensor[i].length; ++j) {
-            table.setValue(counter, 0, tensor[i][j][0]);
-            table.setValue(counter, i+1, tensor[i][j][1]);
-            ++counter;
+            if (i == 0) table.setValue(j, 0, tensor[i][j][0]);
+            if (tensor[i][j][1] >= 0) {
+              table.setValue(j, i+1, tensor[i][j][1]);
+            }
         }
     }
     return table;
 }
+
 
 
 
@@ -214,7 +214,6 @@ function process_node_info(data) {
                 div: div,
                 options: { title: name,
                            enableInteractivity: 0,
-                           animation: {duration: 0, easing: "linear"},
                            hAxis: {title: 'Time (seconds)',  
                                    titleTextStyle: {color: 'red'}}},
                 chart: new google.visualization.LineChart(div),

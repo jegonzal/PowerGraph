@@ -499,17 +499,25 @@ static metric_names_json(std::map<std::string, std::string>& vars) {
   return std::make_pair(std::string("text/plain"), strm.str());
 }
 
+static void round_log_entries(std::vector<log_entry>& entries) {
+  for (size_t i = 0; i < entries.size(); ++i) {
+    entries[i].time = 5 * std::floor((entries[i].time / 5) + 0.5); 
+  }
+}
+
 std::pair<std::string, std::string> 
 static metric_aggregate_json(std::map<std::string, std::string>& vars) {
   double tstart = 0;
   double tend = DBL_MAX;
   bool rate = false;
   std::string name;
+  bool rounding = false;
   // see what variables there are
 
   if (vars.count("name")) name = vars["name"];
   if (vars.count("tstart")) tstart = atof(vars["tstart"].c_str());
   if (vars.count("tend")) tend = atof(vars["tend"].c_str());
+  if (vars.count("rounding")) rounding = atoi(vars["rounding"].c_str()) > 0;
   if (vars.count("rate")) rate = (atoi(vars["rate"].c_str()) != 0);
   if (vars.count("tlast")) {
     double tlast = atof(vars["tlast"].c_str());
@@ -573,7 +581,7 @@ static metric_aggregate_json(std::map<std::string, std::string>& vars) {
           }
         }
       }
-
+      if (rounding) round_log_entries(output_entries);
       for (size_t i = 0 ;i < output_entries.size(); ++i) {
         strm << " [" 
              << output_entries[i].time << ", " 
@@ -597,6 +605,48 @@ static metric_aggregate_json(std::map<std::string, std::string>& vars) {
 }
 
 
+
+void align_log_entries(std::vector<std::vector<log_entry> >& entries) {
+  boost::unordered_set<double> timeentries;
+  for (size_t i = 0; i < entries.size(); ++i) {
+    for (size_t j = 0; j < entries[i].size(); ++j) {
+      timeentries.insert(entries[i][j].time);
+    }
+  }
+  // move the time set to a vector
+  std::vector<double> timeentries_vec;
+  std::copy(timeentries.begin(), timeentries.end(),
+            std::inserter(timeentries_vec, timeentries_vec.end()));
+
+  std::sort(timeentries_vec.begin(), timeentries_vec.end());
+  // now we rebuild the entries
+  std::vector<std::vector<log_entry> > result;
+  result.resize(entries.size());
+  for (size_t i = 0;i < entries.size(); ++i) {
+    result[i].resize(timeentries_vec.size(), log_entry(0,0));
+    size_t t = 0;
+    size_t j = 0;
+    for (j = 0; j < entries[i].size(); ++j) {
+      while (timeentries_vec[t] < entries[i][j].time) {
+        result[i][t].time = timeentries_vec[t];
+        result[i][t].value = -1;
+        ++t;
+      }
+      result[i][t].time = timeentries_vec[t];
+      result[i][t].value = entries[i][j].value;
+      ++t;
+    }
+    while (t < timeentries_vec.size()) {
+      result[i][t].time = timeentries_vec[t];
+      result[i][t].value = -1;
+      ++t;
+    }
+  }
+  entries = result;
+}
+
+
+
 std::pair<std::string, std::string> 
 static metric_by_machine_json(std::map<std::string, std::string>& vars) {
   double tstart = 0;
@@ -605,6 +655,8 @@ static metric_by_machine_json(std::map<std::string, std::string>& vars) {
   std::string name;
   size_t machine = 0;
   bool has_machine_filter = false;
+  bool rounding = false;
+  bool align = false;
   // see what variables there are
 
   if (vars.count("name")) name = vars["name"];
@@ -614,6 +666,8 @@ static metric_by_machine_json(std::map<std::string, std::string>& vars) {
   }
   if (vars.count("tstart")) tstart = atof(vars["tstart"].c_str());
   if (vars.count("tend")) tend = atof(vars["tend"].c_str());
+  if (vars.count("rounding")) rounding = atoi(vars["rounding"].c_str()) > 0;
+  if (vars.count("align")) align = atoi(vars["align"].c_str()) > 0;
   if (vars.count("rate")) rate = (atoi(vars["rate"].c_str()) != 0);
   if (vars.count("tlast")) {
     double tlast = atof(vars["tlast"].c_str());
@@ -621,7 +675,7 @@ static metric_by_machine_json(std::map<std::string, std::string>& vars) {
     tstart = tstart < 0.0 ? 0.0 : tstart;
     tend = get_event_log().get_current_time();
   }
-
+  if (align) rounding = true;
 
   // name is not optional
   name = trim(name);
@@ -688,9 +742,10 @@ static metric_by_machine_json(std::map<std::string, std::string>& vars) {
             }
           }
         }
+        if (rounding) round_log_entries(output_entries);
         all_output_entries.push_back(output_entries);
       }
-
+      if (align) align_log_entries(all_output_entries);
       strm << "[ ";
       for (size_t p = 0; p < all_output_entries.size(); ++p) {
         std::vector<log_entry>& output_entries = all_output_entries[p];

@@ -40,7 +40,17 @@ body {
    height: 200px;
 }
 
+.node {
+    display: inline-block;
+}
+
+
+.node .name {
+  display: none
+}
+
 
 .node .chart {
-   height: 600px;
+   width: 400px;
+   height: 200px;
 }
