@@ -1,3 +1,7 @@
+.body {
+    text-align: center;
+
+}
 .cloud {
     display: inline-block;
     width: 200px;

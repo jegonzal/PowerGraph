@@ -7,6 +7,9 @@ google.load("visualization", "1",
 var domain_str = "http://localhost:8090/"
 var update_interval = 2000;
 
+function update_domain(form) {
+    domain_str = form.inputbox.value;
+}
 
 // Start the rendering of the UI
 google.setOnLoadCallback(function() { 
