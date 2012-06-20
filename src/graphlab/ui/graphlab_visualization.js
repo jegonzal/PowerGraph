@@ -30,7 +30,7 @@ function initiate_job_info() {
 }
 
 function initiate_aggregate_info() {
-    jQuery.getJSON(domain_str + "/metrics_aggregate.json?rate=1", process_aggregate_info)
+    jQuery.getJSON(domain_str + "/metrics_aggregate.json?rate=1&tlast=60", process_aggregate_info)
         .error(function() { 
             console.log("Unable to access " + domain_str + " will try again.");})
         .complete(function() {
@@ -41,7 +41,7 @@ function initiate_aggregate_info() {
 
 
 function initiate_node_info() {
-    jQuery.getJSON(domain_str + "/metrics_by_machine.json?rate=1", 
+    jQuery.getJSON(domain_str + "/metrics_by_machine.json?rate=1&tlast=60", 
                                 process_node_info)
         .error(function() { 
             console.log("Unable to access " + domain_str + " will try again.");})
