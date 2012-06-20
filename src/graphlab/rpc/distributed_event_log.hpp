@@ -85,7 +85,7 @@ struct log_group{
 
   boost::function<double(void)> callback;
 
-  double sum_of_instantaneous_entries;
+  size_t sum_of_instantaneous_entries;
   size_t count_of_instantaneous_entries;
 
   /// machine[i] holds a vector of entries from machine i

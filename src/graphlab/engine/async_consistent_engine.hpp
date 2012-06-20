@@ -543,7 +543,12 @@ namespace graphlab {
     DECLARE_TRACER(disteng_evalfac);
     DECLARE_TRACER(disteng_internal_task_queue);
 
- 
+    DECLARE_EVENT(EVENT_APPLIES);
+    DECLARE_EVENT(EVENT_GATHERS);
+    DECLARE_EVENT(EVENT_SCATTERS);
+    DECLARE_EVENT(EVENT_ACTIVE_CPUS);
+    DECLARE_EVENT(EVENT_ACTIVE_TASKS);
+
     
     inline void ASSERT_I_AM_OWNER(const lvid_type lvid) const {
       ASSERT_EQ(graph.l_get_vertex_record(lvid).owner, rmi.procid());
@@ -616,6 +621,14 @@ namespace graphlab {
                       "distributed_engine: Time in Internal Task Queue");
       INITIALIZE_TRACER(disteng_chandy_misra,
                       "distributed_engine: Time in Chandy Misra");
+
+      INITIALIZE_EVENT_LOG(dc);
+      ADD_CUMULATIVE_EVENT(EVENT_APPLIES, "Applies");
+      ADD_CUMULATIVE_EVENT(EVENT_GATHERS , "Gathers");
+      ADD_CUMULATIVE_EVENT(EVENT_SCATTERS , "Scatters");
+      ADD_INSTANTANEOUS_EVENT(EVENT_ACTIVE_CPUS, "Active Threads");
+      ADD_INSTANTANEOUS_EVENT(EVENT_ACTIVE_TASKS, "Active Tasks");
+
       initialize();
       rmi.barrier();
     }
@@ -1134,6 +1147,7 @@ namespace graphlab {
           (*gather_target) +=
             vstate[lvid].vertex_program.gather(context, vertex, e);
         }
+        INCREMENT_EVENT(EVENT_GATHERS, lvertex.in_edges().size());
       }
       if(gatherdir == graphlab::OUT_EDGES ||
         gatherdir == graphlab::ALL_EDGES) {
@@ -1142,6 +1156,7 @@ namespace graphlab {
           (*gather_target) +=
             vstate[lvid].vertex_program.gather(context, vertex, e);
         }
+        INCREMENT_EVENT(EVENT_GATHERS, lvertex.out_edges().size());
       }
 
       if (use_cache && cache[lvid].empty()) {
@@ -1202,6 +1217,9 @@ namespace graphlab {
                                         vertex, 
                                         vstate[lvid].combined_gather.value);
       vstate[lvid].combined_gather.clear();
+
+      DECREMENT_EVENT(EVENT_ACTIVE_TASKS, 1);
+      INCREMENT_EVENT(EVENT_APPLIES, 1);
       END_TRACEPOINT(disteng_evalfac);
     }
 
@@ -1269,6 +1287,7 @@ namespace graphlab {
           edge_type e(edge);
           vstate[lvid].vertex_program.scatter(context, vertex, e);
         }
+        INCREMENT_EVENT(EVENT_SCATTERS, lvertex.in_edges().size());
       }
       if(scatterdir == graphlab::OUT_EDGES ||
          scatterdir == graphlab::ALL_EDGES) {
@@ -1276,6 +1295,7 @@ namespace graphlab {
           edge_type e(edge);
           vstate[lvid].vertex_program.scatter(context, vertex, e);
         }
+        INCREMENT_EVENT(EVENT_SCATTERS, lvertex.out_edges().size());
       }
       END_TRACEPOINT(disteng_evalfac);
     } // end of do scatter
@@ -1439,13 +1459,18 @@ namespace graphlab {
       if (!force_stop &&
           issued_messages.value != programs_executed.value + blocked_issues.value) {
         ++ctr;
-        if (ctr % 10 == 0) usleep(1);
+        if (ctr % 10 == 0) {
+          DECREMENT_EVENT(EVENT_ACTIVE_CPUS, 1);
+          usleep(1);
+          INCREMENT_EVENT(EVENT_ACTIVE_CPUS, 1);
+        }
         return false;
       }
       logstream(LOG_DEBUG) << rmi.procid() << "-" << threadid << ": " << "Termination Attempt "
                            << programs_executed.value << "/" << issued_messages.value << std::endl;
       has_internal_task = false;
       has_sched_msg = false;
+
       consensus->begin_done_critical_section(threadid);
 
       BEGIN_TRACEPOINT(disteng_internal_task_queue);
@@ -1464,7 +1489,10 @@ namespace graphlab {
       if (stat == sched_status::EMPTY) {
         logstream(LOG_DEBUG) << rmi.procid() << "-" << threadid <<  ": "
                              << "\tTermination Double Checked" << std::endl;
+
+        DECREMENT_EVENT(EVENT_ACTIVE_CPUS, 1);
         bool ret = consensus->end_done_critical_section(threadid);
+        INCREMENT_EVENT(EVENT_ACTIVE_CPUS, 1);
         if (ret == false) {
           logstream(LOG_DEBUG) << rmi.procid() << "-" << threadid <<  ": "
                              << "\tCancelled" << std::endl;
@@ -1555,8 +1583,10 @@ namespace graphlab {
       if (prelocked == false) {
         vstate[sched_lvid].lock();
       }
+
       if (vstate[sched_lvid].state == NONE) {
 
+        INCREMENT_EVENT(EVENT_ACTIVE_TASKS, 1);
         // we start gather right here.
         // set up the state
         vstate[sched_lvid].state = LOCKING;
@@ -1600,6 +1630,8 @@ namespace graphlab {
       bool has_sched_msg = false;
       std::deque<vertex_id_type> internal_lvid;
       vertex_id_type sched_lvid;
+
+      INCREMENT_EVENT(EVENT_ACTIVE_CPUS, 1);
       message_type msg;
 //      size_t ctr = 0;
       float last_aggregator_check = timer::approx_time_seconds();
@@ -1641,6 +1673,8 @@ namespace graphlab {
           }
         } else { break; }
       }
+
+      DECREMENT_EVENT(EVENT_ACTIVE_CPUS, 1);
     } // end of thread start
 
 

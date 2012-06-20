@@ -151,7 +151,7 @@ void distributed_event_logger::local_collect_log() {
     else {
       // take the average 
       ASSERT_GT(logs[log]->count_of_instantaneous_entries, 0);
-      combined_counts[log] = logs[log]->sum_of_instantaneous_entries / 
+      combined_counts[log] = (double)logs[log]->sum_of_instantaneous_entries / 
                                 logs[log]->count_of_instantaneous_entries;
       logs[log]->sum_of_instantaneous_entries = 0;
       logs[log]->count_of_instantaneous_entries = 0;
