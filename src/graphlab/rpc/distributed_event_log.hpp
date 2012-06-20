@@ -242,19 +242,19 @@ extern distributed_event_logger& get_event_log();
 
 #define INITIALIZE_EVENT_LOG(dc) graphlab::get_event_log().set_dc(dc);
 #define ADD_CUMULATIVE_EVENT(name, desc) \
-    name = graphlab::get_event_log().create_log_entry(desc, log_type::CUMULATIVE);
+    name = graphlab::get_event_log().create_log_entry(desc, graphlab::log_type::CUMULATIVE);
 
 #define ADD_INSTANTANEOUS_EVENT(name, desc) \
-    name = graphlab::get_event_log().create_log_entry(desc, log_type::INSTANTANEOUS);
+    name = graphlab::get_event_log().create_log_entry(desc, graphlab::log_type::INSTANTANEOUS);
 
 #define ADD_CUMULATIVE_CALLBACK_EVENT(name, desc, callback) \
     name = graphlab::get_event_log().create_callback_entry(desc, callback, \
-          log_type::CUMULATIVE);
+          graphlab::log_type::CUMULATIVE);
 
 
 #define ADD_INSTANTANEOUS_CALLBACK_EVENT(name, desc, callback) \
     name = graphlab::get_event_log().create_callback_entry(desc, callback, \
-           log_type::INSTANTANEOUS);
+           graphlab::log_type::INSTANTANEOUS);
 
 
 
