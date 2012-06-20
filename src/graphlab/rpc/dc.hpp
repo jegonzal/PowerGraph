@@ -282,7 +282,10 @@ class distributed_control{
     
   DECLARE_TRACER(dc_receive_queuing);
   DECLARE_TRACER(dc_receive_multiplexing);
-  DECLARE_TRACER(dc_call_dispatch);
+  DECLARE_TRACER(dc_call_dispatch);  
+  
+  DECLARE_EVENT(EVENT_NETWORK_BYTES);
+  DECLARE_EVENT(EVENT_RPC_CALLS);
  public:
    
   /**

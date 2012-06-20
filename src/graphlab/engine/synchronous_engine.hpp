@@ -1319,28 +1319,29 @@ namespace graphlab {
           const edge_dir_type gather_dir = vprog.gather_edges(context, vertex);
           // Loop over in edges
           if(gather_dir == IN_EDGES || gather_dir == ALL_EDGES) {
+
             foreach(local_edge_type local_edge, local_vertex.in_edges()) {
               edge_type edge(local_edge);
-              INCREMENT_EVENT(EVENT_GATHERS, 1);
               if(accum_is_set) { // \todo hint likely                
                 accum += vprog.gather(context, vertex, edge);
               } else {
                 accum = vprog.gather(context, vertex, edge); 
                 accum_is_set = true;
               }
+              INCREMENT_EVENT(EVENT_GATHERS, local_vertex.in_edges().size());
             }
           } // end of if in_edges/all_edges
             // Loop over out edges
           if(gather_dir == OUT_EDGES || gather_dir == ALL_EDGES) {
             foreach(local_edge_type local_edge, local_vertex.out_edges()) {
               edge_type edge(local_edge);
-              INCREMENT_EVENT(EVENT_GATHERS, 1);
               if(accum_is_set) { // \todo hint likely
                 accum += vprog.gather(context, vertex, edge);              
               } else {
                 accum = vprog.gather(context, vertex, edge);
                 accum_is_set = true;
               }
+              INCREMENT_EVENT(EVENT_GATHERS, local_vertex.out_edges().size());
             }
           } // end of if out_edges/all_edges
           // If caching is enabled then save the accumulator to the
@@ -1426,18 +1427,18 @@ namespace graphlab {
         // Loop over in edges
         if(scatter_dir == IN_EDGES || scatter_dir == ALL_EDGES) {
           foreach(local_edge_type local_edge, local_vertex.in_edges()) {
-            INCREMENT_EVENT(EVENT_SCATTERS, 1);
             edge_type edge(local_edge);
             vprog.scatter(context, vertex, edge);
           }
+            INCREMENT_EVENT(EVENT_SCATTERS, local_vertex.in_edges().size());
         } // end of if in_edges/all_edges
           // Loop over out edges
         if(scatter_dir == OUT_EDGES || scatter_dir == ALL_EDGES) {
           foreach(local_edge_type local_edge, local_vertex.out_edges()) {
-            INCREMENT_EVENT(EVENT_SCATTERS, 1);
             edge_type edge(local_edge);
             vprog.scatter(context, vertex, edge);
           }
+          INCREMENT_EVENT(EVENT_SCATTERS, local_vertex.out_edges().size());
         } // end of if out_edges/all_edges
         // Clear the vertex program
         vertex_programs[lvid] = vertex_program_type();

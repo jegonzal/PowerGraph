@@ -143,15 +143,19 @@ void distributed_event_logger::local_collect_log() {
     logs[log]->lock.lock();
     // cimulative entry. just add across all threads
     if (logs[log]->logtype == log_type::CUMULATIVE) {
-      foreach(uint32_t thr, thread_local_count_slots) {
-        size_t* current_thread_counts = thread_local_count[thr]->values;
-        combined_counts[log] += current_thread_counts[log];
+      if (logs[log]->is_callback_entry) {
+        combined_counts[log] = logs[log]->callback();
+      } else {
+        foreach(uint32_t thr, thread_local_count_slots) {
+          size_t* current_thread_counts = thread_local_count[thr]->values;
+          combined_counts[log] += current_thread_counts[log];
+        }
       }
     }
     else {
       // take the average 
       ASSERT_GT(logs[log]->count_of_instantaneous_entries, 0);
-      combined_counts[log] = logs[log]->sum_of_instantaneous_entries / 
+      combined_counts[log] = (double)logs[log]->sum_of_instantaneous_entries / 
                                 logs[log]->count_of_instantaneous_entries;
       logs[log]->sum_of_instantaneous_entries = 0;
       logs[log]->count_of_instantaneous_entries = 0;
@@ -351,7 +355,8 @@ size_t distributed_event_logger::create_log_entry(std::string name,
 }
 
 size_t distributed_event_logger::create_callback_entry(std::string name, 
-              boost::function<double(void)> callback) {
+              boost::function<double(void)> callback,
+              log_type::log_type_enum logtype) {
   bool has_existing = false;
   size_t existingid = 0;
   log_entry_lock.lock();
@@ -379,7 +384,7 @@ size_t distributed_event_logger::create_callback_entry(std::string name,
   }
 
   log_group* group = new log_group;
-  group->logtype = log_type::INSTANTANEOUS;
+  group->logtype = logtype;
   group->name = name;
   group->callback = callback;
   group->is_callback_entry = true;
