@@ -200,7 +200,8 @@ class distributed_event_logger {
      * out of scope.
      */
     size_t create_callback_entry(std::string name, 
-                                 boost::function<double(void)> callback);
+                                 boost::function<double(void)> callback,
+                                 log_type::log_type_enum logtype);
 
     void free_callback_entry(size_t entry);
 
@@ -246,8 +247,15 @@ extern distributed_event_logger& get_event_log();
 #define ADD_INSTANTANEOUS_EVENT(name, desc) \
     name = graphlab::get_event_log().create_log_entry(desc, log_type::INSTANTANEOUS);
 
-#define ADD_CALLBACK_EVENT(name, desc, callback) \
-    name = graphlab::get_event_log().create_callback_entry(desc, callback);
+#define ADD_CUMULATIVE_CALLBACK_EVENT(name, desc, callback) \
+    name = graphlab::get_event_log().create_callback_entry(desc, callback, \
+          log_type::CUMULATIVE);
+
+
+#define ADD_INSTANTANEOUS_CALLBACK_EVENT(name, desc, callback) \
+    name = graphlab::get_event_log().create_callback_entry(desc, callback, \
+           log_type::INSTANTANEOUS);
+
 
 
 #define FREE_CALLBACK_EVENT(name) \

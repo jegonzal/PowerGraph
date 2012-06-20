@@ -173,7 +173,8 @@ distributed_control::distributed_control(dc_init_param initparam) {
 distributed_control::~distributed_control() {
   distributed_services->full_barrier();
   logstream(LOG_INFO) << "Shutting down distributed control " << std::endl;
-  
+  FREE_CALLBACK_EVENT(EVENT_NETWORK_BYTES);
+  FREE_CALLBACK_EVENT(EVENT_RPC_CALLS);  
   // call all deletion callbacks
   for (size_t i = 0; i < deletion_callbacks.size(); ++i) {
     deletion_callbacks[i]();
@@ -496,6 +497,13 @@ void distributed_control::init(const std::vector<std::string> &machines,
   // initialize the empty stream
   nullstrm.open(boost::iostreams::null_sink());
   
+  // initialize the event log
+
+  INITIALIZE_EVENT_LOG(*this);
+  ADD_CUMULATIVE_CALLBACK_EVENT(EVENT_NETWORK_BYTES, "Network Utilization", 
+      boost::bind(&distributed_control::network_bytes_sent, this));
+  ADD_CUMULATIVE_CALLBACK_EVENT(EVENT_RPC_CALLS, "RPC Calls",
+      boost::bind(&distributed_control::calls_sent, this));
 }
 
 
