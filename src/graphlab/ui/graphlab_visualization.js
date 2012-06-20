@@ -1,4 +1,4 @@
-google.load("jquery", "1.4.2");
+google.load("jquery", "1.5");
 google.load("jqueryui", "1.7.2");
 google.load("visualization", "1", 
             {"packages":["corechart", "table", "gauge"]});
@@ -10,19 +10,31 @@ var update_interval = 1000;
 
 // Start the rendering of the UI
 google.setOnLoadCallback(function() { 
-    setInterval(initiate_ajax_calls, update_interval);
+    initiate_job_info(); 
+    initiate_aggregate_info();
 });
 
+function initiate_job_info() {
+    var jqxhr = jQuery.getJSON(domain_str + "names.json", process_job_info)
+        .error(function() { console.log("Unable to access " + domain_str + " will try again.");})
+        .complete(function() {
+            setTimeout(initiate_job_info, update_interval);
+        });
+}
 
-function initiate_ajax_calls() {
-   jQuery.getJSON(domain_str + "names.json", process_job_info);
-   jQuery.getJSON(domain_str + "metrics_aggregate.json?rate=1", process_aggregate_info);
+function initiate_aggregate_info() {
+    var jqxhr =    jQuery.getJSON(domain_str + "metrics_aggregate.json?rate=1", process_aggregate_info)
+        .error(function() { console.log("Unable to access " + domain_str + " will try again.");})
+        .complete(function() {
+            setTimeout(initiate_aggregate_info, update_interval);
+        });
 }
 
 
 
 var job_info_data = [];
 function process_job_info(data) {
+    console.log("Processing job info.");
     $("#program_name").text(data.program_name);
     // $("#nprocs").text(data.nprocs + " processes");
     $("#current_time").text((data.time) + " seconds");
@@ -77,7 +89,7 @@ function process_job_info(data) {
 var aggregate_charts = []
 
 function process_aggregate_info(data) {
-    console.log(data);
+    console.log("Processing aggregate info.");
 
    // Render all the current values
     var container = $("#aggregate");
