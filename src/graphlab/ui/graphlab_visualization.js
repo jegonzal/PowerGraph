@@ -209,6 +209,7 @@ function process_node_info(data) {
             node_charts[id] = {
                 div: div,
                 options: { title: name,
+                           enableInteractivity: 0,
                            animation: {duration: 0, easing: "linear"},
                            hAxis: {title: 'Time (seconds)',  
                                    titleTextStyle: {color: 'red'}}},
