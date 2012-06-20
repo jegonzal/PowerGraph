@@ -4,7 +4,7 @@ google.load("visualization", "1",
             {"packages":["corechart", "table", "gauge"]});
 
 
-var domain_str = "http://localhost:8090"
+var domain_str = "http://localhost:8090";
 var update_interval = 2000;
 
 function update_domain(form) {
