@@ -665,8 +665,8 @@ static metric_by_machine_json(std::map<std::string, std::string>& vars) {
               double prevval = 0;
               double prevtime = 0;
               if (i > 0) {
-                prevtime = logs[log]->aggregate[i - 1].time;
-                prevval = logs[log]->aggregate[i - 1].value;
+                prevtime = current[i - 1].time;
+                prevval = current[i - 1].value;
               }
               double currate = 0;
               // avoid divide by zero annoyances
