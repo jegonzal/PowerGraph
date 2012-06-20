@@ -48,7 +48,11 @@ namespace graphlab {
       std::replace(arguments.begin(), arguments.end(), ',', ' ');
       std::replace(arguments.begin(), arguments.end(), ';', ' ');        
       std::stringstream arg_strm(arguments);
-      parse_options(arg_strm);
+      bool ret = parse_options(arg_strm);
+      if (ret == false) {
+        logstream(LOG_FATAL) << "Malformed option. Failed to parse \"" 
+                             << arguments << "\"" << std::endl;
+      }
     }     
   }
 

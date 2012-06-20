@@ -317,12 +317,13 @@ int main(int argc, char** argv) {
     return EXIT_FAILURE;
   }
 
-  graphlab::launch_metric_server();
 
   if (per_vertex != "") PER_VERTEX_COUNT = true;
   // Initialize control plane using mpi
   graphlab::mpi_tools::init(argc, argv);
   graphlab::distributed_control dc;
+
+  graphlab::launch_metric_server();
   // load graph
   graph_type graph(dc, clopts);
   graph.load_format(prefix, format);

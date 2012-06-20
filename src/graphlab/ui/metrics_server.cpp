@@ -54,7 +54,8 @@ static void* process_request(enum mg_event event,
   if (event == MG_NEW_REQUEST) {
 
     // get the URL being requested
-    std::string url = info->uri;
+    std::string url;
+    if (info->uri != NULL) url = info->uri;
     // strip the starting /
     if (url.length() >= 1) url = url.substr(1, url.length() - 1);
     // get all the variables
@@ -155,11 +156,33 @@ echo(std::map<std::string, std::string>& varmap) {
   return std::make_pair(std::string("text/html"), ret.str());
 }
 
+std::pair<std::string, std::string> 
+index_page(std::map<std::string, std::string>& varmap) {
+  std::stringstream ret;
+  ret << "<html>\n";
+  ret << "<h3>Registered Handlers:</h3>\n";
+  callback_lock.readlock();
+  std::map<std::string, http_redirect_callback_type>::const_iterator iter = 
+                            callbacks.begin();
+  while (iter != callbacks.end()) {
+    // don't put in the index page callback
+    if (iter->first != "") {
+      ret << iter->first << "<br>\n";
+    }
+    ++iter;
+  }
+  callback_lock.rdunlock();
+  ret << "</html>\n";
+  ret.flush();
+  return std::make_pair(std::string("text/html"), ret.str());
+}
 
 
 static void fill_builtin_callbacks() {
   callbacks["404"] = four_oh_four;
   callbacks["echo"] = echo;
+  callbacks[""] = index_page;
+  callbacks["index.html"] = index_page;
 }
 
 
