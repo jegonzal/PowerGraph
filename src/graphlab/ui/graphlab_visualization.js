@@ -5,19 +5,19 @@ google.load("visualization", "1",
 
 
 var domain_str = "http://localhost:8090";
-var update_interval = 2000;
+var update_interval = 5000;
 
 function update_domain(value) {
     console.log("Setting domain to " + value);
     domain_str = value;
-    initiate_job_info(); 
+//    initiate_job_info(); 
     initiate_aggregate_info();
     initiate_node_info();
 }
 
 // Start the rendering of the UI
 google.setOnLoadCallback(function() { 
-    initiate_job_info(); 
+//    initiate_job_info(); 
     initiate_aggregate_info();
     initiate_node_info();
 });

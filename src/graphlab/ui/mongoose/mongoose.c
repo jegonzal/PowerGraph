@@ -18,6 +18,9 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
+#define NO_SSL
+#define NO_CGI
+
 #if defined(_WIN32)
 #define _CRT_SECURE_NO_WARNINGS // Disable deprecation warning in VS2005
 #else
@@ -181,9 +184,6 @@ typedef struct DIR {
 #include <pwd.h>
 #include <unistd.h>
 #include <dirent.h>
-#if !defined(NO_SSL_DL) && !defined(NO_SSL)
-#include <dlfcn.h>
-#endif
 #include <pthread.h>
 #if defined(__MACH__)
 #define SSL_LIB   "libssl.dylib"
@@ -354,6 +354,7 @@ static struct ssl_func ssl_sw[] = {
   {NULL,    NULL}
 };
 
+#ifndef NO_SSL
 // Similar array as ssl_sw. These functions could be located in different lib.
 static struct ssl_func crypto_sw[] = {
   {"CRYPTO_num_locks",  NULL},
@@ -363,6 +364,7 @@ static struct ssl_func crypto_sw[] = {
   {"ERR_error_string", NULL},
   {NULL,    NULL}
 };
+#endif
 #endif // NO_SSL_DL
 
 static const char *month_names[] = {
@@ -428,7 +430,7 @@ static const char *config_options[] = {
   "e", "error_log_file", NULL,
   "g", "global_passwords_file", NULL,
   "i", "index_files", "index.html,index.htm,index.cgi",
-  "k", "enable_keep_alive", "no",
+  "k", "enable_keep_alive", "yes",
   "l", "access_control_list", NULL,
   "M", "max_request_size", "16384",
   "m", "extra_mime_types", NULL,
@@ -570,12 +572,14 @@ static void cry(struct mg_connection *conn, const char *fmt, ...) {
   conn->request_info.log_message = NULL;
 }
 
+#ifndef NO_SSL
 // Return OpenSSL error message
 static const char *ssl_error(void) {
   unsigned long err;
   err = ERR_get_error();
   return err == 0 ? "" : ERR_error_string(err, NULL);
 }
+#endif
 
 // Return fake connection structure. Used for logging, if connection
 // is not applicable at the moment of logging.
@@ -3876,7 +3880,6 @@ static void process_new_connection(struct mg_connection *conn) {
   const char *cl;
 
   keep_alive_enabled = !strcmp(conn->ctx->config[ENABLE_KEEP_ALIVE], "yes");
-
   do {
     reset_per_request_attributes(conn);
 
@@ -3917,6 +3920,7 @@ static void process_new_connection(struct mg_connection *conn) {
     if (ri->remote_user != NULL) {
       free((void *) ri->remote_user);
     }
+
   } while (conn->ctx->stop_flag == 0 &&
            keep_alive_enabled &&
            should_keep_alive(conn));
