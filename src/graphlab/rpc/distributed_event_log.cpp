@@ -513,9 +513,9 @@ static metric_aggregate_json(std::map<std::string, std::string>& vars) {
   if (vars.count("rate")) rate = (atoi(vars["rate"].c_str()) != 0);
   if (vars.count("tlast")) {
     double tlast = atof(vars["tlast"].c_str());
-    tstart = get_event_log().current_time() - tlast;
+    tstart = get_event_log().get_current_time() - tlast;
     tstart = tstart < 0.0 ? 0.0 : tstart;
-    tend = get_event_log().current_time();
+    tend = get_event_log().get_current_time();
   }
 
   // name is not optional
@@ -617,9 +617,9 @@ static metric_by_machine_json(std::map<std::string, std::string>& vars) {
   if (vars.count("rate")) rate = (atoi(vars["rate"].c_str()) != 0);
   if (vars.count("tlast")) {
     double tlast = atof(vars["tlast"].c_str());
-    tstart = get_event_log().current_time() - tlast;
+    tstart = get_event_log().get_current_time() - tlast;
     tstart = tstart < 0.0 ? 0.0 : tstart;
-    tend = get_event_log().current_time();
+    tend = get_event_log().get_current_time();
   }
 
 
