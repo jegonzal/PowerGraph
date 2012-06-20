@@ -38,7 +38,7 @@ function initiate_aggregate_info() {
 
 
 function initiate_node_info() {
-    jQuery.getJSON(domain_str + "/metrics_by_machine.json", 
+    jQuery.getJSON(domain_str + "/metrics_by_machine.json?rate=1", 
                                 process_node_info)
         .error(function() { 
             console.log("Unable to access " + domain_str + " will try again.");})
