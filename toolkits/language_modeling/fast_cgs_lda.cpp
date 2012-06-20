@@ -257,11 +257,11 @@ int main(int argc, char** argv) {
     ("global_counts", global_counts_agg::map, global_counts_agg::finalize) &&
     engine.aggregate_periodic("global_counts", 5);
   ASSERT_TRUE(success);
-  success = 
-    engine.add_vertex_aggregator<likelihood_agg>
-    ("likelihood", likelihood_agg::map, likelihood_agg::finalize) &&
-    engine.aggregate_periodic("likelihood", 10);
-  ASSERT_TRUE(success);
+  // success = 
+  //   engine.add_vertex_aggregator<likelihood_agg>
+  //   ("likelihood", likelihood_agg::map, likelihood_agg::finalize) &&
+  //   engine.aggregate_periodic("likelihood", 10);
+  // ASSERT_TRUE(success);
 
 
   ///! schedule only documents
