@@ -9,6 +9,7 @@ var update_interval = 2000;
 
 function update_domain(form) {
     domain_str = form.inputbox.value;
+    get_top_words();
 }
 
 var term_clouds = [];

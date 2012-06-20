@@ -9,6 +9,9 @@ var update_interval = 2000;
 
 function update_domain(form) {
     domain_str = form.inputbox.value;
+    initiate_job_info(); 
+    initiate_aggregate_info();
+    initiate_node_info();
 }
 
 // Start the rendering of the UI
