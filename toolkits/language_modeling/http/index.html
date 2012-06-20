@@ -10,9 +10,9 @@
 <meta name="copyright" content="(c) 2012. GraphLab.org" />
 <meta name="distribution" content="global" />
 <meta name="keywords" content="GraphLabUI" />
-<meta name="description" content="GraphLab Dashboard" />
+<meta name="description" content="WordCloud Viewer" />
 <meta name="robots" content="all" />
-<title>GraphLab Dashboard </title>
+<title>LDA WordCloud Viewer </title>
 <link type="text/css" rel="stylesheet" href="style.css"/> 
 
 
@@ -41,6 +41,10 @@
 
 <body>
 <h1> WordCloud Visualizer </h1>
+<FORM NAME="myform" ACTION="" METHOD="GET">
+<INPUT TYPE="text" NAME="inputbox" VALUE="http://localhost:8090">
+<INPUT TYPE="button" NAME="button" Value="Change Domain" onClick="update_domain(this.form)">
+</FORM>
 
 <div id="info">
   <div class="setting"> 

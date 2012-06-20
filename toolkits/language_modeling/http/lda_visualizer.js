@@ -3,19 +3,29 @@ google.load("jqueryui", "1.7.2");
 google.load("visualization", "1");
 
 
-var domain_str = "http://localhost:8090/wordclouds"
-var update_interval = 1000;
+var domain_str = "http://localhost:8090"
+var page_str = "/wordclouds"
+var update_interval = 2000;
+
+function update_domain(form) {
+    domain_str = form.inputbox.value;
+}
 
 var term_clouds = [];
 
 // Start the rendering of the UI
 google.setOnLoadCallback(function() { 
-    setInterval(get_top_words, update_interval);
+    get_top_words();
 });
 
 function get_top_words() {
-    jQuery.getJSON(domain_str, process_top_words);
+    var jqxhr = jQuery.getJSON(domain_str + page_str, process_top_words)
+        .error(function() { console.log("Unable to access " + domain_str + " will try again.");})
+        .complete(function() {
+            setTimeout(get_top_words, update_interval);
+        });
 }
+
 
 
 
