@@ -102,7 +102,7 @@ struct event_log_thread_local_type {
   /** The values written to by each thread. 
    * An array with max length MAX_LOG_SIZE 
    */
-  double values[MAX_LOG_SIZE];
+  size_t values[MAX_LOG_SIZE];
   size_t thlocal_slot;
 
   // These are used for time averaging instantaneous values

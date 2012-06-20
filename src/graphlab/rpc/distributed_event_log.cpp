@@ -142,12 +142,13 @@ void distributed_event_logger::local_collect_log() {
     // cimulative entry. just add across all threads
     if (logs[log]->logtype == log_type::CUMULATIVE) {
       foreach(uint32_t thr, thread_local_count_slots) {
-        double* current_thread_counts = thread_local_count[thr]->values;
+        size_t* current_thread_counts = thread_local_count[thr]->values;
         combined_counts[log] += current_thread_counts[log];
       }
     }
     else {
       // take the average 
+      ASSERT_GT(logs[log]->count_of_instantaneous_entries, 0);
       combined_counts[log] = logs[log]->sum_of_instantaneous_entries / 
                                 logs[log]->count_of_instantaneous_entries;
       logs[log]->sum_of_instantaneous_entries = 0;
@@ -173,10 +174,15 @@ void distributed_event_logger::build_aggregate_log() {
   foreach(uint32_t log, has_log_entry) {
     logs[log]->lock.lock();
     // what is the previous time the aggregate was computed?
-    double prevtime = 0;
+    // The sum takes the open interval (prevtime, current_time]
+    // thus the first time this is called, we may drop one entry
+    // if we let prevtime initialize at 0
+    double prevtime = -1;
     if (logs[log]->aggregate.size() > 0) {
       prevtime = logs[log]->aggregate.rbegin()->time;
     }
+
+
     // if it is a CUMULATIVE log, take the latest entry from each machine
     // if it is an INSTANTANEOUS log, take the average of the last times.
 
@@ -196,14 +202,23 @@ void distributed_event_logger::build_aggregate_log() {
         std::vector<log_entry>::const_reverse_iterator iter = 
                                         logs[log]->machine[p].rbegin();
         while (iter != logs[log]->machine[p].rend() &&
-            iter->time >= prevtime) {
-          if (iter->time < current_time) {
+            iter->time > prevtime) {
+          if (iter->time <= current_time) {
             partial_sum += iter->value;
             ++num_used_entries;
           }
           ++iter;
         }
-        sum += partial_sum / num_used_entries;
+        if (num_used_entries > 0) {
+          sum += partial_sum / num_used_entries;
+        }
+        else {
+          // I am missing a current up to date entry
+          // just take the most recent value
+          if (logs[log]->machine[p].size() > 0) {
+            sum += logs[log]->machine[p].rbegin()->value;
+          }
+        }
       }
     }
     // put into the aggregate count
