@@ -121,7 +121,10 @@ public:
       ++doc_topic_count[asg];
       ++word_topic_count[asg];                    
       ++GLOBAL_TOPIC_COUNT[asg];
-      if(asg != old_asg) ++edge.data().nchanges;
+      if(asg != old_asg) {
+        ++edge.data().nchanges;
+        INCREMENT_EVENT(TOKEN_CHANGES,1);
+      }
     } // End of loop over each token
     // singla the other vertex
     context.signal(get_other_vertex(edge, vertex));
@@ -160,7 +163,8 @@ int main(int argc, char** argv) {
   ///! Initialize control plain using mpi
   graphlab::mpi_tools::init(argc, argv);
   graphlab::distributed_control dc;
-
+  //  INITIALIZE_EVENT_LOG(dc);
+  ADD_CUMULATIVE_EVENT(TOKEN_CHANGES, "Token Changes");
 
   // Parse command line options -----------------------------------------------
   const std::string description = 

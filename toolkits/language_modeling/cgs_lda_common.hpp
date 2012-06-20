@@ -165,6 +165,9 @@ std::string TOP_WORDS_JSON =
 
 
 
+DECLARE_EVENT(TOKEN_CHANGES);
+
+
 // Graph Types
 // ============================================================================
 
