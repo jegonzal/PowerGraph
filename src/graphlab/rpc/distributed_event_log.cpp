@@ -468,9 +468,7 @@ static metric_names_json(std::map<std::string, std::string>& vars) {
                                               : 0 ) << "\n"
          << "    }\n";
     ++logcount;
-    if (logcount < nlogs) {
-      strm << ",";
-    }
+    if (logcount < nlogs) strm << ",";
   }
   strm << "  ]\n"
        << "}\n";
@@ -494,9 +492,6 @@ static metric_aggregate_json(std::map<std::string, std::string>& vars) {
 
   // name is not optional
   name = trim(name);
-  if (name.length() == 0) {
-    return std::make_pair(std::string("text/plain"), std::string());
-  }
 
   distributed_event_logger& evlog = get_event_log();
   log_group** logs = evlog.get_logs_ptr();
@@ -504,8 +499,17 @@ static metric_aggregate_json(std::map<std::string, std::string>& vars) {
 
   std::stringstream strm;
 
+  size_t nlogs = has_log_entry.popcount();
+  size_t logcount = 0;
+  
+  // if name is empty, I should extract all metrics
+  bool extract_all = (name.length() == 0);
+
+  // make a top level array
+
+  strm << "[\n";
   foreach(uint32_t log, has_log_entry) {
-    if (logs[log]->name == name) {
+    if (logs[log]->name == name || extract_all) {
       strm << "    {\n"
            << "      \"id\":" << log << ",\n"
            << "      \"name\": \"" << logs[log]->name << "\",\n"
@@ -552,8 +556,15 @@ static metric_aggregate_json(std::map<std::string, std::string>& vars) {
       }
       strm << "]\n"
         << "    }\n";
+
+      // if I am not supposed to extract all, then I am done here.
+      if (!extract_all) break;
+      ++logcount;
+      if (logcount < nlogs) strm << ",\n";
     }
   }
+
+  strm << "]\n";
   return std::make_pair(std::string("text/plain"), strm.str());
 }
 
