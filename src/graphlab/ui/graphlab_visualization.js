@@ -62,6 +62,7 @@ function process_job_info(data) {
     // $("#nprocs").text(data.nprocs + " processes");
     $("#current_time").text((data.time) + " seconds");
 
+/*
     // Render all the current values
     var container = $("#gauges");
     var sorted_metrics = data.metrics.sort(function(a,b) { 
@@ -104,7 +105,9 @@ function process_job_info(data) {
         info.data.setCell(0,1, value);
         info.gauge.draw(info.data, info.options);
         info.div.children(".value").text(value);
+
     });
+*/
 }
 
 
@@ -215,7 +218,7 @@ function process_node_info(data) {
             node_charts[id] = {
                 div: div,
                 options: { title: name,
-                           isStacked: true,
+                           //isStacked: true,
                            enableInteractivity: 0,
                            hAxis: {title: 'Time (seconds)',  
                                    titleTextStyle: {color: 'red'}}},
