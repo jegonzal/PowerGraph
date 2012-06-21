@@ -291,6 +291,17 @@ ExternalProject_Add(libevent
 #link_libraries(event)
 #link_libraries(event_pthreads)
 
+ExternalProject_Add(libjson
+  PREFIX ${GraphLab_SOURCE_DIR}/deps/json
+  URL http://voxel.dl.sourceforge.net/project/libjson/libjson_7.6.0.zip
+  URL_MD5 dcb326038bd9b710b8f717580c647833
+  BUILD_IN_SOURCE 1
+  CONFIGURE_COMMAND ""
+  BUILD_COMMAND make
+  INSTALL_COMMAND prefix=${GraphLab_SOURCE_DIR}/deps/local make install 
+  )
+
+
 # JNI =========================================================================
 # We use JNI for jvm interfacing and for hdfs support.  We currently only 
 # detect the presence of java and do not install our own version. 
@@ -370,7 +381,7 @@ macro(requires_core_deps NAME)
     ${Boost_LIBRARIES}
     tcmalloc
     event event_pthreads)
-  add_dependencies(${NAME} boost libtcmalloc libevent)
+  add_dependencies(${NAME} boost libtcmalloc libevent libjson)
   if(MPI_FOUND)
     target_link_libraries(${NAME} ${MPI_LIBRARY} ${MPI_EXTRA_LIBRARY})
   endif(MPI_FOUND)
