@@ -465,14 +465,25 @@ public:
 
   index_type compute_hash(size_t k , const uint32_t seed) const {
     // a bunch of random numbers
-    static const size_t a[8] = {0x6306AA9DFC13C8E7,
-                                0xA8CD7FBCA2A9FFD4,
-                                0x40D341EB597ECDDC,
-                                0x99CFA1168AF8DA7E,
-                                0x7C55BCC3AF531D42,
-                                0x1BC49DB0842A21DD,
-                                0x2181F03B1DEE299F,
-                                0xD524D92CBFEC63E9};
+#if (__SIZEOF_PTRDIFF_T__ == 8)
+      static const size_t a[8] = {0x6306AA9DFC13C8E7,
+                                  0xA8CD7FBCA2A9FFD4,
+                                  0x40D341EB597ECDDC,
+                                  0x99CFA1168AF8DA7E,
+                                  0x7C55BCC3AF531D42,
+                                  0x1BC49DB0842A21DD,
+                                  0x2181F03B1DEE299F,
+                                  0xD524D92CBFEC63E9};
+#else
+      static const size_t a[8] = {0xFC13C8E7,
+                                  0xA2A9FFD4,
+                                  0x597ECDDC,
+                                  0x8AF8DA7E,
+                                  0xAF531D42,
+                                  0x842A21DD,
+                                  0x1DEE299F,
+                                  0xBFEC63E9};
+#endif
 
     index_type s = mix(a[seed] ^ k);
     return s % datalen;
