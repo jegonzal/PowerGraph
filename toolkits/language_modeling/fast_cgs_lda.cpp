@@ -164,7 +164,7 @@ int main(int argc, char** argv) {
   graphlab::mpi_tools::init(argc, argv);
   graphlab::distributed_control dc;
   //  INITIALIZE_EVENT_LOG(dc);
-  ADD_CUMULATIVE_EVENT(TOKEN_CHANGES, "Token Changes");
+  ADD_CUMULATIVE_EVENT(TOKEN_CHANGES, "Token Changes", "Changes");
 
   // Parse command line options -----------------------------------------------
   const std::string description = 

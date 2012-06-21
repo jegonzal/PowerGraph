@@ -77,6 +77,9 @@ struct log_group{
   /// name of the group
   std::string name;
 
+  /// unit of measurement
+  std::string units;
+
   /// Set to true if this is a callback entry
   bool is_callback_entry;
 
@@ -188,18 +191,22 @@ class distributed_event_logger {
      * Creates a new log entry with a given name and log type.
      * Returns the ID of the log. Must be called by 
      * all machines simultaneously with the same settings.
+     * units is the unit of measurement.
      */
-    size_t create_log_entry(std::string name, log_type::log_type_enum logtype);
+    size_t create_log_entry(std::string name, std::string units, 
+                            log_type::log_type_enum logtype);
 
     /**
      * Creates a new callback log entry with a given name and log type.
      * Returns the ID of the log. Must be called by 
      * all machines simultaneously with the same settings.
+     * units is the unit of measurement.
      * Callback will be triggered periodically.
      * Callback entries must be deleted once the callback goes
      * out of scope.
      */
     size_t create_callback_entry(std::string name, 
+                                 std::string units,
                                  boost::function<double(void)> callback,
                                  log_type::log_type_enum logtype);
 
@@ -241,19 +248,19 @@ extern distributed_event_logger& get_event_log();
 #define DECLARE_EVENT(name) size_t name;
 
 #define INITIALIZE_EVENT_LOG(dc) graphlab::get_event_log().set_dc(dc);
-#define ADD_CUMULATIVE_EVENT(name, desc) \
-    name = graphlab::get_event_log().create_log_entry(desc, graphlab::log_type::CUMULATIVE);
+#define ADD_CUMULATIVE_EVENT(name, desc, units) \
+    name = graphlab::get_event_log().create_log_entry(desc, units, graphlab::log_type::CUMULATIVE);
 
-#define ADD_INSTANTANEOUS_EVENT(name, desc) \
-    name = graphlab::get_event_log().create_log_entry(desc, graphlab::log_type::INSTANTANEOUS);
+#define ADD_INSTANTANEOUS_EVENT(name, desc, units) \
+    name = graphlab::get_event_log().create_log_entry(desc, units, graphlab::log_type::INSTANTANEOUS);
 
-#define ADD_CUMULATIVE_CALLBACK_EVENT(name, desc, callback) \
-    name = graphlab::get_event_log().create_callback_entry(desc, callback, \
+#define ADD_CUMULATIVE_CALLBACK_EVENT(name, desc, units, callback) \
+    name = graphlab::get_event_log().create_callback_entry(desc, units, callback, \
           graphlab::log_type::CUMULATIVE);
 
 
-#define ADD_INSTANTANEOUS_CALLBACK_EVENT(name, desc, callback) \
-    name = graphlab::get_event_log().create_callback_entry(desc, callback, \
+#define ADD_INSTANTANEOUS_CALLBACK_EVENT(name, desc, units, callback) \
+    name = graphlab::get_event_log().create_callback_entry(desc, units, callback, \
            graphlab::log_type::INSTANTANEOUS);
 
 

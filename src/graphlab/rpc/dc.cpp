@@ -501,9 +501,9 @@ void distributed_control::init(const std::vector<std::string> &machines,
 
   INITIALIZE_EVENT_LOG(*this);
   ADD_CUMULATIVE_CALLBACK_EVENT(EVENT_NETWORK_BYTES, "Network Utilization", 
-      boost::bind(&distributed_control::network_bytes_sent, this));
-  ADD_CUMULATIVE_CALLBACK_EVENT(EVENT_RPC_CALLS, "RPC Calls",
-      boost::bind(&distributed_control::calls_sent, this));
+      "MB", boost::bind(&distributed_control::network_megabytes_sent, this));
+  ADD_CUMULATIVE_CALLBACK_EVENT(EVENT_RPC_CALLS, "RPC Calls", 
+      "Million", boost::bind(&distributed_control::mega_calls_sent, this));
 }
 
 
