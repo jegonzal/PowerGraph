@@ -1,4 +1,5 @@
 project(GraphProcessing)
 
 add_graphlab_executable(exact_triangle_count exact_triangle_count.cpp)
+add_graphlab_executable(faster_exact_triangle_count faster_exact_triangle_count.cpp)
 add_graphlab_executable(kcore kcore.cpp)
