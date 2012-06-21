@@ -222,7 +222,7 @@ function process_node_info(data) {
                            enableInteractivity: 0,
                            hAxis: {title: 'Time (seconds)',  
                                    titleTextStyle: {color: 'red'}}},
-                chart: new google.visualization.AreaChart(div),
+                chart: new google.visualization.LineChart(div),
             }
         }
         if(metric.record.length > 0) {
