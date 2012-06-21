@@ -155,7 +155,7 @@ class basic_messages :
   int message_value;
 public:
 
-  void recv_message(icontext_type& context, const vertex_type& vertex,
+  void init(icontext_type& context, const vertex_type& vertex,
                     const message_type& msg) {
     message_value = msg;
   } 

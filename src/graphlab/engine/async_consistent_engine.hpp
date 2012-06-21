@@ -78,7 +78,7 @@ namespace graphlab {
    * (Chandy, K.M.; Misra, J. (1984). The Drinking Philosophers Problem.
    *  ACM Trans. Program. Lang. Syst)
    * \li Once lock acquisition is complete,
-   *  \ref graphlab::ivertex_program::recv_message is called on the vertex
+   *  \ref graphlab::ivertex_program::init is called on the vertex
    * program. As an optimization, any messages sent to this vertex
    * before completion of lock acquisition is merged into original message
    * extracted from the scheduler.
@@ -1094,15 +1094,14 @@ namespace graphlab {
     }
 
     /**
-     * \internal
-     * Performs the recv_message operation on vertex lvid using
-     * the message stored in the vertex_state. locks should be acquired.
+     * \internal Performs the init operation on vertex lvid using the
+     * message stored in the vertex_state. locks should be acquired.
      */
     void do_init_gather(lvid_type lvid) {
       context_type context(*this, graph);
-      vstate[lvid].vertex_program.recv_message(context,
-                                              vertex_type(graph.l_vertex(lvid)),
-                                              vstate[lvid].current_message);
+      vstate[lvid].vertex_program.init(context,
+                                       vertex_type(graph.l_vertex(lvid)),
+                                       vstate[lvid].current_message);
       vstate[lvid].current_message = message_type();
       vstate[lvid].combined_gather.clear();
     }
