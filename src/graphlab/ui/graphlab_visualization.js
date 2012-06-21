@@ -6,32 +6,34 @@ google.load("visualization", "1",
 
 var domain_str = "http://localhost:8090";
 var update_interval = 5000;
+var last_minutes=5;
 
 function update_domain(value) {
     console.log("Setting domain to " + value);
     domain_str = value;
-//    initiate_job_info(); 
+    initiate_job_info(); 
     initiate_aggregate_info();
     initiate_node_info();
 }
 
 // Start the rendering of the UI
 google.setOnLoadCallback(function() { 
-//    initiate_job_info(); 
+    initiate_job_info(); 
     initiate_aggregate_info();
     initiate_node_info();
 });
 
 function initiate_job_info() {
     jQuery.getJSON(domain_str + "/names.json", process_job_info)
-        .error(function() { console.log("Unable to access " + domain_str + " will try again.");})
+        .error(function() { 
+            console.log("Unable to access " + domain_str + " will try again.");})
         .complete(function() {
             setTimeout(initiate_job_info, update_interval);
         });
 }
 
 function initiate_aggregate_info() {
-    jQuery.getJSON(domain_str + "/metrics_aggregate.json?rate=1&rounding=1", process_aggregate_info)
+    jQuery.getJSON(domain_str + "/metrics_aggregate.json?rate=1&rounding=1&tlast=" + (60*last_minutes), process_aggregate_info)
         .error(function() { 
             console.log("Unable to access " + domain_str + " will try again.");})
         .complete(function() {
@@ -42,8 +44,8 @@ function initiate_aggregate_info() {
 
 
 function initiate_node_info() {
-    jQuery.getJSON(domain_str + "/metrics_by_machine.json?rate=1&align=1", 
-                                process_node_info)
+    jQuery.getJSON(domain_str + "/metrics_by_machine.json?rate=1&align=1&tlast=" + (60*last_minutes) , 
+                   process_node_info)
         .error(function() { 
             console.log("Unable to access " + domain_str + " will try again.");})
         .complete(function() {
@@ -60,6 +62,7 @@ function process_job_info(data) {
     // $("#nprocs").text(data.nprocs + " processes");
     $("#current_time").text((data.time) + " seconds");
 
+/*
     // Render all the current values
     var container = $("#gauges");
     var sorted_metrics = data.metrics.sort(function(a,b) { 
@@ -88,7 +91,7 @@ function process_job_info(data) {
                 div: div,
                 gauge: gauge,
                 options: {
-                    animation: {duration: 0, easing: "linear"},
+                    animation: {duration: 100, easing: "linear"},
                     width: 400, height: 120,
                     min: 0, max: value + 1.0E-5},
                 data:  google.visualization.arrayToDataTable([
@@ -102,7 +105,9 @@ function process_job_info(data) {
         info.data.setCell(0,1, value);
         info.gauge.draw(info.data, info.options);
         info.div.children(".value").text(value);
+
     });
+*/
 }
 
 
@@ -213,6 +218,7 @@ function process_node_info(data) {
             node_charts[id] = {
                 div: div,
                 options: { title: name,
+                           //isStacked: true,
                            enableInteractivity: 0,
                            hAxis: {title: 'Time (seconds)',  
                                    titleTextStyle: {color: 'red'}}},
