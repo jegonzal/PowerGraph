@@ -30,15 +30,7 @@
 #include <graphlab.hpp>
 
 
-
-graphlab::oarchive& operator<<(graphlab::oarchive& arc, const Eigen::VectorXd& vec);
-graphlab::iarchive& operator>>(graphlab::iarchive& arc, Eigen::VectorXd& vec);
-graphlab::oarchive& operator<<(graphlab::oarchive& arc, const Eigen::MatrixXd& mat);
-graphlab::iarchive& operator>>(graphlab::iarchive& arc, Eigen::MatrixXd& mat);
-
-
-
-graphlab::oarchive& operator<<(graphlab::oarchive& arc, const Eigen::VectorXd& vec) {
+inline graphlab::oarchive& operator<<(graphlab::oarchive& arc, const Eigen::VectorXd& vec) {
   typedef Eigen::VectorXd::Index index_type;
   typedef Eigen::VectorXd::Scalar scalar_type;
   const index_type size = vec.size();
@@ -47,7 +39,7 @@ graphlab::oarchive& operator<<(graphlab::oarchive& arc, const Eigen::VectorXd& v
   return arc;
 } // end of save vector
 
-graphlab::iarchive& operator>>(graphlab::iarchive& arc, Eigen::VectorXd& vec) {
+inline graphlab::iarchive& operator>>(graphlab::iarchive& arc, Eigen::VectorXd& vec) {
   typedef Eigen::VectorXd::Index index_type;
   typedef Eigen::VectorXd::Scalar scalar_type;
   index_type size = 0;
@@ -58,7 +50,7 @@ graphlab::iarchive& operator>>(graphlab::iarchive& arc, Eigen::VectorXd& vec) {
 } // end of save vector
 
 
-graphlab::oarchive& operator<<(graphlab::oarchive& arc, const Eigen::MatrixXd& mat) {
+inline graphlab::oarchive& operator<<(graphlab::oarchive& arc, const Eigen::MatrixXd& mat) {
   typedef Eigen::MatrixXd::Index index_type;
   typedef Eigen::MatrixXd::Scalar scalar_type;
   const index_type rows = mat.rows();
@@ -68,7 +60,7 @@ graphlab::oarchive& operator<<(graphlab::oarchive& arc, const Eigen::MatrixXd& m
   return arc;
 } // end of save matrix
 
-graphlab::iarchive& operator>>(graphlab::iarchive& arc,  Eigen::MatrixXd& mat) {
+inline graphlab::iarchive& operator>>(graphlab::iarchive& arc,  Eigen::MatrixXd& mat) {
   typedef Eigen::MatrixXd::Index index_type; 
   typedef Eigen::MatrixXd::Scalar scalar_type;
   index_type rows=0, cols=0;
