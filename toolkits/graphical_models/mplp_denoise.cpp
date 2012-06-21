@@ -252,7 +252,7 @@ public:
      * This function is now called in the main by invoking:
      * engine.transform_vertices(mplp_vertex_program::init)
      */
-    static void init(icontext_type& context, vertex_type& vertex)
+    static void init_vertex_data(icontext_type& context, vertex_type& vertex)
     { 
         vertex_data& vdata = vertex.data();
         
@@ -323,7 +323,7 @@ public:
      * program does not implement this function then the default
      * implementation (NOP) is used.
      */
-    // void recv_message(icontext_type& context, const vertex_type& vertex, 
+    // void init(icontext_type& context, const vertex_type& vertex, 
     //                   const message_type& msg) { /** NOP */ }
     
     /**
@@ -1013,7 +1013,7 @@ int main(int argc, char** argv) {
     // Create the engine -------------------------------------------------------->
     std::cout << "Creating the engine. " << std::endl;
     engine_type engine(dc, graph, clopts);
-    engine.transform_vertices(mplp_vertex_program::init);
+    engine.transform_vertices(mplp_vertex_program::init_vertex_data);
 
     std::cout << "Scheduling all vertices" << std::endl;
     engine.signal_all();

@@ -83,10 +83,9 @@ namespace graphlab {
    * ivertex_program::gather and ivertex_program::scatter functions.
    *
    * The state of a vertex program *does not* persist between
-   * invocations of receive message.  Moreover on each call to
-   * recv_message the vertex program's previous state is
-   * cleared. Therefore any persistent state must be saved into the
-   * vertex data.  
+   * invocations of receive message.  Moreover on each call to init
+   * the vertex program's previous state is cleared. Therefore any
+   * persistent state must be saved into the vertex data.
    *
    * The vertex program depends on several key types which are
    * template arguments to ivertex_program interface. 

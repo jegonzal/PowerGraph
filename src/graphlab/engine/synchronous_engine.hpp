@@ -79,7 +79,7 @@ namespace graphlab {
    * super-steps (iterations) each of which is further decomposed into a 
    * sequence of minor-steps which are also executed synchronously:
    * \li Receive all incoming messages (signals) by invoking the 
-   * \ref graphlab::ivertex_program::recv_message function on all
+   * \ref graphlab::ivertex_program::init function on all
    * vertex-programs that have incoming messages.  If a
    * vertex-program does not have any incoming messages then it is
    * not active during this super-step.  
@@ -734,7 +734,7 @@ namespace graphlab {
 
 
     /** 
-     * \brief Invoke the \ref graphlab::ivertex_program::recv_message function 
+     * \brief Invoke the \ref graphlab::ivertex_program::init function 
      * on all vertex programs that have inbound messages.
      *
      * @param thread_id the thread to run this as which determines

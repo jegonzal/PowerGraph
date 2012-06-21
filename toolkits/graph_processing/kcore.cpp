@@ -64,9 +64,8 @@ public:
   /* The message contains the number of adjacent edges deleted.
    * Store the message in the program, and reset the just_deleted flag
    */
-  void recv_message(icontext_type& context,
-                    const vertex_type& vertex,
-                    const message_type& message) {
+  void init(icontext_type& context, const vertex_type& vertex,
+            const message_type& message) {
     msg = message;
     just_deleted = false;
   }

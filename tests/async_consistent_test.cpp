@@ -111,7 +111,7 @@ class count_all_neighbors :
   public graphlab::ivertex_program<graph_type, int, int>,
   public graphlab::IS_POD_TYPE {
 public:
-  void recv_message(icontext_type& context, const vertex_type& vertex,
+  void init(icontext_type& context, const vertex_type& vertex,
                     const message_type& msg) {
     ASSERT_EQ(msg, 100);
   }
@@ -164,7 +164,7 @@ class count_all_neighbors_slow :
   public graphlab::ivertex_program<graph_type, int, int>,
   public graphlab::IS_POD_TYPE {
 public:
-  void recv_message(icontext_type& context, const vertex_type& vertex,
+  void init(icontext_type& context, const vertex_type& vertex,
                     const message_type& msg) {
     ASSERT_EQ(msg, 100);
   }
