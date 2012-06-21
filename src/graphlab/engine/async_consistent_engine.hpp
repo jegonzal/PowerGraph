@@ -663,6 +663,7 @@ namespace graphlab {
       foreach(std::string opt, keys) {
         if (opt == "max_clean_fraction") {
           opts.get_engine_args().get_option("max_clean_fraction", max_clean_fraction);
+          max_clean_forks = graph.num_local_edges() * max_clean_fraction;
         } else if (opt == "timed_termination") {
           opts.get_engine_args().get_option("timed_termination", timed_termination);
         } else if (opt == "timeout") {
