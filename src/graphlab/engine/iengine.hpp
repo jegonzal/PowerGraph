@@ -328,12 +328,12 @@ namespace graphlab {
      * An aggregator can be constructed to compute the absolute sum of all the
      * vertex data. To do this, we define two functions.
      * \code
-     * float absolute_vertex_data(graphlab::icontext_type& context,
+     * float absolute_vertex_data(engine_type::icontext_type& context,
      *                            graph_type::vertex_type vertex) {
      *   return std::fabs(vertex.data());
      * }
      *
-     * void print_finalize(graphlab::icontext_type& context, 
+     * void print_finalize(engine_type::icontext_type& context, 
      *                     float total) {
      *   std::cout << total << "\n";
      * }
@@ -389,15 +389,15 @@ namespace graphlab {
      * accepted.
      *
      * \code
-     * void print_finalize(icontext_type& context, double total) {
+     * void print_finalize(engine_type::icontext_type& context, double total) {
      *   std::cout << total << "\n";
      * }
      *
-     * void print_finalize(icontext_type& context, float& total) {
+     * void print_finalize(engine_type::icontext_type& context, float& total) {
      *   std::cout << total << "\n";
      * }
      *
-     * void print_finalize(icontext_type& context, const float& total) {
+     * void print_finalize(engine_type::icontext_type& context, const float& total) {
      *   std::cout << total << "\n";
      * }
      * \endcode
@@ -415,7 +415,7 @@ namespace graphlab {
      * For instance, in the above example, print_finalize could
      * store the result in a global variable:
      * \code
-     * void print_finalize(icontext_type& context, float total) {
+     * void print_finalize(engine_type::icontext_type& context, float total) {
      *   GLOBAL_TOTAL = total;
      * }
      * \endcode 
@@ -539,12 +539,12 @@ namespace graphlab {
      * An aggregator can be constructed to compute the absolute sum of all the
      * edge data. To do this, we define two functions.
      * \code
-     * float absolute_edge_data(graphlab::icontext_type& context,
+     * float absolute_edge_data(engine_type::icontext_type& context,
      *                          graph_type::edge_type edge) {
      *   return std::fabs(edge.data());
      * }
      *
-     * void print_finalize(icontext_type& context, float total) {
+     * void print_finalize(engine_type::icontext_type& context, float total) {
      *   std::cout << total << "\n";
      * }
      * \endcode
@@ -596,15 +596,15 @@ namespace graphlab {
      * accepted.
      *
      * \code
-     * void print_finalize(icontext_type& context, double total) {
+     * void print_finalize(engine_type::icontext_type& context, double total) {
      *   std::cout << total << "\n";
      * }
      *
-     * void print_finalize(icontext_type& context, float& total) {
+     * void print_finalize(engine_type::icontext_type& context, float& total) {
      *   std::cout << total << "\n";
      * }
      *
-     * void print_finalize(icontext_type& context, const float& total) {
+     * void print_finalize(engine_type::icontext_type& context, const float& total) {
      *   std::cout << total << "\n";
      * }
      * \endcode
@@ -622,7 +622,7 @@ namespace graphlab {
      * For instance, in the above example, print_finalize could
      * store the result in a global variable:
      * \code
-     * void print_finalize(icontext_type& context, float total) {
+     * void print_finalize(engine_type::icontext_type& context, float total) {
      *   GLOBAL_TOTAL = total;
      * }
      * \endcode 
@@ -773,7 +773,7 @@ namespace graphlab {
     * a function which reads in each a vertex, and returns the absolute
     * value of the data on the vertex.
     * \code
-    * float absolute_vertex_data(graphlab::icontext_type& context,
+    * float absolute_vertex_data(engine_type::icontext_type& context,
     *                            graph_type::vertex_type vertex) {
     *   return std::fabs(vertex.data());
     * }
@@ -800,7 +800,7 @@ namespace graphlab {
     * For instance, the following code will signal all vertices
     * with value >= 1
     * \code
-    * graphlab::empty signal_vertices(graphlab::icontext_type& context,
+    * graphlab::empty signal_vertices(engine_type::icontext_type& context,
     *                                 graph_type::vertex_type vertex) {
     *   if (vertex.data() >= 1) context.signal(vertex);
     *   return graphlab::empty()
@@ -871,7 +871,7 @@ namespace graphlab {
     * a function which reads in each a edge, and returns the absolute
     * value of the data on the edge.
     * \code
-    * float absolute_edge_data(graphlab::icontext_type& context,
+    * float absolute_edge_data(engine_type::icontext_type& context,
     *                          graph_type::edge_type edge) {
     *   return std::fabs(edge.data());
     * }
@@ -898,7 +898,7 @@ namespace graphlab {
     * For instance, the following code will signal the source
     * vertex of each edge.
     * \code
-    * graphlab::empty signal_source(graphlab::icontext_type& context,
+    * graphlab::empty signal_source(engine_type::icontext_type& context,
     *                               graph_type::edge_type edge) {
     *   context.signal(edge.source());
     *   return graphlab::empty()
@@ -967,7 +967,7 @@ namespace graphlab {
      * To set each vertex value to be the number of out-going edges,
      * we may write the following function:     
      * \code
-     * void set_vertex_value(graphlab::icontext_type& context,
+     * void set_vertex_value(engine_type::icontext_type& context,
      *                          graph_type::vertex_type vertex) {
      *   vertex.data() = vertex.num_out_edges();
      * }
@@ -988,7 +988,7 @@ namespace graphlab {
      * it has more than 5 outgoing edges.
      *
      * \code
-     * void set_vertex_value(graphlab::icontext_type& context,
+     * void set_vertex_value(engine_type::icontext_type& context,
      *                          graph_type::vertex_type vertex) {
      *   vertex.data() = vertex.num_out_edges();
      *   if (vertex.num_out_edges() > 5) context.signal(vertex);
@@ -1045,7 +1045,7 @@ namespace graphlab {
      * To set each edge value to be the number of out-going edges
      * of the target vertex, we may write the following:
      * \code
-     * void set_edge_value(graphlab::icontext_type& context,
+     * void set_edge_value(engine_type::icontext_type& context,
      *                          graph_type::edge_type edge) {
      *   edge.data() = edge.target().num_out_edges();
      * }
@@ -1065,7 +1065,7 @@ namespace graphlab {
      * the value of the edge, but to also signal the target vertex. 
      *
      * \code
-     * void set_edge_value(graphlab::icontext_type& context,
+     * void set_edge_value(engine_type::icontext_type& context,
      *                          graph_type::edge_type edge) {
      *   edge.data() = edge.target().num_out_edges();
      *   context.signal(edge.target());
