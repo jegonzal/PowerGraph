@@ -318,7 +318,8 @@ void distributed_event_logger::set_dc(distributed_control& dc) {
 }
     
 size_t distributed_event_logger::create_log_entry(std::string name, 
-                          log_type::log_type_enum logtype) {
+                                            std::string units,
+                                            log_type::log_type_enum logtype) {
   // look for an entry with the same name
   bool has_existing = false;
   size_t existingid = 0;
@@ -338,6 +339,7 @@ size_t distributed_event_logger::create_log_entry(std::string name,
   log_group* group = new log_group;
   group->logtype = logtype;
   group->name = name;
+  group->units = units;
   group->callback = NULL;
   group->is_callback_entry = false;
   group->sum_of_instantaneous_entries = 0.0;
@@ -355,6 +357,7 @@ size_t distributed_event_logger::create_log_entry(std::string name,
 }
 
 size_t distributed_event_logger::create_callback_entry(std::string name, 
+              std::string units,
               boost::function<double(void)> callback,
               log_type::log_type_enum logtype) {
   bool has_existing = false;
@@ -386,6 +389,7 @@ size_t distributed_event_logger::create_callback_entry(std::string name,
   log_group* group = new log_group;
   group->logtype = logtype;
   group->name = name;
+  group->units = units;
   group->callback = callback;
   group->is_callback_entry = true;
   group->sum_of_instantaneous_entries = 0.0;
@@ -484,6 +488,7 @@ static metric_names_json(std::map<std::string, std::string>& vars) {
     strm << "    {\n"
          << "      \"id\":" << log << ",\n"
          << "      \"name\": \"" << logs[log]->name << "\",\n"
+         << "      \"units\": \"" << logs[log]->units << "\",\n"
          << "      \"cumulative\": " << (int)(logs[log]->logtype) << ",\n"
          << "      \"rate_val\": " << rate_val << ",\n"
          << "      \"value\": " << ( logs[log]->aggregate.size() > 0 ?
@@ -548,6 +553,8 @@ static metric_aggregate_json(std::map<std::string, std::string>& vars) {
     if (logs[log]->name == name || extract_all) {
       strm << "    {\n"
            << "      \"id\":" << log << ",\n"
+           << "      \"name\": \"" << logs[log]->name << "\",\n"
+           << "      \"units\": \"" << logs[log]->units << "\",\n"
            << "      \"name\": \"" << logs[log]->name << "\",\n"
            << "      \"cumulative\": " << (int)(logs[log]->logtype) << ",\n"
            << "      \"record\": [";
@@ -700,6 +707,7 @@ static metric_by_machine_json(std::map<std::string, std::string>& vars) {
       strm << "    {\n"
            << "      \"id\":" << log << ",\n"
            << "      \"name\": \"" << logs[log]->name << "\",\n"
+           << "      \"units\": \"" << logs[log]->units << "\",\n"
            << "      \"cumulative\": " << (int)(logs[log]->logtype) << ",\n"
            << "      \"record\": ";
       

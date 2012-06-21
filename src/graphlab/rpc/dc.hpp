@@ -761,6 +761,17 @@ class distributed_control{
     return ctr;
   }
 
+   /// \brief  Returns the total number of RPC calls made in millions
+  inline double mega_calls_sent() const {
+    size_t ctr = 0;
+    for (size_t i = 0;i < numprocs(); ++i) {
+      ctr += global_calls_sent[i].value;
+    }
+    return double(ctr)/(1024 * 1024);
+  }
+
+
+
   /// \brief Returns the total number of RPC calls received
   inline size_t calls_received() const {
     size_t ctr = 0;
@@ -785,6 +796,15 @@ class distributed_control{
   inline size_t network_bytes_sent() const {
     return comm->network_bytes_sent();
   }  
+
+  /** \brief Returns the total number of megabytes sent including all headers
+   * and other control overhead. Also see network_bytes_sent()
+   */
+  inline double network_megabytes_sent() const {
+    return double(comm->network_bytes_sent()) / (1024 * 1024);
+  }  
+
+
 
   /** \brief Returns the total number of bytes received excluding all headers
    * and other control overhead. Also see bytes_sent().

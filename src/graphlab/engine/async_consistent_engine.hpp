@@ -623,11 +623,11 @@ namespace graphlab {
                       "distributed_engine: Time in Chandy Misra");
 
       INITIALIZE_EVENT_LOG(dc);
-      ADD_CUMULATIVE_EVENT(EVENT_APPLIES, "Applies");
-      ADD_CUMULATIVE_EVENT(EVENT_GATHERS , "Gathers");
-      ADD_CUMULATIVE_EVENT(EVENT_SCATTERS , "Scatters");
-      ADD_INSTANTANEOUS_EVENT(EVENT_ACTIVE_CPUS, "Active Threads");
-      ADD_INSTANTANEOUS_EVENT(EVENT_ACTIVE_TASKS, "Active Tasks");
+      ADD_CUMULATIVE_EVENT(EVENT_APPLIES, "Applies", "Calls");
+      ADD_CUMULATIVE_EVENT(EVENT_GATHERS , "Gathers", "Calls");
+      ADD_CUMULATIVE_EVENT(EVENT_SCATTERS , "Scatters", "Calls");
+      ADD_INSTANTANEOUS_EVENT(EVENT_ACTIVE_CPUS, "Active Threads", "Threads");
+      ADD_INSTANTANEOUS_EVENT(EVENT_ACTIVE_TASKS, "Active Tasks", "Tasks");
 
       initialize();
       rmi.barrier();
