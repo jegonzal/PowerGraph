@@ -5,19 +5,19 @@ google.load("visualization", "1",
 
 
 var domain_str = "http://localhost:8090";
-var update_interval = 2000;
+var update_interval = 5000;
 
 function update_domain(value) {
     console.log("Setting domain to " + value);
     domain_str = value;
-    initiate_job_info(); 
+//    initiate_job_info(); 
     initiate_aggregate_info();
     initiate_node_info();
 }
 
 // Start the rendering of the UI
 google.setOnLoadCallback(function() { 
-    initiate_job_info(); 
+//    initiate_job_info(); 
     initiate_aggregate_info();
     initiate_node_info();
 });
@@ -31,7 +31,7 @@ function initiate_job_info() {
 }
 
 function initiate_aggregate_info() {
-    jQuery.getJSON(domain_str + "/metrics_aggregate.json?rate=1&tlast=60", process_aggregate_info)
+    jQuery.getJSON(domain_str + "/metrics_aggregate.json?rate=1&rounding=1&tlast=60", process_aggregate_info)
         .error(function() { 
             console.log("Unable to access " + domain_str + " will try again.");})
         .complete(function() {
@@ -42,8 +42,8 @@ function initiate_aggregate_info() {
 
 
 function initiate_node_info() {
-    jQuery.getJSON(domain_str + "/metrics_by_machine.json?rate=1&tlast=60", 
-                                process_node_info)
+    jQuery.getJSON(domain_str + "/metrics_by_machine.json?rate=1&align=1&tlast=60", 
+                   process_node_info)
         .error(function() { 
             console.log("Unable to access " + domain_str + " will try again.");})
         .complete(function() {
@@ -88,7 +88,7 @@ function process_job_info(data) {
                 div: div,
                 gauge: gauge,
                 options: {
-                    animation: {duration: 0, easing: "linear"},
+                    animation: {duration: 100, easing: "linear"},
                     width: 400, height: 120,
                     min: 0, max: value + 1.0E-5},
                 data:  google.visualization.arrayToDataTable([
@@ -155,8 +155,6 @@ function process_aggregate_info(data) {
 
 
 
-
-
 function tensor_to_table(tensor) {
     var table = new google.visualization.DataTable();
     table.addColumn("number", "Time");
@@ -164,19 +162,21 @@ function tensor_to_table(tensor) {
     var numRows = 0;
     for(var i = 0; i < numLines; ++i) {
         table.addColumn("number", "Processor " + i);
-        numRows += tensor[i].length;
     }
-    table.addRows(numRows)
+    numRows = tensor[0].length;
+    table.addRows(numRows);
     var counter = 0;
     for(var i = 0; i < numLines; ++i) {
         for(var j = 0; j < tensor[i].length; ++j) {
-            table.setValue(counter, 0, tensor[i][j][0]);
-            table.setValue(counter, i+1, tensor[i][j][1]);
-            ++counter;
+            if (i == 0) table.setValue(j, 0, tensor[i][j][0]);
+            if (tensor[i][j][1] >= 0) {
+              table.setValue(j, i+1, tensor[i][j][1]);
+            }
         }
     }
     return table;
 }
+
 
 
 
@@ -214,7 +214,6 @@ function process_node_info(data) {
                 div: div,
                 options: { title: name,
                            enableInteractivity: 0,
-                           animation: {duration: 0, easing: "linear"},
                            hAxis: {title: 'Time (seconds)',  
                                    titleTextStyle: {color: 'red'}}},
                 chart: new google.visualization.LineChart(div),
