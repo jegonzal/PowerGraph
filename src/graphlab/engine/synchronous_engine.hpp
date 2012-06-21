@@ -781,7 +781,7 @@ namespace graphlab {
      * @param [in] lvid the vertex to sync.  This muster must be the
      * master of that vertex.
      */
-    void sync_vertex_program(lvid_type lvid);
+    void sync_vertex_program(lvid_type lvid, size_t thread_id);
 
     /**
      * \brief Receive all incoming vertex programs and update the
@@ -800,7 +800,7 @@ namespace graphlab {
      * @param [in] lvid the vertex to sync.  This machine must be the master
      * of that vertex.
      */
-    void sync_vertex_data(lvid_type lvid);
+    void sync_vertex_data(lvid_type lvid, size_t thread_id);
     
     /**
      * \brief Receive all incoming vertex data and update the local
@@ -818,7 +818,8 @@ namespace graphlab {
      * @param [in] lvid the vertex to send the gather value to
      * @param [in] accum the locally computed gather value. 
      */
-    void sync_gather(lvid_type lvid, const gather_type& accum);
+    void sync_gather(lvid_type lvid, const gather_type& accum, 
+                     size_t thread_id);
 
 
     /**
@@ -836,7 +837,7 @@ namespace graphlab {
      *
      * @param [in] lvid the vertex to send 
      */
-    void sync_message(lvid_type lvid);
+    void sync_message(lvid_type lvid, const size_t thread_id);
 
     /**
      * \brief Receive the messages from the buffered exchange.
@@ -884,8 +885,10 @@ namespace graphlab {
     thread_barrier(opts.get_ncpus()),
     max_iterations(-1), iteration_counter(0),
     timeout(0),
-    vprog_exchange(dc), vdata_exchange(dc), 
-    gather_exchange(dc), message_exchange(dc),
+    vprog_exchange(dc, opts.get_ncpus()), 
+    vdata_exchange(dc, opts.get_ncpus()), 
+    gather_exchange(dc, opts.get_ncpus()), 
+    message_exchange(dc, opts.get_ncpus()),
     aggregator(dc, graph, new context_type(*this, graph)) {
     // Process any additional options
     std::vector<std::string> keys = opts.get_engine_args().get_option_keys();
@@ -1213,7 +1216,7 @@ namespace graphlab {
 
   // template<typename VertexProgram>
   // void synchronous_engine<VertexProgram>::
-  // initialize_vertex_programs(size_t thread_id) {
+  // initialize_vertex_programs(const size_t thread_id) {
   //   // For now we are using the engine as the context interface
   //   context_type context(*this, graph);
   //   for(lvid_type lvid = thread_id; lvid < graph.num_local_vertices(); 
@@ -1238,14 +1241,14 @@ namespace graphlab {
 
   template<typename VertexProgram>
   void synchronous_engine<VertexProgram>::
-  exchange_messages(size_t thread_id) {
+  exchange_messages(const size_t thread_id) {
     context_type context(*this, graph);
     for(lvid_type lvid = thread_id; lvid < graph.num_local_vertices(); 
         lvid += threads.size()) {
       // if the vertex is not local and has a message send the
       // message and clear the bit
       if(!graph.l_is_master(lvid) && has_message.get(lvid)) {
-        sync_message(lvid); 
+        sync_message(lvid, thread_id); 
         has_message.clear_bit(lvid);
         // clear the message to save memory
         messages[lvid] = message_type();
@@ -1260,7 +1263,7 @@ namespace graphlab {
 
   template<typename VertexProgram>
   void synchronous_engine<VertexProgram>::
-  receive_messages(size_t thread_id) {
+  receive_messages(const size_t thread_id) {
     context_type context(*this, graph);
     for(lvid_type lvid = thread_id; lvid < graph.num_local_vertices(); 
         lvid += threads.size()) {
@@ -1280,7 +1283,7 @@ namespace graphlab {
         if(const_vprog.gather_edges(context, const_vertex) != 
            graphlab::NO_EDGES) {
           active_minorstep.set_bit(lvid);
-          sync_vertex_program(lvid);
+          sync_vertex_program(lvid, thread_id);
         }  
       }
       // recv_vertex_programs();
@@ -1296,7 +1299,7 @@ namespace graphlab {
 
   template<typename VertexProgram>
   void synchronous_engine<VertexProgram>::
-  execute_gathers(size_t thread_id) {
+  execute_gathers(const size_t thread_id) {
     context_type context(*this, graph);
     const bool caching_enabled = !gather_cache.empty();
     for(lvid_type lvid = thread_id; lvid < graph.num_local_vertices(); 
@@ -1353,7 +1356,7 @@ namespace graphlab {
         }
         // If the accum contains a value for the local gather we put
         // that estimate in the gather exchange.
-        if(accum_is_set) sync_gather(lvid, accum);  
+        if(accum_is_set) sync_gather(lvid, accum, thread_id);  
         if(!graph.l_is_master(lvid)) {
           // if this is not the master clear the vertex program
           vertex_programs[lvid] = vertex_program_type();
@@ -1371,7 +1374,7 @@ namespace graphlab {
 
   template<typename VertexProgram>
   void synchronous_engine<VertexProgram>::
-  execute_applys(size_t thread_id) {
+  execute_applys(const size_t thread_id) {
     context_type context(*this, graph);
     for(lvid_type lvid = thread_id; lvid < graph.num_local_vertices(); 
         lvid += threads.size()) {
@@ -1390,14 +1393,14 @@ namespace graphlab {
         // Clear the accumulator to save some memory
         gather_accum[lvid] = gather_type();
         // synchronize the changed vertex data with all mirrors
-        sync_vertex_data(lvid);  
+        sync_vertex_data(lvid, thread_id);  
         // determine if a scatter operation is needed
         const vertex_program_type& const_vprog = vertex_programs[lvid];
         const vertex_type const_vertex = vertex;
         if(const_vprog.scatter_edges(context, const_vertex) != 
            graphlab::NO_EDGES) {
           active_minorstep.set_bit(lvid);
-          sync_vertex_program(lvid);
+          sync_vertex_program(lvid, thread_id);
         } else { // we are done so clear the vertex program
           vertex_programs[lvid] = vertex_program_type();
         }
@@ -1413,7 +1416,7 @@ namespace graphlab {
 
   template<typename VertexProgram>
   void synchronous_engine<VertexProgram>::
-  execute_scatters(size_t thread_id) {
+  execute_scatters(const size_t thread_id) {
     context_type context(*this, graph);
     for(lvid_type lvid = thread_id; lvid < graph.num_local_vertices(); 
         lvid += threads.size()) {
@@ -1449,15 +1452,19 @@ namespace graphlab {
   // Data Synchronization ===================================================
   template<typename VertexProgram>
   void synchronous_engine<VertexProgram>::
-  sync_vertex_program(lvid_type lvid) {
+  sync_vertex_program(lvid_type lvid, const size_t thread_id) {
     ASSERT_TRUE(graph.l_is_master(lvid));
     const vertex_id_type vid = graph.global_vid(lvid);
     local_vertex_type vertex = graph.l_vertex(lvid);
     foreach(const procid_t& mirror, vertex.mirrors()) {
       vprog_exchange.send(mirror, 
-                          std::make_pair(vid, vertex_programs[lvid]));
+                          std::make_pair(vid, vertex_programs[lvid]),
+                          thread_id);
     }
   } // end of sync_vertex_program
+
+
+
   template<typename VertexProgram>
   void synchronous_engine<VertexProgram>::
   recv_vertex_programs() {
@@ -1476,12 +1483,12 @@ namespace graphlab {
 
   template<typename VertexProgram>
   void synchronous_engine<VertexProgram>::
-  sync_vertex_data(lvid_type lvid) {
+  sync_vertex_data(lvid_type lvid, const size_t thread_id) {
     ASSERT_TRUE(graph.l_is_master(lvid));
     const vertex_id_type vid = graph.global_vid(lvid);
     local_vertex_type vertex = graph.l_vertex(lvid);
     foreach(const procid_t& mirror, vertex.mirrors()) {
-      vdata_exchange.send(mirror, std::make_pair(vid, vertex.data()));
+      vdata_exchange.send(mirror, std::make_pair(vid, vertex.data()), thread_id);
     }
   } // end of sync_vertex_data
 
@@ -1502,7 +1509,7 @@ namespace graphlab {
 
   template<typename VertexProgram>
   void synchronous_engine<VertexProgram>::
-  sync_gather(lvid_type lvid, const gather_type& accum) {
+  sync_gather(lvid_type lvid, const gather_type& accum, const size_t thread_id) {
     if(graph.l_is_master(lvid)) {
       vlocks[lvid].lock();
       if(has_gather_accum.get(lvid)) {
@@ -1515,7 +1522,7 @@ namespace graphlab {
     } else {
       const procid_t master = graph.l_master(lvid);
       const vertex_id_type vid = graph.global_vid(lvid);
-      gather_exchange.send(master, std::make_pair(vid, accum));
+      gather_exchange.send(master, std::make_pair(vid, accum), thread_id);
     }
   } // end of sync_gather
 
@@ -1544,11 +1551,11 @@ namespace graphlab {
 
   template<typename VertexProgram>
   void synchronous_engine<VertexProgram>::
-  sync_message(lvid_type lvid) {
+  sync_message(lvid_type lvid, const size_t thread_id) {
     ASSERT_FALSE(graph.l_is_master(lvid));
     const procid_t master = graph.l_master(lvid);
     const vertex_id_type vid = graph.global_vid(lvid);
-    message_exchange.send(master, std::make_pair(vid, messages[lvid]));
+    message_exchange.send(master, std::make_pair(vid, messages[lvid]), thread_id);
   } // end of send_message
 
 

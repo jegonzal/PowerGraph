@@ -354,7 +354,7 @@ namespace graphlab {
           exchange_pair_type;
         typedef buffered_exchange<exchange_pair_type> 
           negotiator_exchange_type;
-        negotiator_exchange_type negotiator_exchange(rpc.dc(), 1000);
+        negotiator_exchange_type negotiator_exchange(rpc.dc(), 1, 1000);
         typename negotiator_exchange_type::buffer_type recv_buffer;
         procid_t sending_proc(-1);
         size_t iter = 0; size_t last_iter = vrec_map.size() - 1;

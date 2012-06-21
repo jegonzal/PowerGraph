@@ -58,16 +58,23 @@ namespace graphlab {
     mutex recv_lock;
 
     std::vector< buffer_type > send_buffers;
-    std::vector< mutex>        send_locks;
-    size_t max_buffer_size;
+    std::vector< mutex >  send_locks;
+    const size_t num_threads;
+    const size_t max_buffer_size;
+
 
     // typedef boost::function<void (const T& tref)> handler_type;
     // handler_type recv_handler;
 
   public:
-    buffered_exchange(distributed_control& dc, size_t buffer_size = 1000) : 
-    rpc(dc, this), send_buffers(dc.numprocs()), send_locks(dc.numprocs()),
-    max_buffer_size(buffer_size) { rpc.barrier(); }
+    buffered_exchange(distributed_control& dc, 
+                      const size_t num_threads = 1, 
+                      const size_t max_buffer_size = 1000) : 
+      rpc(dc, this), 
+      send_buffers(num_threads *  dc.numprocs()), 
+      send_locks(num_threads *  dc.numprocs()),
+      num_threads(num_threads),
+      max_buffer_size(max_buffer_size) { rpc.barrier(); }
 
     // buffered_exchange(distributed_control& dc, handler_type recv_handler, 
     //                   size_t buffer_size = 1000) : 
@@ -75,30 +82,35 @@ namespace graphlab {
     // max_buffer_size(buffer_size), recv_handler(recv_handler) { rpc.barrier(); }
 
     
-    void send(procid_t proc, const T& value) {
-      ASSERT_LT(proc, send_locks.size());
-      send_locks[proc].lock();
-      send_buffers[proc].push_back(value);
-      if(send_buffers[proc].size() > max_buffer_size) {
+    void send(const procid_t proc, const T& value, const size_t thread_id = 0) {
+      ASSERT_LT(proc, rpc.numprocs());
+      ASSERT_LT(thread_id, num_threads);
+      const size_t index = thread_id * num_threads + proc;
+      ASSERT_LT(index, send_locks.size());
+      send_locks[index].lock();
+      send_buffers[index].push_back(value);
+      if(send_buffers[index].size() > max_buffer_size) {
         if(proc == rpc.procid()) {
           rpc_recv(proc, send_buffers[proc]);
         } else {
           rpc.remote_call(proc, &buffered_exchange::rpc_recv,
-                          rpc.procid(), send_buffers[proc]);
+                          rpc.procid(), send_buffers[index]);
         }
-        send_buffers[proc].clear();
+        send_buffers[index].clear();
       }
-      send_locks[proc].unlock();
+      send_locks[index].unlock();
     } // end of send
 
 
     void flush() {
       for(size_t i = 0; i < send_buffers.size(); ++i) {
+        const procid_t proc = i % rpc.numprocs();
+        ASSERT_LT(proc, rpc.numprocs());
         send_locks[i].lock();
-        if(i == rpc.procid()) {
-          rpc_recv(i, send_buffers[i]);
+        if(proc == rpc.procid()) {
+          rpc_recv(proc, send_buffers[i]);
         } else {
-          rpc.remote_call(i, &buffered_exchange::rpc_recv,
+          rpc.remote_call(proc, &buffered_exchange::rpc_recv,
                           rpc.procid(), send_buffers[i]);
         }
         send_buffers[i].clear();
@@ -115,10 +127,9 @@ namespace graphlab {
       recv_lock.lock();
       if(!recv_buffers.empty()) {
         success = true;
-        {
-          buffer_record& rec =  recv_buffers.front();
-          ret_proc = rec.proc; ret_buffer.swap(rec.buffer);
-        }
+        buffer_record& rec =  recv_buffers.front();
+        ret_proc = rec.proc; ret_buffer.swap(rec.buffer);
+        ASSERT_LT(ret_proc, rpc.numprocs());
         recv_buffers.pop_front();
         recv_lock.unlock();
       } else recv_lock.unlock();
@@ -143,8 +154,9 @@ namespace graphlab {
 
     void clear() {
       std::vector<buffer_type>().swap(send_buffers);
-      //      send_buffers.resize(rpc.numprocs());
+      send_buffers.resize(rpc.numprocs() * num_threads);
       std::deque<buffer_record>().swap(recv_buffers);
+      recv_buffers.resize(rpc.numprocs() * num_threads);
     }
 
   private:
