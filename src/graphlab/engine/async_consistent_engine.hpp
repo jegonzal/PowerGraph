@@ -1147,7 +1147,7 @@ namespace graphlab {
           (*gather_target) +=
             vstate[lvid].vertex_program.gather(context, vertex, e);
         }
-        INCREMENT_EVENT(EVENT_GATHERS, lvertex.in_edges().size());
+        INCREMENT_EVENT(EVENT_GATHERS, lvertex.num_in_edges());
       }
       if(gatherdir == graphlab::OUT_EDGES ||
         gatherdir == graphlab::ALL_EDGES) {
@@ -1156,7 +1156,7 @@ namespace graphlab {
           (*gather_target) +=
             vstate[lvid].vertex_program.gather(context, vertex, e);
         }
-        INCREMENT_EVENT(EVENT_GATHERS, lvertex.out_edges().size());
+        INCREMENT_EVENT(EVENT_GATHERS, lvertex.num_out_edges());
       }
 
       if (use_cache && cache[lvid].empty()) {
@@ -1287,7 +1287,7 @@ namespace graphlab {
           edge_type e(edge);
           vstate[lvid].vertex_program.scatter(context, vertex, e);
         }
-        INCREMENT_EVENT(EVENT_SCATTERS, lvertex.in_edges().size());
+        INCREMENT_EVENT(EVENT_SCATTERS, lvertex.num_in_edges());
       }
       if(scatterdir == graphlab::OUT_EDGES ||
          scatterdir == graphlab::ALL_EDGES) {
@@ -1295,7 +1295,7 @@ namespace graphlab {
           edge_type e(edge);
           vstate[lvid].vertex_program.scatter(context, vertex, e);
         }
-        INCREMENT_EVENT(EVENT_SCATTERS, lvertex.out_edges().size());
+        INCREMENT_EVENT(EVENT_SCATTERS, lvertex.num_out_edges());
       }
       END_TRACEPOINT(disteng_evalfac);
     } // end of do scatter

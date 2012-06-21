@@ -1327,7 +1327,7 @@ namespace graphlab {
                 accum = vprog.gather(context, vertex, edge); 
                 accum_is_set = true;
               }
-              INCREMENT_EVENT(EVENT_GATHERS, local_vertex.in_edges().size());
+              INCREMENT_EVENT(EVENT_GATHERS, local_vertex.num_in_edges());
             }
           } // end of if in_edges/all_edges
             // Loop over out edges
@@ -1340,7 +1340,7 @@ namespace graphlab {
                 accum = vprog.gather(context, vertex, edge);
                 accum_is_set = true;
               }
-              INCREMENT_EVENT(EVENT_GATHERS, local_vertex.out_edges().size());
+              INCREMENT_EVENT(EVENT_GATHERS, local_vertex.num_out_edges());
             }
           } // end of if out_edges/all_edges
           // If caching is enabled then save the accumulator to the
@@ -1429,7 +1429,7 @@ namespace graphlab {
             edge_type edge(local_edge);
             vprog.scatter(context, vertex, edge);
           }
-            INCREMENT_EVENT(EVENT_SCATTERS, local_vertex.in_edges().size());
+            INCREMENT_EVENT(EVENT_SCATTERS, local_vertex.num_in_edges());
         } // end of if in_edges/all_edges
           // Loop over out edges
         if(scatter_dir == OUT_EDGES || scatter_dir == ALL_EDGES) {
@@ -1437,7 +1437,7 @@ namespace graphlab {
             edge_type edge(local_edge);
             vprog.scatter(context, vertex, edge);
           }
-          INCREMENT_EVENT(EVENT_SCATTERS, local_vertex.out_edges().size());
+          INCREMENT_EVENT(EVENT_SCATTERS, local_vertex.num_out_edges());
         } // end of if out_edges/all_edges
         // Clear the vertex program
         vertex_programs[lvid] = vertex_program_type();
