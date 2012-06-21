@@ -62,7 +62,7 @@ namespace graphlab {
    * For vertex vtx:
    *   // During execution:
    *   if( there is a message for vtx ) {
-   *     vprog.recv_message(ctx, vtx, msg);
+   *     vprog.init(ctx, vtx, msg);
    *     // Gather Phase: 
    *     vprog::gather_type sum;
    *     ParallelFor(adjacent edges in direction vprog.gather_edges(ctx, vtx) )
@@ -80,9 +80,7 @@ namespace graphlab {
    * All user define vertex programs must extend the ivertex_program
    * interface and implement the ivertex_program::apply function.
    * Most vertex programs will also implement the
-   * ivertex_program::gather and ivertex_program::scatter functions as
-   * well as the ivertex_program::init and
-   * ivertex_program::recv_message functions.
+   * ivertex_program::gather and ivertex_program::scatter functions.
    *
    * The state of a vertex program *does not* persist between
    * invocations of receive message.  Moreover on each call to
@@ -283,9 +281,9 @@ namespace graphlab {
      * vertex program does not implement this function then the
      * default implementation (NOP) is used.
      */
-    virtual void recv_message(icontext_type& context,
-                              const vertex_type& vertex, 
-                              const message_type& msg) { /** NOP */ }
+    virtual void init(icontext_type& context,
+                      const vertex_type& vertex, 
+                      const message_type& msg) { /** NOP */ }
     
     /**
      * Returns the set of edges on which to run the gather function.

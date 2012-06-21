@@ -1271,8 +1271,7 @@ namespace graphlab {
         ++num_active_vertices;       
         // Pass the message to the vertex program
         vertex_type vertex = vertex_type(graph.l_vertex(lvid));
-        vertex_programs[lvid].recv_message(context, vertex,
-                                           messages[lvid]);
+        vertex_programs[lvid].init(context, vertex, messages[lvid]);
         // clear the message to save memory
         messages[lvid] = message_type();
         // Determine if the gather should be run

@@ -1099,9 +1099,9 @@ namespace graphlab {
      */
     void do_init_gather(lvid_type lvid) {
       context_type context(*this, graph);
-      vstate[lvid].vertex_program.recv_message(context,
-                                              vertex_type(graph.l_vertex(lvid)),
-                                              vstate[lvid].current_message);
+      vstate[lvid].vertex_program.init(context,
+                                       vertex_type(graph.l_vertex(lvid)),
+                                       vstate[lvid].current_message);
       vstate[lvid].current_message = message_type();
       vstate[lvid].combined_gather.clear();
     }
