@@ -127,7 +127,7 @@ function process_aggregate_info(data) {
     jQuery.each(sorted_data, function(i, metric) {
         var id = metric.id;
         var name = metric.name;
-      
+        var units = metric.units;
         if(aggregate_charts[id] == undefined) {
             // add a div the container
             var div_name = id + "_aggregate_chart";
@@ -141,8 +141,9 @@ function process_aggregate_info(data) {
             aggregate_charts[id] = {
                 div: div,
                 options: { title: name,
-                           hAxis: {title: 'Time (seconds)',  
-                                   titleTextStyle: {color: 'red'}}},
+                           vAxis: {title: (units + " per Second"),
+                                   titleTextStyle: {color: 'red'}},
+                           hAxis: {title: 'Time (seconds)'}},
                 chart: new google.visualization.AreaChart(div),
             }
         }
@@ -204,7 +205,7 @@ function process_node_info(data) {
     jQuery.each(sorted_data, function(i, metric) {
         var id = metric.id;
         var name = metric.name;
-      
+        var units = metric.units;
         if(node_charts[id] == undefined) {
             // add a div the container
             var div_name = id + "_node_chart";
@@ -220,8 +221,9 @@ function process_node_info(data) {
                 options: { title: name,
                            //isStacked: true,
                            enableInteractivity: 0,
-                           hAxis: {title: 'Time (seconds)',  
-                                   titleTextStyle: {color: 'red'}}},
+                           vAxis: {title: (units + " per Second"),
+                                   titleTextStyle: {color: 'red'}},
+                           hAxis: {title: 'Time (seconds)'}},
                 chart: new google.visualization.LineChart(div),
             }
         }
