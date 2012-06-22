@@ -407,6 +407,7 @@ namespace graphlab {
         std::uninitialized_copy(other.data_begin(), other.data_end(), data_begin());
         // copy the stash
         stash = other.stash;
+        numel = other.numel;
       }
       return *this;
     }
@@ -653,6 +654,7 @@ namespace graphlab {
       //std::cout << tmpnumel << ", " << illegalkey << std::endl;
       deserialize_iterator<iarchive, non_const_value_type>
         (iarc, insert_iterator(this));
+      ASSERT_EQ(numel, tmpnumel);
       // for(size_t i = 0; i < tmpnumel; ++i) {
       //   non_const_value_type pair;
       //   iarc >> pair; 
