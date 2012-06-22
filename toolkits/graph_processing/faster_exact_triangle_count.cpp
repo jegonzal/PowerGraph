@@ -367,7 +367,7 @@ graphlab::empty signal_large_vertices(engine_type::icontext_type& context,
 struct save_triangle_count{
   std::string save_vertex(graph_type::vertex_type v) { 
     double nt = v.data().num_triangles;
-    double n_followed = v..num_out_edges();
+    double n_followed = v.num_out_edges();
     double n_following = v.num_in_edges();
 
     return graphlab::tostr(v.id()) + "\t" +
