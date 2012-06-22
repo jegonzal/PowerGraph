@@ -57,9 +57,7 @@ struct log_entry: public IS_POD_TYPE {
   // will contain the total number of events since the start
   double value;
 
-  // The time the log was taken
-  double time;
-  log_entry(double value, double time): value(value),time(time) { }
+  explicit log_entry(double value = 0): value(value) { }
 };
 
 
@@ -90,6 +88,9 @@ struct log_group{
 
   size_t sum_of_instantaneous_entries;
   size_t count_of_instantaneous_entries;
+
+  bool machine_log_modified;  
+  size_t earliest_modified_log;
 
   /// machine[i] holds a vector of entries from machine i
   std::vector<std::vector<log_entry> > machine;
