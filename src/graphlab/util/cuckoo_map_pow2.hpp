@@ -442,6 +442,12 @@ namespace graphlab {
 
       while(iter.vec_iter != data_end() &&
             keyeq(iter.vec_iter->first, illegalkey)) ++iter.vec_iter;
+
+      if (iter.vec_iter == data_end()) {
+        iter.in_stash = true;
+        iter.stash_iter = stash.begin();
+      }
+
       return iter;
     }
 

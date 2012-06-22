@@ -529,6 +529,8 @@ namespace graphlab {
     void reserve(size_t newlen) {
       newlen = next_powerof2(newlen);
       if (newlen <= datalen) return;
+
+      std::cout << "newlen of: " << newlen << std::endl;
       mask = newlen - 1;
       //data.reserve(newlen);
       //data.resize(newlen, std::make_pair<Key, Value>(illegalkey, Value()));
@@ -628,17 +630,15 @@ namespace graphlab {
     }
 
     void save(oarchive &oarc) const {
-      oarc << numel << illegalkey;
       serialize_iterator(oarc, begin(), end(), numel);
     }
 
 
     void load(iarchive &iarc) {
-      destroy_all();
       index_type tmpnumel = 0;
-      iarc >> tmpnumel >> illegalkey;
+      for (size_t i = 0;i < datalen; ++i) data[i] = illegalkey;
+      numel = 0;
       //std::cout << tmpnumel << ", " << illegalkey << std::endl;
-      reserve(tmpnumel * 1.5);
       deserialize_iterator<iarchive, non_const_value_type>
         (iarc, insert_iterator(this));
       // for(size_t i = 0; i < tmpnumel; ++i) {
