@@ -287,7 +287,7 @@ public:
     if (CUR_PHASE == 0  || cur_is_above_count || nbr_is_above_count) {
       const vertex_data_type& srclist = edge.source().data();
       const vertex_data_type& targetlist = edge.target().data();
-      if (srclist.vid_set.size() >= targetlist.vid_set.size()) {
+     if (srclist.vid_set.size() >= targetlist.vid_set.size()) {
         edge.data() += count_set_intersect(targetlist.vid_set, srclist.vid_set);
       }
       else {

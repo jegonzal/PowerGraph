@@ -408,6 +408,9 @@ namespace graphlab {
         // copy the stash
         stash = other.stash;
         numel = other.numel;
+        hashfun = other.hashfun;
+        keyeq = other.keyeq;
+        mask = other.mask;
       }
       return *this;
     }
@@ -502,6 +505,7 @@ namespace graphlab {
     }
 
     void rehash() {
+      if (numel == 0) return;
       stash_container_type stmp;
       stmp.swap(stash);
       // effectively, stmp elements are deleted
