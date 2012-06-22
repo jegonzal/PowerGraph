@@ -442,6 +442,13 @@ namespace graphlab {
 
       while(iter.vec_iter != data_end() &&
             keyeq(*(iter.vec_iter), illegalkey)) ++iter.vec_iter;
+
+
+      if (iter.vec_iter == data_end()) {
+        iter.in_stash = true;
+        iter.stash_iter = stash.begin();
+      }
+
       return iter;
     }
 
@@ -530,7 +537,6 @@ namespace graphlab {
       newlen = next_powerof2(newlen);
       if (newlen <= datalen) return;
 
-      std::cout << "newlen of: " << newlen << std::endl;
       mask = newlen - 1;
       //data.reserve(newlen);
       //data.resize(newlen, std::make_pair<Key, Value>(illegalkey, Value()));
