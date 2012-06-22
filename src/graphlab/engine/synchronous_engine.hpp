@@ -1218,7 +1218,7 @@ namespace graphlab {
   exchange_messages(const size_t thread_id) {
     context_type context(*this, graph);
     const bool TRY_TO_RECV = true;
-    const size_t TRY_RECV_MOD = (1 << 10);
+    const size_t TRY_RECV_MOD = 1000;
     size_t vcount = 0;
     for(lvid_type lvid = thread_id; lvid < graph.num_local_vertices(); 
         lvid += threads.size()) {
@@ -1230,7 +1230,7 @@ namespace graphlab {
         // clear the message to save memory
         messages[lvid] = message_type();
       }
-      if(++vcount & TRY_RECV_MOD) recv_messages(TRY_TO_RECV); 
+      if(++vcount % TRY_RECV_MOD == 0) recv_messages(TRY_TO_RECV); 
     } // end of loop over vertices to send messages
     // Finish sending and receiving all messages
     thread_barrier.wait();
@@ -1246,7 +1246,7 @@ namespace graphlab {
   receive_messages(const size_t thread_id) {
     context_type context(*this, graph);
     const bool TRY_TO_RECV = true;
-    const size_t TRY_RECV_MOD = (1 << 10);
+    const size_t TRY_RECV_MOD = 1000;
     size_t vcount = 0;
     for(lvid_type lvid = thread_id; lvid < graph.num_local_vertices(); 
         lvid += threads.size()) {
@@ -1269,7 +1269,7 @@ namespace graphlab {
           sync_vertex_program(lvid, thread_id);
         }  
       }
-      if(++vcount & TRY_RECV_MOD) recv_vertex_programs(TRY_TO_RECV);
+      if(++vcount % TRY_RECV_MOD == 0) recv_vertex_programs(TRY_TO_RECV);
     }
     // Flush the buffer and finish receiving any remaining vertex
     // programs.
@@ -1285,7 +1285,7 @@ namespace graphlab {
   execute_gathers(const size_t thread_id) {
     context_type context(*this, graph);
     const bool TRY_TO_RECV = true;
-    const size_t TRY_RECV_MOD = (1 << 10);
+    const size_t TRY_RECV_MOD = 1000;
     size_t vcount = 0;
     const bool caching_enabled = !gather_cache.empty();
     for(lvid_type lvid = thread_id; lvid < graph.num_local_vertices(); 
@@ -1349,7 +1349,7 @@ namespace graphlab {
         }
       } // end of if active
       // try to recv gathers if there are any in the buffer
-      if(++vcount & TRY_RECV_MOD) recv_gathers(TRY_TO_RECV);
+      if(++vcount % TRY_RECV_MOD == 0) recv_gathers(TRY_TO_RECV);
     } // end of loop over vertices to compute gather accumulators
       // Finish sending and receiving all gather operations
     thread_barrier.wait();
@@ -1364,7 +1364,7 @@ namespace graphlab {
   execute_applys(const size_t thread_id) {
     context_type context(*this, graph);
     const bool TRY_TO_RECV = true;
-    const size_t TRY_RECV_MOD = (1 << 10);
+    const size_t TRY_RECV_MOD = 1000;
     size_t vcount = 0;
     for(lvid_type lvid = thread_id; lvid < graph.num_local_vertices(); 
         lvid += threads.size()) {
@@ -1396,7 +1396,7 @@ namespace graphlab {
         }
       } // end of if apply
       // try to receive vertex data
-      if(++vcount & TRY_RECV_MOD) recv_vertex_data(TRY_TO_RECV); 
+      if(++vcount % TRY_RECV_MOD == 0) recv_vertex_data(TRY_TO_RECV); 
     } // end of loop over vertices to run apply
       // Finish sending and receiving all changes due to apply operations
     thread_barrier.wait();

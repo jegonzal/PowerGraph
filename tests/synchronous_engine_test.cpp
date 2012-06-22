@@ -283,7 +283,7 @@ int main(int argc, char** argv) {
   clopts.engine_args.set_option("max_iterations", 10);
   std::cout << "Creating a powerlaw graph" << std::endl;
   graph_type graph(dc, clopts);
-  graph.load_synthetic_powerlaw(100);
+  graph.load_synthetic_powerlaw(1000000);
 
   test_in_neighbors(dc, clopts, graph);
   test_out_neighbors(dc, clopts, graph);
