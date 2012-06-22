@@ -1396,7 +1396,10 @@ namespace graphlab {
         }
       } // end of if apply
       // try to receive vertex data
-      if(++vcount % TRY_RECV_MOD == 0) recv_vertex_data(TRY_TO_RECV); 
+      if(++vcount % TRY_RECV_MOD == 0) {
+        recv_vertex_programs(TRY_TO_RECV);
+        recv_vertex_data(TRY_TO_RECV); 
+      }
     } // end of loop over vertices to run apply
       // Finish sending and receiving all changes due to apply operations
     thread_barrier.wait();
