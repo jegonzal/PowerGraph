@@ -85,7 +85,7 @@ namespace graphlab {
     void send(const procid_t proc, const T& value, const size_t thread_id = 0) {
       ASSERT_LT(proc, rpc.numprocs());
       ASSERT_LT(thread_id, num_threads);
-      const size_t index = thread_id * num_threads + proc;
+      const size_t index = thread_id * rpc.numprocs() + proc;
       ASSERT_LT(index, send_locks.size());
       send_locks[index].lock();
       send_buffers[index].push_back(value);
@@ -121,21 +121,30 @@ namespace graphlab {
     } // end of flush
 
 
-    bool recv(procid_t& ret_proc, buffer_type& ret_buffer) {
-      ret_buffer = buffer_type();
+    bool recv(procid_t& ret_proc, buffer_type& ret_buffer, 
+              const bool try_lock = false) {
+      bool has_lock = false;
+      if(try_lock) {
+        has_lock = recv_lock.try_lock();
+      } else { 
+        recv_lock.lock();
+        has_lock = true;
+      }
       bool success = false;
-      recv_lock.lock();
-      if(!recv_buffers.empty()) {
-        success = true;
-        buffer_record& rec =  recv_buffers.front();
-        ret_proc = rec.proc; ret_buffer.swap(rec.buffer);
-        ASSERT_LT(ret_proc, rpc.numprocs());
-        recv_buffers.pop_front();
+      if(has_lock) {
+        if(!recv_buffers.empty()) {
+          success = true;
+          buffer_record& rec =  recv_buffers.front();
+          ret_proc = rec.proc; ret_buffer.swap(rec.buffer);
+          ASSERT_LT(ret_proc, rpc.numprocs());
+          recv_buffers.pop_front();
+        }
         recv_lock.unlock();
-      } else recv_lock.unlock();
+      }
       return success;
     } // end of recv
 
+    
 
     /**
      * Returns the number of elements to recv

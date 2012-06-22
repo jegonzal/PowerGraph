@@ -791,7 +791,7 @@ namespace graphlab {
      * programs and should be called after a flush of the vertex
      * program exchange.
      */
-    void recv_vertex_programs();
+    void recv_vertex_programs(const bool try_to_recv = false);
 
     /**
      * \brief Send the vertex data for the local vertex id to all of
@@ -810,7 +810,7 @@ namespace graphlab {
      * data and should be called after a flush of the vertex data
      * exchange.
      */
-    void recv_vertex_data();
+    void recv_vertex_data(const bool try_to_recv = false);
 
     /**
      * \brief Send the gather value for the vertex id to its master.
@@ -829,7 +829,7 @@ namespace graphlab {
      * buffered exchange and should be called after the buffered
      * exchange has been flushed
      */
-    void recv_gathers();
+    void recv_gathers(const bool try_to_recv = false);
 
     /**
      * \brief Send the accumulated message for the local vertex to its
@@ -846,7 +846,7 @@ namespace graphlab {
      * buffered exchange and should be called after the buffered
      * exchange has been flushed
      */
-    void recv_messages();
+    void recv_messages(const bool try_to_recv = false);
 
   }; // end of class synchronous engine
 
@@ -1213,36 +1213,13 @@ namespace graphlab {
 
 
 
-
-  // template<typename VertexProgram>
-  // void synchronous_engine<VertexProgram>::
-  // initialize_vertex_programs(const size_t thread_id) {
-  //   // For now we are using the engine as the context interface
-  //   context_type context(*this, graph);
-  //   for(lvid_type lvid = thread_id; lvid < graph.num_local_vertices(); 
-  //       lvid += threads.size()) {
-  //     if(graph.l_is_master(lvid)) {          
-  //       vertex_type vertex = local_vertex_type(graph.l_vertex(lvid));
-  //       vertex_programs[lvid].init(context, vertex);
-  //       // send the vertex program and vertex data to all mirrors
-  //       sync_vertex_program(lvid); sync_vertex_data(lvid);
-  //     }
-  //     // recv_vertex_programs(); recv_vertex_data();
-  //   }
-  //   // Flush the buffer and finish receiving any remaining vertex
-  //   // programs.
-  //   thread_barrier.wait();
-  //   if(thread_id == 0) { vprog_exchange.flush(); vdata_exchange.flush(); }
-  //   thread_barrier.wait();
-  //   recv_vertex_programs();
-  //   recv_vertex_data();
-  // } // end of initialize_vertex_programs
-
-
   template<typename VertexProgram>
   void synchronous_engine<VertexProgram>::
   exchange_messages(const size_t thread_id) {
     context_type context(*this, graph);
+    const bool TRY_TO_RECV = true;
+    const size_t TRY_RECV_MOD = 1000;
+    size_t vcount = 0;
     for(lvid_type lvid = thread_id; lvid < graph.num_local_vertices(); 
         lvid += threads.size()) {
       // if the vertex is not local and has a message send the
@@ -1253,18 +1230,24 @@ namespace graphlab {
         // clear the message to save memory
         messages[lvid] = message_type();
       }
+      if(++vcount % TRY_RECV_MOD == 0) recv_messages(TRY_TO_RECV); 
     } // end of loop over vertices to send messages
-      // Finish sending and receiving all messages
+    // Finish sending and receiving all messages
     thread_barrier.wait();
     if(thread_id == 0) message_exchange.flush(); 
     thread_barrier.wait();
     recv_messages();
   } // end of exchange_messages
 
+
+
   template<typename VertexProgram>
   void synchronous_engine<VertexProgram>::
   receive_messages(const size_t thread_id) {
     context_type context(*this, graph);
+    const bool TRY_TO_RECV = true;
+    const size_t TRY_RECV_MOD = 1000;
+    size_t vcount = 0;
     for(lvid_type lvid = thread_id; lvid < graph.num_local_vertices(); 
         lvid += threads.size()) {
       // if this is the master of lvid and we have a message
@@ -1286,7 +1269,7 @@ namespace graphlab {
           sync_vertex_program(lvid, thread_id);
         }  
       }
-      // recv_vertex_programs();
+      if(++vcount % TRY_RECV_MOD == 0) recv_vertex_programs(TRY_TO_RECV);
     }
     // Flush the buffer and finish receiving any remaining vertex
     // programs.
@@ -1301,6 +1284,9 @@ namespace graphlab {
   void synchronous_engine<VertexProgram>::
   execute_gathers(const size_t thread_id) {
     context_type context(*this, graph);
+    const bool TRY_TO_RECV = true;
+    const size_t TRY_RECV_MOD = 1000;
+    size_t vcount = 0;
     const bool caching_enabled = !gather_cache.empty();
     for(lvid_type lvid = thread_id; lvid < graph.num_local_vertices(); 
         lvid += threads.size()) {
@@ -1362,7 +1348,8 @@ namespace graphlab {
           vertex_programs[lvid] = vertex_program_type();
         }
       } // end of if active
-  
+      // try to recv gathers if there are any in the buffer
+      if(++vcount % TRY_RECV_MOD == 0) recv_gathers(TRY_TO_RECV);
     } // end of loop over vertices to compute gather accumulators
       // Finish sending and receiving all gather operations
     thread_barrier.wait();
@@ -1376,6 +1363,9 @@ namespace graphlab {
   void synchronous_engine<VertexProgram>::
   execute_applys(const size_t thread_id) {
     context_type context(*this, graph);
+    const bool TRY_TO_RECV = true;
+    const size_t TRY_RECV_MOD = 1000;
+    size_t vcount = 0;
     for(lvid_type lvid = thread_id; lvid < graph.num_local_vertices(); 
         lvid += threads.size()) {
       // If this vertex is active on this super-step 
@@ -1405,6 +1395,8 @@ namespace graphlab {
           vertex_programs[lvid] = vertex_program_type();
         }
       } // end of if apply
+      // try to receive vertex data
+      if(++vcount % TRY_RECV_MOD == 0) recv_vertex_data(TRY_TO_RECV); 
     } // end of loop over vertices to run apply
       // Finish sending and receiving all changes due to apply operations
     thread_barrier.wait();
@@ -1467,10 +1459,10 @@ namespace graphlab {
 
   template<typename VertexProgram>
   void synchronous_engine<VertexProgram>::
-  recv_vertex_programs() {
+  recv_vertex_programs(const bool try_to_recv) {
     procid_t procid(-1);
     typename vprog_exchange_type::buffer_type buffer;
-    while(vprog_exchange.recv(procid, buffer)) {
+    while(vprog_exchange.recv(procid, buffer, try_to_recv)) {
       foreach(const vid_prog_pair_type& pair, buffer) {
         const lvid_type lvid = graph.local_vid(pair.first);
         ASSERT_FALSE(graph.l_is_master(lvid));
@@ -1494,10 +1486,10 @@ namespace graphlab {
 
   template<typename VertexProgram>
   void synchronous_engine<VertexProgram>::
-  recv_vertex_data() {
+  recv_vertex_data(bool try_to_recv) {
     procid_t procid(-1);
     typename vdata_exchange_type::buffer_type buffer;
-    while(vdata_exchange.recv(procid, buffer)) {
+    while(vdata_exchange.recv(procid, buffer, try_to_recv)) {
       foreach(const vid_vdata_pair_type& pair, buffer) {
         const lvid_type lvid = graph.local_vid(pair.first);
         ASSERT_FALSE(graph.l_is_master(lvid));
@@ -1528,10 +1520,10 @@ namespace graphlab {
 
   template<typename VertexProgram>
   void synchronous_engine<VertexProgram>::
-  recv_gathers() {
+  recv_gathers(const bool try_to_recv) {
     procid_t procid(-1);
     typename gather_exchange_type::buffer_type buffer;
-    while(gather_exchange.recv(procid, buffer)) {
+    while(gather_exchange.recv(procid, buffer, try_to_recv)) {
       foreach(const vid_gather_pair_type& pair, buffer) {
         const lvid_type lvid = graph.local_vid(pair.first);
         const gather_type& accum = pair.second;
@@ -1563,10 +1555,10 @@ namespace graphlab {
 
   template<typename VertexProgram>
   void synchronous_engine<VertexProgram>::
-  recv_messages() {
+  recv_messages(const bool try_to_recv) {
     procid_t procid(-1);
     typename message_exchange_type::buffer_type buffer;
-    while(message_exchange.recv(procid, buffer)) {
+    while(message_exchange.recv(procid, buffer, try_to_recv)) {
       foreach(const vid_message_pair_type& pair, buffer) {
         const lvid_type lvid = graph.local_vid(pair.first);
         ASSERT_TRUE(graph.l_is_master(lvid));
