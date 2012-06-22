@@ -20,8 +20,8 @@
  *
  */
 
-#ifndef GRAPHLAB_UTIL_CUCKOO_MAP_POW2_HPP
-#define GRAPHLAB_UTIL_CUCKOO_MAP_POW2_HPP
+#ifndef GRAPHLAB_UTIL_CUCKOO_SET_POW2_HPP
+#define GRAPHLAB_UTIL_CUCKOO_SET_POW2_HPP
 
 #include <vector>
 #include <iterator>
@@ -40,18 +40,17 @@ namespace graphlab {
    * interface as boost::unordered_map, not necessarily
    * entirely STL compliant.
    */
-  template <typename Key, typename Value,
+  template <typename Key, 
             size_t CuckooK = 3,
             typename IndexType = size_t,
             typename Hash = boost::hash<Key>,
             typename Pred = std::equal_to<Key> >
-  class cuckoo_map_pow2 {
+  class cuckoo_set_pow2 {
 
   public:
     // public typedefs
     typedef Key                                      key_type;
-    typedef std::pair<Key const, Value>              value_type;
-    typedef Value                                    mapped_type;
+    typedef Key              value_type;
     typedef Hash                                     hasher;
     typedef Pred                                     key_equal;
     typedef IndexType                                index_type;
@@ -62,11 +61,11 @@ namespace graphlab {
 
   private:
     // internal typedefs
-    typedef std::pair<key_type, mapped_type> non_const_value_type;
+    typedef key_type non_const_value_type;
     typedef value_type* map_container_type;
     typedef value_type* map_container_iterator;
     typedef const value_type* map_container_const_iterator;
-    typedef boost::unordered_map<Key, Value, Hash, Pred> stash_container_type;
+    typedef std::vector<Key> stash_container_type;
 
     key_type illegalkey;
     index_type numel;
@@ -99,20 +98,21 @@ namespace graphlab {
 
     // bypass the const key_type with a placement new
     void replace_in_vector(map_container_iterator iter,
-                           const key_type& key,
-                           const mapped_type& val) {
+                           const key_type& key) {
       // delete
       iter->~value_type();
       // placement new
-      new(iter) value_type(key, val);
+      new(iter) value_type(key);
     }
 
     void destroy_all() {
-      // call ze destructors
-      for(size_t i = 0; i < datalen; ++i) {
-        data[i].~value_type();
+      if (data != NULL) {
+        // call ze destructors
+        for(size_t i = 0; i < datalen; ++i) {
+          data[i].~value_type();
+        }
+        free(data);
       }
-      free(data);
       stash.clear();
       data = NULL;
       datalen = 0;
@@ -121,11 +121,11 @@ namespace graphlab {
 
   public:
     struct insert_iterator{
-      cuckoo_map_pow2* cmap;
+      cuckoo_set_pow2* cmap;
       typedef std::forward_iterator_tag iterator_category;
-      typedef typename cuckoo_map_pow2::value_type value_type;
+      typedef typename cuckoo_set_pow2::value_type value_type;
 
-      insert_iterator(cuckoo_map_pow2* c):cmap(c) {}
+      insert_iterator(cuckoo_set_pow2* c):cmap(c) {}
       
       insert_iterator operator++() {
         return (*this);
@@ -149,18 +149,17 @@ namespace graphlab {
     };
 
     struct const_iterator {
-      const cuckoo_map_pow2* cmap;
+      const cuckoo_set_pow2* cmap;
       bool in_stash;
-      typename cuckoo_map_pow2::map_container_const_iterator vec_iter;
-      typename cuckoo_map_pow2::stash_container_type::const_iterator stash_iter;
+      typename cuckoo_set_pow2::map_container_const_iterator vec_iter;
+      typename cuckoo_set_pow2::stash_container_type::const_iterator stash_iter;
 
       typedef std::forward_iterator_tag iterator_category;
-      typedef typename cuckoo_map_pow2::value_type value_type;
+      typedef typename cuckoo_set_pow2::value_type value_type;
       typedef size_t difference_type;
-      typedef const value_type* pointer;
       typedef const value_type& reference;
-
-      friend class cuckoo_map_pow2;
+      typedef const value_type* pointer;
+      friend class cuckoo_set_pow2;
 
       const_iterator(): cmap(NULL), in_stash(false) {}
 
@@ -170,7 +169,7 @@ namespace graphlab {
           // we are in the main vector. try to advance the
           // iterator until I hit another data element
           while(vec_iter != cmap->data_end() &&
-                cmap->key_eq()(vec_iter->first, cmap->illegal_key())) ++vec_iter;
+                cmap->key_eq()(*vec_iter, cmap->illegal_key())) ++vec_iter;
           if (vec_iter == cmap->data_end()) {
             in_stash = true;
             stash_iter = cmap->stash.begin();
@@ -194,11 +193,6 @@ namespace graphlab {
         else return *stash_iter;
       }
 
-      pointer operator->() {
-        if (!in_stash) return &(*vec_iter);
-        else return &(*stash_iter);
-      }
-
       bool operator==(const const_iterator iter) const {
         return in_stash == iter.in_stash &&
           (in_stash==false ?
@@ -211,28 +205,27 @@ namespace graphlab {
       }
 
     private:
-      const_iterator(const cuckoo_map_pow2* cmap, typename cuckoo_map_pow2::map_container_const_iterator vec_iter):
+      const_iterator(const cuckoo_set_pow2* cmap, typename cuckoo_set_pow2::map_container_const_iterator vec_iter):
         cmap(cmap), in_stash(false), vec_iter(vec_iter), stash_iter(cmap->stash.begin()) { }
 
-      const_iterator(const cuckoo_map_pow2* cmap, typename cuckoo_map_pow2::stash_container_type::const_iterator stash_iter):
+      const_iterator(const cuckoo_set_pow2* cmap, typename cuckoo_set_pow2::stash_container_type::const_iterator stash_iter):
         cmap(cmap), in_stash(true), vec_iter(cmap->data_begin()), stash_iter(stash_iter) { }
       
     };
 
 
     struct iterator {
-      cuckoo_map_pow2* cmap;
+      cuckoo_set_pow2* cmap;
       bool in_stash;
-      typename cuckoo_map_pow2::map_container_iterator vec_iter;
-      typename cuckoo_map_pow2::stash_container_type::iterator stash_iter;
+      typename cuckoo_set_pow2::map_container_iterator vec_iter;
+      typename cuckoo_set_pow2::stash_container_type::iterator stash_iter;
 
       typedef std::forward_iterator_tag iterator_category;
-      typedef typename cuckoo_map_pow2::value_type value_type;
+      typedef typename cuckoo_set_pow2::value_type value_type;
       typedef size_t difference_type;
-      typedef value_type* pointer;
       typedef value_type& reference;
-
-      friend class cuckoo_map_pow2;
+      typedef value_type* pointer;
+      friend class cuckoo_set_pow2;
 
       iterator(): cmap(NULL), in_stash(false) {}
 
@@ -276,11 +269,6 @@ namespace graphlab {
         else return *stash_iter;
       }
 
-      pointer operator->() {
-        if (!in_stash) return &(*vec_iter);
-        else return &(*stash_iter);
-      }
-
       bool operator==(const iterator iter) const {
         return in_stash == iter.in_stash &&
           (in_stash==false ?
@@ -294,12 +282,12 @@ namespace graphlab {
 
 
     private:
-      iterator(cuckoo_map_pow2* cmap, 
-               typename cuckoo_map_pow2::map_container_iterator vec_iter):
+      iterator(cuckoo_set_pow2* cmap, 
+               typename cuckoo_set_pow2::map_container_iterator vec_iter):
         cmap(cmap), in_stash(false), vec_iter(vec_iter) { }
 
-      iterator(cuckoo_map_pow2* cmap, 
-               typename cuckoo_map_pow2::stash_container_type::iterator stash_iter):
+      iterator(cuckoo_set_pow2* cmap, 
+               typename cuckoo_set_pow2::stash_container_type::iterator stash_iter):
         cmap(cmap), in_stash(true), stash_iter(stash_iter) { }
 
     };
@@ -311,7 +299,7 @@ namespace graphlab {
     // this assumes that the data is not already in the array.
     // caller must check before performing the insert
     iterator do_insert(const value_type& v_) {
-      non_const_value_type v(v_.first, v_.second);
+      non_const_value_type v = v_;
       if (stash.size() > maxstash) {
         // resize
         reserve(datalen * 2);
@@ -326,10 +314,10 @@ namespace graphlab {
         // first see if one of the hashes will work
         index_type idx = 0;
         bool found = false;
-        size_t hash_of_k = hashfun(v.first);
+        size_t hash_of_k = hashfun(v);
         for (size_t j = 0; j < CuckooK; ++j) {
           idx = compute_hash(hash_of_k, j);
-          if (keyeq(data[idx].first, illegalkey)) {
+          if (keyeq(data[idx], illegalkey)) {
             found = true;
             break;
           }
@@ -343,8 +331,8 @@ namespace graphlab {
         if (insertpos == (index_type)(-1)) insertpos = idx;
         else if (insertpos == idx) insertpos = (index_type)(-1);
         // there is room here
-        if (found || keyeq(data[idx].first, illegalkey)) {
-          replace_in_vector(data_begin() + idx, v.first, v.second);
+        if (found || keyeq(data[idx], illegalkey)) {
+          replace_in_vector(data_begin() + idx, v);
           // success!
           return iterator(this, data_begin() + insertpos);
         }
@@ -352,13 +340,13 @@ namespace graphlab {
         // try again!
 
         non_const_value_type tmp = data[idx];
-        replace_in_vector(data_begin() + idx, v.first, v.second);
+        replace_in_vector(data_begin() + idx, v);
         v = tmp;
       }
       // ok. tried and failed 100 times.
       //stick it in the stash
 
-      typename stash_container_type::iterator stashiter = stash.insert(v).first;
+      typename stash_container_type::iterator stashiter = stash.insert(stash.end(), v);
       // if insertpos is -1, current value went into stash
       if (insertpos == (index_type)(-1)) {
         return iterator(this, stashiter);
@@ -369,47 +357,61 @@ namespace graphlab {
     }
   public:
 
-    cuckoo_map_pow2(key_type illegalkey,
+    cuckoo_set_pow2(key_type illegalkey,
                     index_type stashsize = 8,
+                    index_type reserve_size = 128,
                     hasher const& h = hasher(),
                     key_equal const& k = key_equal()):
       illegalkey(illegalkey),
       numel(0),maxstash(stashsize),
       data(NULL), datalen(0),
       drng(time(NULL)),
-      kranddist(0, CuckooK - 1), hashfun(h), keyeq(k), mask(127) {
-      stash.max_load_factor(1.0);
-      reserve(128);
+      kranddist(0, CuckooK - 1), hashfun(h), keyeq(k), mask(reserve_size - 1) {
+      reserve(reserve_size);
     }
+
+    cuckoo_set_pow2(const cuckoo_set_pow2& other): 
+      illegalkey(other.illegalkey),
+      numel(0), maxstash(other.maxstash),
+      data(NULL), datalen(0),
+      drng(time(NULL)), kranddist(0, CuckooK - 1),
+      hashfun(other.hashfun), keyeq(other.keyeq), mask(0) {
+      data = NULL;
+      (*this) = other;
+    }
+ 
 
     const key_type& illegal_key() const {
       return illegalkey;
     }
 
-    ~cuckoo_map_pow2() {
+    ~cuckoo_set_pow2() {
       destroy_all();
     }
 
-    cuckoo_map_pow2& operator=(const cuckoo_map_pow2& other) {
-      destroy_all();
-      // copy the data
-      data = (map_container_type)malloc(sizeof(value_type) * other.datalen);
-      datalen = other.datalen;
-      std::uninitialized_copy(other.data_begin(), other.data_end(), data_begin());
+    cuckoo_set_pow2& operator=(const cuckoo_set_pow2& other) {
+      if (&other == this) return *this;
+      if (other.numel == 0 && numel == 0) return *this;
+      else if (other.numel == 0) {
+        for (size_t i = 0;i < datalen; ++i) data[i] = illegalkey;
+        stash.clear();
+        numel = 0;
+        return *this;
+      }
+      else {
+        destroy_all();
 
-      // copy the stash
-      stash = other.stash;
-
-      // copy all the other extra stuff
-      illegalkey = other.illegalkey;
-      numel = other.numel;
-      hashfun = other.hashfun;
-      keyeq = other.keyeq;
-      mask = other.mask;
+        // copy the data
+        data = (map_container_type)malloc(sizeof(value_type) * other.datalen);
+        datalen = other.datalen;
+        std::uninitialized_copy(other.data_begin(), other.data_end(), data_begin());
+        // copy the stash
+        stash = other.stash;
+      }
       return *this;
     }
   
-    index_type size() {
+    index_type size() const {
       return numel;
     }
 
@@ -420,7 +422,7 @@ namespace graphlab {
       iter.vec_iter = data_begin();
 
       while(iter.vec_iter != data_end() &&
-            keyeq(iter.vec_iter->first, illegalkey)) ++iter.vec_iter;
+            keyeq(*(iter.vec_iter), illegalkey)) ++iter.vec_iter;
 
       if (iter.vec_iter == data_end()) {
         iter.in_stash = true;
@@ -441,7 +443,8 @@ namespace graphlab {
       iter.vec_iter = data_begin();
 
       while(iter.vec_iter != data_end() &&
-            keyeq(iter.vec_iter->first, illegalkey)) ++iter.vec_iter;
+            keyeq(*(iter.vec_iter), illegalkey)) ++iter.vec_iter;
+
 
       if (iter.vec_iter == data_end()) {
         iter.in_stash = true;
@@ -504,10 +507,10 @@ namespace graphlab {
       numel -= stmp.size();
       for (size_t i = 0;i < datalen; ++i) {
         // if there is an element here. erase it and reinsert
-        if (!keyeq(data[i].first, illegalkey)) {
-          if (count(data[i].first)) continue;
+        if (!keyeq(data[i], illegalkey)) {
+          if (count(data[i])) continue;
           non_const_value_type v = data[i];
-          replace_in_vector(data_begin() + i, illegalkey, mapped_type());
+          replace_in_vector(data_begin() + i, illegalkey);
           numel--;
           //erase(iterator(this, data_begin() + i));
           insert(v);
@@ -534,17 +537,19 @@ namespace graphlab {
   
     void reserve(size_t newlen) {
       newlen = next_powerof2(newlen);
+      if (newlen <= datalen) return;
+
       mask = newlen - 1;
       //data.reserve(newlen);
       //data.resize(newlen, std::make_pair<Key, Value>(illegalkey, Value()));
       data = (map_container_type)realloc(data, newlen * sizeof(value_type));
-      std::uninitialized_fill(data_end(), data+newlen, non_const_value_type(illegalkey, mapped_type()));
+      std::uninitialized_fill(data_end(), data+newlen, non_const_value_type(illegalkey));
       datalen = newlen;
       rehash();
     }
 
     std::pair<iterator, bool> insert(const value_type& v_) {
-      iterator i = find(v_.first);
+      iterator i = find(v_);
       if (i != end()) return std::make_pair(i, false);
       else return std::make_pair(do_insert(v_), true);
     }
@@ -557,35 +562,38 @@ namespace graphlab {
       size_t hash_of_k = hashfun(k);
       for (uint32_t i = 0;i < CuckooK; ++i) {
         index_type idx = compute_hash(hash_of_k, i);
-        if (keyeq(data[idx].first, k)) return iterator(this, data_begin() + idx);
+        if (keyeq(data[idx], k)) return iterator(this, data_begin() + idx);
       }
-      return iterator(this, stash.find(k));
+      return iterator(this, std::find(stash.begin(), stash.end(), k));
     }
 
     const_iterator find(key_type const& k) const {
       size_t hash_of_k = hashfun(k);
       for (uint32_t i = 0;i < CuckooK; ++i) {
         index_type idx = compute_hash(hash_of_k, i);
-        if (keyeq(data[idx].first, k)) return const_iterator(this, data_begin() + idx);
+        if (keyeq(data[idx], k)) return const_iterator(this, data_begin() + idx);
       }
-      return const_iterator(this, stash.find(k));
+      return const_iterator(this, std::find(stash.begin(), stash.end(), k));
     }
 
     size_t count(key_type const& k) const {
       size_t hash_of_k = hashfun(k);
       for (uint32_t i = 0;i < CuckooK; ++i) {
         index_type idx = compute_hash(hash_of_k, i);
-        if (keyeq(data[idx].first, k)) return true;
+        if (keyeq(data[idx], k)) return 1;
       }
-      return stash.count(k);
+      for (size_t i = 0; i < stash.size(); ++i) {
+        if (stash[i] == k) return 1;
+      }
+      return 0;
     }
 
   
     void erase(iterator iter) {
       if (iter.in_stash == false) {
-        if (!keyeq(iter.vec_iter->first, illegalkey)) {
+        if (!keyeq(*(iter.vec_iter), illegalkey)) {
         
-          replace_in_vector(&(*(iter.vec_iter)), illegalkey, mapped_type());
+          replace_in_vector(&(*(iter.vec_iter)), illegalkey);
 
           --numel;
         }
@@ -601,7 +609,7 @@ namespace graphlab {
       if (iter != end()) erase(iter);
     }
 
-    void swap(cuckoo_map_pow2& other) {
+    void swap(cuckoo_set_pow2& other) {
       std::swap(illegalkey, other.illegalkey);
       std::swap(numel, other.numel);
       std::swap(maxstash, other.maxstash);
@@ -615,20 +623,13 @@ namespace graphlab {
       std::swap(mask, other.mask);
     }
   
-    mapped_type& operator[](const key_type& i) {
-      iterator iter = find(i);
-      value_type tmp(i, mapped_type());
-      if (iter == end()) iter = do_insert(tmp);
-      return iter->second;
-    }
-
     key_equal key_eq() const {
       return keyeq;
     }
 
     void clear() {
       destroy_all();
-      reserve(128);
+      reserve(4);
     }
 
 
@@ -637,17 +638,19 @@ namespace graphlab {
     }
 
     void save(oarchive &oarc) const {
-      oarc << numel << illegalkey;
+      oarc << size_t(numel);
       serialize_iterator(oarc, begin(), end(), numel);
     }
 
 
     void load(iarchive &iarc) {
-      clear();
-      index_type tmpnumel = 0;
-      iarc >> tmpnumel >> illegalkey;
-      //std::cout << tmpnumel << ", " << illegalkey << std::endl;
+      for (size_t i = 0;i < datalen; ++i) data[i] = illegalkey;
+      stash.clear();
+      numel = 0;
+      size_t tmpnumel;
+      iarc >> tmpnumel;
       reserve(tmpnumel * 1.5);
+      //std::cout << tmpnumel << ", " << illegalkey << std::endl;
       deserialize_iterator<iarchive, non_const_value_type>
         (iarc, insert_iterator(this));
       // for(size_t i = 0; i < tmpnumel; ++i) {
@@ -657,7 +660,7 @@ namespace graphlab {
       // }
     }
   
-  }; // end of cuckoo_map_pow2
+  }; // end of cuckoo_set_pow2
 
 }; // end of graphlab namespace
 

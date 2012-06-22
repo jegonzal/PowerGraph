@@ -23,6 +23,7 @@
 #include <sstream>
 #include <graphlab/util/cuckoo_map.hpp>
 #include <graphlab/util/cuckoo_map_pow2.hpp>
+#include <graphlab/util/cuckoo_set_pow2.hpp>
 #include <graphlab/util/timer.hpp>
 #include <graphlab/util/random.hpp>
 #include <graphlab/util/memory_info.hpp>
@@ -476,6 +477,49 @@ void save_load_test() {
 
 
 
+void cuckoo_set_sanity_checks() {
+  boost::unordered_set<uint32_t> um;
+  graphlab::cuckoo_set_pow2<uint32_t> cm(-1, 2, 2);
+  ASSERT_TRUE(cm.begin() == cm.end());
+  for (size_t i = 0;i < 10000; ++i) {
+    cm.insert(17 * i);
+    um.insert(17 * i);
+  }
+
+  for (size_t i = 0;i < 10000; ++i) {
+    assert(cm.count(17 * i) == 1);
+    assert(um.count(17 * i) == 1);
+  }
+  assert(cm.size() == 10000);
+  assert(um.size() == 10000);
+
+  for (size_t i = 0;i < 10000; i+=2) {
+    cm.erase(17*i);
+    um.erase(17*i);
+  }
+  for (size_t i = 0;i < 10000; i+=2) {
+    assert(cm.count(17*i) == i % 2);
+    assert(um.count(17*i) == i % 2);
+  }
+
+  assert(cm.size() == 5000);
+  assert(um.size() == 5000);
+
+  std::ofstream fout("tmp.txt");
+  graphlab::oarchive oarc(fout);
+  oarc << cm;
+  fout.close();
+  std::ifstream fin("tmp.txt");
+  graphlab::iarchive iarc(fin);
+  graphlab::cuckoo_set_pow2<uint32_t> set2(-1);
+  iarc >> set2;
+  assert(set2.size() == 5000);
+}
+
+
+
+
+
 int main(int argc, char** argv) {
   std::cout << "Basic Sanity Checks... ";
   std::cout.flush();
@@ -484,6 +528,9 @@ int main(int argc, char** argv) {
   more_interesting_data_types_check();
   more_interesting_data_types_check2();
   save_load_test();
+
+
+  cuckoo_set_sanity_checks();
 
   std::cout << "Done" << std::endl;
 

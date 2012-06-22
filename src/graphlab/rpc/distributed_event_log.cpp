@@ -48,6 +48,16 @@ metric_aggregate_json(std::map<std::string, std::string>& vars);
 static std::pair<std::string, std::string> 
 metric_by_machine_json(std::map<std::string, std::string>& vars);
 
+
+static size_t time_to_index(double t) {
+  return std::floor(t / 5);
+}
+
+static double index_to_time(size_t t) {
+  return 5 * t;
+}
+
+
 uint32_t distributed_event_logger::allocate_log_entry(log_group* group) {
   log_entry_lock.lock();
   uint32_t id = 0;
@@ -101,7 +111,14 @@ void distributed_event_logger::rpc_collect_log(size_t srcproc, double srctime,
   foreach(uint32_t log, has_log_entry) {
     logs[log]->lock.lock();
     // insert the new counts
-    logs[log]->machine[srcproc].push_back(log_entry(srccounts[log], srctime));
+    size_t entryid = time_to_index(srctime);
+    logs[log]->earliest_modified_log = 
+                    std::min(entryid, logs[log]->earliest_modified_log);
+    logs[log]->machine_log_modified = true;
+    if (logs[log]->machine[srcproc].size() < entryid + 1) {
+      logs[log]->machine[srcproc].resize(entryid + 1);
+    }
+    logs[log]->machine[srcproc][entryid].value = srccounts[log];
     logs[log]->lock.unlock();
   }
 }
@@ -176,59 +193,45 @@ void distributed_event_logger::local_collect_log() {
 // Called only by machine 0 to get the aggregate log
 void distributed_event_logger::build_aggregate_log() {
   ASSERT_EQ(rmi->procid(), 0);
-  double current_time = ti.current_time();
   foreach(uint32_t log, has_log_entry) {
     logs[log]->lock.lock();
-    // what is the previous time the aggregate was computed?
-    // The sum takes the open interval (prevtime, current_time]
-    // thus the first time this is called, we may drop one entry
-    // if we let prevtime initialize at 0
-    double prevtime = -1;
-    if (logs[log]->aggregate.size() > 0) {
-      prevtime = logs[log]->aggregate.rbegin()->time;
-    }
-
-
-    // if it is a CUMULATIVE log, take the latest entry from each machine
-    // if it is an INSTANTANEOUS log, take the average of the last times.
-
-    double sum = 0;
-    if (logs[log]->logtype == log_type::CUMULATIVE) {
+    if (logs[log]->machine_log_modified) {
+      // what is the previous time the aggregate was computed?
+      // The sum takes the open interval (prevtime, current_time]
+      // thus the first time this is called, we may drop one entry
+      // if we let prevtime initialize at 0
+      size_t prevtime = logs[log]->earliest_modified_log;
+      size_t lasttime = prevtime + 1;
       for (procid_t p = 0; p < logs[log]->machine.size(); ++p) {
-        if (logs[log]->machine[p].size() > 0) {
-          sum += logs[log]->machine[p].rbegin()->value;
-        }
+        lasttime = std::max(lasttime, logs[log]->machine[p].size());
       }
-    }
-    else {
-      // sum all the machine logs from prevtime to current time
-      for (procid_t p = 0; p < logs[log]->machine.size(); ++p) {
-        size_t num_used_entries = 0;
-        double partial_sum = 0;
-        std::vector<log_entry>::const_reverse_iterator iter = 
-                                        logs[log]->machine[p].rbegin();
-        while (iter != logs[log]->machine[p].rend() &&
-            iter->time > prevtime) {
-          if (iter->time <= current_time) {
-            partial_sum += iter->value;
-            ++num_used_entries;
+      // if it is a CUMULATIVE log, take the latest entry from each machine
+      // if it is an INSTANTANEOUS log, take the average of the last times.
+      if (logs[log]->aggregate.size() < lasttime) {
+        if (logs[log]->logtype == log_type::CUMULATIVE) {
+          double lastval = 0;
+          if (logs[log]->aggregate.size() > 0) {
+            lastval = logs[log]->aggregate.rbegin()->value;
           }
-          ++iter;
-        }
-        if (num_used_entries > 0) {
-          sum += partial_sum / num_used_entries;
+          logs[log]->aggregate.resize(lasttime, log_entry(lastval));
         }
         else {
-          // I am missing a current up to date entry
-          // just take the most recent value
-          if (logs[log]->machine[p].size() > 0) {
-            sum += logs[log]->machine[p].rbegin()->value;
-          }
+          logs[log]->aggregate.resize(lasttime);
         }
       }
+   
+      for (size_t t = prevtime; t < lasttime; ++t) {
+        double sum = 0;
+        for (procid_t p = 0; p < logs[log]->machine.size(); ++p) {
+          if (t < logs[log]->machine[p].size()) {
+            sum += logs[log]->machine[p][t].value;
+          }
+        }
+        logs[log]->aggregate[t].value = sum;
+      }
+      logs[log]->earliest_modified_log = (size_t)(-1);
+      logs[log]->machine_log_modified = false;
     }
-    // put into the aggregate count
-    logs[log]->aggregate.push_back(log_entry(sum, current_time));
     logs[log]->lock.unlock();
   }
 }
@@ -342,6 +345,8 @@ size_t distributed_event_logger::create_log_entry(std::string name,
   group->units = units;
   group->callback = NULL;
   group->is_callback_entry = false;
+  group->earliest_modified_log = 1;
+  group->machine_log_modified = false;
   group->sum_of_instantaneous_entries = 0.0;
   group->count_of_instantaneous_entries = 0;
   // only allocate the machine vector on the root machine.
@@ -390,6 +395,8 @@ size_t distributed_event_logger::create_callback_entry(std::string name,
   group->logtype = logtype;
   group->name = name;
   group->units = units;
+  group->earliest_modified_log = 0;
+  group->machine_log_modified = false;
   group->callback = callback;
   group->is_callback_entry = true;
   group->sum_of_instantaneous_entries = 0.0;
@@ -469,12 +476,12 @@ static metric_names_json(std::map<std::string, std::string>& vars) {
     double rate_val = 0;
     size_t len = logs[log]->aggregate.size();
     if (len >= 1) { 
-      double logtime = logs[log]->aggregate.rbegin()->time;
+      double logtime = index_to_time(logs[log]->aggregate.size() - 1);
       double logval = logs[log]->aggregate.rbegin()->value;
       double prevtime = 0;
       double prevval = 0;
       if (logs[log]->aggregate.size() >= 2) {
-        prevtime = logs[log]->aggregate[len - 2].time;
+        prevtime = index_to_time(logs[log]->aggregate.size() - 2);
         prevval = logs[log]->aggregate[len - 2].value;
       }
       if (logs[log]->logtype == log_type::CUMULATIVE) {
@@ -504,31 +511,33 @@ static metric_names_json(std::map<std::string, std::string>& vars) {
   return std::make_pair(std::string("text/plain"), strm.str());
 }
 
-static void round_log_entries(std::vector<log_entry>& entries) {
-  for (size_t i = 0; i < entries.size(); ++i) {
-    entries[i].time = 5 * std::floor((entries[i].time / 5) + 0.5); 
-  }
-}
-
 std::pair<std::string, std::string> 
 static metric_aggregate_json(std::map<std::string, std::string>& vars) {
   double tstart = 0;
   double tend = DBL_MAX;
   bool rate = false;
   std::string name;
-  bool rounding = false;
   // see what variables there are
 
+  size_t idxstart = time_to_index(tstart);
+  size_t idxend = (size_t)(-1);
   if (vars.count("name")) name = vars["name"];
-  if (vars.count("tstart")) tstart = atof(vars["tstart"].c_str());
-  if (vars.count("tend")) tend = atof(vars["tend"].c_str());
-  if (vars.count("rounding")) rounding = atoi(vars["rounding"].c_str()) > 0;
+  if (vars.count("tstart")) {
+    tstart = atof(vars["tstart"].c_str());
+    idxstart = time_to_index(tstart);
+  }
+  if (vars.count("tend")) {
+    tend = atof(vars["tend"].c_str());
+    idxend = time_to_index(tend) + 1;
+  }
   if (vars.count("rate")) rate = (atoi(vars["rate"].c_str()) != 0);
   if (vars.count("tlast")) {
     double tlast = atof(vars["tlast"].c_str());
     tstart = get_event_log().get_current_time() - tlast;
     tstart = tstart < 0.0 ? 0.0 : tstart;
     tend = get_event_log().get_current_time();
+    idxstart = time_to_index(tstart);
+    idxend = time_to_index(tend) + 1;
   }
 
   // name is not optional
@@ -559,40 +568,37 @@ static metric_aggregate_json(std::map<std::string, std::string>& vars) {
            << "      \"cumulative\": " << (int)(logs[log]->logtype) << ",\n"
            << "      \"record\": [";
 
-      std::vector<log_entry> output_entries;
+      std::vector<std::pair<double, double> > output_entries;
       // annoyingly, json does not let me put a trailing comma in the array.
       // thus I need to first write it to a vector, before dumping it to json
-
-      for (size_t i = 0; i < logs[log]->aggregate.size(); ++i) {
-        double logtime = logs[log]->aggregate[i].time;
+      size_t log_idxend = std::min(idxend, logs[log]->aggregate.size());
+      for (size_t i = idxstart; i < log_idxend ; ++i) {
+        double logtime = index_to_time(i);
         double logval = logs[log]->aggregate[i].value;
-
-        if (logtime > tstart && logtime <= tend) {
-          // only cumulative logs can have rate
-          if (rate == 0 || logs[log]->logtype == log_type::INSTANTANEOUS) {
-            output_entries.push_back(log_entry(logval, logtime));
+        // only cumulative logs can have rate
+        if (rate == 0 || logs[log]->logtype == log_type::INSTANTANEOUS) {
+          output_entries.push_back(std::make_pair(logtime, logval));
+        }
+        else {
+          double prevval = 0;
+          double prevtime = 0;
+          if (i > 0) {
+            prevtime = index_to_time(i - 1);
+            prevval = logs[log]->aggregate[i - 1].value;
           }
-          else {
-            double prevval = 0;
-            double prevtime = 0;
-            if (i > 0) {
-              prevtime = logs[log]->aggregate[i - 1].time;
-              prevval = logs[log]->aggregate[i - 1].value;
-            }
-            double currate = 0;
-            // avoid divide by zero annoyances
-            if (logtime > prevtime) {
-              currate = (logval - prevval) / (logtime - prevtime);
-            }
-            output_entries.push_back(log_entry(currate, logtime));
+          double currate = 0;
+          // avoid divide by zero annoyances
+          if (logtime > prevtime) {
+            currate = (logval - prevval) / (logtime - prevtime);
           }
+          output_entries.push_back(std::make_pair(logtime, currate));
         }
       }
-      if (rounding) round_log_entries(output_entries);
+
       for (size_t i = 0 ;i < output_entries.size(); ++i) {
         strm << " [" 
-             << output_entries[i].time << ", " 
-             << output_entries[i].value 
+             << output_entries[i].first << ", " 
+             << output_entries[i].second 
              << "] ";
         // add a comma if this is not the last entry
         if (i < output_entries.size() - 1) strm << ", ";
@@ -613,46 +619,6 @@ static metric_aggregate_json(std::map<std::string, std::string>& vars) {
 
 
 
-void align_log_entries(std::vector<std::vector<log_entry> >& entries) {
-  boost::unordered_set<double> timeentries;
-  for (size_t i = 0; i < entries.size(); ++i) {
-    for (size_t j = 0; j < entries[i].size(); ++j) {
-      timeentries.insert(entries[i][j].time);
-    }
-  }
-  // move the time set to a vector
-  std::vector<double> timeentries_vec;
-  std::copy(timeentries.begin(), timeentries.end(),
-            std::inserter(timeentries_vec, timeentries_vec.end()));
-
-  std::sort(timeentries_vec.begin(), timeentries_vec.end());
-  // now we rebuild the entries
-  std::vector<std::vector<log_entry> > result;
-  result.resize(entries.size());
-  for (size_t i = 0;i < entries.size(); ++i) {
-    result[i].resize(timeentries_vec.size(), log_entry(0,0));
-    size_t t = 0;
-    size_t j = 0;
-    for (j = 0; j < entries[i].size(); ++j) {
-      while (timeentries_vec[t] < entries[i][j].time) {
-        result[i][t].time = timeentries_vec[t];
-        result[i][t].value = -1;
-        ++t;
-      }
-      result[i][t].time = timeentries_vec[t];
-      result[i][t].value = entries[i][j].value;
-      ++t;
-    }
-    while (t < timeentries_vec.size()) {
-      result[i][t].time = timeentries_vec[t];
-      result[i][t].value = -1;
-      ++t;
-    }
-  }
-  entries = result;
-}
-
-
 
 std::pair<std::string, std::string> 
 static metric_by_machine_json(std::map<std::string, std::string>& vars) {
@@ -662,27 +628,33 @@ static metric_by_machine_json(std::map<std::string, std::string>& vars) {
   std::string name;
   size_t machine = 0;
   bool has_machine_filter = false;
-  bool rounding = false;
-  bool align = false;
   // see what variables there are
-
+  size_t idxstart = 0;
+  size_t idxend = (size_t)(-1);
+ 
   if (vars.count("name")) name = vars["name"];
   if (vars.count("machine")) {
     has_machine_filter = true;
     machine = atoi(vars["machine"].c_str());
   }
-  if (vars.count("tstart")) tstart = atof(vars["tstart"].c_str());
-  if (vars.count("tend")) tend = atof(vars["tend"].c_str());
-  if (vars.count("rounding")) rounding = atoi(vars["rounding"].c_str()) > 0;
-  if (vars.count("align")) align = atoi(vars["align"].c_str()) > 0;
+  if (vars.count("tstart")) {
+    tstart = atof(vars["tstart"].c_str());
+    idxstart = time_to_index(tstart);
+  }
+  if (vars.count("tend")) {
+    tend = atof(vars["tend"].c_str());
+    idxend = time_to_index(tend) + 1;
+  }
   if (vars.count("rate")) rate = (atoi(vars["rate"].c_str()) != 0);
   if (vars.count("tlast")) {
     double tlast = atof(vars["tlast"].c_str());
     tstart = get_event_log().get_current_time() - tlast;
     tstart = tstart < 0.0 ? 0.0 : tstart;
     tend = get_event_log().get_current_time();
+    idxstart = time_to_index(tstart);
+    idxend = time_to_index(tend) + 1;
   }
-  if (align) rounding = true;
+
 
   // name is not optional
   name = trim(name);
@@ -711,7 +683,7 @@ static metric_by_machine_json(std::map<std::string, std::string>& vars) {
            << "      \"cumulative\": " << (int)(logs[log]->logtype) << ",\n"
            << "      \"record\": ";
       
-      std::vector<std::vector<log_entry> > all_output_entries;
+      std::vector<std::vector<std::pair<double, double> > > all_output_entries;
       // annoyingly, json does not let me put a trailing comma in the array.
       // thus I need to first write it to a vector, before dumping it to json
       // and annoying 2 dimensional output arrays...
@@ -724,21 +696,23 @@ static metric_by_machine_json(std::map<std::string, std::string>& vars) {
       }
       for (size_t p = p_start; p < p_end; ++p) {
         std::vector<log_entry>& current = logs[log]->machine[p];
-        std::vector<log_entry> output_entries;
-        for (size_t i = 0; i < current.size(); ++i) {
-          double logtime = current[i].time;
+        std::vector<std::pair<double, double> > output_entries;
+
+        size_t log_idxend = std::min(idxend, current.size());
+        for (size_t i = idxstart; i < log_idxend; ++i) {
+          double logtime = index_to_time(i);
           double logval = current[i].value;
   
           if (logtime > tstart && logtime <= tend) {
             // only cumulative logs can have rate
             if (rate == 0 || logs[log]->logtype == log_type::INSTANTANEOUS) {
-              output_entries.push_back(log_entry(logval, logtime));
+              output_entries.push_back(std::make_pair(logtime, logval));
             }
             else {
               double prevval = 0;
               double prevtime = 0;
               if (i > 0) {
-                prevtime = current[i - 1].time;
+                prevtime = index_to_time(i - 1);
                 prevval = current[i - 1].value;
               }
               double currate = 0;
@@ -746,22 +720,20 @@ static metric_by_machine_json(std::map<std::string, std::string>& vars) {
               if (logtime > prevtime) {
                 currate = (logval - prevval) / (logtime - prevtime);
               }
-              output_entries.push_back(log_entry(currate, logtime));
+              output_entries.push_back(std::make_pair(logtime, currate));
             }
           }
         }
-        if (rounding) round_log_entries(output_entries);
         all_output_entries.push_back(output_entries);
       }
-      if (align) align_log_entries(all_output_entries);
       strm << "[ ";
       for (size_t p = 0; p < all_output_entries.size(); ++p) {
-        std::vector<log_entry>& output_entries = all_output_entries[p];
+        std::vector<std::pair<double, double> >& output_entries = all_output_entries[p];
         strm << "[ ";
         for (size_t i = 0 ;i < output_entries.size(); ++i) {
           strm << " [" 
-              << output_entries[i].time << ", " 
-              << output_entries[i].value 
+              << output_entries[i].first << ", " 
+              << output_entries[i].second 
               << "] ";
           // add a comma if this is not the last entry
           if (i < output_entries.size() - 1) strm << ", ";
