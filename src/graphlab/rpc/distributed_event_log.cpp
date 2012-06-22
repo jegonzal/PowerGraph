@@ -617,7 +617,9 @@ void align_log_entries(std::vector<std::vector<log_entry> >& entries) {
   boost::unordered_set<double> timeentries;
   for (size_t i = 0; i < entries.size(); ++i) {
     for (size_t j = 0; j < entries[i].size(); ++j) {
-      timeentries.insert(entries[i][j].time);
+      size_t nt = 5 * std::floor((entries[i][j].time / 5) + 0.5); 
+      entries[i][j].time = nt;
+      timeentries.insert(nt);
     }
   }
   // move the time set to a vector
@@ -633,8 +635,9 @@ void align_log_entries(std::vector<std::vector<log_entry> >& entries) {
     result[i].resize(timeentries_vec.size(), log_entry(0,0));
     size_t t = 0;
     size_t j = 0;
-    for (j = 0; j < entries[i].size(); ++j) {
-      while (timeentries_vec[t] < entries[i][j].time) {
+    for (j = 0; j < entries[i].size() && t < timeentries_vec.size(); ++j) {
+      while (t < timeentries_vec.size() - 1 && 
+             timeentries_vec[t] < entries[i][j].time) {
         result[i][t].time = timeentries_vec[t];
         result[i][t].value = -1;
         ++t;
