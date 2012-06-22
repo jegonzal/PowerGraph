@@ -1,0 +1,4 @@
+239c239
+< $(objdir)/%.o: $(srcdir)/%.cpp
+---
+> $(objdir)/%.o: $(srcdir)/%.cpp installdirs

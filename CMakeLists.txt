@@ -297,6 +297,7 @@ ExternalProject_Add(libjson
   URL_MD5 dcb326038bd9b710b8f717580c647833
   BUILD_IN_SOURCE 1
   CONFIGURE_COMMAND ""
+  PATCH_COMMAND patch -p0 makefile < ${GraphLab_SOURCE_DIR}/patches/libjson.patch
   BUILD_COMMAND make
   INSTALL_COMMAND prefix=${GraphLab_SOURCE_DIR}/deps/local make install 
   )
