@@ -46,11 +46,12 @@ namespace graphlab {
       std::stringstream strm;
       oarchive oarc(strm);
       iarchive iarc(strm);
-      T t;
+      const T const_t = T();
+      T t = T();
       // A compiler error on these lines implies that your type is not
       // serializable.  See the documentaiton on how to make
       // serializable type.
-      oarc << t;
+      oarc << const_t;
       iarc >> t;
     }
   };

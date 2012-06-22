@@ -2552,7 +2552,7 @@ namespace graphlab {
       while(fin.good() && !fin.eof()) {
         std::string line;
         std::getline(fin, line);
-        if(!fin.good()) break;
+        if(fin.fail()) break;
         const bool success = line_parser(*this, filename, line);
         if (!success) {
           logstream(LOG_WARNING) 

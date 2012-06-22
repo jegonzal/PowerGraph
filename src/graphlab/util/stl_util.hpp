@@ -50,11 +50,11 @@
 #include <sstream>
 #include <iostream>
 #include <iomanip>
+#include <graphlab/logger/assertions.hpp>
 
-
-#include <graphlab/serialization/serialize.hpp>
-#include <graphlab/serialization/set.hpp>
-#include <graphlab/serialization/map.hpp>
+// #include <graphlab/serialization/serialize.hpp>
+// #include <graphlab/serialization/set.hpp>
+// #include <graphlab/serialization/map.hpp>
 
 #include <graphlab/macros_def.hpp>
 
@@ -407,7 +407,7 @@ namespace graphlab {
     std::stringstream strm(str);
     T elem; 
     strm >> elem;
-    assert(!strm.fail());
+    ASSERT_FALSE(strm.fail());
     return elem;
   }
 
