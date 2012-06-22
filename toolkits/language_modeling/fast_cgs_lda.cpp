@@ -156,6 +156,9 @@ word_cloud_callback(std::map<std::string, std::string>& varmap) {
 
 
 
+double get_likelihood() {
+  return -LOG_LIKELIHOOD;
+}
 
 int main(int argc, char** argv) {
   global_logger().set_log_level(LOG_INFO);
@@ -165,7 +168,8 @@ int main(int argc, char** argv) {
   graphlab::distributed_control dc;
   //  INITIALIZE_EVENT_LOG(dc);
   ADD_CUMULATIVE_EVENT(TOKEN_CHANGES, "Token Changes", "Changes");
-
+  ADD_INSTANTANEOUS_CALLBACK_EVENT(LIKELIHOOD_VAL, "Negative Log Likelihood", "log P", 
+                                   get_likelihood);
   // Parse command line options -----------------------------------------------
   const std::string description = 
     "\n=========================================================================\n"
@@ -261,11 +265,11 @@ int main(int argc, char** argv) {
     ("global_counts", global_counts_agg::map, global_counts_agg::finalize) &&
     engine.aggregate_periodic("global_counts", 5);
   ASSERT_TRUE(success);
-  // success = 
-  //   engine.add_vertex_aggregator<likelihood_agg>
-  //   ("likelihood", likelihood_agg::map, likelihood_agg::finalize) &&
-  //   engine.aggregate_periodic("likelihood", 10);
-  // ASSERT_TRUE(success);
+   success = 
+     engine.add_vertex_aggregator<likelihood_agg>
+     ("likelihood", likelihood_agg::map, likelihood_agg::finalize) &&
+     engine.aggregate_periodic("likelihood", 10);
+   ASSERT_TRUE(success);
 
 
   ///! schedule only documents

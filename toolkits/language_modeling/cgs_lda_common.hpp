@@ -166,7 +166,7 @@ std::string TOP_WORDS_JSON =
 
 
 DECLARE_EVENT(TOKEN_CHANGES);
-
+DECLARE_EVENT(LIKELIHOOD_VAL);
 
 // Graph Types
 // ============================================================================
@@ -317,16 +317,16 @@ private:
   std::vector< std::set<cw_pair_type> > top_words;
   size_t nchanges, nupdates;
 public:
-  topk_aggregator(size_t nchanges = 0, size_t nupdates = 0) : 
-    nchanges(nchanges), nupdates(nupdates) { }
+topk_aggregator(size_t nchanges = 0, size_t nupdates = 0) : 
+  nchanges(nchanges), nupdates(nupdates) { }
 
-  void save(graphlab::oarchive& arc) const { arc << top_words << nchanges; }
-  void load(graphlab::iarchive& arc) { arc >> top_words >> nchanges; }
+void save(graphlab::oarchive& arc) const { arc << top_words << nchanges << nupdates; }
+  void load(graphlab::iarchive& arc) { arc >> top_words >> nchanges >> nupdates; }
 
 
   topk_aggregator& operator+=(const topk_aggregator& other) {
     nchanges += other.nchanges;
-    nupdates += other.nupdates;
+    nupdates = std::min(nupdates, other.nupdates);
     if(other.top_words.empty()) return *this;
     if(top_words.empty()) top_words.resize(NTOPICS);
     for(size_t i = 0; i < top_words.size(); ++i) {
@@ -422,7 +422,7 @@ struct global_counts_aggregator {
   } // end of finalize
 }; // end of global_counts_aggregator struct
 
-
+double LOG_LIKELIHOOD = 0;
 
 /**
  * \brief The Likelihood aggregators maintains the current estimate of
@@ -491,6 +491,7 @@ public:
       total.lik_topics;
     
     const double lik = lik_words_given_topics + lik_topics;
+    if (context.procid() == 0) LOG_LIKELIHOOD = lik;
     context.cout() << "Likelihood: " << lik << std::endl;
   } // end of finalize
 }; // end of likelihood_aggregator struct
@@ -513,7 +514,12 @@ struct selective_signal {
 }; // end of selective_signal
 
 
-
+void random_init(graph_type::vertex_type v) {
+  v.data().factor.resize(NTOPICS);
+  for (size_t i = 0;i < v.num_in_edges() + v.num_out_edges() ; ++i) {
+    ++v.data().factor[graphlab::random::fast_uniform<size_t>(0, NTOPICS - 1)];
+  }
+}
 
 bool load_and_initialize_graph(graphlab::distributed_control& dc,
                                graph_type& graph,
@@ -522,12 +528,15 @@ bool load_and_initialize_graph(graphlab::distributed_control& dc,
   graphlab::timer timer; timer.start();
   graph.load(matrix_dir, graph_loader);
 
+
   dc.cout() << ": Loading graph. Finished in " 
             << timer.current_time() << " seconds." << std::endl;
 
   dc.cout() << "Finalizing graph." << std::endl;
   timer.start();
   graph.finalize();
+
+  graph.transform_vertices(random_init);
   dc.cout() << "Finalizing graph. Finished in " 
             << timer.current_time() << " seconds." << std::endl;
 

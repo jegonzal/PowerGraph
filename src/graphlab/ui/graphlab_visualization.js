@@ -28,6 +28,7 @@ function initiate_job_info() {
         .error(function() { 
             console.log("Unable to access " + domain_str + " will try again.");})
         .complete(function() {
+            console.log("settimeout");
             setTimeout(initiate_job_info, update_interval);
         });
 }
