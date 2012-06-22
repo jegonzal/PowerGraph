@@ -1,6 +1,8 @@
 #include <boost/unordered_set.hpp>
+#include <graphlab/util/cuckoo_set_pow2.hpp>
 #include <graphlab.hpp>
 #include <graphlab/ui/metrics_server.hpp>
+#include <graphlab/util/cuckoo_set_pow2.hpp>
 #include <graphlab/macros_def.hpp>
 /**
  *  
@@ -49,15 +51,17 @@
  * for small number of entries. A union of a small set which does not rely
  * on malloc, and an unordered_set is probably much more efficient.
  */
-
+typedef graphlab::cuckoo_set_pow2<graphlab::vertex_id_type, 3> hash_set;
+ 
 /*
  * Each vertex maintains a list of all its neighbors.
  * and a final count for the number of triangles it is involved in
  */
 struct vertex_data_type {
-  vertex_data_type():num_triangles(0),has_large_neighbors(true){ }
+  vertex_data_type():vid_set(-1,1,1),
+                     num_triangles(0),has_large_neighbors(true){ }
   // A list of all its neighbors
-  boost::unordered_set<graphlab::vertex_id_type> vid_set;
+  hash_set vid_set;
   // The number of triangles this vertex is involved it.
   // only used if "per vertex counting" is used
   uint32_t num_triangles;
@@ -224,6 +228,7 @@ public:
     do_not_scatter = false;
     if (gather_performed) {
       vertex.data().vid_set.clear();
+      vertex.data().vid_set.reserve(neighborhood.vid_vec.size() * 2);
       // we performed a gather
       foreach(graphlab::vertex_id_type vid, neighborhood.vid_vec) {
         vertex.data().vid_set.insert(vid);
@@ -253,8 +258,8 @@ public:
    * Computes the size of the intersection of two unordered sets
    */
   static uint32_t count_set_intersect(
-               const boost::unordered_set<vertex_id_type>& smaller_set,
-               const boost::unordered_set<vertex_id_type>& larger_set) {
+               const hash_set& smaller_set,
+               const hash_set& larger_set) {
     if (smaller_set.size() == 0) return 0;
     uint32_t count = 0;
     foreach(vertex_id_type vid, smaller_set) {
