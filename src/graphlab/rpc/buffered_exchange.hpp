@@ -45,9 +45,8 @@ namespace graphlab {
   private:
     struct buffer_record {
       procid_t proc;
-      size_t numel;
-      dc_impl::blob buffer;
-      buffer_record() : proc(-1), numel(0) { }
+      buffer_type buffer;
+      buffer_record() : proc(-1)  { }
     }; // end of buffer record
 
 
@@ -92,10 +91,6 @@ namespace graphlab {
 
 
     ~buffered_exchange() { 
-     foreach(buffer_record& buf, recv_buffers) {
-        buf.buffer.free();
-      }
-
     }
     // buffered_exchange(distributed_control& dc, handler_type recv_handler, 
     //                   size_t buffer_size = 1000) : 
@@ -159,7 +154,6 @@ namespace graphlab {
     bool recv(procid_t& ret_proc, buffer_type& ret_buffer, 
               const bool try_lock = false) {
       dc_impl::blob read_buffer;
-      size_t numel = 0;
       bool has_lock = false;
       if(try_lock) {
         has_lock = recv_lock.try_lock();
@@ -174,25 +168,13 @@ namespace graphlab {
           buffer_record& rec =  recv_buffers.front();
           // read the record 
           ret_proc = rec.proc; 
-          read_buffer = rec.buffer;
-          numel = rec.numel;
+          ret_buffer.swap(rec.buffer);
           ASSERT_LT(ret_proc, rpc.numprocs());
           recv_buffers.pop_front();
         }
         recv_lock.unlock();
       }
 
-     ret_buffer.clear();
-      if (success) {
-        // deserialize tmp_buffer
-        boost::iostreams::stream<boost::iostreams::array_source> strm(read_buffer.c, read_buffer.len);
-        iarchive iarc(strm);
-        ret_buffer.resize(numel);
-        for (size_t i = 0;i < numel; ++i) {
-          iarc >> ret_buffer[i];
-        }
-        read_buffer.free();
-      }
       return success;
     } // end of recv
 
@@ -206,7 +188,7 @@ namespace graphlab {
       recv_lock.lock();
       size_t count = 0;
       foreach(const buffer_record& rec, recv_buffers) {
-        count += rec.buffer.len;
+        count += rec.buffer.size();
       }
       recv_lock.unlock();
       return count;
@@ -215,19 +197,24 @@ namespace graphlab {
     bool empty() const { return recv_buffers.empty(); }
 
     void clear() {
-      foreach(buffer_record& buf, recv_buffers) {
-        buf.buffer.free();
-      }
     }
 
   private:
     void rpc_recv(procid_t src_proc, size_t numel, dc_impl::blob& buffer) {
+      buffer_type tmp;
+      boost::iostreams::stream<boost::iostreams::array_source> strm(buffer.c, buffer.len);
+      iarchive iarc(strm);
+      tmp.resize(numel);
+      for (size_t i = 0;i < numel; ++i) {
+        iarc >> tmp[i];
+      }
+      buffer.free();
+ 
       recv_lock.lock();
       recv_buffers.push_back(buffer_record());
       buffer_record& rec = recv_buffers.back();
       rec.proc = src_proc;
-      rec.numel = numel;
-      rec.buffer = buffer;
+      rec.buffer.swap(tmp);
       recv_lock.unlock();
     } // end of rpc rcv
 

@@ -391,21 +391,23 @@ namespace graphlab {
 
     cuckoo_set_pow2& operator=(const cuckoo_set_pow2& other) {
       if (&other == this) return *this;
-      destroy_all();
-      // copy the data
-      data = (map_container_type)malloc(sizeof(value_type) * other.datalen);
-      datalen = other.datalen;
-      std::uninitialized_copy(other.data_begin(), other.data_end(), data_begin());
+      if (other.numel == 0 && numel == 0) return *this;
+      else if (other.numel == 0) {
+        for (size_t i = 0;i < datalen; ++i) data[i] = illegalkey;
+        stash.clear();
+        numel = 0;
+        return *this;
+      }
+      else {
+        destroy_all();
 
-      // copy the stash
-      stash = other.stash;
-
-      // copy all the other extra stuff
-      illegalkey = other.illegalkey;
-      numel = other.numel;
-      hashfun = other.hashfun;
-      keyeq = other.keyeq;
-      mask = other.mask;
+        // copy the data
+        data = (map_container_type)malloc(sizeof(value_type) * other.datalen);
+        datalen = other.datalen;
+        std::uninitialized_copy(other.data_begin(), other.data_end(), data_begin());
+        // copy the stash
+        stash = other.stash;
+      }
       return *this;
     }
   
@@ -636,13 +638,18 @@ namespace graphlab {
     }
 
     void save(oarchive &oarc) const {
+      oarc << size_t(numel);
       serialize_iterator(oarc, begin(), end(), numel);
     }
 
 
     void load(iarchive &iarc) {
       for (size_t i = 0;i < datalen; ++i) data[i] = illegalkey;
+      stash.clear();
       numel = 0;
+      size_t tmpnumel;
+      iarc >> tmpnumel;
+      reserve(tmpnumel * 1.5);
       //std::cout << tmpnumel << ", " << illegalkey << std::endl;
       deserialize_iterator<iarchive, non_const_value_type>
         (iarc, insert_iterator(this));
