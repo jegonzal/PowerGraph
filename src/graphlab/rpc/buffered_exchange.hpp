@@ -91,7 +91,7 @@ namespace graphlab {
       send_buffers[index].push_back(value);
       if(send_buffers[index].size() > max_buffer_size) {
         if(proc == rpc.procid()) {
-          rpc_recv(proc, send_buffers[proc]);
+          rpc_recv(proc, send_buffers[index]);
         } else {
           rpc.remote_call(proc, &buffered_exchange::rpc_recv,
                           rpc.procid(), send_buffers[index]);
