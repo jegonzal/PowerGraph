@@ -298,7 +298,8 @@ ExternalProject_Add(libjson
   BUILD_IN_SOURCE 1
   CONFIGURE_COMMAND ""
   BUILD_COMMAND make
-  INSTALL_COMMAND prefix=${GraphLab_SOURCE_DIR}/deps/local make install 
+  INSTALL_COMMAND prefix=<INSTALL_DIR> make install 
+  INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local
   )
 
 
