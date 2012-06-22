@@ -91,7 +91,7 @@ namespace graphlab {
       send_buffers[index].push_back(value);
       if(send_buffers[index].size() > max_buffer_size) {
         if(proc == rpc.procid()) {
-          rpc_recv(proc, send_buffers[proc]);
+          rpc_recv(proc, send_buffers[index]);
         } else {
           rpc.remote_call(proc, &buffered_exchange::rpc_recv,
                           rpc.procid(), send_buffers[index]);
@@ -170,6 +170,7 @@ namespace graphlab {
 
   private:
     void rpc_recv(procid_t src_proc, buffer_type& buffer) {
+      ASSERT_LT(src_proc, rpc.numprocs());
       recv_lock.lock();
       recv_buffers.push_back(buffer_record());
       buffer_record& rec = recv_buffers.back();
