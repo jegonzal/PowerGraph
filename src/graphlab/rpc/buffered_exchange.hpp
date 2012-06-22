@@ -170,6 +170,7 @@ namespace graphlab {
 
   private:
     void rpc_recv(procid_t src_proc, buffer_type& buffer) {
+      ASSERT_LT(src_proc, rpc.numprocs());
       recv_lock.lock();
       recv_buffers.push_back(buffer_record());
       buffer_record& rec = recv_buffers.back();
