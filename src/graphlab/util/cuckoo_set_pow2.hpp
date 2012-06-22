@@ -641,7 +641,6 @@ namespace graphlab {
 
 
     void load(iarchive &iarc) {
-      index_type tmpnumel = 0;
       for (size_t i = 0;i < datalen; ++i) data[i] = illegalkey;
       numel = 0;
       //std::cout << tmpnumel << ", " << illegalkey << std::endl;
