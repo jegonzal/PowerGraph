@@ -51,15 +51,14 @@
  * for small number of entries. A union of a small set which does not rely
  * on malloc, and an unordered_set is probably much more efficient.
  */
-typedef graphlab::cuckoo_set_pow2<graphlab::vertex_id_type, 3> hash_set;
+typedef std::vector<graphlab::vertex_id_type> hash_set;
  
 /*
  * Each vertex maintains a list of all its neighbors.
  * and a final count for the number of triangles it is involved in
  */
 struct vertex_data_type {
-  vertex_data_type():vid_set(-1,1,1),
-                     num_triangles(0),has_large_neighbors(true){ }
+  vertex_data_type(): num_triangles(0),has_large_neighbors(true){ }
   // A list of all its neighbors
   hash_set vid_set;
   // The number of triangles this vertex is involved it.
@@ -139,6 +138,103 @@ typedef graphlab::distributed_graph<vertex_data_type,
                                     edge_data_type> graph_type;
 
 
+
+template <typename T>
+struct counting_inserter {
+  size_t* i;
+  counting_inserter(size_t* i):i(i) { }
+  counting_inserter& operator++() {
+    ++(*i);
+    return *this;
+  }
+  void operator++(int) {
+    ++(*i);
+  }
+
+  struct empty_val {
+    empty_val operator=(const T&) { return empty_val(); }
+  };
+
+  empty_val operator*() {
+    return empty_val();
+  }
+
+  typedef empty_val reference;
+};
+
+// Radix sort implementation from https://github.com/gorset/radix
+// Thanks to Erik Gorset
+//
+/*
+Copyright 2011 Erik Gorset. All rights reserved.
+
+Redistribution and use in source and binary forms, with or without modification, are
+permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this list of
+conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice, this list
+of conditions and the following disclaimer in the documentation and/or other materials
+provided with the distribution.
+
+THIS SOFTWARE IS PROVIDED BY Erik Gorset ``AS IS'' AND ANY EXPRESS OR IMPLIED
+WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND
+FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL Erik Gorset OR
+CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
+ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
+ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+The views and conclusions contained in the software and documentation are those of the
+authors and should not be interpreted as representing official policies, either expressed
+or implied, of Erik Gorset.
+*/
+void radix_sort(graphlab::vertex_id_type *array, int offset, int end, int shift) {
+    int x, y;
+    graphlab::vertex_id_type value, temp;
+    int last[256] = { 0 }, pointer[256];
+
+    for (x=offset; x<end; ++x) {
+        ++last[(array[x] >> shift) & 0xFF];
+    }
+
+    last[0] += offset;
+    pointer[0] = offset;
+    for (x=1; x<256; ++x) {
+        pointer[x] = last[x-1];
+        last[x] += last[x-1];
+    }
+
+    for (x=0; x<256; ++x) {
+        while (pointer[x] != last[x]) {
+            value = array[pointer[x]];
+            y = (value >> shift) & 0xFF;
+            while (x != y) {
+                temp = array[pointer[y]];
+                array[pointer[y]++] = value;
+                value = temp;
+                y = (value >> shift) & 0xFF;
+            }
+            array[pointer[x]++] = value;
+        }
+    }
+
+    if (shift > 0) {
+        shift -= 8;
+        for (x=0; x<256; ++x) {
+            temp = x > 0 ? pointer[x] - pointer[x-1] : pointer[0] - offset;
+            if (temp > 64) {
+                radix_sort(array, pointer[x] - temp, pointer[x], shift);
+            } else if (temp > 1) {
+                std::sort(array + (pointer[x] - temp), array + pointer[x]);
+                //insertion_sort(array, pointer[x] - temp, pointer[x]);
+            }
+        }
+    }
+}
 /*
  * This class implements the triangle counting algorithm as described in
  * the header. On gather, we accumulate a set of all adjacent vertices.
@@ -227,12 +323,19 @@ public:
 
     do_not_scatter = false;
     if (gather_performed) {
-      vertex.data().vid_set.clear();
-      vertex.data().vid_set.reserve(neighborhood.vid_vec.size() * 2);
-      // we performed a gather
-      foreach(graphlab::vertex_id_type vid, neighborhood.vid_vec) {
-        vertex.data().vid_set.insert(vid);
+      vertex.data().vid_set = neighborhood.vid_vec;
+      if (vertex.data().vid_set.size() > 64) {
+        radix_sort(&(*vertex.data().vid_set.begin()), 0, vertex.data().vid_set.size(), 24);
       }
+      else {
+        std::sort(vertex.data().vid_set.begin(),
+            vertex.data().vid_set.end());
+      }
+
+      hash_set::iterator new_end = std::unique(vertex.data().vid_set.begin(),
+                                               vertex.data().vid_set.end());
+      vertex.data().vid_set.erase(new_end, vertex.data().vid_set.end());
+
       do_not_scatter = vertex.data().vid_set.size() == 0;
     }
     else {
@@ -260,12 +363,12 @@ public:
   static uint32_t count_set_intersect(
                const hash_set& smaller_set,
                const hash_set& larger_set) {
-    if (smaller_set.size() == 0) return 0;
-    uint32_t count = 0;
-    foreach(vertex_id_type vid, smaller_set) {
-      count += larger_set.count(vid);
-    }
-    return count;
+    size_t i = 0;
+    counting_inserter<vertex_id_type> iter(&i);
+    std::set_intersection(smaller_set.begin(), smaller_set.end(),
+                          larger_set.begin(), larger_set.end(),
+                          iter);
+    return i;
   }
 
   /*
@@ -287,17 +390,10 @@ public:
     if (CUR_PHASE == 0  || cur_is_above_count || nbr_is_above_count) {
       const vertex_data_type& srclist = edge.source().data();
       const vertex_data_type& targetlist = edge.target().data();
-     if (srclist.vid_set.size() >= targetlist.vid_set.size()) {
-        edge.data() += count_set_intersect(targetlist.vid_set, srclist.vid_set);
-      }
-      else {
-        edge.data() += count_set_intersect(srclist.vid_set, targetlist.vid_set);
-      }
+      edge.data() += count_set_intersect(targetlist.vid_set, srclist.vid_set);
     }
   }
 };
-
-
 
 /*
  * This class is used in a second engine call if per vertex counts are needed.
@@ -328,6 +424,7 @@ public:
    */
   void apply(icontext_type& context, vertex_type& vertex,
              const gather_type& num_triangles) {
+    vertex.data().vid_set.clear();
     vertex.data().num_triangles = num_triangles / 2;
   }
 
@@ -417,7 +514,6 @@ int main(int argc, char** argv) {
                        "save to file with prefix \"[per_vertex]\". "
                        "The algorithm used is slightly different "
                        "and thus will be a little slower");
-  
   if(!clopts.parse(argc, argv)) return EXIT_FAILURE;
   if (prefix == "") {
     std::cout << "--graph is not optional\n";
