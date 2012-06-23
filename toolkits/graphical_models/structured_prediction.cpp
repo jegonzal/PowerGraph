@@ -80,10 +80,18 @@ public:
     return messages_[message_idx(source_id, target_id, true)];
   }
   factor_type& old_message(size_t source_id, size_t target_id) { 
-    return messages_[message_idx(source_id, target_id, false)];
+     return messages_[message_idx(source_id, target_id, false)];
   }
   void update_old(size_t source_id, size_t target_id) { 
     old_message(source_id, target_id) = message(source_id, target_id);
+  }
+  void initialize(size_t source_id, size_t nsource, size_t target_id, size_t ntarget) {
+    ASSERT_GT(nsource, 0); ASSERT_GT(ntarget, 0);
+    message(source_id, target_id).resize(ntarget);
+    old_message(source_id, target_id).resize(ntarget);
+    message(target_id, source_id).resize(nsource);
+    old_message(target_id, source_id).resize(nsource);
+    for(size_t i = 0; i < 4; ++i) ASSERT_GT(messages_[i].size(),0); 
   }
   void save(graphlab::oarchive& arc) const {
     for(size_t i = 0; i < 4; ++i) arc << messages_[i];
@@ -127,6 +135,7 @@ struct bp_vertex_program :
     const vertex_type other_vertex = get_other_vertex(edge, vertex);
     edge_data& edata = edge.data();
     edata.update_old(other_vertex.id(), vertex.id());
+    ASSERT_GT(edata.old_message(other_vertex.id(), vertex.id()).size(), 0);
     return edata.old_message(other_vertex.id(), vertex.id());
   }; // end of gather function
 
@@ -134,11 +143,17 @@ struct bp_vertex_program :
    * Multiply message product by node potential and update the belief.
    */
   void apply(icontext_type& context, vertex_type& vertex, 
-             const gather_type& total) {
-    vertex_data& vdata = vertex.data();
-    vdata.belief = vdata.potential + total;
-    // Rescale the belief
-    vdata.belief.array() -= double(vdata.belief.maxCoeff());
+             const factor_type& total) {
+    if(vertex.num_in_edges() + vertex.num_out_edges() == 0) {
+      vertex.data().belief = vertex.data().potential;
+    } else {
+      ASSERT_GT(total.size(), 0);
+      vertex_data& vdata = vertex.data();
+      vdata.belief = vdata.potential + total;
+      ASSERT_GT(vdata.belief.size(), 0);
+      // Rescale the belief
+      vdata.belief.array() -= vdata.belief.maxCoeff();
+    }
   }; // end of apply
 
   /**
@@ -157,6 +172,8 @@ struct bp_vertex_program :
                edge_type& edge) const {  
     const vertex_type other_vertex = get_other_vertex(edge, vertex);
     edge_data& edata = edge.data();
+    ASSERT_EQ(edata.old_message(other_vertex.id(), vertex.id()).size(), 
+              vertex.data().belief.size());
     // construct the cavity
     factor_type cavity = vertex.data().belief - 
       edata.old_message(other_vertex.id(), vertex.id());
@@ -181,11 +198,11 @@ struct bp_vertex_program :
 private:
   static void convolve(const factor_type& cavity, factor_type& message) {
     for(size_t i = 0; i < message.size(); ++i) {
-      double value = 0;
+      double sum = 0;
       for(size_t j = 0; j < cavity.size(); ++j) {
-        value += cavity(j) * ( i == j? 0 : -SMOOTHING ); 
+        sum += std::exp( cavity(j)  + ( i == j? 0 : -SMOOTHING ) ); 
       }
-      message(i) = value;
+      message(i) = (sum > 0)? std::log(sum) : std::numeric_limits<double>::min();
     }
   } // end of convolve
 
@@ -209,7 +226,6 @@ private:
 bool vertex_loader(graph_type& graph, const std::string& fname, 
                    const std::string& line) {
   ASSERT_FALSE(line.empty()); 
-  std::cout << "Reading line: " << line << std::endl;
   namespace qi = boost::spirit::qi;
   namespace ascii = boost::spirit::ascii;
   namespace phoenix = boost::phoenix;
@@ -219,18 +235,37 @@ bool vertex_loader(graph_type& graph, const std::string& fname,
     (line.begin(), line.end(),       
      //  Begin grammar
      (
-      qi::ulong_[phoenix::ref(vid) = qi::_1] >> qi::char_("\t,") >>
-      (qi::double_[phoenix::push_back(phoenix::ref(values), qi::_1)] % qi::char_("\t,") )
+      qi::ulong_[phoenix::ref(vid) = qi::_1] >> (qi::char_(",") | qi::char_("\t"))  >>
+      (qi::double_[phoenix::push_back(phoenix::ref(values), qi::_1)] % 
+       (qi::char_(",") | qi::char_("\t")) )
       )
      ,
      //  End grammar
      ascii::space); 
   if(!success) return false;
 
-  std::cout << "value: " << vid << ": ";
-  for(size_t i = 0; i < values.size(); ++i) std::cout << values[i] << ", ";
-  std::cout << std::endl;
+  if(values.empty()) {
+    logstream(LOG_ERROR) << "Vertex has no prior." << std::endl;
+    return false;
+  }
 
+  // Renormalize the vertex data
+  double sum = 0;
+  for(size_t i = 0; i < values.size(); ++i) {
+    if(values[i] < 0) { 
+      logstream(LOG_ERROR) << "Encountered negative probability." << std::endl;
+      return false;
+    }
+    if(values[i] == 0) { 
+      logstream(LOG_ERROR) 
+        << "Zero probability assignments are not currently supported." << std::endl;
+      return false;
+    }
+    sum += values[i]; 
+  }
+  ASSERT_GT(sum, 0);
+  for(size_t i = 0; i < values.size(); ++i) values[i] /= sum;
+ 
   vertex_data vdata;
   vdata.potential.resize(values.size());
   for(size_t i = 0; i < values.size(); ++i) {
@@ -246,7 +281,6 @@ bool vertex_loader(graph_type& graph, const std::string& fname,
 bool edge_loader(graph_type& graph, const std::string& fname, 
                  const std::string& line) {
   ASSERT_FALSE(line.empty()); 
-  std::cout << "Reading edgeline: " << line << std::endl;
   namespace qi = boost::spirit::qi;
   namespace ascii = boost::spirit::ascii;
   namespace phoenix = boost::phoenix;
@@ -263,10 +297,7 @@ bool edge_loader(graph_type& graph, const std::string& fname,
      ,
      //  End grammar
      ascii::space); 
-  if(!success) return false;
-
-  std::cout << source << ", " << target << ", " << weight << std::endl;
-  
+  if(!success) return false;  
   graph.add_edge(source, target, edge_data(weight));
   return true;
 } // end of edge loader
@@ -278,11 +309,8 @@ void edge_initializer(graph_type::edge_type& edge) {
   const graphlab::vertex_id_type source_id = edge.source().id();
   const size_t nsource = edge.source().data().potential.size(); 
   const graphlab::vertex_id_type target_id = edge.target().id();
-  const size_t ntarget = edge.target().data().potential.size(); 
-  edata.message(source_id, target_id).resize(ntarget);
-  edata.old_message(source_id, target_id).resize(ntarget);
-  edata.message(target_id, source_id).resize(nsource);
-  edata.old_message(target_id, source_id).resize(nsource);
+  const size_t ntarget = edge.target().data().potential.size();
+  edata.initialize(source_id, nsource, target_id, ntarget);
 } // end of edge initializer
 
 
@@ -299,6 +327,7 @@ int main(int argc, char** argv) {
   graphlab::command_line_options clopts(description);
   std::string prior_dir; 
   std::string graph_dir;
+  std::string output_dir;
   clopts.attach_option("prior", &prior_dir, prior_dir,
                        "The directory containing the prior");
   clopts.add_positional("prior");
@@ -311,7 +340,8 @@ int main(int argc, char** argv) {
                        "The amount of damping (0 -> no damping and 1 -> no progress)");
   clopts.attach_option("tol", &TOLERANCE, TOLERANCE,
                        "The tolerance level for convergence.");
-
+  clopts.attach_option("output", &output_dir, output_dir,
+                       "The directory in which to save the predictions");
   if(!clopts.parse(argc, argv)) {
     graphlab::mpi_tools::finalize();
     return clopts.is_set("help")? EXIT_SUCCESS : EXIT_FAILURE;
@@ -340,19 +370,19 @@ int main(int argc, char** argv) {
   graph.finalize();
   graph.transform_edges(edge_initializer);
 
-  // typedef graphlab::omni_engine<bp_vertex_program> engine_type;
-  // engine_type engine(dc, graph, clopts, "asynchronous");
-  // engine.signal_all();
-  // graphlab::timer timer;
-  // engine.start();  
-  // const double runtime = timer.current_time();
-  //   dc.cout() 
-  //   << "----------------------------------------------------------" << std::endl
-  //   << "Final Runtime (seconds):   " << runtime 
-  //   << std::endl
-  //   << "Updates executed: " << engine.num_updates() << std::endl
-  //   << "Update Rate (updates/second): " 
-  //   << engine.num_updates() / runtime << std::endl;
+  typedef graphlab::omni_engine<bp_vertex_program> engine_type;
+  engine_type engine(dc, graph, clopts, "asynchronous");
+  engine.signal_all();
+  graphlab::timer timer;
+  engine.start();  
+  const double runtime = timer.current_time();
+    dc.cout() 
+    << "----------------------------------------------------------" << std::endl
+    << "Final Runtime (seconds):   " << runtime 
+    << std::endl
+    << "Updates executed: " << engine.num_updates() << std::endl
+    << "Update Rate (updates/second): " 
+    << engine.num_updates() / runtime << std::endl;
 
     
   graphlab::stop_metric_server_on_eof();
