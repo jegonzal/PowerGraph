@@ -384,20 +384,42 @@ size_t MINIMUM_NBR_SIZE_FOR_PHASE_COLLECTION = 32;
  */
 struct set_union_gather {
   bool large_neighbors;
+  graphlab::vertex_id_type v;
   std::vector<graphlab::vertex_id_type> vid_vec;
 
-  set_union_gather():large_neighbors(false) {
+  set_union_gather():large_neighbors(false),v(-1) {
+  }
+
+  size_t size() const {
+    if (v == (graphlab::vertex_id_type)-1) return vid_vec.size();
+    else return 1;
   }
   /*
    * Combining with another collection of vertices.
    * Union it into the current set.
    */
   set_union_gather& operator+=(const set_union_gather& other) {
+    if (size() == 0) {
+      (*this) = other;
+      return (*this);
+    }
+    else if (other.size() == 0) {
+      return *this;
+    }
+
+    if (vid_vec.size() == 0) {
+      vid_vec.push_back(v);
+      v = (graphlab::vertex_id_type)(-1);
+    }
     if (other.vid_vec.size() > 0) {
-      vid_vec.reserve(vid_vec.size() + other.vid_vec.size());
-      foreach(graphlab::vertex_id_type othervid, other.vid_vec) {
-        vid_vec.push_back(othervid);
+      size_t ct = vid_vec.size();
+      vid_vec.resize(vid_vec.size() + other.vid_vec.size());
+      for (size_t i = 0; i < other.vid_vec.size(); ++i) {
+        vid_vec[ct + i] = other.vid_vec[i];
       }
+    }
+    else if (other.v != (graphlab::vertex_id_type)-1) {
+      vid_vec.push_back(other.v);
     }
     large_neighbors |= other.large_neighbors;
     return *this;
@@ -405,12 +427,19 @@ struct set_union_gather {
   
   // serialize
   void save(graphlab::oarchive& oarc) const {
-    oarc << large_neighbors << vid_vec;
+    oarc << large_neighbors << bool(vid_vec.size() == 0);
+    if (vid_vec.size() == 0) oarc << v;
+    else oarc << vid_vec;
   }
 
   // deserialize
   void load(graphlab::iarchive& iarc) {
-    iarc >> large_neighbors >> vid_vec;
+    bool novvec;
+    v = (graphlab::vertex_id_type)(-1);
+    vid_vec.clear();
+    iarc >> large_neighbors >> novvec;
+    if (novvec) iarc >> v;
+    else iarc >> vid_vec;
   }
 };
 
@@ -467,14 +496,14 @@ public:
       if (NUM_PHASES == 1 || 
           cur_is_below_count || otherid % NUM_PHASES == CUR_PHASE) {
         if (PER_VERTEX_COUNT || otherid > vertex.id()) {
-          gather.vid_vec.push_back(otherid);
+          gather.v = otherid;
         } 
       }
     }
     else {
       if (NUM_PHASES == 1 || otherid % NUM_PHASES == CUR_PHASE) {
         if (PER_VERTEX_COUNT || otherid > vertex.id()) {
-          gather.vid_vec.push_back(otherid);
+          gather.v = otherid;
         }
       }
 
@@ -510,8 +539,15 @@ public:
 
     do_not_scatter = false;
     if (gather_performed) {
-
-      vertex.data().vid_set.assign(neighborhood.vid_vec);
+      if (neighborhood.vid_vec.size() == 0) {
+        vertex.data().vid_set.clear();
+        if (neighborhood.v != (graphlab::vertex_id_type(-1))) {
+          vertex.data().vid_set.vid_vec.push_back(neighborhood.v);
+        }
+      }
+      else {
+        vertex.data().vid_set.assign(neighborhood.vid_vec);
+      }
       do_not_scatter = vertex.data().vid_set.size() == 0;
     }
     else {
