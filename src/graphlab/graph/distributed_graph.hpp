@@ -2497,6 +2497,8 @@ namespace graphlab {
     // boost::unordered_map<vertex_id_type, lvid_type> vid2lvid;
     /** The map from global vertex ids back to local vertex ids */
     typedef cuckoo_map_pow2<vertex_id_type, lvid_type, 3, uint32_t> cuckoo_map_type;
+    typedef cuckoo_map_type vid2lvid_map_type;
+
     cuckoo_map_type vid2lvid;
 
         
