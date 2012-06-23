@@ -901,7 +901,7 @@ namespace graphlab {
     * \endcode
     * After which calling:
     * \code
-    * float sum = engine.map_reduce_edges<float>(absolute_edge_data);
+    * float sum = graph.map_reduce_edges<float>(absolute_edge_data);
     * \endcode
     * will call the <code>absolute_edge_data()</code> function
     * on each edge in the graph. <code>absolute_edge_data()</code>
@@ -1013,7 +1013,7 @@ namespace graphlab {
      *
      * Calling transform_vertices():
      * \code
-     *   engine.transform_vertices(set_vertex_value);
+     *   graph.transform_vertices(set_vertex_value);
      * \endcode
      * will run the <code>set_vertex_value()</code> function
      * on each vertex in the graph, setting its new value. 
@@ -1082,7 +1082,7 @@ namespace graphlab {
      *
      * Calling transform_edges():
      * \code
-     *   engine.transform_edges(set_edge_value);
+     *   graph.transform_edges(set_edge_value);
      * \endcode
      * will run the <code>set_edge_value()</code> function
      * on each edge in the graph, setting its new value. 

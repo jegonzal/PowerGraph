@@ -153,7 +153,7 @@ class distributed_event_logger {
     /**
      * Receives the log information from each machine
      */    
-    void rpc_collect_log(size_t srcproc, double srctime,
+    void rpc_collect_log(size_t srcproc, size_t record_ctr,
                          std::vector<double> srccounts);
 
     void collect_instantaneous_log(); 
@@ -161,7 +161,7 @@ class distributed_event_logger {
      *  Collects the machine level
      *  log entry. and sends it to machine 0
      */
-    void local_collect_log(); 
+    void local_collect_log(size_t record_ctr); 
     
     // Called only by machine 0 to get the aggregate log
     void build_aggregate_log();

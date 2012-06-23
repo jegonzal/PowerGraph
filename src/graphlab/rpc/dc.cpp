@@ -268,7 +268,15 @@ void distributed_control::process_fcall_block(fcallqueue_entry &fcallblock) {
     BEGIN_TRACEPOINT(dc_receive_multiplexing);
     fcallqueue_entry* queuebufs[fcallqueue.size()];
     atomic<size_t>* refctr = new atomic<size_t>(0);
-    
+
+    fcallqueue_entry immediate_queue;
+
+    immediate_queue.chunk_src = fcallblock.chunk_src;
+    immediate_queue.chunk_ref_counter = refctr;
+    immediate_queue.chunk_len = 0;
+    immediate_queue.source = fcallblock.source;
+    immediate_queue.is_chunk = false;
+
     for (size_t i = 0;i < fcallqueue.size(); ++i) {
       queuebufs[i] = new fcallqueue_entry;
       queuebufs[i]->chunk_src = fcallblock.chunk_src;
@@ -288,25 +296,33 @@ void distributed_control::process_fcall_block(fcallqueue_entry &fcallblock) {
       dc_impl::packet_hdr hdr = *reinterpret_cast<dc_impl::packet_hdr*>(data);
       ASSERT_LE(hdr.len, remaininglen);
       
-      if ((hdr.packet_type_mask & CONTROL_PACKET) == 0) {
-        global_bytes_received[hdr.src].inc(hdr.len);
-      }
       refctr->value++;
-      if (hdr.sequentialization_key == 0) {
-        queuebufs[stripe]->calls.push_back(function_call_block(
+
+
+      if ((hdr.packet_type_mask & CONTROL_PACKET)) {
+        // control calls are handled immediately with priority.
+        immediate_queue.calls.push_back(function_call_block(
                                             data + sizeof(dc_impl::packet_hdr), 
                                             hdr.len,
                                             hdr.packet_type_mask));
-        ++stripe;
-        if (stripe == (fcallblock.source % fcallqueue.size())) ++stripe;
-        if (stripe >= fcallqueue.size()) stripe -= fcallqueue.size();
-      }
-      else {
-        size_t idx = (hdr.sequentialization_key % (fcallqueue.size()));
-        queuebufs[idx]->calls.push_back(function_call_block(
-                                            data + sizeof(dc_impl::packet_hdr), 
-                                            hdr.len,
-                                            hdr.packet_type_mask));
+      } else {
+        global_bytes_received[hdr.src].inc(hdr.len);
+        if (hdr.sequentialization_key == 0) {
+          queuebufs[stripe]->calls.push_back(function_call_block(
+                                              data + sizeof(dc_impl::packet_hdr), 
+                                              hdr.len,
+                                              hdr.packet_type_mask));
+          ++stripe;
+          if (stripe == (fcallblock.source % fcallqueue.size())) ++stripe;
+          if (stripe >= fcallqueue.size()) stripe -= fcallqueue.size();
+        }
+        else {
+          size_t idx = (hdr.sequentialization_key % (fcallqueue.size()));
+          queuebufs[idx]->calls.push_back(function_call_block(
+                                              data + sizeof(dc_impl::packet_hdr), 
+                                              hdr.len,
+                                              hdr.packet_type_mask));
+        }
       }
       data += sizeof(dc_impl::packet_hdr) + hdr.len;
       remaininglen -= sizeof(dc_impl::packet_hdr) + hdr.len;
@@ -323,6 +339,7 @@ void distributed_control::process_fcall_block(fcallqueue_entry &fcallblock) {
       }
     }
     END_TRACEPOINT(dc_receive_queuing);
+    if (immediate_queue.calls.size() > 0) process_fcall_block(immediate_queue);
   }
 }
 
