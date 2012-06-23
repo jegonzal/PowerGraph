@@ -115,12 +115,15 @@ void distributed_event_logger::rpc_collect_log(size_t srcproc, size_t record_ctr
     logs[log]->earliest_modified_log = 
                     std::min(entryid, logs[log]->earliest_modified_log);
     logs[log]->machine_log_modified = true;
-    if (logs[log]->machine[srcproc].size() < entryid + 1) {
-      double prevvalue = 0;
-      if (logs[log]->machine[srcproc].size() > 0) {
-        prevvalue = logs[log]->machine[srcproc].back().value;
+    // resize all procs
+    for (procid_t p = 0; p < logs[log]->machine.size(); ++p) {
+      if (logs[log]->machine[p].size() < entryid + 1) {
+        double prevvalue = 0;
+        if (logs[log]->machine[p].size() > 0) {
+          prevvalue = logs[log]->machine[p].back().value;
+        }
+        logs[log]->machine[p].resize(entryid + 1, log_entry(prevvalue));
       }
-      logs[log]->machine[srcproc].resize(entryid + 1, log_entry(prevvalue));
     }
     logs[log]->machine[srcproc][entryid].value = srccounts[log];
     logs[log]->lock.unlock();
@@ -491,6 +494,8 @@ static metric_names_json(std::map<std::string, std::string>& vars) {
 
   size_t logcount = 0;
   foreach(uint32_t log, has_log_entry) {
+
+    logs[log]->lock.lock();
     double rate_val = 0;
     size_t len = logs[log]->aggregate.size();
     if (len >= 1) { 
@@ -520,6 +525,8 @@ static metric_names_json(std::map<std::string, std::string>& vars) {
                                               logs[log]->aggregate.rbegin()->value 
                                               : 0 ) << "\n"
          << "    }\n";
+
+    logs[log]->lock.unlock();
     ++logcount;
     if (logcount < nlogs) strm << ",";
   }
@@ -577,7 +584,10 @@ static metric_aggregate_json(std::map<std::string, std::string>& vars) {
 
   strm << "[\n";
   foreach(uint32_t log, has_log_entry) {
+
     if (logs[log]->name == name || extract_all) {
+
+      logs[log]->lock.lock();
       strm << "    {\n"
            << "      \"id\":" << log << ",\n"
            << "      \"name\": \"" << logs[log]->name << "\",\n"
@@ -613,6 +623,7 @@ static metric_aggregate_json(std::map<std::string, std::string>& vars) {
         }
       }
 
+      logs[log]->lock.unlock();
       for (size_t i = 0 ;i < output_entries.size(); ++i) {
         strm << " [" 
              << output_entries[i].first << ", " 
@@ -629,6 +640,7 @@ static metric_aggregate_json(std::map<std::string, std::string>& vars) {
       ++logcount;
       if (logcount < nlogs) strm << ",\n";
     }
+
   }
 
   strm << "]\n";
@@ -694,6 +706,8 @@ static metric_by_machine_json(std::map<std::string, std::string>& vars) {
   strm << "[\n";
   foreach(uint32_t log, has_log_entry) {
     if (logs[log]->name == name || extract_all) {
+
+      logs[log]->lock.lock();
       strm << "    {\n"
            << "      \"id\":" << log << ",\n"
            << "      \"name\": \"" << logs[log]->name << "\",\n"
@@ -744,6 +758,8 @@ static metric_by_machine_json(std::map<std::string, std::string>& vars) {
         }
         all_output_entries.push_back(output_entries);
       }
+
+      logs[log]->lock.unlock();
       strm << "[ ";
       for (size_t p = 0; p < all_output_entries.size(); ++p) {
         std::vector<std::pair<double, double> >& output_entries = all_output_entries[p];
