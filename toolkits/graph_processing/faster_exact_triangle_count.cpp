@@ -238,6 +238,54 @@ struct counting_inserter {
   typedef empty_val reference;
 };
 
+
+size_t my_set_intersection(std::vector<graphlab::vertex_id_type>::const_iterator set1begin,
+                           std::vector<graphlab::vertex_id_type>::const_iterator set1end,
+                           std::vector<graphlab::vertex_id_type>::const_iterator set2begin,
+                           std::vector<graphlab::vertex_id_type>::const_iterator set2end) {
+  size_t set1len = std::distance(set1begin, set1end);
+  size_t set2len = std::distance(set2begin, set2end);
+  if (set1len == 0 || set2len == 0) return 0;
+  else if (set1len == 1) {
+    return std::binary_search(set2begin, set2end, *set1begin);
+  }
+  else if (set2len == 1) {
+    return std::binary_search(set1begin, set1end, *set2begin);
+  }
+  else if (set1len < set2len) {
+    size_t ret = 0;
+    size_t shift = set2len / 2;
+    std::vector<graphlab::vertex_id_type>::const_iterator set2center = set2begin + shift;
+    std::vector<graphlab::vertex_id_type>::const_iterator set1center = 
+                                    std::lower_bound(set1begin, set1end, *set2center);
+    ret += my_set_intersection(set1begin, set1center, set2begin, set2center);
+    if (set1center == set1end) return ret;
+    if (*set1center == *set2center) {
+      ++ret; ++set1center; 
+    }
+    ++set2center;
+    ret += my_set_intersection(set1center, set1end, set2center, set2end);
+    return ret;
+  }
+  else {
+    size_t ret = 0;
+    size_t shift = set1len / 2;
+    std::vector<graphlab::vertex_id_type>::const_iterator set1center = set1begin + shift;
+    std::vector<graphlab::vertex_id_type>::const_iterator set2center = 
+                                    std::lower_bound(set2begin, set2end, *set1center);
+    ret += my_set_intersection(set1begin, set1center, set2begin, set2center);
+    if (set2center == set2end) return ret;
+    if (*set1center == *set2center) {
+      ++ret; ++set2center;
+    }
+    ++set1center; 
+    ret += my_set_intersection(set1center, set1end, set2center, set2end);
+    return ret;
+  }
+
+}
+
+
 /*
  * Computes the size of the intersection of two unordered sets
  */
@@ -247,10 +295,9 @@ static uint32_t count_set_intersect(
 
   if (smaller_set.cset == NULL && larger_set.cset == NULL) {
     size_t i = 0;
-    counting_inserter<graphlab::vertex_id_type> iter(&i);
-    std::set_intersection(smaller_set.vid_vec.begin(), smaller_set.vid_vec.end(),
-                          larger_set.vid_vec.begin(), larger_set.vid_vec.end(),
-                          iter);
+    i = my_set_intersection(smaller_set.vid_vec.begin(), smaller_set.vid_vec.end(),
+                          larger_set.vid_vec.begin(), larger_set.vid_vec.end()
+                          );
     return i;
   }
   else if (smaller_set.cset == NULL && larger_set.cset != NULL) {
