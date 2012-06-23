@@ -245,7 +245,7 @@ namespace graphlab {
           // we are in the main vector. try to advance the
           // iterator until I hit another data element
           while(vec_iter != cmap->data_end() &&
-                cmap->key_eq()(vec_iter->first, cmap->illegal_key())) ++vec_iter;
+                cmap->key_eq()(*vec_iter, cmap->illegal_key())) ++vec_iter;
           if (vec_iter == cmap->data_end()) {
             in_stash = true;
             stash_iter = cmap->stash.begin();
