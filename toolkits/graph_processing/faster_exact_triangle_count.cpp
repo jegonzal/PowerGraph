@@ -245,6 +245,14 @@ size_t my_set_intersection(std::vector<graphlab::vertex_id_type>::const_iterator
                            std::vector<graphlab::vertex_id_type>::const_iterator set2end) {
   size_t set1len = std::distance(set1begin, set1end);
   size_t set2len = std::distance(set2begin, set2end);
+  if (set1len + set2len  < 32) {
+    size_t i = 0;
+    counting_inserter<graphlab::vertex_id_type> iter(&i);
+    std::set_intersection(set1begin, set1end,
+                          set2begin, set2end,
+                          iter);
+    return i;
+  }
   if (set1len == 0 || set2len == 0) return 0;
   else if (set1len == 1) {
     return std::binary_search(set2begin, set2end, *set1begin);
