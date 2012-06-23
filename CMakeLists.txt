@@ -223,6 +223,35 @@ ExternalProject_Add(libjpeg
 
 
 
+# v8 ======================================================================
+ExternalProject_Add(libv8
+  PREFIX ${GraphLab_SOURCE_DIR}/deps/libv8
+  GIT_REPOSITORY git://github.com/v8/v8.git
+  BUILD_IN_SOURCE 1
+  INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local
+  CONFIGURE_COMMAND ""
+  BUILD_COMMAND make dependencies && make native library=shared
+  INSTALL_COMMAND
+  sh -c "install <SOURCE_DIR>/include/* <INSTALL_DIR>/include/v8")
+include_directories(${GraphLab_SOURCE_DIR}/deps/local/include/v8)
+link_directories(${GraphLab_SOURCE_DIR}/deps/libv8/src/libv8/out/native)
+# This is ugly, but the distro doesn't come with a `make install` and CMAKE wouldn't
+# let me use wildcards. Whoever has a better idea how to do this please tell me.
+
+ExternalProject_Add(cvv8
+  PREFIX ${GraphLab_SOURCE_DIR}/deps/cvv8
+  SVN_REPOSITORY http://v8-juice.googlecode.com/svn/convert
+  BUILD_IN_SOURCE 1
+  INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local
+  CONFIGURE_COMMAND ""
+  BUILD_COMMAND ""
+  INSTALL_COMMAND
+  rsync -acC <SOURCE_DIR>/include/cvv8/ <INSTALL_DIR>/include/cvv8)
+
+macro(requires_v8 NAME)
+  target_link_libraries(${NAME} v8)
+endmacro(requires_v8)
+
 # ImageMagick =================================================================
 # # set(imagemagick_configure_cmd
 # #   bash -c "C_INCLUDE_PATH=${GraphLab_SOURCE_DIR}/deps/local/include CPLUS_INCLUDE_PATH=${GraphLab_SOURCE_DIR}/deps/local/include LIBRARY_PATH=${GraphLab_SOURCE_DIR}/deps/local/lib LDFLAGS='-L${GraphLab_SOURCE_DIR}/deps/local/lib' ./configure  --prefix=${GraphLab_SOURCE_DIR}/deps/local --without-threads --disable-openmp --disable-opencl")
