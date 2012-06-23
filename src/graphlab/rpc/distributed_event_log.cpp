@@ -106,17 +106,21 @@ event_log_thread_local_type* distributed_event_logger::get_thread_counter_ref() 
 /**
  * Receives the log information from each machine
  */    
-void distributed_event_logger::rpc_collect_log(size_t srcproc, double srctime,
-    std::vector<double> srccounts) {
+void distributed_event_logger::rpc_collect_log(size_t srcproc, size_t record_ctr,
+                                              std::vector<double> srccounts) {
   foreach(uint32_t log, has_log_entry) {
     logs[log]->lock.lock();
     // insert the new counts
-    size_t entryid = time_to_index(srctime);
+    size_t entryid = record_ctr;
     logs[log]->earliest_modified_log = 
                     std::min(entryid, logs[log]->earliest_modified_log);
     logs[log]->machine_log_modified = true;
     if (logs[log]->machine[srcproc].size() < entryid + 1) {
-      logs[log]->machine[srcproc].resize(entryid + 1);
+      double prevvalue = 0;
+      if (logs[log]->machine[srcproc].size() > 0) {
+        prevvalue = logs[log]->machine[srcproc].back().value;
+      }
+      logs[log]->machine[srcproc].resize(entryid + 1, log_entry(prevvalue));
     }
     logs[log]->machine[srcproc][entryid].value = srccounts[log];
     logs[log]->lock.unlock();
@@ -149,7 +153,7 @@ void distributed_event_logger::collect_instantaneous_log() {
  *  Collects the machine level
  *  log entry. and sends it to machine 0
  */
-void distributed_event_logger::local_collect_log() {
+void distributed_event_logger::local_collect_log(size_t record_ctr) {
   // put together an aggregate of all counters 
   std::vector<double> combined_counts(MAX_LOG_SIZE, 0);
 
@@ -171,9 +175,13 @@ void distributed_event_logger::local_collect_log() {
     }
     else {
       // take the average 
-      ASSERT_GT(logs[log]->count_of_instantaneous_entries, 0);
-      combined_counts[log] = (double)logs[log]->sum_of_instantaneous_entries / 
+      if (logs[log]->count_of_instantaneous_entries > 0) {
+        combined_counts[log] = (double)logs[log]->sum_of_instantaneous_entries / 
                                 logs[log]->count_of_instantaneous_entries;
+      }
+      else {
+        combined_counts[log] = 0;
+      }
       logs[log]->sum_of_instantaneous_entries = 0;
       logs[log]->count_of_instantaneous_entries = 0;
     }
@@ -182,11 +190,11 @@ void distributed_event_logger::local_collect_log() {
 
   // send to machine 0
   if (rmi->procid() != 0) {
-    rmi->remote_call(0, &distributed_event_logger::rpc_collect_log,
-        (size_t)rmi->procid(), (double)ti.current_time(), combined_counts);
+    rmi->control_call(0, &distributed_event_logger::rpc_collect_log,
+        (size_t)rmi->procid(), record_ctr, combined_counts);
   }
   else {
-    rpc_collect_log((size_t)0, (double)ti.current_time(), combined_counts);
+    rpc_collect_log((size_t)0, record_ctr, combined_counts);
   }
 }
 
@@ -239,15 +247,25 @@ void distributed_event_logger::build_aggregate_log() {
 void distributed_event_logger::periodic_timer() {
   periodic_timer_lock.lock();
   timer ti; ti.start();
-  double prevtime = ti.current_time();
+  size_t tick_ctr = 0;
+  size_t record_ctr = 0;
+
+  size_t ticks_per_record = RECORD_FREQUENCY / TICK_FREQUENCY;
+
   while (!periodic_timer_stop){ 
     collect_instantaneous_log();
-    if (ti.current_time() >= prevtime + RECORD_FREQUENCY) {
-      prevtime = ti.current_time();
-      local_collect_log();
+    if (tick_ctr % ticks_per_record == 0) {
+      local_collect_log(record_ctr);
+      ++record_ctr;
       if (rmi->procid() == 0)  build_aggregate_log();
     }
-    periodic_timer_cond.timedwait_ms(periodic_timer_lock, 1000 * TICK_FREQUENCY);
+    // when is the next tick
+    ++tick_ctr;
+    size_t nexttick_time = tick_ctr * 1000 * TICK_FREQUENCY;
+    size_t nexttick_interval = nexttick_time - ti.current_time_millis();
+    // we lost a tick.
+    if (nexttick_interval < 10) continue;
+    periodic_timer_cond.timedwait_ms(periodic_timer_lock, nexttick_interval);
   }
   periodic_timer_lock.unlock();
 }
