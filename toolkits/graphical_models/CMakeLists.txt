@@ -10,6 +10,10 @@ requires_imagemagick(loopybp_denoise)
 add_graphlab_executable(structured_prediction structured_prediction.cpp)
 requires_eigen(structured_prediction)
 
+add_graphlab_executable(synthetic_image_data synthetic_image_data.cpp)
+requires_imagemagick(synthetic_image_data)
+
+
 
 
 add_graphlab_executable(mplp_denoise mplp_denoise.cpp)
