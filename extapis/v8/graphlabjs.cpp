@@ -2,13 +2,7 @@
 
 #include <graphlab.hpp>
 #include <v8.h>
-#include <cvv8/v8-convert.hpp>
-#include <cvv8/NativeToJSMap.hpp>
-#include <cvv8/XTo.hpp>
-#include <cvv8/ClassCreator.hpp>
-#include <cvv8/properties.hpp>
-#include <cvv8/arguments.hpp>
-#include <cvv8/V8Shell.hpp>
+#include "cvv8.hpp"
 
 using namespace v8;
 using namespace graphlab;
@@ -16,10 +10,35 @@ namespace cv = cvv8;
 
 namespace graphlab {
 
+  // TODO: refactor graph operations to another graph object
   class pilot {
+  private:
+    
+    // TODO: allow more generic types
+    typedef double vertex_data_type;
+    typedef double edge_data_type;
+    typedef distributed_graph<vertex_data_type, edge_data_type> graph_type;
+
+    static graphlab_options opts;
+    distributed_control dc;
+    graph_type graph;
+
   public: 
     
-    pilot(){}
+    // TODO: how many distributed controls can a pilot have in his lifetime? 
+    pilot() : dc(), graph(dc, opts) {}
+    
+    void ping(){ std::cout << "pong." << std::endl; }
+ 
+    // TODO: how many graphs can a pilot have in his lifetime? 
+    void load_graph(const std::string &path, const std::string &format){
+      graph.load_format(path, format);
+      graph.finalize();
+    }
+
+    void fly(const Handle<Function> &function){
+      function->Call(function, 0, NULL);
+    }
 
     /**
      * Adds a JS binding of the class to the given object. Throws
@@ -29,11 +48,16 @@ namespace graphlab {
       cv::ClassCreator<pilot>::Instance().SetupBindings(dest);
     }
 
-    void ping(){ std::cout << "pong." << std::endl; }
+    /**
+     * Saves command line options for this session.
+     */
+    static void set_clopts(const graphlab_options &clopts){ opts = clopts; }
 
   };
 
 };
+
+graphlab_options pilot::opts;
 
 namespace cvv8 {
 
@@ -123,7 +147,14 @@ namespace cvv8 {
         ////////////////////////////////////////////////////////////
         // Bind some member functions...
         logstream(LOG_INFO) << "== strapping pilot " << std::flush;
-        cc("ping", MethodToInCa<pilot, void (), &pilot::ping>::Call);
+        cc("ping", MethodToInCa<pilot, void (), &pilot::ping>::Call)
+          ("destroy", CC::DestroyObjectCallback)
+          ("loadGraph", 
+            MethodToInCa<pilot, void (const std::string&, const std::string&),
+              &pilot::load_graph>::Call)
+          ("fly",
+            MethodToInCa<pilot, void (const Handle<Function> &),
+              &pilot::fly>::Call);
 
         ////////////////////////////////////////////////////////////
         // Add class to the destination object...
@@ -148,39 +179,62 @@ namespace cvv8 {
 
 };
 
-static int v8_main(int argc, char const * const *argv){
+/**
+ * Initializes v8 shell and setups bindings.
+ */
+static int v8_main(const std::string& script){
 
-  cv::Shell shell(NULL, argc, argv);
+  cv::Shell shell;
   shell.SetupDefaultBindings();
   HandleScope scope;
   
   pilot::setup_bindings(shell.Global());
-
-  // TODO this should be specified as an argument
-  const char *script = "./test.js";
-  logstream(LOG_EMPH) << "Flying script [" << script << "]" << std::endl;
-  shell.ExecuteFile(script);
+  
+  if (script.empty()){
+    // if no script provided, read from STDIN
+    shell.ExecuteStream(std::cin, "standard in");
+  }else {
+    logstream(LOG_EMPH) << "Flying script [" << script << "]" << std::endl;
+    shell.ExecuteFile(script.c_str());
+  }
 
   return EXIT_SUCCESS;
 
 }
 
-int main(int argc, char const * const *argv){
-
-  int rc = EXIT_FAILURE;
+int main(int argc, char **argv){
 
   global_logger().set_log_level(LOG_DEBUG);
-  logstream(LOG_INFO) << "Initializing pilot ..." << std::endl;
   
+  graphlab::command_line_options clopts("GraphLab Javascript Shell");
+  std::string script;
+  clopts.attach_option("script", &script, script,
+                       "The javascript file.  If none is provided, then I will read "
+                       "the script from STDIN");
+ 
+  if(!clopts.parse(argc, argv)) {
+    std::cout << "Error in parsing command line arguments." << std::endl;
+    return EXIT_FAILURE;
+  }
+  
+  // graphlab - build communication layers
+  mpi_tools::init(argc, argv);
+  pilot::set_clopts(clopts);
+
+  int rc = EXIT_FAILURE;
   try {
-    rc = v8_main(argc, argv);
+    logstream(LOG_INFO) << "Initializing pilot ..." << std::endl;
+    rc = v8_main(script);
     logstream(LOG_INFO) << "Launch completed." << std::endl;
   } catch (std::exception const & e){
     logstream(LOG_ERROR) << "Exception : " << e.what() << std::endl;
     logstream(LOG_ERROR) << "Launch failed." << std::endl;
   }
-
+  
+  // graphlab - teardown communication layers
+  mpi_tools::finalize();
   logstream(LOG_INFO) << "Bye." << std::endl;
+  
   return rc;
 
 }
