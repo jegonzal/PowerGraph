@@ -167,13 +167,16 @@ function tensor_to_table(tensor) {
     var numLines = tensor.length;
     var numRows = 0;
     for(var i = 0; i < numLines; ++i) {
-        table.addColumn("number", "Processor " + i);
+        table.addColumn("number", "Node " + i);
     }
     numRows = tensor[0].length;
+    for(var i = 0; i < tensor.length; ++i) {
+        numRows = Math.min(numRows, tensor[i].length);
+    }
     table.addRows(numRows);
     var counter = 0;
     for(var i = 0; i < numLines; ++i) {
-        for(var j = 0; j < tensor[i].length; ++j) {
+        for(var j = 0; j < numRows; ++j) {
             if (i == 0) table.setValue(j, 0, tensor[i][j][0]);
             if (tensor[i][j][1] >= 0) {
               table.setValue(j, i+1, tensor[i][j][1]);
