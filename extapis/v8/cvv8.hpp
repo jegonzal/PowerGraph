@@ -36,4 +36,6 @@
 #include <cvv8/arguments.hpp>
 #include <cvv8/V8Shell.hpp>
 
+#define JSTR(X) v8::String::New(X)
+
 #endif // GRAPHLAB_CVV8_HPP
