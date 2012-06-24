@@ -144,9 +144,9 @@ function process_aggregate_info(data) {
                            vAxis: {title: (units + " per Second"),
                                    titleTextStyle: {color: 'red'},
                                    minValue: 0,
-                                   maxValue: 10
+                                   maxValue: 10,
                                    viewWindow: {min: 0}
-                                   }},
+                                   },
                            hAxis: {title: 'Time (seconds)'}},
                 chart: new google.visualization.AreaChart(div),
             }
@@ -229,7 +229,11 @@ function process_node_info(data) {
                            //isStacked: true,
                            enableInteractivity: 0,
                            vAxis: {title: (units + " per Second"),
-                                   titleTextStyle: {color: 'red'}},
+                                   titleTextStyle: {color: 'red'},
+                                   minValue: 0,
+                                   maxValue: 10,
+                                   viewWindow: {min: 0}
+                           },
                            hAxis: {title: 'Time (seconds)'}},
                 chart: new google.visualization.LineChart(div),
             }

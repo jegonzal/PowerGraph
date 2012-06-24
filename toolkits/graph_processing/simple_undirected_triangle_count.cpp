@@ -46,8 +46,8 @@
  *
  * \note The implementation here is built to be easy to understand
  * and not necessarily optimal. In particular the unordered_set is slow
- * for small number of entries. A union of a small set which does not rely
- * on malloc, and an unordered_set is probably much more efficient.
+ * for small number of entries. There is a much more efficient
+ * (and substantially more complicated) version in undirected_triangle_count.cpp
  */
 
 /*
