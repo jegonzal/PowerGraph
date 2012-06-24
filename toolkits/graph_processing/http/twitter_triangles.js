@@ -5,7 +5,7 @@ google.load("jqueryui", "1.7.2");
 
 var domain_str = "http://localhost:8090";
 var domain_str = "";
-var page_str = "top_vertices.json";
+var page_str =  "top_users.json";
 var update_interval = 10000;
 // jsonp callback required
 var twitter_addr = "http://api.twitter.com/1/users/show.json"
@@ -37,7 +37,7 @@ var users_remaining = 0;
 var top_user_profiles = [];
 
 function process_top_users(data) {
-    var user_ids = data.user_ids;
+    var user_ids = data.cluster_coeff3;
     users_remaining = user_ids.length;
     top_user_profiles = [];
     // launch jsonp requests for user data
@@ -45,6 +45,11 @@ function process_top_users(data) {
         var query_str = twitter_addr + "?user_id=" + user_id; 
         jQuery.getJSON(query_str, function(data) { add_user(rank, data); }).error(function() { 
             console.log("Unable to access " + query_str + " will try again.");
+        }).complete(function() { 
+            users_remaining--;
+            if(users_remaining == 0) {
+                render_page();
+            }   
         });
     });
 }
@@ -52,18 +57,15 @@ function process_top_users(data) {
 
 function add_user(rank, data) {
     top_user_profiles[rank] = data;
-    users_remaining--;
-    if(users_remaining == 0) {
-        render_page();
-    }
 }
 
 
 function render_page() {
     var container = $("#top_degree");
     jQuery.each(top_user_profiles, function(rank, profile) {
-        var div_name = profile.id_str;
-        var div_contents = 
+        if(profile != undefined) {      
+            var div_name = profile.id_str;
+            var div_contents = 
             "<div class=\"user\" id=\"" + profile.id_str + "\">" +
             "<img class=\"user_image\" src=\"" + profile.profile_image_url + "\" / >" +
             "<div class=\"name\">" +
@@ -73,6 +75,7 @@ function render_page() {
             "</div>" +
             "</div>";
         container.append(div_contents);
+        }
     });
     
 
