@@ -1,4 +1,3 @@
-
 /**  
  * Copyright (c) 2009 Carnegie Mellon University. 
  *     All rights reserved.
@@ -34,19 +33,34 @@
 #include <Magick++.h> 
 #undef restrict
 
+
+#include <boost/config/warning_disable.hpp>
+#include <boost/spirit/include/qi.hpp>
+#include <boost/spirit/include/phoenix_core.hpp>
+#include <boost/spirit/include/phoenix_operator.hpp>
+#include <boost/spirit/include/phoenix_stl.hpp>
+
+
 #include <graphlab.hpp>
 
 
 
-graphlab::vertex_id_type sub2ind(size_t rows, size_t cols,
-                                 size_t r, size_t c) {
-  return r * cols + c;
+struct pixel {
+  size_t row;
+  size_t col;
+  double value;
+  pixel(size_t ind = 0, double value = 0) :
+    row(ind >> 16), col( ind & ((1 << 16)-1)), value(value) {  }
 }; // end of sub2ind
 
-std::pair<int,int> ind2sub(size_t rows, size_t cols,
-                           size_t ind) {
-  return std::make_pair(ind / cols, ind % cols);
+
+graphlab::vertex_id_type sub2ind(size_t r, size_t c) {
+  ASSERT_LT(r, ((1 << 16)-1));
+  ASSERT_LT(c, ((1 << 16)-1));
+  return (r << 16) | c;
 }; // end of sub2ind
+
+
 
 
 void make_data(const size_t rows, const size_t cols,
@@ -61,8 +75,8 @@ void make_data(const size_t rows, const size_t cols,
   const double center_c = cols / 2.0;
   const double max_radius = std::min(rows, cols) / 2.0;
 
-  Image orig_img(Magick::Geometry(rows, cols), "white");
-  Image noisy_img(Magick::Geometry(rows, cols), "white");
+  Image orig_img(Magick::Geometry(rows, cols), "green");
+  Image noisy_img(Magick::Geometry(rows, cols), "green");
   
   std::ofstream vdata_fout(vdata_fn.c_str());
   std::ofstream edata_fout(edata_fn.c_str());
@@ -70,7 +84,7 @@ void make_data(const size_t rows, const size_t cols,
   for(size_t r = 0; r < rows; ++r) {
     for(size_t c = 0; c < cols; ++c) {
       // determine the true pixel id
-      const graphlab::vertex_id_type vid = sub2ind(rows,cols,r,c);
+      const graphlab::vertex_id_type vid = sub2ind(r,c);
       // Compute the true pixel value
       const double distance = sqrt((r-center_r)*(r-center_r) + 
                                    (c-center_c)*(c-center_c));
@@ -100,11 +114,9 @@ void make_data(const size_t rows, const size_t cols,
 
       // Add the edges
       if(r + 1 < rows) 
-        edata_fout << vid << '\t'
-                   << sub2ind(rows,cols,r+1,c) << '\n';
+        edata_fout << vid << '\t' << sub2ind(r+1,c) << '\n';
       if(c + 1 < cols) 
-        edata_fout << vid << '\t'
-                   << sub2ind(rows,cols,r,c+1) << '\n';
+        edata_fout << vid << '\t' << sub2ind(r,c+1) << '\n';
     } // end of loop over cols
   } // end of loop over rows
 
@@ -113,6 +125,64 @@ void make_data(const size_t rows, const size_t cols,
   orig_img.write(orig_img_fn);
   noisy_img.write(noisy_img_fn);
 
+} // end of make data
+
+
+
+
+void read_data(const std::string& pred_img_fn) {
+  using namespace Magick;
+  namespace qi = boost::spirit::qi;
+  namespace ascii = boost::spirit::ascii;
+  namespace phoenix = boost::phoenix;
+
+  std::vector<pixel> pixels;
+
+  std::string line;
+  size_t line_counter = 0;
+  size_t nrows = 0, ncols = 0;
+  size_t min_pixel(-1);
+  size_t max_pixel(0);
+  while (std::getline(std::cin, line)) {
+    graphlab::vertex_id_type vid(-1);
+    std::vector<double> values;
+    const bool success = qi::phrase_parse
+      (line.begin(), line.end(),       
+       //  Begin grammar
+       (
+        qi::ulong_[phoenix::ref(vid) = qi::_1] >> -qi::char_(",") >>
+        (qi::double_[phoenix::push_back(phoenix::ref(values), qi::_1)] % -qi::char_(",") )
+        )
+       ,
+       //  End grammar
+       ascii::space); 
+    if(!success) {
+      logstream(LOG_ERROR) << "Error parsing line: " << line_counter << std::endl
+                           << "\t\"" << line << "\"";
+    }
+    ASSERT_GT(values.size(), 0);
+    const size_t pred = 
+      std::max_element(values.begin(), values.end()) - values.begin();
+    min_pixel = std::min(min_pixel, pred);
+    max_pixel = std::max(max_pixel, pred);
+    const pixel pix(vid, double(pred) / (values.size() - 1) );
+    pixels.push_back(pix);  
+    nrows = std::max(nrows, pix.row);
+    ncols = std::max(ncols, pix.col);
+  }
+  nrows++; ncols++;
+  std::cout << "nrows: " << nrows << std::endl
+            << "ncols: " << ncols << std::endl
+            << "minp:  " << min_pixel << std::endl
+            << "maxp:  " << max_pixel << std::endl;
+
+  Image pred_img(Magick::Geometry(nrows, ncols), "green");
+  for(size_t i = 0; i < pixels.size(); ++i) {
+    const Color c1(MaxRGB * pixels[i].value, MaxRGB * pixels[i].value, 
+                   MaxRGB * pixels[i].value, 0);
+    pred_img.pixelColor(pixels[i].col, pixels[i].row, c1);
+  }
+  pred_img.write(pred_img_fn);
 } // end of make data
 
 
@@ -131,7 +201,7 @@ int main(int argc, char** argv) {
 
   std::string orig_img_fn = "orig_img.jpeg";
   std::string noisy_img_fn = "noisy_img.jpeg";
-  std::string pred_fn = "pred_img.jpeg";
+  std::string pred_img_fn;
 
  
 
@@ -165,7 +235,7 @@ int main(int argc, char** argv) {
                        &noisy_img_fn, noisy_img_fn,
                        "Noisy image file name.");
   clopts.attach_option("pred",
-                       &pred_fn, pred_fn,
+                       &pred_img_fn, pred_img_fn,
                        "Predicted image file name.");
     
   ///! Initialize control plain using mpi
@@ -173,11 +243,16 @@ int main(int argc, char** argv) {
   if(!success) {
     return EXIT_FAILURE;
   }
-  
-  make_data(nrows, ncols, ncolors, error_rate,
-            vdata_fn, edata_fn,
-            orig_img_fn, noisy_img_fn);
 
+  if(!pred_img_fn.empty()) {
+    std::cout << "Reading in predictions" << std::endl;
+    read_data(pred_img_fn);
+  } else {
+    std::cout << "Generating synthetic data" << std::endl;
+    make_data(nrows, ncols, ncolors, error_rate,
+              vdata_fn, edata_fn,
+              orig_img_fn, noisy_img_fn);
+  }
   return EXIT_SUCCESS;
 } // End of main
 

@@ -352,7 +352,7 @@ int main(int argc, char** argv) {
   graphlab::command_line_options clopts(description);
   std::string prior_dir; 
   std::string graph_dir;
-  std::string output_dir = "predictions/";
+  std::string output_dir = "pred";
   clopts.attach_option("prior", &prior_dir, prior_dir,
                        "The directory containing the prior");
   clopts.add_positional("prior");
