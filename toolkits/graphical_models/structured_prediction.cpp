@@ -235,9 +235,8 @@ bool vertex_loader(graph_type& graph, const std::string& fname,
     (line.begin(), line.end(),       
      //  Begin grammar
      (
-      qi::ulong_[phoenix::ref(vid) = qi::_1] >> (qi::char_(",") | qi::char_("\t"))  >>
-      (qi::double_[phoenix::push_back(phoenix::ref(values), qi::_1)] % 
-       (qi::char_(",") | qi::char_("\t")) )
+      qi::ulong_[phoenix::ref(vid) = qi::_1] >> -qi::char_(",") >>
+      (qi::double_[phoenix::push_back(phoenix::ref(values), qi::_1)] % -qi::char_(",") )
       )
      ,
      //  End grammar
@@ -265,7 +264,7 @@ bool vertex_loader(graph_type& graph, const std::string& fname,
   }
   ASSERT_GT(sum, 0);
   for(size_t i = 0; i < values.size(); ++i) values[i] /= sum;
- 
+
   vertex_data vdata;
   vdata.potential.resize(values.size());
   for(size_t i = 0; i < values.size(); ++i) {
@@ -290,9 +289,9 @@ bool edge_loader(graph_type& graph, const std::string& fname,
     (line.begin(), line.end(),       
      //  Begin grammar
      (
-      qi::ulong_[phoenix::ref(source) = qi::_1] >>  qi::char_(',') 
+      qi::ulong_[phoenix::ref(source) = qi::_1] >>  -qi::char_(',') 
       >> qi::ulong_[phoenix::ref(target) = qi::_1] >>  
-      -(qi::char_(',') >> qi::double_[phoenix::ref(weight) = qi::_1])
+      -(-qi::char_(',') >> qi::double_[phoenix::ref(weight) = qi::_1])
       )
      ,
      //  End grammar
@@ -315,6 +314,32 @@ void edge_initializer(graph_type::edge_type& edge) {
 
 
 
+
+
+struct prediction_saver {
+  typedef graph_type::vertex_type vertex_type;
+  typedef graph_type::edge_type   edge_type;
+  std::string save_vertex(const vertex_type& vertex) const {
+    std::stringstream strm;
+    strm << vertex.id() << '\t';
+    factor_type pred = vertex.data().belief;
+    double sum = 0;
+    for(size_t i = 0; i < pred.size(); ++i) 
+      sum += (pred(i) = std::exp(pred(i)));
+    pred.array() /= sum;
+    for(size_t i = 0; i < pred.size(); ++i) 
+      strm << pred(i) << (i+1 < pred.size()? '\t' : '\n');
+    return strm.str();
+  }
+  std::string save_edge(const edge_type& edge) const {
+    return ""; // nop
+  }
+}; // end of prediction_saver
+
+
+
+
+
 int main(int argc, char** argv) {
   global_logger().set_log_level(LOG_INFO);
   global_logger().set_log_to_console(true);
@@ -327,7 +352,7 @@ int main(int argc, char** argv) {
   graphlab::command_line_options clopts(description);
   std::string prior_dir; 
   std::string graph_dir;
-  std::string output_dir;
+  std::string output_dir = "predictions/";
   clopts.attach_option("prior", &prior_dir, prior_dir,
                        "The directory containing the prior");
   clopts.add_positional("prior");
@@ -383,6 +408,17 @@ int main(int argc, char** argv) {
     << "Updates executed: " << engine.num_updates() << std::endl
     << "Update Rate (updates/second): " 
     << engine.num_updates() / runtime << std::endl;
+    
+    
+  std::cout << "Saving predictions" << std::endl;
+  const bool gzip_output = false;
+  const bool save_vertices = true;
+  const bool save_edges = false;
+  const size_t threads_per_machine = 2;
+  graph.save(output_dir, prediction_saver(),
+             gzip_output, save_vertices, 
+             save_edges, threads_per_machine);
+
 
     
   graphlab::stop_metric_server_on_eof();
