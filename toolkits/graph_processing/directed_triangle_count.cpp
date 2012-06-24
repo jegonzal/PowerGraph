@@ -224,7 +224,9 @@ struct counting_inserter {
 static uint32_t count_set_intersect(
              const vid_vector& smaller_set,
              const vid_vector& larger_set) {
-
+  if (smaller_set.size() > larger_set.size()) {
+    return count_set_intersect(larger_set, smaller_set);
+  }
   if (smaller_set.cset == NULL && larger_set.cset == NULL) {
     size_t i = 0;
     counting_inserter<graphlab::vertex_id_type> iter(&i);
