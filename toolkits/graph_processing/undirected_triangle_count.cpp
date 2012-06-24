@@ -431,8 +431,15 @@ public:
     graphlab::vertex_id_type otherid = edge.target().id() == vertex.id() ?
                                        edge.source().id() : edge.target().id();
 
-    if (PER_VERTEX_COUNT || otherid > vertex.id()) {
-      gather.v = otherid;
+    size_t other_nbrs = (edge.target().id() == vertex.id()) ?
+        (edge.source().num_in_edges() + edge.source().num_out_edges()): 
+        (edge.target().num_in_edges() + edge.target().num_out_edges());
+
+    size_t my_nbrs = vertex.num_in_edges() + vertex.num_out_edges();
+
+    if (PER_VERTEX_COUNT || (other_nbrs > my_nbrs) || (other_nbrs == my_nbrs && otherid > vertex.id())) {
+    //if (PER_VERTEX_COUNT || otherid > vertex.id()) {
+     gather.v = otherid;
     } 
     return gather;
   }
