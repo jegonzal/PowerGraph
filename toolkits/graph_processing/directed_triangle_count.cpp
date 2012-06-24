@@ -149,7 +149,9 @@ struct vid_vector{
       if (vid_vec.size() > 64) {
         radix_sort(&(vid_vec[0]), 0, vid_vec.size(), 24);
       }
-      std::sort(vid_vec.begin(), vid_vec.end());
+      else {
+        std::sort(vid_vec.begin(), vid_vec.end());
+      }
       std::vector<graphlab::vertex_id_type>::iterator new_end = std::unique(vid_vec.begin(),
                                                vid_vec.end());
       vid_vec.erase(new_end, vid_vec.end());
