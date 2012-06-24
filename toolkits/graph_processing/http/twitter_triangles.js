@@ -5,7 +5,7 @@ google.load("jqueryui", "1.7.2");
 
 var domain_str = "http://localhost:8090";
 var domain_str = "";
-var page_str = "top_vertices.json";
+var page_str =  "top_vertices_through.json";
 var update_interval = 10000;
 // jsonp callback required
 var twitter_addr = "http://api.twitter.com/1/users/show.json"
