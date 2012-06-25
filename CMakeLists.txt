@@ -269,6 +269,35 @@ macro(requires_imagemagick NAME)
 endmacro(requires_imagemagick)
 
 
+# OpenCV =================================================================
+ExternalProject_Add(opencv
+  PREFIX ${GraphLab_SOURCE_DIR}/deps/opencv
+  URL http://superb-sea2.dl.sourceforge.net/project/opencvlibrary/opencv-unix/2.4.0/OpenCV-2.4.0.tar.bz2
+  # URL_MD5 010b63a2542c4ec4918c8cb431c00356
+#  CONFIGURE_COMMAND 
+#  C_INCLUDE_PATH=${GraphLab_SOURCE_DIR}/deps/local/include 
+#  CPLUS_INCLUDE_PATH=${GraphLab_SOURCE_DIR}/deps/local/include 
+#  LIBRARY_PATH=${GraphLab_SOURCE_DIR}/deps/local/lib
+#  LDFLAGS=-L${GraphLab_SOURCE_DIR}/deps/local/lib       
+#  <SOURCE_DIR>/configure 
+#  --prefix=<INSTALL_DIR>
+#  --without-threads
+#  --disable-openmp
+#  --disable-opencl
+  BUILD_COMMAND
+  C_INCLUDE_PATH=${GraphLab_SOURCE_DIR}/deps/local/include 
+  CPLUS_INCLUDE_PATH=${GraphLab_SOURCE_DIR}/deps/local/include 
+  LIBRARY_PATH=${GraphLab_SOURCE_DIR}/deps/local/lib
+  LDFLAGS=-L${GraphLab_SOURCE_DIR}/deps/local/lib       
+  make
+  INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local)
+include_directories(${GraphLab_SOURCE_DIR}/deps/local/include/opencv)
+#add_dependencies(imagemagick libjpeg)
+
+macro(requires_opencv NAME)
+  target_link_libraries(${NAME} opencv_core opencv_imgproc opencv_calib3d opencv_video opencv_features2d opencv_ml opencv_highgui opencv_objdetect opencv_contrib opencv_legacy)
+  add_dependencies(${NAME} opencv)
+endmacro(requires_opencv)
 
 # zlib  =======================================================================
 # We rely on the zlib library to read gzip compressed files

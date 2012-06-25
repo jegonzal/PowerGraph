@@ -696,7 +696,7 @@ void create_synthetic_cluster_graph(graphlab::distributed_control& dc,
     if(dc.procid() == 0) 
     {
         //int nedges = 2*rows*cols -rows-cols;
-        int nedges = factor_ind2(rows,cols,rows*cols-1,rows*cols);
+        int nedges = factor_ind2(rows,cols,rows*cols-cols,rows*cols);
         //vinit = vector::Zero(2*rows*cols -rows-cols);
         //vapply = vector::Zero(2*rows*cols -rows-cols);
         vinit.clear(); vinit.resize(nedges, 0);
