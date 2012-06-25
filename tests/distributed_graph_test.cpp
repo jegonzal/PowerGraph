@@ -94,7 +94,7 @@ int main(int argc, char** argv) {
 
   printf("Test iterate over in/out_edges and get edge data: \n");
   for (vertex_id_type i = 0; i < num_vertices; ++i) {
-    local_vertex_type v = g.l_vertex(i);
+    local_vertex_type v = local_vertex_type(g.vertex(i));
     const local_edge_list_type& out_edges = v.out_edges();
     const local_edge_list_type& in_edges = v.in_edges();
 
