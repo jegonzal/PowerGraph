@@ -1,6 +1,5 @@
 google.load("jquery", "1.5");
-google.load("jqueryui", "1.7.2");
-//google.load("visualization", "1");
+
 
 
 var domain_str = "http://localhost:8090";
@@ -70,13 +69,13 @@ function get_user_profiles(data) {
                 user_profiles[id].profile = data;
             }).error(function() { 
                 console.log("Unable to access " + query_str + " will try again.");
-                users_remaining--;
-                if(users_remaining == 0) { render_page(); }
+                // users_remaining--;
+                // if(users_remaining == 0) { render_page(); }
             }).complete(function() { 
                 users_remaining--;
                 if(users_remaining == 0) { render_page(); }   
             });
-        }
+        } 
     });
 } // end of get user profiles
 
