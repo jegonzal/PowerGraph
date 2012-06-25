@@ -264,7 +264,7 @@ namespace graphlab {
      * used to signal other vertices, get the current iteration, and access
      * information about the engine.
      */
-    typedef typename context<async_consistent_engine>::icontext_type icontext_type;
+    typedef icontext<graph_type, gather_type, message_type> icontext_type;
     
   private:
     /**
