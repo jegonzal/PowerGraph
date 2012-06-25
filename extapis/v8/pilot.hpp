@@ -3,6 +3,7 @@
 
 #include <v8.h>
 #include <graphlab.hpp>
+#include "templates.hpp"
 
 namespace graphlab {
 
@@ -21,11 +22,13 @@ namespace graphlab {
     typedef double vertex_data_type;
     typedef double edge_data_type;
     typedef distributed_graph<vertex_data_type, edge_data_type> graph_type;
-    typedef float gather_type;
+    typedef double gather_type;
 
   private:
    
     static graphlab_options opts;   // TODO: this is probably wrong
+    static templates templs; 
+
     distributed_control dc;
     graph_type graph;
 
@@ -62,6 +65,8 @@ namespace graphlab {
      */
     static void set_clopts(const graphlab_options &clopts);
 
+    static templates &get_templates();
+
   };
 
   class js_proxy :
@@ -78,7 +83,7 @@ namespace graphlab {
     static void set_ctor(const v8::Handle<v8::Function> &ctor);
 
     js_proxy();
-    float gather(icontext_type& context, const vertex_type& vertex, edge_type& edge) const; 
+    pilot::gather_type gather(icontext_type& context, const vertex_type& vertex, edge_type& edge) const; 
     void apply(icontext_type& context, vertex_type& vertex, const gather_type& total);
     edge_dir_type scatter_edges(icontext_type& context, const vertex_type& vertex) const;
     void scatter(icontext_type& context, const vertex_type& vertex, edge_type& edge) const;
@@ -91,22 +96,13 @@ namespace cvv8 {
 
   ////////////////////////// V8 POLICIES ///////////////////////////
 
-  typedef graphlab::pilot::graph_type::vertex_type vertex_type;
-  typedef graphlab::pilot::graph_type::edge_type edge_type;
-
   // A helper to support converting from pilot to its JS handle.
   typedef NativeToJSMap<graphlab::pilot> BMap;
-  typedef NativeToJSMap<vertex_type> VMap;
-  typedef NativeToJSMap<edge_type> EMap;
 
   // pilot Ctors we want to bind to v8 
   typedef Signature<graphlab::pilot (CtorForwarder<graphlab::pilot *()>)> pilotCtors;
-  typedef Signature<vertex_type ()> vertex_typeCtors;
-  typedef Signature<edge_type ()> edge_typeCtors;
 
   CVV8_TypeName_DECL((graphlab::pilot));
-  CVV8_TypeName_DECL((vertex_type));
-  CVV8_TypeName_DECL((edge_type));
 
  /**
   * This policy class is required unless you just want to bind to 
@@ -121,14 +117,6 @@ namespace cvv8 {
       static ReturnType Create( v8::Persistent<v8::Object> & jsSelf, v8::Arguments const & argv );
       static void Delete( ReturnType obj );
   };
-  template <>
-  class ClassCreator_Factory<vertex_type>
-     : public ClassCreator_Factory_Dispatcher<vertex_type,
-                           CtorArityDispatcher<vertex_typeCtors> >{};
-  template <>
-  class ClassCreator_Factory<edge_type>
-    : public ClassCreator_Factory_Dispatcher<edge_type,
-                          CtorArityDispatcher<edge_typeCtors> >{};
 
  /**
   * Disable subclassing from within javascript
@@ -136,10 +124,6 @@ namespace cvv8 {
   */
   template <>
   struct ClassCreator_SearchPrototypeForThis<graphlab::pilot> : Opt_Bool<false> {};
-  template <>
-  struct ClassCreator_SearchPrototypeForThis<vertex_type> : Opt_Bool<false> {};
-  template <>
-  struct ClassCreator_SearchPrototypeForThis<edge_type> : Opt_Bool<false> {};
     
  /**
   * Required specialization so that the conversion API can derive
@@ -153,12 +137,6 @@ namespace cvv8 {
   template <>
   struct JSToNative<graphlab::pilot>
     : JSToNative_ClassCreator<graphlab::pilot> {};
-  template <>
-  struct JSToNative<vertex_type>
-    : JSToNative_ClassCreator<vertex_type> {};
-  template <>
-  struct JSToNative<edge_type>
-    : JSToNative_ClassCreator<edge_type> {};
 
  /**
   * Native-to-JS conversion. This conversion is only possible when
@@ -177,12 +155,6 @@ namespace cvv8 {
   template <>
   struct NativeToJS<graphlab::pilot>
       :  NativeToJSMap<graphlab::pilot>::NativeToJSImpl {};
-  template <>
-  struct NativeToJS<vertex_type>
-      :  NativeToJSMap<vertex_type>::NativeToJSImpl {}; 
-  template <>
-  struct NativeToJS<edge_type>
-      :  NativeToJSMap<edge_type>::NativeToJSImpl {}; 
 
 };
 

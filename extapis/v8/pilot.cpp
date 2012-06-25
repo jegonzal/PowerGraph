@@ -33,14 +33,15 @@ void pilot::fly(const Handle<Function> &function){
 // TODO: fix this -- clopts really shouldn't be static:
 graphlab_options pilot::opts;
 
+// object templates for vertex and edge
+templates pilot::templs;
+
 /**
  * Adds a JS binding of the class to the given object. Throws
  * a native exception on error.
  */
 void pilot::setup_bindings(const Handle<Object> &dest){
   cv::ClassCreator<pilot>::Instance().SetupBindings(dest);
-  cv::ClassCreator<cv::vertex_type>::Instance().SetupBindings(dest);
-  cv::ClassCreator<cv::edge_type>::Instance().SetupBindings(dest);
 }
 
 /**
@@ -48,32 +49,51 @@ void pilot::setup_bindings(const Handle<Object> &dest){
  */
 void pilot::set_clopts(const graphlab_options &clopts){ opts = clopts; }
 
+templates &pilot::get_templates(){ return templs; }
+
 /////////////////////////// JS_PROXY //////////////////////////////
 
 js_proxy::js_proxy() : jsobj() {
+  // TODO deal with multi-threaded environments
   HandleScope handle_scope;
   Local<Object> obj = Object::Cast(*constructor->Call(constructor, 0, NULL));
   jsobj = Persistent<Object>::New(obj);
 }
 
 pilot::gather_type js_proxy::gather(icontext_type& context, const vertex_type& vertex, edge_type& edge) const {
-  HandleScope handle_scope;
-  Local<Function> f = Function::Cast(*(jsobj->Get(JSTR("gather"))));
   // TODO
-  Handle<Value> argv[2] = {cv::CastToJS(vertex), cv::CastToJS(edge)};
-  return cv::CastFromJS<gather_type>(f->Call(jsobj, 2, argv));
+  
+  HandleScope handle_scope;
+  Local<Function> f = Function::Cast(*jsobj->Get(JSTR("gather")));
+
+  Local<Object> v = pilot::get_templates().vertex_templ->NewInstance();
+  v->SetInternalField(0, External::New((void *)&vertex));
+
+  Local<Object> e = pilot::get_templates().edge_templ->NewInstance();
+  e->SetInternalField(0, External::New((void *)&edge));
+
+  Handle<Value> ret = cv::CallForwarder<2>::Call(jsobj, f, v, e);
+  return cv::CastFromJS<gather_type>(ret);
+
 }
 
 void js_proxy::apply(icontext_type& context, vertex_type& vertex, const gather_type& total){
   // TODO
+  /* HandleScope handle_scope;
+  Local<Function> f = Function::Cast(*jsobj->Get(JSTR("apply")));
+  cv::CallForwarder<2>::Call(jsobj, f, vertex, total); */
 }
 
 edge_dir_type js_proxy::scatter_edges(icontext_type& context, const vertex_type& vertex) const {
+  // TODO
   return IN_EDGES;
 }
 
 void js_proxy::scatter(icontext_type& context, const vertex_type& vertex, edge_type& edge) const {
   // TODO
+  /* HandleScope handle_scope;
+  Local<Function> f = Function::Cast(*jsobj->Get(JSTR("scatter")));
+  cv::CallForwarder<2>::Call(jsobj, f, vertex, edge);*/
 }
 
 /////////////////////////// STATIC ////////////////////////////////
@@ -89,8 +109,6 @@ void js_proxy::set_ctor(const Handle<Function> &ctor){
 namespace cvv8 {
 
   CVV8_TypeName_IMPL((pilot), "pilot");
-  CVV8_TypeName_IMPL((vertex_type), "vertex_type");
-  CVV8_TypeName_IMPL((edge_type), "edge_type");
 
   pilot *ClassCreator_Factory<pilot>::
   Create(Persistent<Object> & jsSelf, Arguments const & argv){
@@ -154,71 +172,4 @@ namespace cvv8 {
     }
   };
   
-  template <>
-  struct ClassCreator_SetupBindings<cv::vertex_type> {
-
-    static void Initialize(Handle<Object> const & dest) {
-    
-      logstream(LOG_INFO) << "== Preparing cockpit " << std::flush;
-    
-      ////////////////////////////////////////////////////////////
-      // Bootstrap class-wrapping code...
-      typedef ClassCreator<vertex_type> CC;
-      CC & cc( CC::Instance() );
-      if( cc.IsSealed() ) {
-        cc.AddClassTo( TypeName<vertex_type>::Value, dest );
-        logstream(LOG_INFO) << "== vertex ready ==>" << std::endl; 
-        return;
-      }
-    
-      ////////////////////////////////////////////////////////////
-      // Bind some member functions...
-      logstream(LOG_INFO) << "== strapping vertex " << std::flush;
-
-      cc("destroy", CC::DestroyObjectCallback)
-        ("data", ConstMethodToInCa<vertex_type, const pilot::vertex_data_type & (), &vertex_type::data>::Call),
-    
-      ////////////////////////////////////////////////////////////
-      // Add class to the destination object...
-      cc.AddClassTo(TypeName<vertex_type>::Value, dest);
-    
-      logstream(LOG_INFO) << "== success ==>" << std::endl;
-      logstream(LOG_EMPH) << "Vertex ready." << std::endl;
-    
-    }
-  };
-
-  template <>
-  struct ClassCreator_SetupBindings<cv::edge_type> {
-  
-    static void Initialize(Handle<Object> const & dest) {
-    
-      logstream(LOG_INFO) << "== Preparing edge " << std::flush;
-    
-      ////////////////////////////////////////////////////////////
-      // Bootstrap class-wrapping code...
-      typedef ClassCreator<edge_type> CC;
-      CC & cc( CC::Instance() );
-      if( cc.IsSealed() ) {
-        cc.AddClassTo( TypeName<edge_type>::Value, dest );
-        logstream(LOG_INFO) << "== edge ready ==>" << std::endl; 
-        return;
-      }
-    
-      ////////////////////////////////////////////////////////////
-      // Bind some member functions...
-      logstream(LOG_INFO) << "== strapping edge " << std::flush;
-      cc("destroy", CC::DestroyObjectCallback);
-    
-      ////////////////////////////////////////////////////////////
-      // Add class to the destination object...
-      cc.AddClassTo( TypeName<edge_type>::Value, dest );
-    
-      logstream(LOG_INFO) << "== success ==>" << std::endl;
-      logstream(LOG_EMPH) << "Edge ready." << std::endl;
-    
-    }
-    
-  };
-
 };
