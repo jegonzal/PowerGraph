@@ -63,9 +63,12 @@ double SIGMA;
 double BOUND;
 
 // LP-based upper-bound on MAP
+graphlab::mutex mutex;
+//mutex.lock();
 double LPval = 0;
 double MAPval = 0;
 double MAPrepval = 0;
+//mutex.unlock();
 
 // Shared base edge potential
 matrix THETA_ij; 
@@ -306,10 +309,12 @@ public:
         vdata.valij = THETA_ij.maxCoeff(&vdata.maxIJ_i,&vdata.maxIJ_j); 
         vdata.pvalij = THETA_ij(vdata.pred_color_i, vdata.pred_color_j);
         vdata.prvalij = vdata.pvalij;
-                
+             
+        mutex.lock();
         LPval += vdata.vali; LPval += vdata.valj; LPval += vdata.valij;
         MAPval += vdata.pvali; MAPval += vdata.pvalj; MAPval += vdata.pvalij;
         MAPrepval += vdata.prvali; MAPrepval += vdata.prvalj; MAPrepval += vdata.prvalij;
+        mutex.unlock();
 
         // debug code to check in all nodes are inited
         if (vinit[vertex.id()] == 0)
@@ -400,9 +405,10 @@ public:
         // Compute contributions to dual, primal and rep primal
         
         // Remove contribution of old labels from LPval
-        LPval -= vdata.vali; LPval -= vdata.valj; LPval -= vdata.valij;
-        MAPval -= vdata.pvali; MAPval -= vdata.pvalj; MAPval -= vdata.pvalij;
-        MAPrepval -= vdata.prvali; MAPrepval -= vdata.prvalj; MAPrepval -= vdata.prvalij;
+        double LPremove=0, MAPremove=0, MAPrepremove=0;
+        LPremove += vdata.vali; LPremove += vdata.valj; LPremove += vdata.valij;
+        MAPremove += vdata.pvali; MAPremove += vdata.pvalj; MAPremove += vdata.pvalij;
+        MAPrepremove += vdata.prvali; MAPrepremove += vdata.prvalj; MAPrepremove += vdata.prvalij;
 
         // Update dual, primal and rep primal contributions. 
         // TODO: if primal labelling changes at a node we own, update it's edge potential too
@@ -447,17 +453,20 @@ public:
         vdata.pvalij = THETA_ij(vdata.pred_color_i, vdata.pred_color_j);
         vdata.prvalij = thetarep_ij(vdata.pred_color_i, vdata.pred_color_j);
         
+        mutex.lock();
+        LPval -= LPremove; MAPval -= MAPremove; MAPrepval -= MAPrepremove;
         LPval += vdata.vali; LPval += vdata.valj; LPval += vdata.valij;
         MAPval += vdata.pvali; MAPval += vdata.pvalj; MAPval += vdata.pvalij;
         MAPrepval += vdata.prvali; MAPrepval += vdata.prvalj; MAPrepval += vdata.prvalij;
-        
+        mutex.unlock();
         
         ////////////////////////////////////////////
         // Debugging printing and residuals
         
         //std::cout << vertex.id() << ": " << vdata.i << "," << vdata.j << "\n";
-        if (vdata.i == 0 )
+        if (0) // (vdata.i == 0 )
         {
+            mutex.lock();
             std::cout << "Applying at vertex: " << vertex.id() << "(" << vdata.i << "," << vdata.j << ")\n";
             
             std::cout << LPval << "," << MAPval << "," << MAPrepval << "\t" ;        
@@ -479,6 +488,7 @@ public:
             if (vinit.size() == vinitsum)
                 std::cout << "Restarting counting of apply\n";
             std::cout.flush();
+            mutex.unlock();
         }
         
         if (0)//vdata.i == 1) 
@@ -598,10 +608,28 @@ typedef graphlab::async_consistent_engine<mplp_vertex_program> engine_type;
 
 
 
+/////////////////////////////////////////////////////////////////////////////////////
+// Aggregator functions to compute primal & dual values
+double get_energy_fun(mplp_vertex_program::icontext_type& context, const mplp_vertex_program::vertex_type& vertex) 
+{
+    double tmp = 0;
+    
+    const vertex_data &vdata = vertex.data();
+    
+    if (vdata.iowner)
+        tmp += vdata.vali;
+    if (vdata.jowner)
+        tmp += vdata.valj;
+    tmp += vdata.valij;
 
+    return tmp;
+}
 
-
-
+void finalize_fun(mplp_vertex_program::icontext_type& context, double total) 
+{
+    if(context.procid() == 0) 
+        std::cout << "Dual value: " << total << std::endl;
+}
 
 
 
@@ -911,8 +939,10 @@ int main(int argc, char** argv) {
     BOUND = 1E-4;
     
     
-    size_t nrows = 200;
-    size_t ncols = 200;
+//    size_t nrows = 200;
+//    size_t ncols = 200;
+    size_t nrows = 20;
+    size_t ncols = 20;
     double lambda = 0.2;
     
     std::string smoothing = "square";
@@ -1013,6 +1043,10 @@ int main(int argc, char** argv) {
     // Create the engine -------------------------------------------------------->
     std::cout << "Creating the engine. " << std::endl;
     engine_type engine(dc, graph, clopts);
+
+    engine.add_vertex_aggregator<double>("energy", get_energy_fun, finalize_fun);
+    engine.aggregate_periodic("energy", 3); // run every 3 seconds
+
     engine.transform_vertices(mplp_vertex_program::init_vertex_data);
 
     std::cout << "Scheduling all vertices" << std::endl;
