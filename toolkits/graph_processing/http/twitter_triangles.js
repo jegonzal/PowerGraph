@@ -61,11 +61,11 @@ function get_user_profiles(data) {
     // Grab all _missing_ profiles
     jQuery.each(user_profiles, function(id, obj) {
         console.log(id);
-        var query_str = twitter_addr + "?user_id=" + id;
+        var query_str = twitter_addr + "?callback=?"; // &user_id=" + id;
         if(!user_profiles[id].queried) {
             console.log("Requesting: " + query_str);
             user_profiles[id].queried = true;
-            jQuery.getJSON(query_str, function(data) {
+            jQuery.getJSON(query_str, {user_id: id}, function(data) {
                 user_profiles[id].is_set = true;
                 user_profiles[id].profile = data;
             }).error(function() { 
