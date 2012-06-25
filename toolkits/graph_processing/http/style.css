@@ -1,18 +1,57 @@
-.body {
+body {
     text-align: center;
-
 }
-.cloud {
+
+#results {
+   width: 1000px;
+   margin-left: auto;
+   margin-right: auto;
+}
+
+.user_list {
     display: inline-block;
-    width: 200px;
-    height: 200px;
+    border-style: solid;
+    height: 600px;
+    width: 275px;
+    vertical-align: top;
+    text-align: left;
+    margin: 5px;
 }
 
-.setting {
+
+
+.title {
+    padding: 10px;
+    background: black;
+    color: white;
+    text-align: center;
+}
+
+
+.contents {
+   padding: 10px;
+}
+.user_image {
+    width: 50px;
+    height: 50px;
+}
+
+.user {
+
+}
+
+.user_info {
+  padding-left: 10px;
     display: inline-block;
-    width: 100px;
+  vertical-align: top;
 }
 
-.label {
-    font-size: 14pt;
+.name {
+
 }
+
+.value {
+
+
+}
+

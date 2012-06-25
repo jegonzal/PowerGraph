@@ -34,29 +34,27 @@
 
 <body>
 <h1> Twitter Triangle Count Results </h1>
-<FORM NAME="myform" ACTION="" METHOD="GET">
-<INPUT TYPE="text" NAME="inputbox" VALUE="http://localhost:8090">
-<INPUT TYPE="button" NAME="button" Value="Change Domain" onClick="update_domain(this.form)">
-</FORM>
+<INPUT TYPE="button" NAME="button" Value="Refresh" onClick="refresh()">
+
 
 <div id="info">
-  <div class="setting"> 
-   <div class="label">NVertices</div> 
-   <div id="nvertices"></div>
+  <div class="setting">
+   <div class="label">NVertices: </div>
+   <div id="nvertices">42 Million</div>
   </div>
 
-  <div class="setting"> 
-   <div class="label">NEdges</div> 
-   <div id="nedges"></div>
+  <div class="setting">
+   <div class="label">Edges: </div>
+   <div id="nedges">1.5 Billion</div>
   </div>
 
-  <div class="setting"> 
-   <div class="label">NTriangles</div> 
-   <div id="ntriangles"></div>
+  <div class="setting">
+   <div class="label">Triangles:</div>
+   <div id="ntriangles">188 Billion</div>
   </div>
 </div>
 
-<div id="top_degree"></div>
+<div id="results"></div>
 
 </body>
 
