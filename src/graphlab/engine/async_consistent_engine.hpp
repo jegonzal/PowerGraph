@@ -493,7 +493,7 @@ namespace graphlab {
     /// of partial gathers
     std::vector<conditional_gather_type> cache;
     
-    typedef distributed_aggregator<graph_type, icontext_type> aggregator_type;
+    typedef typename iengine<VertexProgram>::aggregator_type aggregator_type;
     aggregator_type aggregator;
 
     /// Number of engine threads
