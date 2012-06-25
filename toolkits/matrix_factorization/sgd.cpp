@@ -32,7 +32,7 @@
 
 #include <graphlab/util/stl_util.hpp>
 #include <graphlab.hpp>
-
+#include "eigen_serialization.hpp"
 #include "sgd_vertex_program.hpp"
 
 #include <graphlab/macros_def.hpp>
