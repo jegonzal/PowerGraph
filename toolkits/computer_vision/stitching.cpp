@@ -50,7 +50,7 @@ using namespace cv;
 
 bool try_use_gpu = false;
 vector<Mat> imgs;
-string result_name = "result.jpg";
+string result_name = "result.png";
 
 void printUsage();
 int parseCmdArgs(int argc, char** argv);
