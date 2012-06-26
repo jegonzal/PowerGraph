@@ -86,19 +86,25 @@ class json_parser {
     line_parser_type vrecord_parser = boost::bind(parse_vrecord_from_json, _1, _2, vertex_parser);
 
     bool success = parse_by_line(graphfilename(), graph_structure_parser);
+
     success = success & parse_by_line(vrecordfilename(), vrecord_parser); 
 
     if (graph.ingress_ptr == NULL) {
       graph.ingress_ptr = new distributed_identity_ingress<VertexData, EdgeData>(graph.rpc.dc(), graph);
     } 
 
+    ASSERT_GE(graph.local_graph.num_vertices(), graph.local_graph.gstore.num_vertices);
+    ASSERT_EQ(graph.vid2lvid.size(), graph.local_graph.num_vertices());
+    ASSERT_EQ(graph.lvid2record.size(), graph.local_graph.num_vertices());
+
     graph.ingress_ptr->exchange_global_info();
+    graph.finalized = true;
     return success;
   }
 
   bool parse_by_line (const std::string& srcfilename, line_parser_type line_parser) {
     std::string fname = prefix + srcfilename; 
-    logstream(LOG_INFO) << "Load json graph from " << fname << std::endl;
+    logstream(LOG_INFO) << "Load graph json from " << fname << std::endl;
 
     boost::iostreams::filtering_stream<boost::iostreams::input> fin;
     // loading from hdfs
@@ -107,36 +113,58 @@ class json_parser {
       graphlab::hdfs::fstream in_file(hdfs, fname);
       if (gzip) fin.push(boost::iostreams::gzip_decompressor());
       fin.push(in_file);
+
+      load_from_stream(fname, fin, line_parser);
+
+      if (gzip) fin.pop();
+      fin.pop();
     } else { // loading from disk
       std::ifstream in_file(fname.c_str(),
           std::ios_base::in | std::ios_base::binary);
-
       if(gzip) fin.push(boost::iostreams::gzip_decompressor());
       fin.push(in_file);
+
+      load_from_stream(fname, fin, line_parser);
+
+      if (gzip) fin.pop();
+      fin.pop();
     } 
 
-    // do line parsing
-    size_t linecount = 0;
-    while(fin.good() && !fin.eof()) {
-      std::string line;
-      std::getline(fin, line);
-      if (line.empty()) continue;
-      if (fin.fail()) break;
-      const bool success = line_parser(graph, line);
-      if (!success) {
-        logstream(LOG_WARNING) 
-          << "Error parsing line " << linecount << " in "
-          << fname << ": " << std::endl
-          << "\t\"" << line << "\"" << std::endl;  
-        return false;
-      }
-      ++linecount;
-    }
 
-    if (gzip) fin.pop();
-    fin.pop();
     return true;
   }
+    /**
+       \internal
+       This internal function is used to load a single line from an input stream
+     */
+    template<typename Fstream>
+    bool load_from_stream(std::string filename, Fstream& fin, 
+                          line_parser_type& line_parser) {
+      size_t linecount = 0;
+      timer ti; ti.start();
+      while(fin.good() && !fin.eof()) {
+        std::string line;
+        std::getline(fin, line);
+        if(line.empty()) continue;
+        if(fin.fail()) break;
+        const bool success = line_parser(graph, line);
+        if (!success) {
+          logstream(LOG_WARNING) 
+            << "Error parsing line " << linecount << " in "
+            << filename << ": " << std::endl
+            << "\t\"" << line << "\"" << std::endl;  
+          return false;
+        }
+        ++linecount;      
+        if (ti.current_time() > 5.0) {
+          logstream(LOG_INFO) << linecount << " Lines read" << std::endl;
+          ti.start();
+        }
+      }
+      return true;
+    } // end of load from stream
+
+
 
   /* Parse the graph structure from json */
   static bool parse_graph_structure_from_json (graph_type& graph, const std::string& str,
@@ -211,12 +239,15 @@ class json_parser {
     graph.lvid2record.reserve(local_graph.gstore.num_vertices);
     graph.lvid2record.resize(local_graph.gstore.num_vertices);
     local_graph.reserve(local_graph.gstore.num_vertices);
+    local_graph.finalized = true;
+
     return true;
   }
 
   /* Parse the vertex record list from json */
   static bool parse_vrecord_from_json (graph_type& graph, const std::string& str, 
       vertex_parser_type vertex_parser) {
+
     typedef typename graph_type::local_graph_type local_graph_type;
     local_graph_type& local_graph = graph.get_local_graph();
 
@@ -250,6 +281,8 @@ class json_parser {
         logstream(LOG_ERROR) << "Error parsing json into vrecord. Unknown json node name:" <<
           i->name() << std::endl;
       }
+      ++i;
+    }
 
       if (graph.vid2lvid.find(vrecord.gvid) == graph.vid2lvid.end()) {
         // Check if this a singlton node
@@ -260,11 +293,7 @@ class json_parser {
         graph.lvid2record[lvid] = vrecord;
         local_graph.add_vertex(lvid, vdata);
       }
-    }
 
-    ASSERT_GE(local_graph.num_vertices(), local_graph.gstore.num_vertices);
-    ASSERT_EQ(graph.vid2lvid.size(), local_graph.num_vertices());
-    ASSERT_EQ(graph.lvid2record.size(), local_graph.num_vertices());
     return true;
   }
 
@@ -300,12 +329,14 @@ class json_parser {
 
   const std::string graphfilename() {
     procid_t pid = graph.procid();
-    return "vrecord/vdata"+tostr(pid)+"-r-0000";
+    std::string suffix =  gzip ? ".gz" : "";
+    return "graph/graph"+tostr(pid)+"-r-00000" +suffix;
   }
 
   const std::string vrecordfilename() {
     procid_t pid = graph.procid();
-    return "vrecord/vdata"+tostr(pid)+"-r-0000";
+    std::string suffix =  gzip ? ".gz" : "";
+    return "vrecord/vdata"+tostr(pid)+"-r-00000" + suffix; 
   }
 
   private:
