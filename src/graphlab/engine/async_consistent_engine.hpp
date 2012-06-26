@@ -1628,8 +1628,8 @@ namespace graphlab {
     void thread_start(size_t threadid) {
       bool has_internal_task = false;
       bool has_sched_msg = false;
-      std::deque<vertex_id_type> internal_lvid;
-      vertex_id_type sched_lvid;
+      std::deque<lvid_type> internal_lvid;
+      lvid_type sched_lvid;
 
       INCREMENT_EVENT(EVENT_ACTIVE_CPUS, 1);
       message_type msg;
