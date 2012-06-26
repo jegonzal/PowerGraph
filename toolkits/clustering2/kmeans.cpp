@@ -424,12 +424,15 @@ int main(int argc, char** argv) {
     graph.transform_vertices(kmeans_pp_initialization);
   } 
 
-
+  // "reset" all clusters
+  for (size_t i = 0; i < NUM_CLUSTERS; ++i) CLUSTERS[i].changed = true;
   // perform Kmeans iteration 
   
   dc.cout() << "Running Kmeans...\n";
   bool clusters_changed = true;
   while(clusters_changed) {
+
+    graph.transform_vertices(kmeans_iteration);
     cluster_center_reducer cc = graph.map_reduce_vertices<cluster_center_reducer>
                                     (cluster_center_reducer::get_center);  
     clusters_changed = false;
@@ -443,14 +446,13 @@ int main(int argc, char** argv) {
         CLUSTERS[i].count = 0;
         CLUSTERS[i].changed = false;
       }
-      else if (sqr_distance(CLUSTERS[i].center,  cc.new_clusters[i].center) < 1E-10) {
+      else if (sqr_distance(CLUSTERS[i].center,  cc.new_clusters[i].center) > 1E-10) {
         CLUSTERS[i] = cc.new_clusters[i];
         CLUSTERS[i].changed = true;
         clusters_changed = true;
       }
     }
 
-    if (clusters_changed) graph.transform_vertices(kmeans_iteration);
   }
 
 
