@@ -22,6 +22,7 @@
 #include <boost/spirit/include/phoenix_operator.hpp>
 #include <boost/spirit/include/phoenix_stl.hpp>
 
+#include <limits>
 #include <vector>
 #include <iostream>
 
@@ -31,9 +32,20 @@
 size_t NUM_CLUSTERS = 0;
 
 struct cluster {
+  cluster(): count(0), changed(false) { }
   std::vector<double> center;
+  size_t count;
   bool changed;
+
+  void save(graphlab::oarchive& oarc) const {
+    oarc << center << count << changed;
+  }
+
+  void load(graphlab::iarchive& iarc) {
+    iarc >> center >> count >> changed;
+  }
 };
+
 std::vector<cluster> CLUSTERS;
 
 // the current cluster to initialize
@@ -41,12 +53,14 @@ size_t KMEANS_INITIALIZATION;
 
 struct vertex_data{
   std::vector<double> point;
-  size_t cluster;
+  size_t best_cluster;
+  double best_distance;
+
   void save(graphlab::oarchive& oarc) const {
-    oarc << point << cluster;
+    oarc << point << best_cluster << best_distance;
   }
   void load(graphlab::iarchive& iarc) {
-    oarc >> point >> cluster;
+    iarc >> point >> best_cluster >> best_distance;
   }
 };
 
@@ -67,8 +81,8 @@ double sqr_distance(const std::vector<double>& a,
 
 
 // helper function to add two vectors 
-std::vector<double>& operator+=(std::vector<double>& a, 
-                                std::vector<double>& b) {
+std::vector<double>& plus_equal_vector(std::vector<double>& a, 
+                                       const std::vector<double>& b) {
   ASSERT_EQ(a.size(), b.size());
   for (size_t i = 0;i < a.size(); ++i) {
     a[i] += b[i];
@@ -87,11 +101,14 @@ std::vector<double>& scale_vector(std::vector<double>& a, double d) {
 
 typedef graphlab::distributed_graph<vertex_data, graphlab::empty> graph_type;
 
+graphlab::atomic<graphlab::vertex_id_type> NEXT_VID;
 
 // Read a line from a file and creates a vertex
 bool vertex_loader(graph_type& graph, const std::string& fname, 
                    const std::string& line) {
-  if (line.empty()) return;
+  if (line.empty()) return true;
+  namespace qi = boost::spirit::qi;
+  namespace ascii = boost::spirit::ascii;
   namespace phoenix = boost::phoenix;
   vertex_data vtx;
   const bool success = qi::phrase_parse
@@ -104,8 +121,11 @@ bool vertex_loader(graph_type& graph, const std::string& fname,
      //  End grammar
      ascii::space); 
 
-  vtx.cluster = 0;
-  graph.add_vertex(vtx);
+  if (!success) return false;
+  vtx.best_cluster = (size_t)(-1);
+  vtx.best_distance = std::numeric_limits<double>::infinity();
+  graph.add_vertex(NEXT_VID.inc_ret_last(graph.numprocs()), vtx);
+  return true;
 }
 
 
@@ -116,12 +136,13 @@ bool vertex_loader(graph_type& graph, const std::string& fname,
 
 // A set of Map Reduces to compute the maximum and minimum vector sizes
 // to ensure that all vectors have the same length
-struct max_point_size_reducer {
+struct max_point_size_reducer: public graphlab::IS_POD_TYPE {
   size_t max_point_size;
 
   static max_point_size_reducer get_max_point_size(const graph_type::vertex_type& v) {
     max_point_size_reducer r;
     r.max_point_size = v.data().point.size();
+    return r;
   }
 
   max_point_size_reducer& operator+=(const max_point_size_reducer& other) {
@@ -130,12 +151,13 @@ struct max_point_size_reducer {
   }
 };
 
-struct min_point_size_reducer {
+struct min_point_size_reducer: public graphlab::IS_POD_TYPE {
   size_t min_point_size;
 
   static min_point_size_reducer get_min_point_size(const graph_type::vertex_type& v) {
     min_point_size_reducer r;
     r.min_point_size = v.data().point.size();
+    return r;
   }
 
   min_point_size_reducer& operator+=(const min_point_size_reducer& other) {
@@ -145,27 +167,49 @@ struct min_point_size_reducer {
 };
 
 
+/*
+ * This transform vertices call is only used during
+ * the initialization phase. IT computes distance to 
+ * cluster[KMEANS_INITIALIZATION] and assigns itself
+ * to the new cluster KMEANS_INITIALIZATION if the new distance
+ * is smaller that its previous cluster asssignment
+ */
+void kmeans_pp_initialization(graph_type::vertex_type& v) {
+  double d = sqr_distance(v.data().point, 
+                          CLUSTERS[KMEANS_INITIALIZATION].center);
+  if (v.data().best_distance > d) {
+    v.data().best_distance = d;
+    v.data().best_cluster = KMEANS_INITIALIZATION;
+  }
+}
 
+/*
+ * Draws a random sample from the data points that is 
+ * proportionate to the "best distance" stored in the vertex.
+ */
 struct random_sample_reducer {
   std::vector<double> vtx;
   double weight;
  
   random_sample_reducer():weight(0) { }
-  random_sample_reducer(graph_type::vertex_id_type vtx, 
+  random_sample_reducer(const std::vector<double>& vtx, 
                         double weight):vtx(vtx),weight(weight) { }
 
   static random_sample_reducer get_weight(const graph_type::vertex_type& v) {
-    if (KMEANS_INITIALIZATION == -1) {
+    if (v.data().best_cluster == (size_t)(-1)) {
       return random_sample_reducer(v.data().point, 1);
     }
     else {
       return random_sample_reducer(v.data().point,
-                                   sqr_distance(v.data().point, 
-                                        cluster[KMEANS_INITIALIZATION].center));
+                                   v.data().best_distance);
     }
   }
 
   random_sample_reducer& operator+=(const random_sample_reducer& other) {
+    double totalweight = weight + other.weight;
+    // if any weight is too small, just quit
+    if (totalweight <= 0) return *this;
+
     double myp = weight / (weight + other.weight);
     if (graphlab::random::bernoulli(myp)) {
       weight += other.weight;
@@ -177,18 +221,116 @@ struct random_sample_reducer {
       return *this;
     }
   }
+
+  void save(graphlab::oarchive &oarc) const {
+    oarc << vtx << weight;
+  }
+  
+  void load(graphlab::iarchive& iarc) {
+    iarc >> vtx >> weight;
+  }
 };
 
 
 
 
 
+/*
+ * This transform vertices call is used during the 
+ * actual k-means iteration. It computes distance to 
+ * all "changed" clusters and reassigns itself if necessary
+ */
+void kmeans_iteration(graph_type::vertex_type& v) {
+  // if current vertex's cluster was modified, we invalidate the distance.
+  // and we need to recompute to all existing clusters
+  // otherwise, we just need to recompute to changed cluster centers.
+  
+  if (CLUSTERS[v.data().best_cluster].changed) {
+    // invalidate. recompute to all
+    v.data().best_cluster = (size_t)(-1);
+    v.data().best_distance = std::numeric_limits<double>::infinity();
+    for (size_t i = 0;i < NUM_CLUSTERS; ++i) {
+      if (CLUSTERS[i].center.size() > 0) {
+        double d = sqr_distance(v.data().point, 
+                                CLUSTERS[i].center);
+        if (d < v.data().best_distance) {
+          v.data().best_distance = d;
+          v.data().best_cluster = i;
+        }
+      }
+    }
+  }
+  else {
+    // just compute distance to what has changed
+    for (size_t i = 0;i < NUM_CLUSTERS; ++i) {
+      if (CLUSTERS[i].changed && CLUSTERS[i].center.size() > 0) {
+        double d = sqr_distance(v.data().point, 
+                                CLUSTERS[i].center);
+        if (d < v.data().best_distance) {
+          v.data().best_distance = d;
+          v.data().best_cluster = i;
+        }
+      }
+    }
+  }
+}
 
 
 
 
 
 
+
+/*
+ * computes new cluster centers
+ */
+struct cluster_center_reducer {
+  std::vector<cluster> new_clusters;
+ 
+  cluster_center_reducer():new_clusters(NUM_CLUSTERS) { }
+
+  static cluster_center_reducer get_center(const graph_type::vertex_type& v) {
+    cluster_center_reducer cc;
+    ASSERT_NE(v.data().best_cluster, (size_t)(-1));
+    
+    cc.new_clusters[v.data().best_cluster].center = v.data().point;
+    cc.new_clusters[v.data().best_cluster].count = 1;
+    return cc;
+  }
+
+  cluster_center_reducer& operator+=(const cluster_center_reducer& other) {
+    for (size_t i = 0;i < NUM_CLUSTERS; ++i) {
+      if (new_clusters[i].count == 0) new_clusters[i] = other.new_clusters[i];
+      else if (other.new_clusters[i].count > 0) {
+        plus_equal_vector(new_clusters[i].center, other.new_clusters[i].center);
+        new_clusters[i].count += other.new_clusters[i].count;
+      }
+    }
+    return *this;
+  }
+
+  void save(graphlab::oarchive& oarc) const { 
+    oarc << new_clusters;
+  }
+
+  void load(graphlab::iarchive& iarc) {
+    iarc >> new_clusters;
+  }
+};
+
+struct vertex_writer {
+  std::string save_vertex(graph_type::vertex_type v) {
+    std::stringstream strm;
+    for (size_t i = 0;i < v.data().point.size(); ++i) {
+      strm << v.data().point[i] << "\t";
+    }
+    strm << v.data().best_cluster << "\n";
+    strm.flush();
+    return strm.str();
+  }
+ 
+  std::string save_edge(graph_type::edge_type e) { return ""; }
+};
 
 
 int main(int argc, char** argv) {
@@ -199,7 +341,7 @@ int main(int argc, char** argv) {
      "--data argument which is non-optional. The format of the data file is a "
      "collection of lines, where each line contains a comma or white-space " 
      "separated lost of numeric values representing a vector. Every line "
-     "must have the same number of values. The non-optional --cluster=N "
+     "must have the same number of values. The required --clusters=N "
      "argument denotes the number of clusters to generate. To store the output "
      "see the --output-cluster and --output-data arguments");
 
@@ -209,7 +351,7 @@ int main(int argc, char** argv) {
   clopts.attach_option("data",
                        &datafile, datafile,
                        "Input file. Each line hold a white-space or comma separated numeric vector");
-  clopts.attach_option("cluster",
+  clopts.attach_option("clusters",
                        &NUM_CLUSTERS, NUM_CLUSTERS,
                        "The number of clusters to create.");
   clopts.attach_option("output-clusters",
@@ -240,8 +382,16 @@ int main(int argc, char** argv) {
   graph_type graph(dc, clopts);
   graph.load(datafile, vertex_loader);
   graph.finalize();
-  dc.cout() << "Number of datapoints: " << graph.num_vertices() << std::endl
+  dc.cout() << "Number of datapoints: " << graph.num_vertices() << std::endl;
+
+  if (graph.num_vertices() < NUM_CLUSTERS) {
+    dc.cout() << "More clusters than datapoints! Cannot proceed" << std::endl;
+    return EXIT_FAILURE;
+  }
+
   dc.cout() << "Validating data..."; 
+
+
   // make sure all have the same array length
  
   size_t max_p_size = graph.map_reduce_vertices<max_point_size_reducer>
@@ -256,6 +406,8 @@ int main(int argc, char** argv) {
     return EXIT_FAILURE;
   }
 
+
+  dc.cout() << "Initializing using Kmeans++\n";
   // allocate clusters
   CLUSTERS.resize(NUM_CLUSTERS);
   for (size_t i = 0;i < NUM_CLUSTERS; ++i) {
@@ -263,16 +415,62 @@ int main(int argc, char** argv) {
   }
 
   // ok. perform kmeans++ initialization
-  for (KMEANS_INITIALIZATION = -1; 
+  for (KMEANS_INITIALIZATION = 0; 
        KMEANS_INITIALIZATION < NUM_CLUSTERS;
        ++KMEANS_INITIALIZATION) {
     random_sample_reducer rs = graph.map_reduce_vertices<random_sample_reducer>
                                       (random_sample_reducer::get_weight);
-    CLUSTERS[i].center = rs.vtx;
+    CLUSTERS[KMEANS_INITIALIZATION].center = rs.vtx;
+    graph.transform_vertices(kmeans_pp_initialization);
   } 
 
- // perform Kmeans iteration 
- 
+
+  // perform Kmeans iteration 
+  
+  dc.cout() << "Running Kmeans...\n";
+  bool clusters_changed = true;
+  while(clusters_changed) {
+    cluster_center_reducer cc = graph.map_reduce_vertices<cluster_center_reducer>
+                                    (cluster_center_reducer::get_center);  
+    clusters_changed = false;
+
+    for (size_t i = 0;i < NUM_CLUSTERS; ++i) {
+      double d = cc.new_clusters[i].count;
+      if (d > 0) scale_vector(cc.new_clusters[i].center, 1.0 / d);
+      if (cc.new_clusters[i].count == 0 && CLUSTERS[i].count > 0) {
+        dc.cout() << "Cluster " << i << " lost" << std::endl;
+        CLUSTERS[i].center.clear();
+        CLUSTERS[i].count = 0;
+        CLUSTERS[i].changed = false;
+      }
+      else if (sqr_distance(CLUSTERS[i].center,  cc.new_clusters[i].center) < 1E-10) {
+        CLUSTERS[i] = cc.new_clusters[i];
+        CLUSTERS[i].changed = true;
+        clusters_changed = true;
+      }
+    }
+
+    if (clusters_changed) graph.transform_vertices(kmeans_iteration);
+  }
+
+
+  if (!outcluster_file.empty() && dc.procid() == 0) {
+    dc.cout() << "Writing Cluster Centers..." << std::endl;
+    std::ofstream fout(outcluster_file.c_str());
+    for (size_t i = 0;i < NUM_CLUSTERS; ++i) {
+      for (size_t j = 0; j < CLUSTERS[i].center.size(); ++j) {
+        fout << CLUSTERS[i].center[j] << "\t";
+      }
+      fout << "\n";
+    }
+  }
+
+  if (!outdata_file.empty()) {
+    dc.cout() << "Writing Data with clister assignments...\n" << std::endl;
+    graph.save(outdata_file, vertex_writer(), false, true, false, 1);
+  }
+
+  graphlab::mpi_tools::finalize();
 }
 
 
