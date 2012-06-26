@@ -236,14 +236,14 @@ public:
 
 }; // end of gather type
 
-
+typedef vec_type message_type;
 
 /**
  * SGD vertex program type
  */ 
 class sgd_vertex_program : 
   public graphlab::ivertex_program<graph_type, gather_type,
-                                   graphlab::messages::sum_priority>,
+                                   message_type>,
   public graphlab::IS_POD_TYPE {
 public:
   /** The convergence tolerance */
@@ -253,6 +253,13 @@ public:
   static size_t MAX_UPDATES;
 
   vec_type pmsg;
+  void save(graphlab::oarchive& arc) const { 
+    arc << pmsg;
+  }
+  /** \brief Load the vertex data from a binary archive */
+  void load(graphlab::iarchive& arc) { 
+    arc >> pmsg;
+  }
 
   /** The set of edges to gather along */
   edge_dir_type gather_edges(icontext_type& context, 
@@ -265,7 +272,7 @@ public:
                      edge_type& edge) const {
     //if(edge.data().role == edge_data::TRAIN) {
    std::cout<<"Enering vertex " << vertex.id() << "pvec: " << vertex.data().pvec[0] << std::endl;
-   vec_type delta;
+   vec_type delta, other_delta;
    if (vertex.num_in_edges() == 0){
       vertex_type other_vertex(get_other_vertex(edge, vertex));
       vertex_type my_vertex(vertex);
@@ -275,23 +282,23 @@ public:
       assert(!std::isnan(err));
       if (edge.data().role == edge_data::TRAIN){
         delta = GAMMA*(err*vertex.data().pvec - LAMBDA*other_vertex.data().pvec);
-        other_vertex.data().pvec += GAMMA*(err*other_vertex.data().pvec - LAMBDA*vertex.data().pvec);
-      }
+        other_delta = GAMMA*(err*other_vertex.data().pvec - LAMBDA*vertex.data().pvec);
+        if(other_vertex.data().nupdates < MAX_UPDATES) 
+          context.signal(other_vertex, other_delta);
+       }
       return gather_type(delta, err*err, edge.data().role);
     } 
     else return gather_type(delta, 0, edge.data().role);
   } // end of gather function
 
-typedef vec_type message_type;
-
- void recv_message(icontext_type& context,
+//typedef vec_type message_type;
+ void init(icontext_type& context,
                               const vertex_type& vertex,
                               const message_type& msg) {
      if (vertex.num_in_edges() > 0){
         pmsg = msg;
      }
   }
-
   /** apply collects the sum of XtX and Xy */
   void apply(icontext_type& context, vertex_type& vertex,
              const gather_type& sum) {
@@ -332,7 +339,7 @@ typedef vec_type message_type;
       //const double priority = (error * vdata.residual); 
       // Reschedule neighbors ------------------------------------------------
       if(other_vertex.data().nupdates < MAX_UPDATES) 
-        context.signal(other_vertex, 1);
+        context.signal(other_vertex, vec_type::Zero(vertex_data::NLATENT));
     }
   } // end of scatter function
 

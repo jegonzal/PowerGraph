@@ -32,7 +32,7 @@
 
 #include <graphlab/util/stl_util.hpp>
 #include <graphlab.hpp>
-
+#include "eigen_serialization.hpp"
 #include "sgd_vertex_program.hpp"
 
 #include <graphlab/macros_def.hpp>
@@ -99,7 +99,7 @@ int main(int argc, char** argv) {
     std::cout << "Error in parsing command line arguments." << std::endl;
     return EXIT_FAILURE;
   }
-  omp_set_num_threads(clopts.get_ncpus());
+  //  omp_set_num_threads(clopts.get_ncpus());
   ///! Initialize control plain using mpi
   graphlab::mpi_tools::init(argc, argv);
   graphlab::distributed_control dc;
