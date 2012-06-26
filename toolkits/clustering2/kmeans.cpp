@@ -55,12 +55,13 @@ struct vertex_data{
   std::vector<double> point;
   size_t best_cluster;
   double best_distance;
+  bool changed;
 
   void save(graphlab::oarchive& oarc) const {
-    oarc << point << best_cluster << best_distance;
+    oarc << point << best_cluster << best_distance << changed;
   }
   void load(graphlab::iarchive& iarc) {
-    iarc >> point >> best_cluster >> best_distance;
+    iarc >> point >> best_cluster >> best_distance >> changed;
   }
 };
 
@@ -124,6 +125,7 @@ bool vertex_loader(graph_type& graph, const std::string& fname,
   if (!success) return false;
   vtx.best_cluster = (size_t)(-1);
   vtx.best_distance = std::numeric_limits<double>::infinity();
+  vtx.changed = false;
   graph.add_vertex(NEXT_VID.inc_ret_last(graph.numprocs()), vtx);
   return true;
 }
@@ -244,7 +246,7 @@ void kmeans_iteration(graph_type::vertex_type& v) {
   // if current vertex's cluster was modified, we invalidate the distance.
   // and we need to recompute to all existing clusters
   // otherwise, we just need to recompute to changed cluster centers.
-  
+  size_t prev_asg = v.data().best_cluster;
   if (CLUSTERS[v.data().best_cluster].changed) {
     // invalidate. recompute to all
     v.data().best_cluster = (size_t)(-1);
@@ -273,6 +275,7 @@ void kmeans_iteration(graph_type::vertex_type& v) {
       }
     }
   }
+  v.data().changed = (prev_asg != v.data().best_cluster);
 }
 
 
@@ -283,11 +286,14 @@ void kmeans_iteration(graph_type::vertex_type& v) {
 
 /*
  * computes new cluster centers
+ * Also accumulates a counter counting the number of vertices which
+ * assignments changed.
  */
 struct cluster_center_reducer {
   std::vector<cluster> new_clusters;
- 
-  cluster_center_reducer():new_clusters(NUM_CLUSTERS) { }
+  size_t num_changed;
+
+  cluster_center_reducer():new_clusters(NUM_CLUSTERS), num_changed(0) { }
 
   static cluster_center_reducer get_center(const graph_type::vertex_type& v) {
     cluster_center_reducer cc;
@@ -295,6 +301,7 @@ struct cluster_center_reducer {
     
     cc.new_clusters[v.data().best_cluster].center = v.data().point;
     cc.new_clusters[v.data().best_cluster].count = 1;
+    cc.num_changed = v.data().changed;
     return cc;
   }
 
@@ -306,15 +313,16 @@ struct cluster_center_reducer {
         new_clusters[i].count += other.new_clusters[i].count;
       }
     }
+    num_changed += other.num_changed;
     return *this;
   }
 
   void save(graphlab::oarchive& oarc) const { 
-    oarc << new_clusters;
+    oarc << new_clusters << num_changed;
   }
 
   void load(graphlab::iarchive& iarc) {
-    iarc >> new_clusters;
+    iarc >> new_clusters >> num_changed;
   }
 };
 
@@ -430,12 +438,16 @@ int main(int argc, char** argv) {
   
   dc.cout() << "Running Kmeans...\n";
   bool clusters_changed = true;
+  size_t iteration_count = 0;
   while(clusters_changed) {
 
     graph.transform_vertices(kmeans_iteration);
     cluster_center_reducer cc = graph.map_reduce_vertices<cluster_center_reducer>
                                     (cluster_center_reducer::get_center);  
-    clusters_changed = false;
+
+    ++iteration_count;
+    dc.cout() << "Kmeans iteration " << iteration_count << ": " <<
+                 "# points with changed assignments = " << cc.num_changed << std::endl;
 
     for (size_t i = 0;i < NUM_CLUSTERS; ++i) {
       double d = cc.new_clusters[i].count;
@@ -446,12 +458,12 @@ int main(int argc, char** argv) {
         CLUSTERS[i].count = 0;
         CLUSTERS[i].changed = false;
       }
-      else if (sqr_distance(CLUSTERS[i].center,  cc.new_clusters[i].center) > 1E-10) {
+      else {
         CLUSTERS[i] = cc.new_clusters[i];
         CLUSTERS[i].changed = true;
-        clusters_changed = true;
       }
     }
+    clusters_changed = cc.num_changed > 0;
 
   }
 
