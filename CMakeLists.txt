@@ -297,7 +297,7 @@ ExternalProject_Add(libjson
   URL_MD5 dcb326038bd9b710b8f717580c647833
   BUILD_IN_SOURCE 1
   CONFIGURE_COMMAND ""
-  PATCH_COMMAND patch -p0 makefile < ${GraphLab_SOURCE_DIR}/patches/libjson.patch
+  PATCH_COMMAND patch -p1 < ${GraphLab_SOURCE_DIR}/patches/libjson.patch
   BUILD_COMMAND make
   INSTALL_COMMAND prefix=<INSTALL_DIR> make install 
   INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local
@@ -382,7 +382,8 @@ macro(requires_core_deps NAME)
   target_link_libraries(${NAME} 
     ${Boost_LIBRARIES}
     tcmalloc
-    event event_pthreads)
+    event event_pthreads
+    json)
   add_dependencies(${NAME} boost libtcmalloc libevent libjson)
   if(MPI_FOUND)
     target_link_libraries(${NAME} ${MPI_LIBRARY} ${MPI_EXTRA_LIBRARY})

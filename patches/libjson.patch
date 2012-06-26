@@ -1,4 +1,47 @@
-239c239
-< $(objdir)/%.o: $(srcdir)/%.cpp
----
-> $(objdir)/%.o: $(srcdir)/%.cpp installdirs
+Common subdirectories: libjson2/Dependencies and libjson/Dependencies
+Common subdirectories: libjson2/Getting Started and libjson/Getting Started
+diff -uN libjson2/JSONOptions.h libjson/JSONOptions.h
+--- libjson2/JSONOptions.h	2012-06-25 19:48:45.000000000 -0400
++++ libjson/JSONOptions.h	2012-06-25 19:49:11.000000000 -0400
+@@ -11,7 +11,7 @@
+  *  JSON_LIBRARY must be declared if libjson is compiled as a static or dynamic 
+  *  library.  This exposes a C-style interface, but none of the inner workings of libjson
+  */
+-#define JSON_LIBRARY
++// #define JSON_LIBRARY
+ 
+ 
+ /*
+@@ -94,7 +94,7 @@
+  *  JSON_BINARY is used to support binary, which is base64 encoded and decoded by libjson,
+  *  if this option is not turned off, no base64 support is included
+  */
+-#define JSON_BINARY
++// #define JSON_BINARY
+ 
+ 
+ /*
+@@ -102,7 +102,7 @@
+  *  and decoding.  This may be useful if you want to obfuscate your json, or send binary data over
+  *  a network
+  */
+-#define JSON_EXPOSE_BASE64
++// #define JSON_EXPOSE_BASE64
+ 
+ 
+ /*
+Common subdirectories: libjson2/Source and libjson/Source
+Common subdirectories: libjson2/TestSuite and libjson/TestSuite
+Common subdirectories: libjson2/TestSuite2 and libjson/TestSuite2
+diff -uN libjson2/makefile libjson/makefile
+--- libjson2/makefile	2012-06-25 19:48:45.000000000 -0400
++++ libjson/makefile	2012-06-25 19:50:29.000000000 -0400
+@@ -236,7 +236,7 @@
+ endif
+ 
+ # Compile object files
+-$(objdir)/%.o: $(srcdir)/%.cpp
++$(objdir)/%.o: $(srcdir)/%.cpp installdirs
+ 	$(CXX) $< -o $@ $(CXXFLAGS)
+ 
+ ifeq ($(SHARED),1)
