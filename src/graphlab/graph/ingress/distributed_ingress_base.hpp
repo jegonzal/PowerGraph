@@ -443,6 +443,14 @@ namespace graphlab {
       ASSERT_EQ(graph.vid2lvid.size(), graph.local_graph.num_vertices());
       ASSERT_EQ(graph.lvid2record.size(), graph.local_graph.num_vertices());
  
+      exchange_global_info();
+
+    } // end of finalize
+
+
+    /* Exchange graph statistics among all nodes and compute
+     * global statistics for the distributed graph. */
+    void exchange_global_info () {
       // Count the number of vertices owned locally
       graph.local_own_nverts = 0;
       foreach(const vertex_record& record, graph.lvid2record)
@@ -483,7 +491,7 @@ namespace graphlab {
                             << "\n\t nedges: " << graph.num_edges()
                             << std::endl;
       }
-    } // end of finalize
+    }
 
 
 

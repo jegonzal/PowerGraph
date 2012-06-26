@@ -44,6 +44,7 @@
 #include <boost/iterator/transform_iterator.hpp>
 
 #include <graphlab/graph/graph_basic_types.hpp>
+#include <graphlab/graph/json_parser.hpp>
 #include <graphlab/logger/logger.hpp>
 #include <graphlab/logger/assertions.hpp>
 
@@ -75,6 +76,9 @@ namespace graphlab {
 
     typedef graphlab::vertex_id_type vertex_id_type;
     typedef graphlab::edge_id_type edge_id_type;
+
+    friend class json_parser<VertexData, EdgeData>;
+
     
     struct edge_type;
     struct vertex_type;

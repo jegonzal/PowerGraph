@@ -55,6 +55,13 @@ namespace graphlab {
      * among the machines.
      */
     virtual void finalize() = 0;
+
+    /**
+     * Exchange global graph statistics among all ingress nodes. 
+     *
+     * */
+    virtual void exchange_global_info() = 0;
+
   }; // end of idstributed_ingress
 
 }; // end of namespace graphlab

@@ -64,6 +64,7 @@
 #include <graphlab/util/random.hpp>
 #include <graphlab/util/generics/shuffle.hpp>
 #include <graphlab/graph/graph_basic_types.hpp>
+#include <graphlab/graph/json_parser.hpp>
 
 #include <graphlab/parallel/atomic.hpp>
 
@@ -88,6 +89,9 @@ namespace graphlab {
      * have consecutive internal ids.
      * */
     typedef std::pair<size_t, size_t>  edge_range_type;
+
+    friend class json_parser<VertexData, EdgeData>;
+
 
     /* ----------------------------------------------------------------------------- */
     /* helper data field and structures: edge_data_list, class edge, class edge_list */

@@ -85,6 +85,7 @@
 
 
 #include <graphlab/graph/builtin_parsers.hpp>
+#include <graphlab/graph/json_parser.hpp>
 
 
 #include <graphlab/macros_def.hpp>
@@ -366,6 +367,7 @@ namespace graphlab {
     friend class distributed_identity_ingress<VertexData, EdgeData>;
     friend class distributed_batch_ingress<VertexData, EdgeData>;
     friend class distributed_oblivious_ingress<VertexData, EdgeData>;
+    friend class json_parser<VertexData, EdgeData>;
 
     typedef graphlab::vertex_id_type vertex_id_type;
     typedef graphlab::lvid_type lvid_type;
@@ -1977,8 +1979,33 @@ namespace graphlab {
     } // end of load
 
 
-
-
+    /** \brief Load a distributed graph from a native json output format.
+     * This function must be called simultaneously on all machines.
+     *
+     * This function loads a sequence of files numbered
+     * \li [prefix].0.gz
+     * \li [prefix].1.gz
+     * \li [prefix].2.gz
+     * \li etc.
+     * 
+     * These files must be previously saved using external graphbuilder library, 
+     * and must be saved <b>using the same number of machines</b>. 
+     * 
+     * A graph loaded using load_json() is already finalized and
+     * structure modifications are not permitted after loading.
+     */
+    typedef json_parser<VertexData, EdgeData> json_parser_type;
+    typedef typename json_parser_type::edge_parser_type edge_parser_type;
+    typedef typename json_parser_type::vertex_parser_type vertex_parser_type;
+    void load_json (const std::string& prefix, bool gzip=false, 
+        edge_parser_type edge_parser = builtin_parsers::empty_edge_parser<EdgeData>, 
+        vertex_parser_type vertex_parser = builtin_parsers::empty_vertex_parser<VertexData>
+       ) {
+      rpc.full_barrier();
+      json_parser<VertexData, EdgeData> jsonparser(*this, prefix, gzip, edge_parser, vertex_parser);
+      jsonparser.load();
+      rpc.full_barrier();
+    } // end of load_json
 
 
 
