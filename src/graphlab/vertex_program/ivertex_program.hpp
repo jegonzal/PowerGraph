@@ -40,41 +40,70 @@ namespace graphlab {
   /**
    * \brief The ivertex_program class defines the vertex program
    * interface that all vertex programs should extend and implement.
+   * The vertex-program is used to encode the user-define computation
+   * in a GraphLab program.
    *
    * Overview
    * ==================
    *
-   * A vertex program represents the primary user define computation
-   * in graphlab.  A unique instance of the vertex program is run on
+   * A vertex program represents the primary user defined computation
+   * in GraphLab.  A unique instance of the vertex program is run on
    * each vertex in the graph and can interact with neighboring vertex
    * programs through the gather and scatter functions as well as by
-   * messaging.  The vertex program's state is persistent throughout
-   * the execution of the GraphLab program.
+   * signaling neighboring vertex-programs.  Conceptually the
+   * vertex-program is a class which represents the parts of an
+   * update-function in the original formulation of the GraphLab
+   * abstraction.  Moreover many graph-structured programs can be
+   * written in the following pattern:
+   *
+   * \code
+   * graphlab::update_function(Vertex center, Neighborhood nbrs) {
+   *   // nbrs represents the state of neighboring vertices and edges
+   *
+   *   // Gather Phase: 
+   *   sum = initial_value();
+   *   for(edge in nbrs.in_edges()) {
+   *      // The sum is a general commutative associative operation
+   *      sum += gather_function(center, edge, edge.neighbor());
+   *   }
+   *
+   *   // Apply Phase:
+   *   center = apply_function(center, sum);
+   *
+   *   // Scatter Phase:
+   *   for(edge in nbrs.out_edges()) {
+   *     edge = scatter_function(center, edge, edge.neighbor());
+   *     if(condition is met) trigger_neighbor();
+   *   }
+   *
+   * }
+   * \endcode
    *
    * Vertex programs express computation by implementing what we call
    * the *Gather-Apply-Scatter (GAS)* model which decomposes the
    * vertex program into a parallel gather phase, followed by an
    * atomic apply phase, and finally a parallel scatter phase.  This
    * decomposition allows us to execute a single vertex program on
-   * several machines simultaneously and move computation to the data.
+   * several machines simultaneously and move computation to the data.  
+   *
+   * We therefore decompose the update function logic into member
+   * functions of the vertex-program class that are invoked in the
+   * following manner:
    *
    * \code
-   * For vertex vtx:
-   *   // During execution:
-   *   if( there is a message for vtx ) {
-   *     vprog.init(ctx, vtx, msg);
-   *     // Gather Phase: 
-   *     vprog::gather_type sum;
-   *     ParallelFor(adjacent edges in direction vprog.gather_edges(ctx, vtx) )
-   *       sum += vprog.gather(ctx, vtx, edge);
-   *     // Apply Phase
-   *     vprog.apply(ctx, vtx, sum);
-   *     // Scatter Phase
-   *     ParallelFor(adjacent edges in direction vprog.scatter_edges(ctx, vtx) )
-   *       vprog.scatter(ctx, vtx, edge);
-   *     // Vertex program is destroyed
-   *     vprog = vertex_program();
-   *   }
+   * For the center vertex vtx:
+   *   vprog.init(ctx, vtx, msg);
+   *   // Gather Phase: 
+   *   vprog::gather_type sum;
+   *   ParallelFor(adjacent edges in direction vprog.gather_edges(ctx, vtx) )
+   *     sum += vprog.gather(ctx, vtx, edge);
+   *   // Apply Phase
+   *   vprog.apply(ctx, vtx, sum);
+   *   // Scatter Phase
+   *   ParallelFor(adjacent edges in direction vprog.scatter_edges(ctx, vtx) )
+   *     vprog.scatter(ctx, vtx, edge);
+   *   // Vertex program is destroyed
+   *   vprog = vertex_program();
    * \endcode
    *
    * All user define vertex programs must extend the ivertex_program
@@ -83,26 +112,34 @@ namespace graphlab {
    * ivertex_program::gather and ivertex_program::scatter functions.
    *
    * The state of a vertex program *does not* persist between
-   * invocations of receive message.  Moreover on each call to init
-   * the vertex program's previous state is cleared. Therefore any
-   * persistent state must be saved into the vertex data.
+   * invocations of \ref ivertex_program::init.  Moreover prior to
+   * each call to init the vertex program's previous state is
+   * cleared. Therefore any persistent state must be saved into the
+   * vertex data.
    *
    * The vertex program depends on several key types which are
-   * template arguments to ivertex_program interface. 
+   * template arguments to ivertex_program interface.
    * 
-   *   1) Graph: the type of graph used to store the data for this
-   *      vertex program.  This is typically distributed_graph.
-   *   2) gather_type: the type used in the gather phase
-   *   3) message_type: The type used for messaging
+   * \li graph_type: the type of graph used to store the data for this
+   * vertex program.  This currently always the distributed_graph.
    *
-   * Both the gather_type and message_type must be serializable 
-   * (\ref sec_serializable) and must support the
-   * commutative associative += operation.
-   *   
-   * To enable the interface to be aware of the user defined gather
-   * and message types the ivertex_program interface takes the
-   * vertex_program as an argument.
-   * 
+   * \li gather_type: the type used in the gather phase and must
+   * implement the operator+= function.
+   *
+   * \li message_type: The type used for signaling and is typically
+   * empty.  However if a message type is desired it must implement
+   * the operator+= to allow message merging across the network.  In
+   * addition the message type may also implement the priority()
+   * function which returns a double assigning a priority to the
+   * reception of the message (used by the asynchronous engines). We
+   * provide a basic set of simple prioritized messages in 
+   * \ref graphlab::signals.
+   *
+   * All user-defined types including the vertex data, edge data,
+   * vertex-program, gather type, and message type must be
+   * serializable (see \ref sec_serializable) and default
+   * constructible to enable movement between machines.
+   *
    */
   template<typename Graph,
            typename GatherType,
@@ -112,28 +149,85 @@ namespace graphlab {
 
     // User defined type members ==============================================
     /**
-     * \brief The user defined vertex data type.  
+     * \brief The user defined vertex data associated with each vertex
+     * in the graph (see \ref distributed_graph::vertex_data_type).
      *
      * The vertex data is the data associated with each vertex in the
      * graph.  Unlike the vertex-program the vertex data of adjacent
-     * vetices is visible to vertex programs during the gather and
-     * scatter phases. In addition at termination the vertex-data is
-     * accessible through the graph while the vertex-program state is
-     * not.
+     * vertices is visible to other vertex programs during the gather
+     * and scatter phases and persists between executions of the
+     * vertex-program.
      *
-     * The vertex data type must be serializable (see \ref
-     * serializable)
+     * The vertex data type must be serializable 
+     * (see \ref sec_serializable)
      */
     typedef typename Graph::vertex_data_type vertex_data_type;
 
     /**
-     * The type of the edge data which must be defined by the
-     * vertex-program.
+     * \cond GRAPHLAB_INTERNAL
+     *
+     * \brief GraphLab Requires that the vertex data type be Serializable.  See
+     * \ref sec_serializable for details. 
+     */
+    BOOST_CONCEPT_ASSERT((graphlab::Serializable<vertex_data_type>));
+    /// \endcond
+
+
+
+    /**
+     * \brief The user defined edge data associated with each edge in
+     * the graph.
+     *
+     * The edge data type must be serializable 
+     * (see \ref sec_serializable)
+     *
      */
     typedef typename Graph::edge_data_type edge_data_type;
 
     /**
-     * The gather type which must be provided by the vertex program.
+     * \cond GRAPHLAB_INTERNAL
+     *
+     * \brief GraphLab Requires that the edge data type be Serializable.  See
+     * \ref sec_serializable for details. 
+     */
+    BOOST_CONCEPT_ASSERT((graphlab::Serializable<edge_data_type>));
+    /// \endcond
+
+
+    /**
+     * \brief The user defined gather type is used to accumulate the
+     * results of the gather function during the gather phase and must
+     * implement the operator += operation.
+     *
+     * The gather type plays the following role in the vertex program:
+     * 
+     * \code
+     * gather_type sum = gather_type();
+     * for(edges in vprog.gather_edges()) {
+     *   sum += vprog.gather( ... );
+     * }
+     * vprog.apply(..., sum);
+     * \endcode
+     *
+     * However in practice we implement the gather phase as a parallel
+     * reduction tree and as a consequence the resulting sum has the
+     * following form:
+     *
+     * \code
+     *   gather_type sum = vprog.gather( edge1 ) + 
+     *                     vprog.gather( edge2 ) ...
+     * \endcode
+     *
+     * and not:
+     *
+     * \code
+     *   gather_type sum = gather_type() +
+     *                     vprog.gather( edge1 ) + 
+     *                     vprog.gather( edge2 ) ...
+     * \endcode
+     *
+     * In addition to implementing the operator+= operation the gather
+     * type must also be serializable (see \ref sec_serializable).
      */
     typedef GatherType gather_type;
     
@@ -151,7 +245,6 @@ namespace graphlab {
      */
     BOOST_CONCEPT_ASSERT((boost::DefaultConstructible<GatherType>));
     /// \endcond
-
 
     /**
      * \cond GRAPHLAB_INTERNAL
