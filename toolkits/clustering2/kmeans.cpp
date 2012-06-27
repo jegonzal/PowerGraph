@@ -388,6 +388,7 @@ int main(int argc, char** argv) {
   graphlab::distributed_control dc;
   // load graph
   graph_type graph(dc, clopts);
+  NEXT_VID = dc.procid();
   graph.load(datafile, vertex_loader);
   graph.finalize();
   dc.cout() << "Number of datapoints: " << graph.num_vertices() << std::endl;
@@ -441,14 +442,15 @@ int main(int argc, char** argv) {
   size_t iteration_count = 0;
   while(clusters_changed) {
 
-    graph.transform_vertices(kmeans_iteration);
     cluster_center_reducer cc = graph.map_reduce_vertices<cluster_center_reducer>
                                     (cluster_center_reducer::get_center);  
-
-    ++iteration_count;
-    dc.cout() << "Kmeans iteration " << iteration_count << ": " <<
+    // the first round (iteration_count == 0) is not so meaningful
+    // since I am just recomputing the centers from the output of the KMeans++
+    // initialization
+    if (iteration_count > 0) {
+      dc.cout() << "Kmeans iteration " << iteration_count << ": " <<
                  "# points with changed assignments = " << cc.num_changed << std::endl;
-
+    }
     for (size_t i = 0;i < NUM_CLUSTERS; ++i) {
       double d = cc.new_clusters[i].count;
       if (d > 0) scale_vector(cc.new_clusters[i].center, 1.0 / d);
@@ -463,8 +465,11 @@ int main(int argc, char** argv) {
         CLUSTERS[i].changed = true;
       }
     }
-    clusters_changed = cc.num_changed > 0;
+    clusters_changed = iteration_count == 0 || cc.num_changed > 0;
 
+    graph.transform_vertices(kmeans_iteration);
+
+    ++iteration_count;
   }
 
 
