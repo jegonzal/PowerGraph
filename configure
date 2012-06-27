@@ -26,9 +26,12 @@ function print_help {
   echo
   echo "  --no_openmp         Disables OpenMP. Disabled by default on Mac."
   echo
+  echo "  --no_jvm             Disable JVM features including HDFS integration."
+  echo 
   echo "  --experimental      Turns on undocumented experimental distributed capabilities. "
   echo
   echo "  -D var=value        Specify definitions to be passed on to cmake."
+ 
   exit 1
 } # end of print help
 function run_cleanup {
@@ -95,6 +98,7 @@ while [ $# -gt 0 ]
     --help)                 print_help=1 ;;
     --cleanup)              run_cleanup=1 ;;
     --no_openmp)            no_openmp=1 ;;
+    --no_jvm)               no_jvm=1 ;;
     --experimental)         experimental=1 ;;
     --prefix=*)             prefix=${1##--prefix=} ;;
     --ide=*)                ide=${1##--ide=} ;;
@@ -137,15 +141,22 @@ if [[ -z $CXX ]]; then
   CXX=g++
 fi
 
+
 # Test java
 if [[ -z $JAVAC ]]; then
   JAVAC=javac
 fi
 # set -e
 # set -o pipefail
+
 if ! $JAVAC -version >> /dev/null; then
-    JAVAC="" 
+  JAVAC="" 
 fi
+
+if [[ -n $no_jvm ]]; then
+  echo "JVM disabled"
+  JAVAC=""
+fi 
 
 ## Begin logging in config.log
 LOG_FILE=config.log
