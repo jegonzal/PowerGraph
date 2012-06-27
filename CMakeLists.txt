@@ -115,7 +115,7 @@ install(CODE "execute_process(COMMAND ./scripts/install_deps.sh
 
 # Build eigen =================================================================
 # TODO: Move to toolkits.
-# While eigne is not used in the core GraphLab library we found it
+# While eigen is not used in the core GraphLab library we found it
 # useful to have a matrix library. For now we download eigen from
 # our servers since the eigen servers use SSL which is not supported
 # by cmake DOWNLOAD_COMMAND hg clone
@@ -127,7 +127,7 @@ ExternalProject_Add(eigen
   CONFIGURE_COMMAND ""
   BUILD_COMMAND ""
   BUILD_IN_SOURCE 1  
-  INSTALL_COMMAND cp -r Eigen <INSTALL_DIR>/.
+  INSTALL_COMMAND cp -r Eigen unsupported <INSTALL_DIR>/.
   INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local/include)
 add_definitions(-DHAS_EIGEN)
 
@@ -274,28 +274,29 @@ ExternalProject_Add(opencv
   PREFIX ${GraphLab_SOURCE_DIR}/deps/opencv
   URL http://superb-sea2.dl.sourceforge.net/project/opencvlibrary/opencv-unix/2.4.0/OpenCV-2.4.0.tar.bz2
   # URL_MD5 010b63a2542c4ec4918c8cb431c00356
-#  CONFIGURE_COMMAND 
-#  C_INCLUDE_PATH=${GraphLab_SOURCE_DIR}/deps/local/include 
-#  CPLUS_INCLUDE_PATH=${GraphLab_SOURCE_DIR}/deps/local/include 
-#  LIBRARY_PATH=${GraphLab_SOURCE_DIR}/deps/local/lib
-#  LDFLAGS=-L${GraphLab_SOURCE_DIR}/deps/local/lib       
-#  <SOURCE_DIR>/configure 
-#  --prefix=<INSTALL_DIR>
-#  --without-threads
-#  --disable-openmp
-#  --disable-opencl
-  BUILD_COMMAND
+#  CONFIGURE_COMMAND
+  CMAKE_COMMAND cmake -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>
   C_INCLUDE_PATH=${GraphLab_SOURCE_DIR}/deps/local/include 
   CPLUS_INCLUDE_PATH=${GraphLab_SOURCE_DIR}/deps/local/include 
   LIBRARY_PATH=${GraphLab_SOURCE_DIR}/deps/local/lib
   LDFLAGS=-L${GraphLab_SOURCE_DIR}/deps/local/lib       
+#  <SOURCE_DIR>/configure 
+  --prefix=<INSTALL_DIR>
+  --without-threads
+  --disable-openmp
+  --disable-opencl
+  BUILD_COMMAND
+  C_INCLUDE_PATH=${GraphLab_SOURCE_DIR}/deps/local/include 
+  CPLUS_INCLUDE_PATH=${GraphLab_SOURCE_DIR}/deps/local/include 
+  LIBRARY_PATH=${GraphLab_SOURCE_DIR}/deps/local/lib
+  LDFLAGS=-L${GraphLab_SOURCE_DIR}/deps/local/lib
   make
   INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local)
 include_directories(${GraphLab_SOURCE_DIR}/deps/local/include/opencv)
-#add_dependencies(imagemagick libjpeg)
+add_dependencies(opencv libjpeg)
 
 macro(requires_opencv NAME)
-  target_link_libraries(${NAME} opencv_core opencv_imgproc opencv_calib3d opencv_video opencv_features2d opencv_ml opencv_highgui opencv_objdetect opencv_contrib opencv_legacy)
+  target_link_libraries(${NAME} opencv_core opencv_imgproc opencv_calib3d opencv_video opencv_features2d opencv_ml opencv_highgui opencv_objdetect opencv_contrib opencv_legacy opencv_contrib opencv_stitching)
   add_dependencies(${NAME} opencv)
 endmacro(requires_opencv)
 
