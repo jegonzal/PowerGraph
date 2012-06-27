@@ -860,12 +860,14 @@ namespace graphlab {
         #pragma omp critical
 #endif
         {
-          if (!global_result_set) {
-            global_result = result;
-            global_result_set = true;
-          }
-          else {
-            global_result += result;
+          if (result_set) {
+            if (!global_result_set) {
+              global_result = result;
+              global_result_set = true;
+            }
+            else {
+              global_result += result;
+            }
           }
         }
       }
@@ -972,12 +974,14 @@ namespace graphlab {
         #pragma omp critical
 #endif
         {
-         if (!global_result_set) {
-            global_result = result;
-            global_result_set = true;
-          }
-          else {
-            global_result += result;
+          if (result_set) {
+            if (!global_result_set) {
+              global_result = result;
+              global_result_set = true;
+            }
+            else {
+              global_result += result;
+            }
           }
         }
       }
