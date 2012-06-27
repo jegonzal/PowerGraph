@@ -405,12 +405,10 @@ int main(int argc, char** argv) {
  
   size_t max_p_size = graph.map_reduce_vertices<max_point_size_reducer>
                                 (max_point_size_reducer::get_max_point_size).max_point_size;
-
   size_t min_p_size = graph.map_reduce_vertices<min_point_size_reducer>
                                 (min_point_size_reducer::get_min_point_size).min_point_size;
-
   if (max_p_size != min_p_size) {
-    dc.cout() << "Point sizes range from " << min_p_size << " to " << max_p_size 
+    dc.cout() << "Data has dimensionality ranging from " << min_p_size << " to " << max_p_size 
               << "! K-means cannot proceed!" << std::endl;
     return EXIT_FAILURE;
   }
