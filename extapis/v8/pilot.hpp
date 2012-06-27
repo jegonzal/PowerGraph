@@ -3,9 +3,10 @@
 
 #include <v8.h>
 #include <graphlab.hpp>
-#include "templates.hpp"
 
 namespace graphlab {
+
+  class templates;
 
   // TODO: refactor graph operations to another graph object
   /**
@@ -87,6 +88,8 @@ namespace graphlab {
     void apply(icontext_type& context, vertex_type& vertex, const gather_type& total);
     edge_dir_type scatter_edges(icontext_type& context, const vertex_type& vertex) const;
     void scatter(icontext_type& context, const vertex_type& vertex, edge_type& edge) const;
+    // TODO: other vertex program stuff
+    // TODO: pass the context along!
 
   };
 

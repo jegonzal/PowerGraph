@@ -1,11 +1,13 @@
 #include "cvv8.hpp"
 #include "pilot.hpp"
+#include "templates.hpp"
 
 using namespace graphlab;
 using namespace v8;
 namespace cv = cvv8;
 
 //////////////////////////// PILOT //////////////////////////////
+// TODO: make some JSTR constants to be reused throughout
 
 // TODO: how many distributed controls can a pilot have in his lifetime? 
 pilot::pilot() : dc(), graph(dc, opts) {}
@@ -22,9 +24,9 @@ void pilot::load_graph(const std::string &path, const std::string &format){
  * Takes a javascript constructor to create vertex programs.
  */
 void pilot::fly(const Handle<Function> &function){
-  js_proxy::set_ctor(function); 
+  js_proxy::set_ctor(function); // FIXME: should not be a static!
   omni_engine<js_proxy> engine(dc, graph, opts, "synchronous");
-  engine.signal_all();
+  engine.signal_all(); // TODO: allow user to specify an array of vertices to signal, or all
   engine.start();
 }
 
@@ -62,26 +64,17 @@ js_proxy::js_proxy() : jsobj() {
 
 pilot::gather_type js_proxy::gather(icontext_type& context, const vertex_type& vertex, edge_type& edge) const {
   // TODO
-  
   HandleScope handle_scope;
   Local<Function> f = Function::Cast(*jsobj->Get(JSTR("gather")));
-
-  Local<Object> v = pilot::get_templates().vertex_templ->NewInstance();
-  v->SetInternalField(0, External::New((void *)&vertex));
-
-  Local<Object> e = pilot::get_templates().edge_templ->NewInstance();
-  e->SetInternalField(0, External::New((void *)&edge));
-
-  Handle<Value> ret = cv::CallForwarder<2>::Call(jsobj, f, v, e);
+  Handle<Value> ret = cv::CallForwarder<2>::Call(jsobj, f, vertex, edge);
   return cv::CastFromJS<gather_type>(ret);
-
 }
 
 void js_proxy::apply(icontext_type& context, vertex_type& vertex, const gather_type& total){
   // TODO
-  /* HandleScope handle_scope;
+  HandleScope handle_scope;
   Local<Function> f = Function::Cast(*jsobj->Get(JSTR("apply")));
-  cv::CallForwarder<2>::Call(jsobj, f, vertex, total); */
+  cv::CallForwarder<2>::Call(jsobj, f, vertex, total);
 }
 
 edge_dir_type js_proxy::scatter_edges(icontext_type& context, const vertex_type& vertex) const {
@@ -91,9 +84,9 @@ edge_dir_type js_proxy::scatter_edges(icontext_type& context, const vertex_type&
 
 void js_proxy::scatter(icontext_type& context, const vertex_type& vertex, edge_type& edge) const {
   // TODO
-  /* HandleScope handle_scope;
+  HandleScope handle_scope;
   Local<Function> f = Function::Cast(*jsobj->Get(JSTR("scatter")));
-  cv::CallForwarder<2>::Call(jsobj, f, vertex, edge);*/
+  cv::CallForwarder<2>::Call(jsobj, f, vertex, edge);
 }
 
 /////////////////////////// STATIC ////////////////////////////////
