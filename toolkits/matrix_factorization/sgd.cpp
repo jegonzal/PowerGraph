@@ -44,6 +44,7 @@ double sgd_vertex_program::TOLERANCE = 1e-3;
 double sgd_vertex_program::LAMBDA = 0.001;
 double sgd_vertex_program::GAMMA = 0.001;
 size_t sgd_vertex_program::MAX_UPDATES = -1;
+bool sgd_vertex_program::debug = false;
 
 
 /**
@@ -73,7 +74,7 @@ int main(int argc, char** argv) {
   clopts.attach_option("D",
                        &(vertex_data::NLATENT), vertex_data::NLATENT,
                        "Number of latent parameters to use.");
-  clopts.attach_option("maxupdates",
+  clopts.attach_option("max_iter",
                        &(sgd_vertex_program::MAX_UPDATES), 
                        sgd_vertex_program::MAX_UPDATES,
                        "The maxumum number of udpates allowed for a vertex");
@@ -85,7 +86,11 @@ int main(int argc, char** argv) {
                        &(sgd_vertex_program::GAMMA), 
                        sgd_vertex_program::GAMMA, 
                        "SGD step size"); 
-   clopts.attach_option("tol",
+  clopts.attach_option("debug", 
+                       &(sgd_vertex_program::debug), 
+                       sgd_vertex_program::debug, 
+                       "debug - additional verbose info"); 
+    clopts.attach_option("tol",
                        &(sgd_vertex_program::TOLERANCE), 
                        sgd_vertex_program::TOLERANCE,
                        "residual termination threshold");
@@ -99,6 +104,7 @@ int main(int argc, char** argv) {
     std::cout << "Error in parsing command line arguments." << std::endl;
     return EXIT_FAILURE;
   }
+  debug = sgd_vertex_program::debug;
   //  omp_set_num_threads(clopts.get_ncpus());
   ///! Initialize control plain using mpi
   graphlab::mpi_tools::init(argc, argv);

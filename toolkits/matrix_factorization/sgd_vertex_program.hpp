@@ -46,7 +46,7 @@
 
 typedef Eigen::VectorXd vec_type;
 typedef Eigen::MatrixXd mat_type;
-
+static bool debug;
 /** 
  * \ingroup toolkit_matrix_pvecization
  *
@@ -76,7 +76,7 @@ struct vertex_data {
    * \brief Simple default constructor which randomizes the vertex
    *  data 
    */
-  vertex_data() : nupdates(0), residual(1) { randomize(); } 
+  vertex_data() : nupdates(0), residual(1) { if (debug) pvec = vec_type::Ones(NLATENT); else randomize(); } 
   /** \brief Randomizes the latent pvec */
   void randomize() { pvec.resize(NLATENT); pvec.setRandom(); }
   /** \brief Save the vertex data to a binary archive */
@@ -228,9 +228,17 @@ public:
    * tuples value
    */
   gather_type& operator+=(const gather_type& other) {
-    this->pvec += other.pvec;
-    this->rmse += other.rmse;
-    this->edges += other.edges;
+    if (other.pvec.size() == 0)
+      return *this;
+    if (pvec.size() == 0){
+       pvec = other.pvec;
+       rmse = other.rmse;
+       edges = other.edges;
+       return *this;
+    }
+    pvec += other.pvec;
+    rmse += other.rmse;
+    edges += other.edges;
     return *this;
   } // end of operator+=
 
@@ -250,6 +258,7 @@ public:
   static double TOLERANCE;
   static double LAMBDA;
   static double GAMMA;
+  static bool debug;
   static size_t MAX_UPDATES;
 
   vec_type pmsg;
@@ -271,7 +280,8 @@ public:
   gather_type gather(icontext_type& context, const vertex_type& vertex, 
                      edge_type& edge) const {
     //if(edge.data().role == edge_data::TRAIN) {
-   std::cout<<"Enering vertex " << vertex.id() << "pvec: " << vertex.data().pvec[0] << std::endl;
+   if (debug)
+     std::cout<<"Enering vertex " << vertex.id() << "pvec: " << vertex.data().pvec[0] << std::endl;
    vec_type delta, other_delta;
    if (vertex.num_in_edges() == 0){
       vertex_type other_vertex(get_other_vertex(edge, vertex));
@@ -316,9 +326,10 @@ public:
     //vdata.pvec = XtX.selfadjointView<Eigen::Upper>().ldlt().solve(Xy);
     // Compute the residual change in the pvec pvec -----------------------
     //vdata.residual = (vdata.pvec - old_pvec).cwiseAbs().sum() / XtX.rows();
-    if (vertex.num_in_edges() == 0)
-      vdata.pvec -= sum.pvec;
-    else vdata.pvec -= pmsg;
+    if (vertex.num_in_edges() == 0 && sum.pvec.size() > 0)
+      vdata.pvec += sum.pvec;
+    else if (vertex.num_in_edges() > 0 && vdata.pvec.size() > 0)
+      vdata.pvec += pmsg;
     ++vdata.nupdates;
   } // end of apply
   
