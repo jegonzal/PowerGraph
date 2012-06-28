@@ -317,8 +317,8 @@ public:
     // Compute the residual change in the pvec pvec -----------------------
     //vdata.residual = (vdata.pvec - old_pvec).cwiseAbs().sum() / XtX.rows();
     if (vertex.num_in_edges() == 0)
-      vdata.pvec += sum.pvec;
-    else vdata.pvec += pmsg;
+      vdata.pvec -= sum.pvec;
+    else vdata.pvec -= pmsg;
     ++vdata.nupdates;
   } // end of apply
   
