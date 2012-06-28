@@ -79,14 +79,21 @@ void js_proxy::apply(icontext_type& context, vertex_type& vertex, const gather_t
 
 edge_dir_type js_proxy::scatter_edges(icontext_type& context, const vertex_type& vertex) const {
   // TODO
-  return IN_EDGES;
+  HandleScope handle_scope;
+  Local<Function> f = Function::Cast(*jsobj->Get(JSTR("scatter_edges")));
+  int n = cv::CastFromJS<int>(cv::CallForwarder<1>::Call(jsobj, f, vertex));
+  // TODO push edge_dir_type as a JS variable?
+  return static_cast<edge_dir_type>(n);
 }
 
 void js_proxy::scatter(icontext_type& context, const vertex_type& vertex, edge_type& edge) const {
   // TODO
   HandleScope handle_scope;
   Local<Function> f = Function::Cast(*jsobj->Get(JSTR("scatter")));
-  cv::CallForwarder<2>::Call(jsobj, f, vertex, edge);
+  Handle<Value> args[] = {
+    cv::CastToJS(context), cv::CastToJS(vertex), cv::CastToJS(edge)
+  };
+  f->Call(jsobj, 3, args);
 }
 
 /////////////////////////// STATIC ////////////////////////////////

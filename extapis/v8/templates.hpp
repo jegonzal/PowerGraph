@@ -26,8 +26,10 @@ namespace graphlab {
   public:
     templates();
     static v8::Handle<v8::Value> get_vertex_data(v8::Local<v8::String> property, const v8::AccessorInfo &info);
+    static void set_vertex_data(v8::Local<v8::String> property, v8::Local<v8::Value> value, const v8::AccessorInfo& info);
     static v8::Handle<v8::Value> get_vertex_num_out_edges(v8::Local<v8::String> property, const v8::AccessorInfo &info);
     static v8::Handle<v8::Value> get_edge_source(v8::Local<v8::String> property, const v8::AccessorInfo &info);
+    static v8::Handle<v8::Value> get_edge_target(v8::Local<v8::String> property, const v8::AccessorInfo &info);
   private:
     /** Adds an object template for vertex_type */
     void expose_vertex_type();
@@ -35,8 +37,6 @@ namespace graphlab {
     void expose_edge_type();
     /** Adds an object template for context type */
     void expose_context_type();
-    /** Casts info(?) to vertex_type - opposite of NativeToJS<vertex_type> */
-    static pilot::graph_type::vertex_type castToVertex(const v8::AccessorInfo &info);
   };
 
 };
@@ -57,12 +57,7 @@ namespace cvv8 {
    */
   template<>
   struct NativeToJS<vertex_type> {
-    v8::Handle<v8::Value> operator()(const vertex_type vertex);
-  };
-  
-  template<>
-  struct NativeToJS<vertex_type *> {
-    v8::Handle<v8::Value> operator()(const vertex_type *vertex);
+    v8::Handle<v8::Value> operator()(const vertex_type &vertex);
   };
 
   /**
@@ -82,17 +77,20 @@ namespace cvv8 {
    */
   template <>
   struct NativeToJS<context_type> {
-    v8::Handle<v8::Value> operator()(const context_type &edge);
+    v8::Handle<v8::Value> operator()(const context_type &context);
   };
 
   template <>
   struct JSToNative<vertex_type> {
     vertex_type operator()(const v8::Handle<v8::Value> &h) const;
   };
-  
+
+  /** Not sure why I need this but I do */
   template <>
-  struct JSToNative<vertex_type *> :
-    JSToNative_ObjectWithInternalFields<vertex_type>{};
+  struct JSToNative<const vertex_type &> :
+    JSToNative<vertex_type>{
+    typedef vertex_type ResultType;
+  };
   
   /** Convertes js object to context using pointer stored in
    * its internal field. */
@@ -107,10 +105,17 @@ namespace cvv8 {
     JSToNative_ObjectWithInternalFields<graph_type>{};
 
   /** Convertes js object to graph using pointer stored in
-   * its internal field. */
+   * its internal field. TODO: this is broken */
   template <>
   struct JSToNative<message_type> :
     JSToNative_ObjectWithInternalFields<message_type>{};
+
+  /** Special case for graphlab::empty */
+  template <>
+  struct JSToNative<graphlab::empty const &> {
+    typedef graphlab::empty ResultType;
+    ResultType operator()(const v8::Handle<v8::Value> &h) const;
+  };
 
 };
 
