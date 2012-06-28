@@ -54,9 +54,9 @@ namespace graphlab {
     size_t max_iterations;
    
 
-    std::vector<vertex_id_type>             vids;
+    std::vector<lvid_type>             vids;
     std::vector<uint16_t>                   vid2cpu;
-    std::vector<vertex_id_type>             cpu2index;
+    std::vector<lvid_type>             cpu2index;
 
     atomic_add_vector2<message_type>         messages;
     double                                  min_priority;
@@ -133,39 +133,39 @@ namespace graphlab {
     void start() { 
     }
 
-    void schedule(const vertex_id_type vid, 
+    void schedule(const lvid_type vid, 
                   const message_type& msg) {      
       messages.add(vid, msg);
     } // end of schedule
 
 
     void schedule_from_execution_thread(const size_t cpuid,
-                                        const vertex_id_type vid) {      
+                                        const lvid_type vid) {      
     } // end of schedule
 
 
     void schedule_all(const message_type& msg,
                       const std::string& order) {
-      for (vertex_id_type vid = 0; vid < messages.size(); ++vid)
+      for (lvid_type vid = 0; vid < messages.size(); ++vid)
         schedule(vid, msg);      
     } // end of schedule_all    
       
     
     sched_status::status_enum 
-    get_specific(vertex_id_type vid,
+    get_specific(lvid_type vid,
                  message_type& ret_msg) {
       bool get_success = messages.test_and_get(vid, ret_msg); 
       if (get_success) return sched_status::NEW_TASK;
       else return sched_status::EMPTY;
     }
 
-    void place(vertex_id_type vid,
+    void place(lvid_type vid,
                  const message_type& msg) {
       messages.add(vid, msg);
     }
     
     sched_status::status_enum get_next(const size_t cpuid,
-                                       vertex_id_type& ret_vid,
+                                       lvid_type& ret_vid,
                                        message_type& ret_msg) {         
       const size_t nverts    = vids.size();
       const size_t max_fails = (nverts/ncpus) + 1;
@@ -181,7 +181,7 @@ namespace graphlab {
         // invalid index if the number of cpus exceeds the number of
         // vertices.  In This case we alwasy return empty
         if(__builtin_expect(idx >= nverts, false)) return sched_status::EMPTY;
-        const vertex_id_type vid = vids[idx];
+        const lvid_type vid = vids[idx];
         bool success = messages.test_and_get(vid, ret_msg);
         while(success) { // Job found now decide whether to keep it
           if(scheduler_impl::get_message_priority(ret_msg) >= min_priority) {
@@ -209,7 +209,7 @@ namespace graphlab {
     
     
     void completed(const size_t cpuid,
-                   const vertex_id_type vid,
+                   const lvid_type vid,
                    const message_type& msg) {
     } // end of completed
 

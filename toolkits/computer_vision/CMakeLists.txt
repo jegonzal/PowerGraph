@@ -1,0 +1,10 @@
+project(ComputerVision)
+
+add_graphlab_executable(grabcut grabcut.cpp)
+requires_opencv(grabcut)
+
+add_graphlab_executable(stitching stitching.cpp)
+requires_opencv(stitching)
+
+add_graphlab_executable(stitching_detailed stitching_detailed.cpp)
+requires_opencv(stitching_detailed)

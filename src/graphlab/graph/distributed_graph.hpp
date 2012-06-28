@@ -862,12 +862,14 @@ namespace graphlab {
         #pragma omp critical
 #endif
         {
-          if (!global_result_set) {
-            global_result = result;
-            global_result_set = true;
-          }
-          else {
-            global_result += result;
+          if (result_set) {
+            if (!global_result_set) {
+              global_result = result;
+              global_result_set = true;
+            }
+            else {
+              global_result += result;
+            }
           }
         }
       }
@@ -974,12 +976,14 @@ namespace graphlab {
         #pragma omp critical
 #endif
         {
-         if (!global_result_set) {
-            global_result = result;
-            global_result_set = true;
-          }
-          else {
-            global_result += result;
+          if (result_set) {
+            if (!global_result_set) {
+              global_result = result;
+              global_result_set = true;
+            }
+            else {
+              global_result += result;
+            }
           }
         }
       }
@@ -1384,7 +1388,7 @@ namespace graphlab {
       std::vector<boost_fstream_type*> booststreams;
       graph_files.resize(files_per_machine);
       for(size_t i = 0; i < files_per_machine; ++i) {
-        graph_files[i] = prefix + "." + tostr(1 + i + rpc.procid() * files_per_machine)
+        graph_files[i] = prefix + "_" + tostr(1 + i + rpc.procid() * files_per_machine)
           + "_of_" + tostr(rpc.numprocs() * files_per_machine);
         if (gzip) graph_files[i] += ".gz";
       }
@@ -1460,7 +1464,7 @@ namespace graphlab {
       std::vector<boost_fstream_type*> booststreams;
       graph_files.resize(files_per_machine);
       for(size_t i = 0; i < files_per_machine; ++i) {
-        graph_files[i] = prefix + "." + tostr(1 + i + rpc.procid() * files_per_machine)
+        graph_files[i] = prefix + "_" + tostr(1 + i + rpc.procid() * files_per_machine)
           + "_of_" + tostr(rpc.numprocs() * files_per_machine);
         if (gzip) graph_files[i] += ".gz";
       }
@@ -1962,12 +1966,16 @@ namespace graphlab {
       line_parser_type line_parser;
       if (format == "snap") {
         line_parser = builtin_parsers::snap_parser<distributed_graph>;
+        load(path, line_parser);
       } else if (format == "adj") {
         line_parser = builtin_parsers::adj_parser<distributed_graph>;
+        load(path, line_parser);
       } else if (format == "tsv") {
         line_parser = builtin_parsers::tsv_parser<distributed_graph>;
+        load(path, line_parser);
       } else if (format == "graphjrl") {
         line_parser = builtin_parsers::graphjrl_parser<distributed_graph>;
+        load(path, line_parser);
       } else if (format == "bin") {
          load_binary(path);
       } else {
@@ -1975,7 +1983,6 @@ namespace graphlab {
           << "Unrecognized Format \"" << format << "\"!" << std::endl;
         return;
       }
-      load(path, line_parser);
     } // end of load
 
 

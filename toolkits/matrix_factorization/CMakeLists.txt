@@ -4,12 +4,10 @@ project(GraphLab)
 
 
 # Build als
-add_graphlab_executable(als 
-  als.cpp  eigen_serialization.cpp)
+add_graphlab_executable(als als.cpp)
 requires_eigen(als) # build and attach eigen
 
-add_graphlab_executable(sgd
-  sgd.cpp  eigen_serialization.cpp)
+add_graphlab_executable(sgd sgd.cpp)
 requires_eigen(als) # build and attach eigen
 
 

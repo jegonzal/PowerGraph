@@ -324,6 +324,16 @@ namespace graphlab {
     size_t max_iterations;
 
     /**
+     * \brief A snapshot is taken every this number of iterations.
+     * If snapshot_interval == 0, a snapshot is only taken before the first
+     * iteration. If snapshot_interval < 0, no snapshots are taken.
+     */
+    int snapshot_interval;
+
+    /// \brief The target base name the snapshot is saved in.
+    std::string snapshot_path;
+
+    /**
      * \brief A counter that tracks the current iteration number since
      * start was last invoked.
      */
@@ -530,9 +540,16 @@ namespace graphlab {
      * See \ref gather_caching to understand the behavior of the
      * gather caching model and how it may be used to accelerate program
      * performance.
-     * \argc \c iterations Limit the number of iterations the engine 
+     * \arg \c iterations Limit the number of iterations the engine 
      * may run.
-     * 
+     * \arg \c snapshot_interval If set to a positive value, a snapshot
+     * is taken every this number of iterations. If set to 0, a snapshot
+     * is taken before the first iteration. If set to a negative value,
+     * no snapshots are taken. Defaults to -1.
+     * \arg \c snapshot_path If snapshot_interval is set to a value >=0,
+     * this option must be specified and should contain a target basename 
+     * for the snapshot.
+     *
      * @param [in] dc Distributed controller to associate with
      * @param [in,out] graph A reference to the graph object that this
      * engine will modify. The graph must be fully constructed and 
@@ -883,7 +900,7 @@ namespace graphlab {
     rmi(dc, this), graph(graph), 
     threads(opts.get_ncpus()), 
     thread_barrier(opts.get_ncpus()),
-    max_iterations(-1), iteration_counter(0),
+    max_iterations(-1), snapshot_interval(-1), iteration_counter(0),
     timeout(0),
     vprog_exchange(dc, opts.get_ncpus()), 
     vdata_exchange(dc, opts.get_ncpus()), 
@@ -900,9 +917,18 @@ namespace graphlab {
         opts.get_engine_args().get_option("timeout", timeout);
       } else if (opt == "use_cache") {
         opts.get_engine_args().get_option("use_cache", use_cache);
+      } else if (opt == "snapshot_interval") {
+        opts.get_engine_args().get_option("snapshot_interval", snapshot_interval);
+      } else if (opt == "snapshot_path") {
+        opts.get_engine_args().get_option("snapshot_path", snapshot_path);
       } else {
         logstream(LOG_FATAL) << "Unexpected Engine Option: " << opt << std::endl;
       }
+    }
+
+    if (snapshot_interval >= 0 && snapshot_path.length() == 0) {
+      logstream(LOG_FATAL) 
+        << "Snapshot interval specified, but no snapshot path" << std::endl;
     }
     INITIALIZE_EVENT_LOG(dc);
     ADD_CUMULATIVE_EVENT(EVENT_APPLIES, "Applies", "Calls");
@@ -1101,6 +1127,9 @@ namespace graphlab {
     // }
     aggregator.start();
     rmi.barrier();
+    if (snapshot_interval == 0) {
+      graph.save_binary(snapshot_path);
+    }
     // Program Main loop ====================================================      
     while(iteration_counter < max_iterations && !force_abort ) {
 
@@ -1200,8 +1229,12 @@ namespace graphlab {
       logstream(LOG_EMPH) << "\t Running Aggregators" << std::endl;
       // probe the aggregator
       aggregator.tick_synchronous();
-
+      
       ++iteration_counter;
+      
+      if (snapshot_interval > 0 && iteration_counter % snapshot_interval == 0) {
+        graph.save_binary(snapshot_path);
+      }
     }
     // Final barrier to ensure that all engines terminate at the same time
     rmi.full_barrier();

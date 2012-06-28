@@ -85,14 +85,14 @@ namespace graphlab {
     /**
      * Adds a message destined to the vertex vid to the schedule.
      */
-    virtual void schedule(const vertex_id_type vid, 
+    virtual void schedule(const lvid_type vid, 
                           const message_type& message) = 0;
 
     /**
      * Adds a message destined to the vertex vid to the schedule
      */
     virtual void schedule_from_execution_thread(const size_t cpuid, 
-                                                const vertex_id_type vid, 
+                                                const lvid_type vid, 
                                                 const message_type& message) {
       schedule(vid, message);
     }
@@ -115,7 +115,7 @@ namespace graphlab {
      *  \retval EMPTY There are no messages to process
      */
     virtual sched_status::status_enum 
-    get_next(const size_t cpuid, vertex_id_type& ret_vid,
+    get_next(const size_t cpuid, lvid_type& ret_vid,
              message_type& ret_msg) = 0;
 
 
@@ -123,7 +123,7 @@ namespace graphlab {
      * Get a message for a specific vertex.
      */
     virtual sched_status::status_enum
-    get_specific(vertex_id_type vid, message_type& ret_msg) {
+    get_specific(lvid_type vid, message_type& ret_msg) {
       return sched_status::EMPTY;
     }
 
@@ -133,7 +133,7 @@ namespace graphlab {
      * update the schedule.
      *
      */
-    virtual void place(vertex_id_type vid, const message_type& msg) = 0;
+    virtual void place(lvid_type vid, const message_type& msg) = 0;
 
 
     /**
@@ -141,20 +141,20 @@ namespace graphlab {
      * previously placed using place.
      */
     virtual void
-    schedule_from_execution_thread(const size_t cpuid, vertex_id_type vid) = 0;
+    schedule_from_execution_thread(const size_t cpuid, lvid_type vid) = 0;
     
     /**
      * Schedules vertex vid using the stored message that was previously
      * placed using place.
      */
-    virtual void schedule(vertex_id_type vid) { }
+    virtual void schedule(lvid_type vid) { }
 
     
     /**
      * This is called after a message has been received.
      */
     virtual void completed(const size_t cpuid,
-                           const vertex_id_type vid,
+                           const lvid_type vid,
                            const message_type& message) { }
 
 

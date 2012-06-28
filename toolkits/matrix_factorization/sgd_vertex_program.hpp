@@ -46,7 +46,7 @@
 
 typedef Eigen::VectorXd vec_type;
 typedef Eigen::MatrixXd mat_type;
-
+static bool debug;
 /** 
  * \ingroup toolkit_matrix_pvecization
  *
@@ -71,19 +71,17 @@ struct vertex_data {
   float residual; //! how much the latent value has changed
   /** \brief The latent pvec for this vertex */
   vec_type pvec;
-  float RMSE;
-  uint32_t edges;
 
   /** 
    * \brief Simple default constructor which randomizes the vertex
    *  data 
    */
-  vertex_data() : nupdates(0), residual(1), RMSE(0), edges(0) { randomize(); } 
+  vertex_data() : nupdates(0), residual(1) { if (debug) pvec = vec_type::Ones(NLATENT); else randomize(); } 
   /** \brief Randomizes the latent pvec */
   void randomize() { pvec.resize(NLATENT); pvec.setRandom(); }
   /** \brief Save the vertex data to a binary archive */
   void save(graphlab::oarchive& arc) const { 
-    arc << nupdates << residual << pvec;        
+    arc << nupdates << residual << pvec;
   }
   /** \brief Load the vertex data from a binary archive */
   void load(graphlab::iarchive& arc) { 
@@ -142,10 +140,10 @@ get_other_vertex(graph_type::edge_type& edge,
 /**
  * \brief Given an edge compute the error associated with that edge
  */
-double extract_l2_error(const graph_type::vertex_type & vertex) {
-   if (vertex.data().edges == 0)
-     return 0;
-   return vertex.data().RMSE / vertex.data().edges;
+double extract_l2_error(const graph_type::edge_type & edge) {
+  const double pred = 
+    edge.source().data().pvec.dot(edge.target().data().pvec);
+  return (edge.data().obs - pred) * (edge.data().obs - pred);
 } // end of extract_l2_error
 
 
@@ -203,7 +201,8 @@ public:
    * \brief Stores the current sum of nbr.pvec * edge.obs
    */
   vec_type pvec;
-
+  double rmse;
+  int edges;
   /** \brief basic default constructor */
   gather_type() { }
 
@@ -211,42 +210,65 @@ public:
    * \brief This constructor computes XtX and Xy and stores the result
    * in XtX and Xy
    */
-  gather_type(const vec_type& X, const double y) {
+  gather_type(const vec_type& X, const double y, int type) {
     pvec = X;
+    rmse = y;
+    if (type == edge_data::TRAIN)
+      edges = 1;
   } // end of constructor for gather type
 
   /** \brief Save the values to a binary archive */
-  void save(graphlab::oarchive& arc) const { arc << pvec; }
+  void save(graphlab::oarchive& arc) const { arc << pvec << rmse; }
 
   /** \brief Read the values from a binary archive */
-  void load(graphlab::iarchive& arc) { arc >> pvec; }  
+  void load(graphlab::iarchive& arc) { arc >> pvec >> rmse; }  
 
   /** 
    * \brief Computes XtX += other.XtX and Xy += other.Xy updating this
    * tuples value
    */
   gather_type& operator+=(const gather_type& other) {
-    this->pvec += other.pvec;
+    if (other.pvec.size() == 0)
+      return *this;
+    if (pvec.size() == 0){
+       pvec = other.pvec;
+       rmse = other.rmse;
+       edges = other.edges;
+       return *this;
+    }
+    pvec += other.pvec;
+    rmse += other.rmse;
+    edges += other.edges;
     return *this;
   } // end of operator+=
 
 }; // end of gather type
 
-
+typedef vec_type message_type;
 
 /**
  * SGD vertex program type
  */ 
 class sgd_vertex_program : 
   public graphlab::ivertex_program<graph_type, gather_type,
-                                   graphlab::messages::sum_priority>,
+                                   message_type>,
   public graphlab::IS_POD_TYPE {
 public:
   /** The convergence tolerance */
   static double TOLERANCE;
   static double LAMBDA;
   static double GAMMA;
+  static bool debug;
   static size_t MAX_UPDATES;
+
+  vec_type pmsg;
+  void save(graphlab::oarchive& arc) const { 
+    arc << pmsg;
+  }
+  /** \brief Load the vertex data from a binary archive */
+  void load(graphlab::iarchive& arc) { 
+    arc >> pmsg;
+  }
 
   /** The set of edges to gather along */
   edge_dir_type gather_edges(icontext_type& context, 
@@ -258,22 +280,35 @@ public:
   gather_type gather(icontext_type& context, const vertex_type& vertex, 
                      edge_type& edge) const {
     //if(edge.data().role == edge_data::TRAIN) {
+   if (debug)
+     std::cout<<"Enering vertex " << vertex.id() << "pvec: " << vertex.data().pvec[0] << std::endl;
+   vec_type delta, other_delta;
    if (vertex.num_in_edges() == 0){
       vertex_type other_vertex(get_other_vertex(edge, vertex));
       vertex_type my_vertex(vertex);
       vertex_data & my_data = my_vertex.data();
       const double pred = vertex.data().pvec.dot(other_vertex.data().pvec);
       const float err = (edge.data().obs - pred);
-      my_vertex.data().RMSE += err*err;
-      my_vertex.data().edges++;
+      assert(!std::isnan(err));
       if (edge.data().role == edge_data::TRAIN){
-        my_vertex.data().pvec += GAMMA*(err*vertex.data().pvec - LAMBDA*other_vertex.data().pvec);
-        other_vertex.data().pvec += GAMMA*(err*other_vertex.data().pvec - LAMBDA*vertex.data().pvec);
-      }
+        delta = GAMMA*(err*vertex.data().pvec - LAMBDA*other_vertex.data().pvec);
+        other_delta = GAMMA*(err*other_vertex.data().pvec - LAMBDA*vertex.data().pvec);
+        if(other_vertex.data().nupdates < MAX_UPDATES) 
+          context.signal(other_vertex, other_delta);
+       }
+      return gather_type(delta, err*err, edge.data().role);
     } 
-    return gather_type();
+    else return gather_type(delta, 0, edge.data().role);
   } // end of gather function
 
+//typedef vec_type message_type;
+ void init(icontext_type& context,
+                              const vertex_type& vertex,
+                              const message_type& msg) {
+     if (vertex.num_in_edges() > 0){
+        pmsg = msg;
+     }
+  }
   /** apply collects the sum of XtX and Xy */
   void apply(icontext_type& context, vertex_type& vertex,
              const gather_type& sum) {
@@ -291,6 +326,10 @@ public:
     //vdata.pvec = XtX.selfadjointView<Eigen::Upper>().ldlt().solve(Xy);
     // Compute the residual change in the pvec pvec -----------------------
     //vdata.residual = (vdata.pvec - old_pvec).cwiseAbs().sum() / XtX.rows();
+    if (vertex.num_in_edges() == 0 && sum.pvec.size() > 0)
+      vdata.pvec += sum.pvec;
+    else if (vertex.num_in_edges() > 0 && vdata.pvec.size() > 0)
+      vdata.pvec += pmsg;
     ++vdata.nupdates;
   } // end of apply
   
@@ -311,7 +350,7 @@ public:
       //const double priority = (error * vdata.residual); 
       // Reschedule neighbors ------------------------------------------------
       if(other_vertex.data().nupdates < MAX_UPDATES) 
-        context.signal(other_vertex, 1);
+        context.signal(other_vertex, vec_type::Zero(vertex_data::NLATENT));
     }
   } // end of scatter function
 
@@ -343,11 +382,15 @@ struct error_aggregator : public graphlab::IS_POD_TYPE {
     nvalidation += other.nvalidation;
     return *this;
   }
-  static error_aggregator map(icontext_type& context, const graph_type::vertex_type& vertex) {
+  static error_aggregator map(icontext_type& context, const graph_type::edge_type& edge) {
     error_aggregator agg;
-    agg.train_error = extract_l2_error(vertex); 
-    assert(!std::isnan(agg.train_error));
-    agg.ntrain = vertex.data().edges;
+    if (edge.data().role == edge_data::TRAIN){
+      agg.train_error = extract_l2_error(edge); agg.ntrain = 1;
+      assert(!std::isnan(agg.train_error));
+    }
+    else if (edge.data().role == edge_data::VALIDATE){
+      agg.validation_error = extract_l2_error(edge); agg.nvalidation = 1;
+    }
     return agg;
   }
   static void finalize(icontext_type& context, const error_aggregator& agg) {

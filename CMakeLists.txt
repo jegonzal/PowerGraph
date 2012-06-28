@@ -115,7 +115,7 @@ install(CODE "execute_process(COMMAND ./scripts/install_deps.sh
 
 # Build eigen =================================================================
 # TODO: Move to toolkits.
-# While eigne is not used in the core GraphLab library we found it
+# While eigen is not used in the core GraphLab library we found it
 # useful to have a matrix library. For now we download eigen from
 # our servers since the eigen servers use SSL which is not supported
 # by cmake DOWNLOAD_COMMAND hg clone
@@ -127,7 +127,7 @@ ExternalProject_Add(eigen
   CONFIGURE_COMMAND ""
   BUILD_COMMAND ""
   BUILD_IN_SOURCE 1  
-  INSTALL_COMMAND cp -r Eigen <INSTALL_DIR>/.
+  INSTALL_COMMAND cp -r Eigen unsupported <INSTALL_DIR>/.
   INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local/include)
 add_definitions(-DHAS_EIGEN)
 
@@ -223,6 +223,35 @@ ExternalProject_Add(libjpeg
 
 
 
+# v8 ======================================================================
+ExternalProject_Add(libv8
+  PREFIX ${GraphLab_SOURCE_DIR}/deps/libv8
+  GIT_REPOSITORY git://github.com/v8/v8.git
+  BUILD_IN_SOURCE 1
+  INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local
+  CONFIGURE_COMMAND ""
+  BUILD_COMMAND make dependencies && make native library=shared
+  INSTALL_COMMAND
+  sh -c "install <SOURCE_DIR>/include/* <INSTALL_DIR>/include/v8")
+include_directories(${GraphLab_SOURCE_DIR}/deps/local/include/v8)
+link_directories(${GraphLab_SOURCE_DIR}/deps/libv8/src/libv8/out/native)
+# This is ugly, but the distro doesn't come with a `make install` and CMAKE wouldn't
+# let me use wildcards. Whoever has a better idea how to do this please tell me.
+
+ExternalProject_Add(cvv8
+  PREFIX ${GraphLab_SOURCE_DIR}/deps/cvv8
+  SVN_REPOSITORY http://v8-juice.googlecode.com/svn/convert
+  BUILD_IN_SOURCE 1
+  INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local
+  CONFIGURE_COMMAND ""
+  BUILD_COMMAND ""
+  INSTALL_COMMAND
+  rsync -acC <SOURCE_DIR>/include/cvv8/ <INSTALL_DIR>/include/cvv8)
+
+macro(requires_v8 NAME)
+  target_link_libraries(${NAME} v8)
+endmacro(requires_v8)
+
 # ImageMagick =================================================================
 # # set(imagemagick_configure_cmd
 # #   bash -c "C_INCLUDE_PATH=${GraphLab_SOURCE_DIR}/deps/local/include CPLUS_INCLUDE_PATH=${GraphLab_SOURCE_DIR}/deps/local/include LIBRARY_PATH=${GraphLab_SOURCE_DIR}/deps/local/lib LDFLAGS='-L${GraphLab_SOURCE_DIR}/deps/local/lib' ./configure  --prefix=${GraphLab_SOURCE_DIR}/deps/local --without-threads --disable-openmp --disable-opencl")
@@ -268,7 +297,32 @@ macro(requires_imagemagick NAME)
   add_dependencies(${NAME} imagemagick libjpeg)
 endmacro(requires_imagemagick)
 
+# OpenCV =================================================================
+ExternalProject_Add(opencv
+  PREFIX ${GraphLab_SOURCE_DIR}/deps/opencv
+  URL http://superb-sea2.dl.sourceforge.net/project/opencvlibrary/opencv-unix/2.4.0/OpenCV-2.4.0.tar.bz2
+  # URL_MD5 010b63a2542c4ec4918c8cb431c00356
+#  CONFIGURE_COMMAND
+  CMAKE_COMMAND ${CMAKE_COMMAND} -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>
+  -DBUILD_TESTS=OFF -DBUILD_PERF_TESTS=OFF -DBUILD_PACKAGE=OFF -DBUILD_EXAMPLES=OFF -DOPENCV_BUILD_3RDPARTY_LIBS=ON -DBUILD_SHARED_LIBRARIES=OFF
+  C_INCLUDE_PATH=${GraphLab_SOURCE_DIR}/deps/local/include 
+  CPLUS_INCLUDE_PATH=${GraphLab_SOURCE_DIR}/deps/local/include 
+  LIBRARY_PATH=${GraphLab_SOURCE_DIR}/deps/local/lib
+  LDFLAGS=-L${GraphLab_SOURCE_DIR}/deps/local/lib
+  BUILD_COMMAND
+  C_INCLUDE_PATH=${GraphLab_SOURCE_DIR}/deps/local/include 
+  CPLUS_INCLUDE_PATH=${GraphLab_SOURCE_DIR}/deps/local/include 
+  LIBRARY_PATH=${GraphLab_SOURCE_DIR}/deps/local/lib
+  LDFLAGS=-L${GraphLab_SOURCE_DIR}/deps/local/lib
+  make 
+  INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local)
+include_directories(${GraphLab_SOURCE_DIR}/deps/local/include/opencv)
+add_dependencies(opencv libjpeg)
 
+macro(requires_opencv NAME)
+  target_link_libraries(${NAME} opencv_core opencv_imgproc opencv_calib3d opencv_video opencv_features2d opencv_ml opencv_highgui opencv_objdetect opencv_contrib opencv_legacy opencv_contrib opencv_stitching)
+  add_dependencies(${NAME} opencv)
+endmacro(requires_opencv)
 
 # zlib  =======================================================================
 # We rely on the zlib library to read gzip compressed files
