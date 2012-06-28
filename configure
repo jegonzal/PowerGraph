@@ -104,6 +104,11 @@ while [ $# -gt 0 ]
   shift
 done
 
+if [ $print_help ]; then
+  print_help;
+fi
+
+
 if [ $run_cleanup ]; then
   run_cleanup
 fi

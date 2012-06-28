@@ -1,5 +1,4 @@
 #include <boost/unordered_set.hpp>
-#include <graphlab/util/cuckoo_set_pow2.hpp>
 #include <graphlab.hpp>
 #include <graphlab/ui/metrics_server.hpp>
 #include <graphlab/util/cuckoo_set_pow2.hpp>
@@ -44,123 +43,8 @@
  * \endverbatim
  * Must be counted only once. (Only when processing edge AB, can one
  * observe that A and B have intersecting out-neighbor sets).
- *
- *
- * \note The implementation here is built to be easy to understand
- * and not necessarily optimal. In particular the unordered_set is slow
- * for small number of entries. A union of a small set which does not rely
- * on malloc, and an unordered_set is probably much more efficient.
  */
-typedef std::vector<graphlab::vertex_id_type> hash_set;
  
-/*
- * Each vertex maintains a list of all its neighbors.
- * and a final count for the number of triangles it is involved in
- */
-struct vertex_data_type {
-  vertex_data_type(): num_triangles(0),has_large_neighbors(true){ }
-  // A list of all its neighbors
-  hash_set vid_set;
-  // The number of triangles this vertex is involved it.
-  // only used if "per vertex counting" is used
-  uint32_t num_triangles;
-  bool has_large_neighbors;
-  void save(graphlab::oarchive &oarc) const {
-    oarc << vid_set << num_triangles << has_large_neighbors;
-  }
-  void load(graphlab::iarchive &iarc) {
-    iarc >> vid_set >> num_triangles >> has_large_neighbors;
-  }
-};
-
-
-/*
- * Each edge is simply a counter of triangles
- */
-typedef uint32_t edge_data_type;
-
-// To collect the set of neighbors, we need a message type which is
-// basically a set of vertex IDs
-
-bool PER_VERTEX_COUNT = false;
-
-// if phases are used, only vertices with id % CUR_PHASE will be considered
-// in the round
-unsigned short NUM_PHASES = 1;
-unsigned short CUR_PHASE = 0;
-
-// if the neighborhood size is <= this number, it will ignore the phase number
-size_t MINIMUM_NBR_SIZE_FOR_PHASE_COLLECTION = 32;
-
-
-/*
- * This is the gathering type which accumulates an array of
- * all neighboring vertices.
- * It is a simple wrapper around a vector with
- * an operator+= which simply performs a  +=
- */
-struct set_union_gather {
-  bool large_neighbors;
-  std::vector<graphlab::vertex_id_type> vid_vec;
-
-  set_union_gather():large_neighbors(false) {
-  }
-  /*
-   * Combining with another collection of vertices.
-   * Union it into the current set.
-   */
-  set_union_gather& operator+=(const set_union_gather& other) {
-    if (other.vid_vec.size() > 0) {
-      vid_vec.reserve(vid_vec.size() + other.vid_vec.size());
-      foreach(graphlab::vertex_id_type othervid, other.vid_vec) {
-        vid_vec.push_back(othervid);
-      }
-    }
-    large_neighbors |= other.large_neighbors;
-    return *this;
-  }
-  
-  // serialize
-  void save(graphlab::oarchive& oarc) const {
-    oarc << large_neighbors << vid_vec;
-  }
-
-  // deserialize
-  void load(graphlab::iarchive& iarc) {
-    iarc >> large_neighbors >> vid_vec;
-  }
-};
-
-/*
- * Define the type of the graph
- */
-typedef graphlab::distributed_graph<vertex_data_type,
-                                    edge_data_type> graph_type;
-
-
-
-template <typename T>
-struct counting_inserter {
-  size_t* i;
-  counting_inserter(size_t* i):i(i) { }
-  counting_inserter& operator++() {
-    ++(*i);
-    return *this;
-  }
-  void operator++(int) {
-    ++(*i);
-  }
-
-  struct empty_val {
-    empty_val operator=(const T&) { return empty_val(); }
-  };
-
-  empty_val operator*() {
-    return empty_val();
-  }
-
-  typedef empty_val reference;
-};
 
 // Radix sort implementation from https://github.com/gorset/radix
 // Thanks to Erik Gorset
@@ -235,6 +119,287 @@ void radix_sort(graphlab::vertex_id_type *array, int offset, int end, int shift)
         }
     }
 }
+
+size_t HASH_THRESHOLD = 64;
+
+// We on each vertex, either a vector of sorted VIDs
+// or a hash set (cuckoo hash) of VIDs.
+// If the number of elements is greater than HASH_THRESHOLD,
+// the hash set is used. Otherwise the vector is used.
+struct vid_vector{
+  std::vector<graphlab::vertex_id_type> vid_vec;
+  graphlab::cuckoo_set_pow2<graphlab::vertex_id_type, 3> *cset;
+  vid_vector(): cset(NULL) { }
+  vid_vector(const vid_vector& v):cset(NULL) {
+    (*this) = v;
+  }
+
+  vid_vector& operator=(const vid_vector& v) {
+    if (this == &v) return *this;
+    vid_vec = v.vid_vec;
+    if (v.cset != NULL) {
+      // allocate the cuckoo set if the other side is using a cuckoo set
+      // or clear if I alrady have one
+      if (cset == NULL) {
+        cset = new graphlab::cuckoo_set_pow2<graphlab::vertex_id_type, 3>(-1, 0, 2 * v.cset->size());
+      }
+      else {
+        cset->clear();
+      }
+      (*cset) = *(v.cset);
+    }
+    else {
+      // if the other side is not using a cuckoo set, lets not use a cuckoo set
+      // either
+      if (cset != NULL) {
+        delete cset;
+        cset = NULL;
+      }
+    }
+    return *this;
+  }
+
+  ~vid_vector() {
+    if (cset != NULL) delete cset;
+  }
+
+  // assigns a vector of vertex IDs to this storage.
+  // this function will clear the contents of the vid_vector
+  // and reconstruct it.
+  // If the assigned values has length >= HASH_THRESHOLD,
+  // we will allocate a cuckoo set to store it. Otherwise,
+  // we just store a sorted vector
+  void assign(const std::vector<graphlab::vertex_id_type>& vec) {
+    clear();
+    if (vec.size() >= HASH_THRESHOLD) {
+        // move to cset
+        cset = new graphlab::cuckoo_set_pow2<graphlab::vertex_id_type, 3>(-1, 0, 2 * vec.size());
+        foreach (graphlab::vertex_id_type v, vec) {
+          cset->insert(v);
+        }
+    }
+    else {
+      vid_vec = vec;
+      if (vid_vec.size() > 64) {
+        radix_sort(&(vid_vec[0]), 0, vid_vec.size(), 24);
+      }
+      else {
+        std::sort(vid_vec.begin(), vid_vec.end());
+      }
+      std::vector<graphlab::vertex_id_type>::iterator new_end = std::unique(vid_vec.begin(),
+                                               vid_vec.end());
+      vid_vec.erase(new_end, vid_vec.end());
+    }
+  }
+
+  void save(graphlab::oarchive& oarc) const {
+    oarc << (cset != NULL);
+    if (cset == NULL) oarc << vid_vec;
+    else oarc << (*cset);
+  }
+
+
+  void clear() {
+    vid_vec.clear();
+    if (cset != NULL) {
+      delete cset;
+      cset = NULL;
+    }
+  }
+
+  size_t size() const {
+    return cset == NULL ? vid_vec.size() : cset->size();
+  }
+
+  void load(graphlab::iarchive& iarc) {
+    clear();
+    bool hascset;
+    iarc >> hascset;
+    if (!hascset) iarc >> vid_vec;
+    else {
+      cset = new graphlab::cuckoo_set_pow2<graphlab::vertex_id_type, 3>(-1, 0, 2);
+      iarc >> (*cset);
+    }
+  }
+};
+
+/*
+  A simple counting iterator which can be used as an insert iterator.
+  but only counts the number of elements inserted. Useful for
+  use with counting the size of an intersection using std::set_intersection
+*/
+template <typename T>
+struct counting_inserter {
+  size_t* i;
+  counting_inserter(size_t* i):i(i) { }
+  counting_inserter& operator++() {
+    ++(*i);
+    return *this;
+  }
+  void operator++(int) {
+    ++(*i);
+  }
+
+  struct empty_val {
+    empty_val operator=(const T&) { return empty_val(); }
+  };
+
+  empty_val operator*() {
+    return empty_val();
+  }
+
+  typedef empty_val reference;
+};
+
+
+/*
+ * Computes the size of the intersection of two vid_vector's
+ */
+static uint32_t count_set_intersect(
+             const vid_vector& smaller_set,
+             const vid_vector& larger_set) {
+
+  if (smaller_set.cset == NULL && larger_set.cset == NULL) {
+    size_t i = 0;
+    counting_inserter<graphlab::vertex_id_type> iter(&i);
+    std::set_intersection(smaller_set.vid_vec.begin(), smaller_set.vid_vec.end(),
+                          larger_set.vid_vec.begin(), larger_set.vid_vec.end(),
+                          iter);
+    return i;
+  }
+  else if (smaller_set.cset == NULL && larger_set.cset != NULL) {
+    size_t i = 0;
+    foreach(graphlab::vertex_id_type vid, smaller_set.vid_vec) {
+      i += larger_set.cset->count(vid);
+    }
+    return i;
+  }
+  else if (smaller_set.cset != NULL && larger_set.cset == NULL) {
+    size_t i = 0;
+    foreach(graphlab::vertex_id_type vid, larger_set.vid_vec) {
+      i += smaller_set.cset->count(vid);
+    }
+    return i;
+  }
+  else {
+    size_t i = 0;
+    foreach(graphlab::vertex_id_type vid, *(smaller_set.cset)) {
+      i += larger_set.cset->count(vid);
+    }
+    return i;
+
+  }
+}
+
+
+
+
+
+
+/*
+ * Each vertex maintains a list of all its neighbors.
+ * and a final count for the number of triangles it is involved in
+ */
+struct vertex_data_type {
+  vertex_data_type(): num_triangles(0){ }
+  // A list of all its neighbors
+  vid_vector vid_set;
+  // The number of triangles this vertex is involved it.
+  // only used if "per vertex counting" is used
+  uint32_t num_triangles;
+  void save(graphlab::oarchive &oarc) const {
+    oarc << vid_set << num_triangles;
+  }
+  void load(graphlab::iarchive &iarc) {
+    iarc >> vid_set >> num_triangles;
+  }
+};
+
+
+/*
+ * Each edge is simply a counter of triangles
+ */
+typedef uint32_t edge_data_type;
+
+// To collect the set of neighbors, we need a message type which is
+// basically a set of vertex IDs
+
+bool PER_VERTEX_COUNT = false;
+
+
+/*
+ * This is the gathering type which accumulates an array of
+ * all neighboring vertices.
+ * It is a simple wrapper around a vector with
+ * an operator+= which simply performs a  +=
+ */
+struct set_union_gather {
+  graphlab::vertex_id_type v;
+  std::vector<graphlab::vertex_id_type> vid_vec;
+
+  set_union_gather():v(-1) {
+  }
+
+  size_t size() const {
+    if (v == (graphlab::vertex_id_type)-1) return vid_vec.size();
+    else return 1;
+  }
+  /*
+   * Combining with another collection of vertices.
+   * Union it into the current set.
+   */
+  set_union_gather& operator+=(const set_union_gather& other) {
+    if (size() == 0) {
+      (*this) = other;
+      return (*this);
+    }
+    else if (other.size() == 0) {
+      return *this;
+    }
+
+    if (vid_vec.size() == 0) {
+      vid_vec.push_back(v);
+      v = (graphlab::vertex_id_type)(-1);
+    }
+    if (other.vid_vec.size() > 0) {
+      size_t ct = vid_vec.size();
+      vid_vec.resize(vid_vec.size() + other.vid_vec.size());
+      for (size_t i = 0; i < other.vid_vec.size(); ++i) {
+        vid_vec[ct + i] = other.vid_vec[i];
+      }
+    }
+    else if (other.v != (graphlab::vertex_id_type)-1) {
+      vid_vec.push_back(other.v);
+    }
+    return *this;
+  }
+  
+  // serialize
+  void save(graphlab::oarchive& oarc) const {
+    oarc << bool(vid_vec.size() == 0);
+    if (vid_vec.size() == 0) oarc << v;
+    else oarc << vid_vec;
+  }
+
+  // deserialize
+  void load(graphlab::iarchive& iarc) {
+    bool novvec;
+    v = (graphlab::vertex_id_type)(-1);
+    vid_vec.clear();
+    iarc >> novvec;
+    if (novvec) iarc >> v;
+    else iarc >> vid_vec;
+  }
+};
+
+/*
+ * Define the type of the graph
+ */
+typedef graphlab::distributed_graph<vertex_data_type,
+                                    edge_data_type> graph_type;
+
+
+
 /*
  * This class implements the triangle counting algorithm as described in
  * the header. On gather, we accumulate a set of all adjacent vertices.
@@ -252,14 +417,7 @@ public:
   // Gather on all edges
   edge_dir_type gather_edges(icontext_type& context,
                              const vertex_type& vertex) const {
-    if (CUR_PHASE == 0  ||
-        vertex.num_in_edges() + vertex.num_out_edges() 
-                            >  MINIMUM_NBR_SIZE_FOR_PHASE_COLLECTION) {
-      return graphlab::ALL_EDGES;
-    }
-    else {
-      return graphlab::NO_EDGES;
-    }
+    return graphlab::ALL_EDGES;
   } 
 
   /*
@@ -272,36 +430,17 @@ public:
     set_union_gather gather;
     graphlab::vertex_id_type otherid = edge.target().id() == vertex.id() ?
                                        edge.source().id() : edge.target().id();
-    if (CUR_PHASE == 0) {
-      // collect everything which matches the phase number.
-      // An optimization if current has few neighbors, we collect it all
-      bool cur_is_below_count =  vertex.num_in_edges() + vertex.num_out_edges() 
-                                 <=  MINIMUM_NBR_SIZE_FOR_PHASE_COLLECTION;
-      if (NUM_PHASES == 1 || 
-          cur_is_below_count || otherid % NUM_PHASES == CUR_PHASE) {
-        if (PER_VERTEX_COUNT || otherid > vertex.id()) {
-          gather.vid_vec.push_back(otherid);
-        } 
-      }
-    }
-    else {
-      if (NUM_PHASES == 1 || otherid % NUM_PHASES == CUR_PHASE) {
-        if (PER_VERTEX_COUNT || otherid > vertex.id()) {
-          gather.vid_vec.push_back(otherid);
-        }
-      }
 
-    }
-                         
-    bool nbr_is_above_count = false;
-    if (edge.target().id() != vertex.id()) {
-      const vertex_type& othervtx = edge.target();
-      nbr_is_above_count = othervtx.num_in_edges() + othervtx.num_out_edges() 
-                              >  MINIMUM_NBR_SIZE_FOR_PHASE_COLLECTION;
-    }
-    // large neighbors optimization
-    // we do not even issue the scatter if all out neighbors are small
-    gather.large_neighbors = nbr_is_above_count;
+    size_t other_nbrs = (edge.target().id() == vertex.id()) ?
+        (edge.source().num_in_edges() + edge.source().num_out_edges()): 
+        (edge.target().num_in_edges() + edge.target().num_out_edges());
+
+    size_t my_nbrs = vertex.num_in_edges() + vertex.num_out_edges();
+
+    if (PER_VERTEX_COUNT || (other_nbrs > my_nbrs) || (other_nbrs == my_nbrs && otherid > vertex.id())) {
+    //if (PER_VERTEX_COUNT || otherid > vertex.id()) {
+     gather.v = otherid;
+    } 
     return gather;
   }
 
@@ -311,38 +450,18 @@ public:
    */
   void apply(icontext_type& context, vertex_type& vertex,
              const gather_type& neighborhood) {
-    // we overwrite the local map only if a gather is performed
-    // a gather is performed if this is phase 0 or this vertex
-    // has alot of neighbors.
-    bool gather_performed = CUR_PHASE == 0  ||
-                  vertex.num_in_edges() + vertex.num_out_edges() 
-                                    >  MINIMUM_NBR_SIZE_FOR_PHASE_COLLECTION;
-    if (CUR_PHASE == 0) {
-      vertex.data().has_large_neighbors = neighborhood.large_neighbors;
-    }
-
-    do_not_scatter = false;
-    if (gather_performed) {
-      vertex.data().vid_set = neighborhood.vid_vec;
-      if (vertex.data().vid_set.size() > 64) {
-        radix_sort(&(*vertex.data().vid_set.begin()), 0, vertex.data().vid_set.size(), 24);
-      }
-      else {
-        std::sort(vertex.data().vid_set.begin(),
-            vertex.data().vid_set.end());
-      }
-
-      hash_set::iterator new_end = std::unique(vertex.data().vid_set.begin(),
-                                               vertex.data().vid_set.end());
-      vertex.data().vid_set.erase(new_end, vertex.data().vid_set.end());
-
-      do_not_scatter = vertex.data().vid_set.size() == 0;
-    }
-    else {
-      // There is no need to scatter if I have no large neighbors
-      // and I did not perform any gathers
-      do_not_scatter = !vertex.data().has_large_neighbors;
-    }
+   do_not_scatter = false;
+   if (neighborhood.vid_vec.size() == 0) {
+     // neighborhood set may be empty or has only 1 element
+     vertex.data().vid_set.clear();
+     if (neighborhood.v != (graphlab::vertex_id_type(-1))) {
+       vertex.data().vid_set.vid_vec.push_back(neighborhood.v);
+     }
+   }
+   else {
+     vertex.data().vid_set.assign(neighborhood.vid_vec);
+   }
+   do_not_scatter = vertex.data().vid_set.size() == 0;
   } // end of apply
 
   /*
@@ -358,20 +477,6 @@ public:
 
 
   /*
-   * Computes the size of the intersection of two unordered sets
-   */
-  static uint32_t count_set_intersect(
-               const hash_set& smaller_set,
-               const hash_set& larger_set) {
-    size_t i = 0;
-    counting_inserter<vertex_id_type> iter(&i);
-    std::set_intersection(smaller_set.begin(), smaller_set.end(),
-                          larger_set.begin(), larger_set.end(),
-                          iter);
-    return i;
-  }
-
-  /*
    * For each edge, count the intersection of the neighborhood of the
    * adjacent vertices. This is the number of triangles this edge is involved
    * in.
@@ -381,16 +486,13 @@ public:
               edge_type& edge) const {
 
     vertex_type othervtx = edge.target();
-    // 
-    bool cur_is_above_count = vertex.num_in_edges() + vertex.num_out_edges() 
-                              >  MINIMUM_NBR_SIZE_FOR_PHASE_COLLECTION;
-    bool nbr_is_above_count = othervtx.num_in_edges() + othervtx.num_out_edges() 
-                              >  MINIMUM_NBR_SIZE_FOR_PHASE_COLLECTION;
-
-    if (CUR_PHASE == 0  || cur_is_above_count || nbr_is_above_count) {
-      const vertex_data_type& srclist = edge.source().data();
-      const vertex_data_type& targetlist = edge.target().data();
+    const vertex_data_type& srclist = edge.source().data();
+    const vertex_data_type& targetlist = edge.target().data();
+    if (targetlist.vid_set.size() < srclist.vid_set.size()) {
       edge.data() += count_set_intersect(targetlist.vid_set, srclist.vid_set);
+    }
+    else {
+      edge.data() += count_set_intersect(srclist.vid_set, targetlist.vid_set);
     }
   }
 };
@@ -447,17 +549,6 @@ size_t get_edge_data(const graph_type::edge_type& e) {
   return e.data();
 }
 
-graphlab::empty signal_large_vertices(engine_type::icontext_type& context,
-                                      const graph_type::vertex_type& vertex) {
-  if (vertex.num_in_edges() + vertex.num_out_edges() >= 
-                MINIMUM_NBR_SIZE_FOR_PHASE_COLLECTION || 
-      vertex.data().has_large_neighbors ) {
-    context.signal(vertex);
-  }
-  return graphlab::empty();
-}
-
-
 /*
  * A saver which saves a file where each line is a vid / # triangles pair
  */
@@ -497,16 +588,9 @@ int main(int argc, char** argv) {
   clopts.attach_option("format",
                        &format, format,
                        "The graph format");
-  clopts.attach_option("phases",
-                       &NUM_PHASES, NUM_PHASES,
-                       "cuts up the execution to run over multiple."
-                       "phases. Useful if memory requirements are high");
-  clopts.attach_option("phase_0_nbr",
-                       &MINIMUM_NBR_SIZE_FOR_PHASE_COLLECTION , 
-                       MINIMUM_NBR_SIZE_FOR_PHASE_COLLECTION,
-                       "First phase will collect all vertices with at most"
-                       "this number of neighbors. Only meaningful if"
-                       "phases > 1");
+ clopts.attach_option("ht",
+                       &HASH_THRESHOLD, HASH_THRESHOLD,
+                       "Above this size, hash tables are used");
   clopts.attach_option("per_vertex",
                        &per_vertex, per_vertex,
                        "If not empty, will count the number of "
@@ -524,10 +608,6 @@ int main(int argc, char** argv) {
     return EXIT_FAILURE;
   }
 
-  if (NUM_PHASES == 0) {
-    std::cout << "phases cannot be 0\n";
-    return EXIT_FAILURE;
-  }
 
   if (per_vertex != "") PER_VERTEX_COUNT = true;
   // Initialize control plane using mpi
@@ -547,11 +627,8 @@ int main(int argc, char** argv) {
   // create engine to count the number of triangles
   dc.cout() << "Counting Triangles..." << std::endl;
   engine_type engine(dc, graph, clopts);
-  for (CUR_PHASE = 0; CUR_PHASE < NUM_PHASES; ++CUR_PHASE) {
-    if (CUR_PHASE == 0) engine.signal_all();
-    else engine.map_reduce_vertices<graphlab::empty>(signal_large_vertices);
-    engine.start();
-  }
+  engine.signal_all();
+  engine.start();
 
   dc.cout() << "Counted in " << ti.current_time() << " seconds" << std::endl;
 

@@ -33,14 +33,40 @@ namespace graphlab {
   /// Identifier type of a vertex which is only locally consistent. Guaranteed to be integral
   typedef uint32_t lvid_type;
   
-  /// Identifier type of an edge which is only locally consistent. Guaranteed to be integral
-  typedef uint32_t edge_id_type;
+  /**
+   * Identifier type of an edge which is only locally
+   * consistent. Guaranteed to be integral and consecutive.
+   */
+  typedef lvid_type edge_id_type;
   
   /**
-   * The set of edges that are operated on during gather and scatter
+   * \brief The set of edges that are traversed during gather and scatter
    * operations.
    */
-  enum edge_dir_type {NO_EDGES = 0, IN_EDGES = 1, OUT_EDGES = 2 , ALL_EDGES = 3};
+  enum edge_dir_type {
+    /**
+     * \brief No edges implies that no edges are processed during the
+     * corresponding gather or scatter phase, essentially skipping
+     * that phase.
+     */
+    NO_EDGES = 0, 
+    /**
+     * \brief In edges implies that only whose target is the center
+     * vertex are processed during gather or scatter.
+     */
+    IN_EDGES = 1, 
+    /**
+     * \brief Out edges implies that only whose source is the center
+     * vertex are processed during gather or scatter.
+     */
+    OUT_EDGES = 2 , 
+    /**
+     * \brief All edges implies that all adges adjacent to a the
+     * center vertex are processed on gather or scatter.  Note that
+     * some neighbors may be encountered twice if there is both an in
+     * and out edge to that neighbor.
+     */
+    ALL_EDGES = 3};
 } // end of namespace graphlab
 
 #endif

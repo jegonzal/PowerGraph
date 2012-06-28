@@ -860,12 +860,14 @@ namespace graphlab {
         #pragma omp critical
 #endif
         {
-          if (!global_result_set) {
-            global_result = result;
-            global_result_set = true;
-          }
-          else {
-            global_result += result;
+          if (result_set) {
+            if (!global_result_set) {
+              global_result = result;
+              global_result_set = true;
+            }
+            else {
+              global_result += result;
+            }
           }
         }
       }
@@ -901,7 +903,7 @@ namespace graphlab {
     * \endcode
     * After which calling:
     * \code
-    * float sum = engine.map_reduce_edges<float>(absolute_edge_data);
+    * float sum = graph.map_reduce_edges<float>(absolute_edge_data);
     * \endcode
     * will call the <code>absolute_edge_data()</code> function
     * on each edge in the graph. <code>absolute_edge_data()</code>
@@ -972,12 +974,14 @@ namespace graphlab {
         #pragma omp critical
 #endif
         {
-         if (!global_result_set) {
-            global_result = result;
-            global_result_set = true;
-          }
-          else {
-            global_result += result;
+          if (result_set) {
+            if (!global_result_set) {
+              global_result = result;
+              global_result_set = true;
+            }
+            else {
+              global_result += result;
+            }
           }
         }
       }
@@ -1013,7 +1017,7 @@ namespace graphlab {
      *
      * Calling transform_vertices():
      * \code
-     *   engine.transform_vertices(set_vertex_value);
+     *   graph.transform_vertices(set_vertex_value);
      * \endcode
      * will run the <code>set_vertex_value()</code> function
      * on each vertex in the graph, setting its new value. 
@@ -1082,7 +1086,7 @@ namespace graphlab {
      *
      * Calling transform_edges():
      * \code
-     *   engine.transform_edges(set_edge_value);
+     *   graph.transform_edges(set_edge_value);
      * \endcode
      * will run the <code>set_edge_value()</code> function
      * on each edge in the graph, setting its new value. 
@@ -1382,7 +1386,7 @@ namespace graphlab {
       std::vector<boost_fstream_type*> booststreams;
       graph_files.resize(files_per_machine);
       for(size_t i = 0; i < files_per_machine; ++i) {
-        graph_files[i] = prefix + "." + tostr(1 + i + rpc.procid() * files_per_machine)
+        graph_files[i] = prefix + "_" + tostr(1 + i + rpc.procid() * files_per_machine)
           + "_of_" + tostr(rpc.numprocs() * files_per_machine);
         if (gzip) graph_files[i] += ".gz";
       }
@@ -1458,7 +1462,7 @@ namespace graphlab {
       std::vector<boost_fstream_type*> booststreams;
       graph_files.resize(files_per_machine);
       for(size_t i = 0; i < files_per_machine; ++i) {
-        graph_files[i] = prefix + "." + tostr(1 + i + rpc.procid() * files_per_machine)
+        graph_files[i] = prefix + "_" + tostr(1 + i + rpc.procid() * files_per_machine)
           + "_of_" + tostr(rpc.numprocs() * files_per_machine);
         if (gzip) graph_files[i] += ".gz";
       }
@@ -1960,12 +1964,16 @@ namespace graphlab {
       line_parser_type line_parser;
       if (format == "snap") {
         line_parser = builtin_parsers::snap_parser<distributed_graph>;
+        load(path, line_parser);
       } else if (format == "adj") {
         line_parser = builtin_parsers::adj_parser<distributed_graph>;
+        load(path, line_parser);
       } else if (format == "tsv") {
         line_parser = builtin_parsers::tsv_parser<distributed_graph>;
+        load(path, line_parser);
       } else if (format == "graphjrl") {
         line_parser = builtin_parsers::graphjrl_parser<distributed_graph>;
+        load(path, line_parser);
       } else if (format == "bin") {
          load_binary(path);
       } else {
@@ -1973,7 +1981,6 @@ namespace graphlab {
           << "Unrecognized Format \"" << format << "\"!" << std::endl;
         return;
       }
-      load(path, line_parser);
     } // end of load
 
 
@@ -2497,6 +2504,8 @@ namespace graphlab {
     // boost::unordered_map<vertex_id_type, lvid_type> vid2lvid;
     /** The map from global vertex ids back to local vertex ids */
     typedef cuckoo_map_pow2<vertex_id_type, lvid_type, 3, uint32_t> cuckoo_map_type;
+    typedef cuckoo_map_type vid2lvid_map_type;
+
     cuckoo_map_type vid2lvid;
 
         
@@ -2552,6 +2561,7 @@ namespace graphlab {
       while(fin.good() && !fin.eof()) {
         std::string line;
         std::getline(fin, line);
+        if(line.empty()) continue;
         if(fin.fail()) break;
         const bool success = line_parser(*this, filename, line);
         if (!success) {

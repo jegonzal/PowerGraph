@@ -140,7 +140,7 @@ get_other_vertex(graph_type::edge_type& edge,
 /**
  * \brief Given an edge compute the error associated with that edge
  */
-double extract_l2_error(graph_type::edge_type edge) {
+double extract_l2_error(const graph_type::edge_type & edge) {
   const double pred = 
     edge.source().data().factor.dot(edge.target().data().factor);
   return (edge.data().obs - pred) * (edge.data().obs - pred);
@@ -345,7 +345,7 @@ struct error_aggregator : public graphlab::IS_POD_TYPE {
     nvalidation += other.nvalidation;
     return *this;
   }
-  static error_aggregator map(icontext_type& context, const edge_type& edge) {
+  static error_aggregator map(icontext_type& context, const graph_type::edge_type& edge) {
     error_aggregator agg;
     if(edge.data().role == edge_data::TRAIN) {
       agg.train_error = extract_l2_error(edge); agg.ntrain = 1;

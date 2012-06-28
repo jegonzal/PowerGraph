@@ -1,0 +1,74 @@
+body {
+    text-align: center;
+}
+
+#main_page {
+    width: 900px;
+    margin-left: auto;
+    margin-right: auto;
+
+}
+
+#info {
+   width: auto;
+ 
+}
+
+.setting {
+    width: auto;
+    display: inline-block;
+}
+
+
+#results {
+ 
+}
+
+
+.user_list {
+    display: inline-block;
+    border-style: solid;
+    height: 600px;
+    width: 250px;
+    vertical-align: top;
+    text-align: left;
+    margin: 5px;
+}
+
+
+
+.title {
+    padding: 10px;
+    background: black;
+    color: white;
+    text-align: center;
+}
+
+
+.contents {
+   padding: 10px;
+}
+.user_image {
+    width: 50px;
+    height: 50px;
+}
+
+.user {
+
+}
+
+.user_info {
+  padding-left: 10px;
+    display: inline-block;
+  vertical-align: top;
+}
+
+.name {
+
+}
+
+.value {
+
+
+}
+

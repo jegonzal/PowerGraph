@@ -59,7 +59,7 @@ namespace graphlab {
     typedef Message message_type;
 
 
-    typedef std::deque<vertex_id_type> queue_type;
+    typedef std::deque<lvid_type> queue_type;
 
   private:
 
@@ -129,7 +129,7 @@ namespace graphlab {
    
 
 
-    void schedule(const vertex_id_type vid, 
+    void schedule(const lvid_type vid, 
                   const message_type& msg) {      
       // If this is a new message, schedule it
       // the min priority will be taken care of by the get_next function
@@ -157,7 +157,7 @@ namespace graphlab {
 
 
     void schedule_from_execution_thread(const size_t cpuid,
-                                        const vertex_id_type vid) {
+                                        const lvid_type vid) {
       size_t idx = 0;
       if(queues.size() > 1) {
         const uint32_t prod = 
@@ -173,9 +173,9 @@ namespace graphlab {
                       const std::string& order) {
       if(order == "shuffle") {
         // add vertices randomly
-        std::vector<vertex_id_type> permutation = 
-          random::permutation<vertex_id_type>(messages.size());       
-        foreach(vertex_id_type vid, permutation) {
+        std::vector<lvid_type> permutation = 
+          random::permutation<lvid_type>(messages.size());       
+        foreach(lvid_type vid, permutation) {
           if(messages.add(vid,msg)) {
             const size_t idx = vid % queues.size();
             locks[idx].lock(); queues[idx].push_back(vid); locks[idx].unlock();
@@ -183,7 +183,7 @@ namespace graphlab {
         }
       } else {
         // Add vertices sequentially
-        for (vertex_id_type vid = 0; vid < messages.size(); ++vid) {
+        for (lvid_type vid = 0; vid < messages.size(); ++vid) {
           if(messages.add(vid,msg)) {
             const size_t idx = vid % queues.size();
             locks[idx].lock(); queues[idx].push_back(vid); locks[idx].unlock();
@@ -193,13 +193,13 @@ namespace graphlab {
     } // end of schedule_all
 
     void completed(const size_t cpuid,
-                   const vertex_id_type vid,
+                   const lvid_type vid,
                    const message_type& msg) {  }
 
 
     /** Get the next element in the queue */
     sched_status::status_enum get_next(const size_t cpuid,
-                                       vertex_id_type& ret_vid,
+                                       lvid_type& ret_vid,
                                        message_type& ret_msg) {
       while(1) {
         /* Check all of my queues for a task */
@@ -276,14 +276,14 @@ namespace graphlab {
 
 
     sched_status::status_enum
-    get_specific(vertex_id_type vid,
+    get_specific(lvid_type vid,
                  message_type& ret_msg) {
       bool get_success = messages.test_and_get(vid, ret_msg);
       if (get_success) return sched_status::NEW_TASK;
       else return sched_status::EMPTY;
     }
 
-    void place(vertex_id_type vid,
+    void place(lvid_type vid,
                  const message_type& msg) {
       messages.add(vid, msg);
     }

@@ -32,7 +32,7 @@
 
 #include <graphlab/util/stl_util.hpp>
 #include <graphlab.hpp>
-
+#include "eigen_serialization.hpp"
 #include "sgd_vertex_program.hpp"
 
 #include <graphlab/macros_def.hpp>
@@ -66,7 +66,7 @@ int main(int argc, char** argv) {
   graphlab::command_line_options clopts(description);
   std::string input_dir, output_dir;
   std::string predictions;
-  size_t interval = 10;
+  size_t interval = 0;
   clopts.attach_option("matrix", &input_dir, input_dir,
                        "The directory containing the matrix file");
   clopts.add_positional("matrix");
@@ -99,7 +99,7 @@ int main(int argc, char** argv) {
     std::cout << "Error in parsing command line arguments." << std::endl;
     return EXIT_FAILURE;
   }
-
+  //  omp_set_num_threads(clopts.get_ncpus());
   ///! Initialize control plain using mpi
   graphlab::mpi_tools::init(argc, argv);
   graphlab::distributed_control dc;
@@ -140,7 +140,7 @@ int main(int argc, char** argv) {
   engine_type engine(dc, graph, clopts, "synchronous");
 
   // Add error reporting to the engine
-  const bool success = engine.add_vertex_aggregator<error_aggregator>
+  const bool success = engine.add_edge_aggregator<error_aggregator>
     ("error", error_aggregator::map, error_aggregator::finalize) &&
     engine.aggregate_periodic("error", interval);
   ASSERT_TRUE(success);

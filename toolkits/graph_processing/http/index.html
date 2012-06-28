@@ -1,0 +1,69 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+
+<head>
+<meta http-equiv="content-type" content="text/html; charset=iso-8859-1" />
+<meta name="author" content="GraphLab Dev Team" />
+<meta name="publisher" content="Carnegie Mellon University" />
+<meta name="copyright" content="(c) 2012. GraphLab.org" />
+<meta name="distribution" content="global" />
+<meta name="keywords" content="GraphLabUI" />
+<meta name="description" content="Twitter Triangle Counter Results" />
+<meta name="robots" content="all" />
+<title>Twitter Triangle Counter Results</title>
+<link type="text/css" rel="stylesheet" href="style.css"/> 
+
+
+<!-- Load external APIs -->
+<script 
+   type="text/javascript" 
+   src="https://www.google.com/jsapi">
+</script>
+
+
+<!-- The Main visualization script -->
+<script 
+   type="text/javascript" 
+   src="twitter_triangles.js">
+</script>
+</head>
+
+
+
+<body>
+
+<div id="main_page">
+
+<h1> Twitter Triangle Count Results </h1>
+<INPUT TYPE="button" NAME="button" Value="Refresh" onClick="refresh()">
+
+
+
+<div id="info">
+  <div class="setting">
+   <div class="label">Vertices: </div>
+   <div id="nvertices">42 Million</div>
+  </div>
+
+  <div class="setting">
+   <div class="label">Edges: </div>
+   <div id="nedges">1.5 Billion</div>
+  </div>
+
+  <div class="setting">
+   <div class="label">Triangles:</div>
+   <div id="ntriangles">188 Billion</div>
+  </div>
+</div>
+
+<div id="results"></div>
+
+<div>
+</body>
+
+
+
+
+</html>
