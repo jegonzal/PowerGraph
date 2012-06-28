@@ -53,6 +53,11 @@ namespace graphlab {
     void fly(const v8::Handle<v8::Function> &function);
 
     /**
+     * Maps the given javascript function across all vertices.
+     */
+    void transform_vertices(const v8::Handle<v8::Function> &function);
+
+    /**
      * Adds a JS binding of the class to the given object. Throws
      * a native exception on error.
      * @param dest      v8 global object to bind to
@@ -91,6 +96,17 @@ namespace graphlab {
     // TODO: other vertex program stuff
     // TODO: pass the context along!
 
+  };
+
+  /**
+   * Wrapper for a JS function that is suitable for passing to
+   * transform_vertices, transform_edges etc.
+   */
+  struct js_functor {
+    static v8::Persistent<v8::Function> function;
+    // not really a functor
+    static void set_function(const v8::Handle<v8::Function>& func);
+    static void invoke(pilot::graph_type::vertex_type& vertex);
   };
 
 };

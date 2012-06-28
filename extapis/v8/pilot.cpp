@@ -30,6 +30,11 @@ void pilot::fly(const Handle<Function> &function){
   engine.start();
 }
 
+void pilot::transform_vertices(const Handle<Function> &function){
+  js_functor::set_function(function); // FIXME: should not be static!
+  graph.transform_vertices(js_functor::invoke);
+}
+
 ////////////////////////////// STATIC //////////////////////////////
 
 // TODO: fix this -- clopts really shouldn't be static:
@@ -106,6 +111,20 @@ void js_proxy::set_ctor(const Handle<Function> &ctor){
   constructor  = Persistent<Function>::New(ctor);
 }
 
+//////////////////////// JS_FUNCTOR ///////////////////////////////
+
+// TODO: fix this
+Persistent<Function> js_functor::function;
+
+void js_functor::invoke(pilot::graph_type::vertex_type &vertex){
+  cv::CallForwarder<1>::Call(function, vertex); 
+}
+
+void js_functor::set_function(const Handle<Function> &func){
+  // TODO: worry about memory management
+  function = Persistent<Function>::New(func);
+}
+
 namespace cvv8 {
 
   CVV8_TypeName_IMPL((pilot), "pilot");
@@ -148,6 +167,9 @@ namespace cvv8 {
         ("loadGraph", 
           MethodToInCa<pilot, void (const std::string&, const std::string&),
             &pilot::load_graph>::Call)
+        ("transformVertices",
+          MethodToInCa<pilot, void (const Handle<Function> &),
+            &pilot::transform_vertices>::Call)
         ("fly",
           MethodToInCa<pilot, void (const Handle<Function> &),
             &pilot::fly>::Call);
