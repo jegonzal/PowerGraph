@@ -26,7 +26,12 @@
 #include <sstream>
 #include <iostream>
 #include <vector>
+
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wreorder"
 #include <libjson/libjson.h>
+#pragma GCC diagnostic pop
 
 #include <boost/functional.hpp>
 #include <graphlab/util/stl_util.hpp>
