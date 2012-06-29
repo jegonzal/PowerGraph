@@ -229,12 +229,12 @@ ExternalProject_Add(libv8
   GIT_REPOSITORY git://github.com/v8/v8.git
   BUILD_IN_SOURCE 1
   INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local
-  CONFIGURE_COMMAND ""
-  BUILD_COMMAND make dependencies && make native library=shared
-  INSTALL_COMMAND
-  sh -c "install <SOURCE_DIR>/include/* <INSTALL_DIR>/include/v8")
-include_directories(${GraphLab_SOURCE_DIR}/deps/local/include/v8)
-link_directories(${GraphLab_SOURCE_DIR}/deps/libv8/src/libv8/out/native)
+  CONFIGURE_COMMAND make dependencies
+  UPDATE_COMMAND "" # Disable updates
+  BUILD_COMMAND make native 
+  INSTALL_COMMAND sh -c 
+  "cp -r <SOURCE_DIR>/include <INSTALL_DIR>/include/v8 & cp <SOURCE_DIR>/out/native/*.a <INSTALL_DIR>/lib" )
+
 # This is ugly, but the distro doesn't come with a `make install` and CMAKE wouldn't
 # let me use wildcards. Whoever has a better idea how to do this please tell me.
 
@@ -249,7 +249,9 @@ ExternalProject_Add(cvv8
   rsync -acC <SOURCE_DIR>/include/cvv8/ <INSTALL_DIR>/include/cvv8)
 
 macro(requires_v8 NAME)
-  target_link_libraries(${NAME} v8)
+  include_directories(${GraphLab_SOURCE_DIR}/deps/local/include/v8)
+  target_link_libraries(${NAME} v8_base v8_snapshot)
+  add_dependencies(${NAME} libv8 cvv8)
 endmacro(requires_v8)
 
 # ImageMagick =================================================================
@@ -289,10 +291,10 @@ ExternalProject_Add(imagemagick
   LDFLAGS=-L${GraphLab_SOURCE_DIR}/deps/local/lib       
   make
   INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local)
-include_directories(${GraphLab_SOURCE_DIR}/deps/local/include/ImageMagick)
 add_dependencies(imagemagick libjpeg)
 
 macro(requires_imagemagick NAME)
+  include_directories(${GraphLab_SOURCE_DIR}/deps/local/include/ImageMagick)
   target_link_libraries(${NAME} Magick++ jpeg)
   add_dependencies(${NAME} imagemagick libjpeg)
 endmacro(requires_imagemagick)
@@ -345,6 +347,10 @@ ExternalProject_Add(libevent
 #link_libraries(event)
 #link_libraries(event_pthreads)
 
+
+# libjson ====================================================================
+# Lib Json is used to support json serialization for long term storage of
+# graph data.
 ExternalProject_Add(libjson
   PREFIX ${GraphLab_SOURCE_DIR}/deps/json
   URL http://voxel.dl.sourceforge.net/project/libjson/libjson_7.6.0.zip
