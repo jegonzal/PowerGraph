@@ -1,5 +1,5 @@
-/**  
- * Copyright (c) 2009 Carnegie Mellon University. 
+/**
+ * Copyright (c) 2009 Carnegie Mellon University.
  *     All rights reserved.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,10 +22,11 @@
 
 #ifndef CGS_LDA_HPP
 #define CGS_LDA_HPP
- 
+
 #include <vector>
 #include <algorithm>
 #include <graphlab/parallel/atomic.hpp>
+#include <graphlab.hpp>
 
 // Global Types
 // ============================================================================
@@ -53,7 +54,7 @@ typedef std::vector< graphlab::atomic<count_type> > factor_type;
  * \brief We use the factor type in accumulators and so we define an
  * operator+=
  */
-inline factor_type& operator+=(factor_type& lvalue, 
+inline factor_type& operator+=(factor_type& lvalue,
                                const factor_type& rvalue) {
   if(!rvalue.empty()) {
     if(lvalue.empty()) lvalue = rvalue;
@@ -149,7 +150,7 @@ size_t MAX_COUNT = 100;
 
 
 inline std::string header_string() {
-  return  
+  return
     "\t\"ntopics\": " + graphlab::tostr(NTOPICS) + ",\n" +
     "\t\"nwords\":  " + graphlab::tostr(NWORDS) + ",\n" +
     "\t\"ndocs\":   " + graphlab::tostr(NDOCS) + ",\n" +
@@ -160,7 +161,7 @@ inline std::string header_string() {
 
 
 graphlab::mutex TOP_WORDS_JSON_LOCK;
-std::string TOP_WORDS_JSON = 
+std::string TOP_WORDS_JSON =
   "{\n" + header_string() + "\tvalues: [] \n }";
 
 
@@ -184,17 +185,17 @@ struct vertex_data {
   factor_type factor;
   vertex_data() : nupdates(0), nchanges(0), factor(NTOPICS) { }
   void save(graphlab::oarchive& arc) const {
-    arc << nupdates << nchanges << factor; 
+    arc << nupdates << nchanges << factor;
   }
-  void load(graphlab::iarchive& arc) { 
-    arc >> nupdates >> nchanges >> factor; 
+  void load(graphlab::iarchive& arc) {
+    arc >> nupdates >> nchanges >> factor;
   }
 }; // end of vertex_data
 
 
 /**
  * \brief The edge data represents the individual tokens (word,doc)
- * pairs and their assignment to topics. 
+ * pairs and their assignment to topics.
  */
 struct edge_data {
   ///! The number of changes on the last update
@@ -204,12 +205,12 @@ struct edge_data {
   edge_data(size_t ntokens = 0) : nchanges(0), assignment(ntokens, NULL_TOPIC) { }
   void save(graphlab::oarchive& arc) const { arc << nchanges << assignment; }
   void load(graphlab::iarchive& arc) { arc >> nchanges >> assignment; }
-}; // end of edge_daga
+}; // end of edge_data
 
 
 /**
  * \brief The LDA graph is a bipartite graph with docs connected to
- * terms if the term occurs in the document.  
+ * terms if the term occurs in the document.
  *
  * The edges store the number of occurrences of the term in the
  * document as a vector of the assignments of that term in that
@@ -221,24 +222,51 @@ typedef graphlab::distributed_graph<vertex_data, edge_data> graph_type;
 
 
 /**
+ * \brief Edge data parser used in graph.load_json
+ *
+ * Make sure that the edge file list
+ * has docids from -2 to -(total #docid) and wordids 0 to (total #words -1)
+ */
+bool eparser(edge_data& ed, const std::string& line){
+  const int BASE = 10;
+  char* next_char_ptr = NULL;
+  size_t count = strtoul(line.c_str(), &next_char_ptr, BASE);
+  if(next_char_ptr ==NULL) return false;
+
+  //threshold count
+  count = std::min(count, MAX_COUNT);
+  ed = (edge_data(count));
+  return true;
+}
+
+/**
+ * \brief Vertex data parser used in graph.load_json
+ */
+bool vparser(vertex_data& vd, const std::string& line){
+  vd = vertex_data();
+  return true;
+}
+
+
+/**
  * \brief The graph loader is used by graph.load to parse lines of the
  * text data file.
  *
  * The global variable MAX_COUNT limits the number of tokens that can
- * be constructed on a particular edge.  
+ * be constructed on a particular edge.
  */
-bool graph_loader(graph_type& graph, const std::string& fname, 
+bool graph_loader(graph_type& graph, const std::string& fname,
                   const std::string& line) {
-  ASSERT_FALSE(line.empty()); 
+  ASSERT_FALSE(line.empty());
   const int BASE = 10;
   char* next_char_ptr = NULL;
-  graph_type::vertex_id_type doc_id = 
+  graph_type::vertex_id_type doc_id =
     strtoul(line.c_str(), &next_char_ptr, BASE);
-  if(next_char_ptr == NULL)  return false;
-  const graph_type::vertex_id_type word_id = 
+  if(next_char_ptr == NULL) return false;
+  const graph_type::vertex_id_type word_id =
     strtoul(next_char_ptr, &next_char_ptr, BASE);
   if(next_char_ptr == NULL) return false;
-  size_t count = 
+  size_t count =
     strtoul(next_char_ptr, &next_char_ptr, BASE);
   if(next_char_ptr == NULL) return false;
   // Threshold the count
@@ -247,8 +275,8 @@ bool graph_loader(graph_type& graph, const std::string& fname,
   // left and right vertices differently.  To accomplish I make sure
   // all vertices have non-zero ids and then negate the right vertex.
   // Unfortunatley graphlab reserves -1 and so we add 2 and negate.
-  doc_id += 2; 
-  ASSERT_GT(doc_id, 1); 
+  doc_id += 2;
+  ASSERT_GT(doc_id, 1);
   doc_id = -doc_id;
   ASSERT_NE(doc_id, word_id);
   // Create an edge and add it to the graph
@@ -293,8 +321,8 @@ inline size_t count_tokens(const graph_type::edge_type& edge) {
 /**
  * \brief Get the other vertex in the edge.
  */
-inline graph_type::vertex_type 
-get_other_vertex(const graph_type::edge_type& edge, 
+inline graph_type::vertex_type
+get_other_vertex(const graph_type::edge_type& edge,
                  const graph_type::vertex_type& vertex) {
   return vertex.id() == edge.source().id()? edge.target() : edge.source();
 }
@@ -317,7 +345,7 @@ private:
   std::vector< std::set<cw_pair_type> > top_words;
   size_t nchanges, nupdates;
 public:
-  topk_aggregator(size_t nchanges = 0, size_t nupdates = 0) : 
+  topk_aggregator(size_t nchanges = 0, size_t nupdates = 0) :
     nchanges(nchanges), nupdates(nupdates) { }
 
   void save(graphlab::oarchive& arc) const { arc << top_words << nchanges; }
@@ -331,37 +359,37 @@ public:
     if(top_words.empty()) top_words.resize(NTOPICS);
     for(size_t i = 0; i < top_words.size(); ++i) {
       // Merge the topk
-      top_words[i].insert(other.top_words[i].begin(), 
+      top_words[i].insert(other.top_words[i].begin(),
                           other.top_words[i].end());
-      // Remove excess elements        
-      while(top_words[i].size() > TOPK) 
+      // Remove excess elements
+      while(top_words[i].size() > TOPK)
         top_words[i].erase(top_words[i].begin());
     }
     return *this;
   } // end of operator +=
-  
-  static topk_aggregator map(icontext_type& context, 
+
+  static topk_aggregator map(icontext_type& context,
                              const graph_type::vertex_type& vertex) {
     topk_aggregator ret_value;
     const vertex_data& vdata = vertex.data();
     ret_value.nchanges = vdata.nchanges;
     ret_value.nupdates = vdata.nupdates;
     if(is_word(vertex)) {
-      const graphlab::vertex_id_type wordid = vertex.id();    
+      const graphlab::vertex_id_type wordid = vertex.id();
       ret_value.top_words.resize(vdata.factor.size());
       for(size_t i = 0; i < vdata.factor.size(); ++i) {
         const cw_pair_type pair(vdata.factor[i], wordid);
         ret_value.top_words[i].insert(pair);
       }
-    } 
-    return ret_value;   
+    }
+    return ret_value;
   } // end of map function
 
   static void finalize(icontext_type& context,
                        const topk_aggregator& total) {
     if(context.procid() != 0) return;
 
-    std::string json = "{\n"+ header_string() + 
+    std::string json = "{\n"+ header_string() +
       "\t\"values\": [\n";
 
     for(size_t i = 0; i < total.top_words.size(); ++i) {
@@ -369,20 +397,20 @@ public:
       json += "\t[\n";
       size_t counter = 0;
       rev_foreach(cw_pair_type pair, total.top_words[i])  {
-        ASSERT_LT(pair.second, DICTIONARY.size());
+      ASSERT_LT(pair.second, DICTIONARY.size());
 
-        json += "\t\t[\"" + DICTIONARY[pair.second] + "\", " + 
+        json += "\t\t[\"" + DICTIONARY[pair.second] + "\", " +
           graphlab::tostr(pair.first) + "]";
         if(++counter < total.top_words[i].size()) json += ", ";
         json += '\n';
 
-        std::cout << DICTIONARY[pair.second] 
-                  << "(" << pair.first << ")" << ", "; 
+        std::cout << DICTIONARY[pair.second]
+                  << "(" << pair.first << ")" << ", ";
         // std::cout << DICTIONARY[pair.second] << ",  ";
       }
       json += "\t]";
       if(i+1 < total.top_words.size()) json += ", ";
-      json += '\n';                      
+      json += '\n';
       std::cout << std::endl;
     }
     json += "]}";
@@ -427,7 +455,7 @@ struct global_counts_aggregator {
 /**
  * \brief The Likelihood aggregators maintains the current estimate of
  * the log-likelihood of the current token assignments.
- * 
+ *
  *  llik_words_given_topics = ...
  *    ntopics * (gammaln(nwords * beta) - nwords * gammaln(beta)) - ...
  *    sum_t(gammaln( n_t + nwords * beta)) +
@@ -444,14 +472,14 @@ class likelihood_aggregator : public graphlab::IS_POD_TYPE {
   double lik_topics;
 public:
   likelihood_aggregator() : lik_words_given_topics(0), lik_topics(0) { }
-  
+
   likelihood_aggregator& operator+=(const likelihood_aggregator& other) {
     lik_words_given_topics += other.lik_words_given_topics;
     lik_topics += other.lik_topics;
     return *this;
   } // end of operator +=
 
-  static likelihood_aggregator 
+  static likelihood_aggregator
   map(IContext& context, const vertex_type& vertex) {
     using boost::math::lgamma;
     const factor_type& factor = vertex.data().factor;
@@ -482,14 +510,14 @@ public:
       denominator += lgamma(GLOBAL_TOPIC_COUNT[t] + NWORDS * BETA);
     } // end of for loop
 
-    const double lik_words_given_topics = 
+    const double lik_words_given_topics =
       NTOPICS * (lgamma(NWORDS * BETA) - NWORDS * lgamma(BETA)) -
       denominator + total.lik_words_given_topics;
 
     const double lik_topics =
       NDOCS * (lgamma(NTOPICS * ALPHA) - NTOPICS * lgamma(ALPHA)) +
       total.lik_topics;
-    
+
     const double lik = lik_words_given_topics + lik_topics;
     context.cout() << "Likelihood: " << lik << std::endl;
   } // end of finalize
@@ -500,12 +528,12 @@ public:
 
 template<typename IContext>
 struct selective_signal {
- static graphlab::empty 
+ static graphlab::empty
  docs(IContext& context, const graph_type::vertex_type& vertex) {
    if(is_doc(vertex)) context.signal(vertex);
    return graphlab::empty();
  } // end of signal_docs
- static graphlab::empty 
+ static graphlab::empty
  words(IContext& context, const graph_type::vertex_type& vertex) {
     if(is_word(vertex)) context.signal(vertex);
     return graphlab::empty();
@@ -514,21 +542,28 @@ struct selective_signal {
 
 
 
-
 bool load_and_initialize_graph(graphlab::distributed_control& dc,
                                graph_type& graph,
-                               const std::string& matrix_dir) {  
+                               const std::string& matrix_dir,
+                               bool loadjson) {
   dc.cout() << "Loading graph." << std::endl;
   graphlab::timer timer; timer.start();
-  graph.load(matrix_dir, graph_loader);
 
-  dc.cout() << ": Loading graph. Finished in " 
+  if(!loadjson){
+      graph.load(matrix_dir, graph_loader);
+  }else{
+      dc.cout() << "In JSON format" << std::endl;
+      const bool gzip = boost::ends_with(matrix_dir,".gz");
+      graph.load_json(matrix_dir, gzip, eparser, vparser);
+  }
+
+  dc.cout() << ": Loading graph. Finished in "
             << timer.current_time() << " seconds." << std::endl;
 
   dc.cout() << "Finalizing graph." << std::endl;
   timer.start();
   graph.finalize();
-  dc.cout() << "Finalizing graph. Finished in " 
+  dc.cout() << "Finalizing graph. Finished in "
             << timer.current_time() << " seconds." << std::endl;
 
   dc.cout() << "Computing number of words and documents." << std::endl;
@@ -549,17 +584,16 @@ bool load_and_initialize_graph(graphlab::distributed_control& dc,
 
 
 
-
 /** populate the global dictionary */
 bool load_dictionary(const std::string& fname)  {
-  // std::cout << "staring load on: " 
+  // std::cout << "staring load on: "
   //           << graphlab::get_local_ip_as_str() << std::endl;
   const bool gzip = boost::ends_with(fname, ".gz");
   // test to see if the graph_dir is an hadoop path
   if(boost::starts_with(fname, "hdfs://")) {
     graphlab::hdfs hdfs;
     graphlab::hdfs::fstream in_file(hdfs, fname);
-    boost::iostreams::filtering_stream<boost::iostreams::input> fin;  
+    boost::iostreams::filtering_stream<boost::iostreams::input> fin;
     fin.set_auto_close(false);
     if(gzip) fin.push(boost::iostreams::gzip_decompressor());
     fin.push(in_file);
@@ -575,9 +609,9 @@ bool load_dictionary(const std::string& fname)  {
     in_file.close();
   } else {
     std::cout << "opening: " << fname << std::endl;
-    std::ifstream in_file(fname.c_str(), 
+    std::ifstream in_file(fname.c_str(),
                           std::ios_base::in | std::ios_base::binary);
-    boost::iostreams::filtering_stream<boost::iostreams::input> fin;  
+    boost::iostreams::filtering_stream<boost::iostreams::input> fin;
     if (gzip) fin.push(boost::iostreams::gzip_decompressor());
     fin.push(in_file);
     if(!fin.good() || !fin.good()) {
@@ -592,7 +626,7 @@ bool load_dictionary(const std::string& fname)  {
     fin.pop();
     in_file.close();
   } // end of else
-  // std::cout << "Finished load on: " 
+  // std::cout << "Finished load on: "
   //           << graphlab::get_local_ip_as_str() << std::endl;
   std::cout << "Dictionary Size: " << DICTIONARY.size() << std::endl;
   return true;

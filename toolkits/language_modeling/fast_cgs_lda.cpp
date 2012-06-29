@@ -1,5 +1,5 @@
-/**  
- * Copyright (c) 2009 Carnegie Mellon University. 
+/**
+ * Copyright (c) 2009 Carnegie Mellon University.
  *     All rights reserved.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
@@ -55,12 +55,12 @@ class cgs_lda_vertex_program :
   public graphlab::IS_POD_TYPE {
 public:
   /** \brief gather on all edges */
-  edge_dir_type gather_edges(icontext_type& context, 
+  edge_dir_type gather_edges(icontext_type& context,
                              const vertex_type& vertex) const {
     return graphlab::ALL_EDGES;
-  } // end of gather_edges 
+  } // end of gather_edges
 
-  gather_type gather(icontext_type& context, const vertex_type& vertex, 
+  gather_type gather(icontext_type& context, const vertex_type& vertex,
                      edge_type& edge) const {
     gather_type ret(edge.data().nchanges);
     const assignment_type& assignment = edge.data().assignment;
@@ -84,19 +84,19 @@ public:
   } // end of apply
 
   edge_dir_type scatter_edges(icontext_type& context,
-                              const vertex_type& vertex) const { 
-    return graphlab::ALL_EDGES; 
+                              const vertex_type& vertex) const {
+    return graphlab::ALL_EDGES;
   }; // end of scatter edges
 
-  void scatter(icontext_type& context, const vertex_type& vertex, 
+  void scatter(icontext_type& context, const vertex_type& vertex,
                edge_type& edge) const {
-    factor_type& doc_topic_count =  is_doc(edge.source()) ? 
+    factor_type& doc_topic_count =  is_doc(edge.source()) ?
       edge.source().data().factor : edge.target().data().factor;
-    factor_type& word_topic_count = is_word(edge.source()) ? 
+    factor_type& word_topic_count = is_word(edge.source()) ?
       edge.source().data().factor : edge.target().data().factor;
     ASSERT_EQ(doc_topic_count.size(), NTOPICS);
     ASSERT_EQ(word_topic_count.size(), NTOPICS);
-    // run the actual gibbs sampling 
+    // run the actual gibbs sampling
     std::vector<double> prob(NTOPICS);
     assignment_type& assignment = edge.data().assignment;
     edge.data().nchanges = 0;
@@ -106,20 +106,20 @@ public:
         --doc_topic_count[asg];
         --word_topic_count[asg];
         --GLOBAL_TOPIC_COUNT[asg];
-      } 
+      }
       for(size_t t = 0; t < NTOPICS; ++t) {
-        const double n_dt = 
+        const double n_dt =
           std::max(count_type(doc_topic_count[t]), count_type(0));
-        const double n_wt = 
-          std::max(count_type(word_topic_count[t]), count_type(0)); 
-        const double n_t  = 
-          std::max(count_type(GLOBAL_TOPIC_COUNT[t]), count_type(0)); 
+        const double n_wt =
+          std::max(count_type(word_topic_count[t]), count_type(0));
+        const double n_t  =
+          std::max(count_type(GLOBAL_TOPIC_COUNT[t]), count_type(0));
         prob[t] = (ALPHA + n_dt) * (BETA + n_wt) / (BETA * NWORDS + n_t);
       }
       asg = graphlab::random::multinomial(prob);
       // asg = std::max_element(prob.begin(), prob.end()) - prob.begin();
       ++doc_topic_count[asg];
-      ++word_topic_count[asg];                    
+      ++word_topic_count[asg];
       ++GLOBAL_TOPIC_COUNT[asg];
       if(asg != old_asg) {
         ++edge.data().nchanges;
@@ -145,10 +145,10 @@ typedef likelihood_aggregator<icontext_type> likelihood_agg;
 
 
 
-std::pair<std::string, std::string> 
+std::pair<std::string, std::string>
 word_cloud_callback(std::map<std::string, std::string>& varmap) {
   TOP_WORDS_JSON_LOCK.lock();
-  const std::pair<std::string, std::string> 
+  const std::pair<std::string, std::string>
     pair("text/html",TOP_WORDS_JSON);
   TOP_WORDS_JSON_LOCK.unlock();
   return pair;
@@ -167,9 +167,9 @@ int main(int argc, char** argv) {
   ADD_CUMULATIVE_EVENT(TOKEN_CHANGES, "Token Changes", "Changes");
 
   // Parse command line options -----------------------------------------------
-  const std::string description = 
+  const std::string description =
     "\n=========================================================================\n"
-    "The fast Collapsed Gibbs Sampler for the LDA model implements\n" 
+    "The fast Collapsed Gibbs Sampler for the LDA model implements\n"
     "a highly asynchronous version of parallel LDA in which document\n"
     "and word counts are maintained in an eventually consistent\n"
     "manner.\n"
@@ -177,17 +177,21 @@ int main(int argc, char** argv) {
     "The standard usage is: \n"
     "\t./fast_cgs_lda --dictionary dictionary.txt --matrix doc_word_count.tsv\n"
     "where dictionary.txt contains: \n"
-    "\taaa \n\taaai \n\tabalone \n\t   ... \n\n"
+    "\taaa \n\taaai \n\tabalone \n\t   ... \n"
+    "each line number corresponds to wordid (i.e aaa has wordid=0)\n\n"
     "and doc_word_count.tsv is formatted <docid> <wordid> <count>:\n"
+    "(where wordid is indexed starting from zero and docid are positive integers)\n"
     "\t0\t0\t3\n"
     "\t0\t5\t1\n"
     "\t ...\n\n"
+    "For JSON format, make sure docid are negative integers index starting from -2 \n\n"
     "To learn more about the NLP package and its applications visit\n\n"
     "\t\t http://graphlab.org \n\n"
     "Additional Options";
   graphlab::command_line_options clopts(description);
-  std::string matrix_dir; 
+  std::string matrix_dir;
   std::string dictionary_fname;
+  bool loadjson = false;
   clopts.attach_option("dictionary", &dictionary_fname, dictionary_fname,
                        "The file containing the list of unique words");
   clopts.add_positional("dictionary");
@@ -198,7 +202,7 @@ int main(int argc, char** argv) {
                        "Number of topics to use.");
   clopts.attach_option("alpha", &ALPHA, ALPHA,
                        "The document hyper-prior");
-  clopts.attach_option("beta", &BETA, BETA,                       
+  clopts.attach_option("beta", &BETA, BETA,
                        "The word hyper-prior");
   clopts.attach_option("topk", &TOPK, TOPK,
                        "The number of words to report");
@@ -206,6 +210,8 @@ int main(int argc, char** argv) {
                        "statistics reporting interval");
   clopts.attach_option("max_count", &MAX_COUNT, MAX_COUNT,
                        "The maximum number of occurences of a word in a document.");
+  clopts.attach_option("loadjson",&loadjson,loadjson,
+                       "Boolean if parsing JSON (matrix arg is a dir or a gzip file)");
 
   if(!clopts.parse(argc, argv)) {
     graphlab::mpi_tools::finalize();
@@ -229,15 +235,15 @@ int main(int argc, char** argv) {
 
   ///! Initialize global variables
   GLOBAL_TOPIC_COUNT.resize(NTOPICS);
-  bool success = load_dictionary(dictionary_fname); 
+  bool success = load_dictionary(dictionary_fname);
   if(!success) {
     logstream(LOG_ERROR) << "Error loading dictionary." << std::endl;
     return EXIT_FAILURE;
   }
-  
+
   ///! load the graph
-  graph_type graph(dc, clopts);  
-  success = load_and_initialize_graph(dc, graph, matrix_dir);
+  graph_type graph(dc, clopts);
+  success = load_and_initialize_graph(dc, graph, matrix_dir,loadjson);
   if(!success) {
     logstream(LOG_ERROR) << "Error loading graph." << std::endl;
     return EXIT_FAILURE;
@@ -248,20 +254,20 @@ int main(int argc, char** argv) {
   dc.cout() << "Total tokens: " << ntokens << std::endl;
 
 
-  
+
   engine_type engine(dc, graph, clopts, "asynchronous");
   ///! Add an aggregator
-  success = 
+  success =
     engine.add_vertex_aggregator<topk_type>
     ("topk", topk_type::map, topk_type::finalize) &&
     engine.aggregate_periodic("topk", INTERVAL);
   ASSERT_TRUE(success);
-  success = 
+  success =
     engine.add_vertex_aggregator<factor_type>
     ("global_counts", global_counts_agg::map, global_counts_agg::finalize) &&
     engine.aggregate_periodic("global_counts", 5);
   ASSERT_TRUE(success);
-  // success = 
+  // success =
   //   engine.add_vertex_aggregator<likelihood_agg>
   //   ("likelihood", likelihood_agg::map, likelihood_agg::finalize) &&
   //   engine.aggregate_periodic("likelihood", 10);
@@ -272,17 +278,17 @@ int main(int argc, char** argv) {
   dc.cout() << "Running The Collapsed Gibbs Sampler" << std::endl;
   engine.map_reduce_vertices<graphlab::empty>(signal_only::docs);
   graphlab::timer timer;
-  engine.start();  
+  engine.start();
   const double runtime = timer.current_time();
-    dc.cout() 
+    dc.cout()
     << "----------------------------------------------------------" << std::endl
-    << "Final Runtime (seconds):   " << runtime 
+    << "Final Runtime (seconds):   " << runtime
     << std::endl
     << "Updates executed: " << engine.num_updates() << std::endl
-    << "Update Rate (updates/second): " 
+    << "Update Rate (updates/second): "
     << engine.num_updates() / runtime << std::endl;
 
-    
+
   graphlab::stop_metric_server_on_eof();
   graphlab::mpi_tools::finalize();
   return EXIT_SUCCESS;
