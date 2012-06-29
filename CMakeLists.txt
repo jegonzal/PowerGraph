@@ -226,7 +226,8 @@ ExternalProject_Add(libjpeg
 # v8 ======================================================================
 ExternalProject_Add(libv8
   PREFIX ${GraphLab_SOURCE_DIR}/deps/libv8
-  GIT_REPOSITORY git://github.com/v8/v8.git
+  URL http://graphlab.org/deps/v8.tar.bz2
+  URL_MD5 a2fbd4f67c54875d08139e91726b7b46
   BUILD_IN_SOURCE 1
   INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local
   CONFIGURE_COMMAND make dependencies
