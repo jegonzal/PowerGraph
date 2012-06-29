@@ -26,7 +26,17 @@
 #include <sstream>
 #include <iostream>
 #include <vector>
+
+#if defined(__clang) || (defined(__GNUC__) && (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 6)))
+#pragma GCC diagnostic push
+#endif
+
+#pragma GCC diagnostic ignored "-Wreorder"
 #include <libjson/libjson.h>
+
+#if defined(__clang) || (defined(__GNUC__) && (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 6)))
+#pragma GCC diagnostic pop
+#endif
 
 #include <boost/functional.hpp>
 #include <graphlab/util/stl_util.hpp>

@@ -36,9 +36,10 @@
 
 #include <Eigen/Dense>
 
+#include <cv.h>
+#include <highgui.h>  
 
-#include <Magick++.h> 
-#undef restrict
+
 
 #include <graphlab.hpp>
 
@@ -895,31 +896,29 @@ std::pair<int,int> ind2sub(size_t rows, size_t cols,
 /**
  * Saving an image as a pgm file.
  */
+
 void save_image(const size_t rows, const size_t cols,
                 const std::set<pred_pair_type>& values,
                 const std::string& fname) {
-    using namespace Magick;
-    std::cout << "NPixels: " << values.size() << std::endl;
-    // determine the max and min colors
-    float max_color = -std::numeric_limits<float>::max();
-    float min_color =  std::numeric_limits<float>::max();
-    foreach(pred_pair_type pair, values) {
-        max_color = std::max(max_color, pair.second);
-        min_color = std::min(min_color, pair.second);
-    }
-    
-    Image img(Magick::Geometry(rows, cols), "white");
-    // img.modifyImage();
-    // Pixels img_cache(img);
-    // PixelPackets* pixels = img_cache.
-    foreach(pred_pair_type pair, values) {
-        std::pair<int,int> coords = ind2sub(rows,cols, pair.first);
-        float value = (pair.second - min_color) / (max_color - min_color);
-        Color color(MaxRGB * value, MaxRGB * value, MaxRGB * value, 0);
-        img.pixelColor(coords.second, coords.first, color);
-    }
-    img.write(fname);  
-} // end of save_image
+  std::cout << "NPixels: " << values.size() << std::endl;
+  // determine the max and min colors
+  float max_color = -std::numeric_limits<float>::max();
+  float min_color =  std::numeric_limits<float>::max();
+  foreach(pred_pair_type pair, values) {
+    max_color = std::max(max_color, pair.second);
+    min_color = std::min(min_color, pair.second);
+  }
+
+  cv::Mat img(cols, rows, CV_8UC1);
+  foreach(pred_pair_type pair, values) {
+    std::pair<int,int> coords = ind2sub(rows,cols, pair.first);
+    float value = (pair.second - min_color) / (max_color - min_color);
+    int color = 255 * value > 255 ? 255 : 255 * value;
+    img.at<unsigned char>(coords.first, coords.second) = color;
+  }
+  cv::imwrite(fname, img);
+}
+
 
 
 
