@@ -252,10 +252,13 @@ ExternalProject_Add(cvv8
   rsync -acC <SOURCE_DIR>/include/cvv8/ <INSTALL_DIR>/include/cvv8)
 
 macro(requires_v8 NAME)
-  get_target_property(${NAME}_INCLUDE ${NAME} INCLUDE_DIRECTORIES)
-  set(${NAME}_INCLUDE ${${NAME}_INCLUDE} ${CMAKE_SOURCE_DIR}/deps/local/include/v8)
-  set_target_properties(${NAME} PROPERTIES INCLUDE_DIRECTORIES "${${NAME}_INCLUDE}")
- 
+  get_target_property(tmp ${NAME} COMPILE_FLAGS)
+  if (NOT tmp)
+  set(tmp "-I${CMAKE_SOURCE_DIR}/deps/local/include/v8")
+  else()
+  set(tmp "${tmp} -I${CMAKE_SOURCE_DIR}/deps/local/include/v8")
+  endif()
+  set_target_properties(${NAME} PROPERTIES COMPILE_FLAGS "${tmp}")
   target_link_libraries(${NAME} v8_base v8_snapshot)
   add_dependencies(${NAME} libv8 cvv8)
 endmacro(requires_v8)
@@ -312,14 +315,18 @@ ExternalProject_Add(opencv
   # URL_MD5 010b63a2542c4ec4918c8cb431c00356
   PATCH_COMMAND patch -p0 cmake/OpenCVModule.cmake < ${GraphLab_SOURCE_DIR}/patches/opencv_apple_rpath.patch
   CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>
-  -DBUILD_TESTS=OFF -DBUILD_PERF_TESTS=OFF -DBUILD_PACKAGE=OFF -DBUILD_EXAMPLES=OFF -DOPENCV_BUILD_3RDPARTY_LIBS=OFF -DBUILD_SHARED_LIBS=ON -DBUILD_DOCS=OFF -DBUILD_JPEG=ON -DCMAKE_INCLUDE_PATH=${GraphLab_SOURCE_DIR}/deps/local/include -DWITH_CUBLAS=OFF -DWITH_1394=OFF -DWITH_AVFOUNDATION=OFF -DWITH_CUDA=OFF -DWITH_CUFFT=OFF -DWITH_FFMPEG=OFF -DWITH_GSTREAMER=OFF -DWITH_GTK=OFF -DWITH_QUICKTIME=OFF -DWITH_VIDEOINPUT=OFF -DWITH_XIMEA=OFF -DWITH_XINE=OFF -DWITH_V4L=OFF -DWITH_UNICAP=OFF -DWITH_QT=OFF -DCMAKE_LIBRARY_PATH=${GraphLab_SOURCE_DIR}/deps/local/lib -DENABLE_PRECOMPILED_HEADERS=OFF
+  -DBUILD_TESTS=OFF -DBUILD_PERF_TESTS=OFF -DBUILD_PACKAGE=OFF -DBUILD_EXAMPLES=OFF -DOPENCV_BUILD_3RDPARTY_LIBS=ON -DBUILD_SHARED_LIBS=ON -DBUILD_DOCS=OFF -DBUILD_JPEG=ON -DCMAKE_INCLUDE_PATH=${GraphLab_SOURCE_DIR}/deps/local/include -DWITH_CUBLAS=OFF -DWITH_1394=OFF -DWITH_AVFOUNDATION=OFF -DWITH_CUDA=OFF -DWITH_CUFFT=OFF -DWITH_FFMPEG=OFF -DWITH_GSTREAMER=OFF -DWITH_GTK=OFF -DWITH_QUICKTIME=OFF -DWITH_VIDEOINPUT=OFF -DWITH_XIMEA=OFF -DWITH_XINE=OFF -DWITH_V4L=OFF -DWITH_UNICAP=OFF -DWITH_QT=OFF -DWITH_JASPER=NO -DWITH_TIFF=NO -DCMAKE_LIBRARY_PATH=${GraphLab_SOURCE_DIR}/deps/local/lib
   INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local)
 
 
 macro(requires_opencv NAME)
-  get_target_property(${NAME}_INCLUDE ${NAME} INCLUDE_DIRECTORIES)
-  set(${NAME}_INCLUDE ${${NAME}_INCLUDE} ${CMAKE_SOURCE_DIR}/deps/local/include/opencv)
-  set_target_properties(${NAME} PROPERTIES INCLUDE_DIRECTORIES "${${NAME}_INCLUDE}")
+  get_target_property(tmp ${NAME} COMPILE_FLAGS)
+  if (NOT tmp) 
+    set(tmp "-I${CMAKE_SOURCE_DIR}/deps/local/include/opencv")
+  else()
+    set(tmp "${tmp} -I${CMAKE_SOURCE_DIR}/deps/local/include/opencv")
+  endif()
+  set_target_properties(${NAME} PROPERTIES COMPILE_FLAGS "${tmp}")
   target_link_libraries(${NAME} opencv_core opencv_imgproc opencv_calib3d opencv_video opencv_features2d opencv_ml opencv_highgui opencv_objdetect opencv_contrib opencv_legacy opencv_contrib opencv_stitching)
   add_dependencies(${NAME} opencv)
 endmacro(requires_opencv)
