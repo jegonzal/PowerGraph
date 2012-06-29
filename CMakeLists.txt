@@ -244,6 +244,7 @@ ExternalProject_Add(cvv8
   BUILD_IN_SOURCE 1
   INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local
   CONFIGURE_COMMAND ""
+  UPDATE_COMMAND ""
   BUILD_COMMAND ""
   INSTALL_COMMAND
   rsync -acC <SOURCE_DIR>/include/cvv8/ <INSTALL_DIR>/include/cvv8)

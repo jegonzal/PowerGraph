@@ -64,13 +64,20 @@
 #include <graphlab/util/random.hpp>
 #include <graphlab/util/generics/shuffle.hpp>
 #include <graphlab/graph/graph_basic_types.hpp>
-#include <graphlab/graph/json_parser.hpp>
+
 
 #include <graphlab/parallel/atomic.hpp>
 
 #include <graphlab/macros_def.hpp>
 
 namespace graphlab {
+
+
+ 
+  template<typename VertexData, typename EdgeData>
+  class json_parser;
+
+
 
   template<typename VertexData, typename EdgeData>
   class graph_storage {
