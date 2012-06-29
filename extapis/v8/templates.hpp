@@ -28,6 +28,7 @@ namespace graphlab {
     static v8::Handle<v8::Value> get_vertex_data(v8::Local<v8::String> property, const v8::AccessorInfo &info);
     static void set_vertex_data(v8::Local<v8::String> property, v8::Local<v8::Value> value, const v8::AccessorInfo& info);
     static v8::Handle<v8::Value> get_vertex_num_out_edges(v8::Local<v8::String> property, const v8::AccessorInfo &info);
+    static v8::Handle<v8::Value> get_vertex_id(v8::Local<v8::String> property, const v8::AccessorInfo &info);
     static v8::Handle<v8::Value> get_edge_source(v8::Local<v8::String> property, const v8::AccessorInfo &info);
     static v8::Handle<v8::Value> get_edge_target(v8::Local<v8::String> property, const v8::AccessorInfo &info);
   private:

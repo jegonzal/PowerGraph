@@ -20,6 +20,11 @@ void pilot::load_graph(const std::string &path, const std::string &format){
   graph.finalize();
 }
 
+void pilot::load_synthetic_powerlaw(size_t powerlaw){
+  graph.load_synthetic_powerlaw(powerlaw);
+  graph.finalize();
+}
+
 /**
  * Takes a javascript constructor to create vertex programs.
  */
@@ -60,15 +65,20 @@ templates &pilot::get_templates(){ return templs; }
 
 /////////////////////////// JS_PROXY //////////////////////////////
 
-js_proxy::js_proxy() : jsobj() {
+js_proxy::js_proxy() : jsobj(){
   // TODO deal with multi-threaded environments
+  Context::Scope context_scope(get_v8context());
   HandleScope handle_scope;
-  Local<Object> obj = Object::Cast(*constructor->Call(constructor, 0, NULL));
-  jsobj = Persistent<Object>::New(obj);
+  jsobj = Persistent<Object>::New(constructor->NewInstance());
+}
+
+js_proxy::~js_proxy(){
+  jsobj.Dispose();
 }
 
 pilot::gather_type js_proxy::gather(icontext_type& context, const vertex_type& vertex, edge_type& edge) const {
   // TODO
+  Context::Scope context_scope(get_v8context());
   HandleScope handle_scope;
   Local<Function> f = Function::Cast(*jsobj->Get(JSTR("gather")));
   Handle<Value> ret = cv::CallForwarder<2>::Call(jsobj, f, vertex, edge);
@@ -77,6 +87,7 @@ pilot::gather_type js_proxy::gather(icontext_type& context, const vertex_type& v
 
 void js_proxy::apply(icontext_type& context, vertex_type& vertex, const gather_type& total){
   // TODO
+  Context::Scope context_scope(get_v8context());
   HandleScope handle_scope;
   Local<Function> f = Function::Cast(*jsobj->Get(JSTR("apply")));
   cv::CallForwarder<2>::Call(jsobj, f, vertex, total);
@@ -84,15 +95,17 @@ void js_proxy::apply(icontext_type& context, vertex_type& vertex, const gather_t
 
 edge_dir_type js_proxy::scatter_edges(icontext_type& context, const vertex_type& vertex) const {
   // TODO
+  Context::Scope context_scope(get_v8context());
   HandleScope handle_scope;
   Local<Function> f = Function::Cast(*jsobj->Get(JSTR("scatter_edges")));
-  int n = cv::CastFromJS<int>(cv::CallForwarder<1>::Call(jsobj, f, vertex));
+  int32_t n = cv::CastFromJS<int32_t>(cv::CallForwarder<1>::Call(jsobj, f, vertex));
   // TODO push edge_dir_type as a JS variable?
   return static_cast<edge_dir_type>(n);
 }
 
 void js_proxy::scatter(icontext_type& context, const vertex_type& vertex, edge_type& edge) const {
   // TODO
+  Context::Scope context_scope(get_v8context());
   HandleScope handle_scope;
   Local<Function> f = Function::Cast(*jsobj->Get(JSTR("scatter")));
   Handle<Value> args[] = {
@@ -104,11 +117,31 @@ void js_proxy::scatter(icontext_type& context, const vertex_type& vertex, edge_t
 /////////////////////////// STATIC ////////////////////////////////
 
 Persistent<Function> js_proxy::constructor;
+const size_t js_proxy::V8_ID = 4;
 
 void js_proxy::set_ctor(const Handle<Function> &ctor){
   // TODO: worry about memory management (should dispose?)
   HandleScope handle_scope;
   constructor  = Persistent<Function>::New(ctor);
+}
+
+Persistent<Context> &js_proxy::get_v8context(){
+       
+  if (!thread::contains(V8_ID)) {
+    // create context
+    thread::get_local(V8_ID) = Context::New();
+    thread::set_thread_destroy_callback(detach_v8context);   
+  }
+  
+  // return the process associated with the current thread
+  return thread::get_local(V8_ID).as< Persistent<Context> >();
+  
+}
+
+void js_proxy::detach_v8context(){
+  if (!thread::contains(V8_ID)) return; // nothing to do
+  Persistent<Context> &context =  thread::get_local(V8_ID).as< Persistent<Context> >();
+  if(!context.IsEmpty()) context.Dispose();
 }
 
 //////////////////////// JS_FUNCTOR ///////////////////////////////
@@ -167,6 +200,9 @@ namespace cvv8 {
         ("loadGraph", 
           MethodToInCa<pilot, void (const std::string&, const std::string&),
             &pilot::load_graph>::Call)
+        ("loadSyntheticPowerlaw",
+          MethodToInCa<pilot, void (size_t),
+            &pilot::load_synthetic_powerlaw>::Call)
         ("transformVertices",
           MethodToInCa<pilot, void (const Handle<Function> &),
             &pilot::transform_vertices>::Call)

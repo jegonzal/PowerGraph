@@ -18,6 +18,7 @@ void templates::expose_vertex_type(){
   vertex_templ->SetInternalFieldCount(2);
   vertex_templ->SetAccessor(JSTR("data"), templates::get_vertex_data, templates::set_vertex_data);
   vertex_templ->SetAccessor(JSTR("num_out_edges"), templates::get_vertex_num_out_edges);
+  vertex_templ->SetAccessor(JSTR("id"), templates::get_vertex_id);
   // TODO add other getters
 }
 
@@ -56,6 +57,11 @@ void templates::set_vertex_data(Local<String> property, Local<Value> value, cons
 Handle<Value> templates::get_vertex_num_out_edges(Local<String> property, const AccessorInfo &info){
   const Handle<Value> &h = info.Holder();
   return cv::CastToJS(cv::JSToNative<cv::vertex_type>()(h).num_out_edges());
+}
+
+Handle<Value> templates::get_vertex_id(Local<String> property, const AccessorInfo &info){
+  const Handle<Value> &h = info.Holder();
+  return cv::CastToJS(cv::JSToNative<pilot::graph_type::vertex_type>()(h).id());
 }
 
 // TODO: convert to method invocation

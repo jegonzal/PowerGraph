@@ -90,6 +90,7 @@ public:
     double newval = total + RESET_PROB;
     last_change = std::fabs(newval - vertex.data());
     vertex.data() = newval;
+    if (0 == vertex.id()) logstream(LOG_EMPH) << newval << std::endl;
   }
   
   /* The scatter edges depend on whether the pagerank has converged */
