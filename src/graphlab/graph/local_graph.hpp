@@ -44,7 +44,7 @@
 #include <boost/iterator/transform_iterator.hpp>
 
 #include <graphlab/graph/graph_basic_types.hpp>
-#include <graphlab/graph/json_parser.hpp>
+
 #include <graphlab/logger/logger.hpp>
 #include <graphlab/logger/assertions.hpp>
 
@@ -55,7 +55,13 @@
 #include <graphlab/graph/graph_storage.hpp>
 #include <graphlab/macros_def.hpp>
 
+
+
 namespace graphlab { 
+
+
+  template<typename VertexData, typename EdgeData>
+  class json_parser;
 
   template<typename VertexData, typename EdgeData>
   class local_graph {
