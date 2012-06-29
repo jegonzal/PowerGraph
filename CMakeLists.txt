@@ -300,10 +300,10 @@ endmacro(requires_v8)
 #include_directories(${GraphLab_SOURCE_DIR}/deps/local/include/ImageMagick)
 #add_dependencies(imagemagick libjpeg)
 
-macro(requires_imagemagick NAME)
+# macro(requires_imagemagick NAME)
 #  target_link_libraries(${NAME} Magick++ jpeg)
 #  add_dependencies(${NAME} imagemagick libjpeg)
-endmacro(requires_imagemagick)
+# endmacro(requires_imagemagick)
 
 # OpenCV =================================================================
 ExternalProject_Add(opencv
