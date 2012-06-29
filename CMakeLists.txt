@@ -361,10 +361,12 @@ ExternalProject_Add(libjson
 # JNI =========================================================================
 # We use JNI for jvm interfacing and for hdfs support.  We currently only 
 # detect the presence of java and do not install our own version. 
-find_package(Java)
-find_package(JNI)
 
 if(NOT NO_JAVAC)
+  find_package(Java)
+  find_package(JNI)
+
+
   if((EXISTS ${JAVA_INCLUDE_PATH}/jni.h))
     set(JNI_REALLY_FOUND 1 CACHE BOOL "Tests whether the header actually exists")
     message(STATUS "jni.h was found at " ${JAVA_INCLUDE_PATH}/jni.h)
@@ -382,31 +384,36 @@ if(NOT NO_JAVAC)
     set(JNI_REALLY_FOUND 0 CACHE BOOL "Tests whether the header actually exists")
     message(STATUS "jni.h was not found at " ${JAVA_INCLUDE_PATH}/jni.h)
   endif( )
+
+  # Ant =========================================================================
+  # Ant is used to build the graphlab JVM interface
+  find_package(Ant)
+
+  # LibHDFS ===================================================================== 
+  # If JNI is found we install libhdfs which allows programs to read and write
+  # to hdfs filesystems
+  if( JNI_REALLY_FOUND )
+    message(STATUS "Building libhdfs")
+    ExternalProject_Add(hadoop
+      PREFIX ${GraphLab_SOURCE_DIR}/deps/hadoop
+      URL http://www.gtlib.gatech.edu/pub/apache/hadoop/common/hadoop-1.0.1/hadoop-1.0.1.tar.gz
+      URL_MD5 e627d9b688c4de03cba8313bd0bba148
+      UPDATE_COMMAND chmod +x <SOURCE_DIR>/src/c++/libhdfs/install-sh <SOURCE_DIR>/src/c++/libhdfs/configure
+      PATCH_COMMAND patch -p1 < ${GraphLab_SOURCE_DIR}/patches/libhdfs-compile-osx.patch
+      BUILD_IN_SOURCE 1
+      CONFIGURE_COMMAND <SOURCE_DIR>/src/c++/libhdfs/configure JVM_ARCH=tune=i686 --prefix=<INSTALL_DIR> --with-java=${JAVA_HOME}
+      INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local
+      TEST_COMMAND bash -c "mkdir -p <INSTALL_DIR>/include && cp <SOURCE_DIR>/src/c++/libhdfs/hdfs.h <INSTALL_DIR>/include")
+    set(HADOOP_FOUND 1 CACHE BOOL "Hadoop was found")
+    add_definitions(-DHAS_HADOOP)
+    # link_libraries(hdfs ${JAVA_JVM_LIBRARY})
+  endif( JNI_REALLY_FOUND )
+
+
+
 endif()
 
-# Ant =========================================================================
-# Ant is used to build the graphlab JVM interface
-find_package(Ant)
 
-# LibHDFS =====================================================================
-# If JNI is found we install libhdfs which allows programs to read and write
-# to hdfs filesystems
-if( JNI_REALLY_FOUND )
-  message(STATUS "Building libhdfs")
-  ExternalProject_Add(hadoop
-    PREFIX ${GraphLab_SOURCE_DIR}/deps/hadoop
-    URL http://www.gtlib.gatech.edu/pub/apache/hadoop/common/hadoop-1.0.1/hadoop-1.0.1.tar.gz
-    URL_MD5 e627d9b688c4de03cba8313bd0bba148
-    UPDATE_COMMAND chmod +x <SOURCE_DIR>/src/c++/libhdfs/install-sh <SOURCE_DIR>/src/c++/libhdfs/configure
-    PATCH_COMMAND patch -p1 < ${GraphLab_SOURCE_DIR}/patches/libhdfs-compile-osx.patch
-    BUILD_IN_SOURCE 1
-    CONFIGURE_COMMAND <SOURCE_DIR>/src/c++/libhdfs/configure JVM_ARCH=tune=i686 --prefix=<INSTALL_DIR> --with-java=${JAVA_HOME}
-    INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local
-    TEST_COMMAND bash -c "mkdir -p <INSTALL_DIR>/include && cp <SOURCE_DIR>/src/c++/libhdfs/hdfs.h <INSTALL_DIR>/include")
-  set(HADOOP_FOUND 1 CACHE BOOL "Hadoop was found")
-  add_definitions(-DHAS_HADOOP)
-  # link_libraries(hdfs ${JAVA_JVM_LIBRARY})
-endif( JNI_REALLY_FOUND )
 
 # MPI =========================================================================
 # MPI is currently used to establish communication between rpc nodes
