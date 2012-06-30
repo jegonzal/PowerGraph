@@ -233,7 +233,7 @@ ExternalProject_Add(libv8
   URL_MD5 089955a7a968247cd2be4d368037f41e
   BUILD_IN_SOURCE 1
   INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local
-  CONFIGURE_COMMAND make dependencies
+ # CONFIGURE_COMMAND make dependencies
   UPDATE_COMMAND "" # Disable updates
   BUILD_COMMAND make native 
   INSTALL_COMMAND sh -c 
