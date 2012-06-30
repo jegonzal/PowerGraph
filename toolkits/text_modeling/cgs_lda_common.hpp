@@ -26,16 +26,12 @@
 #include <vector>
 #include <algorithm>
 #include <graphlab/parallel/atomic.hpp>
-#include <graphlab.hpp>
+
 
 // Global Types
 // ============================================================================
-
 typedef int count_type;
 
-typedef uint16_t topic_id_type;
-
-#define NULL_TOPIC (topic_id_type(-1))
 
 /**
  * \brief The factor type is used to store the counts of tokens in
@@ -65,12 +61,11 @@ inline factor_type& operator+=(factor_type& lvalue,
   return lvalue;
 } // end of operator +=
 
-
-
+typedef uint16_t topic_id_type;
+#define NULL_TOPIC (topic_id_type(-1))
 
 
 #include <graphlab.hpp>
-
 #include <graphlab/macros_def.hpp>
 
 
