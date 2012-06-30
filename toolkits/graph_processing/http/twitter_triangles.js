@@ -22,6 +22,7 @@ function update_domain(form) {
 function refresh() {
     get_top_users();
     reloadStylesheets();
+    render_page();
 }
 
 // Start the rendering of the UI
