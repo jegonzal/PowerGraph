@@ -230,7 +230,7 @@ if(EXPERIMENTAL)
 ExternalProject_Add(libv8
   PREFIX ${GraphLab_SOURCE_DIR}/deps/libv8
   URL http://graphlab.org/deps/v8.tar.bz2
-  URL_MD5 198a82d38a549c14c857781b6a72f2a3
+  URL_MD5 089955a7a968247cd2be4d368037f41e
   BUILD_IN_SOURCE 1
   INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local
   CONFIGURE_COMMAND make dependencies
