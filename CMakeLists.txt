@@ -227,7 +227,7 @@ ExternalProject_Add(libjpeg
 ExternalProject_Add(libv8
   PREFIX ${GraphLab_SOURCE_DIR}/deps/libv8
   URL http://graphlab.org/deps/v8.tar.bz2
-  URL_MD5 a2fbd4f67c54875d08139e91726b7b46
+  URL_MD5 198a82d38a549c14c857781b6a72f2a3
   BUILD_IN_SOURCE 1
   INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local
   CONFIGURE_COMMAND make dependencies
@@ -241,7 +241,8 @@ ExternalProject_Add(libv8
 
 ExternalProject_Add(cvv8
   PREFIX ${GraphLab_SOURCE_DIR}/deps/cvv8
-  SVN_REPOSITORY http://v8-juice.googlecode.com/svn/convert
+  URL http://graphlab.org/deps/v8-convert.tar.bz2
+  URL_MD5 443bc3cdf7ed724f7def81b6b779b5c2
   BUILD_IN_SOURCE 1
   INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local
   CONFIGURE_COMMAND ""
