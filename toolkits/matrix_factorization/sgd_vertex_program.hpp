@@ -218,10 +218,10 @@ public:
   } // end of constructor for gather type
 
   /** \brief Save the values to a binary archive */
-  void save(graphlab::oarchive& arc) const { arc << pvec << rmse; }
+  void save(graphlab::oarchive& arc) const { arc << pvec << rmse << edges; }
 
   /** \brief Read the values from a binary archive */
-  void load(graphlab::iarchive& arc) { arc >> pvec >> rmse; }  
+  void load(graphlab::iarchive& arc) { arc >> pvec >> rmse >> edges; }  
 
   /** 
    * \brief Computes XtX += other.XtX and Xy += other.Xy updating this
@@ -251,8 +251,7 @@ typedef vec_type message_type;
  */ 
 class sgd_vertex_program : 
   public graphlab::ivertex_program<graph_type, gather_type,
-                                   message_type>,
-  public graphlab::IS_POD_TYPE {
+                                   message_type> {
 public:
   /** The convergence tolerance */
   static double TOLERANCE;
@@ -291,8 +290,9 @@ public:
       const float err = (edge.data().obs - pred);
       assert(!std::isnan(err));
       if (edge.data().role == edge_data::TRAIN){
-        delta = GAMMA*(err*vertex.data().pvec - LAMBDA*other_vertex.data().pvec);
-        other_delta = GAMMA*(err*other_vertex.data().pvec - LAMBDA*vertex.data().pvec);
+        delta = GAMMA*(err*other_vertex.data().pvec - LAMBDA*vertex.data().pvec);
+        other_delta = GAMMA*(err*vertex.data().pvec - LAMBDA*other_vertex.data().pvec);
+        other_vertex.data().pvec += other_delta;
         if(other_vertex.data().nupdates < MAX_UPDATES) 
           context.signal(other_vertex, other_delta);
        }
@@ -326,9 +326,9 @@ public:
     //vdata.pvec = XtX.selfadjointView<Eigen::Upper>().ldlt().solve(Xy);
     // Compute the residual change in the pvec pvec -----------------------
     //vdata.residual = (vdata.pvec - old_pvec).cwiseAbs().sum() / XtX.rows();
-    if (vertex.num_in_edges() == 0 && sum.pvec.size() > 0)
+    if (sum.pvec.size() > 0)
       vdata.pvec += sum.pvec;
-    else if (vertex.num_in_edges() > 0 && vdata.pvec.size() > 0)
+    if (pmsg.size() > 0)
       vdata.pvec += pmsg;
     ++vdata.nupdates;
   } // end of apply
@@ -360,7 +360,7 @@ public:
    */
   static graphlab::empty signal_left(icontext_type& context,
                                      vertex_type& vertex) {
-    if(vertex.num_out_edges() > 0) context.signal(vertex);
+    if(vertex.num_out_edges() > 0) context.signal(vertex, vec_type::Zero(vertex_data::NLATENT));
     return graphlab::empty();
   } // end of signal_left 
 
