@@ -83,8 +83,6 @@ namespace graphlab {
   class js_proxy :
   public ivertex_program<pilot::graph_type, pilot::gather_type>,
   public IS_POD_TYPE {
-    
-    static const size_t V8_ID;
 
     double last_change;
     v8::Persistent<v8::Object> jsobj;
@@ -95,11 +93,12 @@ namespace graphlab {
     static v8::Persistent<v8::Function> constructor;
 
     static void set_ctor(const v8::Handle<v8::Function> &ctor);
-    static v8::Persistent<v8::Context> &get_v8context();
-    static void detach_v8context();
 
     js_proxy();
     virtual ~js_proxy();
+
+    js_proxy(const js_proxy& other);
+    js_proxy &operator=(const js_proxy& other);
 
     pilot::gather_type gather(icontext_type& context, const vertex_type& vertex, edge_type& edge) const; 
     void apply(icontext_type& context, vertex_type& vertex, const gather_type& total);

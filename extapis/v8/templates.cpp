@@ -45,8 +45,9 @@ void templates::expose_context_type(){
 }
 
 Handle<Value> templates::get_vertex_data(Local<String> property, const AccessorInfo &info) {
+  HandleScope handle_scope;
   const Handle<Value> &h = info.Holder();
-  return cv::CastToJS(cv::JSToNative<cv::vertex_type>()(h).data());
+  return handle_scope.Close(cv::CastToJS(cv::JSToNative<cv::vertex_type>()(h).data()));
 }
 
 void templates::set_vertex_data(Local<String> property, Local<Value> value, const AccessorInfo& info){
@@ -55,31 +56,37 @@ void templates::set_vertex_data(Local<String> property, Local<Value> value, cons
 }
 
 Handle<Value> templates::get_vertex_num_out_edges(Local<String> property, const AccessorInfo &info){
+  HandleScope handle_scope;
   const Handle<Value> &h = info.Holder();
-  return cv::CastToJS(cv::JSToNative<cv::vertex_type>()(h).num_out_edges());
+  const cv::vertex_type &vertex = cv::CastFromJS<const cv::vertex_type &>(h);
+  return handle_scope.Close(cv::CastToJS(vertex.num_out_edges()));
 }
 
 Handle<Value> templates::get_vertex_id(Local<String> property, const AccessorInfo &info){
+  HandleScope handle_scope;
   const Handle<Value> &h = info.Holder();
-  return cv::CastToJS(cv::JSToNative<pilot::graph_type::vertex_type>()(h).id());
+  const cv::vertex_type &vertex = cv::CastFromJS<const cv::vertex_type &>(h);
+  return handle_scope.Close(cv::CastToJS(vertex.id()));
 }
 
 // TODO: convert to method invocation
 Handle<Value> templates::get_edge_source(Local<String> property, const AccessorInfo &info){
+  HandleScope handle_scope;
   Local<Object> self = info.Holder();
   Local<External> wrap = Local<External>::Cast(self->GetInternalField(0));
   void *ptr = wrap->Value();
   cv::vertex_type vertex = static_cast<cv::edge_type*>(ptr)->source();
-  return cv::CastToJS(vertex);
+  return handle_scope.Close(cv::CastToJS(vertex));
 }
 
 // TODO: convert to method invocation
 Handle<Value> templates::get_edge_target(Local<String> property, const AccessorInfo &info){
+  HandleScope handle_scope;
   Local<Object> self = info.Holder();
   Local<External> wrap = Local<External>::Cast(self->GetInternalField(0));
   void *ptr = wrap->Value();
   cv::vertex_type vertex = static_cast<cv::edge_type*>(ptr)->target();
-  return cv::CastToJS(vertex);
+  return handle_scope.Close(cv::CastToJS(vertex));
 }
 
 namespace cvv8 {
@@ -90,7 +97,7 @@ namespace cvv8 {
   Handle<Value> NativeToJS<vertex_type>::operator()(const vertex_type &vertex){
     Local<Object> v = pilot::get_templates().vertex_templ->NewInstance();
     v->SetInternalField(0, External::New((void *) &vertex.graph_ref));
-    v->SetInternalField(1, cv::CastToJS(vertex.id()));
+    v->SetInternalField(1, cv::CastToJS(vertex.local_id()));
     return v;
   }
 
@@ -109,8 +116,8 @@ namespace cvv8 {
   vertex_type JSToNative<vertex_type>::operator()(const Handle<Value> &h) const {
     const Local<Object> &obj(Object::Cast(*h));
     graph_type *graph = (graph_type *) obj->GetPointerFromInternalField(0);
-    graph_type::vertex_id_type id = CastFromJS<graph_type::vertex_id_type>(obj->GetInternalField(1));
-    return cv::vertex_type(*graph, id);
+    graph_type::lvid_type lvid = CastFromJS<graph_type::lvid_type>(obj->GetInternalField(1));
+    return cv::vertex_type(*graph, lvid);
   }
 
   graphlab::empty JSToNative<const graphlab::empty &>::operator()(const Handle<Value> &h) const {

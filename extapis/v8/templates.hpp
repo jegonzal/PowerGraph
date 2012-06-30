@@ -61,6 +61,9 @@ namespace cvv8 {
     v8::Handle<v8::Value> operator()(const vertex_type &vertex);
   };
 
+  template<>
+  struct NativeToJS<const vertex_type &> : NativeToJS<vertex_type> {};
+
   /**
    * Convenience functor for casting from edge to a JS wrapper.
    * Note that the edge must exist for the lifetime of the returned

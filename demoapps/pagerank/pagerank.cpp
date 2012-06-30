@@ -80,6 +80,8 @@ public:
   /* Gather the weighted rank of the adjacent page   */
   float gather(icontext_type& context, const vertex_type& vertex,
                edge_type& edge) const {
+    if (0 == vertex.id()) logstream(LOG_EMPH) << "vertex 0 w. neighbor " << edge.source().id() << std::endl;
+    if (0 == edge.source().id()) logstream(LOG_EMPH) << "neighbor 0" << std::endl;
     return ((1.0 - RESET_PROB) / edge.source().num_out_edges()) * 
       edge.source().data();
   }
@@ -90,7 +92,7 @@ public:
     double newval = total + RESET_PROB;
     last_change = std::fabs(newval - vertex.data());
     vertex.data() = newval;
-    if (0 == vertex.id()) logstream(LOG_EMPH) << newval << std::endl;
+    if (0 == vertex.id()) logstream(LOG_EMPH) << "vertex 0: " << newval << std::endl;
   }
   
   /* The scatter edges depend on whether the pagerank has converged */
