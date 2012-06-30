@@ -24,7 +24,7 @@
 // this file contains the additional docs.  
 /**
 \defgroup group_schedulers Schedulers
-\defgroup engine Engines
+\defgroup engines GraphLab Engines
 \defgroup util GraphLab Utility Classes and Functions
 \defgroup rpc GraphLab RPC
 \defgroup random Random Number Generators
