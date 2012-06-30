@@ -7,10 +7,9 @@ var domain_str = "";
 var page_str =  "top_users.json";
 
 // jsonp callback required
-var twitter_addr = "http://api.twitter.com/1/users/show.json"
+var twitter_addr = "http://api.twitter.com/1/users/lookup.json"
 
 var current_results = [];
-var users_remaining = 0;
 var user_profiles = {};
 
 function update_domain(form) {
@@ -52,35 +51,44 @@ function get_user_profiles(data) {
         jQuery.each(list.values, function(i, pair) {
             var id = pair[0];
             if(user_profiles[id] == undefined) { 
-                users_remaining++;
                 user_profiles[id] = { queried: false, is_set: false, profile: {} }; 
             }
         });
     });
 
+    var id_list = "";
+    var id_list_len = 0;
     // Grab all _missing_ profiles
     jQuery.each(user_profiles, function(id, obj) {
         console.log(id);
-        var query_str = twitter_addr + "?callback=?"; // &user_id=" + id;
         if(!user_profiles[id].queried) {
-            console.log("Requesting: " + query_str);
+            console.log("Requesting: " + id);
             user_profiles[id].queried = true;
-            jQuery.getJSON(query_str, {user_id: id}, function(data) {
-                user_profiles[id].is_set = true;
-                user_profiles[id].profile = data;
-                render_page();
-            }).error(function() { 
-                console.log("Unable to access " + query_str + " will try again.");
-                // users_remaining--;
-                // if(users_remaining == 0) { render_page(); }
-            }).complete(function() { 
-                users_remaining--;
-                if(users_remaining == 0) { render_page(); }   
-            });
+            id_list += id;
+            id_list_len++;
+            if(id_list_len >= 99) {
+                jQuery.getJSON(twitter_addr + "?callback=?", {user_id: id_list}, process_ids);
+                id = "";
+                id_list_len = 0;
+            } else { id_list += ","; }
         } 
     });
+    if(id_list_len > 0) {
+        jQuery.getJSON(twitter_addr + "?callback=?", {user_id: id_list}, process_ids);
+        id = "";
+        id_list_len = 0;
+    }
 } // end of get user profiles
 
+
+function process_ids(data) {
+    jQuery.each(data, function(i, profile) {
+        var id = profile.id;
+        user_profiles[id].is_set = true;
+        user_profiles[id].profile = profile;
+    });;
+    render_page();
+}
 
 function render_page() {
     var container = $("#results");
