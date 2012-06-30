@@ -343,11 +343,11 @@ endmacro(requires_opencv)
 # zlib  =======================================================================
 # We rely on the zlib library to read gzip compressed files
 # (using boost iostreams).
-check_library_exists(z zlibVersion "" ZLIB_FOUND)
-if (ZLIB_FOUND)
-  add_definitions(-DHAS_ZLIB)
-  link_libraries(z)
-endif()
+# check_library_exists(z zlibVersion "" ZLIB_FOUND)
+# if (ZLIB_FOUND)
+#   add_definitions(-DHAS_ZLIB)
+#   link_libraries(z)
+# endif()
 
 # libevent ====================================================================
 # LibEvent is used in the RPC layer to manage the interaction between the 
@@ -462,6 +462,7 @@ endif(MPI_FOUND)
 macro(requires_core_deps NAME)
   target_link_libraries(${NAME} 
     ${Boost_LIBRARIES}
+    z
     tcmalloc
     event event_pthreads
     json)
