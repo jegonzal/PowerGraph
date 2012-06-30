@@ -84,7 +84,7 @@ fi
 
 ## The defaults can be overwritten be editing the configure.deps file
 if [ -f configure.deps ]; then
-  source configure.deps
+#  source configure.deps
   # We delete the configure deps and then recreate it each time using
   # the original values along with any modifications made by the
   # configure logic.
