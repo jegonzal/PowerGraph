@@ -67,6 +67,7 @@ function get_user_profiles(data) {
             jQuery.getJSON(query_str, {user_id: id}, function(data) {
                 user_profiles[id].is_set = true;
                 user_profiles[id].profile = data;
+                render_page();
             }).error(function() { 
                 console.log("Unable to access " + query_str + " will try again.");
                 // users_remaining--;
