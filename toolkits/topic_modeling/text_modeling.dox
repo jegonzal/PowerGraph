@@ -4,7 +4,10 @@
 
 
 \brief The text modeling toolkit contains a collection of applications
-for clustering and text documents and semantically similar
+targeted at clustering documents and extracting topical
+representations.
+
+ documents and semantically similar
 words. Currently the text modeling toolkit implements a fast
 asynchronous collapsed Gibbs sampler for the LDA (latent dirichlet
 allocation) model however we plan to add additional topic modeling
