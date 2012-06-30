@@ -71,6 +71,18 @@ namespace graphlab {
      */
     typedef typename vertex_program_type::graph_type graph_type;
 
+
+    /**
+     * \brief The user defined type returned by the gather function.
+     *
+     * The gather type is defined in the \ref graphlab::ivertex_program
+     * interface and is the value returned by the
+     * \ref graphlab::ivertex_program::gather function.  The
+     * gather type must have an <code>operator+=(const gather_type&
+     * other)</code> function and must be \ref sec_serializable.
+     */
+    typedef typename VertexProgram::gather_type gather_type;
+
     /**
      * \brief The vertex identifier type defined in 
      * \ref graphlab::vertex_id_type.
