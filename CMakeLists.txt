@@ -226,6 +226,7 @@ add_definitions(-DHAS_TCMALLOC)
 
 
 # v8 ======================================================================
+if(EXPERIMENTAL)
 ExternalProject_Add(libv8
   PREFIX ${GraphLab_SOURCE_DIR}/deps/libv8
   URL http://graphlab.org/deps/v8.tar.bz2
@@ -264,6 +265,10 @@ macro(requires_v8 NAME)
   target_link_libraries(${NAME} v8_base v8_snapshot)
   add_dependencies(${NAME} libv8 cvv8)
 endmacro(requires_v8)
+
+
+endif()
+
 
 # ImageMagick =================================================================
 # # set(imagemagick_configure_cmd
