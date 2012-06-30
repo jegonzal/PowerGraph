@@ -25,6 +25,13 @@
 
 #include <vector>
 #include <algorithm>
+#include <boost/config/warning_disable.hpp>
+#include <boost/spirit/include/qi.hpp>
+#include <boost/spirit/include/phoenix_core.hpp>
+#include <boost/spirit/include/phoenix_operator.hpp>
+#include <boost/spirit/include/phoenix_stl.hpp>
+
+
 #include <graphlab/parallel/atomic.hpp>
 
 
@@ -253,17 +260,24 @@ bool vparser(vertex_data& vd, const std::string& line){
 bool graph_loader(graph_type& graph, const std::string& fname,
                   const std::string& line) {
   ASSERT_FALSE(line.empty());
-  const int BASE = 10;
-  char* next_char_ptr = NULL;
-  graph_type::vertex_id_type doc_id =
-    strtoul(line.c_str(), &next_char_ptr, BASE);
-  if(next_char_ptr == NULL) return false;
-  const graph_type::vertex_id_type word_id =
-    strtoul(next_char_ptr, &next_char_ptr, BASE);
-  if(next_char_ptr == NULL) return false;
-  size_t count =
-    strtoul(next_char_ptr, &next_char_ptr, BASE);
-  if(next_char_ptr == NULL) return false;
+  namespace qi = boost::spirit::qi;
+  namespace ascii = boost::spirit::ascii;
+  namespace phoenix = boost::phoenix;
+
+  graphlab::vertex_id_type doc_id(-1), word_id(-1);
+  size_t count = 0;
+  const bool success = qi::phrase_parse
+    (line.begin(), line.end(),       
+     //  Begin grammar
+     (
+      qi::ulong_[phoenix::ref(doc_id) = qi::_1] >> -qi::char_(',') >>
+      qi::ulong_[phoenix::ref(word_id) = qi::_1] >> -qi::char_(',') >>
+      qi::ulong_[phoenix::ref(count) = qi::_1]
+      )
+     ,
+     //  End grammar
+     ascii::space); 
+  if(!success) return false;  
   // Threshold the count
   count = std::min(count, MAX_COUNT);
   // since this is a bipartite graph I need a method to number the
