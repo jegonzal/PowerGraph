@@ -236,7 +236,7 @@ ExternalProject_Add(libv8
   UPDATE_COMMAND "" # Disable updates
   BUILD_COMMAND make native 
   INSTALL_COMMAND sh -c 
-  "cp -r <SOURCE_DIR>/include <INSTALL_DIR>/include/v8 & cp <SOURCE_DIR>/out/native/*.a <INSTALL_DIR>/lib" )
+  "cp -r <SOURCE_DIR>/include <INSTALL_DIR>/include/v8 & cp <SOURCE_DIR>/out/native/obj.target/tools/gyp/* <INSTALL_DIR>/lib" )
 
 # This is ugly, but the distro doesn't come with a `make install` and CMAKE wouldn't
 # let me use wildcards. Whoever has a better idea how to do this please tell me.
