@@ -45,9 +45,6 @@
 #include <limits>
 #include <cmath>
 
-#include <Magick++.h> 
-#undef restrict
-
 
 #include <graphlab.hpp>
 
@@ -55,7 +52,8 @@
 #include "factors/factor_includes.hpp"
 
 
-
+#include <cv.h>
+#include <highgui.h>  
 
 
 // Include the macro for the for each operation
@@ -545,7 +543,6 @@ void create_synthetic_mrf(graphlab::distributed_control& dc,
 void save_image(const size_t rows, const size_t cols,
                 const std::vector<pred_pair_type>& values,
                 const std::string& fname) {
-  using namespace Magick;
   std::cout << "NPixels: " << values.size() << std::endl;
   // determine the max and min colors
   float max_color = -std::numeric_limits<float>::max();
@@ -554,15 +551,13 @@ void save_image(const size_t rows, const size_t cols,
     max_color = std::max(max_color, pair.second);
     min_color = std::min(min_color, pair.second);
   }
-  Image img(Magick::Geometry(rows, cols), "white");
-  // img.modifyImage();
-  // Pixels img_cache(img);
-  // PixelPackets* pixels = img_cache.
+
+  cv::Mat img(cols, rows, CV_8UC1);
   foreach(pred_pair_type pair, values) {
     std::pair<int,int> coords = ind2sub(rows,cols, pair.first);
     float value = (pair.second - min_color) / (max_color - min_color);
-    Color color(MaxRGB * value, MaxRGB * value, MaxRGB * value, 0);
-    img.pixelColor(coords.second, coords.first, color);
+    int color = 255 * value > 255 ? 255 : 255 * value;
+    img.at<unsigned char>(coords.first, coords.second) = color;
   }
-  img.write(fname);
+  cv::imwrite(fname, img);
 }

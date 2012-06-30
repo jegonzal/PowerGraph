@@ -45,3 +45,31 @@ diff -uN libjson2/makefile libjson/makefile
  	$(CXX) $< -o $@ $(CXXFLAGS)
  
  ifeq ($(SHARED),1)
+
+diff -rupN libjson2/libjson/Source/JSONDefs.h libjson/Source/JSONDefs.h
+--- libjson2/libjson/Source/JSONDefs.h	2012-02-23 12:30:04.000000000 -0500
++++ libjson/Source/JSONDefs.h	2012-06-29 18:11:07.000000000 -0400
+@@ -146,23 +146,6 @@ typedef void (*json_free_t)(void *);
+     typedef void * (*json_realloc_t)(void *, unsigned long);
+ #endif
+ 
+-#ifdef JSON_DEBUG
+-    #ifdef NDEBUG
+-	   #ifdef __GNUC__
+-		  #warning, Have JSON_DEBUG on in a release build
+-	   #else
+-		  #error, Have JSON_DEBUG on in a release build
+-	   #endif
+-    #endif
+-#else
+-	#ifndef NDEBUG
+-	   #ifdef __GNUC__
+-		  #warning, Release build of libjson, but NDEBUG is not on
+-	   #else
+-		  #error, Release build of libjson, but NDEBUG is not on
+-	   #endif
+-	#endif
+-#endif
+ 
+ #ifdef JSON_UNIT_TEST
+     #define JSON_PRIVATE public:

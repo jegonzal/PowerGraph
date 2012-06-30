@@ -50,8 +50,10 @@ set(COMPILER_FLAGS "-Wall -g ${OPENMP_C_FLAGS}" CACHE STRING "common compiler op
 
 # Disable address space randomization for OSX lion and above
 if (APPLE)
-  set(CMAKE_EXE_LINKER_FLAGS "${CNAME_EXE_LINKER_FLAGS} -Xlinker -no_pie")
+  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Xlinker -no_pie")
 endif()
+
+set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,-rpath,${GraphLab_SOURCE_DIR}/deps/local/lib")
 
 # Set subdirectories
 subdirs(src tests demoapps toolkits extapis)
@@ -205,7 +207,7 @@ ExternalProject_Add(libtcmalloc
   PREFIX ${GraphLab_SOURCE_DIR}/deps/tcmalloc
   URL http://gperftools.googlecode.com/files/gperftools-2.0.tar.gz
   URL_MD5 13f6e8961bc6a26749783137995786b6
-  CONFIGURE_COMMAND <SOURCE_DIR>/configure --enable-frame-pointers --prefix=<INSTALL_DIR>
+  CONFIGURE_COMMAND <SOURCE_DIR>/configure --enable-frame-pointers --prefix=<INSTALL_DIR> --enable-shared=no
   INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local)
 # link_libraries(tcmalloc)
 set(TCMALLOC-FOUND 1)
@@ -214,13 +216,13 @@ add_definitions(-DHAS_TCMALLOC)
 
 
 # Lib Jpeg =================================================================
-ExternalProject_Add(libjpeg
-  PREFIX ${GraphLab_SOURCE_DIR}/deps/libjpeg
-  URL http://www.ijg.org/files/jpegsrc.v8d.tar.gz
-  INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local
-  CONFIGURE_COMMAND <SOURCE_DIR>/configure --prefix=<INSTALL_DIR>
-  BUILD_IN_SOURCE 1)
-
+#ExternalProject_Add(libjpeg
+#  PREFIX ${GraphLab_SOURCE_DIR}/deps/libjpeg
+#  URL http://www.ijg.org/files/jpegsrc.v8d.tar.gz
+#  INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local
+#  CONFIGURE_COMMAND <SOURCE_DIR>/configure --prefix=<INSTALL_DIR>
+#  BUILD_IN_SOURCE 1)
+#
 
 
 # v8 ======================================================================
@@ -252,7 +254,13 @@ ExternalProject_Add(cvv8
   rsync -acC <SOURCE_DIR>/include/cvv8/ <INSTALL_DIR>/include/cvv8)
 
 macro(requires_v8 NAME)
-  include_directories(${GraphLab_SOURCE_DIR}/deps/local/include/v8)
+  get_target_property(tmp ${NAME} COMPILE_FLAGS)
+  if (NOT tmp)
+  set(tmp "-I${CMAKE_SOURCE_DIR}/deps/local/include/v8")
+  else()
+  set(tmp "${tmp} -I${CMAKE_SOURCE_DIR}/deps/local/include/v8")
+  endif()
+  set_target_properties(${NAME} PROPERTIES COMPILE_FLAGS "${tmp}")
   target_link_libraries(${NAME} v8_base v8_snapshot)
   add_dependencies(${NAME} libv8 cvv8)
 endmacro(requires_v8)
@@ -273,48 +281,55 @@ endmacro(requires_v8)
 # # #  LDFLAGS=-L${GraphLab_SOURCE_DIR}/deps/local/lib	
 # #   make
 # #   INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local)
-ExternalProject_Add(imagemagick
-  PREFIX ${GraphLab_SOURCE_DIR}/deps/imagemagick
-  URL http://www.imagemagick.org/download/ImageMagick.tar.gz
-  # URL_MD5 010b63a2542c4ec4918c8cb431c00356
-  CONFIGURE_COMMAND 
-  C_INCLUDE_PATH=${GraphLab_SOURCE_DIR}/deps/local/include 
-  CPLUS_INCLUDE_PATH=${GraphLab_SOURCE_DIR}/deps/local/include 
-  LIBRARY_PATH=${GraphLab_SOURCE_DIR}/deps/local/lib
-  LDFLAGS=-L${GraphLab_SOURCE_DIR}/deps/local/lib       
-  <SOURCE_DIR>/configure 
-  --prefix=<INSTALL_DIR>
-  --without-threads
-  --disable-openmp
-  --disable-opencl
-  BUILD_COMMAND
-  C_INCLUDE_PATH=${GraphLab_SOURCE_DIR}/deps/local/include 
-  CPLUS_INCLUDE_PATH=${GraphLab_SOURCE_DIR}/deps/local/include 
-  LIBRARY_PATH=${GraphLab_SOURCE_DIR}/deps/local/lib
-  LDFLAGS=-L${GraphLab_SOURCE_DIR}/deps/local/lib       
-  make
-  INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local)
-add_dependencies(imagemagick libjpeg)
+#ExternalProject_Add(imagemagick
+#  PREFIX ${GraphLab_SOURCE_DIR}/deps/imagemagick
+#  URL http://www.imagemagick.org/download/ImageMagick.tar.gz
+#  # URL_MD5 010b63a2542c4ec4918c8cb431c00356
+#  CONFIGURE_COMMAND 
+#  C_INCLUDE_PATH=${GraphLab_SOURCE_DIR}/deps/local/include 
+#  CPLUS_INCLUDE_PATH=${GraphLab_SOURCE_DIR}/deps/local/include 
+#  LIBRARY_PATH=${GraphLab_SOURCE_DIR}/deps/local/lib
+#  LDFLAGS=-L${GraphLab_SOURCE_DIR}/deps/local/lib       
+#  <SOURCE_DIR>/configure 
+#  --prefix=<INSTALL_DIR>
+#  --without-threads
+#  --disable-openmp
+#  --disable-opencl
+#  BUILD_COMMAND
+#  C_INCLUDE_PATH=${GraphLab_SOURCE_DIR}/deps/local/include 
+#  CPLUS_INCLUDE_PATH=${GraphLab_SOURCE_DIR}/deps/local/include 
+#  LIBRARY_PATH=${GraphLab_SOURCE_DIR}/deps/local/lib
+#  LDFLAGS=-L${GraphLab_SOURCE_DIR}/deps/local/lib       
+#  make
+#  INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local)
+#include_directories(${GraphLab_SOURCE_DIR}/deps/local/include/ImageMagick)
+#add_dependencies(imagemagick libjpeg)
 
-macro(requires_imagemagick NAME)
-  include_directories(${GraphLab_SOURCE_DIR}/deps/local/include/ImageMagick)
-  target_link_libraries(${NAME} Magick++ jpeg)
-  add_dependencies(${NAME} imagemagick libjpeg)
-endmacro(requires_imagemagick)
+# macro(requires_imagemagick NAME)
+#  target_link_libraries(${NAME} Magick++ jpeg)
+#  add_dependencies(${NAME} imagemagick libjpeg)
+# endmacro(requires_imagemagick)
 
 # OpenCV =================================================================
 ExternalProject_Add(opencv
   PREFIX ${GraphLab_SOURCE_DIR}/deps/opencv
   URL http://superb-sea2.dl.sourceforge.net/project/opencvlibrary/opencv-unix/2.4.0/OpenCV-2.4.0.tar.bz2
   # URL_MD5 010b63a2542c4ec4918c8cb431c00356
-  CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR> -DBUILD_TESTS=OFF -DBUILD_PERF_TESTS=OFF -DBUILD_PACKAGE=OFF -DOPENCV_BUILD_3RDPARTY_LIBS=ON -DBUILD_SHARED_LIBRARIES=OFF -DBUILD_EXAMPLES=OFF -DCMAKE_INCLUDE_PATH=${GraphLab_SOURCE_DIR}/deps/local/include -DCMAKE_LIBRARY_PATH=${GraphLab_SOURCE_DIR}/deps/local/lib 
+  PATCH_COMMAND patch -p0 cmake/OpenCVModule.cmake < ${GraphLab_SOURCE_DIR}/patches/opencv_apple_rpath.patch
+  CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>
+  -DBUILD_TESTS=OFF -DBUILD_PERF_TESTS=OFF -DBUILD_PACKAGE=OFF -DBUILD_EXAMPLES=OFF -DOPENCV_BUILD_3RDPARTY_LIBS=ON -DBUILD_SHARED_LIBS=ON -DBUILD_DOCS=OFF -DBUILD_JPEG=ON -DCMAKE_INCLUDE_PATH=${GraphLab_SOURCE_DIR}/deps/local/include -DWITH_CUBLAS=OFF -DWITH_1394=OFF -DWITH_AVFOUNDATION=OFF -DWITH_CUDA=OFF -DWITH_CUFFT=OFF -DWITH_FFMPEG=OFF -DWITH_GSTREAMER=OFF -DWITH_GTK=OFF -DWITH_QUICKTIME=OFF -DWITH_VIDEOINPUT=OFF -DWITH_XIMEA=OFF -DWITH_XINE=OFF -DWITH_V4L=OFF -DWITH_UNICAP=OFF -DWITH_QT=OFF -DWITH_JASPER=NO -DWITH_TIFF=NO -DCMAKE_LIBRARY_PATH=${GraphLab_SOURCE_DIR}/deps/local/lib
   INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local)
 
-include_directories(${GraphLab_SOURCE_DIR}/deps/local/include/opencv)
-add_dependencies(opencv libjpeg)
 
 macro(requires_opencv NAME)
-  target_link_libraries(${NAME} opencv_core opencv_imgproc opencv_calib3d opencv_video opencv_features2d opencv_ml opencv_highgui opencv_objdetect opencv_contrib opencv_legacy opencv_contrib opencv_stitching jpeg)
+  get_target_property(tmp ${NAME} COMPILE_FLAGS)
+  if (NOT tmp) 
+    set(tmp "-I${CMAKE_SOURCE_DIR}/deps/local/include/opencv")
+  else()
+    set(tmp "${tmp} -I${CMAKE_SOURCE_DIR}/deps/local/include/opencv")
+  endif()
+  set_target_properties(${NAME} PROPERTIES COMPILE_FLAGS "${tmp}")
+  target_link_libraries(${NAME} opencv_core opencv_imgproc opencv_calib3d opencv_video opencv_features2d opencv_ml opencv_highgui opencv_objdetect opencv_contrib opencv_legacy opencv_contrib opencv_stitching)
   add_dependencies(${NAME} opencv)
 endmacro(requires_opencv)
 

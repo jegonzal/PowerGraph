@@ -30,10 +30,6 @@
  *  \author Joseph Gonzalez
  */
 
-#include <Magick++.h> 
-#undef restrict
-
-
 #include <boost/config/warning_disable.hpp>
 #include <boost/spirit/include/qi.hpp>
 #include <boost/spirit/include/phoenix_core.hpp>
@@ -41,8 +37,12 @@
 #include <boost/spirit/include/phoenix_stl.hpp>
 
 
+#include <cv.h>
+#include <highgui.h>  
+
 #include <graphlab.hpp>
 
+using namespace cv;
 
 
 struct pixel {
@@ -69,15 +69,12 @@ void make_data(const size_t rows, const size_t cols,
                const std::string& edata_fn,
                const std::string& orig_img_fn,
                const std::string& noisy_img_fn) {
-  using namespace Magick;
-
   const double center_r = rows / 2.0;
   const double center_c = cols / 2.0;
   const double max_radius = std::min(rows, cols) / 2.0;
 
-  Image orig_img(Magick::Geometry(rows, cols), "green");
-  Image noisy_img(Magick::Geometry(rows, cols), "green");
-  
+  Mat orig_img(cols, rows, CV_8UC1);
+  Mat noisy_img(cols, rows, CV_8UC1);
   std::ofstream vdata_fout(vdata_fn.c_str());
   std::ofstream edata_fout(edata_fn.c_str());
 
@@ -98,12 +95,11 @@ void make_data(const size_t rows, const size_t cols,
         graphlab::random::fast_uniform<uint16_t>(0, ncolors) : true_color;
 
       const double c1p = double(true_color)/(ncolors-1);
-      const Color c1(MaxRGB * c1p, MaxRGB * c1p, MaxRGB * c1p, 0);
-      orig_img.pixelColor(c,r,c1);
-
+      unsigned char c1 = (unsigned char)(255 * c1p > 255 ? 255 : 255 * c1p);
+      orig_img.at<unsigned char>(r, c) = c1;
       const double c2p = double(obs_color)/(ncolors-1);
-      const Color c2(MaxRGB * c2p, MaxRGB * c2p, MaxRGB * c2p, 0);
-      noisy_img.pixelColor(c,r,c2);
+      unsigned char c2 = (unsigned char)(255 * c2p > 255 ? 255 : 255 * c2p);
+      noisy_img.at<unsigned char>(r, c) = c2;
 
       // Save the prior
       vdata_fout << vid << '\t';
@@ -122,16 +118,14 @@ void make_data(const size_t rows, const size_t cols,
 
   vdata_fout.close();
   edata_fout.close();
-  orig_img.write(orig_img_fn);
-  noisy_img.write(noisy_img_fn);
-
+  imwrite(orig_img_fn, orig_img);
+  imwrite(noisy_img_fn, noisy_img);
 } // end of make data
 
 
 
 
 void read_data(const std::string& pred_img_fn) {
-  using namespace Magick;
   namespace qi = boost::spirit::qi;
   namespace ascii = boost::spirit::ascii;
   namespace phoenix = boost::phoenix;
@@ -175,14 +169,13 @@ void read_data(const std::string& pred_img_fn) {
             << "ncols: " << ncols << std::endl
             << "minp:  " << min_pixel << std::endl
             << "maxp:  " << max_pixel << std::endl;
-
-  Image pred_img(Magick::Geometry(nrows, ncols), "green");
+  Mat pred_img(ncols, nrows, CV_8UC1);
   for(size_t i = 0; i < pixels.size(); ++i) {
-    const Color c1(MaxRGB * pixels[i].value, MaxRGB * pixels[i].value, 
-                   MaxRGB * pixels[i].value, 0);
-    pred_img.pixelColor(pixels[i].col, pixels[i].row, c1);
+    int s = 255 * pixels[i].value;
+    pred_img.at<unsigned char>(pixels[i].row, pixels[i].col) = 
+                                     (unsigned char)(s >= 255 ? 255 : s);
   }
-  pred_img.write(pred_img_fn);
+  imwrite(pred_img_fn, pred_img);
 } // end of make data
 
 
