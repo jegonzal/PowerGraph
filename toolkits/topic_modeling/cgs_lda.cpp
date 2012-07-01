@@ -866,8 +866,8 @@ int main(int argc, char** argv) {
   }
 
   if(dictionary_fname.empty()) {
-    logstream(LOG_ERROR) << "No dictionary file was provided." << std::endl;
-    return EXIT_FAILURE;
+    logstream(LOG_WARNING) << "No dictionary file was provided." << std::endl
+                           << "Top k words will not be estimated." << std::endl;
   }
 
   if(matrix_dir.empty()) {
@@ -882,18 +882,23 @@ int main(int argc, char** argv) {
 
   ///! Initialize global variables
   GLOBAL_TOPIC_COUNT.resize(NTOPICS);
-  bool success = load_dictionary(dictionary_fname);
-  if(!success) {
-    logstream(LOG_ERROR) << "Error loading dictionary." << std::endl;
-    return EXIT_FAILURE;
+  if(!dictionary_fname.empty()) {
+    const bool success = load_dictionary(dictionary_fname);
+    if(!success) {
+      logstream(LOG_ERROR) << "Error loading dictionary." << std::endl;
+      return EXIT_FAILURE;
+    }
   }
 
   ///! load the graph
   graph_type graph(dc, clopts);
-  success = load_and_initialize_graph(dc, graph, matrix_dir,loadjson);
-  if(!success) {
-    logstream(LOG_ERROR) << "Error loading graph." << std::endl;
-    return EXIT_FAILURE;
+  {
+    const bool success = 
+      load_and_initialize_graph(dc, graph, matrix_dir,loadjson);
+    if(!success) {
+      logstream(LOG_ERROR) << "Error loading graph." << std::endl;
+      return EXIT_FAILURE;
+    }
   }
 
 
@@ -904,16 +909,21 @@ int main(int argc, char** argv) {
 
   engine_type engine(dc, graph, clopts, "asynchronous");
   ///! Add an aggregator
-  success =
-    engine.add_vertex_aggregator<topk_type>
-    ("topk", topk_type::map, topk_type::finalize) &&
-    engine.aggregate_periodic("topk", INTERVAL);
-  ASSERT_TRUE(success);
-  success =
-    engine.add_vertex_aggregator<factor_type>
-    ("global_counts", global_counts_agg::map, global_counts_agg::finalize) &&
-    engine.aggregate_periodic("global_counts", 5);
-  ASSERT_TRUE(success);
+  if(!DICTIONARY.empty()) {
+    const bool success =
+      engine.add_vertex_aggregator<topk_type>
+      ("topk", topk_type::map, topk_type::finalize) &&
+      engine.aggregate_periodic("topk", INTERVAL);
+    ASSERT_TRUE(success);
+  }
+
+  { // Add the Global counts aggregator
+    const bool success =
+      engine.add_vertex_aggregator<factor_type>
+      ("global_counts", global_counts_agg::map, global_counts_agg::finalize) &&
+      engine.aggregate_periodic("global_counts", 5);
+    ASSERT_TRUE(success);
+  }
   // success =
   //   engine.add_vertex_aggregator<likelihood_agg>
   //   ("likelihood", likelihood_agg::map, likelihood_agg::finalize) &&
