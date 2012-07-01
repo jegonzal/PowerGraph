@@ -67,7 +67,7 @@ int main(int argc, char** argv) {
   graphlab::command_line_options clopts(description);
   std::string input_dir, output_dir;
   std::string predictions;
-  size_t interval = 10;
+  size_t interval = 0;
   clopts.attach_option("matrix", &input_dir, input_dir,
                        "The directory containing the matrix file");
   clopts.add_positional("matrix");
