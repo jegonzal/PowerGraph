@@ -100,9 +100,12 @@ namespace graphlab {
    *
    * ### Initialization
    *
-   * To declare a distributed graph you write: \code typedef
-   * graphlab::distributed_graph<vdata, edata> graph_type; graph_type graph(dc,
-   * clopts); \endcode where <code>vdata</code> is the type of data to be
+   * To declare a distributed graph you write: 
+   * \code typedef
+   * graphlab::distributed_graph<vdata, edata> graph_type; 
+   * graph_type graph(dc, clopts); 
+   * \endcode 
+   * where <code>vdata</code> is the type of data to be
    * stored on vertices, and <code>edata</code> is the type of data to be
    * stored on edges. The constructor must be called simultaneously on all
    * machines. <code>dc</code> is a graphlab::distributed_control object that
@@ -185,19 +188,20 @@ namespace graphlab {
    * ### Referencing Vertices / Edges Many GraphLab operations will pass around
    * vertex_type and edge_type objects. These objects are light-weight copyable
    * opaque references to vertices and edges in the distributed graph.  The
-   * vertex_type object provides capabilities such as: \li \c vertex_type::id()
-   * Returns the ID of the vertex \li \c vertex_type::num_in_edges() Returns
-   * the number of in edges \li \c vertex_type::num_out_edges() Returns the
-   * number of out edges \li \c vertex_type::data() Returns a <b>reference</b>
-   * to the data on the vertex
+   * vertex_type object provides capabilities such as: 
+   * \li \c vertex_type::id() Returns the ID of the vertex 
+   * \li \c vertex_type::num_in_edges() Returns the number of in edges 
+   * \li \c vertex_type::num_out_edges() Returns the number of out edges 
+   * \li \c vertex_type::data() Returns a <b>reference</b> to the data on 
+   *                            the vertex
    *
    * No traversal operations are currently provided and there there is no
    * single method to return a list of adjacent edges to the vertex. 
    *
-   * The edge_type object has similar capabilities: \li \c edge_type::data()
-   * Returns a <b>reference</b> to the data on the edge \li \c
-   * edge_type::source() Returns a \ref vertex_type of the source vertex \li \c
-   * edge_type::target() Returns a \ref vertex_type of the target vertex
+   * The edge_type object has similar capabilities: 
+   * \li \c edge_type::data() Returns a <b>reference</b> to the data on the edge 
+   * \li \c edge_type::source() Returns a \ref vertex_type of the source vertex 
+   * \li \c edge_type::target() Returns a \ref vertex_type of the target vertex
    *
    * This permits the use of <code>edge.source().data()</code> for instance, to
    * obtain the vertex data on the source vertex.
