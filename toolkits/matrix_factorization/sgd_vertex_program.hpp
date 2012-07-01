@@ -47,6 +47,7 @@
 typedef Eigen::VectorXd vec_type;
 typedef Eigen::MatrixXd mat_type;
 static bool debug;
+int iter = 0;
 /** 
  * \ingroup toolkit_matrix_pvecization
  *
@@ -169,9 +170,6 @@ public:
    * \brief Stores the current sum of nbr.pvec * edge.obs
    */
   vec_type pvec;
-  double rmse;
-  int edges;
-  int validation_edges;
   /** \brief basic default constructor */
   gather_type() { }
 
@@ -179,39 +177,28 @@ public:
    * \brief This constructor computes XtX and Xy and stores the result
    * in XtX and Xy
    */
-  gather_type(const vec_type& X, const double y, int type) {
+  gather_type(const vec_type& X) {
     pvec = X;
-    rmse = y;
-    if (type == edge_data::TRAIN)
-      edges = 1;
-    else if (type == edge_data::VALIDATE)   
-      validation_edges = 1;
   } // end of constructor for gather type
 
   /** \brief Save the values to a binary archive */
-  void save(graphlab::oarchive& arc) const { arc << pvec << rmse << edges << validation_edges; }
+  void save(graphlab::oarchive& arc) const { arc << pvec; }
 
   /** \brief Read the values from a binary archive */
-  void load(graphlab::iarchive& arc) { arc >> pvec >> rmse >> edges >> validation_edges; }  
+  void load(graphlab::iarchive& arc) { arc >> pvec; }  
 
   /** 
    * \brief Computes XtX += other.XtX and Xy += other.Xy updating this
    * tuples value
    */
   gather_type& operator+=(const gather_type& other) {
-    if (other.pvec.size() == 0)
-      return *this;
     if (pvec.size() == 0){
-       pvec = other.pvec;
-       rmse = other.rmse;
-       edges = other.edges;
-       validation_edges = other.validation_edges;
-       return *this;
+      pvec = other.pvec;
+      return *this;
     }
+    else if (other.pvec.size() == 0)
+      return *this;
     pvec += other.pvec;
-    rmse += other.rmse;
-    edges += other.edges;
-    validation_edges += other.validation_edges;
     return *this;
   } // end of operator+=
 
@@ -277,9 +264,9 @@ public:
          if(other_vertex.data().nupdates < MAX_UPDATES) 
           context.signal(other_vertex, other_delta);
        }
-      return gather_type(delta, err*err, edge.data().role);
+      return gather_type(delta);
     } 
-    else return gather_type(delta, 0, edge.data().role);
+    else return gather_type(delta);
   } // end of gather function
 
 //typedef vec_type message_type;
@@ -318,9 +305,6 @@ public:
     edge_data& edata = edge.data();
     if(edata.role == edge_data::TRAIN) {
       const vertex_type other_vertex = get_other_vertex(edge, vertex);
-      //const double pred = vdata.pvec.dot(other_vdata.pvec);
-      //const float error = std::fabs(edata.obs - pred);
-      //const double priority = (error * vdata.residual); 
       // Reschedule neighbors ------------------------------------------------
       if(other_vertex.data().nupdates < MAX_UPDATES) 
         context.signal(other_vertex, vec_type::Zero(vertex_data::NLATENT));
@@ -366,7 +350,12 @@ struct error_aggregator : public graphlab::IS_POD_TYPE {
     }
     return agg;
   }
+
+
   static void finalize(icontext_type& context, const error_aggregator& agg) {
+    iter++;
+    if (iter%2 == 0)
+      return; 
     ASSERT_GT(agg.ntrain, 0);
     const double train_error = std::sqrt(agg.train_error / agg.ntrain);
     assert(!std::isnan(train_error));
