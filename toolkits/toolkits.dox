@@ -10,7 +10,7 @@ graph computation.
 
 We have implemented the following toolkits
 
-\li \subpage text_modeling  contains applications like LDA which can be
+\li \subpage topic_modeling  contains applications like LDA which can be
 used to cluster documents and extract topical representations.
 
 \li \ref graph_processing  contains application like pagerank and
