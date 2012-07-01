@@ -861,9 +861,9 @@ bool load_and_initialize_graph(graphlab::distributed_control& dc,
   NWORDS = graph.map_reduce_vertices<size_t>(is_word);
   NDOCS = graph.map_reduce_vertices<size_t>(is_doc);
   NTOKENS = graph.map_reduce_edges<size_t>(count_tokens);
-  dc.cout() << "Number of words:     " << NWORDS;
-  dc.cout() << "Number of docs:      " << NDOCS;
-  dc.cout() << "Number of tokens:    " << NTOKENS;
+  dc.cout() << "Number of words:     " << NWORDS  << std::endl;
+  dc.cout() << "Number of docs:      " << NDOCS   << std::endl;
+  dc.cout() << "Number of tokens:    " << NTOKENS << std::endl;
   // Prepare the json struct with the word counts
   TOP_WORDS.lock.lock();
   TOP_WORDS.json_string = "{\n" + TOP_WORDS.json_header_string() +
@@ -962,6 +962,7 @@ struct count_saver {
       strm << factor[i];
       if(i+1 < factor.size()) strm << '\t';
     }
+    strm << '\n';
     return strm.str();
   }
   std::string save_edge(const edge_type& edge) const {
