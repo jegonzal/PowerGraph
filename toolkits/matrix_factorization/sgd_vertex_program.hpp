@@ -279,21 +279,24 @@ public:
   gather_type gather(icontext_type& context, const vertex_type& vertex, 
                      edge_type& edge) const {
     //if(edge.data().role == edge_data::TRAIN) {
-   if (debug)
-     std::cout<<"Enering vertex " << vertex.id() << "pvec: " << vertex.data().pvec[0] << std::endl;
    vec_type delta, other_delta;
    if (vertex.num_in_edges() == 0){
       vertex_type other_vertex(get_other_vertex(edge, vertex));
       vertex_type my_vertex(vertex);
       vertex_data & my_data = my_vertex.data();
       const double pred = vertex.data().pvec.dot(other_vertex.data().pvec);
-      const float err = (edge.data().obs - pred);
+      const float err = (pred - edge.data().obs);
+      if (debug)
+        std::cout<<"entering edge " << (int)edge.source().id() << ":" << (int)edge.target().id()-1000000 << " err: " << err << " rmse: " << err*err <<std::endl;
       assert(!std::isnan(err));
       if (edge.data().role == edge_data::TRAIN){
-        delta = GAMMA*(err*other_vertex.data().pvec - LAMBDA*vertex.data().pvec);
-        other_delta = GAMMA*(err*vertex.data().pvec - LAMBDA*other_vertex.data().pvec);
-        other_vertex.data().pvec += other_delta;
-        if(other_vertex.data().nupdates < MAX_UPDATES) 
+        delta = -GAMMA*(err*other_vertex.data().pvec - LAMBDA*vertex.data().pvec);
+        other_delta = -GAMMA*(err*vertex.data().pvec - LAMBDA*other_vertex.data().pvec);
+       other_vertex.data().pvec += other_delta;
+        my_vertex.data().pvec += delta;
+        if (debug)
+          std::cout<<"new val:" << (int)edge.source().id() << ":" << (int)edge.target().id()-1000000 << " U " << my_vertex.data().pvec.transpose() << " V " << other_vertex.data().pvec.transpose() << std::endl;
+         if(other_vertex.data().nupdates < MAX_UPDATES) 
           context.signal(other_vertex, other_delta);
        }
       return gather_type(delta, err*err, edge.data().role);
@@ -314,22 +317,14 @@ public:
              const gather_type& sum) {
     // Get and reset the vertex data
     vertex_data& vdata = vertex.data(); 
-    // Determine the number of neighbors.  Each vertex has only in or
-    // out edges depending on which side of the graph it is located
-    //if(sum.Xy.size() == 0) { vdata.residual = 0; ++vdata.nupdates; return; }
-    //mat_type XtX = sum.XtX;
-    //vec_type Xy = sum.Xy;
-    // Add regularization
-    //for(int i = 0; i < XtX.rows(); ++i) XtX(i,i) += LAMBDA; // /nneighbors;
-    // Solve the least squares problem using eigen ----------------------------
-    //const vec_type old_pvec = vdata.pvec;
-    //vdata.pvec = XtX.selfadjointView<Eigen::Upper>().ldlt().solve(Xy);
-    // Compute the residual change in the pvec pvec -----------------------
-    //vdata.residual = (vdata.pvec - old_pvec).cwiseAbs().sum() / XtX.rows();
-    if (sum.pvec.size() > 0)
-      vdata.pvec += sum.pvec;
-    if (pmsg.size() > 0)
+    if (sum.pvec.size() > 0){
+      vdata.pvec += sum.pvec; 
+      assert(vertex.num_in_edges() == 0);
+    }
+    else if (pmsg.size() > 0){
       vdata.pvec += pmsg;
+      assert(vertex.num_out_edges() == 0); 
+    }
     ++vdata.nupdates;
   } // end of apply
   
