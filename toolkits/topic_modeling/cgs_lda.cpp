@@ -178,6 +178,12 @@ size_t MAX_COUNT = 100;
 
 
 /**
+ * \brief The time to run until the first sample is taken.  If less
+ * than zero then the sampler will run indefinitely.
+ */
+float BURNIN = -1;
+
+/**
  * \brief The json top word struct contains the current set of top
  * words for each topic encoded in the form of a json string.
  */
@@ -307,6 +313,8 @@ bool vparser(vertex_data& vd, const std::string& line){
  *
  * The global variable MAX_COUNT limits the number of tokens that can
  * be constructed on a particular edge.
+ *
+ * We use the relativley fast boost::spirit parser to parse each line.
  */
 bool graph_loader(graph_type& graph, const std::string& fname,
                   const std::string& line) {
@@ -389,6 +397,179 @@ get_other_vertex(const graph_type::edge_type& edge,
 
 
 
+// ========================================================
+// The Collapsed Gibbs Sampler Function
+
+
+
+/**
+ * \brief The gather type for the collapsed Gibbs sampler is used to
+ * collect the topic counts on adjacent edges so that the apply
+ * function can compute the correct topic counts for the center
+ * vertex.
+ *
+ */
+struct gather_type {
+  factor_type factor;
+  uint32_t nchanges;
+  gather_type() : nchanges(0) { };
+  gather_type(uint32_t nchanges) : factor(NTOPICS), nchanges(nchanges) { };
+  void save(graphlab::oarchive& arc) const { arc << factor << nchanges; }
+  void load(graphlab::iarchive& arc) { arc >> factor >> nchanges; }
+  gather_type& operator+=(const gather_type& other) {
+    factor += other.factor;
+    nchanges += other.nchanges;
+    return *this;
+  }
+}; // end of gather type
+
+
+
+
+
+
+
+/**
+ * \brief The collapsed Gibbs sampler vertex program updates the topic
+ * counts for the center vertex and then draws new topic assignments
+ * for each edge durring the scatter phase.
+ * 
+ */
+class cgs_lda_vertex_program :
+  public graphlab::ivertex_program<graph_type, gather_type>,
+  public graphlab::IS_POD_TYPE {
+public:
+
+  /**
+   * \brief At termination we want to disable sampling to allow the
+   * correct final counts to be computed.
+   */
+  static bool DISABLE_SAMPLING; 
+
+  /** \brief gather on all edges */
+  edge_dir_type gather_edges(icontext_type& context,
+                             const vertex_type& vertex) const {
+    return graphlab::ALL_EDGES;
+  } // end of gather_edges
+
+  /**
+   * \brief Collect the current topic count on each edge.
+   */
+  gather_type gather(icontext_type& context, const vertex_type& vertex,
+                     edge_type& edge) const {
+    gather_type ret(edge.data().nchanges);
+    const assignment_type& assignment = edge.data().assignment;
+    foreach(topic_id_type asg, assignment) {
+      if(asg != NULL_TOPIC) ++ret.factor[asg];
+    }
+    return ret;
+  } // end of gather
+
+
+  /**
+   * \brief Update the topic count for the center vertex.  This
+   * ensures that the center vertex has the correct topic count before
+   * resampling the topics for each token along each edge.
+   */
+  void apply(icontext_type& context, vertex_type& vertex,
+             const gather_type& sum) {
+    const size_t num_neighbors = vertex.num_in_edges() + vertex.num_out_edges();
+    ASSERT_GT(num_neighbors, 0);
+    // There should be no new edge data since the vertex program has been cleared
+    vertex_data& vdata = vertex.data();
+    ASSERT_EQ(sum.factor.size(), NTOPICS);
+    ASSERT_EQ(vdata.factor.size(), NTOPICS);
+    vdata.nupdates++;
+    vdata.nchanges = sum.nchanges;
+    vdata.factor = sum.factor;
+  } // end of apply
+
+
+  /**
+   * \brief Scatter on all edges if the computation is on-going.
+   * Computation stops after bunrin or when disable sampling is set to
+   * true.
+   */
+  edge_dir_type scatter_edges(icontext_type& context,
+                              const vertex_type& vertex) const {
+    return (DISABLE_SAMPLING || (context.elapsed_seconds() > BURNIN))? 
+      graphlab::NO_EDGES : graphlab::ALL_EDGES;
+  }; // end of scatter edges
+
+
+  /**
+   * \brief Draw new topic assignments for each edge token.
+   *
+   * Note that we exploit the GraphLab caching model here by DIRECTLY
+   * modifying the topic counts of adjacent vertices.  Making the
+   * changes immediately visible to any adjacent vertex programs
+   * running on the same machine.  However, these changes will be
+   * overwritten during the apply step and are only used to accelerate
+   * sampling.  This is a potentially dangerous violation of the
+   * abstraction and should be taken with caution.  In our case all
+   * vertex topic counts are preallocated and atomic operations are
+   * used.  In addition during the sampling phase we must be careful
+   * to guard against potentially negative temporary counts.
+   */
+  void scatter(icontext_type& context, const vertex_type& vertex,
+               edge_type& edge) const {
+    factor_type& doc_topic_count =  is_doc(edge.source()) ?
+      edge.source().data().factor : edge.target().data().factor;
+    factor_type& word_topic_count = is_word(edge.source()) ?
+      edge.source().data().factor : edge.target().data().factor;
+    ASSERT_EQ(doc_topic_count.size(), NTOPICS);
+    ASSERT_EQ(word_topic_count.size(), NTOPICS);
+    // run the actual gibbs sampling
+    std::vector<double> prob(NTOPICS);
+    assignment_type& assignment = edge.data().assignment;
+    edge.data().nchanges = 0;
+    foreach(topic_id_type& asg, assignment) {
+      const topic_id_type old_asg = asg;
+      if(asg != NULL_TOPIC) { // construct the cavity
+        --doc_topic_count[asg];
+        --word_topic_count[asg];
+        --GLOBAL_TOPIC_COUNT[asg];
+      }
+      for(size_t t = 0; t < NTOPICS; ++t) {
+        const double n_dt =
+          std::max(count_type(doc_topic_count[t]), count_type(0));
+        const double n_wt =
+          std::max(count_type(word_topic_count[t]), count_type(0));
+        const double n_t  =
+          std::max(count_type(GLOBAL_TOPIC_COUNT[t]), count_type(0));
+        prob[t] = (ALPHA + n_dt) * (BETA + n_wt) / (BETA * NWORDS + n_t);
+      }
+      asg = graphlab::random::multinomial(prob);
+      // asg = std::max_element(prob.begin(), prob.end()) - prob.begin();
+      ++doc_topic_count[asg];
+      ++word_topic_count[asg];
+      ++GLOBAL_TOPIC_COUNT[asg];
+      if(asg != old_asg) {
+        ++edge.data().nchanges;
+        INCREMENT_EVENT(TOKEN_CHANGES,1);
+      }
+    } // End of loop over each token
+    // singla the other vertex
+    context.signal(get_other_vertex(edge, vertex));
+  } // end of scatter function
+
+}; // end of cgs_lda_vertex_program
+
+
+bool cgs_lda_vertex_program::DISABLE_SAMPLING = false;
+
+
+/**
+ * \brief The icontext type associated with the cgs_lda_vertex program
+ * is needed for all aggregators.
+ */
+typedef cgs_lda_vertex_program::icontext_type icontext_type;
+
+
+// ========================================================
+// Aggregators
+
+
 /**
  * \brief The topk aggregator is used to periodically compute and
  * display the topk most common words in each topic.
@@ -397,9 +578,7 @@ get_other_vertex(const graph_type::edge_type& edge,
  * and the interval is determined by the global variable \ref INTERVAL.
  *
  */
-template<typename IContext>
 class topk_aggregator {
-  typedef IContext icontext_type;
   typedef std::pair<float, graphlab::vertex_id_type> cw_pair_type;
 private:
   std::vector< std::set<cw_pair_type> > top_words;
@@ -487,15 +666,15 @@ public:
  * \brief The global counts aggregator computes the total number of
  * tokens in each topic across all words and documents and then
  * updates the \ref GLOBAL_TOPIC_COUNT variable.
+ *
  */
-template<typename IContext>
 struct global_counts_aggregator {
   typedef graph_type::vertex_type vertex_type;
-  static factor_type map(IContext& context, const vertex_type& vertex) {
+  static factor_type map(icontext_type& context, const vertex_type& vertex) {
     return vertex.data().factor;
   } // end of map function
 
-  static void finalize(IContext& context, const factor_type& total) {
+  static void finalize(icontext_type& context, const factor_type& total) {
     size_t sum = 0;
     for(size_t t = 0; t < total.size(); ++t) {
       GLOBAL_TOPIC_COUNT[t] =
@@ -521,7 +700,6 @@ struct global_counts_aggregator {
  *    ndocs * (gammaln(ntopics * alpha) - ntopics * gammaln(alpha)) + ...
  *    sum_d(sum_t(gammaln(n_td + alpha)) - gammaln(sum_t(n_td) + ntopics * alpha));
  */
-template<typename IContext>
 class likelihood_aggregator : public graphlab::IS_POD_TYPE {
   typedef graph_type::vertex_type vertex_type;
   double lik_words_given_topics;
@@ -536,7 +714,7 @@ public:
   } // end of operator +=
 
   static likelihood_aggregator
-  map(IContext& context, const vertex_type& vertex) {
+  map(icontext_type& context, const vertex_type& vertex) {
     using boost::math::lgamma;
     const factor_type& factor = vertex.data().factor;
     ASSERT_EQ(factor.size(), NTOPICS);
@@ -558,7 +736,7 @@ public:
     return ret;
   } // end of map function
 
-  static void finalize(IContext& context, const likelihood_aggregator& total) {
+  static void finalize(icontext_type& context, const likelihood_aggregator& total) {
     using boost::math::lgamma;
     // Address the global sum terms
     double denominator = 0;
@@ -581,23 +759,80 @@ public:
 
 
 
-
-template<typename IContext>
-struct selective_signal {
- static graphlab::empty
- docs(IContext& context, const graph_type::vertex_type& vertex) {
-   if(is_doc(vertex)) context.signal(vertex);
-   return graphlab::empty();
- } // end of signal_docs
- static graphlab::empty
- words(IContext& context, const graph_type::vertex_type& vertex) {
+/**
+ * \brief The selective signal functions are used to signal only the
+ * vertices corresponding to words or documents.  This is done by
+ * using the iengine::map_reduce_vertices function.
+ */
+struct signal_only {
+  /**
+   * \brief Signal only the document vertices and skip the word
+   * vertices.
+   */ 
+  static graphlab::empty
+  docs(icontext_type& context, const graph_type::vertex_type& vertex) {
+    if(is_doc(vertex)) context.signal(vertex);
+    return graphlab::empty();
+  } // end of signal_docs
+ 
+ /**
+  * \brief Signal only the word vertices and skip the document
+  * vertices.
+  */
+  static graphlab::empty
+  words(icontext_type& context, const graph_type::vertex_type& vertex) {
     if(is_word(vertex)) context.signal(vertex);
     return graphlab::empty();
   } // end of signal_words
-}; // end of selective_signal
+}; // end of selective_only
 
 
 
+
+
+/**
+ * \brief This function is used to load and then initialize the data
+ * graph (corpus) from a folder or file.
+ * 
+ * The graph can be in either json form constructed using the graph
+ * builder tools or in raw text form.  The raw text format contains a
+ * token on each line of each file in the format:
+ *
+ \verbatim
+ <docid> <wordid> <count>
+          ...
+ \endverbatim
+ *
+ * for example:
+ \verbatim
+    0    0     2
+    0    4     1
+    0    2     3
+ \endverbatim
+ * 
+ * implies that document zero contains word zero twice, word 4 once,
+ * and word two three times.
+ *
+ * If a dictionary is used it is important that each word id
+ * correspond to the index in the dictionary file (starting at zero).
+ *
+ * Once loaded the total number of words, documents, and tokens is
+ * counted and saved to global variables which are read during the
+ * execution of the sampler.
+ *
+ * \param [in] dc The distributed control object used to coordinate
+ * between machines.
+ *
+ * \param [in,out] graph The graph object that is initialized.
+ * 
+ * \param [in] matrix_dir The directory or file containing the graph
+ * data.  The matrix directory can reside on hdfs in which case the
+ * path should begin with "hdfs://namenode".  In addition the file(s)
+ * may be gzipped and therefore must end in ".gz".
+ *
+ * \param [in] load_json Whether the graph data is in text format or
+ * preprocessed json format using the graph builder tools.
+ */
 bool load_and_initialize_graph(graphlab::distributed_control& dc,
                                graph_type& graph,
                                const std::string& matrix_dir,
@@ -629,18 +864,30 @@ bool load_and_initialize_graph(graphlab::distributed_control& dc,
   dc.cout() << "Number of words:     " << NWORDS;
   dc.cout() << "Number of docs:      " << NDOCS;
   dc.cout() << "Number of tokens:    " << NTOKENS;
+  // Prepare the json struct with the word counts
   TOP_WORDS.lock.lock();
   TOP_WORDS.json_string = "{\n" + TOP_WORDS.json_header_string() +
     "\t\"values\": [] \n }";
   TOP_WORDS.lock.unlock();
-
-  //ASSERT_LT(NWORDS, DICTIONARY.size());
   return true;
 } // end of load and initialize graph
 
 
 
-/** populate the global dictionary */
+/**
+ * \brief Load the dictionary global variable from the file containing
+ * the terms (one term per line).
+ *
+ * Note that while graphs can be loaded from multiple files the
+ * dictionary must be in a single file.  The dictionary is loaded
+ * entirely into memory and used to display word clouds and the top
+ * terms in each topic.
+ *
+ * \param [in] fname the file containing the dictionary data.  The
+ * data can be located on HDFS and can also be gzipped (must end in
+ * ".gz").
+ * 
+ */
 bool load_dictionary(const std::string& fname)  {
   // std::cout << "staring load on: "
   //           << graphlab::get_local_ip_as_str() << std::endl;
@@ -690,113 +937,51 @@ bool load_dictionary(const std::string& fname)  {
 
 
 
-struct gather_type {
-  factor_type factor;
-  uint32_t nchanges;
-  gather_type() : nchanges(0) { };
-  gather_type(uint32_t nchanges) : factor(NTOPICS), nchanges(nchanges) { };
-  void save(graphlab::oarchive& arc) const { arc << factor << nchanges; }
-  void load(graphlab::iarchive& arc) { arc >> factor >> nchanges; }
-  gather_type& operator+=(const gather_type& other) {
-    factor += other.factor;
-    nchanges += other.nchanges;
-    return *this;
-  }
-}; // end of gather type
 
-
-class cgs_lda_vertex_program :
-  public graphlab::ivertex_program<graph_type, gather_type>,
-  public graphlab::IS_POD_TYPE {
-public:
-  /** \brief gather on all edges */
-  edge_dir_type gather_edges(icontext_type& context,
-                             const vertex_type& vertex) const {
-    return graphlab::ALL_EDGES;
-  } // end of gather_edges
-
-  gather_type gather(icontext_type& context, const vertex_type& vertex,
-                     edge_type& edge) const {
-    gather_type ret(edge.data().nchanges);
-    const assignment_type& assignment = edge.data().assignment;
-    foreach(topic_id_type asg, assignment) {
-      if(asg != NULL_TOPIC) ++ret.factor[asg];
+struct count_saver {
+  bool save_words;
+  count_saver(bool save_words) : save_words(save_words) { }
+  typedef graph_type::vertex_type vertex_type;
+  typedef graph_type::edge_type   edge_type;
+  std::string save_vertex(const vertex_type& vertex) const {
+    // Skip saving vertex data if the vertex type is not consistent
+    // with the save type
+    if((save_words && is_doc(vertex)) ||
+       (!save_words && is_word(vertex))) return "";
+    // Proceed to save
+    std::stringstream strm;
+    if(save_words) {
+      const graphlab::vertex_id_type vid = vertex.id();
+      strm << vid << '\t';
+    } else { // save documents
+      const graphlab::vertex_id_type vid = (-vertex.id()) - 2;
+      strm << vid << '\t';
     }
-    return ret;
-  } // end of gather
-
-  void apply(icontext_type& context, vertex_type& vertex,
-             const gather_type& sum) {
-    const size_t num_neighbors = vertex.num_in_edges() + vertex.num_out_edges();
-    ASSERT_GT(num_neighbors, 0);
-    // There should be no new edge data since the vertex program has been cleared
-    vertex_data& vdata = vertex.data();
-    ASSERT_EQ(sum.factor.size(), NTOPICS);
-    ASSERT_EQ(vdata.factor.size(), NTOPICS);
-    vdata.nupdates++;
-    vdata.nchanges = sum.nchanges;
-    vdata.factor = sum.factor;
-  } // end of apply
-
-  edge_dir_type scatter_edges(icontext_type& context,
-                              const vertex_type& vertex) const {
-    return graphlab::ALL_EDGES;
-  }; // end of scatter edges
-
-  void scatter(icontext_type& context, const vertex_type& vertex,
-               edge_type& edge) const {
-    factor_type& doc_topic_count =  is_doc(edge.source()) ?
-      edge.source().data().factor : edge.target().data().factor;
-    factor_type& word_topic_count = is_word(edge.source()) ?
-      edge.source().data().factor : edge.target().data().factor;
-    ASSERT_EQ(doc_topic_count.size(), NTOPICS);
-    ASSERT_EQ(word_topic_count.size(), NTOPICS);
-    // run the actual gibbs sampling
-    std::vector<double> prob(NTOPICS);
-    assignment_type& assignment = edge.data().assignment;
-    edge.data().nchanges = 0;
-    foreach(topic_id_type& asg, assignment) {
-      const topic_id_type old_asg = asg;
-      if(asg != NULL_TOPIC) { // construct the cavity
-        --doc_topic_count[asg];
-        --word_topic_count[asg];
-        --GLOBAL_TOPIC_COUNT[asg];
-      }
-      for(size_t t = 0; t < NTOPICS; ++t) {
-        const double n_dt =
-          std::max(count_type(doc_topic_count[t]), count_type(0));
-        const double n_wt =
-          std::max(count_type(word_topic_count[t]), count_type(0));
-        const double n_t  =
-          std::max(count_type(GLOBAL_TOPIC_COUNT[t]), count_type(0));
-        prob[t] = (ALPHA + n_dt) * (BETA + n_wt) / (BETA * NWORDS + n_t);
-      }
-      asg = graphlab::random::multinomial(prob);
-      // asg = std::max_element(prob.begin(), prob.end()) - prob.begin();
-      ++doc_topic_count[asg];
-      ++word_topic_count[asg];
-      ++GLOBAL_TOPIC_COUNT[asg];
-      if(asg != old_asg) {
-        ++edge.data().nchanges;
-        INCREMENT_EVENT(TOKEN_CHANGES,1);
-      }
-    } // End of loop over each token
-    // singla the other vertex
-    context.signal(get_other_vertex(edge, vertex));
-  } // end of scatter function
-
-}; // end of cgs_lda_vertex_program
+    const factor_type& factor = vertex.data().factor;
+    for(size_t i = 0; i < factor.size(); ++i) { 
+      strm << factor[i];
+      if(i+1 < factor.size()) strm << '\t';
+    }
+    return strm.str();
+  }
+  std::string save_edge(const edge_type& edge) const {
+    return ""; //nop
+  }
+}; // end of prediction_saver
 
 
 
 
 
+
+
+/**
+ * \brief The omni engine type is used to allow switching between
+ * synchronous and asynchronous computation. 
+ */
 typedef graphlab::omni_engine<cgs_lda_vertex_program> engine_type;
-typedef cgs_lda_vertex_program::icontext_type icontext_type;
-typedef topk_aggregator<icontext_type> topk_type;
-typedef selective_signal<icontext_type> signal_only;
-typedef global_counts_aggregator<icontext_type> global_counts_agg;
-typedef likelihood_aggregator<icontext_type> likelihood_agg;
+
+
 
 
 
@@ -816,13 +1001,13 @@ int main(int argc, char** argv) {
   // Parse command line options -----------------------------------------------
   const std::string description =
     "\n=========================================================================\n"
-    "The fast Collapsed Gibbs Sampler for the LDA model implements\n"
+    "The Collapsed Gibbs Sampler for the LDA model implements\n"
     "a highly asynchronous version of parallel LDA in which document\n"
     "and word counts are maintained in an eventually consistent\n"
     "manner.\n"
     "\n"
     "The standard usage is: \n"
-    "\t./fast_cgs_lda --dictionary dictionary.txt --matrix doc_word_count.tsv\n"
+    "\t./cgs_lda --dictionary dictionary.txt --matrix doc_word_count.tsv\n"
     "where dictionary.txt contains: \n"
     "\taaa \n\taaai \n\tabalone \n\t   ... \n"
     "each line number corresponds to wordid (i.e aaa has wordid=0)\n\n"
@@ -838,10 +1023,11 @@ int main(int argc, char** argv) {
   graphlab::command_line_options clopts(description);
   std::string matrix_dir;
   std::string dictionary_fname;
+  std::string doc_dir;
+  std::string word_dir;
   bool loadjson = false;
   clopts.attach_option("dictionary", &dictionary_fname, dictionary_fname,
                        "The file containing the list of unique words");
-  clopts.add_positional("dictionary");
   clopts.attach_option("matrix", &matrix_dir, matrix_dir,
                        "The directory or file containing the matrix data.");
   clopts.add_positional("matrix");
@@ -859,6 +1045,14 @@ int main(int argc, char** argv) {
                        "The maximum number of occurences of a word in a document.");
   clopts.attach_option("loadjson",&loadjson,loadjson,
                        "Boolean if parsing JSON (matrix arg is a dir or a gzip file)");
+  clopts.attach_option("burnin", &BURNIN, BURNIN, 
+                       "The time in second to run until a sample is collected. "
+                       "If less than zero the sampler runs indefinitely.");
+  clopts.attach_option("doc_dir", &doc_dir, doc_dir,
+                       "The output directory to save the final document counts.");
+  clopts.attach_option("word_dir", &word_dir, word_dir,
+                       "The output directory to save the final words counts.");
+
 
   if(!clopts.parse(argc, argv)) {
     graphlab::mpi_tools::finalize();
@@ -911,8 +1105,8 @@ int main(int argc, char** argv) {
   ///! Add an aggregator
   if(!DICTIONARY.empty()) {
     const bool success =
-      engine.add_vertex_aggregator<topk_type>
-      ("topk", topk_type::map, topk_type::finalize) &&
+      engine.add_vertex_aggregator<topk_aggregator>
+      ("topk", topk_aggregator::map, topk_aggregator::finalize) &&
       engine.aggregate_periodic("topk", INTERVAL);
     ASSERT_TRUE(success);
   }
@@ -920,30 +1114,72 @@ int main(int argc, char** argv) {
   { // Add the Global counts aggregator
     const bool success =
       engine.add_vertex_aggregator<factor_type>
-      ("global_counts", global_counts_agg::map, global_counts_agg::finalize) &&
+      ("global_counts", 
+       global_counts_aggregator::map, 
+       global_counts_aggregator::finalize) &&
       engine.aggregate_periodic("global_counts", 5);
     ASSERT_TRUE(success);
   }
-  // success =
-  //   engine.add_vertex_aggregator<likelihood_agg>
-  //   ("likelihood", likelihood_agg::map, likelihood_agg::finalize) &&
-  //   engine.aggregate_periodic("likelihood", 10);
-  // ASSERT_TRUE(success);
-
+  
+  { // Add the likelihood aggregator
+    const bool success =
+      engine.add_vertex_aggregator<likelihood_aggregator>
+      ("likelihood", 
+       likelihood_aggregator::map, 
+       likelihood_aggregator::finalize) &&
+      engine.aggregate_periodic("likelihood", 10);
+    ASSERT_TRUE(success);
+  }
 
   ///! schedule only documents
   dc.cout() << "Running The Collapsed Gibbs Sampler" << std::endl;
   engine.map_reduce_vertices<graphlab::empty>(signal_only::docs);
   graphlab::timer timer;
+  // Enable sampling
+  cgs_lda_vertex_program::DISABLE_SAMPLING = false;
+  // Run the engine
   engine.start();
+  // Finalize the counts
+  cgs_lda_vertex_program::DISABLE_SAMPLING = true;
+  engine.signal_all();
+  engine.start();
+  
   const double runtime = timer.current_time();
-    dc.cout()
+  dc.cout()
     << "----------------------------------------------------------" << std::endl
     << "Final Runtime (seconds):   " << runtime
     << std::endl
     << "Updates executed: " << engine.num_updates() << std::endl
     << "Update Rate (updates/second): "
     << engine.num_updates() / runtime << std::endl;
+  
+  
+  
+  if(!word_dir.empty()) {
+    // save word topic counts
+    const bool gzip_output = false;
+    const bool save_vertices = true;
+    const bool save_edges = false;
+    const size_t threads_per_machine = 2;
+    const bool save_words = true;
+    graph.save(word_dir, count_saver(save_words),
+               gzip_output, save_vertices, 
+               save_edges, threads_per_machine);
+  }
+
+  
+  if(!doc_dir.empty()) {
+    // save doc topic counts
+    const bool gzip_output = false;
+    const bool save_vertices = true;
+    const bool save_edges = false;
+    const size_t threads_per_machine = 2;
+    const bool save_words = false;
+    graph.save(doc_dir, count_saver(save_words),
+               gzip_output, save_vertices, 
+               save_edges, threads_per_machine);
+
+  }
 
 
   graphlab::stop_metric_server_on_eof();
