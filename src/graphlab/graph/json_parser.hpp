@@ -92,22 +92,31 @@ class json_parser {
 
 
   bool load() {
-    line_parser_type graph_structure_parser = boost::bind(parse_graph_structure_from_json, _1, _2, edge_parser);
+    line_parser_type graph_structure_parser = parse_graph_structure_from_json;
+    line_parser_type vid2lvid_parser = parse_vid2lvid_from_json;
+    line_parser_type edata_parser = boost::bind(parse_edatalist_from_json, _1, _2, edge_parser);
     line_parser_type vrecord_parser = boost::bind(parse_vrecord_from_json, _1, _2, vertex_parser);
 
     bool success = parse_by_line(graphfilename(), graph_structure_parser);
-
+    success = success & parse_by_line(vid2lvidfilename(), vid2lvid_parser); 
+    success = success & parse_by_line(edatafilename(), edata_parser); 
     success = success & parse_by_line(vrecordfilename(), vrecord_parser);
 
-    if (graph.ingress_ptr == NULL) {
-      graph.ingress_ptr = new distributed_identity_ingress<VertexData, EdgeData>(graph.rpc.dc(), graph);
-    }
+    graph.local_graph.finalized = true;
+
+    
 
     ASSERT_GE(graph.local_graph.num_vertices(), graph.local_graph.gstore.num_vertices);
     ASSERT_EQ(graph.vid2lvid.size(), graph.local_graph.num_vertices());
     ASSERT_EQ(graph.lvid2record.size(), graph.local_graph.num_vertices());
 
+if (graph.ingress_ptr == NULL) {
+      graph.ingress_ptr = new distributed_identity_ingress<VertexData, EdgeData>(graph.rpc.dc(), graph);
+    }
     graph.ingress_ptr->exchange_global_info();
+    delete graph.ingress_ptr;
+
+
     graph.finalized = true;
     return success;
   }
@@ -181,8 +190,7 @@ class json_parser {
 
 
   /* Parse the graph structure from json */
-  static bool parse_graph_structure_from_json (graph_type& graph, const std::string& str,
-      edge_parser_type edge_parser) {
+  static bool parse_graph_structure_from_json (graph_type& graph, const std::string& str) {
     JSONNode n = libjson::parse(str);
     JSONNode::const_iterator i = n.begin();
     typedef typename graph_type::local_graph_type local_graph_type;
@@ -190,10 +198,11 @@ class json_parser {
     while(i != n.end()) {
       if (i->name() == "numEdges") {
         local_graph.gstore.num_edges = i->as_int();
+        local_graph.gstore.num_edges = i->as_int();
       } else if (i->name() == "numVertices") {
         local_graph.gstore.num_vertices= i->as_int();
-      } else if (i->name() == "vid2lvid") {
-        parse_vid2lvid(graph, *i);
+      // } else if (i->name() == "vid2lvid") {
+      //   parse_vid2lvid(graph, *i);
       } else if (i->name() == "csr") {
         // parse rowIndex -> graph.local_graph.gstore.csr_source
         // parse colIndex -> graph.local_graph.gstore.csr_target
@@ -230,7 +239,65 @@ class json_parser {
       } else if (i->name() == "c2rMap") {
         // parse c2rMap -> graph.local_graph.gstore.c2rMap
         parse_vid_array (local_graph.gstore.c2r_map, *i);
-      } else if (i->name() == "edataList") {
+      // } else if (i->name() == "edataList") {
+      //   // parse  edatalist -> graph.local_graph.gstore.edata
+      //   JSONNode edatanode= *i;
+      //   JSONNode::const_iterator j = edatanode.begin();
+      //   std::vector<edge_data_type>& edatalist = local_graph.gstore.edge_data_list;
+      //   edatalist.clear();
+      //   edatalist.reserve(local_graph.gstore.num_edges);
+      //   edge_data_type e;
+      //   while (j != edatanode.end()) {
+      //     edge_parser(e, j->as_string());
+      //     edatalist.push_back(e);
+      //     ++j;
+      //   }
+      } else {
+        logstream(LOG_ERROR) << "Error parsing json into graph. Unknown json node name:" <<
+          i->name() << std::endl;
+      }
+      ++i;
+    } // end while
+
+    graph.lvid2record.reserve(local_graph.gstore.num_vertices);
+    graph.lvid2record.resize(local_graph.gstore.num_vertices);
+    local_graph.reserve(local_graph.gstore.num_vertices);
+    // local_graph.finalized = true;
+    return true;
+  }
+
+  /* Parse the vid2lvid map from json */
+  static bool parse_vid2lvid_from_json (graph_type& graph, const std::string& str) {
+    JSONNode n = libjson::parse(str);
+    JSONNode::const_iterator i = n.begin();
+    typedef typename graph_type::local_graph_type local_graph_type;
+    while(i != n.end()) {
+      if (i->name() == "vid2lvid") {
+        JSONNode::const_iterator j = i->begin();
+        typename graph_type::vid2lvid_map_type & map = graph.vid2lvid;
+        map.clear();
+        while(j != i->end()) {
+          graph.vid2lvid[boost::lexical_cast<int>(j->name())] = j->as_int();
+          ++j;
+        }
+      } else {
+        // report error
+        return false;
+      }
+      ++i;
+    }
+    return true;
+  }
+
+  /* Parse the edata list from json */
+  static bool parse_edatalist_from_json (graph_type& graph, const std::string& str,
+      edge_parser_type edge_parser) {
+    JSONNode n = libjson::parse(str);
+    JSONNode::const_iterator i = n.begin();
+    typedef typename graph_type::local_graph_type local_graph_type;
+    local_graph_type& local_graph = graph.get_local_graph();
+    while(i != n.end()) {
+       if (i->name() == "edataList") {
         // parse  edatalist -> graph.local_graph.gstore.edata
         JSONNode edatanode= *i;
         JSONNode::const_iterator j = edatanode.begin();
@@ -243,20 +310,15 @@ class json_parser {
           edatalist.push_back(e);
           ++j;
         }
-      } else {
-        logstream(LOG_ERROR) << "Error parsing json into graph. Unknown json node name:" <<
-          i->name() << std::endl;
-      }
+       } else {
+         return false;
+         // report error
+       }
       ++i;
-    } // end while
-
-    graph.lvid2record.reserve(local_graph.gstore.num_vertices);
-    graph.lvid2record.resize(local_graph.gstore.num_vertices);
-    local_graph.reserve(local_graph.gstore.num_vertices);
-    local_graph.finalized = true;
-
+    }
     return true;
   }
+
 
   /* Parse the vertex record list from json */
   static bool parse_vrecord_from_json (graph_type& graph, const std::string& str,
@@ -327,30 +389,32 @@ class json_parser {
   }
 
 
-  /* Parse the vid2lvid map from a json node
-   * To construct a vid value, we convert string into an int vidType.
-   * */
-  static bool parse_vid2lvid (graph_type& graph, const JSONNode& n) {
-    JSONNode::const_iterator i = n.begin();
-    typename graph_type::vid2lvid_map_type & map = graph.vid2lvid;
-    map.clear();
-    while(i != n.end()) {
-      graph.vid2lvid[boost::lexical_cast<int>(i->name())] = i->as_int();
-      ++i;
-    }
-    return true;
-  }
-
   const std::string graphfilename() {
     procid_t pid = graph.procid();
     std::string suffix =  gzip ? ".gz" : "";
-    return "graph/graph"+tostr(pid)+"-r-0000"+tostr(pid)+suffix;
+    // return "graph/graph"+tostr(pid)+"-r-0000"+tostr(pid)+suffix;
+    return "graph/graph"+tostr(pid)+"-r-00000"+suffix;
+  }
+
+  const std::string vid2lvidfilename() {
+    procid_t pid = graph.procid();
+    std::string suffix =  gzip ? ".gz" : "";
+    // return "graph/vid2lvid"+tostr(pid)+"-r-0000"+tostr(pid)+suffix;
+    return "graph/vid2lvid"+tostr(pid)+"-r-00000"+suffix;
+  }
+
+  const std::string edatafilename() {
+    procid_t pid = graph.procid();
+    std::string suffix =  gzip ? ".gz" : "";
+    // return "graph/edata"+tostr(pid)+"-r-0000"+tostr(pid)+suffix;
+    return "graph/edata"+tostr(pid)+"-r-00000"+suffix;
   }
 
   const std::string vrecordfilename() {
     procid_t pid = graph.procid();
     std::string suffix =  gzip ? ".gz" : "";
-    return "vrecord/vdata"+tostr(pid)+"-r-0000"+tostr(pid)+ suffix;
+    // return "vrecord/vdata"+tostr(pid)+"-r-0000"+tostr(pid)+ suffix;
+    return "vrecord/vdata"+tostr(pid)+"-r-00000"+ suffix;
   }
 
   private:
