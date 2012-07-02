@@ -388,9 +388,9 @@ private:
    */
   inline void convolve(const factor_type& cavity, const double& weight, 
                        factor_type& message) const {
-    for(size_t i = 0; i < message.size(); ++i) {
+    for(int i = 0; i < message.size(); ++i) {
       double sum = 0;
-      for(size_t j = 0; j < cavity.size(); ++j) {
+      for(int j = 0; j < cavity.size(); ++j) {
         sum += std::exp( cavity(j)  + ( i == j? 0 : -(SMOOTHING*weight) ) ); 
       }
       // To try and ensure numerical stability we do not allow
@@ -547,10 +547,10 @@ struct belief_prediction_saver {
     strm << vertex.id() << '\t';
     factor_type pred = vertex.data().belief;
     double sum = 0;
-    for(size_t i = 0; i < pred.size(); ++i) 
+    for(int i = 0; i < pred.size(); ++i) 
       sum += (pred(i) = std::exp(pred(i)));
     pred.array() /= sum;
-    for(size_t i = 0; i < pred.size(); ++i) 
+    for(int i = 0; i < pred.size(); ++i) 
       strm << pred(i) << (i+1 < pred.size()? '\t' : '\n');
     return strm.str();
   }
@@ -597,21 +597,21 @@ int main(int argc, char** argv) {
   std::string graph_dir;
   std::string output_dir = "pred";
   bool map = false;
-  clopts.attach_option("prior", &prior_dir, prior_dir,
+  clopts.attach_option("prior", prior_dir,
                        "The directory containing the prior");
   clopts.add_positional("prior");
-  clopts.attach_option("graph", &graph_dir, graph_dir,
+  clopts.attach_option("graph", graph_dir,
                        "The directory containing the adjacency graph");
   clopts.add_positional("graph");
-  clopts.attach_option("smoothing", &SMOOTHING, SMOOTHING,
+  clopts.attach_option("smoothing", SMOOTHING,
                        "The amount of smoothing (larger = more)");
-  clopts.attach_option("damping", &DAMPING, DAMPING,
+  clopts.attach_option("damping", DAMPING,
                        "The amount of damping (0 -> no damping and 1 -> no progress)");
-  clopts.attach_option("tol", &TOLERANCE, TOLERANCE,
+  clopts.attach_option("tol", TOLERANCE,
                        "The tolerance level for convergence.");
-  clopts.attach_option("output", &output_dir, output_dir,
+  clopts.attach_option("output", output_dir,
                        "The directory in which to save the predictions");
-  clopts.attach_option("map", &map, map,
+  clopts.attach_option("map", map,
                        "Return maximizing assignment instead of the posterior distribution.");
   if(!clopts.parse(argc, argv)) {
     graphlab::mpi_tools::finalize();

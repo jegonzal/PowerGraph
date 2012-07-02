@@ -139,20 +139,20 @@ int main(int argc, char** argv) {
   std::string graph_dir;
   std::string format = "adj";
   bool loadjson = false;
-  clopts.attach_option("graph", &graph_dir, graph_dir,
+  clopts.attach_option("graph", graph_dir,
                        "The graph file.  If none is provided "
                        "then a toy graph will be created");
   clopts.add_positional("graph");
-  clopts.attach_option("format", &format, format,
+  clopts.attach_option("format", format,
                        "The graph file format: {metis, snap, tsv, adj, bin}");
   size_t powerlaw = 0;
-  clopts.attach_option("powerlaw", &powerlaw, powerlaw,
+  clopts.attach_option("powerlaw", powerlaw,
                        "Generate a synthetic powerlaw out-degree graph. ");
   std::string saveprefix;
-  clopts.attach_option("saveprefix", &saveprefix, saveprefix,
+  clopts.attach_option("saveprefix", saveprefix,
                        "If set, will save the resultant pagerank to a "
                        "sequence of files with prefix saveprefix");
-  clopts.attach_option("loadjson",&loadjson,loadjson,
+  clopts.attach_option("loadjson", loadjson,
                         "Boolean for JSON format (graph arg will be directory or gzip file)");
 
   if(!clopts.parse(argc, argv)) {

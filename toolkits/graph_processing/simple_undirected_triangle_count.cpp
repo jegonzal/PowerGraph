@@ -293,14 +293,11 @@ int main(int argc, char** argv) {
     "will over count.");
   std::string prefix, format;
   std::string per_vertex;
-  clopts.attach_option("graph",
-                       &prefix, prefix,
+  clopts.attach_option("graph", prefix,
                        "Graph input. reads all graphs matching prefix*");
-  clopts.attach_option("format",
-                       &format, format,
+  clopts.attach_option("format", format,
                        "The graph format");
-  clopts.attach_option("per_vertex",
-                       &per_vertex, per_vertex,
+  clopts.attach_option("per_vertex", per_vertex,
                        "If not empty, will count the number of "
                        "triangles each vertex belongs to and "
                        "save to file with prefix \"[per_vertex]\". "

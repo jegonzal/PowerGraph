@@ -95,61 +95,65 @@ namespace boost {
 
 namespace graphlab {
   /**
-  \ingroup util
-  Because of the many engine options GraphLab has relatively
-  sophisticated command line parsing tools. However we have found that
-  many of our ML applications had poorly written command line parsing
-  support so we tried to generalize the GraphLab command line tools to
-  enable user applications to benefit from sophisticated and still
-  easy to use command line parsing.
-
-  The command_line_options data-structure extends (wrapping) the
-  boost::program_options library. We have tried to retain much of the
-  functionality of the boost::program_options library while hiding
-  some of the less "friendly" template meta-programming "features".
-  
-  Here is an example of how the library is used:
-  
-  \code
-  int main(int argc, char** argv) {
-  
-    std::string filename;
-    size_t dimensions = 20;
-    double bound = 1E-5;
-    bool use_x = false;
-    std::vector<size_t> nsamples(1,10000);
-  
-    // Parse command line options
-    graphlab::command_line_options clopts("Welcome to a the HelloWorld");
-    clopts.attach_option("file", &filename, 
-                         "The input filename (required)");
-    clopts.add_positional("file");
-    clopts.attach_option("dim",
-                         &dimensions, dimensions,
-                         "the dimension of the grid");
-    clopts.attach_option("bound",
-                         &bound, bound,
-                         "The termination bound");
-    clopts.attach_option("usex",
-                         &use_x, use_x,
-                         "Use algorithm x");
-    clopts.attach_option("nsamples",
-                         &nsamples, nsamples,
-                         "A vector of the number of samples"); 
-
-    if(!clopts.parse(argc, argv)) return EXIT_FAILURE;
-  
-    if(!clopts.is_set("file")) {
-      std::cout << "Input file not provided" << std::endl;
-  
-      clopts.print_description();
-      return EXIT_FAILURE;
-    }
-  }
-  \endcode
-  
-  
-  */
+   * \ingroup util 
+   *
+   * \brief The GraphLab command line options class helps parse basic
+   * command line options for the GraphLab framework as well as user
+   * applications.
+   *
+   * Early in the development of GraphLab we realized that a lot of
+   * time was spent writing code to parse the many GraphLab options as
+   * well as each of the applications options.  In many cases we were
+   * using the boost::program_options library which while very
+   * powerful can also be fairly complicated.  
+   *
+   * As a consequence, we developed a simple command line options
+   * object that parses the standard argv options capturing GraphLab
+   * specific options and also processing users options.  GraphLab
+   * command line tools to enable user applications to benefit from
+   * sophisticated and still easy to use command line parsing.
+   *
+   * The command_line_options data-structure is built on top of the
+   * boost::program_options library. We have tried to retain much of
+   * the functionality of the boost::program_options library while
+   * hiding some of the less "friendly" template meta-programming
+   * "features".
+   *
+   *  Here is an example of how the library is used:
+   *
+   * \code
+   * int main(int argc, char** argv) {
+   *
+   *   std::string filename;
+   *   size_t dimensions = 20;
+   *   double bound = 1E-5;
+   *   bool use_x = false;
+   *   std::vector<size_t> nsamples(1,10000);
+   * 
+   *   // Parse command line options
+   *   graphlab::command_line_options clopts("Welcome to a the HelloWorld");
+   *   clopts.attach_option("file", filename, "The input filename (required)");
+   *   clopts.add_positional("file");
+   *   clopts.attach_option("dim", dimensions,
+   *                        "the dimension of the grid");
+   *   clopts.attach_option("bound", bound,
+   *                        "The termination bound");
+   *   clopts.attach_option("usex", use_x,
+   *                        "Use algorithm x");
+   *   clopts.attach_option("nsamples", nsamples,
+   *                        "A vector of the number of samples"); 
+   *
+   *   if(!clopts.parse(argc, argv)) return EXIT_FAILURE;
+   * 
+   *   if(!clopts.is_set("file")) {
+   *     std::cout << "Input file not provided" << std::endl;
+   *     clopts.print_description();
+   *     return EXIT_FAILURE;
+   *   }
+   * }
+   * \endcode
+   *
+   */
   class command_line_options : public graphlab_options {
 
     boost::program_options::options_description desc;
@@ -160,6 +164,22 @@ namespace graphlab {
     bool suppress_graphlab_options;
     
   public:
+
+    /**
+     * \brief Construct a command options object with basic settings.
+     *
+     * \param [in] desc_str The description of the program that is
+     * printed when --help is invoked (in addition to all the options
+     * and their descriptions).
+     *
+     * \param [in] ncpus The default number of local threads to use in
+     * the engine (default value is 2).  This value can be
+     * over-written by the users command line arguments.
+     *
+     * \param [in] default_scheduler The default scheduler to use if
+     * the engine supports schedulers (default value is sweep).  This
+     * value can be over-written by the users command line arguments.
+     */
     command_line_options(const std::string& desc_str = "GraphLab program.",
                          size_t default_ncpus = 2,
                          const std::string& default_scheduler = "sweep") : 
@@ -168,12 +188,23 @@ namespace graphlab {
       set_scheduler_type(default_scheduler);
       // Add documentation for help
       namespace boost_po = boost::program_options;
-      
-      desc.add_options()("help", "Print this help message.");
-      
-    
+      desc.add_options()("help", "Print this help message.");    
     } // End constructor
 
+
+    /**
+     * \brief Construct a command options object with basic settings.  
+     *
+     * \param [in] desc_str The description of the program that is
+     * printed when --help is invoked (in addition to all the options
+     * and their descriptions).
+     *
+     * \param [in] suppress_graphlab_options If set to true the
+     * standard GraphLab options are not parsed and the help screen.
+     * only presents the users options.  This is useful in cases where
+     * command line options are needed outside of GraphLab binary
+     * (e.g., simple utilities).
+     */
     command_line_options(const std::string& desc_str,
                          bool suppress_graphlab_options) : 
       desc(desc_str), 
@@ -181,7 +212,6 @@ namespace graphlab {
       // Add documentation for help
       namespace boost_po = boost::program_options;      
       desc.add_options()("help", "Print this help message.");
-      
     } // End constructor
 
 
@@ -193,92 +223,96 @@ namespace graphlab {
 
 
     /**
-    \brief This function should be called AFTER all the options have
-    been seen (including positionals). The parse function reads the
-    standard command line arguments and fills in the attached
-    variables. If there is an error in the syntax or parsing fails the
-    parse routine will print the error and return false.
-    */
+     * \brief This function should be called AFTER all the options
+     * have been seen (including positionals). The parse function
+     * reads the standard command line arguments and fills in the
+     * attached variables. If there is an error in the syntax or
+     * parsing fails the parse routine will print the error and return
+     * false.
+     */
     bool parse(int argc, const char* const* argv);
 
-    /** The is set function is used to test if the user provided the option. 
-    The option string should match one of the attached options. 
-    */
+    /** 
+     * \brief The is set function is used to test if the user provided
+     * the option.  The option string should match one of the attached
+     * options.
+     */
     bool is_set(const std::string& option);
 
 
     /**
-    \brief attach a user defined option to the command line options
-    parser.
-    
-    The attach option command is used to attach a user defined option
-    to the command line options parser.
-    
-    \param option The name of the command line flag for that option.
-
-    \param ret_cont A pointer to an "arbitrary" type which can be any
-                    of the basic types (char, int, size_t, float,
-                    double, bool, string...) or an std::vector of
-                    basic types. It is important that the ret_cont
-                    point to a memory block that will exist when parse
-                    is invoked.
-                    
-    \param description Used to describe the option when --help 
-          is called or when print_description is invoked.
-    */
+     * \brief attach a user defined option to the command line options
+     * parser.
+     *
+     * The attach option command is used to attach a user defined
+     * option to the command line options parser.
+     *
+     * \param [in] option The name of the command line flag for that
+     * option.
+     *
+     * \param [in,out] ret_var A reference to an "arbitrary" type
+     * which can be any of the basic types (char, int, size_t, float,
+     * double, bool, string...) or an std::vector of basic types. It
+     * is important that the ret_cont point to a memory block that
+     * will exist when parse is invoked.  The default value is read
+     * from the ret_cont
+     *                
+     * \param [in] description Used to describe the option when --help is
+     * called or when print_description is invoked.
+     */
     template<typename T>
     void attach_option(const std::string& option,
-                       T* ret_cont,
+                       T& ret_var,
                        const std::string& description) {
       namespace boost_po = boost::program_options;
-      assert(ret_cont != NULL);
       desc.add_options()
-        (option.c_str(), 
-         boost_po::value<T>(ret_cont), 
+        (option.c_str(), boost_po::value<T>(&ret_var)->default_value(ret_var), 
          description.c_str());
-    }
+    } // end of attach_option
 
 
-    /**
-    \brief attach a user defined option to the command line options
-    parser.
+    // /**
+    // \brief attach a user defined option to the command line options
+    // parser.
     
-    The attach option command is used to attach a user defined option
-    to the command line options parser.
+    // The attach option command is used to attach a user defined option
+    // to the command line options parser.
     
-    \param option The name of the command line flag for that option.
+    // \param option The name of the command line flag for that option.
 
-    \param ret_cont A pointer to an "arbitrary" type which can be any
-                    of the basic types (char, int, size_t, float,
-                    double, bool, string...) or an std::vector of
-                    basic types. It is important that the ret_cont
-                    point to a memory block that will exist when parse
-                    is invoked.
+    // \param ret_cont A pointer to an "arbitrary" type which can be any
+    //                 of the basic types (char, int, size_t, float,
+    //                 double, bool, string...) or an std::vector of
+    //                 basic types. It is important that the ret_cont
+    //                 point to a memory block that will exist when parse
+    //                 is invoked.
 
-    \param default_value The default value of the parameter if the
-                         user does not provide this parameter on the
-                         command line.
+    // \param default_value The default value of the parameter if the
+    //                      user does not provide this parameter on the
+    //                      command line.
 
-    \param description Used to describe the option when --help 
-          is called or when print_description is invoked.
-    */
-    template<typename T>
-    void attach_option(const std::string& option,
-                       T* ret_cont,
-                       const T& default_value, 
-                       const std::string& description) {
-      namespace boost_po = boost::program_options;
-      assert(ret_cont != NULL);
-      desc.add_options()
-        (option.c_str(),
-         boost_po::value<T>(ret_cont)->default_value(default_value),
-         description.c_str());
-    }
+    // \param description Used to describe the option when --help 
+    //       is called or when print_description is invoked.
+    // */
+    // template<typename T>
+    // void attach_option(const std::string& option,
+    //                    T* ret_cont,
+    //                    const T& default_value, 
+    //                    const std::string& description) {
+    //   namespace boost_po = boost::program_options;
+    //   assert(ret_cont != NULL);
+    //   desc.add_options()
+    //     (option.c_str(),
+    //      boost_po::value<T>(ret_cont)->default_value(default_value),
+    //      description.c_str());
+    // }
     
-    /** This function adds the option as a positional argument.  A
-    positional argument does not require --option and instead is read
-    based on its location. Each add_positional call adds to the next
-    position. */
+    /** 
+     * \brief This function adds the option as a positional argument.
+     * A positional argument does not require --option and instead is
+     * read based on its location. Each add_positional call adds to
+     * the next position. 
+     */
     void add_positional(const std::string& str);
 
     

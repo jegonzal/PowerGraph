@@ -39,7 +39,7 @@ int main(int argc, char **argv){
   
   graphlab::command_line_options clopts("GraphLab Javascript Shell");
   std::string script;
-  clopts.attach_option("script", &script, script,
+  clopts.attach_option("script", script,
                        "The javascript file.  If none is provided, then I will read "
                        "the script from STDIN");
  
