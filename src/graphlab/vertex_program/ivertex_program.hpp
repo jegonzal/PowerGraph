@@ -484,7 +484,7 @@ namespace graphlab {
      *
      * \li graphlab::NO_EDGES : Do not process any edges
      * 
-     * \li graphlab::IN_EDGE : Process only inbound edges to this
+     * \li graphlab::IN_EDGES : Process only inbound edges to this
      * vertex
      * 
      * \li graphlab::OUT_EDGES : Process only outbound edges to this
@@ -558,7 +558,7 @@ namespace graphlab {
      * \li graphlab::NO_EDGES : The gather phase is completely skipped
      * potentially reducing network communication.
      * 
-     * \li graphlab::IN_EDGE : The gather function is only run on
+     * \li graphlab::IN_EDGES : The gather function is only run on
      * inbound edges to this vertex.
      * 
      * \li graphlab::OUT_EDGES : The gather function is only run on
