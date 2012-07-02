@@ -29,9 +29,9 @@
   yet; some complex algorithms may take some time. 
 
   There are two starting points where one may begin using GraphLab.
-  \li \b Toolkits You can lookup the toolkit documentation here if you have a
+  \li \ref toolkits "Toolkits" You can lookup the toolkit documentation here if you have a
   computation task which is already implemented by one of our toolkits.
-  \li <b>Using The Abstraction</b> If you have a computation task which is
+  \li \ref using_graphlab "GraphLab C++ Tutorial" If you have a computation task which is
   not implemented by our toolkits, you could try implementing yourself! For now
   a certain degree of C++ knowledge is required. However, we are trying to
   provide an interface to other languages such as Javascript and Python.
