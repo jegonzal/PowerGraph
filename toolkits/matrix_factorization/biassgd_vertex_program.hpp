@@ -266,8 +266,8 @@ public:
       assert(!std::isnan(err));
       if (edge.data().role == edge_data::TRAIN){
 
-        bias = GAMMA*(err - LAMBDA*bias);
-        other_bias = GAMMA*(err - LAMBDA* other_bias);
+        bias = -GAMMA*(err - LAMBDA*bias);
+        other_bias = -GAMMA*(err - LAMBDA* other_bias);
          
         delta = -GAMMA*(err*other_vertex.data().pvec - LAMBDA*vertex.data().pvec);
         other_delta = -GAMMA*(err*vertex.data().pvec - LAMBDA*other_vertex.data().pvec);
