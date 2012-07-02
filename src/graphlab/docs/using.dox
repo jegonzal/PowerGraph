@@ -12,7 +12,8 @@
   - \subpage using_graphlab_distributed_graph_load_data 
   - \subpage using_graphlab_distributed_graph_vertex_program 
   - \subpage using_scheduling 
-
+  - \subpage using_saving_answers 
+  - \subpage using_conclusion
 
   \page using_graphlab_create_project 1: Creating a GraphLab project
 
@@ -289,7 +290,9 @@
   matching \c graph.txt*, and possibly in parallel (if running in a distributed
   environment, it is important to ensure that all machines can access the
   same set of files). Furthermore, the \c load() function automatically
-  supports HDFS loading and obeys the same rules.
+  supports HDFS loading and obeys the same rules. Finally, if a filename
+  ends with the \c .gz extension, it is automatically treated as a gzip 
+  compressed file and will be automatically decompressed for reading.
 
   \code
   graph.load("hdfs:///hdfsnamenode/data/graph", line_parser);
@@ -364,6 +367,9 @@
   }
   \endcode
 
+  \note The stringstream is somewhat slow and is not the fastest way to 
+  parse a string. Significant performance gains can be made through the use of
+  C parsing or perhaps even boost::spirit.
 
   \section load_data_other_topics Other Topics
 
@@ -427,8 +433,8 @@
 
   \code
 class pagerank_program :
-  public graphlab::ivertex_program<graph_type, double>,
-  public graphlab::IS_POD_TYPE {
+            public graphlab::ivertex_program<graph_type, double>,
+            public graphlab::IS_POD_TYPE {
 public:
   // we are going to gather on all the in-edges
   edge_dir_type gather_edges(icontext_type& context,
@@ -436,20 +442,20 @@ public:
     return graphlab::IN_EDGES;
   }
 
-  /* for each in-edge gather the weighted sum of the edge.
+  // for each in-edge gather the weighted sum of the edge.
   double gather(icontext_type& context, const vertex_type& vertex,
                edge_type& edge) const {
     return edge.source().data().pagerank / edge.source().num_out_edges();
   }
   
-  /* Use the total rank of adjacent pages to update this page */
+  // Use the total rank of adjacent pages to update this page 
   void apply(icontext_type& context, vertex_type& vertex,
              const gather_type& total) {
     double newval = total * 0.85 + 0.15;
     vertex.data().pagerank = newval;
   }
   
-  /* The scatter edges depend on whether the pagerank has converged */
+  // No scatter needed. Return NO_EDGES 
   edge_dir_type scatter_edges(icontext_type& context,
                               const vertex_type& vertex) const {
     return graphlab::NO_EDGES;
@@ -552,6 +558,285 @@ public:
   be inefficient. In the \ref using_scheduling "next section" we will learn how
   to signal vertices inside a vertex program.
 
- \page using_scheduling 6: Dynamic Scheduling
+ \page using_scheduling 6: Runtime Scheduling
 
- */
+ During engine execution, the engine maintains (in a distributed fashion),
+ a schedule of vertex programs to run. The 
+ \ref graphlab::omni_engine::signal_all "engine.signal_all()"
+ function call essentially injects a list of all vertices in the graph into
+ the engine's scheduler. In this section, we will see how the schedule
+ can be modified during engine execution and how that could be used (to great
+ effect in some cases) to accelerate convergence of your program.
+
+  \section using_scheduling_self Self Scheduling Example
+
+  The simplest form of "dynamic" scheduling is to repeat each vertex's execution
+  for a certain fixed number of iterations (say 10). 
+  To do that, we add a 
+  "counter" to the data on each vertex by modifying the \c web_page struct:
+
+  \code
+  struct web_page {
+    std::string pagename;
+    double pagerank;
+    int counter;
+
+    web_page():pagerank(0.0),counter(0) { }
+    explicit web_page(std::string name):pagename(name),
+                          pagerank(0.0),counter(0){ }
+
+    void save(graphlab::oarchive& oarc) const {
+      oarc << pagename << pagerank << counter;
+    }
+
+    void load(graphlab::iarchive& iarc) {
+      iarc >> pagename >> pagerank >> counter;
+    }
+  };
+  \endcode
+
+  Observe that the constructors were modified to initialize the counters at 0,
+  and the save/load functions must now also save the counter variable.
+
+  To achieve self-scheduling, we simply modify the \c apply() function in the
+  \c pagerank_program to increment the counter, and signal the current vertex
+  if the counter has not reached 10.
+  \code
+  // Use the total rank of adjacent pages to update this page 
+  void apply(icontext_type& context, vertex_type& vertex,
+             const gather_type& total) {
+    double newval = total * 0.85 + 0.15;
+    vertex.data().pagerank = newval;
+    ++vertex.data().counter;
+    if (vertex.data().counter < 10) context.signal(vertex);
+    // of course, instead of simply "10" here, this could be comparing
+    // against a global variable set by a command line option.
+  }
+  \endcode
+  The \ref graphlab::icontext::signal() "context.signal(vertex)" call
+  inserts the current vertex into the scheduler. The guarantee provided by the
+  \c signal() call is that:
+  <b> The vertex signaled will be eventually executed some time after completion
+  of the \c signal() function call. </b>
+ 
+  If used together with the synchronous engine, this program will perform
+  exactly the equivalent of the traditional "matrix-multiplication-like"
+  PageRank iteration. 
+
+  \section using_scheduling_dynamic Dynamic Scheduling Example
+
+  Alternatively, we could take a more "contextual" approach to scheduling.
+  Considering that PageRank is a numeric procedure performed on a large graph,
+  it is not unreasonable to believe that some parts of the graph will 
+  converge before other parts of the graph. We could therefore 
+  save computation if we only recompute vertices which may change by large
+  amounts.
+
+  To implement this, we consider the pagerank_program implemented earlier.
+  We will not make modifications to the gather phases, but we will change the
+  apply phase and introduce a scatter phase. The goal is to achive the following:
+  
+  \li If the current vertex's PageRank does not change much, no additional
+      action is performed.
+  \li However, if the current vertex's PageRank changed by greater than some
+      threshold (1E-3), we will \c signal() all out-pages to recompute their
+      PageRank value.
+
+  \code
+class dynamic_pagerank_program :
+             public graphlab::ivertex_program<graph_type, double>,
+             publlic graphlab::IS_POD_TYPE {
+private:
+  // a variable local to this program
+  bool perform_scatter;
+public:
+  // no changes to gather_edges and gather
+  edge_dir_type gather_edges(icontext_type& context,
+                             const vertex_type& vertex) const {
+    return graphlab::IN_EDGES;
+  }
+  double gather(icontext_type& context, const vertex_type& vertex,
+               edge_type& edge) const {
+    return edge.source().data().pagerank / edge.source().num_out_edges();
+  }
+  
+
+  // Use the total rank of adjacent pages to update this page 
+  void apply(icontext_type& context, vertex_type& vertex,
+             const gather_type& total) {
+    double newval = total * 0.85 + 0.15;
+    double prevval = vertex.data.pagerank;
+    vertex.data().pagerank = newval;
+    perform_scatter = (std::fabs(prevval - newval) > 1E-3);
+  }
+  
+  // The scatter edges depend on whether the pagerank has converged 
+  edge_dir_type scatter_edges(icontext_type& context,
+                              const vertex_type& vertex) const {
+    if (perform_scatter) return graphlab::OUT_EDGES;
+    else return graphlab::NO_EDGES;
+  }
+
+  void scatter(icontext_type& context, const vertex_type& vertex,
+               edge_type& edge) const {
+    context.signal(edge.target());
+  }
+}; 
+  \endcode
+
+  Firstly, we observe that we introduced a private variable \c perform_scatter
+  to the program. This variable is short-lived and is local to this particular
+  execution of the pagerank program. In the \c apply() function, we compute the
+  change to the current vertex's pagerank, and if it is above a certain threshold,
+  we set the \c perform_scatter variable to true. 
+  
+  This next influences the 
+  behavior of the \c scatter_edges() function. If \c perform_scatter is false,
+  (i.e. insufficient change was made to the current PageRank), we do not perform a scatter.
+  However, if sufficient change was made, \c scatter_edges() will return
+  graphlab::OUT_EDGES which will cause the \c scatter()  function to be executed
+  on all out-going edges of the current vertex. The \c scatter() function then
+  simply schedules/signals the destination vertex, requesting it to be executed
+  in the future, picking up the large change made to the current vertex.
+
+  If ran using the synchronous engine, you will observe that the time spent within
+  each synchronous iteration decreases, as the number of "signalled" vertices
+  in each iteration decreases over time. This also works well in the asynchronous
+  setting where powerful dynamic schedulers are used to control the order
+  of execution.
+
+  \note If you dig further into the documentation you will see that the 
+  signalling operation can itself be used as a messaging primitive to carry a
+  message to a destination vertex. This allows GraphLab v2.1 to in some sense,
+  also include "Pregel" as part of the implementation. Furthermore, the
+  message could define a "message priority" which can be used in conjunction with
+  the priority-queue based dynamic schedulers to obtain greater control over
+  the order of execution in the asynchronous engine.
+
+  In the \ref using_saving_answers "next section", we will see how to save 
+  output of the system.
+
+ \page using_saving_answers 7: Saving Results
+
+ Saving the graph requires us to implement a graph writer class comprising of
+ two functions: \c save_vertex() and \c save_edge().
+
+ \code
+ class graph_writer {
+   public:
+      std::string save_vertex(graph_type::vertex_type v) { return ""; }
+      std::string save_edge(graph_type::edge_type e) { return ""; }
+ };
+ \endcode
+
+ The \c save_vertex() and \c save_edge() functions are are respective 
+ called on each vertex/edge in the graph. These functions return a string
+ which is then directly written to the output file.
+
+ For instance, to save an output file comprising of <tt>[webpage] [pagerank]</tt>
+ lines, we may implement the following:
+
+ \code
+ class graph_writer {
+   public:
+      std::string save_vertex(graph_type::vertex_type v) {
+        std::stringstream strm;
+        // remember the \n at the end! This will provide a line break
+        // after each page.
+        strm << v.data().pagename << "\t" << v.data().pagerank << "\n";
+        return strm.str();
+      }
+      std::string save_edge(graph_type::edge_type e) { return ""; }
+ };
+ \endcode
+
+ Since we are not interested in the edges, the \c save_edge() function
+ simply returns an empty string.
+
+  \note The stringstream is somewhat slow and is not the fastest way to 
+  write a string. Performance gains can be made through the use of
+  C string operations.
+
+  Then to write the graph, we will call
+ \code
+ graph.save("output",
+            graph_writer(),
+            false, // set to true if each output file is to be gzipped
+            true, // whether vertices are saved
+            false); // whether edges are saved
+ \endcode
+
+ This will save a sequence of files named <tt> output_1_of_N, output_2_of_N ... 
+ </tt> where N is some integer. Concatenating all the files together will produce
+ the combined output. If the gzip option is set, each of the files will have a
+ \c .gz suffix and \c gunzip must be used to decompres the file for reading.
+
+ If the output path is located on HDFS, for instance:
+\verbatim
+hdfs:///namenode/data/output
+\endverbatim
+The result will be saved to the HDFS cluster with the given namename,
+    in the subdirectory /data with the filenames
+<tt> output_1_of_N, output_2_of_N ... </tt>.
+
+There are several other "built-in" saving formats which can be accessed through
+the ref graphlab::distributed_graph::save_format() "graph.save_format()"function.
+
+The \ref using_conclusion "next section" is a brief conclusion.
+
+\page using_conclusion 8: Conclusion
+
+This completes the core of the GraphLab tutorial. We have went through an overview
+of 
+\li How to start a GraphLab project
+\li How to read a graph from disk/HDFS
+\li How to write a vertex program
+\li Dynamic Scheduling in a vertex program
+\li How to save a graph to disk/HDFS
+
+There are many 
+more features which we are unable to introduce through the course of
+this tutorial which we hope you will be able to discover by exploring the 
+documentation. 
+
+Some really useful tools that we would like to bring to your attention are:
+<ul>
+<li> Perform MapReduce over the vertices or the edges in the graph.
+    <ul>
+    <li> graphlab::distributed_graph::map_reduce_vertices()
+    <li> graphlab::distributed_graph::map_reduce_edges()
+    </ul>
+<li> Perform MapReduce over the vertices or edges in the graph, while being
+provided a context in the Map function, thus allowing finer grained control
+over signalling.
+    <ul>
+    <li> graphlab::iengine::map_reduce_vertices()
+    <li> graphlab::iengine::map_reduce_edges()
+    </ul>
+<li> Make a modification to all the vertices or edges in the graph
+     <ul>
+    <li> graphlab::distributed_graph::transform_vertices()
+    <li> graphlab::distributed_graph::transform_edges()
+    </ul>
+<li> Make a modification to all the vertices or edges in the graph, while being
+provided a context in the Map function, thus allowing finer grained control
+over signalling.
+     <ul>
+    <li> graphlab::iengine::transform_vertices()
+    <li> graphlab::iengine::transform_edges()
+    </ul>
+<li> Register a MapReduce operation which performs periodically while
+a GraphLab engine is running thus allowing for global state.
+    <ul>
+    <li> graphlab::iengine::add_vertex_aggregator()
+    <li> graphlab::iengine::add_edge_aggregator()
+    <li> graphlab::iengine::aggregate_now()
+    <li> graphlab::iengine::aggregate_periodic()
+    </ul>
+</ul>
+
+Interleaving these operations together with GraphLab vertex_programs allow
+for a huge amount of flexibility, allowing for a large number of algorithms to
+be implemented easily, and efficiently.
+
+*/
