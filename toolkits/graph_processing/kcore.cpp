@@ -190,20 +190,15 @@ int main(int argc, char** argv) {
   size_t kmin = 0;
   size_t kmax = 100;
   std::string savecores;
-  clopts.attach_option("graph",
-                       &prefix, prefix,
+  clopts.attach_option("graph", prefix,
                        "Graph input. reads all graphs matching prefix*");
-  clopts.attach_option("format",
-                       &format, format,
+  clopts.attach_option("format", format,
                        "The graph format");
-  clopts.attach_option("kmin",
-                       &kmin, kmin,
+  clopts.attach_option("kmin", kmin,
                        "Compute the k-Core for k the range [kmin,kmax]");
-  clopts.attach_option("kmax",
-                       &kmax, kmax,
+  clopts.attach_option("kmax", kmax,
                        "Compute the k-Core for k the range [kmin,kmax]");
-  clopts.attach_option("savecores",
-                       &savecores, savecores,
+  clopts.attach_option("savecores", savecores,
                        "If non-empty, will save tsv of each core with prefix [savecores].K");
 
   if(!clopts.parse(argc, argv)) return EXIT_FAILURE;

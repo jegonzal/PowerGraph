@@ -1028,33 +1028,33 @@ int main(int argc, char** argv) {
   std::string word_dir;
   std::string exec_type = "asynchronous";
   bool loadjson = false;
-  clopts.attach_option("dictionary", &dictionary_fname, dictionary_fname,
+  clopts.attach_option("dictionary", dictionary_fname,
                        "The file containing the list of unique words");
- clopts.attach_option("engine", &exec_type, exec_type, 
+  clopts.attach_option("engine", exec_type, 
                        "The engine type synchronous or asynchronous");
-  clopts.attach_option("corpus", &corpus_dir, corpus_dir,
+  clopts.attach_option("corpus", corpus_dir,
                        "The directory or file containing the corpus data.");
   clopts.add_positional("corpus");
-  clopts.attach_option("ntopics", &NTOPICS, NTOPICS,
+  clopts.attach_option("ntopics", NTOPICS,
                        "Number of topics to use.");
-  clopts.attach_option("alpha", &ALPHA, ALPHA,
+  clopts.attach_option("alpha", ALPHA,
                        "The document hyper-prior");
-  clopts.attach_option("beta", &BETA, BETA,
+  clopts.attach_option("beta", BETA,
                        "The word hyper-prior");
-  clopts.attach_option("topk", &TOPK, TOPK,
+  clopts.attach_option("topk", TOPK,
                        "The number of words to report");
-  clopts.attach_option("interval", &INTERVAL, INTERVAL,
+  clopts.attach_option("interval", INTERVAL,
                        "statistics reporting interval");
-  clopts.attach_option("max_count", &MAX_COUNT, MAX_COUNT,
+  clopts.attach_option("max_count", MAX_COUNT,
                        "The maximum number of occurences of a word in a document.");
-  clopts.attach_option("loadjson",&loadjson,loadjson,
+  clopts.attach_option("loadjson", loadjson,
                        "Boolean if parsing JSON (corpus arg is a dir or a gzip file)");
-  clopts.attach_option("burnin", &BURNIN, BURNIN, 
+  clopts.attach_option("burnin", BURNIN, 
                        "The time in second to run until a sample is collected. "
                        "If less than zero the sampler runs indefinitely.");
-  clopts.attach_option("doc_dir", &doc_dir, doc_dir,
+  clopts.attach_option("doc_dir", doc_dir,
                        "The output directory to save the final document counts.");
-  clopts.attach_option("word_dir", &word_dir, word_dir,
+  clopts.attach_option("word_dir", word_dir,
                        "The output directory to save the final words counts.");
 
 

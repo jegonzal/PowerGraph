@@ -3848,10 +3848,10 @@ static void close_connection(struct mg_connection *conn) {
 }
 
 static void discard_current_request_from_buffer(struct mg_connection *conn) {
-  char *buffered;
+  // char *buffered;
   int buffered_len, body_len;
 
-  buffered = conn->buf + conn->request_len;
+  //  buffered = conn->buf + conn->request_len;
   buffered_len = conn->data_len - conn->request_len;
   assert(buffered_len >= 0);
 

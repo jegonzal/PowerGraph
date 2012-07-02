@@ -51,25 +51,25 @@ int main(int argc, char** argv) {
   double alpha             = 1.8;
 
 
-  clopts.attach_option("dir", &output_folder, output_folder,
+  clopts.attach_option("dir", output_folder,
                        "Location to create the data files");
-  clopts.attach_option("nfiles", &nfiles, nfiles,
+  clopts.attach_option("nfiles", nfiles,
                        "The number of files to generate.");
-  clopts.attach_option("D", &D, D, "Number of latent dimensions.");
-  clopts.attach_option("nusers", &nusers, nusers,
+  clopts.attach_option("D", D, "Number of latent dimensions.");
+  clopts.attach_option("nusers", nusers,
                        "The number of users.");
-  clopts.attach_option("nmovies", &nmovies, nmovies,
+  clopts.attach_option("nmovies", nmovies,
                        "The number of movies.");
-  clopts.attach_option("alpha", &alpha, alpha,
+  clopts.attach_option("alpha", alpha,
                        "The power-law constant.");
-  clopts.attach_option("nvalidate", &nvalidate, nvalidate,
+  clopts.attach_option("nvalidate", nvalidate,
                        "The validate ratings pers user");
-  clopts.attach_option("npredict", &npredict, npredict,
+  clopts.attach_option("npredict", npredict,
                        "The predict ratings pers user");
 
-  clopts.attach_option("noise", &noise, noise,
+  clopts.attach_option("noise", noise,
                        "The standard deviation noise parameter");
-  clopts.attach_option("stdev", &stdev, stdev,
+  clopts.attach_option("stdev", stdev,
                        "The standard deviation in latent factor values");
 
   if(!clopts.parse(argc, argv)) {

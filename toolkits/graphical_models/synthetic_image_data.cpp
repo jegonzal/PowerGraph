@@ -203,32 +203,23 @@ int main(int argc, char** argv) {
   // Parse command line arguments --------------------------------------------->
   graphlab::command_line_options clopts("Create synthetic prediction", false);
  
-  clopts.attach_option("vdata", &vdata_fn, vdata_fn,
+  clopts.attach_option("vdata", vdata_fn,
                        "Vertex prior filename");
-  clopts.attach_option("edata", &edata_fn, edata_fn,
+  clopts.attach_option("edata", edata_fn,
                        "Adjacency information");
-
-  clopts.attach_option("ncolors",
-                       &ncolors, ncolors,
+  clopts.attach_option("ncolors", ncolors,
                        "The number of colors in the noisy image");
-  clopts.attach_option("error_rate",
-                       &error_rate, error_rate,
+  clopts.attach_option("error_rate", error_rate,
                        "Standard deviation of noise.");
-  clopts.attach_option("nrows",
-                       &nrows, nrows,
+  clopts.attach_option("nrows", nrows,
                        "The number of rows in the noisy image");
-  clopts.attach_option("ncols",
-                       &ncols, ncols,
+  clopts.attach_option("ncols", ncols,
                        "The number of columns in the noisy image");
-  
-  clopts.attach_option("orig",
-                       &orig_img_fn, orig_img_fn,
+  clopts.attach_option("orig", orig_img_fn,
                        "Original image file name.");
-  clopts.attach_option("noisy",
-                       &noisy_img_fn, noisy_img_fn,
+  clopts.attach_option("noisy", noisy_img_fn,
                        "Noisy image file name.");
-  clopts.attach_option("pred",
-                       &pred_img_fn, pred_img_fn,
+  clopts.attach_option("pred", pred_img_fn,
                        "Predicted image file name.");
     
   ///! Initialize control plain using mpi

@@ -356,19 +356,15 @@ int main(int argc, char** argv) {
   std::string datafile;
   std::string outcluster_file;
   std::string outdata_file;
-  clopts.attach_option("data",
-                       &datafile, datafile,
+  clopts.attach_option("data", datafile,
                        "Input file. Each line hold a white-space or comma separated numeric vector");
-  clopts.attach_option("clusters",
-                       &NUM_CLUSTERS, NUM_CLUSTERS,
+  clopts.attach_option("clusters", NUM_CLUSTERS,
                        "The number of clusters to create.");
-  clopts.attach_option("output-clusters",
-                       &outcluster_file, outcluster_file,
+  clopts.attach_option("output-clusters", outcluster_file,
                        "If set, will write a file containing cluster centers "
                        "to this filename. This must be on the local filesystem "
                        "and must be accessible to the root node.");
-  clopts.attach_option("output-data",
-                       &outdata_file, outdata_file,
+  clopts.attach_option("output-data", outdata_file,
                        "If set, will output a copy of the input data with an additional "
                        "last column denoting the assigned cluster centers. The output "
                        "will be written to a sequence of filenames where each file is "

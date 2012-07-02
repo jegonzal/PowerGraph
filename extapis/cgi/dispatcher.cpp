@@ -326,22 +326,22 @@ int main(int argc, char** argv) {
   command_line_options clopts("GraphLab Dispatcher");
   
   std::string graph_dir = "toy.tsv";
-  clopts.attach_option("graph", &graph_dir, graph_dir,
+  clopts.attach_option("graph", graph_dir,
                        "The graph file.  If none is provided "
                        "then a toy graph will be created");
   clopts.add_positional("graph");
   std::string format = "tsv";
-  clopts.attach_option("format", &format, format,
+  clopts.attach_option("format", format,
                        "The graph file format: {metis, snap, tsv, adj, bin, cgi}");
   std::string program;
-  clopts.attach_option("program", &program,
+  clopts.attach_option("program", program,
                        "The program to execute (required)");
   std::string saveprefix;
-  clopts.attach_option("saveprefix", &saveprefix,
+  clopts.attach_option("saveprefix", saveprefix,
                        "If set, will save the resultant graph to a "
                        "sequence of files with prefix saveprefix");
   std::string signal;
-  clopts.attach_option("signal", &signal,
+  clopts.attach_option("signal", signal,
                        "If set, then only vertices with these IDs will be signalled "
                        "when the engine is started.");
                        

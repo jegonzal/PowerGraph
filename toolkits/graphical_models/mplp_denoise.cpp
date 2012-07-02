@@ -958,35 +958,25 @@ int main(int argc, char** argv) {
     
     // Parse command line arguments --------------------------------------------->
     graphlab::command_line_options clopts("Loopy BP image denoising");
-    clopts.attach_option("bound",
-                         &BOUND, BOUND,
+    clopts.attach_option("bound", BOUND,
                          "Residual termination bound");
-    clopts.attach_option("ncolors",
-                         &NCOLORS, NCOLORS,
+    clopts.attach_option("ncolors", NCOLORS,
                          "The number of colors in the noisy image");
-    clopts.attach_option("sigma",
-                         &SIGMA, SIGMA,
+    clopts.attach_option("sigma", SIGMA,
                          "Standard deviation of noise.");
-    clopts.attach_option("nrows",
-                         &nrows, nrows,
+    clopts.attach_option("nrows", nrows,
                          "The number of rows in the noisy image");
-    clopts.attach_option("ncols",
-                         &ncols, ncols,
+    clopts.attach_option("ncols", ncols,
                          "The number of columns in the noisy image");
-    clopts.attach_option("lambda",
-                         &lambda, lambda,
+    clopts.attach_option("lambda", lambda,
                          "Smoothness parameter (larger => smoother).");
-    clopts.attach_option("smoothing",
-                         &smoothing, smoothing,
+    clopts.attach_option("smoothing", smoothing,
                          "Options are {square, laplace}");
-    clopts.attach_option("orig",
-                         &orig_fn, orig_fn,
+    clopts.attach_option("orig", orig_fn,
                          "Original image file name.");
-    clopts.attach_option("noisy",
-                         &noisy_fn, noisy_fn,
+    clopts.attach_option("noisy", noisy_fn,
                          "Noisy image file name.");
-    clopts.attach_option("pred",
-                         &pred_fn, pred_fn,
+    clopts.attach_option("pred", pred_fn,
                          "Predicted image file name.");
     
     ///! Initialize control plain using mpi

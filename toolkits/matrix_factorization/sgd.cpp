@@ -72,42 +72,31 @@ int main(int argc, char** argv) {
   std::string predictions;
   size_t interval = 0;
   std::string exec_type = "synchronous";
-  clopts.attach_option("matrix", &input_dir, input_dir,
+  clopts.attach_option("matrix", input_dir,
                        "The directory containing the matrix file");
   clopts.add_positional("matrix");
-  clopts.attach_option("D",
-                       &(vertex_data::NLATENT), vertex_data::NLATENT,
+  clopts.attach_option("D", vertex_data::NLATENT,
                        "Number of latent parameters to use.");
-  clopts.attach_option("engine", &exec_type, exec_type, 
+  clopts.attach_option("engine", exec_type, 
                        "The engine type synchronous or asynchronous");
-  clopts.attach_option("max_iter",
-                       &(sgd_vertex_program::MAX_UPDATES), 
-                       sgd_vertex_program::MAX_UPDATES,
+  clopts.attach_option("max_iter", sgd_vertex_program::MAX_UPDATES,
                        "The maxumum number of udpates allowed for a vertex");
-  clopts.attach_option("lambda", 
-                       &(sgd_vertex_program::LAMBDA), 
-                       sgd_vertex_program::LAMBDA, 
+  clopts.attach_option("lambda", sgd_vertex_program::LAMBDA, 
                        "SGD regularization weight"); 
-  clopts.attach_option("gamma", 
-                       &(sgd_vertex_program::GAMMA), 
-                       sgd_vertex_program::GAMMA, 
+  clopts.attach_option("gamma", sgd_vertex_program::GAMMA, 
                        "SGD step size"); 
-  clopts.attach_option("debug", 
-                       &(sgd_vertex_program::debug), 
-                       sgd_vertex_program::debug, 
+  clopts.attach_option("debug", sgd_vertex_program::debug, 
                        "debug - additional verbose info"); 
-    clopts.attach_option("tol",
-                       &(sgd_vertex_program::TOLERANCE), 
-                       sgd_vertex_program::TOLERANCE,
+  clopts.attach_option("tol", sgd_vertex_program::TOLERANCE,
                        "residual termination threshold");
-  clopts.attach_option("maxval", &sgd_vertex_program::MAXVAL, sgd_vertex_program::MAXVAL, "max allowed value");
-  clopts.attach_option("minval", &sgd_vertex_program::MINVAL, sgd_vertex_program::MINVAL, "min allowed value");
-  clopts.attach_option("step_dec", &sgd_vertex_program::STEP_DEC, sgd_vertex_program::STEP_DEC, "multiplicative step decrement");
-  clopts.attach_option("interval",  &interval, interval, 
+  clopts.attach_option("maxval", sgd_vertex_program::MAXVAL, "max allowed value");
+  clopts.attach_option("minval", sgd_vertex_program::MINVAL, "min allowed value");
+  clopts.attach_option("step_dec", sgd_vertex_program::STEP_DEC, "multiplicative step decrement");
+  clopts.attach_option("interval", interval, 
                        "The time in seconds between error reports");
-  clopts.attach_option("predictions", &predictions, predictions,
+  clopts.attach_option("predictions", predictions,
                        "The prefix (folder and filename) to save predictions.");
-  clopts.attach_option("output", &output_dir, output_dir,
+  clopts.attach_option("output", output_dir,
                        "Output results");
   if(!clopts.parse(argc, argv)) {
     std::cout << "Error in parsing command line arguments." << std::endl;
