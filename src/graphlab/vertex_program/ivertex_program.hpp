@@ -323,28 +323,12 @@ namespace graphlab {
      * The gather type plays the following role in the vertex program:
      * 
      * \code
-     * gather_type sum = gather_type();
+     * gather_type sum = EMPTY;
      * for(edges in vprog.gather_edges()) {
-     *   sum += vprog.gather( ... );
+     *   if(sum == EMPTY) sum = vprog.gather(...);
+     *   else sum += vprog.gather( ... );
      * }
      * vprog.apply(..., sum);
-     * \endcode
-     *
-     * However in practice we implement the gather phase as a parallel
-     * reduction tree and as a consequence the resulting sum has the
-     * following form:
-     *
-     * \code
-     *   gather_type sum = vprog.gather( edge1 ) + 
-     *                     vprog.gather( edge2 ) ...
-     * \endcode
-     *
-     * and not:
-     *
-     * \code
-     *   gather_type sum = gather_type() +
-     *                     vprog.gather( edge1 ) + 
-     *                     vprog.gather( edge2 ) ...
      * \endcode
      *
      * In addition to implementing the operator+= operation the gather
