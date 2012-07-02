@@ -15,6 +15,7 @@ Allocation (LDA) model. In the near future we plan to add a Collapsed
 Variational Bayesian inference algorithm for the LDA model as well as
 some more general topic models.
 
+
 \section lda_model  The LDA Model 
 
 The <a href="http://en.wikipedia.org/wiki/Latent_Dirichlet_allocation">LDA
@@ -93,10 +94,74 @@ href="http://www.ics.uci.edu/~asuncion/pubs/NIPS_08.pdf">Paper</a>).
 
 
 
-\section cgs_usage Usage
+\section cgs_lda_usage Usage 
 ==============
 
-The collapsed Gibbs sampler takes as an input a corpus in the form of doc word count triples
+The collapsed Gibbs sampler application (\ref cgs_lda.cpp) takes as an
+input a text corpus represented as one or more token files.  Each
+token consists of lines in the form:
+
+\verbatim
+<docid> <wordid> <count>
+\endverbatim
+
+for example a file containing:
+
+\verbatim
+0    0     2
+0    4     1
+1    2     3
+\endverbatim
+ 
+implies that the word with id 0 occurs twice in document 0, the word
+with id 4 occurs once in document 0, and the word with id 2 occurs
+three times in document 1.
+
+On termination the system outputs for each term the number of
+occurrences of that term that have been assigned to each topic and for
+each document the number of tokens assigned to each document.
+
+
+\subsection cgs_lda_example Example
+
+To demonstrate how the CGS LDA application works we have obtained a
+copy of the Daily Kos bag-of-words data from the <a
+href="http://archive.ics.uci.edu/ml/datasets/Bag+of+Words"> UCI
+Repository </a> and reformatted it for the cgs_lda application.  You
+can download the reformatted data from <a
+href="http://code.google.com/p/graphlabapi/downloads/detail?name=daily_kos.tar.bz2">here</a>.
+Once extracted the folder contains:
+
+\verbatim
+> ls -lR daily_kos
+total 120
+-rw-r--r--  1 jegonzal  staff    904 Jul  1 22:37 README
+-rw-r--r--@ 1 jegonzal  staff  55467 Jul  1 22:21 dictionary.txt
+drwxr-xr-x  3 jegonzal  staff    102 Jul  1 22:21 tokens
+
+./tokens:
+total 7960
+-rw-r--r--  1 jegonzal  staff  4074516 Jul  1 22:21 doc_word_count.tsv
+\endverbatim
+
+To run the CGS_LDA GraphLab application on a single machine we simply run:
+
+\verbatim
+> ./cgs_lda --corpus ./daily_kos/tokens --dictionary ./daily_kos/dictionary.txt
+\endverbatim
+
+This will run indefinitley display the top words in each topic every 10 seconds.
+There are a wide range of options that can be set:
+
+
+
+
+
+
+
+
+
+
 
 
 */
