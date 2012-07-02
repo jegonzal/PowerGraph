@@ -208,14 +208,14 @@ public:
 
 }; // end of gather type
 
-typedef vec_type message_type;
+//typedef gather_type message_type;
 
 /**
  * BIASSGD vertex program type
  */ 
 class biassgd_vertex_program : 
   public graphlab::ivertex_program<graph_type, gather_type,
-                                   message_type> {
+                                   gather_type> {
 public:
   /** The convergence tolerance */
   static double TOLERANCE;
@@ -229,7 +229,7 @@ public:
   static double GLOBAL_MEAN;
   static size_t NUM_TRAINING_EDGES;
 
-  vec_type pmsg;
+  gather_type pmsg;
   void save(graphlab::oarchive& arc) const { 
     arc << pmsg;
   }
@@ -281,7 +281,7 @@ public:
       if (debug)
           std::cout<<"new val:" << (int)edge.source().id() << ":" << (int)edge.target().id()-1000000 << " U " << my_vertex.data().pvec.transpose() << " V " << other_vertex.data().pvec.transpose() << std::endl;
          if(other_vertex.data().nupdates < MAX_UPDATES) 
-          context.signal(other_vertex, other_delta);
+          context.signal(other_vertex, gather_type(other_delta, other_bias));
        }
       return gather_type(delta, bias);
     } 
@@ -305,8 +305,9 @@ public:
       vdata.pvec += sum.pvec; 
       assert(vertex.num_in_edges() == 0);
     }
-    else if (pmsg.size() > 0){
-      vdata.pvec += pmsg;
+    else if (pmsg.pvec.size() > 0){
+      vdata.pvec += pmsg.pvec;
+      vdata.bias += pmsg.bias;
       assert(vertex.num_out_edges() == 0); 
     }
     ++vdata.nupdates;
@@ -326,7 +327,7 @@ public:
       const vertex_type other_vertex = get_other_vertex(edge, vertex);
       // Reschedule neighbors ------------------------------------------------
       if(other_vertex.data().nupdates < MAX_UPDATES) 
-        context.signal(other_vertex, vec_type::Zero(vertex_data::NLATENT));
+        context.signal(other_vertex, gather_type(vec_type::Zero(vertex_data::NLATENT),0));
     }
   } // end of scatter function
 
@@ -336,7 +337,7 @@ public:
    */
   static graphlab::empty signal_left(icontext_type& context,
                                      vertex_type& vertex) {
-    if(vertex.num_out_edges() > 0) context.signal(vertex, vec_type::Zero(vertex_data::NLATENT));
+    if(vertex.num_out_edges() > 0) context.signal(vertex, gather_type(vec_type::Zero(vertex_data::NLATENT),0));
     return graphlab::empty();
   } // end of signal_left 
 
