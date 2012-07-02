@@ -84,6 +84,9 @@ int main(int argc, char** argv) {
                        "The prefix (folder and filename) to save predictions.");
   clopts.attach_option("engine", exec_type, 
                        "The engine type synchronous or asynchronous");
+  clopts.attach_option("remap", REMAP_TARGET,
+                       "Renumber target vertex ids (internally) so that they\n" 
+                       "are in a different range allowing user 0 to connect to movie 0");
   clopts.attach_option("output", output_dir,
                        "Output results");
   if(!clopts.parse(argc, argv)) {

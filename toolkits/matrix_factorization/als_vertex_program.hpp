@@ -39,6 +39,12 @@
 
 #include <Eigen/Dense>
 
+#include <boost/config/warning_disable.hpp>
+#include <boost/spirit/include/qi.hpp>
+#include <boost/spirit/include/phoenix_core.hpp>
+#include <boost/spirit/include/phoenix_operator.hpp>
+#include <boost/spirit/include/phoenix_stl.hpp>
+
 #include <graphlab.hpp>
 
 #include "eigen_serialization.hpp"
@@ -46,6 +52,14 @@
 
 typedef Eigen::VectorXd vec_type;
 typedef Eigen::MatrixXd mat_type;
+
+
+/**
+ * \brief Remap the target id of each edge into a different id space
+ * than the source id.
+ */
+bool REMAP_TARGET = false;
+
 
 
 /** 
@@ -147,6 +161,8 @@ double extract_l2_error(const graph_type::edge_type & edge) {
 } // end of extract_l2_error
 
 
+
+
 /**
  * \brief The graph loader function is a line parser used for
  * distributed graph construction.
@@ -155,18 +171,34 @@ inline bool graph_loader(graph_type& graph,
                          const std::string& filename,
                          const std::string& line) {
   ASSERT_FALSE(line.empty()); 
+  namespace qi = boost::spirit::qi;
+  namespace ascii = boost::spirit::ascii;
+  namespace phoenix = boost::phoenix;
   // Determine the role of the data
   edge_data::data_role_type role = edge_data::TRAIN;
   if(boost::ends_with(filename,".validate")) role = edge_data::VALIDATE;
   else if(boost::ends_with(filename, ".predict")) role = edge_data::PREDICT;
   // Parse the line
-  std::stringstream strm(line);
   graph_type::vertex_id_type source_id(-1), target_id(-1);
-  float obs(0);
-  strm >> source_id >> target_id;
-  if(role == edge_data::TRAIN || role == edge_data::VALIDATE) strm >> obs;
+  float obs(0); 
+  const bool success = qi::phrase_parse
+    (line.begin(), line.end(),       
+     //  Begin grammar
+     (
+      qi::ulong_[phoenix::ref(source_id) = qi::_1] >> -qi::char_(',') >>
+      qi::ulong_[phoenix::ref(target_id) = qi::_1] >> 
+      -(-qi::char_(',') >> qi::float_[phoenix::ref(obs) = qi::_1])
+      )
+     ,
+     //  End grammar
+     ascii::space); 
+  if(!success) return false;
+  if(REMAP_TARGET) {
+    // map target id into a separate number space
+    target_id = -(graphlab::vertex_id_type(target_id + 2));
+  }
   // Create an edge and add it to the graph
-  graph.add_edge(source_id, target_id+1000000, edge_data(obs, role)); 
+  graph.add_edge(source_id, target_id, edge_data(obs, role)); 
   return true; // successful load
 } // end of graph_loader
 
@@ -323,7 +355,7 @@ public:
    * \brief Signal all vertices on one side of the bipartite graph
    */
   static graphlab::empty signal_left(icontext_type& context,
-                                     vertex_type& vertex) {
+                                     const vertex_type& vertex) {
     if(vertex.num_out_edges() > 0) context.signal(vertex);
     return graphlab::empty();
   } // end of signal_left 
@@ -378,9 +410,10 @@ struct prediction_saver {
     std::stringstream strm;
     const double prediction = 
       edge.source().data().factor.dot(edge.target().data().factor);
-    strm << edge.source().id() << '\t' 
-         << edge.target().id() << '\t'
-         << prediction << '\n';
+    strm << edge.source().id() << '\t';
+    if(REMAP_TARGET) strm << (-edge.target().id() - 2) << '\t';
+    else strm << edge.target().id() << '\t';
+    strm << prediction << '\n';
     return strm.str();
   }
 }; // end of prediction_saver
