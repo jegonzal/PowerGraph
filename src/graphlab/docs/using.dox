@@ -6,12 +6,12 @@
   graph to performing computation and saving the results. 
   
   The tutorial is divided into the following sections:
-  - \subpage using_graphlab_create_project 1: Creating a GraphLab project
-  - \subpage using_graphlab_empty_app 2: Hello World in GraphLab
-  - \subpage using_graphlab_distributed_graph 3: Defining a Graph
-  - \subpage using_graphlab_distributed_graph_load_data 4: Loading Graph Data
-  - \subpage using_graphlab_distributed_graph_vertex_program 5: Writing the PageRank Vertex Program
-  - \subpage using_scheduling 6: Dynamic Scheduling
+  - \subpage using_graphlab_create_project 
+  - \subpage using_graphlab_empty_app 
+  - \subpage using_graphlab_distributed_graph 
+  - \subpage using_graphlab_distributed_graph_load_data 
+  - \subpage using_graphlab_distributed_graph_vertex_program 
+  - \subpage using_scheduling 
 
 
   \page using_graphlab_create_project 1: Creating a GraphLab project

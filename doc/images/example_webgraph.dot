@@ -1,0 +1,12 @@
+digraph webgraph {
+  a [label="1: a.com"];
+  b [label="4: b.org"];
+  c [label="10: c.edu"];
+  d [label="11: d.gov"];
+  a->b;
+  a->c;
+  b->c;
+  c->d;
+  c->a;
+  d->c;
+}
