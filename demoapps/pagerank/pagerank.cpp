@@ -35,6 +35,8 @@
 // Global random reset probability
 float RESET_PROB = 0.15;
 
+float TOLERANCE = 1.0E-2;
+
 // The vertex data is just the pagerank value (a float)
 typedef float vertex_data_type;
 
@@ -87,7 +89,7 @@ public:
   /* Use the total rank of adjacent pages to update this page */
   void apply(icontext_type& context, vertex_type& vertex,
              const gather_type& total) {
-    double newval = total + RESET_PROB;
+    const double newval = total + RESET_PROB;
     last_change = std::fabs(newval - vertex.data());
     vertex.data() = newval;
   }
@@ -95,7 +97,7 @@ public:
   /* The scatter edges depend on whether the pagerank has converged */
   edge_dir_type scatter_edges(icontext_type& context,
                               const vertex_type& vertex) const {
-    if (last_change > 1E-2) return graphlab::OUT_EDGES;
+    if (last_change > TOLERANCE) return graphlab::OUT_EDGES;
     else return graphlab::NO_EDGES;
   }
 
@@ -138,11 +140,16 @@ int main(int argc, char** argv) {
   graphlab::command_line_options clopts("PageRank algorithm.");
   std::string graph_dir;
   std::string format = "adj";
+  std::string exec_type = "synchronous";
   bool loadjson = false;
   clopts.attach_option("graph", graph_dir,
                        "The graph file.  If none is provided "
                        "then a toy graph will be created");
   clopts.add_positional("graph");
+  clopts.attach_option("engine", exec_type, 
+                       "The engine type synchronous or asynchronous");
+  clopts.attach_option("tol", TOLERANCE,
+                       "The permissible change at convergence.");
   clopts.attach_option("format", format,
                        "The graph file format: {metis, snap, tsv, adj, bin}");
   size_t powerlaw = 0;
@@ -184,7 +191,7 @@ int main(int argc, char** argv) {
   graph.transform_vertices(init_vertex);
 
   // Running The Engine -------------------------------------------------------
-  graphlab::omni_engine<pagerank> engine(dc, graph, "synchronous", clopts);
+  graphlab::omni_engine<pagerank> engine(dc, graph, exec_type, clopts);
   engine.signal_all();
   engine.start();
   const float runtime = engine.elapsed_seconds();

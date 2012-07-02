@@ -167,6 +167,35 @@ namespace graphlab {
    * }
    * \endcode
    *
+   * Engine Options
+   * =====================
+   *
+   * The synchronous engine supports several engine options which can
+   * be set as command line arguments using \c --engine_opts :
+   * 
+   * \li <b>max_iterations</b>: (default: infinity) The maximum number
+   * of iterations (super-steps) to run.
+   *
+   * \li <b>timeout</b>: (default: infinity) The maximum time in
+   * seconds that the engine may run. When the time runs out the
+   * current iteration is completed and then the engine terminates.
+   *
+   * \li <b>use_cache</b>: (default: false) This is used to enable
+   * caching.  When caching is enabled the gather phase is skipped for
+   * vertices that already have a cached value.  To use caching the
+   * vertex program must either clear (\ref icontext::clear_gather_cache) 
+   * or update (\ref icontext::post_delta) the cache values of 
+   * neighboring vertices during the scatter phase.
+   *
+   * \li <b>snapshot_interval</b>: (default: infinity) The frequency
+   * (in iterations) which snapshots should be taken.  A snapshot is a
+   * binary dump of the distributed graph.
+   *
+   * \li <b>snapshot_path</b>: (default: working directory) The path
+   * including folder and file prefix in which the snapshots should be
+   * saved.
+   *
+   *
    * \see graphlab::omni_engine
    * \see graphlab::async_consistent_engine
    */
@@ -362,6 +391,18 @@ namespace graphlab {
      * and \ref graphlab::synchronous_engine::messages.
      */
     std::vector<mutex> vlocks;
+
+
+    /**
+     * \brief The elocks protect individual edges during gather and
+     * scatter.  Technically there is a potential race since gather
+     * and scatter can modify edge values and can overlap.  The edge
+     * lock ensures that only one gather or scatter occurs on an edge
+     * at a time.
+     */
+    std::vector<simple_spinlock> elocks;
+    
+
 
     /**
      * \brief The vertex programs associated with each vertex on this
@@ -866,7 +907,26 @@ namespace graphlab {
      */
     void recv_messages(const bool try_to_recv = false);
 
+
   }; // end of class synchronous engine
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -943,6 +1003,8 @@ namespace graphlab {
     // Allocate vertex locks and vertex programs
     vlocks.resize(graph.num_local_vertices());
     vertex_programs.resize(graph.num_local_vertices());
+    // allocate the edge locks
+    elocks.resize(graph.num_local_edges());
     // Allocate messages and message bitset
     messages.resize(graph.num_local_vertices(), message_type());
     has_message.resize(graph.num_local_vertices()); 
@@ -1344,12 +1406,14 @@ namespace graphlab {
 
             foreach(local_edge_type local_edge, local_vertex.in_edges()) {
               edge_type edge(local_edge);
+              elocks[local_edge.id()].lock();
               if(accum_is_set) { // \todo hint likely                
                 accum += vprog.gather(context, vertex, edge);
               } else {
                 accum = vprog.gather(context, vertex, edge); 
                 accum_is_set = true;
               }
+              elocks[local_edge.id()].unlock();
               INCREMENT_EVENT(EVENT_GATHERS, local_vertex.num_in_edges());
             }
           } // end of if in_edges/all_edges
@@ -1357,12 +1421,14 @@ namespace graphlab {
           if(gather_dir == OUT_EDGES || gather_dir == ALL_EDGES) {
             foreach(local_edge_type local_edge, local_vertex.out_edges()) {
               edge_type edge(local_edge);
+              elocks[local_edge.id()].lock();
               if(accum_is_set) { // \todo hint likely
                 accum += vprog.gather(context, vertex, edge);              
               } else {
                 accum = vprog.gather(context, vertex, edge);
                 accum_is_set = true;
               }
+              elocks[local_edge.id()].unlock();
               INCREMENT_EVENT(EVENT_GATHERS, local_vertex.num_out_edges());
             }
           } // end of if out_edges/all_edges
@@ -1443,6 +1509,9 @@ namespace graphlab {
     recv_vertex_data();
   } // end of execute_applys
 
+
+
+
   template<typename VertexProgram>
   void synchronous_engine<VertexProgram>::
   execute_scatters(const size_t thread_id) {
@@ -1459,15 +1528,19 @@ namespace graphlab {
         if(scatter_dir == IN_EDGES || scatter_dir == ALL_EDGES) {
           foreach(local_edge_type local_edge, local_vertex.in_edges()) {
             edge_type edge(local_edge);
+            elocks[local_edge.id()].lock();
             vprog.scatter(context, vertex, edge);
+            elocks[local_edge.id()].unlock();
           }
             INCREMENT_EVENT(EVENT_SCATTERS, local_vertex.num_in_edges());
         } // end of if in_edges/all_edges
-          // Loop over out edges
+        // Loop over out edges
         if(scatter_dir == OUT_EDGES || scatter_dir == ALL_EDGES) {
           foreach(local_edge_type local_edge, local_vertex.out_edges()) {
             edge_type edge(local_edge);
+            elocks[local_edge.id()].lock();
             vprog.scatter(context, vertex, edge);
+            elocks[local_edge.id()].unlock();
           }
           INCREMENT_EVENT(EVENT_SCATTERS, local_vertex.num_out_edges());
         } // end of if out_edges/all_edges
@@ -1476,6 +1549,7 @@ namespace graphlab {
       } // end of if active on this minor step
     } // end of loop over vertices to complete scatter operation
   } // end of execute_scatters
+
 
 
   // Data Synchronization ===================================================
@@ -1520,6 +1594,10 @@ namespace graphlab {
       vdata_exchange.send(mirror, std::make_pair(vid, vertex.data()), thread_id);
     }
   } // end of sync_vertex_data
+
+
+
+
 
   template<typename VertexProgram>
   void synchronous_engine<VertexProgram>::

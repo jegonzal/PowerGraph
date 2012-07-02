@@ -116,7 +116,7 @@ namespace graphlab {
       vertex_type target() const {
         return vertex_type(lgraph_ref, e.target());
       }
-      /** \internal
+      /** 
        *  \brief Returns the id of the edge.*/
       edge_id_type id() const {
         return lgraph_ref.gstore.edge_id(e);
