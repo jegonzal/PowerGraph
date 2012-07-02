@@ -347,7 +347,7 @@ if (graph.ingress_ptr == NULL) {
         vrecord.num_out_edges = i->as_int();
       } else if (i->name() == "gvid") {
         // Check unsafe
-        vrecord.gvid = i->as_int();
+        vrecord.gvid = boost::lexical_cast<vertex_id_type>(i->as_int());
       } else if (i->name() == "owner") {
         vrecord.owner = (procid_t)i->as_int();
       } else if (i->name() == "VertexData") {
