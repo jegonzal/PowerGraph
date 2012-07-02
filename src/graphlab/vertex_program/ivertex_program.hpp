@@ -612,13 +612,16 @@ namespace graphlab {
 
 
     /**
-     * \brief The apply function is called once the gather has
+     * \brief The apply function is called once the gather phase has
      * completed and must be implemented by all vertex programs.
-     * 
+     *
      * The apply function is responsible for modifying the vertex data
      * and is run only once per vertex per execution of a vertex
      * program.  In addition the apply function can modify the state
      * of the vertex program.
+     *
+     * If a vertex has no neighbors than the apply function is called
+     * passing the default value for the gather_type.
      *
      * \param [in,out] context The context is used to interact with
      * the engine
@@ -627,7 +630,7 @@ namespace graphlab {
      * running. 
      *
      * \param [in] total The result of the gather phase.  If a vertex
-     * has no neighbors than the total is the default value (i.e.,
+     * has no neighbors then the total is the default value (i.e.,
      * gather_type()) of the gather type.
      * 
      */
