@@ -381,7 +381,7 @@ int main(int argc, char** argv) {
   
   // Create engine -------------------------------------------------------------
   logstream(LOG_INFO) << dc.procid() << ": Creating engine" << std::endl;
-  omni_engine<dispatcher> engine(dc, graph, clopts, "synchronous");
+  omni_engine<dispatcher> engine(dc, graph, "synchronous", clopts);
   
   graph.transform_edges(dispatcher::init_edge);
   graph.transform_vertices(dispatcher::init_vertex);

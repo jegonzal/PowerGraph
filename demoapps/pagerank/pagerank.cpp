@@ -184,7 +184,7 @@ int main(int argc, char** argv) {
   graph.transform_vertices(init_vertex);
 
   // Running The Engine -------------------------------------------------------
-  graphlab::omni_engine<pagerank> engine(dc, graph, clopts, "synchronous");
+  graphlab::omni_engine<pagerank> engine(dc, graph, "synchronous", clopts);
   engine.signal_all();
   engine.start();
   const float runtime = engine.elapsed_seconds();

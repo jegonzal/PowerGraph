@@ -1026,9 +1026,12 @@ int main(int argc, char** argv) {
   std::string dictionary_fname;
   std::string doc_dir;
   std::string word_dir;
+  std::string exec_type = "asynchronous";
   bool loadjson = false;
   clopts.attach_option("dictionary", &dictionary_fname, dictionary_fname,
                        "The file containing the list of unique words");
+ clopts.attach_option("engine", &exec_type, exec_type, 
+                       "The engine type synchronous or asynchronous");
   clopts.attach_option("corpus", &corpus_dir, corpus_dir,
                        "The directory or file containing the corpus data.");
   clopts.add_positional("corpus");
@@ -1102,7 +1105,7 @@ int main(int argc, char** argv) {
 
 
 
-  engine_type engine(dc, graph, clopts, "asynchronous");
+  engine_type engine(dc, graph, exec_type, clopts);
   ///! Add an aggregator
   if(!DICTIONARY.empty()) {
     const bool success =

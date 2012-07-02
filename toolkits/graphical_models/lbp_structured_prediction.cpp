@@ -642,7 +642,7 @@ int main(int argc, char** argv) {
   graph.transform_edges(edge_initializer);
 
   typedef graphlab::omni_engine<bp_vertex_program> engine_type;
-  engine_type engine(dc, graph, clopts, "asynchronous");
+  engine_type engine(dc, graph, "asynchronous", clopts);
   engine.signal_all();
   graphlab::timer timer;
   engine.start();  

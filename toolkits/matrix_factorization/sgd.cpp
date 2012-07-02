@@ -71,12 +71,15 @@ int main(int argc, char** argv) {
   std::string input_dir, output_dir;
   std::string predictions;
   size_t interval = 0;
+  std::string exec_type = "synchronous";
   clopts.attach_option("matrix", &input_dir, input_dir,
                        "The directory containing the matrix file");
   clopts.add_positional("matrix");
   clopts.attach_option("D",
                        &(vertex_data::NLATENT), vertex_data::NLATENT,
                        "Number of latent parameters to use.");
+  clopts.attach_option("engine", &exec_type, exec_type, 
+                       "The engine type synchronous or asynchronous");
   clopts.attach_option("max_iter",
                        &(sgd_vertex_program::MAX_UPDATES), 
                        sgd_vertex_program::MAX_UPDATES,
@@ -149,7 +152,7 @@ int main(int argc, char** argv) {
       << std::endl;
  
   dc.cout() << "Creating engine" << std::endl;
-  engine_type engine(dc, graph, clopts, "synchronous");
+  engine_type engine(dc, graph, exec_type, clopts);
 
   // Add error reporting to the engine
   const bool success = engine.add_edge_aggregator<error_aggregator>

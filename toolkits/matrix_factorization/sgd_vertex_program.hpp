@@ -246,7 +246,7 @@ public:
    if (vertex.num_in_edges() == 0){
       vertex_type other_vertex(get_other_vertex(edge, vertex));
       vertex_type my_vertex(vertex);
-      vertex_data & my_data = my_vertex.data();
+      //vertex_data & my_data = my_vertex.data();
       double pred = vertex.data().pvec.dot(other_vertex.data().pvec);
       pred = std::min(pred, sgd_vertex_program::MAXVAL);
       pred = std::max(pred, sgd_vertex_program::MINVAL); 

@@ -176,8 +176,8 @@ namespace graphlab {
      * engine type to use if no command line option is given.
      */
     omni_engine(distributed_control& dc, graph_type& graph,
-                const graphlab_options& options,
-                const std::string& default_engine_type) :
+                const std::string& default_engine_type,
+                const graphlab_options& options) :
       engine_ptr(NULL) {
       graphlab_options new_options = options;
       std::string engine_type = default_engine_type;

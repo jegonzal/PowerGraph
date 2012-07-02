@@ -66,6 +66,7 @@ int main(int argc, char** argv) {
   std::string input_dir, output_dir;
   std::string predictions;
   size_t interval = 10;
+  std::string exec_type = "synchronous";
   clopts.attach_option("matrix", &input_dir, input_dir,
                        "The directory containing the matrix file");
   clopts.add_positional("matrix");
@@ -88,6 +89,8 @@ int main(int argc, char** argv) {
                        "The time in seconds between error reports");
   clopts.attach_option("predictions", &predictions, predictions,
                        "The prefix (folder and filename) to save predictions.");
+  clopts.attach_option("engine", &exec_type, exec_type, 
+                       "The engine type synchronous or asynchronous");
   clopts.attach_option("output", &output_dir, output_dir,
                        "Output results");
   if(!clopts.parse(argc, argv)) {
@@ -132,7 +135,7 @@ int main(int argc, char** argv) {
       << std::endl;
  
   dc.cout() << "Creating engine" << std::endl;
-  engine_type engine(dc, graph, clopts, "synchronous");
+  engine_type engine(dc, graph, exec_type, clopts);
 
   // Add error reporting to the engine
   const bool success = engine.add_edge_aggregator<error_aggregator>

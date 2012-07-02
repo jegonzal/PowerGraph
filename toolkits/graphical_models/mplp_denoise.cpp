@@ -536,8 +536,8 @@ public:
             getchar();
         }
         
-        const double residual = (vdata.delf_i - old_delf_i).cwiseAbs().sum() +
-        (vdata.delf_j - old_delf_j).cwiseAbs().sum();
+        // const double residual = (vdata.delf_i - old_delf_i).cwiseAbs().sum() +
+        // (vdata.delf_j - old_delf_j).cwiseAbs().sum();
         
         //priority = residual;
         priority = LPval - MAPval;

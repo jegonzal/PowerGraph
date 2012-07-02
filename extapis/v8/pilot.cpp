@@ -25,7 +25,7 @@ void pilot::load_graph(const std::string &path, const std::string &format){
  */
 void pilot::fly(const Handle<Function> &function){
   js_proxy::set_ctor(function); // FIXME: should not be a static!
-  omni_engine<js_proxy> engine(dc, graph, opts, "synchronous");
+  omni_engine<js_proxy> engine(dc, graph, "synchronous", opts);
   engine.signal_all(); // TODO: allow user to specify an array of vertices to signal, or all
   engine.start();
 }
