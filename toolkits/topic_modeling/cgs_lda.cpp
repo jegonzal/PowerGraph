@@ -492,7 +492,7 @@ public:
    */
   edge_dir_type scatter_edges(icontext_type& context,
                               const vertex_type& vertex) const {
-    return (DISABLE_SAMPLING || (context.elapsed_seconds() > BURNIN))? 
+    return (DISABLE_SAMPLING || (BURNIN > 0 && context.elapsed_seconds() > BURNIN))? 
       graphlab::NO_EDGES : graphlab::ALL_EDGES;
   }; // end of scatter edges
 
@@ -825,8 +825,8 @@ struct signal_only {
  *
  * \param [in,out] graph The graph object that is initialized.
  * 
- * \param [in] matrix_dir The directory or file containing the graph
- * data.  The matrix directory can reside on hdfs in which case the
+ * \param [in] corpus_dir The directory or file containing the graph
+ * data.  The corpus directory can reside on hdfs in which case the
  * path should begin with "hdfs://namenode".  In addition the file(s)
  * may be gzipped and therefore must end in ".gz".
  *
@@ -835,17 +835,17 @@ struct signal_only {
  */
 bool load_and_initialize_graph(graphlab::distributed_control& dc,
                                graph_type& graph,
-                               const std::string& matrix_dir,
+                               const std::string& corpus_dir,
                                bool loadjson) {
   dc.cout() << "Loading graph." << std::endl;
   graphlab::timer timer; timer.start();
 
   if(!loadjson){
-      graph.load(matrix_dir, graph_loader);
+      graph.load(corpus_dir, graph_loader);
   }else{
       dc.cout() << "In JSON format" << std::endl;
-      const bool gzip = boost::ends_with(matrix_dir,".gz");
-      graph.load_json(matrix_dir, gzip, eparser, vparser);
+      const bool gzip = boost::ends_with(corpus_dir,".gz");
+      graph.load_json(corpus_dir, gzip, eparser, vparser);
   }
 
   dc.cout() << ": Loading graph. Finished in "
@@ -1008,7 +1008,7 @@ int main(int argc, char** argv) {
     "manner.\n"
     "\n"
     "The standard usage is: \n"
-    "\t./cgs_lda --dictionary dictionary.txt --matrix doc_word_count.tsv\n"
+    "\t./cgs_lda --dictionary dictionary.txt --corpus doc_word_count.tsv\n"
     "where dictionary.txt contains: \n"
     "\taaa \n\taaai \n\tabalone \n\t   ... \n"
     "each line number corresponds to wordid (i.e aaa has wordid=0)\n\n"
@@ -1022,16 +1022,16 @@ int main(int argc, char** argv) {
     "\t\t http://graphlab.org \n\n"
     "Additional Options";
   graphlab::command_line_options clopts(description);
-  std::string matrix_dir;
+  std::string corpus_dir;
   std::string dictionary_fname;
   std::string doc_dir;
   std::string word_dir;
   bool loadjson = false;
   clopts.attach_option("dictionary", &dictionary_fname, dictionary_fname,
                        "The file containing the list of unique words");
-  clopts.attach_option("matrix", &matrix_dir, matrix_dir,
-                       "The directory or file containing the matrix data.");
-  clopts.add_positional("matrix");
+  clopts.attach_option("corpus", &corpus_dir, corpus_dir,
+                       "The directory or file containing the corpus data.");
+  clopts.add_positional("corpus");
   clopts.attach_option("ntopics", &NTOPICS, NTOPICS,
                        "Number of topics to use.");
   clopts.attach_option("alpha", &ALPHA, ALPHA,
@@ -1045,7 +1045,7 @@ int main(int argc, char** argv) {
   clopts.attach_option("max_count", &MAX_COUNT, MAX_COUNT,
                        "The maximum number of occurences of a word in a document.");
   clopts.attach_option("loadjson",&loadjson,loadjson,
-                       "Boolean if parsing JSON (matrix arg is a dir or a gzip file)");
+                       "Boolean if parsing JSON (corpus arg is a dir or a gzip file)");
   clopts.attach_option("burnin", &BURNIN, BURNIN, 
                        "The time in second to run until a sample is collected. "
                        "If less than zero the sampler runs indefinitely.");
@@ -1065,8 +1065,8 @@ int main(int argc, char** argv) {
                            << "Top k words will not be estimated." << std::endl;
   }
 
-  if(matrix_dir.empty()) {
-    logstream(LOG_ERROR) << "No matrix file was provided." << std::endl;
+  if(corpus_dir.empty()) {
+    logstream(LOG_ERROR) << "No corpus file was provided." << std::endl;
     return EXIT_FAILURE;
   }
 
@@ -1089,7 +1089,7 @@ int main(int argc, char** argv) {
   graph_type graph(dc, clopts);
   {
     const bool success = 
-      load_and_initialize_graph(dc, graph, matrix_dir,loadjson);
+      load_and_initialize_graph(dc, graph, corpus_dir, loadjson);
     if(!success) {
       logstream(LOG_ERROR) << "Error loading graph." << std::endl;
       return EXIT_FAILURE;
