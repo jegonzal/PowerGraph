@@ -1,5 +1,5 @@
-/*  
- * Copyright (c) 2009 Carnegie Mellon University. 
+/*
+ * Copyright (c) 2009 Carnegie Mellon University.
  *     All rights reserved.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
@@ -76,14 +76,14 @@ class pagerank :
   public graphlab::ivertex_program<graph_type, float>,
   public graphlab::IS_POD_TYPE {
   double last_change;
-public:  
+public:
   /* Gather the weighted rank of the adjacent page   */
   float gather(icontext_type& context, const vertex_type& vertex,
                edge_type& edge) const {
-    return ((1.0 - RESET_PROB) / edge.source().num_out_edges()) * 
+    return ((1.0 - RESET_PROB) / edge.source().num_out_edges()) *
       edge.source().data();
   }
-  
+
   /* Use the total rank of adjacent pages to update this page */
   void apply(icontext_type& context, vertex_type& vertex,
              const gather_type& total) {
@@ -91,14 +91,14 @@ public:
     last_change = std::fabs(newval - vertex.data());
     vertex.data() = newval;
   }
-  
+
   /* The scatter edges depend on whether the pagerank has converged */
   edge_dir_type scatter_edges(icontext_type& context,
                               const vertex_type& vertex) const {
     if (last_change > 1E-2) return graphlab::OUT_EDGES;
     else return graphlab::NO_EDGES;
   }
-  
+
   /* The scatter function just signal adjacent pages */
   void scatter(icontext_type& context, const vertex_type& vertex,
                edge_type& edge) const {
@@ -132,12 +132,13 @@ int main(int argc, char** argv) {
   // Initialize control plain using mpi
   graphlab::mpi_tools::init(argc, argv);
   graphlab::distributed_control dc;
-  global_logger().set_log_level(LOG_INFO); 
+  global_logger().set_log_level(LOG_INFO);
 
   // Parse command line options -----------------------------------------------
   graphlab::command_line_options clopts("PageRank algorithm.");
-  std::string graph_dir; 
+  std::string graph_dir;
   std::string format = "adj";
+  bool loadjson = false;
   clopts.attach_option("graph", &graph_dir, graph_dir,
                        "The graph file.  If none is provided "
                        "then a toy graph will be created");
@@ -151,6 +152,9 @@ int main(int argc, char** argv) {
   clopts.attach_option("saveprefix", &saveprefix, saveprefix,
                        "If set, will save the resultant pagerank to a "
                        "sequence of files with prefix saveprefix");
+  clopts.attach_option("loadjson",&loadjson,loadjson,
+                        "Boolean for JSON format (graph arg will be directory or gzip file)");
+
   if(!clopts.parse(argc, argv)) {
     std::cout << "Error in parsing command line arguments." << std::endl;
     return EXIT_FAILURE;
@@ -159,15 +163,23 @@ int main(int argc, char** argv) {
   // Build the graph ----------------------------------------------------------
   graph_type graph(dc, clopts);
   if(powerlaw > 0) { // make a synthetic graph
+    std::cout << "Loading synthetic Powerlaw graph." << std::endl;
     graph.load_synthetic_powerlaw(powerlaw);
-  } else { // Load the graph from a file
+  }
+  else if(loadjson){
+    std::cout << "Loading graph from JSON." << std::endl;
+    const bool gzip = boost::ends_with(graph_dir,".gz");
+    graph.load_json(graph_dir,gzip);
+  }
+  else { // Load the graph from a file
+    std::cout << "Loading graph in format: "<< format << std::endl;
     graph.load_format(graph_dir, format);
   }
   // must call finalize before querying the graph
   graph.finalize();
-  std::cout << "#vertices: " << graph.num_vertices() 
+  std::cout << "#vertices: " << graph.num_vertices()
             << " #edges:" << graph.num_edges() << std::endl;
-  
+
   // Initialize the vertex data
   graph.transform_vertices(init_vertex);
 
@@ -177,14 +189,14 @@ int main(int argc, char** argv) {
   engine.start();
   const float runtime = engine.elapsed_seconds();
   size_t update_count = engine.num_updates();
-  std::cout << "Finished Running engine in " << runtime 
+  std::cout << "Finished Running engine in " << runtime
             << " seconds." << std::endl
             << "Total updates: " << update_count << std::endl
             << "Efficiency: " << (double(update_count) / runtime)
             << " updates per second "
-            << std::endl;  
+            << std::endl;
 
-  // Compute summary stats ----------------------------------------------------  
+  // Compute summary stats ----------------------------------------------------
   float sum_of_graph = graph.map_reduce_vertices<float>(extract_pagerank);
   std::cout << "Sum of graph: " << sum_of_graph << std::endl;
 
@@ -195,7 +207,7 @@ int main(int argc, char** argv) {
                true,     // save vertices
                false);   // do not save edges
   }
- 
+
   // Tear-down communication layer and quit -----------------------------------
   graphlab::mpi_tools::finalize();
   return EXIT_SUCCESS;

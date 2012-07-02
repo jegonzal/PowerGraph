@@ -1,5 +1,5 @@
- /**  
- * Copyright (c) 2009 Carnegie Mellon University. 
+ /**
+ * Copyright (c) 2009 Carnegie Mellon University.
  *     All rights reserved.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
@@ -45,7 +45,7 @@
 #include <graphlab/serialization/serialization_includes.hpp>
 #include <graphlab/graph/distributed_graph.hpp>
 #include <graphlab/graph/ingress/distributed_identity_ingress.hpp>
- 
+
 namespace graphlab {
 
   namespace builtin_parsers {
@@ -70,7 +70,7 @@ class distributed_graph;
 template <typename VertexData, typename EdgeData>
 class json_parser {
 
-  public: 
+  public:
     typedef distributed_graph<VertexData, EdgeData> graph_type;
     typedef EdgeData edge_data_type;
     typedef VertexData vertex_data_type;
@@ -92,16 +92,16 @@ class json_parser {
 
 
   bool load() {
-    line_parser_type graph_structure_parser = boost::bind(parse_graph_structure_from_json, _1, _2, edge_parser); 
+    line_parser_type graph_structure_parser = boost::bind(parse_graph_structure_from_json, _1, _2, edge_parser);
     line_parser_type vrecord_parser = boost::bind(parse_vrecord_from_json, _1, _2, vertex_parser);
 
     bool success = parse_by_line(graphfilename(), graph_structure_parser);
 
-    success = success & parse_by_line(vrecordfilename(), vrecord_parser); 
+    success = success & parse_by_line(vrecordfilename(), vrecord_parser);
 
     if (graph.ingress_ptr == NULL) {
       graph.ingress_ptr = new distributed_identity_ingress<VertexData, EdgeData>(graph.rpc.dc(), graph);
-    } 
+    }
 
     ASSERT_GE(graph.local_graph.num_vertices(), graph.local_graph.gstore.num_vertices);
     ASSERT_EQ(graph.vid2lvid.size(), graph.local_graph.num_vertices());
@@ -113,7 +113,11 @@ class json_parser {
   }
 
   bool parse_by_line (const std::string& srcfilename, line_parser_type line_parser) {
-    std::string fname = prefix + srcfilename; 
+    std::string fname = prefix + srcfilename;
+    //check for "/" ending in directory"
+    if(!boost::ends_with(prefix,"/") && !gzip)
+        fname = prefix + "/" + srcfilename;
+
     logstream(LOG_INFO) << "Load graph json from " << fname << std::endl;
 
     boost::iostreams::filtering_stream<boost::iostreams::input> fin;
@@ -138,7 +142,7 @@ class json_parser {
 
       if (gzip) fin.pop();
       fin.pop();
-    } 
+    }
 
 
     return true;
@@ -148,7 +152,7 @@ class json_parser {
        This internal function is used to load a single line from an input stream
      */
     template<typename Fstream>
-    bool load_from_stream(std::string filename, Fstream& fin, 
+    bool load_from_stream(std::string filename, Fstream& fin,
                           line_parser_type& line_parser) {
       size_t linecount = 0;
       timer ti; ti.start();
@@ -159,13 +163,13 @@ class json_parser {
         if(fin.fail()) break;
         const bool success = line_parser(graph, line);
         if (!success) {
-          logstream(LOG_WARNING) 
+          logstream(LOG_WARNING)
             << "Error parsing line " << linecount << " in "
             << filename << ": " << std::endl
-            << "\t\"" << line << "\"" << std::endl;  
+            << "\t\"" << line << "\"" << std::endl;
           return false;
         }
-        ++linecount;      
+        ++linecount;
         if (ti.current_time() > 5.0) {
           logstream(LOG_INFO) << linecount << " Lines read" << std::endl;
           ti.start();
@@ -191,7 +195,7 @@ class json_parser {
       } else if (i->name() == "vid2lvid") {
         parse_vid2lvid(graph, *i);
       } else if (i->name() == "csr") {
-        // parse rowIndex -> graph.local_graph.gstore.csr_source 
+        // parse rowIndex -> graph.local_graph.gstore.csr_source
         // parse colIndex -> graph.local_graph.gstore.csr_target
         JSONNode csr = *i;
         JSONNode::const_iterator j = csr.begin();
@@ -201,7 +205,7 @@ class json_parser {
           } else if (j->name() == "colIndex") {
               parse_vid_array (local_graph.gstore.CSR_dst, *j);
           } else {
-              logstream(LOG_ERROR) << "Error parsing json into graph. Unknown json node name:" 
+              logstream(LOG_ERROR) << "Error parsing json into graph. Unknown json node name:"
                 << "CSR:" << j->name() << std::endl;
           }
           ++j;
@@ -218,7 +222,7 @@ class json_parser {
           } else if (j->name() == "colIndex") {
               parse_vid_array (local_graph.gstore.CSC_src, *j);
           } else {
-              logstream(LOG_ERROR) << "Error parsing json into graph. Unknown json node name:" 
+              logstream(LOG_ERROR) << "Error parsing json into graph. Unknown json node name:"
                 << "CSC:"<<j->name() << std::endl;
           }
           ++j;
@@ -242,9 +246,9 @@ class json_parser {
       } else {
         logstream(LOG_ERROR) << "Error parsing json into graph. Unknown json node name:" <<
           i->name() << std::endl;
-      } 
+      }
       ++i;
-    } // end while 
+    } // end while
 
     graph.lvid2record.reserve(local_graph.gstore.num_vertices);
     graph.lvid2record.resize(local_graph.gstore.num_vertices);
@@ -255,7 +259,7 @@ class json_parser {
   }
 
   /* Parse the vertex record list from json */
-  static bool parse_vrecord_from_json (graph_type& graph, const std::string& str, 
+  static bool parse_vrecord_from_json (graph_type& graph, const std::string& str,
       vertex_parser_type vertex_parser) {
 
     typedef typename graph_type::local_graph_type local_graph_type;
@@ -323,7 +327,7 @@ class json_parser {
   }
 
 
-  /* Parse the vid2lvid map from a json node 
+  /* Parse the vid2lvid map from a json node
    * To construct a vid value, we convert string into an int vidType.
    * */
   static bool parse_vid2lvid (graph_type& graph, const JSONNode& n) {
@@ -340,20 +344,20 @@ class json_parser {
   const std::string graphfilename() {
     procid_t pid = graph.procid();
     std::string suffix =  gzip ? ".gz" : "";
-    return "graph/graph"+tostr(pid)+"-r-00000" +suffix;
+    return "graph/graph"+tostr(pid)+"-r-0000"+tostr(pid)+suffix;
   }
 
   const std::string vrecordfilename() {
     procid_t pid = graph.procid();
     std::string suffix =  gzip ? ".gz" : "";
-    return "vrecord/vdata"+tostr(pid)+"-r-00000" + suffix; 
+    return "vrecord/vdata"+tostr(pid)+"-r-0000"+tostr(pid)+ suffix;
   }
 
   private:
     graph_type& graph;
     std::string prefix;
     bool gzip;
-    edge_parser_type edge_parser;  
+    edge_parser_type edge_parser;
     vertex_parser_type vertex_parser;
 }; // json_parser
 

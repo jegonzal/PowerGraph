@@ -1,0 +1,104 @@
+/**
+
+\page topic_modeling Topic Modeling
+
+
+\brief The topic modeling toolkit contains a collection of
+applications targeted at clustering documents and extracting topical
+representations.  The resulting topical representation can be used as
+a feature space in information retrieval tasks and to group topically
+related words and documents.
+
+Currently the text modeling toolkit implements a fast asynchronous
+collapsed Gibbs sampler for the widely used Latent Dirichlet
+Allocation (LDA) model. In the near future we plan to add a Collapsed
+Variational Bayesian inference algorithm for the LDA model as well as
+some more general topic models.
+
+\section lda_model  The LDA Model 
+
+The <a href="http://en.wikipedia.org/wiki/Latent_Dirichlet_allocation">LDA
+model </a> associates a topic id with each token (word) in each
+document in the input corpus.  Conceptually, topic ids correspond to
+semantic groups like "foods", "colors", and "politics" however the
+association between the id 1, 2, ..., N and the particular topic
+meaning "foods", "colors", ... is not know in advance and can be
+resolved by running the approximate inference algorithm.  In addition
+the LDA model assigns a distribution over topics to each document and
+a distribution over term to each topic.  The the topic id for each
+token is drawn from the topic distribution for each document.  The
+actual word is then drawn from the term distribution for that topic.
+At a high-level the LDA model encodes the following intuitive
+assumptions:
+
+\li Words in the same document are topically related.
+
+\li Documents that share common terms are topically related. 
+
+Solving for the latent topic assignments of each token as well as the
+topic distribution for each document and the term distribution for
+each topic is a challenging (NP-Hard) task. Fortunately there are
+several approximate inference algorithms that typically can resolve
+coherent posterior estimates for the LDA model.
+
+
+\subsection collapsed_gibbs The Collapsed Gibbs Sampler
+
+
+The topic modeling toolkit currently implements an asynchronous
+variant of the Collapsed Gibbs Sampler described by Griffiths and
+Steyvers in their landmark paper <a href="http://www.pnas.org/content/101/suppl.1/5228.full.pdf">Finding
+Scientific Topics</a>.  The collapsed Gibbs sampler is a Markov Chain
+Monte Carlo (MCMC) algorithm which generates a sequence of topic
+assignments for each token that in the limit converge to a sequence of
+samples drawn from the posterior distribution.  In practice the
+algorithm is run for a sufficient long time to allow the topics to
+"converge" (sometimes referred to as burn-in) and then the last few
+samples are used to estimate the posterior distribution over topics
+for each document and the posterior distribution over words for each
+topic.
+
+
+
+
+\subsection parallel_collapsed_gibbs The Parallel Collapsed Gibbs Sampler
+
+
+The parallelization of the Collapsed Gibbs Sampler is achieved by
+drawing new assignments for multiple tokens simultaneously using a
+method that is similar to that described by Ahmed et al. 
+(<a href="http://dl.acm.org/authorize.cfm?key=6666391">Paper</a>).  
+Unfortunately, the collapsed LDA model used to accelerate mixing of
+the Gibbs sampler also eliminates any conditional independence
+structure needed to obtain a parallel ergodic sampler as described by 
+Gonzalez et al. (<a href="http://www.select.cs.cmu.edu/publications/paperdir/aistats2011-gonzalez-low-gretton-guestrin.pdf">Paper</a>)
+
+
+However, by mapping the collapsed Gibbs sampler into the GraphLab
+abstraction we obtain a statistically more efficient algorithm.  To
+implement the collapsed Gibbs sampler in GraphLab we construct a
+bipartite graph connecting each document with terms that occur in that
+document.  Each edge contains the token count and latent topic
+assignments for that token.  The GraphLab update function maintains
+the term and document counts during the gather and apply phases and
+then samples new values for the tokens on the scatter phase.  We
+exploit local atomic integer operations and the GraphLab caching model
+to immediately propagate changes.  The asynchronous consistency model
+ensures that only one token per document term pair is sampled at a
+time improving upon the original formulation of the asynchronous Gibbs
+sampler described by Ahmed et al. (<a
+href="http://dl.acm.org/authorize.cfm?key=6666391">Paper</a>) or the
+sampler described by Asuncion et al. (<a
+href="http://www.ics.uci.edu/~asuncion/pubs/NIPS_08.pdf">Paper</a>).
+
+
+
+\section cgs_usage Usage
+==============
+
+The collapsed Gibbs sampler takes as an input a corpus in the form of doc word count triples
+
+
+*/
+
+

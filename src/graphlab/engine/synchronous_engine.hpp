@@ -167,6 +167,7 @@ namespace graphlab {
    * }
    * \endcode
    *
+   * \see graphlab::omni_engine
    * \see graphlab::async_consistent_engine
    */
   template<typename VertexProgram>

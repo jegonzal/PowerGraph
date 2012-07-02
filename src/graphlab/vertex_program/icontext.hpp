@@ -27,6 +27,7 @@
 #include <set>
 #include <vector>
 #include <cassert>
+#include <iostream>
 
 #include <graphlab/macros_def.hpp>
 namespace graphlab {
@@ -96,7 +97,7 @@ namespace graphlab {
      *
      * \return the total number of vertices in the entire graph.
      */
-    virtual size_t num_vertices() const = 0;
+    virtual size_t num_vertices() const { return 0; }
 
     /**
      * \brief Get the number of edges in the graph.
@@ -105,7 +106,7 @@ namespace graphlab {
      *
      * \return the total number of edges in the entire graph.
      */
-    virtual size_t num_edges() const = 0;
+    virtual size_t num_edges() const { return 0; }
 
     /**
      * \brief Get the id of this process.
@@ -117,7 +118,7 @@ namespace graphlab {
      *
      * @return the process of this machine.
      */
-    virtual size_t procid() const = 0;
+    virtual size_t procid() const { return 0; }
 
     /**
      * \brief Returns a standard output object (like cout)
@@ -133,7 +134,7 @@ namespace graphlab {
      * will therefore only print if the code is run on machine 0.
      * This is useful in the finalize operation in aggregators.
      */
-    virtual std::ostream& cout() const = 0;
+    virtual std::ostream& cout() const { return std::cout; }
 
     /**
      * \brief Returns a standard error object (like cerr)
@@ -149,7 +150,7 @@ namespace graphlab {
      * will therefore only print if the code is run on machine 0.
      * This is useful in the finalize operation in aggregators.
      */
-    virtual std::ostream& cerr() const = 0;
+    virtual std::ostream& cerr() const { return std::cerr; } 
 
     /**
      * \brief Get the number of processes in the current execution.
@@ -162,14 +163,14 @@ namespace graphlab {
      *
      * @return the number of processes in the current execution
      */
-    virtual size_t num_procs() const = 0;
+    virtual size_t num_procs() const { return 0; }
 
     /**
      * \brief Get the elapsed time in seconds since start was called.
      * 
      * \return runtine in seconds
      */
-    virtual float elapsed_seconds() const = 0;
+    virtual float elapsed_seconds() const { return 0.0; }
 
     /**
      * \brief Return the current interation number (if supported).
@@ -177,7 +178,7 @@ namespace graphlab {
      * \return the current interation number if support or -1
      * otherwise.
      */
-    virtual int iteration() const = 0;
+    virtual int iteration() const { return -1; } 
 
     /**
      * \brief Signal the engine to stop executing additional update
@@ -189,7 +190,7 @@ namespace graphlab {
      * synchronous_engine) will complete the current super-step before
      * terminating.
      */
-    virtual void stop() = 0;
+    virtual void stop() { } 
 
     /**
      * \brief Signal a vertex with a particular message.
@@ -210,7 +211,7 @@ namespace graphlab {
      * \param message [in] The message to send, defaults to message_type(). 
      */
     virtual void signal(const vertex_type& vertex, 
-                        const message_type& message = message_type()) = 0;
+                        const message_type& message = message_type()) { }
 
     /**
      * \brief Send a message to a vertex ID.
@@ -224,7 +225,7 @@ namespace graphlab {
      * defaults to message_type().
      */
     virtual void signal_vid(vertex_id_type gvid, 
-                            const message_type& message = message_type()) = 0;
+                            const message_type& message = message_type()) { }
 
     /**
      * \brief Post a change to the cached sum for the vertex
@@ -251,7 +252,7 @@ namespace graphlab {
      *
      */
     virtual void post_delta(const vertex_type& vertex, 
-                            const gather_type& delta) = 0;    
+                            const gather_type& delta) { } 
 
     /**
      * \brief Invalidate the cached gather on the vertex.
@@ -261,7 +262,7 @@ namespace graphlab {
      *
      * \param vertex [in] the vertex whose cache to clear.
      */
-    virtual void clear_gather_cache(const vertex_type& vertex) = 0; 
+    virtual void clear_gather_cache(const vertex_type& vertex) { } 
 
   }; // end of icontext
   

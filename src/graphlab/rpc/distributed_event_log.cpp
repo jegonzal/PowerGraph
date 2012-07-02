@@ -250,10 +250,10 @@ void distributed_event_logger::build_aggregate_log() {
 void distributed_event_logger::periodic_timer() {
   periodic_timer_lock.lock();
   timer ti; ti.start();
-  size_t tick_ctr = 0;
-  size_t record_ctr = 0;
+  int tick_ctr = 0;
+  int record_ctr = 0;
 
-  size_t ticks_per_record = RECORD_FREQUENCY / TICK_FREQUENCY;
+  int ticks_per_record = RECORD_FREQUENCY / TICK_FREQUENCY;
 
   while (!periodic_timer_stop){ 
     collect_instantaneous_log();
@@ -264,8 +264,8 @@ void distributed_event_logger::periodic_timer() {
     }
     // when is the next tick
     ++tick_ctr;
-    size_t nexttick_time = tick_ctr * 1000 * TICK_FREQUENCY;
-    size_t nexttick_interval = nexttick_time - ti.current_time_millis();
+    int nexttick_time = tick_ctr * 1000 * TICK_FREQUENCY;
+    int nexttick_interval = nexttick_time - ti.current_time_millis();
     // we lost a tick.
     if (nexttick_interval < 10) continue;
     periodic_timer_cond.timedwait_ms(periodic_timer_lock, nexttick_interval);

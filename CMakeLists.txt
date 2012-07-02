@@ -146,7 +146,7 @@ ExternalProject_Add(libbz2
   URL_MD5 00b516f4704d4a7cb50a1d97e6e8e15b
   INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local
   CONFIGURE_COMMAND ""
-  PATCH_COMMAND patch -p0 < ${GraphLab_SOURCE_DIR}/patches/libbz2_fpic.patch
+  PATCH_COMMAND patch -N -p0 -i ${GraphLab_SOURCE_DIR}/patches/libbz2_fpic.patch || true 
   BUILD_IN_SOURCE 1
   BUILD_COMMAND make install PREFIX=<INSTALL_DIR>
   INSTALL_COMMAND "" )
@@ -226,24 +226,27 @@ add_definitions(-DHAS_TCMALLOC)
 
 
 # v8 ======================================================================
+if(EXPERIMENTAL)
 ExternalProject_Add(libv8
   PREFIX ${GraphLab_SOURCE_DIR}/deps/libv8
   URL http://graphlab.org/deps/v8.tar.bz2
-  URL_MD5 a2fbd4f67c54875d08139e91726b7b46
+  URL_MD5 089955a7a968247cd2be4d368037f41e
   BUILD_IN_SOURCE 1
   INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local
-  CONFIGURE_COMMAND make dependencies
+  #CONFIGURE_COMMAND make dependencies
+  CONFIGURE_COMMAND ""
   UPDATE_COMMAND "" # Disable updates
   BUILD_COMMAND make native 
   INSTALL_COMMAND sh -c 
-  "cp -r <SOURCE_DIR>/include <INSTALL_DIR>/include/v8 & cp <SOURCE_DIR>/out/native/*.a <INSTALL_DIR>/lib" )
+  "cp -r <SOURCE_DIR>/include <INSTALL_DIR>/include/v8 & cp <SOURCE_DIR>/out/native/obj.target/tools/gyp/* <INSTALL_DIR>/lib" )
 
 # This is ugly, but the distro doesn't come with a `make install` and CMAKE wouldn't
 # let me use wildcards. Whoever has a better idea how to do this please tell me.
 
 ExternalProject_Add(cvv8
   PREFIX ${GraphLab_SOURCE_DIR}/deps/cvv8
-  SVN_REPOSITORY http://v8-juice.googlecode.com/svn/convert
+  URL http://graphlab.org/deps/v8-convert.tar.bz2
+  URL_MD5 443bc3cdf7ed724f7def81b6b779b5c2
   BUILD_IN_SOURCE 1
   INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local
   CONFIGURE_COMMAND ""
@@ -251,6 +254,8 @@ ExternalProject_Add(cvv8
   BUILD_COMMAND ""
   INSTALL_COMMAND
   rsync -acC <SOURCE_DIR>/include/cvv8/ <INSTALL_DIR>/include/cvv8)
+
+
 
 macro(requires_v8 NAME)
   get_target_property(tmp ${NAME} COMPILE_FLAGS)
@@ -263,6 +268,9 @@ macro(requires_v8 NAME)
   target_link_libraries(${NAME} v8_base v8_snapshot)
   add_dependencies(${NAME} libv8 cvv8)
 endmacro(requires_v8)
+
+endif()
+
 
 # ImageMagick =================================================================
 # # set(imagemagick_configure_cmd
@@ -314,7 +322,7 @@ ExternalProject_Add(opencv
   PREFIX ${GraphLab_SOURCE_DIR}/deps/opencv
   URL http://superb-sea2.dl.sourceforge.net/project/opencvlibrary/opencv-unix/2.4.0/OpenCV-2.4.0.tar.bz2
   # URL_MD5 010b63a2542c4ec4918c8cb431c00356
-  PATCH_COMMAND patch -p0 cmake/OpenCVModule.cmake < ${GraphLab_SOURCE_DIR}/patches/opencv_apple_rpath.patch
+  PATCH_COMMAND patch -N -p0 cmake/OpenCVModule.cmake -i ${GraphLab_SOURCE_DIR}/patches/opencv_apple_rpath.patch || true
   CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>
   -DBUILD_TESTS=OFF -DBUILD_PERF_TESTS=OFF -DBUILD_PACKAGE=OFF -DBUILD_EXAMPLES=OFF -DOPENCV_BUILD_3RDPARTY_LIBS=ON -DBUILD_SHARED_LIBS=ON -DBUILD_DOCS=OFF -DBUILD_JPEG=ON -DCMAKE_INCLUDE_PATH=${GraphLab_SOURCE_DIR}/deps/local/include -DWITH_CUBLAS=OFF -DWITH_1394=OFF -DWITH_AVFOUNDATION=OFF -DWITH_CUDA=OFF -DWITH_CUFFT=OFF -DWITH_FFMPEG=OFF -DWITH_GSTREAMER=OFF -DWITH_GTK=OFF -DWITH_QUICKTIME=OFF -DWITH_VIDEOINPUT=OFF -DWITH_XIMEA=OFF -DWITH_XINE=OFF -DWITH_V4L=OFF -DWITH_UNICAP=OFF -DWITH_QT=OFF -DWITH_JASPER=NO -DWITH_TIFF=NO -DCMAKE_LIBRARY_PATH=${GraphLab_SOURCE_DIR}/deps/local/lib
   INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local)
@@ -335,11 +343,11 @@ endmacro(requires_opencv)
 # zlib  =======================================================================
 # We rely on the zlib library to read gzip compressed files
 # (using boost iostreams).
-check_library_exists(z zlibVersion "" ZLIB_FOUND)
-if (ZLIB_FOUND)
-  add_definitions(-DHAS_ZLIB)
-  link_libraries(z)
-endif()
+# check_library_exists(z zlibVersion "" ZLIB_FOUND)
+# if (ZLIB_FOUND)
+#   add_definitions(-DHAS_ZLIB)
+#   link_libraries(z)
+# endif()
 
 # libevent ====================================================================
 # LibEvent is used in the RPC layer to manage the interaction between the 
@@ -363,7 +371,7 @@ ExternalProject_Add(libjson
   URL_MD5 dcb326038bd9b710b8f717580c647833
   BUILD_IN_SOURCE 1
   CONFIGURE_COMMAND ""
-  PATCH_COMMAND patch -p1 < ${GraphLab_SOURCE_DIR}/patches/libjson.patch
+  PATCH_COMMAND patch -N -p1 -i ${GraphLab_SOURCE_DIR}/patches/libjson.patch || true
   BUILD_COMMAND make
   INSTALL_COMMAND prefix=<INSTALL_DIR> make install 
   INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local
@@ -411,7 +419,7 @@ if(NOT NO_JAVAC)
       URL http://www.gtlib.gatech.edu/pub/apache/hadoop/common/hadoop-1.0.1/hadoop-1.0.1.tar.gz
       URL_MD5 e627d9b688c4de03cba8313bd0bba148
       UPDATE_COMMAND chmod +x <SOURCE_DIR>/src/c++/libhdfs/install-sh <SOURCE_DIR>/src/c++/libhdfs/configure
-      PATCH_COMMAND patch -p1 < ${GraphLab_SOURCE_DIR}/patches/libhdfs-compile-osx.patch
+      PATCH_COMMAND patch -N -p1 -i ${GraphLab_SOURCE_DIR}/patches/libhdfs-compile-osx.patch || true
       BUILD_IN_SOURCE 1
       CONFIGURE_COMMAND <SOURCE_DIR>/src/c++/libhdfs/configure JVM_ARCH=tune=i686 --prefix=<INSTALL_DIR> --with-java=${JAVA_HOME}
       INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local
@@ -454,6 +462,7 @@ endif(MPI_FOUND)
 macro(requires_core_deps NAME)
   target_link_libraries(${NAME} 
     ${Boost_LIBRARIES}
+    z
     tcmalloc
     event event_pthreads
     json)

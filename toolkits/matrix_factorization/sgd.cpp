@@ -44,6 +44,9 @@ double sgd_vertex_program::TOLERANCE = 1e-3;
 double sgd_vertex_program::LAMBDA = 0.001;
 double sgd_vertex_program::GAMMA = 0.001;
 size_t sgd_vertex_program::MAX_UPDATES = -1;
+double sgd_vertex_program::MAXVAL = 1e+100;
+double sgd_vertex_program::MINVAL = 1e-100;
+double sgd_vertex_program::STEP_DEC = 0.9;
 bool sgd_vertex_program::debug = false;
 
 
@@ -94,6 +97,9 @@ int main(int argc, char** argv) {
                        &(sgd_vertex_program::TOLERANCE), 
                        sgd_vertex_program::TOLERANCE,
                        "residual termination threshold");
+  clopts.attach_option("maxval", &sgd_vertex_program::MAXVAL, sgd_vertex_program::MAXVAL, "max allowed value");
+  clopts.attach_option("minval", &sgd_vertex_program::MINVAL, sgd_vertex_program::MINVAL, "min allowed value");
+  clopts.attach_option("step_dec", &sgd_vertex_program::STEP_DEC, sgd_vertex_program::STEP_DEC, "multiplicative step decrement");
   clopts.attach_option("interval",  &interval, interval, 
                        "The time in seconds between error reports");
   clopts.attach_option("predictions", &predictions, predictions,

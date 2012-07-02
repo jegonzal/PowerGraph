@@ -1,10 +1,4 @@
 project(GraphicalModels)
-subdirs(factors)
-
-ADD_CXXTEST(factor_test.cxx)
-
-add_graphlab_executable(loopybp_denoise loopybp_denoise.cpp)
-requires_opencv(loopybp_denoise)
 
 
 add_graphlab_executable(lbp_structured_prediction lbp_structured_prediction.cpp)

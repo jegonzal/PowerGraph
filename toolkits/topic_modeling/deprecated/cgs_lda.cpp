@@ -1,5 +1,5 @@
-/**  
- * Copyright (c) 2009 Carnegie Mellon University. 
+/**
+ * Copyright (c) 2009 Carnegie Mellon University.
  *     All rights reserved.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
@@ -23,15 +23,10 @@
 
 #include <vector>
 #include <algorithm>
-#include <graphlab.hpp>
-
 
 #include "cgs_lda_common.hpp"
 
-
 #include <graphlab/macros_def.hpp>
-
-
 
 
 
@@ -39,26 +34,26 @@
  * \brief The gather type used to accumulate information about the
  * words in a document
  */
-struct gather_type {   
+struct gather_type {
   typedef std::pair<factor_type, assignment_type> edge_pair_type;
-  typedef std::map<graphlab::vertex_id_type, edge_pair_type> 
+  typedef std::map<graphlab::vertex_id_type, edge_pair_type>
   neighborhood_map_type;
   neighborhood_map_type neighborhood_map;
 
   gather_type() { }
-  
+
   gather_type(const graph_type::edge_type& edge,
               const graph_type::vertex_type& vertex) {
-    const graph_type::vertex_type other_vertex = 
+    const graph_type::vertex_type other_vertex =
       get_other_vertex(edge, vertex);
-    neighborhood_map[other_vertex.id()] = 
+    neighborhood_map[other_vertex.id()] =
       edge_pair_type(other_vertex.data().factor, edge.data().assignment);
   }
 
   void save(graphlab::oarchive& arc) const { arc << neighborhood_map; }
 
   void load(graphlab::iarchive& arc) { arc >> neighborhood_map; }
-  
+
   gather_type& operator+=(const gather_type& other) {
     neighborhood_map.insert(other.neighborhood_map.begin(),
                             other.neighborhood_map.end());
@@ -85,40 +80,40 @@ public:
   } // end of load cgs_lda
 
 
-  edge_dir_type gather_edges(icontext_type& context, 
+  edge_dir_type gather_edges(icontext_type& context,
                              const vertex_type& vertex) const {
     return graphlab::ALL_EDGES;
-  } // end of gather_edges 
+  } // end of gather_edges
 
-  gather_type gather(icontext_type& context, const vertex_type& vertex, 
+  gather_type gather(icontext_type& context, const vertex_type& vertex,
                      edge_type& edge) const {
     return gather_type(edge, vertex);
   } // end of gather
-  
+
 
   void apply(icontext_type& context, vertex_type& vertex,
              const gather_type& sum) {
     const size_t num_neighbors = vertex.num_in_edges() + vertex.num_out_edges();
     ASSERT_GT(num_neighbors, 0);
-    ASSERT_EQ(new_edge_data.size(), 0); 
+    ASSERT_EQ(new_edge_data.size(), 0);
     vertex_data& vdata = vertex.data();
-    factor_type& factor = vdata.factor;  
+    factor_type& factor = vdata.factor;
     ASSERT_EQ(factor.size(), NTOPICS);
-  
-    // first update the factor count for this vertex  
-    typedef gather_type::neighborhood_map_type::value_type pair_type; 
+
+    // first update the factor count for this vertex
+    typedef gather_type::neighborhood_map_type::value_type pair_type;
     foreach(const pair_type& nbr_pair, sum.neighborhood_map) {
       const assignment_type& assignment = nbr_pair.second.second;
       foreach(const topic_id_type& asg, assignment) {
         if(asg != NULL_TOPIC) ++factor[asg];
       } // end of loop over assignments
     } // end of loop over neighborhood
-  
+
     // Resample the vertex
     vdata.nchanges = 0;
-    // run the actual gibbs sampling 
+    // run the actual gibbs sampling
     std::vector<double> prob(NTOPICS);
-    typedef gather_type::neighborhood_map_type::value_type pair_type; 
+    typedef gather_type::neighborhood_map_type::value_type pair_type;
     foreach(const pair_type& nbr_pair, sum.neighborhood_map) {
       const graphlab::vertex_id_type other_id = nbr_pair.first;
       factor_type other_factor = nbr_pair.second.first;
@@ -136,29 +131,29 @@ public:
           --GLOBAL_TOPIC_COUNT[asg];
         }
         for(size_t t = 0; t < NTOPICS; ++t) {
-          const double n_dt = 
-            std::max(count_type(doc_topic_count[t]), count_type(0)); 
+          const double n_dt =
+            std::max(count_type(doc_topic_count[t]), count_type(0));
           ASSERT_GE(n_dt, 0);
-          const double n_wt = 
-            std::max(count_type(word_topic_count[t]), count_type(0)); 
+          const double n_wt =
+            std::max(count_type(word_topic_count[t]), count_type(0));
           ASSERT_GE(n_wt, 0);
-          const double n_t  = 
-            std::max(count_type(GLOBAL_TOPIC_COUNT[t]), count_type(0)); 
+          const double n_t  =
+            std::max(count_type(GLOBAL_TOPIC_COUNT[t]), count_type(0));
           ASSERT_GE(n_t, 0);
           prob[t] = (ALPHA + n_dt) * (BETA + n_wt) / (BETA * NWORDS + n_t);
         }
         asg = graphlab::random::multinomial(prob);
         ++doc_topic_count[asg];
-        ++word_topic_count[asg];                    
+        ++word_topic_count[asg];
         ++GLOBAL_TOPIC_COUNT[asg];
         // record a change if one occurs
         if(old_asg != asg) vdata.nchanges++;
       } // End of loop over each token
       // test to see if the topic assignments have change
-      // sort the topic assignment to be in a "canonical order" 
+      // sort the topic assignment to be in a "canonical order"
       std::sort(assignment.begin(), assignment.end());
       const assignment_type& old_assignment = nbr_pair.second.second;
-      bool is_same = (old_assignment.size() == assignment.size());  
+      bool is_same = (old_assignment.size() == assignment.size());
       for(size_t i = 0; i < assignment.size() && is_same; ++i)
         is_same = (assignment[i] == old_assignment[i]);
       if(!is_same) new_edge_data[other_id] = assignment;
@@ -167,19 +162,19 @@ public:
 
 
   edge_dir_type scatter_edges(icontext_type& context,
-                              const vertex_type& vertex) const { 
-    return graphlab::ALL_EDGES; 
+                              const vertex_type& vertex) const {
+    return graphlab::ALL_EDGES;
   }; // end of scatter edges
 
-  void scatter(icontext_type& context, const vertex_type& vertex, 
-               edge_type& edge) const  {  
+  void scatter(icontext_type& context, const vertex_type& vertex,
+               edge_type& edge) const  {
     const vertex_type other_vertex = get_other_vertex(edge, vertex);
-    edge_data_map_type::const_iterator iter = 
+    edge_data_map_type::const_iterator iter =
       new_edge_data.find(other_vertex.id());
     // If there is an assignment then something changed
     if(iter != new_edge_data.end()) {
       const assignment_type& new_topic_assignment = iter->second;
-      ASSERT_EQ(new_topic_assignment.size(), 
+      ASSERT_EQ(new_topic_assignment.size(),
                 edge.data().assignment.size());
       edge.data().assignment = new_topic_assignment;
     }
@@ -214,27 +209,31 @@ int main(int argc, char** argv) {
   graphlab::distributed_control dc;
 
   // Parse command line options -----------------------------------------------
-  const std::string description =    
+  const std::string description =
     "\n=========================================================================\n"
-    "The Collapsed Gibbs Sampler for the LDA model implements\n" 
-    "a synchronous version of parallel LDA in which document\n"
-    "counts are mainted consistently but word counts are\n"
-    "maintained in an eventually consistent manner.\n"
+    "The fast Collapsed Gibbs Sampler for the LDA model implements\n"
+    "a highly asynchronous version of parallel LDA in which document\n"
+    "and word counts are maintained in an eventually consistent\n"
+    "manner.\n"
     "\n"
     "The standard usage is: \n"
-    "\t./cgs_lda --dictionary dictionary.txt --matrix doc_word_count.tsv\n"
+    "\t./fast_cgs_lda --dictionary dictionary.txt --matrix doc_word_count.tsv\n"
     "where dictionary.txt contains: \n"
-    "\taaa \n\taaai \n\tabalone \n\t   ... \n\n"
+    "\taaa \n\taaai \n\tabalone \n\t   ... \n"
+    "each line number corresponds to wordid (i.e aaa has wordid=0)\n\n"
     "and doc_word_count.tsv is formatted <docid> <wordid> <count>:\n"
+    "(where wordid is indexed starting from zero and docid are positive integers)\n"
     "\t0\t0\t3\n"
     "\t0\t5\t1\n"
     "\t ...\n\n"
+    "For JSON format, make sure docid are negative integers index starting from -2 \n\n"
     "To learn more about the NLP package and its applications visit\n\n"
     "\t\t http://graphlab.org \n\n"
     "Additional Options";
   graphlab::command_line_options clopts(description);
-  std::string matrix_dir; 
+  std::string matrix_dir;
   std::string dictionary_fname;
+  bool loadjson = false;
   clopts.attach_option("dictionary", &dictionary_fname, dictionary_fname,
                        "The file containing the list of unique words");
   clopts.add_positional("dictionary");
@@ -245,12 +244,14 @@ int main(int argc, char** argv) {
                        "Number of topics to use.");
   clopts.attach_option("alpha", &ALPHA, ALPHA,
                        "The document hyper-prior");
-  clopts.attach_option("beta", &BETA, BETA,                       
+  clopts.attach_option("beta", &BETA, BETA,
                        "The word hyper-prior");
   clopts.attach_option("topk", &TOPK, TOPK,
                        "The number of words to report");
   clopts.attach_option("interval", &INTERVAL, INTERVAL,
                        "statistics reporting interval");
+  clopts.attach_option("loadjson",&loadjson,loadjson,
+                        "Boolean if in json format (matrix arg is dir or gzip file)");
 
   if(!clopts.parse(argc, argv)) {
     graphlab::mpi_tools::finalize();
@@ -269,30 +270,30 @@ int main(int argc, char** argv) {
 
   ///! Initialize global variables
   GLOBAL_TOPIC_COUNT.resize(NTOPICS);
-  bool success = load_dictionary(dictionary_fname); 
+  bool success = load_dictionary(dictionary_fname);
   if(!success) {
     logstream(LOG_ERROR) << "Error loading dictionary." << std::endl;
     return EXIT_FAILURE;
   }
-  
+
   ///! load the graph
-  graph_type graph(dc, clopts);  
-  success = load_and_initialize_graph(dc, graph, matrix_dir);
+  graph_type graph(dc, clopts);
+  success = load_and_initialize_graph(dc, graph, matrix_dir,loadjson);
   if(!success) {
     logstream(LOG_ERROR) << "Error loading graph." << std::endl;
     return EXIT_FAILURE;
   }
 
 
-  
+
   engine_type engine(dc, graph, clopts, "synchronous");
   ///! Add an aggregator
-  success = 
+  success =
     engine.add_vertex_aggregator<topk_type>
     ("topk", topk_type::map, topk_type::finalize) &&
     engine.aggregate_periodic("topk", INTERVAL);
   ASSERT_TRUE(success);
-  // success = 
+  // success =
   //   engine.add_vertex_aggregator<factor_type>
   //   ("global_counts", global_counts_agg::map, global_counts_agg::finalize) &&
   //   engine.aggregate_periodic("global_counts", 5);
@@ -303,14 +304,14 @@ int main(int argc, char** argv) {
   dc.cout() << "Running The Collapsed Gibbs Sampler" << std::endl;
   engine.map_reduce_vertices<graphlab::empty>(signal_only::docs);
   graphlab::timer timer;
-  engine.start();  
+  engine.start();
   const double runtime = timer.current_time();
-  dc.cout() 
+  dc.cout()
     << "----------------------------------------------------------" << std::endl
-    << "Final Runtime (seconds):   " << runtime 
+    << "Final Runtime (seconds):   " << runtime
     << std::endl
     << "Updates executed: " << engine.num_updates() << std::endl
-    << "Update Rate (updates/second): " 
+    << "Update Rate (updates/second): "
     << engine.num_updates() / runtime << std::endl;
 
   graphlab::mpi_tools::finalize();

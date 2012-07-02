@@ -47,6 +47,7 @@
 typedef Eigen::VectorXd vec_type;
 typedef Eigen::MatrixXd mat_type;
 static bool debug;
+int iter = 0;
 /** 
  * \ingroup toolkit_matrix_pvecization
  *
@@ -124,6 +125,7 @@ struct edge_data : public graphlab::IS_POD_TYPE {
  * data.
  */ 
 typedef graphlab::distributed_graph<vertex_data, edge_data> graph_type;
+double extract_l2_error(const graph_type::edge_type & edge);
 
 
 /**
@@ -136,39 +138,6 @@ get_other_vertex(graph_type::edge_type& edge,
   return vertex.id() == edge.source().id()? edge.target() : edge.source();
 }; // end of get_other_vertex
 
-
-/**
- * \brief Given an edge compute the error associated with that edge
- */
-double extract_l2_error(const graph_type::edge_type & edge) {
-  const double pred = 
-    edge.source().data().pvec.dot(edge.target().data().pvec);
-  return (edge.data().obs - pred) * (edge.data().obs - pred);
-} // end of extract_l2_error
-
-
-/**
- * \brief The graph loader function is a line parser used for
- * distributed graph construction.
- */
-inline bool graph_loader(graph_type& graph, 
-                         const std::string& filename,
-                         const std::string& line) {
-  ASSERT_FALSE(line.empty()); 
-  // Determine the role of the data
-  edge_data::data_role_type role = edge_data::TRAIN;
-  if(boost::ends_with(filename,".validate")) role = edge_data::VALIDATE;
-  else if(boost::ends_with(filename, ".predict")) role = edge_data::PREDICT;
-  // Parse the line
-  std::stringstream strm(line);
-  graph_type::vertex_id_type source_id(-1), target_id(-1);
-  float obs(0);
-  strm >> source_id >> target_id;
-  if(role == edge_data::TRAIN || role == edge_data::VALIDATE) strm >> obs;
-  // Create an edge and add it to the graph
-  graph.add_edge(source_id, target_id+1000000, edge_data(obs, role)); 
-  return true; // successful load
-} // end of graph_loader
 
 
 
@@ -201,8 +170,6 @@ public:
    * \brief Stores the current sum of nbr.pvec * edge.obs
    */
   vec_type pvec;
-  double rmse;
-  int edges;
   /** \brief basic default constructor */
   gather_type() { }
 
@@ -210,35 +177,28 @@ public:
    * \brief This constructor computes XtX and Xy and stores the result
    * in XtX and Xy
    */
-  gather_type(const vec_type& X, const double y, int type) {
+  gather_type(const vec_type& X) {
     pvec = X;
-    rmse = y;
-    if (type == edge_data::TRAIN)
-      edges = 1;
   } // end of constructor for gather type
 
   /** \brief Save the values to a binary archive */
-  void save(graphlab::oarchive& arc) const { arc << pvec << rmse; }
+  void save(graphlab::oarchive& arc) const { arc << pvec; }
 
   /** \brief Read the values from a binary archive */
-  void load(graphlab::iarchive& arc) { arc >> pvec >> rmse; }  
+  void load(graphlab::iarchive& arc) { arc >> pvec; }  
 
   /** 
    * \brief Computes XtX += other.XtX and Xy += other.Xy updating this
    * tuples value
    */
   gather_type& operator+=(const gather_type& other) {
-    if (other.pvec.size() == 0)
-      return *this;
     if (pvec.size() == 0){
-       pvec = other.pvec;
-       rmse = other.rmse;
-       edges = other.edges;
-       return *this;
+      pvec = other.pvec;
+      return *this;
     }
+    else if (other.pvec.size() == 0)
+      return *this;
     pvec += other.pvec;
-    rmse += other.rmse;
-    edges += other.edges;
     return *this;
   } // end of operator+=
 
@@ -251,13 +211,15 @@ typedef vec_type message_type;
  */ 
 class sgd_vertex_program : 
   public graphlab::ivertex_program<graph_type, gather_type,
-                                   message_type>,
-  public graphlab::IS_POD_TYPE {
+                                   message_type> {
 public:
   /** The convergence tolerance */
   static double TOLERANCE;
   static double LAMBDA;
   static double GAMMA;
+  static double MAXVAL;
+  static double MINVAL;
+  static double STEP_DEC;
   static bool debug;
   static size_t MAX_UPDATES;
 
@@ -280,25 +242,31 @@ public:
   gather_type gather(icontext_type& context, const vertex_type& vertex, 
                      edge_type& edge) const {
     //if(edge.data().role == edge_data::TRAIN) {
-   if (debug)
-     std::cout<<"Enering vertex " << vertex.id() << "pvec: " << vertex.data().pvec[0] << std::endl;
    vec_type delta, other_delta;
    if (vertex.num_in_edges() == 0){
       vertex_type other_vertex(get_other_vertex(edge, vertex));
       vertex_type my_vertex(vertex);
       vertex_data & my_data = my_vertex.data();
-      const double pred = vertex.data().pvec.dot(other_vertex.data().pvec);
-      const float err = (edge.data().obs - pred);
+      double pred = vertex.data().pvec.dot(other_vertex.data().pvec);
+      pred = std::min(pred, sgd_vertex_program::MAXVAL);
+      pred = std::max(pred, sgd_vertex_program::MINVAL); 
+      const float err = (pred - edge.data().obs);
+      if (debug)
+        std::cout<<"entering edge " << (int)edge.source().id() << ":" << (int)edge.target().id()-1000000 << " err: " << err << " rmse: " << err*err <<std::endl;
       assert(!std::isnan(err));
       if (edge.data().role == edge_data::TRAIN){
-        delta = GAMMA*(err*vertex.data().pvec - LAMBDA*other_vertex.data().pvec);
-        other_delta = GAMMA*(err*other_vertex.data().pvec - LAMBDA*vertex.data().pvec);
-        if(other_vertex.data().nupdates < MAX_UPDATES) 
+        delta = -GAMMA*(err*other_vertex.data().pvec - LAMBDA*vertex.data().pvec);
+        other_delta = -GAMMA*(err*vertex.data().pvec - LAMBDA*other_vertex.data().pvec);
+       other_vertex.data().pvec += other_delta;
+        my_vertex.data().pvec += delta;
+        if (debug)
+          std::cout<<"new val:" << (int)edge.source().id() << ":" << (int)edge.target().id()-1000000 << " U " << my_vertex.data().pvec.transpose() << " V " << other_vertex.data().pvec.transpose() << std::endl;
+         if(other_vertex.data().nupdates < MAX_UPDATES) 
           context.signal(other_vertex, other_delta);
        }
-      return gather_type(delta, err*err, edge.data().role);
+      return gather_type(delta);
     } 
-    else return gather_type(delta, 0, edge.data().role);
+    else return gather_type(delta);
   } // end of gather function
 
 //typedef vec_type message_type;
@@ -314,22 +282,14 @@ public:
              const gather_type& sum) {
     // Get and reset the vertex data
     vertex_data& vdata = vertex.data(); 
-    // Determine the number of neighbors.  Each vertex has only in or
-    // out edges depending on which side of the graph it is located
-    //if(sum.Xy.size() == 0) { vdata.residual = 0; ++vdata.nupdates; return; }
-    //mat_type XtX = sum.XtX;
-    //vec_type Xy = sum.Xy;
-    // Add regularization
-    //for(int i = 0; i < XtX.rows(); ++i) XtX(i,i) += LAMBDA; // /nneighbors;
-    // Solve the least squares problem using eigen ----------------------------
-    //const vec_type old_pvec = vdata.pvec;
-    //vdata.pvec = XtX.selfadjointView<Eigen::Upper>().ldlt().solve(Xy);
-    // Compute the residual change in the pvec pvec -----------------------
-    //vdata.residual = (vdata.pvec - old_pvec).cwiseAbs().sum() / XtX.rows();
-    if (vertex.num_in_edges() == 0 && sum.pvec.size() > 0)
-      vdata.pvec += sum.pvec;
-    else if (vertex.num_in_edges() > 0 && vdata.pvec.size() > 0)
+    if (sum.pvec.size() > 0){
+      vdata.pvec += sum.pvec; 
+      assert(vertex.num_in_edges() == 0);
+    }
+    else if (pmsg.size() > 0){
       vdata.pvec += pmsg;
+      assert(vertex.num_out_edges() == 0); 
+    }
     ++vdata.nupdates;
   } // end of apply
   
@@ -345,9 +305,6 @@ public:
     edge_data& edata = edge.data();
     if(edata.role == edge_data::TRAIN) {
       const vertex_type other_vertex = get_other_vertex(edge, vertex);
-      //const double pred = vdata.pvec.dot(other_vdata.pvec);
-      //const float error = std::fabs(edata.obs - pred);
-      //const double priority = (error * vdata.residual); 
       // Reschedule neighbors ------------------------------------------------
       if(other_vertex.data().nupdates < MAX_UPDATES) 
         context.signal(other_vertex, vec_type::Zero(vertex_data::NLATENT));
@@ -360,7 +317,7 @@ public:
    */
   static graphlab::empty signal_left(icontext_type& context,
                                      vertex_type& vertex) {
-    if(vertex.num_out_edges() > 0) context.signal(vertex);
+    if(vertex.num_out_edges() > 0) context.signal(vertex, vec_type::Zero(vertex_data::NLATENT));
     return graphlab::empty();
   } // end of signal_left 
 
@@ -393,7 +350,12 @@ struct error_aggregator : public graphlab::IS_POD_TYPE {
     }
     return agg;
   }
+
+
   static void finalize(icontext_type& context, const error_aggregator& agg) {
+    iter++;
+    if (iter%2 == 0)
+      return; 
     ASSERT_GT(agg.ntrain, 0);
     const double train_error = std::sqrt(agg.train_error / agg.ntrain);
     assert(!std::isnan(train_error));
@@ -404,8 +366,22 @@ struct error_aggregator : public graphlab::IS_POD_TYPE {
       context.cout() << "\t" << validation_error; 
     }
     context.cout() << std::endl;
+    sgd_vertex_program::GAMMA *= sgd_vertex_program::STEP_DEC;
   }
 }; // end of error aggregator
+
+/**
+ * \brief Given an edge compute the error associated with that edge
+ */
+double extract_l2_error(const graph_type::edge_type & edge) {
+  double pred = 
+    edge.source().data().pvec.dot(edge.target().data().pvec);
+  pred = std::min(sgd_vertex_program::MAXVAL, pred);
+  pred = std::max(sgd_vertex_program::MINVAL, pred);
+  double rmse = (edge.data().obs - pred) * (edge.data().obs - pred);
+  assert(rmse <= pow(sgd_vertex_program::MAXVAL-sgd_vertex_program::MINVAL,2));
+  return rmse;
+} // end of extract_l2_error
 
 
 struct prediction_saver {
@@ -424,6 +400,32 @@ struct prediction_saver {
     return strm.str();
   }
 }; // end of prediction_saver
+
+
+/**
+ * \brief The graph loader function is a line parser used for
+ * distributed graph construction.
+ */
+inline bool graph_loader(graph_type& graph, 
+                         const std::string& filename,
+                         const std::string& line) {
+  ASSERT_FALSE(line.empty()); 
+  // Determine the role of the data
+  edge_data::data_role_type role = edge_data::TRAIN;
+  if(boost::ends_with(filename,".validate")) role = edge_data::VALIDATE;
+  else if(boost::ends_with(filename, ".predict")) role = edge_data::PREDICT;
+  // Parse the line
+  std::stringstream strm(line);
+  graph_type::vertex_id_type source_id(-1), target_id(-1);
+  float obs(0);
+  strm >> source_id >> target_id;
+  if(role == edge_data::TRAIN || role == edge_data::VALIDATE) 
+    strm >> obs;
+  assert(obs >= sgd_vertex_program::MINVAL && obs <= sgd_vertex_program::MAXVAL);
+  // Create an edge and add it to the graph
+  graph.add_edge(source_id, target_id+1000000, edge_data(obs, role)); 
+  return true; // successful load
+} // end of graph_loader
 
 
 

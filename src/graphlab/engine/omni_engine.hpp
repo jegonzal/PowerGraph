@@ -37,12 +37,44 @@ namespace graphlab {
 
 
   /**
-   * \ingroup engine
+   * \ingroup engines
    * 
-   * \brief The omni engine is a runtime selectable engine that is
-   * capable of running synchronous and asynchronously and essentially
-   * a simple wrapper around all the GraphLab engines.
+   * \brief The omni engine encapsulates all the GraphLab engines
+   * allowing the user to select which engine to use at runtime. 
    *
+   * The actual engine type is set as a string argument to the
+   * constructor of the omni_engine.  Forexample:
+   *
+   * \code
+   * std::string exec_model = "synchronous";
+   * // do something to determine the exec_model (possibly command
+   * // line processing)
+   * // Create the engine
+   * graphlab::omni_engine<pagerank_vprog> engine(dc, graph, opts, exec_model);
+   * \endcode
+   *
+   * The specific engine type can be overriden by command line
+   * arguments (engine_opts="type=<type>"):
+   *
+   * \code
+   * graphlab::omni_engine<pagerank_vprog> engine(dc, graph, opts, "synchronous");
+   * \endcode
+   *
+   * then calling the progam with the command line options:
+   * 
+   \verbatim
+   %> mpiexec -n 16 ./pagerank --engine_opts="type=synchronous"
+   \endverbatim
+   * 
+   * The currently supproted types are:
+   * 
+   *  \li "synchronous" or "sync": uses the synchronous engine 
+   *  (\ref synchronous_engine)
+   *  \li "asynchronous" or "async": uses the asynchronous engine
+   *  (\ref async_consistent_engine)
+   *
+   * \see graphlab::synchronous_engine
+   * \see graphlab::async_consistent_engine
    *
    */
   template<typename VertexProgram>
@@ -70,6 +102,18 @@ namespace graphlab {
      * \ref distributed_graph.
      */
     typedef typename vertex_program_type::graph_type graph_type;
+
+
+    /**
+     * \brief The user defined type returned by the gather function.
+     *
+     * The gather type is defined in the \ref graphlab::ivertex_program
+     * interface and is the value returned by the
+     * \ref graphlab::ivertex_program::gather function.  The
+     * gather type must have an <code>operator+=(const gather_type&
+     * other)</code> function and must be \ref sec_serializable.
+     */
+    typedef typename VertexProgram::gather_type gather_type;
 
     /**
      * \brief The vertex identifier type defined in 
