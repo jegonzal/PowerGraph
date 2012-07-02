@@ -367,7 +367,7 @@ namespace graphlab {
     virtual ~ivertex_program() { }
 
     /**
-     * Recv message is called by the engine to receive a message to
+     * init() is called by the engine to receive a message to
      * this vertex program.  The vertex program can use this to
      * initialize any state before entering the gather phase.  If the
      * vertex program does not implement this function then the

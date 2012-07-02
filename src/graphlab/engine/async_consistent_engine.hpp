@@ -592,7 +592,7 @@ namespace graphlab {
      */
     async_consistent_engine(distributed_control &dc,
                             graph_type& graph, 
-                            const graphlab_options& opts) : 
+                            const graphlab_options& opts = graphlab_options()) : 
         rmi(dc, this), graph(graph), scheduler_ptr(NULL),
         aggregator(dc, graph, new context_type(*this, graph)), started(false),
         engine_start_time(timer::approx_time_seconds()), force_stop(false),

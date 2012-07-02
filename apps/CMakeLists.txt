@@ -23,4 +23,3 @@ macro(add_all_subdirectories retval curdir)
 endmacro()
 
 add_all_subdirectories(retval, ${CMAKE_CURRENT_SOURCE_DIR})
-

@@ -354,7 +354,7 @@ namespace graphlab {
        the line parser returns true if the line is parsed successfully and
        calls graph.add_vertex(...) or graph.add_edge(...)
        
-       See \ref load(const std::string& path, line_parser_type line_parser) "load()o"
+       See \ref graphlab::distributed_graph::load(std::string path, line_parser_type line_parser) "load()"
        for details.
      */
     typedef boost::function<bool(distributed_graph&, const std::string&,
@@ -556,6 +556,15 @@ namespace graphlab {
      *                worst partitions, while "batch" takes longer, but produces
      *                a significantly better result. Improved partitioning
      *                has direct impacts on GraphLab runtime performance.
+     * \li \c userecent An optimization that can decrease memory utilization
+     *                of oblivious and batch quite significantly (especially
+     *                when there are a large number of machines) at a small
+     *                partitioning penalty. Defaults to 0. Set to 1 to 
+     *                enable.
+     * \li \c bufsize The batch size used by the batch ingress method.
+     *                Defaults to 50,000. Increasing this number will
+     *                decrease partitioning time with a penalty to partitioning
+     *                quality.
      *
      * \param [in] dc Distributed controller to associate with
      * \param [in] opts A graphlab::graphlab_options object specifying engine

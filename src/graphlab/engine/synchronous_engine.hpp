@@ -559,7 +559,7 @@ namespace graphlab {
      *                  \ref graphlab::command_line_options.
      */
     synchronous_engine(distributed_control& dc, graph_type& graph,
-                       const graphlab_options& opts);
+                       const graphlab_options& opts = graphlab_options());
 
 
     /**
