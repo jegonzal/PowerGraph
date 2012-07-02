@@ -277,7 +277,7 @@ if (graph.ingress_ptr == NULL) {
         typename graph_type::vid2lvid_map_type & map = graph.vid2lvid;
         map.clear();
         while(j != i->end()) {
-          graph.vid2lvid[boost::lexical_cast<int>(j->name())] = j->as_int();
+          graph.vid2lvid[boost::lexical_cast<vertex_id_type>(j->name())] = (boost::lexical_cast<lvid_type>)(j->as_int());
           ++j;
         }
       } else {
