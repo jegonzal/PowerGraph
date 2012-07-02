@@ -61,10 +61,11 @@ namespace graphlab {
    *   // nbrs represents the state of neighboring vertices and edges
    *
    *   // Gather Phase: 
-   *   sum = initial_value();
+   *   sum = EMPTY;
    *   for(edge in nbrs.in_edges()) {
    *      // The sum is a general commutative associative operation
-   *      sum += gather_function(center, edge, edge.neighbor());
+   *      if(sum == EMPTY) sum = gather_function(center, edge, edge.neighbor());
+   *      else sum += gather_function(center, edge, edge.neighbor());
    *   }
    *
    *   // Apply Phase:
@@ -94,9 +95,10 @@ namespace graphlab {
    * For the center vertex vtx:
    *   vprog.init(ctx, vtx, msg);
    *   // Gather Phase: 
-   *   vprog::gather_type sum;
+   *   vprog::gather_type sum = EMPTY;
    *   ParallelFor(adjacent edges in direction vprog.gather_edges(ctx, vtx) )
-   *     sum += vprog.gather(ctx, vtx, edge);
+   *     if(sum == EMPTY) sum = vprog.gather(ctx, vtx, edge);
+   *     else sum += vprog.gather(ctx, vtx, edge);
    *   // Apply Phase
    *   vprog.apply(ctx, vtx, sum);
    *   // Scatter Phase
