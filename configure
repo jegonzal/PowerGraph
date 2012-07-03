@@ -40,8 +40,8 @@ function run_cleanup {
   echo "Are you sure you want to continue? (yes or no)"
   read yesorno;
   if [ "$yesorno" == "yes" ]; then 
-    echo "Removing release debug and profile folders";
-    rm -rf release debug profile deps configure.deps
+    echo "Removing release and debug folders";
+    rm -rf release debug deps configure.deps
   else
     echo "Doing nothing!";
   fi 
@@ -68,7 +68,6 @@ function check_version {
 ## is defined in configure.deps
 RELEASE_DIR=release
 DEBUG_DIR=debug
-PROFILE_DIR=profile
 INSTALL_DIR=/usr/local
 EXPERIMENTAL=false
 GRAPHLAB_HOME=$PWD
@@ -241,9 +240,6 @@ echo -e "\t RELEASE_DIR=$RELEASE_DIR" >> configure.deps
 echo -e "# Debug build directory (optimization disabled):" >> configure.deps
 echo -e "\t DEBUG_DIR=$DEBUG_DIR" >> configure.deps
 
-echo -e "# Profile build directory (extra counters enabled):" >> configure.deps
-echo -e "\t PROFILE_DIR=$PROFILE_DIR" >> configure.deps
-
 echo -e "# Directory in which graphlab is installed (prefix):" >> configure.deps
 echo -e "\t INSTALL_DIR=$INSTALL_DIR" >> configure.deps
 
@@ -339,26 +335,6 @@ build_cmd="$CMAKE \
     -D CMAKE_BUILD_TYPE=Debug \
     $CFLAGS \
     ../."
-echo $build_cmd | tee -a ../$LOG_FILE
-eval $build_cmd | tee -a ../$LOG_FILE
-cd $GRAPHLAB_HOME
-
-
-echo -e "\n\n\n======================= Profile ========================" \
-    | tee -a $LOG_FILE 
-
-if [ ! -d $PROFILE_DIR ]; then
-    mkdir $PROFILE_DIR
-fi
-cd $PROFILE_DIR
-rm -f CMakeCache.txt
-build_cmd="$CMAKE \
-    $GENERATOR \
-    -D CMAKE_BUILD_TYPE=Release \
-    -D COMPILE_PROFILING=1 \
-    $CFLAGS \
-    ../."
-
 echo $build_cmd | tee -a ../$LOG_FILE
 eval $build_cmd | tee -a ../$LOG_FILE
 cd $GRAPHLAB_HOME
