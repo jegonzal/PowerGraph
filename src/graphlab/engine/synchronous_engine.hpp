@@ -167,9 +167,10 @@ namespace graphlab {
    * }
    * \endcode
    *
-   * Engine Options
-   * =====================
    *
+   * 
+   * <a name=engineopts>Engine Options</a>
+   * =====================
    * The synchronous engine supports several engine options which can
    * be set as command line arguments using \c --engine_opts :
    * 
@@ -187,14 +188,16 @@ namespace graphlab {
    * or update (\ref icontext::post_delta) the cache values of 
    * neighboring vertices during the scatter phase.
    *
-   * \li <b>snapshot_interval</b>: (default: infinity) The frequency
-   * (in iterations) which snapshots should be taken.  A snapshot is a
-   * binary dump of the distributed graph.
+   * \li \b snapshot_interval If set to a positive value, a snapshot
+   * is taken every this number of iterations. If set to 0, a snapshot
+   * is taken before the first iteration. If set to a negative value,
+   * no snapshots are taken. Defaults to -1. A snapshot is a binary
+   * dump of the graph.
    *
-   * \li <b>snapshot_path</b>: (default: working directory) The path
-   * including folder and file prefix in which the snapshots should be
-   * saved.
-   *
+   * \li \b snapshot_path If snapshot_interval is set to a value >=0,
+   * this option must be specified and should contain a target basename 
+   * for the snapshot. The path including folder and file prefix in 
+   * which the snapshots should be saved.
    *
    * \see graphlab::omni_engine
    * \see graphlab::async_consistent_engine
@@ -577,20 +580,9 @@ namespace graphlab {
      *
      * The number of threads to create are read from 
      * \ref graphlab_options::get_ncpus "opts.get_ncpus()". 
-     * Valid engine options (graphlab_options::get_engine_args()):
-     * \arg \c use_cache If set to true, partial gathers are cached.
-     * See \ref gather_caching to understand the behavior of the
-     * gather caching model and how it may be used to accelerate program
-     * performance.
-     * \arg \c iterations Limit the number of iterations the engine 
-     * may run.
-     * \arg \c snapshot_interval If set to a positive value, a snapshot
-     * is taken every this number of iterations. If set to 0, a snapshot
-     * is taken before the first iteration. If set to a negative value,
-     * no snapshots are taken. Defaults to -1.
-     * \arg \c snapshot_path If snapshot_interval is set to a value >=0,
-     * this option must be specified and should contain a target basename 
-     * for the snapshot.
+     *
+     * See the <a href="#engineopts">main class documentation</a>
+     * for details on the available options.
      *
      * @param [in] dc Distributed controller to associate with
      * @param [in,out] graph A reference to the graph object that this

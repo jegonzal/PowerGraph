@@ -173,6 +173,26 @@ namespace graphlab {
    *
    * \see graphlab::omni_engine
    * \see graphlab::synchronous_engine
+   *
+   * <a name=engineopts>Engine Options</a>
+   * =========================
+   * The asynchronous engine supports several engine options which can
+   * be set as command line arguments using \c --engine_opts :
+   *
+   * \li \b max_clean_fraction (default: 1) 
+   *  The maximum proportion of edges which can be locked at any one time.
+   *  (This is a simplification of the actual clean/dirty concept in the Chandy
+   *  Misra locking algorithm used in this implementation.
+   * \li \b timeout (default: infinity) Maximum time in seconds the engine will
+   * run for. The actual runtime may be marginally greater as the engine 
+   * waits for all threads and processes to flush all active tasks before
+   * returning.
+   * \li \b use_cache: (default: false) This is used to enable
+   * caching.  When caching is enabled the gather phase is skipped for
+   * vertices that already have a cached value.  To use caching the
+   * vertex program must either clear (\ref icontext::clear_gather_cache) 
+   * or update (\ref icontext::post_delta) the cache values of 
+   * neighboring vertices during the scatter phase.
    */
   template<typename VertexProgram>
   class async_consistent_engine: public iengine<VertexProgram> {
@@ -571,20 +591,9 @@ namespace graphlab {
      * is the queued_fifo scheduler. For details on the scheduler types
      * \see scheduler_types
      *
-     * Valid engine options (graphlab_options::get_engine_args()):
-     * \arg \c max_clean_fraction The maximum proportion of edges which
-     * can be locked at any one time. (This is a simplification of the actual
-     * clean/dirty concept in the Chandy Misra locking algorithm used in this
-     * implementation.
-     * \arg \c timed_termination Maximum time in seconds the engine will run
-     * for. The actual runtime may be marginally greater as the engine 
-     * waits for all threads and processes to flush all active tasks before
-     * returning.
-     * \arg \c use_cache If set to true, partial gathers are cached.
-     * See \ref gather_caching to understand the behavior of the
-     * gather caching model and how it may be used to accelerate program
-     * performance.
-     * 
+     *  See the <a href=#engineopts> main class documentation</a> for the
+     *  available engine options.
+     *
      * \param dc Distributed controller to associate with
      * \param graph The graph to schedule over. The graph must be fully
      *              constructed and finalized.
@@ -644,16 +653,6 @@ namespace graphlab {
      * graphlab_options::get_scheduler_type(). The default scheduler
      * is the queued_fifo scheduler. For details on the scheduler types
      * \see scheduler_types
-     *
-     * Valid engine options (graphlab_options::get_engine_args()):
-     * \arg \c max_clean_fraction The maximum proportion of edges which
-     * can be locked at any one time. (This is a simplification of the actual
-     * clean/dirty concept in the Chandy Misra locking algorithm used in this
-     * implementation.
-     * \arg \c timed_termination Maximum time in seconds the engine will run
-     * for. The actual runtime may be marginally greater as the engine 
-     * waits for all threads and processes to flush all active tasks before
-     * returning.
      */
     void set_options(const graphlab_options& opts) {
       rmi.barrier();
@@ -665,8 +664,6 @@ namespace graphlab {
         if (opt == "max_clean_fraction") {
           opts.get_engine_args().get_option("max_clean_fraction", max_clean_fraction);
           max_clean_forks = graph.num_local_edges() * max_clean_fraction;
-        } else if (opt == "timed_termination") {
-          opts.get_engine_args().get_option("timed_termination", timed_termination);
         } else if (opt == "timeout") {
           opts.get_engine_args().get_option("timeout", timed_termination);
         } else if (opt == "use_cache") {
