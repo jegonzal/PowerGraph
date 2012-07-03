@@ -6,6 +6,9 @@
 
 namespace graphlab {
 
+
+  extern distributed_control* pilot_dc;
+
   class templates;
 
   // TODO: refactor graph operations to another graph object
@@ -30,7 +33,6 @@ namespace graphlab {
     static graphlab_options opts;   // TODO: this is probably wrong
     static templates templs; 
 
-    distributed_control dc;
     graph_type graph;
 
   public:

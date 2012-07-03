@@ -6,11 +6,14 @@ using namespace graphlab;
 using namespace v8;
 namespace cv = cvv8;
 
+namespace graphlab {
+distributed_control* pilot_dc;
+}
 //////////////////////////// PILOT //////////////////////////////
 // TODO: make some JSTR constants to be reused throughout
 
 // TODO: how many distributed controls can a pilot have in his lifetime? 
-pilot::pilot() : dc(), graph(dc, opts) {}
+pilot::pilot() : graph(*pilot_dc, opts) {}
     
 void pilot::ping(){ std::cout << "pong." << std::endl; }
  
@@ -31,7 +34,7 @@ void pilot::load_synthetic_powerlaw(size_t powerlaw){
 void pilot::fly(const Handle<Function> &function){
   
   js_proxy::set_ctor(function); // FIXME: should not be a static!
-  omni_engine<js_proxy> engine(dc, graph, "synchronous", opts);
+  omni_engine<js_proxy> engine(*pilot_dc, graph, "synchronous", opts);
   engine.signal_all(); // TODO: allow user to specify an array of vertices to signal, or all
   engine.start();
 
