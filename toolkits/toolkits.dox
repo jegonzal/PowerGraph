@@ -17,6 +17,9 @@ used to cluster documents and extract topical representations.
 triangle counting which can be applied to general graphs to estimate
 community structure.
 
+\li \ref clustering contains standard data clustering tools such as 
+Kmeans
+
 \li \ref collaborative_filtering contains a collection of
 applications used to make predictions about users interests and
 factorize large matrices.
