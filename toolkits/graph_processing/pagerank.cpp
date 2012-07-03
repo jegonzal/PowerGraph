@@ -20,11 +20,6 @@
  *
  */
 
-// We render this entire program in the documentation
-
-/// \file pagerank.cpp
-/// \code
-
 #include <vector>
 #include <string>
 #include <fstream>
@@ -36,6 +31,8 @@
 float RESET_PROB = 0.15;
 
 float TOLERANCE = 1.0E-2;
+
+size_t ITERATIONS = 0;
 
 // The vertex data is just the pagerank value (a float)
 typedef float vertex_data_type;
@@ -77,7 +74,7 @@ void init_vertex(graph_type::vertex_type& vertex) { vertex.data() = 1; }
 class pagerank :
   public graphlab::ivertex_program<graph_type, float>,
   public graphlab::IS_POD_TYPE {
-  double last_change;
+  float last_change;
 public:
   /* Gather the weighted rank of the adjacent page   */
   float gather(icontext_type& context, const vertex_type& vertex,
@@ -89,32 +86,30 @@ public:
   /* Use the total rank of adjacent pages to update this page */
   void apply(icontext_type& context, vertex_type& vertex,
              const gather_type& total) {
-    const double newval = total + RESET_PROB;
+    float newval = total + RESET_PROB;
     last_change = std::fabs(newval - vertex.data());
+
     vertex.data() = newval;
-    context.signal(vertex);
+    if (ITERATIONS) context.signal(vertex);
   }
 
   /* The scatter edges depend on whether the pagerank has converged */
   edge_dir_type scatter_edges(icontext_type& context,
                               const vertex_type& vertex) const {
-    //if (last_change > TOLERANCE) return graphlab::OUT_EDGES;
-    //else 
-    return graphlab::NO_EDGES;
+    if (ITERATIONS) return graphlab::NO_EDGES;
+    else {
+      if (last_change > TOLERANCE) return graphlab::OUT_EDGES;
+      else return graphlab::NO_EDGES;
+    }
   }
 
   /* The scatter function just signal adjacent pages */
   void scatter(icontext_type& context, const vertex_type& vertex,
                edge_type& edge) const {
+    context.signal(edge.target());
   }
 }; // end of factorized_pagerank update functor
 
-
-/*
- * Simple function used at the end of pagerank to extract the rank of
- * each page.  See: graph.map_reduce_vertices(extract_pagerank);
- */
-float extract_pagerank(graph_type::vertex_type f) { return f.data(); }
 
 /*
  * We want to save the final graph so we define a write which will be
@@ -142,7 +137,6 @@ int main(int argc, char** argv) {
   std::string graph_dir;
   std::string format = "adj";
   std::string exec_type = "synchronous";
-  bool loadjson = false;
   clopts.attach_option("graph", graph_dir,
                        "The graph file.  If none is provided "
                        "then a toy graph will be created");
@@ -156,36 +150,44 @@ int main(int argc, char** argv) {
   size_t powerlaw = 0;
   clopts.attach_option("powerlaw", powerlaw,
                        "Generate a synthetic powerlaw out-degree graph. ");
+  clopts.attach_option("iterations", ITERATIONS, 
+                       "If set, will force the use of the synchronous engine"
+                       "overriding any engine option set by the --engine parameter. "
+                       "Runs complete (non-dynamic) PageRank for a fixed "
+                       "number of iterations. Also overrides the iterations "
+                       "option in the engine");
   std::string saveprefix;
   clopts.attach_option("saveprefix", saveprefix,
                        "If set, will save the resultant pagerank to a "
                        "sequence of files with prefix saveprefix");
-  clopts.attach_option("loadjson", loadjson,
-                        "Boolean for JSON format (graph arg will be directory or gzip file)");
 
   if(!clopts.parse(argc, argv)) {
-    std::cout << "Error in parsing command line arguments." << std::endl;
+    dc.cout() << "Error in parsing command line arguments." << std::endl;
     return EXIT_FAILURE;
+  }
+
+
+  if (ITERATIONS) {
+    // make sure this is the synchronous engine
+    dc.cout() << "--iterations set. Forcing Synchronous engine, and running "
+              << "for " << ITERATIONS << " iterations." << std::endl;
+    clopts.get_engine_args().set_option("type", "synchronous");
+    clopts.get_engine_args().set_option("max_iterations", ITERATIONS);
   }
 
   // Build the graph ----------------------------------------------------------
   graph_type graph(dc, clopts);
   if(powerlaw > 0) { // make a synthetic graph
-    std::cout << "Loading synthetic Powerlaw graph." << std::endl;
+    dc.cout() << "Loading synthetic Powerlaw graph." << std::endl;
     graph.load_synthetic_powerlaw(powerlaw);
   }
-  else if(loadjson){
-    std::cout << "Loading graph from JSON." << std::endl;
-    const bool gzip = boost::ends_with(graph_dir,".gz");
-    graph.load_json(graph_dir,gzip);
-  }
   else { // Load the graph from a file
-    std::cout << "Loading graph in format: "<< format << std::endl;
+    dc.cout() << "Loading graph in format: "<< format << std::endl;
     graph.load_format(graph_dir, format);
   }
   // must call finalize before querying the graph
   graph.finalize();
-  std::cout << "#vertices: " << graph.num_vertices()
+  dc.cout() << "#vertices: " << graph.num_vertices()
             << " #edges:" << graph.num_edges() << std::endl;
 
   // Initialize the vertex data
@@ -196,17 +198,9 @@ int main(int argc, char** argv) {
   engine.signal_all();
   engine.start();
   const float runtime = engine.elapsed_seconds();
-  size_t update_count = engine.num_updates();
-  std::cout << "Finished Running engine in " << runtime
-            << " seconds." << std::endl
-            << "Total updates: " << update_count << std::endl
-            << "Efficiency: " << (double(update_count) / runtime)
-            << " updates per second "
-            << std::endl;
+  dc.cout() << "Finished Running engine in " << runtime
+            << " seconds." << std::endl;
 
-  // Compute summary stats ----------------------------------------------------
-  float sum_of_graph = graph.map_reduce_vertices<float>(extract_pagerank);
-  std::cout << "Sum of graph: " << sum_of_graph << std::endl;
 
   // Save the final graph -----------------------------------------------------
   if (saveprefix != "") {
@@ -224,5 +218,4 @@ int main(int argc, char** argv) {
 
 // We render this entire program in the documentation
 
-/// \endcode
 

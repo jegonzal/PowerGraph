@@ -355,7 +355,7 @@ int main(int argc, char** argv) {
 
   }
   
-  graphlab::stop_metric_server_on_eof();
+  graphlab::stop_metric_server();
 
   graphlab::mpi_tools::finalize();
   return EXIT_SUCCESS;
