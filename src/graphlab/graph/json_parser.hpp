@@ -122,20 +122,26 @@ if (graph.ingress_ptr == NULL) {
   }
 
   bool parse_by_line (const std::string& srcfilename, line_parser_type line_parser) {
-    std::string fname = prefix + srcfilename;
+    std::string fname;
     //check for "/" ending in directory"
-    if(!boost::ends_with(prefix,"/") && !gzip)
+    if(!boost::ends_with(prefix,"/"))
         fname = prefix + "/" + srcfilename;
+    else 
+        fname = prefix + srcfilename;
 
     logstream(LOG_INFO) << "Load graph json from " << fname << std::endl;
 
     boost::iostreams::filtering_stream<boost::iostreams::input> fin;
     // loading from hdfs
     if (boost::starts_with(prefix, "hdfs://")) {
-      graphlab::hdfs hdfs;
+      graphlab::hdfs& hdfs = hdfs::get_hdfs();
       graphlab::hdfs::fstream in_file(hdfs, fname);
       if (gzip) fin.push(boost::iostreams::gzip_decompressor());
       fin.push(in_file);
+
+      if (!fin.good()) {
+        logstream(LOG_FATAL) << "Fail to open file " << fname << std::endl;
+      }
 
       load_from_stream(fname, fin, line_parser);
 
@@ -392,29 +398,29 @@ if (graph.ingress_ptr == NULL) {
   const std::string graphfilename() {
     procid_t pid = graph.procid();
     std::string suffix =  gzip ? ".gz" : "";
-    // return "graph/graph"+tostr(pid)+"-r-0000"+tostr(pid)+suffix;
-    return "graph/graph"+tostr(pid)+"-r-00000"+suffix;
+    return "graph/graph"+tostr(pid)+"-r-0000"+tostr(pid)+suffix;
+    // return "graph/graph"+tostr(pid)+"-r-00000"+suffix;
   }
 
   const std::string vid2lvidfilename() {
     procid_t pid = graph.procid();
     std::string suffix =  gzip ? ".gz" : "";
-    // return "graph/vid2lvid"+tostr(pid)+"-r-0000"+tostr(pid)+suffix;
-    return "graph/vid2lvid"+tostr(pid)+"-r-00000"+suffix;
+    return "graph/vid2lvid"+tostr(pid)+"-r-0000"+tostr(pid)+suffix;
+    // return "graph/vid2lvid"+tostr(pid)+"-r-00000"+suffix;
   }
 
   const std::string edatafilename() {
     procid_t pid = graph.procid();
     std::string suffix =  gzip ? ".gz" : "";
-    // return "graph/edata"+tostr(pid)+"-r-0000"+tostr(pid)+suffix;
-    return "graph/edata"+tostr(pid)+"-r-00000"+suffix;
+    return "graph/edata"+tostr(pid)+"-r-0000"+tostr(pid)+suffix;
+    // return "graph/edata"+tostr(pid)+"-r-00000"+suffix;
   }
 
   const std::string vrecordfilename() {
     procid_t pid = graph.procid();
     std::string suffix =  gzip ? ".gz" : "";
-    // return "vrecord/vdata"+tostr(pid)+"-r-0000"+tostr(pid)+ suffix;
-    return "vrecord/vdata"+tostr(pid)+"-r-00000"+ suffix;
+    return "vrecord/vdata"+tostr(pid)+"-r-0000"+tostr(pid)+ suffix;
+    // return "vrecord/vdata"+tostr(pid)+"-r-00000"+ suffix;
   }
 
   private:
