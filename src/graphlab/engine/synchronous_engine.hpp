@@ -1410,7 +1410,6 @@ namespace graphlab {
           // Loop over in edges
           size_t edges_touched = 0;
           if(gather_dir == IN_EDGES || gather_dir == ALL_EDGES) {
-						
             foreach(local_edge_type local_edge, local_vertex.in_edges()) {
               edge_type edge(local_edge);
               // elocks[local_edge.id()].lock();
@@ -1420,7 +1419,7 @@ namespace graphlab {
                 accum = vprog.gather(context, vertex, edge); 
                 accum_is_set = true;
               }
-							++edges_touched;
+              ++edges_touched;
               // elocks[local_edge.id()].unlock();
             }
           } // end of if in_edges/all_edges
@@ -1436,9 +1435,9 @@ namespace graphlab {
                 accum_is_set = true;
               }
               // elocks[local_edge.id()].unlock();
-							++edges_touched;
+              ++edges_touched;
             }
-						INCREMENT_EVENT(EVENT_GATHERS, edges_touched);
+            INCREMENT_EVENT(EVENT_GATHERS, edges_touched);
           } // end of if out_edges/all_edges
           // If caching is enabled then save the accumulator to the
           // cache for future iterations.  Note that it is possible
@@ -1460,6 +1459,7 @@ namespace graphlab {
       if(++vcount % TRY_RECV_MOD == 0) recv_gathers(TRY_TO_RECV);
     } // end of loop over vertices to compute gather accumulators
       // Finish sending and receiving all gather operations
+    std::cout << "Finished gather: " << thread_id << std::endl;
     thread_barrier.wait();
     if(thread_id == 0) gather_exchange.flush();
     thread_barrier.wait();
@@ -1558,6 +1558,7 @@ namespace graphlab {
         vertex_programs[lvid] = vertex_program_type();
       } // end of if active on this minor step
     } // end of loop over vertices to complete scatter operation
+    std::cout << "Finished scatters: " << thread_id << std::endl;
   } // end of execute_scatters
 
 
