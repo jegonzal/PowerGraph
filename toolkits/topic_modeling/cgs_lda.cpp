@@ -836,20 +836,24 @@ struct signal_only {
 bool load_and_initialize_graph(graphlab::distributed_control& dc,
                                graph_type& graph,
                                const std::string& corpus_dir,
-                               bool loadjson) {
+                               const std::string& format			       
+			       ) {
   dc.cout() << "Loading graph." << std::endl;
   graphlab::timer timer; timer.start();
 
-  if(!loadjson){
+  if(format=="matrix"){
+      dc.cout() << "matrix format" << std::endl;
       graph.load(corpus_dir, graph_loader);
+  }else if(format=="json"){
+      dc.cout() << "json format" << std::endl;
+      graph.load_json(corpus_dir, false, eparser, vparser);
+  }else if(format=="json-gzip"){
+      dc.cout() <<"json gzip format" << std::endl;
+      graph.load_json(corpus_dir, true, eparser, vparser);
   }else{
-      dc.cout() << "In JSON format" << std::endl;
-      const bool gzip = boost::ends_with(corpus_dir,".gz");
-      graph.load_json(corpus_dir, gzip, eparser, vparser);
+      dc.cout() << "Non supported format. See --help" << std::endl;
+      return false;
   }
-
-  dc.cout() << ": Loading graph. Finished in "
-            << timer.current_time() << " seconds." << std::endl;
 
   dc.cout() << "Finalizing graph." << std::endl;
   timer.start();
@@ -1027,7 +1031,7 @@ int main(int argc, char** argv) {
   std::string doc_dir;
   std::string word_dir;
   std::string exec_type = "asynchronous";
-  bool loadjson = false;
+  std::string format = "matrix";
   clopts.attach_option("dictionary", dictionary_fname,
                        "The file containing the list of unique words");
   clopts.attach_option("engine", exec_type, 
@@ -1047,8 +1051,8 @@ int main(int argc, char** argv) {
                        "statistics reporting interval");
   clopts.attach_option("max_count", MAX_COUNT,
                        "The maximum number of occurences of a word in a document.");
-  clopts.attach_option("loadjson", loadjson,
-                       "Boolean if parsing JSON (corpus arg is a dir or a gzip file)");
+  clopts.attach_option("format", format,
+                       "Formats: matrix,json,json-gzip");
   clopts.attach_option("burnin", BURNIN, 
                        "The time in second to run until a sample is collected. "
                        "If less than zero the sampler runs indefinitely.");
@@ -1092,7 +1096,7 @@ int main(int argc, char** argv) {
   graph_type graph(dc, clopts);
   {
     const bool success = 
-      load_and_initialize_graph(dc, graph, corpus_dir, loadjson);
+      load_and_initialize_graph(dc, graph, corpus_dir, format);
     if(!success) {
       logstream(LOG_ERROR) << "Error loading graph." << std::endl;
       return EXIT_FAILURE;
