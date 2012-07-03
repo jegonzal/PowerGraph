@@ -811,6 +811,9 @@ namespace graphlab {
      * which vertices to process.
      */
     void execute_gathers(size_t thread_id);
+    
+    atomic<size_t> gather_counter;
+
 
 
     /** 
@@ -1253,7 +1256,8 @@ namespace graphlab {
 
       // Execute gather operations-------------------------------------------
       // Execute the gather operation for all vertices that are active
-      // in this minor-step (active-minorstep bit set).  
+      // in this minor-step (active-minorstep bit set).
+      gather_counter = 0;
       run_synchronous( &synchronous_engine::execute_gathers );
       // Clear the minor step bit since only super-step vertices
       // (only master vertices are required to participate in the
@@ -1384,8 +1388,10 @@ namespace graphlab {
     const size_t TRY_RECV_MOD = 1000;
     size_t vcount = 0;
     const bool caching_enabled = !gather_cache.empty();
-    for(lvid_type lvid = thread_id; lvid < graph.num_local_vertices(); 
-        lvid += threads.size()) {
+    // for(lvid_type lvid = thread_id; lvid < graph.num_local_vertices(); 
+    //     lvid += threads.size()) {
+    for(lvid_type lvid = gather_counter++;
+        lvid < graph.num_local_vertices(); lvid = gather_counter++) {
       // If this vertex is active in the gather minorstep
       if(active_minorstep.get(lvid)) {
         bool accum_is_set = false;
