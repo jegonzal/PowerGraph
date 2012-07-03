@@ -29,10 +29,24 @@ void pilot::load_synthetic_powerlaw(size_t powerlaw){
  * Takes a javascript constructor to create vertex programs.
  */
 void pilot::fly(const Handle<Function> &function){
+  
   js_proxy::set_ctor(function); // FIXME: should not be a static!
   omni_engine<js_proxy> engine(dc, graph, opts, "synchronous");
   engine.signal_all(); // TODO: allow user to specify an array of vertices to signal, or all
   engine.start();
+
+  logstream(LOG_INFO) << "done." << std::endl;
+
+  // TODO: move to another function
+  const float runtime = engine.elapsed_seconds();
+  size_t update_count = engine.num_updates();
+  logstream(LOG_EMPH) << "Finished Running engine in " << runtime 
+            << " seconds." << std::endl
+            << "Total updates: " << update_count << std::endl
+            << "Efficiency: " << (double(update_count) / runtime)
+            << " updates per second "
+            << std::endl;
+
 }
 
 void pilot::transform_vertices(const Handle<Function> &function){
