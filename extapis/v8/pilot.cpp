@@ -20,14 +20,33 @@ void pilot::load_graph(const std::string &path, const std::string &format){
   graph.finalize();
 }
 
+void pilot::load_synthetic_powerlaw(size_t powerlaw){
+  graph.load_synthetic_powerlaw(powerlaw);
+  graph.finalize();
+}
+
 /**
  * Takes a javascript constructor to create vertex programs.
  */
 void pilot::fly(const Handle<Function> &function){
+  
   js_proxy::set_ctor(function); // FIXME: should not be a static!
   omni_engine<js_proxy> engine(dc, graph, "synchronous", opts);
   engine.signal_all(); // TODO: allow user to specify an array of vertices to signal, or all
   engine.start();
+
+  logstream(LOG_INFO) << "done." << std::endl;
+
+  // TODO: move to another function
+  const float runtime = engine.elapsed_seconds();
+  size_t update_count = engine.num_updates();
+  logstream(LOG_EMPH) << "Finished Running engine in " << runtime 
+            << " seconds." << std::endl
+            << "Total updates: " << update_count << std::endl
+            << "Efficiency: " << (double(update_count) / runtime)
+            << " updates per second "
+            << std::endl;
+
 }
 
 void pilot::transform_vertices(const Handle<Function> &function){
@@ -60,11 +79,27 @@ templates &pilot::get_templates(){ return templs; }
 
 /////////////////////////// JS_PROXY //////////////////////////////
 
-js_proxy::js_proxy() : jsobj() {
+js_proxy::js_proxy() {
   // TODO deal with multi-threaded environments
   HandleScope handle_scope;
-  Local<Object> obj = Object::Cast(*constructor->Call(constructor, 0, NULL));
-  jsobj = Persistent<Object>::New(obj);
+  jsobj = Persistent<Object>::New(constructor->NewInstance());
+}
+
+js_proxy::js_proxy(const js_proxy& other){
+  HandleScope handle_scope;
+  this->jsobj = Persistent<Object>::New(other.jsobj);
+}
+
+js_proxy &js_proxy::operator=(const js_proxy& other){
+  HandleScope handle_scope;
+  if (this == &other) return *this;
+  this->jsobj.Dispose();
+  this->jsobj = Persistent<Object>::New(other.jsobj);
+  return *this;
+}
+
+js_proxy::~js_proxy(){
+  jsobj.Dispose();
 }
 
 pilot::gather_type js_proxy::gather(icontext_type& context, const vertex_type& vertex, edge_type& edge) const {
@@ -86,7 +121,7 @@ edge_dir_type js_proxy::scatter_edges(icontext_type& context, const vertex_type&
   // TODO
   HandleScope handle_scope;
   Local<Function> f = Function::Cast(*jsobj->Get(JSTR("scatter_edges")));
-  int n = cv::CastFromJS<int>(cv::CallForwarder<1>::Call(jsobj, f, vertex));
+  int32_t n = cv::CastFromJS<int32_t>(cv::CallForwarder<1>::Call(jsobj, f, vertex));
   // TODO push edge_dir_type as a JS variable?
   return static_cast<edge_dir_type>(n);
 }
@@ -167,6 +202,9 @@ namespace cvv8 {
         ("loadGraph", 
           MethodToInCa<pilot, void (const std::string&, const std::string&),
             &pilot::load_graph>::Call)
+        ("loadSyntheticPowerlaw",
+          MethodToInCa<pilot, void (size_t),
+            &pilot::load_synthetic_powerlaw>::Call)
         ("transformVertices",
           MethodToInCa<pilot, void (const Handle<Function> &),
             &pilot::transform_vertices>::Call)
