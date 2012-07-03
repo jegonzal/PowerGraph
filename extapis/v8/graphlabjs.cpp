@@ -18,9 +18,9 @@ static int v8_main(const std::string& script){
   cv::Shell shell;
   shell.SetupDefaultBindings();
   HandleScope scope;
-  
   pilot::setup_bindings(shell.Global());
   
+  std::cout << "pre-setup bindings" << std::endl;  
   if (script.empty()){
     // if no script provided, read from STDIN
     shell.ExecuteStream(std::cin, "standard in");
@@ -36,7 +36,6 @@ static int v8_main(const std::string& script){
 int main(int argc, char **argv){
 
   global_logger().set_log_level(LOG_DEBUG);
-  
   graphlab::command_line_options clopts("GraphLab Javascript Shell");
   std::string script;
   clopts.attach_option("script", script,
@@ -50,6 +49,8 @@ int main(int argc, char **argv){
   
   // graphlab - build communication layers
   mpi_tools::init(argc, argv);
+  graphlab::distributed_control dc;
+  pilot_dc = &dc;
   pilot::set_clopts(clopts);
 
   int rc = EXIT_FAILURE;
