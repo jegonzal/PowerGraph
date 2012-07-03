@@ -92,19 +92,20 @@ public:
     const double newval = total + RESET_PROB;
     last_change = std::fabs(newval - vertex.data());
     vertex.data() = newval;
+    context.signal(vertex);
   }
 
   /* The scatter edges depend on whether the pagerank has converged */
   edge_dir_type scatter_edges(icontext_type& context,
                               const vertex_type& vertex) const {
-    if (last_change > TOLERANCE) return graphlab::OUT_EDGES;
-    else return graphlab::NO_EDGES;
+    //if (last_change > TOLERANCE) return graphlab::OUT_EDGES;
+    //else 
+    return graphlab::NO_EDGES;
   }
 
   /* The scatter function just signal adjacent pages */
   void scatter(icontext_type& context, const vertex_type& vertex,
                edge_type& edge) const {
-    context.signal(edge.target());
   }
 }; // end of factorized_pagerank update functor
 

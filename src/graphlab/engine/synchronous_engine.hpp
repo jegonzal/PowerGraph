@@ -1408,35 +1408,37 @@ namespace graphlab {
           const vertex_type vertex(local_vertex);
           const edge_dir_type gather_dir = vprog.gather_edges(context, vertex);
           // Loop over in edges
+          size_t edges_touched = 0;
           if(gather_dir == IN_EDGES || gather_dir == ALL_EDGES) {
-
+						
             foreach(local_edge_type local_edge, local_vertex.in_edges()) {
               edge_type edge(local_edge);
-              elocks[local_edge.id()].lock();
+              // elocks[local_edge.id()].lock();
               if(accum_is_set) { // \todo hint likely                
                 accum += vprog.gather(context, vertex, edge);
               } else {
                 accum = vprog.gather(context, vertex, edge); 
                 accum_is_set = true;
               }
-              elocks[local_edge.id()].unlock();
-              INCREMENT_EVENT(EVENT_GATHERS, local_vertex.num_in_edges());
+							++edges_touched;
+              // elocks[local_edge.id()].unlock();
             }
           } // end of if in_edges/all_edges
             // Loop over out edges
           if(gather_dir == OUT_EDGES || gather_dir == ALL_EDGES) {
             foreach(local_edge_type local_edge, local_vertex.out_edges()) {
               edge_type edge(local_edge);
-              elocks[local_edge.id()].lock();
+              // elocks[local_edge.id()].lock();
               if(accum_is_set) { // \todo hint likely
                 accum += vprog.gather(context, vertex, edge);              
               } else {
                 accum = vprog.gather(context, vertex, edge);
                 accum_is_set = true;
               }
-              elocks[local_edge.id()].unlock();
-              INCREMENT_EVENT(EVENT_GATHERS, local_vertex.num_out_edges());
+              // elocks[local_edge.id()].unlock();
+							++edges_touched;
             }
+						INCREMENT_EVENT(EVENT_GATHERS, edges_touched);
           } // end of if out_edges/all_edges
           // If caching is enabled then save the accumulator to the
           // cache for future iterations.  Note that it is possible
@@ -1530,26 +1532,28 @@ namespace graphlab {
         local_vertex_type local_vertex = graph.l_vertex(lvid);
         const vertex_type vertex(local_vertex);
         const edge_dir_type scatter_dir = vprog.scatter_edges(context, vertex);
+				size_t edges_touched = 0;	
         // Loop over in edges
         if(scatter_dir == IN_EDGES || scatter_dir == ALL_EDGES) {
           foreach(local_edge_type local_edge, local_vertex.in_edges()) {
             edge_type edge(local_edge);
-            elocks[local_edge.id()].lock();
+            // elocks[local_edge.id()].lock();
             vprog.scatter(context, vertex, edge);
-            elocks[local_edge.id()].unlock();
+            // elocks[local_edge.id()].unlock();
           }
-            INCREMENT_EVENT(EVENT_SCATTERS, local_vertex.num_in_edges());
+					++edges_touched;
         } // end of if in_edges/all_edges
         // Loop over out edges
         if(scatter_dir == OUT_EDGES || scatter_dir == ALL_EDGES) {
           foreach(local_edge_type local_edge, local_vertex.out_edges()) {
             edge_type edge(local_edge);
-            elocks[local_edge.id()].lock();
+            // elocks[local_edge.id()].lock();
             vprog.scatter(context, vertex, edge);
-            elocks[local_edge.id()].unlock();
+            // elocks[local_edge.id()].unlock();
           }
-          INCREMENT_EVENT(EVENT_SCATTERS, local_vertex.num_out_edges());
+					++edges_touched;
         } // end of if out_edges/all_edges
+				INCREMENT_EVENT(EVENT_SCATTERS, edges_touched);
         // Clear the vertex program
         vertex_programs[lvid] = vertex_program_type();
       } // end of if active on this minor step
