@@ -486,6 +486,14 @@ namespace graphlab {
      */
     atomic<size_t> completed_applys;
 
+
+    /**
+     * \brief The shared counter used coordinate operations between
+     * threads.
+     */
+    atomic<size_t> shared_lvid_counter;
+
+
     /**
      * \brief The pair type used to synchronize vertex programs across machines.
      */
@@ -804,7 +812,6 @@ namespace graphlab {
      */
     void execute_gathers(size_t thread_id);
     
-    atomic<size_t> gather_counter;
 
 
 
@@ -1197,10 +1204,10 @@ namespace graphlab {
         break;
       }
 
-
-      logstream(LOG_EMPH) 
-        << rmi.procid() << ": Starting iteration: " << iteration_counter 
-        << std::endl;
+      if(rmi.procid() == 0)
+        logstream(LOG_EMPH) 
+          << rmi.procid() << ": Starting iteration: " << iteration_counter 
+          << std::endl;
       // Reset Active vertices ---------------------------------------------- 
       // Clear the active super-step and minor-step bits which will
       // be set upon receiving messages
@@ -1210,6 +1217,7 @@ namespace graphlab {
 
       // Exchange Messages --------------------------------------------------
       // Exchange any messages in the local message vectors
+      shared_lvid_counter = 0;
       run_synchronous( &synchronous_engine::exchange_messages );
       /**
        * Post conditions:
@@ -1220,6 +1228,7 @@ namespace graphlab {
       // Receive messages to master vertices and then synchronize
       // vertex programs with mirrors if gather is required
       num_active_vertices = 0;
+      shared_lvid_counter = 0;
       run_synchronous( &synchronous_engine::receive_messages );
       has_message.clear();
       /**
@@ -1249,7 +1258,7 @@ namespace graphlab {
       // Execute gather operations-------------------------------------------
       // Execute the gather operation for all vertices that are active
       // in this minor-step (active-minorstep bit set).
-      gather_counter = 0;
+      shared_lvid_counter = 0;
       run_synchronous( &synchronous_engine::execute_gathers );
       // Clear the minor step bit since only super-step vertices
       // (only master vertices are required to participate in the
@@ -1265,6 +1274,7 @@ namespace graphlab {
 
       // Execute Apply Operations -------------------------------------------
       // Run the apply function on all active vertices
+      shared_lvid_counter = 0;
       run_synchronous( &synchronous_engine::execute_applys );
       /**
        * Post conditions:
@@ -1280,12 +1290,14 @@ namespace graphlab {
 
       // Execute Scatter Operations -----------------------------------------
       // Execute each of the scatters on all minor-step active vertices.
+      shared_lvid_counter = 0;
       run_synchronous( &synchronous_engine::execute_scatters );
       /**
        * Post conditions:
        *   1) NONE
        */
-      logstream(LOG_EMPH) << "\t Running Aggregators" << std::endl;
+      if(rmi.procid() == 0) 
+        logstream(LOG_EMPH) << "\t Running Aggregators" << std::endl;
       // probe the aggregator
       aggregator.tick_synchronous();
       
@@ -1314,6 +1326,8 @@ namespace graphlab {
     size_t vcount = 0;
     for(lvid_type lvid = thread_id; lvid < graph.num_local_vertices(); 
         lvid += threads.size()) {
+      // for(lvid_type lvid = shared_lvid_counter++;
+      //     lvid < graph.num_local_vertices(); lvid = shared_lvid_counter++) {
       // if the vertex is not local and has a message send the
       // message and clear the bit
       if(!graph.l_is_master(lvid) && has_message.get(lvid)) {
@@ -1342,6 +1356,8 @@ namespace graphlab {
     size_t vcount = 0;
     for(lvid_type lvid = thread_id; lvid < graph.num_local_vertices(); 
         lvid += threads.size()) {
+    // for(lvid_type lvid = shared_lvid_counter++;
+    //     lvid < graph.num_local_vertices(); lvid = shared_lvid_counter++) {
       // if this is the master of lvid and we have a message
       if(graph.l_is_master(lvid) && has_message.get(lvid)) {
         // The vertex becomes active for this superstep 
@@ -1382,8 +1398,8 @@ namespace graphlab {
     const bool caching_enabled = !gather_cache.empty();
     // for(lvid_type lvid = thread_id; lvid < graph.num_local_vertices(); 
     //     lvid += threads.size()) {
-    for(lvid_type lvid = gather_counter++;
-        lvid < graph.num_local_vertices(); lvid = gather_counter++) {
+    for(lvid_type lvid = shared_lvid_counter++;
+        lvid < graph.num_local_vertices(); lvid = shared_lvid_counter++) {
       // If this vertex is active in the gather minorstep
       if(active_minorstep.get(lvid)) {
         bool accum_is_set = false;
@@ -1451,7 +1467,6 @@ namespace graphlab {
       if(++vcount % TRY_RECV_MOD == 0) recv_gathers(TRY_TO_RECV);
     } // end of loop over vertices to compute gather accumulators
       // Finish sending and receiving all gather operations
-    std::cout << "Finished gather: " << thread_id << std::endl;
     thread_barrier.wait();
     if(thread_id == 0) gather_exchange.flush();
     thread_barrier.wait();
@@ -1468,6 +1483,8 @@ namespace graphlab {
     size_t vcount = 0;
     for(lvid_type lvid = thread_id; lvid < graph.num_local_vertices(); 
         lvid += threads.size()) {
+      // for(lvid_type lvid = shared_lvid_counter++;
+      //     lvid < graph.num_local_vertices(); lvid = shared_lvid_counter++) {
       // If this vertex is active on this super-step 
       if( active_superstep.get(lvid) ) {          
         // Only master vertices can be active in a super-step
@@ -1516,8 +1533,11 @@ namespace graphlab {
   void synchronous_engine<VertexProgram>::
   execute_scatters(const size_t thread_id) {
     context_type context(*this, graph);
-    for(lvid_type lvid = thread_id; lvid < graph.num_local_vertices(); 
-        lvid += threads.size()) {
+    // for(lvid_type lvid = thread_id; lvid < graph.num_local_vertices(); 
+    //      lvid += threads.size()) {
+    for(lvid_type lvid = shared_lvid_counter++;
+        lvid < graph.num_local_vertices(); lvid = shared_lvid_counter++) {
+ 
       // If this vertex is active in the scatter minorstep
       if(active_minorstep.get(lvid)) {
         const vertex_program_type& vprog = vertex_programs[lvid];
@@ -1550,7 +1570,6 @@ namespace graphlab {
         vertex_programs[lvid] = vertex_program_type();
       } // end of if active on this minor step
     } // end of loop over vertices to complete scatter operation
-    std::cout << "Finished scatters: " << thread_id << std::endl;
   } // end of execute_scatters
 
 
