@@ -236,12 +236,9 @@ ExternalProject_Add(libv8
   #CONFIGURE_COMMAND make dependencies
   CONFIGURE_COMMAND ""
   UPDATE_COMMAND "" # Disable updates
-  BUILD_COMMAND make native 
+  BUILD_COMMAND make native library=shared
   INSTALL_COMMAND sh -c 
-  "cp -r <SOURCE_DIR>/include <INSTALL_DIR>/include/v8 & cp <SOURCE_DIR>/out/native/obj.target/tools/gyp/* <INSTALL_DIR>/lib" )
-
-# This is ugly, but the distro doesn't come with a `make install` and CMAKE wouldn't
-# let me use wildcards. Whoever has a better idea how to do this please tell me.
+  "cp -r <SOURCE_DIR>/include <INSTALL_DIR>/include/v8  & cp <SOURCE_DIR>/out/native/*${CMAKE_SHARED_LIBRARY_SUFFIX} <INSTALL_DIR>/lib" )
 
 ExternalProject_Add(cvv8
   PREFIX ${GraphLab_SOURCE_DIR}/deps/cvv8
@@ -265,7 +262,7 @@ macro(requires_v8 NAME)
   set(tmp "${tmp} -I${CMAKE_SOURCE_DIR}/deps/local/include/v8")
   endif()
   set_target_properties(${NAME} PROPERTIES COMPILE_FLAGS "${tmp}")
-  target_link_libraries(${NAME} v8_base v8_snapshot)
+  target_link_libraries(${NAME} v8)
   add_dependencies(${NAME} libv8 cvv8)
 endmacro(requires_v8)
 
