@@ -27,6 +27,9 @@ factorize large matrices.
 \li \subpage graphical_models contains tools for making joint predictions
 about collections of related random variables.
 
+\li \subpage computer_vision contains a collection of tools for
+reasoning about images.
+
 
 
 
