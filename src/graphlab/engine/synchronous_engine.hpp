@@ -1195,6 +1195,9 @@ namespace graphlab {
     if (snapshot_interval == 0) {
       graph.save_binary(snapshot_path);
     }
+
+    float last_print = -5;
+
     // Program Main loop ====================================================      
     while(iteration_counter < max_iterations && !force_abort ) {
 
@@ -1203,11 +1206,15 @@ namespace graphlab {
         termination_reason = execution_status::TIMEOUT;
         break;
       }
+      
+      bool print_this_round = (elapsed_seconds() - last_print) >= 5;
 
-      if(rmi.procid() == 0)
+      if(rmi.procid() == 0 && print_this_round) {
         logstream(LOG_EMPH) 
           << rmi.procid() << ": Starting iteration: " << iteration_counter 
           << std::endl;
+        last_print = elapsed_seconds();
+      }
       // Reset Active vertices ---------------------------------------------- 
       // Clear the active super-step and minor-step bits which will
       // be set upon receiving messages
@@ -1246,7 +1253,7 @@ namespace graphlab {
       // Check termination condition  ---------------------------------------
       size_t total_active_vertices = num_active_vertices; 
       rmi.all_reduce(total_active_vertices);
-      if (rmi.procid() == 0) 
+      if (rmi.procid() == 0 && print_this_round) 
         logstream(LOG_EMPH)
           << "\tActive vertices: " << total_active_vertices << std::endl;
       if(total_active_vertices == 0 ) {
@@ -1296,7 +1303,7 @@ namespace graphlab {
        * Post conditions:
        *   1) NONE
        */
-      if(rmi.procid() == 0) 
+      if(rmi.procid() == 0 && print_this_round) 
         logstream(LOG_EMPH) << "\t Running Aggregators" << std::endl;
       // probe the aggregator
       aggregator.tick_synchronous();

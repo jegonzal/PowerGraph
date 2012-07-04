@@ -240,6 +240,7 @@ int main(int argc, char** argv) {
     // count the number of vertices and edges remaining
     size_t numv = graph.map_reduce_vertices<size_t>(count_active_vertices);
     size_t nume = graph.map_reduce_vertices<size_t>(double_count_active_edges) / 2;
+    if (numv == 0) break;
     // Output the size of the graph
     dc.cout() << "K=" << CURRENT_K << ":  #V = "
               << numv << "   #E = " << nume << std::endl;
@@ -251,7 +252,7 @@ int main(int argc, char** argv) {
                  false, /* no compression */ 
                  false, /* do not save vertex */
                  true, /* save edge */ 
-                 1); /* one file per machine */
+                 clopts.get_ncpus()); /* one file per machine */
     }
   }
   

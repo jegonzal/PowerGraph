@@ -641,7 +641,7 @@ int main(int argc, char** argv) {
             false, /* no compression */
             true, /* save vertex */
             false, /* do not save edge */
-            1); /* one file per machine */
+            clopts.get_ncpus()); /* one file per machine */
 
   }
   
