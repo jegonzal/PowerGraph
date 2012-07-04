@@ -13,18 +13,18 @@ We have implemented the following toolkits
 \li \subpage topic_modeling  contains applications like LDA which can be
 used to cluster documents and extract topical representations.
 
-\li \ref graph_processing  contains application like pagerank and
+\li \subpage graph_processing  contains application like pagerank and
 triangle counting which can be applied to general graphs to estimate
 community structure.
 
-\li \ref clustering contains standard data clustering tools such as 
+\li \subpage clustering contains standard data clustering tools such as 
 Kmeans
 
-\li \ref collaborative_filtering contains a collection of
+\li \subpage collaborative_filtering contains a collection of
 applications used to make predictions about users interests and
 factorize large matrices.
 
-\li \ref graphical_models contains tools for making joint predictions
+\li \subpage graphical_models contains tools for making joint predictions
 about collections of related random variables.
 
 
