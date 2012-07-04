@@ -411,7 +411,7 @@ namespace graphlab {
         bool success = false;
         for (size_t i = 0;i < 10; ++i) {
           if (::connect(newsock, (sockaddr*)&serv_addr, sizeof(serv_addr)) < 0) {
-            logstream(LOG_WARNING) 
+            logstream(LOG_INFO) 
               << "connect " << curid << " to " << target << ": "
               << strerror(errno) << ". Retrying...\n";
             timer::sleep(1);
