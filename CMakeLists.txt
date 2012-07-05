@@ -129,7 +129,7 @@ ExternalProject_Add(eigen
   CONFIGURE_COMMAND ""
   BUILD_COMMAND ""
   BUILD_IN_SOURCE 1  
-  INSTALL_COMMAND cp -r Eigen unsupported <INSTALL_DIR>/.
+  INSTALL_COMMAND cp -r Eigen unsupported <INSTALL_DIR>/
   INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local/include)
 add_definitions(-DHAS_EIGEN)
 
