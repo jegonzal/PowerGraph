@@ -8,20 +8,23 @@ var domain_str = "http://localhost:8090";
 var update_interval = 5000;
 var last_minutes=5;
 
+// This function is called when the update domain button is clicked
 function update_domain(value) {
     console.log("Setting domain to " + value);
     domain_str = value;
+    start();
+}
+
+// Start the rendering of the UI
+google.setOnLoadCallback(start);
+
+// Start rendering the UI
+function start() { 
+    initiate_graph_builder();
     initiate_job_info(); 
     initiate_aggregate_info();
     initiate_node_info();
 }
-
-// Start the rendering of the UI
-google.setOnLoadCallback(function() { 
-    initiate_job_info(); 
-    initiate_aggregate_info();
-    initiate_node_info();
-});
 
 function initiate_job_info() {
     jQuery.getJSON(domain_str + "/names.json", process_job_info)
@@ -247,6 +250,79 @@ function process_node_info(data) {
     });
 
 }
+
+
+
+
+function initiate_graph_builder() {
+    jQuery.getJSON("graph_builder.json", process_graph_builder)
+        .error(function() { 
+            console.log("Unable to access graph_builder will try again.");})
+        .complete(function() {
+            setTimeout(initiate_graph_builder, update_interval);
+        });
+}
+
+
+
+
+
+var graph_builder_charts = [];
+
+function process_graph_builder(data) {
+    console.log(data);    
+    console.log("Processing graph builder info.");
+
+    $("#graph_builder_phase_name").text(data.phase_name);
+
+
+    // Render all the current values
+    var container = $("#graph_builder_info");
+    var sorted_data = data.sys_metrics.sort(function(a,b) { return a.id - b.id; });
+    
+
+    // Build an array of divs one for each metric with the name and value
+    jQuery.each(sorted_data, function(i, metric) {
+        var id = metric.id;
+        var name = metric.label;
+        var units = metric.units;
+        if(graph_builder_charts[id] == undefined) {
+            var div_name = id + "_graph_builder_chart";
+            var str = 
+                "<div class=\"graph_builder\" id=\"" + div_name  + "\">" +
+                "<div class=\"name\">"  + name  + "</div>" +
+                "<div class=\"chart\"></div>" +
+                "</div>";
+            container.append(str);
+            var div = $(container.children("#" +  div_name)).children(".chart")[0]; 
+            graph_builder_charts[id] = {
+                div: div,
+                options: { title: name,
+                           legend: {position: 'none'},
+                           vAxis: {title: (units + " per Second"),
+                                   titleTextStyle: {color: 'red'},
+                                   minValue: 0,
+                                   maxValue: 10,
+                                   viewWindow: {min: 0}
+                                   },
+                           hAxis: {title: 'Time (seconds)'}},
+                chart: new google.visualization.AreaChart(div),
+            }
+        }        
+        if(metric.values.length > 0) {
+            // Update the chart
+            var chart_info = graph_builder_charts[id];
+            chart_info.data = google.visualization.arrayToDataTable(
+                [["Time", "Value"]].concat(metric.values));
+            chart_info.chart.draw(chart_info.data, chart_info.options);
+        }
+    });
+
+    
+
+}
+
+
 
 
 

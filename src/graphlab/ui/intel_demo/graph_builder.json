@@ -1,52 +1,37 @@
 { "phase_name" : "parsing",
   "sys_metrics" : [
-  {"id": 0,
-   "cpu": 23.4,
-   "network": 50.23,
-   "disk": 4.1,
-   "mem": 32.29
-   },
-   {"id": 1,
-   "cpu": 23.4,
-   "network": 50.23,
-   "disk": 4.1,
-   "mem": 32.29
-   },
-   {"id": 2,
-   "cpu": 23.4,
-   "network": 50.23,
-   "disk": 4.1,
-   "mem": 32.29
-   },
-   {"id":3,
-   "cpu": 23.4,
-   "network": 50.23,
-   "disk": 4.1,
-   "mem": 32.29
-   },
-   {"id": 4,
-   "cpu": 23.4,
-   "network": 50.23,
-   "disk": 4.1,
-   "mem": 32.29
-   },
-   {"id": 5,
-   "cpu": 23.4,
-   "network": 50.23,
-   "disk": 4.1,
-   "mem": 32.29
-   },
-   {"id": 6,
-   "cpu": 23.4,
-   "network": 50.23,
-   "disk": 4.1,
-   "mem": 32.29
-   },
-   {"id": 7,
-   "cpu": 23.4,
-   "network": 50.23,
-   "disk": 4.1,
-   "mem": 32.29
-   }
+  { 
+    "label": "cpu",
+    "units": "% Utilization",
+    "id": 1,
+    "values": [
+      [0, 23.4],
+      [1, 24],
+      [2, 27],
+      [3, 40],
+      [4, 75]]
+  }, 
+  { 
+    "label": "Network",
+    "units": "MB / Second",
+    "id": 2,
+    "values": [
+      [0, 23.4],
+      [1, 24],
+      [2, 27],
+      [3, 40],
+      [4, 75]]
+  }, 
+  { 
+    "label": "Disk",
+    "units": "MB / Second",
+    "id": 3,
+    "values": [
+      [0, 23.4],
+      [1, 24],
+      [2, 27],
+      [3, 40],
+      [4, 75]]
+  }
   ]
  }

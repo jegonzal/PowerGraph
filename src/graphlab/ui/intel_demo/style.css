@@ -54,3 +54,23 @@ body {
    width: 400px;
    height: 200px;
 }
+
+
+.graph_builder {
+    display: inline-block;
+}
+
+.graph_builder .chart {
+   width: 400px;
+   height: 200px;
+}
+
+.graph_builder .name {
+  display: none
+}
+
+
+.graph_builder .chart {
+   width: 400px;
+   height: 200px;
+}
