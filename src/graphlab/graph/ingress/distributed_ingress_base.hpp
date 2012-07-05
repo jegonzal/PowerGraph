@@ -489,6 +489,8 @@ namespace graphlab {
         logstream(LOG_EMPH) << "Graph info: "  
                             << "\n\t nverts: " << graph.num_vertices()
                             << "\n\t nedges: " << graph.num_edges()
+                            << "\n\t nreplicas: " << graph.nreplicas
+                            << "\n\t replication factor: " << (double)graph.nreplicas/graph.num_vertices()
                             << std::endl;
       }
     }
