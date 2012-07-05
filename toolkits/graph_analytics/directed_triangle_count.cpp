@@ -740,7 +740,7 @@ int main(int argc, char** argv) {
   else {
    dc.cout() << "Saving Results...\n";
    dc.cout() << "Format is \n";
-   dc.cout() << "   [vid]  [in triangles]  [out triangles]   [through triangles]  [cycle_triangles]" << std::endl;
+   dc.cout() << "   [vid]  [in triangles]  [out triangles]   [through triangles]  [cycle_triangles]  [#out edges] [#in edges]" << std::endl;
    graph.save(per_vertex,
             save_triangle_count(),
             false, /* no compression */
