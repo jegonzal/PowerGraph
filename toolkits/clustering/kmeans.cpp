@@ -479,7 +479,7 @@ int main(int argc, char** argv) {
   }
 
   if (!outdata_file.empty()) {
-    dc.cout() << "Writing Data with clister assignments...\n" << std::endl;
+    dc.cout() << "Writing Data with cluster assignments...\n" << std::endl;
     graph.save(outdata_file, vertex_writer(), false, true, false, 1);
   }
 
