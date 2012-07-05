@@ -166,33 +166,6 @@ namespace graphlab {
   public:
 
     /**
-     * \brief Construct a command options object with basic settings.
-     *
-     * \param [in] desc_str The description of the program that is
-     * printed when --help is invoked (in addition to all the options
-     * and their descriptions).
-     *
-     * \param [in] ncpus The default number of local threads to use in
-     * the engine (default value is 2).  This value can be
-     * over-written by the users command line arguments.
-     *
-     * \param [in] default_scheduler The default scheduler to use if
-     * the engine supports schedulers (default value is sweep).  This
-     * value can be over-written by the users command line arguments.
-     */
-    command_line_options(const std::string& desc_str = "GraphLab program.",
-                         size_t default_ncpus = 2,
-                         const std::string& default_scheduler = "sweep") : 
-      desc(desc_str), suppress_graphlab_options(false) {
-      ncpus = default_ncpus;
-      set_scheduler_type(default_scheduler);
-      // Add documentation for help
-      namespace boost_po = boost::program_options;
-      desc.add_options()("help", "Print this help message.");    
-    } // End constructor
-
-
-    /**
      * \brief Construct a command options object with basic settings.  
      *
      * \param [in] desc_str The description of the program that is
@@ -205,8 +178,8 @@ namespace graphlab {
      * command line options are needed outside of GraphLab binary
      * (e.g., simple utilities).
      */
-    command_line_options(const std::string& desc_str,
-                         bool suppress_graphlab_options) : 
+    command_line_options(std::string desc_str,
+                         bool suppress_graphlab_options = false) : 
       desc(desc_str), 
       suppress_graphlab_options(suppress_graphlab_options) {     
       // Add documentation for help

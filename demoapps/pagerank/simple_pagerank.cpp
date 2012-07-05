@@ -134,7 +134,7 @@ int main(int argc, char** argv) {
                        "The graph file. Required ");
   clopts.add_positional("graph");
   clopts.attach_option("format", format,
-                       "The graph file format: {metis, snap, tsv, adj, bin}");
+                       "The graph file format");
   clopts.attach_option("engine", exec_type, 
                        "The engine type synchronous or asynchronous");
   clopts.attach_option("tol", TOLERANCE,

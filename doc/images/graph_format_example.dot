@@ -1,0 +1,11 @@
+digraph webgraph {
+  a [label="1"];
+  b [label="2"];
+  c [label="5"];
+  d [label="7"];
+  a->b;
+  a->c;
+  c->d;
+  d->a;
+  d->c;
+}

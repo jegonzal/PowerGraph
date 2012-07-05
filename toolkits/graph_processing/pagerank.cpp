@@ -146,7 +146,7 @@ int main(int argc, char** argv) {
   clopts.attach_option("tol", TOLERANCE,
                        "The permissible change at convergence.");
   clopts.attach_option("format", format,
-                       "The graph file format: {metis, snap, tsv, adj, bin}");
+                       "The graph file format");
   size_t powerlaw = 0;
   clopts.attach_option("powerlaw", powerlaw,
                        "Generate a synthetic powerlaw out-degree graph. ");

@@ -365,6 +365,7 @@ namespace graphlab {
 
     /// The type of the local graph used to store the graph data 
     typedef graphlab::local_graph<VertexData, EdgeData> local_graph_type;
+    typedef graphlab::distributed_graph<VertexData, EdgeData> graph_type;
 
     friend class distributed_ingress_base<VertexData, EdgeData>;
     friend class distributed_random_ingress<VertexData, EdgeData>;
@@ -615,7 +616,8 @@ namespace graphlab {
      *
      * Finalize is used to complete graph ingress by resolving vertex
      * ownship and completing local data structures. Once a graph is finalized
-     * its structure may not be modified.
+     * its structure may not be modified. Repeated calls to finalize() do
+     * nothing.
      */
     void finalize() {
       if (finalized) return;
@@ -1375,8 +1377,6 @@ namespace graphlab {
     } // end of save
 
 
-
-
     /**
      * \brief Saves the graph to the filesystem using a provided Writer object.
      * Like \ref save(const std::string& prefix, writer writer, bool gzip, bool save_vertex, bool save_edge, size_t files_per_machine) "save()" 
@@ -1589,9 +1589,9 @@ namespace graphlab {
      *  may break if the size of vertex_id_type changes
      * 
      * The output files will be written in 
-     * \li [prefix].0.gz
-     * \li [prefix].1.gz
-     * \li [prefix].2.gz
+     * \li [prefix]_1_of_16.gz
+     * \li [prefix]_2_of_16.gz
+     * \li [prefix].3_of_16.gz
      * \li etc.
      * 
      * To accelerate the saving process, multiple files are be written 
@@ -1603,10 +1603,10 @@ namespace graphlab {
      *   save("test_graph", pagerank_writer);
      * \endcode
      * Will create the files
-     * \li test_graph.0.gz
-     * \li test_graph.1.gz
+     * \li test_graph_1_of_16.gz
+     * \li test_graph_2_of_16.gz
      * \li ...
-     * \li test_graph.15.gz
+     * \li test_graph_16_of_16.gz
      *
      * If HDFS support is compiled in, this function can save to HDFS by
      * adding "hdfs://" to the prefix.
@@ -1616,10 +1616,10 @@ namespace graphlab {
      *   save("hdfs:///hdfs_server/data/test_graph", pagerank_writer);
      * \endcode
      * Will create on the HDFS server, the files
-     * \li /data/test_graph.0.gz
-     * \li /data/test_graph.1.gz
+     * \li /data/test_graph_1_of_16.gz
+     * \li /data/test_graph_2_of_16.gz
      * \li ...
-     * \li /data/test_graph.15.gz
+     * \li /data/test_graph_16_of_16.gz
      *
      * \tparam Writer The writer object type. This is generally inferred by the 
      *                compiler and need not be specified.
@@ -1668,33 +1668,12 @@ namespace graphlab {
      *   save_format("test_graph", "tsv");
      * \endcode
      * Will create the files
-     * \li test_graph.0.gz
-     * \li test_graph.1.gz
+     * \li test_graph_0.gz
+     * \li test_graph_1.gz
      * \li ...
-     * \li test_graph.15.gz
+     * \li test_graph_15.gz
      *
-     * The supported formats are:
-     * 
-     * <b>"tsv" / "snap" </b>
-     *
-     * This saves an edge list.
-     * Each line in the file corresponds to one edge in the graph, and contains
-     * a source vertex ID and a target vertex ID separated by tab character.
-     * This format only saves the structure of the graph and does not save the
-     * data. 
-     *
-     * <b> "graphjrl" </b>
-     *
-     * This is a GraphLab binary journal format which saves both the structure
-     * and the data of the graph. Unlike save_binary(), this format can be
-     * loaded onto a different number of machines. The user must guarantee that
-     * the vertex and edge data serialization formats do not change between
-     * saving and loading.
-     *
-     * <b> "bin" </b>
-     *
-     * An alternate way to call save_binary() . The gzip and files_per_machine
-     * parameters are ignored.
+     * The supported formats are described in \ref graph_formats.
      *
      * \param prefix The file prefix to save the output graph files. The output
      *               files will be numbered [prefix].0 , [prefix].1 , etc.
@@ -1719,6 +1698,8 @@ namespace graphlab {
              gzip, true, true, files_per_machine);
       } else if (format == "bin") {
          save_binary(prefix);
+      } else if (format == "bintsv4") {
+         save_direct(prefix, gzip, &graph_type::save_bintsv4_to_stream);
       } else {
         logstream(LOG_FATAL)
           << "Unrecognized Format \"" << format << "\"!" << std::endl;
@@ -1972,8 +1953,7 @@ namespace graphlab {
      *  \brief load a graph with a standard format. Must be called on all 
      *  machines simultaneously.
      * 
-     *  
-     *  \todo: finish documentation of formats
+     *  The supported graph formats are described in \ref graph_formats.
      */
     void load_format(const std::string& path, const std::string& format) {
       line_parser_type line_parser;
@@ -1989,6 +1969,8 @@ namespace graphlab {
       } else if (format == "graphjrl") {
         line_parser = builtin_parsers::graphjrl_parser<distributed_graph>;
         load(path, line_parser);
+      } else if (format == "bintsv4") {
+         load_direct(path,&graph_type::load_bintsv4_from_stream);
       } else if (format == "bin") {
          load_binary(path);
       } else {
@@ -2634,6 +2616,210 @@ namespace graphlab {
     } // end of save_edge_to_stream
   
 
+    void save_bintsv4_to_stream(std::ostream& out) {
+      for (int i = 0; i < (int)local_graph.num_vertices(); ++i) {
+        uint32_t src = l_vertex(i).global_id();
+        foreach(local_edge_type e, l_vertex(i).out_edges()) {
+          uint32_t dest = e.target().global_id();
+          out.write(reinterpret_cast<char*>(&src), 4);
+          out.write(reinterpret_cast<char*>(&dest), 4);
+        }
+        if (l_vertex(i).owner() == rpc.procid()) {
+          vertex_type gv = vertex_type(l_vertex(i));
+          // store disconnected vertices if I am the master of the vertex
+          if (gv.num_in_edges() == 0 && gv.num_out_edges() == 0) {
+            out.write(reinterpret_cast<char*>(&src), 4);
+            uint32_t dest = (uint32_t)(-1); 
+            out.write(reinterpret_cast<char*>(&dest), 4);
+          }
+        }
+      } 
+    }
+
+    bool load_bintsv4_from_stream(std::istream& in) {
+      while(in.good()) {
+        uint32_t src, dest;
+        in.read(reinterpret_cast<char*>(&src), 4);
+        in.read(reinterpret_cast<char*>(&dest), 4);
+        if (in.fail()) break;
+        if (dest == (uint32_t)(-1)) {
+          add_vertex(src);
+        }
+        else {
+          add_edge(src, dest);
+        }
+      } 
+      return true;
+    }
+
+
+    /** \brief Saves a distributed graph using a direct ostream saving function 
+     *
+     * This function saves a sequence of files numbered
+     * \li [prefix]_0
+     * \li [prefix]_1
+     * \li [prefix]_2
+     * \li etc.
+     * 
+     * This files can be loaded with direct_stream_load(). 
+     */
+    void save_direct(const std::string& prefix, bool gzip,
+                    boost::function<void (graph_type*, std::ostream&)> saver) {
+      rpc.full_barrier();
+      finalize();
+      timer savetime;  savetime.start();
+      std::string fname = prefix + "_" + tostr(rpc.procid() + 1) + "_of_" + 
+                          tostr(rpc.numprocs());  
+      if (gzip) fname = fname + ".gz";
+      logstream(LOG_INFO) << "Save graph to " << fname << std::endl;
+      if(boost::starts_with(fname, "hdfs://")) {
+        graphlab::hdfs hdfs;
+        graphlab::hdfs::fstream out_file(hdfs, fname, true);
+        boost::iostreams::filtering_stream<boost::iostreams::output> fout;
+        if (gzip) fout.push(boost::iostreams::gzip_compressor());        
+        fout.push(out_file);
+        if (!fout.good()) {
+          logstream(LOG_FATAL) << "\n\tError opening file: " << fname << std::endl;
+          exit(-1);
+        }
+        saver(this, boost::ref(fout));
+        fout.pop();
+        if (gzip) fout.pop();
+        out_file.close();
+      } else {
+        std::ofstream out_file(fname.c_str(),
+                               std::ios_base::out | std::ios_base::binary);
+        if (!out_file.good()) {
+          logstream(LOG_FATAL) << "\n\tError opening file: " << fname << std::endl;
+          exit(-1);
+        }
+        boost::iostreams::filtering_stream<boost::iostreams::output> fout;
+        if (gzip) fout.push(boost::iostreams::gzip_compressor());        
+        fout.push(out_file);
+        saver(this, boost::ref(fout));
+        fout.pop();
+        if (gzip) fout.pop();
+        out_file.close();
+      }
+      logstream(LOG_INFO) << "Finish saving graph to " << fname << std::endl
+                          << "Finished saving bintsv4 graph: " 
+                          << savetime.current_time() << std::endl;
+      rpc.full_barrier();
+    } // end of save
+
+
+
+    /**
+     *  \brief Load a graph from a collection of files in stored on
+     *  the filesystem using the user defined line parser. Like 
+     *  \ref load(const std::string& path, line_parser_type line_parser) 
+     *  but only loads from the filesystem. 
+     */
+    void load_direct_from_posixfs(std::string prefix, 
+                           boost::function<bool (graph_type*, std::istream&)> parser) {
+      std::string directory_name; std::string original_path(prefix);
+      boost::filesystem::path path(prefix);
+      std::string search_prefix;
+      if (boost::filesystem::is_directory(path)) {
+        // if this is a directory
+        // force a "/" at the end of the path
+        // make sure to check that the path is non-empty. (you do not
+        // want to make the empty path "" the root path "/" )
+        directory_name = path.native();
+      }
+      else {
+        directory_name = path.parent_path().native();
+        search_prefix = path.filename().native();
+        directory_name = (directory_name.empty() ? "." : directory_name);
+      }
+      std::vector<std::string> graph_files;
+      fs_util::list_files_with_prefix(directory_name, search_prefix, graph_files);
+      if (graph_files.size() == 0) {
+        logstream(LOG_WARNING) << "No files found matching " << original_path << std::endl;
+      }
+      for(size_t i = 0; i < graph_files.size(); ++i) {
+        if (i % rpc.numprocs() == rpc.procid()) {
+          logstream(LOG_EMPH) << "Loading graph from file: " << graph_files[i] << std::endl;
+          // is it a gzip file ?
+          const bool gzip = boost::ends_with(graph_files[i], ".gz");
+          // open the stream
+          std::ifstream in_file(graph_files[i].c_str(), 
+                                std::ios_base::in | std::ios_base::binary);
+          // attach gzip if the file is gzip
+          boost::iostreams::filtering_stream<boost::iostreams::input> fin;  
+          // Using gzip filter
+          if (gzip) fin.push(boost::iostreams::gzip_decompressor());
+          fin.push(in_file);
+          const bool success = parser(this, boost::ref(fin));
+          if(!success) {
+            logstream(LOG_FATAL) 
+              << "\n\tError parsing file: " << graph_files[i] << std::endl;
+          }
+          fin.pop();
+          if (gzip) fin.pop();
+        }
+      }
+      rpc.full_barrier();
+    } 
+
+    /**
+     *  \brief Load a graph from a collection of files in stored on
+     *  the HDFS using the user defined line parser. Like 
+     *  \ref load(const std::string& path, line_parser_type line_parser) 
+     *  but only loads from HDFS. 
+     */
+    void load_direct_from_hdfs(std::string prefix, 
+                         boost::function<bool (graph_type*, std::istream&)> parser) {
+      // force a "/" at the end of the path
+      // make sure to check that the path is non-empty. (you do not
+      // want to make the empty path "" the root path "/" )
+      std::string path = prefix;
+      if (path.length() > 0 && path[path.length() - 1] != '/') path = path + "/";
+      if(!hdfs::has_hadoop()) {
+        logstream(LOG_FATAL) 
+          << "\n\tAttempting to load a graph from HDFS but GraphLab"
+          << "\n\twas built without HDFS."
+          << std::endl;
+      }
+      hdfs& hdfs = hdfs::get_hdfs();    
+      std::vector<std::string> graph_files;
+      graph_files = hdfs.list_files(path);
+      if (graph_files.size() == 0) {
+        logstream(LOG_WARNING) << "No files found matching " << prefix << std::endl;
+      }
+      for(size_t i = 0; i < graph_files.size(); ++i) {
+        if (i % rpc.numprocs() == rpc.procid()) {
+          logstream(LOG_EMPH) << "Loading graph from file: " << graph_files[i] << std::endl;
+          // is it a gzip file ?
+          const bool gzip = boost::ends_with(graph_files[i], ".gz");
+          // open the stream
+          graphlab::hdfs::fstream in_file(hdfs, graph_files[i]);
+          boost::iostreams::filtering_stream<boost::iostreams::input> fin;  
+          if(gzip) fin.push(boost::iostreams::gzip_decompressor());
+          fin.push(in_file);      
+          const bool success = parser(this, boost::ref(fin));
+          if(!success) {
+            logstream(LOG_FATAL) 
+              << "\n\tError parsing file: " << graph_files[i] << std::endl;
+          }
+          fin.pop();
+          if (gzip) fin.pop();
+        }
+      }
+      rpc.full_barrier();
+    } 
+
+    void load_direct(std::string prefix, 
+             boost::function<bool (graph_type*, std::istream&)> parser) {
+      rpc.full_barrier();
+      if(boost::starts_with(prefix, "hdfs://")) {
+        load_direct_from_hdfs(prefix, parser);
+      } else {
+        load_direct_from_posixfs(prefix, parser);
+      }
+      rpc.full_barrier();
+    } // end of load
+ 
 
 
   }; // End of graph
