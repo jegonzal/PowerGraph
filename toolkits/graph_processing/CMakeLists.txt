@@ -5,3 +5,6 @@ add_graphlab_executable(undirected_triangle_count undirected_triangle_count.cpp)
 add_graphlab_executable(directed_triangle_count directed_triangle_count.cpp)
 add_graphlab_executable(pagerank pagerank.cpp)
 add_graphlab_executable(kcore kcore.cpp)
+add_graphlab_executable(format_convert format_convert.cpp)
+
+

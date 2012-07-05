@@ -1,21 +1,503 @@
 /**
 
-\page graph_processing Graph Processing
+\page graph_analytics Graph Analytics 
 
-\todo complete
+The graph analytics toolkit contains applications for performing graph 
+analytics and extracting patterns from the graph structure.
 
-\brief Summary
+The toolkit current contains:
+ - \ref graph_analytics_format_conversion "Graph Format Conversion"
+ - \ref graph_analytics_triangle_undirected "Triangle Counting (undirected)"
+ - \ref graph_analytics_triangle_directed "Triangle Counting (directed)"
+ - \ref graph_analytics_pagerank "PageRank"
+ - \ref graph_analytics_kcore "KCore Decomposition"
+
+All toolkits take any of the graph formats described in \ref graph_formats . 
 
 
-\section graph_processing_usage Usage 
 
 
-\section graph_processing_example Example
 
 
-\section graph_processing_options Options
 
 
+
+
+
+\section graph_analytics_format_conversion Format Conversion
+This is primarily a utility program, providing conversion between any of the
+Portable Graph formats described in \ref graph_formats.
+
+To run:
+\verbatim
+> ./format_convert --ingraph=[input graph location] --informat=[input format type]
+                   --outgraph=[output graph location] --outformat[output format type]
+\endverbatim
+
+The output is by default gzip compressed.
+To disable, add the option,
+\verbatim
+ --outgzip=0
+\endverbatim
+
+This program can also run distributed by using
+\verbatim
+> mpiexec -n [N machines] --hostfile [host file] ./format_convert ....
+\endverbatim
+See your MPI documentation for details on how to launch this job.
+All machines must have access to the input graph location and the output graph 
+location. Graphs may be on HDFS. 
+
+
+
+
+
+
+
+
+
+
+\section graph_analytics_triangle_undirected Undirected Triangle Counting
+
+The undirected triangle counting program can count the total number of 
+triangles in a graph, and can also, with little more time, count the number of
+triangles passing through each vertex in the graph.
+
+It implements the edge-iterator algorithm described in 
+
+T. Schank. Algorithmic Aspects of Triangle-Based Network Analysis.
+    Phd in computer science, University Karlsruhe, 2007.
+
+with several optimizations.
+
+The input to the system is a graph in any of the Portable graph format
+described in \ref graph_formats. It is important that the input be "cleaned"
+and that reverse edges are removed: i.e. if edge 1-->5 exists, edge 5-->1 should
+not exist. (The program will run without these edge removed. But numbers
+may be erroneous).
+
+To count the total number of triangles in a graph, the minimal set of options
+required are:
+\verbatim
+> ./undirected_triangle_count --graph=[graph prefix] --format=[format]
+\endverbatim
+Output looks like:
+\verbatim
+Number of vertices: 875713
+Number of edges:    4322051
+Counting Triangles...
+INFO:     synchronous_engine.hpp(start:1213): 0: Starting iteration: 0
+INFO:     synchronous_engine.hpp(start:1257): 	Active vertices: 875713
+INFO:     synchronous_engine.hpp(start:1307): 	 Running Aggregators
+Counted in 1.16463 seconds
+13391903 Triangles
+\endverbatim
+
+
+
+To count the number of triangles on each vertex, the minimal set of options are:
+
+\verbatim
+> ./undirected_triangle_count --graph=[graph prefix] --format=[format] --per_vertex=[output prefix]
+\endverbatim
+
+Tne <tt>output prefix</tt> is where the output counts will be written. This
+may be located on HDFS. For instance, if the <tt>output_prefix</tt> is <tt>"v_out"</tt>,
+the output files will be written to:
+
+\verbatim
+v_out_1_of_16
+v_out_2_of_16
+...
+v_out_16_of_16
+\endverbatim
+
+Each line in the output file contains two numbers: a Vertex ID, and the number
+of triangles intersecting the vertex.
+
+This program can also run distributed by using
+\verbatim
+> mpiexec -n [N machines] --hostfile [host file] ./undirected_triangle_count ....
+\endverbatim
+See your MPI documentation for details on how to launch this job.
+All machines must have access to the input graph location and the output graph 
+location. Graphs may be on HDFS. 
+
+
+
+\subsection Options
+Relevant options are: 
+\li \b --graph (Required). The prefix from which to load the graph data
+\li \b --format (Required). The format of the input graph 
+\li \b --per_vertex (Optional. Default ""). If set, will write the output counts.
+\li \b --ncpus (Optional. Default 2) The number of processors that will be used
+for computation.  
+\li \b --ht (Optional. Default 64) The implementation uses a mix of vectors and
+hash sets to optimize set intersection computation. This parameter sets the capacity
+limit below which, vectors are used, and above which, hash sets are used.
+\li \b –-graph_opts (Optional, Default empty) Any additional graph options. See
+  graphlab::distributed_graph a list of options.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+\section graph_analytics_triangle_directed Directed Triangle Counting
+
+The directed triangle counting program counts the total number of 
+directed triangles in a graph of each type, and can also output the number of
+triangles of each type passing through each vertex in the graph.
+
+We show the 4 possible types of triangles here:
+In each case, the vertex being evaluated is the green vertex labeled "A". 
+A dotted edge means that the direction of the edge do not matter.
+
+
+Triangle Name     | Triangle Pattern
+------------------|----------------------------
+In Triangle       | \image html in_triangle.gif
+Out Triangle      | \image html out_triangle.gif
+Through Triangle  | \image html through_triangle.gif
+Cycle Triangle    | \image html cycle_triangle.gif
+
+
+
+The input to the system is a graph in any of the Portable graph format
+described in \ref graph_formats. 
+
+To count the total number of triangles in a graph, the minimal set of options
+required are:
+\verbatim
+> ./directed_triangle_count --graph=[graph prefix] --format=[format]
+\endverbatim
+Output looks like this:
+\verbatim
+Number of vertices: 875713
+Number of edges:    5105039
+Counting Triangles...
+INFO:     synchronous_engine.hpp(start:1213): 0: Starting iteration: 0
+INFO:     synchronous_engine.hpp(start:1257): 	Active vertices: 875713
+INFO:     synchronous_engine.hpp(start:1307): 	 Running Aggregators
+Counted in 1.962 seconds
+Collecting results ... 
+INFO:     synchronous_engine.hpp(start:1213): 0: Starting iteration: 0
+INFO:     synchronous_engine.hpp(start:1257): 	Active vertices: 875713
+INFO:     synchronous_engine.hpp(start:1307): 	 Running Aggregators
+28198954 In triangles
+28198954 Out triangles
+28198954 Through triangles
+11669313 Cycle triangles
+\endverbatim
+Observe that the number of In, Out and Through triangles are identical. This
+is because every In-triangle necessarily forms one Out and one Through triangle,
+(and similarly for the rest). Also the number of Cycle Triangles must be divisible
+by 3 since every cycle is counted 3 times, once on each vertex in the cycle.
+
+To count the number of triangles on each vertex, the minimal set of options are:
+
+\verbatim
+> ./directed_triangle_count --graph=[graph prefix] --format=[format] --per_vertex=[output prefix]
+\endverbatim
+
+Tne <tt>output prefix</tt> is where the output counts will be written. This
+may be located on HDFS. For instance, if the <tt>output_prefix</tt> is <tt>"v_out"</tt>,
+the output files will be written to:
+
+\verbatim
+v_out_1_of_16
+v_out_2_of_16
+...
+v_out_16_of_16
+\endverbatim
+
+Each line in the output file has the following format:
+\verbatim
+[vid]  [in triangles]  [out triangles]   [through triangles]  [cycle_triangles] [#out edges] [#in edges]
+\endverbatim
+
+This program can also run distributed by using
+\verbatim
+> mpiexec -n [N machines] --hostfile [host file] ./directed_triangle_count ....
+\endverbatim
+See your MPI documentation for details on how to launch this job.
+All machines must have access to the input graph location and the output graph 
+location. Graphs may be on HDFS. 
+
+
+
+\subsection Options
+Relevant options are: 
+\li \b --graph (Required). The prefix from which to load the graph data
+\li \b --format (Required). The format of the input graph 
+\li \b --per_vertex (Optional. Default ""). If set, will write the output counts.
+\li \b --ncpus (Optional. Default 2) The number of processors that will be used
+for computation.  
+\li \b --ht (Optional. Default 64) The implementation uses a mix of vectors and
+hash sets to optimize set intersection computation. This parameter sets the capacity
+limit below which, vectors are used, and above which, hash sets are used.
+\li \b -–graph_opts (Optional, Default empty) Any additional graph options. See
+  graphlab::distributed_graph a list of options.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+\section graph_analytics_pagerank PageRank 
+
+The PageRank program computes the pagerank of each vertex. 
+See the <a href="http://en.wikipedia.org/wiki/PageRank">Wikipedia article</a>
+for details of the algorithm.
+
+\subsection Input Graph
+The input to the system is a graph in any of the Portable graph format
+described in \ref graph_formats. 
+
+\verbatim
+> ./pagerank --graph=[graph prefix] --format=[format] 
+\endverbatim
+
+Alternatively, a synthetic power law graph of an arbitrary number of vertices
+can be generated using:
+\verbatim
+> ./pagerank --powerlaw=[nvertices]
+\endverbatim
+The resultant graph will have powerlaw out-degree, and nearly constant in-degree. 
+The actual generation process draws vertex degree from a truncated power-law
+distribution with alpha=2.1. The distribution is truncated at maximum out-degree
+100M to avoid allocating massive amounts of memory for creating the sampling distribution.
+
+\subsection Computation Type 
+There are several modes of computation that are supported. All will eventually
+obtain the same solutions. 
+
+### Classical
+To get classical PageRank iterations, adding the option
+\verbatim
+> --iterations=[N Iterations]
+\endverbatim
+
+### Dynamic Synchronous (default) 
+The dynamic synchronous computation only performs computation on vertices
+that have not yet converged to the desired tolerance. The default tolerance
+is 0.001. This can be modified by adding the option
+\verbatim
+>  --tol=[tolerance]
+\endverbatim
+
+### Dynamic Asynchronous
+The dynamic asynchronous computation only performs computation on vertices
+that have not yet converged to the desired tolerance. This uses the 
+asynchronous engine. The default tolerance is 0.001. 
+This can be modified by adding the option
+\verbatim
+>  --tol=[tolerance]
+\endverbatim
+
+\note This is known to be slow! PageRank does not benefit from the consistency
+guaranteed by the asynchronous engine. A new engine is in development with 
+weaker consistency semantics, but sufficient for pagerank. 
+
+
+\subsection Output
+To save the resultant pagerank of each vertex, include the option
+\verbatim
+> --saveprefix=[output prefix]
+\endverbatim
+
+Tne <tt>output prefix</tt> is where the output counts will be written. This
+may be located on HDFS. For instance, if the <tt>output_prefix</tt> is <tt>"v_out"</tt>,
+the output files will be written to:
+
+\verbatim
+v_out_1_of_16
+v_out_2_of_16
+...
+v_out_16_of_16
+\endverbatim
+
+Each line in the output file contains two numbers: a Vertex ID, and the 
+computed PageRank.
+
+This program can also run distributed by using
+\verbatim
+> mpiexec -n [N machines] --hostfile [host file] ./pagerank ....
+\endverbatim
+See your MPI documentation for details on how to launch this job.
+All machines must have access to the input graph location and the output graph 
+location. Graphs may be on HDFS. 
+
+
+
+\subsection Options
+Relevant options are: 
+\li \b --graph (Optional). The prefix from which to load the graph data
+\li \b --format (Optional). The format of the input graph 
+\li \b --powerlaw (Optional. Default 0). If set, generates synthetic powerlaw graph with
+                        the specified number of vertices.
+\li \b --saveprefix (Optional. Default ""). If set, will write the output counts.
+\li \b --tol (Optional. Default=1E-3). Changes the convergence tolerance for the Dynamic
+                          computation modes.
+\li \b --iterations (Optional. Default 0). If set, runs classical PageRank iterations
+                      for the specified number of iterations.
+\li \b -–graph_opts (Optional, Default empty) Any additional graph options. See
+  graphlab::distributed_graph a list of options.
+\li \b --ncpus (Optional. Default 2) The number of processors that will be used
+for computation.  
+\li \b -–engine (Optional, Default "synchronous") Sets the engine type. Must be
+                  either "synchronous" or "asynchronous"
+\li \b -–engine (Optional, Default "synchronous") Sets the engine options. Available
+                  options depend on the engine type. See
+                  graphlab::async_consistent_engine and
+                  graphlab::synchronous_engine for details.
+
+
+
+
+\section graph_analytics_kcore KCore Decomposition 
+This program iteratively finds the KCore of the network.
+
+\subsection Input Graph
+The input to the system is a graph in any of the Portable graph format
+described in \ref graph_formats. 
+
+\verbatim
+> ./kcore --graph=[graph prefix] --format=[format] 
+\endverbatim
+Output may look like:
+\verbatim
+K=0:  #V = 875713   #E = 4322051
+INFO:     synchronous_engine.hpp(start:1213): 0: Starting iteration: 0
+INFO:     synchronous_engine.hpp(start:1257): 	Active vertices: 0
+K=1:  #V = 875713   #E = 4322051
+INFO:     synchronous_engine.hpp(start:1213): 0: Starting iteration: 0
+INFO:     synchronous_engine.hpp(start:1257): 	Active vertices: 153407
+INFO:     synchronous_engine.hpp(start:1307): 	 Running Aggregators
+K=2:  #V = 711870   #E = 4160100
+INFO:     synchronous_engine.hpp(start:1213): 0: Starting iteration: 0
+INFO:     synchronous_engine.hpp(start:1257): 	Active vertices: 108715
+INFO:     synchronous_engine.hpp(start:1307): 	 Running Aggregators
+K=3:  #V = 581712   #E = 3915291
+INFO:     synchronous_engine.hpp(start:1213): 0: Starting iteration: 0
+INFO:     synchronous_engine.hpp(start:1257): 	Active vertices: 69907
+INFO:     synchronous_engine.hpp(start:1307): 	 Running Aggregators
+K=4:  #V = 492655   #E = 3668104
+INFO:     synchronous_engine.hpp(start:1213): 0: Starting iteration: 0
+INFO:     synchronous_engine.hpp(start:1257): 	Active vertices: 52123
+INFO:     synchronous_engine.hpp(start:1307): 	 Running Aggregators
+K=5:  #V = 424155   #E = 3416251
+INFO:     synchronous_engine.hpp(start:1213): 0: Starting iteration: 0
+INFO:     synchronous_engine.hpp(start:1257): 	Active vertices: 41269
+INFO:     synchronous_engine.hpp(start:1307): 	 Running Aggregators
+K=6:  #V = 367361   #E = 3158776
+INFO:     synchronous_engine.hpp(start:1213): 0: Starting iteration: 0
+INFO:     synchronous_engine.hpp(start:1257): 	Active vertices: 33444
+INFO:     synchronous_engine.hpp(start:1307): 	 Running Aggregators
+K=7:  #V = 319194   #E = 2902138
+INFO:     synchronous_engine.hpp(start:1213): 0: Starting iteration: 0
+INFO:     synchronous_engine.hpp(start:1257): 	Active vertices: 29201
+INFO:     synchronous_engine.hpp(start:1307): 	 Running Aggregators
+K=8:  #V = 274457   #E = 2629033
+......
+\endverbatim
+
+To just get the informative lines:
+\verbatim
+> ./kcore --graph=[graph prefix] --format=[format] > k_out.txt
+  ...
+> cat k_out.txt
+Computes a k-core decomposition of a graph.
+
+Number of vertices: 875713
+Number of edges:    4322051
+K=0:  #V = 875713   #E = 4322051
+K=1:  #V = 875713   #E = 4322051
+K=2:  #V = 711870   #E = 4160100
+K=3:  #V = 581712   #E = 3915291
+K=4:  #V = 492655   #E = 3668104
+K=5:  #V = 424155   #E = 3416251
+K=6:  #V = 367361   #E = 3158776
+K=7:  #V = 319194   #E = 2902138
+K=8:  #V = 274457   #E = 2629033
+K=9:  #V = 231775   #E = 2335154
+K=10:  #V = 193406   #E = 2040738
+K=11:  #V = 159020   #E = 1753273
+K=12:  #V = 131362   #E = 1500517
+K=13:  #V = 106572   #E = 1256952
+K=14:  #V = 86302   #E = 1047053
+K=15:  #V = 68409   #E = 849471
+K=16:  #V = 53459   #E = 676076
+K=17:  #V = 40488   #E = 519077
+...
+\endverbatim
+
+
+The program can also save a copy of the graph at each stage by adding an
+option.
+\verbatim
+> --savecores=[prefix]
+\endverbatim
+
+The resultant graphs will be saved with prefixes [prefix].K
+For instance if prefix is <tt>out</tt>, 
+The 0-Core graph may be saved in 
+\verbatim
+out.0.1_of_4
+out.0.2_of_4
+out.0.3_of_4
+out.0.4_of_4
+\endverbatim
+
+The 5-Core graph will be saved in 
+\verbatim
+out.5.1_of_4
+out.5.2_of_4
+out.5.3_of_4
+out.5.4_of_4
+\endverbatim
+
+and so on. 
+
+The range of k-Core graphs to compute can be controlled by the <tt>kmin</tt>
+and the <tt>kmax</tt> option described below.
+
+This program can also run distributed by using
+\verbatim
+> mpiexec -n [N machines] --hostfile [host file] ./kcore....
+\endverbatim
+See your MPI documentation for details on how to launch this job.
+All machines must have access to the input graph location and the output graph 
+location. Graphs may be on HDFS. 
+
+
+\subsection Options
+Relevant options are: 
+\li \b --graph (Required). The prefix from which to load the graph data
+\li \b --format (Required). The format of the input graph 
+\li \b --ncpus (Optional. Default 2) The number of processors that will be used
+for computation.  
+\li \b --savecores (Optional. Default ""). The target prefix to save 
+the resultant K-core graphs.
+\li \b --kmin (Optional. Default 0). Only output result for the K-core graph starting
+                        at K=kmin
+\li \b --kmax (Optional. Default Inf). Only output result for the K-core graph 
+                        up to K=kmax
 */
-
-

@@ -179,7 +179,7 @@ int main(int argc, char** argv) {
   graph_type graph(dc, clopts);
   if(powerlaw > 0) { // make a synthetic graph
     dc.cout() << "Loading synthetic Powerlaw graph." << std::endl;
-    graph.load_synthetic_powerlaw(powerlaw);
+    graph.load_synthetic_powerlaw(powerlaw, false, 2.1, 100000000);
   }
   else { // Load the graph from a file
     dc.cout() << "Loading graph in format: "<< format << std::endl;

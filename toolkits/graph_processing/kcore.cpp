@@ -137,7 +137,7 @@ void initialize_vertex_values(graph_type::vertex_type& v) {
  * We return empty since no reduction is performed. Only the map.
  */
 graphlab::empty signal_vertices_at_k(engine_type::icontext_type& ctx,
-                                     graph_type::vertex_type& vertex) {
+                                     const graph_type::vertex_type& vertex) {
   if (vertex.data() > 0 && vertex.data() < CURRENT_K) {
     ctx.signal(vertex, 0);
   }
@@ -188,7 +188,7 @@ int main(int argc, char** argv) {
      );
   std::string prefix, format;
   size_t kmin = 0;
-  size_t kmax = 100;
+  size_t kmax = (size_t)(-1);
   std::string savecores;
   clopts.attach_option("graph", prefix,
                        "Graph input. reads all graphs matching prefix*");
@@ -199,7 +199,7 @@ int main(int argc, char** argv) {
   clopts.attach_option("kmax", kmax,
                        "Compute the k-Core for k the range [kmin,kmax]");
   clopts.attach_option("savecores", savecores,
-                       "If non-empty, will save tsv of each core with prefix [savecores].K");
+                       "If non-empty, will save tsv of each core with prefix [savecores].K.");
 
   if(!clopts.parse(argc, argv)) return EXIT_FAILURE;
   if (prefix == "") {
@@ -247,7 +247,7 @@ int main(int argc, char** argv) {
 
     // Saves the result if requested
     if (savecores != "") {
-      graph.save(savecores + "." + graphlab::tostr(CURRENT_K),
+      graph.save(savecores + "." + graphlab::tostr(CURRENT_K) + ".",
                  save_core_at_k(),
                  false, /* no compression */ 
                  false, /* do not save vertex */
