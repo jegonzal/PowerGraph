@@ -1,0 +1,10 @@
+digraph g{
+  A [label="A",style=filled, color=green, shape=circle];
+  b [label="", shape=circle];
+  c [label="", shape=circle];
+  { rank=same; b; c}
+  nodesep=0.6;
+  A->b;
+  A->c;
+  b->c [dir=none,style=dashed];
+}
