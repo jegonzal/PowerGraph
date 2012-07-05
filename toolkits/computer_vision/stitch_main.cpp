@@ -362,7 +362,10 @@ int main(int argc, char** argv)
     //graph.load(graph_dir, edge_loader);
     vertex_loader(dc, graph, img_dir);
     graph.finalize();
-    //graph.transform_vertices(compute_features);
+    
+    ///////////////////////////////////////////////////////
+    // Computer features in parallel
+    graph.transform_vertices(compute_features);
 
     
     ///////////////////////////////////////////////////////

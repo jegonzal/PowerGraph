@@ -69,6 +69,9 @@ typedef Eigen::MatrixXd mat;
 // Edge and Vertex data and Graph Type
 struct vertex_data 
 {
+    // path to image
+    std::string img_path;
+    
     //cv::Mat img;
     cv::detail::ImageFeatures features;
     
@@ -78,10 +81,12 @@ struct vertex_data
     
     void save(graphlab::oarchive& arc) const 
     {
+        arc << img_path;
         //arc << features;
     }
     void load(graphlab::iarchive& arc) 
     {
+        arc >> img_path;
         //arc >> features;
     }
 }; // End of vertex data
@@ -187,7 +192,6 @@ bool vertex_loader(graphlab::distributed_control& dc, graph_type& graph, string 
 
     // vertex data & id
     graphlab::vertex_id_type vid(-1);
-    vertex_data vdata;
     
     ///////////////////////////////////////////////////////
     // Loop over files
@@ -196,33 +200,15 @@ bool vertex_loader(graphlab::distributed_control& dc, graph_type& graph, string 
         // Each machine loads corresponding file
         if (i % dc.numprocs() == dc.procid()) 
         {
-            logstream(LOG_EMPH) << "Process: " << dc.procid() << "/" << dc.numprocs()
-            << "Loading image from file: " << graph_files[i] << "...\t";
+            logstream(LOG_EMPH) 
+            //<< "Process: " << dc.procid() << "/" << dc.numprocs()
+            << "picked image: " << graph_files[i] << "\n";
 
-            vid = i;
-//            // open the stream
-//            std::ifstream in_file(graph_files[i].c_str(), 
-//                                  std::ios_base::in | std::ios_base::binary);
-//
-//            boost::iostreams::filtering_stream<boost::iostreams::input> fin;  
-//            fin.push(in_file);
-//            
-//            // Get data from stream into a buffer
-//            fin.pop();
-
-            // Ignore the above hdfs-setup for now. Just read from file directly.
-            Mat img = imread(graph_files[i]);
-            if (img.empty())
-                logstream(LOG_EMPH) << "Failed, could not imread";
-            else
-                logstream(LOG_EMPH) << "Done";
-            logstream(LOG_EMPH) << "\n";
             
-            // compute features
-            SurfFeaturesFinder finder;
-            finder(img, vdata.features);
+            vid = i;
+            vertex_data vdata;            
+            vdata.img_path = graph_files[i];
             vdata.features.img_idx = i;
-            logstream(LOG_EMPH) << "Features in image #" << i+1 << ": " << vdata.features.keypoints.size() << "\n";
             
             graph.add_vertex(vid, vdata);
 
@@ -230,4 +216,44 @@ bool vertex_loader(graphlab::distributed_control& dc, graph_type& graph, string 
     }
 
     return true;
+}
+
+
+/////////////////////////////////////////////////////////////////////////
+// Function to extract features in parallel
+void compute_features(graph_type::vertex_type vertex)
+{
+    // Get vertex data
+    vertex_data &vdata = vertex.data();
+    
+    // Load image
+    //            // open the stream
+    //            std::ifstream in_file(graph_files[i].c_str(), 
+    //                                  std::ios_base::in | std::ios_base::binary);
+    //
+    //            boost::iostreams::filtering_stream<boost::iostreams::input> fin;  
+    //            fin.push(in_file);
+    //            
+    //            // Get data from stream into a buffer
+    //            fin.pop();
+    
+    // Ignore the above hdfs-setup for now. Just read from file directly.
+    Mat img = imread(vdata.img_path);
+
+    if (img.empty())
+    {
+        logstream(LOG_EMPH) << "Could not imread image: " << vdata.img_path << "\n";
+        //exit();
+        //return EXIT_FAILURE;
+    }
+    else
+        logstream(LOG_EMPH) << "Done\n";
+    
+    // compute features
+    SurfFeaturesFinder finder;
+    finder(img, vdata.features);
+
+    
+    logstream(LOG_EMPH) << "Features in image #" << vertex.id() << ": " << vdata.features.keypoints.size() << "\n";
+    
 }
