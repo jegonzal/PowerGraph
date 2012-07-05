@@ -270,7 +270,7 @@ function initiate_graph_builder() {
 var graph_builder_charts = [];
 
 function process_graph_builder(data) {
-    console.log(data);    
+//    console.log(data);    
     console.log("Processing graph builder info.");
 
     $("#graph_builder_phase_name").text(data.phase_name);
