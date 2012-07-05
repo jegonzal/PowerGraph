@@ -46,7 +46,8 @@ This program can also run distributed by using
 \endverbatim
 See your MPI documentation for details on how to launch this job.
 All machines must have access to the input graph location and the output graph 
-location. Graphs may be on HDFS. 
+location. Graphs may be on HDFS.  
+If you have problems loading HDFS files, see the \ref FAQ.
 
 
 
@@ -122,7 +123,7 @@ This program can also run distributed by using
 See your MPI documentation for details on how to launch this job.
 All machines must have access to the input graph location and the output graph 
 location. Graphs may be on HDFS. 
-
+If you have problems loading HDFS files, see the \ref FAQ.
 
 
 \subsection Options
@@ -232,6 +233,7 @@ This program can also run distributed by using
 See your MPI documentation for details on how to launch this job.
 All machines must have access to the input graph location and the output graph 
 location. Graphs may be on HDFS. 
+If you have problems loading HDFS files, see the \ref FAQ.
 
 
 
@@ -344,6 +346,7 @@ This program can also run distributed by using
 See your MPI documentation for details on how to launch this job.
 All machines must have access to the input graph location and the output graph 
 location. Graphs may be on HDFS. 
+If you have problems loading HDFS files, see the \ref FAQ.
 
 
 
@@ -486,6 +489,7 @@ This program can also run distributed by using
 See your MPI documentation for details on how to launch this job.
 All machines must have access to the input graph location and the output graph 
 location. Graphs may be on HDFS. 
+If you have problems loading HDFS files, see the \ref FAQ.
 
 
 \subsection Options
