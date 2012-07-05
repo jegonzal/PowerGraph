@@ -298,7 +298,6 @@ function process_graph_builder(data) {
             graph_builder_charts[id] = {
                 div: div,
                 options: { title: name,
-                           legend: {position: 'none'},
                            vAxis: {title: (units + " per Second"),
                                    titleTextStyle: {color: 'red'},
                                    minValue: 0,
@@ -312,8 +311,7 @@ function process_graph_builder(data) {
         if(metric.values.length > 0) {
             // Update the chart
             var chart_info = graph_builder_charts[id];
-            chart_info.data = google.visualization.arrayToDataTable(
-                [["Time", "Value"]].concat(metric.values));
+            chart_info.data = google.visualization.arrayToDataTable(metric.values);
             chart_info.chart.draw(chart_info.data, chart_info.options);
         }
     });
