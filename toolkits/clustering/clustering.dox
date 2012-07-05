@@ -153,7 +153,7 @@ location. Graphs may be on HDFS.
 If you have problems loading HDFS files, see the \ref FAQ.
 
 
-\section clustering_kmeans_options Options
+\subsection clustering_kmeans_options Options
 \li \b --data (Required). The prefix from which to load the input data
 \li \b --clusters (Required). The number of cluster centers to solve fo
 \li \b --ncpus (Optional. Default 2) The number of processors that will be used
