@@ -1,5 +1,3 @@
-See the official documentation at:
-
-http://www.graphlab.ml.cmu.edu
-
+To generate docs, run "doxygen" in the graphlabapi/ directory
+Doxygen >= 1.8 recommended
 
