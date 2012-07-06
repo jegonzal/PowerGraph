@@ -415,31 +415,39 @@ class json_parser {
   }
 
 
+  std::string zeropadding(const std::string& s, int width) {
+      ASSERT_LE(s.length(), width);
+      std::ostringstream ss;
+      ss << std::setw(width) << std::setfill('0') << s;
+      return ss.str();
+  } 
+
+
   const std::string graphfilename() {
     procid_t pid = graph.procid();
     std::string suffix =  gzip ? ".gz" : "";
-    return "graph/graph"+tostr(pid)+"-r-0000"+tostr(pid)+suffix;
+    return "graph/graph"+tostr(pid)+"-r-"+zeropadding(tostr(pid), 5)+suffix;
     // return "graph/graph"+tostr(pid)+"-r-00000"+suffix;
   }
 
   const std::string vid2lvidfilename() {
     procid_t pid = graph.procid();
     std::string suffix =  gzip ? ".gz" : "";
-    return "graph/vid2lvid"+tostr(pid)+"-r-0000"+tostr(pid)+suffix;
+    return "graph/vid2lvid"+tostr(pid)+"-r-"+zeropadding(tostr(pid), 5)+suffix;
     // return "graph/vid2lvid"+tostr(pid)+"-r-00000"+suffix;
   }
 
   const std::string edatafilename() {
     procid_t pid = graph.procid();
     std::string suffix =  gzip ? ".gz" : "";
-    return "graph/edata"+tostr(pid)+"-r-0000"+tostr(pid)+suffix;
+    return "graph/edata"+tostr(pid)+"-r-"+zeropadding(tostr(pid),5)+suffix;
     // return "graph/edata"+tostr(pid)+"-r-00000"+suffix;
   }
 
   const std::string vrecordfilename() {
     procid_t pid = graph.procid();
     std::string suffix =  gzip ? ".gz" : "";
-    return "vrecord/vdata"+tostr(pid)+"-r-0000"+tostr(pid)+ suffix;
+    return "vrecord/vdata"+tostr(pid)+"-r-"+zeropadding(tostr(pid),5)+suffix;
     // return "vrecord/vdata"+tostr(pid)+"-r-00000"+ suffix;
   }
 
