@@ -58,7 +58,9 @@ set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,-rpath,${GraphLab_SOUR
 # Set subdirectories
 subdirs(src tests demoapps toolkits extapis)
 if(EXPERIMENTAL)
-  subdirs(experimental)
+  if (IS_DIRECTORY ${GraphLab_SOURCE_DIR}/experimental)
+    subdirs(experimental)
+  endif()
 endif()
 if (IS_DIRECTORY ${GraphLab_SOURCE_DIR}/apps)
   subdirs(apps)
