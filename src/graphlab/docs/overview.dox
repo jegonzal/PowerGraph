@@ -10,23 +10,25 @@
 \mainpage 
    
 
-  The GraphLab project began in 2010 as an attempt to figure out what is the best
-  parallel computation abstraction for machine learning. GraphLab 1.0 represents
-  our first shared memoy design which, through the addition of several matrix
-  factorization toolkits contributed by our post-doc Danny Bickson, started to
-  grow a community of users.
+  The GraphLab project started in 2009 to develop a new parallel
+  computation abstraction tailored to machine learning. GraphLab 1.0
+  represents our first shared memoy design which, through the addition
+  of several matrix factorization toolkits contributed by our post-doc
+  Danny Bickson, started to grow a community of users.
 
-  In the last couple of years, we have focused our development effort on the
-  distributed environment. Unfortunately, it took nearly a year to figure out 
-  that distributing the GraphLab 1 abstraction was excessively complicated
-  and is unable to scale up to power-law graphs commonly seen in the real world.
+  In the last couple of years, we have focused our development effort
+  on the distributed environment. Unfortunately, it took nearly a year
+  to figure out that distributing the GraphLab 1 abstraction was
+  excessively complicated and is unable to scale up to power-law
+  graphs commonly seen in the real world.
 
-  GraphLab 2.1 represents the latest evolution of the GraphLab abstraction
-  and is a complete redesign of the GraphLab 1 framework for the distributed
-  environment. The implementation is distributed by design and a
-  "shared-memory" execution is essentially running a distributed system on a
-  cluster of 1 machine. Not all toolkits from GraphLab 1 have been ported over
-  yet; some complex algorithms may take some time. 
+  GraphLab 2.1 represents the latest evolution of the GraphLab
+  abstraction and is a complete redesign of the GraphLab 1 framework
+  for the distributed environment. The implementation is distributed
+  by design and a "shared-memory" execution is essentially running a
+  distributed system on a cluster of 1 machine. Not all toolkits from
+  GraphLab 1 have been ported over yet; some complex algorithms may
+  take some time.
 
   There are two starting points where one may begin using GraphLab.
   \li \ref toolkits "Toolkits" You can lookup the toolkit documentation here if you have a
@@ -37,5 +39,12 @@
   provide an interface to other languages such as Javascript and Python.
   Contact the developers (here) if you want to beta-test these interfaces, or
   come back in a couple of months when we may have something stable.
+
+
+  Software Stack
+  =============
+  \image html software_stack.png 
+  \image html system_overview.png 
+
 
 */
