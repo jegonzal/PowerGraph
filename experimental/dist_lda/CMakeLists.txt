@@ -1,8 +1,0 @@
-project(GraphLab)
-
-
-add_distributed_graphlab_executable(dist_lda_cgs cgs.cpp)
-add_distributed_graphlab_executable(dist_lda_cgs_fscope cgs.cpp)
-add_distributed_graphlab_executable(dist_lda_cgs_sync cgs.cpp)
-set_target_properties(dist_lda_cgs_fscope PROPERTIES COMPILE_FLAGS -DFSCOPE)
-
