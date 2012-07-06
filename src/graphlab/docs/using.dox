@@ -6,7 +6,7 @@
   graph to performing computation and saving the results. 
  
   The implementation philosophy of the GraphLab API is to expose an
-  MPI-like SIMD (Single Instruction Multiple Data) Interface.
+  MPI-like SPMD (Single Program Multiple Data) Interface.
   That is to say, we try to enforce the illusion that all machines 
   are running the same operations in lock-step.
 
@@ -36,7 +36,7 @@
 
   While GraphLab's RPC implementation permits the implementation of much more
   complex computation/communication interleaving behavior, we discourage it
-  and we encourage users to use the aggregate "SIMD"-like operations as much
+  and we encourage users to use the aggregate "SPMD"-like operations as much
   as possible. Indeed, none of the toolkit applications we implemented require
   any more than these operations.
   As we understand the abstraction needs of the community better,
