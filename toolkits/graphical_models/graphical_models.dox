@@ -2,21 +2,243 @@
 
 \page graphical_models Graphical Models
 
+\brief The Graphical Models toolkit contains a collection of
+applications for reasoning about structured noisy data.  <a
+href="">Graphical models</a> provide a compact interpretable
+representation of complex statistical phenomena by encoding random
+variables as vertices in a graph and relationships between those
+variables as edges. Given a graphical model representation, we can
+then apply <a href="">Bayes rule</a> to quantitatively infer
+properties of some variables given observations about others.
+Graphical models also provide the unique ability to quantify
+uncertainty in our prediction.
 
-\todo complete
+\section structured_prediction Structured Prediction
 
-\brief Summary
+Currently the Graphical Models toolkit contains a discrete structured
+prediction application which can be applied to a wide range of
+prediction tasks where we have prior noisy predictions for a large
+number of variables (e.g., political inclination of each user or
+article) and a graph encoding similarity or dissimilarity
+relationships between those variables (e.g., friends share similar
+political inclinations).  The structured prediction application then
+infers the posterior distribution for each random variable improving
+upon the prior prediction and providing a measure of uncertainty.
+
+\subsection structured_prediction_example Structured Prediction Example
+
+For example, supposed we had the recent posts for each user in a large
+social network.  Based on frequency each user mentions a conservative
+or liberal news item we might be able to construct a noisy prior
+estimate of their political inclination.  A user with no posts may
+have a prior of 0.5 conservative and 0.5 liberal while another user
+that frequently mentions a conservative pundit might have a prior of
+0.8 conservative and 0.2 liberal.  If a user with no posts is friends
+with a user that frequently mentions conservative news items, then it
+is more likely that the user with no posts is also conservative. More
+generally we can leverage the social network to improve our prediction
+for each user by examining not only their immediate friends but also
+the community around each user.  This exactly what the structured
+prediction application accomplishes.  The output of the structured
+prediction application is the posterior estimates for each user.
 
 
-\section graphical_models_usage Usage 
+
+\subsection structured_prediction_model The Structured Prediction Model
+
+The structure prediction application applies the <a href="">Loopy
+Belief propagation (LBP)</a> algorithm to a pair-wise <a
+href="">Markov Random Field</a> encoding the classic <a href="">Potts
+Model</a>.  The joint probability mass function is given by:
+
+\image html potts_model.png
 
 
-\section graphical_models_example Example
+The edge weight \c w is obtained from the graph file but defaults to
+w=1 if no edge weight is provided.  The smoothing paramater \c
+SMOOTHING can be set as a command line argument and controls the
+general smoothing.
+
+\subsection loopy_bp_algorithm Loopy BP Algorithm 
+
+The structured prediction application uses an <a href="">Loopy BP</a>
+approximate inference algorithm to estimate the posterior marginals.
+The Loopy BP algorithm iteratively estimates a set of edge parameters
+commonly referred to as "messages."  The structured prediction
+application uses the asynchronous residual variant of the Loopy BP
+algorithm.
 
 
-\section graphical_models_options Options
+\subsection structured_prediction_data Synthetic Data
+
+To demonstrate the power of the structured prediction application we
+have provided a synthetic dataset generator.  To use the synthetic
+generator simply build and run:
+
+\verbatim
+./synthetic_image_data 
+\endverbatim
+
+This will create the synthetic noisy image:
+
+\image html noisy_img.jpeg
+
+as well as the true underlying image that we would like to recover:
+
+\image html orig_img.jpeg
+
+Each pixel in the image corresponds to a random variable whose unknown
+is the true pixel color.  The goal is to use the neighborhood of each
+pixel to improve our estimate and resolve the original image.  The \c
+synthetic_image_data application will also create the two input files
+needed to run the structured prediction application. The first is
+synthetic prior estimates for each pixel.  Each row begins with the
+random variable id followed by the prior probability distribution for
+that random variable.  Notice that the prior assigns half of the mass
+to the observed pixel value and the remaining mass to the other
+candidate pixel values.
+
+\verbatim
+> head synth_vdata.tsv 
+0	0.125	0.5	0.125	0.125	0.125
+1	0.125	0.125	0.125	0.125	0.125
+2	0.125	0.125	0.5	0.125	0.125
+3	0.125	0.125	0.125	0.125	0.5
+4	0.125	0.125	0.125	0.125	0.5
+\endverbatim
+
+The second \c synth_edata.tsv file contains the graph structure with
+each line corresponding to an edge.  Here we do not assign edge
+weights (and so the default weight of 1) will be used on all edges.
+Had we wanted to use weighted edges we would have added the weight
+value after each edge.
+
+\verbatim
+> head synth_edata.tsv 
+0	65536
+0	1
+1	65537
+1	2
+2	65538
+2	3
+\endverbatim
+
+We can now run the structured prediction application on the synthetic
+image.
+
+\verbatim
+> ./structured_prediction --prior synth_vdata.tsv --graph synth_edata.tsv \
+                          --output posterior_vdata.tsv
+\endverbatim
+
+Once the application terminates the final predictions will be stored
+in the sequence of files \c posterior_vdata.tsv_X_of_X in exactly the
+same format as the prior \c synth_vdata.tsv.  
+
+\verbatim
+> ls -l posterior_vdata.tsv_*
+posterior_vdata.tsv_1_of_2
+posterior_vdata.tsv_2_of_2
+\endverbatim
+
+in the format:
+
+\verbatim
+> head posterior_vdata.tsv_1_of_2 
+0	0.0237064	0.0947784	0.0245065	0.0323516	0.824657
+1	0.00886895	0.0176509	0.0114683	0.0112453	0.950767
+2	0.00402855	0.00489077	0.0161093	0.00426689	0.970705
+3	0.00088747	0.00091284	0.00124409	0.000894688	0.996061
+4	0.000696577	0.000695895	0.000706134	0.000695375	0.997206
+5	0.000740404	0.000705437	0.000706437	0.000705451	0.997142
+\endverbatim
+
+To visualize the predictions for the synthetic application we run:
+
+\verbatim
+> cat posterior_vdata.tsv_* | ./synthetic_image_data --pred pred_image.jpeg
+Create a synthetic noisy image.
+Reading in predictions
+nrows: 200
+ncols: 200
+minp:  0
+maxp:  4
+\endverbatim
+
+If we then open \c pred_image.jpeg we get:
+
+\image html pred_img.jpeg
+
+Not bad!
+
+\subsection structured_predictions_options Options
+
+\li <b>--help</b> Display the help message describing the list of
+options.
+
+\li <b>--prior</b> The prior vertex data file.
+
+\li <b>--output</b> The output directory/file_prefix in which to save
+the final predictions.
+
+\li <b>--graph</b> The graph describing the random variable dependency
+structure as well as optional weights.
+
+\li <b>--smoothing</b> (Optional, Default 2) The default smoothing
+parameter. Larger values imply stronger relationships between adjacent
+random variables in the graph.
+
+\li <b>--damping</b> (Optional, Default 0.1) The amount of damping to
+use.  Damping can help ensure that the algorithm converges.  Larger
+damping values lead to slower but more reliable convergence.
+
+\li <b>--tol</b> (Optional, default 0.01) The amount of change in
+parameter values (in log-space) that will be tolerated at convergence.
+
+\li <b>--map</b> (Optional, default false) If set to true the
+maximizing assignment will be returned in the output instead of the
+distribution. 
+
+
+\li <b>--engine</b> (Optional, Default: asynchronous) The engine type to
+use when executing the vertex-programs
+       - <b>synchronous</b>: All LoopyBP updates are run at the same
+         time (Synchronous BP). This engine exposes greater parallelism but is less
+         computationally efficient.
+       - <b>asynchronous</b>: LoopyBP updates are run asynchronous
+         with priorities (Residual BP).  This engine is has greater
+         overhead and exposes less parallelism but can substantially
+         improve the rate over convergence.
+
+\li <b>--ncpus</b> (Optional, Default 2) The number of local computation 
+threads to use on each machine.  This should typically match the number 
+of physical cores. 
+
+\li <b>--scheduler</b> (Optional, Default sweep) The scheduler to use when 
+running with the asynchronous engine.  The default is typically sufficient. 
+
+\li <b>--engine_opts</b> (Optional, Default empty) Any additional engine
+options. See <b>--engine_help</b> for a list of options.
+
+
+\li <b>--graph_opts</b> (Optional, Default empty) Any additional graph
+options. See <b>--graph_help</b> for a list of options.
+
+\li <b>--scheduler_opts</b> (Optional, Default empty) Any additional scheduler
+options. See <b>--scheduler_help</b> for a list of options.
+
+
+
 
 
 */
 
 
+
+
+// 
+// P(x_1, \ldots, x_n) \propto 
+// \exp \left(
+// - \sum_{(i,j) \in E} I[x_i \neq x_j ] w_{(i,j)} * \mathtt{SMOOTHING}
+// \right) \prod_{i \in V} \mathtt{prior}_i(x_i)
+// 

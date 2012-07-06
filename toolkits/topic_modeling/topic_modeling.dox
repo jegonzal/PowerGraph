@@ -223,7 +223,7 @@ incremental topk words lists will not be generated and the word list webpage
 will not be available.
 
 \li <b>--engine</b> (Optional, Default: asynchronous) The engine type to
-use when executing the update functions.  Accepted values are:
+use when executing the vertex program.  Accepted values are:
        - <b>synchronous</b>: All tokens are sampled simultaneously leading to
            faster computation but slower convergence.
        - <b>asynchronous</b>: Tokens are sampled as resources become available

@@ -596,6 +596,7 @@ int main(int argc, char** argv) {
   std::string prior_dir; 
   std::string graph_dir;
   std::string output_dir = "pred";
+  std::string exec_type = "async";
   bool map = false;
   clopts.attach_option("prior", prior_dir,
                        "The directory containing the prior");
@@ -603,16 +604,19 @@ int main(int argc, char** argv) {
   clopts.attach_option("graph", graph_dir,
                        "The directory containing the adjacency graph");
   clopts.add_positional("graph");
+  clopts.attach_option("output", output_dir,
+                       "The directory in which to save the predictions");
+  clopts.add_positional("output");
   clopts.attach_option("smoothing", SMOOTHING,
                        "The amount of smoothing (larger = more)");
   clopts.attach_option("damping", DAMPING,
                        "The amount of damping (0 -> no damping and 1 -> no progress)");
   clopts.attach_option("tol", TOLERANCE,
                        "The tolerance level for convergence.");
-  clopts.attach_option("output", output_dir,
-                       "The directory in which to save the predictions");
   clopts.attach_option("map", map,
                        "Return maximizing assignment instead of the posterior distribution.");
+  clopts.attach_option("engine", exec_type,
+                       "The type of engine to use {async, sync}.");
   if(!clopts.parse(argc, argv)) {
     graphlab::mpi_tools::finalize();
     return clopts.is_set("help")? EXIT_SUCCESS : EXIT_FAILURE;
@@ -642,7 +646,7 @@ int main(int argc, char** argv) {
   graph.transform_edges(edge_initializer);
 
   typedef graphlab::omni_engine<bp_vertex_program> engine_type;
-  engine_type engine(dc, graph, "asynchronous", clopts);
+  engine_type engine(dc, graph, exec_type, clopts);
   engine.signal_all();
   graphlab::timer timer;
   engine.start();  
