@@ -79,15 +79,6 @@ INSTALL(TARGETS
   graphlab 
   graphlab_pic ARCHIVE DESTINATION lib)
 
-INSTALL(DIRECTORY matlab/  
-  DESTINATION include/graphlab/matlab
-  FILES_MATCHING PATTERN "*" 
-  PATTERN "*.sh" EXCLUDE
-  )
-
-INSTALL(FILES matlab/get_mex_params.sh
-  DESTINATION include/graphlab/matlab
-  PERMISSIONS OWNER_WRITE OWNER_READ OWNER_EXECUTE)
 
 
 
