@@ -63,21 +63,9 @@ requires_core_deps(graphlab)
 
 
 
-#build PIC versions of everything
-
-get_target_property(graphlab_sources graphlab SOURCES)
-get_property(graphlab_flags TARGET graphlab PROPERTY COMPILE_FLAGS)
-add_library(graphlab_pic STATIC ${graphlab_sources})
-requires_core_deps(graphlab_pic)
-target_link_libraries(graphlab_pic ${Boost_SHARED_LIBRARIES})
-
-
-set_target_properties(graphlab_pic PROPERTIES 
-  COMPILE_FLAGS "${graphlab_flags} -fPIC")
 
 INSTALL(TARGETS 
-  graphlab 
-  graphlab_pic ARCHIVE DESTINATION lib)
+  graphlab ARCHIVE DESTINATION lib)
 
 
 
