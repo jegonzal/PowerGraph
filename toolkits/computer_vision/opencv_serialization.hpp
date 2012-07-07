@@ -74,5 +74,33 @@ BEGIN_OUT_OF_PLACE_LOAD(arc, cv::Size, img_size)
 } END_OUT_OF_PLACE_LOAD()
 
 
+//////////////////////////////////////////////////
+// For Mat
+BEGIN_OUT_OF_PLACE_SAVE(arc, cv::Mat, mat) 
+{
+    size_t elem_size = mat.elemSize();
+    size_t elem_type = mat.type();
+    
+    arc << mat.cols << mat.rows 
+    << elem_size << elem_type;
+    
+    const size_t data_size = mat.cols * mat.rows * elem_size;
+    graphlab::serialize(arc, mat.ptr(), data_size);
+} END_OUT_OF_PLACE_SAVE()
+
+
+BEGIN_OUT_OF_PLACE_LOAD(arc, cv::Mat, mat) 
+{
+    int cols, rows; size_t elem_size, elem_type;
+
+    arc >> cols >> rows 
+    >> elem_size >> elem_type;
+    
+    mat.create(rows, cols, elem_type);
+    
+    size_t data_size = mat.cols * mat.rows * elem_size;
+    graphlab::deserialize(arc, mat.ptr(), data_size);    
+} END_OUT_OF_PLACE_LOAD()
+
 
 #endif
