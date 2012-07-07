@@ -9,90 +9,131 @@ License
 GraphLab is free software licensed under the Apache 2.0 License. See
 license/LICENSE.txt for details.
 
-The GraphLab source distribution contains a modified version of METIS
-which is under a different license. See the file 
-src/graphlab/extern/metis/LICENSE for further details.
-
-For more information, contact Yucheng Low at ylow@cs.cmu.edu or 
-Joseph Gonzalez at jegonzal@cs.cmu.edu .
-
 ============
 Introduction
 ============
-Designing and implementing efficient and provably correct parallel 
-machine learning (ML) algorithms can be very challenging. Existing 
-high-level parallel abstractions like MapReduce are often insufficiently 
-expressive while low-level tools like MPI and Pthreads leave ML experts 
-repeatedly solving the same design challenges. By targeting common 
-patterns in ML, we developed GraphLab, which improves upon abstractions 
-like MapReduce by compactly expressing asynchronous iterative algorithms 
-with sparse computational dependencies while ensuring data consistency 
-and achieving a high degree of parallel performance.
 
-For more details on the GraphLab see http://graphlab.org
+GraphLab is a graph-based, high performance, distributed computation framework
+written in C++.  
+
+GraphLab Features:
+
+Unified multicore/
+distributed API:       write once run anywhere 
+
+Tuned for performance: optimized C++ execution engine leverages extensive 
+                       multi-threading and asynchronous IO 
+
+Scalable:              Run on large cluster deployments by
+                       intelligently placing data and computation 
+
+HDFS Integration:      Access your data directly from HDFS 
+
+Powerful Machine 
+Learning Toolkits:     Tackle challenging machine 
+                       learning problems with ease
+
+
+For more details on the GraphLab see http://graphlab.org, including
+documentation, tutorial, etc.
 
 
 ============
 Dependencies
 ============
 
-GraphLab now automatically satisfied dependencies.
+GraphLab now automatically satisfied most dependencies. 
+There are however, a few dependencies which we cannot easily satisfy:
+
+On OS X: g++ (>= 4.2) or clang (>= 3.0) [Required]
+    Required for compiling GraphLab.
+
+On Linux: g++ (>= 4.3) or clang (>= 3.0) [Required]
+    Required for compiling GraphLab.
+
+*nix build tools: patch, make [Required]
+    Should come with most Mac/Linux systems by default. Recent Ubuntu version
+    will require to install the build-essential package.
+
+zlib [Required]
+    Comes with most Mac/Linux systems by default. Recent Ubuntu version will
+    require the zlib1g-dev package.
+
+Open MPI or MPICH2 [Strongly Recommended]
+    Required for running GraphLab distributed
+
+JDK 6 or greater [Optional]
+    Required for HDFS support 
 
 
-===========
-Compilation
-===========
-GraphLab has three dependencies: CMake and Boost 
-
-If you already have all dependencies satistied,
-1a: ./configure
-
-Otherwise, autodetect, install and build boost and CMake.  Note that
-this will install all the dependencies in the deps/ directory and not
-install them globally. We STRONGLY recommend installing all the
-dependencies globally. See the "Dependencies" section.
-
-1b: ./configure --bootstrap 
+    
+Satisfying Dependencies on Mac OS X
+------------------------------------
+Installing XCode with the command line tools (in XCode 4.3 you have to do this
+manually in the XCode Preferences -> Download pane), satisfies all of these
+dependencies.  
 
 
-The configure script will create three subdirectories
-debug/
-release/
-profile/
-With different configuration profiles.
 
-cd into any of the subdirectories and run "make" will compile the entire 
-GraphLab library + demoapps + unit tests. "make install" will install the
-graphlab library.
+Satisfying Dependencies on Ubuntu
+---------------------------------
+All the dependencies can be satisfied from the repository:
+
+apt-get gcc g++ build-essential libopenmpi-dev \
+        default-jdk cmake zlib1g-dev mercurial
 
 
-==================
-Running Unit Tests
-==================
-# switch into any of the build subdirectories
-1:  cd debug/ or cd release/ or cd profile/
+=========
+Compiling
+=========
 
-# cd into the tests directory
-2:  cd tests/
+   ./configure
 
-# run the test script 
-3:  ./runtest.sh
+In the graphlabapi directory, will create two sub-directories, release/ and
+debug/ . cd into either of these directories and running make will build the
+release or the debug versions respectively. Note that this will compile all of
+GraphLab, including all toolkits. Since some toolkits require additional
+dependencies (for instance, the Computer Vision toolkit needs OpenCV), this
+will also download and build all optional dependencies.
 
-If you encounter any failures, please send us an email.
+We recommend using make’s parallel build feature to accelerate the compilation
+process. For instance:
+
+    make -j 4
+
+will perform up to 4 build tasks in parallel. When building in release/ mode,
+GraphLab does require a large amount of memory to compile with the
+heaviest toolkit requiring 1GB of RAM. Where K is the amount of memory you
+have on your machine in GB, we recommend not exceeding make -j K
+
+Alternatively, if you know exactly which toolkit you want to build, cd into the
+toolkit’s sub-directory and running make, will be significantly faster as it
+will only download the minimal set of dependencies for that toolkit. For
+instance:
+
+    cd release/toolkits/graph_analytics
+    make -j4
+
+will build only the Graph Analytics toolkit and will not need to obtain OpenCV,
+Eigen, etc used by the other toolkits.
+
 
 
 =====================
 Writing Your Own Apps
 =====================
+
 There are two ways to write your own apps.
-1: To work in the GraphLab source tree,
+1: To work in the GraphLab source tree,    (recommended)
 or
-2: Install and link against Graphlab
+2: Install and link against Graphlab       (not recommended)
+
+
 
 1: Working in the GraphLab Source Tree
 ---------------------------------------
 This is the best option if you just want to try using GraphLab quickly. GraphLab
-uses the fairly sophisticated CMake build system enabling you to quickly create
+uses the CMake build system which enables you to quickly create
 a c++ project without having to write complicated Makefiles. 
 
 1: Create your own sub-directory in the apps/ directory
@@ -102,68 +143,52 @@ a c++ project without having to write complicated Makefiles.
 
   project(GraphLab) 
   add_graphlab_executable(my_app [List of cpp files space seperated]) 
-  target_link_libraries(my_app [Additional libraries space seperated])
 
   Substituting the right values into the square brackets. For instance:
 
   project(GraphLab) 
   add_graphlab_executable(my_app my_app.cpp) 
-  target_link_libraries(my_app tcmalloc)
 
-  If you have no additional libraries, you can comment out the 
-  target_link_libraries line by prepending it with a # character.
+4: Running "make" in the apps/ directory of any of the build directories 
+should compile your app. If your app does not show up, try running
 
-3: Running ./configure --bootstrap in the base of the source tree will then
-create a debug/ release/ and profile/ directory with different build 
-configurations.
+  cd [the GraphLab API directory]
+  touch apps/CMakeLists.txt
 
-4: Running "make" in any of the build directories will compile your program
-in the apps/my_app directory.
+and try again.
 
 
 
 2: Installing and Linking Against GraphLab
 -------------------------------------------
-Run the ./configure --bootstrap script to create the build directories. You can
-change the default installation location (currently /usr/local) using the
---prefix option. For more options see ./configure
+To install graphlab and use GraphLab this way will require your system
+to completely satisfy all remaining dependencies, which GraphLab normally 
+builds automatically. This path is not extensively tested and is 
+*not recommended*
 
-Once you have run the configure script change directories to release/ and then
-run make and then make install . This will install the following:
+You will require the following additional dependencies
+ - libevent (>=2.0.18)
+ - libjson (>=7.6.0)
+ - libboost (>=1.49)
+ - libhdfs (required for HDFS support)
+ - tcmalloc (optional)
+
+Follow the instructions in the [Compiling] section to build the release/ 
+version of the library. Then cd into the release/ build directory and 
+run make install . This will install the following:
 
   include/graphlab.hpp
       The primary GraphLab header 
   include/graphlab/...
       The folder containing the headers for the rest of the GraphLab library 
   lib/libgraphlab.a
-      The main GraphLab binary 
+      The GraphLab static library.
     
 Once you have installed GraphLab you can compile your program by running:
 
-  g++ hello_world.cpp -lboost_program_options -lgraphlab 
+  g++ -pthread -lz -ltcmalloc -levent -levent_pthread -ljson                  \
+      -lboost_filesystem -lboost_program_options -lboost_system               \
+      -lboost_iostreams -lboost_date_time -lhdfs -lgraphlab hello_world.cpp 
   
   
-Known Installation Issues
-=========================
 
-Boost configuration
---------------------
-If running ./configure fails because of Boost libraries are not found, you might
-need to declare environment variable BOOST_ROOT which points to the installation
-directory of Boost. You can do this using:
-
-env BOOST_ROOT=[location of boost installation] ./configure --bootstrap
-
-Alternatively, you can try using our automatic dependency installing tools by
-running
-
-./configure --bootstrap
-
-Please let us know if you have trouble configuring GraphLab on your system.
-
-Mac OS X
---------
-on Mac OS X, you also need to include Boost libraries in the list of
-dynamic libraries defined in environment variable DYLD_LIBRARY_PATH. Here is an
-example:
-declare -x DYLD_LIBRARY_PATH=":${BOOST_ROOT}/stage/lib:${DYLD_LIBRARY_PATH}" 
