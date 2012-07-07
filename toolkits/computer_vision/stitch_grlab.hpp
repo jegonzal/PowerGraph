@@ -83,6 +83,7 @@ struct vertex_data
     {
         arc << img_path;
         //arc << features;
+        //arc << feautres.descriptors;
     }
     void load(graphlab::iarchive& arc) 
     {
