@@ -243,7 +243,7 @@ void test_scheduler_min_priority_parallel() {
   async_consensus consensus(dc, NCPUS);
   
   const size_t schedule_count = 10000;
-  const size_t maximum_value = (schedule_count * NCPUS + 101.0) / 100.0;
+  const size_t maximum_value = (size_t)((schedule_count * NCPUS + 101.0) / 100.0);
 
   correctness_counter.clear();
   correctness_counter.resize(NUM_VERTICES, atomic<int>(0));
