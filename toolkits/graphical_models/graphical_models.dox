@@ -4,11 +4,11 @@
 
 \brief The Graphical Models toolkit contains a collection of
 applications for reasoning about structured noisy data.  <a
-href="">Graphical models</a> provide a compact interpretable
+href="http://en.wikipedia.org/wiki/Graphical_model">Graphical models</a> provide a compact interpretable
 representation of complex statistical phenomena by encoding random
 variables as vertices in a graph and relationships between those
 variables as edges. Given a graphical model representation, we can
-then apply <a href="">Bayes rule</a> to quantitatively infer
+then apply <a href="http://en.wikipedia.org/wiki/Bayes%27_rule">Bayes rule</a> to quantitatively infer
 properties of some variables given observations about others.
 Graphical models also provide the unique ability to quantify
 uncertainty in our prediction.
@@ -46,9 +46,9 @@ prediction application is the posterior estimates for each user.
 
 \subsection structured_prediction_model The Structured Prediction Model
 
-The structure prediction application applies the <a href="">Loopy
+The structure prediction application applies the <a href="http://en.wikipedia.org/wiki/Belief_propagation">Loopy
 Belief propagation (LBP)</a> algorithm to a pair-wise <a
-href="">Markov Random Field</a> encoding the classic <a href="">Potts
+href="http://en.wikipedia.org/wiki/Markov_random_field">Markov Random Field</a> encoding the classic <a href="http://en.wikipedia.org/wiki/Potts_model">Potts
 Model</a>.  The joint probability mass function is given by:
 
 \image html potts_model.png
@@ -61,7 +61,7 @@ general smoothing.
 
 \subsection loopy_bp_algorithm Loopy BP Algorithm 
 
-The structured prediction application uses an <a href="">Loopy BP</a>
+The structured prediction application uses an <a href="http://en.wikipedia.org/wiki/Belief_propagation">Loopy BP</a>
 approximate inference algorithm to estimate the posterior marginals.
 The Loopy BP algorithm iteratively estimates a set of edge parameters
 commonly referred to as "messages."  The structured prediction
