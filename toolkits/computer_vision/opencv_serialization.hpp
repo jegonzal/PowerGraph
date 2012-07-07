@@ -66,7 +66,7 @@ BEGIN_OUT_OF_PLACE_SAVE(arc, cv::KeyPoint, keypoint)
 } END_OUT_OF_PLACE_SAVE()
 
 
-BEGIN_OUT_OF_PLACE_LOAD(arc, cv::Size, img_size) 
+BEGIN_OUT_OF_PLACE_LOAD(arc, cv::KeyPoint, keypoint) 
 {
     arc >> keypoint.pt 
     >> keypoint.size >> keypoint.angle >> keypoint.response
