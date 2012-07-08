@@ -36,7 +36,7 @@ echo -e \
     '<configuration>\n' \
     '  <property>\n' \
     '    <name>mapred.job.tracker</name>\n' \
-    '    <value>' $namenode:19001 '</value>\n' \
+    '    <value>'$namenode:19001'</value>\n' \
     '  </property>\n' \
     '  <property>\n' \
     '    <name>mapred.local.dir</name>\n' \
@@ -85,6 +85,13 @@ echo -e \
 cat /opt/hadoop-1.0.1/conf/hdfs-site.xml
 mpiexec.openmpi -hostfile ~/machines -pernode \
     scp $namenode:/opt/hadoop-1.0.1/conf/hdfs-site.xml  /opt/hadoop-1.0.1/conf/hdfs-site.xml
+
+
+echo $namenode > /opt/hadoop-1.0.1/conf/masters
+mpiexec.openmpi -hostfile ~/machines -pernode \
+    scp $namenode:/opt/hadoop-1.0.1/conf/masters  /opt/hadoop-1.0.1/conf/masters
+
+
 
 
 echo "Creating data directories in /mnt"
