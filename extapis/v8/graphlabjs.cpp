@@ -19,8 +19,8 @@ static int v8_main(const std::string& script){
   shell.SetupDefaultBindings();
   HandleScope scope;
   pilot::setup_bindings(shell.Global());
-  
-  std::cout << "pre-setup bindings" << std::endl;  
+
+  std::cout << "pre-setup bindings" << std::endl;
   if (script.empty()){
     // if no script provided, read from STDIN
     shell.ExecuteStream(std::cin, "standard in");
@@ -41,17 +41,19 @@ int main(int argc, char **argv){
   clopts.attach_option("script", script,
                        "The javascript file.  If none is provided, then I will read "
                        "the script from STDIN");
- 
+
   if(!clopts.parse(argc, argv)) {
     std::cout << "Error in parsing command line arguments." << std::endl;
     return EXIT_FAILURE;
   }
-  
+
   // graphlab - build communication layers
   mpi_tools::init(argc, argv);
   graphlab::distributed_control dc;
-  pilot_dc = &dc;
+
+  // set global config options and distributed control
   pilot::set_clopts(clopts);
+  pilot::set_dc(dc);
 
   int rc = EXIT_FAILURE;
   try {
@@ -62,11 +64,11 @@ int main(int argc, char **argv){
     logstream(LOG_ERROR) << "Exception : " << e.what() << std::endl;
     logstream(LOG_ERROR) << "Launch failed." << std::endl;
   }
-  
+
   // graphlab - teardown communication layers
   mpi_tools::finalize();
   logstream(LOG_INFO) << "Bye." << std::endl;
-  
+
   return rc;
 
 }

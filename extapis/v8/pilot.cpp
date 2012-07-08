@@ -6,18 +6,12 @@ using namespace graphlab;
 using namespace v8;
 namespace cv = cvv8;
 
-namespace graphlab {
-distributed_control* pilot_dc;
-}
 //////////////////////////// PILOT //////////////////////////////
-// TODO: make some JSTR constants to be reused throughout
 
-// TODO: how many distributed controls can a pilot have in his lifetime?
-pilot::pilot() : graph(*pilot_dc, opts) {}
+pilot::pilot() : graph(*dc, opts) {}
 
 void pilot::ping(){ std::cout << "pong." << std::endl; }
 
-// TODO: how many graphs can a pilot have in his lifetime?
 void pilot::load_graph(const std::string &path, const std::string &format){
   graph.load_format(path, format);
   graph.finalize();
@@ -34,7 +28,7 @@ void pilot::load_synthetic_powerlaw(size_t powerlaw){
 void pilot::fly(const Handle<Function> &function){
 
   js_proxy::set_ctor(function); // FIXME: should not be a static!
-  omni_engine<js_proxy> engine(*pilot_dc, graph, "synchronous", opts);
+  omni_engine<js_proxy> engine(*dc, graph, "synchronous", opts);
   engine.signal_all(); // TODO: allow user to specify an array of vertices to signal, or all
   engine.start();
 
@@ -59,24 +53,16 @@ void pilot::transform_vertices(const Handle<Function> &function){
 
 ////////////////////////////// STATIC //////////////////////////////
 
-// TODO: fix this -- clopts really shouldn't be static:
+distributed_control *pilot::dc;
 graphlab_options pilot::opts;
-
-// object templates for vertex and edge
 templates pilot::templs;
 
-/**
- * Adds a JS binding of the class to the given object. Throws
- * a native exception on error.
- */
 void pilot::setup_bindings(const Handle<Object> &dest){
   cv::ClassCreator<pilot>::Instance().SetupBindings(dest);
 }
 
-/**
- * Saves command line options for this session.
- */
 void pilot::set_clopts(const graphlab_options &clopts){ opts = clopts; }
+void pilot::set_dc(distributed_control &control){ dc = &control; }
 
 templates &pilot::get_templates(){ return templs; }
 

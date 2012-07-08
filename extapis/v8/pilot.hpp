@@ -6,9 +6,6 @@
 
 namespace graphlab {
 
-
-  extern distributed_control* pilot_dc;
-
   class templates;
 
   // TODO: refactor graph operations to another graph object
@@ -21,7 +18,7 @@ namespace graphlab {
    */
   class pilot {
   public:
-    
+
     // TODO: allow more generic types
     typedef double vertex_data_type;
     typedef double edge_data_type;
@@ -29,14 +26,15 @@ namespace graphlab {
     typedef double gather_type;
 
   private:
-   
-    static graphlab_options opts;   // TODO: this is probably wrong
-    static templates templs; 
+
+    static distributed_control *dc; /**< pointer to global distributed control */
+    static graphlab_options opts;   /**< copy of global configuration options */
+    static templates templs;
 
     graph_type graph;
 
   public:
- 
+
     pilot();
 
     /** Prints "pong" to STDOUT */
@@ -74,10 +72,18 @@ namespace graphlab {
     /**
      * Saves command line options for this session.
      * @param clopts    command line options
-     * TODO there has got to be a better way than this
      */
     static void set_clopts(const graphlab_options &clopts);
 
+    /**
+     * Saves a pointer to the distributed control for this session.
+     * @param clopts    command line options
+     */
+    static void set_dc(distributed_control &dc);
+
+    /**
+     * Get the templates for vertex_type, edge_type, context_type etc.
+     */
     static templates &get_templates();
 
   };
@@ -88,9 +94,9 @@ namespace graphlab {
 
     double last_change;
     v8::Persistent<v8::Object> jsobj;
-  
-  public:  
-    
+
+  public:
+
     // TODO: this is a hack
     static v8::Persistent<v8::Function> constructor;
 
@@ -102,7 +108,7 @@ namespace graphlab {
     js_proxy(const js_proxy& other);
     js_proxy &operator=(const js_proxy& other);
 
-    pilot::gather_type gather(icontext_type& context, const vertex_type& vertex, edge_type& edge) const; 
+    pilot::gather_type gather(icontext_type& context, const vertex_type& vertex, edge_type& edge) const;
     void apply(icontext_type& context, vertex_type& vertex, const gather_type& total);
     edge_dir_type scatter_edges(icontext_type& context, const vertex_type& vertex) const;
     void scatter(icontext_type& context, const vertex_type& vertex, edge_type& edge) const;
@@ -131,14 +137,14 @@ namespace cvv8 {
   // A helper to support converting from pilot to its JS handle.
   typedef NativeToJSMap<graphlab::pilot> BMap;
 
-  // pilot Ctors we want to bind to v8 
+  // pilot Ctors we want to bind to v8
   typedef Signature<graphlab::pilot (CtorForwarder<graphlab::pilot *()>)> pilotCtors;
 
   CVV8_TypeName_DECL((graphlab::pilot));
 
  /**
-  * This policy class is required unless you just want to bind to 
-  * the default constructor. It creates native objects for the 
+  * This policy class is required unless you just want to bind to
+  * the default constructor. It creates native objects for the
   * underlying binding code.
   * @internal
   */
@@ -156,7 +162,7 @@ namespace cvv8 {
   */
   template <>
   struct ClassCreator_SearchPrototypeForThis<graphlab::pilot> : Opt_Bool<false> {};
-    
+
  /**
   * Required specialization so that the conversion API can derive
   * the native 'this' object from v8::Arguments::This() and from
@@ -177,11 +183,11 @@ namespace cvv8 {
   * contains v8-defined data types, e.g. a Handle<Object> referring
   * to itself then implementing NativeToJS is easy to do - just
   * return the handle held by the native.
-  *   
-  * In this example we're using the NativeToJSMap helper code to 
-  * plug in/unplug our bindings during native object 
-  * construction/destruction via the the ClassCreator's factory 
-  * policy (ClassCreator_Factory<graphlab::pilot>).        
+  *
+  * In this example we're using the NativeToJSMap helper code to
+  * plug in/unplug our bindings during native object
+  * construction/destruction via the the ClassCreator's factory
+  * policy (ClassCreator_Factory<graphlab::pilot>).
   * @internal
   */
   template <>
