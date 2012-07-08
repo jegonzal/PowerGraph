@@ -61,7 +61,7 @@ echo -e \
     '</configuration>\n' > /opt/hadoop-1.0.1/conf/mapred-site.xml
 cat /opt/hadoop-1.0.1/conf/mapred-site.xml
 mpiexec.openmpi -hostfile ~/machines -pernode \
-    scp $namenode:/opt/hadoop-1.0.1/conf/mpared-site.xml  /opt/hadoop-1.0.1/conf/mapred-site.xml
+    scp $namenode:/opt/hadoop-1.0.1/conf/mapred-site.xml  /opt/hadoop-1.0.1/conf/mapred-site.xml
 
 
 
