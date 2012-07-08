@@ -26,9 +26,12 @@ namespace graphlab {
   public:
     templates();
     virtual ~templates();
+    /** Pretend that vertex.data() is a property - getter */
     static v8::Handle<v8::Value> get_vertex_data(v8::Local<v8::String> property, const v8::AccessorInfo &info);
+    /** Pretend that vertex.data() is a property - setter */
     static void set_vertex_data(v8::Local<v8::String> property, v8::Local<v8::Value> value, const v8::AccessorInfo& info);
-    static v8::Handle<v8::Value> get_vertex_num_out_edges(v8::Local<v8::String> property, const v8::AccessorInfo &info);
+    /** vertex.num_out_edges */
+    static v8::Handle<v8::Value> get_vertex_num_out_edges(const v8::Arguments &argv);
   private:
     /** Adds an object template for vertex_type */
     void expose_vertex_type();
@@ -64,13 +67,6 @@ namespace cvv8 {
   };
 
   /**
-   * Not sure why I need this -> just falls back to NativeToJS<vertex_type>
-   * @internal
-   */
-  template<>
-  struct NativeToJS<const vertex_type &> : NativeToJS<vertex_type> {};
-
-  /**
    * Convenience functor for casting from edge to a JS wrapper.
    * Note that the edge must exist for the lifetime of the returned
    * handle.
@@ -97,6 +93,18 @@ namespace cvv8 {
     vertex_type operator()(const v8::Handle<v8::Value> &h) const;
   };
 
+  /**
+   * The default implementation casts the JS type to a pointer and uses that
+   * as a reference to the vertex object. That doesn't work for us because:
+   * - edge.source() returns by value, which is stored on the stack. I cannot
+   *   return this to the JS layer because the object might be used somewhere
+   *   else. Therefore, NativeToJS creates a new JS instance that holds the
+   *   graph ref and the local ID.
+   * - edge.signal() takes a vertex reference, which uses this functor to
+   *   cast it to a C++ object. The default implementation is incompatible w.
+   *   what I do in NativeToJS<vertex_type>.
+   * @internal
+   */
   template <>
   struct JSToNative<const vertex_type &> :
     JSToNative<vertex_type> {
@@ -127,17 +135,19 @@ namespace cvv8 {
   struct JSToNative<graph_type> :
     JSToNative_ObjectWithInternalFields<graph_type>{};
 
-  /** Converts js object to graph using pointer stored in
-   * its internal field. TODO: this is broken */
-  template <>
-  struct JSToNative<message_type> :
-    JSToNative_ObjectWithInternalFields<message_type>{};
+  // TODO: handle more generic messages
 
   /** Special case for graphlab::empty */
   template <>
-  struct JSToNative<const graphlab::empty &> {
+  struct JSToNative<graphlab::empty> {
+    graphlab::empty operator()(const v8::Handle<v8::Value> &h) const;
+  };
+
+  /** Special case for graphlab::empty */
+  template <>
+  struct JSToNative<const graphlab::empty &> :
+    JSToNative<graphlab::empty> {
     typedef graphlab::empty ResultType;
-    ResultType operator()(const v8::Handle<v8::Value> &h) const;
   };
 
 };

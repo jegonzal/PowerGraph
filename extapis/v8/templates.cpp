@@ -15,22 +15,14 @@ templates::templates(){
 
 void templates::expose_vertex_type(){
 
-  // TODO: refactor to use invocations
-
   vertex_templ = Persistent<ObjectTemplate>::New(ObjectTemplate::New());
-
   vertex_templ->SetInternalFieldCount(2); // see JSToNative<vertex_type>
+
+  // bind vertex.data() as a JS property
   vertex_templ->SetAccessor(JSTR("data"), templates::get_vertex_data, templates::set_vertex_data);
-  vertex_templ->SetAccessor(JSTR("num_out_edges"), templates::get_vertex_num_out_edges);
 
-  /* vertex_templ->Set(JSTR("num_out_edges"), FunctionTemplate::New(
-    cv::ConstMethodToInCa<
-      cv::vertex_type,
-      size_t (),
-      &cv::vertex_type::num_out_edges
-    >::Call
-  ));*/
-
+  // bind vertex.num_out_edges as JS member function
+  vertex_templ->Set(JSTR("numOutEdges"), FunctionTemplate::New(templates::get_vertex_num_out_edges));
 
 }
 
@@ -70,7 +62,7 @@ void templates::expose_context_type(){
       cv::context_type,
       void (
         const cv::context_type::vertex_type&,
-        const cv::message_type &message
+        const cv::message_type&
       ),
       &cv::context_type::signal
     >::Call
@@ -96,10 +88,10 @@ void templates::set_vertex_data(Local<String> property, Local<Value> value, cons
   cv::JSToNative<cv::vertex_type>()(h).data() = cv::CastFromJS<pilot::vertex_data_type>(value);
 }
 
-Handle<Value> templates::get_vertex_num_out_edges(Local<String> property, const AccessorInfo &info){
+Handle<Value> templates::get_vertex_num_out_edges(const Arguments &argv){
   HandleScope handle_scope;
-  const Handle<Value> &h = info.Holder();
-  const cv::vertex_type &vertex = cv::CastFromJS<const cv::vertex_type &>(h);
+  // cannot use CastFromJS here because there vertex_type casting is unconventional
+  const cv::vertex_type vertex = cv::JSToNative<cv::vertex_type>()(argv.This());
   return handle_scope.Close(cv::CastToJS(vertex.num_out_edges()));
 }
 
@@ -135,7 +127,7 @@ namespace cvv8 {
     return cv::vertex_type(*graph, lvid);
   }
 
-  graphlab::empty JSToNative<const graphlab::empty &>::operator()(const Handle<Value> &h) const {
+  graphlab::empty JSToNative<graphlab::empty>::operator()(const Handle<Value> &h) const {
     return graphlab::empty();
   }
 
