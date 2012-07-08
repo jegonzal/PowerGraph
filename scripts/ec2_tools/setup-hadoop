@@ -112,8 +112,8 @@ mpiexec.openmpi -hostfile ~/machines -pernode \
     sudo mkdir /mnt/hadoop/mapred
 mpiexec.openmpi -hostfile ~/machines -pernode \
     sudo mkdir /mnt/hadoop/tmp
-mpiexec.openmpi -hostfile ~/machines -pernode \
-    sudo mkdir /mnt/hadoop/nn
+# mpiexec.openmpi -hostfile ~/machines -pernode \
+#     sudo mkdir /mnt/hadoop/nn
 mpiexec.openmpi -hostfile ~/machines -pernode \
     sudo chown -R ubuntu:users /mnt/hadoop/
 
