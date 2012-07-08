@@ -49,6 +49,7 @@
 #include <functional>
 #include <fstream>
 
+#include <boost/version.hpp>
 #include <boost/bind.hpp>
 #include <boost/unordered_set.hpp>
 #include <boost/iterator.hpp>
@@ -218,12 +219,19 @@ namespace graphlab {
         //  ASSERT_TRUE(!empty);
         return make_value();
       }
-
+#if BOOST_VERSION < 105000
       typedef boost::detail::
       operator_arrow_result<edge_type, edge_type, edge_type*> arrow_type;
       inline typename arrow_type::type operator->() const {
         return arrow_type::make(make_value());
       }
+#else
+      typedef typename boost::detail::
+      operator_arrow_dispatch<edge_type, edge_type*>::result_type arrow_type;
+      inline arrow_type operator->() const {
+        return arrow_type(make_value());
+      }
+#endif
 
       /** \brief Returns if two iterators point to the same edge. */
       inline bool operator==(const edge_iterator& it) const {
