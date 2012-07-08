@@ -9,17 +9,18 @@ var PageRank = (function(){
     var last_change = 0.0;
 
     this.gather = function(vertex, edge){
-      return ((1.0 - RESET_PROB) / edge.source.num_out_edges) * edge.source.data;
+      return ((1.0 - RESET_PROB) / edge.source().numOutEdges()) * edge.source().data;
     };
 
     this.apply = function(vertex, total){
       var newval = total + RESET_PROB;
       last_change = Math.abs(newval - vertex.data);
       vertex.data = newval;
+      print(newval);
     };
 
     this.scatter = function(context, vertex, edge){
-      context.signal(edge.target);
+      context.signal(edge.target());
     };
 
     this.scatter_edges = function(vertex){
