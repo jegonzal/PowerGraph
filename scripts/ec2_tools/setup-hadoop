@@ -51,7 +51,7 @@ echo -e \
     '    <value>32</value> \n' \
     '  </property> \n' \
     '  <property> \n' \
-    '    <name>mapred.reduce.tasks/name>\n' \
+    '    <name>mapred.reduce.tasks</name>\n' \
     '    <value>4</value> \n' \
     '  </property> \n' \
     '  <property> \n' \
