@@ -5,33 +5,66 @@ using namespace v8;
 using namespace graphlab;
 
 namespace cv = cvv8;
- 
+
 templates::templates(){
   HandleScope handle_scope;
   expose_vertex_type();
   expose_edge_type();
   expose_context_type();
 }
-    
-void templates::expose_vertex_type(){ 
+
+void templates::expose_vertex_type(){
+
+  // TODO: refactor to use invocations
+
   vertex_templ = Persistent<ObjectTemplate>::New(ObjectTemplate::New());
-  vertex_templ->SetInternalFieldCount(2);
+
+  vertex_templ->SetInternalFieldCount(2); // see JSToNative<vertex_type>
   vertex_templ->SetAccessor(JSTR("data"), templates::get_vertex_data, templates::set_vertex_data);
   vertex_templ->SetAccessor(JSTR("num_out_edges"), templates::get_vertex_num_out_edges);
-  vertex_templ->SetAccessor(JSTR("id"), templates::get_vertex_id);
-  // TODO add other getters
+
+  /* vertex_templ->Set(JSTR("num_out_edges"), FunctionTemplate::New(
+    cv::ConstMethodToInCa<
+      cv::vertex_type,
+      size_t (),
+      &cv::vertex_type::num_out_edges
+    >::Call
+  ));*/
+
+
 }
 
 void templates::expose_edge_type(){
+
   edge_templ = Persistent<ObjectTemplate>::New(ObjectTemplate::New());
   edge_templ->SetInternalFieldCount(1);
-  edge_templ->SetAccessor(JSTR("source"), templates::get_edge_source);
-  edge_templ->SetAccessor(JSTR("target"), templates::get_edge_target);
+
+  // bind source() method
+  edge_templ->Set(JSTR("source"), FunctionTemplate::New(
+    cv::ConstMethodToInCa<
+      cv::edge_type,
+      cv::vertex_type (),
+      &cv::edge_type::source
+    >::Call
+  ));
+
+  // bind target() method
+  edge_templ->Set(JSTR("target"), FunctionTemplate::New(
+    cv::ConstMethodToInCa<
+      cv::edge_type,
+      cv::vertex_type (),
+      &cv::edge_type::target
+    >::Call
+  ));
+
 }
 
 void templates::expose_context_type(){
+
   context_templ = Persistent<ObjectTemplate>::New(ObjectTemplate::New());
   context_templ->SetInternalFieldCount(1);
+
+  // bind signal() method
   context_templ->Set(JSTR("signal"), FunctionTemplate::New(
     cv::MethodToInCaVoid<
       cv::context_type,
@@ -42,6 +75,14 @@ void templates::expose_context_type(){
       &cv::context_type::signal
     >::Call
   ));
+
+}
+
+templates::~templates(){
+  // dispose persistent handles
+  vertex_templ.Dispose();
+  edge_templ.Dispose();
+  context_templ.Dispose();
 }
 
 Handle<Value> templates::get_vertex_data(Local<String> property, const AccessorInfo &info) {
@@ -62,37 +103,11 @@ Handle<Value> templates::get_vertex_num_out_edges(Local<String> property, const 
   return handle_scope.Close(cv::CastToJS(vertex.num_out_edges()));
 }
 
-Handle<Value> templates::get_vertex_id(Local<String> property, const AccessorInfo &info){
-  HandleScope handle_scope;
-  const Handle<Value> &h = info.Holder();
-  const cv::vertex_type &vertex = cv::CastFromJS<const cv::vertex_type &>(h);
-  return handle_scope.Close(cv::CastToJS(vertex.id()));
-}
-
-// TODO: convert to method invocation
-Handle<Value> templates::get_edge_source(Local<String> property, const AccessorInfo &info){
-  HandleScope handle_scope;
-  Local<Object> self = info.Holder();
-  Local<External> wrap = Local<External>::Cast(self->GetInternalField(0));
-  void *ptr = wrap->Value();
-  cv::vertex_type vertex = static_cast<cv::edge_type*>(ptr)->source();
-  return handle_scope.Close(cv::CastToJS(vertex));
-}
-
-// TODO: convert to method invocation
-Handle<Value> templates::get_edge_target(Local<String> property, const AccessorInfo &info){
-  HandleScope handle_scope;
-  Local<Object> self = info.Holder();
-  Local<External> wrap = Local<External>::Cast(self->GetInternalField(0));
-  void *ptr = wrap->Value();
-  cv::vertex_type vertex = static_cast<cv::edge_type*>(ptr)->target();
-  return handle_scope.Close(cv::CastToJS(vertex));
-}
-
 namespace cvv8 {
 
-  // cannot use CVV8TypeName_IMPL because context_type is abstract
-  const char *TypeName<context_type>::Value = "context_type";
+  CVV8_TypeName_IMPL((vertex_type), "vertex");
+  CVV8_TypeName_IMPL((edge_type), "edge");
+  CVV8_TypeName_IMPL((context_type), "context");
 
   Handle<Value> NativeToJS<vertex_type>::operator()(const vertex_type &vertex){
     Local<Object> v = pilot::get_templates().vertex_templ->NewInstance();
@@ -122,6 +137,6 @@ namespace cvv8 {
 
   graphlab::empty JSToNative<const graphlab::empty &>::operator()(const Handle<Value> &h) const {
     return graphlab::empty();
-  } 
+  }
 
 };
