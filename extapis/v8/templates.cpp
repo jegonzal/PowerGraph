@@ -24,6 +24,9 @@ void templates::expose_vertex_type(){
   // bind vertex.num_out_edges as JS member function
   vertex_templ->Set(JSTR("numOutEdges"), FunctionTemplate::New(templates::get_vertex_num_out_edges));
 
+  // bind vertex.id as JS member function
+  vertex_templ->Set(JSTR("id"), FunctionTemplate::New(templates::get_vertex_id));
+
 }
 
 void templates::expose_edge_type(){
@@ -95,6 +98,12 @@ Handle<Value> templates::get_vertex_num_out_edges(const Arguments &argv){
   return handle_scope.Close(cv::CastToJS(vertex.num_out_edges()));
 }
 
+Handle<Value> templates::get_vertex_id(const Arguments &argv){
+  HandleScope handle_scope;
+  const cv::vertex_type vertex = cv::JSToNative<cv::vertex_type>()(argv.This());
+  return handle_scope.Close(cv::CastToJS(vertex.id()));
+}
+
 namespace cvv8 {
 
   CVV8_TypeName_IMPL((vertex_type), "vertex");
@@ -120,11 +129,19 @@ namespace cvv8 {
     return c;
   }
 
+  Handle<Value> NativeToJS<edge_dir_type>::operator()(const edge_dir_type &edge_dir){
+    return CastToJS(static_cast<int32_t>(edge_dir));
+  }
+
   vertex_type JSToNative<vertex_type>::operator()(const Handle<Value> &h) const {
     const Local<Object> &obj(Object::Cast(*h));
     graph_type *graph = (graph_type *) obj->GetPointerFromInternalField(0);
     graph_type::lvid_type lvid = CastFromJS<graph_type::lvid_type>(obj->GetInternalField(1));
     return cv::vertex_type(*graph, lvid);
+  }
+
+  edge_dir_type JSToNative<edge_dir_type>::operator()(const Handle<Value> &h) const {
+    return static_cast<edge_dir_type>(CastFromJS<int32_t>(h));
   }
 
   graphlab::empty JSToNative<graphlab::empty>::operator()(const Handle<Value> &h) const {

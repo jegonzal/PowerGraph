@@ -20,7 +20,6 @@ static int v8_main(const std::string& script){
   HandleScope scope;
   pilot::setup_bindings(shell.Global());
 
-  std::cout << "pre-setup bindings" << std::endl;
   if (script.empty()){
     // if no script provided, read from STDIN
     shell.ExecuteStream(std::cin, "standard in");

@@ -32,6 +32,8 @@ namespace graphlab {
     static void set_vertex_data(v8::Local<v8::String> property, v8::Local<v8::Value> value, const v8::AccessorInfo& info);
     /** vertex.num_out_edges */
     static v8::Handle<v8::Value> get_vertex_num_out_edges(const v8::Arguments &argv);
+    /** vertex.id */
+    static v8::Handle<v8::Value> get_vertex_id(const v8::Arguments &argv);
   private:
     /** Adds an object template for vertex_type */
     void expose_vertex_type();
@@ -88,6 +90,15 @@ namespace cvv8 {
     v8::Handle<v8::Value> operator()(const context_type &context);
   };
 
+  /**
+   * Convenience wrapper for casting from edge_dir_type to uint32_t.
+   * @internal
+   */
+  template<>
+  struct NativeToJS<graphlab::edge_dir_type> {
+    v8::Handle<v8::Value> operator()(const graphlab::edge_dir_type &edge_dir);
+  };
+
   template <>
   struct JSToNative<vertex_type> {
     vertex_type operator()(const v8::Handle<v8::Value> &h) const;
@@ -134,6 +145,14 @@ namespace cvv8 {
   template <>
   struct JSToNative<graph_type> :
     JSToNative_ObjectWithInternalFields<graph_type>{};
+
+  /**
+   * Casts from int32_t to edge_dir_type
+   */
+  template <>
+  struct JSToNative<graphlab::edge_dir_type> {
+    graphlab::edge_dir_type operator()(const v8::Handle<v8::Value> &h) const;
+  };
 
   // TODO: handle more generic messages
 

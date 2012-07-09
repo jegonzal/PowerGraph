@@ -10,7 +10,7 @@ namespace graphlab {
 
   // TODO: refactor graph operations to another graph object
   /**
-   * Script driver (exposed javascript interface.)
+   * Script driver.
    *
    * Example:
    *    var x = new pilot();
@@ -63,6 +63,14 @@ namespace graphlab {
     void transform_vertices(const v8::Handle<v8::Function> &function);
 
     /**
+     * Saves the graph to disk - see distributed_graph::save
+     */
+    void save_graph (const std::string &prefix,
+                     const v8::Handle<v8::Function> &vwriter,
+                     const v8::Handle<v8::Function> &ewriter,
+                     bool gzip=true, bool save_vertex=true, bool save_edge=true);
+
+    /**
      * Adds a JS binding of the class to the given object. Throws
      * a native exception on error.
      * @param dest      v8 global object to bind to
@@ -92,7 +100,6 @@ namespace graphlab {
   public ivertex_program<pilot::graph_type, pilot::gather_type>,
   public IS_POD_TYPE {
 
-    double last_change;
     v8::Persistent<v8::Object> jsobj;
 
   public:
@@ -126,6 +133,21 @@ namespace graphlab {
     // not really a functor
     static void set_function(const v8::Handle<v8::Function>& func);
     static void invoke(pilot::graph_type::vertex_type& vertex);
+  };
+
+  /**
+   * Wrapper for JS writer.
+   */
+  struct js_writer {
+  private:
+    v8::Persistent<v8::Function> vertex_writer;
+    v8::Persistent<v8::Function> edge_writer;
+  public:
+    js_writer (const v8::Handle<v8::Function> &vwriter,
+               const v8::Handle<v8::Function> &ewriter);
+    ~js_writer();
+    std::string save_vertex(pilot::graph_type::vertex_type v);
+    std::string save_edge(pilot::graph_type::edge_type e);
   };
 
 };

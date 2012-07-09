@@ -1,6 +1,4 @@
 const RESET_PROB = 0.15;
-const OUT_EDGES = 2;
-const NO_EDGES = 0;
 
 var PageRank = (function(){
 
@@ -16,7 +14,6 @@ var PageRank = (function(){
       var newval = total + RESET_PROB;
       last_change = Math.abs(newval - vertex.data);
       vertex.data = newval;
-      print(newval);
     };
 
     this.scatter = function(context, vertex, edge){
@@ -36,7 +33,12 @@ var PageRank = (function(){
 
 
 var s = new pilot();
-s.loadSyntheticPowerlaw(1000);
+s.loadGraph("../../../demoapps/pagerank/matlab_tools/random_graph.tsv", "tsv");
 s.transformVertices(function(v){ v.data = 1.0; });
 s.fly(PageRank);
+s.saveGraph("out.tsv",
+  function(v){
+    return v.id() + "\t" + v.data + "\n";
+  },
+  null, false, true, false);
 s.destroy();
