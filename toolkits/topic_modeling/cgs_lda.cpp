@@ -64,7 +64,7 @@ typedef int count_type;
  * vertex data at the same time.  The graphlab::atomic type ensures
  * that multiple increments are serially consistent.
  */
-typedef std::vector< graphlab::atomic<count_type> > factor_type;
+typedef std::vector<count_type> factor_type;
 
 
 /**
@@ -562,7 +562,7 @@ public:
     ASSERT_EQ(doc_topic_count.size(), NTOPICS);
     ASSERT_EQ(word_topic_count.size(), NTOPICS);
     // run the actual gibbs sampling
-    std::vector<double> prob(NTOPICS);
+    std::vector<float> prob(NTOPICS);
     assignment_type& assignment = edge.data().assignment;
     edge.data().nchanges = 0;
     foreach(topic_id_type& asg, assignment) {
@@ -572,6 +572,7 @@ public:
         --word_topic_count[asg];
         --GLOBAL_TOPIC_COUNT[asg];
       }
+
       for(size_t t = 0; t < NTOPICS; ++t) {
         const double n_dt =
           std::max(count_type(doc_topic_count[t]), count_type(0));
@@ -579,9 +580,10 @@ public:
           std::max(count_type(word_topic_count[t]), count_type(0));
         const double n_t  =
           std::max(count_type(GLOBAL_TOPIC_COUNT[t]), count_type(0));
-        prob[t] = (ALPHA + n_dt) * (BETA + n_wt) / (BETA * NWORDS + n_t);
+        prob[t] = (t>0?prob[t-1]:0.0) + ((ALPHA + n_dt) * (BETA + n_wt) / (BETA * NWORDS + n_t));
       }
-      asg = graphlab::random::multinomial(prob);
+      float f = graphlab::random::uniform<float>(0,prob[NTOPICS - 1]);
+      asg = std::upper_bound(prob.begin(), prob.end(), f) - prob.begin(); 
       // asg = std::max_element(prob.begin(), prob.end()) - prob.begin();
       ++doc_topic_count[asg];
       ++word_topic_count[asg];
