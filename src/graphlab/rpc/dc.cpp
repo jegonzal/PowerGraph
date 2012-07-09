@@ -507,9 +507,20 @@ void distributed_control::init(const std::vector<std::string> &machines,
   // construct the services
   distributed_services = new dc_services(*this);
   // start the machines
+
+  // improves reliability of initialization
+#ifdef HAS_MPI
+  MPI_Barrier(MPI_COMM_WORLD);
+#endif
+
   comm->init(machines, options, curmachineid, 
               receivers, senders);
   std::cerr << "TCP Communication layer constructed." << std::endl;
+
+  // improves reliability of initialization
+#ifdef HAS_MPI
+  MPI_Barrier(MPI_COMM_WORLD);
+#endif
   barrier();
   // initialize the empty stream
   nullstrm.open(boost::iostreams::null_sink());

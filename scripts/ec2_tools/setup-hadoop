@@ -21,9 +21,9 @@ echo -e \
     '    <value>hdfs://'$namenode'/</value>\n'\
     '  </property>\n'\
     ' <property>\n'\
-    '    <name>hadoop.tmp.dir</name>\n'
+    '    <name>hadoop.tmp.dir</name>\n'\
     '    <value>/mnt/hadoop/tmp</value>\n'\
-    ' </property>\n'\ 
+    ' </property>\n'\
     '</configuration>\n' > /opt/hadoop-1.0.1/conf/core-site.xml
 cat /opt/hadoop-1.0.1/conf/core-site.xml
 mpiexec.openmpi -hostfile ~/machines -pernode \
