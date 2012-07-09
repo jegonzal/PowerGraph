@@ -244,10 +244,29 @@ struct vertex_data {
   factor_type factor;
   vertex_data() : nupdates(0), nchanges(0), factor(NTOPICS) { }
   void save(graphlab::oarchive& arc) const {
-    arc << nupdates << nchanges << factor;
+
+    arc << nupdates << nchanges; 
+    uint16_t ni = 0;
+    for (size_t i = 0;i < factor.size(); ++i) {
+      ni += (factor[i] > 0);
+    }
+    arc << ni;
+    for (size_t i = 0;i < factor.size(); ++i) {
+      if (factor[i] > 0) {
+        arc << uint16_t(i) << factor[i];
+      }
+    }
   }
   void load(graphlab::iarchive& arc) {
-    arc >> nupdates >> nchanges >> factor;
+    arc >> nupdates >> nchanges;
+    for (size_t i = 0;i < factor.size(); ++i) factor[i] = 0;
+    uint16_t ni;
+    arc >> ni; 
+    for (size_t i = 0;i < factor.size(); ++i) {
+      uint16_t u; arc >> u;
+      arc >> factor[u];
+    }
+
   }
 }; // end of vertex_data
 
