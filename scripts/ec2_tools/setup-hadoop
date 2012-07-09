@@ -20,29 +20,110 @@ echo -e \
     '    <name>fs.default.name</name>\n'\
     '    <value>hdfs://'$namenode'/</value>\n'\
     '  </property>\n'\
+    ' <property>\n'\
+    '    <name>hadoop.tmp.dir</name>\n'
+    '    <value>/mnt/hadoop/tmp</value>\n'\
+    ' </property>\n'\ 
     '</configuration>\n' > /opt/hadoop-1.0.1/conf/core-site.xml
-
-
-
+cat /opt/hadoop-1.0.1/conf/core-site.xml
 mpiexec.openmpi -hostfile ~/machines -pernode \
     scp $namenode:/opt/hadoop-1.0.1/conf/core-site.xml  /opt/hadoop-1.0.1/conf/core-site.xml
 
-cat /opt/hadoop-1.0.1/conf/core-site.xml
+
+echo -e \
+    '<?xml version="1.0"?>\n' \
+    '<?xml-stylesheet type="text/xsl" href="configuration.xsl"?>\n' \
+    '<configuration>\n' \
+    '  <property>\n' \
+    '    <name>mapred.job.tracker</name>\n' \
+    '    <value>'$namenode:19001'</value>\n' \
+    '  </property>\n' \
+    '  <property>\n' \
+    '    <name>mapred.local.dir</name>\n' \
+    '    <value>/mnt/hadoop/mapred</value>\n' \
+    '  </property>\n' \
+    '  <property> \n' \
+    '    <name>mapred.tasktracker.map.tasks.maximum</name>\n' \
+    '    <value>32</value> \n' \
+    '  </property> \n' \
+    '  <property> \n' \
+    '    <name>mapred.tasktracker.reduce.tasks.maximum</name>\n' \
+    '    <value>32</value> \n' \
+    '  </property> \n' \
+    '  <property> \n' \
+    '    <name>mapred.reduce.tasks</name>\n' \
+    '    <value>4</value> \n' \
+    '  </property> \n' \
+    '  <property> \n' \
+    '    <name>mapred.child.java.opts</name>\n' \
+    '    <value>-Xmx1500m</value> \n' \
+    '  </property> \n' \
+    '</configuration>\n' > /opt/hadoop-1.0.1/conf/mapred-site.xml
+cat /opt/hadoop-1.0.1/conf/mapred-site.xml
+mpiexec.openmpi -hostfile ~/machines -pernode \
+    scp $namenode:/opt/hadoop-1.0.1/conf/mapred-site.xml  /opt/hadoop-1.0.1/conf/mapred-site.xml
+
+
+
+echo -e \
+    '<?xml version="1.0"?>\n' \
+    '<?xml-stylesheet type="text/xsl" href="configuration.xsl"?>\n' \
+    '<configuration>\n' \
+    '  <property>\n' \
+    '    <name>dfs.name.dir</name>\n' \
+    '    <value>/mnt/hadoop/nn</value>\n' \
+    '  </property>\n' \
+    '  <property>\n' \
+    '    <name>dfs.data.dir</name>\n' \
+    '    <value>/mnt/hadoop/hdfs</value>\n' \
+    '  </property>\n' \
+    '  <property> \n' \
+    '    <name>dfs.replication</name>\n' \
+    '    <value>3</value> \n' \
+    '  </property> \n' \
+    '</configuration>\n' > /opt/hadoop-1.0.1/conf/hdfs-site.xml
+cat /opt/hadoop-1.0.1/conf/hdfs-site.xml
+mpiexec.openmpi -hostfile ~/machines -pernode \
+    scp $namenode:/opt/hadoop-1.0.1/conf/hdfs-site.xml  /opt/hadoop-1.0.1/conf/hdfs-site.xml
+
+
+echo $namenode > /opt/hadoop-1.0.1/conf/masters
+mpiexec.openmpi -hostfile ~/machines -pernode \
+    scp $namenode:/opt/hadoop-1.0.1/conf/masters  /opt/hadoop-1.0.1/conf/masters
+
+
+
 
 echo "Creating data directories in /mnt"
 echo "   /mnt/tmp    "
 echo "   /mnt/hadoop "
-# mpiexec.openmpi -hostfile ~/machines -pernode ~/bin/setup-mnt.sh
+
+
 mpiexec.openmpi -hostfile ~/machines -pernode \
-    sudo rm -rf /mnt/hadoop_data 
+    sudo rm -rf /mnt/hadoop/hdfs
+mpiexec.openmpi -hostfile ~/machines -pernode \
+    sudo rm -rf /mnt/hadoop/nn
+
+mpiexec.openmpi -hostfile ~/machines -pernode \
+    sudo mkdir /mnt/hadoop/
+mpiexec.openmpi -hostfile ~/machines -pernode \
+    sudo mkdir /mnt/hadoop/hdfs
+mpiexec.openmpi -hostfile ~/machines -pernode \
+    sudo mkdir /mnt/hadoop/mapred
+mpiexec.openmpi -hostfile ~/machines -pernode \
+    sudo mkdir /mnt/hadoop/tmp
+# mpiexec.openmpi -hostfile ~/machines -pernode \
+#     sudo mkdir /mnt/hadoop/nn
+mpiexec.openmpi -hostfile ~/machines -pernode \
+    sudo chown -R ubuntu:users /mnt/hadoop/
+
+
+ 
 mpiexec.openmpi -hostfile ~/machines -pernode \
     sudo mkdir /mnt/tmp
 mpiexec.openmpi -hostfile ~/machines -pernode \
-    sudo mkdir /mnt/hadoop_data
-mpiexec.openmpi -hostfile ~/machines -pernode \
     sudo chown -R ubuntu:users /mnt/tmp
-mpiexec.openmpi -hostfile ~/machines -pernode \
-    sudo chown -R ubuntu:users /mnt/hadoop_data
+
 
 
 hadoop namenode -format
@@ -50,3 +131,7 @@ hadoop namenode -format
 
 echo "Starting the dfs:"
 start-dfs.sh
+echo "Starting map reduce:"
+start-mapred.sh
+
+

@@ -42,8 +42,17 @@ namespace graphlab {
 
 
 static mg_context* metric_context = NULL;
-rwlock callback_lock;
-static std::map<std::string, http_redirect_callback_type> callbacks;
+
+static rwlock& callback_lock() {
+  static rwlock clock;
+  return clock;
+}
+
+
+static std::map<std::string, http_redirect_callback_type>& callbacks() {
+  static std::map<std::string, http_redirect_callback_type> cback;
+  return cback;
+}
 
 
 
@@ -78,15 +87,15 @@ static void* process_request(enum mg_event event,
         }
       }
     }
-    callback_lock.readlock();
+    callback_lock().readlock();
     // now redirect to the callback handlers. if we find one
     std::map<std::string, http_redirect_callback_type>::iterator iter = 
-                                                       callbacks.find(url);
+                                                       callbacks().find(url);
 
-    if (iter != callbacks.end()) {
+    if (iter != callbacks().end()) {
       std::pair<std::string, std::string> returnval = iter->second(variable_map);
 
-      callback_lock.rdunlock();
+      callback_lock().rdunlock();
 
       std::string ctype = returnval.first;
       std::string body = returnval.second;
@@ -102,11 +111,11 @@ static void* process_request(enum mg_event event,
     }
     else {
       std::map<std::string, http_redirect_callback_type>::iterator iter404 =
-                                                          callbacks.find("404");
+                                                          callbacks().find("404");
       std::pair<std::string, std::string> returnval;
-      if (iter404 != callbacks.end()) returnval = iter404->second(variable_map);
+      if (iter404 != callbacks().end()) returnval = iter404->second(variable_map);
       
-      callback_lock.rdunlock();
+      callback_lock().rdunlock();
 
       std::string ctype = returnval.first;
       std::string body = returnval.second;
@@ -161,17 +170,17 @@ index_page(std::map<std::string, std::string>& varmap) {
   std::stringstream ret;
   ret << "<html>\n";
   ret << "<h3>Registered Handlers:</h3>\n";
-  callback_lock.readlock();
+  callback_lock().readlock();
   std::map<std::string, http_redirect_callback_type>::const_iterator iter = 
-                            callbacks.begin();
-  while (iter != callbacks.end()) {
+                            callbacks().begin();
+  while (iter != callbacks().end()) {
     // don't put in the index page callback
     if (iter->first != "") {
       ret << iter->first << "<br>\n";
     }
     ++iter;
   }
-  callback_lock.rdunlock();
+  callback_lock().rdunlock();
   ret << "</html>\n";
   ret.flush();
   return std::make_pair(std::string("text/html"), ret.str());
@@ -179,24 +188,24 @@ index_page(std::map<std::string, std::string>& varmap) {
 
 
 static void fill_builtin_callbacks() {
-  callbacks["404"] = four_oh_four;
-  callbacks["echo"] = echo;
-  callbacks[""] = index_page;
-  callbacks["index.html"] = index_page;
+  callbacks()["404"] = four_oh_four;
+  callbacks()["echo"] = echo;
+  callbacks()[""] = index_page;
+  callbacks()["index.html"] = index_page;
 }
 
 
 void add_metric_server_callback(std::string page, 
                                 http_redirect_callback_type callback) {
-  callback_lock.writelock();
-  callbacks[page] = callback;
-  callback_lock.wrunlock();
+  callback_lock().writelock();
+  callbacks()[page] = callback;
+  callback_lock().wrunlock();
 }
 
 void launch_metric_server() {
   if (dc_impl::get_last_dc_procid() == 0) {
     const char *options[] = {"listening_ports", "8090", NULL};
-    metric_context = mg_start(process_request, (void*)(&callbacks), options);
+    metric_context = mg_start(process_request, (void*)(&(callbacks())), options);
     if(metric_context == NULL) {
       logstream(LOG_ERROR) << "Unable to launch metrics server on port 8090. "
                            << "Metrics server will not be available" << std::endl;
