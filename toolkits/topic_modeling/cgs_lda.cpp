@@ -449,6 +449,7 @@ struct gather_type {
   }
   void load(graphlab::iarchive& arc) { 
     arc >> nchanges;
+    factor.resize(NTOPICS);
     for (size_t i = 0;i < factor.size(); ++i) factor[i] = 0;
     uint16_t ni;
     arc >> ni; 
