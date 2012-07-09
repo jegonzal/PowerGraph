@@ -183,6 +183,9 @@ size_t MAX_COUNT = 100;
  */
 float BURNIN = -1;
 
+
+double MIMNO_S;
+
 /**
  * \brief The json top word struct contains the current set of top
  * words for each topic encoded in the form of a json string.
@@ -242,10 +245,12 @@ struct vertex_data {
   uint32_t nchanges;
   ///! The count of tokens in each topic
   factor_type factor;
-  vertex_data() : nupdates(0), nchanges(0), factor(NTOPICS) { }
+  double MIMNO_R;
+
+  vertex_data() : nupdates(0), nchanges(0), factor(NTOPICS),MIMNO_R(0) { }
   void save(graphlab::oarchive& arc) const {
 
-    arc << nupdates << nchanges; 
+    arc << nupdates << nchanges << MIMNO_R; 
     uint16_t ni = 0;
     for (size_t i = 0;i < factor.size(); ++i) {
       ni += (factor[i] > 0);
@@ -258,7 +263,7 @@ struct vertex_data {
     }
   }
   void load(graphlab::iarchive& arc) {
-    arc >> nupdates >> nchanges;
+    arc >> nupdates >> nchanges >> MIMNO_R;
     for (size_t i = 0;i < factor.size(); ++i) factor[i] = 0;
     uint16_t ni;
     arc >> ni; 
@@ -524,6 +529,13 @@ public:
     vdata.nupdates++;
     vdata.nchanges = sum.nchanges;
     vdata.factor = sum.factor;
+    if (is_doc(vertex)) {
+      double MIMNO_R = 0.0;
+      for (size_t i = 0;i < vdata.factor.size(); ++i) {
+        MIMNO_R += vdata.factor[i] * BETA / (BETA * NWORDS + GLOBAL_TOPIC_COUNT[i]);
+      }
+      vdata.MIMNO_R = MIMNO_R;
+    }
   } // end of apply
 
 
@@ -561,6 +573,20 @@ public:
       edge.source().data().factor : edge.target().data().factor;
     ASSERT_EQ(doc_topic_count.size(), NTOPICS);
     ASSERT_EQ(word_topic_count.size(), NTOPICS);
+    double MIMNO_R = is_doc(edge.source()) ? edge.source().data().MIMNO_R :
+                      edge.target().data().MIMNO_R;
+    double MIMNO_Q = 0.0;
+
+    std::vector<double> MIMNO_Q_CACHE(NTOPICS);
+    for (size_t t = 0; t < NTOPICS; ++t) {
+      const double n_dt =
+          std::max(count_type(doc_topic_count[t]), count_type(0));
+      const double n_t  =
+        std::max(count_type(GLOBAL_TOPIC_COUNT[t]), count_type(0));
+     MIMNO_Q_CACHE[t] = (ALPHA + n_dt)/(BETA * NWORDS + n_t); 
+     MIMNO_Q += MIMNO_Q_CACHE[t];
+    }
+
     // run the actual gibbs sampling
     std::vector<float> prob(NTOPICS);
     assignment_type& assignment = edge.data().assignment;
@@ -571,23 +597,59 @@ public:
         --doc_topic_count[asg];
         --word_topic_count[asg];
         --GLOBAL_TOPIC_COUNT[asg];
+        MIMNO_Q -= MIMNO_Q_CACHE[asg];
+        MIMNO_Q_CACHE[asg] = (ALPHA + doc_topic_count[asg])/(BETA * NWORDS + GLOBAL_TOPIC_COUNT[asg]);
+        MIMNO_Q += MIMNO_Q_CACHE[asg]; 
       }
 
-      for(size_t t = 0; t < NTOPICS; ++t) {
-        const double n_dt =
-          std::max(count_type(doc_topic_count[t]), count_type(0));
-        const double n_wt =
-          std::max(count_type(word_topic_count[t]), count_type(0));
-        const double n_t  =
-          std::max(count_type(GLOBAL_TOPIC_COUNT[t]), count_type(0));
-        prob[t] = (t>0?prob[t-1]:0.0) + ((ALPHA + n_dt) * (BETA + n_wt) / (BETA * NWORDS + n_t));
+      
+      double f = graphlab::random::uniform<float>(0, MIMNO_S + MIMNO_R + MIMNO_Q);
+
+      if (f < MIMNO_S) {
+        double ctr = 0;
+        
+        for (size_t t = 0; t < NTOPICS; ++t) {
+          ctr += ALPHA * BETA / (BETA * NWORDS + GLOBAL_TOPIC_COUNT[t]);
+          if (ctr >= f) {
+            asg = t;
+            break;
+          }
+        }
       }
-      float f = graphlab::random::uniform<float>(0,prob[NTOPICS - 1]);
-      asg = std::upper_bound(prob.begin(), prob.end(), f) - prob.begin(); 
+      else if (f < MIMNO_S + MIMNO_R) {
+        double ctr = 0;
+        f = f - MIMNO_S;
+        for(size_t t = 0; t < NTOPICS; ++t) {
+          if (doc_topic_count[t] > 0) {
+            ctr += doc_topic_count[t] * BETA / (BETA * NWORDS + GLOBAL_TOPIC_COUNT[t]);
+            if (ctr >= f) {
+              asg = t;
+              break;
+            }
+          }
+        }
+      }
+      else {
+        f = f - MIMNO_S - MIMNO_R;
+        double ctr = 0;
+        for(size_t t = 0; t < NTOPICS; ++t) {
+          if (doc_topic_count[t] > 0) {
+            ctr += MIMNO_Q_CACHE[t]; 
+            if (ctr >= f) {
+              asg = t;
+              break;
+            }
+          }
+        }
+      }
       // asg = std::max_element(prob.begin(), prob.end()) - prob.begin();
       ++doc_topic_count[asg];
       ++word_topic_count[asg];
       ++GLOBAL_TOPIC_COUNT[asg];
+      MIMNO_Q -= MIMNO_Q_CACHE[asg];
+      MIMNO_Q_CACHE[asg] = (ALPHA + doc_topic_count[asg])/(BETA * NWORDS + GLOBAL_TOPIC_COUNT[asg]);
+      MIMNO_Q += MIMNO_Q_CACHE[asg]; 
+
       if(asg != old_asg) {
         ++edge.data().nchanges;
         INCREMENT_EVENT(TOKEN_CHANGES,1);
@@ -720,11 +782,14 @@ struct global_counts_aggregator {
 
   static void finalize(icontext_type& context, const factor_type& total) {
     size_t sum = 0;
+    double NEW_MIMNO_S = 0;
     for(size_t t = 0; t < total.size(); ++t) {
       GLOBAL_TOPIC_COUNT[t] =
         std::max(count_type(total[t]/2), count_type(0));
       sum += GLOBAL_TOPIC_COUNT[t];
+      NEW_MIMNO_S += ALPHA * BETA / (BETA * NWORDS + GLOBAL_TOPIC_COUNT[t]);
     }
+    MIMNO_S = NEW_MIMNO_S;
     context.cout() << "Total Tokens: " << sum << std::endl;
   } // end of finalize
 }; // end of global_counts_aggregator struct
@@ -1182,6 +1247,8 @@ int main(int argc, char** argv) {
       engine.aggregate_periodic("likelihood", 10);
     ASSERT_TRUE(success);
   }
+
+  engine.aggregate_now("global_counts");
 
   ///! schedule only documents
   dc.cout() << "Running The Collapsed Gibbs Sampler" << std::endl;
