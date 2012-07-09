@@ -433,8 +433,30 @@ struct gather_type {
   uint32_t nchanges;
   gather_type() : nchanges(0) { };
   gather_type(uint32_t nchanges) : factor(NTOPICS), nchanges(nchanges) { };
-  void save(graphlab::oarchive& arc) const { arc << factor << nchanges; }
-  void load(graphlab::iarchive& arc) { arc >> factor >> nchanges; }
+  void save(graphlab::oarchive& arc) const { 
+    arc << nchanges; 
+    uint16_t ni = 0;
+    for (size_t i = 0;i < factor.size(); ++i) {
+      ni += (factor[i] > 0);
+    }
+    arc << ni;
+    for (size_t i = 0;i < factor.size(); ++i) {
+      if (factor[i] > 0) {
+        arc << uint16_t(i) << factor[i];
+      }
+    }
+
+  }
+  void load(graphlab::iarchive& arc) { 
+    arc >> nchanges;
+    for (size_t i = 0;i < factor.size(); ++i) factor[i] = 0;
+    uint16_t ni;
+    arc >> ni; 
+    for (uint16_t i = 0;i < ni; ++i) {
+      uint16_t u; arc >> u;
+      arc >> factor[u];
+    }
+  }
   gather_type& operator+=(const gather_type& other) {
     factor += other.factor;
     nchanges += other.nchanges;
