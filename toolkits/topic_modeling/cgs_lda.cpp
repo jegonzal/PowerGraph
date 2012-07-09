@@ -262,7 +262,7 @@ struct vertex_data {
     for (size_t i = 0;i < factor.size(); ++i) factor[i] = 0;
     uint16_t ni;
     arc >> ni; 
-    for (size_t i = 0;i < factor.size(); ++i) {
+    for (uint16_t i = 0;i < ni; ++i) {
       uint16_t u; arc >> u;
       arc >> factor[u];
     }
