@@ -410,9 +410,9 @@ int main(int argc, char* argv[])
     {
         LOGLN("Saving matches graph...");
         ofstream f(save_graph_to.c_str());
-        //f << matchesGraphAsString(img_names, pairwise_matches, conf_thresh);
-        for (int i=0; i!=pairwise_matches.size(); ++i)
-            f << pairwise_matches.src_img_idx << " " << pairwise_matches.dst_img_idx << "\n";
+        f << matchesGraphAsString(img_names, pairwise_matches, conf_thresh);
+//        for (int i=0; i!=pairwise_matches.size(); ++i)
+//            f << pairwise_matches[i].src_img_idx << " " << pairwise_matches[i].dst_img_idx << "\n";
     }
 
     // Leave only images we are sure are from the same panorama
