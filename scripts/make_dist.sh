@@ -9,7 +9,7 @@ rm -fR dist/graphlabapi
 mkdir -p dist/graphlabapi
 rsync -vv -al --delete --delete-excluded \
     --exclude=/debug --exclude=/release --exclude=/profile --exclude=/apps \
-    --exclude=.hg --exclude=/matlab --exclude=/extapis \
+    --exclude=.hg --exclude=/matlab \
     --exclude=/dist --exclude=/deps --exclude=*~ --exclude=*.orig --exclude=/configure.deps \
     --exclude /make_dist * dist/graphlabapi/.
 
