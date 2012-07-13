@@ -252,7 +252,7 @@ public:
       pred = std::max(pred, sgd_vertex_program::MINVAL); 
       const float err = (pred - edge.data().obs);
       if (debug)
-        std::cout<<"entering edge " << (int)edge.source().id() << ":" << (int)edge.target().id()-1000000 << " err: " << err << " rmse: " << err*err <<std::endl;
+        std::cout<<"entering edge " << (int)edge.source().id() << ":" << (int)edge.target().id() << " err: " << err << " rmse: " << err*err <<std::endl;
       assert(!std::isnan(err));
       if (edge.data().role == edge_data::TRAIN){
         delta = -GAMMA*(err*other_vertex.data().pvec - LAMBDA*vertex.data().pvec);
@@ -260,7 +260,7 @@ public:
        other_vertex.data().pvec += other_delta;
         my_vertex.data().pvec += delta;
         if (debug)
-          std::cout<<"new val:" << (int)edge.source().id() << ":" << (int)edge.target().id()-1000000 << " U " << my_vertex.data().pvec.transpose() << " V " << other_vertex.data().pvec.transpose() << std::endl;
+          std::cout<<"new val:" << (int)edge.source().id() << ":" << (int)edge.target().id() << " U " << my_vertex.data().pvec.transpose() << " V " << other_vertex.data().pvec.transpose() << std::endl;
          if(other_vertex.data().nupdates < MAX_UPDATES) 
           context.signal(other_vertex, other_delta);
        }
@@ -423,7 +423,7 @@ inline bool graph_loader(graph_type& graph,
     strm >> obs;
   assert(obs >= sgd_vertex_program::MINVAL && obs <= sgd_vertex_program::MAXVAL);
   // Create an edge and add it to the graph
-  graph.add_edge(source_id, target_id+1000000, edge_data(obs, role)); 
+  graph.add_edge(source_id, target_id, edge_data(obs, role)); 
   return true; // successful load
 } // end of graph_loader
 
