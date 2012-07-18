@@ -47,13 +47,21 @@ typedef float distance_type;
 /**
  * \brief The current distance of the vertex.
  */
-typedef distance_type vertex_data;
+struct vertex_data : graphlab::IS_POD_TYPE {
+  distance_type dist;
+  vertex_data(distance_type dist = std::numeric_limits<distance_type>::max()) :
+    dist(dist) { }
+}; // end of vertex data
+
 
 
 /**
  * \brief The distance associated with the edge.
  */
-typedef distance_type edge_data;
+struct edge_data : graphlab::IS_POD_TYPE {
+  distance_type dist;
+  edge_data(distance_type dist = 1) : dist(dist) { }
+}; // end of edge data
 
 
 /**
@@ -62,18 +70,6 @@ typedef distance_type edge_data;
  */
 typedef graphlab::distributed_graph<vertex_data, edge_data> graph_type;
 
-
-
-/**
- * \brief Initialize all vertices to have distance infinity except for
- * the source vertices which should have distance 0.
- *
- */
-void initialize_vertices(graph_type::vertex_type& vertex, 
-                         boost::unordered_set<graphlab::vertex_id_type>* sources_ptr) {
-  if(sources_ptr->count(vertex.id()) > 0) vertex.data() = 0;
-  else vertex.data() = std::numeric_limits<distance_type>::max();
-}
 
 
 /**
@@ -147,39 +143,48 @@ struct min_distance_type : graphlab::IS_POD_TYPE {
  * \brief The single source shortest path vertex program.
  */
 class sssp :
-  public graphlab::ivertex_program<graph_type, min_distance_type>,
+  public graphlab::ivertex_program<graph_type, 
+                                   graphlab::empty,
+                                   min_distance_type>,
   public graphlab::IS_POD_TYPE {
+  distance_type min_dist;
   bool changed;
 public:
 
+
+  void init(icontext_type& context, const vertex_type& vertex,
+            const min_distance_type& msg) {
+    min_dist = msg.dist;
+  } 
+
   /**
-   * \brief Determine if SSSP should run on all edges or just in edges
+   * \brief We use the messaging model to compute the SSSP update
    */
   edge_dir_type gather_edges(icontext_type& context, 
                              const vertex_type& vertex) const { 
-    return DIRECTED_SSSP? graphlab::IN_EDGES : graphlab::ALL_EDGES; 
+    return graphlab::NO_EDGES;
   }; // end of gather_edges 
 
 
-  /** 
-   * \brief Collect the distance to the neighbor
-   */
-  min_distance_type gather(icontext_type& context, const vertex_type& vertex, 
-                           edge_type& edge) const {
-    return min_distance_type(edge.data() + 
-                             get_other_vertex(edge, vertex).data());
-  } // end of gather function
+  // /** 
+  //  * \brief Collect the distance to the neighbor
+  //  */
+  // min_distance_type gather(icontext_type& context, const vertex_type& vertex, 
+  //                          edge_type& edge) const {
+  //   return min_distance_type(edge.data() + 
+  //                            get_other_vertex(edge, vertex).data());
+  // } // end of gather function
 
 
   /**
    * \brief If the distance is smaller then update
    */
   void apply(icontext_type& context, vertex_type& vertex,
-             const min_distance_type& total) {
+             const graphlab::empty& empty) {
     changed = false;
-    if(vertex.data() > total.dist) {
-      vertex.data() = total.dist;
+    if(vertex.data().dist > min_dist) {
       changed = true;
+      vertex.data().dist = min_dist;
     }
   }
 
@@ -188,7 +193,8 @@ public:
    */
   edge_dir_type scatter_edges(icontext_type& context, 
                              const vertex_type& vertex) const {
-    if(changed) return DIRECTED_SSSP? graphlab::OUT_EDGES : graphlab::ALL_EDGES; 
+    if(changed)
+      return DIRECTED_SSSP? graphlab::OUT_EDGES : graphlab::ALL_EDGES; 
     else return graphlab::NO_EDGES;
   }; // end of scatter_edges
 
@@ -197,7 +203,8 @@ public:
    */
   void scatter(icontext_type& context, const vertex_type& vertex,
                edge_type& edge) const {
-    context.signal(get_other_vertex(edge, vertex));
+    const min_distance_type msg(vertex.data().dist + edge.data().dist);
+    context.signal(get_other_vertex(edge, vertex), msg);
   } // end of scatter
 
 }; // end of shortest path vertex program
@@ -212,7 +219,7 @@ public:
 struct shortest_path_writer {
   std::string save_vertex(const graph_type::vertex_type& vtx) {
     std::stringstream strm;
-    strm << vtx.id() << "\t" << vtx.data() << "\n";
+    strm << vtx.id() << "\t" << vtx.data().dist << "\n";
     return strm.str();
   }
   std::string save_edge(graph_type::edge_type e) { return ""; }
@@ -288,17 +295,17 @@ int main(int argc, char** argv) {
             << "#edges:     " << graph.num_edges() << std::endl;
 
 
-  // Initialize the vertex data
-  boost::unordered_set<graphlab::vertex_id_type> source_set;
-  for(size_t i = 0; i < sources.size(); ++i) 
-    source_set.insert(sources[i]);
-  graph.transform_vertices(boost::bind(initialize_vertices, _1, &source_set));
+
 
   // Running The Engine -------------------------------------------------------
   graphlab::omni_engine<sssp> engine(dc, graph, exec_type, clopts);
-  
-  
 
+
+  
+  // Signal all the vertices in the source set
+  for(size_t i = 0; i < sources.size(); ++i) {
+    engine.signal(sources[i], min_distance_type(0));
+  }
 
   engine.start();
   const float runtime = engine.elapsed_seconds();
