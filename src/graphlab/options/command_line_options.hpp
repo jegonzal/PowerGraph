@@ -50,13 +50,6 @@ namespace boost {
     strm << "}";
     return strm.str();
   }
-  /**
-   \ingroup util
-   Provides lexical cast from vector<size_t> to string.
-   Converts a vector of 1,2,3 to the string "{1, 2, 3}"
-  */
-  template<>
-  std::string lexical_cast<std::string>(const std::vector<size_t>& vec);
   
   /**
    \ingroup util
@@ -65,6 +58,23 @@ namespace boost {
   */  
   template<>
   std::string lexical_cast< std::string>(const std::vector<int>& vec);
+
+  /**
+   \ingroup util
+   Provides lexical cast from vector<int> to string.
+   Converts a vector of 1,2,3 to the string "{1, 2, 3}"
+  */  
+  template<>
+  std::string lexical_cast< std::string>(const std::vector<uint32_t>& vec);
+
+  /**
+   \ingroup util
+   Provides lexical cast from vector<size_t> to string.
+   Converts a vector of 1,2,3 to the string "{1, 2, 3}"
+  */
+  template<>
+  std::string lexical_cast<std::string>(const std::vector<uint64_t>& vec);
+
   
   /**
    \ingroup util
