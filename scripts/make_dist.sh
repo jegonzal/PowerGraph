@@ -1,6 +1,6 @@
 #!/bin/bash
 
-major_version=2
+major_version=2.1
 
 echo "THIS MUST BE RUN IN GRAPHLAB HOME"
 
@@ -9,14 +9,14 @@ rm -fR dist/graphlabapi
 mkdir -p dist/graphlabapi
 rsync -vv -al --delete --delete-excluded \
     --exclude=/debug --exclude=/release --exclude=/profile --exclude=/apps \
-    --exclude=.hg --exclude=/doc/doxygen --exclude=/matlab --exclude=/extapis \
+    --exclude=.hg --exclude=/matlab \
     --exclude=/dist --exclude=/deps --exclude=*~ --exclude=*.orig --exclude=/configure.deps \
-    --exclude /LGPL_prepend.txt  --exclude /make_dist * dist/graphlabapi/.
+    --exclude /make_dist * dist/graphlabapi/.
 
 mkdir dist/graphlabapi/apps
 cp dist/graphlabapi/demoapps/CMakeLists.txt dist/graphlabapi/apps/
 version=`hg summary | grep parent | sed 's/parent: //g' | sed 's/:.*//g'`
-version="v${major_version}_$version"
+version="v${major_version}.$version"
 echo "Version: $version"
 
 
