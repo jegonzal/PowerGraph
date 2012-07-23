@@ -21,11 +21,12 @@
  */
 
 
-#ifndef GRAPHLAB_LOCAL_CHANDY_MISRA_HPP
-#define GRAPHLAB_LOCAL_CHANDY_MISRA_HPP
+#ifndef GRAPHLAB_DISTRIBUTED_CHANDY_MISRA_HPP
+#define GRAPHLAB_DISTRIBUTED_CHANDY_MISRA_HPP
 #include <vector>
 #include <graphlab/rpc/dc_dist_object.hpp>
 #include <graphlab/rpc/distributed_event_log.hpp>
+#include <graphlab/rpc/chandy_misra_interface.hpp>
 #include <graphlab/logger/assertions.hpp>
 #include <graphlab/parallel/pthread_tools.hpp>
 #include <graphlab/graph/graph_basic_types.hpp>
@@ -37,7 +38,7 @@ namespace graphlab {
   * \internal
   */
 template <typename GraphType>
-class distributed_chandy_misra {
+class distributed_chandy_misra : public chandy_misra_interface<GraphType> {
  public:
   typedef typename GraphType::local_vertex_type local_vertex_type;
   typedef typename GraphType::local_edge_type local_edge_type;
@@ -49,8 +50,8 @@ class distributed_chandy_misra {
   dc_dist_object<dcm_type> rmi;
   GraphType& graph;
 
-  boost::function<void(vertex_id_type)> callback;
-  boost::function<void(vertex_id_type)> hors_doeuvre_callback;
+  boost::function<void(lvid_type)> callback;
+  boost::function<void(lvid_type)> hors_doeuvre_callback;
   /*
    * Each "fork" is one character.
    * bit 0: owner. if 0 is src. if 1 is target
@@ -117,7 +118,7 @@ class distributed_chandy_misra {
 
 
   void compute_initial_fork_arrangement() {
-    for (vertex_id_type i = 0;i < graph.num_local_vertices(); ++i) {
+    for (lvid_type i = 0;i < graph.num_local_vertices(); ++i) {
       local_vertex_type lvertex(graph.l_vertex(i));
       philosopherset[i].num_edges = lvertex.num_in_edges() +
                                     lvertex.num_out_edges();
@@ -127,7 +128,7 @@ class distributed_chandy_misra {
       philosopherset[i].cancellation_sent = false;
       philosopherset[i].lockid = false;
     }
-    for (vertex_id_type i = 0;i < graph.num_local_vertices(); ++i) {
+    for (lvid_type i = 0;i < graph.num_local_vertices(); ++i) {
       local_vertex_type lvertex(graph.l_vertex(i));
       foreach(local_edge_type edge, lvertex.in_edges()) {
         if (edge.source().global_id() > edge.target().global_id()) {
@@ -175,8 +176,8 @@ class distributed_chandy_misra {
  * Return true if changes were made
  ***************************************************************************/
   inline bool advance_fork_state_on_lock(size_t forkid,
-                                        vertex_id_type source,
-                                        vertex_id_type target) {
+                                        lvid_type source,
+                                        lvid_type target) {
     unsigned char currentowner = forkset[forkid] & OWNER_BIT;
     if (currentowner == OWNER_SOURCE) {
       // if the current owner is not eating, and the
@@ -298,7 +299,7 @@ class distributed_chandy_misra {
   }
 
   void rpc_cancellation_request(vertex_id_type gvid, procid_t requestor, bool lockid) {
-    vertex_id_type lvid = graph.local_vid(gvid);
+    lvid_type lvid = graph.local_vid(gvid);
     cancellation_request_unlocked(lvid, requestor, lockid);
   }
 
@@ -432,7 +433,7 @@ class distributed_chandy_misra {
  *   Current vertex may enter HORS_DOEUVRE
  ***************************************************************************/
   void rpc_make_philosopher_hungry(vertex_id_type gvid, bool newlockid) {
-    vertex_id_type lvid = graph.local_vid(gvid);
+    lvid_type lvid = graph.local_vid(gvid);
     logstream(LOG_DEBUG) << rmi.procid() <<
           ": Local HUNGRY Philosopher  " << gvid << std::endl;
     philosopherset[lvid].lock.lock();
@@ -584,7 +585,7 @@ class distributed_chandy_misra {
 
 
   void rpc_signal_ready(vertex_id_type gvid, bool lockid) {
-    vertex_id_type lvid = graph.local_vid(gvid);
+    lvid_type lvid = graph.local_vid(gvid);
     signal_ready_unlocked(lvid, lockid);
   }
 
@@ -613,7 +614,7 @@ class distributed_chandy_misra {
     logstream(LOG_DEBUG) << rmi.procid() <<
             ": Receive Set EATING " << gvid << std::endl;
   
-    vertex_id_type lvid = graph.local_vid(gvid);
+    lvid_type lvid = graph.local_vid(gvid);
     set_eating(lvid, lockid);
   }
 /************************************************************************
@@ -711,7 +712,7 @@ class distributed_chandy_misra {
 
     foreach(local_edge_type edge, lvertex.out_edges()) {
       try_acquire_edge_with_backoff(edge.source().id(), edge.target().id());
-      vertex_id_type other = edge.target().id();
+      lvid_type other = edge.target().id();
       if (philosopherset[p_id].state == THINKING) {
         size_t edgeid = edge.id();
         advance_fork_state_on_unlock(edgeid, edge.source().id(), edge.target().id());
@@ -745,8 +746,8 @@ class distributed_chandy_misra {
  public:
   inline distributed_chandy_misra(distributed_control &dc,
                                   GraphType &graph,
-                                  boost::function<void(vertex_id_type)> callback,
-                                  boost::function<void(vertex_id_type)> hors_doeuvre_callback = NULL
+                                  boost::function<void(lvid_type)> callback,
+                                  boost::function<void(lvid_type)> hors_doeuvre_callback = NULL
                                   ):
                           rmi(dc, this),
                           graph(graph),
@@ -761,10 +762,6 @@ class distributed_chandy_misra {
 
   size_t num_clean_forks() const {
     return clean_fork_count.value;
-  }
-
-  inline const vertex_id_type invalid_vid() const {
-    return (vertex_id_type)(-1);
   }
 
   void initialize_master_philosopher_as_hungry_locked(lvid_type p_id,
@@ -837,7 +834,7 @@ class distributed_chandy_misra {
     local_philosopher_stops_eating(p_id);
   }
 
-  void philosopher_stops_eating_per_replica(vertex_id_type p_id) {
+  void philosopher_stops_eating_per_replica(lvid_type p_id) {
     logstream(LOG_DEBUG) << rmi.procid() <<
             ": Global STOP Eating " << graph.global_vid(p_id) << std::endl;
 

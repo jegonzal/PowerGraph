@@ -44,6 +44,7 @@
 #include <graphlab/util/memory_info.hpp>
 #include <graphlab/rpc/distributed_event_log.hpp>
 #include <graphlab/rpc/async_consensus.hpp>
+#include <graphlab/engine/fake_chandy_misra.hpp>
 #include <graphlab/aggregation/distributed_aggregator.hpp>
 
 #include <graphlab/macros_def.hpp>
@@ -56,7 +57,9 @@ namespace graphlab {
    *
    * \brief The asynchronous consistent engine executed vertex programs
    * asynchronously but ensures mutual exclusion such that adjacent vertices
-   * are never executed simultaneously.
+   * are never executed simultaneously. Mutual exclusion can be weakened
+   * to "factorized" consistency  in which case only individual gathers/applys/
+   * scatters are guaranteed to be consistent.
    *
    * \tparam VertexProgram
    * The user defined vertex program type which should implement the
@@ -187,6 +190,10 @@ namespace graphlab {
    * run for. The actual runtime may be marginally greater as the engine 
    * waits for all threads and processes to flush all active tasks before
    * returning.
+   * \li \b factorized (default: false) Set to true to weaken the consistency
+   * model to factorized consistency where only individual gather/apply/scatter
+   * calls are guaranteed to be locally consistent. Can produce massive
+   * increases in throughput at a consistency penalty.
    * \li \b use_cache: (default: false) This is used to enable
    * caching.  When caching is enabled the gather phase is skipped for
    * vertices that already have a cached value.  To use caching the
@@ -432,6 +439,7 @@ namespace graphlab {
       bool hasnext;
       /// A 1 byte lock protecting the vertex state
       simple_spinlock slock;
+      simple_spinlock factorized_lock;
       /// State of each vertex. \ref vertex_execution_state for details
       /// on the meaning of each state
       vertex_execution_state state;
@@ -449,6 +457,15 @@ namespace graphlab {
       /// releases a lock on the vertex state
       void unlock() {
         slock.unlock();
+      }
+
+      /// Acquires a lock on the vertex data 
+      void d_lock() {
+        factorized_lock.lock();
+      }
+      /// releases a lock on the vertex data 
+      void d_unlock() {
+        factorized_lock.unlock();
       }
     }; // end of vertex_state
     
@@ -499,7 +516,7 @@ namespace graphlab {
     graph_type& graph;
 
     /// A pointer to the lock implementation
-    distributed_chandy_misra<graph_type>* cmlocks;
+    chandy_misra_interface<graph_type>* cmlocks;
 
     /// Engine threads.
     thread_group thrgroup;
@@ -547,6 +564,8 @@ namespace graphlab {
     size_t timed_termination;
     /// engine option Sets to true if caching is enabled
     bool use_cache;
+    /// engine option. Sets to true if factorized consistency is used
+    bool factorized_consistency;
     /// Time when engine is started
     float engine_start_time;
     /// True when a force stop is triggered (possibly via a timeout)
@@ -614,6 +633,7 @@ namespace graphlab {
       max_clean_forks = (size_t)(-1);
       timed_termination = (size_t)(-1);
       use_cache = false;
+      factorized_consistency = false;
       termination_reason = execution_status::UNSET;
       set_options(opts);
       
@@ -668,6 +688,8 @@ namespace graphlab {
           opts.get_engine_args().get_option("timeout", timed_termination);
         } else if (opt == "use_cache") {
           opts.get_engine_args().get_option("use_cache", use_cache);
+        } else if (opt == "factorized") {
+          opts.get_engine_args().get_option("factorized", factorized_consistency);
         } else {
           logstream(LOG_FATAL) << "Unexpected Engine Option: " << opt << std::endl;
         }
@@ -701,12 +723,16 @@ namespace graphlab {
                                   opts_copy);
 
       // create initial fork arrangement based on the alternate vid mapping
-      cmlocks = new distributed_chandy_misra<graph_type>(rmi.dc(), graph,
-                                                        boost::bind(&engine_type::lock_ready, this, _1),
-                                                        boost::bind(&engine_type::forward_cached_schedule, this, _1));
-
-      cmlocks->compute_initial_fork_arrangement();
-      
+      if (factorized_consistency == false) {
+        cmlocks = new distributed_chandy_misra<graph_type>(rmi.dc(), graph,
+                                                    boost::bind(&engine_type::lock_ready, this, _1),
+                                                    boost::bind(&engine_type::forward_cached_schedule, this, _1));
+      }
+      else {
+        cmlocks = new fake_chandy_misra<graph_type>(rmi.dc(), graph,
+                                                    boost::bind(&engine_type::lock_ready, this, _1),
+                                                    boost::bind(&engine_type::forward_cached_schedule, this, _1));
+      }  
       // construct the vertex programs
       vstate.resize(graph.num_local_vertices());
       
@@ -1104,8 +1130,19 @@ namespace graphlab {
       vstate[lvid].combined_gather.clear();
     }
  
+    void factorized_lock_edge(local_edge_type edge) {
+      lvid_type src = edge.source().id(); 
+      lvid_type target = edge.target().id();
+      lvid_type a = std::min(src, target);
+      lvid_type b = std::max(src, target);
+      vstate[a].d_lock();
+      vstate[b].d_lock();
+    }
 
-
+    void factorized_unlock_edge(local_edge_type edge) {
+      vstate[edge.source().id()].d_unlock();
+      vstate[edge.target().id()].d_unlock();
+    }
     /**
      * \internal
      * Performs the gather operation on vertex lvid. Locks should be acquired.
@@ -1141,18 +1178,22 @@ namespace graphlab {
       if(gatherdir == graphlab::IN_EDGES ||
         gatherdir == graphlab::ALL_EDGES) {
         foreach(const local_edge_type& edge, lvertex.in_edges()) {
+          if (factorized_consistency) factorized_lock_edge(edge);
           edge_type e(edge);
           (*gather_target) +=
-            vstate[lvid].vertex_program.gather(context, vertex, e);
+                      vstate[lvid].vertex_program.gather(context, vertex, e);
+          if (factorized_consistency) factorized_unlock_edge(edge);
         }
         INCREMENT_EVENT(EVENT_GATHERS, lvertex.num_in_edges());
       }
       if(gatherdir == graphlab::OUT_EDGES ||
         gatherdir == graphlab::ALL_EDGES) {
         foreach(const local_edge_type& edge, lvertex.out_edges()) {
+          if (factorized_consistency) factorized_lock_edge(edge);
           edge_type e(edge);
           (*gather_target) +=
-            vstate[lvid].vertex_program.gather(context, vertex, e);
+                      vstate[lvid].vertex_program.gather(context, vertex, e);
+          if (factorized_consistency) factorized_unlock_edge(edge);
         }
         INCREMENT_EVENT(EVENT_GATHERS, lvertex.num_out_edges());
       }
@@ -1211,9 +1252,11 @@ namespace graphlab {
       vertex_type vertex(graph.l_vertex(lvid));
       
       logstream(LOG_DEBUG) << rmi.procid() << ": Apply On " << vertex.id() << std::endl;   
+      vstate[lvid].d_lock();
       vstate[lvid].vertex_program.apply(context, 
                                         vertex, 
                                         vstate[lvid].combined_gather.value);
+      vstate[lvid].d_unlock();
       vstate[lvid].combined_gather.clear();
 
       DECREMENT_EVENT(EVENT_ACTIVE_TASKS, 1);
@@ -1282,16 +1325,20 @@ namespace graphlab {
       if(scatterdir == graphlab::IN_EDGES || 
          scatterdir == graphlab::ALL_EDGES) {
         foreach(const local_edge_type& edge, lvertex.in_edges()) {
+          if (factorized_consistency) factorized_lock_edge(edge);
           edge_type e(edge);
           vstate[lvid].vertex_program.scatter(context, vertex, e);
+          if (factorized_consistency) factorized_unlock_edge(edge);
         }
         INCREMENT_EVENT(EVENT_SCATTERS, lvertex.num_in_edges());
       }
       if(scatterdir == graphlab::OUT_EDGES ||
          scatterdir == graphlab::ALL_EDGES) {
         foreach(const local_edge_type& edge, lvertex.out_edges()) {
+          if (factorized_consistency) factorized_lock_edge(edge);
           edge_type e(edge);
           vstate[lvid].vertex_program.scatter(context, vertex, e);
+          if (factorized_consistency) factorized_unlock_edge(edge);
         }
         INCREMENT_EVENT(EVENT_SCATTERS, lvertex.num_out_edges());
       }
@@ -1544,7 +1591,7 @@ namespace graphlab {
      * This is really an optimization. We extract all available tasks from the
      * on this vertex from the scheduler and forward it to the master.
      */
-    void forward_cached_schedule(vertex_id_type lvid) {
+    void forward_cached_schedule(lvid_type lvid) {
       message_type msg;
       const typename graph_type::vertex_record& rec = graph.l_get_vertex_record(lvid);
       if (rec.owner != rmi.procid()) {
