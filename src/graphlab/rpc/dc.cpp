@@ -510,7 +510,7 @@ void distributed_control::init(const std::vector<std::string> &machines,
 
   // improves reliability of initialization
 #ifdef HAS_MPI
-  MPI_Barrier(MPI_COMM_WORLD);
+  if (mpi_tools::initialized()) MPI_Barrier(MPI_COMM_WORLD);
 #endif
 
   comm->init(machines, options, curmachineid, 
@@ -519,7 +519,7 @@ void distributed_control::init(const std::vector<std::string> &machines,
 
   // improves reliability of initialization
 #ifdef HAS_MPI
-  MPI_Barrier(MPI_COMM_WORLD);
+  if (mpi_tools::initialized()) MPI_Barrier(MPI_COMM_WORLD);
 #endif
   barrier();
   // initialize the empty stream
