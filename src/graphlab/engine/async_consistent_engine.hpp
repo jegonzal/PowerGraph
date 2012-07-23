@@ -38,7 +38,7 @@
 #include <graphlab/engine/execution_status.hpp>
 #include <graphlab/options/graphlab_options.hpp>
 #include <graphlab/rpc/dc_dist_object.hpp>
-#include <graphlab/rpc/distributed_chandy_misra.hpp>
+#include <graphlab/engine/distributed_chandy_misra.hpp>
 
 #include <graphlab/util/tracepoint.hpp>
 #include <graphlab/util/memory_info.hpp>

@@ -26,7 +26,7 @@
 #include <vector>
 #include <graphlab/rpc/dc_dist_object.hpp>
 #include <graphlab/rpc/distributed_event_log.hpp>
-#include <graphlab/rpc/chandy_misra_interface.hpp>
+#include <graphlab/engine/chandy_misra_interface.hpp>
 #include <graphlab/logger/assertions.hpp>
 #include <graphlab/parallel/pthread_tools.hpp>
 #include <graphlab/graph/graph_basic_types.hpp>
@@ -34,7 +34,7 @@
 namespace graphlab {
 
 /**
-  * \ingroup rpc
+  *
   * \internal
   */
 template <typename GraphType>
