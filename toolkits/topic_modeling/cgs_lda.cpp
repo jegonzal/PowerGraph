@@ -1129,7 +1129,7 @@ int main(int argc, char** argv) {
     ASSERT_TRUE(success);
   }
   
-  { // Add the likelihood aggregator
+/*  { // Add the likelihood aggregator
     const bool success =
       engine.add_vertex_aggregator<likelihood_aggregator>
       ("likelihood", 
@@ -1137,7 +1137,7 @@ int main(int argc, char** argv) {
        likelihood_aggregator::finalize) &&
       engine.aggregate_periodic("likelihood", 10);
     ASSERT_TRUE(success);
-  }
+  }*/
 
   ///! schedule only documents
   dc.cout() << "Running The Collapsed Gibbs Sampler" << std::endl;
