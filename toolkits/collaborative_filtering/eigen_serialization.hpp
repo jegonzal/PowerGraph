@@ -31,6 +31,10 @@
 
 
 
+/**
+ * \brief Use the GraphLab serialization macros to add a save routine
+ * to the Eigen::VectorXd object.
+ */
 BEGIN_OUT_OF_PLACE_SAVE(arc, Eigen::VectorXd, vec) {
   typedef Eigen::VectorXd::Index index_type;
   typedef Eigen::VectorXd::Scalar scalar_type;
@@ -40,6 +44,10 @@ BEGIN_OUT_OF_PLACE_SAVE(arc, Eigen::VectorXd, vec) {
 } END_OUT_OF_PLACE_SAVE()
 
 
+/**
+ * \brief Use the GraphLab serialization macros to add a load routine
+ * to the Eigen::VectorXd object.
+ */
 BEGIN_OUT_OF_PLACE_LOAD(arc, Eigen::VectorXd, vec) {
   typedef Eigen::VectorXd::Index index_type;
   typedef Eigen::VectorXd::Scalar scalar_type;
@@ -50,6 +58,10 @@ BEGIN_OUT_OF_PLACE_LOAD(arc, Eigen::VectorXd, vec) {
 } END_OUT_OF_PLACE_LOAD()
 
 
+/**
+ * \brief Use the GraphLab serialization macros to add a save routine
+ * to the Eigen::MatrixXd object.
+ */
 BEGIN_OUT_OF_PLACE_SAVE(arc, Eigen::MatrixXd, mat) {
   typedef Eigen::MatrixXd::Index index_type;
   typedef Eigen::MatrixXd::Scalar scalar_type;
@@ -60,6 +72,11 @@ BEGIN_OUT_OF_PLACE_SAVE(arc, Eigen::MatrixXd, mat) {
 } END_OUT_OF_PLACE_SAVE()
 
 
+
+/**
+ * \brief Use the GraphLab serialization macros to add a load routine
+ * to the Eigen::MatrixXd object.
+ */
 BEGIN_OUT_OF_PLACE_LOAD(arc, Eigen::MatrixXd, mat) {
   typedef Eigen::MatrixXd::Index index_type; 
   typedef Eigen::MatrixXd::Scalar scalar_type;
@@ -72,46 +89,6 @@ BEGIN_OUT_OF_PLACE_LOAD(arc, Eigen::MatrixXd, mat) {
 
 
 
-
-// inline graphlab::oarchive& operator<<(graphlab::oarchive& arc, const Eigen::VectorXd& vec) {
-//   typedef Eigen::VectorXd::Index index_type;
-//   typedef Eigen::VectorXd::Scalar scalar_type;
-//   const index_type size = vec.size();
-//   arc << size;
-//   graphlab::serialize(arc, vec.data(), size * sizeof(scalar_type));
-//   return arc;
-// } // end of save vector
-
-// inline graphlab::iarchive& operator>>(graphlab::iarchive& arc, Eigen::VectorXd& vec) {
-//   typedef Eigen::VectorXd::Index index_type;
-//   typedef Eigen::VectorXd::Scalar scalar_type;
-//   index_type size = 0;
-//   arc >> size;
-//   vec.resize(size);
-//   graphlab::deserialize(arc, vec.data(), size * sizeof(scalar_type));
-//   return arc;
-// } // end of save vector
-
-
-// inline graphlab::oarchive& operator<<(graphlab::oarchive& arc, const Eigen::MatrixXd& mat) {
-//   typedef Eigen::MatrixXd::Index index_type;
-//   typedef Eigen::MatrixXd::Scalar scalar_type;
-//   const index_type rows = mat.rows();
-//   const index_type cols = mat.cols();
-//   arc << rows << cols;
-//   graphlab::serialize(arc, mat.data(), rows*cols*sizeof(scalar_type));
-//   return arc;
-// } // end of save matrix
-
-// inline graphlab::iarchive& operator>>(graphlab::iarchive& arc,  Eigen::MatrixXd& mat) {
-//   typedef Eigen::MatrixXd::Index index_type; 
-//   typedef Eigen::MatrixXd::Scalar scalar_type;
-//   index_type rows=0, cols=0;
-//   arc >> rows >> cols;
-//   mat.resize(rows,cols);
-//   graphlab::deserialize(arc, mat.data(), rows*cols*sizeof(scalar_type));
-//   return arc;
-// } // end of load matrix
 
 
 #endif
