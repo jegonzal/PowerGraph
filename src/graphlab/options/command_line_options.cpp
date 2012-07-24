@@ -58,7 +58,17 @@ namespace boost {
 
 
 namespace graphlab {
-  
+ 
+static const char* engine_help_string = 
+#include <graphlab/options/engine_help.txt>
+;
+
+static const char* graph_help_string = 
+#include <graphlab/options/graph_help.txt>
+;
+
+
+
   bool command_line_options::parse(int argc, const char* const* argv) {
     namespace boost_po = boost::program_options;
     
@@ -85,15 +95,15 @@ namespace graphlab {
         ("engine_opts",
         boost_po::value<std::string>(&(engine_opts_string))->
         default_value(engine_opts_string),
-        "string of engine options i.e., (background_comms=true)")
+        "string of engine options i.e., \"timeout=100\"")
         ("graph_opts",
           boost_po::value<std::string>(&(graph_opts_string))->
           default_value(graph_opts_string),
-          "String of graph options i.e., (ingress=random)")
+          "String of graph options i.e., \"ingress=random\"")
         ("scheduler_opts",
           boost_po::value<std::string>(&(scheduler_opts_string))->
           default_value(scheduler_opts_string),
-          "String of scheduler options i.e., (strict=true)")
+          "String of scheduler options i.e., \"strict=true\"")
         ("engine_help",
           boost_po::value<std::string>()->implicit_value(""),
           "Display help for engine options.")
@@ -138,14 +148,11 @@ namespace graphlab {
       return false;
     }    
     if (vm.count("engine_help")) {
-      /// TODO put the options somewhere! Move this out of here!
-      /// Problem is I do not want to instantiate dist_chromatic_engine here
-      /// since that is rather costly...
-      std::cout << "TODO\n";
+      std::cout << engine_help_string; 
       return false;
     }
     if (vm.count("graph_help")) {
-      std::cout << "TODO\n";
+      std::cout << graph_help_string; 
       return false;
     } 
     set_ncpus(ncpus);
