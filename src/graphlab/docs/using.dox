@@ -211,7 +211,7 @@
   
   For convenience, we define the type of the graph using a typedef:
   \code
-  typedef graphlab::distributed_graph_type<web_page, graphlab::empty> graph_type;
+  typedef graphlab::distributed_graph<web_page, graphlab::empty> graph_type;
   \endcode
 
   \section using_graphlab_distributed_graph_putting_together Putting It Together
@@ -236,7 +236,7 @@
     }
   };
  
-  typedef graphlab::distributed_graph_type<web_page, graphlab::empty> graph_type;
+  typedef graphlab::distributed_graph<web_page, graphlab::empty> graph_type;
 
   int main(int argc, char** argv) {
     graphlab::mpi_tools::init(argc, argv);
