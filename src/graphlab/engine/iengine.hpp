@@ -458,7 +458,7 @@ namespace graphlab {
                              << std::endl;
         return false; // does not return
       }
-      return aggregator->add_vertex_aggregator<ReductionType>(key, map_function, 
+      return aggregator->template add_vertex_aggregator<ReductionType>(key, map_function, 
                                                               finalize_function);
     } // end of add vertex aggregator
 
@@ -665,7 +665,7 @@ namespace graphlab {
                              << std::endl;
         return false; // does not return
       }
-      return aggregator->add_edge_aggregator<ReductionType>
+      return aggregator->template add_edge_aggregator<ReductionType>
         (key, map_function, finalize_function);
     } // end of add edge aggregator
 
@@ -848,7 +848,7 @@ namespace graphlab {
                              << std::endl;
         return ReductionType(); // does not return
       }
-      return aggregator->map_reduce_vertices<ReductionType>(mapfunction);      
+      return aggregator->template map_reduce_vertices<ReductionType>(mapfunction);      
     }
 
    /**
@@ -945,7 +945,7 @@ namespace graphlab {
                              << std::endl;
         return ReductionType(); // does not return
       }
-      return aggregator->map_reduce_edges<ReductionType>(mapfunction);      
+      return aggregator->template map_reduce_edges<ReductionType>(mapfunction);      
     }
     
    
