@@ -158,7 +158,7 @@ Here is an example SGD run on small Netflix data:
 \li Download the files: <a href="http://www.select.cs.cmu.edu/code/graphlab/datasets/smallnetflix_mm.train">smallnetflix_mm.train</a> and <a href="http://www.select.cs.cmu.edu/code/graphlab/datasets/smallnetflix_mm.validate">smallnetflix_mm.validate</a> and save them inside a directory called smallnetflix/.
 \li Run:
 \verbatim
-bickson@thrust:~/graphlab2.1/graphlabapi/debug/toolkits/collaborative_filtering$ ./sgd smallnetflix --users=100000 --ncpus=8 --prediction=out --max_iter=10
+bickson@thrust:~/graphlab2.1/graphlabapi/debug/toolkits/collaborative_filtering$ ./sgd smallnetflix  --ncpus=8 --prediction=out --max_iter=10
 TCP Communication layer constructed.
 Loading graph.
 INFO:     distributed_graph.hpp(load_from_posixfs:1743): Loading graph from file: smallnetflix/smallnetflix_mm.train
@@ -264,7 +264,6 @@ The output of ALS is two matrices: filename.U and filename.V. The matrix U holds
 --max_iter=XX	Max number of iterations
 --maxval=XX	Maximum allowed rating
 --minval=XX	Min allowed rating
---users=XX	Max user id. All user must  have a lower id.
 --predictions=XX	File name to write predictions to
 \endverbatim
 
@@ -273,7 +272,7 @@ Example for running bias-SGD
 \li Run:
 
 \verbatim
-bickson@thrust:~/graphlab2.1/graphlabapi/debug/toolkits/collaborative_filtering$ ./biassgd smallnetflix --users=100000 --ncpus=8 --prediction=out --max_iter=10
+bickson@thrust:~/graphlab2.1/graphlabapi/debug/toolkits/collaborative_filtering$ ./biassgd smallnetflix --ncpus=8 --prediction=out --max_iter=10
 TCP Communication layer constructed.
 Loading graph.
 INFO:     distributed_graph.hpp(load_from_posixfs:1743): Loading graph from file: smallnetflix/smallnetflix_mm.train
@@ -384,7 +383,6 @@ The output of bias-SGD consists of two matrices: filename.U and filename.V. The 
 --max_iter=XX	Max number of iterations
 --maxval=XX	Maximum allowed rating
 --minval=XX	Min allowed rating
---users=XX	Max user id. All users have to have a lower id.
 --predictions=XX	File name to write prediction to
 \endverbatim
 
