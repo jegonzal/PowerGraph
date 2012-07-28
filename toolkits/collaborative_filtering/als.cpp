@@ -67,7 +67,7 @@ typedef Eigen::MatrixXd mat_type;
  * \brief Remap the target id of each edge into a different id space
  * than the source id.
  */
-bool REMAP_TARGET = false;
+bool REMAP_TARGET = true;
 
 
 

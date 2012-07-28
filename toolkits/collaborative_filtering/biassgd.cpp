@@ -60,7 +60,7 @@ int iter = 0;
  * \brief Remap the target id of each edge into a different id space
  * than the source id.
  */
-bool REMAP_TARGET = false;
+bool REMAP_TARGET = true;
 
 
 
@@ -626,8 +626,12 @@ int main(int argc, char** argv) {
   engine.map_reduce_vertices<graphlab::empty>(biassgd_vertex_program::signal_left);
  
 
-  // Run the PageRank ---------------------------------------------------------
+  // Run the Bias-SGD ---------------------------------------------------------
   dc.cout() << "Running Bias-SGD" << std::endl;
+  dc.cout() << "(C) Code by Danny Bickson, CMU " << std::endl;
+  dc.cout() << "Please send bug reports to danny.bickson@gmail.com" << std::endl;
+  dc.cout() << "Time   Training    Validation" <<std::endl;
+  dc.cout() << "       RMSE        RMSE " <<std::endl;
   timer.start();
   engine.start();  
 

@@ -3,24 +3,389 @@
 \page collaborative_filtering Collaborative Filtering
 
 
-\brief The collaborative filtering toolkit contains tools for computing a linear model of the data, and predicting missing values based on this linear model.
-This is useful when computing recommendations for users. 
+
+\brief The collaborative filtering toolkit contains tools for
+computing a linear model of the data, and predicting missing values
+based on this linear model. This is useful when computing
+recommendations for users.
 
 
-In GraphLab v1, the collaborative filtering package is implemented and optinized for a multicore machine.  
-<a href="https://docs.google.com/document/pub?id=1lptKnw9hwHW_HTVb77ThcDjrW4QwLZXEbrxPyXp6oBk">Here</a> is the documentation for version 1. 
 
-In GraphLAb v2, the collaborative filtering toolkit is DISTRIBUTED. THat way we can scale to much larger models.
 
-The collaborative filtering toolkit currently contains:
 
- -Alternating Least Squares (ALS)
- -Stochastic gradient descent (SGD)
- -Bias stochastic gradient descnet (Bias-SGD)
+In GraphLab v1, the collaborative filtering package is implemented and optimized for a multicore machine.  
+<a href="https://docs.google.com/document/pub?id=1lptKnw9hwHW_HTVb77ThcDjrW4QwLZXEbrxPyXp6oBk">Here</a> is the documentation for version 1. Graphlab v1 is the <b>stable release</b> of the collaborative filtering toolkit.
+
+In GraphLAb v2, the collaborative filtering toolkit is DISTRIBUTED. That way we can scale to much larger models.
+GraphLab v2 is an <b>experimental release</b>. 
+
+The collaborative filtering toolkit in GraphLab v.2 currently contains:
+
+ \li Alternating Least Squares (ALS)
+\verbatim
+Yunhong Zhou, Dennis Wilkinson, Robert Schreiber and Rong Pan. Large-Scale Parallel Collaborative Filtering for the Netflix Prize. Proceedings of the 4th international conference on Algorithmic Aspects in Information and Management. Shanghai, China pp. 337-348, 2008.
+\endverbatim
+ \li Stochastic gradient descent (SGD)
+\verbatim
+ Matrix Factorization Techniques for Recommender Systems Yehuda Koren, Robert Bell, Chris Volinsky In IEEE Computer, Vol. 42, No. 8. (07 August 2009), pp. 30-37. 
+Tikk, D. (2009). Scalable Collaborative Filtering Approaches for Large Recommender Systems. Journal of Machine Learning Research, 10, 623-656.
+\endverbatim
+ \li Bias stochastic gradient descnet (Bias-SGD)
+\verbatim
+Y. Koren. Factorization Meets the Neighborhood: a Multifaceted Collaborative Filtering Model. Equation (5).
+\endverbatim
+
  
 In the future we hope to implement to rest of V1 algorithms, like SVD++, NMF, NMF, BPTF, etc.
 
+\section Input Input
+
+The input to GraphLab v2.1 collaborative filtering toolkit should be prepared inside a directory. All files in the directory will be read in parallel by GraphLab. Each file has the following text format:
+\verbatim
+[ user ] [ item ] [ rating] \n
+\endverbatim
+Namely, each row holds one rating. user and item are unsigned integers, and the rating is a double value.  user and item does not have to be consecutive integers. Here are some allowed inputs:
+\verbatim
+1000 2 5.0
+3 7 12.0
+6 2 2.1
+\endverbatim
+
+\section Output Output
+
+The output for the test data (ratings in the file that ends with .predict) is saved to filename specified by: --predictions
+Output format is:
+\verbatim
+[user] [item] [rating]\n
+\endverbatim
+
+\section ALS ALS
+ALS (Alternating least squares)
+
+Pros: Simple to use, not many command line arguments
+
+Cons: intermediate accuracy, higher computational overhead
+
+ALS is a simple yet powerful algorithm. In this model the prediction is computed as:
+   r_ui = p_u * q_i
+Where r_ui is a scalar rating of user u to item i, and p_u is the user feature vector of size D, q_i is the item feature vector of size D and the product is a vector product. 
+The output of ALS is two matrices: filename.U and filename.V. The matrix U holds the user feature vectors in each row. (Each vector has exactly D columns). The matrix V holds the feature vectors for each time (Each vector has again exactly D columns). In linear algebra notation the rating matrix R ~ UV
+
+
+Below are ALS related command line options:
+\verbatim
+--D=XX	Set D the feature vector width. High width results in higher accuracy but slower execution time. Typical values are 20 -  100.
+--lambda=XX	Set regularization. Regularization helps to prevent overfitting. 
+--maxupdates=XX The number of iterations.
+\endverbatim
+
+And here is an exmaple ALS run:
+\li Download the files: <a href="http://www.select.cs.cmu.edu/code/graphlab/datasets/smallnetflix_mm.train">smallnetflix_mm.train</a> and <a href="http://www.select.cs.cmu.edu/code/graphlab/datasets/smallnetflix_mm.validate">smallnetflix_mm.validate</a> and save them inside a directory called smallnetflix/.
+\li Run:
+\verbatim
+bickson@thrust:~/graphlab2.1/graphlabapi/debug/toolkits/collaborative_filtering$ ./als smallnetflix/ --maxupdates=5 --lambda=0.065 --ncpus=8
+TCP Communication layer constructed.
+Loading graph.
+INFO:     distributed_graph.hpp(load_from_posixfs:1743): Loading graph from file: smallnetflix/smallnetflix_mm.train
+INFO:     distributed_graph.hpp(load_from_posixfs:1743): Loading graph from file: smallnetflix/smallnetflix_mm.validate
+Loading graph. Finished in 20.4732
+Finalizing graph.
+INFO:     distributed_ingress_base.hpp(finalize:165): Finalizing Graph...
+INFO:     distributed_ingress_base.hpp(exchange_global_info:489): Graph info: 
+	 nverts: 97266
+	 nedges: 3843340
+	 nreplicas: 97266
+	 replication factor: 1
+Finalizing graph. Finished in 4.72823
+========== Graph statistics on proc 0 ===============
+ Num vertices: 97266
+ Num edges: 3843340
+ Num replica: 97266
+ Replica to vertex ratio: 1
+ --------------------------------------------
+ Num local own vertices: 97266
+ Num local vertices: 97266
+ Replica to own ratio: 1
+ Num local edges: 3843340
+ Edge balance ratio: 1
+Creating engine
+Running ALS
+INFO:     synchronous_engine.hpp(start:1213): 0: Starting iteration: 0
+INFO:     synchronous_engine.hpp(start:1257): 	Active vertices: 93705
+INFO:     synchronous_engine.hpp(start:1307): 	 Running Aggregators
+17.8	2.99666	5.76023
+INFO:     synchronous_engine.hpp(start:1213): 0: Starting iteration: 1
+INFO:     synchronous_engine.hpp(start:1257): 	Active vertices: 3561
+INFO:     synchronous_engine.hpp(start:1307): 	 Running Aggregators
+33	2.07403	3.99939
+INFO:     synchronous_engine.hpp(start:1213): 0: Starting iteration: 2
+INFO:     synchronous_engine.hpp(start:1257): 	Active vertices: 93702
+INFO:     synchronous_engine.hpp(start:1307): 	 Running Aggregators
+50.9	0.896588	1.76014
+INFO:     synchronous_engine.hpp(start:1213): 0: Starting iteration: 3
+INFO:     synchronous_engine.hpp(start:1257): 	Active vertices: 3561
+INFO:     synchronous_engine.hpp(start:1307): 	 Running Aggregators
+66.1	0.755783	1.45845
+INFO:     synchronous_engine.hpp(start:1213): 0: Starting iteration: 4
+INFO:     synchronous_engine.hpp(start:1257): 	Active vertices: 93547
+INFO:     synchronous_engine.hpp(start:1307): 	 Running Aggregators
+83.9	0.697824	1.35614
+INFO:     synchronous_engine.hpp(start:1213): 0: Starting iteration: 5
+INFO:     synchronous_engine.hpp(start:1257): 	Active vertices: 3561
+INFO:     synchronous_engine.hpp(start:1307): 	 Running Aggregators
+99.1	0.677978	1.33864
+INFO:     synchronous_engine.hpp(start:1213): 0: Starting iteration: 6
+INFO:     synchronous_engine.hpp(start:1257): 	Active vertices: 91661
+INFO:     synchronous_engine.hpp(start:1307): 	 Running Aggregators
+116.9	0.666121	1.3114
+INFO:     synchronous_engine.hpp(start:1213): 0: Starting iteration: 7
+INFO:     synchronous_engine.hpp(start:1257): 	Active vertices: 3560
+INFO:     synchronous_engine.hpp(start:1307): 	 Running Aggregators
+132	0.657644	1.31769
+INFO:     synchronous_engine.hpp(start:1213): 0: Starting iteration: 8
+INFO:     synchronous_engine.hpp(start:1257): 	Active vertices: 90443
+INFO:     synchronous_engine.hpp(start:1307): 	 Running Aggregators
+149.7	0.651672	1.3017
+INFO:     synchronous_engine.hpp(start:1213): 0: Starting iteration: 9
+INFO:     synchronous_engine.hpp(start:1257): 	Active vertices: 3561
+
+...
+\endverbatim
+
+\section SGD SGD
+
+Here is an example SGD run on small Netflix data:
+\li Download the files: <a href="http://www.select.cs.cmu.edu/code/graphlab/datasets/smallnetflix_mm.train">smallnetflix_mm.train</a> and <a href="http://www.select.cs.cmu.edu/code/graphlab/datasets/smallnetflix_mm.validate">smallnetflix_mm.validate</a> and save them inside a directory called smallnetflix/.
+\li Run:
+\verbatim
+bickson@thrust:~/graphlab2.1/graphlabapi/debug/toolkits/collaborative_filtering$ ./sgd smallnetflix --users=100000 --ncpus=8 --prediction=out --max_iter=10
+TCP Communication layer constructed.
+Loading graph.
+INFO:     distributed_graph.hpp(load_from_posixfs:1743): Loading graph from file: smallnetflix/smallnetflix_mm.train
+INFO:     distributed_graph.hpp(load_from_posixfs:1743): Loading graph from file: smallnetflix/smallnetflix_mm.validate
+Loading graph. Finished in 8.05291
+Finalizing graph.
+INFO:     distributed_ingress_base.hpp(finalize:165): Finalizing Graph...
+INFO:     distributed_ingress_base.hpp(exchange_global_info:489): Graph info: 
+	 nverts: 97266
+	 nedges: 3843340
+	 nreplicas: 97266
+	 replication factor: 1
+Finalizing graph. Finished in 4.73423
+========== Graph statistics on proc 0 ===============
+ Num vertices: 97266
+ Num edges: 3843340
+ Num replica: 97266
+ Replica to vertex ratio: 1
+ --------------------------------------------
+ Num local own vertices: 97266
+ Num local vertices: 97266
+ Replica to own ratio: 1
+ Num local edges: 3843340
+ Edge balance ratio: 1
+Creating engine
+WARNING:  distributed_aggregator.hpp(test_vertex_mapper_type:344): 
+Vertex Map Function does not pass strict runtime type checks. 
+Function prototype should be 
+	 ReductionType f(icontext_type&, const vertex_type&)
+If you are not intentionally violating the abstraction, we recommend fixing your function for safety reasons
+Running SGD
+(C) Code by Danny Bickson, CMU 
+Please send bug reports to danny.bickson@gmail.com
+Time   Training    Validation
+       RMSE        RMSE 
+INFO:     synchronous_engine.hpp(start:1213): 0: Starting iteration: 0
+INFO:     synchronous_engine.hpp(start:1257): 	Active vertices: 93705
+INFO:     synchronous_engine.hpp(start:1307): 	 Running Aggregators
+6.3	3.38895	3.50731
+INFO:     synchronous_engine.hpp(start:1213): 0: Starting iteration: 1
+INFO:     synchronous_engine.hpp(start:1257): 	Active vertices: 3561
+INFO:     synchronous_engine.hpp(start:1307): 	 Running Aggregators
+15.4	2.13345	2.53804
+INFO:     synchronous_engine.hpp(start:1213): 0: Starting iteration: 3
+INFO:     synchronous_engine.hpp(start:1257): 	Active vertices: 3561
+INFO:     synchronous_engine.hpp(start:1307): 	 Running Aggregators
+24.4	1.93133	2.07947
+INFO:     synchronous_engine.hpp(start:1213): 0: Starting iteration: 5
+INFO:     synchronous_engine.hpp(start:1257): 	Active vertices: 3561
+INFO:     synchronous_engine.hpp(start:1307): 	 Running Aggregators
+33.5	1.82088	1.8263
+INFO:     synchronous_engine.hpp(start:1213): 0: Starting iteration: 7
+INFO:     synchronous_engine.hpp(start:1257): 	Active vertices: 3561
+INFO:     synchronous_engine.hpp(start:1307): 	 Running Aggregators
+42.6	1.7525	1.70128
+INFO:     synchronous_engine.hpp(start:1213): 0: Starting iteration: 9
+INFO:     synchronous_engine.hpp(start:1257): 	Active vertices: 3561
+INFO:     synchronous_engine.hpp(start:1307): 	 Running Aggregators
+51.7	1.66997	1.58311
+INFO:     synchronous_engine.hpp(start:1213): 0: Starting iteration: 11
+INFO:     synchronous_engine.hpp(start:1257): 	Active vertices: 3561
+INFO:     synchronous_engine.hpp(start:1307): 	 Running Aggregators
+60.7	1.5881	1.51874
+INFO:     synchronous_engine.hpp(start:1213): 0: Starting iteration: 13
+INFO:     synchronous_engine.hpp(start:1257): 	Active vertices: 3561
+INFO:     synchronous_engine.hpp(start:1307): 	 Running Aggregators
+69.8	1.50968	1.44333
+INFO:     synchronous_engine.hpp(start:1213): 0: Starting iteration: 15
+INFO:     synchronous_engine.hpp(start:1257): 	Active vertices: 3561
+INFO:     synchronous_engine.hpp(start:1307): 	 Running Aggregators
+78.9	1.43835	1.40391
+INFO:     synchronous_engine.hpp(start:1213): 0: Starting iteration: 17
+INFO:     synchronous_engine.hpp(start:1257): 	Active vertices: 3561
+INFO:     synchronous_engine.hpp(start:1307): 	 Running Aggregators
+88	1.3595	1.35079
+INFO:     synchronous_engine.hpp(start:1213): 0: Starting iteration: 19
+INFO:     synchronous_engine.hpp(start:1257): 	Active vertices: 3561
+INFO:     synchronous_engine.hpp(start:1307): 	 Running Aggregators
+----------------------------------------------------------
+Final Runtime (seconds):   90.2427
+Updates executed: 972660
+Update Rate (updates/second): 10778.3
+Final error: 
+91.9	2.05608	1.87331
+Saving predictions
+\endverbatim
+
+\section "SGD command line arguments" "SGD command line arguments"
+
+Pros: fast method
+Cons: need to tune step size, more iterations are needed relative to ALS.
+
+SGD is a simple gradient descent algorithm. Prediction in SGD is done as in ALS:
+   r_ui = p_u * q_i
+Where r_ui is a scalar rating of user u to item i, and p_u is the user feature vector of size D, q_i is the item feature vector of size D and the product is a vector product. 
+The output of ALS is two matrices: filename.U and filename.V. The matrix U holds the user feature vectors in each row. (Each vector has exactly D columns). The matrix V holds the feature vectors for each time (Each vector has again exactly D columns). In linear algebra notation the rating matrix R ~ UV
+
+\verbatim
+--lambda=XX	Gradient descent step size
+--gamma=XX	Gradient descent regularization
+--step_dec=XX	Multiplicative step decrease. Should be between 0.1 to 1. Default is 0.9.
+--D=X		Feature vector width. Common values are 20 - 150.
+--max_iter=XX	Max number of iterations
+--maxval=XX	Maximum allowed rating
+--minval=XX	Min allowed rating
+--users=XX	Max user id. All user must  have a lower id.
+--predictions=XX	File name to write predictions to
+\endverbatim
+
+Example for running bias-SGD
+\li Download the files: <a href="http://www.select.cs.cmu.edu/code/graphlab/datasets/smallnetflix_mm.train">smallnetflix_mm.train</a> and <a href="http://www.select.cs.cmu.edu/code/graphlab/datasets/smallnetflix_mm.validate">smallnetflix_mm.validate</a> and save them inside a directory called smallnetflix/.
+\li Run:
+
+\verbatim
+bickson@thrust:~/graphlab2.1/graphlabapi/debug/toolkits/collaborative_filtering$ ./biassgd smallnetflix --users=100000 --ncpus=8 --prediction=out --max_iter=10
+TCP Communication layer constructed.
+Loading graph.
+INFO:     distributed_graph.hpp(load_from_posixfs:1743): Loading graph from file: smallnetflix/smallnetflix_mm.train
+INFO:     distributed_graph.hpp(load_from_posixfs:1743): Loading graph from file: smallnetflix/smallnetflix_mm.validate
+Loading graph. Finished in 8.45858
+Finalizing graph.
+INFO:     distributed_ingress_base.hpp(finalize:165): Finalizing Graph...
+INFO:     distributed_ingress_base.hpp(exchange_global_info:489): Graph info: 
+	 nverts: 97266
+	 nedges: 3843340
+	 nreplicas: 97266
+	 replication factor: 1
+Finalizing graph. Finished in 4.86989
+========== Graph statistics on proc 0 ===============
+ Num vertices: 97266
+ Num edges: 3843340
+ Num replica: 97266
+ Replica to vertex ratio: 1
+ --------------------------------------------
+ Num local own vertices: 97266
+ Num local vertices: 97266
+ Replica to own ratio: 1
+ Num local edges: 3843340
+ Edge balance ratio: 1
+Creating engine
+Global mean is: 3.5992
+WARNING:  distributed_aggregator.hpp(test_vertex_mapper_type:344): 
+Vertex Map Function does not pass strict runtime type checks. 
+Function prototype should be 
+	 ReductionType f(icontext_type&, const vertex_type&)
+If you are not intentionally violating the abstraction, we recommend fixing your function for safety reasons
+Running Bias-SGD
+(C) Code by Danny Bickson, CMU 
+Please send bug reports to danny.bickson@gmail.com
+Time   Training    Validation
+       RMSE        RMSE 
+INFO:     synchronous_engine.hpp(start:1213): 0: Starting iteration: 0
+INFO:     synchronous_engine.hpp(start:1257): 	Active vertices: 93705
+INFO:     synchronous_engine.hpp(start:1307): 	 Running Aggregators
+7.1	1.14039	1.15804
+INFO:     synchronous_engine.hpp(start:1213): 0: Starting iteration: 1
+INFO:     synchronous_engine.hpp(start:1257): 	Active vertices: 3561
+INFO:     synchronous_engine.hpp(start:1307): 	 Running Aggregators
+17.4	1.03718	1.07853
+INFO:     synchronous_engine.hpp(start:1213): 0: Starting iteration: 3
+INFO:     synchronous_engine.hpp(start:1257): 	Active vertices: 3561
+INFO:     synchronous_engine.hpp(start:1307): 	 Running Aggregators
+27.8	1.00576	1.0555
+INFO:     synchronous_engine.hpp(start:1213): 0: Starting iteration: 5
+INFO:     synchronous_engine.hpp(start:1257): 	Active vertices: 3561
+INFO:     synchronous_engine.hpp(start:1307): 	 Running Aggregators
+38.2	0.988335	1.04259
+INFO:     synchronous_engine.hpp(start:1213): 0: Starting iteration: 7
+INFO:     synchronous_engine.hpp(start:1257): 	Active vertices: 3561
+INFO:     synchronous_engine.hpp(start:1307): 	 Running Aggregators
+48.7	0.977121	1.03466
+INFO:     synchronous_engine.hpp(start:1213): 0: Starting iteration: 9
+INFO:     synchronous_engine.hpp(start:1257): 	Active vertices: 3561
+INFO:     synchronous_engine.hpp(start:1307): 	 Running Aggregators
+59.2	0.969061	1.02854
+INFO:     synchronous_engine.hpp(start:1213): 0: Starting iteration: 11
+INFO:     synchronous_engine.hpp(start:1257): 	Active vertices: 3561
+INFO:     synchronous_engine.hpp(start:1307): 	 Running Aggregators
+69.6	0.963136	1.02455
+INFO:     synchronous_engine.hpp(start:1213): 0: Starting iteration: 13
+INFO:     synchronous_engine.hpp(start:1257): 	Active vertices: 3561
+INFO:     synchronous_engine.hpp(start:1307): 	 Running Aggregators
+79.9	0.95845	1.02081
+INFO:     synchronous_engine.hpp(start:1213): 0: Starting iteration: 15
+INFO:     synchronous_engine.hpp(start:1257): 	Active vertices: 3561
+INFO:     synchronous_engine.hpp(start:1307): 	 Running Aggregators
+90.3	0.954703	1.01839
+INFO:     synchronous_engine.hpp(start:1213): 0: Starting iteration: 17
+INFO:     synchronous_engine.hpp(start:1257): 	Active vertices: 3561
+INFO:     synchronous_engine.hpp(start:1307): 	 Running Aggregators
+100.9	0.951619	1.01575
+INFO:     synchronous_engine.hpp(start:1213): 0: Starting iteration: 19
+INFO:     synchronous_engine.hpp(start:1257): 	Active vertices: 3561
+INFO:     synchronous_engine.hpp(start:1307): 	 Running Aggregators
+----------------------------------------------------------
+Final Runtime (seconds):   103.227
+Updates executed: 972660
+Update Rate (updates/second): 9422.54
+Final error: 
+105.1	1.044	1.13735
+Saving predictions
+\endverbatim
+
+\section BIAS-SGD BIAS-SGD
+
+Pros: fast method
+Cons: need to tune step size
+
+Bias-SGD is a simple gradient descent algorithm, where besides of the feature vector we also compute item and user biases (how much their average rating differs from the global average).
+Prediction in bias-SGD is done as follows:
+
+r_ui = global_mean_rating + b_u + b_i + p_u * q_i
+
+Where global_mean_rating is the global mean rating, b_u is the bias of user u, b_i is the bias of item i and p_u and q_i are feature vectors as in ALS. You can read more about bias-SGD in reference [N]. 
+
+The output of bias-SGD consists of two matrices: filename.U and filename.V. The matrix U holds the user feature vectors in each row. (Each vector has exactly D columns). The matrix V holds the feature vectors for each time (Each vector has again exactly D columns). Additionally, the output consists of two vectors: bias for each user, bias for each item. Last, the global mean rating is also given as output.
+
+\verbatim
+--lambda=XX	Gradient descent step size
+--gamma=XX	Gradient descent regularization
+--step_dec=XX	Multiplicative step decrease. Should be between 0.1 to 1. Default is 0.9
+--D=X		Feature vector width. Common values are 20 - 150.
+--max_iter=XX	Max number of iterations
+--maxval=XX	Maximum allowed rating
+--minval=XX	Min allowed rating
+--users=XX	Max user id. All users have to have a lower id.
+--predictions=XX	File name to write prediction to
+\endverbatim
 
 */
-
-

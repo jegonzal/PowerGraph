@@ -41,6 +41,7 @@
 
 
 #include "eigen_serialization.hpp"
+#include "opencv_serialization.hpp"
 
 #include <graphlab/macros_def.hpp>
 
@@ -81,13 +82,19 @@ struct vertex_data
     
     void save(graphlab::oarchive& arc) const 
     {
-        arc << img_path;
-        //arc << features;
+        arc << img_path
+        << features.img_idx
+        << features.img_size
+        << features.descriptors
+        << features.descriptors;
     }
     void load(graphlab::iarchive& arc) 
     {
-        arc >> img_path;
-        //arc >> features;
+        arc >> img_path
+        >> features.img_idx
+        >> features.img_size
+        >> features.descriptors
+        >> features.descriptors;
     }
 }; // End of vertex data
 
