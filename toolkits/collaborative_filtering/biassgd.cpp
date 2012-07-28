@@ -48,6 +48,7 @@ double biassgd_vertex_program::MAXVAL = 1e+100;
 double biassgd_vertex_program::MINVAL = 1e-100;
 double biassgd_vertex_program::STEP_DEC = 0.9;
 bool biassgd_vertex_program::debug = false;
+uint biassgd_vertex_program::USERS = 0;
 double biassgd_vertex_program::GLOBAL_MEAN = 0;
 size_t biassgd_vertex_program::NUM_TRAINING_EDGES = 0;
 
@@ -112,11 +113,15 @@ int main(int argc, char** argv) {
                        "The prefix (folder and filename) to save predictions.");
   clopts.attach_option("output", output_dir,
                        "Output results");
+  clopts.attach_option("users", biassgd_vertex_program::USERS, "number of users");
   if(!clopts.parse(argc, argv)) {
     std::cout << "Error in parsing command line arguments." << std::endl;
     return EXIT_FAILURE;
   }
-  debug = biassgd_vertex_program::debug;
+    if (biassgd_vertex_program::USERS == 0){
+    logstream(LOG_FATAL)<<"Please specify the number of users using the --users=XX command line argument"<<std::endl;
+  }
+ debug = biassgd_vertex_program::debug;
   //  omp_set_num_threads(clopts.get_ncpus());
   ///! Initialize control plain using mpi
   graphlab::mpi_tools::init(argc, argv);
@@ -175,7 +180,11 @@ int main(int argc, char** argv) {
 
   // Run the PageRank ---------------------------------------------------------
   dc.cout() << "Running Bias-SGD" << std::endl;
-  timer.start();
+  dc.cout() << "(C) Code by Danny Bickson, CMU " << std::endl;
+  dc.cout() << "Please send bug reports to danny.bickson@gmail.com" << std::endl;
+  dc.cout() << "Time   Training    Validation" <<std::endl;
+  dc.cout() << "       RMSE        RMSE " <<std::endl;
+   timer.start();
   engine.start();  
 
   const double runtime = timer.current_time();

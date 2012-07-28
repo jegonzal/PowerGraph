@@ -407,6 +407,9 @@ struct prediction_saver {
     return ""; //nop
   }
   std::string save_edge(const edge_type& edge) const {
+    if (edge.data().role != edge_data::PREDICT)
+      return "";
+
     std::stringstream strm;
     const double prediction = 
       edge.source().data().factor.dot(edge.target().data().factor);

@@ -228,6 +228,7 @@ public:
   static size_t MAX_UPDATES;
   static double GLOBAL_MEAN;
   static size_t NUM_TRAINING_EDGES;
+  static uint   USERS;
 
   gather_type pmsg;
   void save(graphlab::oarchive& arc) const { 
@@ -413,7 +414,10 @@ struct prediction_saver {
     return ""; //nop
   }
   std::string save_edge(const edge_type& edge) const {
-    std::stringstream strm;
+   if (edge.data().role != edge_data::PREDICT)
+      return "";
+
+ std::stringstream strm;
     const double prediction = 
       edge.source().data().pvec.dot(edge.target().data().pvec);
     strm << edge.source().id() << '\t' 
@@ -441,11 +445,15 @@ inline bool graph_loader(graph_type& graph,
   graph_type::vertex_id_type source_id(-1), target_id(-1);
   float obs(0);
   strm >> source_id >> target_id;
-  if(role == edge_data::TRAIN || role == edge_data::VALIDATE) 
+  if (source_id > biassgd_vertex_program::USERS)
+    logstream(LOG_FATAL)<<"User is: " << source_id << " larger than maximal user id: " << biassgd_vertex_program::USERS << " please fix maximal number of users using --users=XX" << std::endl;
+
+   if(role == edge_data::TRAIN || role == edge_data::VALIDATE) 
     strm >> obs;
-  assert(obs >= biassgd_vertex_program::MINVAL && obs <= biassgd_vertex_program::MAXVAL);
+  if (obs < biassgd_vertex_program::MINVAL || obs > biassgd_vertex_program::MAXVAL)
+    logstream(LOG_FATAL)<<"Rating values should be between " << biassgd_vertex_program::MINVAL << " and " << biassgd_vertex_program::MAXVAL << ". Got value: " << obs << " [ user: " << source_id << " to item: " <<target_id << " ] " << std::endl; 
   // Create an edge and add it to the graph
-  graph.add_edge(source_id, target_id, edge_data(obs, role)); 
+  graph.add_edge(source_id, target_id+biassgd_vertex_program::USERS, edge_data(obs, role)); 
   return true; // successful load
 } // end of graph_loader
 

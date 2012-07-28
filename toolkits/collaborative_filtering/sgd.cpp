@@ -47,6 +47,7 @@ size_t sgd_vertex_program::MAX_UPDATES = -1;
 double sgd_vertex_program::MAXVAL = 1e+100;
 double sgd_vertex_program::MINVAL = 1e-100;
 double sgd_vertex_program::STEP_DEC = 0.9;
+uint sgd_vertex_program::USERS = 0;
 bool sgd_vertex_program::debug = false;
 
 
@@ -98,9 +99,14 @@ int main(int argc, char** argv) {
                        "The prefix (folder and filename) to save predictions.");
   clopts.attach_option("output", output_dir,
                        "Output results");
+  clopts.attach_option("users", sgd_vertex_program::USERS, "number of users");
+
   if(!clopts.parse(argc, argv)) {
     std::cout << "Error in parsing command line arguments." << std::endl;
     return EXIT_FAILURE;
+  }
+  if (sgd_vertex_program::USERS == 0){
+    logstream(LOG_FATAL)<<"Please specify the number of users using the --users=XX command line argument"<<std::endl;
   }
   debug = sgd_vertex_program::debug;
   //  omp_set_num_threads(clopts.get_ncpus());
@@ -155,7 +161,11 @@ int main(int argc, char** argv) {
  
 
   // Run the PageRank ---------------------------------------------------------
-  dc.cout() << "Running ALS" << std::endl;
+  dc.cout() << "Running SGD" << std::endl;
+  dc.cout() << "(C) Code by Danny Bickson, CMU " << std::endl;
+  dc.cout() << "Please send bug reports to danny.bickson@gmail.com" << std::endl;
+  dc.cout() << "Time   Training    Validation" <<std::endl;
+  dc.cout() << "       RMSE        RMSE " <<std::endl;
   timer.start();
   engine.start();  
 
