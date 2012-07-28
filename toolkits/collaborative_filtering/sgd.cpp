@@ -529,9 +529,9 @@ int main(int argc, char** argv) {
                        "debug - additional verbose info"); 
   clopts.attach_option("tol", sgd_vertex_program::TOLERANCE,
                        "residual termination threshold");
-  clopts.attach_option("remap", REMAP_TARGET,
-                       "Renumber target vertex ids (internally) so that they\n" 
-                       "are in a different range allowing user 0 to connect to movie 0");
+  // clopts.attach_option("remap", REMAP_TARGET,
+  //                      "Renumber target vertex ids (internally) so that they\n" 
+  //                      "are in a different range allowing user 0 to connect to movie 0");
   clopts.attach_option("maxval", sgd_vertex_program::MAXVAL, "max allowed value");
   clopts.attach_option("minval", sgd_vertex_program::MINVAL, "min allowed value");
   clopts.attach_option("step_dec", sgd_vertex_program::STEP_DEC, "multiplicative step decrement");
