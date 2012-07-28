@@ -419,14 +419,16 @@ struct prediction_saver {
     return ""; //nop
   }
   std::string save_edge(const edge_type& edge) const {
-    std::stringstream strm;
-    const double prediction = 
-      edge.source().data().pvec.dot(edge.target().data().pvec);
-    strm << edge.source().id() << '\t';
-    if(REMAP_TARGET) strm << (-edge.target().id() - 2) << '\t';
-    else strm << edge.target().id() << '\t';
-    strm << prediction << '\n';
-    return strm.str();
+    if(edge.data().role == edge_data::PREDICT) {
+      std::stringstream strm;
+      const double prediction = 
+        edge.source().data().pvec.dot(edge.target().data().pvec);
+      strm << edge.source().id() << '\t';
+      if(REMAP_TARGET) strm << (-edge.target().id() - 2) << '\t';
+      else strm << edge.target().id() << '\t';
+      strm << prediction << '\n';
+      return strm.str();
+    } else return "";
   }
 }; // end of prediction_saver
 
