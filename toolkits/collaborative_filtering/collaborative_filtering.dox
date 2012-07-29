@@ -3,14 +3,7 @@
 \page collaborative_filtering Collaborative Filtering
 
 
-
-\brief The collaborative filtering toolkit contains tools for
-computing a linear model of the data, and predicting missing values
-based on this linear model. This is useful when computing
-recommendations for users.
-
-
-
+\brief The collaborative filtering toolkit contains tools for computing a linear model of the data, and predicting missing values based on this linear model. This is useful when computing recommendations for users. 
 
 
 In GraphLab v1, the collaborative filtering package is implemented and optimized for a multicore machine.  
@@ -34,7 +27,6 @@ Tikk, D. (2009). Scalable Collaborative Filtering Approaches for Large Recommend
 \verbatim
 Y. Koren. Factorization Meets the Neighborhood: a Multifaceted Collaborative Filtering Model. Equation (5).
 \endverbatim
-
  
 In the future we hope to implement to rest of V1 algorithms, like SVD++, NMF, NMF, BPTF, etc.
 
@@ -163,7 +155,7 @@ TCP Communication layer constructed.
 Loading graph.
 INFO:     distributed_graph.hpp(load_from_posixfs:1743): Loading graph from file: smallnetflix/smallnetflix_mm.train
 INFO:     distributed_graph.hpp(load_from_posixfs:1743): Loading graph from file: smallnetflix/smallnetflix_mm.validate
-Loading graph. Finished in 8.05291
+Loading graph. Finished in 8.13307
 Finalizing graph.
 INFO:     distributed_ingress_base.hpp(finalize:165): Finalizing Graph...
 INFO:     distributed_ingress_base.hpp(exchange_global_info:489): Graph info: 
@@ -171,7 +163,7 @@ INFO:     distributed_ingress_base.hpp(exchange_global_info:489): Graph info:
 	 nedges: 3843340
 	 nreplicas: 97266
 	 replication factor: 1
-Finalizing graph. Finished in 4.73423
+Finalizing graph. Finished in 4.71821
 ========== Graph statistics on proc 0 ===============
  Num vertices: 97266
  Num edges: 3843340
@@ -197,52 +189,52 @@ Time   Training    Validation
 INFO:     synchronous_engine.hpp(start:1213): 0: Starting iteration: 0
 INFO:     synchronous_engine.hpp(start:1257): 	Active vertices: 93705
 INFO:     synchronous_engine.hpp(start:1307): 	 Running Aggregators
-6.3	3.38895	3.50731
+6.2	3.36002	3.49087
 INFO:     synchronous_engine.hpp(start:1213): 0: Starting iteration: 1
 INFO:     synchronous_engine.hpp(start:1257): 	Active vertices: 3561
 INFO:     synchronous_engine.hpp(start:1307): 	 Running Aggregators
-15.4	2.13345	2.53804
+15.2	2.08215	2.49183
 INFO:     synchronous_engine.hpp(start:1213): 0: Starting iteration: 3
 INFO:     synchronous_engine.hpp(start:1257): 	Active vertices: 3561
 INFO:     synchronous_engine.hpp(start:1307): 	 Running Aggregators
-24.4	1.93133	2.07947
+24.6	1.91162	2.05136
 INFO:     synchronous_engine.hpp(start:1213): 0: Starting iteration: 5
 INFO:     synchronous_engine.hpp(start:1257): 	Active vertices: 3561
 INFO:     synchronous_engine.hpp(start:1307): 	 Running Aggregators
-33.5	1.82088	1.8263
+33.7	1.77294	1.80171
 INFO:     synchronous_engine.hpp(start:1213): 0: Starting iteration: 7
 INFO:     synchronous_engine.hpp(start:1257): 	Active vertices: 3561
 INFO:     synchronous_engine.hpp(start:1307): 	 Running Aggregators
-42.6	1.7525	1.70128
+42.6	1.74585	1.68424
 INFO:     synchronous_engine.hpp(start:1213): 0: Starting iteration: 9
 INFO:     synchronous_engine.hpp(start:1257): 	Active vertices: 3561
 INFO:     synchronous_engine.hpp(start:1307): 	 Running Aggregators
-51.7	1.66997	1.58311
+51.7	1.63199	1.56293
 INFO:     synchronous_engine.hpp(start:1213): 0: Starting iteration: 11
 INFO:     synchronous_engine.hpp(start:1257): 	Active vertices: 3561
 INFO:     synchronous_engine.hpp(start:1307): 	 Running Aggregators
-60.7	1.5881	1.51874
+60.7	1.58655	1.50337
 INFO:     synchronous_engine.hpp(start:1213): 0: Starting iteration: 13
 INFO:     synchronous_engine.hpp(start:1257): 	Active vertices: 3561
 INFO:     synchronous_engine.hpp(start:1307): 	 Running Aggregators
-69.8	1.50968	1.44333
+69.8	1.48326	1.4251
 INFO:     synchronous_engine.hpp(start:1213): 0: Starting iteration: 15
 INFO:     synchronous_engine.hpp(start:1257): 	Active vertices: 3561
 INFO:     synchronous_engine.hpp(start:1307): 	 Running Aggregators
-78.9	1.43835	1.40391
+78.8	1.43588	1.38834
 INFO:     synchronous_engine.hpp(start:1213): 0: Starting iteration: 17
 INFO:     synchronous_engine.hpp(start:1257): 	Active vertices: 3561
 INFO:     synchronous_engine.hpp(start:1307): 	 Running Aggregators
-88	1.3595	1.35079
+87.8	1.34333	1.33439
 INFO:     synchronous_engine.hpp(start:1213): 0: Starting iteration: 19
 INFO:     synchronous_engine.hpp(start:1257): 	Active vertices: 3561
 INFO:     synchronous_engine.hpp(start:1307): 	 Running Aggregators
 ----------------------------------------------------------
-Final Runtime (seconds):   90.2427
+Final Runtime (seconds):   90.064
 Updates executed: 972660
-Update Rate (updates/second): 10778.3
+Update Rate (updates/second): 10799.7
 Final error: 
-91.9	2.05608	1.87331
+91.7	2.04374	1.87504
 Saving predictions
 \endverbatim
 
@@ -272,12 +264,12 @@ Example for running bias-SGD
 \li Run:
 
 \verbatim
-bickson@thrust:~/graphlab2.1/graphlabapi/debug/toolkits/collaborative_filtering$ ./biassgd smallnetflix --ncpus=8 --prediction=out --max_iter=10
+ibickson@thrust:~/graphlab2.1/graphlabapi/debug/toolkits/collaborative_filtering$ ./biassgd smallnetflix  --ncpus=8 --prediction=out --max_iter=10
 TCP Communication layer constructed.
 Loading graph.
 INFO:     distributed_graph.hpp(load_from_posixfs:1743): Loading graph from file: smallnetflix/smallnetflix_mm.train
 INFO:     distributed_graph.hpp(load_from_posixfs:1743): Loading graph from file: smallnetflix/smallnetflix_mm.validate
-Loading graph. Finished in 8.45858
+Loading graph. Finished in 7.59514
 Finalizing graph.
 INFO:     distributed_ingress_base.hpp(finalize:165): Finalizing Graph...
 INFO:     distributed_ingress_base.hpp(exchange_global_info:489): Graph info: 
@@ -285,7 +277,7 @@ INFO:     distributed_ingress_base.hpp(exchange_global_info:489): Graph info:
 	 nedges: 3843340
 	 nreplicas: 97266
 	 replication factor: 1
-Finalizing graph. Finished in 4.86989
+Finalizing graph. Finished in 4.93781
 ========== Graph statistics on proc 0 ===============
  Num vertices: 97266
  Num edges: 3843340
@@ -312,52 +304,52 @@ Time   Training    Validation
 INFO:     synchronous_engine.hpp(start:1213): 0: Starting iteration: 0
 INFO:     synchronous_engine.hpp(start:1257): 	Active vertices: 93705
 INFO:     synchronous_engine.hpp(start:1307): 	 Running Aggregators
-7.1	1.14039	1.15804
+7.1     1.13985    1.15723
 INFO:     synchronous_engine.hpp(start:1213): 0: Starting iteration: 1
 INFO:     synchronous_engine.hpp(start:1257): 	Active vertices: 3561
 INFO:     synchronous_engine.hpp(start:1307): 	 Running Aggregators
-17.4	1.03718	1.07853
+17.5    1.03638    1.07782
 INFO:     synchronous_engine.hpp(start:1213): 0: Starting iteration: 3
 INFO:     synchronous_engine.hpp(start:1257): 	Active vertices: 3561
 INFO:     synchronous_engine.hpp(start:1307): 	 Running Aggregators
-27.8	1.00576	1.0555
+27.9    1.00508    1.05466
 INFO:     synchronous_engine.hpp(start:1213): 0: Starting iteration: 5
 INFO:     synchronous_engine.hpp(start:1257): 	Active vertices: 3561
 INFO:     synchronous_engine.hpp(start:1307): 	 Running Aggregators
-38.2	0.988335	1.04259
+38.3    0.987878    1.04218
 INFO:     synchronous_engine.hpp(start:1213): 0: Starting iteration: 7
 INFO:     synchronous_engine.hpp(start:1257): 	Active vertices: 3561
 INFO:     synchronous_engine.hpp(start:1307): 	 Running Aggregators
-48.7	0.977121	1.03466
+48.8    0.976675    1.03377
 INFO:     synchronous_engine.hpp(start:1213): 0: Starting iteration: 9
 INFO:     synchronous_engine.hpp(start:1257): 	Active vertices: 3561
 INFO:     synchronous_engine.hpp(start:1307): 	 Running Aggregators
-59.2	0.969061	1.02854
+59.1    0.968729    1.02827
 INFO:     synchronous_engine.hpp(start:1213): 0: Starting iteration: 11
 INFO:     synchronous_engine.hpp(start:1257): 	Active vertices: 3561
 INFO:     synchronous_engine.hpp(start:1307): 	 Running Aggregators
-69.6	0.963136	1.02455
+69.5    0.962782    1.0236
 INFO:     synchronous_engine.hpp(start:1213): 0: Starting iteration: 13
 INFO:     synchronous_engine.hpp(start:1257): 	Active vertices: 3561
 INFO:     synchronous_engine.hpp(start:1307): 	 Running Aggregators
-79.9	0.95845	1.02081
+80      0.958178    1.02056
 INFO:     synchronous_engine.hpp(start:1213): 0: Starting iteration: 15
 INFO:     synchronous_engine.hpp(start:1257): 	Active vertices: 3561
 INFO:     synchronous_engine.hpp(start:1307): 	 Running Aggregators
-90.3	0.954703	1.01839
+90.3    0.95442    1.01745
 INFO:     synchronous_engine.hpp(start:1213): 0: Starting iteration: 17
 INFO:     synchronous_engine.hpp(start:1257): 	Active vertices: 3561
 INFO:     synchronous_engine.hpp(start:1307): 	 Running Aggregators
-100.9	0.951619	1.01575
+100.6    0.95139    1.01548
 INFO:     synchronous_engine.hpp(start:1213): 0: Starting iteration: 19
 INFO:     synchronous_engine.hpp(start:1257): 	Active vertices: 3561
 INFO:     synchronous_engine.hpp(start:1307): 	 Running Aggregators
 ----------------------------------------------------------
-Final Runtime (seconds):   103.227
+Final Runtime (seconds):   102.971
 Updates executed: 972660
-Update Rate (updates/second): 9422.54
+Update Rate (updates/second): 9445.96
 Final error: 
-105.1	1.044	1.13735
+104.7    1.04346    1.13552
 Saving predictions
 \endverbatim
 
@@ -385,5 +377,6 @@ The output of bias-SGD consists of two matrices: filename.U and filename.V. The 
 --minval=XX	Min allowed rating
 --predictions=XX	File name to write prediction to
 \endverbatim
+
 
 */
