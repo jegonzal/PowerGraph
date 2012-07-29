@@ -33,7 +33,6 @@
 #include <graphlab/util/stl_util.hpp>
 #include <graphlab.hpp>
 #include "eigen_serialization.hpp"
-#include "biassgd_vertex_program.hpp"
 #include <Eigen/Dense>
 #include <graphlab/macros_def.hpp>
 
