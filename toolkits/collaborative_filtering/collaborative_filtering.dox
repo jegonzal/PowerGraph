@@ -378,5 +378,6 @@ The output of bias-SGD consists of two matrices: filename.U and filename.V. The 
 --predictions=XX	File name to write prediction to
 \endverbatim
 
-
+\section Acknowledgements Acknowledgements
+\li Alex Hasha, bundle.com for improving SGD and bias-SGD documentation and usability.
 */
