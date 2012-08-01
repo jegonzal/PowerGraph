@@ -21,7 +21,7 @@ Yunhong Zhou, Dennis Wilkinson, Robert Schreiber and Rong Pan. Large-Scale Paral
  \li Stochastic gradient descent (SGD)
 \verbatim
  Matrix Factorization Techniques for Recommender Systems Yehuda Koren, Robert Bell, Chris Volinsky In IEEE Computer, Vol. 42, No. 8. (07 August 2009), pp. 30-37. 
-Tikk, D. (2009). Scalable Collaborative Filtering Approaches for Large Recommender Systems. Journal of Machine Learning Research, 10, 623-656.
+Takács, G, Pilászy, I., Németh, B. and Tikk, D. (2009). Scalable Collaborative Filtering Approaches for Large Recommender Systems. Journal of Machine Learning Research, 10, 623-656.
 \endverbatim
  \li Bias stochastic gradient descnet (Bias-SGD)
 \verbatim
