@@ -45,11 +45,23 @@ Namely, each row holds one rating. user and item are unsigned integers, and the 
 
 \section Output Output
 
-The output for the test data (ratings in the file that ends with .predict) is saved to filename specified by: --predictions
-Output format is:
+The output for the test data (ratings in the file that ends with .predict) is saved to filename specified by: --predictions=filename
+If the --prediction command line is not used, the output is not saved.
+
+Output format for the prediction is:
 \verbatim
 [user] [item] [rating]\n
 \endverbatim
+
+Furthermore, the linear model is saved to the files: filename.U and filename.V
+Where U and V' are the matrices which their product U*V' approximates the matrix A.
+Ouptut format for the linear model is:
+\verbatim
+user) factor1 factor2 .. factorN \n
+\endverbatim
+
+For bias-SGD, two additional files are created: filename.bias.U and filename.bias.V
+with the biasses.
 
 \section ALS ALS
 ALS (Alternating least squares)
