@@ -219,9 +219,16 @@ namespace graphlab {
       engine_ptr->signal(vertex, message);
     }
     void signal_all(const message_type& message = message_type(),
-                    const std::string& order = "sequential") {
+                    const std::string& order = "shuffle") {
       engine_ptr->signal_all(message, order);
     }
+    void signal_vset(const vertex_set& vset,
+                     const message_type& message = message_type(),
+                     const std::string& order = "shuffle") {
+      engine_ptr->signal_vset(vset, message, order);
+    }
+
+
     aggregator_type* get_aggregator() { return engine_ptr->get_aggregator(); }
 
 

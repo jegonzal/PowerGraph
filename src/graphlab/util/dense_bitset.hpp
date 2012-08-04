@@ -81,6 +81,7 @@ namespace graphlab {
       //need len bits
       arrlen = (n / (sizeof(size_t) * 8)) + (n % (sizeof(size_t) * 8) > 0);
       array = (size_t*)realloc(array, sizeof(size_t) * arrlen);
+      fix_trailing_bits();
     }
   
     /// Sets all bits to 0
@@ -95,7 +96,8 @@ namespace graphlab {
     
     /// Sets all bits to 1
     inline void fill() {
-      for (size_t i = 0;i < arrlen; ++i) array[i] = (size_t)-1;
+      for (size_t i = 0;i < arrlen; ++i) array[i] = (size_t) - 1;
+      fix_trailing_bits();
     }
 
     /// Prefetches the word containing the bit b
@@ -264,7 +266,6 @@ namespace graphlab {
         If all bits after b are false, this function returns false.
     */
     inline bool next_bit(uint32_t &b) const {
-      // use CAS to set the bit
       uint32_t arrpos, bitpos;
       bit_to_pos(b, arrpos, bitpos);
       //try to find the next bit in this block
@@ -316,6 +317,67 @@ namespace graphlab {
       return ret;
     }
 
+    dense_bitset operator&(const dense_bitset& other) const {
+      ASSERT_EQ(size(), other.size());
+      dense_bitset ret(size());
+      for (size_t i = 0; i < arrlen; ++i) {
+        ret.array[i] = array[i] & other.array[i];
+      }
+      return ret;
+    }
+
+
+    dense_bitset operator|(const dense_bitset& other) const {
+      ASSERT_EQ(size(), other.size());
+      dense_bitset ret(size());
+      for (size_t i = 0; i < arrlen; ++i) {
+        ret.array[i] = array[i] | other.array[i];
+      }
+      return ret;
+    }
+
+    dense_bitset operator-(const dense_bitset& other) const {
+      ASSERT_EQ(size(), other.size());
+      dense_bitset ret(size());
+      for (size_t i = 0; i < arrlen; ++i) {
+        ret.array[i] = array[i] - (array[i] & other.array[i]);
+      }
+      return ret;
+    }
+
+
+    dense_bitset& operator&=(const dense_bitset& other) {
+      ASSERT_EQ(size(), other.size());
+      for (size_t i = 0; i < arrlen; ++i) {
+        array[i] &= other.array[i];
+      }
+      return *this;
+    }
+
+
+    dense_bitset& operator|=(const dense_bitset& other) {
+      ASSERT_EQ(size(), other.size());
+      for (size_t i = 0; i < arrlen; ++i) {
+        array[i] |= other.array[i];
+      }
+      return *this;
+    }
+
+    dense_bitset& operator-=(const dense_bitset& other) {
+      ASSERT_EQ(size(), other.size());
+      for (size_t i = 0; i < arrlen; ++i) {
+        array[i] = array[i] - (array[i] & other.array[i]);
+      }
+      return *this;
+    }
+
+    void invert() {
+      for (size_t i = 0; i < arrlen; ++i) {
+        array[i] = ~array[i];
+      }
+      fix_trailing_bits();
+    }
+
   private:
    
     inline static void bit_to_pos(uint32_t b, uint32_t& arrpos, uint32_t& bitpos) {
@@ -326,7 +388,6 @@ namespace graphlab {
   
     // returns 0 on failure
     inline uint32_t next_bit_in_block(const uint32_t& b, const size_t& block) const {
-      // use CAS to set the bit
       size_t belowselectedbit = size_t(-1) - (((size_t(1) << b) - 1)|(size_t(1)<<b));
       size_t x = block & belowselectedbit ;
       if (x == 0) return 0;
@@ -339,6 +400,13 @@ namespace graphlab {
       else return (uint32_t)__builtin_ctzl(block);
     }
 
+
+    void fix_trailing_bits() {
+      // how many bits are in the last block
+      size_t lastbits = len % (8 * sizeof(size_t));
+      if (lastbits == 0) return;
+      array[arrlen - 1] &= ((size_t(1) << lastbits) - 1);
+    }
 
     size_t* array;
     size_t len;
@@ -406,6 +474,7 @@ namespace graphlab {
     /// Sets all bits to 1
     inline void fill() {
       for (size_t i = 0;i < arrlen; ++i) array[i] = -1;
+      fix_trailing_bits();
     }
 
     inline bool empty() const {
@@ -575,7 +644,6 @@ namespace graphlab {
         If all bits after b are false, this function returns false.
     */
     inline bool next_bit(uint32_t &b) const {
-      // use CAS to set the bit
       uint32_t arrpos, bitpos;
       bit_to_pos(b, arrpos, bitpos);
       //try to find the next bit in this block
@@ -638,7 +706,6 @@ namespace graphlab {
 
     // returns 0 on failure
     inline uint32_t next_bit_in_block(const uint32_t &b, const size_t &block) const {
-      // use CAS to set the bit
       size_t belowselectedbit = size_t(-1) - (((size_t(1) << b) - 1)|(size_t(1)<<b));
       size_t x = block & belowselectedbit ;
       if (x == 0) return 0;
@@ -652,6 +719,14 @@ namespace graphlab {
       else return (uint32_t)__builtin_ctzl(block);
     }
 
+    void fix_trailing_bits() {
+      // how many bits are in the last block
+      size_t lastbits = len % (8 * sizeof(size_t));
+      if (lastbits == 0) return;
+      array[arrlen - 1] &= ((size_t(1) << lastbits) - 1);
+    }
+
+ 
     static const size_t arrlen;
     size_t array[len / (sizeof(size_t) * 8) + (len % (sizeof(size_t) * 8) > 0)];
   };

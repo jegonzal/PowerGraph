@@ -43,7 +43,7 @@
 #include <graphlab/serialization/serialization_includes.hpp>
 #include <graphlab/aggregation/distributed_aggregator.hpp>
 #include <graphlab/vertex_program/op_plus_eq_concept.hpp>
-
+#include <graphlab/graph/vertex_set.hpp>
 
 
 namespace graphlab {
@@ -305,7 +305,35 @@ namespace graphlab {
      */
     virtual void signal_all(const message_type& message = message_type(),
                             const std::string& order = "shuffle") = 0;
-   
+  
+    /**
+     * \brief Signal a set of vertices with a particular message.
+     * 
+     * This function sends the same message to a set of vertices which will
+     * receive that message on start. The signal_vset function must be
+     * invoked on all machines simultaneously.  For example:
+     *
+     * \code
+     * graphlab::synchronous_engine<vprog> engine(dc, graph, opts);
+     * engine.signal_vset(vset); // signal a subset of vertices
+     * \endcode
+     *
+     * signal_all() is conceptually equivalent to:
+     *
+     * \code
+     * engine.signal_vset(graph.complete_set());
+     * \endcode
+     *
+     * @param [in] vset The set of vertices to signal 
+     * @param [in] message the message to send to all vertices.  The
+     * default message is sent if no message is provided
+     * (See ivertex_program::message_type for details about the
+     * message_type). 
+     */
+    virtual void signal_vset(const vertex_set& vset,
+                             const message_type& message = message_type(),
+                             const std::string& order = "shuffle") = 0;
+
 
      /** 
      * \brief Creates a vertex aggregator. Returns true on success.

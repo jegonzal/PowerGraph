@@ -87,7 +87,7 @@ public:
   void apply(icontext_type& context, vertex_type& vertex,
              const gather_type& total) {
     float newval = total + RESET_PROB;
-    last_change = std::fabs(newval - vertex.data());
+    last_change = std::fabs(newval - vertex.data()) / vertex.num_out_edges();
 
     vertex.data() = newval;
     if (ITERATIONS) context.signal(vertex);
