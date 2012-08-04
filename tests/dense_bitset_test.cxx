@@ -80,6 +80,18 @@ public:
     for (size_t i = 0;i< 100; ++i) {
       TS_ASSERT_EQUALS(d.get(i), false);
     }
+
+    d.fill();
+    ASSERT_EQ(d.popcount(), d.size());
+    d.invert();
+    ASSERT_EQ(d.popcount(), 0);
+    d.invert();
+    ASSERT_EQ(d.popcount(), d.size());
+
+    d2.fill();
+    ASSERT_EQ(d2.popcount(), d2.size());
+
+
   }
 
 
@@ -137,6 +149,11 @@ public:
       TS_ASSERT_EQUALS(d.get(i), false);
     }
 
+    d.fill();
+    ASSERT_EQ(d.popcount(), d.size());
+
+    d2.fill();
+    ASSERT_EQ(d2.popcount(), d2.size());
 
   }
 

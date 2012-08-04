@@ -44,7 +44,14 @@ add_graphlab_executable(async_consistent_test async_consistent_test.cpp)
 
 add_graphlab_executable(sfinae_function_test sfinae_function_test.cpp)
 
+add_test(synchronous_engine_test synchronous_engine_test)
+add_test(async_consistent_test async_consistent_test)
+
 # copyfile(runtests.sh)
 
 
 add_graphlab_executable(mini_web_server mini_web_server.cpp)
+
+add_graphlab_executable(test_vertex_set test_vertex_set.cpp)
+
+add_test(test_vertex_set test_vertex_set)

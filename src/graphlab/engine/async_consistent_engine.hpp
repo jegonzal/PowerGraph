@@ -460,11 +460,17 @@ namespace graphlab {
       }
 
       /// Acquires a lock on the vertex data 
-      void d_lock() {
+      inline void d_lock() {
         factorized_lock.lock();
       }
+
+      /// Acquires a lock on the vertex data 
+      inline bool d_trylock() {
+        return factorized_lock.try_lock();
+      }
+ 
       /// releases a lock on the vertex data 
-      void d_unlock() {
+      inline void d_unlock() {
         factorized_lock.unlock();
       }
     }; // end of vertex_state
@@ -952,6 +958,31 @@ namespace graphlab {
       rmi.barrier();
     } // end of schedule all
 
+    void signal_vset(const vertex_set& vset,
+                    const message_type& message = message_type(),
+                    const std::string& order = "shuffle") {
+      logstream(LOG_DEBUG) << rmi.procid() << ": Schedule All" << std::endl;
+      // allocate a vector with all the local owned vertices
+      // and schedule all of them. 
+      std::vector<vertex_id_type> vtxs;
+      vtxs.reserve(graph.num_local_own_vertices());
+      for(lvid_type lvid = 0; 
+          lvid < graph.get_local_graph().num_vertices(); 
+          ++lvid) {
+        if (graph.l_vertex(lvid).owner() == rmi.procid() && 
+            vset.l_contains(lvid)) {
+          vtxs.push_back(lvid);        
+        }
+      } 
+      
+      if(order == "shuffle") {
+        graphlab::random::shuffle(vtxs.begin(), vtxs.end());
+      }
+      foreach(lvid_type lvid, vtxs) {
+        scheduler_ptr->schedule(lvid, message);    
+      }
+      rmi.barrier();
+    }
 
 /**************************************************************************
  *                         Computation Processing                         *
@@ -1129,7 +1160,29 @@ namespace graphlab {
       vstate[lvid].current_message = message_type();
       vstate[lvid].combined_gather.clear();
     }
+    
+    void factorized_lock_edge2_begin(lvid_type hold) {
+      vstate[hold].d_lock();
+    }
+    void factorized_lock_edge2(lvid_type hold, lvid_type advance) {
+      if(vstate[advance].d_trylock()) return;
+      else vstate[hold].d_unlock();
+      lvid_type a = std::min(hold, advance);
+      lvid_type b = std::max(hold, advance);
+      vstate[a].d_lock();
+      vstate[b].d_lock();
+    }
+
+    void factorized_unlock_edge2(lvid_type hold,
+                                 lvid_type advance) {
+      vstate[advance].d_unlock();
+    }
+
+    void factorized_unlock_edge2_end(lvid_type hold) {
+      vstate[hold].d_unlock();
+    }
  
+
     void factorized_lock_edge(local_edge_type edge) {
       lvid_type src = edge.source().id(); 
       lvid_type target = edge.target().id();
@@ -1177,24 +1230,34 @@ namespace graphlab {
 
       if(gatherdir == graphlab::IN_EDGES ||
         gatherdir == graphlab::ALL_EDGES) {
-        foreach(const local_edge_type& edge, lvertex.in_edges()) {
-          if (factorized_consistency) factorized_lock_edge(edge);
+        factorized_lock_edge2_begin(lvid);
+        foreach(local_edge_type edge, lvertex.in_edges()) {
+          if (factorized_consistency) {
+            factorized_lock_edge2(lvid, edge.source().id());
+          }
           edge_type e(edge);
           (*gather_target) +=
                       vstate[lvid].vertex_program.gather(context, vertex, e);
-          if (factorized_consistency) factorized_unlock_edge(edge);
+          if (factorized_consistency) {
+            factorized_unlock_edge2(lvid, edge.source().id());
+          }
         }
+        factorized_unlock_edge2_end(lvid);
         INCREMENT_EVENT(EVENT_GATHERS, lvertex.num_in_edges());
       }
       if(gatherdir == graphlab::OUT_EDGES ||
         gatherdir == graphlab::ALL_EDGES) {
-        foreach(const local_edge_type& edge, lvertex.out_edges()) {
-          if (factorized_consistency) factorized_lock_edge(edge);
+        factorized_lock_edge2_begin(lvid);
+        foreach(local_edge_type edge, lvertex.out_edges()) {
+          if (factorized_consistency) {
+            factorized_lock_edge2(lvid, edge.target().id());
+          }
           edge_type e(edge);
           (*gather_target) +=
                       vstate[lvid].vertex_program.gather(context, vertex, e);
-          if (factorized_consistency) factorized_unlock_edge(edge);
+          if (factorized_consistency) factorized_unlock_edge2(lvid, edge.target().id());
         }
+        factorized_unlock_edge2_end(lvid);
         INCREMENT_EVENT(EVENT_GATHERS, lvertex.num_out_edges());
       }
 

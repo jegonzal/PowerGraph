@@ -628,7 +628,12 @@ namespace graphlab {
     
     // documentation inherited from iengine
     void signal_all(const message_type& message = message_type(),
-                    const std::string& order = "sequential");
+                    const std::string& order = "shuffle");
+
+    void signal_vset(const vertex_set& vset,
+                    const message_type& message = message_type(),
+                    const std::string& order = "shuffle");
+
 
     // documentation inherited from iengine
     float elapsed_seconds() const;
@@ -1071,12 +1076,24 @@ namespace graphlab {
   void synchronous_engine<VertexProgram>::
   signal_all(const message_type& message, const std::string& order) {
     for(lvid_type lvid = 0; lvid < graph.num_local_vertices(); ++lvid) {
-      if(graph.l_is_master(lvid)) 
+      if(graph.l_is_master(lvid)) {
         internal_signal(vertex_type(graph.l_vertex(lvid)), message);
+      }
     }
   } // end of signal all
   
 
+  template<typename VertexProgram>
+  void synchronous_engine<VertexProgram>::
+  signal_vset(const vertex_set& vset,
+             const message_type& message, const std::string& order) {
+    for(lvid_type lvid = 0; lvid < graph.num_local_vertices(); ++lvid) {
+      if(graph.l_is_master(lvid) && vset.l_contains(lvid)) {
+        internal_signal(vertex_type(graph.l_vertex(lvid)), message);
+      }
+    }
+  } // end of signal all
+ 
 
   template<typename VertexProgram>
   void synchronous_engine<VertexProgram>::

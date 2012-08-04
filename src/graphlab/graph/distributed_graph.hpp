@@ -86,7 +86,7 @@
 
 #include <graphlab/graph/builtin_parsers.hpp>
 #include <graphlab/graph/json_parser.hpp>
-
+#include <graphlab/graph/vertex_set.hpp>
 
 #include <graphlab/macros_def.hpp>
 namespace graphlab { 
@@ -576,7 +576,7 @@ namespace graphlab {
                       const graphlab_options& opts = graphlab_options() ) : 
       rpc(dc, this), finalized(false), vid2lvid(-1),
       nverts(0), nedges(0), local_own_nverts(0), nreplicas(0),
-      ingress_ptr(NULL) {
+      ingress_ptr(NULL), vertex_exchange(dc), vset_exchange(dc) {
       rpc.barrier();
 
       set_options(opts);
@@ -817,6 +817,9 @@ namespace graphlab {
     * The template argument <code><float></code> is needed to inform
     * the compiler regarding the return type of the mapfunction.
     *
+    * The optional argument vset can be used to restrict he set of vertices
+    * map-reduced over.
+    *
     * ### Relations
     * This function is similar to 
     * graphlab::iengine::map_reduce_vertices()
@@ -835,9 +838,12 @@ namespace graphlab {
     *                   \ref vertex_type as its only argument.
     *                   Returns a ReductionType which must be summable
     *                   and \ref sec_serializable .
+    * \param vset The set of vertices to map reduce over. Optional. Defaults to
+    *             complete_set()
     */
     template <typename ReductionType, typename MapFunctionType>
-    ReductionType map_reduce_vertices(MapFunctionType mapfunction) {
+    ReductionType map_reduce_vertices(MapFunctionType mapfunction, 
+                                      const vertex_set& vset = complete_set()) {
       BOOST_CONCEPT_ASSERT((graphlab::Serializable<ReductionType>));
       BOOST_CONCEPT_ASSERT((graphlab::OpPlusEq<ReductionType>));
       if(!finalized) {
@@ -860,7 +866,8 @@ namespace graphlab {
         #pragma omp for
 #endif
         for (int i = 0; i < (int)local_graph.num_vertices(); ++i) {
-          if (lvid2record[i].owner == rpc.procid()) {
+          if (lvid2record[i].owner == rpc.procid() && 
+              vset.l_contains((lvid_type)i)) {
             if (!result_set) {
               const vertex_type vtx(l_vertex(i));
               result = mapfunction(vtx);
@@ -931,6 +938,9 @@ namespace graphlab {
     * The template argument <code><float></code> is needed to inform
     * the compiler regarding the return type of the mapfunction.
     *
+    * The two optional arguments vset and edir can be used to restrict the
+    * set of edges which are map-reduced over.
+    *
     * ### Relations
     * This function similar to 
     * graphlab::distributed_graph::map_reduce_edges()
@@ -949,9 +959,19 @@ namespace graphlab {
     *                   \ref edge_type as its only argument.
     *                   Returns a ReductionType which must be summable
     *                   and \ref sec_serializable .
+    * \param vset A set of vertices. Combines with
+    *             edir to identify the set of edges. For instance, if 
+    *             edir == IN_EDGES, map_reduce_edges will map over all in edges 
+    *             of the vertices in vset. Optional. Defaults to complete_set().
+    * \param edir An edge direction. Combines with vset to identify the set 
+    *             of edges to map over. For instance, if 
+    *             edir == IN_EDGES, map_reduce_edges will map over all in edges 
+    *             of the vertices in vset. Optional. Defaults to IN_EDGES.
     */
     template <typename ReductionType, typename MapFunctionType>
-    ReductionType map_reduce_edges(MapFunctionType mapfunction) {
+    ReductionType map_reduce_edges(MapFunctionType mapfunction,
+                                   const vertex_set& vset = complete_set(),
+                                   edge_dir_type edir = IN_EDGES) {
       BOOST_CONCEPT_ASSERT((graphlab::Serializable<ReductionType>));
       BOOST_CONCEPT_ASSERT((graphlab::OpPlusEq<ReductionType>));
       if(!finalized) {
@@ -974,16 +994,34 @@ namespace graphlab {
         #pragma omp for
 #endif
         for (int i = 0; i < (int)local_graph.num_vertices(); ++i) {
-          foreach(const local_edge_type& e, l_vertex(i).in_edges()) {
-            if (!result_set) {
-              edge_type edge(e);
-              result = mapfunction(edge);
-              result_set = true;
+          if (vset.l_contains((lvid_type)i)) {
+            if (edir == IN_EDGES || edir == ALL_EDGES) {
+              foreach(const local_edge_type& e, l_vertex(i).in_edges()) {
+                if (!result_set) {
+                  edge_type edge(e);
+                  result = mapfunction(edge);
+                  result_set = true;
+                }
+                else if (result_set){
+                  edge_type edge(e);
+                  const ReductionType tmp = mapfunction(edge); 
+                  result += tmp;
+                }
+              }
             }
-            else if (result_set){
-              edge_type edge(e);
-              const ReductionType tmp = mapfunction(edge); 
-              result += tmp;
+            if (edir == OUT_EDGES || edir == ALL_EDGES) {
+              foreach(const local_edge_type& e, l_vertex(i).out_edges()) {
+                if (!result_set) {
+                  edge_type edge(e);
+                  result = mapfunction(edge);
+                  result_set = true;
+                }
+                else if (result_set){
+                  edge_type edge(e);
+                  const ReductionType tmp = mapfunction(edge); 
+                  result += tmp;
+                }
+              }
             }
           }
         }
@@ -1016,6 +1054,9 @@ namespace graphlab {
      * every vertex in graph. The map function may make modifications
      * to the data on the vertex. transform_vertices() must be called by all
      * machines simultaneously.
+     *
+     * The optional vset argument may be used to restrict the set of vertices
+     * operated upon.
      *
      * ### Basic Usage 
      * For instance, if the graph has integer vertex data, and integer edge
@@ -1054,9 +1095,12 @@ namespace graphlab {
      *                   a \ref vertex_type, or a reference to a 
      *                   \ref vertex_type as its second argument.
      *                   Returns void.
+     * \param vset The set of vertices to transform. Optional. Defaults to
+     *             complete_set()
      */ 
     template <typename TransformType>
-    void transform_vertices(TransformType transform_functor) {
+    void transform_vertices(TransformType transform_functor, 
+                            const vertex_set vset = complete_set()) {
       if(!finalized) {
         logstream(LOG_FATAL) 
           << "\n\tAttempting to call graph.transform_vertices(...)"
@@ -1069,7 +1113,8 @@ namespace graphlab {
       #pragma omp parallel for
 #endif
       for (int i = 0; i < (int)local_graph.num_vertices(); ++i) {
-        if (lvid2record[i].owner == rpc.procid()) {
+        if (lvid2record[i].owner == rpc.procid() && 
+            vset.l_contains((lvid_type)i)) {
           vertex_type vtx(l_vertex(i));
           transform_functor(vtx);
         }
@@ -1108,6 +1153,9 @@ namespace graphlab {
      * will run the <code>set_edge_value()</code> function
      * on each edge in the graph, setting its new value. 
      *
+     * The two optional arguments vset and edir may be used to restrict
+     * the set of edges operated upon.
+     *
      * ### Relations
      * map_reduce_edges() provide similar signalling functionality, 
      * but should not make modifications to graph data. 
@@ -1123,9 +1171,19 @@ namespace graphlab {
      *                   a \ref edge_type, or a reference to a 
      *                   \ref edge_type as its second argument.
      *                   Returns void.
+     * \param vset A set of vertices. Combines with
+     *             edir to identify the set of edges. For instance, if 
+     *             edir == IN_EDGES, map_reduce_edges will map over all in edges 
+     *             of the vertices in vset. Optional. Defaults to complete_set().
+     * \param edir An edge direction. Combines with vset to identify the set 
+     *             of edges to map over. For instance, if 
+     *             edir == IN_EDGES, map_reduce_edges will map over all in edges 
+     *             of the vertices in vset. Optional. Defaults to IN_EDGES.
      */ 
     template <typename TransformType>
-    void transform_edges(TransformType transform_functor) {
+    void transform_edges(TransformType transform_functor,
+                         const vertex_set& vset = complete_set(),
+                         edge_dir_type edir = IN_EDGES) {
       if(!finalized) {
         logstream(LOG_FATAL) 
           << "\n\tAttempting to call graph.transform_edges(...)"
@@ -1137,9 +1195,19 @@ namespace graphlab {
       #pragma omp parallel for
 #endif
       for (int i = 0; i < (int)local_graph.num_vertices(); ++i) {
-        foreach(const local_edge_type& e, l_vertex(i).in_edges()) {
-          edge_type edge(e);
-          transform_functor(edge);
+        if (vset.l_contains((lvid_type)i)) {
+          if (edir == IN_EDGES || edir == ALL_EDGES) {
+            foreach(const local_edge_type& e, l_vertex(i).in_edges()) {
+              edge_type edge(e);
+              transform_functor(edge);
+            }
+          }
+          if (edir == OUT_EDGES || edir == ALL_EDGES) {
+            foreach(const local_edge_type& e, l_vertex(i).out_edges()) {
+              edge_type edge(e);
+              transform_functor(edge);
+            }
+          }
         }
       }
       rpc.barrier();
@@ -2010,12 +2078,144 @@ namespace graphlab {
     } // end of load_json
 
 
+/****************************************************************************
+ *                     Vertex Set Functions                                 *
+ *                     ----------------------                               *
+ * Manages operations involving sets of vertices                            *
+ ****************************************************************************/
+
+   /**
+    *  \brief Retuns an empty set of vertices
+    */
+   static vertex_set empty_set() {
+     return vertex_set(false);
+   }
+
+   /**
+    *  \brief Retuns a full set of vertices
+    */
+   static vertex_set complete_set() {
+     return vertex_set(true);
+   }
+ 
+   /// 
+   vertex_set neighbors(const vertex_set& cur,
+                        edge_dir_type edir) {
+     // foreach master bit which is set, set its corresponding mirror
+     // synchronize master to mirrors
+     vertex_set ret(empty_set());
+     ret.make_explicit(*this);
+
+     foreach(uint32_t lvid, cur.get_lvid_bitset(*this)) {
+       if (edir == IN_EDGES || edir == ALL_EDGES) {
+         foreach(local_edge_type e, l_vertex(lvid).in_edges()) {
+           ret.set_lvid_unsync(e.source().id());
+         }
+       }
+       if (edir == OUT_EDGES || edir == ALL_EDGES) {
+         foreach(local_edge_type e, l_vertex(lvid).out_edges()) {
+           ret.set_lvid_unsync(e.target().id());
+         }
+       }
+     }
+     ret.synchronize_mirrors_to_master_or(*this, vset_exchange);
+     ret.synchronize_master_to_mirrors(*this, vset_exchange);
+     return ret;
+   }
 
 
+   /**
+    * \brief Constructs a vertex set from a predicate operation which
+    * is executed on each vertex.
+    *
+    * This function selects a subset of vertices on which the predicate 
+    * evaluates to true.
+    For instance if vertices contain an integer, the following
+    * code will construct a set of vertices containing only vertices with data
+    * which are a multiple of 2.
+    *
+    * \code
+    * bool is_multiple_of_2(const graph_type::vertex_type& vertex) {
+    *   return vertex.data() % 2 == 0;
+    * }
+    * vertex_set even_vertices = graph.select(is_multiple_of_2);
+    * \endcode
+    * 
+    * select() also takes a second argument which restricts the set of vertices
+    * queried. For instance, 
+    * \code
+    * bool is_multiple_of_3(const graph_type::vertex_type& vertex) {
+    *   return vertex.data() % 3 == 0;
+    * }
+    * vertex_set div_6_vertices = graph.select(is_multiple_of_3, even_vertices);
+    * \endcode
+    * will select from the set of even vertices, all vertices which are also 
+    * divisible by 3. The resultant set is therefore the set of all vertices
+    * which are divisible by 6.
+    *
+    * \param select_functor A function/functor which takes a 
+    *                       const vertex_type& argument and returns a boolean
+    *                       denoting of the vertex is to be included in the
+    *                       returned set
+    * \param vset Optional. The set of vertices to evaluate the selection on.
+    *                       Defaults to complete_set()
+    */
+   template <typename FunctionType>
+   vertex_set select(FunctionType select_functor,
+                     const vertex_set& vset = complete_set()) {
+     vertex_set ret(empty_set());
+
+     ret.make_explicit(*this);
+#ifdef _OPENMP
+        #pragma omp for
+#endif
+     for (int i = 0; i < (int)local_graph.num_vertices(); ++i) {
+       if (lvid2record[i].owner == rpc.procid() && 
+           vset.l_contains((lvid_type)i)) {
+         const vertex_type vtx(l_vertex(i));
+         if (select_functor(vtx)) ret.set_lvid(i);
+       }
+     }
+     ret.synchronize_master_to_mirrors(*this, vset_exchange);
+     return ret; 
+   }
+
+   /**
+    * \brief Returns the number of vertices in a vertex set.
+    * 
+    * This function must be called on all machines and returns the number of 
+    * vertices contained in the vertex set.
+    * 
+    * For instance:
+    * \code
+    *   graph.vertex_set_size(graph.complete_set());
+    * \endcode
+    * will always evaluate to graph.num_vertices();
+    */
+   size_t vertex_set_size(const vertex_set& vset) {
+     size_t count = 0;
+     for (int i = 0; i < (int)local_graph.num_vertices(); ++i) {
+        count += (lvid2record[i].owner == rpc.procid() && 
+                  vset.l_contains((lvid_type)i));
+     }
+     rpc.all_reduce(count);
+     return count; 
+   }
 
 
+   /**
+    * \brief Returns true if the vertex set is empty 
+    * 
+    * This function must be called on all machines and returns 
+    * true if the vertex set is empty 
+    */
+   bool vertex_set_empty(const vertex_set& vset) {
+     if (vset.lazy) return !vset.is_complete_set;
 
-
+     size_t count = vset.get_lvid_bitset(*this).empty();
+     rpc.all_reduce(count);
+     return count == rpc.numprocs(); 
+   }
 /****************************************************************************
  *                       Internal Functions                                 *
  *                     ----------------------                               *
@@ -2250,7 +2450,6 @@ namespace graphlab {
      */
     void synchronize() {
       typedef std::pair<vertex_id_type, vertex_data_type> pair_type;
-      buffered_exchange<pair_type> vertex_exchange(rpc.dc());
       typename buffered_exchange<pair_type>::buffer_type recv_buffer;
       procid_t sending_proc;
       // Loop over all the local vertex records
@@ -2360,6 +2559,12 @@ namespace graphlab {
        */
       procid_t owner() const {
         return graph_ref.l_get_vertex_record(lvid).owner;
+      }
+
+      /** \brief Returns the owner of this local vertex
+       */
+      bool owned() const {
+        return graph_ref.l_get_vertex_record(lvid).owner == graph_ref.procid();
       }
 
       /** \brief Returns the number of in_edges of this vertex
@@ -2546,7 +2751,11 @@ namespace graphlab {
     /** pointer to the distributed ingress object*/
     idistributed_ingress<VertexData, EdgeData>* ingress_ptr;
 
+    /** Buffered Exchange used by synchronize() */
+    buffered_exchange<std::pair<vertex_id_type, vertex_data_type> > vertex_exchange;
 
+    /** Buffered Exchange used by vertex sets */
+    buffered_exchange<vertex_id_type> vset_exchange;
 
     void set_ingress_method(const std::string& method,
         size_t bufsize = 50000, bool usehash = false, bool userecent = false) {
