@@ -127,7 +127,7 @@ We can now run the structured prediction application on the synthetic
 image.
 
 \verbatim
-> ./structured_prediction --prior synth_vdata.tsv --graph synth_edata.tsv \
+> ./lbp_structured_prediction --prior synth_vdata.tsv --graph synth_edata.tsv \
                           --output posterior_vdata.tsv
 \endverbatim
 

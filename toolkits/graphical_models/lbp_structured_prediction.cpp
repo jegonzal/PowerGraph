@@ -239,10 +239,10 @@ public:
    */
   void initialize(size_t source_id, size_t nsource, size_t target_id, size_t ntarget) {
     ASSERT_GT(nsource, 0); ASSERT_GT(ntarget, 0);
-    message(source_id, target_id).resize(ntarget);
-    old_message(source_id, target_id).resize(ntarget);
-    message(target_id, source_id).resize(nsource);
-    old_message(target_id, source_id).resize(nsource);
+    message(source_id, target_id).setZero(ntarget);
+    old_message(source_id, target_id).setZero(ntarget);
+    message(target_id, source_id).setZero(nsource);
+    old_message(target_id, source_id).setZero(nsource);
   }
   void save(graphlab::oarchive& arc) const {
     for(size_t i = 0; i < 4; ++i) arc << messages_[i];
