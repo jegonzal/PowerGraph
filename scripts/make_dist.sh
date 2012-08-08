@@ -24,7 +24,7 @@ cd dist
 tar -vz \
     -cf graphlabapi_${version}.tar.gz \
     graphlabapi
-    
+cd ..
 
-ls -al graphlabapi/dist | tail -n 1
+ls -al dist | tail -n 1
 
