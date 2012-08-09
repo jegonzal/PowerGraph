@@ -11,6 +11,7 @@ The toolkit current contains:
  - \ref graph_analytics_triangle_directed "Triangle Counting (directed)"
  - \ref graph_analytics_pagerank "PageRank"
  - \ref graph_analytics_kcore "KCore Decomposition"
+ - \ref graph_coloring "Graph Coloring"
 
 All toolkits take any of the graph formats described in \ref graph_formats . 
 
@@ -504,4 +505,101 @@ the resultant K-core graphs.
                         at K=kmin
 \li \b --kmax (Optional. Default Inf). Only output result for the K-core graph 
                         up to K=kmax
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+\section graph_analytics_triangle_coloring Graph Coloring 
+
+The graph coloring program implements a really simple graph coloring 
+procedure: each vertex reads the colors of its neighbors and takes on 
+the smallest possible color which does not conflict with its neighbors.
+
+The procedure necessarily uses the asynchronous engine (it will never
+converge with the synchronous engine).
+
+The input to the system is a graph in any of the Portable graph format
+described in \ref graph_formats. It is important that the input be "cleaned"
+and that reverse edges are removed: i.e. if edge 1-->5 exists, edge 5-->1 should
+not exist. (The program will run without these edge removed. But numbers
+may be erroneous).
+
+To color a graph, the minimal set of options required are:
+\verbatim
+> ./simple_coloring --graph=[graph prefix] --format=[format] --output=[output prefix]
+\endverbatim
+Output looks like:
+\verbatim
+Number of vertices: 875713
+Number of edges:    5105039
+Coloring...
+Completed Tasks: 875713
+Issued Tasks: 875713
+Blocked Issues: 0
+------------------
+Joined Tasks: 0
+Colored in 42.3684 seconds
+Metrics server stopping.
+\endverbatim
+
+Observe that the number of Completed Tasks is identical to the number of vertices.
+This is a result of the consistency model which ensures that the entire
+vertex update is peformed "atomically".
+
+Tne <tt>output prefix</tt> is where the output counts will be written. This
+may be located on HDFS. For instance, if the <tt>output_prefix</tt> is <tt>"v_out"</tt>,
+the output files will be written to:
+
+\verbatim
+v_out_1_of_16
+v_out_2_of_16
+...
+v_out_16_of_16
+\endverbatim
+
+Each line in the output file contains two numbers: a Vertex ID, and the number
+color of the vertex.
+
+This program can also run distributed by using
+\verbatim
+> mpiexec -n [N machines] --hostfile [host file] ./simple_coloring ....
+\endverbatim
+See your MPI documentation for details on how to launch this job.
+All machines must have access to the input graph location and the output graph 
+location. Graphs may be on HDFS. 
+If you have problems loading HDFS files, see the \ref FAQ.
+
+
+\subsection Options
+Relevant options are: 
+\li \b --graph (Required). The prefix from which to load the graph data
+\li \b --format (Required). The format of the input graph 
+\li \b --ncpus (Optional. Default 2) The number of processors that will be used
+for computation.  
+\li \b –-graph_opts (Optional, Default empty) Any additional graph options. See
+  --graph_help a list of options.
+\li \b –-engine_opts (Optional, Default empty) Any additional engine options. See
+  --engine_help a list of options.
+
+A particularly relevant option is 
+\verbatim
+--engine_opts="factorized=true"
+\endverbatim
+
+This uses a weaker consistency setting which only guarantees that individual
+"gather/apply/scatter" operations are atomic, but does not guarantee atomicity
+of the entire update. As a result, this may require more updates to complete,
+but could in practice run significantly faster.
+
 */
