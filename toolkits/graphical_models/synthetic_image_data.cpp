@@ -22,11 +22,16 @@
 
 
 /**
- * This application creates a synthetic create and process synthetic
- * image data.
- * 
- * \todo Finish documenting
+ * This application creates a synthetic data to test and demonstrate
+ * the structred prediction applications.  The synthetic task is to
+ * remove noise from a synthetic noisy image.
  *
+ * In addition this application can be used to take the output of
+ * the structured prediction tools and rendering the predicted noise
+ * free image.
+ *
+ *
+ * 
  *  \author Joseph Gonzalez
  */
 
@@ -45,16 +50,24 @@
 using namespace cv;
 
 
+/**
+ * The pixel struct encodes a pixel location and value.
+ *
+ * Because each pixel corresponds to vertex in the graph we need a
+ * mapping between integers and coordinats.  This is accomplished by
+ * using the first two lowest order bytes to encode the column and the
+ * two highest order bytes to encode the row.
+ */
 struct pixel {
-  size_t row;
-  size_t col;
+  uint16_t row, col;
   double value;
-  pixel(size_t ind = 0, double value = 0) :
+  pixel(uint32_t ind = 0, double value = 0) :
     row(ind >> 16), col( ind & ((1 << 16)-1)), value(value) {  }
 }; // end of sub2ind
 
 
-graphlab::vertex_id_type sub2ind(size_t r, size_t c) {
+
+graphlab::vertex_id_type sub2ind(uint16_t r, uint16_t c) {
   ASSERT_LT(r, ((1 << 16)-1));
   ASSERT_LT(c, ((1 << 16)-1));
   return (r << 16) | c;
@@ -63,7 +76,7 @@ graphlab::vertex_id_type sub2ind(size_t r, size_t c) {
 
 
 
-void make_data(const size_t rows, const size_t cols,
+void make_data(const uint16_t rows, const uint16_t cols,
                const size_t ncolors, const double error_rate,
                const std::string& vdata_fn,
                const std::string& edata_fn,
@@ -92,7 +105,7 @@ void make_data(const size_t rows, const size_t cols,
       const uint16_t true_color = r < rows/2 ? ring_color : 0;
       // compute the predicted color
       const uint16_t obs_color = graphlab::random::rand01() < error_rate?
-        graphlab::random::fast_uniform<uint16_t>(0, ncolors) : true_color;
+        graphlab::random::fast_uniform<uint16_t>(0, ncolors-1) : true_color;
 
       const double c1p = double(true_color)/(ncolors-1);
       unsigned char c1 = (unsigned char)(255 * c1p > 255 ? 255 : 255 * c1p);
@@ -134,7 +147,7 @@ void read_data(const std::string& pred_img_fn) {
 
   std::string line;
   size_t line_counter = 0;
-  size_t nrows = 0, ncols = 0;
+  uint16_t nrows = 0, ncols = 0;
   size_t min_pixel(-1);
   size_t max_pixel(0);
   while (std::getline(std::cin, line)) {
@@ -186,8 +199,8 @@ int main(int argc, char** argv) {
   // Set initial values for members ------------------------------------------->
   size_t ncolors = 5;
   double error_rate = 0.5;
-  size_t nrows = 200;
-  size_t ncols = 200;
+  uint16_t nrows = 200;
+  uint16_t ncols = 200;
  
   std::string vdata_fn = "synth_vdata.tsv";
   std::string edata_fn = "synth_edata.tsv";
