@@ -1997,13 +1997,15 @@ namespace graphlab {
       size_t target_index = rpc.procid();
       size_t addedvtx = 0;
 
+      // A large prime number
+      const size_t HASH_OFFSET = 2654435761;
       for(size_t source = rpc.procid(); source < nverts;
           source += rpc.numprocs()) {
         const size_t out_degree = random::multinomial_cdf(prob) + 1;
         for(size_t i = 0; i < out_degree; ++i) {
-          target_index = (target_index + 2654435761)  % nverts;
+          target_index = (target_index + HASH_OFFSET)  % nverts;
           while (source == target_index) {
-            target_index = (target_index + 2654435761)  % nverts;
+            target_index = (target_index + HASH_OFFSET)  % nverts;
           }
           if(in_degree) add_edge(target_index, source);
           else add_edge(source, target_index);
