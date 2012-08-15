@@ -468,11 +468,12 @@ inline bool graph_loader(graph_type& graph,
   float obs(0);
   strm >> source_id >> target_id;
 
-  if(role == edge_data::TRAIN || role == edge_data::VALIDATE) 
+  // for test files (.predict) no need to read the actual rating value.
+  if(role == edge_data::TRAIN || role == edge_data::VALIDATE){
     strm >> obs;
-  if (obs < sgd_vertex_program::MINVAL || obs > sgd_vertex_program::MAXVAL)
-    logstream(LOG_FATAL)<<"Rating values should be between " << sgd_vertex_program::MINVAL << " and " << sgd_vertex_program::MAXVAL << ". Got value: " << obs << " [ user: " << source_id << " to item: " <<target_id << " ] " << std::endl; 
-    
+    if (obs < sgd_vertex_program::MINVAL || obs > sgd_vertex_program::MAXVAL)
+      logstream(LOG_FATAL)<<"Rating values should be between " << sgd_vertex_program::MINVAL << " and " << sgd_vertex_program::MAXVAL << ". Got value: " << obs << " [ user: " << source_id << " to item: " <<target_id << " ] " << std::endl; 
+  }
   target_id = -(graphlab::vertex_id_type(target_id + SAFE_NEG_OFFSET));
                           
   // Create an edge and add it to the graph
@@ -491,7 +492,7 @@ double sgd_vertex_program::LAMBDA = 0.001;
 double sgd_vertex_program::GAMMA = 0.001;
 size_t sgd_vertex_program::MAX_UPDATES = -1;
 double sgd_vertex_program::MAXVAL = 1e+100;
-double sgd_vertex_program::MINVAL = 1e-100;
+double sgd_vertex_program::MINVAL = -1e+100;
 double sgd_vertex_program::STEP_DEC = 0.9;
 bool sgd_vertex_program::debug = false;
 

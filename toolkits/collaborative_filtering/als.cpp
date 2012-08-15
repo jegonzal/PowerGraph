@@ -50,6 +50,9 @@
 
 #include <graphlab/macros_def.hpp>
 
+const int SAFE_NEG_OFFSET = 2; //add 2 to negative node id
+//to prevent -0 and -1 which arenot allowed
+
 /**
  * \brief We use the eigen library's vector type to represent
  * mathematical vectors.
@@ -115,7 +118,6 @@ struct vertex_data {
 
 size_t vertex_data::NLATENT = 20;
 
-
 /**
  * \brief The edge data stores the entry in the matrix.
  *
@@ -161,58 +163,6 @@ get_other_vertex(graph_type::edge_type& edge,
                  const graph_type::vertex_type& vertex) {
   return vertex.id() == edge.source().id()? edge.target() : edge.source();
 }; // end of get_other_vertex
-
-
-/**
- * \brief Given an edge compute the error associated with that edge
- */
-double extract_l2_error(const graph_type::edge_type & edge) {
-  const double pred = 
-    edge.source().data().factor.dot(edge.target().data().factor);
-  return (edge.data().obs - pred) * (edge.data().obs - pred);
-} // end of extract_l2_error
-
-
-
-
-/**
- * \brief The graph loader function is a line parser used for
- * distributed graph construction.
- */
-inline bool graph_loader(graph_type& graph, 
-                         const std::string& filename,
-                         const std::string& line) {
-  ASSERT_FALSE(line.empty()); 
-  namespace qi = boost::spirit::qi;
-  namespace ascii = boost::spirit::ascii;
-  namespace phoenix = boost::phoenix;
-  // Determine the role of the data
-  edge_data::data_role_type role = edge_data::TRAIN;
-  if(boost::ends_with(filename,".validate")) role = edge_data::VALIDATE;
-  else if(boost::ends_with(filename, ".predict")) role = edge_data::PREDICT;
-  // Parse the line
-  graph_type::vertex_id_type source_id(-1), target_id(-1);
-  float obs(0); 
-  const bool success = qi::phrase_parse
-    (line.begin(), line.end(),       
-     //  Begin grammar
-     (
-      qi::ulong_[phoenix::ref(source_id) = qi::_1] >> -qi::char_(',') >>
-      qi::ulong_[phoenix::ref(target_id) = qi::_1] >> 
-      -(-qi::char_(',') >> qi::float_[phoenix::ref(obs) = qi::_1])
-      )
-     ,
-     //  End grammar
-     ascii::space); 
-  if(!success) return false;
-  if(REMAP_TARGET) {
-    // map target id into a separate number space
-    target_id = -(graphlab::vertex_id_type(target_id + 2));
-  }
-  // Create an edge and add it to the graph
-  graph.add_edge(source_id, target_id, edge_data(obs, role)); 
-  return true; // successful load
-} // end of graph_loader
 
 
 
@@ -329,7 +279,9 @@ public:
   static double TOLERANCE;
   static double LAMBDA;
   static size_t MAX_UPDATES;
-
+  static double MAXVAL;
+  static double MINVAL;
+ 
   /** The set of edges to gather along */
   edge_dir_type gather_edges(icontext_type& context, 
                              const vertex_type& vertex) const { 
@@ -400,9 +352,75 @@ public:
 
 }; // end of als vertex program
 
+
+
+/**
+ * \brief The graph loader function is a line parser used for
+ * distributed graph construction.
+ */
+inline bool graph_loader(graph_type& graph, 
+                         const std::string& filename,
+                         const std::string& line) {
+  ASSERT_FALSE(line.empty()); 
+  namespace qi = boost::spirit::qi;
+  namespace ascii = boost::spirit::ascii;
+  namespace phoenix = boost::phoenix;
+  // Determine the role of the data
+  edge_data::data_role_type role = edge_data::TRAIN;
+  if(boost::ends_with(filename,".validate")) role = edge_data::VALIDATE;
+  else if(boost::ends_with(filename, ".predict")) role = edge_data::PREDICT;
+  // Parse the line
+  graph_type::vertex_id_type source_id(-1), target_id(-1);
+  float obs(0); 
+  const bool success = qi::phrase_parse
+    (line.begin(), line.end(),       
+     //  Begin grammar
+     (
+      qi::ulong_[phoenix::ref(source_id) = qi::_1] >> -qi::char_(',') >>
+      qi::ulong_[phoenix::ref(target_id) = qi::_1] >> 
+      -(-qi::char_(',') >> qi::float_[phoenix::ref(obs) = qi::_1])
+      )
+     ,
+     //  End grammar
+     ascii::space); 
+
+  if(!success) return false;
+
+  if(role == edge_data::TRAIN || role == edge_data::VALIDATE){
+    if (obs < als_vertex_program::MINVAL || obs > als_vertex_program::MAXVAL)
+      logstream(LOG_FATAL)<<"Rating values should be between " << als_vertex_program::MINVAL << " and " << als_vertex_program::MAXVAL << ". Got value: " << obs << " [ user: " << source_id << " to item: " <<target_id << " ] " << std::endl; 
+  }
+ 
+  if(REMAP_TARGET) {
+    // map target id into a separate number space
+    target_id = -(graphlab::vertex_id_type(target_id + SAFE_NEG_OFFSET));
+  }
+  // Create an edge and add it to the graph
+  graph.add_edge(source_id, target_id, edge_data(obs, role)); 
+  return true; // successful load
+} // end of graph_loader
+
+
+
+/**
+ * \brief Given an edge compute the error associated with that edge
+ */
+double extract_l2_error(const graph_type::edge_type & edge) {
+  double pred = 
+    edge.source().data().factor.dot(edge.target().data().factor);
+  pred = std::min(als_vertex_program::MAXVAL, pred);
+  pred = std::max(als_vertex_program::MINVAL, pred);
+  return (edge.data().obs - pred) * (edge.data().obs - pred);
+} // end of extract_l2_error
+
+
+
 double als_vertex_program::TOLERANCE = 1e-3;
 double als_vertex_program::LAMBDA = 0.01;
 size_t als_vertex_program::MAX_UPDATES = -1;
+double als_vertex_program::MAXVAL = 1e+100;
+double als_vertex_program::MINVAL = -1e+100;
+
 
 
 
@@ -471,13 +489,56 @@ struct prediction_saver {
       const double prediction = 
         edge.source().data().factor.dot(edge.target().data().factor);
       strm << edge.source().id() << '\t';
-      if(REMAP_TARGET) strm << (-edge.target().id() - 2) << '\t';
+      if(REMAP_TARGET) strm << (-edge.target().id() - SAFE_NEG_OFFSET) << '\t';
       else strm << edge.target().id() << '\t';
       strm << prediction << '\n';
       return strm.str();
     } else return "";
   }
 }; // end of prediction_saver
+
+
+struct linear_model_saver_U {
+  typedef graph_type::vertex_type vertex_type;
+  typedef graph_type::edge_type   edge_type;
+  /* save the linear model, using the format:
+     nodeid) factor1 factor2 ... factorNLATENT \n
+  */
+  std::string save_vertex(const vertex_type& vertex) const {
+    if (vertex.num_out_edges() > 0){
+      std::string ret = boost::lexical_cast<std::string>(vertex.id()) + ") ";
+      for (uint i=0; i< vertex_data::NLATENT; i++)
+        ret += boost::lexical_cast<std::string>(vertex.data().factor[i]) + " ";
+        ret += "\n";
+      return ret;
+    }
+    else return "";
+  }
+  std::string save_edge(const edge_type& edge) const {
+    return "";
+  }
+}; 
+
+struct linear_model_saver_V {
+  typedef graph_type::vertex_type vertex_type;
+  typedef graph_type::edge_type   edge_type;
+  /* save the linear model, using the format:
+     nodeid) factor1 factor2 ... factorNLATENT \n
+  */
+  std::string save_vertex(const vertex_type& vertex) const {
+    if (vertex.num_out_edges() == 0){
+      std::string ret = boost::lexical_cast<std::string>(-vertex.id()-SAFE_NEG_OFFSET) + ") ";
+      for (uint i=0; i< vertex_data::NLATENT; i++)
+        ret += boost::lexical_cast<std::string>(vertex.data().factor[i]) + " ";
+        ret += "\n";
+      return ret;
+    }
+    else return "";
+  }
+  std::string save_edge(const edge_type& edge) const {
+    return "";
+  }
+}; 
 
 
 
@@ -514,6 +575,8 @@ int main(int argc, char** argv) {
                        "ALS regularization weight"); 
   clopts.attach_option("tol", als_vertex_program::TOLERANCE,
                        "residual termination threshold");
+  clopts.attach_option("maxval", als_vertex_program::MAXVAL, "max allowed value");
+  clopts.attach_option("minval", als_vertex_program::MINVAL, "min allowed value");
   clopts.attach_option("interval", interval, 
                        "The time in seconds between error reports");
   clopts.attach_option("predictions", predictions,
@@ -605,10 +668,17 @@ int main(int argc, char** argv) {
     const bool save_vertices = false;
     const bool save_edges = true;
     const size_t threads_per_machine = 2;
+
+    //save the predictions
     graph.save(predictions, prediction_saver(),
                gzip_output, save_vertices, 
                save_edges, threads_per_machine);
-    
+    //save the linear model
+    graph.save(predictions + ".U", linear_model_saver_U(),
+		gzip_output, save_edges, save_vertices, threads_per_machine);
+    graph.save(predictions + ".V", linear_model_saver_V(),
+		gzip_output, save_edges, save_vertices, threads_per_machine);
+  
   }
              
 

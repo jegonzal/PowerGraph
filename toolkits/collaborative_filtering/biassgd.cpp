@@ -525,11 +525,11 @@ inline bool graph_loader(graph_type& graph,
   float obs(0);
   strm >> source_id >> target_id;
 
-   if(role == edge_data::TRAIN || role == edge_data::VALIDATE) 
+   if(role == edge_data::TRAIN || role == edge_data::VALIDATE){
     strm >> obs;
-  if (obs < biassgd_vertex_program::MINVAL || obs > biassgd_vertex_program::MAXVAL)
-    logstream(LOG_FATAL)<<"Rating values should be between " << biassgd_vertex_program::MINVAL << " and " << biassgd_vertex_program::MAXVAL << ". Got value: " << obs << " [ user: " << source_id << " to item: " <<target_id << " ] " << std::endl; 
-  
+    if (obs < biassgd_vertex_program::MINVAL || obs > biassgd_vertex_program::MAXVAL)
+      logstream(LOG_FATAL)<<"Rating values should be between " << biassgd_vertex_program::MINVAL << " and " << biassgd_vertex_program::MAXVAL << ". Got value: " << obs << " [ user: " << source_id << " to item: " <<target_id << " ] " << std::endl; 
+  }
   target_id = -(graphlab::vertex_id_type(target_id + SAFE_NEG_OFFSET));
   // Create an edge and add it to the graph
   graph.add_edge(source_id, target_id, edge_data(obs, role)); 
