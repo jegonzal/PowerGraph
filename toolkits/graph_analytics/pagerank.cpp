@@ -34,6 +34,8 @@ float TOLERANCE = 1.0E-2;
 
 size_t ITERATIONS = 0;
 
+bool USE_DELTA_CACHE = false;
+
 // The vertex data is just the pagerank value (a float)
 typedef float vertex_data_type;
 
@@ -87,7 +89,7 @@ public:
   void apply(icontext_type& context, vertex_type& vertex,
              const gather_type& total) {
     float newval = total + RESET_PROB;
-    last_change = std::fabs(newval - vertex.data()) / vertex.num_out_edges();
+    last_change = (newval - vertex.data()) / vertex.num_out_edges();
 
     vertex.data() = newval;
     if (ITERATIONS) context.signal(vertex);
@@ -96,17 +98,27 @@ public:
   /* The scatter edges depend on whether the pagerank has converged */
   edge_dir_type scatter_edges(icontext_type& context,
                               const vertex_type& vertex) const {
+    // If an iteration counter is set then 
     if (ITERATIONS) return graphlab::NO_EDGES;
-    else {
-      if (last_change > TOLERANCE) return graphlab::OUT_EDGES;
-      else return graphlab::NO_EDGES;
+    // In the dynamic case we run scatter on out edges if the we need
+    // to maintain the delta cache or the tolerance is above bound.
+    if(USE_DELTA_CACHE || std::fabs(last_change) > TOLERANCE ) {
+      return graphlab::OUT_EDGES;
+    } else {
+      return graphlab::NO_EDGES;
     }
   }
 
   /* The scatter function just signal adjacent pages */
   void scatter(icontext_type& context, const vertex_type& vertex,
                edge_type& edge) const {
-    context.signal(edge.target());
+    if(USE_DELTA_CACHE) {
+      context.post_delta(edge.target(), last_change);
+      if(std::fabs(last_change) > TOLERANCE)
+        context.signal(edge.target()); 
+    } else {
+      context.signal(edge.target());
+    }
   }
 }; // end of factorized_pagerank update functor
 
@@ -156,6 +168,8 @@ int main(int argc, char** argv) {
                        "Runs complete (non-dynamic) PageRank for a fixed "
                        "number of iterations. Also overrides the iterations "
                        "option in the engine");
+  clopts.attach_option("use_delta", USE_DELTA_CACHE,
+                       "Use the delta cache to reduce time in gather.");
   std::string saveprefix;
   clopts.attach_option("saveprefix", saveprefix,
                        "If set, will save the resultant pagerank to a "
