@@ -128,23 +128,50 @@ namespace graphlab {
     } // end of send
 
 
+    void partial_flush(size_t thread_id) {
+      for(procid_t proc = 0; proc < rpc.numprocs(); ++proc) {
+        const size_t index = thread_id * rpc.numprocs() + proc;
+        ASSERT_LT(proc, rpc.numprocs());
+        if (send_buffers[index].buffer->len > 0) {
+          send_locks[index].lock();
+          send_buffers[index].buffer.flush();
+          graphlab::dc_impl::blob b(send_buffers[index].buffer->str, 
+                                    send_buffers[index].buffer->len);
+          if(proc == rpc.procid()) {
+            rpc_recv(proc, send_buffers[index].numinserts, b);
+            // here the blob is transimtted directly
+          } else {
+            rpc.remote_call(proc, &buffered_exchange::rpc_recv,
+                rpc.procid(), send_buffers[index].numinserts, b);
+            // here I need to free the blob
+            b.free();
+          }
+          send_buffers[index].buffer->relinquish();
+          send_buffers[index].numinserts = 0;
+          send_locks[index].unlock();
+        }
+      } 
+    }
+
     void flush() {
       for(size_t i = 0; i < send_buffers.size(); ++i) {
         const procid_t proc = i % rpc.numprocs();
         ASSERT_LT(proc, rpc.numprocs());
         send_locks[i].lock();
         send_buffers[i].buffer.flush();
-        graphlab::dc_impl::blob b(send_buffers[i].buffer->str, 
-                                  send_buffers[i].buffer->len);
-        if(proc == rpc.procid()) {
-          rpc_recv(proc, send_buffers[i].numinserts, b);
-        } else {
-          rpc.remote_call(proc, &buffered_exchange::rpc_recv,
-                          rpc.procid(),send_buffers[i].numinserts, b);
-          b.free();
+        if (send_buffers[i].buffer->len > 0) {
+          graphlab::dc_impl::blob b(send_buffers[i].buffer->str, 
+                                    send_buffers[i].buffer->len);
+          if(proc == rpc.procid()) {
+            rpc_recv(proc, send_buffers[i].numinserts, b);
+          } else {
+            rpc.remote_call(proc, &buffered_exchange::rpc_recv,
+                            rpc.procid(),send_buffers[i].numinserts, b);
+            b.free();
+          }
+          send_buffers[i].buffer->relinquish();
+          send_buffers[i].numinserts = 0;
         }
-        send_buffers[i].buffer->relinquish();
-        send_buffers[i].numinserts = 0;
         send_locks[i].unlock();
       }
       rpc.full_barrier();
@@ -156,6 +183,7 @@ namespace graphlab {
       dc_impl::blob read_buffer;
       bool has_lock = false;
       if(try_lock) {
+        if (recv_buffers.empty()) return false;
         has_lock = recv_lock.try_lock();
       } else { 
         recv_lock.lock();
