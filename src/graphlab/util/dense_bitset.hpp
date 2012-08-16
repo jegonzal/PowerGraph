@@ -44,7 +44,7 @@ namespace graphlab {
     }
 
     /// Constructs a bitset with 'size' bits. All bits will be cleared.
-    dense_bitset(size_t size) : array(NULL), len(size) {
+    explicit dense_bitset(size_t size) : array(NULL), len(size) {
       resize(size);
       clear();
     }
@@ -129,7 +129,14 @@ namespace graphlab {
       const size_t mask(size_t(1) << size_t(bitpos)); 
       return __sync_fetch_and_xor(array + arrpos, mask) & mask;
     }
-    
+ 
+    //! Returns the value of the word containing the bit b 
+    inline size_t containing_word(uint32_t b) {
+      uint32_t arrpos, bitpos;
+      bit_to_pos(b, arrpos, bitpos);
+      return array[arrpos];
+    }
+
     /** Set the bit at position b to true returning the old value.
         Unlike set_bit(), this uses a non-atomic set which is faster,
         but is unsafe if accessed by multiple threads.
@@ -456,6 +463,13 @@ namespace graphlab {
     fixed_dense_bitset(const fixed_dense_bitset<len> &db) {
       *this = db;
     }
+
+    /** Initialize this fixed dense bitset by copying 
+        ceil(len/(wordlen)) words from mem
+    */
+    void initialize_from_mem(void* mem, size_t memlen) {
+      memcpy(array, mem, memlen);
+    }
     
     /// destructor
     ~fixed_dense_bitset() {}
@@ -502,7 +516,16 @@ namespace graphlab {
       const size_t mask(size_t(1) << size_t(bitpos)); 
       return __sync_fetch_and_or(array + arrpos, mask) & mask;
     }
-    
+
+
+    //! Returns the value of the word containing the bit b 
+    inline size_t containing_word(uint32_t b) {
+      uint32_t arrpos, bitpos;
+      bit_to_pos(b, arrpos, bitpos);
+      return array[arrpos];
+    }
+
+
     /** Set the bit at position b to true returning the old value.
         Unlike set_bit(), this uses a non-atomic set which is faster,
         but is unsafe if accessed by multiple threads.
