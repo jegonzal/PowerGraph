@@ -4,6 +4,10 @@ project(GraphicalModels)
 add_graphlab_executable(lbp_structured_prediction lbp_structured_prediction.cpp)
 requires_eigen(lbp_structured_prediction)
 
+add_graphlab_executable(profile_lbp_synthetic profile_lbp_synthetic.cpp)
+requires_eigen(profile_lbp_synthetic)
+
+
 add_graphlab_executable(synthetic_image_data synthetic_image_data.cpp)
 requires_opencv(synthetic_image_data)
 
