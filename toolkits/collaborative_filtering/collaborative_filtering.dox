@@ -43,6 +43,13 @@ Namely, each row holds one rating. user and item are unsigned integers, and the 
 6 2 2.1
 \endverbatim
 
+There are three types of input files read from your input directory path:
+*.predict - test file
+*.validate - validation file
+all other files - are training files.
+
+Training files, are the historic recommendations that the linear model is build from. Validation files, are historic recommendations put aside, not used for training, but for the validation of the model. Test files are user/item pairs to compute recommendations as learned by the trained model.
+
 \section Output Output
 
 The output for the test data (ratings in the file that ends with .predict) is saved to filename specified by: --predictions=filename
