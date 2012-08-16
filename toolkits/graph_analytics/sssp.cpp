@@ -203,8 +203,12 @@ public:
    */
   void scatter(icontext_type& context, const vertex_type& vertex,
                edge_type& edge) const {
-    const min_distance_type msg(vertex.data().dist + edge.data().dist);
-    context.signal(get_other_vertex(edge, vertex), msg);
+    const vertex_type other = get_other_vertex(edge, vertex);
+    distance_type newd = vertex.data().dist + edge.data().dist;
+    if (other.data().dist > newd) {
+      const min_distance_type msg(newd);
+      context.signal(other, newd);
+    }
   } // end of scatter
 
 }; // end of shortest path vertex program
@@ -227,7 +231,23 @@ struct shortest_path_writer {
 
 
 
+struct max_deg_vertex_reducer {
+  size_t degree;
+  graphlab::vertex_id_type vid;
+  max_deg_vertex_reducer& operator+=(const max_deg_vertex_reducer& other) {
+    if (degree < other.degree) {
+      (*this) = other;
+    }
+    return (*this);
+  }
+};
 
+max_deg_vertex_reducer find_max_deg_vertex(const graph_type::vertex_type vtx) {
+  max_deg_vertex_reducer red;
+  red.degree = vtx.num_in_edges() + vtx.num_out_edges();
+  red.vid = vtx.id();
+  return red;
+}
 
 int main(int argc, char** argv) {
   // Initialize control plain using mpi
@@ -243,6 +263,7 @@ int main(int argc, char** argv) {
   std::string exec_type = "synchronous";
   size_t powerlaw = 0;
   std::vector<graphlab::vertex_id_type> sources;
+  bool max_degree_source = false;
   clopts.attach_option("graph", graph_dir,
                        "The graph file.  If none is provided "
                        "then a toy graph will be created");
@@ -250,6 +271,9 @@ int main(int argc, char** argv) {
 
   clopts.attach_option("source", sources,
                        "The source vertices");
+  clopts.attach_option("max_degree_source", max_degree_source,
+                       "Add the vertex with maximum degree as a source");
+
   clopts.add_positional("source");
 
   clopts.attach_option("directed", DIRECTED_SSSP,
@@ -271,20 +295,12 @@ int main(int argc, char** argv) {
     return EXIT_FAILURE;
   }
 
-  if(sources.empty()) {
-    dc.cout()
-      << "No source vertex provided.  Using vertex 0 as source."
-      << std::endl;
-    sources.push_back(0);
-  }
-
-
 
   // Build the graph ----------------------------------------------------------
   graph_type graph(dc, clopts);
   if(powerlaw > 0) { // make a synthetic graph
     dc.cout() << "Loading synthetic Powerlaw graph." << std::endl;
-    graph.load_synthetic_powerlaw(powerlaw, false, 2.1, 100000000);
+    graph.load_synthetic_powerlaw(powerlaw, false, 2, 100000000);
   } else { // Load the graph from a file
     dc.cout() << "Loading graph in format: "<< format << std::endl;
     graph.load(graph_dir, graph_loader);
@@ -294,6 +310,24 @@ int main(int argc, char** argv) {
   dc.cout() << "#vertices:  " << graph.num_vertices() << std::endl
             << "#edges:     " << graph.num_edges() << std::endl;
 
+
+
+  if(sources.empty()) {
+    if (max_degree_source == false) {
+      dc.cout()
+        << "No source vertex provided. Adding vertex 0 as source" 
+        << std::endl;
+      sources.push_back(0);
+    }
+  }
+
+  if (max_degree_source) {
+    max_deg_vertex_reducer v = graph.map_reduce_vertices<max_deg_vertex_reducer>(find_max_deg_vertex);
+    dc.cout()
+      << "No source vertex provided.  Using highest degree vertex " << v.vid << " as source."
+      << std::endl;
+    sources.push_back(v.vid);
+  }
 
 
 

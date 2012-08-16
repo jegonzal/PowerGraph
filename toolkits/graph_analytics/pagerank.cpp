@@ -74,23 +74,20 @@ void init_vertex(graph_type::vertex_type& vertex) { vertex.data() = 1; }
  * graphlab::IS_POD_TYPE it must implement load and save functions.
  */
 class pagerank :
-  public graphlab::ivertex_program<graph_type, float>,
-  public graphlab::IS_POD_TYPE {
+  public graphlab::ivertex_program<graph_type, float> {
   float last_change;
 public:
   /* Gather the weighted rank of the adjacent page   */
   float gather(icontext_type& context, const vertex_type& vertex,
                edge_type& edge) const {
-    return ((1.0 - RESET_PROB) / edge.source().num_out_edges()) *
-      edge.source().data();
+    return (edge.source().data() / edge.source().num_out_edges()); 
   }
 
   /* Use the total rank of adjacent pages to update this page */
   void apply(icontext_type& context, vertex_type& vertex,
              const gather_type& total) {
-    float newval = total + RESET_PROB;
+    float newval = (1.0 - RESET_PROB) * total + RESET_PROB;
     last_change = (newval - vertex.data()) / vertex.num_out_edges();
-
     vertex.data() = newval;
     if (ITERATIONS) context.signal(vertex);
   }
@@ -114,12 +111,20 @@ public:
                edge_type& edge) const {
     if(USE_DELTA_CACHE) {
       context.post_delta(edge.target(), last_change);
-      if(std::fabs(last_change) > TOLERANCE)
+      if(last_change > TOLERANCE || last_change < -TOLERANCE)
         context.signal(edge.target()); 
     } else {
       context.signal(edge.target());
     }
   }
+
+  void save(graphlab::oarchive& oarc) const {
+    if (ITERATIONS == 0) oarc << last_change;
+  }
+  void load(graphlab::iarchive& iarc) {
+    if (ITERATIONS == 0) iarc >> last_change;
+  }
+
 }; // end of factorized_pagerank update functor
 
 
@@ -187,6 +192,7 @@ int main(int argc, char** argv) {
               << "for " << ITERATIONS << " iterations." << std::endl;
     clopts.get_engine_args().set_option("type", "synchronous");
     clopts.get_engine_args().set_option("max_iterations", ITERATIONS);
+    clopts.get_engine_args().set_option("sched_allv", true);
   }
 
   // Build the graph ----------------------------------------------------------
