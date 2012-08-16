@@ -9,4 +9,4 @@ echo "Unable to figure out MPI Rank!"
 exit 1
 fi
 #echo $RANK
-$* | tee out.$RANK 
+$* 2>&1 | tee out.$RANK 
