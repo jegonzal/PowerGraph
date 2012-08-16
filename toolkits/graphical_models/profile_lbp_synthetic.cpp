@@ -119,6 +119,9 @@ double TOLERANCE = 0.01;
 
 
 
+bool USE_CACHE = false;
+
+
 /**
  * Make a synthetic node potential
  */
@@ -340,7 +343,9 @@ struct bp_vertex_program :
     // Compute message residual
     const double residual = 
       (new_out_message - old_out_message).cwiseAbs().sum();
-    context.clear_gather_cache(other_vertex);
+    if(USE_CACHE) {
+      context.clear_gather_cache(other_vertex);
+    }
     // Schedule the adjacent vertex
     if(residual > TOLERANCE) context.signal(other_vertex, residual);
  }; // end of scatter
@@ -382,7 +387,7 @@ private:
 }; // end of class bp_vertex_program
 
 
-
+ 
 
 
 
@@ -410,10 +415,13 @@ bool edge_loader(graph_type& graph, const std::string& fname,
       )
      ,
      //  End grammar
-     ascii::space); 
-  if(!success) return false;  
-  graph.add_edge(source, target, edge_data(weight));
-  return true;
+     ascii::space);
+  if(!success) return false;
+  if(source == target) return true;
+  else {
+    graph.add_edge(source, target, edge_data(weight));
+    return true;
+  }
 } // end of edge loader
 
 
@@ -497,16 +505,19 @@ int main(int argc, char** argv) {
   std::string graph_dir;
   std::string output_dir = "pred";
   std::string exec_type = "async";
+  std::string format = "tsv";
   bool map = false;
   clopts.attach_option("graph", graph_dir,
                        "The directory containing the adjacency graph");
+  clopts.add_positional("graph"); 
   clopts.attach_option("field", FIELD, 
                        "The background field used to construct the node potentials");
   clopts.attach_option("nstates", NSTATES, 
                        "The number of states for each variable");
-  clopts.add_positional("graph");
+  clopts.attach_option("cache", USE_CACHE, "use gather caching");
   clopts.attach_option("output", output_dir,
                        "The directory in which to save the predictions");
+  clopts.attach_option("format", format, "The graph file format.");
   clopts.add_positional("output");
   clopts.attach_option("smoothing", SMOOTHING,
                        "The amount of smoothing (larger = more)");
@@ -523,6 +534,7 @@ int main(int argc, char** argv) {
     return clopts.is_set("help")? EXIT_SUCCESS : EXIT_FAILURE;
   }
 
+  clopts.get_engine_args().set_option("use_cache", USE_CACHE);
 
   if(graph_dir.empty()) {
     logstream(LOG_ERROR) << "No graph was provided." << std::endl;
@@ -537,14 +549,16 @@ int main(int argc, char** argv) {
 
 
   ///! load the graph
-  graph.load(graph_dir, edge_loader);
+  graph.load_format(graph_dir, format);
   graph.finalize();
+  dc.cout() << "Initializing edge data" << std::endl;
   graph.transform_edges(edge_initializer);
 
   typedef graphlab::omni_engine<bp_vertex_program> engine_type;
   engine_type engine(dc, graph, exec_type, clopts);
   engine.signal_all();
   graphlab::timer timer;
+  dc.cout() << "Running engine" << std::endl;
   engine.start();  
   const double runtime = timer.current_time();
     dc.cout() 

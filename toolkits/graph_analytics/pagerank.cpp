@@ -180,6 +180,8 @@ int main(int argc, char** argv) {
     return EXIT_FAILURE;
   }
 
+  // Enable gather caching in the engine
+  clopts.get_engine_args().set_option("use_cache", USE_DELTA_CACHE);
 
   if (ITERATIONS) {
     // make sure this is the synchronous engine
