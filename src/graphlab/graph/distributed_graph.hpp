@@ -592,13 +592,25 @@ namespace graphlab {
       foreach(std::string opt, keys) {
         if (opt == "ingress") {
           opts.get_graph_args().get_option("ingress", ingress_method);
+          if (rpc.procid() == 0) 
+            logstream(LOG_EMPH) << "Graph Option: ingress = " 
+              << ingress_method << std::endl;
         } else if (opt == "bufsize") {
           opts.get_graph_args().get_option("bufsize", bufsize);
-        } else if (opt == "usehash") {
+           if (rpc.procid() == 0) 
+            logstream(LOG_EMPH) << "Graph Option: bufsize = " 
+              << bufsize << std::endl;
+       } else if (opt == "usehash") {
           opts.get_graph_args().get_option("usehash", usehash);
+          if (rpc.procid() == 0) 
+            logstream(LOG_EMPH) << "Graph Option: usehash = " 
+              << usehash << std::endl;
         } else if (opt == "userecent") {
           opts.get_graph_args().get_option("userecent", userecent);
-        } else {
+           if (rpc.procid() == 0) 
+            logstream(LOG_EMPH) << "Graph Option: userecent = " 
+              << userecent << std::endl;
+       } else {
           logstream(LOG_ERROR) << "Unexpected Graph Option: " << opt << std::endl;
         }
       }
@@ -2304,7 +2316,6 @@ namespace graphlab {
       // typename boost::unordered_map<vertex_id_type, lvid_type>::
       //   const_iterator iter = vid2lvid.find(vid);
       typename cuckoo_map_type::const_iterator iter = vid2lvid.find(vid);
-      ASSERT_TRUE(iter != vid2lvid.end());
       return iter->second;
     } // end of local_vertex_id
 

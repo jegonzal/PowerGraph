@@ -689,13 +689,25 @@ namespace graphlab {
       foreach(std::string opt, keys) {
         if (opt == "max_clean_fraction") {
           opts.get_engine_args().get_option("max_clean_fraction", max_clean_fraction);
+          if (rmi.procid() == 0) 
+            logstream(LOG_EMPH) << "Engine Option: max_clean_fraction = " 
+                              << max_clean_fraction << std::endl;
           max_clean_forks = graph.num_local_edges() * max_clean_fraction;
         } else if (opt == "timeout") {
           opts.get_engine_args().get_option("timeout", timed_termination);
+          if (rmi.procid() == 0) 
+            logstream(LOG_EMPH) << "Engine Option: timeout = " 
+                              << max_clean_fraction << std::endl;
         } else if (opt == "use_cache") {
           opts.get_engine_args().get_option("use_cache", use_cache);
+          if (rmi.procid() == 0) 
+            logstream(LOG_EMPH) << "Engine Option: use_cache = " 
+                              << use_cache << std::endl;
         } else if (opt == "factorized") {
           opts.get_engine_args().get_option("factorized", factorized_consistency);
+          if (rmi.procid() == 0) 
+            logstream(LOG_EMPH) << "Engine Option: factorized = " 
+              << factorized_consistency << std::endl;
         } else {
           logstream(LOG_FATAL) << "Unexpected Engine Option: " << opt << std::endl;
         }
