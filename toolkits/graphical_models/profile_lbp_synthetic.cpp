@@ -126,12 +126,15 @@ bool USE_CACHE = false;
  * Make a synthetic node potential
  */
 factor_type make_node_potential(size_t vid) {
-  const size_t obs = vid % NSTATES;
+  // const size_t obs = vid % NSTATES;
+  const size_t obs = 0;
   factor_type factor;
-  factor.resize(NSTATES);
-  for(size_t i = 0; i <  NSTATES; ++i) {
-    factor(i) = (i == obs)? 0 : -FIELD;
-  }
+  factor.setZero(NSTATES);
+  if(vid % 101 < 1) {
+    for(size_t i = 0; i <  NSTATES; ++i) {
+      factor(i) = (i == obs)? 0 : -FIELD;
+    }
+  } 
   return factor;
 }
 
@@ -283,6 +286,7 @@ struct bp_vertex_program :
     const factor_type& recv_message = 
       edata.old_message(other_vertex.id(), vertex.id());
     return recv_message;
+
   }; // end of gather function
 
   /**
