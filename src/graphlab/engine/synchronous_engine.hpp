@@ -1172,8 +1172,10 @@ namespace graphlab {
       if( has_cache.get(lvid) ) {
         gather_cache[lvid] += delta;
       } else {
-        gather_cache[lvid] = delta;
-        has_cache.set_bit(lvid);
+        // You cannot add a delta to an empty cache.  A complete
+        // gather must have been run.
+        // gather_cache[lvid] = delta;
+        // has_cache.set_bit(lvid);
       }
       vlocks[lvid].unlock();       
     }

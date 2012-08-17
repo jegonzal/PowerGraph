@@ -808,12 +808,22 @@ namespace graphlab {
     void internal_post_delta(const vertex_type& vertex,
                              const gather_type& delta) {
       // only post deltas if caching is enabled
-      if(use_cache) cache[vertex.local_id()] += delta;
+      if(use_cache) {
+        if (!factorized_consistency) vstate[vertex.local_id()].d_lock();
+        if (cache[vertex.local_id()].not_empty()) {
+          cache[vertex.local_id()] += delta;
+        }
+        if (!factorized_consistency) vstate[vertex.local_id()].d_unlock();
+      }
     }
 
     void internal_clear_gather_cache(const vertex_type& vertex) {
       // only post clear cache if caching is enabled
-      if(use_cache) cache[vertex.local_id()].clear();
+      if (use_cache) {
+        if (!factorized_consistency) vstate[vertex.local_id()].d_lock();
+        if(use_cache) cache[vertex.local_id()].clear();
+        if (!factorized_consistency) vstate[vertex.local_id()].d_unlock();
+      }
     }
 
 
@@ -1218,17 +1228,21 @@ namespace graphlab {
       vertex_type vertex(lvertex);
 
       conditional_gather_type* gather_target = NULL;
-      
+      bool gather_target_is_cache = false; 
       if (use_cache) {
+        vstate[lvid].d_lock();
         if (cache[lvid].not_empty()) {
           // there is something in the cache. Return that
           vstate[lvid].combined_gather += cache[lvid];
+          vstate[lvid].d_unlock();
           return;
         }
         else {
           // there is nothing in the cache. Make the cache the
           // gather target, then later write back to the combined gather
           gather_target = &(cache[lvid]);
+          gather_target_is_cache = true;
+          vstate[lvid].d_unlock();
         }
       }
       else {
@@ -1273,10 +1287,12 @@ namespace graphlab {
         INCREMENT_EVENT(EVENT_GATHERS, lvertex.num_out_edges());
       }
 
-      if (use_cache && cache[lvid].empty()) {
+      if (use_cache && gather_target_is_cache) {
+        vstate[lvid].d_lock();
         // this is the condition where the gather target is the cache
         // now I need to combine it to the combined gather
         vstate[lvid].combined_gather += cache[lvid];
+        vstate[lvid].d_unlock();
       }
       
       END_TRACEPOINT(disteng_evalfac);
