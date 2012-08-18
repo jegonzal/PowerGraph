@@ -168,7 +168,7 @@ class edge_data {
    * array of messages.  The particular message index is then computed
    * using the \ref message_idx function.
    */
-  factor_type messages_[4];
+  factor_type messages_[2];
   /**
    * \brief The weight associated with the edge (used to scale the
    * smoothing parameter)
@@ -178,8 +178,8 @@ class edge_data {
    * \brief The function used to compute the message index in the edge
    * message array.
    */
-  size_t message_idx(size_t source_id, size_t target_id, bool is_new) {
-    return size_t(source_id < target_id)  + 2 * size_t(is_new);
+  size_t message_idx(size_t source_id, size_t target_id) {
+    return size_t(source_id < target_id);
   }
 
 public:
@@ -191,20 +191,7 @@ public:
    * \brief Get the new message value from source_id to target_id
    */
   factor_type& message(size_t source_id, size_t target_id) { 
-    return messages_[message_idx(source_id, target_id, true)];
-  }
-  /**
-   * \brief Get the old message value from source_id to target_id
-   */
-  factor_type& old_message(size_t source_id, size_t target_id) { 
-     return messages_[message_idx(source_id, target_id, false)];
-  }
-
-  /**
-   * \brief Set the old message value equal to the new message value
-   */
-  void update_old(size_t source_id, size_t target_id) { 
-    old_message(source_id, target_id) = message(source_id, target_id);
+    return messages_[message_idx(source_id, target_id)];
   }
   
   /**
@@ -219,16 +206,14 @@ public:
   void initialize(size_t source_id, size_t nsource, size_t target_id, size_t ntarget) {
     ASSERT_GT(nsource, 0); ASSERT_GT(ntarget, 0);
     message(source_id, target_id).setZero(ntarget);
-    old_message(source_id, target_id).setZero(ntarget);
     message(target_id, source_id).setZero(nsource);
-    old_message(target_id, source_id).setZero(nsource);
   }
   void save(graphlab::oarchive& arc) const {
-    for(size_t i = 0; i < 4; ++i) arc << messages_[i];
+    for(size_t i = 0; i < 2; ++i) arc << messages_[i];
     arc << weight_;
   }
   void load(graphlab::iarchive& arc) {
-    for(size_t i = 0; i < 4; ++i) arc >> messages_[i];
+    for(size_t i = 0; i < 2; ++i) arc >> messages_[i];
     arc >> weight_;
   }
 }; // End of edge data
@@ -282,6 +267,7 @@ struct bp_vertex_program :
                      edge_type& edge) const {
     const vertex_type other_vertex = get_other_vertex(edge, vertex);
     edge_data& edata = edge.data();
+    const factor_type old_message = edata.message();
     // Update the old message with the value of the new Message.  We
     // then receive the old message during gather and then compute the
     // "cavity" during scatter (again using the old message).
