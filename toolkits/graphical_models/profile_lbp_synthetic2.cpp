@@ -249,6 +249,8 @@ struct bp_vertex_program :
   public graphlab::ivertex_program< graph_type, factor_type,
                                     graphlab::messages::sum_priority >,
   public graphlab::IS_POD_TYPE {
+  float residual;
+  bp_vertex_program() : residual(0) { }
 
   /**
    * \brief Since the MRF is undirected we will use all edges for gather and
@@ -267,15 +269,19 @@ struct bp_vertex_program :
                      edge_type& edge) const {
     const vertex_type other_vertex = get_other_vertex(edge, vertex);
     edge_data& edata = edge.data();
-    const factor_type old_message = edata.message();
-    // Update the old message with the value of the new Message.  We
-    // then receive the old message during gather and then compute the
-    // "cavity" during scatter (again using the old message).
-    edata.update_old(other_vertex.id(), vertex.id());
-    const factor_type& recv_message = 
-      edata.old_message(other_vertex.id(), vertex.id());
-    return recv_message;
-
+    const factor_type old_out_message = edata.message(vertex.id(), other_vertex.id());
+    const factor_type old_in_message = edata.message(other_vertex.id(), vertex.id());
+    factor_type cavity;
+    if(other_vertex.data().belief.size()  == old_out_message.size()) {
+      cavity = other_vertex.data().belief - old_out_message;
+    } else { cavity = make_node_potential(other_vertex.id()); }
+    factor_type new_in_message(old_in_message.size()); 
+    convolve(cavity, edata.weight(), new_in_message);
+    new_in_message.array() -= new_in_message.maxCoeff();
+    new_in_message = DAMPING * old_in_message + (1-DAMPING) * new_in_message;
+    new_in_message.array() -= new_in_message.maxCoeff();
+    edata.message(other_vertex.id(), vertex.id()) = new_in_message;
+    return new_in_message;
   }; // end of gather function
 
   /**
@@ -291,11 +297,14 @@ struct bp_vertex_program :
     } else {
       vertex_data& vdata = vertex.data();
       // Multiply (add in log space) the potential to compute the belief
-      vdata.belief = make_node_potential(vertex.id()) + total;
-      ASSERT_GT(vdata.belief.size(), 0);
+      factor_type new_belief = make_node_potential(vertex.id()) + total;
+      ASSERT_GT(new_belief.size(), 0);
       // Rescale the belief to ensure numerical stability.  (This is
       // essentially normalization in log-space.)
-      vdata.belief.array() -= vdata.belief.maxCoeff();
+      new_belief.array() -= new_belief.maxCoeff();
+      if(vdata.belief.size() != new_belief.size()) { residual = 1; }
+      else { residual = (new_belief - vdata.belief).cwiseAbs().sum();}
+      vdata.belief = new_belief;
     }
   }; // end of apply
 
@@ -304,8 +313,10 @@ struct bp_vertex_program :
    * scatter
    */
   edge_dir_type scatter_edges(icontext_type& context,
-                              const vertex_type& vertex) const { 
-    return graphlab::ALL_EDGES; 
+                              const vertex_type& vertex) const {
+    if(USE_CACHE || residual > TOLERANCE)
+      return graphlab::ALL_EDGES; 
+    else return graphlab::NO_EDGES;
   }; // end of scatter edges
 
   /**
@@ -314,34 +325,8 @@ struct bp_vertex_program :
   void scatter(icontext_type& context, const vertex_type& vertex, 
                edge_type& edge) const {  
     const vertex_type other_vertex = get_other_vertex(edge, vertex);
-    edge_data& edata = edge.data();
-    // Divide (subtract in log space) out of the belief the old in
-    // message to construct the cavity
-    const factor_type& old_in_message = 
-      edata.old_message(other_vertex.id(), vertex.id());
-    ASSERT_EQ(old_in_message.size(), vertex.data().belief.size());
-    factor_type cavity = vertex.data().belief - old_in_message;
-    // compute the new message by convolving with the Ising-Potts Edge
-    // factor.
-    factor_type& new_out_message = 
-      edata.message(vertex.id(), other_vertex.id());
-    // Make a backup of the last sent message which we will use to
-    // maintain the cache
-    const factor_type last_sent_message = new_out_message;
-    const factor_type& last_recv_message = 
-      edata.old_message(vertex.id(), other_vertex.id());
-    convolve(cavity, edata.weight(), new_out_message);
-    // Renormalize (done in log space)
-    new_out_message.array() -= new_out_message.maxCoeff();
-    // // Apply damping to the message to stabilize convergence.
-    new_out_message = DAMPING * last_sent_message + 
-      (1-DAMPING) * new_out_message;
-    // Compute message residual
-    const double residual = 
-      (new_out_message - last_recv_message).cwiseAbs().sum();
     if(USE_CACHE) {
       context.clear_gather_cache(other_vertex);
-       // context.post_delta(other_vertex, new_out_message - last_sent_message);
     }
     // Schedule the adjacent vertex
     if(residual > TOLERANCE) context.signal(other_vertex, residual);

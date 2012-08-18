@@ -8,6 +8,10 @@ add_graphlab_executable(profile_lbp_synthetic profile_lbp_synthetic.cpp)
 requires_eigen(profile_lbp_synthetic)
 
 
+add_graphlab_executable(profile_lbp_synthetic2 profile_lbp_synthetic2.cpp)
+requires_eigen(profile_lbp_synthetic2)
+
+
 add_graphlab_executable(synthetic_image_data synthetic_image_data.cpp)
 requires_opencv(synthetic_image_data)
 
