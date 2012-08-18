@@ -356,6 +356,7 @@ struct bp_vertex_program :
     if(USE_CACHE) {
       // context.clear_gather_cache(other_vertex);
       context.post_delta(other_vertex, new_out_message - last_sent_message);
+      edata.update_old(vertex.id(), other_vertex.id());
     }
     // Schedule the adjacent vertex
     if(residual > TOLERANCE) context.signal(other_vertex, residual);
