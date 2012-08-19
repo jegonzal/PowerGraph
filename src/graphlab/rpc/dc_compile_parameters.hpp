@@ -28,7 +28,7 @@
   \def RPC_DEFAULT_NUMHANDLERTHREADS
   \brief default number of handler threads to spawn.
  */ 
-#define RPC_DEFAULT_NUMHANDLERTHREADS 8
+#define RPC_DEFAULT_NUMHANDLERTHREADS 4
 
 /** 
   \ingroup rpc
