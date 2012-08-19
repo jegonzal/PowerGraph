@@ -92,14 +92,91 @@ double runtime = 0;
 
 using namespace graphlab;
 
-//typedef vertex_data vertex_data_type;
-//typedef edge_data edge_data_type;
-
 graph_type * pgraph = NULL;
 
 /***
  * UPDATE FUNCTION (ROWS)
  */
+class Axb :
+  public graphlab::ivertex_program<graph_type, double>,
+  public graphlab::IS_POD_TYPE {
+  float last_change;
+public:
+  /* Gather the weighted rank of the adjacent page   */
+  double gather(icontext_type& context, const vertex_type& vertex,
+               edge_type& edge) const {
+       bool rows = vertex.id() < (uint)info.get_start_node(false);
+       if (info.is_square()) 
+         rows = mi.A_transpose;
+       if (mi.A_offset  && mi.x_offset >= 0){
+         return edge.data().obs * (rows ? edge.target().data().pvec[mi.x_offset] :
+				      edge.source().data().pvec[mi.x_offset]);
+       }
+  }
+
+  /* Use the total rank of adjacent pages to update this page */
+  void apply(icontext_type& context, vertex_type& vertex,
+             const gather_type& total) {
+      
+     vertex_data & user = vertex.data();
+     assert(mi.r_offset >=0);
+
+     double val = total;
+
+      //store previous value for convergence detection
+      if (mi.prev_offset >= 0)
+        user.pvec[mi.prev_offset ] = user.pvec[mi.r_offset];
+
+      assert(mi.x_offset >=0 || mi.y_offset>=0);
+      if (mi.A_offset  && mi.x_offset >= 0){
+          if  (info.is_square() && mi.use_diag)// add the diagonal term
+            val += (/*mi.c**/ (user.A_ii+ regularization) * user.pvec[mi.x_offset]);
+
+          val *= mi.c;
+      }
+      /***** COMPUTE r = c*I*x  *****/
+      else if (!mi.A_offset && mi.x_offset >= 0){
+          val = mi.c*user.pvec[mi.x_offset];
+      }
+      /***** COMPUTE r = c*I*x  *****/
+      else if (!mi.A_offset && mi.x_offset >= 0){
+          val = mi.c*user.pvec[mi.x_offset];
+      }
+  
+      /**** COMPUTE r+= d*y (optional) ***/
+      if (mi.y_offset>= 0){
+          val += mi.d*user.pvec[mi.y_offset]; 
+      }
+
+      /***** compute r = (... ) / div */
+      if (mi.div_offset >= 0){
+          val /= user.pvec[mi.div_offset];
+      }
+      user.pvec[mi.r_offset] = val;
+  
+  }
+
+  edge_dir_type scatter_edges(icontext_type& context,
+                              const vertex_type& vertex) const {
+    bool rows = mi.end < info.get_start_node(false);
+    if (info.is_square()) 
+      rows = mi.A_transpose;
+    return rows ? graphlab::OUT_EDGES : graphlab::IN_EDGES;
+  }
+
+  /* The scatter function just signal adjacent pages */
+  void scatter(icontext_type& context, const vertex_type& vertex,
+               edge_type& edge) const {
+    //context.signal(edge.target());
+  }
+
+  static graphlab::empty init_lanczos(icontext_type& context,
+                                     vertex_type& vertex) {
+     vertex.data().pvec = zeros(actual_vector_len);
+     return graphlab::empty();
+  } // end of signal_left 
+}; 
+
 
 
  
@@ -163,12 +240,10 @@ struct Axb:
     };
 #endif
     
-    //core<graph_type, Axb> * glcore = NULL;
 
-    void init_math(graph_type * _pgraph, /*core<graph_type, Axb> * _glcore, TODO */bipartite_graph_descriptor & _info, double ortho_repeats = 3, 
+    void init_math(graph_type * _pgraph, bipartite_graph_descriptor & _info, double ortho_repeats = 3, 
                    bool update_function = false){
       pgraph = _pgraph;
-      //TODO glcore = _glcore;
       info = _info;
       mi.reset_offsets();
       mi.update_function = update_function;
@@ -280,7 +355,7 @@ struct Axb:
         mi.end = end;
         INITIALIZE_TRACER(Axbtrace2, "Update function Axb");
         BEGIN_TRACEPOINT(Axbtrace2);
-        //TODO glcore->aggregate_now("Axb"); 
+        start_engine();
         debug_print(name);
         mi.reset_offsets();
         return *this;
@@ -511,6 +586,7 @@ struct Axb:
       INITIALIZE_TRACER(Axbtrace, "Axb update function");
       BEGIN_TRACEPOINT(Axbtrace);
       //TODO glcore->aggregate_now("Axb");
+      start_engine();
       END_TRACEPOINT(Axbtrace);
       debug_print(name);
       mi.reset_offsets();
