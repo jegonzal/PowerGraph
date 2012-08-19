@@ -1367,7 +1367,7 @@ namespace graphlab {
       if (vowner == rmi.procid()) {
         decrement_gather_counter(lvid);
       } else {
-        vstate[lvid].state = NONE;
+        vstate[lvid].state = MIRROR_SCATTERING;
         logstream(LOG_DEBUG) << rmi.procid() << ": Send Gather Complete of " << vid
                              << " to " << vowner << std::endl;
 
@@ -1588,9 +1588,10 @@ EVAL_INTERNAL_TASK_RE_EVAL_STATE:
           logstream(LOG_DEBUG) << rmi.procid() << ": Scattering: " 
                               << graph.global_vid(lvid) << ": MIRROR_SCATTERING_AND_NEXT_GATHERING" << std::endl;
           do_scatter(lvid);
-          std::swap(vstate[lvid].vertex_program, vstate[lvid].factorized_next);
+          vstate[lvid].vertex_program = vstate[lvid].factorized_next;
           vstate[lvid].factorized_next = vertex_program_type();
           vstate[lvid].state = MIRROR_GATHERING;
+          vstate[lvid].combined_gather.clear();
           goto EVAL_INTERNAL_TASK_RE_EVAL_STATE;
         }
       }
