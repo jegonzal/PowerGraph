@@ -571,6 +571,7 @@ namespace graphlab {
                                      // 2: issued but is combined into a
                                      //    message which is currently locking
     atomic<uint64_t> issued_messages;
+    atomic<uint64_t> pending_updates;
     atomic<uint64_t> programs_executed;
 
     /// engine option. Maximum proportion of clean forks allowed
@@ -578,6 +579,10 @@ namespace graphlab {
     /// Equals to #edges * max_clean_fraction
     /// Maximum number of clean forks allowed
     size_t max_clean_forks;
+
+    /// Sets the maximum number of pending updates
+    size_t max_pending;
+
     /// Defaults to (-1), defines a timeout
     size_t timed_termination;
     /// engine option Sets to true if caching is enabled
@@ -649,6 +654,7 @@ namespace graphlab {
       // set default values
       max_clean_fraction = 1.0;
       max_clean_forks = (size_t)(-1);
+      max_pending = (size_t)(-1);
       timed_termination = (size_t)(-1);
       use_cache = false;
       factorized_consistency = false;
@@ -705,6 +711,11 @@ namespace graphlab {
             logstream(LOG_EMPH) << "Engine Option: max_clean_fraction = " 
                               << max_clean_fraction << std::endl;
           max_clean_forks = graph.num_local_edges() * max_clean_fraction;
+        } else if (opt == "max_pending") {
+          opts.get_engine_args().get_option("max_pending", max_pending);
+          if (rmi.procid() == 0) 
+            logstream(LOG_EMPH) << "Engine Option: max_pending = " 
+                              << max_pending << std::endl;
         } else if (opt == "timeout") {
           opts.get_engine_args().get_option("timeout", timed_termination);
           if (rmi.procid() == 0) 
@@ -1537,6 +1548,7 @@ EVAL_INTERNAL_TASK_RE_EVAL_STATE:
 
           do_scatter(lvid);
           programs_executed.inc();
+          pending_updates.dec();
           // clear the vertex program
           vstate[lvid].vertex_program = vertex_program_type();
           BEGIN_TRACEPOINT(disteng_chandy_misra);
@@ -1616,9 +1628,11 @@ EVAL_INTERNAL_TASK_RE_EVAL_STATE:
       END_TRACEPOINT(disteng_internal_task_queue);
 
       if (cmlocks->num_clean_forks() >= max_clean_forks) {
-          return;
-        }
-
+        return;
+      }
+      if (pending_updates.value > max_pending) {
+        return;
+      }
       sched_status::status_enum stat =
         scheduler_ptr->get_next(threadid, sched_lvid, msg);
       has_sched_msg = stat != sched_status::EMPTY;
@@ -1637,13 +1651,15 @@ EVAL_INTERNAL_TASK_RE_EVAL_STATE:
                      bool& has_sched_msg,
                      lvid_type& sched_lvid,
                      message_type &msg) {
+
+      rmi.dc().handle_incoming_calls(threadid, ncpus);
       static size_t ctr = 0;
       if (timer::approx_time_seconds() - engine_start_time > timed_termination) {
         termination_reason = execution_status::TIMEOUT;
         force_stop = true;
       }
       if (!force_stop &&
-          issued_messages.value != programs_executed.value + blocked_issues.value) {
+          pending_updates.value > 0) {
         ++ctr;
         if (ctr % 256 == 0) {
           DECREMENT_EVENT(EVENT_ACTIVE_CPUS, 1);
@@ -1657,6 +1673,7 @@ EVAL_INTERNAL_TASK_RE_EVAL_STATE:
       has_internal_task = false;
       has_sched_msg = false;
 
+      rmi.dc().start_handler_threads(threadid, ncpus);
       consensus->begin_done_critical_section(threadid);
 
       BEGIN_TRACEPOINT(disteng_internal_task_queue);
@@ -1666,6 +1683,8 @@ EVAL_INTERNAL_TASK_RE_EVAL_STATE:
         has_internal_task = true;
         consensus->cancel_critical_section(threadid);
         END_TRACEPOINT(disteng_internal_task_queue);
+
+        rmi.dc().stop_handler_threads(threadid, ncpus);
         return false;
       }
       END_TRACEPOINT(disteng_internal_task_queue);
@@ -1680,6 +1699,7 @@ EVAL_INTERNAL_TASK_RE_EVAL_STATE:
         bool ret = consensus->end_done_critical_section(threadid);
         INCREMENT_EVENT(EVENT_ACTIVE_CPUS, 1);
         if (ret == false) {
+          rmi.dc().stop_handler_threads(threadid, ncpus);
           logstream(LOG_DEBUG) << rmi.procid() << "-" << threadid <<  ": "
                              << "\tCancelled" << std::endl;
         }
@@ -1689,6 +1709,7 @@ EVAL_INTERNAL_TASK_RE_EVAL_STATE:
                              << "\tCancelled by Scheduler Task" << std::endl;
         consensus->cancel_critical_section(threadid);
         has_sched_msg = true;
+        rmi.dc().stop_handler_threads(threadid, ncpus);
         return false;
       }
     } // end of try to quit
@@ -1764,6 +1785,7 @@ EVAL_INTERNAL_TASK_RE_EVAL_STATE:
 //      ASSERT_I_AM_OWNER(sched_lvid);
       // this is in local VIDs
       issued_messages.inc();
+      pending_updates.inc();
       if (prelocked == false) {
         vstate[sched_lvid].lock();
       }
@@ -1782,6 +1804,7 @@ EVAL_INTERNAL_TASK_RE_EVAL_STATE:
         }
         else {
           blocked_issues.inc();
+          pending_updates.dec();
           if (vstate[sched_lvid].hasnext) {
             scheduler_ptr->place(sched_lvid, msg);
             joined_messages.inc();
@@ -1808,10 +1831,12 @@ EVAL_INTERNAL_TASK_RE_EVAL_STATE:
           // we are going to broadcast after unlock
         } else if (vstate[sched_lvid].state == LOCKING) {
           blocked_issues.inc();
+          pending_updates.dec();
           vstate[sched_lvid].current_message += msg;
           joined_messages.inc();
         } else {
           blocked_issues.inc();
+          pending_updates.dec();
           if (vstate[sched_lvid].hasnext) {
             scheduler_ptr->place(sched_lvid, msg);
             joined_messages.inc();
@@ -1840,6 +1865,7 @@ EVAL_INTERNAL_TASK_RE_EVAL_STATE:
      * Per thread main loop
      */
     void thread_start(size_t threadid) {
+      rmi.dc().stop_handler_threads(threadid, ncpus);
       bool has_internal_task = false;
       bool has_sched_msg = false;
       std::vector<std::vector<lvid_type> > internal_lvid;
@@ -1859,7 +1885,10 @@ EVAL_INTERNAL_TASK_RE_EVAL_STATE:
         if (max_clean_forks != (size_t)(-1) && ctr % 10000 == 0) {
           std::cout << cmlocks->num_clean_forks() << "/" << max_clean_forks << "\n";
         }*/
-       get_a_task(threadid, 
+       
+        rmi.dc().handle_incoming_calls(threadid, ncpus);
+
+        get_a_task(threadid, 
                    has_internal_task, internal_lvid,
                    has_sched_msg, sched_lvid, msg);
         // if we managed to get a task..
@@ -2025,7 +2054,7 @@ EVAL_INTERNAL_TASK_RE_EVAL_STATE:
         logstream(LOG_INFO) << "Total Allocated Bytes: " << allocatedmem << std::endl;
       }
       for (size_t i = 0; i < ncpus; ++i) {
-        thrgroup.launch(boost::bind(&engine_type::thread_start, this, i));
+        thrgroup.launch(boost::bind(&engine_type::thread_start, this, i), i);
       }
       thrgroup.join();
       aggregator.stop();

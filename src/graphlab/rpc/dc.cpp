@@ -521,7 +521,6 @@ void distributed_control::init(const std::vector<std::string> &machines,
   // create the handler threads
   // store the threads in the threadgroup
   fcall_handler_active.resize(numhandlerthreads);
-  
   fcallhandlers.resize(numhandlerthreads);
   for (size_t i = 0;i < numhandlerthreads; ++i) {
     fcallhandlers.launch(boost::bind(&distributed_control::fcallhandler_loop, 

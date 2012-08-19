@@ -237,13 +237,13 @@ namespace graphlab {
         launch(spawn_routine);
         return;
       }
-      if (cpu_id >= cpu_count() && cpu_count() > 0) {
-        // definitely invalid cpu_id
-        std::cout << "Invalid cpu id passed on thread_ground.launch()" 
-                  << std::endl;
-        std::cout << "CPU " << cpu_id + 1 << " requested, but only " 
-                  << cpu_count() << " CPUs available" << std::endl;
-        exit(EXIT_FAILURE);
+      if (cpu_count() > 0) {
+        cpu_id = cpu_id % cpu_count();
+      }
+      else {
+        // unknown CPU count
+        launch(spawn_routine);
+        return;
       }
       
       // fill in the thread attributes
