@@ -9,8 +9,11 @@
 In GraphLab v1, the collaborative filtering package is implemented and optimized for a multicore machine.  
 <a href="https://docs.google.com/document/pub?id=1lptKnw9hwHW_HTVb77ThcDjrW4QwLZXEbrxPyXp6oBk">Here</a> is the documentation for version 1. Graphlab v1 is the <b>stable release</b> of the collaborative filtering toolkit.
 
-In GraphLAb v2, the collaborative filtering toolkit is DISTRIBUTED. That way we can scale to much larger models.
-GraphLab v2 is an <b>experimental release</b>. 
+In GraphLAb v2, the collaborative filtering toolkit is DISTRIBUTED.
+That way we can scale to much larger models.
+The GraphLab collaborative filtering toolkit 2.1 is under active
+development. Please contact us if you encounter any issues or would
+like an additional features.
 
 The collaborative filtering toolkit in GraphLab v.2 currently contains:
 

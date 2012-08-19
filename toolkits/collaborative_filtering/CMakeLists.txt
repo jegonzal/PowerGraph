@@ -13,6 +13,8 @@ requires_eigen(sgd) # build and attach eigen
 add_graphlab_executable(biassgd biassgd.cpp)
 requires_eigen(biassgd) # build and attach eigen
 
+add_graphlab_executable(svd svd.cpp)
+requires_eigen(svd) # build and attach eigen
 
 add_graphlab_executable(make_synthetic_als_data
   make_synthetic_als_data.cpp)
