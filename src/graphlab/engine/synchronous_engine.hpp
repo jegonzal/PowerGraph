@@ -1271,7 +1271,7 @@ namespace graphlab {
 
       // Exchange Messages --------------------------------------------------
       // Exchange any messages in the local message vectors
-      if (rmi.procid() == 0) std::cout << "Exchange messages..." << std::endl;
+      // if (rmi.procid() == 0) std::cout << "Exchange messages..." << std::endl;
       run_synchronous( &synchronous_engine::exchange_messages );
       /**
        * Post conditions:
@@ -1283,7 +1283,7 @@ namespace graphlab {
       // vertex programs with mirrors if gather is required
       //
 
-      if (rmi.procid() == 0) std::cout << "Receive messages..." << std::endl;
+      // if (rmi.procid() == 0) std::cout << "Receive messages..." << std::endl;
       num_active_vertices = 0; 
       run_synchronous( &synchronous_engine::receive_messages );
       if (sched_allv) { 
@@ -1317,7 +1317,7 @@ namespace graphlab {
       // Execute gather operations-------------------------------------------
       // Execute the gather operation for all vertices that are active
       // in this minor-step (active-minorstep bit set).
-      if (rmi.procid() == 0) std::cout << "Gathering..." << std::endl;
+      // if (rmi.procid() == 0) std::cout << "Gathering..." << std::endl;
       run_synchronous( &synchronous_engine::execute_gathers );
       // Clear the minor step bit since only super-step vertices
       // (only master vertices are required to participate in the
@@ -1333,7 +1333,7 @@ namespace graphlab {
 
       // Execute Apply Operations -------------------------------------------
       // Run the apply function on all active vertices
-      if (rmi.procid() == 0) std::cout << "Applying..." << std::endl;
+      // if (rmi.procid() == 0) std::cout << "Applying..." << std::endl;
       run_synchronous( &synchronous_engine::execute_applys );
       /**
        * Post conditions:
