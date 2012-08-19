@@ -22,27 +22,19 @@
 
 
 /**
- * \file
- * 
- * \brief The main file for the ALS matrix factorization algorithm.
- *
- * This file contains the main body of the ALS matrix factorization
- * algorithm. 
- */
-
-#include "eigen_wrapper.hpp"
-#include "types.hpp"
-#include "eigen_serialization.hpp"
-#include <graphlab/util/stl_util.hpp>
-#include <graphlab.hpp>
-
-/**
  *
  *  Implementation of the Lanczos algorithm, as given in:
  *  http://en.wikipedia.org/wiki/Lanczos_algorithm
  * 
  *  Code written by Danny Bickson, CMU, June 2011
  * */
+
+
+#include "eigen_wrapper.hpp"
+#include "types.hpp"
+#include "eigen_serialization.hpp"
+#include <graphlab/util/stl_util.hpp>
+#include <graphlab.hpp>
 
 
 
@@ -69,36 +61,31 @@ int nodes = 0;
 int data_size = 0;
 
 struct vertex_data {
-  /**
-   * \brief A shared "constant" that specifies the number of latent
-   * values to use.
-   */
-  static uint NLATENT;
   /** \brief The number of times this vertex has been updated. */
   uint32_t nupdates;
   /** \brief The most recent L1 change in the pvec value */
   float residual; //! how much the latent value has changed
   /** \brief The latent pvec for this vertex */
   vec pvec;
+  double A_ii;
 
   /** 
    * \brief Simple default constructor which randomizes the vertex
    *  data 
    */
-  vertex_data() : nupdates(0), residual(1) { randomize(); } 
+  vertex_data() : nupdates(0), residual(1), A_ii(0) { randomize(); } 
   /** \brief Randomizes the latent pvec */
-  void randomize() { pvec.resize(NLATENT); pvec.setRandom(); }
+  void randomize() { pvec.resize(data_size); pvec.setRandom(); }
   /** \brief Save the vertex data to a binary archive */
   void save(graphlab::oarchive& arc) const { 
-    arc << nupdates << residual << pvec;
+    arc << nupdates << residual << pvec << A_ii;
   }
   /** \brief Load the vertex data from a binary archive */
   void load(graphlab::iarchive& arc) { 
-    arc >> nupdates >> residual >> pvec;
+    arc >> nupdates >> residual >> pvec >> A_ii;
   }
 }; // end of vertex data
 
-uint vertex_data::NLATENT = 20;
 
 /**
  * \brief The edge data stores the entry in the matrix.
@@ -117,13 +104,13 @@ struct edge_data : public graphlab::IS_POD_TYPE {
   enum data_role_type { TRAIN, VALIDATE, PREDICT  };
 
   /** \brief the observed value for the edge */
-  float obs;
+  double obs;
 
   /** \brief The train/validation/test designation of the edge */
   data_role_type role;
 
   /** \brief basic initialization */
-  edge_data(float obs = 0, data_role_type role = PREDICT) :
+  edge_data(double obs = 0, data_role_type role = PREDICT) :
     obs(obs), role(role) { }
 
 }; // end of edge data
@@ -134,9 +121,6 @@ struct edge_data : public graphlab::IS_POD_TYPE {
  * data.
  */ 
 typedef graphlab::distributed_graph<vertex_data, edge_data> graph_type;
-#include "math.hpp" //uses vertex_data and edge_data so has to be included here
-#include "printouts.hpp" // the same
-
 
 
 /**
@@ -278,6 +262,9 @@ double svd_vertex_program::TOLERANCE = 1e-5;
 
 typedef graphlab::omni_engine<svd_vertex_program> engine_type;
 engine_type * pengine = NULL;
+#include "math.hpp" //uses vertex_data and edge_data so has to be included here
+#include "printouts.hpp" // the same
+
 
 struct error_aggregator : public graphlab::IS_POD_TYPE {
   typedef svd_vertex_program::icontext_type icontext_type;
@@ -336,9 +323,9 @@ struct linear_model_saver_U {
   std::string save_vertex(const vertex_type& vertex) const {
     if (vertex.num_out_edges() > 0){
       std::string ret = boost::lexical_cast<std::string>(vertex.id()) + ") ";
-      for (uint i=0; i< vertex_data::NLATENT; i++)
-        ret += boost::lexical_cast<std::string>(vertex.data().pvec[i]) + " ";
-        ret += "\n";
+      //TODO for (uint i=0; i< vertex_data::NLATENT; i++)
+      //  ret += boost::lexical_cast<std::string>(vertex.data().pvec[i]) + " ";
+      //  ret += "\n";
       return ret;
     }
     else return "";
@@ -357,9 +344,9 @@ struct linear_model_saver_V {
   std::string save_vertex(const vertex_type& vertex) const {
     if (vertex.num_out_edges() == 0){
       std::string ret = boost::lexical_cast<std::string>(-vertex.id()-SAFE_NEG_OFFSET) + ") ";
-      for (uint i=0; i< vertex_data::NLATENT; i++)
-        ret += boost::lexical_cast<std::string>(vertex.data().pvec[i]) + " ";
-        ret += "\n";
+     //TODO for (uint i=0; i< vertex_data::NLATENT; i++)
+     //   ret += boost::lexical_cast<std::string>(vertex.data().pvec[i]) + " ";
+     //   ret += "\n";
       return ret;
     }
     else return "";
@@ -707,6 +694,7 @@ int main(int argc, char** argv) {
       << std::endl;
  
   dc.cout() << "Creating engine" << std::endl;
+  //TODO tie Axb
   engine_type engine(dc, graph, exec_type, clopts);
 
   // Add error reporting to the engine
@@ -746,16 +734,6 @@ int main(int argc, char** argv) {
 
   //TODO write_output_vector(datafile + ".singular_values", format, singular_values,false, "%GraphLab SVD Solver library. This file contains the singular values.");
 
-  if (unittest == 1){
-    assert(errest.size() == 3);
-    for (int i=0; i< errest.size(); i++)
-      assert(errest[i] < 1e-30);
-  }
-  else if (unittest == 2){
-     assert(errest.size() == 10);
-    for (int i=0; i< errest.size(); i++)
-      assert(errest[i] < 1e-15);
-  }
 
   //engine.start();  
 
