@@ -1659,7 +1659,7 @@ EVAL_INTERNAL_TASK_RE_EVAL_STATE:
         force_stop = true;
       }
       if (!force_stop &&
-          pending_updates.value > 0) {
+          issued_messages.value != programs_executed.value + blocked_issues.value) {
         ++ctr;
         if (ctr % 256 == 0) {
           DECREMENT_EVENT(EVENT_ACTIVE_CPUS, 1);
