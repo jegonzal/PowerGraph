@@ -50,6 +50,15 @@
 #include <graphlab/rpc/dc_init_from_env.hpp>
 #include <graphlab/rpc/dc_init_from_mpi.hpp>
 
+
+// If this option is turned on,
+// all incoming calls from the same machine
+// will always be executed in the same thread.
+// This decreases latency and increases throughput
+// dramatically, but at a cost of parallelism.
+#define RPC_FAST_DISPATCH
+
+
 namespace graphlab {
 
 namespace dc_impl {
@@ -263,6 +272,28 @@ void distributed_control::process_fcall_block(fcallqueue_entry &fcallblock) {
       }
     }
   }
+#ifdef RPC_FAST_DISPATCH
+  else {
+    fcallqueue_length.dec();
+   
+    //parse the data in fcallblock.data
+    char* data = fcallblock.chunk_src;
+    size_t remaininglen = fcallblock.chunk_len;
+    //PERMANENT_ACCUMULATE_DIST_EVENT(eventlog, BYTES_EVENT, remaininglen);
+    while(remaininglen > 0) {
+      ASSERT_GE(remaininglen, sizeof(dc_impl::packet_hdr));
+      dc_impl::packet_hdr hdr = *reinterpret_cast<dc_impl::packet_hdr*>(data);
+      ASSERT_LE(hdr.len, remaininglen);
+
+      exec_function_call(fcallblock.source, hdr.packet_type_mask,
+                         data + sizeof(dc_impl::packet_hdr),
+                         hdr.len);
+      data += sizeof(dc_impl::packet_hdr) + hdr.len;
+      remaininglen -= sizeof(dc_impl::packet_hdr) + hdr.len;
+    }
+    free(fcallblock.chunk_src);
+  }
+#else
   else {
     fcallqueue_length.dec();
     BEGIN_TRACEPOINT(dc_receive_multiplexing);
@@ -341,6 +372,7 @@ void distributed_control::process_fcall_block(fcallqueue_entry &fcallblock) {
     END_TRACEPOINT(dc_receive_queuing);
     if (immediate_queue.calls.size() > 0) process_fcall_block(immediate_queue);
   }
+#endif
 }
 
 void distributed_control::stop_handler_threads(size_t threadid,
