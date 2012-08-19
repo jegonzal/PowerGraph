@@ -1446,8 +1446,8 @@ namespace graphlab {
       vstate[lvid].state = MIRROR_SCATTERING;
       graph.get_local_graph().vertex_data(lvid) = central_vdata;
       vstate[lvid].vertex_program = prog;
-      vstate[lvid].unlock();
       add_internal_task(lvid);
+      vstate[lvid].unlock();
     }
 
     
