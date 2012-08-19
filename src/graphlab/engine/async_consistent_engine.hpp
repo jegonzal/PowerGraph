@@ -1701,16 +1701,12 @@ EVAL_INTERNAL_TASK_RE_EVAL_STATE:
     void add_internal_task(lvid_type lvid) {
       if (force_stop) return;
       BEGIN_TRACEPOINT(disteng_internal_task_queue);
-      size_t i = lvid % ncpus;
-      if (vstate[lvid].state == APPLYING || vstate[lvid].state == SCATTERING ||
-          vstate[lvid].state == MIRROR_SCATTERING ||
-          vstate[lvid].state == MIRROR_SCATTERING_AND_NEXT_LOCKING) {
-        thrlocal[i].add_task(lvid);
-      }
-      else {
-        thrlocal[i].add_task(lvid); 
-      }
-      consensus->cancel_one(i);
+      size_t a, b;
+      a = lvid % thrlocal.size();
+      b = (lvid >> 8) % thrlocal.size();
+      if (thrlocal[a].npending > thrlocal[b].npending) a = b;
+      thrlocal[a].add_task(lvid);
+      consensus->cancel_one(a);
       END_TRACEPOINT(disteng_internal_task_queue);
     }
 

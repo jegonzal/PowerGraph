@@ -29,6 +29,7 @@
 #include <cstring>
 #include <stdint.h>
 #include <graphlab/logger/logger.hpp>
+#include <graphlab/parallel/atomic_ops.hpp>
 #include <graphlab/serialization/serialization_includes.hpp>
 
 namespace graphlab {
@@ -135,6 +136,13 @@ namespace graphlab {
       uint32_t arrpos, bitpos;
       bit_to_pos(b, arrpos, bitpos);
       return array[arrpos];
+    }
+
+    //! Returns the value of the word containing the bit b 
+    inline size_t get_containing_word_and_zero(uint32_t b) {
+      uint32_t arrpos, bitpos;
+      bit_to_pos(b, arrpos, bitpos);
+      return fetch_and_store(array[arrpos], size_t(0));
     }
 
     /** Set the bit at position b to true returning the old value.
