@@ -60,6 +60,8 @@ std::string format = "matrixmarket";
 int nodes = 0;
 int data_size = 0;
 
+void start_engine();
+
 struct vertex_data {
   /** \brief The number of times this vertex has been updated. */
   uint32_t nupdates;
@@ -133,184 +135,16 @@ get_other_vertex(graph_type::edge_type& edge,
   return vertex.id() == edge.source().id()? edge.target() : edge.source();
 }; // end of get_other_vertex
 
+typedef double gather_type;
+typedef double message_type;
 
 
-
-
-class gather_type {
-public:
-  vec pvec;
-  /** \brief basic default constructor */
-  gather_type() { }
-  gather_type(const vec& X) {
-    pvec = X;
-  } // end of constructor for gather type
-
-  /** \brief Save the values to a binary archive */
-  void save(graphlab::oarchive& arc) const { arc << pvec; }
-
-  /** \brief Read the values from a binary archive */
-  void load(graphlab::iarchive& arc) { arc >> pvec; }  
-
-  gather_type& operator+=(const gather_type& other) {
-    if (pvec.size() == 0){
-      pvec = other.pvec;
-      return *this;
-    }
-    else if (other.pvec.size() == 0)
-      return *this;
-    pvec += other.pvec;
-    return *this;
-  } // end of operator+=
-
-}; // end of gather type
-
-typedef vec message_type;
-
-/**
- */ 
-class svd_vertex_program : 
-  public graphlab::ivertex_program<graph_type, gather_type,
-                                   message_type> {
-public:
-  /** The convergence tolerance */
-  static double TOLERANCE;
-  static double MAXVAL;
-  static double MINVAL;
-  static bool debug;
-  vec pmsg;
-
-  void save(graphlab::oarchive& arc) const { 
-    arc << pmsg;
-  }
-  /** \brief Load the vertex data from a binary archive */
-  void load(graphlab::iarchive& arc) { 
-    arc >> pmsg;
-  }
-
-  /** The set of edges to gather along */
-  edge_dir_type gather_edges(icontext_type& context, 
-                             const vertex_type& vertex) const { 
-    return graphlab::ALL_EDGES; 
-  }; // end of gather_edges 
-
-  /** The gather function computes XtX and Xy */
-  gather_type gather(icontext_type& context, const vertex_type& vertex, 
-                     edge_type& edge) const {
-    //if(edge.data().role == edge_data::TRAIN) {
-   vec delta, other_delta;
-   if (vertex.num_in_edges() == 0){
-      vertex_type other_vertex(get_other_vertex(edge, vertex));
-      vertex_type my_vertex(vertex);
-      //double pred = vertex.data().pvec.dot(other_vertex.data().pvec);
-    }
-    return gather_type(delta);
-  } // end of gather function
-
-//typedef vec message_type;
- void init(icontext_type& context,
-                              const vertex_type& vertex,
-                              const message_type& msg) {
-     if (vertex.num_in_edges() > 0){
-        pmsg = msg;
-     }
-  }
-  /** apply collects the sum of XtX and Xy */
-  void apply(icontext_type& context, vertex_type& vertex,
-             const gather_type& sum) {
-    // Get and reset the vertex data
-    vertex_data& vdata = vertex.data(); 
-    if (sum.pvec.size() > 0){
-      vdata.pvec += sum.pvec; 
-      assert(vertex.num_in_edges() == 0);
-    }
-    else if (pmsg.size() > 0){
-      vdata.pvec += pmsg;
-      assert(vertex.num_out_edges() == 0); 
-    }
-    ++vdata.nupdates;
-  } // end of apply
-  
-  /** The edges to scatter along */
-  edge_dir_type scatter_edges(icontext_type& context,
-                              const vertex_type& vertex) const { 
-    return graphlab::ALL_EDGES; 
-  }; // end of scatter edges
-
-  /** Scatter reschedules neighbors */  
-  void scatter(icontext_type& context, const vertex_type& vertex, 
-               edge_type& edge) const {
-  } // end of scatter function
-
-
-  /**
-   * \brief Signal all vertices on one side of the bipartite graph
-   */
-  static graphlab::empty init_lanczos(icontext_type& context,
-                                     vertex_type& vertex) {
-
-     vertex.data().pvec = zeros(actual_vector_len);
-
-     return graphlab::empty();
-  } // end of signal_left 
-
-}; // end of svd vertex program
-
-double svd_vertex_program::MINVAL = -1e100;
-double svd_vertex_program::MAXVAL = 1e100;
-double svd_vertex_program::TOLERANCE = 1e-5;
-
-typedef graphlab::omni_engine<svd_vertex_program> engine_type;
-engine_type * pengine = NULL;
 #include "math.hpp" //uses vertex_data and edge_data so has to be included here
 #include "printouts.hpp" // the same
+typedef graphlab::omni_engine<Axb> engine_type;
+engine_type * pengine = NULL;
 
 
-struct error_aggregator : public graphlab::IS_POD_TYPE {
-  typedef svd_vertex_program::icontext_type icontext_type;
-  typedef graph_type::edge_type edge_type;
-  double train_error, validation_error;
-  size_t ntrain, nvalidation;
-  error_aggregator() : 
-    train_error(0), validation_error(0), ntrain(0), nvalidation(0) { }
-  error_aggregator& operator+=(const error_aggregator& other) {
-    train_error += other.train_error;
-    assert(!std::isnan(train_error));
-    validation_error += other.validation_error;
-    ntrain += other.ntrain;
-    nvalidation += other.nvalidation;
-    return *this;
-  }
-  static error_aggregator map(icontext_type& context, const graph_type::edge_type& edge) {
-    error_aggregator agg;
-    if (edge.data().role == edge_data::TRAIN){
-      //agg.train_error = extract_l2_error(edge); agg.ntrain = 1;
-      assert(!std::isnan(agg.train_error));
-    }
-    else if (edge.data().role == edge_data::VALIDATE){
-      //agg.validation_error = extract_l2_error(edge); agg.nvalidation = 1;
-    }
-    return agg;
-  }
-
-
-  static void finalize(icontext_type& context, const error_aggregator& agg) {
-    iter++;
-    if (iter%2 == 0)
-      return; 
-    ASSERT_GT(agg.ntrain, 0);
-    const double train_error = std::sqrt(agg.train_error / agg.ntrain);
-    assert(!std::isnan(train_error));
-    context.cout() << std::setw(8) << context.elapsed_seconds()  << std::setw(8) << train_error;
-    if(agg.nvalidation > 0) {
-      const double validation_error = 
-        std::sqrt(agg.validation_error / agg.nvalidation);
-        context.cout() << std::setw(8) << validation_error; 
-    }
-    context.cout() << std::endl;
-    //svd_vertex_program::GAMMA *= svd_vertex_program::STEP_DEC;
-  }
-}; // end of error aggregator
 
 
 
@@ -379,8 +213,6 @@ inline bool graph_loader(graph_type& graph,
   // for test files (.predict) no need to read the actual rating value.
   if(role == edge_data::TRAIN || role == edge_data::VALIDATE){
     strm >> obs;
-    if (obs < svd_vertex_program::MINVAL || obs > svd_vertex_program::MAXVAL)
-      logstream(LOG_FATAL)<<"Rating values should be between " << svd_vertex_program::MINVAL << " and " << svd_vertex_program::MAXVAL << ". Got value: " << obs << " [ user: " << source_id << " to item: " <<target_id << " ] " << std::endl; 
   }
   target_id = -(graphlab::vertex_id_type(target_id + SAFE_NEG_OFFSET));
                           
@@ -401,7 +233,7 @@ void init_lanczos(graph_type * g, bipartite_graph_descriptor & info){
      actual_vector_len = 2*data_size;
 
   assert(pengine);
-  pengine->map_reduce_vertices<graphlab::empty>(svd_vertex_program::init_lanczos);
+  pengine->map_reduce_vertices<graphlab::empty>(Axb::init_lanczos);
    // g->vertex_data(i).pvec = zeros(actual_vector_len);
 
   logstream(LOG_INFO)<<"Allocated a total of: " << ((double)actual_vector_len * g->num_vertices() * sizeof(double)/ 1e6) << " MB for storing vectors." << std::endl;
@@ -618,7 +450,10 @@ END_TRACEPOINT(matproduct);
   return sigma;
 }
 
-
+void start_engine(){
+  pengine->signal_all();
+  pengine->start();
+}
 
 
 int main(int argc, char** argv) {
@@ -631,7 +466,6 @@ int main(int argc, char** argv) {
   graphlab::command_line_options clopts(description);
   std::string input_dir, output_dir;
   std::string predictions;
-  size_t interval = 0;
   std::string exec_type = "synchronous";
   clopts.attach_option("matrix", input_dir,
                        "The directory containing the matrix file");
@@ -694,15 +528,8 @@ int main(int argc, char** argv) {
       << std::endl;
  
   dc.cout() << "Creating engine" << std::endl;
-  //TODO tie Axb
   engine_type engine(dc, graph, exec_type, clopts);
 
-  // Add error reporting to the engine
-  const bool success = engine.add_edge_aggregator<error_aggregator>
-    ("error", error_aggregator::map, error_aggregator::finalize) &&
-    engine.aggregate_periodic("error", interval);
-  ASSERT_TRUE(success);
-  
 
   // Signal all vertices on the vertices on the left (libersvd) 
   //TODO engine.map_reduce_vertices<graphlab::empty>(svd_vertex_program::signal_left);

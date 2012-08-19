@@ -92,21 +92,18 @@ double runtime = 0;
 
 using namespace graphlab;
 
-//typedef vertex_data vertex_data_type;
-//typedef edge_data edge_data_type;
-
 graph_type * pgraph = NULL;
 
 /***
  * UPDATE FUNCTION (ROWS)
  */
 class Axb :
-  public graphlab::ivertex_program<graph_type, float>,
+  public graphlab::ivertex_program<graph_type, double>,
   public graphlab::IS_POD_TYPE {
   float last_change;
 public:
   /* Gather the weighted rank of the adjacent page   */
-  float gather(icontext_type& context, const vertex_type& vertex,
+  double gather(icontext_type& context, const vertex_type& vertex,
                edge_type& edge) const {
        bool rows = vertex.id() < (uint)info.get_start_node(false);
        if (info.is_square()) 
@@ -172,6 +169,12 @@ public:
                edge_type& edge) const {
     //context.signal(edge.target());
   }
+
+  static graphlab::empty init_lanczos(icontext_type& context,
+                                     vertex_type& vertex) {
+     vertex.data().pvec = zeros(actual_vector_len);
+     return graphlab::empty();
+  } // end of signal_left 
 }; 
 
 
@@ -352,8 +355,7 @@ struct Axb:
         mi.end = end;
         INITIALIZE_TRACER(Axbtrace2, "Update function Axb");
         BEGIN_TRACEPOINT(Axbtrace2);
-        pengine->signal_all();
-        pengine->start();
+        start_engine();
         debug_print(name);
         mi.reset_offsets();
         return *this;
@@ -584,8 +586,7 @@ struct Axb:
       INITIALIZE_TRACER(Axbtrace, "Axb update function");
       BEGIN_TRACEPOINT(Axbtrace);
       //TODO glcore->aggregate_now("Axb");
-      pengine->signal_all();
-      pengine->start();
+      start_engine();
       END_TRACEPOINT(Axbtrace);
       debug_print(name);
       mi.reset_offsets();
