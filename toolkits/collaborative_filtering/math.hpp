@@ -27,7 +27,6 @@
 #include "types.hpp"
 #include "graphlab.hpp"
 #include "graphlab/util/tracepoint.hpp"
-//#include "printouts.hpp"
 
 
 DECLARE_TRACER(Axbtrace);
@@ -375,7 +374,7 @@ struct Axb:
         INITIALIZE_TRACER(vecequals, "vector assignment");
         BEGIN_TRACEPOINT(vecequals);
         for (int i=start; i< end; i++){  
-          //TODO pgraph->vertex_data(i).pvec[offset] = pvec[i-start];
+          pgraph->vertex_data(i).pvec[offset] = pvec[i-start];
         }
         END_TRACEPOINT(vecequals);
         debug_print(name);
@@ -585,7 +584,6 @@ struct Axb:
       mi.end = info.get_end_node(!transpose);
       INITIALIZE_TRACER(Axbtrace, "Axb update function");
       BEGIN_TRACEPOINT(Axbtrace);
-      //TODO glcore->aggregate_now("Axb");
       start_engine();
       END_TRACEPOINT(Axbtrace);
       debug_print(name);
