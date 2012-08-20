@@ -28,10 +28,14 @@ Takács, G, Pilászy, I., Németh, B. and Tikk, D. (2009). Scalable Collaborativ
 \endverbatim
  \li Bias stochastic gradient descnet (Bias-SGD)
 \verbatim
-Y. Koren. Factorization Meets the Neighborhood: a Multifaceted Collaborative Filtering Model. Equation (5).
+Y. Koren. Factorization Meets the Neighborhood: a Multifaceted Collaborative Filtering Model. In ACM KDD 2008. Equation (5).
 \endverbatim
- 
-In the future we hope to implement to rest of V1 algorithms, like SVD++, NMF, NMF, BPTF, etc.
+ \li SVD++
+\verbatim
+Y. Koren. Factorization Meets the Neighborhood: a Multifaceted Collaborative Filtering Model. In ACM KDD 2008. 
+\endverbatim
+  
+In the future we hope to implement to rest of V1 algorithms, like NMF, NMF, BPTF, etc.
 
 \section Input Input
 
@@ -399,6 +403,44 @@ The output of bias-SGD consists of two matrices: filename.U and filename.V. The 
 --minval=XX	Min allowed rating
 --predictions=XX	File name to write prediction to
 \endverbatim
+
+
+\section SVD++ SVD++
+Pros: more accurate method than SGD once tuned, relatively fast method
+Cons: a lot of parameters for tuning, immune to numerical errors when parameters are out of scope.
+
+Koren SVD++ is an algorithm which is slightly more fancy than bias-SGD and give somewhat better prediction results.
+
+Basic configuration --svdpp_step_dec=XX Multiplicative step decrement (between 0.1 to 1). Default is 0.9
+--svdpp_item_bias_step=XX Item bias step size
+--svdpp_item_bias_reg=XX  Item bias regularization
+--svdpp_usr_bias_step=XX  User bias step size
+--svdpp_usr_bias_reg=XX User bias regularization
+--svdpp_usr_fctr_step=XX  User factor step size
+--svdpp_usr_fctr_reg=XX User factor regularization
+--svdpp_item_fctr_step=XX Item factor step size
+--svdpp_item_fctr_reg=XX  Item factor regularization
+--svdpp_item_fctr2_step=XX  Item factor2 step size
+--svdpp_item_fctr2_reg=XX Item factor2 regularization
+--D=X Feature vector width. Common values are 20 - 150.
+--step_dec=XX	Multiplicative step decrease. Should be between 0.1 to 1. Default is 0.9
+--max_iter=XX	Max number of iterations
+--maxval=XX	Maximum allowed rating
+--minval=XX	Min allowed rating
+--predictions=XX	File name to write prediction to
+
+ Prediction in Koren’s SVD++ algorithm is computed as follows:
+\verbatim
+r_ui = global_mean_rating + b_u + b_i + q_u * ( p_i + w_i )
+\endverbatim
+Where r_ui is the scalar rating for user u to item i, global_mean_rating is the global mean rating, b_u is a scalar bias for user u, b_i is a scalar bias for item i, q_u is a feature vectors of length D for user u, p_i is a feature vector of length D for item i, and w_i is an additional feature vector of length D (the weight). The product is a vector product. 
+
+The output of Koren’s SVD++ is 5 output files:
+Global mean ratings - include the scalar global mean rating.
+user_bias  - includes a vector with bias for each user
+movie_bias - includes a vector with bias for each movie
+matrix U - includes in each row the feature vector q_u of size D.
+matrix V - includes in each row the sum of feature vectors p_i + w_i of size D.
 
 \section Acknowledgements Acknowledgements
 \li Alex Hasha, bundle.com for improving SGD and bias-SGD documentation and usability.

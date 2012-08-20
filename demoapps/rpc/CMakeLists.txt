@@ -10,7 +10,7 @@ add_graphlab_executable(rpc_example7 rpc_example7.cpp)
 add_graphlab_executable(rpc_example8 rpc_example8.cpp)
 add_graphlab_executable(rpc_example9 rpc_example9.cpp)
 
-add_graphlab_executable(barrier_test barrier_test.cpp)
+#add_graphlab_executable(barrier_test barrier_test.cpp)
 add_graphlab_executable(dht_performance_test dht_performance_test.cpp)
 
 add_graphlab_executable(rpc_call_perf_test rpc_call_perf_test.cpp)
