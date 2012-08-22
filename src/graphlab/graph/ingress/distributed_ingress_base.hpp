@@ -161,6 +161,7 @@ namespace graphlab {
      * 5. Exchange global graph statistics.
      */
     virtual void finalize() {
+      rpc.barrier();
       if (rpc.procid() == 0) {
         logstream(LOG_EMPH) << "Finalizing Graph..." << std::endl;
       }
@@ -194,7 +195,7 @@ namespace graphlab {
         while(edge_exchange.recv(proc, edge_buffer)) {
           foreach(const edge_buffer_record& rec, edge_buffer) {
             // Get the source_vlid;
-            lvid_type source_lvid;
+            lvid_type source_lvid(-1);
             if(graph.vid2lvid.find(rec.source) == graph.vid2lvid.end()) {
               source_lvid = graph.vid2lvid.size();
               graph.vid2lvid[rec.source] = source_lvid;
@@ -216,6 +217,9 @@ namespace graphlab {
       if(rpc.procid() == 0) 
         memory_info::log_usage("Finished populating local graph.");
       
+      ASSERT_EQ(graph.vid2lvid.size(), graph.local_graph.num_vertices());
+      logstream(LOG_INFO) << "Vid2lvid size: " << graph.vid2lvid.size() << "\t" << "Max lvid : " << graph.local_graph.maxlvid() << std::endl;
+      ASSERT_EQ(graph.vid2lvid.size(), graph.local_graph.maxlvid() + 1);
       
       // Finalize local graph
       logstream(LOG_INFO) << "Graph Finalize: finalizing local graph." 

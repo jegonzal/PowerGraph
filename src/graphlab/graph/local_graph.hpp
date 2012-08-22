@@ -591,6 +591,22 @@ namespace graphlab {
     const std::vector<EdgeData> & get_edge_data_storage() const {
       return gstore.get_edge_data();
     }
+
+    /** \internal
+     * \brief For debug purpose, returns the largest vertex id in the edges_tmp
+     */ 
+    const lvid_type maxlvid() const {
+      if (edges_tmp.size()) {
+        lvid_type max(0);
+        foreach(lvid_type i, edges_tmp.source_arr)
+         max = std::max(max, i); 
+        foreach(lvid_type i, edges_tmp.target_arr)
+         max = std::max(max, i); 
+        return max;
+      } else {
+        return lvid_type(-1);
+      }
+    }
    
   private:    
     /** Internal edge class  */   
