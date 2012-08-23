@@ -40,8 +40,13 @@ Y. Koren. Factorization Meets the Neighborhood: a Multifaceted Collaborative Fil
 \li Weighted-ALS
 \verbatim
 Collaborative Filtering for Implicit Feedback Datasets Hu, Y.; Koren, Y.; Volinsky, C. IEEE International Conference on Data Mining (ICDM 2008), IEEE (2008). 
+D. Needell, J. A. Tropp CoSaMP: Iterative signal recovery from incomplete and inaccurate samples Applied and Computational Harmonic Analysis, Vol. 26, No. 3. (17 Apr 2008), pp. 301-321. 
+
 \endverbatim
-  
+\li Sparse-ALS
+\verbatim
+Xi Chen, Yanjun Qi, Bing Bai, Qihang Lin and Jaime Carbonell. Sparse Latent Semantic Analysis. In SIAM International Conference on Data Mining (SDM), 2011. 
+\endverbatim  
 In the future we hope to implement to rest of V1 algorithms, like NMF, NMF, BPTF, etc.
 
 \section Input Input
@@ -556,7 +561,26 @@ INFO:     synchronous_engine.hpp(start:1309):   Active vertices: 3561
 ...
 \endverbatim
 
+\section Sparse-ALS 
+Pros: Generate sparse factor matrices, that can be clustered into similar user/item groups
+Cons: less accurate linear model because of the sparsification step
 
+This algorithm is based on ALS, but an additional sparsifying step is performed on either the user feature vectors, the item feature vectors or both. This algorithm is useful for spectral clustering: first the rating matrix is factorized into a product of one or two sparse matrices, and then clustering can be computed on the feature matrices to detect similar users or items. 
+
+The underlying algorithm which is used for sparsifying is CoSaMP. See reference [K1]. 
+
+Below are sparse-ALS related command line options:
+\verbatim
+--user_sparsity=XX  A number between 0.5 to 1 which defines how sparse is the resulting user feature factor matrix
+--movie_sparsity=XX A number between 0.5 to 1 which defines how sparse is the resulting movie feature factor matrix
+--algorithm=XX An integer between 1 to 3 which defines the run mode.
+1 = SPARSE_USR_FACTOR
+2 = SPARSE_ITM_FACTOR
+3 = SPARSE_BOTH_FACTORS
+\endverbatim
+
+
+Prediction in sparse-ALS is computing like in ALS.
 \section Acknowledgements Acknowledgements
 \li Liang Xiong, CMU for providing the Matlab code of BPTF, numerous discussions and infinite support!! Thanks!!
 \li Timmy Wilson, Smarttypes.org for providing twitter network snapshot example, and Python scripts for reading the output.

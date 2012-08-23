@@ -16,7 +16,7 @@
  *
  * For more about this software visit:
  *
- *      http://graphlab.org
+ *      http://www.graphlab.ml.cmu.edu
  *
  */
 
@@ -24,39 +24,79 @@
 /**
  * \file
  * 
- * \brief The main file for the BIAS-SGD matrix factorization algorithm.
+ * \brief The main file for the ALS matrix factorization algorithm.
  *
- * This file contains the main body of the BIAS-SGD matrix factorization
+ * This file contains the main body of the ALS matrix factorization
  * algorithm. 
  */
 
-#include <graphlab/util/stl_util.hpp>
-#include <graphlab.hpp>
-#include "eigen_serialization.hpp"
 #include <Eigen/Dense>
+#define EIGEN_DONT_PARALLELIZE //eigen parallel for loop interfers with ours.
+
+#include <boost/config/warning_disable.hpp>
+#include <boost/spirit/include/qi.hpp>
+#include <boost/spirit/include/phoenix_core.hpp>
+#include <boost/spirit/include/phoenix_operator.hpp>
+#include <boost/spirit/include/phoenix_stl.hpp>
+
+
+
+
+// This file defines the serialization code for the eigen types.
+#include "eigen_serialization.hpp"
+#include "eigen_wrapper.hpp"
+#include <graphlab.hpp>
+#include <graphlab/util/stl_util.hpp>
+
+
 #include <graphlab/macros_def.hpp>
 
+const int SAFE_NEG_OFFSET = 2; //add 2 to negative node id
+//to prevent -0 and -1 which arenot allowed
+
+/**
+ * \brief We use the eigen library's vector type to represent
+ * mathematical vectors.
+ */
+typedef Eigen::VectorXd vec;
+typedef Eigen::VectorXi ivec;
+
+/**
+ * \brief We use the eigen library's matrix type to represent
+ * matrices.
+ */
+typedef Eigen::MatrixXd mat;
+#include "cosamp.hpp"
 
 
-typedef Eigen::VectorXd vec_type;
-typedef Eigen::MatrixXd mat_type;
+/**
+ * \brief Remap the target id of each edge into a different id space
+ * than the source id.
+ */
+bool REMAP_TARGET = true;
 
-//when using negative node id range, we are not allowed to use
-//0 and 1 so we add 2.
-const static int SAFE_NEG_OFFSET=2;
-static bool debug;
-int iter = 0;
+//algorithm run modes
+enum {
+  SPARSE_USR_FACTOR = 1, SPARSE_ITM_FACTOR = 2, SPARSE_BOTH_FACTORS = 3
+};
+
+int algorithm = SPARSE_USR_FACTOR;
+double user_sparsity = 0.8;
+double movie_sparsity = 0.8;
+
+
+
 /** 
- * \ingroup toolkit_matrix_pvecization
+ * \ingroup toolkit_matrix_factorization
  *
- * \brief the vertex data type which contains the latent pvec.
+ * \brief the vertex data type which contains the latent factor.
  *
  * Each row and each column in the matrix corresponds to a different
- * vertex in the BIASSGD graph.  Associated with each vertex is a pvec
+ * vertex in the ALS graph.  Associated with each vertex is a factor
  * (vector) of latent parameters that represent that vertex.  The goal
- * of the BIASSGD algorithm is to find the values for these latent
+ * of the ALS algorithm is to find the values for these latent
  * parameters such that the non-zero entries in the matrix can be
- * predicted by taking the dot product of the row and column pvecs.
+ * predicted by taking the dot product of the row and column factors.
  */
 struct vertex_data {
   /**
@@ -66,31 +106,34 @@ struct vertex_data {
   static size_t NLATENT;
   /** \brief The number of times this vertex has been updated. */
   uint32_t nupdates;
-  /** \brief The latent pvec for this vertex */
-  vec_type pvec;
-  double bias;
+  /** \brief The most recent L1 change in the factor value */
+  float residual; //! how much the latent value has changed
+  /** \brief The latent factor for this vertex */
+  vec factor;
   /** 
    * \brief Simple default constructor which randomizes the vertex
    *  data 
    */
-  vertex_data() : nupdates(0) { if (debug) pvec = vec_type::Ones(NLATENT); else randomize(); } 
-  /** \brief Randomizes the latent pvec */
-  void randomize() { pvec.resize(NLATENT); pvec.setRandom(); }
+  vertex_data() : nupdates(0), residual(1) { randomize(); } 
+  /** \brief Randomizes the latent factor */
+  void randomize() { factor.resize(NLATENT); factor.setRandom(); }
   /** \brief Save the vertex data to a binary archive */
   void save(graphlab::oarchive& arc) const { 
-    arc << nupdates << pvec << bias;
+    arc << nupdates << residual << factor;        
   }
   /** \brief Load the vertex data from a binary archive */
   void load(graphlab::iarchive& arc) { 
-    arc >> nupdates >> pvec >> bias;
+    arc >> nupdates >> residual >> factor;
   }
 }; // end of vertex data
 
 
+size_t vertex_data::NLATENT = 20;
+
 /**
  * \brief The edge data stores the entry in the matrix.
  *
- * In addition the edge data biassgdo stores the most recent error estimate.
+ * In addition the edge data also stores the most recent error estimate.
  */
 struct edge_data : public graphlab::IS_POD_TYPE {
   /**
@@ -121,7 +164,6 @@ struct edge_data : public graphlab::IS_POD_TYPE {
  * data.
  */ 
 typedef graphlab::distributed_graph<vertex_data, edge_data> graph_type;
-double extract_l2_error(const graph_type::edge_type & edge);
 
 
 /**
@@ -137,15 +179,14 @@ get_other_vertex(graph_type::edge_type& edge,
 
 
 
-
 /**
- * \brief The gather type used to construct XtX and Xty needed for the BIASSGD
+ * \brief The gather type used to construct XtX and Xty needed for the ALS
  * update
  *
  * To compute the ALS update we need to compute the sum of 
  * \code
- *  sum: XtX = nbr.pvec.transpose() * nbr.pvec 
- *  sum: Xy  = nbr.pvec * edge.obs
+ *  sum: XtX = nbr.factor.transpose() * nbr.factor 
+ *  sum: Xy  = nbr.factor * edge.obs
  * \endcode
  * For each of the neighbors of a vertex. 
  *
@@ -158,15 +199,15 @@ get_other_vertex(graph_type::edge_type& edge,
 class gather_type {
 public:
   /**
-   * \brief Stores the current sum of nbr.pvec.transpose() *
-   * nbr.pvec
+   * \brief Stores the current sum of nbr.factor.transpose() *
+   * nbr.factor
    */
+  mat XtX;
 
   /**
-   * \brief Stores the current sum of nbr.pvec * edge.obs
+   * \brief Stores the current sum of nbr.factor * edge.obs
    */
-  vec_type pvec;
-  double bias;
+  vec Xy;
 
   /** \brief basic default constructor */
   gather_type() { }
@@ -175,67 +216,84 @@ public:
    * \brief This constructor computes XtX and Xy and stores the result
    * in XtX and Xy
    */
-  gather_type(const vec_type& X, double _bias) {
-    pvec = X;
-    bias = _bias;
+  gather_type(const vec& X, const double y) :
+    XtX(X.size(), X.size()), Xy(X.size()) {
+    XtX.triangularView<Eigen::Upper>() = X * X.transpose();
+    Xy = X * y;
   } // end of constructor for gather type
 
   /** \brief Save the values to a binary archive */
-  void save(graphlab::oarchive& arc) const { arc << pvec << bias; }
+  void save(graphlab::oarchive& arc) const { arc << XtX << Xy; }
 
   /** \brief Read the values from a binary archive */
-  void load(graphlab::iarchive& arc) { arc >> pvec >> bias; }  
+  void load(graphlab::iarchive& arc) { arc >> XtX >> Xy; }  
 
   /** 
    * \brief Computes XtX += other.XtX and Xy += other.Xy updating this
    * tuples value
    */
   gather_type& operator+=(const gather_type& other) {
-    if (pvec.size() == 0){
-      pvec = other.pvec;
-      bias = other.bias;
-      return *this;
+    if(other.Xy.size() == 0) {
+      ASSERT_EQ(other.XtX.rows(), 0);
+      ASSERT_EQ(other.XtX.cols(), 0);
+    } else {
+      if(Xy.size() == 0) {
+        ASSERT_EQ(XtX.rows(), 0); 
+        ASSERT_EQ(XtX.cols(), 0);
+        XtX = other.XtX; Xy = other.Xy;
+      } else {
+        XtX.triangularView<Eigen::Upper>() += other.XtX;  
+        Xy += other.Xy;
+      }
     }
-    else if (other.pvec.size() == 0)
-      return *this;
-    pvec += other.pvec;
-    bias += other.bias;
     return *this;
   } // end of operator+=
 
 }; // end of gather type
 
-//typedef gather_type message_type;
+
 
 /**
- * BIASSGD vertex program type
+ * \brief ALS vertex program implements the alternating least squares
+ * algorithm in the Gather-Apply-Scatter abstraction.
+ *
+ * The ALS update treats adjacent vertices (rows or columns) as "X"
+ * (independent) values and the edges (matrix entries) as observed "y"
+ * (dependent) values and then updates the current vertex value as a
+ * weight "w" such that:
+ *
+ *    y = X * w + noise
+ *
+ * This is accomplished using the following equation:
+ *
+ *    w = inv(X' * X) * (X * y)
+ *
+ * We implement this in the Gather-Apply-Scatter model by:
+ *
+ *  1) Gather: returns the tuple (X' * X, X * y)
+ *     Sum:   (aX' * aX, aX * ay) + (bX' * bX, bX * by) = 
+ *                 (aX' * aX + bX' * bX, aX * ay + bX * by)
+ *
+ *  2) Apply: Solves  inv(X' * X) * (X * y)
+ *
+ *  3) Scatter: schedules the update of adjacent vertices if this
+ *      vertex has changed sufficiently and the edge is not well
+ *      predicted.
+ *
+ * 
  */ 
-class biassgd_vertex_program : 
+class als_vertex_program : 
   public graphlab::ivertex_program<graph_type, gather_type,
-                                   gather_type> {
+                                   graphlab::messages::sum_priority>,
+  public graphlab::IS_POD_TYPE {
 public:
   /** The convergence tolerance */
   static double TOLERANCE;
   static double LAMBDA;
-  static double GAMMA;
+  static size_t MAX_UPDATES;
   static double MAXVAL;
   static double MINVAL;
-  static double STEP_DEC;
-  static bool debug;
-  static size_t MAX_UPDATES;
-  static double GLOBAL_MEAN;
-  static size_t NUM_TRAINING_EDGES;
-  static uint   USERS;
-
-  gather_type pmsg;
-  void save(graphlab::oarchive& arc) const { 
-    arc << pmsg;
-  }
-  /** \brief Load the vertex data from a binary archive */
-  void load(graphlab::iarchive& arc) { 
-    arc >> pmsg;
-  }
-
+ 
   /** The set of edges to gather along */
   edge_dir_type gather_edges(icontext_type& context, 
                              const vertex_type& vertex) const { 
@@ -245,70 +303,40 @@ public:
   /** The gather function computes XtX and Xy */
   gather_type gather(icontext_type& context, const vertex_type& vertex, 
                      edge_type& edge) const {
-    //if(edge.data().role == edge_data::TRAIN) {
-   vec_type delta, other_delta;
-   double bias =0, other_bias = 0;
-
-   if (vertex.num_in_edges() == 0){
-      vertex_type other_vertex(get_other_vertex(edge, vertex));
-      vertex_type my_vertex(vertex);
-      //vertex_data & my_data = my_vertex.data();
-      double pred = biassgd_vertex_program::GLOBAL_MEAN + 
-        edge.source().data().bias + edge.target().data().bias + 
-        vertex.data().pvec.dot(other_vertex.data().pvec);
-      pred = std::min(pred, biassgd_vertex_program::MAXVAL);
-      pred = std::max(pred, biassgd_vertex_program::MINVAL); 
-      const float err = (pred - edge.data().obs);
-      if (debug)
-        std::cout<<"entering edge " << (int)edge.source().id() << ":" << (int)edge.target().id() << " err: " << err << " rmse: " << err*err <<std::endl;
-      if (std::isnan(err))
-        logstream(LOG_FATAL)<<"Got into numeric errors.. try to tune step size and regularization using --lambda and --gamma flags" << std::endl;
-      if (edge.data().role == edge_data::TRAIN){
-
-        bias = -GAMMA*(err - LAMBDA*bias);
-        other_bias = -GAMMA*(err - LAMBDA* other_bias);
-         
-        delta = -GAMMA*(err*other_vertex.data().pvec - LAMBDA*vertex.data().pvec);
-        other_delta = -GAMMA*(err*vertex.data().pvec - LAMBDA*other_vertex.data().pvec);
-       
-        //A HACK: update memory cached values to reflect new vals 
-        my_vertex.data().bias += bias;
-        other_vertex.data().bias += other_bias;
-        my_vertex.data().pvec += delta;
-	other_vertex.data().pvec += other_delta;
-      
-      if (debug)
-          std::cout<<"new val:" << (int)edge.source().id() << ":" << (int)edge.target().id() << " U " << my_vertex.data().pvec.transpose() << " V " << other_vertex.data().pvec.transpose() << std::endl;
-         if(std::fabs(err) > TOLERANCE && other_vertex.data().nupdates < MAX_UPDATES) 
-          context.signal(other_vertex, gather_type(other_delta, other_bias));
-       }
-      return gather_type(delta, bias);
-    } 
-    else return gather_type(delta, bias);
+    if(edge.data().role == edge_data::TRAIN) {
+      const vertex_type other_vertex = get_other_vertex(edge, vertex);
+      return gather_type(other_vertex.data().factor, edge.data().obs);
+    } else return gather_type();
   } // end of gather function
 
-//typedef vec_type message_type;
- void init(icontext_type& context,
-                              const vertex_type& vertex,
-                              const message_type& msg) {
-     if (vertex.num_in_edges() > 0){
-        pmsg = msg;
-     }
-  }
   /** apply collects the sum of XtX and Xy */
   void apply(icontext_type& context, vertex_type& vertex,
              const gather_type& sum) {
     // Get and reset the vertex data
     vertex_data& vdata = vertex.data(); 
-    if (sum.pvec.size() > 0){
-      vdata.pvec += sum.pvec; 
-      assert(vertex.num_in_edges() == 0);
+    // Determine the number of neighbors.  Each vertex has only in or
+    // out edges depending on which side of the graph it is located
+    if(sum.Xy.size() == 0) { vdata.residual = 0; ++vdata.nupdates; return; }
+    mat XtX = sum.XtX;
+    vec Xy = sum.Xy;
+    // Add regularization
+    for(int i = 0; i < XtX.rows(); ++i) XtX(i,i) += LAMBDA; // /nneighbors;
+    // Solve the least squares problem using eigen ----------------------------
+    const vec old_factor = vdata.factor;
+    
+    bool isuser = vertex.id() >= 0;
+    if (algorithm == SPARSE_BOTH_FACTORS || (algorithm == SPARSE_USR_FACTOR && isuser) || 
+        (algorithm == SPARSE_ITM_FACTOR && !isuser)){ 
+      double sparsity_level = 1.0;
+      if (isuser)
+        sparsity_level -= user_sparsity;
+      else sparsity_level -= movie_sparsity;
+      vdata.factor = CoSaMP(XtX, Xy, ceil(sparsity_level*(double)vertex_data::NLATENT), 10, 1e-4, vertex_data::NLATENT);
     }
-    else if (pmsg.pvec.size() > 0){
-      vdata.pvec += pmsg.pvec;
-      vdata.bias += pmsg.bias;
-      assert(vertex.num_out_edges() == 0); 
-    }
+    else vdata.factor = XtX.selfadjointView<Eigen::Upper>().ldlt().solve(Xy);
+
+    // Compute the residual change in the factor factor -----------------------
+    vdata.residual = (vdata.factor - old_factor).cwiseAbs().sum() / XtX.rows();
     ++vdata.nupdates;
   } // end of apply
   
@@ -324,9 +352,14 @@ public:
     edge_data& edata = edge.data();
     if(edata.role == edge_data::TRAIN) {
       const vertex_type other_vertex = get_other_vertex(edge, vertex);
+      const vertex_data& vdata = vertex.data();
+      const vertex_data& other_vdata = other_vertex.data();
+      const double pred = vdata.factor.dot(other_vdata.factor);
+      const float error = std::fabs(edata.obs - pred);
+      const double priority = (error * vdata.residual); 
       // Reschedule neighbors ------------------------------------------------
-      if(other_vertex.data().nupdates < MAX_UPDATES) 
-        context.signal(other_vertex, gather_type(vec_type::Zero(vertex_data::NLATENT),0));
+      if( priority > TOLERANCE && other_vdata.nupdates < MAX_UPDATES) 
+        context.signal(other_vertex, priority);
     }
   } // end of scatter function
 
@@ -335,16 +368,97 @@ public:
    * \brief Signal all vertices on one side of the bipartite graph
    */
   static graphlab::empty signal_left(icontext_type& context,
-                                     vertex_type& vertex) {
-    if(vertex.num_out_edges() > 0) context.signal(vertex, gather_type(vec_type::Zero(vertex_data::NLATENT),0));
+                                     const vertex_type& vertex) {
+    if(vertex.num_out_edges() > 0) context.signal(vertex);
     return graphlab::empty();
   } // end of signal_left 
 
-}; // end of biassgd vertex program
+}; // end of als vertex program
 
 
+
+/**
+ * \brief The graph loader function is a line parser used for
+ * distributed graph construction.
+ */
+inline bool graph_loader(graph_type& graph, 
+                         const std::string& filename,
+                         const std::string& line) {
+  ASSERT_FALSE(line.empty()); 
+  namespace qi = boost::spirit::qi;
+  namespace ascii = boost::spirit::ascii;
+  namespace phoenix = boost::phoenix;
+  // Determine the role of the data
+  edge_data::data_role_type role = edge_data::TRAIN;
+  if(boost::ends_with(filename,".validate")) role = edge_data::VALIDATE;
+  else if(boost::ends_with(filename, ".predict")) role = edge_data::PREDICT;
+  // Parse the line
+  graph_type::vertex_id_type source_id(-1), target_id(-1);
+  float obs(0); 
+  const bool success = qi::phrase_parse
+    (line.begin(), line.end(),       
+     //  Begin grammar
+     (
+      qi::ulong_[phoenix::ref(source_id) = qi::_1] >> -qi::char_(',') >>
+      qi::ulong_[phoenix::ref(target_id) = qi::_1] >> 
+      -(-qi::char_(',') >> qi::float_[phoenix::ref(obs) = qi::_1])
+      )
+     ,
+     //  End grammar
+     ascii::space); 
+
+  if(!success) return false;
+
+  if(role == edge_data::TRAIN || role == edge_data::VALIDATE){
+    if (obs < als_vertex_program::MINVAL || obs > als_vertex_program::MAXVAL)
+      logstream(LOG_FATAL)<<"Rating values should be between " << als_vertex_program::MINVAL << " and " << als_vertex_program::MAXVAL << ". Got value: " << obs << " [ user: " << source_id << " to item: " <<target_id << " ] " << std::endl; 
+  }
+ 
+  if(REMAP_TARGET) {
+    // map target id into a separate number space
+    target_id = -(graphlab::vertex_id_type(target_id + SAFE_NEG_OFFSET));
+  }
+  // Create an edge and add it to the graph
+  graph.add_edge(source_id, target_id, edge_data(obs, role)); 
+  return true; // successful load
+} // end of graph_loader
+
+
+
+/**
+ * \brief Given an edge compute the error associated with that edge
+ */
+double extract_l2_error(const graph_type::edge_type & edge) {
+  double pred = 
+    edge.source().data().factor.dot(edge.target().data().factor);
+  pred = std::min(als_vertex_program::MAXVAL, pred);
+  pred = std::max(als_vertex_program::MINVAL, pred);
+  return (edge.data().obs - pred) * (edge.data().obs - pred);
+} // end of extract_l2_error
+
+
+
+double als_vertex_program::TOLERANCE = 1e-3;
+double als_vertex_program::LAMBDA = 0.01;
+size_t als_vertex_program::MAX_UPDATES = -1;
+double als_vertex_program::MAXVAL = 1e+100;
+double als_vertex_program::MINVAL = -1e+100;
+
+
+
+
+
+/**
+ * \brief The error aggregator is used to accumulate the overal
+ * prediction error.
+ *
+ * The error aggregator is itself a "reduction type" and contains the
+ * two static methods "map" and "finalize" which operate on
+ * error_aggregators and are used by the engine.add_edge_aggregator
+ * api.
+ */
 struct error_aggregator : public graphlab::IS_POD_TYPE {
-  typedef biassgd_vertex_program::icontext_type icontext_type;
+  typedef als_vertex_program::icontext_type icontext_type;
   typedef graph_type::edge_type edge_type;
   double train_error, validation_error;
   size_t ntrain, nvalidation;
@@ -352,7 +466,6 @@ struct error_aggregator : public graphlab::IS_POD_TYPE {
     train_error(0), validation_error(0), ntrain(0), nvalidation(0) { }
   error_aggregator& operator+=(const error_aggregator& other) {
     train_error += other.train_error;
-    assert(!std::isnan(train_error));
     validation_error += other.validation_error;
     ntrain += other.ntrain;
     nvalidation += other.nvalidation;
@@ -360,51 +473,33 @@ struct error_aggregator : public graphlab::IS_POD_TYPE {
   }
   static error_aggregator map(icontext_type& context, const graph_type::edge_type& edge) {
     error_aggregator agg;
-    if (edge.data().role == edge_data::TRAIN){
+    if(edge.data().role == edge_data::TRAIN) {
       agg.train_error = extract_l2_error(edge); agg.ntrain = 1;
-      assert(!std::isnan(agg.train_error));
-    }
-    else if (edge.data().role == edge_data::VALIDATE){
+    } else if(edge.data().role == edge_data::VALIDATE) {
       agg.validation_error = extract_l2_error(edge); agg.nvalidation = 1;
     }
     return agg;
   }
-
-
   static void finalize(icontext_type& context, const error_aggregator& agg) {
-    iter++;
-    if (iter%2 == 0)
-      return; 
     ASSERT_GT(agg.ntrain, 0);
     const double train_error = std::sqrt(agg.train_error / agg.ntrain);
-    assert(!std::isnan(train_error));
-    context.cout() << std::setw(8) << context.elapsed_seconds() << std::setw(8) << train_error;
+    context.cout() << context.elapsed_seconds() << "\t" << train_error;
     if(agg.nvalidation > 0) {
       const double validation_error = 
         std::sqrt(agg.validation_error / agg.nvalidation);
-      context.cout() << std::setw(8) << validation_error; 
+      context.cout() << "\t" << validation_error; 
     }
     context.cout() << std::endl;
-    biassgd_vertex_program::GAMMA *= biassgd_vertex_program::STEP_DEC;
   }
 }; // end of error aggregator
 
+
+
+
 /**
- * \brief Given an edge compute the error associated with that edge
+ * \brief The prediction saver is used by the graph.save routine to
+ * output the final predictions back to the filesystem.
  */
-double extract_l2_error(const graph_type::edge_type & edge) {
-  double pred = biassgd_vertex_program::GLOBAL_MEAN + 
-      edge.source().data().bias +
-      edge.target().data().bias + 
-      edge.source().data().pvec.dot(edge.target().data().pvec);
-  pred = std::min(biassgd_vertex_program::MAXVAL, pred);
-  pred = std::max(biassgd_vertex_program::MINVAL, pred);
-  double rmse = (edge.data().obs - pred) * (edge.data().obs - pred);
-  assert(rmse <= pow(biassgd_vertex_program::MAXVAL-biassgd_vertex_program::MINVAL,2));
-  return rmse;
-} // end of extract_l2_error
-
-
 struct prediction_saver {
   typedef graph_type::vertex_type vertex_type;
   typedef graph_type::edge_type   edge_type;
@@ -412,18 +507,19 @@ struct prediction_saver {
     return ""; //nop
   }
   std::string save_edge(const edge_type& edge) const {
-   if (edge.data().role != edge_data::PREDICT)
-      return "";
-
- std::stringstream strm;
-    const double prediction = 
-      edge.source().data().pvec.dot(edge.target().data().pvec);
-    strm << edge.source().id() << '\t' 
-         << -edge.target().id()-SAFE_NEG_OFFSET << '\t'
-         << prediction << '\n';
-    return strm.str();
+    if(edge.data().role == edge_data::PREDICT) {
+      std::stringstream strm;
+      const double prediction = 
+        edge.source().data().factor.dot(edge.target().data().factor);
+      strm << edge.source().id() << '\t';
+      if(REMAP_TARGET) strm << (-edge.target().id() - SAFE_NEG_OFFSET) << '\t';
+      else strm << edge.target().id() << '\t';
+      strm << prediction << '\n';
+      return strm.str();
+    } else return "";
   }
 }; // end of prediction_saver
+
 
 struct linear_model_saver_U {
   typedef graph_type::vertex_type vertex_type;
@@ -435,7 +531,7 @@ struct linear_model_saver_U {
     if (vertex.num_out_edges() > 0){
       std::string ret = boost::lexical_cast<std::string>(vertex.id()) + ") ";
       for (uint i=0; i< vertex_data::NLATENT; i++)
-        ret += boost::lexical_cast<std::string>(vertex.data().pvec[i]) + " ";
+        ret += boost::lexical_cast<std::string>(vertex.data().factor[i]) + " ";
         ret += "\n";
       return ret;
     }
@@ -456,7 +552,7 @@ struct linear_model_saver_V {
     if (vertex.num_out_edges() == 0){
       std::string ret = boost::lexical_cast<std::string>(-vertex.id()-SAFE_NEG_OFFSET) + ") ";
       for (uint i=0; i< vertex_data::NLATENT; i++)
-        ret += boost::lexical_cast<std::string>(vertex.data().pvec[i]) + " ";
+        ret += boost::lexical_cast<std::string>(vertex.data().factor[i]) + " ";
         ret += "\n";
       return ret;
     }
@@ -467,91 +563,7 @@ struct linear_model_saver_V {
   }
 }; 
 
-struct linear_model_saver_bias_U {
-  typedef graph_type::vertex_type vertex_type;
-  typedef graph_type::edge_type   edge_type;
-  /* save the linear model, using the format:
-     nodeid) factor1 factor2 ... factorNLATENT \n
-  */
-  std::string save_vertex(const vertex_type& vertex) const {
-    if (vertex.num_out_edges() > 0){
-      std::string ret = boost::lexical_cast<std::string>(vertex.id()) + ") ";
-      ret += boost::lexical_cast<std::string>(vertex.data().bias) + "\n";
-      return ret;
-    }
-    else return "";
-  }
-  std::string save_edge(const edge_type& edge) const {
-    return "";
-  }
-}; 
-struct linear_model_saver_bias_V {
-  typedef graph_type::vertex_type vertex_type;
-  typedef graph_type::edge_type   edge_type;
-  /* save the linear model, using the format:
-     nodeid) factor1 factor2 ... factorNLATENT \n
-  */
-  std::string save_vertex(const vertex_type& vertex) const {
-    if (vertex.num_out_edges() == 0){
-      std::string ret = boost::lexical_cast<std::string>(-vertex.id()-SAFE_NEG_OFFSET) + ") ";
-      ret += boost::lexical_cast<std::string>(vertex.data().bias) + "\n";
-      return ret;
-    }
-    else return "";
-  }
-  std::string save_edge(const edge_type& edge) const {
-    return "";
-  }
-}; 
 
-
-
-
-/**
- * \brief The graph loader function is a line parser used for
- * distributed graph construction.
- */
-inline bool graph_loader(graph_type& graph, 
-                         const std::string& filename,
-                         const std::string& line) {
-  ASSERT_FALSE(line.empty()); 
-  // Determine the role of the data
-  edge_data::data_role_type role = edge_data::TRAIN;
-  if(boost::ends_with(filename,".validate")) role = edge_data::VALIDATE;
-  else if(boost::ends_with(filename, ".predict")) role = edge_data::PREDICT;
-  // Parse the line
-  std::stringstream strm(line);
-  graph_type::vertex_id_type source_id(-1), target_id(-1);
-  float obs(0);
-  strm >> source_id >> target_id;
-
-   if(role == edge_data::TRAIN || role == edge_data::VALIDATE){
-    strm >> obs;
-    if (obs < biassgd_vertex_program::MINVAL || obs > biassgd_vertex_program::MAXVAL)
-      logstream(LOG_FATAL)<<"Rating values should be between " << biassgd_vertex_program::MINVAL << " and " << biassgd_vertex_program::MAXVAL << ". Got value: " << obs << " [ user: " << source_id << " to item: " <<target_id << " ] " << std::endl; 
-  }
-  target_id = -(graphlab::vertex_id_type(target_id + SAFE_NEG_OFFSET));
-  // Create an edge and add it to the graph
-  graph.add_edge(source_id, target_id, edge_data(obs, role)); 
-  return true; // successful load
-} // end of graph_loader
-
-
-
-
-
-
-size_t vertex_data::NLATENT = 20;
-double biassgd_vertex_program::TOLERANCE = 1e-3;
-double biassgd_vertex_program::LAMBDA = 0.001;
-double biassgd_vertex_program::GAMMA = 0.001;
-size_t biassgd_vertex_program::MAX_UPDATES = -1;
-double biassgd_vertex_program::MAXVAL = 1e+100;
-double biassgd_vertex_program::MINVAL = -1e+100;
-double biassgd_vertex_program::STEP_DEC = 0.9;
-bool biassgd_vertex_program::debug = false;
-double biassgd_vertex_program::GLOBAL_MEAN = 0;
-size_t biassgd_vertex_program::NUM_TRAINING_EDGES = 0;
 
 /**
  * \brief The engine type used by the ALS matrix factorization
@@ -561,20 +573,7 @@ size_t biassgd_vertex_program::NUM_TRAINING_EDGES = 0;
  * synchronous engine.  However we plan to add support for alternative
  * engines in the future.
  */
-typedef graphlab::omni_engine<biassgd_vertex_program> engine_type;
-
-double calc_global_mean(const graph_type::edge_type & edge){
-  if (edge.data().role == edge_data::TRAIN)
-     return edge.data().obs;
-  else return 0;
-}
-
-size_t count_edges(const graph_type::edge_type & edge){
-  if (edge.data().role == edge_data::TRAIN)
-     return 1;
-  else return 0;
-}
-
+typedef graphlab::omni_engine<als_vertex_program> engine_type;
 
 int main(int argc, char** argv) {
   global_logger().set_log_level(LOG_INFO);
@@ -586,40 +585,49 @@ int main(int argc, char** argv) {
   graphlab::command_line_options clopts(description);
   std::string input_dir, output_dir;
   std::string predictions;
-  size_t interval = 0;
+  size_t interval = 10;
   std::string exec_type = "synchronous";
   clopts.attach_option("matrix", input_dir,
                        "The directory containing the matrix file");
   clopts.add_positional("matrix");
-  clopts.attach_option("D", vertex_data::NLATENT,
+  clopts.attach_option("D",  vertex_data::NLATENT,
                        "Number of latent parameters to use.");
-  clopts.attach_option("engine", exec_type, 
-                       "The engine type synchronous or asynchronous");
-  clopts.attach_option("max_iter", biassgd_vertex_program::MAX_UPDATES,
+  clopts.attach_option("max_iter", als_vertex_program::MAX_UPDATES,
                        "The maxumum number of udpates allowed for a vertex");
-  clopts.attach_option("lambda", biassgd_vertex_program::LAMBDA, 
-                       "SGD regularization weight"); 
-  clopts.attach_option("gamma", biassgd_vertex_program::GAMMA, 
-                       "SGD step size"); 
-  clopts.attach_option("debug", biassgd_vertex_program::debug, 
-                       "debug - additional verbose info"); 
-  clopts.attach_option("tol", biassgd_vertex_program::TOLERANCE,
+  clopts.attach_option("lambda", als_vertex_program::LAMBDA, 
+                       "ALS regularization weight"); 
+  clopts.attach_option("tol", als_vertex_program::TOLERANCE,
                        "residual termination threshold");
-  clopts.attach_option("maxval", biassgd_vertex_program::MAXVAL, "max allowed value");
-  clopts.attach_option("minval", biassgd_vertex_program::MINVAL, "min allowed value");
-  clopts.attach_option("step_dec", biassgd_vertex_program::STEP_DEC, "multiplicative step decrement");
+  clopts.attach_option("maxval", als_vertex_program::MAXVAL, "max allowed value");
+  clopts.attach_option("minval", als_vertex_program::MINVAL, "min allowed value");
   clopts.attach_option("interval", interval, 
                        "The time in seconds between error reports");
   clopts.attach_option("predictions", predictions,
                        "The prefix (folder and filename) to save predictions.");
+  clopts.attach_option("user_sparsity", user_sparsity, "sparsity of user factors");
+  clopts.attach_option("movie_sparsity", movie_sparsity, "sparsity of item factors");
+  clopts.attach_option("algorithm", algorithm, "run mode. 1 = SPARSE_USR_FACTOR, 2 = SPARSE_ITM_FACTOR, 3 = SPARSE_BOTH_FACTORS");
+
+  clopts.attach_option("engine", exec_type, 
+                       "The engine type synchronous or asynchronous");
+  // clopts.attach_option("remap", REMAP_TARGET,
+  //                      "Renumber target vertex ids (internally) so that they\n" 
+  //                      "are in a different range allowing user 0 to connect to movie 0");
   clopts.attach_option("output", output_dir,
                        "Output results");
   if(!clopts.parse(argc, argv)) {
     std::cout << "Error in parsing command line arguments." << std::endl;
     return EXIT_FAILURE;
   }
- debug = biassgd_vertex_program::debug;
-  //  omp_set_num_threads(clopts.get_ncpus());
+  if (user_sparsity < 0.5 || user_sparsity >= 1)
+    logstream(LOG_FATAL)<<"Sparsity level should be [0.5,1). Please run again using --user_sparsity=XX in this range" << std::endl;
+
+  if (movie_sparsity < 0.5 || movie_sparsity >= 1)
+    logstream(LOG_FATAL)<<"Sparsity level should be [0.5,1). Please run again using --movie_sparsity=XX in this range" << std::endl;
+
+if (algorithm != SPARSE_USR_FACTOR && algorithm != SPARSE_BOTH_FACTORS && algorithm != SPARSE_ITM_FACTOR)
+    logstream(LOG_FATAL)<<"Algorithm should be 1 for SPARSE_USR_FACTOR, 2 for SPARSE_ITM_FACTOR and 3 for SPARSE_BOTH_FACTORS" << std::endl;
+
   ///! Initialize control plain using mpi
   graphlab::mpi_tools::init(argc, argv);
   graphlab::distributed_control dc;
@@ -666,16 +674,11 @@ int main(int argc, char** argv) {
   ASSERT_TRUE(success);
   
 
-  biassgd_vertex_program::GLOBAL_MEAN = graph.map_reduce_edges<double>(calc_global_mean);
-  biassgd_vertex_program::NUM_TRAINING_EDGES = graph.map_reduce_edges<size_t>(count_edges);
-  biassgd_vertex_program::GLOBAL_MEAN /= biassgd_vertex_program::NUM_TRAINING_EDGES;
-  dc.cout() << "Global mean is: " <<biassgd_vertex_program::GLOBAL_MEAN << std::endl;
-
-  // Signal all vertices on the vertices on the left (libersgd) 
-  engine.map_reduce_vertices<graphlab::empty>(biassgd_vertex_program::signal_left);
+  // Signal all vertices on the vertices on the left (liberals) 
+  engine.map_reduce_vertices<graphlab::empty>(als_vertex_program::signal_left);
  
 
-  dc.cout() << "Running Bias-SGD" << std::endl;
+  dc.cout() << "Running Sparse-ALS" << std::endl;
   dc.cout() << "(C) Code by Danny Bickson, CMU " << std::endl;
   dc.cout() << "Please send bug reports to danny.bickson@gmail.com" << std::endl;
   dc.cout() << "Time   Training    Validation" <<std::endl;
@@ -702,7 +705,9 @@ int main(int argc, char** argv) {
     const bool gzip_output = false;
     const bool save_vertices = false;
     const bool save_edges = true;
-    const size_t threads_per_machine = 1;
+    const size_t threads_per_machine = 2;
+
+    //save the predictions
     graph.save(predictions, prediction_saver(),
                gzip_output, save_vertices, 
                save_edges, threads_per_machine);
@@ -711,11 +716,7 @@ int main(int argc, char** argv) {
 		gzip_output, save_edges, save_vertices, threads_per_machine);
     graph.save(predictions + ".V", linear_model_saver_V(),
 		gzip_output, save_edges, save_vertices, threads_per_machine);
-    graph.save(predictions + ".bias.U", linear_model_saver_bias_U(),
-		gzip_output, save_edges, save_vertices, threads_per_machine);
-    graph.save(predictions + ".bias.V", linear_model_saver_bias_V(),
-		gzip_output, save_edges, save_vertices, threads_per_machine);
-      
+  
   }
              
 
