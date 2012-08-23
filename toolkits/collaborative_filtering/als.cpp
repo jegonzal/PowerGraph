@@ -569,7 +569,7 @@ int main(int argc, char** argv) {
   clopts.add_positional("matrix");
   clopts.attach_option("D",  vertex_data::NLATENT,
                        "Number of latent parameters to use.");
-  clopts.attach_option("maxupdates", als_vertex_program::MAX_UPDATES,
+  clopts.attach_option("max_iter", als_vertex_program::MAX_UPDATES,
                        "The maxumum number of udpates allowed for a vertex");
   clopts.attach_option("lambda", als_vertex_program::LAMBDA, 
                        "ALS regularization weight"); 

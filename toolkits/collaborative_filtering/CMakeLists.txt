@@ -7,6 +7,9 @@ project(GraphLab)
 add_graphlab_executable(als als.cpp)
 requires_eigen(als) # build and attach eigen
 
+add_graphlab_executable(wals wals.cpp)
+requires_eigen(wals) # build and attach eigen
+
 add_graphlab_executable(sgd sgd.cpp)
 requires_eigen(sgd) # build and attach eigen
 

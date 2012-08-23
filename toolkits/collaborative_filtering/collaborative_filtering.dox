@@ -37,6 +37,10 @@ Y. Koren. Factorization Meets the Neighborhood: a Multifaceted Collaborative Fil
 \verbatim
 Y. Koren. Factorization Meets the Neighborhood: a Multifaceted Collaborative Filtering Model. In ACM KDD 2008. 
 \endverbatim
+\li Weighted-ALS
+\verbatim
+Collaborative Filtering for Implicit Feedback Datasets Hu, Y.; Koren, Y.; Volinsky, C. IEEE International Conference on Data Mining (ICDM 2008), IEEE (2008). 
+\endverbatim
   
 In the future we hope to implement to rest of V1 algorithms, like NMF, NMF, BPTF, etc.
 
@@ -59,6 +63,12 @@ There are three types of input files read from your input directory path:
 all other files - are training files.
 
 Training files, are the historic recommendations that the linear model is build from. Validation files, are historic recommendations put aside, not used for training, but for the validation of the model. Test files are user/item pairs to compute recommendations as learned by the trained model.
+
+Note: for weighted-ALS, the input has the follwoing format:
+\verbatim
+[user] [item] [weight] [rating] \n
+\endverbatim
+Since each rating has its associated weight.
 
 \section Output Output
 
@@ -97,14 +107,18 @@ Below are ALS related command line options:
 \verbatim
 --D=XX	Set D the feature vector width. High width results in higher accuracy but slower execution time. Typical values are 20 -  100.
 --lambda=XX	Set regularization. Regularization helps to prevent overfitting. 
---maxupdates=XX The number of iterations.
+--max_iter=XX The number of iterations.
+--maxval=XX	Maximum allowed rating
+--minval=XX	Min allowed rating
+--predictions=XX	File name to write prediction to
+
 \endverbatim
 
 And here is an exmaple ALS run:
 \li Download the files: <a href="http://www.select.cs.cmu.edu/code/graphlab/datasets/smallnetflix_mm.train">smallnetflix_mm.train</a> and <a href="http://www.select.cs.cmu.edu/code/graphlab/datasets/smallnetflix_mm.validate">smallnetflix_mm.validate</a> and save them inside a directory called smallnetflix/.
 \li Run:
 \verbatim
-bickson@thrust:~/graphlab2.1/graphlabapi/debug/toolkits/collaborative_filtering$ ./als smallnetflix/ --maxupdates=5 --lambda=0.065 --ncpus=8
+bickson@thrust:~/graphlab2.1/graphlabapi/debug/toolkits/collaborative_filtering$ ./als smallnetflix/ --max_iter=5 --lambda=0.065 --ncpus=8
 TCP Communication layer constructed.
 Loading graph.
 INFO:     distributed_graph.hpp(load_from_posixfs:1743): Loading graph from file: smallnetflix/smallnetflix_mm.train
@@ -444,6 +458,104 @@ user_bias  - includes a vector with bias for each user
 movie_bias - includes a vector with bias for each movie
 matrix U - includes in each row the feature vector q_u of size D.
 matrix V - includes in each row the sum of feature vectors p_i + w_i of size D.
+
+\section Weighted-ALS Weighted-ALS
+Weighted-ALS (Alternating least squares)
+
+Pros: Simple to use, allows iteration of weights which can be thought of confidence in the recommendation
+Cons: intermediate accuracy, higher computational overhead
+
+Weighted-ALS is a simple yet powerful algorithm. In this model the prediction is computed as:
+   r_ui = p_u * q_i
+Where r_ui is a scalar rating of user u to item i, and p_u is the user feature vector of size D, q_i is the item feature vector of size D and the product is a vector product. 
+The output of ALS is two matrices: filename.U and filename.V. The matrix U holds the user feature vectors in each row. (Each vector has exactly D columns). The matrix V holds the feature vectors for each time (Each vector has again exactly D columns). In linear algebra notation the rating matrix R ~ UV
+
+
+Below are ALS related command line options:
+\verbatim
+--D=XX	Set D the feature vector width. High width results in higher accuracy but slower execution time. Typical values are 20 -  100.
+--lambda=XX	Set regularization. Regularization helps to prevent overfitting. 
+--max_iter=XX The number of iterations.
+--maxval=XX	Maximum allowed rating
+--minval=XX	Min allowed rating
+--predictions=XX	File name to write prediction to
+
+\endverbatim
+
+And here is an exmaple WALS run:
+\li Download the files: <a href="http://www.select.cs.cmu.edu/code/graphlab/datasets/time_smallnetflix.train">time_smallnetflix.train</a> and <a href="http://www.select.cs.cmu.edu/code/graphlab/datasets/time_smallnetflix.validate">time_smallnetflix.validate</a> and save them inside a directory called timenetflix/.
+\li Run:
+\verbatim
+bickson@thrust:~/graphlab2.1/graphlabapi/debug/toolkits/collaborative_filtering$ ./wals smallnetflix/ --max_iter=5 --lambda=0.065 --ncpus=8
+bickson@thrust:~/graphlab2.1/graphlabapi/debug/toolkits/collaborative_filtering$ ./wals timenetflix/
+TCP Communication layer constructed.
+Loading graph.
+INFO:     distributed_graph.hpp(load_from_posixfs:1823): Loading graph from file: timenetflix/time_smallnetflix.train
+INFO:     distributed_graph.hpp(load_from_posixfs:1823): Loading graph from file: timenetflix/time_smallnetflix.validate
+Loading graph. Finished in 8.69352
+Finalizing graph.
+INFO:     distributed_ingress_base.hpp(finalize:166): Finalizing Graph...
+INFO:     distributed_ingress_base.hpp(exchange_global_info:493): Graph info: 
+   nverts: 97266
+   nedges: 3843340
+   nreplicas: 97266
+   replication factor: 1
+Finalizing graph. Finished in 5.2593
+========== Graph statistics on proc 0 ===============
+ Num vertices: 97266
+ Num edges: 3843340
+ Num replica: 97266
+ Replica to vertex ratio: 1
+ --------------------------------------------
+ Num local own vertices: 97266
+ Num local vertices: 97266
+ Replica to own ratio: 1
+ Num local edges: 3843340
+ Edge balance ratio: 1
+Creating engine
+Running Weighted-ALS
+INFO:     synchronous_engine.hpp(start:1260): 0: Starting iteration: 0
+INFO:     synchronous_engine.hpp(start:1309):   Active vertices: 93705
+INFO:     synchronous_engine.hpp(start:1358):    Running Aggregators
+64.8  24.3996 67.9795
+INFO:     synchronous_engine.hpp(start:1260): 0: Starting iteration: 1
+INFO:     synchronous_engine.hpp(start:1309):   Active vertices: 3561
+INFO:     synchronous_engine.hpp(start:1358):    Running Aggregators
+119.2 18.866  75.5397
+INFO:     synchronous_engine.hpp(start:1260): 0: Starting iteration: 2
+INFO:     synchronous_engine.hpp(start:1309):   Active vertices: 93704
+INFO:     synchronous_engine.hpp(start:1358):    Running Aggregators
+184 10.6131 43.162
+INFO:     synchronous_engine.hpp(start:1260): 0: Starting iteration: 3
+INFO:     synchronous_engine.hpp(start:1309):   Active vertices: 3561
+INFO:     synchronous_engine.hpp(start:1358):    Running Aggregators
+238.5 8.49288 28.1034
+INFO:     synchronous_engine.hpp(start:1260): 0: Starting iteration: 4
+INFO:     synchronous_engine.hpp(start:1309):   Active vertices: 93702
+INFO:     synchronous_engine.hpp(start:1358):    Running Aggregators
+303 7.24041 22.2866
+INFO:     synchronous_engine.hpp(start:1260): 0: Starting iteration: 5
+INFO:     synchronous_engine.hpp(start:1309):   Active vertices: 3561
+INFO:     synchronous_engine.hpp(start:1358):    Running Aggregators
+357.6 6.74309 19.951
+INFO:     synchronous_engine.hpp(start:1260): 0: Starting iteration: 6
+INFO:     synchronous_engine.hpp(start:1309):   Active vertices: 93585
+INFO:     synchronous_engine.hpp(start:1358):    Running Aggregators
+422.1 6.42464 19.061
+INFO:     synchronous_engine.hpp(start:1260): 0: Starting iteration: 7
+INFO:     synchronous_engine.hpp(start:1309):   Active vertices: 3561
+INFO:     synchronous_engine.hpp(start:1358):    Running Aggregators
+476.5 6.25972 17.2991
+INFO:     synchronous_engine.hpp(start:1260): 0: Starting iteration: 8
+INFO:     synchronous_engine.hpp(start:1309):   Active vertices: 93164
+INFO:     synchronous_engine.hpp(start:1358):    Running Aggregators
+542.3 6.13234 16.8022
+INFO:     synchronous_engine.hpp(start:1260): 0: Starting iteration: 9
+INFO:     synchronous_engine.hpp(start:1309):   Active vertices: 3561
+
+...
+\endverbatim
+
 
 \section Acknowledgements Acknowledgements
 \li Liang Xiong, CMU for providing the Matlab code of BPTF, numerous discussions and infinite support!! Thanks!!
