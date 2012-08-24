@@ -161,7 +161,7 @@ namespace graphlab {
      * 5. Exchange global graph statistics.
      */
     virtual void finalize() {
-      rpc.barrier();
+      rpc.full_barrier();
       if (rpc.procid() == 0) {
         logstream(LOG_EMPH) << "Finalizing Graph..." << std::endl;
       }
