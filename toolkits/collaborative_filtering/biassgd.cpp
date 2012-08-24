@@ -73,7 +73,7 @@ struct vertex_data {
    * \brief Simple default constructor which randomizes the vertex
    *  data 
    */
-  vertex_data() : nupdates(0) { if (debug) pvec = vec_type::Ones(NLATENT); else randomize(); } 
+  vertex_data() : nupdates(0), bias(0) { if (debug) pvec = vec_type::Ones(NLATENT); else randomize(); } 
   /** \brief Randomizes the latent pvec */
   void randomize() { pvec.resize(NLATENT); pvec.setRandom(); }
   /** \brief Save the vertex data to a binary archive */
