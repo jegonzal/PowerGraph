@@ -567,7 +567,7 @@ Cons: less accurate linear model because of the sparsification step
 
 This algorithm is based on ALS, but an additional sparsifying step is performed on either the user feature vectors, the item feature vectors or both. This algorithm is useful for spectral clustering: first the rating matrix is factorized into a product of one or two sparse matrices, and then clustering can be computed on the feature matrices to detect similar users or items. 
 
-The underlying algorithm which is used for sparsifying is CoSaMP. See reference [K1]. 
+The underlying algorithm which is used for sparsifying is CoSaMP. See reference  on the top of this page. 
 
 Below are sparse-ALS related command line options:
 \verbatim
