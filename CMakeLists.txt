@@ -418,7 +418,8 @@ if(NOT NO_JAVAC)
     message(STATUS "Building libhdfs")
     ExternalProject_Add(hadoop
       PREFIX ${GraphLab_SOURCE_DIR}/deps/hadoop
-      URL http://www.gtlib.gatech.edu/pub/apache/hadoop/common/hadoop-1.0.1/hadoop-1.0.1.tar.gz
+      URL http://graphlab.org/deps/hadoop-1.0.1.tar.gz
+#      URL http://www.gtlib.gatech.edu/pub/apache/hadoop/common/hadoop-1.0.1/hadoop-1.0.1.tar.gz
       URL_MD5 e627d9b688c4de03cba8313bd0bba148
       UPDATE_COMMAND chmod +x <SOURCE_DIR>/src/c++/libhdfs/install-sh <SOURCE_DIR>/src/c++/libhdfs/configure
       PATCH_COMMAND patch -N -p1 -i ${GraphLab_SOURCE_DIR}/patches/libhdfs-compile-osx.patch || true
