@@ -79,6 +79,7 @@ vec CoSaMP(const mat & Phi, const vec & u, int K, int max_iter, double tol1, int
         break;
     t++;
   }
+  assert(!std::isnan(Sest[0]));
   return Sest;
 
 }

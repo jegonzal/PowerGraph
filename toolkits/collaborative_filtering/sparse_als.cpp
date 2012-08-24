@@ -218,7 +218,7 @@ public:
    */
   gather_type(const vec& X, const double y) :
     XtX(X.size(), X.size()), Xy(X.size()) {
-    XtX.triangularView<Eigen::Upper>() = X * X.transpose();
+    XtX = X * X.transpose();
     Xy = X * y;
   } // end of constructor for gather type
 
@@ -585,7 +585,7 @@ int main(int argc, char** argv) {
   graphlab::command_line_options clopts(description);
   std::string input_dir, output_dir;
   std::string predictions;
-  size_t interval = 10;
+  size_t interval = 1;
   std::string exec_type = "synchronous";
   clopts.attach_option("matrix", input_dir,
                        "The directory containing the matrix file");
