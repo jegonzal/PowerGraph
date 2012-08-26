@@ -20,30 +20,29 @@ like an additional features.
 \section Algorithms
 The collaborative filtering toolkit in GraphLab v.2 currently contains:
 
- \li Alternating Least Squares (ALS)
+ - \ref ALS "Alternating Least Squares (ALS)"
 \verbatim
 Yunhong Zhou, Dennis Wilkinson, Robert Schreiber and Rong Pan. Large-Scale Parallel Collaborative Filtering for the Netflix Prize. Proceedings of the 4th international conference on Algorithmic Aspects in Information and Management. Shanghai, China pp. 337-348, 2008.
 \endverbatim
- \li Stochastic gradient descent (SGD)
+ - \ref SGD "Stochastic gradient descent (SGD)"
 \verbatim
  Matrix Factorization Techniques for Recommender Systems Yehuda Koren, Robert Bell, Chris Volinsky In IEEE Computer, Vol. 42, No. 8. (07 August 2009), pp. 30-37. 
 Takács, G, Pilászy, I., Németh, B. and Tikk, D. (2009). Scalable Collaborative Filtering Approaches for Large Recommender Systems. Journal of Machine Learning Research, 10, 623-656.
 \endverbatim
- \li Bias stochastic gradient descnet (Bias-SGD)
+ - \ref BIAS_SGD "Bias stochastic gradient descnet (Bias-SGD)"
 \verbatim
 Y. Koren. Factorization Meets the Neighborhood: a Multifaceted Collaborative Filtering Model. In ACM KDD 2008. Equation (5).
 \endverbatim
- \li SVD++
+ - \ref SVD_PLUS_PLUS "SVD++"
 \verbatim
 Y. Koren. Factorization Meets the Neighborhood: a Multifaceted Collaborative Filtering Model. In ACM KDD 2008. 
 \endverbatim
-\li Weighted-ALS
+ - \ref WALS "Weighted-ALS"
 \verbatim
 Collaborative Filtering for Implicit Feedback Datasets Hu, Y.; Koren, Y.; Volinsky, C. IEEE International Conference on Data Mining (ICDM 2008), IEEE (2008). 
 D. Needell, J. A. Tropp CoSaMP: Iterative signal recovery from incomplete and inaccurate samples Applied and Computational Harmonic Analysis, Vol. 26, No. 3. (17 Apr 2008), pp. 301-321. 
-
 \endverbatim
-\li Sparse-ALS
+ - \ref SALS "Sparse-ALS"
 \verbatim
 Xi Chen, Yanjun Qi, Bing Bai, Qihang Lin and Jaime Carbonell. Sparse Latent Semantic Analysis. In SIAM International Conference on Data Mining (SDM), 2011. 
 \endverbatim  
@@ -401,7 +400,7 @@ Final error:
 Saving predictions
 \endverbatim
 
-\section BIAS-SGD BIAS-SGD
+\section BIAS_SGD BIAS-SGD
 
 Pros: fast method
 Cons: need to tune step size
@@ -426,7 +425,7 @@ The output of bias-SGD consists of two matrices: filename.U and filename.V. The 
 --predictions=XX	File name to write prediction to
 \endverbatim
 
-\section SVD_PLUS_PLUS
+\section SVD_PLUS_PLUS SVD++
 Pros: more accurate method than SGD once tuned, relatively fast method
 Cons: a lot of parameters for tuning, immune to numerical errors when parameters are out of scope.
 
@@ -467,8 +466,7 @@ matrix U - includes in each row the feature vector q_u of size D.
 matrix V - includes in each row the sum of feature vectors p_i + w_i of size D.
 \endverbatim
 
-\section Weighted-ALS Weighted-ALS
-Weighted-ALS (WALS)
+\section WALS Weighted-ALS
 
 Pros: Simple to use, allows iteration of weights which can be thought of confidence in the recommendation
 Cons: intermediate accuracy, higher computational overhead
@@ -564,7 +562,7 @@ INFO:     synchronous_engine.hpp(start:1309):   Active vertices: 3561
 ...
 \endverbatim
 
-\section Sparse-ALS 
+\section SALS Sparse-ALS 
 Pros: Generate sparse factor matrices, that can be clustered into similar user/item groups
 Cons: less accurate linear model because of the sparsification step
 
@@ -602,4 +600,4 @@ Prediction in sparse-ALS is computing like in ALS.
 \li Ramakrishnan Kannan, Georgia Tech, for helping debugging and simplifying usage.
 \li Charles Martin, GLG, for debugging NMF.
 \li Alex Hasha, bundle.com for improving SGD and bias-SGD documentation and usability.
-/*
+*/
