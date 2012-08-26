@@ -127,7 +127,6 @@ Below are ALS related command line options:
 --maxval=XX	Maximum allowed rating
 --minval=XX	Min allowed rating
 --predictions=XX	File name to write prediction to
-
 \endverbatim
 
 And here is an exmaple ALS run:
@@ -203,8 +202,7 @@ INFO:     synchronous_engine.hpp(start:1257): 	Active vertices: 3561
 ...
 \endverbatim
 
-
-\section "SGD command line arguments" "SGD command line arguments"
+\section SGD "Stochastic gradient descent (SGD)"
 
 Pros: fast method
 Cons: need to tune step size, more iterations are needed relative to ALS.
