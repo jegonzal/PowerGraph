@@ -506,7 +506,7 @@ struct linear_model_saver_U {
   */
   std::string save_vertex(const vertex_type& vertex) const {
     if (vertex.num_out_edges() > 0){
-      std::string ret = boost::lexical_cast<std::string>(vertex.id()) + ") ";
+      std::string ret = boost::lexical_cast<std::string>(vertex.id()) + " ";
       for (uint i=0; i< vertex_data::NLATENT; i++)
         ret += boost::lexical_cast<std::string>(vertex.data().factor[i]) + " ";
         ret += "\n";

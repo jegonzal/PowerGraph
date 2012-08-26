@@ -501,7 +501,7 @@ struct linear_model_saver_U {
      */
   std::string save_vertex(const vertex_type& vertex) const {
     if (vertex.num_out_edges() > 0){
-      std::string ret = boost::lexical_cast<std::string>(vertex.id()) + ") ";
+      std::string ret = boost::lexical_cast<std::string>(vertex.id()) + " ";
       for (uint i=0; i< vertex_data::NLATENT; i++)
         ret += boost::lexical_cast<std::string>(vertex.data().pvec[i]) + " ";
       ret += "\n";
@@ -522,7 +522,7 @@ struct linear_model_saver_V {
      */
   std::string save_vertex(const vertex_type& vertex) const {
     if (vertex.num_out_edges() == 0){
-      std::string ret = boost::lexical_cast<std::string>(-vertex.id()-SAFE_NEG_OFFSET) + ") ";
+      std::string ret = boost::lexical_cast<std::string>(-vertex.id()-SAFE_NEG_OFFSET) + " ";
       for (uint i=0; i< vertex_data::NLATENT; i++)
         ret += boost::lexical_cast<std::string>(vertex.data().pvec[i]) + " ";
       ret += "\n";
@@ -543,7 +543,7 @@ struct linear_model_saver_bias_U {
      */
   std::string save_vertex(const vertex_type& vertex) const {
     if (vertex.num_out_edges() > 0){
-      std::string ret = boost::lexical_cast<std::string>(vertex.id()) + ") ";
+      std::string ret = boost::lexical_cast<std::string>(vertex.id()) + " ";
       ret += boost::lexical_cast<std::string>(vertex.data().bias) + "\n";
       return ret;
     }
@@ -561,7 +561,7 @@ struct linear_model_saver_bias_V {
      */
   std::string save_vertex(const vertex_type& vertex) const {
     if (vertex.num_out_edges() == 0){
-      std::string ret = boost::lexical_cast<std::string>(-vertex.id()-SAFE_NEG_OFFSET) + ") ";
+      std::string ret = boost::lexical_cast<std::string>(-vertex.id()-SAFE_NEG_OFFSET) + " ";
       ret += boost::lexical_cast<std::string>(vertex.data().bias) + "\n";
       return ret;
     }

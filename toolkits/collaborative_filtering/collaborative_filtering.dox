@@ -86,13 +86,25 @@ Output format for the prediction is:
 
 Furthermore, the linear model is saved to the files: filename.U and filename.V
 Where U and V' are the matrices which their product U*V' approximates the matrix A.
-Ouptut format for the linear model is:
+Ouptut format for the linear model matrix U is:
 \verbatim
-user) factor1 factor2 .. factorN \n
+user factor1 factor2 .. factorN \n
 \endverbatim
 
-For bias-SGD, two additional files are created: filename.bias.U and filename.bias.V
+Ouptut format for the linear model matrix V is:
+\verbatim
+item factor1 factor2 .. factorN \n
+\endverbatim
+
+
+For bias-SGD and SVD++, two additional files are created: filename.bias.U and filename.bias.V
 with the biasses.
+
+NOTE: Output files are NOT sorted. Use the sort Linux command to sort them by user / item id. 
+For example:
+\verbatim
+sort -g -k 1,1 filename.U > filename.U.sorted # sorts user features, by the first column (user id)
+\endverbatim
 
 \section ALS ALS
 ALS (Alternating least squares)
