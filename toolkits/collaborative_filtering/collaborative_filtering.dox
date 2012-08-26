@@ -426,14 +426,14 @@ The output of bias-SGD consists of two matrices: filename.U and filename.V. The 
 --predictions=XX	File name to write prediction to
 \endverbatim
 
-
-\section SVD++ SVD++
+\section SVD_PLUS_PLUS
 Pros: more accurate method than SGD once tuned, relatively fast method
 Cons: a lot of parameters for tuning, immune to numerical errors when parameters are out of scope.
 
 Koren SVD++ is an algorithm which is slightly more fancy than bias-SGD and give somewhat better prediction results.
 
 Basic configuration --svdpp_step_dec=XX Multiplicative step decrement (between 0.1 to 1). Default is 0.9
+\verbatim
 --svdpp_item_bias_step=XX Item bias step size
 --svdpp_item_bias_reg=XX  Item bias regularization
 --svdpp_usr_bias_step=XX  User bias step size
@@ -450,6 +450,7 @@ Basic configuration --svdpp_step_dec=XX Multiplicative step decrement (between 0
 --maxval=XX	Maximum allowed rating
 --minval=XX	Min allowed rating
 --predictions=XX	File name to write prediction to
+\endverbatim
 
  Prediction in Koren’s SVD++ algorithm is computed as follows:
 \verbatim
@@ -458,14 +459,16 @@ r_ui = global_mean_rating + b_u + b_i + q_u * ( p_i + w_i )
 Where r_ui is the scalar rating for user u to item i, global_mean_rating is the global mean rating, b_u is a scalar bias for user u, b_i is a scalar bias for item i, q_u is a feature vectors of length D for user u, p_i is a feature vector of length D for item i, and w_i is an additional feature vector of length D (the weight). The product is a vector product. 
 
 The output of Koren’s SVD++ is 5 output files:
+\verbatim
 Global mean ratings - include the scalar global mean rating.
 user_bias  - includes a vector with bias for each user
 movie_bias - includes a vector with bias for each movie
 matrix U - includes in each row the feature vector q_u of size D.
 matrix V - includes in each row the sum of feature vectors p_i + w_i of size D.
+\endverbatim
 
 \section Weighted-ALS Weighted-ALS
-Weighted-ALS (Alternating least squares)
+Weighted-ALS (WALS)
 
 Pros: Simple to use, allows iteration of weights which can be thought of confidence in the recommendation
 Cons: intermediate accuracy, higher computational overhead
@@ -476,7 +479,7 @@ Where r_ui is a scalar rating of user u to item i, and p_u is the user feature v
 The output of ALS is two matrices: filename.U and filename.V. The matrix U holds the user feature vectors in each row. (Each vector has exactly D columns). The matrix V holds the feature vectors for each time (Each vector has again exactly D columns). In linear algebra notation the rating matrix R ~ UV
 
 
-Below are ALS related command line options:
+Below are WALS related command line options:
 \verbatim
 --D=XX	Set D the feature vector width. High width results in higher accuracy but slower execution time. Typical values are 20 -  100.
 --lambda=XX	Set regularization. Regularization helps to prevent overfitting. 
@@ -599,4 +602,4 @@ Prediction in sparse-ALS is computing like in ALS.
 \li Ramakrishnan Kannan, Georgia Tech, for helping debugging and simplifying usage.
 \li Charles Martin, GLG, for debugging NMF.
 \li Alex Hasha, bundle.com for improving SGD and bias-SGD documentation and usability.
-*/
+/*
