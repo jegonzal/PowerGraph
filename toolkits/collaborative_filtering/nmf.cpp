@@ -36,7 +36,7 @@
 #include <Eigen/Dense>
 #include "eigen_serialization.hpp"
 #include <graphlab/macros_def.hpp>
-
+#include <graphlab/util/timer.hpp>
 
 typedef Eigen::VectorXd vec;
 typedef Eigen::MatrixXd mat_type;
@@ -137,25 +137,25 @@ double extract_l2_error(const graph_type::edge_type & edge);
  */
 inline graph_type::vertex_type
 get_other_vertex(graph_type::edge_type& edge, 
-                 const graph_type::vertex_type& vertex) {
+    const graph_type::vertex_type& vertex) {
   return vertex.id() == edge.source().id()? edge.target() : edge.source();
 }; // end of get_other_vertex
 
 
 class gather_type {
-public:
-  vec pvec;
-  double training_rmse;
-  double validation_rmse;
-  gather_type() { training_rmse = validation_rmse = 0; }
-  void save(graphlab::oarchive& arc) const { arc << pvec << training_rmse << validation_rmse; }
-  void load(graphlab::iarchive& arc) { arc >> pvec >> training_rmse >> validation_rmse; }  
-  gather_type& operator+=(const gather_type& other) {
-    pvec += other.pvec;
-    training_rmse += other.training_rmse;
-    validation_rmse += other.validation_rmse;
-    return *this;
-  } 
+  public:
+    vec pvec;
+    double training_rmse;
+    double validation_rmse;
+    gather_type() { training_rmse = validation_rmse = 0; }
+    void save(graphlab::oarchive& arc) const { arc << pvec << training_rmse << validation_rmse; }
+    void load(graphlab::iarchive& arc) { arc >> pvec >> training_rmse >> validation_rmse; }  
+    gather_type& operator+=(const gather_type& other) {
+      pvec += other.pvec;
+      training_rmse += other.training_rmse;
+      validation_rmse += other.validation_rmse;
+      return *this;
+    } 
 
 };
 
@@ -169,114 +169,122 @@ bool isuser_node(const graph_type::vertex_type& vertex){
  * SGD vertex program type
  */ 
 class nmf_vertex_program :
-public graphlab::ivertex_program<graph_type, gather_type, gather_type>,
-       public graphlab::IS_POD_TYPE{
-         public:
-  /** The convergence tolerance */
-  static double TOLERANCE;
-  static double MAXVAL;
-  static double MINVAL;
-  static bool debug;
-  static size_t MAX_UPDATES;
+  public graphlab::ivertex_program<graph_type, gather_type, gather_type>,
+  public graphlab::IS_POD_TYPE{
+    public:
+      /** The convergence tolerance */
+      static double TOLERANCE;
+      static double MAXVAL;
+      static double MINVAL;
+      static bool debug;
+      static size_t MAX_UPDATES;
 
-  /** compute a missing value based on NMF algorithm */
-  static float nmf_predict(const vertex_data& user, 
-    const vertex_data& movie, 
-    const float rating, 
-    double & prediction){
+      /** compute a missing value based on NMF algorithm */
+      static float nmf_predict(const vertex_data& user, 
+          const vertex_data& movie, 
+          const float rating, 
+          double & prediction){
 
-  prediction = user.pvec.dot(movie.pvec);
-  //truncate prediction to allowed values
-  prediction = std::min((double)prediction, nmf_vertex_program::MAXVAL);
-  prediction = std::max((double)prediction, nmf_vertex_program::MINVAL);
-  //return the squared error
-  float err = rating - prediction;
-  assert(!std::isnan(err));
-  return err*err; 
+        prediction = user.pvec.dot(movie.pvec);
+        //truncate prediction to allowed values
+        prediction = std::min((double)prediction, nmf_vertex_program::MAXVAL);
+        prediction = std::max((double)prediction, nmf_vertex_program::MINVAL);
+        //return the squared error
+        float err = rating - prediction;
+        assert(!std::isnan(err));
+        return err*err; 
 
-}
-
- 
-  /** The set of edges to gather along */
-  edge_dir_type gather_edges(icontext_type& context, 
-                             const vertex_type& vertex) const { 
-    //UNUSED 
-    return graphlab::ALL_EDGES; 
-  }; // end of gather_edges 
-
-  /** The gather function computes XtX and Xy */
-  gather_type gather(icontext_type& context, const vertex_type& vertex, 
-                     edge_type& edge) const {
-    //UNUSED 
-    return gather_type();
-  } // end of gather function
-
-  /** apply collects the sum of XtX and Xy */
-  void apply(icontext_type& context, vertex_type& vertex,
-             const gather_type& sum) {
-  }
-  edge_dir_type scatter_edges(icontext_type& context,
-                              const vertex_type& vertex) const { 
-    //UNUSED 
-    return graphlab::ALL_EDGES; 
-  }; // end of scatter edges
-
-  /** Scatter reschedules neighbors */  
-  void scatter(icontext_type& context, const vertex_type& vertex, 
-               edge_type& edge) const {
-    //UNUSED 
-  } // end of scatter function
-  static void verify_rows(graph_type::vertex_type& vertex){
-  if (isuser(vertex.id()) && vertex.num_out_edges() == 0)
-     logstream(LOG_FATAL)<<"NMF algorithm can not work when the row " << vertex.id() << " of the matrix contains all zeros" << std::endl;
-  }
-
-  static gather_type pre_user_iter(const graph_type::vertex_type & vertex){
-  gather_type ret;
-  if (isuser(vertex.id())){
-   ret.pvec = vertex.data().pvec;
-  }
-  else ret.pvec = vec::Zero(vertex_data::NLATENT);
-  return ret;
-}
-  static gather_type pre_movie_iter(const graph_type::vertex_type & vertex){
-  gather_type ret;
-  if (!isuser(vertex.id())){
-   ret.pvec = vertex.data().pvec;
-  }
-  else ret.pvec = vec::Zero(vertex_data::NLATENT);
-  return ret;
-}
-
-static gather_type sum_phase1(const graph_type::edge_type& edge) {
-  gather_type ret;
-  float observation = edge.data().weight;                
-  vertex_data & nbr_latent = edge.target().data();
-  double prediction;
-  double rmse = nmf_predict(edge.source().data(), nbr_latent, observation, prediction);
-  if (edge.data().role == edge_data::TRAIN){
-    ret.training_rmse = rmse;
-    if (prediction == 0)
-      logstream(LOG_FATAL)<<"Got into numerical error! Please submit a bug report." << std::endl;
-    ret.pvec = nbr_latent.pvec * (observation / prediction);
-  }
-  else { 
-    ret.validation_rmse = rmse;
-    ret.pvec = vec::Zero(vertex_data::NLATENT);
-  }
-  return ret;
-}
-
-static void divide_by_ret(graph_type::vertex_type& vertex){
-     for (uint i=0; i< vertex_data::NLATENT; i++){
-        vertex.data().pvec[i] /= ret.pvec[i];
-        if (vertex.data().pvec[i] < epsilon)
-          vertex.data().pvec[i] = epsilon;
-     }
-}
+      }
 
 
-}; // end of nmf vertex program
+      /** The set of edges to gather along */
+      edge_dir_type gather_edges(icontext_type& context, 
+          const vertex_type& vertex) const { 
+        //UNUSED 
+        return graphlab::ALL_EDGES; 
+      }; // end of gather_edges 
+
+      /** The gather function computes XtX and Xy */
+      gather_type gather(icontext_type& context, const vertex_type& vertex, 
+          edge_type& edge) const {
+        //UNUSED 
+        return gather_type();
+      } // end of gather function
+
+      /** apply collects the sum of XtX and Xy */
+      void apply(icontext_type& context, vertex_type& vertex,
+          const gather_type& sum) {
+      }
+      edge_dir_type scatter_edges(icontext_type& context,
+          const vertex_type& vertex) const { 
+        //UNUSED 
+        return graphlab::ALL_EDGES; 
+      }; // end of scatter edges
+
+      /** Scatter reschedules neighbors */  
+      void scatter(icontext_type& context, const vertex_type& vertex, 
+          edge_type& edge) const {
+        //UNUSED 
+      } // end of scatter function
+      static void verify_rows(graph_type::vertex_type& vertex){
+        if (isuser(vertex.id()) && vertex.num_out_edges() == 0)
+          logstream(LOG_FATAL)<<"NMF algorithm can not work when the row " << vertex.id() << " of the matrix contains all zeros" << std::endl;
+      }
+
+      static gather_type pre_iter(const graph_type::vertex_type & vertex){
+        gather_type ret;
+        ret.pvec = vertex.data().pvec;
+        return ret;
+      }
+
+      static gather_type sum_phase1(const graph_type::edge_type& edge) {
+        gather_type ret;
+        float observation = edge.data().weight;                
+        vertex_data & nbr_latent = edge.target().data();
+        double prediction;
+        double rmse = nmf_predict(edge.source().data(), nbr_latent, observation, prediction);
+        if (edge.data().role == edge_data::TRAIN){
+          ret.training_rmse = rmse;
+          if (prediction == 0)
+            logstream(LOG_FATAL)<<"Got into numerical error! Please submit a bug report." << std::endl;
+          ret.pvec = nbr_latent.pvec * (observation / prediction);
+        }
+        else { 
+          ret.validation_rmse = rmse;
+          ret.pvec = vec::Zero(vertex_data::NLATENT);
+        }
+        return ret;
+      }
+      static gather_type sum_phase2(const graph_type::edge_type& edge) {
+        gather_type ret;
+        float observation = edge.data().weight;                
+        vertex_data & nbr_latent = edge.source().data();
+        double prediction;
+        double rmse = nmf_predict(edge.target().data(), nbr_latent, observation, prediction);
+        if (edge.data().role == edge_data::TRAIN){
+          ret.training_rmse = rmse;
+          if (prediction == 0)
+            logstream(LOG_FATAL)<<"Got into numerical error! Please submit a bug report." << std::endl;
+          ret.pvec = nbr_latent.pvec * (observation / prediction);
+        }
+        else { 
+          ret.validation_rmse = rmse;
+          ret.pvec = vec::Zero(vertex_data::NLATENT);
+        }
+        return ret;
+      }
+
+
+      static void divide_by_ret(graph_type::vertex_type& vertex){
+        for (uint i=0; i< vertex_data::NLATENT; i++){
+          vertex.data().pvec[i] /= ret.pvec[i];
+          if (vertex.data().pvec[i] < epsilon)
+            vertex.data().pvec[i] = epsilon;
+        }
+      }
+
+
+  }; // end of nmf vertex program
 
 gather_type count_edges(nmf_vertex_program::icontext_type & context, const graph_type::edge_type& edge) {
   gather_type ret;
@@ -287,7 +295,7 @@ gather_type count_edges(nmf_vertex_program::icontext_type & context, const graph
     ret.validation_rmse = 1;
   }
   if (edge.data().weight < 0)
-     logstream(LOG_FATAL)<<"Found a negative entry in matirx row " << edge.source().id() << " with value: " << edge.data().weight << std::endl;
+    logstream(LOG_FATAL)<<"Found a negative entry in matirx row " << edge.source().id() << " with value: " << edge.data().weight << std::endl;
   return ret;
 }
 
@@ -297,9 +305,9 @@ struct prediction_saver {
   typedef graph_type::edge_type   edge_type;
   /* save the linear model, using the format:
      nodeid) factor1 factor2 ... factorNLATENT \n
-  */
+     */
   std::string save_vertex(const vertex_type& vertex) const {
-     return "";
+    return "";
   }
   std::string save_edge(const edge_type& edge) const {
     if (edge.data().role != edge_data::PREDICT)
@@ -309,8 +317,8 @@ struct prediction_saver {
     const double prediction = 
       edge.source().data().pvec.dot(edge.target().data().pvec);
     strm << edge.source().id() << '\t' 
-         << -edge.target().id()-SAFE_NEG_OFFSET << '\t'
-         << prediction << '\n';
+      << -edge.target().id()-SAFE_NEG_OFFSET << '\t'
+      << prediction << '\n';
     return strm.str();
   }
 }; // end of prediction_saver
@@ -320,13 +328,13 @@ struct linear_model_saver_U {
   typedef graph_type::edge_type   edge_type;
   /* save the linear model, using the format:
      nodeid) factor1 factor2 ... factorNLATENT \n
-  */
+     */
   std::string save_vertex(const vertex_type& vertex) const {
     if (vertex.num_out_edges() > 0){
       std::string ret = boost::lexical_cast<std::string>(vertex.id()) + ") ";
       for (uint i=0; i< vertex_data::NLATENT; i++)
         ret += boost::lexical_cast<std::string>(vertex.data().pvec[i]) + " ";
-        ret += "\n";
+      ret += "\n";
       return ret;
     }
     else return "";
@@ -341,13 +349,13 @@ struct linear_model_saver_V {
   typedef graph_type::edge_type   edge_type;
   /* save the linear model, using the format:
      nodeid) factor1 factor2 ... factorNLATENT \n
-  */
+     */
   std::string save_vertex(const vertex_type& vertex) const {
     if (vertex.num_out_edges() == 0){
       std::string ret = boost::lexical_cast<std::string>(-vertex.id()-SAFE_NEG_OFFSET) + ") ";
       for (uint i=0; i< vertex_data::NLATENT; i++)
         ret += boost::lexical_cast<std::string>(vertex.data().pvec[i]) + " ";
-        ret += "\n";
+      ret += "\n";
       return ret;
     }
     else return "";
@@ -364,8 +372,8 @@ struct linear_model_saver_V {
  * distributed graph construction.
  */
 inline bool graph_loader(graph_type& graph, 
-                         const std::string& filename,
-                         const std::string& line) {
+    const std::string& filename,
+    const std::string& line) {
   ASSERT_FALSE(line.empty()); 
   // Determine the role of the data
   edge_data::data_role_type role = edge_data::TRAIN;
@@ -384,7 +392,7 @@ inline bool graph_loader(graph_type& graph,
       logstream(LOG_FATAL)<<"Rating values should be between " << nmf_vertex_program::MINVAL << " and " << nmf_vertex_program::MAXVAL << ". Got value: " << weight << " [ user: " << source_id << " to item: " <<target_id << " ] " << std::endl; 
   }
   target_id = -(graphlab::vertex_id_type(target_id + SAFE_NEG_OFFSET));
-                          
+
   // Create an edge and add it to the graph
   graph.add_edge(source_id, target_id, edge_data(weight, role)); 
   return true; // successful load
@@ -426,26 +434,26 @@ int main(int argc, char** argv) {
   size_t interval = 0;
   std::string exec_type = "synchronous";
   clopts.attach_option("matrix", input_dir,
-                       "The directory containing the matrix file");
+      "The directory containing the matrix file");
   clopts.add_positional("matrix");
   clopts.attach_option("D", vertex_data::NLATENT,
-                       "Number of latent parameters to use.");
+      "Number of latent parameters to use.");
   clopts.attach_option("engine", exec_type, 
-                       "The engine type synchronous or asynchronous");
+      "The engine type synchronous or asynchronous");
   clopts.attach_option("max_iter", nmf_vertex_program::MAX_UPDATES,
-                       "The maxumum number of udpates allowed for a vertex");
+      "The maxumum number of udpates allowed for a vertex");
   clopts.attach_option("debug", nmf_vertex_program::debug, 
-                       "debug - additional verbose info"); 
+      "debug - additional verbose info"); 
   clopts.attach_option("tol", nmf_vertex_program::TOLERANCE,
-                       "residual termination threshold");
+      "residual termination threshold");
   clopts.attach_option("maxval", nmf_vertex_program::MAXVAL, "max allowed value");
   clopts.attach_option("minval", nmf_vertex_program::MINVAL, "min allowed value");
   clopts.attach_option("interval", interval, 
-                       "The time in seconds between error reports");
+      "The time in seconds between error reports");
   clopts.attach_option("predictions", predictions,
-                       "The prefix (folder and filename) to save predictions.");
+      "The prefix (folder and filename) to save predictions.");
   clopts.attach_option("output", output_dir,
-                       "Output results");
+      "Output results");
 
   if(!clopts.parse(argc, argv)) {
     std::cout << "Error in parsing command line arguments." << std::endl;
@@ -456,39 +464,39 @@ int main(int argc, char** argv) {
   ///! Initialize control plain using mpi
   graphlab::mpi_tools::init(argc, argv);
   graphlab::distributed_control dc;
-  
+
   dc.cout() << "Loading graph." << std::endl;
   graphlab::timer timer; 
   graph_type graph(dc, clopts);  
   graph.load(input_dir, graph_loader); 
   dc.cout() << "Loading graph. Finished in " 
-            << timer.current_time() << std::endl;
+    << timer.current_time() << std::endl;
   dc.cout() << "Finalizing graph." << std::endl;
   timer.start();
   graph.finalize();
   dc.cout() << "Finalizing graph. Finished in " 
-            << timer.current_time() << std::endl;
+    << timer.current_time() << std::endl;
 
 
   dc.cout() 
-      << "========== Graph statistics on proc " << dc.procid() 
-      << " ==============="
-      << "\n Num vertices: " << graph.num_vertices()
-      << "\n Num edges: " << graph.num_edges()
-      << "\n Num replica: " << graph.num_replicas()
-      << "\n Replica to vertex ratio: " 
-      << float(graph.num_replicas())/graph.num_vertices()
-      << "\n --------------------------------------------" 
-      << "\n Num local own vertices: " << graph.num_local_own_vertices()
-      << "\n Num local vertices: " << graph.num_local_vertices()
-      << "\n Replica to own ratio: " 
-      << (float)graph.num_local_vertices()/graph.num_local_own_vertices()
-      << "\n Num local edges: " << graph.num_local_edges()
-      //<< "\n Begin edge id: " << graph.global_eid(0)
-      << "\n Edge balance ratio: " 
-      << float(graph.num_local_edges())/graph.num_edges()
-      << std::endl;
- 
+    << "========== Graph statistics on proc " << dc.procid() 
+    << " ==============="
+    << "\n Num vertices: " << graph.num_vertices()
+    << "\n Num edges: " << graph.num_edges()
+    << "\n Num replica: " << graph.num_replicas()
+    << "\n Replica to vertex ratio: " 
+    << float(graph.num_replicas())/graph.num_vertices()
+    << "\n --------------------------------------------" 
+    << "\n Num local own vertices: " << graph.num_local_own_vertices()
+    << "\n Num local vertices: " << graph.num_local_vertices()
+    << "\n Replica to own ratio: " 
+    << (float)graph.num_local_vertices()/graph.num_local_own_vertices()
+    << "\n Num local edges: " << graph.num_local_edges()
+    //<< "\n Begin edge id: " << graph.global_eid(0)
+    << "\n Edge balance ratio: " 
+    << float(graph.num_local_edges())/graph.num_edges()
+    << std::endl;
+
   dc.cout() << "Creating engine" << std::endl;
   engine_type engine(dc, graph, exec_type, clopts);
 
@@ -505,29 +513,34 @@ int main(int argc, char** argv) {
   graphlab::vertex_set right = ~left;
   graph.transform_vertices(nmf_vertex_program::verify_rows, left);
 
-  for (uint j=0; j< nmf_vertex_program::MAX_UPDATES; j++){
-    gather_type x1 = graph.map_reduce_vertices<gather_type>(nmf_vertex_program::pre_user_iter,left);
-    ret = graph.map_reduce_edges<gather_type>(nmf_vertex_program::sum_phase1,left);   
-    for (uint i=0; i < vertex_data::NLATENT; i++)
-     ret.pvec[i] /= x1.pvec[i];
-    graph.transform_vertices(nmf_vertex_program::divide_by_ret,left);
-    dc.cout()<<"Training RMSE: " << sqrt(ret.training_rmse/edge_count.training_rmse) << " Validation RMSE: " << sqrt(ret.validation_rmse/edge_count.validation_rmse) << std::endl;
+  graphlab::timer mytimer; mytimer.start();
 
-    gather_type x2 = graph.map_reduce_vertices<gather_type>(nmf_vertex_program::pre_movie_iter,right);
-    ret = graph.map_reduce_edges<gather_type>(nmf_vertex_program::sum_phase1,right);
+  for (uint j=0; j< nmf_vertex_program::MAX_UPDATES; j++){
+    gather_type x1 = graph.map_reduce_vertices<gather_type>(nmf_vertex_program::pre_iter,left);
+    ret = graph.map_reduce_edges<gather_type>(nmf_vertex_program::sum_phase1);   
     for (uint i=0; i < vertex_data::NLATENT; i++)
-     ret.pvec[i] /= x2.pvec[i];
+      ret.pvec[i] /= x1.pvec[i];
+    graph.transform_vertices(nmf_vertex_program::divide_by_ret,left);
+    dc.cout()<< std::setw(8) << mytimer.current_time() << " " << sqrt(ret.training_rmse/edge_count.training_rmse);
+    if (edge_count.validation_rmse > 0)
+      dc.cout() << " " << std::setw(8) << sqrt(ret.validation_rmse/edge_count.validation_rmse) << std::endl;
+    else dc.cout() << std::endl;
+
+    gather_type x2 = graph.map_reduce_vertices<gather_type>(nmf_vertex_program::pre_iter,right);
+    ret = graph.map_reduce_edges<gather_type>(nmf_vertex_program::sum_phase2);
+    for (uint i=0; i < vertex_data::NLATENT; i++)
+      ret.pvec[i] /= x2.pvec[i];
     graph.transform_vertices(nmf_vertex_program::divide_by_ret,right);
   }
 
   const double runtime = timer.current_time();
   dc.cout() << "----------------------------------------------------------"
-            << std::endl
-            << "Final Runtime (seconds):   " << runtime 
-            << std::endl
-            << "Updates executed: " << engine.num_updates() << std::endl
-            << "Update Rate (updates/second): " 
-            << engine.num_updates() / runtime << std::endl;
+    << std::endl
+    << "Final Runtime (seconds):   " << runtime 
+                                        << std::endl
+                                        << "Updates executed: " << engine.num_updates() << std::endl
+                                        << "Update Rate (updates/second): " 
+                                          << engine.num_updates() / runtime << std::endl;
 
 
   // Make predictions ---------------------------------------------------------
@@ -539,16 +552,16 @@ int main(int argc, char** argv) {
     const size_t threads_per_machine = 1;
     //save the predictions
     graph.save(predictions, prediction_saver(),
-               gzip_output, save_vertices, 
-               save_edges, threads_per_machine);
+        gzip_output, save_vertices, 
+        save_edges, threads_per_machine);
     //save the linear model
     graph.save(predictions + ".U", linear_model_saver_U(),
-		gzip_output, save_edges, save_vertices, threads_per_machine);
+        gzip_output, save_edges, save_vertices, threads_per_machine);
     graph.save(predictions + ".V", linear_model_saver_V(),
-		gzip_output, save_edges, save_vertices, threads_per_machine);
-     
+        gzip_output, save_edges, save_vertices, threads_per_machine);
+
   }
-             
+
   graphlab::mpi_tools::finalize();
   return EXIT_SUCCESS;
 } // end of main
