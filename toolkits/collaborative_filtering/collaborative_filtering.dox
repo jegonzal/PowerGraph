@@ -47,7 +47,11 @@ D. Needell, J. A. Tropp CoSaMP: Iterative signal recovery from incomplete and in
 Xi Chen, Yanjun Qi, Bing Bai, Qihang Lin and Jaime Carbonell. Sparse Latent Semantic Analysis. In SIAM International Conference on Data Mining (SDM), 2011. 
 \endverbatim  
 In the future we hope to implement to rest of V1 algorithms, like NMF, NMF, BPTF, etc.
-
+  \ref NMF "Non-negative matrix factorization"
+\verbatim
+NMF Lee, D..D., and Seung, H.S., (2001), 'Algorithms for Non-negative Matrix
+Factorization', Adv. Neural Info. Proc. Syst. 13, 556-562.
+\endverbatim
 \section Input Input
 
 The input to GraphLab v2.1 collaborative filtering toolkit should be prepared inside a directory. All files in the directory will be read in parallel by GraphLab. Each file has the following text format:
@@ -590,9 +594,26 @@ Below are sparse-ALS related command line options:
 2 = SPARSE_ITM_FACTOR
 3 = SPARSE_BOTH_FACTORS
 \endverbatim
+Prediction in sparse-ALS is computed like in ALS.
 
+\section NMF Non-negative matrix factorization (NMF)
 
-Prediction in sparse-ALS is computing like in ALS.
+Non-negative matrix factorization (NMF) is based on Lee and Seung [reference H]. 
+Prediction is computed like in ALS:
+    r_ui = p_u * q_i
+
+Namely the scalar prediction r of user u is composed of the vector product of the user feature vector p_u (of size D), with the item feature vector q_i (of size D). The only difference is that both p_u and q_i have all nonnegative values.
+The output of NMF is two matrices: filename.U and filename.V. The matrix U holds the user feature vectors in each row. (Each vector has exactly D columns). The matrix V holds the feature vectors for each time (Each vector has again exactly D columns). In linear algebra notation the rating matrix R ~ UV, U>=0, V>=0.
+
+\subsection NMF cost function and properties
+
+Unlike many of the other methods who is Euclidean distance, NMF cost function is:
+      KL( UV’ || A) 
+Namely the KL divergence between the approximating product UV’  and the original matrix A.
+The objective is not computed in GraphLab, but you can easily compute it in Matlab if needed. 
+
+NMF is a gradient descent type algorithm which is supposed to always converge. However it may converge to a local minima. The algorithm starts from a random solution and that is why different runs may converge to different solution. For debugging, if you are interested in verifying that multiple runs converge to the same point, use the flag --debug=true when running.
+
 \section Acknowledgements Acknowledgements
 \li Liang Xiong, CMU for providing the Matlab code of BPTF, numerous discussions and infinite support!! Thanks!!
 \li Timmy Wilson, Smarttypes.org for providing twitter network snapshot example, and Python scripts for reading the output.
