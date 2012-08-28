@@ -47,6 +47,10 @@ const static int SAFE_NEG_OFFSET=2;
 const double epsilon = 1e-16;
 static bool debug;
 int iter = 0;
+
+bool isuser(uint node){
+  return ((int)node) >= 0;
+}
 /** 
  * \ingroup toolkit_matrix_pvecization
  *
@@ -158,6 +162,9 @@ public:
 gather_type ret;
 
 
+bool isuser_node(const graph_type::vertex_type& vertex){
+  return isuser(vertex.id());
+}
 /**
  * SGD vertex program type
  */ 
@@ -219,34 +226,30 @@ public graphlab::ivertex_program<graph_type, gather_type, gather_type>,
                edge_type& edge) const {
     //UNUSED 
   } // end of scatter function
-  static void verify_rows(icontext_type & context, graph_type::vertex_type& vertex){
-  if (vertex.id () >= 0 && vertex.num_out_edges() == 0)
+  static void verify_rows(graph_type::vertex_type& vertex){
+  if (isuser(vertex.id()) && vertex.num_out_edges() == 0)
      logstream(LOG_FATAL)<<"NMF algorithm can not work when the row " << vertex.id() << " of the matrix contains all zeros" << std::endl;
   }
 
-  static gather_type pre_user_iter(icontext_type & context, const graph_type::vertex_type & vertex){
+  static gather_type pre_user_iter(const graph_type::vertex_type & vertex){
   gather_type ret;
-  if (vertex.id() >= 0){
+  if (isuser(vertex.id())){
    ret.pvec = vertex.data().pvec;
   }
   else ret.pvec = vec::Zero(vertex_data::NLATENT);
   return ret;
 }
-  static gather_type pre_movie_iter(icontext_type & context, const graph_type::vertex_type & vertex){
+  static gather_type pre_movie_iter(const graph_type::vertex_type & vertex){
   gather_type ret;
-  if (vertex.id() < 0){
+  if (!isuser(vertex.id())){
    ret.pvec = vertex.data().pvec;
   }
   else ret.pvec = vec::Zero(vertex_data::NLATENT);
   return ret;
 }
 
-static gather_type sum_phase1_sum(icontext_type & context, const graph_type::edge_type& edge) {
+static gather_type sum_phase1(const graph_type::edge_type& edge) {
   gather_type ret;
-  if (edge.source().id() <0){
-     ret.pvec = vec::Zero(vertex_data::NLATENT);
-     return ret;
-  }
   float observation = edge.data().weight;                
   vertex_data & nbr_latent = edge.target().data();
   double prediction;
@@ -257,36 +260,14 @@ static gather_type sum_phase1_sum(icontext_type & context, const graph_type::edg
       logstream(LOG_FATAL)<<"Got into numerical error! Please submit a bug report." << std::endl;
     ret.pvec = nbr_latent.pvec * (observation / prediction);
   }
-  else if (edge.data().role == edge_data::VALIDATE){
-    ret.validation_rmse = rmse;
-    ret.pvec = vec::Zero(vertex_data::NLATENT);
-  }
-  return ret;
-}
-static gather_type sum_phase2_sum(icontext_type & context, const graph_type::edge_type& edge) {
-  gather_type ret;
-  if (edge.source().id() >=0){
-     ret.pvec = vec::Zero(vertex_data::NLATENT);
-     return ret;
-  }
-  float observation = edge.data().weight;                
-  vertex_data & nbr_latent = edge.source().data();
-  double prediction;
-  double rmse = nmf_predict(edge.target().data(), nbr_latent, observation, prediction);
-  if (edge.data().role == edge_data::TRAIN){
-    ret.training_rmse = rmse;
-    if (prediction == 0)
-      logstream(LOG_FATAL)<<"Got into numerical error! Please submit a bug report." << std::endl;
-    ret.pvec = nbr_latent.pvec * (observation / prediction);
-  }
-  else if (edge.data().role == edge_data::VALIDATE){
+  else { 
     ret.validation_rmse = rmse;
     ret.pvec = vec::Zero(vertex_data::NLATENT);
   }
   return ret;
 }
 
-static void divide_by_ret(icontext_type & context, graph_type::vertex_type& vertex){
+static void divide_by_ret(graph_type::vertex_type& vertex){
      for (uint i=0; i< vertex_data::NLATENT; i++){
         vertex.data().pvec[i] /= ret.pvec[i];
         if (vertex.data().pvec[i] < epsilon)
@@ -520,21 +501,23 @@ int main(int argc, char** argv) {
   timer.start();
 
   gather_type edge_count = engine.map_reduce_edges<gather_type>(count_edges);
-  engine.transform_vertices(nmf_vertex_program::verify_rows);
+  graphlab::vertex_set left = graph.select(isuser_node);
+  graphlab::vertex_set right = ~left;
+  graph.transform_vertices(nmf_vertex_program::verify_rows, left);
 
   for (uint j=0; j< nmf_vertex_program::MAX_UPDATES; j++){
-    gather_type x1 = engine.map_reduce_vertices<gather_type>(nmf_vertex_program::pre_user_iter);
-    ret = engine.map_reduce_edges<gather_type>(nmf_vertex_program::sum_phase1_sum);
+    gather_type x1 = graph.map_reduce_vertices<gather_type>(nmf_vertex_program::pre_user_iter,left);
+    ret = graph.map_reduce_edges<gather_type>(nmf_vertex_program::sum_phase1,left);   
     for (uint i=0; i < vertex_data::NLATENT; i++)
      ret.pvec[i] /= x1.pvec[i];
-    engine.transform_vertices(nmf_vertex_program::divide_by_ret);
+    graph.transform_vertices(nmf_vertex_program::divide_by_ret,left);
     dc.cout()<<"Training RMSE: " << sqrt(ret.training_rmse/edge_count.training_rmse) << " Validation RMSE: " << sqrt(ret.validation_rmse/edge_count.validation_rmse) << std::endl;
 
-    gather_type x2 = engine.map_reduce_vertices<gather_type>(nmf_vertex_program::pre_movie_iter);
-    ret = engine.map_reduce_edges<gather_type>(nmf_vertex_program::sum_phase2_sum);
+    gather_type x2 = graph.map_reduce_vertices<gather_type>(nmf_vertex_program::pre_movie_iter,right);
+    ret = graph.map_reduce_edges<gather_type>(nmf_vertex_program::sum_phase1,right);
     for (uint i=0; i < vertex_data::NLATENT; i++)
-     ret.pvec[i] /= x1.pvec[i];
-    engine.transform_vertices(nmf_vertex_program::divide_by_ret);
+     ret.pvec[i] /= x2.pvec[i];
+    graph.transform_vertices(nmf_vertex_program::divide_by_ret,right);
   }
 
   const double runtime = timer.current_time();
