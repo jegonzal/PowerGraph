@@ -300,6 +300,7 @@ vec lanczos(bipartite_graph_descriptor & info, timer & mytimer, vec & errest,
   if (vecfile.size() == 0)
     v_0 = randu(size(A,2));
   PRINT_VEC2("svd->V", v_0);
+  PRINT_VEC(V[0]);
    
   DistDouble vnorm = norm(v_0);
   v_0=v_0/vnorm;
@@ -316,6 +317,8 @@ vec lanczos(bipartite_graph_descriptor & info, timer & mytimer, vec & errest,
     beta = zeros(n);
 
     U[k] = V[k]*A._transpose();
+    PRINT_VEC(U[k]);
+    PRINT_VEC(V[k]);
     orthogonalize_vs_all(U, k, alpha(0));
     PRINT_VEC3("alpha", alpha, 0);
 
@@ -484,7 +487,8 @@ vec lanczos(bipartite_graph_descriptor & info, timer & mytimer, vec & errest,
 }
 
 void start_engine(){
-  pengine->signal_all();
+  vertex_set nodes = pgraph->select(select_in_range);
+  pengine->signal_vset(nodes);
   pengine->start();
 }
 void write_output_vector(const std::string datafile, const vec & output, bool issparse, std::string comment)

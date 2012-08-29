@@ -338,28 +338,7 @@ class DistVec{
     }
 
 
-    DistVec& operator=(const DistVec & vec){
-      assert(offset < (info.is_square() ? 2*data_size: data_size));
-      if (mi.x_offset == -1 && mi.y_offset == -1){
-        mi.y_offset = vec.offset;
-      }  
-      mi.r_offset = offset;
-      assert(prev_offset < data_size);
-      mi.prev_offset = prev_offset;
-      if (mi.d == 0.0)
-        mi.d=1.0;
-      transpose = vec.transpose;
-      end = vec.end; 
-      start = vec.start;
-      mi.start = start;
-      mi.end = end;
-      INITIALIZE_TRACER(Axbtrace2, "Update function Axb");
-      BEGIN_TRACEPOINT(Axbtrace2);
-      start_engine();
-      debug_print(name);
-      mi.reset_offsets();
-      return *this;
-    }
+    DistVec& operator=(const DistVec & vec);
 
     DistVec& operator=(const vec & pvec);
 
@@ -381,6 +360,7 @@ class DistVec{
 
     double operator[](int i){
       assert(i < end - start);
+      assert(false);
       // TODO   return pgraph->vertex_data(i+start).pvec[offset];
     }
 
@@ -425,6 +405,30 @@ gather_type output_vector(const graph_type::vertex_type & vertex){
 bool select_in_range(const graph_type::vertex_type & vertex){
   return vertex.id() >= (uint)pcurrent->start && vertex.id() < (uint)pcurrent->end;
 }
+DistVec& DistVec::operator=(const DistVec & vec){
+      assert(offset < (info.is_square() ? 2*data_size: data_size));
+      if (mi.x_offset == -1 && mi.y_offset == -1){
+        mi.y_offset = vec.offset;
+      }  
+      mi.r_offset = offset;
+      assert(prev_offset < data_size);
+      mi.prev_offset = prev_offset;
+      if (mi.d == 0.0)
+        mi.d=1.0;
+      transpose = vec.transpose;
+      end = vec.end; 
+      start = vec.start;
+      mi.start = start;
+      mi.end = end;
+      INITIALIZE_TRACER(Axbtrace2, "Update function Axb");
+      BEGIN_TRACEPOINT(Axbtrace2);
+      pcurrent = (DistVec*)&vec;
+      start_engine();
+      debug_print(name);
+      mi.reset_offsets();
+      return *this;
+    }
+
 DistVec& DistVec::operator=(const vec & pvec){
   assert(offset >= 0);
   assert(pvec.size() == info.num_nodes(true) || pvec.size() == info.num_nodes(false));
@@ -617,7 +621,11 @@ DistVec& DistVec::operator=(DistMat &mat){
   mi.end = info.get_end_node(!transpose);
   INITIALIZE_TRACER(Axbtrace, "Axb update function");
   BEGIN_TRACEPOINT(Axbtrace);
+  pcurrent = this;
+  int old_start = start; int old_end = end;
+  start = mi.start; end = mi.end;
   start_engine();
+  start = old_start; end = old_end;
   END_TRACEPOINT(Axbtrace);
   debug_print(name);
   mi.reset_offsets();
@@ -730,19 +738,29 @@ DistDouble sqrt(DistDouble & dval){
   mval.val=sqrt(dval.val);
   return mval;
 }
+
+gather_type calc_norm(const graph_type::vertex_type & vertex){
+  gather_type ret;
+  assert(pcurrent && pcurrent->offset < vertex.data().pvec.size());
+  ret.training_rmse = pow(vertex.data().pvec[pcurrent->offset], 2);
+  return ret;
+}
+
 DistDouble norm(const DistVec &vec){
   assert(vec.offset>=0);
   assert(vec.start < vec.end);
 
   DistDouble mval;
   mval.val = 0;
-  for (int i=vec.start; i < vec.end; i++){
-    assert(false); //not yet
+  pcurrent = (DistVec*)&vec;
+  vertex_set nodes = pgraph->select(select_in_range);
+  //for (int i=vec.start; i < vec.end; i++){
     // TODO const vertex_data * data = &pgraph->vertex_data(i);
     //double * px = (double*)&data->pvec[0];
     // mval.val += px[vec.offset]*px[vec.offset];
-  }
-  mval.val = sqrt(mval.val);
+  gather_type ret = pgraph->map_reduce_vertices<gather_type>(calc_norm);
+  //}
+  mval.val = sqrt(ret.training_rmse);
   return mval;
 }
 
@@ -822,6 +840,8 @@ gather_type map_reduce_ortho(const graph_type::vertex_type & vertex){
       vertex_set nodes = pgraph->select(selected_node);
       for (int j=0; j < mi.ortho_repeats; j++){
         alphas = pgraph->map_reduce_vertices<gather_type>(map_reduce_ortho, nodes);
+        for (int i=0; i< curoffset; i++)
+          assert(alphas.pvec[i] != 0);
         //memset(alphas, 0, sizeof(double)*curoffset);
         //#pragma omp parallel for
         //for (int i=mat.start_offset; i< current.offset; i++){
