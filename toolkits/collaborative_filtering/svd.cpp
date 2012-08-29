@@ -318,8 +318,8 @@ vec lanczos(bipartite_graph_descriptor & info, timer & mytimer, vec & errest,
 
     U[k] = V[k]*A._transpose();
     PRINT_VEC(U[k]);
-    PRINT_VEC(V[k]);
     orthogonalize_vs_all(U, k, alpha(0));
+    PRINT_VEC(U[k]);
     PRINT_VEC3("alpha", alpha, 0);
 
     for (int i=k+1; i<n; i++){
@@ -327,7 +327,9 @@ vec lanczos(bipartite_graph_descriptor & info, timer & mytimer, vec & errest,
       PRINT_INT(i);
 
       V[i]=U[i-1]*A;
+      PRINT_VEC(V[i]);
       orthogonalize_vs_all(V, i, beta(i-k-1));
+      PRINT_VEC(V[i]);
 
       PRINT_VEC3("beta", beta, i-k-1); 
 
@@ -487,7 +489,7 @@ vec lanczos(bipartite_graph_descriptor & info, timer & mytimer, vec & errest,
 }
 
 void start_engine(){
-  vertex_set nodes = pgraph->select(select_in_range);
+  vertex_set nodes = pgraph->select(selected_node);
   pengine->signal_vset(nodes);
   pengine->start();
 }
@@ -539,6 +541,32 @@ int main(int argc, char** argv) {
     std::cout << "Error in parsing command line arguments." << std::endl;
     return EXIT_FAILURE;
   }
+
+  if (unittest == 1){
+    datafile = "gklanczos_testA/"; 
+    vecfile = "gklanczos_testA_v0";
+    nsv = 3; nv = 3;
+    rows = 3; cols = 4;
+    debug = true;
+    //core.set_ncpus(1);
+  }
+  else if (unittest == 2){
+    datafile = "gklanczos_testB/";
+    vecfile = "gklanczos_testB_v0";
+    nsv = 10; nv = 10;
+    rows = 10; cols = 10;
+    debug = true;  max_iter = 100;
+    //core.set_ncpus(1);
+  }
+  else if (unittest == 3){
+    datafile = "gklanczos_testC/";
+    vecfile = "gklanczos_testC_v0";
+    nsv = 4; nv = 10;
+    rows = 25; cols = 25;
+    debug = true;  max_iter = 100;
+    //core.set_ncpus(1);
+  }
+
 
   if (rows <= 0 || cols <= 0)
     logstream(LOG_FATAL)<<"Please specify number of rows/cols of the input matrix" << std::endl;
@@ -594,14 +622,26 @@ int main(int argc, char** argv) {
   dc.cout() << "Running SVD (gklanczos)" << std::endl;
   dc.cout() << "(C) Code by Danny Bickson, CMU " << std::endl;
   dc.cout() << "Please send bug reports to danny.bickson@gmail.com" << std::endl;
-  dc.cout() << "Time   Training    Validation" <<std::endl;
-  dc.cout() << "       RMSE        RMSE " <<std::endl;
   timer.start();
 
   init_lanczos(&graph, info);
   init_math(&graph, info, ortho_repeats, update_function);
   if (vecfile.size() > 0){
     std::cout << "Load inital vector from file" << vecfile << std::endl;
+    FILE * file = fopen(vecfile.c_str(), "r");
+    if (file == NULL)
+      logstream(LOG_FATAL)<<"Failed to open initial vector"<< std::endl;
+    vec input = vec::Zero(rows);
+    double val = 0;
+    for (int i=0; i< rows; i++){
+      int rc = fscanf(file, "%lg\n", &val);
+      if (rc != 1)
+        logstream(LOG_FATAL)<<"Failed to open initial vector"<< std::endl;
+      input[i] = val;
+    }
+    fclose(file);
+    DistVec v0(info, 0, false, "v0");
+    v0 = input;
   }  
 
   vec errest;

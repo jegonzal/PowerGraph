@@ -103,24 +103,30 @@ class Axb :
     /* Gather the weighted rank of the adjacent page   */
     double gather(icontext_type& context, const vertex_type& vertex,
         edge_type& edge) const {
-      bool rows = vertex.id() < (uint)info.get_start_node(false);
+      bool brows = vertex.id() < (uint)info.get_start_node(false);
       if (info.is_square()) 
-        rows = mi.A_transpose;
+        brows = mi.A_transpose;
       if (mi.A_offset  && mi.x_offset >= 0){
-        return edge.data().obs * (rows ? edge.target().data().pvec[mi.x_offset] :
+        double val = edge.data().obs * (brows ? edge.target().data().pvec[mi.x_offset] :
             edge.source().data().pvec[mi.x_offset]);
+        //printf("edge on vertex %d val %lg\n", vertex.id(), val);
+        return val;
       }
+        //printf("edge on vertex %d val %lg\n", vertex.id(), 0.0);
       return 0;
     }
 
     /* Use the total rank of adjacent pages to update this page */
     void apply(icontext_type& context, vertex_type& vertex,
-        const gather_type& total) {
+        const double& total) {
 
+      //printf("Entered apply on node %d value %lg\n", vertex.id(), total);
       vertex_data & user = vertex.data();
+      assert(mi.x_offset >=0 || mi.y_offset >= 0);
       assert(mi.r_offset >=0);
 
       double val = total;
+      //assert(total != 0 || mi.y_offset >= 0);
 
       //store previous value for convergence detection
       if (mi.prev_offset >= 0)
@@ -152,15 +158,17 @@ class Axb :
         val /= user.pvec[mi.div_offset];
       }
       user.pvec[mi.r_offset] = val;
-
+      assert(val != 0);
     }
+    edge_dir_type gather_edges(icontext_type& context,
+        const vertex_type& vertex) const {
+      return ALL_EDGES;
+    }
+
 
     edge_dir_type scatter_edges(icontext_type& context,
         const vertex_type& vertex) const {
-      bool rows = mi.end < info.get_start_node(false);
-      if (info.is_square()) 
-        rows = mi.A_transpose;
-      return rows ? graphlab::OUT_EDGES : graphlab::IN_EDGES;
+      return ALL_EDGES;
     }
 
     /* The scatter function just signal adjacent pages */
@@ -796,6 +804,8 @@ gather_type map_reduce_ortho(const graph_type::vertex_type & vertex){
   for (int i=curMat->start_offset; i< pcurrent->offset; i++){
     ret.pvec[i - curMat->start_offset] = vertex.data().pvec[i] * vertex.data().pvec[pcurrent->offset];
   }
+  //printf("map_Reduce_ortho: node %d\n", vertex.id());
+  //std::cout<<ret.pvec<<std::endl;
   return ret;
 }
   gather_type map_reduce_sum_power(const graph_type::vertex_type & vertex){
@@ -814,7 +824,7 @@ gather_type map_reduce_ortho(const graph_type::vertex_type & vertex){
   void transform_ortho(graph_type::vertex_type & vertex){
     assert(curMat != NULL && curMat->start_offset < pcurrent->offset);
     for (int i=curMat->start_offset; i< pcurrent->offset; i++){
-      assert(alphas.pvec[i-curMat->start_offset] != 0);
+      //assert(alphas.pvec[i-curMat->start_offset] != 0);
       vertex.data().pvec[pcurrent->offset] -= alphas.pvec[i-curMat->start_offset] * vertex.data().pvec[i]; 
     }
   }
@@ -836,12 +846,13 @@ gather_type map_reduce_ortho(const graph_type::vertex_type & vertex){
     pcurrent =&current;
     assert(mat.start_offset <= current.offset); 
     //double * alphas = new double[curoffset];
+    vertex_set nodes = pgraph->select(selected_node);
     if (curoffset > 0){
-      vertex_set nodes = pgraph->select(selected_node);
       for (int j=0; j < mi.ortho_repeats; j++){
         alphas = pgraph->map_reduce_vertices<gather_type>(map_reduce_ortho, nodes);
-        for (int i=0; i< curoffset; i++)
-          assert(alphas.pvec[i] != 0);
+        //std::cout<<"RET VEC" << alphas.pvec << std::endl;
+        //for (int i=0; i< curoffset; i++)
+        //  assert(alphas.pvec[i] != 0);
         //memset(alphas, 0, sizeof(double)*curoffset);
         //#pragma omp parallel for
         //for (int i=mat.start_offset; i< current.offset; i++){
@@ -855,6 +866,7 @@ gather_type map_reduce_ortho(const graph_type::vertex_type & vertex){
         //TODO pgraph->vertex_data(k).pvec[current.offset] -= alphas[i-mat.start_offset]  * pgraph->vertex_data(k).pvec[i];
         //            }
         //
+        //if (alphas[i-mat.start_offset] != 0)
         pgraph->transform_vertices(transform_ortho, nodes);
         //}
       } //for ortho_repeast 
@@ -870,14 +882,14 @@ gather_type map_reduce_ortho(const graph_type::vertex_type & vertex){
     //for (k=info.get_start_node(!current.transpose); k< info.get_end_node(!current.transpose); k++){
     //TODO sum = sum + pow(pgraph->vertex_data(k).pvec[current.offset],2);
     //}    
-    sum_alpha = pgraph->map_reduce_vertices<gather_type>(map_reduce_sum_power);
+    sum_alpha = pgraph->map_reduce_vertices<gather_type>(map_reduce_sum_power, nodes);
     alpha = sqrt(sum_alpha.training_rmse);
     if (alpha >= 1e-10 ){
       //#pragma omp parallel for
       //for (int k=info.get_start_node(!current.transpose); k< info.get_end_node(!current.transpose); k++){
       //TODO pgraph->vertex_data(k).pvec[current.offset]/=alpha;
       //}
-      pgraph->transform_vertices(divide_by_sum);    
+      pgraph->transform_vertices(divide_by_sum, nodes);    
     }
     END_TRACEPOINT(orthogonalize_vs_alltrace);
   }
