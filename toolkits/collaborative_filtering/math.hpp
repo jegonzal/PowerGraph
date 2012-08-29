@@ -109,10 +109,10 @@ class Axb :
       if (mi.A_offset  && mi.x_offset >= 0){
         double val = edge.data().obs * (brows ? edge.target().data().pvec[mi.x_offset] :
             edge.source().data().pvec[mi.x_offset]);
-        //printf("edge on vertex %d val %lg\n", vertex.id(), val);
+        printf("edge on vertex %d val %lg obs %lg\n", vertex.id(), val, edge.data().obs);
         return val;
       }
-        //printf("edge on vertex %d val %lg\n", vertex.id(), 0.0);
+        printf("edge on vertex %d val %lg\n", vertex.id(), 0.0);
       return 0;
     }
 
@@ -120,7 +120,7 @@ class Axb :
     void apply(icontext_type& context, vertex_type& vertex,
         const double& total) {
 
-      //printf("Entered apply on node %d value %lg\n", vertex.id(), total);
+      printf("Entered apply on node %d value %lg\n", vertex.id(), total);
       vertex_data & user = vertex.data();
       assert(mi.x_offset >=0 || mi.y_offset >= 0);
       assert(mi.r_offset >=0);
@@ -159,6 +159,7 @@ class Axb :
       }
       user.pvec[mi.r_offset] = val;
       assert(val != 0);
+      printf("Exit apply on node %d value %lg\n", vertex.id(), val);
     }
     edge_dir_type gather_edges(icontext_type& context,
         const vertex_type& vertex) const {
@@ -883,7 +884,8 @@ gather_type map_reduce_ortho(const graph_type::vertex_type & vertex){
     //TODO sum = sum + pow(pgraph->vertex_data(k).pvec[current.offset],2);
     //}    
     sum_alpha = pgraph->map_reduce_vertices<gather_type>(map_reduce_sum_power, nodes);
-    alpha = sqrt(sum_alpha.training_rmse);
+    sum_alpha.training_rmse = sqrt(sum_alpha.training_rmse);
+    alpha = sum_alpha.training_rmse;
     if (alpha >= 1e-10 ){
       //#pragma omp parallel for
       //for (int k=info.get_start_node(!current.transpose); k< info.get_end_node(!current.transpose); k++){
