@@ -105,14 +105,14 @@ class Axb :
         edge_type& edge) const {
       bool brows = vertex.id() < (uint)info.get_start_node(false);
       if (info.is_square()) 
-        brows = mi.A_transpose;
+        brows = !mi.A_transpose;
       if (mi.A_offset  && mi.x_offset >= 0){
         double val = edge.data().obs * (brows ? edge.target().data().pvec[mi.x_offset] :
             edge.source().data().pvec[mi.x_offset]);
-        //printf("edge on vertex %d val %lg obs %lg\n", vertex.id(), val, edge.data().obs);
+        printf("edge on vertex %d val %lg obs %lg\n", vertex.id(), val, edge.data().obs);
         return val;
       }
-        //printf("edge on vertex %d val %lg\n", vertex.id(), 0.0);
+      printf("edge on vertex %d val %lg\n", vertex.id(), 0.0);
       return 0;
     }
 
@@ -120,7 +120,7 @@ class Axb :
     void apply(icontext_type& context, vertex_type& vertex,
         const double& total) {
 
-      //printf("Entered apply on node %d value %lg\n", vertex.id(), total);
+      printf("Entered apply on node %d value %lg\n", vertex.id(), total);
       vertex_data & user = vertex.data();
       assert(mi.x_offset >=0 || mi.y_offset >= 0);
       assert(mi.r_offset >=0);
@@ -136,7 +136,7 @@ class Axb :
       if (mi.A_offset  && mi.x_offset >= 0){
         if  (info.is_square() && mi.use_diag)// add the diagonal term
           val += (/*mi.c**/ (user.A_ii+ regularization) * user.pvec[mi.x_offset]);
-
+        printf("node %d added diag term: %lg\n", vertex.id(), user.A_ii);
         val *= mi.c;
       }
       /***** COMPUTE r = c*I*x  *****/
@@ -159,11 +159,15 @@ class Axb :
       }
       user.pvec[mi.r_offset] = val;
       //assert(val != 0);
-      //printf("Exit apply on node %d value %lg\n", vertex.id(), val);
+      printf("Exit apply on node %d value %lg\n", vertex.id(), val);
     }
     edge_dir_type gather_edges(icontext_type& context,
         const vertex_type& vertex) const {
-      return ALL_EDGES;
+      if (info.is_square() && !mi.A_transpose)
+        return OUT_EDGES;
+      else if (info.is_square() && mi.A_transpose)
+        return IN_EDGES;
+      else return ALL_EDGES;
     }
 
 

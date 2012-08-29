@@ -55,7 +55,6 @@ bool save_vectors = false;
 std::string datafile; 
 std::string vecfile;
 int unittest;
-std::string format = "matrixmarket";
 int nodes = 0;
 int data_size = 0;
 std::string predictions;
@@ -491,8 +490,6 @@ vec lanczos(bipartite_graph_descriptor & info, timer & mytimer, vec & errest,
           gzip_output, save_edges, save_vertices, threads_per_machine);
     } 
 
-    //write_output_vector(predictions + ".singular_values", format, singular_values,false, "%GraphLab SVD Solver library. This file contains the singular values.");
-
   }
   return sigma;
 }
@@ -658,7 +655,7 @@ int main(int argc, char** argv) {
   vec errest;
   vec singular_values = lanczos( info, timer, errest, vecfile);
 
-  write_output_vector(datafile + "singular_values", singular_values, false, "%GraphLab SVD Solver library. This file contains the singular values.");
+  write_output_vector(predictions + "singular_values", singular_values, false, "%GraphLab SVD Solver library. This file contains the singular values.");
 
   const double runtime = timer.current_time();
   dc.cout() << "----------------------------------------------------------"
