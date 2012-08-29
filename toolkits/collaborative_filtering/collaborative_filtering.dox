@@ -600,7 +600,7 @@ Below are sparse-ALS related command line options:
 \endverbatim
 Prediction in sparse-ALS is computed like in ALS.
 
-\section NMF Non-negative matrix factorization (NMF)
+\section NMF "Non-negative matrix factorization"
 
 Non-negative matrix factorization (NMF) is based on Lee and Seung [reference H]. 
 Prediction is computed like in ALS:
@@ -609,7 +609,7 @@ Prediction is computed like in ALS:
 Namely the scalar prediction r of user u is composed of the vector product of the user feature vector p_u (of size D), with the item feature vector q_i (of size D). The only difference is that both p_u and q_i have all nonnegative values.
 The output of NMF is two matrices: filename.U and filename.V. The matrix U holds the user feature vectors in each row. (Each vector has exactly D columns). The matrix V holds the feature vectors for each time (Each vector has again exactly D columns). In linear algebra notation the rating matrix R ~ UV, U>=0, V>=0.
 
-\subsection NMF cost function and properties
+\subsection "NMF cost function and properties"
 
 Unlike many of the other methods who is Euclidean distance, NMF cost function is:
       KL( UV’ || A) 
@@ -647,7 +647,7 @@ cat A2
 Ceate a directory named A2, and inside it put the file A2.
 
 Here is an for running SVD (using one mpi node, one core)
-
+\verbatim
 bickson@thrust:~/graphlab2.1/graphlabapi/debug/toolkits/collaborative_filtering$ ./svd A2 --rows=3 --cols=4 --nsv=4 --nv=4 --max_iter=3 --ncpus=1 --quiet=1
 TCP Communication layer constructed.
 Loading graph.
@@ -679,6 +679,7 @@ Singular value 3    1.05388e-64 Error estimate:   3.42194e-16
 Final Runtime (seconds):   0.54851
 Updates executed: 59
 Update Rate (updates/second): 107.564
+\endverbatim
 
 For running with multiple mpi nodes run:
 \verbatim 
@@ -688,27 +689,27 @@ mpiexec -n XX ./svd [ rest of the command line aguments ]
 \subsection Command line arguments
 
 \verbatim
-Basic configuration --training  Input file name. Note that even for the binary format, the header of the matrix market file (first 2-3 lines) should be present, at the same folder where the .nodes, .edges, and .weights files are found.
+--training  Input file directory.
 --nv  Number of inner steps of each iterations. Typically the number should be greater than the number of singular values you look for.
 --nsv Number of singular values requested. Should be typically less than --nv
 --ortho_repeats Number of repeats on the orthogonalization step. Default is 1 (no repeats). Increase this number for higher accuracy but slower execution. Maximal allowed values is 3.
 --max_iter  Number of allowed restarts. The minimum is 2= no restart.
---save_vectors=true
-Save the factorized matrices U and V to file. 
+--save_vectors=true Save the factorized matrices U and V to file. 
+--predictions File name to save prediction to
 --tol Convergence threshold. For large matrices set this number set this number higher (for example 1e-1, while for small matrices you can set it to 1e-16). As smaller the convergence threshold execution is slower.
 \endverbatim
 
-\subsection Understanding the error measure
+\subsection SVD1 "Understanding the error measure"
  Following Slepc, the error measure is computed by a combination of:
 sqrt( ||Av_i - sigma(i) u_i ||_2^2 + ||A^Tu_i - sigma(i) V_i ||_2^2 ) / sigma(i)
 
 
 Namely, the deviation of the approximation sigma(i) u_i  from Av_i , and vice versa.
 
- Scalability
+\subsection SVD2 "Scalability|
  Currently the code was tested with up to 3.5 billion non-zeros on a 24 core machine. Each Lanczos iteration takes about 30 seconds. 
 
-\subsection Difference to Mahout
+\subsection SVD3 "Difference to Mahout"
  Mahout SVD solver is implemented using the same Lanczos algorithm. However, there are several differences
 1) In Mahout there are no restarts, so quality of the solution deteriorates very rapidly, after 5-10 iterations the solution is no longer accurate. Running without restarts can be done using our solution with the --max_iter=2 flag.
 2) In Mahout there is a single orthonornalization step in each iteration while in our implementation there are two (after computation of u_i and after v_i ).
