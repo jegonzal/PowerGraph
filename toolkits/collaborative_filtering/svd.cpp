@@ -40,12 +40,11 @@
 
 //when using negative node id range, we are not allowed to use
 //0 and 1 so we add 2.
-const static int SAFE_NEG_OFFSET=2;
 int iter = 0;
 //LANCZOS VARIABLES
 int max_iter = 10;
 bool no_edge_data = false;
-int actual_vector_len;
+int actual_vector_len = 0;
 int nv = 0;
 int nsv = 0;
 double tol = 1e-8;
@@ -56,9 +55,11 @@ bool save_vectors = false;
 std::string datafile; 
 std::string vecfile;
 int unittest;
-std::string format = "matrixmarket";
 int nodes = 0;
 int data_size = 0;
+std::string predictions;
+int rows = -1, cols = -1;
+bool quiet = false;
 
 void start_engine();
 
@@ -87,6 +88,26 @@ struct vertex_data {
     arc >> nupdates >> residual >> pvec >> A_ii;
   }
 }; // end of vertex data
+
+
+class gather_type {
+  public:
+    vec pvec;
+    double training_rmse;
+    double validation_rmse;
+    gather_type() { training_rmse = validation_rmse = 0; }
+    void save(graphlab::oarchive& arc) const { arc << pvec << training_rmse << validation_rmse; }
+    void load(graphlab::iarchive& arc) { arc >> pvec >> training_rmse >> validation_rmse; }  
+    gather_type& operator+=(const gather_type& other) {
+      pvec += other.pvec;
+      training_rmse += other.training_rmse;
+      validation_rmse += other.validation_rmse;
+      return *this;
+    } 
+
+};
+
+gather_type ret;
 
 
 /**
@@ -123,7 +144,7 @@ struct edge_data : public graphlab::IS_POD_TYPE {
  * data.
  */ 
 typedef graphlab::distributed_graph<vertex_data, edge_data> graph_type;
-
+graph_type * pgraph;
 
 /**
  * \brief Given a vertex and an edge return the other vertex in the
@@ -135,7 +156,7 @@ get_other_vertex(graph_type::edge_type& edge,
   return vertex.id() == edge.source().id()? edge.target() : edge.source();
 }; // end of get_other_vertex
 
-typedef double gather_type;
+//typedef double gather_type;
 typedef double message_type;
 
 
@@ -224,26 +245,31 @@ inline bool graph_loader(graph_type& graph,
   //no need to parse
   if (filename == vecfile)
     return true;
+  if (boost::ends_with(filename,"singular_values") || boost::ends_with(filename, "_v0"))
+    return true;
 
   ASSERT_FALSE(line.empty()); 
   // Determine the role of the data
   edge_data::data_role_type role = edge_data::TRAIN;
-  if(boost::ends_with(filename,".validate")) role = edge_data::VALIDATE;
-  else if(boost::ends_with(filename, ".predict")) role = edge_data::PREDICT;
+  
   // Parse the line
   std::stringstream strm(line);
   graph_type::vertex_id_type source_id(-1), target_id(-1);
   float obs(0);
   strm >> source_id >> target_id;
+  source_id--; target_id--;
+  assert(source_id < (uint)rows);
+  strm >> obs;
+  if (!info.is_square())
+  target_id = rows + target_id;
 
-  // for test files (.predict) no need to read the actual rating value.
-  if(role == edge_data::TRAIN || role == edge_data::VALIDATE){
-    strm >> obs;
+  if (source_id == target_id){
+      vertex_data data;
+      data.A_ii = obs;
+      graph.add_vertex(source_id, data);
   }
-  target_id = -(graphlab::vertex_id_type(target_id + SAFE_NEG_OFFSET));
-
   // Create an edge and add it to the graph
-  graph.add_edge(source_id, target_id, edge_data(obs, role)); 
+  else graph.add_edge(source_id, target_id, edge_data(obs, role)); 
   return true; // successful load
 } // end of graph_loader
 
@@ -258,9 +284,9 @@ void init_lanczos(graph_type * g, bipartite_graph_descriptor & info){
   if (info.is_square())
     actual_vector_len = 2*data_size;
 
-  assert(pengine);
+  //assert(pengine);
   assert(actual_vector_len > 0);
-  pengine->map_reduce_vertices<graphlab::empty>(Axb::init_lanczos);
+  pgraph->transform_vertices(init_lanczos_mapr);
 
   logstream(LOG_INFO)<<"Allocated a total of: " << ((double)actual_vector_len * g->num_vertices() * sizeof(double)/ 1e6) << " MB for storing vectors." << std::endl;
 }
@@ -282,6 +308,7 @@ vec lanczos(bipartite_graph_descriptor & info, timer & mytimer, vec & errest,
   if (vecfile.size() == 0)
     v_0 = randu(size(A,2));
   PRINT_VEC2("svd->V", v_0);
+  PRINT_VEC(V[0]);
    
   DistDouble vnorm = norm(v_0);
   v_0=v_0/vnorm;
@@ -298,7 +325,9 @@ vec lanczos(bipartite_graph_descriptor & info, timer & mytimer, vec & errest,
     beta = zeros(n);
 
     U[k] = V[k]*A._transpose();
+    PRINT_VEC(U[k]);
     orthogonalize_vs_all(U, k, alpha(0));
+    PRINT_VEC(U[k]);
     PRINT_VEC3("alpha", alpha, 0);
 
     for (int i=k+1; i<n; i++){
@@ -306,7 +335,9 @@ vec lanczos(bipartite_graph_descriptor & info, timer & mytimer, vec & errest,
       PRINT_INT(i);
 
       V[i]=U[i-1]*A;
+      PRINT_VEC(V[i]);
       orthogonalize_vs_all(V, i, beta(i-k-1));
+      PRINT_VEC(V[i]);
 
       PRINT_VEC3("beta", beta, i-k-1); 
 
@@ -453,20 +484,19 @@ vec lanczos(bipartite_graph_descriptor & info, timer & mytimer, vec & errest,
     const size_t threads_per_machine = 1;
     //save the linear model
     for (int i=0; i < nconv; i++){
-      graph.save(predictions + ".U." + boost::lexical_cast<std::string>(i), linear_model_saver_U(i),
+      pgraph->save(predictions + ".U." + boost::lexical_cast<std::string>(i), linear_model_saver_U(i),
           gzip_output, save_edges, save_vertices, threads_per_machine);
-      graph.save(predictions + ".V." + boost::lexical_cast<std::string>(j), linear_model_saver_V(i),
+      pgraph->save(predictions + ".V." + boost::lexical_cast<std::string>(i), linear_model_saver_V(i),
           gzip_output, save_edges, save_vertices, threads_per_machine);
     } 
-
-    write_output_vector(predictions + ".singular_values", format, singular_values,false, "%GraphLab SVD Solver library. This file contains the singular values.");
 
   }
   return sigma;
 }
 
 void start_engine(){
-  pengine->signal_all();
+  vertex_set nodes = pgraph->select(selected_node);
+  pengine->signal_vset(nodes);
   pengine->start();
 }
 void write_output_vector(const std::string datafile, const vec & output, bool issparse, std::string comment)
@@ -478,7 +508,7 @@ void write_output_vector(const std::string datafile, const vec & output, bool is
   if (comment.size() > 0) // add a comment to the matrix market header
     fprintf(f, "%c%s\n", '%', comment.c_str());
     for (int j=0; j<(int)output.size(); j++){
-    fprintf(f, "%10.13g\n", output[j])
+    fprintf(f, "%10.13g\n", output[j]);
   }
 
   fclose(f);
@@ -486,7 +516,6 @@ void write_output_vector(const std::string datafile, const vec & output, bool is
 
 
 int main(int argc, char** argv) {
-  global_logger().set_log_level(LOG_INFO);
   global_logger().set_log_to_console(true);
 
   // Parse command line options -----------------------------------------------
@@ -494,8 +523,6 @@ int main(int argc, char** argv) {
     "Compute the gklanczos factorization of a matrix.";
   graphlab::command_line_options clopts(description);
   std::string input_dir, output_dir;
-  std::string predictions;
-  int rows = -1, cols = -1;
   std::string exec_type = "synchronous";
   clopts.attach_option("matrix", input_dir,
       "The directory containing the matrix file");
@@ -514,11 +541,40 @@ int main(int argc, char** argv) {
   clopts.attach_option("rows", rows, "number of rows");
   clopts.attach_option("cols", cols, "number of cols");
   clopts.attach_option("no_edge_data", no_edge_data, "matrix is binary (optional)");
-
+  clopts.attach_option("quiet", quiet, "quiet mode (less verbose)");
   if(!clopts.parse(argc, argv)) {
     std::cout << "Error in parsing command line arguments." << std::endl;
     return EXIT_FAILURE;
   }
+  if (quiet){
+    global_logger().set_log_level(LOG_ERROR);
+    debug = false;
+  }
+  if (unittest == 1){
+    datafile = "gklanczos_testA/"; 
+    vecfile = "gklanczos_testA_v0";
+    nsv = 3; nv = 3;
+    rows = 3; cols = 4;
+    debug = true;
+    //core.set_ncpus(1);
+  }
+  else if (unittest == 2){
+    datafile = "gklanczos_testB/";
+    vecfile = "gklanczos_testB_v0";
+    nsv = 10; nv = 10;
+    rows = 10; cols = 10;
+    debug = true;  max_iter = 100;
+    //core.set_ncpus(1);
+  }
+  else if (unittest == 3){
+    datafile = "gklanczos_testC/";
+    vecfile = "gklanczos_testC_v0";
+    nsv = 4; nv = 10;
+    rows = 25; cols = 25;
+    debug = true;  max_iter = 100;
+    //core.set_ncpus(1);
+  }
+
 
   if (rows <= 0 || cols <= 0)
     logstream(LOG_FATAL)<<"Please specify number of rows/cols of the input matrix" << std::endl;
@@ -538,6 +594,7 @@ int main(int argc, char** argv) {
   graph_type graph(dc, clopts);  
   graph.load(input_dir, graph_loader); 
   graph.load(input_dir, init_vec_loader); 
+  pgraph = &graph;
   dc.cout() << "Loading graph. Finished in " 
     << timer.current_time() << std::endl;
   dc.cout() << "Finalizing graph." << std::endl;
@@ -568,25 +625,37 @@ int main(int argc, char** argv) {
 
   dc.cout() << "Creating engine" << std::endl;
   engine_type engine(dc, graph, exec_type, clopts);
-
+  pengine = &engine;
 
   dc.cout() << "Running SVD (gklanczos)" << std::endl;
   dc.cout() << "(C) Code by Danny Bickson, CMU " << std::endl;
   dc.cout() << "Please send bug reports to danny.bickson@gmail.com" << std::endl;
-  dc.cout() << "Time   Training    Validation" <<std::endl;
-  dc.cout() << "       RMSE        RMSE " <<std::endl;
   timer.start();
 
   init_lanczos(&graph, info);
   init_math(&graph, info, ortho_repeats, update_function);
   if (vecfile.size() > 0){
-    std::cout << "Load inital vector from file" << vecfile << std::endl;
+    std::cout << "Load inital vector from file" << datafile << vecfile << std::endl;
+    FILE * file = fopen((datafile + vecfile).c_str(), "r");
+    if (file == NULL)
+      logstream(LOG_FATAL)<<"Failed to open initial vector"<< std::endl;
+    vec input = vec::Zero(rows);
+    double val = 0;
+    for (int i=0; i< rows; i++){
+      int rc = fscanf(file, "%lg\n", &val);
+      if (rc != 1)
+        logstream(LOG_FATAL)<<"Failed to open initial vector"<< std::endl;
+      input[i] = val;
+    }
+    fclose(file);
+    DistVec v0(info, 0, false, "v0");
+    v0 = input;
   }  
 
   vec errest;
   vec singular_values = lanczos( info, timer, errest, vecfile);
 
-  write_output_vector(datafile + ".singular_values", format, singular_values,false, "%GraphLab SVD Solver library. This file contains the singular values.");
+  write_output_vector(predictions + "singular_values", singular_values, false, "%GraphLab SVD Solver library. This file contains the singular values.");
 
   const double runtime = timer.current_time();
   dc.cout() << "----------------------------------------------------------"
@@ -598,9 +667,6 @@ int main(int argc, char** argv) {
                                           << engine.num_updates() / runtime << std::endl;
 
   // Compute the final training error -----------------------------------------
-  dc.cout() << "Final error: " << std::endl;
-  engine.aggregate_now("error");
-
   if (unittest == 1){
     assert(errest.size() == 3);
     for (int i=0; i< errest.size(); i++)
