@@ -699,17 +699,17 @@ mpiexec -n XX ./svd [ rest of the command line aguments ]
 --tol Convergence threshold. For large matrices set this number set this number higher (for example 1e-1, while for small matrices you can set it to 1e-16). As smaller the convergence threshold execution is slower.
 \endverbatim
 
-\subsection Understanding the error measure
+\subsection SVD1 "Understanding the error measure"
  Following Slepc, the error measure is computed by a combination of:
 sqrt( ||Av_i - sigma(i) u_i ||_2^2 + ||A^Tu_i - sigma(i) V_i ||_2^2 ) / sigma(i)
 
 
 Namely, the deviation of the approximation sigma(i) u_i  from Av_i , and vice versa.
 
-\subsection Scalability
+\subsection SVD2 "Scalability|
  Currently the code was tested with up to 3.5 billion non-zeros on a 24 core machine. Each Lanczos iteration takes about 30 seconds. 
 
-\subsection Difference to Mahout
+\subsection SVD3 "Difference to Mahout"
  Mahout SVD solver is implemented using the same Lanczos algorithm. However, there are several differences
 1) In Mahout there are no restarts, so quality of the solution deteriorates very rapidly, after 5-10 iterations the solution is no longer accurate. Running without restarts can be done using our solution with the --max_iter=2 flag.
 2) In Mahout there is a single orthonornalization step in each iteration while in our implementation there are two (after computation of u_i and after v_i ).
