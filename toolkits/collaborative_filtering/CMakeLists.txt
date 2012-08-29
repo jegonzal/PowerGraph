@@ -22,6 +22,10 @@ requires_eigen(biassgd) # build and attach eigen
 add_graphlab_executable(svdpp svdpp.cpp)
 requires_eigen(svdpp) # build and attach eigen
 
+add_graphlab_executable(svd svd.cpp)
+requires_eigen(svd) # build and attach eigen
+
+
 add_graphlab_executable(nmf nmf.cpp)
 requires_eigen(nmf) # build and attach eigen
 

@@ -10,17 +10,35 @@ inline double fabs2(double val){
   else return val;
 }
 
+
+gather_type collect_vec(const graph_type::vertex_type& vertex) {
+  assert(pcurrent);
+  assert(pcurrent->offset >= 0 && pcurrent->offset < vertex.data().pvec.size());
+  int len=std::min(pcurrent->end-pcurrent->start,MAX_PRINTOUT_LEN);
+  assert(len > 0);
+  gather_type ret;
+  ret.pvec = vec::Zero(len);
+  if (vertex.id() >= (uint)pcurrent->start && vertex.id() < (uint)pcurrent->start +len)
+    ret.pvec[vertex.id() - pcurrent->start] = vertex.data().pvec[pcurrent->offset];
+  return ret;
+}
+
+
 void print_vec(const char * name, const DistVec & vec, bool high = false){
  int i;
  printf("%s[%d]\n", name, vec.offset);
- for (i=vec.start; i< std::min(vec.end, MAX_PRINTOUT_LEN); i++){
-  //TODO if (high)
-  // printf("%15.15lg ", fabs2(pgraph->vertex_data(i).pvec[vec.offset]));
-  //else
-  // printf("%.5lg ", fabs2(pgraph->vertex_data(i).pvec[vec.offset]));
+ pcurrent = (DistVec*)&vec;
+ int len=std::min(vec.end-vec.start,MAX_PRINTOUT_LEN);
+ gather_type ret = pgraph->map_reduce_vertices<gather_type>(collect_vec);
+ for (i= 0; i< len; i++){
+  if (high)
+    printf("%15.15lg ", fabs2(ret.pvec[i]));
+  else
+    printf("%.5lg ", fabs2(ret.pvec[i]));
   }
  printf("\n");
 }
+
 void print_vec(const char * name, const vec & pvec, bool high = false){
  printf("%s\n", name);
  for (int i= 0; i< std::min((int)pvec.size(), MAX_PRINTOUT_LEN); i++){
