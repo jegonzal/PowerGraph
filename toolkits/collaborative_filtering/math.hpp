@@ -109,10 +109,10 @@ class Axb :
       if (mi.A_offset  && mi.x_offset >= 0){
         double val = edge.data().obs * (brows ? edge.target().data().pvec[mi.x_offset] :
             edge.source().data().pvec[mi.x_offset]);
-        printf("edge on vertex %d val %lg obs %lg\n", vertex.id(), val, edge.data().obs);
+        //printf("edge on vertex %d val %lg obs %lg\n", vertex.id(), val, edge.data().obs);
         return val;
       }
-        printf("edge on vertex %d val %lg\n", vertex.id(), 0.0);
+        //printf("edge on vertex %d val %lg\n", vertex.id(), 0.0);
       return 0;
     }
 
@@ -120,7 +120,7 @@ class Axb :
     void apply(icontext_type& context, vertex_type& vertex,
         const double& total) {
 
-      printf("Entered apply on node %d value %lg\n", vertex.id(), total);
+      //printf("Entered apply on node %d value %lg\n", vertex.id(), total);
       vertex_data & user = vertex.data();
       assert(mi.x_offset >=0 || mi.y_offset >= 0);
       assert(mi.r_offset >=0);
@@ -158,8 +158,8 @@ class Axb :
         val /= user.pvec[mi.div_offset];
       }
       user.pvec[mi.r_offset] = val;
-      assert(val != 0);
-      printf("Exit apply on node %d value %lg\n", vertex.id(), val);
+      //assert(val != 0);
+      //printf("Exit apply on node %d value %lg\n", vertex.id(), val);
     }
     edge_dir_type gather_edges(icontext_type& context,
         const vertex_type& vertex) const {
@@ -169,7 +169,7 @@ class Axb :
 
     edge_dir_type scatter_edges(icontext_type& context,
         const vertex_type& vertex) const {
-      return ALL_EDGES;
+      return NO_EDGES;
     }
 
     /* The scatter function just signal adjacent pages */
@@ -398,7 +398,8 @@ class DistVec{
 DistVec * pcurrent = NULL;
 
 void assign_vec(graph_type::vertex_type & vertex){
-  assert(vertex.id() - pcurrent->start >= 0 && vertex.id() - pcurrent->start < curvec.size());
+  if (!info.is_square())
+    assert(vertex.id() - pcurrent->start >= 0 && vertex.id() - pcurrent->start < curvec.size());
   vertex.data().pvec[pcurrent->offset] = curvec[vertex.id() - pcurrent->start];
 }  
 
@@ -412,7 +413,9 @@ gather_type output_vector(const graph_type::vertex_type & vertex){
    return ret;
 }
 bool select_in_range(const graph_type::vertex_type & vertex){
-  return vertex.id() >= (uint)pcurrent->start && vertex.id() < (uint)pcurrent->end;
+   if (info.is_square())
+     return true;
+   else return vertex.id() >= (uint)pcurrent->start && vertex.id() < (uint)pcurrent->end;
 }
 DistVec& DistVec::operator=(const DistVec & vec){
       assert(offset < (info.is_square() ? 2*data_size: data_size));
@@ -830,7 +833,9 @@ gather_type map_reduce_ortho(const graph_type::vertex_type & vertex){
     }
   }
   bool selected_node(const graph_type::vertex_type& vertex){
-    return ((vertex.id() >= (uint)info.get_start_node(!pcurrent->transpose)) &&
+    if (info.is_square())
+      return true;
+    else return ((vertex.id() >= (uint)info.get_start_node(!pcurrent->transpose)) &&
         (vertex.id() < (uint)info.get_end_node(!pcurrent->transpose)));
   }
 

@@ -60,6 +60,7 @@ int nodes = 0;
 int data_size = 0;
 std::string predictions;
 int rows = -1, cols = -1;
+bool quiet = false;
 
 void start_engine();
 
@@ -245,6 +246,8 @@ inline bool graph_loader(graph_type& graph,
   //no need to parse
   if (filename == vecfile)
     return true;
+  if (boost::ends_with(filename,"singular_values") || boost::ends_with(filename, "_v0"))
+    return true;
 
   ASSERT_FALSE(line.empty()); 
   // Determine the role of the data
@@ -258,10 +261,16 @@ inline bool graph_loader(graph_type& graph,
   source_id--; target_id--;
   assert(source_id < (uint)rows);
   strm >> obs;
+  if (!info.is_square())
   target_id = rows + target_id;
 
+  if (source_id == target_id){
+      vertex_data data;
+      data.A_ii = obs;
+      graph.add_vertex(source_id, data);
+  }
   // Create an edge and add it to the graph
-  graph.add_edge(source_id, target_id, edge_data(obs, role)); 
+  else graph.add_edge(source_id, target_id, edge_data(obs, role)); 
   return true; // successful load
 } // end of graph_loader
 
@@ -510,7 +519,6 @@ void write_output_vector(const std::string datafile, const vec & output, bool is
 
 
 int main(int argc, char** argv) {
-  global_logger().set_log_level(LOG_INFO);
   global_logger().set_log_to_console(true);
 
   // Parse command line options -----------------------------------------------
@@ -536,12 +544,15 @@ int main(int argc, char** argv) {
   clopts.attach_option("rows", rows, "number of rows");
   clopts.attach_option("cols", cols, "number of cols");
   clopts.attach_option("no_edge_data", no_edge_data, "matrix is binary (optional)");
-
+  clopts.attach_option("quiet", quiet, "quiet mode (less verbose)");
   if(!clopts.parse(argc, argv)) {
     std::cout << "Error in parsing command line arguments." << std::endl;
     return EXIT_FAILURE;
   }
-
+  if (quiet){
+    global_logger().set_log_level(LOG_ERROR);
+    debug = false;
+  }
   if (unittest == 1){
     datafile = "gklanczos_testA/"; 
     vecfile = "gklanczos_testA_v0";
@@ -627,8 +638,8 @@ int main(int argc, char** argv) {
   init_lanczos(&graph, info);
   init_math(&graph, info, ortho_repeats, update_function);
   if (vecfile.size() > 0){
-    std::cout << "Load inital vector from file" << vecfile << std::endl;
-    FILE * file = fopen(vecfile.c_str(), "r");
+    std::cout << "Load inital vector from file" << datafile << vecfile << std::endl;
+    FILE * file = fopen((datafile + vecfile).c_str(), "r");
     if (file == NULL)
       logstream(LOG_FATAL)<<"Failed to open initial vector"<< std::endl;
     vec input = vec::Zero(rows);
@@ -647,7 +658,7 @@ int main(int argc, char** argv) {
   vec errest;
   vec singular_values = lanczos( info, timer, errest, vecfile);
 
-  write_output_vector(datafile + ".singular_values", singular_values,false, "%GraphLab SVD Solver library. This file contains the singular values.");
+  write_output_vector(datafile + "singular_values", singular_values, false, "%GraphLab SVD Solver library. This file contains the singular values.");
 
   const double runtime = timer.current_time();
   dc.cout() << "----------------------------------------------------------"
@@ -659,9 +670,6 @@ int main(int argc, char** argv) {
                                           << engine.num_updates() / runtime << std::endl;
 
   // Compute the final training error -----------------------------------------
-  dc.cout() << "Final error: " << std::endl;
-  engine.aggregate_now("error");
-
   if (unittest == 1){
     assert(errest.size() == 3);
     for (int i=0; i< errest.size(); i++)
