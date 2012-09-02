@@ -231,7 +231,7 @@ struct shortest_path_writer {
 
 
 
-struct max_deg_vertex_reducer {
+struct max_deg_vertex_reducer: public graphlab::IS_POD_TYPE {
   size_t degree;
   graphlab::vertex_id_type vid;
   max_deg_vertex_reducer& operator+=(const max_deg_vertex_reducer& other) {
