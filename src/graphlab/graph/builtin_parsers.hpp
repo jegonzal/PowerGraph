@@ -25,21 +25,44 @@
 #include <string>
 #include <sstream>
 #include <iostream>
+
+#include <boost/config/warning_disable.hpp>
+#include <boost/spirit/include/qi.hpp>
+#include <boost/spirit/include/phoenix_core.hpp>
+#include <boost/spirit/include/phoenix_operator.hpp>
+#include <boost/spirit/include/phoenix_stl.hpp>
+
+
 #include <graphlab/util/stl_util.hpp>
 #include <graphlab/logger/logger.hpp>
 #include <graphlab/serialization/serialization_includes.hpp>
+
+
+
+
 namespace graphlab {
 
   namespace builtin_parsers {
   
+    /**
+     * \brief Parse files in the Stanford Network Analysis Package format.
+     *
+     * example:
+     *
+     *  # some comment
+     *  # another comment
+     *  1 2
+     *  3 4
+     *  1 4
+     *
+     */
     template <typename Graph>
     bool snap_parser(Graph& graph, const std::string& srcfilename,
                      const std::string& str) {
       if (str.empty()) return true;
       else if (str[0] == '#') {
         std::cout << str << std::endl;
-      }
-      else {
+      } else {
         size_t source, target;
         char* targetptr;
         source = strtoul(str.c_str(), &targetptr, 10);
@@ -48,8 +71,14 @@ namespace graphlab {
         if(source != target) graph.add_edge(source, target);
       }
       return true;
-    }
+    } // end of snap parser
 
+    /**
+     * \brief Parse files in the standard tsv format
+     *
+     * This is identical to the SNAP format but does not allow comments.
+     *
+     */
     template <typename Graph>
     bool tsv_parser(Graph& graph, const std::string& srcfilename,
                     const std::string& str) {
@@ -61,33 +90,42 @@ namespace graphlab {
       target = strtoul(targetptr, NULL, 10);
       if(source != target) graph.add_edge(source, target);
       return true;
-    }
+    } // end of tsv parser
 
     template <typename Graph>
     bool adj_parser(Graph& graph, const std::string& srcfilename,
-                    const std::string& str) {
-      if (str.empty()) return true;
-      std::stringstream strm(str);
-  
-      size_t source, nneighbors;
-      strm >> source >> nneighbors;
-      if(!strm.good()) {
-        logstream(LOG_ERROR) << "Adj format error on line: " << str << std::endl;
-        return false; // failed to read the line
+                    const std::string& line) {
+      // If the line is empty simply skip it
+      if(line.empty()) return true;
+      // We use the boost spirit parser which requires (too) many separate
+      // namespaces so to make things clear we shorten them here.
+      namespace qi = boost::spirit::qi;
+      namespace ascii = boost::spirit::ascii;
+      namespace phoenix = boost::phoenix;
+      vertex_id_type source(-1);
+      vertex_id_type ntargets(-1);
+      std::vector<vertex_id_type> targets;
+      const bool success = qi::phrase_parse
+        (line.begin(), line.end(),       
+         //  Begin grammar
+         (
+          qi::ulong_[phoenix::ref(source) = qi::_1] >> -qi::char_(",") >>
+          qi::ulong_[phoenix::ref(ntargets) = qi::_1] >> -qi::char_(",") >>
+          (qi::ulong_[phoenix::push_back(phoenix::ref(targets), qi::_1)] % -qi::char_(",") )
+          )
+         ,
+         //  End grammar
+         ascii::space); 
+      // Test to see if the boost parser was able to parse the line
+      if(!success || ntargets != targets.size()) {
+        logstream(LOG_ERROR) << "Parse error in vertex prior parser." << std::endl;
+        return false;
       }
-      graph.add_vertex(source);
-      for(size_t i = 0; i < nneighbors; ++i) {
-        size_t target;
-        strm >> target;
-        if (!strm.good()) {
-          logstream(LOG_ERROR) << "Adj format error on source vertex: " 
-                               << source << std::endl;
-          return false;
-        }
-        if(source != target) graph.add_edge(source, target);
+      for(size_t i = 0; i < targets.size(); ++i) {
+        if(source != targets[i]) graph.add_edge(source, targets[i]);
       }
       return true;
-    }
+    } // end of adj parser
 
 
     template <typename Graph>
