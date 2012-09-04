@@ -24,10 +24,10 @@
 /**
  * \file
  * 
- * \brief The main file for the ALS matrix factorization algorithm.
+ * This file contains an implementation of the weighted-ALS matrix factorization
+ * algorithm. As described in:  Collaborative Filtering for Implicit Feedback Datasets Hu, Y.; Koren, Y.; Volinsky, C. IEEE International Conference on Data Mining (ICDM 2008), IEEE (2008). 
  *
- * This file contains the main body of the ALS matrix factorization
- * algorithm. 
+ * Code written By Danny Bickson, based on code by Joey Gonzalez
  */
 
 #include <Eigen/Dense>
@@ -137,12 +137,15 @@ struct edge_data : public graphlab::IS_POD_TYPE {
   /** \brief the observed value for the edge */
   float obs;
 
+  /** \brief the weight or time of the observation */
+
+  float weight; 
   /** \brief The train/validation/test designation of the edge */
   data_role_type role;
 
   /** \brief basic initialization */
-  edge_data(float obs = 0, data_role_type role = PREDICT) :
-    obs(obs), role(role) { }
+  edge_data(float obs = 0, data_role_type role = PREDICT, float weight = 1) :
+    obs(obs), role(role), weight(weight) { }
 
 }; // end of edge data
 
@@ -197,6 +200,11 @@ public:
    */
   vec_type Xy;
 
+  /**
+   * \brief Stores the weight of this edge
+   */
+  float weight;
+
   /** \brief basic default constructor */
   gather_type() { }
 
@@ -204,17 +212,17 @@ public:
    * \brief This constructor computes XtX and Xy and stores the result
    * in XtX and Xy
    */
-  gather_type(const vec_type& X, const double y) :
+  gather_type(const vec_type& X, const double y, const float weight) :
     XtX(X.size(), X.size()), Xy(X.size()) {
-    XtX.triangularView<Eigen::Upper>() = X * X.transpose();
-    Xy = X * y;
+    XtX.triangularView<Eigen::Upper>() = X * X.transpose() * weight;
+    Xy = X * y * weight;
   } // end of constructor for gather type
 
   /** \brief Save the values to a binary archive */
-  void save(graphlab::oarchive& arc) const { arc << XtX << Xy; }
+  void save(graphlab::oarchive& arc) const { arc << XtX << Xy << weight; }
 
   /** \brief Read the values from a binary archive */
-  void load(graphlab::iarchive& arc) { arc >> XtX >> Xy; }  
+  void load(graphlab::iarchive& arc) { arc >> XtX >> Xy >> weight; }  
 
   /** 
    * \brief Computes XtX += other.XtX and Xy += other.Xy updating this
@@ -242,7 +250,7 @@ public:
 
 
 /**
- * \brief ALS vertex program implements the alternating least squares
+ * \brief WALS vertex program implements the alternating least squares
  * algorithm in the Gather-Apply-Scatter abstraction.
  *
  * The ALS update treats adjacent vertices (rows or columns) as "X"
@@ -293,7 +301,7 @@ public:
                      edge_type& edge) const {
     if(edge.data().role == edge_data::TRAIN) {
       const vertex_type other_vertex = get_other_vertex(edge, vertex);
-      return gather_type(other_vertex.data().factor, edge.data().obs);
+      return gather_type(other_vertex.data().factor, edge.data().obs, edge.data().weight);
     } else return gather_type();
   } // end of gather function
 
@@ -370,35 +378,27 @@ inline bool graph_loader(graph_type& graph,
   if(boost::ends_with(filename,".validate")) role = edge_data::VALIDATE;
   else if(boost::ends_with(filename, ".predict")) role = edge_data::PREDICT;
   // Parse the line
+  std::stringstream strm(line);
   graph_type::vertex_id_type source_id(-1), target_id(-1);
-  float obs(0); 
-  const bool success = qi::phrase_parse
-    (line.begin(), line.end(),       
-     //  Begin grammar
-     (
-      qi::ulong_[phoenix::ref(source_id) = qi::_1] >> -qi::char_(',') >>
-      qi::ulong_[phoenix::ref(target_id) = qi::_1] >> 
-      -(-qi::char_(',') >> qi::float_[phoenix::ref(obs) = qi::_1])
-      )
-     ,
-     //  End grammar
-     ascii::space); 
+  float obs(0), weight(1);
+  strm >> source_id >> target_id;
 
-  if(!success) return false;
-
+  // for test files (.predict) no need to read the actual rating value.
   if(role == edge_data::TRAIN || role == edge_data::VALIDATE){
+    strm >> obs >> weight;
     if (obs < als_vertex_program::MINVAL || obs > als_vertex_program::MAXVAL)
       logstream(LOG_FATAL)<<"Rating values should be between " << als_vertex_program::MINVAL << " and " << als_vertex_program::MAXVAL << ". Got value: " << obs << " [ user: " << source_id << " to item: " <<target_id << " ] " << std::endl; 
   }
- 
-  if(REMAP_TARGET) {
-    // map target id into a separate number space
-    target_id = -(graphlab::vertex_id_type(target_id + SAFE_NEG_OFFSET));
-  }
+  target_id = -(graphlab::vertex_id_type(target_id + SAFE_NEG_OFFSET));
+                          
   // Create an edge and add it to the graph
-  graph.add_edge(source_id, target_id, edge_data(obs, role)); 
+  graph.add_edge(source_id, target_id, edge_data(obs, role, weight)); 
   return true; // successful load
-} // end of graph_loader
+}
+
+
+
+// end of graph_loader
 
 
 
@@ -410,7 +410,7 @@ double extract_l2_error(const graph_type::edge_type & edge) {
     edge.source().data().factor.dot(edge.target().data().factor);
   pred = std::min(als_vertex_program::MAXVAL, pred);
   pred = std::max(als_vertex_program::MINVAL, pred);
-  return (edge.data().obs - pred) * (edge.data().obs - pred);
+  return (edge.data().obs - pred) * (edge.data().obs - pred) * edge.data().weight;
 } // end of extract_l2_error
 
 
@@ -558,7 +558,7 @@ int main(int argc, char** argv) {
 
   // Parse command line options -----------------------------------------------
   const std::string description = 
-    "Compute the ALS factorization of a matrix.";
+    "Compute the Weighted-ALS factorization of a matrix.";
   graphlab::command_line_options clopts(description);
   std::string input_dir, output_dir;
   std::string predictions;
@@ -572,7 +572,7 @@ int main(int argc, char** argv) {
   clopts.attach_option("max_iter", als_vertex_program::MAX_UPDATES,
                        "The maxumum number of udpates allowed for a vertex");
   clopts.attach_option("lambda", als_vertex_program::LAMBDA, 
-                       "ALS regularization weight"); 
+                       "wALS regularization weight"); 
   clopts.attach_option("tol", als_vertex_program::TOLERANCE,
                        "residual termination threshold");
   clopts.attach_option("maxval", als_vertex_program::MAXVAL, "max allowed value");
@@ -644,7 +644,7 @@ int main(int argc, char** argv) {
  
 
   // Run the PageRank ---------------------------------------------------------
-  dc.cout() << "Running ALS" << std::endl;
+  dc.cout() << "Running Weighted-ALS" << std::endl;
   timer.start();
   engine.start();  
 

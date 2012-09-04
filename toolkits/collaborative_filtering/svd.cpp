@@ -22,21 +22,6 @@
 
 
 /**
- * \file
- * 
- * \brief The main file for the ALS matrix factorization algorithm.
- *
- * This file contains the main body of the ALS matrix factorization
- * algorithm. 
- */
-
-#include "eigen_wrapper.hpp"
-#include "types.hpp"
-#include "eigen_serialization.hpp"
-#include <graphlab/util/stl_util.hpp>
-#include <graphlab.hpp>
-
-/**
  *
  *  Implementation of the Lanczos algorithm, as given in:
  *  http://en.wikipedia.org/wiki/Lanczos_algorithm
@@ -45,15 +30,21 @@
  * */
 
 
+#include "eigen_wrapper.hpp"
+#include "types.hpp"
+#include "eigen_serialization.hpp"
+#include <graphlab/util/stl_util.hpp>
+#include <graphlab.hpp>
+
+
 
 //when using negative node id range, we are not allowed to use
 //0 and 1 so we add 2.
-const static int SAFE_NEG_OFFSET=2;
 int iter = 0;
 //LANCZOS VARIABLES
 int max_iter = 10;
 bool no_edge_data = false;
-int actual_vector_len;
+int actual_vector_len = 0;
 int nv = 0;
 int nsv = 0;
 double tol = 1e-8;
@@ -64,41 +55,60 @@ bool save_vectors = false;
 std::string datafile; 
 std::string vecfile;
 int unittest;
-std::string format = "matrixmarket";
 int nodes = 0;
 int data_size = 0;
+std::string predictions;
+int rows = -1, cols = -1;
+bool quiet = false;
+
+void start_engine();
 
 struct vertex_data {
-  /**
-   * \brief A shared "constant" that specifies the number of latent
-   * values to use.
-   */
-  static uint NLATENT;
   /** \brief The number of times this vertex has been updated. */
   uint32_t nupdates;
   /** \brief The most recent L1 change in the pvec value */
   float residual; //! how much the latent value has changed
   /** \brief The latent pvec for this vertex */
   vec pvec;
+  double A_ii;
 
   /** 
    * \brief Simple default constructor which randomizes the vertex
    *  data 
    */
-  vertex_data() : nupdates(0), residual(1) { randomize(); } 
+  vertex_data() : nupdates(0), residual(1), A_ii(0) { randomize(); } 
   /** \brief Randomizes the latent pvec */
-  void randomize() { pvec.resize(NLATENT); pvec.setRandom(); }
+  void randomize() { pvec.resize(data_size); pvec.setRandom(); }
   /** \brief Save the vertex data to a binary archive */
   void save(graphlab::oarchive& arc) const { 
-    arc << nupdates << residual << pvec;
+    arc << nupdates << residual << pvec << A_ii;
   }
   /** \brief Load the vertex data from a binary archive */
   void load(graphlab::iarchive& arc) { 
-    arc >> nupdates >> residual >> pvec;
+    arc >> nupdates >> residual >> pvec >> A_ii;
   }
 }; // end of vertex data
 
-uint vertex_data::NLATENT = 20;
+
+class gather_type {
+  public:
+    vec pvec;
+    double training_rmse;
+    double validation_rmse;
+    gather_type() { training_rmse = validation_rmse = 0; }
+    void save(graphlab::oarchive& arc) const { arc << pvec << training_rmse << validation_rmse; }
+    void load(graphlab::iarchive& arc) { arc >> pvec >> training_rmse >> validation_rmse; }  
+    gather_type& operator+=(const gather_type& other) {
+      pvec += other.pvec;
+      training_rmse += other.training_rmse;
+      validation_rmse += other.validation_rmse;
+      return *this;
+    } 
+
+};
+
+gather_type ret;
+
 
 /**
  * \brief The edge data stores the entry in the matrix.
@@ -117,13 +127,13 @@ struct edge_data : public graphlab::IS_POD_TYPE {
   enum data_role_type { TRAIN, VALIDATE, PREDICT  };
 
   /** \brief the observed value for the edge */
-  float obs;
+  double obs;
 
   /** \brief The train/validation/test designation of the edge */
   data_role_type role;
 
   /** \brief basic initialization */
-  edge_data(float obs = 0, data_role_type role = PREDICT) :
+  edge_data(double obs = 0, data_role_type role = PREDICT) :
     obs(obs), role(role) { }
 
 }; // end of edge data
@@ -134,10 +144,7 @@ struct edge_data : public graphlab::IS_POD_TYPE {
  * data.
  */ 
 typedef graphlab::distributed_graph<vertex_data, edge_data> graph_type;
-#include "math.hpp" //uses vertex_data and edge_data so has to be included here
-#include "printouts.hpp" // the same
-
-
+graph_type * pgraph;
 
 /**
  * \brief Given a vertex and an edge return the other vertex in the
@@ -145,200 +152,33 @@ typedef graphlab::distributed_graph<vertex_data, edge_data> graph_type;
  */
 inline graph_type::vertex_type
 get_other_vertex(graph_type::edge_type& edge, 
-                 const graph_type::vertex_type& vertex) {
+    const graph_type::vertex_type& vertex) {
   return vertex.id() == edge.source().id()? edge.target() : edge.source();
 }; // end of get_other_vertex
 
+//typedef double gather_type;
+typedef double message_type;
 
 
-
-
-class gather_type {
-public:
-  vec pvec;
-  /** \brief basic default constructor */
-  gather_type() { }
-  gather_type(const vec& X) {
-    pvec = X;
-  } // end of constructor for gather type
-
-  /** \brief Save the values to a binary archive */
-  void save(graphlab::oarchive& arc) const { arc << pvec; }
-
-  /** \brief Read the values from a binary archive */
-  void load(graphlab::iarchive& arc) { arc >> pvec; }  
-
-  gather_type& operator+=(const gather_type& other) {
-    if (pvec.size() == 0){
-      pvec = other.pvec;
-      return *this;
-    }
-    else if (other.pvec.size() == 0)
-      return *this;
-    pvec += other.pvec;
-    return *this;
-  } // end of operator+=
-
-}; // end of gather type
-
-typedef vec message_type;
-
-/**
- */ 
-class svd_vertex_program : 
-  public graphlab::ivertex_program<graph_type, gather_type,
-                                   message_type> {
-public:
-  /** The convergence tolerance */
-  static double TOLERANCE;
-  static double MAXVAL;
-  static double MINVAL;
-  static bool debug;
-  vec pmsg;
-
-  void save(graphlab::oarchive& arc) const { 
-    arc << pmsg;
-  }
-  /** \brief Load the vertex data from a binary archive */
-  void load(graphlab::iarchive& arc) { 
-    arc >> pmsg;
-  }
-
-  /** The set of edges to gather along */
-  edge_dir_type gather_edges(icontext_type& context, 
-                             const vertex_type& vertex) const { 
-    return graphlab::ALL_EDGES; 
-  }; // end of gather_edges 
-
-  /** The gather function computes XtX and Xy */
-  gather_type gather(icontext_type& context, const vertex_type& vertex, 
-                     edge_type& edge) const {
-    //if(edge.data().role == edge_data::TRAIN) {
-   vec delta, other_delta;
-   if (vertex.num_in_edges() == 0){
-      vertex_type other_vertex(get_other_vertex(edge, vertex));
-      vertex_type my_vertex(vertex);
-      //double pred = vertex.data().pvec.dot(other_vertex.data().pvec);
-    }
-    return gather_type(delta);
-  } // end of gather function
-
-//typedef vec message_type;
- void init(icontext_type& context,
-                              const vertex_type& vertex,
-                              const message_type& msg) {
-     if (vertex.num_in_edges() > 0){
-        pmsg = msg;
-     }
-  }
-  /** apply collects the sum of XtX and Xy */
-  void apply(icontext_type& context, vertex_type& vertex,
-             const gather_type& sum) {
-    // Get and reset the vertex data
-    vertex_data& vdata = vertex.data(); 
-    if (sum.pvec.size() > 0){
-      vdata.pvec += sum.pvec; 
-      assert(vertex.num_in_edges() == 0);
-    }
-    else if (pmsg.size() > 0){
-      vdata.pvec += pmsg;
-      assert(vertex.num_out_edges() == 0); 
-    }
-    ++vdata.nupdates;
-  } // end of apply
-  
-  /** The edges to scatter along */
-  edge_dir_type scatter_edges(icontext_type& context,
-                              const vertex_type& vertex) const { 
-    return graphlab::ALL_EDGES; 
-  }; // end of scatter edges
-
-  /** Scatter reschedules neighbors */  
-  void scatter(icontext_type& context, const vertex_type& vertex, 
-               edge_type& edge) const {
-  } // end of scatter function
-
-
-  /**
-   * \brief Signal all vertices on one side of the bipartite graph
-   */
-  static graphlab::empty init_lanczos(icontext_type& context,
-                                     vertex_type& vertex) {
-
-     vertex.data().pvec = zeros(actual_vector_len);
-
-     return graphlab::empty();
-  } // end of signal_left 
-
-}; // end of svd vertex program
-
-double svd_vertex_program::MINVAL = -1e100;
-double svd_vertex_program::MAXVAL = 1e100;
-double svd_vertex_program::TOLERANCE = 1e-5;
-
-typedef graphlab::omni_engine<svd_vertex_program> engine_type;
+#include "math.hpp" //uses vertex_data and edge_data so has to be included here
+#include "printouts.hpp" // the same
+typedef graphlab::omni_engine<Axb> engine_type;
 engine_type * pengine = NULL;
 
-struct error_aggregator : public graphlab::IS_POD_TYPE {
-  typedef svd_vertex_program::icontext_type icontext_type;
-  typedef graph_type::edge_type edge_type;
-  double train_error, validation_error;
-  size_t ntrain, nvalidation;
-  error_aggregator() : 
-    train_error(0), validation_error(0), ntrain(0), nvalidation(0) { }
-  error_aggregator& operator+=(const error_aggregator& other) {
-    train_error += other.train_error;
-    assert(!std::isnan(train_error));
-    validation_error += other.validation_error;
-    ntrain += other.ntrain;
-    nvalidation += other.nvalidation;
-    return *this;
-  }
-  static error_aggregator map(icontext_type& context, const graph_type::edge_type& edge) {
-    error_aggregator agg;
-    if (edge.data().role == edge_data::TRAIN){
-      //agg.train_error = extract_l2_error(edge); agg.ntrain = 1;
-      assert(!std::isnan(agg.train_error));
-    }
-    else if (edge.data().role == edge_data::VALIDATE){
-      //agg.validation_error = extract_l2_error(edge); agg.nvalidation = 1;
-    }
-    return agg;
-  }
 
-
-  static void finalize(icontext_type& context, const error_aggregator& agg) {
-    iter++;
-    if (iter%2 == 0)
-      return; 
-    ASSERT_GT(agg.ntrain, 0);
-    const double train_error = std::sqrt(agg.train_error / agg.ntrain);
-    assert(!std::isnan(train_error));
-    context.cout() << std::setw(8) << context.elapsed_seconds()  << std::setw(8) << train_error;
-    if(agg.nvalidation > 0) {
-      const double validation_error = 
-        std::sqrt(agg.validation_error / agg.nvalidation);
-        context.cout() << std::setw(8) << validation_error; 
-    }
-    context.cout() << std::endl;
-    //svd_vertex_program::GAMMA *= svd_vertex_program::STEP_DEC;
-  }
-}; // end of error aggregator
 
 
 
 struct linear_model_saver_U {
   typedef graph_type::vertex_type vertex_type;
   typedef graph_type::edge_type   edge_type;
-  /* save the linear model, using the format:
-     nodeid) factor1 factor2 ... factorNLATENT \n
-  */
+
+  int pos;
+  linear_model_saver_U(int pos): pos(pos) {}
+
   std::string save_vertex(const vertex_type& vertex) const {
-    if (vertex.num_out_edges() > 0){
-      std::string ret = boost::lexical_cast<std::string>(vertex.id()) + ") ";
-      for (uint i=0; i< vertex_data::NLATENT; i++)
-        ret += boost::lexical_cast<std::string>(vertex.data().pvec[i]) + " ";
-        ret += "\n";
+    if (vertex.id() < (uint)info.rows){
+      std::string ret = boost::lexical_cast<std::string>(vertex.data().pvec[pos]) + "\n";
       return ret;
     }
     else return "";
@@ -351,15 +191,13 @@ struct linear_model_saver_U {
 struct linear_model_saver_V {
   typedef graph_type::vertex_type vertex_type;
   typedef graph_type::edge_type   edge_type;
-  /* save the linear model, using the format:
-     nodeid) factor1 factor2 ... factorNLATENT \n
-  */
+
+  int pos;
+  linear_model_saver_V(int pos): pos(pos) {}
+
   std::string save_vertex(const vertex_type& vertex) const {
-    if (vertex.num_out_edges() == 0){
-      std::string ret = boost::lexical_cast<std::string>(-vertex.id()-SAFE_NEG_OFFSET) + ") ";
-      for (uint i=0; i< vertex_data::NLATENT; i++)
-        ret += boost::lexical_cast<std::string>(vertex.data().pvec[i]) + " ";
-        ret += "\n";
+    if (vertex.id() >= (uint)info.rows){
+      std::string ret = boost::lexical_cast<std::string>(vertex.data().pvec[pos]) + "\n";
       return ret;
     }
     else return "";
@@ -369,6 +207,31 @@ struct linear_model_saver_V {
   }
 }; 
 
+/**
+ * \brief The graph loader function is a line parser used for
+ * distributed graph construction.
+ */
+inline bool init_vec_loader(graph_type& graph, 
+    const std::string& filename,
+    const std::string& line) {
+  if (filename != vecfile)
+    return true;
+
+  ASSERT_FALSE(line.empty()); 
+
+  // Parse the line
+  std::stringstream strm(line);
+  graph_type::vertex_id_type source_id(-1), target_id(-1);
+  float obs(0);
+  strm >> source_id >> target_id >> obs;
+
+  // Create an edge and add it to the graph
+  vertex_data vertex;
+  vertex.pvec[0] = obs;
+  graph.add_vertex(source_id,vertex); 
+  return true; // successful load
+} // end of graph_loader
+
 
 
 /**
@@ -376,29 +239,37 @@ struct linear_model_saver_V {
  * distributed graph construction.
  */
 inline bool graph_loader(graph_type& graph, 
-                         const std::string& filename,
-                         const std::string& line) {
+    const std::string& filename,
+    const std::string& line) {
+
+  //no need to parse
+  if (filename == vecfile)
+    return true;
+  if (boost::ends_with(filename,"singular_values") || boost::ends_with(filename, "_v0"))
+    return true;
+
   ASSERT_FALSE(line.empty()); 
   // Determine the role of the data
   edge_data::data_role_type role = edge_data::TRAIN;
-  if(boost::ends_with(filename,".validate")) role = edge_data::VALIDATE;
-  else if(boost::ends_with(filename, ".predict")) role = edge_data::PREDICT;
+  
   // Parse the line
   std::stringstream strm(line);
   graph_type::vertex_id_type source_id(-1), target_id(-1);
   float obs(0);
   strm >> source_id >> target_id;
+  source_id--; target_id--;
+  assert(source_id < (uint)rows);
+  strm >> obs;
+  if (!info.is_square())
+  target_id = rows + target_id;
 
-  // for test files (.predict) no need to read the actual rating value.
-  if(role == edge_data::TRAIN || role == edge_data::VALIDATE){
-    strm >> obs;
-    if (obs < svd_vertex_program::MINVAL || obs > svd_vertex_program::MAXVAL)
-      logstream(LOG_FATAL)<<"Rating values should be between " << svd_vertex_program::MINVAL << " and " << svd_vertex_program::MAXVAL << ". Got value: " << obs << " [ user: " << source_id << " to item: " <<target_id << " ] " << std::endl; 
+  if (source_id == target_id){
+      vertex_data data;
+      data.A_ii = obs;
+      graph.add_vertex(source_id, data);
   }
-  target_id = -(graphlab::vertex_id_type(target_id + SAFE_NEG_OFFSET));
-                          
   // Create an edge and add it to the graph
-  graph.add_edge(source_id, target_id, edge_data(obs, role)); 
+  else graph.add_edge(source_id, target_id, edge_data(obs, role)); 
   return true; // successful load
 } // end of graph_loader
 
@@ -406,181 +277,179 @@ inline bool graph_loader(graph_type& graph,
 void init_lanczos(graph_type * g, bipartite_graph_descriptor & info){
 
   if (g->num_vertices() == 0)
-     logstream(LOG_FATAL)<<"Failed to load graph. Aborting" << std::endl;
+    logstream(LOG_FATAL)<<"Failed to load graph. Aborting" << std::endl;
 
   data_size = nsv + nv+1 + max_iter;
   actual_vector_len = data_size;
   if (info.is_square())
-     actual_vector_len = 2*data_size;
+    actual_vector_len = 2*data_size;
 
-  assert(pengine);
-  pengine->map_reduce_vertices<graphlab::empty>(svd_vertex_program::init_lanczos);
-   // g->vertex_data(i).pvec = zeros(actual_vector_len);
+  //assert(pengine);
+  assert(actual_vector_len > 0);
+  pgraph->transform_vertices(init_lanczos_mapr);
 
   logstream(LOG_INFO)<<"Allocated a total of: " << ((double)actual_vector_len * g->num_vertices() * sizeof(double)/ 1e6) << " MB for storing vectors." << std::endl;
 }
 
 vec lanczos(bipartite_graph_descriptor & info, timer & mytimer, vec & errest, 
-            const std::string & vecfile){
+    const std::string & vecfile){
+
+
+  int nconv = 0;
+  int its = 1;
+  int mpd = 24;
+  DistMat A(info);
+  DistSlicedMat U(info.is_square() ? data_size : 0, info.is_square() ? 2*data_size : data_size, true, info, "U");
+  DistSlicedMat V(0, data_size, false, info, "V");
+  vec alpha, beta, b;
+  vec sigma = zeros(data_size);
+  errest = zeros(nv);
+  DistVec v_0(info, 0, false, "v_0");
+  if (vecfile.size() == 0)
+    v_0 = randu(size(A,2));
+  PRINT_VEC2("svd->V", v_0);
+  PRINT_VEC(V[0]);
    
-
-   int nconv = 0;
-   int its = 1;
-   int mpd = 24;
-   DistMat A(info);
-   DistSlicedMat U(info.is_square() ? data_size : 0, info.is_square() ? 2*data_size : data_size, true, info, "U");
-   DistSlicedMat V(0, data_size, false, info, "V");
-   vec alpha, beta, b;
-   vec sigma = zeros(data_size);
-   errest = zeros(nv);
-   DistVec v_0(info, 0, false, "v_0");
-   if (vecfile.size() == 0)
-     v_0 = randu(size(A,2));
-   PRINT_VEC2("svd->V", v_0);
-/* Example Usage:
-  DECLARE_TRACER(classname_someevent)
-  INITIALIZE_TRACER(classname_someevent, "hello world");
-  Then later on...
-  BEGIN_TRACEPOINT(classname_someevent)
-  ...
-  END_TRACEPOINT(classname_someevent)
- */
-   DistDouble vnorm = norm(v_0);
-   v_0=v_0/vnorm;
-   PRINT_INT(nv);
-
-   while(nconv < nsv && its < max_iter){
-     logstream(LOG_INFO)<<"Starting iteration: " << its << " at time: " << mytimer.current_time() << std::endl;
-     int k = nconv;
-     int n = nv;
-     PRINT_INT(k);
-     PRINT_INT(n);
-
-     alpha = zeros(n);
-     beta = zeros(n);
-
-     U[k] = V[k]*A._transpose();
-     orthogonalize_vs_all(U, k, alpha(0));
-     PRINT_VEC3("alpha", alpha, 0);
-
-     for (int i=k+1; i<n; i++){
-       logstream(LOG_INFO) <<"Starting step: " << i << " at time: " << mytimer.current_time() << std::endl;
-       PRINT_INT(i);
-
-       V[i]=U[i-1]*A;
-       orthogonalize_vs_all(V, i, beta(i-k-1));
-      
-       PRINT_VEC3("beta", beta, i-k-1); 
-      
-       U[i] = V[i]*A._transpose();
-       orthogonalize_vs_all(U, i, alpha(i-k));
-
-       PRINT_VEC3("alpha", alpha, i-k);
-     }
-
-     V[n]= U[n-1]*A;
-     orthogonalize_vs_all(V, n, beta(n-k-1));
-     PRINT_VEC3("beta", beta, n-k-1);
-
-  //compute svd of bidiagonal matrix
+  DistDouble vnorm = norm(v_0);
+  v_0=v_0/vnorm;
   PRINT_INT(nv);
-  PRINT_NAMED_INT("svd->nconv", nconv);
-  PRINT_NAMED_INT("svd->mpd", mpd);
-  n = nv - nconv;
-  PRINT_INT(n);
-  alpha.conservativeResize(n);
-  beta.conservativeResize(n);
 
-  PRINT_MAT2("Q",eye(n));
-  PRINT_MAT2("PT",eye(n));
-  PRINT_VEC2("alpha",alpha);
-  PRINT_VEC2("beta",beta);
- 
-  mat T=diag(alpha);
-  for (int i=0; i<n-1; i++)
-    set_val(T, i, i+1, beta(i));
-  PRINT_MAT2("T", T);
-  mat a,PT;
-  svd(T, a, PT, b);
-  PRINT_MAT2("Q", a);
-  alpha=b.transpose();
-  PRINT_MAT2("alpha", alpha);
-  for (int t=0; t< n-1; t++)
-     beta(t) = 0;
-  PRINT_VEC2("beta",beta);
-  PRINT_MAT2("PT", PT.transpose());
+  while(nconv < nsv && its < max_iter){
+    logstream(LOG_INFO)<<"Starting iteration: " << its << " at time: " << mytimer.current_time() << std::endl;
+    int k = nconv;
+    int n = nv;
+    PRINT_INT(k);
+    PRINT_INT(n);
 
-  //estiamte the error
-  int kk = 0;
-  for (int i=nconv; i < nv; i++){
-    int j = i-nconv;
-    PRINT_INT(j);
-    sigma(i) = alpha(j);
-    PRINT_NAMED_DBL("svd->sigma[i]", sigma(i));
-    PRINT_NAMED_DBL("Q[j*n+n-1]",a(n-1,j));
-    PRINT_NAMED_DBL("beta[n-1]",beta(n-1));
-    errest(i) = abs(a(n-1,j)*beta(n-1));
-    PRINT_NAMED_DBL("svd->errest[i]", errest(i));
-    if (alpha(j) >  tol){
-      errest(i) = errest(i) / alpha(j);
+    alpha = zeros(n);
+    beta = zeros(n);
+
+    U[k] = V[k]*A._transpose();
+    PRINT_VEC(U[k]);
+    orthogonalize_vs_all(U, k, alpha(0));
+    PRINT_VEC(U[k]);
+    PRINT_VEC3("alpha", alpha, 0);
+
+    for (int i=k+1; i<n; i++){
+      logstream(LOG_INFO) <<"Starting step: " << i << " at time: " << mytimer.current_time() << std::endl;
+      PRINT_INT(i);
+
+      V[i]=U[i-1]*A;
+      PRINT_VEC(V[i]);
+      orthogonalize_vs_all(V, i, beta(i-k-1));
+      PRINT_VEC(V[i]);
+
+      PRINT_VEC3("beta", beta, i-k-1); 
+
+      U[i] = V[i]*A._transpose();
+      orthogonalize_vs_all(U, i, alpha(i-k));
+
+      PRINT_VEC3("alpha", alpha, i-k);
+    }
+
+    V[n]= U[n-1]*A;
+    orthogonalize_vs_all(V, n, beta(n-k-1));
+    PRINT_VEC3("beta", beta, n-k-1);
+
+    //compute svd of bidiagonal matrix
+    PRINT_INT(nv);
+    PRINT_NAMED_INT("svd->nconv", nconv);
+    PRINT_NAMED_INT("svd->mpd", mpd);
+    n = nv - nconv;
+    PRINT_INT(n);
+    alpha.conservativeResize(n);
+    beta.conservativeResize(n);
+
+    PRINT_MAT2("Q",eye(n));
+    PRINT_MAT2("PT",eye(n));
+    PRINT_VEC2("alpha",alpha);
+    PRINT_VEC2("beta",beta);
+
+    mat T=diag(alpha);
+    for (int i=0; i<n-1; i++)
+      set_val(T, i, i+1, beta(i));
+    PRINT_MAT2("T", T);
+    mat a,PT;
+    svd(T, a, PT, b);
+    PRINT_MAT2("Q", a);
+    alpha=b.transpose();
+    PRINT_MAT2("alpha", alpha);
+    for (int t=0; t< n-1; t++)
+      beta(t) = 0;
+    PRINT_VEC2("beta",beta);
+    PRINT_MAT2("PT", PT.transpose());
+
+    //estiamte the error
+    int kk = 0;
+    for (int i=nconv; i < nv; i++){
+      int j = i-nconv;
+      PRINT_INT(j);
+      sigma(i) = alpha(j);
+      PRINT_NAMED_DBL("svd->sigma[i]", sigma(i));
+      PRINT_NAMED_DBL("Q[j*n+n-1]",a(n-1,j));
+      PRINT_NAMED_DBL("beta[n-1]",beta(n-1));
+      errest(i) = abs(a(n-1,j)*beta(n-1));
       PRINT_NAMED_DBL("svd->errest[i]", errest(i));
+      if (alpha(j) >  tol){
+        errest(i) = errest(i) / alpha(j);
+        PRINT_NAMED_DBL("svd->errest[i]", errest(i));
+      }
+      if (errest(i) < tol){
+        kk = kk+1;
+        PRINT_NAMED_INT("k",kk);
+      }
+
+
+      if (nconv +kk >= nsv){
+        printf("set status to tol\n");
+        finished = true;
+      }
+    }//end for
+    PRINT_NAMED_INT("k",kk);
+
+
+    vec v;
+    if (!finished){
+      vec swork=get_col(PT,kk); 
+      PRINT_MAT2("swork", swork);
+      v = zeros(size(A,1));
+      for (int ttt=nconv; ttt < nconv+n; ttt++){
+        v = v+swork(ttt-nconv)*(V[ttt].to_vec());
+      }
+      PRINT_VEC2("svd->V",V[nconv]);
+      PRINT_VEC2("v[0]",v); 
     }
-    if (errest(i) < tol){
-      kk = kk+1;
-      PRINT_NAMED_INT("k",kk);
+
+
+    INITIALIZE_TRACER(matproduct, "computing ritz eigenvectors");
+    //compute the ritz eigenvectors of the converged singular triplets
+    if (kk > 0){
+      PRINT_VEC2("svd->V", V[nconv]);
+      BEGIN_TRACEPOINT(matproduct);
+      mat tmp= V.get_cols(nconv,nconv+n)*PT;
+      V.set_cols(nconv, nconv+kk, get_cols(tmp, 0, kk));
+      PRINT_VEC2("svd->V", V[nconv]);
+      PRINT_VEC2("svd->U", U[nconv]);
+      tmp= U.get_cols(nconv, nconv+n)*a;
+      END_TRACEPOINT(matproduct);
+      U.set_cols(nconv, nconv+kk,get_cols(tmp,0,kk));
+      PRINT_VEC2("svd->U", U[nconv]);
     }
 
+    nconv=nconv+kk;
+    if (finished)
+      break;
 
-    if (nconv +kk >= nsv){
-      printf("set status to tol\n");
-      finished = true;
-    }
-  }//end for
-  PRINT_NAMED_INT("k",kk);
-
-
-  vec v;
-  if (!finished){
-    vec swork=get_col(PT,kk); 
-    PRINT_MAT2("swork", swork);
-    v = zeros(size(A,1));
-    for (int ttt=nconv; ttt < nconv+n; ttt++){
-      v = v+swork(ttt-nconv)*(V[ttt].to_vec());
-    }
-    PRINT_VEC2("svd->V",V[nconv]);
-    PRINT_VEC2("v[0]",v); 
-  }
-
-
-INITIALIZE_TRACER(matproduct, "computing ritz eigenvectors");
-   //compute the ritz eigenvectors of the converged singular triplets
-  if (kk > 0){
+    V[nconv]=v;
     PRINT_VEC2("svd->V", V[nconv]);
-BEGIN_TRACEPOINT(matproduct);
-    mat tmp= V.get_cols(nconv,nconv+n)*PT;
-    V.set_cols(nconv, nconv+kk, get_cols(tmp, 0, kk));
-    PRINT_VEC2("svd->V", V[nconv]);
-    PRINT_VEC2("svd->U", U[nconv]);
-    tmp= U.get_cols(nconv, nconv+n)*a;
-END_TRACEPOINT(matproduct);
-    U.set_cols(nconv, nconv+kk,get_cols(tmp,0,kk));
-    PRINT_VEC2("svd->U", U[nconv]);
-  }
+    PRINT_NAMED_INT("svd->nconv", nconv);
 
-  nconv=nconv+kk;
-  if (finished)
-    break;
+    its++;
+    PRINT_NAMED_INT("svd->its", its);
+    PRINT_NAMED_INT("svd->nconv", nconv);
+    PRINT_NAMED_INT("nv",nv);
 
-  V[nconv]=v;
-  PRINT_VEC2("svd->V", V[nconv]);
-  PRINT_NAMED_INT("svd->nconv", nconv);
-
-  its++;
-  PRINT_NAMED_INT("svd->its", its);
-  PRINT_NAMED_INT("svd->nconv", nconv);
-  PRINT_NAMED_INT("nv",nv);
-
-} // end(while)
+  } // end(while)
 
   printf(" Number of computed signular values %d",nconv);
   printf("\n");
@@ -605,37 +474,48 @@ END_TRACEPOINT(matproduct);
   }
 
   if (save_vectors){
-     if (nconv == 0)
-       logstream(LOG_FATAL)<<"No converged vectors. Aborting the save operation" << std::endl;
- 
-    //TOOD
+    if (nconv == 0)
+      logstream(LOG_FATAL)<<"No converged vectors. Aborting the save operation" << std::endl;
+
     std::cout << "Saving predictions" << std::endl;
-    /*const bool gzip_output = false;
+    const bool gzip_output = false;
     const bool save_vertices = false;
     const bool save_edges = true;
-    const size_t threads_per_machine = 1;*/
+    const size_t threads_per_machine = 1;
     //save the linear model
-    //graph.save(predictions + ".U", linear_model_saver_U(),
-		//gzip_output, save_edges, save_vertices, threads_per_machine);
-    //graph.save(predictions + ".V", linear_model_saver_V(),
-//		gzip_output, save_edges, save_vertices, threads_per_machine);
-     
-    //write_output_vector(datafile + ".singular_values", format, singular_values,false, "%GraphLab SVD Solver library. This file contains the singular values.");
+    for (int i=0; i < nconv; i++){
+      pgraph->save(predictions + ".U." + boost::lexical_cast<std::string>(i), linear_model_saver_U(i),
+          gzip_output, save_edges, save_vertices, threads_per_machine);
+      pgraph->save(predictions + ".V." + boost::lexical_cast<std::string>(i), linear_model_saver_V(i),
+          gzip_output, save_edges, save_vertices, threads_per_machine);
+    } 
 
-    //for (int i=0; i< nconv; i++){
-        //TODO
-        //write_output_vector(datafile + ".U." + boost::lexical_cast<std::string>(i), format, U[i].to_vec(), false, "GraphLab v2 SVD output. This file contains eigenvector number " + boost::lexical_cast<std::string>(i) + " of the matrix U");
-        //write_output_vector(datafile + ".V." + boost::lexical_cast<std::string>(i), format, V[i].to_vec(), false, "GraphLab v2 SVD output. This file contains eigenvector number " + boost::lexical_cast<std::string>(i) + " of the matrix V'");
-     }
-  //}
+  }
   return sigma;
 }
 
+void start_engine(){
+  vertex_set nodes = pgraph->select(selected_node);
+  pengine->signal_vset(nodes);
+  pengine->start();
+}
+void write_output_vector(const std::string datafile, const vec & output, bool issparse, std::string comment)
+{
+  FILE * f = fopen(datafile.c_str(),"w");
+  if (f == NULL)
+    logstream(LOG_FATAL)<<"Failed to open file: " << datafile << " for writing. " << std::endl;
 
+  if (comment.size() > 0) // add a comment to the matrix market header
+    fprintf(f, "%c%s\n", '%', comment.c_str());
+    for (int j=0; j<(int)output.size(); j++){
+    fprintf(f, "%10.13g\n", output[j]);
+  }
+
+  fclose(f);
+}
 
 
 int main(int argc, char** argv) {
-  global_logger().set_log_level(LOG_INFO);
   global_logger().set_log_to_console(true);
 
   // Parse command line options -----------------------------------------------
@@ -643,16 +523,14 @@ int main(int argc, char** argv) {
     "Compute the gklanczos factorization of a matrix.";
   graphlab::command_line_options clopts(description);
   std::string input_dir, output_dir;
-  std::string predictions;
-  size_t interval = 0;
   std::string exec_type = "synchronous";
   clopts.attach_option("matrix", input_dir,
-                       "The directory containing the matrix file");
+      "The directory containing the matrix file");
   clopts.add_positional("matrix");
   clopts.attach_option("initial_vector", vecfile,"optional initial vector");
   clopts.attach_option("debug", debug, "Display debug output.");
   clopts.attach_option("unittest", unittest,  
-		       "unit testing 0=None, 1=3x3 matrix");
+      "unit testing 0=None, 1=3x3 matrix");
   clopts.attach_option("max_iter", max_iter, "max iterations");
   clopts.attach_option("ortho_repeats", ortho_repeats, "orthogonalization iterations. 1 = low accuracy but fast, 2 = medium accuracy, 3 = high accuracy but slow.");
   clopts.attach_option("nv", nv, "Number of vectors in each iteration");
@@ -660,125 +538,142 @@ int main(int argc, char** argv) {
   clopts.attach_option("regularization", regularization, "regularization");
   clopts.attach_option("tol", tol, "convergence threshold");
   clopts.attach_option("save_vectors", save_vectors, "save output matrices U and V.");
-  clopts.attach_option("nodes", nodes, "number of rows/cols in square matrix (optional)");
+  clopts.attach_option("rows", rows, "number of rows");
+  clopts.attach_option("cols", cols, "number of cols");
   clopts.attach_option("no_edge_data", no_edge_data, "matrix is binary (optional)");
-
+  clopts.attach_option("quiet", quiet, "quiet mode (less verbose)");
   if(!clopts.parse(argc, argv)) {
     std::cout << "Error in parsing command line arguments." << std::endl;
     return EXIT_FAILURE;
   }
+  if (quiet){
+    global_logger().set_log_level(LOG_ERROR);
+    debug = false;
+  }
+  if (unittest == 1){
+    datafile = "gklanczos_testA/"; 
+    vecfile = "gklanczos_testA_v0";
+    nsv = 3; nv = 3;
+    rows = 3; cols = 4;
+    debug = true;
+    //core.set_ncpus(1);
+  }
+  else if (unittest == 2){
+    datafile = "gklanczos_testB/";
+    vecfile = "gklanczos_testB_v0";
+    nsv = 10; nv = 10;
+    rows = 10; cols = 10;
+    debug = true;  max_iter = 100;
+    //core.set_ncpus(1);
+  }
+  else if (unittest == 3){
+    datafile = "gklanczos_testC/";
+    vecfile = "gklanczos_testC_v0";
+    nsv = 4; nv = 10;
+    rows = 25; cols = 25;
+    debug = true;  max_iter = 100;
+    //core.set_ncpus(1);
+  }
+
+
+  if (rows <= 0 || cols <= 0)
+    logstream(LOG_FATAL)<<"Please specify number of rows/cols of the input matrix" << std::endl;
+     
+  info.rows = rows;
+  info.cols = cols;
+
   if (nv < nsv){
     logstream(LOG_FATAL)<<"Please set the number of vectors --nv=XX, to be at least the number of support vectors --nsv=XX or larger" << std::endl;
   }
 
   graphlab::mpi_tools::init(argc, argv);
   graphlab::distributed_control dc;
-  
+
   dc.cout() << "Loading graph." << std::endl;
   graphlab::timer timer; 
   graph_type graph(dc, clopts);  
   graph.load(input_dir, graph_loader); 
+  graph.load(input_dir, init_vec_loader); 
+  pgraph = &graph;
   dc.cout() << "Loading graph. Finished in " 
-            << timer.current_time() << std::endl;
+    << timer.current_time() << std::endl;
   dc.cout() << "Finalizing graph." << std::endl;
   timer.start();
   graph.finalize();
   dc.cout() << "Finalizing graph. Finished in " 
-            << timer.current_time() << std::endl;
+    << timer.current_time() << std::endl;
 
 
   dc.cout() 
-      << "========== Graph statistics on proc " << dc.procid() 
-      << " ==============="
-      << "\n Num vertices: " << graph.num_vertices()
-      << "\n Num edges: " << graph.num_edges()
-      << "\n Num replica: " << graph.num_replicas()
-      << "\n Replica to vertex ratio: " 
-      << float(graph.num_replicas())/graph.num_vertices()
-      << "\n --------------------------------------------" 
-      << "\n Num local own vertices: " << graph.num_local_own_vertices()
-      << "\n Num local vertices: " << graph.num_local_vertices()
-      << "\n Replica to own ratio: " 
-      << (float)graph.num_local_vertices()/graph.num_local_own_vertices()
-      << "\n Num local edges: " << graph.num_local_edges()
-      //<< "\n Begin edge id: " << graph.global_eid(0)
-      << "\n Edge balance ratio: " 
-      << float(graph.num_local_edges())/graph.num_edges()
-      << std::endl;
- 
+    << "========== Graph statistics on proc " << dc.procid() 
+    << " ==============="
+    << "\n Num vertices: " << graph.num_vertices()
+    << "\n Num edges: " << graph.num_edges()
+    << "\n Num replica: " << graph.num_replicas()
+    << "\n Replica to vertex ratio: " 
+    << float(graph.num_replicas())/graph.num_vertices()
+    << "\n --------------------------------------------" 
+    << "\n Num local own vertices: " << graph.num_local_own_vertices()
+    << "\n Num local vertices: " << graph.num_local_vertices()
+    << "\n Replica to own ratio: " 
+    << (float)graph.num_local_vertices()/graph.num_local_own_vertices()
+    << "\n Num local edges: " << graph.num_local_edges()
+    //<< "\n Begin edge id: " << graph.global_eid(0)
+    << "\n Edge balance ratio: " 
+    << float(graph.num_local_edges())/graph.num_edges()
+    << std::endl;
+
   dc.cout() << "Creating engine" << std::endl;
   engine_type engine(dc, graph, exec_type, clopts);
+  pengine = &engine;
 
-  // Add error reporting to the engine
-  const bool success = engine.add_edge_aggregator<error_aggregator>
-    ("error", error_aggregator::map, error_aggregator::finalize) &&
-    engine.aggregate_periodic("error", interval);
-  ASSERT_TRUE(success);
-  
-
-  // Signal all vertices on the vertices on the left (libersvd) 
-  //TODO engine.map_reduce_vertices<graphlab::empty>(svd_vertex_program::signal_left);
- 
-
-  // Run the PageRank ---------------------------------------------------------
   dc.cout() << "Running SVD (gklanczos)" << std::endl;
   dc.cout() << "(C) Code by Danny Bickson, CMU " << std::endl;
   dc.cout() << "Please send bug reports to danny.bickson@gmail.com" << std::endl;
-  dc.cout() << "Time   Training    Validation" <<std::endl;
-  dc.cout() << "       RMSE        RMSE " <<std::endl;
   timer.start();
 
   init_lanczos(&graph, info);
   init_math(&graph, info, ortho_repeats, update_function);
   if (vecfile.size() > 0){
-    std::cout << "Load inital vector from file" << vecfile << std::endl;
-    //TODO load_vector(vecfile, format, info, graph, 0, true, false);
+    std::cout << "Load inital vector from file" << datafile << vecfile << std::endl;
+    FILE * file = fopen((datafile + vecfile).c_str(), "r");
+    if (file == NULL)
+      logstream(LOG_FATAL)<<"Failed to open initial vector"<< std::endl;
+    vec input = vec::Zero(rows);
+    double val = 0;
+    for (int i=0; i< rows; i++){
+      int rc = fscanf(file, "%lg\n", &val);
+      if (rc != 1)
+        logstream(LOG_FATAL)<<"Failed to open initial vector"<< std::endl;
+      input[i] = val;
+    }
+    fclose(file);
+    DistVec v0(info, 0, false, "v0");
+    v0 = input;
   }  
- 
+
   vec errest;
- 
   vec singular_values = lanczos( info, timer, errest, vecfile);
- 
-  //TODO std::cout << "\t Updates: " << core.last_update_count() << " per node: " 
-     //<< core.last_update_count() / core.graph().num_vertices() << std::endl;
 
-  //vec ret = fill_output(&core.graph(), bipartite_graph_descriptor, JACOBI_X);
-
-  //TODO write_output_vector(datafile + ".singular_values", format, singular_values,false, "%GraphLab SVD Solver library. This file contains the singular values.");
-
-  if (unittest == 1){
-    assert(errest.size() == 3);
-    for (int i=0; i< errest.size(); i++)
-      assert(errest[i] < 1e-30);
-  }
-  else if (unittest == 2){
-     assert(errest.size() == 10);
-    for (int i=0; i< errest.size(); i++)
-      assert(errest[i] < 1e-15);
-  }
-
-  //engine.start();  
+  write_output_vector(predictions + "singular_values", singular_values, false, "%GraphLab SVD Solver library. This file contains the singular values.");
 
   const double runtime = timer.current_time();
   dc.cout() << "----------------------------------------------------------"
-            << std::endl
-            << "Final Runtime (seconds):   " << runtime 
-            << std::endl
-            << "Updates executed: " << engine.num_updates() << std::endl
-            << "Update Rate (updates/second): " 
-            << engine.num_updates() / runtime << std::endl;
+    << std::endl
+    << "Final Runtime (seconds):   " << runtime 
+                                        << std::endl
+                                        << "Updates executed: " << engine.num_updates() << std::endl
+                                        << "Update Rate (updates/second): " 
+                                          << engine.num_updates() / runtime << std::endl;
 
   // Compute the final training error -----------------------------------------
-  dc.cout() << "Final error: " << std::endl;
-  engine.aggregate_now("error");
-
   if (unittest == 1){
     assert(errest.size() == 3);
     for (int i=0; i< errest.size(); i++)
       assert(errest[i] < 1e-30);
   }
   else if (unittest == 2){
-     assert(errest.size() == 10);
+    assert(errest.size() == 10);
     for (int i=0; i< errest.size(); i++)
       assert(errest[i] < 1e-15);
   }

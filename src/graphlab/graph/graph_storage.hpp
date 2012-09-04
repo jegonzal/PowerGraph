@@ -476,6 +476,9 @@ namespace graphlab {
       * efficiency of graphlab.  
       * This function takes O(|V|log(degree)) time and will 
       * fail if there are any duplicate edges.
+      *
+      * Assumption: 
+      * _num_of_v == 1 + max(max_element(edges.source_arr), max_element(edges.target_arr))
       */
     void finalize(size_t _num_of_v, edge_info &edges) {
 #ifdef DEBUG_GRAPH

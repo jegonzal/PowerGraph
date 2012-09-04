@@ -141,6 +141,7 @@ namespace graphlab {
 
     /** Flush the buffer and call base finalize. */; 
     void finalize() { 
+      rpc.full_barrier();
       flush(); 
       base_type::finalize();
     } // end of finalize
@@ -153,6 +154,7 @@ namespace graphlab {
     void add_edges(const std::vector<vertex_id_type>& source_arr, 
         const std::vector<vertex_id_type>& target_arr, 
         const std::vector<EdgeData>& edata_arr) {
+
       BEGIN_TRACEPOINT(batch_ingress_add_edges);
       ASSERT_TRUE((source_arr.size() == target_arr.size())
           && (source_arr.size() == edata_arr.size())); 
@@ -168,13 +170,13 @@ namespace graphlab {
 
       lvid_type max_lvid = 0;
 
-      // Lock and update the lvid2record.
       lvid2record_lock.lock();
+      // Lock and update the lvid2record.
       for (size_t i = 0; i < source_arr.size(); ++i) {
         vertex_id_type source = source_arr[i];
         vertex_id_type target = target_arr[i]; 
-        lvid_type lvid_source;
-        lvid_type lvid_target;
+        lvid_type lvid_source(-1);
+        lvid_type lvid_target(-1);
         // typedef typename boost::unordered_map<vertex_id_type, lvid_type>::iterator 
           // vid2lvid_iter;
         typedef typename cuckoo_map_pow2<vertex_id_type, lvid_type, 3, uint32_t>::iterator
@@ -184,7 +186,7 @@ namespace graphlab {
           iter = base_type::graph.vid2lvid.find(source);
           if (iter == base_type::graph.vid2lvid.end()) {
             lvid_source = base_type::graph.vid2lvid.size();
-            base_type::graph.vid2lvid.insert(std::make_pair(source, lvid_source));
+            base_type::graph.vid2lvid[source]=lvid_source;
             base_type::graph.lvid2record.push_back(vertex_record(source));
           } else {
             lvid_source = iter->second;
@@ -193,7 +195,7 @@ namespace graphlab {
           iter = base_type::graph.vid2lvid.find(target);
           if (iter == base_type::graph.vid2lvid.end()) {
             lvid_target = base_type::graph.vid2lvid.size();
-            base_type::graph.vid2lvid.insert(std::make_pair(target , lvid_target));
+            base_type::graph.vid2lvid[target]=lvid_target;
             base_type::graph.lvid2record.push_back(vertex_record(target));
           } else {
             lvid_target = iter->second;
@@ -224,7 +226,7 @@ namespace graphlab {
 
       // Lock and add edges to local graph.
       local_graph_lock.lock();
-      if (max_lvid > 0 && max_lvid >= base_type::graph.local_graph.num_vertices()) {
+      if (max_lvid >= base_type::graph.local_graph.num_vertices()) {
         //std::cout << rpc.procid() << ": " << max_lvid << std::endl;
         base_type::graph.local_graph.resize(max_lvid + 1);
       }
@@ -267,10 +269,13 @@ namespace graphlab {
                      std::vector<std::vector<vertex_id_type> >& proc_dst,
                      std::vector<std::vector<EdgeData> >& proc_edata) {
      ASSERT_EQ(num_edges, edgesend.size());
-     if (num_edges == 0) return;
 
      edgesend_lock.lock();
      
+     if (num_edges == 0) {
+      edgesend_lock.unlock();
+      return;
+     }
      BEGIN_TRACEPOINT(batch_ingress_request_degree_table);
      std::vector<dht_degree_table_type> degree_table(rpc.numprocs());
      

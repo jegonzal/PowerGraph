@@ -5,9 +5,11 @@
 
 \brief The collaborative filtering toolkit contains tools for computing a linear model of the data, and predicting missing values based on this linear model. This is useful when computing recommendations for users. 
 
+The collaborative filtering toolkit is written by Danny Bickson, CMU. Please send any code related questions to our <a href="https://groups.google.com/forum/?fromgroups#!forum/graphlab-kdd">Google group</a>. Any other inquiries can be directed to Danny.Bickson@gmail.com. You are more then welcome to visit my applied machine learning <a href="http://bickson.blogspot.com">blog</a>.
 
+\section History
 In GraphLab v1, the collaborative filtering package is implemented and optimized for a multicore machine.  
-<a href="https://docs.google.com/document/pub?id=1lptKnw9hwHW_HTVb77ThcDjrW4QwLZXEbrxPyXp6oBk">Here</a> is the documentation for version 1. Graphlab v1 is the <b>stable release</b> of the collaborative filtering toolkit.
+<a href="http://select.cs.cmu.edu/code/graphlab/pmf.html">Here</a> is the documentation for version 1. Graphlab v1 is the <b>stable release</b> of the collaborative filtering toolkit.
 
 In GraphLAb v2, the collaborative filtering toolkit is DISTRIBUTED.
 That way we can scale to much larger models.
@@ -15,24 +17,45 @@ The GraphLab collaborative filtering toolkit 2.1 is under active
 development. Please contact us if you encounter any issues or would
 like an additional features.
 
+\section Algorithms
 The collaborative filtering toolkit in GraphLab v.2 currently contains:
 
- \li Alternating Least Squares (ALS)
+ - \ref ALS "Alternating Least Squares (ALS)"
 \verbatim
 Yunhong Zhou, Dennis Wilkinson, Robert Schreiber and Rong Pan. Large-Scale Parallel Collaborative Filtering for the Netflix Prize. Proceedings of the 4th international conference on Algorithmic Aspects in Information and Management. Shanghai, China pp. 337-348, 2008.
 \endverbatim
- \li Stochastic gradient descent (SGD)
+ - \ref SGD "Stochastic gradient descent (SGD)"
 \verbatim
  Matrix Factorization Techniques for Recommender Systems Yehuda Koren, Robert Bell, Chris Volinsky In IEEE Computer, Vol. 42, No. 8. (07 August 2009), pp. 30-37. 
 Takács, G, Pilászy, I., Németh, B. and Tikk, D. (2009). Scalable Collaborative Filtering Approaches for Large Recommender Systems. Journal of Machine Learning Research, 10, 623-656.
 \endverbatim
- \li Bias stochastic gradient descnet (Bias-SGD)
+ - \ref BIAS_SGD "Bias stochastic gradient descnet (Bias-SGD)"
 \verbatim
-Y. Koren. Factorization Meets the Neighborhood: a Multifaceted Collaborative Filtering Model. Equation (5).
+Y. Koren. Factorization Meets the Neighborhood: a Multifaceted Collaborative Filtering Model. In ACM KDD 2008. Equation (5).
 \endverbatim
- 
-In the future we hope to implement to rest of V1 algorithms, like SVD++, NMF, NMF, BPTF, etc.
-
+ - \ref SVD_PLUS_PLUS "SVD++"
+\verbatim
+Y. Koren. Factorization Meets the Neighborhood: a Multifaceted Collaborative Filtering Model. In ACM KDD 2008. 
+\endverbatim
+ - \ref WALS "Weighted-ALS"
+\verbatim
+Collaborative Filtering for Implicit Feedback Datasets Hu, Y.; Koren, Y.; Volinsky, C. IEEE International Conference on Data Mining (ICDM 2008), IEEE (2008). 
+D. Needell, J. A. Tropp CoSaMP: Iterative signal recovery from incomplete and inaccurate samples Applied and Computational Harmonic Analysis, Vol. 26, No. 3. (17 Apr 2008), pp. 301-321. 
+\endverbatim
+ - \ref SALS "Sparse-ALS"
+\verbatim
+Xi Chen, Yanjun Qi, Bing Bai, Qihang Lin and Jaime Carbonell. Sparse Latent Semantic Analysis. In SIAM International Conference on Data Mining (SDM), 2011. 
+\endverbatim  
+In the future we hope to implement to rest of V1 algorithms, like NMF, NMF, BPTF, etc.
+ - \ref NMF "Non-negative matrix factorization"
+\verbatim
+NMF Lee, D..D., and Seung, H.S., (2001), 'Algorithms for Non-negative Matrix
+Factorization', Adv. Neural Info. Proc. Syst. 13, 556-562.
+\endverbatim
+ - \ref SVD "Restarted lanczos algorithm"
+\verbatim
+V. Hern´andez, J. E. Rom´an and A. Tom´as. STR-8: Restarted Lanczos Bidiagonalization for the SVD in SLEPc. 
+\endverbatim
 \section Input Input
 
 The input to GraphLab v2.1 collaborative filtering toolkit should be prepared inside a directory. All files in the directory will be read in parallel by GraphLab. Each file has the following text format:
@@ -53,6 +76,12 @@ all other files - are training files.
 
 Training files, are the historic recommendations that the linear model is build from. Validation files, are historic recommendations put aside, not used for training, but for the validation of the model. Test files are user/item pairs to compute recommendations as learned by the trained model.
 
+Note: for weighted-ALS, the input has the follwoing format:
+\verbatim
+[user] [item] [weight] [rating] \n
+\endverbatim
+Since each rating has its associated weight.
+
 \section Output Output
 
 The output for the test data (ratings in the file that ends with .predict) is saved to filename specified by: --predictions=filename
@@ -65,13 +94,25 @@ Output format for the prediction is:
 
 Furthermore, the linear model is saved to the files: filename.U and filename.V
 Where U and V' are the matrices which their product U*V' approximates the matrix A.
-Ouptut format for the linear model is:
+Ouptut format for the linear model matrix U is:
 \verbatim
-user) factor1 factor2 .. factorN \n
+user factor1 factor2 .. factorN \n
 \endverbatim
 
-For bias-SGD, two additional files are created: filename.bias.U and filename.bias.V
+Ouptut format for the linear model matrix V is:
+\verbatim
+item factor1 factor2 .. factorN \n
+\endverbatim
+
+
+For bias-SGD and SVD++, two additional files are created: filename.bias.U and filename.bias.V
 with the biasses.
+
+NOTE: Output files are NOT sorted. Use the sort Linux command to sort them by user / item id. 
+For example:
+\verbatim
+sort -g -k 1,1 filename.U > filename.U.sorted # sorts user features, by the first column (user id)
+\endverbatim
 
 \section ALS ALS
 ALS (Alternating least squares)
@@ -90,14 +131,17 @@ Below are ALS related command line options:
 \verbatim
 --D=XX	Set D the feature vector width. High width results in higher accuracy but slower execution time. Typical values are 20 -  100.
 --lambda=XX	Set regularization. Regularization helps to prevent overfitting. 
---maxupdates=XX The number of iterations.
+--max_iter=XX The number of iterations.
+--maxval=XX	Maximum allowed rating
+--minval=XX	Min allowed rating
+--predictions=XX	File name to write prediction to
 \endverbatim
 
 And here is an exmaple ALS run:
 \li Download the files: <a href="http://www.select.cs.cmu.edu/code/graphlab/datasets/smallnetflix_mm.train">smallnetflix_mm.train</a> and <a href="http://www.select.cs.cmu.edu/code/graphlab/datasets/smallnetflix_mm.validate">smallnetflix_mm.validate</a> and save them inside a directory called smallnetflix/.
 \li Run:
 \verbatim
-bickson@thrust:~/graphlab2.1/graphlabapi/debug/toolkits/collaborative_filtering$ ./als smallnetflix/ --maxupdates=5 --lambda=0.065 --ncpus=8
+bickson@thrust:~/graphlab2.1/graphlabapi/debug/toolkits/collaborative_filtering$ ./als smallnetflix/ --max_iter=5 --lambda=0.065 --ncpus=8
 TCP Communication layer constructed.
 Loading graph.
 INFO:     distributed_graph.hpp(load_from_posixfs:1743): Loading graph from file: smallnetflix/smallnetflix_mm.train
@@ -166,7 +210,26 @@ INFO:     synchronous_engine.hpp(start:1257): 	Active vertices: 3561
 ...
 \endverbatim
 
-\section SGD SGD
+\section SGD "Stochastic gradient descent (SGD)"
+
+Pros: fast method
+Cons: need to tune step size, more iterations are needed relative to ALS.
+
+SGD is a simple gradient descent algorithm. Prediction in SGD is done as in ALS:
+   r_ui = p_u * q_i
+Where r_ui is a scalar rating of user u to item i, and p_u is the user feature vector of size D, q_i is the item feature vector of size D and the product is a vector product. 
+The output of ALS is two matrices: filename.U and filename.V. The matrix U holds the user feature vectors in each row. (Each vector has exactly D columns). The matrix V holds the feature vectors for each time (Each vector has again exactly D columns). In linear algebra notation the rating matrix R ~ UV
+
+\verbatim
+--lambda=XX	Gradient descent step size
+--gamma=XX	Gradient descent regularization
+--step_dec=XX	Multiplicative step decrease. Should be between 0.1 to 1. Default is 0.9.
+--D=X		Feature vector width. Common values are 20 - 150.
+--max_iter=XX	Max number of iterations
+--maxval=XX	Maximum allowed rating
+--minval=XX	Min allowed rating
+--predictions=XX	File name to write predictions to
+\endverbatim
 
 Here is an example SGD run on small Netflix data:
 \li Download the files: <a href="http://www.select.cs.cmu.edu/code/graphlab/datasets/smallnetflix_mm.train">smallnetflix_mm.train</a> and <a href="http://www.select.cs.cmu.edu/code/graphlab/datasets/smallnetflix_mm.validate">smallnetflix_mm.validate</a> and save them inside a directory called smallnetflix/.
@@ -260,25 +323,30 @@ Final error:
 Saving predictions
 \endverbatim
 
-\section "SGD command line arguments" "SGD command line arguments"
+
+\section BIAS_SGD BIAS-SGD
 
 Pros: fast method
-Cons: need to tune step size, more iterations are needed relative to ALS.
+Cons: need to tune step size
 
-SGD is a simple gradient descent algorithm. Prediction in SGD is done as in ALS:
-   r_ui = p_u * q_i
-Where r_ui is a scalar rating of user u to item i, and p_u is the user feature vector of size D, q_i is the item feature vector of size D and the product is a vector product. 
-The output of ALS is two matrices: filename.U and filename.V. The matrix U holds the user feature vectors in each row. (Each vector has exactly D columns). The matrix V holds the feature vectors for each time (Each vector has again exactly D columns). In linear algebra notation the rating matrix R ~ UV
+Bias-SGD is a simple gradient descent algorithm, where besides of the feature vector we also compute item and user biases (how much their average rating differs from the global average).
+Prediction in bias-SGD is done as follows:
+
+r_ui = global_mean_rating + b_u + b_i + p_u * q_i
+
+Where global_mean_rating is the global mean rating, b_u is the bias of user u, b_i is the bias of item i and p_u and q_i are feature vectors as in ALS. You can read more about bias-SGD in reference [N]. 
+
+The output of bias-SGD consists of two matrices: filename.U and filename.V. The matrix U holds the user feature vectors in each row. (Each vector has exactly D columns). The matrix V holds the feature vectors for each time (Each vector has again exactly D columns). Additionally, the output consists of two vectors: bias for each user, bias for each item. Last, the global mean rating is also given as output.
 
 \verbatim
 --lambda=XX	Gradient descent step size
 --gamma=XX	Gradient descent regularization
---step_dec=XX	Multiplicative step decrease. Should be between 0.1 to 1. Default is 0.9.
+--step_dec=XX	Multiplicative step decrease. Should be between 0.1 to 1. Default is 0.9
 --D=X		Feature vector width. Common values are 20 - 150.
 --max_iter=XX	Max number of iterations
 --maxval=XX	Maximum allowed rating
 --minval=XX	Min allowed rating
---predictions=XX	File name to write predictions to
+--predictions=XX	File name to write prediction to
 \endverbatim
 
 Example for running bias-SGD
@@ -375,31 +443,295 @@ Final error:
 Saving predictions
 \endverbatim
 
-\section BIAS-SGD BIAS-SGD
 
-Pros: fast method
-Cons: need to tune step size
+\section SVD_PLUS_PLUS SVD++
+Pros: more accurate method than SGD once tuned, relatively fast method
+Cons: a lot of parameters for tuning, immune to numerical errors when parameters are out of scope.
 
-Bias-SGD is a simple gradient descent algorithm, where besides of the feature vector we also compute item and user biases (how much their average rating differs from the global average).
-Prediction in bias-SGD is done as follows:
+Koren SVD++ is an algorithm which is slightly more fancy than bias-SGD and give somewhat better prediction results.
 
-r_ui = global_mean_rating + b_u + b_i + p_u * q_i
-
-Where global_mean_rating is the global mean rating, b_u is the bias of user u, b_i is the bias of item i and p_u and q_i are feature vectors as in ALS. You can read more about bias-SGD in reference [N]. 
-
-The output of bias-SGD consists of two matrices: filename.U and filename.V. The matrix U holds the user feature vectors in each row. (Each vector has exactly D columns). The matrix V holds the feature vectors for each time (Each vector has again exactly D columns). Additionally, the output consists of two vectors: bias for each user, bias for each item. Last, the global mean rating is also given as output.
-
+Basic configuration --svdpp_step_dec=XX Multiplicative step decrement (between 0.1 to 1). Default is 0.9
 \verbatim
---lambda=XX	Gradient descent step size
---gamma=XX	Gradient descent regularization
+--svdpp_item_bias_step=XX Item bias step size
+--svdpp_item_bias_reg=XX  Item bias regularization
+--svdpp_usr_bias_step=XX  User bias step size
+--svdpp_usr_bias_reg=XX User bias regularization
+--svdpp_usr_fctr_step=XX  User factor step size
+--svdpp_usr_fctr_reg=XX User factor regularization
+--svdpp_item_fctr_step=XX Item factor step size
+--svdpp_item_fctr_reg=XX  Item factor regularization
+--svdpp_item_fctr2_step=XX  Item factor2 step size
+--svdpp_item_fctr2_reg=XX Item factor2 regularization
+--D=X Feature vector width. Common values are 20 - 150.
 --step_dec=XX	Multiplicative step decrease. Should be between 0.1 to 1. Default is 0.9
---D=X		Feature vector width. Common values are 20 - 150.
 --max_iter=XX	Max number of iterations
 --maxval=XX	Maximum allowed rating
 --minval=XX	Min allowed rating
 --predictions=XX	File name to write prediction to
 \endverbatim
 
+ Prediction in Koren’s SVD++ algorithm is computed as follows:
+\verbatim
+r_ui = global_mean_rating + b_u + b_i + q_u * ( p_i + w_i )
+\endverbatim
+Where r_ui is the scalar rating for user u to item i, global_mean_rating is the global mean rating, b_u is a scalar bias for user u, b_i is a scalar bias for item i, q_u is a feature vectors of length D for user u, p_i is a feature vector of length D for item i, and w_i is an additional feature vector of length D (the weight). The product is a vector product. 
+
+The output of Koren’s SVD++ is 5 output files:
+\verbatim
+Global mean ratings - include the scalar global mean rating.
+user_bias  - includes a vector with bias for each user
+movie_bias - includes a vector with bias for each movie
+matrix U - includes in each row the feature vector q_u of size D.
+matrix V - includes in each row the sum of feature vectors p_i + w_i of size D.
+\endverbatim
+
+\section WALS Weighted-ALS
+
+Pros: Simple to use, allows iteration of weights which can be thought of confidence in the recommendation
+Cons: intermediate accuracy, higher computational overhead
+
+Weighted-ALS is a simple yet powerful algorithm. In this model the prediction is computed as:
+   r_ui = p_u * q_i
+Where r_ui is a scalar rating of user u to item i, and p_u is the user feature vector of size D, q_i is the item feature vector of size D and the product is a vector product. 
+The output of ALS is two matrices: filename.U and filename.V. The matrix U holds the user feature vectors in each row. (Each vector has exactly D columns). The matrix V holds the feature vectors for each time (Each vector has again exactly D columns). In linear algebra notation the rating matrix R ~ UV
+
+
+Below are WALS related command line options:
+\verbatim
+--D=XX	Set D the feature vector width. High width results in higher accuracy but slower execution time. Typical values are 20 -  100.
+--lambda=XX	Set regularization. Regularization helps to prevent overfitting. 
+--max_iter=XX The number of iterations.
+--maxval=XX	Maximum allowed rating
+--minval=XX	Min allowed rating
+--predictions=XX	File name to write prediction to
+
+\endverbatim
+
+And here is an exmaple WALS run:
+\li Download the files: <a href="http://www.select.cs.cmu.edu/code/graphlab/datasets/time_smallnetflix.train">time_smallnetflix.train</a> and <a href="http://www.select.cs.cmu.edu/code/graphlab/datasets/time_smallnetflix.validate">time_smallnetflix.validate</a> and save them inside a directory called timenetflix/.
+\li Run:
+\verbatim
+bickson@thrust:~/graphlab2.1/graphlabapi/debug/toolkits/collaborative_filtering$ ./wals smallnetflix/ --max_iter=5 --lambda=0.065 --ncpus=8
+bickson@thrust:~/graphlab2.1/graphlabapi/debug/toolkits/collaborative_filtering$ ./wals timenetflix/
+TCP Communication layer constructed.
+Loading graph.
+INFO:     distributed_graph.hpp(load_from_posixfs:1823): Loading graph from file: timenetflix/time_smallnetflix.train
+INFO:     distributed_graph.hpp(load_from_posixfs:1823): Loading graph from file: timenetflix/time_smallnetflix.validate
+Loading graph. Finished in 8.69352
+Finalizing graph.
+INFO:     distributed_ingress_base.hpp(finalize:166): Finalizing Graph...
+INFO:     distributed_ingress_base.hpp(exchange_global_info:493): Graph info: 
+   nverts: 97266
+   nedges: 3843340
+   nreplicas: 97266
+   replication factor: 1
+Finalizing graph. Finished in 5.2593
+========== Graph statistics on proc 0 ===============
+ Num vertices: 97266
+ Num edges: 3843340
+ Num replica: 97266
+ Replica to vertex ratio: 1
+ --------------------------------------------
+ Num local own vertices: 97266
+ Num local vertices: 97266
+ Replica to own ratio: 1
+ Num local edges: 3843340
+ Edge balance ratio: 1
+Creating engine
+Running Weighted-ALS
+INFO:     synchronous_engine.hpp(start:1260): 0: Starting iteration: 0
+INFO:     synchronous_engine.hpp(start:1309):   Active vertices: 93705
+INFO:     synchronous_engine.hpp(start:1358):    Running Aggregators
+64.8  24.3996 67.9795
+INFO:     synchronous_engine.hpp(start:1260): 0: Starting iteration: 1
+INFO:     synchronous_engine.hpp(start:1309):   Active vertices: 3561
+INFO:     synchronous_engine.hpp(start:1358):    Running Aggregators
+119.2 18.866  75.5397
+INFO:     synchronous_engine.hpp(start:1260): 0: Starting iteration: 2
+INFO:     synchronous_engine.hpp(start:1309):   Active vertices: 93704
+INFO:     synchronous_engine.hpp(start:1358):    Running Aggregators
+184 10.6131 43.162
+INFO:     synchronous_engine.hpp(start:1260): 0: Starting iteration: 3
+INFO:     synchronous_engine.hpp(start:1309):   Active vertices: 3561
+INFO:     synchronous_engine.hpp(start:1358):    Running Aggregators
+238.5 8.49288 28.1034
+INFO:     synchronous_engine.hpp(start:1260): 0: Starting iteration: 4
+INFO:     synchronous_engine.hpp(start:1309):   Active vertices: 93702
+INFO:     synchronous_engine.hpp(start:1358):    Running Aggregators
+303 7.24041 22.2866
+INFO:     synchronous_engine.hpp(start:1260): 0: Starting iteration: 5
+INFO:     synchronous_engine.hpp(start:1309):   Active vertices: 3561
+INFO:     synchronous_engine.hpp(start:1358):    Running Aggregators
+357.6 6.74309 19.951
+INFO:     synchronous_engine.hpp(start:1260): 0: Starting iteration: 6
+INFO:     synchronous_engine.hpp(start:1309):   Active vertices: 93585
+INFO:     synchronous_engine.hpp(start:1358):    Running Aggregators
+422.1 6.42464 19.061
+INFO:     synchronous_engine.hpp(start:1260): 0: Starting iteration: 7
+INFO:     synchronous_engine.hpp(start:1309):   Active vertices: 3561
+INFO:     synchronous_engine.hpp(start:1358):    Running Aggregators
+476.5 6.25972 17.2991
+INFO:     synchronous_engine.hpp(start:1260): 0: Starting iteration: 8
+INFO:     synchronous_engine.hpp(start:1309):   Active vertices: 93164
+INFO:     synchronous_engine.hpp(start:1358):    Running Aggregators
+542.3 6.13234 16.8022
+INFO:     synchronous_engine.hpp(start:1260): 0: Starting iteration: 9
+INFO:     synchronous_engine.hpp(start:1309):   Active vertices: 3561
+
+...
+\endverbatim
+
+\section SALS Sparse-ALS 
+Pros: Generate sparse factor matrices, that can be clustered into similar user/item groups
+Cons: less accurate linear model because of the sparsification step
+
+This algorithm is based on ALS, but an additional sparsifying step is performed on either the user feature vectors, the item feature vectors or both. This algorithm is useful for spectral clustering: first the rating matrix is factorized into a product of one or two sparse matrices, and then clustering can be computed on the feature matrices to detect similar users or items. 
+
+The underlying algorithm which is used for sparsifying is CoSaMP. See reference  on the top of this page. 
+
+Below are sparse-ALS related command line options:
+\verbatim
+--user_sparsity=XX  A number between 0.5 to 1 which defines how sparse is the resulting user feature factor matrix
+--movie_sparsity=XX A number between 0.5 to 1 which defines how sparse is the resulting movie feature factor matrix
+--algorithm=XX An integer between 1 to 3 which defines the run mode.
+1 = SPARSE_USR_FACTOR
+2 = SPARSE_ITM_FACTOR
+3 = SPARSE_BOTH_FACTORS
+\endverbatim
+Prediction in sparse-ALS is computed like in ALS.
+
+\section NMF "Non-negative matrix factorization"
+
+Non-negative matrix factorization (NMF) is based on Lee and Seung [reference H]. 
+Prediction is computed like in ALS:
+    r_ui = p_u * q_i
+
+Namely the scalar prediction r of user u is composed of the vector product of the user feature vector p_u (of size D), with the item feature vector q_i (of size D). The only difference is that both p_u and q_i have all nonnegative values.
+The output of NMF is two matrices: filename.U and filename.V. The matrix U holds the user feature vectors in each row. (Each vector has exactly D columns). The matrix V holds the feature vectors for each time (Each vector has again exactly D columns). In linear algebra notation the rating matrix R ~ UV, U>=0, V>=0.
+
+\subsection "NMF cost function and properties"
+
+Unlike many of the other methods who is Euclidean distance, NMF cost function is:
+      KL( UV’ || A) 
+Namely the KL divergence between the approximating product UV’  and the original matrix A.
+The objective is not computed in GraphLab, but you can easily compute it in Matlab if needed. 
+
+NMF is a gradient descent type algorithm which is supposed to always converge. However it may converge to a local minima. The algorithm starts from a random solution and that is why different runs may converge to different solution. For debugging, if you are interested in verifying that multiple runs converge to the same point, use the flag --debug=true when running.
+
+\section SVD Restarted Lanczos Iteration (SVD)
+SVD is implemented using the restarted lanczos algorithm.
+The input is a sparse matrix market format input file.
+The output are 3 files: one file containing the singular values, and two dense matrix market format files containing the matrices U and V.
+
+Note: for larger models, it is advised to use svd_onesided since it significantly saved memory.
+
+Here is an example Matrix Market input file for the matrix A2:
+
+<235|0>bickson@bigbro6:~/ygraphlab/graphlabapi/debug/toolkits/parsers$ 
+cat A2
+\verbatim
+1 1  0.8147236863931789
+1 2  0.9133758561390194
+1 3  0.2784982188670484
+1 4  0.9648885351992765
+2 1  0.9057919370756192
+2 2  0.6323592462254095
+2 3  0.5468815192049838
+2 4  0.1576130816775483
+3 1  0.1269868162935061
+3 2  0.09754040499940952
+3 3  0.9575068354342976
+3 4  0.9705927817606157
+\endverbatim
+
+Ceate a directory named A2, and inside it put the file A2.
+
+Here is an for running SVD (using one mpi node, one core)
+\verbatim
+bickson@thrust:~/graphlab2.1/graphlabapi/debug/toolkits/collaborative_filtering$ ./svd A2 --rows=3 --cols=4 --nsv=4 --nv=4 --max_iter=3 --ncpus=1 --quiet=1
+TCP Communication layer constructed.
+Loading graph.
+Loading graph. Finished in 0.004996
+Finalizing graph.
+Finalizing graph. Finished in 0.374135
+========== Graph statistics on proc 0 ===============
+ Num vertices: 7
+ Num edges: 12
+ Num replica: 7
+ Replica to vertex ratio: 1
+ --------------------------------------------
+ Num local own vertices: 7
+ Num local vertices: 7
+ Replica to own ratio: 1
+ Num local edges: 12
+ Edge balance ratio: 1
+Creating engine
+Running SVD (gklanczos)
+(C) Code by Danny Bickson, CMU 
+Please send bug reports to danny.bickson@gmail.com
+set status to tol
+ Number of computed signular values 4
+Singular value 0        2.16097 Error estimate:   1.05039e-15
+Singular value 1        0.97902 Error estimate:   1.32491e-15
+Singular value 2       0.554159 Error estimate:   9.92283e-16
+Singular value 3    1.05388e-64 Error estimate:   3.42194e-16
+----------------------------------------------------------
+Final Runtime (seconds):   0.54851
+Updates executed: 59
+Update Rate (updates/second): 107.564
+\endverbatim
+
+For running with multiple mpi nodes run:
+\verbatim 
+mpiexec -n XX ./svd [ rest of the command line aguments ]
+\endverbatim
+
+\subsection Command line arguments
+
+\verbatim
+--training  Input file directory.
+--nv  Number of inner steps of each iterations. Typically the number should be greater than the number of singular values you look for.
+--nsv Number of singular values requested. Should be typically less than --nv
+--ortho_repeats Number of repeats on the orthogonalization step. Default is 1 (no repeats). Increase this number for higher accuracy but slower execution. Maximal allowed values is 3.
+--max_iter  Number of allowed restarts. The minimum is 2= no restart.
+--save_vectors=true Save the factorized matrices U and V to file. 
+--predictions File name to save prediction to
+--tol Convergence threshold. For large matrices set this number set this number higher (for example 1e-1, while for small matrices you can set it to 1e-16). As smaller the convergence threshold execution is slower.
+\endverbatim
+
+\subsection SVD1 "Understanding the error measure"
+ Following Slepc, the error measure is computed by a combination of:
+sqrt( ||Av_i - sigma(i) u_i ||_2^2 + ||A^Tu_i - sigma(i) V_i ||_2^2 ) / sigma(i)
+
+
+Namely, the deviation of the approximation sigma(i) u_i  from Av_i , and vice versa.
+
+\subsection SVD2 "Scalability|
+ Currently the code was tested with up to 3.5 billion non-zeros on a 24 core machine. Each Lanczos iteration takes about 30 seconds. 
+
+\subsection SVD3 "Difference to Mahout"
+ Mahout SVD solver is implemented using the same Lanczos algorithm. However, there are several differences
+1) In Mahout there are no restarts, so quality of the solution deteriorates very rapidly, after 5-10 iterations the solution is no longer accurate. Running without restarts can be done using our solution with the --max_iter=2 flag.
+2) In Mahout there is a single orthonornalization step in each iteration while in our implementation there are two (after computation of u_i and after v_i ).
+3) In Mahout there is no error estimation while we provide for each singular value the approximated error.
+4) Our solution is typically x100 times faster than Mahout.
+
 \section Acknowledgements Acknowledgements
+\li Liang Xiong, CMU for providing the Matlab code of BPTF, numerous discussions and infinite support!! Thanks!!
+\li Timmy Wilson, Smarttypes.org for providing twitter network snapshot example, and Python scripts for reading the output.
+\li Sanmi Koyejo, from the University of Austin, Texas, for providing Python scripts for preparing the inputs.
+\li Dan Brickely, from VU University Amsertdam, for helping debugging installation and prepare the input in Octave.
+\li Nicholas Ampazis, University of the Aegean, for providing his SVD++ source ode.
+\li Yehuda Koren, Yahoo! Research, for providing his SVD++ source code implementation.
+\li Marinka Zitnik, University of Ljubljana, Slovenia, for helping debugging ALS and suggesting NMF algos to implement.
+\li Joel Welling from Pittsburgh Supercomputing Center, for optimizing GraphLab on BlackLight supercomputer and simplifying installation procedure.
+\li Sagar Soni from Gujarat Technological University and Hasmukh Goswami College of Engineering for helping testing the code.
+\li Young Cha, UCLA for testing the code.
+\li Mohit Singh for helping improve documentation.
+\li Nicholas Kolegraff for testing our examples.
+\li Theo Throuillon, Ecole Nationale Superieure d'Informatique et de Mathematiques Appliquees de Grenoble for debugging NMF.
+\li Qiang Yan, Chinese Academy of Science for providing time-svd++, bias-SVD, RBM and LIBFM code that the Graphlab version is based on.
+\li Ramakrishnan Kannan, Georgia Tech, for helping debugging and simplifying usage.
+\li Charles Martin, GLG, for debugging NMF.
 \li Alex Hasha, bundle.com for improving SGD and bias-SGD documentation and usability.
 */
