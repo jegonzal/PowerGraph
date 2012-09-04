@@ -123,6 +123,13 @@ public:
     }
   }
 
+
+  edge_dir_type scatter_edges(icontext_type& context,
+                             const vertex_type& vertex) const {
+    return graphlab::ALL_EDGES;
+  } 
+
+
   /*
    * For each edge, count the intersection of the neighborhood of the
    * adjacent vertices. This is the number of triangles this edge is involved
@@ -158,6 +165,8 @@ struct save_colors{
 
 int main(int argc, char** argv) {
 
+  //global_logger().set_log_level(LOG_INFO);
+
   // Initialize control plane using mpi
   graphlab::mpi_tools::init(argc, argv);
   graphlab::distributed_control dc;
@@ -171,23 +180,18 @@ int main(int argc, char** argv) {
     "The Asynchronous engine is used.");
   std::string prefix, format;
   std::string output;
+  size_t powerlaw = 0;
   clopts.attach_option("graph", prefix,
                        "Graph input. reads all graphs matching prefix*");
   clopts.attach_option("format", format,
                        "The graph format");
    clopts.attach_option("output", output,
                        "A prefix to save the output.");
-  
+    clopts.attach_option("powerlaw", powerlaw,
+                       "Generate a synthetic powerlaw out-degree graph. ");
+ 
   if(!clopts.parse(argc, argv)) return EXIT_FAILURE;
-  if (prefix == "") {
-    dc.cout() << "--graph is not optional\n";
-    return EXIT_FAILURE;
-  }
-  else if (format == "") {
-    dc.cout() << "--format is not optional\n";
-    return EXIT_FAILURE;
-  }
-  if (output == "") {
+ if (output == "") {
     dc.cout() << "Warning! Output will not be saved\n";
   }
 
@@ -195,10 +199,25 @@ int main(int argc, char** argv) {
   graphlab::launch_metric_server();
   // load graph
   graph_type graph(dc, clopts);
-  graph.load_format(prefix, format);
+
+  if(powerlaw > 0) { // make a synthetic graph
+    dc.cout() << "Loading synthetic Powerlaw graph." << std::endl;
+    graph.load_synthetic_powerlaw(powerlaw, false, 2, 100000000);
+  } else { // Load the graph from a file
+    if (prefix == "") {
+      dc.cout() << "--graph is not optional\n";
+      return EXIT_FAILURE;
+    }
+    else if (format == "") {
+      dc.cout() << "--format is not optional\n";
+      return EXIT_FAILURE;
+    }
+    graph.load_format(prefix, format);
+  }
   graph.finalize();
+
   dc.cout() << "Number of vertices: " << graph.num_vertices() << std::endl
-            << "Number of edges:    " << graph.num_edges() << std::endl;
+    << "Number of edges:    " << graph.num_edges() << std::endl;
 
   graphlab::timer ti;
   
