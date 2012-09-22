@@ -102,6 +102,11 @@ class sample_sort {
   }
 };
 
+
+template <typename Key, typename Value>
+class buffered_sample_sort {
+  class 
+};
 } // namespace graphlab
 
 #endif
