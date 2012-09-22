@@ -239,7 +239,6 @@ void benchmark() {
 
 {
     graphlab::hopscotch_map<uint32_t, uint32_t> cm;
-    
     ti.start();
     for (size_t i = 0;i < NUM_ELS; ++i) {
       cm[v[i]] = i;
@@ -262,12 +261,11 @@ void benchmark() {
 
 {
     graphlab::hopscotch_map<uint32_t, uint32_t> cm;
-    
     graphlab::thread_group thrgroup;
     ti.start();
-    for (size_t i = 0;i < 2; ++i) {
+    for (size_t i = 0;i < 4; ++i) {
       thrgroup.launch(boost::bind(parallel_map_inserter, &cm, &v, 
-                                  i * NUM_ELS / 2, (i + 1) * NUM_ELS / 2));
+                                  i * NUM_ELS / 4, (i + 1) * NUM_ELS / 4));
     }
     thrgroup.join();
     std::cout << NUM_ELS / 1000000 << "M hopscotch parallel inserts in " << ti.current_time() << " (Load factor = " << cm.load_factor() << ")" << std::endl;

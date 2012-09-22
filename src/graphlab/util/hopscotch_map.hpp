@@ -252,13 +252,13 @@ namespace graphlab {
     }
 
   
-    void erase(iterator iter) {
-      container->erase(iter);
+    bool erase(iterator iter) {
+      return container->erase(iter);
     }
 
-    void erase(key_type const& k) {
+    bool erase(key_type const& k) {
       value_type v(k, mapped_type());
-      container->erase(v);
+      return container->erase(v);
     }
 
     void swap(hopscotch_map& other) {
@@ -312,9 +312,13 @@ namespace graphlab {
     }
 
     void put_sync(const value_type &v) {
+      if (!Synchronized) {
+        (*this)[v.first] = v.second;
+        return;
+      }
       lock.readlock();
       // try to insert into the container
-      if (container->put_or_overwrite_sync(v)) {
+      if (container->put_sync(v)) {
         // success!
         lock.rdunlock();
       }
@@ -325,7 +329,7 @@ namespace graphlab {
         // lets get an exclusive lock and try again
         lock.writelock();
         // I now have exclusive, I can use the unsynchronized accessors
-        if (container->insert_or_overwrite(v) != container->end()) {
+        if (container->insert(v) != container->end()) {
           // success now
           lock.wrunlock();
         }
@@ -333,7 +337,7 @@ namespace graphlab {
           // rehash
           container_type* newcontainer = rehash_to_new_container();
           // we much succeed now!
-          assert(newcontainer->insert_or_overwrite(v) != newcontainer->end());
+          assert(newcontainer->insert(v) != newcontainer->end());
           std::swap(container, newcontainer);
           lock.wrunlock();
           delete newcontainer;
@@ -346,6 +350,11 @@ namespace graphlab {
     } 
 
     std::pair<bool, Value> get_sync(const Key& k) const {
+      if (!Synchronized) {
+        const_iterator iter = find(k);
+        return std::make_pair(iter == end(), iter->second);
+      }
+
       lock.readlock();
       std::pair<bool, value_type> v = 
                 container->get_sync(std::make_pair(k, mapped_type()));
@@ -354,6 +363,7 @@ namespace graphlab {
     }      
 
     bool erase_sync(const Key& k) {
+      if (!Synchronized) return erase(k);
       lock.readlock();
       bool ret = container->erase_sync(k);
       lock.rdunlock();

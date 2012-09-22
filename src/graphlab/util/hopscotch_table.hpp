@@ -316,7 +316,8 @@ class hopscotch_table {
      */
     template <bool IsSynchronized>
     iterator try_find_and_overwrite(const value_type& newdata,
-                                    size_t target) {
+                                    size_t target,
+                                    bool overwrite) {
        // find the next empty entry 
       size_t lockid = associated_lock_id(target);
       
@@ -325,7 +326,7 @@ class hopscotch_table {
         locks[lockid].lock();
       }
       iterator iter = find_impl(newdata, target);
-      if (iter != end()) {
+      if (iter != end() && overwrite) {
         iter.iter->elem = newdata;
       }
       if (IsSynchronized) {
@@ -341,14 +342,15 @@ class hopscotch_table {
      * Iterator is not going to be necessarily valid under parallel access.
      */
     template <bool IsSynchronized>
-    iterator insert_impl(const value_type& newdata, bool overwrite = false) {
+    iterator insert_impl(const value_type& newdata, bool overwrite = true) {
       // find the next empty entry 
       size_t target = compute_hash(newdata) & mask;
 
-      if (overwrite) {
-        iterator ret = try_find_and_overwrite<IsSynchronized>(newdata, target);
-        if (ret != end()) return ret;
-      }
+      iterator ret = try_find_and_overwrite<IsSynchronized>(newdata, 
+                                                            target, 
+                                                            overwrite);
+      if (ret != end()) return ret;
+
       // search for a place to stick it into
       bool found = false;
       size_t shift_target = target;
@@ -490,7 +492,7 @@ class hopscotch_table {
     /**
       * Inserts an entry into the array.
       * Returns an iterator to the just inserted data on success.
-      * This function does not check if the entry already exists in the table.
+      * If the entry already exists, it will be overwritten.
       * Returns end() on failure.
       */
     iterator insert(const value_type& newdata) {
@@ -500,12 +502,12 @@ class hopscotch_table {
     /**
       * Inserts an entry into the array.
       * Returns an iterator to the just inserted data on success.
-      * This function check if the entry already exists, overwriting if
-      * it does. 
+      * This function check if the entry already exists, if it does, 
+      * do nothing
       * Returns end() on failure.
       */
-    iterator insert_or_overwrite(const value_type& newdata) {
-      return insert_impl<false>(newdata, true);
+    iterator insert_do_not_overwrite(const value_type& newdata) {
+      return insert_impl<false>(newdata, false);
     }
 
 
@@ -635,7 +637,7 @@ class hopscotch_table {
 
 
     /** Inserts an element into the hash table. Safe under parallel access.
-      * Caller must ensure that t does not already exist in the table
+      * if t already exists, it will be overwritten
       */
     bool put_sync(const T& t) {
       // since data is not resizeable, 
@@ -645,12 +647,12 @@ class hopscotch_table {
 
 
     /** Inserts an element into the hash table. Safe under parallel access.
-      * if t already exists, it will be overwritten
+      * if t already exists, nothing will happen
       */
-    bool put_or_overwrite_sync(const T& t) {
+    bool put_do_not_overwrite_sync(const T& t) {
       // since data is not resizeable, 
       // data.end() is always valid.
-      return insert_impl<Synchronized>(t, true).iter != data.end();
+      return insert_impl<Synchronized>(t, false).iter != data.end();
     }
 
 
