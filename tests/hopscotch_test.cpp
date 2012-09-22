@@ -279,7 +279,7 @@ void benchmark() {
       std::pair<bool, uint32_t> res = cm.get_sync(v[i]);
       assert(res.first && res.second == i);
     }
-    std::cout << "10M hopscotch successful probes in " << ti.current_time() << std::endl;
+    std::cout << "10M hopscotch successful synchronized probes in " << ti.current_time() << std::endl;
 
   }
 }
