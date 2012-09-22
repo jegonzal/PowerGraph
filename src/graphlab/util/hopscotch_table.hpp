@@ -170,7 +170,7 @@ class hopscotch_table {
       friend class hopscotch_table;
 
       const hopscotch_table* ptr;
-      typename std::vector<hopscotch_table::element>::const_iterator iter;
+      typename std::vector<element>::const_iterator iter;
 
       const_iterator():ptr(NULL) {}
 
@@ -229,7 +229,7 @@ class hopscotch_table {
       friend class hopscotch_table;
 
       hopscotch_table* ptr;
-      typename std::vector<hopscotch_table::element>::iterator iter;
+      typename std::vector<element>::iterator iter;
 
       iterator():ptr(NULL) {}
 
@@ -273,7 +273,7 @@ class hopscotch_table {
 
     private:
       iterator(hopscotch_table* table, 
-          typename std::vector<hopscotch_table::element>::iterator iter):
+          typename std::vector<element>::iterator iter):
         ptr(table), iter(iter) { }
     };
 
@@ -392,7 +392,7 @@ class hopscotch_table {
         if (IsSynchronized && lockid > 0) locks[lockid - 1].lock();
 
         for (size_t i = 30; i >= 1; --i) {
-          int r;
+          size_t r;
           if (data[shift_target - i].field) {
             r = __builtin_ctz(data[shift_target - i].field);
             if (r <= i) {

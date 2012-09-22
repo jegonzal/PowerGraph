@@ -319,7 +319,6 @@ namespace graphlab {
         lock.rdunlock();
       }
       else {
-        std::cout << "!";
         // fail!
         // I may need to rehash
         lock.rdunlock();

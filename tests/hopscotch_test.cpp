@@ -9,7 +9,7 @@
 #include <graphlab/util/memory_info.hpp>
 #include <graphlab/macros_def.hpp>
 
-const int NINS = 1500000;
+const size_t NINS = 1500000;
 boost::unordered_set<uint32_t> um;
 graphlab::hopscotch_table<uint32_t> cm(1.2 * NINS);
  
