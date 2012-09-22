@@ -533,7 +533,14 @@ class hopscotch_table {
     }
 
     
-
+    void clear() { 
+      for (size_t i = 0;i < data.size(); ++i) {
+        data[i].hasdata = false;
+        data[i].field = 0;
+        data[i].elem = value_type();
+      }
+      numel = 0;
+    }
 
    /**
     * Erases an entry pointed to by an iterator.
