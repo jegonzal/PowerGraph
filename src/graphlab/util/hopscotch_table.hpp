@@ -71,7 +71,7 @@ class hopscotch_table {
       uint32_t field: 31;   /// The hopscotch bitfield. Only 31 bits are useable
       T elem;  /// User data
       element():hasdata(false), field(0) { }
-    } __attribute__((__packed__));
+    };
     
     std::vector<element> data; 
     std::vector<simple_spinlock> locks;

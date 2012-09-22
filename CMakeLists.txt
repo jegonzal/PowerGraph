@@ -539,6 +539,13 @@ else()
   set(PROFILING_FLAGS "")
 endif()
 
+# check for SSE instruction set (needed for CRC32)
+include(CheckCXXCompilerFlag)
+check_cxx_compiler_flag(-msse4.2 HAS_SSE42)
+set(SSE42_FLAG "")
+if (HAS_SSE42) 
+ set(SSE42_FLAG "-msse4.2")
+endif()
 
 # Set the debug flags
 set(CMAKE_C_FLAGS_DEBUG 
@@ -552,8 +559,16 @@ set(CMAKE_C_FLAGS_RELEASE
   "-O3 -march=${MARCH} -mtune=native ${PROFILING_FLAGS} ${COMPILER_FLAGS}"
   CACHE STRING "compiler options" FORCE)
 set(CMAKE_CXX_FLAGS_RELEASE 
-  "-O3 -march=${MARCH} -mtune=native ${PROFILING_FLAGS} ${COMPILER_FLAGS}"
+  "-O3 -march=${MARCH} ${SSE42_FLAG} -mtune=native ${PROFILING_FLAGS} ${COMPILER_FLAGS}"
   CACHE STRING "compiler options" FORCE)
+
+check_cxx_source_compiles("int main(int argc, char** argv) { __builtin_ia32_crc32di(0,0);}" HAS_CRC32)
+
+if(HAS_CRC32) 
+  set(CMAKE_CXX_FLAGS_RELEASE 
+      "-O3 -march=${MARCH} ${SSE42_FLAG} -mtune=native ${PROFILING_FLAGS} ${COMPILER_FLAGS} -DHAS_BUILTIN_CRC32"
+      CACHE STRING "compiler options" FORCE)
+endif()
 
 
 # # Mex setup
