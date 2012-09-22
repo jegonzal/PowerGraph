@@ -208,7 +208,7 @@ class hopscotch_table {
 
     private:
       const_iterator(const hopscotch_table* table, 
-          typename std::vector<hopscotch_table::element>::const_iterator iter): 
+          typename std::vector<element>::const_iterator iter): 
         ptr(table), iter(iter) { }
     };
 
