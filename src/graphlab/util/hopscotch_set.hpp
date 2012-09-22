@@ -150,13 +150,20 @@ namespace graphlab {
 
   public:
 
-    hopscotch_set(size_t initialsize = 128, 
+    hopscotch_set(size_t initialsize = 32, 
                   Hash hashfun = Hash(),
                   KeyEqual equalfun = KeyEqual()): 
                             container(NULL), 
                             hashfun(hashfun), equalfun(equalfun) {
       container = create_new_container(initialsize);
     }
+
+    hopscotch_set(const hopscotch_set& h): 
+                            hashfun(h.hashfun), equalfun(h.equalfun) {
+      container = create_new_container(h.capacity());
+      (*container) = *(h.container);
+    }
+
 
     // only increases
     void rehash(size_t s) {

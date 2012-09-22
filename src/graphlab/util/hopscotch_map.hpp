@@ -173,7 +173,13 @@ namespace graphlab {
                   KeyEqual equalfun = KeyEqual()): 
                             container(NULL), 
                             hashfun(hashfun), equalfun(equalfun) {
-      container = create_new_container(128);
+      container = create_new_container(32);
+    }
+
+    hopscotch_map(const hopscotch_map& h): 
+                            hashfun(h.hashfun), equalfun(h.equalfun) {
+      container = create_new_container(h.capacity());
+      (*container) = *(h.container);
     }
 
     // only increases
