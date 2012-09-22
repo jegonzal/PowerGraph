@@ -288,10 +288,10 @@ void benchmark() {
 
 int main(int argc, char** argv) {
   std::cout << "Hopscotch Table Parallel Access Sanity Checks... \n";
-  //sanity_checks();
+  sanity_checks();
 
   std::cout << "Hopscotch Map Sequential Access Sanity Checks... \n";
-  //hopscotch_map_sanity_checks();
+  hopscotch_map_sanity_checks();
 
   std::cout << "Map Benchmarks... \n";
   benchmark();
