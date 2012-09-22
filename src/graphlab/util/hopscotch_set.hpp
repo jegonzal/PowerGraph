@@ -274,11 +274,17 @@ namespace graphlab {
     void load(iarchive &iarc) {
       size_t s, c;
       iarc >> s >> c;
-      container->clear();
+      if (capacity() != c) {
+        destroy_all();
+        container = create_new_container(c);
+      }
+      else {
+        container->clear(); 
+      }
       for (size_t i = 0;i < s; ++i) {
         value_type v;
         iarc >> v;
-        container->insert(v);
+        insert(v);
       }
     }
   }; 
