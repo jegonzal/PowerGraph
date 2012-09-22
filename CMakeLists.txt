@@ -562,8 +562,9 @@ set(CMAKE_CXX_FLAGS_RELEASE
   "-O3 -march=${MARCH} ${SSE42_FLAG} -mtune=native ${PROFILING_FLAGS} ${COMPILER_FLAGS}"
   CACHE STRING "compiler options" FORCE)
 
+set(CMAKE_REQUIRED_FLAGS ${SSE42_FLAG})
 check_cxx_source_compiles("int main(int argc, char** argv) { __builtin_ia32_crc32di(0,0);}" HAS_CRC32)
-
+set(CMAKE_REQUIRED_FLAGS "")
 if(HAS_CRC32) 
   set(CMAKE_CXX_FLAGS_RELEASE 
       "-O3 -march=${MARCH} ${SSE42_FLAG} -mtune=native ${PROFILING_FLAGS} ${COMPILER_FLAGS} -DHAS_BUILTIN_CRC32"
