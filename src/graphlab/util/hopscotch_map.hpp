@@ -113,7 +113,7 @@ namespace graphlab {
 
     // The primary storage. Used by all sequential accessors.
     container_type* container;
-    spinrwlock lock;
+    spinrwlock2 lock;
 
     // the hash function to use. hashes a pair<key, value> to hash(key)
     hash_redirect hashfun;

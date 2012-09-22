@@ -373,6 +373,9 @@ namespace graphlab {
 #define atomic_xadd(P, V) __sync_fetch_and_add((P), (V))
 #define cmpxchg(P, O, N) __sync_val_compare_and_swap((P), (O), (N))
 #define atomic_inc(P) __sync_add_and_fetch((P), 1)
+#define atomic_add(P, V) __sync_add_and_fetch((P), (V))
+#define atomic_set_bit(P, V) __sync_or_and_fetch((P), 1<<(V))
+#define cpu_relax() asm volatile("pause\n": : :"memory")
 
   /**
    * \class spinrwlock
@@ -402,7 +405,7 @@ namespace graphlab {
       unsigned me = atomic_xadd(&l.u, (1<<16));
       unsigned char val = (unsigned char)(me >> 16);
     
-      while (val != l.s.write) sched_yield();
+      while (val != l.s.write) asm volatile("pause\n": : :"memory");
       writing = true;
     }
 
@@ -421,7 +424,7 @@ namespace graphlab {
       unsigned me = atomic_xadd(&l.u, (1<<16));
       unsigned char val = (unsigned char)(me >> 16);
     
-      while (val != l.s.read) sched_yield();
+      while (val != l.s.read) asm volatile("pause\n": : :"memory");
       l.s.read++;
     }
 
@@ -435,9 +438,75 @@ namespace graphlab {
     }
   };
 
+
+
+#define RW_WAIT_BIT 0
+#define RW_WRITE_BIT 1
+#define RW_READ_BIT 2
+
+#define RW_WAIT 1
+#define RW_WRITE 2
+#define RW_READ 4
+
+  struct spinrwlock2 {
+    mutable unsigned int l;
+
+    spinrwlock2():l(0) {}
+    void writelock() const {
+      while (1) {
+        unsigned state = l;
+
+        /* No readers or writers? */
+        if (state < RW_WRITE)
+        {
+          /* Turn off RW_WAIT, and turn on RW_WRITE */
+          if (cmpxchg(&l, state, RW_WRITE) == state) return;
+
+          /* Someone else got there... time to wait */
+          state = l;
+        }
+
+        /* Turn on writer wait bit */
+        if (!(state & RW_WAIT)) atomic_set_bit(&l, RW_WAIT_BIT);
+
+        /* Wait until can try to take the lock */
+        while (l > RW_WAIT) cpu_relax();
+      }
+    }
+
+    void wrunlock() const {
+      atomic_add(&l, -RW_WRITE);
+    }
+
+    void readlock() const {
+      while (1) {
+        /* A writer exists? */
+        while (l & (RW_WAIT | RW_WRITE)) cpu_relax();
+
+        /* Try to get read lock */
+        if (!(atomic_xadd(&l, RW_READ) & (RW_WAIT | RW_WRITE))) return;
+
+        /* Undo */
+        atomic_add(&l, -RW_READ);
+      }
+    }
+
+    void rdunlock() const {
+      atomic_add(&l, -RW_READ);
+    }
+  };
+
 #undef atomic_xadd
 #undef cmpxchg
 #undef atomic_inc
+#undef atomic_set_bit
+#undef atomic_add
+#undef RW_WAIT_BIT 
+#undef RW_WRITE_BIT 
+#undef RW_READ_BIT
+#undef RW_WAIT
+#undef RW_WRITE 
+#undef RW_READ
 
 
   /**
