@@ -164,7 +164,7 @@ struct vid_vector{
       // allocate the cuckoo set if the other side is using a cuckoo set
       // or clear if I alrady have one
       if (cset == NULL) {
-        cset = new graphlab::hopscotch_set<graphlab::vertex_id_type, false>(HASH_THRESHOLD + 1);
+        cset = new graphlab::hopscotch_set<graphlab::vertex_id_type, false>(HASH_THRESHOLD);
       }
       else {
         cset->clear();
@@ -196,7 +196,7 @@ struct vid_vector{
     clear();
     if (vec.size() >= HASH_THRESHOLD) {
         // move to cset
-        cset = new graphlab::hopscotch_set<graphlab::vertex_id_type, false>(HASH_THRESHOLD + 1);
+        cset = new graphlab::hopscotch_set<graphlab::vertex_id_type, false>(HASH_THRESHOLD);
         foreach (graphlab::vertex_id_type v, vec) {
           cset->insert(v);
         }
@@ -240,7 +240,7 @@ struct vid_vector{
     iarc >> hascset;
     if (!hascset) iarc >> vid_vec;
     else {
-      cset = new graphlab::hopscotch_set<graphlab::vertex_id_type, false>(HASH_THRESHOLD + 1);
+      cset = new graphlab::hopscotch_set<graphlab::vertex_id_type, false>(HASH_THRESHOLD);
       iarc >> (*cset);
     }
   }
