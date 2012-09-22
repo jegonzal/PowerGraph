@@ -633,6 +633,7 @@ class hopscotch_table {
       equalfun = other.equalfun;
       numel = other.numel;
       mask = other.mask;
+      return *this;
     }
 
 

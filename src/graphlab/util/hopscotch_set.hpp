@@ -21,8 +21,8 @@
  *
  */
 
-#ifndef GRAPHLAB_UTIL_HOPSCOTCH_HASH_HPP 
-#define GRAPHLAB_UTIL_HOPSCOTCH_HASH_HPP 
+#ifndef GRAPHLAB_UTIL_HOPSCOTCH_SET_HPP 
+#define GRAPHLAB_UTIL_HOPSCOTCH_SET_HPP 
 
 #include <graphlab/util/hopscotch_table.hpp>
 #include <graphlab/parallel/pthread_tools.hpp>
@@ -33,10 +33,10 @@
 
 #if __cplusplus < 201103L 
 #include <boost/functional/hash.hpp>
-#define _HOPSCOTCH_MAP_DEFAULT_HASH boost::hash<Key>
+#define _HOPSCOTCH_SET_DEFAULT_HASH boost::hash<Key>
 
 #else
-#define _HOPSCOTCH_MAP_DEFAULT_HASH std::hash<Key>
+#define _HOPSCOTCH_SET_DEFAULT_HASH std::hash<Key>
 #endif
 
 
@@ -45,13 +45,12 @@ namespace graphlab {
 
 
   /**
-   * A hopscotch hash map. More or less similar
-   * interface as boost::unordered_map, not necessarily
+   * A hopscotch hash set. More or less similar
+   * interface as boost::unordered_set, not necessarily
    * entirely STL compliant.
    * Really should only be used to store small keys and trivial values.
    *
-   * \tparam Key The key of the map
-   * \tparam Value The value to store for each key
+   * \tparam Key The key of the set 
    * \tparam Synchronized Defaults to True. If True, locking is used to ensure
    *                      safe reads and writes to the hash table.
    *                      Even under "Synchronized", the only operations
@@ -63,17 +62,14 @@ namespace graphlab {
    *                  std::equal_to<Key>
    */
   template <typename Key, 
-            typename Value, 
             bool Synchronized = true,
-            typename Hash = _HOPSCOTCH_MAP_DEFAULT_HASH,
+            typename Hash = _HOPSCOTCH_SET_DEFAULT_HASH,
             typename KeyEqual = std::equal_to<Key> >
-  class hopscotch_map {
+  class hopscotch_set {
 
   public:
     // public typedefs
-    typedef Key                                      key_type;
-    typedef std::pair<Key, Value>                    value_type;
-    typedef Value                                    mapped_type;
+    typedef Key                                      value_type;
     typedef size_t                                   size_type;
     typedef Hash                                     hasher;
     typedef KeyEqual equality_function;
@@ -83,27 +79,12 @@ namespace graphlab {
     typedef const value_type& const_reference;
 
     
-    typedef std::pair<Key, Value>                    storage_type;
-
-    struct hash_redirect{
-      Hash hashfun;
-      hash_redirect(Hash h): hashfun(h) { }
-      size_t operator()(const storage_type& v) const {
-        return hashfun(v.first);
-      }
-    };
-    struct key_equal_redirect{
-      KeyEqual keyeq;
-      key_equal_redirect(KeyEqual k): keyeq(k) { }
-      bool operator()(const storage_type& v, const storage_type& v2) const {
-        return keyeq(v.first, v2.first);
-      }
-    };
+    typedef Key                    storage_type;
  
     typedef hopscotch_table<storage_type, 
                             Synchronized,
-                            hash_redirect, 
-                            key_equal_redirect> container_type;
+                            Hash, 
+                            KeyEqual> container_type;
 
     typedef typename container_type::iterator iterator;
     typedef typename container_type::const_iterator const_iterator;
@@ -116,11 +97,11 @@ namespace graphlab {
     spinrwlock lock;
 
     // the hash function to use. hashes a pair<key, value> to hash(key)
-    hash_redirect hashfun;
+    hasher hashfun;
 
     // the equality function to use. Tests equality on only the first 
     // element of the pair
-    key_equal_redirect equalfun;
+    equality_function equalfun;
 
     container_type* create_new_container(size_t size) {
       return new container_type(size, hashfun, equalfun);
@@ -169,11 +150,12 @@ namespace graphlab {
 
   public:
 
-    hopscotch_map(Hash hashfun = Hash(),
+    hopscotch_set(size_t initialsize = 128, 
+                  Hash hashfun = Hash(),
                   KeyEqual equalfun = KeyEqual()): 
                             container(NULL), 
                             hashfun(hashfun), equalfun(equalfun) {
-      container = create_new_container(128);
+      container = create_new_container(initialsize);
     }
 
     // only increases
@@ -185,19 +167,19 @@ namespace graphlab {
       }
     }
 
-    ~hopscotch_map() {
+    ~hopscotch_set() {
       destroy_all();
     }
 
     hasher hash_function() const {
-      return hashfun.hashfun;
+      return hashfun;
     }
 
     KeyEqual key_eq() const {
-      return equalfun.equalfun;
+      return equalfun;
     }
 
-    hopscotch_map& operator=(const hopscotch_map& other) {
+    hopscotch_set& operator=(const hopscotch_set& other) {
       (*container) = *(other.container);
       hashfun = other.hashfun;
       equalfun = other.equalfun;
@@ -227,7 +209,7 @@ namespace graphlab {
 
      
     std::pair<iterator, bool> insert(const value_type& v) {
-      iterator i = find(v.first);
+      iterator i = find(v);
       if (i != end()) return std::make_pair(i, false);
       else return std::make_pair(do_insert(v), true);
     }
@@ -237,18 +219,15 @@ namespace graphlab {
       return insert(v).first;
     }
 
-    iterator find(key_type const& k) {
-      value_type v(k, mapped_type());
+    iterator find(value_type const& v) {
       return container->find(v);
     }
 
-    const_iterator find(key_type const& k) const {
-      value_type v(k, mapped_type());
+    const_iterator find(value_type const& v) const {
       return container->find(v);
     }
 
-    size_t count(key_type const& k) const {
-      value_type v(k, mapped_type());
+    size_t count(value_type const& v) const {
       return container->count(v);
     }
 
@@ -257,24 +236,16 @@ namespace graphlab {
       return container->erase(iter);
     }
 
-    bool erase(key_type const& k) {
-      value_type v(k, mapped_type());
+    bool erase(value_type const& v) {
       return container->erase(v);
     }
 
-    void swap(hopscotch_map& other) {
+    void swap(hopscotch_set& other) {
       std::swap(container, other.container);
       std::swap(hashfun, other.hashfun);
       std::swap(equalfun, other.equalfun);
     }
   
-    mapped_type& operator[](const key_type& i) {
-      iterator iter = find(i);
-      value_type tmp(i, mapped_type());
-      if (iter == end()) iter = do_insert(tmp);
-      return iter->second;
-    }
-
     void clear() {
       destroy_all();
       container = create_new_container(128);
@@ -311,66 +282,6 @@ namespace graphlab {
         insert(v);
       }
     }
-
-    void put_sync(const value_type &v) {
-      if (!Synchronized) {
-        (*this)[v.first] = v.second;
-        return;
-      }
-      lock.readlock();
-      // try to insert into the container
-      if (container->put_sync(v)) {
-        // success!
-        lock.rdunlock();
-      }
-      else {
-        // fail!
-        // I may need to rehash
-        lock.rdunlock();
-        // lets get an exclusive lock and try again
-        lock.writelock();
-        // I now have exclusive, I can use the unsynchronized accessors
-        if (container->insert(v) != container->end()) {
-          // success now
-          lock.wrunlock();
-        }
-        else {
-          // rehash
-          container_type* newcontainer = rehash_to_new_container();
-          // we much succeed now!
-          assert(newcontainer->insert(v) != newcontainer->end());
-          std::swap(container, newcontainer);
-          lock.wrunlock();
-          delete newcontainer;
-        }
-      }
-    }
-
-    void put_sync(const Key& k, const Value& v) {
-      put_sync(std::make_pair(k, v)); 
-    } 
-
-    std::pair<bool, Value> get_sync(const Key& k) const {
-      if (!Synchronized) {
-        const_iterator iter = find(k);
-        return std::make_pair(iter == end(), iter->second);
-      }
-
-      lock.readlock();
-      std::pair<bool, value_type> v = 
-                container->get_sync(std::make_pair(k, mapped_type()));
-      lock.rdunlock();
-      return std::make_pair(v.first, v.second.second);
-    }      
-
-    bool erase_sync(const Key& k) {
-      if (!Synchronized) return erase(k);
-      lock.readlock();
-      bool ret = container->erase_sync(k);
-      lock.rdunlock();
-      return ret;
-    }      
-
   }; 
 
 }; // end of graphlab namespace

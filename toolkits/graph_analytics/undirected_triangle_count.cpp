@@ -24,18 +24,18 @@
 #include <boost/unordered_set.hpp>
 #include <graphlab.hpp>
 #include <graphlab/ui/metrics_server.hpp>
-#include <graphlab/util/cuckoo_set_pow2.hpp>
+#include <graphlab/util/hopscotch_set.hpp>
 #include <graphlab/macros_def.hpp>
 /**
  *  
- * In this program we implement the "hash-table" version of the
+ * In this program we implement the "hash-set" version of the
  * "edge-iterator" algorithm described in
  * 
  *    T. Schank. Algorithmic Aspects of Triangle-Based Network Analysis.
  *    Phd in computer science, University Karlsruhe, 2007.
  *
  * The procedure is quite straightforward:
- *   - each vertex maintains a list of all of its neighbors in a hash table.
+ *   - each vertex maintains a list of all of its neighbors in a hash set.
  *   - For each edge (u,v) in the graph, count the number of intersections
  *     of the neighbor set on u and the neighbor set on v.
  *   - We store the size of the intersection on the edge.
@@ -151,7 +151,7 @@ size_t HASH_THRESHOLD = 64;
 // the hash set is used. Otherwise the vector is used.
 struct vid_vector{
   std::vector<graphlab::vertex_id_type> vid_vec;
-  graphlab::cuckoo_set_pow2<graphlab::vertex_id_type, 3> *cset;
+  graphlab::hopscotch_set<graphlab::vertex_id_type, false> *cset;
   vid_vector(): cset(NULL) { }
   vid_vector(const vid_vector& v):cset(NULL) {
     (*this) = v;
@@ -164,7 +164,7 @@ struct vid_vector{
       // allocate the cuckoo set if the other side is using a cuckoo set
       // or clear if I alrady have one
       if (cset == NULL) {
-        cset = new graphlab::cuckoo_set_pow2<graphlab::vertex_id_type, 3>(-1, 0, 2 * v.cset->size());
+        cset = new graphlab::hopscotch_set<graphlab::vertex_id_type, false>(HASH_THRESHOLD + 1);
       }
       else {
         cset->clear();
@@ -196,7 +196,7 @@ struct vid_vector{
     clear();
     if (vec.size() >= HASH_THRESHOLD) {
         // move to cset
-        cset = new graphlab::cuckoo_set_pow2<graphlab::vertex_id_type, 3>(-1, 0, 2 * vec.size());
+        cset = new graphlab::hopscotch_set<graphlab::vertex_id_type, false>(HASH_THRESHOLD + 1);
         foreach (graphlab::vertex_id_type v, vec) {
           cset->insert(v);
         }
@@ -240,7 +240,7 @@ struct vid_vector{
     iarc >> hascset;
     if (!hascset) iarc >> vid_vec;
     else {
-      cset = new graphlab::cuckoo_set_pow2<graphlab::vertex_id_type, 3>(-1, 0, 2);
+      cset = new graphlab::hopscotch_set<graphlab::vertex_id_type, false>(HASH_THRESHOLD + 1);
       iarc >> (*cset);
     }
   }
@@ -610,7 +610,7 @@ int main(int argc, char** argv) {
   clopts.attach_option("format", format,
                        "The graph format");
  clopts.attach_option("ht", HASH_THRESHOLD,
-                       "Above this size, hash tables are used");
+                       "Above this size, hash sets are used");
   clopts.attach_option("per_vertex", per_vertex,
                        "If not empty, will count the number of "
                        "triangles each vertex belongs to and "
