@@ -31,6 +31,9 @@
  */
 
 
+#ifndef __DD_GRLAB_H__
+#define __DD_GRLAB_H__
+
 #include <boost/config/warning_disable.hpp>
 #include <boost/spirit/include/qi.hpp>
 #include <boost/spirit/include/phoenix_core.hpp>
@@ -78,10 +81,13 @@ double TOLERANCE = 0.01;
     
     vec potential;
 
+    vertex_data(): nvars(0)
+    {}
+    
     void load(graphlab::iarchive& arc) 
-    { arc >> card >> xmap >> potential; }
+    { arc >> cards >> xmap >> potential; }
     void save(graphlab::oarchive& arc) const 
-    { arc << card << xmap << potential; }
+    { arc << cards << xmap << potential; }
 }; // end of vertex_data
 
 
@@ -95,11 +101,14 @@ struct edge_data
     int card;
     vec message; // dual variables, lagrangian multiplier
 
+    edge_data(): varid(0), card(0)
+    {}
+    
     void load(graphlab::iarchive& arc) 
-    { arc >> varid >> message; }
+    { arc >> varid >> card >> message; }
     void save(graphlab::oarchive& arc) const 
-    { arc << varid << message; }
-}
+    { arc << varid << card << message; }
+};
 
 
 /**
@@ -117,10 +126,10 @@ void subproblem_map(graph_type::vertex_type vertex)
     vec rep_pot = vdata.potential; 
     // todo: pull in messages from neighbours (ie reparameterize)
     // for loop on neighbours
-    if (card == 1) // unary factor
-         rep_pot += edata.message;
-    else // general factor
-    {} // subtract a unary potential to a multi-dim factor
+//    if (card == 1) // unary factor
+//         rep_pot += edata.message;
+//    else // general factor
+//    {} // subtract a unary potential to a multi-dim factor
     
     // maximize over potential
     int maxid; 
@@ -133,7 +142,7 @@ void subproblem_map(graph_type::vertex_type vertex)
 
 /////////////////////////////////////////////////////////////////////////
 // Function to perform subgradient descent
-void update_duals(graph_type::edge_data edge)
+void update_duals(graph_type::edge_type edge)
 {
     // todo: get two vertices & use xmaps to update message
     // & save in xmap
@@ -143,3 +152,4 @@ void update_duals(graph_type::edge_data edge)
     
 }
 
+#endif
