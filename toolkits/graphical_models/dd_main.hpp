@@ -133,7 +133,7 @@ void loadUAIfile(graphlab::distributed_control& dc, graph_type& graph,
         << "Finished Reading UAI-Preamble:"
         << " #Nodes = " << nnodes 
         << ", #Factors = "<< nfactors 
-        << ", Average Cardinality = " << sum_of_cardinalities/nfactors
+        << ", Average Cardinality = " << double(sum_of_cardinalities)/nfactors
         << "\n";
         
         
@@ -187,10 +187,14 @@ void loadUAIfile(graphlab::distributed_control& dc, graph_type& graph,
         CHECK(in.good());
         
         // If all is well, add vertex and edges
+        cout << "adding vertex " << i << "\n";
         graph.add_vertex(i,vdata);
         if (factor_size[i] > 1) // if not a unary, add edges to unaries
             for (int j=0; j!=factor_size[i]; ++j) 
+            {
+                cout << "adding edge " << i << "," << edata[j].varid << "\n";
                 graph.add_edge(i,edata[j].varid,edata[j]);
+            }
         
         if (opts.verbose > 0)
         {
