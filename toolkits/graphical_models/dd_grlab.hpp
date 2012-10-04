@@ -99,8 +99,8 @@ struct edge_data
 {
     int varid;
     int card;
-    //vec message; // dual variables, lagrangian multiplier
-    vector<double> message;
+    vec message; // dual variables, lagrangian multiplier
+    //vector<double> message;
 
     edge_data(): varid(0), card(0)
     {}
