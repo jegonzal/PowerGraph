@@ -188,8 +188,9 @@ void loadUAIfile(graphlab::distributed_control& dc, graph_type& graph,
         CHECK(in.good());
         
         // If all is well, add vertex and edges
-        cout << "adding vertex " << i << "\n";
+        cout << "adding vertex " << i << " with " << vdata.nvars << " variables." << "\n";
         graph.add_vertex(i,vdata);
+        cout << graph.num_vertices() << " vertices so far." << endl;
         if (factor_size[i] > 1) // if not a unary, add edges to unaries
             for (int j=0; j!=factor_size[i]; ++j) 
                 graph.add_edge(i,edata[j].varid,edata[j]);

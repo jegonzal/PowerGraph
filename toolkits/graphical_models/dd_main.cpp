@@ -98,6 +98,13 @@ int main(int argc, char** argv)
     loadUAIfile(dc, graph, graph_file, opts);
     graph.finalize();
     
+    // Test subproblem_map.
+    cout << graph.num_vertices() << endl;
+    for (size_t i = 0; i < graph.num_vertices(); ++i)
+    {
+        subproblem_map(graph.vertex(i));
+    }
+
     
     /* Nothing execute right now. So no engine.
     typedef graphlab::omni_engine<bp_vertex_program> engine_type;
