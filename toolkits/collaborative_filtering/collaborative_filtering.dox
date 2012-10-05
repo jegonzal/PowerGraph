@@ -92,8 +92,9 @@ Output format for the prediction is:
 [user] [item] [rating]\n
 \endverbatim
 
-Furthermore, the linear model is saved to the files: filename.U and filename.V
-Where U and V' are the matrices which their product U*V' approximates the matrix A.
+Furthermore, the linear model is saved to the files: filename.U_X_of_Y and filename.V_X_of_Y
+Whre X is the part number and Y is the total number of parts. On default there are two parts.
+U and V' are the matrices which their product U*V' approximates the matrix A.
 Ouptut format for the linear model matrix U is:
 \verbatim
 user factor1 factor2 .. factorN \n
@@ -103,6 +104,18 @@ Ouptut format for the linear model matrix V is:
 \verbatim
 item factor1 factor2 .. factorN \n
 \endverbatim
+
+It is possible to merge the files together using the cat command. For example:
+\verbatim
+>  cat filename.U_2_of_2 >> filename.U_1_of_2
+\endverbatim
+will append the contents of part two of the matrix U into part one.
+
+It is further possible to sort the output using the user or item id using the sort command.
+\verbatim
+>  sort -g -k 1,1 filename.U_1_of_2 > filename.U.sorted
+\endverbatim
+That way each row will contain one user (for matrix U) or one item (for matrix V) feature vectors in sorted order.
 
 
 For bias-SGD and SVD++, two additional files are created: filename.bias.U and filename.bias.V
