@@ -234,8 +234,8 @@ Where r_ui is a scalar rating of user u to item i, and p_u is the user feature v
 The output of ALS is two matrices: filename.U and filename.V. The matrix U holds the user feature vectors in each row. (Each vector has exactly D columns). The matrix V holds the feature vectors for each time (Each vector has again exactly D columns). In linear algebra notation the rating matrix R ~ UV
 
 \verbatim
---lambda=XX	Gradient descent step size
---gamma=XX	Gradient descent regularization
+--gamma=XX	Gradient descent step size
+--lambda=XX	Gradient descent regularization
 --step_dec=XX	Multiplicative step decrease. Should be between 0.1 to 1. Default is 0.9.
 --D=X		Feature vector width. Common values are 20 - 150.
 --max_iter=XX	Max number of iterations
@@ -352,8 +352,8 @@ Where global_mean_rating is the global mean rating, b_u is the bias of user u, b
 The output of bias-SGD consists of two matrices: filename.U and filename.V. The matrix U holds the user feature vectors in each row. (Each vector has exactly D columns). The matrix V holds the feature vectors for each time (Each vector has again exactly D columns). Additionally, the output consists of two vectors: bias for each user, bias for each item. Last, the global mean rating is also given as output.
 
 \verbatim
---lambda=XX	Gradient descent step size
---gamma=XX	Gradient descent regularization
+--gamma=XX	Gradient descent step size
+--lambda=XX	Gradient descent regularization
 --step_dec=XX	Multiplicative step decrease. Should be between 0.1 to 1. Default is 0.9
 --D=X		Feature vector width. Common values are 20 - 150.
 --max_iter=XX	Max number of iterations
