@@ -747,4 +747,5 @@ Namely, the deviation of the approximation sigma(i) u_i  from Av_i , and vice ve
 \li Ramakrishnan Kannan, Georgia Tech, for helping debugging and simplifying usage.
 \li Charles Martin, GLG, for debugging NMF.
 \li Alex Hasha, bundle.com for improving SGD and bias-SGD documentation and usability.
+\li Zhao Yu (Jason Chao), douban.com, for identifying SGD/bias-SGD bugs.
 */
