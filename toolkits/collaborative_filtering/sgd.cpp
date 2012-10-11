@@ -261,9 +261,9 @@ class sgd_vertex_program :
           //for training edges, update the linear model
           if (edge.data().role == edge_data::TRAIN){
             //compute the change in gradient for this user node
-            delta = -GAMMA*(err*other_vertex.data().pvec - LAMBDA*vertex.data().pvec);
+            delta = -GAMMA*(err*other_vertex.data().pvec + LAMBDA*vertex.data().pvec);
             //compute the change in gradient for this item node
-            other_delta = -GAMMA*(err*vertex.data().pvec - LAMBDA*other_vertex.data().pvec);
+            other_delta = -GAMMA*(err*vertex.data().pvec + LAMBDA*other_vertex.data().pvec);
 
             //heuristic: update the current gradient with the change (this change is discarded when this function exists)
             my_vertex.data().pvec += delta;
