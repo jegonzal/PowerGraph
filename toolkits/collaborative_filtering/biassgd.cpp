@@ -302,6 +302,7 @@ public:
     vertex_data& vdata = vertex.data(); 
     if (sum.pvec.size() > 0){
       vdata.pvec += sum.pvec; 
+      vdata.bias += sum.bias;
       assert(vertex.num_in_edges() == 0);
     }
     else if (pmsg.pvec.size() > 0){
