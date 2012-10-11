@@ -265,8 +265,8 @@ public:
         logstream(LOG_FATAL)<<"Got into numeric errors.. try to tune step size and regularization using --lambda and --gamma flags" << std::endl;
       if (edge.data().role == edge_data::TRAIN){
 
-        bias = -GAMMA*(err - LAMBDA*bias);
-        other_bias = -GAMMA*(err - LAMBDA* other_bias);
+        bias = -GAMMA*(err - LAMBDA*my_vertex.data().bias);
+        other_bias = -GAMMA*(err - LAMBDA* other_vertex.data().bias);
          
         delta = -GAMMA*(err*other_vertex.data().pvec - LAMBDA*vertex.data().pvec);
         other_delta = -GAMMA*(err*vertex.data().pvec - LAMBDA*other_vertex.data().pvec);
