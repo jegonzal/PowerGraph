@@ -424,7 +424,7 @@ if(NOT NO_JAVAC)
       UPDATE_COMMAND chmod +x <SOURCE_DIR>/src/c++/libhdfs/install-sh <SOURCE_DIR>/src/c++/libhdfs/configure
       PATCH_COMMAND patch -N -p1 -i ${GraphLab_SOURCE_DIR}/patches/libhdfs-compile-osx.patch || true
       BUILD_IN_SOURCE 1
-      CONFIGURE_COMMAND <SOURCE_DIR>/src/c++/libhdfs/configure --prefix=<INSTALL_DIR> --with-java=${JAVA_HOME} --enable-shared=yes --enable-static=yes
+      CONFIGURE_COMMAND <SOURCE_DIR>/src/c++/libhdfs/configure JVM_ARCH=tune=generic --prefix=<INSTALL_DIR> --with-java=${JAVA_HOME} --enable-shared=yes --enable-static=yes
       INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local
       TEST_COMMAND bash -c "mkdir -p <INSTALL_DIR>/include && cp <SOURCE_DIR>/src/c++/libhdfs/hdfs.h <INSTALL_DIR>/include")
     set(HADOOP_FOUND 1 CACHE BOOL "Hadoop was found")

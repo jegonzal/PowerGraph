@@ -7,5 +7,6 @@ add_graphlab_executable(pagerank pagerank.cpp)
 add_graphlab_executable(kcore kcore.cpp)
 add_graphlab_executable(format_convert format_convert.cpp)
 add_graphlab_executable(sssp sssp.cpp)
+add_graphlab_executable(concomp concomp.cpp)
 add_graphlab_executable(simple_coloring simple_coloring.cpp)
 
