@@ -8,5 +8,5 @@ else
   rm -f deps/local/lib/libboost*.so deps/local/lib/libhdfs*.so deps/local/lib/libtcmalloc*.so deps/local/lib/libevent*.so
   rm -f deps/local/lib/libboost*.dylib deps/local/lib/libhdfs*.dylib deps/local/lib/libtcmalloc*.dylib deps/local/lib/libevent*.dylib
   cd release
-  make
+  make -j2
 fi
