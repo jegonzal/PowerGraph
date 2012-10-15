@@ -422,9 +422,9 @@ if(NOT NO_JAVAC)
 #      URL http://www.gtlib.gatech.edu/pub/apache/hadoop/common/hadoop-1.0.1/hadoop-1.0.1.tar.gz
       URL_MD5 e627d9b688c4de03cba8313bd0bba148
       UPDATE_COMMAND chmod +x <SOURCE_DIR>/src/c++/libhdfs/install-sh <SOURCE_DIR>/src/c++/libhdfs/configure
-      PATCH_COMMAND patch -N -p1 -i ${GraphLab_SOURCE_DIR}/patches/libhdfs-compile-osx.patch || true
+      PATCH_COMMAND patch -N -p1 -i ${GraphLab_SOURCE_DIR}/patches/libhdfs.patch || true
       BUILD_IN_SOURCE 1
-      CONFIGURE_COMMAND <SOURCE_DIR>/src/c++/libhdfs/configure JVM_ARCH=tune=generic --prefix=<INSTALL_DIR> --with-java=${JAVA_HOME} --enable-shared=yes --enable-static=yes
+      CONFIGURE_COMMAND <SOURCE_DIR>/src/c++/libhdfs/configure JVM_ARCH=tune=generic --prefix=<INSTALL_DIR> --with-java=${JAVA_HOME} --enable-shared=no --enable-static=yes
       INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local
       TEST_COMMAND bash -c "mkdir -p <INSTALL_DIR>/include && cp <SOURCE_DIR>/src/c++/libhdfs/hdfs.h <INSTALL_DIR>/include")
     set(HADOOP_FOUND 1 CACHE BOOL "Hadoop was found")
@@ -572,7 +572,7 @@ check_cxx_source_compiles("int main(int argc, char** argv) { __builtin_ia32_crc3
 set(CMAKE_REQUIRED_FLAGS "")
 if(HAS_CRC32) 
   set(CMAKE_CXX_FLAGS_RELEASE 
-      "-O3 -march=${MARCH} ${SSE42_FLAG} -mtune=${MTUNE} ${PROFILING_FLAGS} ${COMPILER_FLAGS} -DHAS_BUILTIN_CRC32"
+      "${CMAKE_CXX_FLAGS_RELEASE} -DHAS_BUILTIN_CRC32"
       CACHE STRING "compiler options" FORCE)
 endif()
 
