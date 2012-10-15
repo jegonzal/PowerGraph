@@ -440,7 +440,10 @@ endif()
 
 # MPI =========================================================================
 # MPI is currently used to establish communication between rpc nodes
+if(NOT NO_MPI) 
 find_package(MPICH2)
+endif()
+
 if(MPI_FOUND)
   message(STATUS "MPI Found: " ${MPI_LIBRARY} ${MPI_EXTRA_LIBRARY})
   add_definitions(-DHAS_MPI)
@@ -505,18 +508,17 @@ set(CMAKE_REQUIRED_LIBRARIES "pthread")
 check_function_exists(pthread_setaffinity_np HAS_SET_AFFINITY) 
 set(CMAKE_REQUIRED_LIBRARIES ${crlbackup})  
 
+include(CheckCXXCompilerFlag)
 ## ============================================================================
-# architecture detection. check 64 bit
-# TODO: do we need this or is there a cleaner way to do this in CMake
-if(CMAKE_SIZEOF_VOID_P MATCHES 4)
-  set( HAVE_64_BIT 0 )
-else(CMAKE_SIZEOF_VOID_P MATCHES 4)
-  set( HAVE_64_BIT 1 )
-endif(CMAKE_SIZEOF_VOID_P MATCHES 4)
-if (HAVE_64_BIT MATCHES 1)
-  set(MARCH "x86-64")
-else()
-  set(MARCH "i686")
+# check if MARCH is set
+if (NOT MARCH)
+  #set to native if supported
+  check_cxx_compiler_flag(-march=native HAS_MARCH_NATIVE)
+  if(HAS_MARCH_NATIVE)
+    set(MARCH "native")
+  else()
+    set(MARCH "x86-64")
+  endif()
 endif()
 
 
@@ -540,11 +542,14 @@ else()
 endif()
 
 # check for SSE instruction set (needed for CRC32)
-include(CheckCXXCompilerFlag)
 check_cxx_compiler_flag(-msse4.2 HAS_SSE42)
 set(SSE42_FLAG "")
 if (HAS_SSE42) 
  set(SSE42_FLAG "-msse4.2")
+endif()
+
+if(NOT MTUNE)
+  set(MTUNE "native")
 endif()
 
 # Set the debug flags
@@ -556,10 +561,10 @@ set(CMAKE_CXX_FLAGS_DEBUG
   CACHE STRING "compiler options" FORCE) 
 
 set(CMAKE_C_FLAGS_RELEASE 
-  "-O3 -march=${MARCH} -mtune=native ${PROFILING_FLAGS} ${COMPILER_FLAGS}"
+  "-O3 -march=${MARCH} -mtune=${MTUNE} ${PROFILING_FLAGS} ${COMPILER_FLAGS}"
   CACHE STRING "compiler options" FORCE)
 set(CMAKE_CXX_FLAGS_RELEASE 
-  "-O3 -march=${MARCH} ${SSE42_FLAG} -mtune=native ${PROFILING_FLAGS} ${COMPILER_FLAGS}"
+  "-O3 -march=${MARCH} ${SSE42_FLAG} -mtune=${MTUNE} ${PROFILING_FLAGS} ${COMPILER_FLAGS}"
   CACHE STRING "compiler options" FORCE)
 
 set(CMAKE_REQUIRED_FLAGS ${SSE42_FLAG})
@@ -567,7 +572,7 @@ check_cxx_source_compiles("int main(int argc, char** argv) { __builtin_ia32_crc3
 set(CMAKE_REQUIRED_FLAGS "")
 if(HAS_CRC32) 
   set(CMAKE_CXX_FLAGS_RELEASE 
-      "-O3 -march=${MARCH} ${SSE42_FLAG} -mtune=native ${PROFILING_FLAGS} ${COMPILER_FLAGS} -DHAS_BUILTIN_CRC32"
+      "-O3 -march=${MARCH} ${SSE42_FLAG} -mtune=${MTUNE} ${PROFILING_FLAGS} ${COMPILER_FLAGS} -DHAS_BUILTIN_CRC32"
       CACHE STRING "compiler options" FORCE)
 endif()
 
