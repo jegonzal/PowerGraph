@@ -23,9 +23,6 @@
 
 #include <stddef.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif // __cplusplus
 
 struct mg_context;     // Handle for the HTTP service itself
 struct mg_connection;  // Handle for the individual connection
@@ -231,8 +228,5 @@ const char *mg_version(void);
 void mg_md5(char *buf, ...);
 
 
-#ifdef __cplusplus
-}
-#endif // __cplusplus
 
 #endif // MONGOOSE_HEADER_INCLUDED
