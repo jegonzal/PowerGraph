@@ -12,10 +12,9 @@ diff -rupN hadoop-1.0.1_old/src/c++/libhdfs/hdfsJniHelper.c hadoop-1.0.1/src/c++
  
  static pthread_mutex_t hdfsHashMutex = PTHREAD_MUTEX_INITIALIZER;
 
-diff --git a/src/c++/libhdfs/configure b/src/c++/libhdfs/configure
-index c26cb7b..4374608 100644
---- a/src/c++/libhdfs/configure
-+++ b/src/c++/libhdfs/configure
+diff -rupN hadoop-1.0.1_old/src/c++/libhdfs/configure hadoop-1.0.1/src/c++/libhdfs/configure
+--- hadoop-1.0.1_old/src/c++/libhdfs/configure
++++ hadoop-1.0.1/src/c++/libhdfs/configure
 @@ -12038,7 +12038,7 @@ echo "${ECHO_T}ohh u there ... $LIB_JVM_DIR" >&6; }
  if test "$supported_os" != "darwin"
  then
@@ -25,10 +24,10 @@ index c26cb7b..4374608 100644
    { echo "$as_me:$LINENO: result: VALUE OF JVM_ARCH IS :$JVM_ARCH" >&5
  echo "${ECHO_T}VALUE OF JVM_ARCH IS :$JVM_ARCH" >&6; }
  fi
-diff --git a/src/c++/libhdfs/configure.ac b/src/c++/libhdfs/configure.ac
-index cb46365..f646215 100644
---- a/src/c++/libhdfs/configure.ac
-+++ b/src/c++/libhdfs/configure.ac
+
+diff -rupN hadoop-1.0.1_old/src/c++/libhdfs/configure.ac hadoop-1.0.1/src/c++/libhdfs/configure.ac
+--- hadoop-1.0.1_old/src/c++/libhdfs/configure.ac
++++ hadoop-1.0.1/src/c++/libhdfs/configure.ac
 @@ -80,7 +80,7 @@ AP_JVM_LIBDIR()
  if test "$supported_os" != "darwin"
  then
