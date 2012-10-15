@@ -375,7 +375,7 @@ ExternalProject_Add(libjson
   CONFIGURE_COMMAND ""
   PATCH_COMMAND patch -N -p1 -i ${GraphLab_SOURCE_DIR}/patches/libjson.patch || true
   BUILD_COMMAND make
-  INSTALL_COMMAND prefix=<INSTALL_DIR> make install 
+  INSTALL_COMMAND prefix=<INSTALL_DIR>/ make install 
   INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local
   )
 
