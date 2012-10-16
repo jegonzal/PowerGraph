@@ -45,6 +45,7 @@
 // This file defines the serialization code for the eigen types.
 #include "eigen_serialization.hpp"
 #include "eigen_wrapper.hpp"
+#include "stats.hpp"
 #include <graphlab.hpp>
 #include <graphlab/util/stl_util.hpp>
 
@@ -164,6 +165,20 @@ struct edge_data : public graphlab::IS_POD_TYPE {
  * data.
  */ 
 typedef graphlab::distributed_graph<vertex_data, edge_data> graph_type;
+
+#include "implicit.hpp"
+
+stats_info count_edges(const graph_type::edge_type & edge){
+  stats_info ret;
+
+  if (edge.data().role == edge_data::TRAIN)
+     ret.training_edges = 1;
+  else if (edge.data().role == edge_data::VALIDATE)
+     ret.validation_edges = 1;
+  ret.max_user = (size_t)edge.source().id();
+  ret.max_item = (size_t)edge.target().id();
+  return ret;
+}
 
 
 /**
@@ -461,32 +476,29 @@ struct error_aggregator : public graphlab::IS_POD_TYPE {
   typedef als_vertex_program::icontext_type icontext_type;
   typedef graph_type::edge_type edge_type;
   double train_error, validation_error;
-  size_t ntrain, nvalidation;
   error_aggregator() : 
-    train_error(0), validation_error(0), ntrain(0), nvalidation(0) { }
+    train_error(0), validation_error(0) { }
+
   error_aggregator& operator+=(const error_aggregator& other) {
     train_error += other.train_error;
     validation_error += other.validation_error;
-    ntrain += other.ntrain;
-    nvalidation += other.nvalidation;
     return *this;
   }
   static error_aggregator map(icontext_type& context, const graph_type::edge_type& edge) {
     error_aggregator agg;
     if(edge.data().role == edge_data::TRAIN) {
-      agg.train_error = extract_l2_error(edge); agg.ntrain = 1;
+      agg.train_error = extract_l2_error(edge);
     } else if(edge.data().role == edge_data::VALIDATE) {
-      agg.validation_error = extract_l2_error(edge); agg.nvalidation = 1;
+      agg.validation_error = extract_l2_error(edge); 
     }
     return agg;
   }
   static void finalize(icontext_type& context, const error_aggregator& agg) {
-    ASSERT_GT(agg.ntrain, 0);
-    const double train_error = std::sqrt(agg.train_error / agg.ntrain);
+    const double train_error = std::sqrt(agg.train_error / info.training_edges);
     context.cout() << context.elapsed_seconds() << "\t" << train_error;
-    if(agg.nvalidation > 0) {
+    if (info.validation_edges > 0) {
       const double validation_error = 
-        std::sqrt(agg.validation_error / agg.nvalidation);
+        std::sqrt(agg.validation_error / info.validation_edges);
       context.cout() << "\t" << validation_error; 
     }
     context.cout() << std::endl;
@@ -615,6 +627,9 @@ int main(int argc, char** argv) {
   //                      "are in a different range allowing user 0 to connect to movie 0");
   clopts.attach_option("output", output_dir,
                        "Output results");
+  
+  parse_implicit_command_line(clopts);
+  
   if(!clopts.parse(argc, argv)) {
     std::cout << "Error in parsing command line arguments." << std::endl;
     return EXIT_FAILURE;
@@ -638,6 +653,10 @@ if (algorithm != SPARSE_USR_FACTOR && algorithm != SPARSE_BOTH_FACTORS && algori
   graph.load(input_dir, graph_loader); 
   dc.cout() << "Loading graph. Finished in " 
             << timer.current_time() << std::endl;
+
+  if (dc.procid() == 0) 
+    add_implicit_edges<edge_data>(implicitratingtype, graph, dc);
+
   dc.cout() << "Finalizing graph." << std::endl;
   timer.start();
   graph.finalize();
@@ -676,6 +695,9 @@ if (algorithm != SPARSE_USR_FACTOR && algorithm != SPARSE_BOTH_FACTORS && algori
 
   // Signal all vertices on the vertices on the left (liberals) 
   engine.map_reduce_vertices<graphlab::empty>(als_vertex_program::signal_left);
+  info = graph.map_reduce_edges<stats_info>(count_edges);
+  dc.cout()<<"Training edges: " << info.training_edges << " validation edges: " << info.validation_edges << std::endl;
+
  
 
   dc.cout() << "Running Sparse-ALS" << std::endl;

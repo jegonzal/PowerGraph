@@ -37,6 +37,7 @@
 #include "eigen_serialization.hpp"
 #include <graphlab/macros_def.hpp>
 #include <graphlab/util/timer.hpp>
+#include "stats.hpp"
 
 typedef Eigen::VectorXd vec;
 typedef Eigen::MatrixXd mat_type;
@@ -129,7 +130,11 @@ struct edge_data : public graphlab::IS_POD_TYPE {
  * data.
  */ 
 typedef graphlab::distributed_graph<vertex_data, edge_data> graph_type;
+
+
+
 double extract_l2_error(const graph_type::edge_type & edge);
+
 
 /**
  * \brief Given a vertex and an edge return the other vertex in the
@@ -499,8 +504,10 @@ int main(int argc, char** argv) {
 
   dc.cout() << "Creating engine" << std::endl;
   engine_type engine(dc, graph, exec_type, clopts);
+  dc.cout()<<"Training edges: " << info.training_edges << " validation edges: " << info.validation_edges << std::endl;
 
-  // Run the PageRank ---------------------------------------------------------
+
+  // Run the NMF ---------------------------------------------------------
   dc.cout() << "Running NMF" << std::endl;
   dc.cout() << "(C) Code by Danny Bickson, CMU " << std::endl;
   dc.cout() << "Please send bug reports to danny.bickson@gmail.com" << std::endl;

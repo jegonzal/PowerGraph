@@ -132,6 +132,9 @@ struct edge_data : public graphlab::IS_POD_TYPE {
  * data.
  */ 
 typedef graphlab::distributed_graph<vertex_data, edge_data> graph_type;
+
+#include "implicit.hpp"
+
 double extract_l2_error(const graph_type::edge_type & edge);
 
 
@@ -689,8 +692,10 @@ int main(int argc, char** argv) {
   clopts.attach_option("interval", interval, "The time in seconds between error reports");
   clopts.attach_option("predictions", predictions,
       "The prefix (folder and filename) to save predictions.");
-  clopts.attach_option("output", output_dir,
-      "Output results");
+  clopts.attach_option("output", output_dir, "Output results");
+
+  parse_implicit_command_line(clopts);
+
   if(!clopts.parse(argc, argv)) {
     std::cout << "Error in parsing command line arguments." << std::endl;
     return EXIT_FAILURE;
@@ -707,6 +712,10 @@ int main(int argc, char** argv) {
   graph.load(input_dir, graph_loader); 
   dc.cout() << "Loading graph. Finished in " 
     << timer.current_time() << std::endl;
+ 
+  if (dc.procid() == 0) 
+    add_implicit_edges<edge_data>(implicitratingtype, graph, dc);
+
   dc.cout() << "Finalizing graph." << std::endl;
   timer.start();
   graph.finalize();
