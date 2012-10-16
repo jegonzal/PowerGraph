@@ -719,7 +719,7 @@ sqrt( ||Av_i - sigma(i) u_i ||_2^2 + ||A^Tu_i - sigma(i) V_i ||_2^2 ) / sigma(i)
 
 Namely, the deviation of the approximation sigma(i) u_i  from Av_i , and vice versa.
 
-\subsection SVD2 "Scalability|
+\subsection SVD2 "Scalability"
  Currently the code was tested with up to 3.5 billion non-zeros on a 24 core machine. Each Lanczos iteration takes about 30 seconds. 
 
 \subsection SVD3 "Difference to Mahout"
@@ -728,6 +728,38 @@ Namely, the deviation of the approximation sigma(i) u_i  from Av_i , and vice ve
 2) In Mahout there is a single orthonornalization step in each iteration while in our implementation there are two (after computation of u_i and after v_i ).
 3) In Mahout there is no error estimation while we provide for each singular value the approximated error.
 4) Our solution is typically x100 times faster than Mahout.
+
+\section Implicit "Implicit Ratings"
+Implicit rating handles the case where we have only positive examples (for example when a user bought a certain product) but we never have indication when a user DID NOT buy another product. The following paper 
+\verbatim
+Pan, Yunhong Zhou, Bin Cao, Nathan N. Liu, Rajan Lukose, Martin Scholz, and Qiang Yang. 2008. One-Class Collaborative Filtering. In Proceedings of the 2008 Eighth IEEE International Conference on Data Mining (ICDM '08). IEEE Computer Society, Washington, DC, USA, 502-511. 
+\endverbatim
+proposes to add negative examples at random for unobserved user/item pairs. Implicit rating is implemented in the collaborative filtering library and can be used with any of the algorithms explained above. 
+
+\verbatim
+--implicitratingtype=1  Adds implicit ratings at random
+--implicitratingpercentage  A number between 1e-8 to 0.8  which determines what is the percentage of edges to add to the sparse model. 0 means none while 1 means fully dense model. 
+--implicitratingvalue   The value of the rating added. On default it is zero, but you can change it. 
+--implicitratingweight  Weight of the implicit rating (for WALS) OR
+Time of the explicit rating (for tensor algorithms)
+--users - the number of users. Note that users have to have consecutive ids between 1 and users.
+--items - the number of items. Note that items have to have consecutive ids between 1 and items.
+\endverbatim
+
+Example for adding implicit ratings:
+\verbatim
+./als --matrix=smallnetflix/ --users=95526 --items=3561 --implicitratingtype=1 --implicitratingpercentage=0.01
+TCP Communication layer constructed.
+Loading graph.
+INFO:     distributed_graph.hpp(load_from_posixfs:1823): Loading graph from file: smallnetflix/smallnetflix_mm.train
+INFO:     distributed_graph.hpp(load_from_posixfs:1823): Loading graph from file: smallnetflix/smallnetflix_mm.validate
+Loading graph. Finished in 1.17598
+Going to add: 3401680 implicit edges. users: 95526 items: 3561
+Finished adding 3401680 implicit edges. 
+Finalizing graph.
+INFO:     distributed_ingress_base.hpp(finalize:166): Finalizing Graph...
+^C
+\endverbatim
 
 \section Acknowledgements Acknowledgements
 \li Liang Xiong, CMU for providing the Matlab code of BPTF, numerous discussions and infinite support!! Thanks!!
