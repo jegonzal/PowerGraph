@@ -566,8 +566,9 @@ class sgd_vertex_program :
         
         parse_implicit_command_line(clopts);
 
-        if(!clopts.parse(argc, argv)) {
+        if(!clopts.parse(argc, argv) || input_dir == "") {
           std::cout << "Error in parsing command line arguments." << std::endl;
+          clopts.print_description();
           return EXIT_FAILURE;
         }
         debug = sgd_vertex_program::debug;

@@ -630,8 +630,9 @@ int main(int argc, char** argv) {
   
   parse_implicit_command_line(clopts);
   
-  if(!clopts.parse(argc, argv)) {
+  if(!clopts.parse(argc, argv) || input_dir == "") {
     std::cout << "Error in parsing command line arguments." << std::endl;
+    clopts.print_description();
     return EXIT_FAILURE;
   }
   if (user_sparsity < 0.5 || user_sparsity >= 1)

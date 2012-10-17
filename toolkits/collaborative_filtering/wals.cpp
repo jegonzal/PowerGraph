@@ -599,8 +599,9 @@ int main(int argc, char** argv) {
   //                      "are in a different range allowing user 0 to connect to movie 0");
   clopts.attach_option("output", output_dir,
                        "Output results");
-  if(!clopts.parse(argc, argv)) {
+  if(!clopts.parse(argc, argv) || input_dir == "") {
     std::cout << "Error in parsing command line arguments." << std::endl;
+    clopts.print_description();
     return EXIT_FAILURE;
   }
 
