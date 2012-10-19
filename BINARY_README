@@ -1,0 +1,106 @@
+
+                         Graphlab Binary Release
+                         -----------------------
+
+=======
+License
+=======
+
+GraphLab is free software licensed under the Apache 2.0 License. See
+license/LICENSE.txt for details.
+
+============
+Introduction
+============
+
+GraphLab is a graph-based, high performance, distributed computation framework
+written in C++.  
+
+GraphLab Features:
+
+Unified multicore/
+distributed API:       write once run anywhere 
+
+Tuned for performance: optimized C++ execution engine leverages extensive 
+                       multi-threading and asynchronous IO 
+
+Scalable:              Run on large cluster deployments by
+                       intelligently placing data and computation 
+
+HDFS Integration:      Access your data directly from HDFS 
+
+Powerful Machine 
+Learning Toolkits:     Tackle challenging machine 
+                       learning problems with ease
+
+
+For more details on the GraphLab see http://graphlab.org, including
+documentation, tutorial, etc.
+
+The source code and documentation for all applications can be found at 
+http://docs.graphlab.org/toolkits.html
+
+
+========
+Mac OS X
+========
+The Mac OS X build is restricted and is compiled without HDFS support, nor
+distributed capabilities. All toolkits therefore run entirely on one machine
+in shared memory.
+
+These binaries have been tested to run on OS X 10.6 or greater. Though they
+may work on 10.5 as well. Please let us know if you encounter any issues.
+
+=====
+Linux
+=====
+The Linux builds are more complex due to varying glibc versions as well as the
+need to support both OpenMPI and MPICH2. Two binary releases are provided, one
+for OpenMPI and one for MPICH2. Please obtain the package matching the MPI 
+library you have on your cluster: they are not compatible.
+
+Each binary is paired with a matching shell script which sets up the
+execution environment (by forcing the load of provided versions of system
+binaries). Several environment variables are used to control the process. 
+
+  JAVA_HOME
+     Either JAVA_HOME or JVM_SO_PATH must be set. 
+     This must point to the Java home directory.
+     For instance: /usr/lib/jvm/java-6-openjdk
+     This was tested with Oracle's implementation of Java (sun-jdk or open-jdk).
+
+  JVM_SO_PATH
+     Either JAVA_HOME or JVM_SO_PATH must be set. 
+     Optional. The script will expect to find libjvm.so in 
+     $JAVA_HOME/jre/lib/amd64/client/libjvm.so or
+     $JAVA_HOME/jre/lib/amd64/server/libjvm.so
+     If libjvm.so is not in either locations, the script will fail. In which 
+     case, you should set this variable to the directory containing libjvm.so.
+
+  USE_SYSTEM_LIBS
+     Optional. If set, the system's glibc (and other system dependencies) 
+     will be used instead of the provided versions. 
+
+
+HDFS Capability is compiled in. If HDFS is to be used, the 
+"hadoop" command must be available.
+
+=============
+Build Details
+=============
+
+Mac Build:
+Compiled on OS X 10.8
+Apple clang version 4.0 (tags/Apple/clang-421.0.57) (based on LLVM 3.1svn)
+-O3 -march=x86-64 -msse4.2 -mtune=generic  -mmacosx-version-min=10.5 
+
+Linux Build:
+To support maximal compatibility, this was compiled on an 
+old Linux distribution.
+
+Compiled on Ubuntu 9.04, GCC 4.3.3
+-O3 -march=x86-64 -msse4.2 -mtune=generic 
+
+OpenMPI: 1.3.2
+MPICH2: 1.5
+
