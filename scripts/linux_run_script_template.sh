@@ -53,6 +53,9 @@ elif [ ! -z "$JAVA_HOME" ]; then
     echo 'or $JAVA_HOME/jre/lib/amd64/client'
     echo "We are going to try to run anyway. This may not work correctly."
   fi
+else
+  echo "Neither JVM_PATH or JAVA_HOME is set."
+  echo "We are going to try to run anyway. This may not work correctly."
 fi
 
 # probe for hadoop command

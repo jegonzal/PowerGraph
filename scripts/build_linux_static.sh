@@ -48,7 +48,7 @@ do
     if [[ $depname == "libjvm.so" ]]; then
       continue
     fi
-    if [ ! -a "$rootdirname/gldeps/$depname" ]; then
+    if [ ! -f "$rootdirname/gldeps/$depname" ]; then
       echo "Copying $dep"
       cp "$dep" "$rootdirname/gldeps/"
       cp "$dep" "$unstrippeddirname/gldeps/"
