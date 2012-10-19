@@ -14,7 +14,7 @@ if grep -q openmpi config.log
 then
   rootdirname="graphlab_openmpi"
   unstrippeddirname="graphlab_openmpi_unstripped"
-elif grep -q mpich2 config.log
+elif grep -q mpich config.log
 then
   rootdirname="graphlab_mpich2"
   unstrippeddirname="graphlab_mpich2_unstripped"

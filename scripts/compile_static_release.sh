@@ -8,5 +8,15 @@ else
   rm -f deps/local/lib/libboost*.so deps/local/lib/libhdfs*.so deps/local/lib/libtcmalloc*.so deps/local/lib/libevent*.so
   rm -f deps/local/lib/libboost*.dylib deps/local/lib/libhdfs*.dylib deps/local/lib/libtcmalloc*.dylib deps/local/lib/libevent*.dylib
   cd release
-  make -j2
+
+  for file in `cat ../scripts/binary_list.txt`
+  do
+    pushd .
+    dname=`dirname $file`
+    fname=`basename $file`
+    cd $dname
+    make -j2 $fname
+    popd
+  done
+
 fi
