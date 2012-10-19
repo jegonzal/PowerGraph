@@ -37,13 +37,17 @@ do
   dname=`dirname $file`
   fname=`basename $file`
 
-  deps=$(ldd $file | awk 'BEGIN{ORS=" "}$1 \
+  deps=$(ldd release/$file | awk 'BEGIN{ORS=" "}$1 \
       ~/^\//{print $1}$3~/^\//{print $3}' \
        | sed 's/,$/\n/')
 
   for dep in $deps
   do
     depname=`basename $dep`
+    # definitely exclude jvm
+    if [[ $depname == "libjvm.so" ]]; then
+      continue
+    fi
     if [ ! -a "$rootdirname/gldeps/$depname" ]; then
       echo "Copying $dep"
       cp "$dep" "$rootdirname/gldeps/"
@@ -74,5 +78,9 @@ mkdir $unstrippeddirname/license
 cp license/LICENSE.txt $unstrippeddirname/license/
 
 #copy the README
-cp BINARY_README $rootdirname/
-cp BINARY_README $unstrippeddirname/
+cp BINARY_README $rootdirname/README
+cp BINARY_README $unstrippeddirname/README
+
+#pack
+tar -cjvf $rootdirname.tar.bz2 $rootdirname
+tar -cjvf $unstrippeddirname.tar.bz2 $unstrippeddirname

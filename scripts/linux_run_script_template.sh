@@ -69,7 +69,7 @@ fi
 if [ "$USE_SYSTEM_LIBS" -eq "1" ]; then
   echo "Using system libs."
   #using system libs
-  if HAS_HADOOP; then
+  if [ $HAS_HADOOP -eq 1 ]; then
     env LD_LIBRARY_PATH=$JVM_PATH CLASSPATH=`hadoop classpath` $PROG $*
   else
     env LD_LIBRARY_PATH=$JVM_PATH $PROG $*
@@ -83,14 +83,14 @@ else
   DEPDIR="$PROGDIR/../../gldeps"
 
   LIBPATH=$DEPDIR
-  if [ ! -z "JVM_PATH"]; then
+  if [ ! -z "$JVM_PATH"]; then
     LIBPATH=$LIBPATH:$JVM_PATH
   fi
 
-  if HAS_HADOOP; then
-    $DEPDIR/ld-linux-x86-64.so.2 --library-path=$LIBPATH CLASSPATH=`hadoop classpath` $PROG $*
+  if [ $HAS_HADOOP -eq 1 ]; then
+    $DEPDIR/ld-linux-x86-64.so.2 --library-path $LIBPATH CLASSPATH=`hadoop classpath` $PROG $*
   else
-    $DEPDIR/ld-linux-x86-64.so.2 --library-path=$LIBPATH $PROG $*
+    $DEPDIR/ld-linux-x86-64.so.2 --library-path $LIBPATH $PROG $*
   fi
 fi
 
