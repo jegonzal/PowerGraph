@@ -86,7 +86,7 @@ else
   DEPDIR="$PROGDIR/../../gldeps"
 
   LIBPATH=$DEPDIR
-  if [ ! -z "$JVM_PATH"]; then
+  if [ ! -z "$JVM_PATH" ]; then
     LIBPATH=$LIBPATH:$JVM_PATH
   fi
 
