@@ -11,6 +11,8 @@ popd
 ./configure --no_jvm -D NO_MPI:BOOL=true -D COMPILER_FLAGS="-mmacosx-version-min=10.5" -D MARCH=x86-64 -D MTUNE=generic
 scripts/compile_static_release.sh
 
+echo "Packaging binary release..."
+
 # now package a binary release
 # for whatever reason the mac binaries are quite small... 
 # stripping not necessary
@@ -30,4 +32,7 @@ mkdir $rootdirname/license
 cp license/LICENSE.txt $rootdirname/license/
 
 #copy the README
-cp BINARY_README $rootdirname/
+cp BINARY_README $rootdirname/README
+
+echo "Binary release packaged in $rootdirname"
+tar -cjvf $rootdirname.tar.bz2 $rootdirname
