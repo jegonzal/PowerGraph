@@ -542,8 +542,9 @@ int main(int argc, char** argv) {
   clopts.attach_option("cols", cols, "number of cols");
   clopts.attach_option("no_edge_data", no_edge_data, "matrix is binary (optional)");
   clopts.attach_option("quiet", quiet, "quiet mode (less verbose)");
-  if(!clopts.parse(argc, argv)) {
+  if(!clopts.parse(argc, argv) || input_dir == "") {
     std::cout << "Error in parsing command line arguments." << std::endl;
+    clopts.print_description();
     return EXIT_FAILURE;
   }
   if (quiet){

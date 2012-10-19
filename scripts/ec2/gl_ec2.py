@@ -41,7 +41,7 @@ HVM_AMI_URL = "https://s3.amazonaws.com/graphlabv2-ami/graphlab2-hvm"
 # Configure and parse our command-line arguments
 def parse_args():
   parser = OptionParser(usage="gl-ec2 [options] <action> <cluster_name>"
-      + "\n\n<action> can be: launch, destroy, login, stop, start, get-master, attach-ebs, detach-ebs",
+      + "\n\n<action> can be: launch, destroy, login, stop, start, start-hadoop, stop-hadoop, get-master, attach-ebs, detach-ebs",
       add_help_option=False)
   parser.add_option("-h", "--help", action="help",
                     help="Show this help message and exit")
@@ -89,7 +89,7 @@ def parse_args():
     parser.print_help()
     sys.exit(1)
   (action, cluster_name) = args
-  if opts.identity_file == None and action in ['launch', 'login']:
+  if opts.identity_file == None and action in ['launch', 'login', 'start-hadoop', 'stop-hadoop']:
     print >> stderr, ("ERROR: The -i or --identity-file argument is " +
                       "required for " + action)
     sys.exit(1)
@@ -535,6 +535,33 @@ def main():
       proxy_opt = "-D " + opts.proxy_port
     subprocess.check_call("ssh -o StrictHostKeyChecking=no -i %s %s ubuntu@%s" %
         (opts.identity_file, proxy_opt, master), shell=True)
+
+  elif action == "start-hadoop":
+    (master_nodes, slave_nodes, zoo_nodes) = get_existing_cluster(
+        conn, opts, cluster_name)
+    master = master_nodes[0].public_dns_name
+    print "Staring hadoop on master " + master + "..."
+    proxy_opt = ""
+    if opts.proxy_port != None:
+      proxy_opt = "-D " + opts.proxy_port
+    subprocess.check_call("""ssh -o StrictHostKeyChecking=no -i %s %s ubuntu@%s \"export PATH=$PATH:/opt/hadoop-1.0.1/bin;
+        export CLASSPATH=$CLASSPATH:.:`hadoop classpath`;
+        export JAVA_HOME=/usr/lib/jvm/java-6-sun;
+        alias mpiexec='mpiexec -hostfile ~/machines -x CLASSPATH'; /home/ubuntu/graphlabapi/scripts/ec2_tools/setup-hadoop\"""" % (opts.identity_file, proxy_opt, master), shell=True)
+
+  elif action == "stop-hadoop":
+    (master_nodes, slave_nodes, zoo_nodes) = get_existing_cluster(
+        conn, opts, cluster_name)
+    master = master_nodes[0].public_dns_name
+    print "Staring hadoop on master " + master + "..."
+    proxy_opt = ""
+    if opts.proxy_port != None:
+      proxy_opt = "-D " + opts.proxy_port
+    subprocess.check_call("""ssh -o StrictHostKeyChecking=no -i %s %s ubuntu@%s \"export PATH=$PATH:/opt/hadoop-1.0.1/bin;
+        export CLASSPATH=$CLASSPATH:.:`hadoop classpath`;
+        export JAVA_HOME=/usr/lib/jvm/java-6-sun;
+        alias mpiexec='mpiexec -hostfile ~/machines -x CLASSPATH'; /home/ubuntu/graphlabapi/deps/hadoop/src/hadoop/bin/stop-all.sh\"""" % (opts.identity_file, proxy_opt, master), shell=True)
+
 
   elif action == "get-master":
     (master_nodes, slave_nodes, zoo_nodes) = get_existing_cluster(conn, opts, cluster_name)
