@@ -185,6 +185,7 @@ int main(int argc, char** argv) {
     return EXIT_FAILURE;
   }
 
+
   // Enable gather caching in the engine
   clopts.get_engine_args().set_option("use_cache", USE_DELTA_CACHE);
 
@@ -203,9 +204,14 @@ int main(int argc, char** argv) {
     dc.cout() << "Loading synthetic Powerlaw graph." << std::endl;
     graph.load_synthetic_powerlaw(powerlaw, false, 2.1, 100000000);
   }
-  else { // Load the graph from a file
+  else if (graph_dir.length() > 0) { // Load the graph from a file
     dc.cout() << "Loading graph in format: "<< format << std::endl;
     graph.load_format(graph_dir, format);
+  }
+  else {
+    dc.cout() << "graph or powerlaw option must be specified" << std::endl;
+    clopts.print_description();
+    return 0;
   }
   // must call finalize before querying the graph
   graph.finalize();
