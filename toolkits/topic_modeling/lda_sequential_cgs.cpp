@@ -360,7 +360,11 @@ int main(int argc, char** argv) {
     return EXIT_FAILURE;
   }
 
-
+  if (dictionary_fname.length() == 0 || counts_fname.length() == 0) {
+    std::cout << "Both counts and dictionary must be specified" << std::endl;
+    std::cout << desc << "\n";
+    return EXIT_FAILURE; 
+  }
   
   std::cout << "Loading the corpus." << std::endl;
   corpus_type corpus(dictionary_fname, counts_fname);
