@@ -2,10 +2,6 @@ if [ ! -d src ]; then
   echo "Run from the graphlab root folder"
   exit
 fi
-pushd .
-cd release/toolkits
-make clean
-popd
 ./configure -D MARCH=x86-64 -D MTUNE=generic
 scripts/compile_static_release.sh
 

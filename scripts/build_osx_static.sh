@@ -3,10 +3,6 @@ if [ ! -d src ]; then
   exit
 fi
 
-pushd .
-cd release/toolkits
-make clean
-popd
 
 ./configure --no_jvm -D NO_MPI:BOOL=true -D COMPILER_FLAGS="-mmacosx-version-min=10.5" -D MARCH=x86-64 -D MTUNE=generic
 scripts/compile_static_release.sh
