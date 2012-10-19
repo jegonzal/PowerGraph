@@ -180,7 +180,7 @@ ExternalProject_Add(boost
   C_INCLUDE_PATH=${GraphLab_SOURCE_DIR}/deps/local/include 
   CPLUS_INCLUDE_PATH=${GraphLab_SOURCE_DIR}/deps/local/include 
   LIBRARY_PATH=${GraphLab_SOURCE_DIR}/deps/local/lib
-  ./b2 install --link=static --variant=release --threading=multi --runtime-link=static
+  ./b2 install link=static variant=release threading=multi runtime-link=static
   INSTALL_COMMAND ""
   INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local )
 set(BOOST_ROOT ${GraphLab_SOURCE_DIR}/deps/local )
