@@ -1244,8 +1244,10 @@ namespace graphlab {
     }
 
     float last_print = -5;
-    logstream(LOG_EMPH) << "Iteration counter will only output every 5 seconds." 
+    if (rmi.procid() == 0) {
+      logstream(LOG_EMPH) << "Iteration counter will only output every 5 seconds." 
                         << std::endl;
+    }
     // Program Main loop ====================================================      
     while(iteration_counter < max_iterations && !force_abort ) {
 
@@ -1367,8 +1369,10 @@ namespace graphlab {
       }
     }
 
-    logstream(LOG_EMPH) << iteration_counter 
+    if (rmi.procid() == 0) {
+      logstream(LOG_EMPH) << iteration_counter 
                         << " iterations completed." << std::endl;
+    }
     // Final barrier to ensure that all engines terminate at the same time
     double total_compute_time = 0;
     for (size_t i = 0;i < per_thread_compute_time.size(); ++i) {
