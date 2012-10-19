@@ -84,7 +84,7 @@ cp BINARY_README $unstrippeddirname/README
 # (it forks and launches some other daemon which has its own dependencies)
 # I will give up on this for now and try to get ABI compatibility.
 # it seems like 1.3 is compatible with 1.4 and 1.5 is compatbile with 1.6
-if [ ISOPENMPI ]; then
+if [ ISOPENMPI -eq 1 ]; then
   rm $rootdirname/gldeps/libmpi.* $rootdirname/gldeps/libopen-*
   rm $unstrippeddirname/gldeps/libmpi.* $unstrippeddirname/gldeps/libopen-*
 fi
