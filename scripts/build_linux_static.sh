@@ -10,10 +10,12 @@ popd
 scripts/compile_static_release.sh
 
 # is this a openmpi or a mpich2 build?
-if grep -q openmpi config.log
+ISOPENMPI=0
+if grep -q mpi_cxx config.log
 then
   rootdirname="graphlab_openmpi"
   unstrippeddirname="graphlab_openmpi_unstripped"
+  ISOPENMPI=1
 elif grep -q mpich config.log
 then
   rootdirname="graphlab_mpich2"
@@ -80,6 +82,16 @@ cp license/LICENSE.txt $unstrippeddirname/license/
 #copy the README
 cp BINARY_README $rootdirname/README
 cp BINARY_README $unstrippeddirname/README
+
+# I am unable to get openmpi to work properly with the ld hack
+# since it appears to have complicated binary dependencies. 
+# (it forks and launches some other daemon which has its own dependencies)
+# I will give up on this for now and try to get ABI compatibility.
+# it seems like 1.3 is compatible with 1.4 and 1.5 is compatbile with 1.6
+if [ ISOPENMPI ]; then
+  rm $rootdirname/gldeps/libmpi.* $rootdirname/gldeps/libopen-*
+  rm $unstrippeddirname/gldeps/libmpi.* $unstrippeddirname/gldeps/libopen-*
+fi
 
 #pack
 tar -cjvf $rootdirname.tar.bz2 $rootdirname

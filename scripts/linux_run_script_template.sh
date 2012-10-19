@@ -73,9 +73,9 @@ if [ "$USE_SYSTEM_LIBS" -eq "1" ]; then
   echo "Using system libs."
   #using system libs
   if [ $HAS_HADOOP -eq 1 ]; then
-    env LD_LIBRARY_PATH=$JVM_PATH CLASSPATH=`hadoop classpath` $PROG $*
+    env LD_LIBRARY_PATH=$JVM_PATH:$LD_LIBRARY_PATH CLASSPATH=`hadoop classpath` $PROG $*
   else
-    env LD_LIBRARY_PATH=$JVM_PATH $PROG $*
+    env LD_LIBRARY_PATH=$JVM_PATH:$LD_LIBRARY_PATH $PROG $*
   fi
 else
   # now. where do I find the dependency directory?
@@ -90,8 +90,12 @@ else
     LIBPATH=$LIBPATH:$JVM_PATH
   fi
 
+  if [ ! -z "$LD_LIBRARY_PATH" ]; then
+    LIBPATH=$LIBPATH:$LD_LIBRARY_PATH
+  fi
+
   if [ $HAS_HADOOP -eq 1 ]; then
-    $DEPDIR/ld-linux-x86-64.so.2 --library-path $LIBPATH CLASSPATH=`hadoop classpath` $PROG $*
+    env CLASSPATH=`hadoop classpath` $DEPDIR/ld-linux-x86-64.so.2 --library-path $LIBPATH $PROG $*
   else
     $DEPDIR/ld-linux-x86-64.so.2 --library-path $LIBPATH $PROG $*
   fi
