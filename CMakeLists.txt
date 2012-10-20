@@ -521,15 +521,17 @@ if (NOT MARCH)
   endif()
 endif()
 
+# check if MTUNE is set
+if (NOT MTUNE)
+  #set to native if supported
+  check_cxx_compiler_flag(-mtune=native HAS_MTUNE_NATIVE)
+  if(HAS_MTUNE_NATIVE)
+    set(MTUNE "native")
+  else()
+    set(MTUNE "x86-64")
+  endif()
+endif()
 
-
-
-
-
-
-
-## ============================================================================
-## ============================================================================
 ## ============================================================================
 # Setup compiler
 
@@ -542,15 +544,13 @@ else()
 endif()
 
 # check for SSE instruction set (needed for CRC32)
-check_cxx_compiler_flag(-msse4.2 HAS_SSE42)
-set(SSE42_FLAG "")
-if (HAS_SSE42) 
- set(SSE42_FLAG "-msse4.2")
-endif()
+#check_cxx_compiler_flag(-msse4.2 HAS_SSE42)
+#set(SSE42_FLAG "")
+#if (HAS_SSE42) 
+# set(SSE42_FLAG "-msse4.2")
+#endif()
 
-if(NOT MTUNE)
-  set(MTUNE "native")
-endif()
+
 
 # Set the debug flags
 set(CMAKE_C_FLAGS_DEBUG 
@@ -564,10 +564,10 @@ set(CMAKE_C_FLAGS_RELEASE
   "-O3 -march=${MARCH} -mtune=${MTUNE} ${PROFILING_FLAGS} ${COMPILER_FLAGS}"
   CACHE STRING "compiler options" FORCE)
 set(CMAKE_CXX_FLAGS_RELEASE 
-  "-O3 -march=${MARCH} ${SSE42_FLAG} -mtune=${MTUNE} ${PROFILING_FLAGS} ${COMPILER_FLAGS}"
+  "-O3 -march=${MARCH} -mtune=${MTUNE} ${PROFILING_FLAGS} ${COMPILER_FLAGS}"
   CACHE STRING "compiler options" FORCE)
 
-set(CMAKE_REQUIRED_FLAGS ${SSE42_FLAG})
+set(CMAKE_REQUIRED_FLAGS ${CMAKE_CXX_FLAGS_RELEASE}) 
 check_cxx_source_compiles("int main(int argc, char** argv) { __builtin_ia32_crc32di(0,0);}" HAS_CRC32)
 set(CMAKE_REQUIRED_FLAGS "")
 if(HAS_CRC32) 
