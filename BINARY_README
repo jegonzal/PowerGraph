@@ -126,14 +126,14 @@ Build Details
 Mac Build:
 Compiled on OS X 10.8
 Apple clang version 4.0 (tags/Apple/clang-421.0.57) (based on LLVM 3.1svn)
--O3 -march=x86-64 -msse4.2 -mtune=generic  -mmacosx-version-min=10.5 
+-O3 -march=x86-64 -mtune=generic  -mmacosx-version-min=10.5 
 
 Linux Build:
 To support maximal compatibility, this was compiled on an 
 old Linux distribution.
 
 Compiled on Ubuntu 9.04, GCC 4.3.3
--O3 -march=x86-64 -msse4.2 -mtune=generic 
+-O3 -march=x86-64 -mtune=generic 
 
 OpenMPI: 1.3.2 (ABI Compatible with 1.4)
 MPICH2: 1.5
