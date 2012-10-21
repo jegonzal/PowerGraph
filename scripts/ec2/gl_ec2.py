@@ -610,7 +610,7 @@ def main():
         export JAVA_HOME=/usr/lib/jvm/java-6-sun;
         alias mpiexec='mpiexec -hostfile ~/machines -x CLASSPATH'; 
         cd graphlabapi/;
-        hg pull; hg update; ./configure; cd release; make;
+        hg pull; hg update; ./configure; cd release/toolkits/collaborative_filtering/; make; cd ~/graphlabapi/release/toolkits;  ~/graphlabapi/scripts/mpirsync
         \"""" % (opts.identity_file, proxy_opt, master), shell=True)
 
   elif action == "update-dbg":
@@ -624,7 +624,7 @@ def main():
     subprocess.check_call("""ssh -o StrictHostKeyChecking=no -i %s %s ubuntu@%s \"
         sudo apt-get install gdb; 
         cd graphlabapi/;
-        hg pull; hg update; ./configure; cd debug; make;
+        hg pull; hg update; ./configure; cd debug; make; cd ~/graphlabapi/debug/toolkits;  ~/graphlabapi/scripts/mpirsync
         \"""" % (opts.identity_file, proxy_opt, master), shell=True)
 
   elif action == "get-master":
