@@ -48,7 +48,11 @@ int main(int argc, char** argv) {
     dc.cout() << "Error in parsing command line arguments." << std::endl;
     return EXIT_FAILURE;
   }
-  
+ 
+  if (ingraph.length() == 0 || outgraph.length() == 0) {
+    clopts.print_description();
+    return EXIT_FAILURE;
+  } 
   typedef graphlab::distributed_graph<graphlab::empty, graphlab::empty> graph_type;
   graph_type graph(dc, clopts);
 

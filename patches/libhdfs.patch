@@ -1,0 +1,40 @@
+diff -rupN hadoop-1.0.1_old/src/c++/libhdfs/hdfsJniHelper.c hadoop-1.0.1/src/c++/libhdfs/hdfsJniHelper.c
+--- hadoop-1.0.1_old/src/c++/libhdfs/hdfsJniHelper.c	2012-04-03 11:46:00.000000000 -0400
++++ hadoop-1.0.1/src/c++/libhdfs/hdfsJniHelper.c	2012-04-03 11:54:18.000000000 -0400
+@@ -15,7 +15,9 @@
+  */
+ 
+ #include <string.h> 
++#if !defined(__APPLE__)
+ #include <error.h>
++#endif /* __APPLE__ */
+ #include "hdfsJniHelper.h"
+ 
+ static pthread_mutex_t hdfsHashMutex = PTHREAD_MUTEX_INITIALIZER;
+
+diff -rupN hadoop-1.0.1_old/src/c++/libhdfs/configure hadoop-1.0.1/src/c++/libhdfs/configure
+--- hadoop-1.0.1_old/src/c++/libhdfs/configure
++++ hadoop-1.0.1/src/c++/libhdfs/configure
+@@ -12038,7 +12038,7 @@ echo "${ECHO_T}ohh u there ... $LIB_JVM_DIR" >&6; }
+ if test "$supported_os" != "darwin"
+ then
+   CFLAGS="$CFLAGS -m${JVM_ARCH} -I$JAVA_HOME/include -I$JAVA_HOME/include/$supported_os"
+-  LDFLAGS="$LDFLAGS -m${JVM_ARCH} -L$LIB_JVM_DIR -ljvm -shared -Wl,-x"
++  LDFLAGS="$LDFLAGS -m${JVM_ARCH} -L$LIB_JVM_DIR -ljvm -Wl,-x"
+   { echo "$as_me:$LINENO: result: VALUE OF JVM_ARCH IS :$JVM_ARCH" >&5
+ echo "${ECHO_T}VALUE OF JVM_ARCH IS :$JVM_ARCH" >&6; }
+ fi
+
+diff -rupN hadoop-1.0.1_old/src/c++/libhdfs/configure.ac hadoop-1.0.1/src/c++/libhdfs/configure.ac
+--- hadoop-1.0.1_old/src/c++/libhdfs/configure.ac
++++ hadoop-1.0.1/src/c++/libhdfs/configure.ac
+@@ -80,7 +80,7 @@ AP_JVM_LIBDIR()
+ if test "$supported_os" != "darwin"
+ then
+   CFLAGS="$CFLAGS -m${JVM_ARCH} -I$JAVA_HOME/include -I$JAVA_HOME/include/$supported_os"
+-  LDFLAGS="$LDFLAGS -m${JVM_ARCH} -L$LIB_JVM_DIR -ljvm -shared -Wl,-x"
++  LDFLAGS="$LDFLAGS -m${JVM_ARCH} -L$LIB_JVM_DIR -ljvm -Wl,-x"
+   AC_MSG_RESULT([VALUE OF JVM_ARCH IS :$JVM_ARCH])
+ fi
+ 
+

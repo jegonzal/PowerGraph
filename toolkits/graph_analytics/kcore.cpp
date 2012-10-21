@@ -227,14 +227,17 @@ int main(int argc, char** argv) {
   if(!clopts.parse(argc, argv)) return EXIT_FAILURE;
   if (prefix == "") {
     std::cout << "--graph is not optional\n";
+    clopts.print_description();
     return EXIT_FAILURE;
   }
   else if (format == "") {
     std::cout << "--format is not optional\n";
+    clopts.print_description();
     return EXIT_FAILURE;
   }
   else if (kmax < kmin) {
     std::cout << "kmax must be at least as large as kmin\n";
+    clopts.print_description();
     return EXIT_FAILURE;
   }
   // Initialize control plane using mpi

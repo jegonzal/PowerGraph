@@ -983,6 +983,7 @@ int main(int argc, char** argv) {
     graphlab::mpi_tools::init(argc, argv);
     const bool success = clopts.parse(argc, argv);
     if(!success) {
+        clopts.print_description();
         graphlab::mpi_tools::finalize();
         return EXIT_FAILURE;
     }

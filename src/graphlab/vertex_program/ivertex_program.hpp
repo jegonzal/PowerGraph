@@ -228,7 +228,9 @@ namespace graphlab {
    *   // adjacent vertices.
    *   void scatter(icontext_type& context, const vertex_type& vertex, 
    *                edge_type& edge) const { 
-   *     context.signal(edge.target(), message_value * (1-RESET_PROBABILITY));
+   *     pagerank_message msg;
+   *     msg.value = message_value * (1 - RESET_PROBABILITY);
+   *     context.signal(edge.target(), msg);
    *   }
    * }; 
    * \endcode

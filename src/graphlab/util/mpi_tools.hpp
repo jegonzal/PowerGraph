@@ -60,7 +60,7 @@ namespace graphlab {
       assert(provided == required);
       assert(error == MPI_SUCCESS);
 #else
-      logstream(LOG_WARNING) << "MPI not installed!" << std::endl;
+      logstream(LOG_EMPH) << "MPI Support was not compiled." << std::endl;
 #endif
     } // end of init
 

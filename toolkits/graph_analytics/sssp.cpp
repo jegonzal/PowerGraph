@@ -301,9 +301,13 @@ int main(int argc, char** argv) {
   if(powerlaw > 0) { // make a synthetic graph
     dc.cout() << "Loading synthetic Powerlaw graph." << std::endl;
     graph.load_synthetic_powerlaw(powerlaw, false, 2, 100000000);
-  } else { // Load the graph from a file
+  } else if (graph_dir.length() > 0) { // Load the graph from a file
     dc.cout() << "Loading graph in format: "<< format << std::endl;
     graph.load(graph_dir, graph_loader);
+  } else {
+    dc.cout() << "graph or powerlaw option must be specified" << std::endl;
+    clopts.print_description();
+    return EXIT_FAILURE;
   }
   // must call finalize before querying the graph
   graph.finalize();

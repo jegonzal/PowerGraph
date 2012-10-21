@@ -31,6 +31,9 @@
  */
 
 
+#ifndef __DD_GRLAB_H__
+#define __DD_GRLAB_H__
+
 #include <boost/config/warning_disable.hpp>
 #include <boost/spirit/include/qi.hpp>
 #include <boost/spirit/include/phoenix_core.hpp>
@@ -74,14 +77,17 @@ double TOLERANCE = 0.01;
 {
     int nvars; // no. of vars in this factor
     vector<int> cards; // cardinality of each var
-    vector<int> xmap; 
+    vector<int> xmap; // I don't think this is used.
     
     vec potential;
 
+    vertex_data(): nvars(0)
+    {}
+    
     void load(graphlab::iarchive& arc) 
-    { arc >> card >> xmap >> potential; }
+    { arc >> nvars >> cards >> xmap >> potential; }
     void save(graphlab::oarchive& arc) const 
-    { arc << card << xmap << potential; }
+    { arc << nvars << cards << xmap << potential; }
 }; // end of vertex_data
 
 
@@ -94,12 +100,16 @@ struct edge_data
     int varid;
     int card;
     vec message; // dual variables, lagrangian multiplier
+    //vector<double> message;
 
+    edge_data(): varid(0), card(0)
+    {}
+    
     void load(graphlab::iarchive& arc) 
-    { arc >> varid >> message; }
+    { arc >> varid >> card >> message; }
     void save(graphlab::oarchive& arc) const 
-    { arc << varid << message; }
-}
+    { arc << varid << card << message; }
+};
 
 
 /**
@@ -109,18 +119,72 @@ typedef graphlab::distributed_graph<vertex_data, edge_data> graph_type;
 
 
 /////////////////////////////////////////////////////////////////////////
+// Find the configuration index of a factor given the array of states.
+int get_configuration_index(graph_type::vertex_type& vertex,
+                            const std::vector<int>& states)
+{
+    vertex_data& vdata = vertex.data();
+    int index = states[0];
+    for (size_t i = 1; i < states.size(); ++i)
+    {
+      index *= vdata.cards[i];
+      index += states[i];
+    }
+    return index;
+}
+
+/////////////////////////////////////////////////////////////////////////
+// Find the array of states corresponding to a factor configuration index.
+void get_configuration_states(graph_type::vertex_type& vertex,
+                              int index, std::vector<int>* states)
+{
+    vertex_data& vdata = vertex.data();
+    int tmp = 1;
+    for (size_t i = 1; i < states->size(); ++i) {
+      tmp *= vdata.cards[i];
+    }
+    (*states)[0] = index / tmp;
+    for (size_t i = 1; i < states->size(); ++i) {
+      index = index % tmp;
+      tmp /= vdata.cards[i];
+      (*states)[i] = index / tmp;
+    }
+}
+
+/////////////////////////////////////////////////////////////////////////
 // Function to perform MAP on each subproblem
 void subproblem_map(graph_type::vertex_type vertex)
 {
+    cout << "Called subproblem_map" << endl;
     vertex_data& vdata = vertex.data();
     
     vec rep_pot = vdata.potential; 
     // todo: pull in messages from neighbours (ie reparameterize)
     // for loop on neighbours
-    if (card == 1) // unary factor
-         rep_pot += edata.message;
+    //cout << "Factor with " << vdata.nvars << " variables." << endl;
+    if (vdata.nvars == 1) // unary factor
+    {
+      cout << "This unary factor has " << vertex.num_in_edges() << 
+        " in edges and " << vertex.num_out_edges() << " out edges" << endl;
+      
+      //edge_data& edata = 
+      //  rep_pot += edata.message;
+    }
     else // general factor
-    {} // subtract a unary potential to a multi-dim factor
+    {
+        // subtract a unary potential to a multi-dim factor
+        std::vector<int> states(vdata.nvars);
+        for (int index = 0; index < rep_pot.size(); ++index)
+        {
+            get_configuration_states(vertex, index, &states);
+            for (int i = 0; i < vdata.nvars; ++i)
+            {
+                // edge_data& edata = vertex.get_edge(i).data();
+                int j = states[i];
+                //rep_pot[index] -= edata.message[j]; 
+            }
+        }
+    }
     
     // maximize over potential
     int maxid; 
@@ -128,12 +192,13 @@ void subproblem_map(graph_type::vertex_type vertex)
     
     // todo: convert linear index into multi-dim index
     // & save in xmap
+    get_configuration_states(vertex, maxid, &vdata.xmap);    
 }
 
 
 /////////////////////////////////////////////////////////////////////////
 // Function to perform subgradient descent
-void update_duals(graph_type::edge_data edge)
+void update_duals(graph_type::edge_type edge)
 {
     // todo: get two vertices & use xmaps to update message
     // & save in xmap
@@ -143,3 +208,4 @@ void update_duals(graph_type::edge_data edge)
     
 }
 
+#endif

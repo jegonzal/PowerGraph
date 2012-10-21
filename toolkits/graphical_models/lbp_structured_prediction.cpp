@@ -624,11 +624,13 @@ int main(int argc, char** argv) {
 
   if(prior_dir.empty()) {
     logstream(LOG_ERROR) << "No prior was provided." << std::endl;
+    clopts.print_description();
     return EXIT_FAILURE;
   }
 
   if(graph_dir.empty()) {
     logstream(LOG_ERROR) << "No graph was provided." << std::endl;
+    clopts.print_description();
     return EXIT_FAILURE;
   }
 

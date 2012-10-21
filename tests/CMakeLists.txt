@@ -55,3 +55,8 @@ add_graphlab_executable(mini_web_server mini_web_server.cpp)
 add_graphlab_executable(test_vertex_set test_vertex_set.cpp)
 
 add_test(test_vertex_set test_vertex_set)
+
+
+add_graphlab_executable(sort_test sort_test.cpp)
+
+add_graphlab_executable(hopscotch_test hopscotch_test.cpp)

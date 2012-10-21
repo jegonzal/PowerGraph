@@ -180,7 +180,7 @@ ExternalProject_Add(boost
   C_INCLUDE_PATH=${GraphLab_SOURCE_DIR}/deps/local/include 
   CPLUS_INCLUDE_PATH=${GraphLab_SOURCE_DIR}/deps/local/include 
   LIBRARY_PATH=${GraphLab_SOURCE_DIR}/deps/local/lib
-  ./b2 install --link=static --variant=release --threading=multi --runtime-link=static
+  ./b2 install link=static variant=release threading=multi runtime-link=static
   INSTALL_COMMAND ""
   INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local )
 set(BOOST_ROOT ${GraphLab_SOURCE_DIR}/deps/local )
@@ -358,7 +358,7 @@ ExternalProject_Add(libevent
   PREFIX ${GraphLab_SOURCE_DIR}/deps/event
   URL http://iweb.dl.sourceforge.net/project/levent/libevent/libevent-2.0/libevent-2.0.18-stable.tar.gz
   URL_MD5 aa1ce9bc0dee7b8084f6855765f2c86a
-  CONFIGURE_COMMAND <SOURCE_DIR>/configure --prefix=<INSTALL_DIR>
+  CONFIGURE_COMMAND <SOURCE_DIR>/configure --prefix=<INSTALL_DIR> --disable-openssl
   INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local)
 #link_libraries(event)
 #link_libraries(event_pthreads)
@@ -375,7 +375,7 @@ ExternalProject_Add(libjson
   CONFIGURE_COMMAND ""
   PATCH_COMMAND patch -N -p1 -i ${GraphLab_SOURCE_DIR}/patches/libjson.patch || true
   BUILD_COMMAND make
-  INSTALL_COMMAND prefix=<INSTALL_DIR> make install 
+  INSTALL_COMMAND prefix=<INSTALL_DIR>/ make install 
   INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local
   )
 
@@ -422,9 +422,9 @@ if(NOT NO_JAVAC)
 #      URL http://www.gtlib.gatech.edu/pub/apache/hadoop/common/hadoop-1.0.1/hadoop-1.0.1.tar.gz
       URL_MD5 e627d9b688c4de03cba8313bd0bba148
       UPDATE_COMMAND chmod +x <SOURCE_DIR>/src/c++/libhdfs/install-sh <SOURCE_DIR>/src/c++/libhdfs/configure
-      PATCH_COMMAND patch -N -p1 -i ${GraphLab_SOURCE_DIR}/patches/libhdfs-compile-osx.patch || true
+      PATCH_COMMAND patch -N -p1 -i ${GraphLab_SOURCE_DIR}/patches/libhdfs.patch || true
       BUILD_IN_SOURCE 1
-      CONFIGURE_COMMAND <SOURCE_DIR>/src/c++/libhdfs/configure JVM_ARCH=tune=native --prefix=<INSTALL_DIR> --with-java=${JAVA_HOME}
+      CONFIGURE_COMMAND <SOURCE_DIR>/src/c++/libhdfs/configure JVM_ARCH=tune=generic --prefix=<INSTALL_DIR> --with-java=${JAVA_HOME} --enable-shared=no --enable-static=yes
       INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local
       TEST_COMMAND bash -c "mkdir -p <INSTALL_DIR>/include && cp <SOURCE_DIR>/src/c++/libhdfs/hdfs.h <INSTALL_DIR>/include")
     set(HADOOP_FOUND 1 CACHE BOOL "Hadoop was found")
@@ -440,7 +440,10 @@ endif()
 
 # MPI =========================================================================
 # MPI is currently used to establish communication between rpc nodes
+if(NOT NO_MPI) 
 find_package(MPICH2)
+endif()
+
 if(MPI_FOUND)
   message(STATUS "MPI Found: " ${MPI_LIBRARY} ${MPI_EXTRA_LIBRARY})
   add_definitions(-DHAS_MPI)
@@ -505,29 +508,30 @@ set(CMAKE_REQUIRED_LIBRARIES "pthread")
 check_function_exists(pthread_setaffinity_np HAS_SET_AFFINITY) 
 set(CMAKE_REQUIRED_LIBRARIES ${crlbackup})  
 
+include(CheckCXXCompilerFlag)
 ## ============================================================================
-# architecture detection. check 64 bit
-# TODO: do we need this or is there a cleaner way to do this in CMake
-if(CMAKE_SIZEOF_VOID_P MATCHES 4)
-  set( HAVE_64_BIT 0 )
-else(CMAKE_SIZEOF_VOID_P MATCHES 4)
-  set( HAVE_64_BIT 1 )
-endif(CMAKE_SIZEOF_VOID_P MATCHES 4)
-if (HAVE_64_BIT MATCHES 1)
-  set(MARCH "x86-64")
-else()
-  set(MARCH "i686")
+# check if MARCH is set
+if (NOT MARCH)
+  #set to native if supported
+  check_cxx_compiler_flag(-march=native HAS_MARCH_NATIVE)
+  if(HAS_MARCH_NATIVE)
+    set(MARCH "native")
+  else()
+    set(MARCH "x86-64")
+  endif()
 endif()
 
+# check if MTUNE is set
+if (NOT MTUNE)
+  #set to native if supported
+  check_cxx_compiler_flag(-mtune=native HAS_MTUNE_NATIVE)
+  if(HAS_MTUNE_NATIVE)
+    set(MTUNE "native")
+  else()
+    set(MTUNE "x86-64")
+  endif()
+endif()
 
-
-
-
-
-
-
-## ============================================================================
-## ============================================================================
 ## ============================================================================
 # Setup compiler
 
@@ -539,6 +543,14 @@ else()
   set(PROFILING_FLAGS "")
 endif()
 
+# check for SSE instruction set (needed for CRC32)
+#check_cxx_compiler_flag(-msse4.2 HAS_SSE42)
+#set(SSE42_FLAG "")
+#if (HAS_SSE42) 
+# set(SSE42_FLAG "-msse4.2")
+#endif()
+
+
 
 # Set the debug flags
 set(CMAKE_C_FLAGS_DEBUG 
@@ -549,11 +561,20 @@ set(CMAKE_CXX_FLAGS_DEBUG
   CACHE STRING "compiler options" FORCE) 
 
 set(CMAKE_C_FLAGS_RELEASE 
-  "-O3 -march=${MARCH} -mtune=native ${PROFILING_FLAGS} ${COMPILER_FLAGS}"
+  "-O3 -march=${MARCH} -mtune=${MTUNE} ${PROFILING_FLAGS} ${COMPILER_FLAGS}"
   CACHE STRING "compiler options" FORCE)
 set(CMAKE_CXX_FLAGS_RELEASE 
-  "-O3 -march=${MARCH} -mtune=native ${PROFILING_FLAGS} ${COMPILER_FLAGS}"
+  "-O3 -march=${MARCH} -mtune=${MTUNE} ${PROFILING_FLAGS} ${COMPILER_FLAGS}"
   CACHE STRING "compiler options" FORCE)
+
+set(CMAKE_REQUIRED_FLAGS ${CMAKE_CXX_FLAGS_RELEASE}) 
+check_cxx_source_compiles("int main(int argc, char** argv) { __builtin_ia32_crc32di(0,0);}" HAS_CRC32)
+set(CMAKE_REQUIRED_FLAGS "")
+if(HAS_CRC32) 
+  set(CMAKE_CXX_FLAGS_RELEASE 
+      "${CMAKE_CXX_FLAGS_RELEASE} -DHAS_BUILTIN_CRC32"
+      CACHE STRING "compiler options" FORCE)
+endif()
 
 
 # # Mex setup
@@ -667,6 +688,8 @@ macro(add_graphlab_executable NAME)
 endmacro(add_graphlab_executable)
 
 
+add_custom_target(external_dependencies)
+requires_core_deps(external_dependencies)
 
 # add_jni_library =============================================================
 # If jni was found then create a jni library.  Otherwise generate a warning

@@ -1,0 +1,50 @@
+*The new ec2 aims to simplify the procedure of launching EC2 nodes with ready-to-go GraphLab environment.
+**The scripts are adapted from Spark's ec2 script. This document is also a variant of Spark's EC2 Script document at https://github.com/mesos/spark/wiki/EC2-Scripts
+
+
+Before you start:
+Create an Amazon EC2 key pair for yourself. This can be done by logging into your Amazon Web Services account through the AWS console, clicking Key Pairs on the left sidebar, and creating and downloading a key. Make sure that you set the permissions for the private key file to 600 (i.e. only you can read and write it) so that ssh will work.
+
+Whenever you want to use the gl-ec2 script, set the environment variables AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY to your Amazon EC2 access key ID and secret access key. These can be obtained from the AWS homepage by clicking Account > Security Credentials > Access Credentials.
+
+
+
+Launching a Cluster
+Go into the scripts/ec2 directory in the release of GraphLab you downloaded.
+Run ./gl-ec2 -k <keypair> -i <key-file> -s <num-slaves> launch <cluster-name>, where <keypair> is the name of your EC2 key pair (that you gave it when you created it), <key-file> is the private key file for your key pair, <num-slaves> is the number of slave nodes to launch (try 1 at first), and <cluster-name> is the name to give to your cluster.
+You can also run ./gl-ec2 --help to see more usage options.
+
+The following options are worth pointing out:
+--ami={"std", "hpc", AMIID} can be used to specify the GraphLab AMI. The default is "std" for a standard cluster image, and "hpc" is for HPC cluster image. You can also specify your own AMIID. Notice that the ami you choose should be compatible with the instance type you use (see below). "std" and "hpc" refers to the latest ami we have. The ami id is stored on our s3 bucket named graphlabv2-ami. We can update the ami pointer there.
+
+--instance-type=<INSTANCE_TYPE> can be used to specify an EC2 instance type to use. The default type is m1.large (which has 2 cores and 7.5 GB RAM). Refer to the Amazon pages about EC2 instance types and EC2 pricing for information about other instance types. If you choose "hpc" as your ami above, you need to use cc type instance.
+
+--zone=<EC2_ZONE> can be used to specify an EC2 availability zone to launch instances in. Sometimes, you will get an error because there is not enough capacity in one zone, and you should try to launch in another. This happens mostly with the m1.large instance types; extra-large (both m1.xlarge and c1.xlarge) instances tend to be more available.
+
+--ebs-vol-size=GB will attach an EBS volume with a given amount of space to each node so that you can have a persistent HDFS cluster on your nodes across cluster restarts (see below).
+If one of your launches fails due to e.g. not having the right permissions on your private key file, you can run launch with the --resume option to restart the setup process on an existing cluster.
+
+--ebs-vol-id=<EBS_VOL_ID> can be used to specify an ebs volume to be attached or detached. The availability zone of the volume must be the same as your instances.
+
+
+Here are a few common use cases:
+
+1. Start a 32 nodes (31 slaves + 1 master) standard cluster named "test":
+
+./gl-ec2 -k graphlabkey -i ~/.ssh/graphlab.pem -s 31 launch test
+
+Or Start a 32 nodes hpc cluster named "test-hpc" :
+
+./gl-ec2 -k graphlabkey -i ~/.ssh/graphlab.pem -s 31 --ami hpc --instance-type cc1.4xlarge launch test-hpc
+
+2. You can see the ip address of the master node you just created by:
+./gl-ec2 -k graphlabkey -i ~/.ssh/graphlab.pem get-master test
+
+3. You can attach the ebs volume whose id is AAA to the master node by:
+./gl-ec2 -k graphlabkey -i ~/.ssh/graphlab.pem --ebs-vol-id AAA attach-ebs test
+
+4. Login the master node by:
+./gl-ec2 -k graphlabkey -i ~/.ssh/graphlab.pem  login test
+
+5. After you are done, destroy the cluster:
+./gl-ec2 -k graphlabkey -i ~/.ssh/graphlab.pem destroy test

@@ -1961,6 +1961,7 @@ namespace graphlab {
      */  
     void load(std::string prefix, line_parser_type line_parser) {
       rpc.full_barrier();
+      if (prefix.length() == 0) return;
       if(boost::starts_with(prefix, "hdfs://")) {
         load_from_hdfs(prefix, line_parser);
       } else {

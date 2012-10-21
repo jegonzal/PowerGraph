@@ -396,10 +396,12 @@ int main(int argc, char** argv) {
   if(!clopts.parse(argc, argv)) return EXIT_FAILURE;
   if (datafile == "") {
     std::cout << "--data is not optional\n";
+    clopts.print_description();
     return EXIT_FAILURE;
   }
   if (NUM_CLUSTERS == 0) {
     std::cout << "--cluster is not optional\n";
+    clopts.print_description();
     return EXIT_FAILURE;
   }
 
