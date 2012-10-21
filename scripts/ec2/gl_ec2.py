@@ -545,7 +545,7 @@ def main():
     if opts.proxy_port != None:
       proxy_opt = "-D " + opts.proxy_port
     subprocess.check_call("""ssh -o StrictHostKeyChecking=no -i %s %s ubuntu@%s \"export PATH=$PATH:/opt/hadoop-1.0.1/bin;
-        export CLASSPATH=$CLASSPATH:.:`hadoop classpath`;
+        export CLASSPATH=$CLASSPATH:.:\`hadoop classpath\`;
         export JAVA_HOME=/usr/lib/jvm/java-6-sun;
         alias mpiexec='mpiexec -hostfile ~/machines -x CLASSPATH'; /home/ubuntu/graphlabapi/scripts/ec2_tools/setup-hadoop\"""" % (opts.identity_file, proxy_opt, master), shell=True)
 
@@ -558,7 +558,7 @@ def main():
     if opts.proxy_port != None:
       proxy_opt = "-D " + opts.proxy_port
     subprocess.check_call("""ssh -o StrictHostKeyChecking=no -i %s %s ubuntu@%s \"export PATH=$PATH:/opt/hadoop-1.0.1/bin;
-        export CLASSPATH=$CLASSPATH:.:`hadoop classpath`;
+        export CLASSPATH=$CLASSPATH:.:\`hadoop classpath\`;
         export JAVA_HOME=/usr/lib/jvm/java-6-sun;
         jps\"""" % (opts.identity_file, proxy_opt, master), shell=True)
 
@@ -571,7 +571,7 @@ def main():
     if opts.proxy_port != None:
       proxy_opt = "-D " + opts.proxy_port
     subprocess.check_call("""ssh -o StrictHostKeyChecking=no -i %s %s ubuntu@%s \"export PATH=$PATH:/opt/hadoop-1.0.1/bin;
-        export CLASSPATH=$CLASSPATH:.:`hadoop classpath`;
+        export CLASSPATH=$CLASSPATH:.:\`hadoop classpath\`;
         export JAVA_HOME=/usr/lib/jvm/java-6-sun;
         alias mpiexec='mpiexec -hostfile ~/machines -x CLASSPATH'; /home/ubuntu/graphlabapi/deps/hadoop/src/hadoop/bin/stop-all.sh\"""" % (opts.identity_file, proxy_opt, master), shell=True)
 
@@ -584,7 +584,7 @@ def main():
     if opts.proxy_port != None:
       proxy_opt = "-D " + opts.proxy_port
     subprocess.check_call("""ssh -o StrictHostKeyChecking=no -i %s %s ubuntu@%s \"export PATH=$PATH:/opt/hadoop-1.0.1/bin;
-        export CLASSPATH=$CLASSPATH:.:`hadoop classpath`;
+        export CLASSPATH=$CLASSPATH:.:\`hadoop classpath\`;
         export JAVA_HOME=/usr/lib/jvm/java-6-sun;
         alias mpiexec='mpiexec -hostfile ~/machines -x CLASSPATH'; 
         cd graphlabapi/release/toolkits/collaborative_filtering/;
@@ -593,8 +593,9 @@ def main():
         wget http://www.select.cs.cmu.edu/code/graphlab/datasets/smallnetflix_mm.train;
         wget http://www.select.cs.cmu.edu/code/graphlab/datasets/smallnetflix_mm.validate;
         cd ..;
+        hadoop fs -rmr hdfs://\`hostname\`/smallnetflix/;
         hadoop fs -copyFromLocal smallnetflix/ /;
-        mpiexec -n 2 /home/ubuntu/graphlabapi/release/toolkits/collaborative_filtering/als --matrix hdfs://smallnetflix --max_iter=3;
+        mpiexec -n 2 /home/ubuntu/graphlabapi/release/toolkits/collaborative_filtering/als --matrix hdfs://\`hostname\`/smallnetflix --max_iter=5 --ncpus=1;
         \"""" % (opts.identity_file, proxy_opt, master), shell=True)
 
   elif action == "update":
