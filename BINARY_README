@@ -55,9 +55,29 @@ may work on 10.5 as well. Please let us know if you encounter any issues.
 Linux
 =====
 The Linux builds are more complex due to varying glibc versions as well as the
-need to support both OpenMPI and MPICH2. Two binary releases are provided, one
-for OpenMPI and one for MPICH2. Please obtain the package matching the MPI 
-library you have on your cluster: they are not compatible.
+need to support both OpenMPI and MPICH2. FOUR binary releases are provided
+Please obtain the package closest matching your needs. In particular, it is
+important to match the MPI library you have on your cluster: 
+they are not compatible.
+
+The binary packages are:
+ - graphlab_openmpi : Supports OpenMPI 1.3 and 1.4. Supports HDFS and thus
+                      requires a working JVM (whether or not you use 
+                      HDFS).
+ - graphlab_mpich2 : Supports MPICH2. Supports HDFS and thus
+                     requires a working JVM (whether or not you use 
+                     HDFS).
+ - graphlab_openmpi_no_jvm : Supports OpenMPI 1.3 and 1.4. Does not support
+                             HDFS. Does not require a working JVM. Loading
+                             files distributed will therefore require either
+                             a distributed file system or a common NFS
+                             share.
+ - graphlab_mpich2_no_jvm : Supports MPICH2. Does not support HDFS. Does not 
+                            require a working JVM. Loading files distributed 
+                            will therefore require either a distributed file 
+                            system or a common NFS share. If you want to run
+                            to run only in shared memory, this is also the
+                            package to use.
 
 Each binary is paired with a matching shell script which sets up the
 execution environment (by forcing the load of provided versions of system
