@@ -51,8 +51,7 @@ namespace dc_impl {
     iovec msg;
     msg.iov_base = data;
     msg.iov_len = len;
-    bool trigger = false;
-    size_t insertloc;
+    size_t insertloc = 0;
     while(1) {
       size_t curid;
       while(1) {
@@ -78,13 +77,16 @@ namespace dc_impl {
       }
       buffer[curid].buf[insertloc] = msg;
       buffer[curid].numbytes.inc(len);    
-      trigger = ((writebuffer_totallen.inc_ret_last(len)) == 0);
+      writebuffer_totallen.inc(len);
       // decrement the reference count
       __sync_fetch_and_sub(&(buffer[curid].ref_count), 1);
       break;
     }
     
-    if (trigger || (packet_type_mask & CONTROL_PACKET)) comm->trigger_send_timeout(target);
+    if (insertloc >= 256 || 
+        packet_type_mask & (CONTROL_PACKET | WAIT_FOR_REPLY | REPLY_PACKET)) {
+      comm->trigger_send_timeout(target);
+    }
   }
 
   void dc_buffered_stream_send2::flush() {

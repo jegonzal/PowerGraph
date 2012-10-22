@@ -50,7 +50,7 @@
 
 #include <graphlab/macros_def.hpp>
 
-//#define COMM_DEBUG
+#define COMM_DEBUG
 namespace graphlab {
  
   namespace dc_impl {
@@ -151,10 +151,16 @@ namespace graphlab {
       // number of evs to create.
       outevbase = event_base_new();
       if (!outevbase) logstream(LOG_FATAL) << "Unable to construct libevent base" << std::endl;
-      timeoutevents.owner = this;
-      out_timeouts = event_new(outevbase, -1, EV_TIMEOUT | EV_PERSIST, on_send_event, &(timeoutevents));
-      //struct timeval t = {0, 100};
-      //event_add(out_timeouts, &t);
+      send_all_timeout.owner = this;
+      send_all_timeout.send_all = true;
+      send_triggered_timeout.owner = this;
+      send_triggered_timeout.send_all = false;
+      send_all_event = event_new(outevbase, -1, EV_TIMEOUT | EV_PERSIST, on_send_event, &(send_all_timeout));
+      assert(send_all_event != NULL);
+      struct timeval t = {0, 5000};
+      event_add(send_all_event, &t);
+      send_triggered_event = event_new(outevbase, -1, EV_TIMEOUT | EV_PERSIST, on_send_event, &(send_triggered_timeout));
+      assert(send_triggered_event != NULL);
 
       inevbase = event_base_new();
       if (!inevbase) logstream(LOG_FATAL) << "Unable to construct libevent base" << std::endl;
@@ -184,8 +190,7 @@ namespace graphlab {
       //event_add(sock[target].outevent, NULL);
       //if (!sock[target].wouldblock) event_active(sock[target].outevent, EV_WRITE, 1);
       triggered_timeouts.set_bit(target);
-      event_active(out_timeouts, EV_TIMEOUT, 1);
-//      std::cout << "trigger" << std::endl;
+      event_active(send_triggered_event, EV_TIMEOUT, 1);
       //struct timeval t = {0, 1};
       //event_add(sock[target].outevent, &t);
     }
@@ -207,6 +212,8 @@ namespace graphlab {
       for (size_t i = 0;i < sock.size(); ++i) {
         event_free(sock[i].outevent);
       }
+      event_free(send_triggered_event);
+      event_free(send_all_event);
       event_base_free(outevbase);
 
       
@@ -260,7 +267,7 @@ namespace graphlab {
         }
         
 #ifdef COMM_DEBUG
-      logstream(LOG_INFO) << ret << " bytes --> " << sockinfo.id << std::endl;
+        logstream(LOG_INFO) << ret << " bytes --> " << sockinfo.id << std::endl;
 #endif
         network_bytessent.inc(ret);
         sockinfo.outvec.sent(ret);
@@ -551,13 +558,27 @@ namespace graphlab {
       else if (ev & EV_TIMEOUT) {
         dc_tcp_comm::timeout_event* te =  (dc_tcp_comm::timeout_event*)(arg);
         dc_tcp_comm* comm = te->owner;
-        foreach(uint32_t i, comm->triggered_timeouts) {
-          comm->triggered_timeouts.clear_bit(i);
-          dc_tcp_comm::socket_info* sockinfo = &(comm->sock[i]);
-          if (sockinfo->wouldblock == false) {
-            comm->check_for_new_data(*sockinfo);
-            if (!sockinfo->outvec.empty()) {
-              comm->send_till_block(*sockinfo);
+        if (te->send_all == false) {
+          // this is a triggered event
+          foreach(uint32_t i, comm->triggered_timeouts) {
+            comm->triggered_timeouts.clear_bit(i);
+            dc_tcp_comm::socket_info* sockinfo = &(comm->sock[i]);
+            if (sockinfo->wouldblock == false) {
+              comm->check_for_new_data(*sockinfo);
+              if (!sockinfo->outvec.empty()) {
+                comm->send_till_block(*sockinfo);
+              }
+            }
+          }
+        } else {
+          // send all event
+          for(uint32_t i = 0;i < comm->sock.size(); ++i) {
+            dc_tcp_comm::socket_info* sockinfo = &(comm->sock[i]);
+            if (sockinfo->wouldblock == false) {
+              comm->check_for_new_data(*sockinfo);
+              if (!sockinfo->outvec.empty()) {
+                comm->send_till_block(*sockinfo);
+              }
             }
           }
         }

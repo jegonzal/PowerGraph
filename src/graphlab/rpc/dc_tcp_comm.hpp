@@ -203,6 +203,7 @@ class dc_tcp_comm:public dc_comm_base {
   conditional insock_cond; /// triggered when the insock field in socket_info changes
   
   struct timeout_event {
+    bool send_all;
     dc_tcp_comm* owner;
   };
   
@@ -237,9 +238,11 @@ class dc_tcp_comm:public dc_comm_base {
   void send_loop(struct event_base*);
   friend void on_send_event(int fd, short ev, void* arg);
   struct event_base* outevbase;
-  struct event* out_timeouts;
-  timeout_event timeoutevents;
-  
+  struct event* send_triggered_event;
+  struct event* send_all_event;
+  timeout_event send_triggered_timeout;
+  timeout_event send_all_timeout;
+
   fixed_dense_bitset<256> triggered_timeouts;  
   ////////////       Listening Sockets     //////////////////////
   int listensock;
