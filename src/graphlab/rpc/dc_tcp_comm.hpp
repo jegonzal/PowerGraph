@@ -252,6 +252,8 @@ class dc_tcp_comm:public dc_comm_base {
   void accept_handler();
 };
 
+void process_sock(dc_tcp_comm::socket_info* sockinfo); 
+
 } // namespace dc_impl
 } // namespace graphlab
 #endif
