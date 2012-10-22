@@ -188,7 +188,8 @@ namespace graphlab {
 
     void dc_tcp_comm::trigger_send_timeout(procid_t target, bool urgent) {
       if (!urgent) {
-        if (sock[target].wouldblock == false) {
+        if (sock[target].wouldblock == false && 
+            triggered_timeouts.get(target) == false) {
           triggered_timeouts.set_bit(target);
           event_active(send_triggered_event, EV_TIMEOUT, 1);
         }
