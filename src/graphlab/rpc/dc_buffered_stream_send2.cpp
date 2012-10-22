@@ -87,7 +87,7 @@ namespace dc_impl {
     if (insertloc >= 256) comm->trigger_send_timeout(target, false);
     else if (packet_type_mask & 
             (CONTROL_PACKET | WAIT_FOR_REPLY | REPLY_PACKET)) {
-      comm->trigger_send_timeout(target);
+      comm->trigger_send_timeout(target, true);
     }
   }
 
