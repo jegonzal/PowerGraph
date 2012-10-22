@@ -72,7 +72,7 @@ namespace dc_impl {
       // ooops out of buffer room. release the reference count, flush and retry
       if (insertloc >= buffer[curid].buf.size()) {
         __sync_fetch_and_sub(&(buffer[curid].ref_count), 1);
-        usleep(1);
+        asm volatile("pause\n": : :"memory");
         continue;
       }
       buffer[curid].buf[insertloc] = msg;
@@ -112,7 +112,9 @@ namespace dc_impl {
     // decrement the reference count
     __sync_fetch_and_sub(&(buffer[curid].ref_count), 1);
     // wait till the reference count is negative
-    while(buffer[curid].ref_count >= 0);
+    while(buffer[curid].ref_count >= 0) {
+      asm volatile("pause\n": : :"memory");
+    }
     
     // ok now we have exclusive access to the buffer
     size_t sendlen = buffer[curid].numbytes;
