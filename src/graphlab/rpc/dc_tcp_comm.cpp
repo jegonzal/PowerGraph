@@ -186,14 +186,18 @@ namespace graphlab {
       }
     }
 
-    void dc_tcp_comm::trigger_send_timeout(procid_t target) {
-      //event_add(sock[target].outevent, NULL);
-      //if (!sock[target].wouldblock) event_active(sock[target].outevent, EV_WRITE, 1);
-      triggered_timeouts.set_bit(target);
-      event_active(send_triggered_event, EV_TIMEOUT, 1);
-      //struct timeval t = {0, 1};
-      //event_add(sock[target].outevent, &t);
+    void dc_tcp_comm::trigger_send_timeout(procid_t target, bool urgent) {
+      if (!urgent) {
+        if (sock[target].wouldblock == false) {
+          triggered_timeouts.set_bit(target);
+          event_active(send_triggered_event, EV_TIMEOUT, 1);
+        }
+      }
+      else {
+        process_sock(&(sock[target]));
+      }
     }
+
 
     void dc_tcp_comm::close() {
       if (is_closed) return;
@@ -543,18 +547,27 @@ namespace graphlab {
     }
     
 
+    inline void process_sock(dc_tcp_comm::socket_info* sockinfo) {
+      if (sockinfo->m.try_lock()) {
+        dc_tcp_comm* comm = sockinfo->owner;
+        // get a direct pointer to my receiver
+        if (sockinfo->wouldblock == false) {
+          comm->check_for_new_data(*sockinfo);
+          if (!sockinfo->outvec.empty()) {
+            comm->send_till_block(*sockinfo);
+          }
+        }
+        sockinfo->m.unlock();
+      }
+    }
+
     // libevent receive handler
     void on_send_event(int fd, short ev, void* arg) {
       if (ev & EV_WRITE) {
         dc_tcp_comm::socket_info* sockinfo = (dc_tcp_comm::socket_info*)(arg);
         sockinfo->wouldblock = false;
-        dc_tcp_comm* comm = sockinfo->owner;
-        // get a direct pointer to my receiver
-        comm->check_for_new_data(*sockinfo);
-        if (!sockinfo->outvec.empty()) {
-          comm->send_till_block(*sockinfo);
-        }
-      }
+        process_sock(sockinfo);
+     }
       else if (ev & EV_TIMEOUT) {
         dc_tcp_comm::timeout_event* te =  (dc_tcp_comm::timeout_event*)(arg);
         dc_tcp_comm* comm = te->owner;
@@ -563,23 +576,13 @@ namespace graphlab {
           foreach(uint32_t i, comm->triggered_timeouts) {
             comm->triggered_timeouts.clear_bit(i);
             dc_tcp_comm::socket_info* sockinfo = &(comm->sock[i]);
-            if (sockinfo->wouldblock == false) {
-              comm->check_for_new_data(*sockinfo);
-              if (!sockinfo->outvec.empty()) {
-                comm->send_till_block(*sockinfo);
-              }
-            }
+            process_sock(sockinfo);
           }
         } else {
           // send all event
           for(uint32_t i = 0;i < comm->sock.size(); ++i) {
             dc_tcp_comm::socket_info* sockinfo = &(comm->sock[i]);
-            if (sockinfo->wouldblock == false) {
-              comm->check_for_new_data(*sockinfo);
-              if (!sockinfo->outvec.empty()) {
-                comm->send_till_block(*sockinfo);
-              }
-            }
+            process_sock(sockinfo);
           }
         }
       }

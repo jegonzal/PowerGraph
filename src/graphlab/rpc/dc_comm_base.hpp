@@ -78,7 +78,7 @@ class dc_comm_base {
   /// Must close all connections when this function is called
   virtual void close() = 0;
   
-  virtual void trigger_send_timeout(procid_t target) = 0;
+  virtual void trigger_send_timeout(procid_t target, bool urgent) = 0;
   
   virtual ~dc_comm_base() {}
   virtual procid_t numprocs() const = 0;

@@ -141,7 +141,7 @@ class dc_tcp_comm:public dc_comm_base {
   */
   void send(size_t target, const char* buf, size_t len);
   
-  void trigger_send_timeout(procid_t target);
+  void trigger_send_timeout(procid_t target, bool urgent);
   
  private:
   /// Sets TCP_NO_DELAY on the socket passed in fd
@@ -229,6 +229,8 @@ class dc_tcp_comm:public dc_comm_base {
   ////////////       Receiving Sockets      //////////////////////
   thread_group inthreads;
   void receive_loop(struct event_base*);
+
+  friend void process_sock(socket_info* sockinfo);
   friend void on_receive_event(int fd, short ev, void* arg);
   struct event_base* inevbase;
   
