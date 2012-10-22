@@ -72,7 +72,7 @@ namespace dc_impl {
       // ooops out of buffer room. release the reference count, flush and retry
       if (insertloc >= buffer[curid].buf.size()) {
         __sync_fetch_and_sub(&(buffer[curid].ref_count), 1);
-        asm volatile("pause\n": : :"memory");
+        usleep(1);
         continue;
       }
       buffer[curid].buf[insertloc] = msg;
