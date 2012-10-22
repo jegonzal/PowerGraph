@@ -37,7 +37,7 @@ namespace graphlab {
    * Identifier type of an edge which is only locally
    * consistent. Guaranteed to be integral and consecutive.
    */
-  typedef uint64_t edge_id_type;
+  typedef lvid_type edge_id_type;
   
   /**
    * \brief The set of edges that are traversed during gather and scatter
