@@ -159,6 +159,7 @@ void loadUAIfile(graphlab::distributed_control& dc, graph_type& graph,
         for (int j=0; j!=factor_size[i]; ++j) 
         {
             vdata.cards[j] = cardinalities[factor_memb[i][j]];
+            vdata.xmap[j] = factor_memb[i][j]; // afm (check if this was intended!)
             cardprod2 *= vdata.cards[j];
             
             // Also create edge structs here
