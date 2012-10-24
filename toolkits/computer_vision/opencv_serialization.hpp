@@ -27,6 +27,7 @@
 
 #include "opencv2/opencv_modules.hpp"
 #include "opencv2/opencv.hpp"
+#include "opencv2/stitching/stitcher.hpp"
 
 
 //////////////////////////////////////////////////
@@ -55,6 +56,7 @@ BEGIN_OUT_OF_PLACE_LOAD(arc, cv::Point2f, pt)
 {
     arc >> pt.x >> pt.y;
 } END_OUT_OF_PLACE_LOAD()
+
 
 //////////////////////////////////////////////////
 // For KeyPoint
@@ -102,5 +104,78 @@ BEGIN_OUT_OF_PLACE_LOAD(arc, cv::Mat, mat)
     graphlab::deserialize(arc, mat.ptr(), data_size);    
 } END_OUT_OF_PLACE_LOAD()
 
+
+//////////////////////////////////////////////////
+// For ImageFeatures
+BEGIN_OUT_OF_PLACE_SAVE(arc, cv::detail::ImageFeatures, features) 
+{
+    arc << features.img_idx << features.img_size
+    << features.keypoints
+    << features.descriptors;
+} END_OUT_OF_PLACE_SAVE()
+
+
+BEGIN_OUT_OF_PLACE_LOAD(arc, cv::detail::ImageFeatures, features) 
+{
+    arc >> features.img_idx >> features.img_size
+    >> features.keypoints
+    >> features.descriptors;
+} END_OUT_OF_PLACE_LOAD()
+
+
+//////////////////////////////////////////////////
+// For DMatch
+BEGIN_OUT_OF_PLACE_SAVE(arc, cv::DMatch, match) 
+{
+    arc << match.queryIdx << match.trainIdx << match.imgIdx
+    << match.distance;     
+} END_OUT_OF_PLACE_SAVE()
+
+
+BEGIN_OUT_OF_PLACE_LOAD(arc, cv::DMatch, match) 
+{
+    arc >> match.queryIdx >> match.trainIdx >> match.imgIdx
+    >> match.distance;     
+} END_OUT_OF_PLACE_LOAD()
+
+
+//////////////////////////////////////////////////
+// For MatchesInfo 
+BEGIN_OUT_OF_PLACE_SAVE(arc, cv::detail::MatchesInfo, matchesinfo) 
+{
+    arc << matchesinfo.src_img_idx << matchesinfo.dst_img_idx
+    << matchesinfo.matches 
+    << matchesinfo.inliers_mask << matchesinfo.num_inliers
+    << matchesinfo.H 
+    << matchesinfo.confidence;    
+} END_OUT_OF_PLACE_SAVE()
+
+
+BEGIN_OUT_OF_PLACE_LOAD(arc, cv::detail::MatchesInfo, matchesinfo) 
+{
+    arc >> matchesinfo.src_img_idx >> matchesinfo.dst_img_idx
+    >> matchesinfo.matches 
+    >> matchesinfo.inliers_mask >> matchesinfo.num_inliers
+    >> matchesinfo.H 
+    >> matchesinfo.confidence;
+} END_OUT_OF_PLACE_LOAD()
+
+
+//////////////////////////////////////////////////
+// For CameraParams
+BEGIN_OUT_OF_PLACE_SAVE(arc, cv::detail::CameraParams, camera) 
+{
+    arc << camera.focal << camera.aspect 
+    << camera.ppx << camera.ppy
+    << camera.R << camera.t;
+} END_OUT_OF_PLACE_SAVE()
+
+
+BEGIN_OUT_OF_PLACE_LOAD(arc, cv::detail::CameraParams, camera) 
+{
+    arc >> camera.focal >> camera.aspect 
+    >> camera.ppx >> camera.ppy
+    >> camera.R >> camera.t;
+} END_OUT_OF_PLACE_LOAD()
 
 #endif
