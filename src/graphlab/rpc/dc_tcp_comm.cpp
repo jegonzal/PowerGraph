@@ -48,7 +48,9 @@
 
 #define compile_barrier() asm volatile("": : :"memory")
 
-//#define COMM_DEBUG
+#include <graphlab/macros_def.hpp>
+
+#define COMM_DEBUG
 namespace graphlab {
  
   namespace dc_impl {
@@ -68,6 +70,8 @@ namespace graphlab {
       // insert machines into the address map
       all_addrs.resize(nprocs);
       portnums.resize(nprocs);
+      assert(triggered_timeouts.size() >= nprocs);
+      triggered_timeouts.clear();
       // fill all the socks
       sock.resize(nprocs);
       for (size_t i = 0;i < nprocs; ++i) {
@@ -135,69 +139,42 @@ namespace graphlab {
       
       // everyone is connected.
       // Construct the eventbase
-      iter = initopts.find("sockets_per_thread");
-     if (iter != initopts.end()) {
-        size_t sendsocks_per_thread = atoi(iter->second.c_str());
-        size_t recvsocks_per_thread = atoi(iter->second.c_str());
-        construct_events(sendsocks_per_thread, recvsocks_per_thread);
-      }
-      else {
-        construct_events();
-      }
-      for (size_t i = 0;i < inevbase.size(); ++i) {
-        inthreads.launch(boost::bind(&dc_tcp_comm::receive_loop, this, inevbase[i]));
-      }
-      for (size_t i = 0;i < outevbase.size(); ++i) {
-        outthreads.launch(boost::bind(&dc_tcp_comm::send_loop, this, outevbase[i]));
-      }
+      construct_events();
+      inthreads.launch(boost::bind(&dc_tcp_comm::receive_loop, this, inevbase));
+      outthreads.launch(boost::bind(&dc_tcp_comm::send_loop, this, outevbase));
       is_closed = false;
     }
 
-    void dc_tcp_comm::construct_events(size_t send_sockets_per_thread, size_t recv_sockets_per_thread) {
-      send_sockets_per_thread += (send_sockets_per_thread == 0);
-      recv_sockets_per_thread += (recv_sockets_per_thread == 0); 
+    void dc_tcp_comm::construct_events() {
       int ret = evthread_use_pthreads();
       if (ret < 0) logstream(LOG_FATAL) << "Unable to initialize libevent with pthread support!" << std::endl;
       // number of evs to create.
-      size_t n_send_evs = sock.size() / send_sockets_per_thread + (sock.size() % send_sockets_per_thread > 0);
-      size_t n_recv_evs = sock.size() / recv_sockets_per_thread + (sock.size() % recv_sockets_per_thread > 0);
+      outevbase = event_base_new();
+      if (!outevbase) logstream(LOG_FATAL) << "Unable to construct libevent base" << std::endl;
+      send_all_timeout.owner = this;
+      send_all_timeout.send_all = true;
+      send_triggered_timeout.owner = this;
+      send_triggered_timeout.send_all = false;
+      send_all_event = event_new(outevbase, -1, EV_TIMEOUT | EV_PERSIST, on_send_event, &(send_all_timeout));
+      assert(send_all_event != NULL);
+      struct timeval t = {0, 5000};
+      event_add(send_all_event, &t);
+      send_triggered_event = event_new(outevbase, -1, EV_TIMEOUT | EV_PERSIST, on_send_event, &(send_triggered_timeout));
+      assert(send_triggered_event != NULL);
 
-      inevbase.resize(n_recv_evs);
-      outevbase.resize(n_send_evs);
-      out_timeouts.resize(n_send_evs);
-      timeoutevents.resize(n_send_evs);
-      // update socks per thread to redistribute the events better
-      send_sockets_per_thread = sock.size() / n_send_evs + (sock.size() % n_send_evs > 0);
-      recv_sockets_per_thread = sock.size() / n_recv_evs + (sock.size() % n_recv_evs > 0);
-
-      for (size_t i = 0;i < n_send_evs; ++i) {
-        outevbase[i] = event_base_new();
-        if (!outevbase[i]) logstream(LOG_FATAL) << "Unable to construct libevent base" << std::endl;
-        timeoutevents[i].owner = this;
-        timeoutevents[i].sockstart = i * send_sockets_per_thread;
-        timeoutevents[i].sockend = std::min(sock.size(), (i + 1) * send_sockets_per_thread);
-        out_timeouts[i] = event_new(outevbase[i], -1, EV_TIMEOUT | EV_PERSIST, on_send_event, &(timeoutevents[i]));
-        struct timeval t = {0, 100};
-        event_add(out_timeouts[i], &t);
-      }
-
-      for (size_t i = 0;i < n_recv_evs; ++i) {
-        inevbase[i] = event_base_new();
-        if (!inevbase[i]) logstream(LOG_FATAL) << "Unable to construct libevent base" << std::endl;
-      }
+      inevbase = event_base_new();
+      if (!inevbase) logstream(LOG_FATAL) << "Unable to construct libevent base" << std::endl;
 
 
       //register all event objects
       for (size_t i = 0;i < sock.size(); ++i) {
-        size_t ev_in_id = i / recv_sockets_per_thread;
-        size_t ev_out_id = i / send_sockets_per_thread;
-        sock[i].inevent = event_new(inevbase[ev_in_id], sock[i].insock, EV_READ | EV_PERSIST | EV_ET,
+        sock[i].inevent = event_new(inevbase, sock[i].insock, EV_READ | EV_PERSIST | EV_ET,
                                      on_receive_event, &(sock[i]));
         if (sock[i].inevent == NULL) {
           logstream(LOG_FATAL) << "Unable to register socket read event" << std::endl;
         }
 
-        sock[i].outevent = event_new(outevbase[ev_out_id], sock[i].outsock, EV_WRITE,
+        sock[i].outevent = event_new(outevbase, sock[i].outsock, EV_WRITE | EV_PERSIST | EV_ET,
                                      on_send_event, &(sock[i]));
         if (sock[i].outevent == NULL) {
           logstream(LOG_FATAL) << "Unable to register socket write event" << std::endl;
@@ -209,14 +186,19 @@ namespace graphlab {
       }
     }
 
-    void dc_tcp_comm::trigger_send_timeout(procid_t target) {
-      //event_add(sock[target].outevent, NULL);
-      if (!sock[target].wouldblock) event_active(sock[target].outevent, EV_WRITE, 1);
-      //event_active(out_timeouts[target / sock.size()]
-//      std::cout << "trigger" << std::endl;
-      //struct timeval t = {0, 1};
-      //event_add(sock[target].outevent, &t);
+    void dc_tcp_comm::trigger_send_timeout(procid_t target, bool urgent) {
+      if (!urgent) {
+        if (sock[target].wouldblock == false && 
+            triggered_timeouts.get(target) == false) {
+          triggered_timeouts.set_bit(target);
+          event_active(send_triggered_event, EV_TIMEOUT, 1);
+        }
+      }
+      else {
+        process_sock(&(sock[target]));
+      }
     }
+
 
     void dc_tcp_comm::close() {
       if (is_closed) return;
@@ -230,12 +212,14 @@ namespace graphlab {
       listenthread.join();
       
       // clear the outevent loop
-      for (size_t i = 0;i < outevbase.size(); ++i) event_base_loopbreak(outevbase[i]);
+      event_base_loopbreak(outevbase);
       outthreads.join();
       for (size_t i = 0;i < sock.size(); ++i) {
         event_free(sock[i].outevent);
       }
-      for (size_t i = 0;i < outevbase.size(); ++i) event_base_free(outevbase[i]);
+      event_free(send_triggered_event);
+      event_free(send_all_event);
+      event_base_free(outevbase);
 
       
       logstream(LOG_INFO) << "Closing outgoing sockets" << std::endl;
@@ -248,12 +232,12 @@ namespace graphlab {
       }
       
       // clear the inevent loop
-      for (size_t i = 0;i < inevbase.size(); ++i) event_base_loopbreak(inevbase[i]);
+      event_base_loopbreak(inevbase);
       inthreads.join();
       for (size_t i = 0;i < sock.size(); ++i) {
         event_free(sock[i].inevent);
       }
-      for (size_t i = 0;i < inevbase.size(); ++i) event_base_free(inevbase[i]);
+      event_base_free(inevbase);
       
       
       logstream(LOG_INFO) << "Closing incoming sockets" << std::endl;
@@ -288,7 +272,7 @@ namespace graphlab {
         }
         
 #ifdef COMM_DEBUG
-      logstream(LOG_INFO) << ret << " bytes --> " << sockinfo.id << std::endl;
+        logstream(LOG_INFO) << ret << " bytes --> " << sockinfo.id << std::endl;
 #endif
         network_bytessent.inc(ret);
         sockinfo.outvec.sent(ret);
@@ -564,38 +548,43 @@ namespace graphlab {
     }
     
 
+    inline void process_sock(dc_tcp_comm::socket_info* sockinfo) {
+      if (sockinfo->m.try_lock()) {
+        dc_tcp_comm* comm = sockinfo->owner;
+        // get a direct pointer to my receiver
+        if (sockinfo->wouldblock == false) {
+          comm->check_for_new_data(*sockinfo);
+          if (!sockinfo->outvec.empty()) {
+            comm->send_till_block(*sockinfo);
+          }
+        }
+        sockinfo->m.unlock();
+      }
+    }
+
     // libevent receive handler
     void on_send_event(int fd, short ev, void* arg) {
       if (ev & EV_WRITE) {
         dc_tcp_comm::socket_info* sockinfo = (dc_tcp_comm::socket_info*)(arg);
         sockinfo->wouldblock = false;
-        dc_tcp_comm* comm = sockinfo->owner;
-        // get a direct pointer to my receiver
-        while(sockinfo->wouldblock == false) {
-          comm->check_for_new_data(*sockinfo);
-          if (!sockinfo->outvec.empty()) {
-            comm->send_till_block(*sockinfo);
-          }
-          else {
-            break;
-          }
-        }
-        if (sockinfo->wouldblock) event_add(sockinfo->outevent, NULL);
-      }
+        process_sock(sockinfo);
+     }
       else if (ev & EV_TIMEOUT) {
         dc_tcp_comm::timeout_event* te =  (dc_tcp_comm::timeout_event*)(arg);
         dc_tcp_comm* comm = te->owner;
-        for (size_t i = te->sockstart;i < te->sockend; ++i) {
-          dc_tcp_comm::socket_info* sockinfo = &(comm->sock[i]);
-          comm->check_for_new_data(*sockinfo);
-          if (!sockinfo->outvec.empty()) {
-            comm->send_till_block(*sockinfo);
-
+        if (te->send_all == false) {
+          // this is a triggered event
+          foreach(uint32_t i, comm->triggered_timeouts) {
+            comm->triggered_timeouts.clear_bit(i);
+            dc_tcp_comm::socket_info* sockinfo = &(comm->sock[i]);
+            process_sock(sockinfo);
           }
-          else {
-            break;
+        } else {
+          // send all event
+          for(uint32_t i = 0;i < comm->sock.size(); ++i) {
+            dc_tcp_comm::socket_info* sockinfo = &(comm->sock[i]);
+            process_sock(sockinfo);
           }
-          if (sockinfo->wouldblock) event_add(sockinfo->outevent, NULL);
         }
       }
     }

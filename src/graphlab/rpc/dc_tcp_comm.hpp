@@ -37,7 +37,7 @@
 #include <graphlab/rpc/dc_comm_base.hpp>
 #include <graphlab/rpc/circular_iovec_buffer.hpp>
 #include <graphlab/util/tracepoint.hpp>
-
+#include <graphlab/util/dense_bitset.hpp>
 namespace graphlab {
 namespace dc_impl {
   
@@ -141,7 +141,7 @@ class dc_tcp_comm:public dc_comm_base {
   */
   void send(size_t target, const char* buf, size_t len);
   
-  void trigger_send_timeout(procid_t target);
+  void trigger_send_timeout(procid_t target, bool urgent);
   
  private:
   /// Sets TCP_NO_DELAY on the socket passed in fd
@@ -203,14 +203,12 @@ class dc_tcp_comm:public dc_comm_base {
   conditional insock_cond; /// triggered when the insock field in socket_info changes
   
   struct timeout_event {
-    size_t sockstart;
-    size_t sockend;
+    bool send_all;
     dc_tcp_comm* owner;
   };
   
   std::vector<socket_info> sock; 
   
-    
   /**
    * Sends as much of the buffer inside the sockinfo as possible
    * until the send call will block or all sends are complete. 
@@ -220,8 +218,8 @@ class dc_tcp_comm:public dc_comm_base {
   void send_all(socket_info& sockinfo);
   bool send_till_block(socket_info& sockinfo);
   void check_for_new_data(socket_info& sockinfo);
-  void construct_events(size_t send_sockets_per_thread = 64,
-                        size_t recv_sockets_per_thread = 64);
+  void construct_events();
+                        
   
 
   // counters
@@ -231,23 +229,30 @@ class dc_tcp_comm:public dc_comm_base {
   ////////////       Receiving Sockets      //////////////////////
   thread_group inthreads;
   void receive_loop(struct event_base*);
+
+  friend void process_sock(socket_info* sockinfo);
   friend void on_receive_event(int fd, short ev, void* arg);
-  std::vector<struct event_base*> inevbase;
+  struct event_base* inevbase;
   
   
   ////////////       Sending Sockets      //////////////////////
   thread_group outthreads;
   void send_loop(struct event_base*);
   friend void on_send_event(int fd, short ev, void* arg);
-  std::vector<struct event_base*> outevbase;
-  std::vector<struct event*> out_timeouts;
-  std::vector<timeout_event> timeoutevents;
-  
+  struct event_base* outevbase;
+  struct event* send_triggered_event;
+  struct event* send_all_event;
+  timeout_event send_triggered_timeout;
+  timeout_event send_all_timeout;
+
+  fixed_dense_bitset<256> triggered_timeouts;  
   ////////////       Listening Sockets     //////////////////////
   int listensock;
   thread listenthread;
   void accept_handler();
 };
+
+void process_sock(dc_tcp_comm::socket_info* sockinfo); 
 
 } // namespace dc_impl
 } // namespace graphlab

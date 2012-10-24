@@ -47,7 +47,7 @@ This is an internal function and should not be used directly.
 Given  function F, as well as input types T1 ... Tn
 it will construct an input archive and deserialize the types T1.... Tn,
 and call the function f with it. The return value of the function
-is then returned to the caller through the fast call to the 
+is then returned to the caller through the reply call to the 
 source's reply_increment_counter. This code dispatches to the "intrusive" 
 form of a function call (that is the function call must take a distributed_control
 and a "procid_t source" as its first 2 arguments.
@@ -92,7 +92,7 @@ template<typename DcType,
     }
     else
     {
-        dc.fast_remote_call(source, reply_increment_counter, id, blob(retstrm->str, retstrm->len));
+        dc.reply_remote_call(source, reply_increment_counter, id, blob(retstrm->str, retstrm->len));
     }
 }
 \endcode
@@ -131,7 +131,7 @@ void BOOST_PP_CAT(REQUESTDISPATCH,N) (DcType& dc, procid_t source, unsigned char
     dc.control_call(source, reply_increment_counter, id, blob(retstrm->str, retstrm->len));\
   } \
   else {  \
-    dc.fast_remote_call(source, reply_increment_counter, id, blob(retstrm->str, retstrm->len));\
+    dc.reply_remote_call(source, reply_increment_counter, id, blob(retstrm->str, retstrm->len));\
   } \
   free(retstrm->str);                                                 \
 } 
@@ -172,7 +172,7 @@ void BOOST_PP_CAT(NONINTRUSIVE_REQUESTDISPATCH,N) (DcType& dc, procid_t source, 
     dc.control_call(source, reply_increment_counter, id, blob(retstrm->str, retstrm->len));\
   } \
   else {  \
-    dc.fast_remote_call(source, reply_increment_counter, id, blob(retstrm->str, retstrm->len));\
+    dc.reply_remote_call(source, reply_increment_counter, id, blob(retstrm->str, retstrm->len));\
   } \
   free(retstrm->str);                                                 \
 } 

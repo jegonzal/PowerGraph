@@ -79,7 +79,7 @@ namespace graphlab {
         if (retval.first) retval.second = iter->second;
         lock.unlock();
       } else {
-        retval = rpc.fast_remote_request(owningmachine, 
+        retval = rpc.remote_request(owningmachine, 
                                          &dht<KeyType,ValueType>::get, 
                                          key);
       }
@@ -100,7 +100,7 @@ namespace graphlab {
         storage[hashvalue] = newval;
         lock.unlock();
       } else {
-        rpc.fast_remote_call(owningmachine, 
+        rpc.remote_call(owningmachine, 
                              &dht<KeyType,ValueType>::set, 
                              key, newval);
       }

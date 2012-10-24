@@ -97,7 +97,7 @@ template<typename DcType,
     }
     else
     {
-        dc.fast_remote_call(source, reply_increment_counter, id, blob(retstrm->str, retstrm->len));
+        dc.reply_remote_call(source, reply_increment_counter, id, blob(retstrm->str, retstrm->len));
     } if ((packet_type_mask & CONTROL_PACKET) == 0) dc.get_rmi_instance(objid)->inc_calls_received(source);
 }
 \endcode
@@ -149,7 +149,7 @@ template<typename DcType,
                       id,                                               \
                       blob(retstrm->str, retstrm->len));                \
     } else {                                                            \
-      dc.fast_remote_call(source,                                       \
+      dc.reply_remote_call(source,                                       \
                           reply_increment_counter,                      \
                           id,                                           \
                           blob(retstrm->str, retstrm->len));            \

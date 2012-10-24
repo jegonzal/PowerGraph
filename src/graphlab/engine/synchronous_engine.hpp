@@ -1385,14 +1385,13 @@ namespace graphlab {
     size_t global_completed = completed_applys;
     rmi.all_reduce(global_completed);
     completed_applys = global_completed;
-    if (rmi.procid() == 0) {
-      logstream(LOG_INFO) << "Updates: " << completed_applys.value << "\n";
+    rmi.cout() << "Updates: " << completed_applys.value << "\n";
+    if (rmi.procid() == 0) { 
       logstream(LOG_INFO) << "Compute Balance: ";
       for (size_t i = 0;i < all_compute_time_vec.size(); ++i) {
         logstream(LOG_INFO) << all_compute_time_vec[i] << " ";
       }
       logstream(LOG_INFO) << std::endl;
-      
     } 
     rmi.full_barrier();
     // Stop the aggregator
