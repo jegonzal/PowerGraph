@@ -30,13 +30,13 @@ graphlab::oarchive& operator<<(graphlab::oarchive& arc, const cv::Size& img_size
 {
     arc << img_size.width << img_size.height;  
     return arc;
-} // end of save vector
+} 
 
 graphlab::iarchive& operator>>(graphlab::iarchive& arc, cv::Size& img_size) 
 {
     arc >> img_size.width >> img_size.height;  
     return arc;
-} // end of save vector
+} 
 
 
 //////////////////////////////////////////////////
@@ -45,13 +45,13 @@ graphlab::oarchive& operator<<(graphlab::oarchive& arc, const cv::Point2f& pt)
 {
     arc << pt.x << pt.y;
     return arc;
-} // end of save vector
+} 
 
 graphlab::iarchive& operator>>(graphlab::iarchive& arc, cv::Point2f& pt) 
 {
     arc >> pt.x >> pt.y;
     return arc;
-} // end of save vector
+} 
 
 
 //////////////////////////////////////////////////
@@ -62,7 +62,7 @@ graphlab::oarchive& operator<<(graphlab::oarchive& arc, const cv::KeyPoint& keyp
     << keypoint.size << keypoint.angle << keypoint.response
     << keypoint.octave << keypoint.class_id;
     return arc;
-} // end of save vector
+} 
 
 graphlab::iarchive& operator>>(graphlab::iarchive& arc, cv::KeyPoint& keypoint) 
 {
@@ -70,7 +70,7 @@ graphlab::iarchive& operator>>(graphlab::iarchive& arc, cv::KeyPoint& keypoint)
     >> keypoint.size >> keypoint.angle >> keypoint.response
     >> keypoint.octave >> keypoint.class_id;
     return arc;
-} // end of save vector
+} 
 
 
 //////////////////////////////////////////////////
@@ -86,7 +86,7 @@ graphlab::oarchive& operator<<(graphlab::oarchive& arc, const cv::Mat& mat)
     const size_t data_size = mat.cols * mat.rows * elem_size;
     graphlab::serialize(arc, mat.ptr(), data_size);
     return arc;
-} // end of save vector
+} 
 
 graphlab::iarchive& operator>>(graphlab::oarchive& arc, const cv::Mat& mat) 
 {
@@ -100,4 +100,86 @@ graphlab::iarchive& operator>>(graphlab::oarchive& arc, const cv::Mat& mat)
     size_t data_size = mat.cols * mat.rows * elem_size;
     graphlab::deserialize(arc, mat.ptr(), data_size);
     return arc;
-} // end of save vector
+} 
+
+
+//////////////////////////////////////////////////
+// For ImageFeatures
+graphlab::oarchive& operator<<(graphlab::oarchive& arc, const cv::detail::ImageFeatures& features) 
+{
+    arc << features.img_idx << features.img_size
+    << features.keypoints
+    << features.descriptors;    
+    return arc;
+} 
+
+
+graphlab::iarchive& operator>>(graphlab::oarchive& arc, const cv::detail::ImageFeatures& features) 
+{
+    arc >> features.img_idx >> features.img_size
+    >> features.keypoints
+    >> features.descriptors;
+    return arc;
+} 
+
+
+//////////////////////////////////////////////////
+// For DMatch
+graphlab::oarchive& operator<<(graphlab::oarchive& arc, const cv::DMatch& match) 
+{
+    arc << match.queryIdx << match.trainIdx << match.imgIdx
+    << match.distance;     
+    return arc;
+}
+
+
+graphlab::iarchive& operator>>(graphlab::oarchive& arc, const cv::DMatch& match) 
+{
+    arc >> match.queryIdx >> match.trainIdx >> match.imgIdx
+    >> match.distance;     
+    return arc;
+}
+
+
+//////////////////////////////////////////////////
+// For MatchesInfo 
+graphlab::oarchive& operator<<(graphlab::oarchive& arc, const cv::detail::MatchesInfo& matchesinfo) 
+{
+    arc << matchesinfo.src_img_idx << matchesinfo.dst_img_idx
+    << matchesinfo.matches 
+    << matchesinfo.inliers_mask << matchesinfo.num_inliers
+    << matchesinfo.H 
+    << matchesinfo.confidence;
+    return arc;
+}
+
+
+graphlab::iarchive& operator>>(graphlab::oarchive& arc, const cv::detail::MatchesInfo& matchesinfo) 
+{
+    arc >> matchesinfo.src_img_idx >> matchesinfo.dst_img_idx
+    >> matchesinfo.matches 
+    >> matchesinfo.inliers_mask >> matchesinfo.num_inliers
+    >> matchesinfo.H 
+    >> matchesinfo.confidence;
+    return arc;
+}
+
+
+//////////////////////////////////////////////////
+// For CameraParams
+graphlab::oarchive& operator<<(graphlab::oarchive& arc, const cv::detail::CameraParams& camera) 
+{
+    arc << camera.focal << camera.aspect 
+    << camera.ppx << camera.ppy
+    << camera.R << camera.t;
+    return arc;
+} 
+
+
+graphlab::iarchive& operator>>(graphlab::oarchive& arc, const cv::detail::CameraParams& camera) 
+{
+    arc >> camera.focal >> camera.aspect 
+    >> camera.ppx >> camera.ppy
+    >> camera.R >> camera.t;
+    return arc;
+} 

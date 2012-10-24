@@ -439,9 +439,12 @@ int main(int argc, char* argv[])
         return -1;
     }
 
+    LOG("Homography-based init\n");
+    t = getTickCount();
     HomographyBasedEstimator estimator;
     vector<CameraParams> cameras;
     estimator(features, pairwise_matches, cameras);
+    LOGLN("Homography-based init, time: " << ((getTickCount() - t) / getTickFrequency()) << " sec");
 
     for (size_t i = 0; i < cameras.size(); ++i)
     {
@@ -451,6 +454,8 @@ int main(int argc, char* argv[])
         LOGLN("Initial intrinsics #" << indices[i]+1 << ":\n" << cameras[i].K());
     }
 
+    LOG("Bundle Adjustment\n");
+    t = getTickCount();
     Ptr<detail::BundleAdjusterBase> adjuster;
     if (ba_cost_func == "reproj") adjuster = new detail::BundleAdjusterReproj();
     else if (ba_cost_func == "ray") adjuster = new detail::BundleAdjusterRay();
@@ -468,6 +473,7 @@ int main(int argc, char* argv[])
     if (ba_refine_mask[4] == 'x') refine_mask(1,2) = 1;
     adjuster->setRefinementMask(refine_mask);
     (*adjuster)(features, pairwise_matches, cameras);
+    LOGLN("Bundle Adjustment, time: " << ((getTickCount() - t) / getTickFrequency()) << " sec");
 
     // Find median focal length
 
