@@ -20,15 +20,18 @@
  *
  */
 
+
 /**
- * This file contains an example of graphlab used for stitching
- * multiple images into a panorama. 
+ *
+ * \brief This file contains an example of graphlab used for stitching
+ * multiple images into a panorama. The code is based on a example
+ * stiching application in OpenCV.
  *
  *  \author Dhruv Batra
  */
 
 
-#include "stitch_grlab.hpp"
+#include "stitch_main.hpp"
 
 void printUsage()
 {
@@ -292,21 +295,18 @@ int parseCmdArgs(int argc, char** argv)
 
 
 /////////////////////////////////////////////////////////////////////////
+Options opts;
 int main(int argc, char** argv) 
 {
     
-    string img_dir; 
-    string graph_dir;
-    string output_dir = "stitch_output";
-
     ///////////////////////////////////////////////////////
     // Set up Graphlab
     global_logger().set_log_level(LOG_INFO);
     global_logger().set_log_to_console(true);
+
     ///! Initialize control plain using mpi
     graphlab::mpi_tools::init(argc, argv);
     graphlab::distributed_control dc;
-    const std::string description = "Stitching Application";
 
     ///////////////////////////////////////////////////////
     // Set up OpenCV
@@ -314,15 +314,25 @@ int main(int argc, char** argv)
 
     ///////////////////////////////////////////////////////
     // Graphlab parse input
+    const std::string description = "Image Stitching";
     graphlab::command_line_options clopts(description);
+
+    string img_dir; 
+    string graph_path;
+    string output_dir = "stitch_output";
+
     clopts.attach_option("img", img_dir,
                          "The directory containing the images");
     clopts.add_positional("img");
-    clopts.attach_option("graph", graph_dir,
-                         "The directory containing the adjacency graph");
+    clopts.attach_option("graph", graph_path,
+                         "The path to the adjacency list file (could be the prefix in case of multiple files)");
     clopts.add_positional("graph");
     clopts.attach_option("output", output_dir,
                          "The directory in which to save the output");
+    clopts.attach_option("verbose", opts.verbose,
+                         "Verbosity of Printing: 0 (default, no printing) or 1 (lots).");
+    clopts.attach_option("work_megapix", opts.work_megapix,
+                         "Resolution for image registration step. The default is 0.6 Mpx.");
 
     if(!clopts.parse(argc, argv)) 
     {
@@ -336,36 +346,47 @@ int main(int argc, char** argv)
         return EXIT_FAILURE;
     }
     
-//    if(graph_dir.empty()) 
-//    {
-//        logstream(LOG_ERROR) << "No graph was provided." << std::endl;
-//        return EXIT_FAILURE;
-//    }
+    if(graph_path.empty()) 
+    {
+        logstream(LOG_ERROR) << "No adjacency file provided." << std::endl;
+        return EXIT_FAILURE;
+    }
+    
+    if (opts.work_megapix < 0 || opts.work_megapix > 0)
+    {
+        logstream(LOG_ERROR) << "Inappropriate value for work_megapix." << std::endl;
+        return EXIT_FAILURE;
+    }
+    
     
     // display settings  
-    if(dc.procid() == 0) 
-    {
-        std::cout 
-        << "ncpus:          " << clopts.get_ncpus() << std::endl
-        << "img_dir:        " << img_dir << std::endl
-        << "graph_dir:      " << graph_dir << std::endl;
-    }
+    dc.cout() 
+    << "ncpus:          " << clopts.get_ncpus() << std::endl
+    << "scheduler:      " << clopts.get_scheduler_type() << std::endl
+    << "img_dir:        " << img_dir << std::endl
+    << "graph_path:     " << graph_path << std::endl
+    << "work_megapix:   " << opts.work_megapix << std::endl
+    << "verbose:        " << opts.verbose << std::endl;
     
 
     
     ///////////////////////////////////////////////////////
     // Graphlab Graph
-    graph_type graph(dc, clopts);  
+    graph_type graph(dc, clopts);
         
     // load the graph
     //graph.load(img_dir, vertex_loader);
-    //graph.load(graph_dir, edge_loader);
     vertex_loader(dc, graph, img_dir);
+    graph.load(graph_path, edge_loader);
     graph.finalize();
     
     ///////////////////////////////////////////////////////
     // Computer features in parallel
     graph.transform_vertices(compute_features);
+
+    ///////////////////////////////////////////////////////
+    // Match features in parallel
+    graph.transform_edges(match_features);
 
     
     ///////////////////////////////////////////////////////

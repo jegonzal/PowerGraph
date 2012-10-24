@@ -20,13 +20,19 @@
  *
  */
 
+
 /**
- * This file contains an example of graphlab used for stitching
+ *
+ * \brief This file contains an example of graphlab used for stitching
  * multiple images into a panorama. The code is based on a example
  * stiching application in OpenCV.
  *
  *  \author Dhruv Batra
  */
+
+
+#ifndef __STITCH_GRLAB_HPP__
+#define __STITCH_GRLAB_HPP__
 
 
 #include <vector>
@@ -42,6 +48,7 @@
 
 #include "eigen_serialization.hpp"
 #include "opencv_serialization.hpp"
+#include "stitch_opts.hpp"
 
 #include <graphlab/macros_def.hpp>
 
@@ -83,23 +90,34 @@ struct vertex_data
     void save(graphlab::oarchive& arc) const 
     {
         arc << img_path
-        << features.img_idx
-        << features.img_size
-        << features.descriptors
-        << features.descriptors;
+        << features;
     }
     void load(graphlab::iarchive& arc) 
     {
         arc >> img_path
-        >> features.img_idx
-        >> features.img_size
-        >> features.descriptors
-        >> features.descriptors;
+        >> features;
     }
 }; // End of vertex data
 
 
-typedef graphlab::empty edge_data;
+//typedef graphlab::empty edge_data;
+struct edge_data 
+{
+    cv::detail::MatchesInfo matchinfo;
+    
+    // constructor
+    edge_data()
+    { }
+    
+    void save(graphlab::oarchive& arc) const 
+    {
+        arc << matchinfo;
+    }
+    void load(graphlab::iarchive& arc) 
+    {
+        arc >> matchinfo;
+    }
+}; // End of edge data
 
 /**
  * The graph type
@@ -159,6 +177,10 @@ public:
                const gather_type& sum) 
     {
         
+        // Get vertex data
+        vertex_data &vdata = vertex.data();
+
+        logstream(LOG_EMPH) << "Features in image #" << vertex.id() << ": " << vdata.features.keypoints.size() << "\n";
     } // end of apply
 
     edge_dir_type scatter_edges(icontext_type& context,
@@ -177,90 +199,4 @@ public:
 //typedef graphlab::synchronous_engine<mplp_vertex_program> engine_type;
 typedef graphlab::async_consistent_engine<stitch_vertex_program> engine_type;
 
-
-/////////////////////////////////////////////////////////////////////////
-// Vertex Loader (used to read load the vertex data of the graph)
-//bool vertex_loader(graph_type& graph, const std::string& fname, 
-//                   const std::string& line) 
-bool vertex_loader(graphlab::distributed_control& dc, graph_type& graph, string img_path)
-{ 
-    // force a "/" at the end of the path
-    // make sure to check that the path is non-empty. (you do not
-    // want to make the empty path "" the root path "/" )
-    string path = img_path;
-    if (path.length() > 0 && path[path.length() - 1] != '/') path = path + "/";
-
-    vector<string> graph_files;
-    string search_prefix;
-    graphlab::fs_util::list_files_with_prefix(path, search_prefix, graph_files);
-
-    if (graph_files.size() == 0) 
-        logstream(LOG_WARNING) << "No files found in " << path << std::endl;
-
-    // vertex data & id
-    graphlab::vertex_id_type vid(-1);
-    
-    ///////////////////////////////////////////////////////
-    // Loop over files
-    for(size_t i = 0; i < graph_files.size(); ++i) 
-    {
-        // Each machine loads corresponding file
-        if (i % dc.numprocs() == dc.procid()) 
-        {
-            logstream(LOG_EMPH) 
-            //<< "Process: " << dc.procid() << "/" << dc.numprocs()
-            << "picked image: " << graph_files[i] << "\n";
-
-            
-            vid = i;
-            vertex_data vdata;            
-            vdata.img_path = graph_files[i];
-            vdata.features.img_idx = i;
-            
-            graph.add_vertex(vid, vdata);
-
-        }
-    }
-
-    return true;
-}
-
-
-/////////////////////////////////////////////////////////////////////////
-// Function to extract features in parallel
-void compute_features(graph_type::vertex_type vertex)
-{
-    // Get vertex data
-    vertex_data &vdata = vertex.data();
-    
-    // Load image
-    //            // open the stream
-    //            std::ifstream in_file(graph_files[i].c_str(), 
-    //                                  std::ios_base::in | std::ios_base::binary);
-    //
-    //            boost::iostreams::filtering_stream<boost::iostreams::input> fin;  
-    //            fin.push(in_file);
-    //            
-    //            // Get data from stream into a buffer
-    //            fin.pop();
-    
-    // Ignore the above hdfs-setup for now. Just read from file directly.
-    Mat img = imread(vdata.img_path);
-
-    if (img.empty())
-    {
-        logstream(LOG_EMPH) << "Could not imread image: " << vdata.img_path << "\n";
-        //exit();
-        //return EXIT_FAILURE;
-    }
-    else
-        logstream(LOG_EMPH) << "Done\n";
-    
-    // compute features
-    SurfFeaturesFinder finder;
-    finder(img, vdata.features);
-
-    
-    logstream(LOG_EMPH) << "Features in image #" << vertex.id() << ": " << vdata.features.keypoints.size() << "\n";
-    
-}
+#endif
