@@ -109,15 +109,8 @@ HDFS Capability is compiled in. If HDFS is to be used, the
 Additional Notes for OpenMPI
 ----------------------------
 Unlike the MPICH2 build, the OpenMPI build is unable to static link
-everything. Furthermore, OpenMPI v1.5 and v1.6 has compatibility issues
-with the GraphLab build. GraphLab relies on libevent for communication
-and OpenMPI v1.5 as well as OpenMPI v1.6 incorrectly exports the
-evutil_* functions resulting in a conflict between GraphLab's libevent
-and OpenMPI's libevent. OpenMPI v1.7 seems to fix this problem.
-
-We therefore provide only binary releases built against OpenMPI 1.3.2
-which should be binary compatible with 1.4. I can provide builds
-against OpenMPI 1.7 is there is demand for it.
+everything.  For now, we provide only binary releases built against 
+OpenMPI 1.3.2 which should be binary compatible with 1.4. 
 
 =============
 Build Details
