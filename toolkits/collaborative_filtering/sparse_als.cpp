@@ -332,7 +332,7 @@ public:
     // Solve the least squares problem using eigen ----------------------------
     const vec old_factor = vdata.factor;
    
-    int nodeid = -vertex.id() - SAFE_NEG_OFFSET; 
+    long nodeid = (long)vertex.id(); 
     bool isuser = nodeid >= 0;
     if (algorithm == SPARSE_BOTH_FACTORS || (algorithm == SPARSE_USR_FACTOR && isuser) || 
         (algorithm == SPARSE_ITM_FACTOR && !isuser)){ 
