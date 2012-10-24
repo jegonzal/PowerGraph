@@ -501,46 +501,50 @@ namespace graphlab {
       */
     struct thread_local_data {
       std::vector<mutex> lock;
-      size_t npending;
+      atomic<size_t> npriority;
+      atomic<size_t> npending;
+      std::vector<std::vector<lvid_type> > priority_vertices;
       std::vector<std::vector<lvid_type> > pending_vertices;
-      thread_local_data() : lock(4), npending(0), pending_vertices(4) { }       
-      void add_task(lvid_type v) {
-        size_t lid = npending % 3;
-        ++lid;
+      thread_local_data() : lock(4), npriority(0), npending(0), 
+                            priority_vertices(4), pending_vertices(4) { }       
+      void add_task_priority(lvid_type v) {
+        size_t lid = v % 4;
         lock[lid].lock();
-        ++npending;
+        priority_vertices[lid].push_back(v);
+        lock[lid].unlock();
+        ++npriority;
+      }
+      void add_task(lvid_type v) {
+        size_t lid = v % 4;
+        lock[lid].lock();
         pending_vertices[lid].push_back(v);
         lock[lid].unlock();
-      }
-      void add_task_priority(lvid_type v) {
-        lock[0].lock();
         ++npending;
-        pending_vertices[0].push_back(v);
-        lock[0].unlock();
       }
       bool get_task(std::vector<std::vector<lvid_type> > &v) {
         // clear the input
         v.resize(4);
+        size_t nv = 0;
         for (size_t i = 0;i < 4; ++i) v[i].clear();
-        // see if there is anything of priority.
-        if (pending_vertices[0].size() > 0) {
-          lock[0].lock();
-          v[0].swap(pending_vertices[0]);
-          npending -= v[0].size();
-          lock[0].unlock();
-          return v[0].size() > 0;
-        }
-        else {
-          size_t nv = 0;
-          for (int i = 1; i < 4; ++i) {
+        if (npriority > 0) {
+          for (int i = 0; i < 4; ++i) {
             lock[i].lock();
-            v[i].swap(pending_vertices[i]);
-            npending -= v[i].size();
+            v[i].swap(priority_vertices[i]);
             lock[i].unlock();
+            npriority -= v[i].size();
             nv += v[i].size();
           }
-          return nv > 0;
         }
+        else {
+          for (int i = 0; i < 4; ++i) {
+            lock[i].lock();
+            v[i].swap(pending_vertices[i]);
+            lock[i].unlock();
+            npending -= v[i].size();
+            nv += v[i].size();
+          }
+        }
+        return nv > 0;
       }
     }; // end of thread local data
 
