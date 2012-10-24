@@ -68,12 +68,6 @@ typedef Eigen::VectorXd vec_type;
 typedef Eigen::MatrixXd mat_type;
 
 
-/**
- * \brief Remap the target id of each edge into a different id space
- * than the source id.
- */
-bool REMAP_TARGET = true;
-
 
 
 /** 
@@ -410,10 +404,8 @@ inline bool graph_loader(graph_type& graph,
       logstream(LOG_FATAL)<<"Rating values should be between " << als_vertex_program::MINVAL << " and " << als_vertex_program::MAXVAL << ". Got value: " << obs << " [ user: " << source_id << " to item: " <<target_id << " ] " << std::endl; 
   }
  
-  if(REMAP_TARGET) {
-    // map target id into a separate number space
-    target_id = -(graphlab::vertex_id_type(target_id + SAFE_NEG_OFFSET));
-  }
+  // map target id into a separate number space
+  target_id = -(graphlab::vertex_id_type(target_id + SAFE_NEG_OFFSET));
   // Create an edge and add it to the graph
   graph.add_edge(source_id, target_id, edge_data(obs, role)); 
   return true; // successful load
@@ -504,8 +496,7 @@ struct prediction_saver {
       const double prediction = 
         edge.source().data().factor.dot(edge.target().data().factor);
       strm << edge.source().id() << '\t';
-      if(REMAP_TARGET) strm << (-edge.target().id() - SAFE_NEG_OFFSET) << '\t';
-      else strm << edge.target().id() << '\t';
+      strm << (-edge.target().id() - SAFE_NEG_OFFSET) << '\t';
       strm << prediction << '\n';
       return strm.str();
     } else return "";
@@ -598,9 +589,6 @@ int main(int argc, char** argv) {
                        "The prefix (folder and filename) to save predictions.");
   clopts.attach_option("engine", exec_type, 
                        "The engine type synchronous or asynchronous");
-  // clopts.attach_option("remap", REMAP_TARGET,
-  //                      "Renumber target vertex ids (internally) so that they\n" 
-  //                      "are in a different range allowing user 0 to connect to movie 0");
   clopts.attach_option("output", output_dir,
                        "Output results");
   parse_implicit_command_line(clopts);
