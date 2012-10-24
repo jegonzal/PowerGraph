@@ -439,6 +439,7 @@ namespace graphlab {
        * the master vertex transits into APPLYING
        */
       uint32_t apply_count_down;
+
       /** This condition happens when a vertex is scheduled (popped from
        * the scheduler) while the vertex is still running. In which case
        * the message is placed back in the scheduler (without scheduling it),
@@ -447,6 +448,7 @@ namespace graphlab {
        * This may only be set on a master vertex
        */
       bool hasnext;
+
       /// A 1 byte lock protecting the vertex state
       simple_spinlock slock;
       simple_spinlock factorized_lock;
@@ -503,7 +505,8 @@ namespace graphlab {
       std::vector<std::vector<lvid_type> > pending_vertices;
       thread_local_data() : lock(4), npending(0), pending_vertices(4) { }       
       void add_task(lvid_type v) {
-        size_t lid = npending % 4;
+        size_t lid = npending % 3;
+        ++lid;
         lock[lid].lock();
         ++npending;
         pending_vertices[lid].push_back(v);
@@ -516,14 +519,28 @@ namespace graphlab {
         lock[0].unlock();
       }
       bool get_task(std::vector<std::vector<lvid_type> > &v) {
-        size_t nv = 0;
-        v = std::vector<std::vector<lvid_type> >(4);
-        for (int i = 0; i < 4; ++i) lock[i].lock();
-        nv = npending;
-        npending = 0;
-        v.swap(pending_vertices);
-        for (int i = 0; i < 4; ++i) lock[i].unlock();
-        return nv > 0;
+        // clear the input
+        v.resize(4);
+        for (size_t i = 0;i < 4; ++i) v[i].clear();
+        // see if there is anything of priority.
+        if (pending_vertices[0].size() > 0) {
+          lock[0].lock();
+          v[0].swap(pending_vertices[0]);
+          npending -= v[0].size();
+          lock[0].unlock();
+          return v[0].size() > 0;
+        }
+        else {
+          size_t nv = 0;
+          for (int i = 1; i < 4; ++i) {
+            lock[i].lock();
+            v[i].swap(pending_vertices[i]);
+            npending -= v[i].size();
+            lock[i].unlock();
+            nv += v[i].size();
+          }
+          return nv > 0;
+        }
       }
     }; // end of thread local data
 
@@ -573,6 +590,9 @@ namespace graphlab {
     atomic<uint64_t> issued_messages;
     atomic<uint64_t> pending_updates;
     atomic<uint64_t> programs_executed;
+    atomic<double> total_update_time;
+
+    timer launch_timer;
 
     /// engine option. Maximum proportion of clean forks allowed
     float max_clean_fraction;
@@ -589,11 +609,15 @@ namespace graphlab {
     bool use_cache;
     /// engine option. Sets to true if factorized consistency is used
     bool factorized_consistency;
+    /// If True adds tracking for the task retire time
+    bool track_task_retire_time;
+
+    std::vector<double> task_start_time;
+
     /// Time when engine is started
     float engine_start_time;
     /// True when a force stop is triggered (possibly via a timeout)
     bool force_stop;
-    
     graphlab_options opts_copy; // local copy of options to pass to 
                                 // scheduler construction
     
@@ -658,11 +682,10 @@ namespace graphlab {
       timed_termination = (size_t)(-1);
       use_cache = false;
       factorized_consistency = false;
+      track_task_retire_time = false;
       termination_reason = execution_status::UNSET;
       set_options(opts);
       
-
-
       INITIALIZE_TRACER(disteng_eval_sched_task, 
                         "distributed_engine: Evaluate Scheduled Task");
       INITIALIZE_TRACER(disteng_init_gathering,
@@ -731,6 +754,11 @@ namespace graphlab {
           if (rmi.procid() == 0) 
             logstream(LOG_EMPH) << "Engine Option: factorized = " 
               << factorized_consistency << std::endl;
+        } else if (opt == "track_task_time") {
+          opts.get_engine_args().get_option("track_task_time", track_task_retire_time);
+          if (rmi.procid() == 0) 
+            logstream(LOG_EMPH) << "Engine Option: track_task_time = " 
+              << track_task_retire_time << std::endl;
         } else {
           logstream(LOG_FATAL) << "Unexpected Engine Option: " << opt << std::endl;
         }
@@ -1549,6 +1577,9 @@ EVAL_INTERNAL_TASK_RE_EVAL_STATE:
           do_scatter(lvid);
           programs_executed.inc();
           pending_updates.dec();
+          if (track_task_retire_time) {
+            total_update_time.inc(launch_timer.current_time() - task_start_time[lvid]);
+          }
           // clear the vertex program
           vstate[lvid].vertex_program = vertex_program_type();
           BEGIN_TRACEPOINT(disteng_chandy_misra);
@@ -1723,11 +1754,14 @@ EVAL_INTERNAL_TASK_RE_EVAL_STATE:
     void add_internal_task(lvid_type lvid) {
       if (force_stop) return;
       BEGIN_TRACEPOINT(disteng_internal_task_queue);
-      size_t a, b;
+      size_t a;
       a = lvid % thrlocal.size();
-      b = (lvid >> 8) % thrlocal.size();
-      if (thrlocal[a].npending > thrlocal[b].npending) a = b;
-      thrlocal[a].add_task(lvid);
+      if (graph.l_get_vertex_record(lvid).owner != rmi.procid()) {
+        thrlocal[a].add_task_priority(lvid);
+      }
+      else {
+        thrlocal[a].add_task(lvid);
+      }
       consensus->cancel_one(a);
       END_TRACEPOINT(disteng_internal_task_queue);
     }
@@ -1790,7 +1824,9 @@ EVAL_INTERNAL_TASK_RE_EVAL_STATE:
       if (prelocked == false) {
         vstate[sched_lvid].lock();
       }
-
+      if (track_task_retire_time) {
+        task_start_time[sched_lvid] = launch_timer.current_time();
+      }
 #ifdef ASYNC_ENGINE_FACTORIZED_AVOID_SCHEDULER_GATHER
       if (factorized_consistency) {
 
@@ -2038,7 +2074,11 @@ EVAL_INTERNAL_TASK_RE_EVAL_STATE:
 
       engine_start_time = timer::approx_time_seconds();
       force_stop = false;
-
+      total_update_time.value = 0.0;
+      if (track_task_retire_time) {
+        task_start_time.resize(graph.num_local_vertices());
+      }
+      launch_timer.start();
 
       termination_reason = execution_status::RUNNING;
 
@@ -2083,13 +2123,19 @@ EVAL_INTERNAL_TASK_RE_EVAL_STATE:
       rmi.all_reduce(ctasks);
       joined_messages.value = ctasks;
 
-      if (rmi.procid() == 0) {
-        std::cout << "Completed Tasks: " << programs_executed.value << std::endl;
-        std::cout << "Issued Tasks: " << issued_messages.value << std::endl;
-        std::cout << "Blocked Issues: " << blocked_issues.value << std::endl;
-        std::cout << "------------------" << std::endl;
-        std::cout << "Joined Tasks: " << joined_messages.value << std::endl;
-      }
+      double total_upd_time = total_update_time.value;
+      rmi.all_reduce(total_upd_time);
+      total_update_time.value = total_upd_time;
+
+      rmi.cout() << "Completed Tasks: " << programs_executed.value << std::endl;
+      rmi.cout() << "Issued Tasks: " << issued_messages.value << std::endl;
+      rmi.cout() << "Blocked Issues: " << blocked_issues.value << std::endl;
+      if (track_task_retire_time) {
+        rmi.cout() << "Average Task Retire Time: " 
+                   << total_update_time.value / programs_executed.value 
+                   << std::endl;
+      } 
+      rmi.cout() << "Joined Tasks: " << joined_messages.value << std::endl;
 
       /*for (size_t i = 0;i < vstate.size(); ++i) {
           if(vstate[i].state != NONE) {

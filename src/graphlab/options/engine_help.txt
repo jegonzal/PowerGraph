@@ -45,3 +45,7 @@
 "use_cache: (default: false) This is used to enable\n"
 "caching. The update function must be written in a specific way\n"
 "to take advantage of this. See the documentation for details.\n"
+"\n"
+"track_task_time: (default: false) Set to true to enable tracking\n"
+"of how long each task takes to retire on average. Should only be used for\n"
+"internal engine profiling purposes\n"
