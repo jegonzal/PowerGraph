@@ -46,24 +46,6 @@ struct vdata {
 
 typedef graphlab::distributed_graph<vdata, graphlab::empty> graph_type;
 
-//Read a line from a file and creates a edge
-bool line_parser(graph_type& graph, const std::string& filename,
-    const std::string& textline) {
-  if (textline.length() == 0)
-    return true;
-  std::stringstream strm(textline);
-  size_t source;
-  size_t target;
-  std::string pagename;
-  strm >> source;
-  strm.ignore(1);
-  strm >> target;
-  if (source != target)
-    graph.add_edge(source, target);
-
-  return true;
-}
-
 //set label id at vertex id
 void initialize_vertex(graph_type::vertex_type& v) {
   v.data().labelid = v.id();
@@ -240,8 +222,6 @@ int main(int argc, char** argv) {
   clopts.attach_option("graph", graph_dir,
                        "The graph file. This is not optional");
   clopts.add_positional("graph");
-  clopts.attach_option("engine", exec_type,
-                       "The engine type synchronous or asynchronous");
   clopts.attach_option("format", format,
                        "The graph file format");
   clopts.attach_option("saveprefix", saveprefix,
@@ -262,7 +242,6 @@ int main(int argc, char** argv) {
   //load graph
   dc.cout() << "Loading graph in format: "<< format << std::endl;
   graph.load_format(graph_dir, format);
-//  graph.load(graph_dir, line_parser);
   graph.finalize();
   graph.transform_vertices(initialize_vertex);
 
