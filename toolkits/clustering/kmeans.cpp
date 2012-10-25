@@ -88,11 +88,29 @@ struct vertex_data{
   }
 };
 
+//use edges when edge weight file is given
+struct edge_data {
+  double weight;
+
+  edge_data() :
+      weight(0.0) {
+  }
+  explicit edge_data(double w) :
+      weight(w) {
+  }
+
+  void save(graphlab::oarchive& oarc) const {
+    oarc << weight;
+  }
+  void load(graphlab::iarchive& iarc) {
+    iarc >> weight;
+  }
+};
 
 
 
 // helper function to compute distance between points
-double sqr_distance(const std::vector<double>& a, 
+double sqr_distance(const std::vector<double>& a,
                     const std::vector<double>& b) {
   ASSERT_EQ(a.size(), b.size());
   double total = 0;
@@ -105,7 +123,7 @@ double sqr_distance(const std::vector<double>& a,
 
 
 // helper function to add two vectors 
-std::vector<double>& plus_equal_vector(std::vector<double>& a, 
+std::vector<double>& plus_equal_vector(std::vector<double>& a,
                                        const std::vector<double>& b) {
   ASSERT_EQ(a.size(), b.size());
   for (size_t i = 0;i < a.size(); ++i) {
@@ -123,12 +141,12 @@ std::vector<double>& scale_vector(std::vector<double>& a, double d) {
 }
 
 
-typedef graphlab::distributed_graph<vertex_data, graphlab::empty> graph_type;
+typedef graphlab::distributed_graph<vertex_data, edge_data> graph_type;
 
 graphlab::atomic<graphlab::vertex_id_type> NEXT_VID;
 
 // Read a line from a file and creates a vertex
-bool vertex_loader(graph_type& graph, const std::string& fname, 
+bool vertex_loader(graph_type& graph, const std::string& fname,
                    const std::string& line) {
   if (line.empty()) return true;
   namespace qi = boost::spirit::qi;
@@ -136,14 +154,14 @@ bool vertex_loader(graph_type& graph, const std::string& fname,
   namespace phoenix = boost::phoenix;
   vertex_data vtx;
   const bool success = qi::phrase_parse
-    (line.begin(), line.end(),       
+    (line.begin(), line.end(),
      //  Begin grammar
      (
       (qi::double_[phoenix::push_back(phoenix::ref(vtx.point), qi::_1)] % -qi::char_(",") )
       )
      ,
      //  End grammar
-     ascii::space); 
+     ascii::space);
 
   if (!success) return false;
   vtx.best_cluster = (size_t)(-1);
@@ -153,10 +171,54 @@ bool vertex_loader(graph_type& graph, const std::string& fname,
   return true;
 }
 
+// Read a line from a file and creates a vertex
+bool vertex_loader_with_id(graph_type& graph, const std::string& fname,
+                   const std::string& line) {
+  if (line.empty()) return true;
+  size_t id = 0;
+  namespace qi = boost::spirit::qi;
+  namespace ascii = boost::spirit::ascii;
+  namespace phoenix = boost::phoenix;
+  vertex_data vtx;
+  const bool success = qi::phrase_parse
+    (line.begin(), line.end(),
+     //  Begin grammar
+     (
+      qi::ulong_[phoenix::ref(id) = qi::_1] >> -qi::char_(",") >>
+      (qi::double_[phoenix::push_back(phoenix::ref(vtx.point), qi::_1)] % -qi::char_(",") )
+      )
+     ,
+     //  End grammar
+     ascii::space);
 
+  if (!success) return false;
+  vtx.best_cluster = (size_t)(-1);
+  vtx.best_distance = std::numeric_limits<double>::infinity();
+  vtx.changed = false;
+  graph.add_vertex(id, vtx);
+  return true;
+}
 
-
-
+//call this when edge weight file is given.
+//each line should be [source id] [target id] [weight].
+//directions of edges are ignored.
+bool edge_loader(graph_type& graph, const std::string& filename,
+    const std::string& textline) {
+  if (textline.empty())
+    return true;
+  std::stringstream strm(textline);
+  size_t source_vid = 0;
+  size_t target_vid = 0;
+  double weight = 0.0;
+  strm >> source_vid;
+  strm.ignore(1);
+  strm >> target_vid;
+  strm.ignore(1);
+  strm >> weight;
+  if(source_vid != target_vid)
+    graph.add_edge(source_vid, target_vid, edge_data(weight));
+  return true;
+}
 
 
 // A set of Map Reduces to compute the maximum and minimum vector sizes
@@ -200,7 +262,7 @@ struct min_point_size_reducer: public graphlab::IS_POD_TYPE {
  * is smaller that its previous cluster asssignment
  */
 void kmeans_pp_initialization(graph_type::vertex_type& v) {
-  double d = sqr_distance(v.data().point, 
+  double d = sqr_distance(v.data().point,
                           CLUSTERS[KMEANS_INITIALIZATION].center);
   if (v.data().best_distance > d) {
     v.data().best_distance = d;
@@ -215,9 +277,9 @@ void kmeans_pp_initialization(graph_type::vertex_type& v) {
 struct random_sample_reducer {
   std::vector<double> vtx;
   double weight;
- 
+
   random_sample_reducer():weight(0) { }
-  random_sample_reducer(const std::vector<double>& vtx, 
+  random_sample_reducer(const std::vector<double>& vtx,
                         double weight):vtx(vtx),weight(weight) { }
 
   static random_sample_reducer get_weight(const graph_type::vertex_type& v) {
@@ -250,7 +312,7 @@ struct random_sample_reducer {
   void save(graphlab::oarchive &oarc) const {
     oarc << vtx << weight;
   }
-  
+
   void load(graphlab::iarchive& iarc) {
     iarc >> vtx >> weight;
   }
@@ -276,7 +338,7 @@ void kmeans_iteration(graph_type::vertex_type& v) {
     v.data().best_distance = std::numeric_limits<double>::infinity();
     for (size_t i = 0;i < NUM_CLUSTERS; ++i) {
       if (CLUSTERS[i].center.size() > 0) {
-        double d = sqr_distance(v.data().point, 
+        double d = sqr_distance(v.data().point,
                                 CLUSTERS[i].center);
         if (d < v.data().best_distance) {
           v.data().best_distance = d;
@@ -289,7 +351,7 @@ void kmeans_iteration(graph_type::vertex_type& v) {
     // just compute distance to what has changed
     for (size_t i = 0;i < NUM_CLUSTERS; ++i) {
       if (CLUSTERS[i].changed && CLUSTERS[i].center.size() > 0) {
-        double d = sqr_distance(v.data().point, 
+        double d = sqr_distance(v.data().point,
                                 CLUSTERS[i].center);
         if (d < v.data().best_distance) {
           v.data().best_distance = d;
@@ -301,9 +363,102 @@ void kmeans_iteration(graph_type::vertex_type& v) {
   v.data().changed = (prev_asg != v.data().best_cluster);
 }
 
+//gathered information
+//used when edge weight file is given
+struct neighbor_info {
+  std::map<size_t, double> cw_map;
 
+  neighbor_info() :
+      cw_map() {
+  }
+  neighbor_info(size_t clst, double weight) :
+      cw_map() {
+    cw_map.insert(std::make_pair<size_t, double>(clst, weight));
+  }
 
+  neighbor_info& operator+=(const neighbor_info& other) {
+    for (std::map<size_t, double>::const_iterator iter = other.cw_map.begin();
+        iter != other.cw_map.end(); iter++) {
+      size_t clst = iter->first;
+      if (cw_map.find(clst) == cw_map.end()) {
+        cw_map.insert(std::make_pair<size_t, double>(clst, iter->second));
+      } else {
+        cw_map[clst] += iter->second;
+      }
+    }
+    return *this;
+  }
 
+  void save(graphlab::oarchive& oarc) const {
+    oarc << cw_map;
+  }
+  void load(graphlab::iarchive& iarc) {
+    iarc >> cw_map;
+  }
+};
+
+//used when edge weight file is given
+class cluster_assignment: public graphlab::ivertex_program<graph_type,
+    neighbor_info>, public graphlab::IS_POD_TYPE {
+public:
+  //gather on all the edges
+  edge_dir_type gather_edges(icontext_type& context,
+      const vertex_type& vertex) const {
+    return graphlab::ALL_EDGES;
+  }
+
+  //for each edge gather the weights and the assigned clusters of the neighbors
+  neighbor_info gather(icontext_type& context, const vertex_type& vertex,
+      edge_type& edge) const {
+    if (edge.source().id() == vertex.id()) { //out edge
+      return neighbor_info(edge.target().data().best_cluster,
+          edge.data().weight);
+    } else { //in edge
+      return neighbor_info(edge.source().data().best_cluster,
+          edge.data().weight);
+    }
+  }
+
+  //assign a cluster, considering the clusters of neighbors
+  void apply(icontext_type& context, vertex_type& vertex,
+      const gather_type& total) {
+    size_t past_clst = vertex.data().best_cluster;
+    vertex.data().best_cluster = (size_t) (-1);
+    vertex.data().best_distance = std::numeric_limits<double>::infinity();
+    for (size_t i = 0; i < NUM_CLUSTERS; ++i) {
+      if (CLUSTERS[i].center.size() > 0) {
+        double d = sqrt(sqr_distance(vertex.data().point, CLUSTERS[i].center));
+        //consider neighbors
+        const std::map<size_t, double>& cw_map = total.cw_map;
+        for (std::map<size_t, double>::const_iterator iter = cw_map.begin();
+            iter != cw_map.end(); iter++) {
+          size_t neighbor_cluster = iter->first;
+          double total_wieght = iter->second;
+          if (i == neighbor_cluster)
+            d -= total_wieght;
+        }
+        if (d < vertex.data().best_distance) {
+          vertex.data().best_distance = d;
+          vertex.data().best_cluster = i;
+        }
+      }
+    }
+    vertex.data().changed = (past_clst != vertex.data().best_cluster);
+  }
+
+  //send signals to the neighbors when the cluster assignment has changed
+  edge_dir_type scatter_edges(icontext_type& context,
+      const vertex_type& vertex) const {
+    if (vertex.data().changed)
+      return graphlab::ALL_EDGES;
+    else
+      return graphlab::NO_EDGES;
+  }
+
+  void scatter(icontext_type& context, const vertex_type& vertex,
+      edge_type& edge) const {
+  }
+};
 
 
 
@@ -321,7 +476,7 @@ struct cluster_center_reducer {
   static cluster_center_reducer get_center(const graph_type::vertex_type& v) {
     cluster_center_reducer cc;
     ASSERT_NE(v.data().best_cluster, (size_t)(-1));
-    
+
     cc.new_clusters[v.data().best_cluster].center = v.data().point;
     cc.new_clusters[v.data().best_cluster].count = 1;
     cc.num_changed = v.data().changed;
@@ -340,7 +495,7 @@ struct cluster_center_reducer {
     return *this;
   }
 
-  void save(graphlab::oarchive& oarc) const { 
+  void save(graphlab::oarchive& oarc) const {
     oarc << new_clusters << num_changed;
   }
 
@@ -359,7 +514,19 @@ struct vertex_writer {
     strm.flush();
     return strm.str();
   }
- 
+
+  std::string save_edge(graph_type::edge_type e) { return ""; }
+};
+
+struct vertex_writer_with_id {
+  std::string save_vertex(graph_type::vertex_type v) {
+    std::stringstream strm;
+    strm << v.id() << "\t";
+    strm << v.data().best_cluster << "\n";
+    strm.flush();
+    return strm.str();
+  }
+
   std::string save_edge(graph_type::edge_type e) { return ""; }
 };
 
@@ -370,7 +537,7 @@ int main(int argc, char** argv) {
   graphlab::command_line_options clopts
     ("K-means clustering. The input data file is provided by the "
      "--data argument which is non-optional. The format of the data file is a "
-     "collection of lines, where each line contains a comma or white-space " 
+     "collection of lines, where each line contains a comma or white-space "
      "separated lost of numeric values representing a vector. Every line "
      "must have the same number of values. The required --clusters=N "
      "argument denotes the number of clusters to generate. To store the output "
@@ -379,8 +546,10 @@ int main(int argc, char** argv) {
   std::string datafile;
   std::string outcluster_file;
   std::string outdata_file;
+  std::string edgedata_file;
+  bool use_id = false;
   clopts.attach_option("data", datafile,
-                       "Input file. Each line hold a white-space or comma separated numeric vector");
+                       "Input file. Each line holds a white-space or comma separated numeric vector");
   clopts.attach_option("clusters", NUM_CLUSTERS,
                        "The number of clusters to create.");
   clopts.attach_option("output-clusters", outcluster_file,
@@ -392,17 +561,30 @@ int main(int argc, char** argv) {
                        "last column denoting the assigned cluster centers. The output "
                        "will be written to a sequence of filenames where each file is "
                        "prefixed by this value. This may be on HDFS.");
+  clopts.attach_option("id", use_id,
+                       "If set at 1, will use ids for data points. The id of a data point "
+                       "must be written at the head of each line of the input data. "
+                       "The output data will consist of two columns: the first one "
+                       "denotes the ids; the second one denotes the assigned clusters.");
+  clopts.attach_option("pairwise-reward", edgedata_file,
+                       "If set, will consider pairwise rewards when clustering. "
+                       "Each line of the file beginning with the argument holds [id1] [id2] "
+                       "[reward]. This mode must be used with --id option.");
 
   if(!clopts.parse(argc, argv)) return EXIT_FAILURE;
   if (datafile == "") {
     std::cout << "--data is not optional\n";
-    clopts.print_description();
     return EXIT_FAILURE;
   }
   if (NUM_CLUSTERS == 0) {
     std::cout << "--cluster is not optional\n";
-    clopts.print_description();
     return EXIT_FAILURE;
+  }
+  if(edgedata_file.size() > 0){
+    if(use_id == false){
+      std::cout << "--id is not optional when you use edge data\n";
+      return EXIT_FAILURE;
+    }
   }
 
   graphlab::mpi_tools::init(argc, argv);
@@ -410,7 +592,14 @@ int main(int argc, char** argv) {
   // load graph
   graph_type graph(dc, clopts);
   NEXT_VID = dc.procid();
-  graph.load(datafile, vertex_loader);
+  if(use_id){
+    graph.load(datafile, vertex_loader_with_id);
+  }else{
+    graph.load(datafile, vertex_loader);
+  }
+  if(edgedata_file.size() > 0){
+    graph.load(edgedata_file, edge_loader);
+  }
   graph.finalize();
   dc.cout() << "Number of datapoints: " << graph.num_vertices() << std::endl;
 
@@ -419,17 +608,17 @@ int main(int argc, char** argv) {
     return EXIT_FAILURE;
   }
 
-  dc.cout() << "Validating data..."; 
+  dc.cout() << "Validating data...";
 
 
   // make sure all have the same array length
- 
+
   size_t max_p_size = graph.map_reduce_vertices<max_point_size_reducer>
                                 (max_point_size_reducer::get_max_point_size).max_point_size;
   size_t min_p_size = graph.map_reduce_vertices<min_point_size_reducer>
                                 (min_point_size_reducer::get_min_point_size).min_point_size;
   if (max_p_size != min_p_size) {
-    dc.cout() << "Data has dimensionality ranging from " << min_p_size << " to " << max_p_size 
+    dc.cout() << "Data has dimensionality ranging from " << min_p_size << " to " << max_p_size
               << "! K-means cannot proceed!" << std::endl;
     return EXIT_FAILURE;
   }
@@ -443,26 +632,26 @@ int main(int argc, char** argv) {
   }
 
   // ok. perform kmeans++ initialization
-  for (KMEANS_INITIALIZATION = 0; 
+  for (KMEANS_INITIALIZATION = 0;
        KMEANS_INITIALIZATION < NUM_CLUSTERS;
        ++KMEANS_INITIALIZATION) {
     random_sample_reducer rs = graph.map_reduce_vertices<random_sample_reducer>
                                       (random_sample_reducer::get_weight);
     CLUSTERS[KMEANS_INITIALIZATION].center = rs.vtx;
     graph.transform_vertices(kmeans_pp_initialization);
-  } 
+  }
 
   // "reset" all clusters
   for (size_t i = 0; i < NUM_CLUSTERS; ++i) CLUSTERS[i].changed = true;
-  // perform Kmeans iteration 
-  
+  // perform Kmeans iteration
+
   dc.cout() << "Running Kmeans...\n";
   bool clusters_changed = true;
   size_t iteration_count = 0;
   while(clusters_changed) {
 
     cluster_center_reducer cc = graph.map_reduce_vertices<cluster_center_reducer>
-                                    (cluster_center_reducer::get_center);  
+                                    (cluster_center_reducer::get_center);
     // the first round (iteration_count == 0) is not so meaningful
     // since I am just recomputing the centers from the output of the KMeans++
     // initialization
@@ -486,7 +675,15 @@ int main(int argc, char** argv) {
     }
     clusters_changed = iteration_count == 0 || cc.num_changed > 0;
 
-    graph.transform_vertices(kmeans_iteration);
+    if(edgedata_file.size() > 0){
+      clopts.engine_args.set_option("factorized", true);
+      graphlab::omni_engine<cluster_assignment> engine(dc, graph, "async", clopts);
+      engine.signal_all();
+      engine.start();
+    }else{
+      graph.transform_vertices(kmeans_iteration);
+    }
+
 
     ++iteration_count;
   }
@@ -505,7 +702,11 @@ int main(int argc, char** argv) {
 
   if (!outdata_file.empty()) {
     dc.cout() << "Writing Data with cluster assignments...\n" << std::endl;
-    graph.save(outdata_file, vertex_writer(), false, true, false, 1);
+    if(use_id){
+      graph.save(outdata_file, vertex_writer_with_id(), false, true, false, 1);
+    }else{
+      graph.save(outdata_file, vertex_writer(), false, true, false, 1);
+    }
   }
 
   graphlab::mpi_tools::finalize();
