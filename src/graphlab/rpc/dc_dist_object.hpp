@@ -415,7 +415,7 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
   Generates the interface functions. 3rd argument is a tuple
   (interface name, issue name, flags)
   */
-  BOOST_PP_REPEAT(6, REQUEST_INTERFACE_GENERATOR, (typename dc_impl::function_ret_type<__GLRPC_FRESULT>::type remote_request, dc_impl::object_request_issue, STANDARD_CALL | WAIT_FOR_REPLY) )
+  BOOST_PP_REPEAT(6, REQUEST_INTERFACE_GENERATOR, (typename dc_impl::function_ret_type<__GLRPC_FRESULT>::type remote_request, dc_impl::object_request_issue, (STANDARD_CALL | WAIT_FOR_REPLY) ) )
   BOOST_PP_REPEAT(6, REQUEST_INTERFACE_GENERATOR, (typename dc_impl::function_ret_type<__GLRPC_FRESULT>::type control_request, dc_impl::object_request_issue, (STANDARD_CALL | WAIT_FOR_REPLY | CONTROL_PACKET)) )
  
 
@@ -457,7 +457,7 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
   /*
   Generates the interface functions. 3rd argument is a tuple (interface name, issue name, flags)
   */
-  BOOST_PP_REPEAT(6, REQUEST_INTERFACE_GENERATOR, (typename dc_impl::function_ret_type<__GLRPC_FRESULT>::type internal_request, dc_impl::object_request_issue, STANDARD_CALL | WAIT_FOR_REPLY) )
+  BOOST_PP_REPEAT(6, REQUEST_INTERFACE_GENERATOR, (typename dc_impl::function_ret_type<__GLRPC_FRESULT>::type internal_request, dc_impl::object_request_issue, (STANDARD_CALL | WAIT_FOR_REPLY)) )
   BOOST_PP_REPEAT(6, REQUEST_INTERFACE_GENERATOR, (typename dc_impl::function_ret_type<__GLRPC_FRESULT>::type internal_control_request, dc_impl::object_request_issue, (STANDARD_CALL | WAIT_FOR_REPLY | CONTROL_PACKET)) )
  
 
