@@ -26,12 +26,12 @@ For instance in this example input file, there are 6 datapoints, one per line,
 and each datapoint is a point in a 5-dimensional space.  
 
 \verbatim
--10.7551	6.82178	5.33455	-2.08247	2.86694	
--1.36687	10.8464	-5.28851	-4.26768	-5.50659	
--8.79834	8.01002	5.33418	0.102824	3.23318	
--8.64345	6.81946	1.2309	-4.46784	2.26341	
--8.29782	7.1154	3.32559	-2.59422	2.33936	
--8.12504	8.98924	4.15027	0.253153	1.75911	
+-10.7551  6.82178 5.33455 -2.08247  2.86694 
+-1.36687  10.8464 -5.28851  -4.26768  -5.50659  
+-8.79834  8.01002 5.33418 0.102824  3.23318 
+-8.64345  6.81946 1.2309  -4.46784  2.26341 
+-8.29782  7.1154  3.32559 -2.59422  2.33936 
+-8.12504  8.98924 4.15027 0.253153  1.75911 
 \endverbatim
 
 \subsection clustering_kmeans_synthetic Synthetic Data
@@ -48,20 +48,20 @@ For instance:
 \verbatim
 > ./generate_synthetic 2 3 10
 Usage: generate_synthetic [NClusters] [Dimensions] [Ndata]
-Center 0 at: -6.69675	0.355189	-4.88601	
-Center 1 at: 5.85919	0.0388327	5.50007	 
+Center 0 at: -6.69675 0.355189  -4.88601  
+Center 1 at: 5.85919  0.0388327 5.50007  
 
 > cat synthetic.txt
--4.31568	-0.396959	-6.29507	
--4.56112	-1.74917	-4.57874	
-4.54508	0.102845	6.35385	
-4.87746	-0.832591	7.06942	
--5.91254	-0.278006	-4.25934	
-6.95139	0.120139	4.89531	
--6.28538	-0.88527	-4.74988	
--6.84791	0.887664	-4.91919	
-7.47117	1.67911	6.02221	
--4.78011	1.2099	-4.55519	
+-4.31568  -0.396959 -6.29507  
+-4.56112  -1.74917  -4.57874  
+4.54508 0.102845  6.35385 
+4.87746 -0.832591 7.06942 
+-5.91254  -0.278006 -4.25934  
+6.95139 0.120139  4.89531 
+-6.28538  -0.88527  -4.74988  
+-6.84791  0.887664  -4.91919  
+7.47117 1.67911 6.02221 
+-4.78011  1.2099  -4.55519  
 \endverbatim
 
 \note Mathematically, the synthetic generator draws centers from the [-10,10]^D
@@ -92,8 +92,8 @@ Kmeans iteration 1: # points with changed assignments = 0
 Writing Cluster Centers...
 
 >cat cluster.txt
--5.45046	-0.201973	-4.8929	
-5.96127	0.267376	6.0852	
+-5.45046  -0.201973 -4.8929 
+5.96127 0.267376  6.0852  
 \endverbatim
 
 
@@ -131,16 +131,16 @@ Writing Cluster Centers...
 Writing Data with cluster assignments...
 
 >cat data.txt
--4.78011	1.2099	-4.55519	0
-7.47117	1.67911	6.02221	1
--6.84791	0.887664	-4.91919	0
--6.28538	-0.88527	-4.74988	0
-6.95139	0.120139	4.89531	1
--5.91254	-0.278006	-4.25934	0
-4.87746	-0.832591	7.06942	1
-4.54508	0.102845	6.35385	1
--4.56112	-1.74917	-4.57874	0
--4.31568	-0.396959	-6.29507	0
+-4.78011  1.2099  -4.55519  0
+7.47117 1.67911 6.02221 1
+-6.84791  0.887664  -4.91919  0
+-6.28538  -0.88527  -4.74988  0
+6.95139 0.120139  4.89531 1
+-5.91254  -0.278006 -4.25934  0
+4.87746 -0.832591 7.06942 1
+4.54508 0.102845  6.35385 1
+-4.56112  -1.74917  -4.57874  0
+-4.31568  -0.396959 -6.29507  0
 \endverbatim
 
 This program can also run distributed by using
@@ -151,6 +151,53 @@ See your MPI documentation for details on how to launch this job.
 All machines must have access to the input graph location and the output graph 
 location. Graphs may be on HDFS. 
 If you have problems loading HDFS files, see the \ref FAQ.
+
+
+\subsection clustering_kmeans_id The --id Option
+
+If <tt>--id=1</tt> is set (default is 0), the program will use 
+an id for each data point. The id of a data point must be written at the head 
+of each line of the input data.
+
+For instance:
+\verbatim
+> cat synthetic_with_id.txt
+1 -4.31568  -0.396959 -6.29507  
+2 -4.56112  -1.74917  -4.57874  
+3 4.54508 0.102845  6.35385 
+4 4.87746 -0.832591 7.06942 
+\endverbatim
+
+The output data will consist of two columns: one for the ids and the other for 
+the assigned clusters.
+
+For instance:
+\verbatim
+> cat data_with_id.txt
+1 0
+2 0  
+3 1
+4 1 
+\endverbatim
+
+
+\subsection clustering_kmeans_edge_data Adding Pairwise Reward
+
+This program can consider pairwise rewards (and penalty) by using 
+<tt>--pairwise-reward=[file prefix]</tt>. All files beginning with 
+<tt>[file prefix]</tt> will be loaded for pairwise rewards. Each 
+line of the pairwise reward file holds [id1] [id2] [weight].
+This option must be used with <tt>--id=1</tt>.
+ 
+For instance:
+\verbatim
+> cat pairwise_data.txt
+1 2 10
+2 4 -10
+\endverbatim
+
+In this example the evaluation function will gain 10 when data <tt>1</tt> 
+and data <tt>2</tt> are in the same cluster; it will gain nothing otherwise.
 
 
 \subsection clustering_kmeans_options Options
@@ -164,6 +211,9 @@ for computation. <b>Due to some implementation limitations within GraphLab,
    with cluster assignments. May be on HDFS.
 \li \b --output-clusters (Optional) A target location to write the cluster centers.
    Must be on the local file system.
+\li \b --id (Optional. Default 0) If set at 1, will use ids for data points
+\li \b --pairwise-reward (Optional) If set, will consider pairwise rewards written in the 
+   files beginning with the given argument
 
 */
 
