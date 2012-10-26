@@ -321,7 +321,7 @@ endif()
 # OpenCV =================================================================
 ExternalProject_Add(opencv
   PREFIX ${GraphLab_SOURCE_DIR}/deps/opencv
-  #URL http://superb-sea2.dl.sourceforge.net/project/opencvlibrary/opencv-unix/2.4.0/OpenCV-2.4.0.tar.bz2
+  URL http://superb-sea2.dl.sourceforge.net/project/opencvlibrary/opencv-unix/2.4.0/OpenCV-2.4.0.tar.bz2
   # URL_MD5 010b63a2542c4ec4918c8cb431c00356
   PATCH_COMMAND patch -N -p0 cmake/OpenCVModule.cmake -i ${GraphLab_SOURCE_DIR}/patches/opencv_apple_rpath.patch || true
   CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>
