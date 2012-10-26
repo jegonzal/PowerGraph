@@ -13,6 +13,7 @@ The toolkit current contains:
  - \ref graph_analytics_kcore "KCore Decomposition"
  - \ref graph_analytics_connected_component "Connected Component"
  - \ref graph_analytics_approximate_diameter "Approximate Diameter"
+ - \ref graph_analytics_partitioning "Graph Partitioning"
  - \ref graph_coloring "Graph Coloring"
 
 All toolkits take any of the graph formats described in \ref graph_formats . 
@@ -674,9 +675,9 @@ Relevant options are:
 \li \b --format (Required). The format of the input graph 
 \li \b --saveprefix (Optional). If set, pairs of a Vertex ID and a Component 
 ID will be saved to a sequence of files with the given prefix.
-\li \b --ncpus (Optional. Default 2) The number of processors that will be used
+\li \b --ncpus (Optional. Default 2). The number of processors that will be used
 for computation.
-\li \b --graph_opts (Optional, Default empty) Any additional graph options. See
+\li \b --graph_opts (Optional, Default empty). Any additional graph options. See
   graphlab::distributed_graph a list of options.
   
 
@@ -739,15 +740,76 @@ Relevant options are:
 \li \b --format (Required). The format of the input graph 
 \li \b --tol (Optional. Default=1E-4). Changes the convergence tolerance for 
 the number of reached vertex pairs at each hop.
-\li \b --use-sketch (Optional. Default=1) If true, will use Flajolet & Martin 
+\li \b --use-sketch (Optional. Default=1). If true, will use Flajolet & Martin 
 bitmask to approximately count numbers of reached vertex pairs, and will require a 
 smaller memory. If false, will count exact numbers of reached vertex pairs. But 
 this will need a huge memory and be slow.
-\li \b --ncpus (Optional. Default 2) The number of processors that will be used
+\li \b --ncpus (Optional. Default 2). The number of processors that will be used
 for computation.  
-\li \b --graph_opts (Optional, Default empty) Any additional graph options. See
+\li \b --graph_opts (Optional, Default empty). Any additional graph options. See
   graphlab::distributed_graph a list of options.
 
 
 
+
+
+
+
+
+\section graph_analytics_partitioning Graph Partitioning 
+
+This program can partition a graph by using normalized cut.
+
+The input to the system is a graph in any of the Portable graph format
+described in \ref graph_formats.
+You can also give weights to edges with the <tt>weight</tt> format.
+For instance in this <tt>weight</tt> format file, there are 5 edges:
+
+\verbatim
+1 2 4.0
+2 3 1.0
+3 4 5.0
+4 5 2.0
+5 3 3.0
+\endverbatim
+
+To partition a graph, the minimal set of options required are:
+
+\verbatim
+> ./partitioning --graph=[graph prefix] --format=[format]
+\endverbatim
+
+This program uses svd in Graphlab Collaborative Filtering Toolkit and 
+kmeans in Graphlab Clustering Toolkit. The paths to the directories are 
+specified by --svd-dir and --kmeans-dir, respectively.
+
+The program will create some intermediate files. The final partitioning
+result is written in files named [graph prefix].result with suffix,
+for example [graph prefix].result_1_of_4. The partitioning result 
+data consists of two columns: one for the ids and the other for the 
+assigned partitions. For instance:
+
+\verbatim
+1 0
+2 0
+3 1
+4 1
+5 1
+\endverbatim
+
+\subsection Options
+Relevant options are:
+\li \b --graph (Required). The prefix from which to load the graph data
+\li \b --format (Required). The format of the input graph. If "weight" is 
+set, the program will read the data file where each line holds [id1] [id2] 
+[weight].
+\li \b --partitions (Optional. Default 2). The number of partitions
+\li \b --svd-dir (Optional. Default ../collaborative_filtering/).
+Path to the directory where Graphlab svd is located
+\li \b --kmeans-dir (Optional. Default ../clustering/). Path to the directory where 
+Graphlab kmeans is located
+\li \b --ncpus (Optional. Default 2). The number of processors that will be used 
+for computation.
+\li \b --graph_opts (Optional, Default empty). Any additional graph options. See
+  graphlab::distributed_graph a list of options.
 */
