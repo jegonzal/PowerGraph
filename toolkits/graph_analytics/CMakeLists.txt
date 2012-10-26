@@ -10,4 +10,7 @@ add_graphlab_executable(sssp sssp.cpp)
 add_graphlab_executable(simple_coloring simple_coloring.cpp)
 add_graphlab_executable(connected_component connected_component.cpp)
 add_graphlab_executable(approximate_diameter approximate_diameter.cpp)
+add_graphlab_executable(eigen_vector_normalization eigen_vector_normalization.cpp)
+add_graphlab_executable(graph_laplacian graph_laplacian.cpp)
+add_graphlab_executable(partitioning partitioning.cpp)
 
