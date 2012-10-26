@@ -52,7 +52,7 @@ int main(int argc, char** argv)
     
     std::string graph_file;
     std::string output_dir = "pred";
-    std::string exec_type = "async";
+    std::string exec_type = "sync"; //"async";
     Options opts;
     
     clopts.attach_option("graph", graph_file,
