@@ -34,7 +34,7 @@
 #ifndef __STITCH_MAIN_HPP__
 #define __STITCH_MAIN_HPP__
 
-
+#include "utils.hpp"
 #include "stitch_grlab.hpp"
 
 
@@ -74,7 +74,8 @@ bool vertex_loader(graphlab::distributed_control& dc, graph_type& graph, string 
             
             
             vid = i;
-            vertex_data vdata;            
+            vertex_data vdata;
+            vdata.empty = false;
             vdata.img_path = graph_files[i];
             vdata.features.img_idx = i;
             
@@ -131,10 +132,15 @@ bool edge_loader(graph_type& graph, const std::string& fname,
         
         strm >> other_vid;
         
+        // only add edges in one direction
+        if (other_vid < vid)
+            continue;
+        
         if (opts.verbose > 0)
             logstream(LOG_EMPH) << "Adding edge: (" << vid << "," << other_vid << ")\n";
         
-        graph.add_edge(vid,other_vid);
+        edge_data edata; edata.empty = false;
+        graph.add_edge(vid,other_vid,edata);
     }
     
     return true;
@@ -210,6 +216,36 @@ void match_features(graph_type::edge_type edge)
         << "," << edata.matchinfo.num_inliers << ")"
         << "\n";
     
-    
+//    // Estimate focal length from Homography
+//    double f0, f1; bool f0ok, f1ok;
+//    focalsFromHomography(edata.matchinfo.H, f0, f1, f0ok, f1ok);
 }
+
+/////////////////////////////////////////////////////////////////////////
+// Map Function to compile a list of features
+//vector<vertex_data> compile_features(const graph_type::vertex_type& vertex)
+vector<vertex_data> compile_features(engine_type::icontext_type& context, 
+                         const graph_type::vertex_type& vertex)
+{
+    vector<vertex_data> temp(context.num_vertices());
+    
+    temp[vertex.id()] = vertex.data();
+    return temp;
+}
+
+/////////////////////////////////////////////////////////////////////////
+// Map Function to compile a list of matches
+//vector<vertex_data> compile_features(const graph_type::vertex_type& vertex)
+vector<edge_data> compile_matches(engine_type::icontext_type& context, 
+                                     const graph_type::edge_type& edge)
+{
+    
+    int edlist_len = context.num_vertices() * context.num_vertices();
+    vector<edge_data> temp(edlist_len);
+    
+    int pair_idx = edge.source().id() * context.num_vertices() + edge.target().id();
+    temp[pair_idx] = edge.data();
+    return temp;
+}
+
 #endif

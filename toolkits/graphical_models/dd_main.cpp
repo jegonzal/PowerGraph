@@ -107,7 +107,7 @@ int main(int argc, char** argv)
     }
 #endif
     
-    /* Nothing execute right now. So no engine.
+    // Nothing execute right now. So no engine.
     typedef graphlab::omni_engine<bp_vertex_program> engine_type;
     engine_type engine(dc, graph, exec_type, clopts);
     engine.signal_all();
@@ -124,7 +124,7 @@ int main(int argc, char** argv)
     << "Updates executed: " << engine.num_updates() << std::endl
     << "Update Rate (updates/second): " 
     << engine.num_updates() / runtime << std::endl;
-    */
+    
     
     graphlab::mpi_tools::finalize();
     return EXIT_SUCCESS;
