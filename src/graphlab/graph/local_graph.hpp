@@ -335,6 +335,7 @@ namespace graphlab {
           << "This operation is not permitted in GraphLab!" << std::endl;
         ASSERT_MSG(source != target, "Attempting to add self edge!");
       }
+
       if(source >= vertices.size() || target >= vertices.size()) 
         add_vertex(std::max(source, target));
 

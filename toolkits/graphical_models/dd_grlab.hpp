@@ -208,6 +208,7 @@ struct bp_vertex_program :
    */
   factor_type gather(icontext_type& context, const vertex_type& vertex, 
                      edge_type& edge) const {
+    cout << "gather begin" << endl;
     const vertex_type other_vertex = get_other_vertex(edge, vertex);
     const vertex_data& vdata = vertex.data();
     edge_data& edata = edge.data();
@@ -237,6 +238,7 @@ struct bp_vertex_program :
       }
       return message;
     }
+    cout << "gather end" << endl;
   }; // end of gather function
 
   /**
@@ -252,13 +254,14 @@ struct bp_vertex_program :
   void apply(icontext_type& context, vertex_type& vertex, 
              const factor_type& total) {
     vertex_data& vdata = vertex.data();
-
+    cout << "begin apply" << endl;
     if (vdata.nvars == 1) {
       // Unary factor.
       ASSERT_EQ(vdata.potential.size(), total.size());
       vec belief = vdata.potential + total;
       // Save the best configuration for this vertex.
       belief.maxCoeff(&vdata.best_configuration);
+      cout << "vdata.best_configuration = " << vdata.best_configuration << endl;
     } else {
       // General factor.
       vec belief = vdata.potential;
@@ -279,6 +282,7 @@ struct bp_vertex_program :
       // Save the best configuration for this factor.
       belief.maxCoeff(&vdata.best_configuration);
     }
+    cout << "end apply" << endl;
   }; // end of apply
 
   /**
@@ -300,6 +304,7 @@ struct bp_vertex_program :
     const vertex_type other_vertex = get_other_vertex(edge, vertex);
     const vertex_type *unary_vertex;
     const vertex_type *factor_vertex;
+    cout << "begin scatter" << endl;
     if (vertex.data().nvars == 1) {
       // Unary factor.
       unary_vertex = &vertex;
@@ -314,6 +319,8 @@ struct bp_vertex_program :
     edge_data& edata = edge.data();
     double stepsize = 1.0; // TODO: Make this decay over iteration number.
 
+    CHECK_GE(vdata.best_configuration, 0);
+    CHECK_LT(vdata.best_configuration, vdata.cards[0]);    
     edata.message[vdata.best_configuration] += stepsize;
     vector<int> states(other_vdata.nvars, -1);
     get_configuration_states(*factor_vertex, other_vdata.best_configuration, &states);
@@ -328,7 +335,11 @@ struct bp_vertex_program :
       offset += other_vdata.cards[k];
     }
     CHECK_GE(index_neighbor, 0);
+    CHECK_GE(states[index_neighbor], 0);
+    CHECK_LT(states[index_neighbor], other_vdata.cards[index_neighbor]);
+    CHECK_EQ(other_vdata.cards[index_neighbor], vdata.cards[0]);
     edata.message[states[index_neighbor]] -= stepsize;
+    cout << "end scatter" << endl;
   }; // end of scatter
   
   /**
