@@ -52,6 +52,7 @@ bool finished = false;
 double ortho_repeats = 3;
 bool update_function = false;
 bool save_vectors = false;
+bool use_ids = false;
 std::string datafile; 
 std::string vecfile;
 int unittest;
@@ -178,7 +179,10 @@ struct linear_model_saver_U {
 
   std::string save_vertex(const vertex_type& vertex) const {
     if (vertex.id() < (uint)info.rows){
-      std::string ret = boost::lexical_cast<std::string>(vertex.data().pvec[pos]) + "\n";
+      std::string ret;
+      if(use_ids)
+        ret = boost::lexical_cast<std::string>(vertex.id() + 1) + " ";
+      ret += boost::lexical_cast<std::string>(vertex.data().pvec[pos]) + "\n";
       return ret;
     }
     else return "";
@@ -197,7 +201,10 @@ struct linear_model_saver_V {
 
   std::string save_vertex(const vertex_type& vertex) const {
     if (vertex.id() >= (uint)info.rows){
-      std::string ret = boost::lexical_cast<std::string>(vertex.data().pvec[pos]) + "\n";
+      std::string ret;
+      if(use_ids)
+        ret = boost::lexical_cast<std::string>(vertex.id() - (uint)info.rows + 1) + " ";
+      ret += boost::lexical_cast<std::string>(vertex.data().pvec[pos]) + "\n";
       return ret;
     }
     else return "";
@@ -484,9 +491,9 @@ vec lanczos(bipartite_graph_descriptor & info, timer & mytimer, vec & errest,
     const size_t threads_per_machine = 1;
     //save the linear model
     for (int i=0; i < nconv; i++){
-      pgraph->save(predictions + ".U." + boost::lexical_cast<std::string>(i), linear_model_saver_U(i),
+      pgraph->save(predictions + "U." + boost::lexical_cast<std::string>(i), linear_model_saver_U(i),
           gzip_output, save_edges, save_vertices, threads_per_machine);
-      pgraph->save(predictions + ".V." + boost::lexical_cast<std::string>(i), linear_model_saver_V(i),
+      pgraph->save(predictions + "V." + boost::lexical_cast<std::string>(i), linear_model_saver_V(i),
           gzip_output, save_edges, save_vertices, threads_per_machine);
     } 
 
@@ -542,6 +549,8 @@ int main(int argc, char** argv) {
   clopts.attach_option("cols", cols, "number of cols");
   clopts.attach_option("no_edge_data", no_edge_data, "matrix is binary (optional)");
   clopts.attach_option("quiet", quiet, "quiet mode (less verbose)");
+  clopts.attach_option("id", use_ids, "if set, will output row ids for U and V when saving");
+  clopts.attach_option("predictions", predictions, "predictions file prefix");
   if(!clopts.parse(argc, argv) || input_dir == "") {
     std::cout << "Error in parsing command line arguments." << std::endl;
     clopts.print_description();
