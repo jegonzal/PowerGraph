@@ -618,7 +618,7 @@ The connected component program can find all connected components in a
 graph, and can also count the number of vertices (size) of each connected 
 component.
 
-The input to the system is a graph in any of the Portable graph format
+The input to the system is a graph in any of the Portable Graph formats
 described in \ref graph_formats.
 
 To find connected components in a graph, the minimal set of options
@@ -697,7 +697,7 @@ The implemented algorithm is based on the work,
 U Kang, Charalampos Tsourakakis, Ana Paula Appel, Christos Faloutsos and Jure Leskovec, 
 HADI: Fast Diameter Estimation and Mining in Massive Graphs with Hadoop (2008).
 
-The input to the system is a graph in any of the Portable graph format
+The input to the system is a graph in any of the Portable Graph formats
 described in \ref graph_formats.
 
 To compute an approximate diameter of a graph, the minimal set of options
@@ -760,7 +760,7 @@ for computation.
 
 This program can partition a graph by using normalized cut.
 
-The input to the system is a graph in any of the Portable graph format
+The input to the system is a graph in any of the Portable Graph formats
 described in \ref graph_formats.
 You can also give weights to edges with the <tt>weight</tt> format.
 For instance in this <tt>weight</tt> format file, there are 5 edges:
@@ -781,11 +781,11 @@ To partition a graph, the minimal set of options required are:
 
 This program uses svd in Graphlab Collaborative Filtering Toolkit and 
 kmeans in Graphlab Clustering Toolkit. The paths to the directories are 
-specified by --svd-dir and --kmeans-dir, respectively.
+specified by <tt>--svd-dir</tt> and <tt>--kmeans-dir</tt>, respectively.
 
 The program will create some intermediate files. The final partitioning
-result is written in files named [graph prefix].result with suffix,
-for example [graph prefix].result_1_of_4. The partitioning result 
+result is written in files named <tt>[graph prefix].result</tt> with suffix,
+for example <tt>[graph prefix].result_1_of_4</tt>. The partitioning result 
 data consists of two columns: one for the ids and the other for the 
 assigned partitions. For instance:
 
@@ -812,4 +812,7 @@ Graphlab kmeans is located
 for computation.
 \li \b --graph_opts (Optional, Default empty). Any additional graph options. See
   graphlab::distributed_graph a list of options.
+  
+  
 */
+

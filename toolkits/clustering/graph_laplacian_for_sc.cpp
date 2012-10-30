@@ -37,8 +37,10 @@
 #include <graphlab.hpp>
 #include <graphlab/graph/distributed_graph.hpp>
 
-
+//shared parameters
 float gaussian_kernel_scale_parameter = 0.1;
+float threshold_to_discard_small_similarities = 0.0;
+size_t number_of_nearest_neighbors= 20;
 
 
 //data point
@@ -71,12 +73,13 @@ struct vertex_data {
 //similarity
 struct edge_data{
   float A_ij;
-  edge_data() : A_ij(0.0){}
+  bool nearest;
+  edge_data() : A_ij(0.0), nearest(false){}
   void save(graphlab::oarchive& oarc) const {
-    oarc << A_ij;
+    oarc << A_ij << nearest;
   }
   void load(graphlab::iarchive& iarc) {
-    iarc >> A_ij;
+    iarc >> A_ij >> nearest;
   }
 };
 
@@ -126,12 +129,120 @@ float similarity(const std::vector<float>& v1, const std::vector<float>& v2) {
 void calc_similarities(graph_type::edge_type& edata) {
   edata.data().A_ij = similarity(edata.source().data().x, edata.target().data().x);
 }
-//discard small similarities
-float threshold_to_discard_small_similarities = 0.0;
+
+
+//discard small similarities (Optional)
 void discard_small_similarity(graph_type::edge_type& edata) {
   if(edata.data().A_ij < threshold_to_discard_small_similarities)
     edata.data().A_ij = 0.0;
 }
+
+
+//gather T-nearest neighbor (Optional)
+struct top_t_similarity{
+  std::vector<size_t> ids;
+  std::vector<float> sims;
+  top_t_similarity(): ids(number_of_nearest_neighbors, std::numeric_limits<size_t>::max()),
+      sims(number_of_nearest_neighbors, -1.0){}
+  top_t_similarity(size_t id, float sim): ids(number_of_nearest_neighbors, std::numeric_limits<size_t>::max()),
+      sims(number_of_nearest_neighbors, -1.0){
+    ids[0] = id;
+    sims[0] = sim;
+  }
+
+  top_t_similarity& operator+=(const top_t_similarity& other){
+    std::vector<size_t> new_ids;
+    std::vector<float> new_sims;
+    size_t pos1=0;
+    size_t pos2=0;
+    while(pos1+pos2 < number_of_nearest_neighbors){
+      if(sims[pos1] >= other.sims[pos2]){
+        new_ids.push_back(ids[pos1]);
+        new_sims.push_back(sims[pos1]);
+        pos1++;
+      }else{
+        new_ids.push_back(other.ids[pos2]);
+        new_sims.push_back(other.sims[pos2]);
+        pos2++;
+      }
+    }
+    ids = new_ids;
+    sims = new_sims;
+    return *this;
+  }
+
+  void save(graphlab::oarchive& oarc) const {
+    oarc << ids.size();
+    for(size_t i=0;i<ids.size();++i)
+      oarc << ids[i];
+    for(size_t i=0;i<sims.size();++i)
+      oarc << sims[i];
+  }
+  void load(graphlab::iarchive& iarc) {
+    ids.clear();
+    sims.clear();
+    size_t size = 0;
+    iarc >> size;
+    for(size_t i=0;i<size;++i){
+      size_t id = 0;
+      iarc >> id;
+      ids.push_back(id);
+    }
+    for(size_t i=0;i<size;++i){
+      float sim = 0;
+      iarc >> sim;
+      sims.push_back(sim);
+    }
+  }
+};
+
+//get T-nearest neighbor and discard others (Optional)
+class t_nearest: public graphlab::ivertex_program<graph_type,
+  top_t_similarity>, public graphlab::IS_POD_TYPE {
+private:
+  float threshold;
+
+public:
+  t_nearest():threshold(0.0){}
+
+  edge_dir_type gather_edges(icontext_type& context,
+      const vertex_type& vertex) const {
+    return graphlab::ALL_EDGES;
+  }
+  top_t_similarity gather(icontext_type& context, const vertex_type& vertex,
+      edge_type& edge) const {
+    if(edge.target().id() == vertex.id()){//in edge
+      return top_t_similarity(edge.source().id(), edge.data().A_ij);
+    }else{//out edge
+      return top_t_similarity(edge.target().id(), edge.data().A_ij);
+    }
+  }
+
+  //assign a cluster, considering the clusters of neighbors
+  void apply(icontext_type& context, vertex_type& vertex,
+      const gather_type& total) {
+    threshold = total.sims[number_of_nearest_neighbors-1];
+//    std::cout << vertex.id() << "\t" << total.ids[0] << "-" << total.sims[0] << ", "
+//        << total.ids[1] << "-" << total.sims[1] << std::endl;
+  }
+
+  edge_dir_type scatter_edges(icontext_type& context,
+      const vertex_type& vertex) const {
+      return graphlab::ALL_EDGES;
+  }
+  void scatter(icontext_type& context, const vertex_type& vertex,
+      edge_type& edge) const {
+    if(edge.data().A_ij >= threshold)
+      edge.data().nearest = true;
+  }
+};
+
+//discard small similarities (Optional)
+void make_other_similarities_zero(graph_type::edge_type& edata) {
+  if(edata.data().nearest == false)
+    edata.data().A_ij = 0.0;
+}
+
 
 //compute sums over rows and then take inverse square root
 class calc_degrees: public graphlab::ivertex_program<graph_type,
@@ -257,6 +368,9 @@ int main(int argc, char** argv) {
                        "Scale parameter for Gaussian kernel.");
   clopts.attach_option("similarity-thres", threshold_to_discard_small_similarities,
                        "Threshold to discard small similarities. ");
+  clopts.attach_option("t-nearest", number_of_nearest_neighbors,
+                      "Number of nearest neighbors (=t). Will use only the t-nearest similarities "
+                      "for each datapoint. If set at 0, will use all similarities.");
   if(!clopts.parse(argc, argv)) return EXIT_FAILURE;
   if (datafile == "") {
     std::cout << "--data is not optional\n";
@@ -275,18 +389,39 @@ int main(int argc, char** argv) {
 
   time_t start, end;
   time(&start);
+  size_t data_num = graph.map_reduce_vertices<max_vid>(absolute_vertex_data).vid;
+
   //calculate similarities
   graph.transform_edges(calc_similarities);
+
   //show the max similarity less than 1 and the min similarity grater than 0
   max_min_similarity stat = graph.map_reduce_edges<max_min_similarity>(absolute_edge_data);
-  dc.cout() << "max squared distance(min similarity): " << -log(stat.min_sim)*gaussian_kernel_scale_parameter
+  dc.cout() << "max squared distance(min similarity): "
+      << -log(stat.min_sim)*gaussian_kernel_scale_parameter
       << "(" << stat.min_sim << ")\n"
-      << "min squared distance(man similarity):" << -log(stat.max_sim)*gaussian_kernel_scale_parameter
+      << "min squared distance(max similarity):"
+      << -log(stat.max_sim)*gaussian_kernel_scale_parameter
       << "(" << stat.max_sim << ")\n";
+
+
+  //if t is set, use only t-nearest similarities
+  if(number_of_nearest_neighbors > 0){
+    if(number_of_nearest_neighbors > data_num-1)
+      number_of_nearest_neighbors = data_num-1;
+    dc.cout() << "use only the " << number_of_nearest_neighbors
+        << "-nearest similarities for each datapoint\n";
+    graphlab::omni_engine<t_nearest> engine_nearest(dc, graph, "sync", clopts);
+    engine_nearest.signal_all();
+    engine_nearest.start();
+    graph.transform_edges(make_other_similarities_zero);
+  }
   //if threshold is set, discard similarities less then the threshold
   if(threshold_to_discard_small_similarities > 0.0){
+    dc.cout() << "discard small similarities less than "
+        << threshold_to_discard_small_similarities << "\n";
     graph.transform_edges(discard_small_similarity);
   }
+
   //sum elements over rows (calculate the degree matrix D)
   graphlab::omni_engine<calc_degrees> engine(dc, graph, "sync", clopts);
   engine.signal_all();
@@ -304,14 +439,14 @@ int main(int argc, char** argv) {
       outputname + "_diag",
       graph_writer(), false, //set to true if each output file is to be gzipped
       true, //whether vertices are saved
-      false); //whether edges are saved
+      false,1); //whether edges are saved
   graph.save(
       outputname + "_other",
       graph_writer(), false, //set to true if each output file is to be gzipped
       false, //whether vertices are saved
-      true); //whether edges are saved
-  size_t data_num = graph.map_reduce_vertices<max_vid>(absolute_vertex_data).vid;
-  graphlab::mpi_tools::finalize();
+      true,1); //whether edges are saved
+
+  //write the number of data
   const std::string datanum_filename = datafile + ".datanum";
   std::ofstream ofs(datanum_filename.c_str());
   if(!ofs) {
@@ -319,6 +454,8 @@ int main(int argc, char** argv) {
     return EXIT_FAILURE;
   }
   ofs << data_num;
+
+  graphlab::mpi_tools::finalize();
 
   return EXIT_SUCCESS;
 }

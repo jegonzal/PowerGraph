@@ -59,7 +59,7 @@ std::string get_arg_str_without(int argc, char** argv,
 
 bool call_graph_laplacian_construction(const std::string& mpi_args,
     const std::string& filename, const float sigma, const float epsilon,
-    const std::string& args) {
+    const size_t num_nearests, const std::string& args) {
   std::stringstream strm;
   if (mpi_args.length() > 0)
     strm << "mpiexec " << mpi_args << " ";
@@ -67,6 +67,7 @@ bool call_graph_laplacian_construction(const std::string& mpi_args,
   strm << " --data=" << filename;
   strm << " --sigma=" << sigma;
   strm << " --similarity-thres=" << epsilon;
+  strm << " --t-nearest=" << num_nearests;
   strm << " " << args;
   std::cout << "CALLING >" << strm.str() << std::endl;
   int sys_ret = system(strm.str().c_str());
@@ -174,6 +175,8 @@ int get_lanczos_rank(const size_t num_clusters, const size_t num_data) {
 
 int main(int argc, char** argv) {
   std::cout << "Spectral clustering\n\n";
+  time_t start, end;
+  time(&start);
 
   std::string datafile;
   std::string graph_analytics_dir = "../graph_analytics/";
@@ -181,6 +184,7 @@ int main(int argc, char** argv) {
   std::string kmeans_dir = "./";
   std::string mpi_args;
   size_t num_clusters = 0;
+  size_t num_nearests = 20;
   float sigma = 0.1;
   float epsilon = 0.0;
   //parse command line
@@ -196,16 +200,19 @@ int main(int argc, char** argv) {
           "or comma separated numeric vector");
   clopts.attach_option("clusters", num_clusters,
           "The number of clusters to create");
-  clopts.attach_option("graph-analytics-dir", graph_analytics_dir,
-          "Path to the directory of Graphlab graph analytics tools");
-  clopts.attach_option("svd-dir", svd_dir,
-          "Path to the directory of Graphlab svd");
-  clopts.attach_option("kmeans-dir", kmeans_dir,
-          "Path to the directory of Graphlab kmeans");
   clopts.attach_option("sigma", sigma,
           "Scale parameter for Gaussian kernel");
+  clopts.attach_option("t-nearest", num_nearests,
+          "Number of nearest neighbors (=t). Will use only the t-nearest similarities "
+          "for each datapoint. If set at 0, will use all similarities.");
   clopts.attach_option("similarity-thres", epsilon,
           "Threshold to discard small similarities");
+  clopts.attach_option("svd-dir", svd_dir,
+          "Path to the directory where Graphlab svd is located");
+  clopts.attach_option("kmeans-dir", kmeans_dir,
+          "Path to the directory where Graphlab kmeans is located");
+  clopts.attach_option("graph-analytics-dir", graph_analytics_dir,
+          "Path to the directory where Graphlab eigen_vector_normalization is located");
   clopts.attach_option("mpi-args", mpi_args,
           "If set, will execute mipexec with the given arguments. "
           "For example, --mpi-args=\"-n [N machines] --hostfile [host file]\"");
@@ -228,11 +235,12 @@ int main(int argc, char** argv) {
   remove_opts.push_back("--sigma");
   remove_opts.push_back("--similarity-thres");
   remove_opts.push_back("--mpi-args");
+  remove_opts.push_back("--t-nearest");
   std::string other_args = get_arg_str_without(argc, argv, remove_opts);
 
   //construct graph laplacian
   if (call_graph_laplacian_construction(mpi_args, datafile, sigma, epsilon,
-      other_args) == false) {
+      num_nearests, other_args) == false) {
     return EXIT_FAILURE;
   }
 
@@ -262,6 +270,10 @@ int main(int argc, char** argv) {
       == false) {
     return EXIT_FAILURE;
   }
+
+  time(&end);
+
+  std::cout << "Overall processing time of clustering is " << (end - start) << " sec\n";
 
   return EXIT_SUCCESS;
 }

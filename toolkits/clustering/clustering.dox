@@ -226,7 +226,7 @@ for computation. <b>Due to some implementation limitations within GraphLab,
 \section clustering_spectral_clustering Spectral Clustering
 
 This program takes as input a collection of files where each line in each file represents 
-a data point. Each line must contains a id and a list of numbers, white-space or comma 
+a data point. Each line must contains an id and a list of numbers, white-space or comma 
 separated. Each line must be the same length. 
 For instance in this example input file, there are 6 datapoints, one per line,
 and each datapoint is a point in a 5-dimensional space.  
@@ -251,12 +251,12 @@ To run spectral clustering, the minimal set of options required are:
 This program uses svd in Graphlab Collaborative Filtering Toolkit, 
 kmeans in Graphlab Clustering Toolkit and eigen_vector_normalization in 
 Graphlab Graph Analytics Toolkit.  The paths to the directories are
-specified by --svd-dir, --kmeans-dir and 
-<--graph-analytics-dir, respectively.
+specified by <tt>--svd-dir</tt>, <tt>--kmeans-dir</tt> and 
+<tt>--graph-analytics-dir</tt>, respectively.
 
 The program will create some intermediate files. The final clustering
-result is written in files named [data prefix].result with a suffix,
-for example [data prefix].result_1_of_4. The clustering result
+result is written in files named <tt>[data prefix].result</tt> with a suffix,
+for example <tt>[data prefix].result_1_of_4</tt>. The clustering result
 data will consist of two columns: one for the ids and the other for the
 assigned clusters. For instance:
 
@@ -272,17 +272,23 @@ assigned clusters. For instance:
 Relevant options are:
 \li \b --data (Required). The prefix from which to load the input data
 \li \b --clusters (Required). The number of clusters
+\li \b --sigma (Optional. Default 0.1). Scale parameter for Gaussian kernel.
+This value is often critical to the clustering result.
+\li \b --t-nearest (Optional. Default 20). Number of nearest neighbors (=t). 
+Will use only the t-nearest similarities for each datapoint. If set at 0,
+will use all similarities. 
+\li \b --similarity-thres (Optional). Threshold to discard small similarities.
+If a value is set, similarities less than this value will be discarded.
 \li \b --svd-dir (Optional Default ../collaborative_filtering/).
 Path to the directory where Graphlab svd is located
 \li \b --kmeans-dir (Optional. Default ../clustering/). 
 Path to the directory where Graphlab kmeans is located
 \li \b --graph-analytics-dir (Optional. Default ../graph_analytics/).
 Path to the directory where Graphlab eigen_vector_normalization is located
-\li \b --sigma (Optional. Default 0.1). Scale parameter for Gaussian kernel.
-This value is often critical to the clustering result.
-\li \b --similarity-thres (Optional. Default 0). Threshold to discard small similarities.
-Similarities less than this value will be discarded.
-\li \b --ncpus (Optional. Default 2). The number of processors that will be used for computation.
+\li \b --ncpus (Optional. Default 2). The number of processors that will be used for computation. 
+<b>Due to some implementation limitations within GraphLab, 
+this parameter is not respected. It will use all processors on your machine 
+if ran in Linux, and will use only 1 processor if ran on Mac</b> 
 \li \b --graph_opts (Optional, Default empty). Any additional graph options. See
   graphlab::distributed_graph a list of options.
 
