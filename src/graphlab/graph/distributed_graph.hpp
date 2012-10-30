@@ -789,7 +789,7 @@ namespace graphlab {
       }
       ASSERT_NE(ingress_ptr, NULL);
 
-      std::cout << "inside add_edge" << std::endl;
+//      std::cout << "inside add_edge" << std::endl;
         
       ingress_ptr->add_edge(source, target, edata);
     }
