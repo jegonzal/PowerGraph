@@ -179,10 +179,13 @@ struct linear_model_saver_U {
 
   std::string save_vertex(const vertex_type& vertex) const {
     if (vertex.id() < (uint)info.rows){
+      int rpos = pos;
+      if (info.is_square())
+          rpos += data_size;
       std::string ret;
       if(use_ids)
         ret = boost::lexical_cast<std::string>(vertex.id() + 1) + " ";
-      ret += boost::lexical_cast<std::string>(vertex.data().pvec[pos]) + "\n";
+      ret += boost::lexical_cast<std::string>(vertex.data().pvec[rpos]) + "\n";
       return ret;
     }
     else return "";
@@ -200,7 +203,7 @@ struct linear_model_saver_V {
   linear_model_saver_V(int pos): pos(pos) {}
 
   std::string save_vertex(const vertex_type& vertex) const {
-    if (vertex.id() >= (uint)info.rows){
+    if ((vertex.id() >= (uint)info.rows) || info.is_square()){
       std::string ret;
       if(use_ids)
         ret = boost::lexical_cast<std::string>(vertex.id() - (uint)info.rows + 1) + " ";
@@ -484,7 +487,7 @@ vec lanczos(bipartite_graph_descriptor & info, timer & mytimer, vec & errest,
     if (nconv == 0)
       logstream(LOG_FATAL)<<"No converged vectors. Aborting the save operation" << std::endl;
 
-    std::cout << "Saving predictions" << std::endl;
+    std::cout << "Saving predictions to files: " << predictions << ".U.* and "<< predictions << ".V.*" <<std::endl;
     const bool gzip_output = false;
     const bool save_vertices = false;
     const bool save_edges = true;
