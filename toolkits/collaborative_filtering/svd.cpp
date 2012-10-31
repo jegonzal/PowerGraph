@@ -181,7 +181,7 @@ struct linear_model_saver_U {
     if (vertex.id() < (uint)info.rows){
       int rpos = pos;
       if (info.is_square())
-          rpos += data_size;
+          rpos += info.rows;
       std::string ret;
       if(use_ids)
         ret = boost::lexical_cast<std::string>(vertex.id() + 1) + " ";
