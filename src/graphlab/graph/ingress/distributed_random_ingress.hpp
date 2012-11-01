@@ -63,7 +63,6 @@ namespace graphlab {
     /** Add an edge to the ingress object using random assignment. */
     void add_edge(vertex_id_type source, vertex_id_type target,
                   const EdgeData& edata) {
-//      std::cout << "distributed_random_ingress::add_edge" << std::endl;
       typedef typename base_type::edge_buffer_record edge_buffer_record;
       const procid_t owning_proc = edge_to_proc (source, target);
       const edge_buffer_record record(source, target, edata);
