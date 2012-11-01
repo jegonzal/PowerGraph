@@ -143,6 +143,7 @@ namespace graphlab {
     void finalize() { 
       rpc.full_barrier();
       flush(); 
+      rpc.full_barrier();
       base_type::finalize();
     } // end of finalize
 
