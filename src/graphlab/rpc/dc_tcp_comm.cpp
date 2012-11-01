@@ -50,7 +50,7 @@
 
 #include <graphlab/macros_def.hpp>
 
-#define COMM_DEBUG
+//#define COMM_DEBUG
 namespace graphlab {
  
   namespace dc_impl {
