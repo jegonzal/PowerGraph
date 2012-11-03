@@ -41,9 +41,10 @@ struct Options
 {
     int verbose;
     double work_megapix;
+    double conf_thresh;
     
     Options(): 
-    verbose(0), work_megapix(0.6)
+    verbose(0), work_megapix(0.6), conf_thresh(1.0)
     {}
 };
 

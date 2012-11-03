@@ -49,6 +49,7 @@
 #include "eigen_serialization.hpp"
 #include "opencv_serialization.hpp"
 #include "stitch_opts.hpp"
+#include "utils.hpp"
 
 #include <graphlab/macros_def.hpp>
 
@@ -77,6 +78,8 @@ typedef Eigen::MatrixXd mat;
 // Edge and Vertex data and Graph Type
 struct vertex_data 
 {
+    bool empty; // used to quickly check if this is a dummy vertex.
+    
     // path to image
     std::string img_path;
     
@@ -84,18 +87,48 @@ struct vertex_data
     cv::detail::ImageFeatures features;
     
     // constructor
-    vertex_data()
+    vertex_data() : empty(true)
     { }
     
     void save(graphlab::oarchive& arc) const 
     {
-        arc << img_path
-        << features;
+        arc << empty << img_path << features;
     }
     void load(graphlab::iarchive& arc) 
     {
-        arc >> img_path
-        >> features;
+        arc >> empty >> img_path >> features;
+    }
+    
+    vertex_data operator+ (vertex_data& othervertex)
+    {
+        vertex_data sum; 
+        
+        if (!empty && !othervertex.empty)
+        {
+            logstream(LOG_ERROR) << "Don't know about to merge two non-empty vertex-data structures" << std::endl;
+            //return EXIT_FAILURE;
+        }
+        else if (!empty && othervertex.empty)
+            sum = *this;
+        else if (empty && !othervertex.empty)
+            sum = othervertex;        
+        // Nothing to do if both empty. 
+        
+        return sum;
+    }
+
+    vertex_data& operator+= (const vertex_data& othervertex)
+    {
+        if (!empty && !othervertex.empty)
+        {
+            logstream(LOG_ERROR) << "Don't know about to merge two non-empty vertex-data structures" << std::endl;
+            //return EXIT_FAILURE;
+        }
+        else if (empty && !othervertex.empty)
+            *this = othervertex;        
+        // Nothing to do if both empty or othervertex empty. 
+        
+        return *this;
     }
 }; // End of vertex data
 
@@ -103,19 +136,53 @@ struct vertex_data
 //typedef graphlab::empty edge_data;
 struct edge_data 
 {
+    bool empty; // used to quickly check if this is a dummy edge.
+
     cv::detail::MatchesInfo matchinfo;
     
     // constructor
-    edge_data()
+    edge_data() : empty(true)
     { }
     
     void save(graphlab::oarchive& arc) const 
     {
-        arc << matchinfo;
+        arc << empty << matchinfo;
     }
     void load(graphlab::iarchive& arc) 
     {
-        arc >> matchinfo;
+        arc >> empty >> matchinfo;
+    }
+
+    edge_data operator+ (edge_data& otheredge)
+    {
+        edge_data sum; 
+        
+        if (!empty && !otheredge.empty)
+        {
+            logstream(LOG_ERROR) << "Don't know about to merge two non-empty edge-data structures" << std::endl;
+            //return EXIT_FAILURE;
+        }
+        else if (!empty && otheredge.empty)
+            sum = *this;
+        else if (empty && !otheredge.empty)
+            sum = otheredge;        
+        // Nothing to do if both empty. 
+        
+        return sum;
+    }
+
+    edge_data& operator+= (const edge_data& otheredge)
+    {
+        if (!empty && !otheredge.empty)
+        {
+            logstream(LOG_ERROR) << "Don't know about to merge two non-empty edge-data structures" << std::endl;
+            //return EXIT_FAILURE;
+        }
+        else if (empty && !otheredge.empty)
+            *this = otheredge;        
+        // Nothing to do if both empty or othervertex empty. 
+        
+        return *this;
     }
 }; // End of edge data
 
@@ -171,6 +238,7 @@ public:
     gather_type gather(icontext_type& context, const vertex_type& target_vertex, 
                        edge_type& edge) const 
     {
+        return gather_type();
     } // end of gather
 
     void apply(icontext_type& context, vertex_type& vertex, 

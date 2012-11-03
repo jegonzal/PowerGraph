@@ -352,7 +352,7 @@ int main(int argc, char** argv)
         return EXIT_FAILURE;
     }
     
-    if (opts.work_megapix < 0 || opts.work_megapix > 0)
+    if (opts.work_megapix < 0 || opts.work_megapix > 10)
     {
         logstream(LOG_ERROR) << "Inappropriate value for work_megapix." << std::endl;
         return EXIT_FAILURE;
@@ -388,42 +388,203 @@ int main(int argc, char** argv)
     // Match features in parallel
     graph.transform_edges(match_features);
 
-    
+
     ///////////////////////////////////////////////////////
     // Graphlab Engine
     engine_type engine(dc, graph, clopts);
 
     
     ///////////////////////////////////////////////////////
-    // Run everything
-    engine.signal_all();
-    graphlab::timer timer;
-    engine.start();  
-    const double runtime = timer.current_time();
-    dc.cout() 
-    << "----------------------------------------------------------" << std::endl
-    << "Final Runtime (seconds):   " << runtime 
-    << std::endl
-    << "Updates executed: " << engine.num_updates() << std::endl
-    << "Update Rate (updates/second): " 
-    << engine.num_updates() / runtime << std::endl;
+    // Compile features
+    typedef vector<vertex_data> VecVD;
+    VecVD vdlist = engine.map_reduce_vertices<VecVD>(compile_features);
     
-//    int retval = parseCmdArgs(argc, argv);
-//    if (retval)
-//        return retval;
-//    
-//    // Check if have enough images
-//    int num_images = static_cast<int>(img_names.size());
-//    if (num_images < 2)
-//    {
-//        LOGLN("Need more images");
-//        return -1;
+    vector<ImageFeatures> features(vdlist.size());
+    for (size_t i=0; i!=vdlist.size(); ++i) 
+    {
+        features[i] = vdlist[i].features;
+    }
+    vdlist.clear();
+    
+    int num_images = features.size();
+    
+    ///////////////////////////////////////////////////////
+    // Compile matches
+    typedef vector<edge_data> VecED;
+    VecED edlist = engine.map_reduce_edges<VecED>(compile_matches);
+    
+    if (opts.verbose > 0 & dc.procid()==0)
+        logstream(LOG_EMPH) << "edlist.size() =  " << edlist.size() 
+        << "\n";
+
+
+    vector<MatchesInfo> pairwise_matches(edlist.size());
+    int r,c; int pair_idx;
+    for (size_t i=0; i!=edlist.size(); ++i) 
+    {
+        IND2SUB_RM(i,r,c,num_images)
+        
+        if (r==c)
+            continue;
+        
+        if (r<c)
+            pair_idx = i;
+        else
+            pair_idx = SUB2IND_RM(c,r,num_images);
+
+        pairwise_matches[i] = edlist[pair_idx].matchinfo;
+        pairwise_matches[i].src_img_idx = r;
+        pairwise_matches[i].dst_img_idx = c;
+        
+        if (r>c) // Swap & invert a few things in the match
+        {
+            if (!pairwise_matches[i].H.empty())
+                pairwise_matches[i].H = pairwise_matches[i].H.inv();
+            
+            for (size_t j = 0; j < pairwise_matches[i].matches.size(); ++j)
+                std::swap(pairwise_matches[i].matches[j].queryIdx,
+                          pairwise_matches[i].matches[j].trainIdx);
+        }
+        
+        if (opts.verbose > 0 & dc.procid()==0)
+            logstream(LOG_EMPH) << "#Matches in Pair "
+            "(" << pairwise_matches[i].src_img_idx 
+            << "," << pairwise_matches[i].dst_img_idx << ")" 
+            << ": (" << pairwise_matches[i].matches.size() 
+            << "," << pairwise_matches[i].num_inliers
+            << "," << pairwise_matches[i].confidence << ")"
+            << "\n";
+
+    }
+    edlist.clear();
+    
+    ///////////////////////////////////////////////////////
+    // Homography-Based Initialization
+    int64 t;
+    t = getTickCount();
+    HomographyBasedEstimator estimator;
+    vector<CameraParams> cameras;
+    estimator(features, pairwise_matches, cameras);
+    logstream(LOG_EMPH) << "Homography-based init, time: " << ((getTickCount() - t) / getTickFrequency()) << " sec\n";
+    
+    for (size_t i = 0; i < cameras.size(); ++i)
+    {
+        Mat R;
+        cameras[i].R.convertTo(R, CV_32F);
+        cameras[i].R = R;
+        if (dc.procid() == 0)
+            logstream(LOG_EMPH) << "Initial intrinsics #" << i << ":\n" << cameras[i].K() << "\n\n";
+    }
+
+    
+    ///////////////////////////////////////////////////////
+    // Bunde Adjustment
+    t = getTickCount();
+    Ptr<detail::BundleAdjusterBase> adjuster;
+    adjuster = new detail::BundleAdjusterRay();
+//    if (ba_cost_func == "reproj") adjuster = new detail::BundleAdjusterReproj();
+//    else if (ba_cost_func == "ray") adjuster = new detail::BundleAdjusterRay();
+//    else 
+//    { 
+//        cout << "Unknown bundle adjustment cost function: '" << ba_cost_func << "'.\n"; 
+//        return -1; 
 //    }
-//    
-//    double work_scale = 1, seam_scale = 1, compose_scale = 1;
-//    bool is_work_scale_set = false, is_seam_scale_set = false, is_compose_scale_set = false;
+    adjuster->setConfThresh(opts.conf_thresh);
+    Mat_<uchar> refine_mask = Mat::zeros(3, 3, CV_8U);
+    if (ba_refine_mask[0] == 'x') refine_mask(0,0) = 1;
+    if (ba_refine_mask[1] == 'x') refine_mask(0,1) = 1;
+    if (ba_refine_mask[2] == 'x') refine_mask(0,2) = 1;
+    if (ba_refine_mask[3] == 'x') refine_mask(1,1) = 1;
+    if (ba_refine_mask[4] == 'x') refine_mask(1,2) = 1;
+    adjuster->setRefinementMask(refine_mask);
+    (*adjuster)(features, pairwise_matches, cameras);
+    if (dc.procid() == 0)
+        logstream(LOG_EMPH) << "Bundle Adjustment, time: " << ((getTickCount() - t) / getTickFrequency()) << " sec\n";
+
+    ///////////////////////////////////////////////////////
+    // Find median focal length    
+    vector<double> focals;
+    for (size_t i = 0; i < cameras.size(); ++i)
+    {
+        if (dc.procid() == 0)
+            logstream(LOG_EMPH) << "Camera #" << i << ":\n" << cameras[i].K() << "\n\n";
+        focals.push_back(cameras[i].focal);
+    }
     
-//    LOGLN("Finding features...");
+    sort(focals.begin(), focals.end());
+    float warped_image_scale;
+    if (focals.size() % 2 == 1)
+        warped_image_scale = static_cast<float>(focals[focals.size() / 2]);
+    else
+        warped_image_scale = static_cast<float>(focals[focals.size() / 2 - 1] + focals[focals.size() / 2]) * 0.5f;
     
+    ///////////////////////////////////////////////////////
+    // Wave-Correction
+    vector<Mat> rmats;
+    for (size_t i = 0; i < cameras.size(); ++i)
+        rmats.push_back(cameras[i].R);
+    waveCorrect(rmats, wave_correct);
+    for (size_t i = 0; i < cameras.size(); ++i)
+        cameras[i].R = rmats[i];
+
+
+    ///////////////////////////////////////////////////////
+    // Warp Images // LowP Todo: convert to transform-vertices
+    t = getTickCount();
+    
+    vector<Point> corners(num_images);
+    vector<Mat> masks_warped(num_images);
+    vector<Mat> images_warped(num_images);
+    vector<Size> sizes(num_images);
+    vector<Mat> masks(num_images);
+    
+    // Preapre images masks
+    for (int i = 0; i < num_images; ++i)
+    {
+        masks[i].create(images[i].size(), CV_8U);
+        masks[i].setTo(Scalar::all(255));
+    }
+    
+    // Warp images and their masks
+    Ptr<WarperCreator> warper_creator;
+    warper_creator = new cv::SphericalWarper();
+
+    Ptr<RotationWarper> warper = warper_creator->create(static_cast<float>(warped_image_scale * seam_work_aspect));
+    
+    for (int i = 0; i < num_images; ++i)
+    {
+        Mat_<float> K;
+        cameras[i].K().convertTo(K, CV_32F);
+        float swa = (float)seam_work_aspect;
+        K(0,0) *= swa; K(0,2) *= swa;
+        K(1,1) *= swa; K(1,2) *= swa;
+        
+        corners[i] = warper->warp(images[i], K, cameras[i].R, INTER_LINEAR, BORDER_REFLECT, images_warped[i]);
+        sizes[i] = images_warped[i].size();
+        
+        warper->warp(masks[i], K, cameras[i].R, INTER_NEAREST, BORDER_CONSTANT, masks_warped[i]);
+    }
+    
+    vector<Mat> images_warped_f(num_images);
+    for (int i = 0; i < num_images; ++i)
+        images_warped[i].convertTo(images_warped_f[i], CV_32F);
+    
+    LOGLN("Warping images, time: " << ((getTickCount() - t) / getTickFrequency()) << " sec");
+
+
+    ///////////////////////////////////////////////////////
+    // Run everything
+//    engine.signal_all();
+//    graphlab::timer timer;
+//    engine.start();  
+//    const double runtime = timer.current_time();
+//    dc.cout() 
+//    << "----------------------------------------------------------" << std::endl
+//    << "Final Runtime (seconds):   " << runtime 
+//    << std::endl
+//    << "Updates executed: " << engine.num_updates() << std::endl
+//    << "Update Rate (updates/second): " 
+//    << engine.num_updates() / runtime << std::endl;
+        
 }
 

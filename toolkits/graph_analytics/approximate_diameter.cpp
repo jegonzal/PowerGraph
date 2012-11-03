@@ -36,7 +36,7 @@ float myrand() {
   return static_cast<float>(rand() / (RAND_MAX + 1.0));
 }
 
-//helper function to return hash for Flajolet & Martin bitmask
+//helper function to return a hash value for Flajolet & Martin bitmask
 size_t hash_value() {
   size_t ret = 0;
   while (myrand() < 0.5) {
@@ -45,7 +45,7 @@ size_t hash_value() {
   return ret;
 }
 
-const size_t DUPULICATION_OF_BITMASKS = 20;
+const size_t DUPULICATION_OF_BITMASKS = 10;
 
 struct vdata {
   //use two bitmasks for consistency
@@ -77,6 +77,7 @@ struct vdata {
       bitmask2.push_back(mask2);
     }
   }
+
   void save(graphlab::oarchive& oarc) const {
     size_t num = bitmask1.size();
     oarc << num;
@@ -88,8 +89,11 @@ struct vdata {
       for (size_t i = 0; i < size; ++i)
         oarc << bitmask2[a][i];
     }
+    oarc << odd_iteration;
   }
   void load(graphlab::iarchive& iarc) {
+    bitmask1.clear();
+    bitmask2.clear();
     size_t num = 0;
     iarc >> num;
     for (size_t a = 0; a < num; ++a) {
@@ -110,38 +114,22 @@ struct vdata {
       }
       bitmask2.push_back(mask2);
     }
+    iarc >> odd_iteration;
   }
 };
 
 typedef graphlab::distributed_graph<vdata, graphlab::empty> graph_type;
-
-//[vertex_id1] [vertex_id2]
-// NOTE: vertex id must start from 0.
-//       A vertex that has no edge must not exist.
-bool line_parser(graph_type& graph, const std::string& filename,
-    const std::string& textline) {
-  std::stringstream strm(textline);
-  size_t source = 0;
-  size_t target = 0;
-  strm >> source;
-  strm.ignore(1);
-  strm >> target;
-  if (source != target)
-    graph.add_edge(source, target);
-
-  return true;
-}
 
 //initialize bitmask
 void initialize_vertex(graph_type::vertex_type& v) {
   v.data().create_bitmask(v.id());
 }
 //initialize bitmask
-void initialize_vertex_for_approximation(graph_type::vertex_type& v) {
+void initialize_vertex_with_hash(graph_type::vertex_type& v) {
   v.data().create_hashed_bitmask(v.id());
 }
 
-//helper function to compute OR
+//helper function to compute bitwise-or
 void bitwise_or(std::vector<std::vector<bool> >& v1,
     const std::vector<std::vector<bool> >& v2) {
   for (size_t a = 0; a < v1.size(); ++a) {
@@ -158,13 +146,16 @@ struct bitmask_gatherer {
   std::vector<std::vector<bool> > bitmask;
 
   bitmask_gatherer() :
-      bitmask() {
+    bitmask() {
   }
-  explicit bitmask_gatherer(const std::vector<std::vector<bool> > & in_b) {
-    bitmask = in_b;
+  explicit bitmask_gatherer(const std::vector<std::vector<bool> > & in_b) :
+    bitmask(){
+    for(size_t i=0;i<in_b.size();++i){
+      bitmask.push_back(in_b[i]);
+    }
   }
 
-  //plus is bitwise-or
+  //bitwise-or
   bitmask_gatherer& operator+=(const bitmask_gatherer& other) {
     bitwise_or(bitmask, other.bitmask);
     return *this;
@@ -181,6 +172,7 @@ struct bitmask_gatherer {
     }
   }
   void load(graphlab::iarchive& iarc) {
+    bitmask.clear();
     size_t num = 0;
     iarc >> num;
     for (size_t a = 0; a < num; ++a) {
@@ -201,16 +193,8 @@ struct bitmask_gatherer {
 //b(h + 1; i) = b(h; i) BITWISE-OR {b(h; k) | source = i & target = k}.
 class one_hop: public graphlab::ivertex_program<graph_type, bitmask_gatherer>,
     public graphlab::IS_POD_TYPE {
-private:
 public:
-  one_hop() {
-  }
-
-  void init(icontext_type& context, const vertex_type& vertex,
-      const message_type& msg) {
-  }
-
-  //we are going to gather on out edges
+  //gather on out edges
   edge_dir_type gather_edges(icontext_type& context,
       const vertex_type& vertex) const {
     return graphlab::OUT_EDGES;
@@ -249,49 +233,25 @@ public:
   }
 };
 
-// count number of pairs reached in the current hop
-// by looking at bitmasks
-struct pair_counter {
-  size_t count;
+//copy the updated bitmask to the other
+void copy_bitmasks(graph_type::vertex_type& vdata) {
+  if (vdata.data().odd_iteration == false) { //odd_iteration has just finished
+    vdata.data().bitmask2 = vdata.data().bitmask1;
+  } else {
+    vdata.data().bitmask1 = vdata.data().bitmask2;
+  }
+}
 
-  pair_counter() :
-      count(0) {
-  }
-  explicit pair_counter(size_t in_count) :
-      count(in_count) {
-  }
-
-  pair_counter& operator+=(const pair_counter& other) {
-    count += other.count;
-    return *this;
-  }
-
-  void save(graphlab::oarchive& oarc) const {
-    oarc << count;
-  }
-  void load(graphlab::iarchive& iarc) {
-    iarc >> count;
-  }
-};
-
-//count the number of notes reached in the current hop
-pair_counter absolute_vertex_data(const graph_type::vertex_type& vertex) {
-  if (vertex.data().odd_iteration == false) { //odd_iteration has just finished
+//count the number of vertices reached in the current hop
+size_t absolute_vertex_data(const graph_type::vertex_type& vertex) {
     size_t count = 0;
     for (size_t i = 0; i < vertex.data().bitmask1[0].size(); ++i)
       if (vertex.data().bitmask1[0][i])
         count++;
-    return pair_counter(count - 1);
-  } else {
-    size_t count = 0;
-    for (size_t i = 0; i < vertex.data().bitmask2[0].size(); ++i)
-      if (vertex.data().bitmask2[0][i])
-        count++;
-    return pair_counter(count - 1);
-  }
+    return count;
 }
 
-//count the number of notes reached in the current hop with Flajolet & Martin counting method
+//count the number of vertices reached in the current hop with Flajolet & Martin counting method
 size_t approximate_pair_number(std::vector<std::vector<bool> > bitmask) {
   float sum = 0.0;
   for (size_t a = 0; a < bitmask.size(); ++a) {
@@ -305,68 +265,37 @@ size_t approximate_pair_number(std::vector<std::vector<bool> > bitmask) {
   return (size_t) (pow(2.0, sum / (float) (bitmask.size())) / 0.77351);
 }
 //count the number of notes reached in the current hop
-pair_counter absolute_vertex_data_for_approximation(
+size_t absolute_vertex_data_with_hash(
     const graph_type::vertex_type& vertex) {
-  if (vertex.data().odd_iteration == false) { //odd_iteration has just finished
     size_t count = approximate_pair_number(vertex.data().bitmask1);
-    return pair_counter(count);
-  } else {
-    size_t count = approximate_pair_number(vertex.data().bitmask2);
-    return pair_counter(count);
-  }
+    return count;
 }
 
-class graph_writer {
-public:
-  graph_writer() {
-  }
-  std::string save_vertex(graph_type::vertex_type v) {
-    std::stringstream strm;
-    strm << v.id();
-    strm << " " << approximate_pair_number(v.data().bitmask1);
-    strm << " " << approximate_pair_number(v.data().bitmask2);
-    strm << "\n";
-    return strm.str();
-  }
-
-  std::string save_edge(graph_type::edge_type e) {
-    std::stringstream strm;
-    size_t source = e.source().id();
-    size_t target = e.target().id();
-    strm << source << " " << target << "\n";
-    return strm.str();
-  }
-};
-
-//return number of data
 int main(int argc, char** argv) {
   std::cout << "Approximate graph diameter\n\n";
   graphlab::mpi_tools::init(argc, argv);
   graphlab::distributed_control dc;
 
   std::string datafile;
-  float termination_criteria = 0.001;
-  bool approximation = true;
+  float termination_criteria = 0.0001;
   //parse command line
   graphlab::command_line_options clopts(
-                "Approximate graph diameter. The input data file is "
-                "provided by the --graph argument which is non-optional. "
+                "Approximate graph diameter. "
                 "Directions of edges are considered.");
   std::string graph_dir;
   std::string format = "adj";
+  bool use_sketch = true;
   std::string exec_type = "synchronous";
   clopts.attach_option("graph", graph_dir,
                        "The graph file. This is not optional");
   clopts.add_positional("graph");
-  clopts.attach_option("engine", exec_type,
-                       "The engine type synchronous or asynchronous");
-  clopts.attach_option("tol", termination_criteria,
-                       "The permissible change at convergence.");
   clopts.attach_option("format", format,
                        "The graph file format");
-  clopts.attach_option("approximation", approximation,
-                       "If true, use Flajolet & Martin bitmask with "
-                       "a smaller memory");
+  clopts.attach_option("tol", termination_criteria,
+                       "The permissible change at convergence.");
+  clopts.attach_option("use-sketch", use_sketch,
+                       "If true, will use Flajolet & Martin bitmask, "
+                       "which is more compact and faster.");
 
   if (!clopts.parse(argc, argv)){
     dc.cout() << "Error in parsing command line arguments." << std::endl;
@@ -381,19 +310,17 @@ int main(int argc, char** argv) {
   graph_type graph(dc, clopts);
   dc.cout() << "Loading graph in format: "<< format << std::endl;
   graph.load_format(graph_dir, format);
-//  graph.load(datafile, line_parser);
   graph.finalize();
 
   time_t start, end;
   //initialize vertices
   time(&start);
-  if (approximation == false)
+  if (use_sketch == false)
     graph.transform_vertices(initialize_vertex);
   else
-    graph.transform_vertices(initialize_vertex_for_approximation);
+    graph.transform_vertices(initialize_vertex_with_hash);
 
-  graphlab::graphlab_options ops;
-  graphlab::omni_engine<one_hop> engine(dc, graph, exec_type, ops);
+  graphlab::omni_engine<one_hop> engine(dc, graph, exec_type, clopts);
 
   //main iteration
   size_t previous_count = 0;
@@ -401,15 +328,17 @@ int main(int argc, char** argv) {
   for (size_t iter = 0; iter < 100; ++iter) {
     engine.signal_all();
     engine.start();
-    pair_counter stat;
-    if (approximation == false)
-      stat = graph.map_reduce_vertices<pair_counter>(absolute_vertex_data);
+
+    graph.transform_vertices(copy_bitmasks);
+
+    size_t current_count = 0;
+    if (use_sketch == false)
+      current_count = graph.map_reduce_vertices<size_t>(absolute_vertex_data);
     else
-      stat = graph.map_reduce_vertices<pair_counter>(
-          absolute_vertex_data_for_approximation);
-    size_t current_count = stat.count;
+      current_count = graph.map_reduce_vertices<size_t>(
+          absolute_vertex_data_with_hash);
     dc.cout() << iter + 1 << "-th hop: " << current_count
-        << " edge pairs are reached\n";
+        << " vertex pairs are reached\n";
     if (iter > 0
         && (float) current_count
             < (float) previous_count * (1.0 + termination_criteria)) {
@@ -422,14 +351,7 @@ int main(int argc, char** argv) {
   time(&end);
 
   dc.cout() << "graph calculation time is " << (end - start) << " sec\n";
-  dc.cout() << "approximate diameter is " << diameter << "\n";
-
-//  const std::string outputname = datafile + "_out";
-//  graph.save(
-//      outputname,
-//      graph_writer(), false, //set to true if each output file is to be gzipped
-//      true, //whether vertices are saved
-//      false)//whether edges are saved
+  dc.cout() << "The approximate diameter is " << diameter << "\n";
 
   graphlab::mpi_tools::finalize();
 

@@ -788,6 +788,7 @@ namespace graphlab {
           << std::endl;
       }
       ASSERT_NE(ingress_ptr, NULL);
+
       ingress_ptr->add_edge(source, target, edata);
     }
 

@@ -11,6 +11,9 @@ The toolkit current contains:
  - \ref graph_analytics_triangle_directed "Triangle Counting (directed)"
  - \ref graph_analytics_pagerank "PageRank"
  - \ref graph_analytics_kcore "KCore Decomposition"
+ - \ref graph_analytics_connected_component "Connected Component"
+ - \ref graph_analytics_approximate_diameter "Approximate Diameter"
+ - \ref graph_analytics_partitioning "Graph Partitioning"
  - \ref graph_coloring "Graph Coloring"
 
 All toolkits take any of the graph formats described in \ref graph_formats . 
@@ -518,8 +521,6 @@ the resultant K-core graphs.
 
 
 
-
-
 \section graph_analytics_triangle_coloring Graph Coloring 
 
 The graph coloring program implements a really simple graph coloring 
@@ -602,4 +603,216 @@ This uses a weaker consistency setting which only guarantees that individual
 of the entire update. As a result, this may require more updates to complete,
 but could in practice run significantly faster.
 
+
+
+
+
+
+
+
+
+
+\section graph_analytics_connected_component Connected Component
+
+The connected component program can find all connected components in a 
+graph, and can also count the number of vertices (size) of each connected 
+component.
+
+The input to the system is a graph in any of the Portable Graph formats
+described in \ref graph_formats.
+
+To find connected components in a graph, the minimal set of options
+required are:
+\verbatim
+> ./connected_component --graph=[graph prefix] --format=[format]
+\endverbatim
+Output looks like:
+\verbatim
+Connected Component
+INFO:     synchronous_engine.hpp(start:1263): 0: Starting iteration: 0
+INFO:     synchronous_engine.hpp(start:1312):   Active vertices: 2543900
+INFO:     synchronous_engine.hpp(start:1361):    Running Aggregators
+INFO:     synchronous_engine.hpp(start:1263): 0: Starting iteration: 1
+INFO:     synchronous_engine.hpp(start:1312):   Active vertices: 2542610
+INFO:     synchronous_engine.hpp(start:1361):    Running Aggregators
+INFO:     synchronous_engine.hpp(start:1263): 0: Starting iteration: 2
+INFO:     synchronous_engine.hpp(start:1312):   Active vertices: 269254
+INFO:     synchronous_engine.hpp(start:1361):    Running Aggregators
+INFO:     synchronous_engine.hpp(start:1373): 3 iterations completed.
+graph calculation time is 76 sec
+RESULT:
+size  count
+2 160
+3 12
+4 4
+1271764 2
+\endverbatim
+
+When you set <tt>--saveprefix=output_prefix</tt>, the pairs of a Vertex ID and a 
+Component ID will be written to a sequence of files with prefix 
+<tt>output_prefix</tt>. This may be located on HDFS. For instance, if the 
+<tt>output_prefix</tt> is <tt>"v_out"</tt>, the output files will be written to:
+
+\verbatim
+v_out_1_of_16
+v_out_2_of_16
+...
+v_out_16_of_16
+\endverbatim
+
+This program can also run distributed by using
+\verbatim
+> mpiexec -n [N machines] --hostfile [host file] ./connected_component ....
+\endverbatim
+See your MPI documentation for details on how to launch this job.
+All machines must have access to the input graph location and the output graph 
+location. Graphs may be on HDFS. 
+If you have problems loading HDFS files, see the \ref FAQ.
+
+\subsection Options
+Relevant options are: 
+\li \b --graph (Required). The prefix from which to load the graph data
+\li \b --format (Required). The format of the input graph 
+\li \b --saveprefix (Optional). If set, pairs of a Vertex ID and a Component 
+ID will be saved to a sequence of files with the given prefix.
+\li \b --ncpus (Optional. Default 2). The number of processors that will be used
+for computation.
+\li \b --graph_opts (Optional, Default empty). Any additional graph options. See
+  graphlab::distributed_graph a list of options.
+  
+
+
+
+
+
+
+
+
+
+\section graph_analytics_approximate_diameter Approximate Diameter
+
+The approximate diameter program can estimate a diameter of a graph. 
+The implemented algorithm is based on the work, 
+
+U Kang, Charalampos Tsourakakis, Ana Paula Appel, Christos Faloutsos and Jure Leskovec, 
+HADI: Fast Diameter Estimation and Mining in Massive Graphs with Hadoop (2008).
+
+The input to the system is a graph in any of the Portable Graph formats
+described in \ref graph_formats.
+
+To compute an approximate diameter of a graph, the minimal set of options
+required are:
+\verbatim
+> ./approximate_diameter --graph=[graph prefix] --format=[format]
+\endverbatim
+Output looks like:
+\verbatim
+Approximate graph diameter
+INFO:     synchronous_engine.hpp(start:1263): 0: Starting iteration: 0
+INFO:     synchronous_engine.hpp(start:1312):   Active vertices: 1271950
+INFO:     synchronous_engine.hpp(start:1361):    Running Aggregators
+1-th hop: 12895307 vertex pairs are reached
+INFO:     synchronous_engine.hpp(start:1263): 0: Starting iteration: 0
+INFO:     synchronous_engine.hpp(start:1312):   Active vertices: 1271950
+INFO:     synchronous_engine.hpp(start:1361):    Running Aggregators
+2-th hop: 319726269 vertex pairs are reached
+INFO:     synchronous_engine.hpp(start:1263): 0: Starting iteration: 0
+INFO:     synchronous_engine.hpp(start:1312):   Active vertices: 1271950
+INFO:     synchronous_engine.hpp(start:1361):    Running Aggregators
+3-th hop: 319769151 vertex pairs are reached
+converge
+graph calculation time is 40 sec
+approximate diameter is 2
+\endverbatim
+
+This program can also run distributed by using
+\verbatim
+> mpiexec -n [N machines] --hostfile [host file] ./approximate_diameter ....
+\endverbatim
+See your MPI documentation for details on how to launch this job.
+All machines must have access to the input graph location and the output graph 
+location. Graphs may be on HDFS. 
+If you have problems loading HDFS files, see the \ref FAQ.
+
+\subsection Options
+Relevant options are: 
+\li \b --graph (Required). The prefix from which to load the graph data
+\li \b --format (Required). The format of the input graph 
+\li \b --tol (Optional. Default=1E-4). Changes the convergence tolerance for 
+the number of reached vertex pairs at each hop.
+\li \b --use-sketch (Optional. Default=1). If true, will use Flajolet & Martin 
+bitmask to approximately count numbers of reached vertex pairs, and will require a 
+smaller memory. If false, will count exact numbers of reached vertex pairs. But 
+this will need a huge memory and be slow.
+\li \b --ncpus (Optional. Default 2). The number of processors that will be used
+for computation.  
+\li \b --graph_opts (Optional, Default empty). Any additional graph options. See
+  graphlab::distributed_graph a list of options.
+
+
+
+
+
+
+
+
+\section graph_analytics_partitioning Graph Partitioning 
+
+This program can partition a graph by using normalized cut.
+
+The input to the system is a graph in any of the Portable Graph formats
+described in \ref graph_formats.
+You can also give weights to edges with the <tt>weight</tt> format.
+For instance in this <tt>weight</tt> format file, there are 5 edges:
+
+\verbatim
+1 2 4.0
+2 3 1.0
+3 4 5.0
+4 5 2.0
+5 3 3.0
+\endverbatim
+
+To partition a graph, the minimal set of options required are:
+
+\verbatim
+> ./partitioning --graph=[graph prefix] --format=[format]
+\endverbatim
+
+This program uses svd in Graphlab Collaborative Filtering Toolkit and 
+kmeans in Graphlab Clustering Toolkit. The paths to the directories are 
+specified by <tt>--svd-dir</tt> and <tt>--kmeans-dir</tt>, respectively.
+
+The program will create some intermediate files. The final partitioning
+result is written in files named <tt>[graph prefix].result</tt> with suffix,
+for example <tt>[graph prefix].result_1_of_4</tt>. The partitioning result 
+data consists of two columns: one for the ids and the other for the 
+assigned partitions. For instance:
+
+\verbatim
+1 0
+2 0
+3 1
+4 1
+5 1
+\endverbatim
+
+\subsection Options
+Relevant options are:
+\li \b --graph (Required). The prefix from which to load the graph data
+\li \b --format (Required). The format of the input graph. If "weight" is 
+set, the program will read the data file where each line holds [id1] [id2] 
+[weight].
+\li \b --partitions (Optional. Default 2). The number of partitions
+\li \b --svd-dir (Optional. Default ../collaborative_filtering/).
+Path to the directory where Graphlab svd is located
+\li \b --kmeans-dir (Optional. Default ../clustering/). Path to the directory where 
+Graphlab kmeans is located
+\li \b --ncpus (Optional. Default 2). The number of processors that will be used 
+for computation.
+\li \b --graph_opts (Optional, Default empty). Any additional graph options. See
+  graphlab::distributed_graph a list of options.
+  
+  
 */
+

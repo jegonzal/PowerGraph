@@ -52,7 +52,7 @@ int main(int argc, char** argv)
     
     std::string graph_file;
     std::string output_dir = "pred";
-    std::string exec_type = "async";
+    std::string exec_type = "sync"; //"async";
     Options opts;
     
     clopts.attach_option("graph", graph_file,
@@ -98,17 +98,8 @@ int main(int argc, char** argv)
     loadUAIfile(dc, graph, graph_file, opts);
     graph.finalize();
     
-#if 0    
-    // Test subproblem_map.
-    cout << graph.num_vertices() << endl;
-    for (size_t i = 0; i < graph.num_vertices(); ++i)
-    {
-        subproblem_map(graph.vertex(i));
-    }
-#endif
-    
-    /* Nothing execute right now. So no engine.
-    typedef graphlab::omni_engine<bp_vertex_program> engine_type;
+    // Nothing execute right now. So no engine.
+    typedef graphlab::omni_engine<dd_vertex_program_symmetric> engine_type;
     engine_type engine(dc, graph, exec_type, clopts);
     engine.signal_all();
     graphlab::timer timer;
@@ -124,7 +115,7 @@ int main(int argc, char** argv)
     << "Updates executed: " << engine.num_updates() << std::endl
     << "Update Rate (updates/second): " 
     << engine.num_updates() / runtime << std::endl;
-    */
+    
     
     graphlab::mpi_tools::finalize();
     return EXIT_SUCCESS;
