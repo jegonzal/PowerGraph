@@ -1555,6 +1555,7 @@ namespace graphlab {
           const edge_dir_type gather_dir = vprog.gather_edges(context, vertex);
           // Loop over in edges
           size_t edges_touched = 0;
+          vprog.pre_local_gather(accum); 
           if(gather_dir == IN_EDGES || gather_dir == ALL_EDGES) {
             foreach(local_edge_type local_edge, local_vertex.in_edges()) {
               edge_type edge(local_edge);
@@ -1585,6 +1586,7 @@ namespace graphlab {
             }
             INCREMENT_EVENT(EVENT_GATHERS, edges_touched);
           } // end of if out_edges/all_edges
+          vprog.post_local_gather(accum); 
           // If caching is enabled then save the accumulator to the
           // cache for future iterations.  Note that it is possible
           // that the accumulator was never set in which case we are

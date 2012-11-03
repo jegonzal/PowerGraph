@@ -716,6 +716,45 @@ namespace graphlab {
       logstream(LOG_FATAL) << "Scatter not implemented!" << std::endl;
     };
 
+
+    /** 
+     * \internal
+     * Used to signal the start of a local gather.
+     * Called on each machine which is doing a gather operation.
+     * Semantics are that, a complete gather involves
+     * 
+     * \code
+     * On each machine with edges adjacent to vertex being updated:
+     *   vprogram.pre_local_gather(g) // passed by reference
+     *   foreach edge adjacent to vertex:
+     *     if ( ... first gather ... ) g = vprogram.gather(edge)
+     *     else g += vprogram.gather(edge)
+     *   end
+     *   vprogram.post_local_gather(g) // passed by reference
+     * \endcode
+     */
+    virtual void pre_local_gather(gather_type&) const {
+    }
+
+    /** 
+     * \internal
+     * Used to signal the end of a local gather.
+     * Called on each machine which is doing a gather operation.
+     * Semantics are that, a complete gather involves
+     * 
+     * \code
+     * On each machine with edges adjacent to vertex being updated:
+     *   vprogram.pre_local_gather(g) // passed by reference
+     *   foreach edge adjacent to vertex:
+     *     if ( ... first gather ... ) g = vprogram.gather(edge)
+     *     else g += vprogram.gather(edge)
+     *   end
+     *   vprogram.post_local_gather(g) // passed by reference
+     * \endcode
+     */
+    virtual void post_local_gather(gather_type&) const {
+    }
+
   };  // end of ivertex_program
  
 }; //end of namespace graphlab
