@@ -134,13 +134,19 @@ namespace graphlab {
       
   void thread_pool::wait_for_task() {
     while(1) {
-      std::pair<boost::function<void (void)>, bool> queue_entry;
+      std::pair<std::pair<boost::function<void (void)>, int>, bool> queue_entry;
       // pop from the queue
       queue_entry = spawn_queue.dequeue();
       if (queue_entry.second) {
         // try to run the function. remember to put it in a try catch
         try {
-          queue_entry.first();
+          int virtual_thread_id = queue_entry.first.second;
+          size_t cur_thread_id = thread::thread_id();
+          if (virtual_thread_id != -1) {
+            thread::set_thread_id(virtual_thread_id);
+          }
+          queue_entry.first.first();
+          thread::set_thread_id(cur_thread_id);
         } catch(const char* ex) {
           // if an exception was raised, put it in the exception queue
           mut.lock();
@@ -165,10 +171,11 @@ namespace graphlab {
     }
   } // end of wait_for_task
 
-  void thread_pool::launch(const boost::function<void (void)> &spawn_function) {
+  void thread_pool::launch(const boost::function<void (void)> &spawn_function, 
+                           int thread_id) {
     mut.lock();
     tasks_inserted++;
-    spawn_queue.enqueue(spawn_function);
+    spawn_queue.enqueue(std::make_pair(spawn_function, thread_id));
     mut.unlock();
   }
 

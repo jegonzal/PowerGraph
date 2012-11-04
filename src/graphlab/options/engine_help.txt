@@ -79,7 +79,11 @@
 "which the snapshots should be saved.\n"
 "\n"
 "max_active_vertices: The number of active vertices per machine to run in each\n"
-"synchronous iteration. Defaults to 1000."
+"synchronous iteration. Defaults to 1000, or 0.1 of the local graph, which ever\n"
+"is larger. Must not be used together with max_active_fraction"
 "\n"
+"max_active_fraction: The fraction of active vertices per machine to run in each\n"
+"synchronous iteration. Defaults to 1000, or 0.1 of the local graph, which ever\n"
+"is larger. Must not be used together with max_active_vertices"
 "\n"
 

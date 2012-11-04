@@ -438,6 +438,9 @@ namespace graphlab {
     /// A pointer to the scheduler object
     ischeduler<message_type>* scheduler_ptr;
 
+
+    dense_bitset has_remote_message;
+
     /** \brief used by transfer_scheduler_to_active. The number of vertices 
      *  to use in the next superstep.
      */
@@ -491,10 +494,6 @@ namespace graphlab {
      */
     atomic<size_t> num_active_vertices;
 
-    /**
-     * \brief  The number of messages communicated this iteration
-     */    
-    atomic<size_t> num_transferred_messages;
 
     /**
      * \brief A bit indicating (for all vertices) whether to
@@ -759,9 +758,12 @@ namespace graphlab {
     // Program Steps ==========================================================
    
 
-    void thread_launch_wrapped_event_counter(boost::function<void(void)> fn) {
+    void thread_launch_wrapped_event_counter(size_t thread_id,
+                                             boost::function<void(void)> fn) {
       INCREMENT_EVENT(EVENT_ACTIVE_CPUS, 1);
+      rmi.dc().stop_handler_threads(thread_id, threads.size());
       fn();
+      rmi.dc().start_handler_threads(thread_id, threads.size());
       DECREMENT_EVENT(EVENT_ACTIVE_CPUS, 1);
     }
 
@@ -786,20 +788,14 @@ namespace graphlab {
     template<typename MemberFunction>       
     void run_synchronous(MemberFunction member_fun) {
       shared_lvid_counter = 0;
-      if (threads.size() <= 1) {
-        INCREMENT_EVENT(EVENT_ACTIVE_CPUS, 1);
-        ( (this)->*(member_fun))(0);
-        DECREMENT_EVENT(EVENT_ACTIVE_CPUS, 1);
-      }
-      else {
-        // launch the initialization threads
-        for(size_t i = 0; i < threads.size(); ++i) {
-          boost::function<void(void)> invoke = boost::bind(member_fun, this, i);
-          threads.launch(boost::bind(
+      // launch the initialization threads
+      for(size_t i = 0; i < threads.size(); ++i) {
+        boost::function<void(void)> invoke = boost::bind(member_fun, this, i);
+        threads.launch(boost::bind(
                 &semi_synchronous_engine::thread_launch_wrapped_event_counter, 
                 this,
-                invoke));
-        }
+                i,
+                invoke), i);
       }
       // Wait for all threads to finish
       threads.join();
@@ -814,6 +810,14 @@ namespace graphlab {
     //  * which vertices to process.
     //  */
     // void initialize_vertex_programs(size_t thread_id);
+
+    /** 
+     * \brief Synchronize all message data.
+     *
+     * @param thread_id the thread to run this as which determines
+     * which vertices to process.
+     */
+    void exchange_messages(size_t thread_id);
 
     /** 
      * \brief Synchronize some message data and prepares some vertices for 
@@ -875,7 +879,7 @@ namespace graphlab {
      * programs and should be called after a flush of the vertex
      * program exchange.
      */
-    void recv_vertex_programs(const bool try_to_recv = false);
+    void recv_vertex_programs(size_t threadid, const bool try_to_recv = false);
 
     /**
      * \brief Send the vertex data for the local vertex id to all of
@@ -894,7 +898,7 @@ namespace graphlab {
      * data and should be called after a flush of the vertex data
      * exchange.
      */
-    void recv_vertex_data(const bool try_to_recv = false);
+    void recv_vertex_data(size_t threadid, const bool try_to_recv = false);
 
     /**
      * \brief Send the gather value for the vertex id to its master.
@@ -913,7 +917,7 @@ namespace graphlab {
      * buffered exchange and should be called after the buffered
      * exchange has been flushed
      */
-    void recv_gathers(const bool try_to_recv = false);
+    void recv_gathers(size_t threadid, const bool try_to_recv = false);
 
     /**
      * \brief Send the accumulated message for the local vertex to its
@@ -932,7 +936,7 @@ namespace graphlab {
      * buffered exchange and should be called after the buffered
      * exchange has been flushed
      */
-    void recv_messages(const bool try_to_recv = false);
+    void recv_messages(size_t threadid, const bool try_to_recv = false);
 
 
   }; // end of class semi synchronous engine
@@ -1005,6 +1009,12 @@ namespace graphlab {
     std::vector<std::string> keys = opts.get_engine_args().get_option_keys();
     per_thread_compute_time.resize(opts.get_ncpus());
     bool use_cache = false;
+
+    graph.finalize();
+
+    max_active_vertices = graph.num_local_vertices() * 0.1;
+    max_active_vertices = std::max<size_t>(max_active_vertices, 1000);
+
     foreach(std::string opt, keys) {
       if (opt == "max_iterations") {
         opts.get_engine_args().get_option("max_iterations", max_iterations);
@@ -1031,11 +1041,25 @@ namespace graphlab {
         if (rmi.procid() == 0)
           logstream(LOG_EMPH) << "Engine Option: snapshot_path = " 
                               << snapshot_path << std::endl;
-      } else if (opt == "active_vertices") {
+      } else if (opt == "max_active_vertices") {
         opts.get_engine_args().get_option("max_active_vertices", max_active_vertices);
         if (rmi.procid() == 0)
           logstream(LOG_EMPH) << "Engine Option: max_active_vertices = " 
                               << max_active_vertices << std::endl;
+      } else if (opt == "max_active_fraction") {
+        float max_active_fraction = 0.1;
+        opts.get_engine_args().get_option("max_active_fraction", max_active_fraction);
+        if (max_active_fraction > 0) {
+          max_active_vertices = graph.num_local_vertices() * max_active_fraction;
+          max_active_vertices += (max_active_vertices == 0);
+        }
+        else {
+          max_active_vertices = (size_t)(-1);
+        }
+        if (rmi.procid() == 0) {
+          logstream(LOG_EMPH) << "Engine Option: max_active_fraction = " 
+                              << max_active_fraction << std::endl;
+        }
       } else {
         logstream(LOG_FATAL) << "Unexpected Engine Option: " << opt << std::endl;
       }
@@ -1052,13 +1076,14 @@ namespace graphlab {
     ADD_INSTANTANEOUS_EVENT(EVENT_ACTIVE_CPUS, "Active Threads", "Threads");
 
     // Finalize the graph
-    graph.finalize();
     memory_info::log_usage("Before Engine Initialization");
     // Allocate vertex locks and vertex programs
-    active_superstep.resize(graph.num_local_vertices());
-    active_minorstep.resize(graph.num_local_vertices());
+    active_superstep.resize(2 * max_active_vertices);
+    active_minorstep.resize(2 * max_active_vertices);
     vlocks.resize(graph.num_local_vertices());
     vertex_programs.resize(graph.num_local_vertices());
+    has_remote_message.resize(graph.num_local_vertices());
+    has_remote_message.clear();
     // allocate the edge locks
     elocks.resize(graph.num_local_edges());
     // Allocate gather accumulators and accumulator bitset
@@ -1155,11 +1180,17 @@ namespace graphlab {
   internal_signal(const vertex_type& vertex,
                   const message_type& message) {
     const lvid_type lvid = vertex.local_id();
-    if (started) {
-      scheduler_ptr->schedule_from_execution_thread(thread::thread_id(),
-                                                    lvid, message);
-    } else {
-      scheduler_ptr->schedule(lvid, message);
+    if (!graph.l_is_master(lvid)) {
+      scheduler_ptr->place(lvid, message);
+      has_remote_message.set_bit(lvid);
+    }
+    else {
+      if (started) {
+        scheduler_ptr->schedule_from_execution_thread(thread::thread_id(),
+                                                      lvid, message);
+      } else {
+        scheduler_ptr->schedule(lvid, message);
+      }
     }
   } // end of internal_signal
 
@@ -1291,6 +1322,10 @@ namespace graphlab {
           << std::endl;
         last_print = elapsed_seconds();
       }
+
+      run_synchronous( &semi_synchronous_engine::exchange_messages);
+      has_remote_message.clear();
+
       // Reset Active vertices ---------------------------------------------- 
       // Clear the active super-step and minor-step bits which will
       // be set upon receiving messages
@@ -1302,7 +1337,6 @@ namespace graphlab {
       // how many to activate?
       num_to_activate = max_active_vertices;
       num_active_vertices = 0;
-      num_transferred_messages = 0;
 
       rmi.barrier();
       // Exchange Messages --------------------------------------------------
@@ -1334,9 +1368,7 @@ namespace graphlab {
       if (rmi.procid() == 0 && print_this_round) 
         logstream(LOG_EMPH)
           << "\tActive vertices: " << total_active_vertices << std::endl;
-      size_t total_communicated_vertices = num_active_vertices + num_transferred_messages; 
-      rmi.all_reduce(total_communicated_vertices);
-      if(total_communicated_vertices == 0) {
+      if(total_active_vertices == 0) {
         termination_reason = execution_status::TASK_DEPLETION;
         break;
       }
@@ -1431,6 +1463,53 @@ namespace graphlab {
     return termination_reason;
   } // end of start
 
+  
+  
+  template<typename VertexProgram>
+  void semi_synchronous_engine<VertexProgram>::
+  exchange_messages(const size_t thread_id) {
+    context_type context(*this, graph);
+    const bool TRY_TO_RECV = true;
+    const size_t TRY_RECV_MOD = 100;
+    size_t vcount = 0;
+    fixed_dense_bitset<sizeof(size_t)> local_bitset;
+    // for(lvid_type lvid = thread_id; lvid < graph.num_local_vertices(); 
+    //     lvid += threads.size()) {
+    while (1) {
+      // increment by a word at a time 
+      lvid_type lvid_block_start = 
+                  shared_lvid_counter.inc_ret_last(8 * sizeof(size_t));
+      if (lvid_block_start >= graph.num_local_vertices()) break;
+      // get the bit field from has_message
+      size_t lvid_bit_block = has_remote_message.containing_word(lvid_block_start);
+      if (lvid_bit_block == 0) continue;
+      // initialize a word sized bitfield 
+      local_bitset.clear();
+      local_bitset.initialize_from_mem(&lvid_bit_block, sizeof(size_t));
+      foreach(size_t lvid_block_offset, local_bitset) {
+        lvid_type lvid = lvid_block_start + lvid_block_offset; 
+        if (lvid >= graph.num_local_vertices()) break;
+        // if the vertex is not local and has a message send the
+        // message and clear the bit
+        message_type msg;
+        ASSERT_FALSE(graph.l_is_master(lvid)); 
+        if(scheduler_ptr->get_specific(lvid, msg) != sched_status::EMPTY) {
+          sync_message(lvid, thread_id, msg); 
+        }
+        if(++vcount % TRY_RECV_MOD == 0) recv_messages(thread_id, TRY_TO_RECV); 
+      }
+    } // end of loop over vertices to send messages
+    message_exchange.partial_flush(thread_id);
+    // Finish sending and receiving all messages
+    rmi.dc().start_handler_threads(thread_id, threads.size());
+    thread_barrier.wait();
+    if(thread_id == 0) message_exchange.flush(); 
+    thread_barrier.wait();
+    rmi.dc().stop_handler_threads(thread_id, threads.size());
+    recv_messages(thread_id);
+  } // end of exchange_messages
+
+
 
 
   template<typename VertexProgram>
@@ -1443,7 +1522,6 @@ namespace graphlab {
     size_t curthread_num_to_activate = num_to_activate / threads.size();
     curthread_num_to_activate += (curthread_num_to_activate == 0);
     size_t nactive_inc = 0;
-    size_t ncommunicated_inc = 0;
     while (nactive_inc < curthread_num_to_activate) {
       lvid_type lvid;
       message_type msg;
@@ -1453,50 +1531,43 @@ namespace graphlab {
       if (has_sched_msg) {
         // if the vertex is not local and has a message send the
         // message and clear the bit
-        if(!graph.l_is_master(lvid)) {
-          ncommunicated_inc++;
-          sync_message(lvid, thread_id, msg); 
-        }
-        else {
-          nactive_inc++;
-          // The vertex becomes active for this superstep 
-          // Pass the message to the vertex program
-          active_superstep_pushback.push_back(lvid);
-          vertex_type vertex = vertex_type(graph.l_vertex(lvid));
-          vertex_programs[lvid].init(context, vertex, msg);
-          // Determine if the gather should be run
-          const vertex_program_type& const_vprog = vertex_programs[lvid];
-          const vertex_type const_vertex = vertex;
-          if(const_vprog.gather_edges(context, const_vertex) != 
-             graphlab::NO_EDGES) {
-            active_minorstep_pushback.push_back(lvid);
-            sync_vertex_program(lvid, thread_id);
-          }  
-        }
+        ASSERT_TRUE(graph.l_is_master(lvid));
+        nactive_inc++;
+        // The vertex becomes active for this superstep 
+        // Pass the message to the vertex program
+        active_superstep_pushback.push_back(lvid);
+        vertex_type vertex = vertex_type(graph.l_vertex(lvid));
+        vertex_programs[lvid].init(context, vertex, msg);
+        // Determine if the gather should be run
+        const vertex_program_type& const_vprog = vertex_programs[lvid];
+        const vertex_type const_vertex = vertex;
+        if(const_vprog.gather_edges(context, const_vertex) != 
+           graphlab::NO_EDGES) {
+          active_minorstep_pushback.push_back(lvid);
+          sync_vertex_program(lvid, thread_id);
+        }  
         if (++vcount % TRY_RECV_MOD == 0) {
           // to avoid popping the same task multiple times, it is
           // of critical importance that we do not recv_message here.
           // but only recv_messages at the end of the phase
           // recv_messages(TRY_TO_RECV); 
-          recv_vertex_programs(TRY_TO_RECV);
+          recv_vertex_programs(thread_id, TRY_TO_RECV);
         }
       } else {
         break;
       }
     } // end of loop over vertices to send messages
-    message_exchange.partial_flush(thread_id);
     vprog_exchange.partial_flush(thread_id);
-    num_transferred_messages.inc(ncommunicated_inc);
     num_active_vertices.inc(nactive_inc); 
     // Finish sending and receiving all messages
+    rmi.dc().start_handler_threads(thread_id, threads.size());
     thread_barrier.wait();
     if(thread_id == 0) {
-      message_exchange.flush(); 
       vprog_exchange.flush();
     }
     thread_barrier.wait();
-    recv_messages();
-    recv_vertex_programs();
+    rmi.dc().stop_handler_threads(thread_id, threads.size());
+    recv_vertex_programs(thread_id);
   } // end of exchange_messages
 
 
@@ -1580,15 +1651,17 @@ namespace graphlab {
       }
 
       // try to recv gathers if there are any in the buffer
-      if(++vcount % TRY_RECV_MOD == 0) recv_gathers(TRY_TO_RECV);
+      if(++vcount % TRY_RECV_MOD == 0) recv_gathers(thread_id, TRY_TO_RECV);
     } // end of loop over vertices to compute gather accumulators
     per_thread_compute_time[thread_id] += ti.current_time();
     gather_exchange.partial_flush(thread_id);
       // Finish sending and receiving all gather operations
+    rmi.dc().start_handler_threads(thread_id, threads.size());
     thread_barrier.wait();
     if(thread_id == 0) gather_exchange.flush();
     thread_barrier.wait();
-    recv_gathers();
+    rmi.dc().stop_handler_threads(thread_id, threads.size());
+    recv_gathers(thread_id);
   } // end of execute_gathers
 
 
@@ -1632,20 +1705,24 @@ namespace graphlab {
       }
       // try to receive vertex data
       if(++vcount % TRY_RECV_MOD == 0) {
-        recv_vertex_programs(TRY_TO_RECV);
-        recv_vertex_data(TRY_TO_RECV); 
+        recv_vertex_programs(thread_id, TRY_TO_RECV);
+        recv_vertex_data(thread_id, TRY_TO_RECV); 
       }
     } // end of loop over vertices to run apply
 
     per_thread_compute_time[thread_id] += ti.current_time();
     vprog_exchange.partial_flush(thread_id);
     vdata_exchange.partial_flush(thread_id);
-      // Finish sending and receiving all changes due to apply operations
+    // Finish sending and receiving all changes due to apply operations
+    rmi.dc().start_handler_threads(thread_id, threads.size());
     thread_barrier.wait();
-    if(thread_id == 0) { vprog_exchange.flush(); vdata_exchange.flush(); }
+    if(thread_id == 0) { 
+      vprog_exchange.flush(); vdata_exchange.flush(); 
+    }
     thread_barrier.wait();
-    recv_vertex_programs();
-    recv_vertex_data();
+    rmi.dc().stop_handler_threads(thread_id, threads.size());
+    recv_vertex_programs(thread_id);
+    recv_vertex_data(thread_id);
 
   } // end of execute_applys
 
@@ -1717,7 +1794,8 @@ namespace graphlab {
 
   template<typename VertexProgram>
   void semi_synchronous_engine<VertexProgram>::
-  recv_vertex_programs(const bool try_to_recv) {
+  recv_vertex_programs(size_t threadid, const bool try_to_recv) {
+    rmi.dc().handle_incoming_calls(threadid, threads.size());
     procid_t procid(-1);
     typename vprog_exchange_type::buffer_type buffer;
     while(vprog_exchange.recv(procid, buffer, try_to_recv)) {
@@ -1748,7 +1826,8 @@ namespace graphlab {
 
   template<typename VertexProgram>
   void semi_synchronous_engine<VertexProgram>::
-  recv_vertex_data(bool try_to_recv) {
+  recv_vertex_data(size_t threadid, bool try_to_recv) {
+    rmi.dc().handle_incoming_calls(threadid, threads.size());
     procid_t procid(-1);
     typename vdata_exchange_type::buffer_type buffer;
     while(vdata_exchange.recv(procid, buffer, try_to_recv)) {
@@ -1782,7 +1861,8 @@ namespace graphlab {
 
   template<typename VertexProgram>
   void semi_synchronous_engine<VertexProgram>::
-  recv_gathers(const bool try_to_recv) {
+  recv_gathers(size_t threadid, const bool try_to_recv) {
+    rmi.dc().handle_incoming_calls(threadid, threads.size());
     procid_t procid(-1);
     typename gather_exchange_type::buffer_type buffer;
     while(gather_exchange.recv(procid, buffer, try_to_recv)) {
@@ -1817,7 +1897,8 @@ namespace graphlab {
 
   template<typename VertexProgram>
   void semi_synchronous_engine<VertexProgram>::
-  recv_messages(const bool try_to_recv) {
+  recv_messages(size_t threadid, const bool try_to_recv) {
+    rmi.dc().handle_incoming_calls(threadid, threads.size());
     procid_t procid(-1);
     typename message_exchange_type::buffer_type buffer;
     while(message_exchange.recv(procid, buffer, try_to_recv)) {

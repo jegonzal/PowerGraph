@@ -379,8 +379,11 @@ void distributed_control::stop_handler_threads(size_t threadid,
                                                 size_t total_threadid) {
   for (size_t i = threadid;i < fcallqueue.size(); i += total_threadid) {
     fcallqueue[i].stop_blocking();
+  }
+  for (size_t i = threadid;i < fcallqueue.size(); i += total_threadid) {
     while (fcall_handler_active[i]) usleep(1);
   }
+
 }
 
 void distributed_control::stop_handler_threads_no_wait(size_t threadid,
