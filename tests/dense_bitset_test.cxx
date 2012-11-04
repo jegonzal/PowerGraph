@@ -32,7 +32,7 @@ public:
     dense_bitset d;
     d.resize(100);
     d.clear();
-    uint32_t probelocations[7] = {0, 10, 12, 50, 66, 81, 99};
+    size_t probelocations[7] = {0, 10, 12, 50, 66, 81, 99};
     // test setting
     for (size_t i= 0;i < 7; ++i) {
       d.set_bit(probelocations[i]);
@@ -45,7 +45,7 @@ public:
     }
 
     // test iteration
-    uint32_t iter = (uint32_t)(-1);
+    size_t iter = (size_t)(-1);
     TS_ASSERT_EQUALS(d.first_bit(iter), true)
     for (size_t i= 0;i < 7; ++i) {
       TS_ASSERT_EQUALS(iter, probelocations[i]);
@@ -97,7 +97,7 @@ public:
 
   void test_fixeddensebitset(void) {
     fixed_dense_bitset<100> d;
-    uint32_t probelocations[7] = {0, 10, 12, 50, 66, 81, 99};
+    size_t probelocations[7] = {0, 10, 12, 50, 66, 81, 99};
     // test setting
     for (size_t i= 0;i < 7; ++i) {
       d.set_bit(probelocations[i]);
@@ -110,7 +110,7 @@ public:
     }
 
     // test iteration
-    uint32_t iter = (uint32_t)(-1);
+    size_t iter = (size_t)(-1);
     TS_ASSERT_EQUALS(d.first_bit(iter), true)
     for (size_t i= 0;i < 7; ++i) {
       TS_ASSERT_EQUALS(iter, probelocations[i]);
