@@ -1423,7 +1423,7 @@ namespace graphlab {
       // initialize a word sized bitfield 
       local_bitset.clear();
       local_bitset.initialize_from_mem(&lvid_bit_block, sizeof(size_t));
-      foreach(uint32_t lvid_block_offset, local_bitset) {
+      foreach(size_t lvid_block_offset, local_bitset) {
         lvid_type lvid = lvid_block_start + lvid_block_offset; 
         if (lvid >= graph.num_local_vertices()) break;
         // if the vertex is not local and has a message send the
@@ -1468,7 +1468,7 @@ namespace graphlab {
       local_bitset.clear();
       local_bitset.initialize_from_mem(&lvid_bit_block, sizeof(size_t));
 
-      foreach(uint32_t lvid_block_offset, local_bitset) {
+      foreach(size_t lvid_block_offset, local_bitset) {
         lvid_type lvid = lvid_block_start + lvid_block_offset; 
         if (lvid >= graph.num_local_vertices()) break;
 
@@ -1536,7 +1536,7 @@ namespace graphlab {
       local_bitset.clear();
       local_bitset.initialize_from_mem(&lvid_bit_block, sizeof(size_t));
 
-      foreach(uint32_t lvid_block_offset, local_bitset) {
+      foreach(size_t lvid_block_offset, local_bitset) {
         lvid_type lvid = lvid_block_start + lvid_block_offset; 
         if (lvid >= graph.num_local_vertices()) break;
 
@@ -1640,7 +1640,7 @@ namespace graphlab {
       // initialize a word sized bitfield 
       local_bitset.clear();
       local_bitset.initialize_from_mem(&lvid_bit_block, sizeof(size_t));
-      foreach(uint32_t lvid_block_offset, local_bitset) {
+      foreach(size_t lvid_block_offset, local_bitset) {
         lvid_type lvid = lvid_block_start + lvid_block_offset; 
         if (lvid >= graph.num_local_vertices()) break;
  
@@ -1710,7 +1710,7 @@ namespace graphlab {
       // initialize a word sized bitfield 
       local_bitset.clear();
       local_bitset.initialize_from_mem(&lvid_bit_block, sizeof(size_t));
-      foreach(uint32_t lvid_block_offset, local_bitset) {
+      foreach(size_t lvid_block_offset, local_bitset) {
         lvid_type lvid = lvid_block_start + lvid_block_offset; 
         if (lvid >= graph.num_local_vertices()) break;
  

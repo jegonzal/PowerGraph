@@ -143,7 +143,7 @@ class distributed_event_logger {
     timer ti; 
     thread tick_thread;
 
-    uint32_t allocate_log_entry(log_group* group);
+    size_t allocate_log_entry(log_group* group);
     /**
       * Returns a pointer to the current thread log counter
       * creating one if one does not already exist.

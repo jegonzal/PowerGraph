@@ -58,9 +58,9 @@ static double index_to_time(size_t t) {
 }
 
 
-uint32_t distributed_event_logger::allocate_log_entry(log_group* group) {
+size_t distributed_event_logger::allocate_log_entry(log_group* group) {
   log_entry_lock.lock();
-  uint32_t id = 0;
+  size_t id = 0;
   if (has_log_entry.first_zero_bit(id) == false) {
     logger(LOG_FATAL, "More than 256 Log entries created. "
         "New log entries cannot be created");
@@ -87,7 +87,7 @@ event_log_thread_local_type* distributed_event_logger::get_thread_counter_ref() 
     // register the key entry against the logger
     thread_local_count_lock.lock();
     // find an unused entry
-    uint32_t b = 0;
+    size_t b = 0;
     if (thread_local_count_slots.first_zero_bit(b) == false) {
       logger(LOG_FATAL, "More than 1024 active threads. "
           "Log counters cannot be created");
@@ -108,7 +108,7 @@ event_log_thread_local_type* distributed_event_logger::get_thread_counter_ref() 
  */    
 void distributed_event_logger::rpc_collect_log(size_t srcproc, size_t record_ctr,
                                               std::vector<double> srccounts) {
-  foreach(uint32_t log, has_log_entry) {
+  foreach(size_t log, has_log_entry) {
     logs[log]->lock.lock();
     // insert the new counts
     size_t entryid = record_ctr;
@@ -131,7 +131,7 @@ void distributed_event_logger::rpc_collect_log(size_t srcproc, size_t record_ctr
 }
 
 void distributed_event_logger::collect_instantaneous_log() {
- foreach(uint32_t log, has_log_entry) {
+ foreach(size_t log, has_log_entry) {
     if (logs[log]->logtype == log_type::INSTANTANEOUS) {
       logs[log]->lock.lock();
       // for each log entry which is a callback entry
@@ -142,7 +142,7 @@ void distributed_event_logger::collect_instantaneous_log() {
       }
       else {
         // sum it across all the threads
-        foreach(uint32_t thr, thread_local_count_slots) {
+        foreach(size_t thr, thread_local_count_slots) {
           logs[log]->sum_of_instantaneous_entries += thread_local_count[thr]->values[log];
         }
         ++logs[log]->count_of_instantaneous_entries;
@@ -163,14 +163,14 @@ void distributed_event_logger::local_collect_log(size_t record_ctr) {
   // for each thread and for each log entry which is 
   // not a callback entry. Accumulate the number of counts
   //
-  foreach(uint32_t log, has_log_entry) {
+  foreach(size_t log, has_log_entry) {
     logs[log]->lock.lock();
     // cimulative entry. just add across all threads
     if (logs[log]->logtype == log_type::CUMULATIVE) {
       if (logs[log]->is_callback_entry) {
         combined_counts[log] = logs[log]->callback();
       } else {
-        foreach(uint32_t thr, thread_local_count_slots) {
+        foreach(size_t thr, thread_local_count_slots) {
           size_t* current_thread_counts = thread_local_count[thr]->values;
           combined_counts[log] += current_thread_counts[log];
         }
@@ -204,7 +204,7 @@ void distributed_event_logger::local_collect_log(size_t record_ctr) {
 // Called only by machine 0 to get the aggregate log
 void distributed_event_logger::build_aggregate_log() {
   ASSERT_EQ(rmi->procid(), 0);
-  foreach(uint32_t log, has_log_entry) {
+  foreach(size_t log, has_log_entry) {
     logs[log]->lock.lock();
     if (logs[log]->machine_log_modified) {
       // what is the previous time the aggregate was computed?
@@ -300,10 +300,10 @@ void distributed_event_logger::destroy_event_logger() {
   delete rmi;
   pthread_key_delete(key);
   // here also free all the allocated memory!
-  foreach(uint32_t thr, thread_local_count_slots) {
+  foreach(size_t thr, thread_local_count_slots) {
     if (thread_local_count[thr] != NULL) delete thread_local_count[thr];
   }
-  foreach(uint32_t log, has_log_entry) {
+  foreach(size_t log, has_log_entry) {
     if (logs[log] != NULL) delete logs[log];
   }
 
@@ -348,7 +348,7 @@ size_t distributed_event_logger::create_log_entry(std::string name,
   bool has_existing = false;
   size_t existingid = 0;
   log_entry_lock.lock();
-  foreach(uint32_t log, has_log_entry) {
+  foreach(size_t log, has_log_entry) {
     if (logs[log]->name == name) {
       ASSERT_MSG(logs[log]->is_callback_entry == false,
                  "Cannot convert callback log to counter log");
@@ -376,7 +376,7 @@ size_t distributed_event_logger::create_log_entry(std::string name,
     group->machine.resize(rmi->numprocs());
   } 
   // ok. get an ID
-  uint32_t id = allocate_log_entry(group);
+  size_t id = allocate_log_entry(group);
   // enforce that all machines are running this at the same time 
   rmi->barrier();
   return id;
@@ -389,7 +389,7 @@ size_t distributed_event_logger::create_callback_entry(std::string name,
   bool has_existing = false;
   size_t existingid = 0;
   log_entry_lock.lock();
-  foreach(uint32_t log, has_log_entry) {
+  foreach(size_t log, has_log_entry) {
     if (logs[log]->name == name) {
       has_existing = true;
       existingid = log;
@@ -429,7 +429,7 @@ size_t distributed_event_logger::create_callback_entry(std::string name,
     group->machine.resize(rmi->numprocs());
   } 
   // ok. get an ID
-  uint32_t id = allocate_log_entry(group);
+  size_t id = allocate_log_entry(group);
   // enforce that all machines are running this at the same time 
   rmi->barrier();
   return id;
@@ -493,7 +493,7 @@ static metric_names_json(std::map<std::string, std::string>& vars) {
   size_t nlogs = has_log_entry.popcount();
 
   size_t logcount = 0;
-  foreach(uint32_t log, has_log_entry) {
+  foreach(size_t log, has_log_entry) {
 
     logs[log]->lock.lock();
     double rate_val = 0;
@@ -583,7 +583,7 @@ static metric_aggregate_json(std::map<std::string, std::string>& vars) {
   // make a top level array
 
   strm << "[\n";
-  foreach(uint32_t log, has_log_entry) {
+  foreach(size_t log, has_log_entry) {
 
     if (logs[log]->name == name || extract_all) {
 
@@ -704,7 +704,7 @@ static metric_by_machine_json(std::map<std::string, std::string>& vars) {
   // make a top level array
 
   strm << "[\n";
-  foreach(uint32_t log, has_log_entry) {
+  foreach(size_t log, has_log_entry) {
     if (logs[log]->name == name || extract_all) {
 
       logs[log]->lock.lock();

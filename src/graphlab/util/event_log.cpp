@@ -77,7 +77,7 @@ event_log::~event_log() {
   m.unlock();
   printing_thread.join();
   if (print_method != LOG_FILE) {
-    uint32_t pos;
+    size_t pos;
     if (hascounter.first_bit(pos)) {
       do {
         (*out) << descriptions[pos]  << ":\t" << totalcounter[pos].value << " Events\n";
@@ -85,7 +85,7 @@ event_log::~event_log() {
     }
   }
   else{
-    uint32_t pos;
+    size_t pos;
     if (hascounter.first_bit(pos)) {
       do {
         std::cout << descriptions[pos]  << ":\t" << totalcounter[pos].value << " Events\n";
@@ -125,7 +125,7 @@ void event_log::add_immediate_event_type(unsigned char eventid, std::string desc
 }
 
 void event_log::flush() {
-  uint32_t pos;
+  size_t pos;
   if (!hascounter.first_bit(pos)) return;
   double curtime = event_timer.current_time_millis();
   double timegap = curtime - prevtime;
