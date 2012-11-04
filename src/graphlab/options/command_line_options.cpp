@@ -136,7 +136,7 @@ static const char* graph_help_string =
       return false;
     }
     if (vm.count("scheduler_help")) {
-      std::string schedname = vm["schedulerhelp"].as<std::string>();
+      std::string schedname = vm["scheduler_help"].as<std::string>();
       if (schedname != "") {
         print_scheduler_info(schedname, std::cout);
       } else {

@@ -97,6 +97,10 @@ class lockfree_push_back {
       return cur.idx.value;
     }
 
+    void set_size(size_t s) {
+      cur.idx.value = s;
+    }
+
     template <typename Iterator>
     size_t push_back(Iterator begin, Iterator end) {
       size_t numel = std::distance(begin, end);
@@ -137,7 +141,7 @@ class lockfree_push_back {
       return putpos;
     }
     
-    size_t push_back(T& t) {
+    size_t push_back(const T& t) {
       size_t putpos = cur.inc_idx();
       while(1) {
         cur.inc_ref();
