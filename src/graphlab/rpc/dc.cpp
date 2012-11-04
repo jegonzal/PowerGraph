@@ -401,6 +401,10 @@ void distributed_control::start_handler_threads(size_t threadid,
     fcallhandlers.launch(boost::bind(&distributed_control::fcallhandler_loop,
                                       this, i));
   }
+  for (size_t i = threadid;i < fcallqueue.size(); i += total_threadid) {
+    while (!fcall_handler_active[i]) usleep(1);
+  }
+
 }
 
 void distributed_control::handle_incoming_calls(size_t threadid,
