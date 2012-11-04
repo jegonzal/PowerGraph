@@ -145,6 +145,55 @@ namespace graphlab {
       return fetch_and_store(array[arrpos], size_t(0));
     }
 
+    /** 
+     * \brief Transfers approximately b bits from another bitset to this bitset 
+     * 
+     * "Moves" at least b bits from the other bitset to this bitset
+     * starting from the given position.
+     * At return, b will contain the actual number of bits moved,
+     * and start will point to the end of the transfered region.
+     *
+     * Semantically what this accomplishes is something like:
+     *
+     * \code
+     * idx = start;
+     * if other.get_bit(idx) == false {
+     *    idx = next true bit after idx in other (with loop around)
+     * }
+     * for(transferred = 0; transferred < b; transferred++) {
+     *    other.clear_bit(idx);
+     *    this->set_bit(idx);
+     *    idx = next true bit after idx in other.
+     *    if no more bits, return
+     * }
+     * \endcode
+     * However, the implementation here may transfer more than b bits.
+     * ( up to b + 2 * wordsize_in_bits )
+     */
+    inline void transfer_approximate_unsafe(dense_bitset& other, 
+                                            uint32_t& start, 
+                                            uint32_t& b) {
+      // must be identical in length
+      ASSERT_EQ(other.len, len);
+      ASSERT_EQ(other.arrlen, arrlen);
+      uint32_t arrpos, bitpos;
+      bit_to_pos(b, arrpos, bitpos);
+      uint32_t initial_arrpos = arrpos;
+      // ok. we will only look at arrpos
+      size_t transferred = 0;
+      while(transferred < b) {
+        transferred += __builtin_popcountl(other.array[arrpos]);
+        array[arrpos] |= other.array[arrpos];
+        other.array[arrpos] = 0;
+        ++arrpos;
+        if (arrpos >= other.arrlen) arrpos = 0;
+        else if (arrpos == initial_arrpos) break;
+      }
+      start = 8 * sizeof(size_t) * arrpos;
+      b = transferred;
+    }
+
+
     /** Set the bit at position b to true returning the old value.
         Unlike set_bit(), this uses a non-atomic set which is faster,
         but is unsafe if accessed by multiple threads.
