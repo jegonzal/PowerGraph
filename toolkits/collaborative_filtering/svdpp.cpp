@@ -487,11 +487,13 @@ struct prediction_saver {
       return "";
 
     std::stringstream strm;
-    const double prediction = 
-      edge.source().data().pvec.dot(edge.target().data().pvec);
+    double pred = svdpp_vertex_program::GLOBAL_MEAN +
+      edge.target().data().bias + edge.source().data().bias + edge.source().data().pvec.dot(edge.target().data().pvec+edge.target().data().weight);
+      pred = std::min(pred, svdpp_vertex_program::MAXVAL);
+      pred = std::max(pred, svdpp_vertex_program::MINVAL);
     strm << edge.source().id() << '\t' 
       << -edge.target().id()-SAFE_NEG_OFFSET << '\t'
-      << prediction << '\n';
+      << pred << '\n';
     return strm.str();
   }
 }; // end of prediction_saver
