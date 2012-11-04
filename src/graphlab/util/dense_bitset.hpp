@@ -177,14 +177,17 @@ namespace graphlab {
       ASSERT_EQ(other.len, len);
       ASSERT_EQ(other.arrlen, arrlen);
       size_t arrpos, bitpos;
-      bit_to_pos(b, arrpos, bitpos);
+      bit_to_pos(start, arrpos, bitpos);
       size_t initial_arrpos = arrpos;
+      if (arrpos >= arrlen) arrpos = 0;
       // ok. we will only look at arrpos
       size_t transferred = 0;
       while(transferred < b) {
-        transferred += __builtin_popcountl(other.array[arrpos]);
-        array[arrpos] |= other.array[arrpos];
-        other.array[arrpos] = 0;
+        if (other.array[arrpos] > 0) { 
+          transferred += __builtin_popcountl(other.array[arrpos]);
+          array[arrpos] |= other.array[arrpos];
+          other.array[arrpos] = 0;
+        }
         ++arrpos;
         if (arrpos >= other.arrlen) arrpos = 0;
         else if (arrpos == initial_arrpos) break;
@@ -539,7 +542,7 @@ namespace graphlab {
   
     /// Sets all bits to 0
     inline void clear() {
-      for (size_t i = 0;i < arrlen; ++i) array[i] = 0;
+      memset((void*)array, 0, sizeof(size_t) * arrlen);
     }
     
     /// Sets all bits to 1
