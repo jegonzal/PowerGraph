@@ -106,25 +106,23 @@ template<Iterator, typename F , typename T0> class remote_call_issue1
                             F remote_function , 
                             const T0 &i0 )
     {
-        boost::iostreams::stream<resizing_array_sink> strm(128);
-        oarchive arc(strm);
+        oarchive arc;
+        arc.advance(sizeof(packet_hdr));
         dispatch_type d = function_call_issue_detail::dispatch_selector1<typename is_rpc_call<F>::type, F , T0 >::dispatchfn();
         arc << reinterpret_cast<size_t>(d);
         arc << reinterpret_cast<size_t>(remote_function);
         arc << i0;
-        strm.flush();
         Iterator iter = target_begin;
         while(iter != target_end) {
           Iteratator nextiter = iter; ++nextiter;
           if (nextiter != target_end) {
-            char* newbuf = malloc(strm->len); memcpy(newbuf, strm->str, strm->len);
-            sender->send_data((*iter),flags , newbuf, strm->len);
+            char* newbuf = malloc(arc.off); memcpy(newbuf, arc.buf, arc.off);
+            sender->send_data((*iter),flags , newbuf, arc.off);
           }
           else {
-            sender->send_data((*iter),flags , strm->str, strm->len);
+            sender->send_data((*iter),flags , arc.buf, arc.off);
           }
           iter = nextiter;
-          strm->relinquish();
         }
     }
 };
@@ -164,27 +162,24 @@ template<typename Iterator, typename F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS
 class  BOOST_PP_CAT(FNAME_AND_CALL, N) { \
   public: \
   static void exec(std::vector<dc_send*>& sender, unsigned char flags, Iterator target_begin, Iterator target_end, F remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_) ) {  \
-    boost::iostreams::stream<resizing_array_sink_ref> &strm = get_thread_local_stream();    \
-    strm->advance(sizeof(packet_hdr));            \
-    oarchive arc(strm);                         \
+    oarchive arc;                         \
+    arc.advance(sizeof(packet_hdr));            \
     dispatch_type d = BOOST_PP_CAT(function_call_issue_detail::dispatch_selector,N)<typename is_rpc_call<F>::type, F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, T) >::dispatchfn();   \
     arc << reinterpret_cast<size_t>(d);       \
     arc << reinterpret_cast<size_t>(remote_function); \
     BOOST_PP_REPEAT(N, GENARC, _)                \
-    strm.flush();           \
     Iterator iter = target_begin; \
     while(iter != target_end) { \
       Iterator nextiter = iter; ++nextiter; \
       if (nextiter != target_end) { \
-        char* newbuf = (char*)malloc(strm->size()); memcpy(newbuf, strm->c_str(), strm->size()); \
-        sender[(*iter)]->send_data((*iter),flags , newbuf, strm->size());    \
+        char* newbuf = (char*)malloc(arc.off); memcpy(newbuf, arc.buf, arc.off); \
+        sender[(*iter)]->send_data((*iter),flags , newbuf, arc.off);    \
       } \
       else {  \
-        sender[(*iter)]->send_data((*iter),flags , strm->c_str(), strm->size());    \
+        sender[(*iter)]->send_data((*iter),flags , arc.buf, arc.off);    \
       } \
       iter = nextiter;  \
     } \
-    strm->relinquish(); \
   }\
 }; 
 

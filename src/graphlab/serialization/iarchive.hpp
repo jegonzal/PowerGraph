@@ -76,13 +76,20 @@ namespace graphlab {
    */
   class iarchive {
   public:
-    
     std::istream* in;
+    const char* buf;
+    size_t off;
+    size_t len;
 
     /// Directly reads a single character from the input stream    
     inline char read_char() {
       char c;
-      in->get(c);
+      if (buf) {
+        c = buf[off];
+        ++off;
+      } else {
+        in->get(c);
+      }
       return c;
     }
 
@@ -90,14 +97,19 @@ namespace graphlab {
      *  Directly reads a sequence of "len" bytes from the 
      *  input stream into the location pointed to by "c"
      */ 
-    inline void read(char* c, size_t len) {
-      in->read(c, len);
+    inline void read(char* c, size_t l) {
+      if (buf) {
+        memcpy(c, buf + off, l);
+        off += l;
+      } else {
+        in->read(c, l);
+      }
     }
    
 
     /// Returns true if the underlying stream is in a failure state
     inline bool fail() {
-      return in->fail();
+      return in == NULL ? off > len : in->fail();
     }
 
     /**
@@ -107,8 +119,10 @@ namespace graphlab {
      * assiciated input stream.
      */
     inline iarchive(std::istream& instream)
-      : in(&instream) { }
+      : in(&instream), buf(NULL), off(0), len(0) { }
 
+    inline iarchive(const char* buf, size_t len)
+      : in(NULL), buf(buf), off(0), len(len) { }
 
     ~iarchive() {}
   };
@@ -125,13 +139,12 @@ namespace graphlab {
   class iarchive_soft_fail{
   public:
     
-    std::istream* in;
-    
+    iarchive *iarc;
+    bool mine;
+
     /// Directly reads a single character from the input stream    
     inline char read_char() {
-      char c;
-      in->get(c);
-      return c;
+      return iarc->read_char();
     }
   
     /**
@@ -139,12 +152,12 @@ namespace graphlab {
      *  input stream into the location pointed to by "c"
      */ 
     inline void read(char* c, size_t len) {
-      in->read(c, len);
+      iarc->read(c, len);
     }
     
     /// Returns true if the underlying stream is in a failure state
     inline bool fail() {
-      return in->fail();
+      return iarc->fail();
     }
     
     /**
@@ -154,16 +167,16 @@ namespace graphlab {
      * assiciated input stream.
      */
     inline iarchive_soft_fail(std::istream &instream)
-      : in(&instream) {}
+      : iarc(new iarchive(instream)), mine(true) {}
 
     /** 
      * Constructs an iarchive_soft_fail object from an iarchive.
      * Both will share the same input stream
      */
     inline iarchive_soft_fail(iarchive &iarc)
-      : in(iarc.in){}
+      : iarc(&iarc), mine(false) {}
   
-    ~iarchive_soft_fail() { }
+    ~iarchive_soft_fail() { if (mine) delete iarc; }
   };
 
 
@@ -181,8 +194,7 @@ namespace graphlab {
     template <typename T>
     struct deserialize_hard_or_soft_fail<iarchive_soft_fail, T> {
       inline static void exec(iarchive_soft_fail& iarc, T& t) {
-        iarchive regular_iarc(*(iarc.in));
-        load_or_fail(regular_iarc, t);
+        load_or_fail(iarc.iarc, t);
       }
     };
 

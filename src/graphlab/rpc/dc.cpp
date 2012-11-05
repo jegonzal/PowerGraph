@@ -70,48 +70,10 @@ procid_t get_last_dc_procid() {
 }
 
 
-bool thrlocal_resizing_array_key_initialized = false;
-pthread_key_t thrlocal_resizing_array_key;
 
 bool thrlocal_sequentialization_key_initialized = false;
 pthread_key_t thrlocal_sequentialization_key;
 
-struct dc_tls_data{
-  resizing_array_sink ras;
-  boost::iostreams::stream<resizing_array_sink_ref> strm;    
-  
-  dc_tls_data(): ras(128),strm(ras){ };
-  ~dc_tls_data() {
-    strm.flush();
-    free(ras.c_str());
-  }
-  
-};
-
-boost::iostreams::stream<resizing_array_sink_ref>& 
-get_thread_local_stream() {
-  dc_tls_data* curptr = reinterpret_cast<dc_tls_data*>(
-                        pthread_getspecific(thrlocal_resizing_array_key));
-  if (curptr != NULL) {
-    if (curptr->ras.buffer_size > 65536) curptr->ras.clear(1024);
-    else curptr->ras.clear();
-    return curptr->strm;
-  }
-  else {
-    dc_tls_data* ras = new dc_tls_data;
-    int err = pthread_setspecific(thrlocal_resizing_array_key, ras);
-    ASSERT_EQ(err, 0);
-    return ras->strm;
-  }
-}
-
-void thrlocal_destructor(void* v){ 
-  dc_tls_data* s = reinterpret_cast<dc_tls_data*>(v);
-  if (s != NULL) {
-    delete s;
-  }
-  pthread_setspecific(thrlocal_resizing_array_key, NULL);
-}
 } // namespace dc_impl
 
 unsigned char distributed_control::set_sequentialization_key(unsigned char newkey) {
@@ -228,13 +190,12 @@ void distributed_control::exec_function_call(procid_t source,
   // not a POD call
   if ((packet_type_mask & POD_CALL) == 0) {
     // extract the dispatch function
-    boost::iostreams::stream<boost::iostreams::array_source> strm(data, len);
-    iarchive arc(strm);
+    iarchive arc(data, len);
     size_t f;
     arc >> f;
     // a regular funcion call
     dc_impl::dispatch_type dispatch = (dc_impl::dispatch_type)f;
-    dispatch(*this, source, packet_type_mask, strm);
+    dispatch(*this, source, packet_type_mask, data + arc.off, len - arc.off);
   }
   else {
     dc_impl::dispatch_type2 dispatch2 = *reinterpret_cast<const dc_impl::dispatch_type2*>(data);
@@ -475,14 +436,7 @@ void distributed_control::init(const std::vector<std::string> &machines,
              "Number of processes exceeded hard limit of %d", RPC_MAX_N_PROCS);
     
   // initialize thread local storage
-  if (dc_impl::thrlocal_resizing_array_key_initialized == false) {
-    dc_impl::thrlocal_resizing_array_key_initialized = true;
-    int err = pthread_key_create(&dc_impl::thrlocal_resizing_array_key, 
-                        dc_impl::thrlocal_destructor);
-    ASSERT_EQ(err, 0);
-  }
-  
-  if (dc_impl::thrlocal_sequentialization_key_initialized == false) {
+    if (dc_impl::thrlocal_sequentialization_key_initialized == false) {
     dc_impl::thrlocal_sequentialization_key_initialized = true;
     int err = pthread_key_create(&dc_impl::thrlocal_sequentialization_key, NULL);
     ASSERT_EQ(err, 0);

@@ -53,9 +53,9 @@ template<typename DcType,
         void OBJECT_NONINTRUSIVE_DISPATCH1 (DcType& dc, 
                                           procid_t source, 
                                           unsigned char packet_type_mask, 
-                                          std::istream &strm)
+                                          const char* buf, size_t len) {
 {
-    iarchive iarc(strm);
+    iarchive iarc(buf, len);
     F f;
     deserialize(iarc, (char*)(&f), sizeof(F));
     size_t objid;
@@ -97,8 +97,8 @@ template<typename DcType,
   void BOOST_PP_CAT(OBJECT_NONINTRUSIVE_DISPATCH,N)(DcType& dc,         \
                                                     procid_t source,    \
                                                     unsigned char packet_type_mask, \
-                                                    std::istream& strm){ \
-    iarchive iarc(strm);                                                \
+                                                    const char* buf, size_t len){ \
+    iarchive iarc(buf, len);                                                \
     F f;                                                                \
     deserialize(iarc, (char*)(&f), sizeof(F));                          \
     size_t objid;                                                       \

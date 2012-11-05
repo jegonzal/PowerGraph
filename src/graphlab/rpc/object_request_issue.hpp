@@ -70,8 +70,8 @@ template<typename T,
                 ::type>::result_type>::type>::type>::type 
                 exec(dc_send* sender, unsigned char flags, procid_t target,size_t objid, F remote_function , const T0 &i0 )
     {
-        boost::iostreams::stream<resizing_array_sink> strm(128);
-        oarchive arc(strm);
+        oarchive arc;
+        arc.advance(sizeof(packet_hdr));
         reply_ret_type reply(1);
         dispatch_type d = dc_impl::OBJECT_NONINTRUSIVE_REQUESTDISPATCH1<distributed_control,T,F , T0 >;
         arc << reinterpret_cast<size_t>(d);
@@ -79,11 +79,9 @@ template<typename T,
         arc << objid;
         arc << reinterpret_cast<size_t>(&reply);
         arc << i0;
-        strm.flush();
-        sender->send_data(target, flags, strm->str, strm->len);
+        sender->send_data(target, flags, arc.buf, arc.off);
         reply.wait();
-        boost::iostreams::stream<boost::iostreams::array_source> retstrm(reply.val.c, reply.val.len);
-        iarchive iarc(retstrm);
+        iarchive iarc(reply.val.c, reply.val.len); 
         typename function_ret_type<
             typename boost::remove_const<
             typename boost::remove_reference<
@@ -104,9 +102,8 @@ template<typename T,typename F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, type
 class  BOOST_PP_CAT(FNAME_AND_CALL, N) { \
   public: \
   static typename function_ret_type<__GLRPC_FRESULT>::type exec(dc_dist_object_base* rmi, dc_send* sender, unsigned char flags, procid_t target,size_t objid, F remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_) ) {  \
-    boost::iostreams::stream<resizing_array_sink_ref> &strm = get_thread_local_stream();    \
-    oarchive arc(strm);                         \
-    strm->advance(sizeof(packet_hdr));            \
+    oarchive arc;                         \
+    arc.advance(sizeof(packet_hdr));            \
     reply_ret_type reply(REQUEST_WAIT_METHOD);      \
     dispatch_type d = BOOST_PP_CAT(dc_impl::OBJECT_NONINTRUSIVE_REQUESTDISPATCH,N)<distributed_control,T,F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N, GENT ,_) >;  \
     arc << reinterpret_cast<size_t>(d);       \
@@ -114,14 +111,11 @@ class  BOOST_PP_CAT(FNAME_AND_CALL, N) { \
     arc << objid;       \
     arc << reinterpret_cast<size_t>(&reply);       \
     BOOST_PP_REPEAT(N, GENARC, _)                \
-    strm.flush();           \
-    sender->send_data(target, flags, strm->c_str(), strm->size());    \
+    sender->send_data(target, flags, arc.buf, arc.off);    \
     if ((flags & CONTROL_PACKET) == 0)                       \
-      rmi->inc_bytes_sent(target, strm->size());           \
-    strm->relinquish();     \
+      rmi->inc_bytes_sent(target, arc.off);           \
     reply.wait(); \
-    boost::iostreams::stream<boost::iostreams::array_source> retstrm(reply.val.c, reply.val.len);  \
-    iarchive iarc(retstrm);  \
+    iarchive iarc(reply.val.c, reply.val.len);  \
     typename function_ret_type<__GLRPC_FRESULT>::type result; \
     iarc >> result;  \
     reply.val.free(); \

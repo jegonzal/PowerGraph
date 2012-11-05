@@ -57,15 +57,14 @@ template<typename T,
                             F remote_function , 
                             const T0 &i0 )
     {
-        boost::iostreams::stream<resizing_array_sink> strm(128);
-        oarchive arc(strm);
+        oarchive arc;
+        arc.advance(sizeof(packet_hdr));
         dispatch_type d = dc_impl::OBJECT_NONINTRUSIVE_DISPATCH1<distributed_control,T,F , T0 >;
         arc << reinterpret_cast<size_t>(d);
         serialize(arc, (char*)(&remote_function), sizeof(F));
         arc << objid;
         arc << i0;
-        strm.flush();
-        sender->send_data(target,flags , strm->str, strm->len);
+        sender->send_data(target,flags , arc.buf, arc.off);
     }
 };
 \endcode
@@ -83,30 +82,27 @@ class  BOOST_PP_CAT(BOOST_PP_TUPLE_ELEM(2,0,FNAME_AND_CALL), N) { \
   public: \
   static void exec(dc_dist_object_base* rmi, std::vector<dc_send*> sender, unsigned char flags, \
                     Iterator target_begin, Iterator target_end, size_t objid, F remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_) ) {  \
-    boost::iostreams::stream<resizing_array_sink_ref> &strm = get_thread_local_stream();    \
-    oarchive arc(strm);                         \
-    strm->advance(sizeof(packet_hdr));            \
+    oarchive arc;                         \
+    arc.advance(sizeof(packet_hdr));            \
     dispatch_type d = BOOST_PP_CAT(dc_impl::OBJECT_NONINTRUSIVE_DISPATCH,N)<distributed_control,T,F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N, GENT ,_) >;   \
     arc << reinterpret_cast<size_t>(d);                                 \
     serialize(arc, (char*)(&remote_function), sizeof(F));               \
     arc << objid;                                                       \
     BOOST_PP_REPEAT(N, GENARC, _)                                       \
-    strm.flush();                                                       \
     Iterator iter = target_begin;                                       \
     while(iter != target_end) { \
       Iterator nextiter = iter; ++nextiter; \
       if (nextiter != target_end) { \
-        char* newbuf = (char*)malloc(strm->size()); memcpy(newbuf, strm->c_str(), strm->size()); \
-        sender[(*iter)]->send_data((*iter),flags , newbuf, strm->size());    \
+        char* newbuf = (char*)malloc(arc.off); memcpy(newbuf, arc.buf, arc.off); \
+        sender[(*iter)]->send_data((*iter),flags , newbuf, arc.off);    \
       } else {    \
-        sender[(*iter)]->send_data((*iter),flags , strm->c_str(), strm->size());    \
+        sender[(*iter)]->send_data((*iter),flags , arc.buf, arc.off);    \
       } \
       if ((flags & CONTROL_PACKET) == 0) {                                 \
-        rmi->inc_bytes_sent((*iter), strm->size()); \
+        rmi->inc_bytes_sent((*iter), arc.off); \
       } \
       iter = nextiter;  \
     } \
-    strm->relinquish(); \
   }  \
 }; 
 

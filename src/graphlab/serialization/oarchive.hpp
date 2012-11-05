@@ -86,20 +86,59 @@ namespace graphlab {
   class oarchive{
   public:
     std::ostream* out;
+    char* buf;
+    size_t off;
+    size_t len;
     /// constructor. Takes a generic std::ostream object
     inline oarchive(std::ostream& outstream)
-      : out(&outstream) {}
+      : out(&outstream),buf(NULL),off(0),len(0) {}
 
+    inline oarchive(void)
+      : out(NULL),buf(NULL),off(0),len(0) {}
+
+    inline void expand_buf(size_t s) {
+        if (off + s > len) {
+          len = 2 * (s + len);
+          buf = (char*)realloc(buf, len);
+        }
+     }
     /** Directly writes "s" bytes from the memory location
      * pointed to by "c" into the stream.
      */
     inline void write(const char* c, std::streamsize s) {
-      out->write(c, s);
+      if (out == NULL) {
+        expand_buf(s);
+        memcpy(buf + off, c, s);
+        off += s;
+      } else {
+        out->write(c, s);
+      }
+    }
+    template <typename T>
+    inline void direct_assign(const T t) {
+      if (out == NULL) {
+        expand_buf(sizeof(T));
+        (*reinterpret_cast<T*>(buf + off)) = t;
+        off += sizeof(T);
+      }
+      else {
+        T localt = t;
+        out->write(reinterpret_cast<char*>(&localt), sizeof(T));
+      }
+    }
+
+    inline void advance(size_t s) {
+      if (out == NULL) {
+        expand_buf(s);
+        off += s;
+      } else {
+        out->seekp(s, std::ios_base::cur);
+      }
     }
 
     /// Returns true if the underlying stream is in a failure state
     inline bool fail() {
-      return out->fail();
+      return out == NULL ? false : out->fail();
     }
     
     inline ~oarchive() { }
@@ -113,29 +152,39 @@ namespace graphlab {
    * failure will only occur at runtime. Otherwise equivalent to
    * graphlab::oarchive
    */
-  class oarchive_soft_fail{
+  class oarchive_soft_fail {
   public:
-    std::ostream* out;
+    oarchive* oarc;
+    bool mine;
 
-    inline oarchive_soft_fail(std::ostream& outstream)
-      : out(&outstream) {}
+    /// constructor. Takes a generic std::ostream object
+    inline oarchive_soft_fail(std::ostream& outstream) 
+      : oarc(new oarchive(outstream)), mine(true) { }
 
-    inline oarchive_soft_fail(oarchive& oarc):out(oarc.out) {}
-    
+    inline oarchive_soft_fail(oarchive& oarc):oarc(&oarc), mine(false) { 
+    }
+
+    inline oarchive_soft_fail(void)
+      : oarc(new oarchive) {}
+
     /** Directly writes "s" bytes from the memory location
      * pointed to by "c" into the stream.
      */
-
     inline void write(const char* c, std::streamsize s) {
-      out->write(c, s);
+      oarc->write(c, s);
     }
- 
-    /// Returns true if the underlying stream is in a failure state
+    template <typename T>
+    inline void direct_assign(const T t) {
+      oarc->direct_assign(t);
+    }
+
     inline bool fail() {
-      return out->fail();
+      return oarc->fail();
     }
     
-    inline ~oarchive_soft_fail() { }
+    ~oarchive_soft_fail() {
+     if (mine) delete oarc;
+    }
   };
 
   namespace archive_detail {
@@ -155,8 +204,7 @@ namespace graphlab {
         // create a regular oarchive and
         // use the save_or_fail function which will
         // perform a soft fail
-        oarchive regular_oarc(*(oarc.out));
-        save_or_fail(regular_oarc, t);
+        save_or_fail(oarc.oarc, t);
       }
     };
 
@@ -178,7 +226,8 @@ namespace graphlab {
     template <typename OutArcType, typename T>
     struct serialize_impl<OutArcType, T, true> {
       inline static void exec(OutArcType& oarc, const T& t) {
-        oarc.write(reinterpret_cast<const char*>(&t), sizeof(T));
+        oarc.direct_assign(t);
+        //oarc.write(reinterpret_cast<const char*>(&t), sizeof(T));
       }
     };
 

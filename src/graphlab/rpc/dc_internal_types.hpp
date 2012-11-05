@@ -48,7 +48,7 @@ typedef void (*comm_recv_callback_type)(void* tag, procid_t src,
  * The type of the local function call dispatcher.
  * \see dispatch_type2
  */
-typedef void (*dispatch_type)(distributed_control& dc, procid_t, unsigned char, std::istream&);
+typedef void (*dispatch_type)(distributed_control& dc, procid_t, unsigned char, const char* data, size_t len);
 
 /**
  *\internal
@@ -134,7 +134,6 @@ struct terminator_token {
   bool terminate;
 };
 
-extern boost::iostreams::stream<resizing_array_sink_ref>& get_thread_local_stream();
 
 }
 }
