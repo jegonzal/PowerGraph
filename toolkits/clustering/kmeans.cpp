@@ -522,7 +522,7 @@ struct vertex_writer_with_id {
   std::string save_vertex(graph_type::vertex_type v) {
     std::stringstream strm;
     strm << v.id() << "\t";
-    strm << v.data().best_cluster << "\n";
+    strm << v.data().best_cluster+1 << "\n";
     strm.flush();
     return strm.str();
   }
@@ -693,6 +693,8 @@ int main(int argc, char** argv) {
     dc.cout() << "Writing Cluster Centers..." << std::endl;
     std::ofstream fout(outcluster_file.c_str());
     for (size_t i = 0;i < NUM_CLUSTERS; ++i) {
+      if(use_id)
+        fout << i+1 << "\t";
       for (size_t j = 0; j < CLUSTERS[i].center.size(); ++j) {
         fout << CLUSTERS[i].center[j] << "\t";
       }

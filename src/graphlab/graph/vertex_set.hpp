@@ -160,12 +160,12 @@ class vertex_set {
         make_explicit(dgraph);
         return;
       }
-      foreach(uint32_t lvid, localvset) {
+      foreach(size_t lvid, localvset) {
         typename DGraphType::local_vertex_type lvtx = dgraph.l_vertex(lvid);
         if (lvtx.owned()) {
           // send to mirrors
           vertex_id_type gvid = lvtx.global_id();
-          foreach(uint32_t proc, lvtx.mirrors()) {
+          foreach(size_t proc, lvtx.mirrors()) {
             exchange.send(proc, gvid);
           }
         } 
@@ -198,7 +198,7 @@ class vertex_set {
         make_explicit(dgraph);
         return;
       }
-      foreach(uint32_t lvid, localvset) {
+      foreach(size_t lvid, localvset) {
         typename DGraphType::local_vertex_type lvtx = dgraph.l_vertex(lvid);
         if (!lvtx.owned()) {
           // send to master 

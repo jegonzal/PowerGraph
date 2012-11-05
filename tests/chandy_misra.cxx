@@ -71,7 +71,7 @@ class ChandyMisraTest: public CxxTest::TestSuite {
       
       while(1) {
         if (ready.popcount() == 0 && complete.popcount() == g.num_vertices()) break;
-        foreach(uint32_t i, ready) {
+        foreach(size_t i, ready) {
           ready.clear_bit(i);
           std::vector<vertex_id_type> r = cm.philosopher_stops_eating(i);
           cm.complete_consistency_check();

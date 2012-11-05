@@ -729,6 +729,7 @@ namespace graphlab {
     public:
       inline tls_data(size_t thread_id) : thread_id_(thread_id) { }
       inline size_t thread_id() { return thread_id_; }
+      inline void set_thread_id(size_t t) { thread_id_ = t; }
       any& operator[](const size_t& id) { return local_data[id]; }
       bool contains(const size_t& id) const {
         return local_data.find(id) != local_data.end();
@@ -754,6 +755,10 @@ namespace graphlab {
     /** Get the id of the calling thread.  This will typically be the
         index in the thread group. Between 0 to ncpus. */
     static inline size_t thread_id() { return get_tls_data().thread_id(); }
+    
+    /** Set the id of the calling thread.  This will typically be the
+        index in the thread group. Between 0 to ncpus. */
+    static inline void set_thread_id(size_t t) { get_tls_data().set_thread_id(t); }
 
     /**
      * Get a reference to an any object

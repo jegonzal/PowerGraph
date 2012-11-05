@@ -57,7 +57,7 @@ namespace graphlab {
   private:
 
     thread_group threads;
-    blocking_queue<boost::function<void (void)> > spawn_queue;
+    blocking_queue<std::pair<boost::function<void (void)>, int> > spawn_queue;
     size_t pool_size;
       
     // protects the exception queue, and the task counters
@@ -126,8 +126,12 @@ namespace graphlab {
      * Launch a single thread which calls spawn_function. If affinity
      * is set on construction of the thread_pool, the thread handling the
      * function will be locked on to one particular CPU.
+     *
+     * If virtual_threadid is set, the target thread will appear to have
+     * thread ID equal to the requested thread ID
      */
-    void launch(const boost::function<void (void)> &spawn_function);
+    void launch(const boost::function<void (void)> &spawn_function, 
+                int virtual_threadid = -1);
   
   
     /** Waits for all threads to become free. const char* exceptions

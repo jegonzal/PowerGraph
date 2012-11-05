@@ -1324,7 +1324,7 @@ private:
     // begin one pass to set all which are already completed
     for (size_t i = 0;i < numprocs(); ++i) {
       if (callsreceived[i].value >= calls_to_receive[i]) {
-        if (procs_complete.set_bit((uint32_t)i) == false) {
+        if (procs_complete.set_bit(i) == false) {
           num_proc_recvs_incomplete.dec();
         }
       }

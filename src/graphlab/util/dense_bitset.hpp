@@ -102,56 +102,108 @@ namespace graphlab {
     }
 
     /// Prefetches the word containing the bit b
-    inline void prefetch(uint32_t b) const{
+    inline void prefetch(size_t b) const{
       __builtin_prefetch(&(array[b / (8 * sizeof(size_t))]));
     }
     
     /// Returns the value of the bit b
-    inline bool get(uint32_t b) const{
-      uint32_t arrpos, bitpos;
+    inline bool get(size_t b) const{
+      size_t arrpos, bitpos;
       bit_to_pos(b, arrpos, bitpos);
       return array[arrpos] & (size_t(1) << size_t(bitpos));
     }
 
     //! Atomically sets the bit at position b to true returning the old value
-    inline bool set_bit(uint32_t b) {
+    inline bool set_bit(size_t b) {
       // use CAS to set the bit
-      uint32_t arrpos, bitpos;
+      size_t arrpos, bitpos;
       bit_to_pos(b, arrpos, bitpos);
       const size_t mask(size_t(1) << size_t(bitpos)); 
       return __sync_fetch_and_or(array + arrpos, mask) & mask;
     }
     
     //! Atomically xors a bit with 1
-    inline bool xor_bit(uint32_t b) {
+    inline bool xor_bit(size_t b) {
       // use CAS to set the bit
-      uint32_t arrpos, bitpos;
+      size_t arrpos, bitpos;
       bit_to_pos(b, arrpos, bitpos);
       const size_t mask(size_t(1) << size_t(bitpos)); 
       return __sync_fetch_and_xor(array + arrpos, mask) & mask;
     }
  
     //! Returns the value of the word containing the bit b 
-    inline size_t containing_word(uint32_t b) {
-      uint32_t arrpos, bitpos;
+    inline size_t containing_word(size_t b) {
+      size_t arrpos, bitpos;
       bit_to_pos(b, arrpos, bitpos);
       return array[arrpos];
     }
 
     //! Returns the value of the word containing the bit b 
-    inline size_t get_containing_word_and_zero(uint32_t b) {
-      uint32_t arrpos, bitpos;
+    inline size_t get_containing_word_and_zero(size_t b) {
+      size_t arrpos, bitpos;
       bit_to_pos(b, arrpos, bitpos);
       return fetch_and_store(array[arrpos], size_t(0));
     }
+
+    /** 
+     * \brief Transfers approximately b bits from another bitset to this bitset 
+     * 
+     * "Moves" at least b bits from the other bitset to this bitset
+     * starting from the given position.
+     * At return, b will contain the actual number of bits moved,
+     * and start will point to the end of the transfered region.
+     *
+     * Semantically what this accomplishes is something like:
+     *
+     * \code
+     * idx = start;
+     * if other.get_bit(idx) == false {
+     *    idx = next true bit after idx in other (with loop around)
+     * }
+     * for(transferred = 0; transferred < b; transferred++) {
+     *    other.clear_bit(idx);
+     *    this->set_bit(idx);
+     *    idx = next true bit after idx in other.
+     *    if no more bits, return
+     * }
+     * \endcode
+     * However, the implementation here may transfer more than b bits.
+     * ( up to b + 2 * wordsize_in_bits )
+     */
+    inline void transfer_approximate_unsafe(dense_bitset& other, 
+                                            size_t& start, 
+                                            size_t& b) {
+      // must be identical in length
+      ASSERT_EQ(other.len, len);
+      ASSERT_EQ(other.arrlen, arrlen);
+      size_t arrpos, bitpos;
+      bit_to_pos(start, arrpos, bitpos);
+      size_t initial_arrpos = arrpos;
+      if (arrpos >= arrlen) arrpos = 0;
+      // ok. we will only look at arrpos
+      size_t transferred = 0;
+      while(transferred < b) {
+        if (other.array[arrpos] > 0) { 
+          transferred += __builtin_popcountl(other.array[arrpos]);
+          array[arrpos] |= other.array[arrpos];
+          other.array[arrpos] = 0;
+        }
+        ++arrpos;
+        if (arrpos >= other.arrlen) arrpos = 0;
+        else if (arrpos == initial_arrpos) break;
+      }
+      start = 8 * sizeof(size_t) * arrpos;
+      b = transferred;
+    }
+
 
     /** Set the bit at position b to true returning the old value.
         Unlike set_bit(), this uses a non-atomic set which is faster,
         but is unsafe if accessed by multiple threads.
     */
-    inline bool set_bit_unsync(uint32_t b) {
+    inline bool set_bit_unsync(size_t b) {
       // use CAS to set the bit
-      uint32_t arrpos, bitpos;
+      size_t arrpos, bitpos;
       bit_to_pos(b, arrpos, bitpos);
       const size_t mask(size_t(1) << size_t(bitpos)); 
       bool ret = array[arrpos] & mask;
@@ -160,7 +212,7 @@ namespace graphlab {
     }
 
     //! Atomically sets the state of the bit to the new value returning the old value
-    inline bool set(uint32_t b, bool value) {
+    inline bool set(size_t b, bool value) {
       if (value) return set_bit(b);
       else return clear_bit(b);
     }
@@ -169,16 +221,16 @@ namespace graphlab {
       This version uses a non-atomic set which is faster, but
       is unsafe if accessed by multiple threads.
     */
-    inline bool set_unsync(uint32_t b, bool value) {
+    inline bool set_unsync(size_t b, bool value) {
       if (value) return set_bit_unsync(b);
       else return clear_bit_unsync(b);
     }
 
 
     //! Atomically set the bit at b to false returning the old value
-    inline bool clear_bit(uint32_t b) {
+    inline bool clear_bit(size_t b) {
       // use CAS to set the bit
-      uint32_t arrpos, bitpos;
+      size_t arrpos, bitpos;
       bit_to_pos(b, arrpos, bitpos);
       const size_t test_mask(size_t(1) << size_t(bitpos)); 
       const size_t clear_mask(~test_mask); 
@@ -189,9 +241,9 @@ namespace graphlab {
       This version uses a non-atomic set which is faster, but
       is unsafe if accessed by multiple threads.
     */
-    inline bool clear_bit_unsync(uint32_t b) {
+    inline bool clear_bit_unsync(size_t b) {
       // use CAS to set the bit
-      uint32_t arrpos, bitpos;
+      size_t arrpos, bitpos;
       bit_to_pos(b, arrpos, bitpos);
       const size_t test_mask(size_t(1) << size_t(bitpos)); 
       const size_t clear_mask(~test_mask); 
@@ -202,25 +254,25 @@ namespace graphlab {
 
     struct bit_pos_iterator {
       typedef std::input_iterator_tag iterator_category;
-      typedef uint32_t value_type;
-      typedef uint32_t difference_type;
-      typedef const uint32_t reference;
-      typedef const uint32_t* pointer;
-      uint32_t pos;
+      typedef size_t value_type;
+      typedef size_t difference_type;
+      typedef const size_t reference;
+      typedef const size_t* pointer;
+      size_t pos;
       const dense_bitset* db;
       bit_pos_iterator():pos(-1),db(NULL) {}
-      bit_pos_iterator(const dense_bitset* const db, uint32_t pos):pos(pos),db(db) {}
+      bit_pos_iterator(const dense_bitset* const db, size_t pos):pos(pos),db(db) {}
       
-      uint32_t operator*() const {
+      size_t operator*() const {
         return pos;
       }
-      uint32_t operator++(){
-        if (db->next_bit(pos) == false) pos = (uint32_t)(-1);
+      size_t operator++(){
+        if (db->next_bit(pos) == false) pos = (size_t)(-1);
         return pos;
       }
-      uint32_t operator++(int){
-        uint32_t prevpos = pos;
-        if (db->next_bit(pos) == false) pos = (uint32_t)(-1);
+      size_t operator++(int){
+        size_t prevpos = pos;
+        if (db->next_bit(pos) == false) pos = (size_t)(-1);
         return prevpos;
       }
       bool operator==(const bit_pos_iterator& other) const {
@@ -238,23 +290,23 @@ namespace graphlab {
 
     
     bit_pos_iterator begin() const {
-      uint32_t pos;
-      if (first_bit(pos) == false) pos = uint32_t(-1);
+      size_t pos;
+      if (first_bit(pos) == false) pos = size_t(-1);
       return bit_pos_iterator(this, pos);
     }
     
     bit_pos_iterator end() const {
-      return bit_pos_iterator(this, (uint32_t)(-1));
+      return bit_pos_iterator(this, (size_t)(-1));
     }
 
     /** Returns true with b containing the position of the 
         first bit set to true.
         If such a bit does not exist, this function returns false.
     */
-    inline bool first_bit(uint32_t &b) const {
+    inline bool first_bit(size_t &b) const {
       for (size_t i = 0; i < arrlen; ++i) {
         if (array[i]) {
-          b = (uint32_t)(i * (sizeof(size_t) * 8)) + first_bit_in_block(array[i]);
+          b = (size_t)(i * (sizeof(size_t) * 8)) + first_bit_in_block(array[i]);
           return true;
         }
       }
@@ -266,10 +318,10 @@ namespace graphlab {
         first bit set to false.
         If such a bit does not exist, this function returns false.
     */
-    inline bool first_zero_bit(uint32_t &b) const {
+    inline bool first_zero_bit(size_t &b) const {
       for (size_t i = 0; i < arrlen; ++i) {
         if (~array[i]) {
-          b = (uint32_t)(i * (sizeof(size_t) * 8)) + first_bit_in_block(~array[i]);
+          b = (size_t)(i * (sizeof(size_t) * 8)) + first_bit_in_block(~array[i]);
           return true;
         }
       }
@@ -280,20 +332,20 @@ namespace graphlab {
         the position of the next bit set to true, and return true.
         If all bits after b are false, this function returns false.
     */
-    inline bool next_bit(uint32_t &b) const {
-      uint32_t arrpos, bitpos;
+    inline bool next_bit(size_t &b) const {
+      size_t arrpos, bitpos;
       bit_to_pos(b, arrpos, bitpos);
       //try to find the next bit in this block
       bitpos = next_bit_in_block(bitpos, array[arrpos]);
       if (bitpos != 0) {
-        b = (uint32_t)(arrpos * (sizeof(size_t) * 8)) + bitpos;
+        b = (size_t)(arrpos * (sizeof(size_t) * 8)) + bitpos;
         return true;
       }
       else {
         // we have to loop through the rest of the array
         for (size_t i = arrpos + 1; i < arrlen; ++i) {
           if (array[i]) {
-            b = (uint32_t)(i * (sizeof(size_t) * 8)) + first_bit_in_block(array[i]);
+            b = (size_t)(i * (sizeof(size_t) * 8)) + first_bit_in_block(array[i]);
             return true;
           }
         }
@@ -395,24 +447,24 @@ namespace graphlab {
 
   private:
    
-    inline static void bit_to_pos(uint32_t b, uint32_t& arrpos, uint32_t& bitpos) {
+    inline static void bit_to_pos(size_t b, size_t& arrpos, size_t& bitpos) {
       // the compiler better optimize this...
       arrpos = b / (8 * sizeof(size_t));
       bitpos = b & (8 * sizeof(size_t) - 1);
     }
   
     // returns 0 on failure
-    inline uint32_t next_bit_in_block(const uint32_t& b, const size_t& block) const {
+    inline size_t next_bit_in_block(const size_t& b, const size_t& block) const {
       size_t belowselectedbit = size_t(-1) - (((size_t(1) << b) - 1)|(size_t(1)<<b));
       size_t x = block & belowselectedbit ;
       if (x == 0) return 0;
-      else return (uint32_t)__builtin_ctzl(x);
+      else return (size_t)__builtin_ctzl(x);
     }
 
     // returns 0 on failure
-    inline uint32_t first_bit_in_block(const size_t& block) const{
+    inline size_t first_bit_in_block(const size_t& block) const{
       if (block == 0) return 0;
-      else return (uint32_t)__builtin_ctzl(block);
+      else return (size_t)__builtin_ctzl(block);
     }
 
 
@@ -490,7 +542,7 @@ namespace graphlab {
   
     /// Sets all bits to 0
     inline void clear() {
-      for (size_t i = 0;i < arrlen; ++i) array[i] = 0;
+      memset((void*)array, 0, sizeof(size_t) * arrlen);
     }
     
     /// Sets all bits to 1
@@ -505,21 +557,21 @@ namespace graphlab {
     }
     
     /// Prefetches the word containing the bit b
-    inline void prefetch(uint32_t b) const{
+    inline void prefetch(size_t b) const{
       __builtin_prefetch(&(array[b / (8 * sizeof(size_t))]));
     }
     
     /// Returns the value of the bit b
-    inline bool get(uint32_t b) const{
-      uint32_t arrpos, bitpos;
+    inline bool get(size_t b) const{
+      size_t arrpos, bitpos;
       bit_to_pos(b, arrpos, bitpos);
       return array[arrpos] & (size_t(1) << size_t(bitpos));
     }
 
     //! Atomically sets the bit at b to true returning the old value
-    inline bool set_bit(uint32_t b) {
+    inline bool set_bit(size_t b) {
       // use CAS to set the bit
-      uint32_t arrpos, bitpos;
+      size_t arrpos, bitpos;
       bit_to_pos(b, arrpos, bitpos);
       const size_t mask(size_t(1) << size_t(bitpos)); 
       return __sync_fetch_and_or(array + arrpos, mask) & mask;
@@ -527,8 +579,8 @@ namespace graphlab {
 
 
     //! Returns the value of the word containing the bit b 
-    inline size_t containing_word(uint32_t b) {
-      uint32_t arrpos, bitpos;
+    inline size_t containing_word(size_t b) {
+      size_t arrpos, bitpos;
       bit_to_pos(b, arrpos, bitpos);
       return array[arrpos];
     }
@@ -538,9 +590,9 @@ namespace graphlab {
         Unlike set_bit(), this uses a non-atomic set which is faster,
         but is unsafe if accessed by multiple threads.
     */
-    inline bool set_bit_unsync(uint32_t b) {
+    inline bool set_bit_unsync(size_t b) {
       // use CAS to set the bit
-      uint32_t arrpos, bitpos;
+      size_t arrpos, bitpos;
       bit_to_pos(b, arrpos, bitpos);
       const size_t mask(size_t(1) << size_t(bitpos)); 
       bool ret = array[arrpos] & mask;
@@ -552,7 +604,7 @@ namespace graphlab {
       This version uses a non-atomic set which is faster, but
       is unsafe if accessed by multiple threads.
     */
-    inline bool set(uint32_t b, bool value) {
+    inline bool set(size_t b, bool value) {
       if (value) return set_bit(b);
       else return clear_bit(b);
     }
@@ -561,16 +613,16 @@ namespace graphlab {
       This version uses a non-atomic set which is faster, but
       is unsafe if accessed by multiple threads.
     */
-    inline bool set_unsync(uint32_t b, bool value) {
+    inline bool set_unsync(size_t b, bool value) {
       if (value) return set_bit_unsync(b);
       else return clear_bit_unsync(b);
     }
 
 
     //! Atomically set the bit at b to false returning the old value
-    inline bool clear_bit(uint32_t b) {
+    inline bool clear_bit(size_t b) {
       // use CAS to set the bit
-      uint32_t arrpos, bitpos;
+      size_t arrpos, bitpos;
       bit_to_pos(b, arrpos, bitpos);
       const size_t test_mask(size_t(1) << size_t(bitpos)); 
       const size_t clear_mask(~test_mask); 
@@ -581,9 +633,9 @@ namespace graphlab {
       This version uses a non-atomic set which is faster, but
       is unsafe if accessed by multiple threads.
     */
-    inline bool clear_bit_unsync(uint32_t b) {
+    inline bool clear_bit_unsync(size_t b) {
       // use CAS to set the bit
-      uint32_t arrpos, bitpos;
+      size_t arrpos, bitpos;
       bit_to_pos(b, arrpos, bitpos);
       const size_t test_mask(size_t(1) << size_t(bitpos)); 
       const size_t clear_mask(~test_mask); 
@@ -595,25 +647,25 @@ namespace graphlab {
 
     struct bit_pos_iterator {
       typedef std::input_iterator_tag iterator_category;
-      typedef uint32_t value_type;
-      typedef uint32_t difference_type;
-      typedef const uint32_t reference;
-      typedef const uint32_t* pointer;
-      uint32_t pos;
+      typedef size_t value_type;
+      typedef size_t difference_type;
+      typedef const size_t reference;
+      typedef const size_t* pointer;
+      size_t pos;
       const fixed_dense_bitset* db;
       bit_pos_iterator():pos(-1),db(NULL) {}
-      bit_pos_iterator(const fixed_dense_bitset* const db, uint32_t pos):pos(pos),db(db) {}
+      bit_pos_iterator(const fixed_dense_bitset* const db, size_t pos):pos(pos),db(db) {}
       
-      uint32_t operator*() const {
+      size_t operator*() const {
         return pos;
       }
-      uint32_t operator++(){
-        if (db->next_bit(pos) == false) pos = (uint32_t)(-1);
+      size_t operator++(){
+        if (db->next_bit(pos) == false) pos = (size_t)(-1);
         return pos;
       }
-      uint32_t operator++(int){
-        uint32_t prevpos = pos;
-        if (db->next_bit(pos) == false) pos = (uint32_t)(-1);
+      size_t operator++(int){
+        size_t prevpos = pos;
+        if (db->next_bit(pos) == false) pos = (size_t)(-1);
         return prevpos;
       }
       bool operator==(const bit_pos_iterator& other) const {
@@ -631,23 +683,23 @@ namespace graphlab {
 
     
     bit_pos_iterator begin() const {
-      uint32_t pos;
-      if (first_bit(pos) == false) pos = uint32_t(-1);
+      size_t pos;
+      if (first_bit(pos) == false) pos = size_t(-1);
       return bit_pos_iterator(this, pos);
     }
     
     bit_pos_iterator end() const {
-      return bit_pos_iterator(this, (uint32_t)(-1));
+      return bit_pos_iterator(this, (size_t)(-1));
     }
 
     /** Returns true with b containing the position of the 
         first bit set to true.
         If such a bit does not exist, this function returns false.
     */
-    inline bool first_bit(uint32_t &b) const {
+    inline bool first_bit(size_t &b) const {
       for (size_t i = 0; i < arrlen; ++i) {
         if (array[i]) {
-          b = (uint32_t)(i * (sizeof(size_t) * 8)) + first_bit_in_block(array[i]);
+          b = (size_t)(i * (sizeof(size_t) * 8)) + first_bit_in_block(array[i]);
           return true;
         }
       }
@@ -658,10 +710,10 @@ namespace graphlab {
         first bit set to false.
         If such a bit does not exist, this function returns false.
     */
-    inline bool first_zero_bit(uint32_t &b) const {
+    inline bool first_zero_bit(size_t &b) const {
       for (size_t i = 0; i < arrlen; ++i) {
         if (~array[i]) {
-          b = (uint32_t)(i * (sizeof(size_t) * 8)) + first_bit_in_block(~array[i]);
+          b = (size_t)(i * (sizeof(size_t) * 8)) + first_bit_in_block(~array[i]);
           return true;
         }
       }
@@ -674,20 +726,20 @@ namespace graphlab {
         the position of the next bit set to true, and return true.
         If all bits after b are false, this function returns false.
     */
-    inline bool next_bit(uint32_t &b) const {
-      uint32_t arrpos, bitpos;
+    inline bool next_bit(size_t &b) const {
+      size_t arrpos, bitpos;
       bit_to_pos(b, arrpos, bitpos);
       //try to find the next bit in this block
       bitpos = next_bit_in_block(bitpos, array[arrpos]);
       if (bitpos != 0) {
-        b = (uint32_t)(arrpos * (sizeof(size_t) * 8)) + bitpos;
+        b = (size_t)(arrpos * (sizeof(size_t) * 8)) + bitpos;
         return true;
       }
       else {
         // we have to loop through the rest of the array
         for (size_t i = arrpos + 1; i < arrlen; ++i) {
           if (array[i]) {
-            b = (uint32_t)(i * (sizeof(size_t) * 8)) + first_bit_in_block(array[i]);
+            b = (size_t)(i * (sizeof(size_t) * 8)) + first_bit_in_block(array[i]);
             return true;
           }
         }
@@ -728,7 +780,7 @@ namespace graphlab {
     }
 
   private:
-    inline static void bit_to_pos(uint32_t b, uint32_t &arrpos, uint32_t &bitpos) {
+    inline static void bit_to_pos(size_t b, size_t &arrpos, size_t &bitpos) {
       // the compiler better optimize this...
       arrpos = b / (8 * sizeof(size_t));
       bitpos = b & (8 * sizeof(size_t) - 1);
@@ -736,18 +788,18 @@ namespace graphlab {
   
 
     // returns 0 on failure
-    inline uint32_t next_bit_in_block(const uint32_t &b, const size_t &block) const {
+    inline size_t next_bit_in_block(const size_t &b, const size_t &block) const {
       size_t belowselectedbit = size_t(-1) - (((size_t(1) << b) - 1)|(size_t(1)<<b));
       size_t x = block & belowselectedbit ;
       if (x == 0) return 0;
-      else return (uint32_t)__builtin_ctzl(x);
+      else return (size_t)__builtin_ctzl(x);
     }
 
     // returns 0 on failure
-    inline uint32_t first_bit_in_block(const size_t &block) const {
+    inline size_t first_bit_in_block(const size_t &block) const {
       // use CAS to set the bit
       if (block == 0) return 0;
-      else return (uint32_t)__builtin_ctzl(block);
+      else return (size_t)__builtin_ctzl(block);
     }
 
     void fix_trailing_bits() {

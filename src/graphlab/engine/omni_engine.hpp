@@ -31,7 +31,7 @@
 #include <graphlab/engine/iengine.hpp>
 #include <graphlab/engine/synchronous_engine.hpp>
 #include <graphlab/engine/async_consistent_engine.hpp>
-
+#include <graphlab/engine/semi_synchronous_engine.hpp>
 
 namespace graphlab {
 
@@ -72,9 +72,12 @@ namespace graphlab {
    *  (\ref synchronous_engine)
    *  \li "asynchronous" or "async": uses the asynchronous engine
    *  (\ref async_consistent_engine)
-   *
+   *  \li "semi-synchronous" or "semi": uses the semi synchronous engine
+   *  (\ref semi_synchronous_engine)
+*
    * \see graphlab::synchronous_engine
    * \see graphlab::async_consistent_engine
+   * \see graphlab::semi_synchronous_engine
    *
    */
   template<typename VertexProgram>
@@ -137,6 +140,10 @@ namespace graphlab {
      */
     typedef async_consistent_engine<VertexProgram> async_consistent_engine_type;
 
+    /**
+     * \brief the type of asynchronous engine
+     */
+    typedef semi_synchronous_engine<VertexProgram> semi_synchronous_engine_type;
 
 
   private:
@@ -194,6 +201,9 @@ namespace graphlab {
       } else if(engine_type == "async" || engine_type == "asynchronous") {
         logstream(LOG_INFO) << "Using the Synchronous engine." << std::endl;
         engine_ptr = new async_consistent_engine_type(dc, graph, new_options);
+      } else if(engine_type == "semi" || engine_type == "semisynchronous") {
+        logstream(LOG_INFO) << "Using the Semi Synchronous engine." << std::endl;
+        engine_ptr = new semi_synchronous_engine_type(dc, graph, new_options);
       } else {
         logstream(LOG_FATAL) << "Invalid engine type: " << engine_type << std::endl;
       }

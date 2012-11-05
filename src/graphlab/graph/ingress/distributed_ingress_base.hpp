@@ -319,13 +319,13 @@ namespace graphlab {
           } else {
             // Find the best (least loaded) processor to assign the
             // vertex.
-            uint32_t first_mirror = 0; 
+            size_t first_mirror = 0; 
             const bool has_mirror = 
               rec.mirrors.first_bit(first_mirror);
             ASSERT_TRUE(has_mirror);
-            std::pair<size_t, uint32_t> 
+            std::pair<size_t, size_t> 
               best_asg(counts[first_mirror], first_mirror);
-            foreach(uint32_t proc, rec.mirrors) {
+            foreach(size_t proc, rec.mirrors) {
               best_asg = std::min(best_asg, 
                                   std::make_pair(counts[proc], proc));
             }
@@ -403,7 +403,7 @@ namespace graphlab {
             // send to the owner
             negotiator_exchange.send(negotiator_rec.owner, exchange_pair);
             // send to all the mirrors
-            foreach(uint32_t mirror, negotiator_rec.mirrors) {
+            foreach(size_t mirror, negotiator_rec.mirrors) {
               negotiator_exchange.send(mirror, exchange_pair);
             }
             if (iter == last_iter) negotiator_exchange.flush();

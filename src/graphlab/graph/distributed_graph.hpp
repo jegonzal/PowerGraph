@@ -789,8 +789,6 @@ namespace graphlab {
       }
       ASSERT_NE(ingress_ptr, NULL);
 
-//      std::cout << "inside add_edge" << std::endl;
-        
       ingress_ptr->add_edge(source, target, edata);
     }
 
@@ -2124,7 +2122,7 @@ namespace graphlab {
      vertex_set ret(empty_set());
      ret.make_explicit(*this);
 
-     foreach(uint32_t lvid, cur.get_lvid_bitset(*this)) {
+     foreach(size_t lvid, cur.get_lvid_bitset(*this)) {
        if (edir == IN_EDGES || edir == ALL_EDGES) {
          foreach(local_edge_type e, l_vertex(lvid).in_edges()) {
            ret.set_lvid_unsync(e.source().id());
@@ -2475,7 +2473,7 @@ namespace graphlab {
         // if this machine is the owner of a record then send the
         // vertex data to all mirrors
         if(record.owner == rpc.procid()) {
-          foreach(uint32_t proc, record.mirrors()) {
+          foreach(size_t proc, record.mirrors()) {
             const pair_type pair(record.gvid, local_graph.vertex_data(lvid));
             vertex_exchange.send(proc, pair);
           }

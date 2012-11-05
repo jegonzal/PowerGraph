@@ -179,13 +179,10 @@ struct linear_model_saver_U {
 
   std::string save_vertex(const vertex_type& vertex) const {
     if (vertex.id() < (uint)info.rows){
-      int rpos = pos;
-      if (info.is_square())
-          rpos += info.rows;
       std::string ret;
       if(use_ids)
         ret = boost::lexical_cast<std::string>(vertex.id() + 1) + " ";
-      ret += boost::lexical_cast<std::string>(vertex.data().pvec[rpos]) + "\n";
+      ret += boost::lexical_cast<std::string>(vertex.data().pvec[pos]) + "\n";
       return ret;
     }
     else return "";
@@ -204,10 +201,13 @@ struct linear_model_saver_V {
 
   std::string save_vertex(const vertex_type& vertex) const {
     if ((vertex.id() >= (uint)info.rows) || info.is_square()){
+      int rpos = pos;
+      if (info.is_square())
+          rpos += data_size;
       std::string ret;
       if(use_ids)
-        ret = boost::lexical_cast<std::string>(vertex.id() - (uint)info.rows + 1) + " ";
-      ret += boost::lexical_cast<std::string>(vertex.data().pvec[pos]) + "\n";
+        ret = boost::lexical_cast<std::string>(vertex.id()) + " ";
+      ret += boost::lexical_cast<std::string>(vertex.data().pvec[rpos]) + "\n";
       return ret;
     }
     else return "";
@@ -465,7 +465,7 @@ vec lanczos(bipartite_graph_descriptor & info, timer & mytimer, vec & errest,
   printf("\n");
   DistVec normret(info, nconv, false, "normret");
   DistVec normret_tranpose(info, nconv, true, "normret_tranpose");
-  for (int i=0; i < nconv; i++){
+  for (int i=0; i < nsv; i++){
     normret = V[i]*A._transpose() -U[i]*sigma(i);
     double n1 = norm(normret).toDouble();
     PRINT_DBL(n1);
@@ -493,7 +493,7 @@ vec lanczos(bipartite_graph_descriptor & info, timer & mytimer, vec & errest,
     const bool save_edges = true;
     const size_t threads_per_machine = 1;
     //save the linear model
-    for (int i=0; i < nconv; i++){
+    for (int i=0; i < nsv; i++){
       pgraph->save(predictions + "U." + boost::lexical_cast<std::string>(i), linear_model_saver_U(i),
           gzip_output, save_edges, save_vertices, threads_per_machine);
       pgraph->save(predictions + "V." + boost::lexical_cast<std::string>(i), linear_model_saver_V(i),

@@ -1334,7 +1334,7 @@ namespace graphlab {
       }
       
       context_type context(*this, graph);
-
+      vstate[lvid].vertex_program.pre_local_gather(gather_target->value); 
       edge_dir_type gatherdir = vstate[lvid].vertex_program.gather_edges(context, vertex);
 
       if(gatherdir == graphlab::IN_EDGES ||
@@ -1370,6 +1370,7 @@ namespace graphlab {
         INCREMENT_EVENT(EVENT_GATHERS, lvertex.num_out_edges());
       }
 
+      vstate[lvid].vertex_program.post_local_gather(gather_target->value); 
       if (use_cache && gather_target_is_cache) {
         vstate[lvid].d_lock();
         // this is the condition where the gather target is the cache
@@ -1760,12 +1761,7 @@ EVAL_INTERNAL_TASK_RE_EVAL_STATE:
       BEGIN_TRACEPOINT(disteng_internal_task_queue);
       size_t a;
       a = lvid % thrlocal.size();
-      if (graph.l_get_vertex_record(lvid).owner != rmi.procid()) {
-        thrlocal[a].add_task_priority(lvid);
-      }
-      else {
-        thrlocal[a].add_task(lvid);
-      }
+      thrlocal[a].add_task(lvid);
       consensus->cancel_one(a);
       END_TRACEPOINT(disteng_internal_task_queue);
     }
