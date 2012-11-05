@@ -59,9 +59,9 @@ template<typename DcType,
     typename T0> void REQUESTDISPATCH1 (DcType& dc, 
                                         procid_t source, 
                                         unsigned char packet_type_mask, 
-                                        std::istream &strm)
+                                        const char* buf, size_t len) {
 {
-    iarchive iarc(strm);
+    iarchive iarc(buf, len);
     size_t s;
     iarc >> s;
     F f = reinterpret_cast<F>(s);
@@ -115,8 +115,8 @@ avoiding problems with circular references.
 #define DISPATCH_GENERATOR(Z,N,_) \
 template<typename DcType, typename F  BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, typename T)> \
 void BOOST_PP_CAT(REQUESTDISPATCH,N) (DcType& dc, procid_t source, unsigned char packet_type_mask, \
-               std::istream &strm) { \
-  iarchive iarc(strm); \
+               const char* buf, size_t len) { \
+  iarchive iarc(buf, len); \
   size_t s; iarc >> s; F f = reinterpret_cast<F>(s); \
   size_t id; iarc >> id;    \
   BOOST_PP_REPEAT(N, GENPARAMS, _)                \
@@ -156,8 +156,8 @@ Same as above, but is the non-intrusive version.
 #define NONINTRUSIVE_DISPATCH_GENERATOR(Z,N,_) \
 template<typename DcType, typename F  BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, typename T)> \
 void BOOST_PP_CAT(NONINTRUSIVE_REQUESTDISPATCH,N) (DcType& dc, procid_t source, unsigned char packet_type_mask, \
-               std::istream &strm) { \
-  iarchive iarc(strm); \
+               const char* buf, size_t len) { \
+  iarchive iarc(buf, len); \
   size_t s; iarc >> s; F f = reinterpret_cast<F>(s); \
   size_t id; iarc >> id;    \
   BOOST_PP_REPEAT(N, GENPARAMS, _)                \
