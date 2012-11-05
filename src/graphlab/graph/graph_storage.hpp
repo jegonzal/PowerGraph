@@ -211,7 +211,7 @@ namespace graphlab {
        * A center vertex id,  an offset to the center, the direction and the
        * pointer to the start of edge id array. */
       edge_iterator (lvid_type _center, size_t _offset, 
-                     edge_dir_type _itype, const edge_id_type* _vid_arr) :
+                     edge_dir_type _itype, const lvid_type* _vid_arr) :
         center(_center), offset(_offset), itype(_itype), vid_arr(_vid_arr), 
         empty(false) { }
       /** \brief Returns the value of the iterator. An empty iterator always returns empty edge type*/ 
@@ -285,7 +285,7 @@ namespace graphlab {
       lvid_type center;
       size_t offset;
       edge_dir_type itype;
-      const edge_id_type* vid_arr;
+      const lvid_type* vid_arr;
       bool empty;
     }; // end of class edge_iterator.
 
@@ -757,8 +757,8 @@ namespace graphlab {
       std::vector<edge_id_type>().swap(CSC_dst);
       std::vector<edge_id_type>().swap(c2r_map);
       std::vector<EdgeData>().swap(edge_data_list);
-      std::vector<lvid_type>().swap(CSR_src_skip);
-      std::vector<lvid_type>().swap(CSC_dst_skip);
+      std::vector<edge_id_type>().swap(CSR_src_skip);
+      std::vector<edge_id_type>().swap(CSC_dst_skip);
     }
 
     size_t estimate_sizeof() const {
@@ -840,7 +840,7 @@ namespace graphlab {
      * is used to jump to the prev/next valid vertex in CSR_src.  
      * Optional.
      */
-    std::vector<lvid_type> CSR_src_skip;
+    std::vector<edge_id_type> CSR_src_skip;
 
     /** \internal 
      * Col index of CSR, corresponding to the target vertices. */
@@ -862,7 +862,7 @@ namespace graphlab {
      * is used to jump to the prev/next valid vertex in CSC_dst.  
      * Optional.
      */
-    std::vector<lvid_type> CSC_dst_skip;
+    std::vector<edge_id_type> CSC_dst_skip;
     /** \internal
      * Col index of CSC, corresponding to the source vertices. */
     std::vector<lvid_type> CSC_src;
@@ -1044,7 +1044,7 @@ namespace graphlab {
      * This function is useful in binary search where the middle is not
      * assumed to be valid. */
     inline lvid_type 
-    nextValid(const std::vector<lvid_type>& vertex_array, 
+    nextValid(const std::vector<edge_id_type>& vertex_array, 
               lvid_type curv, bool use_skip_list) const {
 
       if (curv == num_vertices-1) return num_vertices;
