@@ -182,7 +182,7 @@ namespace graphlab {
       return oarc->fail();
     }
     
-    ~oarchive_soft_fail() {
+    inline ~oarchive_soft_fail() {
      if (mine) delete oarc;
     }
   };
@@ -204,7 +204,7 @@ namespace graphlab {
         // create a regular oarchive and
         // use the save_or_fail function which will
         // perform a soft fail
-        save_or_fail(oarc.oarc, t);
+        save_or_fail(*(oarc.oarc), t);
       }
     };
 

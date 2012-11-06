@@ -176,7 +176,7 @@ namespace graphlab {
     inline iarchive_soft_fail(iarchive &iarc)
       : iarc(&iarc), mine(false) {}
   
-    ~iarchive_soft_fail() { if (mine) delete iarc; }
+    inline ~iarchive_soft_fail() { if (mine) delete iarc; }
   };
 
 
@@ -194,7 +194,7 @@ namespace graphlab {
     template <typename T>
     struct deserialize_hard_or_soft_fail<iarchive_soft_fail, T> {
       inline static void exec(iarchive_soft_fail& iarc, T& t) {
-        load_or_fail(iarc.iarc, t);
+        load_or_fail(*(iarc.iarc), t);
       }
     };
 
