@@ -34,7 +34,7 @@
 #include <boost/iostreams/device/array.hpp>
 #include <boost/iostreams/stream.hpp>
 
-
+#include <graphlab/util/generics/any.hpp>
 #include <graphlab/serialization/serialization_includes.hpp>
 
 
@@ -93,7 +93,8 @@ public:
     double t8 = 3.14156;
     const char *t9 = "hello world";
     const char * t10 = "blue";
-
+    graphlab::any t11;
+    t11 = size_t(10);
     char r1;
     bool r2;
     int r3;
@@ -104,6 +105,7 @@ public:
     double r8;
     char r9[100];
     char r10[10];
+    graphlab::any r11;
 
     // serialize t1-10
     std::ofstream f;
@@ -112,6 +114,7 @@ public:
     a << t1 << t2 << t3 << t4 << t5 << t6 << t7 << t8;
     serialize(a, t9, strlen(t9) + 1);
     serialize(a, t10, strlen(t10) + 1);
+    a << t11;
     f.close();
 
     // deserialize into r1-10
@@ -121,6 +124,7 @@ public:
     b >> r1 >> r2 >> r3 >> r4 >> r5 >> r6 >> r7 >> r8;
     deserialize(b, &r9, strlen(t9) + 1);
     deserialize(b, r10, strlen(t10) + 1);
+    b >> r11;
     g.close();
 
     TS_ASSERT_EQUALS(t1, r1);
@@ -133,6 +137,7 @@ public:
     TS_ASSERT_EQUALS(t8, r8);
     TS_ASSERT_SAME_DATA(t9, r9, strlen(t9) + 1);
     TS_ASSERT_SAME_DATA(t10, r10, strlen(t10) + 1);
+    TS_ASSERT_EQUALS(r11.as<size_t>(), t11.as<size_t>());
   }
 
   void test_vector_serialization(void) {
