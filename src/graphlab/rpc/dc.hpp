@@ -712,9 +712,9 @@ class distributed_control{
   inline void inc_calls_received(procid_t procid) {
     
     if (!full_barrier_in_effect) {
-      global_calls_received[procid].inc();
+      size_t t = global_calls_received[procid].inc();
       if (full_barrier_in_effect) {
-        if (global_calls_received[procid].inc() == calls_to_receive[procid]) {
+        if (t == calls_to_receive[procid]) {
           // if it was me who set the bit
           if (procs_complete.set_bit(procid) == false) {
             // then decrement the incomplete count.
