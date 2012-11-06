@@ -228,7 +228,8 @@ class distributed_control{
   /// A thread group of function call handlers
   thread_pool fcallhandlers;
   std::vector<atomic<size_t> > fcall_handler_active;
-  
+  std::vector<mutex> fcall_handler_blockers;
+
   struct fcallqueue_entry {
     std::vector<function_call_block> calls;
     char* chunk_src;
