@@ -400,7 +400,7 @@ namespace graphlab {
      * \ref graphlab::synchronous_engine::gather_accum
      * and \ref graphlab::synchronous_engine::messages.
      */
-    std::vector<mutex> vlocks;
+    std::vector<simple_spinlock> vlocks;
 
 
     /**
@@ -1040,7 +1040,7 @@ namespace graphlab {
     vlocks.resize(graph.num_local_vertices());
     vertex_programs.resize(graph.num_local_vertices());
     // allocate the edge locks
-    elocks.resize(graph.num_local_edges());
+    //elocks.resize(graph.num_local_edges());
     // Allocate messages and message bitset
     messages.resize(graph.num_local_vertices(), message_type());
     has_message.resize(graph.num_local_vertices()); 
