@@ -100,6 +100,7 @@ int main(int argc, char** argv)
     
     // Nothing execute right now. So no engine.
     typedef graphlab::omni_engine<dd_vertex_program_symmetric> engine_type;
+    //typedef graphlab::omni_engine<dd_vertex_program_projected> engine_type;
     engine_type engine(dc, graph, exec_type, clopts);
     engine.signal_all();
     graphlab::timer timer;
