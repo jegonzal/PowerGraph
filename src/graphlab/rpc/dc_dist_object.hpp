@@ -839,7 +839,7 @@ private:
       }
     }
     gatherid.inc();
-  
+    barrier(); 
   }
 
 /********************************************************************
@@ -1163,6 +1163,48 @@ private:
 ////////////////////////////////////////////////////////////////////////////
 
 
+/*****************************************************************************
+                      Implementation of All Scatter
+ *****************************************************************************/
+
+  template <typename U>
+  void all_to_all(std::vector<U>& data, bool control = false) {
+    ASSERT_EQ(data.size(), numprocs());
+    for (size_t i = 0;i < data.size(); ++i) {
+      if (i != procid()) {
+        std::stringstream strm( std::ios::out | std::ios::binary );
+        oarchive oarc(strm);
+        oarc << data[i];
+        strm.flush();
+        if (control == false) {
+          internal_call(i,
+                        &dc_dist_object<T>::set_gather_receive,
+                        procid(),
+                        strm.str(),
+                        gatherid.value);
+        }
+        else {
+          internal_control_call(i,
+                                &dc_dist_object<T>::set_gather_receive,
+                                procid(),
+                                strm.str(),
+                                gatherid.value);
+        }
+      }
+    }
+    full_barrier();
+    for (size_t i = 0; i < data.size(); ++i) {
+      if (i != procid()) {
+        std::stringstream strm(gather_receive[i], 
+                               std::ios::in | std::ios::binary);
+        assert(strm.good());
+        iarchive iarc(strm);
+        iarc >> data[i];
+      }
+    }
+    gatherid.inc();
+    barrier();
+  }
 
 
 /*****************************************************************************
