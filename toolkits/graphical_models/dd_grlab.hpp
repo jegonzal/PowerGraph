@@ -76,20 +76,23 @@ double TOLERANCE = 0.01;
  */
 struct vertex_data {
     int nvars;              // Number of variables in this factor.
+    int degree;             // Degree of this factor (same as nvars for higher-order factors).
     vector<int> cards;      // Cardinality of each variable.
     vector<int> neighbors;  // Vertex ids of the neighbors.    
-    vec potential;          // Potentials for each configuration of the factor.
+    vec potentials;         // Potentials for each configuration of the factor.
     
     int best_configuration; // Index of the best configuration at a subgradient step.
-    vec posterior;          // TODO: Posterior values for the configurations after averaging (unary variables only)
+                            // TODO: Maybe replace best_configuration by beliefs for the high order variables?
+                            // In which case, beliefs would be vector<vec> beliefs.
+    vec beliefs;            // Posterior values for the configurations after averaging (projected DD, unary variables only).
     
     vertex_data(): nvars(0) {}
     
     void load(graphlab::iarchive& arc) {
-      arc >> nvars >> cards >> neighbors >> potential;
+      arc >> nvars >> degree >> cards >> neighbors >> potentials >> best_configuration >> beliefs;
     }
     void save(graphlab::oarchive& arc) const {
-      arc << nvars << cards << neighbors << potential;
+      arc << nvars << degree << cards << neighbors << potentials << best_configuration << beliefs;
     }
 }; // end of vertex_data
 
@@ -102,18 +105,18 @@ struct edge_data
 {
     int varid; // Do we need this? (afm)
     int card; // Do we need this? (afm)
-    vec message; // dual variables, i.e. Lagrangian multipliers.
-    //vector<double> message;
-
-    vec potential; // TODO: Unary potential distributed evenly through the edges (i.e. unary potential divided by degree).
+    vec potentials; // TODO: Unary potentials distributed evenly through the edges (i.e. unary potentials divided by degree).
+    
+    vec multiplier_messages; // Dual variables, i.e. Lagrangian multipliers.
+    vec local_messages;      // Local MAP variables (for projected DD).
     
     edge_data(): varid(0), card(0) {}
     
     void load(graphlab::iarchive& arc) {
-      arc >> varid >> card >> message;
+      arc >> varid >> card >> potentials >> multiplier_messages >> local_messages;
     }
     void save(graphlab::oarchive& arc) const {
-      arc << varid << card << message;
+      arc << varid << card << potentials << multiplier_messages << local_messages;
     }
 };
 
@@ -252,11 +255,11 @@ struct dd_vertex_program_symmetric : public dd_vertex_program {
       // Unary factor.
       cout << "This unary factor has " << vertex.num_in_edges() << 
         " in edges and " << vertex.num_out_edges() << " out edges" << endl;
-      return edata.message;
+      return edata.multiplier_messages;
     } else {
       // General factor.
-      factor_type message;
-      message.resize(vdata.potential.size());
+      factor_type messages;
+      messages.resize(vdata.potentials.size());
       int offset = 0;
       int index_neighbor = -1;
       for (int k = 0; k < vdata.nvars; ++k) {
@@ -269,9 +272,9 @@ struct dd_vertex_program_symmetric : public dd_vertex_program {
       }
       CHECK_GE(index_neighbor, 0);
       for (int state = 0; state < vdata.cards[index_neighbor]; ++state) {
-        message[offset + state] = -edata.message[state];
+        messages[offset + state] = -edata.multiplier_messages[state];
       }
-      return message;
+      return messages;
     }
     cout << "gather end" << endl;
   }; // end of gather function
@@ -292,15 +295,15 @@ struct dd_vertex_program_symmetric : public dd_vertex_program {
     cout << "begin apply" << endl;
     if (vdata.nvars == 1) {
       // Unary factor.
-      ASSERT_EQ(vdata.potential.size(), total.size());
-      vec belief = vdata.potential + total;
+      ASSERT_EQ(vdata.potentials.size(), total.size());
+      vec belief = vdata.potentials + total;
       // Save the best configuration for this vertex.
       belief.maxCoeff(&vdata.best_configuration);
       cout << "vdata.best_configuration = " << vdata.best_configuration << endl;
     } else {
       // General factor.
-      vec belief = vdata.potential;
-      int num_configurations = vdata.potential.size();
+      vec belief = vdata.potentials;
+      int num_configurations = vdata.potentials.size();
       for (int index_configuration = 0;
            index_configuration < num_configurations;
            ++index_configuration) {
@@ -356,7 +359,7 @@ struct dd_vertex_program_symmetric : public dd_vertex_program {
 
     CHECK_GE(vdata.best_configuration, 0);
     CHECK_LT(vdata.best_configuration, vdata.cards[0]);    
-    edata.message[vdata.best_configuration] += stepsize;
+    edata.multiplier_messages[vdata.best_configuration] += stepsize;
     vector<int> states(other_vdata.nvars, -1);
     get_configuration_states(*factor_vertex, other_vdata.best_configuration, &states);
     int offset = 0;
@@ -373,7 +376,7 @@ struct dd_vertex_program_symmetric : public dd_vertex_program {
     CHECK_GE(states[index_neighbor], 0);
     CHECK_LT(states[index_neighbor], other_vdata.cards[index_neighbor]);
     CHECK_EQ(other_vdata.cards[index_neighbor], vdata.cards[0]);
-    edata.message[states[index_neighbor]] -= stepsize;
+    edata.multiplier_messages[states[index_neighbor]] -= stepsize;
     cout << "end scatter" << endl;
   }; // end of scatter
 }; // end of class bp_vertex_program_symmetric
@@ -386,6 +389,13 @@ struct dd_vertex_program_symmetric : public dd_vertex_program {
 // Komodakis, N., Paragios, N., and Tziritas, G. (2007).
 // MRF optimization via dual decomposition: Message-passing revisited.
 // In Proc. of International Conference on Computer Vision.
+// 
+// The formulation used is the one in Algorithm 1 of:
+//
+// André F. T. Martins, Mário A. T. Figueiredo, Pedro M. Q. Aguiar,
+// Noah A. Smith, and Eric P. Xing.
+// "An Augmented Lagrangian Approach to Constrained MAP Inference."
+// International Conference on Machine Learning (ICML), 2011.
 ////////////////////////////////////////////////////////////////////////////////
 
 struct dd_vertex_program_projected : public dd_vertex_program {
@@ -401,8 +411,9 @@ struct dd_vertex_program_projected : public dd_vertex_program {
   /**
    * \brief The gather function takes a vertex and an edge as inputs and outputs 
    a vector of numeric values. Vectors of numeric values will later be summed 
-   over all edges incident in this vertex. So, if the vertex is a unary factor, 
-   we can just return the vector of Lagrange multipliers stored in "edge.messages". 
+   over all edges incident in this vertex. 
+   If the vertex is a unary factor, compute the sum of all the local MAP variables,
+   which in the "apply" function will serve to compute the global MAP. 
    Otherwise (if vertex is a general factor), things are a little more tricky. 
    Suppose the factor is linked to K variables, with cardinalities C_1, ..., C_K. 
    Suppose this edge is with respect to the k-th variable. Then, we return a 
@@ -422,12 +433,12 @@ struct dd_vertex_program_projected : public dd_vertex_program {
       // Unary factor.
       cout << "This unary factor has " << vertex.num_in_edges() << 
         " in edges and " << vertex.num_out_edges() << " out edges" << endl;
-      vec dummy;
-      return dummy;
+      factor_type messages = edata.local_messages;
+      return messages; 
     } else {
       // General factor.
-      factor_type message;
-      message.resize(vdata.potential.size());
+      factor_type messages;
+      messages.resize(vdata.potentials.size());
       int offset = 0;
       int index_neighbor = -1;
       for (int k = 0; k < vdata.nvars; ++k) {
@@ -443,39 +454,42 @@ struct dd_vertex_program_projected : public dd_vertex_program {
       //int degree = other_vertex.data().degree;
 
       for (int state = 0; state < vdata.cards[index_neighbor]; ++state) {
-        message[offset + state] = edata.message[state];
+        messages[offset + state] = edata.multiplier_messages[state];
         // TODO: somehow set the "edge potential" to be the potential of the
         // unary variable divided by the number of factors in which that 
         // variable appears.
-        message[offset + state] += edata.potential[state]; 
+        messages[offset + state] += edata.potentials[state]; 
         //message[offset + state] += unary_potential[state] / static_cast<double>(degree);
       }
-      return message;
+      return messages;
     }
     cout << "gather end" << endl;
   }; // end of gather function
 
   /**
    * \brief The apply function takes a vertex and a vector of numeric values 
-   (a total) as input. For unary vertices, this will be the sum of Lagrange 
-   multipliers, and we just need to sum that to the vertex potential and compute 
-   the argmax. For general factors, the vector of numeric values, as stated above, 
-   will contain all the Lagrange multipliers of the neighboring variables. 
-   So we need to loop through all possible factor configurations, get the 
-   sequence of states of each configuration, fetch the Lagrange multipliers for 
-   those states, and add them to the factor potential. Then we compute the argmax. 
+   (a total) as input. 
+   For a unary vertex, "total" will be the sum of local MAP vectors, and we 
+   just need to divide by the vertex degree and save the result as global MAP.
+   For higher-order factors, "total" will contain all the Lagrange multipliers 
+   of the neighboring variables. So we need to loop through all possible factor 
+   configurations, get the sequence of states of each configuration, fetch the 
+   Lagrange multipliers for those states, and add them to the factor potential. 
+   Then we compute the argmax and save result to local MAP for each variable 
+   connected to the factor. 
    */
   void apply(icontext_type& context, vertex_type& vertex, 
              const factor_type& total) {
     vertex_data& vdata = vertex.data();
     cout << "begin apply" << endl;
     if (vdata.nvars == 1) {
-      // Unary factor; do nothing.
+      // Unary factor. Divide by vertex degree.
+      vdata.beliefs = total / static_cast<double>(vdata.degree);
       return;
     } else {
       // General factor.
-      vec belief = vdata.potential;
-      int num_configurations = vdata.potential.size();
+      vec beliefs = vdata.potentials;
+      int num_configurations = vdata.potentials.size();
       for (int index_configuration = 0;
            index_configuration < num_configurations;
            ++index_configuration) {
@@ -485,12 +499,12 @@ struct dd_vertex_program_projected : public dd_vertex_program {
         get_configuration_states(vertex, index_configuration, &states);
         int offset = 0;
         for (int k = 0; k < vdata.nvars; ++k) {
-          belief[index_configuration] += total[offset + states[k]];
+          beliefs[index_configuration] += total[offset + states[k]];
           offset += vdata.cards[k];
         }
       }
       // Save the best configuration for this factor.
-      belief.maxCoeff(&vdata.best_configuration);
+      beliefs.maxCoeff(&vdata.best_configuration);
     }
     cout << "end apply" << endl;
   }; // end of apply
@@ -506,54 +520,43 @@ struct dd_vertex_program_projected : public dd_vertex_program {
 
   /**
    * \brief The scatter function takes a vertex and an edge as input. 
-   We just need to update the messages (Lagrange multipliers) by looking at the 
-   saved argmaxes.
+   (1) If the vertex is a unary factor, we update the messages (Lagrange multipliers)
+   by subtracting the global MAP by the local MAP.
+   (2) If the vertex is a higher order factor, this function will take the best
+   configuration (obtained at the apply function) and save the local MAP 
+   at the corresponding edge.
    */
   void scatter(icontext_type& context, const vertex_type& vertex, 
                edge_type& edge) const {  
-    const vertex_type other_vertex = get_other_vertex(edge, vertex);
-    const vertex_type *unary_vertex;
-    const vertex_type *factor_vertex;
-    cout << "begin scatter" << endl;
-    if (vertex.data().nvars == 1) {
-      // Unary factor.
-      unary_vertex = &vertex;
-      factor_vertex = &other_vertex;
-    } else {
-      // General factor.
-      unary_vertex = &other_vertex;
-      factor_vertex = &vertex;
-    }
-    const vertex_data& vdata = unary_vertex->data();
-    const vertex_data& factor_vdata = factor_vertex->data();
+    const vertex_data& vdata = vertex.data();
     edge_data& edata = edge.data();
-    double stepsize = 1.0; // TODO: Make this decay over iteration number.
-
-    CHECK_GE(vdata.best_configuration, 0);
-    CHECK_LT(vdata.best_configuration, vdata.cards[0]);
-    
-    for (int state = 0; state < vdata.cards[0]; ++state) {
-      // TODO: Need to compute this vdata.posterior somehow.
-      edata.message[state] += vdata.posterior[state] * stepsize;
-    }
-    //edata.message[vdata.best_configuration] += stepsize;
-    vector<int> states(factor_vdata.nvars, -1);
-    get_configuration_states(*factor_vertex, factor_vdata.best_configuration, &states);
-    int offset = 0;
-    int index_neighbor = -1;
-    for (int k = 0; k < factor_vdata.nvars; ++k) {
-      int vertex_id = factor_vdata.neighbors[k];
-      if (vertex_id == unary_vertex->id()) {
-        index_neighbor = k;
-        break;
+    cout << "begin scatter" << endl;
+    if (vdata.nvars == 1) {
+      // Unary factor. Update the messages (Lagrange multipliers).      
+      double stepsize = 1.0; // TODO: Make this decay over iteration number.
+      edata.multiplier_messages += (vdata.beliefs - edata.local_messages) * stepsize;
+    } else {
+      // General factor. Update the local MAPs.
+      const vertex_type &unary_vertex = get_other_vertex(edge, vertex);
+      vector<int> states(vdata.nvars, -1);
+      get_configuration_states(vertex, vdata.best_configuration, &states);
+      int offset = 0;
+      int index_neighbor = -1;
+      for (int k = 0; k < vdata.nvars; ++k) {
+        int vertex_id = vdata.neighbors[k];
+        if (vertex_id == unary_vertex.id()) {
+          index_neighbor = k;
+          break;
+        }
+        offset += vdata.cards[k];
       }
-      offset += factor_vdata.cards[k];
+      CHECK_GE(index_neighbor, 0);
+      CHECK_GE(states[index_neighbor], 0);
+      CHECK_LT(states[index_neighbor], vdata.cards[index_neighbor]);
+      CHECK_EQ(vdata.cards[index_neighbor], unary_vertex.data().cards[0]);
+      edata.local_messages.setZero();
+      edata.local_messages[states[index_neighbor]] += 1.0;
     }
-    CHECK_GE(index_neighbor, 0);
-    CHECK_GE(states[index_neighbor], 0);
-    CHECK_LT(states[index_neighbor], factor_vdata.cards[index_neighbor]);
-    CHECK_EQ(factor_vdata.cards[index_neighbor], vdata.cards[0]);
-    edata.message[states[index_neighbor]] -= stepsize;
     cout << "end scatter" << endl;
   }; // end of scatter
 }; // end of class dd_vertex_program_projected

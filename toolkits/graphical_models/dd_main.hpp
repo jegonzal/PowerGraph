@@ -147,9 +147,12 @@ void loadUAIfile(graphlab::distributed_control& dc, graph_type& graph,
         int cardprod; double potential_value; //, energy;
         in >> cardprod;
         
-        vertex_data vdata;
-        
+        vertex_data vdata;        
         vdata.nvars = factor_size[i];
+        if (vdata.nvars > 1) {
+          vdata.degree = vdata.nvars; // Factor degree.
+        }
+        
         vdata.cards.resize(factor_size[i]);
         vdata.neighbors.resize(factor_size[i]);
         
@@ -167,22 +170,22 @@ void loadUAIfile(graphlab::distributed_control& dc, graph_type& graph,
             {
                 edata[j].varid = factor_memb[i][j];
                 edata[j].card = cardinalities[edata[j].varid];
-                edata[j].message.setZero(edata[j].card);
-                //edata[j].message.resize(edata[j].card,0); // for stl vectors
+                edata[j].multiplier_messages.setZero(edata[j].card);
+                edata[j].local_messages.setZero(edata[j].card);
             }
         }
         
         //CHECK_EQ(cardprod, cardprod2, "Incorrectly sized factor");
         CHECK_EQ(cardprod, cardprod2);
         
-        // Read factor potential
-        vdata.potential.resize(cardprod);
+        // Read factor potentials
+        vdata.potentials.resize(cardprod);
         for (int k = 0; k != cardprod; ++k) 
         {
             in >> potential_value;
             //energy = Potential2Energy(potential_value);
             
-            vdata.potential[k] = potential_value;
+            vdata.potentials[k] = potential_value;
         }
         
         //CHECK(in.good(), "Could not finish reading factor tables. Are you sure this is a typeUAI energy file?");
