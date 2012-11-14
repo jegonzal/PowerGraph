@@ -267,11 +267,11 @@ class graph_vertex_join {
 
       reset_and_fill_injective_index(left_inj_index, 
                                      left_graph, 
-                                     left_emit_key);    
+                                     left_emit_key, "left graph");    
 
       reset_and_fill_injective_index(right_inj_index, 
                                      right_graph, 
-                                     right_emit_key);    
+                                     right_emit_key, "right graph");    
       rmi.barrier(); 
       // now, we need cross join across all machines to figure out the 
       // opposing join proc
@@ -334,7 +334,8 @@ class graph_vertex_join {
     template <typename Graph, typename EmitKey>
     void reset_and_fill_injective_index(injective_join_index& idx,
                                         Graph& graph,
-                                        EmitKey& emit_key) {
+                                        EmitKey& emit_key,
+                                        const char* message) {
       // clear the data
       idx.vtx_to_key.resize(graph.num_local_vertices());
       idx.key_to_vtx.clear(); 
@@ -346,6 +347,11 @@ class graph_vertex_join {
           typename Graph::vertex_type vtx(lv);
           size_t key = emit_key(vtx);
           idx.vtx_to_key[v] = key;
+          if (idx.key_to_vtx.count(key) > 0) {
+            logstream(LOG_ERROR) << "Duplicate key in " << message << std::endl;
+            logstream(LOG_ERROR) << "Duplicate keys not permitted" << std::endl;
+            throw "Duplicate Key in Join";
+          }
           idx.key_to_vtx.insert(std::make_pair(key, v));
         }
       }
