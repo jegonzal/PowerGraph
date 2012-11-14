@@ -24,6 +24,7 @@
 #define GRAPHLAB_GRAPH_JOIN_HPP
 #include <utility>
 #include <boost/unordered_map.hpp>
+#include <graphlab/util/hopscotch_map.hpp>
 #include <graphlab/graph/distributed_graph.hpp>
 #include <graphlab/rpc/dc_dist_object.hpp>
 namespace graphlab {
@@ -86,7 +87,8 @@ namespace graphlab {
  * size_t right_emit_key(const graph_2_type::vertex_type& vertex);
  * \endcode
  * They essentially take as a constant argument, the vertex of their respective
- * graphs, and return an integer key.
+ * graphs, and return an integer key. If the key has value (-1) it does not 
+ * participate in the join.
   * After keys are emitted and prepared with prepare_join, to perform a left
  * injective join:
  * \code
@@ -195,7 +197,7 @@ class graph_vertex_join {
     
     struct injective_join_index {
       std::vector<size_t> vtx_to_key;
-      boost::unordered_map<size_t, vertex_id_type> key_to_vtx;
+      hopscotch_map<size_t, vertex_id_type> key_to_vtx;
       // we use -1 here to indicate that the vertex is not participating
       std::vector<procid_t> opposing_join_proc;
     };
@@ -238,7 +240,8 @@ class graph_vertex_join {
       * size_t right_emit_key(const graph_2_type::vertex_type& vertex);
       * \endcode
       * They essentially take as a constant argument, the vertex of their 
-      * respective graphs, and return an integer key.
+      * respective graphs, and return an integer key. If a vertex emits the key
+      * (size_t)(-1) it does not participate in the join.
       *
       * prepare_injective_join() only needs to be called once. After which an 
       * arbitrary number of left_injective_join() and right_injective_join() 
@@ -347,12 +350,14 @@ class graph_vertex_join {
           typename Graph::vertex_type vtx(lv);
           size_t key = emit_key(vtx);
           idx.vtx_to_key[v] = key;
-          if (idx.key_to_vtx.count(key) > 0) {
-            logstream(LOG_ERROR) << "Duplicate key in " << message << std::endl;
-            logstream(LOG_ERROR) << "Duplicate keys not permitted" << std::endl;
-            throw "Duplicate Key in Join";
+          if (key != (size_t)(-1)) {
+            if (idx.key_to_vtx.count(key) > 0) {
+              logstream(LOG_ERROR) << "Duplicate key in " << message << std::endl;
+              logstream(LOG_ERROR) << "Duplicate keys not permitted" << std::endl;
+              throw "Duplicate Key in Join";
+            }
+            idx.key_to_vtx.insert(std::make_pair(key, v));
           }
-          idx.key_to_vtx.insert(std::make_pair(key, v));
         }
       }
     }
@@ -365,7 +370,7 @@ class graph_vertex_join {
       // now. for each key on the right, I need to figure out which proc it
       // belongs in. and vice versa. This is actually kind of annoying.
       // but since it is one-to-one, I only need to make a hash map of one side.
-      boost::unordered_map<size_t, procid_t> left_key_to_procs;
+      hopscotch_map<size_t, procid_t> left_key_to_procs;
 
       // construct a hash table of keys to procs
       // clear frequently to use less memory
@@ -390,7 +395,7 @@ class graph_vertex_join {
       for (size_t p = 0; p < right_keys.size(); ++p) {
         for (size_t i = 0; i < right_keys[p].size(); ++i) {
           size_t key = right_keys[p][i];
-          boost::unordered_map<size_t, procid_t>::iterator iter =
+          hopscotch_map<size_t, procid_t>::iterator iter =
               left_key_to_procs.find(key);
           if (iter != left_key_to_procs.end()) {
             ASSERT_MSG(iter->second != (procid_t)(-1),
@@ -400,8 +405,8 @@ class graph_vertex_join {
             procid_t right_proc = p;
             // now. left has to be told about right and right
             // has to be told about left
-            left_match[left_proc].push_back(std::make_pair(right_proc, key));
-            right_match[right_proc].push_back(std::make_pair(left_proc, key));
+            left_match[left_proc].push_back(std::make_pair(key, right_proc));
+            right_match[right_proc].push_back(std::make_pair(key, left_proc));
             // set the map entry to -1 
             // so we know if it is ever reused
             iter->second = (procid_t)(-1); 
@@ -422,11 +427,11 @@ class graph_vertex_join {
       for (size_t p = 0;p < left_match.size(); ++p) {
         for (size_t i = 0;i < left_match[p].size(); ++i) {
           // search for the key in the left index
-          boost::unordered_map<size_t, vertex_id_type>::const_iterator iter = 
-              left_inj_index.key_to_vtx.find(left_match[p][i].second);
+          hopscotch_map<size_t, vertex_id_type>::const_iterator iter = 
+              left_inj_index.key_to_vtx.find(left_match[p][i].first);
           ASSERT_TRUE(iter != left_inj_index.key_to_vtx.end());
           // fill in the match
-          left_inj_index.opposing_join_proc[iter->second] = left_match[p][i].first;
+          left_inj_index.opposing_join_proc[iter->second] = left_match[p][i].second;
         }
       }
       left_match.clear();
@@ -437,11 +442,11 @@ class graph_vertex_join {
       for (size_t p = 0;p < right_match.size(); ++p) {
         for (size_t i = 0;i < right_match[p].size(); ++i) {
           // search for the key in the right index
-          boost::unordered_map<size_t, vertex_id_type>::const_iterator iter = 
-              right_inj_index.key_to_vtx.find(right_match[p][i].second);
+          hopscotch_map<size_t, vertex_id_type>::const_iterator iter = 
+              right_inj_index.key_to_vtx.find(right_match[p][i].first);
           ASSERT_TRUE(iter != right_inj_index.key_to_vtx.end());
           // fill in the match
-          right_inj_index.opposing_join_proc[iter->second] = right_match[p][i].first;
+          right_inj_index.opposing_join_proc[iter->second] = right_match[p][i].second;
         }
       }
       right_match.clear();
@@ -452,12 +457,12 @@ class graph_vertex_join {
     // the partial list of keys every other machine owns.
     template <typename Graph>
     std::vector<std::vector<size_t> > 
-        get_procs_with_keys(std::vector<size_t> local_key_list, Graph& g) {
+        get_procs_with_keys(const std::vector<size_t>& local_key_list, Graph& g) {
       // this machine will get all keys from each processor where
       // key = procid mod numprocs
       std::vector<std::vector<size_t> > procs_with_keys(rmi.numprocs());
       for (size_t i = 0; i < local_key_list.size(); ++i) {
-        if (g.l_vertex(i).owned()) {
+        if (g.l_vertex(i).owned() && local_key_list[i] != (size_t)(-1)) {
           procid_t target_procid = local_key_list[i] % rmi.numprocs();
           procs_with_keys[target_procid].push_back(local_key_list[i]);
         }
@@ -498,7 +503,7 @@ class graph_vertex_join {
       for (size_t p = 0;p < source_data.size(); ++p) {
         for (size_t i = 0;i < source_data[p].size(); ++i) {
           // find the target vertex with the matching key
-          boost::unordered_map<size_t, vertex_id_type>::const_iterator iter = 
+          hopscotch_map<size_t, vertex_id_type>::const_iterator iter = 
               target.key_to_vtx.find(source_data[p][i].first);
           ASSERT_TRUE(iter != target.key_to_vtx.end());
           // found it!
