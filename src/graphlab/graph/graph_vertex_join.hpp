@@ -23,9 +23,9 @@
 #ifndef GRAPHLAB_GRAPH_JOIN_HPP
 #define GRAPHLAB_GRAPH_JOIN_HPP
 #include <utility>
+#include <boost/unordered_map.hpp>
 #include <graphlab/graph/distributed_graph.hpp>
 #include <graphlab/rpc/dc_dist_object.hpp>
-#include <graphlab/util/hopscotch_map.hpp>
 namespace graphlab {
 
 
@@ -195,7 +195,7 @@ class graph_vertex_join {
     
     struct injective_join_index {
       std::vector<size_t> vtx_to_key;
-      hopscotch_map<size_t, vertex_id_type> key_to_vtx;
+      boost::unordered_map<size_t, vertex_id_type> key_to_vtx;
       // we use -1 here to indicate that the vertex is not participating
       std::vector<procid_t> opposing_join_proc;
     };
@@ -359,7 +359,7 @@ class graph_vertex_join {
       // now. for each key on the right, I need to figure out which proc it
       // belongs in. and vice versa. This is actually kind of annoying.
       // but since it is one-to-one, I only need to make a hash map of one side.
-      hopscotch_map<size_t, procid_t> left_key_to_procs;
+      boost::unordered_map<size_t, procid_t> left_key_to_procs;
 
       // construct a hash table of keys to procs
       // clear frequently to use less memory
@@ -384,7 +384,7 @@ class graph_vertex_join {
       for (size_t p = 0; p < right_keys.size(); ++p) {
         for (size_t i = 0; i < right_keys[p].size(); ++i) {
           size_t key = right_keys[p][i];
-          hopscotch_map<size_t, procid_t>::iterator iter =
+          boost::unordered_map<size_t, procid_t>::iterator iter =
               left_key_to_procs.find(key);
           if (iter != left_key_to_procs.end()) {
             ASSERT_MSG(iter->second != (procid_t)(-1),
@@ -416,7 +416,7 @@ class graph_vertex_join {
       for (size_t p = 0;p < left_match.size(); ++p) {
         for (size_t i = 0;i < left_match[p].size(); ++i) {
           // search for the key in the left index
-          hopscotch_map<size_t, vertex_id_type>::const_iterator iter = 
+          boost::unordered_map<size_t, vertex_id_type>::const_iterator iter = 
               left_inj_index.key_to_vtx.find(left_match[p][i].second);
           ASSERT_TRUE(iter != left_inj_index.key_to_vtx.end());
           // fill in the match
@@ -431,7 +431,7 @@ class graph_vertex_join {
       for (size_t p = 0;p < right_match.size(); ++p) {
         for (size_t i = 0;i < right_match[p].size(); ++i) {
           // search for the key in the right index
-          hopscotch_map<size_t, vertex_id_type>::const_iterator iter = 
+          boost::unordered_map<size_t, vertex_id_type>::const_iterator iter = 
               right_inj_index.key_to_vtx.find(right_match[p][i].second);
           ASSERT_TRUE(iter != right_inj_index.key_to_vtx.end());
           // fill in the match
@@ -492,7 +492,7 @@ class graph_vertex_join {
       for (size_t p = 0;p < source_data.size(); ++p) {
         for (size_t i = 0;i < source_data[p].size(); ++i) {
           // find the target vertex with the matching key
-          hopscotch_map<size_t, vertex_id_type>::const_iterator iter = 
+          boost::unordered_map<size_t, vertex_id_type>::const_iterator iter = 
               target.key_to_vtx.find(source_data[p][i].first);
           ASSERT_TRUE(iter != target.key_to_vtx.end());
           // found it!
