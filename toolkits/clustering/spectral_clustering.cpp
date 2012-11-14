@@ -387,7 +387,7 @@ int main(int argc, char** argv) {
     return EXIT_FAILURE;
   }
   time(&end);
-  times.push_back(std::make_pair<std::string, time_t>("eigen decomposition",(end - mid)));
+  times.push_back(std::pair<std::string, time_t>("eigen decomposition",(end - mid)));
 
   //run kmeans
   time(&mid);
@@ -396,7 +396,7 @@ int main(int argc, char** argv) {
     return EXIT_FAILURE;
   }
   time(&end);
-  times.push_back(std::make_pair<std::string, time_t>("kmeans",(end - mid)));
+  times.push_back(std::pair<std::string, time_t>("kmeans",(end - mid)));
 
   //recover cluster membership if preprocess with kmeans was done
   if(pre_kmeans_clusters > 0){

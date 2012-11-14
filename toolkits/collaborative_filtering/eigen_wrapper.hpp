@@ -180,7 +180,7 @@ inline ivec sort_index(const vec&a){
   // 	
   D.reserve(a.size());
   for (int i=0;i<a.size();i++)
-    D.push_back(std::make_pair<double,int>(a.coeff(i),i));
+    D.push_back(std::pair<double,int>(a.coeff(i),i));
   std::sort(D.begin(),D.end());
   for (int i=0;i<a.size();i++)
     { 
