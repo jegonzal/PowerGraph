@@ -1,0 +1,30 @@
+void pagerank(extension_graph& graph) {
+  graph.transform_field("pr", [](var v){ return 0.15; });    
+  graph.GAS(
+      [](const vars&) { return graphlab::IN_EDGES; },             // gather_edges
+      [](const vars&, vars&, const vars& other, edge_direction) { // gather
+          return vget<double>(other.field("pr")) / 
+                vget<double>(other.field("out_degree")) ;
+      }, 
+      [](var& a, const var& b) {                                  // combine
+          vget<double>(a) += vget<double>(b); 
+      }, 
+      [](vars& v, const var& result) -> bool {                    // apply
+          double pr = 0.15 + 0.85 * vget<double>(result); 
+          v.field("change") = 
+              std::fabs(pr - vget<double>(v.field("pr"))) / 
+              vget<double>(v.field("out_degree"));
+          v.field("pr") = pr;         
+          return false; 
+      }, 
+      [](const vars& v) {                                        // scatter_edges
+          return vget<double>(v.field("change")) > 0.01 ? 
+                                graphlab::OUT_EDGES : graphlab::NO_EDGES; 
+      },
+      [](const vars&, const vars&, const vars&, edge_direction) {// scatter 
+          return true; 
+      }
+  ); // scatter
+}
+
+
