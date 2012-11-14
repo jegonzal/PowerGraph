@@ -59,7 +59,7 @@ struct user_feature {
    float rank;
    int numdocs;
    std::vector<int> topics;
-   user_feature() : join_key(0), rank(1.0),
+   user_feature() : join_key(-1), rank(1.0),
                               numdocs(DEFAULT_NDOCS),
                               topics(std::vector<int>(NTOPICS, DEFAULT_TOPICVAL)) { }
    user_feature(size_t join_key) : join_key(join_key), rank(1.0),
@@ -107,7 +107,8 @@ bool vertex_line_parser(graph_type& graph,
     (textline.begin(), textline.end(),       
      //  Begin grammar
      (
-      qi::ulong_[phoenix::ref(vid) = qi::_1] >> -qi::char_(',') >>  name 
+      qi::ulong_[phoenix::ref(vid) = qi::_1] >> -qi::char_(',') >>
+      +qi::char_[phoenix::ref(name) = qi::_1]
       )
      ,
      //  End grammar
@@ -119,13 +120,13 @@ bool vertex_line_parser(graph_type& graph,
   std::cout << vid << ", " << name << "(" << join_key << ")" << std::endl;
 
   user_feature vdata(join_key); 
-  ASSERT_FALSE(join_key == 0); // 0 is reserved for non_join_vertex
+  ASSERT_FALSE(join_key == size_t(-1)); // -1 is reserved for non_join_vertex
   graph.add_vertex(vid, vdata);
   return true;
 }
 
 inline bool is_join(const graph_type::vertex_type& vertex) {
-  return vertex.data().join_key != 0;
+  return vertex.data().join_key != size_t(-1);
 }
 
 bool load_and_initialize_graph(graphlab::distributed_control& dc,
