@@ -259,11 +259,11 @@ int main(int argc, char** argv) {
   std::map<size_t, size_t> count_map;
   for (size_t i = 0; i < len; ++i) {
     if (count_map.find(stat.counts[i]) == count_map.end()) {
-      count_map.insert(std::make_pair<size_t, size_t>(stat.counts[i], 1));
+      count_map.insert(std::pair<size_t, size_t>(stat.counts[i], 1));
     } else {
       size_t cnt = count_map[stat.counts[i]];
       count_map.erase(stat.counts[i]);
-      count_map.insert(std::make_pair<size_t, size_t>(stat.counts[i], cnt + 1));
+      count_map.insert(std::pair<size_t, size_t>(stat.counts[i], cnt + 1));
     }
   }
   time(&end);
