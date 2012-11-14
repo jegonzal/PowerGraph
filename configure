@@ -347,7 +347,20 @@ echo $build_cmd | tee -a ../$LOG_FILE
 eval $build_cmd | tee -a ../$LOG_FILE
 cd $GRAPHLAB_HOME
 
-
-
-
-
+echo "*****************************************************"
+echo "*                 Important Note                    *"
+echo "*                 --------------                    *"
+echo "*       You do not have to build everything!        *"
+echo "*                                                   *"
+echo "* Everything takes a very long time, and a ton of   *"
+echo "* of memory to build. You can just cd into toolkit  *"
+echo "* directory you want, and just build that. For      *"
+echo "* instance, if I just want the release build of     *"
+echo "* PageRank, I could:                                *"
+echo "*                                                   *"
+echo "*       cd release/toolkits/graph_analytics         *"
+echo "*       make -j2                                    *"
+echo "*                                                   *"
+echo "* Use at most [RAM in GB] parallel builds. The      *"
+echo "* compilation consumes a lot of RAM.                *"
+echo "*****************************************************"
