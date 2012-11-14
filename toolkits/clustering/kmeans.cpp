@@ -373,7 +373,7 @@ struct neighbor_info {
   }
   neighbor_info(size_t clst, double weight) :
       cw_map() {
-    cw_map.insert(std::make_pair<size_t, double>(clst, weight));
+    cw_map.insert(std::make_pair(clst, weight));
   }
 
   neighbor_info& operator+=(const neighbor_info& other) {
@@ -381,7 +381,7 @@ struct neighbor_info {
         iter != other.cw_map.end(); iter++) {
       size_t clst = iter->first;
       if (cw_map.find(clst) == cw_map.end()) {
-        cw_map.insert(std::make_pair<size_t, double>(clst, iter->second));
+        cw_map.insert(std::pair(clst, iter->second));
       } else {
         cw_map[clst] += iter->second;
       }

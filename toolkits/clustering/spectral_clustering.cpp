@@ -258,7 +258,7 @@ int recover_labels(const std::string& prefix){
 
   std::map<size_t, size_t> label_map;
   for(size_t i=0;i<spectral_result.size();++i){
-    label_map.insert(std::make_pair<size_t, size_t>(spectral_result[i][0], spectral_result[i][1]));
+    label_map.insert(std::make_pair(spectral_result[i][0], spectral_result[i][1]));
   }
 
   std::ofstream ofs(outfile.c_str());
@@ -353,7 +353,7 @@ int main(int argc, char** argv) {
     datafile = datafile + ".pre.centers";
     num_nearests = 0;
     time(&end);
-    times.push_back(std::make_pair<std::string, time_t>("kmeans preprocess",(end - mid)));
+    times.push_back(std::pair<std::string, time_t>("kmeans preprocess",(end - mid)));
   }
 
   //construct graph laplacian
@@ -363,7 +363,7 @@ int main(int argc, char** argv) {
     return EXIT_FAILURE;
   }
   time(&end);
-  times.push_back(std::make_pair<std::string, time_t>("graph laplacian",(end - mid)));
+  times.push_back(std::pair<std::string, time_t>("graph laplacian",(end - mid)));
 
   //eigen value decomposition
   //read number of data
