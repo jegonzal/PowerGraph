@@ -168,11 +168,14 @@ namespace graphlab {
 
     boost::program_options::options_description desc;
     boost::program_options::positional_options_description 
-    pos_opts;
+        pos_opts;
+    size_t num_positional;
     boost::program_options::variables_map vm;
     
     bool suppress_graphlab_options;
-    
+   
+    std::vector<std::string> unrecognized_options;
+
   public:
 
     /**
@@ -190,7 +193,7 @@ namespace graphlab {
      */
     command_line_options(std::string desc_str,
                          bool suppress_graphlab_options = false) : 
-      desc(desc_str), 
+      desc(desc_str), num_positional(0),
       suppress_graphlab_options(suppress_graphlab_options) {     
       // Add documentation for help
       namespace boost_po = boost::program_options;      
@@ -212,8 +215,11 @@ namespace graphlab {
      * attached variables. If there is an error in the syntax or
      * parsing fails the parse routine will print the error and return
      * false.
+     *
+     * If allow_unregistered is set to true, will permit unrecognized options
      */
-    bool parse(int argc, const char* const* argv);
+    bool parse(int argc, const char* const* argv, 
+               bool allow_unregistered = false);
 
     /** 
      * \brief The is set function is used to test if the user provided
@@ -222,6 +228,14 @@ namespace graphlab {
      */
     bool is_set(const std::string& option);
 
+
+    /**
+     * If allow_unregistered flag is set on parse
+     * this will contain the list of unrecognized options
+     */
+    inline std::vector<std::string> unrecognized() const {
+      return unrecognized_options;
+    }
 
     /**
      * \brief attach a user defined option to the command line options

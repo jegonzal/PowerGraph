@@ -69,7 +69,8 @@ static const char* graph_help_string =
 
 
 
-  bool command_line_options::parse(int argc, const char* const* argv) {
+  bool command_line_options::parse(int argc, const char* const* argv,
+                                   bool allow_unregistered) {
     namespace boost_po = boost::program_options;
     
     size_t ncpus(get_ncpus());
@@ -119,8 +120,20 @@ static const char* graph_help_string =
       std::vector<std::string> arguments;
       std::copy(argv + 1, argv + argc + !argc, 
                 std::inserter(arguments, arguments.end()));
-      boost_po::store(boost_po::command_line_parser(arguments).
-                      options(desc).positional(pos_opts).run(), vm);
+
+      boost_po::command_line_parser parser(arguments);
+      parser.options(desc);
+      if (allow_unregistered) parser.allow_unregistered();
+      if (num_positional) parser.positional(pos_opts);
+      boost_po::parsed_options parsed = parser.run();
+      if (allow_unregistered) {
+        unrecognized_options = 
+            boost_po::collect_unrecognized(parsed.options, 
+                                           boost_po::include_positional);
+      } else {
+        unrecognized_options.clear();
+      }
+      boost_po::store(parsed, vm);
       boost_po::notify(vm);
     } catch( boost_po::error error) {
       std::cout << "Invalid syntax:\n"
@@ -171,6 +184,7 @@ static const char* graph_help_string =
   }
 
   void command_line_options::add_positional(const std::string& str) {
+    num_positional++;
     pos_opts.add(str.c_str(), 1);
   }
 }
