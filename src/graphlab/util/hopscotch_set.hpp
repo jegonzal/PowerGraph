@@ -31,13 +31,9 @@
 #include <graphlab/serialization/serialization_includes.hpp>
 
 
-#if __cplusplus < 201103L 
 #include <boost/functional/hash.hpp>
 #define _HOPSCOTCH_SET_DEFAULT_HASH boost::hash<Key>
 
-#else
-#define _HOPSCOTCH_SET_DEFAULT_HASH std::hash<Key>
-#endif
 
 
 namespace graphlab {

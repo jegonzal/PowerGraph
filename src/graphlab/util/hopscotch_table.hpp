@@ -10,13 +10,9 @@
 #include <graphlab/parallel/pthread_tools.hpp>
 #include <graphlab/parallel/atomic.hpp>
 
-#if __cplusplus < 201103L 
 #include <boost/functional/hash.hpp>
 #define _HOPSCOTCH_TABLE_DEFAULT_HASH boost::hash<T>
 
-#else
-#define _HOPSCOTCH_TABLE_DEFAULT_HASH std::hash<T>
-#endif
 
 namespace graphlab {
 
