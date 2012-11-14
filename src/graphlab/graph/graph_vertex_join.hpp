@@ -240,9 +240,13 @@ class graph_vertex_join {
       * They essentially take as a constant argument, the vertex of their 
       * respective graphs, and return an integer key.
       *
-      * prepare only needs to be called once. After which an arbitrary
-      * number of left_injective_join() and right_injective_join() calls
-      * may be made.
+      * prepare_injective_join() only needs to be called once. After which an 
+      * arbitrary number of left_injective_join() and right_injective_join() 
+      * calls may be made.
+      *
+      * If after a join, a new join is to be performed on the same graph using
+      * new data, or new emit functions, prepare_injective_join() can be called
+      * again to recompute the join. 
       */
     template <typename LeftEmitKey, typename RightEmitKey>
     void prepare_injective_join(LeftEmitKey left_emit_key, 
