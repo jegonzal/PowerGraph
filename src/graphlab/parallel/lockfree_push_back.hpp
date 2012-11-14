@@ -141,6 +141,28 @@ class lockfree_push_back {
       return putpos;
     }
     
+    bool query(size_t item, T& value) {
+      bool ret = false;
+      cur.inc_ref();
+      if (item < cur.idx) {
+        value = container[item];
+        ret = true;
+      }
+      cur.dec_ref();
+      return ret;
+    }
+
+    T* query(size_t item) {
+      T* ret = NULL;
+      cur.inc_ref();
+      if (item < cur.idx) {
+        ret = &(container[item]);
+      }
+      cur.dec_ref();
+      return ret;
+    }
+
+
     size_t push_back(const T& t) {
       size_t putpos = cur.inc_idx();
       while(1) {
