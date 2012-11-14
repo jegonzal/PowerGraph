@@ -50,7 +50,7 @@ if(CPP11)
   message(STATUS "C++11 Enabled")
   set(CPP11_FLAGS "-std=c++11 -Wno-enum-compare -Wno-conversion-null")
   if (APPLE)
-  set(CPP11_FLAGS "-stdlib=libc++ ${CPP11_FLAGS}")
+  set(CPP11_FLAGS "${CPP11_FLAGS}")
   endif()
 endif()
 
