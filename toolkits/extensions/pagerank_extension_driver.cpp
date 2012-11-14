@@ -1,4 +1,5 @@
 #include "extensions.hpp"
+#include <graphlab/util/timer.hpp>
 using namespace graphlab::extension;
 
 int main(int argc, char** argv) {
@@ -8,6 +9,8 @@ int main(int argc, char** argv) {
     return 0;
   }
   graph.load_structure(argv[1], "snap");
+  graphlab::timer ti;
   pagerank(graph, "pr", 0.01);
+  std::cout << "PageRank in " << ti.current_time() << "s\n";
   graph.save_vertices(argv[2], "pr");
 }
