@@ -26,12 +26,15 @@
 #include <sstream>
 #include <iostream>
 
+#if defined(__cplusplus) && __cplusplus >= 201103L
+// do not include spirit
+#else
 #include <boost/config/warning_disable.hpp>
 #include <boost/spirit/include/qi.hpp>
 #include <boost/spirit/include/phoenix_core.hpp>
 #include <boost/spirit/include/phoenix_operator.hpp>
 #include <boost/spirit/include/phoenix_stl.hpp>
-
+#endif
 
 #include <graphlab/util/stl_util.hpp>
 #include <graphlab/logger/logger.hpp>
@@ -92,6 +95,38 @@ namespace graphlab {
       return true;
     } // end of tsv parser
 
+
+
+#if defined(__cplusplus) && __cplusplus >= 201103L
+    // The spirit parser seems to have issues when compiling under
+    // C++11. Temporary workaround with a hard coded parser. TOFIX
+    template <typename Graph>
+    bool adj_parser(Graph& graph, const std::string& srcfilename,
+                    const std::string& line) {
+      // If the line is empty simply skip it
+      if(line.empty()) return true;
+      std::stringstream strm(line);
+      vertex_id_type source; 
+      size_t n;
+      strm >> source;
+      if (strm.fail()) return false;
+      strm >> n;
+      if (strm.fail()) return true;
+
+      size_t nadded = 0;
+      while (strm.good()) {
+        vertex_id_type target;
+        strm >> target;
+        if (strm.fail()) break;
+        if (source != target) graph.add_edge(source, target);
+        ++nadded;
+      } 
+      if (n != nadded) return false;
+      return true;
+    } // end of adj parser
+
+#else
+
     template <typename Graph>
     bool adj_parser(Graph& graph, const std::string& srcfilename,
                     const std::string& line) {
@@ -126,7 +161,7 @@ namespace graphlab {
       }
       return true;
     } // end of adj parser
-
+#endif
 
     template <typename Graph>
     struct tsv_writer{
