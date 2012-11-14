@@ -105,7 +105,8 @@ std::pair<size_t, int> get_free_tcp_port() {
     logger(LOG_FATAL, "Failed to get port information about bound socket");
   }
   size_t freeport = ntohs(((sockaddr_in*)(&addr))->sin_port);
-  return std::make_pair<size_t, int>(freeport, sock);
+  std::pair<size_t, int> ret(freeport, sock);
+  return ret;
 }
 
 } // namespace graphlab
