@@ -46,6 +46,13 @@
 #include <graphlab/graph/vertex_set.hpp>
 
 
+#if defined(__cplusplus) && __cplusplus >= 201103L
+// for whatever reason boost concept is broken under C++11. 
+// Temporary workaround. TOFIX
+#undef BOOST_CONCEPT_ASSERT
+#define BOOST_CONCEPT_ASSERT(unused)
+#endif
+
 namespace graphlab {
   
 
