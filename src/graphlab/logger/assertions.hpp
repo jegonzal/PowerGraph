@@ -117,9 +117,28 @@ extern void __print_back_trace();
 // WARNING: These don't compile correctly if one of the arguments is a pointer
 // and the other is NULL. To work around this, simply static_cast NULL to the
 // type of the desired pointer.
+#if defined(__cplusplus) && __cplusplus >= 201103L
 #define CHECK_OP(op, val1, val2)                                        \
   do {                                                                  \
-    const typeof(val1) _CHECK_OP_v1_ = val1;                            \
+    const auto _CHECK_OP_v1_ = val1;                            \
+    const auto _CHECK_OP_v2_ = val2;              \
+    if (__builtin_expect(!((_CHECK_OP_v1_) op                           \
+                           (decltype(val1))(_CHECK_OP_v2_)), 0)) {        \
+      logstream(LOG_ERROR)                                              \
+        << "Check failed: "                                             \
+        << #val1 << #op << #val2                                        \
+        << "  ["                                                        \
+        << _CHECK_OP_v1_                                                \
+        << ' ' << #op << ' '                                            \
+        << _CHECK_OP_v2_ << "]" << std::endl;                           \
+      __print_back_trace();                                             \
+      throw("assertion failure");                                       \
+    }                                                                   \
+  } while(0)
+#else
+#define CHECK_OP(op, val1, val2)                                        \
+  do {                                                                  \
+    const typeof(val1) _CHECK_OP_v1_ = (typeof(val1))val1;              \
     const typeof(val2) _CHECK_OP_v2_ = (typeof(val2))val2;              \
     if (__builtin_expect(!((_CHECK_OP_v1_) op                           \
                            (typeof(val1))(_CHECK_OP_v2_)), 0)) {        \
@@ -134,6 +153,7 @@ extern void __print_back_trace();
       throw("assertion failure");                                       \
     }                                                                   \
   } while(0)
+#endif
 
 #define CHECK_EQ(val1, val2) CHECK_OP(==, val1, val2)
 #define CHECK_NE(val1, val2) CHECK_OP(!=, val1, val2)
