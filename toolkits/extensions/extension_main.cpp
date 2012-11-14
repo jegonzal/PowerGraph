@@ -21,7 +21,8 @@ int actual_main(int argc, char** argv) {
   return ret;
 }
 
-#ifdef __APPLE__
+#if 1
+// don't seem to be able to get -wrap main working correctly
 int main(int argc, char** argv) {
   return actual_main(argc, argv);
 }

@@ -3,9 +3,10 @@
 
 #ifndef GRAPHLAB_EXTENSIONS_HPP
 #define GRAPHLAB_EXTENSIONS_HPP
-#ifdef __APPLE__
-// annoyingly there is no main
+#if 1
 // we have to use this unreliable hack
+// don't seem to be able to get -wrap main
+// working. TOFIX
 #define main __real_main
 #endif
 
