@@ -37,8 +37,8 @@ var& operator+=(var& value, const var& other) {
 
 
 
-
-std::vector<gas_op_descriptor> descriptor_set(16);
+// lets get more than we will ever need so it will never need to resize
+std::vector<gas_op_descriptor> descriptor_set(65536);
 lockfree_push_back<std::vector<gas_op_descriptor> > 
           descriptor_access(descriptor_set, 0);
  

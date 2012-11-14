@@ -50,7 +50,7 @@ struct gather_var {
   inline void load(graphlab::iarchive& iarc) {
     iarc >> v >> descriptor_id;
     gas_op_descriptor gas;
-    bool ret = descriptor_access.query(descriptor_id, gas);
+    bool ret = descriptor_access.query_unsafe(descriptor_id, gas);
     if (ret) combiner_op = gas.combiner_op;
   }
 };
@@ -91,7 +91,7 @@ public:
     edge_dir_type gather_edges(icontext_type& context,
                                const vertex_type& vertex) const {
       gas_op_descriptor* gas = 
-          descriptor_access.query(descriptor_id);
+          descriptor_access.query_unsafe(descriptor_id);
       ASSERT_TRUE(gas != NULL);
       if (gas->gather_select_op) {
         return (*gas->gather_select_op)(vertex.data());
@@ -104,7 +104,7 @@ public:
                       const vertex_type& vertex,
                       edge_type& edge) const {
       gas_op_descriptor* gas = 
-          descriptor_access.query(descriptor_id);
+          descriptor_access.query_unsafe(descriptor_id);
       ASSERT_TRUE(gas != NULL);
       vertex_type other_vertex = edge.source().id() == vertex.id() ? 
                                     edge.target() : edge.source();
@@ -122,7 +122,7 @@ public:
     inline void apply(icontext_type& context, vertex_type& vertex,
                       const gather_type& total) {
       gas_op_descriptor* gas = 
-          descriptor_access.query(descriptor_id);
+          descriptor_access.query_unsafe(descriptor_id);
       ASSERT_TRUE(gas != NULL);
       bool sched = (*gas->apply_op)(vertex.data(), total.v);
       if (sched) context.signal(vertex, descriptor_id);
@@ -131,7 +131,7 @@ public:
     edge_dir_type scatter_edges(icontext_type& context,
                                const vertex_type& vertex) const {
       gas_op_descriptor* gas = 
-          descriptor_access.query(descriptor_id);
+          descriptor_access.query_unsafe(descriptor_id);
       ASSERT_TRUE(gas != NULL);
       if (gas->scatter_select_op) {
         return (*gas->scatter_select_op)(vertex.data());
@@ -143,7 +143,7 @@ public:
     inline void scatter(icontext_type& context, const vertex_type& vertex,
                  edge_type& edge) const {
       gas_op_descriptor* gas = 
-          descriptor_access.query(descriptor_id);
+          descriptor_access.query_unsafe(descriptor_id);
       ASSERT_TRUE(gas != NULL);
       vertex_type other_vertex = edge.source().id() == vertex.id() ? 
           edge.target() : edge.source();

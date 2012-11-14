@@ -162,6 +162,23 @@ class lockfree_push_back {
       return ret;
     }
 
+    bool query_unsafe(size_t item, T& value) {
+      bool ret = false;
+      if (item < cur.idx) {
+        value = container[item];
+        ret = true;
+      }
+      return ret;
+    }
+
+    T* query_unsafe(size_t item) {
+      T* ret = NULL;
+      if (item < cur.idx) {
+        ret = &(container[item]);
+      }
+      return ret;
+    }
+
 
     size_t push_back(const T& t) {
       size_t putpos = cur.inc_idx();
