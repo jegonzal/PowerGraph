@@ -375,7 +375,7 @@ ExternalProject_Add(libevent
 # graph data.
 ExternalProject_Add(libjson
   PREFIX ${GraphLab_SOURCE_DIR}/deps/json
-  URL http://voxel.dl.sourceforge.net/project/libjson/libjson_7.6.0.zip
+  URL http://graphlab.org/deps/libjson_7.6.0.zip
   URL_MD5 dcb326038bd9b710b8f717580c647833
   BUILD_IN_SOURCE 1
   CONFIGURE_COMMAND ""
