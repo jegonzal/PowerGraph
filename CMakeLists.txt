@@ -45,8 +45,14 @@ endif()
 
 link_libraries(pthread ${OPENMP_LIBRARIES})
 
+set(CPP11_FLAGS "")
+if(CPP11)
+  message(STATUS "C++11 Enabled")
+set(CPP11_FLAGS "-std=c++11")
+endif()
+
 # Shared compiler flags used by all builds (debug, profile, release)
-set(COMPILER_FLAGS "-Wall -g ${OPENMP_C_FLAGS}" CACHE STRING "common compiler options")
+set(COMPILER_FLAGS "-Wall -g ${CPP11_FLAGS} ${OPENMP_C_FLAGS}" CACHE STRING "common compiler options")
 
 # Disable address space randomization for OSX lion and above
 if (APPLE)
@@ -686,6 +692,18 @@ macro(add_graphlab_executable NAME)
   add_dependencies(${NAME} graphlab)
   requires_core_deps(${NAME})
 endmacro(add_graphlab_executable)
+
+
+macro(add_extension_executable NAME)
+  add_executable(${NAME} extension_main.cpp ${ARGN})
+  if(!APPLE)
+  set_target_properties(${NAME} PROPERTIES LINK_FLAGS -Wl,-wrap,main)
+  endif()
+  target_link_libraries(${NAME} graphlab graphlab_extension)
+  add_dependencies(${NAME} graphlab graphlab_extension)
+  requires_core_deps(${NAME})
+endmacro(add_extension_executable)
+
 
 
 add_custom_target(external_dependencies)

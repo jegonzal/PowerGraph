@@ -30,6 +30,8 @@ function print_help {
   echo 
   echo "  --experimental      Turns on undocumented experimental capabilities. "
   echo
+  echo "  --c++11             Turns on C++11 experimental features. "
+  echo
   echo "  -D var=value        Specify definitions to be passed on to cmake."
  
   exit 1
@@ -73,6 +75,7 @@ EXPERIMENTAL=false
 GRAPHLAB_HOME=$PWD
 DEPS_PREFIX=$PWD/deps/local
 NO_OPENMP=false
+CPP11=false
 CFLAGS="" 
 
 # if mac detected, force no_openmp flags by default
@@ -99,6 +102,7 @@ while [ $# -gt 0 ]
     --no_openmp)            no_openmp=1 ;;
     --no_jvm)               no_jvm=1 ;;
     --experimental)         experimental=1 ;;
+    --c++11)                cpp11=1 ;;
     --prefix=*)             prefix=${1##--prefix=} ;;
     --ide=*)                ide=${1##--ide=} ;;
     -D)                     CFLAGS="$CFLAGS -D $2"; shift ;;
@@ -125,6 +129,9 @@ if [ $no_openmp ]; then
 fi
 if [ $experimental ]; then
   EXPERIMENTAL=true
+fi
+if [ $cpp11 ]; then
+  CPP11=true
 fi
 if [[ -n $prefix ]]; then
   INSTALL_DIR=$prefix
@@ -291,6 +298,7 @@ cat configure.deps | tee -a $LOG_FILE
 CFLAGS="$CFLAGS -D NO_OPENMP:BOOL=$NO_OPENMP"
 CFLAGS="$CFLAGS -D CMAKE_INSTALL_PREFIX:STRING=$INSTALL_DIR"
 CFLAGS="$CFLAGS -D EXPERIMENTAL:BOOL=$EXPERIMENTAL"
+CFLAGS="$CFLAGS -D CPP11:BOOL=$CPP11"
 if [ -z $JAVAC ]; then
   CFLAGS="$CFLAGS -D NO_JAVAC:BOOL=1"
 fi
