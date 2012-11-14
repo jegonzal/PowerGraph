@@ -64,10 +64,19 @@ namespace graphlab {
 namespace dc_impl {
 
 static procid_t last_dc_procid = 0;
+static distributed_control* last_dc = NULL;
 
 procid_t get_last_dc_procid() {
   return last_dc_procid;
 }
+
+distributed_control* get_last_dc() {
+  if (last_dc == NULL) {
+    last_dc = new distributed_control();
+  }
+  return last_dc;
+}
+
 
 
 
@@ -425,6 +434,7 @@ void distributed_control::init(const std::vector<std::string> &machines,
             procid_t curmachineid,
             size_t numhandlerthreads,
             dc_comm_type commtype) {
+  dc_impl::last_dc = this;
   ASSERT_MSG(machines.size() <= RPC_MAX_N_PROCS, 
              "Number of processes exceeded hard limit of %d", RPC_MAX_N_PROCS);
     

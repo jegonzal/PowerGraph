@@ -1290,6 +1290,12 @@ inline void distributed_control::all_reduce2(U& data, PlusEqual plusequal, bool 
 
 
 
+namespace dc_impl {
+  extern procid_t get_last_dc_procid();
+
+  extern distributed_control* get_last_dc();
+}
+
 }
 
 #include <graphlab/util/mpi_tools.hpp>
