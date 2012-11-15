@@ -212,9 +212,10 @@ bool vertex_line_parser(graph_type& graph,
 
   std::cout << vid << ", " << name << "(" << join_key << ")" << std::endl;
 
+  size_t docid = -(vid+2);
   vertex_data vdata(join_key); 
-  ASSERT_FALSE(join_key == size_t(-1)); // 0 is reserved for non_join_vertex
-  graph.add_vertex(vid, vdata);
+  ASSERT_FALSE(vdata.join_key == size_t(-1)); // -1 is reserved for non_join_vertex
+  graph.add_vertex(docid, vdata);
   return true;
 }
 

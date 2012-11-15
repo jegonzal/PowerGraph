@@ -16,12 +16,12 @@ graphlab::graph_vertex_join<pagerank::graph_type, lda::graph_type>* vjoinptr;
 
 /*  Global thread func for running pagerank */
 void fn_run_pagerank () {
-  static graphlab::mutex m;
-  if (m.try_lock()) {
+  // static graphlab::mutex m;
+  // if (m.try_lock()) {
     pagerank_engine->signal_all();
     pagerank_engine->start();
-    m.unlock();
-  }
+    // m.unlock();
+  // }
   // const float runtime = engine.elapsed_seconds();
   // dc.cout() << "Finished Running engine in " << runtime << " seconds." << std::endl;
 }
@@ -135,37 +135,38 @@ int main(int argc, char** argv) {
   load_pagerankgraph(pagerank_edges, pagerank_vertices);
 
   // Set up engine1 to compute transition probability
-  graphlab::omni_engine<pagerank::compute_transit_prob> engine0(dc, lgraph, execution_type);
-  transit_prob_engine = &engine0;
-  fn_compute_transit_prob();
+  // graphlab::omni_engine<pagerank::compute_transit_prob> engine0(dc, lgraph, execution_type);
+  // transit_prob_engine = &engine0;
+  // fn_compute_transit_prob();
 
   // Build the lda (right) graph
   // The global lda_graph points to rgraph
-  lda::graph_type rgraph(dc);
-  lda_graph = &rgraph;
-  load_ldagraph(lda_edges, lda_vertices, lda_dictionary);
+  // lda::graph_type rgraph(dc);
+  // lda_graph = &rgraph;
+  // load_ldagraph(lda_edges, lda_vertices, lda_dictionary);
 
   // create the graph join object
   // prepare the join
   // assign the global pointer to the join object
-  graphlab::graph_vertex_join<pagerank::graph_type, lda::graph_type> vjoin(dc, lgraph, rgraph);
-  vjoin.prepare_injective_join(left_emit_key, right_emit_key);
-  vjoinptr = &vjoin;
+  // graphlab::graph_vertex_join<pagerank::graph_type, lda::graph_type> vjoin(dc, lgraph, rgraph);
+  // vjoin.prepare_injective_join(left_emit_key, right_emit_key);
+  // vjoinptr = &vjoin;
 
  
   // Run pagerank ------------------------------------------------------------
   //
   graphlab::omni_engine<pagerank::compute_pagerank> engine1(dc, lgraph, execution_type); 
   pagerank_engine = &engine1;
+  // fn_run_pagerank();
   thgroup.launch(fn_run_pagerank);
   
   // Run lda -----------------------------------------------------------------
-  graphlab::omni_engine<lda::cgs_lda_vertex_program> engine2(dc, rgraph, execution_type);
-  lda_engine = &engine2;
-  thgroup.launch(fn_run_lda);
+  // graphlab::omni_engine<lda::cgs_lda_vertex_program> engine2(dc, rgraph, execution_type);
+  // lda_engine = &engine2;
+  // thgroup.launch(fn_run_lda);
   
   // Run background vertex join
-  thgroup.launch(fn_join_vertex);
+  // thgroup.launch(fn_join_vertex);
 
 
   // --------------------------------------
