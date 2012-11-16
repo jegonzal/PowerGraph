@@ -1,5 +1,3 @@
-#include <vector>
-#include <algorithm>
 #include <graphlab/ui/mongoose/mongoose.h>
 #include <boost/math/special_functions/gamma.hpp>
 #include <vector>
@@ -12,20 +10,25 @@
 #include <graphlab/parallel/atomic.hpp>
 #include <graphlab.hpp>
 #include <graphlab/macros_def.hpp>
+namespace lda {
+  typedef int count_type;
+  typedef std::vector< graphlab::atomic<count_type> > factor_type;
+}
+
+namespace std {
+  inline lda::factor_type& operator+=(lda::factor_type& lvalue,
+      const lda::factor_type& rvalue) {
+    if(!rvalue.empty()) {
+      if(lvalue.empty()) lvalue = rvalue;
+      else {
+        for(size_t t = 0; t < lvalue.size(); ++t) lvalue[t] += rvalue[t];
+      }
+    }
+    return lvalue;
+  } // end of operator +=
+}
 
 namespace lda {
-typedef int count_type;
-typedef std::vector< graphlab::atomic<count_type> > factor_type;
-inline factor_type& operator+=(factor_type& lvalue,
-                               const factor_type& rvalue) {
-  if(!rvalue.empty()) {
-    if(lvalue.empty()) lvalue = rvalue;
-    else {
-      for(size_t t = 0; t < lvalue.size(); ++t) lvalue[t] += rvalue[t];
-    }
-  }
-  return lvalue;
-} // end of operator +=
 
 typedef uint16_t topic_id_type;
 #define NULL_TOPIC (topic_id_type(-1))
@@ -39,6 +42,8 @@ size_t NDOCS = 0;
 size_t NTOKENS = 0;
 size_t TOPK = 5;
 size_t INTERVAL = 10;
+size_t WORDID_OFFSET = 0; 
+bool JOIN_ON_ID = true;
 
 factor_type GLOBAL_TOPIC_COUNT;
 std::vector<std::string> DICTIONARY;
@@ -176,6 +181,7 @@ bool edge_line_parser(graph_type& graph, const std::string& fname,
   doc_id += 2;
   ASSERT_GT(doc_id, 1);
   doc_id = -doc_id;
+  word_id -= WORDID_OFFSET;
   ASSERT_NE(doc_id, word_id);
   // Create an edge and add it to the graph
   graph.add_edge(doc_id, word_id, edge_data(count));
@@ -210,7 +216,7 @@ bool vertex_line_parser(graph_type& graph,
 
   size_t join_key = boost::hash<std::string>()(name);
 
-  std::cout << vid << ", " << name << "(" << join_key << ")" << std::endl;
+  // std::cout << vid << ", " << name << "(" << join_key << ")" << std::endl;
 
   size_t docid = -(vid+2);
   vertex_data vdata(join_key); 
@@ -227,8 +233,15 @@ inline bool is_doc(const graph_type::vertex_type& vertex) {
   return vertex.num_out_edges() > 0 ? 1 : 0;
 }
 
+size_t right_emit_key (const graph_type::vertex_type& vertex) {
+  return 
+    is_doc(vertex) ?
+    (JOIN_ON_ID ? vertex.id() : vertex.data().join_key) :
+    size_t(-1);
+}
+
 inline bool is_join(const graph_type::vertex_type& vertex) {
-  return vertex.data().join_key != size_t(-1);
+  return right_emit_key(vertex) != size_t(-1);
 }
 
 inline size_t count_tokens(const graph_type::edge_type& edge) {
@@ -540,7 +553,6 @@ public:
   void save(graphlab::oarchive& arc) const { arc << top_words << nchanges; }
   void load(graphlab::iarchive& arc) { arc >> top_words >> nchanges; }
 
-
   topk_aggregator& operator+=(const topk_aggregator& other) {
     nchanges += other.nchanges;
     nupdates += other.nupdates;
@@ -777,6 +789,10 @@ struct count_saver {
  */
 typedef graphlab::omni_engine<cgs_lda_vertex_program> engine_type;
 
+void initialize_global() {
+  ADD_CUMULATIVE_EVENT(TOKEN_CHANGES, "Token Changes", "Changes");
+  lda::GLOBAL_TOPIC_COUNT.resize(NTOPICS);
+}
 // 
 // 
 // int main(int argc, char** argv) {
