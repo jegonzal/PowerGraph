@@ -167,7 +167,7 @@ bool vertex_loader(graph_type& graph, const std::string& fname,
   vtx.best_cluster = (size_t)(-1);
   vtx.best_distance = std::numeric_limits<double>::infinity();
   vtx.changed = false;
-  graph.add_vertex(NEXT_VID.inc_ret_last(graph.numprocs()), vtx);
+  graph.add_vertex(NEXT_VID.inc_ret_last(1), vtx);
   return true;
 }
 
@@ -591,7 +591,7 @@ int main(int argc, char** argv) {
   graphlab::distributed_control dc;
   // load graph
   graph_type graph(dc, clopts);
-  NEXT_VID = dc.procid();
+  NEXT_VID = (((graphlab::vertex_id_type)1 << 31) / dc.numprocs()) * dc.procid();
   if(use_id){
     graph.load(datafile, vertex_loader_with_id);
   }else{
