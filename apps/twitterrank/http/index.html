@@ -1,0 +1,78 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+
+  <head>
+    <meta http-equiv="content-type" content="text/html; charset=iso-8859-1" />
+    <meta name="author" content="GraphLab Dev Team" />
+    <meta name="publisher" content="Carnegie Mellon University" />
+    <meta name="copyright" content="(c) 2012. GraphLab.org" />
+    <meta name="distribution" content="global" />
+    <meta name="keywords" content="GraphLabUI" />
+    <meta name="description" content="WordCloud Viewer" />
+    <meta name="robots" content="all" />
+    <title>LDA WordCloud Viewer </title>
+    <link type="text/css" rel="stylesheet" href="style.css"/> 
+
+    <script
+      type="text/javascript"
+      src="lib/d3.v2.js">
+    </script>
+
+    <script src="lib/d3-cloud-master/d3.layout.cloud.js"></script>
+
+    <!-- The Main visualization script -->
+    <script
+      type="text/javascript"
+      src="d3_lda_visualizer.js">
+    </script>
+  </head>
+
+
+  <body>
+    <h1> WordCloud Visualizer </h1>
+    <FORM NAME="myform" ACTION="" METHOD="GET">
+      <INPUT TYPE="text" NAME="inputbox" VALUE="http://localhost:8090">
+      <INPUT TYPE="button" NAME="button" Value="Change Domain" onClick="update_domain(this.form)">
+    </FORM>
+
+    <div id="info">
+      <div class="setting"> 
+        <div class="label">NTopics</div> 
+        <div id="ntopics"></div>
+      </div>
+
+      <div class="setting"> 
+        <div class="label">NWords</div> 
+        <div id="nwords"></div>
+      </div>
+
+      <div class="setting"> 
+        <div class="label">NDocs</div> 
+        <div id="ndocs"></div>
+      </div>
+
+      <div class="setting"> 
+        <div class="label">NTokens</div>   
+        <div id="ntokens"></div>
+      </div>
+
+      <div class="setting"> 
+        <div class="label">Alpha</div> 
+        <div id="alpha"></div>
+      </div>
+
+      <div class="setting"> 
+        <div class="label">Beta</div> 
+        <div id="beta"></div>
+      </div>
+
+      <div id="word_clouds"></div>
+
+      <script>
+        get_top_words();
+      </script>
+
+</body>
+</html>

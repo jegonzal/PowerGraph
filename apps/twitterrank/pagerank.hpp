@@ -213,6 +213,15 @@ public:
       return graphlab::OUT_EDGES;
     }
 
+    void save(graphlab::oarchive& arc) const {
+      arc << normalizer;
+    }
+
+    void load(graphlab::iarchive& arc) {
+      arc >> normalizer; 
+    }
+
+
     // gather_type is vector<float> of length = #topics.
     gather_type gather(icontext_type& context, const vertex_type& vertex, edge_type& edge) const {
       int numdocs = edge.target().data().numdocs; 
