@@ -465,16 +465,16 @@ Koren SVD++ is an algorithm which is slightly more fancy than bias-SGD and give 
 
 Basic configuration --svdpp_step_dec=XX Multiplicative step decrement (between 0.1 to 1). Default is 0.9
 \verbatim
---svdpp_item_bias_step=XX Item bias step size
---svdpp_item_bias_reg=XX  Item bias regularization
---svdpp_usr_bias_step=XX  User bias step size
---svdpp_usr_bias_reg=XX User bias regularization
---svdpp_usr_fctr_step=XX  User factor step size
---svdpp_usr_fctr_reg=XX User factor regularization
---svdpp_item_fctr_step=XX Item factor step size
---svdpp_item_fctr_reg=XX  Item factor regularization
---svdpp_item_fctr2_step=XX  Item factor2 step size
---svdpp_item_fctr2_reg=XX Item factor2 regularization
+--item_bias_step=XX Item bias step size
+--item_bias_reg=XX  Item bias regularization
+--user_bias_step=XX  User bias step size
+--user_bias_reg=XX User bias regularization
+--user_fctr_step=XX  User factor step size
+--user_fctr_reg=XX User factor regularization
+--item_fctr_step=XX Item factor step size
+--item_fctr_reg=XX  Item factor regularization
+--item_fctr2_step=XX  Item factor2 step size
+--item_fctr2_reg=XX Item factor2 regularization
 --D=X Feature vector width. Common values are 20 - 150.
 --step_dec=XX	Multiplicative step decrease. Should be between 0.1 to 1. Default is 0.9
 --max_iter=XX	Max number of iterations

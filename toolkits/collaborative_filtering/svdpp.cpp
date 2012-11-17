@@ -681,16 +681,16 @@ int main(int argc, char** argv) {
   clopts.attach_option("maxval", svdpp_vertex_program::MAXVAL, "max allowed value");
   clopts.attach_option("minval", svdpp_vertex_program::MINVAL, "min allowed value");
   clopts.attach_option("step_dec", svdpp_vertex_program::STEP_DEC, "multiplicative step decrement");
-  clopts.attach_option("usrBiasStep", usrBiasStep, "user_bias_step");
-  clopts.attach_option("usrBiasReg", usrBiasReg, "user_bias_reg");
-  clopts.attach_option("itmBiasStep", usrBiasStep, "item_bias_step");
-  clopts.attach_option("usrBiasReg", usrBiasReg, "item_bias_reg");
-  clopts.attach_option("usrFctrStep", usrFctrStep, "user_factor_step");
-  clopts.attach_option("usrFctrReg", usrFctrReg, "user_factor_reg");
-  clopts.attach_option("itmFctrStep", itmFctrStep, "item_factor_step");
-  clopts.attach_option("itmFctrReg", itmFctrReg, "item_factor_reg");
-  clopts.attach_option("itmFctr2Step", itmFctr2Step, "item_factor2_step");
-  clopts.attach_option("itmFctr2Reg", itmFctr2Reg, "item_factor2_reg");
+  clopts.attach_option("user_bias_step", usrBiasStep, "user_bias_step");
+  clopts.attach_option("user_bias_reg", usrBiasReg, "user_bias_reg");
+  clopts.attach_option("item_bias_step",itmBiasStep, "item_bias_step");
+  clopts.attach_option("item_bias_reg", itmBiasReg, "item_bias_reg");
+  clopts.attach_option("user_factor_step", usrFctrStep, "user_factor_step");
+  clopts.attach_option("user_factor_reg", usrFctrReg, "user_factor_reg");
+  clopts.attach_option("item_factor_step", itmFctrStep, "item_factor_step");
+  clopts.attach_option("item_factor_reg", itmFctrReg, "item_factor_reg");
+  clopts.attach_option("item_factor2_step", itmFctr2Step, "item_factor2_step");
+  clopts.attach_option("item_factor2_reg", itmFctr2Reg, "item_factor2_reg");
   clopts.attach_option("interval", interval, "The time in seconds between error reports");
   clopts.attach_option("predictions", predictions,
       "The prefix (folder and filename) to save predictions.");
