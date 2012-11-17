@@ -203,8 +203,8 @@ bool load_and_initialize_graph(graphlab::distributed_control& dc,
 ////////// Vertex Program 1 //////////////
 // One pass trasformation to initialize the topic-specific jump probability
 class compute_transit_prob :
-  public graphlab::ivertex_program<graph_type, gather_type>,
-  public graphlab::IS_POD_TYPE {
+  public graphlab::ivertex_program<graph_type, gather_type>
+  {
 
     std::vector<int> normalizer;
 
