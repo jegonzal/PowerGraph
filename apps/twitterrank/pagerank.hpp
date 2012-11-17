@@ -270,7 +270,7 @@ public:
   void apply(icontext_type& context, vertex_type& vertex,
              const float& total) {
     const double newval = total + RESET_PROB;
-    vertex.data().rank = isnan(newval) ? 1 : newval;
+    vertex.data().rank = std::isnan(newval) ? 1 : newval;
     context.signal(vertex);
   }
 
@@ -355,8 +355,9 @@ public:
       std::set<vinfo_type>::iterator iter = total.top_pages.begin();
       while(iter != total.top_pages.end())  {
         json += "\t[\"" + graphlab::tostr(iter->vid) + "\", " +
-          graphlab::tostr(iter->features.rank) + ", [" +
-          graphlab::tostr(iter->features.numdocs)  + "]"+
+          graphlab::tostr(iter->features.rank) + ", " +
+          graphlab::tostr(iter->features.numdocs) + ", " +
+          "[" + iter->features.topics_tostr() + "]"+
           "]";
         if(++counter < total.top_pages.size()) json += ", ";
         json += '\n';

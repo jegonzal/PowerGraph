@@ -6,7 +6,7 @@ var fill = d3.scale.category20();
 
 function update_domain(form) {
     domain_str = form.inputbox.value;
-    // get_top_words();
+    get_top_words();
     get_top_pages();
 }
 
@@ -87,19 +87,23 @@ function layout(d, svg) {
 //================ Pagerank Visualizer ===========================
 function get_top_pages() {
     d3.json(domain_str+pagerankpage_str, update_top_pages);
-    setTimeout(get_top_words, update_interval);
+    setTimeout(get_top_pages, update_interval);
 }
 
 function update_top_pages(data) {
   if (data == null) {
     console.log("Unable to access " + domain_str + " will try again.");
   }
+  console.log("update pagerank vector");
 
+  d = [Math.random(), Math.random(), Math.random()];
   var toppages= d3.select("#pagerank").selectAll("p")
-    .data(data.values);
+    .data(data.values, function(d) { return d;});
 
-  toppages.enter()
-    .append("p")
-    .text(function (d) {return d;});
+  toppages.enter().append("p")
+    .text(function(d) { 
+      // vid: rank [numdocs: topic1, topic2, ... ]
+      return d[0] + ": " + d[1] + " (" + d[2] + ": " + d[3] +")";
+    });
   toppages.exit().remove();
 }

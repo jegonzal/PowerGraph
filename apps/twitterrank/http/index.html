@@ -25,7 +25,7 @@
     <!-- The Main visualization script -->
     <script
       type="text/javascript"
-      src="d3_lda_visualizer.js">
+      src="d3_visualizer.js">
     </script>
   </head>
 
@@ -37,7 +37,6 @@
       <INPUT TYPE="button" NAME="button" Value="Change Domain" onClick="update_domain(this.form)">
     </FORM>
 
-    <div id="info">
       <div class="setting"> 
         <div class="label">NTopics</div> 
         <div id="ntopics"></div>
@@ -68,11 +67,8 @@
         <div id="beta"></div>
       </div>
 
+      <div id="pagerank"></div>
       <div id="word_clouds"></div>
-
-      <script>
-        get_top_words();
-      </script>
 
 </body>
 </html>
