@@ -420,8 +420,12 @@ struct prediction_saver {
       return "";
 
  std::stringstream strm;
-    const double prediction = 
+  double prediction =  biassgd_vertex_program::GLOBAL_MEAN + 
+      edge.source().data().bias +
+      edge.target().data().bias + 
       edge.source().data().pvec.dot(edge.target().data().pvec);
+    prediction = std::min(biassgd_vertex_program::MAXVAL, prediction);
+    prediction = std::max(biassgd_vertex_program::MINVAL, prediction);
     strm << edge.source().id() << '\t' 
          << -edge.target().id()-SAFE_NEG_OFFSET << '\t'
          << prediction << '\n';
