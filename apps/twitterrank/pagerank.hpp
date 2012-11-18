@@ -203,8 +203,8 @@ bool load_and_initialize_graph(graphlab::distributed_control& dc,
 ////////// Vertex Program 1 //////////////
 // One pass trasformation to initialize the topic-specific jump probability
 class compute_transit_prob :
-  public graphlab::ivertex_program<graph_type, gather_type>,
-  public graphlab::IS_POD_TYPE {
+  public graphlab::ivertex_program<graph_type, gather_type>
+  {
 
     std::vector<int> normalizer;
 
@@ -270,7 +270,7 @@ public:
   void apply(icontext_type& context, vertex_type& vertex,
              const float& total) {
     const double newval = total + RESET_PROB;
-    vertex.data().rank = isnan(newval) ? 1 : newval;
+    vertex.data().rank = std::isnan(newval) ? 1 : newval;
     context.signal(vertex);
   }
 
@@ -355,8 +355,9 @@ public:
       std::set<vinfo_type>::iterator iter = total.top_pages.begin();
       while(iter != total.top_pages.end())  {
         json += "\t[\"" + graphlab::tostr(iter->vid) + "\", " +
-          graphlab::tostr(iter->features.rank) + ", [" +
-          graphlab::tostr(iter->features.numdocs)  + "]"+
+          graphlab::tostr(iter->features.rank) + ", " +
+          graphlab::tostr(iter->features.numdocs) + ", " +
+          "[" + iter->features.topics_tostr() + "]"+
           "]";
         if(++counter < total.top_pages.size()) json += ", ";
         json += '\n';
