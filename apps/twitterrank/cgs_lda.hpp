@@ -236,7 +236,7 @@ inline bool is_doc(const graph_type::vertex_type& vertex) {
 size_t right_emit_key (const graph_type::vertex_type& vertex) {
   return 
     is_doc(vertex) ?
-    (JOIN_ON_ID ? vertex.id() : vertex.data().join_key) :
+    (JOIN_ON_ID ? (-vertex.id()-2) : vertex.data().join_key) :
     size_t(-1);
 }
 
