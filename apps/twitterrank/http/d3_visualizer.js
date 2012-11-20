@@ -1,4 +1,4 @@
-var domain_str = "http://localhost:8090";
+var domain_str = "http://bros.ml.cmu.edu:8090";
 var wordcloudpage_str = "/wordclouds";
 var pagerankpage_str= "/pagerank";
 var update_interval = 5000;
@@ -20,6 +20,7 @@ function get_top_words() {
 function update_wordclouds(data) {
   if (data == null) {
     console.log("Unable to access " + domain_str + " will try again.");
+    return;
   }
 
   var topics = d3.select("#word_clouds").selectAll(".topics")
@@ -93,8 +94,10 @@ function get_top_pages() {
 function update_top_pages(data) {
   if (data == null) {
     console.log("Unable to access " + domain_str + " will try again.");
+    return;
   }
   console.log("update pagerank vector");
+  console.log(data.values.toString());
 
   d = [Math.random(), Math.random(), Math.random()];
   var toppages= d3.select("#pagerank").selectAll("p")
@@ -106,4 +109,9 @@ function update_top_pages(data) {
       return d[0] + ": " + d[1] + " (" + d[2] + ": " + d[3] +")";
     });
   toppages.exit().remove();
+}
+
+
+function gettitle(id) {
+
 }
