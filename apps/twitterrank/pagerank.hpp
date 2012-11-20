@@ -20,8 +20,8 @@ namespace pagerank {
 // Global random reset probability
 float RESET_PROB = 0.15;
 float TOLERANCE = 1.0E-2;
-int DEFAULT_NDOCS = 20;
-int DEFAULT_TOPICVAL = 10;
+int DEFAULT_NDOCS = 3;
+int DEFAULT_TOPICVAL = 1;
 int NPAGES = 0;
 int NTOPICS = 50;
 size_t TOPK = 50;
@@ -243,11 +243,13 @@ public:
       float pij = 0.0; // the marginal (over topics) jump probability from this vertex to its target
       std::vector<int>& pk_ij = edge.target().data().topics;
       int nj = edge.target().data().numdocs;
-      for (size_t k = 0; k < vertex.data().topics.size(); ++k) {
-        pij += vertex.data().topics[k] * (nj * pk_ij[k] / (float)normalizer[k]);
-      }
-      pij /= std::accumulate(vertex.data().topics.begin(), vertex.data().topics.end(), 0);
+      // for (size_t k = 0; k < vertex.data().topics.size(); ++k) {
+      //   pij +=  (nj * pk_ij[k] / (float)normalizer[k]);  // p(i -> j | k)
+      // }
+      // pij /= NTOPICS;
+      pij = nj * pk_ij[0]/(float)normalizer[0];
       edge.data() = pij;
+      // ASSERT_TRUE(std::abs(pij-1.0/vertex.num_out_edges()) < 1e-5);
     }
   };
 
@@ -264,6 +266,7 @@ public:
   float gather(icontext_type& context, const vertex_type& vertex,
                edge_type& edge) const {
     return ((1.0 - RESET_PROB) * edge.data() * edge.source().data().rank);
+    // return ((1.0 - RESET_PROB) * edge.source().data().rank / edge.source().num_out_edges());
   }
 
   /* Use the total rank of adjacent pages to update this page */
@@ -271,19 +274,18 @@ public:
              const float& total) {
     const double newval = total + RESET_PROB;
     vertex.data().rank = std::isnan(newval) ? 1 : newval;
-    context.signal(vertex);
   }
 
   /* The scatter edges depend on whether the pagerank has converged */
   edge_dir_type scatter_edges(icontext_type& context,
                               const vertex_type& vertex) const {
-    return graphlab::NO_EDGES;
+    return graphlab::OUT_EDGES;
   }
 
   /* The scatter function just signal adjacent pages */
   void scatter(icontext_type& context, const vertex_type& vertex,
                edge_type& edge) const {
-    // context.signal(edge.target());
+    context.signal(edge.target());
   }
 }; // end of factorized_pagerank update functor
 
@@ -300,7 +302,7 @@ struct vinfo_type {
     arc >> vid >> features; 
   }
   bool operator<(const vinfo_type& other) const {
-      if (features.rank > other.features.rank) 
+      if (features.rank < other.features.rank) 
         return true;
       else if (features.rank == other.features.rank)
         return (vid < other.vid);
@@ -311,13 +313,7 @@ struct vinfo_type {
 
 /** Periodically compute top k rank pages. */
 class topk_aggregator {
-  // typedef std::pair<graphlab::vertex_id_type, user_feature> vinfo_type;
-  // typedef std::pair<float, graphlab::vertex_id_type> cw_pair_type;
 private:
-  // bool cmppp(const cw_pair_type& A, const cw_pair_type& B) {
-  //   return A.first > B.first;
-  // }
-  // std::set<cw_pair_type, bool(*)(const cw_pair_type&, const cw_pair_type&)> top_pages(&cmppp);
   std::set<vinfo_type> top_pages;
 public:
   topk_aggregator() {}
