@@ -465,7 +465,7 @@ vec lanczos(bipartite_graph_descriptor & info, timer & mytimer, vec & errest,
   printf("\n");
   DistVec normret(info, nconv, false, "normret");
   DistVec normret_tranpose(info, nconv, true, "normret_tranpose");
-  for (int i=0; i < nsv; i++){
+  for (int i=0; i < std::min(nsv, nconv); i++){
     normret = V[i]*A._transpose() -U[i]*sigma(i);
     double n1 = norm(normret).toDouble();
     PRINT_DBL(n1);
