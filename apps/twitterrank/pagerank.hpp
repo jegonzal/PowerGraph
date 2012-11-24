@@ -6,14 +6,15 @@
 namespace pagerank {
   typedef std::vector<int> gather_type;
 }
+
 namespace std {
-// The gather type is vector of float = numdocs * <topic samples>
-inline pagerank::gather_type& 
-  operator+=(pagerank::gather_type& lvalue, const pagerank::gather_type& rvalue) {
-  for (size_t i = 0; i < lvalue.size(); ++i)
-    lvalue[i] += rvalue[i];
+  // The gather type is vector of float = numdocs * <topic samples>
+  inline pagerank::gather_type& 
+    operator+=(pagerank::gather_type& lvalue, const pagerank::gather_type& rvalue) {
+      for (size_t i = 0; i < lvalue.size(); ++i)
+        lvalue[i] += rvalue[i];
       return lvalue;
-}
+    }
 }
 
 namespace pagerank {
@@ -27,12 +28,7 @@ int NTOPICS = 50;
 size_t TOPK = 50;
 bool HAS_DOC_COUNT = false;
 bool JOIN_ON_ID = true;
-
-/**
- * \brief Create a pagerank changes event tracker which is reported in
- * the GraphLab metrics dashboard.
- */
-DECLARE_EVENT(PAGERANK_CHANGES);
+std::vector<float> w_personal; // personalization weights for topics
 
 struct top_pages_type {
   graphlab::mutex lock;
@@ -56,7 +52,6 @@ pagerank_callback(std::map<std::string, std::string>& varmap) {
   TOP_PAGES.lock.unlock();
   return pair;
 }
-
 
 // Graph Types
 // ============================================================================
@@ -240,18 +235,16 @@ public:
     }
 
     void scatter(icontext_type& context, const vertex_type& vertex, edge_type& edge) const {
-      float pij = 0.0; // the marginal (over topics) jump probability from this vertex to its target
+      double pij = 0.0; // the marginal (over topics) jump probability from this vertex to its target
       std::vector<int>& pk_ij = edge.target().data().topics;
-      int nj = edge.target().data().numdocs;
-      // for (size_t k = 0; k < vertex.data().topics.size(); ++k) {
-      //   pij +=  (nj * pk_ij[k] / (float)normalizer[k]);  // p(i -> j | k)
-      // }
-      // pij /= NTOPICS;
-      pij = nj * pk_ij[0]/(float)normalizer[0];
-      edge.data() = pij;
-      // ASSERT_TRUE(std::abs(pij-1.0/vertex.num_out_edges()) < 1e-5);
+      ASSERT_EQ(pk_ij.size(), w_personal.size());
+      for (size_t k = 0; k < vertex.data().topics.size(); ++k) {
+        // pij +=  (w_personal[k] * pk_ij[k] / (float)normalizer[k]);  // p(i -> j | k)
+        pij +=  (1.0/NTOPICS)*(pk_ij[k] / (float)normalizer[k]);  // p(i -> j | k)
+      }
+      edge.data() = (float)pij;
     }
-  };
+  }; // end of compute_transit_prob
 
 /////////////// Vertex Program 2 //////////////////
 class compute_pagerank :

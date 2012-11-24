@@ -103,6 +103,26 @@ void load_ldagraph(const std::string& edge_dir,
   lda::load_dictionary(dictionary_dir);
 }
 
+void init_personal_weight(const std::string& file) {
+    // initialized the personalized weights; 
+    if (!file.empty()) {
+      std::ifstream in(file.c_str(), std::ios_base::in);
+      float sum = 0.0;
+      float w;
+      while(in >> w) {
+        pagerank::w_personal.push_back(w);
+        sum += w;
+      }
+      in.close();
+      ASSERT_EQ(pagerank::w_personal.size(), NTOPICS);
+      for (size_t i = 0; i < NTOPICS; ++i)
+        pagerank::w_personal[i] /= sum;
+    } else {
+      pagerank::w_personal.resize(NTOPICS, 1.0/(float)NTOPICS);
+    }
+}
+
+
 int main(int argc, char** argv) {
   // Initialize control plain using mpi
   graphlab::mpi_tools::init(argc, argv);
@@ -117,6 +137,7 @@ int main(int argc, char** argv) {
   std::string lda_edges;
   std::string lda_vertices;
   std::string lda_dictionary;
+  std::string w_personal;
   std::string execution_type = "synchronous";
     // The dir of the link graph 
   clopts.attach_option("pagerank_edges", pagerank_edges, "The pagerank graph (edges). Required ");
@@ -124,6 +145,7 @@ int main(int argc, char** argv) {
   clopts.attach_option("lda_edges", lda_edges, "The lda graph (edges). Required ");
   clopts.attach_option("lda_vertices", lda_vertices, "The lda graph (vertices). Required ");
   clopts.attach_option("lda_dictionary", lda_dictionary, "The lda word dictionary. Required ");
+  clopts.attach_option("w_personal", w_personal, "The intial input of personalized weights."); 
   clopts.attach_option("wordid_offset", lda::WORDID_OFFSET, "The starting id of the words in the lda input.");
   clopts.attach_option("execution", execution_type, "Execution type (synchronous or asynchronous)");
   clopts.attach_option("ntopics", NTOPICS, "Number of topics to use");
@@ -182,6 +204,7 @@ int main(int argc, char** argv) {
   pagerank::JOIN_ON_ID = JOIN_ON_ID;
   lda::JOIN_ON_ID = JOIN_ON_ID;
 
+
   // Build the pagerank (left) graph ----------------------------------------------------------
   // The global pagerank_graph points to lgraph 
   pagerank::graph_type lgraph(dc);
@@ -212,6 +235,8 @@ int main(int argc, char** argv) {
   // Set up engine0 to compute transition probability
   graphlab::omni_engine<pagerank::compute_transit_prob> engine0(dc, lgraph, execution_type);
   if (algorithm  & RUN_PAGERANK)  {
+    init_personal_weight(w_personal);
+    dc.barrier();
     transit_prob_engine = &engine0;
     fn_compute_transit_prob();
   }

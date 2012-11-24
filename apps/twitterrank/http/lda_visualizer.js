@@ -28,10 +28,6 @@ function get_top_words() {
         });
 }
 
-
-
-
-
 function process_top_words(data) {
     // Load summary info
     $("#ntopics").text(data.ntopics);
@@ -62,5 +58,3 @@ function process_top_words(data) {
     });
     // Get the job info again
 } // end of process top words
-
-
