@@ -258,7 +258,8 @@ int main(int argc, char** argv) {
   // Run lda -----------------------------------------------------------------
   graphlab::graphlab_options opts2;
   opts2.set_ncpus(6);
-  graphlab::omni_engine<lda::cgs_lda_vertex_program> engine2(dc, rgraph, execution_type, opts2);
+  opts2.get_engine_args().set_option("factorized",true);
+  graphlab::omni_engine<lda::cgs_lda_vertex_program> engine2(dc, rgraph, "async", opts2);
   if (algorithm & RUN_LDA) {
     lda_engine = &engine2;
     lda::initialize_global();
