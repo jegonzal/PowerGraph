@@ -4,7 +4,7 @@
 #include <graphlab/macros_def.hpp>
 
 namespace pagerank {
-  typedef std::vector<int> gather_type;
+  typedef std::vector<float> gather_type;
 }
 
 namespace std {
@@ -19,7 +19,7 @@ namespace std {
 
 namespace pagerank {
 // Global random reset probability
-float RESET_PROB = 0.15;
+float RESET_PROB = 0.01;
 float TOLERANCE = 1.0E-2;
 int DEFAULT_NDOCS = 3;
 int DEFAULT_TOPICVAL = 1;
@@ -59,13 +59,16 @@ struct user_feature {
    size_t join_key; // hash value of the user name, used as vertex join key
    float rank;
    int numdocs;
-   std::vector<int> topics;
+   std::vector<float> topics;
+   std::vector<float> out_normalizer;
    user_feature() : join_key(-1), rank(1.0),
                               numdocs(DEFAULT_NDOCS),
-                              topics(std::vector<int>(NTOPICS, DEFAULT_TOPICVAL)) { }
+                              topics(std::vector<float>(NTOPICS, 1.0/NTOPICS)),
+                              out_normalizer(topics) { }
    user_feature(size_t join_key) : join_key(join_key), rank(1.0),
                               numdocs(DEFAULT_NDOCS),
-                              topics(std::vector<int>(NTOPICS, DEFAULT_TOPICVAL)) { }
+                              topics(std::vector<float>(NTOPICS, 1.0/NTOPICS)),
+                              out_normalizer(topics) { }
    std::string topics_tostr() const {
      std::stringstream strm;
      for (size_t i = 0; i < topics.size(); ++i) {
@@ -76,10 +79,10 @@ struct user_feature {
      return strm.str();
    } 
   void save(graphlab::oarchive& oarc) const {
-    oarc << join_key << rank << numdocs << topics;
+    oarc << join_key << rank << numdocs << topics << out_normalizer;
   }
   void load(graphlab::iarchive& iarc) {
-    iarc >> join_key >> rank >> numdocs >> topics;
+    iarc >> join_key >> rank >> numdocs >> topics >> out_normalizer;
   }
 };
 
@@ -88,7 +91,7 @@ typedef user_feature vertex_data_type;
 // The edge data is its the marginal transition probability 
 typedef float edge_data_type;
 // The gather type (for compute_transit vertex program) is the user topic vector. 
-typedef std::vector<int> gather_type;
+typedef std::vector<float> gather_type;
 
 // The graph type is determined by the vertex and edge data types
 typedef graphlab::distributed_graph<vertex_data_type, edge_data_type> graph_type;
@@ -201,11 +204,11 @@ class compute_transit_prob :
   public graphlab::ivertex_program<graph_type, gather_type>
   {
 
-    std::vector<int> normalizer;
+    std::vector<float> normalizer;
 
 public:
     edge_dir_type gather_edges(icontext_type& context, const vertex_type& vertex) const {
-      return graphlab::OUT_EDGES;
+      return graphlab::ALL_EDGES;
     }
 
     void save(graphlab::oarchive& arc) const {
@@ -219,30 +222,33 @@ public:
 
     // gather_type is vector<float> of length = #topics.
     gather_type gather(icontext_type& context, const vertex_type& vertex, edge_type& edge) const {
-      int numdocs = edge.target().data().numdocs; 
-      const std::vector<int>& topics = edge.target().data().topics; 
-      std::vector<int> ret(topics);
-      for (size_t i = 0; i < topics.size(); ++i) ret[i] *= numdocs;
+      vertex_type other = edge.target().id() == vertex.id() ? edge.source() : edge.target();
+      int numdocs = other.data().numdocs; 
+      const std::vector<float>& topics = other.data().topics; 
+      std::vector<float> ret(topics);
       return ret;
     }
 
     void apply(icontext_type& context, vertex_type& vertex, const gather_type& total) {
-      normalizer = total;
+      vertex.data().out_normalizer = total;
     }
 
     edge_dir_type scatter_edges(icontext_type& context, const vertex_type& vertex) const {
-      return graphlab::OUT_EDGES;
+      return graphlab::NO_EDGES;
     }
 
     void scatter(icontext_type& context, const vertex_type& vertex, edge_type& edge) const {
+      vertex_type other = edge.target().id() == vertex.id() ? edge.source() : edge.target();
       double pij = 0.0; // the marginal (over topics) jump probability from this vertex to its target
-      std::vector<int>& pk_ij = edge.target().data().topics;
+      std::vector<float>& pk_ij = other.data().topics;
+      int numdocs = other.data().numdocs; 
       ASSERT_EQ(pk_ij.size(), w_personal.size());
       for (size_t k = 0; k < vertex.data().topics.size(); ++k) {
-        // pij +=  (w_personal[k] * pk_ij[k] / (float)normalizer[k]);  // p(i -> j | k)
-        pij +=  (1.0/NTOPICS)*(pk_ij[k] / (float)normalizer[k]);  // p(i -> j | k)
+        if (normalizer[k] > 0) 
+        pij +=  (w_personal[k] * pk_ij[k] / (float)normalizer[k]);  // p(i -> j | k)
+        // pij +=  (1.0/NTOPICS)*(pk_ij[k] / ((float)normalizer[k]) );  // p(i -> j | k)
       }
-      edge.data() = (float)pij;
+      edge.data() = (float)pij; 
     }
   }; // end of compute_transit_prob
 
@@ -252,13 +258,22 @@ class compute_pagerank :
   public graphlab::IS_POD_TYPE {
 public:
     edge_dir_type gather_edges(icontext_type& context, const vertex_type& vertex) const {
-      return graphlab::IN_EDGES;
+      return graphlab::ALL_EDGES;
     }
 
   /* Gather the weighted rank of the adjacent page   */
   float gather(icontext_type& context, const vertex_type& vertex,
                edge_type& edge) const {
-    return ((1.0 - RESET_PROB) * edge.data() * edge.source().data().rank);
+    vertex_type other = edge.target().id() == vertex.id() ? edge.source() : edge.target();
+
+    float pij = 0;
+    for (size_t k = 0; k < vertex.data().topics.size(); ++k) {
+        if (other.data().out_normalizer[k] > 0) {
+          pij +=  (w_personal[k] * vertex.data().topics[k] / (float)other.data().out_normalizer[k]);  
+        }
+    }
+
+    return ((1.0 - RESET_PROB) * pij * other.data().rank);
     // return ((1.0 - RESET_PROB) * edge.source().data().rank / edge.source().num_out_edges());
   }
 
@@ -267,18 +282,19 @@ public:
              const float& total) {
     const double newval = total + RESET_PROB;
     vertex.data().rank = std::isnan(newval) ? 1 : newval;
+    context.signal(vertex);
   }
 
   /* The scatter edges depend on whether the pagerank has converged */
   edge_dir_type scatter_edges(icontext_type& context,
                               const vertex_type& vertex) const {
-    return graphlab::OUT_EDGES;
+    return graphlab::NO_EDGES;
   }
 
   /* The scatter function just signal adjacent pages */
   void scatter(icontext_type& context, const vertex_type& vertex,
                edge_type& edge) const {
-    context.signal(edge.target());
+    //context.signal(edge.target());
   }
 }; // end of factorized_pagerank update functor
 

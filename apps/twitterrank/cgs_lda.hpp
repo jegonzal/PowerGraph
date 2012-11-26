@@ -34,7 +34,7 @@ typedef uint16_t topic_id_type;
 #define NULL_TOPIC (topic_id_type(-1))
 typedef std::vector< topic_id_type > assignment_type;
 
-double ALPHA = 1;
+double ALPHA = 0.1;
 double BETA = 0.1;
 size_t NTOPICS = 50;
 size_t NWORDS = 0;

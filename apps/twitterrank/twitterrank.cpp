@@ -57,9 +57,11 @@ void fn_run_lda() {
 void vertex_join_op (pagerank::graph_type::vertex_type& lvertex,
                      const lda::graph_type::vertex_data_type& rvertex_data) {
   // lvertex.data().topics.clear();
+  float sum = 0;
+  for (size_t i = 0; i < rvertex_data.factor.size(); i++) sum += rvertex_data.factor[i];
   for (size_t i = 0; i < rvertex_data.factor.size(); i++) {
     // lvertex.data().topics.push_back(rvertex_data.factor[i]);
-    lvertex.data().topics[i] = rvertex_data.factor[i];
+    lvertex.data().topics[i] = float(rvertex_data.factor[i]) / sum;
   }
 }
 void fn_compute_transit_prob () {
@@ -241,8 +243,10 @@ int main(int argc, char** argv) {
     fn_compute_transit_prob();
   }
 
+  graphlab::graphlab_options opts1;
+  opts1.set_ncpus(2);
   // Set up engine1 to compute pagerank 
-  graphlab::omni_engine<pagerank::compute_pagerank> engine1(dc, lgraph, execution_type); 
+  graphlab::omni_engine<pagerank::compute_pagerank> engine1(dc, lgraph, execution_type, opts1); 
   if (algorithm & RUN_PAGERANK) {
     bool success = engine1.add_vertex_aggregator<pagerank::topk_aggregator>(
         "toppr", pagerank::topk_aggregator::map, pagerank::topk_aggregator::finalize) && engine1.aggregate_periodic("toppr", 5); 
@@ -252,7 +256,9 @@ int main(int argc, char** argv) {
   }
   
   // Run lda -----------------------------------------------------------------
-  graphlab::omni_engine<lda::cgs_lda_vertex_program> engine2(dc, rgraph, execution_type);
+  graphlab::graphlab_options opts2;
+  opts2.set_ncpus(6);
+  graphlab::omni_engine<lda::cgs_lda_vertex_program> engine2(dc, rgraph, execution_type, opts2);
   if (algorithm & RUN_LDA) {
     lda_engine = &engine2;
     lda::initialize_global();
