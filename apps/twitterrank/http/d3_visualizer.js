@@ -1,8 +1,10 @@
 var domain_str = "http://bros.ml.cmu.edu:8090";
 var wordcloudpage_str = "/wordclouds";
 var pagerankpage_str= "/pagerank";
+var clickpage_str= "/click";
 var update_interval = 5000;
 var fill = d3.scale.category20();
+var weights = [];
 
 function update_domain(form) {
     domain_str = form.inputbox.value;
@@ -11,10 +13,25 @@ function update_domain(form) {
 }
 
 //================ LDA Visualizer ===========================
-
 function get_top_words() {
     d3.json(domain_str+wordcloudpage_str, update_wordclouds);
     setTimeout(get_top_words, update_interval);
+}
+
+function sort_topics(data) {
+  // augement the data 
+  var data2 = [];
+  for (var i = 0; i < data.length; i++) {
+    // id, weight, topics
+    data2[i] = {"id":i, "weight":weights[i], "words":data[i]};
+  }
+
+  data2.sort( function (a, b) { 
+    if(a.weight == b.weight) return 0;
+    return a.weight > b.weight; });
+
+  console.log("topic ordering: " + data2.map(function(x) {return x["id"];}));
+  return data2;
 }
 
 function update_wordclouds(data) {
@@ -23,21 +40,42 @@ function update_wordclouds(data) {
     return;
   }
 
+  while (weights.length < data.values.length) weights.push(0);
+
   var topics = d3.select("#word_clouds").selectAll(".topics")
-    .data(data.values)
+    .data(sort_topics(data.values))
 
   topics.enter()
     .append("svg")
     .attr("class", "topics")
+    .on("click", function(d, i) { 
+      $.get(domain_str+clickpage_str, {topic: d.id});
+      alert ("Boost preference to topic" + d.id);
+    })
 
   topics.each( function(d, i) {
-    layout(d, this);
+    layout(d["words"], this);
     console.log("update word clouds");
   });
 
-
   topics.exit().remove();
+}
 
+/* 
+ * Compute word layout with data d = ['river':1, 'mountain':2, ...]
+ * svg: the "this" object to call draw.
+ * */ 
+function layout(d, svg) {
+    var draw_call_back = draw.bind(svg);
+    d3.layout.cloud().size([300, 300])
+        .words(d.map(function(d) {
+          return {text: d[0], size: 10+Math.random()*90};
+        }))
+        .rotate(function() { return ~~(Math.random() * 2) * 90; })
+        .font("Impact")
+        .fontSize(function(d) { return d.size; })
+        .on("end", draw_call_back)
+        .start();
 }
 
 /*
@@ -68,22 +106,7 @@ function draw(words) {
   g.exit().remove();
 }
 
-/* 
- * Compute word layout with data d
- * svg: the "this" object to call draw.
- * */ 
-function layout(d, svg) {
-    var draw_call_back = draw.bind(svg);
-    d3.layout.cloud().size([300, 300])
-        .words(d.map(function(d) {
-          return {text: d[0], size: 10+Math.random()*90};
-        }))
-        .rotate(function() { return ~~(Math.random() * 2) * 90; })
-        .font("Impact")
-        .fontSize(function(d) { return d.size; })
-        .on("end", draw_call_back)
-        .start();
-}
+
 
 //================ Pagerank Visualizer ===========================
 function get_top_pages() {
@@ -97,7 +120,6 @@ function update_top_pages(data) {
     return;
   }
   console.log("update pagerank vector");
-  console.log(data.values.toString());
 
   d = [Math.random(), Math.random(), Math.random()];
   var toppages= d3.select("#pagerank").selectAll("p")
@@ -106,12 +128,15 @@ function update_top_pages(data) {
   toppages.enter().append("p")
     .text(function(d) { 
       // vid: rank [numdocs: topic1, topic2, ... ]
-      return d[0] + ": " + d[1] + " (" + d[2] + ": " + d[3] +")";
+      return "id:" + d[0] + " rank:" + d[1] + " topics(" + d[3] +")";
     });
   toppages.exit().remove();
-}
 
-
-function gettitle(id) {
-
+  // update the global weights for each topic
+  for (var j = 0; j < weights.length; j++) {
+    for (var i = 0; i < data.values.length; i++) {
+      weights[j] += data.values[i][3][j];
+    }
+  }
+  console.log("topic weights: " + weights);
 }
