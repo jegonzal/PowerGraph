@@ -53,6 +53,28 @@ pagerank_callback(std::map<std::string, std::string>& varmap) {
   return pair;
 }
 
+
+std::pair<std::string, std::string>
+weight_update_callback(std::map<std::string, std::string>& varmap) {
+  std::string c = varmap["topic"];
+  size_t topick = atoi(c.c_str());
+  std::pair<std::string, std::string> pair("text/html","");
+  if (topick < w_personal.size()) {
+    w_personal[topick] *= 1.2;
+    double s = 0;
+    for (size_t i = 0;i < w_personal.size(); ++i) s += w_personal[i];
+    for (size_t i = 0;i < w_personal.size(); ++i) w_personal[i] /= s;
+    pair.second = "1";
+  }
+  else {
+    pair.second = "0";
+  }
+  // add a boost to the topic 
+  return pair;
+}
+
+
+
 // Graph Types
 // ============================================================================
 struct user_feature {

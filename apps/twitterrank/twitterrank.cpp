@@ -89,6 +89,8 @@ void launch_metric_server(int algorithm) {
   if (algorithm & RUN_PAGERANK) 
     graphlab::add_metric_server_callback("pagerank", pagerank::pagerank_callback);
 
+
+  graphlab::add_metric_server_callback("click", pagerank::weight_update_callback);
   // Start the lda webserver 
   if (algorithm & RUN_LDA) 
   graphlab::add_metric_server_callback("wordclouds", lda::word_cloud_callback);
