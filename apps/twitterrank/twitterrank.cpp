@@ -58,10 +58,10 @@ void vertex_join_op (pagerank::graph_type::vertex_type& lvertex,
                      const lda::graph_type::vertex_data_type& rvertex_data) {
   // lvertex.data().topics.clear();
   float sum = 0;
-  for (size_t i = 0; i < rvertex_data.factor.size(); i++) sum += rvertex_data.factor[i];
+  for (size_t i = 0; i < rvertex_data.factor.size(); i++) sum += (rvertex_data.factor[i] >= 0 ? rvertex_data.factor[i] : 0);
   for (size_t i = 0; i < rvertex_data.factor.size(); i++) {
     // lvertex.data().topics.push_back(rvertex_data.factor[i]);
-    lvertex.data().topics[i] = float(rvertex_data.factor[i]) / sum;
+    lvertex.data().topics[i] = float(rvertex_data.factor[i] >= 0 ? rvertex_data.factor[i] : 0) / sum;
   }
 }
 void fn_compute_transit_prob () {

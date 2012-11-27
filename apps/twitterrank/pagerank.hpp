@@ -19,7 +19,7 @@ namespace std {
 
 namespace pagerank {
 // Global random reset probability
-float RESET_PROB = 0.01;
+float RESET_PROB = 0.15;
 float TOLERANCE = 1.0E-2;
 int DEFAULT_NDOCS = 3;
 int DEFAULT_TOPICVAL = 1;
