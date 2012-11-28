@@ -92,8 +92,11 @@ void launch_metric_server(int algorithm) {
 
   graphlab::add_metric_server_callback("click", pagerank::weight_update_callback);
   // Start the lda webserver 
-  if (algorithm & RUN_LDA) 
-  graphlab::add_metric_server_callback("wordclouds", lda::word_cloud_callback);
+  if (algorithm & RUN_LDA) {
+    graphlab::add_metric_server_callback("ldaparam", lda::set_param_callback);
+    graphlab::add_metric_server_callback("lockword", lda::lock_word_callback);
+    graphlab::add_metric_server_callback("wordclouds", lda::word_cloud_callback);
+  }
 }
 
 void load_pagerankgraph(const std::string& edge_dir, const std::string& vertex_dir) {

@@ -7,6 +7,8 @@
 #include <boost/spirit/include/phoenix_core.hpp>
 #include <boost/spirit/include/phoenix_operator.hpp>
 #include <boost/spirit/include/phoenix_stl.hpp>
+#include <boost/algorithm/string.hpp>
+#include <boost/iterator/counting_iterator.hpp>
 #include <graphlab/parallel/atomic.hpp>
 #include <graphlab.hpp>
 #include <graphlab/macros_def.hpp>
@@ -48,6 +50,8 @@ bool JOIN_ON_ID = true;
 float MIMNO_S;
 factor_type GLOBAL_TOPIC_COUNT;
 std::vector<std::string> DICTIONARY;
+boost::unordered_map<std::string, size_t> INVERSE_DICTIONARY;
+std::vector<int> LOCKED_WORDS; 
 
 size_t MAX_COUNT = 100;
 float BURNIN = -1;
@@ -86,6 +90,92 @@ word_cloud_callback(std::map<std::string, std::string>& varmap) {
 }
 
 
+void set_alpha(double alphaval) {
+  if (alphaval <= 0) ALPHA = 1E-5;
+  else ALPHA = alphaval;
+}
+
+void set_beta(double betaval) {
+  if (betaval <= 0) BETA = 1E-5;
+  BETA = betaval;
+}
+
+
+std::pair<std::string, std::string>
+set_param_callback(std::map<std::string, std::string>& varmap) {
+  std::map<std::string,std::string>::const_iterator iter = varmap.find("alpha");
+  if (iter != varmap.end()) {
+    double alphaval = atof(iter->second.c_str());
+    graphlab::procid_t nprocs = graphlab::dc_impl::get_last_dc()->numprocs();
+    graphlab::dc_impl::get_last_dc()->remote_call(boost::counting_iterator<graphlab::procid_t>(0), 
+                                        boost::counting_iterator<graphlab::procid_t>(nprocs), 
+                                        set_alpha, alphaval);
+  }
+  iter = varmap.find("beta");
+  if (iter != varmap.end()) {
+    double betaval = atof(iter->second.c_str());
+    graphlab::procid_t nprocs = graphlab::dc_impl::get_last_dc()->numprocs();
+    graphlab::dc_impl::get_last_dc()->remote_call(boost::counting_iterator<graphlab::procid_t>(0), 
+                                        boost::counting_iterator<graphlab::procid_t>(nprocs), 
+                                        set_beta, betaval);
+  }
+  std::pair<std::string, std::string> pair("text/plain","");
+  std::stringstream strm;
+  strm << "alpha = " << ALPHA << "\n"
+       << "beta = " << BETA << "\n";
+  strm.flush();
+  pair.second = strm.str();
+  return pair;
+}
+
+
+void reset_word_topic_lock() {
+  for (size_t i = 0;i < LOCKED_WORDS.size(); ++i) LOCKED_WORDS[i] = -1;
+}
+
+
+void word_topic_lock(size_t wordid, size_t topicid) {
+  LOCKED_WORDS[wordid] = topicid;
+}
+
+std::pair<std::string, std::string>
+lock_word_callback(std::map<std::string, std::string>& varmap) {
+  std::pair<std::string, std::string> ret("text/plain","");
+  std::map<std::string,std::string>::const_iterator iter = varmap.find("reset");
+  if (iter != varmap.end()) {
+    ret.second = "reset";
+    // reset
+    graphlab::procid_t nprocs = graphlab::dc_impl::get_last_dc()->numprocs();
+    graphlab::dc_impl::get_last_dc()->remote_call(boost::counting_iterator<graphlab::procid_t>(0), 
+                                        boost::counting_iterator<graphlab::procid_t>(nprocs), 
+                                        reset_word_topic_lock);
+  } else {
+    iter = varmap.find("word");
+    if (iter != varmap.end()) {
+      std::string word = iter->second;
+      boost::to_lower(word); 
+      boost::trim(word);
+      if (INVERSE_DICTIONARY.count(word) == 0) {
+        ret.second = "Unable to find word";
+        return ret;
+      }
+      size_t wordid = INVERSE_DICTIONARY[word];
+      // get the topic id
+      iter = varmap.find("topic");
+      size_t topicid = atoi(iter->second.c_str());
+      if (topicid >= NTOPICS) {
+        ret.second = "Invalid topic number";
+        return ret;
+      }
+      graphlab::procid_t nprocs = graphlab::dc_impl::get_last_dc()->numprocs();
+      graphlab::dc_impl::get_last_dc()->remote_call(boost::counting_iterator<graphlab::procid_t>(0), 
+                                          boost::counting_iterator<graphlab::procid_t>(nprocs), 
+                                          word_topic_lock, wordid, topicid);
+      ret.second = "ok";
+    }
+  }
+  return ret;
+}
 
 
 // Graph Types
@@ -355,7 +445,10 @@ bool load_dictionary(const std::string& fname)  {
       return false;
     }
     std::string term;
-    while(std::getline(fin,term).good()) DICTIONARY.push_back(term);
+    while(std::getline(fin,term).good()) {
+      DICTIONARY.push_back(term);
+      INVERSE_DICTIONARY[term] = DICTIONARY.size() - 1;
+    }
     if (gzip) fin.pop();
     fin.pop();
     in_file.close();
@@ -373,7 +466,11 @@ bool load_dictionary(const std::string& fname)  {
     }
     std::string term;
     std::cout << "Loooping" << std::endl;
-    while(std::getline(fin, term).good()) DICTIONARY.push_back(term);
+    while(std::getline(fin, term).good()) {
+      DICTIONARY.push_back(term);
+      INVERSE_DICTIONARY[term] = DICTIONARY.size() - 1;
+    }
+
     if (gzip) fin.pop();
     fin.pop();
     in_file.close();
@@ -381,6 +478,7 @@ bool load_dictionary(const std::string& fname)  {
   // std::cout << "Finished load on: "
   //           << graphlab::get_local_ip_as_str() << std::endl;
   std::cout << "Dictionary Size: " << DICTIONARY.size() << std::endl;
+  LOCKED_WORDS.resize(DICTIONARY.size(), -1);
   return true;
 } // end of load dictionary
 

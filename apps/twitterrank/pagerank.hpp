@@ -1,6 +1,7 @@
 #include <graphlab.hpp>
 #include <vector>
 #include <algorithm>
+#include <boost/iterator/counting_iterator.hpp>
 #include <graphlab/macros_def.hpp>
 
 namespace pagerank {
@@ -54,21 +55,36 @@ pagerank_callback(std::map<std::string, std::string>& varmap) {
 }
 
 
+void set_w_personal(std::vector<float> new_w_personal) {
+  w_personal = new_w_personal;
+}
+
 std::pair<std::string, std::string>
 weight_update_callback(std::map<std::string, std::string>& varmap) {
   std::string c = varmap["topic"];
   size_t topick = atoi(c.c_str());
-  std::pair<std::string, std::string> pair("text/html","");
-  if (topick < w_personal.size()) {
-    w_personal[topick] *= 1.2;
+  std::vector<float> curwp = w_personal;
+  if (topick < curwp.size()) {
+    curwp[topick] *= 1.2;
+    if (curwp[topick] < 0.1) curwp[topick] = 0.1;
     double s = 0;
-    for (size_t i = 0;i < w_personal.size(); ++i) s += w_personal[i];
-    for (size_t i = 0;i < w_personal.size(); ++i) w_personal[i] /= s;
-    pair.second = "1";
+    for (size_t i = 0;i < curwp.size(); ++i) s += curwp[i];
+    for (size_t i = 0;i < curwp.size(); ++i) curwp[i] /= s;
+
+    graphlab::procid_t nprocs = graphlab::dc_impl::get_last_dc()->numprocs();
+    graphlab::dc_impl::get_last_dc()->remote_call(boost::counting_iterator<graphlab::procid_t>(0), 
+                                        boost::counting_iterator<graphlab::procid_t>(nprocs), 
+                                        set_w_personal, curwp);
+
   }
-  else {
-    pair.second = "0";
+  std::pair<std::string, std::string> pair("text/plain","");
+  std::stringstream strm;
+  strm.precision(3);
+  for (size_t i = 0;i < curwp.size(); ++i) {
+    strm << curwp[i] << " ";
   }
+  strm.flush();
+  pair.second = strm.str();
   // add a boost to the topic 
   return pair;
 }
