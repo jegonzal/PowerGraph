@@ -25,6 +25,7 @@
 #include <algorithm>
 #include <vector>
 #include <map>
+#include <boost/unordered_map.hpp>
 #include <time.h>
 
 #include <graphlab.hpp>
@@ -147,59 +148,28 @@ public:
 
 //reduce sizes of connected components
 struct label_counter {
-  std::vector<size_t> counts;
-  std::vector<size_t> labelIds;
+  boost::unordered_map<size_t, size_t> counts;
 
-  label_counter() :
-      counts(), labelIds() {
-  }
+  label_counter() { }
 
-  explicit label_counter(size_t labelId) :
-      counts(), labelIds() {
-    counts.push_back(1);
-    labelIds.push_back(labelId);
+  explicit label_counter(size_t labelId) {
+    counts[labelId] = 1;
   }
 
   label_counter& operator+=(const label_counter& other) {
-    for (size_t i = 0; i < other.labelIds.size(); ++i) {
-      bool find = false;
-      for (size_t j = 0; j < labelIds.size(); ++j) {
-        if (labelIds[j] == other.labelIds[i]) {
-          counts[j] += other.counts[i];
-          find = true;
-          break;
-        }
-      }
-      if (find == false) {
-        labelIds.push_back(other.labelIds[i]);
-        counts.push_back(other.counts[i]);
-      }
+    boost::unordered_map<size_t, size_t>::const_iterator iter = other.counts.begin();
+    while(iter != other.counts.end()) {
+      counts[iter->first] += iter->second;
+      ++iter;
     }
     return *this;
   }
 
   void save(graphlab::oarchive& oarc) const {
-    oarc << counts.size();
-    for (size_t i = 0; i < counts.size(); ++i) {
-      oarc << counts[i];
-    }
-    for (size_t i = 0; i < labelIds.size(); ++i) {
-      oarc << labelIds[i];
-    }
+    oarc << counts;
   }
   void load(graphlab::iarchive& iarc) {
-    size_t len = 0;
-    iarc >> len;
-    for (size_t i = 0; i < len; ++i) {
-      size_t cnt = 0;
-      iarc >> cnt;
-      counts.push_back(cnt);
-    }
-    for (size_t i = 0; i < len; ++i) {
-      size_t lab = 0;
-      iarc >> lab;
-      labelIds.push_back(lab);
-    }
+    iarc >> counts;
   }
 };
 
@@ -255,22 +225,11 @@ int main(int argc, char** argv) {
   //take statistics
   label_counter stat = graph.map_reduce_vertices<label_counter>(
       absolute_vertex_data);
-  size_t len = stat.counts.size();
-  std::map<size_t, size_t> count_map;
-  for (size_t i = 0; i < len; ++i) {
-    if (count_map.find(stat.counts[i]) == count_map.end()) {
-      count_map.insert(std::pair<size_t, size_t>(stat.counts[i], 1));
-    } else {
-      size_t cnt = count_map[stat.counts[i]];
-      count_map.erase(stat.counts[i]);
-      count_map.insert(std::pair<size_t, size_t>(stat.counts[i], cnt + 1));
-    }
-  }
   time(&end);
   dc.cout() << "graph calculation time is " << (end - start) << " sec\n";
   dc.cout() << "RESULT:\nsize\tcount\n";
-  for (std::map<size_t, size_t>::iterator iter = count_map.begin();
-      iter != count_map.end(); iter++) {
+  for (boost::unordered_map<size_t, size_t>::const_iterator iter = stat.counts.begin();
+      iter != stat.counts.end(); iter++) {
     dc.cout() << iter->first << "\t" << iter->second << "\n";
   }
 
