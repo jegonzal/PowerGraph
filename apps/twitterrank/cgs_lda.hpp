@@ -46,12 +46,13 @@ size_t TOPK = 5;
 size_t INTERVAL = 10;
 size_t WORDID_OFFSET = 0; 
 bool JOIN_ON_ID = true;
-
+double LOCK_STRENGTH = 10;
 float MIMNO_S;
 factor_type GLOBAL_TOPIC_COUNT;
 std::vector<std::string> DICTIONARY;
 boost::unordered_map<std::string, size_t> INVERSE_DICTIONARY;
 std::vector<int> LOCKED_WORDS; 
+std::vector<int> LOCKED_WORDS_PER_TOPIC; 
 
 size_t MAX_COUNT = 100;
 float BURNIN = -1;
@@ -131,11 +132,15 @@ set_param_callback(std::map<std::string, std::string>& varmap) {
 
 void reset_word_topic_lock() {
   for (size_t i = 0;i < LOCKED_WORDS.size(); ++i) LOCKED_WORDS[i] = -1;
+  for (size_t i = 0;i < LOCKED_WORDS_PER_TOPIC.size(); ++i) {
+    LOCKED_WORDS_PER_TOPIC[i] = 0;
+  }
 }
 
 
 void word_topic_lock(size_t wordid, size_t topicid) {
   LOCKED_WORDS[wordid] = topicid;
+  LOCKED_WORDS_PER_TOPIC[topicid]++;
 }
 
 std::pair<std::string, std::string>
@@ -479,6 +484,7 @@ bool load_dictionary(const std::string& fname)  {
   //           << graphlab::get_local_ip_as_str() << std::endl;
   std::cout << "Dictionary Size: " << DICTIONARY.size() << std::endl;
   LOCKED_WORDS.resize(DICTIONARY.size(), -1);
+  LOCKED_WORDS_PER_TOPIC.resize(NTOPICS, 0);
   return true;
 } // end of load dictionary
 
@@ -572,7 +578,8 @@ public:
     if (is_doc(vertex)) {
       float MIMNO_R = 0.0;
       for (size_t i = 0;i < vdata.factor.size(); ++i) {
-        MIMNO_R += vdata.factor[i] * BETA / (BETA * NWORDS + GLOBAL_TOPIC_COUNT[i]);
+        MIMNO_R += vdata.factor[i] * BETA / (BETA * (NWORDS - LOCKED_WORDS_PER_TOPIC[i]) + 
+                                             LOCK_STRENGTH * LOCKED_WORDS_PER_TOPIC[i] + GLOBAL_TOPIC_COUNT[i]);
       }
       vdata.MIMNO_R = MIMNO_R;
     }
@@ -618,6 +625,8 @@ public:
     float MIMNO_Q = 0.0;
     std::vector<float> MIMNO_Q_CACHE(NTOPICS);
 
+    size_t wordid = is_word(edge.source()) ? edge.source().id() : edge.target().id();
+
     for (size_t t = 0; t < NTOPICS; ++t) {
       const float n_wt  =
         std::max(count_type(word_topic_count[t]), count_type(0));
@@ -626,8 +635,15 @@ public:
           std::max(count_type(doc_topic_count[t]), count_type(0));
       const float n_t  =
         std::max(count_type(GLOBAL_TOPIC_COUNT[t]), count_type(0));
-       MIMNO_Q_CACHE[t] = (ALPHA + n_dt)/(BETA * NWORDS + n_t); 
-       MIMNO_Q_CACHE[t] = MIMNO_Q_CACHE[t] * n_wt; 
+       if (LOCKED_WORDS[wordid] != -1) {
+         MIMNO_Q_CACHE[t] = ((ALPHA + n_dt) * n_wt - BETA + LOCK_STRENGTH);
+       }
+       else {
+         MIMNO_Q_CACHE[t] = ((ALPHA + n_dt) * n_wt);
+       }
+       MIMNO_Q_CACHE[t] = MIMNO_Q_CACHE[t] /
+           (BETA * (NWORDS - LOCKED_WORDS_PER_TOPIC[t]) + 
+            LOCK_STRENGTH * LOCKED_WORDS_PER_TOPIC[t] + n_t);
        MIMNO_Q += MIMNO_Q_CACHE[t]; 
      }
     }
@@ -651,7 +667,15 @@ public:
 
 
         MIMNO_Q -= MIMNO_Q_CACHE[asg];
-        MIMNO_Q_CACHE[asg] = (ALPHA + n_dt)/(BETA * NWORDS + n_t) * n_wt;
+        if (LOCKED_WORDS[wordid] != -1) {
+          MIMNO_Q_CACHE[asg] = ((ALPHA + n_dt) * n_wt - BETA + LOCK_STRENGTH);
+        }
+        else {
+          MIMNO_Q_CACHE[asg] = ((ALPHA + n_dt) * n_wt);
+        }
+        MIMNO_Q_CACHE[asg] = MIMNO_Q_CACHE[asg] /
+            (BETA * (NWORDS - LOCKED_WORDS_PER_TOPIC[asg]) + 
+             LOCK_STRENGTH * LOCKED_WORDS_PER_TOPIC[asg] + n_t);
         MIMNO_Q += MIMNO_Q_CACHE[asg]; 
       }
       asg = 0; 
@@ -661,9 +685,13 @@ public:
       float f = graphlab::random::uniform<float>(0, MIMNO_S + MIMNO_R + MIMNO_Q);
       if (f < MIMNO_S) {
         float ctr = 0;
+       
         
         for (size_t t = 0; t < NTOPICS; ++t) {
-          ctr += ALPHA * BETA / (BETA * NWORDS + GLOBAL_TOPIC_COUNT[t]);
+          float denom = (BETA * (NWORDS - LOCKED_WORDS_PER_TOPIC[t]) + 
+                         LOCK_STRENGTH * LOCKED_WORDS_PER_TOPIC[t]);
+
+          ctr += ALPHA * (LOCKED_WORDS_PER_TOPIC[wordid] != t ? BETA : LOCK_STRENGTH) / (denom + GLOBAL_TOPIC_COUNT[t]);
           if (ctr >= f) {
             asg = t;
             break;
@@ -675,7 +703,9 @@ public:
         f = f - MIMNO_S;
         for(size_t t = 0; t < NTOPICS; ++t) {
           if (doc_topic_count[t] > 0) {
-            ctr += doc_topic_count[t] * BETA / (BETA * NWORDS + GLOBAL_TOPIC_COUNT[t]);
+            float denom = (BETA * (NWORDS - LOCKED_WORDS_PER_TOPIC[t]) + 
+                           LOCK_STRENGTH * LOCKED_WORDS_PER_TOPIC[t]);
+            ctr += doc_topic_count[t] * (LOCKED_WORDS_PER_TOPIC[wordid] != t ? BETA : LOCK_STRENGTH) / (denom + GLOBAL_TOPIC_COUNT[t]);
             if (ctr >= f) {
               asg = t;
               break;
@@ -708,8 +738,9 @@ public:
         std::max(count_type(GLOBAL_TOPIC_COUNT[asg]), count_type(0));
       const float n_wt  =
         std::max(count_type(word_topic_count[asg]), count_type(0));
-
-      MIMNO_Q_CACHE[asg] = (ALPHA + n_dt)/(BETA * NWORDS + n_t) * n_wt;
+      float denom = (BETA * (NWORDS - LOCKED_WORDS_PER_TOPIC[asg]) + 
+                     LOCK_STRENGTH * LOCKED_WORDS_PER_TOPIC[asg]);
+      MIMNO_Q_CACHE[asg] = (ALPHA + n_dt)/(denom + n_t) * n_wt;
       MIMNO_Q += MIMNO_Q_CACHE[asg]; 
 }
       if(asg != old_asg) {
