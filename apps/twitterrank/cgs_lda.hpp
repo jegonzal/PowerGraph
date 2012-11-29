@@ -104,6 +104,7 @@ void set_beta(double betaval) {
 }
 
 
+
 std::pair<std::string, std::string>
 set_param_callback(std::map<std::string, std::string>& varmap) {
   std::map<std::string,std::string>::const_iterator iter = varmap.find("alpha");
@@ -149,6 +150,43 @@ void word_topic_lock(size_t wordid, size_t topicid) {
   LOCKED_WORDS[wordid] = topicid;
   LOCKED_WORDS_PER_TOPIC[topicid]++;
 }
+
+
+void add_topic(const std::vector<size_t>& wordids) {
+  size_t newtopic = NTOPICS;
+  NTOPICS++;
+  for (size_t i = 0;i < wordids.size(); ++i) {
+    word_topic_lock(wordids[i], newtopic);
+  }
+}
+
+std::pair<std::string, std::string>
+add_topic_callback(std::map<std::string, std::string>& varmap) {
+  std::pair<std::string, std::string> ret("text/plain","");
+  std::map<std::string,std::string>::const_iterator iter = varmap.find("seed");
+
+  if (iter != varmap.end()) {
+    ret.second = "ok";
+    std::vector<std::string> words;
+    std::vector<size_t> wordids;
+    boost::split(words, iter->second, boost::is_any_of(", "), boost::token_compress_on);
+    for (size_t i = 0;i < words.size(); ++i) {
+      boost::to_lower(words[i]);
+      boost::trim(words[i]);
+      if (INVERSE_DICTIONARY.count(words[i])) {
+        wordids.push_back(INVERSE_DICTIONARY[words[i]]);
+      }
+    }
+    graphlab::procid_t nprocs = graphlab::dc_impl::get_last_dc()->numprocs();
+    graphlab::dc_impl::get_last_dc()->remote_call(boost::counting_iterator<graphlab::procid_t>(0), 
+                                        boost::counting_iterator<graphlab::procid_t>(nprocs), 
+                                        add_topic, wordids);
+  } else {
+    ret.second = "seed param missing";
+  }
+  return ret;
+}
+ 
 
 std::pair<std::string, std::string>
 lock_word_callback(std::map<std::string, std::string>& varmap) {
@@ -493,7 +531,7 @@ bool load_dictionary(const std::string& fname)  {
   //           << graphlab::get_local_ip_as_str() << std::endl;
   std::cout << "Dictionary Size: " << DICTIONARY.size() << std::endl;
   LOCKED_WORDS.resize(DICTIONARY.size(), -1);
-  LOCKED_WORDS_PER_TOPIC.resize(NTOPICS, 0);
+  LOCKED_WORDS_PER_TOPIC.resize(1000, 0);
   return true;
 } // end of load dictionary
 
@@ -602,11 +640,13 @@ public:
     ASSERT_GT(num_neighbors, 0);
     // There should be no new edge data since the vertex program has been cleared
     vertex_data& vdata = vertex.data();
-    ASSERT_EQ(sum.factor.size(), NTOPICS);
-    ASSERT_EQ(vdata.factor.size(), NTOPICS);
+    factor_type sumfactor = sum.factor;
+    if (sumfactor.size() < NTOPICS) sumfactor.resize(NTOPICS);
+    //ASSERT_EQ(sum.factor.size(), NTOPICS);
+    //ASSERT_EQ(vdata.factor.size(), NTOPICS);
     vdata.nupdates++;
     vdata.nchanges = sum.nchanges;
-    vdata.factor = sum.factor;
+    vdata.factor = sumfactor;
     if (is_doc(vertex)) {
       float MIMNO_R = 0.0;
       for (size_t i = 0;i < vdata.factor.size(); ++i) {
@@ -775,16 +815,19 @@ void scatter(icontext_type& context, const vertex_type& vertex,
       edge.source().data().factor : edge.target().data().factor;
     factor_type& word_topic_count = is_word(edge.source()) ?
       edge.source().data().factor : edge.target().data().factor;
-    ASSERT_EQ(doc_topic_count.size(), NTOPICS);
-    ASSERT_EQ(word_topic_count.size(), NTOPICS);
+    size_t LOCAL_NTOPICS = NTOPICS;
+    if (doc_topic_count.size() < LOCAL_NTOPICS) doc_topic_count.resize(LOCAL_NTOPICS);
+    if (word_topic_count.size() < LOCAL_NTOPICS) word_topic_count.resize(LOCAL_NTOPICS);
+    //ASSERT_EQ(doc_topic_count.size(), NTOPICS);
+    //ASSERT_EQ(word_topic_count.size(), NTOPICS);
     float MIMNO_R = is_doc(edge.source()) ? edge.source().data().MIMNO_R :
                       edge.target().data().MIMNO_R;
     float MIMNO_Q = 0.0;
-    std::vector<float> MIMNO_Q_CACHE(NTOPICS);
+    std::vector<float> MIMNO_Q_CACHE(LOCAL_NTOPICS);
 
     size_t wordid = is_word(edge.source()) ? edge.source().id() : edge.target().id();
 
-    for (size_t t = 0; t < NTOPICS; ++t) {
+    for (size_t t = 0; t < LOCAL_NTOPICS; ++t) {
       const float n_wt  =
         std::max(count_type(word_topic_count[t]), count_type(0));
      if (n_wt > 0) {
@@ -806,7 +849,7 @@ void scatter(icontext_type& context, const vertex_type& vertex,
     }
 
     // run the actual gibbs sampling
-    std::vector<float> prob(NTOPICS);
+    std::vector<float> prob(LOCAL_NTOPICS);
     assignment_type& assignment = edge.data().assignment;
     edge.data().nchanges = 0;
     foreach(topic_id_type& asg, assignment) {
@@ -844,7 +887,7 @@ void scatter(icontext_type& context, const vertex_type& vertex,
         float ctr = 0;
        
        
-        for (size_t t = 0; t < NTOPICS; ++t) {
+        for (size_t t = 0; t < LOCAL_NTOPICS; ++t) {
           float denom = (BETA * (NWORDS - LOCKED_WORDS_PER_TOPIC[t]) +
                          LOCK_STRENGTH * LOCKED_WORDS_PER_TOPIC[t]);
 
@@ -858,7 +901,7 @@ void scatter(icontext_type& context, const vertex_type& vertex,
       else if (f < MIMNO_S + MIMNO_R) {
         float ctr = 0;
         f = f - MIMNO_S;
-        for(size_t t = 0; t < NTOPICS; ++t) {
+        for(size_t t = 0; t < LOCAL_NTOPICS; ++t) {
           if (doc_topic_count[t] > 0) {
             float denom = (BETA * (NWORDS - LOCKED_WORDS_PER_TOPIC[t]) +
                            LOCK_STRENGTH * LOCKED_WORDS_PER_TOPIC[t]);
@@ -873,7 +916,7 @@ void scatter(icontext_type& context, const vertex_type& vertex,
       else {
         f = f - MIMNO_S - MIMNO_R;
         float ctr = 0;
-        for(size_t t = 0; t < NTOPICS; ++t) {
+        for(size_t t = 0; t < LOCAL_NTOPICS; ++t) {
           if (word_topic_count[t] > 0) {
             ctr += MIMNO_Q_CACHE[t];
             if (ctr >= f) {
@@ -952,8 +995,11 @@ public:
     nchanges += other.nchanges;
     nupdates += other.nupdates;
     if(other.top_words.empty()) return *this;
-    if(top_words.empty()) top_words.resize(NTOPICS);
-    for(size_t i = 0; i < top_words.size(); ++i) {
+    if(top_words.empty()) {
+      (*this) = other;
+      return *this;
+    }
+    for(size_t i = 0; i < std::min(top_words.size(),other.top_words.size()); ++i) {
       // Merge the topk
       top_words[i].insert(other.top_words[i].begin(),
                           other.top_words[i].end());
@@ -1190,7 +1236,7 @@ typedef graphlab::omni_engine<cgs_lda_vertex_program> engine_type;
 
 void initialize_global() {
   ADD_CUMULATIVE_EVENT(TOKEN_CHANGES, "Token Changes", "Changes");
-  lda::GLOBAL_TOPIC_COUNT.resize(NTOPICS);
+  lda::GLOBAL_TOPIC_COUNT.resize(1000);
 }
 // 
 // 

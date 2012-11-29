@@ -96,7 +96,8 @@ void launch_metric_server(int algorithm) {
     graphlab::add_metric_server_callback("ldaparam", lda::set_param_callback);
     graphlab::add_metric_server_callback("lockword", lda::lock_word_callback);
     graphlab::add_metric_server_callback("wordclouds", lda::word_cloud_callback);
-  }
+    graphlab::add_metric_server_callback("addtopic", lda::add_topic_callback);
+}
 }
 
 void load_pagerankgraph(const std::string& edge_dir, const std::string& vertex_dir) {
@@ -288,7 +289,7 @@ int main(int argc, char** argv) {
       ASSERT_TRUE(success);
     }
 
-    { // Add the likelihood aggregator
+    /*{ // Add the likelihood aggregator
       const bool success =
         engine2.add_vertex_aggregator<lda::likelihood_aggregator>
         ("likelihood", 
@@ -296,7 +297,7 @@ int main(int argc, char** argv) {
          lda::likelihood_aggregator::finalize) &&
         engine2.aggregate_periodic("likelihood", 10);
       ASSERT_TRUE(success);
-    }
+    }*/
 
     thgroup.launch(fn_run_lda);
   }
