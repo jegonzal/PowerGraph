@@ -64,6 +64,7 @@ float BURNIN = -1;
  * \brief Create a token changes event tracker which is reported in
  * the GraphLab metrics dashboard.
  */
+DECLARE_EVENT(TOKEN_SAMPLES);
 DECLARE_EVENT(TOKEN_CHANGES);
 
 
@@ -800,7 +801,7 @@ public:
       if(asg != old_asg) {
         ++edge.data().nchanges;
       }
-      INCREMENT_EVENT(TOKEN_CHANGES,1);
+      INCREMENT_EVENT(TOKEN_SAMPLES,1);
     } // End of loop over each token
     // singla the other vertex
     context.signal(get_other_vertex(edge, vertex));
@@ -946,8 +947,9 @@ void scatter(icontext_type& context, const vertex_type& vertex,
 }
       if(asg != old_asg) {
         ++edge.data().nchanges;
+        INCREMENT_EVENT(TOKEN_CHANGES,1);
       }
-      INCREMENT_EVENT(TOKEN_CHANGES,1);
+      INCREMENT_EVENT(TOKEN_SAMPLES,1);
     } // End of loop over each token
     // singla the other vertex
     context.signal(get_other_vertex(edge, vertex));
@@ -1235,6 +1237,7 @@ struct count_saver {
 typedef graphlab::omni_engine<cgs_lda_vertex_program> engine_type;
 
 void initialize_global() {
+  ADD_CUMULATIVE_EVENT(TOKEN_SAMPLES, "Token Samples", "Samples");
   ADD_CUMULATIVE_EVENT(TOKEN_CHANGES, "Token Changes", "Changes");
   lda::GLOBAL_TOPIC_COUNT.resize(1000);
 }
@@ -1247,7 +1250,7 @@ void initialize_global() {
 //   graphlab::mpi_tools::init(argc, argv);
 //   graphlab::distributed_control dc;
 //   //  INITIALIZE_EVENT_LOG(dc);
-//   ADD_CUMULATIVE_EVENT(TOKEN_CHANGES, "Token Changes", "Changes");
+//   ADD_CUMULATIVE_EVENT(TOKEN_SAMPLES, "Token Changes", "Changes");
 // 
 //   graphlab::command_line_options clopts(description);
 //   std::string corpus_dir;
