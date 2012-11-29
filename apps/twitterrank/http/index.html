@@ -19,19 +19,35 @@
       type="text/javascript"
       src="lib/d3.v2.js">
     </script>
+    <script src="lib/d3-cloud-master/d3.layout.cloud.js"></script>
 
     <script
       type="text/javascript"
       src="lib/jquery.min.js">
     </script>
+    <script
+      src="lib/jquery-ui-1.9.2.custom.min.js">
+    </script>
+    <link rel="stylesheet" href="lib/jquery-ui-1.9.2.custom.css"/>
 
-    <script src="lib/d3-cloud-master/d3.layout.cloud.js"></script>
+    <script
+      src="lib/jNotify.jquery.min.js">
+    </script>
+    <link rel="stylesheet" href="lib/jNotify.jquery.css"/>
 
     <!-- The Main visualization script -->
     <script
       type="text/javascript"
-      src="d3_visualizer.js">
+      src="init.js">
     </script>
+
+
+    <script
+      type="text/javascript"
+      src="wc_visualizer.js">
+    </script>
+
+
   </head>
 
 
@@ -39,6 +55,7 @@
     <h1> WordCloud Visualizer </h1>
     <FORM NAME="myform" ACTION="" METHOD="GET">
       <INPUT TYPE="text" NAME="inputbox" VALUE="http://bros.ml.cmu.edu:8090">
+      <!--<INPUT TYPE="text" NAME="inputbox" VALUE="">-->
       <INPUT TYPE="button" NAME="button" Value="Change Domain" onClick="update_domain(this.form)">
     </FORM>
 
@@ -62,14 +79,17 @@
         <div id="ntokens"></div>
       </div>
 
-      <div class="setting"> 
-        <div class="label">Alpha</div> 
-        <div id="alpha"></div>
-      </div>
+      <div class="control">
+        <div id="Alpha" class="setting"> 
+          <div class="label">Alpha</div> 
+          <div class="slider"></div>
+        </div>
 
-      <div class="setting"> 
-        <div class="label">Beta</div> 
-        <div id="beta"></div>
+        <div id="Beta" class="setting"> 
+          <div class="label">Beta</div> 
+          <div id="beta"></div>
+          <div class="slider"></div>
+        </div>
       </div>
 
       <div id="pagerank"></div>

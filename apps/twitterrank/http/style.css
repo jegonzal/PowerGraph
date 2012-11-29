@@ -11,8 +11,45 @@
 .setting {
     display: inline-block;
     width: 100px;
+    margin: 5px;
+}
+.control {
+    width: 500px;
+    margin: 5px;
 }
 
 .label {
     font-size: 14pt;
+}
+
+#word_clouds {
+  width: 1000px;
+}
+
+#word_clouds text {
+  padding: 8px;
+  font: bold 48px monospace;
+}
+
+#word_clouds div {
+  width: 400px;
+  height: 300px;
+  float: left;
+  border-style:solid;
+  border-color:#707070;
+  border-width:4px;
+  margin-right: 10px;
+  margin-top: 10px;
+}
+
+.enter {
+  color: #FF0033;
+}
+
+.update {
+  color: #0066CC;
+}
+
+.exit {
+  color: #FF9933;
 }
