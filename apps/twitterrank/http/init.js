@@ -2,7 +2,8 @@
 function update_alpha(val) {
   $.get(domain_str+ldaparam_str, {"alpha": val},
       function(msg) {
-        console.log("Update Alpha: " + msg);
+        console.log(msg);
+        jSuccess(msg);
       });
   console.log("request change alpha to :" + val);
 }
@@ -10,7 +11,8 @@ function update_alpha(val) {
 function update_beta(val) {
   $.get(domain_str+ldaparam_str, {"beta": val},
         function(msg) {
-          console.log("Update Beta: " + msg)
+          console.log(msg)
+          jSuccess(msg);
         });
   console.log("request change beta to :" + val);
 }

@@ -26,12 +26,7 @@
   width: 1000px;
 }
 
-#word_clouds text {
-  padding: 8px;
-  font: bold 48px monospace;
-}
-
-#word_clouds div {
+#word_clouds .topic {
   width: 400px;
   height: 300px;
   float: left;
@@ -42,14 +37,17 @@
   margin-top: 10px;
 }
 
+#word_clouds .word {
+  display: inline-block;
+  padding-left: 10px;
+  font: bold 24px monospace;
+}
 .enter {
   color: #FF0033;
 }
-
 .update {
   color: #0066CC;
 }
-
 .exit {
   color: #FF9933;
 }
