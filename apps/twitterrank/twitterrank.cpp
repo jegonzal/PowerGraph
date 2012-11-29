@@ -249,12 +249,12 @@ int main(int argc, char** argv) {
   }
 
   graphlab::graphlab_options opts1;
-  opts1.set_ncpus(2);
+  opts1.set_ncpus(3);
   // Set up engine1 to compute pagerank 
   graphlab::omni_engine<pagerank::compute_pagerank> engine1(dc, lgraph, execution_type, opts1); 
   if (algorithm & RUN_PAGERANK) {
     bool success = engine1.add_vertex_aggregator<pagerank::topk_aggregator>(
-        "toppr", pagerank::topk_aggregator::map, pagerank::topk_aggregator::finalize) && engine1.aggregate_periodic("toppr", 5); 
+        "toppr", pagerank::topk_aggregator::map, pagerank::topk_aggregator::finalize) && engine1.aggregate_periodic("toppr", 1); 
     ASSERT_TRUE(success);
     pagerank_engine = &engine1;
     thgroup.launch(fn_run_pagerank);
@@ -262,8 +262,9 @@ int main(int argc, char** argv) {
   
   // Run lda -----------------------------------------------------------------
   graphlab::graphlab_options opts2;
-  opts2.set_ncpus(6);
+  opts2.set_ncpus(4);
   opts2.get_engine_args().set_option("factorized",true);
+  opts2.get_engine_args().set_option("handler_intercept",false);
   graphlab::omni_engine<lda::cgs_lda_vertex_program> engine2(dc, rgraph, "async", opts2);
   if (algorithm & RUN_LDA) {
     lda_engine = &engine2;

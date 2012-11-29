@@ -145,6 +145,7 @@ lock_word_callback(std::map<std::string, std::string>& varmap) {
   if (iter != varmap.end()) {
     ret.second = "reset";
     // reset
+    std::cout << "Reset Locks" << std::endl;
     graphlab::procid_t nprocs = graphlab::dc_impl::get_last_dc()->numprocs();
     graphlab::dc_impl::get_last_dc()->remote_call(boost::counting_iterator<graphlab::procid_t>(0), 
                                         boost::counting_iterator<graphlab::procid_t>(nprocs), 
@@ -167,6 +168,7 @@ lock_word_callback(std::map<std::string, std::string>& varmap) {
         ret.second = "Invalid topic number";
         return ret;
       }
+      std::cout << "Locking word " << DICTIONARY[wordid] << " to topic " << topicid << std::endl;
       graphlab::procid_t nprocs = graphlab::dc_impl::get_last_dc()->numprocs();
       graphlab::dc_impl::get_last_dc()->remote_call(boost::counting_iterator<graphlab::procid_t>(0), 
                                           boost::counting_iterator<graphlab::procid_t>(nprocs), 
@@ -617,6 +619,8 @@ public:
                       edge.target().data().MIMNO_R;
     float MIMNO_Q = 0.0;
     std::vector<float> MIMNO_Q_CACHE(NTOPICS);
+    
+    size_t wordid = is_word(edge.source()) ? edge.source().id() : edge.target().id();
 
     for (size_t t = 0; t < NTOPICS; ++t) {
       const float n_wt  =
@@ -636,6 +640,7 @@ public:
     std::vector<float> prob(NTOPICS);
     assignment_type& assignment = edge.data().assignment;
     edge.data().nchanges = 0;
+
     foreach(topic_id_type& asg, assignment) {
       const topic_id_type old_asg = asg;
       if(asg != NULL_TOPIC) { // construct the cavity
@@ -696,6 +701,7 @@ public:
           }
         }
       }
+      if (LOCKED_WORDS[wordid] != -1) asg = LOCKED_WORDS[wordid];
       // asg = std::max_element(prob.begin(), prob.end()) - prob.begin();
       ++doc_topic_count[asg];
       ++word_topic_count[asg];

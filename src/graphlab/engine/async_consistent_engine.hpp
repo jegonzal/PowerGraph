@@ -613,6 +613,9 @@ namespace graphlab {
     bool use_cache;
     /// engine option. Sets to true if factorized consistency is used
     bool factorized_consistency;
+    
+    bool handler_intercept;
+
     /// If True adds tracking for the task retire time
     bool track_task_retire_time;
 
@@ -686,6 +689,7 @@ namespace graphlab {
       timed_termination = (size_t)(-1);
       use_cache = false;
       factorized_consistency = false;
+      handler_intercept = true;
       track_task_retire_time = false;
       termination_reason = execution_status::UNSET;
       set_options(opts);
@@ -738,6 +742,8 @@ namespace graphlab {
             logstream(LOG_EMPH) << "Engine Option: max_clean_fraction = " 
                               << max_clean_fraction << std::endl;
           max_clean_forks = graph.num_local_edges() * max_clean_fraction;
+        } else if (opt == "handler_intercept") {
+          opts.get_engine_args().get_option("handler_intercept", handler_intercept);
         } else if (opt == "max_pending") {
           opts.get_engine_args().get_option("max_pending", max_pending);
           if (rmi.procid() == 0) 
@@ -1710,7 +1716,7 @@ EVAL_INTERNAL_TASK_RE_EVAL_STATE:
       has_internal_task = false;
       has_sched_msg = false;
 
-      rmi.dc().start_handler_threads(threadid, ncpus);
+      if (handler_intercept) rmi.dc().start_handler_threads(threadid, ncpus);
       consensus->begin_done_critical_section(threadid);
 
       BEGIN_TRACEPOINT(disteng_internal_task_queue);
@@ -1721,7 +1727,7 @@ EVAL_INTERNAL_TASK_RE_EVAL_STATE:
         consensus->cancel_critical_section(threadid);
         END_TRACEPOINT(disteng_internal_task_queue);
 
-        rmi.dc().stop_handler_threads(threadid, ncpus);
+        if (handler_intercept) rmi.dc().stop_handler_threads(threadid, ncpus);
         return false;
       }
       END_TRACEPOINT(disteng_internal_task_queue);
@@ -1736,7 +1742,7 @@ EVAL_INTERNAL_TASK_RE_EVAL_STATE:
         bool ret = consensus->end_done_critical_section(threadid);
         INCREMENT_EVENT(EVENT_ACTIVE_CPUS, 1);
         if (ret == false) {
-          rmi.dc().stop_handler_threads(threadid, ncpus);
+          if (handler_intercept) rmi.dc().stop_handler_threads(threadid, ncpus);
           logstream(LOG_DEBUG) << rmi.procid() << "-" << threadid <<  ": "
                              << "\tCancelled" << std::endl;
         }
@@ -1746,7 +1752,7 @@ EVAL_INTERNAL_TASK_RE_EVAL_STATE:
                              << "\tCancelled by Scheduler Task" << std::endl;
         consensus->cancel_critical_section(threadid);
         has_sched_msg = true;
-        rmi.dc().stop_handler_threads(threadid, ncpus);
+        if (handler_intercept) rmi.dc().stop_handler_threads(threadid, ncpus);
         return false;
       }
     } // end of try to quit
@@ -1902,7 +1908,7 @@ EVAL_INTERNAL_TASK_RE_EVAL_STATE:
      * Per thread main loop
      */
     void thread_start(size_t threadid) {
-      rmi.dc().stop_handler_threads(threadid, ncpus);
+      if (handler_intercept) rmi.dc().stop_handler_threads(threadid, ncpus);
       bool has_internal_task = false;
       bool has_sched_msg = false;
       std::vector<std::vector<lvid_type> > internal_lvid;
