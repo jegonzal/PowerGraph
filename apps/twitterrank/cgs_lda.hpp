@@ -46,13 +46,16 @@ size_t TOPK = 5;
 size_t INTERVAL = 10;
 size_t WORDID_OFFSET = 0; 
 bool JOIN_ON_ID = true;
+bool FORCE_LOCK = true;
 
 float MIMNO_S;
 factor_type GLOBAL_TOPIC_COUNT;
 std::vector<std::string> DICTIONARY;
 boost::unordered_map<std::string, size_t> INVERSE_DICTIONARY;
 std::vector<int> LOCKED_WORDS; 
+std::vector<int> LOCKED_WORDS_PER_TOPIC; 
 
+double LOCK_STRENGTH = 100;
 size_t MAX_COUNT = 100;
 float BURNIN = -1;
 
@@ -104,8 +107,10 @@ void set_beta(double betaval) {
 std::pair<std::string, std::string>
 set_param_callback(std::map<std::string, std::string>& varmap) {
   std::map<std::string,std::string>::const_iterator iter = varmap.find("alpha");
+  double alphaval = ALPHA;
+  double betaval = BETA;
   if (iter != varmap.end()) {
-    double alphaval = atof(iter->second.c_str());
+    alphaval = atof(iter->second.c_str());
     graphlab::procid_t nprocs = graphlab::dc_impl::get_last_dc()->numprocs();
     graphlab::dc_impl::get_last_dc()->remote_call(boost::counting_iterator<graphlab::procid_t>(0), 
                                         boost::counting_iterator<graphlab::procid_t>(nprocs), 
@@ -113,7 +118,7 @@ set_param_callback(std::map<std::string, std::string>& varmap) {
   }
   iter = varmap.find("beta");
   if (iter != varmap.end()) {
-    double betaval = atof(iter->second.c_str());
+    betaval = atof(iter->second.c_str());
     graphlab::procid_t nprocs = graphlab::dc_impl::get_last_dc()->numprocs();
     graphlab::dc_impl::get_last_dc()->remote_call(boost::counting_iterator<graphlab::procid_t>(0), 
                                         boost::counting_iterator<graphlab::procid_t>(nprocs), 
@@ -121,8 +126,8 @@ set_param_callback(std::map<std::string, std::string>& varmap) {
   }
   std::pair<std::string, std::string> pair("text/plain","");
   std::stringstream strm;
-  strm << "alpha = " << ALPHA << "\n"
-       << "beta = " << BETA << "\n";
+  strm << "alpha = " << alphaval << "\n"
+       << "beta = " << betaval << "\n";
   strm.flush();
   pair.second = strm.str();
   return pair;
@@ -131,11 +136,18 @@ set_param_callback(std::map<std::string, std::string>& varmap) {
 
 void reset_word_topic_lock() {
   for (size_t i = 0;i < LOCKED_WORDS.size(); ++i) LOCKED_WORDS[i] = -1;
+  for (size_t i = 0;i < LOCKED_WORDS_PER_TOPIC.size(); ++i) {
+    LOCKED_WORDS_PER_TOPIC[i] = 0;
+  }
 }
 
 
 void word_topic_lock(size_t wordid, size_t topicid) {
+  if (LOCKED_WORDS[wordid] != -1) {
+    LOCKED_WORDS_PER_TOPIC[topicid]--;
+  }
   LOCKED_WORDS[wordid] = topicid;
+  LOCKED_WORDS_PER_TOPIC[topicid]++;
 }
 
 std::pair<std::string, std::string>
@@ -481,6 +493,7 @@ bool load_dictionary(const std::string& fname)  {
   //           << graphlab::get_local_ip_as_str() << std::endl;
   std::cout << "Dictionary Size: " << DICTIONARY.size() << std::endl;
   LOCKED_WORDS.resize(DICTIONARY.size(), -1);
+  LOCKED_WORDS_PER_TOPIC.resize(NTOPICS, 0);
   return true;
 } // end of load dictionary
 
@@ -560,6 +573,7 @@ public:
    * ensures that the center vertex has the correct topic count before
    * resampling the topics for each token along each edge.
    */
+  /*
   void apply(icontext_type& context, vertex_type& vertex,
              const gather_type& sum) {
     const size_t num_neighbors = vertex.num_in_edges() + vertex.num_out_edges();
@@ -579,7 +593,30 @@ public:
       vdata.MIMNO_R = MIMNO_R;
     }
  } // end of apply
+*/
 
+
+  void apply(icontext_type& context, vertex_type& vertex,
+             const gather_type& sum) {
+    const size_t num_neighbors = vertex.num_in_edges() + vertex.num_out_edges();
+    ASSERT_GT(num_neighbors, 0);
+    // There should be no new edge data since the vertex program has been cleared
+    vertex_data& vdata = vertex.data();
+    ASSERT_EQ(sum.factor.size(), NTOPICS);
+    ASSERT_EQ(vdata.factor.size(), NTOPICS);
+    vdata.nupdates++;
+    vdata.nchanges = sum.nchanges;
+    vdata.factor = sum.factor;
+    if (is_doc(vertex)) {
+      float MIMNO_R = 0.0;
+      for (size_t i = 0;i < vdata.factor.size(); ++i) {
+        MIMNO_R += vdata.factor[i] * BETA / (BETA * (NWORDS - LOCKED_WORDS_PER_TOPIC[i]) +
+                                             LOCK_STRENGTH * LOCKED_WORDS_PER_TOPIC[i] + GLOBAL_TOPIC_COUNT[i]);
+      }
+      vdata.MIMNO_R = MIMNO_R;
+    }
+ } // end of apply
+  
 
   /**
    * \brief Scatter on all edges if the computation is on-going.
@@ -607,6 +644,8 @@ public:
    * used.  In addition during the sampling phase we must be careful
    * to guard against potentially negative temporary counts.
    */
+  
+  /*
   void scatter(icontext_type& context, const vertex_type& vertex,
                edge_type& edge) const {
     factor_type& doc_topic_count =  is_doc(edge.source()) ?
@@ -726,6 +765,151 @@ public:
     // singla the other vertex
     context.signal(get_other_vertex(edge, vertex));
   } // end of scatter function
+*/
+
+
+
+void scatter(icontext_type& context, const vertex_type& vertex,
+               edge_type& edge) const {
+    factor_type& doc_topic_count =  is_doc(edge.source()) ?
+      edge.source().data().factor : edge.target().data().factor;
+    factor_type& word_topic_count = is_word(edge.source()) ?
+      edge.source().data().factor : edge.target().data().factor;
+    ASSERT_EQ(doc_topic_count.size(), NTOPICS);
+    ASSERT_EQ(word_topic_count.size(), NTOPICS);
+    float MIMNO_R = is_doc(edge.source()) ? edge.source().data().MIMNO_R :
+                      edge.target().data().MIMNO_R;
+    float MIMNO_Q = 0.0;
+    std::vector<float> MIMNO_Q_CACHE(NTOPICS);
+
+    size_t wordid = is_word(edge.source()) ? edge.source().id() : edge.target().id();
+
+    for (size_t t = 0; t < NTOPICS; ++t) {
+      const float n_wt  =
+        std::max(count_type(word_topic_count[t]), count_type(0));
+     if (n_wt > 0) {
+      const float n_dt =
+          std::max(count_type(doc_topic_count[t]), count_type(0));
+      const float n_t  =
+        std::max(count_type(GLOBAL_TOPIC_COUNT[t]), count_type(0));
+       if (LOCKED_WORDS[wordid] != -1) {
+         MIMNO_Q_CACHE[t] = ((ALPHA + n_dt) * n_wt - BETA + LOCK_STRENGTH);
+       }
+       else {
+         MIMNO_Q_CACHE[t] = ((ALPHA + n_dt) * n_wt);
+       }
+       MIMNO_Q_CACHE[t] = MIMNO_Q_CACHE[t] /
+           (BETA * (NWORDS - LOCKED_WORDS_PER_TOPIC[t]) +
+            LOCK_STRENGTH * LOCKED_WORDS_PER_TOPIC[t] + n_t);
+       MIMNO_Q += MIMNO_Q_CACHE[t];
+     }
+    }
+
+    // run the actual gibbs sampling
+    std::vector<float> prob(NTOPICS);
+    assignment_type& assignment = edge.data().assignment;
+    edge.data().nchanges = 0;
+    foreach(topic_id_type& asg, assignment) {
+      const topic_id_type old_asg = asg;
+      if(asg != NULL_TOPIC) { // construct the cavity
+        --doc_topic_count[asg];
+        --word_topic_count[asg];
+        --GLOBAL_TOPIC_COUNT[asg];
+      const float n_dt =
+          std::max(count_type(doc_topic_count[asg]), count_type(0));
+      const float n_t  =
+        std::max(count_type(GLOBAL_TOPIC_COUNT[asg]), count_type(0));
+      const float n_wt  =
+        std::max(count_type(word_topic_count[asg]), count_type(0));
+
+
+        MIMNO_Q -= MIMNO_Q_CACHE[asg];
+        if (LOCKED_WORDS[wordid] != -1) {
+          MIMNO_Q_CACHE[asg] = ((ALPHA + n_dt) * n_wt - BETA + LOCK_STRENGTH);
+        }
+        else {
+          MIMNO_Q_CACHE[asg] = ((ALPHA + n_dt) * n_wt);
+        }
+        MIMNO_Q_CACHE[asg] = MIMNO_Q_CACHE[asg] /
+            (BETA * (NWORDS - LOCKED_WORDS_PER_TOPIC[asg]) +
+             LOCK_STRENGTH * LOCKED_WORDS_PER_TOPIC[asg] + n_t);
+        MIMNO_Q += MIMNO_Q_CACHE[asg];
+      }
+      asg = 0;
+      ASSERT_GE(MIMNO_S, 0);
+      ASSERT_GE(MIMNO_R, 0);
+      ASSERT_GE(MIMNO_Q, 0);
+      float f = graphlab::random::uniform<float>(0, MIMNO_S + MIMNO_R + MIMNO_Q);
+      if (f < MIMNO_S) {
+        float ctr = 0;
+       
+       
+        for (size_t t = 0; t < NTOPICS; ++t) {
+          float denom = (BETA * (NWORDS - LOCKED_WORDS_PER_TOPIC[t]) +
+                         LOCK_STRENGTH * LOCKED_WORDS_PER_TOPIC[t]);
+
+          ctr += ALPHA * (LOCKED_WORDS_PER_TOPIC[wordid] != t ? BETA : LOCK_STRENGTH) / (denom + GLOBAL_TOPIC_COUNT[t]);
+          if (ctr >= f) {
+            asg = t;
+            break;
+          }
+        }
+      }
+      else if (f < MIMNO_S + MIMNO_R) {
+        float ctr = 0;
+        f = f - MIMNO_S;
+        for(size_t t = 0; t < NTOPICS; ++t) {
+          if (doc_topic_count[t] > 0) {
+            float denom = (BETA * (NWORDS - LOCKED_WORDS_PER_TOPIC[t]) +
+                           LOCK_STRENGTH * LOCKED_WORDS_PER_TOPIC[t]);
+            ctr += doc_topic_count[t] * (LOCKED_WORDS_PER_TOPIC[wordid] != t ? BETA : LOCK_STRENGTH) / (denom + GLOBAL_TOPIC_COUNT[t]);
+            if (ctr >= f) {
+              asg = t;
+              break;
+            }
+          }
+        }
+      }
+      else {
+        f = f - MIMNO_S - MIMNO_R;
+        float ctr = 0;
+        for(size_t t = 0; t < NTOPICS; ++t) {
+          if (word_topic_count[t] > 0) {
+            ctr += MIMNO_Q_CACHE[t];
+            if (ctr >= f) {
+              asg = t;
+              break;
+            }
+          }
+        }
+      }
+      // asg = std::max_element(prob.begin(), prob.end()) - prob.begin();
+      if (FORCE_LOCK && LOCKED_WORDS[wordid] != -1) asg = LOCKED_WORDS[wordid];
+      ++doc_topic_count[asg];
+      ++word_topic_count[asg];
+      ++GLOBAL_TOPIC_COUNT[asg];
+      MIMNO_Q -= MIMNO_Q_CACHE[asg];
+{
+      const float n_dt =
+          std::max(count_type(doc_topic_count[asg]), count_type(0));
+      const float n_t  =
+        std::max(count_type(GLOBAL_TOPIC_COUNT[asg]), count_type(0));
+      const float n_wt  =
+        std::max(count_type(word_topic_count[asg]), count_type(0));
+      float denom = (BETA * (NWORDS - LOCKED_WORDS_PER_TOPIC[asg]) +
+                     LOCK_STRENGTH * LOCKED_WORDS_PER_TOPIC[asg]);
+      MIMNO_Q_CACHE[asg] = (ALPHA + n_dt)/(denom + n_t) * n_wt;
+      MIMNO_Q += MIMNO_Q_CACHE[asg];
+}
+      if(asg != old_asg) {
+        ++edge.data().nchanges;
+      }
+      INCREMENT_EVENT(TOKEN_CHANGES,1);
+    } // End of loop over each token
+    // singla the other vertex
+    context.signal(get_other_vertex(edge, vertex));
+  } // end of scatter function
+
 
 }; // end of cgs_lda_vertex_program
 

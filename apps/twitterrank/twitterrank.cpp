@@ -160,6 +160,7 @@ int main(int argc, char** argv) {
   clopts.attach_option("topklda", lda::TOPK, "Top k words in each topic for display");
   clopts.attach_option("default_ndocs", pagerank::DEFAULT_NDOCS, "Top k pages(users) to display");
   clopts.attach_option("default_topicval", pagerank::DEFAULT_TOPICVAL, "Top k pages(users) to display");
+  clopts.attach_option("force_lock", lda::FORCE_LOCK, "force locked words");
   clopts.attach_option("join_on_id", JOIN_ON_ID, "If true, use the vertex id as join key. Otherwise, use vertex data as join key, so the vertex input for both graph must be provided.");
   clopts.attach_option("has_doc_count", pagerank::HAS_DOC_COUNT, "Whether or not the pagerank vertex data has a field for document count. This could be true for author-topic graph, depending on the input data.");
 
@@ -273,7 +274,7 @@ int main(int argc, char** argv) {
       const bool success =
         engine2.add_vertex_aggregator<lda::topk_aggregator>
         ("topk", lda::topk_aggregator::map, lda::topk_aggregator::finalize) &&
-        engine2.aggregate_periodic("topk", 5);
+        engine2.aggregate_periodic("topk", 1);
       ASSERT_TRUE(success);
     }
 
@@ -283,7 +284,7 @@ int main(int argc, char** argv) {
         ("global_counts", 
          lda::global_counts_aggregator::map, 
          lda::global_counts_aggregator::finalize) &&
-        engine2.aggregate_periodic("global_counts", 5);
+        engine2.aggregate_periodic("global_counts", 1);
       ASSERT_TRUE(success);
     }
 

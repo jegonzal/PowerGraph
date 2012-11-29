@@ -5,7 +5,7 @@ google.load("visualization", "1");
 
 var domain_str = "http://localhost:8090";
 var page_str = "/wordclouds";
-var update_interval = 2000;
+var update_interval = 1000;
 
 function update_domain(form) {
     domain_str = form.inputbox.value;
