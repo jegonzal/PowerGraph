@@ -117,6 +117,33 @@ svg {
   font: 10px sans-serif;
 }
 
+.legend {
+  border-style: solid;
+  border-width: 2px;
+  width:120px;
+  height:40px;
+  padding-left: 5px;
+  margin-left: 340px;
+  margin-top: -150px;
+}
+.legendlabel {
+  display: inline-block;
+}
+
+.legend .matlab {
+  display: inline-block;
+  width: 50px;
+  height: 3px;
+  background-color: #000;
+}
+
+.legend .graphlab {
+  display: inline-block;
+  width: 50px;
+  height: 3px;
+  background-color: #f00;
+}
+
 .x.axis line {
   shape-rendering: auto;
 }
@@ -124,7 +151,7 @@ svg {
 .line {
   fill: none;
   stroke: #000;
-  stroke-dasharray: 5,3;
+  /* stroke-dasharray: 5,3; */
   stroke-width: 1.5px;
 }
 
