@@ -133,7 +133,7 @@ function update_topic(i, data) {
   // Initialize wordcloud box for each topic
   if (topic.empty())  {
     topic = d3.select("#word_clouds")
-              .append("div")
+              .insert("div", ":first-child")
               .attr("id", "topic"+i)
               .attr("class", "topic")
     topic.on("click", function(d, j) { 
