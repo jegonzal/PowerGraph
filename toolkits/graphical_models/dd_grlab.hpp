@@ -74,7 +74,8 @@ double TOLERANCE = 0.01;
 /**
  * \brief There is a vertex for each factor in the graph AND each singleton
  */
-struct vertex_data {
+struct vertex_data 
+{
     int nvars;              // Number of variables in this factor.
     int degree;             // Degree of this factor (same as nvars for higher-order factors).
     vector<int> cards;      // Cardinality of each variable.
@@ -88,10 +89,12 @@ struct vertex_data {
     
     vertex_data(): nvars(0) {}
     
-    void load(graphlab::iarchive& arc) {
+    void load(graphlab::iarchive& arc) 
+    {
       arc >> nvars >> degree >> cards >> neighbors >> potentials >> best_configuration >> beliefs;
     }
-    void save(graphlab::oarchive& arc) const {
+    void save(graphlab::oarchive& arc) const 
+    {
       arc << nvars << degree << cards << neighbors << potentials << best_configuration << beliefs;
     }
 }; // end of vertex_data
@@ -127,29 +130,8 @@ struct edge_data
 typedef graphlab::distributed_graph<vertex_data, edge_data> graph_type;
 
 
-
-
-/**
- * \brief The graph type used to store the Markov Random Field with
- * vertex data containing node potentials and beliefs and edge data
- * containing messages and weights.
- */
-typedef graphlab::distributed_graph<vertex_data, edge_data> graph_type;
-
-
-
 /** 
- * \brief The Loopy Belief Propagation Vertex Program which computes
- * the product of the inbound messages during the gather phase,
- * updates the belief during the apply phase, and then computes the
- * new out-bound messages during the scatter phase.
- *
- * Since the gather phase is computing the product of the inbound
- * messages and the messages are stored in log form the resulting sum
- * operation is actually a vector sum and so the gather type is simply
- * the factor type and the operator+= operation for the factor type is
- * sufficient.
- *
+ * \brief The Dual Decomposition Vertex Program.
  */
 struct dd_vertex_program : 
   public graphlab::ivertex_program< graph_type, factor_type,

@@ -83,8 +83,20 @@ struct vertex_data
     // path to image
     std::string img_path;
     
-    //cv::Mat img;
+    cv::Mat full_img;       // Original image
+    cv::Mat img;            // Used for feature computation
+    cv::Mat img_warped;     // Used by gain compensator
+    cv::Mat img_warped_f;   // Used by seam_finder
+    
+    cv::Point full_img_size;
+        
     cv::detail::ImageFeatures features;
+    
+    cv::detail::CameraParams camera;
+    
+    cv::Point corner;
+    //cv::Mat mask;
+    cv::Mat mask_warped;
     
     // constructor
     vertex_data() : empty(true)
@@ -92,11 +104,19 @@ struct vertex_data
     
     void save(graphlab::oarchive& arc) const 
     {
-        arc << empty << img_path << features;
+        arc << empty << img_path 
+        << full_img << img << img_warped << img_warped_f
+        << full_img_size << features << camera
+        << corner //<< mask 
+        << mask_warped;
     }
     void load(graphlab::iarchive& arc) 
     {
-        arc >> empty >> img_path >> features;
+        arc >> empty >> img_path 
+        >> full_img >> img >> img_warped >> img_warped_f
+        >> full_img_size >> features >> camera
+        >> corner //>> mask 
+        >> mask_warped;
     }
     
     vertex_data operator+ (vertex_data& othervertex)
@@ -265,6 +285,7 @@ public:
  * Define the engine type
  */
 //typedef graphlab::synchronous_engine<mplp_vertex_program> engine_type;
-typedef graphlab::async_consistent_engine<stitch_vertex_program> engine_type;
+//typedef graphlab::async_consistent_engine<stitch_vertex_program> engine_type;
+typedef graphlab::omni_engine<stitch_vertex_program> engine_type;
 
 #endif

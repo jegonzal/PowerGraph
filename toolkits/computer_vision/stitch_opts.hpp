@@ -34,17 +34,54 @@
 #ifndef __STITCH_OPTS_HPP__
 #define __STITCH_OPTS_HPP__
 
+#include <string>
 
 /////////////////////////////////////////////////////////////////////////
 // Option Struct
 struct Options 
 {
-    int verbose;
-    double work_megapix;
-    double conf_thresh;
+    // graphlab options
+    std::string exec_type;
     
+    // input output dirs
+    std::string output_dir;
+
+    int verbose;
+    
+    // size of images
+    double work_megapix;
+    double seam_megapix;
+    double compose_megapix;
+
+    double work_scale;
+    double seam_scale;
+    double compose_scale;
+    
+    double seam_work_aspect;
+    double compose_seam_aspect;
+    double compose_work_aspect;
+    
+    double warped_image_scale;
+
+    // match options
+    double conf_thresh;
+
+    // seam options
+    std::string seam_find_type;
+    float terminal_cost;
+    float bad_region_penalty;    
+    
+    // Default values
     Options(): 
-    verbose(0), work_megapix(0.6), conf_thresh(1.0)
+    exec_type("async"),
+    output_dir("./"),
+    verbose(0), 
+    work_megapix(0.6), seam_megapix(0.1), compose_megapix(-1),
+    work_scale(1), seam_scale(1), compose_scale(1),
+    seam_work_aspect(1/6), compose_seam_aspect(1), compose_work_aspect(1),
+    warped_image_scale(-1),
+    conf_thresh(1.0),
+    seam_find_type("gc_color"), terminal_cost(10000.f), bad_region_penalty(1000.f)
     {}
 };
 

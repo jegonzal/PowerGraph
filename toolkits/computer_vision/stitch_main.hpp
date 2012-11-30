@@ -87,6 +87,42 @@ bool vertex_loader(graphlab::distributed_control& dc, graph_type& graph, string 
     return true;
 }
 
+// Second loader that only a single machine calls and pre-loads cameras.
+bool vertex_loader(graph_type& graph, string img_path, vector<CameraParams>& cameras)
+{ 
+    // force a "/" at the end of the path
+    // make sure to check that the path is non-empty. (you do not
+    // want to make the empty path "" the root path "/" )
+    string path = img_path;
+    if (path.length() > 0 && path[path.length() - 1] != '/') path = path + "/";
+    
+    vector<string> graph_files;
+    string search_prefix;
+    graphlab::fs_util::list_files_with_prefix(path, search_prefix, graph_files);
+    
+    if (graph_files.size() == 0) 
+        logstream(LOG_WARNING) << "No files found in " << path << std::endl;
+    
+    // vertex data & id
+    graphlab::vertex_id_type vid(-1);
+    
+    ///////////////////////////////////////////////////////
+    // Loop over files
+    for(size_t i = 0; i < graph_files.size(); ++i) 
+    {
+        vid = i;
+        vertex_data vdata;
+        vdata.empty = false;
+        vdata.img_path = graph_files[i];
+        vdata.features.img_idx = i;
+        
+        vdata.camera = cameras[i]; // addition to above function.
+
+        graph.add_vertex(vid, vdata);
+    }
+    
+    return true;
+}
 
 /////////////////////////////////////////////////////////////////////////
 // Edge Loader (used to read the adjacency list and add edges to the graph)
@@ -147,8 +183,55 @@ bool edge_loader(graph_type& graph, const std::string& fname,
 }
 
 /////////////////////////////////////////////////////////////////////////
+// Map-Aggregator function to find the largest image size
+struct ImgArea 
+{
+    double full_img_area;
+    
+    ImgArea operator+= (ImgArea other) // computes max
+    {
+        ImArea max;
+        max.full_img_area = 
+        (full_img_area > other.full_img_area) ? full_img_area : other.full_img_area;
+        return max;
+    }
+};
+
+ImgArea find_largest_img(engine_type::icontext_type& context, 
+                    graph_type::vertex_type& vertex)
+{
+    // Get vertex data
+    vertex_data &vdata = vertex.data();
+    
+    // Ignore hdfs-setup for now. Just read from file directly.
+    Mat full_img = imread(vdata.img_path);
+    
+    ImgArea imgarea; 
+    imgarea.full_img_area = full_img.size().area();
+    
+    return imgarea;
+}
+
+void set_scales(engine_type::icontext_type& context, ImgArea& largestimg)
+{
+    
+    if (opts.work_megapix > 0)
+        opts.work_scale = min(1.0, sqrt(opts.work_megapix * 1e6 / largestimg.full_img_area));
+    
+    opts.seam_scale = min(1.0, sqrt(opts.seam_megapix * 1e6 / largestimg.full_img_area));
+    
+    if (opts.compose_megapix > 0)
+        opts.compose_scale = min(1.0, sqrt(compose_megapix * 1e6 / largestimg.full_img_area));
+
+    opts.seam_work_aspect = opts.seam_scale / opts.work_scale;
+    opts.compose_seam_aspect = opts.compose_scale / opts.seam_scale;
+    opts.compose_work_aspect = opts.compose_scale / opts.work_scale;
+}
+                
+
+/////////////////////////////////////////////////////////////////////////
 // Function to extract features in parallel
-void compute_features(graph_type::vertex_type vertex)
+void compute_features(graph_type::vertex_type& vertex)
 {
     // Get vertex data
     vertex_data &vdata = vertex.data();
@@ -165,23 +248,17 @@ void compute_features(graph_type::vertex_type vertex)
     //            fin.pop();
     
     // Ignore the above hdfs-setup for now. Just read from file directly.
-    Mat full_img = imread(vdata.img_path);
-    Mat img;
-    
-    // Scale image if necessary
-    double work_scale = min(1.0, sqrt(opts.work_megapix * 1e6 / full_img.size().area()));
-    
-    if ( abs(work_scale-1) > 1e-3 )
+    Mat &full_img = vdata.full_img;
+    Mat &img = vdata.img;
+    full_img = imread(vdata.img_path);
+        
+    if ( abs(opts.work_scale-1) > 1e-3 )
         resize(full_img, img, Size(), work_scale, work_scale);
     else
         img = full_img;
     
     if (img.empty())
-    {
-        logstream(LOG_EMPH) << "Could not imread image: " << vdata.img_path << "\n";
-        //exit();
-        //return EXIT_FAILURE;
-    }
+        logstream(LOG_ERROR) << "Could not imread image: " << vdata.img_path << "\n";
     
     // compute features
     SurfFeaturesFinder finder;
@@ -194,8 +271,109 @@ void compute_features(graph_type::vertex_type vertex)
 }
 
 /////////////////////////////////////////////////////////////////////////
+// Function to warp images in parallel
+void warp_images(graph_type::vertex_type& vertex)
+{
+    // Get vertex data
+    vertex_data &vdata = vertex.data();
+    
+    Mat full_img = imread(vdata.img_path);
+
+    Mat &img = vdata.img;
+    Mat &img_warped = vdata.img_warped;
+    Mat &img_warped_f = vdata.img_warped_f;
+    //Mat &mask = vdata.mask;
+    Mat mask;
+    Mat &mask_warped = vdata.mask_warped;
+    CameraParams &camera = vdata.camera;
+    
+    if (full_img.empty())
+        logstream(LOG_ERROR) << "Could not imread image: " << vdata.img_path << "\n";
+    
+    vdata.full_img_size = full_img.size();
+    
+    // Scale image if necessary
+    double seam_scale = min(1.0, sqrt(opts.seam_megapix * 1e6 / full_img.size().area()));
+    
+    if ( abs(seam_scale-1) > 1e-3 )
+        resize(full_img, img, Size(), seam_scale, seam_scale);
+    else
+        img = full_img.clone();
+    
+    // Prepare images mask
+    mask.create(img.size(), CV_8U);
+    mask.setTo(Scalar::all(255));
+
+    // Warp images and their masks
+    Ptr<WarperCreator> warper_creator;
+    warper_creator = new cv::PlaneWarper();
+    //warper_creator = new cv::SphericalWarper();
+    
+    if (warper_creator.empty())
+        logstream(LOG_ERROR) << "Can't create the following warper '" << warp_type << "'\n";
+    
+    Ptr<RotationWarper> warper = warper_creator->create(static_cast<float>(opts.warped_image_scale * opts.seam_work_aspect));
+    Mat_<float> K;
+    camera.K().convertTo(K, CV_32F);
+    float swa = (float)opts.seam_work_aspect;
+    K(0,0) *= swa; K(0,2) *= swa;
+    K(1,1) *= swa; K(1,2) *= swa;
+    
+    corner = warper->warp(img, K, camera.R, INTER_LINEAR, BORDER_REFLECT, img_warped);
+    //size = img_warped.size();
+    
+    warper->warp(mask, K, camera.R, INTER_NEAREST, BORDER_CONSTANT, mask_warped);
+    
+    img_warped.convertTo(img_warped_f, CV_32F);
+    
+    // If no gain compensator, then clear. 
+    img_warped.clear(); 
+}
+
+/////////////////////////////////////////////////////////////////////////
+// Function to composite images in parallel
+void composite_images(graph_type::vertex_type& vertex)
+{
+    // Get vertex data
+    vertex_data &vdata = vertex.data();
+    CameraParams &camera = vdata.camera;
+    Point &corner = vdata.corner;
+    
+    // Update warped image scale
+    Ptr<WarperCreator> warper_creator;
+    warper = warper_creator->create(opts.warped_image_scale 
+                                    * opts.compose_work_aspect);
+    
+    // Update intrinsics
+    camera.focal *= opts.compose_work_aspect;
+    camera.ppx *= opts.compose_work_aspect;
+    camera.ppy *= opts.compose_work_aspect;
+    
+    // Update corner and size
+    Size sz = vdata.full_img_size;
+    if (std::abs(opts.compose_scale - 1) > 1e-1)
+    {
+        sz.width = cvRound(vdata.full_img_sizes.width * opts.compose_scale);
+        sz.height = cvRound(vdata.full_img_size.height * opts.compose_scale);
+    }
+    
+    Mat K;
+    camera.K().convertTo(K, CV_32F);
+    Rect roi = warper->warpRoi(sz, K, camera.R);
+    corner = roi.tl();
+    Size size = roi.size();
+
+    if (abs(opts.compose_scale - 1) > 1e-1)
+        resize(full_img, img, Size(), compose_scale, compose_scale);
+    else
+        img = full_img;
+   
+}
+
+
+/////////////////////////////////////////////////////////////////////////
 // Function to compute feature-matches in parallel on edges
-void match_features(graph_type::edge_type edge)
+void match_features(graph_type::edge_type& edge)
 {
     // Get edge data
     edge_data &edata = edge.data();
@@ -215,10 +393,148 @@ void match_features(graph_type::edge_type edge)
         << ": (" << edata.matchinfo.matches.size() 
         << "," << edata.matchinfo.num_inliers << ")"
         << "\n";
+}
+
+
+/////////////////////////////////////////////////////////////////////////
+// Function to compute feature-matches in parallel on edges
+void find_seams(graph_type::edge_type& edge)
+{
+    // Get edge data
+    edge_data &edata = edge.data();
     
-//    // Estimate focal length from Homography
-//    double f0, f1; bool f0ok, f1ok;
-//    focalsFromHomography(edata.matchinfo.H, f0, f1, f0ok, f1ok);
+    // Get vertex ids of two vertices involved
+    vertex_data &vdata1 = edge.source().data();
+    vertex_data &vdata2 = edge.target().data();
+
+    // Not sure why this is needed anymore?
+    //Ptr<SeamFinder> seam_finder;
+    //seam_finder = new detail::GraphCutSeamFinder(GraphCutSeamFinderBase::COST_COLOR);
+    
+    
+    // Code from PairwiseSeamFinder::Impl::findInPair()
+    //Mat img1 = images_[first], img2 = images_[second];
+    Mat &img1 = vdata1.img; Mat &img2 = vdata2.img;
+    vector<Mat> src; src.push_back(img1); src.push_back(img2);
+
+    vector<Mat> dx_(2), dy_(2);  
+    Mat dx, dy;
+    for (size_t i = 0; i < src.size(); ++i)
+    {
+        CV_Assert(src[i].channels() == 3);
+        Sobel(src[i], dx, CV_32F, 1, 0);
+        Sobel(src[i], dy, CV_32F, 0, 1);
+        dx_[i].create(src[i].size(), CV_32F);
+        dy_[i].create(src[i].size(), CV_32F);
+        for (int y = 0; y < src[i].rows; ++y)
+        {
+            const Point3f* dx_row = dx.ptr<Point3f>(y);
+            const Point3f* dy_row = dy.ptr<Point3f>(y);
+            float* dx_row_ = dx_[i].ptr<float>(y);
+            float* dy_row_ = dy_[i].ptr<float>(y);
+            for (int x = 0; x < src[i].cols; ++x)
+            {
+                dx_row_[x] = normL2(dx_row[x]);
+                dy_row_[x] = normL2(dy_row[x]);
+            }
+        }
+    }
+
+    //Mat dx1 = dx_[first], dx2 = dx_[second];
+    //Mat dy1 = dy_[first], dy2 = dy_[second];
+    Mat &dx1 = dx_[0]; Mat &dx2 = dx_[1];
+    Mat &dy1 = dy_[0]; Mat &dy2 = dy_[1];
+
+    //Mat mask1 = masks_[first], mask2 = masks_[second];
+    Mat &mask1 = vdata1.mask; Mat &mask2 = vdata2.mask;
+    //Point tl1 = corners_[first], tl2 = corners_[second];
+    Point &tl1 = vdata1.corner; Point &tl2 = vdata2.corner;
+    
+    Rect roi;
+    overlapRoi(tl1, tl2, img1.size(), img2.size(), roi);
+
+    const int gap = 10;
+    Mat subimg1(roi.height + 2 * gap, roi.width + 2 * gap, CV_32FC3);
+    Mat subimg2(roi.height + 2 * gap, roi.width + 2 * gap, CV_32FC3);
+    Mat submask1(roi.height + 2 * gap, roi.width + 2 * gap, CV_8U);
+    Mat submask2(roi.height + 2 * gap, roi.width + 2 * gap, CV_8U);
+    Mat subdx1(roi.height + 2 * gap, roi.width + 2 * gap, CV_32F);
+    Mat subdy1(roi.height + 2 * gap, roi.width + 2 * gap, CV_32F);
+    Mat subdx2(roi.height + 2 * gap, roi.width + 2 * gap, CV_32F);
+    Mat subdy2(roi.height + 2 * gap, roi.width + 2 * gap, CV_32F);
+    
+    // Cut subimages and submasks with some gap
+    for (int y = -gap; y < roi.height + gap; ++y)
+    {
+        for (int x = -gap; x < roi.width + gap; ++x)
+        {
+            int y1 = roi.y - tl1.y + y;
+            int x1 = roi.x - tl1.x + x;
+            if (y1 >= 0 && x1 >= 0 && y1 < img1.rows && x1 < img1.cols)
+            {
+                subimg1.at<Point3f>(y + gap, x + gap) = img1.at<Point3f>(y1, x1);
+                submask1.at<uchar>(y + gap, x + gap) = mask1.at<uchar>(y1, x1);
+                subdx1.at<float>(y + gap, x + gap) = dx1.at<float>(y1, x1);
+                subdy1.at<float>(y + gap, x + gap) = dy1.at<float>(y1, x1);
+            }
+            else
+            {
+                subimg1.at<Point3f>(y + gap, x + gap) = Point3f(0, 0, 0);
+                submask1.at<uchar>(y + gap, x + gap) = 0;
+                subdx1.at<float>(y + gap, x + gap) = 0.f;
+                subdy1.at<float>(y + gap, x + gap) = 0.f;
+            }
+            
+            int y2 = roi.y - tl2.y + y;
+            int x2 = roi.x - tl2.x + x;
+            if (y2 >= 0 && x2 >= 0 && y2 < img2.rows && x2 < img2.cols)
+            {
+                subimg2.at<Point3f>(y + gap, x + gap) = img2.at<Point3f>(y2, x2);
+                submask2.at<uchar>(y + gap, x + gap) = mask2.at<uchar>(y2, x2);
+                subdx2.at<float>(y + gap, x + gap) = dx2.at<float>(y2, x2);
+                subdy2.at<float>(y + gap, x + gap) = dy2.at<float>(y2, x2);
+            }
+            else
+            {
+                subimg2.at<Point3f>(y + gap, x + gap) = Point3f(0, 0, 0);
+                submask2.at<uchar>(y + gap, x + gap) = 0;
+                subdx2.at<float>(y + gap, x + gap) = 0.f;
+                subdy2.at<float>(y + gap, x + gap) = 0.f;
+            }
+        }
+    }
+    
+    const int vertex_count = (roi.height + 2 * gap) * (roi.width + 2 * gap);
+    const int edge_count = (roi.height - 1 + 2 * gap) * (roi.width + 2 * gap) +
+    (roi.width - 1 + 2 * gap) * (roi.height + 2 * gap);
+    GCGraph<float> graph(vertex_count, edge_count);
+    
+    if (opts.seam_find_type.compare("gc_color") ==0)
+        setGraphWeightsColor(subimg1, subimg2, submask1, submask2, graph);
+    else if (opts.seam_find_type.compare("gc_colorgrad") ==0)
+        setGraphWeightsColorGrad(subimg1, subimg2, subdx1, subdx2, subdy1, subdy2, submask1, submask2, graph);
+    else
+        CV_Error(CV_StsBadArg, "unsupported pixel similarity measure");
+    
+    graph.maxFlow();
+    
+    for (int y = 0; y < roi.height; ++y)
+    {
+        for (int x = 0; x < roi.width; ++x)
+        {
+            if (graph.inSourceSegment((y + gap) * (roi.width + 2 * gap) + x + gap))
+            {
+                if (mask1.at<uchar>(roi.y - tl1.y + y, roi.x - tl1.x + x))
+                    mask2.at<uchar>(roi.y - tl2.y + y, roi.x - tl2.x + x) = 0;
+            }
+            else
+            {
+                if (mask2.at<uchar>(roi.y - tl2.y + y, roi.x - tl2.x + x))
+                    mask1.at<uchar>(roi.y - tl1.y + y, roi.x - tl1.x + x) = 0;
+            }
+        }
+    }
+
 }
 
 /////////////////////////////////////////////////////////////////////////
