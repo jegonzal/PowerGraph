@@ -79,7 +79,7 @@ function drawmatlab() {
     var ymax = Math.max(4e6, Math.max.apply(null, updates))  * 1.2
     var ymin = Math.min(4e6, Math.min.apply(null, updates))  * 0.8
 
-    console.log(updates);
+    // console.log(updates);
 
     y = d3.scale.linear()
         .domain([ymin, ymax])

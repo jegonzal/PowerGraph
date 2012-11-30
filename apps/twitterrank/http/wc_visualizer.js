@@ -11,6 +11,8 @@ var lockedwords = {};
 var maxfont = 40;
 var reorder = false;
 var numtopics = 0;
+var alpha = 0.15;
+var beta = 0.15;
 
 function lockword(topic, word) {
   $.get(domain_str+lockword_str, {"word": word, "topic": topic},
@@ -102,6 +104,12 @@ function update_wordclouds(data) {
   $("#ntokens").text(data.ntokens);
   $("#nwords").text(data.nwords);
   $("#ntopics").text(data.ntopics);
+  if (data.alpha != alpha  || data.beta != beta) {
+    $("#Alpha .slider").slider("option", "value", data.alpha * 100);
+    $("#Beta .slider").slider("option", "value", data.beta * 100);
+    alpha = data.alpha;
+    beta = data.beta;
+  }
 
   var topics = data.values;
 
