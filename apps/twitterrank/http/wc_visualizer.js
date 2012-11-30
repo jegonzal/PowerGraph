@@ -1,16 +1,16 @@
 var domain_str = "http://bros.ml.cmu.edu:8090";
 var wordcloudpage_str = "/wordclouds";
 var clickpage_str= "/click";
+var addtopic_str= "/addtopic";
 var ldaparam_str= "/ldaparam";
 var lockword_str = "/lockword";
 var update_interval = 5000;
 var fill = d3.scale.category20();
 var basefont = 20;
-
-function update_domain(form) {
-    domain_str = form.inputbox.value;
-    get_top_words();
-}
+var lockedwords = {};
+var maxfont = 40;
+var reorder = false;
+var numtopics = 0;
 
 function lockword(topic, word) {
   $.get(domain_str+lockword_str, {"word": word, "topic": topic},
@@ -18,6 +18,10 @@ function lockword(topic, word) {
           console.log("Lock word: " + msg);
           // jSuccess("Lock \"" + word + "\"" + " for topic " + topic);
           if (msg == "ok") {
+            if (lockedwords[topic] == undefined) {
+              lockedwords[topic]={}
+            }
+            lockedwords[topic][word] = true;
             jSuccess("Locked \""+word+"\" for topic " + topic);
           } else if (msg == "Unable to find word") {
             jNotify(msg + ": " + word);
@@ -28,20 +32,6 @@ function lockword(topic, word) {
           }
         });
   console.log("request lock word:" + word + " for topic " + topic);
-  // jNotify("Request locking \"" + word + "\"" + " for topic " + topic);
-}
-
-function resetword() {
-  $.get(domain_str+lockword_str, {reset: 0},
-        function(msg) {
-          console.log("Reset words: " + msg);
-          if (msg == "reset") {
-            jSuccess("Reset word");
-          } else {
-            jNotify (msg);
-          }
-        });
-  console.log("request reset words");
 }
 
 function on_topic_click(i) {
@@ -69,7 +59,28 @@ function on_textbox_exit(e) {
 
 function on_topic_submit(topicid, word) {
   lockword(topicid, word);
-  // clean and hide input box
+}
+
+function on_add_topic () {
+  var seeds = $("#seedinput").val()
+  add_topics(seeds)
+}
+
+function add_topics(words) {
+  $.get(domain_str+addtopic_str, {"seed": words},
+        function(msg) {
+          console.log("Add topic: " + msg);
+          if (msg == "ok") {
+            lockedwords[numtopics] = {};
+            words = words.split(",");
+            for (var i = 0; i < words.length; i++)
+              lockedwords[numtopics][words[i]] = true;
+            jSuccess("Added new topic " + (numtopics));
+          } else {
+            jNotify(msg);
+          }
+        });
+  console.log("request add topic with seeds: " + words);
 }
 
 
@@ -93,11 +104,26 @@ function update_wordclouds(data) {
   $("#ntopics").text(data.ntopics);
 
   var topics = data.values;
+
+  // update the word cloud for each topic
   for (var i = 0; i < topics.length; i++)
     update_topic(i, topics[i]);
+
+
+  if (reorder) {
+    // rearrange the topics by its popularity 
+    var weights = [];
+    for (var i = 0; i< topics.length; i++) {
+      sum = 0;
+      for (var j = 0; j < topics[i].length; j++) {
+        sum += topics[i][j][1];
+      }
+      weights.push(sum);
+    }
+    d3.selectAll("#word_clouds .topic").data(weights).sort(compare);
+    reorder = false;
+  }
 }
-
-
 
 function update_topic(i, data) {
   var topic = d3.select("#word_clouds").select("#topic"+i);
@@ -119,32 +145,40 @@ function update_topic(i, data) {
       .style("size", 10);
     $("#topic"+i+" input").hide();
     $("#topic"+i+" input").focusout(on_textbox_exit);
+    numtopics+=1;
+    console.log("Add topic: " + (numtopics-1));
   }
 
   var wc = topic.selectAll("div").data(data, function(d) {return d[0];});
 
   // update words that already exist
-  wc.attr("class", "word update")
+  wc.attr("class", 
+          function(d) {
+            if (lockedwords[i] && lockedwords[i][d[0]]) {
+              return "word locked";
+            } else {
+              return "word update";
+            }
+          })
     .transition()
     .duration(1000)
     .delay(200)
-    .style("font-size", function(d) {return (basefont + d[1]/minval)+"px";})
+    .style("font-size", function(d) {return Math.min(maxfont, basefont + d[1]/minval)+"px";})
 
   // insert new words in the topic
-  var enters = wc.enter().insert("div", ":nth-child(2)").attr("class", "word enter")
-  .text(function(d) {return d[0];})
-  .transition()
-  .duration(1000)
-  .delay(100)
-  .style("font-size", function(d) {return (basefont + d[1]/minval)+"px";})
-
-
-  // Sort words by size
-  // wc.sort(function(a, b) {
-  //   if (a[1] == b[1])
-  //     return a[0] < b[0];
-  //   return a[1] < b[1];
-  // });
+    var enters = wc.enter().insert("div", ":nth-child(2)")
+                   .attr("class", function(d){
+                    if (lockedwords[i] && lockedwords[i][d[0]]) {
+                      return "word locked";
+                    } else {
+                      return "word enter";
+                    }
+                   })
+                    .text(function(d) {return d[0];})
+                    .transition()
+                    .duration(1000)
+                    .delay(100)
+                    .style("font-size", function(d) {return (Math.min(maxfont, basefont + d[1]/minval)+"px");})
 
   // remove words
   wc.exit().attr("class", "exit word")
@@ -164,6 +198,14 @@ function mincount(data) {
     }
   }
   return min;
+}
+
+
+// helper function for generic comparison
+function compare(a,b) {
+  if (a < b) return 1;
+  if (a == b) return 0;
+  if (a > b) return -1;
 }
 
 get_top_words();

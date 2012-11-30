@@ -47,57 +47,85 @@
       src="wc_visualizer.js">
     </script>
 
-
+    <script
+      type="text/javascript"
+      src="graph.js">
+    </script>
   </head>
 
 
   <body>
-    <h1> WordCloud Visualizer </h1>
-    <FORM NAME="myform" ACTION="" METHOD="GET">
-      <INPUT TYPE="text" NAME="inputbox" VALUE="http://bros.ml.cmu.edu:8090">
-      <!--<INPUT TYPE="text" NAME="inputbox" VALUE="">-->
-      <INPUT TYPE="button" NAME="button" Value="Change Domain" onClick="update_domain(this.form)">
-    </FORM>
+    <div class="header">
+      <div id="infopanel" class="header">
+        <h1> WordCloud Visualizer </h1>
+        <div class="setting"> 
+          <div class="label">NTopics</div> 
+          <div id="ntopics"></div>
+        </div>
 
-      <div class="setting"> 
-        <div class="label">NTopics</div> 
-        <div id="ntopics"></div>
-      </div>
+        <div class="setting"> 
+          <div class="label">NWords</div> 
+          <div id="nwords"></div>
+        </div>
 
-      <div class="setting"> 
-        <div class="label">NWords</div> 
-        <div id="nwords"></div>
-      </div>
+        <div class="setting"> 
+          <div class="label">NDocs</div> 
+          <div id="ndocs"></div>
+        </div>
 
-      <div class="setting"> 
-        <div class="label">NDocs</div> 
-        <div id="ndocs"></div>
-      </div>
+        <div class="setting"> 
+          <div class="label">NTokens</div>   
+          <div id="ntokens"></div>
+        </div>
+    </div>
 
-      <div class="setting"> 
-        <div class="label">NTokens</div>   
-        <div id="ntokens"></div>
-      </div>
+    <div id="update_metric" class="header">
+       <div class="label">Update Rates</div>
+    </div>
+   </div>
 
-      <div class="control">
-        <div id="Alpha" class="setting"> 
+
+      <div class="controlpanel">
+        <div id="Alpha" class="control"> 
           <div class="label">Alpha</div> 
           <div class="slider"></div>
         </div>
 
-        <div id="Beta" class="setting"> 
+        <div id="Beta" class="control"> 
           <div class="label">Beta</div> 
           <div id="beta"></div>
           <div class="slider"></div>
         </div>
 
-        <div id="Reset" class="setting">
-        <INPUT TYPE="button" NAME="button" Value="ResetWord" onClick="resetword()">
+        <div id="resetwords" class="control">
+          Reset Locked Words
+        </div>
+
+        <div id="reordertopics" class="control">
+          Reorder Common Topics 
+        </div>
+
+      </div>
+
+      <div class="controlpanel addtopic">
+        <div class="control">
+          <INPUT id="seedinput" TYPE="textbox" NAME="textbox" Value="">
+          <div id="addtopic"> Add Topic</div>
+          <div class="tooltip">
+            (comma separated seed words. e.g: belief,propagation)
+          </div>
         </div>
       </div>
+
+
 
       <div id="pagerank"></div>
       <div id="word_clouds"></div>
 
+    <FORM NAME="myform" ACTION="" METHOD="GET">
+      <INPUT TYPE="text" NAME="inputbox" VALUE="http://bros.ml.cmu.edu:8090">
+      <!--<INPUT TYPE="text" NAME="inputbox" VALUE="">-->
+      <INPUT TYPE="button" NAME="button" Value="Change Domain" onClick="update_domain(this.form)">
+    </FORM>
 </body>
 </html>

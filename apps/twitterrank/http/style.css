@@ -1,35 +1,89 @@
 .body {
     text-align: center;
-
 }
-.cloud {
-    display: inline-block;
-    width: 200px;
-    height: 200px;
+
+#infopanel {
+  width:350px;
+  border-style:solid;
+  margin: 10px;
+  margin-right : 390px;
+  padding-left: 10px;
+  padding-right: 10px;
+}
+
+.header {
+  display:inline-block;
+  vertical-align: top;
+}
+
+.slider {
+  width: 100px
 }
 
 .setting {
     display: inline-block;
-    width: 100px;
+    width: auto;
     margin: 5px;
 }
-.control {
-    width: 500px;
-    margin: 5px;
+
+#seedinput {
+ height: 30px; 
+ font-size: 20pt;
+}
+
+.tooltip {
+  color: #707070;
+  font-size: 12pt;
+}
+
+.controlpanel {
+  border-style: solid;
+  margin: 10px;
+  padding: 10px;
+  /* width: 800px; */
+  display:inline-block;
+}
+
+.addtopic {
+}
+
+.control{
+  display: inline-block;
+  width: auto; 
+  margin: 5px;
+  vertical-align: top;
 }
 
 .label {
     font-size: 14pt;
+    margin-left:auto;
+    margin-right:auto;
 }
 
+#update_metric {
+  width: 480px;
+  margin-left:auto;
+  margin-right:auto;
+
+}
+
+#update_metric .label {
+  display: block;
+  width: 480px;
+  margin-left: 220px;
+}
+
+/* Word cloud */
+
 #word_clouds {
-  width: 1000px;
+  width: auto;
 }
 
 #word_clouds .topic {
   width: 400px;
-  height: 300px;
-  float: left;
+  height: auto;
+  /* float: left; */
+  display: inline-block;
   border-style:solid;
   border-color:#707070;
   border-width:4px;
@@ -42,12 +96,45 @@
   padding-left: 10px;
   font: bold 24px monospace;
 }
+
 .enter {
-  color: #FF0033;
+  color: #669933;
 }
 .update {
   color: #0066CC;
 }
 .exit {
   color: #FF9933;
+}
+
+.locked {
+  color: #FF0066;
+}
+
+/* SVG related */
+svg {
+  font: 10px sans-serif;
+}
+
+.x.axis line {
+  shape-rendering: auto;
+}
+
+.line {
+  fill: none;
+  stroke: #000;
+  stroke-dasharray: 5,3;
+  stroke-width: 1.5px;
+}
+
+.line2 {
+  fill: none;
+  stroke: #f00;
+  stroke-width: 1.5px;
+}
+
+.axis path, .axis line {
+  fill: none;
+  stroke: #000;
+  shape-rendering: crispEdges;
 }
