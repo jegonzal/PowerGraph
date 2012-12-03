@@ -213,6 +213,7 @@ if [ -z $CMAKE ]; then
   echo "process will be directed to use graphlabapi/deps/cmake."
   pushd .
   mkdir deps
+  mkdir -p deps/local/lib
   cd deps
 
   # get the cmake software page
