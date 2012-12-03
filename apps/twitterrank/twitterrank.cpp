@@ -146,6 +146,7 @@ int main(int argc, char** argv) {
   std::string lda_vertices;
   std::string lda_dictionary;
   std::string w_personal;
+  bool USE_SYNC = false;
   std::string execution_type = "synchronous";
     // The dir of the link graph 
   clopts.attach_option("pagerank_edges", pagerank_edges, "The pagerank graph (edges). Required ");
@@ -162,6 +163,7 @@ int main(int argc, char** argv) {
   clopts.attach_option("default_ndocs", pagerank::DEFAULT_NDOCS, "Top k pages(users) to display");
   clopts.attach_option("default_topicval", pagerank::DEFAULT_TOPICVAL, "Top k pages(users) to display");
   clopts.attach_option("force_lock", lda::FORCE_LOCK, "force locked words");
+  clopts.attach_option("use_sync", USE_SYNC, "Use Synchronous LDA");
   clopts.attach_option("join_on_id", JOIN_ON_ID, "If true, use the vertex id as join key. Otherwise, use vertex data as join key, so the vertex input for both graph must be provided.");
   clopts.attach_option("has_doc_count", pagerank::HAS_DOC_COUNT, "Whether or not the pagerank vertex data has a field for document count. This could be true for author-topic graph, depending on the input data.");
 
@@ -266,9 +268,13 @@ int main(int argc, char** argv) {
   // Run lda -----------------------------------------------------------------
   graphlab::graphlab_options opts2;
   opts2.set_ncpus(8);
-  opts2.get_engine_args().set_option("factorized",true);
+  std::string engine_type = "async";
+  if (!USE_SYNC) {
+    opts2.get_engine_args().set_option("factorized",true);
+    engine_type = "sync";
+  }
   //opts2.get_engine_args().set_option("handler_intercept",true);
-  graphlab::omni_engine<lda::cgs_lda_vertex_program> engine2(dc, rgraph, "async", opts2);
+  graphlab::omni_engine<lda::cgs_lda_vertex_program> engine2(dc, rgraph, engine_type, opts2);
   if (algorithm & RUN_LDA) {
     lda_engine = &engine2;
     lda::initialize_global();
