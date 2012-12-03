@@ -1038,10 +1038,11 @@ public:
     ret_value.nchanges = vdata.nchanges;
     ret_value.nupdates = vdata.nupdates;
     if(is_word(vertex)) {
+      factor_type local_factor = vdata.factor;
       const graphlab::vertex_id_type wordid = vertex.id();
-      ret_value.top_words.resize(vdata.factor.size());
-      for(size_t i = 0; i < vdata.factor.size(); ++i) {
-        const cw_pair_type pair(vdata.factor[i], wordid);
+      ret_value.top_words.resize(NTOPICS);
+      for(size_t i = 0; i < std::min(NTOPICS,local_factor.size()) ; ++i) {
+        const cw_pair_type pair(local_factor[i], wordid);
         ret_value.top_words[i].insert(pair);
       }
     }
