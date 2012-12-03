@@ -209,6 +209,7 @@ int main(int argc, char** argv) {
     return EXIT_FAILURE;
   }
   pagerank::NTOPICS = NTOPICS;
+  lda::INITIAL_NTOPICS = NTOPICS;
   lda::NTOPICS = NTOPICS;
   pagerank::JOIN_ON_ID = JOIN_ON_ID;
   lda::JOIN_ON_ID = JOIN_ON_ID;
@@ -264,9 +265,9 @@ int main(int argc, char** argv) {
   
   // Run lda -----------------------------------------------------------------
   graphlab::graphlab_options opts2;
-  opts2.set_ncpus(4);
+  opts2.set_ncpus(8);
   opts2.get_engine_args().set_option("factorized",true);
-  opts2.get_engine_args().set_option("handler_intercept",false);
+  //opts2.get_engine_args().set_option("handler_intercept",true);
   graphlab::omni_engine<lda::cgs_lda_vertex_program> engine2(dc, rgraph, "async", opts2);
   if (algorithm & RUN_LDA) {
     lda_engine = &engine2;

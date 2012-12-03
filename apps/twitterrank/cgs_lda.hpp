@@ -36,6 +36,8 @@ typedef uint16_t topic_id_type;
 #define NULL_TOPIC (topic_id_type(-1))
 typedef std::vector< topic_id_type > assignment_type;
 
+
+size_t INITIAL_NTOPICS = 50;
 size_t NTOPICS = 50;
 double ALPHA = 0.1;
 double BETA = 0.1;
@@ -141,6 +143,7 @@ void reset_word_topic_lock() {
   for (size_t i = 0;i < LOCKED_WORDS_PER_TOPIC.size(); ++i) {
     LOCKED_WORDS_PER_TOPIC[i] = 0;
   }
+  NTOPICS = INITIAL_NTOPICS;
 }
 
 
@@ -854,6 +857,16 @@ void scatter(icontext_type& context, const vertex_type& vertex,
     assignment_type& assignment = edge.data().assignment;
     edge.data().nchanges = 0;
     foreach(topic_id_type& asg, assignment) {
+      if (asg >= LOCAL_NTOPICS && asg != NULL_TOPIC) {
+        --doc_topic_count[asg];
+        --word_topic_count[asg];
+        --GLOBAL_TOPIC_COUNT[asg];
+      }
+      asg = NULL_TOPIC;
+    }
+    
+    INCREMENT_EVENT(TOKEN_SAMPLES, assignment.size());
+    foreach(topic_id_type& asg, assignment) {
       const topic_id_type old_asg = asg;
       if(asg != NULL_TOPIC) { // construct the cavity
         --doc_topic_count[asg];
@@ -880,9 +893,10 @@ void scatter(icontext_type& context, const vertex_type& vertex,
         MIMNO_Q += MIMNO_Q_CACHE[asg];
       }
       asg = 0;
-      ASSERT_GE(MIMNO_S, 0);
-      ASSERT_GE(MIMNO_R, 0);
-      ASSERT_GE(MIMNO_Q, 0);
+      if(MIMNO_S < 0 || MIMNO_R < 0 || MIMNO_Q < 0) {
+        std::cout << "." << std::endl;
+        break;
+      }
       float f = graphlab::random::uniform<float>(0, MIMNO_S + MIMNO_R + MIMNO_Q);
       if (f < MIMNO_S) {
         float ctr = 0;
@@ -949,7 +963,6 @@ void scatter(icontext_type& context, const vertex_type& vertex,
         ++edge.data().nchanges;
         INCREMENT_EVENT(TOKEN_CHANGES,1);
       }
-      INCREMENT_EVENT(TOKEN_SAMPLES,1);
     } // End of loop over each token
     // singla the other vertex
     context.signal(get_other_vertex(edge, vertex));
