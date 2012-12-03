@@ -139,6 +139,7 @@ set_param_callback(std::map<std::string, std::string>& varmap) {
 
 
 void reset_word_topic_lock() {
+  std::cout << "LOCK RELEASE" << std::endl;
   for (size_t i = 0;i < LOCKED_WORDS.size(); ++i) LOCKED_WORDS[i] = -1;
   for (size_t i = 0;i < LOCKED_WORDS_PER_TOPIC.size(); ++i) {
     LOCKED_WORDS_PER_TOPIC[i] = 0;
@@ -148,6 +149,7 @@ void reset_word_topic_lock() {
 
 
 void word_topic_lock(size_t wordid, size_t topicid) {
+  std::cout << "Locking : " << wordid << " to " << topicid << std::endl;
   if (LOCKED_WORDS[wordid] != -1) {
     LOCKED_WORDS_PER_TOPIC[topicid]--;
   }
@@ -856,15 +858,19 @@ void scatter(icontext_type& context, const vertex_type& vertex,
     std::vector<float> prob(LOCAL_NTOPICS);
     assignment_type& assignment = edge.data().assignment;
     edge.data().nchanges = 0;
+    bool reset = false;
     foreach(topic_id_type& asg, assignment) {
       if (asg >= LOCAL_NTOPICS && asg != NULL_TOPIC) {
         --doc_topic_count[asg];
         --word_topic_count[asg];
         --GLOBAL_TOPIC_COUNT[asg];
+        reset = true;
+        asg = NULL_TOPIC;
       }
-      asg = NULL_TOPIC;
     }
-    
+    if (reset) {
+      std::cout << "!" << std::endl;
+    } 
     INCREMENT_EVENT(TOKEN_SAMPLES, assignment.size());
     foreach(topic_id_type& asg, assignment) {
       const topic_id_type old_asg = asg;
