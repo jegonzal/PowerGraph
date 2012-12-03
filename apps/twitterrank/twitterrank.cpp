@@ -268,10 +268,10 @@ int main(int argc, char** argv) {
   // Run lda -----------------------------------------------------------------
   graphlab::graphlab_options opts2;
   opts2.set_ncpus(8);
-  std::string engine_type = "async";
+  std::string engine_type = "sync";
   if (!USE_SYNC) {
     opts2.get_engine_args().set_option("factorized",true);
-    engine_type = "sync";
+    engine_type = "async";
   }
   //opts2.get_engine_args().set_option("handler_intercept",true);
   graphlab::omni_engine<lda::cgs_lda_vertex_program> engine2(dc, rgraph, engine_type, opts2);
