@@ -76,8 +76,8 @@ function drawmatlab() {
     for (var i = 0; i < data[0].record.length; i++) {
       updates.push(data[0].record[i][1]);
     }
-    var ymax = Math.max(4e6, Math.max.apply(null, updates))  * 1.4
-    var ymin = Math.min(4e6, Math.min.apply(null, updates))  * 0.9
+    var ymax = Math.max(2.44e6, Math.max.apply(null, updates))  * 1.4
+    var ymin = Math.min(2.44e6, Math.min.apply(null, updates))  * 0.8
 
     // console.log(updates);
 
