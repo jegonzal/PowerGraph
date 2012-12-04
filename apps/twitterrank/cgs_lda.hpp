@@ -647,7 +647,7 @@ public:
     // There should be no new edge data since the vertex program has been cleared
     vertex_data& vdata = vertex.data();
     factor_type sumfactor = sum.factor;
-    if (sumfactor.size() < NTOPICS) sumfactor.resize(NTOPICS);
+    if (sumfactor.size() != NTOPICS) sumfactor.resize(NTOPICS);
     //ASSERT_EQ(sum.factor.size(), NTOPICS);
     //ASSERT_EQ(vdata.factor.size(), NTOPICS);
     vdata.nupdates++;
@@ -822,8 +822,8 @@ void scatter(icontext_type& context, const vertex_type& vertex,
     factor_type& word_topic_count = is_word(edge.source()) ?
       edge.source().data().factor : edge.target().data().factor;
     size_t LOCAL_NTOPICS = NTOPICS;
-    if (doc_topic_count.size() < LOCAL_NTOPICS) doc_topic_count.resize(LOCAL_NTOPICS);
-    if (word_topic_count.size() < LOCAL_NTOPICS) word_topic_count.resize(LOCAL_NTOPICS);
+    if (doc_topic_count.size() != LOCAL_NTOPICS) doc_topic_count.resize(LOCAL_NTOPICS);
+    if (word_topic_count.size() != LOCAL_NTOPICS) word_topic_count.resize(LOCAL_NTOPICS);
     //ASSERT_EQ(doc_topic_count.size(), NTOPICS);
     //ASSERT_EQ(word_topic_count.size(), NTOPICS);
     float MIMNO_R = is_doc(edge.source()) ? edge.source().data().MIMNO_R :
@@ -861,8 +861,8 @@ void scatter(icontext_type& context, const vertex_type& vertex,
     bool reset = false;
     foreach(topic_id_type& asg, assignment) {
       if (asg >= LOCAL_NTOPICS && asg != NULL_TOPIC) {
-        --doc_topic_count[asg];
-        --word_topic_count[asg];
+        //--doc_topic_count[asg];
+        //--word_topic_count[asg];
         --GLOBAL_TOPIC_COUNT[asg];
         reset = true;
         asg = NULL_TOPIC;
