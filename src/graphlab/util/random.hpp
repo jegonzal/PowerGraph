@@ -363,6 +363,7 @@ namespace graphlab {
      */
     template<typename NumType>
     inline NumType uniform(const NumType min, const NumType max) { 
+      if (min == max) return min;
       return get_source().uniform<NumType>(min, max);
     } // end of uniform
     
@@ -373,6 +374,7 @@ namespace graphlab {
      */
     template<typename NumType>
     inline NumType fast_uniform(const NumType min, const NumType max) { 
+      if (min == max) return min;
       return get_source().fast_uniform<NumType>(min, max);
     } // end of fast_uniform
     

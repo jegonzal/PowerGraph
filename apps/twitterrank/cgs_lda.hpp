@@ -606,7 +606,7 @@ public:
     gather_type ret(edge.data().nchanges);
     const assignment_type& assignment = edge.data().assignment;
     foreach(topic_id_type asg, assignment) {
-      if(asg != NULL_TOPIC) ++ret.factor[asg];
+      if(asg != NULL_TOPIC && asg < ret.factor.size()) ++ret.factor[asg];
     }
     return ret;
   } // end of gather
