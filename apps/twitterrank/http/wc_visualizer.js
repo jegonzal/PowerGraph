@@ -121,8 +121,8 @@ function update_wordclouds(data) {
   for (var i = topics.length; i < numtopics; i++) {
     d3.select("#word_clouds").select("#topic"+i).remove();
     console.log("Remove topic" + i);
-    numtopics = topics.length;
   }
+  numtopics = topics.length;
 
   if (reorder) {
     // rearrange the topics by its popularity 
