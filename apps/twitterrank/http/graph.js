@@ -20,7 +20,7 @@ var path2 = null;
 var svg = null;
 var matlabupdates = [];
 for (var i = 0; i < n; i++)
-  matlabupdates.push(4e6);
+  matlabupdates.push(2.44e6);
 
 function get_update_rate() {
   $.getJSON(domain_str + metric_str, update_metric_graph)
