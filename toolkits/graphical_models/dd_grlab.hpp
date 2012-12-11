@@ -31,8 +31,8 @@
  */
 
 
-#ifndef __DD_GRLAB_H__
-#define __DD_GRLAB_H__
+#ifndef __DD_GRLAB_HPP__
+#define __DD_GRLAB_HPP__
 
 #include <boost/config/warning_disable.hpp>
 #include <boost/spirit/include/qi.hpp>
