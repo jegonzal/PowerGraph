@@ -292,7 +292,8 @@ public:
   static size_t MAX_UPDATES;
   static double MAXVAL;
   static double MINVAL;
- 
+  static int    REGNORMAL; //regularization type
+
   /** The set of edges to gather along */
   edge_dir_type gather_edges(icontext_type& context, 
                              const vertex_type& vertex) const { 
@@ -319,7 +320,11 @@ public:
     mat_type XtX = sum.XtX;
     vec_type Xy = sum.Xy;
     // Add regularization
-    for(int i = 0; i < XtX.rows(); ++i) XtX(i,i) += LAMBDA; // /nneighbors;
+    double regularization = LAMBDA;
+    if (REGNORMAL)
+      regularization = LAMBDA*vertex.num_out_edges();
+    for(int i = 0; i < XtX.rows(); ++i) 
+      XtX(i,i) += regularization; 
     // Solve the least squares problem using eigen ----------------------------
     const vec_type old_factor = vdata.factor;
     vdata.factor = XtX.selfadjointView<Eigen::Upper>().ldlt().solve(Xy);
@@ -431,6 +436,7 @@ double als_vertex_program::LAMBDA = 0.01;
 size_t als_vertex_program::MAX_UPDATES = -1;
 double als_vertex_program::MAXVAL = 1e+100;
 double als_vertex_program::MINVAL = -1e+100;
+int    als_vertex_program::REGNORMAL = 1;
 
 
 
@@ -591,6 +597,9 @@ int main(int argc, char** argv) {
                        "The engine type synchronous or asynchronous");
   clopts.attach_option("output", output_dir,
                        "Output results");
+  clopts.attach_option("regnormal", als_vertex_program::REGNORMAL, 
+                       "regularization type. 1 = weighted according to neighbors num. 0 = no weighting - just lambda");
+  
   parse_implicit_command_line(clopts);
   
   if(!clopts.parse(argc, argv) || input_dir == "") {
