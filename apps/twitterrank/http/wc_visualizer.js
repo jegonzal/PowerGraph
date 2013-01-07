@@ -6,7 +6,7 @@ var ldaparam_str= "/ldaparam";
 var lockword_str = "/lockword";
 var update_interval = 5000;
 var fill = d3.scale.category20();
-var basefont = 20;
+var basefont = 15;
 var lockedwords = {};
 var maxfont = 40;
 var reorder = false;
@@ -177,7 +177,7 @@ function update_topic(i, data) {
     .transition()
     .duration(1000)
     .delay(200)
-    .style("font-size", function(d) {return Math.min(maxfont, basefont + d[1]/minval)+"px";})
+    .style("font-size", function(d) {return Math.min(maxfont, basefont + 4*d[1]/minval)+"px";})
 
   // insert new words in the topic
     var enters = wc.enter().insert("div", ":nth-child(2)")
@@ -192,7 +192,7 @@ function update_topic(i, data) {
                     .transition()
                     .duration(1000)
                     .delay(100)
-                    .style("font-size", function(d) {return (Math.min(maxfont, basefont + d[1]/minval)+"px");})
+                    .style("font-size", function(d) {return (Math.min(maxfont, basefont + 4*d[1]/minval)+"px");})
 
   // remove words
   wc.exit().attr("class", "exit word")

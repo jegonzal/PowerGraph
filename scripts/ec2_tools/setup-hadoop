@@ -1,3 +1,4 @@
+#!/bin/bash
 
 if [ ! -e ~/machines ]; then
 echo "A list of machines must be provided in ~/machines"
@@ -99,10 +100,10 @@ echo "   /mnt/tmp    "
 echo "   /mnt/hadoop "
 
 
-mpiexec.openmpi -hostfile ~/machines -pernode \
-    sudo rm -rf /mnt/hadoop/hdfs
-mpiexec.openmpi -hostfile ~/machines -pernode \
-    sudo rm -rf /mnt/hadoop/nn
+# mpiexec.openmpi -hostfile ~/machines -pernode \
+#     sudo rm -rf /mnt/hadoop/hdfs
+# mpiexec.openmpi -hostfile ~/machines -pernode \
+#     sudo rm -rf /mnt/hadoop/nn
 
 mpiexec.openmpi -hostfile ~/machines -pernode \
     sudo mkdir /mnt/hadoop/
