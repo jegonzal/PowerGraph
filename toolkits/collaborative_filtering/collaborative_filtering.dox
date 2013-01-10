@@ -8,11 +8,14 @@
 The collaborative filtering toolkit is written by Danny Bickson, CMU. Please send any code related questions to our <a href="https://groups.google.com/forum/?fromgroups#!forum/graphlab-kdd">Google group</a>. Any other inquiries can be directed to Danny.Bickson@gmail.com. You are more then welcome to visit my applied machine learning <a href="http://bickson.blogspot.com">blog</a>.
 
 \section History
-In GraphLab v1, the collaborative filtering package is implemented and optimized for a multicore machine.  
-<a href="http://select.cs.cmu.edu/code/graphlab/pmf.html">Here</a> is the documentation for version 1. Graphlab v1 is the <b>stable release</b> of the collaborative filtering toolkit.
+In GraphLab v1, the collaborative filtering package was implemented and optimized for a multicore machine.  
+Currently this version is deprecated and no longer supported.
 
-In GraphLAb v2, the collaborative filtering toolkit is DISTRIBUTED.
-That way we can scale to much larger models.
+If you intend to utilize a single multicore machines it is recommended to take a look at <a href="http://bickson.blogspot.co.il/2012/08/collaborative-filtering-with-graphchi.html">GraphChi collaborative filtering toolkit</a>, which can scale to datasets with billions of recommendations. 
+
+In GraphLAb v2, the collaborative filtering toolkit is DISTRIBUTED, targeted for a cluster with a few machines, 
+that way we can scale to much larger models.  
+
 The GraphLab collaborative filtering toolkit 2.1 is under active
 development. Please contact us if you encounter any issues or would
 like an additional features.
