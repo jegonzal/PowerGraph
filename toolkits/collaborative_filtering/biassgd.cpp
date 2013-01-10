@@ -382,11 +382,11 @@ struct error_aggregator : public graphlab::IS_POD_TYPE {
     ASSERT_GT(agg.ntrain, 0);
     const double train_error = std::sqrt(agg.train_error / agg.ntrain);
     assert(!std::isnan(train_error));
-    context.cout() << std::setw(8) << context.elapsed_seconds() << std::setw(8) << train_error;
+    context.cout() << std::setw(8) << context.elapsed_seconds() << "  " << std::setw(8) << train_error;
     if(agg.nvalidation > 0) {
       const double validation_error = 
         std::sqrt(agg.validation_error / agg.nvalidation);
-      context.cout() << std::setw(8) << validation_error; 
+      context.cout() << "   " << std::setw(8) << validation_error; 
     }
     context.cout() << std::endl;
     biassgd_vertex_program::GAMMA *= biassgd_vertex_program::STEP_DEC;
