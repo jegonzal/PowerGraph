@@ -71,7 +71,7 @@
 #include <graphlab/graph/local_graph.hpp>
 #include <graphlab/graph/ingress/idistributed_ingress.hpp>
 #include <graphlab/graph/ingress/distributed_ingress_base.hpp>
-#include <graphlab/graph/ingress/distributed_batch_ingress2.hpp>
+#include <graphlab/graph/ingress/distributed_batch_ingress.hpp>
 #include <graphlab/graph/ingress/distributed_oblivious_ingress.hpp>
 #include <graphlab/graph/ingress/distributed_random_ingress.hpp>
 #include <graphlab/graph/ingress/distributed_identity_ingress.hpp>
