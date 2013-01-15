@@ -138,14 +138,14 @@ struct edge_data : public graphlab::IS_POD_TYPE {
   float obs;
 
   /** \brief the weight or time of the observation */
-
   float weight; 
+  
   /** \brief The train/validation/test designation of the edge */
   data_role_type role;
 
   /** \brief basic initialization */
   edge_data(float obs = 0, data_role_type role = TRAIN, float weight = 1) :
-    obs(obs), role(role), weight(weight) { }
+    obs(obs), weight(weight), role(role) { }
 
 }; // end of edge data
 
