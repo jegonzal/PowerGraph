@@ -408,8 +408,19 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
     if ((BOOST_PP_TUPLE_ELEM(3,2,ARGS) & CONTROL_PACKET) == 0) inc_calls_sent(target); \
     return BOOST_PP_CAT( BOOST_PP_TUPLE_ELEM(3,1,ARGS),N) \
         <T, F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, T)> \
+          ::exec(this, dc_.senders[target],  BOOST_PP_TUPLE_ELEM(3,2,ARGS), target,obj_id, remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENI ,_) )(); \
+  }   \
+
+#define FUTURE_REQUEST_INTERFACE_GENERATOR(Z,N,ARGS) \
+  template<typename F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, typename T)> \
+    BOOST_PP_TUPLE_ELEM(3,0,ARGS) (procid_t target, F remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_) ) {  \
+    ASSERT_LT(target, dc_.senders.size()); \
+    if ((BOOST_PP_TUPLE_ELEM(3,2,ARGS) & CONTROL_PACKET) == 0) inc_calls_sent(target); \
+    return BOOST_PP_CAT( BOOST_PP_TUPLE_ELEM(3,1,ARGS),N) \
+        <T, F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, T)> \
           ::exec(this, dc_.senders[target],  BOOST_PP_TUPLE_ELEM(3,2,ARGS), target,obj_id, remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENI ,_) ); \
   }   \
+
 
   /*
   Generates the interface functions. 3rd argument is a tuple
@@ -417,13 +428,14 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
   */
   BOOST_PP_REPEAT(6, REQUEST_INTERFACE_GENERATOR, (typename dc_impl::function_ret_type<__GLRPC_FRESULT>::type remote_request, dc_impl::object_request_issue, (STANDARD_CALL | WAIT_FOR_REPLY) ) )
   BOOST_PP_REPEAT(6, REQUEST_INTERFACE_GENERATOR, (typename dc_impl::function_ret_type<__GLRPC_FRESULT>::type control_request, dc_impl::object_request_issue, (STANDARD_CALL | WAIT_FOR_REPLY | CONTROL_PACKET)) )
- 
+ BOOST_PP_REPEAT(6, FUTURE_REQUEST_INTERFACE_GENERATOR, (request_future<__GLRPC_FRESULT> future_remote_request, dc_impl::object_request_issue, (STANDARD_CALL | WAIT_FOR_REPLY) ) )
+
 
 
   #undef RPC_INTERFACE_GENERATOR
   #undef BROADCAST_INTERFACE_GENERATOR
   #undef REQUEST_INTERFACE_GENERATOR
-  
+  #undef FUTURE_REQUEST_INTERFACE_GENERATOR
   /* Now generate the interface functions which allow me to call this
   dc_dist_object directly The internal calls are similar to the ones
   above. The only difference is that is that instead of 'obj_id', the
@@ -451,7 +463,7 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
     if ((BOOST_PP_TUPLE_ELEM(3,2,ARGS) & CONTROL_PACKET) == 0) inc_calls_sent(target); \
     return BOOST_PP_CAT( BOOST_PP_TUPLE_ELEM(3,1,ARGS),N) \
         <dc_dist_object<T>, F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, T)> \
-          ::exec(this, dc_.senders[target],  BOOST_PP_TUPLE_ELEM(3,2,ARGS), target,control_obj_id, remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENI ,_) ); \
+          ::exec(this, dc_.senders[target],  BOOST_PP_TUPLE_ELEM(3,2,ARGS), target,control_obj_id, remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENI ,_) )(); \
   }   \
 
   /*
@@ -617,9 +629,9 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
  *      return i + 1; 
  *    }
  *  public:
- *    void add_one_from_machine_1(int i) {
+ *    int add_one_from_machine_1(int i) {
  *      // calls the add_one function on machine 1 with the argument i
- *      rmi.remote_call(1, &distributed_obj_example::add_one, i);
+ *      return rmi.remote_request(1, &distributed_obj_example::add_one, i);
  *    } 
  * }
  * \endcode 
@@ -633,6 +645,58 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
  * \returns Returns the same return type as the function fn
  */
   RetVal remote_request(procid_t targetmachine, Fn fn, ...);
+
+
+
+/**
+ * \brief Performs a nonblocking RPC call to the target machine
+ * to run the provided function pointer which has an expected return value.
+ *
+ * future_remote_request() calls the function "fn" on a target remote machine. 
+ * Provided arguments are serialized and sent to the target. 
+ * Therefore, all arguments are necessarily transmitted by value. 
+ * If the target function has a return value, it is sent back to calling 
+ * machine. 
+ *
+ * future_remote_request() is like remote_request(), but is non-blocking. 
+ * Instead, it returns immediately a \ref graphlab::request_future object
+ * which will allow you wait for the return value.
+ * 
+ * Example:
+ * \code
+ * // A print function is defined in the distributed object
+ * class distributed_obj_example {
+ *  graphlab::dc_dist_object<distributed_obj_example> rmi;
+ *   ... initialization and constructor ...
+ *  private:
+ *    int add_one(int i) {
+ *      return i + 1; 
+ *    }
+ *  public:
+ *    int add_one_from_machine_1(int i) {
+ *      // calls the add_one function on machine 1 with the argument i
+ *      // this call returns immediately
+ *      graphlab::request_future<int> future = 
+ *          rmi.future_remote_request(1, &distributed_obj_example::add_one, i);
+ * 
+ *      // ... we can do other stuff here 
+ *      // then when we want the answer
+ *      int result = future();
+ *      return result;
+ *    } 
+ * }
+ * \endcode 
+ * 
+ * \param targetmachine The ID of the machine to run the function on 
+ * \param fn The function to run on the target machine. Must be a pointer to
+ *            member function in the owning object.
+ * \param ... The arguments to send to Fn. Arguments must be serializable.
+ *            and must be castable to the target types.
+ *
+ * \returns Returns the same return type as the function fn
+ */
+  RetVal future_remote_request(procid_t targetmachine, Fn fn, ...);
+
 
 
 #endif

@@ -33,6 +33,7 @@
 #include <graphlab/rpc/object_request_dispatch.hpp>
 #include <graphlab/rpc/function_ret_type.hpp>
 #include <graphlab/rpc/mem_function_arg_types_def.hpp>
+#include <graphlab/rpc/request_future.hpp>
 #include <boost/preprocessor.hpp>
 
 namespace graphlab {
@@ -49,6 +50,7 @@ namespace dc_impl {
 \ingroup rpc
 \file object_request_issue.hpp
 
+
 This is an internal function and should not be used directly
 
 This is the marshall function for the an object member function call.
@@ -62,12 +64,12 @@ template<typename T,
         typename T0> class object_request_issue1
 {
     public: 
-    static typename function_ret_type<
+    static request_future<typename function_ret_type<
               typename boost::remove_const<
               typename boost::remove_reference<
               typename boost::function<
               typename boost::remove_member_pointer<F>
-                ::type>::result_type>::type>::type>::type 
+                ::type>::result_type>::type>::type>::type (void)>
                 exec(dc_send* sender, unsigned char flags, procid_t target,size_t objid, F remote_function , const T0 &i0 )
     {
         oarchive arc;
@@ -77,7 +79,7 @@ template<typename T,
         arc << reinterpret_cast<size_t>(d);
         serialize(arc, (char*)(&remote_function), sizeof(remote_function));
         arc << objid;
-        arc << reinterpret_cast<size_t>(&reply);
+        arc << reinterpret_cast<size_t>(reply.reply.get());
         arc << i0;
         sender->send_data(target, flags, arc.buf, arc.off);
         reply.wait();
@@ -101,25 +103,20 @@ template<typename T,
 template<typename T,typename F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, typename T)> \
 class  BOOST_PP_CAT(FNAME_AND_CALL, N) { \
   public: \
-  static typename function_ret_type<__GLRPC_FRESULT>::type exec(dc_dist_object_base* rmi, dc_send* sender, unsigned char flags, procid_t target,size_t objid, F remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_) ) {  \
+  static request_future<__GLRPC_FRESULT> exec(dc_dist_object_base* rmi, dc_send* sender, unsigned char flags, procid_t target,size_t objid, F remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_) ) {  \
     oarchive arc;                         \
     arc.advance(sizeof(packet_hdr));            \
-    reply_ret_type reply(REQUEST_WAIT_METHOD);      \
+    request_future<__GLRPC_FRESULT> reply;   \
     dispatch_type d = BOOST_PP_CAT(dc_impl::OBJECT_NONINTRUSIVE_REQUESTDISPATCH,N)<distributed_control,T,F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N, GENT ,_) >;  \
     arc << reinterpret_cast<size_t>(d);       \
     serialize(arc, (char*)(&remote_function), sizeof(remote_function)); \
     arc << objid;       \
-    arc << reinterpret_cast<size_t>(&reply);       \
+    arc << reinterpret_cast<size_t>(reply.reply.get());       \
     BOOST_PP_REPEAT(N, GENARC, _)                \
     sender->send_data(target, flags, arc.buf, arc.off);    \
     if ((flags & CONTROL_PACKET) == 0)                       \
       rmi->inc_bytes_sent(target, arc.off);           \
-    reply.wait(); \
-    iarchive iarc(reply.val.c, reply.val.len);  \
-    typename function_ret_type<__GLRPC_FRESULT>::type result; \
-    iarc >> result;  \
-    reply.val.free(); \
-    return result;  \
+    return reply;   \
   }\
 };
 

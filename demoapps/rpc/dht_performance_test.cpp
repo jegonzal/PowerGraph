@@ -70,6 +70,28 @@ int main(int argc, char ** argv) {
       }
       std::cout << "10k reads in " << ti.current_time() << std::endl;
     }
+
+    if (dc.procid() == 0) {
+      std::cout << "Starting background gets" << std::endl;
+
+      timer ti;
+      std::vector<request_future<std::pair<bool, std::string> > > futures;
+      futures.resize(NUMSTRINGS);
+      ti.start();
+      for (size_t i = 0;i < NUMSTRINGS; ++i) {
+        futures[i] = testdht.get_future(data[i].first);
+      }
+      std::cout << "gets issued." << std::endl;
+      for (size_t i = 0;i < NUMSTRINGS; ++i) {
+        std::pair<bool, std::string> ret = futures[i]();
+        if (i % 100 == 0) {
+          std::cout << ".";
+          std::cout.flush();
+        }
+      }
+      std::cout << "10k reads in " << ti.current_time() << std::endl;
+    }
+
     testdht.clear();
   }
   dc.barrier();
