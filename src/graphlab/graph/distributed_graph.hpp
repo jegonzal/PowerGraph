@@ -71,11 +71,15 @@
 #include <graphlab/graph/local_graph.hpp>
 #include <graphlab/graph/ingress/idistributed_ingress.hpp>
 #include <graphlab/graph/ingress/distributed_ingress_base.hpp>
-#include <graphlab/graph/ingress/distributed_batch_ingress2.hpp>
+#include <graphlab/graph/ingress/distributed_batch_ingress.hpp>
 #include <graphlab/graph/ingress/distributed_oblivious_ingress.hpp>
 #include <graphlab/graph/ingress/distributed_random_ingress.hpp>
 #include <graphlab/graph/ingress/distributed_identity_ingress.hpp>
 
+#include <graphlab/graph/ingress/sharding_constraint.hpp>
+#include <graphlab/graph/ingress/distributed_constrained_random_ingress.hpp>
+#include <graphlab/graph/ingress/distributed_constrained_oblivious_ingress.hpp>
+#include <graphlab/graph/ingress/distributed_constrained_batch_ingress.hpp>
 
 
 #include <graphlab/util/cuckoo_map_pow2.hpp>
@@ -372,6 +376,9 @@ namespace graphlab {
     friend class distributed_identity_ingress<VertexData, EdgeData>;
     friend class distributed_batch_ingress<VertexData, EdgeData>;
     friend class distributed_oblivious_ingress<VertexData, EdgeData>;
+    friend class distributed_constrained_random_ingress<VertexData, EdgeData>;
+    friend class distributed_constrained_oblivious_ingress<VertexData, EdgeData>;
+    friend class distributed_constrained_batch_ingress<VertexData, EdgeData>;
     friend class json_parser<VertexData, EdgeData>;
 
     typedef graphlab::vertex_id_type vertex_id_type;
@@ -2789,7 +2796,17 @@ namespace graphlab {
       } else if (method == "identity") {
         logstream(LOG_EMPH) << "Use identity ingress" << std::endl;
         ingress_ptr = new distributed_identity_ingress<VertexData, EdgeData>(rpc.dc(), *this);
+      } else if (method == "constrained_random") {
+        logstream(LOG_EMPH) << "Use constrained random ingress" << std::endl;
+        ingress_ptr = new distributed_constrained_random_ingress<VertexData, EdgeData>(rpc.dc(), *this);
+      } else if (method == "constrained_oblivious") {
+        logstream(LOG_EMPH) << "Use constrained oblivious ingress" << std::endl;
+        ingress_ptr = new distributed_constrained_oblivious_ingress<VertexData, EdgeData>(rpc.dc(), *this, usehash, userecent);
+      } else if (method == "constrained_batch") {
+        logstream(LOG_EMPH) << "Use constrained batch ingress" << std::endl;
+        ingress_ptr = new distributed_constrained_batch_ingress<VertexData, EdgeData>(rpc.dc(), *this, bufsize, usehash, userecent);
       } else {
+        logstream(LOG_EMPH) << "Use random ingress" << std::endl;
         ingress_ptr = new distributed_random_ingress<VertexData, EdgeData>(rpc.dc(), *this);
       }
     } // end of set ingress method

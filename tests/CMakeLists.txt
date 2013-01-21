@@ -30,6 +30,7 @@ ADD_CXXTEST(empty_test.cxx)
 ADD_CXXTEST(scheduler_test.cxx)
 
 add_graphlab_executable(distributed_graph_test distributed_graph_test.cpp)
+add_graphlab_executable(distributed_ingress_test distributed_ingress_test.cpp)
 
 add_graphlab_executable(cuckootest cuckootest.cpp)
 add_graphlab_executable(dc_consensus_test dc_consensus_test.cpp)

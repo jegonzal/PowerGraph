@@ -85,7 +85,37 @@ namespace graphlab {
       }
       return retval;
     }
+ 
+    /**
+     * gets the value associated with a key.
+     * Returns (true, Value) if the entry is available.
+     * Returns (false, undefined) otherwise.
+     */
+    request_future<std::pair<bool, ValueType> > get_future(const KeyType &key) const {
+      // who owns the data?
+
+      const size_t hashvalue = hasher(key);
+      const size_t owningmachine = hashvalue % rpc.numprocs();
+      std::pair<bool, ValueType> retval;
+      // if it is me, we can return it
+      if (owningmachine == rpc.dc().procid()) {
+
+        lock.lock();
+        typename storage_type::const_iterator iter = storage.find(hashvalue);
+        retval.first = iter != storage.end();
+        if (retval.first) retval.second = iter->second;
+        lock.unlock();
+        return retval;
+      } else {
+        return rpc.future_remote_request(owningmachine, 
+                                           &dht<KeyType,ValueType>::get, 
+                                           key);
+      }
+    }
   
+
+
+
     /**
      * Sets the newval to be the value associated with the key
      */

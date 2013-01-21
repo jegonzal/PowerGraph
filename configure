@@ -220,7 +220,7 @@ date | tee $LOG_FILE
 if [ `which cmake` ]; then
   #test cmake version
   echo "Testing existing cmake version..."
-  currentversion=`cmake --version | tr -dc '[0-9].'`
+  currentversion=`cmake --version | awk -F "patch" '{print $1;}' | tr -dc '[0-9].'`
   echo "Detected $currentversion . Required 2.8.3"
   check_version $currentversion "2.8.3"
   if [ $? -ne 2 ]; then
@@ -233,7 +233,7 @@ fi
 if [ -z $CMAKE ] && [ -f $DEPS_PREFIX/bin/cmake ]; then
   #test cmake version
   echo "Testing existing cmake version..."
-  currentversion=`$DEPS_PREFIX/bin/cmake --version | tr -dc '[0-9].'`
+  currentversion=`$DEPS_PREFIX/bin/cmake --version | awk -F "patch" '{print $1;}' | tr -dc '[0-9].'`
   echo "Detected ${currentversion}. Required 2.8.3"
   check_version $currentversion "2.8.3"
   if [ $? -ne 2 ]; then

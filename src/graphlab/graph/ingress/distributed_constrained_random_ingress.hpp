@@ -20,8 +20,8 @@
  *
  */
 
-#ifndef GRAPHLAB_DISTRIBUTED_RANDOM_INGRESS_HPP
-#define GRAPHLAB_DISTRIBUTED_RANDOM_INGRESS_HPP
+#ifndef GRAPHLAB_DISTRIBUTED_CONSTRAINED_RANDOM_INGRESS_HPP
+#define GRAPHLAB_DISTRIBUTED_CONSTRAINED_RANDOM_INGRESS_HPP
 
 #include <boost/functional/hash.hpp>
 
@@ -30,6 +30,7 @@
 #include <graphlab/graph/ingress/idistributed_ingress.hpp>
 #include <graphlab/graph/ingress/distributed_ingress_base.hpp>
 #include <graphlab/graph/distributed_graph.hpp>
+#include <graphlab/graph/ingress/sharding_constraint.hpp>
 
 
 #include <graphlab/macros_def.hpp>
@@ -41,34 +42,50 @@ namespace graphlab {
    * \brief Ingress object assigning edges using randoming hash function.
    */
   template<typename VertexData, typename EdgeData>
-  class distributed_random_ingress : 
+  class distributed_constrained_random_ingress : 
     public distributed_ingress_base<VertexData, EdgeData> {
   public:
     typedef distributed_graph<VertexData, EdgeData> graph_type;
     /// The type of the vertex data stored in the graph 
     typedef VertexData vertex_data_type;
     /// The type of the edge data stored in the graph 
-    typedef EdgeData   edge_data_type;
+    typedef EdgeData edge_data_type;
 
 
     typedef distributed_ingress_base<VertexData, EdgeData> base_type;
-   
+
+    sharding_constraint* constraint;
+    boost::hash<vertex_id_type> hashvid;
+
   public:
-    distributed_random_ingress(distributed_control& dc, graph_type& graph) :
+    distributed_constrained_random_ingress(distributed_control& dc, graph_type& graph) :
     base_type(dc, graph) {
+      constraint = new sharding_constraint(dc.numprocs(), "grid");
     } // end of constructor
 
-    ~distributed_random_ingress() { }
+    ~distributed_constrained_random_ingress() { 
+      delete constraint;
+    }
 
     /** Add an edge to the ingress object using random assignment. */
     void add_edge(vertex_id_type source, vertex_id_type target,
                   const EdgeData& edata) {
       typedef typename base_type::edge_buffer_record edge_buffer_record;
-      const procid_t owning_proc = base_type::edge_decision.edge_to_proc_random(source, target, base_type::rpc.numprocs());
+
+      std::vector<procid_t> candidates;
+      constraint->get_joint_neighbors(get_master(source), get_master(target), candidates);
+
+      const procid_t owning_proc = base_type::edge_decision.edge_to_proc_random(source, target, candidates);
+
       const edge_buffer_record record(source, target, edata);
       base_type::edge_exchange.send(owning_proc, record);
     } // end of add edge
-  }; // end of distributed_random_ingress
+
+  private:
+    procid_t get_master (vertex_id_type vid) {
+      return hashvid(vid) % base_type::rpc.numprocs();
+    }
+  }; // end of distributed_constrained_random_ingress
 }; // end of namespace graphlab
 #include <graphlab/macros_undef.hpp>
 

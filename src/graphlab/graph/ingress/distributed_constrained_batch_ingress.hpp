@@ -20,8 +20,8 @@
  *
  */
 
-#ifndef GRAPHLAB_DISTRIBUTED_BATCH_INGRESS_HPP
-#define GRAPHLAB_DISTRIBUTED_BATCH_INGRESS_HPP
+#ifndef GRAPHLAB_DISTRIBUTED_CONSTRAINED_BATCH_INGRESS_HPP
+#define GRAPHLAB_DISTRIBUTED_CONSTRAINED_BATCH_INGRESS_HPP
 
 #include <boost/unordered_set.hpp>
 #include <graphlab/graph/graph_basic_types.hpp>
@@ -31,13 +31,14 @@
 #include <graphlab/rpc/buffered_exchange.hpp>
 #include <graphlab/rpc/distributed_event_log.hpp>
 #include <graphlab/util/dense_bitset.hpp>
+#include <graphlab/graph/ingress/sharding_constraint.hpp>
 #include <graphlab/macros_def.hpp>
 namespace graphlab {
   template<typename VertexData, typename EdgeData>
     class distributed_graph;
 
   template<typename VertexData, typename EdgeData>
-  class distributed_batch_ingress : 
+  class distributed_constrained_batch_ingress : 
     public distributed_ingress_base<VertexData, EdgeData> {
   public:
     typedef distributed_graph<VertexData, EdgeData> graph_type;
@@ -49,7 +50,7 @@ namespace graphlab {
     typedef typename graph_type::vertex_record vertex_record;
     typedef typename graph_type::mirror_type mirror_type;
 
-    dc_dist_object<distributed_batch_ingress> rpc;
+    dc_dist_object<distributed_constrained_batch_ingress> rpc;
     typedef distributed_ingress_base<VertexData, EdgeData> base_type;
 
     mutex local_graph_lock;
@@ -97,36 +98,28 @@ namespace graphlab {
     /** The map from proc_id to num_edges on that proc */
     std::vector<size_t> proc_num_edges;
 
-    DECLARE_TRACER(batch_ingress_add_edge);
-    DECLARE_TRACER(batch_ingress_add_edges);
-    DECLARE_TRACER(batch_ingress_compute_assignments);
-    DECLARE_TRACER(batch_ingress_request_degree_table);
-    DECLARE_TRACER(batch_ingress_get_degree_table);
-    DECLARE_TRACER(batch_ingress_update_degree_table);
-
     /** Ingress tratis. */
     bool usehash;
     bool userecent; 
 
+    sharding_constraint* constraint;
+    boost::hash<vertex_id_type> hashvid;
+
   public:
-    distributed_batch_ingress(distributed_control& dc, graph_type& graph, 
+    distributed_constrained_batch_ingress(distributed_control& dc, graph_type& graph, 
         size_t bufsize = 50000, bool usehash = false, bool userecent = false) :
       base_type(dc, graph), rpc(dc, this), 
       num_edges(0), bufsize(bufsize), query_set(dc.numprocs()),
       proc_num_edges(dc.numprocs()), usehash(usehash), userecent(userecent) { 
-       rpc.barrier(); 
-
-      INITIALIZE_TRACER(batch_ingress_add_edge, "Time spent in add edge");
-      INITIALIZE_TRACER(batch_ingress_add_edges, "Time spent in add block edges" );
-      INITIALIZE_TRACER(batch_ingress_compute_assignments, "Time spent in compute assignment");
-      INITIALIZE_TRACER(batch_ingress_request_degree_table, "Time spent in requesting assignment");
-      INITIALIZE_TRACER(batch_ingress_get_degree_table, "Time spent in retrieve degree table");
-      INITIALIZE_TRACER(batch_ingress_update_degree_table, "Time spent in update degree table");
-     }
+        constraint = new sharding_constraint(dc.numprocs(), "grid"); 
+        rpc.barrier(); 
+      }
+      ~distributed_constrained_batch_ingress() { 
+         delete constraint;
+       }
 
     /** Adds an edge to the batch ingress buffer, and updates the query set. */
     void add_edge(vertex_id_type source, vertex_id_type target, const EdgeData& edata) {
-      BEGIN_TRACEPOINT(batch_ingress_add_edge);
       edgesend_lock.lock();
       ASSERT_LT(edgesend.size(), bufsize);
       edgesend.push_back(std::make_pair(source, target)); 
@@ -135,7 +128,6 @@ namespace graphlab {
       query_set[base_type::vertex_to_proc(target)].insert(target);
       ++num_edges;
       edgesend_lock.unlock();
-      END_TRACEPOINT(batch_ingress_add_edge);
       if (is_full()) flush();
     } // end of add_edge
 
@@ -156,7 +148,6 @@ namespace graphlab {
         const std::vector<vertex_id_type>& target_arr, 
         const std::vector<EdgeData>& edata_arr) {
 
-      BEGIN_TRACEPOINT(batch_ingress_add_edges);
       ASSERT_TRUE((source_arr.size() == target_arr.size())
           && (source_arr.size() == edata_arr.size())); 
       if (source_arr.size() == 0) return;
@@ -216,7 +207,7 @@ namespace graphlab {
       for (size_t i = 0; i < rpc.numprocs(); ++i) {
         if (i != rpc.procid()) {
           rpc.remote_call(i, 
-                          &distributed_batch_ingress::block_add_degree_counts, 
+                          &distributed_constrained_batch_ingress::block_add_degree_counts, 
                           rpc.procid(),
                           local_degree_count[i]);
         } else {
@@ -235,32 +226,27 @@ namespace graphlab {
                                              local_target_arr, edata_arr);
       local_graph_lock.unlock();
  
-      END_TRACEPOINT(batch_ingress_add_edges);
     } // end of add edges
 
     /** Updates the local part of the distributed table. */
     void block_add_degree_counts (procid_t pid, std::vector<vertex_id_type>& whohas) {
-      BEGIN_TRACEPOINT(batch_ingress_update_degree_table);
       dht_degree_table_lock.readlock();
       foreach (vertex_id_type& vid, whohas) {
         size_t idx = vid_to_dht_entry_with_readlock(vid);
         dht_degree_table[idx].set_bit_unsync(pid);
       }
       dht_degree_table_lock.unlock();
-      END_TRACEPOINT(batch_ingress_update_degree_table);
     }
 
     /** Returns the degree counts by querying the distributed table. */
     dht_degree_table_type 
     block_get_degree_table(const boost::unordered_set<vertex_id_type>& vid_query) {
-      BEGIN_TRACEPOINT(batch_ingress_get_degree_table);
       dht_degree_table_type answer;
       dht_degree_table_lock.readlock();
       foreach (vertex_id_type qvid, vid_query) {
         answer[qvid] = dht_degree_table[vid_to_dht_entry_with_readlock(qvid)]; 
       }
       dht_degree_table_lock.unlock();
-      END_TRACEPOINT(batch_ingress_get_degree_table);
       return answer;
     }  // end of block get degree table
 
@@ -277,7 +263,6 @@ namespace graphlab {
       edgesend_lock.unlock();
       return;
      }
-     BEGIN_TRACEPOINT(batch_ingress_request_degree_table);
      std::vector<dht_degree_table_type> degree_table(rpc.numprocs());
      
      // Query the DHT.
@@ -287,26 +272,27 @@ namespace graphlab {
        } else {
          degree_table[i] = 
            rpc.remote_request(i, 
-               &distributed_batch_ingress::block_get_degree_table,
+               &distributed_constrained_batch_ingress::block_get_degree_table,
                query_set[i]);
        }
        query_set[i].clear();
      }
-     END_TRACEPOINT(batch_ingress_request_degree_table);
 
      // Make assigment.
      for (size_t i = 0; i < num_edges; ++i) {
        std::pair<vertex_id_type, vertex_id_type>& e = 
          edgesend[i];
 
-       BEGIN_TRACEPOINT(batch_ingress_compute_assignments);
        size_t src_proc = base_type::vertex_to_proc(e.first);
        size_t dst_proc = base_type::vertex_to_proc(e.second);
        bin_counts_type& src_degree = degree_table[src_proc][e.first];
        bin_counts_type& dst_degree = degree_table[dst_proc][e.second];
+
+       std::vector<procid_t> candidates;
+       constraint->get_joint_neighbors(get_master(e.first), get_master(e.second), candidates);
+
        procid_t proc = base_type::edge_decision.edge_to_proc_greedy(e.first, e.second, 
-           src_degree, dst_degree, proc_num_edges, usehash, userecent);
-       END_TRACEPOINT(batch_ingress_compute_assignments);
+           src_degree, dst_degree, candidates, proc_num_edges, usehash, userecent);
 
        ASSERT_LT(proc, proc_src.size());
        proc_src[proc].push_back(e.first);
@@ -333,7 +319,7 @@ namespace graphlab {
           add_edges(proc_src[i], proc_dst[i], proc_edata[i]);
           num_edges -= proc_src[i].size();
         } else {
-          rpc.remote_call(i, &distributed_batch_ingress::add_edges,
+          rpc.remote_call(i, &distributed_constrained_batch_ingress::add_edges,
               proc_src[i], proc_dst[i], proc_edata[i]);
           num_edges -= proc_src[i].size();
         } // end if
@@ -345,7 +331,15 @@ namespace graphlab {
 
     /** Returns whether the buffer is full. */
     bool is_full() { return size() >= bufsize; }
-  }; // end of distributed_batch_ingress
+
+    /** Return the master shard of the vertex. */
+    procid_t get_master (vertex_id_type vid) {
+      return hashvid(vid) % base_type::rpc.numprocs();
+    }
+
+
+  }; // end of distributed_constrained_batch_ingress
+
 
 }; // end of namespace graphlab
 #include <graphlab/macros_undef.hpp>
