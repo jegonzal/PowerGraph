@@ -85,7 +85,7 @@ Note: for weighted-ALS, the input has the follwoing format:
 \endverbatim
 Since each rating has its associated weight.
 
-\section "Computing ratings" "Computing ratings"
+\section Computing ratings
 
 Optionally, you can compute ratings for user/item pairs using the computed linear model. The prediction output Filename is specified by: --predictions=filename . If the --prediction command line is not used, the output is not saved. Additionally you need to prepare a file named somefile.predict inside of your training folder, with user item pairs in the following format: 
 \verbatim
