@@ -14,4 +14,6 @@ target_link_libraries(py_graphlab python2.7 graphlab)
 add_dependencies(py_graphlab graphlab)
 requires_core_deps(py_graphlab)
 
+copy_file(wrappers.py)
+copy_file(simple_pagerank.py)
 

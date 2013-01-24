@@ -5,9 +5,6 @@ class vertexDataClass:
 		self.pr = pr_new;
 		self.prDelta = delta_new;		
 			
-class edgeDataClass:
-	pass;
-
 class aggregatorClass:
 	sum = 0.0;
 	def __init__(self, sum_new=0.0):
@@ -18,14 +15,8 @@ class aggregatorClass:
 def transformVertex(vertex):
 	return vertexDataClass();
 
-def transformEdge(edge):
-	return edgeDataClass();
-
 def saveVertex(vertex):
 	return str(vertex.pr)+":"+str(vertex.prDelta);
-
-def saveEdge(edge):
-	return "";
 
 def gather(srcData, targetData, edgeData, numIn, numOut):
 	return 0.85*srcData.pr/numOut;

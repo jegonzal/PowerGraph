@@ -5,6 +5,7 @@ usermod = None;
 def initUserModule(name):
 	global usermod;
 	usermod = __import__(name);
+        return "edgeDataClass" in dir(usermod);
 
 def newVertex():
 	return usermod.vertexDataClass();
@@ -12,28 +13,25 @@ def newVertex():
 def loadVertex(vertexWrap):
         return cPickle.loads(vertexWrap);
 
-def saveVertex(vertex):
+def storeVertex(vertex):
 	return cPickle.dumps(vertex);
 
 def newEdge():
 	return usermod.edgeDataClass();
 
 def loadEdge(edgeWrap):
-	return cPickle.loads(vertexWrap);
+	return cPickle.loads(edgeWrap);
 
-def saveEdge(edge):
+def storeEdge(edge):
 	return cPickle.dumps(edge);
 
 def newAgg():
 	return usermod.aggregatorClass();
 
 def loadAgg(aggWrap):
-	if (len(aggWrap) > 0):
-		return cPickle.loads(aggWrap);
-	else:
-		return usermod.aggregatorClass();
+	return cPickle.loads(aggWrap);
 
-def saveAgg(agg):
+def storeAgg(agg):
 	return cPickle.dumps(agg);
 
 def gatherAgg(agg1, agg2):
@@ -49,7 +47,7 @@ def transformEdge(edge):
 def saveVertex(vertex):
 	return usermod.saveVertex(vertex);
 
-def saveEdgeW(edge):
+def saveEdge(edge):
         return usermod.saveEdge(edge);
 
 def gather(srcData, targetData, edgeData, numIn, numOut):
