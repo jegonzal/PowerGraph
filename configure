@@ -249,7 +249,6 @@ if [ -z $CMAKE ]; then
   echo "process will be directed to use graphlabapi/deps/cmake."
   pushd .
   mkdir deps
-  mkdir -p deps/local/lib
   cd deps
 
   # get the cmake software page
@@ -314,6 +313,9 @@ echo -e "\t JAVAC=$JAVAC" >> configure.deps
 echo -e "# The cmake binary used to geneate the project:" >> configure.deps
 echo -e "\t CMAKE=$CMAKE" >> configure.deps
 
+
+
+mkdir -p deps/local/lib
 
 echo "======================= BUILD CONFIGURATION ========================"
 echo "System Information: " | tee -a $LOG_FILE
