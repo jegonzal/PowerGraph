@@ -98,7 +98,7 @@ struct request_future {
 
 template <>
 struct request_future<void> {
-  typedef typename dc_impl::function_ret_type<void>::type result_type;
+  typedef dc_impl::function_ret_type<void>::type result_type;
   mutable std::auto_ptr<dc_impl::reply_ret_type> reply;
   bool hasval;
 
