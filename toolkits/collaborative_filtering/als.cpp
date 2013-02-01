@@ -572,7 +572,7 @@ int main(int argc, char** argv) {
   const std::string description = 
     "Compute the ALS factorization of a matrix.";
   graphlab::command_line_options clopts(description);
-  std::string input_dir, output_dir;
+  std::string input_dir;
   std::string predictions;
   size_t interval = 10;
   std::string exec_type = "synchronous";
@@ -595,8 +595,6 @@ int main(int argc, char** argv) {
                        "The prefix (folder and filename) to save predictions.");
   clopts.attach_option("engine", exec_type, 
                        "The engine type synchronous or asynchronous");
-  clopts.attach_option("output", output_dir,
-                       "Output results");
   clopts.attach_option("regnormal", als_vertex_program::REGNORMAL, 
                        "regularization type. 1 = weighted according to neighbors num. 0 = no weighting - just lambda");
   
