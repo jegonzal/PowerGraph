@@ -146,7 +146,7 @@ namespace graphlab {
          (
           qi::ulong_[phoenix::ref(source) = qi::_1] >> -qi::char_(",") >>
           qi::ulong_[phoenix::ref(ntargets) = qi::_1] >> -qi::char_(",") >>
-          (qi::ulong_[phoenix::push_back(phoenix::ref(targets), qi::_1)] % -qi::char_(",") )
+          *(qi::ulong_[phoenix::push_back(phoenix::ref(targets), qi::_1)] % -qi::char_(","))
           )
          ,
          //  End grammar

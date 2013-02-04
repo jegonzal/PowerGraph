@@ -583,7 +583,7 @@ namespace graphlab {
                       const graphlab_options& opts = graphlab_options() ) : 
       rpc(dc, this), finalized(false), vid2lvid(-1),
       nverts(0), nedges(0), local_own_nverts(0), nreplicas(0),
-      ingress_ptr(NULL), vertex_exchange(dc), vset_exchange(dc) {
+      ingress_ptr(NULL), vertex_exchange(dc), vset_exchange(dc), parallel_ingress(true) {
       rpc.barrier();
 
       set_options(opts);
@@ -617,7 +617,13 @@ namespace graphlab {
            if (rpc.procid() == 0) 
             logstream(LOG_EMPH) << "Graph Option: userecent = " 
               << userecent << std::endl;
-       } else {
+       } else if (opt == "parallel_ingress") {
+         opts.get_graph_args().get_option("parallel_ingress", parallel_ingress);
+          if (!parallel_ingress && rpc.procid() == 0) 
+            logstream(LOG_EMPH) << "Disable parallel ingress. Graph will be streamed through one node." 
+              << std::endl;
+       }
+        else {
           logstream(LOG_ERROR) << "Unexpected Graph Option: " << opt << std::endl;
         }
       }
@@ -1827,7 +1833,8 @@ namespace graphlab {
         logstream(LOG_WARNING) << "No files found matching " << original_path << std::endl;
       }
       for(size_t i = 0; i < graph_files.size(); ++i) {
-        if (i % rpc.numprocs() == rpc.procid()) {
+        if ((parallel_ingress && (i % rpc.numprocs() == rpc.procid()))
+            || (!parallel_ingress && (rpc.procid() == 0))) {
           logstream(LOG_EMPH) << "Loading graph from file: " << graph_files[i] << std::endl;
           // is it a gzip file ?
           const bool gzip = boost::ends_with(graph_files[i], ".gz");
@@ -1876,7 +1883,8 @@ namespace graphlab {
         logstream(LOG_WARNING) << "No files found matching " << prefix << std::endl;
       }
       for(size_t i = 0; i < graph_files.size(); ++i) {
-        if (i % rpc.numprocs() == rpc.procid()) {
+        if ((parallel_ingress && (i % rpc.numprocs() == rpc.procid())) ||
+            (!parallel_ingress && (rpc.procid() == 0))) {
           logstream(LOG_EMPH) << "Loading graph from file: " << graph_files[i] << std::endl;
           // is it a gzip file ?
           const bool gzip = boost::ends_with(graph_files[i], ".gz");
@@ -2778,6 +2786,9 @@ namespace graphlab {
 
     /** Buffered Exchange used by vertex sets */
     buffered_exchange<vertex_id_type> vset_exchange;
+
+    /** Command option to disable parallel ingress. Used for simulating single node ingress */
+    bool parallel_ingress; 
 
     void set_ingress_method(const std::string& method,
         size_t bufsize = 50000, bool usehash = false, bool userecent = false) {
