@@ -44,28 +44,33 @@
 #include <boost/spirit/include/phoenix_core.hpp>
 #include <boost/spirit/include/phoenix_operator.hpp>
 #include <boost/spirit/include/phoenix_stl.hpp>
+#include <boost/tokenizer.hpp>
 
 #include <limits>
 #include <vector>
+#include <map>
 #include <iostream>
+#include <stdlib.h>
 
 #include <graphlab.hpp>
 
 
 size_t NUM_CLUSTERS = 0;
+bool IS_SPARSE = false;
 
 struct cluster {
   cluster(): count(0), changed(false) { }
   std::vector<double> center;
+  std::map<size_t, double> center_sparse;
   size_t count;
   bool changed;
 
   void save(graphlab::oarchive& oarc) const {
-    oarc << center << count << changed;
+    oarc << center << count << changed << center_sparse;
   }
 
   void load(graphlab::iarchive& iarc) {
-    iarc >> center >> count >> changed;
+    iarc >> center >> count >> changed >> center_sparse;
   }
 };
 
@@ -76,15 +81,16 @@ size_t KMEANS_INITIALIZATION;
 
 struct vertex_data{
   std::vector<double> point;
+  std::map<size_t, double> point_sparse;
   size_t best_cluster;
   double best_distance;
   bool changed;
 
   void save(graphlab::oarchive& oarc) const {
-    oarc << point << best_cluster << best_distance << changed;
+    oarc << point << best_cluster << best_distance << changed << point_sparse;
   }
   void load(graphlab::iarchive& iarc) {
-    iarc >> point >> best_cluster >> best_distance >> changed;
+    iarc >> point >> best_cluster >> best_distance >> changed >> point_sparse;
   }
 };
 
@@ -107,8 +113,6 @@ struct edge_data {
   }
 };
 
-
-
 // helper function to compute distance between points
 double sqr_distance(const std::vector<double>& a,
                     const std::vector<double>& b) {
@@ -121,8 +125,32 @@ double sqr_distance(const std::vector<double>& a,
   return total;
 }
 
+double sqr_distance(const std::map<size_t, double>& a,
+                    const std::map<size_t, double>& b) {
+  double total = 0;
+  for(std::map<size_t, double>::const_iterator iter = a.begin();
+      iter != a.end(); ++iter){
+    size_t id = (*iter).first;
+    double val = (*iter).second;
+    if(b.find(id) != b.end()){
+      double d = val - b.at(id);
+      total += d*d;
+    }else{
+      total += val * val;
+    }
+  }
+  for(std::map<size_t, double>::const_iterator iter = b.begin();
+      iter != b.end(); ++iter){
+    double val = (*iter).second;
+    if(a.find((*iter).first) == a.end()){
+      total += val * val;
+    }
+  }
+  return total;
+}
 
-// helper function to add two vectors 
+
+// helper function to add two vectors
 std::vector<double>& plus_equal_vector(std::vector<double>& a,
                                        const std::vector<double>& b) {
   ASSERT_EQ(a.size(), b.size());
@@ -132,10 +160,35 @@ std::vector<double>& plus_equal_vector(std::vector<double>& a,
   return a;
 }
 
-// helper function to scale a vector vectors 
+// helper function to add two vectors
+std::map<size_t, double>& plus_equal_vector(std::map<size_t, double>& a,
+                                       const std::map<size_t, double>& b) {
+  for(std::map<size_t, double>::const_iterator iter = b.begin();
+    iter != b.end(); ++iter){
+    size_t id = (*iter).first;
+    double val = (*iter).second;
+    if(a.find(id) != a.end()){
+      a[id] += b.at(id);
+    }else{
+      a.insert(std::make_pair<size_t, double>(id, val));
+    }
+  }
+  return a;
+}
+
+// helper function to scale a vector vectors
 std::vector<double>& scale_vector(std::vector<double>& a, double d) {
   for (size_t i = 0;i < a.size(); ++i) {
     a[i] *= d;
+  }
+  return a;
+}
+
+// helper function to scale a vector vectors
+std::map<size_t, double>& scale_vector(std::map<size_t, double>& a, double d) {
+  for(std::map<size_t, double>::iterator iter = a.begin();
+    iter != a.end(); ++iter){
+    (*iter).second *= d;
   }
   return a;
 }
@@ -172,6 +225,29 @@ bool vertex_loader(graph_type& graph, const std::string& fname,
 }
 
 // Read a line from a file and creates a vertex
+bool vertex_loader_sparse(graph_type& graph, const std::string& fname,
+                   const std::string& line) {
+  if (line.empty()) return true;
+
+  vertex_data vtx;
+  boost::char_separator<char> sep(" ");
+  boost::tokenizer< boost::char_separator<char> > tokens(line, sep);
+  BOOST_FOREACH (const std::string& t, tokens) {
+    std::string::size_type pos = t.find(":");
+    if(pos > 0){
+      size_t id = (size_t)std::atoi(t.substr(0, pos).c_str());
+      double val = std::atof(t.substr(pos+1, t.length() - pos -1).c_str());
+      vtx.point_sparse.insert(std::make_pair<size_t, double>(id, val));
+    }
+  }
+  vtx.best_cluster = (size_t)(-1);
+  vtx.best_distance = std::numeric_limits<double>::infinity();
+  vtx.changed = false;
+  graph.add_vertex(NEXT_VID.inc_ret_last(1), vtx);
+  return true;
+}
+
+// Read a line from a file and creates a vertex
 bool vertex_loader_with_id(graph_type& graph, const std::string& fname,
                    const std::string& line) {
   if (line.empty()) return true;
@@ -198,6 +274,38 @@ bool vertex_loader_with_id(graph_type& graph, const std::string& fname,
   graph.add_vertex(id, vtx);
   return true;
 }
+
+// Read a line from a file and creates a vertex
+bool vertex_loader_with_id_sparse(graph_type& graph, const std::string& fname,
+                   const std::string& line) {
+  if (line.empty()) return true;
+
+  vertex_data vtx;
+  size_t id = 0;
+  boost::char_separator<char> sep(" ");
+  boost::tokenizer<boost::char_separator<char> > tokens(line, sep);
+  bool first = true;
+  BOOST_FOREACH (const std::string& t, tokens) {
+    if(first){
+      id = (size_t)std::atoi(t.c_str());
+      first = false;
+    }else{
+      std::string::size_type pos = t.find(":");
+      if(pos > 0){
+        size_t id = (size_t)std::atoi(t.substr(0, pos).c_str());
+        double val = std::atof(t.substr(pos+1, t.length() - pos -1).c_str());
+        vtx.point_sparse.insert(std::make_pair<size_t, double>(id, val));
+      }
+    }
+  }
+  vtx.best_cluster = (size_t)(-1);
+  vtx.best_distance = std::numeric_limits<double>::infinity();
+  vtx.changed = false;
+  graph.add_vertex(id, vtx);
+  return true;
+}
+
+
 
 //call this when edge weight file is given.
 //each line should be [source id] [target id] [weight].
@@ -256,10 +364,10 @@ struct min_point_size_reducer: public graphlab::IS_POD_TYPE {
 
 /*
  * This transform vertices call is only used during
- * the initialization phase. IT computes distance to 
+ * the initialization phase. It computes distance to
  * cluster[KMEANS_INITIALIZATION] and assigns itself
  * to the new cluster KMEANS_INITIALIZATION if the new distance
- * is smaller that its previous cluster asssignment
+ * is smaller that its previous cluster assignment
  */
 void kmeans_pp_initialization(graph_type::vertex_type& v) {
   double d = sqr_distance(v.data().point,
@@ -269,6 +377,16 @@ void kmeans_pp_initialization(graph_type::vertex_type& v) {
     v.data().best_cluster = KMEANS_INITIALIZATION;
   }
 }
+
+void kmeans_pp_initialization_sparse(graph_type::vertex_type& v) {
+  double d = sqr_distance(v.data().point_sparse,
+                          CLUSTERS[KMEANS_INITIALIZATION].center_sparse);
+  if (v.data().best_distance > d) {
+    v.data().best_distance = d;
+    v.data().best_cluster = KMEANS_INITIALIZATION;
+  }
+}
+
 
 /*
  * Draws a random sample from the data points that is 
@@ -318,8 +436,49 @@ struct random_sample_reducer {
   }
 };
 
+struct random_sample_reducer_sparse{
+  std::map<size_t, double> vtx;
+  double weight;
 
+  random_sample_reducer_sparse():weight(0) { }
+  random_sample_reducer_sparse(const std::map<size_t, double>& vtx,
+                        double weight):vtx(vtx),weight(weight) { }
 
+  static random_sample_reducer_sparse get_weight(const graph_type::vertex_type& v) {
+    if (v.data().best_cluster == (size_t)(-1)) {
+      return random_sample_reducer_sparse(v.data().point_sparse, 1);
+    }
+    else {
+      return random_sample_reducer_sparse(v.data().point_sparse,
+                                   v.data().best_distance);
+    }
+  }
+
+  random_sample_reducer_sparse& operator+=(const random_sample_reducer_sparse& other) {
+    double totalweight = weight + other.weight;
+    // if any weight is too small, just quit
+    if (totalweight <= 0) return *this;
+
+    double myp = weight / (weight + other.weight);
+    if (graphlab::random::bernoulli(myp)) {
+      weight += other.weight;
+      return *this;
+    }
+    else {
+      vtx = other.vtx;
+      weight += other.weight;
+      return *this;
+    }
+  }
+
+  void save(graphlab::oarchive &oarc) const {
+    oarc << vtx << weight;
+  }
+
+  void load(graphlab::iarchive& iarc) {
+    iarc >> vtx >> weight;
+  }
+};
 
 
 /*
@@ -337,9 +496,12 @@ void kmeans_iteration(graph_type::vertex_type& v) {
     v.data().best_cluster = (size_t)(-1);
     v.data().best_distance = std::numeric_limits<double>::infinity();
     for (size_t i = 0;i < NUM_CLUSTERS; ++i) {
-      if (CLUSTERS[i].center.size() > 0) {
-        double d = sqr_distance(v.data().point,
-                                CLUSTERS[i].center);
+      if (CLUSTERS[i].center.size() > 0 || CLUSTERS[i].center_sparse.size() > 0) {
+        double d = 0.0;
+        if(IS_SPARSE == true)
+          d = sqr_distance(v.data().point_sparse, CLUSTERS[i].center_sparse);
+        else
+          d = sqr_distance(v.data().point, CLUSTERS[i].center);
         if (d < v.data().best_distance) {
           v.data().best_distance = d;
           v.data().best_cluster = i;
@@ -350,9 +512,13 @@ void kmeans_iteration(graph_type::vertex_type& v) {
   else {
     // just compute distance to what has changed
     for (size_t i = 0;i < NUM_CLUSTERS; ++i) {
-      if (CLUSTERS[i].changed && CLUSTERS[i].center.size() > 0) {
-        double d = sqr_distance(v.data().point,
-                                CLUSTERS[i].center);
+      if (CLUSTERS[i].changed &&
+          (CLUSTERS[i].center.size() > 0 || CLUSTERS[i].center_sparse.size() > 0)) {
+        double d = 0.0;
+        if(IS_SPARSE == true)
+          d = sqr_distance(v.data().point_sparse, CLUSTERS[i].center_sparse);
+        else
+          d= sqr_distance(v.data().point, CLUSTERS[i].center);
         if (d < v.data().best_distance) {
           v.data().best_distance = d;
           v.data().best_cluster = i;
@@ -426,8 +592,12 @@ public:
     vertex.data().best_cluster = (size_t) (-1);
     vertex.data().best_distance = std::numeric_limits<double>::infinity();
     for (size_t i = 0; i < NUM_CLUSTERS; ++i) {
-      if (CLUSTERS[i].center.size() > 0) {
-        double d = sqrt(sqr_distance(vertex.data().point, CLUSTERS[i].center));
+      if (CLUSTERS[i].center.size() > 0 || CLUSTERS[i].center_sparse.size() > 0) {
+        double d = 0.0;
+        if(IS_SPARSE == true)
+          d = sqr_distance(vertex.data().point_sparse, CLUSTERS[i].center_sparse);
+        else
+          d = sqr_distance(vertex.data().point, CLUSTERS[i].center);
         //consider neighbors
         const std::map<size_t, double>& cw_map = total.cw_map;
         for (std::map<size_t, double>::const_iterator iter = cw_map.begin();
@@ -477,7 +647,10 @@ struct cluster_center_reducer {
     cluster_center_reducer cc;
     ASSERT_NE(v.data().best_cluster, (size_t)(-1));
 
-    cc.new_clusters[v.data().best_cluster].center = v.data().point;
+    if(IS_SPARSE == true)
+      cc.new_clusters[v.data().best_cluster].center_sparse = v.data().point_sparse;
+    else
+      cc.new_clusters[v.data().best_cluster].center = v.data().point;
     cc.new_clusters[v.data().best_cluster].count = 1;
     cc.num_changed = v.data().changed;
     return cc;
@@ -487,7 +660,10 @@ struct cluster_center_reducer {
     for (size_t i = 0;i < NUM_CLUSTERS; ++i) {
       if (new_clusters[i].count == 0) new_clusters[i] = other.new_clusters[i];
       else if (other.new_clusters[i].count > 0) {
-        plus_equal_vector(new_clusters[i].center, other.new_clusters[i].center);
+        if(IS_SPARSE == true)
+          plus_equal_vector(new_clusters[i].center_sparse, other.new_clusters[i].center_sparse);
+        else
+          plus_equal_vector(new_clusters[i].center, other.new_clusters[i].center);
         new_clusters[i].count += other.new_clusters[i].count;
       }
     }
@@ -509,6 +685,21 @@ struct vertex_writer {
     std::stringstream strm;
     for (size_t i = 0;i < v.data().point.size(); ++i) {
       strm << v.data().point[i] << "\t";
+    }
+    strm << v.data().best_cluster << "\n";
+    strm.flush();
+    return strm.str();
+  }
+
+  std::string save_edge(graph_type::edge_type e) { return ""; }
+};
+
+struct vertex_writer_sparse {
+  std::string save_vertex(graph_type::vertex_type v) {
+    std::stringstream strm;
+    for(std::map<size_t, double>::iterator iter = v.data().point_sparse.begin();
+        iter != v.data().point_sparse.end();++iter){
+      strm << (*iter).first << ":" << (*iter).second << " ";
     }
     strm << v.data().best_cluster << "\n";
     strm.flush();
@@ -547,6 +738,7 @@ int main(int argc, char** argv) {
   std::string outcluster_file;
   std::string outdata_file;
   std::string edgedata_file;
+  size_t MAX_ITERATION = 0;
   bool use_id = false;
   clopts.attach_option("data", datafile,
                        "Input file. Each line holds a white-space or comma separated numeric vector");
@@ -561,8 +753,11 @@ int main(int argc, char** argv) {
                        "last column denoting the assigned cluster centers. The output "
                        "will be written to a sequence of filenames where each file is "
                        "prefixed by this value. This may be on HDFS.");
+  clopts.attach_option("sparse", IS_SPARSE,
+                       "If set to true, will use a sparse vector representation."
+                       "File format should be [feature id]:[value] [feature id]:[value] ...");
   clopts.attach_option("id", use_id,
-                       "If set at 1, will use ids for data points. The id of a data point "
+                       "If set to true, will use ids for data points. The id of a data point "
                        "must be written at the head of each line of the input data. "
                        "The output data will consist of two columns: the first one "
                        "denotes the ids; the second one denotes the assigned clusters.");
@@ -570,6 +765,8 @@ int main(int argc, char** argv) {
                        "If set, will consider pairwise rewards when clustering. "
                        "Each line of the file beginning with the argument holds [id1] [id2] "
                        "[reward]. This mode must be used with --id option.");
+  clopts.attach_option("max-iteration", MAX_ITERATION,
+                       "The max number of iterations");
 
   if(!clopts.parse(argc, argv)) return EXIT_FAILURE;
   if (datafile == "") {
@@ -577,7 +774,7 @@ int main(int argc, char** argv) {
     return EXIT_FAILURE;
   }
   if (NUM_CLUSTERS == 0) {
-    std::cout << "--cluster is not optional\n";
+    std::cout << "--clusters is not optional\n";
     return EXIT_FAILURE;
   }
   if(edgedata_file.size() > 0){
@@ -592,10 +789,18 @@ int main(int argc, char** argv) {
   // load graph
   graph_type graph(dc, clopts);
   NEXT_VID = (((graphlab::vertex_id_type)1 << 31) / dc.numprocs()) * dc.procid();
-  if(use_id){
-    graph.load(datafile, vertex_loader_with_id);
+  if(IS_SPARSE == true){
+    if(use_id){
+      graph.load(datafile, vertex_loader_with_id_sparse);
+    }else{
+      graph.load(datafile, vertex_loader_sparse);
+    }
   }else{
-    graph.load(datafile, vertex_loader);
+    if(use_id){
+      graph.load(datafile, vertex_loader_with_id);
+    }else{
+      graph.load(datafile, vertex_loader);
+    }
   }
   if(edgedata_file.size() > 0){
     graph.load(edgedata_file, edge_loader);
@@ -611,34 +816,41 @@ int main(int argc, char** argv) {
   dc.cout() << "Validating data...";
 
 
+  CLUSTERS.resize(NUM_CLUSTERS);
   // make sure all have the same array length
-
-  size_t max_p_size = graph.map_reduce_vertices<max_point_size_reducer>
-                                (max_point_size_reducer::get_max_point_size).max_point_size;
-  size_t min_p_size = graph.map_reduce_vertices<min_point_size_reducer>
-                                (min_point_size_reducer::get_min_point_size).min_point_size;
-  if (max_p_size != min_p_size) {
-    dc.cout() << "Data has dimensionality ranging from " << min_p_size << " to " << max_p_size
-              << "! K-means cannot proceed!" << std::endl;
-    return EXIT_FAILURE;
+  if(IS_SPARSE == false){
+    size_t max_p_size = graph.map_reduce_vertices<max_point_size_reducer>
+                                  (max_point_size_reducer::get_max_point_size).max_point_size;
+    size_t min_p_size = graph.map_reduce_vertices<min_point_size_reducer>
+                                  (min_point_size_reducer::get_min_point_size).min_point_size;
+    if (max_p_size != min_p_size) {
+      dc.cout() << "Data has dimensionality ranging from " << min_p_size << " to " << max_p_size
+                << "! K-means cannot proceed!" << std::endl;
+      return EXIT_FAILURE;
+    }
+    // allocate clusters
+    for (size_t i = 0;i < NUM_CLUSTERS; ++i) {
+      CLUSTERS[i].center.resize(max_p_size);
+    }
   }
-
 
   dc.cout() << "Initializing using Kmeans++\n";
-  // allocate clusters
-  CLUSTERS.resize(NUM_CLUSTERS);
-  for (size_t i = 0;i < NUM_CLUSTERS; ++i) {
-    CLUSTERS[i].center.resize(max_p_size);
-  }
-
   // ok. perform kmeans++ initialization
   for (KMEANS_INITIALIZATION = 0;
        KMEANS_INITIALIZATION < NUM_CLUSTERS;
        ++KMEANS_INITIALIZATION) {
-    random_sample_reducer rs = graph.map_reduce_vertices<random_sample_reducer>
-                                      (random_sample_reducer::get_weight);
-    CLUSTERS[KMEANS_INITIALIZATION].center = rs.vtx;
-    graph.transform_vertices(kmeans_pp_initialization);
+
+    if(IS_SPARSE == true){
+      random_sample_reducer_sparse rs = graph.map_reduce_vertices<random_sample_reducer_sparse>
+                                        (random_sample_reducer_sparse::get_weight);
+      CLUSTERS[KMEANS_INITIALIZATION].center_sparse = rs.vtx;
+      graph.transform_vertices(kmeans_pp_initialization_sparse);
+    }else{
+      random_sample_reducer rs = graph.map_reduce_vertices<random_sample_reducer>
+                                        (random_sample_reducer::get_weight);
+      CLUSTERS[KMEANS_INITIALIZATION].center = rs.vtx;
+      graph.transform_vertices(kmeans_pp_initialization);
+    }
   }
 
   // "reset" all clusters
@@ -649,6 +861,8 @@ int main(int argc, char** argv) {
   bool clusters_changed = true;
   size_t iteration_count = 0;
   while(clusters_changed) {
+		if(MAX_ITERATION > 0 && iteration_count >= MAX_ITERATION)
+			break;
 
     cluster_center_reducer cc = graph.map_reduce_vertices<cluster_center_reducer>
                                     (cluster_center_reducer::get_center);
@@ -661,16 +875,30 @@ int main(int argc, char** argv) {
     }
     for (size_t i = 0;i < NUM_CLUSTERS; ++i) {
       double d = cc.new_clusters[i].count;
-      if (d > 0) scale_vector(cc.new_clusters[i].center, 1.0 / d);
-      if (cc.new_clusters[i].count == 0 && CLUSTERS[i].count > 0) {
-        dc.cout() << "Cluster " << i << " lost" << std::endl;
-        CLUSTERS[i].center.clear();
-        CLUSTERS[i].count = 0;
-        CLUSTERS[i].changed = false;
-      }
-      else {
-        CLUSTERS[i] = cc.new_clusters[i];
-        CLUSTERS[i].changed = true;
+      if(IS_SPARSE){
+        if (d > 0) scale_vector(cc.new_clusters[i].center_sparse, 1.0 / d);
+        if (cc.new_clusters[i].count == 0 && CLUSTERS[i].count > 0) {
+          dc.cout() << "Cluster " << i << " lost" << std::endl;
+          CLUSTERS[i].center_sparse.clear();
+          CLUSTERS[i].count = 0;
+          CLUSTERS[i].changed = false;
+        }
+        else {
+          CLUSTERS[i] = cc.new_clusters[i];
+          CLUSTERS[i].changed = true;
+        }
+      }else{
+        if (d > 0) scale_vector(cc.new_clusters[i].center, 1.0 / d);
+        if (cc.new_clusters[i].count == 0 && CLUSTERS[i].count > 0) {
+          dc.cout() << "Cluster " << i << " lost" << std::endl;
+          CLUSTERS[i].center.clear();
+          CLUSTERS[i].count = 0;
+          CLUSTERS[i].changed = false;
+        }
+        else {
+          CLUSTERS[i] = cc.new_clusters[i];
+          CLUSTERS[i].changed = true;
+        }
       }
     }
     clusters_changed = iteration_count == 0 || cc.num_changed > 0;
@@ -684,7 +912,6 @@ int main(int argc, char** argv) {
       graph.transform_vertices(kmeans_iteration);
     }
 
-
     ++iteration_count;
   }
 
@@ -692,13 +919,25 @@ int main(int argc, char** argv) {
   if (!outcluster_file.empty() && dc.procid() == 0) {
     dc.cout() << "Writing Cluster Centers..." << std::endl;
     std::ofstream fout(outcluster_file.c_str());
-    for (size_t i = 0;i < NUM_CLUSTERS; ++i) {
-      if(use_id)
-        fout << i+1 << "\t";
-      for (size_t j = 0; j < CLUSTERS[i].center.size(); ++j) {
-        fout << CLUSTERS[i].center[j] << "\t";
+    if(IS_SPARSE){
+      for (size_t i = 0;i < NUM_CLUSTERS; ++i) {
+        if(use_id)
+          fout << i+1 << "\t";
+        for (std::map<size_t, double>::iterator iter = CLUSTERS[i].center_sparse.begin();
+             iter != CLUSTERS[i].center_sparse.end();++iter) {
+          fout << (*iter).first << ":" << (*iter).second << " ";
+        }
+        fout << "\n";
       }
-      fout << "\n";
+    }else{
+      for (size_t i = 0;i < NUM_CLUSTERS; ++i) {
+        if(use_id)
+          fout << i+1 << "\t";
+        for (size_t j = 0; j < CLUSTERS[i].center.size(); ++j) {
+          fout << CLUSTERS[i].center[j] << " ";
+        }
+        fout << "\n";
+      }
     }
   }
 
@@ -707,7 +946,10 @@ int main(int argc, char** argv) {
     if(use_id){
       graph.save(outdata_file, vertex_writer_with_id(), false, true, false, 1);
     }else{
-      graph.save(outdata_file, vertex_writer(), false, true, false, 1);
+      if(IS_SPARSE == true)
+        graph.save(outdata_file, vertex_writer_sparse(), false, true, false, 1);
+      else
+        graph.save(outdata_file, vertex_writer(), false, true, false, 1);
     }
   }
 
