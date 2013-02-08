@@ -78,6 +78,7 @@
 
 #include <graphlab/graph/ingress/sharding_constraint.hpp>
 #include <graphlab/graph/ingress/distributed_constrained_random_ingress.hpp>
+#include <graphlab/graph/ingress/distributed_constrained_random_ingress2.hpp>
 #include <graphlab/graph/ingress/distributed_constrained_oblivious_ingress.hpp>
 #include <graphlab/graph/ingress/distributed_constrained_batch_ingress.hpp>
 
@@ -377,6 +378,7 @@ namespace graphlab {
     friend class distributed_batch_ingress<VertexData, EdgeData>;
     friend class distributed_oblivious_ingress<VertexData, EdgeData>;
     friend class distributed_constrained_random_ingress<VertexData, EdgeData>;
+    friend class distributed_constrained_random_ingress2<VertexData, EdgeData>;
     friend class distributed_constrained_oblivious_ingress<VertexData, EdgeData>;
     friend class distributed_constrained_batch_ingress<VertexData, EdgeData>;
     friend class json_parser<VertexData, EdgeData>;
@@ -580,7 +582,7 @@ namespace graphlab {
      *                  \ref graphlab::command_line_options.
      */
     distributed_graph(distributed_control& dc, 
-                      const graphlab_options& opts = graphlab_options() ) : 
+                      const graphlab_options& opts = graphlab_options()) : 
       rpc(dc, this), finalized(false), vid2lvid(-1),
       nverts(0), nedges(0), local_own_nverts(0), nreplicas(0),
       ingress_ptr(NULL), vertex_exchange(dc), vset_exchange(dc), parallel_ingress(true) {
@@ -595,6 +597,7 @@ namespace graphlab {
       bool usehash = false;
       bool userecent = false;
       std::string ingress_method = "random";
+      std::string constrained_graph= "grid";
       std::vector<std::string> keys = opts.get_graph_args().get_option_keys();
       foreach(std::string opt, keys) {
         if (opt == "ingress") {
@@ -617,17 +620,21 @@ namespace graphlab {
            if (rpc.procid() == 0) 
             logstream(LOG_EMPH) << "Graph Option: userecent = " 
               << userecent << std::endl;
-       } else if (opt == "parallel_ingress") {
+        } else if (opt == "constrained_graph") {
+          opts.get_graph_args().get_option("constrained_graph", constrained_graph);
+           if (rpc.procid() == 0) 
+            logstream(LOG_EMPH) << "Graph Option: constrained_graph = " 
+                                << constrained_graph << std::endl;
+        } else if (opt == "parallel_ingress") {
          opts.get_graph_args().get_option("parallel_ingress", parallel_ingress);
           if (!parallel_ingress && rpc.procid() == 0) 
             logstream(LOG_EMPH) << "Disable parallel ingress. Graph will be streamed through one node." 
               << std::endl;
-       }
-        else {
+        } else {
           logstream(LOG_ERROR) << "Unexpected Graph Option: " << opt << std::endl;
         }
-      }
-      set_ingress_method(ingress_method, bufsize, usehash, userecent);
+      set_ingress_method(ingress_method, bufsize, usehash, userecent, constrained_graph);
+    }
     }
 
   public:
@@ -2791,7 +2798,8 @@ namespace graphlab {
     bool parallel_ingress; 
 
     void set_ingress_method(const std::string& method,
-        size_t bufsize = 50000, bool usehash = false, bool userecent = false) {
+        size_t bufsize = 50000, bool usehash = false, bool userecent = false,
+        std::string constrained_graph = "grid") {
 
       if(ingress_ptr != NULL) { delete ingress_ptr; ingress_ptr = NULL; }
       if (method == "batch") {
@@ -2809,7 +2817,10 @@ namespace graphlab {
         ingress_ptr = new distributed_identity_ingress<VertexData, EdgeData>(rpc.dc(), *this);
       } else if (method == "constrained_random") {
         logstream(LOG_EMPH) << "Use constrained random ingress" << std::endl;
-        ingress_ptr = new distributed_constrained_random_ingress<VertexData, EdgeData>(rpc.dc(), *this);
+        ingress_ptr = new distributed_constrained_random_ingress<VertexData, EdgeData>(rpc.dc(), *this, constrained_graph);
+      } else if (method == "constrained_random2") {
+        logstream(LOG_EMPH) << "Use constrained random ingress2" << std::endl;
+        ingress_ptr = new distributed_constrained_random_ingress2<VertexData, EdgeData>(rpc.dc(), *this, constrained_graph);
       } else if (method == "constrained_oblivious") {
         logstream(LOG_EMPH) << "Use constrained oblivious ingress" << std::endl;
         ingress_ptr = new distributed_constrained_oblivious_ingress<VertexData, EdgeData>(rpc.dc(), *this, usehash, userecent);

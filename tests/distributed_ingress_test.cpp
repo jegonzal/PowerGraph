@@ -143,6 +143,9 @@ int main(int argc, char** argv) {
    fout.close();
   }
 
+  // graph.get_local_graph().save_adjacency("partition_"+boost::lexical_cast<std::string>(dc.procid())+".txt");
+  // graph.save_format("partition", "snap", false, 1);
+
   graphlab::mpi_tools::finalize();
   return EXIT_SUCCESS;
 } // end of main

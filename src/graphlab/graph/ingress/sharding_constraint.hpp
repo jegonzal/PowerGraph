@@ -40,8 +40,7 @@ namespace graphlab {
       if (method == "grid") {
         make_grid_constraint();
       } else if (method == "pds") {
-        pds gen;
-        gen.get_pds(num_shards);
+        make_pds_constraint();
       } else {
         logstream(LOG_FATAL) << "Unknown sharding constraint method: " << method << std::endl;
       }
@@ -58,8 +57,14 @@ namespace graphlab {
     }
 
     bool get_joint_neighbors (procid_t shardi, procid_t shardj, std::vector<procid_t>& neighbors) {
+      ASSERT_EQ(neighbors.size(), 0);
       ASSERT_LT(shardi, nshards);
       ASSERT_LT(shardj, nshards);
+      // if (shardi == shardj) {
+      //   neighbors.push_back(shardi);
+      //   return true;
+      // }
+
       std::vector<procid_t>& ls1 = constraint_graph[shardi];
       std::vector<procid_t>& ls2 = constraint_graph[shardj];
       neighbors.clear();
@@ -82,6 +87,7 @@ namespace graphlab {
     void make_grid_constraint() {
       size_t ncols, nrows;
       ncols = nrows = (size_t)sqrt(nshards);
+      ASSERT_EQ(ncols*nrows, nshards);
 
       for (size_t i = 0; i < nshards; i++) {
         std::vector<procid_t> adjlist;
@@ -100,6 +106,22 @@ namespace graphlab {
         std::sort(adjlist.begin(), adjlist.end());
         constraint_graph.push_back(adjlist);
       }
+    }
+
+    void make_pds_constraint() {
+        int p = floor(sqrt(nshards-1));
+        ASSERT_EQ((p*p+p+1), nshards);
+        pds pds_generator;
+        std::vector<size_t> results = pds_generator.get_pds(p);
+        // ASSERT_EQ(results.size(), nshards);
+        for (size_t i = 0; i < nshards; i++) {
+          std::vector<procid_t> adjlist;
+          for (size_t j = 0; j < results.size(); j++) {
+            adjlist.push_back( (results[j] + i) % nshards);
+          }
+          std::sort(adjlist.begin(), adjlist.end());
+          constraint_graph.push_back(adjlist);
+        }
     }
 
     void check() {

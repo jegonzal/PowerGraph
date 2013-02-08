@@ -58,9 +58,10 @@ namespace graphlab {
     boost::hash<vertex_id_type> hashvid;
 
   public:
-    distributed_constrained_random_ingress(distributed_control& dc, graph_type& graph) :
+    distributed_constrained_random_ingress(distributed_control& dc, graph_type& graph,
+                                           const std::string& method) :
     base_type(dc, graph) {
-      constraint = new sharding_constraint(dc.numprocs(), "grid");
+      constraint = new sharding_constraint(dc.numprocs(), method);
     } // end of constructor
 
     ~distributed_constrained_random_ingress() { 
@@ -75,7 +76,9 @@ namespace graphlab {
       std::vector<procid_t> candidates;
       constraint->get_joint_neighbors(get_master(source), get_master(target), candidates);
 
-      const procid_t owning_proc = base_type::edge_decision.edge_to_proc_random(source, target, candidates);
+      const procid_t owning_proc = 
+          base_type::edge_decision.edge_to_proc_random(source, target, candidates);
+
 
       const edge_buffer_record record(source, target, edata);
       base_type::edge_exchange.send(owning_proc, record);
@@ -83,7 +86,7 @@ namespace graphlab {
 
   private:
     procid_t get_master (vertex_id_type vid) {
-      return hashvid(vid) % base_type::rpc.numprocs();
+      return vid % base_type::rpc.numprocs();
     }
   }; // end of distributed_constrained_random_ingress
 }; // end of namespace graphlab
