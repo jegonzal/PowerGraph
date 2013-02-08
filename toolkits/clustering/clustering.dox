@@ -154,10 +154,28 @@ location. Graphs may be on HDFS.
 If you have problems loading HDFS files, see the \ref FAQ.
 
 
-\subsection clustering_kmeans_id The --id Option
+\subsection clustering_kmeans_sparse --sparse Option
+
+If <tt>--sparse=1</tt> is set (default is 0), the program will use 
+a sparse vector representation. 
+The file format is [feature id]:[value] [feature id]:[value] ...
+Each line corresponds to a datapoint.
+[feature id] must be positive integer or zero.
+
+For instance:
+\verbatim
+> cat synthetic_sparse.txt
+0:-4.31568  3:-0.396959 5:-6.29507  
+5:-4.56112  9:-1.74917  
+4:4.54508 5:0.102845  10:6.35385 
+0:4.87746 7:-0.832591 
+\endverbatim
+
+
+\subsection clustering_kmeans_id --id Option
 
 If <tt>--id=1</tt> is set (default is 0), the program will use 
-an id for each data point. The id of a data point must be written at the head 
+id for each data point. The id of a data point must be written at the head 
 of each line of the input data.
 
 For instance:
@@ -181,6 +199,7 @@ For instance:
 4 1 
 \endverbatim
 
+<tt>--id</tt> can be used with <tt>--sparse/tt>.
 
 \subsection clustering_kmeans_edge_data Adding Pairwise Reward
 
@@ -212,10 +231,11 @@ for computation. <b>Due to some implementation limitations within GraphLab,
    with cluster assignments. May be on HDFS.
 \li \b --output-clusters (Optional) A target location to write the cluster centers.
    Must be on the local file system.
+\li \b --sparse (Optional. Default 0) If set at 1, will use sparse vector representation
 \li \b --id (Optional. Default 0) If set at 1, will use ids for data points
 \li \b --pairwise-reward (Optional) If set, will consider pairwise rewards written in the 
    files beginning with the given argument
-
+\li \b --max-iteration (Optional) The max number of iterations
 
 
 
