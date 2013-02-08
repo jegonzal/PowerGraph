@@ -24,6 +24,7 @@
 #define GRAPHLAB_DISTRIBUTED_SHARDING_CONSTRAINT_HPP
 
 #include <graphlab/graph/graph_basic_types.hpp>
+#include <graphlab/util/generate_pds.hpp>
 #include <algorithm>
 #include <vector>
 
@@ -36,7 +37,14 @@ namespace graphlab {
       nshards = num_shards;
       // ignore the method input for now, only construct grid graph. 
       // assuming nshards is perfect square
-      make_grid_constraint();
+      if (method == "grid") {
+        make_grid_constraint();
+      } else if (method == "pds") {
+        pds gen;
+        gen.get_pds(num_shards);
+      } else {
+        logstream(LOG_FATAL) << "Unknown sharding constraint method: " << method << std::endl;
+      }
       check();
     }
 
