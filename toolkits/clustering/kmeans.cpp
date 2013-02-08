@@ -127,7 +127,7 @@ double sqr_distance(const std::vector<double>& a,
 
 double sqr_distance(const std::map<size_t, double>& a,
                     const std::map<size_t, double>& b) {
-  double total = 0;
+  double total = 0.0;
   for(std::map<size_t, double>::const_iterator iter = a.begin();
       iter != a.end(); ++iter){
     size_t id = (*iter).first;
@@ -146,7 +146,37 @@ double sqr_distance(const std::map<size_t, double>& a,
       total += val * val;
     }
   }
+
   return total;
+
+////   cosine distance is better for sparse datapoints?
+//    double ip = 0.0;
+//    double lenA = 0.0;
+//    double lenB = 0.0;
+//    for(std::map<size_t, double>::const_iterator iter = a.begin();
+//        iter != a.end(); ++iter){
+//      size_t id = (*iter).first;
+//      double val = (*iter).second;
+//      if(b.find(id) != b.end()){
+//        ip += val * b.at(id);
+//      }
+//      lenA += val*val;
+//    }
+//
+//    if(ip == 0.0 || lenA == 0.0)
+//      return 1.0;
+//
+//    for(std::map<size_t, double>::const_iterator iter = b.begin();
+//        iter != b.end(); ++iter){
+//      double val = (*iter).second;
+//      lenB += val * val;
+//    }
+//
+//    if(lenB == 1.0)
+//      return 1.0;
+//
+//    return 1.0 - ip/(sqrt(lenA)*sqrt(lenB));
+
 }
 
 
@@ -188,7 +218,10 @@ std::vector<double>& scale_vector(std::vector<double>& a, double d) {
 std::map<size_t, double>& scale_vector(std::map<size_t, double>& a, double d) {
   for(std::map<size_t, double>::iterator iter = a.begin();
     iter != a.end(); ++iter){
-    (*iter).second *= d;
+  size_t id = (*iter).first;
+  double val = (*iter).second;
+  a[id] = val*d;
+//    (*iter).second *= d;
   }
   return a;
 }
@@ -755,7 +788,8 @@ int main(int argc, char** argv) {
                        "prefixed by this value. This may be on HDFS.");
   clopts.attach_option("sparse", IS_SPARSE,
                        "If set to true, will use a sparse vector representation."
-                       "File format should be [feature id]:[value] [feature id]:[value] ...");
+                       "The file format is [feature id]:[value] [feature id]:[value] ..."
+                       ", where [feature id] must be positive integer or zero.");
   clopts.attach_option("id", use_id,
                        "If set to true, will use ids for data points. The id of a data point "
                        "must be written at the head of each line of the input data. "
