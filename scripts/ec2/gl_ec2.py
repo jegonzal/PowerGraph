@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#ls!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
 # Licensed to the Apache Software Foundation (ASF) under one
@@ -544,10 +544,12 @@ def main():
     proxy_opt = ""
     if opts.proxy_port != None:
       proxy_opt = "-D " + opts.proxy_port
+      # DB: patch to setup-hadoop file, remove when image is updated
+    scp(master, opts, "../ec2_tools/setup-hadoop", '/home/ubuntu/graphlabapi/scripts/ec2_tools/')
     subprocess.check_call("""ssh -o StrictHostKeyChecking=no -i %s %s ubuntu@%s \"export PATH=$PATH:/opt/hadoop-1.0.1/bin;
         export CLASSPATH=$CLASSPATH:.:\`hadoop classpath\`;
         export JAVA_HOME=/usr/lib/jvm/java-6-sun;
-        alias mpiexec='mpiexec -hostfile ~/machines -x CLASSPATH'; /home/ubuntu/graphlabapi/scripts/ec2_tools/setup-hadoop\"""" % (opts.identity_file, proxy_opt, master), shell=True)
+        alias mpiexec='mpiexec.openmpi -hostfile ~/machines -x CLASSPATH'; /home/ubuntu/graphlabapi/scripts/ec2_tools/setup-hadoop\"""" % (opts.identity_file, proxy_opt, master), shell=True)
 
   elif action == "check-hadoop":
     (master_nodes, slave_nodes, zoo_nodes) = get_existing_cluster(
@@ -586,16 +588,16 @@ def main():
     subprocess.check_call("""ssh -o StrictHostKeyChecking=no -i %s %s ubuntu@%s \"export PATH=$PATH:/opt/hadoop-1.0.1/bin;
         export CLASSPATH=$CLASSPATH:.:\`hadoop classpath\`;
         export JAVA_HOME=/usr/lib/jvm/java-6-sun;
-        alias mpiexec='mpiexec -hostfile ~/machines -x CLASSPATH'; 
         cd graphlabapi/release/toolkits/collaborative_filtering/;
         rm -fR smallnetflix; mkdir smallnetflix;
         cd smallnetflix/;
         wget http://www.select.cs.cmu.edu/code/graphlab/datasets/smallnetflix_mm.train;
         wget http://www.select.cs.cmu.edu/code/graphlab/datasets/smallnetflix_mm.validate;
         cd ..;
-        hadoop fs -rmr hdfs://\`hostname\`/smallnetflix/;
+        hadoop fs -rmr hdfs://\`head -n 1 ~/machines\`/smallnetflix/;
         hadoop fs -copyFromLocal smallnetflix/ /;
-        mpiexec -n 2 /home/ubuntu/graphlabapi/release/toolkits/collaborative_filtering/als --matrix hdfs://\`hostname\`/smallnetflix --max_iter=5 --ncpus=1;
+        cat ~/machines
+        mpiexec.openmpi -hostfile ~/machines -x CLASSPATH -n 2 /home/ubuntu/graphlabapi/release/toolkits/collaborative_filtering/als --matrix hdfs://\`head -n 1 ~/machines\`/smallnetflix --max_iter=5 --ncpus=1;
         \"""" % (opts.identity_file, proxy_opt, master), shell=True)
 
   elif action == "update":

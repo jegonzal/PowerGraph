@@ -7,8 +7,8 @@ exit 1
 fi
 
 
-namenode=$(hostname)
-echo "Setting up namenode information."
+namenode=`head -n 1 ~/machines` # first node is the master
+Echo "Setting up namenode information."
 echo "  namenode: " $namenode
 # mpiexec.openmpi -hostfile ~/machines -pernode \
 #     ~/bin/set-namenode.sh $namenode /opt/hadoop-1.0.1/conf/core-site.xml

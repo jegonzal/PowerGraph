@@ -473,11 +473,11 @@ struct error_aggregator : public graphlab::IS_POD_TYPE {
   }
   static void finalize(icontext_type& context, const error_aggregator& agg) {
     const double train_error = std::sqrt(agg.train_error / info.training_edges);
-    context.cout() << context.elapsed_seconds() << "\t" << train_error;
+    context.cout() << "Time in seconds: " << context.elapsed_seconds() << "\tiTraining RMSE: " << train_error;
     if(info.validation_edges > 0) {
       const double validation_error = 
         std::sqrt(agg.validation_error / info.validation_edges);
-      context.cout() << "\t" << validation_error; 
+      context.cout() << "\tValidation RMSE: " << validation_error; 
     }
     context.cout() << std::endl;
   }
