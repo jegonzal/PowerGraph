@@ -6,6 +6,11 @@ echo "Exiting..."
 exit 1
 fi
 
+#db: clean ssh known_hosts cache in case ip/name changed
+mpiexec.openmpi -hostfile ~/machines -pernode \
+    sudo rm -fR ~/.ssh/known_hosts
+
+
 
 namenode=`head -n 1 ~/machines` # first node is the master
 echo "Setting up namenode information."
@@ -105,6 +110,9 @@ echo "   /mnt/hadoop "
 # mpiexec.openmpi -hostfile ~/machines -pernode \
 #     sudo rm -rf /mnt/hadoop/nn
 
+#DB: clean old hadoop files in case they are there
+mpiexec.openmpi -hostfile ~/machines -pernode \
+    sudo rm -fR /mnt/hadoop/  
 mpiexec.openmpi -hostfile ~/machines -pernode \
     sudo mkdir /mnt/hadoop/
 mpiexec.openmpi -hostfile ~/machines -pernode \
@@ -119,7 +127,8 @@ mpiexec.openmpi -hostfile ~/machines -pernode \
     sudo chown -R ubuntu:users /mnt/hadoop/
 
 
- 
+mpiexec.openmpi -hostfile ~/machines -pernode \
+    sudo rm -fR /mnt/tmp/
 mpiexec.openmpi -hostfile ~/machines -pernode \
     sudo mkdir /mnt/tmp
 mpiexec.openmpi -hostfile ~/machines -pernode \
