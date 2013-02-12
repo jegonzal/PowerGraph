@@ -8,7 +8,7 @@ fi
 
 
 namenode=`head -n 1 ~/machines` # first node is the master
-Echo "Setting up namenode information."
+echo "Setting up namenode information."
 echo "  namenode: " $namenode
 # mpiexec.openmpi -hostfile ~/machines -pernode \
 #     ~/bin/set-namenode.sh $namenode /opt/hadoop-1.0.1/conf/core-site.xml
@@ -125,7 +125,13 @@ mpiexec.openmpi -hostfile ~/machines -pernode \
 mpiexec.openmpi -hostfile ~/machines -pernode \
     sudo chown -R ubuntu:users /mnt/tmp
 
-
+echo "Machines file: "
+cat ~/machines
+while read line
+do
+  echo "Setting host name to $line"
+  mpiexec.openmpi -host $line -pernode sudo hostname $line
+done < ~/machines
 
 hadoop namenode -format
 

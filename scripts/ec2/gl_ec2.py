@@ -597,7 +597,7 @@ def main():
         hadoop fs -rmr hdfs://\`head -n 1 ~/machines\`/smallnetflix/;
         hadoop fs -copyFromLocal smallnetflix/ /;
         cat ~/machines
-        mpiexec.openmpi -hostfile ~/machines -x CLASSPATH -n 2 /home/ubuntu/graphlabapi/release/toolkits/collaborative_filtering/als --matrix hdfs://\`head -n 1 ~/machines\`/smallnetflix --max_iter=5 --ncpus=1;
+        mpiexec.mpich2 -f ~/machines -envlist CLASSPATH -n 2 /home/ubuntu/graphlabapi/release/toolkits/collaborative_filtering/als --matrix hdfs://\`head -n 1 ~/machines\`/smallnetflix --max_iter=5 --ncpus=1;
         \"""" % (opts.identity_file, proxy_opt, master), shell=True)
 
   elif action == "update":
