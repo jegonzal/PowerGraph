@@ -631,8 +631,8 @@ namespace graphlab {
         } else {
           logstream(LOG_ERROR) << "Unexpected Graph Option: " << opt << std::endl;
         }
-      set_ingress_method(ingress_method, bufsize, usehash, userecent, constrained_graph);
     }
+      set_ingress_method(ingress_method, bufsize, usehash, userecent, constrained_graph);
     }
 
   public:
@@ -2798,7 +2798,6 @@ namespace graphlab {
     void set_ingress_method(const std::string& method,
         size_t bufsize = 50000, bool usehash = false, bool userecent = false,
         std::string constrained_graph = "grid") {
-
       if(ingress_ptr != NULL) { delete ingress_ptr; ingress_ptr = NULL; }
       if (method == "batch") {
         logstream(LOG_EMPH) << "Use batch ingress, bufsize: " << bufsize
