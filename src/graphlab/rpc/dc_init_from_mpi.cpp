@@ -44,7 +44,8 @@ bool init_param_from_mpi(dc_init_param& param,dc_comm_type commtype) {
   size_t port = port_and_sock.first;
   int sock = port_and_sock.second;
   
-  std::string ipaddr = get_local_ip_as_str();
+  std::string ipaddr = 
+      get_local_ip_as_str(mpi_tools::rank() == 0 /* print stuff only if I am master */);
   ipaddr = ipaddr + ":" + tostr(port);
   // now do an allgather
   logstream(LOG_INFO) << "Will Listen on: " << ipaddr << std::endl;
