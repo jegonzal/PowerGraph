@@ -119,16 +119,33 @@ int main(int argc, char** argv) {
 
   if (dc.procid() == 0) {
    std::ofstream fout;
+   std::vector<std::string> keys = clopts.get_graph_args().get_option_keys();
    std::string ingress_method = "random";
+   std::string constraint_graph = "na";
    std::string bufsize = "50000";
    bool usehash = false; 
    bool userecent = false; 
 
+   foreach (std::string opt, keys) {
+     if (opt == "ingress") {
+       clopts.get_graph_args().get_option("ingress", ingress_method);
+     } else if (opt == "bufsize") {
+       clopts.get_graph_args().get_option("bufsize", bufsize);
+     } else if (opt == "usehash") {
+       clopts.get_graph_args().get_option("usehash", usehash);
+     } else if (opt == "userecent") {
+       clopts.get_graph_args().get_option("userecent", userecent);
+     } else if (opt == "constrained_graph") {
+       clopts.get_graph_args().get_option("constrained_graph", constraint_graph);
+     }
+   }
+
    fout.open("result.txt");
-   fout << "#ingress: " << ingress_method 
-     << " bufsize: " << bufsize 
-     << " usehash: " << usehash 
-     << " userecent: " << userecent
+   fout << "#ingress: " << ingress_method  << std::endl
+     << "#constraint: " << constraint_graph << std::endl
+     << "#bufsize: " << bufsize << std::endl
+     << "#usehash: " << usehash << std::endl
+     << "#userecent: " << userecent
      << std::endl;
 
    fout << "Num procs: " << dc.numprocs() << std::endl;

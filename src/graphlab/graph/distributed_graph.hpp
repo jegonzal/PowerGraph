@@ -585,7 +585,6 @@ namespace graphlab {
       nverts(0), nedges(0), local_own_nverts(0), nreplicas(0),
       ingress_ptr(NULL), vertex_exchange(dc), vset_exchange(dc), parallel_ingress(true) {
       rpc.barrier();
-
       set_options(opts);
     }
 
@@ -2813,13 +2812,13 @@ namespace graphlab {
         logstream(LOG_EMPH) << "Use identity ingress" << std::endl;
         ingress_ptr = new distributed_identity_ingress<VertexData, EdgeData>(rpc.dc(), *this);
       } else if (method == "constrained_random") {
-        logstream(LOG_EMPH) << "Use constrained random ingress" << std::endl;
+        logstream(LOG_EMPH) << "Use constrained random "  << constrained_graph << "ingress" << std::endl;
         ingress_ptr = new distributed_constrained_random_ingress<VertexData, EdgeData>(rpc.dc(), *this, constrained_graph);
       } else if (method == "constrained_oblivious") {
-        logstream(LOG_EMPH) << "Use constrained oblivious ingress" << std::endl;
+        logstream(LOG_EMPH) << "Use constrained oblivious " << constrained_graph << "ingress" << std::endl;
         ingress_ptr = new distributed_constrained_oblivious_ingress<VertexData, EdgeData>(rpc.dc(), *this, usehash, userecent);
       } else if (method == "constrained_batch") {
-        logstream(LOG_EMPH) << "Use constrained batch ingress" << std::endl;
+        logstream(LOG_EMPH) << "Use constrained batch " << constrained_graph << "ingress" << std::endl;
         ingress_ptr = new distributed_constrained_batch_ingress<VertexData, EdgeData>(rpc.dc(), *this, bufsize, usehash, userecent);
       } else {
         logstream(LOG_EMPH) << "Use random ingress" << std::endl;
