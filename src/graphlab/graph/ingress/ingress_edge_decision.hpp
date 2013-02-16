@@ -39,21 +39,20 @@ namespace graphlab {
       typedef distributed_graph<VertexData, EdgeData> graph_type;
       typedef fixed_dense_bitset<RPC_MAX_N_PROCS> bin_counts_type; 
 
-
     public:
       /** \brief A decision object for computing the edge assingment. */
       ingress_edge_decision(distributed_control& dc) {
       }
+
 
       /** Random assign (source, target) to a machine p in {0, ... numprocs-1} */
       procid_t edge_to_proc_random (const vertex_id_type source, 
           const vertex_id_type target,
           size_t numprocs) {
         typedef std::pair<vertex_id_type, vertex_id_type> edge_pair_type;
-        boost::hash< edge_pair_type >  hash_function;
         const edge_pair_type edge_pair(std::min(source, target), 
             std::max(source, target));
-        return hash_function(edge_pair) % (numprocs);
+        return edge_hashing(edge_pair) % (numprocs);
       };
 
       /** Random assign (source, target) to a machine p in a list of candidates */
@@ -61,10 +60,9 @@ namespace graphlab {
           const vertex_id_type target,
           const std::vector<procid_t> & candidates) {
         typedef std::pair<vertex_id_type, vertex_id_type> edge_pair_type;
-        boost::hash< edge_pair_type >  hash_function;
         const edge_pair_type edge_pair(std::min(source, target), 
             std::max(source, target));
-        return candidates[hash_function(edge_pair) % (candidates.size())];
+        return candidates[edge_hashing(edge_pair) % (candidates.size())];
       };
 
 
@@ -106,10 +104,9 @@ namespace graphlab {
 
         // Hash the edge to one of the best procs.
         typedef std::pair<vertex_id_type, vertex_id_type> edge_pair_type;
-        boost::hash< edge_pair_type >  hash_function;
         const edge_pair_type edge_pair(std::min(source, target), 
             std::max(source, target));
-        best_proc = top_procs[hash_function(edge_pair) % top_procs.size()];
+        best_proc = top_procs[edge_hashing(edge_pair) % top_procs.size()];
 
         ASSERT_LT(best_proc, numprocs);
         if (userecent) {
@@ -162,10 +159,9 @@ namespace graphlab {
 
         // Hash the edge to one of the best procs.
         typedef std::pair<vertex_id_type, vertex_id_type> edge_pair_type;
-        boost::hash< edge_pair_type >  hash_function;
         const edge_pair_type edge_pair(std::min(source, target), 
             std::max(source, target));
-        best_proc = top_procs[hash_function(edge_pair) % top_procs.size()];
+        best_proc = top_procs[edge_hashing(edge_pair) % top_procs.size()];
 
         ASSERT_LT(best_proc, numprocs);
         if (userecent) {
@@ -239,10 +235,9 @@ namespace graphlab {
 
         // Hash the edge to one of the best procs.
         typedef std::pair<vertex_id_type, vertex_id_type> edge_pair_type;
-        boost::hash< edge_pair_type >  hash_function;
         const edge_pair_type edge_pair(std::min(source, target), 
             std::max(source, target));
-        best_proc = top_procs[hash_function(edge_pair) % top_procs.size()];
+        best_proc = top_procs[edge_hashing(edge_pair) % top_procs.size()];
 
         ASSERT_LT(best_proc, numprocs);
 
@@ -258,11 +253,51 @@ namespace graphlab {
         return best_proc;
       };
 
+    private: 
+      /*
+       * Bob Jenkin's 32 bit integer mix function from
+       * http://home.comcast.net/~bretm/hash/3.html
+       */
+      inline size_t mix(size_t state) {
+        state += (state << 12);
+        state ^= (state >> 22);
+        state += (state << 4);
+        state ^= (state >> 9);
+        state += (state << 10);
+        state ^= (state >> 2);
+        state += (state << 7);
+        state ^= (state >> 12);
+        return state;
+      }
+
+      inline size_t edge_hashing (const std::pair<vertex_id_type, vertex_id_type>& e, const uint32_t seed = 5, bool symmetric = false) {
+        // a bunch of random numbers
+#if (__SIZEOF_PTRDIFF_T__ == 8)
+        static const size_t a[8] = {0x6306AA9DFC13C8E7,
+          0xA8CD7FBCA2A9FFD4,
+          0x40D341EB597ECDDC,
+          0x99CFA1168AF8DA7E,
+          0x7C55BCC3AF531D42,
+          0x1BC49DB0842A21DD,
+          0x2181F03B1DEE299F,
+          0xD524D92CBFEC63E9};
+#else
+        static const size_t a[8] = {0xFC13C8E7,
+          0xA2A9FFD4,
+          0x597ECDDC,
+          0x8AF8DA7E,
+          0xAF531D42,
+          0x842A21DD,
+          0x1DEE299F,
+          0xBFEC63E9};
+#endif
+        vertex_id_type src = symmetric ? std::max(e.first, e.second) : e.first;
+        vertex_id_type dst = symmetric ? std::min(e.first, e.second) : e.second;
+        size_t mask = 127;
+        size_t s = mix(a[seed % 8]^src + a[(seed+3) % 8]^dst);
+        return s & mask;
+      }
   };// end of ingress_edge_decision
-
-
-
-
 }
 
 #endif

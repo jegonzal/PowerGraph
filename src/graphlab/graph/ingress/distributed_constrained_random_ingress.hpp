@@ -86,7 +86,7 @@ namespace graphlab {
 
   private:
     procid_t get_master (vertex_id_type vid) {
-      return vid % base_type::rpc.numprocs();
+      return hashvid(vid) % base_type::rpc.numprocs();
     }
   }; // end of distributed_constrained_random_ingress
 }; // end of namespace graphlab
