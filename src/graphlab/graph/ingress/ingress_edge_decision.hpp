@@ -270,7 +270,7 @@ namespace graphlab {
         return state;
       }
 
-      inline size_t edge_hashing (const std::pair<vertex_id_type, vertex_id_type>& e, const uint32_t seed = 5, bool symmetric = false) {
+      inline size_t edge_hashing (const std::pair<vertex_id_type, vertex_id_type>& e, const uint32_t seed = 5) {
         // a bunch of random numbers
 #if (__SIZEOF_PTRDIFF_T__ == 8)
         static const size_t a[8] = {0x6306AA9DFC13C8E7,
@@ -291,11 +291,9 @@ namespace graphlab {
           0x1DEE299F,
           0xBFEC63E9};
 #endif
-        vertex_id_type src = symmetric ? std::max(e.first, e.second) : e.first;
-        vertex_id_type dst = symmetric ? std::min(e.first, e.second) : e.second;
-        size_t mask = 127;
-        size_t s = mix(a[seed % 8]^src + a[(seed+3) % 8]^dst);
-        return s & mask;
+        vertex_id_type src = e.first;
+        vertex_id_type dst = e.second;
+        return mix(mix(src^a[seed%8])^mix(dst^a[(seed+1)%8]));
       }
   };// end of ingress_edge_decision
 }
