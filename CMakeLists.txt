@@ -217,6 +217,7 @@ ExternalProject_Add(libtcmalloc
   PREFIX ${GraphLab_SOURCE_DIR}/deps/tcmalloc
   URL http://gperftools.googlecode.com/files/gperftools-2.0.tar.gz
   URL_MD5 13f6e8961bc6a26749783137995786b6
+  PATCH_COMMAND patch -N -p0 -i ${GraphLab_SOURCE_DIR}/patches/tcmalloc.patch || true
   CONFIGURE_COMMAND <SOURCE_DIR>/configure --enable-frame-pointers --prefix=<INSTALL_DIR> --enable-shared=no
   INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local)
 # link_libraries(tcmalloc)
