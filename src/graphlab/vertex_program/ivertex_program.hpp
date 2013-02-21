@@ -540,7 +540,7 @@ namespace graphlab {
 
     /**
      * \brief Returns the set of edges on which to run the gather
-     * function.  The default edge direction is out edges.
+     * function.  The default edge direction is in edges.
      *
      * The gather_edges function is invoked after the init function
      * has completed.
