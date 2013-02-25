@@ -33,7 +33,7 @@
 #include "dd_main.hpp"
 #include "dd_grlab.hpp"
 
-
+Options opts;
 
 /////////////////////////////////////////////////////////////////////////
 // Main function
@@ -50,26 +50,21 @@ int main(int argc, char** argv)
     const std::string description = "Dual-Decomposition for MAP-MRF Inference";
     graphlab::command_line_options clopts(description);
     
-    std::string graph_file;
-    std::string output_dir = "pred";
-    std::string exec_type = "sync"; //"async";
-    Options opts;
-    
-    clopts.attach_option("graph", graph_file,
+    clopts.attach_option("graph", opts.graph_file,
                          "The path to UAI file containing the factors");
     clopts.add_positional("graph");
-    clopts.attach_option("output", output_dir,
+    clopts.attach_option("output", opts.output_dir,
                          "The directory in which to save the predictions");
     clopts.add_positional("output");
     clopts.attach_option("dualimprovthres", opts.dualimprovthres,
                          "The tolerance level for Dual Convergence.");
     clopts.attach_option("pdgapthres", opts.pdgapthres,
                          "The tolerance level for Primal-Dual Gap.");
-    clopts.attach_option("maxiter", opts.pdgapthres,
+    clopts.attach_option("maxiter", opts.maxiter,
                          "The maximum no. of DD iterations.");
     clopts.attach_option("verbose", opts.verbose,
                          "Verbosity of Printing: 0 (default, no printing) or 1 (lots).");
-    clopts.attach_option("engine", exec_type,
+    clopts.attach_option("engine", opts.exec_type,
                          "The type of engine to use {async, sync}.");
     
     if(!clopts.parse(argc, argv)) 
@@ -78,33 +73,48 @@ int main(int argc, char** argv)
         return clopts.is_set("help")? EXIT_SUCCESS : EXIT_FAILURE;
     }
     
+    if(opts.graph_file.empty()) 
+    {
+        logstream(LOG_ERROR) << "No adjacency file provided." << std::endl;
+        return EXIT_FAILURE;
+    }
+
     ///! display settings  
     if(dc.procid() == 0) 
     {
         std::cout 
         << "ncpus:          " << clopts.get_ncpus() << std::endl
+        << "engine:         " << opts.exec_type << std::endl
         << "scheduler:      " << clopts.get_scheduler_type() << std::endl
+        << "graph_file:     " << opts.graph_file << std::endl
+        << "verbose:        " << opts.verbose << std::endl
         ;
     }
     
         
-    ///! load the graph
+    // Instantiate graph object
     graph_type graph(dc, clopts);  
     
     
-    ///! load the graph
+    // load the graph
     //    graph.load(prior_dir, vertex_loader);
     //    graph.load(graph_dir, edge_loader);
-    loadUAIfile(dc, graph, graph_file, opts);
+    loadUAIfile(dc, graph, opts.graph_file);
     graph.finalize();
     
-    // Nothing execute right now. So no engine.
+    // Define the engine.
     typedef graphlab::omni_engine<dd_vertex_program_symmetric> engine_type;
     //typedef graphlab::omni_engine<dd_vertex_program_projected> engine_type;
-    engine_type engine(dc, graph, exec_type, clopts);
+
+    // Instantiate the engine object
+    engine_type engine(dc, graph, opts.exec_type, clopts);
     engine.signal_all();
     graphlab::timer timer;
     
+    // Attach an aggregator to compute primal/dual objective, periodic with 0.5 s intervals.
+    engine.add_vertex_aggregator<double>("pd_obj", dual_sum, print_obj); 
+    engine.aggregate_periodic("pd_obj",0.0001);
+
     // The main command. Run graphlab
     engine.start();  
     
@@ -123,24 +133,3 @@ int main(int argc, char** argv)
     
     
 } // end of main
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

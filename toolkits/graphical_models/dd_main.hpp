@@ -47,25 +47,10 @@
 //#include "utils.hpp"
 #include "dd_grlab.hpp"
 
-/////////////////////////////////////////////////////////////////////////
-// Option Struct
-struct Options 
-{
-    double dualimprovthres;
-    double pdgapthres;
-    int maxiter;
-    int verbose;
-    
-    Options(): dualimprovthres(1e-5), pdgapthres(1e-1), maxiter(100), verbose(0)
-    {}
-};
-
-
 
 /////////////////////////////////////////////////////////////////////////
 // Load the UAI file. Each factor as a different vertex
-void loadUAIfile(graphlab::distributed_control& dc, graph_type& graph,       
-                 string graph_file, Options opts) 
+void loadUAIfile(graphlab::distributed_control& dc, graph_type& graph, string graph_file) 
 {
     // Not sure why this is needed
     dc.barrier();
@@ -140,10 +125,6 @@ void loadUAIfile(graphlab::distributed_control& dc, graph_type& graph,
     // Now read factor potentials
     for (int i=0; i!=nfactors; ++i) 
     {
-        // allocate factors evenly to different machines.
-        if (i%dc.numprocs() != dc.procid()) 
-            continue;
-        
         int cardprod; double potential_value; //, energy;
         in >> cardprod;
         
@@ -185,23 +166,26 @@ void loadUAIfile(graphlab::distributed_control& dc, graph_type& graph,
             in >> potential_value;
             //energy = Potential2Energy(potential_value);
             
-            vdata.potentials[k] = potential_value;
+            vdata.potentials[k] = log10(potential_value);
         }
         
         //CHECK(in.good(), "Could not finish reading factor tables. Are you sure this is a typeUAI energy file?");
         CHECK(in.good());
         
+        // allocate factors evenly to different machines.
+        if (i%dc.numprocs() != dc.procid()) 
+            continue;
+        
         // If all is well, add vertex and edges
-        cout << "adding vertex " << i << " with " << vdata.nvars << " variables." << "\n";
         graph.add_vertex(i,vdata);
-        cout << graph.num_vertices() << " vertices so far." << endl;
         if (factor_size[i] > 1) // if not a unary, add edges to unaries
             for (int j=0; j!=factor_size[i]; ++j) 
                 graph.add_edge(i,edata[j].varid,edata[j]);
         
-        if (opts.verbose > 0)
+        if (opts.verbose > 1)
         {
-            cout << "Machine #" << dc.procid() << ", Vertex Id = " << i; 
+            cout << "Machine #" << dc.procid() << ", Vertex Id = " << i
+            << " with " << vdata.nvars << " variables."; 
             if (factor_size[i] > 1)
             {
                 cout << ", Edges = ";
@@ -209,6 +193,7 @@ void loadUAIfile(graphlab::distributed_control& dc, graph_type& graph,
                     cout << ", (" << i << "," << edata[j].varid << ")";
             }
             cout << "\n";
+            cout << "potential: " << vdata.potentials << "\n";
         }
         
     } // End of reading factors   
