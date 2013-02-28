@@ -28,6 +28,28 @@
 #include <algorithm>
 #include <vector>
 
+
+/**
+ * This class defines the dependencies among the shards when using
+ * a constrained partitioning algorithm.
+ *
+ * In constrained partitioning, vertices are assgined to a master shard
+ * using hash function on the vids.  Each shard S masters a partition of 
+ * vertices: V_s. 
+ *
+ * Let Ai be the set of shards that Shard i depends on. Then the partitioning
+ * algorithm can only put edges with either ends in V_si into Ai. For example,
+ * Shard i is the master of vertex u, and Shard j is the master of vertex v,
+ * then edge u->v must be placed into Ai \intersect Aj.
+ *
+ * This class currently has two implementations of the shard constraints. One
+ * construction is based on a grid, and the other is based on perfect difference set.
+ * Both algorithms guarentees that Ai \intersect Aj is non-empty.
+ * 
+ * \note: grid methods requires the number of shards to be a perfect square number. pds
+ * requires the number of shards to be p^2 + p + 1 where p is a prime number.
+ * 
+ */
 namespace graphlab {
   class sharding_constraint {
     size_t nshards;
@@ -113,7 +135,6 @@ namespace graphlab {
         ASSERT_EQ((p*p+p+1), nshards);
         pds pds_generator;
         std::vector<size_t> results = pds_generator.get_pds(p);
-        // ASSERT_EQ(results.size(), nshards);
         for (size_t i = 0; i < nshards; i++) {
           std::vector<procid_t> adjlist;
           for (size_t j = 0; j < results.size(); j++) {
@@ -126,14 +147,13 @@ namespace graphlab {
 
     void check() {
       // debug 
-      for (size_t i = 0; i < constraint_graph.size(); ++i) {
-        std::vector<procid_t> adjlist = constraint_graph[i];
-        std::cout << i << ": [";
-        for (size_t j = 0; j < adjlist.size(); j++)
-          std::cout << adjlist[j] << " ";
-        std::cout << "]" << std::endl;
-      }
-
+      // for (size_t i = 0; i < constraint_graph.size(); ++i) {
+      //   std::vector<procid_t> adjlist = constraint_graph[i];
+      //   std::cout << i << ": [";
+      //   for (size_t j = 0; j < adjlist.size(); j++)
+      //     std::cout << adjlist[j] << " ";
+      //   std::cout << "]" << std::endl;
+      // }
       for (size_t i = 0; i < nshards; ++i) {
         for (size_t j = i+1; j < nshards; ++j) {
           std::vector<procid_t> ls;
