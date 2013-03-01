@@ -31,6 +31,7 @@
 #include <graphlab/graph/ingress/distributed_ingress_base.hpp>
 #include <graphlab/graph/distributed_graph.hpp>
 #include <graphlab/graph/ingress/sharding_constraint.hpp>
+#include <graphlab/graph/ingress/ingress_edge_decision.hpp>
 
 
 #include <graphlab/macros_def.hpp>
@@ -86,7 +87,7 @@ namespace graphlab {
 
   private:
     procid_t get_master (vertex_id_type vid) {
-      return hashvid(vid) % base_type::rpc.numprocs();
+      return ingress_edge_decision<VertexData, EdgeData>::mix(vid) % base_type::rpc.numprocs();
     }
   }; // end of distributed_constrained_random_ingress
 }; // end of namespace graphlab

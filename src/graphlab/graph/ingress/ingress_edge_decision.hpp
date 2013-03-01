@@ -26,6 +26,7 @@
 #include <graphlab/rpc/distributed_event_log.hpp>
 #include <graphlab/util/dense_bitset.hpp>
 #include <graphlab/graph/distributed_graph.hpp>
+#include <boost/random/uniform_int_distribution.hpp>
 
 namespace graphlab {
   template<typename VertexData, typename EdgeData>
@@ -38,6 +39,10 @@ namespace graphlab {
       typedef graphlab::vertex_id_type vertex_id_type;
       typedef distributed_graph<VertexData, EdgeData> graph_type;
       typedef fixed_dense_bitset<RPC_MAX_N_PROCS> bin_counts_type; 
+
+      boost::random::mt19937 gen;
+      boost::random::uniform_int_distribution<> edgernd;
+      static const size_t hashing_seed = 3;
 
     public:
       /** \brief A decision object for computing the edge assingment. */
@@ -52,7 +57,9 @@ namespace graphlab {
         typedef std::pair<vertex_id_type, vertex_id_type> edge_pair_type;
         const edge_pair_type edge_pair(std::min(source, target), 
             std::max(source, target));
-        return edge_hashing(edge_pair) % (numprocs);
+        return edge_hashing(edge_pair, hashing_seed) % (numprocs);
+        // return edge_hashing(edge_pair) % (numprocs);
+        // return edgernd(gen) % (numprocs);
       };
 
       /** Random assign (source, target) to a machine p in a list of candidates */
@@ -62,7 +69,10 @@ namespace graphlab {
         typedef std::pair<vertex_id_type, vertex_id_type> edge_pair_type;
         const edge_pair_type edge_pair(std::min(source, target), 
             std::max(source, target));
-        return candidates[edge_hashing(edge_pair) % (candidates.size())];
+
+        return candidates[edge_hashing(edge_pair, hashing_seed) % (candidates.size())];
+        // return candidates[edge_hashing(edge_pair) % (candidates.size())];
+        // return candidates[edgernd(gen) % (candidates.size())];
       };
 
 
@@ -253,12 +263,12 @@ namespace graphlab {
         return best_proc;
       };
 
-    private: 
+    public: 
       /*
        * Bob Jenkin's 32 bit integer mix function from
        * http://home.comcast.net/~bretm/hash/3.html
        */
-      inline size_t mix(size_t state) {
+      static size_t mix(size_t state) {
         state += (state << 12);
         state ^= (state >> 22);
         state += (state << 4);
@@ -270,7 +280,7 @@ namespace graphlab {
         return state;
       }
 
-      inline size_t edge_hashing (const std::pair<vertex_id_type, vertex_id_type>& e, const uint32_t seed = 5) {
+      static size_t edge_hashing (const std::pair<vertex_id_type, vertex_id_type>& e, const uint32_t seed = 5) {
         // a bunch of random numbers
 #if (__SIZEOF_PTRDIFF_T__ == 8)
         static const size_t a[8] = {0x6306AA9DFC13C8E7,
@@ -293,7 +303,7 @@ namespace graphlab {
 #endif
         vertex_id_type src = e.first;
         vertex_id_type dst = e.second;
-        return mix(mix(src^a[seed%8])^mix(dst^a[(seed+1)%8]));
+        return (mix(src^a[seed%8]))^(mix(dst^a[(seed+1)%8]));
       }
   };// end of ingress_edge_decision
 }
