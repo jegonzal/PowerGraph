@@ -70,27 +70,25 @@ struct vertex_data {
    * values to use.
    */
   static size_t NLATENT;
-  /** \brief The number of times this vertex has been updated. */
-  uint32_t nupdates;
-  /** \brief The most recent L1 change in the pvec value */
-  float residual; //! how much the latent value has changed
   /** \brief The latent pvec for this vertex */
   vec pvec;
 
+  double train_rmse;
+  double validation_rmse;
   /** 
    * \brief Simple default constructor which randomizes the vertex
    *  data 
    */
-  vertex_data() : nupdates(0), residual(1) { if (debug) pvec = vec::Ones(NLATENT); else randomize(); } 
+  vertex_data() { if (debug) pvec = vec::Ones(NLATENT); else randomize(); train_rmse = validation_rmse = 0; } 
   /** \brief Randomizes the latent pvec */
   void randomize() { pvec.resize(NLATENT); pvec.setRandom(); }
   /** \brief Save the vertex data to a binary archive */
   void save(graphlab::oarchive& arc) const { 
-    arc << nupdates << residual << pvec;
+    arc << pvec << train_rmse << validation_rmse;
   }
   /** \brief Load the vertex data from a binary archive */
   void load(graphlab::iarchive& arc) { 
-    arc >> nupdates >> residual >> pvec;
+    arc >> pvec >>train_rmse >> validation_rmse;
   }
 }; // end of vertex data
 
@@ -153,6 +151,8 @@ class gather_type {
     double training_rmse;
     double validation_rmse;
     gather_type() { training_rmse = validation_rmse = 0; }
+    gather_type(const vec & _pvec, double _train_rmse, double _validation_rmse){ pvec = _pvec; training_rmse = _train_rmse; validation_rmse = _validation_rmse; }
+    void reset(){ pvec = vec::Zero(vertex_data::NLATENT); training_rmse = 0; validation_rmse = 0; }
     void save(graphlab::oarchive& arc) const { arc << pvec << training_rmse << validation_rmse; }
     void load(graphlab::iarchive& arc) { arc >> pvec >> training_rmse >> validation_rmse; }  
     gather_type& operator+=(const gather_type& other) {
@@ -164,7 +164,9 @@ class gather_type {
 
 };
 
-gather_type ret;
+gather_type x1;
+gather_type x2;
+gather_type * px;
 
 
 bool isuser_node(const graph_type::vertex_type& vertex){
@@ -212,25 +214,48 @@ class nmf_vertex_program :
       /** The gather function computes XtX and Xy */
       gather_type gather(icontext_type& context, const vertex_type& vertex, 
           edge_type& edge) const {
-        //UNUSED 
-        return gather_type();
+
+        if (edge.data().role == edge_data::TRAIN || edge.data().role == edge_data::VALIDATE){
+          const vertex_type other_vertex = get_other_vertex(edge, vertex);
+          double prediction = 0;
+          double rmse = nmf_predict(vertex.data(), other_vertex.data(), edge.data().weight, prediction);
+          if (prediction == 0)
+            logstream(LOG_FATAL)<<"Got into numerical error!" << std::endl;
+          if (edge.data().role == edge_data::TRAIN)
+            return gather_type(other_vertex.data().pvec * (edge.data().weight / prediction), rmse, 0);
+          else //validation
+            return gather_type(vec::Zero(vertex_data::NLATENT), 0, rmse);
+
+        }
+        return gather_type(vec::Zero(vertex_data::NLATENT), 0, 0);
       } // end of gather function
 
       /** apply collects the sum of XtX and Xy */
       void apply(icontext_type& context, vertex_type& vertex,
           const gather_type& sum) {
+        vertex_data& vdata = vertex.data();  
+        if (vdata.pvec.sum() != 0){//TODO
+          for (uint i=0; i< vertex_data::NLATENT; i++){
+            vdata.pvec[i] *= sum.pvec[i] / px->pvec[i];
+            ASSERT_NE(px->pvec[i] , 0);
+            if (vdata.pvec[i] < epsilon)
+              vdata.pvec[i] = epsilon;
+          }
+        }
+        vdata.train_rmse = sum.training_rmse;
+        vdata.validation_rmse = sum.validation_rmse;
       }
+
       edge_dir_type scatter_edges(icontext_type& context,
           const vertex_type& vertex) const { 
         //UNUSED 
         return graphlab::ALL_EDGES; 
       }; // end of scatter edges
 
-      /** Scatter reschedules neighbors */  
       void scatter(icontext_type& context, const vertex_type& vertex, 
           edge_type& edge) const {
-        //UNUSED 
-      } // end of scatter function
+        //we do not schedule any more neighbors to run
+      } 
       static void verify_rows(graph_type::vertex_type& vertex){
         if (isuser(vertex.id()) && vertex.num_out_edges() == 0)
           logstream(LOG_FATAL)<<"NMF algorithm can not work when the row " << vertex.id() << " of the matrix contains all zeros" << std::endl;
@@ -239,54 +264,33 @@ class nmf_vertex_program :
       static gather_type pre_iter(const graph_type::vertex_type & vertex){
         gather_type ret;
         ret.pvec = vertex.data().pvec;
-        return ret;
-      }
-
-      static gather_type sum_phase1(const graph_type::edge_type& edge) {
-        gather_type ret;
-        float observation = edge.data().weight;                
-        vertex_data & nbr_latent = edge.target().data();
-        double prediction;
-        double rmse = nmf_predict(edge.source().data(), nbr_latent, observation, prediction);
-        if (edge.data().role == edge_data::TRAIN){
-          ret.training_rmse = rmse;
-          if (prediction == 0)
-            logstream(LOG_FATAL)<<"Got into numerical error! Please submit a bug report." << std::endl;
-          ret.pvec = nbr_latent.pvec * (observation / prediction);
-        }
-        else { 
-          ret.validation_rmse = rmse;
-          ret.pvec = vec::Zero(vertex_data::NLATENT);
-        }
-        return ret;
-      }
-      static gather_type sum_phase2(const graph_type::edge_type& edge) {
-        gather_type ret;
-        float observation = edge.data().weight;                
-        vertex_data & nbr_latent = edge.source().data();
-        double prediction;
-        double rmse = nmf_predict(edge.target().data(), nbr_latent, observation, prediction);
-        if (edge.data().role == edge_data::TRAIN){
-          ret.training_rmse = rmse;
-          if (prediction == 0)
-            logstream(LOG_FATAL)<<"Got into numerical error! Please submit a bug report." << std::endl;
-          ret.pvec = nbr_latent.pvec * (observation / prediction);
-        }
-        else { 
-          ret.validation_rmse = rmse;
-          ret.pvec = vec::Zero(vertex_data::NLATENT);
-        }
+        ret.training_rmse = vertex.data().train_rmse;
+        ret.validation_rmse = vertex.data().validation_rmse;
         return ret;
       }
 
 
-      static void divide_by_ret(graph_type::vertex_type& vertex){
+      static graphlab::empty signal_left(icontext_type& context,
+          const vertex_type& vertex) {
+        if(vertex.num_out_edges() > 0) context.signal(vertex);
+        return graphlab::empty();
+      } // end of signal_left 
+
+      static graphlab::empty signal_right(icontext_type& context,
+          const vertex_type& vertex) {
+        if(vertex.num_in_edges() > 0) context.signal(vertex);
+        return graphlab::empty();
+      } // end of signal_left 
+
+
+
+      /*static void divide_by_ret(graph_type::vertex_type& vertex){
         for (uint i=0; i< vertex_data::NLATENT; i++){
-          vertex.data().pvec[i] /= ret.pvec[i];
-          if (vertex.data().pvec[i] < epsilon)
-            vertex.data().pvec[i] = epsilon;
+        vertex.data().pvec[i] /= ret.pvec[i];
+        if (vertex.data().pvec[i] < epsilon)
+        vertex.data().pvec[i] = epsilon;
         }
-      }
+        }*/
 
 
   }; // end of nmf vertex program
@@ -449,8 +453,6 @@ int main(int argc, char** argv) {
       "The maxumum number of udpates allowed for a vertex");
   clopts.attach_option("debug", nmf_vertex_program::debug, 
       "debug - additional verbose info"); 
-  clopts.attach_option("tol", nmf_vertex_program::TOLERANCE,
-      "residual termination threshold");
   clopts.attach_option("maxval", nmf_vertex_program::MAXVAL, "max allowed value");
   clopts.attach_option("minval", nmf_vertex_program::MINVAL, "min allowed value");
   clopts.attach_option("interval", interval, 
@@ -505,7 +507,6 @@ int main(int argc, char** argv) {
 
   dc.cout() << "Creating engine" << std::endl;
   engine_type engine(dc, graph, exec_type, clopts);
-  dc.cout()<<"Training edges: " << info.training_edges << " validation edges: " << info.validation_edges << std::endl;
 
 
   // Run the NMF ---------------------------------------------------------
@@ -517,6 +518,8 @@ int main(int argc, char** argv) {
   timer.start();
 
   gather_type edge_count = engine.map_reduce_edges<gather_type>(count_edges);
+  dc.cout()<<"Training edges: " << edge_count.training_rmse << " validation edges: " << edge_count.validation_rmse << std::endl;
+
   graphlab::vertex_set left = graph.select(isuser_node);
   graphlab::vertex_set right = ~left;
   graph.transform_vertices(nmf_vertex_program::verify_rows, left);
@@ -524,21 +527,32 @@ int main(int argc, char** argv) {
   graphlab::timer mytimer; mytimer.start();
 
   for (uint j=0; j< nmf_vertex_program::MAX_UPDATES; j++){
-    gather_type x1 = graph.map_reduce_vertices<gather_type>(nmf_vertex_program::pre_iter,left);
-    ret = graph.map_reduce_edges<gather_type>(nmf_vertex_program::sum_phase1);   
-    for (uint i=0; i < vertex_data::NLATENT; i++)
-      ret.pvec[i] /= x1.pvec[i];
-    graph.transform_vertices(nmf_vertex_program::divide_by_ret,left);
-    dc.cout()<< std::setw(8) << mytimer.current_time() << " " << sqrt(ret.training_rmse/edge_count.training_rmse);
+    x1 = graph.map_reduce_vertices<gather_type>(nmf_vertex_program::pre_iter,right);
+    px = &x1;
+    for (int i=0; i< vertex_data::NLATENT; i++)
+      assert(px->pvec[i] != 0);
+    //ret = graph.map_reduce_edges<gather_type>(nmf_vertex_program::sum_phase1);   
+    //for (uint i=0; i < vertex_data::NLATENT; i++)
+    //  ret.pvec[i] /= x1.pvec[i];
+    //graph.transform_vertices(nmf_vertex_program::divide_by_ret,left);
+    dc.cout()<< std::setw(8) << mytimer.current_time() << " " << sqrt(x1.training_rmse/edge_count.training_rmse);
     if (edge_count.validation_rmse > 0)
-      dc.cout() << " " << std::setw(8) << sqrt(ret.validation_rmse/edge_count.validation_rmse) << std::endl;
+      dc.cout() << " " << std::setw(8) << sqrt(x1.validation_rmse/edge_count.validation_rmse) << std::endl;
     else dc.cout() << std::endl;
+    engine.map_reduce_vertices<graphlab::empty>(nmf_vertex_program::signal_left);
+    engine.start();
+    x1.reset();
 
-    gather_type x2 = graph.map_reduce_vertices<gather_type>(nmf_vertex_program::pre_iter,right);
-    ret = graph.map_reduce_edges<gather_type>(nmf_vertex_program::sum_phase2);
-    for (uint i=0; i < vertex_data::NLATENT; i++)
-      ret.pvec[i] /= x2.pvec[i];
-    graph.transform_vertices(nmf_vertex_program::divide_by_ret,right);
+    x2 = graph.map_reduce_vertices<gather_type>(nmf_vertex_program::pre_iter,left);
+    px = &x2;
+
+    engine.map_reduce_vertices<graphlab::empty>(nmf_vertex_program::signal_right);
+    engine.start();
+    x2.reset();
+    //ret = graph.map_reduce_edges<gather_type>(nmf_vertex_program::sum_phase2);
+    //for (uint i=0; i < vertex_data::NLATENT; i++)
+    //  ret.pvec[i] /= x2.pvec[i];
+    //graph.transform_vertices(nmf_vertex_program::divide_by_ret,right);
   }
 
   const double runtime = timer.current_time();
