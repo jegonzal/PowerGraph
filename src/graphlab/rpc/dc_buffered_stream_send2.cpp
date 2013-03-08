@@ -1,5 +1,5 @@
-/*  
- * Copyright (c) 2009 Carnegie Mellon University. 
+/*
+ * Copyright (c) 2009 Carnegie Mellon University.
  *     All rights reserved.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
@@ -39,7 +39,7 @@ namespace dc_impl {
       }
       bytessent.inc(len - sizeof(packet_hdr));
     }
-    
+
     // build the packet header
     packet_hdr* hdr = reinterpret_cast<packet_hdr*>(data);
     memset(hdr, 0, sizeof(packet_hdr));
@@ -57,7 +57,7 @@ namespace dc_impl {
       while(1) {
         curid = bufid;
         int32_t cref = buffer[curid].ref_count;
-        if (cref < 0 || 
+        if (cref < 0 ||
             !atomic_compare_and_swap(buffer[curid].ref_count, cref, cref + 1)) continue;
 
         if (curid != bufid) {
@@ -73,19 +73,19 @@ namespace dc_impl {
       // ooops out of buffer room. release the reference count, flush and retry
       if (insertloc >= buffer[curid].buf.size()) {
         __sync_fetch_and_sub(&(buffer[curid].ref_count), 1);
-        usleep(1);
+        usleep(100);
         continue;
       }
       buffer[curid].buf[insertloc] = msg;
-      buffer[curid].numbytes.inc(len);    
+      buffer[curid].numbytes.inc(len);
       writebuffer_totallen.inc(len);
       // decrement the reference count
       __sync_fetch_and_sub(&(buffer[curid].ref_count), 1);
       break;
     }
-    
+
     if (insertloc >= 256) comm->trigger_send_timeout(target, false);
-    else if (packet_type_mask & 
+    else if (packet_type_mask &
             (CONTROL_PACKET | WAIT_FOR_REPLY | REPLY_PACKET)) {
       comm->trigger_send_timeout(target, true);
     }
@@ -106,7 +106,7 @@ namespace dc_impl {
 
   size_t dc_buffered_stream_send2::get_outgoing_data(circular_iovec_buffer& outdata) {
     if (writebuffer_totallen.value == 0) return 0;
-    
+
     // swap the buffer
     size_t curid = bufid;
     bufid = !bufid;
@@ -116,7 +116,7 @@ namespace dc_impl {
     while(buffer[curid].ref_count >= 0) {
       asm volatile("pause\n": : :"memory");
     }
-    
+
     // ok now we have exclusive access to the buffer
     size_t sendlen = buffer[curid].numbytes;
     size_t real_send_len = 0;
@@ -125,11 +125,11 @@ namespace dc_impl {
       size_t numel = std::min((size_t)(buffer[curid].numel.value), buffer[curid].buf.size());
       bool buffull = (numel == buffer[curid].buf.size());
       std::vector<iovec> &sendbuffer = buffer[curid].buf;
-      
-      writebuffer_totallen.dec(sendlen);    
+
+      writebuffer_totallen.dec(sendlen);
       block_header_type* blockheader = new block_header_type;
       (*blockheader) = sendlen;
-      
+
       // fill the first msg block
       sendbuffer[0].iov_base = reinterpret_cast<void*>(blockheader);
       sendbuffer[0].iov_len = sizeof(block_header_type);
