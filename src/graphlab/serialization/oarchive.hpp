@@ -115,7 +115,7 @@ namespace graphlab {
       }
     }
     template <typename T>
-    inline void direct_assign(const T t) {
+    inline void direct_assign(const T& t) {
       if (out == NULL) {
         expand_buf(sizeof(T));
         (*reinterpret_cast<T*>(buf + off)) = t;
@@ -174,7 +174,7 @@ namespace graphlab {
       oarc->write(c, s);
     }
     template <typename T>
-    inline void direct_assign(const T t) {
+    inline void direct_assign(const T& t) {
       oarc->direct_assign(t);
     }
 
