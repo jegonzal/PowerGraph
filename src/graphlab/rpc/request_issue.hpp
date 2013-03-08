@@ -34,6 +34,7 @@
 #include <graphlab/rpc/function_ret_type.hpp>
 #include <graphlab/rpc/function_arg_types_def.hpp>
 #include <graphlab/rpc/archive_memory_pool.hpp>
+#include <graphlab/rpc/dc_compile_parameters.hpp>
 #include <boost/preprocessor.hpp>
 
 namespace graphlab {
@@ -163,8 +164,13 @@ class  BOOST_PP_CAT(FNAME_AND_CALL, N) { \
     arc << reinterpret_cast<size_t>(remote_function); \
     arc << reinterpret_cast<size_t>(&reply);       \
     BOOST_PP_REPEAT(N, GENARC, _)                \
-    char* newbuf = (char*)malloc(arc.off); memcpy(newbuf, arc.buf, arc.off); \
-    sender->send_data(target, flags, newbuf, arc.off);    \
+    if (arc.off >= BUFFER_RELINQUISH_LIMIT) {  \
+      sender->send_data(target,flags , arc.buf, arc.off);    \
+      arc.buf = NULL; arc.len = 0;   \
+    } else {        \
+      char* newbuf = (char*)malloc(arc.off); memcpy(newbuf, arc.buf, arc.off); \
+      sender->send_data(target,flags , newbuf, arc.off);    \
+    }     \
     release_oarchive_to_pool(ptr); \
     reply.wait(); \
     iarchive iarc(reply.val.c, reply.val.len);  \
