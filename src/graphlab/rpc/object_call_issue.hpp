@@ -1,4 +1,4 @@
-/*  
+/*
  * Copyright (c) 2009 Carnegie Mellon University.
  *     All rights reserved.
  *
@@ -30,6 +30,7 @@
 #include <graphlab/rpc/dc_send.hpp>
 #include <graphlab/rpc/object_call_dispatch.hpp>
 #include <graphlab/rpc/is_rpc_call.hpp>
+#include <graphlab/rpc/archive_memory_pool.hpp>
 #include <boost/preprocessor.hpp>
 #include <graphlab/rpc/mem_function_arg_types_def.hpp>
 
@@ -42,20 +43,20 @@ namespace dc_impl {
 \file object_call_issue.hpp
  This is an internal function and should not be used directly
 
-Marshalls a object function call to a remote machine. 
+Marshalls a object function call to a remote machine.
 This is similar to the regular function call in function_call_issue.hpp
 with the only difference that the object id needs to be transmitted as well.
 
 \code
-template<typename T, 
-        typename F , 
+template<typename T,
+        typename F ,
         typename T0> class object_call_issue1
 {
-    public: static void exec(dc_send* sender, 
-                            unsigned char flags, 
-                            procid_t target, 
-                            size_t objid, 
-                            F remote_function , 
+    public: static void exec(dc_send* sender,
+                            unsigned char flags,
+                            procid_t target,
+                            size_t objid,
+                            F remote_function ,
                             const T0 &i0 )
     {
         oarchive arc;
@@ -86,19 +87,22 @@ template<typename T, typename F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, typ
 class  BOOST_PP_CAT(BOOST_PP_TUPLE_ELEM(2,0,FNAME_AND_CALL), N) { \
   public: \
   static void exec(dc_dist_object_base* rmi, dc_send* sender, unsigned char flags, procid_t target, size_t objid, F remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_) ) {  \
-    oarchive arc;                         \
+    oarchive* ptr = oarchive_from_pool();       \
+    oarchive& arc = *ptr;                         \
     arc.advance(sizeof(packet_hdr));            \
     dispatch_type d = BOOST_PP_CAT(dc_impl::OBJECT_NONINTRUSIVE_DISPATCH,N)<distributed_control,T,F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N, GENT ,_) >;   \
     arc << reinterpret_cast<size_t>(d);       \
     serialize(arc, (char*)(&remote_function), sizeof(F)); \
     arc << objid;       \
     BOOST_PP_REPEAT(N, GENARC, _)                \
-    sender->send_data(target,flags , arc.buf, arc.off);    \
+    char* newbuf = (char*)malloc(arc.off); memcpy(newbuf, arc.buf, arc.off); \
+    sender->send_data(target,flags , newbuf, arc.off);    \
+    release_oarchive_to_pool(ptr); \
     if ((flags & CONTROL_PACKET) == 0) {                      \
       rmi->inc_bytes_sent(target, arc.off);           \
     } \
   } \
-}; 
+};
 
 
 

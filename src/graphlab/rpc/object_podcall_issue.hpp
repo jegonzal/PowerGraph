@@ -1,5 +1,5 @@
-/*  
- * Copyright (c) 2009 Carnegie Mellon University. 
+/*
+ * Copyright (c) 2009 Carnegie Mellon University.
  *     All rights reserved.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
@@ -43,20 +43,20 @@ namespace dc_impl {
 \file object_podcall_issue.hpp
  This is an internal function and should not be used directly
 
-Marshalls a object function call to a remote machine. 
+Marshalls a object function call to a remote machine.
 This is similar to the regular function call in function_call_issue.hpp
 with the only difference that the object id needs to be transmitted as well.
 
 \code
-template<typename T, 
-        typename F , 
+template<typename T,
+        typename F ,
         typename T0> class object_call_issue1
 {
-    public: static void exec(dc_send* sender, 
-                            unsigned char flags, 
-                            procid_t target, 
-                            size_t objid, 
-                            F remote_function , 
+    public: static void exec(dc_send* sender,
+                            unsigned char flags,
+                            procid_t target,
+                            size_t objid,
+                            F remote_function ,
                             const T0 &i0 )
     {
         pod_template_detail::pod_call_struct1<F, T0> s;
@@ -95,7 +95,7 @@ class  BOOST_PP_CAT(BOOST_PP_TUPLE_ELEM(2,0,FNAME_AND_CALL), N) { \
     if ((flags & CONTROL_PACKET) == 0)                       \
       rmi->inc_bytes_sent(target, sizeof(s));           \
   }\
-}; 
+};
 
 
 
