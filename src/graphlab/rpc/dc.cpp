@@ -35,6 +35,7 @@
 #include <boost/unordered_map.hpp>
 #include <boost/bind.hpp>
 //#include <graphlab/logger/assertions.hpp>
+#include <graphlab/parallel/pthread_tools.hpp>
 #include <graphlab/util/stl_util.hpp>
 #include <graphlab/util/net_util.hpp>
 #include <graphlab/util/mpi_tools.hpp>
@@ -434,6 +435,12 @@ void distributed_control::init(const std::vector<std::string> &machines,
             procid_t curmachineid,
             size_t numhandlerthreads,
             dc_comm_type commtype) {
+  
+  if (numhandlerthreads == RPC_DEFAULT_NUMHANDLERTHREADS) {
+    // autoconfigure
+    if (thread::cpu_count() > 2) numhandlerthreads = thread::cpu_count() - 2;
+    else numhandlerthreads = 2;
+  }
   dc_impl::last_dc = this;
   ASSERT_MSG(machines.size() <= RPC_MAX_N_PROCS, 
              "Number of processes exceeded hard limit of %d", RPC_MAX_N_PROCS);

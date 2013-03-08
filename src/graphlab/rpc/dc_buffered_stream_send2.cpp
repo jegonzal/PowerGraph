@@ -51,42 +51,43 @@ namespace dc_impl {
     iovec msg;
     msg.iov_base = data;
     msg.iov_len = len;
-    size_t insertloc = 0;
+    buffer_and_refcount::el_and_ref_type er;
+    uint32_t insertloc = 0;
     while(1) {
       size_t curid;
       while(1) {
         curid = bufid;
-        int32_t cref = buffer[curid].ref_count;
-        if (cref < 0 ||
-            !atomic_compare_and_swap(buffer[curid].ref_count, cref, cref + 1)) continue;
-
-        if (curid != bufid) {
-          __sync_fetch_and_sub(&(buffer[curid].ref_count), 1);
-        }
-        else {
-          break;
-        }
-        asm volatile("pause\n": : :"memory");
+        buffer_and_refcount::el_and_ref_type next_er;
+        er.i64 = buffer[curid].el_and_ref.i64;
+        if (er.val.ref_count < 0) {
+          // the buffer has already been swapped
+          // we should be able to pick up the new one immediately
+          continue; 
+        } else if (er.val.numel >= buffer[curid].buf.size()) {
+          // if out of buffer room. wait a while.
+          usleep(1);
+          continue;
+        }  
+        // otherwise, increment the refcount and increment the element count
+        next_er.i64 = er.i64;
+        next_er.val.ref_count++;
+        next_er.val.numel++;
+        if (!atomic_compare_and_swap(buffer[curid].el_and_ref.i64, er.i64, next_er.i64)) continue;
+        else break;
       }
       // ok, we have a reference count into curid, we can write to it
-      insertloc = buffer[curid].numel.inc_ret_last();
-      // ooops out of buffer room. release the reference count, flush and retry
-      if (insertloc >= buffer[curid].buf.size()) {
-        __sync_fetch_and_sub(&(buffer[curid].ref_count), 1);
-        usleep(100);
-        continue;
-      }
+      insertloc = er.val.numel;
       buffer[curid].buf[insertloc] = msg;
       buffer[curid].numbytes.inc(len);
       writebuffer_totallen.inc(len);
       // decrement the reference count
-      __sync_fetch_and_sub(&(buffer[curid].ref_count), 1);
+      __sync_fetch_and_sub(&(buffer[curid].el_and_ref.val.ref_count), 1);
       break;
     }
 
-    if (insertloc >= 256) comm->trigger_send_timeout(target, false);
-    else if (packet_type_mask &
-            (CONTROL_PACKET | WAIT_FOR_REPLY | REPLY_PACKET)) {
+    if (insertloc == 4096) comm->trigger_send_timeout(target, false);
+    else if ((packet_type_mask &
+            (CONTROL_PACKET | WAIT_FOR_REPLY | REPLY_PACKET))) {
       comm->trigger_send_timeout(target, true);
     }
   }
@@ -111,9 +112,9 @@ namespace dc_impl {
     size_t curid = bufid;
     bufid = !bufid;
     // decrement the reference count
-    __sync_fetch_and_sub(&(buffer[curid].ref_count), 1);
+    __sync_fetch_and_sub(&(buffer[curid].el_and_ref.val.ref_count), 1);
     // wait till the reference count is negative
-    while(buffer[curid].ref_count >= 0) {
+    while(buffer[curid].el_and_ref.val.ref_count >= 0) {
       asm volatile("pause\n": : :"memory");
     }
 
@@ -121,8 +122,7 @@ namespace dc_impl {
     size_t sendlen = buffer[curid].numbytes;
     size_t real_send_len = 0;
     if (sendlen > 0) {
-      size_t oldbsize = buffer[curid].buf.size();
-      size_t numel = std::min((size_t)(buffer[curid].numel.value), buffer[curid].buf.size());
+      size_t numel = std::min((size_t)(buffer[curid].el_and_ref.val.numel), buffer[curid].buf.size());
       bool buffull = (numel == buffer[curid].buf.size());
       std::vector<iovec> &sendbuffer = buffer[curid].buf;
 
@@ -140,22 +140,19 @@ namespace dc_impl {
       }
       // reset the buffer;
       buffer[curid].numbytes = 0;
-      buffer[curid].numel = 1;
+      buffer[curid].el_and_ref.val.numel = 1;
 
       if (buffull) {
         sendbuffer.resize(2 * numel);
       }
-      else {
-        sendbuffer.resize(oldbsize);
-      }
-      __sync_fetch_and_add(&(buffer[curid].ref_count), 1);
+    __sync_fetch_and_add(&(buffer[curid].el_and_ref.val.ref_count), 1);
       return real_send_len;
     }
     else {
       // reset the buffer;
       buffer[curid].numbytes = 0;
-      buffer[curid].numel = 1;
-      __sync_fetch_and_add(&(buffer[curid].ref_count), 1);
+      buffer[curid].el_and_ref.val.numel = 1;
+    __sync_fetch_and_add(&(buffer[curid].el_and_ref.val.ref_count), 1);
       return 0;
     }
   }

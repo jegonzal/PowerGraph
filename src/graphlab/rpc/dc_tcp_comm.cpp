@@ -140,8 +140,9 @@ namespace graphlab {
       // everyone is connected.
       // Construct the eventbase
       construct_events();
-      inthreads.launch(boost::bind(&dc_tcp_comm::receive_loop, this, inevbase));
-      outthreads.launch(boost::bind(&dc_tcp_comm::send_loop, this, outevbase));
+      // we reserve the last 2 cores for communication
+      inthreads.launch(boost::bind(&dc_tcp_comm::receive_loop, this, inevbase), thread::cpu_count() - 2);
+      outthreads.launch(boost::bind(&dc_tcp_comm::send_loop, this, outevbase), thread::cpu_count() - 1);
       is_closed = false;
     }
 

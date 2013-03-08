@@ -85,7 +85,7 @@ static const char* graph_help_string =
         ("ncpus",
         boost_po::value<size_t>(&(ncpus))->
         default_value(ncpus),
-        "Number of cpus to use per machine")
+        "Number of cpus to use per machine. Defaults to (#cores - 2)")
         ("scheduler",
           boost_po::value<std::string>(&(schedulertype))->
           default_value(schedulertype),

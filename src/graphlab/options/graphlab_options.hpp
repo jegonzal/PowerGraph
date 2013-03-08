@@ -37,6 +37,7 @@
 
 #include <graphlab/options/options_map.hpp>
  
+#include <graphlab/parallel/pthread_tools.hpp>
 namespace graphlab {
 
 
@@ -81,7 +82,7 @@ namespace graphlab {
     options_map graph_args;
 
     graphlab_options() :
-      ncpus(2) {
+      ncpus(thread::cpu_count() > 2 ? (thread::cpu_count() - 2) : 2) {
       // Grab all the compiler flags 
       /* \todo: Add these back at some point
         #ifdef COMPILEFLAGS

@@ -779,7 +779,7 @@ namespace graphlab {
           threads.launch(boost::bind(
                 &synchronous_engine::thread_launch_wrapped_event_counter, 
                 this,
-                invoke));
+                invoke), i);
         }
       }
       // Wait for all threads to finish

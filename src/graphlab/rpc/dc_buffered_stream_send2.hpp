@@ -68,13 +68,13 @@ class dc_buffered_stream_send2: public dc_send{
                   dc(dc),  comm(comm), target(target),
                   writebuffer_totallen(0) {
     buffer[0].buf.resize(100000);
-    buffer[0].numel = 1;
+    buffer[0].el_and_ref.val.numel = 1;
     buffer[0].numbytes = 0;
-    buffer[0].ref_count = 0;
+    buffer[0].el_and_ref.val.ref_count = 0;
     buffer[1].buf.resize(100000);
-    buffer[1].numel = 1;
+    buffer[1].el_and_ref.val.numel = 1;
     buffer[1].numbytes = 0;
-    buffer[1].ref_count = 0;
+    buffer[1].el_and_ref.val.ref_count = 0;
     bufid = 0;
     writebuffer_totallen.value = 0;
   }
@@ -124,9 +124,15 @@ class dc_buffered_stream_send2: public dc_send{
   
   struct buffer_and_refcount{
     std::vector<iovec> buf;
-    atomic<size_t> numel;
-    atomic<size_t> numbytes;
-    volatile int32_t ref_count; // if negative, means it is sending
+    union el_and_ref_type{
+      struct {
+        volatile uint32_t numel;
+        volatile int32_t ref_count; // if negative, means it is sending
+      } val;
+      volatile uint64_t i64;
+    } el_and_ref;
+    atomic<uint32_t> numbytes;
+    char __pad__[64];
   };
   buffer_and_refcount buffer[2];
   size_t bufid;
