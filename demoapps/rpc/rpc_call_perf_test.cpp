@@ -189,7 +189,7 @@ struct teststruct {
     }
     timer ti;
     std::cout << numthreads << " threaded " << SEND_LIMIT_PRINT <<" sends, "
-                                            << sizeof(size_t) * length << " bytes\n";
+                                            << length << " bytes\n";
     ti.start();
     size_t numsends = SEND_LIMIT / (length * numthreads);
     size_t rd = rdtsc();
