@@ -62,12 +62,12 @@ namespace dc_impl {
         if (er.val.ref_count < 0) {
           // the buffer has already been swapped
           // we should be able to pick up the new one immediately
-          continue; 
+          continue;
         } else if (er.val.numel >= buffer[curid].buf.size()) {
           // if out of buffer room. wait a while.
           usleep(1);
           continue;
-        }  
+        }
         // otherwise, increment the refcount and increment the element count
         next_er.i64 = er.i64;
         next_er.val.ref_count++;
@@ -138,6 +138,7 @@ namespace dc_impl {
         real_send_len += sendbuffer[i].iov_len;
         outdata.write(sendbuffer[i]);
       }
+//      outdata.write(sendbuffer, numel);
       // reset the buffer;
       buffer[curid].numbytes = 0;
       buffer[curid].el_and_ref.val.numel = 1;

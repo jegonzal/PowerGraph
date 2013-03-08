@@ -1,5 +1,5 @@
-/*  
- * Copyright (c) 2009 Carnegie Mellon University. 
+/*
+ * Copyright (c) 2009 Carnegie Mellon University.
  *     All rights reserved.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
@@ -28,7 +28,7 @@
 
 namespace graphlab{
 namespace dc_impl {
- 
+
 /**
  * \ingroup rpc
  * \internal
@@ -45,59 +45,64 @@ struct circular_iovec_buffer {
     tail = 0;
     numel = 0;
   }
-  
+
   inline bool empty() const {
     return numel == 0;
   }
-  
+
   size_t size() const {
     return numel;
   }
-  
+
+
+  void reserve(size_t _n) {
+    if (_n <= v.size()) return;
+    size_t originalsize = v.size();
+    size_t n = v.size();
+    // must be a power of 2
+    while (n <= _n) n *= 2;
+
+    v.resize(n);
+    parallel_v.resize(n);
+    if (head >= tail) {
+      // there is a loop around
+      // we need to fix the shift
+      size_t newtail = originalsize;
+      for (size_t i = 0;i < tail; ++i) {
+        v[newtail] = v[i];
+        parallel_v[newtail] = parallel_v[i];
+        ++newtail;
+      }
+      tail = newtail;
+    }
+  }
+
+/*  inline void write(const std::vector<iovec>& other, size_t nwrite) {
+    reserve(numel + nwrite);
+    for (size_t i = 0;i < nwrite; ++i) {
+      v[tail] = other[i];
+      parallel_v[tail] = other[i];
+      tail = (tail + 1) & (v.size() - 1);
+    }
+    numel += nwrite;
+
+  }*/
+
   /**
    * Writes an entry into the buffer, resizing the buffer if necessary.
    * This buffer will take over all iovec pointers and free them when done
    */
   inline void write(const iovec &entry) {
     if (numel == v.size()) {
-      std::vector<struct iovec> newv(v.size() * 2);
-      std::vector<struct iovec> new_parallel_v(v.size() * 2);
-      size_t newi = 0;
-      // copy to the new vector
-      if (head < tail) {
-        // head is before tail. just copy to tail and I am done
-        while(head < tail) {
-          newv[newi] = v[head];
-          new_parallel_v[newi] = parallel_v[head];
-          ++newi; ++head;
-        }
-      }
-      else {
-        // otherwise there is a loop around
-        while(head < numel) {
-           newv[newi] = v[head];
-           new_parallel_v[newi] = parallel_v[head];
-          ++newi; ++head;
-        }
-        head = 0;
-        while(head < tail) {
-          newv[newi] = v[head];
-          new_parallel_v[newi] = parallel_v[head];
-          ++newi; ++head;
-        }
-      }
-      v.swap(newv);
-      parallel_v.swap(new_parallel_v);
-      head = 0;
-      tail = newi;
+      reserve(2 * numel);
     }
-    
+
     v[tail] = entry;
     parallel_v[tail] = entry;
     tail = (tail + 1) & (v.size() - 1); ++numel;
   }
 
-  
+
   /**
    * Erases a single iovec from the head and free the pointer
    */
@@ -120,7 +125,7 @@ struct circular_iovec_buffer {
     }
     data.msg_iovlen = std::min<size_t>(IOV_MAX, data.msg_iovlen);
   }
-  
+
   /**
    * Advances the head as if some amount of data was sent.
    */
@@ -142,7 +147,7 @@ struct circular_iovec_buffer {
   size_t tail;
   size_t numel;
 };
-  
+
 }
 }
 
