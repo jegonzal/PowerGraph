@@ -85,7 +85,7 @@ namespace dc_impl {
       break;
     }
 
-    if (insertloc == 4096) comm->trigger_send_timeout(target, false);
+    if (insertloc == 256) comm->trigger_send_timeout(target, false);
     else if ((packet_type_mask &
             (CONTROL_PACKET | WAIT_FOR_REPLY | REPLY_PACKET))) {
       comm->trigger_send_timeout(target, true);
@@ -93,7 +93,7 @@ namespace dc_impl {
   }
 
   void dc_buffered_stream_send2::flush() {
-    while(writebuffer_totallen.value) usleep(1);
+    comm->trigger_send_timeout(target, true);
   }
 
   void dc_buffered_stream_send2::copy_and_send_data(procid_t target,

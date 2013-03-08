@@ -501,21 +501,19 @@ namespace graphlab {
       */
     struct thread_local_data {
       std::vector<mutex> lock;
-      atomic<size_t> npriority;
       atomic<size_t> npending;
-      std::vector<std::vector<lvid_type> > priority_vertices;
       std::vector<std::vector<lvid_type> > pending_vertices;
-      thread_local_data() : lock(4), npriority(0), npending(0), 
-                            priority_vertices(4), pending_vertices(4) { }       
+      thread_local_data() : lock(4), npending(0), 
+                            pending_vertices(4) { }       
       void add_task_priority(lvid_type v) {
-        size_t lid = v % 4;
+        size_t lid = 1;
         lock[lid].lock();
-        priority_vertices[lid].push_back(v);
+        pending_vertices[lid].push_back(v);
         lock[lid].unlock();
-        ++npriority;
+        ++npending;
       }
       void add_task(lvid_type v) {
-        size_t lid = v % 4;
+        size_t lid = (v / 32) % 4;
         lock[lid].lock();
         pending_vertices[lid].push_back(v);
         lock[lid].unlock();
@@ -526,23 +524,14 @@ namespace graphlab {
         v.resize(4);
         size_t nv = 0;
         for (size_t i = 0;i < 4; ++i) v[i].clear();
-        if (npriority > 0) {
-          for (int i = 0; i < 4; ++i) {
-            lock[i].lock();
-            v[i].swap(priority_vertices[i]);
-            lock[i].unlock();
-            npriority -= v[i].size();
-            nv += v[i].size();
-          }
-        }
-        else {
-          for (int i = 0; i < 4; ++i) {
-            lock[i].lock();
+        for (int i = 0; i < 4; ++i) {
+          lock[i].lock();
+          if (!pending_vertices[i].empty()) {
             v[i].swap(pending_vertices[i]);
-            lock[i].unlock();
-            npending -= v[i].size();
-            nv += v[i].size();
           }
+          lock[i].unlock();
+          npending -= v[i].size();
+          nv += v[i].size();
         }
         return nv > 0;
       }
@@ -615,6 +604,9 @@ namespace graphlab {
     bool factorized_consistency;
     
     bool handler_intercept;
+
+
+    bool endgame_mode;
 
     /// If True adds tracking for the task retire time
     bool track_task_retire_time;
@@ -914,7 +906,7 @@ namespace graphlab {
       // if we cannot directly inject into the vertex, then we have no 
       // choice but to put the message into the scheduler
       if (direct_injection == false) {
-        scheduler_ptr->schedule(local_vid, message);
+          scheduler_ptr->schedule(local_vid, message);
       }
       END_TRACEPOINT(disteng_scheduler_task_queue);
       consensus->cancel();
@@ -950,6 +942,7 @@ namespace graphlab {
                          const message_type& message = message_type()) {
       if (force_stop) return;
       if (started) {
+        
         BEGIN_TRACEPOINT(disteng_scheduler_task_queue);
         if (factorized_consistency) {
           // fast signal. push to the remote machine immediately
@@ -974,6 +967,7 @@ namespace graphlab {
       }
       else {
         scheduler_ptr->schedule(vtx.local_id(), message);
+        consensus->cancel();
       }
     } // end of schedule
 
@@ -1212,6 +1206,7 @@ namespace graphlab {
         vstate[sched_lvid].factorized_next = prog;
       }
       else {
+        ASSERT_EQ((int)vstate[sched_lvid].state,  (int)NONE);
         vstate[sched_lvid].state = MIRROR_GATHERING;
         vstate[sched_lvid].vertex_program = prog;
         vstate[sched_lvid].combined_gather.clear();
@@ -1482,7 +1477,11 @@ namespace graphlab {
       vertex_id_type lvid = graph.local_vid(vid);
       vstate[lvid].lock();
 //      ASSERT_I_AM_NOT_OWNER(lvid);
-      vstate[lvid].state = MIRROR_SCATTERING;
+      //ASSERT_EQ((int)vstate[lvid].state, MIRROR_SCATTERING);
+      //vstate[lvid].state = MIRROR_SCATTERING;
+      ASSERT_MSG(vstate[lvid].state == MIRROR_SCATTERING || 
+                    vstate[lvid].state == MIRROR_SCATTERING_AND_NEXT_GATHERING,
+                "Unexpected state: %d", (int)(vstate[lvid].state));
       graph.get_local_graph().vertex_data(lvid) = central_vdata;
       vstate[lvid].vertex_program = prog;
       add_internal_task(lvid);
@@ -1550,7 +1549,7 @@ namespace graphlab {
 EVAL_INTERNAL_TASK_RE_EVAL_STATE:
       switch(vstate[lvid].state) {
       case NONE: 
-        ASSERT_MSG(false, "Empty Internal Task");
+          break;
       case LOCKING: {
           BEGIN_TRACEPOINT(disteng_chandy_misra);
           cmlocks->make_philosopher_hungry_per_replica(lvid);
@@ -1704,11 +1703,32 @@ EVAL_INTERNAL_TASK_RE_EVAL_STATE:
       if (!force_stop &&
           issued_messages.value != programs_executed.value + blocked_issues.value) {
         ++ctr;
-        if (ctr % 256 == 0) {
-          DECREMENT_EVENT(EVENT_ACTIVE_CPUS, 1);
+/*        if (ctr % 256 == 0) {
           usleep(1);
-          INCREMENT_EVENT(EVENT_ACTIVE_CPUS, 1);
         }
+        if (ctr % 4096 == 0) {
+          if (issued_messages.value <= programs_executed.value + blocked_issues.value + 2) {
+            for (size_t i = threadid;i < vstate.size(); i+=ncpus) {
+              if (vstate[i].state != NONE) {
+
+                logstream(LOG_INFO) << rmi.procid() <<  " Gvid: " << graph.global_vid(i) << "\n ";
+                logstream(LOG_INFO) << "State = " << vstate[i].state << "\n ";
+                local_vertex_type vertex = graph.l_vertex(i);
+                if (graph.l_get_vertex_record(i).owner == rmi.procid()) {
+                  logstream(LOG_INFO) << "Mirrors on : ";
+                  foreach(const procid_t& mirror, vertex.mirrors()) {
+                    logstream(LOG_INFO) << mirror << " ";
+                  }
+                  logstream(LOG_INFO) << "\n ";
+                  logstream(LOG_INFO) << vstate[i].apply_count_down << " " << vstate[i].hasnext << "\n";
+                } else {
+                  logstream(LOG_INFO) << "Master = " << graph.l_get_vertex_record(i).owner << "\n";
+                }
+              }
+            }
+          }
+        }  */
+        rmi.dc().flush();
         return false;
       }
       logstream(LOG_DEBUG) << rmi.procid() << "-" << threadid << ": " << "Termination Attempt "
@@ -1739,6 +1759,28 @@ EVAL_INTERNAL_TASK_RE_EVAL_STATE:
                              << "\tTermination Double Checked" << std::endl;
 
         DECREMENT_EVENT(EVENT_ACTIVE_CPUS, 1);
+        if (!endgame_mode) logstream(LOG_EMPH) << "Endgame mode\n";
+        endgame_mode = true;
+/*
+            for (size_t i = threadid;i < vstate.size(); i+=ncpus) {
+              if (vstate[i].state != NONE) {
+                std::cout << rmi.procid() <<  " Gvid: " << graph.global_vid(i) << "\n";
+                std::cout << "EGState = " << vstate[i].state << "\n";
+                local_vertex_type vertex = graph.l_vertex(i);
+                if (graph.l_get_vertex_record(i).owner == rmi.procid()) {
+                  std::cout << "Mirrors on : ";
+                  foreach(const procid_t& mirror, vertex.mirrors()) {
+                    std::cout << mirror << " ";
+                  }
+                  std::cout << "\n";
+                  std::cout << vstate[i].apply_count_down << " " << vstate[i].hasnext << "\n";
+                } else {
+                  std::cout << "Master = " << graph.l_get_vertex_record(i).owner << "\n";
+                }
+              }
+            }
+
+*/
         bool ret = consensus->end_done_critical_section(threadid);
         INCREMENT_EVENT(EVENT_ACTIVE_CPUS, 1);
         if (ret == false) {
@@ -1921,9 +1963,8 @@ EVAL_INTERNAL_TASK_RE_EVAL_STATE:
 //      size_t ctr = 0;
       float last_aggregator_check = timer::approx_time_seconds();
       // every 0.01 seconds, we poke a machine
-      double next_processing_time = 0.05;
-      timer ti;
-      ti.start();
+      float next_processing_time = 0.05;
+      timer ti; ti.start();
       while(1) {
         if (timer::approx_time_seconds() != last_aggregator_check) {
           last_aggregator_check = timer::approx_time_seconds();
@@ -1964,9 +2005,12 @@ EVAL_INTERNAL_TASK_RE_EVAL_STATE:
                 eval_internal_task(threadid, internal_lvid[i][j]);
               }
             }
+          if (endgame_mode) rmi.dc().flush();
         } else if (has_sched_msg) {
           eval_sched_task<false>(sched_lvid, msg);
+          if (endgame_mode) rmi.dc().flush();
         }
+
         /*
          * We failed to obtain a task, try to quit
          */
@@ -1974,8 +2018,7 @@ EVAL_INTERNAL_TASK_RE_EVAL_STATE:
                               has_internal_task, internal_lvid,
                               has_sched_msg, sched_lvid, msg)) {
           // if we ran out of tasks, lets flush more regularly
-          next_processing_time = next_processing_time / 2;
-          if (next_processing_time < 0.01) next_processing_time = 0.01;
+          next_processing_time = timer::approx_time_seconds();
           if (has_internal_task) {
             for (size_t i = 0;i < internal_lvid.size(); ++i) {
               for (size_t j = 0;j < internal_lvid[i].size(); ++j) {
@@ -1987,7 +2030,7 @@ EVAL_INTERNAL_TASK_RE_EVAL_STATE:
           }
         } else { break; }
       }
-
+      if (endgame_mode) next_processing_time = 0.01;
       DECREMENT_EVENT(EVENT_ACTIVE_CPUS, 1);
     } // end of thread start
 
@@ -2084,7 +2127,8 @@ EVAL_INTERNAL_TASK_RE_EVAL_STATE:
       consensus->reset();
       // start the scheduler
       scheduler_ptr->start();
-      
+     
+
       // start the aggregator
       aggregator.start(ncpus);
       aggregator.aggregate_all_periodic();
@@ -2107,6 +2151,11 @@ EVAL_INTERNAL_TASK_RE_EVAL_STATE:
       engine_start_time = timer::approx_time_seconds();
       force_stop = false;
       total_update_time.value = 0.0;
+      endgame_mode = false;
+      issued_messages = 0;
+      pending_updates = 0;
+      blocked_issues = 0;
+      programs_executed = 0;
       if (track_task_retire_time) {
         task_start_time.resize(graph.num_local_vertices());
       }
