@@ -1921,7 +1921,7 @@ EVAL_INTERNAL_TASK_RE_EVAL_STATE:
 //      size_t ctr = 0;
       float last_aggregator_check = timer::approx_time_seconds();
       // every 0.01 seconds, we poke a machine
-      double next_processing_time = 0.01;
+      double next_processing_time = 0.05;
       timer ti;
       ti.start();
       while(1) {
@@ -1942,7 +1942,10 @@ EVAL_INTERNAL_TASK_RE_EVAL_STATE:
           // effect of completely flushing the channel between me and
           // that machine
           if (handler_intercept) rmi.dc().start_handler_threads(threadid, ncpus);
-          size_t p = random::fast_uniform(0, rmi.numprocs() - 1);
+          size_t p = pingid.inc() % rmi.numprocs();
+          if (p == rmi.procid()) {
+            p = pingid.inc() % rmi.numprocs();
+          }
           rmi.remote_request(p, &async_consistent_engine::ping);
 
           if (handler_intercept) {
@@ -1970,6 +1973,9 @@ EVAL_INTERNAL_TASK_RE_EVAL_STATE:
         else if (!try_to_quit(threadid,
                               has_internal_task, internal_lvid,
                               has_sched_msg, sched_lvid, msg)) {
+          // if we ran out of tasks, lets flush more regularly
+          next_processing_time = next_processing_time / 2;
+          if (next_processing_time < 0.01) next_processing_time = 0.01;
           if (has_internal_task) {
             for (size_t i = 0;i < internal_lvid.size(); ++i) {
               for (size_t j = 0;j < internal_lvid[i].size(); ++j) {
