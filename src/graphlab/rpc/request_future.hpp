@@ -85,6 +85,10 @@ struct request_future {
     }
   }
 
+  bool is_ready() {
+    return (hasval || reply->flag == 0);
+  }
+
   /**
    * Waits for the request if it has not yet been received.
    * Otherwise, returns a reference to the received value.
@@ -118,6 +122,10 @@ struct request_future<void> {
     reply = val.reply;
     hasval = val.hasval;
     return *this;
+  }
+
+  bool is_ready() {
+    return (hasval || reply->flag == 0);
   }
 
 

@@ -185,7 +185,7 @@ namespace graphlab {
    * The asynchronous engine supports several engine options which can
    * be set as command line arguments using \c --engine_opts :
    *
-   * \li \b max_clean_fraction (default: 1) 
+   * \li \b max_clean_fraction (default: 0.2) 
    *  The maximum proportion of edges which can be locked at any one time.
    *  (This is a simplification of the actual clean/dirty concept in the Chandy
    *  Misra locking algorithm used in this implementation.
@@ -193,7 +193,7 @@ namespace graphlab {
    * run for. The actual runtime may be marginally greater as the engine 
    * waits for all threads and processes to flush all active tasks before
    * returning.
-   * \li \b factorized (default: false) Set to true to weaken the consistency
+   * \li \b factorized (default: true) Set to true to weaken the consistency
    * model to factorized consistency where only individual gather/apply/scatter
    * calls are guaranteed to be locally consistent. Can produce massive
    * increases in throughput at a consistency penalty.
@@ -683,12 +683,12 @@ namespace graphlab {
       rmi.barrier();
 
       // set default values
-      max_clean_fraction = 1.0;
+      max_clean_fraction = 0.2;
       max_clean_forks = (size_t)(-1);
       max_pending = (size_t)(-1);
       timed_termination = (size_t)(-1);
       use_cache = false;
-      factorized_consistency = false;
+      factorized_consistency = true;
       handler_intercept = true;
       track_task_retire_time = false;
       termination_reason = execution_status::UNSET;
@@ -1695,7 +1695,7 @@ EVAL_INTERNAL_TASK_RE_EVAL_STATE:
                      lvid_type& sched_lvid,
                      message_type &msg) {
 
-      rmi.dc().handle_incoming_calls(threadid, ncpus);
+      if (handler_intercept) rmi.dc().handle_incoming_calls(threadid, ncpus);
       static size_t ctr = 0;
       if (timer::approx_time_seconds() - engine_start_time > timed_termination) {
         termination_reason = execution_status::TIMEOUT;
@@ -1781,7 +1781,9 @@ EVAL_INTERNAL_TASK_RE_EVAL_STATE:
       }
       consensus->cancel();
     }
-    
+   
+    void ping() {
+    } 
     
     /**
      * \internal
@@ -1902,7 +1904,7 @@ EVAL_INTERNAL_TASK_RE_EVAL_STATE:
     }
     
     
-    
+    atomic<size_t> pingid; 
     /**
      * \internal
      * Per thread main loop
@@ -1918,6 +1920,10 @@ EVAL_INTERNAL_TASK_RE_EVAL_STATE:
       message_type msg;
 //      size_t ctr = 0;
       float last_aggregator_check = timer::approx_time_seconds();
+      // every 0.01 seconds, we poke a machine
+      double next_processing_time = 0.01;
+      timer ti;
+      ti.start();
       while(1) {
         if (timer::approx_time_seconds() != last_aggregator_check) {
           last_aggregator_check = timer::approx_time_seconds();
@@ -1928,8 +1934,22 @@ EVAL_INTERNAL_TASK_RE_EVAL_STATE:
         if (max_clean_forks != (size_t)(-1) && ctr % 10000 == 0) {
           std::cout << cmlocks->num_clean_forks() << "/" << max_clean_forks << "\n";
         }*/
-       
-        rmi.dc().handle_incoming_calls(threadid, ncpus);
+      
+        if (handler_intercept) rmi.dc().handle_incoming_calls(threadid, ncpus);
+
+        if (ti.current_time() >= next_processing_time) {
+          // every now and then, I ping one machine. This has the
+          // effect of completely flushing the channel between me and
+          // that machine
+          if (handler_intercept) rmi.dc().start_handler_threads(threadid, ncpus);
+          size_t p = random::fast_uniform(0, rmi.numprocs() - 1);
+          rmi.remote_request(p, &async_consistent_engine::ping);
+
+          if (handler_intercept) {
+            rmi.dc().stop_handler_threads(threadid, ncpus);
+          }
+          ti.start();
+        }
 
         get_a_task(threadid, 
                    has_internal_task, internal_lvid,
