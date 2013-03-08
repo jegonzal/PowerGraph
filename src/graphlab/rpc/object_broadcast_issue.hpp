@@ -1,5 +1,5 @@
-/*  
- * Copyright (c) 2009 Carnegie Mellon University. 
+/*
+ * Copyright (c) 2009 Carnegie Mellon University.
  *     All rights reserved.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
@@ -32,6 +32,7 @@
 #include <graphlab/rpc/object_call_issue.hpp>
 #include <graphlab/rpc/is_rpc_call.hpp>
 #include <boost/preprocessor.hpp>
+#include <graphlab/rpc/archive_memory_pool.hpp>
 #include <graphlab/rpc/mem_function_arg_types_def.hpp>
 
 namespace graphlab{
@@ -43,18 +44,18 @@ namespace dc_impl {
 \file object_broadcast_issue.hpp
  This is an internal function and should not be used directly
 
-Marshalls a object function broadcast to a remote machine. 
+Marshalls a object function broadcast to a remote machine.
 
 \code
-template<typename T, 
-        typename F , 
+template<typename T,
+        typename F ,
         typename T0> class object_call_issue1
 {
-    public: static void exec(dc_send* sender, 
-                            unsigned char flags, 
-                            procid_t target, 
-                            size_t objid, 
-                            F remote_function , 
+    public: static void exec(dc_send* sender,
+                            unsigned char flags,
+                            procid_t target,
+                            size_t objid,
+                            F remote_function ,
                             const T0 &i0 )
     {
         oarchive arc;
@@ -82,7 +83,8 @@ class  BOOST_PP_CAT(BOOST_PP_TUPLE_ELEM(2,0,FNAME_AND_CALL), N) { \
   public: \
   static void exec(dc_dist_object_base* rmi, std::vector<dc_send*> sender, unsigned char flags, \
                     Iterator target_begin, Iterator target_end, size_t objid, F remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_) ) {  \
-    oarchive arc;                         \
+    oarchive* ptr = oarchive_from_pool();       \
+    oarchive& arc = *ptr;                         \
     arc.advance(sizeof(packet_hdr));            \
     dispatch_type d = BOOST_PP_CAT(dc_impl::OBJECT_NONINTRUSIVE_DISPATCH,N)<distributed_control,T,F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N, GENT ,_) >;   \
     arc << reinterpret_cast<size_t>(d);                                 \
@@ -91,20 +93,16 @@ class  BOOST_PP_CAT(BOOST_PP_TUPLE_ELEM(2,0,FNAME_AND_CALL), N) { \
     BOOST_PP_REPEAT(N, GENARC, _)                                       \
     Iterator iter = target_begin;                                       \
     while(iter != target_end) { \
-      Iterator nextiter = iter; ++nextiter; \
-      if (nextiter != target_end) { \
-        char* newbuf = (char*)malloc(arc.off); memcpy(newbuf, arc.buf, arc.off); \
-        sender[(*iter)]->send_data((*iter),flags , newbuf, arc.off);    \
-      } else {    \
-        sender[(*iter)]->send_data((*iter),flags , arc.buf, arc.off);    \
-      } \
+      char* newbuf = (char*)malloc(arc.off); memcpy(newbuf, arc.buf, arc.off); \
+      sender[(*iter)]->send_data((*iter),flags , newbuf, arc.off);    \
       if ((flags & CONTROL_PACKET) == 0) {                                 \
         rmi->inc_bytes_sent((*iter), arc.off); \
       } \
-      iter = nextiter;  \
+      ++iter; \
     } \
+    release_oarchive_to_pool(ptr); \
   }  \
-}; 
+};
 
 
 

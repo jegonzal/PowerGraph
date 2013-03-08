@@ -1,5 +1,5 @@
-/*  
- * Copyright (c) 2009 Carnegie Mellon University. 
+/*
+ * Copyright (c) 2009 Carnegie Mellon University.
  *     All rights reserved.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
@@ -33,6 +33,7 @@
 #include <graphlab/rpc/request_dispatch.hpp>
 #include <graphlab/rpc/function_ret_type.hpp>
 #include <graphlab/rpc/function_arg_types_def.hpp>
+#include <graphlab/rpc/archive_memory_pool.hpp>
 #include <boost/preprocessor.hpp>
 
 namespace graphlab {
@@ -96,7 +97,7 @@ template<typename F , typename T0> class remote_request_issue1
                   typename boost::remove_reference<
                   typename boost::function<
                   typename boost::remove_pointer<F>::type>::result_type>
-                  ::type>::type>::type 
+                  ::type>::type>::type
       exec(dc_send* sender, unsigned char flags, procid_t target, F remote_function , const T0 &i0 )
     {
         oarchive arc;
@@ -133,7 +134,7 @@ will contain the name of the function. This is a "portable" call.
 #define GENT(Z,N,_) BOOST_PP_CAT(T, N)
 #define GENARC(Z,N,_) arc << BOOST_PP_CAT(i, N);
 
-  
+
 /**
 The dispatch_selectorN structs are used to pick between the standard dispatcher and the nonintrusive dispatch
 by checking if the function is a RPC style call or not.
@@ -153,7 +154,8 @@ template<typename F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, typename T)> \
 class  BOOST_PP_CAT(FNAME_AND_CALL, N) { \
   public: \
   static typename function_ret_type<__GLRPC_FRESULT>::type exec(dc_send* sender, unsigned char flags, procid_t target, F remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_) ) {  \
-    oarchive arc;                         \
+    oarchive* ptr = oarchive_from_pool();       \
+    oarchive& arc = *ptr;                         \
     arc.advance(sizeof(packet_hdr));            \
     reply_ret_type reply(REQUEST_WAIT_METHOD);      \
     dispatch_type d = BOOST_PP_CAT(request_issue_detail::dispatch_selector,N)<typename is_rpc_call<F>::type, F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, T) >::dispatchfn();   \
@@ -161,7 +163,9 @@ class  BOOST_PP_CAT(FNAME_AND_CALL, N) { \
     arc << reinterpret_cast<size_t>(remote_function); \
     arc << reinterpret_cast<size_t>(&reply);       \
     BOOST_PP_REPEAT(N, GENARC, _)                \
-    sender->send_data(target, flags, arc.buf, arc.off);    \
+    char* newbuf = (char*)malloc(arc.off); memcpy(newbuf, arc.buf, arc.off); \
+    sender->send_data(target, flags, newbuf, arc.off);    \
+    release_oarchive_to_pool(ptr); \
     reply.wait(); \
     iarchive iarc(reply.val.c, reply.val.len);  \
     typename function_ret_type<__GLRPC_FRESULT>::type result; \
@@ -169,7 +173,7 @@ class  BOOST_PP_CAT(FNAME_AND_CALL, N) { \
     reply.val.free(); \
     return result;  \
   }\
-}; 
+};
 
 
 /**
@@ -183,8 +187,8 @@ BOOST_PP_REPEAT(6, REMOTE_REQUEST_ISSUE_GENERATOR,  remote_request_issue )
 #undef GENT
 #undef GENARGS
 #undef REMOTE_REQUEST_ISSUE_GENERATOR
-  
-  
+
+
 } // namespace dc_impl
 } // namespace graphlab
 #include <graphlab/rpc/function_arg_types_undef.hpp>

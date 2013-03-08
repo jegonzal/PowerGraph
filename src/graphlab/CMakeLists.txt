@@ -50,6 +50,7 @@ add_library(graphlab STATIC
   rpc/async_consensus.cpp
   rpc/distributed_event_log.cpp
   rpc/delta_dht.cpp
+  rpc/archive_memory_pool.cpp
   ui/mongoose/mongoose.cpp
   ui/metrics_server.cpp
   )

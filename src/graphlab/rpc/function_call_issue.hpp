@@ -1,5 +1,5 @@
-/*  
- * Copyright (c) 2009 Carnegie Mellon University. 
+/*
+ * Copyright (c) 2009 Carnegie Mellon University.
  *     All rights reserved.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
@@ -32,6 +32,7 @@
 #include <graphlab/rpc/is_rpc_call.hpp>
 #include <graphlab/rpc/reply_increment_counter.hpp>
 #include <boost/preprocessor.hpp>
+#include <graphlab/rpc/archive_memory_pool.hpp>
 #include <graphlab/rpc/function_arg_types_def.hpp>
 
 namespace graphlab{
@@ -47,11 +48,11 @@ This is an internal function and should not be used directly
 A "call" is an RPC which is performed asynchronously.
 There are 2 types of calls. A "basic" call calls a standard C/C++ function
 and does not require the function to be modified.
-while the "regular" call requires the first 2 arguments of the function 
+while the "regular" call requires the first 2 arguments of the function
 to be "distributed_control &dc, procid_t source".
 
 An "issue" is a wrapper function on the sending side of an RPC
-which encodes the packet and transmits it to the other side. 
+which encodes the packet and transmits it to the other side.
 (I realized later this is called a "Marshaller")
 
 Native Call Formats \n
@@ -66,18 +67,18 @@ The format of a "call" packet is in the form of an archive and is as follows
 \li fn::argN_type    -- target function's Nth argument
 
 Argument casting is deferred to as late as possible. So the data type of
-arguments are the data types that the caller use to call the function. 
+arguments are the data types that the caller use to call the function.
 A dispatcher function will be instantiated with the input types, which will
 then perform the type cast.
 
 
-The code below generates the following for different number of arguments. Here, we 
+The code below generates the following for different number of arguments. Here, we
 demonstrate the 1 argument version.
 \code
 namespace function_call_issue_detail
 {
-    template <typename BoolType, 
-            typename F , 
+    template <typename BoolType,
+            typename F ,
             typename T0> struct dispatch_selector1
     {
         static dispatch_type dispatchfn()
@@ -97,10 +98,10 @@ namespace function_call_issue_detail
 
 template<typename F , typename T0> class remote_call_issue1
 {
-    public: static void exec(dc_send* sender, 
-                            unsigned char flags, 
-                            procid_t target, 
-                            F remote_function , 
+    public: static void exec(dc_send* sender,
+                            unsigned char flags,
+                            procid_t target,
+                            F remote_function ,
                             const T0 &i0 )
     {
         oarchive arc;
@@ -116,7 +117,7 @@ template<typename F , typename T0> class remote_call_issue1
 \endcode
 
 The basic idea of the code is straightforward.
-The receiving end cannot call the target function (remote_function) directly, since it has 
+The receiving end cannot call the target function (remote_function) directly, since it has
 no means of understanding how to deserialize or to construct the stack for the remote_function.
 So instead, we generate a "dispatch" function on the receiving side. The dispatch function
 is constructed according to the type information of the remote_function, and therefore knows
@@ -158,7 +159,8 @@ template<typename F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, typename T)> \
 class  BOOST_PP_CAT(FNAME_AND_CALL, N) { \
   public: \
   static void exec(dc_send* sender, unsigned char flags, procid_t target, F remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_) ) {  \
-    oarchive arc;                         \
+    oarchive* ptr = oarchive_from_pool();       \
+    oarchive& arc = *ptr;                         \
     arc.advance(sizeof(packet_hdr));            \
     dispatch_type d = BOOST_PP_CAT(function_call_issue_detail::dispatch_selector,N)<typename is_rpc_call<F>::type, F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, T) >::dispatchfn();   \
     arc << reinterpret_cast<size_t>(d);       \
@@ -167,9 +169,11 @@ class  BOOST_PP_CAT(FNAME_AND_CALL, N) { \
     if (reinterpret_cast<size_t>(remote_function) == reinterpret_cast<size_t>(reply_increment_counter)) { \
       flags |= REPLY_PACKET; \
     } \
-    sender->send_data(target,flags , arc.buf, arc.off);    \
+    char* newbuf = (char*)malloc(arc.off); memcpy(newbuf, arc.buf, arc.off); \
+    sender->send_data(target,flags , newbuf, arc.off);    \
+    release_oarchive_to_pool(ptr); \
   }\
-}; 
+};
 
 
 

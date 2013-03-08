@@ -13,22 +13,26 @@ struct teststruct {
   teststruct(distributed_control &dc):rmi(dc, this) {
     dc.barrier();
   }
-  
+
   /**
    *  Receiver
    */
-  
+
   atomic<size_t> ctr;
   void receive_ints(size_t i0, size_t i1, size_t i2, size_t i3) {
     ctr.inc();
   }
 
-  
+
   void receive_vector(const std::vector<size_t> &s) {
     ctr.inc();
   }
 
-  
+  void receive_string(const std::string &s) {
+    ctr.inc();
+  }
+
+
   /**
    * Short Sends With Remote Call
    */
@@ -48,10 +52,26 @@ struct teststruct {
 
   void perform_long_sends_0(size_t length, size_t number) {
     std::vector<size_t> v(length, 5000000);
+    size_t rd = rdtsc();
     for (size_t i = 0;i < number; ++i) {
       rmi.remote_call(1, &teststruct::receive_vector, v);
     }
+    size_t rd2 = rdtsc();
+    std::cout << (rd2 - rd) / number << " cycles per call\n";
   }
+
+
+  void perform_long_string_sends_0(size_t length, size_t number) {
+    std::string s(length, 1);
+    size_t rd = rdtsc();
+    for (size_t i = 0;i < number; ++i) {
+      rmi.remote_call(1, &teststruct::receive_string, s);
+    }
+    size_t rd2 = rdtsc();
+    std::cout << (rd2 - rd) / number << " cycles per call\n";
+  }
+
+
 
   void print_res(double t1, double t2, double t3) {
     std::cout << "Calls Sent in: " << t1 << "s\n";
@@ -79,8 +99,8 @@ struct teststruct {
     double t3 = ti.current_time();
     print_res(t1,t2,t3);
   }
-  
-  
+
+
   void run_threaded_short_sends_0(size_t numthreads) {
     if (rmi.procid() == 1) {
       rmi.full_barrier();
@@ -121,8 +141,8 @@ struct teststruct {
     double t3 = ti.current_time();
     print_res(t1,t2,t3);
   }
-  
-  
+
+
   void run_threaded_short_pod_sends_0(size_t numthreads) {
     if (rmi.procid() == 1) {
       rmi.full_barrier();
@@ -154,10 +174,10 @@ struct teststruct {
       return;
     }
     timer ti;
-    std::cout << "Single Threaded " << SEND_LIMIT_PRINT <<" sends, " << sizeof(size_t) * length << " bytes\n";
+    std::cout << "Single Threaded " << SEND_LIMIT_PRINT <<" sends, " << length << " bytes\n";
     ti.start();
-    size_t numsends = SEND_LIMIT / (sizeof(size_t) * length);
-    perform_long_sends_0(length, numsends);
+    size_t numsends = SEND_LIMIT / (length);
+    perform_long_string_sends_0(length, numsends);
     double t1 = ti.current_time();
     rmi.dc().flush();
     double t2 = ti.current_time();
@@ -165,15 +185,15 @@ struct teststruct {
     double t3 = ti.current_time();
     print_res(t1,t2,t3);
   }
-  
-  
+
+
   void run_threaded_long_sends_0(size_t length, size_t numthreads) {
     if (rmi.procid() == 1) {
       rmi.full_barrier();
       return;
     }
     timer ti;
-    std::cout << numthreads << " threaded " << SEND_LIMIT_PRINT <<" sends, " 
+    std::cout << numthreads << " threaded " << SEND_LIMIT_PRINT <<" sends, "
                                             << sizeof(size_t) * length << " bytes\n";
     ti.start();
     size_t numsends = SEND_LIMIT / (sizeof(size_t) * length * numthreads);
@@ -198,18 +218,19 @@ int main(int argc, char** argv) {
   // init MPI
   mpi_tools::init(argc, argv);
   distributed_control dc;
-  
+
   if (dc.numprocs() != 2) {
     std::cout << "Run with exactly 2 MPI nodes.\n";
     return 0;
   }
   dc.barrier();
   teststruct ts(dc);
+  /*
     ts.run_short_sends_0();
     ts.run_threaded_short_sends_0(2);
     ts.run_threaded_short_sends_0(4);
     ts.run_threaded_short_sends_0(8);
-    ts.run_threaded_short_sends_0(16); 
+    ts.run_threaded_short_sends_0(16);
     ts.run_short_pod_sends_0();
     ts.run_threaded_short_pod_sends_0(2);
     ts.run_threaded_short_pod_sends_0(4);
@@ -225,7 +246,10 @@ int main(int argc, char** argv) {
     ts.run_threaded_long_sends_0(10240, 4);
     ts.run_threaded_long_sends_0(10240, 8);
     ts.run_threaded_long_sends_0(10240, 16);
-
+  */
+  for (size_t i = 4; i < 24; ++i) {
+    ts.run_long_sends_0(1<<i);
+  }
   dc.barrier();
   mpi_tools::finalize();
 }

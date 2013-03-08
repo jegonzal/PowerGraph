@@ -1,5 +1,5 @@
-/*  
- * Copyright (c) 2009 Carnegie Mellon University. 
+/*
+ * Copyright (c) 2009 Carnegie Mellon University.
  *     All rights reserved.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
@@ -34,6 +34,7 @@
 #include <graphlab/rpc/function_ret_type.hpp>
 #include <graphlab/rpc/mem_function_arg_types_def.hpp>
 #include <graphlab/rpc/request_future.hpp>
+#include <graphlab/rpc/archive_memory_pool.hpp>
 #include <boost/preprocessor.hpp>
 
 namespace graphlab {
@@ -44,7 +45,7 @@ namespace dc_impl {
 #define GENT(Z,N,_) BOOST_PP_CAT(T, N)
 #define GENARC(Z,N,_) arc << BOOST_PP_CAT(i, N);
 
-  
+
 /**
 \internal
 \ingroup rpc
@@ -60,10 +61,10 @@ This is very similar to the standard function request issue in request_issue.hpp
 An annoyingly long sequence of type manipulations are needed to identify the return type.
 \code
 template<typename T,
-        typename F , 
+        typename F ,
         typename T0> class object_request_issue1
 {
-    public: 
+    public:
     static request_future<typename function_ret_type<
               typename boost::remove_const<
               typename boost::remove_reference<
@@ -83,7 +84,7 @@ template<typename T,
         arc << i0;
         sender->send_data(target, flags, arc.buf, arc.off);
         reply.wait();
-        iarchive iarc(reply.val.c, reply.val.len); 
+        iarchive iarc(reply.val.c, reply.val.len);
         typename function_ret_type<
             typename boost::remove_const<
             typename boost::remove_reference<
@@ -104,7 +105,8 @@ template<typename T,typename F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, type
 class  BOOST_PP_CAT(FNAME_AND_CALL, N) { \
   public: \
   static request_future<__GLRPC_FRESULT> exec(dc_dist_object_base* rmi, dc_send* sender, unsigned char flags, procid_t target,size_t objid, F remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_) ) {  \
-    oarchive arc;                         \
+    oarchive* ptr = oarchive_from_pool();       \
+    oarchive& arc = *ptr;                         \
     arc.advance(sizeof(packet_hdr));            \
     request_future<__GLRPC_FRESULT> reply;   \
     dispatch_type d = BOOST_PP_CAT(dc_impl::OBJECT_NONINTRUSIVE_REQUESTDISPATCH,N)<distributed_control,T,F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N, GENT ,_) >;  \
@@ -113,7 +115,9 @@ class  BOOST_PP_CAT(FNAME_AND_CALL, N) { \
     arc << objid;       \
     arc << reinterpret_cast<size_t>(reply.reply.get());       \
     BOOST_PP_REPEAT(N, GENARC, _)                \
-    sender->send_data(target, flags, arc.buf, arc.off);    \
+    char* newbuf = (char*)malloc(arc.off); memcpy(newbuf, arc.buf, arc.off); \
+    sender->send_data(target, flags, newbuf, arc.off);    \
+    release_oarchive_to_pool(ptr); \
     if ((flags & CONTROL_PACKET) == 0)                       \
       rmi->inc_bytes_sent(target, arc.off);           \
     return reply;   \
@@ -128,8 +132,8 @@ BOOST_PP_REPEAT(6, REMOTE_REQUEST_ISSUE_GENERATOR,  object_request_issue )
 #undef GENT
 #undef GENARGS
 #undef REMOTE_REQUEST_ISSUE_GENERATOR
-  
-  
+
+
 } // namespace dc_impl
 } // namespace graphlab
 #include <graphlab/rpc/mem_function_arg_types_undef.hpp>
