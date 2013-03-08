@@ -136,9 +136,9 @@ namespace dc_impl {
       // give the buffer away
       for (size_t i = 0;i < numel; ++i) {
         real_send_len += sendbuffer[i].iov_len;
-        outdata.write(sendbuffer[i]);
+    //    outdata.write(sendbuffer[i]);
       }
-//      outdata.write(sendbuffer, numel);
+      outdata.write(sendbuffer, numel);
       // reset the buffer;
       buffer[curid].numbytes = 0;
       buffer[curid].el_and_ref.val.numel = 1;

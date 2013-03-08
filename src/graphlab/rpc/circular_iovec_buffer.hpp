@@ -64,7 +64,7 @@ struct circular_iovec_buffer {
 
     v.resize(n);
     parallel_v.resize(n);
-    if (head >= tail) {
+    if (head >= tail && numel > 0) {
       // there is a loop around
       // we need to fix the shift
       size_t newtail = originalsize;
@@ -77,7 +77,7 @@ struct circular_iovec_buffer {
     }
   }
 
-/*  inline void write(const std::vector<iovec>& other, size_t nwrite) {
+  inline void write(const std::vector<iovec>& other, size_t nwrite) {
     reserve(numel + nwrite);
     for (size_t i = 0;i < nwrite; ++i) {
       v[tail] = other[i];
@@ -86,7 +86,7 @@ struct circular_iovec_buffer {
     }
     numel += nwrite;
 
-  }*/
+  }
 
   /**
    * Writes an entry into the buffer, resizing the buffer if necessary.
