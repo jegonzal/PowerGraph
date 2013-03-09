@@ -1,5 +1,5 @@
-/**  
- * Copyright (c) 2009 Carnegie Mellon University. 
+/**
+ * Copyright (c) 2009 Carnegie Mellon University.
  *     All rights reserved.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
@@ -24,10 +24,11 @@
 #ifndef DISTRIBUTED_CONTROL_TYPES_HPP
 #define DISTRIBUTED_CONTROL_TYPES_HPP
 #include <inttypes.h>
+#include <graphlab/serialization/iarchive.hpp>
 namespace graphlab {
   /// The type used for numbering processors \ingroup rpc
   typedef uint16_t procid_t;
-  
+
   /**
    * \internal
    * \ingroup rpc
@@ -36,6 +37,22 @@ namespace graphlab {
   enum dc_comm_type {
     TCP_COMM,   ///< TCP/IP
     SCTP_COMM   ///< SCTP (limited support)
+  };
+
+
+  /**
+   * \internal
+   * \ingroup rpc
+   * A pointer that points directly into
+   * the middle of a deserialized buffer.
+   */
+  struct wild_pointer {
+    const void* ptr;
+
+    void load(iarchive& iarc) {
+      assert(iarc.buf != NULL);
+      ptr = reinterpret_cast<const void*>(iarc.buf + iarc.off);
+    }
   };
 };
 #include <graphlab/rpc/dc_packet_mask.hpp>

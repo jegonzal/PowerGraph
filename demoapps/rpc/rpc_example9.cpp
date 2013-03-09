@@ -1,5 +1,5 @@
-/*  
- * Copyright (c) 2009 Carnegie Mellon University. 
+/*
+ * Copyright (c) 2009 Carnegie Mellon University.
  *     All rights reserved.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
@@ -23,15 +23,21 @@
 #include <vector>
 #include <iostream>
 #include <graphlab/rpc/dc.hpp>
+#include <graphlab/serialization/iarchive.hpp>
 using namespace graphlab;
 
 
 struct test_struct {
   dc_dist_object<test_struct> rmi;
-  test_struct(distributed_control &dc):rmi(dc, this) { 
+  test_struct(distributed_control &dc):rmi(dc, this) {
     dc.barrier();
   }
-  
+
+  void test_blob(size_t len, wild_pointer w) {
+    assert(len == sizeof(procid_t));
+    std::cout << "split call from : " << *reinterpret_cast<const procid_t*>(w.ptr) << "\n";
+  }
+
   void print(int val) {
     std::cout << rmi.procid() << ": Receiving print with value : " << val << std::endl;
   }
@@ -44,13 +50,18 @@ struct test_struct {
       rmi.pod_call(s.begin(), s.end(), &test_struct::print, 1);
     }
     rmi.full_barrier();
-    
+
     if (rmi.procid() == 0) {
       std::cout << "Second set of calls... Proc 0 and 2 should receive" << std::endl;
       std::vector<procid_t> s;
       s.push_back(2); s.push_back(0);
       rmi.pod_call(s.begin(), s.end(), &test_struct::print, 1);
     }
+    rmi.full_barrier();
+
+    oarchive* oarc = rmi.split_call_begin(&test_struct::test_blob);
+    (*oarc) << rmi.procid();
+    rmi.split_call_end(1, oarc);
     rmi.full_barrier();
   }
 };

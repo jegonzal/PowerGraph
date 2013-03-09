@@ -1,5 +1,5 @@
-/**  
- * Copyright (c) 2009 Carnegie Mellon University. 
+/**
+ * Copyright (c) 2009 Carnegie Mellon University.
  *     All rights reserved.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
@@ -35,7 +35,6 @@
 
 namespace graphlab {
   /**
-   * \deprecated
    * blob is the general representation of a "block" of information.
    *. 'data' must be exactly 'length' bytes and must be entirely
    * self contained.  It must not hold references to other memory
@@ -49,23 +48,23 @@ namespace graphlab {
         size_t size_;    /// number of bytes of the 'data' field
         void* data_;     /// user information
   public:
-    
+
     /** Create an empty blob */
     blob() : size_(0), data_(NULL) { }
 
     /** Create simple blob of a certain size (with allocation)*/
-    blob(size_t new_size) : 
-      size_(0), data_(NULL) { 
+    blob(size_t new_size) :
+      size_(0), data_(NULL) {
       resize(new_size);
-    } // end of basic blob constructor 
+    } // end of basic blob constructor
 
     /** Makes a copy of the ptr provided */
-    blob(size_t osize, void* odata) : size_(0), data_(NULL) { 
+    blob(size_t osize, void* odata) : size_(0), data_(NULL) {
       if (osize > 0) { copy(osize, odata);  }
-    } // end of basic blob constructor 
+    } // end of basic blob constructor
 
     /** Copy constructor */
-    blob(const blob &b) : size_(0), data_(NULL) { 
+    blob(const blob &b) : size_(0), data_(NULL) {
       if (b.size_ != 0 && b.data_ != NULL) {
         copy(b);
       }
@@ -115,17 +114,17 @@ namespace graphlab {
     const void* data() const { return data_; }
 
 
-    
+
     blob& operator=(const blob& b){
       copy(b);
       return *this;
     }
-    
+
 
 
     /** make a copy of the data passed in as arguments. */
     void copy(size_t osize, void* odata) {
-      resize(osize);      
+      resize(osize);
       // Copy the contents over
       memcpy(data_, odata, osize);
     }
@@ -134,11 +133,11 @@ namespace graphlab {
     void copy(const blob& other) {
       assert(other.size_ == 0 || other.data_ != NULL);
       // Do an allocation (which is only done if necessary)
-      resize(other.size_);      
+      resize(other.size_);
       // Copy the contents over
       memcpy(data_, other.data_, size_);
     }
-    
+
     /** deprecated. Just use operator= */
     blob copy() const{
       return *this;
@@ -153,37 +152,37 @@ namespace graphlab {
         assert(data_ != NULL);
       } else {
         clear();
-        assert(data_ == NULL && size_ == 0);      
+        assert(data_ == NULL && size_ == 0);
         size_ = new_size;
         data_ = malloc(new_size);
         assert(data_ != NULL);
-      } 
+      }
     } // end of malloc
 
-   
+
     /** free the memory associated with this blob */
     void clear() {
       if(data_ != NULL) {
         assert(size_ > 0);
         free(data_);
         data_ = NULL;
-      }     
-      size_ = 0;      
+      }
+      size_ = 0;
     } // end of free
 
-    
+
     /** Swaps the contents of two blobs. A "safe" version of a shallow copy */
     void swap(blob &b) {
       void* tmp = b.data_;
       size_t tmpsize = b.size_;
-      
+
       b.data_ = data_;
       b.size_ = size_;
-      
+
       data_ = tmp;
       size_ = tmpsize;
     }
-    
+
     void load(iarchive& arc) {
       clear();
       arc >> size_;
@@ -194,7 +193,7 @@ namespace graphlab {
         deserialize(arc, data_, size_);
       }
     }
-    
+
     void save(oarchive& arc) const {
       arc << size_;
       if (size_ != 0) {

@@ -33,6 +33,7 @@
 #include <graphlab/rpc/archive_memory_pool.hpp>
 #include <boost/preprocessor.hpp>
 #include <graphlab/rpc/dc_compile_parameters.hpp>
+#include <graphlab/util/generics/blob.hpp>
 #include <graphlab/rpc/mem_function_arg_types_def.hpp>
 
 namespace graphlab{
@@ -108,9 +109,42 @@ class  BOOST_PP_CAT(BOOST_PP_TUPLE_ELEM(2,0,FNAME_AND_CALL), N) { \
       rmi->inc_bytes_sent(target, arc.off);           \
     } \
   } \
+  \
 };
 
 
+template <typename T, typename F>
+class object_split_call {
+ public:
+  static oarchive* split_call_begin(dc_dist_object_base* rmi, size_t objid, F remote_function) {
+    oarchive* ptr = new oarchive;
+    oarchive& arc = *ptr;
+    arc.advance(sizeof(packet_hdr));
+    dispatch_type d = dc_impl::OBJECT_NONINTRUSIVE_DISPATCH2<distributed_control,T,F,size_t, wild_pointer>;
+    arc << reinterpret_cast<size_t>(d);
+    serialize(arc, (char*)(&remote_function), sizeof(F));
+    arc << objid;
+    // make a gap for the blob size argument
+    arc << size_t(0);
+    return ptr;
+  }
+
+  static void split_call_end(dc_dist_object_base* rmi,
+                             oarchive* oarc, dc_send* sender, procid_t target, unsigned char flags) {
+    const size_t headerlen = sizeof(packet_hdr) +
+        sizeof(size_t) +
+        sizeof(F) +
+        sizeof(size_t);
+
+    // patch the blob size
+    (*reinterpret_cast<size_t*>(oarc->buf + headerlen)) =
+        oarc->off - headerlen - sizeof(size_t);
+
+    sender->send_data(target,flags, oarc->buf, oarc->off);
+    rmi->inc_bytes_sent(target, oarc->off);
+    delete oarc;
+  }
+};
 
 /**
 Generates a function call issue. 3rd argument is a tuple (issue name, dispacther name)
