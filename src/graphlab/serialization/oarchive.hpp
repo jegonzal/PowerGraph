@@ -1,5 +1,5 @@
-/*  
- * Copyright (c) 2009 Carnegie Mellon University. 
+/*
+ * Copyright (c) 2009 Carnegie Mellon University.
  *     All rights reserved.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
@@ -41,9 +41,9 @@ namespace graphlab {
   /**
    * \ingroup group_serialization
    * \brief The serialization output archive object which, provided
-   * with a reference to an ostream, will write to the ostream, 
+   * with a reference to an ostream, will write to the ostream,
    * providing serialization capabilities.
-   * 
+   *
    * Given a standard output stream, you can construct an oarchive
    * object by:
    * \code
@@ -59,19 +59,19 @@ namespace graphlab {
    *
    * Once the oarc object is constructed, \ref sec_serializable objects can be
    * written to it using the << stream operator.
-   * 
+   *
    * \code
    *    oarc << a << b << c;
    * \endcode
    *
    * Alternatively, data can be directly written to the stream
    * using the oarchive::write() function.
-   * 
+   *
    * Written data can be deserialized using graphlab::iarchive.
    * For more usage details, see \ref serialization
-   * 
-   * The oarchive object should not be used once the associated stream 
-   * object is closed or is destroyed.  
+   *
+   * The oarchive object should not be used once the associated stream
+   * object is closed or is destroyed.
    *
    * The oarc object
    * does <b> not </b> flush the associated stream, and the user may need to
@@ -80,8 +80,8 @@ namespace graphlab {
    * and input, it is necessary to flush the stream before all bytes written to
    * the stringstream are available for input.
    *
-   * To use this class, include 
-   * graphlab/serialization/serialization_includes.hpp 
+   * To use this class, include
+   * graphlab/serialization/serialization_includes.hpp
    */
   class oarchive{
   public:
@@ -140,13 +140,13 @@ namespace graphlab {
     inline bool fail() {
       return out == NULL ? false : out->fail();
     }
-    
+
     inline ~oarchive() { }
   };
 
   /**
    * \ingroup group_serialization
-   * \brief 
+   * \brief
    * When this archive is used to serialize an object,
    * and the object does not support serialization,
    * failure will only occur at runtime. Otherwise equivalent to
@@ -158,10 +158,10 @@ namespace graphlab {
     bool mine;
 
     /// constructor. Takes a generic std::ostream object
-    inline oarchive_soft_fail(std::ostream& outstream) 
+    inline oarchive_soft_fail(std::ostream& outstream)
       : oarc(new oarchive(outstream)), mine(true) { }
 
-    inline oarchive_soft_fail(oarchive& oarc):oarc(&oarc), mine(false) { 
+    inline oarchive_soft_fail(oarchive& oarc):oarc(&oarc), mine(false) {
     }
 
     inline oarchive_soft_fail(void)
@@ -181,7 +181,7 @@ namespace graphlab {
     inline bool fail() {
       return oarc->fail();
     }
-    
+
     inline ~oarchive_soft_fail() {
      if (mine) delete oarc;
     }
@@ -197,7 +197,7 @@ namespace graphlab {
       }
     };
 
-    /// called by the soft fail archive 
+    /// called by the soft fail archive
     template <typename T>
     struct serialize_hard_or_soft_fail<oarchive_soft_fail, T> {
       inline static void exec(oarchive_soft_fail& oarc, const T& t) {
@@ -240,7 +240,7 @@ namespace graphlab {
         serialize_impl<OutArcType, T, true>::exec(oarc, t);
       }
     };
-    
+
     /**
        Re-dispatch if for some reasons T already has a const
     */
@@ -258,12 +258,12 @@ namespace graphlab {
   /**
      Overloads the operator<< in the oarchive to
      allow the use of the stream syntax for serialization.
-     It simply re-dispatches into the serialize_impl classes 
+     It simply re-dispatches into the serialize_impl classes
   */
   template <typename T>
   inline oarchive& operator<<(oarchive& oarc, const T& t) {
-    archive_detail::serialize_impl<oarchive, 
-                                   T, 
+    archive_detail::serialize_impl<oarchive,
+                                   T,
                                    gl_is_pod<T>::value >::exec(oarc, t);
     return oarc;
   }
@@ -271,27 +271,26 @@ namespace graphlab {
   /**
      Overloads the operator<< in the oarchive_soft_fail to
      allow the use of the stream syntax for serialization.
-     It simply re-dispatches into the serialize_impl classes 
+     It simply re-dispatches into the serialize_impl classes
   */
   template <typename T>
-  inline oarchive_soft_fail& operator<<(oarchive_soft_fail& oarc, 
+  inline oarchive_soft_fail& operator<<(oarchive_soft_fail& oarc,
                                         const T& t) {
-    archive_detail::serialize_impl<oarchive_soft_fail, 
-                                  T, 
+    archive_detail::serialize_impl<oarchive_soft_fail,
+                                  T,
                                   gl_is_pod<T>::value >::exec(oarc, t);
     return oarc;
   }
 
 
   /**
-     Serializes an arbitrary pointer + length to an archive 
+     Serializes an arbitrary pointer + length to an archive
   */
-  inline oarchive& serialize(oarchive& oarc, 
+  inline oarchive& serialize(oarchive& oarc,
                              const void* str,
                              const size_t length) {
     // save the length
-    operator<<(oarc,length);
-    oarc.write(reinterpret_cast<const char*>(str), 
+    oarc.write(reinterpret_cast<const char*>(str),
                     (std::streamsize)length);
     assert(!oarc.fail());
     return oarc;
@@ -299,26 +298,25 @@ namespace graphlab {
 
 
   /**
-     Serializes an arbitrary pointer + length to an archive 
+     Serializes an arbitrary pointer + length to an archive
   */
-  inline oarchive_soft_fail& serialize(oarchive_soft_fail& oarc, 
+  inline oarchive_soft_fail& serialize(oarchive_soft_fail& oarc,
                                        const void* str,
                                        const size_t length) {
     // save the length
-    operator<<(oarc,length);
-    oarc.write(reinterpret_cast<const char*>(str), 
+    oarc.write(reinterpret_cast<const char*>(str),
                     (std::streamsize)length);
     assert(!oarc.fail());
     return oarc;
   }
-  
+
   /// \endcond GRAPHLAB_INTERNAL
 
 }
   /**
      \ingroup group_serialization
      \brief Macro to make it easy to define out-of-place saves
-    
+
      In the event that it is impractical to implement a save() and load()
      function in the class one wnats to serialize, it is necessary to define
      an "out of save" save and load.
@@ -335,7 +333,7 @@ namespace graphlab {
 #define END_OUT_OF_PLACE_SAVE() } }; } }
 
 
-#endif  
+#endif
 
 #endif
 
