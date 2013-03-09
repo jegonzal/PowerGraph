@@ -23,11 +23,9 @@
 
 /**
  * \file
- * 
- * \brief The main file for the ALS matrix factorization algorithm.
- *
- * This file contains the main body of the ALS matrix factorization
- * algorithm. 
+ * This code iplements the NMF algorithm described in the paper:
+ * Lee, D..D., and Seung, H.S., (2001), 'Algorithms for Non-negative Matrix
+ * Factorization', Adv. Neural Info. Proc. Syst. 13, 556-562.
  */
 
 #include <graphlab/util/stl_util.hpp>
@@ -230,11 +228,10 @@ class nmf_vertex_program :
         return gather_type(vec::Zero(vertex_data::NLATENT), 0, 0);
       } // end of gather function
 
-      /** apply collects the sum of XtX and Xy */
       void apply(icontext_type& context, vertex_type& vertex,
           const gather_type& sum) {
         vertex_data& vdata = vertex.data();  
-        if (vdata.pvec.sum() != 0){//TODO
+        if (vdata.pvec.sum() != 0){
           for (uint i=0; i< vertex_data::NLATENT; i++){
             vdata.pvec[i] *= sum.pvec[i] / px->pvec[i];
             ASSERT_NE(px->pvec[i] , 0);
@@ -281,17 +278,6 @@ class nmf_vertex_program :
         if(vertex.num_in_edges() > 0) context.signal(vertex);
         return graphlab::empty();
       } // end of signal_left 
-
-
-
-      /*static void divide_by_ret(graph_type::vertex_type& vertex){
-        for (uint i=0; i< vertex_data::NLATENT; i++){
-        vertex.data().pvec[i] /= ret.pvec[i];
-        if (vertex.data().pvec[i] < epsilon)
-        vertex.data().pvec[i] = epsilon;
-        }
-        }*/
-
 
   }; // end of nmf vertex program
 
@@ -438,9 +424,8 @@ int main(int argc, char** argv) {
   const std::string description = 
     "Compute the ALS factorization of a matrix.";
   graphlab::command_line_options clopts(description);
-  std::string input_dir, output_dir;
+  std::string input_dir;
   std::string predictions;
-  size_t interval = 0;
   std::string exec_type = "synchronous";
   clopts.attach_option("matrix", input_dir,
       "The directory containing the matrix file");
@@ -455,12 +440,8 @@ int main(int argc, char** argv) {
       "debug - additional verbose info"); 
   clopts.attach_option("maxval", nmf_vertex_program::MAXVAL, "max allowed value");
   clopts.attach_option("minval", nmf_vertex_program::MINVAL, "min allowed value");
-  clopts.attach_option("interval", interval, 
-      "The time in seconds between error reports");
   clopts.attach_option("predictions", predictions,
       "The prefix (folder and filename) to save predictions.");
-  clopts.attach_option("output", output_dir,
-      "Output results");
 
   if(!clopts.parse(argc, argv) || input_dir == "") {
     std::cout << "Error in parsing command line arguments." << std::endl;
@@ -468,8 +449,7 @@ int main(int argc, char** argv) {
     return EXIT_FAILURE;
   }
   debug = nmf_vertex_program::debug;
-  //  omp_set_num_threads(clopts.get_ncpus());
-  ///! Initialize control plain using mpi
+  
   graphlab::mpi_tools::init(argc, argv);
   graphlab::distributed_control dc;
 
@@ -530,11 +510,8 @@ int main(int argc, char** argv) {
     x1 = graph.map_reduce_vertices<gather_type>(nmf_vertex_program::pre_iter,right);
     px = &x1;
     for (int i=0; i< vertex_data::NLATENT; i++)
-      assert(px->pvec[i] != 0);
-    //ret = graph.map_reduce_edges<gather_type>(nmf_vertex_program::sum_phase1);   
-    //for (uint i=0; i < vertex_data::NLATENT; i++)
-    //  ret.pvec[i] /= x1.pvec[i];
-    //graph.transform_vertices(nmf_vertex_program::divide_by_ret,left);
+      ASSERT_NE(px->pvec[i], 0);
+    
     dc.cout()<< std::setw(8) << mytimer.current_time() << " " << sqrt(x1.training_rmse/edge_count.training_rmse);
     if (edge_count.validation_rmse > 0)
       dc.cout() << " " << std::setw(8) << sqrt(x1.validation_rmse/edge_count.validation_rmse) << std::endl;
@@ -549,10 +526,6 @@ int main(int argc, char** argv) {
     engine.map_reduce_vertices<graphlab::empty>(nmf_vertex_program::signal_right);
     engine.start();
     x2.reset();
-    //ret = graph.map_reduce_edges<gather_type>(nmf_vertex_program::sum_phase2);
-    //for (uint i=0; i < vertex_data::NLATENT; i++)
-    //  ret.pvec[i] /= x2.pvec[i];
-    //graph.transform_vertices(nmf_vertex_program::divide_by_ret,right);
   }
 
   const double runtime = timer.current_time();
