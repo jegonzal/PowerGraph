@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2009 Carnegie Mellon University. 
+ * Copyright (c) 2009 Carnegie Mellon University.
  *     All rights reserved.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
@@ -91,7 +91,7 @@
  *     and function name and calls _log. It will be optimized
  *     away if LOG_NONE is set
  *     This relies on a few compiler macros. As far as I know, these
- *     macros are pretty standard among most other C++ compilers. 
+ *     macros are pretty standard among most other C++ compilers.
  */
 #if OUTPUTLEVEL == LOG_NONE
 // totally disable logging
@@ -110,7 +110,7 @@
 #define logger(lvl,fmt,...)                 \
     (log_dispatch<(lvl >= OUTPUTLEVEL)>::exec(lvl,__FILE__, __func__ ,__LINE__,fmt,##__VA_ARGS__))
 
-    
+
 #define logbuf(lvl,buf,len)                 \
     (log_dispatch<(lvl >= OUTPUTLEVEL)>::exec(lvl,__FILE__,     \
                         __func__ ,__LINE__,buf,len))
@@ -157,7 +157,7 @@
   &(log_stream_dispatch<(lvl >= OUTPUTLEVEL)>::exec(lvl,__FILE__, __func__ ,__LINE__, print_now) ); \
 }))
 
-  
+
 #endif
 
 namespace logger_impl {
@@ -180,12 +180,12 @@ class file_logger{
   /** Default constructor. By default, log_to_console is off,
       there is no logger file, and logger level is set to LOG_WARNING
   */
-  file_logger();  
+  file_logger();
 
   ~file_logger();   /// destructor. flushes and closes the current logger file
 
   /** Closes the current logger file if one exists.
-      if 'file' is not an empty string, it will be opened and 
+      if 'file' is not an empty string, it will be opened and
       all subsequent logger output will be written into 'file'.
       Any existing content of 'file' will be cleared.
       Return true on success and false on failure.
@@ -213,7 +213,7 @@ class file_logger{
   }
 
   file_logger& start_stream(int lineloglevel,const char* file,const char* function, int line, bool do_start = true);
-  
+
   template <typename T>
   file_logger& operator<<(T a) {
     // get the stream buffer
@@ -259,8 +259,10 @@ class file_logger{
         if (endltype(f) == endltype(std::endl)) {
           streambuffer << "\n";
           stream_flush();
-          if(streamloglevel == LOG_FATAL) {
+          if(streamloglevel >= LOG_ERROR) {
             __print_back_trace();
+          }
+          if(streamloglevel == LOG_FATAL) {
             throw "log fatal";
             // exit(EXIT_FAILURE);
           }
@@ -295,7 +297,7 @@ class file_logger{
 
   void _logbuf(int loglevel,const char* file,const char* function,
                 int line,  const char* buf, int len);
-                
+
   void _lograw(int loglevel, const char* buf, int len);
 
   void stream_flush() {
@@ -315,12 +317,12 @@ class file_logger{
  private:
   std::ofstream fout;
   std::string log_file;
-  
+
   pthread_key_t streambuffkey;
-  
+
   int streamloglevel;
   pthread_mutex_t mut;
-  
+
   bool log_to_console;
   int log_level;
 
@@ -343,6 +345,14 @@ struct log_dispatch<true> {
 	va_start(argp, fmt);
 	global_logger()._log(loglevel, file, function, line, fmt, argp);
 	va_end(argp);
+  if(loglevel >= LOG_ERROR) {
+    __print_back_trace();
+  }
+  if(loglevel == LOG_FATAL) {
+    throw "log fatal";
+    // exit(EXIT_FAILURE);
+  }
+
   }
 };
 

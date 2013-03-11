@@ -128,6 +128,10 @@ class object_split_call {
     arc << size_t(0);
     return ptr;
   }
+  static void split_call_cancel(oarchive* oarc) {
+    free(oarc->buf);
+    delete oarc;
+  }
 
   static void split_call_end(dc_dist_object_base* rmi,
                              oarchive* oarc, dc_send* sender, procid_t target, unsigned char flags) {

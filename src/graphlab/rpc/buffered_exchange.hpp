@@ -1,5 +1,5 @@
-/**  
- * Copyright (c) 2009 Carnegie Mellon University. 
+/**
+ * Copyright (c) 2009 Carnegie Mellon University.
  *     All rights reserved.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
@@ -59,11 +59,7 @@ namespace graphlab {
 
 
     struct send_record {
-      send_record():buffer(128),numinserts(0){}
-      // need a fake copy constructor here
-      // just so I can make a vector of these
-      send_record(const send_record& ):buffer(128), numinserts(0) { }
-      charstream buffer;
+      oarchive* oarc;
       size_t numinserts;
     };
 
@@ -77,27 +73,38 @@ namespace graphlab {
     // handler_type recv_handler;
 
   public:
-    buffered_exchange(distributed_control& dc, 
-                      const size_t num_threads = 1, 
-                      const size_t max_buffer_size = 1000000) : 
-      rpc(dc, this), 
-      send_buffers(num_threads *  dc.numprocs()), 
+    buffered_exchange(distributed_control& dc,
+                      const size_t num_threads = 1,
+                      const size_t max_buffer_size = 1024 * 1024 /* 1MB */) :
+      rpc(dc, this),
+      send_buffers(num_threads *  dc.numprocs()),
       send_locks(num_threads *  dc.numprocs()),
       num_threads(num_threads),
-      max_buffer_size(max_buffer_size) { 
-       rpc.barrier(); 
+      max_buffer_size(max_buffer_size) {
+       //
+       for (size_t i = 0;i < send_buffers.size(); ++i) {
+         // initialize the split call
+         send_buffers[i].oarc = rpc.split_call_begin(&buffered_exchange::rpc_recv);
+         send_buffers[i].numinserts = 0;
+         // begin by writing the src proc.
+         (*(send_buffers[i].oarc)) << rpc.procid();
+       }
+       rpc.barrier();
       }
 
 
-
-    ~buffered_exchange() { 
+    ~buffered_exchange() {
+      // clear the send buffers
+      for (size_t i = 0;i < send_buffers.size(); ++i) {
+        rpc.split_call_cancel(send_buffers[i].oarc);
+      }
     }
-    // buffered_exchange(distributed_control& dc, handler_type recv_handler, 
-    //                   size_t buffer_size = 1000) : 
+    // buffered_exchange(distributed_control& dc, handler_type recv_handler,
+    //                   size_t buffer_size = 1000) :
     // rpc(dc, this), send_buffers(dc.numprocs()), send_locks(dc.numprocs()),
     // max_buffer_size(buffer_size), recv_handler(recv_handler) { rpc.barrier(); }
 
-    
+
     void send(const procid_t proc, const T& value, const size_t thread_id = 0) {
       ASSERT_LT(proc, rpc.numprocs());
       ASSERT_LT(thread_id, num_threads);
@@ -105,26 +112,17 @@ namespace graphlab {
       ASSERT_LT(index, send_locks.size());
       send_locks[index].lock();
 
-      oarchive oarc(send_buffers[index].buffer);
+      (*(send_buffers[index].oarc)) << value;
       ++send_buffers[index].numinserts;
-      oarc << value;
-      if(send_buffers[index].buffer->size() > max_buffer_size) {
-        send_buffers[index].buffer.flush();
-        graphlab::dc_impl::blob b(send_buffers[index].buffer->str, 
-                                  send_buffers[index].buffer->len);
-        if(proc == rpc.procid()) {
-          rpc_recv(proc, send_buffers[index].numinserts, b);
-          // here the blob is transimtted directly
-        } else {
-          rpc.remote_call(proc, &buffered_exchange::rpc_recv,
-                          rpc.procid(), send_buffers[index].numinserts, b);
-          // here I need to free the blob
-          b.free();
-        }
-        send_buffers[index].buffer->relinquish();
-        send_buffers[index].numinserts = 0;
+
+      if(send_buffers[index].oarc->off >= max_buffer_size) {
+        oarchive* prevarc = swap_buffer(index);
+        send_locks[index].unlock();
+        // complete the send
+        rpc.split_call_end(proc, prevarc);
+      } else {
+        send_locks[index].unlock();
       }
-      send_locks[index].unlock();
     } // end of send
 
 
@@ -132,25 +130,14 @@ namespace graphlab {
       for(procid_t proc = 0; proc < rpc.numprocs(); ++proc) {
         const size_t index = thread_id * rpc.numprocs() + proc;
         ASSERT_LT(proc, rpc.numprocs());
-        if (send_buffers[index].buffer->len > 0) {
+        if (send_buffers[index].numinserts > 0) {
           send_locks[index].lock();
-          send_buffers[index].buffer.flush();
-          graphlab::dc_impl::blob b(send_buffers[index].buffer->str, 
-                                    send_buffers[index].buffer->len);
-          if(proc == rpc.procid()) {
-            rpc_recv(proc, send_buffers[index].numinserts, b);
-            // here the blob is transimtted directly
-          } else {
-            rpc.remote_call(proc, &buffered_exchange::rpc_recv,
-                rpc.procid(), send_buffers[index].numinserts, b);
-            // here I need to free the blob
-            b.free();
-          }
-          send_buffers[index].buffer->relinquish();
-          send_buffers[index].numinserts = 0;
+          oarchive* prevarc = swap_buffer(index);
           send_locks[index].unlock();
+          // complete the send
+          rpc.split_call_end(proc, prevarc);
         }
-      } 
+      }
     }
 
     void flush() {
@@ -158,19 +145,10 @@ namespace graphlab {
         const procid_t proc = i % rpc.numprocs();
         ASSERT_LT(proc, rpc.numprocs());
         send_locks[i].lock();
-        send_buffers[i].buffer.flush();
-        if (send_buffers[i].buffer->len > 0) {
-          graphlab::dc_impl::blob b(send_buffers[i].buffer->str, 
-                                    send_buffers[i].buffer->len);
-          if(proc == rpc.procid()) {
-            rpc_recv(proc, send_buffers[i].numinserts, b);
-          } else {
-            rpc.remote_call(proc, &buffered_exchange::rpc_recv,
-                            rpc.procid(),send_buffers[i].numinserts, b);
-            b.free();
-          }
-          send_buffers[i].buffer->relinquish();
-          send_buffers[i].numinserts = 0;
+        if (send_buffers[i].numinserts > 0) {
+          oarchive* prevarc = swap_buffer(i);
+          // complete the send
+          rpc.split_call_end(proc, prevarc);
         }
         send_locks[i].unlock();
       }
@@ -178,14 +156,14 @@ namespace graphlab {
     } // end of flush
 
 
-    bool recv(procid_t& ret_proc, buffer_type& ret_buffer, 
+    bool recv(procid_t& ret_proc, buffer_type& ret_buffer,
               const bool try_lock = false) {
       dc_impl::blob read_buffer;
       bool has_lock = false;
       if(try_lock) {
         if (recv_buffers.empty()) return false;
         has_lock = recv_lock.try_lock();
-      } else { 
+      } else {
         recv_lock.lock();
         has_lock = true;
       }
@@ -194,8 +172,8 @@ namespace graphlab {
         if(!recv_buffers.empty()) {
           success = true;
           buffer_record& rec =  recv_buffers.front();
-          // read the record 
-          ret_proc = rec.proc; 
+          // read the record
+          ret_proc = rec.proc;
           ret_buffer.swap(rec.buffer);
           ASSERT_LT(ret_proc, rpc.numprocs());
           recv_buffers.pop_front();
@@ -206,7 +184,7 @@ namespace graphlab {
       return success;
     } // end of recv
 
-    
+
 
     /**
      * Returns the number of elements to recv
@@ -224,20 +202,25 @@ namespace graphlab {
 
     bool empty() const { return recv_buffers.empty(); }
 
-    void clear() {
-    }
-
+    void clear() { }
   private:
-    void rpc_recv(procid_t src_proc, size_t numel, dc_impl::blob& buffer) {
+    void rpc_recv(size_t len, wild_pointer w) {
       buffer_type tmp;
-      boost::iostreams::stream<boost::iostreams::array_source> strm(buffer.c, buffer.len);
-      iarchive iarc(strm);
+      iarchive iarc(reinterpret_cast<const char*>(w.ptr), len);
+      // first desrialize the source process
+      procid_t src_proc; iarc >> src_proc;
+      ASSERT_LT(src_proc, rpc.numprocs());
+      // create an iarchive which just points to the last size_t bytes
+      // to get the number of elements
+      iarchive numel_iarc(reinterpret_cast<const char*>(w.ptr) + len - sizeof(size_t),
+                          sizeof(size_t));
+      size_t numel; numel_iarc >> numel;
+      //std::cout << "Receiving: " << numel << "\n";
       tmp.resize(numel);
       for (size_t i = 0;i < numel; ++i) {
         iarc >> tmp[i];
       }
-      buffer.free();
- 
+
       recv_lock.lock();
       recv_buffers.push_back(buffer_record());
       buffer_record& rec = recv_buffers.back();
@@ -245,6 +228,23 @@ namespace graphlab {
       rec.buffer.swap(tmp);
       recv_lock.unlock();
     } // end of rpc rcv
+
+
+    // create a new buffer for send_buffer[index], returning the old buffer
+    oarchive* swap_buffer(size_t index) {
+      oarchive* swaparc = rpc.split_call_begin(&buffered_exchange::rpc_recv);
+      std::swap(send_buffers[index].oarc, swaparc);
+      // write the length at the end of the buffere are returning
+      (*swaparc) << (size_t)(send_buffers[index].numinserts);
+
+      //std::cout << "Sending : " << (send_buffers[index].numinserts)<< "\n";
+      // reset the insertion count
+      send_buffers[index].numinserts = 0;
+      // write the current procid into the new buffer
+      (*(send_buffers[index].oarc)) << rpc.procid();
+      return swaparc;
+    }
+
 
   }; // end of buffered exchange
 

@@ -369,8 +369,13 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
   }
 
   void split_call_end(procid_t target, oarchive* oarc) {
+    inc_calls_sent(target);
     return dc_impl::object_split_call<T, void(T::*)(size_t, wild_pointer)>::split_call_end(this, oarc, dc_.senders[target],
                                                                            target, STANDARD_CALL);
+  }
+
+  void split_call_cancel(oarchive* oarc) {
+    return dc_impl::object_split_call<T, void(T::*)(size_t, wild_pointer)>::split_call_cancel(oarc);
   }
 
 
