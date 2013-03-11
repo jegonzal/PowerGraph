@@ -978,10 +978,10 @@ namespace graphlab {
     thread_barrier(opts.get_ncpus()),
     max_iterations(-1), snapshot_interval(-1), iteration_counter(0),
     timeout(0), sched_allv(false),
-    vprog_exchange(dc, opts.get_ncpus(), 256 * 1024),
-    vdata_exchange(dc, opts.get_ncpus(), 256 * 1024),
-    gather_exchange(dc, opts.get_ncpus(), 256 * 1024),
-    message_exchange(dc, opts.get_ncpus(), 256 * 1024),
+    vprog_exchange(dc, opts.get_ncpus(), 64 * 1024),
+    vdata_exchange(dc, opts.get_ncpus(), 64 * 1024),
+    gather_exchange(dc, opts.get_ncpus(), 64 * 1024),
+    message_exchange(dc, opts.get_ncpus(), 64 * 1024),
     aggregator(dc, graph, new context_type(*this, graph)) {
     // Process any additional options
     std::vector<std::string> keys = opts.get_engine_args().get_option_keys();
