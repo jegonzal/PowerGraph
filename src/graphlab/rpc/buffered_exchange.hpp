@@ -234,6 +234,7 @@ namespace graphlab {
     oarchive* swap_buffer(size_t index) {
       oarchive* swaparc = rpc.split_call_begin(&buffered_exchange::rpc_recv);
       std::swap(send_buffers[index].oarc, swaparc);
+      swaparc->expand_buf(max_buffer_size * 1.2);
       // write the length at the end of the buffere are returning
       (*swaparc) << (size_t)(send_buffers[index].numinserts);
 
