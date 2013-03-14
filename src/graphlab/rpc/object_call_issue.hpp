@@ -119,7 +119,7 @@ class object_split_call {
   static oarchive* split_call_begin(dc_dist_object_base* rmi, size_t objid, F remote_function) {
     oarchive* ptr = new oarchive;
     oarchive& arc = *ptr;
-    arc.advance(sizeof(packet_hdr));
+    arc.advance(sizeof(size_t) + sizeof(packet_hdr));
     dispatch_type d = dc_impl::OBJECT_NONINTRUSIVE_DISPATCH2<distributed_control,T,F,size_t, wild_pointer>;
     arc << reinterpret_cast<size_t>(d);
     serialize(arc, (char*)(&remote_function), sizeof(F));
