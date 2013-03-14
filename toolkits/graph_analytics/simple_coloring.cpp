@@ -191,7 +191,7 @@ int main(int argc, char** argv) {
                        "Generate a synthetic powerlaw out-degree graph. ");
  
   if(!clopts.parse(argc, argv)) return EXIT_FAILURE;
-  if (prefix.length() == 0) {
+  if (prefix.length() == 0 && powerlaw == 0) {
     clopts.print_description();
     return EXIT_FAILURE;
   }
