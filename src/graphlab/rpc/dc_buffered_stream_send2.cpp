@@ -40,7 +40,7 @@ namespace dc_impl {
         dc->inc_calls_sent(target);
       }
     }
-    writebuffer_totallen.inc(actual_data_len);
+    writebuffer_totallen.inc(actual_data_len + sizeof(packet_hdr));
 
     // build the packet header
     packet_hdr* hdr = reinterpret_cast<packet_hdr*>(data + sizeof(size_t));
@@ -51,6 +51,7 @@ namespace dc_impl {
     hdr->sequentialization_key = dc->get_sequentialization_key();
     hdr->packet_type_mask = packet_type_mask;
 
+    //logstream(LOG_DEBUG) << " queueing to " << target << " message of length " << hdr->len << std::endl;
     sendqueue.enqueue(data);
 
     size_t sqsize = approx_send_queue_size;
@@ -79,9 +80,12 @@ namespace dc_impl {
     // fast exit if no buffer
     if (writebuffer_totallen.value == 0) return 0;
 
+    lock.lock();
     char* sendqueue_head = sendqueue.dequeue_all();
-    if (sendqueue_head == NULL) return 0;
-
+    if (sendqueue_head == NULL) {
+      lock.unlock();
+      return 0;
+    }
     approx_send_queue_size = 0;
     size_t real_send_len = 0;
 
@@ -94,7 +98,9 @@ namespace dc_impl {
     blockheader_iovec.iov_len = sizeof(block_header_type);
     outdata.write(blockheader_iovec);
 
+    size_t ctr = 0;
     while(!sendqueue.end_of_dequeue_list(sendqueue_head)) {
+      ++ctr;
       iovec tosend, tofree;
       tofree.iov_base = sendqueue_head;
       tosend.iov_base = sendqueue_head + sizeof(size_t);
@@ -110,9 +116,12 @@ namespace dc_impl {
       }
       sendqueue_head = inplace_lf_queue::get_next(sendqueue_head);
     }
+    lock.unlock();
+/*    logstream(LOG_DEBUG) << "Sending: " << real_send_len << " bytes in "
+                         << ctr << " messages to "<< target << std::endl; */
     (*blockheader) = real_send_len;
     writebuffer_totallen.dec(real_send_len);
-    return real_send_len;
+    return real_send_len + sizeof(block_header_type);
   }
 } // namespace dc_impl
 } // namespace graphlab

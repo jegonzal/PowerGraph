@@ -968,6 +968,7 @@ private:
                                             int use_control_calls) {
     // send the release downwards
     // get my largest child
+    logger(LOG_DEBUG, "AB Barrier Release %d", releaseval);
     ab_alldata = allstrings;
     for (procid_t i = 0;i < numchild; ++i) {
       if (use_control_calls) {
@@ -1042,7 +1043,7 @@ private:
     }
 
 
-    //logger(LOG_DEBUG, "barrier phase 1 complete");
+    logger(LOG_DEBUG, "AB barrier phase 1 complete");
     // I am root. send the barrier release downwards
     if (procid() == 0) {
       ab_barrier_release = ab_barrier_val;
@@ -1056,6 +1057,7 @@ private:
       strstrm.flush();
       ab_alldata = std::string(strstrm->c_str(), strstrm->size());
       for (procid_t i = 0;i < numchild; ++i) {
+        logger(LOG_DEBUG, "Sending AB release to %d", childbase + i);
         internal_control_call((procid_t)(childbase + i),
                              &dc_dist_object<T>::__ab_parent_to_child_barrier_release,
                              ab_barrier_val,
@@ -1065,6 +1067,7 @@ private:
       }
     }
     // wait for the downward message releasing the barrier
+    logger(LOG_DEBUG, "AB barrier waiting for %d", ab_barrier_val);
     ab_barrier_mut.lock();
     while(1) {
       if (ab_barrier_release == ab_barrier_val) break;
@@ -1074,7 +1077,7 @@ private:
     std::string local_ab_alldata = ab_alldata;
     ab_barrier_mut.unlock();
 
-    //logger(LOG_DEBUG, "barrier phase 2 complete");
+    logger(LOG_DEBUG, "barrier phase 2 complete");
     // now the data is a DFS search of a heap
     // I need to unpack it
     size_t heappos = 0;
@@ -1177,7 +1180,7 @@ private:
     }
 
 
-    //logger(LOG_DEBUG, "barrier phase 1 complete");
+    logger(LOG_DEBUG, "AB barrier phase 1 complete");
     // I am root. send the barrier release downwards
     if (procid() == 0) {
       ab_barrier_release = ab_barrier_val;
@@ -1204,6 +1207,7 @@ private:
       }
     }
     // wait for the downward message releasing the barrier
+    logger(LOG_DEBUG, "AB barrier waiting for %d", ab_barrier_val);
     ab_barrier_mut.lock();
     while(1) {
       if (ab_barrier_release == ab_barrier_val) break;
@@ -1215,7 +1219,7 @@ private:
       std::string local_ab_alldata = ab_alldata;
       ab_barrier_mut.unlock();
 
-      //logger(LOG_DEBUG, "barrier phase 2 complete");
+      logger(LOG_DEBUG, "barrier phase 2 complete");
 
       std::stringstream istrm(local_ab_alldata);
       iarchive iarc(istrm);
@@ -1334,6 +1338,7 @@ private:
   void __parent_to_child_barrier_release(int releaseval) {
     // send the release downwards
     // get my largest child
+    logger(LOG_DEBUG, "Barrier Release %d", releaseval);
     for (procid_t i = 0;i < numchild; ++i) {
       internal_control_call((procid_t)(childbase + i),
                             &dc_dist_object<T>::__parent_to_child_barrier_release,
@@ -1373,7 +1378,7 @@ private:
     }
 
 
-    //logger(LOG_DEBUG, "barrier phase 1 complete");
+    logger(LOG_DEBUG, "barrier phase 1 complete");
     // I am root. send the barrier release downwards
     if (procid() == 0) {
       barrier_release = barrier_val;
@@ -1386,6 +1391,7 @@ private:
       }
     }
     // wait for the downward message releasing the barrier
+    logger(LOG_DEBUG, "barrier waiting for %d", barrier_val);
     barrier_mut.lock();
     while(1) {
       if (barrier_release == barrier_val) break;
@@ -1393,7 +1399,7 @@ private:
     }
     barrier_mut.unlock();
 
-    //logger(LOG_DEBUG, "barrier phase 2 complete");
+    logger(LOG_DEBUG, "barrier phase 2 complete");
   }
 
 

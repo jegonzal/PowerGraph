@@ -125,7 +125,7 @@ class  BOOST_PP_CAT(FNAME_AND_CALL, N) { \
     }     \
     release_oarchive_to_pool(ptr); \
     if ((flags & CONTROL_PACKET) == 0)                       \
-      rmi->inc_bytes_sent(target, arc.off);           \
+      rmi->inc_bytes_sent(target, arc.off - sizeof(size_t));           \
     return reply;   \
   }\
 };

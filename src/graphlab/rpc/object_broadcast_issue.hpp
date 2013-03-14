@@ -96,7 +96,7 @@ class  BOOST_PP_CAT(BOOST_PP_TUPLE_ELEM(2,0,FNAME_AND_CALL), N) { \
       char* newbuf = (char*)malloc(arc.off); memcpy(newbuf, arc.buf, arc.off); \
       sender[(*iter)]->send_data((*iter),flags , newbuf, arc.off);    \
       if ((flags & CONTROL_PACKET) == 0) {                                 \
-        rmi->inc_bytes_sent((*iter), arc.off); \
+        rmi->inc_bytes_sent((*iter), arc.off - sizeof(size_t)); \
       } \
       ++iter; \
     } \

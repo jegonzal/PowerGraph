@@ -9,6 +9,7 @@ void inplace_lf_queue::enqueue(char* c) {
   char* prev = c;
   atomic_exchange(tail, prev);
   (*get_next_ptr(prev)) = c;
+  asm volatile ("" : : : "memory");
 }
 
 

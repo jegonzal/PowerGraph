@@ -119,6 +119,7 @@ class dc_buffered_stream_send2: public dc_send{
   atomic<size_t> bytessent;
   volatile size_t approx_send_queue_size;
 
+  mutex lock;
 };
 
 

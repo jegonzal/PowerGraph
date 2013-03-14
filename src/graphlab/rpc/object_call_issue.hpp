@@ -106,7 +106,7 @@ class  BOOST_PP_CAT(BOOST_PP_TUPLE_ELEM(2,0,FNAME_AND_CALL), N) { \
     }     \
     release_oarchive_to_pool(ptr); \
     if ((flags & CONTROL_PACKET) == 0) {                      \
-      rmi->inc_bytes_sent(target, arc.off);           \
+      rmi->inc_bytes_sent(target, arc.off - sizeof(size_t));           \
     } \
   } \
   \
@@ -135,7 +135,8 @@ class object_split_call {
 
   static void split_call_end(dc_dist_object_base* rmi,
                              oarchive* oarc, dc_send* sender, procid_t target, unsigned char flags) {
-    const size_t headerlen = sizeof(packet_hdr) +
+    const size_t headerlen = sizeof(size_t) +
+        sizeof(packet_hdr) +
         sizeof(size_t) +
         sizeof(F) +
         sizeof(size_t);
@@ -145,7 +146,9 @@ class object_split_call {
         oarc->off - headerlen - sizeof(size_t);
 
     sender->send_data(target,flags, oarc->buf, oarc->off);
-    rmi->inc_bytes_sent(target, oarc->off);
+    if ((flags & CONTROL_PACKET) == 0) {
+      rmi->inc_bytes_sent(target, oarc->off - sizeof(size_t));
+    }
     delete oarc;
   }
 };
