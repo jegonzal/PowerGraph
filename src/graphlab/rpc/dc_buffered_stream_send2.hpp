@@ -1,5 +1,5 @@
-/*  
- * Copyright (c) 2009 Carnegie Mellon University. 
+/*
+ * Copyright (c) 2009 Carnegie Mellon University.
  *     All rights reserved.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
@@ -32,7 +32,7 @@
 #include <graphlab/rpc/dc_comm_base.hpp>
 #include <graphlab/rpc/dc_send.hpp>
 #include <graphlab/parallel/pthread_tools.hpp>
-#include <graphlab/util/resizing_array_sink.hpp>
+#include <graphlab/util/inplace_lf_queue.hpp>
 #include <graphlab/logger/logger.hpp>
 namespace graphlab {
 class distributed_control;
@@ -47,48 +47,40 @@ Sender for the dc class.
   The job of the sender is to take as input data blocks of
   pieces which should be sent to a single destination socket.
   This can be thought of as a sending end of a multiplexor.
-  This class performs buffered transmissions using an blocking 
+  This class performs buffered transmissions using an blocking
   queue with one call per queue entry.
   A seperate thread is used to transmit queue entries. Rudimentary
   write combining is used to decrease transmission overhead.
   This is typically the best performing sender.
-  
+
   This can be enabled by passing "buffered_queued_send=yes"
   in the distributed control initstring.
-  
+
   dc_buffered_stream_send22 is similar, but does not perform write combining.
-  
+
 */
 
 class dc_buffered_stream_send2: public dc_send{
  public:
-  dc_buffered_stream_send2(distributed_control* dc, 
-                                   dc_comm_base *comm, 
-                                   procid_t target) : 
+  dc_buffered_stream_send2(distributed_control* dc,
+                                   dc_comm_base *comm,
+                                   procid_t target) :
                   dc(dc),  comm(comm), target(target),
                   writebuffer_totallen(0) {
-    buffer[0].buf.resize(100000);
-    buffer[0].el_and_ref.val.numel = 1;
-    buffer[0].numbytes = 0;
-    buffer[0].el_and_ref.val.ref_count = 0;
-    buffer[1].buf.resize(100000);
-    buffer[1].el_and_ref.val.numel = 1;
-    buffer[1].numbytes = 0;
-    buffer[1].el_and_ref.val.ref_count = 0;
-    bufid = 0;
     writebuffer_totallen.value = 0;
+    approx_send_queue_size = 0;
   }
-  
+
   ~dc_buffered_stream_send2() {
   }
-  
 
-                 
+
+
 
   /** Called to send data to the target. The caller transfers control of
   the pointer. The caller MUST ensure that the data be prefixed
-  with sizeof(packet_hdr) extra bytes at the start for placement of the
-  packet header. */
+  with sizeof(size_t) + sizeof(packet_hdr) extra bytes at the start for
+  placement of the packet header. */
   void send_data(procid_t target,
                  unsigned char packet_type_mask,
                  char* data, size_t len);
@@ -102,8 +94,8 @@ class dc_buffered_stream_send2: public dc_send{
                       char* data, size_t len);
 
   size_t get_outgoing_data(circular_iovec_buffer& outdata);
-  
-  
+
+
   inline size_t bytes_sent() {
     return bytessent.value;
   }
@@ -111,7 +103,7 @@ class dc_buffered_stream_send2: public dc_send{
   size_t send_queue_length() const {
     return writebuffer_totallen.value;
   }
-  
+
   void flush();
 
  private:
@@ -121,25 +113,11 @@ class dc_buffered_stream_send2: public dc_send{
   procid_t target;
 
   atomic<size_t> writebuffer_totallen;
-  
-  struct buffer_and_refcount{
-    std::vector<iovec> buf;
-    union el_and_ref_type{
-      struct {
-        volatile uint32_t numel;
-        volatile int32_t ref_count; // if negative, means it is sending
-      } val;
-      volatile uint64_t i64;
-    } el_and_ref;
-    atomic<uint32_t> numbytes;
-    char __pad__[64];
-  };
-  buffer_and_refcount buffer[2];
-  size_t bufid;
-  
 
-  atomic<size_t> bytessent; 
-  
+  inplace_lf_queue sendqueue;
+
+  atomic<size_t> bytessent;
+  volatile size_t approx_send_queue_size;
 
 };
 

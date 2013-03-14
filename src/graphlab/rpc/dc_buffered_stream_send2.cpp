@@ -26,66 +26,36 @@
 
 #include <graphlab/rpc/dc.hpp>
 #include <graphlab/rpc/dc_buffered_stream_send2.hpp>
-
+#include <graphlab/util/branch_hints.hpp>
 namespace graphlab {
 namespace dc_impl {
 
   void dc_buffered_stream_send2::send_data(procid_t target,
                                            unsigned char packet_type_mask,
                                            char* data, size_t len) {
+    size_t actual_data_len = len - sizeof(packet_hdr) - sizeof(size_t);
+
     if ((packet_type_mask & CONTROL_PACKET) == 0) {
       if (packet_type_mask & (STANDARD_CALL)) {
         dc->inc_calls_sent(target);
       }
-      bytessent.inc(len - sizeof(packet_hdr));
     }
+    writebuffer_totallen.inc(actual_data_len);
 
     // build the packet header
-    packet_hdr* hdr = reinterpret_cast<packet_hdr*>(data);
+    packet_hdr* hdr = reinterpret_cast<packet_hdr*>(data + sizeof(size_t));
     memset(hdr, 0, sizeof(packet_hdr));
 
     hdr->len = len - sizeof(packet_hdr);
     hdr->src = dc->procid();
     hdr->sequentialization_key = dc->get_sequentialization_key();
     hdr->packet_type_mask = packet_type_mask;
-    iovec msg;
-    msg.iov_base = data;
-    msg.iov_len = len;
-    buffer_and_refcount::el_and_ref_type er;
-    uint32_t insertloc = 0;
-    while(1) {
-      size_t curid;
-      while(1) {
-        curid = bufid;
-        buffer_and_refcount::el_and_ref_type next_er;
-        er.i64 = buffer[curid].el_and_ref.i64;
-        if (er.val.ref_count < 0) {
-          // the buffer has already been swapped
-          // we should be able to pick up the new one immediately
-          continue;
-        } else if (er.val.numel >= buffer[curid].buf.size()) {
-          // if out of buffer room. wait a while.
-          usleep(1);
-          continue;
-        }
-        // otherwise, increment the refcount and increment the element count
-        next_er.i64 = er.i64;
-        next_er.val.ref_count++;
-        next_er.val.numel++;
-        if (!atomic_compare_and_swap(buffer[curid].el_and_ref.i64, er.i64, next_er.i64)) continue;
-        else break;
-      }
-      // ok, we have a reference count into curid, we can write to it
-      insertloc = er.val.numel;
-      buffer[curid].buf[insertloc] = msg;
-      buffer[curid].numbytes.inc(len);
-      writebuffer_totallen.inc(len);
-      // decrement the reference count
-      __sync_fetch_and_sub(&(buffer[curid].el_and_ref.val.ref_count), 1);
-      break;
-    }
 
-    if (insertloc == 256) comm->trigger_send_timeout(target, false);
+    sendqueue.enqueue(data);
+
+    size_t sqsize = approx_send_queue_size;
+    approx_send_queue_size = sqsize + 1;
+    if (sqsize == 256) comm->trigger_send_timeout(target, false);
     else if ((packet_type_mask &
             (CONTROL_PACKET | WAIT_FOR_REPLY | REPLY_PACKET))) {
       comm->trigger_send_timeout(target, true);
@@ -100,62 +70,49 @@ namespace dc_impl {
                                           unsigned char packet_type_mask,
                                           char* data, size_t len) {
     char* c = (char*)malloc(sizeof(packet_hdr) + len);
-    memcpy(c + sizeof(packet_hdr), data, len);
-    send_data(target, packet_type_mask, c, len + sizeof(packet_hdr));
+    memcpy(c + sizeof(size_t) + sizeof(packet_hdr), data, len);
+    send_data(target, packet_type_mask, c, len + sizeof(size_t) + sizeof(packet_hdr));
   }
 
 
   size_t dc_buffered_stream_send2::get_outgoing_data(circular_iovec_buffer& outdata) {
+    // fast exit if no buffer
     if (writebuffer_totallen.value == 0) return 0;
 
-    // swap the buffer
-    size_t curid = bufid;
-    bufid = !bufid;
-    // decrement the reference count
-    __sync_fetch_and_sub(&(buffer[curid].el_and_ref.val.ref_count), 1);
-    // wait till the reference count is negative
-    while(buffer[curid].el_and_ref.val.ref_count >= 0) {
-      asm volatile("pause\n": : :"memory");
-    }
+    char* sendqueue_head = sendqueue.dequeue_all();
+    if (sendqueue_head == NULL) return 0;
 
-    // ok now we have exclusive access to the buffer
-    size_t sendlen = buffer[curid].numbytes;
+    approx_send_queue_size = 0;
     size_t real_send_len = 0;
-    if (sendlen > 0) {
-      size_t numel = std::min((size_t)(buffer[curid].el_and_ref.val.numel), buffer[curid].buf.size());
-      bool buffull = (numel == buffer[curid].buf.size());
-      std::vector<iovec> &sendbuffer = buffer[curid].buf;
 
-      writebuffer_totallen.dec(sendlen);
-      block_header_type* blockheader = new block_header_type;
-      (*blockheader) = sendlen;
+    // construct the block msg header
+    block_header_type* blockheader = new block_header_type;
+    // now I don't really know what is the size of it yet.
+    // create a block header iovec
+    iovec blockheader_iovec;
+    blockheader_iovec.iov_base = reinterpret_cast<void*>(blockheader);
+    blockheader_iovec.iov_len = sizeof(block_header_type);
+    outdata.write(blockheader_iovec);
 
-      // fill the first msg block
-      sendbuffer[0].iov_base = reinterpret_cast<void*>(blockheader);
-      sendbuffer[0].iov_len = sizeof(block_header_type);
-      // give the buffer away
-      for (size_t i = 0;i < numel; ++i) {
-        real_send_len += sendbuffer[i].iov_len;
-    //    outdata.write(sendbuffer[i]);
+    while(!sendqueue.end_of_dequeue_list(sendqueue_head)) {
+      iovec tosend, tofree;
+      tofree.iov_base = sendqueue_head;
+      tosend.iov_base = sendqueue_head + sizeof(size_t);
+      // I need to read the length
+      packet_hdr* hdr = reinterpret_cast<packet_hdr*>(sendqueue_head + sizeof(size_t));
+      tosend.iov_len = hdr->len + sizeof(packet_hdr);
+      tofree.iov_len = tosend.iov_len + sizeof(size_t);
+      outdata.write(tosend, tofree);
+      real_send_len += tosend.iov_len;
+      // advance to the next list item
+      while(__unlikely__(inplace_lf_queue::get_next(sendqueue_head) == NULL)) {
+        asm volatile("pause\n": : :"memory");
       }
-      outdata.write(sendbuffer, numel);
-      // reset the buffer;
-      buffer[curid].numbytes = 0;
-      buffer[curid].el_and_ref.val.numel = 1;
-
-      if (buffull) {
-        sendbuffer.resize(2 * numel);
-      }
-    __sync_fetch_and_add(&(buffer[curid].el_and_ref.val.ref_count), 1);
-      return real_send_len;
+      sendqueue_head = inplace_lf_queue::get_next(sendqueue_head);
     }
-    else {
-      // reset the buffer;
-      buffer[curid].numbytes = 0;
-      buffer[curid].el_and_ref.val.numel = 1;
-    __sync_fetch_and_add(&(buffer[curid].el_and_ref.val.ref_count), 1);
-      return 0;
-    }
+    (*blockheader) = real_send_len;
+    writebuffer_totallen.dec(real_send_len);
+    return real_send_len;
   }
 } // namespace dc_impl
 } // namespace graphlab

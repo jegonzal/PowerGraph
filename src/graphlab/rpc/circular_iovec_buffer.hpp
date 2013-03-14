@@ -104,6 +104,24 @@ struct circular_iovec_buffer {
 
 
   /**
+   * Writes an entry into the buffer, resizing the buffer if necessary.
+   * This buffer will take over all iovec pointers and free them when done.
+   * This version of write allows the iovec that is sent to be different from the
+   * iovec that is freed. (for instance, what is sent could be subarray of
+   * what is to be freed.
+   */
+  inline void write(const iovec &entry, const iovec& actual_ptr_entry) {
+    if (numel == v.size()) {
+      reserve(2 * numel);
+    }
+
+    v[tail] = actual_ptr_entry;
+    parallel_v[tail] = entry;
+    tail = (tail + 1) & (v.size() - 1); ++numel;
+  }
+
+
+  /**
    * Erases a single iovec from the head and free the pointer
    */
   inline void erase_from_head_and_free() {

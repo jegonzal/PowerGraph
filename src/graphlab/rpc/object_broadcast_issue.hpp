@@ -85,7 +85,7 @@ class  BOOST_PP_CAT(BOOST_PP_TUPLE_ELEM(2,0,FNAME_AND_CALL), N) { \
                     Iterator target_begin, Iterator target_end, size_t objid, F remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_) ) {  \
     oarchive* ptr = oarchive_from_pool();       \
     oarchive& arc = *ptr;                         \
-    arc.advance(sizeof(packet_hdr));            \
+    arc.advance(sizeof(size_t) + sizeof(packet_hdr));            \
     dispatch_type d = BOOST_PP_CAT(dc_impl::OBJECT_NONINTRUSIVE_DISPATCH,N)<distributed_control,T,F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N, GENT ,_) >;   \
     arc << reinterpret_cast<size_t>(d);                                 \
     serialize(arc, (char*)(&remote_function), sizeof(F));               \

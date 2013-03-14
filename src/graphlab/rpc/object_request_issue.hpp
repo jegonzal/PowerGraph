@@ -108,7 +108,7 @@ class  BOOST_PP_CAT(FNAME_AND_CALL, N) { \
   static request_future<__GLRPC_FRESULT> exec(dc_dist_object_base* rmi, dc_send* sender, unsigned char flags, procid_t target,size_t objid, F remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_) ) {  \
     oarchive* ptr = oarchive_from_pool();       \
     oarchive& arc = *ptr;                         \
-    arc.advance(sizeof(packet_hdr));            \
+    arc.advance(sizeof(size_t) + sizeof(packet_hdr));            \
     request_future<__GLRPC_FRESULT> reply;   \
     dispatch_type d = BOOST_PP_CAT(dc_impl::OBJECT_NONINTRUSIVE_REQUESTDISPATCH,N)<distributed_control,T,F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N, GENT ,_) >;  \
     arc << reinterpret_cast<size_t>(d);       \
