@@ -69,7 +69,7 @@ namespace dc_impl {
   void dc_buffered_stream_send2::copy_and_send_data(procid_t target,
                                           unsigned char packet_type_mask,
                                           char* data, size_t len) {
-    char* c = (char*)malloc(sizeof(packet_hdr) + len);
+    char* c = (char*)malloc(sizeof(size_t) + sizeof(packet_hdr) + len);
     memcpy(c + sizeof(size_t) + sizeof(packet_hdr), data, len);
     send_data(target, packet_type_mask, c, len + sizeof(size_t) + sizeof(packet_hdr));
   }
