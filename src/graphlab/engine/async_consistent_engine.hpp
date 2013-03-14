@@ -1206,7 +1206,7 @@ namespace graphlab {
         vstate[sched_lvid].factorized_next = prog;
       }
       else {
-        ASSERT_EQ((int)vstate[sched_lvid].state,  (int)NONE);
+       // ASSERT_EQ((int)vstate[sched_lvid].state,  (int)NONE);
         vstate[sched_lvid].state = MIRROR_GATHERING;
         vstate[sched_lvid].vertex_program = prog;
         vstate[sched_lvid].combined_gather.clear();
