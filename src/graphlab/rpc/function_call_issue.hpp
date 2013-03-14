@@ -162,7 +162,7 @@ class  BOOST_PP_CAT(FNAME_AND_CALL, N) { \
   static void exec(dc_send* sender, unsigned char flags, procid_t target, F remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_) ) {  \
     oarchive* ptr = oarchive_from_pool();       \
     oarchive& arc = *ptr;                         \
-    arc.advance(sizeof(packet_hdr));            \
+    arc.advance(sizeof(size_t) + sizeof(packet_hdr));            \
     dispatch_type d = BOOST_PP_CAT(function_call_issue_detail::dispatch_selector,N)<typename is_rpc_call<F>::type, F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, T) >::dispatchfn();   \
     arc << reinterpret_cast<size_t>(d);       \
     arc << reinterpret_cast<size_t>(remote_function); \

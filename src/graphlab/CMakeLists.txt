@@ -39,6 +39,7 @@ add_library(graphlab STATIC
   util/tracepoint.cpp
   util/mpi_tools.cpp
   util/web_util.cpp
+  util/inplace_lf_queue.cpp
   rpc/dc_tcp_comm.cpp
   rpc/circular_char_buffer.cpp
   rpc/dc_stream_receive.cpp
