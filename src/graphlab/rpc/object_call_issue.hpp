@@ -97,13 +97,8 @@ class  BOOST_PP_CAT(BOOST_PP_TUPLE_ELEM(2,0,FNAME_AND_CALL), N) { \
     serialize(arc, (char*)(&remote_function), sizeof(F)); \
     arc << objid;       \
     BOOST_PP_REPEAT(N, GENARC, _)                \
-    if (arc.off >= BUFFER_RELINQUISH_LIMIT) {  \
-      sender->send_data(target,flags , arc.buf, arc.off);    \
-      arc.buf = NULL; arc.len = 0;   \
-    } else {        \
-      char* newbuf = (char*)malloc(arc.off); memcpy(newbuf, arc.buf, arc.off); \
-      sender->send_data(target,flags , newbuf, arc.off);    \
-    }     \
+    char* newbuf = (char*)malloc(arc.off); memcpy(newbuf, arc.buf, arc.off); \
+    sender->send_data(target,flags , newbuf, arc.off);    \
     release_oarchive_to_pool(ptr); \
     if ((flags & CONTROL_PACKET) == 0) {                      \
       rmi->inc_bytes_sent(target, arc.off - sizeof(size_t));           \
