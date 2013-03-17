@@ -66,10 +66,6 @@ void start_engine();
 
 struct vertex_data {
   /** \brief The number of times this vertex has been updated. */
-  uint32_t nupdates;
-  /** \brief The most recent L1 change in the pvec value */
-  float residual; //! how much the latent value has changed
-  /** \brief The latent pvec for this vertex */
   vec pvec;
   double A_ii;
 
@@ -77,16 +73,16 @@ struct vertex_data {
    * \brief Simple default constructor which randomizes the vertex
    *  data 
    */
-  vertex_data() : nupdates(0), residual(1), A_ii(0) { randomize(); } 
+  vertex_data() : A_ii(0) { randomize(); } 
   /** \brief Randomizes the latent pvec */
   void randomize() { pvec.resize(data_size); pvec.setRandom(); }
   /** \brief Save the vertex data to a binary archive */
   void save(graphlab::oarchive& arc) const { 
-    arc << nupdates << residual << pvec << A_ii;
+    arc << pvec << A_ii;
   }
   /** \brief Load the vertex data from a binary archive */
   void load(graphlab::iarchive& arc) { 
-    arc >> nupdates >> residual >> pvec >> A_ii;
+    arc >> pvec >> A_ii;
   }
 }; // end of vertex data
 
