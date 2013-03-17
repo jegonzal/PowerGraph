@@ -146,9 +146,7 @@ inline bool graph_loader(graph_type& graph,
     const std::string& line) {
 
   //no need to parse
-  if (filename == vecfile)
-    return true;
-  if (boost::ends_with(filename,"singular_values") || boost::ends_with(filename, "_v0"))
+  if (boost::algorithm::ends_with(filename ,vecfile))
     return true;
 
   ASSERT_FALSE(line.empty()); 
@@ -161,7 +159,10 @@ inline bool graph_loader(graph_type& graph,
   float obs(0);
   strm >> source_id >> target_id;
   source_id--; target_id--;
-  assert(source_id < (uint)rows);
+  if (source_id >= (uint)rows)
+    logstream(LOG_FATAL)<<"Row number: " << source_id << " sould be < rows " << rows << " [ line: " << line << " ] " << std::endl;
+  if (target_id >= (uint)cols)
+    logstream(LOG_FATAL)<<"Col number: " << target_id << " sould be < cols " << cols << " [ line: " << line << " ] " << std::endl;
   strm >> obs;
   if (!info.is_square())
   target_id = rows + target_id;
@@ -169,6 +170,7 @@ inline bool graph_loader(graph_type& graph,
   if (source_id == target_id){
       vertex_data data;
       data.A_ii = obs;
+      data.pvec[JACOBI_PREC] = obs;
       graph.add_vertex(source_id, data);
   }
   // Create an edge and add it to the graph
@@ -182,26 +184,6 @@ inline bool graph_loader(graph_type& graph,
 typedef graphlab::omni_engine<Axb> engine_type;
 engine_type * pengine = NULL;
 
-inline bool init_vec_loader(graph_type& graph, 
-    const std::string& filename,
-    const std::string& line) {
-  if (filename != vecfile)
-    return true;
-
-  ASSERT_FALSE(line.empty()); 
-
-  // Parse the line
-  std::stringstream strm(line);
-  graph_type::vertex_id_type source_id(-1), target_id(-1);
-  float obs(0);
-  strm >> source_id >> target_id >> obs;
-
-  // Create an edge and add it to the graph
-  vertex_data vertex;
-  vertex.pvec[0] = obs;
-  graph.add_vertex(source_id,vertex); 
-  return true; // successful load
-} // end of graph_loader
 
 void start_engine(){
   vertex_set nodes = pgraph->select(selected_node);
@@ -241,9 +223,10 @@ int main(int argc, char** argv) {
     debug = false;
   }
 
-  if (rows <= 0 || cols <= 0)
+  if (rows <= 0 || cols <= 0 || rows != cols)
     logstream(LOG_FATAL)<<"Please specify number of rows/cols of the input matrix" << std::endl;
-     
+    
+ 
   info.rows = rows;
   info.cols = cols;
 
@@ -254,7 +237,6 @@ int main(int argc, char** argv) {
   graphlab::timer timer; 
   graph_type graph(dc, clopts);  
   graph.load(input_dir, graph_loader); 
-  graph.load(input_dir, init_vec_loader); 
   pgraph = &graph;
   dc.cout() << "Loading graph. Finished in " 
     << timer.current_time() << std::endl;
@@ -288,14 +270,10 @@ int main(int argc, char** argv) {
   engine_type engine(dc, graph, exec_type, clopts);
   pengine = &engine;
 
-  dc.cout() << "Running Jacobi" << std::endl;
-  dc.cout() << "(C) Code by Danny Bickson, CMU " << std::endl;
-  dc.cout() << "Please send bug reports to danny.bickson@gmail.com" << std::endl;
-  timer.start();
-
   init_math(&graph, info, ortho_repeats, update_function);
+
   if (vecfile.size() > 0){
-    std::cout << "Load inital vector from file" << input_dir << vecfile << std::endl;
+    std::cout << "Load b vector from file" << input_dir << vecfile << std::endl;
     FILE * file = fopen((input_dir + vecfile).c_str(), "r");
     if (file == NULL)
       logstream(LOG_FATAL)<<"Failed to open initial vector"<< std::endl;
@@ -308,79 +286,41 @@ int main(int argc, char** argv) {
       input[i] = val;
     }
     fclose(file);
-    DistVec v0(info, 0, false, "v0");
+    DistVec v0(info, JACOBI_Y, false, "v0");
     v0 = input;
   }  
 
-
-
-
-
-
-  logstream(LOG_WARNING)
-    << "Eigen detected. (This is actually good news!)" << std::endl;
-  logstream(LOG_INFO) 
-    << "GraphLab Linear solver library code by Danny Bickson, CMU" 
-    << std::endl 
-    << "Send comments and bug reports to danny.bickson@gmail.com" 
-    << std::endl 
-    << "Currently implemented algorithms are: Gaussian Belief Propagation, "
-    << "Jacobi method, Conjugate Gradient" << std::endl;
-
-
-
-  // Create a core
-  //unit testing
-  //if (unittest == 1){
-/*A= [  1.8147    0.9134    0.2785
-       0.9058    1.6324    0.5469
-       0.1270    0.0975    1.9575 ];
-
-  y= [ 0.9649    0.1576    0.9706 ]';
-  x= [ 0.6803   -0.4396    0.4736 ]';
-*/
-   // datafile = "A"; yfile = "y"; xfile = "x"; sync_interval = 120;
- // }
+  dc.cout() << "Running Jacobi" << std::endl;
+  dc.cout() << "(C) Code by Danny Bickson, CMU " << std::endl;
+  dc.cout() << "Please send bug reports to danny.bickson@gmail.com" << std::endl;
+  timer.start();
 
   DistMat A(info);
   DistVec b(info, JACOBI_Y,true, "b");
   DistVec x(info, JACOBI_X,true, "x", JACOBI_PREV_X);
   DistVec A_ii(info, JACOBI_PREC, true, "A_ii");
-  A_ii = diag(A);
-  //TODO A.set_use_diag(false);
-  //for (int i=0; i< info.total(); i++)
-  //  core.graph().vertex_data(i).A_ii = 0;
 
+  PRINT_VEC(b);
+  PRINT_VEC(x);
+  PRINT_VEC(A_ii);
   for (int i=0; i < max_iter; i++){
+    mi.use_diag = false;
     x = (b - A*x)/A_ii;
+    PRINT_VEC(x);
   }
-
  
   dc.cout() << "Jacobi finished in " << runtime << std::endl;
   dc.cout() << "\t Updates: " << engine.num_updates() << std::endl;
 
-  /*if (final_residual){
-    graphlab::core<graph_type, Axb> tmp_core;
-    tmp_core.graph() = core.graph();
-    init_math(&tmp_core.graph(), &tmp_core, info);
-    DistMat A(info);
-    DistVec b(info, JACOBI_Y,true,"b");
-    DistVec x(info, JACOBI_X,true,"x");
     DistVec p(info, JACOBI_PREV_X, true, "p");
-    for (int i=0; i< info.total(); i++)
-      tmp_core.graph().vertex_data(i).A_ii = A_ii[i];
-
+    mi.use_diag = true;
     p = A*x -b;
+    PRINT_VEC(p);
     DistDouble ret = norm(p);
-    logstream(LOG_INFO) << "Solution converged to residual: " << ret.toDouble() << std::endl;
-    if (unittest > 0){
-     verify_values(unittest, ret.toDouble());
-    }
-  }
+    dc.cout() << "Solution converged to residual: " << ret.toDouble() << std::endl;
  
-  vec ret = fill_output(&core.graph(), info, JACOBI_X);
-  write_output_vector(datafile + "x.out", format, ret, false);
-*/
+  //vec ret = fill_output(&core.graph(), info, JACOBI_X);
+  //write_output_vector(datafile + "x.out", format, ret, false);
   const double runtime = timer.current_time();
   dc.cout() << "----------------------------------------------------------"
     << std::endl

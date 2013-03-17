@@ -143,10 +143,6 @@ class Axb :
       else if (!mi.A_offset && mi.x_offset >= 0){
         val = mi.c*user.pvec[mi.x_offset];
       }
-      /***** COMPUTE r = c*I*x  *****/
-      else if (!mi.A_offset && mi.x_offset >= 0){
-        val = mi.c*user.pvec[mi.x_offset];
-      }
 
       /**** COMPUTE r+= d*y (optional) ***/
       if (mi.y_offset>= 0){
