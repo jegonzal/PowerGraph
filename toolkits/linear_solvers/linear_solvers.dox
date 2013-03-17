@@ -19,15 +19,15 @@ row col val
 Additional input vector b is given using the command --input_vector=filename, this file should be found inside the folder given by --matrix. 
 
 \section Output
-The output of the computation is a solution vector x.
+The output of the computation is a solution vector x. File name is x.out_1_of_1.
 
 \section Jacobi example.
 
 Assume we have the linear system
 \verbatim
 A=[  1.8147    0.9134    0.2785
-       0.9058    1.6324    0.5469
-       0.1270    0.0975    1.9575 ];
+     0.9058    1.6324    0.5469
+     0.1270    0.0975    1.9575 ];
 b= [ 0.9649    0.1576    0.9706 ]';
 \endverbatim
 The solution will be
@@ -58,6 +58,18 @@ And the input file for b (called vecB)
 \endverbatim
 
 Now we run:
-./jacobi --matrix=jacobi_testA/ --initial_vec=vecB --rows=3 --cols=3 --debug=1 
+\verbatim
+./jacobi --matrix=jacobi_testA/ --initial_vec=vecB --rows=3 --cols=3 --debug=1 --max_iter=10
+\endverbatim
+
+Running Jacobi
+(C) Code by Danny Bickson, CMU 
+Please send bug reports to danny.bickson@gmail.com
+Solution converged to residual: 0.00507232
+----------------------------------------------------------
+Final Runtime (seconds):   0.649031
+Updates executed: 33
+Update Rate (updates/second): 50.845
+\endverbatim
 */
 

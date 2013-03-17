@@ -184,6 +184,25 @@ inline bool graph_loader(graph_type& graph,
 typedef graphlab::omni_engine<Axb> engine_type;
 engine_type * pengine = NULL;
 
+struct linear_model_saver {
+  typedef graph_type::vertex_type vertex_type;
+  typedef graph_type::edge_type   edge_type;
+
+  int pos;
+  linear_model_saver(int pos): pos(pos) {}
+
+  std::string save_vertex(const vertex_type& vertex) const {
+     assert(pos >= 0 && pos < vertex.data().pvec.size());
+     std::string ret;
+     ret = boost::lexical_cast<std::string>(vertex.id() + 1) + " ";
+     ret += boost::lexical_cast<std::string>(vertex.data().pvec[pos]) + "\n";
+     return ret;
+  }
+  std::string save_edge(const edge_type& edge) const {
+    return "";
+  }
+}; 
+
 
 void start_engine(){
   vertex_set nodes = pgraph->select(selected_node);
@@ -330,6 +349,7 @@ int main(int argc, char** argv) {
                                         << "Update Rate (updates/second): " 
                                           << engine.num_updates() / runtime << std::endl;
 
+  graph.save("x.out", linear_model_saver(JACOBI_X), false, true, false, 1);
   graphlab::mpi_tools::finalize();
 
    return EXIT_SUCCESS;
