@@ -57,10 +57,11 @@ And the input file for b (called vecB)
 0.9706
 \endverbatim
 
+Note: both A and vecB files are found under jacobi_testA/ folder.
+
 Now we run:
 \verbatim
 ./jacobi --matrix=jacobi_testA/ --initial_vec=vecB --rows=3 --cols=3 --debug=1 --max_iter=10
-\endverbatim
 
 Running Jacobi
 (C) Code by Danny Bickson, CMU 
