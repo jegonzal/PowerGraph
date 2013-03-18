@@ -72,5 +72,14 @@ Final Runtime (seconds):   0.649031
 Updates executed: 33
 Update Rate (updates/second): 50.845
 \endverbatim
+
+We examine the output:
+\verbatim
+$ cat x.out_1_of_1
+1 0.67806771486642969
+2 -0.43984914015767995
+3 0.47337333903573475
+\endverbatim
+
 */
 
