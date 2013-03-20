@@ -54,7 +54,7 @@ class gl3engine {
 
   typedef boost::function<void (context_type&,
                                 vertex_type&,
-                                const message_type&)> update_function_type;
+                                const message_type&)> vertex_program_type;
 
 
 
@@ -77,18 +77,20 @@ class gl3engine {
   bool finished;
   float engine_runtime;
 
-  update_function_type active_function;
+  vertex_program_type active_function;
   std::vector<inplace_lf_queue2<task>* > local_tasks;
   std::vector<size_t> vdata_hash;
   atomic<size_t> programs_completed;
   atomic<size_t> tasks_completed;
 
   atomic<size_t> active_vthread_count;
+  atomic<size_t> thread_counter;
 
   std::vector<mutex> worker_mutex;
   //! The scheduler
   ischeduler_type* scheduler_ptr;
 
+  bool block_vthread_launches;
   async_consensus* consensus;
 
   /**
@@ -109,7 +111,9 @@ class gl3engine {
    */
   std::vector<simple_spinlock> elocks;
 
+  bool rpc_handlers_disabled;
 
+  graphlab::qthread_group execution_group;
 
  public:
   gl3engine(distributed_control& dc, graph_type& graph,
@@ -119,6 +123,10 @@ class gl3engine {
     num_vthreads = 1000;
     ncpus = opts.get_ncpus();
     worker_mutex.resize(ncpus);
+    rpc_handlers_disabled = false;
+    block_vthread_launches = false;
+
+
     // read the options
     std::vector<std::string> keys = opts.get_engine_args().get_option_keys();
     foreach(std::string opt, keys) {
@@ -152,6 +160,27 @@ class gl3engine {
 
     // make default registrations
     task_types[GL3_BROADCAST_TASK_ID] = new broadcast_task_descriptor<GraphType, engine_type>();
+    //
+    // pre init
+#ifdef _OPENMP
+#pragma omp parallel for
+#endif
+    for (int i = 0; i < (int)graph.num_local_vertices(); ++i) {
+      vdata_hash[i] = get_vertex_data_hash_lvid((lvid_type)i);
+    }
+    scheduler_ptr->start();
+
+    //reset counters
+    finished = false;
+    programs_completed = 0;
+    tasks_completed = 0;
+    active_vthread_count = 0;
+
+
+
+    graphlab::qthread_tools::init(ncpus, 128 * 1024);
+
+    rmi.full_barrier();
   }
 
 
@@ -212,9 +241,12 @@ class gl3engine {
   void rpc_signal(vertex_id_type gvid,
                   const message_type& message) {
     internal_signal(graph.vertex(gvid), message);
-    consensus->cancel();
   }
 
+
+  void set_vertex_program(vertex_program_type uf) {
+    active_function = uf;
+  }
 
   void signal_all(const message_type& message = message_type(),
                   const std::string& order = "shuffle") {
@@ -235,7 +267,7 @@ class gl3engine {
       graphlab::random::shuffle(vtxs.begin(), vtxs.end());
     }
     foreach(lvid_type lvid, vtxs) {
-      scheduler_ptr->schedule(lvid, message);
+      internal_schedule(lvid, message);
     }
     rmi.barrier();
   } // end of schedule all
@@ -262,16 +294,30 @@ class gl3engine {
       graphlab::random::shuffle(vtxs.begin(), vtxs.end());
     }
     foreach(lvid_type lvid, vtxs) {
-      scheduler_ptr->schedule(lvid, message);
+      internal_schedule(lvid, message);
     }
     rmi.barrier();
   }
 
   void internal_signal(const vertex_type& vtx,
                        const message_type& message = message_type()) {
-    scheduler_ptr->schedule(vtx.local_id(), message);
+    internal_schedule(vtx.local_id(), message);
   } // end of schedule
 
+
+  void internal_schedule(const lvid_type lvid,
+                         const message_type& message) {
+    scheduler_ptr->schedule(lvid, message);
+    size_t target_queue = thread_counter++;
+
+    if (!block_vthread_launches && active_vthread_count < num_vthreads) {
+      active_vthread_count.inc();
+      execution_group.launch(boost::bind(&gl3engine::vthread_start,
+                                         this,
+                                         target_queue));
+      consensus->cancel();
+    }
+  }
 
   struct future_combiner {
     any param;
@@ -379,8 +425,17 @@ class gl3engine {
     t->task_id = task_id;
     t->handle = handle;
     t->vid = vid;
-    local_tasks[lvid % ncpus]->enqueue(t);
-    consensus->cancel();
+    size_t target_queue = (thread_counter++) % ncpus;
+    local_tasks[target_queue]->enqueue(t);
+
+    if (!block_vthread_launches && active_vthread_count < num_vthreads) {
+      active_vthread_count.inc();
+      execution_group.launch(boost::bind(&gl3engine::vthread_start,
+                                         this,
+                                         target_queue));
+      consensus->cancel();
+    }
+
   }
 
   size_t get_vertex_data_hash_lvid(lvid_type lvid) {
@@ -396,52 +451,66 @@ class gl3engine {
     vlocks[lvid].unlock();
   }
 
-  void vthread_start(size_t id) {
+
+  bool exec_scheduler_task(size_t id) {
     context_type context;
     context.engine = this;
-    while(!finished) {
-      exec_subtasks(id % ncpus);
-      lvid_type lvid;
-      message_type msg;
-      sched_status::status_enum stat =
-          scheduler_ptr->get_next(qthread_worker(NULL), lvid, msg);
-      // get a task from the scheduler
-      // if no task... quit
-      if (stat == sched_status::EMPTY) break;
-      // otherwise run the task
-      //
-      // lock the vertex
-      // if this is not the master, we forward it
-      if (!graph.l_is_master(lvid)) {
-        const procid_t vowner = graph.l_get_vertex_record(lvid).owner;
-        rmi.remote_call(vowner,
-                        &gl3engine::rpc_signal,
-                        graph.global_vid(lvid),
-                        msg);
-        continue;
-      }
-      while (!vlocks[lvid].try_lock()) qthread_yield();
-      vertex_type vertex(graph.l_vertex(lvid));
-      context.lvid = lvid;
 
-     // logger(LOG_EMPH, "Running vertex %ld", vertex.id());
-      active_function(context, vertex, msg);
-      programs_completed.inc();
-      size_t newhash = get_vertex_data_hash_lvid(lvid);
-      // if the hash changed, broadcast
-      if (newhash != vdata_hash[lvid]) {
-        vdata_hash[lvid] = newhash;
-        local_vertex_type lvertex(graph.l_vertex(lvid));
-        rmi.remote_call(lvertex.mirrors().begin(), lvertex.mirrors().end(),
-                        &engine_type::sync_vdata,
-                        lvertex.global_id(),
-                        lvertex.data());
-      }
-      vlocks[lvid].unlock();
+    lvid_type lvid;
+    message_type msg;
+    sched_status::status_enum stat =
+        scheduler_ptr->get_next(id, lvid, msg);
+    // get a task from the scheduler
+    // if no task... quit
+    if (stat == sched_status::EMPTY) return false;
+    // otherwise run the task
+    //
+    // lock the vertex
+    // if this is not the master, we forward it
+    if (!graph.l_is_master(lvid)) {
+      const procid_t vowner = graph.l_get_vertex_record(lvid).owner;
+      rmi.remote_call(vowner,
+                      &gl3engine::rpc_signal,
+                      graph.global_vid(lvid),
+                      msg);
+      return true;
     }
+    while (!vlocks[lvid].try_lock()) qthread_yield();
+    vertex_type vertex(graph.l_vertex(lvid));
+    context.lvid = lvid;
 
-    //logger(LOG_EMPH, "Thread Leaving");
-    active_vthread_count.dec();
+    // logger(LOG_EMPH, "Running vertex %ld", vertex.id());
+    active_function(context, vertex, msg);
+    programs_completed.inc();
+    size_t newhash = get_vertex_data_hash_lvid(lvid);
+    // if the hash changed, broadcast
+    if (newhash != vdata_hash[lvid]) {
+      vdata_hash[lvid] = newhash;
+      local_vertex_type lvertex(graph.l_vertex(lvid));
+      rmi.remote_call(lvertex.mirrors().begin(), lvertex.mirrors().end(),
+                      &engine_type::sync_vdata,
+                      lvertex.global_id(),
+                      lvertex.data());
+    }
+    vlocks[lvid].unlock();
+    return true;
+  }
+
+  void vthread_start(size_t id) {
+    while(!finished) {
+      rmi.dc().handle_incoming_calls(id % ncpus, ncpus);
+      bool haswork = exec_subtasks(id % ncpus);
+      haswork |= exec_scheduler_task(id % ncpus);
+      if (!haswork) {
+        active_vthread_count.dec();
+        // double check
+        haswork = exec_subtasks(id % ncpus);
+        haswork |= exec_scheduler_task(id % ncpus);
+        if (haswork == false) break;
+        else active_vthread_count.inc();
+      }
+      qthread_yield();
+    }
   }
 
   void ping() {
@@ -449,12 +518,14 @@ class gl3engine {
 
   atomic<size_t> pingid;
 
-  void exec_subtasks(size_t worker) {
+  bool exec_subtasks(size_t worker) {
+    bool ret = false;
     if (worker_mutex[worker].try_lock()) {
       //rmi.dc().handle_incoming_calls(worker, ncpus);
       //
       task* tasks = local_tasks[worker]->dequeue_all();
       if (tasks != NULL) {
+        ret = true;
         // execute tasks
         while (!local_tasks[worker]->end_of_dequeue_list(tasks)) {
           task* cur = tasks;
@@ -481,6 +552,7 @@ class gl3engine {
       }
       worker_mutex[worker].unlock();
     }
+    return ret;
   }
 
   void task_exec_start(size_t id) {
@@ -515,60 +587,23 @@ class gl3engine {
     } while(!finished && active_vthread_count > 0);
   }
 
-  execution_status::status_enum start(update_function_type uf) {
-    rmi.full_barrier();
-    active_function = uf;
-    finished = false;
-    // reset counters
-    programs_completed = 0;
-    tasks_completed = 0;
-    active_vthread_count = 0;
-    // start the scheduler
-
-    // pre init
-#ifdef _OPENMP
-#pragma omp parallel for
-#endif
-    for (int i = 0; i < (int)graph.num_local_vertices(); ++i) {
-      vdata_hash[i] = get_vertex_data_hash_lvid((lvid_type)i);
-    }
-    scheduler_ptr->start();
-    rmi.full_barrier();
+  execution_status::status_enum start() {
     timer ti;
     ti.start();
     // this will stop all handler threads
     // 32K a stack
-    graphlab::qthread_tools::init(ncpus, 128 * 1024);
-    graphlab::qthread_group execution_group;
     // launch the task executors
-        size_t num_to_spawn = num_vthreads;
+    size_t num_to_spawn = num_vthreads;
     while(1) {
-      //rmi.dc().stop_handler_threads(0, 1);
-      logger(LOG_EMPH, "Forking %d subtask executors", ncpus);
-      for (size_t i = 0;i < ncpus; ++i) {
-        execution_group.launch(boost::bind(&gl3engine::task_exec_start, this, i));
-      }
-
-      logger(LOG_EMPH, "Forking %d program executors", num_to_spawn);
-      for (size_t i = 0;i < num_to_spawn ; ++i) {
-        active_vthread_count.inc();
-        execution_group.launch(boost::bind(&gl3engine::vthread_start, this, i));
-      }
       execution_group.join();
-
       // restart handler threads since the subtask executors are dead
       //rmi.dc().start_handler_threads(0, 1);
       consensus->begin_done_critical_section(0);
-      bool scheduler_empty = scheduler_ptr->empty();
-      bool taskqueues_empty = true;
-      // check that all the queues are empty
-      for (size_t i = 0;i < local_tasks.size(); ++i) taskqueues_empty &= local_tasks[i]->empty();
-      if (!(scheduler_empty && taskqueues_empty)) {
+      if (!execution_group.empty()) {
         consensus->cancel_critical_section(0);
       } else {
         if (consensus->end_done_critical_section(0)) break;
       }
-      num_to_spawn = std::min(num_vthreads, scheduler_ptr->approx_size());
     }
     finished = true;
     engine_runtime = ti.current_time();

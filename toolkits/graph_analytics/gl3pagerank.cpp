@@ -151,10 +151,10 @@ int main(int argc, char** argv) {
                              pagerank_map,
                              pagerank_combine,
                              0.0);
-
+  engine.set_vertex_program(update_function);
   engine.signal_all();
 
-  engine.start(update_function);
+  engine.start();
   const float runtime = engine.elapsed_seconds();
   dc.cout() << "Finished Running engine in " << runtime
             << " seconds." << std::endl;
