@@ -37,7 +37,7 @@ class qthread_future {
  public:
   qthread_future() {
     // empty the var
-    qthread_empty(reinterpret_cast<aligned_t*>(&_response));
+    qthread_empty(reinterpret_cast<aligned_t*>(this));
   }
 
   /** Gets the address of the result of the future.
@@ -51,7 +51,7 @@ class qthread_future {
   /**
    * signals that a thread waiting on this future should wake up
    */
-  static void signal(T* handle) {
+  static void signal(qthread_future<T>* handle) {
     qthread_fill(reinterpret_cast<aligned_t*>(handle));
   }
 
@@ -64,7 +64,7 @@ class qthread_future {
 
 
   bool is_ready() {
-    return qthread_feb_status(reinterpret_cast<aligned_t*>(&_response));
+    return qthread_feb_status(reinterpret_cast<aligned_t*>(this));
   }
 
 
@@ -72,7 +72,7 @@ class qthread_future {
    * Waits for this future to be filled.
    */
   void wait() {
-    qthread_readFF(NULL,reinterpret_cast<aligned_t*>(&_response));
+    qthread_readFF(NULL,reinterpret_cast<aligned_t*>(this));
   }
 } __attribute__ ((aligned (8)));
 

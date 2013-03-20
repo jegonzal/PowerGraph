@@ -321,7 +321,7 @@ class gl3engine {
 
   struct __attribute((__may_alias__)) future_combiner {
     any param;
-    any* future_handle;
+    qthread_future<any>* future_handle;
     procid_t count_down;
     unsigned char task_id;
     simple_spinlock lock;
@@ -337,7 +337,7 @@ class gl3engine {
     // create a count down for each mirror
     future_combiner combiner;
     combiner.count_down = graph.l_vertex(lvid).num_mirrors() + 1;
-    combiner.future_handle = &(future.get());
+    combiner.future_handle = &future;
     combiner.task_id = task_id;
     combiner.param = task_param;
     local_vertex_type lvertex(graph.l_vertex(lvid));
@@ -393,11 +393,11 @@ class gl3engine {
     combiner->lock.lock();
     ASSERT_GT(combiner->count_down, 0);
     combiner->count_down--;
-    if (!combiner->future_handle->empty()) {
-      task_types[combiner->task_id]->combine((*combiner->future_handle),
+    if (!combiner->future_handle->get().empty()) {
+      task_types[combiner->task_id]->combine((combiner->future_handle->get()),
                                              val, combiner->param);
     } else {
-      (*combiner->future_handle) = val;
+      combiner->future_handle->get() = val;
     }
     if (combiner->count_down == 0) {
       combiner->lock.unlock();
