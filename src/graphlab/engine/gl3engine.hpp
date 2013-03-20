@@ -482,7 +482,7 @@ class gl3engine {
     double last_print = 0;
     double next_processing_time = 0.05;
     do {
-      exec_subtasks(id);
+      exec_subtasks(id % ncpus);
       if (ti.current_time() >= next_processing_time) {
         //rmi.dc().start_handler_threads(worker, ncpus);
         size_t p = pingid.inc() % rmi.numprocs();
@@ -491,6 +491,7 @@ class gl3engine {
         }
         request_future<void> reqf = rmi.future_remote_request(p, &gl3engine::ping);
         while(!reqf.is_ready()) {
+          exec_subtasks(id % ncpus);
           qthread_yield();
         }
         reqf.wait();
