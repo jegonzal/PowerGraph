@@ -544,12 +544,12 @@ class gl3engine {
         size_t num_to_spawn = num_vthreads;
     while(1) {
       //rmi.dc().stop_handler_threads(0, 1);
-      //logger(LOG_EMPH, "Forking %d subtask executors", ncpus);
+      logger(LOG_EMPH, "Forking %d subtask executors", ncpus);
       for (size_t i = 0;i < ncpus; ++i) {
         execution_group.launch(boost::bind(&gl3engine::task_exec_start, this, i));
       }
 
-      //logger(LOG_EMPH, "Forking %d program executors", num_to_spawn);
+      logger(LOG_EMPH, "Forking %d program executors", num_to_spawn);
       for (size_t i = 0;i < num_to_spawn ; ++i) {
         active_vthread_count.inc();
         execution_group.launch(boost::bind(&gl3engine::vthread_start, this, i));
