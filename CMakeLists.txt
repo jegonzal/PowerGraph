@@ -491,7 +491,7 @@ macro(requires_core_deps NAME)
   target_link_libraries(${NAME} 
     ${Boost_LIBRARIES}
     z
-    #tcmalloc
+    tcmalloc
     event event_pthreads
     qthread
     json)
