@@ -510,6 +510,7 @@ class gl3engine {
         else active_vthread_count.inc();
       }
       qthread_yield();
+      logger_ontick(1, "programs completed: %ld", programs_completed.value);
     }
   }
 
