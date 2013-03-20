@@ -319,7 +319,7 @@ class gl3engine {
     }
   }
 
-  struct future_combiner {
+  struct __attribute((__may_alias__)) future_combiner {
     any param;
     any* future_handle;
     procid_t count_down;
@@ -331,6 +331,7 @@ class gl3engine {
                  unsigned char task_id,
                  const any& task_param,
                  bool no_reply = false) {
+    ASSERT_TRUE(graph.l_is_master(lvid));
     // create a future
     qthread_future<any> future;
     // create a count down for each mirror
@@ -340,7 +341,7 @@ class gl3engine {
     combiner.task_id = task_id;
     combiner.param = task_param;
     local_vertex_type lvertex(graph.l_vertex(lvid));
-
+    asm volatile("" ::: "memory");
     /*
     logstream(LOG_EMPH) << "Creating Subtask type "<< (int)task_id
                         << " on vertex " << graph.l_vertex(lvid).global_id() << " Handle " << combiner
@@ -376,6 +377,7 @@ class gl3engine {
     if (!no_reply) {
       task_reply(&combiner, ret);
       future.wait();
+      ASSERT_EQ(combiner.count_down, 0);
     }
 
     vlocks[lvid].lock();
@@ -413,6 +415,7 @@ class gl3engine {
                         size_t handle) {
     //logstream(LOG_EMPH) << "Receiving subtask on handle " << (void*)(handle) << "\n";
     lvid_type lvid = graph.local_vid(vid);
+    ASSERT_FALSE(graph.l_is_master(lvid));
     if (vdata.hasval) {
       vlocks[lvid].lock();
       graph.l_vertex(lvid).data() = vdata.val;
@@ -591,14 +594,8 @@ class gl3engine {
   execution_status::status_enum start() {
     timer ti;
     ti.start();
-    // this will stop all handler threads
-    // 32K a stack
-    // launch the task executors
-    size_t num_to_spawn = num_vthreads;
     while(1) {
       execution_group.join();
-      // restart handler threads since the subtask executors are dead
-      //rmi.dc().start_handler_threads(0, 1);
       consensus->begin_done_critical_section(0);
       if (!execution_group.empty()) {
         consensus->cancel_critical_section(0);
