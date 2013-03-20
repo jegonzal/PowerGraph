@@ -413,9 +413,7 @@ gather_type output_vector(const graph_type::vertex_type & vertex){
    return ret;
 }
 bool select_in_range(const graph_type::vertex_type & vertex){
-   if (info.is_square())
-     return true;
-   else return vertex.id() >= (uint)pcurrent->start && vertex.id() < (uint)pcurrent->end;
+   return vertex.id() >= (uint)pcurrent->start && vertex.id() < (uint)pcurrent->end;
 }
 DistVec& DistVec::operator=(const DistVec & vec){
       assert(offset < (info.is_square() ? 2*data_size: data_size));

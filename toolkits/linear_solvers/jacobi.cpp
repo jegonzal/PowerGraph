@@ -81,7 +81,7 @@ class gather_type {
     vec pvec;
     double training_rmse;
     double validation_rmse;
-    gather_type() { training_rmse = validation_rmse = 0; }
+    gather_type() { training_rmse= validation_rmse = 0; }
     void save(graphlab::oarchive& arc) const { arc << pvec << training_rmse << validation_rmse; }
     void load(graphlab::iarchive& arc) { arc >> pvec >> training_rmse >> validation_rmse; }  
     gather_type& operator+=(const gather_type& other) {
@@ -93,8 +93,7 @@ class gather_type {
 
 };
 
-gather_type ret;
-
+//gather_type ret;
 
 
 
