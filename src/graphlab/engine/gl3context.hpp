@@ -33,7 +33,7 @@ struct gl3context {
     task_param.in = (edir == IN_EDGES) || (edir == ALL_EDGES);
     task_param.out = (edir == OUT_EDGES) || (edir == ALL_EDGES);
     task_param.message = msg;
-    engine->spawn_task(lvid, GL3_BROADCAST_TASK_ID, any(task_param));
+    engine->spawn_task(lvid, GL3_BROADCAST_TASK_ID, any(task_param), true);
   }
 
 };

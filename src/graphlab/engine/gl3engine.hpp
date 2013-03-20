@@ -283,7 +283,8 @@ class gl3engine {
 
   any spawn_task(lvid_type lvid,
                  unsigned char task_id,
-                 const any& task_param) {
+                 const any& task_param,
+                 bool no_reply = false) {
     // create a future
     qthread_future<any> future;
     // create a count down for each mirror
@@ -306,6 +307,8 @@ class gl3engine {
       cs.val = lvertex.data();
       vdata_hash[lvid] = newhash;
     }
+    size_t cb = reinterpret_cast<size_t>(&combiner);
+    if (no_reply) cb = 0;
     rmi.remote_call(lvertex.mirrors().begin(), lvertex.mirrors().end(),
                     &engine_type::rpc_receive_task,
                     task_id,
@@ -313,7 +316,7 @@ class gl3engine {
                     cs,
                     task_param,
                     rmi.procid(),
-                    reinterpret_cast<size_t>(&combiner));
+                    cb);
 
     // we execute my own subtasks inplace
     /*
@@ -324,8 +327,10 @@ class gl3engine {
     vlocks[lvid].unlock();
     any ret = task_types[task_id]->exec(graph, lvertex.global_id(), task_param,
                                         this, vlocks, elocks);
-    task_reply(&combiner, ret);
-    future.wait();
+    if (!no_reply) {
+      task_reply(&combiner, ret);
+      future.wait();
+    }
 
     vlocks[lvid].lock();
     return future.get();
@@ -461,10 +466,12 @@ class gl3engine {
           any ret = task_types[cur->task_id]->exec(graph, cur->vid, cur->param,
                                                    this, vlocks, elocks);
           // return to origin
-          rmi.remote_call(cur->origin,
-                          &gl3engine::task_reply_rpc,
-                          cur->handle,
-                          ret);
+          if (cur->handle != 0) {
+            rmi.remote_call(cur->origin,
+                            &gl3engine::task_reply_rpc,
+                            cur->handle,
+                            ret);
+          }
           tasks_completed.inc();
           // get the next task in the queue
           while(inplace_lf_queue2<task>::get_next(tasks) == NULL) asm volatile ("" : : : "memory");
@@ -565,6 +572,12 @@ class gl3engine {
     }
     finished = true;
     engine_runtime = ti.current_time();
+
+    size_t ctasks = programs_completed.value;
+    rmi.all_reduce(ctasks);
+    programs_completed.value = ctasks;
+
+
     return execution_status::TASK_DEPLETION;
   }
 
