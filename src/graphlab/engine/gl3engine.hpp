@@ -321,8 +321,8 @@ class gl3engine {
 
   struct __attribute((__may_alias__)) future_combiner {
     any param;
-    qthread_future<any>* future_handle;
-    procid_t count_down;
+    any result;
+    atomic<procid_t> count_down;
     unsigned char task_id;
     simple_spinlock lock;
   };
@@ -332,16 +332,11 @@ class gl3engine {
                  const any& task_param,
                  bool no_reply = false) {
     ASSERT_TRUE(graph.l_is_master(lvid));
-    // create a future
-    qthread_future<any> future;
-    // create a count down for each mirror
     future_combiner combiner;
     combiner.count_down = graph.l_vertex(lvid).num_mirrors() + 1;
-    combiner.future_handle = &future;
     combiner.task_id = task_id;
     combiner.param = task_param;
     local_vertex_type lvertex(graph.l_vertex(lvid));
-    asm volatile("" ::: "memory");
     /*
     logstream(LOG_EMPH) << "Creating Subtask type "<< (int)task_id
                         << " on vertex " << graph.l_vertex(lvid).global_id() << " Handle " << combiner
@@ -376,12 +371,11 @@ class gl3engine {
                                         this, vlocks, elocks);
     if (!no_reply) {
       task_reply(&combiner, ret);
-      future.wait();
-      ASSERT_EQ(combiner.count_down, 0);
+      while(combiner.count_down != 0) {
+        qthread_yield();
+      }
     }
-
-    vlocks[lvid].lock();
-    return future.get();
+    return combiner.result;
   }
   void task_reply_rpc(size_t handle, any& val) {
     future_combiner* combiner = reinterpret_cast<future_combiner*>(handle);
@@ -392,19 +386,14 @@ class gl3engine {
     //logstream(LOG_EMPH) << "some subtask completion on handle " << combiner << "\n";
     combiner->lock.lock();
     ASSERT_GT(combiner->count_down, 0);
-    combiner->count_down--;
-    if (!combiner->future_handle->get().empty()) {
-      task_types[combiner->task_id]->combine((combiner->future_handle->get()),
+    if (!combiner->result.empty()) {
+      task_types[combiner->task_id]->combine((combiner->result),
                                              val, combiner->param);
     } else {
-      combiner->future_handle->get() = val;
+      combiner->result = val;
     }
-    if (combiner->count_down == 0) {
-      combiner->lock.unlock();
-      qthread_future<any>::signal(combiner->future_handle);
-    } else {
-      combiner->lock.unlock();
-    }
+    combiner->lock.unlock();
+    combiner->count_down.dec();
   }
 
   void rpc_receive_task(unsigned char task_id,

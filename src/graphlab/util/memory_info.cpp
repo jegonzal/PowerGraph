@@ -21,7 +21,6 @@
  */
 
 #include <iostream>
-#undef HAS_TCMALLOC
 #ifdef HAS_TCMALLOC
 #include <google/malloc_extension.h>
 #endif
