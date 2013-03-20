@@ -1,5 +1,5 @@
-/**  
- * Copyright (c) 2009 Carnegie Mellon University. 
+/**
+ * Copyright (c) 2009 Carnegie Mellon University.
  *     All rights reserved.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,10 +22,10 @@
 
 /**
  * Also contains code that is Copyright 2011 Yahoo! Inc.  All rights
- * reserved.  
+ * reserved.
  *
  * Contributed under the iCLA for:
- *    Joseph Gonzalez (jegonzal@yahoo-inc.com) 
+ *    Joseph Gonzalez (jegonzal@yahoo-inc.com)
  *
  */
 
@@ -44,7 +44,7 @@
 
 
 namespace graphlab {
- 
+
   /**
    * This is an enumeration for the possible return values for
    * get_next_tasks
@@ -52,9 +52,9 @@ namespace graphlab {
   struct sched_status {
     /// \brief the possible scheduler status.
     enum status_enum {
-      NEW_TASK,      /**< The get_next_tasks function returned a new task 
+      NEW_TASK,      /**< The get_next_tasks function returned a new task
                         to be executed */
-      EMPTY,         /**< The schedule is empty. */      
+      EMPTY,         /**< The schedule is empty. */
     };
   };
 
@@ -71,34 +71,41 @@ namespace graphlab {
   template<typename MessageType>
   class ischeduler {
   public:
-    
+
     typedef MessageType message_type;
 
-    
+
     /// destructor
     virtual ~ischeduler() {};
-        
+
     /** Called by engine before starting the schedule. */
     virtual void start() = 0;
+
+    /** returns true if the scheduler is empty */
+    virtual bool empty() const = 0;
+
+    /** returns the number of tasks in the scheduler. May be an
+        overestimate */
+    virtual size_t approx_size() const = 0;
 
 
     /**
      * Adds a message destined to the vertex vid to the schedule.
      */
-    virtual void schedule(const lvid_type vid, 
+    virtual void schedule(const lvid_type vid,
                           const message_type& message) = 0;
 
     /**
      * Adds a message destined to the vertex vid to the schedule
      */
-    virtual void schedule_from_execution_thread(const size_t cpuid, 
-                                                const lvid_type vid, 
+    virtual void schedule_from_execution_thread(const size_t cpuid,
+                                                const lvid_type vid,
                                                 const message_type& message) {
       schedule(vid, message);
     }
-    
 
-    /** 
+
+    /**
      * Schedule the message to be received by all vertices in the
      * graph.
      */
@@ -114,7 +121,7 @@ namespace graphlab {
      *  \retval NEWTASK There is a new message to process
      *  \retval EMPTY There are no messages to process
      */
-    virtual sched_status::status_enum 
+    virtual sched_status::status_enum
     get_next(const size_t cpuid, lvid_type& ret_vid,
              message_type& ret_msg) = 0;
 
@@ -142,14 +149,14 @@ namespace graphlab {
      */
     virtual void
     schedule_from_execution_thread(const size_t cpuid, lvid_type vid) = 0;
-    
+
     /**
      * Schedules vertex vid using the stored message that was previously
      * placed using place.
      */
     virtual void schedule(lvid_type vid) { }
 
-    
+
     /**
      * This is called after a message has been received.
      */

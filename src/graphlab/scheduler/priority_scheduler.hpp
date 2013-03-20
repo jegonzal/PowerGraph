@@ -1,5 +1,5 @@
-/**  
- * Copyright (c) 2009 Carnegie Mellon University. 
+/**
+ * Copyright (c) 2009 Carnegie Mellon University.
  *     All rights reserved.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
@@ -49,7 +49,7 @@ namespace graphlab {
   /** \ingroup group_schedulers
    */
   template<typename Message>
-  class priority_scheduler : public ischeduler<Message> {  
+  class priority_scheduler : public ischeduler<Message> {
   public:
 
     typedef Message message_type;
@@ -66,7 +66,7 @@ namespace graphlab {
     double min_priority;
 
     // Terminator
- 
+
 
 
   public:
@@ -74,8 +74,8 @@ namespace graphlab {
     priority_scheduler(size_t num_vertices,
                        const graphlab_options& opts) :
       messages(num_vertices), multi(3),
-      current_queue(opts.get_ncpus()), 
-      min_priority(-std::numeric_limits<double>::max()) {     
+      current_queue(opts.get_ncpus()),
+      min_priority(-std::numeric_limits<double>::max()) {
       set_options(opts);
     }
 
@@ -88,7 +88,7 @@ namespace graphlab {
         ASSERT_GE(new_ncpus, 1);
         current_queue.resize(new_ncpus);
       }
-      
+
       std::vector<std::string> keys = opts.get_scheduler_args().get_option_keys();
       foreach(std::string opt, keys) {
         if (opt == "multi") {
@@ -99,7 +99,7 @@ namespace graphlab {
           logstream(LOG_FATAL) << "Unexpected Scheduler Option: " << opt << std::endl;
         }
       }
-      
+
       const size_t nqueues = std::max(multi*current_queue.size(), size_t(1));
       // changing the number of queues.
       // reinsert everything
@@ -108,11 +108,11 @@ namespace graphlab {
         std::swap(old_queues, queues);
         queues.resize(nqueues);
         locks.resize(nqueues);
-        
+
         size_t idx = 0;
         for (size_t i = 0;i < old_queues.size(); ++i) {
           while (!old_queues[i].empty()) {
-            queues[idx].push(old_queues[i].top().first, 
+            queues[idx].push(old_queues[i].top().first,
                             old_queues[i].top().second);
             old_queues[i].pop();
             ++idx;
@@ -122,19 +122,19 @@ namespace graphlab {
     }
 
     void start() {  }
-   
 
-    void schedule(const lvid_type vid, 
-                  const message_type& msg) {      
+
+    void schedule(const lvid_type vid,
+                  const message_type& msg) {
       const size_t idx = vid % queues.size();
       message_type combined_message;
-      
+
       messages.add(vid, msg, combined_message);
       // If the new priority will is above priority, put it in the queue
       if (scheduler_impl::get_message_priority(combined_message) >= min_priority) {
-        locks[idx].lock(); 
-        queues[idx].push_or_update(vid, 
-                                    scheduler_impl::get_message_priority(combined_message)); 
+        locks[idx].lock();
+        queues[idx].push_or_update(vid,
+                                    scheduler_impl::get_message_priority(combined_message));
         locks[idx].unlock();
       }
     } // end of schedule
@@ -145,13 +145,13 @@ namespace graphlab {
                                         const lvid_type vid) {
       const size_t idx = vid % queues.size();
       message_type combined_message;
-      
+
       messages.peek(vid, combined_message);
       // If the new priority will is above priority, put it in the queue
       if (scheduler_impl::get_message_priority(combined_message) >= min_priority) {
-        locks[idx].lock(); 
-        queues[idx].push_or_update(vid, 
-                                    scheduler_impl::get_message_priority(combined_message)); 
+        locks[idx].lock();
+        queues[idx].push_or_update(vid,
+                                    scheduler_impl::get_message_priority(combined_message));
         locks[idx].unlock();
       }
     } // end of schedule
@@ -161,12 +161,12 @@ namespace graphlab {
     void schedule_all(const message_type& msg,
                       const std::string& order) {
       if(order == "shuffle") {
-        std::vector<lvid_type> permutation = 
-          random::permutation<lvid_type>(messages.size());       
+        std::vector<lvid_type> permutation =
+          random::permutation<lvid_type>(messages.size());
         foreach(lvid_type vid, permutation)  schedule(vid, msg);
       } else {
         for (lvid_type vid = 0; vid < messages.size(); ++vid)
-          schedule(vid, msg);      
+          schedule(vid, msg);
       }
     } // end of schedule_all
 
@@ -174,6 +174,24 @@ namespace graphlab {
                    const lvid_type vid,
                    const message_type& msg) { }
 
+    bool empty() const {
+      for(size_t i = 0; i < multi; ++i) {
+        if(!queues[i].empty() &&
+            queues[i].top().second >= min_priority) return false;
+      }
+      return true;
+    }
+
+    size_t approx_size() const {
+      size_t sum = 0;
+      for(size_t i = 0; i < multi; ++i) {
+        if(!queues[i].empty() &&
+            queues[i].top().second >= min_priority) {
+          sum += queues[i].size();
+        }
+      }
+      return sum;
+    }
 
     /** Get the next element in the queue */
     sched_status::status_enum get_next(const size_t cpuid,
@@ -184,7 +202,7 @@ namespace graphlab {
         for(size_t i = 0; i < multi; ++i) {
           const size_t idx = (++current_queue[cpuid] % multi) + cpuid * multi;
           locks[idx].lock();
-          if(!queues[idx].empty() && 
+          if(!queues[idx].empty() &&
             queues[idx].top().second >= min_priority) {
             ret_vid = queues[idx].pop().first;
             const bool get_success = messages.test_and_get(ret_vid, ret_msg);
@@ -199,7 +217,7 @@ namespace graphlab {
           const size_t idx = ++current_queue[cpuid] % queues.size();
           if(!queues[idx].empty()) { // quick pretest
             locks[idx].lock();
-            if(!queues[idx].empty() && 
+            if(!queues[idx].empty() &&
               queues[idx].top().second >= min_priority) {
               ret_vid = queues[idx].pop().first;
               const bool get_success = messages.test_and_get(ret_vid, ret_msg);
@@ -212,7 +230,7 @@ namespace graphlab {
         }
         break;
       }
-      return sched_status::EMPTY;     
+      return sched_status::EMPTY;
     } // end of get_next_task
 
 
@@ -222,10 +240,10 @@ namespace graphlab {
 
 
 
-    sched_status::status_enum 
+    sched_status::status_enum
     get_specific(lvid_type vid,
                  message_type& ret_msg) {
-      bool get_success = messages.test_and_get(vid, ret_msg); 
+      bool get_success = messages.test_and_get(vid, ret_msg);
       if (get_success) return sched_status::NEW_TASK;
       else return sched_status::EMPTY;
     }
@@ -236,8 +254,8 @@ namespace graphlab {
     }
 
 
-    static void print_options_help(std::ostream& out) { 
-      out << "\t multi = [number of queues per thread. Default = 3].\n" 
+    static void print_options_help(std::ostream& out) {
+      out << "\t multi = [number of queues per thread. Default = 3].\n"
           << "min_priority = [double, minimum priority required to receive \n"
           << "\t a message, default = -inf]\n";
     }

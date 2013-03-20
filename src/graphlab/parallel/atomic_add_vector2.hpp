@@ -1,5 +1,5 @@
-/**  
- * Copyright (c) 2009 Carnegie Mellon University. 
+/**
+ * Copyright (c) 2009 Carnegie Mellon University.
  *     All rights reserved.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
@@ -23,10 +23,10 @@
 
 /**
  * Also contains code that is Copyright 2011 Yahoo! Inc.  All rights
- * reserved.  
+ * reserved.
  *
  * Contributed under the iCLA for:
- *    Joseph Gonzalez (jegonzal@yahoo-inc.com) 
+ *    Joseph Gonzalez (jegonzal@yahoo-inc.com)
  *
  */
 
@@ -48,8 +48,8 @@ namespace graphlab {
 
   /**
    * \TODO DOCUMENT THIS CLASS
-   */ 
-  
+   */
+
   template<typename ValueType>
   class atomic_add_vector2 {
   public:
@@ -58,10 +58,10 @@ namespace graphlab {
     // We needed a second "NULL" pointer value to indicate a value
     // that is being swapped.
 #define VALUE_PENDING (value_type*)(size_t)(-1)
-    
+
   private:
     atomic<size_t> joincounter;
-    
+
     class atomic_box_type {
     private:
       simple_spinlock lock;
@@ -75,21 +75,21 @@ namespace graphlab {
                       atomic<size_t>& joincounter) {
         bool first_set = false;
         lock.lock();
-        if(!_empty) value += other; 
+        if(!_empty) value += other;
         else { value = other; first_set = true; }
         new_value = value;
         _empty = false;
         lock.unlock();
         return first_set;
       }
-                
+
       void clear() {
         value_type val; test_and_get(val);
       }
-      
-      bool empty() { return _empty; }
-     
-     
+
+      bool empty() const { return _empty; }
+
+
       inline bool peek(value_type& ret_val) {
         bool success = false;
         lock.lock();
@@ -100,7 +100,7 @@ namespace graphlab {
         lock.unlock();
         return success;
       } // end of peek
-     
+
       inline bool test_and_get(value_type& ret_val) {
         bool success = false;
         lock.lock();
@@ -116,8 +116,8 @@ namespace graphlab {
     }; // end of atomic_box_type;
 
 
-   
-    typedef std::vector< atomic_box_type > atomic_box_vec_type; 
+
+    typedef std::vector< atomic_box_type > atomic_box_vec_type;
     atomic_box_vec_type atomic_box_vec;
 
 
@@ -139,12 +139,12 @@ namespace graphlab {
 
     /** Add a task to the set returning false if the task was already
         present. */
-    bool add(const size_t& idx, 
+    bool add(const size_t& idx,
              const value_type& val) {
       ASSERT_LT(idx, atomic_box_vec.size());
       value_type new_value;
       return atomic_box_vec[idx].set( val, new_value, joincounter);
-    } // end of add task to set 
+    } // end of add task to set
 
 
     // /** Add a task to the set returning false if the task was already
@@ -156,27 +156,27 @@ namespace graphlab {
     // } // end of add task to set
 
 
-    bool add(const size_t& idx, 
+    bool add(const size_t& idx,
              const value_type& val,
              value_type& new_value) {
       ASSERT_LT(idx, atomic_box_vec.size());
       return atomic_box_vec[idx].set(val, new_value, joincounter);
-    } // end of add task to set 
+    } // end of add task to set
 
 
-    
+
     // /** Add a task to the set returning false if the task was already
     //     present. Returns the priority of the task before and after
-    //     insertion. If the task did not exist prior to the add, 
+    //     insertion. If the task did not exist prior to the add,
     //     prev_priority = 0 */
-    // bool add(const size_t& idx, 
+    // bool add(const size_t& idx,
     //          const value_type& val,
     //          double& prev_priority,
     //          double& new_priority) {
     //   ASSERT_LT(idx, atomic_box_vec.size());
-    //   return atomic_box_vec[idx].set( val, prev_priority, new_priority, 
+    //   return atomic_box_vec[idx].set( val, prev_priority, new_priority,
     //                            joincounter);
-    // } // end of add task to set 
+    // } // end of add task to set
 
     // bool get_nondestructive_unsafe(const size_t& idx,
     //                                value_type& ret_val) {
@@ -200,26 +200,26 @@ namespace graphlab {
       ASSERT_LT(idx, atomic_box_vec.size());
       return atomic_box_vec[idx].peek(ret_val);
     }
-    
-    bool empty(const size_t& idx) {
+
+    bool empty(const size_t& idx) const {
       return atomic_box_vec[idx].empty();
     }
 
-    size_t size() const { 
-      return atomic_box_vec.size(); 
+    size_t size() const {
+      return atomic_box_vec.size();
     }
-    
-    size_t num_joins() const { 
+
+    size_t num_joins() const {
       return joincounter.value;
     }
-    
-    
+
+
     void clear() {
       for (size_t i = 0; i < atomic_box_vec.size(); ++i) clear(i);
     }
 
     void clear(size_t i) { atomic_box_vec[i].clear(); }
-    
+
   }; // end of vertex map
 
 }; // end of namespace graphlab

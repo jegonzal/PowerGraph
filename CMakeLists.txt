@@ -211,6 +211,12 @@ endforeach()
 message(STATUS "Boost Shared libs: " ${Boost_SHARED_LIBRARIES})
 
 
+if(APPLE)
+  set (tcmalloc_shared "--enable-shared=yes")
+else()
+  set (tcmalloc_shared "--enable-shared=no")
+endif()
+
 # TCMalloc  ===================================================================
 # We use tcmalloc for improved memory allocation performance
 ExternalProject_Add(libtcmalloc
@@ -218,7 +224,7 @@ ExternalProject_Add(libtcmalloc
   URL http://gperftools.googlecode.com/files/gperftools-2.0.tar.gz
   URL_MD5 13f6e8961bc6a26749783137995786b6
   PATCH_COMMAND patch -N -p0 -i ${GraphLab_SOURCE_DIR}/patches/tcmalloc.patch || true
-  CONFIGURE_COMMAND <SOURCE_DIR>/configure --enable-frame-pointers --prefix=<INSTALL_DIR> --enable-shared=no
+  CONFIGURE_COMMAND <SOURCE_DIR>/configure --enable-frame-pointers --prefix=<INSTALL_DIR> ${tcmalloc_shared}
   INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local)
 # link_libraries(tcmalloc)
 set(TCMALLOC-FOUND 1)
@@ -468,6 +474,15 @@ endif(MPI_FOUND)
 
 
 
+ExternalProject_Add(qthreads
+                    PREFIX ${GraphLab_SOURCE_DIR}/deps/qthreads
+                    URL http://graphlab.org/deps/qthreads.tar.bz2
+                    URL_MD5 cd91cefdcc04cec19a933009e11d23c6
+                    INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local
+                    BUILD_IN_SOURCE 1
+                    CONFIGURE_COMMAND ./configure --prefix=<INSTALL_DIR> --enable-oversubscription --with-scheduler=nemesis --enable-lf-febs -enable-condwait-queue
+                    )
+
 
 
 ## =============================================================
@@ -478,8 +493,9 @@ macro(requires_core_deps NAME)
     z
     tcmalloc
     event event_pthreads
+    qthread
     json)
-  add_dependencies(${NAME} boost libtcmalloc libevent libjson)
+  add_dependencies(${NAME} boost libtcmalloc libevent libjson qthreads)
   if(MPI_FOUND)
     target_link_libraries(${NAME} ${MPI_LIBRARY} ${MPI_EXTRA_LIBRARY})
   endif(MPI_FOUND)

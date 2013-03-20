@@ -1,5 +1,5 @@
-/**  
- * Copyright (c) 2009 Carnegie Mellon University. 
+/**
+ * Copyright (c) 2009 Carnegie Mellon University.
  *     All rights reserved.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
@@ -36,6 +36,6 @@
 #include <graphlab/serialization/serializable_pod.hpp>
 #include <graphlab/serialization/unsupported_serialize.hpp>
 #include <graphlab/serialization/serialize_to_from_string.hpp>
-
-#endif 
+#include <graphlab/serialization/conditional_serialize.hpp>
+#endif
 
