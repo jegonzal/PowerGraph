@@ -391,11 +391,11 @@ class gl3engine {
     vlocks[lvid].unlock();
   }
 
-  void vthread_start() {
+  void vthread_start(size_t id) {
     context_type context;
     context.engine = this;
     while(!finished) {
-      exec_subtasks(qthread_id() % ncpus);
+      exec_subtasks(id % ncpus);
       lvid_type lvid;
       message_type msg;
       sched_status::status_enum stat =
@@ -476,13 +476,13 @@ class gl3engine {
     }
   }
 
-  void task_exec_start() {
+  void task_exec_start(size_t id) {
     timer ti;
     ti.start();
     double last_print = 0;
     double next_processing_time = 0.05;
     do {
-      exec_subtasks(qthread_id() % ncpus);
+      exec_subtasks(id);
       if (ti.current_time() >= next_processing_time) {
         //rmi.dc().start_handler_threads(worker, ncpus);
         size_t p = pingid.inc() % rmi.numprocs();
@@ -538,13 +538,13 @@ class gl3engine {
       //rmi.dc().stop_handler_threads(0, 1);
       //logger(LOG_EMPH, "Forking %d subtask executors", ncpus);
       for (size_t i = 0;i < ncpus; ++i) {
-        execution_group.launch(boost::bind(&gl3engine::task_exec_start, this));
+        execution_group.launch(boost::bind(&gl3engine::task_exec_start, this, i));
       }
 
       //logger(LOG_EMPH, "Forking %d program executors", num_to_spawn);
       for (size_t i = 0;i < num_to_spawn ; ++i) {
         active_vthread_count.inc();
-        execution_group.launch(boost::bind(&gl3engine::vthread_start, this));
+        execution_group.launch(boost::bind(&gl3engine::vthread_start, this, i));
       }
       execution_group.join();
 
