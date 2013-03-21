@@ -31,6 +31,7 @@ namespace qthread_tools {
       qthread_initialized = true;
       std::cout << "Number of workers: " << qthread_num_workers() << "\n";
       std::cout << "Number of shepherds: " << qthread_num_shepherds() << "\n";
+      std::cout << "Stacksize : " << stacksize << "\n";
     }
   }
 
