@@ -46,7 +46,7 @@ namespace dc_impl {
     packet_hdr* hdr = reinterpret_cast<packet_hdr*>(data + sizeof(size_t));
     memset(hdr, 0, sizeof(packet_hdr));
 
-    hdr->len = len - sizeof(packet_hdr);
+    hdr->len = len - sizeof(packet_hdr) - sizeof(size_t);
     hdr->src = dc->procid();
     hdr->sequentialization_key = dc->get_sequentialization_key();
     hdr->packet_type_mask = packet_type_mask;
