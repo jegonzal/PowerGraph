@@ -15,8 +15,12 @@ struct gl3context {
   typedef typename EngineType::message_type message_type;
 
   EngineType* engine;
-
   lvid_type lvid;
+  size_t thread_id;
+
+  void poll() {
+    engine->poll(thread_id);
+  }
 
   any map_reduce(size_t taskid,
                  edge_dir_type edir) {

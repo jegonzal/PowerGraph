@@ -47,7 +47,7 @@ void init_vertex(graph_type::vertex_type& vertex) { vertex.data() = 1; }
 
 
 std::vector<double> true_weights;
-double stepsize = 0.1; // eta
+double stepsize = 0.2; // eta
 std::vector<double> w;
 
 void generate_ground_truth_weight_vector() {
@@ -162,6 +162,7 @@ void logistic_sgd(engine_type::context_type& context) {
     context.dht_scatter(DELTA_SCATTER, weights);
     num_points_processed.inc();
     logger_ontick(1, LOG_EMPH, "Processed: %ld", num_points_processed.value);
+    context.poll();
   }
 }
 
@@ -199,20 +200,25 @@ int main(int argc, char** argv) {
   random::seed();
   graph_type graph(dc);
   graph.finalize();
-  timer ti; ti.start();
   engine_type engine(dc, graph, clopts);
   engine.register_dht_scatter(DELTA_SCATTER, delta_scatter_fn);
+if (dc.procid() == 0) {
+    print_l1_param_error(engine.get_context());
+  }
+  engine.start();
 
+  timer ti; ti.start();
   for (size_t i = 0;i < NUM_VTHREADS; ++i) {
     engine.launch_other_task(logistic_sgd);
   }
 
   engine.start();
+
+  const float runtime = ti.current_time();
   if (dc.procid() == 0) {
     print_l1_param_error(engine.get_context());
   }
   engine.start();
-  const float runtime = ti.current_time();
   dc.cout() << "Finished Running engine in " << runtime
             << " seconds." << std::endl;
   dc.cout() << engine.num_updates()

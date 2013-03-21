@@ -364,15 +364,18 @@ class gl3engine {
   }
 
   void launch_other_task(boost::function<void (context_type&)> fn) {
+    size_t target_queue = thread_counter++;
     execution_group.launch(boost::bind(&gl3engine::task_start,
                                        this,
-                                       fn));
+                                       fn, 
+                                       target_queue));
   }
 
-  void task_start(boost::function<void (context_type&)> fn) {
+  void task_start(boost::function<void (context_type&)> fn, size_t id) {
     context_type context;
     context.engine = this;
     context.lvid = lvid_type(-1);
+    context.thread_id = id;    
     fn(context);
   }
 
@@ -553,7 +556,7 @@ class gl3engine {
   bool exec_scheduler_task(size_t id) {
     context_type context;
     context.engine = this;
-
+    context.thread_id = id;    
     lvid_type lvid;
     message_type msg;
     sched_status::status_enum stat =
@@ -592,6 +595,13 @@ class gl3engine {
     }
     vlocks[lvid].unlock();
     return true;
+  }
+
+  void poll(size_t id) {
+    rmi.dc().handle_incoming_calls(id % ncpus, ncpus);
+    exec_subtasks(id % ncpus);
+    exec_scheduler_task(id % ncpus);
+    qthread_yield();
   }
 
   void vthread_start(size_t id) {
