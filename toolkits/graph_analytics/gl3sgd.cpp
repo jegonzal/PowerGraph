@@ -199,6 +199,7 @@ int main(int argc, char** argv) {
   random::seed();
   graph_type graph(dc);
   graph.finalize();
+  timer ti; ti.start();
   engine_type engine(dc, graph, clopts);
   engine.register_dht_scatter(DELTA_SCATTER, delta_scatter_fn);
 
@@ -211,7 +212,7 @@ int main(int argc, char** argv) {
     print_l1_param_error(engine.get_context());
   }
   engine.start();
-  const float runtime = engine.elapsed_seconds();
+  const float runtime = ti.current_time();
   dc.cout() << "Finished Running engine in " << runtime
             << " seconds." << std::endl;
   dc.cout() << engine.num_updates()
