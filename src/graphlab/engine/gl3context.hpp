@@ -20,6 +20,7 @@ struct gl3context {
 
   any map_reduce(size_t taskid,
                  edge_dir_type edir) {
+    ASSERT_NE(lvid, (lvid_type)(-1));
     map_reduce_neighbors_task_param task_param;
     task_param.in = (edir == IN_EDGES) || (edir == ALL_EDGES);
     task_param.out = (edir == OUT_EDGES) || (edir == ALL_EDGES);
@@ -29,12 +30,83 @@ struct gl3context {
 
   void broadcast_signal(edge_dir_type edir,
                         const message_type& msg = message_type()) {
+    ASSERT_NE(lvid, (lvid_type)(-1));
     broadcast_task_param task_param;
     task_param.in = (edir == IN_EDGES) || (edir == ALL_EDGES);
     task_param.out = (edir == OUT_EDGES) || (edir == ALL_EDGES);
     task_param.message = msg;
     engine->spawn_task(lvid, GL3_BROADCAST_TASK_ID, any(task_param), true);
   }
+
+  boost::unordered_map<size_t, any>
+      dht_gather(const std::vector<size_t>& entries) {
+    boost::unordered_map<size_t, any> ret;
+    if (entries.size() == 0) return ret;
+
+    size_t nprocs = engine->rmi.numprocs();
+    // construct all the gather entries
+    std::vector<dht_gather_task_param> params(nprocs);
+    for (size_t i = 0;i < entries.size(); ++i) {
+      params[entries[i] % nprocs].gather_entries.push_back(entries[i]);
+    }
+
+    std::vector<procid_t> targetprocs;
+    std::vector<any> targetparam;
+
+    for (size_t i = 0;i < params.size(); ++i) {
+      if (!params[i].gather_entries.empty()) {
+        targetprocs.push_back(i);
+        targetparam.push_back(any(params[i]));
+      }
+    }
+
+    any res = engine->spawn_task(GL3_DHT_GATHER_TASK_ID,
+                                 targetprocs,
+                                 targetparam);
+
+    if (res.empty()) return ret;
+
+    std::vector<std::pair<size_t, any> >& retvec =
+        res.as<std::vector<std::pair<size_t, any> > >();
+
+    for (size_t i = 0;i < retvec.size(); ++i) {
+      ret[retvec[i].first].swap(retvec[i].second);
+    }
+    return ret;
+  }
+
+
+  void dht_scatter(size_t taskid,
+                   const boost::unordered_map<size_t, any>& entries) {
+    if (entries.size() == 0) return;
+
+    size_t nprocs = engine->rmi.numprocs();
+    // construct all the scatter entries
+    std::vector<dht_scatter_task_param> params(nprocs);
+    boost::unordered_map<size_t, any>::const_iterator iter = entries.begin();
+    while(iter != entries.end()) {
+      params[iter->first % nprocs].scatter_entries.push_back(
+          std::pair<size_t, any>(iter->first, iter->second));
+      ++iter;
+    }
+
+    std::vector<procid_t> targetprocs;
+    std::vector<any> targetparam;
+
+    for (size_t i = 0;i < params.size(); ++i) {
+      if (!params[i].scatter_entries.empty()) {
+        targetprocs.push_back(i);
+        targetparam.push_back(any(params[i]));
+      }
+    }
+
+    any res = engine->spawn_task(taskid,
+                                 targetprocs,
+                                 targetparam,
+                                 true);
+  }
+
+
 
 };
 

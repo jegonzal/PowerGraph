@@ -83,6 +83,9 @@ class gl3engine {
   atomic<size_t> programs_completed;
   atomic<size_t> tasks_completed;
 
+  size_t total_programs_completed;
+  size_t total_tasks_completed;
+
   atomic<size_t> active_vthread_count;
   atomic<size_t> thread_counter;
 
@@ -92,6 +95,10 @@ class gl3engine {
 
   bool block_vthread_launches;
   async_consensus* consensus;
+
+  static const size_t NUM_DHTS = 256;
+  mutex dht_lock[NUM_DHTS];
+  boost::unordered_map<size_t, any> dht[NUM_DHTS]; // a large dht
 
   /**
    * \brief The vertex locks protect access to vertex specific
@@ -114,6 +121,17 @@ class gl3engine {
   bool rpc_handlers_disabled;
 
   graphlab::qthread_group execution_group;
+
+
+  friend struct gl3task_descriptor<GraphType, engine_type>;
+  template <typename, typename, typename>
+  friend struct map_reduce_neighbors_task_descriptor;
+  friend struct broadcast_task_descriptor<GraphType, engine_type>;
+  friend struct dht_gather_task_descriptor<GraphType, engine_type>;
+  friend struct dht_scatter_task_descriptor<GraphType, engine_type>;
+
+  friend struct gl3context<engine_type>;
+  context_type base_context;
 
  public:
   gl3engine(distributed_control& dc, graph_type& graph,
@@ -160,6 +178,7 @@ class gl3engine {
 
     // make default registrations
     task_types[GL3_BROADCAST_TASK_ID] = new broadcast_task_descriptor<GraphType, engine_type>();
+    task_types[GL3_DHT_GATHER_TASK_ID] = new dht_gather_task_descriptor<GraphType, engine_type>();
     //
     // pre init
 #ifdef _OPENMP
@@ -174,12 +193,16 @@ class gl3engine {
     finished = false;
     programs_completed = 0;
     tasks_completed = 0;
+    total_programs_completed = 0;
+    total_tasks_completed = 0;
     active_vthread_count = 0;
 
 
 
     graphlab::qthread_tools::init(ncpus, 128 * 1024);
 
+    base_context.engine = this;
+    base_context.lvid = (lvid_type)(-1);
     rmi.full_barrier();
   }
 
@@ -225,24 +248,45 @@ class gl3engine {
                            MapFn mapfn,
                            CombineFn combinefn,
                            FRESULT(MapFn) zero = FRESULT(MapFn) () ) {
-    rmi.barrier();
     task_types[id] = create_map_reduce_task_impl<FRESULT(MapFn)>
         ::template create<NORMALIZE_FUNCTION(MapFn)>(mapfn, combinefn, zero);
+    rmi.barrier();
   }
+
+  void register_dht_scatter(size_t id,
+                           boost::function<void (any&, const any&)> scatter_fn) {
+    dht_scatter_task_descriptor<GraphType, engine_type>* desc =
+        new dht_scatter_task_descriptor<GraphType, engine_type>;
+    desc->scatter_fn = scatter_fn;
+    task_types[id] = desc;
+    rmi.barrier();
+  }
+
+
 
 
   void signal(vertex_id_type gvid,
               const message_type& message = message_type()) {
-    rmi.barrier();
-    internal_signal(graph.vertex(gvid), message);
-    rmi.barrier();
+    internal_signal_gvid(gvid, message);
   }
+
+  void internal_signal_gvid(vertex_id_type gvid,
+                            const message_type& message = message_type()) {
+    if (graph.is_master(gvid)) {
+      internal_signal(graph.vertex(gvid), message);
+    }
+  }
+
 
   void rpc_signal(vertex_id_type gvid,
                   const message_type& message) {
     internal_signal(graph.vertex(gvid), message);
   }
 
+
+  context_type& get_context() {
+    return base_context;
+  }
 
   void set_vertex_program(vertex_program_type uf) {
     active_function = uf;
@@ -319,6 +363,20 @@ class gl3engine {
     }
   }
 
+  void launch_other_task(boost::function<void (context_type&)> fn) {
+    execution_group.launch(boost::bind(&gl3engine::task_start,
+                                       this,
+                                       fn));
+  }
+
+  void task_start(boost::function<void (context_type&)> fn) {
+    context_type context;
+    context.engine = this;
+    context.lvid = lvid_type(-1);
+    fn(context);
+  }
+
+
   struct __attribute((__may_alias__)) future_combiner {
     any param;
     any result;
@@ -326,6 +384,52 @@ class gl3engine {
     unsigned char task_id;
     simple_spinlock lock;
   };
+
+  // a task which is not associated with any vertices
+  any spawn_task(unsigned char task_id,
+                 std::vector<procid_t>& target_machines,
+                 const std::vector<any>& task_param,
+                 bool no_reply = false) {
+    future_combiner combiner;
+    combiner.count_down = target_machines.size();
+    combiner.task_id = task_id;
+    combiner.param = task_param;
+
+    conditional_serialize<vertex_data_type> cs;
+    size_t cb = reinterpret_cast<size_t>(&combiner);
+    if (no_reply) cb = 0;
+
+    bool has_self_task = false;
+    size_t self_task_id = 0;
+    // if I am in the target_machines list, move myself to the front
+    for (size_t i = 0;i < target_machines.size(); ++i) {
+      if (target_machines[i] == rmi.procid()) {
+        has_self_task = true;
+        self_task_id = i;
+      } else {
+        ASSERT_LT(target_machines[i], rmi.numprocs());
+        rmi.remote_call(target_machines[i],
+                        &engine_type::rpc_receive_task,
+                        task_id,
+                        vertex_id_type(-1),
+                        cs,
+                        task_param[i],
+                        rmi.procid(),
+                        cb);
+      }
+    }
+    if (has_self_task) {
+      // we execute my own subtasks inplace
+      any ret = task_types[task_id]->exec(graph, vertex_id_type(-1), task_param[self_task_id], this);
+      if (!no_reply) task_reply(&combiner, ret);
+    }
+    if (!no_reply) {
+      while(combiner.count_down != 0) {
+        qthread_yield();
+      }
+    }
+    return combiner.result;
+  }
 
   any spawn_task(lvid_type lvid,
                  unsigned char task_id,
@@ -367,14 +471,15 @@ class gl3engine {
     */
     // unlock the task locks so we don't dead-lock with the subtask
     vlocks[lvid].unlock();
-    any ret = task_types[task_id]->exec(graph, lvertex.global_id(), task_param,
-                                        this, vlocks, elocks);
+    any ret = task_types[task_id]->exec(graph, lvertex.global_id(), task_param, this);
     if (!no_reply) {
       task_reply(&combiner, ret);
       while(combiner.count_down != 0) {
         qthread_yield();
       }
     }
+
+    while (!vlocks[lvid].try_lock()) qthread_yield();
     return combiner.result;
   }
   void task_reply_rpc(size_t handle, any& val) {
@@ -403,14 +508,15 @@ class gl3engine {
                         procid_t caller,
                         size_t handle) {
     //logstream(LOG_EMPH) << "Receiving subtask on handle " << (void*)(handle) << "\n";
-    lvid_type lvid = graph.local_vid(vid);
-    ASSERT_FALSE(graph.l_is_master(lvid));
-    if (vdata.hasval) {
-      vlocks[lvid].lock();
-      graph.l_vertex(lvid).data() = vdata.val;
-      vlocks[lvid].unlock();
+    if (vid != vertex_id_type(-1)) {
+      lvid_type lvid = graph.local_vid(vid);
+      ASSERT_FALSE(graph.l_is_master(lvid));
+      if (vdata.hasval) {
+        vlocks[lvid].lock();
+        graph.l_vertex(lvid).data() = vdata.val;
+        vlocks[lvid].unlock();
+      }
     }
-
     task* t = new task;
     t->origin = caller;
     t->param = param;
@@ -502,7 +608,9 @@ class gl3engine {
         else active_vthread_count.inc();
       }
       qthread_yield();
-      logger_ontick(1, LOG_EMPH, "programs completed: %ld", programs_completed.value);
+      if (programs_completed.value > 0) {
+        logger_ontick(1, LOG_EMPH, "programs completed: %ld", programs_completed.value);
+      }
     }
   }
 
@@ -527,8 +635,7 @@ class gl3engine {
              logstream(LOG_EMPH) << "Execing subtask type " << (int)(cur->task_id)
                                  << " on vertex " << cur->vid << "\n";
                                  */
-          any ret = task_types[cur->task_id]->exec(graph, cur->vid, cur->param,
-                                                   this, vlocks, elocks);
+          any ret = task_types[cur->task_id]->exec(graph, cur->vid, cur->param, this);
           // return to origin
           if (cur->handle != 0) {
             rmi.remote_call(cur->origin,
@@ -548,38 +655,6 @@ class gl3engine {
     return ret;
   }
 
-  void task_exec_start(size_t id) {
-    timer ti;
-    ti.start();
-    double last_print = 0;
-    double next_processing_time = 0.05;
-    do {
-      exec_subtasks(id % ncpus);
-      if (ti.current_time() >= next_processing_time) {
-        //rmi.dc().start_handler_threads(worker, ncpus);
-        size_t p = pingid.inc() % rmi.numprocs();
-        if (p == rmi.procid()) {
-          p = pingid.inc() % rmi.numprocs();
-        }
-        request_future<void> reqf = rmi.future_remote_request(p, &gl3engine::ping);
-        while(!reqf.is_ready()) {
-          exec_subtasks(id % ncpus);
-          qthread_yield();
-        }
-        reqf.wait();
-        next_processing_time = ti.current_time() + 0.05;
-        //rmi.dc().stop_handler_threads(worker, ncpus);
-      }
-
-      if (ti.current_time() - last_print > 1 && qthread_worker(NULL) == 0) {
-        std::cout << programs_completed << " updates completed\n";
-        last_print = ti.current_time();
-      }
-
-      qthread_yield();
-    } while(!finished && active_vthread_count > 0);
-  }
-
   execution_status::status_enum start() {
     timer ti;
     ti.start();
@@ -592,14 +667,19 @@ class gl3engine {
         if (consensus->end_done_critical_section(0)) break;
       }
     }
-    finished = true;
     engine_runtime = ti.current_time();
 
     size_t ctasks = programs_completed.value;
     rmi.all_reduce(ctasks);
-    programs_completed.value = ctasks;
+    total_programs_completed = ctasks;
 
 
+    ctasks = tasks_completed.value;
+    rmi.all_reduce(ctasks);
+    total_tasks_completed = ctasks;
+
+    consensus->reset();
+    rmi.barrier();
     return execution_status::TASK_DEPLETION;
   }
 

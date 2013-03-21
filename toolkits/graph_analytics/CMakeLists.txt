@@ -17,3 +17,4 @@ add_graphlab_executable(partitioning partitioning.cpp)
 
 add_graphlab_executable(gl3pagerank gl3pagerank.cpp)
 
+add_graphlab_executable(gl3sgd gl3sgd.cpp)

@@ -99,7 +99,7 @@ int main(int argc, char** argv) {
   command_line_options clopts("PageRank algorithm.");
   std::string graph_dir;
   std::string format = "adj";
-  std::string exec_type = "synchronous";
+  clopts.set_scheduler_type("fifo");
   clopts.attach_option("graph", graph_dir,
                        "The graph file.  If none is provided "
                        "then a toy graph will be created");
@@ -172,6 +172,7 @@ int main(int argc, char** argv) {
 
   // Tear-down communication layer and quit -----------------------------------
   mpi_tools::finalize();
+  qthread_tools::finalize();
   return EXIT_SUCCESS;
 } // End of main
 

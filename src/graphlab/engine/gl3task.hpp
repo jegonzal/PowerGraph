@@ -10,15 +10,15 @@
 #include <graphlab/macros_def.hpp>
 namespace graphlab {
 #define GL3_BROADCAST_TASK_ID 255
+#define GL3_DHT_GATHER_TASK_ID 254
+#define GL3_DHT_SCATTER_TASK_ID 253
 
 template <typename GraphType, typename EngineType>
 struct gl3task_descriptor {
   virtual any exec(GraphType& graph,
                    vertex_id_type,
                    const any& params,
-                   EngineType* engine,
-                   std::vector<simple_spinlock>& vlocks,
-                   std::vector<simple_spinlock>& elocks) = 0;
+                   EngineType* engine) = 0;
   virtual void combine(any& a, const any& b, const any& params) = 0;
 };
 
@@ -70,9 +70,7 @@ struct map_reduce_neighbors_task_descriptor: public gl3task_descriptor<GraphType
   }
 
   any exec(GraphType& graph, vertex_id_type vid, const any& params,
-           EngineType* engine,
-           std::vector<simple_spinlock>& vlocks,
-           std::vector<simple_spinlock>& elocks) {
+           EngineType* engine) {
     const map_reduce_neighbors_task_param& task_param = params.as<map_reduce_neighbors_task_param>();
 
     bool in = task_param.in;
@@ -91,9 +89,9 @@ struct map_reduce_neighbors_task_descriptor: public gl3task_descriptor<GraphType
       foreach(local_edge_type ledge, lvertex.in_edges()) {
         edge_type edge(ledge);
         vertex_type other(ledge.source());
-        elocks[ledge.id()].lock();
+        engine->elocks[ledge.id()].lock();
         combine_fn(agg, map_fn(vertex, edge, other));
-        elocks[ledge.id()].unlock();
+        engine->elocks[ledge.id()].unlock();
       }
     }
 
@@ -101,9 +99,9 @@ struct map_reduce_neighbors_task_descriptor: public gl3task_descriptor<GraphType
       foreach(local_edge_type ledge, lvertex.out_edges()) {
         edge_type edge(ledge);
         vertex_type other(ledge.target());
-        elocks[ledge.id()].lock();
+        engine->elocks[ledge.id()].lock();
         combine_fn(agg, map_fn(vertex, edge, other));
-        elocks[ledge.id()].unlock();
+        engine->elocks[ledge.id()].unlock();
       }
     }
     any ret(agg);
@@ -148,9 +146,7 @@ struct broadcast_task_descriptor: public gl3task_descriptor<GraphType, EngineTyp
   }
 
   any exec(GraphType& graph, vertex_id_type vid, const any& params,
-           EngineType* engine,
-           std::vector<simple_spinlock>& vlocks,
-           std::vector<simple_spinlock>& elocks) {
+           EngineType* engine) {
     const broadcast_task_param& task_param = params.as<broadcast_task_param>();
     typedef typename EngineType::message_type message_type;
     typedef typename GraphType::local_edge_type local_edge_type;
@@ -177,6 +173,104 @@ struct broadcast_task_descriptor: public gl3task_descriptor<GraphType, EngineTyp
     return any();
   }
 };
+
+
+/**************************************************************************/
+/*                                                                        */
+/*                    Defines the DHT Gather Task Type                    */
+/*                                                                        */
+/**************************************************************************/
+
+struct dht_gather_task_param {
+  std::vector<size_t> gather_entries;
+  void save(oarchive& oarc) const {
+    oarc << gather_entries;
+  }
+  void load(iarchive& iarc) {
+    iarc >> gather_entries;
+  }
+};
+
+
+
+template <typename GraphType, typename EngineType>
+struct dht_gather_task_descriptor: public gl3task_descriptor<GraphType, EngineType> {
+  typedef std::vector<std::pair<size_t, any> > gather_type;
+  any exec(GraphType& graph,
+           vertex_id_type,
+           const any& params,
+           EngineType* engine) {
+    const dht_gather_task_param& task_param = params.as<dht_gather_task_param>();
+    gather_type res;
+    for (size_t i = 0;i < task_param.gather_entries.size(); ++i) {
+      size_t entryid = task_param.gather_entries[i];
+      // now, the next 8 bits
+      size_t table = (entryid >> 8) % engine->NUM_DHTS;
+      engine->dht_lock[table].lock();
+      res.push_back(std::pair<size_t, any>(entryid, engine->dht[table][entryid]));
+      engine->dht_lock[table].unlock();
+    }
+    any anyres(res);
+    return anyres;
+  }
+
+  virtual void combine(any& a, const any& b, const any& params) {
+    gather_type& aval = a.as<gather_type>();
+    const gather_type& bval = b.as<const gather_type>();
+    for (size_t i = 0;i < bval.size(); ++i) {
+      aval.push_back(bval[i]);
+    }
+  }
+};
+
+
+
+/**************************************************************************/
+/*                                                                        */
+/*                    Defines the DHT ScatterTask Type                    */
+/*                                                                        */
+/**************************************************************************/
+
+struct dht_scatter_task_param {
+  std::vector<std::pair<size_t, any> > scatter_entries;
+ void save(oarchive& oarc) const {
+    oarc << scatter_entries;
+  }
+  void load(iarchive& iarc) {
+    iarc >> scatter_entries;
+  }
+};
+
+
+
+template <typename GraphType, typename EngineType>
+struct dht_scatter_task_descriptor: public gl3task_descriptor<GraphType, EngineType> {
+  typedef boost::function<void(any&, const any&)> scatter_fn_type;
+  scatter_fn_type scatter_fn;
+
+  any exec(GraphType& graph,
+           vertex_id_type,
+           const any& params,
+           EngineType* engine) {
+    const dht_scatter_task_param& task_param = params.as<dht_scatter_task_param>();
+    for (size_t i = 0;i < task_param.scatter_entries.size(); ++i) {
+      size_t entryid = task_param.scatter_entries[i].first;
+      // now, the next 8 bits
+      size_t table = (entryid >> 8) % engine->NUM_DHTS;
+      engine->dht_lock[table].lock();
+      scatter_fn(engine->dht[table][entryid], task_param.scatter_entries[i].second);
+      engine->dht_lock[table].unlock();
+    }
+    return any();
+  }
+
+
+
+  virtual void combine(any& a, const any& b, const any& params) {
+  }
+};
+
+
 
 
 
