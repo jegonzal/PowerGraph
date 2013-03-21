@@ -205,20 +205,20 @@ int main(int argc, char** argv) {
 if (dc.procid() == 0) {
     print_l1_param_error(engine.get_context());
   }
-  engine.start();
+  engine.sync();
 
   timer ti; ti.start();
   for (size_t i = 0;i < NUM_VTHREADS; ++i) {
     engine.launch_other_task(logistic_sgd);
   }
 
-  engine.start();
+  engine.sync();
 
   const float runtime = ti.current_time();
   if (dc.procid() == 0) {
     print_l1_param_error(engine.get_context());
   }
-  engine.start();
+  engine.sync();
   dc.cout() << "Finished Running engine in " << runtime
             << " seconds." << std::endl;
   dc.cout() << engine.num_updates()

@@ -154,7 +154,7 @@ int main(int argc, char** argv) {
   engine.set_vertex_program(update_function);
   engine.signal_all();
 
-  engine.start();
+  engine.sync();
   const float runtime = engine.elapsed_seconds();
   dc.cout() << "Finished Running engine in " << runtime
             << " seconds." << std::endl;
