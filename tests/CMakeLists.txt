@@ -61,3 +61,5 @@ add_test(test_vertex_set test_vertex_set)
 add_graphlab_executable(sort_test sort_test.cpp)
 
 add_graphlab_executable(hopscotch_test hopscotch_test.cpp)
+
+add_executable(dcsc_test dcsc_test.cpp)
