@@ -265,15 +265,15 @@ public:
  *
  * This is accomplished using the following equation:
  *
- *    w = inv(X' * X) * (X * y)
+ *    w = inv(X' * X) * (X' * y)
  *
  * We implement this in the Gather-Apply-Scatter model by:
  *
- *  1) Gather: returns the tuple (X' * X, X * y)
+ *  1) Gather: returns the tuple (X' * X, X' * y)
  *     Sum:   (aX' * aX, aX * ay) + (bX' * bX, bX * by) = 
  *                 (aX' * aX + bX' * bX, aX * ay + bX * by)
  *
- *  2) Apply: Solves  inv(X' * X) * (X * y)
+ *  2) Apply: Solves  inv(X' * X) * (X' * y)
  *
  *  3) Scatter: schedules the update of adjacent vertices if this
  *      vertex has changed sufficiently and the edge is not well
