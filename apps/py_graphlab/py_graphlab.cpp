@@ -49,11 +49,11 @@
 struct {
   const char *fn_name;
   PyObject *fn;
-} PyFn[] = {{.fn_name="transformVertex"}, {.fn_name="transformEdge"}, {.fn_name="saveVertex"}, {.fn_name="saveEdge"}, 
-           {.fn_name="gatherAgg"}, {.fn_name="gather"}, {.fn_name="apply"}, {.fn_name="scatter"}, 
-           {.fn_name="newEdge"}, {.fn_name="loadEdge"}, {.fn_name="storeEdge"}, 
-           {.fn_name="newVertex"}, {.fn_name="loadVertex"}, {.fn_name="storeVertex"}, 
-           {.fn_name="newAgg"}, {.fn_name="loadAgg"}, {.fn_name="storeAgg"}};
+} PyFn[] = {{"transformVertex", NULL}, {"transformEdge", NULL}, {"saveVertex", NULL}, {"saveEdge", NULL},
+           {"gatherAgg", NULL}, {"gather", NULL}, {"apply", NULL}, {"scatter", NULL},
+           {"newEdge", NULL}, {"loadEdge", NULL}, {"storeEdge", NULL},
+           {"newVertex", NULL}, {"loadVertex", NULL}, {"storeVertex", NULL},
+           {"newAgg", NULL}, {"loadAgg", NULL}, {"storeAgg", NULL}};
 
 #define PYFN_SIZE  (sizeof(PyFn)/sizeof(PyFn[0]))
 
@@ -202,7 +202,7 @@ void transform_edge(graph_type::edge_type& edge) {
 }
 
 class python_interface:
-  public graphlab::ivertex_program<graph_type, agg_class>,
+  public graphlab::ivertex_program<graph_type, agg_class, graphlab::messages::sum_priority>,
   public graphlab::IS_POD_TYPE {
 public:
   agg_class gather(icontext_type& context, const vertex_type& vertex, edge_type& edge) const {
@@ -234,9 +234,12 @@ public:
 #endif    
 
     Py_INCREF(total.obj);  // prevent SetItem from stealing total.obj, vertex.obj will be overwriiten
-    PyObject *pArgs = PyTuple_New(2);
+    PyObject *pArgs = PyTuple_New(4);
     PyTuple_SetItem(pArgs, 0, vertex.data().obj);
     PyTuple_SetItem(pArgs, 1, total.obj);
+    PyTuple_SetItem(pArgs, 2, PyInt_FromLong(vertex.num_in_edges()));
+    PyTuple_SetItem(pArgs, 3, PyInt_FromLong(vertex.num_out_edges()));
+
 
     vertex.data().obj = PyObject_CallObject(PyFn[PYFN_APPLY].fn, pArgs);
     Py_DECREF(pArgs);
@@ -263,9 +266,9 @@ public:
     PyObject *pValue = PyObject_CallObject(PyFn[PYFN_SCATTER].fn, pArgs);
     Py_DECREF(pArgs);
     
-    int signal_result = PyInt_AsLong(PyTuple_GetItem(pValue, 0));
-    if (signal_result) {
-      context.signal(edge.target());
+    const double signal_result = PyFloat_AsDouble(PyTuple_GetItem(pValue, 0));
+    if (signal_result >= 0) {
+      context.signal(edge.target(), signal_result);
     }
       
     PyObject *edgedata_result = PyTuple_GetItem(pValue, 1);

@@ -21,11 +21,14 @@ def saveVertex(vertex):
 def gather(srcData, targetData, edgeData, numIn, numOut):
 	return 0.85*srcData.pr/numOut;
 
-def apply(targetData, aggInst):
+def apply(targetData, aggInst, numIn, numOut):
 	newval = aggInst.sum+0.15;
 	delta = newval-targetData.pr;
 	return vertexDataClass(newval, delta);
 
-def scatter(srcData, targetData, edgeData, numIn, numOut):	
-	return ((abs(srcData.prDelta) > 0.01), None, None);
+def scatter(srcData, targetData, edgeData, numIn, numOut):
+    if abs(srcData.prDelta) > 0.01:
+        return (1.0, None, None);
+    else:
+        return (-1.0, None, None);
 
