@@ -604,7 +604,8 @@ namespace graphlab {
     bool factorized_consistency;
     
     bool handler_intercept;
-
+    
+    bool disable_locks;
 
     bool endgame_mode;
 
@@ -681,8 +682,9 @@ namespace graphlab {
       timed_termination = (size_t)(-1);
       use_cache = false;
       factorized_consistency = true;
-      handler_intercept = true;
+      handler_intercept = rmi.numprocs() > 1;
       track_task_retire_time = false;
+      disable_locks = false;
       termination_reason = execution_status::UNSET;
       set_options(opts);
       
@@ -736,6 +738,11 @@ namespace graphlab {
           max_clean_forks = graph.num_local_edges() * max_clean_fraction;
         } else if (opt == "handler_intercept") {
           opts.get_engine_args().get_option("handler_intercept", handler_intercept);
+        } else if (opt == "disable_locks") {
+          opts.get_engine_args().get_option("disable_locks", disable_locks);
+          if (rmi.procid() == 0) 
+            logstream(LOG_EMPH) << "Engine Option: disable_locks = " 
+                                << disable_locks << std::endl;
         } else if (opt == "max_pending") {
           opts.get_engine_args().get_option("max_pending", max_pending);
           if (rmi.procid() == 0) 
@@ -1229,7 +1236,7 @@ namespace graphlab {
       lvid_type lvid = graph.local_vid(vid);
       vstate[lvid].lock();
       vstate[lvid].combined_gather += uf;
-      decrement_gather_counter(lvid);
+      decrement_gather_counter(lvid, true /* from rpc */);
       vstate[lvid].unlock();
     }
 
@@ -1241,8 +1248,11 @@ namespace graphlab {
      * which have completed the gather. When all machines have responded
      * this function switches the vertex to the APPLYING state.
      * Must be called with locks
+     *
+     * Return true if fast path possible. i.e. this was called locally
+     * and the counter went to zero
      */
-    void decrement_gather_counter(const lvid_type lvid) {
+    bool decrement_gather_counter(const lvid_type lvid, bool from_rpc = false) {
       vstate[lvid].apply_count_down--;
       logstream(LOG_DEBUG) << rmi.procid() << ": Partial Gather Complete: " 
                     << graph.global_vid(lvid) << "(" << vstate[lvid].apply_count_down << ")" << std::endl;
@@ -1250,7 +1260,14 @@ namespace graphlab {
         logstream(LOG_DEBUG) << rmi.procid() << ": Gather Complete " 
                              << graph.global_vid(lvid) << std::endl;
         vstate[lvid].state = APPLYING;
-        add_internal_task(lvid);
+        // if numprocs == 1, we fast path it. and fall through into the apply/scatter
+        // immediately in the state machine
+        if (from_rpc) {
+          add_internal_task(lvid);
+          return false;
+        } else {
+          return true;
+        }
       }
     }
 
@@ -1340,34 +1357,34 @@ namespace graphlab {
 
       if(gatherdir == graphlab::IN_EDGES ||
         gatherdir == graphlab::ALL_EDGES) {
-        factorized_lock_edge2_begin(lvid);
+        if (!disable_locks) factorized_lock_edge2_begin(lvid);
         foreach(local_edge_type edge, lvertex.in_edges()) {
-          if (factorized_consistency) {
+          if (!disable_locks && factorized_consistency) {
             factorized_lock_edge2(lvid, edge.source().id());
           }
           edge_type e(edge);
           (*gather_target) +=
                       vstate[lvid].vertex_program.gather(context, vertex, e);
-          if (factorized_consistency) {
+          if (factorized_consistency && !disable_locks) {
             factorized_unlock_edge2(lvid, edge.source().id());
           }
         }
-        factorized_unlock_edge2_end(lvid);
+        if (!disable_locks) factorized_unlock_edge2_end(lvid);
         INCREMENT_EVENT(EVENT_GATHERS, lvertex.num_in_edges());
       }
       if(gatherdir == graphlab::OUT_EDGES ||
         gatherdir == graphlab::ALL_EDGES) {
-        factorized_lock_edge2_begin(lvid);
+        if (!disable_locks) factorized_lock_edge2_begin(lvid);
         foreach(local_edge_type edge, lvertex.out_edges()) {
-          if (factorized_consistency) {
+          if (!disable_locks && factorized_consistency) {
             factorized_lock_edge2(lvid, edge.target().id());
           }
           edge_type e(edge);
           (*gather_target) +=
                       vstate[lvid].vertex_program.gather(context, vertex, e);
-          if (factorized_consistency) factorized_unlock_edge2(lvid, edge.target().id());
+          if (factorized_consistency && !disable_locks) factorized_unlock_edge2(lvid, edge.target().id());
         }
-        factorized_unlock_edge2_end(lvid);
+        if (!disable_locks) factorized_unlock_edge2_end(lvid);
         INCREMENT_EVENT(EVENT_GATHERS, lvertex.num_out_edges());
       }
 
@@ -1389,8 +1406,10 @@ namespace graphlab {
      * This function performs do_gather() on vertex lvid.
      * The resultant gathered value is then sent back to the master
      * for combining.
+     * Return true if fast_path. i.e. counter is zero, we avoid inserting  
+     * into the internal task queue 
      */
-    void process_gather(lvid_type lvid) {
+    bool process_gather(lvid_type lvid) {
 
       const vertex_id_type vid = graph.global_vid(lvid);
       logstream(LOG_DEBUG) << rmi.procid() << ": Gathering on " << vid
@@ -1399,7 +1418,7 @@ namespace graphlab {
 
       const procid_t vowner = graph.l_get_vertex_record(lvid).owner;
       if (vowner == rmi.procid()) {
-        decrement_gather_counter(lvid);
+        return decrement_gather_counter(lvid);
       } else {
         vstate[lvid].state = MIRROR_SCATTERING;
         logstream(LOG_DEBUG) << rmi.procid() << ": Send Gather Complete of " << vid
@@ -1411,6 +1430,7 @@ namespace graphlab {
                         vstate[lvid].combined_gather);
 
         vstate[lvid].combined_gather.clear();
+        return false;
       }
     }
 
@@ -1504,22 +1524,34 @@ namespace graphlab {
       
       if(scatterdir == graphlab::IN_EDGES || 
          scatterdir == graphlab::ALL_EDGES) {
-        foreach(const local_edge_type& edge, lvertex.in_edges()) {
-          if (factorized_consistency) factorized_lock_edge(edge);
+        if (!disable_locks) factorized_lock_edge2_begin(lvid);
+        foreach(local_edge_type edge, lvertex.in_edges()) {
+          if (!disable_locks && factorized_consistency) {
+            factorized_lock_edge2(lvid, edge.source().id());
+          }
           edge_type e(edge);
           vstate[lvid].vertex_program.scatter(context, vertex, e);
-          if (factorized_consistency) factorized_unlock_edge(edge);
+          if (!disable_locks && factorized_consistency) {
+            factorized_unlock_edge2(lvid, edge.source().id());
+          }
         }
+        if (!disable_locks) factorized_unlock_edge2_end(lvid);
         INCREMENT_EVENT(EVENT_SCATTERS, lvertex.num_in_edges());
       }
       if(scatterdir == graphlab::OUT_EDGES ||
          scatterdir == graphlab::ALL_EDGES) {
-        foreach(const local_edge_type& edge, lvertex.out_edges()) {
-          if (factorized_consistency) factorized_lock_edge(edge);
+        if (!disable_locks) factorized_lock_edge2_begin(lvid);
+        foreach(local_edge_type edge, lvertex.out_edges()) {
+          if (!disable_locks && factorized_consistency) {
+            factorized_lock_edge2(lvid, edge.target().id());
+          }
           edge_type e(edge);
           vstate[lvid].vertex_program.scatter(context, vertex, e);
-          if (factorized_consistency) factorized_unlock_edge(edge);
+          if (!disable_locks && factorized_consistency) {
+            factorized_unlock_edge2(lvid, edge.target().id());
+          }
         }
+        if (!disable_locks) factorized_unlock_edge2_end(lvid);
         INCREMENT_EVENT(EVENT_SCATTERS, lvertex.num_out_edges());
       }
       END_TRACEPOINT(disteng_evalfac);
@@ -1545,6 +1577,7 @@ namespace graphlab {
                                              aggregate_id_to_key[-lvid]);
         return;
       }
+      bool gather_fast_path = false;
       vstate[lvid].lock();
 EVAL_INTERNAL_TASK_RE_EVAL_STATE:
       switch(vstate[lvid].state) {
@@ -1560,8 +1593,13 @@ EVAL_INTERNAL_TASK_RE_EVAL_STATE:
           logstream(LOG_DEBUG) << rmi.procid() << ": Internal Task: " 
                               << graph.global_vid(lvid) << ": GATHERING(" << vstate[lvid].apply_count_down << ")" << std::endl;
 
-          process_gather(lvid);
-          break;
+          gather_fast_path = process_gather(lvid);
+          if (gather_fast_path) {
+            // immdiately apply and scatter
+            goto EVAL_INTERNAL_TASK_RE_EVAL_STATE;
+          } else {
+            break;
+          }
       }
       case MIRROR_GATHERING: {
           logstream(LOG_DEBUG) << rmi.procid() << ": Internal Task: " 
@@ -1978,7 +2016,7 @@ EVAL_INTERNAL_TASK_RE_EVAL_STATE:
       
         if (handler_intercept) rmi.dc().handle_incoming_calls(threadid, ncpus);
 
-        if (ti.current_time() >= next_processing_time) {
+        if (ti.current_time() >= next_processing_time && rmi.numprocs() > 1) {
           // every now and then, I ping one machine. This has the
           // effect of completely flushing the channel between me and
           // that machine
