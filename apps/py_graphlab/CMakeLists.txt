@@ -3,7 +3,7 @@ project(GraphLab)
 
 # search for the python library and headers
 find_library(PYTHON27_LIBRARY NAMES python2.7)
-find_path(PYTHON_PATH NAMES Python.h)
+find_path(PYTHON_PATH NAMES Python.h PATH_SUFFIXES python python2.7)
 find_path(SWIG_BIN NAMES swig)
 
 if(PYTHON27_LIBRARY AND PYTHON_PATH AND SWIG_BIN)
@@ -18,7 +18,7 @@ if(PYTHON27_LIBRARY AND PYTHON_PATH AND SWIG_BIN)
 
   add_custom_command(
     OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/py_graphlab_wrap.cxx
-    COMMAND ${SWIG_BIN} -c++ -python ${CMAKE_CURRENT_SOURCE_DIR}/py_graphlab.i
+    COMMAND ${SWIG_BIN}/swig -c++ -python ${CMAKE_CURRENT_SOURCE_DIR}/py_graphlab.i
     DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/py_graphlab.i
     )
   add_library(py_graphlab SHARED py_graphlab.cpp py_graphlab_wrap.cxx)
