@@ -13,7 +13,7 @@ class aggregatorClass:
 		self.sum += x.sum;
 
 def parseEdge(file, line):		
-	s = line.split(" ");
+	s = line.split();
 	srcId = int(s[0]);
 	destId = int(s[1]);
 	return (srcId, destId, None);

@@ -124,6 +124,7 @@ class pyobj_class {
 
         PyObject *pValue = PyObject_CallObject(PyFn[storemethod_index].fn, pArgs);
         Py_DECREF(pArgs);
+
         oarc << std::string(PyString_AsString(pValue));
         Py_DECREF(pValue);
       }     
@@ -330,6 +331,8 @@ inline bool graph_loader(graph_type &graph, const std::string &filename, const s
     PythonThreadLocker locker;
 #endif
 
+  printf("%s %s\n", filename.c_str(), line.c_str());
+
   PyObject *pArgs = PyTuple_New(2);
   PyTuple_SetItem(pArgs, 0, PyString_FromString(filename.c_str()));
   PyTuple_SetItem(pArgs, 1, PyString_FromString(line.c_str()));
@@ -340,15 +343,25 @@ inline bool graph_loader(graph_type &graph, const std::string &filename, const s
   PyObject *srcId_obj = PyTuple_GetItem(pValue, 0);
   PyObject *destId_obj = PyTuple_GetItem(pValue, 1);
   if (srcId_obj == Py_None || destId_obj == Py_None) {
+    Py_DECREF(pValue);
     return false;
   }
 
   int srcId = PyInt_AsLong(srcId_obj);
   int destId = PyInt_AsLong(destId_obj);
   PyObject *edgedata = PyTuple_GetItem(pValue, 2);
-  Py_DECREF(pValue);
 
-  graph.add_edge(srcId, destId, edgedata);
+  if (edgedata == Py_None) {
+    edgedata = NULL;
+  }
+//  Py_INCREF(edgedata);
+//  Py_DECREF(pValue);
+  if (srcId != destId) {
+    graph.add_edge(srcId, destId, edge_data_type(edgedata));
+  }
+
+  Py_DECREF(pValue);  // decrement reference after edge is added because pValue owns edgedata
+
   return true;
 }
 
