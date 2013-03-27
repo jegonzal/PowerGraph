@@ -303,39 +303,49 @@ namespace graphlab {
         logstream(LOG_INFO) 
           << "Graph Finalize: Constructing and sending vertex assignments" 
           << std::endl;
-        std::vector<size_t> counts(rpc.numprocs()); 
+
+        // std::vector<size_t> counts(rpc.numprocs()); 
         size_t num_singletons = 0;
-        // Compute the master assignments
+        // // For simplicity simply assign this machine as the master
         foreach(vrec_pair_type& pair, vrec_map) {
-          vertex_negotiator_record& rec = pair.second;          
-          // Determine the master
-          procid_t master(-1);
-          if(rec.mirrors.popcount() == 0) {
-            // // random assign a singleton vertex to a proc
-            // const vertex_id_type vid = pair.first;
-            // master = vid % rpc.numprocs();        
-            // For simplicity simply assign it to this machine
-            master = rpc.procid(); ++num_singletons;
-          } else {
-            // Find the best (least loaded) processor to assign the
-            // vertex.
-            size_t first_mirror = 0; 
-            const bool has_mirror = 
-              rec.mirrors.first_bit(first_mirror);
-            ASSERT_TRUE(has_mirror);
-            std::pair<size_t, size_t> 
-              best_asg(counts[first_mirror], first_mirror);
-            foreach(size_t proc, rec.mirrors) {
-              best_asg = std::min(best_asg, 
-                                  std::make_pair(counts[proc], proc));
-            }
-            master =  best_asg.second;
-          }
-          // update the counts and set the master assignment
-          counts[master]++;
-          rec.owner = master;
-          rec.mirrors.clear_bit(master); // Master is not a mirror         
-        } // end of loop over all vertex negotiation records
+          if (rec.mirrors.popcount() == 0) 
+            ++num_singletons;
+          vertex_negotiator_record& rec = pair.second;
+          procid_t master = rpc.procid();
+          rec.owner = master; 
+          rec.mirrors.clear_bit(master);
+        }
+        // // Compute the master assignments
+        // foreach(vrec_pair_type& pair, vrec_map) {
+        //   vertex_negotiator_record& rec = pair.second;          
+        //   // Determine the master
+        //   procid_t master(-1);
+        //   if(rec.mirrors.popcount() == 0) {
+        //     // // random assign a singleton vertex to a proc
+        //     // const vertex_id_type vid = pair.first;
+        //     // master = vid % rpc.numprocs();        
+        //     // For simplicity simply assign it to this machine
+        //     master = rpc.procid(); ++num_singletons;
+        //   } else {
+        //     // Find the best (least loaded) processor to assign the
+        //     // vertex.
+        //     size_t first_mirror = 0; 
+        //     const bool has_mirror = 
+        //       rec.mirrors.first_bit(first_mirror);
+        //     ASSERT_TRUE(has_mirror);
+        //     std::pair<size_t, size_t> 
+        //       best_asg(counts[first_mirror], first_mirror);
+        //     foreach(size_t proc, rec.mirrors) {
+        //       best_asg = std::min(best_asg, 
+        //                           std::make_pair(counts[proc], proc));
+        //     }
+        //     master =  best_asg.second;
+        //   }
+        //   // update the counts and set the master assignment
+        //   counts[master]++;
+        //   rec.owner = master;
+        //   rec.mirrors.clear_bit(master); // Master is not a mirror         
+        // } // end of loop over all vertex negotiation records
 
         if(rpc.procid() == 0) 
           memory_info::log_usage("Finished computing masters");
