@@ -331,7 +331,7 @@ inline bool graph_loader(graph_type &graph, const std::string &filename, const s
     PythonThreadLocker locker;
 #endif
 
-  printf("%s %s\n", filename.c_str(), line.c_str());
+//  printf("%s %s\n", filename.c_str(), line.c_str());
 
   PyObject *pArgs = PyTuple_New(2);
   PyTuple_SetItem(pArgs, 0, PyString_FromString(filename.c_str()));
