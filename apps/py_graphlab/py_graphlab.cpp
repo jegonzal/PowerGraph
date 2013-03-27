@@ -45,6 +45,7 @@
 #define PYFN_NEWAGG          14
 #define PYFN_LOADAGG         15
 #define PYFN_STOREAGG        16
+#define PYFN_PARSEEDGE       17
 
 struct {
   const char *fn_name;
@@ -53,7 +54,7 @@ struct {
            {"gatherAgg", NULL}, {"gather", NULL}, {"apply", NULL}, {"scatter", NULL},
            {"newEdge", NULL}, {"loadEdge", NULL}, {"storeEdge", NULL},
            {"newVertex", NULL}, {"loadVertex", NULL}, {"storeVertex", NULL},
-           {"newAgg", NULL}, {"loadAgg", NULL}, {"storeAgg", NULL}};
+           {"newAgg", NULL}, {"loadAgg", NULL}, {"storeAgg", NULL}, {"parseEdge", NULL}};
 
 #define PYFN_SIZE  (sizeof(PyFn)/sizeof(PyFn[0]))
 
@@ -324,6 +325,33 @@ struct py_writer {
   }
 };
 
+inline bool graph_loader(graph_type &graph, const std::string &filename, const std::string &line) {
+#ifndef PYSHARED_LIB
+    PythonThreadLocker locker;
+#endif
+
+  PyObject *pArgs = PyTuple_New(2);
+  PyTuple_SetItem(pArgs, 0, PyString_FromString(filename.c_str()));
+  PyTuple_SetItem(pArgs, 1, PyString_FromString(line.c_str()));
+
+  PyObject *pValue = PyObject_CallObject(PyFn[PYFN_PARSEEDGE].fn, pArgs);
+  Py_DECREF(pArgs);
+
+  PyObject *srcId_obj = PyTuple_GetItem(pValue, 0);
+  PyObject *destId_obj = PyTuple_GetItem(pValue, 1);
+  if (srcId_obj == Py_None || destId_obj == Py_None) {
+    return false;
+  }
+
+  int srcId = PyInt_AsLong(srcId_obj);
+  int destId = PyInt_AsLong(destId_obj);
+  PyObject *edgedata = PyTuple_GetItem(pValue, 2);
+  Py_DECREF(pValue);
+
+  graph.add_edge(srcId, destId, edgedata);
+  return true;
+}
+
 int init_python(const char *python_script) {
 #ifndef PYSHARED_LIB
   // Initialize Python
@@ -420,8 +448,15 @@ int init_graph(const char *graph_dir, const char *format, const char *python_scr
 
   // Build the graph ----------------------------------------------------------
   graph = new graph_type(*dc, clopts);
-  dc->cout() << "Loading graph in format: "<< format << std::endl;
-  graph->load_format(std::string(graph_dir), std::string(format));
+
+  if (strlen(format) > 0) {
+    dc->cout() << "Loading graph in format: "<< format << std::endl;
+    graph->load_format(std::string(graph_dir), std::string(format));
+  } else {
+    dc->cout() << "Loading graph using parseEdge function" << std::endl;
+    graph->load(std::string(graph_dir), graph_loader);
+  }
+
   // must call finalize before querying the graph
   graph->finalize();
   dc->cout() << "#vertices: " << graph->num_vertices() << " #edges: " << graph->num_edges() << std::endl;

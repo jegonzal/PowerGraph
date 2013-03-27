@@ -12,6 +12,12 @@ class aggregatorClass:
 	def merge(self, x):
 		self.sum += x.sum;
 
+def parseEdge(file, line):		
+	s = line.split(" ");
+	srcId = int(s[0]);
+	destId = int(s[1]);
+	return (srcId, destId, None);
+	
 def transformVertex(vertex):
 	return vertexDataClass();
 
