@@ -22,6 +22,14 @@ struct gl3context {
     engine->poll(thread_id);
   }
 
+  procid_t procid() const {
+    return engine->procid();
+  }
+
+  EngineType& get_engine() const {
+    return (*engine);
+  }
+
   any map_reduce(size_t taskid,
                  edge_dir_type edir) {
     ASSERT_NE(lvid, (lvid_type)(-1));
@@ -41,6 +49,17 @@ struct gl3context {
     task_param.message = msg;
     engine->spawn_task(lvid, GL3_BROADCAST_TASK_ID, any(task_param), true);
   }
+
+  void edge_transform(size_t taskid,
+                      edge_dir_type edir,
+                      bool wait = true) {
+    ASSERT_NE(lvid, (lvid_type)(-1));
+    edge_transform_task_param task_param;
+    task_param.in = (edir == IN_EDGES) || (edir == ALL_EDGES);
+    task_param.out = (edir == OUT_EDGES) || (edir == ALL_EDGES);
+    engine->spawn_task(lvid, taskid, any(task_param), wait);
+  }
+
 
   boost::unordered_map<size_t, any>
       dht_gather(const std::vector<size_t>& entries) {

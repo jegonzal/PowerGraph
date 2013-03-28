@@ -7,6 +7,10 @@
 #include <graphlab/graph/dcsc_store_iterator.hpp>
 namespace graphlab {
 
+
+/**
+ * Implements a DCSC matrix representation.
+ */
 template <typename IndexType = uint32_t, typename ValueType = uint32_t>
 struct dcsc_store {
   typedef IndexType index_type;
@@ -29,8 +33,11 @@ struct dcsc_store {
   /**
    * Inserts an entry into the matrix .
    * Assumes that the row/col do not already exist.
+   * Returns the offset in which the data was inserted.
+   * The data can be retrieved using data_at_offset(..) if no other
+   * insertions have been made
    */
-  void insert(const index_type& row,
+  size_t insert(const index_type& row,
               const index_type& col,
               const value_type& val) {
     typename std::vector<index_type>::iterator jciter =
@@ -55,6 +62,7 @@ struct dcsc_store {
     for (size_t i = jcindex + 1; i < cp.size(); ++i) {
       ++cp[i];
     }
+    return insertloc;
   }
 
 
@@ -129,7 +137,6 @@ struct dcsc_store {
     }
   };
 
-
   /**
    * Constructs a matrix from the arguments.
    */
@@ -182,25 +189,59 @@ struct dcsc_store {
     }
   }
 
+  /**
+   * Returns an iterator to the beginning of a list of columns
+   */
+  typename std::vector<index_type>::const_iterator col_list_begin() const {
+    return jc.begin();
+  }
 
+  /**
+   * Returns an iterator to the end of a list of columns
+   */
+  typename std::vector<index_type>::const_iterator col_list_end() const {
+    return jc.end();
+  }
 
+  /**
+   * Returns a column pointed to by a column iterator in the range
+   * col_list_begin() to col_list_end();
+   */
+  entry_list get_column(typename std::vector<index_type>::const_iterator jciter) {
+    if (jciter != jc.end()) {
+      size_t c = std::distance(jc.begin(), jciter);
+      size_t len = cp[c + 1] - cp[c];
+      return entry_list((*jciter),
+                        value.begin() + cp[c],
+                        ir.begin() + cp[c],
+                        len);
+    } else {
+      return entry_list((index_type)(-1),
+                        value.end(),
+                        ir.end(),
+                        0);
+    }
+  }
+
+/**
+   * Returns a particular column. A binary search is needed to
+   * find the specific column.
+   */
   entry_list get_column(index_type col) {
     typename std::vector<index_type>::iterator jciter =
         std::lower_bound(jc.begin(), jc.end(), col);
-
-    if (jciter == jc.end() || (*jciter) != col) {
-      return entry_list((index_type)(-1),
-                       value.end(),
-                       ir.end(),
-                       0);
+    if (jciter != jc.end() && (*jciter) == col) {
+      return get_column(jciter);
     } else {
-      size_t c = std::distance(jc.begin(), jciter);
-      size_t len = cp[c + 1] - cp[c];
-      return entry_list(col,
-                       value.begin() + cp[c],
-                       ir.begin() + cp[c],
-                       len);
+      return entry_list((index_type)(-1),
+                        value.end(),
+                        ir.end(),
+                        0);
     }
+  }
+
+  value_type& data_at_offset(size_t i) {
+    :qa
   }
 };
 

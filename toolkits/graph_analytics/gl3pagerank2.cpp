@@ -30,17 +30,18 @@
 using namespace graphlab;
 
 #define PAGERANK_MAP_REDUCE 0
+#define TEST_SCATTER 1
 
 // Global random reset probability
 float RESET_PROB = 0.15;
 
-float TOLERANCE = 1E-2;
+float TOLERANCE = 1.0E-2;
 
 // The vertex data is just the pagerank value (a float)
 typedef float vertex_data_type;
 
 // There is no edge data in the pagerank application
-typedef empty edge_data_type;
+typedef float edge_data_type;
 
 // The graph type is determined by the vertex and edge data types
 typedef distributed_graph<vertex_data_type, edge_data_type> graph_type;
@@ -68,9 +69,19 @@ struct pagerank_writer {
 }; // end of pagerank writer
 
 
-float pagerank_map(const graph_type::vertex_type& v) {
-  return v.data() / v.num_out_edges();
+float pagerank_map(const graph_type::vertex_type& self,
+                   graph_type::edge_type& e,
+                   const graph_type::vertex_type& other) {
+  return other.data() / other.num_out_edges();
 }
+
+void test_scatter (const graph_type::vertex_type& self,
+                   graph_type::edge_type& e,
+                   const graph_type::vertex_type& other) {
+  e.data() = 0;
+}
+
+
 
 void pagerank_combine(float& v1, const float& v2) {
   v1 += v2;
@@ -83,16 +94,13 @@ void update_function(engine_type::context_type& context,
   vertex.data() = 0.15 + 0.85 *
       context.map_reduce(PAGERANK_MAP_REDUCE, IN_EDGES).as<float>();
 
+  context.edge_transform(TEST_SCATTER, OUT_EDGES);
+
   float last_change = std::fabs((vertex.data()- prev) / vertex.num_out_edges());
   if (last_change > TOLERANCE) {
     context.broadcast_signal(OUT_EDGES);
   }
 }
-
-float pagerank_sum(graph_type::vertex_type v) {
-  return v.data();
-}
-
 
 int main(int argc, char** argv) {
   // Initialize control plain using mpi
@@ -125,7 +133,7 @@ int main(int argc, char** argv) {
     dc.cout() << "Error in parsing command line arguments." << std::endl;
     return EXIT_FAILURE;
   }
-  ASSERT_MSG(0, "pika %d", 10);
+
 
   // Build the graph ----------------------------------------------------------
   graph_type graph(dc, clopts);
@@ -156,18 +164,15 @@ int main(int argc, char** argv) {
                              pagerank_map,
                              pagerank_combine,
                              0.0);
+  engine.register_edge_transform(TEST_SCATTER,
+                                 test_scatter);
+
   engine.set_vertex_program(update_function);
-  timer ti; ti.start();
   engine.signal_all();
 
-  while(!engine.try_sync()) {
-    timer::sleep(1);
-    float totalpr = graph.map_reduce_vertices<float>(pagerank_sum);
-    dc.cout() << totalpr << "\n";
-  }
-
   engine.sync();
-  dc.cout() << "Finished Running engine in " << ti.current_time()
+  const float runtime = engine.elapsed_seconds();
+  dc.cout() << "Finished Running engine in " << runtime
             << " seconds." << std::endl;
   dc.cout() << engine.num_updates()
             << " updates." << std::endl;

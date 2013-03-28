@@ -141,7 +141,6 @@ namespace graphlab {
         present. */
     bool add(const size_t& idx,
              const value_type& val) {
-      ASSERT_LT(idx, atomic_box_vec.size());
       value_type new_value;
       return atomic_box_vec[idx].set( val, new_value, joincounter);
     } // end of add task to set
@@ -159,7 +158,6 @@ namespace graphlab {
     bool add(const size_t& idx,
              const value_type& val,
              value_type& new_value) {
-      ASSERT_LT(idx, atomic_box_vec.size());
       return atomic_box_vec[idx].set(val, new_value, joincounter);
     } // end of add task to set
 
@@ -191,13 +189,11 @@ namespace graphlab {
 
     bool test_and_get(const size_t& idx,
                       value_type& ret_val) {
-      ASSERT_LT(idx, atomic_box_vec.size());
       return atomic_box_vec[idx].test_and_get( ret_val);
     }
 
     bool peek(const size_t& idx,
                    value_type& ret_val) {
-      ASSERT_LT(idx, atomic_box_vec.size());
       return atomic_box_vec[idx].peek(ret_val);
     }
 
@@ -228,3 +224,4 @@ namespace graphlab {
 
 #endif
 
+#include <graphlab/parallel/atomic_add_vector2_empty_specialization.hpp>

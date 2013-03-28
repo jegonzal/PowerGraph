@@ -11,7 +11,6 @@
 namespace graphlab {
 #define GL3_BROADCAST_TASK_ID 255
 #define GL3_DHT_GATHER_TASK_ID 254
-#define GL3_DHT_SCATTER_TASK_ID 253
 
 template <typename GraphType, typename EngineType>
 struct gl3task_descriptor {
@@ -173,6 +172,79 @@ struct broadcast_task_descriptor: public gl3task_descriptor<GraphType, EngineTyp
     return any();
   }
 };
+
+/**************************************************************************/
+/*                                                                        */
+/*                    Defines the Scatter Task Type                       */
+/*                                                                        */
+/**************************************************************************/
+
+
+struct edge_transform_task_param {
+  bool in;
+  bool out;
+  any message;
+  void save(oarchive& oarc) const {
+    oarc << in << out << message;
+  }
+  void load(iarchive& iarc) {
+    iarc >> in >> out >> message;
+  }
+};
+
+template <typename GraphType, typename EngineType>
+struct edge_transform_task_descriptor: public gl3task_descriptor<GraphType, EngineType> {
+  typedef typename GraphType::vertex_data_type vertex_data_type;
+  typedef typename GraphType::edge_data_type edge_data_type;
+  typedef typename GraphType::vertex_type vertex_type;
+  typedef typename GraphType::edge_type edge_type;
+
+  typedef boost::function<void (const vertex_type&,
+                                edge_type&,
+                                const vertex_type&)> edge_transform_fn_type;
+
+  edge_transform_fn_type edge_transform_fn;
+
+  edge_transform_task_descriptor(edge_transform_fn_type fn):edge_transform_fn(fn) { }
+
+  virtual void combine(any& a, const any& b, const any& params) { }
+
+  any exec(GraphType& graph, vertex_id_type vid, const any& params,
+           EngineType* engine) {
+    const edge_transform_task_param& task_param = params.as<edge_transform_task_param>();
+
+    bool in = task_param.in;
+    bool out = task_param.out;
+
+    typedef typename GraphType::local_edge_type local_edge_type;
+    typedef typename GraphType::local_vertex_type local_vertex_type;
+
+    lvid_type lvid = graph.local_vid(vid);
+    local_vertex_type lvertex = graph.l_vertex(lvid);
+    vertex_type vertex = vertex_type(lvertex);
+    if (in) {
+      foreach(local_edge_type ledge, lvertex.in_edges()) {
+        edge_type edge(ledge);
+        vertex_type other(ledge.source());
+        engine->elocks[ledge.id()].lock();
+        edge_transform_fn(vertex, edge, other);
+        engine->elocks[ledge.id()].unlock();
+      }
+    }
+
+    if (out) {
+      foreach(local_edge_type ledge, lvertex.out_edges()) {
+        edge_type edge(ledge);
+        vertex_type other(ledge.target());
+        engine->elocks[ledge.id()].lock();
+        edge_transform_fn(vertex, edge, other);
+        engine->elocks[ledge.id()].unlock();
+      }
+    }
+    return any();
+  }
+};
+
 
 
 /**************************************************************************/
