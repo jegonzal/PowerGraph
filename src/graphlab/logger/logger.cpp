@@ -1,5 +1,5 @@
-/**  
- * Copyright (c) 2009 Carnegie Mellon University. 
+/**
+ * Copyright (c) 2009 Carnegie Mellon University.
  *     All rights reserved.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
@@ -38,7 +38,7 @@ file_logger& global_logger() {
 
 
 void streambuffdestructor(void* v){
-  logger_impl::streambuff_tls_entry* t = 
+  logger_impl::streambuff_tls_entry* t =
     reinterpret_cast<logger_impl::streambuff_tls_entry*>(v);
   delete t;
 }
@@ -124,7 +124,7 @@ void reset_color(FILE* handle)
 void file_logger::_log(int lineloglevel,const char* file,const char* function,
                        int line,const char* fmt, va_list ap ){
   // if the logger level fits
-  if (lineloglevel >= 0 && lineloglevel <= 3 && lineloglevel >= log_level){
+  if (lineloglevel >= 0 && lineloglevel >= log_level){
     // get just the filename. this line found on a forum on line.
     // claims to be from google.
     file = ((strrchr(file, '/') ? : file- 1) + 1);
@@ -135,7 +135,7 @@ void file_logger::_log(int lineloglevel,const char* file,const char* function,
     int byteswritten = snprintf(str,1024, "%s%s(%s:%d): ",
                                 messages[lineloglevel],file,function,line);
     // write the actual logger
-    
+
     byteswritten += vsnprintf(str + byteswritten,1024 - byteswritten,fmt,ap);
 
     str[byteswritten] = '\n';
@@ -230,7 +230,7 @@ void file_logger::_lograw(int lineloglevel, const char* buf, int len) {
   }
 }
 
-file_logger& file_logger::start_stream(int lineloglevel,const char* file, 
+file_logger& file_logger::start_stream(int lineloglevel,const char* file,
                                        const char* function, int line, bool do_start) {
   // get the stream buffer
   logger_impl::streambuff_tls_entry* streambufentry =
@@ -243,15 +243,15 @@ file_logger& file_logger::start_stream(int lineloglevel,const char* file,
   }
   std::stringstream& streambuffer = streambufentry->streambuffer;
   bool& streamactive = streambufentry->streamactive;
-  
+
   // if do not start the stream, just quit
   if (do_start == false) {
     streamactive = false;
     return *this;
   }
- 
+
   file = ((strrchr(file, '/') ? : file- 1) + 1);
- 
+
   if (lineloglevel >= log_level){
     if (streambuffer.str().length() == 0) {
       streambuffer << messages[lineloglevel] << file
