@@ -1269,6 +1269,7 @@ namespace graphlab {
           return true;
         }
       }
+      return false;
     }
 
     /**
