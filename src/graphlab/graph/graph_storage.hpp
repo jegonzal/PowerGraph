@@ -312,14 +312,10 @@ namespace graphlab {
 
   public:
     // CONSTRUCTORS ============================================================>
-    graph_storage() : use_skip_list(false) {  }
+    graph_storage() {  }
 
     // METHODS =================================================================>
    
-    /** \internal \brief  Set graph storage to use skip list.
-     * Skip list is used to jump between ...
-     * */ 
-    void set_use_skip_list (bool x) { use_skip_list = x;}
 
     /** \brief Returns the number of edges in the graph. */
     size_t edge_size() const { return num_edges; }
@@ -337,8 +333,7 @@ namespace graphlab {
       size_t begin = CSC_dst[v];
       if (begin >= num_edges) return 0;
       // Search is the next valid src vertex after v.
-      size_t search = use_skip_list ? 
-        nextValid(CSC_dst_skip, v, true) : nextValid(CSC_dst, v, false);
+      size_t search = nextValid(CSC_dst, v);
       size_t end = (search >= num_vertices) ? num_edges: CSC_dst[search];
       return (end-begin);
     }
@@ -352,7 +347,7 @@ namespace graphlab {
       size_t begin = CSR_src[v];
       if (begin >= num_edges) return 0;
 
-      size_t search = use_skip_list ? nextValid(CSR_src_skip, v, true) : nextValid(CSR_src, v, false);
+      size_t search = nextValid(CSR_src, v);
       size_t end = (search >= num_vertices) ? num_edges: CSR_src[search];
       return (end-begin);
     }
@@ -559,9 +554,6 @@ namespace graphlab {
       logstream(LOG_DEBUG)<< "Graph2 finalize: build CSR_src..." << std::endl;
 #endif
       CSR_src.reserve(num_vertices);
-      if (use_skip_list) {
-        CSR_src_skip.reserve(num_vertices);
-      }
       size_t lastSrc = -1;
       lvid_type old_src = -1;
       lvid_type old_dst = -1;
@@ -587,24 +579,16 @@ namespace graphlab {
         if (src != lastSrc) {
           for (size_t j = (lastSrc+1); j < src; ++j) {
             CSR_src.push_back(-1);
-            if (use_skip_list) 
-              CSR_src_skip.push_back(src-lastSrc-1);
           }
           CSR_src.push_back(it);
-          if (use_skip_list) 
-            CSR_src_skip.push_back(0);
           lastSrc = src;
         }
       }
       // Fill in the remaining row index list.
       for( size_t j = (lastSrc +1); j < num_vertices; ++j) {
         CSR_src.push_back(-1);
-        if (use_skip_list) 
-          CSR_src_skip.push_back(num_vertices-lastSrc-1);
       }
       ASSERT_EQ(CSR_src.size(), num_vertices);
-      if (use_skip_list)
-        ASSERT_EQ(CSR_src_skip.size(), num_vertices);
 
       // End of building CSR
 
@@ -660,9 +644,6 @@ namespace graphlab {
 
       // Construct CSC_dst:
       CSC_dst.reserve(num_vertices);
-      if (use_skip_list) {
-        CSC_dst_skip.reserve(num_vertices);
-      }
       size_t lastDst = -1;
 #ifdef DEBUG_GRAPH
       logstream(LOG_DEBUG) <<"Graph2 finalize: Build CSC_dst..." << std::endl;
@@ -675,24 +656,16 @@ namespace graphlab {
         if (dst != lastDst) {
           for (size_t j = (lastDst + 1); j < dst; ++j) {
             CSC_dst.push_back(-1);
-            if (use_skip_list) 
-              CSC_dst_skip.push_back(dst-lastDst-1);
           }
           CSC_dst.push_back(it);
-          if (use_skip_list) 
-            CSC_dst_skip.push_back(0);
           lastDst = dst;
         }
       }
       // Fill in the remaining row index list.
       for( size_t j = (lastDst +1); j < num_vertices; ++j) {
         CSC_dst.push_back(-1);
-        if (use_skip_list) 
-          CSC_dst_skip.push_back(num_vertices-lastDst-1);
       }
       ASSERT_EQ(CSC_dst.size(), num_vertices);
-      if (use_skip_list)
-        ASSERT_EQ(CSC_dst_skip.size(), num_vertices);
 
       // Swap edges.source with CSC_src
       CSC_src.swap(edges.source_arr);
@@ -867,9 +840,6 @@ namespace graphlab {
      * Col index of CSC, corresponding to the source vertices. */
     std::vector<lvid_type> CSC_src;
 
-    /** Graph storage traits. */
-    bool use_skip_list;
-
 
  /****************************************************************************
  *                       Internal Functions                                 *
@@ -891,8 +861,7 @@ namespace graphlab {
       } else {
 
         // Find the start column of the next vertex.
-        lvid_type nextV = use_skip_list ? nextValid(CSC_dst_skip, v, true) : 
-          nextValid(CSC_dst, v, false);
+        lvid_type nextV = nextValid(CSC_dst, v);
         size_t col_end = (nextV < num_vertices) ? CSC_dst[nextV] : num_edges;
         return std::make_pair(true, std::make_pair(col_start, col_end-1));
       }
@@ -908,8 +877,7 @@ namespace graphlab {
         return std::make_pair(false, std::make_pair(0,0));;
       } else {
         // Find the start column of the next vertex.
-        lvid_type nextV = use_skip_list ? nextValid(CSR_src_skip, v, true) : 
-          nextValid(CSR_src, v, false);
+        lvid_type nextV = nextValid(CSR_src, v);
         size_t row_end = (nextV < num_vertices) ? CSR_src[nextV] :num_edges; 
 
         return std::make_pair(true, std::make_pair(row_start, row_end-1));
@@ -989,8 +957,8 @@ namespace graphlab {
       ASSERT_LT(eid, num_edges);
       size_t start = 0;
       size_t end = num_vertices-1;
-      if (CSR_src[start] >= num_edges) start = use_skip_list ? nextValid(CSR_src_skip, start, true) : nextValid(CSR_src, start, false);
-      if (CSR_src[end] >= num_edges) end = use_skip_list ? prevValid(CSR_src_skip, end, true) : prevValid(CSR_src, end, false);
+      if (CSR_src[start] >= num_edges) start = nextValid(CSR_src, start);
+      if (CSR_src[end] >= num_edges) end = prevValid(CSR_src, end);
 
       // Keep the invariant that CSR_src[start] <= eid, CSR_src[end] > eid.
       while (start <= end) {
@@ -1001,7 +969,7 @@ namespace graphlab {
         if (CSR_src[start] > eid)
           {
             ASSERT_LT(0, start);
-            lvid_type ans = use_skip_list ? prevValid(CSR_src_skip, start, true) : prevValid(CSR_src, start, false);
+            lvid_type ans = prevValid(CSR_src, start);
             //lvid_type ans = start -1;
             ASSERT_LT(ans, num_vertices);
             return ans;
@@ -1009,17 +977,17 @@ namespace graphlab {
 
         size_t mid = (start + end)/2;
         // mid may fall in to an invalid grid 
-        if (CSR_src[mid] >= num_edges) mid = prevValid(CSR_src, mid, false);
+        if (CSR_src[mid] >= num_edges) mid = prevValid(CSR_src, mid);
 
         if (CSR_src[mid] == eid)
           return mid;
 
         if (CSR_src[mid] > eid) {
-          end = use_skip_list ? prevValid(CSR_src_skip, mid, true) : prevValid(CSR_src, mid, false); 
+          end = prevValid(CSR_src, mid); 
           //end = mid-1;
         } else {
           //start = mid+1;
-          start = use_skip_list ? nextValid(CSR_src_skip, mid, true) : nextValid(CSR_src, mid, false);
+          start = nextValid(CSR_src, mid);
         }
       } 
             
@@ -1033,30 +1001,21 @@ namespace graphlab {
      *
      * A vertex is valid if it has out edges (or in edges).
      *
-     * If use_skip_list = false 
      * vertex_array can be: CSR_src, or CSC_dst
-     *
-     * If use_skip_list = true
-     * vertex_array can be: CSR_src_skip, or CSC_dst_skip
-     * Uses skip array to find the next valid vertex in O(1).
      *
      * Can be applied on invalid vertex. 
      * This function is useful in binary search where the middle is not
      * assumed to be valid. */
     inline lvid_type 
     nextValid(const std::vector<edge_id_type>& vertex_array, 
-              lvid_type curv, bool use_skip_list) const {
+              lvid_type curv) const {
 
       if (curv == num_vertices-1) return num_vertices;
 
-      if (use_skip_list) {
-        return (curv + 1 + vertex_array[curv+1]);
-      } else {
         lvid_type search = curv+1;
         while (search < num_vertices && vertex_array[search] >= num_edges) 
           ++search;
         return search;
-      }
     }
 
     /** \internal
@@ -1066,17 +1025,13 @@ namespace graphlab {
      */
     inline lvid_type 
     prevValid(const std::vector<lvid_type>& vertex_array, 
-              lvid_type curv, bool use_skip_list) const {
+              lvid_type curv) const {
       if (curv == 0) return -1;
 
-      if (use_skip_list) {
-        return (curv - 1 - vertex_array[curv-1]);
-      } else {
         lvid_type search = curv-1;
         while (search >= 0 && vertex_array[search] >= num_edges)
           --search;
         return search;
-      }
     }
 
   public:
@@ -1110,8 +1065,7 @@ namespace graphlab {
     /** \brief Load the graph from an archive */
     void load(iarchive& arc) {
       clear();
-      arc >> use_skip_list
-          >> num_vertices
+      arc >> num_vertices
           >> num_edges
           >> edge_data_list
           >> CSR_src
@@ -1125,8 +1079,7 @@ namespace graphlab {
 
     /** \brief Save the graph to an archive */
     void save(oarchive& arc) const {
-      arc << use_skip_list
-          << num_vertices
+      arc << num_vertices
           << num_edges
           << edge_data_list
           << CSR_src
@@ -1140,7 +1093,6 @@ namespace graphlab {
 
     /** swap two graph storage*/
     void swap(graph_storage& other) {
-      std::swap(use_skip_list, other.use_skip_list);
       std::swap(num_vertices, other.num_vertices);
       std::swap(num_edges, other.num_edges);
       std::swap(edge_data_list, other.edge_data_list);

@@ -71,7 +71,7 @@ namespace graphlab {
 
     static bool is_pds_compatible(size_t num_shards, int& p) {
       p = floor(sqrt(num_shards-1));
-      return ((p*p+p+1) == num_shards);
+      return (p>0 && ((p*p+p+1) == num_shards));
     }
 
    public:
