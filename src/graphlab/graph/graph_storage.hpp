@@ -575,7 +575,7 @@ namespace graphlab {
           old_src = src;
           old_dst = dst;
         }
-        // Fill in CSR_src and CSR_src_skip. 
+        // Fill in CSR_src. 
         if (src != lastSrc) {
           for (size_t j = (lastSrc+1); j < src; ++j) {
             CSR_src.push_back(-1);
@@ -651,8 +651,7 @@ namespace graphlab {
       // Iterate over the edges. 
       for (size_t it = 0; it < num_edges; ++it) {
         lvid_type dst = edges.target_arr[c2r_map[it]];
-
-        // Fill in CSC_dst and CSR_src_skip. 
+        // Fill in CSC_dst. 
         if (dst != lastDst) {
           for (size_t j = (lastDst + 1); j < dst; ++j) {
             CSC_dst.push_back(-1);
@@ -689,10 +688,6 @@ namespace graphlab {
       // foreach(size_t i, CSR_src)
       //   std::cout << i << " "; 
       // std::cout << std::endl;
-      // printf("CSR src skip:\n");
-      // foreach(size_t i, CSR_src_skip)
-      //   std::cout << i << " "; 
-      // std::cout << std::endl;
 
       /* DEBUG */
       // printf("CSC dst:\n");
@@ -701,10 +696,6 @@ namespace graphlab {
       // std::cout << std::endl;
       // printf("CSC src:\n");
       // foreach(size_t i, CSC_src)
-      //   std::cout << i << " "; 
-      // std::cout << std::endl;
-      // printf("CSC dst skip:\n");
-      // foreach(size_t i, CSC_dst_skip)
       //   std::cout << i << " "; 
       // std::cout << std::endl;
      
@@ -716,8 +707,6 @@ namespace graphlab {
       CSR_dst.clear();
       CSC_src.clear();
       CSC_dst.clear();
-      CSR_src_skip.clear();
-      CSC_dst_skip.clear();
       c2r_map.clear();
       edge_data_list.clear();
     }
@@ -730,8 +719,6 @@ namespace graphlab {
       std::vector<edge_id_type>().swap(CSC_dst);
       std::vector<edge_id_type>().swap(c2r_map);
       std::vector<EdgeData>().swap(edge_data_list);
-      std::vector<edge_id_type>().swap(CSR_src_skip);
-      std::vector<edge_id_type>().swap(CSC_dst_skip);
     }
 
     size_t estimate_sizeof() const {
@@ -749,10 +736,6 @@ namespace graphlab {
       const size_t container_size = sizeof(CSR_src) + sizeof(CSR_dst) + 
         sizeof(CSC_src) + sizeof(CSC_dst) + sizeof(c2r_map) + 
         sizeof(edge_data_list);
-      // Skip list size:
-      const size_t skip_list_size = sizeof(CSR_src_skip) + 
-        sizeof(CSC_dst_skip) + CSR_src_skip.capacity() * vid_size + 
-        CSC_dst_skip.capacity() * vid_size;
 
       logstream(LOG_DEBUG) << "CSR size: " 
                 << (double)CSR_size/(1024*1024)
@@ -760,15 +743,12 @@ namespace graphlab {
                 << (double)CSC_size/(1024*1024) 
                 << " edata size: "
                 << (double)edata_size/(1024*1024)
-                << " skiplist size: " 
-                << (double)(skip_list_size)/(1024*1024)
                 << " container size: " 
                 << (double)container_size/(1024*1024) 
                 << " \n Total size: " 
-                << double(CSR_size + CSC_size + container_size + skip_list_size) << std::endl;
+                << double(CSR_size + CSC_size + container_size) << std::endl;
 
-      return CSR_size + CSC_size + edata_size + container_size + 
-        skip_list_size;
+      return CSR_size + CSC_size + edata_size + container_size;
     } // end of estimate_sizeof
 
     /** To be deprecated. */
@@ -805,16 +785,6 @@ namespace graphlab {
      * Row index of CSR, corresponding to the source vertices. */
     std::vector<edge_id_type> CSR_src;
 
-    /** 
-     * \internal 
-     * Suppose CSR_src is: 1 x x 3 x x x x 5
-     * where x means no out edges.
-     *     CSR_src_skip =  0 2 2 0 4 0 0 4 0
-     * is used to jump to the prev/next valid vertex in CSR_src.  
-     * Optional.
-     */
-    std::vector<edge_id_type> CSR_src_skip;
-
     /** \internal 
      * Col index of CSR, corresponding to the target vertices. */
     std::vector<lvid_type> CSR_dst;
@@ -827,15 +797,6 @@ namespace graphlab {
      * Row index of CSC, corresponding to the target vertices. */
     std::vector<edge_id_type> CSC_dst;
 
-    /* 
-     * \internal 
-     * Suppose CSC_dst is: 1 x x 3 x x x x 5
-     * where x means no in edges.
-     *     CSC_dst_skip =  0 2 2 0 4 0 0 4 0
-     * is used to jump to the prev/next valid vertex in CSC_dst.  
-     * Optional.
-     */
-    std::vector<edge_id_type> CSC_dst_skip;
     /** \internal
      * Col index of CSC, corresponding to the source vertices. */
     std::vector<lvid_type> CSC_src;
@@ -1072,9 +1033,7 @@ namespace graphlab {
           >> CSR_dst
           >> CSC_src
           >> CSC_dst
-          >> c2r_map
-          >> CSR_src_skip
-          >> CSC_dst_skip;
+          >> c2r_map;
     }
 
     /** \brief Save the graph to an archive */
@@ -1086,9 +1045,7 @@ namespace graphlab {
           << CSR_dst
           << CSC_src
           << CSC_dst
-          << c2r_map
-          << CSR_src_skip
-          << CSC_dst_skip;
+          << c2r_map;
     }
 
     /** swap two graph storage*/
@@ -1101,8 +1058,6 @@ namespace graphlab {
       std::swap(CSC_src, other.CSC_src);
       std::swap(CSC_dst, other.CSC_dst);
       std::swap(c2r_map, other.c2r_map);
-      std::swap(CSR_src_skip, other.CSR_src_skip);
-      std::swap(CSC_dst_skip, other.CSC_dst_skip);
     }
 
   };// End of graph store;
