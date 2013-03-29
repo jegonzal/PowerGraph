@@ -357,8 +357,10 @@ struct py_writer {
 #endif
 
     Py_INCREF(e.data().obj);
-    PyObject *pArgs = PyTuple_New(1);
-    PyTuple_SetItem(pArgs, 0, e.data().obj);
+    PyObject *pArgs = PyTuple_New(3);
+    PyTuple_SetItem(pArgs, 0, e.source().data().obj);
+    PyTuple_SetItem(pArgs, 1, e.target().data().obj);
+    PyTuple_SetItem(pArgs, 2, e.data().obj);
     PyObject *pValue = PyObject_CallObject(PyFn[PYFN_SAVEEDGE].fn, pArgs);
     Py_DECREF(pArgs);
     if (PyErr_Occurred()) {
@@ -376,8 +378,6 @@ inline bool graph_loader(graph_type &graph, const std::string &filename, const s
 #ifndef PYSHARED_LIB
   PythonThreadLocker locker;
 #endif
-
-//  printf("%s %s\n", filename.c_str(), line.c_str());
 
   PyObject *pArgs = PyTuple_New(2);
   PyTuple_SetItem(pArgs, 0, PyString_FromString(filename.c_str()));

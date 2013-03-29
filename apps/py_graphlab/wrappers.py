@@ -47,8 +47,8 @@ def transformEdge(edge):
 def saveVertex(vertex):
 	return usermod.saveVertex(vertex);
 
-def saveEdge(edge):
-	return usermod.saveEdge(edge);
+def saveEdge(src, target, edge):
+	return usermod.saveEdge(src, target, edge);
 
 def gather(srcData, targetData, edgeData, numIn, numOut):
 	return usermod.gather(srcData, targetData, edgeData, numIn, numOut);

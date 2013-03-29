@@ -29,7 +29,7 @@ if(PYTHON27_LIBRARY AND PYTHON_PATH AND SWIG_BIN)
 
   copy_file(wrappers.py)
   copy_file(simple_pagerank.py)
-#  copy_file(als.py)
+  copy_file(als.py)
 else()
   message(STATUS "Python Dev Environment Incomplete")
   message(STATUS "    Python 2.7 Libary: ${PYTHON27_LIBRARY}")
