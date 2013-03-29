@@ -51,7 +51,7 @@ def saveEdge(edge):
 	return usermod.saveEdge(edge);
 
 def gather(srcData, targetData, edgeData, numIn, numOut):
-	return usermod.aggregatorClass(usermod.gather(srcData, targetData, edgeData, numIn, numOut));
+	return usermod.gather(srcData, targetData, edgeData, numIn, numOut);
 
 def apply(targetData, agg, numIn, numOut):
 	return usermod.apply(targetData, agg, numIn, numOut);

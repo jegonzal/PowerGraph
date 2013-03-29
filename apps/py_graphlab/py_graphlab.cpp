@@ -125,6 +125,10 @@ class pyobj_class {
         PyObject *pValue = PyObject_CallObject(PyFn[storemethod_index].fn, pArgs);
         Py_DECREF(pArgs);
 
+        if (PyErr_Occurred()) {
+          PyErr_Print();
+        }
+
         oarc << std::string(PyString_AsString(pValue));
         Py_DECREF(pValue);
       }     
@@ -145,6 +149,10 @@ class pyobj_class {
         PyObject *pArgs = PyTuple_New(1);
         PyTuple_SetItem(pArgs, 0, PyString_FromString(s.c_str()));
         PyObject *pValue = PyObject_CallObject(PyFn[loadmethod_index].fn, pArgs);
+        if (PyErr_Occurred()) {
+          PyErr_Print();
+        }
+
         Py_XDECREF(obj);
         obj = pValue;
         Py_DECREF(pArgs);
@@ -169,6 +177,10 @@ class agg_class: public pyobj_class<PYFN_NEWAGG, PYFN_STOREAGG, PYFN_LOADAGG> {
 
       obj = PyObject_CallObject(PyFn[PYFN_GATHERAGG].fn, pArgs);
       Py_DECREF(pArgs);
+      if (PyErr_Occurred()) {
+        PyErr_Print();
+      }
+
     }
 };
 
@@ -190,6 +202,9 @@ void transform_vertex(graph_type::vertex_type& vertex) {
   PyTuple_SetItem(pArgs, 0, vertex.data().obj); 
   vertex.data().obj = PyObject_CallObject(PyFn[PYFN_TRANSFORMVERTEX].fn, pArgs);
   Py_DECREF(pArgs);
+  if (PyErr_Occurred()) {
+    PyErr_Print();
+  }
 }
 
 void transform_edge(graph_type::edge_type& edge) {
@@ -201,6 +216,9 @@ void transform_edge(graph_type::edge_type& edge) {
   PyTuple_SetItem(pArgs, 0, edge.data().obj);
   edge.data().obj = PyObject_CallObject(PyFn[PYFN_TRANSFORMEDGE].fn, pArgs);
   Py_DECREF(pArgs);
+  if (PyErr_Occurred()) {
+    PyErr_Print();
+  }
 }
 
 class python_interface:
@@ -212,20 +230,25 @@ public:
     PythonThreadLocker locker;
 #endif    
 
-    Py_XINCREF(edge.source().data().obj);  // prevent SetItem from stealing references
+    vertex_type other_vertex = (edge.source().id() == vertex.id()) ? edge.target() : edge.source();
+
+    Py_XINCREF(other_vertex.data().obj);  // prevent SetItem from stealing references
     Py_XINCREF(vertex.data().obj);
     PyObject *edgedata_arg = (edge.data().obj == NULL) ? Py_None : edge.data().obj;
     Py_XINCREF(edgedata_arg);
 
     PyObject *pArgs = PyTuple_New(5);
-    PyTuple_SetItem(pArgs, 0, edge.source().data().obj);
+    PyTuple_SetItem(pArgs, 0, other_vertex.data().obj);
     PyTuple_SetItem(pArgs, 1, vertex.data().obj);
     PyTuple_SetItem(pArgs, 2, edgedata_arg);
-    PyTuple_SetItem(pArgs, 3, PyInt_FromLong(edge.source().num_in_edges()));
-    PyTuple_SetItem(pArgs, 4, PyInt_FromLong(edge.source().num_out_edges()));
+    PyTuple_SetItem(pArgs, 3, PyInt_FromLong(other_vertex.num_in_edges()));
+    PyTuple_SetItem(pArgs, 4, PyInt_FromLong(other_vertex.num_out_edges()));
 
     PyObject *pValue = PyObject_CallObject(PyFn[PYFN_GATHER].fn, pArgs);
     Py_DECREF(pArgs);
+    if (PyErr_Occurred()) {
+      PyErr_Print();
+    }
     
     return agg_class(pValue);
   }
@@ -242,47 +265,64 @@ public:
     PyTuple_SetItem(pArgs, 2, PyInt_FromLong(vertex.num_in_edges()));
     PyTuple_SetItem(pArgs, 3, PyInt_FromLong(vertex.num_out_edges()));
 
-
     vertex.data().obj = PyObject_CallObject(PyFn[PYFN_APPLY].fn, pArgs);
     Py_DECREF(pArgs);
+    if (PyErr_Occurred()) {
+      PyErr_Print();
+    }
   }
+
+  // Need to have this determined in python
+//  edge_dir_type gather_edges(icontext_type& context, const vertex_type& vertex) const {
+//    return graphlab::ALL_EDGES;
+//  };
+//  edge_dir_type scatter_edges(icontext_type& context, const vertex_type& vertex) const {
+//    return graphlab::ALL_EDGES;
+//  };
 
   void scatter(icontext_type& context, const vertex_type& vertex, edge_type& edge) const {
 #ifndef PYSHARED_LIB
     PythonThreadLocker locker;
 #endif    
 
-    Py_XINCREF(edge.source().data().obj);  // prevent SetItem from stealing references
+    vertex_type other_vertex = (edge.source().id() == vertex.id()) ? edge.target() : edge.source();
+
+    Py_XINCREF(other_vertex.data().obj);  // prevent SetItem from stealing references
     Py_XINCREF(vertex.data().obj);
     PyObject *edgedata_arg = (edge.data().obj == NULL) ? Py_None : edge.data().obj;
     Py_XINCREF(edgedata_arg);
 
 
     PyObject *pArgs = PyTuple_New(5);
-    PyTuple_SetItem(pArgs, 0, edge.source().data().obj);
-    PyTuple_SetItem(pArgs, 1, vertex.data().obj);
+    PyTuple_SetItem(pArgs, 0, vertex.data().obj);
+    PyTuple_SetItem(pArgs, 1, other_vertex.data().obj);
     PyTuple_SetItem(pArgs, 2, edgedata_arg);
-    PyTuple_SetItem(pArgs, 3, PyInt_FromLong(edge.source().num_in_edges()));
-    PyTuple_SetItem(pArgs, 4, PyInt_FromLong(edge.source().num_out_edges()));
+    PyTuple_SetItem(pArgs, 3, PyInt_FromLong(vertex.num_in_edges()));
+    PyTuple_SetItem(pArgs, 4, PyInt_FromLong(vertex.num_out_edges()));
 
     PyObject *pValue = PyObject_CallObject(PyFn[PYFN_SCATTER].fn, pArgs);
     Py_DECREF(pArgs);
+    if (PyErr_Occurred()) {
+      PyErr_Print();
+    }
     
     const double signal_result = PyFloat_AsDouble(PyTuple_GetItem(pValue, 0));
     if (signal_result >= 0) {
-      context.signal(edge.target(), signal_result);
+      context.signal(other_vertex, signal_result);
     }
       
     PyObject *edgedata_result = PyTuple_GetItem(pValue, 1);
     if (edgedata_result != Py_None) {
       Py_DECREF(edge.data().obj);
+      Py_INCREF(edgedata_result);
       edge.data().obj = edgedata_result;
     }
     
     PyObject *vertexdata_result = PyTuple_GetItem(pValue, 2);
     if (vertexdata_result != Py_None) {
-      Py_DECREF(edge.target().data().obj);
-      edge.target().data().obj = vertexdata_result;
+      Py_DECREF(other_vertex.data().obj);
+      Py_INCREF(vertexdata_result);
+      other_vertex.data().obj = vertexdata_result;
     }
 
     Py_DECREF(pValue);
@@ -301,6 +341,9 @@ struct py_writer {
     PyTuple_SetItem(pArgs, 0, v.data().obj);
     PyObject *pValue = PyObject_CallObject(PyFn[PYFN_SAVEVERTEX].fn, pArgs);
     Py_DECREF(pArgs);
+    if (PyErr_Occurred()) {
+      PyErr_Print();
+    }
 
     std::stringstream strm;
     strm << v.id() << "\t" << PyString_AsString(pValue) << "\n";
@@ -318,6 +361,9 @@ struct py_writer {
     PyTuple_SetItem(pArgs, 0, e.data().obj);
     PyObject *pValue = PyObject_CallObject(PyFn[PYFN_SAVEEDGE].fn, pArgs);
     Py_DECREF(pArgs);
+    if (PyErr_Occurred()) {
+      PyErr_Print();
+    }
 
     std::stringstream strm;
     strm << PyString_AsString(pValue) << "\n";
@@ -328,7 +374,7 @@ struct py_writer {
 
 inline bool graph_loader(graph_type &graph, const std::string &filename, const std::string &line) {
 #ifndef PYSHARED_LIB
-    PythonThreadLocker locker;
+  PythonThreadLocker locker;
 #endif
 
 //  printf("%s %s\n", filename.c_str(), line.c_str());
@@ -339,6 +385,9 @@ inline bool graph_loader(graph_type &graph, const std::string &filename, const s
 
   PyObject *pValue = PyObject_CallObject(PyFn[PYFN_PARSEEDGE].fn, pArgs);
   Py_DECREF(pArgs);
+  if (PyErr_Occurred()) {
+    PyErr_Print();
+  }
 
   PyObject *srcId_obj = PyTuple_GetItem(pValue, 0);
   PyObject *destId_obj = PyTuple_GetItem(pValue, 1);
@@ -347,13 +396,13 @@ inline bool graph_loader(graph_type &graph, const std::string &filename, const s
     return false;
   }
 
-  int srcId = PyInt_AsLong(srcId_obj);
-  int destId = PyInt_AsLong(destId_obj);
+  graph_type::vertex_id_type srcId = PyInt_AsLong(srcId_obj);
+  graph_type::vertex_id_type destId = PyInt_AsLong(destId_obj);
   PyObject *edgedata = PyTuple_GetItem(pValue, 2);
 
-  if (edgedata == Py_None) {
-    edgedata = NULL;
-  }
+//  if (edgedata == Py_None) {
+//    edgedata = NULL;
+//  }
 //  Py_INCREF(edgedata);
 //  Py_DECREF(pValue);
   if (srcId != destId) {
@@ -412,6 +461,10 @@ int init_python(const char *python_script) {
   PyObject *pArgs = PyTuple_New(1);
   PyTuple_SetItem(pArgs, 0, PyString_FromString(python_script));
   PyObject *pValue = PyObject_CallObject(func_initusermodule, pArgs);
+  if (PyErr_Occurred()) {
+    PyErr_Print();
+  }
+
   Py_DECREF(pArgs);
   has_edgeclass = pValue == Py_True;
   Py_DECREF(pValue);

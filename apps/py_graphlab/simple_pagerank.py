@@ -25,7 +25,7 @@ def saveVertex(vertex):
 	return str(vertex.pr)+":"+str(vertex.prDelta);
 
 def gather(srcData, targetData, edgeData, numIn, numOut):
-	return 0.85*srcData.pr/numOut;
+	return aggregatorClass(0.85*srcData.pr/numOut);
 
 def apply(targetData, aggInst, numIn, numOut):
 	newval = aggInst.sum+0.15;
