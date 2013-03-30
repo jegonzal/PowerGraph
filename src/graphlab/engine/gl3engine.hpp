@@ -402,7 +402,7 @@ class gl3engine {
             graphlab_options opts = graphlab_options()):
       rmi(dc, this), graph(graph){
     rmi.barrier();
-    num_vthreads = 1000;
+    num_vthreads = 10000;
     ncpus = opts.get_ncpus();
     worker_mutex.resize(ncpus);
 
@@ -1535,7 +1535,7 @@ class gl3engine {
    * and false otherwise. All machines must call this together,
    * and the function will return the same value to all machines.
    *
-   * After calling try_sync(), it is still important to call sync()
+   * After calling try_wait(), it is still important to call wait()
    */
   bool try_wait() {
     size_t cvthreads = active_vthread_count.value;
@@ -1579,7 +1579,7 @@ class gl3engine {
   }
 
   size_t num_updates() const {
-    return programs_completed;
+    return total_programs_completed;
   }
 };
 
