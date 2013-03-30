@@ -183,7 +183,7 @@ namespace graphlab {
  * }
  * // and in main ...
  * for (size_t i = 0;i < iterations; ++i) {
- *    engine.parfor_all_local_vertices(update_function);
+ *    engine.parfor_all_local_vertices(pagerank_function);
  *    engine.wait();
  * }
  * \endcode
@@ -536,6 +536,7 @@ class gl3engine {
       internal_signal(graph.vertex(gvid), message);
     }
   }
+
 
 
   void rpc_signal(vertex_id_type gvid,
