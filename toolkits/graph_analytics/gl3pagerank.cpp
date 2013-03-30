@@ -159,12 +159,6 @@ int main(int argc, char** argv) {
   timer ti; ti.start();
   engine.signal_all();
 
-  while(!engine.try_wait()) {
-    timer::sleep(1);
-    float totalpr = graph.map_reduce_vertices<float>(pagerank_sum);
-    dc.cout() << totalpr << "\n";
-  }
-
   engine.wait();
   dc.cout() << "Finished Running engine in " << ti.current_time()
             << " seconds." << std::endl;
@@ -180,9 +174,7 @@ int main(int argc, char** argv) {
                false);   // do not save edges
   }
 
-  // Tear-down communication layer and quit -----------------------------------
   mpi_tools::finalize();
-  qthread_tools::finalize();
   return EXIT_SUCCESS;
 } // End of main
 

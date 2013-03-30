@@ -154,9 +154,8 @@ int main(int argc, char** argv) {
   timer ti;
   for (size_t i = 0;i < iterations; ++i) {
     engine.parfor_all_local_vertices(update_function);
-    float totalpr = graph.map_reduce_vertices<float>(pagerank_sum);
+    std::cout << "Iteration " << i << " complete\n";
     engine.wait();
-    dc.cout() << totalpr << "\n";
   }
 
   dc.cout() << "Finished Running engine in " << ti.current_time()
@@ -173,9 +172,7 @@ int main(int argc, char** argv) {
                false);   // do not save edges
   }
 
-  // Tear-down communication layer and quit -----------------------------------
   mpi_tools::finalize();
-  qthread_tools::finalize();
   return EXIT_SUCCESS;
 } // End of main
 
