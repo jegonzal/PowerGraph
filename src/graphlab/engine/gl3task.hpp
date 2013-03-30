@@ -11,7 +11,24 @@
 namespace graphlab {
 #define GL3_BROADCAST_TASK_ID 255
 #define GL3_DHT_GATHER_TASK_ID 254
+#define GL3_SYNCHRONIZE_MIRRORS_TASK_ID 253
 
+/*
+ * The gl3task_descriptor is the general interface for a GraphLab 3 subtask.
+ * Launching subtasks must be done through the gl3engine::spawn_subtask()
+ * or gl3engine::spawn_subtask_to_master() functions. These functions
+ * issue calls to remote (or local) machines to run a particular subtask
+ * object. When a subtask is run, the exec() function is called.
+ *
+ * Return values are then returned to the sender, where they are merged using
+ * the combine() function.
+ *
+ * Basically every task type must be a friend of gl3engine.
+ * Most task types require an implementation in three places.
+ * First is the task logic itself. Second is the launching logic in gl3context,
+ * third is the task_id registration in GL3 engine. This ought to be refactored
+ * so that the logic is contained in a smaller number of places.
+ */
 template <typename GraphType, typename EngineType>
 struct gl3task_descriptor {
   virtual any exec(GraphType& graph,
@@ -19,6 +36,11 @@ struct gl3task_descriptor {
                    const any& params,
                    EngineType* engine) = 0;
   virtual void combine(any& a, const any& b, const any& params) = 0;
+  // if returns true, this task will complete inside the RPC call itself
+  // rather than placing it in a scheduler.
+  virtual bool fast_path(const any& params) { return false; }
+
+
 };
 
 
@@ -41,12 +63,16 @@ struct map_reduce_neighbors_task_param{
   }
 };
 
+/*
+ * Defines the map reduce over neighborhood task.
+ */
 template <typename GraphType, typename EngineType, typename T>
 struct map_reduce_neighbors_task_descriptor: public gl3task_descriptor<GraphType, EngineType> {
   typedef typename GraphType::vertex_data_type vertex_data_type;
   typedef typename GraphType::edge_data_type edge_data_type;
   typedef typename GraphType::vertex_type vertex_type;
   typedef typename GraphType::edge_type edge_type;
+  typedef gl3task_descriptor<GraphType, EngineType> base_type;
 
   typedef boost::function<T (const vertex_type&,
                              edge_type&,
@@ -54,20 +80,81 @@ struct map_reduce_neighbors_task_descriptor: public gl3task_descriptor<GraphType
   typedef boost::function<void (T&, const T&)> combine_fn_type;
 
 
+  /*
+   * This mess here is to permit two different map function types.
+   * First is a map function which just takes in the neighbor vertex,
+   * and the other which takes in the edge and both vertex endpoints.
+   */
+  struct create_map_reduce_task_impl{
+    // The more general map function type
+    typedef boost::function<T (const vertex_type&,
+                               edge_type&,
+                               const vertex_type&)>  full_map_function_type;
+
+    // the simpler map function type
+    typedef boost::function<T (const vertex_type&)> basic_map_function_type;
+
+
+    /*
+     * This function is enabled if the map function type matches the
+     * general map function type. In which case, a task descriptor is created
+     * using the user provided map function type.
+     */
+    template <typename MapFn>
+    static typename boost::enable_if_c<boost::is_same<MapFn, full_map_function_type>::value,
+                    base_type*>::type
+      create(full_map_function_type mapfn,
+             boost::function<void (T&, const T&)> combinefn) {
+      return new map_reduce_neighbors_task_descriptor<GraphType, EngineType, T>(mapfn, combinefn);
+    }
+
+    // Converts a complex map function type to a simpler map function type
+    static T simple_map_function_dispatch(boost::function<T (const vertex_type&)> mapfn,
+                                   const vertex_type&,
+                                   edge_type&,
+                                   const vertex_type& other) {
+      return mapfn(other);
+    }
+
+    /*
+     * This function is enabled if the map function type matches the
+     * simpler map function type. In which case, a task descriptor is created
+     * by rebinding the simpler map function to simple_map_function_dispatch.
+     */
+    template <typename MapFn>
+    static typename boost::enable_if_c<boost::is_same<MapFn, basic_map_function_type>::value,
+                    base_type*>::type
+      create(basic_map_function_type mapfn,
+             boost::function<void (T&, const T&)> combinefn) {
+      return new map_reduce_neighbors_task_descriptor<GraphType, EngineType, T>(
+          boost::bind(simple_map_function_dispatch, mapfn, _1, _2, _3), combinefn);
+    }
+  };
+
+
 
   map_fn_type map_fn;
   combine_fn_type combine_fn;
-  T zero;
 
   map_reduce_neighbors_task_descriptor(map_fn_type mapper,
-                                       combine_fn_type combiner,
-                                       const T& zero)
-      :map_fn(mapper), combine_fn(combiner), zero(zero) { }
+                                       combine_fn_type combiner)
+      :map_fn(mapper), combine_fn(combiner) { }
 
+  /*
+   * Combine results
+   */
   virtual void combine(any& a, const any& b, const any& params) {
-    combine_fn(a.as<T>(), b.as<const T>());
+    std::pair<T, bool>& ap = a.as<std::pair<T, bool> >();
+    const std::pair<T, bool>& bp = b.as<std::pair<T, bool> >();
+    // if both are filled, we can just combine
+    // if first is not filled, the result is the second
+    if (ap.second && bp.second) combine_fn(ap.first, bp.first);
+    else if (!ap.second) ap = bp;
   }
 
+  /* Runs the map function
+   * on the selected subset of edges.
+   */
   any exec(GraphType& graph, vertex_id_type vid, const any& params,
            EngineType* engine) {
     const map_reduce_neighbors_task_param& task_param = params.as<map_reduce_neighbors_task_param>();
@@ -83,13 +170,19 @@ struct map_reduce_neighbors_task_descriptor: public gl3task_descriptor<GraphType
     lvid_type lvid = graph.local_vid(vid);
     local_vertex_type lvertex = graph.l_vertex(lvid);
     vertex_type vertex = vertex_type(lvertex);
-    T agg = zero;
+    bool filled = false;
+    T agg = T();
     if (in) {
       foreach(local_edge_type ledge, lvertex.in_edges()) {
         edge_type edge(ledge);
         vertex_type other(ledge.source());
         engine->elocks[ledge.id()].lock();
-        combine_fn(agg, map_fn(vertex, edge, other));
+        if (filled) {
+          combine_fn(agg, map_fn(vertex, edge, other));
+        } else {
+          agg = map_fn(vertex, edge, other);
+          filled = true;
+        }
         engine->elocks[ledge.id()].unlock();
       }
     }
@@ -99,11 +192,16 @@ struct map_reduce_neighbors_task_descriptor: public gl3task_descriptor<GraphType
         edge_type edge(ledge);
         vertex_type other(ledge.target());
         engine->elocks[ledge.id()].lock();
-        combine_fn(agg, map_fn(vertex, edge, other));
+        if (filled) {
+          combine_fn(agg, map_fn(vertex, edge, other));
+        } else {
+          agg = map_fn(vertex, edge, other);
+          filled = true;
+        }
         engine->elocks[ledge.id()].unlock();
       }
     }
-    any ret(agg);
+    any ret(std::pair<T, bool>(agg, filled));
     return ret;
   }
 };
@@ -134,6 +232,9 @@ struct broadcast_task_param {
   }
 };
 
+/*
+ * Schedules a selected of neighbors with a particular message.
+ */
 template <typename GraphType, typename EngineType>
 struct broadcast_task_descriptor: public gl3task_descriptor<GraphType, EngineType> {
   typedef typename GraphType::vertex_data_type vertex_data_type;
@@ -141,6 +242,7 @@ struct broadcast_task_descriptor: public gl3task_descriptor<GraphType, EngineTyp
 
   broadcast_task_descriptor() { }
 
+  // No combine needed. This function does not return
   virtual void combine(any& a, const any& b, const any& params) {
   }
 
@@ -175,7 +277,7 @@ struct broadcast_task_descriptor: public gl3task_descriptor<GraphType, EngineTyp
 
 /**************************************************************************/
 /*                                                                        */
-/*                    Defines the Scatter Task Type                       */
+/*             Defines the Edge Transform Task Type                       */
 /*                                                                        */
 /**************************************************************************/
 
@@ -192,6 +294,9 @@ struct edge_transform_task_param {
   }
 };
 
+/*
+ * Transforms neigbors.
+ */
 template <typename GraphType, typename EngineType>
 struct edge_transform_task_descriptor: public gl3task_descriptor<GraphType, EngineType> {
   typedef typename GraphType::vertex_data_type vertex_data_type;
@@ -244,6 +349,102 @@ struct edge_transform_task_descriptor: public gl3task_descriptor<GraphType, Engi
     return any();
   }
 };
+
+
+
+
+
+/**************************************************************************/
+/*                                                                        */
+/*        Defines the Synchronize Mirrors Task Type                       */
+/*        This is basically an empty task.                                */
+/*                                                                        */
+/**************************************************************************/
+
+
+typedef graphlab::empty synchronize_mirrors_task_param;
+
+template <typename GraphType, typename EngineType>
+struct synchronize_mirrors_task_descriptor: public gl3task_descriptor<GraphType, EngineType> {
+  typedef typename GraphType::vertex_data_type vertex_data_type;
+  typedef typename GraphType::edge_data_type edge_data_type;
+  typedef typename GraphType::vertex_type vertex_type;
+  typedef typename GraphType::edge_type edge_type;
+
+  virtual void combine(any& a, const any& b, const any& params) { }
+
+  any exec(GraphType& graph, vertex_id_type vid, const any& params,
+           EngineType* engine) {
+    return any();
+  }
+
+  // fast path this empty operation
+  bool fast_path(const any& params) {
+    return true;
+  }
+};
+
+
+
+
+/**************************************************************************/
+/*                                                                        */
+/*               Defines the Vertex Delta Task Type                       */
+/*                                                                        */
+/**************************************************************************/
+
+
+struct vertex_delta_task_param {
+  any delta_value;
+
+  void save(oarchive& oarc) const {
+    oarc << delta_value;
+  }
+  void load(iarchive& iarc) {
+    iarc >> delta_value;
+  }
+};
+
+template <typename GraphType, typename EngineType, typename T>
+struct vertex_delta_task_descriptor: public gl3task_descriptor<GraphType, EngineType> {
+  typedef typename GraphType::vertex_data_type vertex_data_type;
+  typedef typename GraphType::edge_data_type edge_data_type;
+  typedef typename GraphType::vertex_type vertex_type;
+  typedef typename GraphType::edge_type edge_type;
+
+  typedef boost::function<void (vertex_type&, const T&)> delta_fn_type;
+  delta_fn_type delta_fn;
+
+  vertex_delta_task_descriptor(delta_fn_type delta_fn):delta_fn(delta_fn) { }
+
+  virtual void combine(any& a, const any& b, const any& params) { }
+
+  any exec(GraphType& graph, vertex_id_type vid, const any& params,
+           EngineType* engine) {
+    const vertex_delta_task_param& delta_param = params.as<vertex_delta_task_param>();
+
+    lvid_type lvid = graph.local_vid(vid);
+    vertex_type vertex(graph.l_vertex(lvid));
+
+    engine->vlocks[lvid].lock();
+    delta_fn(vertex, delta_param.delta_value.as<T>());
+    engine->vlocks[lvid].unlock();
+    return any();
+  }
+
+  // fast path unlock operations
+  bool fast_path(const any& params) {
+    return true;
+  }
+};
+
+
+
+
+
+
+
+
 
 
 

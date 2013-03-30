@@ -81,7 +81,7 @@ void update_function(engine_type::context_type& context,
                      const engine_type::message_type& unused) {
   float prev = vertex.data();
   vertex.data() = 0.15 + 0.85 *
-      context.map_reduce(PAGERANK_MAP_REDUCE, IN_EDGES).as<float>();
+      context.map_reduce<float>(PAGERANK_MAP_REDUCE, IN_EDGES);
 
   float last_change = std::fabs((vertex.data()- prev) / vertex.num_out_edges());
   if (last_change > TOLERANCE) {
@@ -125,7 +125,6 @@ int main(int argc, char** argv) {
     dc.cout() << "Error in parsing command line arguments." << std::endl;
     return EXIT_FAILURE;
   }
-  ASSERT_MSG(0, "pika %d", 10);
 
   // Build the graph ----------------------------------------------------------
   graph_type graph(dc, clopts);
@@ -154,19 +153,19 @@ int main(int argc, char** argv) {
   engine_type engine(dc, graph, clopts);
   engine.register_map_reduce(PAGERANK_MAP_REDUCE,
                              pagerank_map,
-                             pagerank_combine,
-                             0.0);
+                             pagerank_combine);
+
   engine.set_vertex_program(update_function);
   timer ti; ti.start();
   engine.signal_all();
 
-  while(!engine.try_sync()) {
+  while(!engine.try_wait()) {
     timer::sleep(1);
     float totalpr = graph.map_reduce_vertices<float>(pagerank_sum);
     dc.cout() << totalpr << "\n";
   }
 
-  engine.sync();
+  engine.wait();
   dc.cout() << "Finished Running engine in " << ti.current_time()
             << " seconds." << std::endl;
   dc.cout() << engine.num_updates()
