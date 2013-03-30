@@ -151,7 +151,6 @@ namespace graphlab {
  *                            pagerank_combine);
  *
  *  engine.set_vertex_program(pagerank_program);
- *  timer ti; ti.start();
  *  engine.signal_all();
  *  engine.wait();
  * \endcode
@@ -173,6 +172,21 @@ namespace graphlab {
  * engine.wait();
  * \endcode
  *
+ * As an example of There Is More Than One Way to Do It, we can also use
+ * parfor_all_local_vertices() to implement non-dynamic asynchronous pagerank.
+ *
+ * \code
+ * void pagerank_function(engine_type::context_type& context,
+ *                       graph_type::vertex_type& vertex) {
+ *  vertex.data() = 0.15 + 0.85 *
+ *      context.map_reduce<float>(PAGERANK_MAP_REDUCE, IN_EDGES);
+ * }
+ * // and in main ...
+ * for (size_t i = 0;i < iterations; ++i) {
+ *    engine.parfor_all_local_vertices(update_function);
+ *    engine.wait();
+ * }
+ * \endcode
  *
  * Another really cool example. SGD Matrix Factorization on a bipartite graph.
  * The issue is when and how often to synchronize the parameters on the
