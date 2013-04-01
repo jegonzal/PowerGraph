@@ -54,9 +54,8 @@ void fibonacci(void* val) {
 
 int main(int argc, char** argv) {
   fibers = new fiber_group(4, 8192);
-  timeval t;
-  gettimeofday(&t, NULL);
-  double start_time = t.tv_sec + ((double)t.tv_usec)/1.0E6;
+
+  timer ti; ti.start();
 
   fibonacci_compute_promise promise;
   mutex lock;
@@ -68,9 +67,8 @@ int main(int argc, char** argv) {
   fibers->join();
   assert(promise.result_set);
   std::cout << "Fib(" << promise.argument << ") = " << promise.result << "\n";
-  gettimeofday(&t, NULL);
-  double cur_time = t.tv_sec + ((double)t.tv_usec)/1.0E6;
-  std::cout << "Completion in " << cur_time - start_time << "s\n";
+
+  std::cout << "Completion in " << ti.current_time() << "s\n";
   std::cout << fibers->total_threads_created() << " threads created\n";
 
   delete fibers;
