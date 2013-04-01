@@ -1002,10 +1002,20 @@ class gl3engine {
   struct __attribute((__may_alias__)) future_combiner {
     any param;
     any result;
-    atomic<procid_t> count_down;
+    procid_t count_down;
     unsigned char task_id;
-    simple_spinlock lock;
+    mutex lock;
+    size_t waking_thread_id;
   };
+
+  void wait_on_combiner(future_combiner& combiner) {
+    combiner.lock.lock();
+    while (combiner.count_down != 0) {
+      fiber_group::deschedule_self(&combiner.lock.m_mut);
+      combiner.lock.lock();
+    }
+    combiner.lock.unlock();
+  }
 
   /**
    * Spawns a subtask unassociated with the graph on a collection of target
@@ -1024,6 +1034,7 @@ class gl3engine {
     combiner.count_down = target_machines.size();
     combiner.task_id = task_id;
     combiner.param = task_param;
+    combiner.waking_thread_id = fiber_group::get_tid();
 
     conditional_serialize<vertex_data_type> cs;
     size_t cb = reinterpret_cast<size_t>(&combiner);
@@ -1052,11 +1063,9 @@ class gl3engine {
       any ret = task_types[task_id]->exec(graph, vertex_id_type(-1), task_param[self_task_id], this);
       if (!no_reply) task_reply(&combiner, ret);
     }
-    if (!no_reply) {
+    if (!no_reply && combiner.count_down > 0) {
       if (GL3TLS::IN_VTHREAD_TASK()) num_working_threads.dec();
-      while(combiner.count_down != 0) {
-        fiber_group::yield();
-      }
+      wait_on_combiner(combiner);
       if (GL3TLS::IN_VTHREAD_TASK()) num_working_threads.inc();
     }
     return combiner.result;
@@ -1095,6 +1104,7 @@ class gl3engine {
     combiner.count_down = 1;
     combiner.task_id = task_id;
     combiner.param = task_param;
+    combiner.waking_thread_id = fiber_group::get_tid();
     /*
     logstream(LOG_EMPH) << "Creating Subtask type "<< (int)task_id
                         << " on vertex " << graph.l_vertex(lvid).global_id() << " Handle " << combiner
@@ -1121,12 +1131,10 @@ class gl3engine {
     */
     // if we are in an update function
     // unlock the task locks so we don't dead-lock with the subtask
-    if (!no_reply) {
+    if (!no_reply && combiner.count_down > 0) {
       unlock_vlock_for_subtask_execution(lvid);
       if (GL3TLS::IN_VTHREAD_TASK()) num_working_threads.dec();
-      while(combiner.count_down != 0) {
-        fiber_group::yield();
-      }
+      wait_on_combiner(combiner);
       if (GL3TLS::IN_VTHREAD_TASK()) num_working_threads.inc();
       relock_vlock_for_subtask_execution(lvid);
     }
@@ -1157,6 +1165,9 @@ class gl3engine {
     combiner.count_down = graph.l_vertex(lvid).num_mirrors() + 1;
     combiner.task_id = task_id;
     combiner.param = task_param;
+    combiner.waking_thread_id = fiber_group::get_tid();
+
+
     /*
     logstream(LOG_EMPH) << "Creating Subtask type "<< (int)task_id
                         << " on vertex " << graph.l_vertex(lvid).global_id() << " Handle " << combiner
@@ -1190,11 +1201,11 @@ class gl3engine {
     unlock_vlock_for_subtask_execution(lvid);
     any ret = task_types[task_id]->exec(graph, lvertex.global_id(), task_param, this);
     if (!no_reply) {
-      if (GL3TLS::IN_VTHREAD_TASK()) num_working_threads.dec();
       task_reply(&combiner, ret);
-      while(combiner.count_down != 0) {
-        fiber_group::yield();
-      }
+    }
+    if (!no_reply && combiner.count_down > 0) {
+      if (GL3TLS::IN_VTHREAD_TASK()) num_working_threads.dec();
+      wait_on_combiner(combiner);
       if (GL3TLS::IN_VTHREAD_TASK()) num_working_threads.inc();
     }
     relock_vlock_for_subtask_execution(lvid);
@@ -1207,12 +1218,12 @@ class gl3engine {
   /// Task replies come through here
   void task_reply_rpc(size_t handle, any& val) {
     future_combiner* combiner = reinterpret_cast<future_combiner*>(handle);
-    task_reply(combiner, val);
+    task_reply(combiner, val, true);
   }
 
 
   /// Task replies come through here
-  void task_reply(future_combiner* combiner, any& val) {
+  void task_reply(future_combiner* combiner, any& val, bool from_remote = false) {
     //logstream(LOG_EMPH) << "some subtask completion on handle " << combiner << "\n";
     combiner->lock.lock();
     ASSERT_GT(combiner->count_down, 0);
@@ -1222,8 +1233,11 @@ class gl3engine {
     } else {
       combiner->result = val;
     }
+    --combiner->count_down;
+    if (from_remote && combiner->count_down == 0) {
+      fiber_group::schedule_tid(combiner->waking_thread_id);
+    }
     combiner->lock.unlock();
-    combiner->count_down.dec();
   }
 
   /// Receives a subtask from a remote machine.
