@@ -1,7 +1,7 @@
 #define _XOPEN_SOURCE
 #include <boost/bind.hpp>
 #include <graphlab/parallel/fiber.hpp>
-#include <valgrind/valgrind.h>
+//#include <valgrind/valgrind.h>
 namespace graphlab {
 
 bool fiber_group::tls_created = false;
@@ -137,7 +137,7 @@ size_t fiber_group::launch(void fn(void*), void* param) {
   fiber* fib = new fiber;
   fib->stack = malloc(stacksize);
   fib->id = fiber_id_counter.inc();
-  VALGRIND_STACK_REGISTER(fib->stack, (char*)fib->stack + stacksize);
+  //VALGRIND_STACK_REGISTER(fib->stack, (char*)fib->stack + stacksize);
   fib->tls = NULL;
   fib->next = NULL;
   fib->terminate = false;
@@ -224,7 +224,7 @@ void fiber_group::reschedule_fiber(fiber* fib) {
   } else {
     // previous fiber is dead. destroy it
     free(fib->stack);
-    VALGRIND_STACK_DEREGISTER(fib->stack);
+    //VALGRIND_STACK_DEREGISTER(fib->stack);
     delete fib;
     // if we are out of threads, signal the join
     if (fibers_active.dec() == 0) {
