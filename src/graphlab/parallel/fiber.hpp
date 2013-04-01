@@ -2,6 +2,7 @@
 #define GRAPHLAB_FIBER_HPP
 #include <cstdlib>
 #include <boost/context/all.hpp>
+#include <boost/function.hpp>
 #include <graphlab/parallel/pthread_tools.hpp>
 #include <graphlab/parallel/atomic.hpp>
 namespace graphlab {
@@ -96,18 +97,27 @@ class fiber_group {
   ~fiber_group();
 
   /** the basic launch function
-   * More advanced ones (for instance using boost::function)
-   * can be built on top of this easily.
    * Returns a fiber ID. IDs are not sequential.
    * \note The ID is really a pointer to a fiber_group::fiber object.
    */
-  size_t launch(void fn(void*), void* param);
+  size_t launch(boost::function<void (void)> fn);
 
   /**
    * Waits for all functions to join
    */
   void join();
 
+
+  /**
+   * Returns the number of threads that have yet to join
+   */
+  inline size_t num_threads() {
+    return fibers_active.value;
+  }
+
+  /**
+   * Returns the total number threads ever created
+   */
   inline size_t total_threads_created() {
     return fiber_id_counter.value;
   }

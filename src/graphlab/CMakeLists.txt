@@ -29,7 +29,7 @@ add_library(graphlab STATIC
   logger/logger.cpp
   logger/assertions.cpp
   parallel/pthread_tools.cpp
-  parallel/qthread_tools.cpp
+  # parallel/qthread_tools.cpp
   parallel/thread_pool.cpp
   parallel/fiber.cpp
   util/random.cpp

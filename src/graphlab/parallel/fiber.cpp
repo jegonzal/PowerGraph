@@ -115,8 +115,7 @@ void fiber_group::worker_init(size_t workerid) {
 }
 
 struct trampoline_args {
-  void (*fn)(void* arg);
-  void* param;
+  boost::function<void(void)> fn;
 };
 
 // the trampoline to call the user function. This function never returns
@@ -129,14 +128,14 @@ void fiber_group::trampoline(intptr_t _args) {
 
   trampoline_args* args = reinterpret_cast<trampoline_args*>(_args);
   try {
-    (args->fn)(args->param);
+    args->fn();
   } catch (...) {
   }
   delete args;
   fiber_group::exit();
 }
 
-size_t fiber_group::launch(void fn(void*), void* param) {
+size_t fiber_group::launch(boost::function<void(void)> fn) {
   // allocate a stack
   fiber* fib = new fiber;
   fib->parent = this;
@@ -152,7 +151,6 @@ size_t fiber_group::launch(void fn(void*), void* param) {
   // construct the initial context
   trampoline_args* args = new trampoline_args;
   args->fn = fn;
-  args->param = param;
   fib->initial_trampoline_args = (intptr_t)(args);
   // stack grows downwards.
   fib->context = boost::context::make_fcontext((char*)fib->stack + stacksize,

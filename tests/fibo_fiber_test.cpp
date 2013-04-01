@@ -1,4 +1,5 @@
 #include <iostream>
+#include <boost/bind.hpp>
 #include <graphlab/parallel/fiber.hpp>
 using namespace graphlab;
 fiber_group* fibers;
@@ -11,8 +12,7 @@ struct fibonacci_compute_promise {
   bool result_set;
 };
 
-void fibonacci(void* val) {
-  fibonacci_compute_promise* promise = reinterpret_cast<fibonacci_compute_promise*>(val);
+void fibonacci(fibonacci_compute_promise* promise) {
   //std::cout << promise->argument << "\n";
   if (promise->argument == 1 ||  promise->argument == 2) {
     promise->result = 1;
@@ -30,8 +30,8 @@ void fibonacci(void* val) {
     right.result_set = false;
     right.parent_tid = fiber_group::get_tid();
 
-    fibers->launch(fibonacci, &left);
-    fibers->launch(fibonacci, &right);
+    fibers->launch(boost::bind(fibonacci, &left));
+    fibers->launch(boost::bind(fibonacci, &right));
 
     // wait on the left and right promise
     lock.lock();
@@ -63,7 +63,7 @@ int main(int argc, char** argv) {
   promise.result_set = false;
   promise.argument = 24;
   promise.parent_tid = 0;
-  fibers->launch(fibonacci, &promise);
+  fibers->launch(boost::bind(fibonacci, &promise));
   fibers->join();
   assert(promise.result_set);
   std::cout << "Fib(" << promise.argument << ") = " << promise.result << "\n";

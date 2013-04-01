@@ -3,7 +3,7 @@
 #include <graphlab/util/timer.hpp>
 using namespace graphlab;
 int numticks = 0;
-void threadfn(void*) {
+void threadfn() {
 
   timer ti; ti.start();
   while(1) {
@@ -17,7 +17,7 @@ int main(int argc, char** argv) {
   fiber_group fibers(4, 8192);
   timer ti; ti.start();
   for (int i = 0;i < 100000; ++i) {
-    fibers.launch(threadfn, NULL);
+    fibers.launch(threadfn);
   }
 
   std::cout << "Completion in " << ti.current_time() << "s\n";

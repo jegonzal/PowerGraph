@@ -478,14 +478,14 @@ endif(MPI_FOUND)
 
 
 
-ExternalProject_Add(qthreads
-                    PREFIX ${GraphLab_SOURCE_DIR}/deps/qthreads
-                    URL http://graphlab.org/deps/qthreads.tar.bz2
-                    URL_MD5 fd94ae41a06f3756c1042d47cfa671d3
-                    INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local
-                    BUILD_IN_SOURCE 1
-                    CONFIGURE_COMMAND ./configure --prefix=<INSTALL_DIR> --enable-oversubscription --with-scheduler=sherwood --enable-lf-febs -enable-condwait-queue 
-                    )
+#ExternalProject_Add(qthreads
+#                    PREFIX ${GraphLab_SOURCE_DIR}/deps/qthreads
+#                    URL http://graphlab.org/deps/qthreads.tar.bz2
+#                    URL_MD5 fd94ae41a06f3756c1042d47cfa671d3
+#                    INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local
+#                    BUILD_IN_SOURCE 1
+#                    CONFIGURE_COMMAND ./configure --prefix=<INSTALL_DIR> --enable-oversubscription --with-scheduler=sherwood --enable-lf-febs -enable-condwait-queue 
+#                    )
 
 
 
@@ -497,9 +497,9 @@ macro(requires_core_deps NAME)
     z
     #    tcmalloc
     event event_pthreads
-    qthread
+    # qthread
     json)
-  add_dependencies(${NAME} boost libevent libjson qthreads) #libtcmalloc 
+  add_dependencies(${NAME} boost libevent libjson ) #qthreads libtcmalloc 
   if(MPI_FOUND)
     target_link_libraries(${NAME} ${MPI_LIBRARY} ${MPI_EXTRA_LIBRARY})
   endif(MPI_FOUND)

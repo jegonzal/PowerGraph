@@ -8,11 +8,9 @@
 #include <boost/type_traits.hpp>
 #include <boost/utility/enable_if.hpp>
 
-#include <qthread/io.h>
 
 #include <graphlab/engine/execution_status.hpp>
 #include <graphlab/options/graphlab_options.hpp>
-#include <graphlab/parallel/qthread_tools.hpp>
 #include <graphlab/util/tracepoint.hpp>
 #include <graphlab/util/memory_info.hpp>
 #include <graphlab/util/hashstream.hpp>
@@ -24,9 +22,8 @@
 #include <graphlab/scheduler/scheduler_factory.hpp>
 #include <graphlab/rpc/async_consensus.hpp>
 #include <graphlab/util/inplace_lf_queue2.hpp>
-#include <graphlab/parallel/qthread_tools.hpp>
 #include <graphlab/util/empty.hpp>
-
+#include <graphlab/parallel/fiber.hpp>
 
 
 #include <graphlab/macros_def.hpp>
@@ -51,7 +48,17 @@ namespace graphlab {
     };
 
     inline worker_task_local* GET_TASK_LOCAL() {
-      return (worker_task_local*) qthread_get_tasklocal(sizeof(worker_task_local));
+      worker_task_local* local = (worker_task_local*) fiber_group::get_tls();
+      if (local != NULL) {
+        return local;
+      } else {
+        local = (worker_task_local*) malloc(sizeof(worker_task_local));
+        local->is_vthread_task = false;
+        local->is_vertex_program = false;
+        local->locked_lvid = 0;
+        fiber_group::set_tls(local);
+      }
+      return local;
     }
 
     inline bool IN_VTHREAD_TASK() {
@@ -84,7 +91,7 @@ namespace graphlab {
  * The GraphLab 3 engine describes a new purely asynchronous
  * graph abstraction built around the concept of non-blocking tasks and
  * function calls. This is made possible through the use of user-mode
- * threads provided by the qthread library.
+ * threads provided by the fiber library.
  * It has the unfortunate side effect of making debugging quite difficult
  * since GDB does not know about user mode threads.
  *
@@ -373,7 +380,7 @@ class gl3engine {
 
 
 
-  graphlab::qthread_group execution_group;
+  fiber_group execution_group;
 
   // we have to friend basically every subtask
   friend struct gl3task_descriptor<GraphType, engine_type>;
@@ -400,12 +407,13 @@ class gl3engine {
  public:
   gl3engine(distributed_control& dc, graph_type& graph,
             graphlab_options opts = graphlab_options()):
-      rmi(dc, this), graph(graph){
+      rmi(dc, this), graph(graph), execution_group(opts.get_ncpus(), 64 * 1024) {
     rmi.barrier();
     num_vthreads = 10000;
     ncpus = opts.get_ncpus();
     worker_mutex.resize(ncpus);
 
+    execution_group.set_tls_deleter(free);
 
     // read the options
     std::vector<std::string> keys = opts.get_engine_args().get_option_keys();
@@ -467,16 +475,13 @@ class gl3engine {
     num_working_threads = 0;
 
 
-    graphlab::qthread_tools::init(ncpus, 128 * 1024);
-
     base_context.engine = this;
     base_context.lvid = (lvid_type)(-1);
     rmi.full_barrier();
-    qt_begin_blocking_action();
   }
 
   ~gl3engine() {
-    qt_end_blocking_action();
+    execution_group.join();
   }
 
   procid_t procid() const {
@@ -898,7 +903,7 @@ class gl3engine {
         // set up the context
         context.lvid = i;
         // lock and call the function
-        while (!vlocks[i].try_lock()) qthread_yield();
+        while (!vlocks[i].try_lock()) fiber_group::yield();
         GL3TLS::SET_LOCKED_LVID(i);
         vertex_fn(context, vertex);
 
@@ -1050,7 +1055,7 @@ class gl3engine {
     if (!no_reply) {
       if (GL3TLS::IN_VTHREAD_TASK()) num_working_threads.dec();
       while(combiner.count_down != 0) {
-        qthread_yield();
+        fiber_group::yield();
       }
       if (GL3TLS::IN_VTHREAD_TASK()) num_working_threads.inc();
     }
@@ -1067,7 +1072,7 @@ class gl3engine {
     bool in_vertex_program = GL3TLS::IN_VERTEX_PROGRAM();
     lvid_type locked_lvid = GL3TLS::LOCKED_LVID();
     if (in_vertex_program && lvid == locked_lvid) {
-      while (!vlocks[lvid].try_lock()) qthread_yield();
+      while (!vlocks[lvid].try_lock()) fiber_group::yield();
     }
   }
   /**
@@ -1120,7 +1125,7 @@ class gl3engine {
       unlock_vlock_for_subtask_execution(lvid);
       if (GL3TLS::IN_VTHREAD_TASK()) num_working_threads.dec();
       while(combiner.count_down != 0) {
-        qthread_yield();
+        fiber_group::yield();
       }
       if (GL3TLS::IN_VTHREAD_TASK()) num_working_threads.inc();
       relock_vlock_for_subtask_execution(lvid);
@@ -1188,7 +1193,7 @@ class gl3engine {
       if (GL3TLS::IN_VTHREAD_TASK()) num_working_threads.dec();
       task_reply(&combiner, ret);
       while(combiner.count_down != 0) {
-        qthread_yield();
+        fiber_group::yield();
       }
       if (GL3TLS::IN_VTHREAD_TASK()) num_working_threads.inc();
     }
@@ -1425,7 +1430,7 @@ class gl3engine {
 
     // now, can I run this task? is it already running?
 
-    while (!vlocks[lvid].try_lock()) qthread_yield();
+    while (!vlocks[lvid].try_lock())fiber_group::yield();
     GL3TLS::SET_LOCKED_LVID(lvid);
     vertex_type vertex(graph.l_vertex(lvid));
     context.lvid = lvid;
@@ -1465,7 +1470,7 @@ class gl3engine {
       bool haswork = exec_subtasks(id % ncpus);
       // we should yield every so often
       if (timer::approx_time_millis() >= ctr + 100) {
-        qthread_yield();
+        fiber_group::yield();
         ctr = timer::approx_time_millis();
       }
       if (!haswork) {
@@ -1498,7 +1503,7 @@ class gl3engine {
       bool haswork = exec_scheduler_task(id % ncpus);
       // we should yield every so often
       if (timer::approx_time_millis() >= ctr + 100) {
-        qthread_yield();
+        fiber_group::yield();
         ctr = timer::approx_time_millis();
       }
       if (!haswork) {
@@ -1526,7 +1531,7 @@ class gl3engine {
    * Called by user tasks to yield to another thread.
    */
   void poll(size_t id = (size_t)(-1)) {
-    qthread_yield();
+    fiber_group::yield();
   }
 
 
@@ -1550,13 +1555,12 @@ class gl3engine {
    * Waits for all user tasks and scheduler tasks to complete.
    */
   execution_status::status_enum wait() {
-    qt_end_blocking_action();
     timer ti;
     ti.start();
     while(1) {
       execution_group.join();
       consensus->begin_done_critical_section(0);
-      if (!execution_group.empty()) {
+      if (execution_group.num_threads() != 0) {
         consensus->cancel_critical_section(0);
       } else {
         if (consensus->end_done_critical_section(0)) break;
@@ -1575,7 +1579,6 @@ class gl3engine {
     consensus->reset();
     rmi.barrier();
 
-    qt_begin_blocking_action();
     return execution_status::TASK_DEPLETION;
   }
 
