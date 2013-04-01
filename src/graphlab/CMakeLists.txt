@@ -31,6 +31,7 @@ add_library(graphlab STATIC
   parallel/pthread_tools.cpp
   parallel/qthread_tools.cpp
   parallel/thread_pool.cpp
+  parallel/fiber.cpp
   util/random.cpp
   scheduler/scheduler_list.cpp
   util/net_util.cpp

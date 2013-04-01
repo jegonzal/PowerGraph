@@ -170,8 +170,8 @@ ExternalProject_Add(libbz2
 # unordered containers. 
 ExternalProject_Add(boost
   PREFIX ${GraphLab_SOURCE_DIR}/deps/boost
-  URL "http://sourceforge.net/projects/boost/files/boost/1.50.0/boost_1_50_0.tar.gz"
-  URL_MD5 dbc07ab0254df3dda6300fd737b3f264 
+  URL "http://sourceforge.net/projects/boost/files/boost/1.53.0/boost_1_53_0.tar.gz"
+  URL_MD5 57a9e2047c0f511c4dfcf00eb5eb2fbb
   BUILD_IN_SOURCE 1
   CONFIGURE_COMMAND 
   ./bootstrap.sh 
@@ -181,6 +181,7 @@ ExternalProject_Add(boost
   --with-libraries=iostreams
   --with-libraries=date_time
   --with-libraries=random
+  --with-libraries=context
   --prefix=<INSTALL_DIR>
   BUILD_COMMAND  
   C_INCLUDE_PATH=${GraphLab_SOURCE_DIR}/deps/local/include 
@@ -196,6 +197,7 @@ set(Boost_LIBRARIES
   ${BOOST_LIBS_DIR}/libboost_program_options.a
   ${BOOST_LIBS_DIR}/libboost_system.a 
   ${BOOST_LIBS_DIR}/libboost_iostreams.a 
+  ${BOOST_LIBS_DIR}/libboost_context.a 
   ${BOOST_LIBS_DIR}/libboost_date_time.a)
 add_dependencies(boost libbz2)
 message(STATUS "Boost libs: " ${Boost_LIBRARIES})
