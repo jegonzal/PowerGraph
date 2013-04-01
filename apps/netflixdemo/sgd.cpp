@@ -1,5 +1,5 @@
-/**  
- * Copyright (c) 2009 Carnegie Mellon University. 
+/**
+ * Copyright (c) 2009 Carnegie Mellon University.
  *     All rights reserved.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
@@ -23,11 +23,11 @@
 
 /**
  * \file
- * 
+ *
  * \brief The main file for the ALS matrix factorization algorithm.
  *
  * This file contains the main body of the ALS matrix factorization
- * algorithm. 
+ * algorithm.
  */
 
 #include <graphlab/util/stl_util.hpp>
@@ -51,7 +51,7 @@ bool isuser(uint node){
   return ((int)node) >= 0;
 }
 
-/** 
+/**
  * \ingroup toolkit_matrix_pvecization
  *
  * \brief the vertex data type which contains the latent pvec.
@@ -73,19 +73,19 @@ struct vertex_data {
   vec_type pvec;
 
   int nupdates;
-  /** 
+  /**
    * \brief Simple default constructor which randomizes the vertex
-   *  data 
+   *  data
    */
-  vertex_data() : nupdates(0) { if (debug) pvec = vec_type::Ones(NLATENT); else randomize(); } 
+  vertex_data() : nupdates(0) { if (debug) pvec = vec_type::Ones(NLATENT); else randomize(); }
   /** \brief Randomizes the latent pvec */
   void randomize() { pvec.resize(NLATENT); pvec.setRandom(); }
   /** \brief Save the vertex data to a binary archive */
-  void save(graphlab::oarchive& arc) const { 
+  void save(graphlab::oarchive& arc) const {
     arc << nupdates << pvec;
   }
   /** \brief Load the vertex data from a binary archive */
-  void load(graphlab::iarchive& arc) { 
+  void load(graphlab::iarchive& arc) {
     arc >> nupdates >> pvec;
   }
 }; // end of vertex data
@@ -123,7 +123,7 @@ struct edge_data : public graphlab::IS_POD_TYPE {
 /**
  * \brief The graph type is defined in terms of the vertex and edge
  * data.
- */ 
+ */
 typedef graphlab::distributed_graph<vertex_data, edge_data> graph_type;
 
 #include "implicit.hpp"
@@ -149,7 +149,7 @@ double extract_l2_error(const graph_type::edge_type & edge);
  * edge.
  */
 inline graph_type::vertex_type
-get_other_vertex(graph_type::edge_type& edge, 
+get_other_vertex(graph_type::edge_type& edge,
     const graph_type::vertex_type& vertex) {
   return vertex.id() == edge.source().id()? edge.target() : edge.source();
 }; // end of get_other_vertex
@@ -187,9 +187,9 @@ class gather_type {
     void save(graphlab::oarchive& arc) const { arc << pvec; }
 
     /** \brief Read the values from a binary archive */
-    void load(graphlab::iarchive& arc) { arc >> pvec; }  
+    void load(graphlab::iarchive& arc) { arc >> pvec; }
 
-    /** 
+    /**
      */
     gather_type& operator+=(const gather_type& other) {
       if (pvec.size() == 0){
@@ -212,8 +212,8 @@ bool isuser_node(const graph_type::vertex_type& vertex){
 
 /**
  * SGD vertex program type
- */ 
-class sgd_vertex_program : 
+ */
+class sgd_vertex_program :
   public graphlab::ivertex_program<graph_type, gather_type,
   message_type> {
     public:
@@ -228,24 +228,24 @@ class sgd_vertex_program :
       static size_t MAX_UPDATES;
       vec_type pmsg;
 
-      void save(graphlab::oarchive& arc) const { 
+      void save(graphlab::oarchive& arc) const {
         arc << pmsg;
       }
       /** \brief Load the vertex data from a binary archive */
-      void load(graphlab::iarchive& arc) { 
+      void load(graphlab::iarchive& arc) {
         arc >> pmsg;
       }
 
       /** The set of edges to gather along */
-      edge_dir_type gather_edges(icontext_type& context, 
-          const vertex_type& vertex) const { 
-        return graphlab::ALL_EDGES; 
-      }; // end of gather_edges 
+      edge_dir_type gather_edges(icontext_type& context,
+          const vertex_type& vertex) const {
+        return graphlab::ALL_EDGES;
+      }; // end of gather_edges
 
-      
-      gather_type gather(icontext_type& context, const vertex_type& vertex, 
+
+      gather_type gather(icontext_type& context, const vertex_type& vertex,
           edge_type& edge) const {
-        
+
         vec_type delta, other_delta;
         //this is user node
         if (vertex.num_in_edges() == 0){
@@ -256,8 +256,8 @@ class sgd_vertex_program :
           double pred = vertex.data().pvec.dot(other_vertex.data().pvec);
           //truncte predictions into allowed range
           pred = std::min(pred, sgd_vertex_program::MAXVAL);
-          pred = std::max(pred, sgd_vertex_program::MINVAL); 
-          //compute the prediction error 
+          pred = std::max(pred, sgd_vertex_program::MINVAL);
+          //compute the prediction error
           const float err = edge.data().obs - pred;
           if (debug)
             std::cout<<"entering edge " << (int)edge.source().id() << ":" << (int)edge.target().id() << " err: " << err << " rmse: " << err*err <<std::endl;
@@ -277,10 +277,10 @@ class sgd_vertex_program :
             if (debug)
               std::cout<<"new val:" << (int)edge.source().id() << ":" << (int)edge.target().id() << " U " << my_vertex.data().pvec.transpose() << " V " << other_vertex.data().pvec.transpose() << std::endl;
             //send the delta gradient for the item node to be updated in the next iteration
-            if(std::fabs(err) > TOLERANCE && other_vertex.data().nupdates < MAX_UPDATES) 
+            if(std::fabs(err) > TOLERANCE && other_vertex.data().nupdates < MAX_UPDATES)
               context.signal(other_vertex, other_delta);
           }
-        } 
+        }
         return gather_type(delta);
       } // end of gather function
 
@@ -293,38 +293,38 @@ class sgd_vertex_program :
           pmsg = msg;
         }
       }
-      
+
       void apply(icontext_type& context, vertex_type& vertex,
           const gather_type& sum) {
-        
-        vertex_data& vdata = vertex.data(); 
+
+        vertex_data& vdata = vertex.data();
         //this is a user node, update the gradient using the comulative sum of gradient updates computed in gather
         if (sum.pvec.size() > 0){
-          vdata.pvec += sum.pvec; 
+          vdata.pvec += sum.pvec;
           assert(vertex.num_in_edges() == 0);
         }
         //if this is an item node, update the gradient using the received sum from the init() function
         else if (pmsg.size() > 0){
           vdata.pvec += pmsg;
-          assert(vertex.num_out_edges() == 0); 
+          assert(vertex.num_out_edges() == 0);
         }
         ++vdata.nupdates;
       } // end of apply
 
       /** The edges to scatter along */
       edge_dir_type scatter_edges(icontext_type& context,
-          const vertex_type& vertex) const { 
-        return graphlab::ALL_EDGES; 
+          const vertex_type& vertex) const {
+        return graphlab::ALL_EDGES;
       }; // end of scatter edges
 
-      /** Scatter reschedules neighbors */  
-      void scatter(icontext_type& context, const vertex_type& vertex, 
+      /** Scatter reschedules neighbors */
+      void scatter(icontext_type& context, const vertex_type& vertex,
           edge_type& edge) const {
         edge_data& edata = edge.data();
         if(edata.role == edge_data::TRAIN) {
           const vertex_type other_vertex = get_other_vertex(edge, vertex);
           // Reschedule neighbors ------------------------------------------------
-          if(other_vertex.data().nupdates < MAX_UPDATES) 
+          if(other_vertex.data().nupdates < MAX_UPDATES)
             context.signal(other_vertex, vec_type::Zero(vertex_data::NLATENT));
         }
       } // end of scatter function
@@ -337,7 +337,7 @@ class sgd_vertex_program :
           vertex_type& vertex) {
         if(vertex.num_out_edges() > 0) context.signal(vertex, vec_type::Zero(vertex_data::NLATENT));
         return graphlab::empty();
-      } // end of signal_left 
+      } // end of signal_left
 
       }; // end of sgd vertex program
 
@@ -347,7 +347,7 @@ class sgd_vertex_program :
         typedef graph_type::edge_type edge_type;
         double train_error, validation_error;
 
-        error_aggregator() : 
+        error_aggregator() :
           train_error(0), validation_error(0){ }
         error_aggregator& operator+=(const error_aggregator& other) {
           train_error += other.train_error;
@@ -358,13 +358,13 @@ class sgd_vertex_program :
         static error_aggregator map(icontext_type& context, const graph_type::edge_type& edge) {
           error_aggregator agg;
           if (edge.data().role == edge_data::TRAIN){
-            if (isuser_node(edge.source())) 
-               agg.train_error = extract_l2_error(edge); 
+            if (isuser_node(edge.source()))
+               agg.train_error = extract_l2_error(edge);
             assert(!std::isnan(agg.train_error));
           }
           else if (edge.data().role == edge_data::VALIDATE){
-            if (isuser_node(edge.source())) 
-            agg.validation_error = extract_l2_error(edge); 
+            if (isuser_node(edge.source()))
+            agg.validation_error = extract_l2_error(edge);
           }
           return agg;
         }
@@ -373,14 +373,14 @@ class sgd_vertex_program :
         static void finalize(icontext_type& context, const error_aggregator& agg) {
           iter++;
           if (iter%2 == 0)
-            return; 
+            return;
           const double train_error = std::sqrt(agg.train_error / info.training_edges);
           assert(!std::isnan(train_error));
           context.cout() << std::setw(8) << context.elapsed_seconds()  << "  " << std::setw(8) << train_error;
           if(info.validation_edges > 0) {
-            const double validation_error = 
+            const double validation_error =
               std::sqrt(agg.validation_error / info.validation_edges);
-            context.cout() << "   " << std::setw(8) << validation_error; 
+            context.cout() << "   " << std::setw(8) << validation_error;
           }
           context.cout() << std::endl;
           sgd_vertex_program::GAMMA *= sgd_vertex_program::STEP_DEC;
@@ -391,7 +391,7 @@ class sgd_vertex_program :
        * \brief Given an edge compute the error associated with that edge
        */
       double extract_l2_error(const graph_type::edge_type & edge) {
-        double pred = 
+        double pred =
           edge.source().data().pvec.dot(edge.target().data().pvec);
         pred = std::min(sgd_vertex_program::MAXVAL, pred);
         pred = std::max(sgd_vertex_program::MINVAL, pred);
@@ -415,9 +415,9 @@ class sgd_vertex_program :
             return "";
 
           std::stringstream strm;
-          const double prediction = 
+          const double prediction =
             edge.source().data().pvec.dot(edge.target().data().pvec);
-          strm << edge.source().id() << '\t' 
+          strm << edge.source().id() << '\t'
             << -edge.target().id()-SAFE_NEG_OFFSET << '\t'
             << prediction << '\n';
           return strm.str();
@@ -443,7 +443,7 @@ class sgd_vertex_program :
         std::string save_edge(const edge_type& edge) const {
           return "";
         }
-      }; 
+      };
 
       struct linear_model_saver_V {
         typedef graph_type::vertex_type vertex_type;
@@ -464,7 +464,7 @@ class sgd_vertex_program :
         std::string save_edge(const edge_type& edge) const {
           return "";
         }
-      }; 
+      };
 
 
 
@@ -472,10 +472,10 @@ class sgd_vertex_program :
        * \brief The graph loader function is a line parser used for
        * distributed graph construction.
        */
-      inline bool graph_loader(graph_type& graph, 
+      inline bool graph_loader(graph_type& graph,
           const std::string& filename,
           const std::string& line) {
-        ASSERT_FALSE(line.empty()); 
+        ASSERT_FALSE(line.empty());
         // Determine the role of the data
         edge_data::data_role_type role = edge_data::TRAIN;
         if(boost::ends_with(filename,".validate")) role = edge_data::VALIDATE;
@@ -490,12 +490,12 @@ class sgd_vertex_program :
         if(role == edge_data::TRAIN || role == edge_data::VALIDATE){
           strm >> obs;
           if (obs < sgd_vertex_program::MINVAL || obs > sgd_vertex_program::MAXVAL)
-            logstream(LOG_FATAL)<<"Rating values should be between " << sgd_vertex_program::MINVAL << " and " << sgd_vertex_program::MAXVAL << ". Got value: " << obs << " [ user: " << source_id << " to item: " <<target_id << " ] " << std::endl; 
+            logstream(LOG_FATAL)<<"Rating values should be between " << sgd_vertex_program::MINVAL << " and " << sgd_vertex_program::MAXVAL << ". Got value: " << obs << " [ user: " << source_id << " to item: " <<target_id << " ] " << std::endl;
         }
         target_id = -(graphlab::vertex_id_type(target_id + SAFE_NEG_OFFSET));
 
         // Create an edge and add it to the graph
-        graph.add_edge(source_id, target_id, edge_data(obs, role)); 
+        graph.add_edge(source_id, target_id, edge_data(obs, role));
         return true; // successful load
       } // end of graph_loader
 
@@ -530,11 +530,12 @@ class sgd_vertex_program :
         global_logger().set_log_to_console(true);
 
         // Parse command line options -----------------------------------------------
-        const std::string description = 
+        const std::string description =
           "Compute the ALS factorization of a matrix.";
         graphlab::command_line_options clopts(description);
         std::string input_dir, output_dir;
         std::string predictions;
+        std::string movielist;
         size_t interval = 0;
         std::string exec_type = "synchronous";
         clopts.attach_option("matrix", input_dir,
@@ -542,28 +543,29 @@ class sgd_vertex_program :
         clopts.add_positional("matrix");
         clopts.attach_option("D", vertex_data::NLATENT,
             "Number of latent parameters to use.");
-        clopts.attach_option("engine", exec_type, 
+        clopts.attach_option("engine", exec_type,
             "The engine type synchronous or asynchronous");
         clopts.attach_option("max_iter", sgd_vertex_program::MAX_UPDATES,
             "The maxumum number of udpates allowed for a vertex");
-        clopts.attach_option("lambda", sgd_vertex_program::LAMBDA, 
-            "SGD regularization weight"); 
-        clopts.attach_option("gamma", sgd_vertex_program::GAMMA, 
-            "SGD step size"); 
-        clopts.attach_option("debug", sgd_vertex_program::debug, 
-            "debug - additional verbose info"); 
+        clopts.attach_option("lambda", sgd_vertex_program::LAMBDA,
+            "SGD regularization weight");
+        clopts.attach_option("gamma", sgd_vertex_program::GAMMA,
+            "SGD step size");
+        clopts.attach_option("debug", sgd_vertex_program::debug,
+            "debug - additional verbose info");
         clopts.attach_option("tol", sgd_vertex_program::TOLERANCE,
             "residual termination threshold");
         clopts.attach_option("maxval", sgd_vertex_program::MAXVAL, "max allowed value");
         clopts.attach_option("minval", sgd_vertex_program::MINVAL, "min allowed value");
         clopts.attach_option("step_dec", sgd_vertex_program::STEP_DEC, "multiplicative step decrement");
-        clopts.attach_option("interval", interval, 
+        clopts.attach_option("interval", interval,
             "The time in seconds between error reports");
         clopts.attach_option("predictions", predictions,
             "The prefix (folder and filename) to save predictions.");
         clopts.attach_option("output", output_dir,
             "Output results");
-        
+        clopts.attach_option("movielist", movielist,
+            "Movie List");
         parse_implicit_command_line(clopts);
 
         if(!clopts.parse(argc, argv) || input_dir == "") {
@@ -577,40 +579,55 @@ class sgd_vertex_program :
         graphlab::mpi_tools::init(argc, argv);
         graphlab::distributed_control dc;
 
+
+        boost::unordered_map<size_t, std::string> mlist;
+        if (!movielist.empty()) {
+          std::ifstream fin(movielist.c_str());
+          while(fin.good()) {
+            int id;
+            fin >> id;
+            std::string name;
+            std::getline(fin, name);
+            id = -id - SAFE_NEG_OFFSET;
+            mlist[id] = name;
+          }
+          fin.close();
+        }
+
         dc.cout() << "Loading graph." << std::endl;
-        graphlab::timer timer; 
-        graph_type graph(dc, clopts);  
-        graph.load(input_dir, graph_loader); 
-        dc.cout() << "Loading graph. Finished in " 
+        graphlab::timer timer;
+        graph_type graph(dc, clopts);
+        graph.load(input_dir, graph_loader);
+        dc.cout() << "Loading graph. Finished in "
           << timer.current_time() << std::endl;
 
-        if (dc.procid() == 0) 
+        if (dc.procid() == 0)
           add_implicit_edges<edge_data>(implicitratingtype, graph, dc);
 
 
         dc.cout() << "Finalizing graph." << std::endl;
         timer.start();
         graph.finalize();
-        dc.cout() << "Finalizing graph. Finished in " 
+        dc.cout() << "Finalizing graph. Finished in "
           << timer.current_time() << std::endl;
 
 
-        dc.cout() 
-          << "========== Graph statistics on proc " << dc.procid() 
+        dc.cout()
+          << "========== Graph statistics on proc " << dc.procid()
           << " ==============="
           << "\n Num vertices: " << graph.num_vertices()
           << "\n Num edges: " << graph.num_edges()
           << "\n Num replica: " << graph.num_replicas()
-          << "\n Replica to vertex ratio: " 
+          << "\n Replica to vertex ratio: "
           << float(graph.num_replicas())/graph.num_vertices()
-          << "\n --------------------------------------------" 
+          << "\n --------------------------------------------"
           << "\n Num local own vertices: " << graph.num_local_own_vertices()
           << "\n Num local vertices: " << graph.num_local_vertices()
-          << "\n Replica to own ratio: " 
+          << "\n Replica to own ratio: "
           << (float)graph.num_local_vertices()/graph.num_local_own_vertices()
           << "\n Num local edges: " << graph.num_local_edges()
           //<< "\n Begin edge id: " << graph.global_eid(0)
-          << "\n Edge balance ratio: " 
+          << "\n Edge balance ratio: "
           << float(graph.num_local_edges())/graph.num_edges()
           << std::endl;
 
@@ -624,7 +641,7 @@ class sgd_vertex_program :
         ASSERT_TRUE(success);
 
 
-        // Signal all vertices on the vertices on the left (libersgd) 
+        // Signal all vertices on the vertices on the left (libersgd)
         engine.map_reduce_vertices<graphlab::empty>(sgd_vertex_program::signal_left);
         info = graph.map_reduce_edges<stats_info>(count_edges);
          dc.cout()<<"Training edges: " << info.training_edges << " validation edges: " << info.validation_edges << std::endl;
@@ -637,15 +654,15 @@ class sgd_vertex_program :
         dc.cout() << "Time   Training    Validation" <<std::endl;
         dc.cout() << "       RMSE        RMSE " <<std::endl;
         timer.start();
-        engine.start();  
+        engine.start();
 
         const double runtime = timer.current_time();
         dc.cout() << "----------------------------------------------------------"
           << std::endl
-          << "Final Runtime (seconds):   " << runtime 
+          << "Final Runtime (seconds):   " << runtime
                                               << std::endl
                                               << "Updates executed: " << engine.num_updates() << std::endl
-                                              << "Update Rate (updates/second): " 
+                                              << "Update Rate (updates/second): "
                                                 << engine.num_updates() / runtime << std::endl;
 
         // Compute the final training error -----------------------------------------
@@ -661,7 +678,7 @@ class sgd_vertex_program :
           const size_t threads_per_machine = 1;
           //save the predictions
           graph.save(predictions, prediction_saver(),
-              gzip_output, save_vertices, 
+              gzip_output, save_vertices,
               save_edges, threads_per_machine);
           //save the linear model
           graph.save(predictions + ".U", linear_model_saver_U(),
@@ -671,8 +688,27 @@ class sgd_vertex_program :
 
         }
 
-
-
+        while(1) {
+          int uid;
+          if (dc.procid() == 0) {
+            std::cout << "Enter User ID (-1) to quit: " ;
+            std::cin >> uid;
+          }
+          dc.broadcast(uid, dc.procid() == 0);
+          if (uid == -1) break;
+          // every search for user ID uid.
+          if (graph.contains_vertex(uid)) {
+            graph_type::vertex_type vtx(graph.vertex(uid));
+            graph_type::local_vertex_type lvtx(vtx);
+            foreach(graph_type::local_edge_type edge, lvtx.out_edges()) {
+              graph_type::local_vertex_type target = edge.target();
+              size_t gid = target.global_id();
+              if (mlist.find(gid) != mlist.end()) {
+                std::cout << "Movie " << mlist[gid] << ": " << edge.data().obs << "\n";
+              }
+            }
+          }
+        }
         graphlab::mpi_tools::finalize();
         return EXIT_SUCCESS;
       } // end of main
