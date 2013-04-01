@@ -22,7 +22,7 @@ fiber_group::fiber_group(size_t nworkers, size_t stacksize)
   active_head.next = NULL;
   active_tail = &active_head;
   nactive = 0;
-
+  workers_waiting = 0;
   // launch the workers
   for (size_t i = 0;i < nworkers; ++i) {
     workers.launch(boost::bind(&fiber_group::worker_init, this, i));
@@ -108,7 +108,9 @@ void fiber_group::worker_init(size_t workerid) {
       yield_to(next_fib);
       active_lock.lock();
     } else {
+      ++workers_waiting;
       active_cond.wait(active_lock);
+      --workers_waiting;
     }
   }
   active_lock.unlock();
@@ -160,7 +162,7 @@ size_t fiber_group::launch(boost::function<void(void)> fn) {
 
   active_lock.lock();
   active_queue_insert(fib);
-  active_cond.signal();
+  if (workers_waiting) active_cond.signal();
   active_lock.unlock();
   return reinterpret_cast<size_t>(fib);
 }
@@ -228,7 +230,7 @@ void fiber_group::reschedule_fiber(fiber* fib) {
     //printf("Reinserting %ld\n", fib->id);
     active_lock.lock();
     active_queue_insert(fib);
-    active_cond.signal();
+    if (workers_waiting) active_cond.signal();
     active_lock.unlock();
   } else if (fib->descheduled) {
     // unflag descheduled and unset scheduleable

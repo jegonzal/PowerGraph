@@ -51,6 +51,7 @@ class fiber_group {
  // The scheduler is a single queue
   mutex active_lock;
   conditional active_cond;
+  size_t workers_waiting;
   // used as a sentinel for the actual queues
   // first element is always head,
   // tail points to the last element
