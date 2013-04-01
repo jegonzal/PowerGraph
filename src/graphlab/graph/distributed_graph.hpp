@@ -2807,20 +2807,31 @@ namespace graphlab {
       } else if (method == "oblivious") {
         logstream(LOG_EMPH) << "Use oblivious ingress, usehash: " << usehash
           << ", userecent: " << userecent << std::endl;
-        ingress_ptr = new distributed_oblivious_ingress<VertexData, EdgeData>(rpc.dc(), *this,
-                                                             usehash, userecent);
+        ingress_ptr = new distributed_oblivious_ingress<VertexData, EdgeData>(rpc.dc(), *this, usehash, userecent);
       } else if (method == "identity") {
         logstream(LOG_EMPH) << "Use identity ingress" << std::endl;
         ingress_ptr = new distributed_identity_ingress<VertexData, EdgeData>(rpc.dc(), *this);
       } else if (method == "grid") {
-        logstream(LOG_EMPH) << "Use random grid ingress" << std::endl;
+        logstream(LOG_EMPH) << "Use grid ingress" << std::endl;
         ingress_ptr = new distributed_constrained_random_ingress<VertexData, EdgeData>(rpc.dc(), *this, "grid");
       } else if (method == "pds") {
-        logstream(LOG_EMPH) << "Use random pds ingress" << std::endl;
+        logstream(LOG_EMPH) << "Use pds ingress" << std::endl;
         ingress_ptr = new distributed_constrained_random_ingress<VertexData, EdgeData>(rpc.dc(), *this, "pds");
-      }else {
-        logstream(LOG_EMPH) << "Use random ingress" << std::endl;
-        ingress_ptr = new distributed_random_ingress<VertexData, EdgeData>(rpc.dc(), *this);
+      } else {
+        std::string ingress_auto=""; 
+        size_t num_shards = rpc.numprocs();
+        int nrow, ncol, p;
+        if (sharding_constraint::is_pds_compatible(num_shards, p)) {
+          ingress_auto="pds";
+          ingress_ptr = new distributed_constrained_random_ingress<VertexData, EdgeData>(rpc.dc(), *this, "pds");
+        } else if (sharding_constraint::is_grid_compatible(num_shards, nrow, ncol)) {
+          ingress_auto="grid";
+          ingress_ptr = new distributed_constrained_random_ingress<VertexData, EdgeData>(rpc.dc(), *this, "grid");
+        } else {
+          ingress_auto="oblivious";
+          ingress_ptr = new distributed_oblivious_ingress<VertexData, EdgeData>(rpc.dc(), *this, usehash, userecent);
+        }
+        logstream(LOG_EMPH) << "Automatically determine ingress method: " << ingress_auto << std::endl;
       }
     } // end of set ingress method
 

@@ -1,5 +1,5 @@
-/**  
- * Copyright (c) 2009 Carnegie Mellon University. 
+/**
+ * Copyright (c) 2009 Carnegie Mellon University.
  *     All rights reserved.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
@@ -42,7 +42,7 @@
 namespace graphlab {
 
   /**
-   * \ingroup group_schedulers 
+   * \ingroup group_schedulers
    *
    * This class defines a multiple queue approximate fifo scheduler.
    * Each processor has its own in_queue which it puts new tasks in
@@ -53,7 +53,7 @@ namespace graphlab {
    */
   template<typename Message>
   class fifo_scheduler : public ischeduler<Message> {
-  
+
   public:
 
     typedef Message message_type;
@@ -68,7 +68,7 @@ namespace graphlab {
     std::vector<spinlock>   locks;
     size_t multi;
     std::vector<size_t>     current_queue;
-    
+
     double min_priority;
 
     // Terminator
@@ -78,8 +78,24 @@ namespace graphlab {
                    const graphlab_options& opts) :
       messages(num_vertices), multi(3),
       current_queue(opts.get_ncpus()),
-      min_priority(-std::numeric_limits<double>::max()) {     
+      min_priority(-std::numeric_limits<double>::max()) {
         set_options(opts);
+    }
+
+
+    bool empty() const {
+      for(size_t i = 0; i < multi; ++i) {
+        if(!queues[i].empty()) return false;
+      }
+      return true;
+    }
+
+    size_t approx_size() const {
+      size_t sum = 0;
+      for(size_t i = 0; i < multi; ++i) {
+        sum += queues[i].size();
+      }
+      return sum;
     }
 
 
@@ -92,7 +108,7 @@ namespace graphlab {
         ASSERT_GE(new_ncpus, 1);
         current_queue.resize(new_ncpus);
       }
-      
+
       std::vector<std::string> keys = opts.get_scheduler_args().get_option_keys();
       foreach(std::string opt, keys) {
         if (opt == "multi") {
@@ -103,7 +119,7 @@ namespace graphlab {
           logstream(LOG_FATAL) << "Unexpected Scheduler Option: " << opt << std::endl;
         }
       }
-      
+
       const size_t nqueues = std::max(multi*current_queue.size(), size_t(1));
       // changing the number of queues.
       // reinsert everything
@@ -112,7 +128,7 @@ namespace graphlab {
         std::swap(old_queues, queues);
         queues.resize(nqueues);
         locks.resize(nqueues);
-        
+
         size_t idx = 0;
         for (size_t i = 0;i < old_queues.size(); ++i) {
           while (!old_queues[i].empty()) {
@@ -126,11 +142,11 @@ namespace graphlab {
 
 
     void start() {  }
-   
 
 
-    void schedule(const lvid_type vid, 
-                  const message_type& msg) {      
+
+    void schedule(const lvid_type vid,
+                  const message_type& msg) {
       // If this is a new message, schedule it
       // the min priority will be taken care of by the get_next function
       if (messages.add(vid, msg)) {
@@ -144,12 +160,12 @@ namespace graphlab {
         // http://www.eecs.harvard.edu/~michaelm/postscripts/mythesis.
         size_t idx = 0;
         if(queues.size() > 1) {
-          const uint32_t prod = 
-            random::fast_uniform(uint32_t(0), 
+          const uint32_t prod =
+            random::fast_uniform(uint32_t(0),
                                  uint32_t(queues.size() * queues.size() - 1));
           const uint32_t r1 = prod / queues.size();
           const uint32_t r2 = prod % queues.size();
-          idx = (queues[r1].size() < queues[r2].size()) ? r1 : r2;  
+          idx = (queues[r1].size() < queues[r2].size()) ? r1 : r2;
         }
         locks[idx].lock(); queues[idx].push_back(vid); locks[idx].unlock();
       }
@@ -160,12 +176,12 @@ namespace graphlab {
                                         const lvid_type vid) {
       size_t idx = 0;
       if(queues.size() > 1) {
-        const uint32_t prod = 
-          random::fast_uniform(uint32_t(0), 
+        const uint32_t prod =
+          random::fast_uniform(uint32_t(0),
                                 uint32_t(queues.size() * queues.size() - 1));
         const uint32_t r1 = prod / queues.size();
         const uint32_t r2 = prod % queues.size();
-        idx = (queues[r1].size() < queues[r2].size()) ? r1 : r2;  
+        idx = (queues[r1].size() < queues[r2].size()) ? r1 : r2;
       }
       locks[idx].lock(); queues[idx].push_back(vid); locks[idx].unlock();
     }
@@ -173,8 +189,8 @@ namespace graphlab {
                       const std::string& order) {
       if(order == "shuffle") {
         // add vertices randomly
-        std::vector<lvid_type> permutation = 
-          random::permutation<lvid_type>(messages.size());       
+        std::vector<lvid_type> permutation =
+          random::permutation<lvid_type>(messages.size());
         foreach(lvid_type vid, permutation) {
           if(messages.add(vid,msg)) {
             const size_t idx = vid % queues.size();
@@ -270,7 +286,7 @@ namespace graphlab {
         }
         break;
       }
-      return sched_status::EMPTY;     
+      return sched_status::EMPTY;
     } // end of get_next_task
 
 
@@ -293,14 +309,14 @@ namespace graphlab {
       return messages.num_joins();
     }
 
-    static void print_options_help(std::ostream& out) { 
-      out << "\t multi = [number of queues per thread. Default = 3].\n" 
+    static void print_options_help(std::ostream& out) {
+      out << "\t multi = [number of queues per thread. Default = 3].\n"
           << "min_priority = [double, minimum priority required to receive \n"
           << "\t a message, default = -inf]\n";
     }
 
 
-  }; // end of fifo scheduler 
+  }; // end of fifo scheduler
 
 
 } // end of namespace graphlab

@@ -1,5 +1,5 @@
-/**  
- * Copyright (c) 2009 Carnegie Mellon University. 
+/**
+ * Copyright (c) 2009 Carnegie Mellon University.
  *     All rights reserved.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
@@ -53,8 +53,8 @@
 #define ASYNC_ENGINE_FACTORIZED_AVOID_SCHEDULER_GATHER
 
 namespace graphlab {
-  
-  
+
+
   /**
    * \ingroup engines
    *
@@ -69,18 +69,18 @@ namespace graphlab {
    * \ref graphlab::ivertex_program interface.
    *
    * ### Execution Semantics
-   * 
+   *
    * On start() the \ref graphlab::ivertex_program::init function is invoked
    * on all vertex programs in parallel to initialize the vertex program,
    * vertex data, and possibly signal vertices.
    *
    * After which, the engine spawns a collection of threads where each thread
    * individually performs the following tasks:
-   * \li Extract a message from the scheduler. 
+   * \li Extract a message from the scheduler.
    * \li Perform distributed lock acquisition on the vertex which is supposed
    * to receive the message. The lock system enforces that no neighboring
    * vertex is executing at the same time. The implementation is based
-   * on the Chandy-Misra solution to the dining philosophers problem. 
+   * on the Chandy-Misra solution to the dining philosophers problem.
    * (Chandy, K.M.; Misra, J. (1984). The Drinking Philosophers Problem.
    *  ACM Trans. Program. Lang. Syst)
    * \li Once lock acquisition is complete,
@@ -94,7 +94,7 @@ namespace graphlab {
    * \ref graphlab::ivertex_program::gather_edges function.  The gather
    * functions can modify edge data but cannot modify the vertex
    * program or vertex data and can be executed on multiple
-   * edges in parallel. 
+   * edges in parallel.
    * * \li Execute the apply function on the vertex-program by
    * invoking the user defined \ref graphlab::ivertex_program::apply
    * function passing the sum of the gather functions.  If \ref
@@ -185,12 +185,12 @@ namespace graphlab {
    * The asynchronous engine supports several engine options which can
    * be set as command line arguments using \c --engine_opts :
    *
-   * \li \b max_clean_fraction (default: 0.2) 
+   * \li \b max_clean_fraction (default: 0.2)
    *  The maximum proportion of edges which can be locked at any one time.
    *  (This is a simplification of the actual clean/dirty concept in the Chandy
    *  Misra locking algorithm used in this implementation.
    * \li \b timeout (default: infinity) Maximum time in seconds the engine will
-   * run for. The actual runtime may be marginally greater as the engine 
+   * run for. The actual runtime may be marginally greater as the engine
    * waits for all threads and processes to flush all active tasks before
    * returning.
    * \li \b factorized (default: true) Set to true to weaken the consistency
@@ -200,13 +200,13 @@ namespace graphlab {
    * \li \b use_cache: (default: false) This is used to enable
    * caching.  When caching is enabled the gather phase is skipped for
    * vertices that already have a cached value.  To use caching the
-   * vertex program must either clear (\ref icontext::clear_gather_cache) 
-   * or update (\ref icontext::post_delta) the cache values of 
+   * vertex program must either clear (\ref icontext::clear_gather_cache)
+   * or update (\ref icontext::post_delta) the cache values of
    * neighboring vertices during the scatter phase.
    */
   template<typename VertexProgram>
   class async_consistent_engine: public iengine<VertexProgram> {
-      
+
   public:
     /**
      * \brief The user defined vertex program type. Equivalent to the
@@ -296,7 +296,7 @@ namespace graphlab {
      * information about the engine.
      */
     typedef icontext<graph_type, gather_type, message_type> icontext_type;
-    
+
   private:
     /**
      * \internal
@@ -368,7 +368,7 @@ namespace graphlab {
      * \li \c APPLYING Upon entry into the APPLYING state, an internal task
      *corresponding to this veretx is put on the internal task queue. When
      the task is popped and executed, the apply is performed on the master
-     vertex. It then immediately transits into SCATTERING 
+     vertex. It then immediately transits into SCATTERING
      * \li \c SCATTERING No internal task is generated for scattering. On
      * the master vertex, scattering is performed immediately after applying.
      * In SCATTERING, a partial scatter is performed on the local (master)
@@ -409,7 +409,7 @@ namespace graphlab {
     /**
      * \internal
      * The state machine + additional state maintained for each
-     * vetex and mirrors. 
+     * vetex and mirrors.
      */
     struct vertex_state {
       /**
@@ -461,7 +461,7 @@ namespace graphlab {
                       apply_count_down(0),
                       hasnext(false),
                       state(NONE) { }
-      
+
       /// Acquires a lock on the vertex state
       void lock() {
         slock.lock();
@@ -471,22 +471,22 @@ namespace graphlab {
         slock.unlock();
       }
 
-      /// Acquires a lock on the vertex data 
+      /// Acquires a lock on the vertex data
       inline void d_lock() {
         factorized_lock.lock();
       }
 
-      /// Acquires a lock on the vertex data 
+      /// Acquires a lock on the vertex data
       inline bool d_trylock() {
         return factorized_lock.try_lock();
       }
- 
-      /// releases a lock on the vertex data 
+
+      /// releases a lock on the vertex data
       inline void d_unlock() {
         factorized_lock.unlock();
       }
     }; // end of vertex_state
-    
+
     /**
      * \internal
      * This stores the internal scheduler for each thread.
@@ -503,8 +503,8 @@ namespace graphlab {
       std::vector<mutex> lock;
       atomic<size_t> npending;
       std::vector<std::vector<lvid_type> > pending_vertices;
-      thread_local_data() : lock(4), npending(0), 
-                            pending_vertices(4) { }       
+      thread_local_data() : lock(4), npending(0),
+                            pending_vertices(4) { }
       void add_task_priority(lvid_type v) {
         size_t lid = 1;
         lock[lid].lock();
@@ -548,7 +548,7 @@ namespace graphlab {
 
     /// Engine threads.
     thread_group thrgroup;
-    
+
     //! The scheduler
     ischeduler_type* scheduler_ptr;
 
@@ -558,7 +558,7 @@ namespace graphlab {
     /// Used if cache is enabled. ("use_cache=true"). Contains the result
     /// of partial gathers
     std::vector<conditional_gather_type> cache;
-    
+
     typedef typename iengine<VertexProgram>::aggregator_type aggregator_type;
     aggregator_type aggregator;
 
@@ -575,8 +575,8 @@ namespace graphlab {
     // Various counters.
     atomic<uint64_t> joined_messages;
     atomic<uint64_t> blocked_issues; // issued messages which either
-                                     // 1: cannot start and have to be 
-                                     //    reinjected into the 
+                                     // 1: cannot start and have to be
+                                     //    reinjected into the
                                      //    scheduler.
                                      // 2: issued but is combined into a
                                      //    message which is currently locking
@@ -602,7 +602,7 @@ namespace graphlab {
     bool use_cache;
     /// engine option. Sets to true if factorized consistency is used
     bool factorized_consistency;
-    
+
     bool handler_intercept;
     
     bool disable_locks;
@@ -618,14 +618,14 @@ namespace graphlab {
     float engine_start_time;
     /// True when a force stop is triggered (possibly via a timeout)
     bool force_stop;
-    graphlab_options opts_copy; // local copy of options to pass to 
+    graphlab_options opts_copy; // local copy of options to pass to
                                 // scheduler construction
-    
-    execution_status::status_enum termination_reason; 
+
+    execution_status::status_enum termination_reason;
 
     DECLARE_TRACER(disteng_eval_sched_task);
     DECLARE_TRACER(disteng_chandy_misra);
-    DECLARE_TRACER(disteng_init_gathering); 
+    DECLARE_TRACER(disteng_init_gathering);
     DECLARE_TRACER(disteng_init_scattering);
     DECLARE_TRACER(disteng_evalfac);
     DECLARE_TRACER(disteng_internal_task_queue);
@@ -636,7 +636,7 @@ namespace graphlab {
     DECLARE_EVENT(EVENT_ACTIVE_CPUS);
     DECLARE_EVENT(EVENT_ACTIVE_TASKS);
 
-    
+
     inline void ASSERT_I_AM_OWNER(const lvid_type lvid) const {
       ASSERT_EQ(graph.l_get_vertex_record(lvid).owner, rmi.procid());
     }
@@ -649,10 +649,10 @@ namespace graphlab {
 
     /**
      * Constructs an asynchronous consistent distributed engine.
-     * The number of threads to create are read from 
+     * The number of threads to create are read from
      * \ref graphlab_options::get_ncpus "opts.get_ncpus()". The scheduler to
-     * construct is read from 
-     * \ref graphlab_options::get_scheduler_type() "opts.get_scheduler_type()". 
+     * construct is read from
+     * \ref graphlab_options::get_scheduler_type() "opts.get_scheduler_type()".
      * The default scheduler
      * is the queued_fifo scheduler. For details on the scheduler types
      * \see scheduler_types
@@ -667,8 +667,8 @@ namespace graphlab {
      *             parameters for the scheduler and the engine.
      */
     async_consistent_engine(distributed_control &dc,
-                            graph_type& graph, 
-                            const graphlab_options& opts = graphlab_options()) : 
+                            graph_type& graph,
+                            const graphlab_options& opts = graphlab_options()) :
         rmi(dc, this), graph(graph), scheduler_ptr(NULL),
         aggregator(dc, graph, new context_type(*this, graph)), started(false),
         engine_start_time(timer::approx_time_seconds()), force_stop(false),
@@ -687,8 +687,8 @@ namespace graphlab {
       disable_locks = false;
       termination_reason = execution_status::UNSET;
       set_options(opts);
-      
-      INITIALIZE_TRACER(disteng_eval_sched_task, 
+
+      INITIALIZE_TRACER(disteng_eval_sched_task,
                         "distributed_engine: Evaluate Scheduled Task");
       INITIALIZE_TRACER(disteng_init_gathering,
                         "distributed_engine: Initialize Gather");
@@ -711,13 +711,13 @@ namespace graphlab {
       initialize();
       rmi.barrier();
     }
-    
+
   private:
 
     /**
      * \internal
      * Configures the engine with the provided options.
-     * The number of threads to create are read from 
+     * The number of threads to create are read from
      * opts::get_ncpus(). The scheduler to construct is read from
      * graphlab_options::get_scheduler_type(). The default scheduler
      * is the queued_fifo scheduler. For details on the scheduler types
@@ -732,8 +732,8 @@ namespace graphlab {
       foreach(std::string opt, keys) {
         if (opt == "max_clean_fraction") {
           opts.get_engine_args().get_option("max_clean_fraction", max_clean_fraction);
-          if (rmi.procid() == 0) 
-            logstream(LOG_EMPH) << "Engine Option: max_clean_fraction = " 
+          if (rmi.procid() == 0)
+            logstream(LOG_EMPH) << "Engine Option: max_clean_fraction = "
                               << max_clean_fraction << std::endl;
           max_clean_forks = graph.num_local_edges() * max_clean_fraction;
         } else if (opt == "handler_intercept") {
@@ -745,28 +745,28 @@ namespace graphlab {
                                 << disable_locks << std::endl;
         } else if (opt == "max_pending") {
           opts.get_engine_args().get_option("max_pending", max_pending);
-          if (rmi.procid() == 0) 
-            logstream(LOG_EMPH) << "Engine Option: max_pending = " 
+          if (rmi.procid() == 0)
+            logstream(LOG_EMPH) << "Engine Option: max_pending = "
                               << max_pending << std::endl;
         } else if (opt == "timeout") {
           opts.get_engine_args().get_option("timeout", timed_termination);
-          if (rmi.procid() == 0) 
-            logstream(LOG_EMPH) << "Engine Option: timeout = " 
+          if (rmi.procid() == 0)
+            logstream(LOG_EMPH) << "Engine Option: timeout = "
                               << max_clean_fraction << std::endl;
         } else if (opt == "use_cache") {
           opts.get_engine_args().get_option("use_cache", use_cache);
-          if (rmi.procid() == 0) 
-            logstream(LOG_EMPH) << "Engine Option: use_cache = " 
+          if (rmi.procid() == 0)
+            logstream(LOG_EMPH) << "Engine Option: use_cache = "
                               << use_cache << std::endl;
         } else if (opt == "factorized") {
           opts.get_engine_args().get_option("factorized", factorized_consistency);
-          if (rmi.procid() == 0) 
-            logstream(LOG_EMPH) << "Engine Option: factorized = " 
+          if (rmi.procid() == 0)
+            logstream(LOG_EMPH) << "Engine Option: factorized = "
               << factorized_consistency << std::endl;
         } else if (opt == "track_task_time") {
           opts.get_engine_args().get_option("track_task_time", track_task_retire_time);
-          if (rmi.procid() == 0) 
-            logstream(LOG_EMPH) << "Engine Option: track_task_time = " 
+          if (rmi.procid() == 0)
+            logstream(LOG_EMPH) << "Engine Option: track_task_time = "
               << track_task_retire_time << std::endl;
         } else {
           logstream(LOG_FATAL) << "Unexpected Engine Option: " << opt << std::endl;
@@ -778,23 +778,23 @@ namespace graphlab {
         opts_copy.set_scheduler_type("queued_fifo");
       }
       rmi.barrier();
-      
+
     }
 
     /**
      * \internal
      * Initializes the engine with respect to the associated graph.
      * This call will initialize all internal and scheduling datastructures.
-     * This function must be called prior to any signal function. 
+     * This function must be called prior to any signal function.
      */
     void initialize() {
       // construct all the required datastructures
-      // deinitialize performs the reverse 
+      // deinitialize performs the reverse
       graph.finalize();
       if (rmi.procid() == 0) memory_info::print_usage("Before Engine Initialization");
-      logstream(LOG_INFO) 
+      logstream(LOG_INFO)
         << rmi.procid() << ": Initializing..." << std::endl;
-        
+
       // construct scheduler passing in the copy of the options from set_options
       scheduler_ptr = scheduler_factory<message_type>::
                     new_scheduler(graph.num_local_vertices(),
@@ -810,22 +810,22 @@ namespace graphlab {
         cmlocks = new fake_chandy_misra<graph_type>(rmi.dc(), graph,
                                                     boost::bind(&engine_type::lock_ready, this, _1),
                                                     boost::bind(&engine_type::forward_cached_schedule, this, _1));
-      }  
+      }
       // construct the vertex programs
       vstate.resize(graph.num_local_vertices());
-      
+
       // construct the termination consensus object
       consensus = new async_consensus(rmi.dc(), ncpus);
 
       // if cache is enabled, allocate the cache
       if (use_cache) cache.resize(graph.num_local_vertices());
-      
+
       // finally, the thread local queues
       thrlocal.resize(ncpus);
       if (rmi.procid() == 0) memory_info::print_usage("After Engine Initialization");
       rmi.barrier();
     }
-  
+
   public:
     ~async_consistent_engine() {
       thrlocal.clear();
@@ -836,11 +836,11 @@ namespace graphlab {
     }
 
 
-    
-    
+
+
     // documentation inherited from iengine
-    size_t num_updates() const { 
-      return programs_executed.value; 
+    size_t num_updates() const {
+      return programs_executed.value;
     }
 
 
@@ -848,8 +848,8 @@ namespace graphlab {
 
 
     // documentation inherited from iengine
-    float elapsed_seconds() const { 
-      return timer::approx_time_seconds() - engine_start_time; 
+    float elapsed_seconds() const {
+      return timer::approx_time_seconds() - engine_start_time;
     }
 
 
@@ -910,7 +910,7 @@ namespace graphlab {
         }
         vstate[local_vid].unlock();
       }
-      // if we cannot directly inject into the vertex, then we have no 
+      // if we cannot directly inject into the vertex, then we have no
       // choice but to put the message into the scheduler
       if (direct_injection == false) {
           scheduler_ptr->schedule(local_vid, message);
@@ -919,7 +919,7 @@ namespace graphlab {
       consensus->cancel();
     }
 
-    
+
     /**
      * \internal
      * This will inject a "placed" task back to be scheduled.
@@ -941,7 +941,7 @@ namespace graphlab {
     /**
      * \internal
      * \brief Signals a vertex with an optional message
-     * 
+     *
      * Signals a vertex, and schedules it to be executed in the future.
      * must be called on a vertex accessible by the current machine.
      */
@@ -949,7 +949,7 @@ namespace graphlab {
                          const message_type& message = message_type()) {
       if (force_stop) return;
       if (started) {
-        
+
         BEGIN_TRACEPOINT(disteng_scheduler_task_queue);
         if (factorized_consistency) {
           // fast signal. push to the remote machine immediately
@@ -982,7 +982,7 @@ namespace graphlab {
     /**
      * \internal
      * \brief Signals a vertex with an optional message
-     * 
+     *
      * Signals a global vid, and schedules it to be executed in the future.
      * If current machine does not contain the vertex, it is ignored.
      */
@@ -1004,7 +1004,7 @@ namespace graphlab {
     } // end of signal_broadcast
 
 
-    void rpc_internal_stop() { 
+    void rpc_internal_stop() {
       force_stop = true;
       termination_reason = execution_status::FORCED_ABORT;
     }
@@ -1013,15 +1013,15 @@ namespace graphlab {
      * \brief Force engine to terminate immediately.
      *
      * This function is used to stop the engine execution by forcing
-     * immediate termination. 
+     * immediate termination.
      */
-    void internal_stop() { 
+    void internal_stop() {
       for (procid_t i = 0;i < rmi.numprocs(); ++i) {
         rmi.remote_call(i, &async_consistent_engine::rpc_internal_stop);
       }
     }
 
-    
+
   public:
 
 
@@ -1033,27 +1033,27 @@ namespace graphlab {
       rmi.barrier();
     }
 
-    
+
     void signal_all(const message_type& message = message_type(),
                     const std::string& order = "shuffle") {
       logstream(LOG_DEBUG) << rmi.procid() << ": Schedule All" << std::endl;
       // allocate a vector with all the local owned vertices
-      // and schedule all of them. 
+      // and schedule all of them.
       std::vector<vertex_id_type> vtxs;
       vtxs.reserve(graph.num_local_own_vertices());
-      for(lvid_type lvid = 0; 
-          lvid < graph.get_local_graph().num_vertices(); 
+      for(lvid_type lvid = 0;
+          lvid < graph.get_local_graph().num_vertices();
           ++lvid) {
         if (graph.l_vertex(lvid).owner() == rmi.procid()) {
-          vtxs.push_back(lvid);        
+          vtxs.push_back(lvid);
         }
-      } 
-      
+      }
+
       if(order == "shuffle") {
         graphlab::random::shuffle(vtxs.begin(), vtxs.end());
       }
       foreach(lvid_type lvid, vtxs) {
-        scheduler_ptr->schedule(lvid, message);    
+        scheduler_ptr->schedule(lvid, message);
       }
       rmi.barrier();
     } // end of schedule all
@@ -1063,23 +1063,23 @@ namespace graphlab {
                     const std::string& order = "shuffle") {
       logstream(LOG_DEBUG) << rmi.procid() << ": Schedule All" << std::endl;
       // allocate a vector with all the local owned vertices
-      // and schedule all of them. 
+      // and schedule all of them.
       std::vector<vertex_id_type> vtxs;
       vtxs.reserve(graph.num_local_own_vertices());
-      for(lvid_type lvid = 0; 
-          lvid < graph.get_local_graph().num_vertices(); 
+      for(lvid_type lvid = 0;
+          lvid < graph.get_local_graph().num_vertices();
           ++lvid) {
-        if (graph.l_vertex(lvid).owner() == rmi.procid() && 
+        if (graph.l_vertex(lvid).owner() == rmi.procid() &&
             vset.l_contains(lvid)) {
-          vtxs.push_back(lvid);        
+          vtxs.push_back(lvid);
         }
-      } 
-      
+      }
+
       if(order == "shuffle") {
         graphlab::random::shuffle(vtxs.begin(), vtxs.end());
       }
       foreach(lvid_type lvid, vtxs) {
-        scheduler_ptr->schedule(lvid, message);    
+        scheduler_ptr->schedule(lvid, message);
       }
       rmi.barrier();
     }
@@ -1097,7 +1097,7 @@ namespace graphlab {
      * \internal
      * This function is called after a message to vertex sched_lvid was
      * issued by the scheduler. The message must then be stored in the
-     * vertex_state. Calling this function will begin requesting 
+     * vertex_state. Calling this function will begin requesting
      * locks for this vertex on all mirrors.
      */
     void master_broadcast_locking(lvid_type sched_lvid) {
@@ -1240,7 +1240,7 @@ namespace graphlab {
       vstate[lvid].unlock();
     }
 
-    
+
     /**
      * \internal
      * when a machine finishes its part of the gather, it calls
@@ -1254,10 +1254,10 @@ namespace graphlab {
      */
     bool decrement_gather_counter(const lvid_type lvid, bool from_rpc = false) {
       vstate[lvid].apply_count_down--;
-      logstream(LOG_DEBUG) << rmi.procid() << ": Partial Gather Complete: " 
+      logstream(LOG_DEBUG) << rmi.procid() << ": Partial Gather Complete: "
                     << graph.global_vid(lvid) << "(" << vstate[lvid].apply_count_down << ")" << std::endl;
       if (vstate[lvid].apply_count_down == 0) {
-        logstream(LOG_DEBUG) << rmi.procid() << ": Gather Complete " 
+        logstream(LOG_DEBUG) << rmi.procid() << ": Gather Complete "
                              << graph.global_vid(lvid) << std::endl;
         vstate[lvid].state = APPLYING;
         // if numprocs == 1, we fast path it. and fall through into the apply/scatter
@@ -1284,7 +1284,7 @@ namespace graphlab {
       vstate[lvid].current_message = message_type();
       vstate[lvid].combined_gather.clear();
     }
-    
+
     void factorized_lock_edge2_begin(lvid_type hold) {
       vstate[hold].d_lock();
     }
@@ -1305,10 +1305,10 @@ namespace graphlab {
     void factorized_unlock_edge2_end(lvid_type hold) {
       vstate[hold].d_unlock();
     }
- 
+
 
     void factorized_lock_edge(local_edge_type edge) {
-      lvid_type src = edge.source().id(); 
+      lvid_type src = edge.source().id();
       lvid_type target = edge.target().id();
       lvid_type a = std::min(src, target);
       lvid_type b = std::max(src, target);
@@ -1330,7 +1330,7 @@ namespace graphlab {
       vertex_type vertex(lvertex);
 
       conditional_gather_type* gather_target = NULL;
-      bool gather_target_is_cache = false; 
+      bool gather_target_is_cache = false;
       if (use_cache) {
         vstate[lvid].d_lock();
         if (cache[lvid].not_empty()) {
@@ -1351,9 +1351,9 @@ namespace graphlab {
         // cache not enabled, gather directly to the combined gather
         gather_target = &(vstate[lvid].combined_gather);
       }
-      
+
       context_type context(*this, graph);
-      vstate[lvid].vertex_program.pre_local_gather(gather_target->value); 
+      vstate[lvid].vertex_program.pre_local_gather(gather_target->value);
       edge_dir_type gatherdir = vstate[lvid].vertex_program.gather_edges(context, vertex);
 
       if(gatherdir == graphlab::IN_EDGES ||
@@ -1389,7 +1389,7 @@ namespace graphlab {
         INCREMENT_EVENT(EVENT_GATHERS, lvertex.num_out_edges());
       }
 
-      vstate[lvid].vertex_program.post_local_gather(gather_target->value); 
+      vstate[lvid].vertex_program.post_local_gather(gather_target->value);
       if (use_cache && gather_target_is_cache) {
         vstate[lvid].d_lock();
         // this is the condition where the gather target is the cache
@@ -1397,7 +1397,7 @@ namespace graphlab {
         vstate[lvid].combined_gather += cache[lvid];
         vstate[lvid].d_unlock();
       }
-      
+
       END_TRACEPOINT(disteng_evalfac);
     }
 
@@ -1435,23 +1435,23 @@ namespace graphlab {
       }
     }
 
-    
+
     /**
      * \internal
      * Performs the apply operation on vertex lvid using
      * the gathered values stored in the vertex_state.
      * Locks should be acquired.
      */
-    void do_apply(lvid_type lvid) { 
+    void do_apply(lvid_type lvid) {
       BEGIN_TRACEPOINT(disteng_evalfac);
       context_type context(*this, graph);
-      
+
       vertex_type vertex(graph.l_vertex(lvid));
-      
-      logstream(LOG_DEBUG) << rmi.procid() << ": Apply On " << vertex.id() << std::endl;   
+
+      logstream(LOG_DEBUG) << rmi.procid() << ": Apply On " << vertex.id() << std::endl;
       vstate[lvid].d_lock();
-      vstate[lvid].vertex_program.apply(context, 
-                                        vertex, 
+      vstate[lvid].vertex_program.apply(context,
+                                        vertex,
                                         vstate[lvid].combined_gather.value);
       vstate[lvid].d_unlock();
       vstate[lvid].combined_gather.clear();
@@ -1490,7 +1490,7 @@ namespace graphlab {
      * \internal
      * Called remotely by master_broadcast_scattering.
      * Stores the modified vertex program and vertex data and
-     * switches the vertex to a SCATTERING state. 
+     * switches the vertex to a SCATTERING state.
      */
     void rpc_begin_scattering(vertex_id_type vid,
                               const vertex_program_type& prog,
@@ -1500,7 +1500,7 @@ namespace graphlab {
 //      ASSERT_I_AM_NOT_OWNER(lvid);
       //ASSERT_EQ((int)vstate[lvid].state, MIRROR_SCATTERING);
       //vstate[lvid].state = MIRROR_SCATTERING;
-      ASSERT_MSG(vstate[lvid].state == MIRROR_SCATTERING || 
+      ASSERT_MSG(vstate[lvid].state == MIRROR_SCATTERING ||
                     vstate[lvid].state == MIRROR_SCATTERING_AND_NEXT_GATHERING,
                 "Unexpected state: %d", (int)(vstate[lvid].state));
       graph.get_local_graph().vertex_data(lvid) = central_vdata;
@@ -1509,7 +1509,7 @@ namespace graphlab {
       vstate[lvid].unlock();
     }
 
-    
+
     /**
      * \internal
      * Performs the scatter operation on vertex lvid. locks should be acquired.
@@ -1520,10 +1520,10 @@ namespace graphlab {
       vertex_type vertex(lvertex);
 
       context_type context(*this, graph);
-      
+
       edge_dir_type scatterdir = vstate[lvid].vertex_program.scatter_edges(context, vertex);
-      
-      if(scatterdir == graphlab::IN_EDGES || 
+
+      if(scatterdir == graphlab::IN_EDGES ||
          scatterdir == graphlab::ALL_EDGES) {
         if (!disable_locks) factorized_lock_edge2_begin(lvid);
         foreach(local_edge_type edge, lvertex.in_edges()) {
@@ -1582,7 +1582,7 @@ namespace graphlab {
       vstate[lvid].lock();
 EVAL_INTERNAL_TASK_RE_EVAL_STATE:
       switch(vstate[lvid].state) {
-      case NONE: 
+      case NONE:
           break;
       case LOCKING: {
           BEGIN_TRACEPOINT(disteng_chandy_misra);
@@ -1591,7 +1591,7 @@ EVAL_INTERNAL_TASK_RE_EVAL_STATE:
           break;
       }
       case GATHERING: {
-          logstream(LOG_DEBUG) << rmi.procid() << ": Internal Task: " 
+          logstream(LOG_DEBUG) << rmi.procid() << ": Internal Task: "
                               << graph.global_vid(lvid) << ": GATHERING(" << vstate[lvid].apply_count_down << ")" << std::endl;
 
           gather_fast_path = process_gather(lvid);
@@ -1603,13 +1603,13 @@ EVAL_INTERNAL_TASK_RE_EVAL_STATE:
           }
       }
       case MIRROR_GATHERING: {
-          logstream(LOG_DEBUG) << rmi.procid() << ": Internal Task: " 
+          logstream(LOG_DEBUG) << rmi.procid() << ": Internal Task: "
                               << graph.global_vid(lvid) << ": MIRROR_GATHERING" << std::endl;
           process_gather(lvid);
           break;
         }
       case APPLYING: {
-          logstream(LOG_DEBUG) << rmi.procid() << ": Internal Task: " 
+          logstream(LOG_DEBUG) << rmi.procid() << ": Internal Task: "
                               << graph.global_vid(lvid) << ": APPLYING" << std::endl;
 
           do_apply(lvid);
@@ -1620,7 +1620,7 @@ EVAL_INTERNAL_TASK_RE_EVAL_STATE:
           // fall through to scattering
         }
       case SCATTERING: {
-          logstream(LOG_DEBUG) << rmi.procid() << ": Scattering: " 
+          logstream(LOG_DEBUG) << rmi.procid() << ": Scattering: "
                               << graph.global_vid(lvid) << ": SCATTERING" << std::endl;
 
           do_scatter(lvid);
@@ -1639,12 +1639,12 @@ EVAL_INTERNAL_TASK_RE_EVAL_STATE:
             // stick next back into the scheduler
             signal_local_next(lvid);
             vstate[lvid].hasnext = false;
-          } 
+          }
           vstate[lvid].state = NONE;
           break;
         }
       case MIRROR_SCATTERING: {
-          logstream(LOG_DEBUG) << rmi.procid() << ": Scattering: " 
+          logstream(LOG_DEBUG) << rmi.procid() << ": Scattering: "
                               << graph.global_vid(lvid) << ": MIRROR_SCATTERING" << std::endl;
           do_scatter(lvid);
           vstate[lvid].vertex_program = vertex_program_type();
@@ -1654,18 +1654,18 @@ EVAL_INTERNAL_TASK_RE_EVAL_STATE:
           break;
         }
       case MIRROR_SCATTERING_AND_NEXT_LOCKING: {
-          logstream(LOG_DEBUG) << rmi.procid() << ": Scattering: " 
+          logstream(LOG_DEBUG) << rmi.procid() << ": Scattering: "
                               << graph.global_vid(lvid) << ": MIRROR_SCATTERING_AND_NEXT_LOCKING" << std::endl;
           do_scatter(lvid);
           vstate[lvid].vertex_program = vertex_program_type();
           vstate[lvid].state = LOCKING;
-//          ASSERT_FALSE(vstate[lvid].hasnext);          
+//          ASSERT_FALSE(vstate[lvid].hasnext);
           cmlocks->philosopher_stops_eating_per_replica(lvid);
           cmlocks->make_philosopher_hungry_per_replica(lvid);
           break;
         }
       case MIRROR_SCATTERING_AND_NEXT_GATHERING: {
-          logstream(LOG_DEBUG) << rmi.procid() << ": Scattering: " 
+          logstream(LOG_DEBUG) << rmi.procid() << ": Scattering: "
                               << graph.global_vid(lvid) << ": MIRROR_SCATTERING_AND_NEXT_GATHERING" << std::endl;
           do_scatter(lvid);
           vstate[lvid].vertex_program = vstate[lvid].factorized_next;
@@ -1862,10 +1862,10 @@ EVAL_INTERNAL_TASK_RE_EVAL_STATE:
       }
       consensus->cancel();
     }
-   
+
     void ping() {
-    } 
-    
+    }
+
     /**
      * \internal
      * Callback from the Chandy misra implementation.
@@ -1891,7 +1891,7 @@ EVAL_INTERNAL_TASK_RE_EVAL_STATE:
      * should be true. Otherwise it should be false.
      */
     template <bool prelocked>
-    void eval_sched_task(const lvid_type sched_lvid, 
+    void eval_sched_task(const lvid_type sched_lvid,
                          const message_type& msg) {
       BEGIN_TRACEPOINT(disteng_eval_sched_task);
       logstream(LOG_DEBUG) << rmi.procid() << ": Schedule Task: "
@@ -1983,9 +1983,9 @@ EVAL_INTERNAL_TASK_RE_EVAL_STATE:
       }
 #endif
     }
-    
-    
-    atomic<size_t> pingid; 
+
+
+    atomic<size_t> pingid;
     /**
      * \internal
      * Per thread main loop
@@ -2014,7 +2014,7 @@ EVAL_INTERNAL_TASK_RE_EVAL_STATE:
         if (max_clean_forks != (size_t)(-1) && ctr % 10000 == 0) {
           std::cout << cmlocks->num_clean_forks() << "/" << max_clean_forks << "\n";
         }*/
-      
+
         if (handler_intercept) rmi.dc().handle_incoming_calls(threadid, ncpus);
 
         if (ti.current_time() >= next_processing_time && rmi.numprocs() > 1) {
@@ -2034,7 +2034,7 @@ EVAL_INTERNAL_TASK_RE_EVAL_STATE:
           ti.start();
         }
 
-        get_a_task(threadid, 
+        get_a_task(threadid,
                    has_internal_task, internal_lvid,
                    has_sched_msg, sched_lvid, msg);
         // if we managed to get a task..
@@ -2151,7 +2151,7 @@ EVAL_INTERNAL_TASK_RE_EVAL_STATE:
  **************************************************************************/
 
   public:
-   
+
     /**
       * \brief Start the engine execution.
       *
@@ -2166,7 +2166,7 @@ EVAL_INTERNAL_TASK_RE_EVAL_STATE:
       consensus->reset();
       // start the scheduler
       scheduler_ptr->start();
-     
+
 
       // start the aggregator
       aggregator.start(ncpus);
@@ -2203,7 +2203,7 @@ EVAL_INTERNAL_TASK_RE_EVAL_STATE:
       termination_reason = execution_status::RUNNING;
 
       // if (perform_init_vertex_program) {
-      //   logstream(LOG_INFO) << "Initialize Vertex Programs: " 
+      //   logstream(LOG_INFO) << "Initialize Vertex Programs: "
       //                       << allocatedmem << std::endl;
       //   for (size_t i = 0; i < ncpus; ++i) {
       //     thrgroup.launch(boost::bind(&engine_type::initialize_vertex_programs, this, i));
@@ -2251,10 +2251,10 @@ EVAL_INTERNAL_TASK_RE_EVAL_STATE:
       rmi.cout() << "Issued Tasks: " << issued_messages.value << std::endl;
       rmi.cout() << "Blocked Issues: " << blocked_issues.value << std::endl;
       if (track_task_retire_time) {
-        rmi.cout() << "Average Task Retire Time: " 
-                   << total_update_time.value / programs_executed.value 
+        rmi.cout() << "Average Task Retire Time: "
+                   << total_update_time.value / programs_executed.value
                    << std::endl;
-      } 
+      }
       rmi.cout() << "Joined Tasks: " << joined_messages.value << std::endl;
 
       /*for (size_t i = 0;i < vstate.size(); ++i) {
@@ -2273,7 +2273,7 @@ EVAL_INTERNAL_TASK_RE_EVAL_STATE:
           }
         }*/
       started = false;
-      return termination_reason; 
+      return termination_reason;
     } // end of start
 
 /************************************************************
@@ -2292,17 +2292,17 @@ EVAL_INTERNAL_TASK_RE_EVAL_STATE:
       aggregate_key_to_id.clear();
       aggregate_id_to_key.clear();
       // no ID 0. since we are using negatives for scheduling
-      aggregate_id_to_key.push_back("");  
+      aggregate_id_to_key.push_back("");
       std::set<std::string> keys = aggregator.get_all_periodic_keys();
-      
+
       foreach(std::string key, keys) {
         aggregate_id_to_key.push_back(key);
         aggregate_key_to_id[key] = (lvid_type)(aggregate_id_to_key.size() - 1);
-        
+
       }
     }
   public:
-    // // Exposed aggregator functionality 
+    // // Exposed aggregator functionality
     // /**
     //  * \copydoc distributed_aggregator::add_vertex_aggregator()
     //  */
@@ -2317,7 +2317,7 @@ EVAL_INTERNAL_TASK_RE_EVAL_STATE:
     //                                                     map_function,
     //                                                     finalize_function);
     // }
-    
+
     // /**
     //  * \copydoc distributed_aggregator::add_edge_aggregator()
     //  */
@@ -2332,7 +2332,7 @@ EVAL_INTERNAL_TASK_RE_EVAL_STATE:
     //                                                        map_function,
     //                                                        finalize_function);
     // }
-    
+
     // /**
     //  * \copydoc distributed_aggregator::aggregate_now()
     //  */
@@ -2340,7 +2340,7 @@ EVAL_INTERNAL_TASK_RE_EVAL_STATE:
     //   rmi.barrier();
     //   return aggregator.aggregate_now(key);
     // }
-    
+
     // /**
     //  * \copydoc distributed_aggregator::aggregate_periodic()
     //  */
@@ -2349,7 +2349,7 @@ EVAL_INTERNAL_TASK_RE_EVAL_STATE:
     //   return aggregator.aggregate_periodic(key, seconds);
     // }
 
-    aggregator_type* get_aggregator() { return &aggregator; } 
+    aggregator_type* get_aggregator() { return &aggregator; }
 
   }; // end of class
 } // namespace

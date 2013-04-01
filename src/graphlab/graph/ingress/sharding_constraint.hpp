@@ -54,6 +54,26 @@ namespace graphlab {
   class sharding_constraint {
     size_t nshards;
     std::vector<std::vector<procid_t> > constraint_graph;
+
+   public:
+    /// Test if the provided num_shards can be used for grid construction: 
+    //    n == nrow*ncol  && (abs(nrow-ncol) <= 2)
+    static bool is_grid_compatible(size_t num_shards, int& nrow, int& ncol) {
+      double approx_sqrt = sqrt(num_shards);
+      nrow = floor(approx_sqrt);
+      for (ncol = nrow; ncol <= nrow + 2; ++ncol) {
+        if (ncol * nrow == num_shards) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    static bool is_pds_compatible(size_t num_shards, int& p) {
+      p = floor(sqrt(num_shards-1));
+      return (p>0 && ((p*p+p+1) == num_shards));
+    }
+
    public:
     sharding_constraint(size_t num_shards, std::string method) {
       nshards = num_shards;
@@ -107,9 +127,10 @@ namespace graphlab {
 
    private:
     void make_grid_constraint() {
-      size_t ncols, nrows;
-      ncols = nrows = (size_t)sqrt(nshards);
-      ASSERT_EQ(ncols*nrows, nshards);
+      int ncols, nrows;
+      if (!is_grid_compatible(nshards, nrows, ncols)) {
+        logstream(LOG_FATAL) << "Num shards: " << nshards << " cannot be used for grid ingress." << std::endl;
+      };
 
       for (size_t i = 0; i < nshards; i++) {
         std::vector<procid_t> adjlist;
@@ -131,18 +152,20 @@ namespace graphlab {
     }
 
     void make_pds_constraint() {
-        int p = floor(sqrt(nshards-1));
-        ASSERT_EQ((p*p+p+1), nshards);
-        pds pds_generator;
-        std::vector<size_t> results = pds_generator.get_pds(p);
-        for (size_t i = 0; i < nshards; i++) {
-          std::vector<procid_t> adjlist;
-          for (size_t j = 0; j < results.size(); j++) {
-            adjlist.push_back( (results[j] + i) % nshards);
-          }
-          std::sort(adjlist.begin(), adjlist.end());
-          constraint_graph.push_back(adjlist);
+      int p = 0;
+      if (!is_pds_compatible(nshards, p)) {
+        logstream(LOG_FATAL) << "Num shards: " << nshards << " cannot be used for pdsingress." << std::endl;
+      };
+      pds pds_generator;
+      std::vector<size_t> results = pds_generator.get_pds(p);
+      for (size_t i = 0; i < nshards; i++) {
+        std::vector<procid_t> adjlist;
+        for (size_t j = 0; j < results.size(); j++) {
+          adjlist.push_back( (results[j] + i) % nshards);
         }
+        std::sort(adjlist.begin(), adjlist.end());
+        constraint_graph.push_back(adjlist);
+      }
     }
 
     void check() {
@@ -162,6 +185,6 @@ namespace graphlab {
         }
       }
     }
-    }; // end of sharding_constraint
+  }; // end of sharding_constraint
 }; // end of namespace graphlab
 #endif

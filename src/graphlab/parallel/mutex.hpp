@@ -1,5 +1,5 @@
-/**  
- * Copyright (c) 2009 Carnegie Mellon University. 
+/**
+ * Copyright (c) 2009 Carnegie Mellon University.
  *     All rights reserved.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
@@ -37,10 +37,9 @@ namespace graphlab {
    * Before you use, see \ref parallel_object_intricacies.
    */
   class mutex {
-  private:
+  public:
     // mutable not actually needed
     mutable pthread_mutex_t m_mut;
-  public:
     /// constructs a mutex
     mutex() {
       int error = pthread_mutex_init(&m_mut, NULL);
@@ -48,7 +47,7 @@ namespace graphlab {
     }
     /** Copy constructor which does not copy. Do not use!
         Required for compatibility with some STL implementations (LLVM).
-        which use the copy constructor for vector resize, 
+        which use the copy constructor for vector resize,
         rather than the standard constructor.    */
     mutex(const mutex&) {
       int error = pthread_mutex_init(&m_mut, NULL);
@@ -62,7 +61,7 @@ namespace graphlab {
 
     // not copyable
     void operator=(const mutex& m) { }
-    
+
     /// Acquires a lock on the mutex
     inline void lock() const {
       int error = pthread_mutex_lock( &m_mut  );
@@ -80,7 +79,7 @@ namespace graphlab {
     }
     friend class conditional;
   }; // End of Mutex
-  
+
 
 } // end of graphlab namespace
 

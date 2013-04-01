@@ -170,8 +170,8 @@ ExternalProject_Add(libbz2
 # unordered containers. 
 ExternalProject_Add(boost
   PREFIX ${GraphLab_SOURCE_DIR}/deps/boost
-  URL "http://sourceforge.net/projects/boost/files/boost/1.50.0/boost_1_50_0.tar.gz"
-  URL_MD5 dbc07ab0254df3dda6300fd737b3f264 
+  URL "http://sourceforge.net/projects/boost/files/boost/1.53.0/boost_1_53_0.tar.gz"
+  URL_MD5 57a9e2047c0f511c4dfcf00eb5eb2fbb
   BUILD_IN_SOURCE 1
   CONFIGURE_COMMAND 
   ./bootstrap.sh 
@@ -181,6 +181,7 @@ ExternalProject_Add(boost
   --with-libraries=iostreams
   --with-libraries=date_time
   --with-libraries=random
+  --with-libraries=context
   --prefix=<INSTALL_DIR>
   BUILD_COMMAND  
   C_INCLUDE_PATH=${GraphLab_SOURCE_DIR}/deps/local/include 
@@ -196,6 +197,7 @@ set(Boost_LIBRARIES
   ${BOOST_LIBS_DIR}/libboost_program_options.a
   ${BOOST_LIBS_DIR}/libboost_system.a 
   ${BOOST_LIBS_DIR}/libboost_iostreams.a 
+  ${BOOST_LIBS_DIR}/libboost_context.a 
   ${BOOST_LIBS_DIR}/libboost_date_time.a)
 add_dependencies(boost libbz2)
 message(STATUS "Boost libs: " ${Boost_LIBRARIES})
@@ -211,18 +213,24 @@ endforeach()
 message(STATUS "Boost Shared libs: " ${Boost_SHARED_LIBRARIES})
 
 
+#if(APPLE)
+#  set (tcmalloc_shared "--enable-shared=yes")
+#else()
+#  set (tcmalloc_shared "--enable-shared=no")
+#endif()
+
 # TCMalloc  ===================================================================
 # We use tcmalloc for improved memory allocation performance
-ExternalProject_Add(libtcmalloc
-  PREFIX ${GraphLab_SOURCE_DIR}/deps/tcmalloc
-  URL http://gperftools.googlecode.com/files/gperftools-2.0.tar.gz
-  URL_MD5 13f6e8961bc6a26749783137995786b6
-  PATCH_COMMAND patch -N -p0 -i ${GraphLab_SOURCE_DIR}/patches/tcmalloc.patch || true
-  CONFIGURE_COMMAND <SOURCE_DIR>/configure --enable-frame-pointers --prefix=<INSTALL_DIR> --enable-shared=no
-  INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local)
-# link_libraries(tcmalloc)
-set(TCMALLOC-FOUND 1)
-add_definitions(-DHAS_TCMALLOC)
+#ExternalProject_Add(libtcmalloc
+#  PREFIX ${GraphLab_SOURCE_DIR}/deps/tcmalloc
+#  URL http://gperftools.googlecode.com/files/gperftools-2.0.tar.gz
+#  URL_MD5 13f6e8961bc6a26749783137995786b6
+#  PATCH_COMMAND patch -N -p0 -i ${GraphLab_SOURCE_DIR}/patches/tcmalloc.patch || true
+#  CONFIGURE_COMMAND <SOURCE_DIR>/configure --enable-frame-pointers --prefix=<INSTALL_DIR> ${tcmalloc_shared}
+#    INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local)
+  #link_libraries(tcmalloc)
+  #set(TCMALLOC-FOUND 1)
+  #add_definitions(-DHAS_TCMALLOC)
 
 
 
@@ -447,8 +455,10 @@ endif()
 
 # MPI =========================================================================
 # MPI is currently used to establish communication between rpc nodes
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "/Users/haijieg/mylibs/")
 if(NOT NO_MPI) 
-find_package(MPICH2)
+  #find_package(MPICH2)
+  find_package(MPI)
 endif()
 
 if(MPI_FOUND)
@@ -468,6 +478,15 @@ endif(MPI_FOUND)
 
 
 
+#ExternalProject_Add(qthreads
+#                    PREFIX ${GraphLab_SOURCE_DIR}/deps/qthreads
+#                    URL http://graphlab.org/deps/qthreads.tar.bz2
+#                    URL_MD5 fd94ae41a06f3756c1042d47cfa671d3
+#                    INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local
+#                    BUILD_IN_SOURCE 1
+#                    CONFIGURE_COMMAND ./configure --prefix=<INSTALL_DIR> --enable-oversubscription --with-scheduler=sherwood --enable-lf-febs -enable-condwait-queue 
+#                    )
+
 
 
 ## =============================================================
@@ -476,10 +495,11 @@ macro(requires_core_deps NAME)
   target_link_libraries(${NAME} 
     ${Boost_LIBRARIES}
     z
-    tcmalloc
+    #    tcmalloc
     event event_pthreads
+    # qthread
     json)
-  add_dependencies(${NAME} boost libtcmalloc libevent libjson)
+  add_dependencies(${NAME} boost libevent libjson ) #qthreads libtcmalloc 
   if(MPI_FOUND)
     target_link_libraries(${NAME} ${MPI_LIBRARY} ${MPI_EXTRA_LIBRARY})
   endif(MPI_FOUND)

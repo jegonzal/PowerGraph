@@ -80,7 +80,7 @@ public:
   /* Gather the weighted rank of the adjacent page   */
   float gather(icontext_type& context, const vertex_type& vertex,
                edge_type& edge) const {
-    return (edge.source().data() / edge.source().num_out_edges()); 
+    return (edge.source().data() / edge.source().num_out_edges());
   }
 
   /* Use the total rank of adjacent pages to update this page */
@@ -95,7 +95,7 @@ public:
   /* The scatter edges depend on whether the pagerank has converged */
   edge_dir_type scatter_edges(icontext_type& context,
                               const vertex_type& vertex) const {
-    // If an iteration counter is set then 
+    // If an iteration counter is set then
     if (ITERATIONS) return graphlab::NO_EDGES;
     // In the dynamic case we run scatter on out edges if the we need
     // to maintain the delta cache or the tolerance is above bound.
@@ -112,7 +112,7 @@ public:
     if(USE_DELTA_CACHE) {
       context.post_delta(edge.target(), last_change);
       if(last_change > TOLERANCE || last_change < -TOLERANCE)
-        context.signal(edge.target()); 
+        context.signal(edge.target());
     } else {
       context.signal(edge.target());
     }
@@ -143,6 +143,11 @@ struct pagerank_writer {
 
 
 
+
+float pagerank_sum(graph_type::vertex_type v) {
+  return v.data();
+}
+
 int main(int argc, char** argv) {
   // Initialize control plain using mpi
   graphlab::mpi_tools::init(argc, argv);
@@ -158,7 +163,7 @@ int main(int argc, char** argv) {
                        "The graph file.  If none is provided "
                        "then a toy graph will be created");
   clopts.add_positional("graph");
-  clopts.attach_option("engine", exec_type, 
+  clopts.attach_option("engine", exec_type,
                        "The engine type synchronous or asynchronous");
   clopts.attach_option("tol", TOLERANCE,
                        "The permissible change at convergence.");
@@ -167,7 +172,7 @@ int main(int argc, char** argv) {
   size_t powerlaw = 0;
   clopts.attach_option("powerlaw", powerlaw,
                        "Generate a synthetic powerlaw out-degree graph. ");
-  clopts.attach_option("iterations", ITERATIONS, 
+  clopts.attach_option("iterations", ITERATIONS,
                        "If set, will force the use of the synchronous engine"
                        "overriding any engine option set by the --engine parameter. "
                        "Runs complete (non-dynamic) PageRank for a fixed "
@@ -237,6 +242,9 @@ int main(int argc, char** argv) {
                true,     // save vertices
                false);   // do not save edges
   }
+
+  float totalpr = graph.map_reduce_vertices<float>(pagerank_sum);
+  std::cout << "Totalpr = " << totalpr << "\n";
 
   // Tear-down communication layer and quit -----------------------------------
   graphlab::mpi_tools::finalize();

@@ -1,5 +1,5 @@
-/**  
- * Copyright (c) 2009 Carnegie Mellon University. 
+/**
+ * Copyright (c) 2009 Carnegie Mellon University.
  *     All rights reserved.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
@@ -44,7 +44,7 @@
 namespace graphlab {
 
   /**
-   * \ingroup group_schedulers 
+   * \ingroup group_schedulers
    *
    * This class defines a multiple queue approximate fifo scheduler.
    * Each processor has its own in_queue which it puts new tasks in
@@ -55,7 +55,7 @@ namespace graphlab {
    */
   template<typename Message>
   class queued_fifo_scheduler : public ischeduler<Message> {
-  
+
   public:
 
     typedef Message message_type;
@@ -76,11 +76,11 @@ namespace graphlab {
 
     queued_fifo_scheduler(size_t num_vertices,
                           const graphlab_options& opts) :
-      messages(num_vertices), 
-      sub_queue_size(100), 
-      in_queues(opts.get_ncpus()), in_queue_locks(opts.get_ncpus()), 
+      messages(num_vertices),
+      sub_queue_size(100),
+      in_queues(opts.get_ncpus()), in_queue_locks(opts.get_ncpus()),
       out_queues(opts.get_ncpus()),
-      min_priority(-std::numeric_limits<double>::max()){ 
+      min_priority(-std::numeric_limits<double>::max()){
       set_options(opts);
     }
 
@@ -102,7 +102,7 @@ namespace graphlab {
         in_queue_locks.resize(new_ncpus);
         out_queues.resize(new_ncpus);
       }
-      
+
       // read the remaining options.
       std::vector<std::string> keys = opts.get_scheduler_args().get_option_keys();
       foreach(std::string opt, keys) {
@@ -115,8 +115,8 @@ namespace graphlab {
         }
       }
     }
-    
-    void start() { 
+
+    void start() {
       master_lock.lock();
       for (size_t i = 0;i < in_queues.size(); ++i) {
         master_queue.push_back(in_queues[i]);
@@ -125,7 +125,7 @@ namespace graphlab {
       master_lock.unlock();
     }
 
-    void schedule(const lvid_type vid, 
+    void schedule(const lvid_type vid,
                   const message_type& msg) {
       // If this is a new message, schedule it
       // the min priority will be taken care of by the get_next function
@@ -142,11 +142,11 @@ namespace graphlab {
           master_lock.unlock();
         }
         in_queue_locks[cpuid].unlock();
-      } 
+      }
     } // end of schedule
 
     void schedule_from_execution_thread(const size_t cpuid,
-                                        const lvid_type vid) {      
+                                        const lvid_type vid) {
       if (!messages.empty(vid)) {
         ASSERT_LT(cpuid, in_queues.size());
         in_queue_locks[cpuid].lock();
@@ -160,18 +160,18 @@ namespace graphlab {
           master_lock.unlock();
         }
         in_queue_locks[cpuid].unlock();
-      } 
+      }
     } // end of schedule
 
     void schedule_all(const message_type& msg,
                       const std::string& order) {
       if(order == "shuffle") {
-        std::vector<lvid_type> permutation = 
-          random::permutation<lvid_type>(messages.size());       
+        std::vector<lvid_type> permutation =
+          random::permutation<lvid_type>(messages.size());
         foreach(lvid_type vid, permutation)  schedule(vid, msg);
       } else {
         for (lvid_type vid = 0; vid < messages.size(); ++vid)
-          schedule(vid, msg);      
+          schedule(vid, msg);
       }
     } // end of schedule_all
 
@@ -181,10 +181,10 @@ namespace graphlab {
     }
 
 
-    sched_status::status_enum 
+    sched_status::status_enum
     get_specific(lvid_type vid,
                  message_type& ret_msg) {
-      bool get_success = messages.test_and_get(vid, ret_msg); 
+      bool get_success = messages.test_and_get(vid, ret_msg);
       if (get_success) return sched_status::NEW_TASK;
       else return sched_status::EMPTY;
     }
@@ -194,7 +194,30 @@ namespace graphlab {
       messages.add(vid, msg);
     }
 
-    
+
+    bool empty() const {
+      for(size_t i = 0; i < in_queues.size(); ++i) {
+        if(!in_queues[i].empty()) return false;
+      }
+      for(size_t i = 0; i < out_queues.size(); ++i) {
+        if(!out_queues[i].empty()) return false;
+      }
+       return true;
+    }
+
+    size_t approx_size() const {
+      size_t sum = 0;
+      for(size_t i = 0; i < in_queues.size(); ++i) {
+        sum += in_queues[i].size();
+      }
+      for(size_t i = 0; i < out_queues.size(); ++i) {
+        sum += out_queues[i].size();
+      }
+      return sum;
+    }
+
+
+
     /** Get the next element in the queue */
     sched_status::status_enum get_next(const size_t cpuid,
                                        lvid_type& ret_vid,
@@ -253,7 +276,7 @@ namespace graphlab {
      * Print a help string describing the options that this scheduler
      * accepts.
      */
-    static void print_options_help(std::ostream& out) { 
+    static void print_options_help(std::ostream& out) {
       out << "\t queuesize: [the size at which a subqueue is "
           << "placed in the master queue. default = 100]\n"
           << "min_priority = [double, minimum priority required to receive \n"
@@ -261,7 +284,7 @@ namespace graphlab {
     }
 
 
-  }; 
+  };
 
 
 } // end of namespace graphlab

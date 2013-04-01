@@ -1,5 +1,5 @@
-/**  
- * Copyright (c) 2009 Carnegie Mellon University. 
+/**
+ * Copyright (c) 2009 Carnegie Mellon University.
  *     All rights reserved.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
@@ -44,7 +44,7 @@ namespace graphlab {
   class sweep_scheduler : public ischeduler<Message> {
   public:
     typedef Message message_type;
-    
+
   private:
 
     size_t ncpus;
@@ -52,7 +52,7 @@ namespace graphlab {
     bool strict_round_robin;
     atomic<size_t> rr_index;
     size_t max_iterations;
-   
+
 
     std::vector<lvid_type>             vids;
     std::vector<uint16_t>                   vid2cpu;
@@ -101,10 +101,10 @@ namespace graphlab {
         vid2cpu.resize(vids.size());
         for(size_t i = 0; i < vids.size(); ++i) vid2cpu[vids[i]] = i % ncpus;
       }
-        
+
     } // end of constructor
-        
-   
+
+
 
     void set_options(const graphlab_options& opts) {
       size_t new_ncpus = opts.get_ncpus();
@@ -129,32 +129,32 @@ namespace graphlab {
         }
       }
     }
-   
-    void start() { 
+
+    void start() {
     }
 
-    void schedule(const lvid_type vid, 
-                  const message_type& msg) {      
+    void schedule(const lvid_type vid,
+                  const message_type& msg) {
       messages.add(vid, msg);
     } // end of schedule
 
 
     void schedule_from_execution_thread(const size_t cpuid,
-                                        const lvid_type vid) {      
+                                        const lvid_type vid) {
     } // end of schedule
 
 
     void schedule_all(const message_type& msg,
                       const std::string& order) {
       for (lvid_type vid = 0; vid < messages.size(); ++vid)
-        schedule(vid, msg);      
-    } // end of schedule_all    
-      
-    
-    sched_status::status_enum 
+        schedule(vid, msg);
+    } // end of schedule_all
+
+
+    sched_status::status_enum
     get_specific(lvid_type vid,
                  message_type& ret_msg) {
-      bool get_success = messages.test_and_get(vid, ret_msg); 
+      bool get_success = messages.test_and_get(vid, ret_msg);
       if (get_success) return sched_status::NEW_TASK;
       else return sched_status::EMPTY;
     }
@@ -163,19 +163,36 @@ namespace graphlab {
                  const message_type& msg) {
       messages.add(vid, msg);
     }
-    
+
+    bool empty() const {
+      for (size_t i = 0;i < messages.size(); ++i) {
+        if (!messages.empty(i)) return false;
+      }
+      return true;
+    }
+
+    size_t approx_size() const {
+      size_t sum = 0;
+      for (size_t i = 0;i < messages.size(); ++i) {
+        sum += (!messages.empty(i));
+      }
+      return sum;
+    }
+
+
+
     sched_status::status_enum get_next(const size_t cpuid,
                                        lvid_type& ret_vid,
-                                       message_type& ret_msg) {         
+                                       message_type& ret_msg) {
       const size_t nverts    = vids.size();
       const size_t max_fails = (nverts/ncpus) + 1;
-      // Check to see if max iterations have been achieved 
-      if(strict_round_robin && (rr_index / nverts) >= max_iterations) 
+      // Check to see if max iterations have been achieved
+      if(strict_round_robin && (rr_index / nverts) >= max_iterations)
         return sched_status::EMPTY;
       // Loop through all vertices that are associated with this
       // processor searching for a vertex with an active task
-      for(size_t idx = get_and_inc_index(cpuid), fails = 0; 
-          fails <= max_fails; // 
+      for(size_t idx = get_and_inc_index(cpuid), fails = 0;
+          fails <= max_fails; //
           idx = get_and_inc_index(cpuid), ++fails) {
         // It is possible that the get_and_inc_index could return an
         // invalid index if the number of cpus exceeds the number of
@@ -201,13 +218,13 @@ namespace graphlab {
             } else {
               success = false;
             }
-          } 
+          }
         }// end of while loop over success
       } // end of for loop
       return sched_status::EMPTY;
     } // end of get_next
-    
-    
+
+
     void completed(const size_t cpuid,
                    const lvid_type vid,
                    const message_type& msg) {
@@ -234,21 +251,21 @@ namespace graphlab {
   private:
     inline size_t get_and_inc_index(const size_t cpuid) {
       const size_t nverts = vids.size();
-      if (strict_round_robin) { 
-        return rr_index++ % nverts; 
+      if (strict_round_robin) {
+        return rr_index++ % nverts;
       } else {
         const size_t index = cpu2index[cpuid];
         cpu2index[cpuid] += ncpus;
         // Address loop around
-        if (__builtin_expect(cpu2index[cpuid] >= nverts, false)) 
+        if (__builtin_expect(cpu2index[cpuid] >= nverts, false))
           cpu2index[cpuid] = cpuid;
         return index;
       }
     }// end of next index
 
-  }; 
-  
-  
+  };
+
+
 } // end of namespace graphlab
 #include <graphlab/macros_undef.hpp>
 
