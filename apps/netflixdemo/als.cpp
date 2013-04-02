@@ -765,6 +765,7 @@ int main(int argc, char** argv) {
   graphlab::vertex_set search_root;
   graphlab::vertex_set neighbors1;
   graphlab::vertex_set neighbors2;
+  graphlab::vertex_set neighbors3;
   while(1) {
     int uid;
     if (dc.procid() == 0) {
@@ -832,12 +833,14 @@ int main(int argc, char** argv) {
 
     neighbors1 = graph.neighbors(search_root, graphlab::OUT_EDGES);
     neighbors2 = graph.neighbors(search_root, graphlab::IN_EDGES);
-    neighbors1 = graph.neighbors(search_root, graphlab::OUT_EDGES);
+    neighbors3 = graph.neighbors(search_root, graphlab::OUT_EDGES);
+    neighbors3 -= neighbors1;
+
 
     // now loop through all the vertices.
     for (size_t i = 0;i < graph.num_local_vertices(); ++i) {
       graph_type::local_vertex_type lvtx(graph.l_vertex(i));
-      if (neighbors1.l_contains(i) && lvtx.owned() && (int)(lvtx.global_id()) < 0) {
+      if (neighbors3.l_contains(i) && lvtx.owned() && (int)(lvtx.global_id()) < 0) {
         double pred = lvtx.data().factor.dot(factor);
         all_predict.data[lvtx.global_id()] = pred;
       }
