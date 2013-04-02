@@ -762,6 +762,9 @@ int main(int argc, char** argv) {
 
   }
 
+  graphlab::vertex_set search_root;
+  graphlab::vertex_set neighbors1;
+  graphlab::vertex_set neighbors2;
   while(1) {
     int uid;
     if (dc.procid() == 0) {
@@ -806,21 +809,35 @@ int main(int argc, char** argv) {
       }
     }
 
-
+    search_root = graph.empty_set();
     map_join all_predict;
     // now for the recommendations.
     bool is_master = graph.contains_vertex(uid) &&
         graph_type::local_vertex_type(graph.vertex(uid)).owned();
     // broadcast the user vector
     vec_type factor;
+
+    search_root.make_explicit(graph);
     if (is_master) {
       factor = graph.vertex(uid).data().factor;
+      graph_type::local_vertex_type lvtx(graph.vertex(uid));
+      search_root.set_lvid(lvtx.id());
     }
+
+    graph.sync_vertex_set_master_to_mirrors(search_root);
     dc.broadcast(factor, is_master);
+
+    neighbors1 = graph.empty_set();
+    neighbors2 = graph.empty_set();
+
+    neighbors1 = graph.neighbors(search_root, graphlab::OUT_EDGES);
+    neighbors2 = graph.neighbors(search_root, graphlab::IN_EDGES);
+    neighbors1 = graph.neighbors(search_root, graphlab::OUT_EDGES);
+
     // now loop through all the vertices.
     for (size_t i = 0;i < graph.num_local_vertices(); ++i) {
       graph_type::local_vertex_type lvtx(graph.l_vertex(i));
-      if (lvtx.owned() && (int)(lvtx.global_id()) < 0) {
+      if (neighbors1.l_contains(i) && lvtx.owned() && (int)(lvtx.global_id()) < 0) {
         double pred = lvtx.data().factor.dot(factor);
         all_predict.data[lvtx.global_id()] = pred;
       }

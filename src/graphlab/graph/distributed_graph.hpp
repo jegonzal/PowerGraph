@@ -2217,6 +2217,10 @@ namespace graphlab {
      return ret;
    }
 
+   void sync_vertex_set_master_to_mirrors(vertex_set& vset) {
+     vset.synchronize_master_to_mirrors(*this, vset_exchange);
+   }
+
    /**
     * \brief Returns the number of vertices in a vertex set.
     *

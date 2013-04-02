@@ -1,5 +1,5 @@
-/*  
- * Copyright (c) 2009 Carnegie Mellon University. 
+/*
+ * Copyright (c) 2009 Carnegie Mellon University.
  *     All rights reserved.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
@@ -40,11 +40,11 @@ namespace graphlab {
  * These sets can then be passed into graph aggregate operations
  * such as distributed_graph::map_reduce_vertices to perform aggregates
  * over \b subsets of vertices or edges. Engines also permit signalling of
- * sets of vertices through 
+ * sets of vertices through
  * \ref graphlab::iengine::signal_all(const vertex_set& vset, const message_type& message, const std::string& order) "signal_all()".
  *
  * \ref distributed_graph::complete_set() and \ref distributed_graph::empty_set()
- * provide two convenient functions to obtain a full or an empty set of 
+ * provide two convenient functions to obtain a full or an empty set of
  * vertices.
  * \code
  * vertex_set all = graph.complete_set();
@@ -69,11 +69,11 @@ namespace graphlab {
  *
  */
 class vertex_set {
-  private:
+  public:
     /**
      * Used only if \ref lazy is false.
-     * If \ref lazy is false, this must be the same size as the graph's 
-     * graphlab::distributed_graph::num_local_vertices(). 
+     * If \ref lazy is false, this must be the same size as the graph's
+     * graphlab::distributed_graph::num_local_vertices().
      * The invariant is that the bit value of each mirror vertex must be the
      * same value as the bit value on their corresponding master vertices.
      */
@@ -87,41 +87,41 @@ class vertex_set {
     bool is_complete_set;
 
     /**
-     * If set, the localvset is empty and not used. 
+     * If set, the localvset is empty and not used.
      * instead, \ref is_complete_set will define the set of vertices.
      */
-    mutable bool lazy; 
+    mutable bool lazy;
 
 
     /**
      * \internal
      * \brief Returns a const reference to the underlying bitset.
      */
-    template <typename DGraphType> 
+    template <typename DGraphType>
     const dense_bitset& get_lvid_bitset(const DGraphType& dgraph) const {
       if (lazy) make_explicit(dgraph);
       return localvset;
     }
 
-    
+
     /**
      * \internal
-     * Sets a bit in the bitset without local threading 
+     * Sets a bit in the bitset without local threading
      * synchronization. vertex set must be made explicit. This call does not
-     * perform remote synchronization and addititional distributed 
+     * perform remote synchronization and addititional distributed
      * synchronization calls must be made to restore datastructure invariants.
      */
     inline void set_lvid_unsync(lvid_type lvid) {
       ASSERT_FALSE(lazy);
       localvset.set_bit_unsync(lvid);
     }
- 
+
 
     /**
      * \internal
-     * Sets a bit in the bitset with local threading 
+     * Sets a bit in the bitset with local threading
      * synchronization. vertex set must be made explicit. This call does not
-     * perform remote synchronization and addititional distributed 
+     * perform remote synchronization and addititional distributed
      * synchronization calls must be made to restore datastructure invariants.
      */
     inline void set_lvid(lvid_type lvid) {
@@ -134,7 +134,7 @@ class vertex_set {
      * Makes the internal representation explicit by clearing the lazy flag
      * and filling the bitset.
      */
-    template <typename DGraphType> 
+    template <typename DGraphType>
     void make_explicit(const DGraphType& dgraph) const {
       if (lazy) {
         localvset.resize(dgraph.num_local_vertices());
@@ -150,7 +150,7 @@ class vertex_set {
 
     /**
      * \internal
-     * Copies the master state to each mirror. 
+     * Copies the master state to each mirror.
      * Restores the datastructure invariants.
      */
     template <typename DGraphType>
@@ -168,7 +168,7 @@ class vertex_set {
           foreach(size_t proc, lvtx.mirrors()) {
             exchange.send(proc, gvid);
           }
-        } 
+        }
         else {
           localvset.clear_bit_unsync(lvid);
         }
@@ -201,10 +201,10 @@ class vertex_set {
       foreach(size_t lvid, localvset) {
         typename DGraphType::local_vertex_type lvtx = dgraph.l_vertex(lvid);
         if (!lvtx.owned()) {
-          // send to master 
+          // send to master
           vertex_id_type gvid = lvtx.global_id();
           exchange.send(lvtx.owner(), gvid);
-        } 
+        }
       }
       exchange.flush();
 
@@ -228,14 +228,14 @@ class vertex_set {
 
 
     /** Constructs a completely empty, or a completely full vertex set
-     * \param complete If set to true, creates a set of all vertices. 
+     * \param complete If set to true, creates a set of all vertices.
      *                 If set to false, creates an empty set.
      */
     explicit vertex_set(bool complete):is_complete_set(complete),lazy(true){}
 
     /// copy constructor
     inline vertex_set(const vertex_set& other):
-        localvset(other.localvset), 
+        localvset(other.localvset),
         is_complete_set(other.is_complete_set),
         lazy(other.lazy) {}
 
@@ -246,11 +246,11 @@ class vertex_set {
       lazy = other.lazy;
       return *this;
     }
-  
+
     /**
      * \internal
      * Queries if a local vertex ID is contained within the vertex set
-     */ 
+     */
     inline bool l_contains(lvid_type lvid) const {
       if (lazy) return is_complete_set;
       if (lvid < localvset.size()) {
@@ -329,11 +329,11 @@ class vertex_set {
     inline vertex_set& operator&=(const vertex_set& other) {
       if (lazy) {
         if (is_complete_set) (*this) = other;
-        else (*this) = vertex_set(false); 
+        else (*this) = vertex_set(false);
       }
       else if (other.lazy) {
-        if (other.is_complete_set) /* no op */; 
-        else (*this) = vertex_set(false); 
+        if (other.is_complete_set) /* no op */;
+        else (*this) = vertex_set(false);
       }
       else {
         localvset &= other.localvset;
@@ -354,11 +354,11 @@ class vertex_set {
     inline vertex_set& operator|=(const vertex_set& other) {
       if (lazy) {
         if (is_complete_set) (*this) = vertex_set(true);
-        else (*this) = other; 
+        else (*this) = other;
       }
       else if (other.lazy) {
         if (other.is_complete_set) (*this) = vertex_set(true);
-        else /* no op */; 
+        else /* no op */;
       }
       else {
         localvset |= other.localvset;
@@ -387,8 +387,8 @@ class vertex_set {
         else (*this) = vertex_set(false);
       }
       else if (other.lazy) {
-        if (other.is_complete_set) (*this) = vertex_set(false); 
-        else /* no op */; 
+        if (other.is_complete_set) (*this) = vertex_set(false);
+        else /* no op */;
       }
       else {
         localvset -= other.localvset;
@@ -414,16 +414,16 @@ class vertex_set {
      * \brief Inverts the current set in-place.
      *
      * \code
-     * b.invert(); 
+     * b.invert();
      * \endcode
      * A vertex is in the result \c b if and only if it is not in \c b
      */
     inline void invert() {
       if (lazy) {
-        is_complete_set = !is_complete_set; 
+        is_complete_set = !is_complete_set;
       }
       else {
-        localvset.invert(); 
+        localvset.invert();
       }
     }
 
