@@ -48,7 +48,7 @@ int main(int argc, char** argv) {
   global_logger().set_log_level(LOG_INFO);
 
   // Parse command line options -----------------------------------------------
-  graphlab::command_line_options clopts("LDA Demo.");
+  graphlab::command_line_options clopts("./ldademo");
   std::string lda_edges;
   std::string lda_dictionary;
 
@@ -63,6 +63,10 @@ int main(int argc, char** argv) {
   clopts.attach_option("force_lock", lda::FORCE_LOCK, "force locked words");
   clopts.attach_option("use_sync", USE_SYNC, "Use Synchronous LDA");
 
+  if(!clopts.parse(argc, argv)) {
+    dc.cout() << "Error in parsing command line arguments." << std::endl;
+    return EXIT_FAILURE;
+  }
 
   if(!clopts.is_set("lda_edges")) {
     std::cout << "LDA edge file not provided" << std::endl;
@@ -70,7 +74,7 @@ int main(int argc, char** argv) {
     return EXIT_FAILURE;
   }
   if(!clopts.is_set("lda_dictionary")) {
-    std::cout << "LDA dictionaryfile not provided" << std::endl;
+    std::cout << "LDA dictionary file not provided" << std::endl;
     clopts.print_description();
     return EXIT_FAILURE;
   }

@@ -1,5 +1,5 @@
 #!/bin/sh
-GLHOME="$HOME/graphlabapi"
+GLHOME="$HOME/graphlab2.2"
 GRAPHHOME="$HOME/data/acmgraph"
 
 cmd="$GLHOME/release/apps/ldademo/ldademo --lda_edges $GRAPHHOME/articlewords --lda_dictionary $GRAPHHOME/words --wordid_offset=1 --ntopics=20 --topklda=30"
