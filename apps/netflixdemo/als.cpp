@@ -832,8 +832,8 @@ int main(int argc, char** argv) {
     neighbors2 = graph.empty_set();
 
     neighbors1 = graph.neighbors(search_root, graphlab::OUT_EDGES);
-    neighbors2 = graph.neighbors(search_root, graphlab::IN_EDGES);
-    neighbors3 = graph.neighbors(search_root, graphlab::OUT_EDGES);
+    neighbors2 = graph.neighbors(neighbors1, graphlab::IN_EDGES);
+    neighbors3 = graph.neighbors(neighbors2, graphlab::OUT_EDGES);
     neighbors3 -= neighbors1;
 
 
