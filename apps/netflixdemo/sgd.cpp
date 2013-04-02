@@ -73,6 +73,7 @@ struct vertex_data {
   vec_type pvec;
 
   int nupdates;
+
   /**
    * \brief Simple default constructor which randomizes the vertex
    *  data
@@ -499,6 +500,7 @@ class sgd_vertex_program :
         return true; // successful load
       } // end of graph_loader
 
+  
 
 
 
@@ -513,7 +515,6 @@ class sgd_vertex_program :
       double sgd_vertex_program::MINVAL = -1e+100;
       double sgd_vertex_program::STEP_DEC = 0.9;
       bool sgd_vertex_program::debug = false;
-
 
       /**
        * \brief The engine type used by the ALS matrix factorization
@@ -533,9 +534,8 @@ class sgd_vertex_program :
         const std::string description =
           "Compute the ALS factorization of a matrix.";
         graphlab::command_line_options clopts(description);
-        std::string input_dir, output_dir;
+        std::string input_dir, output_dir, movielist_dir;
         std::string predictions;
-        std::string movielist;
         size_t interval = 0;
         std::string exec_type = "synchronous";
         clopts.attach_option("matrix", input_dir,
@@ -564,7 +564,7 @@ class sgd_vertex_program :
             "The prefix (folder and filename) to save predictions.");
         clopts.attach_option("output", output_dir,
             "Output results");
-        clopts.attach_option("movielist", movielist,
+        clopts.attach_option("movielist", movielist_dir,
             "Movie List");
         parse_implicit_command_line(clopts);
 
@@ -581,11 +581,11 @@ class sgd_vertex_program :
 
 
         boost::unordered_map<size_t, std::string> mlist;
-        if (!movielist.empty()) {
-          std::ifstream fin(movielist.c_str());
+        if (!movielist_dir.empty()) {
+          std::ifstream fin(movielist_dir.c_str());
+          size_t id = 1;
           while(fin.good()) {
-            int id;
-            fin >> id;
+            id++;
             std::string name;
             std::getline(fin, name);
             id = -id - SAFE_NEG_OFFSET;
@@ -601,7 +601,7 @@ class sgd_vertex_program :
         dc.cout() << "Loading graph. Finished in "
           << timer.current_time() << std::endl;
 
-        if (dc.procid() == 0)
+       if (dc.procid() == 0)
           add_implicit_edges<edge_data>(implicitratingtype, graph, dc);
 
 
