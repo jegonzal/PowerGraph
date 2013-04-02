@@ -1,5 +1,5 @@
-/**
- * Copyright (c) 2009 Carnegie Mellon University.
+/**  
+ * Copyright (c) 2009 Carnegie Mellon University. 
  *     All rights reserved.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
@@ -23,11 +23,11 @@
 
 /**
  * \file
- *
+ * 
  * \brief The main file for the ALS matrix factorization algorithm.
  *
  * This file contains the main body of the ALS matrix factorization
- * algorithm.
+ * algorithm. 
  */
 
 #include <Eigen/Dense>
@@ -70,7 +70,7 @@ typedef Eigen::MatrixXd mat_type;
 
 
 
-/**
+/** 
  * \ingroup toolkit_matrix_factorization
  *
  * \brief the vertex data type which contains the latent factor.
@@ -94,19 +94,19 @@ struct vertex_data {
   float residual; //! how much the latent value has changed
   /** \brief The latent factor for this vertex */
   vec_type factor;
-  /**
+  /** 
    * \brief Simple default constructor which randomizes the vertex
-   *  data
+   *  data 
    */
-  vertex_data() : nupdates(0), residual(1) { randomize(); }
+  vertex_data() : nupdates(0), residual(1) { randomize(); } 
   /** \brief Randomizes the latent factor */
   void randomize() { factor.resize(NLATENT); factor.setRandom(); }
   /** \brief Save the vertex data to a binary archive */
-  void save(graphlab::oarchive& arc) const {
-    arc << nupdates << residual << factor;
+  void save(graphlab::oarchive& arc) const { 
+    arc << nupdates << residual << factor;        
   }
   /** \brief Load the vertex data from a binary archive */
-  void load(graphlab::iarchive& arc) {
+  void load(graphlab::iarchive& arc) { 
     arc >> nupdates >> residual >> factor;
   }
 }; // end of vertex data
@@ -146,7 +146,7 @@ struct edge_data : public graphlab::IS_POD_TYPE {
 /**
  * \brief The graph type is defined in terms of the vertex and edge
  * data.
- */
+ */ 
 typedef graphlab::distributed_graph<vertex_data, edge_data> graph_type;
 
 #include "implicit.hpp"
@@ -170,7 +170,7 @@ stats_info count_edges(const graph_type::edge_type & edge){
  * edge.
  */
 inline graph_type::vertex_type
-get_other_vertex(graph_type::edge_type& edge,
+get_other_vertex(graph_type::edge_type& edge, 
                  const graph_type::vertex_type& vertex) {
   return vertex.id() == edge.source().id()? edge.target() : edge.source();
 }; // end of get_other_vertex
@@ -182,12 +182,12 @@ get_other_vertex(graph_type::edge_type& edge,
  * \brief The gather type used to construct XtX and Xty needed for the ALS
  * update
  *
- * To compute the ALS update we need to compute the sum of
+ * To compute the ALS update we need to compute the sum of 
  * \code
- *  sum: XtX = nbr.factor.transpose() * nbr.factor
+ *  sum: XtX = nbr.factor.transpose() * nbr.factor 
  *  sum: Xy  = nbr.factor * edge.obs
  * \endcode
- * For each of the neighbors of a vertex.
+ * For each of the neighbors of a vertex. 
  *
  * To do this in the Gather-Apply-Scatter model the gather function
  * computes and returns a pair consisting of XtX and Xy which are then
@@ -225,9 +225,9 @@ public:
   void save(graphlab::oarchive& arc) const { arc << XtX << Xy; }
 
   /** \brief Read the values from a binary archive */
-  void load(graphlab::iarchive& arc) { arc >> XtX >> Xy; }
+  void load(graphlab::iarchive& arc) { arc >> XtX >> Xy; }  
 
-  /**
+  /** 
    * \brief Computes XtX += other.XtX and Xy += other.Xy updating this
    * tuples value
    */
@@ -237,11 +237,11 @@ public:
       ASSERT_EQ(other.XtX.cols(), 0);
     } else {
       if(Xy.size() == 0) {
-        ASSERT_EQ(XtX.rows(), 0);
+        ASSERT_EQ(XtX.rows(), 0); 
         ASSERT_EQ(XtX.cols(), 0);
         XtX = other.XtX; Xy = other.Xy;
       } else {
-        XtX.triangularView<Eigen::Upper>() += other.XtX;
+        XtX.triangularView<Eigen::Upper>() += other.XtX;  
         Xy += other.Xy;
       }
     }
@@ -270,7 +270,7 @@ public:
  * We implement this in the Gather-Apply-Scatter model by:
  *
  *  1) Gather: returns the tuple (X' * X, X' * y)
- *     Sum:   (aX' * aX, aX * ay) + (bX' * bX, bX * by) =
+ *     Sum:   (aX' * aX, aX * ay) + (bX' * bX, bX * by) = 
  *                 (aX' * aX + bX' * bX, aX * ay + bX * by)
  *
  *  2) Apply: Solves  inv(X' * X) * (X' * y)
@@ -279,9 +279,9 @@ public:
  *      vertex has changed sufficiently and the edge is not well
  *      predicted.
  *
- *
- */
-class als_vertex_program :
+ * 
+ */ 
+class als_vertex_program : 
   public graphlab::ivertex_program<graph_type, gather_type,
                                    graphlab::messages::sum_priority>,
   public graphlab::IS_POD_TYPE {
@@ -295,13 +295,13 @@ public:
   static int    REGNORMAL; //regularization type
 
   /** The set of edges to gather along */
-  edge_dir_type gather_edges(icontext_type& context,
-                             const vertex_type& vertex) const {
-    return graphlab::ALL_EDGES;
-  }; // end of gather_edges
+  edge_dir_type gather_edges(icontext_type& context, 
+                             const vertex_type& vertex) const { 
+    return graphlab::ALL_EDGES; 
+  }; // end of gather_edges 
 
   /** The gather function computes XtX and Xy */
-  gather_type gather(icontext_type& context, const vertex_type& vertex,
+  gather_type gather(icontext_type& context, const vertex_type& vertex, 
                      edge_type& edge) const {
     if(edge.data().role == edge_data::TRAIN) {
       const vertex_type other_vertex = get_other_vertex(edge, vertex);
@@ -313,7 +313,7 @@ public:
   void apply(icontext_type& context, vertex_type& vertex,
              const gather_type& sum) {
     // Get and reset the vertex data
-    vertex_data& vdata = vertex.data();
+    vertex_data& vdata = vertex.data(); 
     // Determine the number of neighbors.  Each vertex has only in or
     // out edges depending on which side of the graph it is located
     if(sum.Xy.size() == 0) { vdata.residual = 0; ++vdata.nupdates; return; }
@@ -323,8 +323,8 @@ public:
     double regularization = LAMBDA;
     if (REGNORMAL)
       regularization = LAMBDA*vertex.num_out_edges();
-    for(int i = 0; i < XtX.rows(); ++i)
-      XtX(i,i) += regularization;
+    for(int i = 0; i < XtX.rows(); ++i) 
+      XtX(i,i) += regularization; 
     // Solve the least squares problem using eigen ----------------------------
     const vec_type old_factor = vdata.factor;
     vdata.factor = XtX.selfadjointView<Eigen::Upper>().ldlt().solve(Xy);
@@ -332,15 +332,15 @@ public:
     vdata.residual = (vdata.factor - old_factor).cwiseAbs().sum() / XtX.rows();
     ++vdata.nupdates;
   } // end of apply
-
+  
   /** The edges to scatter along */
   edge_dir_type scatter_edges(icontext_type& context,
-                              const vertex_type& vertex) const {
-    return graphlab::ALL_EDGES;
+                              const vertex_type& vertex) const { 
+    return graphlab::ALL_EDGES; 
   }; // end of scatter edges
 
-  /** Scatter reschedules neighbors */
-  void scatter(icontext_type& context, const vertex_type& vertex,
+  /** Scatter reschedules neighbors */  
+  void scatter(icontext_type& context, const vertex_type& vertex, 
                edge_type& edge) const {
     edge_data& edata = edge.data();
     if(edata.role == edge_data::TRAIN) {
@@ -349,9 +349,9 @@ public:
       const vertex_data& other_vdata = other_vertex.data();
       const double pred = vdata.factor.dot(other_vdata.factor);
       const float error = std::fabs(edata.obs - pred);
-      const double priority = (error * vdata.residual);
+      const double priority = (error * vdata.residual); 
       // Reschedule neighbors ------------------------------------------------
-      if( priority > TOLERANCE && other_vdata.nupdates < MAX_UPDATES)
+      if( priority > TOLERANCE && other_vdata.nupdates < MAX_UPDATES) 
         context.signal(other_vertex, priority);
     }
   } // end of scatter function
@@ -364,7 +364,7 @@ public:
                                      const vertex_type& vertex) {
     if(vertex.num_out_edges() > 0) context.signal(vertex);
     return graphlab::empty();
-  } // end of signal_left
+  } // end of signal_left 
 
 
 
@@ -376,10 +376,10 @@ public:
  * \brief The graph loader function is a line parser used for
  * distributed graph construction.
  */
-inline bool graph_loader(graph_type& graph,
+inline bool graph_loader(graph_type& graph, 
                          const std::string& filename,
                          const std::string& line) {
-  ASSERT_FALSE(line.empty());
+  ASSERT_FALSE(line.empty()); 
   namespace qi = boost::spirit::qi;
   namespace ascii = boost::spirit::ascii;
   namespace phoenix = boost::phoenix;
@@ -389,30 +389,30 @@ inline bool graph_loader(graph_type& graph,
   else if(boost::ends_with(filename, ".predict")) role = edge_data::PREDICT;
   // Parse the line
   graph_type::vertex_id_type source_id(-1), target_id(-1);
-  float obs(0);
+  float obs(0); 
   const bool success = qi::phrase_parse
-    (line.begin(), line.end(),
+    (line.begin(), line.end(),       
      //  Begin grammar
      (
       qi::ulong_[phoenix::ref(source_id) = qi::_1] >> -qi::char_(',') >>
-      qi::ulong_[phoenix::ref(target_id) = qi::_1] >>
+      qi::ulong_[phoenix::ref(target_id) = qi::_1] >> 
       -(-qi::char_(',') >> qi::float_[phoenix::ref(obs) = qi::_1])
       )
      ,
      //  End grammar
-     ascii::space);
+     ascii::space); 
 
   if(!success) return false;
 
   if(role == edge_data::TRAIN || role == edge_data::VALIDATE){
     if (obs < als_vertex_program::MINVAL || obs > als_vertex_program::MAXVAL)
-      logstream(LOG_FATAL)<<"Rating values should be between " << als_vertex_program::MINVAL << " and " << als_vertex_program::MAXVAL << ". Got value: " << obs << " [ user: " << source_id << " to item: " <<target_id << " ] " << std::endl;
+      logstream(LOG_FATAL)<<"Rating values should be between " << als_vertex_program::MINVAL << " and " << als_vertex_program::MAXVAL << ". Got value: " << obs << " [ user: " << source_id << " to item: " <<target_id << " ] " << std::endl; 
   }
-
+ 
   // map target id into a separate number space
   target_id = -(graphlab::vertex_id_type(target_id + SAFE_NEG_OFFSET));
   // Create an edge and add it to the graph
-  graph.add_edge(source_id, target_id, edge_data(obs, role));
+  graph.add_edge(source_id, target_id, edge_data(obs, role)); 
   return true; // successful load
 } // end of graph_loader
 
@@ -422,7 +422,7 @@ inline bool graph_loader(graph_type& graph,
  * \brief Given an edge compute the error associated with that edge
  */
 double extract_l2_error(const graph_type::edge_type & edge) {
-  double pred =
+  double pred = 
     edge.source().data().factor.dot(edge.target().data().factor);
   pred = std::min(als_vertex_program::MAXVAL, pred);
   pred = std::max(als_vertex_program::MINVAL, pred);
@@ -455,7 +455,7 @@ struct error_aggregator : public graphlab::IS_POD_TYPE {
   typedef als_vertex_program::icontext_type icontext_type;
   typedef graph_type::edge_type edge_type;
   double train_error, validation_error;
-  error_aggregator() :
+  error_aggregator() : 
     train_error(0), validation_error(0) { }
   error_aggregator& operator+=(const error_aggregator& other) {
     train_error += other.train_error;
@@ -465,7 +465,7 @@ struct error_aggregator : public graphlab::IS_POD_TYPE {
   static error_aggregator map(icontext_type& context, const graph_type::edge_type& edge) {
     error_aggregator agg;
     if(edge.data().role == edge_data::TRAIN) {
-      agg.train_error = extract_l2_error(edge);
+      agg.train_error = extract_l2_error(edge); 
     } else if(edge.data().role == edge_data::VALIDATE) {
       agg.validation_error = extract_l2_error(edge);
     }
@@ -475,9 +475,9 @@ struct error_aggregator : public graphlab::IS_POD_TYPE {
     const double train_error = std::sqrt(agg.train_error / info.training_edges);
     context.cout() << "Time in seconds: " << context.elapsed_seconds() << "\tiTraining RMSE: " << train_error;
     if(info.validation_edges > 0) {
-      const double validation_error =
+      const double validation_error = 
         std::sqrt(agg.validation_error / info.validation_edges);
-      context.cout() << "\tValidation RMSE: " << validation_error;
+      context.cout() << "\tValidation RMSE: " << validation_error; 
     }
     context.cout() << std::endl;
   }
@@ -499,7 +499,7 @@ struct prediction_saver {
   std::string save_edge(const edge_type& edge) const {
     if(edge.data().role == edge_data::PREDICT) {
       std::stringstream strm;
-      const double prediction =
+      const double prediction = 
         edge.source().data().factor.dot(edge.target().data().factor);
       strm << edge.source().id() << '\t';
       strm << (-edge.target().id() - SAFE_NEG_OFFSET) << '\t';
@@ -529,7 +529,7 @@ struct linear_model_saver_U {
   std::string save_edge(const edge_type& edge) const {
     return "";
   }
-};
+}; 
 
 struct linear_model_saver_V {
   typedef graph_type::vertex_type vertex_type;
@@ -550,7 +550,7 @@ struct linear_model_saver_V {
   std::string save_edge(const edge_type& edge) const {
     return "";
   }
-};
+}; 
 
 
 
@@ -569,13 +569,12 @@ int main(int argc, char** argv) {
   global_logger().set_log_to_console(true);
 
   // Parse command line options -----------------------------------------------
-  const std::string description =
+  const std::string description = 
     "Compute the ALS factorization of a matrix.";
   graphlab::command_line_options clopts(description);
   std::string input_dir;
   std::string predictions;
   size_t interval = 10;
-  std::string movielist_dir;
   std::string exec_type = "synchronous";
   clopts.attach_option("matrix", input_dir,
                        "The directory containing the matrix file");
@@ -584,26 +583,23 @@ int main(int argc, char** argv) {
                        "Number of latent parameters to use.");
   clopts.attach_option("max_iter", als_vertex_program::MAX_UPDATES,
                        "The maxumum number of udpates allowed for a vertex");
-  clopts.attach_option("lambda", als_vertex_program::LAMBDA,
-                       "ALS regularization weight");
+  clopts.attach_option("lambda", als_vertex_program::LAMBDA, 
+                       "ALS regularization weight"); 
   clopts.attach_option("tol", als_vertex_program::TOLERANCE,
                        "residual termination threshold");
   clopts.attach_option("maxval", als_vertex_program::MAXVAL, "max allowed value");
   clopts.attach_option("minval", als_vertex_program::MINVAL, "min allowed value");
-  clopts.attach_option("interval", interval,
+  clopts.attach_option("interval", interval, 
                        "The time in seconds between error reports");
   clopts.attach_option("predictions", predictions,
                        "The prefix (folder and filename) to save predictions.");
-  clopts.attach_option("engine", exec_type,
+  clopts.attach_option("engine", exec_type, 
                        "The engine type synchronous or asynchronous");
-  clopts.attach_option("regnormal", als_vertex_program::REGNORMAL,
+  clopts.attach_option("regnormal", als_vertex_program::REGNORMAL, 
                        "regularization type. 1 = weighted according to neighbors num. 0 = no weighting - just lambda");
-  clopts.attach_option("movielist", movielist_dir,
-                       "Movie List");
-
-
+  
   parse_implicit_command_line(clopts);
-
+  
   if(!clopts.parse(argc, argv) || input_dir == "") {
     std::cout << "Error in parsing command line arguments." << std::endl;
     clopts.print_description();
@@ -611,62 +607,47 @@ int main(int argc, char** argv) {
   }
 
 
-  boost::unordered_map<graph_type::vertex_id_type, std::string> mlist;
-  if (!movielist_dir.empty()) {
-    std::ifstream fin(movielist_dir.c_str());
-    size_t id = 0;
-    while(fin.good()) {
-      std::string name;
-      std::getline(fin, name);
-      graphlab::vertex_id_type gid = -(graphlab::vertex_id_type(id + SAFE_NEG_OFFSET));
-      mlist[gid] = name;
-      id++;
-    }
-    fin.close();
-  }
-
-
 
   ///! Initialize control plain using mpi
   graphlab::mpi_tools::init(argc, argv);
   graphlab::distributed_control dc;
-
+  
   dc.cout() << "Loading graph." << std::endl;
-  graphlab::timer timer;
-  graph_type graph(dc, clopts);
-  graph.load(input_dir, graph_loader);
-  dc.cout() << "Loading graph. Finished in "
+  graphlab::timer timer; 
+  graph_type graph(dc, clopts);  
+  graph.load(input_dir, graph_loader); 
+  dc.cout() << "Loading graph. Finished in " 
             << timer.current_time() << std::endl;
 
-  if (dc.procid() == 0)
+  if (dc.procid() == 0) 
     add_implicit_edges<edge_data>(implicitratingtype, graph, dc);
-
+  
   dc.cout() << "Finalizing graph." << std::endl;
   timer.start();
    graph.finalize();
-  dc.cout() << "Finalizing graph. Finished in "
+  dc.cout() << "Finalizing graph. Finished in " 
             << timer.current_time() << std::endl;
 
 
-  dc.cout()
-      << "========== Graph statistics on proc " << dc.procid()
+  dc.cout() 
+      << "========== Graph statistics on proc " << dc.procid() 
       << " ==============="
       << "\n Num vertices: " << graph.num_vertices()
       << "\n Num edges: " << graph.num_edges()
       << "\n Num replica: " << graph.num_replicas()
-      << "\n Replica to vertex ratio: "
+      << "\n Replica to vertex ratio: " 
       << float(graph.num_replicas())/graph.num_vertices()
-      << "\n --------------------------------------------"
+      << "\n --------------------------------------------" 
       << "\n Num local own vertices: " << graph.num_local_own_vertices()
       << "\n Num local vertices: " << graph.num_local_vertices()
-      << "\n Replica to own ratio: "
+      << "\n Replica to own ratio: " 
       << (float)graph.num_local_vertices()/graph.num_local_own_vertices()
       << "\n Num local edges: " << graph.num_local_edges()
       //<< "\n Begin edge id: " << graph.global_eid(0)
-      << "\n Edge balance ratio: "
+      << "\n Edge balance ratio: " 
       << float(graph.num_local_edges())/graph.num_edges()
       << std::endl;
-
+ 
   dc.cout() << "Creating engine" << std::endl;
   engine_type engine(dc, graph, exec_type, clopts);
 
@@ -675,9 +656,9 @@ int main(int argc, char** argv) {
     ("error", error_aggregator::map, error_aggregator::finalize) &&
     engine.aggregate_periodic("error", interval);
   ASSERT_TRUE(success);
+  
 
-
-  // Signal all vertices on the vertices on the left (liberals)
+  // Signal all vertices on the vertices on the left (liberals) 
   engine.map_reduce_vertices<graphlab::empty>(als_vertex_program::signal_left);
   info = graph.map_reduce_edges<stats_info>(count_edges);
   dc.cout()<<"Training edges: " << info.training_edges << " validation edges: " << info.validation_edges << std::endl;
@@ -685,15 +666,15 @@ int main(int argc, char** argv) {
   // Run ALS ---------------------------------------------------------
   dc.cout() << "Running ALS" << std::endl;
   timer.start();
-  engine.start();
+  engine.start();  
 
   const double runtime = timer.current_time();
   dc.cout() << "----------------------------------------------------------"
             << std::endl
-            << "Final Runtime (seconds):   " << runtime
+            << "Final Runtime (seconds):   " << runtime 
             << std::endl
             << "Updates executed: " << engine.num_updates() << std::endl
-            << "Update Rate (updates/second): "
+            << "Update Rate (updates/second): " 
             << engine.num_updates() / runtime << std::endl;
 
   // Compute the final training error -----------------------------------------
@@ -710,42 +691,16 @@ int main(int argc, char** argv) {
 
     //save the predictions
     graph.save(predictions, prediction_saver(),
-               gzip_output, save_vertices,
+               gzip_output, save_vertices, 
                save_edges, threads_per_machine);
     //save the linear model
     graph.save(predictions + ".U", linear_model_saver_U(),
 		gzip_output, save_edges, save_vertices, threads_per_machine);
     graph.save(predictions + ".V", linear_model_saver_V(),
 		gzip_output, save_edges, save_vertices, threads_per_machine);
-
+  
   }
-
-  while(1) {
-    int uid;
-    if (dc.procid() == 0) {
-      std::cout << "Enter User ID (-1) to quit: " ;
-      std::cin >> uid;
-    }
-    dc.broadcast(uid, dc.procid() == 0);
-    if (uid == -1) break;
-    // every search for user ID uid.
-    if (graph.contains_vertex(uid)) {
-      graph_type::vertex_type vtx(graph.vertex(uid));
-      graph_type::local_vertex_type lvtx(vtx);
-      foreach(graph_type::local_edge_type edge, lvtx.out_edges()) {
-        graph_type::local_vertex_type target = edge.target();
-        graph_type::vertex_id_type gid = target.global_id();
-        int printingid = - gid - SAFE_NEG_OFFSET;
-        std::cout << "\t" << printingid;
-        if (mlist.find(gid) != mlist.end()) {
-          std::cout << ": " << mlist[gid];
-        }
-        std::cout << " = " << edge.data().obs;
-        std::cout << "\n";
-      }
-    }
-  }
-
+             
 
 
   graphlab::mpi_tools::finalize();

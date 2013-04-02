@@ -604,7 +604,7 @@ namespace graphlab {
     bool factorized_consistency;
 
     bool handler_intercept;
-    
+
     bool disable_locks;
 
     bool endgame_mode;
@@ -740,8 +740,8 @@ namespace graphlab {
           opts.get_engine_args().get_option("handler_intercept", handler_intercept);
         } else if (opt == "disable_locks") {
           opts.get_engine_args().get_option("disable_locks", disable_locks);
-          if (rmi.procid() == 0) 
-            logstream(LOG_EMPH) << "Engine Option: disable_locks = " 
+          if (rmi.procid() == 0)
+            logstream(LOG_EMPH) << "Engine Option: disable_locks = "
                                 << disable_locks << std::endl;
         } else if (opt == "max_pending") {
           opts.get_engine_args().get_option("max_pending", max_pending);
@@ -1407,8 +1407,8 @@ namespace graphlab {
      * This function performs do_gather() on vertex lvid.
      * The resultant gathered value is then sent back to the master
      * for combining.
-     * Return true if fast_path. i.e. counter is zero, we avoid inserting  
-     * into the internal task queue 
+     * Return true if fast_path. i.e. counter is zero, we avoid inserting
+     * into the internal task queue
      */
     bool process_gather(lvid_type lvid) {
 
@@ -2005,7 +2005,7 @@ EVAL_INTERNAL_TASK_RE_EVAL_STATE:
       float next_processing_time = 0.05;
       timer ti; ti.start();
       while(1) {
-        if (timer::approx_time_seconds() != last_aggregator_check) {
+        if (timer::approx_time_seconds() != last_aggregator_check && !endgame_mode) {
           last_aggregator_check = timer::approx_time_seconds();
           std::string key = aggregator.tick_asynchronous();
           if (key != "") add_internal_aggregation_task(key);
