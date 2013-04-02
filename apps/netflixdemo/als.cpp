@@ -55,6 +55,7 @@ const int SAFE_NEG_OFFSET = 2; //add 2 to negative node id
 //to prevent -0 and -1 which arenot allowed
 
 
+bool NMFHACK = false;
 
 /**
  * \brief We use the eigen library's vector type to represent
@@ -330,6 +331,11 @@ public:
     const vec_type old_factor = vdata.factor;
     vdata.factor = XtX.selfadjointView<Eigen::Upper>().ldlt().solve(Xy);
     // Compute the residual change in the factor factor -----------------------
+    if (NMFHACK) {
+      for (size_t i = 0;i < vertex_data::NLATENT; ++i) {
+        if (vdata.factor(i) < 0) vdata.factor(i) = 0;
+      }
+    }
     vdata.residual = (vdata.factor - old_factor).cwiseAbs().sum() / XtX.rows();
     ++vdata.nupdates;
   } // end of apply
@@ -634,6 +640,8 @@ int main(int argc, char** argv) {
                        "regularization type. 1 = weighted according to neighbors num. 0 = no weighting - just lambda");
   clopts.attach_option("movielist", movielist_dir,
                        "Movie List");
+  clopts.attach_option("nmfhack", NMFHACK,
+                       "NMF Hack");
 
 
   parse_implicit_command_line(clopts);
@@ -812,18 +820,18 @@ int main(int argc, char** argv) {
     // now loop through all the vertices.
     for (size_t i = 0;i < graph.num_local_vertices(); ++i) {
       graph_type::local_vertex_type lvtx(graph.l_vertex(i));
-      if (lvtx.owned()) {
+      if (lvtx.owned() && (int)(lvtx.global_id()) < 0) {
         double pred = lvtx.data().factor.dot(factor);
         all_predict.data[lvtx.global_id()] = pred;
       }
     }
     dc.all_reduce(all_predict);
     if (dc.procid() == 0) {
-      std::cout << "Top 10 rated movies:\n";
+      std::cout << "Top 10 predicted movies:\n";
       std::vector<std::pair<double, graphlab::vertex_id_type> > top10 = all_predict.get_top_k(10) ;
       for(size_t i = 0;i < top10.size(); ++i) {
         graphlab::vertex_id_type gid = top10[i].second;
-        graphlab::vertex_id_type printingid = - gid - SAFE_NEG_OFFSET;
+        int printingid = - gid - SAFE_NEG_OFFSET;
         std::cout << "\t" << printingid;
         if (mlist.find(gid) != mlist.end()) {
           std::cout << ": " << mlist[gid];
