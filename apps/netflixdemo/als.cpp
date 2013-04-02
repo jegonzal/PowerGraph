@@ -552,7 +552,36 @@ struct linear_model_saver_V {
   }
 };
 
+struct map_join {
+  boost::unordered_map<graphlab::vertex_id_type, double> data; // rating than movie
+  void save(graphlab::oarchive& oarc) const {
+    oarc << data;
+  }
+  void load(graphlab::iarchive& iarc) {
+    iarc >> data;
+  }
 
+  map_join& operator+=(const map_join& other) {
+    std::copy(other.data.begin(), other.data.end(),
+              std::inserter(data, data.end()));
+    return *this;
+  }
+
+  std::vector<std::pair<double, graphlab::vertex_id_type> > get_top_k(size_t n) {
+    std::vector<std::pair<double, graphlab::vertex_id_type> > ret;
+    boost::unordered_map<graphlab::vertex_id_type, double>::const_iterator iter = data.begin();
+    std::vector<std::pair<double, graphlab::vertex_id_type> > all_copy;
+    while (iter != data.end()) {
+      all_copy.push_back(std::make_pair(iter->second, iter->first));
+      ++iter;
+    }
+    std::sort(all_copy.rbegin(), all_copy.rend());
+    size_t limit = all_copy.size() < 10 ? all_copy.size() : 10;
+    std::copy(all_copy.begin(), all_copy.begin() + limit,
+              std::inserter(ret, ret.end()));
+    return ret;
+  }
+};
 
 /**
  * \brief The engine type used by the ALS matrix factorization
@@ -728,20 +757,73 @@ int main(int argc, char** argv) {
     }
     dc.broadcast(uid, dc.procid() == 0);
     if (uid == -1) break;
+    // does someone own uid?
+    int tuid = graph.contains_vertex(uid);
+    dc.all_reduce(tuid);
+    if (tuid == 0) {
+      if (dc.procid() == 0) {
+        std::cout << "User " << uid << " does not exist\n";
+      }
+      continue;
+    }
     // every search for user ID uid.
+    map_join all_training;
     if (graph.contains_vertex(uid)) {
       graph_type::vertex_type vtx(graph.vertex(uid));
       graph_type::local_vertex_type lvtx(vtx);
       foreach(graph_type::local_edge_type edge, lvtx.out_edges()) {
         graph_type::local_vertex_type target = edge.target();
         graph_type::vertex_id_type gid = target.global_id();
+        all_training.data[gid] = edge.data().obs;
+      }
+    }
+    dc.all_reduce(all_training);
+    // print the training data
+    if (dc.procid() == 0) {
+      std::cout << "Top 10 rated movies:\n";
+      std::vector<std::pair<double, graphlab::vertex_id_type> > top10 = all_training.get_top_k(10) ;
+      for(size_t i = 0;i < top10.size(); ++i) {
+        graphlab::vertex_id_type gid = top10[i].second;
         int printingid = - gid - SAFE_NEG_OFFSET;
         std::cout << "\t" << printingid;
         if (mlist.find(gid) != mlist.end()) {
           std::cout << ": " << mlist[gid];
         }
-        std::cout << " = " << edge.data().obs;
-        std::cout << "\n";
+        std::cout << " = " << top10[i].first << "\n";
+      }
+    }
+
+
+    map_join all_predict;
+    // now for the recommendations.
+    bool is_master = graph.contains_vertex(uid) &&
+        graph_type::local_vertex_type(graph.vertex(uid)).owned();
+    // broadcast the user vector
+    vec_type factor;
+    if (is_master) {
+      factor = graph.vertex(uid).data().factor;
+    }
+    dc.broadcast(factor, is_master);
+    // now loop through all the vertices.
+    for (size_t i = 0;i < graph.num_local_vertices(); ++i) {
+      graph_type::local_vertex_type lvtx(graph.l_vertex(i));
+      if (lvtx.owned()) {
+        double pred = lvtx.data().factor.dot(factor);
+        all_predict.data[lvtx.global_id()] = pred;
+      }
+    }
+    dc.all_reduce(all_predict);
+    if (dc.procid() == 0) {
+      std::cout << "Top 10 rated movies:\n";
+      std::vector<std::pair<double, graphlab::vertex_id_type> > top10 = all_predict.get_top_k(10) ;
+      for(size_t i = 0;i < top10.size(); ++i) {
+        graphlab::vertex_id_type gid = top10[i].second;
+        int printingid = - gid - SAFE_NEG_OFFSET;
+        std::cout << "\t" << printingid;
+        if (mlist.find(gid) != mlist.end()) {
+          std::cout << ": " << mlist[gid];
+        }
+        std::cout << " = " << top10[i].first << "\n";
       }
     }
   }
