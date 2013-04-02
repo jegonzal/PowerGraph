@@ -718,150 +718,150 @@ int main(int argc, char** argv) {
     engine.aggregate_periodic("error", interval);
   ASSERT_TRUE(success);
 
-
-  // Signal all vertices on the vertices on the left (liberals)
-  engine.map_reduce_vertices<graphlab::empty>(als_vertex_program::signal_left);
-  info = graph.map_reduce_edges<stats_info>(count_edges);
-  dc.cout()<<"Training edges: " << info.training_edges << " validation edges: " << info.validation_edges << std::endl;
-
-  // Run ALS ---------------------------------------------------------
-  dc.cout() << "Running ALS" << std::endl;
-  timer.start();
-  engine.start();
-
-  const double runtime = timer.current_time();
-  dc.cout() << "----------------------------------------------------------"
-            << std::endl
-            << "Final Runtime (seconds):   " << runtime
-            << std::endl
-            << "Updates executed: " << engine.num_updates() << std::endl
-            << "Update Rate (updates/second): "
-            << engine.num_updates() / runtime << std::endl;
-
-  // Compute the final training error -----------------------------------------
-  dc.cout() << "Final error: " << std::endl;
-  engine.aggregate_now("error");
-
-  // Make predictions ---------------------------------------------------------
-  if(!predictions.empty()) {
-    std::cout << "Saving predictions" << std::endl;
-    const bool gzip_output = false;
-    const bool save_vertices = false;
-    const bool save_edges = true;
-    const size_t threads_per_machine = 2;
-
-    //save the predictions
-    graph.save(predictions, prediction_saver(),
-               gzip_output, save_vertices,
-               save_edges, threads_per_machine);
-    //save the linear model
-    graph.save(predictions + ".U", linear_model_saver_U(),
-		gzip_output, save_edges, save_vertices, threads_per_machine);
-    graph.save(predictions + ".V", linear_model_saver_V(),
-		gzip_output, save_edges, save_vertices, threads_per_machine);
-
-  }
-
-  graphlab::vertex_set search_root;
-  graphlab::vertex_set neighbors1;
-  graphlab::vertex_set neighbors2;
-  graphlab::vertex_set neighbors3;
   while(1) {
-    int uid;
-    if (dc.procid() == 0) {
-      std::cout << "Enter User ID (-1) to quit: " ;
-      std::cin >> uid;
+    // Signal all vertices on the vertices on the left (liberals)
+    engine.map_reduce_vertices<graphlab::empty>(als_vertex_program::signal_left);
+    info = graph.map_reduce_edges<stats_info>(count_edges);
+    dc.cout()<<"Training edges: " << info.training_edges << " validation edges: " << info.validation_edges << std::endl;
+
+    // Run ALS ---------------------------------------------------------
+    dc.cout() << "Running ALS" << std::endl;
+    timer.start();
+    engine.start();
+
+    const double runtime = timer.current_time();
+    dc.cout() << "----------------------------------------------------------"
+              << std::endl
+              << "Final Runtime (seconds):   " << runtime
+              << std::endl
+              << "Updates executed: " << engine.num_updates() << std::endl
+              << "Update Rate (updates/second): "
+              << engine.num_updates() / runtime << std::endl;
+
+    // Compute the final training error -----------------------------------------
+    dc.cout() << "Final error: " << std::endl;
+    engine.aggregate_now("error");
+
+    // Make predictions ---------------------------------------------------------
+    if(!predictions.empty()) {
+      std::cout << "Saving predictions" << std::endl;
+      const bool gzip_output = false;
+      const bool save_vertices = false;
+      const bool save_edges = true;
+      const size_t threads_per_machine = 2;
+
+      //save the predictions
+      graph.save(predictions, prediction_saver(),
+                 gzip_output, save_vertices,
+                 save_edges, threads_per_machine);
+      //save the linear model
+      graph.save(predictions + ".U", linear_model_saver_U(),
+                 gzip_output, save_edges, save_vertices, threads_per_machine);
+      graph.save(predictions + ".V", linear_model_saver_V(),
+                 gzip_output, save_edges, save_vertices, threads_per_machine);
+
     }
-    dc.broadcast(uid, dc.procid() == 0);
-    if (uid == -1) break;
-    // does someone own uid?
-    int tuid = graph.contains_vertex(uid);
-    dc.all_reduce(tuid);
-    if (tuid == 0) {
+
+    graphlab::vertex_set search_root;
+    graphlab::vertex_set neighbors1;
+    graphlab::vertex_set neighbors2;
+    graphlab::vertex_set neighbors3;
+    while(1) {
+      int uid;
       if (dc.procid() == 0) {
-        std::cout << "User " << uid << " does not exist\n";
+        std::cout << "Enter User ID (-1) to quit: " ;
+        std::cin >> uid;
       }
-      continue;
-    }
-    // every search for user ID uid.
-    map_join all_training;
-    if (graph.contains_vertex(uid)) {
-      graph_type::vertex_type vtx(graph.vertex(uid));
-      graph_type::local_vertex_type lvtx(vtx);
-      foreach(graph_type::local_edge_type edge, lvtx.out_edges()) {
-        graph_type::local_vertex_type target = edge.target();
-        graph_type::vertex_id_type gid = target.global_id();
-        all_training.data[gid] = edge.data().obs;
-      }
-    }
-    dc.all_reduce(all_training);
-    // print the training data
-    if (dc.procid() == 0) {
-      std::cout << "Top 10 rated movies:\n";
-      std::vector<std::pair<double, graphlab::vertex_id_type> > top10 = all_training.get_top_k(10) ;
-      for(size_t i = 0;i < top10.size(); ++i) {
-        graphlab::vertex_id_type gid = top10[i].second;
-        int printingid = - gid - SAFE_NEG_OFFSET;
-        std::cout << "\t" << printingid;
-        if (mlist.find(gid) != mlist.end()) {
-          std::cout << ": " << mlist[gid];
+      dc.broadcast(uid, dc.procid() == 0);
+      if (uid == -1) break;
+      // does someone own uid?
+      int tuid = graph.contains_vertex(uid);
+      dc.all_reduce(tuid);
+      if (tuid == 0) {
+        if (dc.procid() == 0) {
+          std::cout << "User " << uid << " does not exist\n";
         }
-        std::cout << " = " << top10[i].first << "\n";
+        continue;
       }
-    }
-
-    search_root = graph.empty_set();
-    map_join all_predict;
-    // now for the recommendations.
-    bool is_master = graph.contains_vertex(uid) &&
-        graph_type::local_vertex_type(graph.vertex(uid)).owned();
-    // broadcast the user vector
-    vec_type factor;
-
-    search_root.make_explicit(graph);
-    if (is_master) {
-      factor = graph.vertex(uid).data().factor;
-      graph_type::local_vertex_type lvtx(graph.vertex(uid));
-      search_root.set_lvid(lvtx.id());
-    }
-
-    graph.sync_vertex_set_master_to_mirrors(search_root);
-    dc.broadcast(factor, is_master);
-
-    neighbors1 = graph.empty_set();
-    neighbors2 = graph.empty_set();
-
-    neighbors1 = graph.neighbors(search_root, graphlab::OUT_EDGES);
-    neighbors2 = graph.neighbors(neighbors1, graphlab::IN_EDGES);
-    neighbors3 = graph.neighbors(neighbors2, graphlab::OUT_EDGES);
-    neighbors3 -= neighbors1;
-
-
-    // now loop through all the vertices.
-    for (size_t i = 0;i < graph.num_local_vertices(); ++i) {
-      graph_type::local_vertex_type lvtx(graph.l_vertex(i));
-      if (neighbors3.l_contains(i) && lvtx.owned() && (int)(lvtx.global_id()) < 0) {
-        double pred = lvtx.data().factor.dot(factor);
-        all_predict.data[lvtx.global_id()] = pred;
-      }
-    }
-    dc.all_reduce(all_predict);
-    if (dc.procid() == 0) {
-      std::cout << "Top 10 predicted movies:\n";
-      std::vector<std::pair<double, graphlab::vertex_id_type> > top10 = all_predict.get_top_k(10) ;
-      for(size_t i = 0;i < top10.size(); ++i) {
-        graphlab::vertex_id_type gid = top10[i].second;
-        int printingid = - gid - SAFE_NEG_OFFSET;
-        std::cout << "\t" << printingid;
-        if (mlist.find(gid) != mlist.end()) {
-          std::cout << ": " << mlist[gid];
+      // every search for user ID uid.
+      map_join all_training;
+      if (graph.contains_vertex(uid)) {
+        graph_type::vertex_type vtx(graph.vertex(uid));
+        graph_type::local_vertex_type lvtx(vtx);
+        foreach(graph_type::local_edge_type edge, lvtx.out_edges()) {
+          graph_type::local_vertex_type target = edge.target();
+          graph_type::vertex_id_type gid = target.global_id();
+          all_training.data[gid] = edge.data().obs;
         }
-        std::cout << " = " << top10[i].first << "\n";
+      }
+      dc.all_reduce(all_training);
+      // print the training data
+      if (dc.procid() == 0) {
+        std::cout << "Top 10 rated movies:\n";
+        std::vector<std::pair<double, graphlab::vertex_id_type> > top10 = all_training.get_top_k(10) ;
+        for(size_t i = 0;i < top10.size(); ++i) {
+          graphlab::vertex_id_type gid = top10[i].second;
+          int printingid = - gid - SAFE_NEG_OFFSET;
+          std::cout << "\t" << printingid;
+          if (mlist.find(gid) != mlist.end()) {
+            std::cout << ": " << mlist[gid];
+          }
+          std::cout << " = " << top10[i].first << "\n";
+        }
+      }
+
+      search_root = graph.empty_set();
+      map_join all_predict;
+      // now for the recommendations.
+      bool is_master = graph.contains_vertex(uid) &&
+          graph_type::local_vertex_type(graph.vertex(uid)).owned();
+      // broadcast the user vector
+      vec_type factor;
+
+      search_root.make_explicit(graph);
+      if (is_master) {
+        factor = graph.vertex(uid).data().factor;
+        graph_type::local_vertex_type lvtx(graph.vertex(uid));
+        search_root.set_lvid(lvtx.id());
+      }
+
+      graph.sync_vertex_set_master_to_mirrors(search_root);
+      dc.broadcast(factor, is_master);
+
+      neighbors1 = graph.empty_set();
+      neighbors2 = graph.empty_set();
+
+      neighbors1 = graph.neighbors(search_root, graphlab::OUT_EDGES);
+      neighbors2 = graph.neighbors(neighbors1, graphlab::IN_EDGES);
+      neighbors3 = graph.neighbors(neighbors2, graphlab::OUT_EDGES);
+      neighbors3 -= neighbors1;
+
+
+      // now loop through all the vertices.
+      for (size_t i = 0;i < graph.num_local_vertices(); ++i) {
+        graph_type::local_vertex_type lvtx(graph.l_vertex(i));
+        if (neighbors3.l_contains(i) && lvtx.owned() && (int)(lvtx.global_id()) < 0) {
+          double pred = lvtx.data().factor.dot(factor);
+          all_predict.data[lvtx.global_id()] = pred;
+        }
+      }
+      dc.all_reduce(all_predict);
+      if (dc.procid() == 0) {
+        std::cout << "Top 10 predicted movies:\n";
+        std::vector<std::pair<double, graphlab::vertex_id_type> > top10 = all_predict.get_top_k(10) ;
+        for(size_t i = 0;i < top10.size(); ++i) {
+          graphlab::vertex_id_type gid = top10[i].second;
+          int printingid = - gid - SAFE_NEG_OFFSET;
+          std::cout << "\t" << printingid;
+          if (mlist.find(gid) != mlist.end()) {
+            std::cout << ": " << mlist[gid];
+          }
+          std::cout << " = " << top10[i].first << "\n";
+        }
       }
     }
+
   }
-
-
 
   graphlab::mpi_tools::finalize();
   return EXIT_SUCCESS;
