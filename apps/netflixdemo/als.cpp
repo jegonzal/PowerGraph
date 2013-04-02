@@ -37,6 +37,7 @@
 #include <boost/spirit/include/phoenix_core.hpp>
 #include <boost/spirit/include/phoenix_operator.hpp>
 #include <boost/spirit/include/phoenix_stl.hpp>
+#include <boost/algorithm/string/predicate.hpp>
 
 
 
@@ -380,6 +381,10 @@ inline bool graph_loader(graph_type& graph,
                          const std::string& filename,
                          const std::string& line) {
   ASSERT_FALSE(line.empty());
+  if (boost::starts_with(line, "#") || boost::starts_with(line, "%")) {
+    logstream(LOG_INFO) << line << std::endl;
+    return true;
+  }
   namespace qi = boost::spirit::qi;
   namespace ascii = boost::spirit::ascii;
   namespace phoenix = boost::phoenix;

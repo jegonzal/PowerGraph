@@ -35,6 +35,8 @@
 
 #include <Eigen/Dense>
 #include "eigen_serialization.hpp"
+#include <boost/algorithm/string/predicate.hpp>
+
 #include <graphlab/macros_def.hpp>
 
 
@@ -477,6 +479,11 @@ class sgd_vertex_program :
           const std::string& filename,
           const std::string& line) {
         ASSERT_FALSE(line.empty());
+        if (boost::starts_with(line, "#") || boost::starts_with(line, "%")) {
+          logstream(LOG_INFO) << line << std::endl;
+          return true;
+        }
+
         // Determine the role of the data
         edge_data::data_role_type role = edge_data::TRAIN;
         if(boost::ends_with(filename,".validate")) role = edge_data::VALIDATE;
