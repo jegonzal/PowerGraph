@@ -504,13 +504,14 @@ namespace graphlab {
       logstream(LOG_DEBUG) << "Graph2 finalize: Parallel sort is disabled." << std::endl;
 #endif
 
-      for (ssize_t j = 0; j < ssize_t(num_vertices); ++j) {
-        if (counter_array[j] < counter_array[j+1]) {
-          std::sort(permute_index.begin()+counter_array[j], 
-                    permute_index.begin()+counter_array[j+1],
-                    cmp_by_any_functor<lvid_type> (edges.target_arr)); 
-        }
-      }
+      // CSR doesn't need edges of same source to be placed in order 
+      // for (ssize_t j = 0; j < ssize_t(num_vertices); ++j) {
+      //   if (counter_array[j] < counter_array[j+1]) {
+      //     std::sort(permute_index.begin()+counter_array[j], 
+      //               permute_index.begin()+counter_array[j+1],
+      //               cmp_by_any_functor<lvid_type> (edges.target_arr)); 
+      //   }
+      // }
       // End of counting sort.
 
       // Inplace permute of edge_data, edge_src, edge_target array.
@@ -604,13 +605,14 @@ namespace graphlab {
 #ifdef _OPENMP
 #pragma omp parallel for
 #endif
-      for (ssize_t i = 0; i < ssize_t(num_vertices); ++i) {
-        if (counter_array[i] < counter_array[i+1]) {
-          std::sort(permute_index.begin()+counter_array[i],
-                    permute_index.begin() + counter_array[i+1],
-                    cmp_by_any_functor<lvid_type>(edges.source_arr)); 
-        }
-      }
+      // CSC doesn't need edges of the same target to be placed in order. 
+      // for (ssize_t i = 0; i < ssize_t(num_vertices); ++i) {
+      //   if (counter_array[i] < counter_array[i+1]) {
+      //     std::sort(permute_index.begin()+counter_array[i],
+      //               permute_index.begin() + counter_array[i+1],
+      //               cmp_by_any_functor<lvid_type>(edges.source_arr)); 
+      //   }
+      // }
       // End of counting sort.
 
 #ifdef AVOID_OUTOFPLACE_PERMUTE
