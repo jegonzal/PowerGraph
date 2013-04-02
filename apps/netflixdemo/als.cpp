@@ -592,6 +592,22 @@ struct map_join {
               std::inserter(ret, ret.end()));
     return ret;
   }
+  std::vector<std::pair<double, graphlab::vertex_id_type> > get_top_k_exclude(size_t n, boost::unordered_map<graphlab::vertex_id_type, double>& exclude) {
+    std::vector<std::pair<double, graphlab::vertex_id_type> > ret;
+    boost::unordered_map<graphlab::vertex_id_type, double>::const_iterator iter = data.begin();
+    std::vector<std::pair<double, graphlab::vertex_id_type> > all_copy;
+    while (iter != data.end()) {
+      if (exclude.count(iter->first) == 0) {
+	      all_copy.push_back(std::make_pair(iter->second, iter->first));
+      }
+      ++iter;
+    }
+    std::sort(all_copy.rbegin(), all_copy.rend());
+    size_t limit = all_copy.size() < 10 ? all_copy.size() : 10;
+    std::copy(all_copy.begin(), all_copy.begin() + limit,
+              std::inserter(ret, ret.end()));
+    return ret;
+  }
 };
 
 /**
@@ -672,7 +688,8 @@ int main(int argc, char** argv) {
   ///! Initialize control plain using mpi
   graphlab::mpi_tools::init(argc, argv);
   graphlab::distributed_control dc;
-
+  dc.barrier();
+  graphlab::launch_metric_server();
   dc.cout() << "Loading graph." << std::endl;
   graphlab::timer timer;
   graph_type graph(dc, clopts);
@@ -680,8 +697,7 @@ int main(int argc, char** argv) {
   dc.cout() << "Loading graph. Finished in "
             << timer.current_time() << std::endl;
 
-  if (dc.procid() == 0)
-    add_implicit_edges<edge_data>(implicitratingtype, graph, dc);
+  add_implicit_edges<edge_data>(implicitratingtype, graph, dc);
 
   dc.cout() << "Finalizing graph." << std::endl;
   timer.start();
@@ -717,7 +733,8 @@ int main(int argc, char** argv) {
     ("error", error_aggregator::map, error_aggregator::finalize) &&
     engine.aggregate_periodic("error", interval);
   ASSERT_TRUE(success);
-
+	
+  size_t initial_max_updates = als_vertex_program::MAX_UPDATES;
   while(1) {
     // Signal all vertices on the vertices on the left (liberals)
     engine.map_reduce_vertices<graphlab::empty>(als_vertex_program::signal_left);
@@ -818,15 +835,15 @@ int main(int argc, char** argv) {
       // broadcast the user vector
       vec_type factor;
 
-      search_root.make_explicit(graph);
+//      search_root.make_explicit(graph);
       if (is_master) {
         factor = graph.vertex(uid).data().factor;
-        graph_type::local_vertex_type lvtx(graph.vertex(uid));
-        search_root.set_lvid(lvtx.id());
+//        graph_type::local_vertex_type lvtx(graph.vertex(uid));
+//        search_root.set_lvid(lvtx.id());
       }
-
-      graph.sync_vertex_set_master_to_mirrors(search_root);
       dc.broadcast(factor, is_master);
+/*
+      graph.sync_vertex_set_master_to_mirrors(search_root);
 
       neighbors1 = graph.empty_set();
       neighbors2 = graph.empty_set();
@@ -835,20 +852,24 @@ int main(int argc, char** argv) {
       neighbors2 = graph.neighbors(neighbors1, graphlab::IN_EDGES);
       neighbors3 = graph.neighbors(neighbors2, graphlab::OUT_EDGES);
       neighbors3 -= neighbors1;
-
+*/
 
       // now loop through all the vertices.
+      graphlab::timer predict_timer; predict_timer.start();
       for (size_t i = 0;i < graph.num_local_vertices(); ++i) {
         graph_type::local_vertex_type lvtx(graph.l_vertex(i));
-        if (neighbors3.l_contains(i) && lvtx.owned() && (int)(lvtx.global_id()) < 0) {
+        //if (neighbors3.l_contains(i) && lvtx.owned() && (int)(lvtx.global_id()) < 0) {
+        if (lvtx.owned() && (int)(lvtx.global_id()) < 0) {
           double pred = lvtx.data().factor.dot(factor);
           all_predict.data[lvtx.global_id()] = pred;
         }
       }
       dc.all_reduce(all_predict);
       if (dc.procid() == 0) {
+        std::cout << "Predictions in " << predict_timer.current_time() << "s\n";
         std::cout << "Top 10 predicted movies:\n";
-        std::vector<std::pair<double, graphlab::vertex_id_type> > top10 = all_predict.get_top_k(10) ;
+         
+        std::vector<std::pair<double, graphlab::vertex_id_type> > top10 = all_predict.get_top_k_exclude(10, all_training.data) ;
         for(size_t i = 0;i < top10.size(); ++i) {
           graphlab::vertex_id_type gid = top10[i].second;
           int printingid = - gid - SAFE_NEG_OFFSET;
@@ -860,7 +881,7 @@ int main(int argc, char** argv) {
         }
       }
     }
-
+    als_vertex_program::MAX_UPDATES += initial_max_updates;
   }
 
   graphlab::mpi_tools::finalize();

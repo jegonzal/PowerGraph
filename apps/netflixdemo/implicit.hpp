@@ -74,13 +74,16 @@ uint add_implicit_edges(int type, graph_type & graph, graphlab::distributed_cont
   uint added = 0;
   size_t M = info.max_user;
   size_t N = info.max_item;
-  uint toadd  = implicitratingpercentage*N*M;
+  uint toadd  = implicitratingpercentage*N*M / dc.numprocs(); 
+  graphlab::random::nondet_seed();
   dc.cout()<<"Going to add: " << toadd << " implicit edges. users: " << M << " items: " << N <<std::endl;
   assert(toadd >= 1);
   for (uint j=0; j< toadd; j++){
-    ivec item = ::randi(1,0,N-1);
-    ivec user = ::randi(1,0,M-1);
-    graph.add_edge(user[0], -(graphlab::vertex_id_type(item[0] + SAFE_NEG_OFFSET)), als_edge_type(implicitratingvalue));
+    //ivec item = ::randi(1,0,N-1);
+    //ivec user = ::randi(1,0,M-1);
+    size_t item = graphlab::random::fast_uniform<size_t>(0, N - 1);
+    size_t user = graphlab::random::fast_uniform<size_t>(0, M - 1);
+    graph.add_edge(user, -(graphlab::vertex_id_type(item + SAFE_NEG_OFFSET)), als_edge_type(implicitratingvalue));
     added++;
   } 
   dc.cout()<<"Finished adding " << toadd << " implicit edges. " << std::endl;
