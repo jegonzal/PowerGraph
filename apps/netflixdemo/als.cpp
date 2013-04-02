@@ -648,7 +648,7 @@ int main(int argc, char** argv) {
   boost::unordered_map<graph_type::vertex_id_type, std::string> mlist;
   if (!movielist_dir.empty()) {
     std::ifstream fin(movielist_dir.c_str());
-    size_t id = 0;
+    size_t id = 1;
     while(fin.good()) {
       std::string name;
       std::getline(fin, name);
@@ -823,7 +823,7 @@ int main(int argc, char** argv) {
       std::vector<std::pair<double, graphlab::vertex_id_type> > top10 = all_predict.get_top_k(10) ;
       for(size_t i = 0;i < top10.size(); ++i) {
         graphlab::vertex_id_type gid = top10[i].second;
-        int printingid = - gid - SAFE_NEG_OFFSET;
+        graphlab::vertex_id_type printingid = - gid - SAFE_NEG_OFFSET;
         std::cout << "\t" << printingid;
         if (mlist.find(gid) != mlist.end()) {
           std::cout << ": " << mlist[gid];

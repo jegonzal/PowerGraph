@@ -590,7 +590,7 @@ class sgd_vertex_program :
         boost::unordered_map<graph_type::vertex_id_type, std::string> mlist;
         if (!movielist_dir.empty()) {
           std::ifstream fin(movielist_dir.c_str());
-          size_t id = 0;
+          size_t id = 1;
           while(fin.good()) {
             std::string name;
             std::getline(fin, name);
