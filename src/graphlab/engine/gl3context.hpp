@@ -3,7 +3,6 @@
 #include <boost/shared_ptr.hpp>
 #include <graphlab/util/generics/any.hpp>
 #include <graphlab/engine/gl3task.hpp>
-#include <graphlab/parallel/qthread_future.hpp>
 namespace graphlab {
 
 
