@@ -144,6 +144,10 @@ typedef graphlab::gl3engine<graph_type> engine_type;
 inline bool graph_loader(graph_type& graph,
                          const std::string& filename,
                          const std::string& line) {
+  if (boost::starts_with(line, "#") || boost::starts_with(line, "%")) {
+    logstream(LOG_INFO) << line << std::endl;
+    return true;
+  }
   ASSERT_FALSE(line.empty());
   // Determine the role of the data
   edge_data::data_role_type role = edge_data::TRAIN;
