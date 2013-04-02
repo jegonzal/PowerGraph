@@ -500,7 +500,7 @@ class sgd_vertex_program :
         return true; // successful load
       } // end of graph_loader
 
-  
+
 
 
 
@@ -580,16 +580,16 @@ class sgd_vertex_program :
         graphlab::distributed_control dc;
 
 
-        boost::unordered_map<size_t, std::string> mlist;
+        boost::unordered_map<graph_type::vertex_id_type, std::string> mlist;
         if (!movielist_dir.empty()) {
           std::ifstream fin(movielist_dir.c_str());
-          size_t id = 1;
+          size_t id = 0;
           while(fin.good()) {
-            id++;
             std::string name;
             std::getline(fin, name);
-            id = -id - SAFE_NEG_OFFSET;
-            mlist[id] = name;
+            graphlab::vertex_id_type gid = -(graphlab::vertex_id_type(id + SAFE_NEG_OFFSET));
+            mlist[gid] = name;
+            id++;
           }
           fin.close();
         }
@@ -702,10 +702,14 @@ class sgd_vertex_program :
             graph_type::local_vertex_type lvtx(vtx);
             foreach(graph_type::local_edge_type edge, lvtx.out_edges()) {
               graph_type::local_vertex_type target = edge.target();
-              size_t gid = target.global_id();
+              graph_type::vertex_id_type gid = target.global_id();
+              int printingid = - gid - SAFE_NEG_OFFSET;
+              std::cout << "\t" << printingid;
               if (mlist.find(gid) != mlist.end()) {
-                std::cout << "Movie " << mlist[gid] << ": " << edge.data().obs << "\n";
+                std::cout << ": " << mlist[gid];
               }
+              std::cout << " = " << edge.data().obs;
+              std::cout << "\n";
             }
           }
         }
