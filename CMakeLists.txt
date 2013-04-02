@@ -213,11 +213,11 @@ endforeach()
 message(STATUS "Boost Shared libs: " ${Boost_SHARED_LIBRARIES})
 
 
-#if(APPLE)
-#  set (tcmalloc_shared "--enable-shared=yes")
-#else()
-#  set (tcmalloc_shared "--enable-shared=no")
-#endif()
+if(APPLE)
+  set (tcmalloc_shared "--enable-shared=yes")
+else()
+  set (tcmalloc_shared "--enable-shared=no")
+endif()
 
 # TCMalloc  ===================================================================
 # We use tcmalloc for improved memory allocation performance
