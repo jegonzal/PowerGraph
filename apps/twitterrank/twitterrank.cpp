@@ -267,7 +267,7 @@ int main(int argc, char** argv) {
   
   // Run lda -----------------------------------------------------------------
   graphlab::graphlab_options opts2;
-  opts2.set_ncpus(8);
+  opts2.set_ncpus(14);
   std::string engine_type = "sync";
   if (!USE_SYNC) {
     opts2.get_engine_args().set_option("factorized",true);
