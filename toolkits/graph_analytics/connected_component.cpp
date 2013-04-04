@@ -228,10 +228,16 @@ int main(int argc, char** argv) {
   time(&end);
   dc.cout() << "graph calculation time is " << (end - start) << " sec\n";
   dc.cout() << "RESULT:\nsize\tcount\n";
+  boost::unordered_map<size_t, size_t> sizecount;
   for (boost::unordered_map<size_t, size_t>::const_iterator iter = stat.counts.begin();
       iter != stat.counts.end(); iter++) {
+    sizecount[iter->second]++;
+  }
+  for (boost::unordered_map<size_t, size_t>::const_iterator iter = sizecount.begin();
+      iter != sizecount.end(); iter++) {
     dc.cout() << iter->first << "\t" << iter->second << "\n";
   }
+
 
   //write results
   if (saveprefix.size() > 0) {
