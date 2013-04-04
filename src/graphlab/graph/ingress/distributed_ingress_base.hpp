@@ -327,33 +327,31 @@ namespace graphlab {
 
         std::vector<size_t> counts(rpc.numprocs()); 
         size_t num_singletons = 0;
+        size_t num_shadow_master = 0;
         // For simplicity simply assign this machine as the master
         foreach(vrec_pair_type& pair, vrec_map) {
           vertex_negotiator_record& rec = pair.second;
           procid_t master = rpc.procid();
-          if (rec.mirrors.popcount() == 0) 
-            ++num_singletons;
           rec.owner = master; 
-          if (rec.mirrors.get(master)) {
-            rec.mirrors.clear_bit(master);
-          } else {
-            // we assign this proc as the master of vertex v
-            // while this machine does not have any edge adjacent to v.
-            ++num_singletons; 
-          }
+          rec.mirrors.clear_bit(master);
+          // real singleton which does not have any in/out edges
+          if (rec.num_in_edges == 0 && rec.num_out_edges == 0) 
+            ++num_singletons;
+          if (graph.vid2lvid.find(pair.first) == graph.vid2lvid.end())
+            ++num_shadow_master;
         }
 
         if(rpc.procid() == 0) 
           memory_info::log_usage("Finished computing masters");
 
         { // Initialize vertex records
-          graph.lvid2record.reserve(graph.vid2lvid.size() + num_singletons);
-          graph.lvid2record.resize(graph.vid2lvid.size() + num_singletons);
+          graph.lvid2record.reserve(graph.vid2lvid.size() + num_singletons + num_shadow_master);
+          graph.lvid2record.resize(graph.vid2lvid.size() + num_singletons + num_shadow_master);
           foreach(const vid2lvid_pair_type& pair, graph.vid2lvid) 
             graph.lvid2record[pair.second].gvid = pair.first;      
           // Check conditions on graph
           // ASSERT_EQ(graph.local_graph.num_vertices(), graph.lvid2record.size());
-          graph.local_graph.reserve(graph.local_graph.num_vertices() + num_singletons);
+          graph.local_graph.reserve(graph.local_graph.num_vertices() + num_singletons + num_shadow_master);
         }
         if(rpc.procid() == 0)       
           memory_info::log_usage("Finished lvid2record");
