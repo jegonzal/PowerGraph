@@ -24,6 +24,7 @@
 #define GRAPHLAB_IDISTRIBUTED_INGRESS_HPP
 
 #include <vector>
+#include <boost/function.hpp>
 #include <graphlab/graph/graph_basic_types.hpp>
 
 
@@ -48,6 +49,9 @@ namespace graphlab {
      * Add an vertex to the ingress object.
      */
     virtual void add_vertex(vertex_id_type vid, const VertexData& vdata) = 0;
+
+    virtual void set_duplicate_vertex_strategy(boost::function<void(VertexData&,
+                                                        const VertexData&)>) = 0;
 
     /**
      * Finalize completes local graph data structure,  
