@@ -28,7 +28,7 @@
 
 namespace graphlab {
   /// Identifier type of a vertex which is globally consistent. Guaranteed to be integral
-  typedef uint32_t vertex_id_type;
+  typedef uint64_t vertex_id_type;
   
   /// Identifier type of a vertex which is only locally consistent. Guaranteed to be integral
   typedef uint32_t lvid_type;

@@ -29,8 +29,6 @@
 
 #ifndef GRAPHLAB_GRAPH_STORAGE_HPP
 #define GRAPHLAB_GRAPH_STORAGE_HPP
-
-
 #ifndef __NO_OPENMP__
 #include <omp.h>
 #endif
@@ -498,11 +496,6 @@ namespace graphlab {
       counting_sort(edges.source_arr, counter_array, permute_index); 
 
       // Parallel sort target for each source= x interval: counter_array[x] - counter_array[x+1];
-#ifdef _OPENMP
-#pragma omp parallel for
-#else
-      logstream(LOG_DEBUG) << "Graph2 finalize: Parallel sort is disabled." << std::endl;
-#endif
 
       // CSR doesn't need edges of same source to be placed in order 
       // for (ssize_t j = 0; j < ssize_t(num_vertices); ++j) {
@@ -602,9 +595,6 @@ namespace graphlab {
       logstream(LOG_DEBUG) << "Graph2 finalize: Sort by source vertex" << std::endl;
 #endif
       counting_sort(edges.target_arr, counter_array, permute_index); 
-#ifdef _OPENMP
-#pragma omp parallel for
-#endif
       // CSC doesn't need edges of the same target to be placed in order. 
       // for (ssize_t i = 0; i < ssize_t(num_vertices); ++i) {
       //   if (counter_array[i] < counter_array[i+1]) {
