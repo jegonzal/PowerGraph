@@ -729,6 +729,18 @@ namespace graphlab {
       return get_vertex_record(vid).num_out_edges;
     }
 
+
+    /**
+     * Defines the strategy to use when duplicate vertices are inserted.
+     * The default behavior is that an arbitrary vertex data is picked.
+     * This allows you to define a combining strategy.
+     */
+    void set_duplicate_vertex_strategy(boost::function<void(vertex_data_type&,
+                                                        const vertex_data_type&)>
+                                       combine_strategy) {
+      ingress_ptr->set_duplicate_vertex_strategy(combine_strategy);
+    }
+
     /**
      * \brief Creates a vertex containing the vertex data.
      *

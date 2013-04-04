@@ -23,8 +23,8 @@
 #ifndef GRAPHLAB_DISTRIBUTED_INGRESS_BASE_HPP
 #define GRAPHLAB_DISTRIBUTED_INGRESS_BASE_HPP
 
+#include <boost/function.hpp>
 #include <boost/functional/hash.hpp>
-
 #include <graphlab/util/memory_info.hpp>
 #include <graphlab/rpc/buffered_exchange.hpp>
 #include <graphlab/graph/graph_basic_types.hpp>
@@ -55,7 +55,9 @@ namespace graphlab {
     typedef typename graph_type::vertex_record vertex_record;
     typedef typename graph_type::mirror_type mirror_type;
 
-
+    boost::function<void(vertex_data_type&,
+                         const vertex_data_type&)> vertex_combine_strategy;
+    
     /// The rpc interface for this object
     dc_dist_object<distributed_ingress_base> rpc;
     /// The underlying distributed graph object that is being loaded
@@ -102,8 +104,10 @@ namespace graphlab {
       vertex_data_type vdata;
       vertex_id_type num_in_edges, num_out_edges;
       procid_t owner;
+      bool data_is_set;
       vertex_negotiator_record() : 
-        vdata(vertex_data_type()), num_in_edges(0), num_out_edges(0), owner(-1) { }
+        vdata(vertex_data_type()), num_in_edges(0), num_out_edges(0), 
+        owner(-1), data_is_set(false) { }
       void load(iarchive& arc) { 
         arc >> num_in_edges >> num_out_edges >> owner >> mirrors >> vdata;
       }
@@ -141,7 +145,19 @@ namespace graphlab {
       vertex_exchange.send(owning_proc, record);
     } // end of add vertex
 
-    
+
+
+    /**
+     * Defines the strategy to use when duplicate vertices are inserted.
+     * The default behavior is that an arbitrary vertex data is picked.
+     * This allows you to define a combining strategy.
+     */
+    void set_duplicate_vertex_strategy(boost::function<void(vertex_data_type&,
+                                                        const vertex_data_type&)>
+                                       combine_strategy) {
+      vertex_combine_strategy = combine_strategy;
+    }
+
     /** \brief Finalize completes the local graph data structure 
      * and the vertex record information. 
      *
@@ -242,7 +258,12 @@ namespace graphlab {
         while(vertex_exchange.recv(sending_proc, vertex_buffer)) {
           foreach(const vertex_buffer_record& rec, vertex_buffer) {
             vertex_negotiator_record& negotiator_rec = vrec_map[rec.vid];
-            negotiator_rec.vdata = rec.vdata;
+            if (vertex_combine_strategy &&  negotiator_rec.data_is_set) {
+              vertex_combine_strategy(negotiator_rec.vdata, rec.vdata);
+            } else {
+              negotiator_rec.vdata = rec.vdata;
+              negotiator_rec.data_is_set = true;
+            }
           }
         }
         vertex_exchange.clear();
