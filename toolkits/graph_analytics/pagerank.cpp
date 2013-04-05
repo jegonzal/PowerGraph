@@ -86,7 +86,7 @@ public:
   /* Use the total rank of adjacent pages to update this page */
   void apply(icontext_type& context, vertex_type& vertex,
              const gather_type& total) {
-    float newval = (1.0 - RESET_PROB) * total + RESET_PROB;
+    const float newval = (1.0 - RESET_PROB) * total + RESET_PROB;
     last_change = (newval - vertex.data()) / vertex.num_out_edges();
     vertex.data() = newval;
     if (ITERATIONS) context.signal(vertex);
@@ -142,6 +142,7 @@ struct pagerank_writer {
 }; // end of pagerank writer
 
 
+double map_rank(const graph_type::vertex_type& v) { return v.data(); }
 
 int main(int argc, char** argv) {
   // Initialize control plain using mpi
@@ -229,6 +230,9 @@ int main(int argc, char** argv) {
   dc.cout() << "Finished Running engine in " << runtime
             << " seconds." << std::endl;
 
+
+  const double total_rank = graph.map_reduce_vertices<double>(map_rank);
+  std::cout << "Total rank: " << total_rank << std::endl;
 
   // Save the final graph -----------------------------------------------------
   if (saveprefix != "") {
