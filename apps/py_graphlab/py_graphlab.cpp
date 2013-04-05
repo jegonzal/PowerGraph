@@ -192,6 +192,8 @@ graph_type *graph;
 graphlab::distributed_control *dc;
 bool graph_initialized = false;
 bool dc_initialized = false;
+graphlab::edge_dir_type gather_edges_dir = graphlab::IN_EDGES, scatter_edges_dir = graphlab::OUT_EDGES;
+
 
 void transform_vertex(graph_type::vertex_type& vertex) { 
 #ifndef PYSHARED_LIB
@@ -272,13 +274,13 @@ public:
     }
   }
 
-  // Need to have this determined in python
-//  edge_dir_type gather_edges(icontext_type& context, const vertex_type& vertex) const {
-//    return graphlab::ALL_EDGES;
-//  };
-//  edge_dir_type scatter_edges(icontext_type& context, const vertex_type& vertex) const {
-//    return graphlab::ALL_EDGES;
-//  };
+  edge_dir_type gather_edges(icontext_type &context, const vertex_type &vertex) const {
+    return gather_edges_dir;
+  };
+
+  edge_dir_type scatter_edges(icontext_type &context, const vertex_type &vertex) const {
+    return scatter_edges_dir;
+  };
 
   void scatter(icontext_type& context, const vertex_type& vertex, edge_type& edge) const {
 #ifndef PYSHARED_LIB
@@ -455,8 +457,6 @@ int init_python(const char *python_script) {
       return EXIT_FAILURE;
     }
   }
-  
-  Py_DECREF(pModuleWrap);
 
   PyObject *pArgs = PyTuple_New(1);
   PyTuple_SetItem(pArgs, 0, PyString_FromString(python_script));
@@ -468,6 +468,19 @@ int init_python(const char *python_script) {
   Py_DECREF(pArgs);
   has_edgeclass = pValue == Py_True;
   Py_DECREF(pValue);
+
+
+  PyObject *gather_edges_res = PyObject_GetAttrString(pModuleWrap, "gatherEdges");
+  if (gather_edges_res != Py_None && gather_edges_res != NULL) {
+    gather_edges_dir = graphlab::edge_dir_type(PyInt_AsLong(gather_edges_res));
+  }
+
+  PyObject *scatter_edges_res = PyObject_GetAttrString(pModuleWrap, "scatterEdges");
+  if (scatter_edges_res != Py_None && scatter_edges_res != NULL) {
+    scatter_edges_dir = graphlab::edge_dir_type(PyInt_AsLong(scatter_edges_res));
+  }
+
+  Py_DECREF(pModuleWrap);
 }
   
   return EXIT_SUCCESS;

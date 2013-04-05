@@ -8,6 +8,9 @@ MAXVAL = 1e+100;
 MINVAL = -1e+100;
 REGNORMAL = 1;
 
+gatherEdges = 3;  # gather and scatter on all edges
+scatterEdges = 3;
+
 indices = numpy.triu_indices(NUMLATENT);
 
 class vertexDataClass:
