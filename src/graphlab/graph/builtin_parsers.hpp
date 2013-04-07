@@ -96,6 +96,22 @@ namespace graphlab {
     } // end of tsv parser
 
 
+    template <typename Graph>
+    bool csv_parser(Graph& graph, 
+          const std::string& filename, 
+          const std::string& textline) {
+      if (textline.empty()) return true;
+      size_t split = textline.find_first_of(",");
+      if (split == std::string::npos) return true;
+      else {
+        std::string t = textline;
+        t[split] = 0;
+        graph.add_edge(strtoul(t.c_str(), NULL, 10), 
+            strtoul(t.c_str() + split + 1, NULL, 10));
+        return true;
+      }
+    }
+
 
 #if defined(__cplusplus) && __cplusplus >= 201103L
     // The spirit parser seems to have issues when compiling under

@@ -32,7 +32,7 @@
 #include <graphlab/graph/distributed_graph.hpp>
 
 struct vdata {
-  size_t labelid;
+  uint64_t labelid;
   vdata() :
       labelid(0) {
   }
@@ -54,15 +54,15 @@ void initialize_vertex(graph_type::vertex_type& v) {
 
 //message where summation means minimum
 struct min_message {
-  size_t value;
-  explicit min_message(size_t v) :
+  uint64_t value;
+  explicit min_message(uint64_t v) :
       value(v) {
   }
   min_message() :
-      value(std::numeric_limits<size_t>::max()) {
+      value(std::numeric_limits<uint64_t>::max()) {
   }
   min_message& operator+=(const min_message& other) {
-    value = std::min<size_t>(value, other.value);
+    value = std::min<uint64_t>(value, other.value);
     return *this;
   }
 
@@ -74,13 +74,13 @@ struct min_message {
   }
 };
 
-class label_propergation: public graphlab::ivertex_program<graph_type, size_t,
+class label_propagation: public graphlab::ivertex_program<graph_type, size_t,
     min_message>, public graphlab::IS_POD_TYPE {
 private:
   size_t recieved_labelid;
   bool perform_scatter;
 public:
-  label_propergation() {
+  label_propagation() {
     recieved_labelid = std::numeric_limits<size_t>::max();
     perform_scatter = false;
   }
@@ -146,43 +146,12 @@ public:
   }
 };
 
-//reduce sizes of connected components
-struct label_counter {
-  boost::unordered_map<size_t, size_t> counts;
-
-  label_counter() { }
-
-  explicit label_counter(size_t labelId) {
-    counts[labelId] = 1;
-  }
-
-  label_counter& operator+=(const label_counter& other) {
-    boost::unordered_map<size_t, size_t>::const_iterator iter = other.counts.begin();
-    while(iter != other.counts.end()) {
-      counts[iter->first] += iter->second;
-      ++iter;
-    }
-    return *this;
-  }
-
-  void save(graphlab::oarchive& oarc) const {
-    oarc << counts;
-  }
-  void load(graphlab::iarchive& iarc) {
-    iarc >> counts;
-  }
-};
-
-label_counter absolute_vertex_data(const graph_type::vertex_type& vertex) {
-  return label_counter(vertex.data().labelid);
-}
-
 int main(int argc, char** argv) {
   std::cout << "Connected Component\n\n";
 
   graphlab::mpi_tools::init(argc, argv);
   graphlab::distributed_control dc;
-
+  global_logger().set_log_level(LOG_DEBUG);
   //parse options
   graphlab::command_line_options clopts("Connected Component.");
   std::string graph_dir;
@@ -212,32 +181,17 @@ int main(int argc, char** argv) {
   //load graph
   dc.cout() << "Loading graph in format: "<< format << std::endl;
   graph.load_format(graph_dir, format);
+  graphlab::timer ti;
   graph.finalize();
+  dc.cout() << "Finalization in " << ti.current_time() << std::endl;
   graph.transform_vertices(initialize_vertex);
 
   //running the engine
   time_t start, end;
-  graphlab::omni_engine<label_propergation> engine(dc, graph, exec_type, clopts);
+  graphlab::omni_engine<label_propagation> engine(dc, graph, exec_type, clopts);
   engine.signal_all();
   time(&start);
   engine.start();
-
-  //take statistics
-  label_counter stat = graph.map_reduce_vertices<label_counter>(
-      absolute_vertex_data);
-  time(&end);
-  dc.cout() << "graph calculation time is " << (end - start) << " sec\n";
-  dc.cout() << "RESULT:\nsize\tcount\n";
-  boost::unordered_map<size_t, size_t> sizecount;
-  for (boost::unordered_map<size_t, size_t>::const_iterator iter = stat.counts.begin();
-      iter != stat.counts.end(); iter++) {
-    sizecount[iter->second]++;
-  }
-  for (boost::unordered_map<size_t, size_t>::const_iterator iter = sizecount.begin();
-      iter != sizecount.end(); iter++) {
-    dc.cout() << iter->first << "\t" << iter->second << "\n";
-  }
-
 
   //write results
   if (saveprefix.size() > 0) {
