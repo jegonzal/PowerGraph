@@ -209,7 +209,7 @@ struct dcsc_store {
    */
   entry_list get_column(typename std::vector<index_type>::const_iterator jciter) {
     if (jciter != jc.end()) {
-      size_t c = std::distance(jc.begin(), jciter);
+      size_t c = std::distance(typename std::vector<index_type>::const_iterator(jc.begin()), jciter);
       size_t len = cp[c + 1] - cp[c];
       return entry_list((*jciter),
                         value.begin() + cp[c],
@@ -241,7 +241,6 @@ struct dcsc_store {
   }
 
   value_type& data_at_offset(size_t i) {
-    :qa
   }
 };
 
