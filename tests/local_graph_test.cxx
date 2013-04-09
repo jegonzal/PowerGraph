@@ -97,24 +97,24 @@ public:
             ASSERT_EQ(outedges[0].source().id(), i);
             ASSERT_EQ(outedges[0].target().id(), 3);
 
-            edge_data data = g.edge_data(outedges[0]);
+            edge_data data = (outedges[0]).data();
             ASSERT_EQ(data.from, i);
             ASSERT_EQ(data.to, 3);
           }
       } else {
 
         ASSERT_EQ(outedges.size(), 2);
-        size_t arr_out[] = {2,5};
+        size_t arr_out[] = {5,2};
         for (size_t j = 0; j < 2; ++j) {
-          edge_data data = g.edge_data(outedges[j]);
+          edge_data data = (outedges[j]).data();
           ASSERT_EQ(data.from, 3);
           ASSERT_EQ(data.to, arr_out[j]);
         }
 
-        size_t arr_in[] = {1,2,4,5};
+        size_t arr_in[] = {5,4,2,1};
         ASSERT_EQ(inedges.size(), 4);
         for (size_t j = 0; j < 4; ++j) {
-          edge_data data = g.edge_data(inedges[j]);
+          edge_data data = (inedges[j]).data();
           ASSERT_EQ(data.from, arr_in[j]);
           ASSERT_EQ(data.to, 3);
         }
@@ -213,25 +213,25 @@ public:
       printf("Test v: %u\n", i);
       printf("In edge ids: ");
       foreach(edge_type edge, in_edges) 
-        std::cout << "(" << g.edge_data(edge.source().id(), edge.target().id()).from << ","
-                  << g.edge_data(edge.source().id(), edge.target().id()).to << ") ";
+        std::cout << "(" << edge.data().from << ","
+                  << edge.data().to << ") ";
       std::cout <<std::endl;
 
       printf("Out edge ids: ");
       foreach(edge_type edge, out_edges) 
-        std::cout << "(" << g.edge_data(edge.source().id(), edge.target().id()).from << "," 
-                  << g.edge_data(edge.source().id(), edge.target().id()).to << ") ";
+        std::cout << "(" << edge.data().from << "," 
+                  << edge.data().to << ") ";
       std::cout <<std::endl;
 
       foreach(edge_type edge, out_edges) {
-        edge_data edata = g.edge_data(edge);
+        edge_data edata = edge.data();
         ASSERT_EQ(edge.source().id(), i);
         ASSERT_EQ(edata.from, edge.source().id());
         ASSERT_EQ(edata.to, edge.target().id());
       }
 
       foreach(edge_type edge, in_edges) {
-        edge_data edata = g.edge_data(edge);
+        edge_data edata = edge.data();
         ASSERT_EQ(edge.target().id(), i);
         ASSERT_EQ(edata.from, edge.source().id());
         ASSERT_EQ(edata.to, edge.target().id());

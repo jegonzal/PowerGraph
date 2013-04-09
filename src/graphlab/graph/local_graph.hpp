@@ -44,6 +44,8 @@
 #include <boost/iterator/transform_iterator.hpp>
 
 #include <graphlab/graph/graph_basic_types.hpp>
+#include <graphlab/graph/local_edge_buffer.hpp>
+#include <graphlab/graph/graph_storage.hpp>
 
 #include <graphlab/logger/logger.hpp>
 #include <graphlab/logger/assertions.hpp>
@@ -52,21 +54,12 @@
 #include <graphlab/serialization/oarchive.hpp>
 
 #include <graphlab/util/random.hpp>
-#include <graphlab/graph/graph_storage.hpp>
 #include <graphlab/macros_def.hpp>
-
-
 
 namespace graphlab { 
 
-
-  template<typename VertexData, typename EdgeData>
-  class json_parser;
-
   template<typename VertexData, typename EdgeData>
   class local_graph {
-    
-
     /** \internal
      * \brief The type of the graph structure storage of the local_graph. */
     typedef graph_storage<VertexData, EdgeData> gstore_type;
@@ -78,12 +71,8 @@ namespace graphlab {
     /** The type of the edge data stored in the local_graph. */
     typedef EdgeData edge_data_type;
 
-    typedef typename gstore_type::edge_info edge_info;
-
     typedef graphlab::vertex_id_type vertex_id_type;
     typedef graphlab::edge_id_type edge_id_type;
-
-    friend class json_parser<VertexData, EdgeData>;
 
     
     struct edge_type;
@@ -96,17 +85,16 @@ namespace graphlab {
     struct edge_type {
       local_graph& lgraph_ref;
       typename gstore_type::edge_type e;
-      edge_type(local_graph& lgraph_ref, 
-                typename gstore_type::edge_type e) : 
+      edge_type(local_graph& lgraph_ref, typename gstore_type::edge_type e) : 
         lgraph_ref(lgraph_ref),e(e) { }
 
       /// \brief Returns a constant reference to the data on the edge.
       const edge_data_type& data() const {
-        return lgraph_ref.gstore.edge_data(e);
+        return e.edge_data();
       }
       /// \brief Returns a reference to the data on the edge.
       edge_data_type& data() {
-        return lgraph_ref.gstore.edge_data(e);
+        return e.edge_data();
       }
       /// \brief Returns the source vertex of the edge.
       vertex_type source() const {
@@ -115,11 +103,6 @@ namespace graphlab {
       /// \brief Returns the target vertex of the edge.
       vertex_type target() const {
         return vertex_type(lgraph_ref, e.target());
-      }
-      /** 
-       *  \brief Returns the id of the edge.*/
-      edge_id_type id() const {
-        return lgraph_ref.gstore.edge_id(e);
       }
     };
     
@@ -174,11 +157,12 @@ namespace graphlab {
     /** \brief Represents an iteratable list of edge_types. */
     struct edge_list_type {
       make_edge_type_functor me_functor;
-      typename gstore_type::edge_list elist;
-      typedef boost::transform_iterator<make_edge_type_functor, typename gstore_type::edge_list::iterator> iterator;
+      typedef boost::transform_iterator<make_edge_type_functor, typename gstore_type::edge_iterator> iterator;
       typedef iterator const_iterator;
+      typename gstore_type::edge_list elist;
 
       edge_list_type(local_graph& lgraph_ref, typename gstore_type::edge_list elist): me_functor(lgraph_ref), elist(elist) { }
+
       /// \brief Returns the size of the edge list.
       size_t size() const { return elist.size(); }
       /// \brief Random access to the list elements. 
@@ -191,7 +175,6 @@ namespace graphlab {
           boost::make_transform_iterator(elist.end(), me_functor); }
       bool empty() const { return elist.empty(); }
     }; // end of class edge_list.
-
 
 
     
@@ -216,7 +199,7 @@ namespace graphlab {
       finalized = false;
       gstore.clear();
       vertices.clear();
-      edges_tmp.clear();
+      edge_buffer.clear();
     }
 
     /**
@@ -224,9 +207,9 @@ namespace graphlab {
      */
     void clear_reserve() {
       clear();
-      edges_tmp.clear();
+      edge_buffer.clear();
       std::vector<VertexData>().swap(vertices);
-      gstore.clear_reserve();
+      gstore.clear();
     }
     
 
@@ -241,7 +224,7 @@ namespace graphlab {
     void finalize() {   
       if(finalized) return;
       graphlab::timer mytimer; mytimer.start();
-      gstore.finalize(vertices.size(), edges_tmp);
+      gstore.finalize(edge_buffer);
       logstream(LOG_INFO) << "Graph finalized in " << mytimer.current_time() 
                           << " secs" << std::endl;
       finalized = true;
@@ -260,22 +243,11 @@ namespace graphlab {
     /** \brief Get the number of edges */
     size_t num_edges() const {
       if (finalized) {
-        return gstore.edge_size();
+        return gstore.num_edges();
       } else {
-        return edges_tmp.size();
+        return edge_buffer.size();
       }
     } // end of num edges
-
-    /** \brief Finds an edge. Returns an empty edge if not exists. */
-    edge_type find(const lvid_type source,
-                   const lvid_type target) const {
-      return gstore.find(source, target);
-    } // end of find
-
-    /** \brief Finds the reverse of an edge. Returns an empty edge if not exists. */
-    edge_type reverse_edge(const edge_type& edge) const {
-      return gstore.find(edge.target(), edge.source());
-    }
 
 
     /** 
@@ -315,7 +287,7 @@ namespace graphlab {
     } // End of resize
 
     void reserve_edge_space(size_t n) {
-      edges_tmp.reserve_edge_space(n);
+      edge_buffer.reserve_edge_space(n);
     }
     /**
      * \brief Creates an edge connecting vertex source to vertex target.  Any
@@ -340,7 +312,7 @@ namespace graphlab {
         add_vertex(std::max(source, target));
 
       // Add the edge to the set of edge data (this copies the edata)
-      edges_tmp.add_edge(source, target, edata);
+      edge_buffer.add_edge(source, target, edata);
 
       // This is not the final edge_id, so we always return 0. 
       return 0;
@@ -380,7 +352,7 @@ namespace graphlab {
           ASSERT_MSG(source != target, "Attempting to add self edge!");
         }
       }
-      edges_tmp.add_block_edges(src_arr, dst_arr, edata_arr);
+      edge_buffer.add_block_edges(src_arr, dst_arr, edata_arr);
     } // End of add block edges
 
 
@@ -389,50 +361,24 @@ namespace graphlab {
       ASSERT_LT(vid, vertices.size());
       return vertex_type(*this, vid);
     }
-    
+
     /** \brief Returns a vertex of given ID. */
     const vertex_type vertex(lvid_type vid) const {
       ASSERT_LT(vid, vertices.size());
       return vertex_type(*this, vid);
     }
-    
+
     /** \brief Returns a reference to the data stored on the vertex v. */
     VertexData& vertex_data(lvid_type v) {
       ASSERT_LT(v, vertices.size());
       return vertices[v];
     } // end of data(v)
-    
+
     /** \brief Returns a constant reference to the data stored on the vertex v. */
     const VertexData& vertex_data(lvid_type v) const {
       ASSERT_LT(v, vertices.size());
       return vertices[v];
     } // end of data(v)
-
-    /** \brief Returns a reference to the data stored on the edge source->target. */
-    EdgeData& edge_data(lvid_type source, lvid_type target) {
-      ASSERT_TRUE(finalized);
-      return gstore.edge_data(source, target);
-    } // end of edge_data(u,v)
-    
-    /** \brief Returns a constant reference to the data stored on the
-        edge source->target. */
-    const EdgeData& edge_data(lvid_type source, lvid_type target) const {
-      ASSERT_TRUE(finalized);
-      return gstore.edge_data(source, target);
-    } // end of edge_data(u,v)
-
-    /** \brief Returns a reference to the data stored on the edge. */
-    EdgeData& edge_data(const edge_type& edge) { 
-      ASSERT_TRUE(finalized);
-      return gstore.edge_data(edge.e);
-    }
-    /** \brief Returns a constant reference to the data stored on the edge. */
-    const EdgeData& edge_data(const edge_type& edge) const {
-      ASSERT_TRUE(finalized);
-      return gstore.edge_data(edge.e);
-    }
-
-
 
     /** \brief Load the local_graph from an archive */
     void load(iarchive& arc) {
@@ -479,8 +425,6 @@ namespace graphlab {
       fout.close();
     } // end of save
 
-
-
     /**
      * \brief save the adjacency structure to a text file.
      *
@@ -490,13 +434,13 @@ namespace graphlab {
      * format.
      */
     void save_adjacency(const std::string& filename) const {
-      std::ofstream fout(filename.c_str());
-      ASSERT_TRUE(fout.good());
-      for(size_t i = 0; i < num_edges(); ++i) {
-        fout << gstore.source(i) << ", " << gstore.target(i) << "\n";
-        ASSERT_TRUE(fout.good());
-      }          
-      fout.close();
+      // std::ofstream fout(filename.c_str());
+      // ASSERT_TRUE(fout.good());
+      // for(size_t i = 0; i < num_edges(); ++i) {
+      //   fout << gstore.source(i) << ", " << gstore.target(i) << "\n";
+      //   ASSERT_TRUE(fout.good());
+      // }          
+      // fout.close();
     }
 
  /****************************************************************************
@@ -506,12 +450,6 @@ namespace graphlab {
  * underlying local_graph representation. They should not be used unless you      *
  * *really* know what you are doing.                                        *
  ****************************************************************************/
-    /** \internal
-     *  \brief Returns the internal id of the edge*/
-    edge_id_type edge_id(const edge_type& edge) const {
-      return gstore.edge_id(edge.e);
-    }
-
     /** 
      * \internal
      * \brief Returns the number of in edges of the vertex with the given id. */
@@ -548,7 +486,7 @@ namespace graphlab {
     size_t estimate_sizeof() const {
       const size_t vlist_size = sizeof(vertices) + 
         sizeof(VertexData) * vertices.capacity();
-      size_t elist_size = edges_tmp.estimate_sizeof();
+      size_t elist_size = edge_buffer.estimate_sizeof();
       size_t store_size = gstore.estimate_sizeof();
       // std::cout << "local_graph: tmplist size: " << (double)elist_size/(1024*1024)
       //           << "  gstoreage size: " << (double)store_size/(1024*1024)
@@ -556,52 +494,17 @@ namespace graphlab {
       //           << std::endl;
       return store_size + vlist_size + elist_size;
     }
-    /** \internal
-     * \brief Returns the column index of CSR stored in the 
-     * internal local_graph storage.
-     */
-    const std::vector<lvid_type>& get_out_index_storage() const {
-      return gstore.get_csr_src();
-    }
-    /** \internal
-     * \brief Returns the row index of CSC stored in the 
-     * internal local_graph storage.
-     */
-    const std::vector<lvid_type>& get_in_index_storage() const {
-      return gstore.get_csc_dst(); 
-    }
-    /** \internal
-     * \brief Returns the row pointer of CSR stored in the 
-     * internal local_graph storage.
-     */
-    const std::vector<lvid_type>& get_out_edge_storage() const {
-      return gstore.get_csr_dst();
-    }
+
 
     /** \internal
-     * \brief Returns the column pointer of CSC stored in the 
-     * internal local_graph storage.
-     */
-    const std::vector<lvid_type>& get_in_edge_storage() const {
-      return gstore.get_csc_src();
-    }
-    /** \internal
-     * \brief Returns the reference of edge data list stored in the
-     * internal local_graph storage.
-     */
-    const std::vector<EdgeData> & get_edge_data_storage() const {
-      return gstore.get_edge_data();
-    }
-
-    /** \internal
-     * \brief For debug purpose, returns the largest vertex id in the edges_tmp
+     * \brief For debug purpose, returns the largest vertex id in the edge_buffer
      */ 
     const lvid_type maxlvid() const {
-      if (edges_tmp.size()) {
+      if (edge_buffer.size()) {
         lvid_type max(0);
-        foreach(lvid_type i, edges_tmp.source_arr)
+        foreach(lvid_type i, edge_buffer.source_arr)
          max = std::max(max, i); 
-        foreach(lvid_type i, edges_tmp.target_arr)
+        foreach(lvid_type i, edge_buffer.target_arr)
          max = std::max(max, i); 
         return max;
       } else {
@@ -624,13 +527,12 @@ namespace graphlab {
         source, destination, and data. Used for temporary storage. The
         data is transferred into CSR+CSC representation in
         Finalize. This will be cleared after finalized.*/
-    edge_info edges_tmp;
+    local_edge_buffer<VertexData, EdgeData> edge_buffer;
    
     /** Mark whether the local_graph is finalized.  Graph finalization is a
         costly procedure but it can also dramatically improve
         performance. */
     bool finalized;
-
   }; // End of class local_graph
 
 
