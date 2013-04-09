@@ -168,6 +168,10 @@ namespace graphlab {
             << values;
      }
 
+     size_t estimate_sizeof() const {
+       return sizeof(value_ptrs) + sizeof(values) + sizeof(sizetype)*value_ptrs.size() + sizeof(valuetype) * values.size();
+     }
+
    private:
      std::vector<sizetype> value_ptrs;
      std::vector<valuetype> values;

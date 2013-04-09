@@ -47,8 +47,7 @@
 #include <boost/version.hpp>
 #include <boost/bind.hpp>
 #include <boost/unordered_set.hpp>
-#include <boost/iterator.hpp>
-#include <boost/iterator/counting_iterator.hpp>
+#include <boost/iterator/zip_iterator.hpp>
 #include <boost/iterator/iterator_facade.hpp>
 
 #include <graphlab/graph/local_edge_buffer.hpp>
@@ -212,33 +211,33 @@ namespace graphlab {
      list_type _type;
      csc_edge_iterator csc_iter;
      csr_edge_iterator csr_iter;
-  };
+  }; // end of edge_iterator
 
   class edge_list {
    public:
-    edge_list(edge_iterator _begin, edge_iterator _end) :
-        _begin(_begin), _end(_end) {}
+     edge_list(edge_iterator _begin, edge_iterator _end) :
+         _begin(_begin), _end(_end) {}
 
-    typedef edge_iterator iterator;
-    typedef iterator const_iterator;
+     typedef edge_iterator iterator;
+     typedef iterator const_iterator;
 
-    inline size_t size() const { 
-      return _end - _begin;
-    }
+     inline size_t size() const { 
+       return _end - _begin;
+     }
 
-    inline edge_type operator[](size_t i) const {
-      return *(_begin+i);
-    }
+     inline edge_type operator[](size_t i) const {
+       return *(_begin+i);
+     }
 
-    bool is_empty() const { return size() == 0; }
+     bool is_empty() const { return size() == 0; }
 
-    iterator begin() const { return _begin; }
+     iterator begin() const { return _begin; }
 
-    iterator end() const { return _end; }
+     iterator end() const { return _end; }
 
    private:
-    edge_iterator _begin;
-    edge_iterator _end;
+     edge_iterator _begin;
+     edge_iterator _end;
   };
 
   public:
@@ -317,11 +316,10 @@ namespace graphlab {
       counting_sort(edges.source_arr, permute, &src_counting_prefix_sum);
 
       // Inplace permute of edge_data, edge_src, edge_target array.
-      // Modified from src/graphlab/util/generics/shuffle.hpp.
 #ifdef DEBUG_GRAPH
       logstream(LOG_DEBUG) << "Graph2 finalize: Inplace permute by source id" << std::endl;
 #endif
-      lvid_type swap_src; lvid_type swap_target; EdgeData swap_data;
+      lvid_type swap_src; lvid_type swap_target; EdgeData  swap_data;
       for (size_t i = 0; i < permute.size(); ++i) {
         if (i != permute[i]) {
           // Reserve the ith entry;
@@ -349,7 +347,22 @@ namespace graphlab {
           }
         }
       }
+      // typedef 
+      //     boost::tuple< std::vector<lvid_type>::iterator,
+      //                   std::vector<lvid_type>::iterator,
+      //                   typename std::vector<EdgeData>::iterator> iterator_tuple;
 
+      // typedef boost::zip_iterator<iterator_tuple> zip_iterator;
+
+      // inplace_shuffle( zip_iterator(iterator_tuple(
+      //                                 edges.source_arr.begin(),
+      //                                 edges.target_arr.begin(),
+      //                                 edges.data.begin())),
+      //                  zip_iterator(iterator_tuple(
+      //                                 edges.source_arr.end(),
+      //                                 edges.target_arr.end(),
+      //                                 edges.data.end())),
+      //                  permute);
 #ifdef DEBUG_GRAPH
       logstream(LOG_DEBUG) << "Graph2 finalize: Sort by dest id" << std::endl;
 #endif
@@ -358,7 +371,11 @@ namespace graphlab {
 #ifdef DEBUG_GRAPH
       logstream(LOG_DEBUG) << "Graph2 finalize: Outofplace permute by dest id" << std::endl;
 #endif
+
       outofplace_shuffle(edges.source_arr, permute);
+      // Use inplace shuffle to reduce peak memory footprint:
+      // inplace_shuffle(edges.source_arr, permute);
+      // counting_sort(edges.target_arr, permute);
 
       // warp into csr csc storage.
       std::vector<std::pair<lvid_type, EdgeData> > csr_value = vector_zip(edges.target_arr, edges.data);
@@ -378,34 +395,7 @@ namespace graphlab {
     }
 
     size_t estimate_sizeof() const {
-      return 0;
-      // // const size_t word_size = sizeof(size_t);
-      // const size_t vid_size = sizeof(lvid_type);
-      // const size_t eid_size = sizeof(edge_id_type);
-      // // Actual content size;
-      // const size_t CSR_size = eid_size * CSR_src.capacity() + 
-      //   vid_size * CSR_dst.capacity();
-      // const size_t CSC_size = eid_size *CSC_dst.capacity() + 
-      //   vid_size * CSC_src.capacity() + eid_size * c2r_map.capacity();
-      // const size_t edata_size = sizeof(EdgeData) * edge_data_list.capacity();
-
-      // // Container size;
-      // const size_t container_size = sizeof(CSR_src) + sizeof(CSR_dst) + 
-      //   sizeof(CSC_src) + sizeof(CSC_dst) + sizeof(c2r_map) + 
-      //   sizeof(edge_data_list);
-
-      // logstream(LOG_DEBUG) << "CSR size: " 
-      //           << (double)CSR_size/(1024*1024)
-      //           << " CSC size: " 
-      //           << (double)CSC_size/(1024*1024) 
-      //           << " edata size: "
-      //           << (double)edata_size/(1024*1024)
-      //           << " container size: " 
-      //           << (double)container_size/(1024*1024) 
-      //           << " \n Total size: " 
-      //           << double(CSR_size + CSC_size + container_size) << std::endl;
-
-      // return CSR_size + CSC_size + edata_size + container_size;
+      return _csr_storage.estimate_sizeof() + _csc_storage.estimate_sizeof();
     } // end of estimate_sizeof
 
 

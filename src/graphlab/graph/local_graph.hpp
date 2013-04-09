@@ -434,13 +434,18 @@ namespace graphlab {
      * format.
      */
     void save_adjacency(const std::string& filename) const {
-      // std::ofstream fout(filename.c_str());
-      // ASSERT_TRUE(fout.good());
-      // for(size_t i = 0; i < num_edges(); ++i) {
-      //   fout << gstore.source(i) << ", " << gstore.target(i) << "\n";
-      //   ASSERT_TRUE(fout.good());
-      // }          
-      // fout.close();
+      std::ofstream fout(filename.c_str());
+      ASSERT_TRUE(fout.good());
+
+      for (size_t i = 0; i < num_vertices(); ++i) {
+        vertex_type v(i);
+        edge_list_type ls = v.out_edges();
+        foreach(edge_type e, ls) {
+          fout << (lvid_type)i << ", " << e.target().id() << "\n";
+          ASSERT_TRUE(fout.good());
+        }
+      }
+      fout.close();
     }
 
  /****************************************************************************
@@ -562,4 +567,3 @@ namespace std {
 
 #include <graphlab/macros_undef.hpp>
 #endif
-

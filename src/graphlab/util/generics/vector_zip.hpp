@@ -33,11 +33,13 @@ namespace graphlab {
   template<typename v1, typename v2>
   std::vector<std::pair<v1, v2> > 
     vector_zip(std::vector<v1>& vec1, std::vector<v2>& vec2) {
+
       assert(vec1.size() == vec2.size());
       size_t length = vec1.size();
 
       std::vector<std::pair<v1, v2> >  out;
       out.reserve(length);
+
 #ifdef _OPENMP
 #pragma omp parallel for
 #endif
