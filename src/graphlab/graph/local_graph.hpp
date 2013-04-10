@@ -42,10 +42,20 @@
 #include <boost/type_traits.hpp>
 #include <boost/typeof/typeof.hpp>
 #include <boost/iterator/transform_iterator.hpp>
+#include <boost/iterator/counting_iterator.hpp>
+#include <boost/iterator/zip_iterator.hpp>
+#include <boost/range/iterator_range.hpp>
 
 #include <graphlab/graph/graph_basic_types.hpp>
 #include <graphlab/graph/local_edge_buffer.hpp>
-#include <graphlab/graph/graph_storage.hpp>
+#include <graphlab/graph/local_edge_buffer.hpp>
+#include <graphlab/graph/local_edge_buffer.hpp>
+#include <graphlab/util/random.hpp>
+#include <graphlab/util/generics/shuffle.hpp>
+#include <graphlab/util/generics/counting_sort.hpp>
+#include <graphlab/util/generics/vector_zip.hpp>
+#include <graphlab/util/generics/csr_storage.hpp>
+#include <graphlab/parallel/atomic.hpp>
 
 #include <graphlab/logger/logger.hpp>
 #include <graphlab/logger/assertions.hpp>
@@ -60,9 +70,6 @@ namespace graphlab {
 
   template<typename VertexData, typename EdgeData>
   class local_graph {
-    /** \internal
-     * \brief The type of the graph structure storage of the local_graph. */
-    typedef graph_storage<VertexData, EdgeData> gstore_type;
   public:
     
     /** The type of the vertex data stored in the local_graph. */
@@ -74,112 +81,88 @@ namespace graphlab {
     typedef graphlab::vertex_id_type vertex_id_type;
     typedef graphlab::edge_id_type edge_id_type;
 
-    
-    struct edge_type;
-    struct vertex_type;
-    struct edge_list_type;
+    class edge_type;
+    class vertex_type;
 
-    /** Edge object which provides access to the edge data
-     * and information about it.
-     */
-    struct edge_type {
-      local_graph& lgraph_ref;
-      typename gstore_type::edge_type e;
-      edge_type(local_graph& lgraph_ref, typename gstore_type::edge_type e) : 
-        lgraph_ref(lgraph_ref),e(e) { }
+  private:
+    class edge_iterator;
 
-      /// \brief Returns a constant reference to the data on the edge.
-      const edge_data_type& data() const {
-        return lgraph_ref.gstore.edge_data(e.id());
-      }
-      /// \brief Returns a reference to the data on the edge.
-      edge_data_type& data() {
-        return lgraph_ref.gstore.edge_data(e.id());
-      }
-      /// \brief Returns the source vertex of the edge.
-      vertex_type source() const {
-        return vertex_type(lgraph_ref, e.source());
-      }
-      /// \brief Returns the target vertex of the edge.
-      vertex_type target() const {
-        return vertex_type(lgraph_ref, e.target());
-      }
-      /// \brief Returns the internal ID of this edge
-      edge_id_type id() const { return e.id(); }
-    };
-    
+  public:
+    typedef boost::iterator_range<edge_iterator> edge_list_type;
+
     /** Vertex object which provides access to the vertex data
      * and information about it.
      */ 
-    struct vertex_type {
-      local_graph& lgraph_ref;
-      lvid_type vid;
-      vertex_type(local_graph& lgraph_ref, lvid_type vid):lgraph_ref(lgraph_ref),vid(vid) { }
-      
-      /// \brief Returns a constant reference to the data on the vertex.
-      const vertex_data_type& data() const {
-        return lgraph_ref.vertex_data(vid);
-      }
-      /// \brief Returns a reference to the data on the vertex.
-      vertex_data_type& data() {
-        return lgraph_ref.vertex_data(vid);
-      }
-      /// \brief Returns the number of in edges of the vertex.
-      size_t num_in_edges() const {
-        return lgraph_ref.num_in_edges(vid);
-      }
-      /// \brief Returns the number of out edges of the vertex.
-      size_t num_out_edges() const {
-        return lgraph_ref.num_out_edges(vid);
-      }
-      /// \brief Returns the ID of the vertex. 
-      lvid_type id() const {
-        return vid;
-      }
-      /// \brief Returns a list of in edges.
-      edge_list_type in_edges() {
-        return edge_list_type(lgraph_ref, lgraph_ref.gstore.in_edges(vid));
-      }
-      /// \brief Returns a list of out edges.
-      edge_list_type out_edges() {
-        return edge_list_type(lgraph_ref, lgraph_ref.gstore.out_edges(vid));
-      }
+    class vertex_type {
+     public:
+       vertex_type(local_graph& lgraph_ref, lvid_type vid):lgraph_ref(lgraph_ref),vid(vid) { }
+
+       /// \brief Returns a constant reference to the data on the vertex.
+       const vertex_data_type& data() const {
+         return lgraph_ref.vertex_data(vid);
+       }
+       /// \brief Returns a reference to the data on the vertex.
+       vertex_data_type& data() {
+         return lgraph_ref.vertex_data(vid);
+       }
+       /// \brief Returns the number of in edges of the vertex.
+       size_t num_in_edges() const {
+         return lgraph_ref.num_in_edges(vid);
+       }
+       /// \brief Returns the number of out edges of the vertex.
+       size_t num_out_edges() const {
+         return lgraph_ref.num_out_edges(vid);
+       }
+       /// \brief Returns the ID of the vertex. 
+       lvid_type id() const {
+         return vid;
+       }
+       /// \brief Returns a list of in edges.
+       edge_list_type in_edges() {
+         return edge_list_type(lgraph_ref, lgraph_ref.in_edges(vid));
+       }
+       /// \brief Returns a list of out edges.
+       edge_list_type out_edges() {
+         return edge_list_type(lgraph_ref, lgraph_ref.out_edges(vid));
+       }
+     private:
+       local_graph& lgraph_ref;
+       lvid_type vid;
     };
-    
-    struct make_edge_type_functor {
-      typedef typename gstore_type::edge_type argument_type;
-      typedef edge_type result_type;
-      local_graph& lgraph_ref;
-      make_edge_type_functor(local_graph& lgraph_ref):lgraph_ref(lgraph_ref) { }
-      result_type operator() (const argument_type et) const {
-        return edge_type(lgraph_ref, et);
+    /** Edge object which provides access to the edge data
+     * and information about it.
+     */
+    class edge_type {
+     public:
+      edge_type(local_graph& lgraph_ref, lvid_type _source, lvid_type _target, edge_id_type _eid) : 
+        lgraph_ref(lgraph_ref), _source(_source), _target(_target), _eid(_eid) { }
+
+      /// \brief Returns a constant reference to the data on the edge.
+      const edge_data_type& data() const {
+        return lgraph_ref.edge_data(_eid);
       }
+      /// \brief Returns a reference to the data on the edge.
+      edge_data_type& data() {
+        return lgraph_ref.edge_data(_eid);
+      }
+      /// \brief Returns the source vertex of the edge.
+      vertex_type source() const {
+        return vertex_type(lgraph_ref, _source);
+      }
+      /// \brief Returns the target vertex of the edge.
+      vertex_type target() const {
+        return vertex_type(lgraph_ref, _target);
+      }
+      /// \brief Returns the internal ID of this edge
+      edge_id_type id() const { return _eid; }
+
+     private:
+      local_graph& lgraph_ref;
+      lvid_type _source;
+      lvid_type _target;
+      edge_id_type _eid;
     };
-    
-    /** \brief Represents an iteratable list of edge_types. */
-    struct edge_list_type {
-      make_edge_type_functor me_functor;
-      typedef boost::transform_iterator<make_edge_type_functor, typename gstore_type::edge_iterator> iterator;
-      typedef iterator const_iterator;
-      typename gstore_type::edge_list elist;
 
-      edge_list_type(local_graph& lgraph_ref, typename gstore_type::edge_list elist): me_functor(lgraph_ref), elist(elist) { }
-
-      /// \brief Returns the size of the edge list.
-      size_t size() const { return elist.size(); }
-      /// \brief Random access to the list elements. 
-      edge_type operator[](size_t i) const {return me_functor(elist[i]);}
-      /// \brief Returns an iterator to the beginning of the list.
-      iterator begin() const { return
-          boost::make_transform_iterator(elist.begin(), me_functor); }
-      /// \brief Returns an iterator to the end of the list.
-      iterator end() const { return
-          boost::make_transform_iterator(elist.end(), me_functor); }
-      bool empty() const { return elist.empty(); }
-    }; // end of class edge_list.
-
-
-    
   public:
 
     // CONSTRUCTORS ============================================================>
@@ -199,21 +182,14 @@ namespace graphlab {
      */
     void clear() {
       finalized = false;
-      gstore.clear();
       vertices.clear();
-      edge_buffer.clear();
-    }
-
-    /**
-     * \brief Reset the local_graph state and free up the reserved memory.
-     */
-    void clear_reserve() {
-      clear();
-      edge_buffer.clear();
+      edges.clear();
+      _csc_storage.clear();
+      _csr_storage.clear();
       std::vector<VertexData>().swap(vertices);
-      gstore.clear();
+      std::vector<EdgeData>().swap(edges);
+      edge_buffer.clear();
     }
-    
 
     /**
      * \brief Finalize the local_graph data structure by
@@ -226,7 +202,77 @@ namespace graphlab {
     void finalize() {   
       if(finalized) return;
       graphlab::timer mytimer; mytimer.start();
-      gstore.finalize(edge_buffer);
+#ifdef DEBUG_GRAPH
+      logstream(LOG_DEBUG) << "Graph2 finalize starts." << std::endl;
+#endif
+      std::vector<edge_id_type> permute;
+      std::vector<edge_id_type> src_counting_prefix_sum;
+      std::vector<edge_id_type> dest_counting_prefix_sum;
+           
+#ifdef DEBUG_GRAPH
+      logstream(LOG_DEBUG) << "Graph2 finalize: Sort by source vertex" << std::endl;
+#endif
+      // Sort edges by source;
+      // Begin of counting sort.
+      counting_sort(edge_buffer.source_arr, permute, &src_counting_prefix_sum);
+
+      // Inplace permute of edge_data, edge_src, edge_target array.
+#ifdef DEBUG_GRAPH
+      logstream(LOG_DEBUG) << "Graph2 finalize: Inplace permute by source id" << std::endl;
+#endif
+      lvid_type swap_src; lvid_type swap_target; EdgeData  swap_data;
+      for (size_t i = 0; i < permute.size(); ++i) {
+        if (i != permute[i]) {
+          // Reserve the ith entry;
+          size_t j = i;
+          swap_data = edge_buffer.data[i];
+          swap_src = edge_buffer.source_arr[i];
+          swap_target = edge_buffer.target_arr[i];
+          // Begin swap cycle:
+          while (j != permute[j]) {
+            size_t next = permute[j];
+            if (next != i) {
+              edge_buffer.data[j] = edge_buffer.data[next];
+              edge_buffer.source_arr[j] = edge_buffer.source_arr[next];
+              edge_buffer.target_arr[j] = edge_buffer.target_arr[next];
+              permute[j] = j;
+              j = next;
+            } else {
+              // end of cycle
+              edge_buffer.data[j] = swap_data;
+              edge_buffer.source_arr[j] = swap_src;
+              edge_buffer.target_arr[j] = swap_target;
+              permute[j] = j;
+              break;
+            }
+          }
+        }
+      }
+#ifdef DEBUG_GRAPH
+      logstream(LOG_DEBUG) << "Graph2 finalize: Sort by dest id" << std::endl;
+#endif
+      counting_sort(edge_buffer.target_arr, permute, &dest_counting_prefix_sum); 
+      // Shuffle source array
+#ifdef DEBUG_GRAPH
+      logstream(LOG_DEBUG) << "Graph2 finalize: Outofplace permute by dest id" << std::endl;
+#endif
+
+      outofplace_shuffle(edge_buffer.source_arr, permute);
+      // Use inplace shuffle to reduce peak memory footprint:
+      // inplace_shuffle(edge_buffer.source_arr, permute);
+      // counting_sort(edge_buffer.target_arr, permute);
+
+      // warp into csr csc storage.
+      _csr_storage.wrap(src_counting_prefix_sum, edge_buffer.target_arr);
+      std::vector<std::pair<lvid_type, edge_id_type> > csc_value = vector_zip(edge_buffer.source_arr, permute);
+      _csc_storage.wrap(dest_counting_prefix_sum, csc_value); 
+      edges.swap(edge_buffer.data);
+      ASSERT_EQ(_csr_storage.num_values(), _csc_storage.num_values());
+      ASSERT_EQ(_csr_storage.num_values(), edges.size());
+#ifdef DEBGU_GRAPH
+      logstream(LOG_DEBUG) << "End of finalize." << std::endl;
+#endif
+
       logstream(LOG_INFO) << "Graph finalized in " << mytimer.current_time() 
                           << " secs" << std::endl;
       finalized = true;
@@ -237,15 +283,10 @@ namespace graphlab {
       return vertices.size();
     } // end of num vertices
 
-    /** \brief Get the number of vertices local to this machine */
-    size_t local_vertices() const {
-      return vertices.size();
-    } // end of num vertices
-
     /** \brief Get the number of edges */
     size_t num_edges() const {
       if (finalized) {
-        return gstore.num_edges();
+        return edges.size();
       } else {
         return edge_buffer.size();
       }
@@ -387,7 +428,9 @@ namespace graphlab {
       clear();    
       // read the vertices
       arc >> vertices
-          >> gstore
+          >> edges 
+          >> _csr_storage
+          >> _csc_storage
           >> finalized;
     } // end of load
 
@@ -395,14 +438,19 @@ namespace graphlab {
     void save(oarchive& arc) const {
       // Write the number of edges and vertices
       arc << vertices
-          << gstore
+          << edges
+          << _csr_storage  
+          << _csc_storage
           << finalized;
     } // end of save
     
     /** swap two graphs */
     void swap(local_graph& other) {
+      finalized = other.finalized;
       std::swap(vertices, other.vertices);
-      std::swap(gstore, other.gstore);
+      std::swap(edges, other.edges);
+      std::swap(_csr_storage, other._csr_storage);
+      std::swap(_csc_storage, other._csc_storage);
       std::swap(finalized, other.finalized);
     } // end of swap
 
@@ -414,8 +462,6 @@ namespace graphlab {
       iarc >> *this;
       fin.close();
     } // end of load
-
-
 
     /**
      * \brief save the local_graph to the file given by the filename
@@ -462,7 +508,7 @@ namespace graphlab {
      * \brief Returns the number of in edges of the vertex with the given id. */
     size_t num_in_edges(const lvid_type v) const {
       ASSERT_TRUE(finalized);
-      return gstore.num_in_edges(v);
+      return (_csc_storage.end(v) - _csc_storage.begin(v));
     }
 
     /** 
@@ -470,21 +516,58 @@ namespace graphlab {
      * \brief Returns the number of in edges of the vertex with the given id. */
     size_t num_out_edges(const lvid_type v) const {
       ASSERT_TRUE(finalized);
-      return gstore.num_out_edges(v);
+      return (_csr_storage.end(v) - _csr_storage.begin(v));
     }
 
     /** 
      * \internal
      * \brief Returns a list of in edges of the vertex with the given id. */
     edge_list_type in_edges(lvid_type v) {
-      return edge_list_type(*this, gstore.in_edges(v));
+      edge_iterator begin = edge_iterator(*this, _csc_storage.begin(v), v);
+      edge_iterator end = edge_iterator(*this, _csc_storage.end(v), v);
+      return boost::make_iterator_range(begin, end);
     }
 
     /** 
      * \internal
      * \brief Returns a list of out edges of the vertex with the given id. */
     edge_list_type out_edges(lvid_type v) {
-      return edge_list_type(*this, gstore.out_edges(v));
+
+      csr_type::iterator base_begin = _csr_storage.begin(v);
+      csr_type::iterator base_end = _csr_storage.end(v);
+
+      edge_id_type begin_eid = base_begin - _csr_storage.begin(0); 
+      edge_id_type end_eid = base_end - _csr_storage.begin(0); 
+
+      boost::counting_iterator<edge_id_type> counter_begin(begin_eid);
+      boost::counting_iterator<edge_id_type> counter_end(end_eid);
+
+      edge_iterator begin = 
+          edge_iterator(*this,
+              csr_edge_iterator(csr_iterator_tuple(base_begin, counter_begin)), v);
+
+      edge_iterator end = 
+          edge_iterator(*this,
+              csr_edge_iterator(csr_iterator_tuple(base_end, counter_end)), v);
+
+      return boost::make_iterator_range(begin, end);
+    }
+
+    /** 
+     * \internal
+     * \brief Returns edge data of edge_type e
+     * */
+    EdgeData& edge_data(edge_id_type eid) {
+      ASSERT_LT(eid, num_edges());
+      return edges[eid]; 
+    }
+    /** 
+     * \internal
+     * \brief Returns const edge data of edge_type e
+     * */
+    const EdgeData& edge_data(edge_id_type eid) const {
+      ASSERT_LT(eid, num_edges());
+      return edges[eid]; 
     }
 
     /** 
@@ -493,13 +576,15 @@ namespace graphlab {
     size_t estimate_sizeof() const {
       const size_t vlist_size = sizeof(vertices) + 
         sizeof(VertexData) * vertices.capacity();
-      size_t elist_size = edge_buffer.estimate_sizeof();
-      size_t store_size = gstore.estimate_sizeof();
+      size_t elist_size = _csr_storage.estimate_sizeof() 
+          + _csc_storage.estimate_sizeof()
+          + sizeof(edges) + sizeof(EdgeData)*edges.capacity();
+      size_t ebuffer_size = edge_buffer.estimate_sizeof();
       // std::cout << "local_graph: tmplist size: " << (double)elist_size/(1024*1024)
       //           << "  gstoreage size: " << (double)store_size/(1024*1024)
       //           << "  vdata list size: " << (double)vlist_size/(1024*1024)
       //           << std::endl;
-      return store_size + vlist_size + elist_size;
+      return vlist_size + elist_size + ebuffer_size;
     }
 
 
@@ -520,15 +605,114 @@ namespace graphlab {
     }
    
   private:    
-    /** Internal edge class  */   
+    /** 
+     * \internal
+     * CSR/CSC storage types
+     */
+    typedef csr_storage<lvid_type, edge_id_type> csr_type;
+    typedef csr_storage<std::pair<lvid_type, edge_id_type>, edge_id_type> csc_type; 
 
- 
+    typedef boost::tuple<csr_type::iterator,
+                         boost::counting_iterator<edge_id_type>
+                         > csr_iterator_tuple;
+
+    typedef boost::zip_iterator<csr_iterator_tuple> csr_edge_iterator;
+    typedef csc_type::iterator csc_edge_iterator;
+
+    class edge_iterator : 
+        public boost::iterator_facade <
+        edge_iterator,
+        edge_type,
+        boost::random_access_traversal_tag,
+        edge_type> {
+         public:
+           edge_iterator(local_graph& lgraph_ref, 
+                         csc_edge_iterator iter, lvid_type sourceid) 
+               : lgraph_ref(lgraph_ref), _type(CSC), csc_iter(iter), vid(sourceid) {}
+           edge_iterator(local_graph& lgraph_ref,
+                         csr_edge_iterator iter, lvid_type destid) 
+               : lgraph_ref(lgraph_ref), _type(CSR), csr_iter(iter), vid(destid) {}
+
+         private:
+           friend class boost::iterator_core_access;
+
+           void increment() {
+             switch (_type) {
+              case CSC: ++csc_iter; break;
+              case CSR: ++csr_iter; break;
+              default: return;
+             }
+           }
+           bool equal(const edge_iterator& other) const
+           {
+             ASSERT_EQ(_type, other._type);
+             switch (_type) {
+              case CSC: return csc_iter == other.csc_iter;
+              case CSR: return csr_iter == other.csr_iter;
+              default: return true;
+             }
+           }
+           edge_type dereference() const { 
+             return make_value();
+           }
+           void decrement() {
+             switch (_type) {
+              case CSC: --csc_iter; break;
+              case CSR: --csr_iter; break;
+              default: return;
+             }
+           }
+           void advance(int n) {
+             switch (_type) {
+              case CSC: csc_iter+=n; break;
+              case CSR: csr_iter+=n; break;
+              default: return;
+             }
+           } 
+           int distance_to(const edge_iterator& other) const {
+             switch (_type) {
+              case CSC: return other.csc_iter - csc_iter;
+              case CSR: return other.csr_iter - csr_iter;
+              default: return 0;
+             }
+           }
+         private:
+           edge_type make_value() const {
+             switch (_type) {
+              case CSC: {
+                typename csc_edge_iterator::reference val
+                    = *csc_iter;
+                return edge_type(lgraph_ref, val.first, vid, val.second);
+              }
+              case CSR: {
+                typename csr_edge_iterator::reference val
+                    = *csr_iter;
+                return edge_type(lgraph_ref,
+                                 vid,
+                                 val.template get<0>(),
+                                 val.template get<1>());
+              }
+              default: return edge_type(lgraph_ref, -1, -1, -1);
+             }
+           }
+           enum list_type {CSR, CSC}; 
+           local_graph& lgraph_ref;
+           const list_type _type;
+           csc_edge_iterator csc_iter;
+           csr_edge_iterator csr_iter;
+           const lvid_type vid;
+        }; // end of edge_iterator
+
+
     // PRIVATE DATA MEMBERS ===================================================>    
+    //
     /** The vertex data is simply a vector of vertex data */
     std::vector<VertexData> vertices;
 
     /** Stores the edge data and edge relationships. */
-    gstore_type gstore;
+    csr_type _csr_storage;
+    csc_type _csc_storage;
+    std::vector<EdgeData> edges;
 
     /** The edge data is a vector of edges where each edge stores its
         source, destination, and data. Used for temporary storage. The
