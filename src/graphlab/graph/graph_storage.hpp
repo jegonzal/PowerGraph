@@ -48,6 +48,8 @@
 #include <boost/bind.hpp>
 #include <boost/unordered_set.hpp>
 #include <boost/iterator/zip_iterator.hpp>
+#include <boost/iterator/counting_iterator.hpp>
+#include <boost/iterator/transform_iterator.hpp>
 #include <boost/iterator/iterator_facade.hpp>
 
 #include <graphlab/graph/local_edge_buffer.hpp>
@@ -87,7 +89,7 @@ namespace graphlab {
      * \internal
      * CSR/CSC storage types
      */
-    typedef csr_storage<std::pair<lvid_type, EdgeData>, edge_id_type> csr_type;
+    typedef csr_storage<lvid_type, edge_id_type> csr_type;
 
     typedef csr_storage<std::pair<lvid_type, edge_id_type>, edge_id_type> csc_type; 
 
@@ -96,58 +98,63 @@ namespace graphlab {
     /* ----------------------------------------------------------------------------- */
   class edge_type {
    public:
-     edge_type () : _source(-1), _target(-1), edata(NULL) {}
-     edge_type(lvid_type _source, lvid_type _target, EdgeData* edata)
-         : _source(_source), _target(_target), edata(edata) { }
+     edge_type () : _source(-1), _target(-1), _eid(-1) {}
+     edge_type(lvid_type _source, lvid_type _target, edge_id_type _eid)
+         : _source(_source), _target(_target), _eid(_eid) { }
 
-     inline bool is_empty() { return edata == NULL; } 
-     inline EdgeData& edge_data() { return *edata; } 
-     inline const EdgeData& edge_data() const { return *edata; } 
-
+     inline bool is_empty() { return _eid == -1; } 
      lvid_type source() const { return _source; }
      lvid_type target() const { return _target; }
+     edge_id_type id() const { return _eid; }
 
    private:
      lvid_type _source;
      lvid_type _target; 
-     EdgeData* edata;
+     edge_id_type _eid;
   };
 
+  typedef boost::tuple<typename csr_type::iterator,
+                       boost::counting_iterator<edge_id_type> > csr_iterator_tuple;
+
+  typedef boost::zip_iterator<csr_iterator_tuple> csr_zip_iterator;
+
+  csr_zip_iterator make_csr_zip_iterator(typename csr_type::iterator iter,
+                                           edge_id_type beginid) {
+    return csr_zip_iterator(
+             csr_iterator_tuple(iter, boost::counting_iterator<edge_id_type>(beginid)));
+  }
+  
   struct make_edge_type_csr_functor {
-    typedef typename csr_type::value_type& argument_type;
+    typedef typename csr_zip_iterator::value_type const& argument_type;
     typedef edge_type result_type;
 
-    make_edge_type_csr_functor() : graph_ptr(NULL), sourceid(-1) { }
+    make_edge_type_csr_functor() : sourceid(-1) { } 
 
-    make_edge_type_csr_functor(graph_storage* graph_ptr, lvid_type sourceid)
-        : graph_ptr(graph_ptr), sourceid(sourceid) { }
+    make_edge_type_csr_functor(lvid_type sourceid) : sourceid(sourceid) { }
 
     result_type operator() (argument_type arg) const {
-      return edge_type(sourceid, arg.first, &(arg.second));
+      lvid_type destid = arg.template get<0>();
+      edge_id_type eid = arg.template get<1>();
+      return edge_type(sourceid, destid, eid);
     }
-
-    graph_storage* graph_ptr;
     lvid_type sourceid;
   };
 
   struct make_edge_type_csc_functor {
     typedef typename csc_type::value_type& argument_type;
     typedef edge_type result_type;
-    make_edge_type_csc_functor() : graph_ptr(NULL), destid(-1) {}
+    make_edge_type_csc_functor() : destid(-1) {}
 
-    make_edge_type_csc_functor(graph_storage* graph_ptr, lvid_type destid)
-        : graph_ptr(graph_ptr), destid(destid) { }
+    make_edge_type_csc_functor(lvid_type destid) : destid(destid) { }
 
     result_type operator() (argument_type arg) const {
-      return edge_type(arg.first, destid, &(graph_ptr->edge_data(arg.second)));
+      return edge_type(arg.first, destid, arg.second);
     }
-
-    graph_storage* graph_ptr;
     lvid_type destid;
   };
 
   typedef boost::transform_iterator<make_edge_type_csr_functor,
-          typename csr_type::iterator> csr_edge_iterator;
+          csr_zip_iterator> csr_edge_iterator;
   typedef boost::transform_iterator<make_edge_type_csc_functor,
           typename csc_type::iterator> csc_edge_iterator;
 
@@ -174,9 +181,12 @@ namespace graphlab {
      }
      bool equal(const edge_iterator& other) const
      {
-       return (_type==other._type) 
-           && (csc_iter == csc_iter) 
-           && (csr_iter == csr_iter);
+       ASSERT_EQ(_type, other._type);
+       switch (_type) {
+        case CSC: return csc_iter == other.csc_iter;
+        case CSR: return csr_iter == other.csr_iter;
+        default: return true;
+       }
      }
      edge_type dereference() const { 
        switch (_type) {
@@ -246,7 +256,7 @@ namespace graphlab {
 
     // METHODS =================================================================>
     /** \brief Returns the number of edges in the graph. */
-    size_t num_edges() const { return _csr_storage.num_values(); }
+    size_t num_edges() const { return _edata_storage.size(); }
 
     /** \brief Returns the number of vertices in the graph. */
     size_t num_vertices() const { return _csr_storage.num_keys(); }
@@ -263,7 +273,7 @@ namespace graphlab {
 
     /** \brief Returns a list of in edges of a vertex. */
     edge_list in_edges(const lvid_type v) {
-      make_edge_type_csc_functor functor(this, v);
+      make_edge_type_csc_functor functor(v);
       // make_edge_type_csc_functor functor;
       csc_edge_iterator begin =
           boost::make_transform_iterator (_csc_storage.begin(v), functor);
@@ -274,24 +284,30 @@ namespace graphlab {
 
     /** \brief Returns a list of out edges of a vertex. */
     edge_list out_edges(const lvid_type v) {
-      make_edge_type_csr_functor functor(this, v);
-      // make_edge_type_csr_functor functor;
+      make_edge_type_csr_functor functor(v);
+      csr_zip_iterator beginiter = 
+          make_csr_zip_iterator(_csr_storage.begin(v), 
+                                _csr_storage.begin(v)-_csr_storage.begin(0));
+      csr_zip_iterator enditer = 
+          make_csr_zip_iterator(_csr_storage.end(v), 
+                                _csr_storage.end(v)-_csr_storage.begin(0));
+
       csr_edge_iterator begin = boost::make_transform_iterator (
-          _csr_storage.begin(v), functor);
+          beginiter, functor);
       csr_edge_iterator end = boost::make_transform_iterator (
-          _csr_storage.end(v), functor);
+          enditer, functor);
       return edge_list ( edge_iterator(begin), edge_iterator(end));
     }
 
     /** \brief Returns edge data of edge_type e*/
     EdgeData& edge_data(edge_id_type eid) {
       ASSERT_LT(eid, num_edges());
-      return _csr_storage.get_values()[eid].second;
+      return _edata_storage[eid]; 
     }
 
     const EdgeData& edge_data(edge_id_type eid) const {
       ASSERT_LT(eid, num_edges());
-      return _csr_storage.get_values()[eid].second;
+      return _edata_storage[eid]; 
     }
 
      /** \brief Finalize the graph storage. 
@@ -347,6 +363,7 @@ namespace graphlab {
           }
         }
       }
+      // Unfortunately the zip iterator does not work as expected. Need more debugging...
       // typedef 
       //     boost::tuple< std::vector<lvid_type>::iterator,
       //                   std::vector<lvid_type>::iterator,
@@ -378,10 +395,12 @@ namespace graphlab {
       // counting_sort(edges.target_arr, permute);
 
       // warp into csr csc storage.
-      std::vector<std::pair<lvid_type, EdgeData> > csr_value = vector_zip(edges.target_arr, edges.data);
-      _csr_storage.wrap(src_counting_prefix_sum, csr_value);
+      _csr_storage.wrap(src_counting_prefix_sum, edges.target_arr);
       std::vector<std::pair<lvid_type, edge_id_type> > csc_value = vector_zip(edges.source_arr, permute);
       _csc_storage.wrap(dest_counting_prefix_sum, csc_value); 
+      _edata_storage.swap(edges.data);
+      ASSERT_EQ(_csr_storage.num_values(), _csc_storage.num_values());
+      ASSERT_EQ(_csr_storage.num_values(), _edata_storage.size());
 #ifdef DEBGU_GRAPH
       logstream(LOG_DEBUG) << "End of finalize." << std::endl;
 #endif
@@ -402,27 +421,30 @@ namespace graphlab {
     // ------------- Private data storage ----------------
   private:
     csr_type _csr_storage;
-
     csc_type _csc_storage;
+    std::vector<EdgeData> _edata_storage;
 
   public:
     /** \brief Load the graph from an archive */
     void load(iarchive& arc) {
       clear();
       arc >> _csr_storage
-          >> _csc_storage;
+          >> _csc_storage
+          >> _edata_storage;
     }
 
     /** \brief Save the graph to an archive */
     void save(oarchive& arc) const {
       arc << _csr_storage
-          << _csc_storage;
+          << _csc_storage
+          << _edata_storage;
     }
 
     /** swap two graph storage*/
     void swap(graph_storage& other) {
       _csr_storage.swap(other._csr_storage);
       _csc_storage.swap(other._csc_storage);
+      _edata_storage.swap(other._edata_storage);
     }
   };// End of graph store;
 }// End of namespace;

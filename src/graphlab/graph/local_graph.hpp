@@ -90,11 +90,11 @@ namespace graphlab {
 
       /// \brief Returns a constant reference to the data on the edge.
       const edge_data_type& data() const {
-        return e.edge_data();
+        return lgraph_ref.gstore.edge_data(e.id());
       }
       /// \brief Returns a reference to the data on the edge.
       edge_data_type& data() {
-        return e.edge_data();
+        return lgraph_ref.gstore.edge_data(e.id());
       }
       /// \brief Returns the source vertex of the edge.
       vertex_type source() const {
@@ -104,6 +104,8 @@ namespace graphlab {
       vertex_type target() const {
         return vertex_type(lgraph_ref, e.target());
       }
+      /// \brief Returns the internal ID of this edge
+      edge_id_type id() const { return e.id(); }
     };
     
     /** Vertex object which provides access to the vertex data

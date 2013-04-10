@@ -175,7 +175,6 @@ namespace graphlab {
    private:
      std::vector<sizetype> value_ptrs;
      std::vector<valuetype> values;
-
   }; // end of class
 } // end of graphlab 
 #endif
