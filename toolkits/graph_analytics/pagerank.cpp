@@ -28,16 +28,16 @@
 // #include <graphlab/macros_def.hpp>
 
 // Global random reset probability
-float RESET_PROB = 0.15;
+double RESET_PROB = 0.15;
 
-float TOLERANCE = 1.0E-2;
+double TOLERANCE = 1.0E-2;
 
 size_t ITERATIONS = 0;
 
 bool USE_DELTA_CACHE = false;
 
-// The vertex data is just the pagerank value (a float)
-typedef float vertex_data_type;
+// The vertex data is just the pagerank value (a double)
+typedef double vertex_data_type;
 
 // There is no edge data in the pagerank application
 typedef graphlab::empty edge_data_type;
@@ -58,7 +58,7 @@ void init_vertex(graph_type::vertex_type& vertex) { vertex.data() = 1; }
  * specifying the:
  *
  *   1) graph_type
- *   2) gather_type: float (returned by the gather function). Note
+ *   2) gather_type: double (returned by the gather function). Note
  *      that the gather type is not strictly needed here since it is
  *      assumed to be the same as the vertex_data_type unless
  *      otherwise specified
@@ -74,8 +74,8 @@ void init_vertex(graph_type::vertex_type& vertex) { vertex.data() = 1; }
  * graphlab::IS_POD_TYPE it must implement load and save functions.
  */
 class pagerank :
-  public graphlab::ivertex_program<graph_type, float> { //, float> {
-  float last_change;
+  public graphlab::ivertex_program<graph_type, double> { //, double> {
+  double last_change;
 public:
 
   /**
@@ -88,7 +88,7 @@ public:
 
 
   /* Gather the weighted rank of the adjacent page   */
-  float gather(icontext_type& context, const vertex_type& vertex,
+  double gather(icontext_type& context, const vertex_type& vertex,
                edge_type& edge) const {
     return (edge.source().data() / edge.source().num_out_edges()); 
   }
@@ -96,7 +96,7 @@ public:
   /* Use the total rank of adjacent pages to update this page */
   void apply(icontext_type& context, vertex_type& vertex,
              const gather_type& total) {
-    const float newval = (1.0 - RESET_PROB) * total + RESET_PROB;
+    const double newval = (1.0 - RESET_PROB) * total + RESET_PROB;
     last_change = (newval - vertex.data()); // / vertex.num_out_edges();
     vertex.data() = newval;
     if (ITERATIONS) context.signal(vertex);
