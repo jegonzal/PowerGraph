@@ -74,7 +74,7 @@ void init_vertex(graph_type::vertex_type& vertex) { vertex.data() = 1; }
  * graphlab::IS_POD_TYPE it must implement load and save functions.
  */
 class pagerank :
-  public graphlab::ivertex_program<graph_type, float> {
+  public graphlab::ivertex_program<graph_type, float> { //, float> {
   float last_change;
 public:
 
@@ -121,14 +121,17 @@ public:
                edge_type& edge) const {
     if(USE_DELTA_CACHE) {
       context.post_delta(edge.target(), last_change);
-      if(last_change > TOLERANCE || last_change < -TOLERANCE)
-        context.signal(edge.target()); 
+      if(std::fabs(last_change) > TOLERANCE) 
+        context.signal(edge.target()); //, std::fabs(last_change)); 
     } else {
-      context.signal(edge.target());
+      context.signal(edge.target()); //, std::fabs(last_change));
     }
   }
 
   void save(graphlab::oarchive& oarc) const {
+    // If we are using iterations as a counter then we do not need to
+    // move the last change in the vertex program along with the
+    // vertex data.
     if (ITERATIONS == 0) oarc << last_change;
   }
   void load(graphlab::iarchive& iarc) {
@@ -236,7 +239,7 @@ int main(int argc, char** argv) {
   graphlab::omni_engine<pagerank> engine(dc, graph, exec_type, clopts);
   engine.signal_all();
   engine.start();
-  const float runtime = engine.elapsed_seconds();
+  const double runtime = engine.elapsed_seconds();
   dc.cout() << "Finished Running engine in " << runtime
             << " seconds." << std::endl;
 
