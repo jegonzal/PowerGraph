@@ -77,6 +77,16 @@ class pagerank :
   public graphlab::ivertex_program<graph_type, float> {
   float last_change;
 public:
+
+  /**
+   * Gather only in edges. 
+   */
+  edge_dir_type gather_edges(icontext_type& context,
+                              const vertex_type& vertex) const {
+    return graphlab::IN_EDGES; 
+  } // end of Gather edges
+
+
   /* Gather the weighted rank of the adjacent page   */
   float gather(icontext_type& context, const vertex_type& vertex,
                edge_type& edge) const {
