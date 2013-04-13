@@ -25,7 +25,9 @@ ADD_CXXTEST(test_lock_free_pool.cxx)
 ADD_CXXTEST(lock_free_pushback.cxx)
 ADD_CXXTEST(union_find_test.cxx)
 
+ADD_CXXTEST(csr_storage_test.cxx)
 ADD_CXXTEST(local_graph_test.cxx)
+ADD_CXXTEST(dynamic_local_graph_test.cxx)
 ADD_CXXTEST(empty_test.cxx)
 ADD_CXXTEST(scheduler_test.cxx)
 

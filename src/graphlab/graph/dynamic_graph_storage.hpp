@@ -73,11 +73,6 @@
 
 namespace graphlab {
 
-
- 
-
-
-
   template<typename VertexData, typename EdgeData>
   class graph_storage {
   public:

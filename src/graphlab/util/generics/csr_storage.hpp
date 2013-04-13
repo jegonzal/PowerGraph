@@ -83,6 +83,17 @@ namespace graphlab {
       for (size_t i = 0; i < values.size(); ++i)
         std::cout << values[i] << " ";
       std::cout << std::endl;
+
+      for (size_t i = 0; i < num_keys(); ++i) {
+        std::cout << i << ": ";
+        iterator it = begin(i);
+        while (it != end(i)) {
+          std::cout << *it << " "; 
+          ++it;
+        }
+        std::cout << endl;
+      }
+      std::cout << std::endl;
 #endif
      }
 
@@ -139,6 +150,7 @@ namespace graphlab {
           out << i << ": ";
          while (iter != end(i)) {
            out << *iter <<  " ";
+           ++iter;
          }
          out << std::endl;
        }
@@ -169,7 +181,7 @@ namespace graphlab {
      }
 
      size_t estimate_sizeof() const {
-       return sizeof(value_ptrs) + sizeof(values) + sizeof(sizetype)*value_ptrs.size() + sizeof(valuetype) * values.size();
+       return sizeof(value_ptrs) + sizeof(values) + sizeof(sizetype)*value_ptrs.capacity() + sizeof(valuetype) * values.capacity();
      }
 
    private:

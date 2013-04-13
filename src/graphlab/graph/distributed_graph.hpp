@@ -41,6 +41,7 @@
 #include <algorithm>
 #include <functional>
 #include <fstream>
+#include <iostream>
 #include <sstream>
 
 #include <boost/functional.hpp>
@@ -69,6 +70,7 @@
 #include <graphlab/vertex_program/op_plus_eq_concept.hpp>
 
 #include <graphlab/graph/local_graph.hpp>
+#include <graphlab/graph/dynamic_local_graph.hpp>
 #include <graphlab/graph/ingress/idistributed_ingress.hpp>
 #include <graphlab/graph/ingress/distributed_ingress_base.hpp>
 #include <graphlab/graph/ingress/distributed_batch_ingress.hpp>
@@ -378,7 +380,11 @@ namespace graphlab {
     typedef fixed_dense_bitset<RPC_MAX_N_PROCS> mirror_type;
 
     /// The type of the local graph used to store the graph data
+#ifdef USE_DYNAMIC_LOCAL_GRAPH
+    typedef graphlab::dynamic_local_graph<VertexData, EdgeData> local_graph_type;
+#else 
     typedef graphlab::local_graph<VertexData, EdgeData> local_graph_type;
+#endif
     typedef graphlab::distributed_graph<VertexData, EdgeData> graph_type;
 
     friend class distributed_ingress_base<VertexData, EdgeData>;

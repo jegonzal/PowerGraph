@@ -39,6 +39,8 @@ namespace graphlab {
     void counting_sort(const std::vector<valuetype>& value_vec,
                        std::vector<sizetype>& permute_index,
                        std::vector<sizetype>* prefix_array = NULL) {
+      if(value_vec.size() == 0) return;
+
       valuetype maxval = *std::max_element(value_vec.begin(), value_vec.end());
       std::vector< atomic<int> > counter_array(maxval+1);
       permute_index.resize(value_vec.size(), 0);

@@ -48,8 +48,6 @@
 
 #include <graphlab/graph/graph_basic_types.hpp>
 #include <graphlab/graph/local_edge_buffer.hpp>
-#include <graphlab/graph/local_edge_buffer.hpp>
-#include <graphlab/graph/local_edge_buffer.hpp>
 #include <graphlab/util/random.hpp>
 #include <graphlab/util/generics/shuffle.hpp>
 #include <graphlab/util/generics/counting_sort.hpp>
@@ -119,11 +117,11 @@ namespace graphlab {
        }
        /// \brief Returns a list of in edges.
        edge_list_type in_edges() {
-         return edge_list_type(lgraph_ref, lgraph_ref.in_edges(vid));
+         return lgraph_ref.in_edges(vid);
        }
        /// \brief Returns a list of out edges.
        edge_list_type out_edges() {
-         return edge_list_type(lgraph_ref, lgraph_ref.out_edges(vid));
+         return lgraph_ref.out_edges(vid);
        }
      private:
        local_graph& lgraph_ref;
@@ -669,7 +667,7 @@ namespace graphlab {
               default: return;
              }
            } 
-           int distance_to(const edge_iterator& other) const {
+           ptrdiff_t distance_to(const edge_iterator& other) const {
              switch (_type) {
               case CSC: return other.csc_iter - csc_iter;
               case CSR: return other.csr_iter - csr_iter;
