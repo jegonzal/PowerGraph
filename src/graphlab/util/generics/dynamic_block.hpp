@@ -19,7 +19,8 @@ namespace graphlab {
 
      template<typename InputIterator>
      void assign(InputIterator first, InputIterator last) {
-       // ASSERT_LE(last - first, capacity);
+       size_t len = last-first; 
+       ASSERT_LE(len, capacity);
        _size = last-first;
        int i = 0;
        InputIterator iter = first;
@@ -69,7 +70,8 @@ namespace graphlab {
        if (is_full()) {
          return false;
        } else {
-         memmove(values+pos+1, values+pos, (_size-pos)*sizeof(valuetype));
+         if (pos < _size)
+           memmove(values+pos+1, values+pos, (_size-pos)*sizeof(valuetype));
          values[pos] = elem;
          ++_size;
          return true;
@@ -89,6 +91,10 @@ namespace graphlab {
 
      dynamic_block* next() {
        return _next;
+     }
+
+     void clear() {
+       _size = 0;
      }
 
    //////////////////// Pretty print API ///////////////////////// 

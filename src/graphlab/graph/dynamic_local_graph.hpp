@@ -73,7 +73,7 @@ namespace std {
 namespace graphlab { 
 
 
-  template<typename VertexData, typename EdgeData>
+  template<typename VertexData, typename EdgeData, uint32_t blocksize=64>
   class dynamic_local_graph {
   public:
     
@@ -522,9 +522,10 @@ namespace graphlab {
      * \internal
      * CSR/CSC storage types
      */
-    typedef dynamic_csr_storage<std::pair<lvid_type, edge_id_type>, edge_id_type> csr_type;
+    typedef dynamic_csr_storage<std::pair<lvid_type, edge_id_type>, edge_id_type,
+            blocksize> csr_type;
 
-    typedef csr_type::iterator csr_edge_iterator;
+    typedef typename csr_type::iterator csr_edge_iterator;
 
     // PRIVATE DATA MEMBERS ===================================================>    
     //
@@ -564,8 +565,8 @@ namespace graphlab {
 /////////////////////// Implementation of Helper Class ////////////////////////////
 
 namespace graphlab {
-  template<typename VertexData, typename EdgeData>
-  class dynamic_local_graph<VertexData, EdgeData>::vertex_type {
+  template<typename VertexData, typename EdgeData, uint32_t blocksize>
+  class dynamic_local_graph<VertexData, EdgeData, blocksize>::vertex_type {
      public:
        vertex_type(dynamic_local_graph& lgraph_ref, lvid_type vid):lgraph_ref(lgraph_ref),vid(vid) { }
 
@@ -602,8 +603,8 @@ namespace graphlab {
        lvid_type vid;
     };
 
-    template<typename VertexData, typename EdgeData>
-    class dynamic_local_graph<VertexData, EdgeData>::edge_type {
+    template<typename VertexData, typename EdgeData, uint32_t blocksize>
+    class dynamic_local_graph<VertexData, EdgeData, blocksize>::edge_type {
      public:
       edge_type(dynamic_local_graph& lgraph_ref, lvid_type _source, lvid_type _target, edge_id_type _eid) : 
         lgraph_ref(lgraph_ref), _source(_source), _target(_target), _eid(_eid) { }
@@ -634,8 +635,8 @@ namespace graphlab {
       edge_id_type _eid;
     };
 
-    template<typename VertexData, typename EdgeData>
-    class dynamic_local_graph<VertexData, EdgeData>::edge_iterator : 
+    template<typename VertexData, typename EdgeData, uint32_t blocksize>
+    class dynamic_local_graph<VertexData, EdgeData, blocksize>::edge_iterator : 
         public boost::iterator_facade < edge_iterator,
                                         edge_type,
                                         boost::random_access_traversal_tag,
@@ -669,7 +670,7 @@ namespace graphlab {
            }
          private:
            edge_type make_value() const {
-            csr_edge_iterator::reference ref = *_iter;
+            typename csr_edge_iterator::reference ref = *_iter;
              switch (_type) {
               case CSC: {
                 return edge_type(lgraph_ref, ref.first, _vid, ref.second);

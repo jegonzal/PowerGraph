@@ -41,7 +41,7 @@ namespace graphlab {
    * The core operation of is querying the list of values associated with the query key *  and returns the begin and end iterators via <code>begin(id)</code>
    * and <code>end(id)</code>.
    */
-  template <typename valuetype, typename sizetype=size_t, uint32_t blocksize=1024>
+  template <typename valuetype, typename sizetype=size_t, uint32_t blocksize=64>
   class dynamic_csr_storage {
    public:
      typedef block_linked_list<valuetype, blocksize> block_linked_list;
@@ -157,57 +157,65 @@ namespace graphlab {
        return (id+1) < num_keys() ? value_ptrs[id+1] : values.end();
      }
 
-     // template <typename idtype, typename InputIterator>
-     // void insert (const idtype& key, InputIterator first, InputIterator last) {
-     // }
 
+     /// Insert a new value to a given key
      template <typename idtype>
      void insert (const idtype& key, const valuetype& value) {
-       std::cout << "insert " << key << ": " << value << std::endl;
-       // add a new block
+       // add blocks for new key
        if (key >= num_keys()) {
-         blocktype* newblock = values.add_block();
+         blocktype* newblock = values.append_block();
          while (key >= num_keys()) {
            value_ptrs.push_back(iterator(newblock, 0));
          }
        }
 
-       iterator beginiter = begin(key);
-       iterator enditer = end(key);
+       iterator enditer = values.get_insert_iterator(end(key));
+       blocktype* inptr = enditer.get_blockptr();
 
-       blocktype* & beginptr = beginiter.get_blockptr(); 
-       blocktype* & endptr = enditer.get_blockptr(); 
+       bool split = inptr->is_full();
+       values.insert(enditer, value);
 
-       // insert in the beginning block
-       blocktype* inptr = beginptr;
-
-       // Determine the valid range in the block 
-       // uint32_t beginoffset =  (inptr == beginptr) ? beginiter.offset() : 0;
-       uint32_t endoffset = (inptr == endptr) ? enditer.get_offset() : inptr->size();
-       bool split = false;
-       if (inptr->is_full()) {
-         inptr->split();
-         split = true;
-         endoffset = std::min(blocksize/2, endoffset);
-       }
-       values.insert(iterator(inptr, endoffset), value);
-
+       // scan right
+       int scan = key;
        // Update affected pointers
-       size_t scan = key+1;
-       while (value_ptrs[scan].get_blockptr() == inptr) {
-         if (split && value_ptrs[scan].get_offset() >= (blocksize/2)-1) {
+       if (split) {
+         // scan left
+         while (scan >= 0
+                && value_ptrs[scan].get_blockptr() == inptr
+                && value_ptrs[scan].get_offset() >= (blocksize/2)) {
            value_ptrs[scan].get_blockptr() = inptr->next();
-           value_ptrs[scan].get_offset() -= (blocksize/2 -1);
-         } else {
-           ++(value_ptrs[scan].get_offset());
+           value_ptrs[scan].get_offset() -= (blocksize/2);
+           --scan;
+         }
+       }
+       scan = key+1;
+       while (scan < num_keys()
+              && value_ptrs[scan].get_blockptr() == inptr) {
+         ++value_ptrs[scan].get_offset();
+         if (split && value_ptrs[scan].get_offset() >= (blocksize/2)) {
+           value_ptrs[scan].get_blockptr() = inptr->next();
+           value_ptrs[scan].get_offset() -= (blocksize/2);
          }
          ++scan;
        }
-
-       values.print(std::cerr);
-       print(std::cerr);
+       // values.print(std::cerr);
+       // print(std::cerr);
      }
 
+     // /// Insert a range of values to a given key
+     // template <typename idtype, typename InputIterator>
+     // void insert (const idtype& key, InputIterator first, InputIterator last) {
+     //   // add blocks for new key
+     //   if (key >= num_keys()) {
+     //     blocktype* newblock = values.append_block();
+     //     while (key >= num_keys()) {
+     //       value_ptrs.push_back(iterator(newblock, 0));
+     //     }
+     //   }
+
+     // }
+
+     /// Debug print out the content of the storage;
      void print(std::ostream& out) {
        for (size_t i = 0; i < num_keys(); ++i)  {
          iterator iter = begin(i);

@@ -35,7 +35,6 @@ class csr_storage_test : public CxxTest::TestSuite {
 
   typedef graphlab::csr_storage<valuetype, sizetype> csr_storage;
   typedef graphlab::dynamic_csr_storage<valuetype, sizetype, 4> dynamic_csr_storage;
-  ca
   
  public:
   csr_storage_test() {
