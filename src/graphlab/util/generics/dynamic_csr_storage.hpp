@@ -161,65 +161,104 @@ namespace graphlab {
      /// Insert a new value to a given key
      template <typename idtype>
      void insert (const idtype& key, const valuetype& value) {
+       // iterator to the insertion position
+       iterator ins_iter = values.get_insert_iterator(end(key));
+
        // add blocks for new key
-       if (key >= num_keys()) {
-         blocktype* newblock = values.append_block();
-         while (key >= num_keys()) {
-           value_ptrs.push_back(iterator(newblock, 0));
-         }
+       while (key >= num_keys()) {
+         value_ptrs.push_back(ins_iter);
        }
 
-       iterator enditer = values.get_insert_iterator(end(key));
-       blocktype* inptr = enditer.get_blockptr();
+       // begin_ins_iter and end_ins_iterator point to 
+       // defines the range of the new inserted element.
+       iterator begin_ins_iter =  values.insert(ins_iter, value);
+       iterator end_ins_iter = begin_ins_iter; ++end_ins_iter;
 
-       bool split = inptr->is_full();
-       values.insert(enditer, value);
+       const uint32_t mid = blocksize/2;
 
-       // scan right
-       int scan = key;
-       // Update affected pointers
-       if (split) {
-         // scan left
+       // Update pointers. 
+       // If the begin_ins_iter is moved, the inserted block is splitted.
+       // Update pointers to the left of ins_iter:
+       if (begin_ins_iter != ins_iter) {
+         int scan = key;
+         blocktype* oldptr = ins_iter.get_blockptr();
          while (scan >= 0
-                && value_ptrs[scan].get_blockptr() == inptr
-                && value_ptrs[scan].get_offset() >= (blocksize/2)) {
-           value_ptrs[scan].get_blockptr() = inptr->next();
-           value_ptrs[scan].get_offset() -= (blocksize/2);
+                && value_ptrs[scan].get_blockptr() == oldptr
+                && value_ptrs[scan].get_offset() >= mid) {
+           value_ptrs[scan].get_blockptr() = begin_ins_iter.get_blockptr();
+           value_ptrs[scan].get_offset() -= mid;
            --scan;
          }
        }
-       scan = key+1;
-       while (scan < num_keys()
-              && value_ptrs[scan].get_blockptr() == inptr) {
-         ++value_ptrs[scan].get_offset();
-         if (split && value_ptrs[scan].get_offset() >= (blocksize/2)) {
-           value_ptrs[scan].get_blockptr() = inptr->next();
-           value_ptrs[scan].get_offset() -= (blocksize/2);
+       // Update pointers to the right of ins_iter. 
+       // Base case: the pointer of ins_iter is mapped to end_ins_iter. 
+       uint32_t oldoffset =  ins_iter.get_offset();
+       iterator newiter =  end_ins_iter;
+       for (size_t scan = key+1; scan < num_keys(); ++scan) {
+         if (value_ptrs[scan] == values.end()) {
+           value_ptrs[scan] = end_ins_iter;
+         } else if (value_ptrs[scan].get_blockptr() == ins_iter.get_blockptr()) {
+           while (oldoffset != value_ptrs[scan].get_offset()) {
+             ++oldoffset;
+             ++newiter;
+           }
+           value_ptrs[scan] = newiter;
+         } else {
+           break;
          }
-         ++scan;
        }
-       // values.print(std::cerr);
-       // print(std::cerr);
      }
 
-     // /// Insert a range of values to a given key
-     // template <typename idtype, typename InputIterator>
-     // void insert (const idtype& key, InputIterator first, InputIterator last) {
-     //   // add blocks for new key
-     //   if (key >= num_keys()) {
-     //     blocktype* newblock = values.append_block();
-     //     while (key >= num_keys()) {
-     //       value_ptrs.push_back(iterator(newblock, 0));
-     //     }
-     //   }
+     /// Insert a range of values to a given key
+     template <typename idtype, typename InputIterator>
+     void insert (const idtype& key, InputIterator first, InputIterator last) {
+       if (last-first == 0) {
+         return;
+       }
 
-     // }
+       // iterator to the insertion position
+       iterator ins_iter = values.get_insert_iterator(end(key));
+
+       // add blocks for new key
+       while (key >= num_keys()) {
+         value_ptrs.push_back(ins_iter);
+       }
+
+       // begin_ins_iter and end_ins_iterator point to 
+       // defines the range of the new inserted element.
+       std::pair<iterator,iterator> iter_pair =  values.insert(ins_iter, first, last);
+       iterator begin_ins_iter = iter_pair.first;
+       iterator end_ins_iter =  iter_pair.second;
+
+       value_ptrs[key] = begin_ins_iter;
+       // Update pointers. 
+      ASSERT_TRUE(begin_ins_iter == ins_iter);
+       // Update pointers to the right of ins_iter. 
+       // Base case: the pointer of ins_iter is mapped to end_ins_iter. 
+       uint32_t oldoffset =  ins_iter.get_offset();
+       iterator newiter =  end_ins_iter;
+       for (size_t scan = key+1; scan < num_keys(); ++scan) {
+         if (value_ptrs[scan] == values.end()) {
+           value_ptrs[scan] = end_ins_iter;
+         } else if (value_ptrs[scan].get_blockptr() == ins_iter.get_blockptr()) {
+           while (oldoffset != value_ptrs[scan].get_offset()) {
+             ++oldoffset;
+             ++newiter;
+           }
+           value_ptrs[scan] = newiter;
+         } else {
+           break;
+         }
+       }
+     }
 
      /// Debug print out the content of the storage;
-     void print(std::ostream& out) {
+     void print(std::ostream& out) const {
        for (size_t i = 0; i < num_keys(); ++i)  {
-         iterator iter = begin(i);
+         const_iterator iter = begin(i);
           out << i << ": ";
+          // out << "begin: " << iter.get_blockptr() << " " << iter.get_offset() << std::endl;
+          // out << "end: " << end(i).get_blockptr() << " " << end(i).get_offset() << std::endl;
          while (iter != end(i)) {
            out << *iter <<  " ";
            ++iter;
@@ -233,8 +272,8 @@ namespace graphlab {
      /**
       * \internal
       */
-     std::vector<iterator> get_index() { return value_ptrs; }
-     block_linked_list get_values() { return values; }
+     const std::vector<iterator>& get_index() { return value_ptrs; }
+     const block_linked_list& get_values() { return values; }
 
      void swap(dynamic_csr_storage<valuetype, sizetype>& other) {
        value_ptrs.swap(other.value_ptrs);
@@ -252,6 +291,14 @@ namespace graphlab {
 
      size_t estimate_sizeof() const {
        return sizeof(value_ptrs) + sizeof(values) + sizeof(sizetype)*value_ptrs.size() + sizeof(valuetype) * values.size();
+     }
+
+     void meminfo(std::ostream& out) {
+       out << "num values: " <<  (float)num_values()
+                 << "\n num blocks: " << values.num_blocks()
+                 << "\n block size: " << blocksize
+                 << std::endl;
+       out << "utilization: " <<  (float)num_values() / (values.num_blocks() * blocksize) << std::endl;
      }
 
      ///////////////////// Helper Functions /////////////
@@ -281,3 +328,27 @@ namespace graphlab {
   }; // end of class
 } // end of graphlab 
 #endif
+       // Update pointers to the left of ins_iter:
+       // Base case: the pionter of ins_iter is mapped to begin_ins_iter
+       // if (begin_ins_iter != ins_iter) {
+       //   int scan = key-1;
+       //   blocktype* oldptr = ins_iter.get_blockptr();
+       //   while (scan >= 0 && value_ptrs[scan].get_blockptr() == oldptr) {
+       //     // compute the relative distance of old pointers
+       //     size_t dist = ins_iter.get_offset() - value_ptrs[scan].get_offset();
+
+       //     // this distance should still hold for new pointers
+       //     if (dist <= begin_ins_iter.get_offset()) {
+       //       value_ptrs[scan].get_blockptr() = begin_ins_iter.get_blockptr();
+       //       value_ptrs[scan].get_offset()  = begin_ins_iter.get_offset()-dist;
+       //     } 
+       //     else {
+       //       // keep the old pointer, update offset
+       //       value_ptrs[scan].get_offset() = 
+       //           value_ptrs[scan].get_blockptr()->size() - (dist-begin_ins_iter.get_offset());
+       //     }
+       //     --scan;
+       //   }
+       // }
+
+

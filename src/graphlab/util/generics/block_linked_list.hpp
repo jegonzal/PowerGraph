@@ -19,14 +19,13 @@ namespace graphlab {
    //////////////////// Constructors ///////////////////////// 
    public:
      /// Construct empty list
-     block_linked_list() : _size(0) { 
-       head = tail = new blocktype(0);
-     }
+     block_linked_list() : head(NULL), tail(NULL), _size(0) { }
 
      /// Construct list from container 
      template<typename InputIterator>
      block_linked_list(InputIterator first, InputIterator last) { 
-       head = tail = new blocktype(0);
+       if (first == last) 
+         return;
        assign(first, last);
      }
 
@@ -38,7 +37,11 @@ namespace graphlab {
        if (_size > 0)
          clear();
        InputIterator iter = first;
+
        blocktype* current = head;
+       if (current == NULL) {
+         current = head = tail = new blocktype(0);
+       }
        float id = 0;
        while (iter != last) {
          InputIterator end =  std::min(iter+blocksize, last);
@@ -184,10 +187,13 @@ namespace graphlab {
      ++_size;
      if (ins_ptr->is_full()) {
        ins_ptr->split();
+       if(ins_ptr == tail) {
+         tail = ins_ptr->next();
+       }
        if (offset >= blocksize/2) {
          ins_ptr = ins_ptr->next();
          offset -= (blocksize/2);
-       } 
+       }
      }
      ins_ptr->insert(val,offset);
      return iterator(ins_ptr, offset);
@@ -218,24 +224,38 @@ namespace graphlab {
      if (len == 0) return ret_type(iter, iter);
 
      iterator ins_iter = get_insert_iterator(iter);
+
      // Pointers to the block of the insertion point.
      blocktype* ibegin_ptr = ins_iter.get_blockptr(); 
 
-     size_t nx = ins_iter->get_offset();
+     size_t nx = ins_iter.get_offset();
      size_t ny = ibegin_ptr->size()-nx;
+
      // save y 
      valuetype* swap = (valuetype*)malloc((ny)*sizeof(valuetype));
      memcpy(swap, &(ibegin_ptr->values[nx]), ny*sizeof(valuetype)) ;
+
      // remove y temporarily
      ibegin_ptr->_size -= ny;
      _size -= ny;
+
      // Insert new elements, keep begin and end iterators
      ret_type iter_pair = append_to_block(ibegin_ptr, first, last);
+
      // add y back 
      blocktype* iend_ptr = iter_pair.second.get_blockptr();
      ret_type iter_pair2 = append_to_block(iend_ptr, swap, swap+ny); 
 
-     return ret_type(iter_pair.first, iter_pair2.first);
+     // Collect begin and end iterators
+     iterator begin_ins_iter = iter_pair.first;
+     iterator end_ins_iter = iter_pair2.first;
+
+     if (end_ins_iter.get_offset() == 
+         end_ins_iter.get_blockptr()->size()) {
+       end_ins_iter.get_blockptr() = end_ins_iter.get_blockptr()->next();
+       end_ins_iter.get_offset() = 0;
+     }
+     return ret_type(begin_ins_iter, end_ins_iter);
    }
 
    /**
@@ -250,64 +270,43 @@ namespace graphlab {
   template<typename InputIterator>
   std::pair<iterator, iterator> 
      append_to_block(blocktype* ibegin_ptr, InputIterator first, InputIterator last) {
+     ASSERT_TRUE(ibegin_ptr != NULL);
+
      const size_t len = last-first;
-     blocktype* iend_ptr = ibegin_ptr;
-     // Wrap the aligned list[first+nx_remain, last] into fully occupied block list.
-     // Insert the new block list after blockptr;
-     if (len >= blocksize) {
-       float beginid = ibegin_ptr->id();
-       float endid = (ibegin_ptr==tail)
-           ? ibegin_ptr->next()->id()
-           : ibegin_ptr->id()+1;
-       // creates a block chain for new elements
-       blocktype* _head, _tail, current;
-       _head = _tail = current = new blocktype((beginid+endid)/2);
-       InputIterator iter = first + (len % blocksize); 
+     blocktype* iend_ptr = NULL;
+     uint32_t ibegin_offset, iend_offset;
+     
+     size_t nold = ibegin_ptr->size();
+     size_t spaceleft = (blocksize - nold); 
+     size_t nnew = std::min(len, spaceleft);
+
+     // Fill in the rest of the block
+     ASSERT_TRUE(nold+nnew <= blocksize);
+     std::copy(first, first+nnew, &(ibegin_ptr->values[nold]));
+     ibegin_ptr->_size += nnew;
+     ibegin_offset = nold;
+
+     iend_ptr = ibegin_ptr;
+     iend_offset = nold+nnew;
+
+     // creates a block chain for remaining elements
+     if (len > spaceleft) {
+       blocktype* current = insert_block(ibegin_ptr); 
+       InputIterator iter = first + spaceleft; 
        while (iter != last) {
          InputIterator end =  std::min(iter+blocksize, last);
          current->assign(iter, end);
          iter = end;
          if (iter != last) {
-           float id = (current->id() + endid)/2;
-           current = new blocktype(id);
-           _tail->_next = current;
-           _tail = current;
+           current = insert_block(current); 
          }
        }
-       _tail->_next = ibegin_ptr->next(); 
-       ibegin_ptr->_next = _head;
-       iend_ptr = _tail;
+       iend_ptr = current;
+       iend_offset = iend_ptr->size(); 
      }
 
-     size_t nold = ibegin_ptr->size();
-     size_t nnew = len % blocksize;
-     uint32_t ibegin_offset = ibegin_ptr->size();
-     uint32_t iend_offset = iend_ptr->size();
-     // insert first (len % blocksize) elements into ibegin_ptr
-     if (nold+nnew <= blocksize) {
-       std::copy(first, first+nnew, &(ibegin_ptr->values[nold]));
-       ibegin_ptr->_size += nnew;
-       ibegin_offset = nold;
-     } else {
-       blocktype* splitblk = insert_block(ibegin_ptr);
-       size_t nfirst = (nold+nnew)/2; 
-       size_t nsecond = (nold+nnew-nfirst);
-       ibegin_ptr->_size = nfirst;
-       splitblk->_size = nsecond;
-       if (nold <= nfirst) {
-         size_t padsize = nfirst - nold;
-         std::copy(first, first+padsize, &(ibegin_ptr->values[nold]));
-         std::copy(first+padsize, first+nnew, splitblk->values);
-         ibegin_offset = nold;
-       } else {
-         size_t padsize = nfirst-nold;
-         memcpy(splitblk->values, &(ibegin_ptr->values[nfirst]), padsize*sizeof(valuetype));
-         memcpy(first, first+nnew, &(splitblk->values[padsize]));
-         ibegin_ptr = splitblk;
-         ibegin_offset = padsize;
-       }
-     }
      _size += len;
+
      return std::pair<iterator,iterator>(
          iterator(ibegin_ptr, ibegin_offset)
          ,iterator(iend_ptr, iend_offset));
@@ -343,8 +342,20 @@ namespace graphlab {
      return insert_block(tail);
    }
 
+   size_t num_blocks() const {
+     if (head == NULL) 
+       return 0;
+     size_t ret = 1;
+     blocktype* ptr = head;
+     while (ptr != tail) {
+       ptr = ptr->next();
+       ++ret;
+     }
+     return ret;
+   }
+
    //////////////////// Pretty print API ///////////////////////// 
-   void print(std::ostream& out) {
+   void print(std::ostream& out) const {
      blocktype* cur = head;
      while (cur != NULL) {
        cur->print(out);
@@ -366,13 +377,15 @@ namespace graphlab {
      }
 
      void clear() {
-       blocktype* tmp;
+       blocktype* tmp = NULL;
        while(head != tail) {
+         ASSERT_TRUE(head != NULL);
          tmp = head;
          head = head->_next;
          delete tmp;
        }
-       head->clear();
+       delete head;
+       head = tail = NULL;
        _size = 0;
      }
 
@@ -389,12 +402,14 @@ namespace graphlab {
    iterator get_insert_iterator(iterator iter) {
      bool is_end = (iter == end());
      if (is_end) {
-       if (tail->is_full()) {
+       if (tail == NULL) {
+         head = tail = new blocktype(0);
+       } else if (tail->is_full()) {
          append_block();
        } 
        iter.get_blockptr() = tail;
        iter.get_offset() = tail->size();
-     } 
+     }
      return iter;
    }
 
@@ -406,3 +421,29 @@ namespace graphlab {
   };
 } // end of namespace
 #endif
+
+     // } 
+     // else {
+     //   blocktype* splitblk = insert_block(ibegin_ptr);
+     //   size_t nfirst = (nold+nnew)/2; 
+     //   size_t nsecond = (nold+nnew-nfirst);
+     //   ibegin_ptr->_size = nfirst;
+     //   splitblk->_size = nsecond;
+     //   if (nold < nfirst) {
+     //     size_t padsize = nfirst - nold;
+     //     std::copy(first, first+padsize, &(ibegin_ptr->values[nold]));
+     //     std::copy(first+padsize, first+nnew, splitblk->values);
+     //     ibegin_offset = nold;
+     //   } else {
+     //     size_t padsize = nold-nfirst;
+     //     memcpy(splitblk->values, &(ibegin_ptr->values[nfirst]), padsize*sizeof(valuetype));
+     //     std::copy(first, first+nnew, &(splitblk->values[padsize]));
+     //     ibegin_ptr = splitblk;
+     //     ibegin_offset = padsize;
+     //  }
+       // if (!add_new_blocks) {
+       //    iend_ptr = splitblk;
+       //    iend_offset = nsecond;
+       // }
+     // }
+

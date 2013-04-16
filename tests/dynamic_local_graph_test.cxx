@@ -46,7 +46,7 @@ public:
 
   struct edge_data_empty { };
 
-  typedef graphlab::dynamic_local_graph<vertex_data, edge_data> graph_type;
+  typedef graphlab::dynamic_local_graph<vertex_data, edge_data, 8> graph_type;
   typedef graph_type::edge_list_type edge_list_type;
   typedef graph_type::edge_type edge_type;
   typedef graph_type::vertex_type vertex_type;
@@ -60,6 +60,7 @@ public:
     size_t num_e = 6;
 
     g.finalize();
+
     for (size_t i = 0; i < num_v; ++i) {
       vertex_data vdata;
       g.add_vertex(vertex_id_type(i), vdata);
