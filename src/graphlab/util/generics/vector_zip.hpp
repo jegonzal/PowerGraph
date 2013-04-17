@@ -39,12 +39,13 @@ namespace graphlab {
 
       std::vector<std::pair<v1, v2> >  out;
       out.reserve(length);
+      out.resize(length);
 
 #ifdef _OPENMP
 #pragma omp parallel for
 #endif
     for (ssize_t i = 0; i < ssize_t(length); ++i) {
-      out.push_back(std::pair<v1, v2>(vec1[i], vec2[i]));
+      out[i] = (std::pair<v1, v2>(vec1[i], vec2[i]));
     }
     std::vector<v1>().swap(vec1);
     std::vector<v2>().swap(vec2);

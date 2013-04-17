@@ -261,6 +261,8 @@ namespace graphlab {
       // counting_sort(edge_buffer.target_arr, permute);
 
       // warp into csr csc storage.
+      ASSERT_EQ(csc_value.size(), csr_value.size());
+      ASSERT_EQ(csc_value.size(), edge_buffer.size());
       _csr_storage.wrap(src_counting_prefix_sum, edge_buffer.target_arr);
       std::vector<std::pair<lvid_type, edge_id_type> > csc_value = vector_zip(edge_buffer.source_arr, permute);
       _csc_storage.wrap(dest_counting_prefix_sum, csc_value); 
