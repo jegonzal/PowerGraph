@@ -429,9 +429,11 @@ namespace graphlab {
                 ASSERT_LT(lvid, graph.lvid2record.size());
                 vertex_record& local_record = graph.lvid2record[lvid];
                 local_record.owner = negotiator_rec.owner;
+#ifndef USE_DYNAMIC_LOCAL_GRAPH
                 ASSERT_EQ(local_record.num_in_edges, 0); 
-                local_record.num_in_edges = negotiator_rec.num_in_edges;
                 ASSERT_EQ(local_record.num_out_edges, 0);
+#endif
+                local_record.num_in_edges = negotiator_rec.num_in_edges;
                 local_record.num_out_edges = negotiator_rec.num_out_edges;
                 local_record._mirrors = negotiator_rec.mirrors;
               }

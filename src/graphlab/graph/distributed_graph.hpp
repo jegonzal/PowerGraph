@@ -657,11 +657,17 @@ namespace graphlab {
      * nothing.
      */
     void finalize() {
+#ifndef USE_DYNAMIC_LOCAL_GRAPH
       if (finalized) return;
+#endif
       ASSERT_NE(ingress_ptr, NULL);
       logstream(LOG_INFO) << "Distributed graph: enter finalize" << std::endl;
       ingress_ptr->finalize();
-      rpc.barrier(); delete ingress_ptr; ingress_ptr = NULL;
+      rpc.barrier(); 
+
+#ifndef USE_DYNAMIC_LOCAL_GRAPH
+      delete ingress_ptr; ingress_ptr = NULL;
+#endif
       finalized = true;
     }
 
@@ -764,12 +770,16 @@ namespace graphlab {
      */
     void add_vertex(const vertex_id_type& vid,
                     const VertexData& vdata = VertexData() ) {
+#ifndef USE_DYNAMIC_LOCAL_GRAPH
       if(finalized) {
         logstream(LOG_FATAL)
           << "\n\tAttempting to add a vertex to a finalized graph."
           << "\n\tVertices cannot be added to a graph after finalization."
           << std::endl;
       }
+#else
+      finalized = false;
+#endif
       if(vid == vertex_id_type(-1)) {
         logstream(LOG_FATAL)
           << "\n\tAdding a vertex with id -1 is not allowed."
@@ -796,12 +806,17 @@ namespace graphlab {
      */
     void add_edge(vertex_id_type source, vertex_id_type target,
                   const EdgeData& edata = EdgeData()) {
+
+#ifndef USE_DYNAMIC_LOCAL_GRAPH
       if(finalized) {
         logstream(LOG_FATAL)
           << "\n\tAttempting to add an edge to a finalized graph."
           << "\n\tEdges cannot be added to a graph after finalization."
           << std::endl;
       }
+#else 
+      finalized = false;
+#endif
       if(source == vertex_id_type(-1)) {
         logstream(LOG_FATAL)
           << "\n\tThe source vertex with id vertex_id_type(-1)\n"

@@ -230,7 +230,7 @@ namespace graphlab {
        iterator begin_ins_iter = iter_pair.first;
        iterator end_ins_iter =  iter_pair.second;
 
-       value_ptrs[key] = begin_ins_iter;
+       // value_ptrs[key] = begin_ins_iter;
        // Update pointers. 
       ASSERT_TRUE(begin_ins_iter == ins_iter);
        // Update pointers to the right of ins_iter. 

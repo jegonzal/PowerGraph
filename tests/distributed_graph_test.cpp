@@ -116,14 +116,22 @@ int main(int argc, char** argv) {
         //
         g.add_edge(dim * i + j, dim * i + j + 1, edge_data(dim*i+j, dim*i+j+1));
         g.add_edge(dim * i + j + 1, dim * i + j, edge_data(dim*i+j+1, dim*i+j));
+      }
+    }
+#ifdef USE_DYNAMIC_LOCAL_GRAPH
+    g.finalize();
+#endif
 
-        // add the vertical edges in both directions
+    for (size_t i = 0;i < dim; ++i) {
+      for (size_t j = 0;j < dim - 1; ++j) {
+       // add the vertical edges in both directions
         g.add_edge(dim * j + i, dim * (j + 1) + i, edge_data(dim*j+i, dim*(j+1)+i));
         g.add_edge(dim * (j + 1) + i, dim * j + i, edge_data(dim*(j+1)+i, dim*j+i));
         num_edge += 4;
       }
     }
   }
+
   dc.all_reduce(num_vertices);
   dc.all_reduce(num_edge);
   // the graph is now constructed
@@ -191,6 +199,7 @@ int main(int argc, char** argv) {
   std::cout << "-----------End Grid Test--------------------" << std::endl;
 
   
+#ifndef USE_DYNAMIC_LOCAL_GRAPH
   dc.cout() << "Testing Injective join\n";
   graphlab::graph_vertex_join<graph_type, graph_type2> join(dc, g, g2);
   join.prepare_injective_join(get_vid<graph_type::vertex_type>,
@@ -211,6 +220,8 @@ int main(int argc, char** argv) {
   }
 dc.barrier();
   dc.cout() << "Injective join pass\n";
+#endif
+
   graphlab::mpi_tools::finalize();
 }
 

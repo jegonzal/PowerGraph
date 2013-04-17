@@ -274,43 +274,8 @@ namespace graphlab {
      * This is also automatically invoked by the engine at start.
      */
     void finalize() {   
-      graphlab::timer mytimer; mytimer.start();
 
-      // Insert edges into finalized graph
-//       if (finalized) {
-//         graphlab::timer mytimer; mytimer.start();
-// #ifdef DEBUG_GRAPH
-//         logstream(LOG_INFO) << "Insert edges into finalized graph..." << std::endl;
-// #endif
-//         // insert adjacency into csr/csc
-//         for (size_t i = 0; i < edge_buffer.size(); ++i) {
-//           edge_id_type eid =  edges.size() + i;
-//           _csr_storage.insert(edge_buffer.source_arr[i], 
-//                               std::pair<lvid_type, edge_id_type>(
-//                                   edge_buffer.target_arr[i], eid));
-//           _csc_storage.insert(edge_buffer.target_arr[i],
-//                               std::pair<lvid_type,edge_id_type>(
-//                                   edge_buffer.source_arr[i], eid));
-//         }
-// 
-//         // insert edge data
-//         edges.reserve(edges.size() + edge_buffer.size());
-//         edges.insert(edges.end(), edge_buffer.data.begin(), edge_buffer.data.end());
-//         std::vector<EdgeData>().swap(edge_buffer.data);
-// 
-//         edge_buffer.clear();
-// 
-// #ifdef DEBGU_GRAPH
-//       logstream(LOG_DEBUG) << "Finish finalization." << std::endl;
-// #endif
-//       logstream(LOG_INFO) << "Graph finalized in " << mytimer.current_time() 
-//                           << " secs" << std::endl;
-//       _csr_storage.meminfo(std::cout);
-//       _csc_storage.meminfo(std::cout);
-//         return;
-//       }
- 
-      // finalized = true;
+      graphlab::timer mytimer; mytimer.start();
 #ifdef DEBUG_GRAPH
       logstream(LOG_DEBUG) << "Graph2 finalize starts." << std::endl;
 #endif
@@ -332,13 +297,16 @@ namespace graphlab {
       std::vector< std::pair<lvid_type, edge_id_type> >  csc_values;
 
       csr_values.reserve(dest_permute.size());
+      edge_id_type begineid = edges.size();
       for (size_t i = 0; i < dest_permute.size(); ++i) {
-        csr_values.push_back(std::pair<lvid_type, edge_id_type> (edge_buffer.target_arr[dest_permute[i]], dest_permute[i]));
+        csr_values.push_back(std::pair<lvid_type, edge_id_type> (edge_buffer.target_arr[dest_permute[i]], 
+                                                                 begineid + dest_permute[i]));
       }
       csc_values.reserve(src_permute.size());
 
       for (size_t i = 0; i < src_permute.size(); ++i) {
-        csc_values.push_back(std::pair<lvid_type, edge_id_type> (edge_buffer.source_arr[src_permute[i]], src_permute[i]));
+        csc_values.push_back(std::pair<lvid_type, edge_id_type> (edge_buffer.source_arr[src_permute[i]],
+                                                                 begineid + src_permute[i]));
       }
       ASSERT_EQ(csc_values.size(), csr_values.size());
 
@@ -348,6 +316,7 @@ namespace graphlab {
         // warp into csr csc storage.
         _csr_storage.wrap(src_counting_prefix_sum, csr_values);
         _csc_storage.wrap(dest_counting_prefix_sum, csc_values); 
+        finalized = true;
       } else {
         // insert edge data
         edges.reserve(edges.size() + edge_buffer.size());
@@ -377,13 +346,16 @@ namespace graphlab {
       ASSERT_EQ(_csr_storage.num_values(), _csc_storage.num_values());
       ASSERT_EQ(_csr_storage.num_values(), edges.size());
 
-#ifdef DEBGU_GRAPH
+#ifdef DEBUG_GRAPH
       logstream(LOG_DEBUG) << "End of finalize." << std::endl;
 #endif
       logstream(LOG_INFO) << "Graph finalized in " << mytimer.current_time() 
                           << " secs" << std::endl;
+
+#ifdef DEBUG_GRAPH
       _csr_storage.meminfo(std::cout);
       _csc_storage.meminfo(std::cout);
+#endif
     } // End of finalize
 
 
@@ -737,3 +709,36 @@ namespace std {
 
 #include <graphlab/macros_undef.hpp>
 #endif
+      // Insert edges into finalized graph
+//       if (finalized) {
+//         graphlab::timer mytimer; mytimer.start();
+// #ifdef DEBUG_GRAPH
+//         logstream(LOG_INFO) << "Insert edges into finalized graph..." << std::endl;
+// #endif
+//         // insert adjacency into csr/csc
+//         for (size_t i = 0; i < edge_buffer.size(); ++i) {
+//           edge_id_type eid =  edges.size() + i;
+//           _csr_storage.insert(edge_buffer.source_arr[i], 
+//                               std::pair<lvid_type, edge_id_type>(
+//                                   edge_buffer.target_arr[i], eid));
+//           _csc_storage.insert(edge_buffer.target_arr[i],
+//                               std::pair<lvid_type,edge_id_type>(
+//                                   edge_buffer.source_arr[i], eid));
+//         }
+// 
+//         // insert edge data
+//         edges.reserve(edges.size() + edge_buffer.size());
+//         edges.insert(edges.end(), edge_buffer.data.begin(), edge_buffer.data.end());
+//         std::vector<EdgeData>().swap(edge_buffer.data);
+// 
+//         edge_buffer.clear();
+// 
+// #ifdef DEBGU_GRAPH
+//       logstream(LOG_DEBUG) << "Finish finalization." << std::endl;
+// #endif
+//       logstream(LOG_INFO) << "Graph finalized in " << mytimer.current_time() 
+//                           << " secs" << std::endl;
+//       _csr_storage.meminfo(std::cout);
+//       _csc_storage.meminfo(std::cout);
+//         return;
+//       }
