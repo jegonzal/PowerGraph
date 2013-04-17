@@ -152,7 +152,7 @@ class csr_storage_test : public CxxTest::TestSuite {
       std::vector<valuetype> vals(nval, i);
       csr.insert(i, vals.begin(), vals.end());
     }
-    // csr.print(std::cout);
+    csr.get_values().print(std::cout);
     check_dcsr(csr, nkey, nval);
     printf("+ Pass test: dynamic_csr_storage range insertion:)\n\n");
   }
