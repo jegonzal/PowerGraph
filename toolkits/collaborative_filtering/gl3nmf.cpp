@@ -47,6 +47,9 @@ typedef Eigen::MatrixXd mat_type;
 const static int SAFE_NEG_OFFSET=2;
 static bool debug;
 int iter = 0;
+enum { PHASE1, PHASE2};
+int phase = PHASE1;
+double epsilon = 1e-16;
 
 bool isuser(uint node){
   return ((int)node) >= 0;
@@ -198,7 +201,11 @@ inline bool graph_loader(graph_type& graph,
 
 
 void vertex_delta(graph_type::vertex_type& vtx, const vec_type& delta) {
-  vtx.data().pvec += delta;
+  if (delta.sum() != 0)
+    vtx.data().pvec.array() *= delta.array() / px->pvec.array(); 
+  for (uint i=0; i< vertex_data::NLATENT; i++)
+    if (vtx.data().pvec[i] < epsilon)
+      vtx.data().pvec[i] = epsilon;
   vtx.data().nupdates++;
 }
 
@@ -208,9 +215,13 @@ void nmf_function(engine_type::context_type& context,
   if (pred == 0)
      logstream(LOG_FATAL)<<"Got into numerical error!" << std::endl;    
   vec_type delta;
+  if (phase == PHASE1)
+  delta = edge.source().data().pvec * edge.data().obs / pred;
+  else 
   delta = edge.target().data().pvec * edge.data().obs / pred;
   context.send_delta(VERTEX_DELTA_TASK_ID, edge.source(), delta);
 }
+
 
 gather_type count_edges(const graph_type::edge_type& edge) {
   gather_type ret;
@@ -238,8 +249,6 @@ gather_type pre_iter( const graph_type::vertex_type & vertex){
         ret.validation_rmse = vertex.data().validation_rmse;
         return ret;
 }
-
-
 
 
 void sync_function(engine_type::context_type& context,
@@ -345,6 +354,7 @@ int main(int argc, char** argv) {
 
   timer.start();
   for (size_t i = 0;i < ITERATIONS; ++i) {
+    phase = PHASE1;
     x1 = graph.map_reduce_vertices<gather_type>(pre_iter,right);
     px = &x1;
 
@@ -359,6 +369,7 @@ int main(int argc, char** argv) {
     engine.wait();
 
     x1.reset();
+    phase = PHASE2;
 
     x2 = graph.map_reduce_vertices<gather_type>(pre_iter,left);
     px = &x2;
