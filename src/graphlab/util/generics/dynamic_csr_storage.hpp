@@ -44,10 +44,10 @@ namespace graphlab {
   template <typename valuetype, typename sizetype=size_t, uint32_t blocksize=64>
   class dynamic_csr_storage {
    public:
-     typedef block_linked_list<valuetype, blocksize> block_linked_list;
-     typedef typename block_linked_list::iterator iterator;
-     typedef typename block_linked_list::const_iterator const_iterator;
-     typedef typename block_linked_list::blocktype blocktype;
+     typedef block_linked_list<valuetype, blocksize> block_linked_list_t;
+     typedef typename block_linked_list_t::iterator iterator;
+     typedef typename block_linked_list_t::const_iterator const_iterator;
+     typedef typename block_linked_list_t::blocktype blocktype;
      typedef valuetype value_type;
 
    public:
@@ -273,7 +273,7 @@ namespace graphlab {
       * \internal
       */
      const std::vector<iterator>& get_index() { return value_ptrs; }
-     const block_linked_list& get_values() { return values; }
+     const block_linked_list_t& get_values() { return values; }
 
      void swap(dynamic_csr_storage<valuetype, sizetype>& other) {
        value_ptrs.swap(other.value_ptrs);
@@ -324,7 +324,7 @@ namespace graphlab {
 
    private:
      std::vector<iterator> value_ptrs;
-     block_linked_list values;
+     block_linked_list_t values;
   }; // end of class
 } // end of graphlab 
 #endif
