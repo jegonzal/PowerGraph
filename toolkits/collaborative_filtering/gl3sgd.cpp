@@ -293,7 +293,7 @@ int main(int argc, char** argv) {
     engine.wait();
     double rmse = graph.map_reduce_edges<double>(extract_l2_error);
     dc.cout() << "RMSE = " << sqrt(rmse / graph.num_edges()) << std::endl;
-    GAMMA = GAMMA * 0.9;
+    GAMMA = GAMMA * 0.999;
   }
 
 

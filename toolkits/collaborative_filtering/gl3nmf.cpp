@@ -24,10 +24,8 @@
 /**
  * \file
  *
- * \brief The main file for the ALS matrix factorization algorithm.
+ * \brief The main file for the NMF matrix factorization algorithm.
  *
- * This file contains the main body of the ALS matrix factorization
- * algorithm.
  */
 
 #include <graphlab/util/stl_util.hpp>
@@ -78,21 +76,20 @@ struct vertex_data {
 
   int nupdates;
 
-  double training_rmse, validation_rmse;
   /**
    * \brief Simple default constructor which randomizes the vertex
    *  data
    */
-  vertex_data() : nupdates(0), training_rmse(0), validation_rmse(0) { if (debug) pvec = vec_type::Ones(NLATENT); else randomize(); }
+  vertex_data() { if (debug) pvec = vec_type::Ones(NLATENT); else randomize(); }
   /** \brief Randomizes the latent pvec */
   void randomize() { pvec.resize(NLATENT); pvec.setRandom(); }
   /** \brief Save the vertex data to a binary archive */
   void save(graphlab::oarchive& arc) const {
-    arc << nupdates << pvec << training_rmse << validation_rmse;
+    arc << pvec;
   }
   /** \brief Load the vertex data from a binary archive */
   void load(graphlab::iarchive& arc) {
-    arc >> nupdates >> pvec >> training_rmse >> validation_rmse;
+    arc >> pvec;
   }
 }; // end of vertex data
 
@@ -141,28 +138,10 @@ std::size_t hash_value(edge_data const& b) {
 typedef graphlab::distributed_graph<vertex_data, edge_data> graph_type;
 typedef graphlab::gl3engine<graph_type> engine_type;
 
-class gather_type {
-  public:
-    vec_type pvec;
-    double training_rmse;
-    double validation_rmse;
-    gather_type() { training_rmse = validation_rmse = 0; }
-    gather_type(const vec_type & _pvec, double _train_rmse, double _validation_rmse){ pvec = _pvec; training_rmse = _train_rmse; validation_rmse = _validation_rmse; }
-    void reset(){ pvec = vec_type::Zero(vertex_data::NLATENT); training_rmse = 0; validation_rmse = 0; }
-    void save(graphlab::oarchive& arc) const { arc << pvec << training_rmse << validation_rmse; }
-    void load(graphlab::iarchive& arc) { arc >> pvec >> training_rmse >> validation_rmse; }  
-    gather_type& operator+=(const gather_type& other) {
-      pvec += other.pvec;
-      training_rmse += other.training_rmse;
-      validation_rmse += other.validation_rmse;
-      return *this;
-    } 
 
-};
-
-gather_type x1;
-gather_type x2;
-gather_type * px;
+vec_type x1;
+vec_type x2;
+vec_type * px;
 
 bool isuser_node(const graph_type::vertex_type& vertex){
   return isuser(vertex.id());
@@ -202,11 +181,10 @@ inline bool graph_loader(graph_type& graph,
 
 void vertex_delta(graph_type::vertex_type& vtx, const vec_type& delta) {
   if (delta.sum() != 0)
-    vtx.data().pvec.array() *= delta.array() / px->pvec.array(); 
+    vtx.data().pvec.array() *= delta.array() / px->array(); 
   for (uint i=0; i< vertex_data::NLATENT; i++)
     if (vtx.data().pvec[i] < epsilon)
       vtx.data().pvec[i] = epsilon;
-  vtx.data().nupdates++;
 }
 
 void nmf_function(engine_type::context_type& context,
@@ -215,21 +193,18 @@ void nmf_function(engine_type::context_type& context,
   if (pred == 0)
      logstream(LOG_FATAL)<<"Got into numerical error!" << std::endl;    
   vec_type delta;
-  if (phase == PHASE1)
-  delta = edge.source().data().pvec * edge.data().obs / pred;
-  else 
-  delta = edge.target().data().pvec * edge.data().obs / pred;
-  context.send_delta(VERTEX_DELTA_TASK_ID, edge.source(), delta);
+  delta = (phase == PHASE1 ? edge.target().data().pvec : edge.source().data().pvec) * edge.data().obs / pred;
+  context.send_delta(VERTEX_DELTA_TASK_ID, phase == PHASE1 ? edge.source() : edge.target(), delta);
 }
 
 
-gather_type count_edges(const graph_type::edge_type& edge) {
-  gather_type ret;
+vec_type count_edges(const graph_type::edge_type& edge) {
+  vec_type ret = vec_type::Zero(2);
   if (edge.data().role == edge_data::TRAIN){
-    ret.training_rmse = 1;
+    ret[0] = 1;
   }
   else if (edge.data().role == edge_data::VALIDATE){
-    ret.validation_rmse = 1;
+    ret[1] = 1;
   }
   if (edge.data().obs < 0)
     logstream(LOG_FATAL)<<"Found a negative entry in matirx row " << edge.source().id() << " with value: " << edge.data().obs << std::endl;
@@ -242,12 +217,8 @@ void verify_rows(
           logstream(LOG_FATAL)<<"NMF algorithm can not work when the row " << vertex.id() << " of the matrix contains all zeros" << std::endl;
 }
 
-gather_type pre_iter( const graph_type::vertex_type & vertex){
-        gather_type ret;
-        ret.pvec = vertex.data().pvec;
-        ret.training_rmse = vertex.data().training_rmse;
-        ret.validation_rmse = vertex.data().validation_rmse;
-        return ret;
+vec_type pre_iter( const graph_type::vertex_type & vertex){
+  return vertex.data().pvec;
 }
 
 
@@ -339,46 +310,41 @@ int main(int argc, char** argv) {
 
 
   engine_type engine(dc, graph, clopts);
-  gather_type edge_count = graph.map_reduce_edges<gather_type>(count_edges);
-  dc.cout()<<"Training edges: " << edge_count.training_rmse << " validation edges: " << edge_count.validation_rmse << std::endl;
+  vec_type edge_count = graph.map_reduce_edges<vec_type>(count_edges);
+  dc.cout()<<"Training edges: " << edge_count[0] << " validation edges: " << edge_count[1] << std::endl;
 
   graphlab::vertex_set left = graph.select(isuser_node);
   graphlab::vertex_set right = ~left;
   graph.transform_vertices(verify_rows, left);
 
+  engine.register_vertex_delta<vec_type>(VERTEX_DELTA_TASK_ID, vertex_delta);
 
-  engine.register_vertex_delta<vec_type>(VERTEX_DELTA_TASK_ID,
-                                         vertex_delta);
-
-  dc.cout() << "Running SGD" << std::endl;
+  dc.cout() << "Running NMF" << std::endl;
 
   timer.start();
   for (size_t i = 0;i < ITERATIONS; ++i) {
     phase = PHASE1;
-    x1 = graph.map_reduce_vertices<gather_type>(pre_iter,right);
+    x1 = graph.map_reduce_vertices<vec_type>(pre_iter,right);
     px = &x1;
+    dc.cout() <<"x1 is: " << x1 << std::endl;
 
-
-  dc.cout()<< std::setw(8) << timer.current_time() << " " << sqrt(x1.training_rmse/edge_count.training_rmse);
-    if (edge_count.validation_rmse > 0)
-      dc.cout() << " " << std::setw(8) << sqrt(x1.validation_rmse/edge_count.validation_rmse) << std::endl;
-    else dc.cout() << std::endl;
-   
     engine.parfor_all_local_edges(nmf_function); //todo - only left
     engine.parfor_all_local_vertices(sync_function); //todo - only left
     engine.wait();
 
-    x1.reset();
     phase = PHASE2;
 
-    x2 = graph.map_reduce_vertices<gather_type>(pre_iter,left);
+    x2 = graph.map_reduce_vertices<vec_type>(pre_iter,left);
     px = &x2;
+    dc.cout() <<"x2 is: " << x2 << std::endl;
 
     engine.parfor_all_local_edges(nmf_function); //todo only right
     engine.parfor_all_local_vertices(sync_function); //todo only right
     engine.wait();
-    x2.reset();
-
+   
+    double rmse = graph.map_reduce_edges<double>(extract_l2_error);
+    dc.cout() << "RMSE = " << sqrt(rmse / graph.num_edges()) << std::endl;
+ 
   }
 
 

@@ -509,7 +509,7 @@ int main(int argc, char** argv) {
   for (uint j=0; j< nmf_vertex_program::MAX_UPDATES; j++){
     x1 = graph.map_reduce_vertices<gather_type>(nmf_vertex_program::pre_iter,right);
     px = &x1;
-    for (int i=0; i< vertex_data::NLATENT; i++)
+    for (int i=0; i< (int)vertex_data::NLATENT; i++)
       ASSERT_NE(px->pvec[i], 0);
     
     dc.cout()<< std::setw(8) << mytimer.current_time() << " " << sqrt(x1.training_rmse/edge_count.training_rmse);
