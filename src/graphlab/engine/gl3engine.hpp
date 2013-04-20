@@ -517,10 +517,8 @@ class gl3engine {
     scheduler_ptr->schedule(lvid, message);
     size_t target_queue = thread_counter++;
 
-    if (active_vthread_count < num_vthreads
-        && num_working_threads < ncpus) {
+    if (active_vthread_count < num_vthreads) {
       active_vthread_count.inc();
-      num_working_threads.inc();
       execution_group.launch(boost::bind(&gl3engine::vthread_start,
                                          this,
                                          target_queue));
