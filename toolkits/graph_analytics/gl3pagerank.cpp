@@ -83,7 +83,7 @@ void update_function(engine_type::context_type& context,
   vertex.data() = 0.15 + 0.85 *
       context.map_reduce<float>(PAGERANK_MAP_REDUCE, IN_EDGES);
 
-  float last_change = std::fabs((vertex.data()- prev) / vertex.num_out_edges());
+  float last_change = std::fabs((vertex.data()- prev));// / vertex.num_out_edges());
   if (last_change > TOLERANCE) {
     context.broadcast_signal(OUT_EDGES);
   }
