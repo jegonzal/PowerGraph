@@ -1,5 +1,5 @@
 /**  
- * Copyright (c) 2009 Carnegie Mellon University. 
+ * Copyright (c) 2009 Carnegie Mellon University.
  *     All rights reserved.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
@@ -36,18 +36,32 @@
 
 #include <string>
 
+#include "opencv2/opencv_modules.hpp"
+#include "opencv2/highgui/highgui.hpp"
+#include "opencv2/stitching/detail/autocalib.hpp"
+#include "opencv2/stitching/detail/blenders.hpp"
+#include "opencv2/stitching/detail/camera.hpp"
+#include "opencv2/stitching/detail/exposure_compensate.hpp"
+#include "opencv2/stitching/detail/matchers.hpp"
+#include "opencv2/stitching/detail/motion_estimators.hpp"
+#include "opencv2/stitching/detail/seam_finders.hpp"
+#include "opencv2/stitching/detail/util.hpp"
+#include "opencv2/stitching/detail/warpers.hpp"
+#include "opencv2/stitching/warpers.hpp"
+
+
 /////////////////////////////////////////////////////////////////////////
 // Option Struct
-struct Options 
+struct Options
 {
     // graphlab options
     std::string exec_type;
-    
+   
     // input output dirs
     std::string output_dir;
 
     int verbose;
-    
+   
     // size of images
     double work_megapix;
     double seam_megapix;
@@ -56,12 +70,13 @@ struct Options
     double work_scale;
     double seam_scale;
     double compose_scale;
-    
+   
     double seam_work_aspect;
     double compose_seam_aspect;
     double compose_work_aspect;
-    
+   
     double warped_image_scale;
+    std::string warp_type;
 
     // match options
     double conf_thresh;
@@ -69,22 +84,33 @@ struct Options
     // seam options
     std::string seam_find_type;
     float terminal_cost;
-    float bad_region_penalty;    
-    
+    float bad_region_penalty; 
+
+    //wave correction options
+    //cv::detail::WaveCorrectKind wave_correct = detail::WAVE_CORRECT_HORIZ;
+    std::string wave_correct_type;
+
+    //bundle adjustment options
+    std::string ba_refine_mask;
+
+   
     // Default values
-    Options(): 
+    Options():
     exec_type("async"),
     output_dir("./"),
-    verbose(0), 
+    verbose(0),
     work_megapix(0.6), seam_megapix(0.1), compose_megapix(-1),
     work_scale(1), seam_scale(1), compose_scale(1),
     seam_work_aspect(1/6), compose_seam_aspect(1), compose_work_aspect(1),
-    warped_image_scale(-1),
+    warped_image_scale(-1), warp_type("plane"),
     conf_thresh(1.0),
-    seam_find_type("gc_color"), terminal_cost(10000.f), bad_region_penalty(1000.f)
+    seam_find_type("gc_color"), terminal_cost(10000.f), bad_region_penalty(1000.f),
+    wave_correct_type("horiz"),
+    ba_refine_mask("xxxxx")
     {}
 };
 
 extern Options opts;
 
 #endif
+

@@ -1,5 +1,5 @@
 /**  
- * Copyright (c) 2009 Carnegie Mellon University. 
+ * Copyright (c) 2009 Carnegie Mellon University.
  *     All rights reserved.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
@@ -50,6 +50,7 @@
 #include "opencv_serialization.hpp"
 #include "stitch_opts.hpp"
 #include "utils.hpp"
+#include "seam_finders_gr.hpp"
 
 #include <graphlab/macros_def.hpp>
 
@@ -76,53 +77,54 @@ typedef Eigen::MatrixXd mat;
 
 /////////////////////////////////////////////////////////////////////////
 // Edge and Vertex data and Graph Type
-struct vertex_data 
+struct vertex_data
 {
     bool empty; // used to quickly check if this is a dummy vertex.
-    
+   
     // path to image
     std::string img_path;
-    
+   
     cv::Mat full_img;       // Original image
     cv::Mat img;            // Used for feature computation
     cv::Mat img_warped;     // Used by gain compensator
     cv::Mat img_warped_f;   // Used by seam_finder
-    
-    cv::Point full_img_size;
+   
+    //cv::Point full_img_size;
+    cv::Size full_img_size;
         
     cv::detail::ImageFeatures features;
-    
+   
     cv::detail::CameraParams camera;
-    
+   
     cv::Point corner;
     //cv::Mat mask;
     cv::Mat mask_warped;
-    
+   
     // constructor
     vertex_data() : empty(true)
     { }
-    
-    void save(graphlab::oarchive& arc) const 
+   
+    void save(graphlab::oarchive& arc) const
     {
-        arc << empty << img_path 
+        arc << empty << img_path
         << full_img << img << img_warped << img_warped_f
         << full_img_size << features << camera
-        << corner //<< mask 
+        << corner //<< mask
         << mask_warped;
     }
-    void load(graphlab::iarchive& arc) 
+    void load(graphlab::iarchive& arc)
     {
-        arc >> empty >> img_path 
+        arc >> empty >> img_path
         >> full_img >> img >> img_warped >> img_warped_f
         >> full_img_size >> features >> camera
-        >> corner //>> mask 
+        >> corner //>> mask
         >> mask_warped;
     }
-    
+   
     vertex_data operator+ (vertex_data& othervertex)
     {
-        vertex_data sum; 
-        
+        vertex_data sum;
+       
         if (!empty && !othervertex.empty)
         {
             logstream(LOG_ERROR) << "Don't know about to merge two non-empty vertex-data structures" << std::endl;
@@ -132,8 +134,8 @@ struct vertex_data
             sum = *this;
         else if (empty && !othervertex.empty)
             sum = othervertex;        
-        // Nothing to do if both empty. 
-        
+        // Nothing to do if both empty.
+       
         return sum;
     }
 
@@ -146,37 +148,37 @@ struct vertex_data
         }
         else if (empty && !othervertex.empty)
             *this = othervertex;        
-        // Nothing to do if both empty or othervertex empty. 
-        
+        // Nothing to do if both empty or othervertex empty.
+       
         return *this;
     }
 }; // End of vertex data
 
 
 //typedef graphlab::empty edge_data;
-struct edge_data 
+struct edge_data
 {
     bool empty; // used to quickly check if this is a dummy edge.
 
     cv::detail::MatchesInfo matchinfo;
-    
+   
     // constructor
     edge_data() : empty(true)
     { }
-    
-    void save(graphlab::oarchive& arc) const 
+   
+    void save(graphlab::oarchive& arc) const
     {
         arc << empty << matchinfo;
     }
-    void load(graphlab::iarchive& arc) 
+    void load(graphlab::iarchive& arc)
     {
         arc >> empty >> matchinfo;
     }
 
     edge_data operator+ (edge_data& otheredge)
     {
-        edge_data sum; 
-        
+        edge_data sum;
+       
         if (!empty && !otheredge.empty)
         {
             logstream(LOG_ERROR) << "Don't know about to merge two non-empty edge-data structures" << std::endl;
@@ -186,8 +188,8 @@ struct edge_data
             sum = *this;
         else if (empty && !otheredge.empty)
             sum = otheredge;        
-        // Nothing to do if both empty. 
-        
+        // Nothing to do if both empty.
+       
         return sum;
     }
 
@@ -200,8 +202,8 @@ struct edge_data
         }
         else if (empty && !otheredge.empty)
             *this = otheredge;        
-        // Nothing to do if both empty or othervertex empty. 
-        
+        // Nothing to do if both empty or othervertex empty.
+       
         return *this;
     }
 }; // End of edge data
@@ -217,54 +219,54 @@ typedef graphlab::distributed_graph<vertex_data, edge_data> graph_type;
 /**
  * The type passed around during the gather phase
  */
-//struct gather_type 
+//struct gather_type
 //{
 //    
-//    gather_type& operator+=(const gather_type& other) 
+//    gather_type& operator+=(const gather_type& other)
 //    {
 //    } // end of operator +=
-//    void save(graphlab::oarchive& arc) const 
+//    void save(graphlab::oarchive& arc) const
 //    {
 //        arc << delf_i << delf_j;
 //    }
-//    void load(graphlab::iarchive& arc) 
+//    void load(graphlab::iarchive& arc)
 //    {
 //        arc >> delf_i >> delf_j;
 //    }
 //}; // end of gather type
 typedef graphlab::empty gather_type;
 
-/** 
+/**
  * The core stitching update function.  
  */
-class stitch_vertex_program : 
-public graphlab::ivertex_program<graph_type, gather_type, 
+class stitch_vertex_program :
+public graphlab::ivertex_program<graph_type, gather_type,
 graphlab::messages::sum_priority>,
-public graphlab::IS_POD_TYPE 
+public graphlab::IS_POD_TYPE
 {
 private:
-    
+   
 public:
-    
+   
     stitch_vertex_program()  { }
-    
+   
     edge_dir_type gather_edges(icontext_type& context,
-                               const vertex_type& vertex) const 
-    { 
-        return graphlab::ALL_EDGES; 
-    }; // end of gather_edges 
+                               const vertex_type& vertex) const
+    {
+        return graphlab::ALL_EDGES;
+    }; // end of gather_edges
 
     // Run the gather operation over all in edges
-    gather_type gather(icontext_type& context, const vertex_type& target_vertex, 
-                       edge_type& edge) const 
+    gather_type gather(icontext_type& context, const vertex_type& target_vertex,
+                       edge_type& edge) const
     {
         return gather_type();
     } // end of gather
 
-    void apply(icontext_type& context, vertex_type& vertex, 
-               const gather_type& sum) 
+    void apply(icontext_type& context, vertex_type& vertex,
+               const gather_type& sum)
     {
-        
+       
         // Get vertex data
         vertex_data &vdata = vertex.data();
 
@@ -272,12 +274,12 @@ public:
     } // end of apply
 
     edge_dir_type scatter_edges(icontext_type& context,
-                                const vertex_type& vertex) const 
-    { 
+                                const vertex_type& vertex) const
+    {
         //return graphlab::ALL_EDGES;
         return graphlab::NO_EDGES;
-    }; // end of gather_edges 
-    
+    }; // end of gather_edges
+   
 };
 
 
@@ -289,3 +291,4 @@ public:
 typedef graphlab::omni_engine<stitch_vertex_program> engine_type;
 
 #endif
+
