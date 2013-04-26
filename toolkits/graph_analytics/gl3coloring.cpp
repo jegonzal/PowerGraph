@@ -184,11 +184,12 @@ void unlock_forks_maintain_request(const graph_type::vertex_type& center,
   char m =  (e.source().id() == center.id()) ? 0 : 1;
   if (e.data().owned_by == m && e.data().locked) {
     e.data().locked = false;
-    if (e.data().dirty && e.data().requested) {
-      e.data().owned_by = !e.data().owned_by;
-      e.data().dirty = false;
-      e.data().requested = true;
-    }
+  }
+
+  if (e.data().owned_by == m && e.data().dirty && e.data().requested) {
+    e.data().owned_by = !e.data().owned_by;
+    e.data().dirty = false;
+    e.data().requested = true;
   }
 
 //   std::cout << "Release: " << center.id() << ": Fork = " << e.source().id() << "->" << e.target().id() << " " << e.data() << "\n";
