@@ -63,17 +63,10 @@
 #include <graphlab/util/random.hpp>
 #include <graphlab/macros_def.hpp>
 
-namespace std {
-  template<typename T1, typename T2>
-  ostream& operator<<(ostream& out, const pair<T1, T2>& value)  {
-    out << "(" << value.first << "," << value.second << ")";
-    return out;
-  }
-}
+
 namespace graphlab { 
 
-
-  template<typename VertexData, typename EdgeData, uint32_t blocksize=64>
+  template<typename VertexData, typename EdgeData, uint32_t blocksize=1018>
   class dynamic_local_graph {
   public:
     
@@ -530,6 +523,7 @@ namespace graphlab {
     typedef dynamic_csr_storage<std::pair<lvid_type, edge_id_type>, edge_id_type,
             blocksize> csr_type;
 
+
     typedef typename csr_type::iterator csr_edge_iterator;
 
     // PRIVATE DATA MEMBERS ===================================================>    
@@ -692,6 +686,13 @@ namespace graphlab {
            const lvid_type _vid;
         }; // end of edge_iterator
 
+
+  // Used to debug print internal storage
+  std::ostream& operator<<(std::ostream& out,
+                        const std::pair<lvid_type, edge_id_type>& value) {
+    out << "(" << value.first << "," << value.second << ")";
+    return out;
+  }
 } // end of namespace
 
 
@@ -704,6 +705,7 @@ namespace std {
                    graphlab::dynamic_local_graph<VertexData,EdgeData>& b) {
     a.swap(b);
   } // end of swap
+
 }; // end of namespace std
 
 
