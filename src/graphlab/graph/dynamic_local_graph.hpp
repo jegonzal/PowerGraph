@@ -685,6 +685,12 @@ namespace graphlab {
            const lvid_type _vid;
         }; // end of edge_iterator
 
+  // Used to debug print internal storage
+  inline std::ostream& operator<<(std::ostream& out,
+                        const std::pair<lvid_type, edge_id_type>& value) {
+    out << "(" << value.first << "," << value.second << ")";
+    return out;
+  }
 } // end of namespace
 
 
