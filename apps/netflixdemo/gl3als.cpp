@@ -371,7 +371,7 @@ int main(int argc, char** argv) {
         graph_type::vertex_type vtx(graph.vertex(uid));
         graph_type::local_vertex_type lvtx(vtx);
         foreach(graph_type::local_edge_type edge, lvtx.out_edges()) {
-          if (edge.data().role == edge_type::TRAIN) {
+          if (edge.data().role == edge_data::TRAIN) {
             graph_type::local_vertex_type target = edge.target();
             graph_type::vertex_id_type gid = target.global_id();
             all_training.data[gid] = edge.data().obs;
