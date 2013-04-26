@@ -71,6 +71,7 @@ namespace graphlab {
     /** Initialize the per vertex task set */
     atomic_add_vector2(size_t num_vertices = 0) {
       resize(num_vertices);
+      atomic_box_vec.clear();
     }
 
     /**
@@ -78,6 +79,7 @@ namespace graphlab {
      */
     void resize(size_t num_vertices) {
       atomic_box_vec.resize(num_vertices);
+      atomic_box_vec.clear();
     }
 
     /** Add a task to the set returning false if the task was already

@@ -76,6 +76,10 @@ struct gl3context {
     engine->spawn_subtask(lvid, GL3_BROADCAST_TASK_ID, any(task_param), true);
   }
 
+  void signal(const vertex_type& vtx, const message_type& msg = message_type()) {
+    engine->internal_signal(vtx, msg);
+  }
+
   /**
    * Issues an edge transform operation on a set of neighboring edges.
    * The taskid must have been registered with the engine before utilization.

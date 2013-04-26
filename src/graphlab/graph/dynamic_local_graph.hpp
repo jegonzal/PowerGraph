@@ -1,5 +1,5 @@
-/**  
- * Copyright (c) 2009 Carnegie Mellon University. 
+/**
+ * Copyright (c) 2009 Carnegie Mellon University.
  *     All rights reserved.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
@@ -63,13 +63,13 @@
 #include <graphlab/util/random.hpp>
 #include <graphlab/macros_def.hpp>
 
+namespace graphlab {
 
-namespace graphlab { 
 
-  template<typename VertexData, typename EdgeData, uint32_t blocksize=1018>
+  template<typename VertexData, typename EdgeData, uint32_t blocksize=64>
   class dynamic_local_graph {
   public:
-    
+
     /** The type of the vertex data stored in the local_graph. */
     typedef VertexData vertex_data_type;
 
@@ -87,7 +87,7 @@ namespace graphlab {
 
     /** Vertex object which provides access to the vertex data
      * and information about it.
-     */ 
+     */
     class vertex_type;
 
       /** Edge object which provides access to the edge data
@@ -98,7 +98,7 @@ namespace graphlab {
   public:
 
     // CONSTRUCTORS ============================================================>
-    
+
     /** Create an empty local_graph. */
     dynamic_local_graph() : finalized(false) { }
 
@@ -133,7 +133,7 @@ namespace graphlab {
     } // end of num edges
 
 
-    /** 
+    /**
      * \brief Creates a vertex containing the vertex data and returns the id
      * of the new vertex id. Vertex ids are assigned in increasing order with
      * the first vertex having id 0.
@@ -142,13 +142,13 @@ namespace graphlab {
       if(vid >= vertices.size()) {
         // Enable capacity doubling if resizing beyond capacity
         if(vid >= vertices.capacity()) {
-          const size_t new_size = std::max(2 * vertices.capacity(), 
+          const size_t new_size = std::max(2 * vertices.capacity(),
                                            size_t(vid));
           vertices.reserve(new_size);
         }
         vertices.resize(vid+1);
       }
-      vertices[vid] = vdata;    
+      vertices[vid] = vdata;
     } // End of add vertex;
 
     void reserve(size_t num_vertices) {
@@ -156,7 +156,7 @@ namespace graphlab {
       vertices.reserve(num_vertices);
     }
 
-    /** 
+    /**
      * \brief Add additional vertices up to provided num_vertices.  This will
      * fail if resizing down.
      */
@@ -172,7 +172,7 @@ namespace graphlab {
      * \brief Creates an edge connecting vertex source to vertex target.  Any
      * existing data will be cleared. Should not be called after finalization.
      */
-    edge_id_type add_edge(lvid_type source, lvid_type target, 
+    edge_id_type add_edge(lvid_type source, lvid_type target,
                           const EdgeData& edata = EdgeData()) {
       if (finalized) {
         logstream(LOG_DEBUG)
@@ -180,27 +180,27 @@ namespace graphlab {
       }
 
       if(source == target) {
-        logstream(LOG_FATAL) 
+        logstream(LOG_FATAL)
           << "Attempting to add self edge (" << source << " -> " << target <<  ").  "
           << "This operation is not permitted in GraphLab!" << std::endl;
         ASSERT_MSG(source != target, "Attempting to add self edge!");
       }
 
-      if(source >= vertices.size() || target >= vertices.size()) 
+      if(source >= vertices.size() || target >= vertices.size())
         add_vertex(std::max(source, target));
 
       // Add the edge to the set of edge data (this copies the edata)
       edge_buffer.add_edge(source, target, edata);
 
-      // This is not the final edge_id, so we always return 0. 
+      // This is not the final edge_id, so we always return 0.
       return 0;
     } // End of add edge
-    
+
     /**
      * \brief Add edges in block.
      */
-    void add_edges(const std::vector<lvid_type>& src_arr, 
-                   const std::vector<lvid_type>& dst_arr, 
+    void add_edges(const std::vector<lvid_type>& src_arr,
+                   const std::vector<lvid_type>& dst_arr,
                    const std::vector<EdgeData>& edata_arr) {
       ASSERT_TRUE((src_arr.size() == dst_arr.size())
                   && (src_arr.size() == edata_arr.size()));
@@ -212,19 +212,19 @@ namespace graphlab {
       for (size_t i = 0; i < src_arr.size(); ++i) {
         lvid_type source = src_arr[i];
         lvid_type target = dst_arr[i];
-        if ( source >= vertices.size() 
+        if ( source >= vertices.size()
              || target >= vertices.size() ) {
-          logstream(LOG_FATAL) 
+          logstream(LOG_FATAL)
             << "Attempting add_edge (" << source
             << " -> " << target
-            << ") when there are only " << vertices.size() 
+            << ") when there are only " << vertices.size()
             << " vertices" << std::endl;
           ASSERT_MSG(source < vertices.size(), "Invalid source vertex!");
           ASSERT_MSG(target < vertices.size(), "Invalid target vertex!");
         }
 
         if(source == target) {
-          logstream(LOG_FATAL) 
+          logstream(LOG_FATAL)
             << "Attempting to add self edge (" << source << " -> " << target <<  ").  "
             << "This operation is not permitted in GraphLab!" << std::endl;
           ASSERT_MSG(source != target, "Attempting to add self edge!");
@@ -260,13 +260,13 @@ namespace graphlab {
 
     /**
      * \brief Finalize the local_graph data structure by
-     * sorting edges to maximize the efficiency of graphlab.  
-     * This function takes O(|V|log(degree)) time and will 
+     * sorting edges to maximize the efficiency of graphlab.
+     * This function takes O(|V|log(degree)) time and will
      * fail if there are any duplicate edges.
      * Detail implementation depends on the type of graph_storage.
      * This is also automatically invoked by the engine at start.
      */
-    void finalize() {   
+    void finalize() {
 
       graphlab::timer mytimer; mytimer.start();
 #ifdef DEBUG_GRAPH
@@ -276,7 +276,7 @@ namespace graphlab {
       std::vector<edge_id_type> dest_permute;
       std::vector<edge_id_type> src_counting_prefix_sum;
       std::vector<edge_id_type> dest_counting_prefix_sum;
-           
+
 #ifdef DEBUG_GRAPH
       logstream(LOG_DEBUG) << "Graph2 finalize: Sort by source vertex" << std::endl;
 #endif
@@ -292,7 +292,7 @@ namespace graphlab {
       csr_values.reserve(dest_permute.size());
       edge_id_type begineid = edges.size();
       for (size_t i = 0; i < dest_permute.size(); ++i) {
-        csr_values.push_back(std::pair<lvid_type, edge_id_type> (edge_buffer.target_arr[dest_permute[i]], 
+        csr_values.push_back(std::pair<lvid_type, edge_id_type> (edge_buffer.target_arr[dest_permute[i]],
                                                                  begineid + dest_permute[i]));
       }
       csc_values.reserve(src_permute.size());
@@ -308,7 +308,7 @@ namespace graphlab {
         edge_buffer.clear();
         // warp into csr csc storage.
         _csr_storage.wrap(src_counting_prefix_sum, csr_values);
-        _csc_storage.wrap(dest_counting_prefix_sum, csc_values); 
+        _csc_storage.wrap(dest_counting_prefix_sum, csc_values);
         finalized = true;
       } else {
         // insert edge data
@@ -342,7 +342,7 @@ namespace graphlab {
 #ifdef DEBUG_GRAPH
       logstream(LOG_DEBUG) << "End of finalize." << std::endl;
 #endif
-      logstream(LOG_INFO) << "Graph finalized in " << mytimer.current_time() 
+      logstream(LOG_INFO) << "Graph finalized in " << mytimer.current_time()
                           << " secs" << std::endl;
 
 #ifdef DEBUG_GRAPH
@@ -354,10 +354,10 @@ namespace graphlab {
 
     /** \brief Load the local_graph from an archive */
     void load(iarchive& arc) {
-      clear();    
+      clear();
       // read the vertices
       arc >> vertices
-          >> edges 
+          >> edges
           >> _csr_storage
           >> _csc_storage
           >> finalized;
@@ -368,11 +368,11 @@ namespace graphlab {
       // Write the number of edges and vertices
       arc << vertices
           << edges
-          << _csr_storage  
+          << _csr_storage
           << _csc_storage
           << finalized;
     } // end of save
-    
+
     /** swap two graphs */
     void swap(dynamic_local_graph& other) {
       finalized = other.finalized;
@@ -393,7 +393,7 @@ namespace graphlab {
 
     /**
      * \brief save the local_graph to the file given by the filename
-     */    
+     */
     void save(const std::string& filename) const {
       std::ofstream fout(filename.c_str());
       oarchive oarc(fout);
@@ -431,7 +431,7 @@ namespace graphlab {
  * underlying local_graph representation. They should not be used unless you      *
  * *really* know what you are doing.                                        *
  ****************************************************************************/
-    /** 
+    /**
      * \internal
      * \brief Returns the number of in edges of the vertex with the given id. */
     size_t num_in_edges(const lvid_type v) const {
@@ -439,7 +439,7 @@ namespace graphlab {
       return (_csc_storage.end(v) - _csc_storage.begin(v));
     }
 
-    /** 
+    /**
      * \internal
      * \brief Returns the number of in edges of the vertex with the given id. */
     size_t num_out_edges(const lvid_type v) const {
@@ -447,7 +447,7 @@ namespace graphlab {
       return (_csr_storage.end(v) - _csr_storage.begin(v));
     }
 
-    /** 
+    /**
      * \internal
      * \brief Returns a list of in edges of the vertex with the given id. */
     edge_list_type in_edges(lvid_type v) {
@@ -458,7 +458,7 @@ namespace graphlab {
       return boost::make_iterator_range(begin, end);
     }
 
-    /** 
+    /**
      * \internal
      * \brief Returns a list of out edges of the vertex with the given id. */
     edge_list_type out_edges(lvid_type v) {
@@ -469,30 +469,30 @@ namespace graphlab {
       return boost::make_iterator_range(begin, end);
     }
 
-    /** 
+    /**
      * \internal
      * \brief Returns edge data of edge_type e
      * */
     EdgeData& edge_data(edge_id_type eid) {
       ASSERT_LT(eid, num_edges());
-      return edges[eid]; 
+      return edges[eid];
     }
-    /** 
+    /**
      * \internal
      * \brief Returns const edge data of edge_type e
      * */
     const EdgeData& edge_data(edge_id_type eid) const {
       ASSERT_LT(eid, num_edges());
-      return edges[eid]; 
+      return edges[eid];
     }
 
-    /** 
+    /**
      * \internal
      * \brief Returns the estimated memory footprint of the local_graph. */
     size_t estimate_sizeof() const {
-      const size_t vlist_size = sizeof(vertices) + 
+      const size_t vlist_size = sizeof(vertices) +
         sizeof(VertexData) * vertices.capacity();
-      size_t elist_size = _csr_storage.estimate_sizeof() 
+      size_t elist_size = _csr_storage.estimate_sizeof()
           + _csc_storage.estimate_sizeof()
           + sizeof(edges) + sizeof(EdgeData)*edges.capacity();
       size_t ebuffer_size = edge_buffer.estimate_sizeof();
@@ -501,32 +501,31 @@ namespace graphlab {
 
     /** \internal
      * \brief For debug purpose, returns the largest vertex id in the edge_buffer
-     */ 
+     */
     const lvid_type maxlvid() const {
       if (edge_buffer.size()) {
         lvid_type max(0);
         foreach(lvid_type i, edge_buffer.source_arr)
-         max = std::max(max, i); 
+         max = std::max(max, i);
         foreach(lvid_type i, edge_buffer.target_arr)
-         max = std::max(max, i); 
+         max = std::max(max, i);
         return max;
       } else {
         return lvid_type(-1);
       }
     }
-   
-  private:    
-    /** 
+
+  private:
+    /**
      * \internal
      * CSR/CSC storage types
      */
     typedef dynamic_csr_storage<std::pair<lvid_type, edge_id_type>, edge_id_type,
             blocksize> csr_type;
 
-
     typedef typename csr_type::iterator csr_edge_iterator;
 
-    // PRIVATE DATA MEMBERS ===================================================>    
+    // PRIVATE DATA MEMBERS ===================================================>
     //
     /** The vertex data is simply a vector of vertex data */
     std::vector<VertexData> vertices;
@@ -541,7 +540,7 @@ namespace graphlab {
         data is transferred into CSR+CSC representation in
         Finalize. This will be cleared after finalized.*/
     local_edge_buffer<VertexData, EdgeData> edge_buffer;
-   
+
     /** Mark whether the local_graph is finalized.  Graph finalization is a
         costly procedure but it can also dramatically improve
         performance. */
@@ -585,7 +584,7 @@ namespace graphlab {
        size_t num_out_edges() const {
          return lgraph_ref.num_out_edges(vid);
        }
-       /// \brief Returns the ID of the vertex. 
+       /// \brief Returns the ID of the vertex.
        lvid_type id() const {
          return vid;
        }
@@ -605,7 +604,7 @@ namespace graphlab {
     template<typename VertexData, typename EdgeData, uint32_t blocksize>
     class dynamic_local_graph<VertexData, EdgeData, blocksize>::edge_type {
      public:
-      edge_type(dynamic_local_graph& lgraph_ref, lvid_type _source, lvid_type _target, edge_id_type _eid) : 
+      edge_type(dynamic_local_graph& lgraph_ref, lvid_type _source, lvid_type _target, edge_id_type _eid) :
         lgraph_ref(lgraph_ref), _source(_source), _target(_target), _eid(_eid) { }
 
       /// \brief Returns a constant reference to the data on the edge.
@@ -635,16 +634,16 @@ namespace graphlab {
     };
 
     template<typename VertexData, typename EdgeData, uint32_t blocksize>
-    class dynamic_local_graph<VertexData, EdgeData, blocksize>::edge_iterator : 
+    class dynamic_local_graph<VertexData, EdgeData, blocksize>::edge_iterator :
         public boost::iterator_facade < edge_iterator,
                                         edge_type,
                                         boost::random_access_traversal_tag,
                                         edge_type> {
          public:
-           enum list_type {CSR, CSC}; 
+           enum list_type {CSR, CSC};
 
            edge_iterator(dynamic_local_graph& lgraph_ref, list_type _type,
-                         csr_edge_iterator _iter, lvid_type _vid) 
+                         csr_edge_iterator _iter, lvid_type _vid)
                : lgraph_ref(lgraph_ref), _type(_type), _iter(_iter), _vid(_vid) {}
 
          private:
@@ -658,7 +657,7 @@ namespace graphlab {
              ASSERT_EQ(_type, other._type);
              return _iter == other._iter;
            }
-           edge_type dereference() const { 
+           edge_type dereference() const {
              return make_value();
            }
            void advance(int n) {
@@ -686,13 +685,6 @@ namespace graphlab {
            const lvid_type _vid;
         }; // end of edge_iterator
 
-
-  // Used to debug print internal storage
-  std::ostream& operator<<(std::ostream& out,
-                        const std::pair<lvid_type, edge_id_type>& value) {
-    out << "(" << value.first << "," << value.second << ")";
-    return out;
-  }
 } // end of namespace
 
 
@@ -705,7 +697,6 @@ namespace std {
                    graphlab::dynamic_local_graph<VertexData,EdgeData>& b) {
     a.swap(b);
   } // end of swap
-
 }; // end of namespace std
 
 
@@ -720,25 +711,25 @@ namespace std {
 //         // insert adjacency into csr/csc
 //         for (size_t i = 0; i < edge_buffer.size(); ++i) {
 //           edge_id_type eid =  edges.size() + i;
-//           _csr_storage.insert(edge_buffer.source_arr[i], 
+//           _csr_storage.insert(edge_buffer.source_arr[i],
 //                               std::pair<lvid_type, edge_id_type>(
 //                                   edge_buffer.target_arr[i], eid));
 //           _csc_storage.insert(edge_buffer.target_arr[i],
 //                               std::pair<lvid_type,edge_id_type>(
 //                                   edge_buffer.source_arr[i], eid));
 //         }
-// 
+//
 //         // insert edge data
 //         edges.reserve(edges.size() + edge_buffer.size());
 //         edges.insert(edges.end(), edge_buffer.data.begin(), edge_buffer.data.end());
 //         std::vector<EdgeData>().swap(edge_buffer.data);
-// 
+//
 //         edge_buffer.clear();
-// 
+//
 // #ifdef DEBGU_GRAPH
 //       logstream(LOG_DEBUG) << "Finish finalization." << std::endl;
 // #endif
-//       logstream(LOG_INFO) << "Graph finalized in " << mytimer.current_time() 
+//       logstream(LOG_INFO) << "Graph finalized in " << mytimer.current_time()
 //                           << " secs" << std::endl;
 //       _csr_storage.meminfo(std::cout);
 //       _csc_storage.meminfo(std::cout);
