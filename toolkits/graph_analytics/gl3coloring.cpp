@@ -44,6 +44,11 @@ struct edge_data_type : public graphlab::IS_POD_TYPE {
   bool requested; // 1 is requested by other party;
 };
 
+std::ostream& operator<<(std::ostream& o, const edge_data_type& e) {
+  o << e.dirty << " " << e.locked << " " << (int)e.owned_by << " " << e.requested;
+  return o;
+}
+
 // The graph type is determined by the vertex and edge data types
 typedef distributed_graph<color_type, edge_data_type> graph_type;
 
@@ -114,7 +119,7 @@ void schedule_neighbors_if_change(const graph_type::vertex_type& center,
                                   graph_type::edge_type& e,
                                   const graph_type::vertex_type& other) {
   if (center.data() == other.data()) {
-    eng->signal(other.id());
+    eng->get_context().signal(other);
   }
 }
 
@@ -128,25 +133,8 @@ void initialize_chandy_misra(graph_type::edge_type& edge) {
   edge.data().locked = false;
   edge.data().owned_by = edge.source().id() < edge.target().id() ? 0 : 1;
   edge.data().requested = false;
+//   std::cout << edge.source().id() << "->" << edge.target().id() << " " << edge.data() << "\n";
 }
-
-// returns the number of forks owned
-#define REQUEST_FORKS 2
-size_t request_forks_map(const graph_type::vertex_type& center,
-                         graph_type::edge_type& e,
-                         const graph_type::vertex_type& other) {
-  char m =  (e.source().id() == center.id()) ? 0 : 1;
-  if (e.data().owned_by != m) {
-    if (e.data().locked == false && e.data().dirty) e.data().owned_by = m;
-    else e.data().requested = true;
-  }
-  return (e.data().owned_by == m);
-}
-
-void request_forks_combine(size_t& v1, const size_t& v2) {
-  v1 += v2;
-}
-
 
 
 #define LOCK_IF_OWNED 3
@@ -155,7 +143,16 @@ size_t lock_if_owned_map(const graph_type::vertex_type& center,
                          const graph_type::vertex_type& other) {
   char m =  (e.source().id() == center.id()) ? 0 : 1;
   if (e.data().owned_by == m) e.data().locked = true;
-  return (e.data().owned_by == m);
+  else if (e.data().dirty && e.data().locked == false) {
+    e.data().owned_by = m;
+    e.data().dirty = false;
+    e.data().requested = false;
+    e.data().locked = true;
+  } else {
+    e.data().requested = true;
+  }
+//   std::cout << "Lock If Owned: " << center.id() << ": Fork = "<< e.source().id() << "->" << e.target().id() << " "  << e.data() << "\n";
+  return (e.data().owned_by == m && e.data().locked);
 }
 
 void lock_if_owned_combine(size_t& v1, const size_t& v2) {
@@ -163,17 +160,20 @@ void lock_if_owned_combine(size_t& v1, const size_t& v2) {
 }
 
 
-#define UNLOCK_FORKS 4
-void unlock_forks(const graph_type::vertex_type& center,
+#define STOP_EATING 4
+void stop_eating(const graph_type::vertex_type& center,
                   graph_type::edge_type& e,
                   const graph_type::vertex_type& other) {
-  char m =  (e.source().id() == center.id()) ? 0 : 1;
   e.data().locked = false;
-  if (e.data().owned_by == m && e.data().dirty && e.data().requested) {
+  e.data().dirty = true;
+  if (e.data().requested) {
+    // switch owner
     e.data().owned_by = !e.data().owned_by;
     e.data().dirty = false;
     e.data().requested = false;
   }
+
+//   std::cout << "Stop Eating: " << center.id() << ": Fork = "<< e.source().id() << "->" << e.target().id() << " "  << e.data() << "\n";
 }
 
 
@@ -182,12 +182,16 @@ void unlock_forks_maintain_request(const graph_type::vertex_type& center,
                                    graph_type::edge_type& e,
                                    const graph_type::vertex_type& other) {
   char m =  (e.source().id() == center.id()) ? 0 : 1;
-  e.data().locked = false;
-  if (e.data().owned_by == m && e.data().dirty && e.data().requested) {
-    e.data().owned_by = !e.data().owned_by;
-    e.data().dirty = false;
-    e.data().requested = true;
+  if (e.data().owned_by == m && e.data().locked) {
+    e.data().locked = false;
+    if (e.data().dirty && e.data().requested) {
+      e.data().owned_by = !e.data().owned_by;
+      e.data().dirty = false;
+      e.data().requested = true;
+    }
   }
+
+//   std::cout << "Release: " << center.id() << ": Fork = " << e.source().id() << "->" << e.target().id() << " " << e.data() << "\n";
 }
 
 
@@ -202,16 +206,15 @@ void update_function(engine_type::context_type& context,
   if (EDGE_CONSISTENT) {
     size_t expected_num_locks = vertex.num_in_edges() + vertex.num_out_edges();
     while(1) {
-      size_t numnbr = context.map_reduce<size_t>(REQUEST_FORKS, ALL_EDGES);
+      size_t numnbr = context.map_reduce<size_t>(LOCK_IF_OWNED, ALL_EDGES);
       if (numnbr == expected_num_locks) {
-        size_t num_locked = context.map_reduce<size_t>(LOCK_IF_OWNED, ALL_EDGES);
-        if (num_locked == expected_num_locks) break;
-        else {
-          context.edge_transform(UNLOCK_FORKS_MAINTAIN_REQUEST, ALL_EDGES);
-        }
+        break;
       }
+      else {
+        context.edge_transform(UNLOCK_FORKS_MAINTAIN_REQUEST, ALL_EDGES);
+      }
+      graphlab::fiber_group::yield();
     }
-    graphlab::fiber_group::yield();
   }
   set_union_gather neighborhood =
       context.map_reduce<set_union_gather>(UNIQUE_COLOR_MAP_REDUCE,
@@ -227,12 +230,23 @@ void update_function(engine_type::context_type& context,
       break;
     }
   }
-  if (EDGE_CONSISTENT) context.edge_transform(UNLOCK_FORKS, ALL_EDGES);
+  if (EDGE_CONSISTENT) context.edge_transform(STOP_EATING, ALL_EDGES);
 
   if (color_changed) {
     context.edge_transform(SIGNAL_IF_CHANGE, ALL_EDGES, false);
   }
 }
+
+
+/**************************************************************************/
+/*                                                                        */
+/*                         Validation   Functions                         */
+/*                                                                        */
+/**************************************************************************/
+size_t validate_conflict(graph_type::edge_type& edge) {
+  return edge.source().data() == edge.target().data();
+}
+
 
 
 int main(int argc, char** argv) {
@@ -302,17 +316,12 @@ int main(int argc, char** argv) {
                                  schedule_neighbors_if_change);
 
 
-  engine.register_map_reduce(REQUEST_FORKS,
-                             request_forks_map,
-                             request_forks_combine);
-
-
   engine.register_map_reduce(LOCK_IF_OWNED,
                              lock_if_owned_map,
                              lock_if_owned_combine);
 
-  engine.register_edge_transform(UNLOCK_FORKS,
-                                 unlock_forks);
+  engine.register_edge_transform(STOP_EATING,
+                                 stop_eating);
 
   engine.register_edge_transform(UNLOCK_FORKS_MAINTAIN_REQUEST,
                                  unlock_forks_maintain_request);
@@ -327,7 +336,8 @@ int main(int argc, char** argv) {
   dc.cout() << engine.num_updates()
             << " updates." << std::endl;
 
-
+  size_t conflict_count = graph.map_reduce_edges<size_t>(validate_conflict);
+  dc.cout() << "Num conflicts = " << conflict_count << "\n";
 
   mpi_tools::finalize();
   return EXIT_SUCCESS;

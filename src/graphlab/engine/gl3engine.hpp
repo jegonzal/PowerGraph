@@ -342,6 +342,7 @@ class gl3engine {
   size_t total_tasks_completed;
 
   atomic<size_t> active_vthread_count; // number of vthreads launched
+  std::vector<atomic<size_t> > active_vthread_count_at_queue; // number of vthreads launched
   atomic<size_t> thread_counter; // just used to increment and load balance through queues.
   atomic<size_t> num_working_threads; // number of vthreads not in a yield loop
 
@@ -472,6 +473,7 @@ class gl3engine {
     total_programs_completed = 0;
     total_tasks_completed = 0;
     active_vthread_count = 0;
+    active_vthread_count_at_queue.resize(ncpus);
     num_working_threads = 0;
 
 
@@ -516,9 +518,9 @@ class gl3engine {
                          const message_type& message) {
     scheduler_ptr->schedule(lvid, message);
     size_t target_queue = thread_counter++;
-
-    if (active_vthread_count < num_vthreads
-        && num_working_threads < ncpus) {
+    target_queue = target_queue % ncpus;
+    if (active_vthread_count_at_queue[target_queue] < num_vthreads / ncpus) {
+      active_vthread_count_at_queue[target_queue].inc();
       active_vthread_count.inc();
       num_working_threads.inc();
       execution_group.launch(boost::bind(&gl3engine::vthread_start,
@@ -1521,16 +1523,17 @@ class gl3engine {
         ctr = timer::approx_time_millis();
       }
       if (!haswork) {
-        active_vthread_count.dec();
+        active_vthread_count_at_queue[id].dec();
         // double check
         haswork = exec_scheduler_task(id % ncpus);
         if (haswork == false) break;
-        else active_vthread_count.inc();
+        else active_vthread_count_at_queue[id].inc();
       }
       if (programs_completed.value > 0) {
         logger_ontick(1, LOG_EMPH, "programs completed: %ld", programs_completed.value);
       }
     }
+    active_vthread_count.dec();
   }
 
 

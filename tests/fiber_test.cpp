@@ -19,7 +19,7 @@ int main(int argc, char** argv) {
   for (int i = 0;i < 100000; ++i) {
     fibers.launch(threadfn);
   }
-
+  fibers.join();
   std::cout << "Completion in " << ti.current_time() << "s\n";
   std::cout << "Context Switches: " << numticks << "\n";
 }
