@@ -28,16 +28,16 @@
 // #include <graphlab/macros_def.hpp>
 
 // Global random reset probability
-float RESET_PROB = 0.15;
+double RESET_PROB = 0.15;
 
-float TOLERANCE = 1.0E-2;
+double TOLERANCE = 1.0E-2;
 
 size_t ITERATIONS = 0;
 
 bool USE_DELTA_CACHE = false;
 
-// The vertex data is just the pagerank value (a float)
-typedef float vertex_data_type;
+// The vertex data is just the pagerank value (a double)
+typedef double vertex_data_type;
 
 // There is no edge data in the pagerank application
 typedef graphlab::empty edge_data_type;
@@ -58,7 +58,7 @@ void init_vertex(graph_type::vertex_type& vertex) { vertex.data() = 1; }
  * specifying the:
  *
  *   1) graph_type
- *   2) gather_type: float (returned by the gather function). Note
+ *   2) gather_type: double (returned by the gather function). Note
  *      that the gather type is not strictly needed here since it is
  *      assumed to be the same as the vertex_data_type unless
  *      otherwise specified
@@ -74,11 +74,11 @@ void init_vertex(graph_type::vertex_type& vertex) { vertex.data() = 1; }
  * graphlab::IS_POD_TYPE it must implement load and save functions.
  */
 class pagerank :
-  public graphlab::ivertex_program<graph_type, float> {
-  float last_change;
+  public graphlab::ivertex_program<graph_type, double> {
+  double last_change;
 public:
   /* Gather the weighted rank of the adjacent page   */
-  float gather(icontext_type& context, const vertex_type& vertex,
+  double gather(icontext_type& context, const vertex_type& vertex,
                edge_type& edge) const {
     return (edge.source().data() / edge.source().num_out_edges());
   }
@@ -86,8 +86,8 @@ public:
   /* Use the total rank of adjacent pages to update this page */
   void apply(icontext_type& context, vertex_type& vertex,
              const gather_type& total) {
-    float newval = (1.0 - RESET_PROB) * total + RESET_PROB;
-    last_change = (newval - vertex.data()) / vertex.num_out_edges();
+    double newval = (1.0 - RESET_PROB) * total + RESET_PROB;
+    last_change = (newval - vertex.data());
     vertex.data() = newval;
     if (ITERATIONS) context.signal(vertex);
   }
@@ -144,7 +144,7 @@ struct pagerank_writer {
 
 
 
-float pagerank_sum(graph_type::vertex_type v) {
+double pagerank_sum(graph_type::vertex_type v) {
   return v.data();
 }
 
@@ -230,7 +230,7 @@ int main(int argc, char** argv) {
   graphlab::omni_engine<pagerank> engine(dc, graph, exec_type, clopts);
   engine.signal_all();
   engine.start();
-  const float runtime = engine.elapsed_seconds();
+  const double runtime = engine.elapsed_seconds();
   dc.cout() << "Finished Running engine in " << runtime
             << " seconds." << std::endl;
 
@@ -243,7 +243,7 @@ int main(int argc, char** argv) {
                false);   // do not save edges
   }
 
-  float totalpr = graph.map_reduce_vertices<float>(pagerank_sum);
+  double totalpr = graph.map_reduce_vertices<double>(pagerank_sum);
   std::cout << "Totalpr = " << totalpr << "\n";
 
   // Tear-down communication layer and quit -----------------------------------

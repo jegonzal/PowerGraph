@@ -32,12 +32,12 @@ using namespace graphlab;
 #define PAGERANK_MAP_REDUCE 0
 
 // Global random reset probability
-float RESET_PROB = 0.15;
+double RESET_PROB = 0.15;
 
-float TOLERANCE = 1E-2;
+double TOLERANCE = 1E-2;
 
-// The vertex data is just the pagerank value (a float)
-typedef float vertex_data_type;
+// The vertex data is just the pagerank value (a double)
+typedef double vertex_data_type;
 
 // There is no edge data in the pagerank application
 typedef empty edge_data_type;
@@ -68,28 +68,28 @@ struct pagerank_writer {
 }; // end of pagerank writer
 
 
-float pagerank_map(const graph_type::vertex_type& v) {
+double pagerank_map(const graph_type::vertex_type& v) {
   return v.data() / v.num_out_edges();
 }
 
-void pagerank_combine(float& v1, const float& v2) {
+void pagerank_combine(double& v1, const double& v2) {
   v1 += v2;
 }
 
 void update_function(engine_type::context_type& context,
                      graph_type::vertex_type& vertex,
                      const engine_type::message_type& unused) {
-  float prev = vertex.data();
+  double prev = vertex.data();
   vertex.data() = 0.15 + 0.85 *
-      context.map_reduce<float>(PAGERANK_MAP_REDUCE, IN_EDGES);
+      context.map_reduce<double>(PAGERANK_MAP_REDUCE, IN_EDGES);
 
-  float last_change = std::fabs((vertex.data()- prev));// / vertex.num_out_edges());
+  double last_change = std::fabs((vertex.data()- prev));// / vertex.num_out_edges());
   if (last_change > TOLERANCE) {
     context.broadcast_signal(OUT_EDGES);
   }
 }
 
-float pagerank_sum(graph_type::vertex_type v) {
+double pagerank_sum(graph_type::vertex_type v) {
   return v.data();
 }
 
