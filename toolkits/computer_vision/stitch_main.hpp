@@ -188,6 +188,15 @@ struct ImgArea
 {
     double full_img_area;
    
+    void save(graphlab::oarchive& arc) const
+    {
+        arc << full_img_area;
+    }
+    void load(graphlab::iarchive& arc)
+    {
+        arc >> full_img_area;
+    }
+
     ImgArea operator+= (ImgArea other) // computes max
     {
         ImgArea max;
