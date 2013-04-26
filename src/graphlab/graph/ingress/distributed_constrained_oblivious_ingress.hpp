@@ -89,8 +89,8 @@ namespace graphlab {
     void add_edge(vertex_id_type source, vertex_id_type target,
                   const EdgeData& edata) {
       dht[source]; dht[target];
-      std::vector<procid_t> candidates;
-      constraint->get_joint_neighbors(get_master(source), get_master(target), candidates);
+      const std::vector<procid_t>& candidates = 
+        constraint->get_joint_neighbors(get_master(source), get_master(target));
       const procid_t owning_proc = 
         base_type::edge_decision.edge_to_proc_greedy(source, target, dht[source], dht[target], candidates, proc_num_edges, usehash, userecent);
       typedef typename base_type::edge_buffer_record edge_buffer_record;

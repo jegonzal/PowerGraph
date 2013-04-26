@@ -288,8 +288,8 @@ namespace graphlab {
        bin_counts_type& src_degree = degree_table[src_proc][e.first];
        bin_counts_type& dst_degree = degree_table[dst_proc][e.second];
 
-       std::vector<procid_t> candidates;
-       constraint->get_joint_neighbors(get_master(e.first), get_master(e.second), candidates);
+       const std::vector<procid_t>& candidates = 
+         constraint->get_joint_neighbors(get_master(e.first), get_master(e.second));
 
        procid_t proc = base_type::edge_decision.edge_to_proc_greedy(e.first, e.second, 
            src_degree, dst_degree, candidates, proc_num_edges, usehash, userecent);

@@ -74,8 +74,7 @@ namespace graphlab {
                   const EdgeData& edata) {
       typedef typename base_type::edge_buffer_record edge_buffer_record;
 
-      std::vector<procid_t> candidates;
-      constraint->get_joint_neighbors(get_master(source), get_master(target), candidates);
+      const std::vector<procid_t>& candidates = constraint->get_joint_neighbors(get_master(source), get_master(target));
 
       const procid_t owning_proc = 
           base_type::edge_decision.edge_to_proc_random(source, target, candidates);

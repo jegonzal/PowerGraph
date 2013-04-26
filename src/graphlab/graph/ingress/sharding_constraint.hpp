@@ -55,6 +55,7 @@ namespace graphlab {
     size_t nshards;
     std::vector<std::vector<procid_t> > constraint_graph;
 
+    std::vector<std::vector<std::vector<procid_t> > > joint_nbr_cache;
    public:
     /// Test if the provided num_shards can be used for grid construction: 
     //    n == nrow*ncol  && (abs(nrow-ncol) <= 2)
@@ -86,7 +87,15 @@ namespace graphlab {
       } else {
         logstream(LOG_FATAL) << "Unknown sharding constraint method: " << method << std::endl;
       }
-      check();
+
+      joint_nbr_cache.resize(num_shards);
+      for (size_t i = 0; i < num_shards; ++i) {
+        joint_nbr_cache[i].resize(num_shards);
+        for (size_t j = 0; j < num_shards; ++j) {
+          compute_neighbors(i, j, joint_nbr_cache[i][j]);
+          ASSERT_GT(joint_nbr_cache[i][j].size(), 0);
+        }
+      }
     }
 
     bool get_neighbors (procid_t shard, std::vector<procid_t>& neighbors) {
@@ -98,31 +107,9 @@ namespace graphlab {
       return true;
     }
 
-    bool get_joint_neighbors (procid_t shardi, procid_t shardj, std::vector<procid_t>& neighbors) {
-      ASSERT_EQ(neighbors.size(), 0);
-      ASSERT_LT(shardi, nshards);
-      ASSERT_LT(shardj, nshards);
-      // if (shardi == shardj) {
-      //   neighbors.push_back(shardi);
-      //   return true;
-      // }
-
-      std::vector<procid_t>& ls1 = constraint_graph[shardi];
-      std::vector<procid_t>& ls2 = constraint_graph[shardj];
-      neighbors.clear();
-      size_t i = 0;
-      size_t j = 0;
-      while (i < ls1.size() && j < ls2.size()) {
-        if (ls1[i] == ls2[j]) {
-          neighbors.push_back(ls1[i]);
-          ++i; ++j;
-        } else if (ls1[i] < ls2[j]) {
-          ++i;
-        } else {
-          ++j;
-        }
-      }
-      return true;
+    
+    const std::vector<procid_t>& get_joint_neighbors (procid_t shardi, procid_t shardj) {
+      return joint_nbr_cache[shardi][shardj];
     }
 
    private:
@@ -168,23 +155,34 @@ namespace graphlab {
       }
     }
 
-    void check() {
-      // debug 
-      // for (size_t i = 0; i < constraint_graph.size(); ++i) {
-      //   std::vector<procid_t> adjlist = constraint_graph[i];
-      //   std::cout << i << ": [";
-      //   for (size_t j = 0; j < adjlist.size(); j++)
-      //     std::cout << adjlist[j] << " ";
-      //   std::cout << "]" << std::endl;
+
+    bool compute_neighbors(procid_t shardi, procid_t shardj, std::vector<procid_t>& neighbors) {
+      ASSERT_EQ(neighbors.size(), 0);
+      ASSERT_LT(shardi, nshards);
+      ASSERT_LT(shardj, nshards);
+      // if (shardi == shardj) {
+      //   neighbors.push_back(shardi);
+      //   return true;
       // }
-      for (size_t i = 0; i < nshards; ++i) {
-        for (size_t j = i+1; j < nshards; ++j) {
-          std::vector<procid_t> ls;
-          get_joint_neighbors(i, j, ls);
-          ASSERT_GT(ls.size(), 0);
+
+      std::vector<procid_t>& ls1 = constraint_graph[shardi];
+      std::vector<procid_t>& ls2 = constraint_graph[shardj];
+      neighbors.clear();
+      size_t i = 0;
+      size_t j = 0;
+      while (i < ls1.size() && j < ls2.size()) {
+        if (ls1[i] == ls2[j]) {
+          neighbors.push_back(ls1[i]);
+          ++i; ++j;
+        } else if (ls1[i] < ls2[j]) {
+          ++i;
+        } else {
+          ++j;
         }
       }
+      return true;
     }
+
   }; // end of sharding_constraint
 }; // end of namespace graphlab
 #endif
