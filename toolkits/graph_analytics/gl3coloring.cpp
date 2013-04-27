@@ -254,7 +254,6 @@ int main(int argc, char** argv) {
   // Initialize control plain using mpi
   mpi_tools::init(argc, argv);
   distributed_control dc;
-  global_logger().set_log_level(LOG_INFO);
 
   // Parse command line options -----------------------------------------------
   command_line_options clopts("PageRank algorithm.");

@@ -433,6 +433,8 @@ class gl3engine {
       opts.set_scheduler_type("fifo");
     }
     // create the scheduler
+    // this is ... necessary ...
+    opts.set_ncpus(1);
     scheduler_ptr = scheduler_factory<message_type>::
                     new_scheduler(graph.num_local_vertices(),
                                   opts);
@@ -519,13 +521,13 @@ class gl3engine {
     scheduler_ptr->schedule(lvid, message);
     size_t target_queue = thread_counter++;
     target_queue = target_queue % ncpus;
-    if (active_vthread_count_at_queue[target_queue] < num_vthreads / ncpus) {
+    if (active_vthread_count < num_vthreads) {
       active_vthread_count_at_queue[target_queue].inc();
       active_vthread_count.inc();
       num_working_threads.inc();
       execution_group.launch(boost::bind(&gl3engine::vthread_start,
                                          this,
-                                         target_queue));
+                                         0));
       consensus->cancel();
     }
   }
@@ -1422,7 +1424,7 @@ class gl3engine {
     lvid_type lvid;
     message_type msg;
     sched_status::status_enum stat =
-        scheduler_ptr->get_next(id, lvid, msg);
+        scheduler_ptr->get_next(0, lvid, msg);
     // get a task from the scheduler
     // if no task... quit
     if (stat == sched_status::EMPTY) return false;
