@@ -23,6 +23,7 @@ size_t MAX_ITER= -1;
 double MAXVAL = 1e+100;
 double MINVAL = -1e+100;
 int    REGNORMAL = 0;
+double TEST_PERCENT = 0.4;
 
 // use nmf to enforce nonnegativity
 bool NMFHACK = false;
@@ -69,6 +70,10 @@ struct vertex_data {
 
   /** \brief The latent factor for this vertex */
   vec_type factor;
+
+  std::vector<std::pair<double, graphlab::vertex_id_type> > top_rated;
+  std::vector<std::pair<double, graphlab::vertex_id_type> > top_pred;
+
   /**
    * \brief Simple default constructor which randomizes the vertex
    *  data
@@ -78,13 +83,14 @@ struct vertex_data {
   void randomize() { factor.resize(NLATENT); factor.setRandom(); }
   /** \brief Save the vertex data to a binary archive */
   void save(oarchive& arc) const {
-    arc << nupdates << residual << bias << factor;
+    arc << nupdates << residual << bias << factor << top_rated << top_pred;
   }
   /** \brief Load the vertex data from a binary archive */
   void load(iarchive& arc) {
-    arc >> nupdates >> residual >> bias >> factor;
+    arc >> nupdates >> residual >> bias >> factor >> top_rated >> top_pred;
   }
 }; // end of vertex data
+
 size_t vertex_data::NLATENT = 20;
 
 size_t hash_value(vertex_data const& v) {
@@ -126,6 +132,8 @@ struct edge_data : public IS_POD_TYPE {
  */
 typedef distributed_graph<vertex_data, edge_data> graph_type;
 
+// Movie names
+boost::unordered_map<graph_type::vertex_id_type, std::string> mlist;
 
 stats_info count_edges(const graph_type::edge_type & edge){
   stats_info ret;
@@ -301,7 +309,6 @@ double extract_l2_norm(const graph_type::vertex_type& vertex) {
   return vertex.data().factor.norm();
 }
 
-
 struct map_join {
   boost::unordered_map<graphlab::vertex_id_type, double> data; // rating than movie
   void save(graphlab::oarchive& oarc) const {
@@ -346,4 +353,12 @@ struct map_join {
     return ret;
   }
 };
+
+bool is_user(const graph_type::vertex_type& vertex) {
+  return vertex.num_out_edges() > 0;
+}
+
+bool is_movie(const graph_type::vertex_type& vertex) {
+  return !is_user(vertex);
+}
 #endif

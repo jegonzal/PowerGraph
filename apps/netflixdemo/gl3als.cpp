@@ -127,7 +127,7 @@ int init_map(const graph_type::vertex_type& center,
                graph_type::edge_type& edge,
                const graph_type::vertex_type& other) {
   // sample 20% of movies as validate set
-  bool flip = random::fast_bernoulli(0.2);
+  bool flip = random::fast_bernoulli(TEST_PERCENT);
   if (flip) {
     edge.data().role = edge_data::VALIDATE;
   }
@@ -199,13 +199,91 @@ void als_update_function(engine_type::context_type& context,
   // no scatter yet
 }
 
-bool is_user(const graph_type::vertex_type& vertex) {
-  return vertex.num_out_edges() > 0;
+
+#define COLLECT_TASK 2
+/// Collect, Prediction, Recommendation
+typedef std::pair<map_join, map_join> map_join_pair;
+map_join_pair collect_map (const graph_type::vertex_type& center,
+                           graph_type::edge_type& edge,
+                           const graph_type::vertex_type& other) {
+  map_join_pair ret;
+  if (edge.data().role == edge_data::TRAIN) {
+    ret.first.data[other.id()] = edge.data().obs;
+  } else {
+    ret.second.data[other.id()] = edge.data().obs;
+  }
+  return ret;
 }
 
-bool is_movie(const graph_type::vertex_type& vertex) {
-  return !is_user(vertex);
+map_join_pair collect_sum (map_join_pair& v1, const map_join_pair& v2) {
+  v1.first += v2.first;
+  v1.second += v2.second;
+  return v1;
 }
+
+std::string rank_list_to_string(const std::vector<std::pair<double, graphlab::vertex_id_type> >& ls) {
+  std::stringstream sstream;
+    for(size_t i = 0;i < ls.size(); ++i) {
+      graphlab::vertex_id_type gid = ls[i].second;
+      int printingid = - gid - SAFE_NEG_OFFSET;
+      sstream << "\t" << printingid;
+      if (mlist.find(gid) != mlist.end()) {
+        sstream << ": " << mlist[gid];
+      }
+      sstream << " = " << ls[i].first << "\n";
+    }
+  return sstream.str();
+}
+
+void collect_function (engine_type::context_type& context,
+                       graph_type::vertex_type& vertex) {
+  if (is_user(vertex)) {
+    map_join_pair sum = context.map_reduce<map_join_pair>(COLLECT_TASK, ALL_EDGES);
+    vertex.data().top_rated = sum.first.get_top_k(10);
+    vertex.data().top_pred = sum.second.get_top_k(10);
+  }
+}
+
+class recommendation_writer {
+ public:
+   std::string save_vertex(const graph_type::vertex_type& v) {
+    std::stringstream sstream;
+    if (is_user(v)) {
+      const std::vector<std::pair<double, graphlab::vertex_id_type> >& top_rated 
+          = v.data().top_rated;
+      const std::vector<std::pair<double, graphlab::vertex_id_type> >& top_pred
+          = v.data().top_pred;
+      if (top_rated.size() < 10 || top_pred.size() == 0) {
+        return "";
+      }
+      // save top rated
+      sstream << v.id() << " "; 
+      sstream << pair2str(top_rated[0]); 
+      for (size_t i = 1; i < top_rated.size(); ++i) {
+        sstream << "," <<  (pair2str(top_rated[i]));
+      }
+      // save top pred
+      sstream << " ";
+      sstream << pair2str(top_pred[0]);
+      for (size_t i = 1; i < top_pred.size(); ++i) {
+        sstream << "," << (pair2str(top_pred[i]));
+      }
+      sstream << "\n";
+      return sstream.str();
+    } else {
+      return "";
+    }
+   }
+   std::string save_edge(const graph_type::edge_type& e) {
+     return "";
+   }
+
+ private:
+   std::string pair2str(const std::pair<double, graphlab::vertex_id_type>& pair) {
+     int printingid = -pair.second - SAFE_NEG_OFFSET;
+     return boost::lexical_cast<std::string>(printingid) + ":" + boost::lexical_cast<std::string>(pair.first);
+   }
+};
 
 int main(int argc, char** argv) {
   global_logger().set_log_level(LOG_INFO);
@@ -213,12 +291,13 @@ int main(int argc, char** argv) {
 
   // Parse command line options -----------------------------------------------
   const std::string description =
-    "Compute the ALS factorization of a matrix.";
+      "Compute the ALS factorization of a matrix.";
   graphlab::command_line_options clopts(description);
   std::string input_dir;
   std::string predictions;
   size_t interval = 10;
   std::string movielist_dir;
+  std::string saveprefix="result";
   clopts.attach_option("matrix", input_dir,
                        "The directory containing the matrix file");
   clopts.add_positional("matrix");
@@ -232,6 +311,8 @@ int main(int argc, char** argv) {
                        "residual termination threshold");
   clopts.attach_option("maxval", MAXVAL, "max allowed value");
   clopts.attach_option("minval", MINVAL, "min allowed value");
+  clopts.attach_option("testpercent", TEST_PERCENT, "percentage of movies used for test");
+  clopts.attach_option("saveprefix", saveprefix, "prefix for result files");
   clopts.attach_option("interval", interval,
                        "The time in seconds between error reports");
   clopts.attach_option("predictions", predictions,
@@ -251,7 +332,6 @@ int main(int argc, char** argv) {
     return EXIT_FAILURE;
   }
 
-  boost::unordered_map<graph_type::vertex_id_type, std::string> mlist;
   if (!movielist_dir.empty()) {
     std::ifstream fin(movielist_dir.c_str());
     size_t id = 1;
@@ -281,7 +361,7 @@ int main(int argc, char** argv) {
 
   dc.cout() << "Finalizing graph." << std::endl;
   timer.start();
-   graph.finalize();
+  graph.finalize();
   dc.cout() << "Finalizing graph. Finished in "
             << timer.current_time() << std::endl;
 
@@ -300,9 +380,9 @@ int main(int argc, char** argv) {
       << (float)graph.num_local_vertices()/graph.num_local_own_vertices()
       << "\n Num local edges: " << graph.num_local_edges()
       //<< "\n Begin edge id: " << graph.global_eid(0)
-      << "\n Edge balance ratio: "
-      << float(graph.num_local_edges())/graph.num_edges()
-      << std::endl;
+        << "\n Edge balance ratio: "
+        << float(graph.num_local_edges())/graph.num_edges()
+        << std::endl;
 
   dc.cout() << "Creating engine" << std::endl;
   engine_type engine(dc, graph, clopts);
@@ -313,13 +393,16 @@ int main(int argc, char** argv) {
   engine.register_map_reduce(INIT_TASK,
                              init_map,
                              init_sum);
+  engine.register_map_reduce(COLLECT_TASK,
+                             collect_map,
+                             collect_sum);
+
   vertex_set user_set = graph.select(is_user);
   vertex_set movie_set = graph.select(is_movie);
 
   // initialize graph. for each user random choose 20% movies as test 
   engine.set_vertex_program(init_function);
   engine.signal_vset(user_set); engine.wait();
-
   // start als
   engine.set_vertex_program(als_update_function);
   for (size_t i = 0; i < MAX_ITER; ++i) {
@@ -342,20 +425,32 @@ int main(int argc, char** argv) {
     dc.cout() << "Training RMSE: " << sqrt(errors.train/errors.ntrain) << std::endl;
     dc.cout() << "Test RMSE: " << sqrt(errors.test/errors.ntest) << std::endl;
 
-
-    // make recommendation
-    // vertex_set search_root;
-    // vertex_set neighbors1;
-    // vertex_set neighbors2;
-    // vertex_set neighbors3;
     while(1) {
       int uid;
       if (dc.procid() == 0) {
-        std::cout << "Enter User ID (-1) to quit: " ;
+        std::cout << "Enter User ID (-1:continue, -2:collect, -3:save):  ";
         std::cin >> uid;
       }
       dc.broadcast(uid, dc.procid() == 0);
-      if (uid == -1) break;
+      if (uid == -1) {
+        break;
+      } else if (uid == -2) {
+        timer.start();
+        dc.cout() << "Collecting prediction ..." << std::endl;
+        engine.parfor_all_local_vertices(collect_function);
+        engine.wait();
+        dc.cout() << "Finish collecting prediction in " << timer.current_time() << " secs" << std::endl;
+        continue;
+      } else if (uid == -3) {
+        dc.cout() << "Save results to " << saveprefix << "..." << std::endl;
+        graph.save(saveprefix, recommendation_writer(),
+                   false, // no gzip
+                   true, // save vertices
+                   false // save edges
+                   );
+        dc.cout() << "done" << std::endl;
+        continue;
+      }
       // does someone own uid?
       int tuid = graph.contains_vertex(uid);
       dc.all_reduce(tuid);
@@ -365,148 +460,71 @@ int main(int argc, char** argv) {
         }
         continue;
       }
-      // every search for user ID uid.
-      map_join all_training;
       if (graph.contains_vertex(uid)) {
         graph_type::vertex_type vtx(graph.vertex(uid));
-        graph_type::local_vertex_type lvtx(vtx);
-        foreach(graph_type::local_edge_type edge, lvtx.out_edges()) {
-          if (edge.data().role == edge_data::TRAIN) {
-            graph_type::local_vertex_type target = edge.target();
-            graph_type::vertex_id_type gid = target.global_id();
-            all_training.data[gid] = edge.data().obs;
-          }
-        }
-      }
-      dc.all_reduce(all_training);
-
-      // print the training data
-      if (dc.procid() == 0) {
-        std::cout << "Top 10 rated movies:\n";
-        std::vector<std::pair<double, graphlab::vertex_id_type> > top10 = all_training.get_top_k(10) ;
-        for(size_t i = 0;i < top10.size(); ++i) {
-          graphlab::vertex_id_type gid = top10[i].second;
-          int printingid = - gid - SAFE_NEG_OFFSET;
-          std::cout << "\t" << printingid;
-          if (mlist.find(gid) != mlist.end()) {
-            std::cout << ": " << mlist[gid];
-          }
-          std::cout << " = " << top10[i].first << "\n";
-        }
-      }
-
-      // search_root = graph.empty_set();
-      map_join all_predict;
-      // now for the recommendations.
-      bool is_master = graph.contains_vertex(uid) &&
-          graph_type::local_vertex_type(graph.vertex(uid)).owned();
-      // broadcast the user vector
-      vec_type factor;
-
-//      search_root.make_explicit(graph);
-      if (is_master) {
-        factor = graph.vertex(uid).data().factor;
-//        graph_type::local_vertex_type lvtx(graph.vertex(uid));
-//        search_root.set_lvid(lvtx.id());
-      }
-      dc.broadcast(factor, is_master);
-/*
-      graph.sync_vertex_set_master_to_mirrors(search_root);
-
-      neighbors1 = graph.empty_set();
-      neighbors2 = graph.empty_set();
-
-      neighbors1 = graph.neighbors(search_root, graphlab::OUT_EDGES);
-      neighbors2 = graph.neighbors(neighbors1, graphlab::IN_EDGES);
-      neighbors3 = graph.neighbors(neighbors2, graphlab::OUT_EDGES);
-      neighbors3 -= neighbors1;
-*/
-
-      // now loop through all the vertices.
-      graphlab::timer predict_timer; predict_timer.start();
-      for (size_t i = 0;i < graph.num_local_vertices(); ++i) {
-        graph_type::local_vertex_type lvtx(graph.l_vertex(i));
-        //if (neighbors3.l_contains(i) && lvtx.owned() && (int)(lvtx.global_id()) < 0) {
-        if (lvtx.owned() && (int)(lvtx.global_id()) < 0) {
-          double pred = lvtx.data().factor.dot(factor);
-          all_predict.data[lvtx.global_id()] = pred;
-        }
-      }
-
-      dc.all_reduce(all_predict);
-      if (dc.procid() == 0) {
-        std::cout << "Predictions in " << predict_timer.current_time() << "s\n";
-        std::cout << "Top 10 predicted movies:\n";
-        std::vector<std::pair<double, graphlab::vertex_id_type> > top10 = all_predict.get_top_k_exclude(10, all_training.data) ;
-        for(size_t i = 0;i < top10.size(); ++i) {
-          graphlab::vertex_id_type gid = top10[i].second;
-          int printingid = - gid - SAFE_NEG_OFFSET;
-          std::cout << "\t" << printingid;
-          if (mlist.find(gid) != mlist.end()) {
-            std::cout << ": " << mlist[gid];
-          }
-          std::cout << " = " << top10[i].first << "\n";
-        }
+        std::cout << " Top rated:\n" 
+                  << rank_list_to_string(vtx.data().top_rated) << std::endl;
+        std::cout << " Top pred:\n"
+                  << rank_list_to_string(vtx.data().top_pred) << std::endl;
       }
     }
   }
-
-  graphlab::mpi_tools::finalize();
-  return EXIT_SUCCESS;
-} // end of main
+    graphlab::mpi_tools::finalize();
+    return EXIT_SUCCESS;
+  } // end of main
 #include <graphlab/macros_undef.hpp>
-//   // Add error reporting to the engine
-//   const bool success = engine.add_edge_aggregator<error_aggregator>
-//     ("error", error_aggregator::map, error_aggregator::finalize) &&
-//     engine.aggregate_periodic("error", interval);
-//   ASSERT_TRUE(success);
-// 	
-//   size_t initial_max_updates = als_vertex_program::MAX_UPDATES;
-//   while(1) {
-//     // Signal all vertices on the vertices on the left (liberals)
-//     engine.map_reduce_vertices<graphlab::empty>(als_vertex_program::signal_left);
-//     info = graph.map_reduce_edges<stats_info>(count_edges);
-//     dc.cout()<<"Training edges: " << info.training_edges << " validation edges: " << info.validation_edges << std::endl;
-// 
-//     // Run ALS ---------------------------------------------------------
-//     dc.cout() << "Running ALS" << std::endl;
-//     timer.start();
-//     engine.start();
-// 
-//     const double runtime = timer.current_time();
-//     dc.cout() << "----------------------------------------------------------"
-//               << std::endl
-//               << "Final Runtime (seconds):   " << runtime
-//               << std::endl
-//               << "Updates executed: " << engine.num_updates() << std::endl
-//               << "Update Rate (updates/second): "
-//               << engine.num_updates() / runtime << std::endl;
-// 
-//     // Compute the final training error -----------------------------------------
-//     dc.cout() << "Final error: " << std::endl;
-//     engine.aggregate_now("error");
-// 
-//     // Make predictions ---------------------------------------------------------
-//     if(!predictions.empty()) {
-//       std::cout << "Saving predictions" << std::endl;
-//       const bool gzip_output = false;
-//       const bool save_vertices = false;
-//       const bool save_edges = true;
-//       const size_t threads_per_machine = 2;
-// 
-//       //save the predictions
-//       graph.save(predictions, prediction_saver(),
-//                  gzip_output, save_vertices,
-//                  save_edges, threads_per_machine);
-//       //save the linear model
-//       graph.save(predictions + ".U", linear_model_saver_U(),
-//                  gzip_output, save_edges, save_vertices, threads_per_machine);
-//       graph.save(predictions + ".V", linear_model_saver_V(),
-//                  gzip_output, save_edges, save_vertices, threads_per_machine);
-// 
-//     }
-// 
-//   }
+  //   // Add error reporting to the engine
+  //   const bool success = engine.add_edge_aggregator<error_aggregator>
+  //     ("error", error_aggregator::map, error_aggregator::finalize) &&
+  //     engine.aggregate_periodic("error", interval);
+  //   ASSERT_TRUE(success);
+  // 	
+  //   size_t initial_max_updates = als_vertex_program::MAX_UPDATES;
+  //   while(1) {
+  //     // Signal all vertices on the vertices on the left (liberals)
+  //     engine.map_reduce_vertices<graphlab::empty>(als_vertex_program::signal_left);
+  //     info = graph.map_reduce_edges<stats_info>(count_edges);
+  //     dc.cout()<<"Training edges: " << info.training_edges << " validation edges: " << info.validation_edges << std::endl;
+  // 
+  //     // Run ALS ---------------------------------------------------------
+  //     dc.cout() << "Running ALS" << std::endl;
+  //     timer.start();
+  //     engine.start();
+  // 
+  //     const double runtime = timer.current_time();
+  //     dc.cout() << "----------------------------------------------------------"
+                   //               << std::endl
+                                    //               << "Final Runtime (seconds):   " << runtime
+                                                     //               << std::endl
+                                                                      //               << "Updates executed: " << engine.num_updates() << std::endl
+                                                                                       //               << "Update Rate (updates/second): "
+                                                                                                        //               << engine.num_updates() / runtime << std::endl;
+                                                                                                        // 
+                                                                                                        //     // Compute the final training error -----------------------------------------
+                                                                                                        //     dc.cout() << "Final error: " << std::endl;
+                                                                                                        //     engine.aggregate_now("error");
+                                                                                                        // 
+                                                                                                        //     // Make predictions ---------------------------------------------------------
+                                                                                                        //     if(!predictions.empty()) {
+                                                                                                        //       std::cout << "Saving predictions" << std::endl;
+                                                                                                        //       const bool gzip_output = false;
+                                                                                                        //       const bool save_vertices = false;
+                                                                                                        //       const bool save_edges = true;
+                                                                                                        //       const size_t threads_per_machine = 2;
+                                                                                                        // 
+                                                                                                        //       //save the predictions
+                                                                                                        //       graph.save(predictions, prediction_saver(),
+                                                                                                        //                  gzip_output, save_vertices,
+                                                                                                        //                  save_edges, threads_per_machine);
+                                                                                                        //       //save the linear model
+                                                                                                        //       graph.save(predictions + ".U", linear_model_saver_U(),
+                                                                                                        //                  gzip_output, save_edges, save_vertices, threads_per_machine);
+                                                                                                        //       graph.save(predictions + ".V", linear_model_saver_V(),
+                                                                                                        //                  gzip_output, save_edges, save_vertices, threads_per_machine);
+                                                                                                        // 
+                                                                                                        //     }
+                                                                                                        // 
+                                                                                                        //   }
 
 
 
