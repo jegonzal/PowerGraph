@@ -342,7 +342,6 @@ class gl3engine {
   size_t total_tasks_completed;
 
   atomic<size_t> active_vthread_count; // number of vthreads launched
-  std::vector<atomic<size_t> > active_vthread_count_at_queue; // number of vthreads launched
   atomic<size_t> thread_counter; // just used to increment and load balance through queues.
   atomic<size_t> num_working_threads; // number of vthreads not in a yield loop
 
@@ -475,7 +474,6 @@ class gl3engine {
     total_programs_completed = 0;
     total_tasks_completed = 0;
     active_vthread_count = 0;
-    active_vthread_count_at_queue.resize(ncpus);
     num_working_threads = 0;
 
 
@@ -515,20 +513,20 @@ class gl3engine {
     internal_schedule(vtx.local_id(), message);
   } // end of schedule
 
-
-  void internal_schedule(const lvid_type lvid,
-                         const message_type& message) {
-    scheduler_ptr->schedule(lvid, message);
-    size_t target_queue = thread_counter++;
-    target_queue = target_queue % ncpus;
-    if (active_vthread_count < num_vthreads) {
-      active_vthread_count_at_queue[target_queue].inc();
+  void launch_a_vthread() {
       active_vthread_count.inc();
       num_working_threads.inc();
       execution_group.launch(boost::bind(&gl3engine::vthread_start,
                                          this,
                                          0));
       consensus->cancel();
+  }
+
+  void internal_schedule(const lvid_type lvid,
+                         const message_type& message) {
+    scheduler_ptr->schedule(lvid, message);
+    if (active_vthread_count < ncpus) {
+      launch_a_vthread();
     }
   }
 
@@ -1015,6 +1013,9 @@ class gl3engine {
   void wait_on_combiner(future_combiner& combiner) {
     combiner.lock.lock();
     while (combiner.count_down != 0) {
+      if (execution_group.num_active() == 0 && execution_group.num_threads() < num_vthreads) {
+        launch_a_vthread();
+      }
       fiber_group::deschedule_self(&combiner.lock.m_mut);
       combiner.lock.lock();
     }
@@ -1518,24 +1519,23 @@ class gl3engine {
     GL3TLS::SET_IN_VTHREAD_TASK(true);
     size_t ctr = timer::approx_time_millis();
     while(1) {
-      bool haswork = exec_scheduler_task(id % ncpus);
+      bool haswork = exec_scheduler_task(0);
       // we should yield every so often
       if (timer::approx_time_millis() >= ctr + 100) {
         fiber_group::yield();
         ctr = timer::approx_time_millis();
       }
       if (!haswork) {
-        active_vthread_count_at_queue[id].dec();
+        active_vthread_count.dec();
         // double check
-        haswork = exec_scheduler_task(id % ncpus);
+        haswork = exec_scheduler_task(0);
         if (haswork == false) break;
-        else active_vthread_count_at_queue[id].inc();
+        else active_vthread_count.inc();
       }
       if (programs_completed.value > 0) {
         logger_ontick(1, LOG_EMPH, "programs completed: %ld", programs_completed.value);
       }
     }
-    active_vthread_count.dec();
   }
 
 
