@@ -96,7 +96,7 @@ struct vertex_data
    
     cv::detail::CameraParams camera;
    
-    cv::Point corner;
+    cv::Point2f corner;
     //cv::Mat mask;
     cv::Mat mask_warped;
    
@@ -109,7 +109,7 @@ struct vertex_data
         arc << empty << img_path
         << full_img << img << img_warped << img_warped_f
         << full_img_size << features << camera
-        << corner //<< mask
+        << corner
         << mask_warped;
     }
     void load(graphlab::iarchive& arc)
@@ -117,10 +117,10 @@ struct vertex_data
         arc >> empty >> img_path
         >> full_img >> img >> img_warped >> img_warped_f
         >> full_img_size >> features >> camera
-        >> corner //>> mask
+        >> corner 
         >> mask_warped;
     }
-   
+   //>> mask
     vertex_data operator+ (vertex_data& othervertex)
     {
         vertex_data sum;

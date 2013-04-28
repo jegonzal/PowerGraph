@@ -295,7 +295,7 @@ void warp_images(graph_type::vertex_type& vertex)
     Mat mask;
     Mat &mask_warped = vdata.mask_warped;
     CameraParams &camera = vdata.camera;
-    Point &corner = vdata.corner;
+    Point2f &corner = vdata.corner;
    
     if (full_img.empty())
         logstream(LOG_ERROR) << "Could not imread image: " << vdata.img_path << "\n";
@@ -355,6 +355,8 @@ void warp_images(graph_type::vertex_type& vertex)
    
     // If no gain compensator, then clear.
     img_warped.release();
+
+    vdata.corner = corner;
 }
 
 /////////////////////////////////////////////////////////////////////////
@@ -364,7 +366,7 @@ void composite_images(graph_type::vertex_type& vertex)
     // Get vertex data
     vertex_data &vdata = vertex.data();
     CameraParams &camera = vdata.camera;
-    Point &corner = vdata.corner;
+    Point2f &corner = vdata.corner;
     Mat full_img = imread(vdata.img_path);	//we have to check it later for speed
     
     if (full_img.empty())
@@ -501,7 +503,7 @@ void find_seams(graph_type::edge_type& edge)
     //Mat mask1 = masks_[first], mask2 = masks_[second];
     Mat &mask1 = vdata1.mask_warped; Mat &mask2 = vdata2.mask_warped;
     //Point tl1 = corners_[first], tl2 = corners_[second];
-    Point &tl1 = vdata1.corner; Point &tl2 = vdata2.corner;
+    Point2f &tl1 = vdata1.corner; Point2f &tl2 = vdata2.corner;
    
     Rect roi;
     overlapRoi(tl1, tl2, img1.size(), img2.size(), roi);
