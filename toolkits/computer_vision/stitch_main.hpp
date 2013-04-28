@@ -563,8 +563,8 @@ void find_seams(graph_type::edge_type& edge)
     const int edge_count = (roi.height - 1 + 2 * gap) * (roi.width + 2 * gap) + (roi.width - 1 + 2 * gap) * (roi.height + 2 * gap);
     GCGraph<float> graph(vertex_count, edge_count);	// GCGraph is not defined anywhere
 
-    float terminal_cost_;
-    float bad_region_penalty_;
+    float terminal_cost_ = 10000.f;
+    float bad_region_penalty_ = 1000.f;
     const Size img_size = subimg1.size();
    
     if (opts.seam_find_type.compare("gc_color") ==0)

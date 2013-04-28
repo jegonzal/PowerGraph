@@ -301,7 +301,7 @@ int main(int argc, char** argv)
 
     ///////////////////////////////////////////////////////
     // Find seams in parallel on edges
-    graph_cam.transform_vertices(find_seams);
+    graph_cam.transform_edges(find_seams);
 
     ///////////////////////////////////////////////////////
     // Composite Images in parallel on vertices
