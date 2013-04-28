@@ -103,6 +103,9 @@ class fiber_group {
    */
   size_t launch(boost::function<void (void)> fn);
 
+  inline size_t num_active() const {
+    return nactive;
+  }
   /**
    * Waits for all functions to join
    */
