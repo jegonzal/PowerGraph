@@ -207,7 +207,7 @@ struct ImgArea
 };
 
 ImgArea find_largest_img(engine_type::icontext_type& context,
-                    graph_type::vertex_type& vertex)
+                    const graph_type::vertex_type& vertex)
 {
     // Get vertex data
     vertex_data &vdata = vertex.data();
