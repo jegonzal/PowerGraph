@@ -50,7 +50,8 @@
 #include "opencv_serialization.hpp"
 #include "stitch_opts.hpp"
 #include "utils.hpp"
-#include "seam_finders_gr.hpp"
+//#include "seam_finders_gr.hpp"
+#include "precomp.hpp"
 
 #include <graphlab/macros_def.hpp>
 
