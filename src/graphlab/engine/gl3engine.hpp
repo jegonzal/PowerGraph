@@ -1484,6 +1484,7 @@ class gl3engine {
     //std::cout << "Subtask thread " << id << " started\n";
     GL3TLS::SET_IN_VTHREAD_TASK(false);
     size_t ctr = timer::approx_time_millis();
+    rmi.dc().stop_handler_threads(id % ncpus, ncpus);
     while(1) {
       rmi.dc().handle_incoming_calls(id % ncpus, ncpus);
       bool haswork = exec_subtasks(id % ncpus);
@@ -1508,6 +1509,7 @@ class gl3engine {
         }
       }
     }
+    rmi.dc().start_handler_threads(id % ncpus, ncpus);
     //std::cout << "Subtask thread " << id << " ended\n";
   }
 
@@ -1519,6 +1521,7 @@ class gl3engine {
     GL3TLS::SET_IN_VTHREAD_TASK(true);
     size_t ctr = timer::approx_time_millis();
     while(1) {
+      rmi.dc().handle_incoming_calls(fiber_group::get_worker_id(), ncpus);
       bool haswork = exec_scheduler_task(0);
       // we should yield every so often
       if (timer::approx_time_millis() >= ctr + 100) {
