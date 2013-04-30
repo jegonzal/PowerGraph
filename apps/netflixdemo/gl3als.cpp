@@ -49,6 +49,31 @@ using namespace graphlab;
  */
 typedef gl3engine<graph_type> engine_type;
 
+
+
+////////////////// Initialization Task ////////////////////////////////
+
+// // Initialize the graph, sample 20% movies each user rated as test data
+#define INIT_TASK 0
+int init_map(const graph_type::vertex_type& center,
+               graph_type::edge_type& edge,
+               const graph_type::vertex_type& other) {
+  // sample 20% of movies as validate set
+  bool flip = random::fast_bernoulli(TEST_PERCENT);
+  if (flip) {
+    edge.data().role = edge_data::VALIDATE;
+  }
+  return 0;
+}
+int init_sum(int& v1, const int& v2) { return 0; }
+void init_function(engine_type::context_type& context,
+                   graph_type::vertex_type& vertex,
+                   const engine_type::message_type& unused) {
+  context.map_reduce<int>(INIT_TASK, OUT_EDGES);
+}
+
+
+////////////////// ALS Compute Task ////////////////////////////////
 /**
  * \brief The gather type used to construct XtX and Xty needed for the ALS
  * update
@@ -121,25 +146,6 @@ public:
 }; // end of gather type
 
 
-// // Initialize the graph, sample 20% movies each user rated as test data
-#define INIT_TASK 0
-int init_map(const graph_type::vertex_type& center,
-               graph_type::edge_type& edge,
-               const graph_type::vertex_type& other) {
-  // sample 20% of movies as validate set
-  bool flip = random::fast_bernoulli(TEST_PERCENT);
-  if (flip) {
-    edge.data().role = edge_data::VALIDATE;
-  }
-  return 0;
-}
-int init_sum(int& v1, const int& v2) { return 0; }
-void init_function(engine_type::context_type& context,
-                   graph_type::vertex_type& vertex,
-                   const engine_type::message_type& unused) {
-  context.map_reduce<int>(INIT_TASK, OUT_EDGES);
-}
-
 #define ALS_MAP_REDUCE 1
 /** The gather function computes XtX and Xy */
 gather_type als_map(const graph_type::vertex_type& center,
@@ -186,31 +192,29 @@ void als_update_function(engine_type::context_type& context,
   // Solve the least squares problem using eigen ----------------------------
   const vec_type old_factor = vdata.factor;
   vdata.factor = XtX.selfadjointView<Eigen::Upper>().ldlt().solve(Xy);
+  vdata.Wu = XtX;
 
-  // Compute the residual change in the factor factor -----------------------
-  if (NMFHACK) {
-    for (size_t i = 0;i < vertex_data::NLATENT; ++i) {
-      if (vdata.factor(i) < 0) vdata.factor(i) = 0;
-    }
-  }
   vdata.residual = (vdata.factor - old_factor).cwiseAbs().sum() / XtX.rows();
   ++vdata.nupdates;
 
   // no scatter yet
 }
 
-
+/////////////////////////// Collect Top Prediction //////////////////////
 #define COLLECT_TASK 2
 /// Collect, Prediction, Recommendation
-typedef std::pair<map_join, map_join> map_join_pair;
+typedef map_join<graphlab::vertex_id_type, double> map_id_rating_t;
+typedef std::pair<map_id_rating_t, map_id_rating_t> map_join_pair;
 map_join_pair collect_map (const graph_type::vertex_type& center,
                            graph_type::edge_type& edge,
                            const graph_type::vertex_type& other) {
   map_join_pair ret;
   if (edge.data().role == edge_data::TRAIN) {
-    ret.first.data[other.id()] = edge.data().obs;
+    ret.first.data[other.id()] = edge.data().obs; // save the old rating
   } else {
-    ret.second.data[other.id()] = edge.data().obs;
+    // use prediction
+    double pred = center.data().factor.dot(other.data().factor);
+    ret.second.data[other.id()] = pred; // save the prediction
   }
   return ret;
 }
@@ -221,16 +225,15 @@ map_join_pair collect_sum (map_join_pair& v1, const map_join_pair& v2) {
   return v1;
 }
 
+
+
 std::string rank_list_to_string(const std::vector<std::pair<double, graphlab::vertex_id_type> >& ls) {
   std::stringstream sstream;
     for(size_t i = 0;i < ls.size(); ++i) {
       graphlab::vertex_id_type gid = ls[i].second;
-      int printingid = - gid - SAFE_NEG_OFFSET;
-      sstream << "\t" << printingid;
-      if (mlist.find(gid) != mlist.end()) {
-        sstream << ": " << mlist[gid];
-      }
-      sstream << " = " << ls[i].first << "\n";
+      sstream << "\t" << id2movieid(gid)
+              << ": " << mlist[gid]
+              << " = " << ls[i].first << "\n";
     }
   return sstream.str();
 }
@@ -239,7 +242,7 @@ void collect_function (engine_type::context_type& context,
                        graph_type::vertex_type& vertex) {
   if (is_user(vertex)) {
     map_join_pair sum = context.map_reduce<map_join_pair>(COLLECT_TASK, ALL_EDGES);
-    vertex.data().top_rated = sum.first.get_top_k(10);
+    vertex.data().top_rated = sum.first.get_top_k(200);
     vertex.data().top_pred = sum.second.get_top_k(10);
   }
 }
@@ -285,6 +288,9 @@ class recommendation_writer {
    }
 };
 
+// the explanation module
+#include "gl3als_explain.hpp"
+
 int main(int argc, char** argv) {
   global_logger().set_log_level(LOG_INFO);
   global_logger().set_log_to_console(true);
@@ -321,9 +327,6 @@ int main(int argc, char** argv) {
                        "regularization type. 1 = weighted according to neighbors num. 0 = no weighting - just lambda");
   clopts.attach_option("movielist", movielist_dir,
                        "Movie List");
-  clopts.attach_option("nmfhack", NMFHACK,
-                       "NMF Hack");
-
   parse_implicit_command_line(clopts);
 
   if(!clopts.parse(argc, argv) || input_dir == "") {
@@ -396,6 +399,9 @@ int main(int argc, char** argv) {
   engine.register_map_reduce(COLLECT_TASK,
                              collect_map,
                              collect_sum);
+  engine.register_map_reduce(FACTOR_GATHER_TASK,
+                             factor_gather,
+                             factor_combine);
 
   vertex_set user_set = graph.select(is_user);
   vertex_set movie_set = graph.select(is_movie);
@@ -440,6 +446,12 @@ int main(int argc, char** argv) {
         engine.parfor_all_local_vertices(collect_function);
         engine.wait();
         dc.cout() << "Finish collecting prediction in " << timer.current_time() << " secs" << std::endl;
+
+        timer.start();
+        dc.cout() << "Collecting explanation..." << std::endl;
+        engine.parfor_all_local_vertices(exp_collect_function);
+        engine.wait();
+        dc.cout() << "Finish collecting explanation in " << timer.current_time() << " secs" << std::endl;
         continue;
       } else if (uid == -3) {
         dc.cout() << "Save results to " << saveprefix << "..." << std::endl;
@@ -448,6 +460,11 @@ int main(int argc, char** argv) {
                    true, // save vertices
                    false // save edges
                    );
+        dc.cout() << "Save explains to " << saveprefix+".explain" << "..." << std::endl;
+        graph.save(saveprefix + ".explain", explain_writer(),
+                   false,
+                   true,
+                   false);
         dc.cout() << "done" << std::endl;
         continue;
       }
@@ -460,12 +477,16 @@ int main(int argc, char** argv) {
         }
         continue;
       }
-      if (graph.contains_vertex(uid)) {
+      bool is_master = graph.contains_vertex(uid) &&
+          graph_type::local_vertex_type(graph.vertex(uid)).owned();
+      if (is_master) {
         graph_type::vertex_type vtx(graph.vertex(uid));
         std::cout << " Top rated:\n" 
                   << rank_list_to_string(vtx.data().top_rated) << std::endl;
         std::cout << " Top pred:\n"
                   << rank_list_to_string(vtx.data().top_pred) << std::endl;
+        std::cout << " Top explanation:\n"
+                  << explain_list_to_string(vtx.data().top_pred, vtx.data().top_explain) << std::endl;
       }
     }
   }
@@ -525,6 +546,3 @@ int main(int argc, char** argv) {
                                                                                                         //     }
                                                                                                         // 
                                                                                                         //   }
-
-
-
