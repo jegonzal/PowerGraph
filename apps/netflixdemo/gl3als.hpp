@@ -25,9 +25,6 @@ double MINVAL = -1e+100;
 int    REGNORMAL = 0;
 double TEST_PERCENT = 0.4;
 
-// use nmf to enforce nonnegativity
-bool NMFHACK = false;
-
 /**
  * \brief We use the eigen library's vector type to represent
  * mathematical vectors.
@@ -73,6 +70,11 @@ struct vertex_data {
 
   std::vector<std::pair<double, graphlab::vertex_id_type> > top_rated;
   std::vector<std::pair<double, graphlab::vertex_id_type> > top_pred;
+
+  /** \brief the user specific item-item similarity matrix */
+  mat_type Wu;
+
+  std::vector<std::vector<std::pair<double, graphlab::vertex_id_type> > > top_explain;
 
   /**
    * \brief Simple default constructor which randomizes the vertex
@@ -309,8 +311,9 @@ double extract_l2_norm(const graph_type::vertex_type& vertex) {
   return vertex.data().factor.norm();
 }
 
+template<typename key_t, typename val_t>
 struct map_join {
-  boost::unordered_map<graphlab::vertex_id_type, double> data; // rating than movie
+  boost::unordered_map<key_t, val_t> data; // rating than movie
   void save(graphlab::oarchive& oarc) const {
     oarc << data;
   }
@@ -322,24 +325,27 @@ struct map_join {
               std::inserter(data, data.end()));
     return *this;
   }
-  std::vector<std::pair<double, graphlab::vertex_id_type> > get_top_k(size_t n) {
-    std::vector<std::pair<double, graphlab::vertex_id_type> > ret;
-    boost::unordered_map<graphlab::vertex_id_type, double>::const_iterator iter = data.begin();
-    std::vector<std::pair<double, graphlab::vertex_id_type> > all_copy;
+
+  std::vector<std::pair<val_t, key_t> > get_top_k(size_t n) {
+    std::vector<std::pair<val_t, key_t> > ret;
+    typename boost::unordered_map<key_t, val_t>::const_iterator iter = data.begin();
+    std::vector<std::pair<val_t, key_t> > all_copy;
     while (iter != data.end()) {
       all_copy.push_back(std::make_pair(iter->second, iter->first));
       ++iter;
     }
     std::sort(all_copy.rbegin(), all_copy.rend());
-    size_t limit = all_copy.size() < 10 ? all_copy.size() : 10;
+    size_t limit = all_copy.size() < n ? all_copy.size() : n;
     std::copy(all_copy.begin(), all_copy.begin() + limit,
               std::inserter(ret, ret.end()));
     return ret;
   }
-  std::vector<std::pair<double, graphlab::vertex_id_type> > get_top_k_exclude(size_t n, boost::unordered_map<graphlab::vertex_id_type, double>& exclude) {
-    std::vector<std::pair<double, graphlab::vertex_id_type> > ret;
-    boost::unordered_map<graphlab::vertex_id_type, double>::const_iterator iter = data.begin();
-    std::vector<std::pair<double, graphlab::vertex_id_type> > all_copy;
+
+  std::vector<std::pair<val_t, key_t> > get_top_k_exclude(
+      size_t n, boost::unordered_map<key_t, val_t>& exclude) {
+    std::vector<std::pair<val_t, key_t> > ret;
+    typename boost::unordered_map<key_t, val_t>::const_iterator iter = data.begin();
+    std::vector<std::pair<val_t, key_t> > all_copy;
     while (iter != data.end()) {
       if (exclude.count(iter->first) == 0) {
 	      all_copy.push_back(std::make_pair(iter->second, iter->first));
@@ -347,7 +353,7 @@ struct map_join {
       ++iter;
     }
     std::sort(all_copy.rbegin(), all_copy.rend());
-    size_t limit = all_copy.size() < 10 ? all_copy.size() : 10;
+    size_t limit = all_copy.size() < n ? all_copy.size() : n;
     std::copy(all_copy.begin(), all_copy.begin() + limit,
               std::inserter(ret, ret.end()));
     return ret;
@@ -360,5 +366,9 @@ bool is_user(const graph_type::vertex_type& vertex) {
 
 bool is_movie(const graph_type::vertex_type& vertex) {
   return !is_user(vertex);
+}
+
+inline int id2movieid(graphlab::vertex_id_type vid) {
+  return  -vid - SAFE_NEG_OFFSET;
 }
 #endif
