@@ -19,10 +19,13 @@ fiber_group::fiber_group(size_t nworkers, size_t stacksize)
   }
 
   // set up the queues.
-  active_head.next = NULL;
-  active_tail = &active_head;
+  schedule.resize(nworkers);
+  for (size_t i = 0;i < nworkers; ++i) {
+    schedule[i].active_head.next = NULL;
+    schedule[i].active_tail = &schedule[i].active_head;
+    schedule[i].nactive = 0;
+  }
   nactive = 0;
-  workers_waiting = 0;
   // launch the workers
   for (size_t i = 0;i < nworkers; ++i) {
     workers.launch(boost::bind(&fiber_group::worker_init, this, i));
@@ -32,8 +35,17 @@ fiber_group::fiber_group(size_t nworkers, size_t stacksize)
 fiber_group::~fiber_group() {
   join();
   stop_workers = true;
-  active_cond.broadcast();
+  for (size_t i = 0;i < nworkers; ++i) {
+    schedule[i].active_lock.lock();
+    schedule[i].active_cond.broadcast();
+    schedule[i].active_lock.unlock();
+  }
   workers.join();
+
+  for (size_t i = 0;i < nworkers; ++i) {
+    ASSERT_EQ(schedule[i].nactive, 0);
+  }
+  ASSERT_EQ(nactive.value, 0);
   pthread_key_delete(tlskey);
 }
 
@@ -59,23 +71,27 @@ fiber_group::fiber* fiber_group::get_active_fiber() {
 
 
 
-void fiber_group::active_queue_insert(fiber_group::fiber* value) {
+void fiber_group::active_queue_insert(size_t workerid, fiber_group::fiber* value) {
   if (value->scheduleable) {
     value->next = NULL;
-    active_tail->next = value;
-    active_tail = value;
+    schedule[workerid].active_tail->next = value;
+    schedule[workerid].active_tail = value;
+    ++schedule[workerid].nactive;
     ++nactive;
   }
   // might want to handle the signalling mechanism here too
 }
 
-fiber_group::fiber* fiber_group::active_queue_remove() {
-  fiber_group::fiber* ret = active_head.next;
+fiber_group::fiber* fiber_group::active_queue_remove(size_t workerid) {
+  fiber_group::fiber* ret = schedule[workerid].active_head.next;
   if (ret != NULL) {
-    active_head.next = ret->next;
+    schedule[workerid].active_head.next = ret->next;
     --nactive;
+    --schedule[workerid].nactive;
     ret->next = NULL;
-    if (active_tail == ret) active_tail = &active_head;
+    if (schedule[workerid].active_tail == ret) {
+      schedule[workerid].active_tail = &schedule[workerid].active_head;
+    }
   }
   return ret;
 }
@@ -98,22 +114,22 @@ void fiber_group::worker_init(size_t workerid) {
   t->prev_fiber = NULL;
   t->cur_fiber = NULL;
   t->garbage = NULL;
-  t->worker_id = workerid;
+  t->workerid = workerid;
   t->parent = this;
-  active_lock.lock();
+  schedule[workerid].active_lock.lock();
   while(!stop_workers) {
-    fiber* next_fib = t->parent->active_queue_remove();
+    fiber* next_fib = t->parent->active_queue_remove(workerid);
     if (next_fib != NULL) {
-      active_lock.unlock();
+      schedule[workerid].active_lock.unlock();
       yield_to(next_fib);
-      active_lock.lock();
+      schedule[workerid].active_lock.lock();
     } else {
-      ++workers_waiting;
-      active_cond.wait(active_lock);
-      --workers_waiting;
+      schedule[workerid].waiting = true;
+      schedule[workerid].active_cond.wait(schedule[workerid].active_lock);
+      schedule[workerid].waiting = false;
     }
   }
-  active_lock.unlock();
+  schedule[workerid].active_lock.unlock();
 }
 
 struct trampoline_args {
@@ -125,7 +141,7 @@ void fiber_group::trampoline(intptr_t _args) {
   // we may have launched to here by switching in from another fiber.
   // we will need to clean up the previous fiber
   tls* t = get_tls_ptr();
-  if (t->prev_fiber) t->parent->reschedule_fiber(t->prev_fiber);
+  if (t->prev_fiber) t->parent->reschedule_fiber(t->workerid, t->prev_fiber);
   t->prev_fiber = NULL;
 
   trampoline_args* args = reinterpret_cast<trampoline_args*>(_args);
@@ -160,11 +176,23 @@ size_t fiber_group::launch(boost::function<void(void)> fn) {
                                                trampoline);
   fibers_active.inc();
 
-  active_lock.lock();
-  active_queue_insert(fib);
-  if (workers_waiting) active_cond.signal();
-  active_lock.unlock();
+  // find a place to put the thread
+  // pick 2 random numbers. use the choice of 2
+  // rb uses a linear congruential generator
+  size_t choice = load_balanced_worker_choice(fib->id);
+  schedule[choice].active_lock.lock();
+  active_queue_insert(choice, fib);
+  if (schedule[choice].waiting) schedule[choice].active_cond.signal();
+  schedule[choice].active_lock.unlock();
   return reinterpret_cast<size_t>(fib);
+}
+
+size_t fiber_group::load_balanced_worker_choice(size_t seed) {
+  size_t ra = seed;
+  size_t rb = 1103515245 * ra + 12345;
+  ra = ra % nworkers; rb = rb % nworkers;
+  size_t choice = (schedule[ra].nactive < schedule[rb].nactive) ? ra : rb;
+  return choice;
 }
 
 void fiber_group::yield_to(fiber* next_fib) {
@@ -217,21 +245,21 @@ void fiber_group::yield_to(fiber* next_fib) {
   }
   // reread the tls pointer because we may have woken up in a different thread
   t = get_tls_ptr();
-  if (t->prev_fiber) reschedule_fiber(t->prev_fiber);
+  if (t->prev_fiber) reschedule_fiber(t->workerid, t->prev_fiber);
   t->prev_fiber = NULL;
 }
 
-void fiber_group::reschedule_fiber(fiber* fib) {
+void fiber_group::reschedule_fiber(size_t workerid, fiber* fib) {
   fib->lock.lock();
   if (!fib->terminate && !fib->descheduled) {
     fib->lock.unlock();
     // we reschedule it
     // Re-lock the queue
     //printf("Reinserting %ld\n", fib->id);
-    active_lock.lock();
-    active_queue_insert(fib);
-    if (workers_waiting) active_cond.signal();
-    active_lock.unlock();
+    schedule[workerid].active_lock.lock();
+    active_queue_insert(workerid, fib);
+    if (schedule[workerid].waiting) schedule[workerid].active_cond.signal();
+    schedule[workerid].active_lock.unlock();
   } else if (fib->descheduled) {
     // unflag descheduled and unset scheduleable
     fib->descheduled = false;
@@ -265,9 +293,25 @@ void fiber_group::yield() {
   tls* t = get_tls_ptr();
 
   // remove some other work to do.
-  t->parent->active_lock.lock();
-  fiber* next_fib = t->parent->active_queue_remove();
-  t->parent->active_lock.unlock();
+  fiber_group* parentgroup = t->parent;
+  size_t workerid = t->workerid;
+  parentgroup->schedule[workerid].active_lock.lock();
+  fiber* next_fib = parentgroup->active_queue_remove(workerid);
+  parentgroup->schedule[workerid].active_lock.unlock();
+
+  // no work on my queue!
+  if (next_fib == NULL) {
+    // ok. do a full sweep. Try to steal some work
+    for (size_t i = 1;i < parentgroup->nworkers; ++i) {
+      size_t probe = (i + workerid) % parentgroup->nworkers;
+      parentgroup->schedule[probe].active_lock.lock();
+      next_fib = parentgroup->active_queue_remove(probe);
+      parentgroup->schedule[probe].active_lock.unlock();
+      if (next_fib) {
+        break;
+      }
+    }
+  }
   t->parent->yield_to(next_fib);
 }
 
@@ -297,7 +341,7 @@ void fiber_group::deschedule_self(pthread_mutex_t* lock) {
 
 size_t fiber_group::get_worker_id() {
   fiber_group::tls* tls = get_tls_ptr();
-  return tls->worker_id;
+  return tls->workerid;
 }
 
 void fiber_group::schedule_tid(size_t tid) {
@@ -312,7 +356,8 @@ void fiber_group::schedule_tid(size_t tid) {
     //printf("Scheduling requested %ld\n", fib->id);
     fib->scheduleable = true;
     fib->lock.unlock();
-    fib->parent->reschedule_fiber(fib);
+    size_t choice = fib->parent->load_balanced_worker_choice(fib->id);
+    fib->parent->reschedule_fiber(choice, fib);
   } else {
     //printf("Scheduling requested of running thread %ld\n", fib->id);
     fib->lock.unlock();
