@@ -165,17 +165,15 @@ struct teststruct {
       rmi.full_barrier();
       return;
     }
-    rmi.dc().stop_handler_threads(1,1);
     timer ti;
-    std::cout << "Single Threaded " << SEND_LIMIT_PRINT <<" sends, " << length << " bytes\n";
-    ti.start();
     size_t numsends = SEND_LIMIT / (length);
+    std::cout << "Single Threaded " << SEND_LIMIT_PRINT <<" sends, " << length << " bytes * "<< numsends <<  "\n";
+    ti.start();
     size_t rd = rdtsc();
     perform_string_sends_0(length, numsends);
     size_t rd2 = rdtsc();
     std::cout << (rd2 - rd) / numsends << " cycles per call\n";
     double t1 = ti.current_time();
-    rmi.dc().start_handler_threads(1,1);
     rmi.dc().flush();
     double t2 = ti.current_time();
     rmi.full_barrier();
