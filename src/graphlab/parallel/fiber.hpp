@@ -16,6 +16,7 @@ class fiber_group {
     boost::context::fcontext_t* context;
     void* stack;
     size_t id;
+    int affinity;
     void* fls; // fiber local storage
     fiber* next;
     intptr_t initial_trampoline_args;
@@ -107,7 +108,7 @@ class fiber_group {
    * Returns a fiber ID. IDs are not sequential.
    * \note The ID is really a pointer to a fiber_group::fiber object.
    */
-  size_t launch(boost::function<void (void)> fn);
+  size_t launch(boost::function<void (void)> fn, int worker_affinity = -1);
 
   inline size_t num_active() const {
     return nactive;

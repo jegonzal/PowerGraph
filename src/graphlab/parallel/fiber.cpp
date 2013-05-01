@@ -28,7 +28,7 @@ fiber_group::fiber_group(size_t nworkers, size_t stacksize)
   nactive = 0;
   // launch the workers
   for (size_t i = 0;i < nworkers; ++i) {
-    workers.launch(boost::bind(&fiber_group::worker_init, this, i));
+    workers.launch(boost::bind(&fiber_group::worker_init, this, i), i);
   }
 }
 
@@ -153,12 +153,13 @@ void fiber_group::trampoline(intptr_t _args) {
   fiber_group::exit();
 }
 
-size_t fiber_group::launch(boost::function<void(void)> fn) {
+size_t fiber_group::launch(boost::function<void(void)> fn, int affinity) {
   // allocate a stack
   fiber* fib = new fiber;
   fib->parent = this;
   fib->stack = malloc(stacksize);
   fib->id = fiber_id_counter.inc();
+  fib->affinity = affinity;
   //VALGRIND_STACK_REGISTER(fib->stack, (char*)fib->stack + stacksize);
   fib->fls = NULL;
   fib->next = NULL;
@@ -179,7 +180,7 @@ size_t fiber_group::launch(boost::function<void(void)> fn) {
   // find a place to put the thread
   // pick 2 random numbers. use the choice of 2
   // rb uses a linear congruential generator
-  size_t choice = load_balanced_worker_choice(fib->id);
+  size_t choice = (affinity >= 0) ? affinity : load_balanced_worker_choice(fib->id);
   schedule[choice].active_lock.lock();
   active_queue_insert(choice, fib);
   if (schedule[choice].waiting) schedule[choice].active_cond.signal();
@@ -245,7 +246,10 @@ void fiber_group::yield_to(fiber* next_fib) {
   }
   // reread the tls pointer because we may have woken up in a different thread
   t = get_tls_ptr();
-  if (t->prev_fiber) reschedule_fiber(t->workerid, t->prev_fiber);
+  if (t->prev_fiber) reschedule_fiber(t->prev_fiber->affinity >= 0 ?
+                                         t->prev_fiber->affinity :
+                                         t->workerid,
+                                      t->prev_fiber);
   t->prev_fiber = NULL;
 }
 
@@ -360,7 +364,7 @@ void fiber_group::schedule_tid(size_t tid) {
     //printf("Scheduling requested %ld\n", fib->id);
     fib->scheduleable = true;
     fib->lock.unlock();
-    size_t choice = fib->parent->load_balanced_worker_choice(fib->id);
+    size_t choice = (fib->affinity >= 0) ? fib->affinity : fib->parent->load_balanced_worker_choice(fib->id);
     fib->parent->reschedule_fiber(choice, fib);
   } else {
     //printf("Scheduling requested of running thread %ld\n", fib->id);

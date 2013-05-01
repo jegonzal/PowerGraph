@@ -1294,7 +1294,8 @@ class gl3engine {
           subtask_thread_alive_lock[target_queue].unlock();
           execution_group.launch(boost::bind(&gl3engine::subtask_thread_start,
                                              this,
-                                             target_queue));
+                                             target_queue),
+                                 target_queue); // launch with affinity to a matching CPU
         } else {
           subtask_thread_alive_lock[target_queue].unlock();
         }
