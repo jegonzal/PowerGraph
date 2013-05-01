@@ -295,20 +295,24 @@ void fiber_group::yield() {
   // remove some other work to do.
   fiber_group* parentgroup = t->parent;
   size_t workerid = t->workerid;
-  parentgroup->schedule[workerid].active_lock.lock();
-  fiber* next_fib = parentgroup->active_queue_remove(workerid);
-  parentgroup->schedule[workerid].active_lock.unlock();
-
+  fiber* next_fib = NULL;
+  if (parentgroup->schedule[workerid].nactive > 0) {
+    parentgroup->schedule[workerid].active_lock.lock();
+    next_fib = parentgroup->active_queue_remove(workerid);
+    parentgroup->schedule[workerid].active_lock.unlock();
+  }
   // no work on my queue!
   if (next_fib == NULL) {
     // ok. do a full sweep. Try to steal some work
     for (size_t i = 1;i < parentgroup->nworkers; ++i) {
       size_t probe = (i + workerid) % parentgroup->nworkers;
-      parentgroup->schedule[probe].active_lock.lock();
-      next_fib = parentgroup->active_queue_remove(probe);
-      parentgroup->schedule[probe].active_lock.unlock();
-      if (next_fib) {
-        break;
+      if (parentgroup->schedule[probe].nactive > 0) {
+        parentgroup->schedule[probe].active_lock.lock();
+        next_fib = parentgroup->active_queue_remove(probe);
+        parentgroup->schedule[probe].active_lock.unlock();
+        if (next_fib) {
+          break;
+        }
       }
     }
   }
