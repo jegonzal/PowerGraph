@@ -46,6 +46,10 @@ namespace graphlab {
    public:
      csr_storage() { }
 
+     /**
+      * Construct the storage from given id vector and value vector.
+      * id_vec and value_vec must have the same size.
+      */
      template<typename idtype>
      csr_storage(const std::vector<idtype>& id_vec,
                  const std::vector<valuetype>& value_vec) {
@@ -99,21 +103,15 @@ namespace graphlab {
 
      /**
       * Wrap the index vector and value vector into csr_storage.
-      * Check the property of the input vector. 
+      * Check the property of the input vector.
+      * The input vector will be cleared. 
       */
      void wrap(std::vector<sizetype>& valueptr_vec,
                std::vector<valuetype>& value_vec) {
-
-       // if(valueptr_vec.size() > 0) {
-       //   ASSERT_EQ(valueptr_vec[0], 0);
-       //   ASSERT_TRUE(value_vec.size() > 0);
-       // }
-
        for (ssize_t i = 1; i < valueptr_vec.size(); ++i) {
          ASSERT_LE(valueptr_vec[i-1], valueptr_vec[i]);
          ASSERT_LT(valueptr_vec[i], value_vec.size());
        }
-
        value_ptrs.swap(valueptr_vec);
        values.swap(value_vec);
      }
@@ -144,6 +142,7 @@ namespace graphlab {
        return (id+1) < num_keys() ? values.begin()+value_ptrs[id+1] : values.end();
      }
 
+     /// printout the csr storage
      void print(std::ostream& out) {
        for (size_t i = 0; i < num_keys(); ++i)  {
          iterator iter = begin(i);
