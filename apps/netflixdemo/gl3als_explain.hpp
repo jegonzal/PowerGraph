@@ -92,7 +92,15 @@
 
 struct factor_gather_t {
   map_join<vertex_id_type, vec_type> pred;
-  map_join<vertex_id_type, vec_type> train;
+  map_join<vertex_id_type, std::pair<vec_type, double> > train;
+
+  void save(oarchive& arc) const {
+    arc << pred << train;
+  }
+  /** \brief Load the vertex data from a binary archive */
+  void load(iarchive& arc) {
+    arc >> pred >> train; 
+  }
 };
 
 
@@ -103,7 +111,8 @@ factor_gather_t factor_gather(const graph_type::vertex_type& center,
   ASSERT_TRUE(is_user(center));
   factor_gather_t ret;
   if (edge.data().role == edge_data::TRAIN) {
-    ret.train.data[other.id()] = other.data().factor;
+    ret.train.data[other.id()] = std::make_pair<vec_type, double> (
+        other.data().factor, edge.data().obs);
   } else {
     ret.pred.data[other.id()] = other.data().factor;
   }
@@ -120,6 +129,7 @@ void exp_collect_function (engine_type::context_type& context,
                          graph_type::vertex_type& vertex) {
   if (!is_user(vertex)) { return; }
   vertex_data& vdata = vertex.data();
+  vdata.top_explain.clear();
 
   if (vdata.top_pred.size() == 0) { return; }
 
@@ -132,16 +142,13 @@ void exp_collect_function (engine_type::context_type& context,
     map_join<vertex_id_type, double> scores;
     const vec_type& xj = factors.pred.data[vdata.top_pred[i].second];
     // compute contribution of each rated movie
-    boost::unordered_map<vertex_id_type, vec_type>::const_iterator it = factors.train.data.begin();
+    boost::unordered_map<vertex_id_type, std::pair<vec_type, double> >::const_iterator it = factors.train.data.begin();
     while (it != factors.train.data.end()) {
       vertex_id_type id = it->first;
-      const vec_type& xi = it->second;
+      const vec_type& xi = it->second.first;
+      double rating = it->second.second;
       ASSERT_EQ(xi.size(), xj.size());
-    //   std::cout << "xi size: " << xi.size() << "\n"
-    //             << "xj size: " << xj.size() << "\n"
-    //             << "Wu nrow: " << Wu.rows() << "\n"
-    //             << "Wu ncol: " << Wu.cols() << std::endl;
-      double score = (xi.transpose() * Wu).dot(xj);
+      double score = (xi.transpose() * Wu).dot(xj) * rating;
       scores.data[id] = score;
       ++it;
     }

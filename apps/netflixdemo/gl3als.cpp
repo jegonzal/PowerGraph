@@ -242,7 +242,7 @@ void collect_function (engine_type::context_type& context,
                        graph_type::vertex_type& vertex) {
   if (is_user(vertex)) {
     map_join_pair sum = context.map_reduce<map_join_pair>(COLLECT_TASK, ALL_EDGES);
-    vertex.data().top_rated = sum.first.get_top_k(200);
+    vertex.data().top_rated = sum.first.get_top_k(10);
     vertex.data().top_pred = sum.second.get_top_k(10);
   }
 }

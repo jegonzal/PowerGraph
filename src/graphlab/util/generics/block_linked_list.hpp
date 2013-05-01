@@ -11,7 +11,10 @@
 #include <algorithm>
 
 namespace graphlab {
-  template<typename valuetype, uint32_t blocksize=64>
+  template<typename valuetype, uint32_t blocksize=(4096-20)/sizeof(valuetype)>
+  /**
+   * This class represents a forward linked list of dynamic block.
+   */
   class block_linked_list {
    public:
      typedef dynamic_block<valuetype, blocksize> blocktype;
@@ -32,29 +35,38 @@ namespace graphlab {
      /// Destructor
      ~block_linked_list() { clear(); }
 
+     /**
+      * Assign the list with values from given iterator pair. 
+      */
      template<typename InputIterator>
      void assign(InputIterator first, InputIterator last)  {
+
+       size_t new_size = last - first;
+       if (new_size == 0)
+         return;
+
        if (_size > 0)
          clear();
+
        InputIterator iter = first;
 
        blocktype* current = head;
+       // if the list is empty, create the head block.
        if (current == NULL) {
-         current = head = tail = new blocktype(0);
+         current = head = tail = new blocktype();
        }
-       float id = 0;
+
        while (iter != last) {
          InputIterator end =  std::min(iter+blocksize, last);
          current->assign(iter, end);
          iter = end;
-         id = id + 1;
          if (iter != last) {
-           current = new blocktype(id);
+           current = new blocktype();
            tail->_next = current;
            tail = current;
          }
        }
-       _size = last - first;
+       _size = new_size; 
      }
 
      /// Returns the size of the list
@@ -66,6 +78,11 @@ namespace graphlab {
 
    //////////////////// Iterator API ///////////////////////// 
    public:
+     /**
+      * Defines the iterator of the values stored in the list.
+      * The iterator has random_access_traversal_tag, however
+      * the actual random access takes O(n/blocksize);
+      */
      template <typename value>
      class value_iterator :
          public boost::iterator_facade<value_iterator<value>, value,
@@ -84,33 +101,32 @@ namespace graphlab {
                         enabler>::type = enabler()) 
             : blockptr(other.blockptr), offset(other.offset) { }
 
-     public: // returns block iterator
-        blocktype*& get_blockptr() {
-          return blockptr;
-        }
-        uint32_t& get_offset() {
-          return offset;
-        }
 
-      private: // core access functions
+      // core access functions
+      private:         
         friend class boost::iterator_core_access;
         template <class> friend class value_iterator;
 
+        /////////////////  Forward traversal core functions ///////////////
         void increment() { 
-          if ((offset+1) < blockptr->size()) {
+          if (offset < blockptr->size()-1) {
             ++offset;
           } else {
             blockptr = blockptr->_next;
             offset = 0;
           }
         }
+
         template <typename othervalue>
         bool equal(value_iterator<othervalue> const& other) const {
           return (blockptr == other.blockptr) && (offset == other.offset);
         }
+
         value& dereference() const { 
           return blockptr->values[offset];
         }
+
+        /////////////////  Random access core functions ///////////////
         void advance(int n) {
           size_t dist = n+offset;
           while(dist >= blockptr->size() && blockptr != NULL) {
@@ -122,33 +138,47 @@ namespace graphlab {
           } else {
             offset = dist;
           }
-        } 
+        }
+
         ptrdiff_t distance_to(const value_iterator& other) const {
           ptrdiff_t dist = 0;
           if (blockptr == other.blockptr) {
-            dist = (ptrdiff_t)other.offset - offset;
+            return ((ptrdiff_t)other.offset - offset);
           } else {
-            // determine the moving direction: forward if this is before other;
-            bool move_forward = (other.blockptr == NULL) || (!(blockptr == NULL) && blockptr->id() < other.blockptr->id());
-            if (move_forward) {
-              blocktype* cur = blockptr;
-              while (cur != other.blockptr) {
-                dist += cur->size();
-                cur = cur->next();
-              }
-              dist = dist + (ptrdiff_t)other.offset - offset;
+            blocktype* cur = blockptr;
+            // try moving forward until we hit other or NULL
+            while (cur != NULL && cur != other.blockptr) {
+              dist += cur->size();
+              cur = cur->next();
+            }
+
+            // this catched other
+            if (cur != NULL || other.blockptr == NULL) {
+              return (dist + (ptrdiff_t)other.offset - offset);
             } else {
-              // this after other
-              blocktype* cur = other.blockptr;
-              while (cur != blockptr) {
+              std::cerr << "block list iterator reverse direction!!" << std::endl; 
+              // this hit the dead end, need to move backwards 
+              dist = 0;
+              cur = other.blockptr;
+              while (cur != NULL && cur != blockptr) {
                 dist += cur->size();
                 cur = cur->next();
               }
-              dist = -(dist + (ptrdiff_t)offset - other.offset);
+              return -(dist + (ptrdiff_t)offset - other.offset);
             }
           }
-          return dist;
         }
+
+     // For internal use only. Get access to the internal block pointer and offset.
+     public: 
+        // returns block pinter 
+        blocktype*& get_blockptr() {
+          return blockptr;
+        }
+        uint32_t& get_offset() {
+          return offset;
+        }
+
       private:
         blocktype* blockptr;
         uint32_t offset;
@@ -184,10 +214,11 @@ namespace graphlab {
      blocktype* ins_ptr = ins_iter.get_blockptr();
      uint32_t offset = ins_iter.get_offset();
      ASSERT_TRUE(ins_ptr != NULL);
-     ++_size;
      if (ins_ptr->is_full()) {
+       // split the block
        ins_ptr->split();
        if(ins_ptr == tail) {
+         // update tail pointer
          tail = ins_ptr->next();
        }
        if (offset >= blocksize/2) {
@@ -196,6 +227,7 @@ namespace graphlab {
        }
      }
      ins_ptr->insert(val,offset);
+     ++_size;
      return iterator(ins_ptr, offset);
    }
    
@@ -203,12 +235,10 @@ namespace graphlab {
     * Insert a range of values into the position of the given iterator.
     * Will create new blocks after the given block when necessary.
     *
-    * \note 
-    * This operation will NOT affect the blocks after the given block.
-    *
     * Returns the begin and end iterator to the new elements. 
     *
-    *
+    * \note 
+    * This operation will NOT affect the blocks after the given block.
     * |x1,x2,y1,y2,y3,y4 , _ , _ , _ , _| -> | ... | -> |...|
     *        ^ 
     *        p
@@ -227,11 +257,12 @@ namespace graphlab {
 
      // Pointers to the block of the insertion point.
      blocktype* ibegin_ptr = ins_iter.get_blockptr(); 
-
+     // number of elements before the insertion point in the block 
      size_t nx = ins_iter.get_offset();
+     // number of elements after the insertion point in the block 
      size_t ny = ibegin_ptr->size()-nx;
 
-     // save y 
+     // save ys 
      valuetype* swap = (valuetype*)malloc((ny)*sizeof(valuetype));
      memcpy(swap, &(ibegin_ptr->values[nx]), ny*sizeof(valuetype)) ;
 
@@ -239,78 +270,28 @@ namespace graphlab {
      ibegin_ptr->_size -= ny;
      _size -= ny;
 
-     // Insert new elements, keep begin and end iterators
+     // Insert new elements to the end of the block,
+     // record the begin and end iterators
      ret_type iter_pair = append_to_block(ibegin_ptr, first, last);
 
-     // add y back 
-     blocktype* iend_ptr = iter_pair.second.get_blockptr();
-     ret_type iter_pair2 = append_to_block(iend_ptr, swap, swap+ny); 
-
-     // Collect begin and end iterators
      iterator begin_ins_iter = iter_pair.first;
-     iterator end_ins_iter = iter_pair2.first;
-
-     if (end_ins_iter.get_offset() == 
-         end_ins_iter.get_blockptr()->size()) {
+     iterator end_ins_iter = iter_pair.second;
+     // the end iterator returned by append_to_block may need adjustment
+     if (end_ins_iter.get_offset() == end_ins_iter.get_blockptr()->size()) {
        end_ins_iter.get_blockptr() = end_ins_iter.get_blockptr()->next();
        end_ins_iter.get_offset() = 0;
      }
+
+     // add y back 
+     if (ny > 0) {
+       blocktype* iend_ptr = iter_pair.second.get_blockptr();
+       ret_type iter_pair2 = append_to_block(iend_ptr, swap, swap+ny); 
+       end_ins_iter = iter_pair2.first;
+     }
+
      return ret_type(begin_ins_iter, end_ins_iter);
    }
 
-   /**
-    * Insert a range of values into the end of the given block.
-    * Will create new blocks after the given block when necessary.
-    *
-    * \note 
-    * This operation will NOT affect the blocks after the given block.
-    *
-    * Returns the begin and end iterator to the new elements. 
-    */
-  template<typename InputIterator>
-  std::pair<iterator, iterator> 
-     append_to_block(blocktype* ibegin_ptr, InputIterator first, InputIterator last) {
-     ASSERT_TRUE(ibegin_ptr != NULL);
-
-     const size_t len = last-first;
-     blocktype* iend_ptr = NULL;
-     uint32_t ibegin_offset, iend_offset;
-     
-     size_t nold = ibegin_ptr->size();
-     size_t spaceleft = (blocksize - nold); 
-     size_t nnew = std::min(len, spaceleft);
-
-     // Fill in the rest of the block
-     ASSERT_TRUE(nold+nnew <= blocksize);
-     std::copy(first, first+nnew, &(ibegin_ptr->values[nold]));
-     ibegin_ptr->_size += nnew;
-     ibegin_offset = nold;
-
-     iend_ptr = ibegin_ptr;
-     iend_offset = nold+nnew;
-
-     // creates a block chain for remaining elements
-     if (len > spaceleft) {
-       blocktype* current = insert_block(ibegin_ptr); 
-       InputIterator iter = first + spaceleft; 
-       while (iter != last) {
-         InputIterator end =  std::min(iter+blocksize, last);
-         current->assign(iter, end);
-         iter = end;
-         if (iter != last) {
-           current = insert_block(current); 
-         }
-       }
-       iend_ptr = current;
-       iend_offset = iend_ptr->size(); 
-     }
-
-     _size += len;
-
-     return std::pair<iterator,iterator>(
-         iterator(ibegin_ptr, ibegin_offset)
-         ,iterator(iend_ptr, iend_offset));
-   }
 
    //////////////////// Block Access API ///////////////////////// 
    /*
@@ -326,21 +307,6 @@ namespace graphlab {
      return cur;
    }
 
-   blocktype* insert_block(blocktype* ins) {
-     float id = (ins==tail) ? 
-         tail->id() +1 : (ins->id()+ins->next()->id())/2 ;
-     blocktype* ret = new blocktype(id);
-     ret->_next = ins->next();
-     ins->_next = ret;
-     if (ins == tail) {
-       tail = ret;
-     }
-     return ret;
-   }
-
-   blocktype* append_block() {
-     return insert_block(tail);
-   }
 
    size_t num_blocks() const {
      if (head == NULL) 
@@ -399,19 +365,109 @@ namespace graphlab {
    
 
    //////////////////// Helper Function ///////////////////////// 
+   private:
+   /**
+    * \internal
+    * Allocate new space for insertion if the iterator is end.
+    * Return the iterator to the new space.
+    */
    iterator get_insert_iterator(iterator iter) {
      bool is_end = (iter == end());
      if (is_end) {
        if (tail == NULL) {
-         head = tail = new blocktype(0);
+         head = tail = new blocktype();
        } else if (tail->is_full()) {
          append_block();
-       } 
+       }
        iter.get_blockptr() = tail;
        iter.get_offset() = tail->size();
      }
      return iter;
    }
+
+   blocktype* insert_block(blocktype* ins) {
+     blocktype* ret = new blocktype();
+     ret->_next = ins->next();
+     ins->_next = ret;
+     if (ins == tail) {
+       tail = ret;
+     }
+     return ret;
+   }
+
+   blocktype* append_block() {
+     return insert_block(tail);
+   }
+
+   /**
+    * \internal 
+    * Insert a range of values into the end of the given block.
+    * Will create new blocks after the given block when necessary.
+    *
+    * \note 
+    * This operation will NOT affect the blocks after the given block.
+    *
+    * Returns the begin and end iterator to the new elements. 
+    *
+    * \note 
+    * The end iterator does jump to the next block. Instead, it points at the 
+    * memory of last_block->size().
+    */
+  template<typename InputIterator>
+  std::pair<iterator, iterator> 
+     append_to_block(blocktype* ibegin_ptr, InputIterator first, InputIterator last) {
+     ASSERT_TRUE(ibegin_ptr != NULL);
+     const size_t len = last-first;
+
+     /// If nothing to append, return the begin location 
+     if (len == 0) { 
+       iterator ret(ibegin_ptr, ibegin_ptr->size());
+       return std::make_pair<iterator, iterator>(ret, ret);
+     }
+
+     /// elements to return
+     blocktype* iend_ptr = ibegin_ptr;
+     uint32_t ibegin_offset, iend_offset;
+
+     // create a new block if the current is full
+     if (ibegin_ptr->is_full()) {
+       ibegin_ptr = insert_block(ibegin_ptr); 
+     }
+
+     /// Fill in the rest of the current block
+     size_t nold = ibegin_ptr->size(); // num of old elements
+     size_t spaceleft = (blocksize - nold);  // room left
+     size_t nnew = std::min(len, spaceleft); // num of new elements to insert
+     ASSERT_TRUE(nold+nnew <= blocksize);
+     ASSERT_TRUE(nnew > 0);
+     std::copy(first, first+nnew, &(ibegin_ptr->values[nold]));
+     ibegin_ptr->_size += nnew;
+     ibegin_offset = nold;
+     iend_ptr = ibegin_ptr;
+     iend_offset = ibegin_ptr->size();
+
+     // Creates a block chain for remaining elements
+     if (len > spaceleft) {
+       blocktype* current = insert_block(ibegin_ptr); 
+       InputIterator iter = first + spaceleft; 
+       while (iter != last) {
+         InputIterator end =  std::min(iter+blocksize, last);
+         current->assign(iter, end);
+         iter = end;
+         if (iter != last) {
+           current = insert_block(current); 
+         }
+       }
+       iend_ptr = current;
+       iend_offset = current->size(); 
+     }
+     _size += len;
+
+     return std::make_pair<iterator,iterator>(
+         iterator(ibegin_ptr, ibegin_offset)
+         ,iterator(iend_ptr, iend_offset));
+   }
+
 
    //////////////////// Private Data Member ///////////////////////// 
    private:

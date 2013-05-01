@@ -38,10 +38,14 @@ namespace graphlab {
   /**
    * A compact key-value(s) data structure using Compressed Sparse Row format.
    * The key has type size_t and can be assolicated with multiple values of valuetype.
-   * The core operation of is querying the list of values associated with the query key *  and returns the begin and end iterators via <code>begin(id)</code>
-   * and <code>end(id)</code>.
+   *
+   * The core operation of is querying the list of values associated with the query key
+   * and returns the begin and end iterators via <code>begin(id)</code> and <code>end(id)</code>.
+   *
+   * Also, this class supports insert (and batch insert) values associated with any key. 
    */
-  template <typename valuetype, typename sizetype=size_t, uint32_t blocksize=64>
+  template<typename valuetype, typename sizetype=size_t, 
+           uint32_t blocksize=(4096-20)/sizeof(valuetype)>
   class dynamic_csr_storage {
    public:
      typedef block_linked_list<valuetype, blocksize> block_linked_list_t;
@@ -53,63 +57,16 @@ namespace graphlab {
    public:
      dynamic_csr_storage() { }
 
+     /**
+      * Create the storage with given keys and values. The id_vec and value_vec must  
+      * have the same size.
+      */
      template<typename idtype>
      dynamic_csr_storage(const std::vector<idtype>& id_vec,
                          const std::vector<valuetype>& value_vec) {
         init(id_vec, value_vec);
      }
 
-     template<typename idtype>
-     void init(const std::vector<idtype>& id_vec,
-               const std::vector<valuetype>& value_vec) {
-
-      ASSERT_EQ(id_vec.size(), value_vec.size());
-
-      std::vector<sizetype> permute_index;
-      // Build index for id -> value 
-      // Prefix of the counting array equals to the begin index for each id
-      std::vector<sizetype> prefix;
-      counting_sort(id_vec, permute_index, &prefix);
-
-      // Fill in the value vector
-      typedef boost::permutation_iterator<
-               typename std::vector<valuetype>::const_iterator,
-               typename std::vector<sizetype>::const_iterator> permute_iterator;
-
-      permute_iterator _begin = boost::make_permutation_iterator(value_vec.begin(), permute_index.begin());
-      permute_iterator _end = boost::make_permutation_iterator(value_vec.end(), permute_index.end());
-
-      values.assign(_begin, _end);
-      
-      sizevec2ptrvec(prefix, value_ptrs);
-
-      // Build the index pointers 
-#ifdef DEBUG_CSR
-      for (size_t i = 0; i < permute_index.size(); ++i)
-        std::cout << permute_index[i] << " ";
-      std::cout << std::endl;
-
-      for (size_t i = 0; i < value_ptrs.size(); ++i)
-        std::cout << prefix[i] << " ";
-      std::cout << std::endl;
-
-      for (permute_iterator it = _begin; it != _end; ++it) {
-        std::cout << *it << " ";
-      }
-      std::cout << std::endl;
-
-      for (size_t i = 0; i < num_keys(); ++i) {
-        std::cout << i << ": ";
-        iterator it = begin(i);
-        while (it != end(i)) {
-          std::cout << *it << " "; 
-          ++it;
-        }
-        std::cout << std::endl;
-      }
-      std::cout << std::endl;
-#endif
-     }
 
      /**
       * Wrap the index vector and value vector into csr_storage.
@@ -157,56 +114,60 @@ namespace graphlab {
        return (id+1) < num_keys() ? value_ptrs[id+1] : values.end();
      }
 
-
+     ////////////////////////// Insertion API ////////////////////////
      /// Insert a new value to a given key
      template <typename idtype>
      void insert (const idtype& key, const valuetype& value) {
-       // iterator to the insertion position
-       iterator ins_iter = values.get_insert_iterator(end(key));
+       insert(key, &value, (&value + 1));
+       // // // iterator to the insertion position
+       // // iterator ins_iter = values.get_insert_iterator(end(key));
+       // iterator ins_iter = end(key);
 
-       // add blocks for new key
-       while (key >= num_keys()) {
-         value_ptrs.push_back(ins_iter);
-       }
+       // // begin_ins_iter and end_ins_iterator point to 
+       // // defines the range of the new inserted element.
+       // iterator begin_ins_iter = values.insert(ins_iter, value);
+       // iterator end_ins_iter = begin_ins_iter+1;
 
-       // begin_ins_iter and end_ins_iterator point to 
-       // defines the range of the new inserted element.
-       iterator begin_ins_iter =  values.insert(ins_iter, value);
-       iterator end_ins_iter = begin_ins_iter; ++end_ins_iter;
+       // // add pointers for new key
+       // while (key >= num_keys()) {
+       //   value_ptrs.push_back(begin_ins_iter);
+       // }
 
-       const uint32_t mid = blocksize/2;
+       // const uint32_t mid = blocksize/2;
 
-       // Update pointers. 
-       // If the begin_ins_iter is moved, the inserted block is splitted.
-       // Update pointers to the left of ins_iter:
-       if (begin_ins_iter != ins_iter) {
-         int scan = key;
-         blocktype* oldptr = ins_iter.get_blockptr();
-         while (scan >= 0
-                && value_ptrs[scan].get_blockptr() == oldptr
-                && value_ptrs[scan].get_offset() >= mid) {
-           value_ptrs[scan].get_blockptr() = begin_ins_iter.get_blockptr();
-           value_ptrs[scan].get_offset() -= mid;
-           --scan;
-         }
-       }
-       // Update pointers to the right of ins_iter. 
-       // Base case: the pointer of ins_iter is mapped to end_ins_iter. 
-       uint32_t oldoffset =  ins_iter.get_offset();
-       iterator newiter =  end_ins_iter;
-       for (size_t scan = key+1; scan < num_keys(); ++scan) {
-         if (value_ptrs[scan] == values.end()) {
-           value_ptrs[scan] = end_ins_iter;
-         } else if (value_ptrs[scan].get_blockptr() == ins_iter.get_blockptr()) {
-           while (oldoffset != value_ptrs[scan].get_offset()) {
-             ++oldoffset;
-             ++newiter;
-           }
-           value_ptrs[scan] = newiter;
-         } else {
-           break;
-         }
-       }
+       // // Update pointers. 
+       // // If the begin_ins_iter is moved, the inserted block is splitted.
+       // // Update pointers to the left of ins_iter:
+       // if (begin_ins_iter != ins_iter) {
+       //   int scan = key;
+       //   blocktype* oldptr = ins_iter.get_blockptr();
+       //   while (scan >= 0
+       //          && value_ptrs[scan].get_blockptr() == oldptr
+       //          && value_ptrs[scan].get_offset() >= mid) {
+       //     value_ptrs[scan].get_blockptr() = begin_ins_iter.get_blockptr();
+       //     value_ptrs[scan].get_offset() -= mid;
+       //     --scan;
+       //   }
+       // }
+
+       // // Update pointers to the right of ins_iter. 
+       // // Base case: the pointer of ins_iter is mapped to end_ins_iter. 
+       // uint32_t oldoffset =  ins_iter.get_offset();
+       // iterator newiter =  end_ins_iter;
+
+       // for (size_t scan = key+1; scan < num_keys(); ++scan) {
+       //   if (value_ptrs[scan] == values.end()) {
+       //     value_ptrs[scan] = end_ins_iter;
+       //   } else if (value_ptrs[scan].get_blockptr() == ins_iter.get_blockptr()) {
+       //     while (oldoffset != value_ptrs[scan].get_offset()) {
+       //       ++oldoffset;
+       //       ++newiter;
+       //     }
+       //     value_ptrs[scan] = newiter;
+       //   } else {
+       //     break;
+       //   }
+       // }
      }
 
      /// Insert a range of values to a given key
@@ -215,14 +176,8 @@ namespace graphlab {
        if (last-first == 0) {
          return;
        }
-
        // iterator to the insertion position
-       iterator ins_iter = values.get_insert_iterator(end(key));
-
-       // add blocks for new key
-       while (key >= num_keys()) {
-         value_ptrs.push_back(ins_iter);
-       }
+       iterator ins_iter = end(key);
 
        // begin_ins_iter and end_ins_iterator point to 
        // defines the range of the new inserted element.
@@ -230,17 +185,21 @@ namespace graphlab {
        iterator begin_ins_iter = iter_pair.first;
        iterator end_ins_iter =  iter_pair.second;
 
-       // value_ptrs[key] = begin_ins_iter;
+       // add blocks for new key
+       while (key >= num_keys()) {
+         value_ptrs.push_back(begin_ins_iter);
+       }
+
        // Update pointers. 
-      ASSERT_TRUE(begin_ins_iter == ins_iter);
+       // value_ptrs[key] = begin_ins_iter;
+       // ASSERT_TRUE(begin_ins_iter == ins_iter);
+       
        // Update pointers to the right of ins_iter. 
        // Base case: the pointer of ins_iter is mapped to end_ins_iter. 
        uint32_t oldoffset =  ins_iter.get_offset();
        iterator newiter =  end_ins_iter;
        for (size_t scan = key+1; scan < num_keys(); ++scan) {
-         if (value_ptrs[scan] == values.end()) {
-           value_ptrs[scan] = end_ins_iter;
-         } else if (value_ptrs[scan].get_blockptr() == ins_iter.get_blockptr()) {
+         if (value_ptrs[scan].get_blockptr() == ins_iter.get_blockptr()) {
            while (oldoffset != value_ptrs[scan].get_offset()) {
              ++oldoffset;
              ++newiter;
@@ -252,6 +211,7 @@ namespace graphlab {
        }
      }
 
+     /////////////////////////// I/O API ////////////////////////
      /// Debug print out the content of the storage;
      void print(std::ostream& out) const {
        for (size_t i = 0; i < num_keys(); ++i)  {
@@ -267,14 +227,6 @@ namespace graphlab {
        }
      }
 
-     ////////////////////// Internal APIs /////////////////
-   public:
-     /**
-      * \internal
-      */
-     const std::vector<iterator>& get_index() { return value_ptrs; }
-     const block_linked_list_t& get_values() { return values; }
-
      void swap(dynamic_csr_storage<valuetype, sizetype>& other) {
        value_ptrs.swap(other.value_ptrs);
        values.swap(other.values);
@@ -288,6 +240,14 @@ namespace graphlab {
      void load(iarchive& iarc) { }
 
      void save(oarchive& oarc) const { }
+
+     ////////////////////// Internal APIs /////////////////
+   public:
+     /**
+      * \internal
+      */
+     const std::vector<iterator>& get_index() { return value_ptrs; }
+     const block_linked_list_t& get_values() { return values; }
 
      size_t estimate_sizeof() const {
        return sizeof(value_ptrs) + sizeof(values) + sizeof(sizetype)*value_ptrs.size() + sizeof(valuetype) * values.size();
@@ -303,6 +263,62 @@ namespace graphlab {
 
      ///////////////////// Helper Functions /////////////
    private:
+     /**
+      * Initialize the internal member with input key_vec and value_vec.
+      * value_vec will be compactly wrapped into a block_linked_list
+      * and key_vec will be converted into an array of iterators (pointers)
+      * to the values in the block_linked_list.
+      */
+     template<typename idtype>
+     void init(const std::vector<idtype>& id_vec,
+               const std::vector<valuetype>& value_vec) {
+      ASSERT_EQ(id_vec.size(), value_vec.size());
+      std::vector<sizetype> permute_index;
+
+      // Build index for id -> value 
+      // Prefix of the counting array equals to the begin index for each id
+      std::vector<sizetype> prefix;
+      counting_sort(id_vec, permute_index, &prefix);
+
+      // Fill in the value vector
+      typedef boost::permutation_iterator<
+               typename std::vector<valuetype>::const_iterator,
+               typename std::vector<sizetype>::const_iterator> permute_iterator;
+      permute_iterator _begin = boost::make_permutation_iterator(value_vec.begin(), permute_index.begin());
+      permute_iterator _end = boost::make_permutation_iterator(value_vec.end(), permute_index.end());
+      values.assign(_begin, _end);
+
+      // Fill in the key vector
+      sizevec2ptrvec(prefix, value_ptrs);
+
+      // Build the index pointers 
+#ifdef DEBUG_CSR
+      for (size_t i = 0; i < permute_index.size(); ++i)
+        std::cout << permute_index[i] << " ";
+      std::cout << std::endl;
+
+      for (size_t i = 0; i < value_ptrs.size(); ++i)
+        std::cout << prefix[i] << " ";
+      std::cout << std::endl;
+
+      for (permute_iterator it = _begin; it != _end; ++it) {
+        std::cout << *it << " ";
+      }
+      std::cout << std::endl;
+
+      for (size_t i = 0; i < num_keys(); ++i) {
+        std::cout << i << ": ";
+        iterator it = begin(i);
+        while (it != end(i)) {
+          std::cout << *it << " "; 
+          ++it;
+        }
+        std::cout << std::endl;
+      }
+      std::cout << std::endl;
+#endif
+     }
+
      // Convert integer pointers into block_linked_list::value_iterator
      // Assuming all blocks are fully packed.
      void sizevec2ptrvec (const std::vector<sizetype>& ptrs,
@@ -350,5 +366,3 @@ namespace graphlab {
        //     --scan;
        //   }
        // }
-
-

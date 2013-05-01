@@ -9,13 +9,14 @@ namespace graphlab {
   class block_linked_list;
 
   /**
-   * Define a block with value type and fixed capacity
+   * Define a block storage with valuetype and fixed capacity.
    */
-  template<typename valuetype, uint32_t capacity>
+  template<typename valuetype, uint32_t capacity=(4096-20)/sizeof(valuetype)>
   class dynamic_block {
    public:
+
      /// construct empty block
-     dynamic_block(float _id) : _id(_id), _next(NULL), _size(0) { }
+     dynamic_block() : _next(NULL), _size(0) { }
 
      template<typename InputIterator>
      void assign(InputIterator first, InputIterator last) {
@@ -32,9 +33,8 @@ namespace graphlab {
 
      /// split the block into two parts
      void split() {
-       float newid = (_next == NULL) ?  (_id+1) : (_id + _next->_id)/2;
        // create new block
-       dynamic_block* secondhalf = new dynamic_block(newid);
+       dynamic_block* secondhalf = new dynamic_block();
        // copy the second half over
        uint32_t mid = capacity/2;
        memcpy(secondhalf->values, &values[mid], (capacity/2)*sizeof(valuetype));
@@ -83,12 +83,6 @@ namespace graphlab {
        return _size;
      }
 
-     /// returns the size of the block
-     float id() const {
-       return _id;
-     }
-
-
      dynamic_block* next() {
        return _next;
      }
@@ -108,8 +102,6 @@ namespace graphlab {
    }
    
    private:
-     /// unique id, also encoding relative ordering of the blocks 
-     float _id;
      /// value storage
      valuetype values[capacity];
      /// pointer to the next block
@@ -117,7 +109,7 @@ namespace graphlab {
      /// size of the block
      uint32_t _size;
 
-    friend class block_linked_list<valuetype, capacity>;
+     friend class block_linked_list<valuetype, capacity>;
   };
-} // end of namespace
+}// end of namespace
 #endif
