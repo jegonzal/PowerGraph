@@ -565,7 +565,7 @@ void find_seams(graph_type::edge_type& edge)
 
    
     const Size img_size = subimg1.size();
-       
+    
     if (opts.seam_find_type.compare("gc_color") ==0)
     {
     	// Set terminal weights
@@ -581,7 +581,7 @@ void find_seams(graph_type::edge_type& edge)
 
     	// Set regular edge weights
     	const float weight_eps = 1.f;
-
+	
         for (int y = 0; y < img_size.height; ++y)
     	{
             for (int x = 0; x < img_size.width; ++x)
@@ -590,15 +590,20 @@ void find_seams(graph_type::edge_type& edge)
 
 		if (x < img_size.width - 1)
         	{
-                    float weight = normL2(subimg1.at<Point3f>(y, x), subimg2.at<Point3f>(y, x)) +
-                                   normL2(subimg1.at<Point3f>(y, x + 1), subimg2.at<Point3f>(y, x + 1)) + weight_eps;
+                    cout << "y : " << y << "   x : " << x << std::endl;
+		    cout << "subimg1 :" << subimg1.at<Point3f>(y, x) << "    subimg2 :" << subimg2.at<Point3f>(y, x) << std::endl;
 
+		    float weight = normL2(subimg1.at<Point3f>(y, x), subimg2.at<Point3f>(y, x)) +
+                                   normL2(subimg1.at<Point3f>(y, x + 1), subimg2.at<Point3f>(y, x + 1)) + weight_eps;
+		    
 		    if (!submask1.at<uchar>(y, x) || !submask1.at<uchar>(y, x + 1) || 
                         !submask2.at<uchar>(y, x) || !submask2.at<uchar>(y, x + 1))
                     	   weight += opts.bad_region_penalty;
 
-        	    if (isnan(weight) != 0)
-		   	weight = weight_eps;
+		    cout << "weight upper if  : " << weight << std::endl;
+
+        	   // if (isnan(weight) != 0)
+		   //	weight = weight_eps;
 			
                     graph.addEdges(v, v + 1, weight, weight);
             	}
@@ -610,13 +615,16 @@ void find_seams(graph_type::edge_type& edge)
  		    if (!submask1.at<uchar>(y, x) || !submask1.at<uchar>(y + 1, x) ||
                     	!submask2.at<uchar>(y, x) || !submask2.at<uchar>(y + 1, x))
                     	   weight += opts.bad_region_penalty;
+		    
+                    cout << "weight lower if  : " << weight << std::endl;
 
-		    if (isnan(weight) != 0)
-		    	weight = weight_eps;
+		    //if (isnan(weight) != 0)
+		    //	weight = weight_eps;
 			
                     graph.addEdges(v, v + img_size.width, weight, weight);
             	}
        	    }
+	    //getchar();
         }
     }
 
