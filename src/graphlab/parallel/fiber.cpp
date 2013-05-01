@@ -191,7 +191,7 @@ size_t fiber_group::load_balanced_worker_choice(size_t seed) {
   size_t ra = seed;
   size_t rb = 1103515245 * ra + 12345;
   ra = ra % nworkers; rb = rb % nworkers;
-  size_t choice = (schedule[ra].nactive < schedule[rb].nactive) ? ra : rb;
+  size_t choice = (schedule[ra].nactive <= schedule[rb].nactive) ? ra : rb;
   return choice;
 }
 
