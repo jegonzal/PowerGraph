@@ -38,6 +38,7 @@
 #include <vector>
 #include <string>
 #include <fstream>
+#include <math.h>
 
 
 #include <Eigen/Dense>

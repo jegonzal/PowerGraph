@@ -207,7 +207,7 @@ struct ImgArea
 };
 
 ImgArea find_largest_img(engine_type::icontext_type& context,
-                    const graph_type::vertex_type& vertex)
+                    graph_type::vertex_type& vertex)
 {
     // Get vertex data
     vertex_data &vdata = vertex.data();
@@ -416,7 +416,7 @@ void composite_images(graph_type::vertex_type& vertex)
     camera.K().convertTo(K, CV_32F);
     Rect roi = warper->warpRoi(sz, K, camera.R);
     corner = roi.tl();
-    //Size size = roi.size(); by me as it is not used any where
+    //Size size = roi.size(); //by me as it is not used any where
 
     if (abs(opts.compose_scale - 1) > 1e-1)
         resize(full_img, img, Size(), opts.compose_scale, opts.compose_scale);
@@ -456,7 +456,7 @@ void match_features(graph_type::edge_type& edge)
 void find_seams(graph_type::edge_type& edge)
 {
     // Get edge data
-    edge_data &edata = edge.data();
+    //edge_data &edata = edge.data(); //commented by me as it was unused
    
     // Get vertex ids of two vertices involved
     vertex_data &vdata1 = edge.source().data();
@@ -561,73 +561,76 @@ void find_seams(graph_type::edge_type& edge)
    
     const int vertex_count = (roi.height + 2 * gap) * (roi.width + 2 * gap);
     const int edge_count = (roi.height - 1 + 2 * gap) * (roi.width + 2 * gap) + (roi.width - 1 + 2 * gap) * (roi.height + 2 * gap);
-    GCGraph<float> graph(vertex_count, edge_count);	// GCGraph is not defined anywhere
+    GCGraph<float> graph(vertex_count, edge_count);	
 
-    float terminal_cost_ = 10000.f;
-    float bad_region_penalty_ = 1000.f;
-    const Size img_size = subimg1.size();
    
+    const Size img_size = subimg1.size();
+       
     if (opts.seam_find_type.compare("gc_color") ==0)
-    //    setGraphWeightsColor(subimg1, subimg2, submask1, submask2, graph);
     {
-    	// const Size img_size = subimg1.size();
-
     	// Set terminal weights
-    	for (int y = 0; y < img_size.height; ++y)
-    	{
-        	for (int x = 0; x < img_size.width; ++x)
-        	{
-        	    int v = graph.addVtx();
-        	    graph.addTermWeights(v, submask1.at<uchar>(y, x) ? terminal_cost_ : 0.f, submask2.at<uchar>(y, x) ? terminal_cost_ : 0.f);
-        	}
-    	}
-
-    	// Set regular edge weights
-    	const float weight_eps = 1.f;
     	for (int y = 0; y < img_size.height; ++y)
     	{
             for (int x = 0; x < img_size.width; ++x)
             {
+        	int v = graph.addVtx();
+        	graph.addTermWeights(v, submask1.at<uchar>(y, x) ? opts.terminal_cost : 0.f, 
+					submask2.at<uchar>(y, x) ? opts.terminal_cost : 0.f);
+            }
+    	}
+
+    	// Set regular edge weights
+    	const float weight_eps = 1.f;
+
+        for (int y = 0; y < img_size.height; ++y)
+    	{
+            for (int x = 0; x < img_size.width; ++x)
+            {
         	int v = y * img_size.width + x;
-        	if (x < img_size.width - 1)
+
+		if (x < img_size.width - 1)
         	{
-        	    float weight = normL2(subimg1.at<Point3f>(y, x), subimg2.at<Point3f>(y, x)) +
-                          normL2(subimg1.at<Point3f>(y, x + 1), subimg2.at<Point3f>(y, x + 1)) + weight_eps;
-                    if (!submask1.at<uchar>(y, x) || !submask1.at<uchar>(y, x + 1) ||
-                    	!submask2.at<uchar>(y, x) || !submask2.at<uchar>(y, x + 1))
-                    	   weight += bad_region_penalty_;
+                    float weight = normL2(subimg1.at<Point3f>(y, x), subimg2.at<Point3f>(y, x)) +
+                                   normL2(subimg1.at<Point3f>(y, x + 1), subimg2.at<Point3f>(y, x + 1)) + weight_eps;
+
+		    if (!submask1.at<uchar>(y, x) || !submask1.at<uchar>(y, x + 1) || 
+                        !submask2.at<uchar>(y, x) || !submask2.at<uchar>(y, x + 1))
+                    	   weight += opts.bad_region_penalty;
+
+        	    if (isnan(weight) != 0)
+		   	weight = weight_eps;
+			
                     graph.addEdges(v, v + 1, weight, weight);
             	}
             	if (y < img_size.height - 1)
             	{
                     float weight = normL2(subimg1.at<Point3f>(y, x), subimg2.at<Point3f>(y, x)) +
-                          normL2(subimg1.at<Point3f>(y + 1, x), subimg2.at<Point3f>(y + 1, x)) +
-                           weight_eps;
-                    if (!submask1.at<uchar>(y, x) || !submask1.at<uchar>(y + 1, x) ||
+                          	   normL2(subimg1.at<Point3f>(y + 1, x), subimg2.at<Point3f>(y + 1, x)) + weight_eps;
+		    
+ 		    if (!submask1.at<uchar>(y, x) || !submask1.at<uchar>(y + 1, x) ||
                     	!submask2.at<uchar>(y, x) || !submask2.at<uchar>(y + 1, x))
-                    	   weight += bad_region_penalty_;
-                    
-		    graph.addEdges(v, v + img_size.width, weight, weight);
+                    	   weight += opts.bad_region_penalty;
+
+		    if (isnan(weight) != 0)
+		    	weight = weight_eps;
+			
+                    graph.addEdges(v, v + img_size.width, weight, weight);
             	}
        	    }
         }
     }
 
-    
-
-
+   
     else if (opts.seam_find_type.compare("gc_colorgrad") ==0)
-      //setGraphWeightsColorGrad(subimg1, subimg2, subdx1, subdx2, subdy1, subdy2, submask1, submask2, graph); // setGraphWeightsColorGrad its 									a private member of GraphCutSeamFinder, which has been commented on L436
     {
-        // const Size img_size = subimg1.size();
-
-    	// Set terminal weights
+        // Set terminal weights
     	for (int y = 0; y < img_size.height; ++y)
     	{
             for (int x = 0; x < img_size.width; ++x)
             {
                 int v = graph.addVtx();
-                graph.addTermWeights(v, submask1.at<uchar>(y, x) ? terminal_cost_ : 0.f, submask2.at<uchar>(y, x) ? terminal_cost_ : 0.f);
+                graph.addTermWeights(v, submask1.at<uchar>(y, x) ? opts.terminal_cost : 0.f, 
+					submask2.at<uchar>(y, x) ? opts.terminal_cost : 0.f);
             }
         }
 
@@ -646,8 +649,11 @@ void find_seams(graph_type::edge_type& edge)
                                     normL2(subimg1.at<Point3f>(y, x + 1), subimg2.at<Point3f>(y, x + 1))) / grad + weight_eps;
                     if (!submask1.at<uchar>(y, x) || !submask1.at<uchar>(y, x + 1) ||
                         !submask2.at<uchar>(y, x) || !submask2.at<uchar>(y, x + 1))
-                        weight += bad_region_penalty_;
+                        weight += opts.bad_region_penalty;
                     
+		    if (isnan(weight) != 0)
+		   	weight = weight_eps;
+		
                     graph.addEdges(v, v + 1, weight, weight);
                 }
                 if (y < img_size.height - 1)
@@ -659,8 +665,11 @@ void find_seams(graph_type::edge_type& edge)
                 
                     if (!submask1.at<uchar>(y, x) || !submask1.at<uchar>(y + 1, x) ||
                         !submask2.at<uchar>(y, x) || !submask2.at<uchar>(y + 1, x))
-                        weight += bad_region_penalty_;
+                        weight += opts.bad_region_penalty;
                     
+		    if (isnan(weight) != 0)
+		   	weight = weight_eps;
+		
                     graph.addEdges(v, v + img_size.width, weight, weight);
                 }
             }
@@ -694,7 +703,7 @@ void find_seams(graph_type::edge_type& edge)
 /////////////////////////////////////////////////////////////////////////
 // Map Function to compile a list of features
 //vector<vertex_data> compile_features(const graph_type::vertex_type& vertex)
-vector<vertex_data> compile_features(engine_type::icontext_type& context,
+vector<vertex_data> compile_features				(engine_type::icontext_type& context,
                          const graph_type::vertex_type& vertex)
 {
     vector<vertex_data> temp(context.num_vertices());

@@ -12,3 +12,4 @@ requires_opencv(stitching_detailed)
 add_graphlab_executable(stitch stitch_main.cpp)
 requires_opencv(stitch)
 requires_eigen(stitch)
+
