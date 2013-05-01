@@ -106,7 +106,7 @@ set_union_gather unique_color_map(const graph_type::vertex_type& center,
                                   const graph_type::vertex_type& other) {
   set_union_gather gather;
   color_type other_color = other.data();
-  gather.colors.insert(other_color);
+  if (!EDGE_CONSISTENT && other.id() < center.id()) gather.colors.insert(other_color);
   return gather;
 }
 
@@ -281,6 +281,7 @@ int main(int argc, char** argv) {
     return EXIT_FAILURE;
   }
 
+  graphlab::launch_metric_server();
   // Build the graph ----------------------------------------------------------
   graph_type graph(dc, clopts);
   if(powerlaw > 0) { // make a synthetic graph
@@ -338,6 +339,9 @@ int main(int argc, char** argv) {
 
   size_t conflict_count = graph.map_reduce_edges<size_t>(validate_conflict);
   dc.cout() << "Num conflicts = " << conflict_count << "\n";
+
+
+  graphlab::stop_metric_server();
 
   mpi_tools::finalize();
   return EXIT_SUCCESS;

@@ -126,6 +126,7 @@ int main(int argc, char** argv) {
   }
 
   // Build the graph ----------------------------------------------------------
+  graphlab::launch_metric_server();
   graph_type graph(dc, clopts);
   if(powerlaw > 0) { // make a synthetic graph
     dc.cout() << "Loading synthetic Powerlaw graph." << std::endl;
@@ -173,6 +174,7 @@ int main(int argc, char** argv) {
                false);   // do not save edges
   }
 
+  graphlab::stop_metric_server();
   mpi_tools::finalize();
   return EXIT_SUCCESS;
 } // End of main

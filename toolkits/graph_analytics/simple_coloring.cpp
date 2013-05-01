@@ -33,7 +33,7 @@ typedef graphlab::vertex_id_type color_type;
  * no edge data
  */
 typedef graphlab::empty edge_data_type;
-
+bool EDGE_CONSISTENT = false;
 
 
 /*
@@ -103,7 +103,9 @@ public:
     set_union_gather gather;
     color_type other_color = edge.source().id() == vertex.id() ?
                                  edge.target().data(): edge.source().data();
-    gather.colors.insert(other_color);
+    vertex_id_type otherid= edge.source().id() == vertex.id() ?
+                                 edge.target().id(): edge.source().id();
+    if (!EDGE_CONSISTENT && otherid < vertex.id()) gather.colors.insert(other_color);
     return gather;
   }
 
@@ -126,7 +128,8 @@ public:
 
   edge_dir_type scatter_edges(icontext_type& context,
                              const vertex_type& vertex) const {
-    return graphlab::ALL_EDGES;
+    if (EDGE_CONSISTENT) return graphlab::NO_EDGES;
+    else return graphlab::ALL_EDGES;
   } 
 
 
@@ -163,6 +166,16 @@ struct save_colors{
 };
 
 
+/**************************************************************************/
+/*                                                                        */
+/*                         Validation   Functions                         */
+/*                                                                        */
+/**************************************************************************/
+size_t validate_conflict(graph_type::edge_type& edge) {
+  return edge.source().data() == edge.target().data();
+}
+
+
 int main(int argc, char** argv) {
 
   //global_logger().set_log_level(LOG_INFO);
@@ -187,9 +200,11 @@ int main(int argc, char** argv) {
                        "The graph format");
    clopts.attach_option("output", output,
                        "A prefix to save the output.");
-    clopts.attach_option("powerlaw", powerlaw,
+   clopts.attach_option("powerlaw", powerlaw,
                        "Generate a synthetic powerlaw out-degree graph. ");
- 
+  clopts.attach_option("edgescope", EDGE_CONSISTENT,
+                       "Use Locking. ");
+    
   if(!clopts.parse(argc, argv)) return EXIT_FAILURE;
   if (prefix.length() == 0 && powerlaw == 0) {
     clopts.print_description();
@@ -227,11 +242,19 @@ int main(int argc, char** argv) {
   
   // create engine to count the number of triangles
   dc.cout() << "Coloring..." << std::endl;
+  if (EDGE_CONSISTENT) {
+    clopts.get_engine_args().set_option("factorized", false);
+  } else {
+    clopts.get_engine_args().set_option("factorized", true);
+  } 
   graphlab::async_consistent_engine<graph_coloring> engine(dc, graph, clopts);
   engine.signal_all();
   engine.start();
 
   dc.cout() << "Colored in " << ti.current_time() << " seconds" << std::endl;
+
+  size_t conflict_count = graph.map_reduce_edges<size_t>(validate_conflict);
+  dc.cout() << "Num conflicts = " << conflict_count << "\n";
   if (output != "") {
     graph.save(output,
               save_colors(),
