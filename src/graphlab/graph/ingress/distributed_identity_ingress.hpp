@@ -27,7 +27,6 @@
 
 #include <graphlab/rpc/buffered_exchange.hpp>
 #include <graphlab/graph/graph_basic_types.hpp>
-#include <graphlab/graph/ingress/idistributed_ingress.hpp>
 #include <graphlab/graph/ingress/distributed_ingress_base.hpp>
 #include <graphlab/graph/distributed_graph.hpp>
 

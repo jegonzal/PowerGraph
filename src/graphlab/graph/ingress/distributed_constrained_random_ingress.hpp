@@ -27,7 +27,6 @@
 
 #include <graphlab/rpc/buffered_exchange.hpp>
 #include <graphlab/graph/graph_basic_types.hpp>
-#include <graphlab/graph/ingress/idistributed_ingress.hpp>
 #include <graphlab/graph/ingress/distributed_ingress_base.hpp>
 #include <graphlab/graph/distributed_graph.hpp>
 #include <graphlab/graph/ingress/sharding_constraint.hpp>
@@ -74,7 +73,8 @@ namespace graphlab {
                   const EdgeData& edata) {
       typedef typename base_type::edge_buffer_record edge_buffer_record;
 
-      const std::vector<procid_t>& candidates = constraint->get_joint_neighbors(get_master(source), get_master(target));
+      const std::vector<procid_t>& candidates = constraint->get_joint_neighbors(graph_hash::hash_vertex(source) % base_type::rpc.numprocs(),
+                                                                                graph_hash::hash_vertex(target) % base_type::rpc.numprocs());
 
       const procid_t owning_proc = 
           base_type::edge_decision.edge_to_proc_random(source, target, candidates);
@@ -83,11 +83,6 @@ namespace graphlab {
       const edge_buffer_record record(source, target, edata);
       base_type::edge_exchange.send(owning_proc, record);
     } // end of add edge
-
-  private:
-    procid_t get_master (vertex_id_type vid) {
-      return ingress_edge_decision<VertexData, EdgeData>::mix(vid) % base_type::rpc.numprocs();
-    }
   }; // end of distributed_constrained_random_ingress
 }; // end of namespace graphlab
 #include <graphlab/macros_undef.hpp>

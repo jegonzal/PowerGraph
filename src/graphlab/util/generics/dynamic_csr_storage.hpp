@@ -119,55 +119,6 @@ namespace graphlab {
      template <typename idtype>
      void insert (const idtype& key, const valuetype& value) {
        insert(key, &value, (&value + 1));
-       // // // iterator to the insertion position
-       // // iterator ins_iter = values.get_insert_iterator(end(key));
-       // iterator ins_iter = end(key);
-
-       // // begin_ins_iter and end_ins_iterator point to 
-       // // defines the range of the new inserted element.
-       // iterator begin_ins_iter = values.insert(ins_iter, value);
-       // iterator end_ins_iter = begin_ins_iter+1;
-
-       // // add pointers for new key
-       // while (key >= num_keys()) {
-       //   value_ptrs.push_back(begin_ins_iter);
-       // }
-
-       // const uint32_t mid = blocksize/2;
-
-       // // Update pointers. 
-       // // If the begin_ins_iter is moved, the inserted block is splitted.
-       // // Update pointers to the left of ins_iter:
-       // if (begin_ins_iter != ins_iter) {
-       //   int scan = key;
-       //   blocktype* oldptr = ins_iter.get_blockptr();
-       //   while (scan >= 0
-       //          && value_ptrs[scan].get_blockptr() == oldptr
-       //          && value_ptrs[scan].get_offset() >= mid) {
-       //     value_ptrs[scan].get_blockptr() = begin_ins_iter.get_blockptr();
-       //     value_ptrs[scan].get_offset() -= mid;
-       //     --scan;
-       //   }
-       // }
-
-       // // Update pointers to the right of ins_iter. 
-       // // Base case: the pointer of ins_iter is mapped to end_ins_iter. 
-       // uint32_t oldoffset =  ins_iter.get_offset();
-       // iterator newiter =  end_ins_iter;
-
-       // for (size_t scan = key+1; scan < num_keys(); ++scan) {
-       //   if (value_ptrs[scan] == values.end()) {
-       //     value_ptrs[scan] = end_ins_iter;
-       //   } else if (value_ptrs[scan].get_blockptr() == ins_iter.get_blockptr()) {
-       //     while (oldoffset != value_ptrs[scan].get_offset()) {
-       //       ++oldoffset;
-       //       ++newiter;
-       //     }
-       //     value_ptrs[scan] = newiter;
-       //   } else {
-       //     break;
-       //   }
-       // }
      }
 
      /// Insert a range of values to a given key
@@ -208,6 +159,16 @@ namespace graphlab {
          } else {
            break;
          }
+       }
+     }
+
+     /// Repack the values in parallel
+     void repack() {
+#ifdef _OPENMP
+#pragma omp parallel for
+#endif
+       for (ssize_t i = 0; i < num_keys(); ++i) {
+         values.repack(begin(i), end(i));
        }
      }
 

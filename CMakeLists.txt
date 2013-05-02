@@ -32,9 +32,9 @@ include_directories(
 # set link path
 link_directories(${GraphLab_SOURCE_DIR}/deps/local/lib)
 
-#add_definitions(-DUSE_DYNAMIC_LOCAL_GRAPH)
-#add_definitions(-DDEBUG_GRAPH)
-#add_definitions(-DOUTPUTLEVEL=1)
+add_definitions(-DUSE_DYNAMIC_LOCAL_GRAPH)
+add_definitions(-DDEBUG_GRAPH)
+add_definitions(-DOUTPUTLEVEL=1)
 
 if(NO_OPENMP)
   set(OPENMP_C_FLAGS "")
@@ -146,7 +146,6 @@ ExternalProject_Add(eigen
   INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local/include)
 add_definitions(-DHAS_EIGEN)
 
-
 macro(requires_eigen NAME)
   add_dependencies(${NAME} eigen)
 endmacro(requires_eigen)
@@ -216,11 +215,11 @@ endforeach()
 message(STATUS "Boost Shared libs: " ${Boost_SHARED_LIBRARIES})
 
 
-#if(APPLE)
-#  set (tcmalloc_shared "--enable-shared=yes")
-#else()
-#  set (tcmalloc_shared "--enable-shared=no")
-#endif()
+if(APPLE)
+  set (tcmalloc_shared "--enable-shared=yes")
+else()
+  set (tcmalloc_shared "--enable-shared=no")
+endif()
 
 # TCMalloc  ===================================================================
 # We use tcmalloc for improved memory allocation performance
@@ -230,10 +229,10 @@ ExternalProject_Add(libtcmalloc
   URL_MD5 13f6e8961bc6a26749783137995786b6
   PATCH_COMMAND patch -N -p0 -i ${GraphLab_SOURCE_DIR}/patches/tcmalloc.patch || true
   CONFIGURE_COMMAND <SOURCE_DIR>/configure --enable-frame-pointers --prefix=<INSTALL_DIR> ${tcmalloc_shared}
-    INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local)
- #link_libraries(tcmalloc)
-    set(TCMALLOC-FOUND 1)
- add_definitions(-DHAS_TCMALLOC)
+  INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local)
+#link_libraries(tcmalloc)
+set(TCMALLOC-FOUND 1)
+add_definitions(-DHAS_TCMALLOC)
 
 
 

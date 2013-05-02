@@ -64,9 +64,7 @@
 #include <graphlab/macros_def.hpp>
 
 namespace graphlab {
-
-
-  template<typename VertexData, typename EdgeData, uint32_t blocksize=64>
+  template<typename VertexData, typename EdgeData>
   class dynamic_local_graph {
   public:
 
@@ -335,6 +333,9 @@ namespace graphlab {
             _csc_storage.insert(i, csc_values.begin()+begin, csc_values.begin()+end);
           }
         }
+        // Repack after insertion
+        _csr_storage.repack();
+        _csc_storage.repack();
       }
       ASSERT_EQ(_csr_storage.num_values(), _csc_storage.num_values());
       ASSERT_EQ(_csr_storage.num_values(), edges.size());
@@ -436,7 +437,7 @@ namespace graphlab {
      * \brief Returns the number of in edges of the vertex with the given id. */
     size_t num_in_edges(const lvid_type v) const {
       // ASSERT_TRUE(finalized);
-      return (_csc_storage.end(v) - _csc_storage.begin(v));
+      return _csc_storage.begin(v).pdistance_to(_csc_storage.end(v));
     }
 
     /**
@@ -444,7 +445,7 @@ namespace graphlab {
      * \brief Returns the number of in edges of the vertex with the given id. */
     size_t num_out_edges(const lvid_type v) const {
       // ASSERT_TRUE(finalized);
-      return (_csr_storage.end(v) - _csr_storage.begin(v));
+      return _csr_storage.begin(v).pdistance_to(_csr_storage.end(v));
     }
 
     /**
@@ -520,8 +521,7 @@ namespace graphlab {
      * \internal
      * CSR/CSC storage types
      */
-    typedef dynamic_csr_storage<std::pair<lvid_type, edge_id_type>, edge_id_type,
-            blocksize> csr_type;
+    typedef dynamic_csr_storage<std::pair<lvid_type, edge_id_type>, edge_id_type> csr_type;
 
     typedef typename csr_type::iterator csr_edge_iterator;
 
@@ -563,8 +563,8 @@ namespace graphlab {
 /////////////////////// Implementation of Helper Class ////////////////////////////
 
 namespace graphlab {
-  template<typename VertexData, typename EdgeData, uint32_t blocksize>
-  class dynamic_local_graph<VertexData, EdgeData, blocksize>::vertex_type {
+  template<typename VertexData, typename EdgeData>
+  class dynamic_local_graph<VertexData, EdgeData>::vertex_type {
      public:
        vertex_type(dynamic_local_graph& lgraph_ref, lvid_type vid):lgraph_ref(lgraph_ref),vid(vid) { }
 
@@ -601,8 +601,8 @@ namespace graphlab {
        lvid_type vid;
     };
 
-    template<typename VertexData, typename EdgeData, uint32_t blocksize>
-    class dynamic_local_graph<VertexData, EdgeData, blocksize>::edge_type {
+    template<typename VertexData, typename EdgeData>
+    class dynamic_local_graph<VertexData, EdgeData>::edge_type {
      public:
       edge_type(dynamic_local_graph& lgraph_ref, lvid_type _source, lvid_type _target, edge_id_type _eid) :
         lgraph_ref(lgraph_ref), _source(_source), _target(_target), _eid(_eid) { }
@@ -633,8 +633,8 @@ namespace graphlab {
       edge_id_type _eid;
     };
 
-    template<typename VertexData, typename EdgeData, uint32_t blocksize>
-    class dynamic_local_graph<VertexData, EdgeData, blocksize>::edge_iterator :
+    template<typename VertexData, typename EdgeData>
+    class dynamic_local_graph<VertexData, EdgeData>::edge_iterator :
         public boost::iterator_facade < edge_iterator,
                                         edge_type,
                                         boost::random_access_traversal_tag,
@@ -685,12 +685,6 @@ namespace graphlab {
            const lvid_type _vid;
         }; // end of edge_iterator
 
-  // Used to debug print internal storage
-  inline std::ostream& operator<<(std::ostream& out,
-                        const std::pair<lvid_type, edge_id_type>& value) {
-    out << "(" << value.first << "," << value.second << ")";
-    return out;
-  }
 } // end of namespace
 
 
