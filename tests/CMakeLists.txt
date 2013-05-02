@@ -68,3 +68,4 @@ add_executable(dcsc_test dcsc_test.cpp)
 
 add_graphlab_executable(fiber_test fiber_test.cpp)
 add_graphlab_executable(fibo_fiber_test fibo_fiber_test.cpp)
+add_graphlab_executable(gl3_logistic_sgd_test gl3_logistic_sgd_test.cpp)
