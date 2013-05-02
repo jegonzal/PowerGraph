@@ -24,10 +24,10 @@
 #define GRAPHLAB_DISTRIBUTED_CONSTRAINED_BATCH_INGRESS_HPP
 
 #include <boost/unordered_set.hpp>
-#include <graphlab/graph/graph_basic_types.hpp>
-#include <graphlab/graph/ingress/idistributed_ingress.hpp>
-#include <graphlab/graph/ingress/distributed_ingress_base.hpp>
 #include <graphlab/graph/distributed_graph.hpp>
+#include <graphlab/graph/graph_hash.hpp>
+#include <graphlab/graph/graph_basic_types.hpp>
+#include <graphlab/graph/ingress/distributed_ingress_base.hpp>
 #include <graphlab/rpc/buffered_exchange.hpp>
 #include <graphlab/rpc/distributed_event_log.hpp>
 #include <graphlab/util/dense_bitset.hpp>
@@ -124,8 +124,8 @@ namespace graphlab {
       ASSERT_LT(edgesend.size(), bufsize);
       edgesend.push_back(std::make_pair(source, target)); 
       edatasend.push_back(edata);        
-      query_set[base_type::vertex_to_proc(source)].insert(source);
-      query_set[base_type::vertex_to_proc(target)].insert(target);
+      query_set[graph_hash::hash_vertex(source) % rpc.numprocs()].insert(source);
+      query_set[graph_hash::hash_vertex(target) % rpc.numprocs()].insert(target);
       ++num_edges;
       edgesend_lock.unlock();
       if (is_full()) flush();
@@ -198,8 +198,8 @@ namespace graphlab {
         max_lvid = std::max(std::max(lvid_source, lvid_target), 
             max_lvid);
 
-        local_degree_count[base_type::vertex_to_proc(source)].push_back(source);
-        local_degree_count[base_type::vertex_to_proc(target)].push_back(target);
+        local_degree_count[graph_hash::hash_vertex(source) % rpc.numprocs()].push_back(source);
+        local_degree_count[graph_hash::hash_vertex(target) % rpc.numprocs()].push_back(target);
       }
       lvid2record_lock.unlock();
 
@@ -283,8 +283,8 @@ namespace graphlab {
        std::pair<vertex_id_type, vertex_id_type>& e = 
          edgesend[i];
 
-       size_t src_proc = base_type::vertex_to_proc(e.first);
-       size_t dst_proc = base_type::vertex_to_proc(e.second);
+       size_t src_proc = graph_hash::hash_vertex(e.first) % rpc.numprocs();
+       size_t dst_proc = graph_hash::hash_vertex(e.second) % rpc.numprocs();
        bin_counts_type& src_degree = degree_table[src_proc][e.first];
        bin_counts_type& dst_degree = degree_table[dst_proc][e.second];
 

@@ -71,7 +71,6 @@
 
 #include <graphlab/graph/local_graph.hpp>
 #include <graphlab/graph/dynamic_local_graph.hpp>
-#include <graphlab/graph/ingress/idistributed_ingress.hpp>
 #include <graphlab/graph/ingress/distributed_ingress_base.hpp>
 #include <graphlab/graph/ingress/distributed_batch_ingress.hpp>
 #include <graphlab/graph/ingress/distributed_oblivious_ingress.hpp>
@@ -2831,7 +2830,7 @@ namespace graphlab {
     size_t begin_eid;
 
     /** pointer to the distributed ingress object*/
-    idistributed_ingress<VertexData, EdgeData>* ingress_ptr;
+    distributed_ingress_base<VertexData, EdgeData>* ingress_ptr;
 
     /** Buffered Exchange used by synchronize() */
     buffered_exchange<std::pair<vertex_id_type, vertex_data_type> > vertex_exchange;

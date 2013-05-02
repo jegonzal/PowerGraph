@@ -23,16 +23,12 @@
 #ifndef GRAPHLAB_DISTRIBUTED_INGRESS_BASE_HPP
 #define GRAPHLAB_DISTRIBUTED_INGRESS_BASE_HPP
 
-#include <boost/function.hpp>
-#include <boost/functional/hash.hpp>
-#include <graphlab/util/memory_info.hpp>
-#include <graphlab/rpc/buffered_exchange.hpp>
-#include <graphlab/graph/graph_basic_types.hpp>
-#include <graphlab/graph/ingress/idistributed_ingress.hpp>
-#include <graphlab/graph/ingress/ingress_edge_decision.hpp>
 #include <graphlab/graph/distributed_graph.hpp>
+#include <graphlab/graph/graph_basic_types.hpp>
+#include <graphlab/graph/ingress/ingress_edge_decision.hpp>
+#include <graphlab/util/memory_info.hpp>
 #include <graphlab/util/cuckoo_map_pow2.hpp>
-
+#include <graphlab/rpc/buffered_exchange.hpp>
 #include <graphlab/macros_def.hpp>
 namespace graphlab {
 
@@ -43,8 +39,7 @@ namespace graphlab {
   class distributed_graph;
 
   template<typename VertexData, typename EdgeData>
-  class distributed_ingress_base : 
-    public idistributed_ingress<VertexData, EdgeData> {
+  class distributed_ingress_base {
   public:
     typedef distributed_graph<VertexData, EdgeData> graph_type;
     /// The type of the vertex data stored in the graph 
@@ -126,7 +121,7 @@ namespace graphlab {
       rpc.barrier();
     } // end of constructor
 
-    ~distributed_ingress_base() { }
+    virtual ~distributed_ingress_base() { }
 
     /** \brief Add an edge to the ingress object. */
     virtual void add_edge(vertex_id_type source, vertex_id_type target,
@@ -140,7 +135,7 @@ namespace graphlab {
 
     /** \brief Add an vertex to the ingress object. */
     virtual void add_vertex(vertex_id_type vid, const VertexData& vdata)  { 
-      const procid_t owning_proc = vertex_to_proc(vid);
+      const procid_t owning_proc = graph_hash::hash_vertex(vid) % rpc.numprocs();
       const vertex_buffer_record record(vid, vdata);
       vertex_exchange.send(owning_proc, record);
     } // end of add vertex
@@ -298,7 +293,7 @@ namespace graphlab {
             // Send a vertex
             const vertex_id_type vid = pair.first;
             const vertex_id_type lvid = pair.second;
-            const procid_t negotiator = vertex_to_proc(vid);
+            const procid_t negotiator = graph_hash::hash_vertex(vid) % rpc.numprocs();
             const vertex_info vinfo(vid, graph.local_graph.num_in_edges(lvid),
                                     graph.local_graph.num_out_edges(lvid));
             vinfo_exchange.send(negotiator, vinfo);
@@ -501,21 +496,6 @@ namespace graphlab {
                             << std::endl;
       }
     }
-
-
-
-
-
-
-
-
-  protected:
-    // HELPER ROUTINES
-    // =======================================================>
-    /** \brief Returns the random hashed pid of a vertex. */
-    procid_t vertex_to_proc(const vertex_id_type vid) const { 
-      return vid % rpc.numprocs();
-    }        
   }; // end of distributed_ingress_base
 
 }; // end of namespace graphlab
