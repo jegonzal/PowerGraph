@@ -36,6 +36,8 @@ class fiber_group {
                       // Set if the fiber is inside the scheduling queue
                       // or is running in a thread.
                       // lock must be acquired for this to be modified.
+    bool priority;  // flag. If set, rescheduling this fiber
+                    // will cause it to be placed at the head of the queue
   };
 
 
@@ -68,7 +70,8 @@ class fiber_group {
 
 
   // locks must be acquired outside the call
-  void active_queue_insert(size_t workerid, fiber* value);
+  void active_queue_insert_head(size_t workerid, fiber* value);
+  void active_queue_insert_tail(size_t workerid, fiber* value);
   fiber* active_queue_remove(size_t workerid);
 
   // a thread local storage for the worker to point to a fiber
@@ -218,8 +221,14 @@ class fiber_group {
    *  deschedule_self(), the fiber is scheduled for execution.
    *  Otherwise, nothing happens. Some care must be taken to avoid race
    *  conditions. See the deschedule_self() function for details.
+   *  This thread by default will be stuck at the head of queue
+   *  and will wake up quickly.
+   *
+   *  \param priority If true, thread will be placed at the head
+   *  of the scheduler. If false, it will be placed at the tail
+   *  of the scheduler
    */
-  static void schedule_tid(size_t tid);
+  static void schedule_tid(size_t tid, bool priority = true);
 };
 
 }
