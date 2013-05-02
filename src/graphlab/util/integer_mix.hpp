@@ -4,7 +4,7 @@
 namespace graphlab {
 // Jenkin's 32 bit integer mix from
 // http://burtleburtle.net/bob/hash/integer.html
-uint32_t integer_mix(uint32_t a) {
+inline uint32_t integer_mix(uint32_t a) {
   a -= (a<<6);
   a ^= (a>>17);
   a -= (a<<9);
