@@ -209,7 +209,7 @@ int main(int argc, char** argv) {
 
   engine.wait();
   if (dc.procid() == 0) {
-    print_l1_param_error(engine.get_context());
+    engine.launch_other_task(print_l1_param_error);
   }
   engine.wait();
   const float runtime = ti.current_time();
