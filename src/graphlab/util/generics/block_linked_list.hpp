@@ -102,6 +102,12 @@ namespace graphlab {
             : blockptr(other.blockptr), offset(other.offset) { }
 
 
+     public:
+        // public wrapper of the private distance_to
+      ptrdiff_t pdistance_to(const value_iterator& other) const {
+        return distance_to(other);
+      }
+
       // core access functions
       private:         
         friend class boost::iterator_core_access;
@@ -292,6 +298,58 @@ namespace graphlab {
      return ret_type(begin_ins_iter, end_ins_iter);
    }
 
+   /*
+    * Move up the content of the next block to the end of this block. 
+    * Delete the next block if it becomes empty. 
+    */
+   void merge_next(blocktype* bptr) {
+     if (bptr == NULL || bptr->next() == NULL || bptr->is_full()) {
+       return;
+     }
+     blocktype* nextptr = bptr->next();
+     size_t spaceleft = blocksize - bptr->size(); // num space left
+     size_t nnext = nextptr->size(); // num elems in the next block
+     size_t nmove = std::min(spaceleft, nnext); // num elems to move
+
+     // move up nmove elements
+     std::copy(nextptr->values, nextptr->values+nmove,
+               bptr->values + bptr->_size);
+     if (nnext > nmove) {
+       valuetype* p = nextptr->values;
+       for (size_t i = 0; i < (nnext-nmove); ++i) {
+         *p = *(p+nmove);
+       }
+     }
+
+     // update the size
+     bptr->_size += nmove; 
+     nextptr->_size -= nmove;
+
+     // remove the next block if empty
+     if (nextptr->size() == 0) {
+       bptr->_next = nextptr->next();
+       delete nextptr;
+       if (nextptr == tail) {
+         tail = bptr;
+       }
+     }
+   }
+
+   /// Repack the space for a given key 
+   void repack(iterator begin_iter, iterator end_iter) {
+     blocktype* bptr = begin_iter.get_blockptr();
+     blocktype* eptr = end_iter.get_blockptr();
+
+     if (bptr == NULL || bptr == eptr) {
+       return;
+     }
+     while (bptr != eptr && bptr->next() != eptr) {
+       merge_next(bptr);
+       if (bptr->is_full())  {
+         bptr = bptr->next();
+       }
+     }
+    }
 
    //////////////////// Block Access API ///////////////////////// 
    /*
@@ -306,7 +364,6 @@ namespace graphlab {
      }
      return cur;
    }
-
 
    size_t num_blocks() const {
      if (head == NULL) 

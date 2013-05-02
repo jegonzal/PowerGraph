@@ -114,7 +114,8 @@ class csr_storage_test : public CxxTest::TestSuite {
       csr.insert(keys[i], values[i]);
     }
     csr.get_values().print(std::cerr);
-    csr.print(std::cerr);
+    check(csr, get_keyout(), get_valout());
+    csr.repack();
     check(csr, get_keyout(), get_valout());
     printf("+ Pass test: dynamic_csr_storage insertion:)\n\n");
   }
@@ -154,6 +155,9 @@ class csr_storage_test : public CxxTest::TestSuite {
       csr.insert(i, vals.begin(), vals.end());
     }
     csr.get_values().print(std::cout);
+    check_dcsr(csr, nkey, nval);
+    std::cout << "test repack..." << std::endl;
+    csr.repack();
     check_dcsr(csr, nkey, nval);
     printf("+ Pass test: dynamic_csr_storage range insertion:)\n\n");
   }
