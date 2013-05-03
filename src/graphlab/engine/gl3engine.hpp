@@ -317,6 +317,8 @@ class gl3engine {
   size_t num_vthreads;
   // number of worker threads
   size_t ncpus;
+
+  bool all_fast_path; // if set, the RPC handlers will evaluate the subtasks directly
   // A reference to the graph
   graph_type& graph;
   // the subtask types
@@ -410,6 +412,7 @@ class gl3engine {
       rmi(dc, this), graph(graph), execution_group(opts.get_ncpus(), 64 * 1024) {
     rmi.barrier();
     num_vthreads = 10000;
+    all_fast_path = false;
     ncpus = opts.get_ncpus();
     worker_mutex.resize(ncpus);
 
@@ -423,7 +426,14 @@ class gl3engine {
         if (rmi.procid() == 0)
           logstream(LOG_EMPH) << "Engine Option: num_vthreads = "
                               << num_vthreads << std::endl;
-      } else {
+      }
+      else if (opt == "all_fast_path") {
+        opts.get_engine_args().get_option("all_fast_path", all_fast_path);
+        if (rmi.procid() == 0)
+          logstream(LOG_EMPH) << "Engine Option: all_fast_path = "
+                              << all_fast_path << std::endl;
+      }
+      else {
         logstream(LOG_FATAL) << "Unexpected Engine Option: " << opt << std::endl;
       }
     }
@@ -1259,7 +1269,7 @@ class gl3engine {
       }
     }
     // do we fast path it?
-    if (task_types[task_id]->fast_path(param)) {
+    if (all_fast_path || task_types[task_id]->fast_path(param)) {
     //if (1) {
       // fast path
       any ret = task_types[task_id]->exec(graph, vid, param, this);
