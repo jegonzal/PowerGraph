@@ -601,6 +601,11 @@ namespace graphlab {
       set_options(opts);
     }
 
+    ~distributed_graph() {
+      if (ingress_ptr != NULL)
+        delete ingress_ptr;
+    }
+
   private:
     void set_options(const graphlab_options& opts) {
       size_t bufsize = 50000;
@@ -2682,7 +2687,6 @@ namespace graphlab {
       }
     };
 
-
     /** \internal
      *  edge type which provides access to local graph edges */
     class local_edge_type {
@@ -3129,8 +3133,6 @@ namespace graphlab {
       }
       rpc.full_barrier();
     } // end of load
-
-
 
   }; // End of graph
 } // end of namespace graphlab
