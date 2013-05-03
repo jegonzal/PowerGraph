@@ -1259,7 +1259,8 @@ class gl3engine {
       }
     }
     // do we fast path it?
-    if (1) {
+    if (task_types[task_id]->fast_path(param)) {
+    //if (1) {
       // fast path
       any ret = task_types[task_id]->exec(graph, vid, param, this);
       // return to origin
