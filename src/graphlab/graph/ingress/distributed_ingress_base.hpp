@@ -179,7 +179,7 @@ namespace graphlab {
         edge_exchange.clear();
       }
       if(rpc.procid() == 0) 
-        memory_info::log_usage("Finished populating local graph " + 
+        memory_info::log_usage("Finish populating local graph " + 
                                boost::lexical_cast<std::string>(mytimer.current_time()) + " secs");
       
       ASSERT_EQ(graph.vid2lvid.size(), graph.local_graph.num_vertices());
@@ -194,7 +194,7 @@ namespace graphlab {
                           << "\t nedges: " << graph.local_graph.num_edges()
                           << std::endl;
       if(rpc.procid() == 0)       
-        memory_info::log_usage("Finished finalizing local graph " + 
+        memory_info::log_usage("Finish finalizing local graph " + 
                                boost::lexical_cast<std::string>(mytimer.current_time()) + " secs"); 
 
       ////////////////////////////// Phase 2 ////////////////////////////
@@ -218,7 +218,7 @@ namespace graphlab {
       } // end of loop to populate vrecmap
 
       if(rpc.procid() == 0)         
-        memory_info::log_usage("Finished receving vertex data " + 
+        memory_info::log_usage("Finish receving vertex data " + 
                                boost::lexical_cast<std::string>(mytimer.current_time()) + " secs");
 
       /////////////////////////// Phase 3 /////////////////////////
@@ -244,8 +244,12 @@ namespace graphlab {
           }
           vid_vec.clear();
         }
-
+        
         rpc.barrier();
+        if(rpc.procid() == 0)         
+          memory_info::log_usage("Finish master vid exchange " + 
+                                 boost::lexical_cast<std::string>(mytimer.current_time()) + " secs");
+
 
         // owner vertex gather from mirrors 
         foreach(vchannel_pair_type& vc_pair, vchannel_map) {
@@ -260,6 +264,11 @@ namespace graphlab {
         }
         rpc.full_barrier();
 
+        if (rpc.procid() == 0)
+          memory_info::log_usage("Finish vertex gather " + 
+                                 boost::lexical_cast<std::string>(mytimer.current_time()) + " secs");
+
+
         foreach(vchannel_pair_type& vc_pair, vchannel_map) {
           vertex_id_type vid = vc_pair.first;
           vertex_channel_type& vc = vc_pair.second;
@@ -273,7 +282,10 @@ namespace graphlab {
             }
           }
         }
-        rpc.full_barrier();
+
+        if (rpc.procid() == 0)
+          memory_info::log_usage("Finish vertex scatter " + 
+                                 boost::lexical_cast<std::string>(mytimer.current_time()) + " secs");
 
         // reserve and resize vertices datastructre in the graph 
         size_t vsize = graph.vid2lvid.size();
@@ -285,6 +297,8 @@ namespace graphlab {
           graph.local_graph.reserve(vsize);
           graph.local_graph.resize(vsize);
         }
+
+        rpc.full_barrier();
 
         // update local graph vertex record with updated vertices info
         foreach(const vchannel_pair_type& vc_pair, vchannel_map) {
@@ -307,9 +321,8 @@ namespace graphlab {
         }
       }
       rpc.full_barrier();
-
       if(rpc.procid() == 0) 
-        memory_info::log_usage("Finished updating vertices " + 
+        memory_info::log_usage("Finish updating vertices " + 
                                boost::lexical_cast<std::string>(mytimer.current_time()) + " secs");
 
       ASSERT_EQ(graph.vid2lvid.size(), graph.local_graph.num_vertices());
@@ -367,7 +380,6 @@ namespace graphlab {
       rpc.all_gather(swap_counts);
       graph.nreplicas = 0;
       foreach(size_t count, swap_counts) graph.nreplicas += count;
-
     }
 
 
