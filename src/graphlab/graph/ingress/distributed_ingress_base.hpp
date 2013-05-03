@@ -229,8 +229,7 @@ namespace graphlab {
         memory_info::log_usage("Finished populating local graph.");
       
       ASSERT_EQ(graph.vid2lvid.size(), graph.local_graph.num_vertices());
-      logstream(LOG_INFO) << "Vid2lvid size: " << graph.vid2lvid.size() << "\t" << "Max lvid : " << graph.local_graph.maxlvid() << std::endl;
-      ASSERT_EQ(graph.vid2lvid.size(), graph.local_graph.maxlvid() + 1);
+      logstream(LOG_INFO) << "Vid2lvid size: " << graph.vid2lvid.size() << "\t" << "Max lvid in edge buffer: " << graph.local_graph.maxlvid() << std::endl;
       
       // Finalize local graph
       logstream(LOG_INFO) << "Graph Finalize: finalizing local graph." 
