@@ -176,6 +176,7 @@ struct map_reduce_neighbors_task_descriptor: public gl3task_descriptor<GraphType
       foreach(local_edge_type ledge, lvertex.in_edges()) {
         edge_type edge(ledge);
         vertex_type other(ledge.source());
+        engine->vlocks[ledge.source().id()].lock();
         engine->elocks[ledge.id()].lock();
         if (filled) {
           combine_fn(agg, map_fn(vertex, edge, other));
@@ -184,6 +185,7 @@ struct map_reduce_neighbors_task_descriptor: public gl3task_descriptor<GraphType
           filled = true;
         }
         engine->elocks[ledge.id()].unlock();
+        engine->vlocks[ledge.source().id()].unlock();
       }
     }
 
@@ -191,6 +193,7 @@ struct map_reduce_neighbors_task_descriptor: public gl3task_descriptor<GraphType
       foreach(local_edge_type ledge, lvertex.out_edges()) {
         edge_type edge(ledge);
         vertex_type other(ledge.target());
+        engine->vlocks[ledge.target().id()].lock();
         engine->elocks[ledge.id()].lock();
         if (filled) {
           combine_fn(agg, map_fn(vertex, edge, other));
@@ -199,6 +202,7 @@ struct map_reduce_neighbors_task_descriptor: public gl3task_descriptor<GraphType
           filled = true;
         }
         engine->elocks[ledge.id()].unlock();
+        engine->vlocks[ledge.target().id()].unlock();
       }
     }
     any ret(std::pair<T, bool>(agg, filled));
@@ -331,9 +335,11 @@ struct edge_transform_task_descriptor: public gl3task_descriptor<GraphType, Engi
       foreach(local_edge_type ledge, lvertex.in_edges()) {
         edge_type edge(ledge);
         vertex_type other(ledge.source());
+        engine->vlocks[ledge.source().id()].lock();
         engine->elocks[ledge.id()].lock();
         edge_transform_fn(vertex, edge, other);
         engine->elocks[ledge.id()].unlock();
+        engine->vlocks[ledge.source().id()].unlock();
       }
     }
 
@@ -341,9 +347,11 @@ struct edge_transform_task_descriptor: public gl3task_descriptor<GraphType, Engi
       foreach(local_edge_type ledge, lvertex.out_edges()) {
         edge_type edge(ledge);
         vertex_type other(ledge.target());
+        engine->vlocks[ledge.target().id()].lock();
         engine->elocks[ledge.id()].lock();
         edge_transform_fn(vertex, edge, other);
         engine->elocks[ledge.id()].unlock();
+        engine->vlocks[ledge.target().id()].unlock();
       }
     }
     return any();
