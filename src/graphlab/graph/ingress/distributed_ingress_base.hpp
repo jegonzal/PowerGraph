@@ -225,13 +225,27 @@ namespace graphlab {
       { // synchornize all updated vertices between master and mirrors
         rpc.barrier();
         // mirror vertex notify the owner proc
+        std::vector<std::vector<vertex_id_type> > vid_exchange(rpc.numprocs());
         foreach(vchannel_pair_type& vc_pair, vchannel_map) {
           vertex_id_type vid = vc_pair.first;
-          if (graph_hash::hash_vertex(vid) % rpc.numprocs() != rpc.procid()) 
-            rpc.remote_call(vc_pair.second.owner,
-                            &distributed_ingress_base::vid_gather, vid);
+          procid_t owner = vc_pair.second.owner;
+          vid_exchange[owner].push_back(vid);
         }
-        rpc.full_barrier();
+        rpc.all_to_all(vid_exchange);
+        for (size_t i = 0; i < rpc.numprocs(); ++i) {
+          if (i == rpc.procid()) 
+            continue;
+          std::vector<vertex_id_type>& vid_vec = vid_exchange[i];
+          foreach(vertex_id_type vid, vid_vec) {
+            if (vchannel_map.find(vid) == vchannel_map.end()) {
+              add_vertex_channel(vid);
+              get_or_add_vid2lvid(vid);
+            }
+          }
+          vid_vec.clear();
+        }
+
+        rpc.barrier();
 
         // owner vertex gather from mirrors 
         foreach(vchannel_pair_type& vc_pair, vchannel_map) {
@@ -245,6 +259,7 @@ namespace graphlab {
                             &distributed_ingress_base::vchannel_gather, vid, vc);
         }
         rpc.full_barrier();
+
         foreach(vchannel_pair_type& vc_pair, vchannel_map) {
           vertex_id_type vid = vc_pair.first;
           vertex_channel_type& vc = vc_pair.second;
@@ -379,15 +394,6 @@ namespace graphlab {
       }
     }
 
-    void vid_gather(const vertex_id_type vid) {
-      vidmutex.lock();
-      if (vchannel_map.find(vid) == vchannel_map.end()) {
-        add_vertex_channel(vid);
-        get_or_add_vid2lvid(vid);
-      }
-      vidmutex.unlock();
-    }
-
     void vchannel_gather(const vertex_id_type vid, const vertex_channel_type& acc) {
       ASSERT_TRUE(vchannel_map.find(vid) != vchannel_map.end());
       vertex_channel_type& vc = vchannel_map[vid];
@@ -430,7 +436,6 @@ namespace graphlab {
     boost::function<void(vertex_data_type&,
                          const vertex_data_type&)> vertex_combine_strategy;
 
-    mutex vidmutex;
   }; // end of distributed_ingress_base
 }; // end of namespace graphlab
 #include <graphlab/macros_undef.hpp>
