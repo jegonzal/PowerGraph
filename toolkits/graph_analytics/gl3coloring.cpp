@@ -106,7 +106,7 @@ set_union_gather unique_color_map(const graph_type::vertex_type& center,
                                   const graph_type::vertex_type& other) {
   set_union_gather gather;
   color_type other_color = other.data();
-  if (!EDGE_CONSISTENT && other.id() < center.id()) gather.colors.insert(other_color);
+  gather.colors.insert(other_color);
   return gather;
 }
 
@@ -227,15 +227,12 @@ void update_function(engine_type::context_type& context,
   for (color_type curcolor = 0; curcolor < neighborhoodsize + 1; ++curcolor) {
     if (neighborhood.colors.count(curcolor) == 0) {
       vertex.data() = curcolor;
-      color_changed = true;
       break;
     }
   }
   if (EDGE_CONSISTENT) context.edge_transform(STOP_EATING, ALL_EDGES);
 
-  if (color_changed) {
-    context.edge_transform(SIGNAL_IF_CHANGE, ALL_EDGES, false);
-  }
+  context.edge_transform(SIGNAL_IF_CHANGE, ALL_EDGES, false);
 }
 
 

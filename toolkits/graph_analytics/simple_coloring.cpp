@@ -105,7 +105,7 @@ public:
                                  edge.target().data(): edge.source().data();
     vertex_id_type otherid= edge.source().id() == vertex.id() ?
                                  edge.target().id(): edge.source().id();
-    if (!EDGE_CONSISTENT && otherid < vertex.id()) gather.colors.insert(other_color);
+     gather.colors.insert(other_color);
     return gather;
   }
 
