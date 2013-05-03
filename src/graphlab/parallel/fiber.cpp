@@ -71,11 +71,25 @@ fiber_group::fiber* fiber_group::get_active_fiber() {
 
 
 
-void fiber_group::active_queue_insert(size_t workerid, fiber_group::fiber* value) {
+void fiber_group::active_queue_insert_tail(size_t workerid, fiber_group::fiber* value) {
   if (value->scheduleable) {
     value->next = NULL;
     schedule[workerid].active_tail->next = value;
     schedule[workerid].active_tail = value;
+    ++schedule[workerid].nactive;
+    ++nactive;
+  }
+  // might want to handle the signalling mechanism here too
+}
+
+void fiber_group::active_queue_insert_head(size_t workerid, fiber_group::fiber* value) {
+  if (value->scheduleable) {
+    value->next = schedule[workerid].active_head.next;
+    schedule[workerid].active_head.next = value;
+    // fixup the tail if it was pointing to the head
+    if (schedule[workerid].active_tail == &schedule[workerid].active_head) {
+      schedule[workerid].active_tail = value;
+    }
     ++schedule[workerid].nactive;
     ++nactive;
   }
@@ -182,7 +196,7 @@ size_t fiber_group::launch(boost::function<void(void)> fn, int affinity) {
   // rb uses a linear congruential generator
   size_t choice = (affinity >= 0) ? affinity : load_balanced_worker_choice(fib->id);
   schedule[choice].active_lock.lock();
-  active_queue_insert(choice, fib);
+  active_queue_insert_tail(choice, fib);
   if (schedule[choice].waiting) schedule[choice].active_cond.signal();
   schedule[choice].active_lock.unlock();
   return reinterpret_cast<size_t>(fib);
@@ -207,6 +221,8 @@ void fiber_group::yield_to(fiber* next_fib) {
     }
   } */
   if (next_fib != NULL) {
+    // reset the priority flag
+    next_fib->priority = false;
     // current fiber moves to previous
     // next fiber move to current
     t->prev_fiber = t->cur_fiber;
@@ -246,6 +262,7 @@ void fiber_group::yield_to(fiber* next_fib) {
   }
   // reread the tls pointer because we may have woken up in a different thread
   t = get_tls_ptr();
+  // clear the priority flag if set
   if (t->prev_fiber) reschedule_fiber(t->prev_fiber->affinity >= 0 ?
                                          t->prev_fiber->affinity :
                                          t->workerid,
@@ -261,7 +278,8 @@ void fiber_group::reschedule_fiber(size_t workerid, fiber* fib) {
     // Re-lock the queue
     //printf("Reinserting %ld\n", fib->id);
     schedule[workerid].active_lock.lock();
-    active_queue_insert(workerid, fib);
+    if (!fib->priority) active_queue_insert_tail(workerid, fib);
+    else active_queue_insert_head(workerid, fib);
     if (schedule[workerid].waiting) schedule[workerid].active_cond.signal();
     schedule[workerid].active_lock.unlock();
   } else if (fib->descheduled) {
@@ -352,7 +370,7 @@ size_t fiber_group::get_worker_id() {
   return tls->workerid;
 }
 
-void fiber_group::schedule_tid(size_t tid) {
+void fiber_group::schedule_tid(size_t tid, bool priority) {
   fiber* fib = reinterpret_cast<fiber*>(tid);
   fib->lock.lock();
   // we MUST get here only after the thread was completely descheduled
@@ -363,6 +381,7 @@ void fiber_group::schedule_tid(size_t tid) {
     // if this thread was descheduled completely. Reschedule it.
     //printf("Scheduling requested %ld\n", fib->id);
     fib->scheduleable = true;
+    fib->priority = priority;
     fib->lock.unlock();
     size_t choice = (fib->affinity >= 0) ? fib->affinity : fib->parent->load_balanced_worker_choice(fib->id);
     fib->parent->reschedule_fiber(choice, fib);
