@@ -379,8 +379,9 @@ class gl3engine {
    */
   std::vector<simple_spinlock> elocks;
 
-
-
+  // If True adds tracking for the task retire time
+  bool track_task_retire_time;
+  atomic<size_t> total_task_time;
 
   fiber_group execution_group;
 
@@ -413,6 +414,8 @@ class gl3engine {
     rmi.barrier();
     num_vthreads = 10000;
     all_fast_path = false;
+    track_task_retire_time = false;
+
     ncpus = opts.get_ncpus();
     worker_mutex.resize(ncpus);
 
@@ -426,8 +429,12 @@ class gl3engine {
         if (rmi.procid() == 0)
           logstream(LOG_EMPH) << "Engine Option: num_vthreads = "
                               << num_vthreads << std::endl;
-      }
-      else if (opt == "all_fast_path") {
+    } else if (opt == "track_task_time") {
+      opts.get_engine_args().get_option("track_task_time", track_task_retire_time);
+      if (rmi.procid() == 0)
+        logstream(LOG_EMPH) << "Engine Option: track_task_time = "
+          << track_task_retire_time << std::endl;
+    } else if (opt == "all_fast_path") {
         opts.get_engine_args().get_option("all_fast_path", all_fast_path);
         if (rmi.procid() == 0)
           logstream(LOG_EMPH) << "Engine Option: all_fast_path = "
@@ -1464,9 +1471,12 @@ class gl3engine {
     vertex_type vertex(graph.l_vertex(lvid));
     context.lvid = lvid;
 
+    timer ti; 
 
     // logger(LOG_EMPH, "Running vertex %ld", vertex.id());
     active_function(context, vertex, msg);
+
+    if (track_task_retire_time) total_task_time.inc(ti.current_time_millis());
 
     scheduler_task_epilogue(lvid);
 
@@ -1607,6 +1617,15 @@ class gl3engine {
     rmi.all_reduce(ctasks);
     total_tasks_completed = ctasks;
 
+    if (track_task_retire_time) {
+      ctasks = total_task_time.value;
+      rmi.all_reduce(ctasks);
+      total_task_time = ctasks;
+      if (rmi.procid() == 0) {
+        std::cout << "Average Task Time (ms) = "
+          << double(total_task_time.value) / total_tasks_completed << "\n";
+      }
+    }
     consensus->reset();
     rmi.barrier();
 
