@@ -36,7 +36,7 @@
 
 #include "utils.hpp"
 #include "stitch_grlab.hpp"
-
+#include "iostream"
 
 /////////////////////////////////////////////////////////////////////////
 // Vertex Loader (used to read images and load the vertex data of the graph)
@@ -457,10 +457,13 @@ void find_seams(graph_type::edge_type& edge)
 {
     // Get edge data
     //edge_data &edata = edge.data(); //commented by me as it was unused
-   
+	//cout << "I am in find_seam\n";
     // Get vertex ids of two vertices involved
     vertex_data &vdata1 = edge.source().data();
     vertex_data &vdata2 = edge.target().data();
+
+	//cout << "vdata1  : \n" << vdata1;
+	//cout << "vdata2  : \n" << vdata2;
 
     // Not sure why this is needed anymore?
     //Ptr<SeamFinder> seam_finder;
@@ -469,7 +472,7 @@ void find_seams(graph_type::edge_type& edge)
    
     // Code from PairwiseSeamFinder::Impl::findInPair()
     //Mat img1 = images_[first], img2 = images_[second];
-    Mat &img1 = vdata1.img; Mat &img2 = vdata2.img;
+    Mat &img1 = vdata1.img_warped_f; Mat &img2 = vdata2.img_warped_f;
     vector<Mat> src; src.push_back(img1); src.push_back(img2);
 
     vector<Mat> dx_(2), dy_(2);  
@@ -565,7 +568,7 @@ void find_seams(graph_type::edge_type& edge)
 
    
     const Size img_size = subimg1.size();
-    
+    cout << "img.height : " << img_size.height << "img.width : " << img_size.width << std::endl;
     if (opts.seam_find_type.compare("gc_color") ==0)
     {
     	// Set terminal weights
