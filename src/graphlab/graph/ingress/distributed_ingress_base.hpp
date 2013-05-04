@@ -80,9 +80,8 @@ namespace graphlab {
         edge_buffer_type;
     typedef typename buffered_exchange<vertex_buffer_record>::buffer_type 
         vertex_buffer_type;
-    typedef boost::unordered_map<vertex_id_type, vertex_channel_type>
-        vchannel_map_type;
-    typedef typename vchannel_map_type::value_type vchannel_pair_type;
+
+    typedef boost::unordered_map<vertex_id_type, size_t> vchannel_map_type;
 
   public:
     distributed_ingress_base(distributed_control& dc, graph_type& graph) :
@@ -205,7 +204,7 @@ namespace graphlab {
           foreach(const vertex_buffer_record& rec, vertex_buffer) {
             get_or_add_vid2lvid(rec.vid);
             add_vertex_channel(rec.vid);
-            vertex_channel_type& vchannel = vchannel_map[rec.vid];
+            vertex_channel_type& vchannel = vchannel_list[vchannel_map[rec.vid]];
             if (vertex_combine_strategy &&  vchannel.data_is_set) {
               vertex_combine_strategy(vchannel.vdata, rec.vdata);
             } else {
@@ -217,32 +216,52 @@ namespace graphlab {
         vertex_exchange.clear();
       } // end of loop to populate vrecmap
 
+      rpc.barrier();
       if(rpc.procid() == 0)         
         memory_info::log_usage("Finish receving vertex data " + 
                                boost::lexical_cast<std::string>(mytimer.current_time()) + " secs");
 
       /////////////////////////// Phase 3 /////////////////////////
       { // synchornize all updated vertices between master and mirrors
-        rpc.barrier();
         // mirror vertex notify the owner proc
+        // collect vids to owners 
         std::vector<std::vector<vertex_id_type> > vid_exchange(rpc.numprocs());
-        foreach(vchannel_pair_type& vc_pair, vchannel_map) {
-          vertex_id_type vid = vc_pair.first;
-          procid_t owner = vc_pair.second.owner;
-          vid_exchange[owner].push_back(vid);
+        std::vector<mutex> vid_exchange_locks(rpc.numprocs());
+#ifdef _OPENMP
+#pragma omp parallel for
+#endif
+        for (ssize_t i = 0; i < vchannel_list.size(); ++i) {
+          vertex_channel_type& vc = vchannel_list[i]; 
+          procid_t owner = vc.owner;
+          vid_exchange_locks[owner].lock();
+          vid_exchange[vc.owner].push_back(vc.vid);
+          vid_exchange_locks[owner].unlock();
         }
+
         rpc.all_to_all(vid_exchange);
+
+        // check any new vids
+        mutex mtx;
+        std::set<vertex_id_type> new_vids;
         for (size_t i = 0; i < rpc.numprocs(); ++i) {
           if (i == rpc.procid()) 
             continue;
           std::vector<vertex_id_type>& vid_vec = vid_exchange[i];
-          foreach(vertex_id_type vid, vid_vec) {
-            if (vchannel_map.find(vid) == vchannel_map.end()) {
-              add_vertex_channel(vid);
-              get_or_add_vid2lvid(vid);
+#ifdef _OPENMP
+#pragma omp parallel for
+#endif
+          for (ssize_t j = 0; j < vid_vec.size(); ++j) {
+            if (vchannel_map.find(vid_vec[j]) == vchannel_map.end()) {
+              mtx.lock();
+              new_vids.insert(vid_vec[j]);
+              mtx.unlock();
             }
           }
-          vid_vec.clear();
+          std::vector<vertex_id_type>().swap(vid_vec);
+        }
+        foreach(vertex_id_type vid, new_vids) {
+          add_vertex_channel(vid);
+          get_or_add_vid2lvid(vid);
         }
         
         rpc.barrier();
@@ -250,34 +269,36 @@ namespace graphlab {
           memory_info::log_usage("Finish master vid exchange " + 
                                  boost::lexical_cast<std::string>(mytimer.current_time()) + " secs");
 
-
+#ifdef _OPENMP
+#pragma omp parallel for
+#endif
         // owner vertex gather from mirrors 
-        foreach(vchannel_pair_type& vc_pair, vchannel_map) {
-          vertex_id_type vid = vc_pair.first;
+        for (ssize_t i = 0; i < vchannel_list.size(); ++i) {
+          vertex_channel_type& vc = vchannel_list[i];
+          vertex_id_type vid = vc.vid;
           lvid_type lvid = graph.vid2lvid[vid];
-          vertex_channel_type& vc = vc_pair.second;
           vc.num_in_edges = graph.local_graph.num_in_edges(lvid);
           vc.num_out_edges = graph.local_graph.num_out_edges(lvid);
-          if (graph_hash::hash_vertex(vid) % rpc.numprocs() != rpc.procid()) 
+          if (vc.owner != rpc.procid())
             rpc.remote_call(vc.owner,
-                            &distributed_ingress_base::vchannel_gather, vid, vc);
+                            &distributed_ingress_base::vchannel_gather, vc);
         }
         rpc.full_barrier();
-
         if (rpc.procid() == 0)
           memory_info::log_usage("Finish vertex gather " + 
                                  boost::lexical_cast<std::string>(mytimer.current_time()) + " secs");
 
-
-        foreach(vchannel_pair_type& vc_pair, vchannel_map) {
-          vertex_id_type vid = vc_pair.first;
-          vertex_channel_type& vc = vc_pair.second;
-          if (graph_hash::hash_vertex(vid) % rpc.numprocs() == rpc.procid()) {
+#ifdef _OPENMP
+#pragma omp parallel for
+#endif
+       for (ssize_t i = 0; i < vchannel_list.size(); ++i) {
+          vertex_channel_type& vc = vchannel_list[i];
+          if (vc.owner == rpc.procid()) {
             //foreach mirror
             typename mirror_type::iterator it = vc.mirrors.begin();
             while (it != vc.mirrors.end()) {
               rpc.remote_call(*it,
-                              &distributed_ingress_base::vchannel_scatter, vid, vc);
+                              &distributed_ingress_base::vchannel_scatter, vc);
               ++it;
             }
           }
@@ -301,25 +322,26 @@ namespace graphlab {
         rpc.full_barrier();
 
         // update local graph vertex record with updated vertices info
-        foreach(const vchannel_pair_type& vc_pair, vchannel_map) {
-          vertex_id_type gvid = vc_pair.first;
-          const vertex_channel_type& vchannel = vc_pair.second;
+#ifdef _OPENMP
+#pragma omp parallel for
+#endif
+        for (ssize_t i = 0; i < vchannel_list.size(); ++i) {
+          const vertex_channel_type& vc = vchannel_list[i];
+          vertex_id_type gvid = vc.vid; 
           ASSERT_TRUE(graph.vid2lvid.find(gvid) != graph.vid2lvid.end());
           lvid_type lvid = graph.vid2lvid[gvid];
           ASSERT_LT(lvid, graph.lvid2record.size());
           vertex_record& vrecord = graph.lvid2record[lvid];
-
           vrecord.gvid = gvid;      
-          vrecord._mirrors = vchannel.mirrors;
-          vrecord.owner = vchannel.owner;
-          vrecord.num_in_edges = vchannel.num_in_edges;
-          vrecord.num_out_edges = vchannel.num_out_edges;
-
-          if (vchannel.data_is_set) {
-            graph.local_graph.add_vertex(lvid, vchannel.vdata);
+          vrecord._mirrors = vc.mirrors;
+          vrecord.owner = vc.owner;
+          vrecord.num_in_edges = vc.num_in_edges;
+          vrecord.num_out_edges = vc.num_out_edges;
+          if (vc.data_is_set) {
+            graph.local_graph.add_vertex(lvid, vc.vdata);
           }
         }
-      }
+      } // end of phase 3
       rpc.full_barrier();
       if(rpc.procid() == 0) 
         memory_info::log_usage("Finish updating vertices " + 
@@ -398,32 +420,36 @@ namespace graphlab {
 
     void add_vertex_channel(vertex_id_type vid) {
       if (vchannel_map.find(vid) == vchannel_map.end()) {
-        vertex_channel_type& vchannel = vchannel_map[vid];
-        vchannel.owner = graph_hash::hash_vertex(vid) % rpc.numprocs();
-        if (vchannel.owner != rpc.procid()) {
-          vchannel.mirrors.set_bit(rpc.procid());
+        vchannel_map[vid] = vchannel_list.size();
+        vertex_channel_type vc;
+        vc.owner = graph_hash::hash_vertex(vid) % rpc.numprocs();
+        vc.vid = vid;
+        if (vc.owner != rpc.procid()) {
+          vc.mirrors.set_bit(rpc.procid());
         }
+        vchannel_list.push_back(vc);
       }
     }
 
-    void vchannel_gather(const vertex_id_type vid, const vertex_channel_type& acc) {
-      ASSERT_TRUE(vchannel_map.find(vid) != vchannel_map.end());
-      vertex_channel_type& vc = vchannel_map[vid];
+    void vchannel_gather(const vertex_channel_type& acc) {
+      ASSERT_TRUE(vchannel_map.find(acc.vid) != vchannel_map.end());
+      vertex_channel_type& vc = vchannel_list[vchannel_map[acc.vid]];
       ASSERT_TRUE(vc.owner == rpc.procid());
       vc.mtx.lock();
       vc += acc;
       vc.mtx.unlock();
     }
 
-    void vchannel_scatter(const vertex_id_type vid, const vertex_channel_type& acc) {
-      ASSERT_TRUE(vchannel_map.find(vid) != vchannel_map.end());
-      vertex_channel_type& vc = vchannel_map[vid];
+    void vchannel_scatter(const vertex_channel_type& acc) {
+      ASSERT_TRUE(vchannel_map.find(acc.vid) != vchannel_map.end());
+      vertex_channel_type& vc = vchannel_list[vchannel_map[acc.vid]];
       ASSERT_TRUE(vc.owner != rpc.procid());
       vc = acc;
     }
 
     void clear() { 
       vchannel_map.clear();
+      std::vector<vertex_channel_type>().swap(vchannel_list);
       vertex_exchange.clear();
       edge_exchange.clear();
     }
@@ -444,6 +470,7 @@ namespace graphlab {
     ingress_edge_decision<VertexData, EdgeData> edge_decision;
 
     vchannel_map_type vchannel_map;
+    std::vector<vertex_channel_type> vchannel_list;
 
     boost::function<void(vertex_data_type&,
                          const vertex_data_type&)> vertex_combine_strategy;

@@ -780,6 +780,7 @@ namespace graphlab {
           << "\n\tAttempting to add a vertex to a finalized graph."
           << "\n\tVertices cannot be added to a graph after finalization."
           << std::endl;
+        return;
       }
 #else
       finalized = false;
@@ -817,6 +818,7 @@ namespace graphlab {
           << "\n\tAttempting to add an edge to a finalized graph."
           << "\n\tEdges cannot be added to a graph after finalization."
           << std::endl;
+        return;
       }
 #else 
       finalized = false;

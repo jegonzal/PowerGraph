@@ -268,7 +268,7 @@ namespace graphlab {
 
       graphlab::timer mytimer; mytimer.start();
 #ifdef DEBUG_GRAPH
-      logstream(LOG_DEBUG) << "Graph2 finalize starts." << std::endl;
+      logstream(LOG_DEBUG) << "dynamic graph finalize starts." << std::endl;
 #endif
       std::vector<edge_id_type> src_permute;
       std::vector<edge_id_type> dest_permute;
@@ -276,16 +276,17 @@ namespace graphlab {
       std::vector<edge_id_type> dest_counting_prefix_sum;
 
 #ifdef DEBUG_GRAPH
-      logstream(LOG_DEBUG) << "Graph2 finalize: Sort by source vertex" << std::endl;
+      logstream(LOG_DEBUG) << "dynamic graph finalize: Sort by source vertex" << std::endl;
 #endif
       counting_sort(edge_buffer.source_arr, dest_permute, &src_counting_prefix_sum);
 #ifdef DEBUG_GRAPH
-      logstream(LOG_DEBUG) << "Graph2 finalize: Sort by dest id" << std::endl;
+      logstream(LOG_DEBUG) << "dynamic graph finalize: Sort by dest id" << std::endl;
 #endif
       counting_sort(edge_buffer.target_arr, src_permute, &dest_counting_prefix_sum);
 
-      std::vector< std::pair<lvid_type, edge_id_type> >  csr_values;
-      std::vector< std::pair<lvid_type, edge_id_type> >  csc_values;
+      typedef std::pair<lvid_type, edge_id_type> csr_value_type;
+      std::vector< csr_value_type >  csr_values;
+      std::vector< csr_value_type >  csc_values;
 
       csr_values.reserve(dest_permute.size());
       edge_id_type begineid = edges.size();
@@ -314,25 +315,8 @@ namespace graphlab {
         edges.insert(edges.end(), edge_buffer.data.begin(), edge_buffer.data.end());
         std::vector<EdgeData>().swap(edge_buffer.data);
         edge_buffer.clear();
-        size_t begin, end;
-        for (size_t i = 0; i < src_counting_prefix_sum.size(); ++i) {
-          begin = src_counting_prefix_sum[i];
-          end = (i==src_counting_prefix_sum.size()-1)
-              ? csr_values.size()
-              : src_counting_prefix_sum[i+1];
-          if (end > begin) {
-            _csr_storage.insert(i, csr_values.begin()+begin, csr_values.begin()+end);
-          }
-        }
-        for (size_t i = 0; i < dest_counting_prefix_sum.size(); ++i) {
-          begin = dest_counting_prefix_sum[i];
-          end = (i==dest_counting_prefix_sum.size()-1)
-              ? csc_values.size()
-              : dest_counting_prefix_sum[i+1];
-          if (end > begin) {
-            _csc_storage.insert(i, csc_values.begin()+begin, csc_values.begin()+end);
-          }
-        }
+        csr_insert(_csr_storage, src_counting_prefix_sum, csr_values);
+        csr_insert(_csc_storage, dest_counting_prefix_sum, csc_values);
         // Repack after insertion
         _csr_storage.repack();
         _csc_storage.repack();
@@ -343,15 +327,13 @@ namespace graphlab {
 #ifdef DEBUG_GRAPH
       logstream(LOG_DEBUG) << "End of finalize." << std::endl;
 #endif
-      logstream(LOG_INFO) << "Graph finalized in " << mytimer.current_time()
+      logstream(LOG_INFO) << "dynamic local graph finalized in " << mytimer.current_time()
                           << " secs" << std::endl;
-
 #ifdef DEBUG_GRAPH
       _csr_storage.meminfo(std::cout);
       _csc_storage.meminfo(std::cout);
 #endif
     } // End of finalize
-
 
     /** \brief Load the local_graph from an archive */
     void load(iarchive& arc) {
@@ -500,21 +482,6 @@ namespace graphlab {
       return vlist_size + elist_size + ebuffer_size;
     }
 
-    /** \internal
-     * \brief For debug purpose, returns the largest vertex id in the edge_buffer
-     */
-    const lvid_type maxlvid() const {
-      if (edge_buffer.size()) {
-        lvid_type max(0);
-        foreach(lvid_type i, edge_buffer.source_arr)
-         max = std::max(max, i);
-        foreach(lvid_type i, edge_buffer.target_arr)
-         max = std::max(max, i);
-        return max;
-      } else {
-        return lvid_type(-1);
-      }
-    }
 
   private:
     /**
@@ -525,6 +492,26 @@ namespace graphlab {
 
     typedef typename csr_type::iterator csr_edge_iterator;
 
+
+    // ================== PRIVATE Helper function ================
+  private:
+    void csr_insert (csr_type& container,
+                     std::vector<edge_id_type>& keyvec,
+                     typename std::vector<csr_type::value_type>& valvec,
+                     bool deduplicate = true) {
+      size_t begin, end;
+      for (size_t i = 0; i < keyvec.size(); ++i) {
+        begin = keyvec[i];
+        end = (i==keyvec.size()-1)
+            ? valvec.size()
+            : keyvec[i+1];
+        if (end > begin) {
+            container.insert(i, valvec.begin()+begin, valvec.begin()+end);
+        }
+      }
+    }
+
+  private:
     // PRIVATE DATA MEMBERS ===================================================>
     //
     /** The vertex data is simply a vector of vertex data */

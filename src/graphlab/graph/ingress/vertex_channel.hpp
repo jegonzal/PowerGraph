@@ -11,6 +11,7 @@ namespace graphlab {
     typedef typename graph_type::mirror_type mirror_type;
 
    public:
+    vertex_id_type vid;
     mirror_type mirrors;
     vertex_data_type vdata;
     size_t num_in_edges, num_out_edges;
@@ -19,10 +20,11 @@ namespace graphlab {
     mutex mtx;
 
     vertex_channel() : 
-        vdata(vertex_data_type()), num_in_edges(0), num_out_edges(0), 
+        vid(-1), vdata(vertex_data_type()), num_in_edges(0), num_out_edges(0), 
         owner(-1), data_is_set(false) { }
 
     vertex_channel& operator+=(const vertex_channel& other) {
+      ASSERT_EQ(vid, other.vid);
       num_in_edges += other.num_in_edges;
       num_out_edges += other.num_out_edges;
       // mirrors += other.mirrors
@@ -35,14 +37,14 @@ namespace graphlab {
     }
 
     void load(iarchive& arc) { 
-      arc >> num_in_edges >> num_out_edges >> owner >> mirrors >> data_is_set;
+      arc >> vid >> num_in_edges >> num_out_edges >> owner >> mirrors >> data_is_set;
       if (data_is_set) {
        arc >> vdata;
       }
     }
 
     void save(oarchive& arc) const {
-      arc << num_in_edges << num_out_edges << owner << mirrors << data_is_set;
+      arc << vid << num_in_edges << num_out_edges << owner << mirrors << data_is_set;
       if (data_is_set) {
         arc << vdata;
       }
