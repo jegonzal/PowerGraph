@@ -601,11 +601,6 @@ namespace graphlab {
       set_options(opts);
     }
 
-    ~distributed_graph() {
-      if (ingress_ptr != NULL)
-        delete ingress_ptr;
-    }
-
   private:
     void set_options(const graphlab_options& opts) {
       size_t bufsize = 50000;
@@ -780,7 +775,6 @@ namespace graphlab {
           << "\n\tAttempting to add a vertex to a finalized graph."
           << "\n\tVertices cannot be added to a graph after finalization."
           << std::endl;
-        return;
       }
 #else
       finalized = false;
@@ -818,7 +812,6 @@ namespace graphlab {
           << "\n\tAttempting to add an edge to a finalized graph."
           << "\n\tEdges cannot be added to a graph after finalization."
           << std::endl;
-        return;
       }
 #else 
       finalized = false;
@@ -2689,6 +2682,7 @@ namespace graphlab {
       }
     };
 
+
     /** \internal
      *  edge type which provides access to local graph edges */
     class local_edge_type {
@@ -3135,6 +3129,8 @@ namespace graphlab {
       }
       rpc.full_barrier();
     } // end of load
+
+
 
   }; // End of graph
 } // end of namespace graphlab
