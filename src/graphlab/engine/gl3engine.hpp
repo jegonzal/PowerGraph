@@ -542,7 +542,10 @@ class gl3engine {
   void internal_schedule(const lvid_type lvid,
                          const message_type& message) {
     scheduler_ptr->schedule(lvid, message);
-    if (execution_group.num_threads() < num_vthreads) {
+    //if (execution_group.num_threads() < num_vthreads) {
+    if (execution_group.num_active() < 2 * ncpus && 
+          execution_group.num_threads() < num_vthreads) { 		
+    //if (active_vthread_count < ncpus) {
       launch_a_vthread();
     }
   }
@@ -1030,6 +1033,10 @@ class gl3engine {
   void wait_on_combiner(future_combiner& combiner) {
     combiner.lock.lock();
     while (combiner.count_down != 0) {
+      if (execution_group.num_active() < 2 * ncpus && 
+          execution_group.num_threads() < num_vthreads) { 		
+	launch_a_vthread(); 		
+      }      
       fiber_group::deschedule_self(&combiner.lock.m_mut);
       combiner.lock.lock();
     }
