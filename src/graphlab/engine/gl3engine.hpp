@@ -407,16 +407,24 @@ class gl3engine {
 /*                                                                        */
 /**************************************************************************/
 
+  void worker_wake(size_t workerid) {
+    rmi.dc().stop_handler_threads(workerid, ncpus);
+  }
+
+  void worker_sleep(size_t workerid) {
+    rmi.dc().start_handler_threads(workerid, ncpus);
+  }
  public:
   gl3engine(distributed_control& dc, graph_type& graph,
             graphlab_options opts = graphlab_options()):
-      rmi(dc, this), graph(graph), execution_group(opts.get_ncpus(), 64 * 1024) {
+      rmi(dc, this), graph(graph), 
+      ncpus(opts.get_ncpus()),
+      execution_group(opts.get_ncpus(), 64 * 1024) {
     rmi.barrier();
     num_vthreads = 10000;
     all_fast_path = false;
     track_task_retire_time = false;
 
-    ncpus = opts.get_ncpus();
     worker_mutex.resize(ncpus);
 
     execution_group.set_tls_deleter(free);
@@ -542,10 +550,10 @@ class gl3engine {
   void internal_schedule(const lvid_type lvid,
                          const message_type& message) {
     scheduler_ptr->schedule(lvid, message);
-    //if (execution_group.num_threads() < num_vthreads) {
-    if (execution_group.num_active() < 2 * ncpus && 
-          execution_group.num_threads() < num_vthreads) { 		
-    //if (active_vthread_count < ncpus) {
+    //if (execution_group.num_threads() < num_vthreads/4) {
+    //if (execution_group.num_active() < 2 * ncpus && 
+    //      execution_group.num_threads() < num_vthreads) { 		
+    if (active_vthread_count < ncpus) {
       launch_a_vthread();
     }
   }
@@ -1031,12 +1039,15 @@ class gl3engine {
   };
 
   void wait_on_combiner(future_combiner& combiner) {
+    if (combiner.count_down > 0 &&
+        fiber_group::fast_yieldable() <= 1 && 
+        execution_group.num_threads() < num_vthreads) { 		
+      launch_a_vthread(); 	
+    }      
+
     combiner.lock.lock();
     while (combiner.count_down != 0) {
-      if (execution_group.num_active() < 2 * ncpus && 
-          execution_group.num_threads() < num_vthreads) { 		
-	launch_a_vthread(); 		
-      }      
+      // the task thread
       fiber_group::deschedule_self(&combiner.lock.m_mut);
       combiner.lock.lock();
     }
@@ -1305,7 +1316,6 @@ class gl3engine {
       t->vid = vid;
       size_t target_queue = (thread_counter++) % ncpus;
       local_tasks[target_queue]->enqueue(t);
-
       // if the subtask thread handing this task is not alive any more,
       // re-create it.
       //std::cout << "subtask thread " << target_queue << " stat: " << (int)subtask_thread_alive[target_queue] << "\n";
@@ -1323,7 +1333,7 @@ class gl3engine {
         }
         consensus->cancel();
       }
-    }
+    } 
   }
 
 
@@ -1508,19 +1518,31 @@ class gl3engine {
    * Creates a vthread with a given worker ID
    */
   void subtask_thread_start(size_t id) {
+      rmi.dc().stop_handler_threads(id % ncpus, ncpus);
     //std::cout << "Subtask thread " << id << " started\n";
     GL3TLS::SET_IN_VTHREAD_TASK(false);
     size_t ctr = timer::approx_time_millis();
-    rmi.dc().stop_handler_threads(id % ncpus, ncpus);
+    size_t retry = 0;
     while(1) {
       rmi.dc().handle_incoming_calls(id % ncpus, ncpus);
       bool haswork = exec_subtasks(id % ncpus);
       // we should yield every so often
-      if (timer::approx_time_millis() >= ctr + 100) {
-        fiber_group::yield();
-        ctr = timer::approx_time_millis();
-      }
+      fiber_group::yield();
       if (!haswork) {
+        ++retry;
+	while(retry < 100) {
+           rmi.dc().handle_incoming_calls(id % ncpus, ncpus);
+	   haswork = exec_subtasks(id % ncpus);
+           fiber_group::yield();
+	   if (haswork) {
+	     break;
+	   }
+           ++retry;
+	}
+        if (haswork) {
+          retry = 0;
+          continue;
+        }
         subtask_thread_alive[id] = 1;
         asm volatile ("" : : : "memory");
         subtask_thread_alive_lock[id].lock();
@@ -1536,8 +1558,8 @@ class gl3engine {
         }
       }
     }
-    rmi.dc().start_handler_threads(id % ncpus, ncpus);
     //std::cout << "Subtask thread " << id << " ended\n";
+      rmi.dc().start_handler_threads(id % ncpus, ncpus);
   }
 
 
@@ -1546,6 +1568,7 @@ class gl3engine {
    */
   void vthread_start(size_t id) {
     GL3TLS::SET_IN_VTHREAD_TASK(true);
+    size_t ctr = timer::approx_time_millis();
     while(1) {
       rmi.dc().handle_incoming_calls(fiber_group::get_worker_id(), ncpus);
       exec_subtasks(fiber_group::get_worker_id());
@@ -1553,7 +1576,10 @@ class gl3engine {
       bool haswork = exec_scheduler_task(0);
 
       // we should yield every so often
-      fiber_group::yield();
+      if (timer::approx_time_millis() >= ctr + 100) {
+        fiber_group::yield();
+        ctr = timer::approx_time_millis();
+      }
       if (!haswork) {
         active_vthread_count.dec();
         // double check
