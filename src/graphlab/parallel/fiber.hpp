@@ -101,9 +101,13 @@ class fiber_group {
   size_t load_balanced_worker_choice(size_t seed);
 
   void (*flsdeleter)(void*);
+
+  boost::function<void(size_t)> worker_wake, worker_sleep;
  public:
   /// creates a group of fibers using a certain number of worker threads.
-  fiber_group(size_t nworkers, size_t stacksize);
+  fiber_group(size_t nworkers, size_t stacksize,
+              boost::function<void(size_t)> worker_wake_handler = NULL,
+              boost::function<void(size_t)> worker_sleep_handler = NULL);
 
   ~fiber_group();
 
@@ -163,6 +167,9 @@ class fiber_group {
    * Note that this function will only work within a fiber.
    */
   static void yield();
+
+
+  static size_t fast_yieldable();
   /**
    * Returns the current fiber handle.
    * Note that fiber handles are not sequential, and are really a

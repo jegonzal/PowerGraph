@@ -64,24 +64,19 @@ namespace graphlab {
     dht_degree_table_type;
 
     /** distributed hash table stored on local machine */ 
-    std::vector<bin_counts_type > dht_degree_table;
+    boost::unordered_map<vertex_id_type, bin_counts_type > dht_degree_table;
 
     /** The map from vertex id to its DHT entry.
      * Must be called with a readlock acquired on dht_degree_table_lock. */
     size_t vid_to_dht_entry_with_readlock(vertex_id_type vid) {
-      size_t idx = (vid - rpc.procid()) / rpc.numprocs();
-      if (dht_degree_table.size() <= idx) {
+      if (dht_degree_table.count(vid) == 0) {
         dht_degree_table_lock.unlock();
         dht_degree_table_lock.writelock();
-         
-        if (dht_degree_table.size() <= idx) {
-          size_t newsize = std::max(dht_degree_table.size() * 2, idx + 1);
-          dht_degree_table.resize(newsize);
-        }
+        dht_degree_table[vid].clear(); 
         dht_degree_table_lock.unlock();
         dht_degree_table_lock.readlock();
       }
-      return idx;
+      return vid;
     }
     rwlock dht_degree_table_lock;
 

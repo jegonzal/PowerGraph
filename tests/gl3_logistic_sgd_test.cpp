@@ -186,6 +186,8 @@ int main(int argc, char** argv) {
                        "Points to create per thread");
   clopts.attach_option("num_vthreads", NUM_VTHREADS,
                        "Number of threads");
+  clopts.attach_option("stepsize", stepsize,
+                       "stepsize");
 
 
   if(!clopts.parse(argc, argv)) {

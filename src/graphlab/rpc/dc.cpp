@@ -440,6 +440,7 @@ void distributed_control::init(const std::vector<std::string> &machines,
     // autoconfigure
     if (thread::cpu_count() > 2) numhandlerthreads = thread::cpu_count() - 2;
     else numhandlerthreads = 2;
+    if (numhandlerthreads > 8) numhandlerthreads = 8;
   }
   dc_impl::last_dc = this;
   ASSERT_MSG(machines.size() <= RPC_MAX_N_PROCS, 

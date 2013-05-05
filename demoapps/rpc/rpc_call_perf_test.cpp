@@ -172,11 +172,14 @@ struct teststruct {
     size_t rd = rdtsc();
     perform_string_sends_0(length, numsends);
     size_t rd2 = rdtsc();
+    std::cout << "Completed in: " << ti.current_time() << " seconds\n";
     std::cout << (rd2 - rd) / numsends << " cycles per call\n";
     double t1 = ti.current_time();
     rmi.dc().flush();
+    std::cout << "Flush in: " << ti.current_time() << " seconds\n";
     double t2 = ti.current_time();
     rmi.full_barrier();
+    std::cout << "Receive Complete in: " << ti.current_time() << " seconds\n";
     double t3 = ti.current_time();
     print_res(t1,t2,t3);
   }
@@ -192,7 +195,6 @@ struct teststruct {
                                             << length << " bytes\n";
     ti.start();
     size_t numsends = SEND_LIMIT / (length * numthreads);
-    rmi.dc().stop_handler_threads(1,1);
     size_t rd = rdtsc();
     thread_group thrgrp;
     for (size_t i = 0; i < numthreads; ++i) {
@@ -202,7 +204,6 @@ struct teststruct {
     size_t rd2 = rdtsc();
     std::cout << (rd2 - rd) / (numthreads * numsends)  << " cycles per call\n";
     double t1 = ti.current_time();
-    rmi.dc().start_handler_threads(1,1);
     rmi.dc().flush();
     double t2 = ti.current_time();
     rmi.full_barrier();
