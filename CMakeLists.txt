@@ -32,9 +32,9 @@ include_directories(
 # set link path
 link_directories(${GraphLab_SOURCE_DIR}/deps/local/lib)
 
-add_definitions(-DUSE_DYNAMIC_LOCAL_GRAPH)
-add_definitions(-DDEBUG_GRAPH)
-add_definitions(-DOUTPUTLEVEL=1)
+#add_definitions(-DUSE_DYNAMIC_LOCAL_GRAPH)
+#add_definitions(-DDEBUG_GRAPH)
+#add_definitions(-DOUTPUTLEVEL=1)
 
 if(NO_OPENMP)
   set(OPENMP_C_FLAGS "")
