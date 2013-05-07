@@ -635,7 +635,7 @@ namespace graphlab {
     DECLARE_EVENT(EVENT_SCATTERS);
     DECLARE_EVENT(EVENT_ACTIVE_CPUS);
     DECLARE_EVENT(EVENT_ACTIVE_TASKS);
-
+    DECLARE_EVENT(EVENT_SCHEDULER_SIZE);
 
     inline void ASSERT_I_AM_OWNER(const lvid_type lvid) const {
       ASSERT_EQ(graph.l_get_vertex_record(lvid).owner, rmi.procid());
@@ -644,6 +644,10 @@ namespace graphlab {
       ASSERT_NE(graph.l_get_vertex_record(lvid).owner, rmi.procid());
     }
 
+    double get_schedule_size() {
+      if (scheduler_ptr != NULL) return (double)scheduler_ptr->approx_size();
+      else return 0;
+    }
 
   public:
 
@@ -707,7 +711,8 @@ namespace graphlab {
       ADD_CUMULATIVE_EVENT(EVENT_SCATTERS , "Scatters", "Calls");
       ADD_INSTANTANEOUS_EVENT(EVENT_ACTIVE_CPUS, "Active Threads", "Threads");
       ADD_INSTANTANEOUS_EVENT(EVENT_ACTIVE_TASKS, "Active Tasks", "Tasks");
-
+      ADD_INSTANTANEOUS_CALLBACK_EVENT(EVENT_SCHEDULER_SIZE, "Scheduler Size", "Tasks", 
+                                       boost::bind(&async_consistent_engine::get_schedule_size, this));
       initialize();
       rmi.barrier();
     }
@@ -1742,10 +1747,10 @@ EVAL_INTERNAL_TASK_RE_EVAL_STATE:
       if (!force_stop &&
           issued_messages.value != programs_executed.value + blocked_issues.value) {
         ++ctr;
-/*        if (ctr % 256 == 0) {
+        if (ctr % 4096 == 0) {
           usleep(1);
         }
-        if (ctr % 4096 == 0) {
+/*        if (ctr % 4096 == 0) {
           if (issued_messages.value <= programs_executed.value + blocked_issues.value + 2) {
             for (size_t i = threadid;i < vstate.size(); i+=ncpus) {
               if (vstate[i].state != NONE) {
@@ -1848,7 +1853,8 @@ EVAL_INTERNAL_TASK_RE_EVAL_STATE:
       BEGIN_TRACEPOINT(disteng_internal_task_queue);
       size_t a;
       a = lvid % thrlocal.size();
-      thrlocal[a].add_task(lvid);
+      if (vstate[lvid].state == APPLYING) thrlocal[a].add_task_priority(lvid);
+      else thrlocal[a].add_task(lvid);
       consensus->cancel_one(a);
       END_TRACEPOINT(disteng_internal_task_queue);
     }
@@ -1921,6 +1927,7 @@ EVAL_INTERNAL_TASK_RE_EVAL_STATE:
 
         if (vstate[sched_lvid].state == NONE) {
           // push into gathering state
+          INCREMENT_EVENT(EVENT_ACTIVE_TASKS, 1);
           vstate[sched_lvid].state = GATHERING;
           vstate[sched_lvid].hasnext = false;
           vstate[sched_lvid].current_message = msg;
