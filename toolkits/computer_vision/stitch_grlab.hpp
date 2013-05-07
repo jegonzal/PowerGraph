@@ -92,6 +92,8 @@ struct vertex_data
     cv::Mat img_warped_f;   // Used by seam_finder
    
     cv::Size full_img_size;
+
+    cv:: Size warp_size;
         
     cv::detail::ImageFeatures features;
    
@@ -109,7 +111,7 @@ struct vertex_data
     {
         arc << empty << img_path
         << full_img << img << img_warped << img_warped_f
-        << full_img_size << features << camera
+        << full_img_size << warp_size << features << camera
         << corner
         << mask_warped;
     }
@@ -117,7 +119,7 @@ struct vertex_data
     {
         arc >> empty >> img_path
         >> full_img >> img >> img_warped >> img_warped_f
-        >> full_img_size >> features >> camera
+        >> full_img_size >> warp_size >> features >> camera
         >> corner 
         >> mask_warped;
     }

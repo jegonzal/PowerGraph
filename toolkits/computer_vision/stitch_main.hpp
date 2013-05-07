@@ -296,7 +296,7 @@ void warp_images(graph_type::vertex_type& vertex)
     Mat &mask_warped = vdata.mask_warped;
     CameraParams &camera = vdata.camera;
     Point2f &corner = vdata.corner;
-    Size size;
+    Size &size = vdata.warp_size;
    
     if (full_img.empty())
         logstream(LOG_ERROR) << "Could not imread image: " << vdata.img_path << "\n";
@@ -371,7 +371,9 @@ void composite_images(graph_type::vertex_type& vertex)
     Mat &img_warped = vdata.img_warped;		//added by me
     Mat &img_warped_f = vdata.img_warped_f;	//added by me
     Mat &mask_warped = vdata.mask_warped;	//added by me
+    Size &size = vdata.warp_size;		//added by me
     Mat mask, dilated_mask, seam_mask;		//added by me
+    
 
     if (full_img.empty())
         logstream(LOG_ERROR) << "Could not imread image: " << vdata.img_path << "\n";
@@ -420,7 +422,7 @@ void composite_images(graph_type::vertex_type& vertex)
     camera.K().convertTo(K, CV_32F);
     Rect roi = warper->warpRoi(sz, K, camera.R);
     corner = roi.tl();
-//    Size size = roi.size(); //commented by me as it is not used any where
+    size = roi.size(); //commented by me as it is not used any where
 
     if (abs(opts.compose_scale - 1) > 1e-1)
         resize(full_img, img, Size(), opts.compose_scale, opts.compose_scale);
@@ -448,50 +450,8 @@ void composite_images(graph_type::vertex_type& vertex)
     resize(dilated_mask, seam_mask, mask_warped.size());
     mask_warped = seam_mask & mask_warped;
 
-    cout << "I am here\n";
+//    cout << "I am here\n";
 
-/*   Ptr<Blender> blender;
-    int blend_type;
-    if (opts.blending_type == "no")
-	blend_type = Blender::NO;
-    if (opts.blending_type == "feather")
-	blend_type = Blender::FEATHER;
-    if (opts.blending_type == "multiband")
-        blend_type = Blender::MULTI_BAND;
-
-    bool try_gpu = false;
-    float blend_strength = 5;
-    //blend_strength = static_cast<float>(atof(blend_strength));
-
-    if (blender.empty())
-    {
-        blender = Blender::createDefault(blend_type, try_gpu);
-        Size dst_sz = resultRoi(corner, size).size();
-        float blend_width = sqrt(static_cast<float>(dst_sz.area())) * blend_strength / 100.f;
-        if (blend_width < 1.f)
-            blender = Blender::createDefault(Blender::NO, try_gpu);
-        else if (blend_type == Blender::MULTI_BAND)
-        {
-            MultiBandBlender* mb = dynamic_cast<MultiBandBlender*>(static_cast<Blender*>(blender));
-            mb->setNumBands(static_cast<int>(ceil(log(blend_width)/log(2.)) - 1.));
-            LOGLN("Multi-band blender, number of bands: " << mb->numBands());
-        }
-        else if (blend_type == Blender::FEATHER)
-        {
-            FeatherBlender* fb = dynamic_cast<FeatherBlender*>(static_cast<Blender*>(blender));
-            fb->setSharpness(1.f/blend_width);
-            LOGLN("Feather blender, sharpness: " << fb->sharpness());
-        }
-        blender->prepare(corner, size);
-    }
-
-    // Blend the current image
-    blender->feed(img_warped_f, mask_warped, corner);
-
-    Mat result, result_mask;
-    blender->blend(result, result_mask);
-
-    imwrite(opts.result_name, result);*/
 }
 
 /////////////////////////////////////////////////////////////////////////
@@ -767,7 +727,7 @@ void find_seams(graph_type::edge_type& edge)
 /////////////////////////////////////////////////////////////////////////
 // Map Function to compile a list of features
 //vector<vertex_data> compile_features(const graph_type::vertex_type& vertex)
-vector<vertex_data> compile_features(engine_type::icontext_type& context,
+vector<vertex_data> compile_vertices(engine_type::icontext_type& context,
                          const graph_type::vertex_type& vertex)
 {
     vector<vertex_data> temp(context.num_vertices());
@@ -779,7 +739,7 @@ vector<vertex_data> compile_features(engine_type::icontext_type& context,
 /////////////////////////////////////////////////////////////////////////
 // Map Function to compile a list of matches
 //vector<vertex_data> compile_features(const graph_type::vertex_type& vertex)
-vector<edge_data> compile_matches(engine_type::icontext_type& context,
+vector<edge_data> compile_edges(engine_type::icontext_type& context,
                                      const graph_type::edge_type& edge)
 {
    

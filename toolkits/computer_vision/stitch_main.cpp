@@ -144,7 +144,7 @@ int main(int argc, char** argv)
     ///////////////////////////////////////////////////////
     // Compile features
     typedef vector<vertex_data> VecVD;
-    VecVD vdlist = engine_feat.map_reduce_vertices<VecVD>(compile_features);
+    VecVD vdlist = engine_feat.map_reduce_vertices<VecVD>(compile_vertices);
    
     vector<ImageFeatures> features(vdlist.size());
     for (size_t i=0; i!=vdlist.size(); ++i)
@@ -158,7 +158,7 @@ int main(int argc, char** argv)
     ///////////////////////////////////////////////////////
     // Compile matches
     typedef vector<edge_data> VecED;
-    VecED edlist = engine_feat.map_reduce_edges<VecED>(compile_matches);
+    VecED edlist = engine_feat.map_reduce_edges<VecED>(compile_edges);
    
     if ((opts.verbose > 0) & (dc.procid()==0))
         logstream(LOG_EMPH) << "edlist.size() =  " << edlist.size()
@@ -307,24 +307,31 @@ int main(int argc, char** argv)
     // Composite Images in parallel on vertices
     graph_cam.transform_vertices(composite_images);
    
+
+    ///////////////////////////////////////////////////////
+    // Second Graphlab Engine
+    engine_type engine_cam(dc, graph_cam, opts.exec_type, clopts);
+
     ///////////////////////////////////////////////////////
     // blend images, gather vertices
-    vdlist = engine_feat.map_reduce_vertices<VecVD>(compile_features);
-    vector<Point2f> corner(vdlist.size());
-    vector<Mat> img_warped_f(vdlist.size());
-    vector<Mat> mask_warped(vdlist.size());
-    vector<Size> size(vdlist.size());
+    typedef vector<vertex_data> VecBVD;
+    VecBVD veclist = engine_feat.map_reduce_vertices<VecBVD>(compile_vertices);
+    vector<Point> corner(veclist.size());
+    vector<Mat> img_warped_f(veclist.size());
+    vector<Mat> mask_warped(veclist.size());
+    vector<Size> size(veclist.size());
 
-    for (size_t i=0; i!=vdlist.size(); ++i)
+    for (size_t i=0; i!=veclist.size(); ++i)
     {
-        corner[i] = vdlist[i].corner;
-        img_warped_f[i] = vdlist[i].img_warped_f;
-        mask_warped[i] = vdlist[i].mask_warped;
-        size[i] = vdlist[i].img_warped.size();
+        corner[i] = veclist[i].corner;
+        img_warped_f[i] = veclist[i].img_warped_f;
+        mask_warped[i] = veclist[i].mask_warped;
+        size[i] = veclist[i].warp_size;
     }
-    vdlist.clear();
+    veclist.clear();
    
     num_images = corner.size();
+    //corner = static_cast<int>(corner);
 
     /*Mat &img_warped = vdata.img_warped;
     Mat &img_warped_f = vdata.img_warped_f;
@@ -368,7 +375,9 @@ int main(int argc, char** argv)
     }
 
     // Blend the current image
-    blender->feed(img_warped_f, mask_warped, corner);
+    for (int j=0; j!=num_images; ++j)
+        blender->feed(img_warped_f[j], mask_warped[j], corner[j]);
+    
 
     Mat result, result_mask;
     blender->blend(result, result_mask);
