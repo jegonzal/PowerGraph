@@ -32,8 +32,10 @@ size_t PARAM_SIZE = 10000;
 size_t PARAMS_PER_POINT = 100;
 size_t POINTS_PER_THREAD = 1000;
 size_t NUM_VTHREADS = 100;
+size_t NPROCS = 1;
 #define DELTA_SCATTER 0
-
+bool damp = 0;
+size_t stepcount = 1;
 typedef char vertex_data_type;
 typedef empty edge_data_type;
 typedef distributed_graph<vertex_data_type, edge_data_type> graph_type;
@@ -99,7 +101,8 @@ void generate_datapoint(std::vector<size_t> & x,
 double logistic_sgd_step(const std::vector<size_t>& x,
                          const std::vector<double>& xvalue,
                          double y,
-                         boost::unordered_map<size_t, any> &weights) {
+                         boost::unordered_map<size_t, any> &weights,
+                         double stepsize_) {
   // compute predicted value of y
   double linear_predictor = 0;
   boost::unordered_map<size_t, any>::iterator iter = weights.begin();
@@ -120,7 +123,7 @@ double logistic_sgd_step(const std::vector<size_t>& x,
   // ok compute the gradient
   // the gradient update is easy
   for (size_t i = 0; i < x.size(); ++i) {
-    weights[x[i]].as<double>() = stepsize * (double(y) - py1) * xvalue[i]; // atomic
+    weights[x[i]].as<double>() = stepsize_ * (double(y) - py1) * xvalue[i]; // atomic
   }
   return py1;
 }
@@ -162,7 +165,9 @@ void logistic_sgd(engine_type::context_type& context) {
   for (size_t i = 0;i < POINTS_PER_THREAD; ++i) {
     generate_datapoint(x, xvalue, y, PARAMS_PER_POINT);
     boost::unordered_map<size_t, any> weights = context.dht_gather(x);
-    logistic_sgd_step(x, xvalue, y, weights);
+    double eff_stepsize = stepsize;
+    if (damp) eff_stepsize = stepsize / sqrt(double(stepcount));
+    logistic_sgd_step(x, xvalue, y, weights, eff_stepsize);
     context.dht_scatter(DELTA_SCATTER, weights);
     num_points_processed.inc();
     logger_ontick(1, LOG_EMPH, "Processed: %ld", num_points_processed.value);
@@ -182,6 +187,7 @@ int main(int argc, char** argv) {
   command_line_options clopts("SGD Simulation");
   clopts.set_scheduler_type("fifo");
   std::string graph_dir;
+  size_t stepfreq = 640000;
   clopts.attach_option("param_size", PARAM_SIZE,
                        "Number of parameters");
   clopts.attach_option("params_per_point", PARAMS_PER_POINT,
@@ -192,13 +198,16 @@ int main(int argc, char** argv) {
                        "Number of threads");
   clopts.attach_option("stepsize", stepsize,
                        "stepsize");
-
+  clopts.attach_option("damp", damp,
+                       "damp over sqrt(t)");
+  clopts.attach_option("stepfreq", stepfreq,
+                       "decrease step size every this number of points");
 
   if(!clopts.parse(argc, argv)) {
     dc.cout() << "Error in parsing command line arguments." << std::endl;
     return EXIT_FAILURE;
   }
-
+  NPROCS = dc.numprocs();
   random::seed(100);
   generate_ground_truth_weight_vector();
 
@@ -209,11 +218,21 @@ int main(int argc, char** argv) {
   engine_type engine(dc, graph, clopts);
   engine.register_dht_scatter(DELTA_SCATTER, delta_scatter_fn);
 
-  for (size_t i = 0;i < NUM_VTHREADS; ++i) {
-    engine.launch_other_task(logistic_sgd);
+  size_t effdatapoints = NUM_VTHREADS * POINTS_PER_THREAD * NPROCS;
+  size_t ndata_done = 0;
+  size_t oldppt = POINTS_PER_THREAD;
+  while(ndata_done < effdatapoints) {
+    POINTS_PER_THREAD = stepfreq / (NUM_VTHREADS * NPROCS); 
+    POINTS_PER_THREAD = std::min(oldppt, POINTS_PER_THREAD);
+    for (size_t i = 0;i < NUM_VTHREADS; ++i) {
+      engine.launch_other_task(logistic_sgd);
+    }
+    engine.wait();
+    ++stepcount;  
+    ndata_done += NUM_VTHREADS * POINTS_PER_THREAD * NPROCS;
   }
 
-  engine.wait();
+  dc.cout() << "#datapoints = " << ndata_done << "\n";
   if (dc.procid() == 0) {
     engine.launch_other_task(print_l1_param_error);
   }
