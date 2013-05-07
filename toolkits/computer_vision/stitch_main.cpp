@@ -307,8 +307,73 @@ int main(int argc, char** argv)
     // Composite Images in parallel on vertices
     graph_cam.transform_vertices(composite_images);
    
-   
+    ///////////////////////////////////////////////////////
+    // blend images, gather vertices
+    vdlist = engine_feat.map_reduce_vertices<VecVD>(compile_features);
+    vector<Point2f> corner(vdlist.size());
+    vector<Mat> img_warped_f(vdlist.size());
+    vector<Mat> mask_warped(vdlist.size());
+    vector<Size> size(vdlist.size());
 
+    for (size_t i=0; i!=vdlist.size(); ++i)
+    {
+        corner[i] = vdlist[i].corner;
+        img_warped_f[i] = vdlist[i].img_warped_f;
+        mask_warped[i] = vdlist[i].mask_warped;
+        size[i] = vdlist[i].img_warped.size();
+    }
+    vdlist.clear();
+   
+    num_images = corner.size();
+
+    /*Mat &img_warped = vdata.img_warped;
+    Mat &img_warped_f = vdata.img_warped_f;
+    Mat &mask_warped = vdata.mask_warped;
+    Mat mask, dilated_mask, seam_mask;*/
+   
+    Ptr<Blender> blender;
+    
+    int blend_type;
+    if (opts.blending_type == "no")
+	blend_type = Blender::NO;
+    if (opts.blending_type == "feather")
+	blend_type = Blender::FEATHER;
+    if (opts.blending_type == "multiband")
+        blend_type = Blender::MULTI_BAND;
+
+    bool try_gpu = false;
+    float blend_strength = 5;
+    //blend_strength = static_cast<float>(atof(blend_strength));
+
+    if (blender.empty())
+    {
+        blender = Blender::createDefault(blend_type, try_gpu);
+        Size dst_sz = resultRoi(corner, size).size();	//which size it is?
+        float blend_width = sqrt(static_cast<float>(dst_sz.area())) * blend_strength / 100.f;
+        if (blend_width < 1.f)
+            blender = Blender::createDefault(Blender::NO, try_gpu);
+        else if (blend_type == Blender::MULTI_BAND)
+        {
+            MultiBandBlender* mb = dynamic_cast<MultiBandBlender*>(static_cast<Blender*>(blender));
+            mb->setNumBands(static_cast<int>(ceil(log(blend_width)/log(2.)) - 1.));
+            LOGLN("Multi-band blender, number of bands: " << mb->numBands());
+        }
+        else if (blend_type == Blender::FEATHER)
+        {
+            FeatherBlender* fb = dynamic_cast<FeatherBlender*>(static_cast<Blender*>(blender));
+            fb->setSharpness(1.f/blend_width);
+            LOGLN("Feather blender, sharpness: " << fb->sharpness());
+        }
+        blender->prepare(corner, size);
+    }
+
+    // Blend the current image
+    blender->feed(img_warped_f, mask_warped, corner);
+
+    Mat result, result_mask;
+    blender->blend(result, result_mask);
+
+    imwrite(opts.result_name, result);
 
     ///////////////////////////////////////////////////////
     // Run everything

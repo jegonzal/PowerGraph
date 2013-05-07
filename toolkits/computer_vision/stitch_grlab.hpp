@@ -91,7 +91,6 @@ struct vertex_data
     cv::Mat img_warped;     // Used by gain compensator
     cv::Mat img_warped_f;   // Used by seam_finder
    
-    //cv::Point full_img_size;
     cv::Size full_img_size;
         
     cv::detail::ImageFeatures features;

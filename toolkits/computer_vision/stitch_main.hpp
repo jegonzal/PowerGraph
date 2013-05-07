@@ -296,6 +296,7 @@ void warp_images(graph_type::vertex_type& vertex)
     Mat &mask_warped = vdata.mask_warped;
     CameraParams &camera = vdata.camera;
     Point2f &corner = vdata.corner;
+    Size size;
    
     if (full_img.empty())
         logstream(LOG_ERROR) << "Could not imread image: " << vdata.img_path << "\n";
@@ -347,7 +348,7 @@ void warp_images(graph_type::vertex_type& vertex)
     K(1,1) *= swa; K(1,2) *= swa;
    
     corner = warper->warp(img, K, camera.R, INTER_LINEAR, BORDER_REFLECT, img_warped);
-    //size = img_warped.size();
+    size = img_warped.size();
    
     warper->warp(mask, K, camera.R, INTER_NEAREST, BORDER_CONSTANT, mask_warped);
     
@@ -356,7 +357,6 @@ void warp_images(graph_type::vertex_type& vertex)
     // If no gain compensator, then clear.
     img_warped.release();
 
-    vdata.corner = corner;
 }
 
 /////////////////////////////////////////////////////////////////////////
@@ -368,7 +368,11 @@ void composite_images(graph_type::vertex_type& vertex)
     CameraParams &camera = vdata.camera;
     Point2f &corner = vdata.corner;
     Mat full_img = imread(vdata.img_path);	//we have to check it later for speed
-    
+    Mat &img_warped = vdata.img_warped;		//added by me
+    Mat &img_warped_f = vdata.img_warped_f;	//added by me
+    Mat &mask_warped = vdata.mask_warped;	//added by me
+    Mat mask, dilated_mask, seam_mask;		//added by me
+
     if (full_img.empty())
         logstream(LOG_ERROR) << "Could not imread image: " << vdata.img_path << "\n";
    
@@ -396,7 +400,7 @@ void composite_images(graph_type::vertex_type& vertex)
     if (warper_creator.empty())
         logstream(LOG_ERROR) << "Can't create the following warper '" << opts.warp_type << "'\n";
 
-    Ptr<RotationWarper> warper = warper_creator->create(static_cast<float>(opts.warped_image_scale * opts.seam_work_aspect));
+    Ptr<RotationWarper> warper = warper_creator->create(static_cast<float>(opts.warped_image_scale * opts.compose_work_aspect));//changed by me
        
     // Update intrinsics
     camera.focal *= opts.compose_work_aspect;
@@ -416,15 +420,79 @@ void composite_images(graph_type::vertex_type& vertex)
     camera.K().convertTo(K, CV_32F);
     Rect roi = warper->warpRoi(sz, K, camera.R);
     corner = roi.tl();
-    //Size size = roi.size(); //by me as it is not used any where
+//    Size size = roi.size(); //commented by me as it is not used any where
 
     if (abs(opts.compose_scale - 1) > 1e-1)
         resize(full_img, img, Size(), opts.compose_scale, opts.compose_scale);
     else
         img = full_img;
-   
-}
+    Size img_size = img.size();
 
+    // Warp the current image
+    warper->warp(img, K, camera.R, INTER_LINEAR, BORDER_REFLECT, img_warped);
+
+    // Warp the current image mask
+    mask.create(img_size, CV_8U);
+    mask.setTo(Scalar::all(255));
+    warper->warp(mask, K, camera.R, INTER_NEAREST, BORDER_CONSTANT, mask_warped);
+
+    // Compensate exposure
+    //compensator->apply(img_idx, corner[img_idx], img_warped, mask_warped);
+
+    img_warped.convertTo(img_warped_f, CV_16S);
+    img_warped.release();
+    img.release();
+    mask.release();
+    
+    dilate(mask_warped, dilated_mask, Mat());
+    resize(dilated_mask, seam_mask, mask_warped.size());
+    mask_warped = seam_mask & mask_warped;
+
+    cout << "I am here\n";
+
+/*   Ptr<Blender> blender;
+    int blend_type;
+    if (opts.blending_type == "no")
+	blend_type = Blender::NO;
+    if (opts.blending_type == "feather")
+	blend_type = Blender::FEATHER;
+    if (opts.blending_type == "multiband")
+        blend_type = Blender::MULTI_BAND;
+
+    bool try_gpu = false;
+    float blend_strength = 5;
+    //blend_strength = static_cast<float>(atof(blend_strength));
+
+    if (blender.empty())
+    {
+        blender = Blender::createDefault(blend_type, try_gpu);
+        Size dst_sz = resultRoi(corner, size).size();
+        float blend_width = sqrt(static_cast<float>(dst_sz.area())) * blend_strength / 100.f;
+        if (blend_width < 1.f)
+            blender = Blender::createDefault(Blender::NO, try_gpu);
+        else if (blend_type == Blender::MULTI_BAND)
+        {
+            MultiBandBlender* mb = dynamic_cast<MultiBandBlender*>(static_cast<Blender*>(blender));
+            mb->setNumBands(static_cast<int>(ceil(log(blend_width)/log(2.)) - 1.));
+            LOGLN("Multi-band blender, number of bands: " << mb->numBands());
+        }
+        else if (blend_type == Blender::FEATHER)
+        {
+            FeatherBlender* fb = dynamic_cast<FeatherBlender*>(static_cast<Blender*>(blender));
+            fb->setSharpness(1.f/blend_width);
+            LOGLN("Feather blender, sharpness: " << fb->sharpness());
+        }
+        blender->prepare(corner, size);
+    }
+
+    // Blend the current image
+    blender->feed(img_warped_f, mask_warped, corner);
+
+    Mat result, result_mask;
+    blender->blend(result, result_mask);
+
+    imwrite(opts.result_name, result);*/
+}
 
 /////////////////////////////////////////////////////////////////////////
 // Function to compute feature-matches in parallel on edges
@@ -457,13 +525,10 @@ void find_seams(graph_type::edge_type& edge)
 {
     // Get edge data
     //edge_data &edata = edge.data(); //commented by me as it was unused
-	//cout << "I am in find_seam\n";
+	
     // Get vertex ids of two vertices involved
     vertex_data &vdata1 = edge.source().data();
     vertex_data &vdata2 = edge.target().data();
-
-	//cout << "vdata1  : \n" << vdata1;
-	//cout << "vdata2  : \n" << vdata2;
 
     // Not sure why this is needed anymore?
     //Ptr<SeamFinder> seam_finder;
@@ -568,7 +633,7 @@ void find_seams(graph_type::edge_type& edge)
 
    
     const Size img_size = subimg1.size();
-    cout << "img.height : " << img_size.height << "img.width : " << img_size.width << std::endl;
+    //cout << "img.height : " << img_size.height << "img.width : " << img_size.width << std::endl;
     if (opts.seam_find_type.compare("gc_color") ==0)
     {
     	// Set terminal weights
@@ -593,8 +658,8 @@ void find_seams(graph_type::edge_type& edge)
 
 		if (x < img_size.width - 1)
         	{
-                    cout << "y : " << y << "   x : " << x << std::endl;
-		    cout << "subimg1 :" << subimg1.at<Point3f>(y, x) << "    subimg2 :" << subimg2.at<Point3f>(y, x) << std::endl;
+                    //cout << "y : " << y << "   x : " << x << std::endl;
+		    //cout << "subimg1 :" << subimg1.at<Point3f>(y, x) << "    subimg2 :" << subimg2.at<Point3f>(y, x) << std::endl;
 
 		    float weight = normL2(subimg1.at<Point3f>(y, x), subimg2.at<Point3f>(y, x)) +
                                    normL2(subimg1.at<Point3f>(y, x + 1), subimg2.at<Point3f>(y, x + 1)) + weight_eps;
@@ -603,12 +668,9 @@ void find_seams(graph_type::edge_type& edge)
                         !submask2.at<uchar>(y, x) || !submask2.at<uchar>(y, x + 1))
                     	   weight += opts.bad_region_penalty;
 
-		    cout << "weight upper if  : " << weight << std::endl;
+		    //cout << "weight upper if  : " << weight << std::endl;
 
-        	   // if (isnan(weight) != 0)
-		   //	weight = weight_eps;
-			
-                    graph.addEdges(v, v + 1, weight, weight);
+        	    graph.addEdges(v, v + 1, weight, weight);
             	}
             	if (y < img_size.height - 1)
             	{
@@ -619,12 +681,9 @@ void find_seams(graph_type::edge_type& edge)
                     	!submask2.at<uchar>(y, x) || !submask2.at<uchar>(y + 1, x))
                     	   weight += opts.bad_region_penalty;
 		    
-                    cout << "weight lower if  : " << weight << std::endl;
+                    //cout << "weight lower if  : " << weight << std::endl;
 
-		    //if (isnan(weight) != 0)
-		    //	weight = weight_eps;
-			
-                    graph.addEdges(v, v + img_size.width, weight, weight);
+		    graph.addEdges(v, v + img_size.width, weight, weight);
             	}
        	    }
 	    //getchar();
@@ -662,10 +721,7 @@ void find_seams(graph_type::edge_type& edge)
                         !submask2.at<uchar>(y, x) || !submask2.at<uchar>(y, x + 1))
                         weight += opts.bad_region_penalty;
                     
-		    if (isnan(weight) != 0)
-		   	weight = weight_eps;
-		
-                    graph.addEdges(v, v + 1, weight, weight);
+		    graph.addEdges(v, v + 1, weight, weight);
                 }
                 if (y < img_size.height - 1)
                 {
@@ -678,10 +734,7 @@ void find_seams(graph_type::edge_type& edge)
                         !submask2.at<uchar>(y, x) || !submask2.at<uchar>(y + 1, x))
                         weight += opts.bad_region_penalty;
                     
-		    if (isnan(weight) != 0)
-		   	weight = weight_eps;
-		
-                    graph.addEdges(v, v + img_size.width, weight, weight);
+		    graph.addEdges(v, v + img_size.width, weight, weight);
                 }
             }
         }
@@ -714,7 +767,7 @@ void find_seams(graph_type::edge_type& edge)
 /////////////////////////////////////////////////////////////////////////
 // Map Function to compile a list of features
 //vector<vertex_data> compile_features(const graph_type::vertex_type& vertex)
-vector<vertex_data> compile_features				(engine_type::icontext_type& context,
+vector<vertex_data> compile_features(engine_type::icontext_type& context,
                          const graph_type::vertex_type& vertex)
 {
     vector<vertex_data> temp(context.num_vertices());

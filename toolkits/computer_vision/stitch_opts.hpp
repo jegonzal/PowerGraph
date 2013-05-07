@@ -87,12 +87,19 @@ struct Options
     float bad_region_penalty; 
 
     //wave correction options
-    //cv::detail::WaveCorrectKind wave_correct = detail::WAVE_CORRECT_HORIZ;
     std::string wave_correct_type;
 
     //bundle adjustment options
     std::string ba_refine_mask;
 
+    //gain compensation options
+    std::string expose_comp_type;
+
+    //blending options
+    std::string blending_type;
+
+    //saving output
+    std::string result_name;
    
     // Default values
     Options():
@@ -106,7 +113,10 @@ struct Options
     conf_thresh(1.0),
     seam_find_type("gc_color"), terminal_cost(10000.f), bad_region_penalty(1000.f),
     wave_correct_type("horiz"),
-    ba_refine_mask("xxxxx")
+    ba_refine_mask("xxxxx"),
+    expose_comp_type("gain_blocks"),
+    blending_type("multiband"),
+    result_name("result.jpg")
     {}
 };
 
