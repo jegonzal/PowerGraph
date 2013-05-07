@@ -84,7 +84,8 @@ void generate_datapoint(std::vector<size_t> & x,
   double py0 = 1.0 / (1 + std::exp(linear_predictor));
   double py1 = 1.0 - py0;
   // generate a 0/1Y alue.
-  y = py1 + graphlab::random::gaussian() * 0.2;
+  //y = py1 + graphlab::random::gaussian() * 0.2;
+  y = (graphlab::random::rand01() <= py1);
 }
 
 
@@ -139,13 +140,16 @@ void print_l1_param_error(engine_type::context_type& context) {
     allq.push_back(i);
   }
   double l1gap = 0;
+  double l2gap = 0;
   boost::unordered_map<size_t, any> r = context.dht_gather(allq);
   for (size_t i = 0;i < PARAM_SIZE; ++i) {
     double d = 0;
     if (!r[i].empty()) d = r[i].as<double>();
     l1gap += std::fabs(d - true_weights[i]);
+    l2gap += (d - true_weights[i]) * (d - true_weights[i]);
   }
   std::cout << "Parameter L1 Gap = " << l1gap << "\n";
+  std::cout << "Parameter L2 Gap = " << l2gap << "\n";
 }
 
 atomic<size_t> num_points_processed;
@@ -198,7 +202,7 @@ int main(int argc, char** argv) {
   random::seed(100);
   generate_ground_truth_weight_vector();
 
-  random::seed();
+  random::nondet_seed();
   graph_type graph(dc);
   graph.finalize();
   timer ti;
