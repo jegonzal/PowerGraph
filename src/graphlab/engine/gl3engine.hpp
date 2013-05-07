@@ -1041,6 +1041,7 @@ class gl3engine {
   void wait_on_combiner(future_combiner& combiner) {
     if (combiner.count_down > 0 &&
         fiber_group::fast_yieldable() <= 1 && 
+        execution_group.num_threads() < scheduler_ptr->approx_size() / 4 &&
         execution_group.num_threads() < num_vthreads) { 		
       launch_a_vthread(); 	
     }      
