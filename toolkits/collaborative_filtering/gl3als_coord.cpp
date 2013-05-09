@@ -42,6 +42,7 @@
 typedef Eigen::VectorXd vec_type;
 
 #define ALS_COORD_MAP_REDUCE 0
+#define ALS_COORD_TRANSFORM 1
 //when using negative node id range, we are not allowed to use
 //0 and 1 so we add 2.
 const static int SAFE_NEG_OFFSET=2;
@@ -73,22 +74,24 @@ struct vertex_data {
   static size_t NLATENT;
   /** \brief The latent pvec for this vertex */
   vec_type pvec;
+  vec_type prev;
+  float z;
   int t; //index inside the latent feature vector
 
   /**
    * \brief Simple default constructor which randomizes the vertex
    *  data
    */
-  vertex_data() : t(0) { if (debug) pvec = vec_type::Ones(NLATENT); else randomize(); }
+  vertex_data() : t(0),z(0) { if (debug) pvec = vec_type::Ones(NLATENT); else randomize(); prev = vec_type::Zero(NLATENT); }
   /** \brief Randomizes the latent pvec */
   void randomize() { pvec.resize(NLATENT); pvec.setRandom(); }
   /** \brief Save the vertex data to a binary archive */
   void save(graphlab::oarchive& arc) const {
-    arc << pvec << t;
+    arc << pvec << t << prev << z;
   }
   /** \brief Load the vertex data from a binary archive */
   void load(graphlab::iarchive& arc) {
-    arc >> pvec >> t;
+    arc >> pvec >> t >> prev >> z;
   }
 }; // end of vertex data
 
@@ -213,16 +216,30 @@ public:
 gather_type als_coord_map(const graph_type::vertex_type& center,
                          graph_type::edge_type& edge,
                          const graph_type::vertex_type& other) {
-   //compute numerator of equation (5) in ICDM paper above
+
+   if (center.data().t == 0){
+     double prediction = center.data().pvec.dot(other.data().pvec);
+     edge.data().R_ij = edge.data().obs - prediction;
+   }
+   //compute numerator of equation (6) in ICDM paper above
    //             (A_ij        - w_i^T*h_j  + wit          * h_jt        )*h_jt 
-   gather_type ret((edge.data().obs - center.data().pvec.dot(other.data().pvec)
+   gather_type ret((edge.data().R_ij
                                + center.data().pvec[center.data().t] * other.data().pvec[center.data().t])*other.data().pvec[center.data().t],
-   //compute denominator of equation (5) in ICDM paper above
+   //compute denominator of equation (6) in ICDM paper above
    //h_jt^2
      pow(other.data().pvec[center.data().t], 2));
    return ret;
 
 }
+
+void als_coord_transform(const graph_type::vertex_type& center,
+                         graph_type::edge_type& edge,
+                         const graph_type::vertex_type& other) {
+   //update using equation (7) in ICDM paper
+   //R_ij     -= (z             - w_it         )*h_jt
+   edge.data().R_ij -= (center.data().z - center.data().prev[center.data().t])*other.data().pvec[center.data().t];
+}
+
 
 //sum up two numerators and denomenators
 void als_coord_combine(gather_type& v1, const gather_type& v2) {
@@ -237,9 +254,16 @@ void als_coord_function(engine_type::context_type& context,
    for (vertex.data().t=0; vertex.data().t< (int)vertex_data::NLATENT; vertex.data().t++){
      gather_type frac =  context.map_reduce<gather_type>(ALS_COORD_MAP_REDUCE, graphlab::ALL_EDGES);
      assert(frac.denominator > 0);
-     double z = (frac.numerator/(frac.denominator+regularization));  
-     vertex.data().pvec[vertex.data().t] = z;
+     vertex.data().z = (frac.numerator/(frac.denominator+regularization));  
+     vertex.data().prev = vertex.data().pvec;
+     //update using equation (8) in ICDM paper
+     //w_it                              = z;
+     vertex.data().pvec[vertex.data().t] = vertex.data().z;
+  
+     //update the cached R_ij using equation (7) in ICDM paper 
+     context.edge_transform(ALS_COORD_TRANSFORM, graphlab::ALL_EDGES);
    }
+
 }
 
 
@@ -325,6 +349,7 @@ int main(int argc, char** argv) {
 
   engine_type engine(dc, graph, clopts);
   engine.register_map_reduce(ALS_COORD_MAP_REDUCE, als_coord_map, als_coord_combine);
+  engine.register_edge_transform(ALS_COORD_TRANSFORM, als_coord_transform);
   for (int i=0; i< max_iter; i++){
      engine.parfor_all_local_vertices(als_coord_function);
      engine.wait();
