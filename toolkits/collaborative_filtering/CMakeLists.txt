@@ -39,3 +39,6 @@ requires_eigen(gl3sgd) # build and attach eigen
 
 add_graphlab_executable(gl3nmf gl3nmf.cpp)
 requires_eigen(gl3sgd) # build and attach eigen
+
+add_graphlab_executable(gl3als_coord gl3als_coord.cpp)
+requires_eigen(gl3als_coord) # build and attach eigen

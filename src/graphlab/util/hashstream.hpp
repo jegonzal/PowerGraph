@@ -68,7 +68,7 @@ namespace graphlab {
       }
 
       inline std::streamsize write(const char* s, std::streamsize n) {
-        for (size_t i = 0;i < n; ++i) {
+        for (size_t i = 0;i < (size_t)n; ++i) {
           hash = hash * 101 + s[i];
         }
         len += n;

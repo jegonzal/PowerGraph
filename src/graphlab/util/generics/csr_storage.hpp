@@ -108,7 +108,7 @@ namespace graphlab {
       */
      void wrap(std::vector<sizetype>& valueptr_vec,
                std::vector<valuetype>& value_vec) {
-       for (ssize_t i = 1; i < valueptr_vec.size(); ++i) {
+       for (ssize_t i = 1; i < (ssize_t)valueptr_vec.size(); ++i) {
          ASSERT_LE(valueptr_vec[i-1], valueptr_vec[i]);
          ASSERT_LT(valueptr_vec[i], value_vec.size());
        }

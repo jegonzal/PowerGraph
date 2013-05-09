@@ -63,7 +63,7 @@ namespace graphlab {
       double approx_sqrt = sqrt(num_shards);
       nrow = floor(approx_sqrt);
       for (ncol = nrow; ncol <= nrow + 2; ++ncol) {
-        if (ncol * nrow == num_shards) {
+        if (ncol * nrow == (int)num_shards) {
           return true;
         }
       }
@@ -72,7 +72,7 @@ namespace graphlab {
 
     static bool is_pds_compatible(size_t num_shards, int& p) {
       p = floor(sqrt(num_shards-1));
-      return (p>0 && ((p*p+p+1) == num_shards));
+      return (p>0 && ((p*p+p+1) == (int)num_shards));
     }
 
    public:
