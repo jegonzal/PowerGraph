@@ -75,26 +75,25 @@ struct vertex_data {
   vec_type pvec;
   int t; //index inside the latent feature vector
 
-  int nupdates;
   /**
    * \brief Simple default constructor which randomizes the vertex
    *  data
    */
-  vertex_data() : nupdates(0),t(0) { if (debug) pvec = vec_type::Ones(NLATENT); else randomize(); }
+  vertex_data() : t(0) { if (debug) pvec = vec_type::Ones(NLATENT); else randomize(); }
   /** \brief Randomizes the latent pvec */
   void randomize() { pvec.resize(NLATENT); pvec.setRandom(); }
   /** \brief Save the vertex data to a binary archive */
   void save(graphlab::oarchive& arc) const {
-    arc << nupdates << pvec << t;
+    arc << pvec << t;
   }
   /** \brief Load the vertex data from a binary archive */
   void load(graphlab::iarchive& arc) {
-    arc >> nupdates >> pvec >> t;
+    arc >> pvec >> t;
   }
 }; // end of vertex data
 
 std::size_t hash_value(vertex_data const& b) {
-  return b.nupdates;
+  return (size_t)b.pvec[0]*1000;
 }
 
 
@@ -116,13 +115,16 @@ struct edge_data : public graphlab::IS_POD_TYPE {
 
   /** \brief the observed value for the edge */
   float obs;
+  
+  /** \brief cached value for A_ij - prediction */
+  float R_ij;
 
   /** \brief The train/validation/test designation of the edge */
   data_role_type role;
 
   /** \brief basic initialization */
   edge_data(float obs = 0, data_role_type role = PREDICT) :
-    obs(obs), role(role) { }
+    obs(obs), role(role), R_ij(0) { }
 
 }; // end of edge data
 
@@ -222,11 +224,12 @@ gather_type als_coord_map(const graph_type::vertex_type& center,
 
 }
 
+//sum up two numerators and denomenators
 void als_coord_combine(gather_type& v1, const gather_type& v2) {
     v1 += v2;
 }
 
-
+//the main update function
 void als_coord_function(engine_type::context_type& context,
                   graph_type::vertex_type& vertex) {
        
@@ -273,7 +276,7 @@ int main(int argc, char** argv) {
   clopts.attach_option("interval", interval,
                        "The time in seconds between error reports");
   clopts.attach_option("lambda", LAMBDA,
-                       "SGD regularization weight");
+                       "regularization weight");
   clopts.attach_option("max_iter", max_iter,
                        "number of iterations");
   if(!clopts.parse(argc, argv) || input_dir == "") {
