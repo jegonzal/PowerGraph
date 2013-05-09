@@ -235,6 +235,9 @@ INFO:     synchronous_engine.hpp(start:1257): 	Active vertices: 3561
 \endverbatim
 \section CCD++ CCD++
 ALS (Alternating least squares) with parallel coordinate descent
+NOTE: This algorithm is implemented in version 2.2. You can update to version 
+2.2 using the mercurial command "hg up v2.2". You will need to reconfigure and recompile
+after this update.
 
 Pros: Simple to use, not many command line arguments, faster than ALS
 
