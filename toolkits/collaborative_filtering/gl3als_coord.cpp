@@ -47,7 +47,7 @@ typedef Eigen::VectorXd vec_type;
 const static int SAFE_NEG_OFFSET=2;
 const static int regnormal = 0;
 static bool debug;
-int max_iter = 0;
+int max_iter = 10;
 
 bool isuser(uint node){
   return ((int)node) >= 0;
@@ -182,7 +182,7 @@ public:
 
   gather_type() { 
     numerator = 0;
-    denominator = LAMBDA;
+    denominator = 0;
   }
 
   gather_type(double numerator, double denominator) : numerator(numerator),
@@ -212,9 +212,9 @@ gather_type als_coord_map(const graph_type::vertex_type& center,
                          graph_type::edge_type& edge,
                          const graph_type::vertex_type& other) {
    //compute numerator of equation (5) in ICDM paper above
-   //             (A_ij        - w_i^T*h_j  + wit          * h_jt         
-   gather_type ret(edge.data().obs - center.data().pvec.dot(other.data().pvec)
-                               + center.data().pvec[center.data().t] * other.data().pvec[center.data().t],
+   //             (A_ij        - w_i^T*h_j  + wit          * h_jt        )*h_jt 
+   gather_type ret((edge.data().obs - center.data().pvec.dot(other.data().pvec)
+                               + center.data().pvec[center.data().t] * other.data().pvec[center.data().t])*other.data().pvec[center.data().t],
    //compute denominator of equation (5) in ICDM paper above
    //h_jt^2
      pow(other.data().pvec[center.data().t], 2));
@@ -234,7 +234,7 @@ void als_coord_function(engine_type::context_type& context,
    for (vertex.data().t=0; vertex.data().t< (int)vertex_data::NLATENT; vertex.data().t++){
      gather_type frac =  context.map_reduce<gather_type>(ALS_COORD_MAP_REDUCE, graphlab::ALL_EDGES);
      assert(frac.denominator > 0);
-     double z = (frac.numerator/frac.denominator+regularization);  
+     double z = (frac.numerator/(frac.denominator+regularization));  
      vertex.data().pvec[vertex.data().t] = z;
    }
 }
