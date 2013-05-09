@@ -673,6 +673,7 @@ int main(int argc, char* argv[])
                 cameras[i].K().convertTo(K, CV_32F);
                 Rect roi = warper->warpRoi(sz, K, cameras[i].R);
                 corners[i] = roi.tl();
+                //cout << "corners x : " << corners[i].x << "   y : " << corners[i].y << endl;
                 sizes[i] = roi.size();
             }
         }

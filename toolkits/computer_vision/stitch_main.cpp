@@ -314,18 +314,19 @@ int main(int argc, char** argv)
 
     ///////////////////////////////////////////////////////
     // blend images, gather vertices
-    typedef vector<vertex_data> VecBVD;
-    VecBVD veclist = engine_feat.map_reduce_vertices<VecBVD>(compile_vertices);
+    //typedef vector<vertex_data> VecBVD;
+    VecVD veclist = engine_feat.map_reduce_vertices<VecVD>(compile_vertices);
     vector<Point> corner(veclist.size());
     vector<Mat> img_warped(veclist.size());
     //vector<Mat> img_warped_s(veclist.size());
     vector<Mat> mask_warped(veclist.size());
     vector<Size> size(veclist.size());
-    //Mat img_warped_s;
+    Mat img_warped_s;
 
     for (size_t i=0; i!=veclist.size(); ++i)
     {
         corner[i] = veclist[i].corner;
+        //cout << "corners x : " << corner[i].x << "   y : " << corner[i].y << endl;
         img_warped[i] = veclist[i].img_warped;
         //img_warped[i].convertTo(img_warped_s[i], CV_16S);
         mask_warped[i] = veclist[i].mask_warped;
@@ -349,6 +350,7 @@ int main(int argc, char** argv)
     float blend_strength = 5;
     //blend_strength = static_cast<float>(atof(blend_strength));
 
+    
     if (blender.empty())
     {
         blender = Blender::createDefault(blend_type, try_gpu);
@@ -371,12 +373,10 @@ int main(int argc, char** argv)
         blender->prepare(corner, size);
     }
 
-    // Blend the current image
+    // Blend the current 
     for (int j=0; j!=num_images; ++j)
     {
-	Mat img_warped_s;
 	img_warped[j].convertTo(img_warped_s, CV_16S);
-        //cout << "image type :\n" << img_warped[j].type();
         blender->feed(img_warped_s, mask_warped[j], corner[j]);
         img_warped_s.release();
     }

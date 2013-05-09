@@ -355,7 +355,7 @@ void warp_images(graph_type::vertex_type& vertex)
     img_warped.convertTo(img_warped_f, CV_32F);
    
     // If no gain compensator, then clear.
-    //img_warped.release();
+    img_warped.release();
 
 }
 
@@ -368,10 +368,11 @@ void composite_images(graph_type::vertex_type& vertex)
     CameraParams &camera = vdata.camera;
     Point2f &corner = vdata.corner;
     Mat full_img = imread(vdata.img_path);	//we have to check it later for speed
+
     Mat &img_warped = vdata.img_warped;		//added by me
     Mat &mask_warped = vdata.mask_warped;	//added by me
     Size &size = vdata.warp_size;		//added by me
-    Mat mask, dilated_mask, seam_mask;		//added by me
+    Mat mask, dilated_mask, seam_mask, masks_warped;		//added by me
     
 
     if (full_img.empty())
@@ -421,13 +422,16 @@ void composite_images(graph_type::vertex_type& vertex)
     camera.K().convertTo(K, CV_32F);
     Rect roi = warper->warpRoi(sz, K, camera.R);
     corner = roi.tl();
-    size = roi.size(); //commented by me as it is not used any where
+    cout << "\ncorner x : " << corner.x << "   y : " << corner.y;
+    size = roi.size();
 
     if (abs(opts.compose_scale - 1) > 1e-1)
         resize(full_img, img, Size(), opts.compose_scale, opts.compose_scale);
     else
         img = full_img;
     Size img_size = img.size();
+    //cout << "image width: \n" << img_size.width;
+    //cout << "image height: \n" << img_size.height;
 
     // Warp the current image
     warper->warp(img, K, camera.R, INTER_LINEAR, BORDER_REFLECT, img_warped);
@@ -435,7 +439,7 @@ void composite_images(graph_type::vertex_type& vertex)
     // Warp the current image mask
     mask.create(img_size, CV_8U);
     mask.setTo(Scalar::all(255));
-    warper->warp(mask, K, camera.R, INTER_NEAREST, BORDER_CONSTANT, mask_warped);
+    warper->warp(mask, K, camera.R, INTER_NEAREST, BORDER_CONSTANT, masks_warped);
 
     // Compensate exposure
     //compensator->apply(img_idx, corner[img_idx], img_warped, mask_warped);
@@ -446,10 +450,8 @@ void composite_images(graph_type::vertex_type& vertex)
     mask.release();
     
     dilate(mask_warped, dilated_mask, Mat());
-    resize(dilated_mask, seam_mask, mask_warped.size());
-    mask_warped = seam_mask & mask_warped;
-
-//    cout << "I am here\n";
+    resize(dilated_mask, seam_mask, masks_warped.size());
+    mask_warped = seam_mask & masks_warped;
 
 }
 
@@ -592,7 +594,7 @@ void find_seams(graph_type::edge_type& edge)
 
    
     const Size img_size = subimg1.size();
-    //cout << "img.height : " << img_size.height << "img.width : " << img_size.width << std::endl;
+    
     if (opts.seam_find_type.compare("gc_color") ==0)
     {
     	// Set terminal weights
@@ -617,19 +619,14 @@ void find_seams(graph_type::edge_type& edge)
 
 		if (x < img_size.width - 1)
         	{
-                    //cout << "y : " << y << "   x : " << x << std::endl;
-		    //cout << "subimg1 :" << subimg1.at<Point3f>(y, x) << "    subimg2 :" << subimg2.at<Point3f>(y, x) << std::endl;
-
-		    float weight = normL2(subimg1.at<Point3f>(y, x), subimg2.at<Point3f>(y, x)) +
+                    float weight = normL2(subimg1.at<Point3f>(y, x), subimg2.at<Point3f>(y, x)) +
                                    normL2(subimg1.at<Point3f>(y, x + 1), subimg2.at<Point3f>(y, x + 1)) + weight_eps;
 		    
 		    if (!submask1.at<uchar>(y, x) || !submask1.at<uchar>(y, x + 1) || 
                         !submask2.at<uchar>(y, x) || !submask2.at<uchar>(y, x + 1))
                     	   weight += opts.bad_region_penalty;
 
-		    //cout << "weight upper if  : " << weight << std::endl;
-
-        	    graph.addEdges(v, v + 1, weight, weight);
+		    graph.addEdges(v, v + 1, weight, weight);
             	}
             	if (y < img_size.height - 1)
             	{
@@ -640,13 +637,10 @@ void find_seams(graph_type::edge_type& edge)
                     	!submask2.at<uchar>(y, x) || !submask2.at<uchar>(y + 1, x))
                     	   weight += opts.bad_region_penalty;
 		    
-                    //cout << "weight lower if  : " << weight << std::endl;
-
-		    graph.addEdges(v, v + img_size.width, weight, weight);
+                    graph.addEdges(v, v + img_size.width, weight, weight);
             	}
        	    }
-	    //getchar();
-        }
+	}
     }
 
    
@@ -720,7 +714,6 @@ void find_seams(graph_type::edge_type& edge)
             }
         }
     }
-
 }
 
 /////////////////////////////////////////////////////////////////////////
