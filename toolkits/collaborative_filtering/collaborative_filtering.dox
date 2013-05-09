@@ -27,6 +27,11 @@ The collaborative filtering toolkit in GraphLab v.2 currently contains:
 \verbatim
 Yunhong Zhou, Dennis Wilkinson, Robert Schreiber and Rong Pan. Large-Scale Parallel Collaborative Filtering for the Netflix Prize. Proceedings of the 4th international conference on Algorithmic Aspects in Information and Management. Shanghai, China pp. 337-348, 2008.
 \endverbatim
+ - \ref CCD++ "ALS with parallel coordinate descent (CCD++)"
+\verbatim
+H.-F. Yu, C.-J. Hsieh, S. Si, I. S. Dhillon, Scalable Coordinate Descent Approaches to Parallel Matrix Factorization for Recommender Systems. IEEE International Conference on Data Mining(ICDM), December 2012.
+Steffen Rendle, Zeno Gantner, Christoph Freudenthaler, and Lars Schmidt-Thieme. 2011. Fast context-aware recommendations with factorization machines. In Proceedings of the 34th international ACM SIGIR conference on Research and development in Information Retrieval (SIGIR '11). ACM, New York, NY, USA, 635-644. 
+\endverbatim
  - \ref SGD "Stochastic gradient descent (SGD)"
 \verbatim
  Matrix Factorization Techniques for Recommender Systems Yehuda Koren, Robert Bell, Chris Volinsky In IEEE Computer, Vol. 42, No. 8. (07 August 2009), pp. 30-37. 
@@ -85,7 +90,7 @@ Note: for weighted-ALS, the input has the follwoing format:
 \endverbatim
 Since each rating has its associated weight.
 
-\section Computing ratings
+\section Computing ratings (test predictions)
 
 Optionally, you can compute ratings for user/item pairs using the computed linear model. The prediction output Filename is specified by: --predictions=filename . If the --prediction command line is not used, the output is not saved. Additionally you need to prepare a file named somefile.predict inside of your training folder, with user item pairs in the following format: 
 \verbatim
@@ -228,6 +233,31 @@ INFO:     synchronous_engine.hpp(start:1257): 	Active vertices: 3561
 
 ...
 \endverbatim
+\section CCD++ CCD++
+ALS (Alternating least squares) with parallel coordinate descent
+
+Pros: Simple to use, not many command line arguments, faster than ALS
+
+Cons: less accurate than ALS
+
+CCD++ is a recent improvement of ALS which uses parallel coordinate descent using a single dimension at a time
+and thus avoids the need of costly linear algebra operations (especially when the dimension of the feature vector is high).
+In this model the prediction is computed as:
+   r_ui = p_u * q_i
+Where r_ui is a scalar rating of user u to item i, and p_u is the user feature vector of size D, q_i is the item feature vector of size D and the product is a vector product. 
+The output of ALS is two matrices: filename.U and filename.V. The matrix U holds the user feature vectors in each row. (Each vector has exactly D columns). The matrix V holds the feature vectors for each time (Each vector has again exactly D columns). In linear algebra notation the rating matrix R ~ UV
+
+
+Below are CCD++ related command line options:
+\verbatim
+--D=XX	Set D the feature vector width. High width results in higher accuracy but slower execution time. Typical values are 20 -  100.
+--lambda=XX	Set regularization. Regularization helps to prevent overfitting. 
+--max_iter=XX The number of iterations.
+--maxval=XX	Maximum allowed rating
+--minval=XX	Min allowed rating
+--predictions=XX	File name to write prediction to
+\endverbatim
+
 
 \section SGD "Stochastic gradient descent (SGD)"
 

@@ -49,7 +49,9 @@ const static int SAFE_NEG_OFFSET=2;
 const static int regnormal = 0;
 static bool debug;
 int max_iter = 10;
-
+double maxval = 1e100;
+double minval = -1e100;
+std::string predictions;
 bool isuser(uint node){
   return ((int)node) >= 0;
 }
@@ -219,6 +221,8 @@ gather_type als_coord_map(const graph_type::vertex_type& center,
 
    if (center.data().t == 0){
      double prediction = center.data().pvec.dot(other.data().pvec);
+     prediction = std::min(prediction, maxval);
+     prediction = std::max(prediction, minval);
      edge.data().R_ij = edge.data().obs - prediction;
    }
    //compute numerator of equation (6) in ICDM paper above
@@ -280,6 +284,75 @@ double extract_l2_error(const graph_type::edge_type & edge) {
 
 
 size_t vertex_data::NLATENT = 20;
+/**
+ * \brief The prediction saver is used by the graph.save routine to
+ * output the final predictions back to the filesystem.
+ */
+struct prediction_saver {
+  typedef graph_type::vertex_type vertex_type;
+  typedef graph_type::edge_type   edge_type;
+  std::string save_vertex(const vertex_type& vertex) const {
+    return ""; //nop
+  }
+  std::string save_edge(const edge_type& edge) const {
+    if(edge.data().role == edge_data::PREDICT) {
+      std::stringstream strm;
+      double prediction = 
+        edge.source().data().pvec.dot(edge.target().data().pvec);
+      prediction = std::min(prediction, maxval);
+      prediction = std::max(prediction, minval);
+      strm << edge.source().id() << '\t';
+      strm << (-edge.target().id() - SAFE_NEG_OFFSET) << '\t';
+      strm << prediction << '\n';
+      return strm.str();
+    } else return "";
+  }
+}; // end of prediction_saver
+
+
+struct linear_model_saver_U {
+  typedef graph_type::vertex_type vertex_type;
+  typedef graph_type::edge_type   edge_type;
+  /* save the linear model, using the format:
+     nodeid) factor1 factor2 ... factorNLATENT \n
+  */
+  std::string save_vertex(const vertex_type& vertex) const {
+    if (vertex.num_out_edges() > 0){
+      std::string ret = boost::lexical_cast<std::string>(vertex.id()) + " ";
+      for (uint i=0; i< vertex_data::NLATENT; i++)
+        ret += boost::lexical_cast<std::string>(vertex.data().pvec[i]) + " ";
+        ret += "\n";
+      return ret;
+    }
+    else return "";
+  }
+  std::string save_edge(const edge_type& edge) const {
+    return "";
+  }
+}; 
+
+struct linear_model_saver_V {
+  typedef graph_type::vertex_type vertex_type;
+  typedef graph_type::edge_type   edge_type;
+  /* save the linear model, using the format:
+     nodeid) factor1 factor2 ... factorNLATENT \n
+  */
+  std::string save_vertex(const vertex_type& vertex) const {
+    if (vertex.num_out_edges() == 0){
+      std::string ret = boost::lexical_cast<std::string>(-vertex.id()-SAFE_NEG_OFFSET) + ") ";
+      for (uint i=0; i< vertex_data::NLATENT; i++)
+        ret += boost::lexical_cast<std::string>(vertex.data().pvec[i]) + " ";
+        ret += "\n";
+      return ret;
+    }
+    else return "";
+  }
+  std::string save_edge(const edge_type& edge) const {
+    return "";
+  }
+}; 
+
+
 
 int main(int argc, char** argv) {
   global_logger().set_log_level(LOG_INFO);
@@ -290,15 +363,16 @@ int main(int argc, char** argv) {
       "Compute the ALS factorization of a matrix.";
   graphlab::command_line_options clopts(description);
   std::string input_dir;
-  size_t interval = 0;
   std::string exec_type = "synchronous";
   clopts.attach_option("matrix", input_dir,
                        "The directory containing the matrix file");
   clopts.add_positional("matrix");
   clopts.attach_option("D", vertex_data::NLATENT,
                        "Number of latent parameters to use.");
-  clopts.attach_option("interval", interval,
-                       "The time in seconds between error reports");
+  clopts.attach_option("maxval", maxval, "max allowed value");
+  clopts.attach_option("minval", minval, "min allowed value");
+  clopts.attach_option("predictions", predictions,
+                       "The prefix (folder and filename) to save predictions.");
   clopts.attach_option("lambda", LAMBDA,
                        "regularization weight");
   clopts.attach_option("max_iter", max_iter,
@@ -364,7 +438,26 @@ int main(int argc, char** argv) {
 
   // Compute the final training error -----------------------------------------
   dc.cout() << "Final error: " << std::endl;
+  // Make predictions ---------------------------------------------------------
+  if(!predictions.empty()) {
+    std::cout << "Saving predictions" << std::endl;
+    const bool gzip_output = false;
+    const bool save_vertices = false;
+    const bool save_edges = true;
+    const size_t threads_per_machine = 2;
 
+    //save the predictions
+    graph.save(predictions, prediction_saver(),
+               gzip_output, save_vertices, 
+               save_edges, threads_per_machine);
+    //save the linear model
+    graph.save(predictions + ".U", linear_model_saver_U(),
+		gzip_output, save_edges, save_vertices, threads_per_machine);
+    graph.save(predictions + ".V", linear_model_saver_V(),
+		gzip_output, save_edges, save_vertices, threads_per_machine);
+  
+  }
+ 
 
   graphlab::mpi_tools::finalize();
   return EXIT_SUCCESS;
