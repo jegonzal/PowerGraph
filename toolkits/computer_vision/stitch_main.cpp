@@ -317,27 +317,24 @@ int main(int argc, char** argv)
     typedef vector<vertex_data> VecBVD;
     VecBVD veclist = engine_feat.map_reduce_vertices<VecBVD>(compile_vertices);
     vector<Point> corner(veclist.size());
-    vector<Mat> img_warped_f(veclist.size());
+    vector<Mat> img_warped(veclist.size());
+    //vector<Mat> img_warped_s(veclist.size());
     vector<Mat> mask_warped(veclist.size());
     vector<Size> size(veclist.size());
+    //Mat img_warped_s;
 
     for (size_t i=0; i!=veclist.size(); ++i)
     {
         corner[i] = veclist[i].corner;
-        img_warped_f[i] = veclist[i].img_warped_f;
+        img_warped[i] = veclist[i].img_warped;
+        //img_warped[i].convertTo(img_warped_s[i], CV_16S);
         mask_warped[i] = veclist[i].mask_warped;
         size[i] = veclist[i].warp_size;
     }
     veclist.clear();
    
     num_images = corner.size();
-    //corner = static_cast<int>(corner);
-
-    /*Mat &img_warped = vdata.img_warped;
-    Mat &img_warped_f = vdata.img_warped_f;
-    Mat &mask_warped = vdata.mask_warped;
-    Mat mask, dilated_mask, seam_mask;*/
-   
+    
     Ptr<Blender> blender;
     
     int blend_type;
@@ -355,7 +352,7 @@ int main(int argc, char** argv)
     if (blender.empty())
     {
         blender = Blender::createDefault(blend_type, try_gpu);
-        Size dst_sz = resultRoi(corner, size).size();	//which size it is?
+        Size dst_sz = resultRoi(corner, size).size();
         float blend_width = sqrt(static_cast<float>(dst_sz.area())) * blend_strength / 100.f;
         if (blend_width < 1.f)
             blender = Blender::createDefault(Blender::NO, try_gpu);
@@ -376,9 +373,14 @@ int main(int argc, char** argv)
 
     // Blend the current image
     for (int j=0; j!=num_images; ++j)
-        blender->feed(img_warped_f[j], mask_warped[j], corner[j]);
+    {
+	Mat img_warped_s;
+	img_warped[j].convertTo(img_warped_s, CV_16S);
+        //cout << "image type :\n" << img_warped[j].type();
+        blender->feed(img_warped_s, mask_warped[j], corner[j]);
+        img_warped_s.release();
+    }
     
-
     Mat result, result_mask;
     blender->blend(result, result_mask);
 

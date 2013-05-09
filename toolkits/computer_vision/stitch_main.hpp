@@ -355,7 +355,7 @@ void warp_images(graph_type::vertex_type& vertex)
     img_warped.convertTo(img_warped_f, CV_32F);
    
     // If no gain compensator, then clear.
-    img_warped.release();
+    //img_warped.release();
 
 }
 
@@ -369,7 +369,6 @@ void composite_images(graph_type::vertex_type& vertex)
     Point2f &corner = vdata.corner;
     Mat full_img = imread(vdata.img_path);	//we have to check it later for speed
     Mat &img_warped = vdata.img_warped;		//added by me
-    Mat &img_warped_f = vdata.img_warped_f;	//added by me
     Mat &mask_warped = vdata.mask_warped;	//added by me
     Size &size = vdata.warp_size;		//added by me
     Mat mask, dilated_mask, seam_mask;		//added by me
@@ -441,8 +440,8 @@ void composite_images(graph_type::vertex_type& vertex)
     // Compensate exposure
     //compensator->apply(img_idx, corner[img_idx], img_warped, mask_warped);
 
-    img_warped.convertTo(img_warped_f, CV_16S);
-    img_warped.release();
+    //img_warped.convertTo(img_warped_s, CV_16S);
+    //img_warped.release();
     img.release();
     mask.release();
     
