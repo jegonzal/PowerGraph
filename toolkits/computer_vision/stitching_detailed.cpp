@@ -21,7 +21,7 @@
  */
 
 
-
+#include <iostream>
 #include <fstream>
 #include <string>
 #include "opencv2/opencv_modules.hpp"
@@ -673,6 +673,7 @@ int main(int argc, char* argv[])
                 cameras[i].K().convertTo(K, CV_32F);
                 Rect roi = warper->warpRoi(sz, K, cameras[i].R);
                 corners[i] = roi.tl();
+                //cout << "corners x : " << corners[i].x << "   y : " << corners[i].y << endl;
                 sizes[i] = roi.size();
             }
         }
@@ -693,7 +694,7 @@ int main(int argc, char* argv[])
         mask.create(img_size, CV_8U);
         mask.setTo(Scalar::all(255));
         warper->warp(mask, K, cameras[img_idx].R, INTER_NEAREST, BORDER_CONSTANT, mask_warped);
-
+        
         // Compensate exposure
         compensator->apply(img_idx, corners[img_idx], img_warped, mask_warped);
 
