@@ -244,7 +244,7 @@ Introduction to Dual Decomposition for Inference.
 Optimization for Machine Learning, editors S. Sra, S. Nowozin, and S. J. Wright: MIT Press, 2011.
 \endverbatim
 
-Implemented by Andre' F. T. Martins and Dhruv Batra.
+Implemented by <a href="http://www.cs.cmu.edu/~afm/">Andre' F. T. Martins</a> and <a href="http://filebox.ece.vt.edu/~dbatra/>Dhruv Batra</a>.
 
 \subsection running_ddd Running DDD
 
