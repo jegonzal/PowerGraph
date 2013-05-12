@@ -34,8 +34,8 @@
 #include <graphlab/macros_def.hpp>
 
 #define BOND_PERCULATION_MAP_REDUCE 0
-#define BOND_PERCULATION_TRANSFORM 1
-static bool debug;
+
+bool debug;
 int max_iter = 100000;
 std::string predictions;
 
@@ -96,33 +96,43 @@ inline bool graph_loader(graph_type& graph,
 
 size_t count_component(const graph_type::edge_type & edge) {
   int diff = (edge.source().data().comp_id != edge.target().data().comp_id);
+  if (debug && diff)
+    std::cout<<"Adding diff between node: " << edge.source().id() << " to: " << edge.target().id()<< " compA: " << edge.source().data().comp_id << " compB: " << 
+      edge.target().data().comp_id << std::endl;
   return diff;
 } 
 
 unsigned int bond_perculation_map(const graph_type::vertex_type& center,
                          graph_type::edge_type& edge,
                          const graph_type::vertex_type& other) {
-   return edge.data().id;
+   edge.data().comp_id =  std::min(std::min(center.data().comp_id, edge.data().id), other.data().comp_id);
+   if (debug)
+     std::cout<<"Setting edge id to: " << edge.data().comp_id << " from: " << center.id() << " to: " << other.id() << std::endl;
+   return edge.data().comp_id;
 }
 
-void store_min_component(const graph_type::vertex_type& center,
-                         graph_type::edge_type& edge,
-                         const graph_type::vertex_type& other) {
-   edge.data().comp_id = center.data().comp_id;
-}
 
 //find min component of two edges
 void bond_perculation_combine(unsigned int& v1, const unsigned int& v2) {
     v1 = std::min(v1, v2);
+    if (debug)
+      std::cout<<"Comparing two edge ids: " << v1 << " : " << v2 << std::endl;
 }
 
 //the main update function
 void bond_perculation_function(engine_type::context_type& context,
                   graph_type::vertex_type& vertex) {
-       
-     vertex.data().comp_id =  context.map_reduce<unsigned int>(BOND_PERCULATION_MAP_REDUCE, graphlab::ALL_EDGES);
-     context.edge_transform(BOND_PERCULATION_TRANSFORM, graphlab::ALL_EDGES);
 
+     vertex.data().comp_id =  context.map_reduce<unsigned int>(BOND_PERCULATION_MAP_REDUCE, graphlab::ALL_EDGES);
+     if (debug)  
+       std::cout<<"node: " << vertex.id() << " min edge component found: " << vertex.data().comp_id << std::endl;
+}
+
+//init vertex
+void init_vertices(engine_type::context_type& context,
+                  graph_type::vertex_type& vertex) {
+
+     vertex.data().comp_id = -1;
 }
 
 
@@ -158,6 +168,7 @@ int main(int argc, char** argv) {
                        "The prefix (folder and filename) to save predictions.");
   clopts.attach_option("max_iter", max_iter,
                        "number of iterations");
+  clopts.attach_option("debug", debug, "debug (verbose) mode");
   if(!clopts.parse(argc, argv) || input_dir == "") {
     std::cout << "Error in parsing command line arguments." << std::endl;
     clopts.print_description();
@@ -202,9 +213,11 @@ int main(int argc, char** argv) {
 
   dc.cout() << "Creating engine" << std::endl;
 
+  if (debug)
+    omp_set_num_threads(1);
   engine_type engine(dc, graph, clopts);
   engine.register_map_reduce(BOND_PERCULATION_MAP_REDUCE, bond_perculation_map, bond_perculation_combine);
-  engine.register_edge_transform(BOND_PERCULATION_TRANSFORM, store_min_component);
+  engine.parfor_all_local_vertices(init_vertices);
   for (int i=0; i< max_iter; i++){
      engine.parfor_all_local_vertices(bond_perculation_function);
      engine.wait();
