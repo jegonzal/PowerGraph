@@ -259,6 +259,10 @@ int main(int argc, char** argv)
     }
    
     sort(focals.begin(), focals.end());
+
+    if (opts.verbose > 2)
+    	LOGLN("Focals size: " << focals.size() << "	focals: " << focals << "\n");    
+
     if (focals.size() % 2 == 1)
         opts.warped_image_scale = static_cast<float>(focals[focals.size() / 2]);
     else
@@ -314,11 +318,9 @@ int main(int argc, char** argv)
 
     ///////////////////////////////////////////////////////
     // blend images, gather vertices
-    //typedef vector<vertex_data> VecBVD;
-    VecVD veclist = engine_feat.map_reduce_vertices<VecVD>(compile_vertices);
+    VecVD veclist = engine_cam.map_reduce_vertices<VecVD>(compile_vertices);
     vector<Point> corner(veclist.size());
     vector<Mat> img_warped(veclist.size());
-    //vector<Mat> img_warped_s(veclist.size());
     vector<Mat> mask_warped(veclist.size());
     vector<Size> size(veclist.size());
     Mat img_warped_s;
@@ -326,11 +328,16 @@ int main(int argc, char** argv)
     for (size_t i=0; i!=veclist.size(); ++i)
     {
         corner[i] = veclist[i].corner;
-        //cout << "corners x : " << corner[i].x << "   y : " << corner[i].y << endl;
+
+	if (opts.verbose > 2)
+            LOGLN("Blending corners x : " << veclist[i].corner.x << "   y : " << veclist[i].corner.y << "\n");
+
         img_warped[i] = veclist[i].img_warped;
-        //img_warped[i].convertTo(img_warped_s[i], CV_16S);
         mask_warped[i] = veclist[i].mask_warped;
         size[i] = veclist[i].warp_size;
+
+        if (opts.verbose > 2)
+            LOGLN("Blending sizes height : " << size[i].height << "   width : " << size[i].width << "\n");
     }
     veclist.clear();
    
@@ -347,15 +354,12 @@ int main(int argc, char** argv)
         blend_type = Blender::MULTI_BAND;
 
     bool try_gpu = false;
-    float blend_strength = 5;
-    //blend_strength = static_cast<float>(atof(blend_strength));
-
-    
+            
     if (blender.empty())
     {
         blender = Blender::createDefault(blend_type, try_gpu);
         Size dst_sz = resultRoi(corner, size).size();
-        float blend_width = sqrt(static_cast<float>(dst_sz.area())) * blend_strength / 100.f;
+        float blend_width = sqrt(static_cast<float>(dst_sz.area())) * opts.blend_strength / 100.f;
         if (blend_width < 1.f)
             blender = Blender::createDefault(Blender::NO, try_gpu);
         else if (blend_type == Blender::MULTI_BAND)
@@ -373,7 +377,7 @@ int main(int argc, char** argv)
         blender->prepare(corner, size);
     }
 
-    // Blend the current 
+    // Blend all images 
     for (int j=0; j!=num_images; ++j)
     {
 	img_warped[j].convertTo(img_warped_s, CV_16S);

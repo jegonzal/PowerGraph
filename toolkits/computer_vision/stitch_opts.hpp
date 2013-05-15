@@ -97,6 +97,7 @@ struct Options
 
     //blending options
     std::string blending_type;
+    float blend_strength;
 
     //saving output
     std::string result_name;
@@ -115,8 +116,8 @@ struct Options
     wave_correct_type("horiz"),
     ba_refine_mask("xxxxx"),
     expose_comp_type("gain_blocks"),
-    blending_type("multiband"),
-    result_name("result.jpg")
+    blending_type("multiband"), blend_strength(5),
+    result_name("result_stitch.jpg")
     {}
 };
 
