@@ -264,7 +264,10 @@ inline bool graph_loader(graph_type& graph,
   float obs(0);
   strm >> source_id >> target_id;
   source_id--; target_id--;
-  assert(source_id < (uint)rows);
+  if (source_id >= (uint)rows)
+    logstream(LOG_FATAL)<<"Problem at input line: [ " << line << " ] row id ( = " << source_id+1 << " ) should be <= than matrix rows (= " << rows << " ) " << std::endl;
+  if (target_id >= (uint)cols)
+    logstream(LOG_FATAL)<<"Problem at input line: [ " << line << " ] col id ( = " << target_id+1 << " ) should be <= than matrix cols (= " << cols << " ) " << std::endl;
   strm >> obs;
   if (!info.is_square())
   target_id = rows + target_id;
