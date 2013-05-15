@@ -24,6 +24,7 @@ double MAXVAL = 1e+100;
 double MINVAL = -1e+100;
 int    REGNORMAL = 0;
 double TEST_PERCENT = 0.4;
+bool INTERACTIVE = false;
 
 /**
  * \brief We use the eigen library's vector type to represent
@@ -74,7 +75,9 @@ struct vertex_data {
   /** \brief the user specific item-item similarity matrix */
   mat_type Wu;
 
-  std::vector<std::vector<std::pair<double, graphlab::vertex_id_type> > > top_explain;
+  // std::vector<std::vector<std::pair<double, graphlab::vertex_id_type> > > top_explain;
+  // std::vector<std::vector<std::pair<double, graphlab::vertex_id_type> > > top_explain2;
+  // std::vector<std::vector<std::pair<double, graphlab::vertex_id_type> > > top_explain3;
 
   /**
    * \brief Simple default constructor which randomizes the vertex
@@ -254,7 +257,7 @@ struct linear_model_saver_V {
   */
   std::string save_vertex(const vertex_type& vertex) const {
     if (vertex.num_out_edges() == 0){
-      std::string ret = boost::lexical_cast<std::string>(-vertex.id()-SAFE_NEG_OFFSET) + ") ";
+      std::string ret = boost::lexical_cast<std::string>(-vertex.id()-SAFE_NEG_OFFSET) + " ";
       for (uint i=0; i< vertex_data::NLATENT; i++)
         ret += boost::lexical_cast<std::string>(vertex.data().factor[i]) + " ";
         ret += "\n";
@@ -280,12 +283,6 @@ struct error_aggregator : public graphlab::IS_POD_TYPE {
     ntest += other.ntest;
     return *this;
   }
-  // void save(oarchive& oarc) const {
-  //   oarc << train <<  test << ntrain << ntest;
-  // }
-  // void load(iarchive& iarc) {
-  //   iarc >> train >> test >> ntrain >> ntest;
-  // }
 };
 /**
  * \brief Given an edge compute the error associated with that edge
