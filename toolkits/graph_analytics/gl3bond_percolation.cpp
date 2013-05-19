@@ -125,9 +125,12 @@ void bond_percolation_combine(unsigned int& v1, const unsigned int& v2) {
 void bond_percolation_function(engine_type::context_type& context,
                   graph_type::vertex_type& vertex) {
 
+     int comp_id = vertex.data().comp_id;
      vertex.data().comp_id =  context.map_reduce<unsigned int>(BOND_PERCOLATION_MAP_REDUCE, graphlab::ALL_EDGES);
      if (debug)  
        std::cout<<"node: " << vertex.id() << " min edge component found: " << vertex.data().comp_id << std::endl;
+     if (comp_id != (int)vertex.data().comp_id)
+       context.broadcast_signal(graphlab::ALL_EDGES);
 }
 
 
@@ -213,6 +216,12 @@ int main(int argc, char** argv) {
   dc.cout() << "Creating engine" << std::endl;
   engine_type engine(dc, graph, clopts);
   engine.register_map_reduce(BOND_PERCOLATION_MAP_REDUCE, bond_percolation_map, bond_percolation_combine);
+
+  engine.signal_all();
+  //engine.start();
+  engine.wait();
+
+#if 0  
   /* FOR EACH ITERATION */
   for (int i=0; i< max_iter; i++){
      /* PERFORM UPDATE FUNCTION */
@@ -225,6 +234,7 @@ int main(int argc, char** argv) {
      if (diff == 0)
        break;
   }
+#endif
 
   const double runtime = timer.current_time();
   dc.cout() << "----------------------------------------------------------"
