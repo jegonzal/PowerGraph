@@ -33,6 +33,7 @@
 #include <graphlab.hpp>
 #include <graphlab/engine/gl3engine.hpp>
 #include <graphlab/macros_def.hpp>
+#include <map>
 
 #define BOND_PERCOLATION_MAP_REDUCE 0
 
@@ -90,7 +91,7 @@ inline bool graph_loader(graph_type& graph,
   graph_type::vertex_id_type source_id(-1), target_id(-1);
   unsigned int edge_id(-1);
   strm >> source_id >> target_id >> edge_id;
-  if (edge_id == -1)
+  if (edge_id == (uint)-1)
     logstream(LOG_FATAL)<<"Input file must contains line with the following format: [from] [ to] [edge_id]\n " << std::endl << " where edge_id is a consecutive integer " << std::endl;
 
   // Create an edge and add it to the graph
@@ -129,7 +130,7 @@ void bond_percolation_combine(unsigned int& v1, const unsigned int& v2) {
 void bond_percolation_function(engine_type::context_type& context,
                   graph_type::vertex_type& vertex, const engine_type::message_type& unused) {
 
-     int comp_id = vertex.data().comp_id;
+     uint comp_id = vertex.data().comp_id;
      vertex.data().comp_id =  context.map_reduce<unsigned int>(BOND_PERCOLATION_MAP_REDUCE, graphlab::ALL_EDGES);
      if (debug && comp_id != vertex.data().comp_id)  
        std::cout<<"node: " << vertex.id() << " min edge component found: " << vertex.data().comp_id << std::endl;
@@ -150,6 +151,37 @@ struct model_saver {
   }
 }; 
 
+//reduce sizes of connected components
+struct label_counter {
+  std::map<uint, uint> counts;
+
+  label_counter() { }
+
+  explicit label_counter(size_t labelId) {
+    counts[labelId] = 1;
+  }
+
+  label_counter& operator+=(const label_counter& other) {
+    std::map<uint, uint>::const_iterator iter = other.counts.begin();
+    while(iter != other.counts.end()) {
+      counts[iter->first] += iter->second;
+      ++iter;
+    }
+    return *this;
+  }
+
+  void save(graphlab::oarchive& oarc) const {
+    oarc << counts;
+  }
+  void load(graphlab::iarchive& iarc) {
+    iarc >> counts;
+  }
+};
+
+
+label_counter get_comp_id(const graph_type::edge_type& edge) {
+  return label_counter(edge.data().comp_id);
+}
 
 
 
@@ -259,7 +291,22 @@ int main(int argc, char** argv) {
     //save the output
     graph.save(output_file, model_saver(), gzip_output, save_vertices, save_edges, threads_per_machine);
   }
- 
+
+  //take statistics
+  label_counter stat = graph.map_reduce_edges<label_counter>(
+      get_comp_id);
+  dc.cout() << "RESULT:\nsize\tcount\n";
+  std::map<uint,uint> final_counts;
+  for (std::map<uint, uint>::const_iterator iter = stat.counts.begin();
+      iter != stat.counts.end(); iter++) {
+      //dc.cout() << iter->first << "\t" << iter->second << "\n";
+      final_counts[iter->second] += 1;
+  }
+  for (std::map<uint, uint>::const_iterator iter = final_counts.begin();
+      iter != final_counts.end(); iter++) {
+      dc.cout() << iter->first << "\t" << iter->second << "\n";
+  }
+
   //shutdown MPI
   graphlab::mpi_tools::finalize();
   return EXIT_SUCCESS;
