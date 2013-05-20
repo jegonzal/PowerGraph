@@ -218,6 +218,9 @@ ImgArea find_largest_img(engine_type::icontext_type& context,
     ImgArea imgarea;
     imgarea.full_img_area = full_img.size().area();
    
+    if (opts.verbose > 2)
+        LOGLN("largest image area: " << imgarea.full_img_area << "\n");
+
     return imgarea;
 }
 
@@ -317,9 +320,7 @@ void warp_images(graph_type::vertex_type& vertex)
 
     // Warp images and their masks
     Ptr<WarperCreator> warper_creator;
-    //warper_creator = new cv::PlaneWarper();
-    //warper_creator = new cv::SphericalWarper();
-   
+    
     if (opts.warp_type == "plane") warper_creator = new cv::PlaneWarper();
     else if (opts.warp_type == "cylindrical") warper_creator = new cv::CylindricalWarper();
     else if (opts.warp_type == "spherical") warper_creator = new cv::SphericalWarper();
@@ -348,7 +349,12 @@ void warp_images(graph_type::vertex_type& vertex)
     K(1,1) *= swa; K(1,2) *= swa;
    
     corner = warper->warp(img, K, camera.R, INTER_LINEAR, BORDER_REFLECT, img_warped);
+    if (opts.verbose > 2)
+        LOGLN("Warp corners x : " << corner.x << "   y : " << corner.y << "\n");
+   
     size = img_warped.size();
+    if (opts.verbose > 2)
+        LOGLN("Warp sizes height : " << size.height << "   width : " << size.width << "\n");
    
     warper->warp(mask, K, camera.R, INTER_NEAREST, BORDER_CONSTANT, mask_warped);
     
@@ -402,7 +408,7 @@ void composite_images(graph_type::vertex_type& vertex)
     if (warper_creator.empty())
         logstream(LOG_ERROR) << "Can't create the following warper '" << opts.warp_type << "'\n";
 
-    Ptr<RotationWarper> warper = warper_creator->create(static_cast<float>(opts.warped_image_scale * opts.compose_work_aspect));//changed by me
+    Ptr<RotationWarper> warper = warper_creator->create(static_cast<float>(opts.warped_image_scale * opts.compose_work_aspect));
        
     // Update intrinsics
     camera.focal *= opts.compose_work_aspect;
@@ -422,16 +428,18 @@ void composite_images(graph_type::vertex_type& vertex)
     camera.K().convertTo(K, CV_32F);
     Rect roi = warper->warpRoi(sz, K, camera.R);
     corner = roi.tl();
-    cout << "\ncorner x : " << corner.x << "   y : " << corner.y;
+    if (opts.verbose > 2)
+        LOGLN("Compose corner x : " << corner.x << "   y : " << corner.y << "\n");
+
     size = roi.size();
+    if (opts.verbose > 2)
+        LOGLN("Compose size height : " << size.height << "   width : " << size.width << "\n");
 
     if (abs(opts.compose_scale - 1) > 1e-1)
         resize(full_img, img, Size(), opts.compose_scale, opts.compose_scale);
     else
         img = full_img;
     Size img_size = img.size();
-    //cout << "image width: \n" << img_size.width;
-    //cout << "image height: \n" << img_size.height;
 
     // Warp the current image
     warper->warp(img, K, camera.R, INTER_LINEAR, BORDER_REFLECT, img_warped);
@@ -444,8 +452,6 @@ void composite_images(graph_type::vertex_type& vertex)
     // Compensate exposure
     //compensator->apply(img_idx, corner[img_idx], img_warped, mask_warped);
 
-    //img_warped.convertTo(img_warped_s, CV_16S);
-    //img_warped.release();
     img.release();
     mask.release();
     
