@@ -167,6 +167,7 @@ void loadUAIfile(graphlab::distributed_control& dc, graph_type& graph, string gr
             //energy = Potential2Energy(potential_value);
             
             vdata.potentials[k] = log10(potential_value);
+            //cout<<vdata.potentials[k]<<" " ;
         }
         
         //CHECK(in.good(), "Could not finish reading factor tables. Are you sure this is a typeUAI energy file?");

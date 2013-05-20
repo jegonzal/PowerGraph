@@ -62,13 +62,17 @@ typedef Eigen::VectorXd vec;
 typedef Eigen::MatrixXd mat;
 
 
-/**
- * \brief The convergence threshold for each message.  Smaller values
- * imply tighter convergence but slower execution.
- *
- */
-double TOLERANCE = 0.01;
 
+
+
+double TOLERANCE = 0.01;      // The convergence threshold for each message. Smaller values imply tighter convergence but slower execution.
+double old_dual = 100;        // stores the value of dual objective for the previous iteration
+double primal_best  = 0;      //  stores the value of bestt primal objective found so far.
+bool converged = false ;      // true if dual objective value has converged to required tolerance level, otherwise false
+int dual_inc_count = 0;       // keeps track of the number of times the value of dual objective increased
+int last_agg_count = 0;        // number of iterations since last aggregate_periodic call
+mat history(30,3);
+int history_iterator =0;
 
 /////////////////////////////////////////////////////////////////////////
 // Edge and Vertex data and Graph Type
@@ -99,7 +103,7 @@ struct vertex_data
     vertex_data(): 
     nvars(0), degree(0), 
     dual_contrib(0), primal_contrib(0),
-    apply_count(0)
+    apply_count(0), best_configuration(0)
     {}
     
     void load(graphlab::iarchive& arc) 
@@ -147,6 +151,34 @@ struct edge_data
 
 
 /**
+ * \brief gather_type is a structure that will be be used as return type of gather function. It includes 
+ *  multiplier messages (used both for unary and factor vertices) and neighbor_best_conf (used only for 
+ *  factor vertices).
+ */
+
+struct gather_type
+{ factor_type messages;
+  vector <int> neighbor_conf;
+     
+    gather_type(){};
+    gather_type(factor_type f): messages(f){}; 
+    gather_type(factor_type f, vector <int> nc): messages(f), neighbor_conf(nc){};
+    void load(graphlab::iarchive& arc) {
+        arc >>messages>>neighbor_conf;
+    }
+    void save(graphlab::oarchive& arc) const {
+        arc <<messages<<neighbor_conf;
+    }
+
+  gather_type& operator+=(const gather_type& other)
+ { messages += other.messages;
+   neighbor_conf += other.neighbor_conf;
+   return *this;
+ }
+
+}; // end of gather_type struct
+
+/**
  * The graph type
  */
 typedef graphlab::distributed_graph<vertex_data, edge_data> graph_type;
@@ -156,7 +188,7 @@ typedef graphlab::distributed_graph<vertex_data, edge_data> graph_type;
  * \brief The Dual Decomposition Vertex Program.
  */
 struct dd_vertex_program : 
-public graphlab::ivertex_program< graph_type, factor_type,
+public graphlab::ivertex_program< graph_type, gather_type,
 graphlab::messages::sum_priority >,
 public graphlab::IS_POD_TYPE 
 {
@@ -210,10 +242,10 @@ public graphlab::IS_POD_TYPE
     
     virtual edge_dir_type gather_edges(icontext_type& context,
                                        const vertex_type& vertex) const = 0;
-    virtual factor_type gather(icontext_type& context, const vertex_type& vertex, 
+    virtual gather_type gather(icontext_type& context, const vertex_type& vertex, 
                                edge_type& edge) const = 0;
     virtual void apply(icontext_type& context, vertex_type& vertex, 
-                       const factor_type& total) = 0;
+                       const gather_type& total) = 0;
     virtual edge_dir_type scatter_edges(icontext_type& context,
                                         const vertex_type& vertex) const = 0; 
     virtual void scatter(icontext_type& context, const vertex_type& vertex, 
@@ -255,7 +287,7 @@ struct dd_vertex_program_symmetric : public dd_vertex_program {
      to. This way, when the "gather sum" takes place, and since all these slots 
      are disjoint, we will just get the Lagrange multipliers of all the variables.    
      */
-    factor_type gather(icontext_type& context, const vertex_type& vertex, edge_type& edge) const 
+    gather_type gather(icontext_type& context, const vertex_type& vertex, edge_type& edge) const 
     {
         if (opts.verbose > 1)
             cout << "gather begin" << endl;
@@ -278,7 +310,8 @@ struct dd_vertex_program_symmetric : public dd_vertex_program {
                 cout << "Message: " << edata.multiplier_messages << "\n---\n";
             }
             
-            return edata.multiplier_messages;
+            gather_type gather_data(edata.multiplier_messages);
+            return gather_data;
         } 
         else 
         {
@@ -299,6 +332,9 @@ struct dd_vertex_program_symmetric : public dd_vertex_program {
                 offset += vdata.cards[k];
             }
             CHECK_GE(index_neighbor, 0);
+            vector <int> neighbor_conf(vdata.nvars, 0);
+            neighbor_conf[index_neighbor] = other_vertex.data().best_configuration;
+            // cout<<vertex.id()<<" "<<other_vertex.id()<<" "<<neighbor_conf[index_neighbor]<<endl;
             for (int state = 0; state < vdata.cards[index_neighbor]; ++state) 
             {
                 messages[offset + state] = -edata.multiplier_messages[state];
@@ -312,8 +348,8 @@ struct dd_vertex_program_symmetric : public dd_vertex_program {
                 cout << "estimated offset = " << offset << "\n";
                 cout << "Message: " << messages << "\n---\n";
             }
-
-            return messages;
+            gather_type gather_data(messages, neighbor_conf);
+            return gather_data;
         }
         if (opts.verbose > 2)
             cout << "gather end" << endl;
@@ -329,7 +365,7 @@ struct dd_vertex_program_symmetric : public dd_vertex_program {
      sequence of states of each configuration, fetch the Lagrange multipliers for 
      those states, and add them to the factor potential. Then we compute the argmax. 
      */
-    void apply(icontext_type& context, vertex_type& vertex, const factor_type& total) 
+    void apply(icontext_type& context, vertex_type& vertex, const gather_type& total) 
     {        
         vertex_data& vdata = vertex.data();
         
@@ -337,20 +373,22 @@ struct dd_vertex_program_symmetric : public dd_vertex_program {
             cout << "begin apply" << endl;
         
         ++vdata.apply_count;
-        
+        ++last_agg_count;
         if (vdata.nvars == 1) 
         {
             // Unary factor.
-            ASSERT_EQ(vdata.potentials.size(), total.size());
-            vec belief = vdata.potentials + total;
+            ASSERT_EQ(vdata.potentials.size(), total.messages.size());
+            vec belief = vdata.potentials + total.messages;
             // Save the best configuration for this vertex.
+            vdata.primal_contrib = vdata.potentials[vdata.best_configuration];
+            //cout<<vertex.id()<<" "<<vdata.best_configuration<<endl;
             vdata.dual_contrib = belief.maxCoeff(&vdata.best_configuration);
-            
+            //cout<<"unary"<<" "<<vdata.dual_contrib<<"  "<<vdata.primal_contrib<<endl;
             if (opts.verbose > 1)
             {
                 cout << "Vertex: " << vertex.id() << "\n";
                 cout << "Potential: " << vdata.potentials << "\n";
-                cout << "incomming message: " << total << "\n";
+                cout << "incomming message: " << total.messages << "\n";
                 cout << "belief: " << belief << "\n";
                 cout << "dual contrib: " << vdata.dual_contrib << "\n";                
                 cout << "vdata.best_configuration = " << vdata.best_configuration << "\n---\n";
@@ -372,18 +410,20 @@ struct dd_vertex_program_symmetric : public dd_vertex_program {
                 int offset = 0;
                 for (int k = 0; k < vdata.nvars; ++k) 
                 {
-                    belief[index_configuration] += total[offset + states[k]];
+                    belief[index_configuration] += total.messages[offset + states[k]];
                     offset += vdata.cards[k];
                 }
             }
             // Save the best configuration for this factor.
             vdata.dual_contrib = belief.maxCoeff(&vdata.best_configuration);
-            
+            int conf_index = get_configuration_index(vertex, total.neighbor_conf);
+            vdata.primal_contrib = vdata.potentials[conf_index];
+            //cout<<vertex.id()<<" "<<belief<<endl;
             if (opts.verbose > 1)
             {
                 cout << "Vertex: " << vertex.id() << "\n";
                 cout << "Potential: " << vdata.potentials << "\n";
-                cout << "incomming message: " << total << "\n";
+                cout << "incomming message: " << total.messages << "\n";
                 cout << "belief: " << belief << "\n";
                 cout << "dual contrib: " << vdata.dual_contrib << "\n";
                 cout << "vdata.best_configuration = " << vdata.best_configuration << "\n---\n";
@@ -434,14 +474,16 @@ struct dd_vertex_program_symmetric : public dd_vertex_program {
         
         if (opts.verbose > 1)
             cout << "begin scatter" << endl;
-
-        double stepsize = 1.0/max(vdata.apply_count,other_vdata.apply_count); // TODO: Implement Polyak's and other step-size rules
-        
-        CHECK_GE(vdata.best_configuration, 0);
+          // double stepsize = 1;
+        vector <double> stepsize(3,0);
+        stepsize[0] = 1;
+        stepsize[1] = 1.0/max(vdata.apply_count,other_vdata.apply_count);
+        stepsize[2] = (1001*(old_dual-primal_best)) / ((last_agg_count)*(dual_inc_count+1000));
+        CHECK_GE(vdata.best_configuration, 0);                                                            
         CHECK_LT(vdata.best_configuration, vdata.cards[0]);    
-        
+         //cout<< stepsize<<endl;
         // Negative subgradient
-        edata.multiplier_messages[vdata.best_configuration] -= stepsize; 
+        edata.multiplier_messages[vdata.best_configuration] -= stepsize[opts.stepsize_type]; 
         
         vector<int> states(other_vdata.nvars, -1);
         get_configuration_states(*factor_vertex, other_vdata.best_configuration, &states);
@@ -461,7 +503,7 @@ struct dd_vertex_program_symmetric : public dd_vertex_program {
         CHECK_EQ(other_vdata.cards[index_neighbor], vdata.cards[0]);
 
         // Negative subgradient
-        edata.multiplier_messages[states[index_neighbor]] += stepsize;
+        edata.multiplier_messages[states[index_neighbor]] += stepsize[opts.stepsize_type];
         
         //if (opts.verbose > 1)
         if ((opts.verbose>1) && (vertex.id() == 15))
@@ -476,7 +518,7 @@ struct dd_vertex_program_symmetric : public dd_vertex_program {
             cout << "end scatter" << endl;
         
         // Signalling the other vertex and yourself to start. 
-        if (vertex.data().apply_count < opts.maxiter)
+        if (vertex.data().apply_count < opts.maxiter && converged == false)
         {
             context.signal(vertex);
             context.signal(other_vertex);
@@ -488,33 +530,69 @@ struct dd_vertex_program_symmetric : public dd_vertex_program {
 
 /////////////////////////////////////////////////////////////////////////////////
 //Aggregator functions to compute primal & dual objective
-double dual_sum(dd_vertex_program_symmetric::icontext_type& context, const dd_vertex_program_symmetric::vertex_type& vertex)
-{
-    return vertex.data().dual_contrib;
+
+struct objective
+{ double primal, dual;
+ 
+objective(): primal(0), dual(0){};
+
+void load(graphlab::iarchive& arc) {
+        arc >>dual>>primal;
+    }
+    void save(graphlab::oarchive& arc) const {
+        arc <<dual<<primal;
+    }
+
+objective& operator+=(const objective& other)
+{ primal += other.primal;
+   dual += other.dual;
+   return *this;
+ }
+};
+
+objective sum(dd_vertex_program_symmetric::icontext_type& context, const dd_vertex_program_symmetric::vertex_type& vertex)
+{ objective retval;
+   retval.primal = vertex.data().primal_contrib;
+  retval.dual = vertex.data().dual_contrib;
+  return retval;
 }
 
-//double primal_contribution(dd_vertex_program_symmetric::icontext_type& context, const dd_vertex_program_symmetric::vertex_type& vertex) 
-//{
-//    //This is to compute the lower-bound function (without including delta-fi messages)
-//    const vertex_data &vdata = vertex.data();
-//    int best_config = vdata.best_configuration;
-//    //Assuming edges from vertex are a list of edges in variable outedgelist (I couldn't figure out how to get outgoing edges from the vertex)
-//    vec messagelist = outedgelist.multiplier_messages;
-//    if(vdata.nvars<2)//Unary Factor.
-//    {
-//        vec fac_pot = vdata.potentials;
-//    }
-//    else
-//    {//General Factor.
-//        
-//    }
-//    return 0;
-//}
-
-void print_obj(dd_vertex_program_symmetric::icontext_type& context, double total) 
+void print_obj(dd_vertex_program_symmetric::icontext_type& context, objective total) 
 {
-    cout << "Dual Objective: " << total<< "\n";
+    cout << "Dual Objective: " << total.dual<< " "<<"Primal Objective: "<<total.primal<<"\n";
+    if (std::fabs(total.dual-old_dual) < TOLERANCE)
+      { converged = true;
+        cout<<" Number of iteration at convergence:"<<context.iteration() +2 <<endl;}
+    else old_dual = total.dual;
+     if (total.primal> primal_best)
+      { primal_best = total.primal;}
+      if (total.dual > old_dual)
+      { dual_inc_count ++;}
+    cout<< "Best Primal so far:"  << primal_best<<endl;
+    last_agg_count = 0;
+
+if(opts.save_history>0)
+{history(history_iterator,0) = context.iteration() +2;
+ history(history_iterator,1) = total.dual;
+ history(history_iterator,2) = total.primal;
+ history_iterator++;
 }
+}
+/* end of aggregator functions */
+
+
+struct conf_writer {
+    std::string save_vertex(graph_type::vertex_type v) {
+        std::stringstream strm;
+         if(history_iterator != -1)
+       { strm <<history<<endl;
+       history_iterator = -1; }
+        return strm.str();
+    }
+    std::string save_edge(graph_type::edge_type e) { return ""; }
+};
+
+
 
 ////////////////////////////////////////////////////////////////////////////////
 // This class implements the "projected" version of dual decomposition described
@@ -555,7 +633,7 @@ struct dd_vertex_program_projected : public dd_vertex_program {
      to. This way, when the "gather sum" takes place, and since all these slots 
      are disjoint, we will just get the Lagrange multipliers of all the variables.    
      */
-    factor_type gather(icontext_type& context, const vertex_type& vertex, 
+    gather_type gather(icontext_type& context, const vertex_type& vertex, 
                        edge_type& edge) const {
         cout << "gather begin" << endl;
         const vertex_type other_vertex = get_other_vertex(edge, vertex);
@@ -567,8 +645,8 @@ struct dd_vertex_program_projected : public dd_vertex_program {
             // Unary factor.
             cout << "This unary factor has " << vertex.num_in_edges() << 
             " in edges and " << vertex.num_out_edges() << " out edges" << endl;
-            factor_type messages = edata.local_messages;
-            return messages; 
+            gather_type gatherdata(edata.local_messages);
+            return gatherdata; 
         } 
         else 
         {
@@ -598,7 +676,8 @@ struct dd_vertex_program_projected : public dd_vertex_program {
                 messages[offset + state] += edata.potentials[state]; 
                 //message[offset + state] += unary_potential[state] / static_cast<double>(degree);
             }
-            return messages;
+            gather_type gather_data(messages);
+            return gather_data;
         }
         cout << "gather end" << endl;
     }; // end of gather function
@@ -616,12 +695,12 @@ struct dd_vertex_program_projected : public dd_vertex_program {
      connected to the factor. 
      */
     void apply(icontext_type& context, vertex_type& vertex, 
-               const factor_type& total) {
+               const gather_type& total) {
         vertex_data& vdata = vertex.data();
         cout << "begin apply" << endl;
         if (vdata.nvars == 1) {
             // Unary factor. Divide by vertex degree.
-            vdata.beliefs = total / static_cast<double>(vdata.degree);
+            vdata.beliefs = total.messages / static_cast<double>(vdata.degree);
             return;
         } else {
             // General factor.
@@ -636,7 +715,7 @@ struct dd_vertex_program_projected : public dd_vertex_program {
                 get_configuration_states(vertex, index_configuration, &states);
                 int offset = 0;
                 for (int k = 0; k < vdata.nvars; ++k) {
-                    beliefs[index_configuration] += total[offset + states[k]];
+                    beliefs[index_configuration] += total.messages[offset + states[k]];
                     offset += vdata.cards[k];
                 }
             }
