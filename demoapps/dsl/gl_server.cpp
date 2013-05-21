@@ -17,21 +17,18 @@ using namespace graphlab;
 typedef distributed_graph<vertex_data_type, edge_data_type> graph_type;
 typedef gl3engine<graph_type> engine_type;
 
+
 //here we keep one global copy of the user defined function pointers
 void (*user_program)(user_funs*) = NULL;
 void (*vertex_reduce)(vertex_data_type&,const vertex_data_type&) = NULL;
 void (*edge_reduce)(edge_data_type&,const edge_data_type&) = NULL;
 
-//here we keep the current vertex and context
-graph_type::vertex_type* current_vertex = NULL;
-engine_type::context_type* current_context = NULL;
-
 //here are definitions of functions passed to dynamically linked user code
-graph_type::vertex_data_type get_vertex_data() {
-    return current_vertex->data();
+graph_type::vertex_data_type get_vertex_data(graph_type::vertex_type* v) {
+    return v->data();
 }
-void set_vertex_data(graph_type::vertex_data_type& d) {
-    current_vertex->data() = d;
+void set_vertex_data(graph_type::vertex_data_type& d, graph_type::vertex_type* v) {
+    v->data() = d;
 }
 
 // graph_type::edge_data_type edge_get_map(graph_type::edge_type& e) {
@@ -65,12 +62,12 @@ void vertex_get_reduce(vertex_data_type& ev, const vertex_data_type ed) {
 //     return current_context->map_reduce<std::vector<vertex_data_type> >(GET_VERTEX_DATA, ALL_EDGES);
 // }
 
-vertex_data_type reduce_neighbors(edge_dir_type d) {
-    return current_context->map_reduce<vertex_data_type>(GET_VERTEX_DATA, d);
+vertex_data_type reduce_neighbors(edge_dir_type d, engine_type::context_type* ctx) {
+    return ctx->map_reduce<vertex_data_type>(GET_VERTEX_DATA, d);
 }
 
-void signal_neighbors(edge_dir_type d) {
-    current_context->broadcast_signal(d);
+void signal_neighbors(edge_dir_type d, engine_type::context_type* ctx) {
+    ctx->broadcast_signal(d);
 }
 
 // edge_data_type reduce_edges() {
@@ -81,17 +78,17 @@ void server_program(engine_type::context_type& context,
 		      graph_type::vertex_type& vertex,
 		      const engine_type::message_type& unused) {
 
-    //capture functions for user to call
-    user_funs f;
-    f.get_vertex_data = get_vertex_data;
-    f.set_vertex_data = set_vertex_data;
-    f.reduce_neighbors = reduce_neighbors;
-    f.signal_neighbors = signal_neighbors;
-    //f.reduce_edges = reduce_edges;
 
-    //capture current state
-    current_vertex = &vertex;
-    current_context = &context;
+
+        //capture functions for user to call
+    user_funs f;
+    f.vtx = &vertex;
+    f.ctx = &context;
+    f._get_vertex_data = (vertex_data_type (*)(void*))get_vertex_data;
+    f._set_vertex_data = (void (*)(vertex_data_type&,void*))set_vertex_data;
+    f._reduce_neighbors = (vertex_data_type (*)(edge_dir_type,void*))reduce_neighbors;
+    f._signal_neighbors = (void (*)(edge_dir_type,void*))signal_neighbors;
+    //f.reduce_edges = reduce_edges;
 
     //call dynamically linked user function
     user_program(&f);
@@ -137,7 +134,8 @@ int main(int argc, char** argv) {
   clopts.attach_option("saveprefix", saveprefix,
                        "If set, will save the resultant pagerank to a "
                        "sequence of files with prefix saveprefix");
-
+  //set single threaded
+  //clopts.set_ncpus(1);
   if(!clopts.parse(argc, argv)) {
     dc.cout() << "Error in parsing command line arguments." << std::endl;
     return EXIT_FAILURE;
