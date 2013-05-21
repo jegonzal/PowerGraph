@@ -134,7 +134,7 @@ void bond_percolation_function(engine_type::context_type& context,
      vertex.data().comp_id =  context.map_reduce<unsigned int>(BOND_PERCOLATION_MAP_REDUCE, graphlab::ALL_EDGES);
      if (debug && comp_id != vertex.data().comp_id)  
        std::cout<<"node: " << vertex.id() << " min edge component found: " << vertex.data().comp_id << std::endl;
-     if (comp_id != (int)vertex.data().comp_id)
+     if (comp_id != vertex.data().comp_id)
        context.broadcast_signal(graphlab::ALL_EDGES);
 }
 
@@ -211,21 +211,21 @@ int main(int argc, char** argv) {
   graphlab::mpi_tools::init(argc, argv);
   graphlab::distributed_control dc;
 
-  dc.cout() << "Loading graph." << std::endl;
+  //dc.cout() << "Loading graph." << std::endl;
   graphlab::timer timer;
   graph_type graph(dc, clopts);
   graph.load(input_dir, graph_loader);
   dc.cout() << "Loading graph. Finished in "
             << timer.current_time() << std::endl;
 
-  dc.cout() << "Finalizing graph." << std::endl;
+  //dc.cout() << "Finalizing graph." << std::endl;
   timer.start();
   graph.finalize();
-  dc.cout() << "Finalizing graph. Finished in "
-            << timer.current_time() << std::endl;
+  //dc.cout() << "Finalizing graph. Finished in "
+  //          << timer.current_time() << std::endl;
 
 
-  dc.cout()
+  /*dc.cout()
       << "========== Graph statistics on proc " << dc.procid()
       << " ==============="
       << "\n Num vertices: " << graph.num_vertices()
@@ -243,7 +243,7 @@ int main(int argc, char** argv) {
         << "\n Edge balance ratio: "
         << float(graph.num_local_edges())/graph.num_edges()
         << std::endl;
-
+  */
 
   if (debug)
     omp_set_num_threads(1);
@@ -278,8 +278,7 @@ int main(int argc, char** argv) {
             << std::endl
             << "Final Runtime (seconds):   " << runtime;
 
-  // Compute the final training error -----------------------------------------
-  dc.cout() << "Final error: " << std::endl;
+  dc.cout() << " Num updates: " << engine.num_updates() << std::endl;
   // Make output_file ---------------------------------------------------------
   if(!output_file.empty()) {
     std::cout << "Saving output_file" << std::endl;
@@ -295,6 +294,8 @@ int main(int argc, char** argv) {
   //take statistics
   label_counter stat = graph.map_reduce_edges<label_counter>(
       get_comp_id);
+  dc.cout() << "Number of sites: " << graph.num_vertices() << std::endl;
+  dc.cout() << "Number of bonds: " << graph.num_edges() << std::endl;
   dc.cout() << "RESULT:\nsize\tcount\n";
   std::map<uint,uint> final_counts;
   for (std::map<uint, uint>::const_iterator iter = stat.counts.begin();
