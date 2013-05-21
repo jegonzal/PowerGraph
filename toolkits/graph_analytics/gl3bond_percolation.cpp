@@ -179,9 +179,14 @@ struct label_counter {
 };
 
 
-label_counter get_comp_id(const graph_type::edge_type& edge) {
+label_counter get_comp_ide(const graph_type::edge_type& edge) {
   return label_counter(edge.data().comp_id);
 }
+label_counter get_comp_idv(const graph_type::vertex_type& vertex) {
+  return label_counter(vertex.data().comp_id);
+}
+
+
 
 
 
@@ -292,21 +297,41 @@ int main(int argc, char** argv) {
   }
 
   //take statistics
-  label_counter stat = graph.map_reduce_edges<label_counter>(
-      get_comp_id);
+  label_counter state = graph.map_reduce_edges<label_counter>(get_comp_ide); 
+  label_counter statv = graph.map_reduce_vertices<label_counter>(get_comp_idv);
   dc.cout() << "Number of sites: " << graph.num_vertices() << std::endl;
   dc.cout() << "Number of bonds: " << graph.num_edges() << std::endl;
-  dc.cout() << "RESULT:\nsize\tcount\n";
-  std::map<uint,uint> final_counts;
-  for (std::map<uint, uint>::const_iterator iter = stat.counts.begin();
-      iter != stat.counts.end(); iter++) {
+  dc.cout() << "Percentage of sites: " << (double)graph.num_vertices() / 1000000 << std::endl;
+  dc.cout() << "Percentage of bonds: " << (double)graph.num_edges() / (4.0*1000000) << std::endl;
+  dc.cout() << "SITES RESULT:\nsize\tcount\n";
+  std::map<uint,uint> final_countsv;
+  uint total_sites = 0;
+  for (std::map<uint, uint>::const_iterator iter = statv.counts.begin();
+      iter != statv.counts.end(); iter++) {
       //dc.cout() << iter->first << "\t" << iter->second << "\n";
-      final_counts[iter->second] += 1;
+      final_countsv[iter->second] += 1;
+      total_sites += iter->second;
   }
-  for (std::map<uint, uint>::const_iterator iter = final_counts.begin();
-      iter != final_counts.end(); iter++) {
+  for (std::map<uint, uint>::const_iterator iter = final_countsv.begin();
+      iter != final_countsv.end(); iter++) {
       dc.cout() << iter->first << "\t" << iter->second << "\n";
   }
+
+  dc.cout() << "BONDS RESULT:\nsize\tcount\n";
+  std::map<uint,uint> final_countse;
+  uint total_bonds = 0;
+  for (std::map<uint, uint>::const_iterator iter = state.counts.begin();
+      iter != state.counts.end(); iter++) {
+      //dc.cout() << iter->first << "\t" << iter->second << "\n";
+      final_countse[iter->second] += 1;
+      total_bonds += iter->second;
+  }
+  for (std::map<uint, uint>::const_iterator iter = final_countse.begin();
+      iter != final_countse.end(); iter++) {
+      dc.cout() << iter->first << "\t" << iter->second << "\n";
+  }
+  assert(total_sites == graph.num_vertices());
+  assert(total_bonds == graph.num_edges());
 
   //shutdown MPI
   graphlab::mpi_tools::finalize();
