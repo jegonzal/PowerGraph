@@ -13,3 +13,6 @@ add_graphlab_executable(stitch stitch_main.cpp)
 requires_opencv(stitch)
 requires_eigen(stitch)
 
+add_graphlab_executable(stitch2 stitch_main_no_list.cpp)
+requires_opencv(stitch2)
+requires_eigen(stitch2)

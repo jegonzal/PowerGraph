@@ -39,6 +39,7 @@ Options opts;
 int main(int argc, char** argv)
 {
    
+    int64 app_start_time = getTickCount();
     ///////////////////////////////////////////////////////
     // Set up Graphlab
     global_logger().set_log_level(LOG_INFO);
@@ -389,6 +390,8 @@ int main(int argc, char** argv)
     blender->blend(result, result_mask);
 
     imwrite(opts.result_name, result);
+    
+    LOGLN("Finished, total time: " << ((getTickCount() - app_start_time) / getTickFrequency()) << " sec");
 
     ///////////////////////////////////////////////////////
     // Run everything
