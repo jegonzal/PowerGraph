@@ -46,13 +46,14 @@ struct Options
     // input output dirs
     std::string graph_file;
     std::string output_dir;
+    std::string history_file;
     
     int verbose;
     
     double dualimprovthres;
     double pdgapthres;
     int maxiter;
-    int save_history;
+    
     int stepsize_type;    
     
     
@@ -60,7 +61,8 @@ struct Options
     Options(): 
     exec_type("sync"),
     output_dir("pred"),
-    verbose(0),save_history(0),stepsize_type(1),
+    history_file("\0"),
+    verbose(0), stepsize_type(1),
     dualimprovthres(1e-5), pdgapthres(1e-1), 
     maxiter(10000)
     {}
