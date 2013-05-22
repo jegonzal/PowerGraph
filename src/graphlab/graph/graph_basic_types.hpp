@@ -27,11 +27,20 @@
 #include <stdint.h>
 
 namespace graphlab {
+
+
+
+
+#ifdef USE_64VID
+  /// Identifier type of a vertex which is globally consistent. Guaranteed to be integral
+  typedef uint64_t vertex_id_type;
+#else
   /// Identifier type of a vertex which is globally consistent. Guaranteed to be integral
   typedef uint32_t vertex_id_type;
-  
+#endif  
+
   /// Identifier type of a vertex which is only locally consistent. Guaranteed to be integral
-  typedef uint32_t lvid_type;
+  typedef vertex_id_type lvid_type;
   
   /**
    * Identifier type of an edge which is only locally
