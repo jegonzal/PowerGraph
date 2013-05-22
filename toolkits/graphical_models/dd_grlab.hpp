@@ -593,7 +593,7 @@ objective sum(dd_vertex_program_symmetric::icontext_type& context, const dd_vert
 
 void print_obj(dd_vertex_program_symmetric::icontext_type& context, objective total) 
 {
-    cout << "Dual Objective: " << total.dual<< " "<<"Primal Objective: "<<total.primal<<" "<<total.sum_sq_norm_g<<"\n";
+    cout << "Dual Objective: " << total.dual<< " "<<"Primal Objective: "<<total.primal<<endl;
     sq_norm_g_global = total.sum_sq_norm_g;
        if (total.dual > old_dual)
       { dual_inc_count ++;}
