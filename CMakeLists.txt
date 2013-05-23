@@ -51,6 +51,12 @@ if(CPP11)
   set(CPP11_FLAGS "-std=c++11 -Wno-enum-compare -Wno-conversion-null")
 endif()
 
+if(VID64)
+  message(STATUS "Using 64bit vertex id types")
+  add_definitions(-DUSE_VID64)
+endif()
+
+
 # Shared compiler flags used by all builds (debug, profile, release)
 set(COMPILER_FLAGS "-Wall -g ${CPP11_FLAGS} ${OPENMP_C_FLAGS}" CACHE STRING "common compiler options")
 
