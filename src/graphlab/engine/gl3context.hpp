@@ -58,6 +58,24 @@ struct gl3context {
     return retp.first;
   }
 
+  /// Map Reduce with init message.
+  template <typename T, typename MessageType>
+  T map_reduce2(size_t taskid,
+               edge_dir_type edir,
+               const MessageType& msg) {
+    ASSERT_NE(lvid, (lvid_type)(-1));
+    // can only be called from within an vertex program.
+    // thus spawn_subtask, which requires the lvid to be locked, is safe
+    map_reduce_neighbors_task2_param<MessageType> task_param;
+    task_param.in = (edir == IN_EDGES) || (edir == ALL_EDGES);
+    task_param.out = (edir == OUT_EDGES) || (edir == ALL_EDGES);
+    task_param.msg = 0;
+    any ret = engine->spawn_subtask(lvid, taskid, any(task_param));
+    std::pair<T, bool>& retp = ret.as<std::pair<T, bool> >();
+    return retp.first;
+  }
+
+
   /**
    * Broadcasts a signal (schedules) to a set of neighbors.
    * edir can be either IN_EDGES, OUT_EDGES or ALL_EDGES.

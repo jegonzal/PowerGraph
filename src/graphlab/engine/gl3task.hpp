@@ -212,6 +212,120 @@ struct map_reduce_neighbors_task_descriptor: public gl3task_descriptor<GraphType
 
 
 
+/**************************************************************************/
+/*                                                                        */
+/*                    Defines the MapReduce Task2 Type                    */
+/*                                                                        */
+/**************************************************************************/
+
+template <typename MessageType>
+struct map_reduce_neighbors_task2_param{
+  bool in;
+  bool out;
+  MessageType msg;
+  void save(oarchive& oarc) const {
+    oarc << in << out << msg;
+  }
+  void load(iarchive& iarc) {
+    iarc >> in >> out >> msg;
+  }
+};
+
+/*
+ * Defines the map reduce over neighborhood task.
+ */
+template <typename GraphType, typename EngineType, typename T, typename MessageType>
+struct map_reduce_neighbors_task2_descriptor: public gl3task_descriptor<GraphType, EngineType> {
+  typedef typename GraphType::vertex_data_type vertex_data_type;
+  typedef typename GraphType::edge_data_type edge_data_type;
+  typedef typename GraphType::vertex_type vertex_type;
+  typedef typename GraphType::edge_type edge_type;
+  typedef gl3task_descriptor<GraphType, EngineType> base_type;
+
+  typedef boost::function<T (const vertex_type&,
+                             edge_type&,
+                             const vertex_type&,
+                             const MessageType&)> map_fn_type;
+  typedef boost::function<void (T&, const T&)> combine_fn_type;
+
+  map_fn_type map_fn;
+  combine_fn_type combine_fn;
+
+  map_reduce_neighbors_task2_descriptor(map_fn_type mapper,
+                                       combine_fn_type combiner)
+      :map_fn(mapper), combine_fn(combiner) { }
+
+  /*
+   * Combine results
+   */
+  virtual void combine(any& a, const any& b, const any& params) {
+    std::pair<T, bool>& ap = a.as<std::pair<T, bool> >();
+    const std::pair<T, bool>& bp = b.as<std::pair<T, bool> >();
+    // if both are filled, we can just combine
+    // if first is not filled, the result is the second
+    if (ap.second && bp.second) combine_fn(ap.first, bp.first);
+    else if (!ap.second) ap = bp;
+  }
+
+  /* Runs the map function
+   * on the selected subset of edges.
+   */
+  any exec(GraphType& graph, vertex_id_type vid, const any& params,
+           EngineType* engine) {
+    const map_reduce_neighbors_task2_param<MessageType>& task_param = 
+        params.as< map_reduce_neighbors_task2_param<MessageType> >();
+
+    bool in = task_param.in;
+    bool out = task_param.out;
+    MessageType msg = task_param.msg;
+
+    typedef typename GraphType::local_edge_type local_edge_type;
+    typedef typename GraphType::local_vertex_type local_vertex_type;
+    typedef typename GraphType::edge_type edge_type;
+    typedef typename GraphType::vertex_type vertex_type;
+
+    lvid_type lvid = graph.local_vid(vid);
+    local_vertex_type lvertex = graph.l_vertex(lvid);
+    vertex_type vertex = vertex_type(lvertex);
+    bool filled = false;
+    T agg = T();
+    if (in) {
+      foreach(local_edge_type ledge, lvertex.in_edges()) {
+        edge_type edge(ledge);
+        vertex_type other(ledge.source());
+        engine->vlocks[ledge.source().id()].lock();
+        engine->elocks[ledge.id()].lock();
+        if (filled) {
+          combine_fn(agg, map_fn(vertex, edge, other, msg));
+        } else {
+          agg = map_fn(vertex, edge, other, msg);
+          filled = true;
+        }
+        engine->elocks[ledge.id()].unlock();
+        engine->vlocks[ledge.source().id()].unlock();
+      }
+    }
+
+    if (out) {
+      foreach(local_edge_type ledge, lvertex.out_edges()) {
+        edge_type edge(ledge);
+        vertex_type other(ledge.target());
+        engine->vlocks[ledge.target().id()].lock();
+        engine->elocks[ledge.id()].lock();
+        if (filled) {
+          combine_fn(agg, map_fn(vertex, edge, other, msg));
+        } else {
+          agg = map_fn(vertex, edge, other, msg);
+          filled = true;
+        }
+        engine->elocks[ledge.id()].unlock();
+        engine->vlocks[ledge.target().id()].unlock();
+      }
+    }
+    any ret(std::pair<T, bool>(agg, filled));
+    return ret;
+  }
+};
 
 
 

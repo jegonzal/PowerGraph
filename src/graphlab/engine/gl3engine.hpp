@@ -389,6 +389,8 @@ class gl3engine {
   friend struct gl3task_descriptor<GraphType, engine_type>;
   template <typename, typename, typename>
   friend struct map_reduce_neighbors_task_descriptor;
+  template <typename, typename, typename, typename>
+  friend struct map_reduce_neighbors_task2_descriptor;
   friend struct broadcast_task_descriptor<GraphType, engine_type>;
   friend struct edge_transform_task_descriptor<GraphType, engine_type>;
   friend struct dht_gather_task_descriptor<GraphType, engine_type>;
@@ -693,6 +695,17 @@ class gl3engine {
         create_map_reduce_task_impl::template create<NORMALIZE_FUNCTION(MapFn)>(mapfn, combinefn);
     rmi.barrier();
   }
+
+  template <typename MapFn, typename CombineFn>
+  void register_map_reduce2(size_t id,
+                           MapFn mapfn,
+                           CombineFn combinefn) {
+    typedef typename boost::mpl::at_c<boost::function_types::parameter_types<MapFn>, 3>::type MapFMessageType;
+    ASSERT_LT(id, 224);
+    task_types[id] = new map_reduce_neighbors_task2_descriptor<GraphType, engine_type, FRESULT(MapFn), MapFMessageType>(mapfn, combinefn);
+    rmi.barrier();
+  }
+
 
   /**
    * Registers an edge transform that can
