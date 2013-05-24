@@ -1,5 +1,5 @@
-/**  
- * Copyright (c) 2009 Carnegie Mellon University. 
+/**
+ * Copyright (c) 2009 Carnegie Mellon University.
  *     All rights reserved.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
@@ -52,9 +52,9 @@
 
 //#define COMM_DEBUG
 namespace graphlab {
- 
+
   namespace dc_impl {
-  
+
     void dc_tcp_comm::init(const std::vector<std::string> &machines,
                            const std::map<std::string,std::string> &initopts,
                            procid_t curmachineid,
@@ -66,7 +66,7 @@ namespace graphlab {
       nprocs = (procid_t)(machines.size());
       receiver = receiver_;
       sender = sender_;
-      
+
       // insert machines into the address map
       all_addrs.resize(nprocs);
       portnums.resize(nprocs);
@@ -97,11 +97,11 @@ namespace graphlab {
         ASSERT_NE(pos, std::string::npos);
         std::string address = machines[i].substr(0, pos);
         size_t port = boost::lexical_cast<size_t>(machines[i].substr(pos+1));
-    
+
         struct hostent* ent = gethostbyname(address.c_str());
         ASSERT_EQ(ent->h_length, 4);
         uint32_t addr = *reinterpret_cast<uint32_t*>(ent->h_addr_list[0]);
-    
+
         all_addrs[i] = addr;
         ASSERT_LT(port, 65536);
         portnums[i] = (uint16_t)(port);
@@ -109,34 +109,60 @@ namespace graphlab {
       network_bytessent = 0;
       buffered_len = 0;
       // if sock handle is set
-      std::map<std::string, std::string>::const_iterator iter = 
+      std::map<std::string, std::string>::const_iterator iter =
         initopts.find("__sockhandle__");
       if (iter != initopts.end()) {
         open_listening(atoi(iter->second.c_str()));
       } else {
         open_listening();
       }
-      for(size_t i = 0;i < nprocs; ++i) connect(i); 
-      // wait for all incoming connections
-      insock_lock.lock();
-      size_t prevconnected = -1;
-      while(1) {
-        size_t connected = 0;
-        for (size_t i = 0;i < sock.size(); ++i) {
-          connected += (sock[i].insock != -1);
+      // to improve the "synchronous" nature of the connection setup,
+      // the last machine will do this in reverse order.
+      // To wait for all machines to connect to it, before it
+      // tries to connect to all machines.
+      // The last machine therefore essentially acts as the "barrier" leader
+      if (curid != nprocs - 1) {
+        // not the last machine.
+        // Connect to everyone, EXCEPT the last machine
+        // and wait for all incoming connections
+        for(size_t i = 0;i < nprocs - 1; ++i) connect(i);
+
+        // wait for p - 1 incoming connections
+        insock_lock.lock();
+        while(1) {
+          if (num_in_connected() == sock.size() - 1) break;
+          insock_cond.wait(insock_lock);
         }
-        if (connected == sock.size()) {
-          break;
+        insock_lock.unlock();
+
+        // connect to the last machine
+        connect(nprocs - 1);
+
+        // wait for the last connection
+        insock_lock.lock();
+        while(1) {
+          if (num_in_connected() == sock.size()) break;
+          insock_cond.wait(insock_lock);
         }
-        if (prevconnected != connected) {
-          logstream(LOG_INFO) << curmachineid << ": Waiting for " << sock.size() - connected
-                            << " more hosts..." << std::endl;
+        insock_lock.unlock();
+      } else {
+        // I am the last machine
+        ASSERT_EQ(curid, nprocs - 1);
+        // wait for all incoming connections before connecting to everyone
+        // connect to myself
+        connect(nprocs - 1);
+        insock_lock.lock();
+        while(1) {
+          if (num_in_connected() == sock.size()) break;
+          insock_cond.wait(insock_lock);
         }
-        prevconnected = connected;
-        insock_cond.wait(insock_lock);
+        insock_lock.unlock();
+        // now, when I know that machines 0 to #procs - 2 have
+        // all established a connection to each other
+        // connect to everyone. This is essentially equivalent to the
+        // barrier release message
+        for(size_t i = 0;i < nprocs; ++i) connect(i);
       }
-      insock_lock.unlock();
-      
       // everyone is connected.
       // Construct the eventbase
       construct_events();
@@ -180,16 +206,24 @@ namespace graphlab {
         if (sock[i].outevent == NULL) {
           logstream(LOG_FATAL) << "Unable to register socket write event" << std::endl;
         }
-        
+
         event_add(sock[i].inevent, NULL);
         //struct timeval t = {0, 10};
         event_add(sock[i].outevent, NULL);
       }
     }
 
+    size_t dc_tcp_comm::num_in_connected() const {
+      size_t connected = 0;
+      for (size_t i = 0;i < sock.size(); ++i) {
+        connected += (sock[i].insock != -1);
+      }
+      return connected;
+    }
+
     void dc_tcp_comm::trigger_send_timeout(procid_t target, bool urgent) {
       if (!urgent) {
-        if (sock[target].wouldblock == false && 
+        if (sock[target].wouldblock == false &&
             triggered_timeouts.get(target) == false) {
           triggered_timeouts.set_bit(target);
           event_active(send_triggered_event, EV_TIMEOUT, 1);
@@ -211,7 +245,7 @@ namespace graphlab {
       }
       // shutdown the listening thread
       listenthread.join();
-      
+
       // clear the outevent loop
       event_base_loopbreak(outevbase);
       outthreads.join();
@@ -222,7 +256,7 @@ namespace graphlab {
       event_free(send_all_event);
       event_base_free(outevbase);
 
-      
+
       logstream(LOG_INFO) << "Closing outgoing sockets" << std::endl;
       // close all outgoing sockets
       for (size_t i = 0;i < sock.size(); ++i) {
@@ -231,7 +265,7 @@ namespace graphlab {
           sock[i].outsock = -1;
         }
       }
-      
+
       // clear the inevent loop
       event_base_loopbreak(inevbase);
       inthreads.join();
@@ -239,8 +273,8 @@ namespace graphlab {
         event_free(sock[i].inevent);
       }
       event_base_free(inevbase);
-      
-      
+
+
       logstream(LOG_INFO) << "Closing incoming sockets" << std::endl;
       // close all incoming sockets
       for (size_t i = 0;i < sock.size(); ++i) {
@@ -271,7 +305,7 @@ namespace graphlab {
             return false;
           }
         }
-        
+
 #ifdef COMM_DEBUG
         logstream(LOG_INFO) << ret << " bytes --> " << sockinfo.id << std::endl;
 #endif
@@ -297,22 +331,22 @@ namespace graphlab {
       END_TRACEPOINT(tcp_send_call);
       return 0;
     }
-  
+
     void dc_tcp_comm::set_tcp_no_delay(int fd) {
       int flag = 1;
       int result = setsockopt(fd,            /* socket affected */
                               IPPROTO_TCP,     /* set option at TCP level */
                               TCP_NODELAY,     /* name of option */
-                              (char *) &flag,  
-                              sizeof(int));   
+                              (char *) &flag,
+                              sizeof(int));
       if (result < 0) {
-        logstream(LOG_WARNING) 
+        logstream(LOG_WARNING)
           << "Unable to disable Nagle. Performance may be signifantly reduced"
           << std::endl;
       }
       // set nonblocking
     }
-    
+
     void dc_tcp_comm::set_non_blocking(int fd) {
       int flag = fcntl(fd, F_GETFL);
       if (flag < 0) {
@@ -326,12 +360,12 @@ namespace graphlab {
     }
 
 
-    void dc_tcp_comm::new_socket(int newsock, sockaddr_in* otheraddr, 
+    void dc_tcp_comm::new_socket(int newsock, sockaddr_in* otheraddr,
                                  procid_t id) {
       // figure out the address of the incoming connection
       uint32_t addr = *reinterpret_cast<uint32_t*>(&(otheraddr->sin_addr));
       // locate the incoming address in the list
-      logstream(LOG_INFO) << "Incoming connection from " 
+      logstream(LOG_INFO) << "Incoming connection from "
                           << inet_ntoa(otheraddr->sin_addr) << std::endl;
       ASSERT_LT(id, all_addrs.size());
       ASSERT_EQ(all_addrs[id], addr);
@@ -356,7 +390,7 @@ namespace graphlab {
         my_addr.sin_port = htons(portnums[curid]);
         my_addr.sin_addr.s_addr = INADDR_ANY;
         memset(&(my_addr.sin_zero), '\0', 8);
-        logstream(LOG_INFO) << "Proc " << procid() << " Bind on " 
+        logstream(LOG_INFO) << "Proc " << procid() << " Bind on "
                             << portnums[curid] << "\n";
         if (bind(listensock, (sockaddr*)&my_addr, sizeof(my_addr)) < 0)
           {
@@ -367,7 +401,7 @@ namespace graphlab {
       else {
         listensock = sockhandle;
       }
-      logstream(LOG_INFO) << "Proc " << procid() 
+      logstream(LOG_INFO) << "Proc " << procid()
                           << " listening on " << portnums[curid] << "\n";
       ASSERT_EQ(0, listen(listensock, 128));
       // spawn a thread which loops around accept
@@ -396,13 +430,13 @@ namespace graphlab {
         bool success = false;
         for (size_t i = 0;i < 10; ++i) {
           if (::connect(newsock, (sockaddr*)&serv_addr, sizeof(serv_addr)) < 0) {
-            logstream(LOG_INFO) 
+            logstream(LOG_INFO)
               << "connect " << curid << " to " << target << ": "
               << strerror(errno) << ". Retrying...\n";
             timer::sleep(1);
-            // posix says that 
-            /* If connect() fails, the state of the socket is unspecified. 
-               Conforming applications should close the file descriptor and 
+            // posix says that
+            /* If connect() fails, the state of the socket is unspecified.
+               Conforming applications should close the file descriptor and
                create a new socket before attempting to reconnect. */
             ::close(newsock);
             newsock = socket(AF_INET, SOCK_STREAM, 0);
@@ -455,7 +489,7 @@ namespace graphlab {
           if (newsock < 0) {
             break;
           }
-          // set the socket options and inform the 
+          // set the socket options and inform the
           set_tcp_no_delay(newsock);
           // before accepting the socket, get the machine number
           procid_t remotemachineid = (procid_t)(-1);
@@ -547,7 +581,7 @@ namespace graphlab {
     void dc_tcp_comm::check_for_new_data(dc_tcp_comm::socket_info& sockinfo) {
       buffered_len.inc(sender[sockinfo.id]->get_outgoing_data(sockinfo.outvec));
     }
-    
+
 
     inline void process_sock(dc_tcp_comm::socket_info* sockinfo) {
       if (sockinfo->m.try_lock()) {

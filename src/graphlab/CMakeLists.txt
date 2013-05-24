@@ -42,6 +42,9 @@ add_library(graphlab STATIC
   util/mpi_tools.cpp
   util/web_util.cpp
   util/inplace_lf_queue.cpp
+  zookeeper/zookeeper_common.cpp
+  zookeeper/key_value.cpp
+  zookeeper/server_list.cpp
   rpc/dc_tcp_comm.cpp
   rpc/circular_char_buffer.cpp
   rpc/dc_stream_receive.cpp
@@ -50,6 +53,7 @@ add_library(graphlab STATIC
   rpc/reply_increment_counter.cpp
   rpc/dc_init_from_env.cpp
   rpc/dc_init_from_mpi.cpp
+  rpc/dc_init_from_zookeeper.cpp
   rpc/async_consensus.cpp
   rpc/distributed_event_log.cpp
   rpc/delta_dht.cpp

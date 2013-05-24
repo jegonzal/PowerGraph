@@ -1,5 +1,5 @@
-/**  
- * Copyright (c) 2009 Carnegie Mellon University. 
+/**
+ * Copyright (c) 2009 Carnegie Mellon University.
  *     All rights reserved.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
@@ -40,8 +40,8 @@
 #include <graphlab/util/dense_bitset.hpp>
 namespace graphlab {
 namespace dc_impl {
-  
-  
+
+
 void on_receive_event(int fd, short ev, void* arg);
 void on_send_event(int fd, short ev, void* arg);
 
@@ -54,30 +54,30 @@ a collection of machines.
 */
 class dc_tcp_comm:public dc_comm_base {
  public:
-   
+
   DECLARE_TRACER(tcp_send_call);
-  
+
   inline dc_tcp_comm() {
     is_closed = true;
     INITIALIZE_TRACER(tcp_send_call, "dc_tcp_comm: send syscall");
   }
-  
+
   size_t capabilities() const {
     return COMM_STREAM;
   }
-  
+
   /**
    this fuction should pause until all communication has been set up
    and returns the number of systems in the network.
    After which, all other remaining public functions (numprocs(), send(), etc)
-   should operate normally. Every received message should immediate trigger the 
+   should operate normally. Every received message should immediate trigger the
    attached receiver
-   
+
    machines: a vector of strings where each string is of the form [IP]:[portnumber]
    initopts: unused
-   curmachineid: The ID of the current machine. machines[curmachineid] will be 
+   curmachineid: The ID of the current machine. machines[curmachineid] will be
                  the listening address of this machine
-   
+
    recvcallback: A function pointer to the receiving function. This function must be thread-safe
    tag: An additional pointer passed to the receiving function.
   */
@@ -89,11 +89,11 @@ class dc_tcp_comm:public dc_comm_base {
 
   /** shuts down all sockets and cleans up */
   void close();
-  
+
   ~dc_tcp_comm() {
     close();
   }
-  
+
   inline bool channel_active(size_t target) const {
     return (sock[target].outsock != -1);
   }
@@ -105,7 +105,7 @@ class dc_tcp_comm:public dc_comm_base {
   inline procid_t numprocs() const {
     return nprocs;
   }
-  
+
   /**
    * Returns the current machine ID.
    * Only valid after call to init()
@@ -113,7 +113,7 @@ class dc_tcp_comm:public dc_comm_base {
   inline procid_t procid() const {
     return curid;
   }
-  
+
   /**
    * Returns the total number of bytes sent
    */
@@ -127,37 +127,41 @@ class dc_tcp_comm:public dc_comm_base {
   inline size_t network_bytes_received() const {
     return network_bytesreceived.value;
   }
- 
+
   inline size_t send_queue_length() const {
     size_t a = network_bytessent.value;
     size_t b = buffered_len.value;
     return b - a;
   }
- 
+
   /**
    Sends the string of length len to the target machine dest.
    Only valid after call to init();
    Establishes a connection if necessary
   */
   void send(size_t target, const char* buf, size_t len);
-  
+
   void trigger_send_timeout(procid_t target, bool urgent);
-  
+
  private:
   /// Sets TCP_NO_DELAY on the socket passed in fd
   void set_tcp_no_delay(int fd);
-  
+
   void set_non_blocking(int fd);
 
   /// called when listener receives an incoming socket request
   void new_socket(int newsock, sockaddr_in* otheraddr, procid_t remotemachineid);
-  
+
+
+  /// The number of incoming connections established
+  size_t num_in_connected() const;
+
   /** opens the listening sock and spawns a thread to listen on it.
    * Uses sockhandle if non-zero
    */
   void open_listening(int sockhandle = 0);
-  
-  
+
+
   /// constructs a connection to the target machine
   void connect(size_t target);
 
@@ -168,21 +172,21 @@ class dc_tcp_comm:public dc_comm_base {
   procid_t curid;   /// if od the current processor
   procid_t nprocs;  /// number of processors
   bool is_closed;   /// whether this socket is closed
-  
+
 
   /// all_addrs[i] will contain the IP address of machine i
   std::vector<uint32_t> all_addrs;
   std::map<uint32_t, procid_t> addr2id;
   std::vector<uint16_t> portnums;
-  
+
   std::vector<dc_receive*> receiver;
   std::vector<dc_send*> sender;
   atomic<size_t> buffered_len;
-  
- 
-  
-  
-  
+
+
+
+
+
   /// All information about stuff regarding a particular sock
   /// Passed to the receive handler
   struct socket_info{
@@ -196,22 +200,22 @@ class dc_tcp_comm:public dc_comm_base {
     mutex m;
 
     circular_iovec_buffer outvec;  /// outgoing data
-    struct msghdr data; 
+    struct msghdr data;
   };
 
   mutex insock_lock; /// locks the insock field in socket_info
   conditional insock_cond; /// triggered when the insock field in socket_info changes
-  
+
   struct timeout_event {
     bool send_all;
     dc_tcp_comm* owner;
   };
-  
-  std::vector<socket_info> sock; 
-  
+
+  std::vector<socket_info> sock;
+
   /**
    * Sends as much of the buffer inside the sockinfo as possible
-   * until the send call will block or all sends are complete. 
+   * until the send call will block or all sends are complete.
    * Returns true when the buffer has been completely sent
    * If wouldblock returns true, the next call to send_till_block may block
    */
@@ -219,8 +223,8 @@ class dc_tcp_comm:public dc_comm_base {
   bool send_till_block(socket_info& sockinfo);
   void check_for_new_data(socket_info& sockinfo);
   void construct_events();
-                        
-  
+
+
 
   // counters
   atomic<size_t> network_bytessent;
@@ -233,8 +237,8 @@ class dc_tcp_comm:public dc_comm_base {
   friend void process_sock(socket_info* sockinfo);
   friend void on_receive_event(int fd, short ev, void* arg);
   struct event_base* inevbase;
-  
-  
+
+
   ////////////       Sending Sockets      //////////////////////
   thread_group outthreads;
   void send_loop(struct event_base*);
@@ -245,14 +249,14 @@ class dc_tcp_comm:public dc_comm_base {
   timeout_event send_triggered_timeout;
   timeout_event send_all_timeout;
 
-  fixed_dense_bitset<256> triggered_timeouts;  
+  fixed_dense_bitset<256> triggered_timeouts;
   ////////////       Listening Sockets     //////////////////////
   int listensock;
   thread listenthread;
   void accept_handler();
 };
 
-void process_sock(dc_tcp_comm::socket_info* sockinfo); 
+void process_sock(dc_tcp_comm::socket_info* sockinfo);
 
 } // namespace dc_impl
 } // namespace graphlab
