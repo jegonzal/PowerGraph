@@ -8,6 +8,9 @@ MAXVAL = 1e+100;
 MINVAL = -1e+100;
 REGNORMAL = 1;
 
+gatherEdges = 3;  # gather and scatter on all edges
+scatterEdges = 3;
+
 indices = numpy.triu_indices(NUMLATENT);
 
 class vertexDataClass:
@@ -55,12 +58,10 @@ def parseEdge(file, line):
 	type = 0;
 	if ".train" in file:
 		type = 0;
-	else:
-		if ".validate" in file:
-			type = 1;
-		else:
-			if ".predict" in file:
-				type = 2;
+	elif ".validate" in file:
+		type = 1;
+	elif ".predict" in file:
+		type = 2;
 		
 	s = line.split();	
 	srcId = int(s[0]);

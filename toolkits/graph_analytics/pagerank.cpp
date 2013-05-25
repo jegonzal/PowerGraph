@@ -75,8 +75,19 @@ void init_vertex(graph_type::vertex_type& vertex) { vertex.data() = 1; }
  */
 class pagerank :
   public graphlab::ivertex_program<graph_type, double> {
+
   double last_change;
 public:
+
+  /**
+   * Gather only in edges.
+   */
+  edge_dir_type gather_edges(icontext_type& context,
+                              const vertex_type& vertex) const {
+    return graphlab::IN_EDGES;
+  } // end of Gather edges
+
+
   /* Gather the weighted rank of the adjacent page   */
   double gather(icontext_type& context, const vertex_type& vertex,
                edge_type& edge) const {
@@ -86,7 +97,8 @@ public:
   /* Use the total rank of adjacent pages to update this page */
   void apply(icontext_type& context, vertex_type& vertex,
              const gather_type& total) {
-    double newval = (1.0 - RESET_PROB) * total + RESET_PROB;
+
+    const double newval = (1.0 - RESET_PROB) * total + RESET_PROB;
     last_change = (newval - vertex.data());
     vertex.data() = newval;
     if (ITERATIONS) context.signal(vertex);
@@ -111,16 +123,22 @@ public:
                edge_type& edge) const {
     if(USE_DELTA_CACHE) {
       context.post_delta(edge.target(), last_change);
-      if(last_change > TOLERANCE || last_change < -TOLERANCE)
+    }
+
+    if(last_change > TOLERANCE || last_change < -TOLERANCE) {
         context.signal(edge.target());
     } else {
-      context.signal(edge.target());
+      context.signal(edge.target()); //, std::fabs(last_change));
     }
   }
 
   void save(graphlab::oarchive& oarc) const {
+    // If we are using iterations as a counter then we do not need to
+    // move the last change in the vertex program along with the
+    // vertex data.
     if (ITERATIONS == 0) oarc << last_change;
   }
+
   void load(graphlab::iarchive& iarc) {
     if (ITERATIONS == 0) iarc >> last_change;
   }
@@ -142,6 +160,7 @@ struct pagerank_writer {
 }; // end of pagerank writer
 
 
+double map_rank(const graph_type::vertex_type& v) { return v.data(); }
 
 
 double pagerank_sum(graph_type::vertex_type v) {
@@ -234,6 +253,9 @@ int main(int argc, char** argv) {
   dc.cout() << "Finished Running engine in " << runtime
             << " seconds." << std::endl;
 
+
+  const double total_rank = graph.map_reduce_vertices<double>(map_rank);
+  std::cout << "Total rank: " << total_rank << std::endl;
 
   // Save the final graph -----------------------------------------------------
   if (saveprefix != "") {

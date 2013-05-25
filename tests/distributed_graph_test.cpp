@@ -1,5 +1,5 @@
-/*  
- * Copyright (c) 2009 Carnegie Mellon University. 
+/*
+ * Copyright (c) 2009 Carnegie Mellon University.
  *     All rights reserved.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
@@ -170,7 +170,7 @@ int main(int argc, char** argv) {
     const local_edge_list_type& out_edges = v.out_edges();
     const local_edge_list_type& in_edges = v.in_edges();
 
-    printf("Test v: %u\n", v.global_id());
+    std::cout << "Test v: " << v.global_id() << std::endl;
     printf("In edge ids: ");
     foreach(local_edge_type edge, in_edges)
       std::cout << "(" << edge.data().from << ","
@@ -198,7 +198,7 @@ int main(int argc, char** argv) {
   dc.cout() << "+ Pass test: iterate edgelist and get data. :) \n";
   std::cout << "-----------End Grid Test--------------------" << std::endl;
 
-  
+
 #ifndef USE_DYNAMIC_LOCAL_GRAPH
   dc.cout() << "Testing Injective join\n";
   graphlab::graph_vertex_join<graph_type, graph_type2> join(dc, g, g2);

@@ -1,5 +1,5 @@
-/*  
- * Copyright (c) 2009 Carnegie Mellon University. 
+/*
+ * Copyright (c) 2009 Carnegie Mellon University.
  *     All rights reserved.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
@@ -38,8 +38,8 @@ public:
     vertex_data() : num_flips(0) { }
   };
 
-  struct edge_data { 
-    int from; 
+  struct edge_data {
+    int from;
     int to;
     edge_data (int f = 0, int t = 0) : from(f), to(t) {}
   };
@@ -114,7 +114,7 @@ public:
         for (size_t j = 0; j < 4; ++j) {
           edge_data data = (inedges[j]).data();
           ASSERT_EQ(data.to, 3);
-          ASSERT_TRUE(set_in.find(data.from) != set_in.end()); 
+          ASSERT_TRUE(set_in.find(data.from) != set_in.end());
           set_in.erase(data.from);
         }
       }
@@ -168,7 +168,7 @@ public:
     }
 
     // the graph is now constructed
-    // we need to call finalize. 
+    // we need to call finalize.
     g.finalize();
 
     printf("Test num_vertices()...\n");
@@ -280,14 +280,14 @@ public:
 
       printf("Test v: %u\n", i);
       printf("In edge ids: ");
-      foreach(edge_type edge, in_edges) 
+      foreach(edge_type edge, in_edges)
         std::cout << "(" << edge.data().from << ","
                   << edge.data().to << ") ";
       std::cout <<std::endl;
 
       printf("Out edge ids: ");
-      foreach(edge_type edge, out_edges) 
-        std::cout << "(" << edge.data().from << "," 
+      foreach(edge_type edge, out_edges)
+        std::cout << "(" << edge.data().from << ","
                   << edge.data().to << ") ";
       std::cout <<std::endl;
 
@@ -314,16 +314,16 @@ private:
   void check_adjacency(size_t i,
                        const edge_list_type& in_edges,
                        const edge_list_type& out_edges) {
-      printf("Test v: %u\n", i);
+      std::cout << "Test v: " << i << std::endl;
       printf("In edge ids: ");
-      foreach(edge_type edge, in_edges) 
+      foreach(edge_type edge, in_edges)
         std::cout << "(" << edge.data().from << ","
                   << edge.data().to << ") ";
       std::cout <<std::endl;
 
       printf("Out edge ids: ");
-      foreach(edge_type edge, out_edges) 
-        std::cout << "(" << edge.data().from << "," 
+      foreach(edge_type edge, out_edges)
+        std::cout << "(" << edge.data().from << ","
                   << edge.data().to << ") ";
       std::cout <<std::endl;
 

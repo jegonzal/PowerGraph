@@ -32,6 +32,8 @@ function print_help {
   echo
   echo "  --c++11             Turns on C++11 experimental features. "
   echo
+  echo "  --vid32              Switch to 32bit vertex ids."
+  echo
   echo "  -D var=value        Specify definitions to be passed on to cmake."
 
   exit 1
@@ -116,6 +118,7 @@ GRAPHLAB_HOME=$PWD
 DEPS_PREFIX=$PWD/deps/local
 NO_OPENMP=false
 CPP11=false
+VID32=false
 CFLAGS=""
 
 # if mac detected, force no_openmp flags by default
@@ -143,6 +146,7 @@ while [ $# -gt 0 ]
     --no_jvm)               no_jvm=1 ;;
     --experimental)         experimental=1 ;;
     --c++11)                cpp11=1 ;;
+    --vid32)                vid32=1 ;;
     --prefix=*)             prefix=${1##--prefix=} ;;
     --ide=*)                ide=${1##--ide=} ;;
     -D)                     CFLAGS="$CFLAGS -D $2"; shift ;;
@@ -173,6 +177,10 @@ fi
 if [ $cpp11 ]; then
   CPP11=true
 fi
+if [ $vid32 ]; then
+  VID32=true
+fi
+
 if [[ -n $prefix ]]; then
   INSTALL_DIR=$prefix
 fi
@@ -338,6 +346,7 @@ CFLAGS="$CFLAGS -D NO_OPENMP:BOOL=$NO_OPENMP"
 CFLAGS="$CFLAGS -D CMAKE_INSTALL_PREFIX:STRING=$INSTALL_DIR"
 CFLAGS="$CFLAGS -D EXPERIMENTAL:BOOL=$EXPERIMENTAL"
 CFLAGS="$CFLAGS -D CPP11:BOOL=$CPP11"
+CFLAGS="$CFLAGS -D VID32:BOOL=$VID32"
 if [ -z $JAVAC ]; then
   CFLAGS="$CFLAGS -D NO_JAVAC:BOOL=1"
 fi

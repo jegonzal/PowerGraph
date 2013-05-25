@@ -419,7 +419,7 @@ class gl3engine {
  public:
   gl3engine(distributed_control& dc, graph_type& graph,
             graphlab_options opts = graphlab_options()):
-      rmi(dc, this), graph(graph), 
+      rmi(dc, this), graph(graph),
       ncpus(opts.get_ncpus()),
       execution_group(opts.get_ncpus(), 64 * 1024) {
     rmi.barrier();
@@ -553,8 +553,8 @@ class gl3engine {
                          const message_type& message) {
     scheduler_ptr->schedule(lvid, message);
     //if (execution_group.num_threads() < num_vthreads/4) {
-    //if (execution_group.num_active() < 2 * ncpus && 
-    //      execution_group.num_threads() < num_vthreads) { 		
+    //if (execution_group.num_active() < 2 * ncpus &&
+    //      execution_group.num_threads() < num_vthreads) {
     if (active_vthread_count < ncpus) {
       launch_a_vthread();
     }
@@ -1053,11 +1053,11 @@ class gl3engine {
 
   void wait_on_combiner(future_combiner& combiner) {
     if (combiner.count_down > 0 &&
-        fiber_group::fast_yieldable() <= 1 && 
+        fiber_group::fast_yieldable() <= 1 &&
         execution_group.num_threads() < scheduler_ptr->approx_size() / 4 &&
-        execution_group.num_threads() < num_vthreads) { 		
-      launch_a_vthread(); 	
-    }      
+        execution_group.num_threads() < num_vthreads) {
+      launch_a_vthread();
+    }
 
     combiner.lock.lock();
     while (combiner.count_down != 0) {
@@ -1347,7 +1347,7 @@ class gl3engine {
         }
         consensus->cancel();
       }
-    } 
+    }
   }
 
 
@@ -1502,7 +1502,7 @@ class gl3engine {
     vertex_type vertex(graph.l_vertex(lvid));
     context.lvid = lvid;
 
-    timer ti; 
+    timer ti;
 
     // logger(LOG_EMPH, "Running vertex %ld", vertex.id());
     active_function(context, vertex, msg);
@@ -1535,7 +1535,7 @@ class gl3engine {
       rmi.dc().stop_handler_threads(id % ncpus, ncpus);
     //std::cout << "Subtask thread " << id << " started\n";
     GL3TLS::SET_IN_VTHREAD_TASK(false);
-    size_t ctr = timer::approx_time_millis();
+    // size_t ctr = timer::approx_time_millis();
     size_t retry = 0;
     while(1) {
       rmi.dc().handle_incoming_calls(id % ncpus, ncpus);

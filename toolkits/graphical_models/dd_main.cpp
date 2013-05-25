@@ -56,6 +56,10 @@ int main(int argc, char** argv)
     clopts.attach_option("output", opts.output_dir,
                          "The directory in which to save the predictions");
     clopts.add_positional("output");
+    clopts.attach_option("history", opts.history_file, " for saving objective values");
+    clopts.add_positional("history");
+    clopts.attach_option("stepsize_type", opts.stepsize_type, "to specify type of stepsize, 0 for no variation, 1 for 1/t type, 2 for polyak");
+    clopts.add_positional("stepsize_type");
     clopts.attach_option("dualimprovthres", opts.dualimprovthres,
                          "The tolerance level for Dual Convergence.");
     clopts.attach_option("pdgapthres", opts.pdgapthres,
@@ -112,11 +116,13 @@ int main(int argc, char** argv)
     graphlab::timer timer;
     
     // Attach an aggregator to compute primal/dual objective, periodic with 0.5 s intervals.
-    engine.add_vertex_aggregator<double>("pd_obj", dual_sum, print_obj); 
-    engine.aggregate_periodic("pd_obj",0.0001);
+    
+     engine.add_vertex_aggregator<objective>("pd_obj",sum, print_obj); 
+     engine.aggregate_periodic("pd_obj",0.0001);
 
     // The main command. Run graphlab
     engine.start();  
+    // engine.aggregate_now("pd_obj");
     
     const double runtime = timer.current_time();    
     dc.cout() 
@@ -127,7 +133,16 @@ int main(int argc, char** argv)
     << "Update Rate (updates/second): " 
     << engine.num_updates() / runtime << std::endl;
     
-    
+    if ( opts.history_file.size() < 4 || opts.history_file.find(".txt",opts.history_file.size()-4) == std::string::npos)
+    {opts.history_file.append(".txt");} 
+    char *filename = (char*)opts.history_file.c_str();
+    ofstream file;
+    file.open(filename);
+    int i = 0;
+    while(i< history[0].size())
+    { file<<history[0][i]<<" "<<history[1][i]<<" "<<history[2][i]<<endl;
+      i++;}
+     file.close();
     graphlab::mpi_tools::finalize();
     return EXIT_SUCCESS;
     

@@ -3,19 +3,95 @@
 \page computer_vision Computer Vision
 
 
-\todo complete
+\brief GraphLab Computer Vision Toolkit aims to provide fully distributed wrappers to algorithms in <a href="http://opencv.org/">OpenCV</a>, an open-source library aimed at real-time computer vision. 
+Eventually, GraphLab Computer Vision Toolkit will become it’s own spin-off project called CloudCV, a system that will provide access to state-of-the-art computer vision algorithms on the cloud.
 
-\brief Summary
+Currently, the only implemented algorithm is Image-Stitching, where the goal is to create a composite panoramic image from a collection of images.
 
+\section image_stitching Panoramic Image Stitching
 
-\section computer_vision_usage Usage 
+\image html panorama_small.png
 
+The goal in image stiching is to create a composite panoramic image from a collection of images. The standard pipeline consists of four main steps:
 
-\section computer_vision_example Example
+\li Feature Extraction: where distinctive points (or keypoints) are identified in each image and a feature descriptor (SIFT, SURF, etc) is computed for each keypoint.
+\li Image/Feature Matching: where features are matched between pairs of images to estimate relative camera transformations.
+\li Global Refinement: of camera transformation parameters across all images.
+\li Seam Blending: where seams are estimated between pairs of images and blending is performed.
+
+See the following for details about the pipeline:
+\verbatim
+M. Brown and D. Lowe. 
+Automatic Panoramic Image Stitching using Invariant Features. 
+International Journal of Computer Vision, 74(1), pages 59-73, 2007.
+\endverbatim
+
+The stiching code in this toolkit is based on <a href="http://docs.opencv.org/modules/stitching/doc/introduction.html">OpenCV Stitching Module</a>.
+
+Implemented by <a href="http://filebox.ece.vt.edu/~dbatra/">Dhruv Batra</a> and Prakriti Banik.
+
+\section running_stitch Running Stitch
+
+The program requires a directory that contains all images from the panorama. Currently (and temporarily for now), 
+the program also requires an adjacency list indicating the overlap between images. We are working on incorporating code that will estimate this adjacency list directly from the images. 
+
+\verbatim
+> ./stitch --img /path/to/image/dir --graph /path/to/adjacency/list.txt 
+\endverbatim
+
+The <a href="http://docs.graphlab.org/graph_formats.html">adjacency list file format</a> stores on each line, 
+a vertex (image id), followed by a list of all vertices (image ids) that contain overlapping visual content. Each line has the following format:
+
+[image ID]  [number of neighbouring vertices/images] [neighbour-image ID 1] [neighbour-image ID 2] [neighbour-image ID 3] ...
+
+Here's an example adjacency list file with 3 images (numbered 0,1,2) in a chain graph (0-1-2):
+\verbatim
+0 1 1
+1 2 0 2
+2 1 1
+\endverbatim
 
 
 \section computer_vision_options Options
 
+Other arguments are:
+
+\li <b>--help</b> Display the help message describing the list of
+options.
+
+\li <b>--output</b> (Optional, default "./") The output directory in which to save
+the final mosiac.
+
+\li <b>--verbose</b> (Optional, default 0) How much information to print out.
+
+\li <b>--work_megapix</b> (Optional, default 0.6 Mpx) Resolution for image matching step. See other details in stitch_opts.hpp.
+
+\li <b>--engine</b> (Optional, Default: asynchronous) The engine type to
+use when executing the vertex-programs
+       - <b>synchronous</b>: All LoopyBP updates are run at the same
+         time (Synchronous BP). This engine exposes greater parallelism but is less
+         computationally efficient.
+       - <b>asynchronous</b>: LoopyBP updates are run asynchronous
+         with priorities (Residual BP).  This engine is has greater
+         overhead and exposes less parallelism but can substantially
+         improve the rate over convergence.
+
+\li <b>--ncpus</b> (Optional, Default 2) The number of local computation 
+threads to use on each machine.  This should typically match the number 
+of physical cores. 
+
+\li <b>--scheduler</b> (Optional, Default sweep) The scheduler to use when 
+running with the asynchronous engine.  The default is typically sufficient. 
+
+\li <b>--engine_opts</b> (Optional, Default empty) Any additional engine
+options. See <b>--engine_help</b> for a list of options.
+
+
+\li <b>--graph_opts</b> (Optional, Default empty) Any additional graph
+options. See <b>--graph_help</b> for a list of options.
+
+\li <b>--scheduler_opts</b> (Optional, Default empty) Any additional scheduler
+options. See <b>--scheduler_help</b> for a list of options.
 
 */
 

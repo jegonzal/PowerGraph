@@ -44,7 +44,7 @@ std::string output_file;
 struct vertex_data : public graphlab::IS_POD_TYPE{
   unsigned int comp_id;
   vertex_data(): comp_id(-1) {}
-}; 
+};
 
 std::size_t hash_value(vertex_data const& b) {
   return b.comp_id;
@@ -102,10 +102,10 @@ inline bool graph_loader(graph_type& graph,
 size_t count_component(const graph_type::edge_type & edge) {
   int diff = (edge.source().data().comp_id != edge.target().data().comp_id);
   if (debug && diff)
-    std::cout<<"Adding diff between node: " << edge.source().id() << " to: " << edge.target().id()<< " compA: " << edge.source().data().comp_id << " compB: " << 
+    std::cout<<"Adding diff between node: " << edge.source().id() << " to: " << edge.target().id()<< " compA: " << edge.source().data().comp_id << " compB: " <<
       edge.target().data().comp_id << std::endl;
   return diff;
-} 
+}
 
 unsigned int bond_percolation_map(const graph_type::vertex_type& center,
                          graph_type::edge_type& edge,
@@ -132,7 +132,7 @@ void bond_percolation_function(engine_type::context_type& context,
 
      uint comp_id = vertex.data().comp_id;
      vertex.data().comp_id =  context.map_reduce<unsigned int>(BOND_PERCOLATION_MAP_REDUCE, graphlab::ALL_EDGES);
-     if (debug && comp_id != vertex.data().comp_id)  
+     if (debug && comp_id != vertex.data().comp_id)
        std::cout<<"node: " << vertex.id() << " min edge component found: " << vertex.data().comp_id << std::endl;
      if (comp_id != vertex.data().comp_id)
        context.broadcast_signal(graphlab::ALL_EDGES);
@@ -142,14 +142,14 @@ void bond_percolation_function(engine_type::context_type& context,
 struct model_saver {
   typedef graph_type::vertex_type vertex_type;
   typedef graph_type::edge_type   edge_type;
-  
+
   std::string save_vertex(const vertex_type& vertex) const {
     return "";
   }
   std::string save_edge(const edge_type& edge) const {
     return boost::lexical_cast<std::string>(edge.data().id) + " " + boost::lexical_cast<std::string>(edge.data().comp_id) + std::string("\n");
   }
-}; 
+};
 
 //reduce sizes of connected components
 struct label_counter {
@@ -251,7 +251,7 @@ int main(int argc, char** argv) {
   */
 
   if (debug)
-    omp_set_num_threads(1);
+    //omp_set_num_threads(1);
 
   /* THE MAIN LOOP */
   dc.cout() << "Creating engine" << std::endl;
@@ -263,7 +263,7 @@ int main(int argc, char** argv) {
   //engine.start();
   engine.wait();
 
-#if 0  
+#if 0
   /* FOR EACH ITERATION */
   for (int i=0; i< max_iter; i++){
      /* PERFORM UPDATE FUNCTION */
@@ -297,7 +297,7 @@ int main(int argc, char** argv) {
   }
 
   //take statistics
-  label_counter state = graph.map_reduce_edges<label_counter>(get_comp_ide); 
+  label_counter state = graph.map_reduce_edges<label_counter>(get_comp_ide);
   label_counter statv = graph.map_reduce_vertices<label_counter>(get_comp_idv);
   dc.cout() << "Number of sites: " << graph.num_vertices() << std::endl;
   dc.cout() << "Number of bonds: " << graph.num_edges() << std::endl;

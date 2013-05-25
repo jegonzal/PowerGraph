@@ -2,9 +2,20 @@ import cPickle;
 
 usermod = None;
 
+gatherEdges = 1;  # by default: gather on incoming edges
+scatterEdges = 2; # by default: scatter on outgoing edges
+
 def initUserModule(name):
 	global usermod;
 	usermod = __import__(name);
+
+	global gatherEdges;
+	if "gatherEdges" in dir(usermod):
+		gatherEdges = usermod.gatherEdges;
+	
+	global scatterEdges;
+	if "scatterEdges" in dir(usermod):
+		scatterEdges = usermod.scatterEdges;
 	return "edgeDataClass" in dir(usermod);
 
 def newVertex():

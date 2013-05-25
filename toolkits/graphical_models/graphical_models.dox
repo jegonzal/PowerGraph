@@ -228,7 +228,76 @@ options. See <b>--graph_help</b> for a list of options.
 options. See <b>--scheduler_help</b> for a list of options.
 
 
+\section distributed_dual_decomposition Distributed Dual Decomposition
 
+Dual Decomposition (DD), also called Lagrangian Relaxation, is a powerful technique 
+with a rich history in Operations Research. DD solves a relaxation of difficult optimization
+problems by decomposing them into simpler subproblems, solving these simpler subproblems
+independently and then combining these solutions into an approximate global solution. 
+
+More details about DD for solving Maximum A Posteriori (MAP) inference problems in Markov Random
+Fields (MRFs) can be found in the following:
+
+\verbatim
+D. Sontag, A. Globerson, T. Jaakkola. 
+Introduction to Dual Decomposition for Inference. 
+Optimization for Machine Learning, editors S. Sra, S. Nowozin, and S. J. Wright: MIT Press, 2011.
+\endverbatim
+
+Implemented by <a href="http://www.cs.cmu.edu/~afm/">Andre' F. T. Martins</a> and <a href="http://filebox.ece.vt.edu/~dbatra/">Dhruv Batra</a>.
+
+\subsection running_ddd Running DDD
+
+The input MRF graph is assumed to be in the standard <a href="http://www.cs.huji.ac.il/project/PASCAL/fileFormat.php">UAI file format</a>. 
+For example a 3x3 grid MRF can be found here: <a href="http://www.cs.huji.ac.il/project/PASCAL/examples/grid3x3.uai">grid3x3.uai</a>.
+
+The program can be run like this:
+
+\verbatim
+> ./dd --graph grid3x3.uai 
+\endverbatim
+
+Other arguments are:
+
+\li <b>--help</b> Display the help message describing the list of
+options.
+
+\li <b>--output</b> The output directory in which to save
+the final predictions.
+
+\li <b>--dualimprovthres</b> (Optional, default 0.00001) The amount of change in
+dual objective (in log-space) that will be tolerated at convergence.
+
+\li <b>--pdgapthres</b> (Optional, default 0.1) The tolerance level for zero primal-dual gap.
+
+\li <b>--maxiter</b> (Optional, default 10000) The maximum no. of dual update iterations.
+
+\li <b>--engine</b> (Optional, Default: asynchronous) The engine type to
+use when executing the vertex-programs
+       - <b>synchronous</b>: All LoopyBP updates are run at the same
+         time (Synchronous BP). This engine exposes greater parallelism but is less
+         computationally efficient.
+       - <b>asynchronous</b>: LoopyBP updates are run asynchronous
+         with priorities (Residual BP).  This engine is has greater
+         overhead and exposes less parallelism but can substantially
+         improve the rate over convergence.
+
+\li <b>--ncpus</b> (Optional, Default 2) The number of local computation 
+threads to use on each machine.  This should typically match the number 
+of physical cores. 
+
+\li <b>--scheduler</b> (Optional, Default sweep) The scheduler to use when 
+running with the asynchronous engine.  The default is typically sufficient. 
+
+\li <b>--engine_opts</b> (Optional, Default empty) Any additional engine
+options. See <b>--engine_help</b> for a list of options.
+
+
+\li <b>--graph_opts</b> (Optional, Default empty) Any additional graph
+options. See <b>--graph_help</b> for a list of options.
+
+\li <b>--scheduler_opts</b> (Optional, Default empty) Any additional scheduler
+options. See <b>--scheduler_help</b> for a list of options.
 
 
 */

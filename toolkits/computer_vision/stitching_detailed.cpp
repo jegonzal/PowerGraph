@@ -21,7 +21,7 @@
  */
 
 
-
+#include <iostream>
 #include <fstream>
 #include <string>
 #include "opencv2/opencv_modules.hpp"
@@ -385,7 +385,7 @@ int main(int argc, char* argv[])
 
         (*finder)(img, features[i]);
         features[i].img_idx = i;
-        LOGLN("Features in image #" << i+1 << ": " << features[i].keypoints.size());
+        LOGLN("Features in image #" << i << ": " << features[i].keypoints.size());
 
         resize(full_img, img, Size(), seam_scale, seam_scale);
         images[i] = img.clone();
@@ -494,6 +494,11 @@ int main(int argc, char* argv[])
     }
 
     sort(focals.begin(), focals.end());
+    //LOGLN("Focals size: " << focals.size() << "\n");
+    //LOGLN(" focals: " << focals[0] << "\t" << focals[1] << "\t" << focals[2] << "\n");  
+    //LOGLN("Focals size: " << focals.size() << "\n");    
+
+ 
     float warped_image_scale;
     if (focals.size() % 2 == 1)
         warped_image_scale = static_cast<float>(focals[focals.size() / 2]);
@@ -573,7 +578,9 @@ int main(int argc, char* argv[])
         K(1,1) *= swa; K(1,2) *= swa;
 
         corners[i] = warper->warp(images[i], K, cameras[i].R, INTER_LINEAR, BORDER_REFLECT, images_warped[i]);
+        //cout << "corners x : " << corners[i].x << "   y : " << corners[i].y << endl;
         sizes[i] = images_warped[i].size();
+        //cout << "sizes height : " << sizes[i].height << "   width : " << sizes[i].width << endl;
 
         warper->warp(masks[i], K, cameras[i].R, INTER_NEAREST, BORDER_CONSTANT, masks_warped[i]);
     }
@@ -673,7 +680,9 @@ int main(int argc, char* argv[])
                 cameras[i].K().convertTo(K, CV_32F);
                 Rect roi = warper->warpRoi(sz, K, cameras[i].R);
                 corners[i] = roi.tl();
+                //cout << "corner x : " << corners[i].x << "   y : " << corners[i].y << endl;
                 sizes[i] = roi.size();
+                //cout << "size height : " << sizes[i].height << "   width : " << sizes[i].width << endl;
             }
         }
         if (abs(compose_scale - 1) > 1e-1)
@@ -693,7 +702,7 @@ int main(int argc, char* argv[])
         mask.create(img_size, CV_8U);
         mask.setTo(Scalar::all(255));
         warper->warp(mask, K, cameras[img_idx].R, INTER_NEAREST, BORDER_CONSTANT, mask_warped);
-
+        
         // Compensate exposure
         compensator->apply(img_idx, corners[img_idx], img_warped, mask_warped);
 

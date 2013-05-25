@@ -103,8 +103,8 @@ public:
     set_union_gather gather;
     color_type other_color = edge.source().id() == vertex.id() ?
                                  edge.target().data(): edge.source().data();
-    vertex_id_type otherid= edge.source().id() == vertex.id() ?
-                                 edge.target().id(): edge.source().id();
+    // vertex_id_type otherid= edge.source().id() == vertex.id() ?
+    //                              edge.target().id(): edge.source().id();
      gather.colors.insert(other_color);
     return gather;
   }
