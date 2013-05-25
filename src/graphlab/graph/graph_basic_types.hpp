@@ -31,7 +31,7 @@ namespace graphlab {
 
 
 
-#ifdef USE_64VID
+#ifdef USE_VID64
   /// Identifier type of a vertex which is globally consistent. Guaranteed to be integral
   typedef uint64_t vertex_id_type;
 #else

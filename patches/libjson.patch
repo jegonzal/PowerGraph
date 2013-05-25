@@ -1,8 +1,6 @@
-Common subdirectories: libjson2/Dependencies and libjson/Dependencies
-Common subdirectories: libjson2/Getting Started and libjson/Getting Started
-diff -uN libjson2/JSONOptions.h libjson/JSONOptions.h
---- libjson2/JSONOptions.h	2012-06-25 19:48:45.000000000 -0400
-+++ libjson/JSONOptions.h	2012-06-25 19:49:11.000000000 -0400
+diff -rup libjson2/JSONOptions.h libjson/JSONOptions.h
+--- libjson2/JSONOptions.h	2012-03-10 01:41:30.000000000 -0800
++++ libjson/JSONOptions.h	2013-05-24 17:44:29.000000000 -0700
 @@ -11,7 +11,7 @@
   *  JSON_LIBRARY must be declared if libjson is compiled as a static or dynamic 
   *  library.  This exposes a C-style interface, but none of the inner workings of libjson
@@ -30,25 +28,11 @@ diff -uN libjson2/JSONOptions.h libjson/JSONOptions.h
  
  
  /*
-Common subdirectories: libjson2/Source and libjson/Source
-Common subdirectories: libjson2/TestSuite and libjson/TestSuite
-Common subdirectories: libjson2/TestSuite2 and libjson/TestSuite2
-diff -uN libjson2/makefile libjson/makefile
---- libjson2/makefile	2012-06-25 19:48:45.000000000 -0400
-+++ libjson/makefile	2012-06-25 19:50:29.000000000 -0400
-@@ -236,7 +236,7 @@
- endif
- 
- # Compile object files
--$(objdir)/%.o: $(srcdir)/%.cpp
-+$(objdir)/%.o: $(srcdir)/%.cpp installdirs
- 	$(CXX) $< -o $@ $(CXXFLAGS)
- 
- ifeq ($(SHARED),1)
-
-diff -rupN libjson2/libjson/Source/JSONDefs.h libjson/Source/JSONDefs.h
---- libjson2/libjson/Source/JSONDefs.h	2012-02-23 12:30:04.000000000 -0500
-+++ libjson/Source/JSONDefs.h	2012-06-29 18:11:07.000000000 -0400
+Only in libjson: JSONOptions.h.orig
+Only in libjson: Objects_static
+diff -rup libjson2/Source/JSONDefs.h libjson/Source/JSONDefs.h
+--- libjson2/Source/JSONDefs.h	2012-02-23 09:30:04.000000000 -0800
++++ libjson/Source/JSONDefs.h	2013-05-24 17:44:29.000000000 -0700
 @@ -146,23 +146,6 @@ typedef void (*json_free_t)(void *);
      typedef void * (*json_realloc_t)(void *, unsigned long);
  #endif
@@ -73,3 +57,202 @@ diff -rupN libjson2/libjson/Source/JSONDefs.h libjson/Source/JSONDefs.h
  
  #ifdef JSON_UNIT_TEST
      #define JSON_PRIVATE public:
+diff -rup libjson2/Source/JSONSharedString.h libjson/Source/JSONSharedString.h
+--- libjson2/Source/JSONSharedString.h	2012-02-21 04:30:32.000000000 -0800
++++ libjson/Source/JSONSharedString.h	2013-05-24 17:56:07.000000000 -0700
+@@ -38,8 +38,9 @@ public:
+ 
+ 	struct iterator;
+ 	  struct const_iterator {
+-		const_iterator(const json_char * p, const json_shared_string * pa) : parent(pa), it(p){}
+-	  
++		//const_iterator(const json_char * p, const json_shared_string * pa) : parent(pa), it(p){}
++	  const_iterator(const json_char * p, const json_shared_string * pa) : it(p){}
++
+ 		 inline const_iterator& operator ++(void) json_nothrow { ++it; return *this; }
+ 		 inline const_iterator& operator --(void) json_nothrow { --it; return *this; }
+ 		 inline const_iterator& operator +=(long i) json_nothrow { it += i; return *this; }
+@@ -84,15 +85,15 @@ public:
+ 		 inline const_iterator & operator =(const const_iterator & orig) json_nothrow { it = orig.it; return *this; }
+ 		 const_iterator (const const_iterator & orig) json_nothrow : it(orig.it) {}
+ 	  private:
+-		 const json_shared_string * parent;
++    // const json_shared_string * parent; // creates annoying warning
+ 		 const json_char * it;
+ 		 friend class json_shared_string;
+ 		 friend struct iterator;
+ 	  };
+-	  
++
+ 	  struct iterator {
+ 		iterator(const json_char * p, const json_shared_string * pa) : parent(pa), it(p){}
+-	  
++
+ 		 inline iterator& operator ++(void) json_nothrow { ++it; return *this; }
+ 		 inline iterator& operator --(void) json_nothrow { --it; return *this; }
+ 		 inline iterator& operator +=(long i) json_nothrow { it += i; return *this; }
+@@ -146,22 +147,22 @@ public:
+ 
+ 
+ 	inline json_shared_string::iterator begin(void){
+-		iterator res = iterator(data(), this); 
++		iterator res = iterator(data(), this);
+ 		return res;
+ 	}
+ 	inline json_shared_string::iterator end(void){
+-		iterator res = iterator(data() + len, this); 
++		iterator res = iterator(data() + len, this);
+ 		return res;
+ 	}
+ 	inline json_shared_string::const_iterator begin(void) const {
+-		const_iterator res = const_iterator(data(), this); 
++		const_iterator res = const_iterator(data(), this);
+ 		return res;
+ 	}
+ 	inline json_shared_string::const_iterator end(void) const {
+-		const_iterator res = const_iterator(data() + len, this); 
++		const_iterator res = const_iterator(data() + len, this);
+ 		return res;
+ 	}
+-	
++
+ 
+ 	inline json_string::iterator std_begin(void){
+ 		return _str -> mystring.begin() + offset;
+@@ -169,36 +170,36 @@ public:
+ 	inline json_string::iterator std_end(void){
+ 		return std_begin() + len;
+ 	}
+-	
++
+ 	inline json_string::const_iterator std_begin(void) const{
+ 		return _str -> mystring.begin() + offset;
+ 	}
+ 	inline json_string::const_iterator std_end(void) const{
+ 		return std_begin() + len;
+ 	}
+-	
++
+ 	inline json_shared_string(void) : offset(0), len(0), _str(new(json_malloc<json_shared_string_internal>(1)) json_shared_string_internal(json_global(EMPTY_JSON_STRING))) {}
+-	
++
+ 	inline json_shared_string(const json_string & str) : offset(0), len(str.length()), _str(new(json_malloc<json_shared_string_internal>(1)) json_shared_string_internal(str)) {}
+-	
++
+ 	inline json_shared_string(const json_shared_string & str, size_t _offset, size_t _len) : _str(str._str), offset(str.offset + _offset), len(_len) {
+ 		++_str -> refCount;
+ 	}
+-	
++
+ 	inline json_shared_string(const json_shared_string & str, size_t _offset) : _str(str._str), offset(str.offset + _offset), len(str.len - _offset) {
+ 		++_str -> refCount;
+ 	}
+-	
++
+ 	inline json_shared_string(const iterator & s, const iterator & e) : _str(s.parent -> _str), offset(s.it - s.parent -> _str -> mystring.data()), len(e.it - s.it){
+ 		++_str -> refCount;
+ 	}
+-	
++
+ 	inline ~json_shared_string(void){
+ 		deref();
+ 	}
+-	
++
+ 	inline bool empty(void) const { return len == 0; }
+-	
++
+ 	size_t find(json_char ch, size_t pos = 0) const {
+ 		if (_str -> refCount == 1) return _str -> mystring.find(ch, pos);
+ 		json_string::const_iterator e = std_end();
+@@ -207,7 +208,7 @@ public:
+ 		}
+ 		return json_string::npos;
+ 	}
+-	
++
+ 	inline json_char & operator[] (size_t loc){
+ 		return _str -> mystring[loc + offset];
+ 	}
+@@ -218,21 +219,21 @@ public:
+ 	inline size_t length() const { return len; }
+ 	inline const json_char * c_str() const { return toString().c_str(); }
+ 	inline const json_char * data() const { return _str -> mystring.data() + offset; }
+-	
++
+ 	inline bool operator != (const json_shared_string & other) const {
+ 		if ((other._str == _str) && (other.len == len) && (other.offset == offset)) return false;
+ 		return other.toString() != toString();
+ 	}
+-	
++
+ 	inline bool operator == (const json_shared_string & other) const {
+ 		if ((other._str == _str) && (other.len == len) && (other.offset == offset)) return true;
+ 		return other.toString() == toString();
+ 	}
+-	
++
+ 	inline bool operator == (const json_string & other) const {
+ 		return other == toString();
+ 	}
+-	
++
+ 	json_string & toString(void) const {
+ 		//gonna have to do a real substring now anyway, so do it completely
+ 		if (_str -> refCount == 1){
+@@ -246,8 +247,8 @@ public:
+ 		offset = 0;
+ 		return _str -> mystring;
+ 	}
+-	
+-	
++
++
+ 	inline void assign(const json_shared_string & other, size_t _offset, size_t _len){
+ 		if (other._str != _str){
+ 			deref();
+@@ -257,11 +258,11 @@ public:
+ 		offset = other.offset + _offset;
+ 		len = _len;
+ 	}
+-	
++
+ 	json_shared_string(const json_shared_string & other) : _str(other._str), offset(other.offset), len(other.len){
+ 		++_str -> refCount;
+ 	}
+-	
++
+ 	json_shared_string & operator =(const json_shared_string & other){
+ 		if (other._str != _str){
+ 			deref();
+@@ -272,13 +273,13 @@ public:
+ 		len = other.len;
+ 		return *this;
+ 	}
+-	
++
+ 	json_shared_string & operator += (const json_char c){
+ 		toString() += c;
+ 		++len;
+ 		return *this;
+ 	}
+-	
++
+ 	//when doing a plus equal of another string, see if it shares the string and starts where this one left off, in which case just increase len
+ JSON_PRIVATE
+ 	struct json_shared_string_internal {
+Only in libjson/Source: JSONSharedString.h.orig
+Only in libjson/Source: JSONSharedString.h.rej
+Only in libjson: libjson.a
+diff -rup libjson2/makefile libjson/makefile
+--- libjson2/makefile	2012-02-23 14:34:36.000000000 -0800
++++ libjson/makefile	2013-05-24 17:44:29.000000000 -0700
+@@ -236,7 +236,7 @@ $(lib_target): banner installdirs $(addp
+ endif
+ 
+ # Compile object files
+-$(objdir)/%.o: $(srcdir)/%.cpp
++$(objdir)/%.o: $(srcdir)/%.cpp installdirs
+ 	$(CXX) $< -o $@ $(CXXFLAGS)
+ 
+ ifeq ($(SHARED),1)
