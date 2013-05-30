@@ -36,10 +36,12 @@
 #include <map>
 
 #define BOND_PERCOLATION_MAP_REDUCE 0
-
+#define SYNC
 bool debug;
 int max_iter = 100000;
 std::string output_file;
+int n = 0;
+float p = 0;
 
 struct vertex_data : public graphlab::IS_POD_TYPE{
   unsigned int comp_id;
@@ -127,15 +129,23 @@ void bond_percolation_combine(unsigned int& v1, const unsigned int& v2) {
 }
 
 //the main update function
+
 void bond_percolation_function(engine_type::context_type& context,
-                  graph_type::vertex_type& vertex, const engine_type::message_type& unused) {
+                  graph_type::vertex_type& vertex
+#ifndef SYNC
+                  , const engine_type::message_type& unused) {
+#else
+   ){
+#endif
 
      uint comp_id = vertex.data().comp_id;
      vertex.data().comp_id =  context.map_reduce<unsigned int>(BOND_PERCOLATION_MAP_REDUCE, graphlab::ALL_EDGES);
      if (debug && comp_id != vertex.data().comp_id)
        std::cout<<"node: " << vertex.id() << " min edge component found: " << vertex.data().comp_id << std::endl;
+#ifndef SYNC
      if (comp_id != vertex.data().comp_id)
        context.broadcast_signal(graphlab::ALL_EDGES);
+#endif
 }
 
 
@@ -199,7 +209,6 @@ int main(int argc, char** argv) {
       "Compute connected component - by edges";
   graphlab::command_line_options clopts(description);
   std::string input_dir;
-  std::string exec_type = "synchronous";
   clopts.attach_option("graph", input_dir,
                        "The directory containing the graph file");
   clopts.add_positional("graph");
@@ -207,6 +216,9 @@ int main(int argc, char** argv) {
                        "The prefix (folder and filename) to save output_file.");
   clopts.attach_option("max_iter", max_iter, "max number of iterations");
   clopts.attach_option("debug", debug, "debug (verbose) mode");
+  clopts.attach_option("p", p, "percentage for active node (optional)");
+  clopts.attach_option("n", n, "total number of nodes (optional)");
+
   if(!clopts.parse(argc, argv) || input_dir == "") {
     std::cout << "Error in parsing command line arguments." << std::endl;
     clopts.print_description();
@@ -256,14 +268,17 @@ int main(int argc, char** argv) {
   /* THE MAIN LOOP */
   dc.cout() << "Creating engine" << std::endl;
   engine_type engine(dc, graph, clopts);
+#ifndef SYNC
   engine.set_vertex_program(bond_percolation_function);
+#endif
   engine.register_map_reduce(BOND_PERCOLATION_MAP_REDUCE, bond_percolation_map, bond_percolation_combine);
 
   engine.signal_all();
-  //engine.start();
+#ifndef SYNC
   engine.wait();
+#endif
 
-#if 0
+#ifdef SYNC
   /* FOR EACH ITERATION */
   for (int i=0; i< max_iter; i++){
      /* PERFORM UPDATE FUNCTION */
@@ -299,10 +314,18 @@ int main(int argc, char** argv) {
   //take statistics
   label_counter state = graph.map_reduce_edges<label_counter>(get_comp_ide);
   label_counter statv = graph.map_reduce_vertices<label_counter>(get_comp_idv);
+  if (p > 0)
+    dc.cout() << "site fraction p= " << p << std::endl;
+  if (n > 0){
+    dc.cout() << "n=" << n*p << std::endl;
+    dc.cout() << "isolated sites: " << p*n-graph.num_vertices() << std::endl;
+  }
   dc.cout() << "Number of sites: " << graph.num_vertices() << std::endl;
   dc.cout() << "Number of bonds: " << graph.num_edges() << std::endl;
-  dc.cout() << "Percentage of sites: " << (double)graph.num_vertices() / 1000000 << std::endl;
-  dc.cout() << "Percentage of bonds: " << (double)graph.num_edges() / (4.0*1000000) << std::endl;
+  if (n){
+  dc.cout() << "Percentage of sites: " << (double)graph.num_vertices() / n << std::endl;
+  dc.cout() << "Percentage of bonds: " << (double)graph.num_edges() / (2.0*n) << std::endl;
+  }
   dc.cout() << "SITES RESULT:\nsize\tcount\n";
   std::map<uint,uint> final_countsv;
   uint total_sites = 0;
