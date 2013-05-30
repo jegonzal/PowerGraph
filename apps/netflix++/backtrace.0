@@ -1,0 +1,38 @@
+Pointers
+------------
+0x1000f945c
+0x10000e2ce
+0x10013e8be
+0x10000bab4
+0x7fff8ca717e1
+0xb
+Raw
+------------
+0   netflix_main                        0x00000001000f945c _Z18__print_back_tracev + 172
+1   netflix_main                        0x000000010000e2ce _ZN11file_loggerlsEPFRSoS0_E + 94
+2   netflix_main                        0x000000010013e8be _ZN8graphlab20launch_metric_serverEv + 2110
+3   netflix_main                        0x000000010000bab4 main + 5636
+4   libdyld.dylib                       0x00007fff8ca717e1 start + 0
+5   ???                                 0x000000000000000b 0x0 + 11
+
+Demangled
+------------
+0
+1
+2
+3
+4
+5
+
+
+
+
+
+
+
+
+
+
+
+
+
