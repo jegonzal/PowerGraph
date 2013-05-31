@@ -28,7 +28,9 @@ bool USE_FEATURE_LATENT = false;
 bool USE_FEATURE_WEIGHTS = false;
 
 boost::unordered_map<vertex_id_type, std::string> mv_names;
+bool is_initialized = false;
 std::string saveprefix="result";
+
 
 /**
  * \brief We use the eigen library's vector type to represent
@@ -233,6 +235,11 @@ typedef distributed_graph<vertex_data, edge_data> graph_type;
  * engines in the future.
  */
 typedef gl3engine<graph_type> engine_type;
+
+
+/// Annoying global variable hacks...
+distributed_control* dc_ptr;
+graph_type* graph_ptr;
 
 
 

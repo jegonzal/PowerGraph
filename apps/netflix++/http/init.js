@@ -1,10 +1,16 @@
-// install slider for alpha, beta
+var domain_str = "http://127.0.0.1:8090";
+var movielist_str = "/movie_list";
+var query_user_str = "/user_query";
+var movielist = {};
+var userid = 1;
+var update_interval=5;
+
 function update_alpha(val) {
   $.get(domain_str+ldaparam_str, {"alpha": val},
-      function(msg) {
-        console.log(msg);
-        jSuccess(msg);
-      });
+        function(msg) {
+          console.log(msg);
+          jSuccess(msg);
+        });
   console.log("request change alpha to :" + val);
 }
 
@@ -12,7 +18,7 @@ function update_beta(val) {
   $.get(domain_str+ldaparam_str, {"beta": val},
         function(msg) {
           console.log(msg)
-          jSuccess(msg);
+      jSuccess(msg);
         });
   console.log("request change beta to :" + val);
 }
@@ -37,15 +43,15 @@ function reorder_topics() {
 } 
 
 function update_domain(form) {
-    domain_str = form.inputbox.value;
-    get_top_words();
+  domain_str = form.inputbox.value;
+  get_top_words();
 }
 
 function install_slider(name, handler) {
   $("#"+name+" .slider").slider({
     min: 1,
-    max: 100,
-    value: 15,
+  max: 100,
+  value: 15,
   create: function() {
     var value = $("#"+name+" .slider").slider("option","value");
     $("#"+name).find(".label").text(name+": " + value/100);
@@ -68,22 +74,22 @@ function install_button(name, handler) {
   $("#"+name).button().click(handler)
 }
 
-$(function() {
-  install_slider("Alpha", update_alpha);
-});
+
+function install_auto_complete(name, data) {
+  $( "#"+name ).autocomplete({
+    source: data
+  });
+}
 
 $(function() {
-  install_slider("Beta", update_beta);
-});
-
-$(function() {
-  install_button("resetwords", resetword);
-});
-
-$(function() {
-  install_button("reordertopics", reorder_topics);
-});
-
-$(function() {
-  install_button("addtopic", on_add_topic); 
-});
+  $.get(domain_str+movielist_str, {},
+        function(msg) {
+          movielist = $.parseJSON(msg);
+          movie_arr = [];
+          for (var key in movielist) {
+            movie_arr.push({label: key+"."+movielist[key], value: key});
+          }
+          install_auto_complete("seedinput", movie_arr);
+        });
+  console.log("request movie list");
+})

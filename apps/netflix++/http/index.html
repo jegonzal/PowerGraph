@@ -12,7 +12,7 @@
     <meta name="keywords" content="GraphLabUI" />
     <meta name="description" content="WordCloud Viewer" />
     <meta name="robots" content="all" />
-    <title>LDA WordCloud Viewer </title>
+    <title>GraphLab Netflix++ Visualizer</title>
     <link type="text/css" rel="stylesheet" href="style.css"/> 
 
     <script
@@ -44,87 +44,60 @@
 
     <script
       type="text/javascript"
-      src="wc_visualizer.js">
+      src="netflix_visualizer.js">
     </script>
 
-    <script
-      type="text/javascript"
-      src="graph.js">
-    </script>
+    <!--<script-->
+    <!--  type="text/javascript"-->
+    <!--  src="graph.js">-->
+    <!--</script>-->
   </head>
 
 
   <body>
     <div class="header">
       <div id="infopanel" class="header">
-        <h1> WordCloud Visualizer </h1>
+        <h1> GraphLab Netflix++ Recommendation Visualizer</h1>
         <div class="setting"> 
-          <div class="label">NTopics</div> 
-          <div id="ntopics"></div>
+          <div class="label">Num Movies</div> 
+          <div id="nmovies"></div>
         </div>
 
         <div class="setting"> 
-          <div class="label">NWords</div> 
-          <div id="nwords"></div>
+          <div class="label">Num Users</div> 
+          <div id="nusers"></div>
         </div>
 
         <div class="setting"> 
-          <div class="label">NDocs</div> 
-          <div id="ndocs"></div>
-        </div>
-
-        <div class="setting"> 
-          <div class="label">NTokens</div>   
-          <div id="ntokens"></div>
+          <div class="label">Num Ratings</div> 
+          <div id="nratings"></div>
         </div>
     </div>
 
-    <div id="update_metric" class="header">
-     <div class="label">Update Rates</div>
-      <div class="legend">
-        <div class="matlab"> </div> <div class="legendlabel">matlab</div>
-        <div class="graphlab"> </div> <div class="legendlabel">graphlab</div>
-      </div>
-    </div>
-   </div>
+    <!--<div id="update_metric" class="header">-->
+    <!-- <div class="label">Update Rates</div>-->
+    <!--  <div class="legend">-->
+    <!--    <div class="matlab"> </div> <div class="legendlabel">matlab</div>-->
+    <!--    <div class="graphlab"> </div> <div class="legendlabel">graphlab</div>-->
+    <!--  </div>-->
+    <!--</div>-->
 
-
-      <div class="controlpanel">
-        <div id="Alpha" class="control"> 
-          <div class="label">Alpha</div> 
-          <div class="slider"></div>
-        </div>
-
-        <div id="Beta" class="control"> 
-          <div class="label">Beta</div> 
-          <div id="beta"></div>
-          <div class="slider"></div>
-        </div>
-
-        <!--<div id="resetwords" class="control">-->
-        <!--  Reset-->
-        <!--</div>-->
-
-        <div id="reordertopics" class="control">
-          Reorder Common Topics 
-        </div>
-
-      </div>
-
-      <div class="controlpanel addtopic">
+      <div class="controlpanel addmovie">
         <div class="control">
           <INPUT id="seedinput" TYPE="textbox" NAME="textbox" Value="">
-          <div id="addtopic"> Add Topic</div>
+          <div id="addmovie"> Add Movie</div>
           <div class="tooltip">
             (comma separated seed words. e.g: belief,propagation)
           </div>
         </div>
       </div>
 
-
-
-      <div id="pagerank"></div>
-      <div id="word_clouds"></div>
+      <div id="user_field"> 
+        <div id="userid"> User: 1 </div>
+        <div id="mvtrain" class="movie_query_box"> </div>
+        <div id="mvtest" class="movie_query_box"> </div>
+        <div id="mvrecommend"> </div>
+      </div>
 
     <FORM NAME="myform" ACTION="" METHOD="GET">
       <INPUT TYPE="text" NAME="inputbox" VALUE="http://bros.ml.cmu.edu:8090">

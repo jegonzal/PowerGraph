@@ -19,6 +19,7 @@
 #include "compute_tasks.hpp"
 #include "aggregate_tasks.hpp"
 #include "query.hpp"
+#include "callbacks.hpp"
 
 using namespace graphlab;
 
@@ -277,15 +278,17 @@ int main(int argc, char** argv) {
   ///! Initialize control plain using mpi
   graphlab::mpi_tools::init(argc, argv);
   distributed_control dc;
+  dc_ptr = &dc;
+
   dc.barrier();
-  graphlab::launch_metric_server();
 
   if (!USE_BIAS_LATENT) 
     vertex_data::NLATENT=0;
 
-  dc.cout() << "Loading graph from " << input_dir << std::endl;
-  graphlab::timer timer;
   graph_type graph(dc, clopts);
+  graph_ptr = &graph;
+
+  graphlab::timer timer;
   if (!topic_feature_dir.empty()) {
       dc.cout() << "Loading topic feature from " << topic_feature_dir << std::endl;
       graph.load(topic_feature_dir, topic_feature_loader);
@@ -320,6 +323,7 @@ int main(int argc, char** argv) {
     }
   }
 
+  dc.cout() << "Loading graph from " << input_dir << std::endl;
   graph.load(input_dir, graph_loader);
   dc.cout() << "Loading graph. Finished in " << timer.current_time() << std::endl;
   dc.cout() << "Finalizing graph." << std::endl;
@@ -370,6 +374,7 @@ int main(int argc, char** argv) {
   logstream(LOG_EMPH) << "Number training edges: " << NTRAIN << std::endl;
   logstream(LOG_EMPH) << "Number testing edges: " << NTEST << std::endl;
 
+  launch_custom_metric_server();
   for (size_t iter = 0; iter < MAX_ITER; ++iter) {
     run_iter(dc, engine, graph, iter);
   }
@@ -381,6 +386,7 @@ int main(int argc, char** argv) {
   }
 
   logstream(LOG_EMPH) << "Finish." << std::endl;
+  graphlab::stop_metric_server();
     graphlab::mpi_tools::finalize();
     return EXIT_SUCCESS;
   } // end of main

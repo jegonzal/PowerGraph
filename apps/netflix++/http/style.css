@@ -3,7 +3,7 @@
 }
 
 #infopanel {
-  width:350px;
+  width:750px;
   border-style:solid;
   margin: 10px;
   margin-right : 390px;
@@ -45,7 +45,7 @@
   display:inline-block;
 }
 
-.addtopic {
+.addmovie {
 }
 
 .control{
@@ -73,6 +73,17 @@
   width: 480px;
   margin-left: 220px;
   margin-top: -20px;
+}
+
+.movie_query_box {
+  border-style:solid;
+  width:500px;
+  margin:10px;
+}
+
+.movie_query_field {
+  display:inline-block;
+  padding:5px;
 }
 
 /* Word cloud */

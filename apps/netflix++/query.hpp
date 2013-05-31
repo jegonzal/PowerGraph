@@ -27,16 +27,13 @@ bool select_testing(const edge_data& edata) {
   return !select_training(edata);
 }
 
-map_join<graphlab::vertex_id_type, query_result> gather_neighbors(
-    distributed_control& dc,
-    graph_type& graph,
+map_join<graphlab::vertex_id_type, query_result> gather_local_neighbors(
     graphlab::vertex_id_type& uid,
     boost::function<bool(const edge_data&)> edge_select_fn) {
-
   // gather all neighbors
   map_join<graphlab::vertex_id_type, query_result> all_neighbors;
-  if (graph.contains_vertex(uid)) {
-    graph_type::vertex_type vtx(graph.vertex(uid));
+  if (graph_ptr->contains_vertex(uid)) {
+    graph_type::vertex_type vtx(graph_ptr->vertex(uid));
     graph_type::local_vertex_type lvtx(vtx);
     foreach(graph_type::local_edge_type edge, lvtx.out_edges()) {
       if (edge_select_fn(edge.data())) {
@@ -49,6 +46,15 @@ map_join<graphlab::vertex_id_type, query_result> gather_neighbors(
       }
     }
   }
+  return all_neighbors;
+}
+
+map_join<graphlab::vertex_id_type, query_result> gather_all_neighbors(
+                    distributed_control& dc,
+                    graph_type& graph,
+                    graphlab::vertex_id_type& uid,
+                    boost::function<bool(const edge_data&)> edge_select_fn) {
+  map_join<graphlab::vertex_id_type, query_result> all_neighbors = gather_local_neighbors(uid, edge_select_fn);
   dc.all_reduce(all_neighbors);
   return all_neighbors;
 }
@@ -58,10 +64,10 @@ map_join<graphlab::vertex_id_type, query_result> query(distributed_control& dc,
            graphlab::vertex_id_type uid,
            size_t topk)  {
   // Gather training edges
-  map_join<graphlab::vertex_id_type, query_result> training_set = gather_neighbors(dc, graph, uid, select_training);
+  map_join<graphlab::vertex_id_type, query_result> training_set = gather_all_neighbors(dc, graph, uid, select_training);
 
   // Gather testing edges
-  map_join<graphlab::vertex_id_type, query_result> testing_set = gather_neighbors(dc, graph, uid, select_testing);
+  map_join<graphlab::vertex_id_type, query_result> testing_set = gather_all_neighbors(dc, graph, uid, select_testing);
 
   // output training
   std::vector<std::pair<graphlab::vertex_id_type, query_result> > topk_training = training_set.get_top_k(topk, compare_by_obs);
