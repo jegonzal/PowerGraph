@@ -1,5 +1,5 @@
-/**  
- * Copyright (c) 2009 Carnegie Mellon University. 
+/**
+ * Copyright (c) 2009 Carnegie Mellon University.
  *     All rights reserved.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
@@ -57,7 +57,7 @@ namespace graphlab {
       const int required(MPI_THREAD_SINGLE);
       int provided(-1);
       int error = MPI_Init_thread(&argc, &argv, required, &provided);
-      assert(provided == required);
+      assert(provided >= required);
       assert(error == MPI_SUCCESS);
 #else
       logstream(LOG_EMPH) << "MPI Support was not compiled." << std::endl;
@@ -105,7 +105,7 @@ namespace graphlab {
 #endif
     }
 
-    
+
 
     template<typename T>
     void all_gather(const T& elem, std::vector<T>& results) {
@@ -132,23 +132,23 @@ namespace graphlab {
                                 &(recv_sizes[0]),  // recvbuffer
                                 1,                  // recvcount
                                 MPI_INT,           // recvtype
-                                MPI_COMM_WORLD);  
+                                MPI_COMM_WORLD);
       assert(error == MPI_SUCCESS);
       for(size_t i = 0; i < recv_sizes.size(); ++i)
         assert(recv_sizes[i] >= 0);
-  
+
 
       // Construct offsets
       std::vector<int> recv_offsets(recv_sizes);
       int sum = 0, tmp = 0;
       for(size_t i = 0; i < recv_offsets.size(); ++i) {
-        tmp = recv_offsets[i]; recv_offsets[i] = sum; sum += tmp; 
+        tmp = recv_offsets[i]; recv_offsets[i] = sum; sum += tmp;
       }
 
       // if necessary realloac recv_buffer
       std::vector<char> recv_buffer(sum);
-     
-      // recv all the maps 
+
+      // recv all the maps
       error = MPI_Allgatherv(send_buffer,         // send buffer
                              send_buffer_size,    // how much to send
                              MPI_BYTE,            // send type
@@ -166,7 +166,7 @@ namespace graphlab {
       graphlab::iarchive iarc(strm);
       for(size_t i = 0; i < results.size(); ++i) {
         iarc >> results[i];
-      }  
+      }
 #else
       logstream(LOG_FATAL) << "MPI not installed!" << std::endl;
 #endif
@@ -176,7 +176,7 @@ namespace graphlab {
 
 
     template<typename T>
-    void all2all(const std::vector<T>& send_data, 
+    void all2all(const std::vector<T>& send_data,
                  std::vector<T>& recv_data) {
 #ifdef HAS_MPI
       // Get the mpi rank and size
@@ -193,20 +193,20 @@ namespace graphlab {
         oarc << send_data[i];
         cstrm.flush();
         const size_t ELEM_SIZE(cstrm->size() - OLD_SIZE);
-        send_buffer_sizes[i] = ELEM_SIZE;        
+        send_buffer_sizes[i] = ELEM_SIZE;
       }
       cstrm.flush();
       char* send_buffer = cstrm->c_str();
-      std::vector<int> send_offsets(send_buffer_sizes);      
+      std::vector<int> send_offsets(send_buffer_sizes);
       int total_send = 0;
-      for(size_t i = 0; i < send_offsets.size(); ++i) { 
+      for(size_t i = 0; i < send_offsets.size(); ++i) {
         const int tmp = send_offsets[i];
         send_offsets[i] = total_send;
         total_send += tmp;
       }
 
       // AlltoAll scatter the buffer sizes
-      std::vector<int> recv_buffer_sizes(mpi_size);    
+      std::vector<int> recv_buffer_sizes(mpi_size);
       int error = MPI_Alltoall(&(send_buffer_sizes[0]),
                                1,
                                MPI_INT,
@@ -215,17 +215,17 @@ namespace graphlab {
                                MPI_INT,
                                MPI_COMM_WORLD);
       ASSERT_EQ(error, MPI_SUCCESS);
-      
+
       // Construct offsets
       std::vector<int> recv_offsets(recv_buffer_sizes);
       int total_recv = 0;
       for(size_t i = 0; i < recv_offsets.size(); ++i){
-        const int tmp = recv_offsets[i]; 
-        recv_offsets[i] = total_recv; 
-        total_recv += tmp;       
+        const int tmp = recv_offsets[i];
+        recv_offsets[i] = total_recv;
+        total_recv += tmp;
       }
       // Do the massive send
-      std::vector<char> recv_buffer(total_recv);    
+      std::vector<char> recv_buffer(total_recv);
       error = MPI_Alltoallv(send_buffer,
                             &(send_buffer_sizes[0]),
                             &(send_offsets[0]),
@@ -244,7 +244,7 @@ namespace graphlab {
       graphlab::iarchive iarc(strm);
       for(size_t i = 0; i < recv_data.size(); ++i) {
         iarc >> recv_data[i];
-      }  
+      }
 #else
       logstream(LOG_FATAL) << "MPI not installed!" << std::endl;
 #endif
@@ -284,11 +284,11 @@ namespace graphlab {
                              1,                  // recvcount
                              MPI_INT,           // recvtype
                              mpi_root,          // root rank
-                             MPI_COMM_WORLD);  
-      assert(error == MPI_SUCCESS); 
+                             MPI_COMM_WORLD);
+      assert(error == MPI_SUCCESS);
 
-     
-      // recv all the maps 
+
+      // recv all the maps
       error = MPI_Gatherv(send_buffer,         // send buffer
                           send_buffer_size,    // how much to send
                           MPI_BYTE,            // send type
@@ -340,23 +340,23 @@ namespace graphlab {
                              1,                  // recvcount
                              MPI_INT,           // recvtype
                              mpi_rank,          // root rank
-                             MPI_COMM_WORLD);  
+                             MPI_COMM_WORLD);
       assert(error == MPI_SUCCESS);
       for(size_t i = 0; i < recv_sizes.size(); ++i)
         assert(recv_sizes[i] >= 0);
-  
+
 
       // Construct offsets
       std::vector<int> recv_offsets(recv_sizes);
       int sum = 0, tmp = 0;
       for(size_t i = 0; i < recv_offsets.size(); ++i) {
-        tmp = recv_offsets[i]; recv_offsets[i] = sum; sum += tmp; 
+        tmp = recv_offsets[i]; recv_offsets[i] = sum; sum += tmp;
       }
 
       // if necessary realloac recv_buffer
       std::vector<char> recv_buffer(sum);
-     
-      // recv all the maps 
+
+      // recv all the maps
       error = MPI_Gatherv(send_buffer,         // send buffer
                           send_buffer_size,    // how much to send
                           MPI_BYTE,            // send type
@@ -375,7 +375,7 @@ namespace graphlab {
       graphlab::iarchive iarc(strm);
       for(size_t i = 0; i < results.size(); ++i) {
         iarc >> results[i];
-      }  
+      }
 #else
       logstream(LOG_FATAL) << "MPI not installed!" << std::endl;
 #endif
@@ -392,8 +392,8 @@ namespace graphlab {
       // Get the mpi rank and size
       if(mpi_tools::rank() == root) {
         // serialize the object
-        graphlab::charstream cstrm(128);              
-        graphlab::oarchive oarc(cstrm); 
+        graphlab::charstream cstrm(128);
+        graphlab::oarchive oarc(cstrm);
         oarc << elem;
         cstrm.flush();
         char* send_buffer = cstrm->c_str();
@@ -405,7 +405,7 @@ namespace graphlab {
                               1,                  // send count
                               MPI_INT,            // send type
                               root,               // root rank
-                              MPI_COMM_WORLD);  
+                              MPI_COMM_WORLD);
         assert(error == MPI_SUCCESS);
 
         // send the actual data
@@ -413,17 +413,17 @@ namespace graphlab {
                           send_buffer_size,    // send count
                           MPI_BYTE,            // send type
                           root,               // root rank
-                          MPI_COMM_WORLD);  
+                          MPI_COMM_WORLD);
         assert(error == MPI_SUCCESS);
 
-      } else { 
+      } else {
         int recv_buffer_size(-1);
         // recv the ammount the required buffer size
         int error = MPI_Bcast(&recv_buffer_size,  // recvbuffer
                               1,                  // recvcount
                               MPI_INT,            // recvtype
                               root,               // root rank
-                              MPI_COMM_WORLD);  
+                              MPI_COMM_WORLD);
         assert(error == MPI_SUCCESS);
         assert(recv_buffer_size >= 0);
 
@@ -432,7 +432,7 @@ namespace graphlab {
                           recv_buffer_size,                  // recvcount
                           MPI_BYTE,            // recvtype
                           root,               // root rank
-                          MPI_COMM_WORLD);  
+                          MPI_COMM_WORLD);
         assert(error == MPI_SUCCESS);
         // construct the local element
         namespace bio = boost::iostreams;
@@ -472,7 +472,7 @@ namespace graphlab {
                            tag,                  // tag
                            MPI_COMM_WORLD);
       assert(error == MPI_SUCCESS);
-  
+
       // send the actual content
       error = MPI_Send(send_buffer,         // send buffer
                        send_buffer_size,    // how much to send
@@ -498,11 +498,11 @@ namespace graphlab {
       int dest(id);
       MPI_Status status;
       // recv the size
-      int error = MPI_Recv(&recv_buffer_size,  
-                           1,                  
-                           MPI_INT,            
-                           dest,               
-                           tag,                
+      int error = MPI_Recv(&recv_buffer_size,
+                           1,
+                           MPI_INT,
+                           dest,
+                           tag,
                            MPI_COMM_WORLD,
                            &status);
       assert(error == MPI_SUCCESS);
@@ -511,11 +511,11 @@ namespace graphlab {
       std::vector<char> recv_buffer(recv_buffer_size);
       // recv the actual content
       error = MPI_Recv(&(recv_buffer[0]),
-                       recv_buffer_size, 
-                       MPI_BYTE,         
+                       recv_buffer_size,
+                       MPI_BYTE,
                        dest,
                        tag,
-                       MPI_COMM_WORLD, 
+                       MPI_COMM_WORLD,
                        &status);
       assert(error == MPI_SUCCESS);
       // deserialize
