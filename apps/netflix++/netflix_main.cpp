@@ -27,10 +27,12 @@ void update_predictions(distributed_control& dc,
                         engine_type& engine, graph_type& graph, bool truncate) {
     //  Update cached prediction on edges
     engine.parfor_all_local_edges(boost::bind(compute_prediction, _1, _2, truncate)); engine.wait();
+    error_aggregator errors = graph.map_reduce_edges<error_aggregator>(extract_l2_error);
+    TRAIN_RMSE  =  sqrt(errors.train/errors.ntrain);
+    TEST_RMSE =  sqrt(errors.test/errors.ntest);
     {
-      error_aggregator errors = graph.map_reduce_edges<error_aggregator>(extract_l2_error);
-      dc.cout() << "Training RMSE: " << sqrt(errors.train/errors.ntrain) << std::endl;
-      dc.cout() << "Test RMSE: " << sqrt(errors.test/errors.ntest) << std::endl;
+      dc.cout() << "Training RMSE: " <<  TRAIN_RMSE << std::endl;
+      dc.cout() << "Test RMSE: " << TEST_RMSE << std::endl;
     }
 }
 
@@ -161,11 +163,10 @@ void run_iter(distributed_control& dc, engine_type& engine,
               << engine.num_updates() / runtime << std::endl;
 
     // Compute the final training error -----------------------------------------
-    error_aggregator errors = graph.map_reduce_edges<error_aggregator>(extract_l2_error);
     double l2norm = graph.map_reduce_vertices<double>(extract_l2_norm);
     dc.cout() << "Factor squared norm: " << l2norm/graph.num_vertices() << std::endl;
-    dc.cout() << "Training RMSE: " << sqrt(errors.train/errors.ntrain) << std::endl;
-    dc.cout() << "Test RMSE: " << sqrt(errors.test/errors.ntest) << std::endl;
+    dc.cout() << "Training RMSE: " << TRAIN_RMSE << std::endl;
+    dc.cout() << "Test RMSE: " << TEST_RMSE << std::endl;
 }
 
 void pause(distributed_control& dc, engine_type& engine, graph_type& graph,
@@ -360,14 +361,12 @@ int main(int argc, char** argv) {
   engine.register_map_reduce(BIAS_MAP_REDUCE, // 2
                              bias_map,
                              pair_sum<double, size_t>);
-  // engine.register_map_reduce(QUERY_MAP_REDUCE, // 3
-  //                            map_query_result,
-  //                            collection_sum< std::vector<query_result> >);
 
   // initialize graph. for each user random choose 20% movies as test 
   init_global_vars(dc);
   engine.parfor_all_local_vertices(init_vertex); 
   engine.wait();
+
   NTRAIN = graph.map_reduce_edges<int>(init_edge_hold_out); 
   NTEST = NEDGES - NTRAIN;
 
@@ -392,15 +391,13 @@ int main(int argc, char** argv) {
   } // end of main
 #include <graphlab/macros_undef.hpp>
 
-
-
-    // dc.cout() << "Collecting prediction ..." << std::endl;
-    // engine.parfor_all_local_vertices(collect_function);
-    // engine.wait();
-    // dc.cout() << "Finish collecting prediction in " << timer.current_time() << " secs" << std::endl;
-    // dc.cout() << "done" << std::endl;
-    // dc.cout() << "Save results to " << saveprefix << "..." << std::endl;
-    // graph.save(saveprefix+".recommend", recommendation_writer(),
-    //            false, // no gzip
-    //            true, // save vertices
-    //            false // save edges);
+// dc.cout() << "Collecting prediction ..." << std::endl;
+// engine.parfor_all_local_vertices(collect_function);
+// engine.wait();
+// dc.cout() << "Finish collecting prediction in " << timer.current_time() << " secs" << std::endl;
+// dc.cout() << "done" << std::endl;
+// dc.cout() << "Save results to " << saveprefix << "..." << std::endl;
+// graph.save(saveprefix+".recommend", recommendation_writer(),
+//            false, // no gzip
+//            true, // save vertices
+//            false // save edges);

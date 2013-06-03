@@ -8,12 +8,13 @@ bin="$glhome/release/apps/netflix++/netflix_main"
 
 # --genre_feature=$genre \
 # --topic_feature=$topics \
-mpiexec -np 4 $bin --matrix=$graph --D=10 \
+mpiexec -np 4 $bin --matrix=$graph --D=5 \
   --movielist=$mvname \
   --use_bias=false \
   --use_als=true \
   --use_feature_weights=false \
   --use_feature_latent=false \
-  --max_iter=20 \
-  --interactive=true \
-  --testpercent=0.2
+  --max_iter=1 \
+  --interactive=false \
+  --testpercent=0.2 \
+  --saveprefix="output/result"

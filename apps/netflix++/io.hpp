@@ -6,6 +6,7 @@
 #include <boost/algorithm/string/predicate.hpp>
 #include <boost/algorithm/string/split.hpp>
 #include <boost/algorithm/string/classification.hpp>
+#include <graphlab/util/hdfs.hpp>
 
 ////////////////////////////  INPUT UTILITIES    ////////////////////////
 /**
@@ -218,12 +219,50 @@ struct prediction_saver {
   }
 }; // end of prediction_saver
 
-
 void save_model(distributed_control& dc, graph_type& graph) {
-    dc.cout() << "Save model to " << saveprefix << "..." << std::endl;
-    graph.save(saveprefix + ".user", linear_model_saver_U(),
-               false, true, false);
-    graph.save(saveprefix + ".movie", linear_model_saver_V(),
-               false, true, false);
-    dc.cout() << "done" << std::endl;
+  std::string prefix = saveprefix 
+      + "_D=" + boost::lexical_cast<std::string>(vertex_data::NLATENT)
+      + "_iter=" + boost::lexical_cast<std::string>(MAX_ITER)
+      + "_lambda=" + boost::lexical_cast<std::string>(LAMBDA);
+
+  // Save model parameters 
+  dc.cout() << "Save model to " << prefix << "..." << std::endl;
+  graph.save(prefix + ".user", linear_model_saver_U(),
+             false, true, false);
+  graph.save(prefix + ".movie", linear_model_saver_V(),
+             false, true, false);
+
+  // Save hyper parameters, and global results
+  if (dc.procid() == 0) {
+    std::string outfile = prefix + ".info";
+    std::stringstream ss;
+    ss << "\"NLATENT\": " << vertex_data::NLATENT << "\n"
+       << "\"iter\": " << MAX_ITER << "\n"
+       << "\"lambda\": " << LAMBDA << "\n" 
+       << "\"NTRAIN\": "<< NTRAIN << "\n"
+       << "\"NTEST\": "<< NTEST << "\n"
+       << "\"Training RMSE\": " << TRAIN_RMSE << "\n"
+       << "\"Testing RMSE\": " << TEST_RMSE << "\n"; 
+
+    if (boost::starts_with(prefix, "hdfs://")) {
+      typedef graphlab::hdfs::fstream base_fstream_type;
+      if(!hdfs::has_hadoop()) {
+        logstream(LOG_FATAL)
+          << "\n\tAttempting to save a graph to HDFS but GraphLab"
+          << "\n\twas built without HDFS."
+          << std::endl;
+      }
+      hdfs& hdfs = hdfs::get_hdfs();
+      // open the stream
+      base_fstream_type fout(hdfs, outfile, true);
+      fout << ss.str();
+      fout.close();
+     } else {
+      std::ofstream fout;
+      fout.open(outfile.c_str());
+      fout << ss.str();
+      fout.close();
+    }
+  }
+  dc.cout() << "done" << std::endl;
 }

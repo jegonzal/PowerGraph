@@ -5,7 +5,8 @@ function update_user_field(data) {
 
   $("#mvtrain").html(
     trainobj.map(function(elem) {
-    return "<div class=\"movie_query\">" +
+    return "<div>Top Rated Movie in Training Set</div>" +
+           "<div class=\"movie_query\">" +
            "<div class=\"movie_query_field\">"+elem.id+"</div>"+ 
            "<div class=\"movie_query_field\">"+elem.name + "</div>" +
            "<div class=\"movie_query_field\">"+elem.rating+"</div>" +
@@ -15,7 +16,8 @@ function update_user_field(data) {
 
   $("#mvtest").html(
     testobj.map(function(elem) {
-    return "<div class=\"movie_query\">" +
+    return "<div> Top Predicted Movie in Testing Set</div>" +
+           "<div class=\"movie_query\">" +
            "<div class=\"movie_query_field\">"+elem.id+"</div>"+ 
            "<div class=\"movie_query_field\">"+elem.name + "</div>" +
            "<div class=\"movie_query_field\">"+elem.rating+"</div>" +
@@ -25,16 +27,20 @@ function update_user_field(data) {
 }
 
 function get_user_info() {
-    $.getJSON(domain_str + query_user_str, 
-              {uid: userid},
-              update_user_field)
-      .error(function() { 
+    userid = $("#uidinput").val();
+    if (!isNaN(parseInt(userid,10)) && Number(userid) > 0) {
+      $.getJSON(domain_str + query_user_str, 
+                {uid: userid},
+                update_user_field)
+          .error(function() { 
             console.log("Unable to access " + domain_str + " will try again.");
             jNotify("Unable to access " + domain_str + " will try again.");
-        })
-      .complete(function() {
             setTimeout(get_user_info, update_interval);
-        });
+          })
+      .complete(function() {
+        setTimeout(get_user_info, update_interval);
+      });
+    }
 }
 
 // helper function to get the smallest weight 
@@ -56,4 +62,3 @@ function compare(a,b) {
   if (a > b) return -1;
 }
 
-get_user_info();

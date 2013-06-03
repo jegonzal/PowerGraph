@@ -93,3 +93,7 @@ $(function() {
         });
   console.log("request movie list");
 })
+
+$(function() {
+  get_user_info();
+});

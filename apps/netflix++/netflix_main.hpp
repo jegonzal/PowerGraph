@@ -17,10 +17,10 @@ bool INTERACTIVE = false;
 double STEP = 0.001;
 size_t NEDGES = 0;
 size_t TOPK = 5;
-
 int MAX_VAL = 5, MIN_VAL = 1;
-size_t NTRAIN, NTEST;
 
+size_t NTRAIN, NTEST;
+double TRAIN_RMSE, TEST_RMSE;
 bool USE_BIAS = true;
 bool USE_BIAS_LATENT = true;
 bool TRUNCATE = true;
@@ -28,9 +28,7 @@ bool USE_FEATURE_LATENT = false;
 bool USE_FEATURE_WEIGHTS = false;
 
 boost::unordered_map<vertex_id_type, std::string> mv_names;
-bool is_initialized = false;
 std::string saveprefix="result";
-
 
 /**
  * \brief We use the eigen library's vector type to represent
@@ -148,12 +146,6 @@ struct edge_data {
   }
 }; // end of edge data
 
-/**
- * \brief The meta data stores everything needs to be displayed for visualization. 
- */
-struct meta_data  {
-  // boost::unordered_map<graph_type::vertex_id_type, std::string> rest_names;
-};
 
 /**
  * \brief Mapping from feature id to the vector of its latent factors. 
