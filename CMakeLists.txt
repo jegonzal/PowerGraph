@@ -237,8 +237,8 @@ ExternalProject_Add(libtcmalloc
   CONFIGURE_COMMAND <SOURCE_DIR>/configure --enable-frame-pointers --prefix=<INSTALL_DIR> ${tcmalloc_shared}
   INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local)
 #link_libraries(tcmalloc)
-#set(TCMALLOC-FOUND 1)
-#add_definitions(-DHAS_TCMALLOC)
+set(TCMALLOC-FOUND 1)
+add_definitions(-DHAS_TCMALLOC)
 
 
 
@@ -515,12 +515,12 @@ macro(requires_core_deps NAME)
   target_link_libraries(${NAME}
     ${Boost_LIBRARIES}
     z
-    #tcmalloc
+    tcmalloc
     event event_pthreads
     zookeeper_mt
     # qthread
     json)
-  add_dependencies(${NAME} boost libevent libjson zookeeper) #libtcmalloc) #qthreads libtcmalloc 
+  add_dependencies(${NAME} boost libevent libjson zookeeper libtcmalloc) #qthreads libtcmalloc 
   if(MPI_FOUND)
     target_link_libraries(${NAME} ${MPI_LIBRARY} ${MPI_EXTRA_LIBRARY})
   endif(MPI_FOUND)
