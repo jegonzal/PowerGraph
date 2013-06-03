@@ -27,12 +27,17 @@ int main(int argc, char** argv) {
   graphlab::distributed_control dc;
   global_logger().set_log_level(LOG_INFO);
 
+  size_t powerlaw = 0;
   std::string ingraph, informat;
   std::string outgraph, outformat;
+
   bool gzip = true;
   // Parse command line options -----------------------------------------------
   graphlab::command_line_options clopts("Graph Format Conversion.", true);
 
+  clopts.attach_option("powerlaw", powerlaw,
+                       "Generates a synthetic powerlaw graph with this many "
+                       "vertices. If set, ingraph, and informat are ignored");
   clopts.attach_option("ingraph", ingraph,
                        "The input graph file. Required ");
   clopts.attach_option("informat", informat,
@@ -42,22 +47,25 @@ int main(int argc, char** argv) {
   clopts.attach_option("outformat", outformat,
                        "The output graph file format");
   clopts.attach_option("outgzip", gzip,
-                       "If output is to be gzip compressed"); 
+                       "If output is to be gzip compressed");
 
   if(!clopts.parse(argc, argv)) {
     dc.cout() << "Error in parsing command line arguments." << std::endl;
     return EXIT_FAILURE;
   }
- 
-  if (ingraph.length() == 0 || outgraph.length() == 0) {
+  if (powerlaw==0 && (ingraph.length() == 0 || outgraph.length() == 0)) {
     clopts.print_description();
     return EXIT_FAILURE;
-  } 
+  }
   typedef graphlab::distributed_graph<graphlab::empty, graphlab::empty> graph_type;
   graph_type graph(dc, clopts);
 
   dc.cout() << "Loading graph in format: "<< ingraph << std::endl;
-  graph.load_format(ingraph, informat);
+  if (powerlaw) {
+    graph.load_synthetic_powerlaw(powerlaw, false, 2.1, 100000000 /*max degree*/);
+  } else {
+    graph.load_format(ingraph, informat);
+  }
   graph.finalize();
 
   dc.cout() << "#vertices: " << graph.num_vertices()
