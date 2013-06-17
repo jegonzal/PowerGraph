@@ -1,5 +1,5 @@
-/**  
- * Copyright (c) 2009 Carnegie Mellon University. 
+/**
+ * Copyright (c) 2009 Carnegie Mellon University.
  *
  *     All rights reserved.
  *
@@ -21,12 +21,10 @@
  *
  */
 
-#ifndef GRAPHLAB_UTIL_HOPSCOTCH_SET_HPP 
-#define GRAPHLAB_UTIL_HOPSCOTCH_SET_HPP 
+#ifndef GRAPHLAB_UTIL_HOPSCOTCH_SET_HPP
+#define GRAPHLAB_UTIL_HOPSCOTCH_SET_HPP
 
 #include <graphlab/util/hopscotch_table.hpp>
-#include <graphlab/parallel/pthread_tools.hpp>
-#include <graphlab/parallel/atomic.hpp>
 
 #include <graphlab/serialization/serialization_includes.hpp>
 
@@ -46,19 +44,13 @@ namespace graphlab {
    * entirely STL compliant.
    * Really should only be used to store small keys and trivial values.
    *
-   * \tparam Key The key of the set 
-   * \tparam Synchronized Defaults to True. If True, locking is used to ensure
-   *                      safe reads and writes to the hash table.
-   *                      Even under "Synchronized", the only operations
-   *                      which are safe for parallel access are all functions 
-   *                      suffixed with "sync".
+   * \tparam Key The key of the set
    * \tparam Hash The hash functor type. Defaults to std::hash<Key> if C++11 is
    *              available. Otherwise defaults to boost::hash<Key>
    * \tparam KeyEqual The functor used to identify object equality. Defaults to
    *                  std::equal_to<Key>
    */
-  template <typename Key, 
-            bool Synchronized = true,
+  template <typename Key,
             typename Hash = _HOPSCOTCH_SET_DEFAULT_HASH,
             typename KeyEqual = std::equal_to<Key> >
   class hopscotch_set {
@@ -74,12 +66,11 @@ namespace graphlab {
     typedef const value_type* const_pointer;
     typedef const value_type& const_reference;
 
-    
+
     typedef Key                    storage_type;
- 
-    typedef hopscotch_table<storage_type, 
-                            Synchronized,
-                            Hash, 
+
+    typedef hopscotch_table<storage_type,
+                            Hash,
                             KeyEqual> container_type;
 
     typedef typename container_type::iterator iterator;
@@ -90,12 +81,11 @@ namespace graphlab {
 
     // The primary storage. Used by all sequential accessors.
     container_type* container;
-    spinrwlock lock;
 
     // the hash function to use. hashes a pair<key, value> to hash(key)
     hasher hashfun;
 
-    // the equality function to use. Tests equality on only the first 
+    // the equality function to use. Tests equality on only the first
     // element of the pair
     equality_function equalfun;
 
@@ -106,13 +96,13 @@ namespace graphlab {
     void destroy_all() {
       delete container;
       container = NULL;
-    } 
+    }
 
     // rehashes the hash table to one which is double the size
     container_type* rehash_to_new_container(size_t newsize = (size_t)(-1)) {
       /*
-         std::cerr << "Rehash at " << container->size() << "/" 
-         << container->capacity() << ": " 
+         std::cerr << "Rehash at " << container->size() << "/"
+         << container->capacity() << ": "
          << container->load_factor() << std::endl;
        */
       // rehash
@@ -146,15 +136,15 @@ namespace graphlab {
 
   public:
 
-    hopscotch_set(size_t initialsize = 32, 
+    hopscotch_set(size_t initialsize = 32,
                   Hash hashfun = Hash(),
-                  KeyEqual equalfun = KeyEqual()): 
-                            container(NULL), 
+                  KeyEqual equalfun = KeyEqual()):
+                            container(NULL),
                             hashfun(hashfun), equalfun(equalfun) {
       container = create_new_container(initialsize);
     }
 
-    hopscotch_set(const hopscotch_set& h): 
+    hopscotch_set(const hopscotch_set& h):
                             hashfun(h.hashfun), equalfun(h.equalfun) {
       container = create_new_container(h.capacity());
       (*container) = *(h.container);
@@ -188,7 +178,7 @@ namespace graphlab {
       equalfun = other.equalfun;
       return *this;
     }
-  
+
     size_type size() const {
       return container->size();
     }
@@ -210,13 +200,13 @@ namespace graphlab {
       return container->end();
     }
 
-     
+
     std::pair<iterator, bool> insert(const value_type& v) {
       iterator i = find(v);
       if (i != end()) return std::make_pair(i, false);
       else return std::make_pair(do_insert(v), true);
     }
-     
+
 
     iterator insert(const_iterator hint, const value_type& v) {
       return insert(v).first;
@@ -234,7 +224,7 @@ namespace graphlab {
       return container->count(v);
     }
 
-  
+
     bool erase(iterator iter) {
       return container->erase(iter);
     }
@@ -248,13 +238,13 @@ namespace graphlab {
       std::swap(hashfun, other.hashfun);
       std::swap(equalfun, other.equalfun);
     }
-  
+
     void clear() {
       destroy_all();
       container = create_new_container(128);
     }
-    
-    
+
+
     size_t capacity() const {
       return container->capacity();
     }
@@ -282,7 +272,7 @@ namespace graphlab {
         container = create_new_container(c);
       }
       else {
-        container->clear(); 
+        container->clear();
       }
       for (size_t i = 0;i < s; ++i) {
         value_type v;
@@ -290,7 +280,7 @@ namespace graphlab {
         insert(v);
       }
     }
-  }; 
+  };
 
 }; // end of graphlab namespace
 

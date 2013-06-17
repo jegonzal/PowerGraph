@@ -12,101 +12,11 @@
 const size_t NINS = 1500000;
 boost::unordered_set<uint32_t> um;
 graphlab::hopscotch_table<uint32_t> cm(1.2 * NINS);
- 
-void parallel_inserter(size_t start, size_t end) {
-  for (size_t i = start; i < end; ++i) {
-    assert(cm.put_sync(17 * i));
-  }
-}
-
-void parallel_erase(size_t start, size_t end) {
-  for (size_t i = start; i < end; i+=2) {
-    assert(cm.erase_sync(17 * i));
-    assert(cm.put_sync(17 * i));
-    assert(cm.get_sync(17 * i).first);
-    assert(cm.erase_sync(17 * i));
-    assert(cm.get_sync(17 * i).first == false);
-    assert(cm.put_sync(17 * i));
-    assert(cm.get_sync(17 * i).first);
-    assert(cm.erase_sync(17 * i));
-    assert(cm.get_sync(17 * i).first == false);
-    assert(cm.put_sync(17 * i));
-    assert(cm.get_sync(17 * i).first);
-    assert(cm.erase_sync(17 * i));
-    assert(cm.get_sync(17 * i).first == false);
-  }
-}
-
-
-
-void sanity_checks() {
- ASSERT_TRUE(cm.begin() == cm.end());
-
-  for (size_t i = 0;i < NINS; ++i) {
-    um.insert(17 * i);
-  }
-  
-  graphlab::thread_group thrgroup;
-  for (size_t i = 0; i < 10; ++i) {
-    thrgroup.launch(boost::bind(parallel_inserter, 
-                                i * NINS/10, 
-                                (i + 1) * NINS / 10));
-
-  }
-
-  thrgroup.join();
-   
-  std::cout << "Size: " << cm.size() << std::endl;
-  std::cout << "Capacity: " << cm.capacity() << std::endl;
-  std::cout << "Load Factor: " << cm.load_factor() << std::endl;
-
-  for (size_t i = 0;i < NINS; ++i) {
-    if (cm.get_sync(17 * i).first == false) {
-      std::cout << cm.count(17 * i) << "\n";
-      std::cout << "Failure on: " << 17 * i << std::endl;
-      assert(cm.get_sync(17 * i).first == true);
-    }
-    assert(um.count(17 * i) == 1);
-  }
-  assert(cm.size() == NINS);
-  assert(um.size() == NINS);
-
-  for (size_t i = 0;i < NINS; i+=2) {
-    um.erase(17*i);
-  }
-
-  for (size_t i = 0; i < 10; ++i) {
-    thrgroup.launch(boost::bind(parallel_erase, 
-                                i * NINS/10, 
-                                (i + 1) * NINS / 10));
-  }
-
-  thrgroup.join();
-   
-
-  for (size_t i = 0;i < NINS; i+=2) {
-    assert(cm.get_sync(17*i).first == (bool)(i % 2));
-    assert(um.count(17*i) == i % 2);
-  }
-
-  assert(cm.size() == NINS / 2);
-  assert(um.size() == NINS / 2);
-} 
-
-
-
-
-
-
-
-
-
-
 
 
 boost::unordered_map<uint32_t, uint32_t> um2;
 graphlab::hopscotch_map<uint32_t, uint32_t> cm2;
- 
+
 void hopscotch_map_sanity_checks() {
   ASSERT_TRUE(cm2.begin() == cm2.end());
   for (size_t i = 0;i < NINS; ++i) {
@@ -172,21 +82,13 @@ void hopscotch_map_sanity_checks() {
 
 
 
-void parallel_map_inserter(graphlab::hopscotch_map<uint32_t, uint32_t>* cm,
-                        std::vector<uint32_t>* v,
-                       size_t start, size_t end) {
-  for (size_t i = start; i < end; ++i) {
-    cm->put_sync((*v)[i], i);
-  }
-}
-
 
 
 void benchmark() {
   graphlab::timer ti;
 
   size_t NUM_ELS = 10000000;
-  
+
   std::vector<uint32_t> v;
   uint32_t u = 0;
   for (size_t i = 0;i < NUM_ELS; ++i) {
@@ -205,7 +107,7 @@ void benchmark() {
     std::cout <<  NUM_ELS / 1000000 << "M unordered map inserts in " << ti.current_time() << " (Load factor = " << um.load_factor() << ")" << std::endl;
 
     graphlab::memory_info::print_usage();
-    
+
     ti.start();
     for (size_t i = 0;i < 10000000; ++i) {
       size_t t = um[v[i]];
@@ -217,7 +119,7 @@ void benchmark() {
 
   {
     graphlab::cuckoo_map_pow2<uint32_t, uint32_t, 3, uint32_t> cm(-1, 128);
-    
+
     //cm.reserve(102400);
     ti.start();
     for (size_t i = 0;i < NUM_ELS; ++i) {
@@ -257,38 +159,12 @@ void benchmark() {
     std::cout << "10M hopscotch successful probes in " << ti.current_time() << std::endl;
 
   }
-
-
-{
-    graphlab::hopscotch_map<uint32_t, uint32_t> cm;
-    graphlab::thread_group thrgroup;
-    ti.start();
-    for (size_t i = 0;i < 4; ++i) {
-      thrgroup.launch(boost::bind(parallel_map_inserter, &cm, &v, 
-                                  i * NUM_ELS / 4, (i + 1) * NUM_ELS / 4));
-    }
-    thrgroup.join();
-    std::cout << NUM_ELS / 1000000 << "M hopscotch parallel inserts in " << ti.current_time() << " (Load factor = " << cm.load_factor() << ")" << std::endl;
-
-    graphlab::memory_info::print_usage();
-
-    ti.start();
-    for (size_t i = 0;i < 10000000; ++i) {
-      std::pair<bool, uint32_t> res = cm.get_sync(v[i]);
-      assert(res.first && res.second == i);
-    }
-    std::cout << "10M hopscotch successful synchronized probes in " << ti.current_time() << std::endl;
-
-  }
 }
 
 
 
 int main(int argc, char** argv) {
-  std::cout << "Hopscotch Table Parallel Access Sanity Checks... \n";
-  sanity_checks();
-
-  std::cout << "Hopscotch Map Sequential Access Sanity Checks... \n";
+  std::cout << "Hopscotch Map Sanity Checks... \n";
   hopscotch_map_sanity_checks();
 
   std::cout << "Map Benchmarks... \n";
