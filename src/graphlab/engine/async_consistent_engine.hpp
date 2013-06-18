@@ -647,8 +647,7 @@ namespace graphlab {
     }
 
     double get_schedule_size() {
-      if (scheduler_ptr != NULL) return (double)scheduler_ptr->approx_size();
-      else return 0;
+      return 0;
     }
 
   public:
