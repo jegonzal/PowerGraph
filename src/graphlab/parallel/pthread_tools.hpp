@@ -166,6 +166,57 @@ namespace graphlab {
 
   /**
    * \ingroup util
+   *If pthread spinlock is not implemented, 
+   * this provides a simple alternate spin lock implementation.
+   *
+   * Before you use, see \ref parallel_object_intricacies.
+   */
+  class padded_simple_spinlock {
+  private:
+    // mutable not actually needed
+    mutable volatile char spinner;
+    char padding[63];
+  public:
+    /// constructs a spinlock
+    padded_simple_spinlock () {
+      spinner = 0;
+    }
+    
+    /** Copy constructor which does not copy. Do not use!
+    Required for compatibility with some STL implementations (LLVM).
+    which use the copy constructor for vector resize, 
+    rather than the standard constructor.    */
+    padded_simple_spinlock(const padded_simple_spinlock&) {
+      spinner = 0;
+    }
+    
+    // not copyable
+    void operator=(const padded_simple_spinlock& m) { }
+
+    
+    /// Acquires a lock on the spinlock
+    inline void lock() const { 
+      while(spinner == 1 || __sync_lock_test_and_set(&spinner, 1));
+    }
+    /// Releases a lock on the spinlock
+    inline void unlock() const {
+      __sync_synchronize();
+      spinner = 0;
+    }
+    /// Non-blocking attempt to acquire a lock on the spinlock
+    inline bool try_lock() const {
+      return (__sync_lock_test_and_set(&spinner, 1) == 0);
+    }
+    ~padded_simple_spinlock(){
+      ASSERT_TRUE(spinner == 0);
+    }
+  };
+  
+
+
+
+  /**
+   * \ingroup util
    * Wrapper around pthread's condition variable
    *
    * Before you use, see \ref parallel_object_intricacies.

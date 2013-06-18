@@ -45,7 +45,7 @@ namespace graphlab {
     }
 
     /// Constructs a bitset with 'size' bits. All bits will be cleared.
-    explicit dense_bitset(size_t size) : array(NULL), len(size) {
+    explicit dense_bitset(size_t size) : array(NULL), len(0), arrlen(0) {
       resize(size);
       clear();
     }
@@ -80,9 +80,17 @@ namespace graphlab {
     inline void resize(size_t n) {
       len = n;
       //need len bits
+      size_t prev_arrlen = arrlen;
       arrlen = (n / (sizeof(size_t) * 8)) + (n % (sizeof(size_t) * 8) > 0);
       array = (size_t*)realloc(array, sizeof(size_t) * arrlen);
+      // this zeros the remainder of the block after the last bit
       fix_trailing_bits();
+      // if we grew, we need to zero all new blocks
+      if (arrlen > prev_arrlen) {
+        for (size_t i = prev_arrlen; i < arrlen; ++i) {
+          array[i] = 0;
+        }
+      }
     }
   
     /// Sets all bits to 0
@@ -802,6 +810,8 @@ namespace graphlab {
       else return (size_t)__builtin_ctzl(block);
     }
 
+    // clears the trailing bits in the last block which are not part
+    // of the actual length of the bitset
     void fix_trailing_bits() {
       // how many bits are in the last block
       size_t lastbits = len % (8 * sizeof(size_t));

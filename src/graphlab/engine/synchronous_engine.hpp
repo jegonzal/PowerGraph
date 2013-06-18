@@ -41,7 +41,6 @@
 
 
 #include <graphlab/parallel/pthread_tools.hpp>
-#include <graphlab/parallel/atomic_add_vector.hpp>
 #include <graphlab/util/tracepoint.hpp>
 #include <graphlab/util/memory_info.hpp>
 

@@ -25,7 +25,7 @@
 #include <graphlab/scheduler/fifo_scheduler.hpp>
 #include <graphlab/scheduler/get_message_priority.hpp>
 #include <graphlab/scheduler/ischeduler.hpp>
-#include <graphlab/scheduler/priority_scheduler.hpp>
+ #include <graphlab/scheduler/priority_scheduler.hpp>
 #include <graphlab/scheduler/queued_fifo_scheduler.hpp>
 #include <graphlab/scheduler/scheduler_factory.hpp>
 #include <graphlab/scheduler/scheduler_list.hpp>
