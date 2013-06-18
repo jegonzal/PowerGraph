@@ -89,7 +89,7 @@ namespace graphlab {
       out << std::string(50, '-') << std::endl;                         \
       out << add_line_breaks(BOOST_PP_TUPLE_ELEM(3,2,elem), 50) << "\n" \
           << "Options: \n";                                             \
-      BOOST_PP_TUPLE_ELEM(3,1,elem)< dummy_message_type >               \
+      BOOST_PP_TUPLE_ELEM(3,1,elem)                                     \
         ::print_options_help(out);                                      \
     }
     /*

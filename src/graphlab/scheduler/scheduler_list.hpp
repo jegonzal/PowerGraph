@@ -44,7 +44,7 @@
     "Each thread maintains its own smaller in and out queues. When a "  \
     "threads out queue is too large (greater than \"queuesize\") then " \
     "the thread puts its out queue at the end of the master queue."))   
-  
+
 #include <graphlab/scheduler/fifo_scheduler.hpp>
 #include <graphlab/scheduler/sweep_scheduler.hpp>
 #include <graphlab/scheduler/priority_scheduler.hpp>
