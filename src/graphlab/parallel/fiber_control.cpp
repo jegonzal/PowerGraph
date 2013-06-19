@@ -1,4 +1,3 @@
-#define _XOPEN_SOURCE
 #include <boost/bind.hpp>
 #include <graphlab/util/random.hpp>
 #include <graphlab/parallel/fiber_control.hpp>
