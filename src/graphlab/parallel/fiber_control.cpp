@@ -8,15 +8,12 @@ namespace graphlab {
 bool fiber_control::tls_created = false;
 bool fiber_control::instance_created = false;
 size_t fiber_control::instance_construct_params_nworkers = 0;
-size_t fiber_control::instance_construct_params_stacksize = 0;
 size_t fiber_control::instance_construct_params_affinity_base = 0;
 pthread_key_t fiber_control::tlskey;
 
 fiber_control::fiber_control(size_t nworkers, 
-                             size_t stacksize, 
                              size_t affinity_base)
     :nworkers(nworkers),
-    stacksize(stacksize),
     stop_workers(false),
     flsdeleter(NULL) {
   // initialize the thread local storage keys
@@ -190,7 +187,9 @@ void fiber_control::trampoline(intptr_t _args) {
   fiber_control::exit();
 }
 
-size_t fiber_control::launch(boost::function<void(void)> fn, int affinity) {
+size_t fiber_control::launch(boost::function<void(void)> fn, 
+                             size_t stacksize, 
+                             int affinity) {
   // allocate a stack
   fiber* fib = new fiber;
   fib->parent = this;
@@ -456,10 +455,8 @@ void fiber_control::set_tls(void* tls) {
 
 
 void fiber_control::instance_set_parameters(size_t nworkers = 0,
-                                            size_t stacksize = 0,
                                             size_t affinity_base = 0) {
   instance_construct_params_nworkers = nworkers;
-  instance_construct_params_stacksize = stacksize;
   instance_construct_params_affinity_base = affinity_base;
 }
 
@@ -469,11 +466,7 @@ fiber_control& fiber_control::get_instance() {
   if (instance_construct_params_nworkers == 0) {
     instance_construct_params_nworkers = thread::cpu_count();
   }
-  if (instance_construct_params_stacksize == 0) {
-    instance_construct_params_stacksize = 8192;
-  }
   static fiber_control singleton(instance_construct_params_nworkers, 
-                                 instance_construct_params_stacksize,
                                  instance_construct_params_affinity_base);
   return singleton;
 }

@@ -45,7 +45,6 @@ class fiber_control {
 
  private:
   size_t nworkers;
-  size_t stacksize;
   atomic<size_t> fiber_id_counter;
   atomic<size_t> fibers_active;
   mutex join_lock;
@@ -111,7 +110,7 @@ class fiber_control {
  public:
 
   /// Private constructor
-  fiber_control(size_t nworkers, size_t stacksize, size_t affinity_base);
+  fiber_control(size_t nworkers, size_t affinity_base);
 
   ~fiber_control();
 
@@ -119,7 +118,9 @@ class fiber_control {
    * Returns a fiber ID. IDs are not sequential.
    * \note The ID is really a pointer to a fiber_control::fiber object.
    */
-  size_t launch(boost::function<void (void)> fn, int worker_affinity = -1);
+  size_t launch(boost::function<void (void)> fn, 
+                size_t stacksize = 8192, 
+                int worker_affinity = -1);
 
   inline size_t num_active() const {
     return nactive;
@@ -181,7 +182,6 @@ class fiber_control {
   /// True if the singleton instance was created
   static bool instance_created; 
   static size_t instance_construct_params_nworkers; 
-  static size_t instance_construct_params_stacksize; 
   static size_t instance_construct_params_affinity_base;
 
   /**
@@ -191,14 +191,11 @@ class fiber_control {
    * \param nworkers Number of worker threads to spawn. If set to 0,
    *                 the number of workers will be automatically determined
    *                 based on the number of cores the system has.
-   * \param stacksize Size of each stack in bytes. If set to 0,
-   *                  the size of the stack defaults to 8192.
    * \param affinity_base First worker will have CPU affinity equal to 
    *                      affinity_base. Second will be affinity_base + 1, etc.
    *                      Defaults to 0.
    */
   static void instance_set_parameters(size_t nworkers,
-                                      size_t stacksize,
                                       size_t affinity_base);
 
   /**
