@@ -76,7 +76,7 @@ template<typename T,
     {
         oarchive arc;
         arc.advance(sizeof(packet_hdr));
-        reply_ret_type reply(1);
+        reply_ret_type reply;
         dispatch_type d = dc_impl::OBJECT_NONINTRUSIVE_REQUESTDISPATCH1<distributed_control,T,F , T0 >;
         arc << reinterpret_cast<size_t>(d);
         serialize(arc, (char*)(&remote_function), sizeof(remote_function));

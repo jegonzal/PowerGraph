@@ -41,7 +41,7 @@ struct request_future {
 
   /// default constructor
   request_future(): 
-      reply(new dc_impl::reply_ret_type(REQUEST_WAIT_METHOD)),
+      reply(new dc_impl::reply_ret_type),
       hasval(false) { }
 
   /** We can assign return values directly to the future in the
@@ -107,7 +107,7 @@ struct request_future<void> {
   bool hasval;
 
   request_future(): 
-      reply(new dc_impl::reply_ret_type(REQUEST_WAIT_METHOD)),
+      reply(new dc_impl::reply_ret_type),
       hasval(false) { }
   request_future(int val): 
       reply(NULL),

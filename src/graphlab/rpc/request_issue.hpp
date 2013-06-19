@@ -103,7 +103,7 @@ template<typename F , typename T0> class remote_request_issue1
     {
         oarchive arc;
         arc.advance(sizeof(packet_hdr));
-        reply_ret_type reply(1);
+        reply_ret_type reply;
         dispatch_type d = request_issue_detail::dispatch_selector1<typename is_rpc_call<F>::type, F , T0 >::dispatchfn();
         arc << reinterpret_cast<size_t>(d);
         arc << reinterpret_cast<size_t>(remote_function);
@@ -158,7 +158,7 @@ class  BOOST_PP_CAT(FNAME_AND_CALL, N) { \
     oarchive* ptr = oarchive_from_pool();       \
     oarchive& arc = *ptr;                         \
     arc.advance(sizeof(size_t) + sizeof(packet_hdr));            \
-    reply_ret_type reply(REQUEST_WAIT_METHOD);      \
+    reply_ret_type reply;      \
     dispatch_type d = BOOST_PP_CAT(request_issue_detail::dispatch_selector,N)<typename is_rpc_call<F>::type, F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, T) >::dispatchfn();   \
     arc << reinterpret_cast<size_t>(d);       \
     arc << reinterpret_cast<size_t>(remote_function); \

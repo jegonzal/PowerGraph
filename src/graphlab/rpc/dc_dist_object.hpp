@@ -41,6 +41,7 @@
 #include <graphlab/util/charstream.hpp>
 #include <boost/preprocessor.hpp>
 #include <graphlab/util/tracepoint.hpp>
+#include <graphlab/rpc/reply_increment_counter.hpp>
 #include <graphlab/macros_def.hpp>
 
 #define BARRIER_BRANCH_FACTOR 128
@@ -746,7 +747,7 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
     oarchive oarc(strm);
     oarc << t;
     strm.flush();
-    dc_impl::reply_ret_type rt(REQUEST_WAIT_METHOD);
+    dc_impl::reply_ret_type rt;
     // I shouldn't use a request to block here since
     // that will take up a thread on the remote side
     // so I simulate a request here.
