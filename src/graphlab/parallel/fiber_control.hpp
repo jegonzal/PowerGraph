@@ -1,5 +1,5 @@
-#ifndef GRAPHLAB_FIBER_HPP
-#define GRAPHLAB_FIBER_HPP
+#ifndef GRAPHLAB_FIBER_CONTROL_HPP
+#define GRAPHLAB_FIBER_CONTROL_HPP
 #include <cstdlib>
 #include <boost/context/all.hpp>
 #include <boost/function.hpp>
