@@ -28,6 +28,7 @@
 #include <fstream>
 #include <iostream>
 #include <pthread.h>
+#include <graphlab/logger/backtrace.hpp>
 
 file_logger& global_logger() {
   static file_logger l;
