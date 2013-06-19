@@ -30,7 +30,7 @@
 #include <graphlab/rpc/dc_send.hpp>
 #include <graphlab/rpc/function_call_dispatch.hpp>
 #include <graphlab/rpc/is_rpc_call.hpp>
-#include <graphlab/rpc/reply_increment_counter.hpp>
+#include <graphlab/rpc/request_reply_handler.hpp>
 #include <boost/preprocessor.hpp>
 #include <graphlab/rpc/archive_memory_pool.hpp>
 #include <graphlab/rpc/dc_compile_parameters.hpp>
@@ -167,7 +167,7 @@ class  BOOST_PP_CAT(FNAME_AND_CALL, N) { \
     arc << reinterpret_cast<size_t>(d);       \
     arc << reinterpret_cast<size_t>(remote_function); \
     BOOST_PP_REPEAT(N, GENARC, _)                \
-    if (reinterpret_cast<size_t>(remote_function) == reinterpret_cast<size_t>(reply_increment_counter)) { \
+    if (reinterpret_cast<size_t>(remote_function) == reinterpret_cast<size_t>(request_reply_handler)) { \
       flags |= REPLY_PACKET; \
     } \
     if (arc.off >= BUFFER_RELINQUISH_LIMIT) {  \

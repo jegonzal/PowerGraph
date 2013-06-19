@@ -3,7 +3,7 @@
 #include <graphlab/serialization/serialization_includes.hpp>
 #include <graphlab/rpc/dc_types.hpp>
 #include <graphlab/rpc/dc_internal_types.hpp>
-#include <graphlab/rpc/reply_increment_counter.hpp>
+#include <graphlab/rpc/request_reply_handler.hpp>
 #include <graphlab/rpc/function_ret_type.hpp>
 
 namespace graphlab {
@@ -35,13 +35,13 @@ namespace graphlab {
 template <typename T>
 struct request_future {
   typedef typename dc_impl::function_ret_type<T>::type result_type;
-  mutable std::auto_ptr<dc_impl::reply_ret_type> reply;
+  mutable std::auto_ptr<dc_impl::basic_reply_container> reply;
   result_type result;
   bool hasval;
 
   /// default constructor
   request_future(): 
-      reply(new dc_impl::reply_ret_type),
+      reply(new dc_impl::basic_reply_container),
       hasval(false) { }
 
   /** We can assign return values directly to the future in the
@@ -86,7 +86,7 @@ struct request_future {
   }
 
   bool is_ready() {
-    return (hasval || reply->flag == 0);
+    return (hasval || reply->ready());
   }
 
   /**
@@ -103,11 +103,11 @@ struct request_future {
 template <>
 struct request_future<void> {
   typedef dc_impl::function_ret_type<void>::type result_type;
-  mutable std::auto_ptr<dc_impl::reply_ret_type> reply;
+  mutable std::auto_ptr<dc_impl::basic_reply_container> reply;
   bool hasval;
 
   request_future(): 
-      reply(new dc_impl::reply_ret_type),
+      reply(new dc_impl::basic_reply_container),
       hasval(false) { }
   request_future(int val): 
       reply(NULL),
@@ -125,7 +125,7 @@ struct request_future<void> {
   }
 
   bool is_ready() {
-    return (hasval || reply->flag == 0);
+    return (hasval || reply->ready());
   }
 
 

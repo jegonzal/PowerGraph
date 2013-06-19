@@ -45,7 +45,7 @@
 #include <graphlab/rpc/function_call_issue.hpp>
 #include <graphlab/rpc/function_broadcast_issue.hpp>
 #include <graphlab/rpc/request_issue.hpp>
-#include <graphlab/rpc/reply_increment_counter.hpp>
+#include <graphlab/rpc/request_reply_handler.hpp>
 #include <graphlab/rpc/function_ret_type.hpp>
 #include <graphlab/rpc/dc_compile_parameters.hpp>
 #include <graphlab/util/tracepoint.hpp>
@@ -444,7 +444,16 @@ class distributed_control{
     ASSERT_LT(target, senders.size()); \
     return BOOST_PP_CAT( BOOST_PP_TUPLE_ELEM(3,1,ARGS),N) \
         <F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, T)> \
-          ::exec(senders[target],  BOOST_PP_TUPLE_ELEM(3,2,ARGS), target, remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENI ,_) ); \
+          ::exec(senders[target],  BOOST_PP_TUPLE_ELEM(3,2,ARGS), target, remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENI ,_) )(); \
+  }   \
+
+  #define FUTURE_REQUEST_INTERFACE_GENERATOR(Z,N,ARGS) \
+  template<typename F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, typename T)> \
+    BOOST_PP_TUPLE_ELEM(3,0,ARGS) (procid_t target, F remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_) ) {  \
+    ASSERT_LT(target, senders.size()); \
+    return BOOST_PP_CAT( BOOST_PP_TUPLE_ELEM(3,1,ARGS),N) \
+        <F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, T)> \
+          ::exec(senders[target],  BOOST_PP_TUPLE_ELEM(3,2,ARGS), target, remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENI ,_) )(); \
   }   \
 
   /*
@@ -452,12 +461,14 @@ class distributed_control{
   */
    BOOST_PP_REPEAT(6, REQUEST_INTERFACE_GENERATOR, (typename dc_impl::function_ret_type<__GLRPC_FRESULT>::type remote_request, dc_impl::remote_request_issue, STANDARD_CALL | WAIT_FOR_REPLY) )
   BOOST_PP_REPEAT(6, REQUEST_INTERFACE_GENERATOR, (typename dc_impl::function_ret_type<__GLRPC_FRESULT>::type control_request, dc_impl::remote_request_issue, (STANDARD_CALL | WAIT_FOR_REPLY | CONTROL_PACKET)) )
+  BOOST_PP_REPEAT(6, FUTURE_REQUEST_INTERFACE_GENERATOR, (request_future<__GLRPC_FRESULT> future_remote_request, dc_impl::remote_request_issue, (STANDARD_CALL | WAIT_FOR_REPLY)) )
 
 
 
   #undef RPC_INTERFACE_GENERATOR
   #undef BROADCAST_INTERFACE_GENERATOR
   #undef REQUEST_INTERFACE_GENERATOR
+  #undef FUTURE_REQUEST_INTERFACE_GENERATOR
   #undef GENARC
   #undef GENT
   #undef GENI

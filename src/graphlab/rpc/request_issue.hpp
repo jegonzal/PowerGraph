@@ -29,7 +29,8 @@
 #include <graphlab/serialization/serialization_includes.hpp>
 #include <graphlab/rpc/dc_types.hpp>
 #include <graphlab/rpc/dc_internal_types.hpp>
-#include <graphlab/rpc/reply_increment_counter.hpp>
+#include <graphlab/rpc/request_reply_handler.hpp>
+#include <graphlab/rpc/request_future.hpp>
 #include <graphlab/rpc/request_dispatch.hpp>
 #include <graphlab/rpc/function_ret_type.hpp>
 #include <graphlab/rpc/function_arg_types_def.hpp>
@@ -65,10 +66,10 @@ The format of a "request" packet is in the form of an archive and is as follows
 \li fn::argN_type    -- target function's Nth argument
 
 
-The ID here is a pointer to a reply_ret_type datastructure. When the remote machine completes
+The ID here is a pointer to a ireply_container datastructure. When the remote machine completes
 the function call, it will issue an RPC to the function reply_increment_counter on the originating machine.
-The reply_increment_counter function  store the serialized return value in the reply_ret_type, as well
-as perform an atomic increment on the reply_ret_type.
+The reply_increment_counter function  store the serialized return value in the ireply_container , as well
+as perform an atomic increment on the ireply_container .
 
 Here is an example of the marshall code for 1 argument
 \code
@@ -103,11 +104,11 @@ template<typename F , typename T0> class remote_request_issue1
     {
         oarchive arc;
         arc.advance(sizeof(packet_hdr));
-        reply_ret_type reply;
+        request_future<__GLRPC_FRESULT> reply;   
         dispatch_type d = request_issue_detail::dispatch_selector1<typename is_rpc_call<F>::type, F , T0 >::dispatchfn();
         arc << reinterpret_cast<size_t>(d);
         arc << reinterpret_cast<size_t>(remote_function);
-        arc << reinterpret_cast<size_t>(&reply);
+        arc << reinterpret_cast<size_t>(&reply.reply.get());
         arc << i0;
         sender->send_data(target, flags, arc.buf, arc.off);
         reply.wait();
@@ -154,15 +155,15 @@ struct BOOST_PP_CAT(dispatch_selector, N)<boost::mpl::bool_<true>, F BOOST_PP_CO
 template<typename F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, typename T)> \
 class  BOOST_PP_CAT(FNAME_AND_CALL, N) { \
   public: \
-  static typename function_ret_type<__GLRPC_FRESULT>::type exec(dc_send* sender, unsigned char flags, procid_t target, F remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_) ) {  \
+  static request_future<__GLRPC_FRESULT> exec(dc_send* sender, unsigned char flags, procid_t target, F remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_) ) {  \
     oarchive* ptr = oarchive_from_pool();       \
     oarchive& arc = *ptr;                         \
     arc.advance(sizeof(size_t) + sizeof(packet_hdr));            \
-    reply_ret_type reply;      \
+    request_future<__GLRPC_FRESULT> reply;      \
     dispatch_type d = BOOST_PP_CAT(request_issue_detail::dispatch_selector,N)<typename is_rpc_call<F>::type, F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, T) >::dispatchfn();   \
     arc << reinterpret_cast<size_t>(d);       \
     arc << reinterpret_cast<size_t>(remote_function); \
-    arc << reinterpret_cast<size_t>(&reply);       \
+    arc << reinterpret_cast<size_t>(reply.reply.get());       \
     BOOST_PP_REPEAT(N, GENARC, _)                \
     if (arc.off >= BUFFER_RELINQUISH_LIMIT) {  \
       sender->send_data(target,flags , arc.buf, arc.off);    \
@@ -172,12 +173,7 @@ class  BOOST_PP_CAT(FNAME_AND_CALL, N) { \
       sender->send_data(target,flags , newbuf, arc.off);    \
     }     \
     release_oarchive_to_pool(ptr); \
-    reply.wait(); \
-    iarchive iarc(reply.val.c, reply.val.len);  \
-    typename function_ret_type<__GLRPC_FRESULT>::type result; \
-    iarc >> result;  \
-    reply.val.free(); \
-    return result;  \
+    return reply; \
   }\
 };
 

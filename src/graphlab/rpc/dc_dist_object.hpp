@@ -41,7 +41,7 @@
 #include <graphlab/util/charstream.hpp>
 #include <boost/preprocessor.hpp>
 #include <graphlab/util/tracepoint.hpp>
-#include <graphlab/rpc/reply_increment_counter.hpp>
+#include <graphlab/rpc/request_reply_handler.hpp>
 #include <graphlab/macros_def.hpp>
 
 #define BARRIER_BRANCH_FACTOR 128
@@ -747,7 +747,7 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
     oarchive oarc(strm);
     oarc << t;
     strm.flush();
-    dc_impl::reply_ret_type rt;
+    dc_impl::basic_reply_container rt;
     // I shouldn't use a request to block here since
     // that will take up a thread on the remote side
     // so I simulate a request here.
@@ -793,7 +793,7 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
     recvstruct.lock.unlock();
     if (control == false) {
       // remote call to release the sender. Use an empty blob
-      dc_.control_call(source, reply_increment_counter, tag, dc_impl::blob());
+      dc_.control_call(source, request_reply_handler, tag, dc_impl::blob());
       // I have to increment the calls sent manually here
       // since the matched send/recv calls do not go through the
       // typical object calls. It goes through the DC, but I also want to charge
@@ -801,7 +801,7 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
       inc_calls_received(source);
     }
     else {
-      dc_.control_call(source, reply_increment_counter, tag, dc_impl::blob());
+      dc_.control_call(source, request_reply_handler, tag, dc_impl::blob());
     }
   }
 

@@ -45,7 +45,7 @@
 //#include <graphlab/rpc/dc_sctp_comm.hpp>
 #include <graphlab/rpc/dc_buffered_stream_send2.hpp>
 #include <graphlab/rpc/dc_stream_receive.hpp>
-#include <graphlab/rpc/reply_increment_counter.hpp>
+#include <graphlab/rpc/request_reply_handler.hpp>
 #include <graphlab/rpc/dc_services.hpp>
 
 #include <graphlab/rpc/dc_init_from_env.hpp>

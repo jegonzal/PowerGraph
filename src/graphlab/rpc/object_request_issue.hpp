@@ -29,7 +29,7 @@
 #include <graphlab/serialization/serialization_includes.hpp>
 #include <graphlab/rpc/dc_types.hpp>
 #include <graphlab/rpc/dc_internal_types.hpp>
-#include <graphlab/rpc/reply_increment_counter.hpp>
+#include <graphlab/rpc/request_reply_handler.hpp>
 #include <graphlab/rpc/object_request_dispatch.hpp>
 #include <graphlab/rpc/function_ret_type.hpp>
 #include <graphlab/rpc/mem_function_arg_types_def.hpp>
@@ -76,7 +76,7 @@ template<typename T,
     {
         oarchive arc;
         arc.advance(sizeof(packet_hdr));
-        reply_ret_type reply;
+        request_future<__GLRPC_FRESULT> reply;  
         dispatch_type d = dc_impl::OBJECT_NONINTRUSIVE_REQUESTDISPATCH1<distributed_control,T,F , T0 >;
         arc << reinterpret_cast<size_t>(d);
         serialize(arc, (char*)(&remote_function), sizeof(remote_function));

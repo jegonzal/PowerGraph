@@ -74,34 +74,59 @@ struct blob {
   }
 };
 
+
+/**
+ *\internal
+ * \ingroup rpc
+ * Abstract class for where the result of a request go into.
+ */
+struct ireply_container {
+  ireply_container() { }
+  virtual ~ireply_container() { }
+  virtual void wait() = 0;
+  virtual void receive(procid_t source, blob b) = 0;
+  virtual bool ready() const = 0;
+};
+
+
 /**
 \internal
 \ingroup rpc
-Defines a really useful function that performs an atomic
-increment of a flag when called. This is useful for waiting
-for a reply to a request
-\see reply_increment_counter
+The most basic container for replies. Only waits for one reply,
+and uses a mutex/condition variable pair to lock and wait on the reply value.
+\see ireply_container 
 */
-struct reply_ret_type{
-  atomic<size_t> flag;
+struct basic_reply_container: public ireply_container{
   blob val;
   mutex mut;
   conditional cond;
+  bool valready;
   /**
    * Constructs a reply object which waits for 'retcount' replies.
    */
-  reply_ret_type(size_t retcount = 1):flag(retcount) { }
+  basic_reply_container():valready(false) { }
   
-  ~reply_ret_type() { }
+  ~basic_reply_container() { }
 
+  void receive(procid_t source, blob b) {
+    mut.lock();
+    val = b;
+    valready = true;
+    cond.signal();
+    mut.unlock();
+  }
   /**
    * Waits for all replies to complete. It is up to the 
    * reply implementation to decrement the counter.
    */
   inline void wait() {
     mut.lock();
-    while(flag.value != 0) cond.wait(mut);
+    while(!valready) cond.wait(mut);
     mut.unlock();
+  }
+
+  inline bool ready() const {
+    return valready;
   }
 };
 
@@ -112,11 +137,20 @@ struct reply_ret_type{
 /**
  * \internal
  * \ingroup rpc
- * A simple RPC call which converts ptr to a pointer to a reply_ret_type,
- * stores the blob in it, and decrements its reply counter.
- * \see reply_ret_type
+ * The RPC call to handle the result of a request.
+ *
+ * The basic protocol of a request is as such:
+ * On the sender side, a request_future is created which contains within it
+ * an instance of an ireply_container. A message is then sent to the target
+ * machine containing the address of the ireply_container.
+ * Once the target machine finishes evaluating the function, it issues a
+ * call to the request_reply_handler function, passing the original address
+ * into the ptr argument. The request_reply_handler then reinterprets the ptr
+ * argument as an ireply_container object and calls the receive() function 
+ * on it.
+ * \see ireply_container
  */
-void reply_increment_counter(distributed_control &dc, procid_t src, 
+void request_reply_handler(distributed_control &dc, procid_t src, 
                              size_t ptr, dc_impl::blob ret);
 
 

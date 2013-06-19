@@ -23,20 +23,14 @@
 
 #include <string>
 #include <graphlab/rpc/dc.hpp>
-#include <graphlab/rpc/reply_increment_counter.hpp>
+#include <graphlab/rpc/request_reply_handler.hpp>
 
 namespace graphlab {
 
-void reply_increment_counter(distributed_control &dc, procid_t src, 
-                             size_t ptr, dc_impl::blob ret) {
-  dc_impl::reply_ret_type *a = reinterpret_cast<dc_impl::reply_ret_type*>(ptr);
-  a->mut.lock();
-  a->val = ret;
-  size_t retval = a->flag.dec();  
-  if (retval == 0) {
-    a->cond.signal();
-  }
-  a->mut.unlock();
+void request_reply_handler(distributed_control &dc, procid_t src, 
+                           size_t ptr, dc_impl::blob ret) {
+  dc_impl::ireply_container* a = reinterpret_cast<dc_impl::ireply_container*>(ptr);
+  a->receive(src, ret);
 }
 
 
