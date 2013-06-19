@@ -48,6 +48,9 @@
 #include <cstdarg>
 #include <pthread.h>
 #include <graphlab/util/timer.hpp>
+#include <graphlab/logger/fail_method.hpp>
+#include <graphlab/logger/backtrace.hpp>
+
 /**
  * \def LOG_FATAL
  *   Used for fatal and probably irrecoverable conditions
@@ -79,7 +82,7 @@
  */
 
 #ifndef OUTPUTLEVEL
-#define OUTPUTLEVEL LOG_EMPH
+#define OUTPUTLEVEL LOG_DEBUG
 #endif
 /// If set, logs to screen will be printed in color
 #define COLOROUTPUT
@@ -168,8 +171,7 @@ struct streambuff_tls_entry {
 }
 
 
-/** Hack!  This is defined in assertions.cpp */
-void __print_back_trace();
+extern void __print_back_trace();
 
 /**
   logging class.
@@ -177,8 +179,8 @@ void __print_back_trace();
 */
 class file_logger{
  public:
-  /** Default constructor. By default, log_to_console is off,
-      there is no logger file, and logger level is set to LOG_WARNING
+  /** Default constructor. By default, log_to_console is on,
+      there is no logger file, and logger level is set to LOG_EMPH
   */
   file_logger();
 
@@ -228,7 +230,7 @@ class file_logger{
     return *this;
   }
 
-  file_logger& operator<<(const char* a) {
+  inline file_logger& operator<<(const char* a) {
     // get the stream buffer
     logger_impl::streambuff_tls_entry* streambufentry = reinterpret_cast<logger_impl::streambuff_tls_entry*>(
                                           pthread_getspecific(streambuffkey));
@@ -246,7 +248,7 @@ class file_logger{
     return *this;
   }
 
-  file_logger& operator<<(std::ostream& (*f)(std::ostream&)){
+  inline file_logger& operator<<(std::ostream& (*f)(std::ostream&)){
     // get the stream buffer
     logger_impl::streambuff_tls_entry* streambufentry = reinterpret_cast<logger_impl::streambuff_tls_entry*>(
                                           pthread_getspecific(streambuffkey));
@@ -259,12 +261,9 @@ class file_logger{
         if (endltype(f) == endltype(std::endl)) {
           streambuffer << "\n";
           stream_flush();
-          if(streamloglevel >= LOG_ERROR) {
-            __print_back_trace();
-          }
           if(streamloglevel == LOG_FATAL) {
-            throw "log fatal";
-            // exit(EXIT_FAILURE);
+            __print_back_trace();
+            GRAPHLAB_LOGGER_FAIL_METHOD("LOG_FATAL encountered");
           }
         }
       }
@@ -300,7 +299,7 @@ class file_logger{
 
   void _lograw(int loglevel, const char* buf, int len);
 
-  void stream_flush() {
+  inline void stream_flush() {
     // get the stream buffer
     logger_impl::streambuff_tls_entry* streambufentry = reinterpret_cast<logger_impl::streambuff_tls_entry*>(
                                           pthread_getspecific(streambuffkey));
@@ -340,19 +339,15 @@ struct log_dispatch {};
 template <>
 struct log_dispatch<true> {
   inline static void exec(int loglevel,const char* file,const char* function,
-                int line,const char* fmt, ... ) {
-  va_list argp;
-	va_start(argp, fmt);
-	global_logger()._log(loglevel, file, function, line, fmt, argp);
-	va_end(argp);
-  if(loglevel >= LOG_ERROR) {
-    __print_back_trace();
-  }
-  if(loglevel == LOG_FATAL) {
-    throw "log fatal";
-    // exit(EXIT_FAILURE);
-  }
-
+                          int line,const char* fmt, ... ) {
+    va_list argp;
+    va_start(argp, fmt);
+    global_logger()._log(loglevel, file, function, line, fmt, argp);
+    va_end(argp);
+    if(loglevel == LOG_FATAL) {
+      __print_back_trace();
+      GRAPHLAB_LOGGER_FAIL_METHOD("LOG_FATAL encountered");
+    }
   }
 };
 
@@ -390,8 +385,6 @@ struct log_stream_dispatch<false> {
 
 void textcolor(FILE* handle, int attr, int fg);
 void reset_color(FILE* handle);
-
-#include <graphlab/logger/assertions.hpp>
 
 #endif
 

@@ -1,5 +1,5 @@
-/**  
- * Copyright (c) 2009 Carnegie Mellon University. 
+/**
+ * Copyright (c) 2009 Carnegie Mellon University.
  *     All rights reserved.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
@@ -28,9 +28,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <cxxabi.h>
-#include <graphlab/parallel/pthread_tools.hpp>
-#include <graphlab/rpc/get_last_dc_procid.hpp>
-
+#include <pthread.h>
 
 /** Code from http://mykospark.net/2009/09/runtime-backtrace-in-c-with-name-demangling/ */
 std::string demangle(const char* symbol) {
@@ -50,30 +48,36 @@ std::string demangle(const char* symbol) {
   if (1 == sscanf(symbol, "%127s", temp)) {
     return temp;
   }
- 
+
   //if all else fails, just return the symbol
   return symbol;
 }
 
 
-static graphlab::mutex back_trace_file_lock;
+static pthread_mutex_t back_trace_file_lock = PTHREAD_MUTEX_INITIALIZER;
 static size_t write_count = 0;
 static bool write_error = 0;
+static int backtrace_file_number = 0;
+
+
+extern void __set_back_trace_file_number(int number) {
+  backtrace_file_number = number;
+}
+
 /* Obtain a backtrace and print it to ofile. */
 void __print_back_trace() {
     void    *array[1024];
     size_t  size, i;
     char    **strings;
 
-
-    back_trace_file_lock.lock();
+    pthread_mutex_lock(&back_trace_file_lock);
 
     if (write_error) {
-      back_trace_file_lock.unlock();
+      pthread_mutex_unlock(&back_trace_file_lock);
       return;
     }
     char filename[1024];
-    sprintf(filename, "backtrace.%d", int(graphlab::dc_impl::get_last_dc_procid()));
+    sprintf(filename, "backtrace.%d", backtrace_file_number);
 
     FILE* ofile = NULL;
     if (write_count == 0) {
@@ -87,7 +91,7 @@ void __print_back_trace() {
       // print an error, set the error flag so we don't ever print it again
       fprintf(stderr, "Unable to open output backtrace file.\n");
       write_error = 1;
-      back_trace_file_lock.unlock();
+      pthread_mutex_unlock(&back_trace_file_lock);
       return;
     }
     ++write_count;
@@ -100,7 +104,7 @@ void __print_back_trace() {
     for (i = 0; i < size; ++i) {
         fprintf(ofile, "%p\n", array[i]);
     }
- 
+
 
     fprintf(ofile, "Raw\n");
     fprintf(ofile, "------------\n");
@@ -109,16 +113,17 @@ void __print_back_trace() {
     }
     fprintf(ofile, "\nDemangled\n");
     fprintf(ofile, "------------\n");
- 
+
     for (i = 0; i < size; ++i) {
         std::string ret = demangle(strings[i]);
         fprintf(ofile, "%s\n", ret.c_str());
     }
     free(strings);
-    
-    fprintf(ofile, "\n\n\n\n\n\n\n\n\n\n\n\n\n");
+
+    fprintf(ofile, "-------------------------------------------------------\n");
+    fprintf(ofile, "\n\n");
 
     fclose(ofile);
-    back_trace_file_lock.unlock();
+    pthread_mutex_unlock(&back_trace_file_lock);
 }
 

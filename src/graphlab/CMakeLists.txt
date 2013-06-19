@@ -27,11 +27,11 @@ add_library(graphlab STATIC
   util/generics/any.cpp
   util/hdfs.cpp
   logger/logger.cpp
-  logger/assertions.cpp
+  logger/backtrace.cpp
   parallel/pthread_tools.cpp
   # parallel/qthread_tools.cpp
   parallel/thread_pool.cpp
-  parallel/fiber.cpp
+  parallel/fiber_control.cpp
   util/random.cpp
   scheduler/scheduler_list.cpp
   util/net_util.cpp
