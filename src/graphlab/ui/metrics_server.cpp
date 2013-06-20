@@ -29,8 +29,8 @@
 
 #include <graphlab/util/stl_util.hpp>
 #include <graphlab/parallel/pthread_tools.hpp>
+#include <graphlab/rpc/dc.hpp>
 #include <graphlab/rpc/distributed_event_log.hpp>
-#include <graphlab/rpc/get_last_dc_procid.hpp>
 
 #include <graphlab/ui/mongoose/mongoose.h>
 #include <graphlab/ui/metrics_server.hpp>
@@ -203,7 +203,7 @@ void add_metric_server_callback(std::string page,
 }
 
 void launch_metric_server() {
-  if (dc_impl::get_last_dc_procid() == 0) {
+  if (distributed_control::get_instance_procid() == 0) {
     const char *options[] = {"listening_ports", "8090", NULL};
     metric_context = mg_start(process_request, (void*)(&(callbacks())), options);
     if(metric_context == NULL) {
@@ -222,14 +222,14 @@ void launch_metric_server() {
 }
 
 void stop_metric_server() {
-  if (dc_impl::get_last_dc_procid() == 0 && metric_context != NULL) {
+  if (distributed_control::get_instance_procid() == 0 && metric_context != NULL) {
     std::cout << "Metrics server stopping." << std::endl;
     mg_stop(metric_context);
   }
 }
 
 void stop_metric_server_on_eof() {
-  if (dc_impl::get_last_dc_procid() == 0 && metric_context != NULL) {
+  if (distributed_control::get_instance_procid() == 0 && metric_context != NULL) {
     char buff[128];
     // wait for ctrl-d
     logstream(LOG_EMPH) << "Hit Ctrl-D to stop the metrics server" << std::endl;

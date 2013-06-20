@@ -381,6 +381,11 @@ size_t fiber_control::get_tid() {
   else return (size_t)(0);
 }
 
+
+bool fiber_control::in_fiber() {
+  return get_tls_ptr() != NULL;
+}
+
 void fiber_control::deschedule_self(pthread_mutex_t* lock) {
   fiber* fib = get_tls_ptr()->cur_fiber;
   fib->lock.lock();

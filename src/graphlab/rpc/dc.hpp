@@ -307,6 +307,26 @@ class distributed_control{
 
   ~distributed_control();
 
+
+  // The procid of the last distributed_control object created
+  static procid_t last_dc_procid;
+  // a pointer to the last distributed_control object created
+  static distributed_control* last_dc;
+
+  /**
+   * Gets the procid of the last distributed_control instance created.
+   * If there is no distributed_control instance, this returns 0.
+   * For instance, this returns the current machine's procid if there is only
+   * one distributed_control.
+   */
+  static procid_t get_instance_procid();
+
+  /**
+   * Gets a pointer to the last distributed_control instance created.
+   * If there is no distributed_control instance, this returns NULL.
+   */
+  static distributed_control* get_instance();
+
   /// returns the id of the current process
   inline procid_t procid() const {
     return localprocid;
@@ -450,7 +470,7 @@ class distributed_control{
 
   #define FUTURE_REQUEST_INTERFACE_GENERATOR(Z,N,ARGS) \
   template<typename F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, typename T)> \
-    BOOST_PP_TUPLE_ELEM(3,0,ARGS) (procid_t target, F remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_) ) {  \
+    BOOST_PP_TUPLE_ELEM(1,0,ARGS) (procid_t target, F remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_) ) {  \
     ASSERT_LT(target, senders.size()); \
     request_future<__GLRPC_FRESULT> reply;      \
     custom_remote_request(target,  reply.get_handle(), remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENI ,_) ); \
@@ -460,7 +480,7 @@ class distributed_control{
 
   #define REQUEST_INTERFACE_GENERATOR(Z,N,ARGS) \
   template<typename F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, typename T)> \
-    BOOST_PP_TUPLE_ELEM(3,0,ARGS) (procid_t target, F remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_) ) {  \
+    BOOST_PP_TUPLE_ELEM(1,0,ARGS) (procid_t target, F remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_) ) {  \
     request_future<__GLRPC_FRESULT> reply;      \
     custom_remote_request(target,  reply.get_handle(), remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENI ,_) ); \
     return reply(); \
@@ -471,8 +491,8 @@ class distributed_control{
   Generates the interface functions. 3rd argument is a tuple (interface name, issue name, flags)
   */
   BOOST_PP_REPEAT(6, CUSTOM_REQUEST_INTERFACE_GENERATOR, (void custom_remote_request, dc_impl::remote_request_issue, (STANDARD_CALL | WAIT_FOR_REPLY)) )
-   BOOST_PP_REPEAT(6, REQUEST_INTERFACE_GENERATOR, (typename dc_impl::function_ret_type<__GLRPC_FRESULT>::type remote_request, dc_impl::remote_request_issue, STANDARD_CALL | WAIT_FOR_REPLY) )
-  BOOST_PP_REPEAT(6, FUTURE_REQUEST_INTERFACE_GENERATOR, (request_future<__GLRPC_FRESULT> future_remote_request, dc_impl::remote_request_issue, (STANDARD_CALL | WAIT_FOR_REPLY)) )
+   BOOST_PP_REPEAT(6, REQUEST_INTERFACE_GENERATOR, (typename dc_impl::function_ret_type<__GLRPC_FRESULT>::type remote_request) )
+  BOOST_PP_REPEAT(6, FUTURE_REQUEST_INTERFACE_GENERATOR, (request_future<__GLRPC_FRESULT> future_remote_request) )
 
 
 
@@ -623,6 +643,9 @@ class distributed_control{
  * // i will now be 11
  * \endcode
  *
+ * \see graphlab::fiber_remote_request
+ *      graphlab::distributed_control::future_remote_request
+ *
  * \param targetmachine The ID of the machine to run the function on
  * \param fn The function to run on the target machine
  * \param ... The arguments to send to Fn. Arguments must be serializable.
@@ -631,6 +654,49 @@ class distributed_control{
  * \returns Returns the same return type as the function fn
  */
   RetVal remote_request(procid_t targetmachine, Fn fn, ...);
+
+
+
+/**
+ * \brief Performs a non-blocking RPC call to the target machine
+ * to run the provided function pointer.
+ *
+ * future_remote_request() calls the function "fn" on a target remote machine. Provided
+ * arguments are serialized and sent to the target.
+ * Therefore, all arguments are necessarily transmitted by value.
+ * If the target function has a return value, it is sent back to calling
+ * machine.
+ *
+ * future_remote_request() is like remote_request(), but is non-blocking.
+ * Instead, it returns immediately a \ref graphlab::request_future object
+ * which will allow you wait for the return value.
+ *
+ * Example:
+ * \code
+ * // A print function is defined
+ * int add_one(int i) {
+ *   return i + 1;
+ * }
+ *
+ * ... ...
+ * // call the add_one function on machine 1
+ * int i = 10;
+ * graphlab::request_future<int> ret = dc.remote_request(1, add_one, i);
+ * int result = ret();
+ * // result will be 11
+ * \endcode
+ *
+ * \see graphlab::fiber_remote_request
+ *      graphlab::distributed_control::remote_request
+ *
+ * \param targetmachine The ID of the machine to run the function on
+ * \param fn The function to run on the target machine
+ * \param ... The arguments to send to Fn. Arguments must be serializable.
+ *            and must be castable to the target types.
+ *
+ * \returns Returns the same return type as the function fn
+ */
+  request_future<RetVal> future_remote_request(procid_t targetmachine, Fn fn, ...);
 
 
 
@@ -1313,11 +1379,6 @@ inline void distributed_control::all_reduce2(U& data, PlusEqual plusequal, bool 
 
 
 
-namespace dc_impl {
-  extern procid_t get_last_dc_procid();
-
-  extern distributed_control* get_last_dc();
-}
 
 }
 

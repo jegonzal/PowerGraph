@@ -212,6 +212,12 @@ class fiber_control {
    */
   static size_t get_tid();
 
+
+  /**
+   * Returns true if the calling thread is in a fiber, false otherwise.
+   */
+  static bool in_fiber();
+
   /**
    * Returns the worker managing the current fiber.
    * Worker IDs are sequential.

@@ -64,27 +64,27 @@ namespace graphlab {
 
 namespace dc_impl {
 
-static procid_t last_dc_procid = 0;
-static distributed_control* last_dc = NULL;
-
-procid_t get_last_dc_procid() {
-  return last_dc_procid;
-}
-
-distributed_control* get_last_dc() {
-  if (last_dc == NULL) {
-    last_dc = new distributed_control();
-  }
-  return last_dc;
-}
-
-
-
 
 bool thrlocal_sequentialization_key_initialized = false;
 pthread_key_t thrlocal_sequentialization_key;
 
 } // namespace dc_impl
+
+
+
+procid_t distributed_control::last_dc_procid = 0;
+distributed_control* distributed_control::last_dc = NULL;
+
+procid_t distributed_control::get_instance_procid() {
+  return last_dc_procid;
+}
+
+distributed_control* distributed_control::get_instance() {
+  return last_dc;
+}
+
+
+
 
 unsigned char distributed_control::set_sequentialization_key(unsigned char newkey) {
   size_t oldval = reinterpret_cast<size_t>(pthread_getspecific(dc_impl::thrlocal_sequentialization_key));
@@ -443,7 +443,8 @@ void distributed_control::init(const std::vector<std::string> &machines,
     if (thread::cpu_count() > 2) numhandlerthreads = thread::cpu_count() - 2;
     else numhandlerthreads = 2;
   }
-  dc_impl::last_dc = this;
+  // set the value of the last_dc for the get_instance function
+  last_dc = this;
   ASSERT_MSG(machines.size() <= RPC_MAX_N_PROCS,
              "Number of processes exceeded hard limit of %d", RPC_MAX_N_PROCS);
 
@@ -494,8 +495,8 @@ void distributed_control::init(const std::vector<std::string> &machines,
   localprocid = curmachineid;
   localnumprocs = machines.size();
 
-  // set the static variable for the global function get_last_dc_procid()
-  dc_impl::last_dc_procid = localprocid;
+  // set the static variable for the get_instance_procid() function
+  last_dc_procid = localprocid;
 
   // construct the services
   distributed_services = new dc_services(*this);

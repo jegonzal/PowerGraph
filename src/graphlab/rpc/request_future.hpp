@@ -11,11 +11,12 @@ namespace graphlab {
 
   /**
    * \ingroup rpc
-   * The result of a future_remote_request call.
+   * The result of a remote_request future call.
    * This class represents the outcome of a remote request sent to another
-   * machine via the future_remote_request_call. The future_remote_request call
+   * machine via the future-based remote_request_call. The future remote_request call
    * returns immediately with this object. Only when operator() is called on this
-   * object, then it waits for a result from the remote machine.
+   * object, then it waits for a result from the remote machine. All remote_request
+   * calls which return futures are linked below.
    *
    * example:
    * \code
@@ -28,6 +29,11 @@ namespace graphlab {
    * // read the result, or wait for the result if it is not done yet.
    * int actual_result = res();
    * \endcode
+   *
+   * \see graphlab::distributed_control::future_remote_request
+   *      graphlab::dc_dist_object::future_remote_request
+   *      graphlab::fiber_remote_request
+   *      graphlab::object_fiber_remote_request
    *
    * The future object holds a copy of the result of the request, and the
    * operator() call returns a reference to this result (once it is available).
@@ -45,7 +51,9 @@ struct request_future {
       hasval(false) { }
 
 
-  /// constructor which allows you to specify a custom target container
+  /** constructor which allows you to specify a custom target container
+   * This class takes ownership of the container and will free it when done.
+   */
   request_future(dc_impl::ireply_container* container): 
       reply(container),
       hasval(false) { }
@@ -80,15 +88,21 @@ struct request_future {
     return *this;
   }
 
+  /**
+   * \internal
+   * Returns a handle to the underlying container
+   */
   size_t get_handle() {
     return reinterpret_cast<size_t>(reply.get());
   }
 
-  /// explicit call to wait(). Will wait only if the future has no value yet
+  /**  
+   * Waits for the request if it has not yet been received.
+   */
   void wait() {
     if (!hasval) {
       reply->wait(); 
-      dc_impl::blob receiveddata = reply->get_blob();
+      dc_impl::blob& receiveddata = reply->get_blob();
       iarchive iarc(receiveddata.c, receiveddata.len); 
       iarc >> result;  
       receiveddata.free(); 
@@ -96,13 +110,17 @@ struct request_future {
     }
   }
 
+  /**
+   * Returns true if the result is ready and \ref operator()
+   * can be called without blocking.
+   */
   bool is_ready() {
     return (hasval || reply->ready());
   }
 
   /**
    * Waits for the request if it has not yet been received.
-   * Otherwise, returns a reference to the received value.
+   * When the result is ready, it returns a reference to the received value.
    */
   result_type& operator()() {
     if (!hasval) wait();
@@ -153,7 +171,7 @@ struct request_future<void> {
     if (!hasval) {
       result_type result;
       reply->wait(); 
-      dc_impl::blob receiveddata = reply->get_blob();
+      dc_impl::blob& receiveddata = reply->get_blob();
       iarchive iarc(receiveddata.c, receiveddata.len); 
       iarc >> result;  
       receiveddata.free(); 

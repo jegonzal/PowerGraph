@@ -125,7 +125,7 @@ namespace graphlab {
         // not the last machine.
         // Connect to everyone, EXCEPT the last machine
         // and wait for all incoming connections
-        for(size_t i = 0;i < nprocs - 1; ++i) connect(i);
+        for(procid_t i = 0;i < nprocs - 1; ++i) connect(i);
 
         // wait for p - 1 incoming connections
         insock_lock.lock();

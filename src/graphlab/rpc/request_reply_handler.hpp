@@ -86,7 +86,7 @@ struct ireply_container {
   virtual void wait() = 0;
   virtual void receive(procid_t source, blob b) = 0;
   virtual bool ready() const = 0;
-  virtual blob get_blob() const = 0;
+  virtual blob& get_blob() = 0;
 };
 
 
@@ -107,7 +107,9 @@ struct basic_reply_container: public ireply_container{
    */
   basic_reply_container():valready(false) { }
   
-  ~basic_reply_container() { }
+  ~basic_reply_container() { 
+    val.free();
+  }
 
   void receive(procid_t source, blob b) {
     mut.lock();
@@ -130,7 +132,7 @@ struct basic_reply_container: public ireply_container{
     return valready;
   }
 
-  blob get_blob() const {
+  blob& get_blob() {
     return val;
   }
 };

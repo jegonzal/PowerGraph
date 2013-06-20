@@ -431,7 +431,7 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
 
 #define FUTURE_REQUEST_INTERFACE_GENERATOR(Z,N,ARGS) \
   template<typename F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, typename T)> \
-    BOOST_PP_TUPLE_ELEM(3,0,ARGS) (procid_t target, F remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_) ) {  \
+    BOOST_PP_TUPLE_ELEM(1,0,ARGS) (procid_t target, F remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_) ) {  \
     ASSERT_LT(target, dc_.senders.size()); \
     request_future<__GLRPC_FRESULT> reply;      \
     custom_remote_request(target, reply.get_handle(), remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENI ,_) ); \
@@ -440,7 +440,7 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
 
   #define REQUEST_INTERFACE_GENERATOR(Z,N,ARGS) \
   template<typename F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, typename T)> \
-    BOOST_PP_TUPLE_ELEM(3,0,ARGS) (procid_t target, F remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_) ) {  \
+    BOOST_PP_TUPLE_ELEM(1,0,ARGS) (procid_t target, F remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_) ) {  \
     ASSERT_LT(target, dc_.senders.size()); \
     request_future<__GLRPC_FRESULT> reply;      \
     custom_remote_request(target, reply.get_handle(), remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENI ,_) ); \
@@ -453,8 +453,8 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
   (interface name, issue name, flags)
   */
  BOOST_PP_REPEAT(6, CUSTOM_REQUEST_INTERFACE_GENERATOR, (void custom_remote_request, dc_impl::object_request_issue, (STANDARD_CALL | WAIT_FOR_REPLY) ) )
-  BOOST_PP_REPEAT(6, REQUEST_INTERFACE_GENERATOR, (typename dc_impl::function_ret_type<__GLRPC_FRESULT>::type remote_request, dc_impl::object_request_issue, (STANDARD_CALL | WAIT_FOR_REPLY) ) )
- BOOST_PP_REPEAT(6, FUTURE_REQUEST_INTERFACE_GENERATOR, (request_future<__GLRPC_FRESULT> future_remote_request, dc_impl::object_request_issue, (STANDARD_CALL | WAIT_FOR_REPLY) ) )
+ BOOST_PP_REPEAT(6, REQUEST_INTERFACE_GENERATOR, (typename dc_impl::function_ret_type<__GLRPC_FRESULT>::type remote_request) )
+ BOOST_PP_REPEAT(6, FUTURE_REQUEST_INTERFACE_GENERATOR, (request_future<__GLRPC_FRESULT> future_remote_request) )
 
 
 
@@ -665,6 +665,9 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
  * }
  * \endcode
  *
+ * \see graphlab::object_fiber_remote_request
+ *      graphlab::dc_dist_object::future_remote_request
+ *
  * \param targetmachine The ID of the machine to run the function on
  * \param fn The function to run on the target machine. Must be a pointer to
  *            member function in the owning object.
@@ -716,15 +719,19 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
  * }
  * \endcode
  *
+ * \see graphlab::object_fiber_remote_request
+ *      graphlab::dc_dist_object::remote_request
+ *
  * \param targetmachine The ID of the machine to run the function on
  * \param fn The function to run on the target machine. Must be a pointer to
  *            member function in the owning object.
  * \param ... The arguments to send to Fn. Arguments must be serializable.
  *            and must be castable to the target types.
  *
- * \returns Returns the same return type as the function fn
+ * \returns Returns a future templated around the same type as the return 
+ *          value of the called function
  */
-  RetVal future_remote_request(procid_t targetmachine, Fn fn, ...);
+  request_future<RetVal> future_remote_request(procid_t targetmachine, Fn fn, ...);
 
 
 
