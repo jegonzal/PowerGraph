@@ -60,6 +60,7 @@ add_library(graphlab STATIC
   rpc/dc_init_from_mpi.cpp
   rpc/dc_init_from_zookeeper.cpp
   rpc/async_consensus.cpp
+  rpc/fiber_async_consensus.cpp
   rpc/distributed_event_log.cpp
   rpc/delta_dht.cpp
   rpc/archive_memory_pool.cpp
