@@ -86,6 +86,7 @@ struct ireply_container {
   virtual void wait() = 0;
   virtual void receive(procid_t source, blob b) = 0;
   virtual bool ready() const = 0;
+  virtual blob get_blob() const = 0;
 };
 
 
@@ -127,6 +128,10 @@ struct basic_reply_container: public ireply_container{
 
   inline bool ready() const {
     return valready;
+  }
+
+  blob get_blob() const {
+    return val;
   }
 };
 

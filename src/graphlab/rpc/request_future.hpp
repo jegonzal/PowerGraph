@@ -35,7 +35,7 @@ namespace graphlab {
 template <typename T>
 struct request_future {
   typedef typename dc_impl::function_ret_type<T>::type result_type;
-  mutable std::auto_ptr<dc_impl::basic_reply_container> reply;
+  mutable std::auto_ptr<dc_impl::ireply_container> reply;
   result_type result;
   bool hasval;
 
@@ -43,6 +43,13 @@ struct request_future {
   request_future(): 
       reply(new dc_impl::basic_reply_container),
       hasval(false) { }
+
+
+  /// constructor which allows you to specify a custom target container
+  request_future(dc_impl::ireply_container* container): 
+      reply(container),
+      hasval(false) { }
+
 
   /** We can assign return values directly to the future in the
    * case where no remote calls are necessary. 
@@ -81,9 +88,10 @@ struct request_future {
   void wait() {
     if (!hasval) {
       reply->wait(); 
-      iarchive iarc(reply->val.c, reply->val.len); 
+      dc_impl::blob receiveddata = reply->get_blob();
+      iarchive iarc(receiveddata.c, receiveddata.len); 
       iarc >> result;  
-      reply->val.free(); 
+      receiveddata.free(); 
       hasval = true;
     }
   }
@@ -106,12 +114,17 @@ struct request_future {
 template <>
 struct request_future<void> {
   typedef dc_impl::function_ret_type<void>::type result_type;
-  mutable std::auto_ptr<dc_impl::basic_reply_container> reply;
+  mutable std::auto_ptr<dc_impl::ireply_container> reply;
   bool hasval;
 
   request_future(): 
       reply(new dc_impl::basic_reply_container),
       hasval(false) { }
+
+  request_future(dc_impl::ireply_container* container): 
+      reply(container),
+      hasval(false) { }
+
   request_future(int val): 
       reply(NULL),
       hasval(true) { }
@@ -140,9 +153,10 @@ struct request_future<void> {
     if (!hasval) {
       result_type result;
       reply->wait(); 
-      iarchive iarc(reply->val.c, reply->val.len); 
+      dc_impl::blob receiveddata = reply->get_blob();
+      iarchive iarc(receiveddata.c, receiveddata.len); 
       iarc >> result;  
-      reply->val.free(); 
+      receiveddata.free(); 
       hasval = true;
     }
   }
