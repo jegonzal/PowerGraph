@@ -32,6 +32,10 @@ add_library(graphlab STATIC
   parallel/thread_pool.cpp
   util/random.cpp
   scheduler/scheduler_list.cpp
+  scheduler/fifo_scheduler.cpp
+  scheduler/priority_scheduler.cpp
+  scheduler/sweep_scheduler.cpp
+  scheduler/queued_fifo_scheduler.cpp
   util/net_util.cpp
   util/safe_circular_char_buffer.cpp
   util/fs_util.cpp

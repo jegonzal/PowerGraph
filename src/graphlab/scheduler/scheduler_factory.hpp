@@ -39,10 +39,8 @@ namespace graphlab {
   /**
    *  helper for constructing graphlab engines.
    **/
-  template<typename Message>
   struct scheduler_factory {
-    typedef Message message_type;
-    typedef ischeduler<message_type> ischeduler_type;
+    typedef ischeduler ischeduler_type;
    
     /**
      * Construct the a scheduler
@@ -65,7 +63,7 @@ namespace graphlab {
 #define __GENERATE_NEW_SCHEDULER__(r_unused, data_unused, i,  elem)     \
       BOOST_PP_EXPR_IF(i, else)                                         \
         if (scheduler_str == BOOST_PP_TUPLE_ELEM(3,0,elem)) {           \
-          typedef BOOST_PP_TUPLE_ELEM(3,1,elem)<Message>                \
+          typedef BOOST_PP_TUPLE_ELEM(3,1,elem)                         \
             scheduler_type;                                             \
           return new_scheduler_impl<scheduler_type>                     \
             ( num_vertices, opts);                                      \
