@@ -418,33 +418,42 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
                               arg2...)
     \endcode
   */
-  #define REQUEST_INTERFACE_GENERATOR(Z,N,ARGS) \
+#define CUSTOM_REQUEST_INTERFACE_GENERATOR(Z,N,ARGS) \
   template<typename F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, typename T)> \
-    BOOST_PP_TUPLE_ELEM(3,0,ARGS) (procid_t target, F remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_) ) {  \
+    BOOST_PP_TUPLE_ELEM(3,0,ARGS) (procid_t target, size_t handle, F remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_) ) {  \
     ASSERT_LT(target, dc_.senders.size()); \
     if ((BOOST_PP_TUPLE_ELEM(3,2,ARGS) & CONTROL_PACKET) == 0) inc_calls_sent(target); \
-    return BOOST_PP_CAT( BOOST_PP_TUPLE_ELEM(3,1,ARGS),N) \
+    BOOST_PP_CAT( BOOST_PP_TUPLE_ELEM(3,1,ARGS),N) \
         <T, F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, T)> \
-          ::exec(this, dc_.senders[target],  BOOST_PP_TUPLE_ELEM(3,2,ARGS), target,obj_id, remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENI ,_) )(); \
-  }   \
+          ::exec(this, dc_.senders[target],  handle, BOOST_PP_TUPLE_ELEM(3,2,ARGS), target,obj_id, remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENI ,_) ); \
+  }
+
 
 #define FUTURE_REQUEST_INTERFACE_GENERATOR(Z,N,ARGS) \
   template<typename F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, typename T)> \
     BOOST_PP_TUPLE_ELEM(3,0,ARGS) (procid_t target, F remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_) ) {  \
     ASSERT_LT(target, dc_.senders.size()); \
-    if ((BOOST_PP_TUPLE_ELEM(3,2,ARGS) & CONTROL_PACKET) == 0) inc_calls_sent(target); \
-    return BOOST_PP_CAT( BOOST_PP_TUPLE_ELEM(3,1,ARGS),N) \
-        <T, F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, T)> \
-          ::exec(this, dc_.senders[target],  BOOST_PP_TUPLE_ELEM(3,2,ARGS), target,obj_id, remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENI ,_) ); \
-  }   \
+    request_future<__GLRPC_FRESULT> reply;      \
+    custom_remote_request(target, reply.get_handle(), remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENI ,_) ); \
+    return reply; \
+  }   
+
+  #define REQUEST_INTERFACE_GENERATOR(Z,N,ARGS) \
+  template<typename F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, typename T)> \
+    BOOST_PP_TUPLE_ELEM(3,0,ARGS) (procid_t target, F remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_) ) {  \
+    ASSERT_LT(target, dc_.senders.size()); \
+    request_future<__GLRPC_FRESULT> reply;      \
+    custom_remote_request(target, reply.get_handle(), remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENI ,_) ); \
+    return reply(); \
+  }
 
 
   /*
   Generates the interface functions. 3rd argument is a tuple
   (interface name, issue name, flags)
   */
+ BOOST_PP_REPEAT(6, CUSTOM_REQUEST_INTERFACE_GENERATOR, (void custom_remote_request, dc_impl::object_request_issue, (STANDARD_CALL | WAIT_FOR_REPLY) ) )
   BOOST_PP_REPEAT(6, REQUEST_INTERFACE_GENERATOR, (typename dc_impl::function_ret_type<__GLRPC_FRESULT>::type remote_request, dc_impl::object_request_issue, (STANDARD_CALL | WAIT_FOR_REPLY) ) )
-  BOOST_PP_REPEAT(6, REQUEST_INTERFACE_GENERATOR, (typename dc_impl::function_ret_type<__GLRPC_FRESULT>::type control_request, dc_impl::object_request_issue, (STANDARD_CALL | WAIT_FOR_REPLY | CONTROL_PACKET)) )
  BOOST_PP_REPEAT(6, FUTURE_REQUEST_INTERFACE_GENERATOR, (request_future<__GLRPC_FRESULT> future_remote_request, dc_impl::object_request_issue, (STANDARD_CALL | WAIT_FOR_REPLY) ) )
 
 
@@ -452,6 +461,7 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
   #undef RPC_INTERFACE_GENERATOR
   #undef BROADCAST_INTERFACE_GENERATOR
   #undef REQUEST_INTERFACE_GENERATOR
+  #undef CUSTOM_REQUEST_INTERFACE_GENERATOR
   #undef FUTURE_REQUEST_INTERFACE_GENERATOR
   /* Now generate the interface functions which allow me to call this
   dc_dist_object directly The internal calls are similar to the ones
@@ -477,10 +487,12 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
   template<typename F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, typename T)> \
     BOOST_PP_TUPLE_ELEM(3,0,ARGS) (procid_t target, F remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_) ) {  \
     ASSERT_LT(target, dc_.senders.size()); \
+    request_future<__GLRPC_FRESULT> reply;      \
     if ((BOOST_PP_TUPLE_ELEM(3,2,ARGS) & CONTROL_PACKET) == 0) inc_calls_sent(target); \
-    return BOOST_PP_CAT( BOOST_PP_TUPLE_ELEM(3,1,ARGS),N) \
+    BOOST_PP_CAT( BOOST_PP_TUPLE_ELEM(3,1,ARGS),N) \
         <dc_dist_object<T>, F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, T)> \
-          ::exec(this, dc_.senders[target],  BOOST_PP_TUPLE_ELEM(3,2,ARGS), target,control_obj_id, remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENI ,_) )(); \
+          ::exec(this, dc_.senders[target],  reply.get_handle(), BOOST_PP_TUPLE_ELEM(3,2,ARGS), target,control_obj_id, remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENI ,_) ); \
+    return reply(); \
   }   \
 
   /*

@@ -59,7 +59,6 @@ struct request_future {
       result(val), 
       hasval(true) { }
 
- 
   /// copy constructor 
   request_future(const request_future<T>& val): 
       reply(val.reply),
@@ -72,6 +71,10 @@ struct request_future {
     result = val.result;
     hasval = val.hasval;
     return *this;
+  }
+
+  size_t get_handle() {
+    return reinterpret_cast<size_t>(reply.get());
   }
 
   /// explicit call to wait(). Will wait only if the future has no value yet
@@ -129,6 +132,9 @@ struct request_future<void> {
   }
 
 
+  size_t get_handle() {
+    return reinterpret_cast<size_t>(reply.get());
+  }
 
   void wait() {
     if (!hasval) {

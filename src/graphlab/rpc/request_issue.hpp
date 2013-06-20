@@ -155,15 +155,14 @@ struct BOOST_PP_CAT(dispatch_selector, N)<boost::mpl::bool_<true>, F BOOST_PP_CO
 template<typename F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, typename T)> \
 class  BOOST_PP_CAT(FNAME_AND_CALL, N) { \
   public: \
-  static request_future<__GLRPC_FRESULT> exec(dc_send* sender, unsigned char flags, procid_t target, F remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_) ) {  \
+  static void exec(dc_send* sender, size_t request_handle, unsigned char flags, procid_t target, F remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_) ) {  \
     oarchive* ptr = oarchive_from_pool();       \
     oarchive& arc = *ptr;                         \
     arc.advance(sizeof(size_t) + sizeof(packet_hdr));            \
-    request_future<__GLRPC_FRESULT> reply;      \
     dispatch_type d = BOOST_PP_CAT(request_issue_detail::dispatch_selector,N)<typename is_rpc_call<F>::type, F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, T) >::dispatchfn();   \
     arc << reinterpret_cast<size_t>(d);       \
     arc << reinterpret_cast<size_t>(remote_function); \
-    arc << reinterpret_cast<size_t>(reply.reply.get());       \
+    arc << request_handle; \
     BOOST_PP_REPEAT(N, GENARC, _)                \
     if (arc.off >= BUFFER_RELINQUISH_LIMIT) {  \
       sender->send_data(target,flags , arc.buf, arc.off);    \
@@ -173,7 +172,6 @@ class  BOOST_PP_CAT(FNAME_AND_CALL, N) { \
       sender->send_data(target,flags , newbuf, arc.off);    \
     }     \
     release_oarchive_to_pool(ptr); \
-    return reply; \
   }\
 };
 

@@ -438,29 +438,40 @@ class distributed_control{
 
   BOOST_PP_REPEAT(6, BROADCAST_INTERFACE_GENERATOR, (remote_call, dc_impl::remote_broadcast_issue, STANDARD_CALL) )
 
-  #define REQUEST_INTERFACE_GENERATOR(Z,N,ARGS) \
+
+  #define CUSTOM_REQUEST_INTERFACE_GENERATOR(Z,N,ARGS) \
   template<typename F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, typename T)> \
-    BOOST_PP_TUPLE_ELEM(3,0,ARGS) (procid_t target, F remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_) ) {  \
-    ASSERT_LT(target, senders.size()); \
-    return BOOST_PP_CAT( BOOST_PP_TUPLE_ELEM(3,1,ARGS),N) \
+    BOOST_PP_TUPLE_ELEM(3,0,ARGS) (procid_t target, size_t handle, F remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_) ) {  \
+    BOOST_PP_CAT( BOOST_PP_TUPLE_ELEM(3,1,ARGS),N) \
         <F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, T)> \
-          ::exec(senders[target],  BOOST_PP_TUPLE_ELEM(3,2,ARGS), target, remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENI ,_) )(); \
-  }   \
+          ::exec(senders[target],  handle, BOOST_PP_TUPLE_ELEM(3,2,ARGS), target, remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENI ,_) ); \
+  }   
+
 
   #define FUTURE_REQUEST_INTERFACE_GENERATOR(Z,N,ARGS) \
   template<typename F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, typename T)> \
     BOOST_PP_TUPLE_ELEM(3,0,ARGS) (procid_t target, F remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_) ) {  \
     ASSERT_LT(target, senders.size()); \
-    return BOOST_PP_CAT( BOOST_PP_TUPLE_ELEM(3,1,ARGS),N) \
-        <F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, T)> \
-          ::exec(senders[target],  BOOST_PP_TUPLE_ELEM(3,2,ARGS), target, remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENI ,_) )(); \
-  }   \
+    request_future<__GLRPC_FRESULT> reply;      \
+    custom_remote_request(target,  reply.get_handle(), remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENI ,_) ); \
+    return reply; \
+  }  
+
+
+  #define REQUEST_INTERFACE_GENERATOR(Z,N,ARGS) \
+  template<typename F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, typename T)> \
+    BOOST_PP_TUPLE_ELEM(3,0,ARGS) (procid_t target, F remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_) ) {  \
+    request_future<__GLRPC_FRESULT> reply;      \
+    custom_remote_request(target,  reply.get_handle(), remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENI ,_) ); \
+    return reply(); \
+  } 
+
 
   /*
   Generates the interface functions. 3rd argument is a tuple (interface name, issue name, flags)
   */
+  BOOST_PP_REPEAT(6, CUSTOM_REQUEST_INTERFACE_GENERATOR, (void custom_remote_request, dc_impl::remote_request_issue, (STANDARD_CALL | WAIT_FOR_REPLY)) )
    BOOST_PP_REPEAT(6, REQUEST_INTERFACE_GENERATOR, (typename dc_impl::function_ret_type<__GLRPC_FRESULT>::type remote_request, dc_impl::remote_request_issue, STANDARD_CALL | WAIT_FOR_REPLY) )
-  BOOST_PP_REPEAT(6, REQUEST_INTERFACE_GENERATOR, (typename dc_impl::function_ret_type<__GLRPC_FRESULT>::type control_request, dc_impl::remote_request_issue, (STANDARD_CALL | WAIT_FOR_REPLY | CONTROL_PACKET)) )
   BOOST_PP_REPEAT(6, FUTURE_REQUEST_INTERFACE_GENERATOR, (request_future<__GLRPC_FRESULT> future_remote_request, dc_impl::remote_request_issue, (STANDARD_CALL | WAIT_FOR_REPLY)) )
 
 
@@ -469,6 +480,7 @@ class distributed_control{
   #undef BROADCAST_INTERFACE_GENERATOR
   #undef REQUEST_INTERFACE_GENERATOR
   #undef FUTURE_REQUEST_INTERFACE_GENERATOR
+  #undef CUSTOM_REQUEST_INTERFACE_GENERATOR
   #undef GENARC
   #undef GENT
   #undef GENI
