@@ -31,6 +31,7 @@
 
 #include <graphlab/scheduler/ischeduler.hpp>
 #include <graphlab/scheduler/scheduler_factory.hpp>
+#include <graphlab/scheduler/get_message_priority.hpp>
 #include <graphlab/vertex_program/ivertex_program.hpp>
 #include <graphlab/vertex_program/icontext.hpp>
 #include <graphlab/vertex_program/context.hpp>
@@ -39,6 +40,7 @@
 #include <graphlab/options/graphlab_options.hpp>
 #include <graphlab/rpc/dc_dist_object.hpp>
 #include <graphlab/engine/distributed_chandy_misra.hpp>
+#include <graphlab/engine/message_array.hpp>
 
 #include <graphlab/util/tracepoint.hpp>
 #include <graphlab/util/memory_info.hpp>
@@ -308,7 +310,7 @@ namespace graphlab {
     typedef conditional_addition_wrapper<gather_type> conditional_gather_type;
 
     /// \internal \brief The base type of all schedulers
-    typedef ischeduler<message_type> ischeduler_type;
+    message_array<message_type> messages;
 
     /** \internal
      * \brief The true type of the callback context interface which
@@ -550,7 +552,7 @@ namespace graphlab {
     thread_group thrgroup;
 
     //! The scheduler
-    ischeduler_type* scheduler_ptr;
+    ischeduler* scheduler_ptr;
 
     /// vector of vertex states. vstate[lvid] contains the vertex state
     /// for local VID lvid.
@@ -645,8 +647,7 @@ namespace graphlab {
     }
 
     double get_schedule_size() {
-      if (scheduler_ptr != NULL) return (double)scheduler_ptr->approx_size();
-      else return 0;
+      return 0;
     }
 
   public:
@@ -801,9 +802,10 @@ namespace graphlab {
         << rmi.procid() << ": Initializing..." << std::endl;
 
       // construct scheduler passing in the copy of the options from set_options
-      scheduler_ptr = scheduler_factory<message_type>::
+      scheduler_ptr = scheduler_factory::
                     new_scheduler(graph.num_local_vertices(),
                                   opts_copy);
+      messages.resize(graph.num_local_vertices());
 
       // create initial fork arrangement based on the alternate vid mapping
       if (factorized_consistency == false) {
@@ -918,7 +920,9 @@ namespace graphlab {
       // if we cannot directly inject into the vertex, then we have no
       // choice but to put the message into the scheduler
       if (direct_injection == false) {
-          scheduler_ptr->schedule(local_vid, message);
+        double priority;
+        messages.add(local_vid, message, &priority);
+        scheduler_ptr->schedule(local_vid, priority);
       }
       END_TRACEPOINT(disteng_scheduler_task_queue);
       consensus->cancel();
@@ -938,8 +942,7 @@ namespace graphlab {
      Then when the vertex finishes execution, we must reschedule the vertex
      in the scheduler */
       if (force_stop) return;
-      scheduler_ptr->schedule_from_execution_thread(thread::thread_id(),
-                                                      local_vid);
+      scheduler_ptr->schedule(local_vid, 10000.0);
       consensus->cancel();
     }
 
@@ -965,20 +968,24 @@ namespace graphlab {
             rmi.remote_call(owner, &engine_type::rpc_signal, vid, message);
           }
           else {
-            scheduler_ptr->schedule_from_execution_thread(thread::thread_id(),
-                vtx.local_id(), message);
+            double priority;
+            messages.add(vtx.local_id(), message, &priority);
+            scheduler_ptr->schedule(vtx.local_id(), priority);
             consensus->cancel();
           }
         }
         else {
-          scheduler_ptr->schedule_from_execution_thread(thread::thread_id(),
-              vtx.local_id(), message);
+          double priority;
+          messages.add(vtx.local_id(), message, &priority);
+          scheduler_ptr->schedule(vtx.local_id(), priority);
           consensus->cancel();
         }
         END_TRACEPOINT(disteng_scheduler_task_queue);
       }
       else {
-        scheduler_ptr->schedule(vtx.local_id(), message);
+        double priority;
+        messages.add(vtx.local_id(), message, &priority);
+        scheduler_ptr->schedule(vtx.local_id(), priority);
         consensus->cancel();
       }
     } // end of schedule
@@ -1041,26 +1048,8 @@ namespace graphlab {
 
     void signal_all(const message_type& message = message_type(),
                     const std::string& order = "shuffle") {
-      logstream(LOG_DEBUG) << rmi.procid() << ": Schedule All" << std::endl;
-      // allocate a vector with all the local owned vertices
-      // and schedule all of them.
-      std::vector<vertex_id_type> vtxs;
-      vtxs.reserve(graph.num_local_own_vertices());
-      for(lvid_type lvid = 0;
-          lvid < graph.get_local_graph().num_vertices();
-          ++lvid) {
-        if (graph.l_vertex(lvid).owner() == rmi.procid()) {
-          vtxs.push_back(lvid);
-        }
-      }
-
-      if(order == "shuffle") {
-        graphlab::random::shuffle(vtxs.begin(), vtxs.end());
-      }
-      foreach(lvid_type lvid, vtxs) {
-        scheduler_ptr->schedule(lvid, message);
-      }
-      rmi.barrier();
+      vertex_set vset = graph.complete_set();
+      signal_vset(vset, message, order);
     } // end of schedule all
 
     void signal_vset(const vertex_set& vset,
@@ -1084,7 +1073,9 @@ namespace graphlab {
         graphlab::random::shuffle(vtxs.begin(), vtxs.end());
       }
       foreach(lvid_type lvid, vtxs) {
-        scheduler_ptr->schedule(lvid, message);
+        double priority;
+        messages.add(lvid, message, &priority);
+        scheduler_ptr->schedule(lvid, priority);
       }
       rmi.barrier();
     }
@@ -1685,6 +1676,22 @@ EVAL_INTERNAL_TASK_RE_EVAL_STATE:
 
 
     /**
+     * Gets a task from the scheduler and the associated message
+     */
+    sched_status::status_enum 
+        get_next_sched_task(size_t threadid, lvid_type& lvid,
+                            message_type& msg) {
+      while (1) {
+        sched_status::status_enum stat = 
+            scheduler_ptr->get_next(threadid, lvid);
+        if (stat == sched_status::NEW_TASK) {
+          if (messages.get(lvid, msg)) return stat;
+          else continue;
+        }
+        return stat;
+      }
+    }
+    /**
      * \internal
      * Picks up a task from the internal queue or the scheduler.
      * \param has_internal_task Set to true, if an internal task is returned
@@ -1719,8 +1726,8 @@ EVAL_INTERNAL_TASK_RE_EVAL_STATE:
       if (pending_updates.value > max_pending) {
         return;
       }
-      sched_status::status_enum stat =
-        scheduler_ptr->get_next(threadid, sched_lvid, msg);
+      sched_status::status_enum stat = 
+          get_next_sched_task(threadid, sched_lvid, msg);
       has_sched_msg = stat != sched_status::EMPTY;
     } // end of get a task
 
@@ -1796,8 +1803,8 @@ EVAL_INTERNAL_TASK_RE_EVAL_STATE:
       }
       END_TRACEPOINT(disteng_internal_task_queue);
 
-      sched_status::status_enum stat =
-        scheduler_ptr->get_next(threadid, sched_lvid, msg);
+      sched_status::status_enum stat = 
+          get_next_sched_task(threadid, sched_lvid, msg);
       if (stat == sched_status::EMPTY) {
         logstream(LOG_DEBUG) << rmi.procid() << "-" << threadid <<  ": "
                              << "\tTermination Double Checked" << std::endl;
@@ -1880,15 +1887,15 @@ EVAL_INTERNAL_TASK_RE_EVAL_STATE:
      * on this vertex from the scheduler and forward it to the master.
      */
     void forward_cached_schedule(lvid_type lvid) {
-      if (!factorized_consistency) {
-        message_type msg;
-        const typename graph_type::vertex_record& rec = graph.l_get_vertex_record(lvid);
-        if (rec.owner != rmi.procid()) {
-          if (scheduler_ptr->get_specific(lvid, msg) == sched_status::NEW_TASK) {
-            rmi.remote_call(rec.owner, &engine_type::rpc_signal, rec.gvid, msg);
-          }
-        }
-      }
+//       if (!factorized_consistency) {
+//         message_type msg;
+//         const typename graph_type::vertex_record& rec = graph.l_get_vertex_record(lvid);
+//         if (rec.owner != rmi.procid()) {
+//           if (scheduler_ptr->get_specific(lvid, msg) == sched_status::NEW_TASK) {
+//             rmi.remote_call(rec.owner, &engine_type::rpc_signal, rec.gvid, msg);
+//           }
+//         }
+//       }
     }
     /**
      * \internal
@@ -1939,11 +1946,11 @@ EVAL_INTERNAL_TASK_RE_EVAL_STATE:
           blocked_issues.inc();
           pending_updates.dec();
           if (vstate[sched_lvid].hasnext) {
-            scheduler_ptr->place(sched_lvid, msg);
+            messages.add(sched_lvid, msg);
             joined_messages.inc();
           } else {
             vstate[sched_lvid].hasnext = true;
-            scheduler_ptr->place(sched_lvid, msg);
+            messages.add(sched_lvid, msg);
           }
         }
         if (prelocked == false) vstate[sched_lvid].unlock();
@@ -1971,11 +1978,11 @@ EVAL_INTERNAL_TASK_RE_EVAL_STATE:
           blocked_issues.inc();
           pending_updates.dec();
           if (vstate[sched_lvid].hasnext) {
-            scheduler_ptr->place(sched_lvid, msg);
+            messages.add(sched_lvid, msg);
             joined_messages.inc();
           } else {
             vstate[sched_lvid].hasnext = true;
-            scheduler_ptr->place(sched_lvid, msg);
+            messages.add(sched_lvid, msg);
           }
         }
         if (prelocked == false) vstate[sched_lvid].unlock();
@@ -2172,8 +2179,7 @@ EVAL_INTERNAL_TASK_RE_EVAL_STATE:
       ASSERT_TRUE(scheduler_ptr != NULL);
       consensus->reset();
       // start the scheduler
-      scheduler_ptr->start();
-
+     
 
       // start the aggregator
       aggregator.start(ncpus);
@@ -2246,13 +2252,15 @@ EVAL_INTERNAL_TASK_RE_EVAL_STATE:
       blocked_issues.value = ctasks;
 
       ctasks = joined_messages.value;
-      ctasks += scheduler_ptr->num_joins();
+      ctasks += messages.num_joins();
       rmi.all_reduce(ctasks);
       joined_messages.value = ctasks;
 
       double total_upd_time = total_update_time.value;
       rmi.all_reduce(total_upd_time);
       total_update_time.value = total_upd_time;
+
+      ASSERT_TRUE(scheduler_ptr->empty());
 
       rmi.cout() << "Completed Tasks: " << programs_executed.value << std::endl;
       rmi.cout() << "Issued Tasks: " << issued_messages.value << std::endl;

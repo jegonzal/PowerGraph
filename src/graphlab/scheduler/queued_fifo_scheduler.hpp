@@ -32,11 +32,10 @@
 #include <graphlab/parallel/pthread_tools.hpp>
 #include <graphlab/parallel/atomic.hpp>
 
+#include <graphlab/util/dense_bitset.hpp>
 
+#include <graphlab/util/random.hpp>
 #include <graphlab/scheduler/ischeduler.hpp>
-#include <graphlab/parallel/atomic_add_vector2.hpp>
-
-#include <graphlab/scheduler/get_message_priority.hpp>
 #include <graphlab/options/graphlab_options.hpp>
 
 
@@ -53,234 +52,51 @@ namespace graphlab {
    * the shared master queue.  Once a processors out queue is empty it
    * grabs the next out_queue from the master.
    */
-  template<typename Message>
-  class queued_fifo_scheduler : public ischeduler<Message> {
-
+  class queued_fifo_scheduler: public ischeduler {
+  
   public:
-
-    typedef Message message_type;
 
     typedef std::deque<lvid_type> queue_type;
 
   private:
-    atomic_add_vector2<message_type> messages;
+    size_t ncpus;
+    size_t num_vertices;
+    size_t multi;
+    dense_bitset vertex_is_scheduled;
     std::deque<queue_type> master_queue;
     mutex master_lock;
     size_t sub_queue_size;
     std::vector<queue_type> in_queues;
     std::vector<mutex> in_queue_locks;
     std::vector<queue_type> out_queues;
-    double min_priority;
-    // Terminator
+
+    void set_options(const graphlab_options& opts);
+    
+    void initialize_data_structures();
   public:
 
     queued_fifo_scheduler(size_t num_vertices,
-                          const graphlab_options& opts) :
-      messages(num_vertices),
-      sub_queue_size(100),
-      in_queues(opts.get_ncpus()), in_queue_locks(opts.get_ncpus()),
-      out_queues(opts.get_ncpus()),
-      min_priority(-std::numeric_limits<double>::max()){
-      set_options(opts);
-    }
+                          const graphlab_options& opts); 
 
-    void set_options(const graphlab_options& opts) {
-      size_t new_ncpus = opts.get_ncpus();
-      // check if ncpus changed
-      if (new_ncpus != in_queues.size()) {
-        logstream(LOG_INFO) << "Changing ncpus from " << in_queues.size()
-                            << " to " << new_ncpus << std::endl;
-        ASSERT_GE(new_ncpus, 1);
-        // if increasing ncpus, we just resize the queues
-        // push everything in in_queues to the master queue
-        for (size_t i = 0;i < in_queues.size(); ++i) {
-          master_queue.push_back(in_queues[i]);
-          in_queues[i].clear();
-        }
-        // resize the queues
-        in_queues.resize(new_ncpus);
-        in_queue_locks.resize(new_ncpus);
-        out_queues.resize(new_ncpus);
-      }
+    void set_num_vertices(const lvid_type numv);
 
-      // read the remaining options.
-      std::vector<std::string> keys = opts.get_scheduler_args().get_option_keys();
-      foreach(std::string opt, keys) {
-        if (opt == "queuesize") {
-          opts.get_scheduler_args().get_option("queuesize", sub_queue_size);
-        } else if (opt == "min_priority") {
-          opts.get_scheduler_args().get_option("min_priority", min_priority);
-        } else {
-          logstream(LOG_FATAL) << "Unexpected Scheduler Option: " << opt << std::endl;
-        }
-      }
-    }
-
-    void start() {
-      master_lock.lock();
-      for (size_t i = 0;i < in_queues.size(); ++i) {
-        master_queue.push_back(in_queues[i]);
-        in_queues[i].clear();
-      }
-      master_lock.unlock();
-    }
-
-    void schedule(const lvid_type vid,
-                  const message_type& msg) {
-      // If this is a new message, schedule it
-      // the min priority will be taken care of by the get_next function
-      if (messages.add(vid, msg)) {
-        const size_t cpuid = random::rand() % in_queues.size();
-        in_queue_locks[cpuid].lock();
-        queue_type& queue = in_queues[cpuid];
-        queue.push_back(vid);
-        if(queue.size() > sub_queue_size) {
-          master_lock.lock();
-          queue_type emptyq;
-          master_queue.push_back(emptyq);
-          master_queue.back().swap(queue);
-          master_lock.unlock();
-        }
-        in_queue_locks[cpuid].unlock();
-      }
-    } // end of schedule
-
-    void schedule_from_execution_thread(const size_t cpuid,
-                                        const lvid_type vid) {
-      if (!messages.empty(vid)) {
-        ASSERT_LT(cpuid, in_queues.size());
-        in_queue_locks[cpuid].lock();
-        queue_type& queue = in_queues[cpuid];
-        queue.push_back(vid);
-        if(queue.size() > sub_queue_size) {
-          master_lock.lock();
-          queue_type emptyq;
-          master_queue.push_back(emptyq);
-          master_queue.back().swap(queue);
-          master_lock.unlock();
-        }
-        in_queue_locks[cpuid].unlock();
-      }
-    } // end of schedule
-
-    void schedule_all(const message_type& msg,
-                      const std::string& order) {
-      if(order == "shuffle") {
-        std::vector<lvid_type> permutation =
-          random::permutation<lvid_type>(messages.size());
-        foreach(lvid_type vid, permutation)  schedule(vid, msg);
-      } else {
-        for (lvid_type vid = 0; vid < messages.size(); ++vid)
-          schedule(vid, msg);
-      }
-    } // end of schedule_all
-
-    void completed(const size_t cpuid,
-                   const lvid_type vid,
-                   const message_type& msg) {
-    }
-
-
-    sched_status::status_enum
-    get_specific(lvid_type vid,
-                 message_type& ret_msg) {
-      bool get_success = messages.test_and_get(vid, ret_msg);
-      if (get_success) return sched_status::NEW_TASK;
-      else return sched_status::EMPTY;
-    }
-
-    void place(lvid_type vid,
-                 const message_type& msg) {
-      messages.add(vid, msg);
-    }
-
-
-    bool empty() const {
-      for(size_t i = 0; i < in_queues.size(); ++i) {
-        if(!in_queues[i].empty()) return false;
-      }
-      for(size_t i = 0; i < out_queues.size(); ++i) {
-        if(!out_queues[i].empty()) return false;
-      }
-       return true;
-    }
-
-    size_t approx_size() const {
-      size_t sum = 0;
-      for(size_t i = 0; i < in_queues.size(); ++i) {
-        sum += in_queues[i].size();
-      }
-      for(size_t i = 0; i < out_queues.size(); ++i) {
-        sum += out_queues[i].size();
-      }
-      return sum;
-    }
-
-
-
+    void schedule(const lvid_type vid, double priority = 1 /* ignored */);
+    
     /** Get the next element in the queue */
     sched_status::status_enum get_next(const size_t cpuid,
-                                       lvid_type& ret_vid,
-                                       message_type& ret_msg) {
-      // if the local queue is empty try to get a queue from the master
-      while(1) {
-        if(out_queues[cpuid].empty()) {
-          master_lock.lock();
-          if(!master_queue.empty()) {
-            out_queues[cpuid].swap(master_queue.front());
-            master_queue.pop_front();
-          }
-          master_lock.unlock();
-        }
-        // if the local queue is still empty see if there is any local
-        // work left
-        in_queue_locks[cpuid].lock();
-        if(out_queues[cpuid].empty() && !in_queues[cpuid].empty()) {
-          out_queues[cpuid].swap(in_queues[cpuid]);
-        }
-        in_queue_locks[cpuid].unlock();
-        // end of get next
-        queue_type& queue = out_queues[cpuid];
-        if(!queue.empty()) {
-          ret_vid = queue.front();
-          queue.pop_front();
-          if(messages.test_and_get(ret_vid, ret_msg)) {
-            if (scheduler_impl::get_message_priority(ret_msg) >= min_priority) {
-              return sched_status::NEW_TASK;
-            } else {
-                // it is below priority. try to put it back. If putting it back
-                // makes it exceed priority, reschedule it
-              message_type combined_message;
-              messages.add(ret_vid, ret_msg, combined_message);
-              double ret_priority = scheduler_impl::get_message_priority(combined_message);
-              if(ret_priority >= min_priority) {
-                // aargh. we put it back and it exceeded priority
-                // stick it back in the queue.
-                in_queue_locks[cpuid].lock();
-                in_queues[cpuid].push_back(ret_vid);
-                in_queue_locks[cpuid].unlock();
-              }
-            }
-          }
-        } else {
-          return sched_status::EMPTY;
-        }
-      }
-    } // end of get_next_task
+                                       lvid_type& ret_vid);
 
 
-    size_t num_joins() const {
-      return messages.num_joins();
-    }
+    bool empty();
+
     /**
      * Print a help string describing the options that this scheduler
      * accepts.
      */
     static void print_options_help(std::ostream& out) {
       out << "\t queuesize: [the size at which a subqueue is "
-          << "placed in the master queue. default = 100]\n"
-          << "min_priority = [double, minimum priority required to receive \n"
-          << "\t a message, default = -inf]\n";
+          << "placed in the master queue. default = 100]\n";
+      out << "\t multi = [number of queues per thread. Default = 3].\n";
     }
 
 

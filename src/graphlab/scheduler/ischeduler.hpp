@@ -58,118 +58,48 @@ namespace graphlab {
     };
   };
 
-
   /**
    * \ingroup group_schedulers
    *
-   * This describes the interface/concept for . The
-   * engine will be passed the scheduler type as a template argument,
-   * so the scheduler must inherit and satisfy this interface
-   * EXACTLY. Note that all functions (with the exception of the
-   * constructor and destructor and start()) must be thread-safe.
+   * This describes the interface/concept for a scheduler. 
+   * The scheduler allows vertices to be scheduled, but deduplicates
+   * repeated schedulings of the same vertex. The only guarantee is that
+   * if a vertex is scheduled, the vertex will be popped at some point in
+   * the future.
+   * Note that all functions (with the exception of the
+   * constructor and destructor and set_num_vertices()) must be thread-safe.
    */
-  template<typename MessageType>
   class ischeduler {
   public:
-
-    typedef MessageType message_type;
-
 
     /// destructor
     virtual ~ischeduler() {};
 
-    /** Called by engine before starting the schedule. */
-    virtual void start() = 0;
-
-    /** returns true if the scheduler is empty */
-    virtual bool empty() const = 0;
-
-    /** returns the number of tasks in the scheduler. May be an
-        overestimate */
-    virtual size_t approx_size() const = 0;
-
+    /** Sets the number of vertices in the graph. Existing schedule
+     * will not be cleared. Scheduler will not return a vertex ID
+     * exceeding the number of vertices.
+     */
+    virtual void set_num_vertices(const lvid_type numv) = 0;
 
     /**
-     * Adds a message destined to the vertex vid to the schedule.
+     * Adds vertex vid to the schedule. The new priority is the priority value
      */
-    virtual void schedule(const lvid_type vid,
-                          const message_type& message) = 0;
-
-    /**
-     * Adds a message destined to the vertex vid to the schedule
-     */
-    virtual void schedule_from_execution_thread(const size_t cpuid,
-                                                const lvid_type vid,
-                                                const message_type& message) {
-      schedule(vid, message);
-    }
-
-
-    /**
-     * Schedule the message to be received by all vertices in the
-     * graph.
-     */
-    virtual void schedule_all(const message_type& message,
-                              const std::string& order = "sequential") = 0;
+    virtual void schedule(const lvid_type vid, double priority = 1) = 0;
 
 
     /**
      * This function is called by the engine to ask for the next
-     * message to process.  The message and receiving vertex are
+     * vertex to process.  The vertex is 
      * returned in ret_msg and ret_vid respectively.
      *
      *  \retval NEWTASK There is a new message to process
      *  \retval EMPTY There are no messages to process
      */
     virtual sched_status::status_enum
-    get_next(const size_t cpuid, lvid_type& ret_vid,
-             message_type& ret_msg) = 0;
+    get_next(const size_t cpuid, lvid_type& ret_vid) = 0;
 
-
-    /**
-     * Get a message for a specific vertex.
-     */
-    virtual sched_status::status_enum
-    get_specific(lvid_type vid, message_type& ret_msg) {
-      return sched_status::EMPTY;
-    }
-
-
-    /**
-     * Inserts a message for vertex vid to be maintained, but do not
-     * update the schedule.
-     *
-     */
-    virtual void place(lvid_type vid, const message_type& msg) = 0;
-
-
-    /**
-     * Schedules vertex vid using the stored message that was
-     * previously placed using place.
-     */
-    virtual void
-    schedule_from_execution_thread(const size_t cpuid, lvid_type vid) = 0;
-
-    /**
-     * Schedules vertex vid using the stored message that was previously
-     * placed using place.
-     */
-    virtual void schedule(lvid_type vid) { }
-
-
-    /**
-     * This is called after a message has been received.
-     */
-    virtual void completed(const size_t cpuid,
-                           const lvid_type vid,
-                           const message_type& message) { }
-
-
-    /**
-     * Optional to implement. Count the number of message combination
-     * operations performed. Returns (size_t)(-1) if not available.
-     */
-    virtual size_t num_joins() const { return (size_t)(-1);}
+    /// returns true if the scheduler is empty. Need not be consistent.
+    virtual bool empty() = 0;
 
     /**
      * Print a help string describing the options that this scheduler

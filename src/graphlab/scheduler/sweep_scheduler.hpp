@@ -27,11 +27,10 @@
 #include <cmath>
 #include <cassert>
 
-#include <graphlab/scheduler/ischeduler.hpp>
-#include <graphlab/parallel/atomic_add_vector2.hpp>
 #include <graphlab/graph/graph_basic_types.hpp>
-
-#include <graphlab/scheduler/get_message_priority.hpp>
+#include <graphlab/scheduler/ischeduler.hpp>
+#include <graphlab/util/dense_bitset.hpp>
+#include <graphlab/parallel/atomic.hpp>
 #include <graphlab/options/graphlab_options.hpp>
 
 #include <graphlab/macros_def.hpp>
@@ -40,224 +39,59 @@ namespace graphlab {
 
    /** \ingroup group_schedulers
     */
-  template<typename Message>
-  class sweep_scheduler : public ischeduler<Message> {
-  public:
-    typedef Message message_type;
-
+  class sweep_scheduler: public ischeduler {
   private:
 
     size_t ncpus;
 
+    size_t num_vertices;
     bool strict_round_robin;
     atomic<size_t> rr_index;
     size_t max_iterations;
+    size_t randomizer;
 
-
-    std::vector<lvid_type>             vids;
-    std::vector<uint16_t>                   vid2cpu;
     std::vector<lvid_type>             cpu2index;
 
-    atomic_add_vector2<message_type>         messages;
-    double                                  min_priority;
+    dense_bitset vertex_is_scheduled;
     std::string                             ordering;
+
+    void set_options(const graphlab_options& opts);
 
   public:
     sweep_scheduler(size_t num_vertices,
-                    const graphlab_options& opts) :
-          ncpus(opts.get_ncpus()),
-          strict_round_robin(false),
-          max_iterations(std::numeric_limits<size_t>::max()),
-          vids(num_vertices),
-          messages(num_vertices),
-          min_priority(-std::numeric_limits<double>::max()) {
-        // initialize defaults
-      ordering = "random";
-      set_options(opts);
+                    const graphlab_options& opts);
 
-      for(size_t i = 0; i < vids.size(); ++i) vids[i] = i;
-      if (ordering == "ascending") {
-        logstream(LOG_INFO) << "Using an ascending ordering of the vertices." << std::endl;
-      } else if(ordering == "random") {
-        logstream(LOG_INFO)  << "Using a random ordering of the vertices." << std::endl;
-        random::shuffle(vids);
-      }
+    void set_num_vertices(const lvid_type numv);
 
-      if(strict_round_robin) {
-        logstream(LOG_INFO)
-          << "Using a strict round robin schedule." << std::endl;
-        // Max iterations only applies to strict round robin
-        if(max_iterations != std::numeric_limits<size_t>::max()) {
-          logstream(LOG_INFO)
-            << "Using maximum iterations: " << max_iterations << std::endl;
-        }
-        rr_index = 0;
-      } else {
-        // each cpu is responsible for its own subset of vertices
-        // Initialize the cpu2index counters
-        cpu2index.resize(ncpus);
-        for(size_t i = 0; i < cpu2index.size(); ++i) cpu2index[i] = i;
-        // Initialze the reverse map vid2cpu assignment
-        vid2cpu.resize(vids.size());
-        for(size_t i = 0; i < vids.size(); ++i) vid2cpu[vids[i]] = i % ncpus;
-      }
-
-    } // end of constructor
+    void schedule(const lvid_type vid, double priority = 1 /* ignored */) ; 
 
 
-
-    void set_options(const graphlab_options& opts) {
-      size_t new_ncpus = opts.get_ncpus();
-      if (new_ncpus != ncpus) {
-        logstream(LOG_INFO) << "Changing ncpus from " << ncpus << " to " << new_ncpus << std::endl;
-        ASSERT_GE(new_ncpus, 1);
-        ncpus = new_ncpus;
-      }
-      std::vector<std::string> keys = opts.get_scheduler_args().get_option_keys();
-      foreach(std::string opt, keys) {
-        if (opt == "order") {
-          opts.get_scheduler_args().get_option("order", ordering);
-          ASSERT_TRUE(ordering == "random" || ordering == "ascending");
-        } else if (opt == "strict") {
-          opts.get_scheduler_args().get_option("strict", strict_round_robin);
-        } else if (opt == "max_iterations") {
-          opts.get_scheduler_args().get_option("max_iterations", max_iterations);
-        } else if (opt == "min_priority") {
-          opts.get_scheduler_args().get_option("min_priority", min_priority);
-        } else {
-          logstream(LOG_FATAL) << "Unexpected Scheduler Option: " << opt << std::endl;
-        }
-      }
-    }
-
-    void start() {
-    }
-
-    void schedule(const lvid_type vid,
-                  const message_type& msg) {
-      messages.add(vid, msg);
-    } // end of schedule
-
-
-    void schedule_from_execution_thread(const size_t cpuid,
-                                        const lvid_type vid) {
-    } // end of schedule
-
-
-    void schedule_all(const message_type& msg,
-                      const std::string& order) {
-      for (lvid_type vid = 0; vid < messages.size(); ++vid)
-        schedule(vid, msg);
-    } // end of schedule_all
-
-
-    sched_status::status_enum
-    get_specific(lvid_type vid,
-                 message_type& ret_msg) {
-      bool get_success = messages.test_and_get(vid, ret_msg);
-      if (get_success) return sched_status::NEW_TASK;
-      else return sched_status::EMPTY;
-    }
-
-    void place(lvid_type vid,
-                 const message_type& msg) {
-      messages.add(vid, msg);
-    }
-
-    bool empty() const {
-      for (size_t i = 0;i < messages.size(); ++i) {
-        if (!messages.empty(i)) return false;
-      }
-      return true;
-    }
-
-    size_t approx_size() const {
-      size_t sum = 0;
-      for (size_t i = 0;i < messages.size(); ++i) {
-        sum += (!messages.empty(i));
-      }
-      return sum;
-    }
-
-
-
-    sched_status::status_enum get_next(const size_t cpuid,
-                                       lvid_type& ret_vid,
-                                       message_type& ret_msg) {
-      const size_t nverts    = vids.size();
-      const size_t max_fails = (nverts/ncpus) + 1;
-      // Check to see if max iterations have been achieved
-      if(strict_round_robin && (rr_index / nverts) >= max_iterations)
-        return sched_status::EMPTY;
-      // Loop through all vertices that are associated with this
-      // processor searching for a vertex with an active task
-      for(size_t idx = get_and_inc_index(cpuid), fails = 0;
-          fails <= max_fails; //
-          idx = get_and_inc_index(cpuid), ++fails) {
-        // It is possible that the get_and_inc_index could return an
-        // invalid index if the number of cpus exceeds the number of
-        // vertices.  In This case we alwasy return empty
-        if(__builtin_expect(idx >= nverts, false)) return sched_status::EMPTY;
-        const lvid_type vid = vids[idx];
-        bool success = messages.test_and_get(vid, ret_msg);
-        while(success) { // Job found now decide whether to keep it
-          if(scheduler_impl::get_message_priority(ret_msg) >= min_priority) {
-            ret_vid = vid; return sched_status::NEW_TASK;
-          } else {
-            // Priority is insufficient so return to the schedule
-            message_type combined_message;
-            messages.add(vid, ret_msg, combined_message);
-            double ret_priority = scheduler_impl::get_message_priority(combined_message);
-            // when the job was added back it could boost the
-            // priority.  If the priority is sufficiently high we have
-            // to try and remove it again. Now it is possible that if
-            // strict ordering is used it could be taken again so we
-            // may need to repeat the process.
-            if(ret_priority >= min_priority) {
-              success = messages.test_and_get(vid, ret_msg);
-            } else {
-              success = false;
-            }
-          }
-        }// end of while loop over success
-      } // end of for loop
-      return sched_status::EMPTY;
-    } // end of get_next
-
-
-    void completed(const size_t cpuid,
-                   const lvid_type vid,
-                   const message_type& msg) {
-    } // end of completed
-
-
-    size_t num_joins() const {
-      return messages.num_joins();
-    }
-
-
-
+    
+    sched_status::status_enum get_next(const size_t cpuid, lvid_type& ret_vid);
+    
+    
     static void print_options_help(std::ostream &out) {
       out << "order = [string: {random, ascending} default=random]\n"
-          << "strict = [bool, use strict round robin schedule, default=false]\n"
-          << "min_priority = [double, minimum priority required to receive \n"
-          << "\t a message, default = -inf]\n"
+          << "strict = [bool, use strict round robin schedule, default=true]\n"
           << "max_iterations = [integer, maximum number of iterations "
           << " (requires strict=true) \n"
           << "\t default = inf]\n";
     } // end of print_options_help
 
 
+    bool empty() {
+      return (vertex_is_scheduled.popcount() == 0);
+    }
+
   private:
     inline size_t get_and_inc_index(const size_t cpuid) {
-      const size_t nverts = vids.size();
-      if (strict_round_robin) {
-        return rr_index++ % nverts;
+      if (strict_round_robin) { 
+        return rr_index++ % num_vertices; 
       } else {
         const size_t index = cpu2index[cpuid];
         cpu2index[cpuid] += ncpus;
         // Address loop around
-        if (__builtin_expect(cpu2index[cpuid] >= nverts, false))
+        if (__builtin_expect(cpu2index[cpuid] >= num_vertices, false)) 
           cpu2index[cpuid] = cpuid;
         return index;
       }
