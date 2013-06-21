@@ -182,7 +182,6 @@ namespace graphlab {
         memory_info::log_usage("Post Flush");
 
      
-      dense_bitset updated_lvids(graph.num_local_vertices());
       /**************************************************************************/
       /*                                                                        */
       /*                         Construct local graph                          */
@@ -214,13 +213,6 @@ namespace graphlab {
             }
 
             graph.local_graph.add_edge(source_lvid, target_lvid, rec.edata);
-
-            if (source_lvid < updated_lvids.size()) {
-              updated_lvids.set_bit(source_lvid);
-            }
-            if (target_lvid < updated_lvids.size()) {
-              updated_lvids.set_bit(target_lvid);
-            }
           } // end of loop over add edges
         } // end for loop over buffers
         edge_exchange.clear();
@@ -267,9 +259,6 @@ namespace graphlab {
               lvid = graph.vid2lvid[rec.vid];
             }
             graph.local_graph.add_vertex(lvid, rec.vdata);
-            if (lvid < updated_lvids.size()) {
-              updated_lvids.set_bit(lvid);
-            }
           }
         }
         vertex_exchange.clear();
@@ -304,66 +293,63 @@ namespace graphlab {
       /*                          Master handshake                              */
       /*                                                                        */
       /**************************************************************************/
-      buffered_exchange<vertex_id_type> vid_buffer(rpc.dc());
-// #ifdef _OPENMP
-// #pragma omp parallel
-// #endif
-      // send not owned vids to their master
-      for (size_t i = 0; i < graph.lvid2record.size(); ++i) {
-        procid_t master = graph.lvid2record[i].owner;
-        if (master != rpc.procid())
-          vid_buffer.send(master, graph.lvid2record[i].gvid);
-      }
-      vid_buffer.flush();
-      rpc.barrier();
-      // receive all vids owned by me
-      typename buffered_exchange<vertex_id_type>::buffer_type buffer;
-      procid_t recvid;
-      boost::unordered_set<vertex_id_type> flying_vids;
-      while(vid_buffer.recv(recvid, buffer)) {
-        foreach(const vertex_id_type vid, buffer) {
-          if (graph.vid2lvid.find(vid) == graph.vid2lvid.end()) {
-            flying_vids.insert(vid);
+      {
+        buffered_exchange<vertex_id_type> vid_buffer(rpc.dc());
+        #ifdef _OPENMP
+        #pragma omp parallel
+        #endif
+        // send not owned vids to their master
+        for (size_t i = 0; i < graph.lvid2record.size(); ++i) {
+          procid_t master = graph.lvid2record[i].owner;
+          if (master != rpc.procid())
+            vid_buffer.send(master, graph.lvid2record[i].gvid);
+        }
+        vid_buffer.flush();
+        rpc.barrier();
+        // receive all vids owned by me
+        typename buffered_exchange<vertex_id_type>::buffer_type buffer;
+        procid_t recvid;
+        boost::unordered_set<vertex_id_type> flying_vids;
+        while(vid_buffer.recv(recvid, buffer)) {
+          foreach(const vertex_id_type vid, buffer) {
+            if (graph.vid2lvid.find(vid) == graph.vid2lvid.end()) {
+              flying_vids.insert(vid);
+            }
           }
         }
+        vid_buffer.clear();
+        // reallocate spaces for the flying vertices. 
+        size_t vsize_old = graph.lvid2record.size();
+        size_t vsize_new = vsize_old + flying_vids.size();
+        graph.lvid2record.resize(vsize_new);
+        graph.local_graph.resize(vsize_new);
+        for (boost::unordered_set<vertex_id_type>::iterator it = flying_vids.begin();
+             it != flying_vids.end(); ++it) {
+          lvid_type lvid = graph.vid2lvid.size();
+          vertex_id_type gvid = *it; 
+          graph.lvid2record[lvid].owner = rpc.procid();
+          graph.lvid2record[lvid].gvid = gvid;
+          graph.vid2lvid[gvid] = lvid;
+          // std::cout << "proc " << rpc.procid() << " recevies flying vertex " << gvid << std::endl;
+        }
       }
-      vid_buffer.clear();
-      // reallocate spaces for the flying vertices. 
-      size_t vsize_old = graph.lvid2record.size();
-      size_t vsize_new = vsize_old + flying_vids.size();
-      graph.lvid2record.resize(vsize_new);
-      graph.local_graph.resize(vsize_new);
-      for (boost::unordered_set<vertex_id_type>::iterator it = flying_vids.begin();
-           it != flying_vids.end(); ++it) {
-        lvid_type lvid = graph.vid2lvid.size();
-        vertex_id_type gvid = *it; 
-        graph.lvid2record[lvid].owner = rpc.procid();
-        graph.lvid2record[lvid].gvid = gvid;
-        graph.vid2lvid[gvid] = lvid;
-        // std::cout << "proc " << rpc.procid() << " recevies flying vertex " << gvid << std::endl;
-      }
-
-      // if (graph.vid2lvid.count(16)) {
-      //   std::cout << "proc " << rpc.procid() << " has vertex 16 " << std::endl;
-      // }
 
       /**************************************************************************/
       /*                                                                        */
       /*              synchronize vertex data and meta information              */
       /*                                                                        */
       /**************************************************************************/
-      vertex_set changed_vset(true);
-      // TODO: merge updated_vids to changed_vset
-      // changed_vset | updated_vids
-      // changed_vset.synchronize_master_to_mirrors
-      graphlab::graph_gather_apply<graph_type, vertex_negotiator_record> 
-       vrecord_sync_gas(graph, 
-                        boost::bind(&distributed_ingress_base::finalize_gather, this, _1, _2), 
-                        boost::bind(&distributed_ingress_base::finalize_apply, this, _1, _2, _3));
-      vrecord_sync_gas.exec(changed_vset);
+      {
+        vertex_set changed_vset(true);
+        graphlab::graph_gather_apply<graph_type, vertex_negotiator_record> 
+            vrecord_sync_gas(graph, 
+                             boost::bind(&distributed_ingress_base::finalize_gather, this, _1, _2), 
+                             boost::bind(&distributed_ingress_base::finalize_apply, this, _1, _2, _3));
+        vrecord_sync_gas.exec(changed_vset);
 
-      if(rpc.procid() == 0)       
-        memory_info::log_usage("Finihsed synchornizing vertex (meta)data");
+        if(rpc.procid() == 0)       
+          memory_info::log_usage("Finihsed synchornizing vertex (meta)data");
+      }
 
       exchange_global_info();
     } // end of finalize

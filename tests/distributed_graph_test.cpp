@@ -92,9 +92,9 @@ class distributed_graph_test  {
       test_add_edge_impl(g, 10, true);
       test_add_edge_impl(g, 1000, true);
       test_add_edge_impl(g, 10000, true);
-      std::cout << "\n+ Pass test: graph dynamicly add edge. :) \n";
+      dc->cout() << "\n+ Pass test: graph dynamicly add edge. :) \n";
     } else {
-      std::cout << "\n- Graph does not support dynamic. Please compile with -DUSE_DYNAMIC_GRAPH \n";
+      dc->cout() << "\n- Graph does not support dynamic. Please compile with -DUSE_DYNAMIC_GRAPH \n";
     }
   }
 
@@ -160,10 +160,10 @@ private:
     foreach (const pair_type& p, all_edges) {
       if (count++ % dc->numprocs() == dc->procid()) {
         g.add_edge(p.first, p.second, edge_data(p.first, p.second));
-        if (use_dynamic && count % 251 == 0) {
-          g.finalize();
-        } 
       }
+      if (use_dynamic && count % (nedges/5) == 0) {
+        g.finalize();
+      } 
     }
     if (!use_dynamic)
       ASSERT_EQ(g.num_edges(), 0); 
