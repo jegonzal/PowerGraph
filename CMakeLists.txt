@@ -30,9 +30,9 @@ include_directories(
   ${GraphLab_SOURCE_DIR}/deps/local/include)
 
 # set link path
-link_directories(${GraphLab_SOURCE_DIR}/deps/local/lib)
+ link_directories(${GraphLab_SOURCE_DIR}/deps/local/lib)
 
-#add_definitions(-DUSE_DYNAMIC_LOCAL_GRAPH)
+add_definitions(-DUSE_DYNAMIC_LOCAL_GRAPH)
 #add_definitions(-DDEBUG_GRAPH)
 #add_definitions(-DOUTPUTLEVEL=1)
 
@@ -475,10 +475,9 @@ endif()
 
 # MPI =========================================================================
 # MPI is currently used to establish communication between rpc nodes
-set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "/Users/haijieg/mylibs/")
 if(NOT NO_MPI)
   #find_package(MPICH2)
-  find_package(MPI)
+  find_package(MPI) 
 endif()
 
 if(MPI_FOUND)
@@ -518,9 +517,8 @@ macro(requires_core_deps NAME)
     tcmalloc
     event event_pthreads
     zookeeper_mt
-    # qthread
     json)
-  add_dependencies(${NAME} boost libevent libjson zookeeper libtcmalloc) #qthreads libtcmalloc 
+  add_dependencies(${NAME} boost libevent libjson zookeeper libtcmalloc)
   if(MPI_FOUND)
     target_link_libraries(${NAME} ${MPI_LIBRARY} ${MPI_EXTRA_LIBRARY})
   endif(MPI_FOUND)
