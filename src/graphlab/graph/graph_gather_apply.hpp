@@ -384,11 +384,11 @@ namespace graphlab {
     size_t vcount = 0;
     timer ti;
 
-    fixed_dense_bitset<sizeof(size_t)> local_bitset;
+    fixed_dense_bitset<8 * sizeof(size_t)> local_bitset;
     while (1) {
       // increment by a word at a time
       lvid_type lvid_block_start =
-                  shared_lvid_counter.inc_ret_last(sizeof(size_t));
+                  shared_lvid_counter.inc_ret_last(8 * sizeof(size_t));
       if (lvid_block_start >= graph.num_local_vertices()) break;
 
       local_bitset.clear();
@@ -435,11 +435,11 @@ namespace graphlab {
     size_t vcount = 0;
     timer ti;
 
-    fixed_dense_bitset<sizeof(size_t)> local_bitset;
+    fixed_dense_bitset<8 * sizeof(size_t)> local_bitset;
     while (1) {
       // increment by a word at a time
       lvid_type lvid_block_start =
-                  shared_lvid_counter.inc_ret_last(sizeof(size_t));
+                  shared_lvid_counter.inc_ret_last(8 * sizeof(size_t));
       if (lvid_block_start >= graph.num_local_vertices()) break;
 
       local_bitset.clear();
@@ -481,10 +481,10 @@ namespace graphlab {
   template<typename Graph, typename GatherType>
   void graph_gather_apply<Graph,GatherType>::
   execute_applys(const size_t thread_id, const vertex_set& vset) {
-    fixed_dense_bitset<sizeof(size_t)> local_bitset;
+    fixed_dense_bitset<8  * sizeof(size_t)> local_bitset;
     while (1) {
       // increment by a word at a time
-      lvid_type lvid_block_start = shared_lvid_counter.inc_ret_last(sizeof(size_t));
+      lvid_type lvid_block_start = shared_lvid_counter.inc_ret_last(8 * sizeof(size_t));
       if (lvid_block_start >= graph.num_local_vertices()) break;
 
       if (vset.lazy)  {

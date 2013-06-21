@@ -1410,7 +1410,7 @@ namespace graphlab {
     const bool TRY_TO_RECV = true;
     const size_t TRY_RECV_MOD = 100;
     size_t vcount = 0;
-    fixed_dense_bitset<sizeof(size_t)> local_bitset;
+    fixed_dense_bitset<8 * sizeof(size_t)> local_bitset;
     // for(lvid_type lvid = thread_id; lvid < graph.num_local_vertices();
     //     lvid += threads.size()) {
     while (1) {
@@ -1456,7 +1456,7 @@ namespace graphlab {
     const size_t TRY_RECV_MOD = 100;
     size_t vcount = 0;
     size_t nactive_inc = 0;
-    fixed_dense_bitset<sizeof(size_t)> local_bitset;
+    fixed_dense_bitset<8 * sizeof(size_t)> local_bitset;
     while (1) {
       // increment by a word at a time
       lvid_type lvid_block_start =
@@ -1524,7 +1524,7 @@ namespace graphlab {
     //     lvid += threads.size()) {
     timer ti;
 
-    fixed_dense_bitset<sizeof(size_t)> local_bitset;
+    fixed_dense_bitset<8 * sizeof(size_t)> local_bitset;
     while (1) {
       // increment by a word at a time
       lvid_type lvid_block_start =
@@ -1629,7 +1629,7 @@ namespace graphlab {
      //   lvid += threads.size()) {
     timer ti;
 
-    fixed_dense_bitset<sizeof(size_t)> local_bitset;
+    fixed_dense_bitset<8 * sizeof(size_t)> local_bitset;
     while (1) {
       // increment by a word at a time
       lvid_type lvid_block_start =
@@ -1699,7 +1699,7 @@ namespace graphlab {
     // for(lvid_type lvid = thread_id; lvid < graph.num_local_vertices();
     //      lvid += threads.size()) {
     timer ti;
-    fixed_dense_bitset<sizeof(size_t)> local_bitset;
+    fixed_dense_bitset<8 * sizeof(size_t)> local_bitset;
     while (1) {
       // increment by a word at a time
       lvid_type lvid_block_start =
