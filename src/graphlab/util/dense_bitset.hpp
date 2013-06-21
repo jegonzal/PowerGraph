@@ -779,6 +779,70 @@ namespace graphlab {
       return ret;
     }
 
+    fixed_dense_bitset operator&(const fixed_dense_bitset& other) const {
+      ASSERT_EQ(size(), other.size());
+      fixed_dense_bitset ret(size());
+      for (size_t i = 0; i < arrlen; ++i) {
+        ret.array[i] = array[i] & other.array[i];
+      }
+      return ret;
+    }
+
+
+    fixed_dense_bitset operator|(const fixed_dense_bitset& other) const {
+      ASSERT_EQ(size(), other.size());
+      fixed_dense_bitset ret(size());
+      for (size_t i = 0; i < arrlen; ++i) {
+        ret.array[i] = array[i] | other.array[i];
+      }
+      return ret;
+    }
+
+    fixed_dense_bitset operator-(const fixed_dense_bitset& other) const {
+      ASSERT_EQ(size(), other.size());
+      fixed_dense_bitset ret(size());
+      for (size_t i = 0; i < arrlen; ++i) {
+        ret.array[i] = array[i] - (array[i] & other.array[i]);
+      }
+      return ret;
+    }
+
+
+    fixed_dense_bitset& operator&=(const fixed_dense_bitset& other) {
+      ASSERT_EQ(size(), other.size());
+      for (size_t i = 0; i < arrlen; ++i) {
+        array[i] &= other.array[i];
+      }
+      return *this;
+    }
+
+
+    fixed_dense_bitset& operator|=(const fixed_dense_bitset& other) {
+      ASSERT_EQ(size(), other.size());
+      for (size_t i = 0; i < arrlen; ++i) {
+        array[i] |= other.array[i];
+      }
+      return *this;
+    }
+
+    fixed_dense_bitset& operator-=(const fixed_dense_bitset& other) {
+      ASSERT_EQ(size(), other.size());
+      for (size_t i = 0; i < arrlen; ++i) {
+        array[i] = array[i] - (array[i] & other.array[i]);
+      }
+      return *this;
+    }
+
+    bool operator==(const fixed_dense_bitset& other) {
+      ASSERT_EQ(size(), other.size());
+      bool ret = true;
+      for (size_t i = 0; i < arrlen; ++i) {
+        ret &= (array[i] == other.array[i]);
+      }
+      return ret;
+    }
+
+
   private:
     inline static void bit_to_pos(size_t b, size_t &arrpos, size_t &bitpos) {
       // the compiler better optimize this...
