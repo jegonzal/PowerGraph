@@ -76,7 +76,7 @@ namespace graphlab {
      void wrap(std::vector<sizetype>& valueptr_vec,
                std::vector<valuetype>& value_vec) {
 
-       for (ssize_t i = 1; i < valueptr_vec.size(); ++i) {
+       for (ssize_t i = 1; i < (ssize_t)valueptr_vec.size(); ++i) {
          ASSERT_LE(valueptr_vec[i-1], valueptr_vec[i]);
          ASSERT_LT(valueptr_vec[i], value_vec.size());
        }
@@ -167,7 +167,7 @@ namespace graphlab {
 #ifdef _OPENMP
 #pragma omp parallel for
 #endif
-       for (ssize_t i = 0; i < num_keys(); ++i) {
+       for (ssize_t i = 0; i < (ssize_t)num_keys(); ++i) {
          values.repack(begin(i), end(i));
        }
      }

@@ -71,7 +71,7 @@ namespace graphlab {
 
       values.reserve(value_vec.size());
       values.resize(value_vec.size());
-      for (ssize_t i = 0; i < value_vec.size(); ++i) {
+      for (ssize_t i = 0; i < (ssize_t)value_vec.size(); ++i) {
         values[i] = value_vec[permute_index[i]];
       }
 
