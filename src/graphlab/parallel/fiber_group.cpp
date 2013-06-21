@@ -12,7 +12,8 @@ void fiber_group::invoke(const boost::function<void (void)>& spawn_function,
 void fiber_group::launch(const boost::function<void (void)> &spawn_function) {
   increment_running_counter();
   fiber_control::get_instance().launch(boost::bind(invoke, spawn_function, this), 
-                                       stacksize);  
+                                       stacksize,
+                                       affinity);  
 }
 
 void fiber_group::join() {

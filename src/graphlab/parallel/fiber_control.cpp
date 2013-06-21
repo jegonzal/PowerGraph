@@ -2,6 +2,7 @@
 #include <graphlab/util/random.hpp>
 #include <graphlab/parallel/fiber_control.hpp>
 #include <graphlab/logger/assertions.hpp>
+#include <graphlab/macros_def.hpp>
 //#include <valgrind/valgrind.h>
 namespace graphlab {
 
@@ -11,9 +12,16 @@ size_t fiber_control::instance_construct_params_nworkers = 0;
 size_t fiber_control::instance_construct_params_affinity_base = 0;
 pthread_key_t fiber_control::tlskey;
 
+fiber_control::affinity_type fiber_control::all_affinity() {
+  affinity_type ret;
+  ret.fill();
+  return ret;
+}
+
 fiber_control::fiber_control(size_t nworkers, 
                              size_t affinity_base)
     :nworkers(nworkers),
+    affinity_base(affinity_base),
     stop_workers(false),
     flsdeleter(NULL) {
   // initialize the thread local storage keys
@@ -189,12 +197,23 @@ void fiber_control::trampoline(intptr_t _args) {
 
 size_t fiber_control::launch(boost::function<void(void)> fn, 
                              size_t stacksize, 
-                             int affinity) {
+                             affinity_type affinity) {
+  ASSERT_GT(affinity.popcount(), 0);
+  size_t b = 0;
+  ASSERT_TRUE(affinity.first_bit(b));
+  // make sure there is always a worker I can work on
+  ASSERT_LT(b, nworkers);
+
   // allocate a stack
   fiber* fib = new fiber;
   fib->parent = this;
   fib->stack = malloc(stacksize);
   fib->id = fiber_id_counter.inc();
+  foreach(size_t b, affinity) {
+    if (b < nworkers) fib->affinity_array.push_back((unsigned char)b);
+    else break;
+  }
+  ASSERT_GT(fib->affinity_array.size(), 0);
   fib->affinity = affinity;
   //VALGRIND_STACK_REGISTER(fib->stack, (char*)fib->stack + stacksize);
   fib->fls = NULL;
@@ -216,12 +235,7 @@ size_t fiber_control::launch(boost::function<void(void)> fn,
   // find a place to put the thread
   // pick 2 random numbers. use the choice of 2
   // rb uses a linear congruential generator
-  size_t choice = 0;
-  if(affinity >= 0) choice = affinity ;
-  else choice = get_worker_id();
-  if (choice == (size_t)(-1)) {
-    choice = load_balanced_worker_choice(fib->id);
-  }
+  size_t choice = pick_fiber_worker(fib);
   schedule[choice].active_lock.lock();
   active_queue_insert_tail(choice, fib);
   if (schedule[choice].waiting) schedule[choice].active_cond.signal();
@@ -229,10 +243,15 @@ size_t fiber_control::launch(boost::function<void(void)> fn,
   return reinterpret_cast<size_t>(fib);
 }
 
-size_t fiber_control::load_balanced_worker_choice(size_t seed) {
-  size_t ra = seed % nworkers;
-  size_t rb = graphlab::random::fast_uniform<size_t>(0,nworkers-1);
-  size_t choice = (schedule[ra].nactive <= schedule[rb].nactive) ? ra : rb;
+size_t fiber_control::pick_fiber_worker(fiber* fib) {
+  // first try to use the original worker if possible
+  size_t choice = get_worker_id();
+  if (choice == (size_t)(-1) || fib->affinity.get(choice) == 0) {
+    //choice rejected, pick randomly from the available choices
+    size_t ra = graphlab::random::fast_uniform<size_t>(0,fib->affinity_array.size() - 1);
+    size_t rb = graphlab::random::fast_uniform<size_t>(0,fib->affinity_array.size() - 1);
+    choice = (schedule[ra].nactive <= schedule[rb].nactive) ? ra : rb;
+  }
   return choice;
 }
 
@@ -288,11 +307,8 @@ void fiber_control::yield_to(fiber* next_fib) {
   }
   // reread the tls pointer because we may have woken up in a different thread
   t = get_tls_ptr();
-  // clear the priority flag if set
-  if (t->prev_fiber) reschedule_fiber(t->prev_fiber->affinity >= 0 ?
-                                         t->prev_fiber->affinity :
-                                         t->workerid,
-                                      t->prev_fiber);
+  // reschedule the previous fiber
+  if (t->prev_fiber) reschedule_fiber(t->workerid, t->prev_fiber);
   t->prev_fiber = NULL;
 }
 
@@ -417,14 +433,7 @@ void fiber_control::schedule_tid(size_t tid, bool priority) {
     fib->scheduleable = true;
     fib->priority = priority;
     fib->lock.unlock();
-    //size_t choice = (fib->affinity >= 0) ? fib->affinity : fib->parent->load_balanced_worker_choice(fib->id);
-    size_t choice = 0;
-    if (fib->affinity >= 0) choice = fib->affinity;
-    else choice = get_worker_id();
-
-    if (choice == (size_t)(-1)) {
-      choice = fib->parent->load_balanced_worker_choice(fib->id);
-    }
+    size_t choice = fib->parent->pick_fiber_worker(fib);
     fib->parent->reschedule_fiber(choice, fib);
   } else {
     //printf("Scheduling requested of running thread %ld\n", fib->id);

@@ -3,6 +3,7 @@
 #include <cstdlib>
 #include <boost/context/all.hpp>
 #include <boost/function.hpp>
+#include <graphlab/util/dense_bitset.hpp>
 #include <graphlab/parallel/pthread_tools.hpp>
 #include <graphlab/parallel/atomic.hpp>
 namespace graphlab {
@@ -12,13 +13,18 @@ namespace graphlab {
  */
 class fiber_control {
  public:
+
+  typedef fixed_dense_bitset<64> affinity_type;
+  static affinity_type all_affinity();
+
   struct fiber {
     simple_spinlock lock;
     fiber_control* parent;
     boost::context::fcontext_t* context;
     void* stack;
     size_t id;
-    int affinity;
+    affinity_type affinity;
+    std::vector<unsigned char> affinity_array;
     void* fls; // fiber local storage
     fiber* next;
     intptr_t initial_trampoline_args;
@@ -45,6 +51,7 @@ class fiber_control {
 
  private:
   size_t nworkers;
+  size_t affinity_base;
   atomic<size_t> fiber_id_counter;
   atomic<size_t> fibers_active;
   mutex join_lock;
@@ -103,7 +110,7 @@ class fiber_control {
   void yield_to(fiber* next_fib);
   static void trampoline(intptr_t _args);
 
-  size_t load_balanced_worker_choice(size_t seed);
+  size_t pick_fiber_worker(fiber* fib);
 
   void (*flsdeleter)(void*);
   
@@ -120,16 +127,24 @@ class fiber_control {
    */
   size_t launch(boost::function<void (void)> fn, 
                 size_t stacksize = 8192, 
-                int worker_affinity = -1);
+                affinity_type worker_affinity = all_affinity());
 
   inline size_t num_active() const {
     return nactive;
   }
+
   /**
    * Waits for all functions to join
    */
   void join();
 
+
+  /**
+   * Returns the number of workers
+   */
+  size_t num_workers() {
+    return nworkers;
+  }
 
   /**
    * Returns the number of threads that have yet to join

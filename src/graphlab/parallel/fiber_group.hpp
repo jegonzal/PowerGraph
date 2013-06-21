@@ -13,8 +13,12 @@ namespace graphlab {
  * fibers.
  */
 class fiber_group {
+ public:
+  typedef fiber_control::affinity_type affinity_type;
+
  private:
   size_t stacksize;
+  affinity_type affinity;
   atomic<size_t> threads_running;
   mutex join_lock;
   // to be triggered once the threads_running counter becomes 0
@@ -43,8 +47,12 @@ class fiber_group {
                      fiber_group* group);
 
  public:
-  fiber_group(size_t stacksize = 8192) : 
+
+
+  fiber_group(size_t stacksize = 8192, 
+              affinity_type affinity = fiber_control::all_affinity()) : 
       stacksize(stacksize), 
+      affinity(affinity),
       join_waiting(false) { }
 
   /**
