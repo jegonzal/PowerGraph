@@ -48,6 +48,7 @@
 #include <boost/algorithm/string/predicate.hpp>
 #include <boost/iostreams/stream.hpp>
 #include <boost/iostreams/filtering_streambuf.hpp>
+
 #include <boost/iostreams/filtering_stream.hpp>
 #include <boost/iostreams/copy.hpp>
 #include <boost/iostreams/filter/gzip.hpp>
@@ -71,6 +72,8 @@
 
 #include <graphlab/graph/local_graph.hpp>
 #include <graphlab/graph/dynamic_local_graph.hpp>
+
+#include <graphlab/graph/graph_gather_apply.hpp>
 #include <graphlab/graph/ingress/distributed_ingress_base.hpp>
 #include <graphlab/graph/ingress/distributed_batch_ingress.hpp>
 #include <graphlab/graph/ingress/distributed_oblivious_ingress.hpp>
@@ -92,6 +95,10 @@
 #include <graphlab/graph/vertex_set.hpp>
 
 #include <graphlab/macros_def.hpp>
+
+// forward declaration of test class;
+class distributed_graph_test;
+
 namespace graphlab {
 
   /** \brief A directed graph datastructure which is distributed across
@@ -387,6 +394,10 @@ namespace graphlab {
     typedef graphlab::distributed_graph<VertexData, EdgeData> graph_type;
 
     friend class distributed_ingress_base<VertexData, EdgeData>;
+
+    template <typename Graph, typename GatherType>
+    friend class graph_gather_apply;
+
     friend class distributed_random_ingress<VertexData, EdgeData>;
     friend class distributed_identity_ingress<VertexData, EdgeData>;
     friend class distributed_batch_ingress<VertexData, EdgeData>;
@@ -601,6 +612,10 @@ namespace graphlab {
       set_options(opts);
     }
 
+    ~distributed_graph() {
+      delete ingress_ptr; ingress_ptr = NULL;
+    }
+
   private:
     void set_options(const graphlab_options& opts) {
       size_t bufsize = 50000;
@@ -646,6 +661,10 @@ namespace graphlab {
 
 
     // METHODS ===============================================================>
+    bool is_dynamic() const {
+      return local_graph.is_dynamic();
+    }
+    
     /**
      * \brief Commits the graph structure. Once a graph is finalized it may
      * no longer be modified. Must be called on all machines simultaneously.
@@ -664,9 +683,6 @@ namespace graphlab {
       ingress_ptr->finalize();
       rpc.barrier(); 
 
-#ifndef USE_DYNAMIC_LOCAL_GRAPH
-      delete ingress_ptr; ingress_ptr = NULL;
-#endif
       finalized = true;
     }
 
@@ -1384,9 +1400,10 @@ namespace graphlab {
         vrec.clear();
       lvid2record.clear();
       vid2lvid.clear();
+      local_graph.clear();
       finalized=false;
+      nverts = nedges = local_own_nverts = nreplicas = begin_eid = 0;
     }
-
 
 
     /** \brief Load a distributed graph from a native binary format
@@ -2703,10 +2720,10 @@ namespace graphlab {
       }
 
       /// \brief Returns the source local vertex of the edge
-      local_vertex_type source() { return local_vertex_type(graph_ref, e.source().id()); }
+      local_vertex_type source() const { return local_vertex_type(graph_ref, e.source().id()); }
 
       /// \brief Returns the target local vertex of the edge
-      local_vertex_type target() { return local_vertex_type(graph_ref, e.target().id()); }
+      local_vertex_type target() const { return local_vertex_type(graph_ref, e.target().id()); }
 
 
 
@@ -3131,6 +3148,7 @@ namespace graphlab {
     } // end of load
 
 
+    friend class distributed_graph_test;
 
   }; // End of graph
 } // end of namespace graphlab
