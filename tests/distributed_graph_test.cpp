@@ -358,12 +358,20 @@ private:
     ASSERT_EQ(vids.size(), g.num_vertices());
     foreach(vertex_id_type vid, vids) {
       std::vector<vinfo_type> records;
+      std::vector<size_t> mirrors_expected;
       for (size_t i = 0; i < vinfo_map_gather.size(); ++i) {
         if (vinfo_map_gather[i].count(vid)) {
           records.push_back(vinfo_map_gather[i][vid]);
+          mirror_expected.push_back(i);
         }
-      } 
+      }
       ASSERT_EQ(records.size(), records[0].mirrors.popcount()+1);
+      for (size_t i = 0; i < mirror_expected.size(); ++i) {
+        if !(records[0].master == mirror_expected[i]) {
+          ASSERT_TRUE(records[0].get(mirror_expected[i]));
+        }
+      }
+
       for (size_t i = 1; i < records.size(); ++i) {
         ASSERT_TRUE(records[i] == records[0]);
       }

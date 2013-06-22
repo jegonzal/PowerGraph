@@ -28,6 +28,7 @@
 // includes the entire graphlab framework
 #include <graphlab/graph/local_graph.hpp>
 #include <graphlab/graph/dynamic_local_graph.hpp>
+#include <graphlab/util/random.hpp>
 #include <graphlab/macros_def.hpp>
 
 /**
@@ -74,7 +75,7 @@ public:
     test_add_edge_impl(g2, 100);
     test_add_edge_impl(g2, 10000);
     test_add_edge_impl(g2, 100000);
-    std::cout << "\n+ Pass test: dynamic graph add edge. :) \n";
+      std::cout << "\n+ Pass test: dynamic graph add edge. :) \n";
   }
 
   void test_dynamic_add_edge() {
@@ -85,6 +86,19 @@ public:
     std::cout << "\n+ Pass test: graph dynamicly add edge. :) \n";
   }
 
+  void test_powerlaw_graph() {
+    graphlab::local_graph<vertex_data, edge_data> g;
+    graphlab::dynamic_local_graph<vertex_data, edge_data> g2;
+    test_powerlaw_graph_impl(g, 100); // add edge (powerlaw) 
+    test_powerlaw_graph_impl(g, 10000);
+
+    test_powerlaw_graph_impl(g2, 100); // add edge (powerlaw) 
+    test_powerlaw_graph_impl(g2, 10000);
+
+    test_powerlaw_graph_impl(g2, 100, true); // add edge (powerlaw) dynamically
+    test_powerlaw_graph_impl(g2, 10000, true);
+    std::cout << "\n+ Pass test: powerlaw graph add edge. :) \n";
+  }
 
   void test_edge_case() {
     graphlab::local_graph<vertex_data, edge_data> g;
@@ -93,7 +107,7 @@ public:
 
     graphlab::dynamic_local_graph<vertex_data, edge_data> g2;
     test_edge_case_impl(g2);
-    std::cout << "\n+ Pass test: dynamic graph add edge. :) \n";
+    std::cout << "\n+ Pass test: dynamic graph edge case test. :) \n";
   }
 
 
@@ -498,6 +512,68 @@ template<typename Graph>
       printf("+ Pass test: iterate edgelist and get data. :) \n");
       std::cout << "-----------End Grid Test--------------------" << std::endl;
     }
+  }
+
+  /**
+   * Test powerlaw graph.
+   */
+  template<typename Graph>
+  void test_powerlaw_graph_impl(Graph& g, size_t nverts, bool use_dynamic = false, double alpha = 2.1) {
+    g.clear();
+    typedef typename Graph::edge_list_type edge_list_type;
+    typedef typename Graph::edge_type edge_type;
+    typedef typename Graph::vertex_type vertex_type;
+    typedef typename Graph::vertex_id_type vertex_id_type;
+
+    boost::unordered_map<vertex_id_type, std::vector<vertex_id_type> > out_edges;
+    boost::unordered_map<vertex_id_type, std::vector<vertex_id_type> > in_edges;
+    boost::unordered_set< std::pair<vertex_id_type,vertex_id_type> > all_edges;
+
+      // construct powerlaw out degree distribution 
+      std::vector<double> prob(nverts, 0);
+      for(size_t i = 0; i < prob.size(); ++i)
+        prob[i] = std::pow(double(i+1), -alpha);
+      graphlab::random::pdf2cdf(prob);
+
+      // A large prime number
+      const size_t HASH_OFFSET = 2654435761;
+      // construct powerlaw graph with no dup edges
+      for(vertex_id_type src  = 0; src < nverts; ++src) {
+        const size_t out_degree = graphlab::random::multinomial_cdf(prob) + 1;
+        for(size_t i = 0; i < out_degree; ++i) {
+          vertex_id_type dst = (dst + HASH_OFFSET)  % nverts;
+          while (src == dst) {
+            dst = (dst + HASH_OFFSET)  % nverts;
+          }
+          std::pair<vertex_id_type, vertex_id_type> pair(src, dst);
+          if (!all_edges.count(pair))  {
+            all_edges.insert(pair);
+            if (!out_edges.count(src)) {
+              out_edges[src] = std::vector<vertex_id_type>();
+            } 
+            if (!in_edges.count(dst)) {
+              in_edges[dst] = std::vector<vertex_id_type>();
+            }
+            in_edges[dst].push_back(src);
+            out_edges[src].push_back(dst);
+          }
+        }
+      }
+
+    typedef typename boost::unordered_set< std::pair<vertex_id_type, vertex_id_type> >::value_type pair_type; 
+    size_t count = 0;
+    foreach (const pair_type& p, all_edges) {
+      g.add_edge(p.first, p.second, edge_data(p.first, p.second));
+      ++count;
+      if (use_dynamic && count % (all_edges.size()/5) == 0) {
+        g.finalize();
+      }
+    }
+    if (!use_dynamic)
+      ASSERT_EQ(g.num_edges(), 0); 
+    g.finalize();
+    check_adjacency(g, in_edges, out_edges, all_edges.size());
+    check_edge_data(g);
   }
 };
 
