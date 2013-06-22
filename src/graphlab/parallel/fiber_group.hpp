@@ -55,6 +55,24 @@ class fiber_group {
       affinity(affinity),
       join_waiting(false) { }
 
+
+  /**
+   * Sets the stacksize of each fiber.
+   * Only takes effect for threads launched after this.
+   */
+  inline void set_stacksize(size_t new_stacksize) {
+    stacksize = new_stacksize;
+  }
+
+
+  /**
+   * Sets the affinity for each fiber.
+   * Only takes effect for threads launched after this.
+   */
+  inline void set_affinity(affinity_type new_affinity) {
+    affinity = new_affinity;
+  }
+
   /**
    * Launch a single thread which calls spawn_function.
    */
