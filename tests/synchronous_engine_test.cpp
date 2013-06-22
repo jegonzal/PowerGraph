@@ -65,9 +65,20 @@ void test_in_neighbors(graphlab::distributed_control& dc,
   engine_type engine(dc, graph, clopts);
   std::cout << "Scheduling all vertices to count their neighbors" << std::endl;
   engine.signal_all();
+
   std::cout << "Running!" << std::endl;
   engine.start();
   std::cout << "Finished" << std::endl;
+
+  if (graph.is_dynamic()) {
+    std::cout << "Test engine on dynamic graph !" << std::endl;
+    graph.load_synthetic_powerlaw(10000);
+    graph.finalize();
+    engine.signal_all();
+    std::cout << "Running!" << std::endl;
+    engine.start();
+    std::cout << "Finished" << std::endl;
+  }
 }
 
 
@@ -106,6 +117,16 @@ void test_out_neighbors(graphlab::distributed_control& dc,
   std::cout << "Running!" << std::endl;
   engine.start();
   std::cout << "Finished" << std::endl;
+
+  if (graph.is_dynamic()) {
+    std::cout << "Test engine on dynamic graph !" << std::endl;
+    graph.load_synthetic_powerlaw(10000);
+    graph.finalize();
+    engine.signal_all();
+    std::cout << "Running!" << std::endl;
+    engine.start();
+    std::cout << "Finished" << std::endl;
+  }
 }
 
 
@@ -144,6 +165,15 @@ void test_all_neighbors(graphlab::distributed_control& dc,
   std::cout << "Running!" << std::endl;
   engine.start();
   std::cout << "Finished" << std::endl;
+  if (graph.is_dynamic()) {
+    std::cout << "Test engine on dynamic graph !" << std::endl;
+    graph.load_synthetic_powerlaw(10000);
+    graph.finalize();
+    engine.signal_all();
+    std::cout << "Running!" << std::endl;
+    engine.start();
+    std::cout << "Finished" << std::endl;
+  }
 }
 
 
@@ -204,6 +234,16 @@ void test_messages(graphlab::distributed_control& dc,
   std::cout << "Running!" << std::endl;
   engine.start();
   std::cout << "Finished" << std::endl;
+  if (graph.is_dynamic()) {
+    engine.init();
+    std::cout << "Test engine on dynamic graph !" << std::endl;
+    graph.load_synthetic_powerlaw(10000);
+    graph.finalize();
+    engine.signal_all(-1);
+    std::cout << "Running!" << std::endl;
+    engine.start();
+    std::cout << "Finished" << std::endl;
+  }
 }
 
 
@@ -252,6 +292,7 @@ void iteration_finalize(count_aggregators::icontext_type& context,
   ASSERT_EQ(finalize_iter++, context.iteration());
 }
 
+
 void test_count_aggregators(graphlab::distributed_control& dc,
                             graphlab::command_line_options& clopts,
                             graph_type& graph) {
@@ -284,7 +325,6 @@ int main(int argc, char** argv) {
   std::cout << "Creating a powerlaw graph" << std::endl;
   graph_type graph(dc, clopts);
   graph.load_synthetic_powerlaw(10000);
-
   test_in_neighbors(dc, clopts, graph);
   test_out_neighbors(dc, clopts, graph);
   test_all_neighbors(dc, clopts, graph);

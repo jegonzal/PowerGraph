@@ -358,6 +358,16 @@ namespace graphlab {
      */
     size_t max_iterations;
 
+
+   /* 
+    * \brief When caching is enabled the gather phase is skipped for
+    * vertices that already have a cached value.  To use caching the
+    * vertex program must either clear (\ref icontext::clear_gather_cache)
+    * or update (\ref icontext::post_delta) the cache values of
+    * neighboring vertices during the scatter phase.
+    */
+    bool use_cache;
+
     /**
      * \brief A snapshot is taken every this number of iterations.
      * If snapshot_interval == 0, a snapshot is only taken before the first
@@ -672,7 +682,21 @@ namespace graphlab {
      */
     aggregator_type* get_aggregator();
 
+    /**
+     * \brief Initialize the engine and allocate datastructures for vertex, and lock,
+     * clear all the messages.
+     */
+    void init();
+
+
   private:
+
+
+    /**
+     * \brief Resize the datastructures to fit the graph size (in case of dynamic graph). Keep all the messages
+     * and caches.
+     */
+    void resize();
 
     /**
      * \brief This internal stop function is called by the \ref graphlab::context to
@@ -986,7 +1010,7 @@ namespace graphlab {
     // Process any additional options
     std::vector<std::string> keys = opts.get_engine_args().get_option_keys();
     per_thread_compute_time.resize(opts.get_ncpus());
-    bool use_cache = false;
+    use_cache = false;
     foreach(std::string opt, keys) {
       if (opt == "max_iterations") {
         opts.get_engine_args().get_option("max_iterations", max_iterations);
@@ -1032,9 +1056,26 @@ namespace graphlab {
     ADD_CUMULATIVE_EVENT(EVENT_GATHERS , "Gathers", "Calls");
     ADD_CUMULATIVE_EVENT(EVENT_SCATTERS , "Scatters", "Calls");
     ADD_INSTANTANEOUS_EVENT(EVENT_ACTIVE_CPUS, "Active Threads", "Threads");
-
-    // Finalize the graph
     graph.finalize();
+    init();
+  } // end of synchronous engine
+
+
+  template<typename VertexProgram>
+  void synchronous_engine<VertexProgram>:: init() {
+    resize();
+    // Clear up
+    completed_applys = 0;
+    has_message.clear();
+    has_gather_accum.clear();
+    has_cache.clear();
+    active_superstep.clear();
+    active_minorstep.clear();
+  }
+
+
+  template<typename VertexProgram>
+  void synchronous_engine<VertexProgram>:: resize() {
     memory_info::log_usage("Before Engine Initialization");
     // Allocate vertex locks and vertex programs
     vlocks.resize(graph.num_local_vertices());
@@ -1044,31 +1085,22 @@ namespace graphlab {
     // Allocate messages and message bitset
     messages.resize(graph.num_local_vertices(), message_type());
     has_message.resize(graph.num_local_vertices());
-    has_message.clear();
     // Allocate gather accumulators and accumulator bitset
     gather_accum.resize(graph.num_local_vertices(), gather_type());
     has_gather_accum.resize(graph.num_local_vertices());
-    has_gather_accum.clear();
+
     // If caching is used then allocate cache data-structures
     if (use_cache) {
       gather_cache.resize(graph.num_local_vertices(), gather_type());
       has_cache.resize(graph.num_local_vertices());
-      has_cache.clear();
     }
     // Allocate bitset to track active vertices on each bitset.
     active_superstep.resize(graph.num_local_vertices());
-    active_superstep.clear();
     active_minorstep.resize(graph.num_local_vertices());
-    active_minorstep.clear();
+
     // Print memory usage after initialization
     memory_info::log_usage("After Engine Initialization");
-    rmi.barrier();
-  } // end of synchronous engine
-
-
-
-
-
+  }
 
 
   template<typename VertexProgram>
@@ -1094,6 +1126,8 @@ namespace graphlab {
   template<typename VertexProgram>
   void synchronous_engine<VertexProgram>::
   signal(vertex_id_type gvid, const message_type& message) {
+    if (vlocks.size() != graph.num_local_vertices())
+      resize();
     rmi.barrier();
     internal_signal_rpc(gvid, message);
     rmi.barrier();
@@ -1104,6 +1138,8 @@ namespace graphlab {
   template<typename VertexProgram>
   void synchronous_engine<VertexProgram>::
   signal_all(const message_type& message, const std::string& order) {
+    if (vlocks.size() != graph.num_local_vertices())
+      resize();
     for(lvid_type lvid = 0; lvid < graph.num_local_vertices(); ++lvid) {
       if(graph.l_is_master(lvid)) {
         internal_signal(vertex_type(graph.l_vertex(lvid)), message);
@@ -1116,6 +1152,8 @@ namespace graphlab {
   void synchronous_engine<VertexProgram>::
   signal_vset(const vertex_set& vset,
              const message_type& message, const std::string& order) {
+    if (vlocks.size() != graph.num_local_vertices())
+      resize();
     for(lvid_type lvid = 0; lvid < graph.num_local_vertices(); ++lvid) {
       if(graph.l_is_master(lvid) && vset.l_contains(lvid)) {
         internal_signal(vertex_type(graph.l_vertex(lvid)), message);
@@ -1223,8 +1261,11 @@ namespace graphlab {
 
   template<typename VertexProgram> execution_status::status_enum
   synchronous_engine<VertexProgram>::start() {
+    if (vlocks.size() != graph.num_local_vertices())
+      resize();
+    completed_applys = 0;
     rmi.barrier();
-    graph.finalize();
+
     // Initialization code ==================================================
     // Reset event log counters?
     // Start the timer
@@ -1240,6 +1281,7 @@ namespace graphlab {
     // }
     aggregator.start();
     rmi.barrier();
+
     if (snapshot_interval == 0) {
       graph.save_binary(snapshot_path);
     }
