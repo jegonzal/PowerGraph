@@ -21,6 +21,7 @@ void queued_fifo_scheduler::initialize_data_structures() {
   ASSERT_GT(ncpus * multi, 1);
   in_queues.resize(ncpus * multi);
   in_queue_locks.resize(ncpus * multi);
+  out_queue_locks.resize(ncpus * multi);
   out_queues.resize(ncpus);
   vertex_is_scheduled.resize(num_vertices);
 }
@@ -67,11 +68,15 @@ sched_status::status_enum queued_fifo_scheduler::get_next(const size_t cpuid,
                                                           lvid_type& ret_vid) {
   queue_type& myqueue = out_queues[cpuid];
   // if the local queue is empty try to get a queue from the master
+  out_queue_locks[cpuid].lock();
   if(myqueue.empty()) {
     master_lock.lock();
     // if master queue is empty... 
-    if (master_queue.empty()) {
-      master_lock.unlock();
+    if (!master_queue.empty()) {
+      myqueue.swap(master_queue.front());
+      master_queue.pop_front();
+    }
+    else {
       //try to steal from the inqueues
       for (size_t i = 0; i < in_queues.size(); ++i) {
         size_t idx = (i + multi * cpuid) % in_queues.size();
@@ -85,14 +90,8 @@ sched_status::status_enum queued_fifo_scheduler::get_next(const size_t cpuid,
           if (!myqueue.empty()) break;
         } 
       }
-    } else {
-      // master queue has stuff. take from it
-      if(!master_queue.empty()) {
-        myqueue.swap(master_queue.front());
-        master_queue.pop_front();
-      }
-      master_lock.unlock();
     }
+    master_lock.unlock();
   }
   // end of get next
   bool good = false;
@@ -105,6 +104,7 @@ sched_status::status_enum queued_fifo_scheduler::get_next(const size_t cpuid,
       if (good) break;
     }
   }
+  out_queue_locks[cpuid].unlock();
 
   if(good) {
     return sched_status::NEW_TASK;
