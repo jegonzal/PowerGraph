@@ -420,8 +420,8 @@ int main(int argc, char** argv) {
 
   // run tests
   distributed_graph_test testsuit; 
-  // testsuit.test_add_vertex();
-  // testsuit.test_add_edge();
+  testsuit.test_add_vertex();
+  testsuit.test_add_edge();
   testsuit.test_dynamic_add_edge();
 
   delete(dc);

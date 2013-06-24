@@ -396,38 +396,6 @@ namespace graphlab {
         }
       }
 
-      // if (rpc.procid() == 0) {
-      //   std::cout << "proc 0" << std::endl;
-      //   foreach (const typename vid2lvid_map_type::value_type& pair, graph.vid2lvid) {
-      //     vertex_id_type gvid = pair.first;
-      //     lvid_type lvid = pair.second;
-      //     vertex_record& vrec = graph.lvid2record[lvid];
-      //     std::cout << gvid << "\t" << lvid << "\t" <<  vrec.owner << "\t" << vrec.num_in_edges << "\t" << vrec.num_out_edges
-      //               << "\t" << "(";
-      //     foreach (size_t i, vrec._mirrors) {
-      //       std::cout << i << ",";
-      //     }
-      //     std::cout << ")" << std::endl;
-      //   }
-      // } 
-      // rpc.barrier();
-      // if (rpc.procid() == 1) {
-      //   std::cout << "proc 1" << std::endl;
-      //   foreach (const typename vid2lvid_map_type::value_type& pair, graph.vid2lvid) {
-      //     vertex_id_type gvid = pair.first;
-      //     lvid_type lvid = pair.second;
-      //     vertex_record& vrec = graph.lvid2record[lvid];
-      //     std::cout << gvid << "\t" << lvid << "\t" << vrec.owner << "\t" << vrec.num_in_edges << "\t" << vrec.num_out_edges
-      //               << "\t" << "(";
-      //     foreach (size_t i, vrec._mirrors) {
-      //       std::cout << i << ",";
-      //     }
-      //     std::cout << ")" << std::endl;
-      //   }
-      // }
-
-
-
 
       /**************************************************************************/
       /*                                                                        */
@@ -443,40 +411,12 @@ namespace graphlab {
           updated_lvids.set_bit(i);
         }
 
-        // if (rpc.procid() == 0) {
-        //   std::cout << "proc 0" << std::endl;
-        //   foreach (lvid_type lvid, updated_lvids) {
-        //     std::cout << lvid  << "\t";
-        //   }
-        //   std::cout << std::endl;
-        // }
-        // rpc.barrier();
-        // if (rpc.procid() == 1) {
-        //   std::cout << "proc 1" << std::endl;
-        //   foreach (lvid_type lvid, updated_lvids) {
-        //     std::cout << lvid << "\t";
-        //   }
-        //   std::cout << std::endl;
-        // }
-
+        
         changed_vset.localvset = updated_lvids; 
         buffered_exchange<vertex_id_type> vset_exchange(rpc.dc());
         // sync vset with all mirrors
         changed_vset.synchronize_mirrors_to_master_or(graph, vset_exchange);
         changed_vset.synchronize_master_to_mirrors(graph, vset_exchange);
-        // if (rpc.procid() == 0) {
-        //   std::cout << "proc id = 0" << std::endl;
-        //   foreach(size_t i, changed_vset.localvset) {
-        //     std::cout << "gas vertex: " << graph.global_vid(i) << "\n";
-        //   }
-        // }
-        // rpc.barrier();
-        // if (rpc.procid() == 1) {
-        //   std::cout << "proc id = 1" << std::endl;
-        //   foreach(size_t i, changed_vset.localvset) {
-        //     std::cout << "gas vertex: " << graph.global_vid(i) << "\n";
-        //   }
-        // }
 
         graphlab::graph_gather_apply<graph_type, vertex_negotiator_record> 
             vrecord_sync_gas(graph, 
@@ -489,39 +429,6 @@ namespace graphlab {
         if(rpc.procid() == 0)       
           memory_info::log_usage("Finihsed synchornizing vertex (meta)data");
       }
-
-
-      // if (rpc.procid() == 0) {
-      //   std::cout << "proc 0" << std::endl;
-      //   foreach (const typename vid2lvid_map_type::value_type& pair, graph.vid2lvid) {
-      //     vertex_id_type gvid = pair.first;
-      //     lvid_type lvid = pair.second;
-      //     vertex_record& vrec = graph.lvid2record[lvid];
-      //     std::cout << gvid << "\t" << lvid << "\t" <<  vrec.owner << "\t" << vrec.num_in_edges << "\t" << vrec.num_out_edges
-      //               << "\t" << "(";
-      //     foreach (size_t i, vrec._mirrors) {
-      //       std::cout << i << ",";
-      //     }
-      //     std::cout << ")" << std::endl;
-      //   }
-      // } 
-      // rpc.barrier();
-      // if (rpc.procid() == 1) {
-      //   std::cout << "proc 1" << std::endl;
-      //   foreach (const typename vid2lvid_map_type::value_type& pair, graph.vid2lvid) {
-      //     vertex_id_type gvid = pair.first;
-      //     lvid_type lvid = pair.second;
-      //     vertex_record& vrec = graph.lvid2record[lvid];
-      //     std::cout << gvid << "\t" << lvid << "\t" << vrec.owner << "\t" << vrec.num_in_edges << "\t" << vrec.num_out_edges
-      //               << "\t" << "(";
-      //     foreach (size_t i, vrec._mirrors) {
-      //       std::cout << i << ",";
-      //     }
-      //     std::cout << ")" << std::endl;
-      //   }
-      // }
-
-
 
       exchange_global_info();
     } // end of finalize
