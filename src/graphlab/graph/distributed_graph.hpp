@@ -95,9 +95,9 @@
 #include <graphlab/graph/vertex_set.hpp>
 
 #include <graphlab/macros_def.hpp>
-
+namespace tests {
 class distributed_graph_test;
-
+}
 namespace graphlab {
 
   /** \brief A directed graph datastructure which is distributed across
@@ -3146,7 +3146,7 @@ namespace graphlab {
       rpc.full_barrier();
     } // end of load
 
-    friend distributed_graph_test;
+    friend class tests::distributed_graph_test;
   }; // End of graph
 } // end of namespace graphlab
 #include <graphlab/macros_undef.hpp>

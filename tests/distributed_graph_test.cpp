@@ -43,7 +43,7 @@ std::vector<T> operator+=(std::vector<T>& v1, const std::vector<T>& v2) {
     v1.push_back(v2[i]);
   return v1;
 }
-
+namespace tests{
 class distributed_graph_test  {
  public:
    struct vertex_data: public graphlab::IS_POD_TYPE  {
@@ -385,6 +385,10 @@ class distributed_graph_test  {
          } // end for loop over all vertices
        }
 }; // end of distributed_graph_test
+
+} // namespace
+
+using namespace tests;
 
 template<typename K, typename V>
 class map_reduce {
