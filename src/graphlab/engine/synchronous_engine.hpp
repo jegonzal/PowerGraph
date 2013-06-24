@@ -1452,9 +1452,7 @@ namespace graphlab {
     const bool TRY_TO_RECV = true;
     const size_t TRY_RECV_MOD = 100;
     size_t vcount = 0;
-    fixed_dense_bitset<8 * sizeof(size_t)> local_bitset;
-    // for(lvid_type lvid = thread_id; lvid < graph.num_local_vertices();
-    //     lvid += threads.size()) {
+    fixed_dense_bitset<8 * sizeof(size_t)> local_bitset; // a word-size = 64 bit
     while (1) {
       // increment by a word at a time
       lvid_type lvid_block_start =
@@ -1498,7 +1496,8 @@ namespace graphlab {
     const size_t TRY_RECV_MOD = 100;
     size_t vcount = 0;
     size_t nactive_inc = 0;
-    fixed_dense_bitset<8 * sizeof(size_t)> local_bitset;
+    fixed_dense_bitset<8 * sizeof(size_t)> local_bitset; // a word-size = 64 bit
+
     while (1) {
       // increment by a word at a time
       lvid_type lvid_block_start =
@@ -1562,11 +1561,10 @@ namespace graphlab {
     const size_t TRY_RECV_MOD = 1000;
     size_t vcount = 0;
     const bool caching_enabled = !gather_cache.empty();
-    // for(lvid_type lvid = thread_id; lvid < graph.num_local_vertices();
-    //     lvid += threads.size()) {
     timer ti;
 
-    fixed_dense_bitset<8 * sizeof(size_t)> local_bitset;
+    fixed_dense_bitset<8 * sizeof(size_t)> local_bitset; // a word-size = 64 bit
+
     while (1) {
       // increment by a word at a time
       lvid_type lvid_block_start =
@@ -1667,11 +1665,9 @@ namespace graphlab {
     const bool TRY_TO_RECV = true;
     const size_t TRY_RECV_MOD = 1000;
     size_t vcount = 0;
-    //for(lvid_type lvid = thread_id; lvid < graph.num_local_vertices();
-     //   lvid += threads.size()) {
     timer ti;
 
-    fixed_dense_bitset<8 * sizeof(size_t)> local_bitset;
+    fixed_dense_bitset<8 * sizeof(size_t)> local_bitset;  // allocate a word size = 64bits
     while (1) {
       // increment by a word at a time
       lvid_type lvid_block_start =
@@ -1738,10 +1734,8 @@ namespace graphlab {
   void synchronous_engine<VertexProgram>::
   execute_scatters(const size_t thread_id) {
     context_type context(*this, graph);
-    // for(lvid_type lvid = thread_id; lvid < graph.num_local_vertices();
-    //      lvid += threads.size()) {
     timer ti;
-    fixed_dense_bitset<8 * sizeof(size_t)> local_bitset;
+    fixed_dense_bitset<8 * sizeof(size_t)> local_bitset; // allocate a word size = 64 bits
     while (1) {
       // increment by a word at a time
       lvid_type lvid_block_start =

@@ -394,9 +394,13 @@ namespace graphlab {
 
     friend class distributed_ingress_base<VertexData, EdgeData>;
 
+
+    // Make friends with graph operation classes 
     template <typename Graph, typename GatherType>
     friend class graph_gather_apply;
 
+
+    // Make friends with Ingress classes
     friend class distributed_random_ingress<VertexData, EdgeData>;
     friend class distributed_identity_ingress<VertexData, EdgeData>;
     friend class distributed_batch_ingress<VertexData, EdgeData>;

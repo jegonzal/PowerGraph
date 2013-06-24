@@ -30,11 +30,9 @@ include_directories(
   ${GraphLab_SOURCE_DIR}/deps/local/include)
 
 # set link path
- link_directories(${GraphLab_SOURCE_DIR}/deps/local/lib)
+link_directories(${GraphLab_SOURCE_DIR}/deps/local/lib)
 
 add_definitions(-DUSE_DYNAMIC_LOCAL_GRAPH)
-#add_definitions(-DDEBUG_GRAPH)
-#add_definitions(-DOUTPUTLEVEL=1)
 
 if(NO_OPENMP)
   set(OPENMP_C_FLAGS "")
@@ -82,7 +80,6 @@ endif()
 if (IS_DIRECTORY ${GraphLab_SOURCE_DIR}/apps)
   subdirs(apps)
 endif()
-
 
 # Set installation rules
 install(DIRECTORY src/
