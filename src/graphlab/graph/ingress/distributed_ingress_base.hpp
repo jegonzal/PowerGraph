@@ -28,7 +28,7 @@
 #include <graphlab/graph/ingress/ingress_edge_decision.hpp>
 #include <graphlab/graph/graph_gather_apply.hpp>
 #include <graphlab/util/memory_info.hpp>
-#include <graphlab/util/cuckoo_map_pow2.hpp>
+#include <graphlab/util/hopscotch_map.hpp>
 #include <graphlab/rpc/buffered_exchange.hpp>
 #include <graphlab/macros_def.hpp>
 namespace graphlab {
@@ -163,9 +163,9 @@ namespace graphlab {
         logstream(LOG_EMPH) << "Finalizing Graph..." << std::endl;
       }
 
-      typedef typename cuckoo_map_pow2<vertex_id_type, lvid_type, 3, 
-                                       uint32_t>::value_type
+      typedef typename hopscotch_map<vertex_id_type, lvid_type>::value_type
         vid2lvid_pair_type;
+
       typedef typename buffered_exchange<edge_buffer_record>::buffer_type 
         edge_buffer_type;
 
@@ -176,8 +176,8 @@ namespace graphlab {
        * \internal
        * Buffer storage for new vertices to the local graph.
        */
-      typedef typename graph_type::vid2lvid_map_type vid2lvid_map_type;
-      vid2lvid_map_type vid2lvid_buffer(-1);
+      typedef typename graph_type::hopscotch_map_type vid2lvid_map_type;
+      vid2lvid_map_type vid2lvid_buffer;
 
       /**
        * \internal
@@ -387,7 +387,7 @@ namespace graphlab {
         if (graph.vid2lvid.size() == 0) {
           graph.vid2lvid.swap(vid2lvid_buffer);
         } else {
-          // graph.vid2lvid.reserve(graph.vid2lvid.size() + vid2lvid_buffer.size());
+          graph.vid2lvid.rehash(graph.vid2lvid.size() + vid2lvid_buffer.size());
           foreach (const typename vid2lvid_map_type::value_type& pair, vid2lvid_buffer) {
             graph.vid2lvid.insert(pair);
           }

@@ -84,7 +84,7 @@
 #include <graphlab/graph/ingress/distributed_constrained_random_ingress.hpp>
 
 
-#include <graphlab/util/cuckoo_map_pow2.hpp>
+#include <graphlab/util/hopscotch_map.hpp>
 
 #include <graphlab/util/fs_util.hpp>
 #include <graphlab/util/hdfs.hpp>
@@ -604,7 +604,7 @@ namespace graphlab {
      */
     distributed_graph(distributed_control& dc,
                       const graphlab_options& opts = graphlab_options()) :
-      rpc(dc, this), finalized(false), vid2lvid(-1),
+      rpc(dc, this), finalized(false), vid2lvid(),
       nverts(0), nedges(0), local_own_nverts(0), nreplicas(0),
       ingress_ptr(NULL), vertex_exchange(dc), vset_exchange(dc), parallel_ingress(true) {
       rpc.barrier();
@@ -2393,7 +2393,7 @@ namespace graphlab {
     lvid_type local_vid (const vertex_id_type vid) const {
       // typename boost::unordered_map<vertex_id_type, lvid_type>::
       //   const_iterator iter = vid2lvid.find(vid);
-      typename cuckoo_map_type::const_iterator iter = vid2lvid.find(vid);
+      typename hopscotch_map_type::const_iterator iter = vid2lvid.find(vid);
       return iter->second;
     } // end of local_vertex_id
 
@@ -2477,7 +2477,7 @@ namespace graphlab {
     const vertex_record& get_vertex_record(vertex_id_type vid) const {
       // typename boost::unordered_map<vertex_id_type, lvid_type>::
       //   const_iterator iter = vid2lvid.find(vid);
-      typename cuckoo_map_type::const_iterator iter = vid2lvid.find(vid);
+      typename hopscotch_map_type::const_iterator iter = vid2lvid.find(vid);
       ASSERT_TRUE(iter != vid2lvid.end());
       return lvid2record[iter->second];
     }
@@ -2503,7 +2503,7 @@ namespace graphlab {
      *        master vertex on this machine and false otherwise.
      */
     bool is_master(vertex_id_type vid) const {
-      typename cuckoo_map_type::const_iterator iter = vid2lvid.find(vid);
+      typename hopscotch_map_type::const_iterator iter = vid2lvid.find(vid);
       return (iter != vid2lvid.end()) && l_is_master(iter->second);
     }
     /** \internal
@@ -2827,10 +2827,10 @@ namespace graphlab {
 
     // boost::unordered_map<vertex_id_type, lvid_type> vid2lvid;
     /** The map from global vertex ids back to local vertex ids */
-    typedef cuckoo_map_pow2<vertex_id_type, lvid_type, 3, uint32_t> cuckoo_map_type;
-    typedef cuckoo_map_type vid2lvid_map_type;
+    typedef hopscotch_map<vertex_id_type, lvid_type> hopscotch_map_type;
+    typedef hopscotch_map_type vid2lvid_map_type;
 
-    cuckoo_map_type vid2lvid;
+    hopscotch_map_type vid2lvid;
 
 
     /** The global number of vertices and edges */
