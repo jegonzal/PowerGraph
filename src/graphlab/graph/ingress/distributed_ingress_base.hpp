@@ -172,6 +172,25 @@ namespace graphlab {
       typedef typename buffered_exchange<vertex_buffer_record>::buffer_type 
         vertex_buffer_type;
 
+      /**
+       * \internal
+       * Buffer storage for new vertices to the local graph.
+       */
+      typedef typename graph_type::vid2lvid_map_type vid2lvid_map_type;
+      vid2lvid_map_type vid2lvid_buffer(-1);
+
+      /**
+       * \internal
+       * The begining id assinged to the first new vertex.
+       */
+      const lvid_type lvid_start  = graph.vid2lvid.size();
+
+      /**
+       * \internal
+       * Bit field incidate the vertex that is updated during the ingress. 
+       */
+      dense_bitset updated_lvids(graph.vid2lvid.size());
+
       /**************************************************************************/
       /*                                                                        */
       /*                       Flush any additional data                        */
@@ -198,30 +217,38 @@ namespace graphlab {
             // Get the source_vlid;
             lvid_type source_lvid(-1);
             if(graph.vid2lvid.find(rec.source) == graph.vid2lvid.end()) {
-              source_lvid = graph.vid2lvid.size();
-              graph.vid2lvid[rec.source] = source_lvid;
+              if (vid2lvid_buffer.find(rec.source) == vid2lvid_buffer.end()) {
+                source_lvid = lvid_start + vid2lvid_buffer.size();
+                vid2lvid_buffer[rec.source] = source_lvid;
+              } else {
+                source_lvid = vid2lvid_buffer[rec.source];
+              }
             } else {
               source_lvid = graph.vid2lvid[rec.source];
+              updated_lvids.set_bit(source_lvid);
             }
             // Get the target_lvid;
             lvid_type target_lvid(-1);
             if(graph.vid2lvid.find(rec.target) == graph.vid2lvid.end()) {
-              target_lvid = graph.vid2lvid.size();
-              graph.vid2lvid[rec.target] = target_lvid;
+              if (vid2lvid_buffer.find(rec.target) == vid2lvid_buffer.end()) {
+                target_lvid = lvid_start + vid2lvid_buffer.size();
+                vid2lvid_buffer[rec.target] = target_lvid;
+              } else {
+                target_lvid = vid2lvid_buffer[rec.target];
+              }
             } else {
               target_lvid = graph.vid2lvid[rec.target];
+              updated_lvids.set_bit(target_lvid);
             }
-
             graph.local_graph.add_edge(source_lvid, target_lvid, rec.edata);
+            // std::cout << "add edge " << rec.source << "\t" << rec.target << std::endl;
           } // end of loop over add edges
         } // end for loop over buffers
         edge_exchange.clear();
 
-        ASSERT_EQ(graph.vid2lvid.size(), graph.local_graph.num_vertices());
+        ASSERT_EQ(graph.vid2lvid.size()  + vid2lvid_buffer.size(), graph.local_graph.num_vertices());
         if(rpc.procid() == 0)  {
           memory_info::log_usage("Finished populating local graph.");
-          logstream(LOG_INFO) << "Vid2lvid size: " << graph.vid2lvid.size() 
-                              << std::endl;
         }
 
         // Finalize local graph
@@ -253,10 +280,15 @@ namespace graphlab {
           foreach(const vertex_buffer_record& rec, vertex_buffer) {
             lvid_type lvid(-1);
             if (graph.vid2lvid.find(rec.vid) == graph.vid2lvid.end()) {
-              lvid = graph.vid2lvid.size();
-              graph.vid2lvid[rec.vid] = lvid;
+              if (vid2lvid_buffer.find(rec.vid) == vid2lvid_buffer.end()) {
+                lvid = lvid_start + vid2lvid_buffer.size();
+                vid2lvid_buffer[rec.vid] = lvid;
+              } else {
+                lvid = vid2lvid_buffer[rec.vid];
+              }
             } else {
               lvid = graph.vid2lvid[rec.vid];
+              updated_lvids.set_bit(lvid);
             }
             graph.local_graph.add_vertex(lvid, rec.vdata);
           }
@@ -274,15 +306,16 @@ namespace graphlab {
       /*                                                                        */
       /**************************************************************************/
       { // Determine masters for all negotiated vertices
-        graph.lvid2record.reserve(graph.vid2lvid.size());
-        graph.lvid2record.resize(graph.vid2lvid.size());
-        graph.local_graph.resize(graph.vid2lvid.size());
-        foreach(const vid2lvid_pair_type& pair, graph.vid2lvid) {
+        const size_t local_nverts = graph.vid2lvid.size() + vid2lvid_buffer.size();
+        graph.lvid2record.reserve(local_nverts);
+        graph.lvid2record.resize(local_nverts);
+        graph.local_graph.resize(local_nverts);
+        foreach(const vid2lvid_pair_type& pair, vid2lvid_buffer) {
             vertex_record& vrec = graph.lvid2record[pair.second];
-            vrec.gvid = pair.first;      
+            vrec.gvid = pair.first;
             vrec.owner = graph_hash::hash_vertex(pair.first) % rpc.numprocs();
         }
-        ASSERT_EQ(graph.vid2lvid.size(), graph.local_graph.num_vertices());
+        ASSERT_EQ(local_nverts, graph.local_graph.num_vertices());
         ASSERT_EQ(graph.lvid2record.size(), graph.local_graph.num_vertices());
         if(rpc.procid() == 0)       
           memory_info::log_usage("Finihsed allocating lvid2record");
@@ -299,7 +332,7 @@ namespace graphlab {
         #pragma omp parallel
         #endif
         // send not owned vids to their master
-        for (size_t i = 0; i < graph.lvid2record.size(); ++i) {
+        for (lvid_type i = lvid_start; i < graph.lvid2record.size(); ++i) {
           procid_t master = graph.lvid2record[i].owner;
           if (master != rpc.procid())
             vid_buffer.send(master, graph.lvid2record[i].gvid);
@@ -309,11 +342,21 @@ namespace graphlab {
         // receive all vids owned by me
         typename buffered_exchange<vertex_id_type>::buffer_type buffer;
         procid_t recvid;
-        boost::unordered_set<vertex_id_type> flying_vids;
+        boost::unordered_map<vertex_id_type, mirror_type> flying_vids;
         while(vid_buffer.recv(recvid, buffer)) {
           foreach(const vertex_id_type vid, buffer) {
             if (graph.vid2lvid.find(vid) == graph.vid2lvid.end()) {
-              flying_vids.insert(vid);
+              if (vid2lvid_buffer.find(vid) == vid2lvid_buffer.end()) {
+                mirror_type& mirrors = flying_vids[vid];
+                mirrors.set_bit(recvid);
+              } else {
+                lvid_type lvid = vid2lvid_buffer[vid];
+                graph.lvid2record[lvid]._mirrors.set_bit(recvid);
+              }
+            } else {
+               lvid_type lvid = graph.vid2lvid[vid];
+               graph.lvid2record[lvid]._mirrors.set_bit(recvid);
+               updated_lvids.set_bit(lvid);
             }
           }
         }
@@ -323,16 +366,68 @@ namespace graphlab {
         size_t vsize_new = vsize_old + flying_vids.size();
         graph.lvid2record.resize(vsize_new);
         graph.local_graph.resize(vsize_new);
-        for (boost::unordered_set<vertex_id_type>::iterator it = flying_vids.begin();
+        for (typename boost::unordered_map<vertex_id_type, mirror_type>::iterator it = flying_vids.begin();
              it != flying_vids.end(); ++it) {
-          lvid_type lvid = graph.vid2lvid.size();
-          vertex_id_type gvid = *it; 
+          lvid_type lvid = lvid_start + vid2lvid_buffer.size();
+          vertex_id_type gvid = it->first; 
           graph.lvid2record[lvid].owner = rpc.procid();
           graph.lvid2record[lvid].gvid = gvid;
-          graph.vid2lvid[gvid] = lvid;
+          graph.lvid2record[lvid]._mirrors= it->second;
+          vid2lvid_buffer[gvid] = lvid;
           // std::cout << "proc " << rpc.procid() << " recevies flying vertex " << gvid << std::endl;
         }
+      } // end of master handshake
+
+      /**************************************************************************/
+      /*                                                                        */
+      /*                        Merge in vid2lvid_buffer                        */
+      /*                                                                        */
+      /**************************************************************************/
+      {
+        if (graph.vid2lvid.size() == 0) {
+          graph.vid2lvid.swap(vid2lvid_buffer);
+        } else {
+          // graph.vid2lvid.reserve(graph.vid2lvid.size() + vid2lvid_buffer.size());
+          foreach (const typename vid2lvid_map_type::value_type& pair, vid2lvid_buffer) {
+            graph.vid2lvid.insert(pair);
+          }
+          vid2lvid_buffer.clear();
+          // vid2lvid_buffer.swap(vid2lvid_map_type(-1));
+        }
       }
+
+      // if (rpc.procid() == 0) {
+      //   std::cout << "proc 0" << std::endl;
+      //   foreach (const typename vid2lvid_map_type::value_type& pair, graph.vid2lvid) {
+      //     vertex_id_type gvid = pair.first;
+      //     lvid_type lvid = pair.second;
+      //     vertex_record& vrec = graph.lvid2record[lvid];
+      //     std::cout << gvid << "\t" << lvid << "\t" <<  vrec.owner << "\t" << vrec.num_in_edges << "\t" << vrec.num_out_edges
+      //               << "\t" << "(";
+      //     foreach (size_t i, vrec._mirrors) {
+      //       std::cout << i << ",";
+      //     }
+      //     std::cout << ")" << std::endl;
+      //   }
+      // } 
+      // rpc.barrier();
+      // if (rpc.procid() == 1) {
+      //   std::cout << "proc 1" << std::endl;
+      //   foreach (const typename vid2lvid_map_type::value_type& pair, graph.vid2lvid) {
+      //     vertex_id_type gvid = pair.first;
+      //     lvid_type lvid = pair.second;
+      //     vertex_record& vrec = graph.lvid2record[lvid];
+      //     std::cout << gvid << "\t" << lvid << "\t" << vrec.owner << "\t" << vrec.num_in_edges << "\t" << vrec.num_out_edges
+      //               << "\t" << "(";
+      //     foreach (size_t i, vrec._mirrors) {
+      //       std::cout << i << ",";
+      //     }
+      //     std::cout << ")" << std::endl;
+      //   }
+      // }
+
+
+
 
       /**************************************************************************/
       /*                                                                        */
@@ -340,16 +435,93 @@ namespace graphlab {
       /*                                                                        */
       /**************************************************************************/
       {
-        vertex_set changed_vset(true);
+        // construct the vertex set of changed vertices
+        vertex_set changed_vset(false);
+        changed_vset.make_explicit(graph);
+        updated_lvids.resize(graph.num_local_vertices());
+        for (lvid_type i = lvid_start; i <  graph.num_local_vertices(); ++i) {
+          updated_lvids.set_bit(i);
+        }
+
+        // if (rpc.procid() == 0) {
+        //   std::cout << "proc 0" << std::endl;
+        //   foreach (lvid_type lvid, updated_lvids) {
+        //     std::cout << lvid  << "\t";
+        //   }
+        //   std::cout << std::endl;
+        // }
+        // rpc.barrier();
+        // if (rpc.procid() == 1) {
+        //   std::cout << "proc 1" << std::endl;
+        //   foreach (lvid_type lvid, updated_lvids) {
+        //     std::cout << lvid << "\t";
+        //   }
+        //   std::cout << std::endl;
+        // }
+
+        changed_vset.localvset = updated_lvids; 
+        buffered_exchange<vertex_id_type> vset_exchange(rpc.dc());
+        // sync vset with all mirrors
+        changed_vset.synchronize_mirrors_to_master_or(graph, vset_exchange);
+        changed_vset.synchronize_master_to_mirrors(graph, vset_exchange);
+        // if (rpc.procid() == 0) {
+        //   std::cout << "proc id = 0" << std::endl;
+        //   foreach(size_t i, changed_vset.localvset) {
+        //     std::cout << "gas vertex: " << graph.global_vid(i) << "\n";
+        //   }
+        // }
+        // rpc.barrier();
+        // if (rpc.procid() == 1) {
+        //   std::cout << "proc id = 1" << std::endl;
+        //   foreach(size_t i, changed_vset.localvset) {
+        //     std::cout << "gas vertex: " << graph.global_vid(i) << "\n";
+        //   }
+        // }
+
         graphlab::graph_gather_apply<graph_type, vertex_negotiator_record> 
             vrecord_sync_gas(graph, 
                              boost::bind(&distributed_ingress_base::finalize_gather, this, _1, _2), 
                              boost::bind(&distributed_ingress_base::finalize_apply, this, _1, _2, _3));
         vrecord_sync_gas.exec(changed_vset);
 
+
+
         if(rpc.procid() == 0)       
           memory_info::log_usage("Finihsed synchornizing vertex (meta)data");
       }
+
+
+      // if (rpc.procid() == 0) {
+      //   std::cout << "proc 0" << std::endl;
+      //   foreach (const typename vid2lvid_map_type::value_type& pair, graph.vid2lvid) {
+      //     vertex_id_type gvid = pair.first;
+      //     lvid_type lvid = pair.second;
+      //     vertex_record& vrec = graph.lvid2record[lvid];
+      //     std::cout << gvid << "\t" << lvid << "\t" <<  vrec.owner << "\t" << vrec.num_in_edges << "\t" << vrec.num_out_edges
+      //               << "\t" << "(";
+      //     foreach (size_t i, vrec._mirrors) {
+      //       std::cout << i << ",";
+      //     }
+      //     std::cout << ")" << std::endl;
+      //   }
+      // } 
+      // rpc.barrier();
+      // if (rpc.procid() == 1) {
+      //   std::cout << "proc 1" << std::endl;
+      //   foreach (const typename vid2lvid_map_type::value_type& pair, graph.vid2lvid) {
+      //     vertex_id_type gvid = pair.first;
+      //     lvid_type lvid = pair.second;
+      //     vertex_record& vrec = graph.lvid2record[lvid];
+      //     std::cout << gvid << "\t" << lvid << "\t" << vrec.owner << "\t" << vrec.num_in_edges << "\t" << vrec.num_out_edges
+      //               << "\t" << "(";
+      //     foreach (size_t i, vrec._mirrors) {
+      //       std::cout << i << ",";
+      //     }
+      //     std::cout << ")" << std::endl;
+      //   }
+      // }
+
+
 
       exchange_global_info();
     } // end of finalize
@@ -414,9 +586,8 @@ namespace graphlab {
         if (graph.l_is_master(lvid)) {
           accum.has_data = true;
           accum.vdata = graph.l_vertex(lvid).data();
-        } else {
-          accum.mirrors.set_bit(graph.dc().procid());
-        }
+          accum.mirrors = graph.lvid2record[lvid]._mirrors;
+        } 
         return accum;
     }
 
@@ -427,8 +598,8 @@ namespace graphlab {
         typename graph_type::vertex_record& vrec = graph.lvid2record[lvid];
         vrec.num_in_edges = accum.num_in_edges;
         vrec.num_out_edges = accum.num_out_edges;
-        vrec._mirrors = accum.mirrors;
         graph.l_vertex(lvid).data() = accum.vdata;
+        vrec._mirrors = accum.mirrors;
     }
   }; // end of distributed_ingress_base
 }; // end of namespace graphlab

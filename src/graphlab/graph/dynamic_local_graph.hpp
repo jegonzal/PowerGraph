@@ -63,7 +63,6 @@
 #include <graphlab/util/random.hpp>
 #include <graphlab/macros_def.hpp>
 
-class local_graph_test;
 
 namespace graphlab {
   template<typename VertexData, typename EdgeData>
@@ -537,7 +536,7 @@ namespace graphlab {
     /*                            declare friends                             */
     /*                                                                        */
     /**************************************************************************/
-    friend local_graph_test;
+    friend class local_graph_test;
   }; // End of class dynamic_local_graph
 
 

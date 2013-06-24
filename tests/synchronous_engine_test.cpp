@@ -43,10 +43,15 @@ public:
   gather_type 
   gather(icontext_type& context, const vertex_type& vertex, 
          edge_type& edge) const {
+    // if (edge.target().id() == 7)
+    //   std::cout << edge.source().id() << "\t" << edge.target().id() << std::endl;
     return 1;    
   }
   void apply(icontext_type& context, vertex_type& vertex, 
              const gather_type& total) {
+    // if (total != int(vertex.num_in_edges())) {
+    //   std::cout << "test fail vid : " << vertex.id() << std::endl;
+    // }
     ASSERT_EQ( total, int(vertex.num_in_edges()) );
     context.signal(vertex);
   }
@@ -325,6 +330,7 @@ int main(int argc, char** argv) {
   std::cout << "Creating a powerlaw graph" << std::endl;
   graph_type graph(dc, clopts);
   graph.load_synthetic_powerlaw(10000);
+  graph.finalize();
   test_in_neighbors(dc, clopts, graph);
   test_out_neighbors(dc, clopts, graph);
   test_all_neighbors(dc, clopts, graph);

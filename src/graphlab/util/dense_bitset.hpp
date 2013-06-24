@@ -835,6 +835,7 @@ namespace graphlab {
 
     bool operator==(const fixed_dense_bitset& other) {
       ASSERT_EQ(size(), other.size());
+      ASSERT_EQ(arrlen, other.arrlen);
       bool ret = true;
       for (size_t i = 0; i < arrlen; ++i) {
         ret &= (array[i] == other.array[i]);

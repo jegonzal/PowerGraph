@@ -96,7 +96,6 @@
 
 #include <graphlab/macros_def.hpp>
 
-// forward declaration of test class;
 class distributed_graph_test;
 
 namespace graphlab {
@@ -3147,9 +3146,7 @@ namespace graphlab {
       rpc.full_barrier();
     } // end of load
 
-
-    friend class distributed_graph_test;
-
+    friend distributed_graph_test;
   }; // End of graph
 } // end of namespace graphlab
 #include <graphlab/macros_undef.hpp>
