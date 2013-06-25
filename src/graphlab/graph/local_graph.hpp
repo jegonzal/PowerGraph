@@ -23,7 +23,6 @@
 #ifndef GRAPHLAB_LOCAL_GRAPH_HPP
 #define GRAPHLAB_LOCAL_GRAPH_HPP
 
-
 #include <cmath>
 
 #include <string>
@@ -174,6 +173,10 @@ namespace graphlab {
       finalized(false) { }
 
     // METHODS =================================================================>
+    
+    static bool is_dynamic() {
+      return false;
+    }
 
     /**
      * \brief Resets the local_graph state.
@@ -284,13 +287,8 @@ namespace graphlab {
 
     /** \brief Get the number of edges */
     size_t num_edges() const {
-      if (finalized) {
         return edges.size();
-      } else {
-        return edge_buffer.size();
-      }
     } // end of num edges
-
 
     /** 
      * \brief Creates a vertex containing the vertex data and returns the id
@@ -299,9 +297,6 @@ namespace graphlab {
      */
     void add_vertex(lvid_type vid, 
                     const VertexData& vdata = VertexData() ) {
-        // logstream(LOG_INFO)
-        //   << "Attempting add vertex to a finalized local_graph." << std::endl;
-        // // ASSERT_MSG(false, "Add vertex to a finalized local_graph.");
       if(vid >= vertices.size()) {
         // Enable capacity doubling if resizing beyond capacity
         if(vid >= vertices.capacity()) {
@@ -703,8 +698,11 @@ namespace graphlab {
         }; // end of edge_iterator
 
 
-    // PRIVATE DATA MEMBERS ===================================================>    
-    //
+    /**************************************************************************/
+    /*                                                                        */
+    /*                          PRIVATE DATA MEMBERS                          */
+    /*                                                                        */
+    /**************************************************************************/
     /** The vertex data is simply a vector of vertex data */
     std::vector<VertexData> vertices;
 
@@ -723,15 +721,24 @@ namespace graphlab {
         costly procedure but it can also dramatically improve
         performance. */
     bool finalized;
+
+
+    /**************************************************************************/
+    /*                                                                        */
+    /*                            declare friends                             */
+    /*                                                                        */
+    /**************************************************************************/
+    friend class local_graph_test; 
   }; // End of class local_graph
 
 
   template<typename VertexData, typename EdgeData>
   std::ostream& operator<<(std::ostream& out,
-                           const local_graph<VertexData, EdgeData>& local_graph) {
-    for(lvid_type vid = 0; vid < local_graph.num_vertices(); ++vid) {
-      foreach(edge_id_type eid, local_graph.out_edge_ids(vid))
-        out << vid << ", " << local_graph.target(eid) << '\n';
+                           local_graph<VertexData, EdgeData>& g) {
+    typedef typename local_graph<VertexData, EdgeData>::edge_type edge_type;
+    for(lvid_type vid = 0; vid < g.num_vertices(); ++vid) {
+      foreach(const edge_type& e, g.out_edges(vid))
+        out << e.source().id() << ", " << e.target().id() << '\n';
     }
     return out;
   }

@@ -176,7 +176,7 @@ namespace graphlab {
         lvid_type lvid_target(-1);
         // typedef typename boost::unordered_map<vertex_id_type, lvid_type>::iterator 
           // vid2lvid_iter;
-        typedef typename cuckoo_map_pow2<vertex_id_type, lvid_type, 3, uint32_t>::iterator
+        typedef typename hopscotch_map<vertex_id_type, lvid_type>::iterator
           vid2lvid_iter;
         vid2lvid_iter iter;
 

@@ -24,3 +24,4 @@ demoapps/pagerank/matlab_tools/*.tsv
 tags
 *swp
 \.mchg\.mchg
+.ycm_extra_conf*
