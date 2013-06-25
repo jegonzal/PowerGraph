@@ -44,9 +44,9 @@ float pagerank_map(graph_type::edge_type edge, graph_type::vertex_type other) {
 }
 
 void pagerank(graph_type::vertex_type vertex) {
-  vertex.data() = 0.15 + 0.85 * warp::map_reduce_neighborhood<float>(vertex,
-                                                                     IN_EDGES,
-                                                                     pagerank_map);
+  vertex.data() = 0.15 + 0.85 * warp::map_reduce_neighborhood(vertex,
+                                                              IN_EDGES,
+                                                              pagerank_map);
 }
 
 

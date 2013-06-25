@@ -217,6 +217,25 @@ void distributed_control::exec_function_call(procid_t source,
   END_TRACEPOINT(dc_call_dispatch);
 }
 
+unsigned char distributed_control::get_block_sequentialization_key(fcallqueue_entry& fcallblock) {
+  unsigned char seq_key = 0;
+  char* data = fcallblock.chunk_src;
+  size_t remaininglen = fcallblock.chunk_len;
+  // loop through all the messages
+  while(remaininglen > 0) {
+    ASSERT_GE(remaininglen, sizeof(dc_impl::packet_hdr));
+    dc_impl::packet_hdr hdr = *reinterpret_cast<dc_impl::packet_hdr*>(data);
+    ASSERT_LE(hdr.len, remaininglen);
+    if (hdr.sequentialization_key != 0) {
+      seq_key = hdr.sequentialization_key;
+      break;
+    }
+    data += sizeof(dc_impl::packet_hdr) + hdr.len;
+    remaininglen -= sizeof(dc_impl::packet_hdr) + hdr.len;
+  }
+  return seq_key;
+}
+
 void distributed_control::deferred_function_call_chunk(char* buf, size_t len, procid_t src) {
   BEGIN_TRACEPOINT(dc_receive_queuing);
   fcallqueue_entry* fc = new fcallqueue_entry;
@@ -226,7 +245,17 @@ void distributed_control::deferred_function_call_chunk(char* buf, size_t len, pr
   fc->is_chunk = true;
   fc->source = src;
   fcallqueue_length.inc();
-  fcallqueue[src % fcallqueue.size()].enqueue(fc);
+  if (get_block_sequentialization_key(*fc) > 0) {
+    fcallqueue[src % fcallqueue.size()].enqueue(fc);
+  } else {
+    const uint32_t prod = 
+        random::fast_uniform(uint32_t(0), 
+                             uint32_t(fcallqueue.size() - 1));
+    const uint32_t r1 = prod / fcallqueue.size();
+    const uint32_t r2 = prod % fcallqueue.size();
+    uint32_t idx = (fcallqueue[r1].size() < fcallqueue[r2].size()) ? r1 : r2;  
+    fcallqueue[idx].enqueue(fc);
+  }
   END_TRACEPOINT(dc_receive_queuing);
 }
 

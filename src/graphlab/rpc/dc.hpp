@@ -731,6 +731,13 @@ class distributed_control{
    */
   void deferred_function_call_chunk(char* buf, size_t len, procid_t src);
 
+
+  /**
+   * \internal
+   * Gets the sequentialization key of a block if any.
+   */
+  unsigned char get_block_sequentialization_key(fcallqueue_entry& fcallblock);
+
   /**
    * \internal
   This is called by the function handler threads
