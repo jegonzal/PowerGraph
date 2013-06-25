@@ -48,6 +48,7 @@
 #include <boost/algorithm/string/predicate.hpp>
 #include <boost/iostreams/stream.hpp>
 #include <boost/iostreams/filtering_streambuf.hpp>
+
 #include <boost/iostreams/filtering_stream.hpp>
 #include <boost/iostreams/copy.hpp>
 #include <boost/iostreams/filter/gzip.hpp>
@@ -71,6 +72,8 @@
 
 #include <graphlab/graph/local_graph.hpp>
 #include <graphlab/graph/dynamic_local_graph.hpp>
+
+#include <graphlab/graph/graph_gather_apply.hpp>
 #include <graphlab/graph/ingress/distributed_ingress_base.hpp>
 #include <graphlab/graph/ingress/distributed_batch_ingress.hpp>
 #include <graphlab/graph/ingress/distributed_oblivious_ingress.hpp>
@@ -81,7 +84,7 @@
 #include <graphlab/graph/ingress/distributed_constrained_random_ingress.hpp>
 
 
-#include <graphlab/util/cuckoo_map_pow2.hpp>
+#include <graphlab/util/hopscotch_map.hpp>
 
 #include <graphlab/util/fs_util.hpp>
 #include <graphlab/util/hdfs.hpp>
@@ -92,6 +95,9 @@
 #include <graphlab/graph/vertex_set.hpp>
 
 #include <graphlab/macros_def.hpp>
+namespace tests {
+class distributed_graph_test;
+}
 namespace graphlab {
 
   /** \brief A directed graph datastructure which is distributed across
@@ -387,6 +393,14 @@ namespace graphlab {
     typedef graphlab::distributed_graph<VertexData, EdgeData> graph_type;
 
     friend class distributed_ingress_base<VertexData, EdgeData>;
+
+
+    // Make friends with graph operation classes 
+    template <typename Graph, typename GatherType>
+    friend class graph_gather_apply;
+
+
+    // Make friends with Ingress classes
     friend class distributed_random_ingress<VertexData, EdgeData>;
     friend class distributed_identity_ingress<VertexData, EdgeData>;
     friend class distributed_batch_ingress<VertexData, EdgeData>;
@@ -594,11 +608,15 @@ namespace graphlab {
      */
     distributed_graph(distributed_control& dc,
                       const graphlab_options& opts = graphlab_options()) :
-      rpc(dc, this), finalized(false), vid2lvid(-1),
+      rpc(dc, this), finalized(false), vid2lvid(),
       nverts(0), nedges(0), local_own_nverts(0), nreplicas(0),
       ingress_ptr(NULL), vertex_exchange(dc), vset_exchange(dc), parallel_ingress(true) {
       rpc.barrier();
       set_options(opts);
+    }
+
+    ~distributed_graph() {
+      delete ingress_ptr; ingress_ptr = NULL;
     }
 
   private:
@@ -646,6 +664,10 @@ namespace graphlab {
 
 
     // METHODS ===============================================================>
+    bool is_dynamic() const {
+      return local_graph.is_dynamic();
+    }
+    
     /**
      * \brief Commits the graph structure. Once a graph is finalized it may
      * no longer be modified. Must be called on all machines simultaneously.
@@ -664,9 +686,6 @@ namespace graphlab {
       ingress_ptr->finalize();
       rpc.barrier(); 
 
-#ifndef USE_DYNAMIC_LOCAL_GRAPH
-      delete ingress_ptr; ingress_ptr = NULL;
-#endif
       finalized = true;
     }
 
@@ -741,16 +760,16 @@ namespace graphlab {
     }
 
 
-    /**
-     * Defines the strategy to use when duplicate vertices are inserted.
-     * The default behavior is that an arbitrary vertex data is picked.
-     * This allows you to define a combining strategy.
-     */
-    void set_duplicate_vertex_strategy(boost::function<void(vertex_data_type&,
-                                                        const vertex_data_type&)>
-                                       combine_strategy) {
-      ingress_ptr->set_duplicate_vertex_strategy(combine_strategy);
-    }
+    // /**
+    //  * Defines the strategy to use when duplicate vertices are inserted.
+    //  * The default behavior is that an arbitrary vertex data is picked.
+    //  * This allows you to define a combining strategy.
+    //  */
+    // void set_duplicate_vertex_strategy(boost::function<void(vertex_data_type&,
+    //                                                     const vertex_data_type&)>
+    //                                    combine_strategy) {
+    //   ingress_ptr->set_duplicate_vertex_strategy(combine_strategy);
+    // }
 
     /**
      * \brief Creates a vertex containing the vertex data.
@@ -1384,9 +1403,10 @@ namespace graphlab {
         vrec.clear();
       lvid2record.clear();
       vid2lvid.clear();
+      local_graph.clear();
       finalized=false;
+      nverts = nedges = local_own_nverts = nreplicas = begin_eid = 0;
     }
-
 
 
     /** \brief Load a distributed graph from a native binary format
@@ -2377,7 +2397,7 @@ namespace graphlab {
     lvid_type local_vid (const vertex_id_type vid) const {
       // typename boost::unordered_map<vertex_id_type, lvid_type>::
       //   const_iterator iter = vid2lvid.find(vid);
-      typename cuckoo_map_type::const_iterator iter = vid2lvid.find(vid);
+      typename hopscotch_map_type::const_iterator iter = vid2lvid.find(vid);
       return iter->second;
     } // end of local_vertex_id
 
@@ -2461,7 +2481,7 @@ namespace graphlab {
     const vertex_record& get_vertex_record(vertex_id_type vid) const {
       // typename boost::unordered_map<vertex_id_type, lvid_type>::
       //   const_iterator iter = vid2lvid.find(vid);
-      typename cuckoo_map_type::const_iterator iter = vid2lvid.find(vid);
+      typename hopscotch_map_type::const_iterator iter = vid2lvid.find(vid);
       ASSERT_TRUE(iter != vid2lvid.end());
       return lvid2record[iter->second];
     }
@@ -2487,7 +2507,7 @@ namespace graphlab {
      *        master vertex on this machine and false otherwise.
      */
     bool is_master(vertex_id_type vid) const {
-      typename cuckoo_map_type::const_iterator iter = vid2lvid.find(vid);
+      typename hopscotch_map_type::const_iterator iter = vid2lvid.find(vid);
       return (iter != vid2lvid.end()) && l_is_master(iter->second);
     }
     /** \internal
@@ -2703,10 +2723,10 @@ namespace graphlab {
       }
 
       /// \brief Returns the source local vertex of the edge
-      local_vertex_type source() { return local_vertex_type(graph_ref, e.source().id()); }
+      local_vertex_type source() const { return local_vertex_type(graph_ref, e.source().id()); }
 
       /// \brief Returns the target local vertex of the edge
-      local_vertex_type target() { return local_vertex_type(graph_ref, e.target().id()); }
+      local_vertex_type target() const { return local_vertex_type(graph_ref, e.target().id()); }
 
 
 
@@ -2811,10 +2831,10 @@ namespace graphlab {
 
     // boost::unordered_map<vertex_id_type, lvid_type> vid2lvid;
     /** The map from global vertex ids back to local vertex ids */
-    typedef cuckoo_map_pow2<vertex_id_type, lvid_type, 3, uint32_t> cuckoo_map_type;
-    typedef cuckoo_map_type vid2lvid_map_type;
+    typedef hopscotch_map<vertex_id_type, lvid_type> hopscotch_map_type;
+    typedef hopscotch_map_type vid2lvid_map_type;
 
-    cuckoo_map_type vid2lvid;
+    hopscotch_map_type vid2lvid;
 
 
     /** The global number of vertices and edges */
@@ -3130,8 +3150,7 @@ namespace graphlab {
       rpc.full_barrier();
     } // end of load
 
-
-
+    friend class tests::distributed_graph_test;
   }; // End of graph
 } // end of namespace graphlab
 #include <graphlab/macros_undef.hpp>

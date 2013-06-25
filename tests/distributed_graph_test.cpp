@@ -20,208 +20,415 @@
  *
  */
 
-
 // standard C++ headers
 #include <iostream>
+#include <cxxtest/TestSuite.h>
 
 #include <graphlab/rpc/dc.hpp>
 #include <graphlab/util/mpi_tools.hpp>
 #include <graphlab/rpc/dc_init_from_mpi.hpp>
 #include <graphlab/graph/distributed_graph.hpp>
-#include <graphlab/graph/graph_vertex_join.hpp>
 #include <graphlab/macros_def.hpp>
 
 
+graphlab::distributed_control* dc;
 
-struct vertex_data: public graphlab::IS_POD_TYPE  {
-  size_t i;
-  vertex_data() : i(0) { }
+template<typename K, typename V>
+class map_reduce;
+
+
+template<typename T>
+std::vector<T> operator+=(std::vector<T>& v1, const std::vector<T>& v2) {
+  for (size_t i = 0; i < v2.size(); ++i)
+    v1.push_back(v2[i]);
+  return v1;
+}
+namespace tests{
+class distributed_graph_test  {
+ public:
+   struct vertex_data: public graphlab::IS_POD_TYPE  {
+     size_t value;
+     vertex_data() : value(0) { }
+     vertex_data(size_t n) : value(n) { }
+     bool operator==(const vertex_data& other)  {
+       return value == other.value;
+     }
+   };
+
+   struct edge_data: public graphlab::IS_POD_TYPE  {
+     int from;
+     int to;
+     edge_data (int f = 0, int t = 0) : from(f), to(t) {}
+   };
+
+   /**
+    * Test adding vertex.
+    */
+   void test_add_vertex() {
+     graphlab::distributed_graph<vertex_data, edge_data> g(*dc);
+     test_add_vertex_impl(g, 100);
+     test_add_vertex_impl(g, 1000);
+     test_add_vertex_impl(g, 10000);
+     dc->cout() << "\n+ Pass test: graph add vertex. :) \n";
+   }
+
+   /**
+    * Test adding edges
+    */
+   void test_add_edge() {
+     graphlab::distributed_graph<vertex_data, edge_data> g(*dc);
+     test_add_edge_impl(g, 10);
+     test_add_edge_impl(g, 1000);
+     test_add_edge_impl(g, 10000);
+     dc->cout() << "\n+ Pass test: graph add edge. :) \n";
+   }
+
+   /**
+    * Test adding edges
+    */
+   void test_dynamic_add_edge() {
+     graphlab::distributed_graph<vertex_data, edge_data> g(*dc);
+     if (g.is_dynamic()) {
+       test_add_edge_impl(g, 10, true);
+       test_add_edge_impl(g, 1000, true);
+       test_add_edge_impl(g, 10000, true);
+       dc->cout() << "\n+ Pass test: graph dynamicly add edge. :) \n";
+     } else {
+       dc->cout() << "\n- Graph does not support dynamic. Please compile with -DUSE_DYNAMIC_GRAPH \n";
+     }
+   }
+
+ private: 
+   template<typename Graph>
+       void test_add_vertex_impl(Graph& g, size_t nverts) {
+         g.clear();
+         ASSERT_EQ(g.num_vertices(), 0);
+         for (size_t i = 0; i < nverts; ++i) {
+           g.add_vertex(i, vertex_data(i));
+         }
+         ASSERT_EQ(g.num_vertices(), 0); 
+         g.finalize();
+         for (size_t i = 0; i < g.num_local_vertices(); ++i) {
+           ASSERT_EQ(g.l_vertex(i).data().value, g.global_vid(i));
+         }
+         ASSERT_EQ(g.num_vertices(), nverts);
+
+         // Test dynamic graph capability
+         if (g.is_dynamic()) {
+           // dynamic graph should support adding vertices after finalization
+           // add more vertices and override existing vertex values
+           for (size_t i = 0; i < 2*nverts; ++i) {
+             g.add_vertex(i, vertex_data(i*2));
+           }
+           g.finalize();
+           ASSERT_EQ(g.num_vertices(), 2*nverts);
+           for (size_t i = 0; i < g.num_local_vertices(); ++i) {
+             ASSERT_EQ(g.l_vertex(i).data().value, g.global_vid(i) * 2);
+           }
+         }
+       }
+
+   template<typename Graph>
+       void test_add_edge_impl(Graph& g, size_t nedges, bool use_dynamic = false) {
+         typedef typename Graph::vertex_id_type vertex_id_type;
+         srand(0);
+         g.clear();
+         ASSERT_EQ(g.num_edges(), 0);
+         boost::unordered_map<vertex_id_type, std::vector<vertex_id_type> > out_edges;
+         boost::unordered_map<vertex_id_type, std::vector<vertex_id_type> > in_edges;
+         boost::unordered_set< std::pair<vertex_id_type,vertex_id_type> > all_edges;
+         while (all_edges.size() < nedges) {
+           vertex_id_type src = rand() % (int)(3*sqrt(nedges));
+           vertex_id_type dst = rand() % (int)(3*sqrt(nedges));
+           if (src == dst)
+             continue;
+           std::pair<vertex_id_type,vertex_id_type> pair(src, dst);
+           if (!all_edges.count(pair))  {
+             all_edges.insert(pair);
+             if (!out_edges.count(src)) {
+               out_edges[src] = std::vector<vertex_id_type>();
+             } 
+             if (!in_edges.count(dst)) {
+               in_edges[dst] = std::vector<vertex_id_type>();
+             }
+             in_edges[dst].push_back(src);
+             out_edges[src].push_back(dst);
+           }
+         }
+         typedef typename boost::unordered_set< std::pair<vertex_id_type,vertex_id_type> >::value_type pair_type; 
+         int count = 0;
+         foreach (const pair_type& p, all_edges) {
+           if (count++ % dc->numprocs() == dc->procid()) {
+             g.add_edge(p.first, p.second, edge_data(p.first, p.second));
+           }
+           if (use_dynamic && count % (nedges/5) == 0) {
+             g.finalize();
+           } 
+         }
+         if (!use_dynamic)
+           ASSERT_EQ(g.num_edges(), 0); 
+
+         g.finalize();
+         check_adjacency(g, in_edges, out_edges, all_edges.size());
+         check_edge_data(g);
+         check_vertex_info(g);
+       }
+
+
+
+   template<typename Graph>
+       void check_edge_data(Graph& g) {
+         typedef typename Graph::local_edge_list_type local_edge_list_type;
+         typedef typename Graph::local_edge_type local_edge_type;
+         typedef typename Graph::vertex_type vertex_type;
+         typedef typename Graph::vertex_id_type vertex_id_type;
+         for (size_t i = 0; i < g.num_local_vertices(); ++i) {
+           const local_edge_list_type& in_edges = g.l_in_edges(i);
+           foreach (const local_edge_type& e, in_edges) {
+             ASSERT_EQ(e.data().from, g.global_vid(e.source().id()));
+             ASSERT_EQ(e.data().to, g.global_vid(e.target().id()));
+           }
+           const local_edge_list_type& out_edges = g.l_out_edges(i);
+           foreach (const local_edge_type& e, out_edges) {
+             ASSERT_EQ(e.data().from, g.global_vid(e.source().id()));
+             ASSERT_EQ(e.data().to, g.global_vid(e.target().id()));
+           }
+         }
+       }
+
+   /**
+    * Helper function to check the in/out edges of the graph.
+    */
+   template<typename Graph>
+       void check_adjacency(Graph& g, 
+                            boost::unordered_map<typename Graph::vertex_id_type, 
+                            std::vector<typename Graph::vertex_id_type> >& in_edges,
+                            boost::unordered_map<typename Graph::vertex_id_type, 
+                            std::vector<typename Graph::vertex_id_type> >& out_edges,
+                            size_t nedges) {
+         typedef typename Graph::local_edge_list_type local_edge_list_type;
+         typedef typename Graph::local_edge_type local_edge_type;
+         typedef typename Graph::vertex_type vertex_type;
+         typedef typename Graph::vertex_id_type vertex_id_type;
+
+         // check total edge size 
+         ASSERT_EQ(g.num_edges(), nedges);
+         size_t sum_local_edges = g.num_local_edges();
+         dc->all_reduce(sum_local_edges);
+         ASSERT_EQ(g.num_edges(), sum_local_edges);
+
+         // check local edge size
+         size_t local_in_edge_size = 0;
+         size_t local_out_edge_size = 0;
+         for (size_t i = 0; i < g.num_local_vertices(); ++i) {
+           local_in_edge_size += g.l_in_edges(i).size();
+           local_out_edge_size += g.l_out_edges(i).size();
+         }
+         ASSERT_EQ(local_in_edge_size, g.num_local_edges());
+         ASSERT_EQ(local_out_edge_size, g.num_local_edges());
+
+         // check adjacency list
+         typedef map_reduce< vertex_id_type, std::vector<vertex_id_type> > dist_adj_type;
+         dist_adj_type local_out_adj, local_in_adj;
+
+         for (size_t i = 0; i < g.num_local_vertices(); ++i) {
+           std::vector<vertex_id_type> outids, inids;
+           vertex_id_type gvid = g.global_vid(i);
+           const local_edge_list_type& ls_out = g.l_out_edges(i);
+           const local_edge_list_type& ls_in = g.l_in_edges(i);
+           foreach (const local_edge_type& e, ls_out) {
+             ASSERT_EQ(e.source().id(), i);
+             outids.push_back(g.global_vid(e.target().id()));
+           }
+           foreach (const local_edge_type& e, ls_in) {
+             ASSERT_EQ(e.target().id(), i);
+             inids.push_back(g.global_vid(e.source().id()));
+           }
+           local_out_adj.data[gvid] = outids;
+           local_in_adj.data[gvid] = inids;
+         }
+         dc->all_reduce(local_out_adj);
+         dc->all_reduce(local_in_adj);
+
+         typedef typename boost::unordered_map<vertex_id_type, std::vector<vertex_id_type> >::const_iterator iter_type;
+
+         // check out adjacency 
+         for (iter_type it = out_edges.begin(); it != out_edges.end(); ++it) {
+           vertex_id_type id = it->first;
+           std::vector<vertex_id_type> expected = it->second;
+           std::vector<vertex_id_type> actual = local_out_adj.data[id];
+           std::sort(actual.begin(), actual.end()); std::sort(expected.begin(), expected.end());
+           ASSERT_EQ(actual.size(), expected.size());
+           if (g.vid2lvid.count(id))
+             ASSERT_EQ(g.num_out_edges(id), expected.size());
+           for (size_t i = 0; i < actual.size(); ++i) {
+             ASSERT_EQ(actual[i], expected[i]);
+           }
+         }
+
+         // check in adjacency
+         for (iter_type it = in_edges.begin(); it != in_edges.end(); ++it) {
+           vertex_id_type id = it->first;
+           std::vector<vertex_id_type> expected = it->second;
+           std::vector<vertex_id_type> actual = local_in_adj.data[id];
+           std::sort(actual.begin(), actual.end()); std::sort(expected.begin(), expected.end());
+           ASSERT_EQ(actual.size(), expected.size());
+           if (g.vid2lvid.count(id))
+             ASSERT_EQ(g.num_in_edges(id), expected.size());
+           for (size_t i = 0; i < actual.size(); ++i) {
+             ASSERT_EQ(actual[i], expected[i]);
+           }
+         }
+       }
+
+   template<typename Graph>
+       struct vertex_info {
+         typename Graph::vertex_id_type vid;
+         typename Graph::vertex_data_type data;
+         typename Graph::mirror_type mirrors;
+         graphlab::procid_t master;
+         size_t num_in_edges, num_out_edges;
+
+         bool operator==(const vertex_info& other) {
+           return ((master == other.master) && 
+                   (vid == other.vid) && 
+                   (data == other.data) &&
+                   (mirrors == other.mirrors) &&
+                   (num_in_edges == other.num_in_edges) &&
+                   (num_out_edges == other.num_out_edges));
+         }
+
+         void load(graphlab::iarchive& arc) {
+           arc >> vid
+               >> master 
+               >> mirrors
+               >> num_in_edges
+               >> num_out_edges
+               >> data;
+         }
+
+         void save(graphlab::oarchive& arc) const {
+           arc << vid
+               << master
+               << mirrors
+               << num_in_edges
+               << num_out_edges
+               << data;
+         } // end of save
+       };
+
+   template<typename Graph>
+       void check_vertex_info(Graph& g) {
+         typedef typename Graph::vertex_id_type vertex_id_type;
+         typedef typename Graph::vertex_data_type vertex_data_type;
+         typedef typename Graph::vertex_type vertex_type;
+         typedef typename Graph::local_vertex_type local_vertex_type;
+         typedef vertex_info<Graph> vinfo_type;
+         typedef typename boost::unordered_map<vertex_id_type, vinfo_type > vinfo_map_type; 
+
+         vinfo_map_type vid2info;
+         std::vector<vertex_id_type> vids;
+
+         for (size_t i = 0; i < g.num_local_vertices(); ++i) {
+           vertex_type v = g.vertex(g.global_vid(i));
+           local_vertex_type lv = g.l_vertex(i);
+           ASSERT_EQ(v.local_id(), lv.id());
+           ASSERT_EQ(v.id(), lv.global_id());
+
+           vinfo_type info;
+           info.vid = v.id();
+           info.num_in_edges = v.num_in_edges();
+           info.num_out_edges = v.num_out_edges();
+           info.data = v.data();
+           info.mirrors = lv.mirrors();
+           info.master = lv.owner();
+           // master should not be in the mirror set
+           ASSERT_TRUE(info.mirrors.get(info.master) == 0);
+
+           vid2info[v.id()] = info;
+           if (lv.owned()) 
+             vids.push_back(v.id());
+         }
+
+         // gather the vid->record map on each machine
+         std::vector<vinfo_map_type> vinfo_map_gather(dc->numprocs());
+         vinfo_map_gather[dc->procid()] = vid2info;
+         dc->all_gather(vinfo_map_gather);
+         dc->all_reduce(vids);
+
+         ASSERT_EQ(vids.size(), g.num_vertices());
+
+         // check the consistency of vertex_record on each machine. 
+         foreach(vertex_id_type vid, vids) {
+           std::vector<vinfo_type> records;
+           std::vector<size_t> mirror_expected;
+
+           for (size_t i = 0; i < vinfo_map_gather.size(); ++i) {
+             if (vinfo_map_gather[i].count(vid)) {
+               records.push_back(vinfo_map_gather[i][vid]);
+               mirror_expected.push_back(i);
+             }
+           }
+
+           // check vertex records are consistent  across machines.
+           for (size_t i = 1; i < records.size(); ++i) {
+             ASSERT_TRUE(records[i] == records[0]);
+           }
+
+           // recevied record size == mirror size + 1
+           ASSERT_EQ(records.size(), records[0].mirrors.popcount()+1);
+
+           for (size_t i = 0; i < mirror_expected.size(); ++i) {
+             size_t procid =  mirror_expected[i];
+             ASSERT_TRUE(records[0].mirrors.get(procid) || (records[0].master == procid));
+           }
+         } // end for loop over all vertices
+       }
+}; // end of distributed_graph_test
+
+} // namespace
+
+using namespace tests;
+
+template<typename K, typename V>
+class map_reduce {
+ public:
+   boost::unordered_map<K, V> data; 
+   void save(graphlab::oarchive& oarc) const {
+     oarc << data;
+   }
+   void load(graphlab::iarchive& iarc) {
+     iarc >> data;
+   }
+   map_reduce& operator+=(const map_reduce& other) {
+     for (typename boost::unordered_map<K, V>::const_iterator it = other.data.begin();
+          it != other.data.end(); ++it) {
+       K key = it->first;
+       V val = it->second;
+       if (data.count(key)) {
+         data[key] += val;
+       } else {
+         data[key] = val;
+       }
+     }
+     return *this;
+   }
 };
 
-struct edge_data: public graphlab::IS_POD_TYPE  {
-  int from;
-  int to;
-  edge_data (int f = 0, int t = 0) : from(f), to(t) {}
-};
 
-struct edge_data_empty { };
-
-typedef graphlab::distributed_graph<vertex_data, edge_data> graph_type;
-typedef graph_type::local_edge_list_type local_edge_list_type;
-typedef graph_type::local_edge_type local_edge_type;
-typedef graph_type::local_vertex_type local_vertex_type;
-
-
-//graph 2 used for testing joins
-struct vertex_data2: public graphlab::IS_POD_TYPE  {
-  size_t i;
-  size_t j;
-  vertex_data2() : i(0), j((size_t)(-1)) { }
-};
-
-typedef graphlab::distributed_graph<vertex_data2, edge_data> graph_type2;
-
-template <typename VType>
-size_t get_vid(const VType& t) {
-  return t.id();
-}
-template <typename VType>
-size_t get_vid_half(const VType& t) {
-  return t.id() / 2;
-}
-
-template <typename VType, typename U>
-void assign_data_i_to_i(VType& vtype, const U& u) {
-  vtype.data().i = u.i;
-}
-
-template <typename VType, typename U>
-void assign_data_j_to_i(VType& vtype, const U& u) {
-  vtype.data().i = u.j;
-}
 
 
 int main(int argc, char** argv) {
   graphlab::mpi_tools::init(argc, argv);
-  global_logger().set_log_level(LOG_INFO);
+  dc = new graphlab::distributed_control();
 
-  graphlab::distributed_control dc;
-  graph_type g(dc);
-  graph_type2 g2(dc);
+  // run tests
+  distributed_graph_test testsuit; 
+  testsuit.test_add_vertex();
+  testsuit.test_add_edge();
+  testsuit.test_dynamic_add_edge();
 
-  std::cout << "-----------Begin Grid Test: Object Accessors--------------------" << std::endl;
-  size_t dim = 3;
-  size_t num_vertices = 0;
-  size_t num_edge = 0;
-  typedef uint32_t vertex_id_type;
-
-  if (dc.procid() == 0) {
-    // here we create dim * dim vertices.
-    for (size_t i = 0; i < dim * dim; ++i) {
-      // create the vertex data, randomizing the color
-      vertex_data vdata;
-      vdata.i = i;
-      // create the vertex
-      g.add_vertex(vertex_id_type(i), vdata);
-      g2.add_vertex(vertex_id_type(2 * i));
-      ++num_vertices;
-    }
-
-    // create the edges. The add_edge(i,j,edgedata) function creates
-    // an edge from i->j. with the edgedata attached.   edge_data edata;
-
-    for (size_t i = 0;i < dim; ++i) {
-      for (size_t j = 0;j < dim - 1; ++j) {
-        // add the horizontal edges in both directions
-        //
-        g.add_edge(dim * i + j, dim * i + j + 1, edge_data(dim*i+j, dim*i+j+1));
-        g.add_edge(dim * i + j + 1, dim * i + j, edge_data(dim*i+j+1, dim*i+j));
-      }
-    }
-#ifdef USE_DYNAMIC_LOCAL_GRAPH
-    g.finalize();
-#endif
-
-    for (size_t i = 0;i < dim; ++i) {
-      for (size_t j = 0;j < dim - 1; ++j) {
-       // add the vertical edges in both directions
-        g.add_edge(dim * j + i, dim * (j + 1) + i, edge_data(dim*j+i, dim*(j+1)+i));
-        g.add_edge(dim * (j + 1) + i, dim * j + i, edge_data(dim*(j+1)+i, dim*j+i));
-        num_edge += 4;
-      }
-    }
-  }
-
-  dc.all_reduce(num_vertices);
-  dc.all_reduce(num_edge);
-  // the graph is now constructed
-  // we need to call finalize.
-  g.finalize();
-  g2.finalize();
-
-  ASSERT_EQ(g.num_vertices(), g2.num_vertices());
-
-  dc.cout() << "Test num_vertices()...\n";
-  ASSERT_EQ(g.num_vertices(), num_vertices);
-  dc.cout() << "+ Pass test: num_vertices :)\n\n";
-
-  dc.cout() << "Test num_edges()...\n";
-  ASSERT_EQ(g.num_edges(), num_edge);
-  dc.cout() << "+ Pass test: num_edges :)\n\n";
-
-  // Symmetric graph: #inneighbor == outneighbor
-  dc.cout() << "Test num_in_neighbors() == num_out_neighbors() ...\n";
-  for (size_t i = 0; i < g.num_local_vertices(); ++i) {
-    graph_type::vertex_type v(g.l_vertex(i));
-    ASSERT_EQ(v.num_in_edges(), v.num_out_edges());
-    if (v.id() == 4) {
-      ASSERT_EQ(v.num_in_edges(), 4);
-    }
-    if (v.id() == 0) {
-      ASSERT_EQ(v.num_in_edges(), 2);
-    }
-  }
-  dc.cout() << "+ Pass test: #in = #out...\n\n";
-
-
-  dc.cout() << "Test iterate over in/out_edges and get edge data: \n";
-  for (graphlab::lvid_type i = 0; i < g.num_local_vertices(); ++i) {
-    local_vertex_type v = local_vertex_type(g.l_vertex(i));
-    const local_edge_list_type& out_edges = v.out_edges();
-    const local_edge_list_type& in_edges = v.in_edges();
-
-    std::cout << "Test v: " << v.global_id() << std::endl;
-    printf("In edge ids: ");
-    foreach(local_edge_type edge, in_edges)
-      std::cout << "(" << edge.data().from << ","
-                << edge.data().to << ") ";
-    std::cout <<std::endl;
-
-    printf("Out edge ids: ");
-    foreach(local_edge_type edge, out_edges)
-      std::cout << "(" << edge.data().from << ","
-                << edge.data().to << ") ";
-    std::cout <<std::endl;
-
-    foreach(local_edge_type edge, out_edges) {
-      edge_data edata = edge.data();
-      ASSERT_EQ(edata.from, edge.source().global_id());
-      ASSERT_EQ(edata.to, edge.target().global_id());
-    }
-
-    foreach(local_edge_type edge, in_edges) {
-      edge_data edata = edge.data();
-      ASSERT_EQ(edata.from, edge.source().global_id());
-      ASSERT_EQ(edata.to, edge.target().global_id());
-    }
-  }
-  dc.cout() << "+ Pass test: iterate edgelist and get data. :) \n";
-  std::cout << "-----------End Grid Test--------------------" << std::endl;
-
-
-#ifndef USE_DYNAMIC_LOCAL_GRAPH
-  dc.cout() << "Testing Injective join\n";
-  graphlab::graph_vertex_join<graph_type, graph_type2> join(dc, g, g2);
-  join.prepare_injective_join(get_vid<graph_type::vertex_type>,
-                              get_vid_half<graph_type2::vertex_type>);
-  join.right_injective_join(assign_data_i_to_i<graph_type2::vertex_type,
-                                               graph_type::vertex_data_type>);
-  // check g2
-  for (graphlab::lvid_type i = 0; i < g2.num_local_vertices(); ++i) {
-    ASSERT_EQ(g2.l_vertex(i).data().i, g2.l_vertex(i).global_id() / 2);
-  }
-
-  // now fold back this time assigning j from graph2 to i from graph 1
-  // this should make all i's in graph 1 take the value -1
-  join.left_injective_join(assign_data_j_to_i<graph_type::vertex_type,
-                                              graph_type2::vertex_data_type>);
-  for (graphlab::lvid_type i = 0; i < g.num_local_vertices(); ++i) {
-    ASSERT_EQ(g.l_vertex(i).data().i, (size_t)(-1));
-  }
-dc.barrier();
-  dc.cout() << "Injective join pass\n";
-#endif
-
+  delete(dc);
   graphlab::mpi_tools::finalize();
 }
 

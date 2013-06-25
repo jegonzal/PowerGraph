@@ -53,7 +53,7 @@ namespace graphlab {
 
      /// add a new element in to the end of the block
      /// return false when the block is full
-     bool add(const valuetype& elem) {
+     bool try_add(const valuetype& elem) {
        if (_size == capacity) {
          return false;
        } else {

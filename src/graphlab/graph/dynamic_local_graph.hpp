@@ -63,6 +63,7 @@
 #include <graphlab/util/random.hpp>
 #include <graphlab/macros_def.hpp>
 
+
 namespace graphlab {
   template<typename VertexData, typename EdgeData>
   class dynamic_local_graph {
@@ -96,15 +97,18 @@ namespace graphlab {
   public:
 
     // CONSTRUCTORS ============================================================>
-
     /** Create an empty local_graph. */
-    dynamic_local_graph() : finalized(false) { }
+    dynamic_local_graph()  { }
 
     /** Create a local_graph with nverts vertices. */
     dynamic_local_graph(size_t nverts) :
-      vertices(nverts), finalized(false) {}
+      vertices(nverts)  {}
 
     // METHODS =================================================================>
+
+    static bool is_dynamic() {
+      return true;
+    }
 
     /**
      * \brief Resets the local_graph state.
@@ -117,7 +121,6 @@ namespace graphlab {
       std::vector<VertexData>().swap(vertices);
       std::vector<EdgeData>().swap(edges);
       edge_buffer.clear();
-      finalized = false;
     }
 
     /** \brief Get the number of vertices */
@@ -172,11 +175,6 @@ namespace graphlab {
      */
     edge_id_type add_edge(lvid_type source, lvid_type target,
                           const EdgeData& edata = EdgeData()) {
-      if (finalized) {
-        logstream(LOG_DEBUG)
-          << "Adding edge to a finalized local_graph." << std::endl;
-      }
-
       if(source == target) {
         logstream(LOG_FATAL)
           << "Attempting to add self edge (" << source << " -> " << target <<  ").  "
@@ -202,10 +200,6 @@ namespace graphlab {
                    const std::vector<EdgeData>& edata_arr) {
       ASSERT_TRUE((src_arr.size() == dst_arr.size())
                   && (src_arr.size() == edata_arr.size()));
-      if (finalized) {
-        logstream(LOG_DEBUG)
-          << "Attempting add edges to a finalized local_graph." << std::endl;
-      }
 
       for (size_t i = 0; i < src_arr.size(); ++i) {
         lvid_type source = src_arr[i];
@@ -301,13 +295,13 @@ namespace graphlab {
       }
       ASSERT_EQ(csc_values.size(), csr_values.size());
 
-      if (!finalized) {
+      // fast path with first time insertion.
+      if (edges.size() == 0) {
         edges.swap(edge_buffer.data);
         edge_buffer.clear();
         // warp into csr csc storage.
         _csr_storage.wrap(src_counting_prefix_sum, csr_values);
         _csc_storage.wrap(dest_counting_prefix_sum, csc_values);
-        finalized = true;
       } else {
         // insert edge data
         edges.reserve(edges.size() + edge_buffer.size());
@@ -333,9 +327,10 @@ namespace graphlab {
             _csc_storage.insert(i, csc_values.begin()+begin, csc_values.begin()+end);
           }
         }
-        // Repack after insertion
-        _csr_storage.repack();
-        _csc_storage.repack();
+        // // Repack after insertion
+        // TODO :fix repack
+        // _csr_storage.repack();
+        // _csc_storage.repack();
       }
       ASSERT_EQ(_csr_storage.num_values(), _csc_storage.num_values());
       ASSERT_EQ(_csr_storage.num_values(), edges.size());
@@ -360,8 +355,7 @@ namespace graphlab {
       arc >> vertices
           >> edges
           >> _csr_storage
-          >> _csc_storage
-          >> finalized;
+          >> _csc_storage;
     } // end of load
 
     /** \brief Save the local_graph to an archive */
@@ -370,13 +364,11 @@ namespace graphlab {
       arc << vertices
           << edges
           << _csr_storage
-          << _csc_storage
-          << finalized;
+          << _csc_storage;
     } // end of save
 
     /** swap two graphs */
     void swap(dynamic_local_graph& other) {
-      finalized = other.finalized;
       std::swap(vertices, other.vertices);
       std::swap(edges, other.edges);
       std::swap(_csr_storage, other._csr_storage);
@@ -436,7 +428,6 @@ namespace graphlab {
      * \internal
      * \brief Returns the number of in edges of the vertex with the given id. */
     size_t num_in_edges(const lvid_type v) const {
-      // ASSERT_TRUE(finalized);
       return _csc_storage.begin(v).pdistance_to(_csc_storage.end(v));
     }
 
@@ -444,7 +435,6 @@ namespace graphlab {
      * \internal
      * \brief Returns the number of in edges of the vertex with the given id. */
     size_t num_out_edges(const lvid_type v) const {
-      // ASSERT_TRUE(finalized);
       return _csr_storage.begin(v).pdistance_to(_csr_storage.end(v));
     }
 
@@ -541,11 +531,13 @@ namespace graphlab {
         Finalize. This will be cleared after finalized.*/
     local_edge_buffer<VertexData, EdgeData> edge_buffer;
 
-    /** Mark whether the local_graph is finalized.  Graph finalization is a
-        costly procedure but it can also dramatically improve
-        performance. */
-    bool finalized;
-  }; // End of class local_graph
+    /**************************************************************************/
+    /*                                                                        */
+    /*                            declare friends                             */
+    /*                                                                        */
+    /**************************************************************************/
+    friend class local_graph_test;
+  }; // End of class dynamic_local_graph
 
 
   template<typename VertexData, typename EdgeData>
