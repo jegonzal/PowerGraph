@@ -44,6 +44,7 @@
 
 #include <graphlab/util/tracepoint.hpp>
 #include <graphlab/util/memory_info.hpp>
+#include <graphlab/util/generics/conditional_addition_wrapper.hpp>
 #include <graphlab/rpc/distributed_event_log.hpp>
 #include <graphlab/parallel/fiber_group.hpp>
 #include <graphlab/parallel/fiber_control.hpp>

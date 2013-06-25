@@ -15,8 +15,4 @@ add_graphlab_executable(eigen_vector_normalization eigen_vector_normalization.cp
 add_graphlab_executable(graph_laplacian graph_laplacian.cpp)
 add_graphlab_executable(partitioning partitioning.cpp)
 
-
-add_graphlab_executable(gl3pagerank gl3pagerank.cpp)
-add_graphlab_executable(gl3pagerank2 gl3pagerank2.cpp)
-add_graphlab_executable(gl3coloring gl3coloring.cpp)
-add_graphlab_executable(gl3bond_percolation gl3bond_percolation.cpp)
+add_graphlab_executable(warp_pagerank_sweeps warp_pagerank_sweeps.cpp)

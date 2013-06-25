@@ -184,6 +184,10 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
     bytessent[p].inc(bytes);
   }
 
+  /// Should not be used by the user
+  size_t get_obj_id() const {
+    return obj_id;
+  }
   /// \endcond GRAPHLAB_INTERNAL
  public:
 
