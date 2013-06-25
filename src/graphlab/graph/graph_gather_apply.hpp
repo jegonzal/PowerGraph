@@ -26,7 +26,6 @@
 #include <boost/bind.hpp>
 #include <graphlab/options/graphlab_options.hpp>
 #include <graphlab/parallel/pthread_tools.hpp>
-#include <graphlab/parallel/atomic_add_vector.hpp>
 #include <graphlab/graph/vertex_set.hpp>
 #include <graphlab/util/memory_info.hpp>
 
