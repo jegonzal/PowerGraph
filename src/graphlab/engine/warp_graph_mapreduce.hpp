@@ -16,16 +16,19 @@ namespace warp {
 namespace warp_impl {
 
 /**
- * \internal
  * The default combiner used for combining mapped results from
- * map_reduce_neighborhood; merges self with other using operator +=. 
+ * warp::map_reduce_neighborhood(); merges self with other using operator +=. 
  */
 template <typename T>
 void default_combiner(T& self, const T& other) {
   self += other;
 }
 
-
+/**
+ * The default combiner used for combining mapped results from
+ * warp::map_reduce_neighborhood() which
+ * takes an unused argument; merges self with other using operator +=. 
+ */
 template <typename T, typename ExtraArgs>
 void extended_default_combiner(T& self, const T& other, const ExtraArgs& unused) {
   self += other;
@@ -66,11 +69,11 @@ struct map_reduce_neighborhood_impl {
         edge_type edge(local_edge);
         vertex_type other(local_edge.source());
         lvid_type a = edge.source().local_id(), b = edge.target().local_id();
-        //vertexlocks[std::min(a,b)].lock();
-        //vertexlocks[std::max(a,b)].lock();
+        graph.get_lock_manager()[std::min(a,b)].lock();
+        graph.get_lock_manager()[std::max(a,b)].lock();
         accum += mapper(edge, other);
-        //vertexlocks[a].unlock();
-        //vertexlocks[b].unlock();
+        graph.get_lock_manager()[a].unlock();
+        graph.get_lock_manager()[b].unlock();
       }
     } 
     // do out edges
@@ -79,11 +82,11 @@ struct map_reduce_neighborhood_impl {
         edge_type edge(local_edge);
         vertex_type other(local_edge.target());
         lvid_type a = edge.source().local_id(), b = edge.target().local_id();
-        //vertexlocks[std::min(a,b)].lock();
-        //vertexlocks[std::max(a,b)].lock();
+        graph.get_lock_manager()[std::min(a,b)].lock();
+        graph.get_lock_manager()[std::max(a,b)].lock();
         accum += mapper(edge, other);
-        //vertexlocks[a].unlock();
-        //vertexlocks[b].unlock();
+        graph.get_lock_manager()[a].unlock();
+        graph.get_lock_manager()[b].unlock();
       }
     } 
     return accum;
@@ -152,7 +155,7 @@ struct map_reduce_neighborhood_impl {
     return accum.value;
   }
 
-
+};
 
 /**************************************************************************/
 /*                                                                        */
@@ -166,16 +169,21 @@ struct map_reduce_neighborhood_impl {
  * an optional argument
  */
 
+template <typename RetType, typename GraphType, typename ExtraArg>
+struct map_reduce_neighborhood_impl2 {
 
+  typedef typename GraphType::vertex_type vertex_type;
+  typedef typename GraphType::edge_type edge_type;
+  typedef typename GraphType::local_vertex_type local_vertex_type;
+  typedef typename GraphType::local_edge_type local_edge_type;
+  typedef typename GraphType::vertex_record vertex_record;
 
-
-  template <typename ExtraArg>
   static conditional_combiner_wrapper<RetType> extended_local_mapper(GraphType& graph,
                                                               edge_dir_type edge_direction,
-                                                              RetType (*mapper)(edge_type edge, vertex_type other, const ExtraArg&),
-                                                              void (*combiner)(RetType&, const RetType&, const ExtraArg&),
+                                                              RetType (*mapper)(edge_type edge, vertex_type other, const ExtraArg),
+                                                              void (*combiner)(RetType&, const RetType&, const ExtraArg),
                                                               vertex_id_type vid,
-                                                              const ExtraArg& extra) {
+                                                              const ExtraArg extra) {
 
     lvid_type lvid = graph.local_vid(vid);
     local_vertex_type local_vertex(graph.l_vertex(lvid));
@@ -186,11 +194,12 @@ struct map_reduce_neighborhood_impl {
         edge_type edge(local_edge);
         vertex_type other(local_edge.source());
         lvid_type a = edge.source().local_id(), b = edge.target().local_id();
-        //vertexlocks[std::min(a,b)].lock();
-        //vertexlocks[std::max(a,b)].lock();
+
+        graph.get_lock_manager()[std::min(a,b)].lock();
+        graph.get_lock_manager()[std::max(a,b)].lock();
         accum += mapper(edge, other, extra);
-        //vertexlocks[a].unlock();
-        //vertexlocks[b].unlock();
+        graph.get_lock_manager()[a].unlock();
+        graph.get_lock_manager()[b].unlock();
       }
     } 
     // do out edges
@@ -199,29 +208,29 @@ struct map_reduce_neighborhood_impl {
         edge_type edge(local_edge);
         vertex_type other(local_edge.target());
         lvid_type a = edge.source().local_id(), b = edge.target().local_id();
-        //vertexlocks[std::min(a,b)].lock();
-        //vertexlocks[std::max(a,b)].lock();
+
+        graph.get_lock_manager()[std::min(a,b)].lock();
+        graph.get_lock_manager()[std::max(a,b)].lock();
         accum += mapper(edge, other, extra);
-        //vertexlocks[a].unlock();
-        //vertexlocks[b].unlock();
+        graph.get_lock_manager()[a].unlock();
+        graph.get_lock_manager()[b].unlock();
       }
     } 
     return accum;
   }
 
-  template <typename ExtraArg>
   static conditional_combiner_wrapper<RetType> extended_local_mapper_from_remote(size_t objid,
                                                               edge_dir_type edge_direction,
                                                               size_t mapper_ptr,
                                                               size_t combiner_ptr,
                                                               vertex_id_type vid,
-                                                              const ExtraArg& extra) {
+                                                              const ExtraArg extra) {
     // cast the mappers and combiners back into their pointer types
-    RetType (*mapper)(edge_type edge, vertex_type other, const ExtraArg&) = 
-        reinterpret_cast<RetType(edge_type, vertex_type)>(mapper_ptr);
-    void (*combiner)(RetType&, const RetType&, const ExtraArg&) = 
-        reinterpret_cast<void (RetType&, const RetType&)>(combiner_ptr);
-    return extended_local_mapper<ExtraArg>(
+    RetType (*mapper)(edge_type edge, vertex_type other, const ExtraArg) = 
+        reinterpret_cast<RetType(*)(edge_type, vertex_type, const ExtraArg)>(mapper_ptr);
+    void (*combiner)(RetType&, const RetType&, const ExtraArg) = 
+        reinterpret_cast<void (*)(RetType&, const RetType&, const ExtraArg)>(combiner_ptr);
+    return extended_local_mapper(
         *reinterpret_cast<GraphType*>(distributed_control::get_instance()->get_registered_object(objid)),
         edge_direction,
         mapper,
@@ -230,16 +239,15 @@ struct map_reduce_neighborhood_impl {
         extra);
   }
 
-  template <typename ExtraArg>
   static RetType extended_map_reduce_neighborhood(typename GraphType::vertex_type current,
                                                   edge_dir_type edge_direction,
-                                                  const ExtraArg& extra,
+                                                  const ExtraArg extra,
                                                   RetType (*mapper)(edge_type edge,
                                                                     vertex_type other,
-                                                                    const ExtraArg& extra),
+                                                                    const ExtraArg extra),
                                                   void (*combiner)(RetType& self, 
                                                                    const RetType& other,
-                                                                   const ExtraArg& extra)) {
+                                                                   const ExtraArg extra)) {
     // get a reference to the graph
     GraphType& graph = current.graph_ref;
     typename GraphType::vertex_record vrecord = graph.l_get_vertex_record(current.local_id());
@@ -255,18 +263,19 @@ struct map_reduce_neighborhood_impl {
     foreach(procid_t proc, vrecord.mirrors()) {
       // issue the communication
       requests[ctr] = fiber_remote_request(proc, 
-                                           map_reduce_neighborhood_impl<RetType, GraphType>::extended_local_mapper_from_remote<ExtraArg>,
+                                           map_reduce_neighborhood_impl2::extended_local_mapper_from_remote,
                                            objid,
                                            edge_direction,
                                            reinterpret_cast<size_t>(mapper),
                                            reinterpret_cast<size_t>(combiner),
-                                           current.id());
+                                           current.id(),
+                                           extra);
         ++ctr;
     }
     // compute the local tasks
     conditional_combiner_wrapper<RetType> accum = 
-        extended_local_mapper<ExtraArg>(graph, edge_direction, mapper, 
-                                        combiner, current.id(), extra);
+        extended_local_mapper(graph, edge_direction, mapper, 
+                              combiner, current.id(), extra);
 
     accum.set_combiner(boost::bind(combiner, _1, _2, boost::ref(extra)));
     // now, wait for everyone
@@ -280,7 +289,82 @@ struct map_reduce_neighborhood_impl {
 
 } // namespace warp::warp_impl
 
-
+/**
+ * \ingroup warp
+ *
+ * This Warp function allows a map-reduce aggregation of the neighborhood of a
+ * vertex to be performed. This is a blocking operation, and will not return
+ * until the distributed computation is complete.  When run inside a fiber, to
+ * hide latency, the system will automatically context switch to evaluate some
+ * other fiber which is ready to run. 
+ *
+ * Abstractly, the computation accomplishes the following:
+ *
+ * \code
+ * ResultType result()
+ * foreach(edge in neighborhood of current vertex) {
+ *   combiner(result, mapper(edge, opposite vertex))
+ * }
+ * return result
+ * \endcode
+ *
+ * \attention This call does not accomplish synchronization, thus 
+ * modifications to the current vertex will not be reflected during
+ * the call. In other words, inside the mapper function, only the values on
+ * edge.data() and other.data() will be valid. The value of the vertex
+ * on the "self" end of the edge will not reflect changes you made to the vertex
+ * immediately before calling warp::map_reduce_neighborhood(). Use the overload
+ * of map_reduce_neighborhood (below) if you want to pass on additional
+ * information to the mapper.
+ *
+ * Here is an example which implements the PageRank computation, using
+ * the parfor_all_vertices function to create a parallel for loop using fibers.
+ * \code
+ * float pagerank_map(graph_type::edge_type edge, graph_type::vertex_type other) {
+ *  return other.data() / other.num_out_edges();
+ * }
+ *
+ * // the function arguments of the combiner must match the return type of the
+ * // map function.
+ * void pagerank_combine(float& a, const float& b) {
+ *   a += b;
+ * }
+ *
+ * void pagerank(graph_type::vertex_type vertex) {
+ *    // computes an aggregate over the neighborhood using map_reduce_neighborhood
+ *    // The pagerank_map function will be executed over every in-edge of the graph,
+ *    // and the result  of each map is combined using the pagerank_combine 
+ *    // function. The pagerank_combine is not strictly necessary here since the
+ *    // default combine behavior is to use += anyway.
+ *    vertex.data() = 0.15 + 0.85 * warp::map_reduce_neighborhood(vertex,
+ *                                                                IN_EDGES,
+ *                                                                pagerank_map,
+ *                                                                pagerank_combine);
+ * }
+ *
+ * ...
+ * // runs the pagerank function on all the vertices in the graph.
+ * parfor_all_vertices(graph, pagerank); 
+ * \endcode
+ *
+ * An overload is provided which allows you to pass an additional arbitrary
+ * argument to the mappers and combiners.
+ *
+ *
+ * \param current The vertex to map reduce the neighborhood over
+ * \param edge_direction To run over all IN_EDGES, OUT_EDGES or ALL_EDGES
+ * \param mapper The map function that will be executed. Must be a function pointer.
+ * \param combiner The combine function that will be executed. Must be a function pointer.
+ *                 Optional. Defaults to using "+=" on the output of the mapper
+ * 
+ * \return The result of the neighborhood map reduce operation. The return
+ * type matches the return type of the mapper.
+ *
+ * \see warp_engine
+ * \see warp::parfor_all_vertices()
+ * \see warp::transform_neighborhood()
+ * \see warp::broadcast_neighborhood()
+ */
 template <typename RetType, typename VertexType>
 RetType map_reduce_neighborhood(VertexType current,
                                 edge_dir_type edge_direction,
@@ -295,22 +379,100 @@ RetType map_reduce_neighborhood(VertexType current,
                                                                     mapper, combiner);
 }
 
+
+
+/**
+ * \ingroup warp
+ *
+ * This Warp function allows a map-reduce aggregation of the neighborhood of a
+ * vertex to be performed. This is a blocking operation, and will not return
+ * until the distributed computation is complete.  When run inside a fiber, to
+ * hide latency, the system will automatically context switch to evaluate some
+ * other fiber which is ready to run. 
+ *
+ * This is the more general overload of the map_reduce_neighborhood function
+ * which allows an additional arbitrary extra argument to be passed along
+ * to the mapper and combiner functions.
+ * 
+ * Abstractly, the computation accomplishes the following:
+ *
+ * \code
+ * ResultType result()
+ * foreach(edge in neighborhood of current vertex) {
+ *   combiner(result, mapper(edge, opposite vertex, extraarg), extraarg)
+ * }
+ * return result
+ * \endcode
+ *
+ * Here is an example which implements the PageRank computation, using
+ * the parfor_all_vertices function to create a parallel for loop using fibers.
+ * We demonstrate the additional argument by passing on the 0.85 scaling value to
+ * be computed in the map.
+ * \code
+ * float pagerank_map(graph_type::edge_type edge, 
+ *                    graph_type::vertex_type other, const float scale) {
+ *  // the scale value here will match the last argument passed into
+ *  // the map_reduce_neighborhood call. In this case, it is fixed to
+ *  // 0.85.
+ *  return scale * other.data() / other.num_out_edges();
+ * }
+ *
+ * // the function arguments of the combiner must match the return type of the
+ * // map function.
+ * void pagerank_combine(float& a, const float& b, const float _scale_unused) {
+ *   a += b;
+ * }
+ *
+ * void pagerank(graph_type::vertex_type vertex) {
+ *    // computes an aggregate over the neighborhood using map_reduce_neighborhood
+ *    // The pagerank_map function will be executed over every in-edge of the graph,
+ *    // and the result  of each map is combined using the pagerank_combine 
+ *    // function. The pagerank_combine is not strictly necessary here since the
+ *    // default combine behavior is to use += anyway.
+ *    vertex.data() = 0.15 + warp::map_reduce_neighborhood(vertex,
+ *                                                         IN_EDGES,
+ *                                                         float(0.85),
+ *                                                         pagerank_map,
+ *                                                         pagerank_combine);
+ * }
+ *
+ * ...
+ * // runs the pagerank function on all the vertices in the graph.
+ * parfor_all_vertices(graph, pagerank); 
+ * \endcode
+ *
+ *
+ * \param current The vertex to map reduce the neighborhood over
+ * \param edge_direction To run over all IN_EDGES, OUT_EDGES or ALL_EDGES
+ * \param extra An additional argument to be passed to the mapper and combiner
+ * functions.  
+ * \param mapper The map function that will be executed. Must be a
+ * function pointer.
+ * \param combiner The combine function that will be executed. Must be a
+ * function pointer.  Optional. Defaults to using "+=" on the output of the
+ * mapper \return The result of the neighborhood map reduce operation. The
+ * return type matches the return type of the mapper.
+ *
+ * \see warp_engine
+ * \see warp::parfor_all_vertices()
+ * \see warp::transform_neighborhood()
+ * \see warp::broadcast_neighborhood()
+ */
 template <typename RetType, typename ExtraArg, typename VertexType>
 RetType map_reduce_neighborhood(VertexType current,
                                 edge_dir_type edge_direction,
-                                const ExtraArg& extra,
+                                const ExtraArg extra,
                                 RetType (*mapper)(typename VertexType::graph_type::edge_type edge,
                                                   VertexType other,
-                                                  const ExtraArg& extra),
+                                                  const ExtraArg extra),
                                 void (*combiner)(RetType& self, 
                                                  const RetType& other,
-                                                 const ExtraArg& extra) = warp_impl::extended_default_combiner<RetType, ExtraArg>) {
+                                                 const ExtraArg extra) = warp_impl::extended_default_combiner<RetType, ExtraArg>) {
   return warp_impl::
-      map_reduce_neighborhood_impl<RetType, 
-                                  typename VertexType::graph_type>::template
-                                      extended_map_reduce_neighborhood<ExtraArg>(current, edge_direction, 
-                                                                                 extra, 
-                                                                                 mapper, combiner);
+      map_reduce_neighborhood_impl2<RetType, typename VertexType::graph_type, ExtraArg>::
+                                      extended_map_reduce_neighborhood(current, edge_direction, 
+                                                                       extra, 
+                                                                       mapper, combiner);
 }
 
 

@@ -27,10 +27,11 @@
 #include <graphlab.hpp>
 #include <graphlab/engine/warp_graph_mapreduce.hpp>
 #include <graphlab/engine/warp_parfor_all_vertices.hpp>
+#include <graphlab/engine/warp_graph_transform.hpp>
 using namespace graphlab;
 
 // The graph type is determined by the vertex and edge data types
-typedef distributed_graph<float , empty> graph_type;
+typedef distributed_graph<float , float> graph_type;
 
 /*
  * A simple function used by graph.transform_vertices(init_vertex);
@@ -42,12 +43,20 @@ void init_vertex(graph_type::vertex_type& vertex) { vertex.data() = 1; }
 float pagerank_map(graph_type::edge_type edge, graph_type::vertex_type other) {
   return other.data() / other.num_out_edges();
 }
+void transform_edge(graph_type::edge_type edge, graph_type::vertex_type other) {
+  edge.data() = other.data();
+}
 
 void pagerank(graph_type::vertex_type vertex) {
   vertex.data() = 0.15 + 0.85 * warp::map_reduce_neighborhood(vertex,
                                                               IN_EDGES,
                                                               pagerank_map);
+  warp::transform_neighborhood(vertex, OUT_EDGES, transform_edge);
 }
+
+
+
+
 
 
 /*

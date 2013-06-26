@@ -179,7 +179,7 @@ class  BOOST_PP_CAT(FNAME_AND_CALL, N) { \
 /**
 Generates a function call issue. 3rd argument is the issue name
 */
-BOOST_PP_REPEAT(6, REMOTE_REQUEST_ISSUE_GENERATOR,  remote_request_issue )
+BOOST_PP_REPEAT(7, REMOTE_REQUEST_ISSUE_GENERATOR,  remote_request_issue )
 
 
 

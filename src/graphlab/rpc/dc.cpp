@@ -245,17 +245,19 @@ void distributed_control::deferred_function_call_chunk(char* buf, size_t len, pr
   fc->is_chunk = true;
   fc->source = src;
   fcallqueue_length.inc();
+  fcallqueue[src % fcallqueue.size()].enqueue(fc);
+/*
   if (get_block_sequentialization_key(*fc) > 0) {
     fcallqueue[src % fcallqueue.size()].enqueue(fc);
   } else {
     const uint32_t prod = 
         random::fast_uniform(uint32_t(0), 
-                             uint32_t(fcallqueue.size() - 1));
+                             uint32_t(fcallqueue.size() * fcallqueue.size() - 1));
     const uint32_t r1 = prod / fcallqueue.size();
     const uint32_t r2 = prod % fcallqueue.size();
     uint32_t idx = (fcallqueue[r1].size() < fcallqueue[r2].size()) ? r1 : r2;  
     fcallqueue[idx].enqueue(fc);
-  }
+  } */
   END_TRACEPOINT(dc_receive_queuing);
 }
 
@@ -496,6 +498,8 @@ void distributed_control::init(const std::vector<std::string> &machines,
   global_bytes_received.resize(machines.size());
   fcallqueue.resize(numhandlerthreads);
 
+  // options
+  set_fast_track_requests(true);
 
   // parse the initstring
   std::map<std::string,std::string> options = parse_options(initstring);

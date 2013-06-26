@@ -337,6 +337,21 @@ class distributed_control{
     return localnumprocs;
   }
 
+
+  bool use_fast_track_requests;
+
+  /// Sets the fast track status, returning the previous value
+  bool set_fast_track_requests(bool val) {
+    bool ret = use_fast_track_requests;
+    use_fast_track_requests = val;
+    return ret;
+  }
+
+  /// Returns true if we should fast track all request messages
+  bool fast_track_requests() {
+    return use_fast_track_requests;
+  }
+
   /**
    *  \brief Registers a callback which will be called on deletion of the
    *         distributed_control object.
@@ -490,9 +505,9 @@ class distributed_control{
   /*
   Generates the interface functions. 3rd argument is a tuple (interface name, issue name, flags)
   */
-  BOOST_PP_REPEAT(6, CUSTOM_REQUEST_INTERFACE_GENERATOR, (void custom_remote_request, dc_impl::remote_request_issue, (STANDARD_CALL | WAIT_FOR_REPLY)) )
-   BOOST_PP_REPEAT(6, REQUEST_INTERFACE_GENERATOR, (typename dc_impl::function_ret_type<__GLRPC_FRESULT>::type remote_request) )
-  BOOST_PP_REPEAT(6, FUTURE_REQUEST_INTERFACE_GENERATOR, (request_future<__GLRPC_FRESULT> future_remote_request) )
+  BOOST_PP_REPEAT(7, CUSTOM_REQUEST_INTERFACE_GENERATOR, (void custom_remote_request, dc_impl::remote_request_issue, (STANDARD_CALL | WAIT_FOR_REPLY)) )
+   BOOST_PP_REPEAT(7, REQUEST_INTERFACE_GENERATOR, (typename dc_impl::function_ret_type<__GLRPC_FRESULT>::type remote_request) )
+  BOOST_PP_REPEAT(7, FUTURE_REQUEST_INTERFACE_GENERATOR, (request_future<__GLRPC_FRESULT> future_remote_request) )
 
 
 

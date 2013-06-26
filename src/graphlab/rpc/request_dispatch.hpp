@@ -136,7 +136,7 @@ void BOOST_PP_CAT(REQUESTDISPATCH,N) (DcType& dc, procid_t source, unsigned char
   free(retstrm->str);                                                 \
 } 
 
-BOOST_PP_REPEAT(6, DISPATCH_GENERATOR, _)
+BOOST_PP_REPEAT(7, DISPATCH_GENERATOR, _)
 
 #undef GENFN
 #undef GENFN2
@@ -177,7 +177,7 @@ void BOOST_PP_CAT(NONINTRUSIVE_REQUESTDISPATCH,N) (DcType& dc, procid_t source, 
   free(retstrm->str);                                                 \
 } 
 
-BOOST_PP_REPEAT(6, NONINTRUSIVE_DISPATCH_GENERATOR, _)
+BOOST_PP_REPEAT(7, NONINTRUSIVE_DISPATCH_GENERATOR, _)
 
 
 #undef GENFN

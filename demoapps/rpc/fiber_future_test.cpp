@@ -29,6 +29,7 @@ int main(int argc, char** argv) {
     fiber_group group(4096);
     for (int i = 0;i < 1600000; ++i) {
       group.launch(boost::bind(test_fiber, 1));
+      if (i % 100000 == 0) std::cout << i << "\n";
     }
     group.join();
     std::cout << "completed requests: " << complete_count.value << " in " << ti.current_time() << "\n";  

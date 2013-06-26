@@ -74,7 +74,8 @@ void fiber_control::create_tls_ptr() {
 
 
 fiber_control::tls* fiber_control::get_tls_ptr() {
-  return (fiber_control::tls*) pthread_getspecific(tlskey);
+  if (tls_created == false) return NULL;
+  else return (fiber_control::tls*) pthread_getspecific(tlskey);
 }
 
 fiber_control::fiber* fiber_control::get_active_fiber() {
@@ -250,6 +251,8 @@ size_t fiber_control::pick_fiber_worker(fiber* fib) {
     //choice rejected, pick randomly from the available choices
     size_t ra = graphlab::random::fast_uniform<size_t>(0,fib->affinity_array.size() - 1);
     size_t rb = graphlab::random::fast_uniform<size_t>(0,fib->affinity_array.size() - 1);
+    ra = fib->affinity_array[ra];
+    rb = fib->affinity_array[rb];
     choice = (schedule[ra].nactive <= schedule[rb].nactive) ? ra : rb;
   }
   return choice;

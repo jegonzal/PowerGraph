@@ -231,7 +231,7 @@ template<typename F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, typename T)> \
   return reply; \
 } 
 
-BOOST_PP_REPEAT(6, REQUEST_INTERFACE_GENERATOR, (request_future<__GLRPC_FRESULT> fiber_remote_request) )
+BOOST_PP_REPEAT(7, REQUEST_INTERFACE_GENERATOR, (request_future<__GLRPC_FRESULT> fiber_remote_request) )
 
 #include <graphlab/rpc/function_arg_types_undef.hpp>
 
@@ -252,7 +252,7 @@ template<typename RMI, typename F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, t
   /*
   Generates the interface functions. 3rd argument is a tuple (interface name, issue name, flags)
   */
-BOOST_PP_REPEAT(6, OBJECT_REQUEST_INTERFACE_GENERATOR, (request_future<__GLRPC_FRESULT> object_fiber_remote_request) )
+BOOST_PP_REPEAT(7, OBJECT_REQUEST_INTERFACE_GENERATOR, (request_future<__GLRPC_FRESULT> object_fiber_remote_request) )
 
 #include <graphlab/rpc/mem_function_arg_types_undef.hpp>
 

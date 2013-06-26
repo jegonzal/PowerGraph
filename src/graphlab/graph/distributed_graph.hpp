@@ -392,6 +392,8 @@ namespace graphlab {
 #endif
     typedef graphlab::distributed_graph<VertexData, EdgeData> graph_type;
 
+    typedef std::vector<simple_spinlock> lock_manager_type;
+
     friend class distributed_ingress_base<VertexData, EdgeData>;
 
 
@@ -626,6 +628,10 @@ namespace graphlab {
       delete ingress_ptr; ingress_ptr = NULL;
     }
 
+
+    lock_manager_type& get_lock_manager() {
+      return lock_manager;
+    }
   private:
     void set_options(const graphlab_options& opts) {
       size_t bufsize = 50000;
@@ -691,6 +697,7 @@ namespace graphlab {
       ASSERT_NE(ingress_ptr, NULL);
       logstream(LOG_INFO) << "Distributed graph: enter finalize" << std::endl;
       ingress_ptr->finalize();
+      lock_manager.resize(num_local_vertices());
       rpc.barrier(); 
 
       finalized = true;
@@ -2888,6 +2895,9 @@ namespace graphlab {
 
     /** Command option to disable parallel ingress. Used for simulating single node ingress */
     bool parallel_ingress;
+
+
+    lock_manager_type lock_manager;
 
     void set_ingress_method(const std::string& method,
         size_t bufsize = 50000, bool usehash = false, bool userecent = false) {

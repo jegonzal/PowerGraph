@@ -62,10 +62,12 @@ namespace graphlab {
    * \ingroup engines
    *
    * \brief The asynchronous consistent engine executed vertex programs
-   * asynchronously but ensures mutual exclusion such that adjacent vertices
-   * are never executed simultaneously. Mutual exclusion can be weakened
-   * to "factorized" consistency  in which case only individual gathers/applys/
-   * scatters are guaranteed to be consistent.
+   * asynchronously and can ensure mutual exclusion such that adjacent vertices
+   * are never executed simultaneously. The default mode is "factorized"
+   * consistency in which only individual gathers/applys/
+   * scatters are guaranteed to be consistent, but this can be strengthened to
+   * provide full mutual exclusion.
+   *
    *
    * \tparam VertexProgram
    * The user defined vertex program type which should implement the
@@ -196,6 +198,8 @@ namespace graphlab {
    * model to factorized consistency where only individual gather/apply/scatter
    * calls are guaranteed to be locally consistent. Can produce massive
    * increases in throughput at a consistency penalty.
+   * \li \b nfibers (default: 3000) Number of fibers to use
+   * \li \b stacksize (default: 16384) Stacksize of each fiber.
    */
   template<typename VertexProgram>
   class async_consistent_engine: public iengine<VertexProgram> {
@@ -435,10 +439,11 @@ namespace graphlab {
         engine_start_time(timer::approx_time_seconds()), force_stop(false) {
       rmi.barrier();
 
-      nfibers = 2000;
-      stacksize = 8192;
+      nfibers = 3000;
+      stacksize = 16384;
       use_cache = false;
       factorized_consistency = true;
+      timed_termination = (size_t)(-1);
       termination_reason = execution_status::UNSET;
       set_options(opts);
       initialize();
@@ -604,10 +609,10 @@ namespace graphlab {
                          const message_type& message = message_type()) {
       if (force_stop) return;
       if (started) {
+        const typename graph_type::vertex_record& rec = graph.l_get_vertex_record(vtx.local_id());
+        const procid_t owner = rec.owner;
         if (endgame_mode) {
           // fast signal. push to the remote machine immediately
-          const typename graph_type::vertex_record& rec = graph.l_get_vertex_record(vtx.local_id());
-          const procid_t owner = rec.owner;
           if (owner != rmi.procid()) {
             const vertex_id_type vid = rec.gvid;
             rmi.remote_call(owner, &engine_type::rpc_signal, vid, message);
@@ -620,6 +625,7 @@ namespace graphlab {
           }
         }
         else {
+
           double priority;
           messages.add(vtx.local_id(), message, &priority);
           scheduler_ptr->schedule(vtx.local_id(), priority);
@@ -790,6 +796,12 @@ namespace graphlab {
       }
     }
 
+    void set_endgame_mode() {
+        if (!endgame_mode) logstream(LOG_EMPH) << "Endgame mode\n";
+        endgame_mode = true;
+        rmi.dc().set_fast_track_requests(true);
+    } 
+
     /**
      * \internal
      * Called when get_a_task returns no internal task not a scheduler task.
@@ -815,7 +827,10 @@ namespace graphlab {
 
         if (!endgame_mode) logstream(LOG_EMPH) << "Endgame mode\n";
         endgame_mode = true;
-
+        // put everyone in endgame
+        for (procid_t i = 0;i < rmi.dc().numprocs(); ++i) {
+          rmi.remote_call(i, &async_consistent_engine::set_endgame_mode);
+        } 
         bool ret = consensus->end_done_critical_section(threadid);
         if (ret == false) {
           logstream(LOG_DEBUG) << rmi.procid() << "-" << threadid <<  ": "
@@ -970,11 +985,11 @@ namespace graphlab {
       vertexlocks[lvid].lock();
       // someone left a next message for me
       // reschedule it at high priority
-      if (hasnext.get(lvid) && !messages.empty(lvid)) {
+      if (hasnext.get(lvid)) {
         scheduler_ptr->schedule(lvid, 10000.0);
         consensus->cancel();
+        hasnext.clear_bit(lvid);
       }
-      hasnext.clear_bit(lvid);
       program_running.clear_bit(lvid);
       vertexlocks[lvid].unlock();
     }
@@ -1062,27 +1077,27 @@ namespace graphlab {
 
      // should I wait for the scatter? nah... but in case you want to
      // the code is commented below
-     foreach(procid_t mirror, local_vertex.mirrors()) {
+     /*foreach(procid_t mirror, local_vertex.mirrors()) {
        rmi.remote_call(mirror, 
                        &async_consistent_engine::perform_scatter, 
                        vid,
                        vprog,
                        local_vertex.data());
+     }*/
+
+     std::vector<request_future<void> > scatter_futures;
+     foreach(procid_t mirror, local_vertex.mirrors()) {
+       scatter_futures.push_back(
+           object_fiber_remote_request(rmi, 
+                                       mirror, 
+                                       &async_consistent_engine::perform_scatter, 
+                                       vid,
+                                       vprog,
+                                       local_vertex.data()));
      }
      perform_scatter_local(lvid, vprog);
-
-//       std::vector<request_future<void> > scatter_futures;
-//       foreach(procid_t mirror, local_vertex.mirrors()) {
-//         scatter_futures.push_back(
-//             object_fiber_remote_request(rmi, 
-//                                         mirror, 
-//                                         &async_consistent_engine::perform_scatter, 
-//                                         vid,
-//                                         vprog,
-//                                         local_vertex.data()));
-//       }
-//       for(size_t i = 0;i < scatter_futures.size(); ++i) 
-//         scatter_futures[i]();
+     for(size_t i = 0;i < scatter_futures.size(); ++i) 
+       scatter_futures[i]();
 
       /************************************************************************/
       /*                           Release Locks                              */
@@ -1171,6 +1186,7 @@ namespace graphlab {
       * \return the reason for termination
       */
     execution_status::status_enum start() {
+      bool old_fasttrack = rmi.dc().set_fast_track_requests(false);
       logstream(LOG_INFO) << "Spawning " << nfibers << " threads" << std::endl;
       ASSERT_TRUE(scheduler_ptr != NULL);
       consensus->reset();
@@ -1223,8 +1239,20 @@ namespace graphlab {
 
       rmi.cout() << "Completed Tasks: " << programs_executed.value << std::endl;
 
+
+      size_t numjoins = messages.num_joins();
+      rmi.all_reduce(numjoins);
+      rmi.cout() << "Schedule Joins: " << numjoins << std::endl;
+
+      size_t numadds = messages.num_adds();
+      rmi.all_reduce(numadds);
+      rmi.cout() << "Schedule Adds: " << numadds << std::endl;
+
+
       ASSERT_TRUE(scheduler_ptr->empty());
       started = false;
+
+      rmi.dc().set_fast_track_requests(old_fasttrack);
       return termination_reason;
     } // end of start
 
