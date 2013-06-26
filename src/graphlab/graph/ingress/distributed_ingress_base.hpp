@@ -157,7 +157,21 @@ namespace graphlab {
      * 5. Exchange global graph statistics.
      */
     virtual void finalize() {
+
       rpc.full_barrier();
+
+      bool first_time_finalize = false;
+      /**
+       * Fast pass for first time finalization. 
+       */
+      if (graph.is_dynamic()) {
+        size_t nverts = graph.num_local_vertices();
+        rpc.all_reduce(nverts);
+        first_time_finalize = (nverts == 0);
+      } else {
+        first_time_finalize = false;
+      }
+
 
       if (rpc.procid() == 0) {
         logstream(LOG_EMPH) << "Finalizing Graph..." << std::endl;
@@ -404,27 +418,29 @@ namespace graphlab {
       /**************************************************************************/
       {
         // construct the vertex set of changed vertices
-        vertex_set changed_vset(false);
-        changed_vset.make_explicit(graph);
-        updated_lvids.resize(graph.num_local_vertices());
-        for (lvid_type i = lvid_start; i <  graph.num_local_vertices(); ++i) {
-          updated_lvids.set_bit(i);
-        }
-
         
-        changed_vset.localvset = updated_lvids; 
-        buffered_exchange<vertex_id_type> vset_exchange(rpc.dc());
-        // sync vset with all mirrors
-        changed_vset.synchronize_mirrors_to_master_or(graph, vset_exchange);
-        changed_vset.synchronize_master_to_mirrors(graph, vset_exchange);
+        // Fast pass for first time finalize;
+        vertex_set changed_vset(true);
+
+        // Compute the vertices that needs synchronization 
+        if (!first_time_finalize) {
+          changed_vset.make_explicit(graph);
+          updated_lvids.resize(graph.num_local_vertices());
+          for (lvid_type i = lvid_start; i <  graph.num_local_vertices(); ++i) {
+            updated_lvids.set_bit(i);
+          }
+          changed_vset.localvset = updated_lvids; 
+          buffered_exchange<vertex_id_type> vset_exchange(rpc.dc());
+          // sync vset with all mirrors
+          changed_vset.synchronize_mirrors_to_master_or(graph, vset_exchange);
+          changed_vset.synchronize_master_to_mirrors(graph, vset_exchange);
+        }
 
         graphlab::graph_gather_apply<graph_type, vertex_negotiator_record> 
             vrecord_sync_gas(graph, 
                              boost::bind(&distributed_ingress_base::finalize_gather, this, _1, _2), 
                              boost::bind(&distributed_ingress_base::finalize_apply, this, _1, _2, _3));
         vrecord_sync_gas.exec(changed_vset);
-
-
 
         if(rpc.procid() == 0)       
           memory_info::log_usage("Finihsed synchornizing vertex (meta)data");
