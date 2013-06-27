@@ -1064,6 +1064,8 @@ namespace graphlab {
   void synchronous_engine<VertexProgram>:: init() {
     resize();
     // Clear up
+    force_abort = false;
+    iteration_counter = 0;
     completed_applys = 0;
     has_message.clear();
     has_gather_accum.clear();
