@@ -35,6 +35,7 @@ add_graphlab_executable(distributed_ingress_test distributed_ingress_test.cpp)
 
 add_graphlab_executable(cuckootest cuckootest.cpp)
 add_graphlab_executable(dc_consensus_test dc_consensus_test.cpp)
+add_graphlab_executable(dc_fiber_consensus_test dc_fiber_consensus_test.cpp)
 #add_graphlab_executable(distributed_chandy_misra_test distributed_chandy_misra_test.cpp)
 add_graphlab_executable(dc_test_sequentialization dc_test_sequentialization.cpp)
 add_graphlab_executable(hdfs_test hdfs_test.cpp)

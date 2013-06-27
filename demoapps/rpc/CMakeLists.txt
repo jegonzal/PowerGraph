@@ -14,3 +14,6 @@ add_graphlab_executable(rpc_example9 rpc_example9.cpp)
 add_graphlab_executable(dht_performance_test dht_performance_test.cpp)
 
 add_graphlab_executable(rpc_call_perf_test rpc_call_perf_test.cpp)
+
+add_graphlab_executable(fiber_future_test fiber_future_test.cpp)
+add_graphlab_executable(obj_fiber_future_test obj_fiber_future_test.cpp)

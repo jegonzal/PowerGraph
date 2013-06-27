@@ -3,7 +3,7 @@
 #include <graphlab/serialization/serialization_includes.hpp>
 #include <graphlab/rpc/dc_types.hpp>
 #include <graphlab/rpc/dc_internal_types.hpp>
-#include <graphlab/rpc/reply_increment_counter.hpp>
+#include <graphlab/rpc/request_reply_handler.hpp>
 #include <graphlab/rpc/function_ret_type.hpp>
 
 namespace graphlab {
@@ -11,11 +11,12 @@ namespace graphlab {
 
   /**
    * \ingroup rpc
-   * The result of a future_remote_request call.
+   * The result of a remote_request future call.
    * This class represents the outcome of a remote request sent to another
-   * machine via the future_remote_request_call. The future_remote_request call
+   * machine via the future-based remote_request_call. The future remote_request call
    * returns immediately with this object. Only when operator() is called on this
-   * object, then it waits for a result from the remote machine.
+   * object, then it waits for a result from the remote machine. All remote_request
+   * calls which return futures are linked below.
    *
    * example:
    * \code
@@ -29,20 +30,34 @@ namespace graphlab {
    * int actual_result = res();
    * \endcode
    *
+   * \see graphlab::distributed_control::future_remote_request
+   *      graphlab::dc_dist_object::future_remote_request
+   *      graphlab::fiber_remote_request
+   *      graphlab::object_fiber_remote_request
+   *
    * The future object holds a copy of the result of the request, and the
    * operator() call returns a reference to this result (once it is available).
    */
 template <typename T>
 struct request_future {
   typedef typename dc_impl::function_ret_type<T>::type result_type;
-  mutable std::auto_ptr<dc_impl::reply_ret_type> reply;
+  mutable std::auto_ptr<dc_impl::ireply_container> reply;
   result_type result;
   bool hasval;
 
   /// default constructor
   request_future(): 
-      reply(new dc_impl::reply_ret_type(REQUEST_WAIT_METHOD)),
+      reply(new dc_impl::basic_reply_container),
       hasval(false) { }
+
+
+  /** constructor which allows you to specify a custom target container
+   * This class takes ownership of the container and will free it when done.
+   */
+  request_future(dc_impl::ireply_container* container): 
+      reply(container),
+      hasval(false) { }
+
 
   /** We can assign return values directly to the future in the
    * case where no remote calls are necessary. 
@@ -59,7 +74,6 @@ struct request_future {
       result(val), 
       hasval(true) { }
 
- 
   /// copy constructor 
   request_future(const request_future<T>& val): 
       reply(val.reply),
@@ -74,24 +88,39 @@ struct request_future {
     return *this;
   }
 
-  /// explicit call to wait(). Will wait only if the future has no value yet
+  /**
+   * \internal
+   * Returns a handle to the underlying container
+   */
+  size_t get_handle() {
+    return reinterpret_cast<size_t>(reply.get());
+  }
+
+  /**  
+   * Waits for the request if it has not yet been received.
+   */
   void wait() {
     if (!hasval) {
       reply->wait(); 
-      iarchive iarc(reply->val.c, reply->val.len); 
+      dc_impl::blob& receiveddata = reply->get_blob();
+      iarchive iarc(receiveddata.c, receiveddata.len); 
       iarc >> result;  
-      reply->val.free(); 
+      receiveddata.free(); 
       hasval = true;
     }
   }
 
+  /**
+   * Returns true if the result is ready and \ref operator()
+   * can be called without blocking.
+   */
   bool is_ready() {
-    return (hasval || reply->flag == 0);
+    return (hasval || reply->ready());
   }
 
   /**
    * Waits for the request if it has not yet been received.
-   * Otherwise, returns a reference to the received value.
+   * When the result is ready, it returns a reference to the received value.
    */
   result_type& operator()() {
     if (!hasval) wait();
@@ -103,12 +132,17 @@ struct request_future {
 template <>
 struct request_future<void> {
   typedef dc_impl::function_ret_type<void>::type result_type;
-  mutable std::auto_ptr<dc_impl::reply_ret_type> reply;
+  mutable std::auto_ptr<dc_impl::ireply_container> reply;
   bool hasval;
 
   request_future(): 
-      reply(new dc_impl::reply_ret_type(REQUEST_WAIT_METHOD)),
+      reply(new dc_impl::basic_reply_container),
       hasval(false) { }
+
+  request_future(dc_impl::ireply_container* container): 
+      reply(container),
+      hasval(false) { }
+
   request_future(int val): 
       reply(NULL),
       hasval(true) { }
@@ -125,18 +159,22 @@ struct request_future<void> {
   }
 
   bool is_ready() {
-    return (hasval || reply->flag == 0);
+    return (hasval || reply->ready());
   }
 
 
+  size_t get_handle() {
+    return reinterpret_cast<size_t>(reply.get());
+  }
 
   void wait() {
     if (!hasval) {
       result_type result;
       reply->wait(); 
-      iarchive iarc(reply->val.c, reply->val.len); 
+      dc_impl::blob& receiveddata = reply->get_blob();
+      iarchive iarc(receiveddata.c, receiveddata.len); 
       iarc >> result;  
-      reply->val.free(); 
+      receiveddata.free(); 
       hasval = true;
     }
   }

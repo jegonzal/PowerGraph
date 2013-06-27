@@ -1,22 +1,30 @@
-#ifndef GRAPHLAB_FIBER_HPP
-#define GRAPHLAB_FIBER_HPP
+#ifndef GRAPHLAB_FIBER_CONTROL_HPP
+#define GRAPHLAB_FIBER_CONTROL_HPP
 #include <cstdlib>
 #include <boost/context/all.hpp>
 #include <boost/function.hpp>
+#include <graphlab/util/dense_bitset.hpp>
 #include <graphlab/parallel/pthread_tools.hpp>
 #include <graphlab/parallel/atomic.hpp>
 namespace graphlab {
 
-/// a very simple user-mode threading
-class fiber_group {
+/**
+ * The master controller for the user mode threading system
+ */
+class fiber_control {
  public:
+
+  typedef fixed_dense_bitset<64> affinity_type;
+  static affinity_type all_affinity();
+
   struct fiber {
     simple_spinlock lock;
-    fiber_group* parent;
+    fiber_control* parent;
     boost::context::fcontext_t* context;
     void* stack;
     size_t id;
-    int affinity;
+    affinity_type affinity;
+    std::vector<unsigned char> affinity_array;
     void* fls; // fiber local storage
     fiber* next;
     intptr_t initial_trampoline_args;
@@ -43,7 +51,7 @@ class fiber_group {
 
  private:
   size_t nworkers;
-  size_t stacksize;
+  size_t affinity_base;
   atomic<size_t> fiber_id_counter;
   atomic<size_t> fibers_active;
   mutex join_lock;
@@ -61,7 +69,7 @@ class fiber_group {
     fiber active_head;
     fiber* active_tail;
     size_t nactive;
-    bool waiting;
+    volatile bool waiting;
   };
   std::vector<thread_schedule> schedule;
 
@@ -77,54 +85,66 @@ class fiber_group {
   // a thread local storage for the worker to point to a fiber
   static bool tls_created;
   struct tls {
-    fiber_group* parent;
+    fiber_control* parent;
     fiber* prev_fiber; // the fiber we context switch from
     fiber* cur_fiber; // the fiber we are context switching to
-    fiber* garbage;
+    fiber* garbage; // A fiber to delete after the context switch
     size_t workerid;
     boost::context::fcontext_t base_context;
   };
+
   static pthread_key_t tlskey; // points to the tls structure above
   static void tls_deleter(void* tls);
 
+  /// internal function to create the TLS for the worker threads
   static void create_tls_ptr();
+  /// internal function to read the TLS for the worker threads
   static tls* get_tls_ptr();
+  /// Returns the current fiber scheduled on this worker thread
   static fiber* get_active_fiber();
-  static void set_active_fiber(fiber*);
 
+  /// The function that each worker thread starts off running
   void worker_init(size_t workerid);
 
   void reschedule_fiber(size_t workerid, fiber* pfib);
   void yield_to(fiber* next_fib);
   static void trampoline(intptr_t _args);
 
-  size_t load_balanced_worker_choice(size_t seed);
+  size_t pick_fiber_worker(fiber* fib);
 
   void (*flsdeleter)(void*);
-
-  boost::function<void(size_t)> worker_wake, worker_sleep;
+  
  public:
-  /// creates a group of fibers using a certain number of worker threads.
-  fiber_group(size_t nworkers, size_t stacksize,
-              boost::function<void(size_t)> worker_wake_handler = NULL,
-              boost::function<void(size_t)> worker_sleep_handler = NULL);
 
-  ~fiber_group();
+  /// Private constructor
+  fiber_control(size_t nworkers, size_t affinity_base);
+
+  ~fiber_control();
 
   /** the basic launch function
    * Returns a fiber ID. IDs are not sequential.
-   * \note The ID is really a pointer to a fiber_group::fiber object.
+   * \note The ID is really a pointer to a fiber_control::fiber object.
    */
-  size_t launch(boost::function<void (void)> fn, int worker_affinity = -1);
+  size_t launch(boost::function<void (void)> fn, 
+                size_t stacksize = 8192, 
+                affinity_type worker_affinity = all_affinity());
 
   inline size_t num_active() const {
     return nactive;
   }
+
   /**
    * Waits for all functions to join
    */
   void join();
 
+
+  /**
+   * Returns the number of workers
+   */
+  size_t num_workers() {
+    return nworkers;
+  }
 
   /**
    * Returns the number of threads that have yet to join
@@ -144,6 +164,7 @@ class fiber_group {
    * on every non-NULL TLS value.
    */
   void set_tls_deleter(void (*deleter)(void*));
+
   /**
    * Gets the TLS value. Defaults to NULL.
    * Note that this function will only work within a fiber.
@@ -157,32 +178,65 @@ class fiber_group {
    * fiber termination.
    */
   static void set_tls(void* value);
+
   /**
    * Kills the current fiber.
    * Note that this function will only work within a fiber.
+   * Implodes dramatically if called from outside a fiber.
    */
   static void exit();
+
   /**
    * Yields to another fiber.
    * Note that this function will only work within a fiber.
+   * If called from outside a fiber, returns immediately.
    */
   static void yield();
 
 
-  static size_t fast_yieldable();
+  /// True if the singleton instance was created
+  static bool instance_created; 
+  static size_t instance_construct_params_nworkers; 
+  static size_t instance_construct_params_affinity_base;
+
+  /**
+   * Sets the fiber control construction parameters.
+   * Fails with an assertion failure if the instance has already been created.
+   * Must be called prior to any other calls to get_instance()
+   * \param nworkers Number of worker threads to spawn. If set to 0,
+   *                 the number of workers will be automatically determined
+   *                 based on the number of cores the system has.
+   * \param affinity_base First worker will have CPU affinity equal to 
+   *                      affinity_base. Second will be affinity_base + 1, etc.
+   *                      Defaults to 0.
+   */
+  static void instance_set_parameters(size_t nworkers,
+                                      size_t affinity_base);
+
+  /**
+   * Gets a reference to the main fiber control singleton
+   */
+  static fiber_control& get_instance();
+
   /**
    * Returns the current fiber handle.
    * Note that fiber handles are not sequential, and are really a
    * pointer to an internal datastructure.
-   * The fiber handle will never be 0.
-   * This function will only work within a fiber.
+   * If called from within a fiber, returns a non-zero value.
+   * If called out outsize a fiber, returns 0.
    */
   static size_t get_tid();
 
+
+  /**
+   * Returns true if the calling thread is in a fiber, false otherwise.
+   */
+  static bool in_fiber();
+
   /**
    * Returns the worker managing the current fiber.
-   * This function will only work within a fiber.
    * Worker IDs are sequential.
+   * If called from outside a fiber, returns (size_t)(-1)
    */
   static size_t get_worker_id();
 

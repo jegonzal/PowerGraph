@@ -29,7 +29,7 @@
 #include <list>
 #include <deque>
 #include <graphlab/parallel/pthread_tools.hpp>
-
+#include <graphlab/util/random.hpp>
 #include <graphlab/macros_def.hpp>
 
 namespace graphlab {
@@ -316,10 +316,7 @@ namespace graphlab {
     
     //! get the current size of the queue
     inline size_t size() {
-      m_mutex.lock();
-      size_t size = m_queue.size();
-      m_mutex.unlock();
-      return size;
+      return m_queue.size();
     }
 
     /**

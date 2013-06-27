@@ -31,7 +31,7 @@
 #include <graphlab/serialization/serialization_includes.hpp>
 #include <graphlab/rpc/dc_types.hpp>
 #include <graphlab/rpc/dc_internal_types.hpp>
-#include <graphlab/rpc/reply_increment_counter.hpp>
+#include <graphlab/rpc/request_reply_handler.hpp>
 #include <graphlab/rpc/function_ret_type.hpp>
 #include <boost/bind.hpp>
 #include <boost/mem_fn.hpp>
@@ -93,11 +93,11 @@ template<typename DcType,
     retstrm.flush();
     if (packet_type_mask & CONTROL_PACKET)
     {
-        dc.control_call(source, reply_increment_counter, id, blob(retstrm->str, retstrm->len));
+        dc.control_call(source, request_reply_handler, id, blob(retstrm->str, retstrm->len));
     }
     else
     {
-        dc.reply_remote_call(source, reply_increment_counter, id, blob(retstrm->str, retstrm->len));
+        dc.reply_remote_call(source, request_reply_handler, id, blob(retstrm->str, retstrm->len));
     } if ((packet_type_mask & CONTROL_PACKET) == 0) dc.get_rmi_instance(objid)->inc_calls_received(source);
 }
 \endcode
@@ -145,12 +145,12 @@ template<typename DcType,
     /*std::cerr << "Request wait on " << id << std::endl ; */           \
     if (packet_type_mask & CONTROL_PACKET) {                            \
       dc.control_call(source,                                           \
-                      reply_increment_counter,                          \
+                      request_reply_handler,                          \
                       id,                                               \
                       blob(retstrm->str, retstrm->len));                \
     } else {                                                            \
       dc.reply_remote_call(source,                                       \
-                          reply_increment_counter,                      \
+                          request_reply_handler,                      \
                           id,                                           \
                           blob(retstrm->str, retstrm->len));            \
     }                                                                   \

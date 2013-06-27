@@ -23,8 +23,8 @@
 
 
 
-#ifndef GRAPHLAB_ASYNC_CONSISTENT_ENGINE
-#define GRAPHLAB_ASYNC_CONSISTENT_ENGINE
+#ifndef GRAPHLAB_WARP_ENGINE
+#define GRAPHLAB_WARP_ENGINE
 
 #include <deque>
 #include <boost/bind.hpp>
@@ -32,16 +32,13 @@
 #include <graphlab/scheduler/ischeduler.hpp>
 #include <graphlab/scheduler/scheduler_factory.hpp>
 #include <graphlab/scheduler/get_message_priority.hpp>
-#include <graphlab/vertex_program/ivertex_program.hpp>
-#include <graphlab/vertex_program/icontext.hpp>
-#include <graphlab/vertex_program/context.hpp>
 #include <graphlab/engine/iengine.hpp>
 #include <graphlab/engine/execution_status.hpp>
 #include <graphlab/options/graphlab_options.hpp>
 #include <graphlab/rpc/dc_dist_object.hpp>
 #include <graphlab/engine/distributed_chandy_misra.hpp>
 #include <graphlab/engine/message_array.hpp>
-
+#include <graphlab/serialization/serialize_to_from_string.hpp>
 #include <graphlab/util/tracepoint.hpp>
 #include <graphlab/util/memory_info.hpp>
 #include <graphlab/util/generics/conditional_addition_wrapper.hpp>
@@ -59,83 +56,55 @@ namespace graphlab {
 
 
   /**
-   * \ingroup engines
+   * \ingroup warp
    *
-   * \brief The asynchronous consistent engine executed vertex programs
+   * \brief The warp engine executed update functions
    * asynchronously and can ensure mutual exclusion such that adjacent vertices
    * are never executed simultaneously. The default mode is "factorized"
    * consistency in which only individual gathers/applys/
    * scatters are guaranteed to be consistent, but this can be strengthened to
    * provide full mutual exclusion.
    *
-   *
-   * \tparam VertexProgram
-   * The user defined vertex program type which should implement the
-   * \ref graphlab::ivertex_program interface.
-   *
    * ### Execution Semantics
+   * The update function is a simple user defined function of the type
    *
-   * On start() the \ref graphlab::ivertex_program::init function is invoked
-   * on all vertex programs in parallel to initialize the vertex program,
-   * vertex data, and possibly signal vertices.
+   * \code
+   * void update_function(engine_type::context& context,
+   *                      graph_type::vertex_type vertex) {
+   * }
+   * \endcode
    *
-   * After which, the engine spawns a collection of threads where each thread
-   * individually performs the following tasks:
-   * \li Extract a message from the scheduler.
-   * \li Perform distributed lock acquisition on the vertex which is supposed
-   * to receive the message. The lock system enforces that no neighboring
-   * vertex is executing at the same time. The implementation is based
-   * on the Chandy-Misra solution to the dining philosophers problem.
-   * (Chandy, K.M.; Misra, J. (1984). The Drinking Philosophers Problem.
-   *  ACM Trans. Program. Lang. Syst)
-   * \li Once lock acquisition is complete,
-   *  \ref graphlab::ivertex_program::init is called on the vertex
-   * program. As an optimization, any messages sent to this vertex
-   * before completion of lock acquisition is merged into original message
-   * extracted from the scheduler.
-   * \li Execute the gather on the vertex program by invoking
-   * the user defined \ref graphlab::ivertex_program::gather function
-   * on the edge direction returned by the
-   * \ref graphlab::ivertex_program::gather_edges function.  The gather
-   * functions can modify edge data but cannot modify the vertex
-   * program or vertex data and can be executed on multiple
-   * edges in parallel.
-   * * \li Execute the apply function on the vertex-program by
-   * invoking the user defined \ref graphlab::ivertex_program::apply
-   * function passing the sum of the gather functions.  If \ref
-   * graphlab::ivertex_program::gather_edges returns no edges then
-   * the default gather value is passed to apply.  The apply function
-   * can modify the vertex program and vertex data.
-   * \li Execute the scatter on the vertex program by invoking
-   * the user defined \ref graphlab::ivertex_program::scatter function
-   * on the edge direction returned by the
-   * \ref graphlab::ivertex_program::scatter_edges function.  The scatter
-   * functions can modify edge data but cannot modify the vertex
-   * program or vertex data and can be executed on multiple
-   * edges in parallel.
-   * \li Release all locks acquired in the lock acquisition stage,
-   * and repeat until the scheduler is empty.
+   * Based on a scheduler, update functions are executed on each scheduled 
+   * vertex. All computation is performed from within fine-grained threads
+   * called fibers, which allows to create thousands of such fibers, thus
+   * hiding distributed communication latency.
    *
-   * The engine threads multiplexes the above procedure through a secondary
-   * internal queue, allowing an arbitrary large number of vertices to
-   * begin processing at the same time.
+   * Within the update function, All blocking warp functions such as 
+   * \ref graphlab::warp::map_reduce_neighborhood, 
+   * \ref graphlab::warp::transform_neighborhood, and 
+   * \ref graphlab::warp::broadcast_neighborhood
+   * can be used to make changes to the graph data, and to schedule other 
+   * vertices for computation.
+   *
+   * The engine stops when the scheduler is empty.
    *
    * ### Construction
    *
-   * The asynchronous consistent engine is constructed by passing in a
+   * The warp engine is constructed by passing in a
    * \ref graphlab::distributed_control object which manages coordination
    * between engine threads and a \ref graphlab::distributed_graph object
-   * which is the graph on which the engine should be run.  The graph should
-   * already be populated and cannot change after the engine is constructed.
-   * In the distributed setting all program instances (running on each machine)
-   * should construct an instance of the engine at the same time.
-   *
+   * which is the graph on which the engine should be run.  
+   * 
    * Computation is initiated by signaling vertices using either
-   * \ref graphlab::async_consistent_engine::signal or
-   * \ref graphlab::async_consistent_engine::signal_all.  In either case all
+   * \ref graphlab::warp_engine::signal or
+   * \ref graphlab::warp_engine::signal_all.  In either case all
    * machines should invoke signal or signal all at the same time.  Finally,
    * computation is initiated by calling the
-   * \ref graphlab::async_consistent_engine::start function.
+   * \ref graphlab::warp_engine::start function.
+   *
+   * \see warp::map_reduce_neighborhood()
+   * \see warp::transform_neighborhood()
+   * \see warp::broadcast_neighborhood()
    *
    * ### Example Usage
    *
@@ -150,11 +119,13 @@ namespace graphlab {
    *   // code
    * };
    * typedef graphlab::distributed_graph<vertex_data, edge_data> graph_type;
-   * typedef float gather_type;
-   * struct pagerank_vprog :
-   *   public graphlab::ivertex_program<graph_type, gather_type> {
-   *   // code
-   * };
+   * typedef graphlab::warp_engine<graph_type> engine_type;
+   *
+   * void pagerank(engine_type::context& context,
+   *               graph_type::vertex_type vertex) {
+   *   ... 
+   * } 
+   *
    *
    * int main(int argc, char** argv) {
    *   // Initialize control plain using mpi
@@ -174,7 +145,8 @@ namespace graphlab {
    *   graph.finalize();
    *   std::cout << "#vertices: " << graph.num_vertices()
    *             << " #edges:" << graph.num_edges() << std::endl;
-   *   graphlab::async_consistent_engine<pagerank_vprog> engine(dc, graph, clopts);
+   *   engine_type engine(dc, graph, clopts);
+   *   engine.set_update_function(pagerank);
    *   engine.signal_all();
    *   engine.start();
    *   std::cout << "Runtime: " << engine.elapsed_time();
@@ -182,12 +154,10 @@ namespace graphlab {
    * }
    * \endcode
    *
-   * \see graphlab::omni_engine
-   * \see graphlab::synchronous_engine
    *
    * <a name=engineopts>Engine Options</a>
    * =========================
-   * The asynchronous engine supports several engine options which can
+   * The warp engine supports several engine options which can
    * be set as command line arguments using \c --engine_opts :
    *
    * \li \b timeout (default: infinity) Maximum time in seconds the engine will
@@ -201,62 +171,35 @@ namespace graphlab {
    * \li \b nfibers (default: 3000) Number of fibers to use
    * \li \b stacksize (default: 16384) Stacksize of each fiber.
    */
-  template<typename VertexProgram>
-  class async_consistent_engine: public iengine<VertexProgram> {
+  template <typename GraphType, typename MessageType = graphlab::empty>
+  class warp_engine {
 
   public:
     /**
-     * \brief The user defined vertex program type. Equivalent to the
-     * VertexProgram template argument.
-     *
-     * The user defined vertex program type which should implement the
-     * \ref graphlab::ivertex_program interface.
-     */
-    typedef VertexProgram vertex_program_type;
-
-    /**
-     * \brief The user defined type returned by the gather function.
-     *
-     * The gather type is defined in the \ref graphlab::ivertex_program
-     * interface and is the value returned by the
-     * \ref graphlab::ivertex_program::gather function.  The
-     * gather type must have an <code>operator+=(const gather_type&
-     * other)</code> function and must be \ref sec_serializable.
-     */
-    typedef typename VertexProgram::gather_type gather_type;
-
-    /**
      * \brief The user defined message type used to signal neighboring
      * vertex programs.
-     *
-     * The message type is defined in the \ref graphlab::ivertex_program
-     * interface and used in the call to \ref graphlab::icontext::signal.
-     * The message type must have an
-     * <code>operator+=(const gather_type& other)</code> function and
-     * must be \ref sec_serializable.
      */
-    typedef typename VertexProgram::message_type message_type;
+    typedef MessageType message_type;
+
+    /**
+     * The type of the graph associated with this engine.
+     */
+    typedef GraphType graph_type;
 
     /**
      * \brief The type of data associated with each vertex in the graph
      *
      * The vertex data type must be \ref sec_serializable.
      */
-    typedef typename VertexProgram::vertex_data_type vertex_data_type;
+    typedef typename graph_type::vertex_data_type vertex_data_type;
 
     /**
      * \brief The type of data associated with each edge in the graph
      *
      * The edge data type must be \ref sec_serializable.
      */
-    typedef typename VertexProgram::edge_data_type edge_data_type;
+    typedef typename graph_type::edge_data_type edge_data_type;
 
-    /**
-     * \brief The type of graph supported by this vertex program
-     *
-     * See graphlab::distributed_graph
-     */
-    typedef typename VertexProgram::graph_type graph_type;
 
      /**
      * \brief The type used to represent a vertex in the graph.
@@ -284,28 +227,215 @@ namespace graphlab {
      */
     typedef typename graph_type::edge_type            edge_type;
 
+
+
+
+    struct context {
+      typedef warp_engine engine_type;
+      typedef typename engine_type::graph_type graph_type;
+      typedef typename graph_type::vertex_type vertex_type;
+      typedef typename graph_type::edge_type edge_type;
+      typedef typename graph_type::local_vertex_type local_vertex_type;
+
+      warp_engine& engine;
+      graph_type& graph;
+      std::string original_value;
+      vertex_type vtx;
+      bool vtx_set;
+
+      context(warp_engine& engine, graph_type& graph, 
+              vertex_type vtx):
+          engine(engine), 
+          graph(graph), 
+          vtx(vtx),
+          vtx_set(true) { 
+            set_synchronized();
+        }
+      
+
+      context(warp_engine& engine, graph_type& graph):
+          engine(engine), 
+          graph(graph), 
+          vtx(graph, 0),
+          vtx_set(false) { 
+        }
+      
+      /**
+       * \brief Get the total number of vertices in the graph.
+       *
+       * \return the total number of vertices in the entire graph.
+       */
+      size_t num_vertices() const { return graph.num_vertices(); }
+
+      /**
+       * \brief Get the number of edges in the graph.
+       *
+       * Each direction counts as a separate edge.
+       *
+       * \return the total number of edges in the entire graph.
+       */ 
+      size_t num_edges() const { return graph.num_edges(); }
+
+      /**
+       * \brief Get the id of this process.
+       *
+       * The procid is a number between 0 and 
+       * \ref graphlab::icontext::num_procs
+       * 
+       * \warning Each process may have many threads
+       *
+       * @return the process of this machine.
+       */
+      size_t procid() const { return graph.procid(); }
+
+      /**
+       * \brief Get the number of processes in the current execution.
+       *
+       * This is typically the number of mpi jobs created:
+       * \code
+       * %> mpiexec -n 16 ./pagerank
+       * \endcode
+       * would imply that num_procs() returns 16.
+       *
+       * @return the number of processes in the current execution
+       */
+      size_t num_procs() const { return graph.numprocs(); }
+
+      /**
+       * \brief Returns a standard output object (like cout)
+       *        which only prints once even when running distributed.
+       * 
+       * This returns a C++ standard output stream object
+       * which maps directly to std::cout on machine with 
+       * process ID 0, and to empty output streamss
+       * on all other processes. Calling,
+       * \code
+       *   context.cout() << "Hello World!";
+       * \endcode
+       * will therefore only print if the code is run on machine 0.
+       * This is useful in the finalize operation in aggregators.
+       */
+      std::ostream& cout() const {
+        return graph.dc().cout();
+      }
+
+      /**
+       * \brief Returns a standard error object (like cerr)
+       *        which only prints once even when running distributed.
+       * 
+       * This returns a C++ standard output stream object
+       * which maps directly to std::cerr on machine with 
+       * process ID 0, and to empty output streamss
+       * on all other processes. Calling,
+       * \code
+       *   context.cerr() << "Hello World!";
+       * \endcode
+       * will therefore only print if the code is run on machine 0.
+       * This is useful in the finalize operation in aggregators.
+       */
+
+      std::ostream& cerr() const {
+        return graph.dc().cerr();
+      }
+
+      /**
+       * \brief Get the elapsed time in seconds since start was called.
+       * 
+       * \return runtine in seconds
+       */      
+      float elapsed_seconds() const { return engine.elapsed_seconds(); }
+
+      /**
+       * \brief Return the current interation number (if supported).
+       *
+       * \return the current interation number if support or -1
+       * otherwise.
+       */
+      int iteration() const { return -1; }
+
+      /**
+       * \brief Signal the engine to stop executing additional update
+       * functions.
+       *
+       * \warning The execution engine will stop *eventually* and
+       * additional update functions may be executed prior to when the
+       * engine stops. For-example the synchronous engine (see \ref
+       * synchronous_engine) will complete the current super-step before
+       * terminating.
+       */
+      void stop() { engine.internal_stop(); }
+
+      /**
+       * \brief Signal a vertex with a particular message.
+       *
+       * This function is an essential part of the GraphLab abstraction
+       * and is used to encode iterative computation. Typically a vertex
+       * program will signal neighboring vertices during the scatter
+       * phase.  A vertex program may choose to signal neighbors on when
+       * changes made during the previos phases break invariants or warrant
+       * future computation on neighboring vertices.
+       * 
+       * The signal function takes two arguments. The first is mandatory
+       * and specifies which vertex to signal.  The second argument is
+       * optional and is used to send a message.  If no message is
+       * provided then the default message is used.
+       *
+       * \param vertex [in] The vertex to send the message to
+       * \param message [in] The message to send, defaults to message_type(). 
+       */
+      void signal(const vertex_type& vertex, 
+                  const message_type& message = message_type()) {
+        engine.internal_signal(vertex, message);
+      }
+
+
+      /**
+       * \internal
+       * \brief Flags that this vertex was synchronized.
+       */
+      void set_synchronized() {
+        if (vtx_set && graph.l_is_master(vtx.local_id())) {
+          original_value = serialize_to_string(vtx.data());
+        }
+      }
+
+      /**
+       * \brief Synchronizes all copies of this vertex
+       * 
+       * If the current vertex value has changed, copy the vertex value to
+       * all mirrors. This is for advanced use!
+       * Under most circumstances you should not need to use 
+       * this function directly.
+       */
+      void synchronize() {
+        if (vtx_set && graph.l_is_master(vtx.local_id())) {
+          std::string new_value = serialize_to_string(vtx.data());
+          if (original_value != new_value) {
+            // synchronize this vertex's value
+            engine.synchronize_one_vertex_wait(vtx);
+          }
+          std::swap(original_value, new_value);
+        }
+      }
+    };
+
     /**
-     * \brief The type of the callback interface passed by the engine to vertex
-     * programs.  See \ref graphlab::icontext for details.
-     *
-     * The context callback is passed to the vertex program functions and is
-     * used to signal other vertices, get the current iteration, and access
-     * information about the engine.
+     * The type of the context.
      */
-    typedef icontext<graph_type, gather_type, message_type> icontext_type;
+    typedef context context_type;
+
+    /// \internal
+    typedef context icontext_type;
+
+    /// The type of the update function
+    typedef boost::function<void(context_type&, vertex_type)> update_function_type;
 
   private:
     /// \internal \brief The base type of all schedulers
     message_array<message_type> messages;
 
-    /** \internal
-     * \brief The true type of the callback context interface which
-     * implements icontext. \see graphlab::icontext graphlab::context
-     */
-    typedef context<async_consistent_engine> context_type;
-
     // context needs access to internal functions
-    friend class context<async_consistent_engine>;
+    friend class context;
 
     /// \internal \brief The type used to refer to vertices in the local graph
     typedef typename graph_type::local_vertex_type    local_vertex_type;
@@ -315,12 +445,11 @@ namespace graphlab {
     typedef typename graph_type::lvid_type            lvid_type;
 
     /// \internal \brief The type of the current engine instantiation
-    typedef async_consistent_engine<VertexProgram> engine_type;
+    typedef warp_engine engine_type;
 
-    typedef conditional_addition_wrapper<gather_type> conditional_gather_type;
     
     /// The RPC interface
-    dc_dist_object<async_consistent_engine<VertexProgram> > rmi;
+    dc_dist_object<warp_engine> rmi;
 
     /// A reference to the active graph
     graph_type& graph;
@@ -333,21 +462,10 @@ namespace graphlab {
 
 
     /**
-     * \brief This optional vector contains caches of previous gather
-     * contributions for each machine.
-     *
-     * Caching is done locally and therefore a high-degree vertex may
-     * have multiple caches (one per machine).
-     */
-    std::vector<gather_type>  gather_cache;
-
-    /**
      * \brief A bit indicating if the local gather for that vertex is
      * available.
      */
     dense_bitset has_cache;
-
-    bool use_cache;
 
     /// Engine threads.
     fiber_group thrgroup;
@@ -355,7 +473,7 @@ namespace graphlab {
     //! The scheduler
     ischeduler* scheduler_ptr;
 
-    typedef typename iengine<VertexProgram>::aggregator_type aggregator_type;
+    typedef distributed_aggregator<graph_type, context_type>  aggregator_type;
     aggregator_type aggregator;
 
     /// Number of kernel threads
@@ -410,6 +528,8 @@ namespace graphlab {
 
     std::vector<mutex> aggregation_lock;
     std::vector<std::deque<std::string> > aggregation_queue;
+
+    update_function_type update_fn;
   public:
 
     /**
@@ -431,7 +551,7 @@ namespace graphlab {
      * \param opts A graphlab::graphlab_options object containing options and
      *             parameters for the scheduler and the engine.
      */
-    async_consistent_engine(distributed_control &dc,
+    warp_engine(distributed_control &dc,
                             graph_type& graph,
                             const graphlab_options& opts = graphlab_options()) :
         rmi(dc, this), graph(graph), scheduler_ptr(NULL),
@@ -441,13 +561,20 @@ namespace graphlab {
 
       nfibers = 3000;
       stacksize = 16384;
-      use_cache = false;
       factorized_consistency = true;
+      update_fn = NULL;
       timed_termination = (size_t)(-1);
       termination_reason = execution_status::UNSET;
       set_options(opts);
       initialize();
       rmi.barrier();
+    }
+
+    /** \internal
+     * For the warp engine to find the remote instances of this class
+     */
+    size_t get_rpc_obj_id() {
+      return rmi.get_obj_id();
     }
 
   private:
@@ -485,10 +612,6 @@ namespace graphlab {
           opts.get_engine_args().get_option("stacksize", stacksize);
           if (rmi.procid() == 0)
             logstream(LOG_EMPH) << "Engine Option: stacksize= " << stacksize << std::endl;
-        } else if (opt == "use_cache") {
-          opts.get_engine_args().get_option("use_cache", use_cache);
-          if (rmi.procid() == 0)
-            logstream(LOG_EMPH) << "Engine Option: use_cache = " << use_cache << std::endl;
         } else {
           logstream(LOG_FATAL) << "Unexpected Engine Option: " << opt << std::endl;
         }
@@ -534,11 +657,7 @@ namespace graphlab {
       vertexlocks.resize(graph.num_local_vertices());
       program_running.resize(graph.num_local_vertices());
       hasnext.resize(graph.num_local_vertices());
-      if (use_cache) {
-        gather_cache.resize(graph.num_local_vertices(), gather_type());
-        has_cache.resize(graph.num_local_vertices());
-        has_cache.clear();
-      }
+      
       if (!factorized_consistency) {
         cm_handles.resize(graph.num_local_vertices());
       }
@@ -548,16 +667,30 @@ namespace graphlab {
 
 
   public:
-    ~async_consistent_engine() {
+    ~warp_engine() {
       delete consensus;
       delete cmlocks;
       delete scheduler_ptr;
     }
 
 
+    /**
+     * Sets the update function to use for execution.
+     * The update function must be of the type void(context_type&, vertex_type),
+     * but more generally, may be a 
+     * boost::function<void(context_type&, vertex_type)>
+     */
+    void set_update_function(update_function_type update_function) {
+      update_fn = update_function;
+    }
 
 
-    // documentation inherited from iengine
+    /**
+     * \brief Compute the total number of updates (calls to apply)
+     * executed since start was last invoked.
+     *
+     * \return Total number of updates
+     */
     size_t num_updates() const {
       return programs_executed.value;
     }
@@ -566,7 +699,12 @@ namespace graphlab {
 
 
 
-    // documentation inherited from iengine
+    /**
+     * \brief Get the elapsed time in seconds since start was last
+     * called.
+     * 
+     * \return elapsed time in seconds
+     */
     float elapsed_seconds() const {
       return timer::approx_time_seconds() - engine_start_time;
     }
@@ -658,16 +796,6 @@ namespace graphlab {
 
 
 
-    void internal_signal_broadcast(vertex_id_type gvid,
-                                   const message_type& message = message_type()) {
-      for (size_t i = 0;i < rmi.numprocs(); ++i) {
-        rmi.remote_call(i, &async_consistent_engine::internal_signal_gvid,
-                        gvid, message);
-      }
-    } // end of signal_broadcast
-
-
-
     void rpc_internal_stop() {
       force_stop = true;
       termination_reason = execution_status::FORCED_ABORT;
@@ -681,60 +809,58 @@ namespace graphlab {
      */
     void internal_stop() {
       for (procid_t i = 0;i < rmi.numprocs(); ++i) {
-        rmi.remote_call(i, &async_consistent_engine::rpc_internal_stop);
+        rmi.remote_call(i, &warp_engine::rpc_internal_stop);
       }
-    }
-
-
-
-    /**
-     * \brief Post a to a previous gather for a give vertex.
-     *
-     * This function is called by the \ref graphlab::context.
-     *
-     * @param [in] vertex The vertex to which to post a change in the sum
-     * @param [in] delta The change in that sum
-     */
-    void internal_post_delta(const vertex_type& vertex,
-                             const gather_type& delta) {
-      if(use_cache) {
-        const lvid_type lvid = vertex.local_id();
-        vertexlocks[lvid].lock();
-        if( has_cache.get(lvid) ) {
-          gather_cache[lvid] += delta;
-        } else {
-          // You cannot add a delta to an empty cache.  A complete
-          // gather must have been run.
-          // gather_cache[lvid] = delta;
-          // has_cache.set_bit(lvid);
-        }
-        vertexlocks[lvid].unlock();
-      }
-    }
-
-    /**
-     * \brief Clear the cached gather for a vertex if one is
-     * available.
-     *
-     * This function is called by the \ref graphlab::context.
-     *
-     * @param [in] vertex the vertex for which to clear the cache
-     */
-    void internal_clear_gather_cache(const vertex_type& vertex) {
-      const lvid_type lvid = vertex.local_id();
-      if(use_cache && has_cache.get(lvid)) {
-        vertexlocks[lvid].lock();
-        gather_cache[lvid] = gather_type();
-        has_cache.clear_bit(lvid);
-        vertexlocks[lvid].unlock();
-      }
-
     }
 
   public:
 
 
-
+    /**
+     * \brief Signals single a vertex with an optional message.
+     * 
+     * This function sends a message to particular vertex which will
+     * receive that message on start. The signal function must be
+     * invoked on all machines simultaneously.  For example:
+     *
+     * \code
+     * graphlab::warp_engine<graph_type> engine(dc, graph, opts);
+     * engine.signal(0); // signal vertex zero
+     * \endcode
+     *
+     * and _not_:
+     *
+     * \code
+     * graphlab::warp_engine<graph_type> engine(dc, graph, opts);
+     * if(dc.procid() == 0) engine.signal(0); // signal vertex zero
+     * \endcode
+     *
+     * Since signal is executed synchronously on all machines it
+     * should only be used to schedule a small set of vertices. The
+     * preferred method to signal a large set of vertices (e.g., all
+     * vertices that are a certain type) is to use either the vertex
+     * program init function or the aggregation framework.  For
+     * example to signal all vertices that have a particular value one
+     * could write:
+     *
+     * \code
+     * struct bipartite_opt : 
+     *   public graphlab::ivertex_program<graph_type, gather_type> {
+     *   // The user defined init function
+     *   void init(icontext_type& context, vertex_type& vertex) {
+     *     // Signal myself if I am a certain type
+     *     if(vertex.data().on_left) context.signal(vertex);
+     *   }
+     *   // other vastly more interesting code
+     * };
+     * \endcode
+     *
+     * @param [in] vid the vertex id to signal
+     * @param [in] message the message to send to that vertex.  The
+     * default message is sent if no message is provided. 
+     * (See ivertex_program::message_type for details about the
+     * message_type). 
+     */
     void signal(vertex_id_type gvid,
                 const message_type& message = message_type()) {
       rmi.barrier();
@@ -742,13 +868,72 @@ namespace graphlab {
       rmi.barrier();
     }
 
-
+    /**
+     * \brief Signal all vertices with a particular message.
+     * 
+     * This function sends the same message to all vertices which will
+     * receive that message on start. The signal_all function must be
+     * invoked on all machines simultaneously.  For example:
+     *
+     * \code
+     * graphlab::warp_engine<graph_type> engine(dc, graph, opts);
+     * engine.signal_all(); // signal all vertices
+     * \endcode
+     *
+     * and _not_:
+     *
+     * \code
+     * graphlab::warp_engine<graph_type> engine(dc, graph, opts);
+     * if(dc.procid() == 0) engine.signal_all(); // signal vertex zero
+     * \endcode
+     *
+     * The signal_all function is the most common way to send messages
+     * to the engine.  For example in the pagerank application we want
+     * all vertices to be active on the first round.  Therefore we
+     * would write:
+     *
+     * \code
+     * graphlab::warp_engine<graph_type> engine(dc, graph, opts);
+     * engine.signal_all();
+     * engine.start();
+     * \endcode
+     *
+     * @param [in] message the message to send to all vertices.  The
+     * default message is sent if no message is provided
+     * (See ivertex_program::message_type for details about the
+     * message_type). 
+     */
     void signal_all(const message_type& message = message_type(),
                     const std::string& order = "shuffle") {
       vertex_set vset = graph.complete_set();
       signal_vset(vset, message, order);
     } // end of schedule all
 
+
+    /**
+     * \brief Signal a set of vertices with a particular message.
+     * 
+     * This function sends the same message to a set of vertices which will
+     * receive that message on start. The signal_vset function must be
+     * invoked on all machines simultaneously.  For example:
+     *
+     * \code
+     * graphlab::warp_engine<graph_type> engine(dc, graph, opts);
+     * engine.signal_vset(vset); // signal a subset of vertices
+     * \endcode
+     *
+     * signal_all() is conceptually equivalent to:
+     *
+     * \code
+     * engine.signal_vset(graph.complete_set());
+     * \endcode
+     *
+     * @param [in] vset The set of vertices to signal 
+     * @param [in] message the message to send to all vertices.  The
+     * default message is sent if no message is provided
+     * (See ivertex_program::message_type for details about the
+     * message_type). 
+     */
     void signal_vset(const vertex_set& vset,
                     const message_type& message = message_type(),
                     const std::string& order = "shuffle") {
@@ -829,7 +1014,7 @@ namespace graphlab {
         endgame_mode = true;
         // put everyone in endgame
         for (procid_t i = 0;i < rmi.dc().numprocs(); ++i) {
-          rmi.remote_call(i, &async_consistent_engine::set_endgame_mode);
+          rmi.remote_call(i, &warp_engine::set_endgame_mode);
         } 
         bool ret = consensus->end_done_critical_section(threadid);
         if (ret == false) {
@@ -862,100 +1047,6 @@ namespace graphlab {
       cm_handles[lvid]->philosopher_ready = true;
       fiber_control::schedule_tid(cm_handles[lvid]->fiber_handle);
       cm_handles[lvid]->lock.unlock();
-    }
-
-
-    conditional_gather_type perform_gather(vertex_id_type vid,
-                               vertex_program_type& vprog_) {
-      vertex_program_type vprog = vprog_;
-      lvid_type lvid = graph.local_vid(vid);
-      local_vertex_type local_vertex(graph.l_vertex(lvid));
-      vertex_type vertex(local_vertex);
-      context_type context(*this, graph);
-      edge_dir_type gather_dir = vprog.gather_edges(context, vertex);
-      conditional_gather_type accum;
-
-      //check against the cache
-      if( use_cache && has_cache.get(lvid) ) {
-          accum.set(gather_cache[lvid]);
-          return accum;
-      }
-      // do in edges
-      if(gather_dir == IN_EDGES || gather_dir == ALL_EDGES) {
-        foreach(local_edge_type local_edge, local_vertex.in_edges()) {
-          edge_type edge(local_edge);
-          lvid_type a = edge.source().local_id(), b = edge.target().local_id();
-          vertexlocks[std::min(a,b)].lock();
-          vertexlocks[std::max(a,b)].lock();
-          accum += vprog.gather(context, vertex, edge);
-          vertexlocks[a].unlock();
-          vertexlocks[b].unlock();
-        }
-      } 
-      // do out edges
-      if(gather_dir == OUT_EDGES || gather_dir == ALL_EDGES) {
-        foreach(local_edge_type local_edge, local_vertex.out_edges()) {
-          edge_type edge(local_edge);
-          lvid_type a = edge.source().local_id(), b = edge.target().local_id();
-          vertexlocks[std::min(a,b)].lock();
-          vertexlocks[std::max(a,b)].lock();
-          accum += vprog.gather(context, vertex, edge);
-          vertexlocks[a].unlock();
-          vertexlocks[b].unlock();
-        }
-      } 
-      if (use_cache) {
-        gather_cache[lvid] = accum.value; has_cache.set_bit(lvid);
-      }
-      return accum;
-    }
-
-
-    void perform_scatter_local(lvid_type lvid,
-                               vertex_program_type& vprog) {
-      local_vertex_type local_vertex(graph.l_vertex(lvid));
-      vertex_type vertex(local_vertex);
-      context_type context(*this, graph);
-      edge_dir_type scatter_dir = vprog.scatter_edges(context, vertex);
-      if(scatter_dir == IN_EDGES || scatter_dir == ALL_EDGES) {
-        foreach(local_edge_type local_edge, local_vertex.in_edges()) {
-          edge_type edge(local_edge);
-          lvid_type a = edge.source().local_id(), b = edge.target().local_id();
-          vertexlocks[std::min(a,b)].lock();
-          vertexlocks[std::max(a,b)].lock();
-          vprog.scatter(context, vertex, edge);
-          vertexlocks[a].unlock();
-          vertexlocks[b].unlock();
-        }
-      } 
-      if(scatter_dir == OUT_EDGES || scatter_dir == ALL_EDGES) {
-        foreach(local_edge_type local_edge, local_vertex.out_edges()) {
-          edge_type edge(local_edge);
-          lvid_type a = edge.source().local_id(), b = edge.target().local_id();
-          vertexlocks[std::min(a,b)].lock();
-          vertexlocks[std::max(a,b)].lock();
-          vprog.scatter(context, vertex, edge);
-          vertexlocks[a].unlock();
-          vertexlocks[b].unlock();
-        }
-      } 
-
-      // release locks
-      if (!factorized_consistency) {
-        cmlocks->philosopher_stops_eating_per_replica(lvid);
-      }
-    }
-
-
-    void perform_scatter(vertex_id_type vid,
-                    vertex_program_type& vprog_,
-                    const vertex_data_type& newdata) {
-      vertex_program_type vprog = vprog_;
-      lvid_type lvid = graph.local_vid(vid);
-      vertexlocks[lvid].lock();
-      graph.l_vertex(lvid).data() = newdata;
-      vertexlocks[lvid].unlock();
-      perform_scatter_local(lvid, vprog);
     }
 
 
@@ -994,6 +1085,34 @@ namespace graphlab {
       vertexlocks[lvid].unlock();
     }
 
+    void update_vertex_value(vertex_id_type vid,
+                             vertex_data_type& vdata) {
+      local_vertex_type lvtx(graph.l_vertex(graph.local_vid(vid)));
+      lvtx.data() = vdata;
+    }
+
+    void synchronize_one_vertex(vertex_type vtx) {
+      local_vertex_type lvtx(vtx);
+      foreach(procid_t mirror, lvtx.mirrors()) {
+        rmi.remote_call(mirror, &warp_engine::update_vertex_value, vtx.id(), vtx.data());
+      }
+    }
+
+
+    void synchronize_one_vertex_wait(vertex_type vtx) {
+      local_vertex_type lvtx(vtx);
+      std::vector<request_future<void> > futures;
+      foreach(procid_t mirror, lvtx.mirrors()) {
+        futures.push_back(object_fiber_remote_request(rmi, 
+                                                      mirror, 
+                                                      &warp_engine::update_vertex_value, 
+                                                      vtx.id(), 
+                                                      vtx.data()));
+      }
+      for (size_t i = 0;i < futures.size(); ++i) {
+        futures[i]();
+      }
+    }
 
     /**
      * \internal
@@ -1031,80 +1150,21 @@ namespace graphlab {
         cm_handles[lvid]->lock.unlock();
       }
 
-      /**************************************************************************/
-      /*                             Begin Program                              */
-      /**************************************************************************/
-      context_type context(*this, graph);
-      vertex_program_type vprog = vertex_program_type();
-      local_vertex_type local_vertex(graph.l_vertex(lvid));
-      vertex_type vertex(local_vertex);
+      
 
-      /**************************************************************************/
-      /*                               init phase                               */
-      /**************************************************************************/
-      vprog.init(context, vertex, msg);
-
-      /**************************************************************************/
-      /*                              Gather Phase                              */
-      /**************************************************************************/
-      conditional_gather_type gather_result;
-      std::vector<request_future<conditional_gather_type> > gather_futures;
-      foreach(procid_t mirror, local_vertex.mirrors()) {
-        gather_futures.push_back(
-            object_fiber_remote_request(rmi, 
-                                        mirror, 
-                                        &async_consistent_engine::perform_gather, 
-                                        vid,
-                                        vprog));
-      }
-      gather_result += perform_gather(vid, vprog);
-
-      for(size_t i = 0;i < gather_futures.size(); ++i) {
-        gather_result += gather_futures[i]();
-      }
-
-     /**************************************************************************/
-     /*                              apply phase                               */
-     /**************************************************************************/
-     vertexlocks[lvid].lock();
-     vprog.apply(context, vertex, gather_result.value);      
-     vertexlocks[lvid].unlock();
+      local_vertex_type l_vtx(graph.l_vertex(lvid));
+      local_vertex_type vtx(l_vtx);
 
 
-     /**************************************************************************/
-     /*                            scatter phase                               */
-     /**************************************************************************/
-
-     // should I wait for the scatter? nah... but in case you want to
-     // the code is commented below
-     /*foreach(procid_t mirror, local_vertex.mirrors()) {
-       rmi.remote_call(mirror, 
-                       &async_consistent_engine::perform_scatter, 
-                       vid,
-                       vprog,
-                       local_vertex.data());
-     }*/
-
-     std::vector<request_future<void> > scatter_futures;
-     foreach(procid_t mirror, local_vertex.mirrors()) {
-       scatter_futures.push_back(
-           object_fiber_remote_request(rmi, 
-                                       mirror, 
-                                       &async_consistent_engine::perform_scatter, 
-                                       vid,
-                                       vprog,
-                                       local_vertex.data()));
-     }
-     perform_scatter_local(lvid, vprog);
-     for(size_t i = 0;i < scatter_futures.size(); ++i) 
-       scatter_futures[i]();
-
+      context ctx(*this, graph, vtx);
+      update_fn(ctx, vtx);
+      ctx.synchronize();
       /************************************************************************/
       /*                           Release Locks                              */
       /************************************************************************/
-      // the scatter is used to release the chandy misra
-      // here I cleanup
+      // cleanup
       if (!factorized_consistency) {
+        cmlocks->philosopher_stops_eating(lvid);
         delete cm_handles[lvid];
         cm_handles[lvid] = NULL;
       }
@@ -1264,6 +1324,8 @@ namespace graphlab {
 } // namespace
 
 #include <graphlab/macros_undef.hpp>
-
-#endif // GRAPHLAB_DISTRIBUTED_ENGINE_HPP
+#include <graphlab/engine/warp_graph_broadcast.hpp>
+#include <graphlab/engine/warp_graph_mapreduce.hpp>
+#include <graphlab/engine/warp_graph_transform.hpp>
+#endif 
 
