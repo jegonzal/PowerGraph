@@ -1884,6 +1884,10 @@ namespace graphlab {
       if (graph_files.size() == 0) {
         logstream(LOG_WARNING) << "No files found matching " << original_path << std::endl;
       }
+
+#ifdef _OPENMP
+#pragma omp parallel for
+#endif
       for(size_t i = 0; i < graph_files.size(); ++i) {
         if ((parallel_ingress && (i % rpc.numprocs() == rpc.procid()))
             || (!parallel_ingress && (rpc.procid() == 0))) {
@@ -1934,6 +1938,9 @@ namespace graphlab {
       if (graph_files.size() == 0) {
         logstream(LOG_WARNING) << "No files found matching " << prefix << std::endl;
       }
+#ifdef _OPENMP
+#pragma omp parallel for
+#endif
       for(size_t i = 0; i < graph_files.size(); ++i) {
         if ((parallel_ingress && (i % rpc.numprocs() == rpc.procid())) ||
             (!parallel_ingress && (rpc.procid() == 0))) {
