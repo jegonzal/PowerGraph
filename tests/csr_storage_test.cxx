@@ -30,7 +30,7 @@
 class csr_storage_test : public CxxTest::TestSuite {  
  public:
   typedef int valuetype;
-  typedef int keytype;
+  typedef size_t keytype;
   typedef size_t sizetype;
 
   typedef graphlab::csr_storage<valuetype, sizetype> csr_storage;
@@ -152,7 +152,7 @@ class csr_storage_test : public CxxTest::TestSuite {
 
     for (int i = nkey-1; i >= 0; --i) {
       std::vector<valuetype> vals(nval, i);
-      csr.insert(i, vals.begin(), vals.end());
+      csr.insert((keytype)i, vals.begin(), vals.end());
     }
     csr.get_values().print(std::cout);
     check_dcsr(csr, nkey, nval);
@@ -191,7 +191,7 @@ class csr_storage_test : public CxxTest::TestSuite {
     }
     for (size_t j = 0; j < nval; ++j) {
       for (int i = nkey-1; i >= 0; i-=2) {
-        csr.insert(i, i);
+        csr.insert((keytype)i, i);
       }
     }
     check_dcsr(csr, nkey, nval);
@@ -204,7 +204,7 @@ class csr_storage_test : public CxxTest::TestSuite {
     }
     for (int i = nkey-1; i>=0; i-=2) {
       std::vector<valuetype> values(nval, i);
-      csr.insert(i, values.begin(), values.end());
+      csr.insert((keytype)i, values.begin(), values.end());
     }
     check_dcsr(csr, nkey, nval);
     printf("+ Pass test: dynamic_csr_storage stress insertion:)\n\n");

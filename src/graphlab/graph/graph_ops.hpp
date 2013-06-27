@@ -39,7 +39,7 @@
 #include <string>
 
 #include <boost/algorithm/string/predicate.hpp>
-#include <graphlab/graph/graph.hpp>
+#include <graphlab/graph/distributed_graph.hpp>
 
 #include <graphlab/macros_def.hpp>
 namespace graphlab {
@@ -56,9 +56,9 @@ namespace graphlab {
      * function will return false if graph is not acyclic.
      */
     template <typename VertexType, typename EdgeType>
-    bool topological_sort(const graphlab::graph<VertexType, EdgeType>& graph, 
+    bool topological_sort(const distributed_graph<VertexType, EdgeType>& graph, 
                           std::vector<vertex_id_type>& topsort) {
-      typedef graphlab::graph<VertexType, EdgeType> graph_type;
+      typedef distributed_graph<VertexType, EdgeType> graph_type;
       topsort.clear();
       topsort.reserve(graph.num_vertices());
       std::vector<size_t> indeg;
@@ -91,9 +91,9 @@ namespace graphlab {
 
 
     template <typename VertexType, typename EdgeType>
-    size_t num_neighbors(const graphlab::graph<VertexType, EdgeType>& graph, 
+    size_t num_neighbors(const distributed_graph<VertexType, EdgeType>& graph, 
                          vertex_id_type& vid) {
-      typedef graphlab::graph<VertexType, EdgeType> graph_type;
+      typedef distributed_graph<VertexType, EdgeType> graph_type;
       typename graph_type::edge_list_type in_edges =  graph.in_edges(vid); 
       typename graph_type::edge_list_type out_edges = graph.out_edges(vid);
       typename graph_type::edge_list_type::const_iterator i = in_edges.begin();
@@ -116,10 +116,10 @@ namespace graphlab {
 
 
     template <typename VertexType, typename EdgeType>
-    void neighbors(const graphlab::graph<VertexType, EdgeType>& graph, 
+    void neighbors(const distributed_graph<VertexType, EdgeType>& graph, 
                    const vertex_id_type vid,   
                    std::vector<vertex_id_type>& neighbors ) {
-      typedef graphlab::graph<VertexType, EdgeType> graph_type;
+      typedef distributed_graph<VertexType, EdgeType> graph_type;
       typename graph_type::edge_list_type in_edges =  graph.in_edges(vid); 
       typename graph_type::edge_list_type out_edges = graph.out_edges(vid);
       typename graph_type::edge_list_type::const_iterator i = in_edges.begin();
@@ -149,8 +149,8 @@ namespace graphlab {
     
     template <typename VertexType, typename EdgeType>
     bool save_metis_structure(const std::string& filename,
-                              const graphlab::graph<VertexType, EdgeType>& graph) { 
-      typedef graphlab::graph<VertexType, EdgeType> graph_type;
+                              const distributed_graph<VertexType, EdgeType>& graph) { 
+      typedef distributed_graph<VertexType, EdgeType> graph_type;
       typedef typename graph_type::edge_type          edge_type;
       typedef typename graph_type::edge_list_type     edge_list_type;
     
@@ -181,8 +181,8 @@ namespace graphlab {
 
     template <typename VertexType, typename EdgeType>
     bool save_edge_list_structure(const std::string& filename,
-                                  const graphlab::graph<VertexType, EdgeType>& graph) { 
-      typedef graphlab::graph<VertexType, EdgeType> graph_type;
+                                  const distributed_graph<VertexType, EdgeType>& graph) { 
+      typedef distributed_graph<VertexType, EdgeType> graph_type;
       typedef typename graph_type::edge_type          edge_type;
       typedef typename graph_type::edge_list_type     edge_list_type;
 
@@ -200,8 +200,8 @@ namespace graphlab {
 
     template <typename VertexType, typename EdgeType>
     bool save_zoltan_hypergraph_structure(const std::string& filename,
-                                          const graphlab::graph<VertexType, EdgeType>& graph) { 
-      typedef graphlab::graph<VertexType, EdgeType> graph_type;
+                                          const distributed_graph<VertexType, EdgeType>& graph) { 
+      typedef distributed_graph<VertexType, EdgeType> graph_type;
       typedef typename graph_type::edge_type          edge_type;
       typedef typename graph_type::edge_list_type     edge_list_type;
 

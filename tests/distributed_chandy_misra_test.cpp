@@ -30,7 +30,7 @@
 #include <graphlab/util/fs_util.hpp>
 #include <graphlab/graph/graph_ops.hpp>
 #include <graphlab/rpc/dc_init_from_mpi.hpp>
-#include <graphlab/rpc/distributed_chandy_misra.hpp>
+#include <graphlab/engine/distributed_chandy_misra.hpp>
 #include <graphlab/graph/distributed_graph.hpp>
 
 
@@ -134,22 +134,21 @@ int main(int argc, char** argv) {
 
 
   // Parse command line options -----------------------------------------------
-  graphlab::command_line_options clopts("PageRank algorithm.");
-  clopts.use_distributed_options();
-  std::string graph_dir = "/mnt/bigbrofs/usr10/haijieg/domain_graph/edata_splits/";
+  graphlab::command_line_options clopts("distributed chandy misra test.");
   std::string format = "adj";
-  clopts.attach_option("graph", &graph_dir, graph_dir,
+  std::string graph_dir = "";
+  clopts.attach_option("graph", graph_dir,
                        "The graph file.  If none is provided "
                        "then a toy graph will be created");
   clopts.add_positional("graph");
-  clopts.attach_option("format", &format, format,
+  clopts.attach_option("format",format,
                        "The graph file format: {metis, snap, tsv, adj, bin}");
   size_t ring = 0;
-  clopts.attach_option("ring", &ring, ring,
+  clopts.attach_option("ring", ring,
                        "The size of the ring. "
                        "If ring=0 then the graph file is used.");
   size_t randomconnect = 0;
-  clopts.attach_option("randomconnect", &randomconnect, randomconnect,
+  clopts.attach_option("randomconnect", randomconnect,
                        "The size of a randomly connected network. "
                        "If randomconnect=0 then the graph file is used.");
 
@@ -190,8 +189,7 @@ int main(int argc, char** argv) {
         const std::string graph_fname = graph_dir + graph_files[i];
         std::cout << "Loading graph from structure file: " << graph_fname
                   << std::endl;
-        graphlab::graph_ops::load_structure(graph_fname,
-                                            format, graph);
+        graph.load_format(graph_fname, format);
       }
     }
   }
@@ -200,15 +198,20 @@ int main(int argc, char** argv) {
   
   boost::unordered_set<size_t> eidset1;
   boost::unordered_set<size_t> eidset2;
-  typedef graph_type::local_graph_type::edge_type  local_edge_type;
-  for (size_t v = 0; v < graph.get_local_graph().num_vertices(); ++v) {
-    foreach(local_edge_type edge, graph.get_local_graph().in_edges(v)) {
-      size_t edgeid = graph.get_local_graph().edge_id(edge);
+  typedef graph_type::local_edge_type  local_edge_type;
+  typedef typename graph_type::local_edge_list_type local_edge_list_type;
+ 
+  for (size_t v = 0; v < graph.num_local_vertices(); ++v) {
+    const local_edge_list_type& in_edges = graph.l_in_edges(v);
+    foreach(const local_edge_type& edge, in_edges) {
+      size_t edgeid = edge.id();
       ASSERT_TRUE(eidset1.find(edgeid) == eidset1.end());
       eidset1.insert(edgeid);
     }
-    foreach(local_edge_type edge, graph.get_local_graph().out_edges(v)) {
-      size_t edgeid = graph.get_local_graph().edge_id(edge);
+    const local_edge_list_type& out_edges = graph.l_out_edges(v);
+    foreach(const local_edge_type& edge, out_edges) {
+      size_t edgeid = edge.id();
+      ASSERT_TRUE(eidset1.find(edgeid) == eidset1.end());
       ASSERT_TRUE(eidset2.find(edgeid) == eidset2.end());
       eidset2.insert(edgeid);
     }
@@ -234,7 +237,6 @@ int main(int argc, char** argv) {
     << "\n Replica to own ratio: "
     << (float)graph.num_local_vertices()/graph.num_local_own_vertices()
     << "\n Num local edges: " << graph.num_local_edges()
-    << "\n Begin edge id: " << graph.global_eid(0)
     << "\n Edge balance ratio: " << (float)graph.num_local_edges()/graph.num_edges()
     << std::endl;
 

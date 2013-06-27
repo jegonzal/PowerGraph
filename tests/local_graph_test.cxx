@@ -443,14 +443,14 @@ template<typename Graph>
       const edge_list_type& in_edges = g.in_edges(i);
 
       if (verbose) {
-        printf("Test v: %u\n", i);
-        printf("In edge ids: ");
+        std::cout << "Test v: " << i << "\n"
+                  << "In edge ids: ";
         foreach(edge_type edge, in_edges) 
             std::cout << "(" << edge.data().from << ","
                       << edge.data().to << ") ";
         std::cout <<std::endl;
 
-        printf("Out edge ids: ");
+        std::cout << "Out edge ids: ";
         foreach(edge_type edge, out_edges) 
             std::cout << "(" << edge.data().from << "," 
                       << edge.data().to << ") ";
@@ -480,7 +480,7 @@ template<typename Graph>
       const edge_list_type& in_edges = v.in_edges();
 
       if (verbose) {
-        printf("Test v: %u\n", i);
+        std::cout << "Test v: " << i << std::endl;
         printf("In edge ids: ");
         foreach(edge_type edge, in_edges) 
             std::cout << "(" << edge.data().from << ","
