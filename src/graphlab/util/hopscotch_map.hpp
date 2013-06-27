@@ -92,14 +92,150 @@ namespace graphlab {
                             hash_redirect,
                             key_equal_redirect> container_type;
 
-    typedef typename container_type::iterator iterator;
-    typedef typename container_type::const_iterator const_iterator;
+    typedef boost::unordered_map<key_type, mapped_type, Hash> spill_type;
+
+    struct const_iterator{
+      typedef std::forward_iterator_tag iterator_category;
+      typedef const typename hopscotch_map::value_type value_type;
+      typedef size_t difference_type;
+      typedef value_type* pointer;
+      typedef value_type& reference;
+
+      friend class hopscotch_map;
+
+      const hopscotch_map* ptr;
+      typename hopscotch_map::container_type::const_iterator iter;
+      typename hopscotch_map::spill_type::const_iterator iter2;
+      bool in_spill;
+
+      const_iterator():ptr(NULL) {}
+
+
+      const_iterator operator++() {
+        if (!in_spill) {
+          ++iter;
+          if (iter == ptr->container->end()) {
+            in_spill = true;
+          }
+        } else {
+          ++iter2;
+        }
+        return *this;
+      }
+
+      const_iterator operator++(int) {
+        iterator cur = *this;
+        ++(*this);
+        return cur;
+      }
+
+
+      reference operator*() {
+        if (!in_spill) return (*iter);
+        else return *reinterpret_cast<pointer>(&(*iter2)); 
+      }
+
+      pointer operator->() {
+        if (!in_spill) return &(*iter);
+        else return reinterpret_cast<pointer>(&(*iter2)); 
+        // this is annoying. but it unfortunately has to be this way
+      }
+
+      bool operator==(const const_iterator it) const {
+        return ptr == it.ptr && 
+            ((!in_spill && iter == it.iter) ||
+            (in_spill && iter2 == it.iter2));
+      }
+
+      bool operator!=(const const_iterator iter) const {
+        return !((*this) == iter);
+      }
+    private:
+      const_iterator(const hopscotch_map* map,
+          typename container_type::const_iterator iter,
+          typename spill_type::const_iterator iter2):
+        ptr(map), iter(iter), iter2(iter2), in_spill(iter == ptr->container->end()) { }
+    };
+
+    struct iterator {
+      typedef std::forward_iterator_tag iterator_category;
+      typedef typename hopscotch_map::value_type value_type;
+      typedef size_t difference_type;
+      typedef value_type* pointer;
+      typedef value_type& reference;
+
+      friend class hopscotch_map;
+
+      hopscotch_map* ptr;
+      typename hopscotch_map::container_type::iterator iter;
+      typename hopscotch_map::spill_type::iterator iter2;
+      bool in_spill;
+
+      iterator():ptr(NULL) {}
+
+
+      operator const_iterator() const {
+        const_iterator it(ptr, iter, iter2);
+        return it;
+      }
+
+      iterator operator++() {
+        if (!in_spill) {
+          ++iter;
+          // if I went past the end of the main array,
+          // go to the spill array.
+          if (iter == ptr->container->end()) {
+            in_spill = true;
+          }
+        } else {
+          ++iter2;
+        }
+        return *this;
+      }
+
+      iterator operator++(int) {
+        iterator cur = *this;
+        ++(*this);
+        return cur;
+      }
+
+
+      reference operator*() {
+        if (!in_spill) return (*iter);
+        else return *reinterpret_cast<pointer>(&(*iter2)); 
+      }
+
+      pointer operator->() {
+        if (!in_spill) return &(*iter);
+        else return reinterpret_cast<pointer>(&(*iter2)); 
+      }
+
+      bool operator==(const iterator it) const {
+        return ptr == it.ptr && 
+            ((!in_spill && iter == it.iter) ||
+            (in_spill && iter2 == it.iter2));
+      }
+
+      bool operator!=(const iterator iter) const {
+        return !((*this) == iter);
+      }
+    private:
+      iterator(hopscotch_map* map,
+          typename container_type::iterator iter,
+          typename spill_type::iterator iter2):
+        ptr(map), iter(iter), iter2(iter2), in_spill(iter == ptr->container->end()) { }
+    };
+
+
 
   private:
 
 
     // The primary storage. Used by all sequential accessors.
     container_type* container;
+
+    // excess elements which refuse to be inserted go here.
+    spill_type  spill;
 
     // the hash function to use. hashes a pair<key, value> to hash(key)
     hash_redirect hashfun;
@@ -114,42 +250,56 @@ namespace graphlab {
 
     void destroy_all() {
       delete container;
+      spill.clear();
       container = NULL;
     }
 
     // rehashes the hash table to one which is double the size
-    container_type* rehash_to_new_container(size_t newsize = (size_t)(-1)) {
+    void rehash_to_new_container(size_t newsize = (size_t)(-1)) {
       /*
          std::cerr << "Rehash at " << container->size() << "/"
          << container->capacity() << ": "
          << container->load_factor() << std::endl;
        */
       // rehash
-      if (newsize == (size_t)(-1)) newsize = container->size() * 2;
+      if (newsize == (size_t)(-1)) newsize = size() * 2;
       container_type* newcontainer = create_new_container(newsize);
       const_iterator citer = begin();
+      spill_type newspill;
       while (citer != end()) {
-        assert(newcontainer->insert(*citer) != newcontainer->end());
+        if(newcontainer->insert(*citer) == newcontainer->end()) {
+          newspill.insert(*citer);
+        }
         ++citer;
       }
-      return newcontainer;
+      std::swap(container, newcontainer);
+      std::swap(spill, newspill);
+      delete newcontainer;
     }
 
     // Inserts a value into the hash table. This does not check
     // if the key already exists, and may produce duplicate values.
     iterator do_insert(const value_type &v) {
-      iterator iter = container->insert(v);
+      typename container_type::iterator iter = container->insert(v);
 
       if (iter != container->end()) {
-          return iter;
+          return iterator(this, iter, spill.begin());
       }
       else {
-        container_type* newcontainer = rehash_to_new_container();
-        iter = newcontainer->insert(v);
-        assert(iter != newcontainer->end());
-        std::swap(container, newcontainer);
-        delete newcontainer;
-        return iter;
+        if (load_factor() > 0.8) {
+          rehash_to_new_container();
+          iter = container->insert(v);
+          if(iter != container->end()) {
+            return iterator(this, iter, spill.begin());
+          }
+          else {
+            return iterator(this, container->end(), spill.insert(v).first);
+          }
+        } else {
+          // we have a *really* terrible hash function. 
+          // use the spill
+          return iterator(this, container->end(), spill.insert(v).first);
+        }
       }
     }
 
@@ -166,14 +316,13 @@ namespace graphlab {
                             hashfun(h.hashfun), equalfun(h.equalfun) {
       container = create_new_container(h.capacity());
       (*container) = *(h.container);
+      spill = h.spill;
     }
 
     // only increases
     void rehash(size_t s) {
       if (s > capacity()) {
-        container_type* newcontainer = rehash_to_new_container(s);
-        std::swap(container, newcontainer);
-        delete newcontainer;
+        rehash_to_new_container(s);
       }
     }
 
@@ -197,24 +346,24 @@ namespace graphlab {
     }
 
     size_type size() const {
-      return container->size();
+      return container->size() + spill.size();
     }
 
     iterator begin() {
-      return container->begin();
+      return iterator(this, container->begin(), spill.begin());
     }
 
     iterator end() {
-      return container->end();
+      return iterator(this, container->end(), spill.end());
     }
 
 
     const_iterator begin() const {
-      return container->begin();
+      return const_iterator(this, container->begin(), spill.begin());
     }
 
     const_iterator end() const {
-      return container->end();
+      return const_iterator(this, container->end(), spill.end());
     }
 
 
@@ -231,31 +380,42 @@ namespace graphlab {
 
     iterator find(key_type const& k) {
       value_type v(k, mapped_type());
-      return container->find(v);
+      typename container_type::iterator iter = container->find(v);
+      if (iter != container->end()) {
+        return iterator(this, iter, spill.begin());
+      } else {
+        return iterator(this, iter, spill.find(k));
+      }
     }
 
     const_iterator find(key_type const& k) const {
       value_type v(k, mapped_type());
-      return container->find(v);
+      typename container_type::iterator iter = container->find(v);
+      if (iter != container->end()) {
+        return const_iterator(this, iter, spill.begin());
+      } else {
+        return const_iterator(this, iter, spill.find(k));
+      }
     }
 
     size_t count(key_type const& k) const {
       value_type v(k, mapped_type());
-      return container->count(v);
+      return container->count(v) || spill.count(k);
     }
 
 
     bool erase(iterator iter) {
-      return container->erase(iter);
+      return container->erase(iter.iter) || spill.erase(iter.iter2);
     }
 
     bool erase(key_type const& k) {
       value_type v(k, mapped_type());
-      return container->erase(v);
+      return container->erase(v) || spill.erase(k);
     }
 
     void swap(hopscotch_map& other) {
       std::swap(container, other.container);
+      std::swap(spill, other.spill);
       std::swap(hashfun, other.hashfun);
       std::swap(equalfun, other.equalfun);
     }
@@ -274,12 +434,12 @@ namespace graphlab {
 
 
     size_t capacity() const {
-      return container->capacity();
+      return container->capacity() + spill.size();
     }
 
 
     float load_factor() const {
-      return container->load_factor();
+      return float(size()) / capacity();
     }
 
     void save(oarchive &oarc) const {
@@ -311,11 +471,11 @@ namespace graphlab {
 
     void put(const value_type &v) {
       // try to insert into the container
-      container->put(v);
+      (*this)[v.first] = v.second;
     }
 
     void put(const Key& k, const Value& v) {
-      put(std::make_pair(k, v));
+      (*this)[k] = v;
     }
 
     std::pair<bool, Value> get(const Key& k) const {
