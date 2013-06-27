@@ -353,39 +353,58 @@ namespace graphlab {
       /*                                                                        */
       /**************************************************************************/
       {
+#ifdef _OPENMP
+        buffered_exchange<vertex_id_type> vid_buffer(rpc.dc(), omp_get_max_threads());
+#else
         buffered_exchange<vertex_id_type> vid_buffer(rpc.dc());
-        #ifdef _OPENMP
-        #pragma omp parallel
-        #endif
+#endif
+
+#ifdef _OPENMP
+#pragma omp parallel for
+#endif
         // send not owned vids to their master
         for (lvid_type i = lvid_start; i < graph.lvid2record.size(); ++i) {
           procid_t master = graph.lvid2record[i].owner;
           if (master != rpc.procid())
+#ifdef _OPENMP
+            vid_buffer.send(master, graph.lvid2record[i].gvid, omp_get_thread_num());
+#else
             vid_buffer.send(master, graph.lvid2record[i].gvid);
+#endif
         }
         vid_buffer.flush();
         rpc.barrier();
+
         // receive all vids owned by me
-        typename buffered_exchange<vertex_id_type>::buffer_type buffer;
-        procid_t recvid;
+        mutex flying_vids_lock;
         boost::unordered_map<vertex_id_type, mirror_type> flying_vids;
-        while(vid_buffer.recv(recvid, buffer)) {
-          foreach(const vertex_id_type vid, buffer) {
-            if (graph.vid2lvid.find(vid) == graph.vid2lvid.end()) {
-              if (vid2lvid_buffer.find(vid) == vid2lvid_buffer.end()) {
-                mirror_type& mirrors = flying_vids[vid];
-                mirrors.set_bit(recvid);
+#ifdef _OPENMP
+#pragma omp parallel
+#endif
+        {
+          typename buffered_exchange<vertex_id_type>::buffer_type buffer;
+          procid_t recvid;
+          while(vid_buffer.recv(recvid, buffer)) {
+            foreach(const vertex_id_type vid, buffer) {
+              if (graph.vid2lvid.find(vid) == graph.vid2lvid.end()) {
+                if (vid2lvid_buffer.find(vid) == vid2lvid_buffer.end()) {
+                  flying_vids_lock.lock();
+                  mirror_type& mirrors = flying_vids[vid];
+                  flying_vids_lock.unlock();
+                  mirrors.set_bit(recvid);
+                } else {
+                  lvid_type lvid = vid2lvid_buffer[vid];
+                  graph.lvid2record[lvid]._mirrors.set_bit(recvid);
+                }
               } else {
-                lvid_type lvid = vid2lvid_buffer[vid];
+                lvid_type lvid = graph.vid2lvid[vid];
                 graph.lvid2record[lvid]._mirrors.set_bit(recvid);
+                updated_lvids.set_bit(lvid);
               }
-            } else {
-               lvid_type lvid = graph.vid2lvid[vid];
-               graph.lvid2record[lvid]._mirrors.set_bit(recvid);
-               updated_lvids.set_bit(lvid);
             }
           }
         }
+
         vid_buffer.clear();
         // reallocate spaces for the flying vertices. 
         size_t vsize_old = graph.lvid2record.size();
@@ -436,6 +455,7 @@ namespace graphlab {
 
         // Compute the vertices that needs synchronization 
         if (!first_time_finalize) {
+          vertex_set changed_vset = vertex_set(false);
           changed_vset.make_explicit(graph);
           updated_lvids.resize(graph.num_local_vertices());
           for (lvid_type i = lvid_start; i <  graph.num_local_vertices(); ++i) {
@@ -455,7 +475,7 @@ namespace graphlab {
         vrecord_sync_gas.exec(changed_vset);
 
         if(rpc.procid() == 0)       
-          memory_info::log_usage("Finihsed synchornizing vertex (meta)data");
+          memory_info::log_usage("Finished synchronizing vertex (meta)data");
       }
 
       exchange_global_info();

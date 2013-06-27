@@ -1399,7 +1399,7 @@ namespace graphlab {
       vid2lvid.clear();
       local_graph.clear();
       finalized=false;
-      nverts = nedges = local_own_nverts = nreplicas;
+      nverts = nedges = local_own_nverts = nreplicas = 0;
     }
 
 
