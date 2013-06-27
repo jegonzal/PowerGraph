@@ -1,65 +1,125 @@
+/*
+ * Copyright (c) 2009 Carnegie Mellon University.
+ *     All rights reserved.
+ *
+ *  Licensed under the Apache License, Version 2.0 (the "License");
+ *  you may not use this file except in compliance with the License.
+ *  You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing,
+ *  software distributed under the License is distributed on an "AS
+ *  IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+ *  express or implied.  See the License for the specific language
+ *  governing permissions and limitations under the License.
+ *
+ * For more about this software visit:
+ *
+ *      http://www.graphlab.ml.cmu.edu
+ *
+ */
+
 #include <vector>
 #include <string>
 #include <fstream>
 
 #include <graphlab.hpp>
-#include <graphlab/engine/gl3engine.hpp>
+// #include <graphlab/macros_def.hpp>
 
-#include <dlfcn.h>
-
-using namespace graphlab;
-
-typedef distributed_graph<float, graphlab::empty> graph_type;
-typedef gl3engine<graph_type> engine_type;
-
-// // define a neighborhood map reduce operation
-#define PAGERANK_MAP_REDUCE 0
-
-// // Global random reset probability
+// Global random reset probability
 float RESET_PROB = 0.15;
 
 float TOLERANCE = 1.0E-2;
 
-//Here are global function pointers, that will have code dynamically
-//linked and these reset to point to it.
+// The vertex data is just the pagerank value (a float)
+typedef float vertex_data_type;
 
-//float pagerank_map(const graph_type::vertex_type& v);
-float (*pagerank_map)(const graph_type::vertex_type&) = NULL;
-// float pagerank_map(const graph_type::vertex_type& v) {
-//     return v.data() / v.num_out_edges();
-// }
+// There is no edge data in the pagerank application
+typedef graphlab::empty edge_data_type;
 
+// The graph type is determined by the vertex and edge data types
+typedef graphlab::distributed_graph<vertex_data_type, edge_data_type> graph_type;
 
-//void pagerank_combine(float& v1, const float& v2);
-void (*pagerank_combine)(float&,const float&) = NULL;
-
-//void pagerank_program(engine_type::context_type& context,
-//		      graph_type::vertex_type& vertex,
-//		      const engine_type::message_type& unused);
-void (*pagerank_program)(engine_type::context_type&,
-			 graph_type::vertex_type&,
-			 const engine_type::message_type&) = NULL;
-// void pagerank_program(engine_type::context_type& context,
-// 		      graph_type::vertex_type& vertex,
-// 		      const engine_type::message_type& unused) {
-//     float prev = vertex.data();
-//     // map reduce over neighbors
-//     vertex.data() = 0.15 + 0.85 *
-// 	context.map_reduce<float>(PAGERANK_MAP_REDUCE, IN_EDGES);
-
-//     float last_change = std::fabs((vertex.data()- prev) / vertex.num_out_edges());
-//     if (last_change > TOLERANCE) {
-// 	// signals out neighbors if I change substantially
-// 	context.broadcast_signal(OUT_EDGES);
-//     }
-// }
-
-
-
+/*
+ * A simple function used by graph.transform_vertices(init_vertex);
+ * to initialize the vertes data.
+ */
 void init_vertex(graph_type::vertex_type& vertex) { vertex.data() = 1; }
 
-int main(int argc, char** argv) {
 
+
+/*
+ * The factorized page rank update function extends ivertex_program
+ * specifying the:
+ *
+ *   1) graph_type
+ *   2) gather_type: float (returned by the gather function). Note
+ *      that the gather type is not strictly needed here since it is
+ *      assumed to be the same as the vertex_data_type unless
+ *      otherwise specified
+ *
+ * In addition ivertex program also takes a message type which is
+ * assumed to be empty. Since we do not need messages no message type
+ * is provided.
+ *
+ * pagerank also extends graphlab::IS_POD_TYPE (is plain old data type)
+ * which tells graphlab that the pagerank program can be serialized
+ * (converted to a byte stream) by directly reading its in memory
+ * representation.  If a vertex program does not exted
+ * graphlab::IS_POD_TYPE it must implement load and save functions.
+ */
+class pagerank :
+  public graphlab::ivertex_program<graph_type, float>,
+  public graphlab::IS_POD_TYPE {
+  float last_change;
+public:
+  /* Gather the weighted rank of the adjacent page   */
+  float gather(icontext_type& context, const vertex_type& vertex,
+               edge_type& edge) const {
+    return ((1.0 - RESET_PROB) / edge.source().num_out_edges()) *
+      edge.source().data();
+  }
+
+  /* Use the total rank of adjacent pages to update this page */
+  void apply(icontext_type& context, vertex_type& vertex,
+             const gather_type& total) {
+    const double newval = total + RESET_PROB;
+    last_change = std::fabs(newval - vertex.data());
+    vertex.data() = newval;
+  }
+
+  /* The scatter edges depend on whether the pagerank has converged */
+  edge_dir_type scatter_edges(icontext_type& context,
+                              const vertex_type& vertex) const {
+    if (last_change > TOLERANCE) return graphlab::OUT_EDGES;
+    else return graphlab::NO_EDGES;
+  }
+
+  /* The scatter function just signal adjacent pages */
+  void scatter(icontext_type& context, const vertex_type& vertex,
+               edge_type& edge) const {
+    context.signal(edge.target());
+  }
+}; // end of factorized_pagerank update functor
+
+
+/*
+ * We want to save the final graph so we define a write which will be
+ * used in graph.save("path/prefix", pagerank_writer()) to save the graph.
+ */
+struct pagerank_writer {
+  std::string save_vertex(graph_type::vertex_type v) {
+    std::stringstream strm;
+    strm << v.id() << "\t" << v.data() << "\n";
+    return strm.str();
+  }
+  std::string save_edge(graph_type::edge_type e) { return ""; }
+}; // end of pagerank writer
+
+
+
+int main(int argc, char** argv) {
   // Initialize control plain using mpi
   graphlab::mpi_tools::init(argc, argv);
   graphlab::distributed_control dc;
@@ -94,23 +154,6 @@ int main(int argc, char** argv) {
     return EXIT_FAILURE;
   }
 
-
-  // Dynamically link the functions
-  dc.cout() << "Starting dynamic linking" << std::endl;
-  void* pagerank_handle = dlopen("/home/emullen/graphlab/graphlab2.2/graphlabapi/demoapps/pagerank/pagerank_impl.so", RTLD_LAZY);
-  if (pagerank_handle == NULL) {
-      dc.cout() << dlerror() << std::endl;
-      assert(pagerank_handle != NULL);
-  }
-
-  pagerank_map = (float (*)(const graphlab::distributed_graph<float, graphlab::empty>::vertex_type&))dlsym(pagerank_handle, "pagerank_map");
-  assert(pagerank_map != NULL);
-  pagerank_combine = (void (*)(float&, const float&))dlsym(pagerank_handle, "pagerank_combine");
-  assert(pagerank_combine != NULL);
-  pagerank_program = (void (*)(graphlab::gl3context<graphlab::gl3engine<graphlab::distributed_graph<float, graphlab::empty> > >&, graphlab::distributed_graph<float, graphlab::empty>::vertex_type&, const graphlab::empty&))dlsym(pagerank_handle, "pagerank_program");
-  assert(pagerank_program != NULL);
-  dc.cout() << "Finished dynamic linking" << std::endl;
-
   // Build the graph ----------------------------------------------------------
   graph_type graph(dc, clopts);
   dc.cout() << "Loading graph in format: "<< format << std::endl;
@@ -123,30 +166,26 @@ int main(int argc, char** argv) {
   // Initialize the vertex data
   graph.transform_vertices(init_vertex);
 
-    // Running The Engine -------------------------------------------------------
-  engine_type engine(dc, graph, clopts);
-
-  // register the map reduce operation before usage
-  // Each task registration must have a distinct ID ranging fro 0 to 223
-  engine.register_map_reduce(PAGERANK_MAP_REDUCE,
-			     pagerank_map,
-			     pagerank_combine);
-
-  engine.set_vertex_program(pagerank_program);
+  // Running The Engine -------------------------------------------------------
+  graphlab::omni_engine<pagerank> engine(dc, graph, exec_type, clopts);
   engine.signal_all();
-  engine.wait();
-  
-  // Save the final graph -----------------------------------------------------
-  // if (saveprefix != "") {
-  //   graph.save(saveprefix, pagerank_writer(),
-  //              false,    // do not gzip
-  //              true,     // save vertices
-  //              false);   // do not save edges
-  // }
+  engine.start();
+  const float runtime = engine.elapsed_seconds();
+  dc.cout() << "Finished Running engine in " << runtime
+            << " seconds." << std::endl;
 
-  dlclose(pagerank_handle);
+  // Save the final graph -----------------------------------------------------
+  if (saveprefix != "") {
+    graph.save(saveprefix, pagerank_writer(),
+               false,    // do not gzip
+               true,     // save vertices
+               false);   // do not save edges
+  }
 
   // Tear-down communication layer and quit -----------------------------------
   graphlab::mpi_tools::finalize();
   return EXIT_SUCCESS;
 } // End of main
+
+
+
