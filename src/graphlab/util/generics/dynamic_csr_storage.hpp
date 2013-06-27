@@ -45,7 +45,7 @@ namespace graphlab {
    * Also, this class supports insert (and batch insert) values associated with any key. 
    */
   template<typename valuetype, typename sizetype=size_t, 
-           uint32_t blocksize=(4096-20)/sizeof(valuetype)>
+           uint32_t blocksize=(4096-20)/sizeof(valuetype)> // the block size makes the block fit in a memory page
   class dynamic_csr_storage {
    public:
      typedef block_linked_list<valuetype, blocksize> block_linked_list_t;

@@ -91,7 +91,6 @@
 
 
 #include <graphlab/graph/builtin_parsers.hpp>
-#include <graphlab/graph/json_parser.hpp>
 #include <graphlab/graph/vertex_set.hpp>
 
 #include <graphlab/macros_def.hpp>
@@ -406,7 +405,6 @@ namespace graphlab {
     friend class distributed_batch_ingress<VertexData, EdgeData>;
     friend class distributed_oblivious_ingress<VertexData, EdgeData>;
     friend class distributed_constrained_random_ingress<VertexData, EdgeData>;
-    friend class json_parser<VertexData, EdgeData>;
 
     typedef graphlab::vertex_id_type vertex_id_type;
     typedef graphlab::lvid_type lvid_type;
@@ -760,16 +758,16 @@ namespace graphlab {
     }
 
 
-    // /**
-    //  * Defines the strategy to use when duplicate vertices are inserted.
-    //  * The default behavior is that an arbitrary vertex data is picked.
-    //  * This allows you to define a combining strategy.
-    //  */
-    // void set_duplicate_vertex_strategy(boost::function<void(vertex_data_type&,
-    //                                                     const vertex_data_type&)>
-    //                                    combine_strategy) {
-    //   ingress_ptr->set_duplicate_vertex_strategy(combine_strategy);
-    // }
+    /**
+     * Defines the strategy to use when duplicate vertices are inserted.
+     * The default behavior is that an arbitrary vertex data is picked.
+     * This allows you to define a combining strategy.
+     */
+    void set_duplicate_vertex_strategy(boost::function<void(vertex_data_type&,
+                                                        const vertex_data_type&)>
+                                       combine_strategy) {
+      ingress_ptr->set_duplicate_vertex_strategy(combine_strategy);
+    }
 
     /**
      * \brief Creates a vertex containing the vertex data.
@@ -1367,7 +1365,6 @@ namespace graphlab {
           >> nedges
           >> local_own_nverts
           >> nreplicas
-          >> begin_eid
           >> vid2lvid
           >> lvid2record
           >> local_graph;
@@ -1389,7 +1386,6 @@ namespace graphlab {
           << nedges
           << local_own_nverts
           << nreplicas
-          << begin_eid
           << vid2lvid
           << lvid2record
           << local_graph;
@@ -1405,7 +1401,7 @@ namespace graphlab {
       vid2lvid.clear();
       local_graph.clear();
       finalized=false;
-      nverts = nedges = local_own_nverts = nreplicas = begin_eid = 0;
+      nverts = nedges = local_own_nverts = nreplicas;
     }
 
 
@@ -2141,35 +2137,6 @@ namespace graphlab {
     } // end of load
 
 
-    /** \brief Load a distributed graph from a native json output format.
-     * This function must be called simultaneously on all machines.
-     *
-     * This function loads a sequence of files numbered
-     * \li [prefix].0.gz
-     * \li [prefix].1.gz
-     * \li [prefix].2.gz
-     * \li etc.
-     *
-     * These files must be previously saved using external graphbuilder library,
-     * and must be saved <b>using the same number of machines</b>.
-     *
-     * A graph loaded using load_json() is already finalized and
-     * structure modifications are not permitted after loading.
-     */
-    typedef json_parser<VertexData, EdgeData> json_parser_type;
-    typedef typename json_parser_type::edge_parser_type edge_parser_type;
-    typedef typename json_parser_type::vertex_parser_type vertex_parser_type;
-    void load_json (const std::string& prefix, bool gzip=false,
-        edge_parser_type edge_parser = builtin_parsers::empty_edge_parser<EdgeData>,
-        vertex_parser_type vertex_parser = builtin_parsers::empty_vertex_parser<VertexData>
-       ) {
-      rpc.full_barrier();
-      json_parser<VertexData, EdgeData> jsonparser(*this, prefix, gzip, edge_parser, vertex_parser);
-      jsonparser.load();
-      rpc.full_barrier();
-    } // end of load_json
-
-
 /****************************************************************************
  *                     Vertex Set Functions                                 *
  *                     ----------------------                               *
@@ -2845,9 +2812,6 @@ namespace graphlab {
 
     /** The global number of vertex replica */
     size_t nreplicas;
-
-    /** The beginning edge id for this machine */
-    size_t begin_eid;
 
     /** pointer to the distributed ingress object*/
     distributed_ingress_base<VertexData, EdgeData>* ingress_ptr;

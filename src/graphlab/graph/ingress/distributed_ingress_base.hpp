@@ -138,6 +138,14 @@ namespace graphlab {
     } // end of add vertex
 
 
+    void set_duplicate_vertex_strategy(
+        boost::function<void(vertex_data_type&,
+                             const vertex_data_type&)> combine_strategy) {
+      vertex_combine_strategy = combine_strategy;
+    }
+
+
+
     /** \brief Finalize completes the local graph data structure 
      * and the vertex record information. 
      *
@@ -304,7 +312,11 @@ namespace graphlab {
               lvid = graph.vid2lvid[rec.vid];
               updated_lvids.set_bit(lvid);
             }
-            graph.local_graph.add_vertex(lvid, rec.vdata);
+            if (vertex_combine_strategy && lvid < graph.num_local_vertices()) {
+              vertex_combine_strategy(graph.l_vertex(lvid).data(), rec.vdata);
+            } else {
+              graph.local_graph.add_vertex(lvid, rec.vdata);
+            }
           }
         }
         vertex_exchange.clear();
@@ -469,10 +481,6 @@ namespace graphlab {
       graph.nedges = 0;
       foreach(size_t count, swap_counts) graph.nedges += count;
 
-      // compute begin edge id
-      graph.begin_eid = 0;
-      for(size_t i = 0; i < rpc.procid(); ++i) 
-        graph.begin_eid += swap_counts[i];
 
       // compute vertex count
       swap_counts[rpc.procid()] = graph.num_local_own_vertices();
@@ -499,6 +507,8 @@ namespace graphlab {
 
 
   private:
+    boost::function<void(vertex_data_type&, const vertex_data_type&)> vertex_combine_strategy;
+
     /**
      * \brief Gather the vertex distributed meta data.
      */
