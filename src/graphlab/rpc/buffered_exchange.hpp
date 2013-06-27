@@ -203,6 +203,8 @@ namespace graphlab {
     bool empty() const { return recv_buffers.empty(); }
 
     void clear() { }
+
+    void barrier() { rpc.barrier(); }
   private:
     void rpc_recv(size_t len, wild_pointer w) {
       buffer_type tmp;
