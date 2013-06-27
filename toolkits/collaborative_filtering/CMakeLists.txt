@@ -34,11 +34,11 @@ add_graphlab_executable(make_synthetic_als_data
 requires_eigen(make_synthetic_als_data) # build and attach eigen
 
 
-add_graphlab_executable(gl3sgd gl3sgd.cpp)
-requires_eigen(gl3sgd) # build and attach eigen
-
-add_graphlab_executable(gl3nmf gl3nmf.cpp)
-requires_eigen(gl3sgd) # build and attach eigen
-
-add_graphlab_executable(gl3als_coord gl3als_coord.cpp)
-requires_eigen(gl3als_coord) # build and attach eigen
+# add_graphlab_executable(gl3sgd gl3sgd.cpp)
+# requires_eigen(gl3sgd) # build and attach eigen
+# 
+# add_graphlab_executable(gl3nmf gl3nmf.cpp)
+# requires_eigen(gl3sgd) # build and attach eigen
+# 
+# add_graphlab_executable(gl3als_coord gl3als_coord.cpp)
+# requires_eigen(gl3als_coord) # build and attach eigen

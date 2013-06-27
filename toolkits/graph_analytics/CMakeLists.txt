@@ -16,7 +16,7 @@ add_graphlab_executable(graph_laplacian graph_laplacian.cpp)
 add_graphlab_executable(partitioning partitioning.cpp)
 
 
-add_graphlab_executable(gl3pagerank gl3pagerank.cpp)
-add_graphlab_executable(gl3pagerank2 gl3pagerank2.cpp)
-add_graphlab_executable(gl3coloring gl3coloring.cpp)
-add_graphlab_executable(gl3bond_percolation gl3bond_percolation.cpp)
+# add_graphlab_executable(gl3pagerank gl3pagerank.cpp)
+# add_graphlab_executable(gl3pagerank2 gl3pagerank2.cpp)
+# add_graphlab_executable(gl3coloring gl3coloring.cpp)
+# add_graphlab_executable(gl3bond_percolation gl3bond_percolation.cpp)
