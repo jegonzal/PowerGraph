@@ -144,7 +144,13 @@ namespace graphlab {
         logstream(LOG_FATAL) << "Num shards: " << nshards << " cannot be used for pdsingress." << std::endl;
       };
       pds pds_generator;
-      std::vector<size_t> results = pds_generator.get_pds(p);
+      std::vector<size_t> results;
+      if (p == 1) {
+        results.push_back(0);
+        results.push_back(2);
+      } else {
+        results = pds_generator.get_pds(p);
+      }
       for (size_t i = 0; i < nshards; i++) {
         std::vector<procid_t> adjlist;
         for (size_t j = 0; j < results.size(); j++) {
