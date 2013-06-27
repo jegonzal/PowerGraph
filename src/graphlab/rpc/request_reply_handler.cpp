@@ -1,4 +1,4 @@
-/*  
+/**  
  * Copyright (c) 2009 Carnegie Mellon University. 
  *     All rights reserved.
  *
@@ -21,19 +21,18 @@
  */
 
 
-#ifndef GET_LAST_DC_PROCID_HPP
-#define GET_LAST_DC_PROCID_HPP
-
-#include <graphlab/rpc/dc_types.hpp>
+#include <string>
+#include <graphlab/rpc/dc.hpp>
+#include <graphlab/rpc/request_reply_handler.hpp>
 
 namespace graphlab {
-namespace dc_impl {
-  /**
-   * \brief Returns the procid of the current process as set by the latest
-   * constructed distributed_control object
-   */
-  procid_t get_last_dc_procid();
-} // dc_impl
-} // graphlab
- 
-#endif // GET_LAST_DC_PROCID_HPP
+
+void request_reply_handler(distributed_control &dc, procid_t src, 
+                           size_t ptr, dc_impl::blob ret) {
+  dc_impl::ireply_container* a = reinterpret_cast<dc_impl::ireply_container*>(ptr);
+  a->receive(src, ret);
+}
+
+
+}
+

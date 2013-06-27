@@ -45,7 +45,7 @@
 //#include <graphlab/rpc/dc_sctp_comm.hpp>
 #include <graphlab/rpc/dc_buffered_stream_send2.hpp>
 #include <graphlab/rpc/dc_stream_receive.hpp>
-#include <graphlab/rpc/reply_increment_counter.hpp>
+#include <graphlab/rpc/request_reply_handler.hpp>
 #include <graphlab/rpc/dc_services.hpp>
 
 #include <graphlab/rpc/dc_init_from_env.hpp>
@@ -64,27 +64,27 @@ namespace graphlab {
 
 namespace dc_impl {
 
-static procid_t last_dc_procid = 0;
-static distributed_control* last_dc = NULL;
-
-procid_t get_last_dc_procid() {
-  return last_dc_procid;
-}
-
-distributed_control* get_last_dc() {
-  if (last_dc == NULL) {
-    last_dc = new distributed_control();
-  }
-  return last_dc;
-}
-
-
-
 
 bool thrlocal_sequentialization_key_initialized = false;
 pthread_key_t thrlocal_sequentialization_key;
 
 } // namespace dc_impl
+
+
+
+procid_t distributed_control::last_dc_procid = 0;
+distributed_control* distributed_control::last_dc = NULL;
+
+procid_t distributed_control::get_instance_procid() {
+  return last_dc_procid;
+}
+
+distributed_control* distributed_control::get_instance() {
+  return last_dc;
+}
+
+
+
 
 unsigned char distributed_control::set_sequentialization_key(unsigned char newkey) {
   size_t oldval = reinterpret_cast<size_t>(pthread_getspecific(dc_impl::thrlocal_sequentialization_key));
@@ -217,6 +217,25 @@ void distributed_control::exec_function_call(procid_t source,
   END_TRACEPOINT(dc_call_dispatch);
 }
 
+unsigned char distributed_control::get_block_sequentialization_key(fcallqueue_entry& fcallblock) {
+  unsigned char seq_key = 0;
+  char* data = fcallblock.chunk_src;
+  size_t remaininglen = fcallblock.chunk_len;
+  // loop through all the messages
+  while(remaininglen > 0) {
+    ASSERT_GE(remaininglen, sizeof(dc_impl::packet_hdr));
+    dc_impl::packet_hdr hdr = *reinterpret_cast<dc_impl::packet_hdr*>(data);
+    ASSERT_LE(hdr.len, remaininglen);
+    if (hdr.sequentialization_key != 0) {
+      seq_key = hdr.sequentialization_key;
+      break;
+    }
+    data += sizeof(dc_impl::packet_hdr) + hdr.len;
+    remaininglen -= sizeof(dc_impl::packet_hdr) + hdr.len;
+  }
+  return seq_key;
+}
+
 void distributed_control::deferred_function_call_chunk(char* buf, size_t len, procid_t src) {
   BEGIN_TRACEPOINT(dc_receive_queuing);
   fcallqueue_entry* fc = new fcallqueue_entry;
@@ -227,6 +246,18 @@ void distributed_control::deferred_function_call_chunk(char* buf, size_t len, pr
   fc->source = src;
   fcallqueue_length.inc();
   fcallqueue[src % fcallqueue.size()].enqueue(fc);
+/*
+  if (get_block_sequentialization_key(*fc) > 0) {
+    fcallqueue[src % fcallqueue.size()].enqueue(fc);
+  } else {
+    const uint32_t prod = 
+        random::fast_uniform(uint32_t(0), 
+                             uint32_t(fcallqueue.size() * fcallqueue.size() - 1));
+    const uint32_t r1 = prod / fcallqueue.size();
+    const uint32_t r2 = prod % fcallqueue.size();
+    uint32_t idx = (fcallqueue[r1].size() < fcallqueue[r2].size()) ? r1 : r2;  
+    fcallqueue[idx].enqueue(fc);
+  } */
   END_TRACEPOINT(dc_receive_queuing);
 }
 
@@ -442,9 +473,9 @@ void distributed_control::init(const std::vector<std::string> &machines,
     // autoconfigure
     if (thread::cpu_count() > 2) numhandlerthreads = thread::cpu_count() - 2;
     else numhandlerthreads = 2;
-    if (numhandlerthreads > 8) numhandlerthreads = 8;
   }
-  dc_impl::last_dc = this;
+  // set the value of the last_dc for the get_instance function
+  last_dc = this;
   ASSERT_MSG(machines.size() <= RPC_MAX_N_PROCS,
              "Number of processes exceeded hard limit of %d", RPC_MAX_N_PROCS);
 
@@ -467,6 +498,8 @@ void distributed_control::init(const std::vector<std::string> &machines,
   global_bytes_received.resize(machines.size());
   fcallqueue.resize(numhandlerthreads);
 
+  // options
+  set_fast_track_requests(true);
 
   // parse the initstring
   std::map<std::string,std::string> options = parse_options(initstring);
@@ -495,8 +528,8 @@ void distributed_control::init(const std::vector<std::string> &machines,
   localprocid = curmachineid;
   localnumprocs = machines.size();
 
-  // set the static variable for the global function get_last_dc_procid()
-  dc_impl::last_dc_procid = localprocid;
+  // set the static variable for the get_instance_procid() function
+  last_dc_procid = localprocid;
 
   // construct the services
   distributed_services = new dc_services(*this);

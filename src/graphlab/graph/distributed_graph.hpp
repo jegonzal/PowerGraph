@@ -385,6 +385,8 @@ namespace graphlab {
 #endif
     typedef graphlab::distributed_graph<VertexData, EdgeData> graph_type;
 
+    typedef std::vector<simple_spinlock> lock_manager_type;
+
     friend class distributed_ingress_base<VertexData, EdgeData>;
 
 
@@ -421,6 +423,7 @@ namespace graphlab {
      * it must not outlive the underlying graph.
      */
     struct vertex_type {
+      typedef distributed_graph graph_type;
       distributed_graph& graph_ref;
       lvid_type lvid;
 
@@ -602,7 +605,13 @@ namespace graphlab {
                       const graphlab_options& opts = graphlab_options()) :
       rpc(dc, this), finalized(false), vid2lvid(),
       nverts(0), nedges(0), local_own_nverts(0), nreplicas(0),
-      ingress_ptr(NULL), vertex_exchange(dc), vset_exchange(dc), parallel_ingress(true) {
+      ingress_ptr(NULL), 
+#ifdef _OPENMP
+      vertex_exchange(dc, omp_get_max_threads()), 
+#else
+      vertex_exchange(dc), 
+#endif
+      vset_exchange(dc), parallel_ingress(true) {
       rpc.barrier();
       set_options(opts);
     }
@@ -611,6 +620,10 @@ namespace graphlab {
       delete ingress_ptr; ingress_ptr = NULL;
     }
 
+
+    lock_manager_type& get_lock_manager() {
+      return lock_manager;
+    }
   private:
     void set_options(const graphlab_options& opts) {
       size_t bufsize = 50000;
@@ -680,6 +693,7 @@ namespace graphlab {
       ASSERT_NE(ingress_ptr, NULL);
       logstream(LOG_INFO) << "Distributed graph: enter finalize" << std::endl;
       ingress_ptr->finalize();
+      lock_manager.resize(num_local_vertices());
       rpc.barrier(); 
 
       finalized = true;
@@ -2521,29 +2535,42 @@ namespace graphlab {
      * This function synchronizes the master vertex data with all the mirrors.
      * This function must be called simultaneously by all machines
      */
-    void synchronize() {
+    void synchronize(const vertex_set& vset = complete_set()) {
       typedef std::pair<vertex_id_type, vertex_data_type> pair_type;
-      typename buffered_exchange<pair_type>::buffer_type recv_buffer;
+
       procid_t sending_proc;
       // Loop over all the local vertex records
+
+
+#ifdef _OPENMP
+#pragma omp parallel for
+#endif
       for(lvid_type lvid = 0; lvid < lvid2record.size(); ++lvid) {
+        typename buffered_exchange<pair_type>::buffer_type recv_buffer;
         const vertex_record& record = lvid2record[lvid];
         // if this machine is the owner of a record then send the
         // vertex data to all mirrors
-        if(record.owner == rpc.procid()) {
+        if(record.owner == rpc.procid() && vset.l_contains(lvid)) {
           foreach(size_t proc, record.mirrors()) {
             const pair_type pair(record.gvid, local_graph.vertex_data(lvid));
+#ifdef _OPENMP
+            vertex_exchange.send(proc, pair, omp_get_thread_num());
+#else
             vertex_exchange.send(proc, pair);
+#endif
           }
         }
         // Receive any vertex data and update local mirrors
-        while(vertex_exchange.recv(sending_proc, recv_buffer)) {
+        while(vertex_exchange.recv(sending_proc, recv_buffer, true)) {
           foreach(const pair_type& pair, recv_buffer)  {
             vertex(pair.first).data() = pair.second;
           }
           recv_buffer.clear();
         }
       }
+
+
+      typename buffered_exchange<pair_type>::buffer_type recv_buffer;
       vertex_exchange.flush();
       while(vertex_exchange.recv(sending_proc, recv_buffer)) {
         foreach(const pair_type& pair, recv_buffer) {
@@ -2793,6 +2820,14 @@ namespace graphlab {
     /** The rpc interface for this class */
     mutable dc_dist_object<distributed_graph> rpc;
 
+  public:
+
+    // For the warp engine to find the remote instances of this class
+    size_t get_rpc_obj_id() {
+      return rpc.get_obj_id();
+    }
+
+  private:
     bool finalized;
 
     /** The local graph data */
@@ -2829,6 +2864,9 @@ namespace graphlab {
 
     /** Command option to disable parallel ingress. Used for simulating single node ingress */
     bool parallel_ingress;
+
+
+    lock_manager_type lock_manager;
 
     void set_ingress_method(const std::string& method,
         size_t bufsize = 50000, bool usehash = false, bool userecent = false) {

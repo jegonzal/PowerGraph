@@ -27,11 +27,12 @@ add_library(graphlab STATIC
   util/generics/any.cpp
   util/hdfs.cpp
   logger/logger.cpp
-  logger/assertions.cpp
+  logger/backtrace.cpp
   parallel/pthread_tools.cpp
   # parallel/qthread_tools.cpp
   parallel/thread_pool.cpp
-  parallel/fiber.cpp
+  parallel/fiber_control.cpp
+  parallel/fiber_group.cpp
   util/random.cpp
   scheduler/scheduler_list.cpp
   scheduler/fifo_scheduler.cpp
@@ -54,11 +55,12 @@ add_library(graphlab STATIC
   rpc/dc_stream_receive.cpp
   rpc/dc_buffered_stream_send2.cpp
   rpc/dc.cpp
-  rpc/reply_increment_counter.cpp
+  rpc/request_reply_handler.cpp
   rpc/dc_init_from_env.cpp
   rpc/dc_init_from_mpi.cpp
   rpc/dc_init_from_zookeeper.cpp
   rpc/async_consensus.cpp
+  rpc/fiber_async_consensus.cpp
   rpc/distributed_event_log.cpp
   rpc/delta_dht.cpp
   rpc/archive_memory_pool.cpp

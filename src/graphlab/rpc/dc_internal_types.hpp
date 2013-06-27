@@ -99,9 +99,6 @@ inline void charstring_free<char*>(char* &c){
     delete [] c;
 };
 
-// if 1, uses semaphore
-// if 0 uses spin wait
-#define REQUEST_WAIT_METHOD 1
 
 
 /**

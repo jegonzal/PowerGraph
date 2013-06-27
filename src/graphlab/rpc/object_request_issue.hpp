@@ -29,7 +29,7 @@
 #include <graphlab/serialization/serialization_includes.hpp>
 #include <graphlab/rpc/dc_types.hpp>
 #include <graphlab/rpc/dc_internal_types.hpp>
-#include <graphlab/rpc/reply_increment_counter.hpp>
+#include <graphlab/rpc/request_reply_handler.hpp>
 #include <graphlab/rpc/object_request_dispatch.hpp>
 #include <graphlab/rpc/function_ret_type.hpp>
 #include <graphlab/rpc/mem_function_arg_types_def.hpp>
@@ -76,7 +76,7 @@ template<typename T,
     {
         oarchive arc;
         arc.advance(sizeof(packet_hdr));
-        reply_ret_type reply(1);
+        request_future<__GLRPC_FRESULT> reply;  
         dispatch_type d = dc_impl::OBJECT_NONINTRUSIVE_REQUESTDISPATCH1<distributed_control,T,F , T0 >;
         arc << reinterpret_cast<size_t>(d);
         serialize(arc, (char*)(&remote_function), sizeof(remote_function));
@@ -105,16 +105,15 @@ template<typename T,
 template<typename T,typename F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, typename T)> \
 class  BOOST_PP_CAT(FNAME_AND_CALL, N) { \
   public: \
-  static request_future<__GLRPC_FRESULT> exec(dc_dist_object_base* rmi, dc_send* sender, unsigned char flags, procid_t target,size_t objid, F remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_) ) {  \
+  static void exec(dc_dist_object_base* rmi, dc_send* sender, size_t request_handle, unsigned char flags, procid_t target,size_t objid, F remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_) ) {  \
     oarchive* ptr = oarchive_from_pool();       \
     oarchive& arc = *ptr;                         \
     arc.advance(sizeof(size_t) + sizeof(packet_hdr));            \
-    request_future<__GLRPC_FRESULT> reply;   \
     dispatch_type d = BOOST_PP_CAT(dc_impl::OBJECT_NONINTRUSIVE_REQUESTDISPATCH,N)<distributed_control,T,F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N, GENT ,_) >;  \
     arc << reinterpret_cast<size_t>(d);       \
     serialize(arc, (char*)(&remote_function), sizeof(remote_function)); \
     arc << objid;       \
-    arc << reinterpret_cast<size_t>(reply.reply.get());       \
+    arc << request_handle; \
     BOOST_PP_REPEAT(N, GENARC, _)                \
     if (arc.off >= BUFFER_RELINQUISH_LIMIT) {  \
       sender->send_data(target,flags , arc.buf, arc.off);    \
@@ -126,7 +125,6 @@ class  BOOST_PP_CAT(FNAME_AND_CALL, N) { \
     release_oarchive_to_pool(ptr); \
     if ((flags & CONTROL_PACKET) == 0)                       \
       rmi->inc_bytes_sent(target, arc.off - sizeof(size_t));           \
-    return reply;   \
   }\
 };
 

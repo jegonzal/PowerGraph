@@ -26,7 +26,6 @@
 #include <vector>
 #include <graphlab/rpc/dc_dist_object.hpp>
 #include <graphlab/rpc/distributed_event_log.hpp>
-#include <graphlab/engine/chandy_misra_interface.hpp>
 #include <graphlab/logger/assertions.hpp>
 #include <graphlab/parallel/pthread_tools.hpp>
 #include <graphlab/graph/graph_basic_types.hpp>
@@ -38,7 +37,7 @@ namespace graphlab {
   * \internal
   */
 template <typename GraphType>
-class distributed_chandy_misra : public chandy_misra_interface<GraphType> {
+class distributed_chandy_misra {
  public:
   typedef typename GraphType::local_vertex_type local_vertex_type;
   typedef typename GraphType::local_edge_type local_edge_type;

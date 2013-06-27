@@ -1,0 +1,9 @@
+#ifndef GRAPHLAB_LOGGER_FAIL_METHOD
+
+#ifdef GRAPHLAB_LOGGER_THROW_ON_FAILURE
+#define GRAPHLAB_LOGGER_FAIL_METHOD(str) throw(str)
+#else
+#define GRAPHLAB_LOGGER_FAIL_METHOD(str) abort()
+#endif
+
+#endif

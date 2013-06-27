@@ -69,6 +69,7 @@ namespace graphlab {
     std::vector<queue_type> in_queues;
     std::vector<mutex> in_queue_locks;
     std::vector<queue_type> out_queues;
+    std::vector<mutex> out_queue_locks;
 
     void set_options(const graphlab_options& opts);
     
