@@ -375,8 +375,10 @@ void fiber_control::yield() {
       size_t probe = (i + workerid) % parentgroup->nworkers;
       if (parentgroup->schedule[probe].nactive > 0) {
         parentgroup->schedule[probe].active_lock.lock();
-        next_fib = parentgroup->active_queue_remove(probe);
-        if (next_fib->affinity.get(workerid) == false) next_fib = NULL;
+        fiber_control::fiber* ret = parentgroup->schedule[probe].active_head.next;
+        if (ret != NULL && ret->affinity.get(workerid)) {
+          next_fib = parentgroup->active_queue_remove(probe);
+        }
         parentgroup->schedule[probe].active_lock.unlock();
         if (next_fib) {
           break;

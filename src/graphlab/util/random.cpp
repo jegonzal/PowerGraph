@@ -200,7 +200,8 @@ namespace graphlab {
       generator* tls_rnd_ptr = 
         reinterpret_cast<generator*>(ptr);
       if(tls_rnd_ptr != NULL) { 
-        source_registry::global().unregister_source(tls_rnd_ptr);
+        /// TOFIX: This has issues... The global may have been destroyed already
+        //source_registry::global().unregister_source(tls_rnd_ptr);
         delete tls_rnd_ptr; 
       }
     }

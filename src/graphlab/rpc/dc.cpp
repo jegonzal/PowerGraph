@@ -513,6 +513,7 @@ void distributed_control::init(const std::vector<std::string> &machines,
   // store the threads in the threadgroup
   fcall_handler_active.resize(numhandlerthreads);
   fcall_handler_blockers.resize(numhandlerthreads);
+  fcallhandlers.set_stacksize(256*1024); // 256K
   for (size_t i = 0;i < numhandlerthreads; ++i) {
     fiber_control::affinity_type affinity;
     affinity.clear();
