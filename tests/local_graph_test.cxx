@@ -31,13 +31,6 @@
 #include <graphlab/util/random.hpp>
 #include <graphlab/macros_def.hpp>
 
-// namespace std {
-// std::ostream& operator<<(std::ostream& out,
-//                       const std::pair<long unsigned int, long unsigned int>& pair) {
-//                       out << "(" << pair.first << "," << pair.second << ")"; 
-//                       }
-// }
-
 /**
  * Unit test for graphlab::local_graph.hpp
  */
@@ -47,20 +40,12 @@ public:
     size_t value;
     vertex_data() : value(0) { }
     vertex_data(size_t n) : value(n) { }
-    friend std::ostream& operator<<(std::ostream& os, const vertex_data& vdata) {
-      os << vdata.value;
-      return os;
-    }
   };
 
   struct edge_data { 
     int from; 
     int to;
     edge_data (int f = 0, int t = 0) : from(f), to(t) {}
-    friend std::ostream& operator<<(std::ostream& os, const edge_data& edata) {
-      os << "(" << edata.from << "," << edata.to << ")" << std::endl;
-      return os;
-    }
   };
 
   /**

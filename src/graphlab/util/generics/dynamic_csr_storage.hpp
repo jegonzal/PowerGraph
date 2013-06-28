@@ -169,34 +169,8 @@ namespace graphlab {
 #pragma omp parallel for
 #endif
        for (ssize_t i = 0; i < (ssize_t)num_keys(); ++i) {
-           // std::vector<value_type> before_resize, after_resize;
-           // iterator it = begin(i); 
-           // while (it != end(i)) {
-           //   before_resize.push_back(*it);
-           //   ++it;
-           // }
-
            values.repack(begin(i), end(i));
-
-           // it = begin(i); 
-           // while (it != end(i)) {
-           //   after_resize.push_back(*it);
-           //   ++it;
-           // }
-           // ASSERT_EQ(before_resize.size(), after_resize.size());
-
-           // for (size_t j = 0; j < before_resize.size(); ++j) {
-           //   if (before_resize[j] != after_resize[j]) {
-           //     std::cout << "aaa" << std::endl;
-           //     std::cout << "aaa" << std::endl;
-           //     std::cout << "aaa" << std::endl;
-           //     std::cout << "aaa" << std::endl;
-           //     std::cout << "aaa" << std::endl;
-           //     std::cout << "key = " << i << " pos = " << j << std::endl;;
-           //   }
-           // }
        }
-       // values.print(std::cout);
      }
 
      /////////////////////////// I/O API ////////////////////////
@@ -332,25 +306,3 @@ namespace graphlab {
   }; // end of class
 } // end of graphlab 
 #endif
-       // Update pointers to the left of ins_iter:
-       // Base case: the pionter of ins_iter is mapped to begin_ins_iter
-       // if (begin_ins_iter != ins_iter) {
-       //   int scan = key-1;
-       //   blocktype* oldptr = ins_iter.get_blockptr();
-       //   while (scan >= 0 && value_ptrs[scan].get_blockptr() == oldptr) {
-       //     // compute the relative distance of old pointers
-       //     size_t dist = ins_iter.get_offset() - value_ptrs[scan].get_offset();
-
-       //     // this distance should still hold for new pointers
-       //     if (dist <= begin_ins_iter.get_offset()) {
-       //       value_ptrs[scan].get_blockptr() = begin_ins_iter.get_blockptr();
-       //       value_ptrs[scan].get_offset()  = begin_ins_iter.get_offset()-dist;
-       //     } 
-       //     else {
-       //       // keep the old pointer, update offset
-       //       value_ptrs[scan].get_offset() = 
-       //           value_ptrs[scan].get_blockptr()->size() - (dist-begin_ins_iter.get_offset());
-       //     }
-       //     --scan;
-       //   }
-       // }

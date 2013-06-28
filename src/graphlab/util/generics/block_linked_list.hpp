@@ -11,7 +11,7 @@
 #include <algorithm>
 
 namespace graphlab {
-  template<typename valuetype, uint32_t blocksize=100>
+  template<typename valuetype, uint32_t blocksize=(4096-20)/sizeof(valuetype)>
   /**
    * This class represents a forward linked list of dynamic block.
    */
