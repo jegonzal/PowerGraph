@@ -7,13 +7,16 @@
  * algorithm.
  */
 #include <graphlab.hpp>
-#include <graphlab/engine/gl3engine.hpp>
+#include <graphlab/engine/warp_engine.hpp>
+#include <graphlab/engine/warp_parfor_all_vertices.hpp>
+#include <graphlab/engine/warp_graph_broadcast.hpp>
+#include <graphlab/engine/warp_graph_mapreduce.hpp>
+#include <graphlab/engine/warp_graph_transform.hpp>
 #include <graphlab/util/random.hpp>
+#include <graphlab/macros_def.hpp>
 /**
  * Includes vertex_data, edge_data and helper functions for serialization
  */
-
-#include <graphlab/macros_def.hpp>
 #include "netflix_main.hpp"
 #include "io.hpp"
 #include "compute_tasks.hpp"
@@ -23,19 +26,50 @@
 
 using namespace graphlab;
 
-void update_predictions(distributed_control& dc,
-                        engine_type& engine, graph_type& graph, bool truncate) {
+
+// Test warp transform api
+void update_prediction_helper(graph_type::vertex_type vertex) {
+  warp::transform_neighborhood(vertex, ALL_EDGES, compute_prediction, false); 
+}
+
+void update_predictions(graph_type& graph, bool truncate) {
     //  Update cached prediction on edges
-    engine.parfor_all_local_edges(boost::bind(compute_prediction, _1, _2, truncate)); engine.wait();
+    // graph.transform_edges(boost::bind(compute_prediction, _1, truncate));
+    
+    // need extraargs for parfor all vertices
+    warp::parfor_all_vertices(graph, update_prediction_helper);
+
     error_aggregator errors = graph.map_reduce_edges<error_aggregator>(extract_l2_error);
     TRAIN_RMSE  =  sqrt(errors.train/errors.ntrain);
     TEST_RMSE =  sqrt(errors.test/errors.ntest);
     {
-      dc.cout() << "Training RMSE: " <<  TRAIN_RMSE << std::endl;
-      dc.cout() << "Test RMSE: " << TEST_RMSE << std::endl;
+      graph.dc().cout() << "Training RMSE: " <<  TRAIN_RMSE << std::endl;
+      graph.dc().cout() << "Test RMSE: " << TEST_RMSE << std::endl;
     }
 }
 
+// Test warp broadcast api
+void update_prediction_helper2(engine_type::context_type& context,
+                               graph_type::vertex_type vertex) {
+  warp::broadcast_neighborhood(context, vertex, ALL_EDGES, compute_prediction2, false); 
+}
+
+void update_predictions2(engine_type& engine, graph_type& graph, bool truncate) {
+    //  Update cached prediction on edges
+    // graph.transform_edges(boost::bind(compute_prediction, _1, truncate));
+    
+    // need extraargs for parfor all vertices
+    engine.set_update_function(update_prediction_helper2);
+    engine.start();
+
+    error_aggregator errors = graph.map_reduce_edges<error_aggregator>(extract_l2_error);
+    TRAIN_RMSE  =  sqrt(errors.train/errors.ntrain);
+    TEST_RMSE =  sqrt(errors.test/errors.ntest);
+    {
+      graph.dc().cout() << "Training RMSE: " <<  TRAIN_RMSE << std::endl;
+      graph.dc().cout() << "Test RMSE: " << TEST_RMSE << std::endl;
+    }
+}
 void run_iter(distributed_control& dc, engine_type& engine,
               graph_type& graph, int iter) {
     vertex_set user_set = graph.select(is_user);
@@ -51,11 +85,11 @@ void run_iter(distributed_control& dc, engine_type& engine,
       /*                                                                        */
       /**************************************************************************/
       logstream(LOG_EMPH) << "ALS on user/movie factors" << std::endl;
-      engine.set_vertex_program(boost::bind(als_update_function, _1,_2,_3));
-      engine.signal_vset(user_set); engine.wait();
-      engine.signal_vset(movie_set); engine.wait();
+      engine.set_update_function(als_update_function);
+      engine.signal_vset(user_set); engine.start();
+      engine.signal_vset(movie_set); engine.start();
       //  Update cached prediction on edges
-      update_predictions(dc, engine, graph, TRUNCATE);
+      update_predictions(graph, TRUNCATE);
     }
 
     if (USE_BIAS) {
@@ -68,7 +102,7 @@ void run_iter(distributed_control& dc, engine_type& engine,
       double bias = graph.map_reduce_edges<double>(compute_bias);
       feature_table.w0 = bias / NTRAIN;
       logstream(LOG_EMPH) << "w0 = " << feature_table.w0 << std::endl;
-      update_predictions(dc, engine, graph, TRUNCATE);
+      update_predictions(graph, TRUNCATE);
 
       /**************************************************************************/
       /*                                                                        */
@@ -76,8 +110,8 @@ void run_iter(distributed_control& dc, engine_type& engine,
       /*                                                                        */
       /**************************************************************************/
       logstream(LOG_EMPH) << "Compute wu, wv" << std::endl;
-      engine.parfor_all_local_vertices(compute_vertex_bias); engine.wait();
-      update_predictions(dc, engine, graph, TRUNCATE);
+      warp::parfor_all_vertices(graph, compute_vertex_bias);
+      update_predictions(graph, TRUNCATE);
     } // end of use bias
 
 
@@ -99,13 +133,13 @@ void run_iter(distributed_control& dc, engine_type& engine,
         vec_type w = XtX.selfadjointView<Eigen::Upper>().ldlt().solve(Xy);
         for (size_t i= 0; i < feature_table.size(); ++i) {
           feature_table.weights[i] = w[i];
-          logstream(LOG_EMPH) << feature_table.names[i] << ": "
+         logstream(LOG_EMPH) << feature_table.names[i] << ": "
                               << feature_table.weights[i] << std::endl;
         }
         logstream(LOG_EMPH) << "Finish compute" << std::endl;
-        engine.parfor_all_local_vertices(init_vertex); engine.wait();
+        warp::parfor_all_vertices(graph, init_vertex);
         logstream(LOG_EMPH) << "Finish scatter" << std::endl;
-        update_predictions(dc, engine, graph, TRUNCATE);
+        update_predictions(graph, TRUNCATE);
       }
     } // end of update feature weights
 
@@ -132,8 +166,9 @@ void run_iter(distributed_control& dc, engine_type& engine,
         mat_type XtX = sum.XtX;
         vec_type Xy = sum.Xy;
         if (sum.Xy.size() > 0) { 
-          for(int i = 0; i < XtX.rows(); ++i)
-            XtX(i,i) += LAMBDA2;
+          for(int j = 0; j < XtX.rows(); ++j)
+            XtX(j,j) += LAMBDA2;
+
           vec_type old = feature_table.latent[i];
 
           // Update coordinate
@@ -142,9 +177,9 @@ void run_iter(distributed_control& dc, engine_type& engine,
           logstream(LOG_EMPH) << "feature " <<  feature_table.names[i] << "\n" 
                               << "norm = " << feature_table.latent[i].norm() << std::endl;
           //  Update cached prediction on vertices
-          engine.parfor_all_local_vertices(init_vertex); engine.wait();
+          warp::parfor_all_vertices(graph, init_vertex);
           //  Update cached prediction on edges
-          update_predictions(dc, engine, graph, TRUNCATE);
+          update_predictions(graph, TRUNCATE);
         } // end of update
       } // end of foreach feature
     } // end of update feature feature latent 
@@ -355,17 +390,10 @@ int main(int argc, char** argv) {
   dc.cout() << "Creating engine" << std::endl;
   engine_type engine(dc, graph, clopts);
 
-  engine.register_map_reduce(ALS_MAP_REDUCE, // 0
-                             als_map,
-                             als_sum);
-  engine.register_map_reduce(BIAS_MAP_REDUCE, // 2
-                             bias_map,
-                             pair_sum<double, size_t>);
 
   // initialize graph. for each user random choose 20% movies as test 
   init_global_vars(dc);
-  engine.parfor_all_local_vertices(init_vertex); 
-  engine.wait();
+  warp::parfor_all_vertices(graph, init_vertex); 
 
   NTRAIN = graph.map_reduce_edges<int>(init_edge_hold_out); 
   NTEST = NEDGES - NTRAIN;

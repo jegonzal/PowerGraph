@@ -385,15 +385,15 @@ void transform_neighborhood(VertexType current,
 template <typename ExtraArg, typename VertexType>
 void transform_neighborhood(VertexType current,
                                 edge_dir_type edge_direction,
-                                const ExtraArg extra,
                                 void(*transform_fn)(typename VertexType::graph_type::edge_type edge,
                                                         VertexType other,
-                                                        const ExtraArg extra)) {
+                                                        const ExtraArg extra),
+                                const ExtraArg extra) {
   warp_impl::
       transform_neighborhood_impl2<typename VertexType::graph_type, ExtraArg>::
                                       extended_transform_neighborhood(current, edge_direction, 
-                                                                      extra, 
-                                                                      transform_fn);
+                                                                      transform_fn,
+                                                                      extra);
 }
 
 
