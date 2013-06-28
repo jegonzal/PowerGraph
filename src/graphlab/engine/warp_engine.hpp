@@ -968,11 +968,12 @@ namespace graphlab {
     /**
      * Gets a task from the scheduler and the associated message
      */
-    sched_status::status_enum get_next_sched_task(lvid_type& lvid,
-                            message_type& msg) {
+    sched_status::status_enum get_next_sched_task(size_t threadid,
+                                                  lvid_type& lvid,
+                                                  message_type& msg) {
       while (1) {
         sched_status::status_enum stat = 
-            scheduler_ptr->get_next(fiber_control::get_worker_id(), lvid);
+            scheduler_ptr->get_next(threadid % ncpus, lvid);
         if (stat == sched_status::NEW_TASK) {
           if (messages.get(lvid, msg)) return stat;
           else continue;
@@ -1006,7 +1007,7 @@ namespace graphlab {
       fiber_control::yield();
       consensus->begin_done_critical_section(threadid);
       sched_status::status_enum stat = 
-          get_next_sched_task(sched_lvid, msg);
+          get_next_sched_task(threadid, sched_lvid, msg);
       if (stat == sched_status::EMPTY || force_stop) {
         logstream(LOG_DEBUG) << rmi.procid() << "-" << threadid <<  ": "
                              << "\tTermination Double Checked" << std::endl;
@@ -1210,7 +1211,7 @@ namespace graphlab {
           aggregator.tick_asynchronous_compute(wid, key);
         }
 
-        sched_status::status_enum stat = get_next_sched_task(sched_lvid, msg);
+        sched_status::status_enum stat = get_next_sched_task(threadid, sched_lvid, msg);
 
 
         has_sched_msg = stat != sched_status::EMPTY;
