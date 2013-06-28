@@ -27,9 +27,9 @@
 #include <boost/iostreams/stream.hpp>
 #include <boost/function.hpp>
 #include <graphlab/parallel/pthread_tools.hpp>
-#include <graphlab/parallel/thread_pool.hpp>
+#include <graphlab/parallel/fiber_group.hpp>
 #include <graphlab/util/resizing_array_sink.hpp>
-#include <graphlab/util/blocking_queue.hpp>
+#include <graphlab/util/fiber_blocking_queue.hpp>
 #include <graphlab/util/dense_bitset.hpp>
 #include <graphlab/serialization/serialization_includes.hpp>
 
@@ -226,9 +226,9 @@ class distributed_control{
   std::vector<dc_impl::dc_send*> senders;
 
   /// A thread group of function call handlers
-  thread_pool fcallhandlers;
+  fiber_group fcallhandlers;
   std::vector<atomic<size_t> > fcall_handler_active;
-  std::vector<mutex> fcall_handler_blockers;
+  dense_bitset fcall_handler_blockers;
 
   struct fcallqueue_entry {
     std::vector<function_call_block> calls;
@@ -239,7 +239,7 @@ class distributed_control{
     bool is_chunk;
   };
   /// a queue of functions to be executed
-  std::vector<blocking_queue<fcallqueue_entry*> > fcallqueue;
+  std::vector<fiber_blocking_queue<fcallqueue_entry*> > fcallqueue;
   // number of blocks waiting to be deserialized + the number of
   // incomplete function calls
   atomic<size_t> fcallqueue_length;

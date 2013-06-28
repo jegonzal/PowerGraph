@@ -28,6 +28,7 @@
 #include <graphlab/parallel/pthread_tools.hpp>
 #include <graphlab/graph/vertex_set.hpp>
 #include <graphlab/util/memory_info.hpp>
+#include <graphlab/parallel/thread_pool.hpp>
 
 #include <graphlab/rpc/dc_dist_object.hpp>
 #include <graphlab/rpc/buffered_exchange.hpp>

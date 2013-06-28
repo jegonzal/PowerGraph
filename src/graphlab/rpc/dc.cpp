@@ -245,7 +245,8 @@ void distributed_control::deferred_function_call_chunk(char* buf, size_t len, pr
   fc->is_chunk = true;
   fc->source = src;
   fcallqueue_length.inc();
-  fcallqueue[src % fcallqueue.size()].enqueue(fc);
+  size_t idx = src % fcallqueue.size();
+  fcallqueue[idx].enqueue(fc, !fcall_handler_blockers.get(idx));
 /*
   if (get_block_sequentialization_key(*fc) > 0) {
     fcallqueue[src % fcallqueue.size()].enqueue(fc);
@@ -387,7 +388,7 @@ void distributed_control::stop_handler_threads(size_t threadid,
 void distributed_control::stop_handler_threads_no_wait(size_t threadid,
                                                        size_t total_threadid) {
   for (size_t i = threadid;i < fcallqueue.size(); i += total_threadid) {
-    fcall_handler_blockers[i].lock();
+    fcall_handler_blockers.set_bit(i);
   }
 }
 
@@ -395,7 +396,8 @@ void distributed_control::stop_handler_threads_no_wait(size_t threadid,
 void distributed_control::start_handler_threads(size_t threadid,
                                                 size_t total_threadid) {
   for (size_t i = threadid;i < fcallqueue.size(); i += total_threadid) {
-    fcall_handler_blockers[i].unlock();
+    fcall_handler_blockers.clear_bit(i);
+    fcallqueue[i].broadcast();
   }
 }
 
@@ -421,13 +423,8 @@ void distributed_control::fcallhandler_loop(size_t id) {
   // pop an element off the queue
 //  float t = timer::approx_time_seconds();
   fcall_handler_active[id].inc();
-  while(1) {
+  while(fcallqueue[id].is_alive()) {
     fcallqueue[id].wait_for_data();
-    fcall_handler_blockers[id].lock();
-    if (fcallqueue[id].is_alive() == false) {
-      fcall_handler_blockers[id].unlock();
-      break;
-    }
     std::deque<fcallqueue_entry*> q;
     fcallqueue[id].swap(q);
     while (!q.empty()) {
@@ -438,7 +435,6 @@ void distributed_control::fcallhandler_loop(size_t id) {
       process_fcall_block(*entry);
       delete entry;
     }
-    fcall_handler_blockers[id].unlock();
     //  std::cerr << "Handler " << id << " died." << std::endl;
   }
   fcall_handler_active[id].dec();
@@ -517,7 +513,6 @@ void distributed_control::init(const std::vector<std::string> &machines,
   // store the threads in the threadgroup
   fcall_handler_active.resize(numhandlerthreads);
   fcall_handler_blockers.resize(numhandlerthreads);
-  fcallhandlers.resize(numhandlerthreads);
   for (size_t i = 0;i < numhandlerthreads; ++i) {
     fcallhandlers.launch(boost::bind(&distributed_control::fcallhandler_loop,
                                       this, i));
