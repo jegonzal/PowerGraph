@@ -162,7 +162,7 @@ namespace graphlab {
             if (cur != NULL || other.blockptr == NULL) {
               return (dist + (ptrdiff_t)other.offset - offset);
             } else {
-              std::cerr << "block list iterator reverse direction!!" << std::endl; 
+              logstream(LOG_INFO)<< "block list iterator reverse direction!!" << std::endl; 
               // this hit the dead end, need to move backwards 
               dist = 0;
               cur = other.blockptr;
@@ -317,7 +317,7 @@ namespace graphlab {
      if (nnext > nmove) {
        valuetype* p = nextptr->values;
        for (size_t i = 0; i < (nnext-nmove); ++i) {
-         *p = *(p+nmove);
+         *(p+i) = *(p+i+nmove);
        }
      }
 
@@ -328,10 +328,10 @@ namespace graphlab {
      // remove the next block if empty
      if (nextptr->size() == 0) {
        bptr->_next = nextptr->next();
-       delete nextptr;
        if (nextptr == tail) {
          tail = bptr;
        }
+       delete nextptr;
      }
    }
 

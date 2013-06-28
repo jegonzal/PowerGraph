@@ -232,7 +232,7 @@ template<typename Graph>
   template<typename Graph>
   void test_add_edge_impl(Graph& g, size_t nedges, bool use_dynamic=false) {
     typedef typename Graph::vertex_id_type vertex_id_type;
-    srand(time(NULL));
+    srand(0);
     g.clear();
     ASSERT_EQ(g.num_edges(), 0);
     boost::unordered_map<vertex_id_type, std::vector<vertex_id_type> > out_edges;
@@ -261,7 +261,7 @@ template<typename Graph>
     foreach (const pair_type& p, all_edges) {
       g.add_edge(p.first, p.second, edge_data(p.first, p.second));
       ++count;
-      if (use_dynamic && count % 251 == 0) {
+      if (use_dynamic && (all_edges.size()/5) == 0) {
         g.finalize();
       }
     }
@@ -519,6 +519,7 @@ template<typename Graph>
    */
   template<typename Graph>
   void test_powerlaw_graph_impl(Graph& g, size_t nverts, bool use_dynamic = false, double alpha = 2.1) {
+    graphlab::random::seed(0);
     g.clear();
     typedef typename Graph::edge_list_type edge_list_type;
     typedef typename Graph::edge_type edge_type;
