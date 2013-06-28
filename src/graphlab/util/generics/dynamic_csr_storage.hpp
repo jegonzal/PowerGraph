@@ -45,7 +45,7 @@ namespace graphlab {
    * Also, this class supports insert (and batch insert) values associated with any key. 
    */
   template<typename valuetype, typename sizetype=size_t, 
-           uint32_t blocksize=(4096-20)/sizeof(valuetype)> // the block size makes the block fit in a memory page
+           uint32_t blocksize=(4096-20)/(4*sizeof(valuetype))> // the block size makes the block fit in a memory page
   class dynamic_csr_storage {
    public:
      typedef block_linked_list<valuetype, blocksize> block_linked_list_t;
@@ -164,12 +164,39 @@ namespace graphlab {
 
      /// Repack the values in parallel
      void repack() {
+       // values.print(std::cout);
 #ifdef _OPENMP
 #pragma omp parallel for
 #endif
        for (ssize_t i = 0; i < (ssize_t)num_keys(); ++i) {
-         values.repack(begin(i), end(i));
+           // std::vector<value_type> before_resize, after_resize;
+           // iterator it = begin(i); 
+           // while (it != end(i)) {
+           //   before_resize.push_back(*it);
+           //   ++it;
+           // }
+
+           values.repack(begin(i), end(i));
+
+           // it = begin(i); 
+           // while (it != end(i)) {
+           //   after_resize.push_back(*it);
+           //   ++it;
+           // }
+           // ASSERT_EQ(before_resize.size(), after_resize.size());
+
+           // for (size_t j = 0; j < before_resize.size(); ++j) {
+           //   if (before_resize[j] != after_resize[j]) {
+           //     std::cout << "aaa" << std::endl;
+           //     std::cout << "aaa" << std::endl;
+           //     std::cout << "aaa" << std::endl;
+           //     std::cout << "aaa" << std::endl;
+           //     std::cout << "aaa" << std::endl;
+           //     std::cout << "key = " << i << " pos = " << j << std::endl;;
+           //   }
+           // }
        }
+       // values.print(std::cout);
      }
 
      /////////////////////////// I/O API ////////////////////////

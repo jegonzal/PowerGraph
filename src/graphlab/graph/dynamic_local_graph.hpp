@@ -329,8 +329,9 @@ namespace graphlab {
         }
         // // Repack after insertion
         // TODO :fix repack
-        // _csr_storage.repack();
-        // _csc_storage.repack();
+        _csr_storage.repack();
+        _csc_storage.repack();
+        _csr_storage.meminfo(std::cout);
       }
       ASSERT_EQ(_csr_storage.num_values(), _csc_storage.num_values());
       ASSERT_EQ(_csr_storage.num_values(), edges.size());

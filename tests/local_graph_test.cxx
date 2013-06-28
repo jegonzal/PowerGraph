@@ -31,6 +31,13 @@
 #include <graphlab/util/random.hpp>
 #include <graphlab/macros_def.hpp>
 
+// namespace std {
+// std::ostream& operator<<(std::ostream& out,
+//                       const std::pair<long unsigned int, long unsigned int>& pair) {
+//                       out << "(" << pair.first << "," << pair.second << ")"; 
+//                       }
+// }
+
 /**
  * Unit test for graphlab::local_graph.hpp
  */
@@ -40,12 +47,20 @@ public:
     size_t value;
     vertex_data() : value(0) { }
     vertex_data(size_t n) : value(n) { }
+    friend std::ostream& operator<<(std::ostream& os, const vertex_data& vdata) {
+      os << vdata.value;
+      return os;
+    }
   };
 
   struct edge_data { 
     int from; 
     int to;
     edge_data (int f = 0, int t = 0) : from(f), to(t) {}
+    friend std::ostream& operator<<(std::ostream& os, const edge_data& edata) {
+      os << "(" << edata.from << "," << edata.to << ")" << std::endl;
+      return os;
+    }
   };
 
   /**
@@ -232,7 +247,7 @@ template<typename Graph>
   template<typename Graph>
   void test_add_edge_impl(Graph& g, size_t nedges, bool use_dynamic=false) {
     typedef typename Graph::vertex_id_type vertex_id_type;
-    srand(time(NULL));
+    srand(0);
     g.clear();
     ASSERT_EQ(g.num_edges(), 0);
     boost::unordered_map<vertex_id_type, std::vector<vertex_id_type> > out_edges;
@@ -261,7 +276,7 @@ template<typename Graph>
     foreach (const pair_type& p, all_edges) {
       g.add_edge(p.first, p.second, edge_data(p.first, p.second));
       ++count;
-      if (use_dynamic && count % 251 == 0) {
+      if (use_dynamic && (all_edges.size()/5) == 0) {
         g.finalize();
       }
     }
@@ -519,6 +534,7 @@ template<typename Graph>
    */
   template<typename Graph>
   void test_powerlaw_graph_impl(Graph& g, size_t nverts, bool use_dynamic = false, double alpha = 2.1) {
+    graphlab::random::seed(0);
     g.clear();
     typedef typename Graph::edge_list_type edge_list_type;
     typedef typename Graph::edge_type edge_type;
