@@ -375,7 +375,10 @@ void fiber_control::yield() {
       size_t probe = (i + workerid) % parentgroup->nworkers;
       if (parentgroup->schedule[probe].nactive > 0) {
         parentgroup->schedule[probe].active_lock.lock();
-        next_fib = parentgroup->active_queue_remove(probe);
+        fiber_control::fiber* ret = parentgroup->schedule[probe].active_head.next;
+        if (ret != NULL && ret->affinity.get(workerid)) {
+          next_fib = parentgroup->active_queue_remove(probe);
+        }
         parentgroup->schedule[probe].active_lock.unlock();
         if (next_fib) {
           break;
@@ -415,6 +418,15 @@ void fiber_control::deschedule_self(pthread_mutex_t* lock) {
   //printf("Descheduling requested %ld\n", fib->id);
   fib->lock.unlock();
   yield();
+}
+
+
+bool fiber_control::worker_has_fibers_on_queue() {
+  tls* t = get_tls_ptr();
+  if (t == NULL) return false;
+  fiber_control* parentgroup = t->parent;
+  size_t workerid = t->workerid;
+  return (parentgroup->schedule[workerid].nactive > 0);
 }
 
 size_t fiber_control::get_worker_id() {

@@ -194,6 +194,11 @@ class fiber_control {
   static void yield();
 
 
+  /**
+   * Returns true if the current worker has other fiber waiting on its queue
+   */
+  static bool worker_has_fibers_on_queue();
+
   /// True if the singleton instance was created
   static bool instance_created; 
   static size_t instance_construct_params_nworkers; 

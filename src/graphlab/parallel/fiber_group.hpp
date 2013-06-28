@@ -77,6 +77,15 @@ class fiber_group {
    * Launch a single thread which calls spawn_function.
    */
   void launch(const boost::function<void (void)> &spawn_function);
+              
+
+
+  /**
+   * Launch a single thread which calls spawn_function with worker affinity.
+   */
+  void launch(const boost::function<void (void)> &spawn_function, 
+              affinity_type worker_affinity);
+
 
   /** Waits for all threads to complete execution. const char* exceptions
    *  thrown by threads are forwarded to the join() function.
