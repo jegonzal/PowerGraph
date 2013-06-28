@@ -1,6 +1,10 @@
+#ifndef GRAPHLAB_NETFLIXPP_COMPUTE_TASKS_HPP 
+#define GRAPHLAB_NETFLIXPP_COMPUTE_TASKS_HPP 
+
+#include "netflix_main.hpp"
+
 ////////////////// Initialization Task ////////////////////////////////
-void init_vertex(engine_type::context_type& context,
-                   graph_type::vertex_type& vertex) {
+void init_vertex(graph_type::vertex_type& vertex) {
   vertex_data& vdata = vertex.data(); 
   typedef boost::unordered_map<size_t, double>::value_type kv_type;
   // initialize feature latent cache
@@ -106,11 +110,10 @@ class als_gather_type {
     } // end of operator+=
 }; // end of gather type
 
-#define ALS_MAP_REDUCE 0
 /** The gather function computes XtX and Xy */
-als_gather_type als_map(const graph_type::vertex_type& center,
-                    graph_type::edge_type& edge,
-                    const graph_type::vertex_type& other) {
+als_gather_type als_map(graph_type::edge_type edge,
+                        graph_type::vertex_type other) {
+  const graph_type::vertex_type& center = (edge.source().id() == other.id()) ? edge.target() : edge.source();
   if (edge.data().role == edge_data::TRAIN) {
     vec_type other_total =  (other.data().factor + other.data().xfactor);
     double residual = (edge.data().obs - edge.data().pred);
@@ -143,17 +146,14 @@ als_gather_type als_map_edge (const graph_type::edge_type& e, size_t fid)  {
   }
 }
 
-als_gather_type als_sum(als_gather_type& v1, const als_gather_type& v2) {
-  v1 += v2;
-  return v1;
-}
 
 void als_update_function(engine_type::context_type& context,
-                         graph_type::vertex_type& vertex,
-                         const engine_type::message_type& unused) {
+                         graph_type::vertex_type& vertex) {
   // Get and reset the vertex data
   vertex_data& vdata = vertex.data();
-  als_gather_type sum = context.map_reduce<als_gather_type>(ALS_MAP_REDUCE, ALL_EDGES);
+  als_gather_type sum = warp::map_reduce_neighborhood(vertex,
+                                                      ALL_EDGES,
+                                                      als_map); // mapfn, default combiner
 
   // Determine the number of neighbors.  Each vertex has only in or
   // out edges depending on which side of the graph it is located
@@ -212,11 +212,10 @@ double compute_bias(graph_type::edge_type& edge) {
   }
 }
 
-#define BIAS_MAP_REDUCE 2
 typedef std::pair<double, size_t> double_size_pair_t;
-double_size_pair_t bias_map(const graph_type::vertex_type& center,
-                            graph_type::edge_type& edge,
-                            const graph_type::vertex_type& other) {
+double_size_pair_t bias_map(graph_type::edge_type edge,
+                            graph_type::vertex_type other) {
+  const graph_type::vertex_type& center = (edge.source().id() == other.id()) ? edge.target() : edge.source();
   if (edge.data().role == edge_data::TRAIN) {
     double res = edge.data().obs - edge.data().pred + center.data().bias;
     return double_size_pair_t (res, 1);
@@ -226,15 +225,16 @@ double_size_pair_t bias_map(const graph_type::vertex_type& center,
 }
 
 template<typename T1, typename T2>
-std::pair<T1, T2> pair_sum(std::pair<T1, T2>& v1, const std::pair<T1, T2>& v2) {
+void pair_sum(std::pair<T1, T2>& v1, const std::pair<T1, T2>& v2) {
   v1.first += v2.first;
   v1.second += v2.second;
-  return v1;
 }
 
-void compute_vertex_bias(engine_type::context_type& context,
-                          graph_type::vertex_type& vertex) {
-  double_size_pair_t sum = context.map_reduce<double_size_pair_t>(BIAS_MAP_REDUCE, ALL_EDGES);
+void compute_vertex_bias(graph_type::vertex_type& vertex) {
+  double_size_pair_t sum = warp::map_reduce_neighborhood(vertex,
+                                                         IN_EDGES,
+                                                         bias_map, // mapfn 
+                                                         pair_sum<double, size_t>); // combinefn
   if (sum.second != 0) {
     vertex.data().bias = sum.first / sum.second;
   } else {
@@ -243,9 +243,9 @@ void compute_vertex_bias(engine_type::context_type& context,
 }
 
 /** Write prediction onto edges */
-void compute_prediction (engine_type::context_type& context,
-                         graph_type::edge_type& edge,
-                         bool truncate_training = false) {
+void compute_prediction (graph_type::edge_type edge,
+                         graph_type::vertex_type other, 
+                         const bool truncate_training = false) {
   vertex_data& udata = edge.source().data(); 
   vertex_data& vdata = edge.target().data();
 
@@ -262,3 +262,26 @@ void compute_prediction (engine_type::context_type& context,
   }
   edge.data().pred = pred;
 }
+
+/** Write prediction onto edges */
+void compute_prediction2 (engine_type::context_type& context,
+                          graph_type::edge_type edge,
+                          graph_type::vertex_type other, 
+                          const bool truncate_training = false) {
+  vertex_data& udata = edge.source().data(); 
+  vertex_data& vdata = edge.target().data();
+
+  double pred = feature_table.w0 + udata.bias + vdata.bias + (udata.factor + udata.xfactor)
+      .dot(vdata.factor + vdata.xfactor) + vdata.fcache + udata.fcache;
+
+  if (edge.data().role != edge_data::TRAIN || 
+      (edge.data().role == edge_data::TRAIN && truncate_training)) {
+    if (pred > MAX_VAL) {
+      pred = MAX_VAL;
+    } else if (pred < MIN_VAL) {
+      pred = MIN_VAL;
+    }
+  }
+  edge.data().pred = pred;
+}
+#endif
