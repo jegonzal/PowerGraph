@@ -245,8 +245,8 @@ void distributed_control::deferred_function_call_chunk(char* buf, size_t len, pr
   fc->is_chunk = true;
   fc->source = src;
   fcallqueue_length.inc();
-  size_t idx = src % fcallqueue.size();
-  fcallqueue[idx].enqueue(fc, !fcall_handler_blockers.get(idx));
+  //size_t idx = src % fcallqueue.size();
+  //fcallqueue[idx].enqueue(fc, !fcall_handler_blockers.get(idx));
 /*
   if (get_block_sequentialization_key(*fc) > 0) {
     fcallqueue[src % fcallqueue.size()].enqueue(fc);
@@ -259,6 +259,14 @@ void distributed_control::deferred_function_call_chunk(char* buf, size_t len, pr
     uint32_t idx = (fcallqueue[r1].size() < fcallqueue[r2].size()) ? r1 : r2;  
     fcallqueue[idx].enqueue(fc);
   } */
+
+    const uint32_t prod = 
+        random::fast_uniform(uint32_t(0), 
+                             uint32_t(fcallqueue.size() * fcallqueue.size() - 1));
+  const uint32_t r1 = prod / fcallqueue.size();
+  const uint32_t r2 = prod % fcallqueue.size();
+  uint32_t idx = (fcallqueue[r1].size() < fcallqueue[r2].size()) ? r1 : r2;  
+  fcallqueue[idx].enqueue(fc);
   END_TRACEPOINT(dc_receive_queuing);
 }
 

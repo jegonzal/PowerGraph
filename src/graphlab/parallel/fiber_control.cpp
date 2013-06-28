@@ -420,6 +420,15 @@ void fiber_control::deschedule_self(pthread_mutex_t* lock) {
   yield();
 }
 
+
+bool fiber_control::worker_has_fibers_on_queue() {
+  tls* t = get_tls_ptr();
+  if (t == NULL) return false;
+  fiber_control* parentgroup = t->parent;
+  size_t workerid = t->workerid;
+  return (parentgroup->schedule[workerid].nactive > 0);
+}
+
 size_t fiber_control::get_worker_id() {
   fiber_control::tls* tls = get_tls_ptr();
   if (tls != NULL) return tls->workerid;

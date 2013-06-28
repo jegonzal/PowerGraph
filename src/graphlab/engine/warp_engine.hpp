@@ -1003,6 +1003,7 @@ namespace graphlab {
       }
       logstream(LOG_DEBUG) << rmi.procid() << "-" << threadid << ": " << "Termination Attempt " << std::endl;
       has_sched_msg = false;
+      fiber_control::yield();
       consensus->begin_done_critical_section(threadid);
       sched_status::status_enum stat = 
           get_next_sched_task(sched_lvid, msg);
@@ -1227,6 +1228,7 @@ namespace graphlab {
         } else { 
           break; 
         }
+        if (fiber_control::worker_has_fibers_on_queue()) fiber_control::yield();
       }
     } // end of thread start
 
