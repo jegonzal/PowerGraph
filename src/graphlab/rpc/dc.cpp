@@ -514,8 +514,11 @@ void distributed_control::init(const std::vector<std::string> &machines,
   fcall_handler_active.resize(numhandlerthreads);
   fcall_handler_blockers.resize(numhandlerthreads);
   for (size_t i = 0;i < numhandlerthreads; ++i) {
+    fiber_control::affinity_type affinity;
+    affinity.clear();
+    affinity.set_bit(i);
     fcallhandlers.launch(boost::bind(&distributed_control::fcallhandler_loop,
-                                      this, i));
+                                      this, i), affinity);
   }
 
 

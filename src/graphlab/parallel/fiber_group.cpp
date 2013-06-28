@@ -9,11 +9,18 @@ void fiber_group::invoke(const boost::function<void (void)>& spawn_function,
   group->decrement_running_counter();
 }
 
+
 void fiber_group::launch(const boost::function<void (void)> &spawn_function) {
+  launch(spawn_function, affinity);
+}
+
+
+void fiber_group::launch(const boost::function<void (void)> &spawn_function,
+                         affinity_type worker_affinity) {
   increment_running_counter();
   fiber_control::get_instance().launch(boost::bind(invoke, spawn_function, this), 
                                        stacksize,
-                                       affinity);  
+                                       worker_affinity);  
 }
 
 void fiber_group::join() {
