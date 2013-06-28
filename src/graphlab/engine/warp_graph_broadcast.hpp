@@ -254,7 +254,7 @@ struct broadcast_neighborhood_impl2 {
         ++ctr;
     }
     // compute the local tasks
-    extended_local_broadcast_neighborhood(graph, 
+    extended_local_broadcast_neighborhood(context, 
                                           edge_direction, 
                                           broadcast_fn, 
                                           current.id(),
@@ -421,16 +421,14 @@ template <typename ContextType, typename ExtraArg, typename VertexType>
 void broadcast_neighborhood(ContextType& context,
                             VertexType current,
                                 edge_dir_type edge_direction,
-                                const ExtraArg extra,
                                 void(*broadcast_fn)(ContextType& context,
                                                     typename VertexType::graph_type::edge_type edge,
                                                         VertexType other,
-                                                        const ExtraArg extra)) {
+                                                        const ExtraArg extra),
+                                const ExtraArg extra) {
   warp_impl::
       broadcast_neighborhood_impl2<typename ContextType::engine_type, typename VertexType::graph_type, ExtraArg>::
-                                      extended_broadcast_neighborhood(context, current, edge_direction, 
-                                                                      extra, 
-                                                                      broadcast_fn);
+                                      extended_broadcast_neighborhood(context, current, edge_direction, broadcast_fn, extra);
   context.set_synchronized();
 }
 

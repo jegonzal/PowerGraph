@@ -1,5 +1,5 @@
-#ifndef FEATURE_MF_HPP
-#define FEATURE_MF_HPP
+#ifndef GRAPHLAB_NETFLIXPP_HPP 
+#define GRAPHLAB_NETFLIXPP_HPP 
 
 #include <Eigen/Dense>
 #include <graphlab/util/stl_util.hpp>
@@ -201,7 +201,7 @@ struct feature_table_type {
     out.open(fname.c_str());
     for (size_t i = 0; i < keys.size(); ++i) {
       out << names[i] << "," << weights[i]; 
-      for (size_t j = 0; i < latent[i].size(); ++j) {
+      for (size_t j = 0; j < (size_t)latent[i].size(); ++j) {
         out << "," << latent[i][j];
       }
       out << "\n";
@@ -226,7 +226,7 @@ typedef distributed_graph<vertex_data, edge_data> graph_type;
  * synchronous engine.  However we plan to add support for alternative
  * engines in the future.
  */
-typedef gl3engine<graph_type> engine_type;
+typedef warp_engine<graph_type> engine_type;
 
 
 /// Annoying global variable hacks...

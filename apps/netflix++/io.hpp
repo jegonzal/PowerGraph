@@ -1,3 +1,6 @@
+#ifndef GRAPHLAB_NETFLIXPP_IO_HPP 
+#define GRAPHLAB_NETFLIXPP_IO_HPP 
+
 #include <boost/config/warning_disable.hpp>
 #include <boost/spirit/include/qi.hpp>
 #include <boost/spirit/include/phoenix_core.hpp>
@@ -266,3 +269,4 @@ void save_model(distributed_control& dc, graph_type& graph) {
   }
   dc.cout() << "done" << std::endl;
 }
+#endif

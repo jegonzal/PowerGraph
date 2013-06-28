@@ -45,7 +45,7 @@ namespace graphlab {
    * Also, this class supports insert (and batch insert) values associated with any key. 
    */
   template<typename valuetype, typename sizetype=size_t, 
-           uint32_t blocksize=(4096-20)/sizeof(valuetype)> // the block size makes the block fit in a memory page
+           uint32_t blocksize=(4096-20)/(4*sizeof(valuetype))> // the block size makes the block fit in a memory page
   class dynamic_csr_storage {
    public:
      typedef block_linked_list<valuetype, blocksize> block_linked_list_t;
@@ -164,11 +164,12 @@ namespace graphlab {
 
      /// Repack the values in parallel
      void repack() {
+       // values.print(std::cout);
 #ifdef _OPENMP
 #pragma omp parallel for
 #endif
        for (ssize_t i = 0; i < (ssize_t)num_keys(); ++i) {
-         values.repack(begin(i), end(i));
+           values.repack(begin(i), end(i));
        }
      }
 
@@ -305,25 +306,3 @@ namespace graphlab {
   }; // end of class
 } // end of graphlab 
 #endif
-       // Update pointers to the left of ins_iter:
-       // Base case: the pionter of ins_iter is mapped to begin_ins_iter
-       // if (begin_ins_iter != ins_iter) {
-       //   int scan = key-1;
-       //   blocktype* oldptr = ins_iter.get_blockptr();
-       //   while (scan >= 0 && value_ptrs[scan].get_blockptr() == oldptr) {
-       //     // compute the relative distance of old pointers
-       //     size_t dist = ins_iter.get_offset() - value_ptrs[scan].get_offset();
-
-       //     // this distance should still hold for new pointers
-       //     if (dist <= begin_ins_iter.get_offset()) {
-       //       value_ptrs[scan].get_blockptr() = begin_ins_iter.get_blockptr();
-       //       value_ptrs[scan].get_offset()  = begin_ins_iter.get_offset()-dist;
-       //     } 
-       //     else {
-       //       // keep the old pointer, update offset
-       //       value_ptrs[scan].get_offset() = 
-       //           value_ptrs[scan].get_blockptr()->size() - (dist-begin_ins_iter.get_offset());
-       //     }
-       //     --scan;
-       //   }
-       // }

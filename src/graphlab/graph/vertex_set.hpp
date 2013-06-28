@@ -184,6 +184,7 @@ class vertex_set {
         }
         recv_buffer.clear();
       }
+      exchange.barrier();
     }
 
 
@@ -217,6 +218,7 @@ class vertex_set {
         }
         recv_buffer.clear();
       }
+      exchange.barrier();
     }
 
     template <typename VertexType, typename EdgeType>

@@ -1,3 +1,8 @@
+#ifndef GRAPHLAB_NETFLIXPP_AGGREGATE_TASKS_HPP 
+#define GRAPHLAB_NETFLIXPP_AGGREGATE_TASKS_HPP 
+
+#include "netflix_main.hpp"
+
 //////////////////////////// RMSE Aggregator /////////////////////////////
 struct error_aggregator : public graphlab::IS_POD_TYPE {
   double train;
@@ -89,3 +94,4 @@ struct map_join {
     return ret;
   }
 };
+#endif
