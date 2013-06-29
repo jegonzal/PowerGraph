@@ -134,7 +134,7 @@ namespace graphlab {
    *   // Parse command line options
    *   graphlab::command_line_options clopts("PageRank algorithm.");
    *   std::string graph_dir;
-   *   clopts.attach_option("graph", &graph_dir, graph_dir,
+   *   clopts.attach_option("graph", graph_dir,
    *                        "The graph file.");
    *   if(!clopts.parse(argc, argv)) {
    *     std::cout << "Error in parsing arguments." << std::endl;
