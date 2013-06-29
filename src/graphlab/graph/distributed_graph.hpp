@@ -2872,17 +2872,17 @@ namespace graphlab {
         size_t bufsize = 50000, bool usehash = false, bool userecent = false) {
       if(ingress_ptr != NULL) { delete ingress_ptr; ingress_ptr = NULL; }
       if (method == "oblivious") {
-        logstream(LOG_EMPH) << "Use oblivious ingress, usehash: " << usehash
+        if (rpc.procid() == 0) logstream(LOG_EMPH) << "Use oblivious ingress, usehash: " << usehash
           << ", userecent: " << userecent << std::endl;
         ingress_ptr = new distributed_oblivious_ingress<VertexData, EdgeData>(rpc.dc(), *this, usehash, userecent);
       } else if  (method == "random") {
-        logstream(LOG_EMPH) << "Use random ingress" << std::endl;
+        if (rpc.procid() == 0)logstream(LOG_EMPH) << "Use random ingress" << std::endl;
         ingress_ptr = new distributed_random_ingress<VertexData, EdgeData>(rpc.dc(), *this); 
       } else if (method == "grid") {
-        logstream(LOG_EMPH) << "Use grid ingress" << std::endl;
+        if (rpc.procid() == 0)logstream(LOG_EMPH) << "Use grid ingress" << std::endl;
         ingress_ptr = new distributed_constrained_random_ingress<VertexData, EdgeData>(rpc.dc(), *this, "grid");
       } else if (method == "pds") {
-        logstream(LOG_EMPH) << "Use pds ingress" << std::endl;
+        if (rpc.procid() == 0)logstream(LOG_EMPH) << "Use pds ingress" << std::endl;
         ingress_ptr = new distributed_constrained_random_ingress<VertexData, EdgeData>(rpc.dc(), *this, "pds");
       } else {
         // use default ingress method if none is specified
@@ -2899,7 +2899,7 @@ namespace graphlab {
           ingress_auto="oblivious";
           ingress_ptr = new distributed_oblivious_ingress<VertexData, EdgeData>(rpc.dc(), *this, usehash, userecent);
         }
-        logstream(LOG_EMPH) << "Automatically determine ingress method: " << ingress_auto << std::endl;
+        if (rpc.procid() == 0)logstream(LOG_EMPH) << "Automatically determine ingress method: " << ingress_auto << std::endl;
       }
       // batch ingress is deprecated
       // if (method == "batch") {

@@ -173,6 +173,8 @@ class dc_tcp_comm:public dc_comm_base {
   procid_t nprocs;  /// number of processors
   bool is_closed;   /// whether this socket is closed
 
+  std::string program_md5;  /// MD5 hash of current program
+
 
   /// all_addrs[i] will contain the IP address of machine i
   std::vector<uint32_t> all_addrs;
@@ -184,7 +186,10 @@ class dc_tcp_comm:public dc_comm_base {
   atomic<size_t> buffered_len;
 
 
-
+  struct initial_message {
+    procid_t id;
+    char md5[32];
+  };
 
 
   /// All information about stuff regarding a particular sock

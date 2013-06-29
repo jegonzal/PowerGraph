@@ -28,6 +28,7 @@
 #include <graphlab/util/mpi_tools.hpp>
 #include <graphlab/rpc/dc_init_from_mpi.hpp>
 #include <graphlab/rpc/fiber_async_consensus.hpp>
+#include <graphlab/util/blocking_queue.hpp>
 #include <graphlab/parallel/fiber_group.hpp>
 using namespace graphlab;
 
@@ -120,7 +121,8 @@ int main(int argc, char ** argv) {
   }
   distributed_control dc(param);
   simple_engine_test test(dc);
-  test.add_task_local(3000);
+  test.add_task_local(300);
   test.start_thread();
+  dc.barrier();
   mpi_tools::finalize();
 }

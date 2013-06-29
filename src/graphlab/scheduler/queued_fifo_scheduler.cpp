@@ -75,8 +75,10 @@ sched_status::status_enum queued_fifo_scheduler::get_next(const size_t cpuid,
     if (!master_queue.empty()) {
       myqueue.swap(master_queue.front());
       master_queue.pop_front();
+      master_lock.unlock();
     }
     else {
+      master_lock.unlock();
       //try to steal from the inqueues
       for (size_t i = 0; i < in_queues.size(); ++i) {
         size_t idx = (i + multi * cpuid) % in_queues.size();
@@ -91,7 +93,6 @@ sched_status::status_enum queued_fifo_scheduler::get_next(const size_t cpuid,
         } 
       }
     }
-    master_lock.unlock();
   }
   // end of get next
   bool good = false;

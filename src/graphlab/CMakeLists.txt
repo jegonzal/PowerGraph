@@ -66,6 +66,7 @@ add_library(graphlab STATIC
   rpc/archive_memory_pool.cpp
   ui/mongoose/mongoose.cpp
   ui/metrics_server.cpp
+  rpc/get_current_process_hash.cpp
   )
 requires_core_deps(graphlab)
 

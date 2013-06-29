@@ -549,7 +549,31 @@ void distributed_control::init(const std::vector<std::string> &machines,
 
   comm->init(machines, options, curmachineid,
               receivers, senders);
-  std::cerr << "TCP Communication layer constructed." << std::endl;
+  logstream(LOG_INFO) << "TCP Communication layer constructed." << std::endl;
+  if (localprocid == 0) {
+    logstream(LOG_EMPH) << "Cluster of " << machines.size() << " instances created." << std::endl;
+    // check for duplicate IP addresses
+    std::map<std::string, size_t> ipaddresses;
+    for (size_t i = 0; i < machines.size(); ++i ){
+      size_t pos = machines[i].find(":");
+      ASSERT_NE(pos, std::string::npos);
+      std::string address = machines[i].substr(0, pos);
+      ipaddresses[address]++;
+    }
+    bool hasduplicate = false;
+    std::map<std::string, size_t>::const_iterator iter = ipaddresses.begin();
+    while (iter != ipaddresses.end()) {
+      if (iter->second > 1) {
+        hasduplicate = true;
+        logstream(LOG_WARNING) << "Duplicate IP address: " << iter->first << std::endl;
+      }
+      ++iter;
+    }
+    if (hasduplicate) {
+      logstream(LOG_WARNING) << "For maximum performance, GraphLab strongly prefers running just one process per machine." << std::endl;
+    }
+  }
+
 
   // improves reliability of initialization
 #ifdef HAS_MPI

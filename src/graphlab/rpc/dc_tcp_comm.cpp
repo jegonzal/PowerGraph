@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2009 Carnegie Mellon University.
+ * Copyright (c) 2009 Carnegie Mellon UniversityIP addresses.
  *     All rights reserved.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
@@ -45,7 +45,7 @@
 #include <graphlab/logger/logger.hpp>
 #include <graphlab/rpc/dc_tcp_comm.hpp>
 #include <graphlab/rpc/dc_internal_types.hpp>
-
+#include <graphlab/rpc/get_current_process_hash.cpp>
 #define compile_barrier() asm volatile("": : :"memory")
 
 #include <graphlab/macros_def.hpp>
@@ -90,6 +90,9 @@ namespace graphlab {
         sock[i].data.msg_iovlen = 0;
         sock[i].data.msg_iov = NULL;
       }
+
+      program_md5 = get_current_process_hash();
+      ASSERT_EQ(program_md5.length(), 32);
       // parse the machines list, and extract the relevant address information
       for (size_t i = 0;i < machines.size(); ++i) {
         // extract the port number
@@ -442,8 +445,11 @@ namespace graphlab {
             newsock = socket(AF_INET, SOCK_STREAM, 0);
             set_tcp_no_delay(newsock);
           } else {
-            // send my machine id
-            sendtosock(newsock, reinterpret_cast<char*>(&curid), sizeof(curid));
+            // send the initial message
+            initial_message msg; 
+            msg.id = curid;
+            memcpy(msg.md5, program_md5.c_str(), 32);
+            sendtosock(newsock, reinterpret_cast<char*>(&msg), sizeof(initial_message));
             set_non_blocking(newsock);
             success = true;
             break;
@@ -492,11 +498,11 @@ namespace graphlab {
           // set the socket options and inform the
           set_tcp_no_delay(newsock);
           // before accepting the socket, get the machine number
-          procid_t remotemachineid = (procid_t)(-1);
+          initial_message remote_message;
           ssize_t msglen = 0;
-          while(msglen != sizeof(procid_t)) {
-            int retval = recv(newsock, (char*)(&remotemachineid) + msglen,
-                           sizeof(procid_t) - msglen, 0);
+          while(msglen != sizeof(initial_message)) {
+            int retval = recv(newsock, (char*)(&remote_message) + msglen,
+                           sizeof(initial_message) - msglen, 0);
             if (retval < 0) {
               if (errno == EWOULDBLOCK || errno == EAGAIN) {
                 continue;
@@ -516,9 +522,17 @@ namespace graphlab {
             }
           }
           if (newsock != -1) {
+            // validate the md5 hash
+            std::string other_md5 = std::string(remote_message.md5, 32);
+            if (other_md5 != program_md5) {
+              logstream(LOG_FATAL) << "MD5 mismatch. \n "
+                                   << "\tProcess " << curid << " has hash "  << program_md5 << " \n "
+                                   << "\tProcess " << remote_message.id << " has hash "  << other_md5 << " \n "
+                                   << "\tGraphLab requires all machines to run exactly the same binary." << std::endl;
+            }
             // register the new socket
             set_non_blocking(newsock);
-            new_socket(newsock, &their_addr, remotemachineid);
+            new_socket(newsock, &their_addr, remote_message.id);
             ++numsocks_connected;
           }
         }
