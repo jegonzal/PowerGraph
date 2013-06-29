@@ -1,0 +1,175 @@
+/**
+\page using_warp GraphLab Warp System Tutorial
+
+  This tutorial demonstrate the latest feature of GraphLab -- the Warp System.
+  We encourage you to complete the basic graphlab tutorial before advancing.
+
+  The design of the warp system aims to improve the programming interface of GraphLab
+  by simplyfing the procedure of writing the vertex program without sacrificing performance. 
+
+  In Warp System, the painful experience of writing a vertex_program class with gather, apply and scatter
+  is replaced by writing a single update function containing a set of blocking operations over
+  the neighborhood of a vertex.
+
+  The Warp System consists of an asyncrhonous \ref graphlab::warp_engine "warp engine" and 4 basic functions.
+  - \ref graphlab::warp::parfor_all_vertices() "warp::parfor_all_vertices()"
+  provides a simple parallel for loop over all vertices in the graph, or in a given set of vertices. 
+
+  - \ref graphlab::warp::map_reduce_neighborhood() "warp::map_reduce_neighborhood()"
+  allows a map-reduce aggregation of the neighborhood of a vertex to be performed.
+
+  - \ref graphlab::warp::transform_neighborhood() "warp::transform_neighborhood()"
+  allows a parallel transformation of the neighborhood of a vertex to be performed.
+
+  - \ref graphlab::warp::broadcast_neighborhood() "warp::broadcast_neighborhood()"
+  allows a parallel transformation of the neighborhood of a vertex to be performed 
+  and also provides a warp_engine context.
+
+  In this example, we would implement the same PageRank application 
+  using the Warp System. See <a href=group_warp.html>here</a> for detailed documentation on 
+  the behavior of the  Warp System.
+
+  - \subpage using_warp_graph_functions 
+  - \subpage using_warp_graph_vertex_program 
+
+
+\page using_warp_graph_functions 1: Writing pagerank using warp functions 
+
+  The warp functions provides great flexibility to write simple parallel function on graphs.
+  For example, a synchronous pagerenk program can be written only using warp functions. 
+  \code
+    float pagerank_map(graph_type::edge_type edge, graph_type::vertex_type other) {
+      return other.data() / other.num_out_edges();
+    }
+
+    void pagerank(graph_type::vertex_type vertex) {
+      // computes an aggregate over the neighborhood using map_reduce_neighborhood
+      vertex.data() = 0.15 + 0.85 * warp::map_reduce_neighborhood(vertex,
+                                                                  IN_EDGES,
+                                                                  pagerank_map);
+    }
+
+    int main(int argc, char** argv) {
+      ...
+      for (int i = 0; i < NUM_ITER; ++i) {
+        // runs the pagerank function on all the vertices in the graph.
+        parfor_all_vertices(graph, pagerank); 
+      }
+      ...
+    }
+  \endcode
+
+  Using c++11 lambda we can further simplify the above program. 
+  \code
+    void pagerank(graph_type::vertex_type vertex) {
+    // computes an aggregate over the neighborhood using map_reduce_neighborhood
+    vertex.data() = 0.15 + 0.85 * warp::map_reduce_neighborhood(vertex,
+                                         IN_EDGES,
+                                         [](graph_type::edge_type edge, graph_type::vertex_type other) { return other.data() / other.num_out_edges();});
+    }
+
+    int main(int argc, char** argv) {
+      ...
+      for (int i = 0; i < NUM_ITER; ++i) {
+        // runs the pagerank function on all the vertices in the graph.
+        parfor_all_vertices(graph, pagerank); 
+      }
+      ...
+    }
+  \endcode
+
+
+
+
+
+\page using_warp_graph_vertex_program 2: Writing pagerank using warp engine 
+   Warp functions let you easily write synchronous execution but they
+   do not provide scheduling capability. We can use warp engine to achieve dynamic scheduling.
+
+
+   The update function is a simple user defined function of the type
+   \code
+     void update_function(engine_type::context& context,
+                         graph_type::vertex_type vertex) {
+     }
+   \endcode
+
+   Within the update function, All blocking warp functions such as 
+    \ref graphlab::warp::map_reduce_neighborhood() "warp::map_reduce_neighborhood()",
+    \ref graphlab::warp::transform_neighborhood() "warp::transform_neighborhood()", and
+    \ref graphlab::warp::broadcast_neighborhood() "warp::broadcast_neighborhood()"
+   can be used to make changes to the graph data, and to schedule other vertices for computation.
+
+   \section using_warp_graph_vertex_program_updatefn Pagerank Update Function 
+
+   Now let's write a pagerank update function for the warp engine.
+   \code
+     void pagerank_update_function(engine_type::context& context,
+                                   graph_type::vertex_type vertex) {
+
+       // save the old pagerank value
+       float oldval = vertex.data();
+
+       // compute the new pagerank using blocking warp function
+       vertex.data() = 0.15 + 0.85 * warp::map_reduce_neighborhood(vertex,
+                                                                   IN_EDGES,
+                                                                   [](graph_type::edge_type edge, graph_type::vertex_type other) { return other.data() / other.num_out_edges();});
+
+       // broadcast neighborhood if the change exceeds tolarance
+       if (std::fabs(oldval - vertex.data()) > TOLERANCE) {
+         warp::broadcast_neighborhood(context,
+                                      vertex,
+                                      OUT_EDGES,
+                                      [](engine_type::context& context,
+                                         graph_type::edge_type edge,
+                                         graph_type::vertex_type other) {
+                                         context.signal(other);
+                                      });
+       }
+     }
+   \endcode
+
+   As you can see, the warp engine let you write much simpler vertex update function comparing to the vertex_program used in previous versions of engines.
+
+
+   \section using_warp_graph_vertex_program_running Running the Update Function 
+    To run the above vertex program on all vertices in the graph \b once, 
+    we simply construct an engine in main() (after finalizing the graph)
+
+    \code
+    int main(int argc, char** argv) {
+      // Initialize control plain using mpi
+      graphlab::mpi_tools::init(argc, argv);
+      graphlab::distributed_control dc;
+      // Parse command line options
+      graphlab::command_line_options clopts("PageRank algorithm.");
+      std::string graph_dir;
+      clopts.attach_option("graph", graph_dir,
+                           "The graph file.");
+      if(!clopts.parse(argc, argv)) {
+        std::cout << "Error in parsing arguments." << std::endl;
+        return EXIT_FAILURE;
+      }
+      graph_type graph(dc, clopts);
+      graph.load_structure(graph_dir, "tsv");
+
+      graphlab::warp_engine engine(dc, graph);
+      engine.set_update_function(pagerank_update_function);
+      engine.signal_all();
+      engine.start();
+      std::cout << "Runtime: " << engine.elapsed_time();
+      graphlab::mpi_tools::finalize();
+    }
+    \endcode
+
+    \note If graphlab::command_line_options are used, it can be passed as an 
+    additional 3rd argument to the constructor. This will allow you to modify 
+    the default engine options, for example the scheduler.
+
+    The \ref graphlab::warp_engine::signal_all "signal_all()" function, as the
+    name suggests, signals all the vertices in the graph to run. 
+    You can also signal a single vertex or a subset of vertices using \ref graphlab::warp_engine::signal" signal()
+
+    \ref graphlab::warp_engine::start() "start()" will begin execution of all
+    signaled vertices, and returns when the scheduler is empty. 
+*/
