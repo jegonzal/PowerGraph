@@ -2011,6 +2011,32 @@ void mg_md5(char *buf, ...) {
   bin2str(buf, hash, sizeof(hash));
 }
 
+
+
+
+// Return stringified MD5 hash for a file
+void mg_md5_file(char *buf, const char* file) {
+  unsigned char hash[16];
+  MD5_CTX ctx;
+
+  MD5Init(&ctx);
+  FILE* f = fopen(file, "rb");
+  if (f == NULL) {
+    buf[0] = '\0';
+    return;
+  }
+  char readbuf[4096];
+  while (1) {
+    unsigned readlen = fread(readbuf, 1, 4096, f);
+    MD5Update(&ctx, (const unsigned char *) readbuf, readlen);
+    if (readlen == 0) break;
+  }
+  fclose(f);
+  MD5Final(hash, &ctx);
+  bin2str(buf, hash, sizeof(hash));
+}
+
+
 // Check the user's password, return 1 if OK
 static int check_password(const char *method, const char *ha1, const char *uri,
                           const char *nonce, const char *nc, const char *cnonce,
