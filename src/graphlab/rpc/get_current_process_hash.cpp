@@ -23,7 +23,7 @@ std::string get_current_process_hash() {
   }
   return ret;
 }
-#elif __APPLE_
+#elif __APPLE__
 std::string get_current_process_hash() {
   std::string ret;
 
