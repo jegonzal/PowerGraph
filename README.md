@@ -1,16 +1,16 @@
-                         Graphlab
-                         --------
+Graphlab
+==========
 
-=======
+
 License
-=======
+-------
 
 GraphLab is free software licensed under the Apache 2.0 License. See
 license/LICENSE.txt for details.
 
-============
+
 Introduction
-============
+------------
 
 GraphLab is a graph-based, high performance, distributed computation framework
 written in C++.  
@@ -37,9 +37,9 @@ For more details on the GraphLab see http://graphlab.org, including
 documentation, tutorial, etc.
 
 
-============
+
 Dependencies
-============
+------------
 
 GraphLab now automatically satisfied most dependencies. 
 There are however, a few dependencies which we cannot easily satisfy:
@@ -67,25 +67,25 @@ JDK 6 or greater [Optional]
 
 
     
-Satisfying Dependencies on Mac OS X
-------------------------------------
+### Satisfying Dependencies on Mac OS X
+
 Installing XCode with the command line tools (in XCode 4.3 you have to do this
 manually in the XCode Preferences -> Download pane), satisfies all of these
 dependencies.  
 
 
 
-Satisfying Dependencies on Ubuntu
----------------------------------
+### Satisfying Dependencies on Ubuntu
+
 All the dependencies can be satisfied from the repository:
 
 apt-get gcc g++ build-essential libopenmpi-dev \
         default-jdk cmake zlib1g-dev mercurial
 
 
-=========
+
 Compiling
-=========
+---------
 
    ./configure
 
@@ -119,9 +119,9 @@ Eigen, etc used by the other toolkits.
 
 
 
-=====================
+
 Writing Your Own Apps
-=====================
+---------------------
 
 There are two ways to write your own apps.
 1: To work in the GraphLab source tree,    (recommended)
@@ -130,8 +130,8 @@ or
 
 
 
-1: Working in the GraphLab Source Tree
----------------------------------------
+### 1:  Working in the GraphLab Source Tree
+
 This is the best option if you just want to try using GraphLab quickly. GraphLab
 uses the CMake build system which enables you to quickly create
 a c++ project without having to write complicated Makefiles. 
@@ -159,8 +159,8 @@ and try again.
 
 
 
-2: Installing and Linking Against GraphLab
--------------------------------------------
+### 2: Installing and Linking Against GraphLab
+
 To install graphlab and use GraphLab this way will require your system
 to completely satisfy all remaining dependencies, which GraphLab normally 
 builds automatically. This path is not extensively tested and is 
