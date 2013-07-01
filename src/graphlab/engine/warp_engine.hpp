@@ -54,6 +54,7 @@
 
 namespace graphlab {
 
+namespace warp {
 
   /**
    * \ingroup warp
@@ -1324,6 +1325,8 @@ namespace graphlab {
     aggregator_type* get_aggregator() { return &aggregator; }
 
   }; // end of class
+
+} // namespace warp
 } // namespace
 
 #include <graphlab/macros_undef.hpp>
