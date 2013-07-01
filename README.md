@@ -13,7 +13,15 @@ Introduction
 ------------
 
 GraphLab is a graph-based, high performance, distributed computation framework
-written in C++.  
+written in C++. The GraphLab project started in 2009 to develop a new parallel computation abstraction 
+tailored to machine learning. GraphLab 1.0 represents our first shared memory design,
+and in GraphLab 2.1, we completely redesigned the framework to target the distributed environment addressing
+the difficulties with real world power-law graphs, achieving unparalleled performance.
+In GraphLab 2.2, we introduce the Warp System which provides a new
+flexible, distributed architecture around fine-grained user-mode threading (fibers).
+The new Warp system will allow us to easily extend the abstraction to cover new ground
+while improving useability, and will also allow us to realize new system optimizations that 
+are not available in the past.
 
 GraphLab Features:
 
