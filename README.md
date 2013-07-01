@@ -159,7 +159,7 @@ builds automatically. This path is not extensively tested and is
 You will require the following additional dependencies
  - libevent (>=2.0.18)
  - libjson (>=7.6.0)
- - libboost (>=1.49)
+ - libboost (>=1.53)
  - libhdfs (required for HDFS support)
  - tcmalloc (optional)
 
