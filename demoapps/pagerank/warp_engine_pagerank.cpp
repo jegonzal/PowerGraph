@@ -30,7 +30,7 @@ using namespace graphlab;
 
 // The graph type is determined by the vertex and edge data types
 typedef distributed_graph<float , graphlab::empty> graph_type;
-typedef warp_engine<graph_type> warp_engine_type;
+typedef warp::warp_engine<graph_type> warp_engine_type;
 
 /*
  * A simple function used by graph.transform_vertices(init_vertex);

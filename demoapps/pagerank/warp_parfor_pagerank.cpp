@@ -43,21 +43,12 @@ void init_vertex(graph_type::vertex_type& vertex) { vertex.data() = 1; }
 float pagerank_map(graph_type::edge_type edge, graph_type::vertex_type other) {
   return other.data() / other.num_out_edges();
 }
-void transform_edge(graph_type::edge_type edge, graph_type::vertex_type other) {
-  edge.data() = other.data();
-}
 
 void pagerank(graph_type::vertex_type vertex) {
   vertex.data() = 0.15 + 0.85 * warp::map_reduce_neighborhood(vertex,
                                                               IN_EDGES,
                                                               pagerank_map);
-  warp::transform_neighborhood(vertex, OUT_EDGES, transform_edge);
 }
-
-
-
-
-
 
 /*
  * We want to save the final graph so we define a write which will be
