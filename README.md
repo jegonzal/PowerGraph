@@ -1,10 +1,10 @@
+Introduction to Graphlab
+=====================================
 
-Graphlab
-===
 
-=======
 License
-=======
+-------------------------------------
+
 
 GraphLab is free software licensed under the Apache 2.0 License. See
 license/LICENSE.txt for details.
