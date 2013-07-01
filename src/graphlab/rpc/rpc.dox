@@ -60,6 +60,8 @@ We will discuss the different aspects of the RPC library seperately:
 \li \ref OOP_RPC \n
          Advanced usage of the RPC library. Creating and managing 
          distributed object contexts.
+\li \ref Fiber_RPC \n
+         Fiber-compatible remote request calls.
 
 \section sec_examples Examples
 The tests/ directory include a collection of nine RPC examples demonstrating
@@ -529,5 +531,47 @@ to call global functions. For instance:
 \code
 rmi.dc().remote_call(1, printf, "hello ");
 \endcode
+
+
+
+\section Fiber_RPC Fiber Compatible Remote Requests
+To support the fiber architecture required for the Warp Engine, we provide 
+the following functions:
+
+\li graphlab::fiber_remote_request() 
+\li graphlab::object_fiber_remote_request()
+
+These two functions are special in that unlike the remote_request functions,
+they return immediately with a future object.
+
+For instance:
+
+\code
+int add_one(int a) {
+  return a + 1;
+}
+
+... /* elsewhere */
+graphlab::remote_future<int> future = fiber_remote_request(1, /* call to machine 1 */
+                                                           add_one,
+                                                           1);
+\endcode
+
+Waiting on the future, using either:
+\code
+int ret = future();
+/* Or, more explicitly ... */
+future.wait();
+int ret = future();
+\endcode
+
+Will block until the result is available.
+This wait, however, is optimized if the caller is in a fiber, in which case
+the fiber is descheduled, allowing other fibers to execute while waiting for the 
+result.
+
+The graphlab::object_fiber_remote_request() function is similar, but allows
+for calling of member functions of a class.
+
 */
 
