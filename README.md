@@ -1,5 +1,6 @@
-                         Graphlab
-                         --------
+
+Graphlab
+===
 
 =======
 License
