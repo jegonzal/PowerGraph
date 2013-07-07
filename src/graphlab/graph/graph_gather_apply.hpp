@@ -506,7 +506,7 @@ namespace graphlab {
           continue;
 
         // Master and mirror vertices both should perform the apply step. 
-        vertex_type vertex(graph.l_vertex(lvid));
+        // vertex_type vertex(graph.l_vertex(lvid));
 
         // Get the local accumulator.  Note that it is possible that
         // the gather_accum was not set during the gather.

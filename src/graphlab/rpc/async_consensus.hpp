@@ -210,7 +210,7 @@ namespace graphlab {
     bool done;
     
     /// set if abort() is called
-    bool forced_abort;    
+    //  bool forced_abort;    
     
     /// Number of threads which have called
     /// begin_critical_section(), and have not left end_critical_section()
