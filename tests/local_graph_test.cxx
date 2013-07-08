@@ -536,13 +536,15 @@ template<typename Graph>
         prob[i] = std::pow(double(i+1), -alpha);
       graphlab::random::pdf2cdf(prob);
 
+      vertex_id_type dst = 0;
+
       // A large prime number
       const size_t HASH_OFFSET = 2654435761;
       // construct powerlaw graph with no dup edges
       for(vertex_id_type src  = 0; src < nverts; ++src) {
         const size_t out_degree = graphlab::random::multinomial_cdf(prob) + 1;
         for(size_t i = 0; i < out_degree; ++i) {
-          vertex_id_type dst = (dst + HASH_OFFSET)  % nverts;
+          dst = (dst + HASH_OFFSET)  % nverts;
           while (src == dst) {
             dst = (dst + HASH_OFFSET)  % nverts;
           }
