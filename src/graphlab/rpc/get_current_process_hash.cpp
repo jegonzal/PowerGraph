@@ -30,6 +30,7 @@
 #include <string.h>
 #include <errno.h>
 #include <libproc.h>
+#include <unistd.h>
 #endif
 namespace graphlab {
 namespace dc_impl {

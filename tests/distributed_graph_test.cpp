@@ -354,7 +354,7 @@ class distributed_graph_test  {
          std::vector<vinfo_map_type> vinfo_map_gather(dc->numprocs());
          vinfo_map_gather[dc->procid()] = vid2info;
          dc->all_gather(vinfo_map_gather);
-         dc->all_reduce(vids);
+         dc->all_gather(vids);
 
          ASSERT_EQ(vids.size(), g.num_vertices());
 
