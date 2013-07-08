@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (c) 2009 Carnegie Mellon University.
  *     All rights reserved.
  *
@@ -94,7 +94,6 @@ namespace graphlab {
     /** Get the next element in the queue */
     sched_status::status_enum get_next(const size_t cpuid,
                                        lvid_type& ret_vid);
-
 
     bool empty();
 
