@@ -249,7 +249,7 @@ typedef distributed_graph<vertex_data, edge_data> graph_type;
  * synchronous engine.  However we plan to add support for alternative
  * engines in the future.
  */
-typedef warp_engine<graph_type> engine_type;
+typedef graphlab::warp::warp_engine<graph_type> engine_type;
 
 
 /// Annoying global variable hacks...
