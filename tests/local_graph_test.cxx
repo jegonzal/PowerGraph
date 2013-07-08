@@ -536,7 +536,7 @@ template<typename Graph>
         prob[i] = std::pow(double(i+1), -alpha);
       graphlab::random::pdf2cdf(prob);
 
-      vetex_id_type dst = 0;
+      vertex_id_type dst = 0;
 
       // A large prime number
       const size_t HASH_OFFSET = 2654435761;

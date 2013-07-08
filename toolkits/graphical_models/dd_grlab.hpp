@@ -105,7 +105,7 @@ struct vertex_data
     vertex_data(): 
     nvars(0), degree(0), 
     dual_contrib(0), primal_contrib(0),
-    apply_count(0), best_configuration(0),
+    best_configuration(0), apply_count(0),
     sum_sq_norm_g(0)
     {}
     

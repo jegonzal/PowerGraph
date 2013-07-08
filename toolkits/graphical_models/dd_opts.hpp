@@ -62,8 +62,8 @@ struct Options
     exec_type("sync"),
     output_dir("pred"),
     history_file("\0"),
-    verbose(0), stepsize_type(1),
-    dualimprovthres(1e-5), pdgapthres(1e-1), 
+    verbose(0), dualimprovthres(1e-5),
+    stepsize_type(1), pdgapthres(1e-1), 
     maxiter(10000)
     {}
 };
