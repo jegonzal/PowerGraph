@@ -29,7 +29,7 @@
 #include <graphlab/serialization/serialization_includes.hpp>
 #include <graphlab/rpc/dc_types.hpp>
 #include <graphlab/rpc/dc_internal_types.hpp>
-#include <graphlab/rpc/reply_increment_counter.hpp>
+#include <graphlab/rpc/request_reply_handler.hpp>
 #include <graphlab/rpc/function_ret_type.hpp>
 #include <graphlab/rpc/function_arg_types_def.hpp>
 #include <boost/preprocessor.hpp>
@@ -48,7 +48,7 @@ Given  function F, as well as input types T1 ... Tn
 it will construct an input archive and deserialize the types T1.... Tn,
 and call the function f with it. The return value of the function
 is then returned to the caller through the reply call to the 
-source's reply_increment_counter. This code dispatches to the "intrusive" 
+source's request_reply_handler. This code dispatches to the "intrusive" 
 form of a function call (that is the function call must take a distributed_control
 and a "procid_t source" as its first 2 arguments.
 
@@ -88,11 +88,11 @@ template<typename DcType,
     retstrm.flush();
     if (packet_type_mask & CONTROL_PACKET)
     {
-        dc.control_call(source, reply_increment_counter, id, blob(retstrm->str, retstrm->len));
+        dc.control_call(source, request_reply_handler, id, blob(retstrm->str, retstrm->len));
     }
     else
     {
-        dc.reply_remote_call(source, reply_increment_counter, id, blob(retstrm->str, retstrm->len));
+        dc.reply_remote_call(source, request_reply_handler, id, blob(retstrm->str, retstrm->len));
     }
 }
 \endcode
@@ -128,15 +128,15 @@ void BOOST_PP_CAT(REQUESTDISPATCH,N) (DcType& dc, procid_t source, unsigned char
   oarc << ret; \
   retstrm.flush(); \
   if (packet_type_mask & CONTROL_PACKET) { \
-    dc.control_call(source, reply_increment_counter, id, blob(retstrm->str, retstrm->len));\
+    dc.control_call(source, request_reply_handler, id, blob(retstrm->str, retstrm->len));\
   } \
   else {  \
-    dc.reply_remote_call(source, reply_increment_counter, id, blob(retstrm->str, retstrm->len));\
+    dc.reply_remote_call(source, request_reply_handler, id, blob(retstrm->str, retstrm->len));\
   } \
   free(retstrm->str);                                                 \
 } 
 
-BOOST_PP_REPEAT(6, DISPATCH_GENERATOR, _)
+BOOST_PP_REPEAT(7, DISPATCH_GENERATOR, _)
 
 #undef GENFN
 #undef GENFN2
@@ -169,15 +169,15 @@ void BOOST_PP_CAT(NONINTRUSIVE_REQUESTDISPATCH,N) (DcType& dc, procid_t source, 
   oarc << ret; \
   retstrm.flush(); \
   if (packet_type_mask & CONTROL_PACKET) { \
-    dc.control_call(source, reply_increment_counter, id, blob(retstrm->str, retstrm->len));\
+    dc.control_call(source, request_reply_handler, id, blob(retstrm->str, retstrm->len));\
   } \
   else {  \
-    dc.reply_remote_call(source, reply_increment_counter, id, blob(retstrm->str, retstrm->len));\
+    dc.reply_remote_call(source, request_reply_handler, id, blob(retstrm->str, retstrm->len));\
   } \
   free(retstrm->str);                                                 \
 } 
 
-BOOST_PP_REPEAT(6, NONINTRUSIVE_DISPATCH_GENERATOR, _)
+BOOST_PP_REPEAT(7, NONINTRUSIVE_DISPATCH_GENERATOR, _)
 
 
 #undef GENFN

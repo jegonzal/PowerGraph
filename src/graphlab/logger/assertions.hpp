@@ -1,5 +1,5 @@
-/**  
- * Copyright (c) 2009 Carnegie Mellon University. 
+/**
+ * Copyright (c) 2009 Carnegie Mellon University.
  *     All rights reserved.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
@@ -23,11 +23,11 @@
 
 // Copyright (c) 2005, Google Inc.
 // All rights reserved.
-// 
+//
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are
 // met:
-// 
+//
 //     * Redistributions of source code must retain the above copyright
 // notice, this list of conditions and the following disclaimer.
 //     * Redistributions in binary form must reproduce the above
@@ -37,7 +37,7 @@
 //     * Neither the name of Google Inc. nor the names of its
 // contributors may be used to endorse or promote products derived from
 // this software without specific prior written permission.
-// 
+//
 // THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
 // "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
 // LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
@@ -70,6 +70,8 @@
 #include <sstream>
 #include <cassert>
 #include <graphlab/logger/logger.hpp>
+#include <graphlab/logger/fail_method.hpp>
+#include <graphlab/logger/backtrace.hpp>
 
 #include <boost/typeof/typeof.hpp>
 
@@ -92,7 +94,7 @@ extern void __print_back_trace();
       logstream(LOG_ERROR)                                              \
         << "Check failed: " << #condition  << std::endl;                \
       __print_back_trace();                                             \
-      throw("assertion failure");                                       \
+      GRAPHLAB_LOGGER_FAIL_METHOD("assertion failure");                    \
     }                                                                   \
   } while(0)
 
@@ -107,7 +109,7 @@ extern void __print_back_trace();
         << "Check failed: " << #condition << ": "                       \
         << strerror(err_no) << std::endl;                               \
       __print_back_trace();                                             \
-      throw("assertion failure");                                       \
+      GRAPHLAB_LOGGER_FAIL_METHOD("assertion failure");                    \
     }                                                                   \
   } while(0)
 
@@ -132,7 +134,7 @@ extern void __print_back_trace();
         << ' ' << #op << ' '                                            \
         << _CHECK_OP_v2_ << "]" << std::endl;                           \
       __print_back_trace();                                             \
-      throw("assertion failure");                                       \
+      GRAPHLAB_LOGGER_FAIL_METHOD("assertion failure");                    \
     }                                                                   \
   } while(0)
 #else
@@ -150,7 +152,7 @@ extern void __print_back_trace();
         << ' ' << #op << ' '                                            \
         << _CHECK_OP_v2_ << "]" << std::endl;                           \
       __print_back_trace();                                             \
-      throw("assertion failure");                                       \
+      GRAPHLAB_LOGGER_FAIL_METHOD("assertion failure");                    \
     }                                                                   \
   } while(0)
 #endif
@@ -191,7 +193,7 @@ extern void __print_back_trace();
         << "Check failed: " << #condition << ":\n";                     \
       logger(LOG_ERROR, fmt, ##__VA_ARGS__);                            \
       __print_back_trace();                                             \
-      throw("assertion failure");                                       \
+      GRAPHLAB_LOGGER_FAIL_METHOD("assertion failure");                    \
     }                                                                   \
   } while(0)
 
@@ -208,6 +210,13 @@ extern void __print_back_trace();
 #define DCHECK_GT(val1, val2)
 #define DASSERT_TRUE(cond)
 #define DASSERT_FALSE(cond)
+#define DASSERT_EQ(val1, val2)
+#define DASSERT_NE(val1, val2)
+#define DASSERT_LE(val1, val2)
+#define DASSERT_LT(val1, val2)
+#define DASSERT_GE(val1, val2)
+#define DASSERT_GT(val1, val2)
+
 #define DASSERT_MSG(condition, fmt, ...)
 
 #else
@@ -219,6 +228,14 @@ extern void __print_back_trace();
 #define DCHECK_GT(val1, val2)  CHECK_GT(val1, val2)
 #define DASSERT_TRUE(cond)     ASSERT_TRUE(cond)
 #define DASSERT_FALSE(cond)    ASSERT_FALSE(cond)
+#define DASSERT_EQ(val1, val2) ASSERT_EQ(val1, val2)
+#define DASSERT_NE(val1, val2) ASSERT_NE(val1, val2)
+#define DASSERT_LE(val1, val2) ASSERT_LE(val1, val2)
+#define DASSERT_LT(val1, val2) ASSERT_LT(val1, val2)
+#define DASSERT_GE(val1, val2) ASSERT_GE(val1, val2)
+#define DASSERT_GT(val1, val2) ASSERT_GT(val1, val2)
+
+
 #define DASSERT_MSG(condition, fmt, ...)                                \
   do {                                                                  \
     if (__builtin_expect(!(condition), 0)) {                            \
@@ -226,7 +243,7 @@ extern void __print_back_trace();
         << "Check failed: " << #condition << ":\n";                     \
       logger(LOG_ERROR, fmt, ##__VA_ARGS__);                            \
       __print_back_trace();                                             \
-      throw("assertion failure");                                       \
+      GRAPHLAB_LOGGER_FAIL_METHOD("assertion failure");                    \
     }                                                                   \
   } while(0)
 

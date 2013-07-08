@@ -26,7 +26,6 @@
 #include <vector>
 #include <graphlab/rpc/dc_dist_object.hpp>
 #include <graphlab/rpc/distributed_event_log.hpp>
-#include <graphlab/engine/chandy_misra_interface.hpp>
 #include <graphlab/logger/assertions.hpp>
 #include <graphlab/parallel/pthread_tools.hpp>
 #include <graphlab/graph/graph_basic_types.hpp>
@@ -38,7 +37,7 @@ namespace graphlab {
   * \internal
   */
 template <typename GraphType>
-class distributed_chandy_misra : public chandy_misra_interface<GraphType> {
+class distributed_chandy_misra {
  public:
   typedef typename GraphType::local_vertex_type local_vertex_type;
   typedef typename GraphType::local_edge_type local_edge_type;
@@ -927,32 +926,32 @@ class distributed_chandy_misra : public chandy_misra_interface<GraphType> {
           size_t edgeid = edge.id();
           // not owned
           if (fork_owner(edgeid) == OWNER_SOURCE) {
-            if (philosopherset[edge.source()].state != EATING) {
+            if (philosopherset[edge.source().id()].state != EATING) {
               if (fork_dirty(edgeid)) {
                 std::cout << (int)(forkset[edgeid]) << " "
-                          << (int)philosopherset[edge.source()].state
-                          << "->" << (int)philosopherset[edge.target()].state
+                          << (int)philosopherset[edge.source().id()].state
+                          << "->" << (int)philosopherset[edge.target().id()].state
                           << std::endl;
                 ASSERT_FALSE(fork_dirty(edgeid));
               }
             }
-            ASSERT_NE(philosopherset[edge.source()].state, (int)THINKING);
+            ASSERT_NE(philosopherset[edge.source().id()].state, (int)THINKING);
           }
         }
         foreach(local_edge_type edge, lvertex.out_edges()) {
           size_t edgeid = edge.id();
           if (fork_owner(edgeid) == OWNER_TARGET) {
-            if (philosopherset[edge.target()].state != EATING) {
+            if (philosopherset[edge.target().id()].state != EATING) {
               if (fork_dirty(edgeid)) {
                 std::cout << (int)(forkset[edgeid]) << " "
-                          << (int)philosopherset[edge.source()].state
+                          << (int)philosopherset[edge.source().id()].state
                           << "->"
-                          << (int)philosopherset[edge.target()].state
+                          << (int)philosopherset[edge.target().id()].state
                           << std::endl;
                 ASSERT_FALSE(fork_dirty(edgeid));
               }
             }
-            ASSERT_NE(philosopherset[edge.target()].state, (int)THINKING);
+            ASSERT_NE(philosopherset[edge.target().id()].state, (int)THINKING);
           }
         }
 

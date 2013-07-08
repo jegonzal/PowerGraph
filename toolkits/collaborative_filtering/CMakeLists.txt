@@ -34,3 +34,8 @@ add_graphlab_executable(make_synthetic_als_data
 requires_eigen(make_synthetic_als_data) # build and attach eigen
 
 
+# add_graphlab_executable(warp_nmf warp_nmf.cpp)
+# requires_eigen(warp_sgd) # build and attach eigen
+# 
+# add_graphlab_executable(warp_als_coord warp_als_coord.cpp)
+# requires_eigen(warp_als_coord) # build and attach eigen

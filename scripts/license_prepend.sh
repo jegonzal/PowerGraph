@@ -1,4 +1,5 @@
 DIR="$( cd -P "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+echo $DIR
 if ! grep -q Apache $1
 then
 echo $1

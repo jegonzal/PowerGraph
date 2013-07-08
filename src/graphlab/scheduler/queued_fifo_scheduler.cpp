@@ -1,3 +1,26 @@
+/*  
+ * Copyright (c) 2009 Carnegie Mellon University. 
+ *     All rights reserved.
+ *
+ *  Licensed under the Apache License, Version 2.0 (the "License");
+ *  you may not use this file except in compliance with the License.
+ *  You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing,
+ *  software distributed under the License is distributed on an "AS
+ *  IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+ *  express or implied.  See the License for the specific language
+ *  governing permissions and limitations under the License.
+ *
+ * For more about this software visit:
+ *
+ *      http://www.graphlab.ml.cmu.edu
+ *
+ */
+
+
 #include <graphlab/scheduler/queued_fifo_scheduler.hpp>
 #include <graphlab/macros_def.hpp>
 
@@ -21,6 +44,7 @@ void queued_fifo_scheduler::initialize_data_structures() {
   ASSERT_GT(ncpus * multi, 1);
   in_queues.resize(ncpus * multi);
   in_queue_locks.resize(ncpus * multi);
+  out_queue_locks.resize(ncpus * multi);
   out_queues.resize(ncpus);
   vertex_is_scheduled.resize(num_vertices);
 }
@@ -67,10 +91,16 @@ sched_status::status_enum queued_fifo_scheduler::get_next(const size_t cpuid,
                                                           lvid_type& ret_vid) {
   queue_type& myqueue = out_queues[cpuid];
   // if the local queue is empty try to get a queue from the master
+  out_queue_locks[cpuid].lock();
   if(myqueue.empty()) {
     master_lock.lock();
     // if master queue is empty... 
-    if (master_queue.empty()) {
+    if (!master_queue.empty()) {
+      myqueue.swap(master_queue.front());
+      master_queue.pop_front();
+      master_lock.unlock();
+    }
+    else {
       master_lock.unlock();
       //try to steal from the inqueues
       for (size_t i = 0; i < in_queues.size(); ++i) {
@@ -85,13 +115,6 @@ sched_status::status_enum queued_fifo_scheduler::get_next(const size_t cpuid,
           if (!myqueue.empty()) break;
         } 
       }
-    } else {
-      // master queue has stuff. take from it
-      if(!master_queue.empty()) {
-        myqueue.swap(master_queue.front());
-        master_queue.pop_front();
-      }
-      master_lock.unlock();
     }
   }
   // end of get next
@@ -105,6 +128,7 @@ sched_status::status_enum queued_fifo_scheduler::get_next(const size_t cpuid,
       if (good) break;
     }
   }
+  out_queue_locks[cpuid].unlock();
 
   if(good) {
     return sched_status::NEW_TASK;

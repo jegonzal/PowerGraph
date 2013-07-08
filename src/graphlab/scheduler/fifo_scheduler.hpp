@@ -1,5 +1,5 @@
-/**  
- * Copyright (c) 2009 Carnegie Mellon University. 
+/**
+ * Copyright (c) 2009 Carnegie Mellon University.
  *     All rights reserved.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
@@ -40,7 +40,7 @@
 namespace graphlab {
 
   /**
-   * \ingroup group_schedulers 
+   * \ingroup group_schedulers
    *
    * This class defines a multiple queue approximate fifo scheduler.
    * Each processor has its own in_queue which it puts new tasks in

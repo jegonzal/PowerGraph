@@ -1,5 +1,5 @@
-/**  
- * Copyright (c) 2009 Carnegie Mellon University. 
+/**
+ * Copyright (c) 2009 Carnegie Mellon University.
  *     All rights reserved.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
@@ -95,6 +95,7 @@ namespace graphlab {
     sched_status::status_enum get_next(const size_t cpuid,
                                        lvid_type& ret_vid);
 
+    bool empty();
 
     bool empty();
 

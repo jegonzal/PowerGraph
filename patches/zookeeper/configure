@@ -1,0 +1,4 @@
+#!/bin/bash
+ant compile_jute
+cd src/c
+./configure $@

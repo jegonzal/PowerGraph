@@ -56,9 +56,13 @@ namespace dc_impl {
 
     size_t sqsize = approx_send_queue_size;
     approx_send_queue_size = sqsize + 1;
-    if (sqsize == 256) comm->trigger_send_timeout(target, false);
-    else if ((packet_type_mask &
-            (CONTROL_PACKET | WAIT_FOR_REPLY | REPLY_PACKET))) {
+     if (sqsize == 256) comm->trigger_send_timeout(target, false);
+     else if ((packet_type_mask &
+               (CONTROL_PACKET))) {
+       comm->trigger_send_timeout(target, true);
+     }
+    else if (dc->fast_track_requests() && (packet_type_mask &
+                                           (WAIT_FOR_REPLY | REPLY_PACKET))) {
       comm->trigger_send_timeout(target, true);
     }
   }

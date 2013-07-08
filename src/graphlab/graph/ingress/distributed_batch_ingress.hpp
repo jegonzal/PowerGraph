@@ -25,13 +25,14 @@
 
 #include <boost/unordered_set.hpp>
 #include <graphlab/graph/graph_basic_types.hpp>
-#include <graphlab/graph/ingress/idistributed_ingress.hpp>
+#include <graphlab/graph/graph_hash.hpp>
 #include <graphlab/graph/ingress/distributed_ingress_base.hpp>
 #include <graphlab/graph/distributed_graph.hpp>
 #include <graphlab/rpc/buffered_exchange.hpp>
 #include <graphlab/rpc/distributed_event_log.hpp>
 #include <graphlab/util/dense_bitset.hpp>
 #include <graphlab/macros_def.hpp>
+
 namespace graphlab {
   template<typename VertexData, typename EdgeData>
     class distributed_graph;
@@ -63,24 +64,19 @@ namespace graphlab {
     dht_degree_table_type;
 
     /** distributed hash table stored on local machine */ 
-    std::vector<bin_counts_type > dht_degree_table;
+    boost::unordered_map<vertex_id_type, bin_counts_type > dht_degree_table;
 
     /** The map from vertex id to its DHT entry.
      * Must be called with a readlock acquired on dht_degree_table_lock. */
     size_t vid_to_dht_entry_with_readlock(vertex_id_type vid) {
-      size_t idx = (vid - rpc.procid()) / rpc.numprocs();
-      if (dht_degree_table.size() <= idx) {
+      if (dht_degree_table.count(vid) == 0) {
         dht_degree_table_lock.unlock();
         dht_degree_table_lock.writelock();
-         
-        if (dht_degree_table.size() <= idx) {
-          size_t newsize = std::max(dht_degree_table.size() * 2, idx + 1);
-          dht_degree_table.resize(newsize);
-        }
+        dht_degree_table[vid].clear(); 
         dht_degree_table_lock.unlock();
         dht_degree_table_lock.readlock();
       }
-      return idx;
+      return vid;
     }
     rwlock dht_degree_table_lock;
 
@@ -131,8 +127,8 @@ namespace graphlab {
       ASSERT_LT(edgesend.size(), bufsize);
       edgesend.push_back(std::make_pair(source, target)); 
       edatasend.push_back(edata);        
-      query_set[base_type::vertex_to_proc(source)].insert(source);
-      query_set[base_type::vertex_to_proc(target)].insert(target);
+      query_set[graph_hash::hash_vertex(source) % rpc.numprocs()].insert(source);
+      query_set[graph_hash::hash_vertex(target) % rpc.numprocs()].insert(target);
       ++num_edges;
       edgesend_lock.unlock();
       END_TRACEPOINT(batch_ingress_add_edge);
@@ -180,7 +176,7 @@ namespace graphlab {
         lvid_type lvid_target(-1);
         // typedef typename boost::unordered_map<vertex_id_type, lvid_type>::iterator 
           // vid2lvid_iter;
-        typedef typename cuckoo_map_pow2<vertex_id_type, lvid_type, 3, uint32_t>::iterator
+        typedef typename hopscotch_map<vertex_id_type, lvid_type>::iterator
           vid2lvid_iter;
         vid2lvid_iter iter;
 
@@ -207,8 +203,8 @@ namespace graphlab {
         max_lvid = std::max(std::max(lvid_source, lvid_target), 
             max_lvid);
 
-        local_degree_count[base_type::vertex_to_proc(source)].push_back(source);
-        local_degree_count[base_type::vertex_to_proc(target)].push_back(target);
+        local_degree_count[graph_hash::hash_vertex(source) % rpc.numprocs()].push_back(source);
+        local_degree_count[graph_hash::hash_vertex(target) % rpc.numprocs()].push_back(target);
       }
       lvid2record_lock.unlock();
 
@@ -300,8 +296,8 @@ namespace graphlab {
          edgesend[i];
 
        BEGIN_TRACEPOINT(batch_ingress_compute_assignments);
-       size_t src_proc = base_type::vertex_to_proc(e.first);
-       size_t dst_proc = base_type::vertex_to_proc(e.second);
+       size_t src_proc = graph_hash::hash_vertex(e.first) % rpc.numprocs();
+       size_t dst_proc = graph_hash::hash_vertex(e.second) % rpc.numprocs();
        bin_counts_type& src_degree = degree_table[src_proc][e.first];
        bin_counts_type& dst_degree = degree_table[dst_proc][e.second];
        procid_t proc = base_type::edge_decision.edge_to_proc_greedy(e.first, e.second, 

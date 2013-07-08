@@ -844,12 +844,12 @@ bool load_and_initialize_graph(graphlab::distributed_control& dc,
   if(format=="matrix"){
       dc.cout() << "matrix format" << std::endl;
       graph.load(corpus_dir, graph_loader);
-  }else if(format=="json"){
-      dc.cout() << "json format" << std::endl;
-      graph.load_json(corpus_dir, false, eparser, vparser);
-  }else if(format=="json-gzip"){
-      dc.cout() <<"json gzip format" << std::endl;
-      graph.load_json(corpus_dir, true, eparser, vparser);
+  // } else if(format=="json"){
+  //     dc.cout() << "json format" << std::endl;
+  //     graph.load_json(corpus_dir, false, eparser, vparser);
+  // } else if(format=="json-gzip"){
+  //     dc.cout() <<"json gzip format" << std::endl;
+  //     graph.load_json(corpus_dir, true, eparser, vparser);
   }else{
       dc.cout() << "Non supported format. See --help" << std::endl;
       return false;

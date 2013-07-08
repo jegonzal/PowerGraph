@@ -1,3 +1,26 @@
+/*  
+ * Copyright (c) 2009 Carnegie Mellon University. 
+ *     All rights reserved.
+ *
+ *  Licensed under the Apache License, Version 2.0 (the "License");
+ *  you may not use this file except in compliance with the License.
+ *  You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing,
+ *  software distributed under the License is distributed on an "AS
+ *  IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+ *  express or implied.  See the License for the specific language
+ *  governing permissions and limitations under the License.
+ *
+ * For more about this software visit:
+ *
+ *      http://www.graphlab.ml.cmu.edu
+ *
+ */
+
+
 #include <graphlab/rpc/dc.hpp>
 #include <graphlab/rpc/dc_dist_object.hpp>
 #include <graphlab/rpc/dc_init_from_mpi.hpp>
@@ -165,20 +188,21 @@ struct teststruct {
       rmi.full_barrier();
       return;
     }
-    rmi.dc().stop_handler_threads(1,1);
     timer ti;
-    std::cout << "Single Threaded " << SEND_LIMIT_PRINT <<" sends, " << length << " bytes\n";
-    ti.start();
     size_t numsends = SEND_LIMIT / (length);
+    std::cout << "Single Threaded " << SEND_LIMIT_PRINT <<" sends, " << length << " bytes * "<< numsends <<  "\n";
+    ti.start();
     size_t rd = rdtsc();
     perform_string_sends_0(length, numsends);
     size_t rd2 = rdtsc();
+    std::cout << "Completed in: " << ti.current_time() << " seconds\n";
     std::cout << (rd2 - rd) / numsends << " cycles per call\n";
     double t1 = ti.current_time();
-    rmi.dc().start_handler_threads(1,1);
     rmi.dc().flush();
+    std::cout << "Flush in: " << ti.current_time() << " seconds\n";
     double t2 = ti.current_time();
     rmi.full_barrier();
+    std::cout << "Receive Complete in: " << ti.current_time() << " seconds\n";
     double t3 = ti.current_time();
     print_res(t1,t2,t3);
   }
@@ -194,7 +218,6 @@ struct teststruct {
                                             << length << " bytes\n";
     ti.start();
     size_t numsends = SEND_LIMIT / (length * numthreads);
-    rmi.dc().stop_handler_threads(1,1);
     size_t rd = rdtsc();
     thread_group thrgrp;
     for (size_t i = 0; i < numthreads; ++i) {
@@ -204,7 +227,6 @@ struct teststruct {
     size_t rd2 = rdtsc();
     std::cout << (rd2 - rd) / (numthreads * numsends)  << " cycles per call\n";
     double t1 = ti.current_time();
-    rmi.dc().start_handler_threads(1,1);
     rmi.dc().flush();
     double t2 = ti.current_time();
     rmi.full_barrier();

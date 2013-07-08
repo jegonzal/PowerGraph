@@ -71,44 +71,6 @@ struct edge_data : graphlab::IS_POD_TYPE {
 typedef graphlab::distributed_graph<vertex_data, edge_data> graph_type;
 
 
-
-/**
- * \brief The graph loader is used by graph.load to parse lines of the
- * text data file.
- *
- * We use the relativley fast boost::spirit parser to parse each line.
- */
-bool graph_loader(graph_type& graph, const std::string& fname,
-                  const std::string& line) {
-  ASSERT_FALSE(line.empty());
-  namespace qi = boost::spirit::qi;
-  namespace ascii = boost::spirit::ascii;
-  namespace phoenix = boost::phoenix;
-  graphlab::vertex_id_type source_id(-1), target_id(-1);
-  float weight = 1;
-  const bool success = qi::phrase_parse
-    (line.begin(), line.end(),       
-     //  Begin grammar
-     (
-      qi::ulong_[phoenix::ref(source_id) = qi::_1] >> -qi::char_(',') >>
-      qi::ulong_[phoenix::ref(target_id) = qi::_1] >> 
-      -(-qi::char_(',') >> qi::float_[phoenix::ref(weight) = qi::_1])
-      )
-     ,
-     //  End grammar
-     ascii::space); 
-  if(!success) return false;
-  if(source_id == target_id) {
-    logstream(LOG_ERROR) 
-      << "Self edge to vertex " << source_id << " is not permitted." << std::endl;
-  }
-  // Create an edge and add it to the graph
-  graph.add_edge(source_id, target_id, weight);
-  return true; // successful load
-}; // end of graph loader
-
-
-
 /**
  * \brief Get the other vertex in the edge.
  */
@@ -268,7 +230,8 @@ int main(int argc, char** argv) {
                        "The graph file.  If none is provided "
                        "then a toy graph will be created");
   clopts.add_positional("graph");
-
+  clopts.attach_option("format", format,
+                       "graph format");
   clopts.attach_option("source", sources,
                        "The source vertices");
   clopts.attach_option("max_degree_source", max_degree_source,
@@ -303,7 +266,7 @@ int main(int argc, char** argv) {
     graph.load_synthetic_powerlaw(powerlaw, false, 2, 100000000);
   } else if (graph_dir.length() > 0) { // Load the graph from a file
     dc.cout() << "Loading graph in format: "<< format << std::endl;
-    graph.load(graph_dir, graph_loader);
+    graph.load_format(graph_dir, format);
   } else {
     dc.cout() << "graph or powerlaw option must be specified" << std::endl;
     clopts.print_description();

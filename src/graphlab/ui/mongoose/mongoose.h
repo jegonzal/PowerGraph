@@ -228,5 +228,8 @@ const char *mg_version(void);
 void mg_md5(char *buf, ...);
 
 
+// Compute MD5 of file
+void mg_md5_file(char *buf, const char* file);
+
 
 #endif // MONGOOSE_HEADER_INCLUDED

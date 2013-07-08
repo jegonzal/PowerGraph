@@ -1,0 +1,88 @@
+<script src="../lib/d3/d3.js"></script>
+<script src="../d3.layout.cloud.js"></script>
+<body>
+<script>
+  var fill = d3.scale.category20();
+
+	var d = [
+		["river", 260462], 
+		["water", 154470], 
+		["lake", 137116], 
+		["mountain", 87756], 
+		["area", 80303], 
+		["north", 68834], 
+		["sea", 68785], 
+		["valley", 65516], 
+		["park", 59788], 
+		["south", 52968], 
+		["forest", 51247], 
+		["mountains", 50866], 
+		["creek", 42652], 
+		["rock", 38748], 
+		["ice", 37717], 
+		["range", 36985], 
+		["west", 34535], 
+		["high", 34438], 
+		["dam", 34158], 
+		["located", 33700], 
+		["island", 33345], 
+		["fish", 33186], 
+		["national", 32635], 
+		["bay", 32511], 
+		["trail", 31835], 
+		["ocean", 31464], 
+		["east", 31423], 
+		["winter", 31241], 
+		["rivers", 30637], 
+		["northern", 30126], 
+		["areas", 30011], 
+		["food", 29762], 
+		["beach", 29407], 
+		["wine", 29129], 
+		["flows", 28804], 
+		["southern", 28628], 
+		["mount", 28387], 
+		["fishing", 28031], 
+		["summer", 27191], 
+		["long", 26993], 
+		["region", 26712], 
+		["small", 26610], 
+		["large", 26522], 
+		["coast", 26439], 
+		["lakes", 26206], 
+		["years", 25754], 
+		["natural", 25746], 
+		["point", 25608], 
+		["basin", 24581], 
+		["great", 24348]
+	] 
+
+  d3.layout.cloud().size([300, 300])
+      .words(d.map(function(d) {
+        return {text: d[0], size: 10 + Math.random() * 90};
+      }))
+      .rotate(function() { return ~~(Math.random() * 2) * 90; })
+      .font("Impact")
+      .fontSize(function(d) { return d.size; })
+      .on("end", draw)
+      .start();
+
+  function draw(words) {
+    d3.select("body").append("svg")
+        .attr("width", 300)
+        .attr("height", 300)
+      .append("g")
+        .attr("transform", "translate(150,150)")
+      .selectAll("text")
+        .data(words)
+      .enter().append("text")
+        .style("font-size", function(d) { return d.size + "px"; })
+        .style("font-family", "Impact")
+        .style("fill", function(d, i) { return fill(i); })
+        .attr("text-anchor", "middle")
+        .attr("transform", function(d) {
+          return "translate(" + [d.x, d.y] + ")rotate(" + d.rotate + ")";
+        })
+        .text(function(d) { return d.text; });
+  }
+</script>

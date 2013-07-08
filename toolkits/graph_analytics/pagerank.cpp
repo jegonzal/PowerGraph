@@ -74,30 +74,32 @@ void init_vertex(graph_type::vertex_type& vertex) { vertex.data() = 1; }
  * graphlab::IS_POD_TYPE it must implement load and save functions.
  */
 class pagerank :
-  public graphlab::ivertex_program<graph_type, double> { //, double> {
+  public graphlab::ivertex_program<graph_type, double> {
+
   double last_change;
 public:
 
   /**
-   * Gather only in edges. 
+   * Gather only in edges.
    */
   edge_dir_type gather_edges(icontext_type& context,
                               const vertex_type& vertex) const {
-    return graphlab::IN_EDGES; 
+    return graphlab::IN_EDGES;
   } // end of Gather edges
 
 
   /* Gather the weighted rank of the adjacent page   */
   double gather(icontext_type& context, const vertex_type& vertex,
                edge_type& edge) const {
-    return (edge.source().data() / edge.source().num_out_edges()); 
+    return (edge.source().data() / edge.source().num_out_edges());
   }
 
   /* Use the total rank of adjacent pages to update this page */
   void apply(icontext_type& context, vertex_type& vertex,
              const gather_type& total) {
+
     const double newval = (1.0 - RESET_PROB) * total + RESET_PROB;
-    last_change = (newval - vertex.data()); // / vertex.num_out_edges();
+    last_change = (newval - vertex.data());
     vertex.data() = newval;
     if (ITERATIONS) context.signal(vertex);
   }
@@ -105,7 +107,7 @@ public:
   /* The scatter edges depend on whether the pagerank has converged */
   edge_dir_type scatter_edges(icontext_type& context,
                               const vertex_type& vertex) const {
-    // If an iteration counter is set then 
+    // If an iteration counter is set then
     if (ITERATIONS) return graphlab::NO_EDGES;
     // In the dynamic case we run scatter on out edges if the we need
     // to maintain the delta cache or the tolerance is above bound.
@@ -121,8 +123,10 @@ public:
                edge_type& edge) const {
     if(USE_DELTA_CACHE) {
       context.post_delta(edge.target(), last_change);
-      if(std::fabs(last_change) > TOLERANCE) 
-        context.signal(edge.target()); //, std::fabs(last_change)); 
+    }
+
+    if(last_change > TOLERANCE || last_change < -TOLERANCE) {
+        context.signal(edge.target());
     } else {
       context.signal(edge.target()); //, std::fabs(last_change));
     }
@@ -134,6 +138,7 @@ public:
     // vertex data.
     if (ITERATIONS == 0) oarc << last_change;
   }
+
   void load(graphlab::iarchive& iarc) {
     if (ITERATIONS == 0) iarc >> last_change;
   }
@@ -157,6 +162,11 @@ struct pagerank_writer {
 
 double map_rank(const graph_type::vertex_type& v) { return v.data(); }
 
+
+double pagerank_sum(graph_type::vertex_type v) {
+  return v.data();
+}
+
 int main(int argc, char** argv) {
   // Initialize control plain using mpi
   graphlab::mpi_tools::init(argc, argv);
@@ -172,7 +182,7 @@ int main(int argc, char** argv) {
                        "The graph file.  If none is provided "
                        "then a toy graph will be created");
   clopts.add_positional("graph");
-  clopts.attach_option("engine", exec_type, 
+  clopts.attach_option("engine", exec_type,
                        "The engine type synchronous or asynchronous");
   clopts.attach_option("tol", TOLERANCE,
                        "The permissible change at convergence.");
@@ -181,7 +191,7 @@ int main(int argc, char** argv) {
   size_t powerlaw = 0;
   clopts.attach_option("powerlaw", powerlaw,
                        "Generate a synthetic powerlaw out-degree graph. ");
-  clopts.attach_option("iterations", ITERATIONS, 
+  clopts.attach_option("iterations", ITERATIONS,
                        "If set, will force the use of the synchronous engine"
                        "overriding any engine option set by the --engine parameter. "
                        "Runs complete (non-dynamic) PageRank for a fixed "
@@ -254,6 +264,9 @@ int main(int argc, char** argv) {
                true,     // save vertices
                false);   // do not save edges
   }
+
+  double totalpr = graph.map_reduce_vertices<double>(pagerank_sum);
+  std::cout << "Totalpr = " << totalpr << "\n";
 
   // Tear-down communication layer and quit -----------------------------------
   graphlab::mpi_tools::finalize();

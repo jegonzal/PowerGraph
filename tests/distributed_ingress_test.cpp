@@ -28,7 +28,7 @@
 #include <graphlab/util/mpi_tools.hpp>
 #include <graphlab/rpc/dc_init_from_mpi.hpp>
 #include <graphlab/graph/distributed_graph.hpp>
-#include <google/malloc_extension.h>
+// #include <google/malloc_extension.h>
 #include <graphlab/macros_def.hpp>
 
 typedef char vertex_data;
@@ -73,17 +73,17 @@ int main(int argc, char** argv) {
   
   graph.load_format(graphpath, format);
 
-  size_t heap_size_load;
-  size_t allocate_size_load;
-  MallocExtension::instance()->GetNumericProperty("generic.heap_size", &heap_size_load);
-  MallocExtension::instance()->GetNumericProperty("generic.current_allocated_bytes", &allocate_size_load);
+  // size_t heap_size_load;
+  // size_t allocate_size_load;
+  // MallocExtension::instance()->GetNumericProperty("generic.heap_size", &heap_size_load);
+  // MallocExtension::instance()->GetNumericProperty("generic.current_allocated_bytes", &allocate_size_load);
 
-  if (dc.procid() == 0) {
-    std::cout << "==========================================" << std::endl;
-    std::cout << "Heap Size (before finalize): " << (double)heap_size_load/(1024*1024) << "MB" << "\n";
-    std::cout << "Allocated Size (before finalize): " << (double)allocate_size_load/(1024*1024) << "MB" << "\n";
-    std::cout << "==========================================" << std::endl;
-  }
+  // if (dc.procid() == 0) {
+  //   std::cout << "==========================================" << std::endl;
+  //   std::cout << "Heap Size (before finalize): " << (double)heap_size_load/(1024*1024) << "MB" << "\n";
+  //   std::cout << "Allocated Size (before finalize): " << (double)allocate_size_load/(1024*1024) << "MB" << "\n";
+  //   std::cout << "==========================================" << std::endl;
+  // }
 
   double time_to_load = mytimer.current_time();
   graph.finalize();
@@ -108,14 +108,14 @@ int main(int argc, char** argv) {
       << std::endl;
       std::cout << "==========================================" << std::endl;
 
-   size_t heap_size;
-   size_t allocate_size;
-   MallocExtension::instance()->GetNumericProperty("generic.heap_size", &heap_size);
-   MallocExtension::instance()->GetNumericProperty("generic.current_allocated_bytes", &allocate_size);
-   if (dc.procid() == 0) {
-     std::cout << "Heap Size: " << (double)heap_size/(1024*1024) << "MB" << "\n";
-     std::cout << "Allocated Size: " << (double)allocate_size/(1024*1024) << "MB" << "\n";
-   }
+   // size_t heap_size;
+   // size_t allocate_size;
+   // MallocExtension::instance()->GetNumericProperty("generic.heap_size", &heap_size);
+   // MallocExtension::instance()->GetNumericProperty("generic.current_allocated_bytes", &allocate_size);
+   // if (dc.procid() == 0) {
+   //   std::cout << "Heap Size: " << (double)heap_size/(1024*1024) << "MB" << "\n";
+   //   std::cout << "Allocated Size: " << (double)allocate_size/(1024*1024) << "MB" << "\n";
+   // }
 
   if (dc.procid() == 0) {
    std::ofstream fout;
@@ -151,10 +151,10 @@ int main(int argc, char** argv) {
    fout << "Num procs: " << dc.numprocs() << std::endl;
    fout << "Replication factor: " << (float)graph.num_replicas()/graph.num_vertices() << std::endl;
    fout << "Balance factor: " << (float)graph.num_local_edges()/graph.num_edges() << std::endl;
-   fout << "Heap size (load): " << (double)heap_size_load/(1024*1024) << std::endl;
-   fout << "Allocated size (load): " << (double)allocate_size_load/(1024*1024) << std::endl;
-   fout << "Heap size (finalize): " << (double)heap_size/(1024*1024) << std::endl;
-   fout << "Allocated size (finalize): " << (double)allocate_size/(1024*1024) << std::endl;
+   // fout << "Heap size (load): " << (double)heap_size_load/(1024*1024) << std::endl;
+   // fout << "Allocated size (load): " << (double)allocate_size_load/(1024*1024) << std::endl;
+   // fout << "Heap size (finalize): " << (double)heap_size/(1024*1024) << std::endl;
+   // fout << "Allocated size (finalize): " << (double)allocate_size/(1024*1024) << std::endl;
    fout << "Runtime (load): " << time_to_load << std::endl;
    fout << "Runtime (total): " << time_all << std::endl;
    fout.close();

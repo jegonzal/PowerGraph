@@ -1,0 +1,30 @@
+#include <vector>
+#include <graphlab/graph/graph_basic_types.hpp>
+#include <ostream>
+
+typedef float vertex_data_type;
+typedef float edge_data_type;
+
+typedef struct {
+    void* ctx;    
+    void* vtx;
+    vertex_data_type get_vertex_data() {
+	return _get_vertex_data(vtx);
+    }
+    void set_vertex_data(vertex_data_type vd) {
+	_set_vertex_data(vd,vtx);
+    }
+    vertex_data_type reduce_neighbors(graphlab::edge_dir_type e) {
+	return _reduce_neighbors(e,ctx);
+    }
+    void signal_neighbors(graphlab::edge_dir_type e) {
+	_signal_neighbors(e,ctx);
+    }
+    vertex_data_type (*_get_vertex_data)(void*);
+    void (*_set_vertex_data)(vertex_data_type&,void*);
+    //std::vector<edge_data_type> (*get_neighboring_edges)();
+    //std::vector<vertex_data_type> (*get_neighboring_vertices)();
+    vertex_data_type (*_reduce_neighbors)(graphlab::edge_dir_type,void*);
+    void (*_signal_neighbors)(graphlab::edge_dir_type,void*);
+    //edge_data_type (*reduce_edges)();
+} user_funs;

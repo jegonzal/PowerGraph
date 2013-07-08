@@ -1,5 +1,5 @@
-/**  
- * Copyright (c) 2009 Carnegie Mellon University. 
+/**
+ * Copyright (c) 2009 Carnegie Mellon University.
  *     All rights reserved.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
@@ -41,12 +41,14 @@
 #include <algorithm>
 #include <functional>
 #include <fstream>
+#include <iostream>
 #include <sstream>
 
 #include <boost/functional.hpp>
 #include <boost/algorithm/string/predicate.hpp>
 #include <boost/iostreams/stream.hpp>
 #include <boost/iostreams/filtering_streambuf.hpp>
+
 #include <boost/iostreams/filtering_stream.hpp>
 #include <boost/iostreams/copy.hpp>
 #include <boost/iostreams/filter/gzip.hpp>
@@ -69,9 +71,10 @@
 #include <graphlab/vertex_program/op_plus_eq_concept.hpp>
 
 #include <graphlab/graph/local_graph.hpp>
-#include <graphlab/graph/ingress/idistributed_ingress.hpp>
+#include <graphlab/graph/dynamic_local_graph.hpp>
+
+#include <graphlab/graph/graph_gather_apply.hpp>
 #include <graphlab/graph/ingress/distributed_ingress_base.hpp>
-#include <graphlab/graph/ingress/distributed_batch_ingress.hpp>
 #include <graphlab/graph/ingress/distributed_oblivious_ingress.hpp>
 #include <graphlab/graph/ingress/distributed_random_ingress.hpp>
 #include <graphlab/graph/ingress/distributed_identity_ingress.hpp>
@@ -80,18 +83,20 @@
 #include <graphlab/graph/ingress/distributed_constrained_random_ingress.hpp>
 
 
-#include <graphlab/util/cuckoo_map_pow2.hpp>
+#include <graphlab/util/hopscotch_map.hpp>
 
 #include <graphlab/util/fs_util.hpp>
 #include <graphlab/util/hdfs.hpp>
 
 
 #include <graphlab/graph/builtin_parsers.hpp>
-#include <graphlab/graph/json_parser.hpp>
 #include <graphlab/graph/vertex_set.hpp>
 
 #include <graphlab/macros_def.hpp>
-namespace graphlab { 
+namespace tests {
+class distributed_graph_test;
+}
+namespace graphlab {
 
   /** \brief A directed graph datastructure which is distributed across
    * multiple machines.
@@ -102,11 +107,11 @@ namespace graphlab {
    *
    * ### Initialization
    *
-   * To declare a distributed graph you write: 
+   * To declare a distributed graph you write:
    * \code typedef
-   * graphlab::distributed_graph<vdata, edata> graph_type; 
-   * graph_type graph(dc, clopts); 
-   * \endcode 
+   * graphlab::distributed_graph<vdata, edata> graph_type;
+   * graph_type graph(dc, clopts);
+   * \endcode
    * where <code>vdata</code> is the type of data to be
    * stored on vertices, and <code>edata</code> is the type of data to be
    * stored on edges. The constructor must be called simultaneously on all
@@ -136,25 +141,25 @@ namespace graphlab {
    *
    * To construct from files, the load_format() function provides built-in
    * parsers to construct the graph structure from various graph file formats
-   * on disk or HDFS. Alternatively, the 
+   * on disk or HDFS. Alternatively, the
    * \ref load(const std::string& path, line_parser_type line_parser) "load()"
    * function provides generalized parsing capabilities
    * allowing you to construct from your own defined file format.
    * Alternatively, load_binary() may be used to perform an extremely rapid
    * load of a graph previously saved with save_binary(). The caveat being that
-   * the number of machines used to save the graph must match the number of 
+   * the number of machines used to save the graph must match the number of
    * machines used to load the graph.
    *
    * The second construction strategy is to call the add_vertex() and
    * add_edge() functions directly. These functions are parallel reentrant, and
    * are also distributed. Each vertex and each edge should be added no more
-   * than once across all machines. 
+   * than once across all machines.
    *
    * add_vertex() calls are not strictly required since add_edge(i, j) will
    * implicitly construct vertices i and j. The data on these vertices
    * will be default constructed.
    *
-   * ### Finalization 
+   * ### Finalization
    * After all vertices and edges are inserted into the graph
    * via either load from file functions or direct calls to add_vertex() and
    * add_edge(), for the graph to the useable, it must be finalized.
@@ -171,50 +176,45 @@ namespace graphlab {
    *
    * ### Partitioning Strategies
    *
-   * The graph is partitioned across the machines using a "vertex separator" 
-   * strategy where edges are assigned to machines, while vertices may span 
+   * The graph is partitioned across the machines using a "vertex separator"
+   * strategy where edges are assigned to machines, while vertices may span
    * multiple machines. There are three partitioning strategies implemented.
    * These can be selected by setting --graph_opts="ingress=[partition_method]"
    * on the command line.
    * \li \c "random" The most naive and the fastest partitioner. Random places
-   *                 edges on machines. 
-   * \li \c "oblivious" Runs at roughly half the speed of random. Machines 
+   *                 edges on machines.
+   * \li \c "oblivious" Runs at roughly half the speed of random. Machines
    *                    indepedently partitions the segment of the graph it
    *                    read. Improves partitioning quality and will reduce
    *                    runtime memory consumption.
-   * \li \c "batch" Runs at roughly half the speed of oblivious. Machines 
-   *                cooperate in partitioning the graph. This obtains the
-   *                highest quality partition, reducing runtime memory 
-   *                consumption significantly, at load-time penalty. 
    *
    * \li \c "grid" Runs at rouphly the same speed of random. Randomly places
-   *                edges on machines with a grid constraint. 
+   *                edges on machines with a grid constraint.
    *                This obtains quality partition, close to oblivious,
-   *                but currently only works with perfect square number of machines. 
+   *                but currently only works with perfect square number of machines.
    *
-   * \li \c "pds"  Runs at roughly the speed of random. Randomly places 
-   *                edges on machines with a sparser constraint generated by  
-   *                perfect difference set.  This obtains the close to batch
-   *                highest quality partition, reducing runtime memory 
-   *                consumption significantly, without load-time penalty. 
+   * \li \c "pds"  Runs at roughly the speed of random. Randomly places
+   *                edges on machines with a sparser constraint generated by
+   *                perfect difference set.  This obtains the highest quality partition,
+   *                reducing runtime memory consumption significantly, without load-time penalty.
    *                Currently only works with p^2+p+1 number of machines (p prime).
    *
    * ### Referencing Vertices / Edges Many GraphLab operations will pass around
    * vertex_type and edge_type objects. These objects are light-weight copyable
    * opaque references to vertices and edges in the distributed graph.  The
-   * vertex_type object provides capabilities such as: 
-   * \li \c vertex_type::id() Returns the ID of the vertex 
-   * \li \c vertex_type::num_in_edges() Returns the number of in edges 
-   * \li \c vertex_type::num_out_edges() Returns the number of out edges 
-   * \li \c vertex_type::data() Returns a <b>reference</b> to the data on 
+   * vertex_type object provides capabilities such as:
+   * \li \c vertex_type::id() Returns the ID of the vertex
+   * \li \c vertex_type::num_in_edges() Returns the number of in edges
+   * \li \c vertex_type::num_out_edges() Returns the number of out edges
+   * \li \c vertex_type::data() Returns a <b>reference</b> to the data on
    *                            the vertex
    *
    * No traversal operations are currently provided and there there is no
-   * single method to return a list of adjacent edges to the vertex. 
+   * single method to return a list of adjacent edges to the vertex.
    *
-   * The edge_type object has similar capabilities: 
-   * \li \c edge_type::data() Returns a <b>reference</b> to the data on the edge 
-   * \li \c edge_type::source() Returns a \ref vertex_type of the source vertex 
+   * The edge_type object has similar capabilities:
+   * \li \c edge_type::data() Returns a <b>reference</b> to the data on the edge
+   * \li \c edge_type::source() Returns a \ref vertex_type of the source vertex
    * \li \c edge_type::target() Returns a \ref vertex_type of the target vertex
    *
    * This permits the use of <code>edge.source().data()</code> for instance, to
@@ -222,7 +222,7 @@ namespace graphlab {
    *
    * See the documentation for \ref vertex_type and \ref edge_type for further
    * details.
-   * 
+   *
    * Due to the distributed nature of the graph, There is at the moment, no way
    * to obtain a reference to arbitrary vertices or edges. The only way to
    * obtain a reference to vertices or edges, is if one is passed to you via a
@@ -234,26 +234,26 @@ namespace graphlab {
    * ### Saving the graph
    * After computation is complete, the graph structure can be saved
    * via save_format() which provides built-in writers to write various
-   * graph formats to disk or HDFS. Alternatively, 
-   * \ref save(const std::string& prefix, writer writer, bool gzip, bool save_vertex, bool save_edge, size_t files_per_machine) "save()" 
+   * graph formats to disk or HDFS. Alternatively,
+   * \ref save(const std::string& prefix, writer writer, bool gzip, bool save_vertex, bool save_edge, size_t files_per_machine) "save()"
    * provides generalized writing capabilities allowing you to write
    * your own graph output to disk or HDFS.
    *
    * ### Distributed Representation
    * The graph is partitioned over machines using vertex separators.
    * In other words, each edge is assigned to a unique machine while
-   * vertices are allowed to span multiple machines. 
-   * 
-   * The image below demonstrates the procedure. The example graph 
-   * on the left is to be separated among 4 machines where the cuts 
+   * vertices are allowed to span multiple machines.
+   *
+   * The image below demonstrates the procedure. The example graph
+   * on the left is to be separated among 4 machines where the cuts
    * are denoted by the dotted red lines. After partitioning,
    * (the image on the right), each vertex along the cut
-   * is now separated among multiple machines. For instance, the 
-   * central vertex spans 4 different machines. 
+   * is now separated among multiple machines. For instance, the
+   * central vertex spans 4 different machines.
    *
-   * \image html partition_fig.gif 
+   * \image html partition_fig.gif
    *
-   * Each vertex which span multiple machines, has a <b>master</b> 
+   * Each vertex which span multiple machines, has a <b>master</b>
    * machine (a black vertex), and all other instances of the vertex
    * are called <b>mirrors</b>. For instance, we observe that the central
    * vertex spans 4 machines, where machine 3 holds the <b>master</b>
@@ -276,26 +276,26 @@ namespace graphlab {
    * vertex is associated with a \ref vertex_record which provides information
    * about global ID of the vertex, the machine which holds the master instance
    * of the vertex, as well as a list of all machines holding a mirror
-   * of the vertex. 
+   * of the vertex.
    *
    * To support traversal of the local graph, two additional types, the
-   * \ref local_vertex_type and the \ref local_edge_type is provided which 
+   * \ref local_vertex_type and the \ref local_edge_type is provided which
    * provide references to vertices and edges on the local graph. These behave
    * similarly to the \ref vertex_type and \ref edge_type types and have
    * similar functionality. However, since these reference the local graph,
    * there is substantially more flexility. In particular, the function
-   * l_vertex() may be used to obtain a reference to a local vertex from a 
+   * l_vertex() may be used to obtain a reference to a local vertex from a
    * local vertex ID. Also unlike the \ref vertex_type , the \ref
    * local_vertex_type support traversal operations such as returning a list of
    * all in_edges (local_vertex_type::in_edges()).  However, the list only
    * contains the edges which are local to the current machine. See
-   * \ref local_vertex_type and \ref local_edge_type for more details. 
+   * \ref local_vertex_type and \ref local_edge_type for more details.
    *
    *
    * \tparam VertexData Type of data stored on vertices. Must be
-   *                    Copyable, Default Constructable, Copy 
+   *                    Copyable, Default Constructable, Copy
    *                    Constructable and \ref sec_serializable.
-   * \tparam EdgeData Type of data stored on edges. Must be 
+   * \tparam EdgeData Type of data stored on edges. Must be
    *                  Copyable, Default Constructable, Copy
    *                  Constructable and \ref sec_serializable.
    */
@@ -303,8 +303,8 @@ namespace graphlab {
   class distributed_graph {
   public:
 
-    /// The type of the vertex data stored in the graph 
-    typedef VertexData vertex_data_type;   
+    /// The type of the vertex data stored in the graph
+    typedef VertexData vertex_data_type;
 
     /**
      * \cond GRAPHLAB_INTERNAL
@@ -315,7 +315,7 @@ namespace graphlab {
      * class vertex_data {
      * public:
      *   vertex_data() { }
-     * }; //  
+     * }; //
      * \endcode
      */
     BOOST_CONCEPT_ASSERT((boost::DefaultConstructible<VertexData>));
@@ -324,13 +324,13 @@ namespace graphlab {
     /**
      * \cond GRAPHLAB_INTERNAL
      * \brief GraphLab Requires that vertex data be default
-     * Serializable.  
+     * Serializable.
      */
     BOOST_CONCEPT_ASSERT((graphlab::Serializable<VertexData>));
     /// \endcond
 
 
-    /// The type of the edge data stored in the graph 
+    /// The type of the edge data stored in the graph
     typedef EdgeData   edge_data_type;
 
     /**
@@ -342,7 +342,7 @@ namespace graphlab {
      * class edge_data {
      * public:
      *   edge_data() { }
-     * }; //  
+     * }; //
      * \endcode
      */
     BOOST_CONCEPT_ASSERT((boost::DefaultConstructible<EdgeData>));
@@ -351,7 +351,7 @@ namespace graphlab {
     /**
      * \cond GRAPHLAB_INTERNAL
      * \brief GraphLab Requires that edge data be default
-     * Serializable.  
+     * Serializable.
      */
     BOOST_CONCEPT_ASSERT((graphlab::Serializable<EdgeData>));
     /// \endcond
@@ -359,7 +359,7 @@ namespace graphlab {
 
     /**
        The line parse is any function (or functor) that has the form:
-     
+
        <code>
         bool line_parser(distributed_graph& graph, const std::string& filename,
                          const std::string& textline);
@@ -367,7 +367,7 @@ namespace graphlab {
 
        the line parser returns true if the line is parsed successfully and
        calls graph.add_vertex(...) or graph.add_edge(...)
-       
+
        See \ref graphlab::distributed_graph::load(std::string path, line_parser_type line_parser) "load()"
        for details.
      */
@@ -377,61 +377,74 @@ namespace graphlab {
 
     typedef fixed_dense_bitset<RPC_MAX_N_PROCS> mirror_type;
 
-    /// The type of the local graph used to store the graph data 
+    /// The type of the local graph used to store the graph data
+#ifdef USE_DYNAMIC_LOCAL_GRAPH
+    typedef graphlab::dynamic_local_graph<VertexData, EdgeData> local_graph_type;
+#else 
     typedef graphlab::local_graph<VertexData, EdgeData> local_graph_type;
+#endif
     typedef graphlab::distributed_graph<VertexData, EdgeData> graph_type;
 
+    typedef std::vector<simple_spinlock> lock_manager_type;
+
     friend class distributed_ingress_base<VertexData, EdgeData>;
+
+
+    // Make friends with graph operation classes 
+    template <typename Graph, typename GatherType>
+    friend class graph_gather_apply;
+
+
+    // Make friends with Ingress classes
     friend class distributed_random_ingress<VertexData, EdgeData>;
     friend class distributed_identity_ingress<VertexData, EdgeData>;
-    friend class distributed_batch_ingress<VertexData, EdgeData>;
     friend class distributed_oblivious_ingress<VertexData, EdgeData>;
     friend class distributed_constrained_random_ingress<VertexData, EdgeData>;
-    friend class json_parser<VertexData, EdgeData>;
 
     typedef graphlab::vertex_id_type vertex_id_type;
     typedef graphlab::lvid_type lvid_type;
     typedef graphlab::edge_id_type edge_id_type;
-    
+
     struct vertex_type;
-    typedef bool edge_list_type;  
+    typedef bool edge_list_type;
     class edge_type;
-    
+
     struct local_vertex_type;
     struct local_edge_list_type;
     class local_edge_type;
-    
-    /** 
+
+    /**
      * \brief Vertex object which provides access to the vertex data
-     * and information about the vertex. 
+     * and information about the vertex.
      *
      * The vertex_type object may be copied and has very little internal
-     * state. It behaves as a reference to location of the vertex 
-     * in the internal graph representation. While vertex_type may be copied 
+     * state. It behaves as a reference to location of the vertex
+     * in the internal graph representation. While vertex_type may be copied
      * it must not outlive the underlying graph.
      */
     struct vertex_type {
+      typedef distributed_graph graph_type;
       distributed_graph& graph_ref;
       lvid_type lvid;
 
-      /// \cond GRAPHLAB_INTERNAL     
+      /// \cond GRAPHLAB_INTERNAL
       /** \brief Constructs a vertex_type object with local vid
-       * lvid. This function should not be used directly. Use 
+       * lvid. This function should not be used directly. Use
        * distributed_graph::vertex() or distributed_graph::l_vertex()
        *
        * \param graph_ref A reference to the parent graph object
-       * \param lvid The local VID of the vertex to be accessed 
+       * \param lvid The local VID of the vertex to be accessed
        */
       vertex_type(distributed_graph& graph_ref, lvid_type lvid):
             graph_ref(graph_ref), lvid(lvid) { }
       /// \endcond
-      
-      /// \brief Compares two vertex_type's for equality. Returns true 
+
+      /// \brief Compares two vertex_type's for equality. Returns true
       //  if they reference the same vertex and false otherwise.
       bool operator==(vertex_type& v) const {
         return lvid == v.lvid;
       }
-      
+
       /// \brief Returns a constant reference to the data on the vertex
       const vertex_data_type& data() const {
         return graph_ref.get_local_graph().vertex_data(lvid);
@@ -451,36 +464,36 @@ namespace graphlab {
       size_t num_out_edges() const {
         return graph_ref.l_get_vertex_record(lvid).num_out_edges;
       }
-      
-      /// \brief Returns the vertex ID of the vertex       
+
+      /// \brief Returns the vertex ID of the vertex
       vertex_id_type id() const {
         return graph_ref.global_vid(lvid);
       }
- 
-      /// \cond GRAPHLAB_INTERNAL    
-      
-      /// \brief Returns a list of in edges (not implemented) 
+
+      /// \cond GRAPHLAB_INTERNAL
+
+      /// \brief Returns a list of in edges (not implemented)
       edge_list_type in_edges() __attribute__ ((noreturn)) {
         ASSERT_TRUE(false);
       }
 
-      /// \brief Returns a list of out edges (not implemented) 
+      /// \brief Returns a list of out edges (not implemented)
       edge_list_type out_edges() __attribute__ ((noreturn)) {
         ASSERT_TRUE(false);
       }
-      /// \endcond 
-      
-      /** 
+      /// \endcond
+
+      /**
        *  \brief Returns the local ID of the vertex
        */
       lvid_type local_id() const {
         return lvid;
       }
-      
+
     };
 
-    
-    /** 
+
+    /**
      * \brief The edge represents an edge in the graph and provide
      * access to the data associated with that edge as well as the
      * source and target distributed::vertex_type objects.
@@ -513,7 +526,7 @@ namespace graphlab {
     public:
 
       /**
-       * \brief Returns the source vertex of the edge. 
+       * \brief Returns the source vertex of the edge.
        * This function returns a vertex_object by value and as a
        * consequence it is possible to use the resulting vertex object
        * to access and *modify* the associated vertex data.
@@ -523,12 +536,12 @@ namespace graphlab {
        *
        * \return The vertex object representing the source vertex.
        */
-      vertex_type source() const { 
-        return vertex_type(graph_ref, edge.source().id()); 
+      vertex_type source() const {
+        return vertex_type(graph_ref, edge.source().id());
       }
 
       /**
-       * \brief Returns the target vertex of the edge. 
+       * \brief Returns the target vertex of the edge.
        *
        * This function returns a vertex_object by value and as a
        * consequence it is possible to use the resulting vertex object
@@ -539,17 +552,17 @@ namespace graphlab {
        *
        * \return The vertex object representing the target vertex.
        */
-      vertex_type target() const { 
-        return vertex_type(graph_ref, edge.target().id()); 
+      vertex_type target() const {
+        return vertex_type(graph_ref, edge.target().id());
       }
-      
+
       /**
-       * \brief Returns a constant reference to the data on the edge 
+       * \brief Returns a constant reference to the data on the edge
        */
       const edge_data_type& data() const { return edge.data(); }
-      
+
       /**
-       * \brief Returns a mutable reference to the data on the edge 
+       * \brief Returns a mutable reference to the data on the edge
        */
       edge_data_type& data() { return edge.data(); }
 
@@ -560,22 +573,23 @@ namespace graphlab {
 
 
     // CONSTRUCTORS ==========================================================>
-   
+
     /**
      * Constructs a distributed graph. All machines must call this constructor
      * simultaneously.
      *
      * Value graph options are:
      * \li \c ingress The graph partitioning method to use. May be "random"
-     *                "oblivious" or "batch". The methods are in increasing 
-     *                complexity. "random" is the simplest and produces the 
-     *                worst partitions, while "batch" takes longer, but produces
-     *                a significantly better result. Improved partitioning
-     *                has direct impacts on GraphLab runtime performance.
+     *                "grid" or "pds". The methods have roughly the same runtime 
+     *                complexity, but the increasing partition qaulity. "grid" 
+     *                requires number of machine P be able to layout as a n*m = P 
+     *                grid with ( |m-n| <= 2). "pds" uses requires P = p^2+p+1 where 
+     *                p is a prime number.
+     *
      * \li \c userecent An optimization that can decrease memory utilization
      *                of oblivious and batch quite significantly (especially
      *                when there are a large number of machines) at a small
-     *                partitioning penalty. Defaults to 0. Set to 1 to 
+     *                partitioning penalty. Defaults to 0. Set to 1 to
      *                enable.
      * \li \c bufsize The batch size used by the batch ingress method.
      *                Defaults to 50,000. Increasing this number will
@@ -587,49 +601,67 @@ namespace graphlab {
      *                  parameters.  This is typically constructed using
      *                  \ref graphlab::command_line_options.
      */
-    distributed_graph(distributed_control& dc, 
-                      const graphlab_options& opts = graphlab_options()) : 
-      rpc(dc, this), finalized(false), vid2lvid(-1),
+    distributed_graph(distributed_control& dc,
+                      const graphlab_options& opts = graphlab_options()) :
+      rpc(dc, this), finalized(false), vid2lvid(),
       nverts(0), nedges(0), local_own_nverts(0), nreplicas(0),
-      ingress_ptr(NULL), vertex_exchange(dc), vset_exchange(dc), parallel_ingress(true) {
+      ingress_ptr(NULL), 
+#ifdef _OPENMP
+      vertex_exchange(dc, omp_get_max_threads()), 
+#else
+      vertex_exchange(dc), 
+#endif
+      vset_exchange(dc), parallel_ingress(true) {
       rpc.barrier();
       set_options(opts);
     }
 
+    ~distributed_graph() {
+      delete ingress_ptr; ingress_ptr = NULL;
+    }
+
+
+    lock_manager_type& get_lock_manager() {
+      return lock_manager;
+    }
   private:
     void set_options(const graphlab_options& opts) {
       size_t bufsize = 50000;
       bool usehash = false;
       bool userecent = false;
-      std::string ingress_method = "random";
+      std::string ingress_method = "";
       std::vector<std::string> keys = opts.get_graph_args().get_option_keys();
       foreach(std::string opt, keys) {
         if (opt == "ingress") {
           opts.get_graph_args().get_option("ingress", ingress_method);
-          if (rpc.procid() == 0) 
-            logstream(LOG_EMPH) << "Graph Option: ingress = " 
+          if (rpc.procid() == 0)
+            logstream(LOG_EMPH) << "Graph Option: ingress = "
               << ingress_method << std::endl;
-        } else if (opt == "bufsize") {
+        } else if (opt == "parallel_ingress") {
+         opts.get_graph_args().get_option("parallel_ingress", parallel_ingress);
+          if (!parallel_ingress && rpc.procid() == 0)
+            logstream(LOG_EMPH) << "Disable parallel ingress. Graph will be streamed through one node."
+              << std::endl;
+        }
+        /**
+         * These options below are deprecated.
+         */
+        else if (opt == "bufsize") {
           opts.get_graph_args().get_option("bufsize", bufsize);
-           if (rpc.procid() == 0) 
-            logstream(LOG_EMPH) << "Graph Option: bufsize = " 
+           if (rpc.procid() == 0)
+            logstream(LOG_EMPH) << "Graph Option: bufsize = "
               << bufsize << std::endl;
        } else if (opt == "usehash") {
           opts.get_graph_args().get_option("usehash", usehash);
-          if (rpc.procid() == 0) 
-            logstream(LOG_EMPH) << "Graph Option: usehash = " 
+          if (rpc.procid() == 0)
+            logstream(LOG_EMPH) << "Graph Option: usehash = "
               << usehash << std::endl;
         } else if (opt == "userecent") {
           opts.get_graph_args().get_option("userecent", userecent);
-           if (rpc.procid() == 0) 
-            logstream(LOG_EMPH) << "Graph Option: userecent = " 
+           if (rpc.procid() == 0)
+            logstream(LOG_EMPH) << "Graph Option: userecent = "
               << userecent << std::endl;
-        }  else if (opt == "parallel_ingress") {
-         opts.get_graph_args().get_option("parallel_ingress", parallel_ingress);
-          if (!parallel_ingress && rpc.procid() == 0) 
-            logstream(LOG_EMPH) << "Disable parallel ingress. Graph will be streamed through one node." 
-              << std::endl;
-        } else {
+        }  else {
           logstream(LOG_ERROR) << "Unexpected Graph Option: " << opt << std::endl;
         }
     }
@@ -641,6 +673,10 @@ namespace graphlab {
 
 
     // METHODS ===============================================================>
+    bool is_dynamic() const {
+      return local_graph.is_dynamic();
+    }
+    
     /**
      * \brief Commits the graph structure. Once a graph is finalized it may
      * no longer be modified. Must be called on all machines simultaneously.
@@ -651,19 +687,23 @@ namespace graphlab {
      * nothing.
      */
     void finalize() {
+#ifndef USE_DYNAMIC_LOCAL_GRAPH
       if (finalized) return;
+#endif
       ASSERT_NE(ingress_ptr, NULL);
       logstream(LOG_INFO) << "Distributed graph: enter finalize" << std::endl;
       ingress_ptr->finalize();
-      rpc.barrier(); delete ingress_ptr; ingress_ptr = NULL;
+      lock_manager.resize(num_local_vertices());
+      rpc.barrier(); 
+
       finalized = true;
     }
-   
-    /// \brief Returns true if the graph is finalized. 
+
+    /// \brief Returns true if the graph is finalized.
     bool is_finalized() {
       return finalized;
     }
-            
+
     /** \brief Get the number of vertices */
     size_t num_vertices() const { return nverts; }
 
@@ -673,7 +713,7 @@ namespace graphlab {
     /** \brief converts a vertex ID to a vertex object. This function should
      *   not be used without a deep understanding of the distributed graph
      *   representation.
-     * 
+     *
      * This functions converts a global vertex ID to a vertex_type object.
      * The global vertex ID must exist on this machine or assertion failures
      * will be produced.
@@ -684,7 +724,7 @@ namespace graphlab {
 
     /// \cond GRAPHLAB_INTERNAL
     /** \brief Get a list of all in edges of a given vertex ID. Not Implemented */
-    edge_list_type in_edges(const vertex_id_type vid) const 
+    edge_list_type in_edges(const vertex_id_type vid) const
       __attribute__((noreturn)) {
       // Not implemented.
       logstream(LOG_WARNING) << "in_edges not implemented. " << std::endl;
@@ -692,21 +732,21 @@ namespace graphlab {
     }
 
     /** Get a list of all out edges of a given vertex ID. Not Implemented */
-    edge_list_type out_edges(const vertex_id_type vid) const 
+    edge_list_type out_edges(const vertex_id_type vid) const
       __attribute__((noreturn)) {
             // Not implemented.
       logstream(LOG_WARNING) << "in_edges not implemented. " << std::endl;
       ASSERT_TRUE(false);
     }
     /// \endcond
-    
-   
-  
+
+
+
     /**
      * \brief Returns the number of in edges of a given global vertex ID. This
      * function should not be used without a deep understanding of the
      * distributed graph representation.
-     * 
+     *
      * Returns the number of in edges of a given vertex ID.  Equivalent to
      * vertex(vid).num_in_edges(). The global vertex ID must exist on this
      * machine or assertion failures will be produced.
@@ -720,7 +760,7 @@ namespace graphlab {
      * \brief Returns the number of out edges of a given global vertex ID. This
      * function should not be used without a deep understanding of the
      * distributed graph representation.
-     * 
+     *
      * Returns the number of out edges of a given vertex ID.  Equivalent to
      * vertex(vid).num_out_edges(). The global vertex ID must exist on this
      * machine or assertion failures will be produced.
@@ -728,30 +768,46 @@ namespace graphlab {
     size_t num_out_edges(const vertex_id_type vid) const {
       return get_vertex_record(vid).num_out_edges;
     }
-   
-    /** 
-     * \brief Creates a vertex containing the vertex data. 
+
+
+    /**
+     * Defines the strategy to use when duplicate vertices are inserted.
+     * The default behavior is that an arbitrary vertex data is picked.
+     * This allows you to define a combining strategy.
+     */
+    void set_duplicate_vertex_strategy(boost::function<void(vertex_data_type&,
+                                                        const vertex_data_type&)>
+                                       combine_strategy) {
+      ingress_ptr->set_duplicate_vertex_strategy(combine_strategy);
+    }
+
+    /**
+     * \brief Creates a vertex containing the vertex data.
      *
      * Creates a vertex with a particular vertex ID and containing a
-     * particular vertex data. Vertex IDs need not be sequential, and 
+     * particular vertex data. Vertex IDs need not be sequential, and
      * may arbitrarily span the unsigned integer range of vertex_id_type
      * with the exception of (vertex_id_type)(-1), or corresponding to
      * 0xFFFFFFFF on 32-bit vertex IDs.
      *
      * This function is parallel and distributed. i.e. It does not matter which
-     * machine, or which thread on which machines calls add_vertex() for a 
-     * particular ID. 
+     * machine, or which thread on which machines calls add_vertex() for a
+     * particular ID.
      *
-     * However, each vertex may only be added exactly once.  
+     * However, each vertex may only be added exactly once.
      */
-    void add_vertex(const vertex_id_type& vid, 
+    void add_vertex(const vertex_id_type& vid,
                     const VertexData& vdata = VertexData() ) {
+#ifndef USE_DYNAMIC_LOCAL_GRAPH
       if(finalized) {
-        logstream(LOG_FATAL) 
+        logstream(LOG_FATAL)
           << "\n\tAttempting to add a vertex to a finalized graph."
           << "\n\tVertices cannot be added to a graph after finalization."
-          << std::endl; 
+          << std::endl;
       }
+#else
+      finalized = false;
+#endif
       if(vid == vertex_id_type(-1)) {
         logstream(LOG_FATAL)
           << "\n\tAdding a vertex with id -1 is not allowed."
@@ -762,33 +818,38 @@ namespace graphlab {
       ingress_ptr->add_vertex(vid, vdata);
     }
 
-    
-    /** 
+
+    /**
      * \brief Creates an edge connecting vertex source, and vertex target().
      *
      * Creates a edge connecting two vertex IDs.
      *
      * This function is parallel and distributed. i.e. It does not matter which
-     * machine, or which thread on which machines calls add_edge() for a 
-     * particular ID. 
+     * machine, or which thread on which machines calls add_edge() for a
+     * particular ID.
      *
-     * However, each edge direction may only be added exactly once. i.e. 
+     * However, each edge direction may only be added exactly once. i.e.
      * if edge 5->6 is added already, no other calls to add edge 5->6 should be
      * made.
      */
-    void add_edge(vertex_id_type source, vertex_id_type target, 
+    void add_edge(vertex_id_type source, vertex_id_type target,
                   const EdgeData& edata = EdgeData()) {
+
+#ifndef USE_DYNAMIC_LOCAL_GRAPH
       if(finalized) {
-        logstream(LOG_FATAL) 
+        logstream(LOG_FATAL)
           << "\n\tAttempting to add an edge to a finalized graph."
           << "\n\tEdges cannot be added to a graph after finalization."
-          << std::endl; 
+          << std::endl;
       }
+#else 
+      finalized = false;
+#endif
       if(source == vertex_id_type(-1)) {
         logstream(LOG_FATAL)
           << "\n\tThe source vertex with id vertex_id_type(-1)\n"
           << "\tor unsigned value " << vertex_id_type(-1) << " in edge \n"
-          << "\t(" << source << "->" << target << ") is not allowed.\n" 
+          << "\t(" << source << "->" << target << ") is not allowed.\n"
           << "\tThe -1 vertex id is reserved for internal use."
           << std::endl;
       }
@@ -796,7 +857,7 @@ namespace graphlab {
         logstream(LOG_FATAL)
           << "\n\tThe target vertex with id vertex_id_type(-1)\n"
           << "\tor unsigned value " << vertex_id_type(-1) << " in edge \n"
-          << "\t(" << source << "->" << target << ") is not allowed.\n" 
+          << "\t(" << source << "->" << target << ") is not allowed.\n"
           << "\tThe -1 vertex id is reserved for internal use."
           << std::endl;
       }
@@ -813,21 +874,21 @@ namespace graphlab {
 
 
    /**
-    * \brief Performs a map-reduce operation on each vertex in the 
+    * \brief Performs a map-reduce operation on each vertex in the
     * graph returning the result.
-    * 
+    *
     * Given a map function, map_reduce_vertices() call the map function on all
     * vertices in the graph. The return values are then summed together and the
     * final result returned. The map function should only read the vertex data
     * and should not make any modifications. map_reduce_vertices() must be
     * called on all machines simultaneously.
     *
-    * ### Basic Usage 
+    * ### Basic Usage
     * For instance, if the graph has float vertex data, and float edge data:
     * \code
     *   typedef graphlab::distributed_graph<float, float> graph_type;
     * \endcode
-    * 
+    *
     * To compute an absolute sum over all the vertex data, we would write
     * a function which reads in each a vertex, and returns the absolute
     * value of the data on the vertex.
@@ -843,7 +904,7 @@ namespace graphlab {
     * will call the <code>absolute_vertex_data()</code> function
     * on each vertex in the graph. <code>absolute_vertex_data()</code>
     * reads the value of the vertex and returns the absolute result.
-    * This return values are then summed together and returned. 
+    * This return values are then summed together and returned.
     * All machines see the same result.
     *
     * The template argument <code><float></code> is needed to inform
@@ -853,7 +914,7 @@ namespace graphlab {
     * map-reduced over.
     *
     * ### Relations
-    * This function is similar to 
+    * This function is similar to
     * graphlab::iengine::map_reduce_vertices()
     * with the difference that this does not take a context
     * and thus cannot influence engine signalling.
@@ -862,11 +923,11 @@ namespace graphlab {
     *
     * \tparam ReductionType The output of the map function. Must have
     *                    operator+= defined, and must be \ref sec_serializable.
-    * \tparam VertexMapperType The type of the map function. 
+    * \tparam VertexMapperType The type of the map function.
     *                          Not generally needed.
     *                          Can be inferred by the compiler.
-    * \param mapfunction The map function to use. Must take 
-    *                   a \ref vertex_type, or a reference to a 
+    * \param mapfunction The map function to use. Must take
+    *                   a \ref vertex_type, or a reference to a
     *                   \ref vertex_type as its only argument.
     *                   Returns a ReductionType which must be summable
     *                   and \ref sec_serializable .
@@ -874,12 +935,12 @@ namespace graphlab {
     *             complete_set()
     */
     template <typename ReductionType, typename MapFunctionType>
-    ReductionType map_reduce_vertices(MapFunctionType mapfunction, 
+    ReductionType map_reduce_vertices(MapFunctionType mapfunction,
                                       const vertex_set& vset = complete_set()) {
       BOOST_CONCEPT_ASSERT((graphlab::Serializable<ReductionType>));
       BOOST_CONCEPT_ASSERT((graphlab::OpPlusEq<ReductionType>));
       if(!finalized) {
-        logstream(LOG_FATAL) 
+        logstream(LOG_FATAL)
           << "\n\tAttempting to run graph.map_reduce_vertices(...) "
           << "\n\tbefore calling graph.finalize()."
           << std::endl;
@@ -898,7 +959,7 @@ namespace graphlab {
         #pragma omp for
 #endif
         for (int i = 0; i < (int)local_graph.num_vertices(); ++i) {
-          if (lvid2record[i].owner == rpc.procid() && 
+          if (lvid2record[i].owner == rpc.procid() &&
               vset.l_contains((lvid_type)i)) {
             if (!result_set) {
               const vertex_type vtx(l_vertex(i));
@@ -927,28 +988,28 @@ namespace graphlab {
           }
         }
       }
-      conditional_addition_wrapper<ReductionType> 
+      conditional_addition_wrapper<ReductionType>
         wrapper(global_result, global_result_set);
       rpc.all_reduce(wrapper);
       return wrapper.value;
     } // end of map_reduce_vertices
 
    /**
-    * \brief Performs a map-reduce operation on each edge in the 
+    * \brief Performs a map-reduce operation on each edge in the
     * graph returning the result.
-    * 
+    *
     * Given a map function, map_reduce_edges() call the map function on all
     * edges in the graph. The return values are then summed together and the
     * final result returned. The map function should only read data
     * and should not make any modifications. map_reduce_edges() must be
     * called on all machines simultaneously.
     *
-    * ### Basic Usage 
+    * ### Basic Usage
     * For instance, if the graph has float vertex data, and float edge data:
     * \code
     *   typedef graphlab::distributed_graph<float, float> graph_type;
     * \endcode
-    * 
+    *
     * To compute an absolute sum over all the edge data, we would write
     * a function which reads in each a edge, and returns the absolute
     * value of the data on the edge.
@@ -964,7 +1025,7 @@ namespace graphlab {
     * will call the <code>absolute_edge_data()</code> function
     * on each edge in the graph. <code>absolute_edge_data()</code>
     * reads the value of the edge and returns the absolute result.
-    * This return values are then summed together and returned. 
+    * This return values are then summed together and returned.
     * All machines see the same result.
     *
     * The template argument <code><float></code> is needed to inform
@@ -974,7 +1035,7 @@ namespace graphlab {
     * set of edges which are map-reduced over.
     *
     * ### Relations
-    * This function similar to 
+    * This function similar to
     * graphlab::distributed_graph::map_reduce_edges()
     * with the difference that this does not take a context
     * and thus cannot influence engine signalling.
@@ -983,21 +1044,21 @@ namespace graphlab {
     *
     * \tparam ReductionType The output of the map function. Must have
     *                    operator+= defined, and must be \ref sec_serializable.
-    * \tparam EdgeMapperType The type of the map function. 
+    * \tparam EdgeMapperType The type of the map function.
     *                          Not generally needed.
     *                          Can be inferred by the compiler.
-    * \param mapfunction The map function to use. Must take 
-    *                   a \ref edge_type, or a reference to a 
+    * \param mapfunction The map function to use. Must take
+    *                   a \ref edge_type, or a reference to a
     *                   \ref edge_type as its only argument.
     *                   Returns a ReductionType which must be summable
     *                   and \ref sec_serializable .
     * \param vset A set of vertices. Combines with
-    *             edir to identify the set of edges. For instance, if 
-    *             edir == IN_EDGES, map_reduce_edges will map over all in edges 
+    *             edir to identify the set of edges. For instance, if
+    *             edir == IN_EDGES, map_reduce_edges will map over all in edges
     *             of the vertices in vset. Optional. Defaults to complete_set().
-    * \param edir An edge direction. Combines with vset to identify the set 
-    *             of edges to map over. For instance, if 
-    *             edir == IN_EDGES, map_reduce_edges will map over all in edges 
+    * \param edir An edge direction. Combines with vset to identify the set
+    *             of edges to map over. For instance, if
+    *             edir == IN_EDGES, map_reduce_edges will map over all in edges
     *             of the vertices in vset. Optional. Defaults to IN_EDGES.
     */
     template <typename ReductionType, typename MapFunctionType>
@@ -1007,7 +1068,7 @@ namespace graphlab {
       BOOST_CONCEPT_ASSERT((graphlab::Serializable<ReductionType>));
       BOOST_CONCEPT_ASSERT((graphlab::OpPlusEq<ReductionType>));
       if(!finalized) {
-        logstream(LOG_FATAL) 
+        logstream(LOG_FATAL)
           << "\n\tAttempting to run graph.map_reduce_vertices(...)"
           << "\n\tbefore calling graph.finalize()."
           << std::endl;
@@ -1036,7 +1097,7 @@ namespace graphlab {
                 }
                 else if (result_set){
                   edge_type edge(e);
-                  const ReductionType tmp = mapfunction(edge); 
+                  const ReductionType tmp = mapfunction(edge);
                   result += tmp;
                 }
               }
@@ -1050,7 +1111,7 @@ namespace graphlab {
                 }
                 else if (result_set){
                   edge_type edge(e);
-                  const ReductionType tmp = mapfunction(edge); 
+                  const ReductionType tmp = mapfunction(edge);
                   result += tmp;
                 }
               }
@@ -1073,7 +1134,7 @@ namespace graphlab {
         }
       }
 
-      conditional_addition_wrapper<ReductionType> 
+      conditional_addition_wrapper<ReductionType>
         wrapper(global_result, global_result_set);
       rpc.all_reduce(wrapper);
       return wrapper.value;
@@ -1082,7 +1143,7 @@ namespace graphlab {
     /**
      * \brief Performs a transformation operation on each vertex in the graph.
      *
-     * Given a mapfunction, transform_vertices() calls mapfunction on 
+     * Given a mapfunction, transform_vertices() calls mapfunction on
      * every vertex in graph. The map function may make modifications
      * to the data on the vertex. transform_vertices() must be called by all
      * machines simultaneously.
@@ -1090,15 +1151,15 @@ namespace graphlab {
      * The optional vset argument may be used to restrict the set of vertices
      * operated upon.
      *
-     * ### Basic Usage 
+     * ### Basic Usage
      * For instance, if the graph has integer vertex data, and integer edge
-     * data: 
+     * data:
      * \code
      *   typedef graphlab::distributed_graph<size_t, size_t> graph_type;
      * \endcode
-     * 
+     *
      * To set each vertex value to be the number of out-going edges,
-     * we may write the following function:     
+     * we may write the following function:
      * \code
      * void set_vertex_value(graph_type::vertex_type& vertex)i {
      *   vertex.data() = vertex.num_out_edges();
@@ -1110,42 +1171,42 @@ namespace graphlab {
      *   graph.transform_vertices(set_vertex_value);
      * \endcode
      * will run the <code>set_vertex_value()</code> function
-     * on each vertex in the graph, setting its new value. 
+     * on each vertex in the graph, setting its new value.
      *
      * ### Relations
-     * map_reduce_vertices() provide similar signalling functionality, 
-     * but should not make modifications to graph data. 
+     * map_reduce_vertices() provide similar signalling functionality,
+     * but should not make modifications to graph data.
      * graphlab::iengine::transform_vertices() provide
      * the same graph modification capabilities, but with a context
      * and thus can perform signalling.
      *
-     * \tparam VertexMapperType The type of the map function. 
+     * \tparam VertexMapperType The type of the map function.
      *                          Not generally needed.
      *                          Can be inferred by the compiler.
      * \param mapfunction The map function to use. Must take an
      *                   \ref icontext_type& as its first argument, and
-     *                   a \ref vertex_type, or a reference to a 
+     *                   a \ref vertex_type, or a reference to a
      *                   \ref vertex_type as its second argument.
      *                   Returns void.
      * \param vset The set of vertices to transform. Optional. Defaults to
      *             complete_set()
-     */ 
+     */
     template <typename TransformType>
-    void transform_vertices(TransformType transform_functor, 
+    void transform_vertices(TransformType transform_functor,
                             const vertex_set vset = complete_set()) {
       if(!finalized) {
-        logstream(LOG_FATAL) 
+        logstream(LOG_FATAL)
           << "\n\tAttempting to call graph.transform_vertices(...)"
           << "\n\tbefore finalizing the graph."
           << std::endl;
-      }      
+      }
 
       rpc.barrier();
 #ifdef _OPENMP
       #pragma omp parallel for
 #endif
       for (int i = 0; i < (int)local_graph.num_vertices(); ++i) {
-        if (lvid2record[i].owner == rpc.procid() && 
+        if (lvid2record[i].owner == rpc.procid() &&
             vset.l_contains((lvid_type)i)) {
           vertex_type vtx(l_vertex(i));
           transform_functor(vtx);
@@ -1158,18 +1219,18 @@ namespace graphlab {
     /**
      * \brief Performs a transformation operation on each edge in the graph.
      *
-     * Given a mapfunction, transform_edges() calls mapfunction on 
+     * Given a mapfunction, transform_edges() calls mapfunction on
      * every edge in graph. The map function may make modifications
      * to the data on the edge. transform_edges() must be called on
      * all machines simultaneously.
      *
-     * ### Basic Usage 
+     * ### Basic Usage
      * For instance, if the graph has integer vertex data, and integer edge
-     * data: 
+     * data:
      * \code
      *   typedef graphlab::distributed_graph<size_t, size_t> graph_type;
      * \endcode
-     * 
+     *
      * To set each edge value to be the number of out-going edges
      * of the target vertex, we may write the following:
      * \code
@@ -1183,45 +1244,45 @@ namespace graphlab {
      *   graph.transform_edges(set_edge_value);
      * \endcode
      * will run the <code>set_edge_value()</code> function
-     * on each edge in the graph, setting its new value. 
+     * on each edge in the graph, setting its new value.
      *
      * The two optional arguments vset and edir may be used to restrict
      * the set of edges operated upon.
      *
      * ### Relations
-     * map_reduce_edges() provide similar signalling functionality, 
-     * but should not make modifications to graph data. 
+     * map_reduce_edges() provide similar signalling functionality,
+     * but should not make modifications to graph data.
      * graphlab::iengine::transform_edges() provide
      * the same graph modification capabilities, but with a context
      * and thus can perform signalling.
      *
-     * \tparam EdgeMapperType The type of the map function. 
+     * \tparam EdgeMapperType The type of the map function.
      *                          Not generally needed.
      *                          Can be inferred by the compiler.
      * \param mapfunction The map function to use. Must take an
      *                   \ref icontext_type& as its first argument, and
-     *                   a \ref edge_type, or a reference to a 
+     *                   a \ref edge_type, or a reference to a
      *                   \ref edge_type as its second argument.
      *                   Returns void.
      * \param vset A set of vertices. Combines with
-     *             edir to identify the set of edges. For instance, if 
-     *             edir == IN_EDGES, map_reduce_edges will map over all in edges 
+     *             edir to identify the set of edges. For instance, if
+     *             edir == IN_EDGES, map_reduce_edges will map over all in edges
      *             of the vertices in vset. Optional. Defaults to complete_set().
-     * \param edir An edge direction. Combines with vset to identify the set 
-     *             of edges to map over. For instance, if 
-     *             edir == IN_EDGES, map_reduce_edges will map over all in edges 
+     * \param edir An edge direction. Combines with vset to identify the set
+     *             of edges to map over. For instance, if
+     *             edir == IN_EDGES, map_reduce_edges will map over all in edges
      *             of the vertices in vset. Optional. Defaults to IN_EDGES.
-     */ 
+     */
     template <typename TransformType>
     void transform_edges(TransformType transform_functor,
                          const vertex_set& vset = complete_set(),
                          edge_dir_type edir = IN_EDGES) {
       if(!finalized) {
-        logstream(LOG_FATAL) 
+        logstream(LOG_FATAL)
           << "\n\tAttempting to call graph.transform_edges(...)"
           << "\n\tbefore finalizing the graph."
           << std::endl;
-      }      
+      }
       rpc.barrier();
 #ifdef _OPENMP
       #pragma omp parallel for
@@ -1249,7 +1310,7 @@ namespace graphlab {
     // to use properly by the user
     /// \cond GRAPHLAB_INTERNAL
     /**
-     * \internal 
+     * \internal
      * parallel_for_vertices will partition the set of vertices among the
      * vector of accfunctions. Each accfunction is then executed sequentially
      * on the set of vertices it was assigned.
@@ -1277,7 +1338,7 @@ namespace graphlab {
       rpc.barrier();
     }
 
-    
+
     /**
      * \internal
      * parallel_for_edges will partition the set of edges among the
@@ -1307,16 +1368,15 @@ namespace graphlab {
       rpc.barrier();
     }
 
-    
-       
+
+
     /** \brief Load the graph from an archive */
     void load(iarchive& arc) {
-      // read the vertices 
-      arc >> nverts 
-          >> nedges 
-          >> local_own_nverts 
+      // read the vertices
+      arc >> nverts
+          >> nedges
+          >> local_own_nverts
           >> nreplicas
-          >> begin_eid
           >> vid2lvid
           >> lvid2record
           >> local_graph;
@@ -1324,21 +1384,20 @@ namespace graphlab {
       // check the graph condition
     } // end of load
 
-   
+
 
     /** \brief Save the graph to an archive */
     void save(oarchive& arc) const {
       if(!finalized) {
-        logstream(LOG_FATAL) 
+        logstream(LOG_FATAL)
           << "\n\tAttempting to save a graph before calling graph.finalize()."
           << std::endl;
       }
       // Write the number of edges and vertices
-      arc << nverts 
-          << nedges 
-          << local_own_nverts 
-          << nreplicas 
-          << begin_eid
+      arc << nverts
+          << nedges
+          << local_own_nverts
+          << nreplicas
           << vid2lvid
           << lvid2record
           << local_graph;
@@ -1347,17 +1406,18 @@ namespace graphlab {
     /// \endcond
 
     /// \brief Clears and resets the graph, releasing all memory used.
-    void clear () { 
+    void clear () {
       foreach (vertex_record& vrec, lvid2record)
         vrec.clear();
       lvid2record.clear();
       vid2lvid.clear();
+      local_graph.clear();
       finalized=false;
+      nverts = nedges = local_own_nverts = nreplicas = 0;
     }
 
 
-
-    /** \brief Load a distributed graph from a native binary format 
+    /** \brief Load a distributed graph from a native binary format
      * previously saved with save_binary(). This function must be called
      *  simultaneously on all machines.
      *
@@ -1366,13 +1426,13 @@ namespace graphlab {
      * \li [prefix].1.gz
      * \li [prefix].2.gz
      * \li etc.
-     * 
-     * These files must be previously saved using save_binary(), and 
-     * must be saved <b>using the same number of machines</b>. 
+     *
+     * These files must be previously saved using save_binary(), and
+     * must be saved <b>using the same number of machines</b>.
      * This function uses the graphlab serialization system, so
-     * the user must ensure that the vertex data and edge data 
+     * the user must ensure that the vertex data and edge data
      * serialization formats have not changed since the graph was saved.
-     * 
+     *
      * A graph loaded using load_binary() is already finalized and
      * structure modifications are not permitted after loading.
      */
@@ -1387,7 +1447,7 @@ namespace graphlab {
         boost::iostreams::filtering_stream<boost::iostreams::input> fin;
         fin.push(boost::iostreams::gzip_decompressor());
         fin.push(in_file);
-        
+
         if(!fin.good()) {
           logstream(LOG_FATAL) << "\n\tError opening file: " << fname << std::endl;
           exit(-1);
@@ -1414,7 +1474,7 @@ namespace graphlab {
     } // end of load
 
 
-    /** \brief Saves a distributed graph to a native binary format 
+    /** \brief Saves a distributed graph to a native binary format
      * which can be loaded with load_binary(). This function must be called
      *  simultaneously on all machines.
      *
@@ -1423,7 +1483,7 @@ namespace graphlab {
      * \li [prefix].1.gz
      * \li [prefix].2.gz
      * \li etc.
-     * 
+     *
      * This files can be loaded with load_binary() using the <b> same number
      * of machines</b>.
      * This function uses the graphlab serialization system, so
@@ -1431,7 +1491,7 @@ namespace graphlab {
      * change between the use of save_binary() and load_binary().
      *
      * If the graph is not alreasy finalized before save_binary() is called,
-     * this function will finalize the graph. 
+     * this function will finalize the graph.
      */
     void save_binary(const std::string& prefix) {
       rpc.full_barrier();
@@ -1443,7 +1503,7 @@ namespace graphlab {
         graphlab::hdfs hdfs;
         graphlab::hdfs::fstream out_file(hdfs, fname, true);
         boost::iostreams::filtering_stream<boost::iostreams::output> fout;
-        fout.push(boost::iostreams::gzip_compressor());        
+        fout.push(boost::iostreams::gzip_compressor());
         fout.push(out_file);
         if (!fout.good()) {
           logstream(LOG_FATAL) << "\n\tError opening file: " << fname << std::endl;
@@ -1462,7 +1522,7 @@ namespace graphlab {
           exit(-1);
         }
         boost::iostreams::filtering_stream<boost::iostreams::output> fout;
-        fout.push(boost::iostreams::gzip_compressor());        
+        fout.push(boost::iostreams::gzip_compressor());
         fout.push(out_file);
         oarchive oarc(fout);
         oarc << *this;
@@ -1471,7 +1531,7 @@ namespace graphlab {
         out_file.close();
       }
       logstream(LOG_INFO) << "Finish saving graph to " << fname << std::endl
-                          << "Finished saving binary graph: " 
+                          << "Finished saving binary graph: "
                           << savetime.current_time() << std::endl;
       rpc.full_barrier();
     } // end of save
@@ -1479,8 +1539,8 @@ namespace graphlab {
 
     /**
      * \brief Saves the graph to the filesystem using a provided Writer object.
-     * Like \ref save(const std::string& prefix, writer writer, bool gzip, bool save_vertex, bool save_edge, size_t files_per_machine) "save()" 
-     * but only saves to local filesystem. 
+     * Like \ref save(const std::string& prefix, writer writer, bool gzip, bool save_vertex, bool save_edge, size_t files_per_machine) "save()"
+     * but only saves to local filesystem.
      */
     template<typename Writer>
     void save_to_posixfs(const std::string& prefix, Writer writer,
@@ -1509,11 +1569,11 @@ namespace graphlab {
       // create the vector of callbacks
       std::vector<vertex_function_type> vertex_callbacks(graph_files.size());
       std::vector<edge_function_type> edge_callbacks(graph_files.size());
-    
+
       for(size_t i = 0; i < graph_files.size(); ++i) {
         logstream(LOG_INFO) << "Saving to file: " << graph_files[i] << std::endl;
         // open the stream
-        base_fstream_type* out_file = 
+        base_fstream_type* out_file =
           new base_fstream_type(graph_files[i].c_str(),
                                 std::ios_base::out | std::ios_base::binary);
         // attach gzip if the file is gzip
@@ -1526,7 +1586,7 @@ namespace graphlab {
         booststreams.push_back(fout);
         // construct the callback for the parallel for
         typedef distributed_graph<vertex_data_type, edge_data_type> graph_type;
-        vertex_callbacks[i] = 
+        vertex_callbacks[i] =
           boost::bind(&graph_type::template save_vertex_to_stream<boost_fstream_type, Writer>,
                       this, _1, boost::ref(*fout), boost::ref(writer));
         edge_callbacks[i] =
@@ -1538,7 +1598,7 @@ namespace graphlab {
       if (save_edge) parallel_for_edges(edge_callbacks);
 
       // cleanup
-      for(size_t i = 0; i < graph_files.size(); ++i) {    
+      for(size_t i = 0; i < graph_files.size(); ++i) {
         booststreams[i]->pop();
         if (gzip) booststreams[i]->pop();
         delete booststreams[i];
@@ -1555,8 +1615,8 @@ namespace graphlab {
 
     /**
      * \brief Saves the graph to HDFS using a provided Writer object.
-     * Like \ref save(const std::string& prefix, writer writer, bool gzip, bool save_vertex, bool save_edge, size_t files_per_machine) "save()" 
-     * but only saves to HDFS. 
+     * Like \ref save(const std::string& prefix, writer writer, bool gzip, bool save_vertex, bool save_edge, size_t files_per_machine) "save()"
+     * but only saves to HDFS.
      */
     template<typename Writer>
     void save_to_hdfs(const std::string& prefix, Writer writer,
@@ -1583,13 +1643,13 @@ namespace graphlab {
       }
 
       if(!hdfs::has_hadoop()) {
-        logstream(LOG_FATAL) 
+        logstream(LOG_FATAL)
           << "\n\tAttempting to save a graph to HDFS but GraphLab"
           << "\n\twas built without HDFS."
           << std::endl;
       }
       hdfs& hdfs = hdfs::get_hdfs();
-    
+
       // create the vector of callbacks
 
       std::vector<vertex_function_type> vertex_callbacks(graph_files.size());
@@ -1611,7 +1671,7 @@ namespace graphlab {
         booststreams.push_back(fout);
         // construct the callback for the parallel for
         typedef distributed_graph<vertex_data_type, edge_data_type> graph_type;
-        vertex_callbacks[i] = 
+        vertex_callbacks[i] =
           boost::bind(&graph_type::template save_vertex_to_stream<boost_fstream_type, Writer>,
                       this, _1, boost::ref(*fout), writer);
         edge_callbacks[i] =
@@ -1639,7 +1699,7 @@ namespace graphlab {
 
 
     /**
-     * \brief Saves the graph to the filesystem or to HDFS using 
+     * \brief Saves the graph to the filesystem or to HDFS using
      *  a user provided Writer object. This function should be called on
      *  all machines simultaneously.
      *
@@ -1648,12 +1708,12 @@ namespace graphlab {
      * \code
      * std::string Writer::save_vertex(graph_type::vertex_type v);
      * std::string Writer::save_edge(graph_type::edge_type e);
-     * \endcode 
-     * 
+     * \endcode
+     *
      * The <code>save_vertex()</code> function will be called on each vertex
-     * on the graph, and the output of the function is written to file. 
+     * on the graph, and the output of the function is written to file.
      * Similarly, the <code>save_edge()</code> function is called on each edge
-     * in the graph and the output written to file. 
+     * in the graph and the output written to file.
      *
      * For instance, a simple Writer object which saves a file containing
      * a list of edges will be:
@@ -1669,32 +1729,32 @@ namespace graphlab {
      * \endcode
      * The save_edge() function is called on each edge in the graph. It then
      * constructs a string containing "[source] \\t [target] \\n" and returns
-     * the string.  
+     * the string.
      *
      * This can also be used to data in human readable format. For instance,
      * if the vertex data type is a floating point number (say a PageRank
-     * value), to save a list of vertices and their corresponding PageRanks, 
-     * the following writer could be implemented: 
+     * value), to save a list of vertices and their corresponding PageRanks,
+     * the following writer could be implemented:
      * \code
      * struct pagerank_writer {
-     *   std::string save_vertex(vertex_type v) { 
+     *   std::string save_vertex(vertex_type v) {
      *     char c[128];
      *     sprintf(c, "%u\t%f\n", v.id(), v.data());
-     *     return c; 
+     *     return c;
      *   }
      *   std::string save_edge(edge_type) {}
      * };
      * \endcode
      * \note Note that these is not an example a reliable parser since sprintf
      *  may break if the size of vertex_id_type changes
-     * 
-     * The output files will be written in 
+     *
+     * The output files will be written in
      * \li [prefix]_1_of_16.gz
      * \li [prefix]_2_of_16.gz
      * \li [prefix].3_of_16.gz
      * \li etc.
-     * 
-     * To accelerate the saving process, multiple files are be written 
+     *
+     * To accelerate the saving process, multiple files are be written
      * per machine in parallel. If the gzip option is not set, the ".gz" suffix
      * is not added.
      *
@@ -1721,7 +1781,7 @@ namespace graphlab {
      * \li ...
      * \li /data/test_graph_16_of_16.gz
      *
-     * \tparam Writer The writer object type. This is generally inferred by the 
+     * \tparam Writer The writer object type. This is generally inferred by the
      *                compiler and need not be specified.
      *
      * \param prefix The file prefix to save the output graph files. The output
@@ -1753,15 +1813,15 @@ namespace graphlab {
      * \brief Saves the graph in the specified format. This function should be
      * called on all machines simultaneously.
      *
-     * The output files will be written in 
+     * The output files will be written in
      * \li [prefix].0.gz
      * \li [prefix].1.gz
      * \li [prefix].2.gz
      * \li etc.
-     * 
-     * To accelerate the saving process, multiple files are be written 
+     *
+     * To accelerate the saving process, multiple files are be written
      * per machine in parallel. If the gzip option is not set, the ".gz" suffix
-     * is not added. 
+     * is not added.
      *
      * For instance, if there are 4 machines, running:
      * \code
@@ -1779,10 +1839,10 @@ namespace graphlab {
      *               files will be numbered [prefix].0 , [prefix].1 , etc.
      *               If prefix begins with "hdfs://", the output is written to
      *               HDFS.
-     * \param format The file format to save in. 
-     *               Either "tsv", "snap", "graphjrl" or "bin". 
+     * \param format The file format to save in.
+     *               Either "tsv", "snap", "graphjrl" or "bin".
      * \param gzip If gzip compression should be used. If set, all files will be
-     *             appended with the .gz suffix. Defaults to true. Ignored 
+     *             appended with the .gz suffix. Defaults to true. Ignored
      *             if format == "bin".
      * \param files_per_machine Number of files to write simultaneously in
      *                          parallel per machine. Defaults to 4. Ignored if
@@ -1812,11 +1872,11 @@ namespace graphlab {
 
     /**
      *  \brief Load a graph from a collection of files in stored on
-     *  the filesystem using the user defined line parser. Like 
-     *  \ref load(const std::string& path, line_parser_type line_parser) 
-     *  but only loads from the filesystem. 
+     *  the filesystem using the user defined line parser. Like
+     *  \ref load(const std::string& path, line_parser_type line_parser)
+     *  but only loads from the filesystem.
      */
-    void load_from_posixfs(std::string prefix, 
+    void load_from_posixfs(std::string prefix,
                            line_parser_type line_parser) {
       std::string directory_name; std::string original_path(prefix);
       boost::filesystem::path path(prefix);
@@ -1838,6 +1898,10 @@ namespace graphlab {
       if (graph_files.size() == 0) {
         logstream(LOG_WARNING) << "No files found matching " << original_path << std::endl;
       }
+
+#ifdef _OPENMP
+#pragma omp parallel for
+#endif
       for(size_t i = 0; i < graph_files.size(); ++i) {
         if ((parallel_ingress && (i % rpc.numprocs() == rpc.procid()))
             || (!parallel_ingress && (rpc.procid() == 0))) {
@@ -1845,16 +1909,16 @@ namespace graphlab {
           // is it a gzip file ?
           const bool gzip = boost::ends_with(graph_files[i], ".gz");
           // open the stream
-          std::ifstream in_file(graph_files[i].c_str(), 
+          std::ifstream in_file(graph_files[i].c_str(),
                                 std::ios_base::in | std::ios_base::binary);
           // attach gzip if the file is gzip
-          boost::iostreams::filtering_stream<boost::iostreams::input> fin;  
+          boost::iostreams::filtering_stream<boost::iostreams::input> fin;
           // Using gzip filter
           if (gzip) fin.push(boost::iostreams::gzip_decompressor());
           fin.push(in_file);
           const bool success = load_from_stream(graph_files[i], fin, line_parser);
           if(!success) {
-            logstream(LOG_FATAL) 
+            logstream(LOG_FATAL)
               << "\n\tError parsing file: " << graph_files[i] << std::endl;
           }
           fin.pop();
@@ -1866,9 +1930,9 @@ namespace graphlab {
 
     /**
      *  \brief Load a graph from a collection of files in stored on
-     *  the HDFS using the user defined line parser. Like 
-     *  \ref load(const std::string& path, line_parser_type line_parser) 
-     *  but only loads from HDFS. 
+     *  the HDFS using the user defined line parser. Like
+     *  \ref load(const std::string& path, line_parser_type line_parser)
+     *  but only loads from HDFS.
      */
     void load_from_hdfs(std::string prefix, line_parser_type line_parser) {
       // force a "/" at the end of the path
@@ -1877,17 +1941,20 @@ namespace graphlab {
       std::string path = prefix;
       if (path.length() > 0 && path[path.length() - 1] != '/') path = path + "/";
       if(!hdfs::has_hadoop()) {
-        logstream(LOG_FATAL) 
+        logstream(LOG_FATAL)
           << "\n\tAttempting to load a graph from HDFS but GraphLab"
           << "\n\twas built without HDFS."
           << std::endl;
       }
-      hdfs& hdfs = hdfs::get_hdfs();    
+      hdfs& hdfs = hdfs::get_hdfs();
       std::vector<std::string> graph_files;
       graph_files = hdfs.list_files(path);
       if (graph_files.size() == 0) {
         logstream(LOG_WARNING) << "No files found matching " << prefix << std::endl;
       }
+#ifdef _OPENMP
+#pragma omp parallel for
+#endif
       for(size_t i = 0; i < graph_files.size(); ++i) {
         if ((parallel_ingress && (i % rpc.numprocs() == rpc.procid())) ||
             (!parallel_ingress && (rpc.procid() == 0))) {
@@ -1896,12 +1963,12 @@ namespace graphlab {
           const bool gzip = boost::ends_with(graph_files[i], ".gz");
           // open the stream
           graphlab::hdfs::fstream in_file(hdfs, graph_files[i]);
-          boost::iostreams::filtering_stream<boost::iostreams::input> fin;  
+          boost::iostreams::filtering_stream<boost::iostreams::input> fin;
           if(gzip) fin.push(boost::iostreams::gzip_decompressor());
-          fin.push(in_file);      
+          fin.push(in_file);
           const bool success = load_from_stream(graph_files[i], fin, line_parser);
           if(!success) {
-            logstream(LOG_FATAL) 
+            logstream(LOG_FATAL)
               << "\n\tError parsing file: " << graph_files[i] << std::endl;
           }
           fin.pop();
@@ -1913,12 +1980,12 @@ namespace graphlab {
 
 
     /**
-     *  \brief Load a the graph from a given path using a user defined 
-     *  line parser. This function should be called on all machines 
+     *  \brief Load a the graph from a given path using a user defined
+     *  line parser. This function should be called on all machines
      *  simultaneously.
-     *  
-     *  This functions loads all files in the filesystem or on HDFS matching 
-     *  the pattern "[prefix]*". 
+     *
+     *  This functions loads all files in the filesystem or on HDFS matching
+     *  the pattern "[prefix]*".
      *
      *  Examples:
      *
@@ -1926,14 +1993,14 @@ namespace graphlab {
      *
      *  will load the file webgraph.txt if such a file exists. It will also
      *  load all files in the current directory which begins with "webgraph.txt".
-     *  For instance, webgraph.txt.0, webgraph.txt.1, etc. 
+     *  For instance, webgraph.txt.0, webgraph.txt.1, etc.
      *
      *  <b>prefix = "graph/data"</b>
-     *  
-     *  will load all files in the "graph" directory which begin with "data" 
+     *
+     *  will load all files in the "graph" directory which begin with "data"
      *
      *  <b> prefix = "hdfs:///hdfs_server/graph/data" </b>
-     *  
+     *
      *  will load all files from the HDFS server in the "/graph/" directory
      *  which begin with "data".
      *
@@ -1943,30 +2010,30 @@ namespace graphlab {
      *  prototype:
      *
      *  \code
-     *  bool parser(graph_type& graph, 
-     *              const std::string& filename, 
+     *  bool parser(graph_type& graph,
+     *              const std::string& filename,
      *              const std::string& line);
      *  \endcode
      *
-     *  The load() function will call the parser one line at a time, and the 
+     *  The load() function will call the parser one line at a time, and the
      *  paser function should process the line and call add_vertex / add_edge
      *  functions in the graph. It should return true on success, and false
      *  on failure. Since the parsing may be parallelized,
      *  the parser should treat each line independently
-     *  and not depend on a sequential pass through a file. 
+     *  and not depend on a sequential pass through a file.
      *
      *  For instance, if the graph is in a simple edge list format, a parser
      *  could be:
      *  \code
-     *  bool edge_list_parser(graph_type& graph, 
-     *                        const std::string& filename, 
+     *  bool edge_list_parser(graph_type& graph,
+     *                        const std::string& filename,
      *                        const std::string& line) {
      *    if (line.empty()) return true;
      *    vertex_id_type source, target;
      *    if (sscanf(line.c_str(), "%u %u", source, target) < 2) {
      *      // parsed less than 2 objects, failure.
      *      return false;
-     *    } 
+     *    }
      *    else {
      *      graph.add_edge(source, target);
      *      return true;
@@ -1980,7 +2047,7 @@ namespace graphlab {
      *                the pattern "[prefix]*" are loaded. If prefix begins with
      *                "hdfs://" the files are read from hdfs.
      *  \param line_parser A user defined parsing function
-     */  
+     */
     void load(std::string prefix, line_parser_type line_parser) {
       rpc.full_barrier();
       if (prefix.length() == 0) return;
@@ -1991,19 +2058,19 @@ namespace graphlab {
       }
       rpc.full_barrier();
     } // end of load
-  
+
     /**
-     * \brief Constructs a synthetic power law graph. Must be called on 
+     * \brief Constructs a synthetic power law graph. Must be called on
      * all machines simultaneously.
      *
      * This function constructs a synthetic out-degree power law of "nverts"
      * vertices with a particular alpha parameter.
-     * In other words, the probability that a vertex has out-degree \f$d\f$, 
+     * In other words, the probability that a vertex has out-degree \f$d\f$,
      * is given by:
      *
      * \f[ P(d) \propto d^{-\alpha} \f]
      *
-     * By default, the out-degree distribution of each vertex 
+     * By default, the out-degree distribution of each vertex
      * will have power-law distribution, but the in-degrees will be nearly
      * uniform. This can be reversed by setting the second argument "in_degree"
      * to true.
@@ -2016,12 +2083,12 @@ namespace graphlab {
      * \param truncate Limits the maximum degree of any vertex. (thus generating
      *                 a truncated power-law distribution). Necessary
      *                 for large number of vertices (hundreds of millions)
-     *                 since this function allocates a PDF vector of 
+     *                 since this function allocates a PDF vector of
      *                 "nverts" to sample from.
      */
     void load_synthetic_powerlaw(size_t nverts, bool in_degree = false,
                                  double alpha = 2.1, size_t truncate = (size_t)(-1)) {
-      rpc.full_barrier(); 
+      rpc.full_barrier();
       std::vector<double> prob(std::min(nverts, truncate), 0);
       logstream(LOG_INFO) << "constructing pdf" << std::endl;
       for(size_t i = 0; i < prob.size(); ++i)
@@ -2050,14 +2117,14 @@ namespace graphlab {
           logstream(LOG_EMPH) << addedvtx << " inserted\n";
         }
       }
-      rpc.full_barrier(); 
+      rpc.full_barrier();
     } // end of load random powerlaw
 
 
     /**
-     *  \brief load a graph with a standard format. Must be called on all 
+     *  \brief load a graph with a standard format. Must be called on all
      *  machines simultaneously.
-     * 
+     *
      *  The supported graph formats are described in \ref graph_formats.
      */
     void load_format(const std::string& path, const std::string& format) {
@@ -2070,6 +2137,9 @@ namespace graphlab {
         load(path, line_parser);
       } else if (format == "tsv") {
         line_parser = builtin_parsers::tsv_parser<distributed_graph>;
+        load(path, line_parser);
+      } else if (format == "csv") {
+        line_parser = builtin_parsers::csv_parser<distributed_graph>;
         load(path, line_parser);
       } else if (format == "graphjrl") {
         line_parser = builtin_parsers::graphjrl_parser<distributed_graph>;
@@ -2084,35 +2154,6 @@ namespace graphlab {
         return;
       }
     } // end of load
-
-
-    /** \brief Load a distributed graph from a native json output format.
-     * This function must be called simultaneously on all machines.
-     *
-     * This function loads a sequence of files numbered
-     * \li [prefix].0.gz
-     * \li [prefix].1.gz
-     * \li [prefix].2.gz
-     * \li etc.
-     * 
-     * These files must be previously saved using external graphbuilder library, 
-     * and must be saved <b>using the same number of machines</b>. 
-     * 
-     * A graph loaded using load_json() is already finalized and
-     * structure modifications are not permitted after loading.
-     */
-    typedef json_parser<VertexData, EdgeData> json_parser_type;
-    typedef typename json_parser_type::edge_parser_type edge_parser_type;
-    typedef typename json_parser_type::vertex_parser_type vertex_parser_type;
-    void load_json (const std::string& prefix, bool gzip=false, 
-        edge_parser_type edge_parser = builtin_parsers::empty_edge_parser<EdgeData>, 
-        vertex_parser_type vertex_parser = builtin_parsers::empty_vertex_parser<VertexData>
-       ) {
-      rpc.full_barrier();
-      json_parser<VertexData, EdgeData> jsonparser(*this, prefix, gzip, edge_parser, vertex_parser);
-      jsonparser.load();
-      rpc.full_barrier();
-    } // end of load_json
 
 
 /****************************************************************************
@@ -2134,8 +2175,8 @@ namespace graphlab {
    static vertex_set complete_set() {
      return vertex_set(true);
    }
- 
-   /// 
+
+   ///
    vertex_set neighbors(const vertex_set& cur,
                         edge_dir_type edir) {
      // foreach master bit which is set, set its corresponding mirror
@@ -2165,7 +2206,7 @@ namespace graphlab {
     * \brief Constructs a vertex set from a predicate operation which
     * is executed on each vertex.
     *
-    * This function selects a subset of vertices on which the predicate 
+    * This function selects a subset of vertices on which the predicate
     * evaluates to true.
     For instance if vertices contain an integer, the following
     * code will construct a set of vertices containing only vertices with data
@@ -2177,20 +2218,20 @@ namespace graphlab {
     * }
     * vertex_set even_vertices = graph.select(is_multiple_of_2);
     * \endcode
-    * 
+    *
     * select() also takes a second argument which restricts the set of vertices
-    * queried. For instance, 
+    * queried. For instance,
     * \code
     * bool is_multiple_of_3(const graph_type::vertex_type& vertex) {
     *   return vertex.data() % 3 == 0;
     * }
     * vertex_set div_6_vertices = graph.select(is_multiple_of_3, even_vertices);
     * \endcode
-    * will select from the set of even vertices, all vertices which are also 
+    * will select from the set of even vertices, all vertices which are also
     * divisible by 3. The resultant set is therefore the set of all vertices
     * which are divisible by 6.
     *
-    * \param select_functor A function/functor which takes a 
+    * \param select_functor A function/functor which takes a
     *                       const vertex_type& argument and returns a boolean
     *                       denoting of the vertex is to be included in the
     *                       returned set
@@ -2207,22 +2248,26 @@ namespace graphlab {
         #pragma omp for
 #endif
      for (int i = 0; i < (int)local_graph.num_vertices(); ++i) {
-       if (lvid2record[i].owner == rpc.procid() && 
+       if (lvid2record[i].owner == rpc.procid() &&
            vset.l_contains((lvid_type)i)) {
          const vertex_type vtx(l_vertex(i));
          if (select_functor(vtx)) ret.set_lvid(i);
        }
      }
      ret.synchronize_master_to_mirrors(*this, vset_exchange);
-     return ret; 
+     return ret;
+   }
+
+   void sync_vertex_set_master_to_mirrors(vertex_set& vset) {
+     vset.synchronize_master_to_mirrors(*this, vset_exchange);
    }
 
    /**
     * \brief Returns the number of vertices in a vertex set.
-    * 
-    * This function must be called on all machines and returns the number of 
+    *
+    * This function must be called on all machines and returns the number of
     * vertices contained in the vertex set.
-    * 
+    *
     * For instance:
     * \code
     *   graph.vertex_set_size(graph.complete_set());
@@ -2232,26 +2277,26 @@ namespace graphlab {
    size_t vertex_set_size(const vertex_set& vset) {
      size_t count = 0;
      for (int i = 0; i < (int)local_graph.num_vertices(); ++i) {
-        count += (lvid2record[i].owner == rpc.procid() && 
+        count += (lvid2record[i].owner == rpc.procid() &&
                   vset.l_contains((lvid_type)i));
      }
      rpc.all_reduce(count);
-     return count; 
+     return count;
    }
 
 
    /**
-    * \brief Returns true if the vertex set is empty 
-    * 
-    * This function must be called on all machines and returns 
-    * true if the vertex set is empty 
+    * \brief Returns true if the vertex set is empty
+    *
+    * This function must be called on all machines and returns
+    * true if the vertex set is empty
     */
    bool vertex_set_empty(const vertex_set& vset) {
      if (vset.lazy) return !vset.is_complete_set;
 
      size_t count = vset.get_lvid_bitset(*this).empty();
      rpc.all_reduce(count);
-     return count == rpc.numprocs(); 
+     return count == rpc.numprocs();
    }
 /****************************************************************************
  *                       Internal Functions                                 *
@@ -2269,7 +2314,7 @@ namespace graphlab {
      */
     struct vertex_record {
       /// The official owning processor for this vertex
-      procid_t owner; 
+      procid_t owner;
       /// The local vid of this vertex on this proc
       vertex_id_type gvid;
       /// The number of in edges
@@ -2277,9 +2322,9 @@ namespace graphlab {
       /** The set of proc that mirror this vertex.  The owner should
           NOT be in this set.*/
       mirror_type _mirrors;
-      vertex_record() : 
+      vertex_record() :
         owner(-1), gvid(-1), num_in_edges(0), num_out_edges(0) { }
-      vertex_record(const vertex_id_type& vid) : 
+      vertex_record(const vertex_id_type& vid) :
         owner(-1), gvid(vid), num_in_edges(0), num_out_edges(0) { }
       procid_t get_owner () const { return owner; }
       const mirror_type& mirrors() const { return _mirrors; }
@@ -2316,7 +2361,7 @@ namespace graphlab {
     local_vertex_type l_vertex(lvid_type vid) {
       return local_vertex_type(*this, vid);
     }
-    
+
     /** \internal
      *\brief Get the Total number of vertex replicas in the graph */
     size_t num_replicas() const { return nreplicas; }
@@ -2338,26 +2383,32 @@ namespace graphlab {
     lvid_type local_vid (const vertex_id_type vid) const {
       // typename boost::unordered_map<vertex_id_type, lvid_type>::
       //   const_iterator iter = vid2lvid.find(vid);
-      typename cuckoo_map_type::const_iterator iter = vid2lvid.find(vid);
+      typename hopscotch_map_type::const_iterator iter = vid2lvid.find(vid);
       return iter->second;
     } // end of local_vertex_id
 
     /** \internal
      *\brief Convert a local vid to a global vid */
-    vertex_id_type global_vid(const lvid_type lvid) const { 
+    vertex_id_type global_vid(const lvid_type lvid) const {
       ASSERT_LT(lvid, lvid2record.size());
       return lvid2record[lvid].gvid;
     } // end of global_vertex_id
 
 
-
+    /** \internal
+     * \brief Returns true if the local graph as an instance of (master or mirror)
+     * of the vertex ID.
+     */
+    bool contains_vertex(const vertex_id_type vid) const {
+      return vid2lvid.find(vid) != vid2lvid.end();
+    }
     /**
      * \internal
      * \brief Returns an edge list of all in edges of a local vertex ID
      *        on the local graph
-     * 
+     *
      * Equivalent to l_vertex(lvid).in_edges()
-     */    
+     */
     local_edge_list_type l_in_edges(const lvid_type lvid) {
       return local_edge_list_type(*this, local_graph.in_edges(lvid));
     }
@@ -2366,10 +2417,10 @@ namespace graphlab {
      * \internal
      * \brief Returns the number of in edges of a local vertex ID
      *        on the local graph
-     * 
+     *
      * Equivalent to l_vertex(lvid).num in_edges()
-     */    
-    size_t l_num_in_edges(const lvid_type lvid) const { 
+     */
+    size_t l_num_in_edges(const lvid_type lvid) const {
       return local_graph.num_in_edges(lvid);
     }
 
@@ -2377,9 +2428,9 @@ namespace graphlab {
      * \internal
      * \brief Returns an edge list of all out edges of a local vertex ID
      *        on the local graph
-     * 
+     *
      * Equivalent to l_vertex(lvid).out_edges()
-     */    
+     */
     local_edge_list_type l_out_edges(const lvid_type lvid) {
       return local_edge_list_type(*this, local_graph.out_edges(lvid));
     }
@@ -2388,13 +2439,13 @@ namespace graphlab {
      * \internal
      * \brief Returns the number of out edges of a local vertex ID
      *        on the local graph
-     * 
+     *
      * Equivalent to l_vertex(lvid).num out_edges()
-     */    
+     */
     size_t l_num_out_edges(const lvid_type lvid) const {
       return local_graph.num_out_edges(lvid);
     }
-    
+
     procid_t procid() const {
       return rpc.procid();
     }
@@ -2416,7 +2467,7 @@ namespace graphlab {
     const vertex_record& get_vertex_record(vertex_id_type vid) const {
       // typename boost::unordered_map<vertex_id_type, lvid_type>::
       //   const_iterator iter = vid2lvid.find(vid);
-      typename cuckoo_map_type::const_iterator iter = vid2lvid.find(vid);
+      typename hopscotch_map_type::const_iterator iter = vid2lvid.find(vid);
       ASSERT_TRUE(iter != vid2lvid.end());
       return lvid2record[iter->second];
     }
@@ -2438,11 +2489,11 @@ namespace graphlab {
     }
 
     /** \internal
-     * \brief Returns true if the provided global vertex ID is a 
+     * \brief Returns true if the provided global vertex ID is a
      *        master vertex on this machine and false otherwise.
      */
     bool is_master(vertex_id_type vid) const {
-      typename cuckoo_map_type::const_iterator iter = vid2lvid.find(vid);
+      typename hopscotch_map_type::const_iterator iter = vid2lvid.find(vid);
       return (iter != vid2lvid.end()) && l_is_master(iter->second);
     }
     /** \internal
@@ -2484,29 +2535,42 @@ namespace graphlab {
      * This function synchronizes the master vertex data with all the mirrors.
      * This function must be called simultaneously by all machines
      */
-    void synchronize() {
+    void synchronize(const vertex_set& vset = complete_set()) {
       typedef std::pair<vertex_id_type, vertex_data_type> pair_type;
-      typename buffered_exchange<pair_type>::buffer_type recv_buffer;
+
       procid_t sending_proc;
       // Loop over all the local vertex records
+
+
+#ifdef _OPENMP
+#pragma omp parallel for
+#endif
       for(lvid_type lvid = 0; lvid < lvid2record.size(); ++lvid) {
+        typename buffered_exchange<pair_type>::buffer_type recv_buffer;
         const vertex_record& record = lvid2record[lvid];
         // if this machine is the owner of a record then send the
         // vertex data to all mirrors
-        if(record.owner == rpc.procid()) {
+        if(record.owner == rpc.procid() && vset.l_contains(lvid)) {
           foreach(size_t proc, record.mirrors()) {
             const pair_type pair(record.gvid, local_graph.vertex_data(lvid));
+#ifdef _OPENMP
+            vertex_exchange.send(proc, pair, omp_get_thread_num());
+#else
             vertex_exchange.send(proc, pair);
+#endif
           }
         }
         // Receive any vertex data and update local mirrors
-        while(vertex_exchange.recv(sending_proc, recv_buffer)) {
+        while(vertex_exchange.recv(sending_proc, recv_buffer, true)) {
           foreach(const pair_type& pair, recv_buffer)  {
             vertex(pair.first).data() = pair.second;
           }
           recv_buffer.clear();
         }
       }
+
+
+      typename buffered_exchange<pair_type>::buffer_type recv_buffer;
       vertex_exchange.flush();
       while(vertex_exchange.recv(sending_proc, recv_buffer)) {
         foreach(const pair_type& pair, recv_buffer) {
@@ -2542,7 +2606,7 @@ namespace graphlab {
       bool operator==(local_vertex_type& v) const {
         return lvid == v.lvid;
       }
-      
+
       /// \brief Returns a reference to the data on the local vertex
       const vertex_data_type& data() const {
         return graph_ref.get_local_graph().vertex_data(lvid);
@@ -2553,14 +2617,14 @@ namespace graphlab {
         return graph_ref.get_local_graph().vertex_data(lvid);
       }
 
-      /** \brief Returns the number of in edges on the 
+      /** \brief Returns the number of in edges on the
        *         local graph of this local vertex
        */
       size_t num_in_edges() const {
         return graph_ref.get_local_graph().num_in_edges(lvid);
       }
 
-      /** \brief Returns the number of in edges on the 
+      /** \brief Returns the number of in edges on the
        *         local graph of this local vertex
        */
       size_t num_out_edges() const {
@@ -2577,14 +2641,14 @@ namespace graphlab {
         return graph_ref.global_vid(lvid);
       }
 
-      /** \brief Returns a list of all in edges on the 
+      /** \brief Returns a list of all in edges on the
        *         local graph of this local vertex
        */
       local_edge_list_type in_edges() {
         return graph_ref.l_in_edges(lvid);
       }
 
-      /** \brief Returns a list of all out edges on the 
+      /** \brief Returns a list of all out edges on the
        *         local graph of this local vertex
        */
       local_edge_list_type out_edges() {
@@ -2637,7 +2701,7 @@ namespace graphlab {
       }
     };
 
-    
+
     /** \internal
      *  edge type which provides access to local graph edges */
     class local_edge_type {
@@ -2648,7 +2712,7 @@ namespace graphlab {
       local_edge_type(distributed_graph& graph_ref,
                       typename local_graph_type::edge_type e):
                                                 graph_ref(graph_ref), e(e) { }
-                      
+
       /// \brief Can be converted from edge_type via an explicit cast
       explicit local_edge_type(edge_type ge) :graph_ref(ge.graph_ref),e(ge.e) { }
 
@@ -2658,26 +2722,26 @@ namespace graphlab {
       }
 
       /// \brief Returns the source local vertex of the edge
-      local_vertex_type source() { return local_vertex_type(graph_ref, e.source().id()); }
-      
+      local_vertex_type source() const { return local_vertex_type(graph_ref, e.source().id()); }
+
       /// \brief Returns the target local vertex of the edge
-      local_vertex_type target() { return local_vertex_type(graph_ref, e.target().id()); }
-      
-      
-      
+      local_vertex_type target() const { return local_vertex_type(graph_ref, e.target().id()); }
+
+
+
       /// \brief Returns a constant reference to the data on the vertex
       const edge_data_type& data() const { return e.data(); }
-      
+
       /// \brief Returns a reference to the data on the vertex
       edge_data_type& data() { return e.data(); }
-      
+
       /// \brief Returns the internal ID of this edge
       edge_id_type id() const { return e.id(); }
-    }; 
+    };
 
     /** \internal
      * \brief A functor which converts local_graph_type::edge_type to
-     *        local_edge_type 
+     *        local_edge_type
      */
     struct make_local_edge_type_functor {
       typedef typename local_graph_type::edge_type argument_type;
@@ -2689,33 +2753,33 @@ namespace graphlab {
         return local_edge_type(graph_ref, et);
       }
     };
-    
+
 
     /** \internal
-     * \brief A list of edges. Used by l_in_edges() and l_out_edges() 
+     * \brief A list of edges. Used by l_in_edges() and l_out_edges()
      */
     struct local_edge_list_type {
       make_local_edge_type_functor me_functor;
       typename local_graph_type::edge_list_type elist;
-      
+
       typedef boost::transform_iterator<make_local_edge_type_functor,
                                       typename local_graph_type::edge_list_type::iterator> iterator;
       typedef iterator const_iterator;
-      
+
       local_edge_list_type(distributed_graph& graph_ref,
                            typename local_graph_type::edge_list_type elist) :
                           me_functor(graph_ref), elist(elist) { }
       /// \brief Returns the number of edges in the list
       size_t size() const { return elist.size(); }
-      
+
       /// \brief Random access to the list elements
       local_edge_type operator[](size_t i) const { return me_functor(elist[i]); }
-      
-      /** \brief Returns an iterator to the beginning of the list. 
-       * 
+
+      /** \brief Returns an iterator to the beginning of the list.
+       *
        * Returns an iterator to the beginning of the list. \see end()
        * The iterator_type is local_edge_list_type::iterator.
-       * 
+       *
        * \code
        * local_edge_list_type::iterator iter = elist.begin();
        * while(iter != elist.end()) {
@@ -2723,16 +2787,16 @@ namespace graphlab {
        *   ++iter;
        * }
        * \endcode
-       * 
+       *
       */
       iterator begin() const { return
           boost::make_transform_iterator(elist.begin(), me_functor); }
-          
-      /** \brief Returns an iterator to the end of the list. 
-       * 
+
+      /** \brief Returns an iterator to the end of the list.
+       *
        * Returns an iterator to the end of the list. \see begin()
        * The iterator_type is local_edge_list_type::iterator.
-       * 
+       *
        * \code
        * local_edge_list_type::iterator iter = elist.begin();
        * while(iter != elist.end()) {
@@ -2740,38 +2804,46 @@ namespace graphlab {
        *   ++iter;
        * }
        * \endcode
-       * 
+       *
       */
       iterator end() const { return
           boost::make_transform_iterator(elist.end(), me_functor); }
-          
+
       /// \brief Returns true if the list is empty
       bool empty() const { return elist.empty(); }
-    }; 
-    
+    };
+
 
   private:
-      
-    // PRIVATE DATA MEMBERS ===================================================> 
+
+    // PRIVATE DATA MEMBERS ===================================================>
     /** The rpc interface for this class */
     mutable dc_dist_object<distributed_graph> rpc;
 
+  public:
+
+    // For the warp engine to find the remote instances of this class
+    size_t get_rpc_obj_id() {
+      return rpc.get_obj_id();
+    }
+
+  private:
     bool finalized;
 
     /** The local graph data */
     local_graph_type local_graph;
-    
+
     /** The map from global vertex ids to vertex records */
     std::vector<vertex_record>  lvid2record;
-    
+
     // boost::unordered_map<vertex_id_type, lvid_type> vid2lvid;
     /** The map from global vertex ids back to local vertex ids */
-    typedef cuckoo_map_pow2<vertex_id_type, lvid_type, 3, uint32_t> cuckoo_map_type;
-    typedef cuckoo_map_type vid2lvid_map_type;
+    typedef hopscotch_map<vertex_id_type, lvid_type> hopscotch_map_type;
+    typedef hopscotch_map_type vid2lvid_map_type;
 
-    cuckoo_map_type vid2lvid;
+    hopscotch_map_type vid2lvid;
 
-        
+
     /** The global number of vertices and edges */
     size_t nverts, nedges;
 
@@ -2781,11 +2853,8 @@ namespace graphlab {
     /** The global number of vertex replica */
     size_t nreplicas;
 
-    /** The beginning edge id for this machine */
-    size_t begin_eid;
-
     /** pointer to the distributed ingress object*/
-    idistributed_ingress<VertexData, EdgeData>* ingress_ptr;
+    distributed_ingress_base<VertexData, EdgeData>* ingress_ptr;
 
     /** Buffered Exchange used by synchronize() */
     buffered_exchange<std::pair<vertex_id_type, vertex_data_type> > vertex_exchange;
@@ -2794,34 +2863,51 @@ namespace graphlab {
     buffered_exchange<vertex_id_type> vset_exchange;
 
     /** Command option to disable parallel ingress. Used for simulating single node ingress */
-    bool parallel_ingress; 
+    bool parallel_ingress;
+
+
+    lock_manager_type lock_manager;
 
     void set_ingress_method(const std::string& method,
         size_t bufsize = 50000, bool usehash = false, bool userecent = false) {
       if(ingress_ptr != NULL) { delete ingress_ptr; ingress_ptr = NULL; }
-      if (method == "batch") {
-        logstream(LOG_EMPH) << "Use batch ingress, bufsize: " << bufsize
-          << ", usehash: " << usehash << ", userecent" << userecent << std::endl;
-        ingress_ptr = new distributed_batch_ingress<VertexData, EdgeData>(rpc.dc(), *this,
-                                                         bufsize, usehash, userecent);
-      } else if (method == "oblivious") {
-        logstream(LOG_EMPH) << "Use oblivious ingress, usehash: " << usehash
+      if (method == "oblivious") {
+        if (rpc.procid() == 0) logstream(LOG_EMPH) << "Use oblivious ingress, usehash: " << usehash
           << ", userecent: " << userecent << std::endl;
-        ingress_ptr = new distributed_oblivious_ingress<VertexData, EdgeData>(rpc.dc(), *this,
-                                                             usehash, userecent);
-      } else if (method == "identity") {
-        logstream(LOG_EMPH) << "Use identity ingress" << std::endl;
-        ingress_ptr = new distributed_identity_ingress<VertexData, EdgeData>(rpc.dc(), *this);
+        ingress_ptr = new distributed_oblivious_ingress<VertexData, EdgeData>(rpc.dc(), *this, usehash, userecent);
+      } else if  (method == "random") {
+        if (rpc.procid() == 0)logstream(LOG_EMPH) << "Use random ingress" << std::endl;
+        ingress_ptr = new distributed_random_ingress<VertexData, EdgeData>(rpc.dc(), *this); 
       } else if (method == "grid") {
-        logstream(LOG_EMPH) << "Use random grid ingress" << std::endl;
+        if (rpc.procid() == 0)logstream(LOG_EMPH) << "Use grid ingress" << std::endl;
         ingress_ptr = new distributed_constrained_random_ingress<VertexData, EdgeData>(rpc.dc(), *this, "grid");
       } else if (method == "pds") {
-        logstream(LOG_EMPH) << "Use random pds ingress" << std::endl;
+        if (rpc.procid() == 0)logstream(LOG_EMPH) << "Use pds ingress" << std::endl;
         ingress_ptr = new distributed_constrained_random_ingress<VertexData, EdgeData>(rpc.dc(), *this, "pds");
-      }else {
-        logstream(LOG_EMPH) << "Use random ingress" << std::endl;
-        ingress_ptr = new distributed_random_ingress<VertexData, EdgeData>(rpc.dc(), *this);
+      } else {
+        // use default ingress method if none is specified
+        std::string ingress_auto="";
+        size_t num_shards = rpc.numprocs();
+        int nrow, ncol, p;
+        if (sharding_constraint::is_pds_compatible(num_shards, p)) {
+          ingress_auto="pds";
+          ingress_ptr = new distributed_constrained_random_ingress<VertexData, EdgeData>(rpc.dc(), *this, "pds");
+        } else if (sharding_constraint::is_grid_compatible(num_shards, nrow, ncol)) {
+          ingress_auto="grid";
+          ingress_ptr = new distributed_constrained_random_ingress<VertexData, EdgeData>(rpc.dc(), *this, "grid");
+        } else {
+          ingress_auto="oblivious";
+          ingress_ptr = new distributed_oblivious_ingress<VertexData, EdgeData>(rpc.dc(), *this, usehash, userecent);
+        }
+        if (rpc.procid() == 0)logstream(LOG_EMPH) << "Automatically determine ingress method: " << ingress_auto << std::endl;
       }
+      // batch ingress is deprecated
+      // if (method == "batch") {
+      //   logstream(LOG_EMPH) << "Use batch ingress, bufsize: " << bufsize
+      //     << ", usehash: " << usehash << ", userecent" << userecent << std::endl;
+      //   ingress_ptr = new distributed_batch_ingress<VertexData, EdgeData>(rpc.dc(), *this,
+      //                                                    bufsize, usehash, userecent);
+      // } else 
     } // end of set ingress method
 
 
@@ -2830,7 +2916,7 @@ namespace graphlab {
        This internal function is used to load a single line from an input stream
      */
     template<typename Fstream>
-    bool load_from_stream(std::string filename, Fstream& fin, 
+    bool load_from_stream(std::string filename, Fstream& fin,
                           line_parser_type& line_parser) {
       size_t linecount = 0;
       timer ti; ti.start();
@@ -2841,13 +2927,13 @@ namespace graphlab {
         if(fin.fail()) break;
         const bool success = line_parser(*this, filename, line);
         if (!success) {
-          logstream(LOG_WARNING) 
+          logstream(LOG_WARNING)
             << "Error parsing line " << linecount << " in "
             << filename << ": " << std::endl
-            << "\t\"" << line << "\"" << std::endl;  
+            << "\t\"" << line << "\"" << std::endl;
           return false;
         }
-        ++linecount;      
+        ++linecount;
         if (ti.current_time() > 5.0) {
           logstream(LOG_INFO) << linecount << " Lines read" << std::endl;
           ti.start();
@@ -2868,7 +2954,7 @@ namespace graphlab {
       std::string ret = writer.save_edge(edge);
       fout << ret;
     } // end of save_edge_to_stream
-  
+
 
     void save_bintsv4_to_stream(std::ostream& out) {
       for (int i = 0; i < (int)local_graph.num_vertices(); ++i) {
@@ -2883,11 +2969,11 @@ namespace graphlab {
           // store disconnected vertices if I am the master of the vertex
           if (gv.num_in_edges() == 0 && gv.num_out_edges() == 0) {
             out.write(reinterpret_cast<char*>(&src), 4);
-            uint32_t dest = (uint32_t)(-1); 
+            uint32_t dest = (uint32_t)(-1);
             out.write(reinterpret_cast<char*>(&dest), 4);
           }
         }
-      } 
+      }
     }
 
     bool load_bintsv4_from_stream(std::istream& in) {
@@ -2902,35 +2988,35 @@ namespace graphlab {
         else {
           add_edge(src, dest);
         }
-      } 
+      }
       return true;
     }
 
 
-    /** \brief Saves a distributed graph using a direct ostream saving function 
+    /** \brief Saves a distributed graph using a direct ostream saving function
      *
      * This function saves a sequence of files numbered
      * \li [prefix]_0
      * \li [prefix]_1
      * \li [prefix]_2
      * \li etc.
-     * 
-     * This files can be loaded with direct_stream_load(). 
+     *
+     * This files can be loaded with direct_stream_load().
      */
     void save_direct(const std::string& prefix, bool gzip,
                     boost::function<void (graph_type*, std::ostream&)> saver) {
       rpc.full_barrier();
       finalize();
       timer savetime;  savetime.start();
-      std::string fname = prefix + "_" + tostr(rpc.procid() + 1) + "_of_" + 
-                          tostr(rpc.numprocs());  
+      std::string fname = prefix + "_" + tostr(rpc.procid() + 1) + "_of_" +
+                          tostr(rpc.numprocs());
       if (gzip) fname = fname + ".gz";
       logstream(LOG_INFO) << "Save graph to " << fname << std::endl;
       if(boost::starts_with(fname, "hdfs://")) {
         graphlab::hdfs hdfs;
         graphlab::hdfs::fstream out_file(hdfs, fname, true);
         boost::iostreams::filtering_stream<boost::iostreams::output> fout;
-        if (gzip) fout.push(boost::iostreams::gzip_compressor());        
+        if (gzip) fout.push(boost::iostreams::gzip_compressor());
         fout.push(out_file);
         if (!fout.good()) {
           logstream(LOG_FATAL) << "\n\tError opening file: " << fname << std::endl;
@@ -2948,7 +3034,7 @@ namespace graphlab {
           exit(-1);
         }
         boost::iostreams::filtering_stream<boost::iostreams::output> fout;
-        if (gzip) fout.push(boost::iostreams::gzip_compressor());        
+        if (gzip) fout.push(boost::iostreams::gzip_compressor());
         fout.push(out_file);
         saver(this, boost::ref(fout));
         fout.pop();
@@ -2956,7 +3042,7 @@ namespace graphlab {
         out_file.close();
       }
       logstream(LOG_INFO) << "Finish saving graph to " << fname << std::endl
-                          << "Finished saving bintsv4 graph: " 
+                          << "Finished saving bintsv4 graph: "
                           << savetime.current_time() << std::endl;
       rpc.full_barrier();
     } // end of save
@@ -2965,11 +3051,11 @@ namespace graphlab {
 
     /**
      *  \brief Load a graph from a collection of files in stored on
-     *  the filesystem using the user defined line parser. Like 
-     *  \ref load(const std::string& path, line_parser_type line_parser) 
-     *  but only loads from the filesystem. 
+     *  the filesystem using the user defined line parser. Like
+     *  \ref load(const std::string& path, line_parser_type line_parser)
+     *  but only loads from the filesystem.
      */
-    void load_direct_from_posixfs(std::string prefix, 
+    void load_direct_from_posixfs(std::string prefix,
                            boost::function<bool (graph_type*, std::istream&)> parser) {
       std::string directory_name; std::string original_path(prefix);
       boost::filesystem::path path(prefix);
@@ -2997,16 +3083,16 @@ namespace graphlab {
           // is it a gzip file ?
           const bool gzip = boost::ends_with(graph_files[i], ".gz");
           // open the stream
-          std::ifstream in_file(graph_files[i].c_str(), 
+          std::ifstream in_file(graph_files[i].c_str(),
                                 std::ios_base::in | std::ios_base::binary);
           // attach gzip if the file is gzip
-          boost::iostreams::filtering_stream<boost::iostreams::input> fin;  
+          boost::iostreams::filtering_stream<boost::iostreams::input> fin;
           // Using gzip filter
           if (gzip) fin.push(boost::iostreams::gzip_decompressor());
           fin.push(in_file);
           const bool success = parser(this, boost::ref(fin));
           if(!success) {
-            logstream(LOG_FATAL) 
+            logstream(LOG_FATAL)
               << "\n\tError parsing file: " << graph_files[i] << std::endl;
           }
           fin.pop();
@@ -3014,15 +3100,15 @@ namespace graphlab {
         }
       }
       rpc.full_barrier();
-    } 
+    }
 
     /**
      *  \brief Load a graph from a collection of files in stored on
-     *  the HDFS using the user defined line parser. Like 
-     *  \ref load(const std::string& path, line_parser_type line_parser) 
-     *  but only loads from HDFS. 
+     *  the HDFS using the user defined line parser. Like
+     *  \ref load(const std::string& path, line_parser_type line_parser)
+     *  but only loads from HDFS.
      */
-    void load_direct_from_hdfs(std::string prefix, 
+    void load_direct_from_hdfs(std::string prefix,
                          boost::function<bool (graph_type*, std::istream&)> parser) {
       // force a "/" at the end of the path
       // make sure to check that the path is non-empty. (you do not
@@ -3030,12 +3116,12 @@ namespace graphlab {
       std::string path = prefix;
       if (path.length() > 0 && path[path.length() - 1] != '/') path = path + "/";
       if(!hdfs::has_hadoop()) {
-        logstream(LOG_FATAL) 
+        logstream(LOG_FATAL)
           << "\n\tAttempting to load a graph from HDFS but GraphLab"
           << "\n\twas built without HDFS."
           << std::endl;
       }
-      hdfs& hdfs = hdfs::get_hdfs();    
+      hdfs& hdfs = hdfs::get_hdfs();
       std::vector<std::string> graph_files;
       graph_files = hdfs.list_files(path);
       if (graph_files.size() == 0) {
@@ -3048,12 +3134,12 @@ namespace graphlab {
           const bool gzip = boost::ends_with(graph_files[i], ".gz");
           // open the stream
           graphlab::hdfs::fstream in_file(hdfs, graph_files[i]);
-          boost::iostreams::filtering_stream<boost::iostreams::input> fin;  
+          boost::iostreams::filtering_stream<boost::iostreams::input> fin;
           if(gzip) fin.push(boost::iostreams::gzip_decompressor());
-          fin.push(in_file);      
+          fin.push(in_file);
           const bool success = parser(this, boost::ref(fin));
           if(!success) {
-            logstream(LOG_FATAL) 
+            logstream(LOG_FATAL)
               << "\n\tError parsing file: " << graph_files[i] << std::endl;
           }
           fin.pop();
@@ -3061,9 +3147,9 @@ namespace graphlab {
         }
       }
       rpc.full_barrier();
-    } 
+    }
 
-    void load_direct(std::string prefix, 
+    void load_direct(std::string prefix,
              boost::function<bool (graph_type*, std::istream&)> parser) {
       rpc.full_barrier();
       if(boost::starts_with(prefix, "hdfs://")) {
@@ -3073,9 +3159,8 @@ namespace graphlab {
       }
       rpc.full_barrier();
     } // end of load
- 
 
-
+    friend class tests::distributed_graph_test;
   }; // End of graph
 } // end of namespace graphlab
 #include <graphlab/macros_undef.hpp>

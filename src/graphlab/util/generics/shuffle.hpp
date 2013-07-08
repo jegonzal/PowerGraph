@@ -59,8 +59,7 @@ void inplace_shuffle(Iterator begin,
           *(begin + j) = *(begin + next);
           targets[j] = j;
           j = next;
-        }
-        else {
+        } else {
           // end of cycle
           *(begin + j) = v;
           targets[j] = j;

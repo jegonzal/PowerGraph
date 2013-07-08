@@ -71,6 +71,7 @@ namespace graphlab {
     // lock array
     simple_spinlock lock_array[65536];
     size_t joincounter[65536];
+    size_t addcounter[65536];
 
     /** Not assignable */
     void operator=(const message_array& other) { }
@@ -82,7 +83,10 @@ namespace graphlab {
     /** Initialize the per vertex task set */
     message_array(size_t num_vertices = 0) :
               message_vector(num_vertices) { 
-      for (size_t i = 0; i < 65536; ++i) joincounter[i] = 0; 
+      for (size_t i = 0; i < 65536; ++i) {
+        joincounter[i] = 0; 
+        addcounter[i] = 0;
+      }
     }
 
     /**
@@ -102,6 +106,7 @@ namespace graphlab {
       lock_array[lockidx].lock();
       bool ret = message_vector[idx].add(val, priority);
       joincounter[lockidx] += !ret;
+      addcounter[lockidx]++;
       lock_array[lockidx].unlock();
       if (message_priority) (*message_priority) = priority;
       return ret;
@@ -176,6 +181,15 @@ namespace graphlab {
         total_joins += joincounter[i];
       }
       return total_joins;
+    }
+
+
+    size_t num_adds() const { 
+      size_t total_adds = 0;
+      for (size_t i = 0; i < 65536; ++i) {
+        total_adds += addcounter[i];
+      }
+      return total_adds;
     }
 
     /// not thread safe. Clears all contents

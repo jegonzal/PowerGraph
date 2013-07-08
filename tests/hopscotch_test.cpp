@@ -9,15 +9,13 @@
 #include <graphlab/util/memory_info.hpp>
 #include <graphlab/macros_def.hpp>
 
-const size_t NINS = 1500000;
-boost::unordered_set<uint32_t> um;
-graphlab::hopscotch_table<uint32_t> cm(1.2 * NINS);
 
 
 boost::unordered_map<uint32_t, uint32_t> um2;
 graphlab::hopscotch_map<uint32_t, uint32_t> cm2;
 
 void hopscotch_map_sanity_checks() {
+  const size_t NINS = 1500000;
   ASSERT_TRUE(cm2.begin() == cm2.end());
   for (size_t i = 0;i < NINS; ++i) {
     cm2[17 * i] = i;
@@ -76,6 +74,83 @@ void hopscotch_map_sanity_checks() {
   ASSERT_EQ(cm2.size(), NINS / 2);
 
 }
+
+
+
+
+
+struct bad_hasher {
+  size_t operator()(uint32_t a) const {
+    return 1;
+  }
+};
+
+
+
+void hopscotch_high_collision_sanity_checks() {
+  const size_t NINS = 15000;
+  boost::unordered_map<uint32_t, uint32_t> um2;
+  graphlab::hopscotch_map<uint32_t, uint32_t, bad_hasher> cm2;
+  ASSERT_TRUE(cm2.begin() == cm2.end());
+  for (size_t i = 0;i < NINS; ++i) {
+    cm2[17 * i] = i;
+    um2[17 * i] = i;
+  }
+
+  for (size_t i = 0;i < NINS; ++i) {
+    assert(cm2[17 * i] == i);
+    assert(um2[17 * i] == i);
+  }
+  assert(cm2.size() == NINS);
+  assert(um2.size() == NINS);
+
+  for (size_t i = 0;i < NINS; i+=2) {
+    cm2.erase(17*i);
+    um2.erase(17*i);
+  }
+  for (size_t i = 0;i < NINS; i+=2) {
+    assert(cm2.count(17*i) == i % 2);
+    assert(um2.count(17*i) == i % 2);
+    if (cm2.count(17*i)) {
+      assert(cm2.find(17*i)->second == i);
+    }
+  }
+
+  assert(cm2.size() == NINS / 2);
+  assert(um2.size() == NINS / 2);
+
+  typedef graphlab::hopscotch_map<uint32_t, uint32_t>::value_type vpair;
+  {
+    size_t cnt = 0;
+    foreach(vpair &v, cm2) {
+      ASSERT_EQ(v.second, um2[v.first]);
+      ++cnt;
+    }
+    ASSERT_EQ(cnt, NINS / 2);
+  }
+  {
+    size_t cnt = 0;
+    foreach(const vpair &v, cm2) {
+      ASSERT_EQ(v.second, um2[v.first]);
+      ++cnt;
+    }
+    ASSERT_EQ(cnt, NINS / 2);
+  }
+
+  std::stringstream strm;
+  graphlab::oarchive oarc(strm);
+  oarc << cm2;
+  strm.flush();
+
+  cm2.clear();
+  ASSERT_EQ(cm2.size(), 0);
+  graphlab::iarchive iarc(strm);
+  iarc >> cm2;
+  ASSERT_EQ(cm2.size(), NINS / 2);
+
+}
+
+
 
 
 
@@ -166,6 +241,9 @@ void benchmark() {
 int main(int argc, char** argv) {
   std::cout << "Hopscotch Map Sanity Checks... \n";
   hopscotch_map_sanity_checks();
+
+  std::cout << "Hopscotch High Collision Sanity Checks... \n";
+  hopscotch_high_collision_sanity_checks();
 
   std::cout << "Map Benchmarks... \n";
   benchmark();

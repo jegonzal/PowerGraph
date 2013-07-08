@@ -1,5 +1,5 @@
 /**
-  \page using_graphlab GraphLab Tutorial
+  \page using_graphlab Basic GraphLab Tutorial
 
   In this example, we would implement a simple PageRank application 
   from scratch, demonstrating all the core GraphLab concepts from loading a 

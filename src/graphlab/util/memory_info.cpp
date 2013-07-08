@@ -1,5 +1,5 @@
-/**  
- * Copyright (c) 2009 Carnegie Mellon University. 
+/**
+ * Copyright (c) 2009 Carnegie Mellon University.
  *     All rights reserved.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,7 +21,6 @@
  */
 
 #include <iostream>
-
 #ifdef HAS_TCMALLOC
 #include <google/malloc_extension.h>
 #endif
@@ -30,7 +29,7 @@
 namespace graphlab {
   namespace memory_info {
 
-    bool available() { 
+    bool available() {
 #ifdef HAS_TCMALLOC
       return true;
 #else
@@ -46,22 +45,22 @@ namespace graphlab {
       MallocExtension::instance()->
         GetNumericProperty("generic.heap_size", &heap_size);
 #else
-      logstream(LOG_WARNING) << 
+      logstream(LOG_WARNING) <<
         "memory_info::heap_bytes() requires tcmalloc" << std::endl;
 #endif
       return heap_size;
     } // end of heap size
-    
+
 
 
     size_t allocated_bytes() {
       size_t allocated_size(0);
 #ifdef HAS_TCMALLOC
       MallocExtension::instance()->
-        GetNumericProperty("generic.current_allocated_bytes", 
+        GetNumericProperty("generic.current_allocated_bytes",
                            &allocated_size);
 #else
-      logstream_once(LOG_WARNING) << 
+      logstream_once(LOG_WARNING) <<
         "memory_info::allocated_bytes() requires tcmalloc" << std::endl;
 #endif
       return allocated_size;
@@ -72,14 +71,14 @@ namespace graphlab {
     void print_usage(const std::string& label) {
 #ifdef HAS_TCMALLOC
         const double BYTES_TO_MB = double(1) / double(1024 * 1024);
-        std::cout 
+        std::cout
           << "Memory Info: " << label << std::endl
           << "\t Heap: " << (heap_bytes() * BYTES_TO_MB) << " MB"
           << std::endl
-          << "\t Allocated: " << (allocated_bytes() * BYTES_TO_MB) << " MB" 
+          << "\t Allocated: " << (allocated_bytes() * BYTES_TO_MB) << " MB"
           << std::endl;
 #else
-        logstream_once(LOG_WARNING) 
+        logstream_once(LOG_WARNING)
           << "Unable to print memory info for: " << label << ". "
           << "No memory extensions api available." << std::endl;
 #endif
@@ -91,10 +90,10 @@ namespace graphlab {
         logstream(LOG_INFO)
           << "Memory Info: " << label
           << "\n\t Heap: " << (heap_bytes() * BYTES_TO_MB) << " MB"
-          << "\n\t Allocated: " << (allocated_bytes() * BYTES_TO_MB) << " MB" 
+          << "\n\t Allocated: " << (allocated_bytes() * BYTES_TO_MB) << " MB"
           << std::endl;
 #else
-        logstream_once(LOG_WARNING) 
+        logstream_once(LOG_WARNING)
           << "Unable to print memory info for: " << label << ". "
           << "No memory extensions api available." << std::endl;
 #endif

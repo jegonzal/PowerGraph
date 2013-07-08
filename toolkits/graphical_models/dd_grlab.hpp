@@ -187,14 +187,14 @@ struct gather_type
 
 
 double update_stepsize(int type,int apply_count,double old_dual, double primal_best,int norm_g_sq,int dual_inc_count,
-                                                                                               int iter_since_aggregate)
-{  switch (type) {
-   case 0: return 1.0;
-           break;
-   case 1: return(1.0/apply_count);
-           break;
-   case 2: return(2*(old_dual-primal_best)/(norm_g_sq * (dual_inc_count + iter_since_aggregate + 1)));
-           }
+                       int iter_since_aggregate) {  
+  switch (type) {
+  case 0: return 1.0;
+  case 1: return (1.0/apply_count);
+  case 2: return(2*(old_dual-primal_best)/(norm_g_sq * (dual_inc_count + iter_since_aggregate + 1)));
+  default: logstream(LOG_FATAL) << "Invalid type!" << std::endl; return 1.0;
+  }
+  
 }
 
 /**

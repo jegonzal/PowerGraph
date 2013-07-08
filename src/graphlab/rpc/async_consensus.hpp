@@ -85,6 +85,12 @@ namespace graphlab {
    * include keeping a counter of the number of active threads, and only calling
    * cancel() or cancel_one() if all threads are asleep. (Note that the optimized
    * solution does require some care to ensure dead-lock free execution).
+   *
+   * The async_consensus works with regular kernel threads. See 
+   * \ref graphlab::fiber_async_consensus for a version which works with
+   * fibers.
+   *
+   * \see graphlab::fiber_async_consensus
    */
   class async_consensus {
   public:
@@ -204,7 +210,7 @@ namespace graphlab {
     bool done;
     
     /// set if abort() is called
-    bool forced_abort;    
+    //  bool forced_abort;    
     
     /// Number of threads which have called
     /// begin_critical_section(), and have not left end_critical_section()

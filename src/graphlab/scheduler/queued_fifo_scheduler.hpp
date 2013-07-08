@@ -1,5 +1,5 @@
-/**  
- * Copyright (c) 2009 Carnegie Mellon University. 
+/**
+ * Copyright (c) 2009 Carnegie Mellon University.
  *     All rights reserved.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
@@ -43,7 +43,7 @@
 namespace graphlab {
 
   /**
-   * \ingroup group_schedulers 
+   * \ingroup group_schedulers
    *
    * This class defines a multiple queue approximate fifo scheduler.
    * Each processor has its own in_queue which it puts new tasks in
@@ -69,6 +69,7 @@ namespace graphlab {
     std::vector<queue_type> in_queues;
     std::vector<mutex> in_queue_locks;
     std::vector<queue_type> out_queues;
+    std::vector<mutex> out_queue_locks;
 
     void set_options(const graphlab_options& opts);
     
@@ -93,14 +94,14 @@ namespace graphlab {
      * Print a help string describing the options that this scheduler
      * accepts.
      */
-    static void print_options_help(std::ostream& out) { 
+    static void print_options_help(std::ostream& out) {
       out << "\t queuesize: [the size at which a subqueue is "
           << "placed in the master queue. default = 100]\n";
       out << "\t multi = [number of queues per thread. Default = 3].\n";
     }
 
 
-  }; 
+  };
 
 
 } // end of namespace graphlab

@@ -1,5 +1,5 @@
-/**  
- * Copyright (c) 2009 Carnegie Mellon University. 
+/**
+ * Copyright (c) 2009 Carnegie Mellon University.
  *     All rights reserved.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
@@ -97,9 +97,9 @@ namespace graphlab {
       }
     }// end of next index
 
-  }; 
-  
-  
+  };
+
+
 } // end of namespace graphlab
 #include <graphlab/macros_undef.hpp>
 
