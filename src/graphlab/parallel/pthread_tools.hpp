@@ -175,7 +175,7 @@ namespace graphlab {
   private:
     // mutable not actually needed
     mutable volatile char spinner;
-    char padding[63];
+    // char padding[63];
   public:
     /// constructs a spinlock
     padded_simple_spinlock () {

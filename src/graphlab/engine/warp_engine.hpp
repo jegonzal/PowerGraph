@@ -436,7 +436,7 @@ namespace warp {
     message_array<message_type> messages;
 
     // context needs access to internal functions
-    friend class context;
+    friend struct context;
 
     /// \internal \brief The type used to refer to vertices in the local graph
     typedef typename graph_type::local_vertex_type    local_vertex_type;

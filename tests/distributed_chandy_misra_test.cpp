@@ -199,7 +199,7 @@ int main(int argc, char** argv) {
   boost::unordered_set<size_t> eidset1;
   boost::unordered_set<size_t> eidset2;
   typedef graph_type::local_edge_type  local_edge_type;
-  typedef typename graph_type::local_edge_list_type local_edge_list_type;
+  typedef graph_type::local_edge_list_type local_edge_list_type;
  
   for (size_t v = 0; v < graph.num_local_vertices(); ++v) {
     const local_edge_list_type& in_edges = graph.l_in_edges(v);
