@@ -65,6 +65,7 @@ int nconv = 0;
 int n = 0; 
 int kk = 0;
 mat a,PT;
+bool v_vector = false;
 
 DECLARE_TRACER(svd_bidiagonal);
 DECLARE_TRACER(svd_error_estimate);
@@ -314,19 +315,27 @@ void init_lanczos(graph_type * g, bipartite_graph_descriptor & info){
 void swork_vec(graph_type::vertex_type & vertex){
   if (!info.is_square())
     assert(vertex.id() - pcurrent->start >= 0 && vertex.id() - pcurrent->start < curvec.size());
-  //vertex.data().pvec[pcurrent->offset] = curvec[vertex.id() - pcurrent->start];
   vertex.data().pvec[nconv+kk] = 0;
   for (int ttt=nconv; ttt < nconv+n; ttt++){
     vertex.data().pvec[nconv+kk] += curvec(ttt-nconv)*vertex.data().pvec[ttt];
   }
 }  
+
 void compute_ritz(graph_type::vertex_type & vertex){
   if (!info.is_square())
     assert(vertex.id() - pcurrent->start >= 0);
+ 
   assert(nconv + n < vertex.data().pvec.size());
-  vec tmp = init_vec(&vertex.data().pvec[nconv], n);
-  tmp = tmp.transpose() * (pcurrent->start == 0 ? PT : a);
-  memcpy(&vertex.data().pvec[nconv] ,&tmp[0], kk*sizeof(double)); 
+  assert(pcurrent->offset >= 0 && pcurrent->offset < vertex.data().pvec.size());
+
+  int offset = pcurrent->offset + nconv;
+  assert(offset + n < actual_vector_len);
+  if (info.is_square() && !v_vector)
+    offset += data_size;
+  vec tmp = init_vec(&vertex.data().pvec[offset], n);
+  tmp = tmp.transpose() * (v_vector ? PT : a);
+  memcpy(&vertex.data().pvec[offset] ,&tmp[0], kk*sizeof(double)); 
+  std::cout<<"Entered ritz with " << offset << " , v_vector: " << v_vector << "data_size: " << data_size << " kk: " << kk << std::endl;
 }  
 
 
@@ -453,14 +462,12 @@ vec lanczos(bipartite_graph_descriptor & info, timer & mytimer, vec & errest,
     if (!finished){
       BEGIN_TRACEPOINT(svd_swork);
       curvec=get_col(PT,kk); 
+      DistVec v = V[nconv];
+      pcurrent = &v;
       graphlab::vertex_set nodes = pgraph->select(select_in_range);
       pgraph->transform_vertices(swork_vec, nodes);
       
       PRINT_MAT2("swork", curvec);
-      //v = zeros(size(A,1));
-      //for (int ttt=nconv; ttt < nconv+n; ttt++){
-      //  v = v+swork(ttt-nconv)*(V[ttt].to_vec());
-      //}
       PRINT_VEC2("svd->V",V[nconv]);
       //PRINT_VEC2("v[0]",v); 
       END_TRACEPOINT(svd_swork);
@@ -472,11 +479,13 @@ vec lanczos(bipartite_graph_descriptor & info, timer & mytimer, vec & errest,
       BEGIN_TRACEPOINT(matproduct);
       DistVec v = V[nconv];
       pcurrent = &v;
+      v_vector = true;
       graphlab::vertex_set nodes = pgraph->select(select_in_range);
       pgraph->transform_vertices(compute_ritz, nodes);
       PRINT_VEC2("svd->V", V[nconv]);
       v = U[nconv];
       pcurrent = &v;
+      v_vector = false;
       PRINT_VEC2("svd->U", U[nconv]);
       nodes = pgraph->select(select_in_range);
       pgraph->transform_vertices(compute_ritz, nodes);
