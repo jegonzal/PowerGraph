@@ -61,6 +61,17 @@ int data_size = 0;
 std::string predictions;
 int rows = -1, cols = -1;
 bool quiet = false;
+int nconv = 0;
+int n = 0; 
+int kk = 0;
+mat a,PT;
+
+DECLARE_TRACER(svd_bidiagonal);
+DECLARE_TRACER(svd_error_estimate);
+DECLARE_TRACER(svd_error2);
+DECLARE_TRACER(matproduct);
+DECLARE_TRACER(svd_swork);
+DECLARE_TRACER(svd_vectors);
 
 void start_engine();
 
@@ -300,11 +311,30 @@ void init_lanczos(graph_type * g, bipartite_graph_descriptor & info){
   logstream(LOG_INFO)<<"Allocated a total of: " << ((double)actual_vector_len * g->num_vertices() * sizeof(double)/ 1e6) << " MB for storing vectors." << std::endl;
 }
 
+void swork_vec(graph_type::vertex_type & vertex){
+  if (!info.is_square())
+    assert(vertex.id() - pcurrent->start >= 0 && vertex.id() - pcurrent->start < curvec.size());
+  //vertex.data().pvec[pcurrent->offset] = curvec[vertex.id() - pcurrent->start];
+  vertex.data().pvec[nconv+kk] = 0;
+  for (int ttt=nconv; ttt < nconv+n; ttt++){
+    vertex.data().pvec[nconv+kk] += curvec(ttt-nconv)*vertex.data().pvec[ttt];
+  }
+}  
+void compute_ritz(graph_type::vertex_type & vertex){
+  if (!info.is_square())
+    assert(vertex.id() - pcurrent->start >= 0);
+  assert(nconv + n < vertex.data().pvec.size());
+  vec tmp = init_vec(&vertex.data().pvec[nconv], n);
+  tmp = tmp.transpose() * (pcurrent->start == 0 ? PT : a);
+  memcpy(&vertex.data().pvec[nconv] ,&tmp[0], kk*sizeof(double)); 
+}  
+
+
+
 vec lanczos(bipartite_graph_descriptor & info, timer & mytimer, vec & errest, 
     const std::string & vecfile){
 
 
-  int nconv = 0;
   int its = 1;
   int mpd = 24;
   DistMat A(info);
@@ -326,7 +356,7 @@ vec lanczos(bipartite_graph_descriptor & info, timer & mytimer, vec & errest,
   while(nconv < nsv && its < max_iter){
     logstream(LOG_INFO)<<"Starting iteration: " << its << " at time: " << mytimer.current_time() << std::endl;
     int k = nconv;
-    int n = nv;
+    n  = nv;
     PRINT_INT(k);
     PRINT_INT(n);
 
@@ -361,6 +391,7 @@ vec lanczos(bipartite_graph_descriptor & info, timer & mytimer, vec & errest,
     PRINT_VEC3("beta", beta, n-k-1);
 
     //compute svd of bidiagonal matrix
+    BEGIN_TRACEPOINT(svd_bidiagonal);
     PRINT_INT(nv);
     PRINT_NAMED_INT("svd->nconv", nconv);
     PRINT_NAMED_INT("svd->mpd", mpd);
@@ -378,7 +409,6 @@ vec lanczos(bipartite_graph_descriptor & info, timer & mytimer, vec & errest,
     for (int i=0; i<n-1; i++)
       set_val(T, i, i+1, beta(i));
     PRINT_MAT2("T", T);
-    mat a,PT;
     svd(T, a, PT, b);
     PRINT_MAT2("Q", a);
     alpha=b.transpose();
@@ -387,9 +417,11 @@ vec lanczos(bipartite_graph_descriptor & info, timer & mytimer, vec & errest,
       beta(t) = 0;
     PRINT_VEC2("beta",beta);
     PRINT_MAT2("PT", PT.transpose());
+    END_TRACEPOINT(svd_bidiagonal);
 
     //estiamte the error
-    int kk = 0;
+    BEGIN_TRACEPOINT(svd_error_estimate);
+    kk = 0;
     for (int i=nconv; i < nv; i++){
       int j = i-nconv;
       PRINT_INT(j);
@@ -415,33 +447,40 @@ vec lanczos(bipartite_graph_descriptor & info, timer & mytimer, vec & errest,
       }
     }//end for
     PRINT_NAMED_INT("k",kk);
+    END_TRACEPOINT(svd_error_estimate)
 
-
-    vec v;
+    //vec v;
     if (!finished){
-      vec swork=get_col(PT,kk); 
-      PRINT_MAT2("swork", swork);
-      v = zeros(size(A,1));
-      for (int ttt=nconv; ttt < nconv+n; ttt++){
-        v = v+swork(ttt-nconv)*(V[ttt].to_vec());
-      }
+      BEGIN_TRACEPOINT(svd_swork);
+      curvec=get_col(PT,kk); 
+      graphlab::vertex_set nodes = pgraph->select(select_in_range);
+      pgraph->transform_vertices(swork_vec, nodes);
+      
+      PRINT_MAT2("swork", curvec);
+      //v = zeros(size(A,1));
+      //for (int ttt=nconv; ttt < nconv+n; ttt++){
+      //  v = v+swork(ttt-nconv)*(V[ttt].to_vec());
+      //}
       PRINT_VEC2("svd->V",V[nconv]);
-      PRINT_VEC2("v[0]",v); 
+      //PRINT_VEC2("v[0]",v); 
+      END_TRACEPOINT(svd_swork);
     }
 
-
-    INITIALIZE_TRACER(matproduct, "computing ritz eigenvectors");
     //compute the ritz eigenvectors of the converged singular triplets
     if (kk > 0){
       PRINT_VEC2("svd->V", V[nconv]);
       BEGIN_TRACEPOINT(matproduct);
-      mat tmp= V.get_cols(nconv,nconv+n)*PT;
-      V.set_cols(nconv, nconv+kk, get_cols(tmp, 0, kk));
+      DistVec v = V[nconv];
+      pcurrent = &v;
+      graphlab::vertex_set nodes = pgraph->select(select_in_range);
+      pgraph->transform_vertices(compute_ritz, nodes);
       PRINT_VEC2("svd->V", V[nconv]);
+      v = U[nconv];
+      pcurrent = &v;
       PRINT_VEC2("svd->U", U[nconv]);
-      tmp= U.get_cols(nconv, nconv+n)*a;
+      nodes = pgraph->select(select_in_range);
+      pgraph->transform_vertices(compute_ritz, nodes);
       END_TRACEPOINT(matproduct);
-      U.set_cols(nconv, nconv+kk,get_cols(tmp,0,kk));
       PRINT_VEC2("svd->U", U[nconv]);
     }
 
@@ -449,7 +488,7 @@ vec lanczos(bipartite_graph_descriptor & info, timer & mytimer, vec & errest,
     if (finished)
       break;
 
-    V[nconv]=v;
+    //V[nconv]=v;
     PRINT_VEC2("svd->V", V[nconv]);
     PRINT_NAMED_INT("svd->nconv", nconv);
 
@@ -464,6 +503,8 @@ vec lanczos(bipartite_graph_descriptor & info, timer & mytimer, vec & errest,
   printf("\n");
   DistVec normret(info, nconv, false, "normret");
   DistVec normret_tranpose(info, nconv, true, "normret_tranpose");
+  INITIALIZE_TRACER(svd_error2, "svd error2");
+  BEGIN_TRACEPOINT(svd_error2);
   for (int i=0; i < std::min(nsv, nconv); i++){
     normret = V[i]*A._transpose() -U[i]*sigma(i);
     double n1 = norm(normret).toDouble();
@@ -481,8 +522,10 @@ vec lanczos(bipartite_graph_descriptor & info, timer & mytimer, vec & errest,
     PRINT_DBL(sigma(i));
     printf("Singular value %d \t%13.6g\tError estimate: %13.6g\n", i, sigma(i),err);
   }
+  END_TRACEPOINT(svd_error2);
 
   if (save_vectors){
+    BEGIN_TRACEPOINT(svd_vectors);
     if (nconv == 0)
       logstream(LOG_FATAL)<<"No converged vectors. Aborting the save operation" << std::endl;
 
@@ -498,7 +541,7 @@ vec lanczos(bipartite_graph_descriptor & info, timer & mytimer, vec & errest,
       pgraph->save(predictions + "V." + boost::lexical_cast<std::string>(i), linear_model_saver_V(i),
           gzip_output, save_edges, save_vertices, threads_per_machine);
     } 
-
+    END_TRACEPOINT(svd_vectors);
   }
   return sigma;
 }
@@ -526,6 +569,13 @@ void write_output_vector(const std::string datafile, const vec & output, bool is
 
 int main(int argc, char** argv) {
   global_logger().set_log_to_console(true);
+
+  INITIALIZE_TRACER(svd_bidiagonal, "svd bidiagonal");
+  INITIALIZE_TRACER(svd_error_estimate, "svd error estimate");
+  INITIALIZE_TRACER(svd_swork, "Svd swork");
+  INITIALIZE_TRACER(matproduct, "computing ritz eigenvectors");
+  INITIALIZE_TRACER(svd_bidiagonal, "svd bidiagonal");
+  INITIALIZE_TRACER(svd_vectors, "svd vectors");
 
   // Parse command line options -----------------------------------------------
   const std::string description = 
