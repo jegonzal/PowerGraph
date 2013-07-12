@@ -79,7 +79,7 @@ dependencies.
 
 All the dependencies can be satisfied from the repository:
 
-    apt-get gcc g++ build-essential libopenmpi-dev default-jdk cmake zlib1g-dev mercurial
+    apt-get install gcc g++ build-essential libopenmpi-dev default-jdk cmake zlib1g-dev
 
 
 
