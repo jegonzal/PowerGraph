@@ -591,13 +591,15 @@ def main():
         cd graphlabapi/release/toolkits/collaborative_filtering/;
         rm -fR smallnetflix; mkdir smallnetflix;
         cd smallnetflix/;
-        wget http://www.select.cs.cmu.edu/code/graphlab/datasets/smallnetflix_mm.train;
-        wget http://www.select.cs.cmu.edu/code/graphlab/datasets/smallnetflix_mm.validate;
+        wget http://graphlab.org/wp-content/uploads/2013/07/smallnetflix_mm.validate.gz;  #ugly, but we need to find a better place to host sample graphlab datasets
+        wget http://graphlab.org/wp-content/uploads/2013/07/smallnetflix_mm.train_.gz;
+        gunzip *.gz;
+        mv smallnetflix_mm.train_ smallnetflix_mm.train                                   #ugly, but wordpress does not allow .train file.. ;-(
         cd ..;
         hadoop fs -rmr hdfs://\`head -n 1 ~/machines\`/smallnetflix/;
         hadoop fs -copyFromLocal smallnetflix/ /;
         cat ~/machines
-        mpiexec.mpich2 -f ~/machines -envlist CLASSPATH -n 2 /home/ubuntu/graphlabapi/release/toolkits/collaborative_filtering/als --matrix hdfs://\`head -n 1 ~/machines\`/smallnetflix --max_iter=5 --ncpus=1;
+        mpiexec.mpich2 -f ~/machines -envlist CLASSPATH -n 2 /home/ubuntu/graphlabapi/release/toolkits/collaborative_filtering/als --matrix hdfs://\`head -n 1 ~/machines\`/smallnetflix --max_iter=5 --ncpus=1 --predictions=out_predictions --minval=1 --maxval=5;
         \"""" % (opts.identity_file, proxy_opt, master), shell=True)
 
   elif action == "update":
