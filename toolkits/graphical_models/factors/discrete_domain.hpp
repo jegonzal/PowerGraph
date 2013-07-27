@@ -1,313 +1,205 @@
-/**  
- * Copyright (c) 2009 Carnegie Mellon University. 
- *     All rights reserved.
- *
- *  Licensed under the Apache License, Version 2.0 (the "License");
- *  you may not use this file except in compliance with the License.
- *  You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- *  Unless required by applicable law or agreed to in writing,
- *  software distributed under the License is distributed on an "AS
- *  IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
- *  express or implied.  See the License for the specific language
- *  governing permissions and limitations under the License.
- *
- * For more about this software visit:
- *
- *      http://www.graphlab.ml.cmu.edu
- *
- */
-
-
 #ifndef DISCRETE_DOMAIN_HPP
 #define DISCRETE_DOMAIN_HPP
 
 #include <graphlab/logger/assertions.hpp>
 
 #include "discrete_variable.hpp"
-
+#include "discrete_bounds.hpp"
+#include "discrete_assignment.hpp"
 
 #include <graphlab/macros_def.hpp>
+namespace graphlab {
 
-
-//! Predeclearation of assignment used for discrete domain
-template<size_t MAX_DIM> class discrete_assignment;
 
 /**
- * This class respresents a discrete discrete_domain over a set of variables.
+ * This class respresents a discrete domain over a set of variables.
+ *
+ * \author Scott Richardson     4/2013
  */
 template<size_t MAX_DIM>
-class discrete_domain {
+class discrete_domain : public discrete_bounds<MAX_DIM> {
+  typedef discrete_bounds<MAX_DIM>     bounds_type;
+  typedef discrete_assignment<MAX_DIM> assignment_type;
+
 public:
+  //! Make an empty domain
+  discrete_domain() : 
+      bounds_type() { }
 
-  typedef discrete_assignment<MAX_DIM> assignment_type;    
-
-  //! Make an empy domain
-  discrete_domain() : _num_vars(0) { }
   //! Make a single variable discrete_domain
   discrete_domain(const discrete_variable& v1) :
-    _num_vars(1) {
-    ASSERT_LE(_num_vars, MAX_DIM);
-    _vars[0] = v1;
-  }
+      bounds_type(v1) { }
 
   //! Make a two variable discrete_domain
   discrete_domain(const discrete_variable& v1, const discrete_variable& v2) :
-    _num_vars(2) {
-    ASSERT_LE(_num_vars, MAX_DIM);
-    assert(v1 != v2);
-    if(v1 < v2) {
-      _vars[0] = v1;
-      _vars[1] = v2;
-    } else {
-      _vars[0] = v2;
-      _vars[1] = v1;
-    }
-  }
+      bounds_type(v1, v2) { }
 
   //! Make a three variable discrete_domain
   discrete_domain(const discrete_variable& v1,
                   const discrete_variable& v2,
                   const discrete_variable& v3) :
-    _num_vars(3) {
-    ASSERT_LE(_num_vars, MAX_DIM);
-    ASSERT_NE(v1, v2);
-    ASSERT_NE(v2, v3);
-    ASSERT_NE(v1, v3);
-      
-    if(v1 < v2 && v2 < v3) {
-      _vars[0] = v1;
-      _vars[1] = v2;
-      _vars[2] = v3;
-    } else if( v1 < v3 && v3 < v2) {
-      _vars[0] = v1;
-      _vars[1] = v3;
-      _vars[2] = v2;
-    } else if( v2 < v1 && v1 < v3) {
-      _vars[0] = v2;
-      _vars[1] = v1;
-      _vars[2] = v3;
-    } else if( v2 < v3 && v3 < v1) {
-      _vars[0] = v2;
-      _vars[1] = v3;
-      _vars[2] = v1;
-    } else if( v3 < v1 && v1 < v2) {
-      _vars[0] = v3;
-      _vars[1] = v1;
-      _vars[2] = v2;
-    } else if( v3 < v1 && v1 < v2) {
-      _vars[0] = v3;
-      _vars[1] = v1;
-      _vars[2] = v2;
-    } else { throw("Invalid Case!"); }
-  }
+      bounds_type(v1, v2, v3) { }
 
   //! Make a discrete_domain from a vector of variables
-  discrete_domain(const std::vector<discrete_variable>& variables) :
-    _num_vars(variables.size()) {
-    ASSERT_LE(_num_vars, MAX_DIM);     
-    for(size_t i = 0; i < _num_vars; ++i)       
-      _vars[i] = variables[i];
-    std::sort(_vars, _vars + std::min(MAX_DIM, _num_vars) );
-  }
+  explicit discrete_domain(const std::vector<discrete_variable>& variables) :
+      bounds_type(variables) { }
 
   //! Make a discrete_domain from a set of variables
-  discrete_domain(const std::set<discrete_variable>& variables) :
-    _num_vars(variables.size()) {
-    ASSERT_LE(_num_vars, MAX_DIM); 
-    size_t i = 0; 
-    foreach(const discrete_variable& var, variables) _vars[i++] = var;
+  explicit discrete_domain(const std::set<discrete_variable>& variables) :
+      bounds_type(variables) { }
+  
+  discrete_domain(const discrete_domain& other) : 
+      bounds_type(other) { }
+
+  discrete_domain(const bounds_type& other) : 
+      bounds_type(other) { }
+
+  virtual ~discrete_domain() { } 
+
+  /** Standard assignment operator */
+  discrete_domain& operator=(const discrete_domain& other) {
+    if(this == &other) 
+      return *this;
+    
+    bounds_type::operator=(other);
+    return *this;
   }
 
+  class ConstIterator;
 
-    
-  discrete_domain& operator+=(const discrete_variable& var) {
-    if(_vars[_num_vars - 1] < var) {
-      _vars[_num_vars] = var;
-      _num_vars++;
+  // Iterators 
+  // from http://www.oreillynet.com/pub/a/network/2005/11/21/what-is-iterator-in-c-plus-plus-part2.html
+  // and http://www.cs.helsinki.fi/u/tpkarkka/alglib/k06/lectures/Iterators.html
+  // although i think i should use this reference: 
+  // http://www.drdobbs.com/the-standard-librarian-defining-iterato/184401331?pgno=3
+  class Iterator : 
+      public std::iterator<std::forward_iterator_tag, assignment_type >
+  {
+  private:
+    friend class ConstIterator;
+    typedef discrete_domain<MAX_DIM> domain_type;
+
+    typedef std::iterator<std::forward_iterator_tag, assignment_type > iterator_t;
+    // "using typename" doesn't actually work in GCC < 4.7, which we don't have installed
+    // everywhere. The "typedef typename" construct seems to, so stick with that for now.
+    //using typename iterator_t::value_type;
+    //using typename iterator_t::reference;
+    //using typename iterator_t::pointer;
+    typedef typename iterator_t::value_type   value_type;
+    typedef typename iterator_t::reference    reference;
+    typedef typename iterator_t::pointer      pointer;
+
+    assignment_type _asg;
+
+  public:
+    explicit Iterator(const domain_type& dom) {
+      // initilize a new assignment
+      _asg = assignment_type(dom);
+    }
+    explicit Iterator(const assignment_type& asg) : _asg(asg) { }
+    Iterator& operator=(const Iterator& other) {
+      if(this == &other) return *this;
+
+      _asg = other._asg;
       return *this;
     }
-    return operator+=(discrete_domain(var));
-  }
-
-  //! add the other discrete_domain to this discrete_domain
-  discrete_domain operator+(const discrete_variable& var) const {
-    discrete_domain dom = *this;
-    return dom += var;
-  }
-
-
-
-  //! add the discrete_domain to this discrete_domain
-  discrete_domain& operator+=(const discrete_domain& other) {
-    if(other.num_vars() == 0) return *this;
-    discrete_domain backup = *this;
-    _num_vars = 0;
-    for(size_t i = 0, j = 0; 
-        i < backup.num_vars() || j < other.num_vars(); ) {
-      ASSERT_LE(_num_vars, MAX_DIM);
-      // Both 
-      if(i < backup.num_vars() && j < other.num_vars() 
-         && _num_vars < MAX_DIM) {
-        if(backup.var(i) < other.var(j))  
-          _vars[_num_vars++] = backup.var(i++);
-        else if(other.var(j) < backup.var(i))  
-          _vars[_num_vars++] = other.var(j++);
-        else { _vars[_num_vars++] = backup.var(i++); j++; }
-      } else if(i < backup.num_vars() && _num_vars < MAX_DIM) {
-        _vars[_num_vars++] = backup.var(i++);
-      } else if(j < other.num_vars() && _num_vars < MAX_DIM) {
-        _vars[_num_vars++] = other.var(j++);
-      } else {
-        // Unreachable
-        throw("Unreachable case in domain operator+=");
-      }
+    // implicit copy constructor, copy assignment and destructor
+    bool operator==(const Iterator& other) const {
+      return _asg == other._asg;
     }
-    return *this;
-  }
-    
-  //! add the other discrete_domain to this discrete_domain
-  discrete_domain operator+(const discrete_domain& other) const {
-    discrete_domain dom = *this;
-    return dom += other;
-  }
-
-    
-  //! subtract the other discrete_domain from this discrete_domain
-  discrete_domain& operator-=(const discrete_domain& other) {
-    if(other.num_vars() == 0) return *this;
-      
-    size_t tmp_num_vars = 0;
-    for(size_t i = 0, j = 0; i < _num_vars; ++i ) {
-      // advance the other index
-      for( ; j < other._num_vars && _vars[i].id() > other._vars[j].id(); ++j);
-      if(!(j < other._num_vars && _vars[i].id() == other._vars[j].id())) {
-        _vars[tmp_num_vars++] = _vars[i];
-      }
+    bool operator!=(const Iterator& other) const {
+      return !(*this == other);
     }
-    _num_vars = tmp_num_vars;
-    return *this;
-  }
-
-  //! subtract the other discrete_domain from this discrete_domain
-  discrete_domain operator-(const discrete_domain& other) const {
-    discrete_domain dom = *this;
-    return dom -= other;
-  }
-
-
-  discrete_domain intersect(const discrete_domain& other) const {
-    discrete_domain new_dom;
-    new_dom._num_vars = 0;
-    for(size_t i = 0, j = 0;
-        i < num_vars() && j < other.num_vars(); ) {
-      if(_vars[i] == other._vars[j]) {
-        // new discrete_domain gets the variable
-        new_dom._vars[new_dom._num_vars] = _vars[i];
-        // Everyone advances
-        new_dom._num_vars++;  i++; j++;
-      } else {
-        // otherwise increment one of the variables          
-        if(_vars[i] < other._vars[j]) i++; else j++;
-      }
+    reference operator*() {
+      return _asg;
     }
-    return new_dom;
-  }
-    
-
-  //! Get the number of variables
-  size_t num_vars() const { return _num_vars; }
-
-  //! Get the ith variable
-  const discrete_variable& var(size_t index) const {
-    ASSERT_LT(index, _num_vars);
-    return _vars[index];
-  }
-  /** get the index of the variable or returns number of variables
-      if the index is not found */
-  size_t var_location(size_t var_id) const {
-    size_t location = _num_vars;
-    for(size_t i = 0; i < _num_vars && !(location < _num_vars); ++i) {
-      if(_vars[i].id() == var_id) location = i;
+    pointer operator->() {
+      // this may be more correct, but less clear
+      //return &*(domain_type::Iterator)*this;
+      return &_asg;
     }
-    return location;
-  }
-    
-  //! determine the number of assignments
-  size_t size() const { 
-    size_t sum = 0;
-    if(_num_vars > 0) {
-      sum = 1;
-      for(size_t i = 0; i < _num_vars; ++i) {
-        // Require variables to be sorted order
-        if(i > 0) ASSERT_LT( _vars[ i-1], _vars[i]  );
-        // and have positive arity
-        ASSERT_GT(_vars[i].size(), 0);
-        sum *= _vars[i].size();
-      }
+    Iterator& operator++() {
+      ++_asg;
+      return *this;
     }
-    return sum;
-  }
-
-
-  //! test whether two discrete_domains are equal
-  bool operator==(const discrete_domain& other) const {
-    if( num_vars() != other.num_vars() ) return false;  
-    for(size_t i = 0; i < num_vars(); ++i) {
-      if(var(i) != other.var(i)) return false;
+    Iterator operator++(int) {
+      Iterator orig = *this; 
+      ++(*this); 
+      return orig;
     }
-    return true;
-  }
-    
-  //!  test whether two discrete_domains are not equal
-  bool operator!=(const discrete_domain& other) const {
-    return !(*this == other);
+  };
+
+  class ConstIterator : 
+      public std::iterator<std::forward_iterator_tag, const assignment_type > 
+  {
+    typedef discrete_domain<MAX_DIM> domain_type;
+
+    typedef std::iterator<std::forward_iterator_tag, const assignment_type > const_iterator_t;
+    //using typename const_iterator_t::value_type;
+    //using typename const_iterator_t::reference;
+    //using typename const_iterator_t::pointer;
+    typedef typename const_iterator_t::value_type   value_type;
+    typedef typename const_iterator_t::reference    reference;
+    typedef typename const_iterator_t::pointer      pointer;
+
+    assignment_type _asg;
+
+  public:
+    explicit ConstIterator(const domain_type& dom) {
+      // initilize a new assignment
+      _asg = assignment_type(dom);
+    }
+    explicit ConstIterator(const assignment_type& asg) : _asg(asg) { }
+    ConstIterator(const Iterator& other) : _asg(other._asg) { }
+    // implicit copy constructor and destructor
+    ConstIterator& operator=(const ConstIterator& other) {
+      if(this == &other) return *this;
+
+      _asg = other._asg;
+      return *this;
+    }
+    bool operator==(const ConstIterator& other) const {
+      return _asg == other._asg;
+    }
+    bool operator!=(const ConstIterator& other) const {
+      return !(*this == other);
+    }
+    reference operator*() const {
+      return _asg;
+    }
+    pointer operator->() const {
+      return &_asg;
+    }
+    ConstIterator& operator++() {
+      ++_asg;
+      return *this;
+    }
+    ConstIterator operator++(int) {
+      ConstIterator orig = *this; 
+      ++(*this); 
+      return orig;
+    }
+  };
+
+  Iterator begin() const { 
+    return Iterator(*this); 
   }
 
-
-  //! Get the first assignment in the discrete_domain
-  assignment_type begin() const;
-  //! Get the second assignment in the discrete_domain
-  assignment_type end() const;
-
-  void load(graphlab::iarchive& arc) {
-    arc >> _num_vars;
-    ASSERT_LE(_num_vars, MAX_DIM);
-    for(size_t i = 0; i < _num_vars; ++i) arc >> _vars[i];
-  }
-    
-  void save(graphlab::oarchive& arc) const {
-    arc << _num_vars;
-    for(size_t i = 0; i < _num_vars; ++i) arc << _vars[i];
+  Iterator end() const { 
+    Iterator ret(*this);
+    ret->make_end();
+    return ret;
   }
 
-private:
-  size_t _num_vars;
-  discrete_variable _vars[MAX_DIM];
+public:
+  typedef Iterator       iterator;
+  typedef ConstIterator  const_iterator;
 };
 
-
-
-template<size_t MAX_DIM>
-std::ostream& operator<<(std::ostream& out,
-                         const discrete_domain<MAX_DIM>& dom) {
-  out << "{";
-  for(size_t i = 0; i < dom.num_vars(); ++i) {
-    out << dom.var(i);
-    if( i < dom.num_vars()-1 ) out << ", ";
-  }
-  return out << "}";  
-}
-
-
-
-
+}; // end of namespace graphlab
 
 
 
 #include <graphlab/macros_undef.hpp>
 
-#endif
-
+#endif // DISCRETE_DOMAIN_HPP
