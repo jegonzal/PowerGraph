@@ -313,8 +313,6 @@ void init_lanczos(graph_type * g, bipartite_graph_descriptor & info){
 }
 
 void swork_vec(graph_type::vertex_type & vertex){
-  //if (!info.is_square())
-  //  assert(vertex.id() - pcurrent->start >= 0 && vertex.id() - pcurrent->start < curvec.size());
   vertex.data().pvec[nconv+kk] = 0;
   for (int ttt=nconv; ttt < nconv+n; ttt++){
     vertex.data().pvec[nconv+kk] += curvec(ttt-nconv)*vertex.data().pvec[ttt];
