@@ -313,8 +313,6 @@ void init_lanczos(graph_type * g, bipartite_graph_descriptor & info){
 }
 
 void swork_vec(graph_type::vertex_type & vertex){
-  if (!info.is_square())
-    assert(vertex.id() - pcurrent->start >= 0 && vertex.id() - pcurrent->start < curvec.size());
   vertex.data().pvec[nconv+kk] = 0;
   for (int ttt=nconv; ttt < nconv+n; ttt++){
     vertex.data().pvec[nconv+kk] += curvec(ttt-nconv)*vertex.data().pvec[ttt];
@@ -335,7 +333,8 @@ void compute_ritz(graph_type::vertex_type & vertex){
   vec tmp = init_vec(&vertex.data().pvec[offset], n);
   tmp = tmp.transpose() * (v_vector ? PT : a);
   memcpy(&vertex.data().pvec[offset] ,&tmp[0], kk*sizeof(double)); 
-  std::cout<<"Entered ritz with " << offset << " , v_vector: " << v_vector << "data_size: " << data_size << " kk: " << kk << std::endl;
+  if (debug)
+    std::cout<<"Entered ritz with " << offset << " , v_vector: " << v_vector << "data_size: " << data_size << " kk: " << kk << std::endl;
 }  
 
 
