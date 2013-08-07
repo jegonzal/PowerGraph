@@ -1,8 +1,33 @@
+/**  
+ *  Software submitted by 
+ *  Systems & Technology Research / Vision Systems Inc., 2013
+ *
+ *  Approved for public release; distribution is unlimited. [DISTAR Case #21428]
+ *
+ *  Licensed under the Apache License, Version 2.0 (the "License");
+ *  you may not use this file except in compliance with the License.
+ *  You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing,
+ *  software distributed under the License is distributed on an "AS
+ *  IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+ *  express or implied.  See the License for the specific language
+ *  governing permissions and limitations under the License.
+ *
+ * For more about this software visit:
+ *
+ *      http://www.graphlab.ml.cmu.edu
+ *
+ */
+
+
 /**
  * This file contains an example of graphlab used for discrete loopy
  * belief propagation in a factor graph to denoise a synthetic noisy image.
  *
- * ./denoise --damping=.1 --ncpus=4 
+ * ./denoise --damping=.3 --ncpus=4 
  *
  *  \author Scott Richardson 
  *          based on toolkits/graphical_models/deprecated/loopybp_denoise.cpp
@@ -259,9 +284,13 @@ int main(int argc, char** argv) {
       }
     }
     cv::imwrite("denoised.png",output);
+
+    cv::Mat_< uchar > gm = cv::imread("denoised_gm.png", 0); // force to grayscale with '0'
+    cv::Scalar err = cv::sum(cv::abs(gm - output));
+    ASSERT_LT(err(0), ni*nj*1e-3);
   }
 
-  std::cout << "Done!" << std::endl;
+  std::cout << "All tests passed" << std::endl;
   graphlab::mpi_tools::finalize();
   return EXIT_SUCCESS;
 } // end of main
@@ -323,109 +352,5 @@ void run_engine(graphlab::distributed_control& dc,
             << " updates per second "
             << std::endl;
 }
-
-
-
-
-
-
-/*
-graphlab::vertex_id_type sub2ind(size_t rows, size_t cols,
-                                 size_t r, size_t c) {
-  return r * cols + c;
-}; // end of sub2ind
-
-std::pair<int,int> ind2sub(size_t rows, size_t cols,
-                           size_t ind) {
-  return std::make_pair(ind / cols, ind % cols);
-}; // end of sub2ind
-              
-template<typename T>
-struct merge_reduce {
-  std::vector<T> values;
-  void save(graphlab::oarchive& arc) const { arc << values; }
-  void load(graphlab::iarchive& arc) { arc >> values; }
-  merge_reduce& operator+=(const merge_reduce& other) {
-    values.insert(values.end(), other.values.begin(), 
-                  other.values.end());
-    return *this;
-  }
-}; // end of merge_reduce
-
-typedef std::pair<graphlab::vertex_id_type, float> pred_pair_type; 
-typedef merge_reduce<pred_pair_type> merge_reduce_type;
-
-merge_reduce_type pred_map_function(graph_type::vertex_type vertex) {
-  merge_reduce<pred_pair_type> ret;
-  ret.values.push_back(pred_pair_type(vertex.id(), vertex.data().pred_color));
-  return ret;
-} // end of pred_map_function
-
-merge_reduce_type obs_map_function(graph_type::vertex_type vertex) {
-  merge_reduce<pred_pair_type> ret;
-  ret.values.push_back(pred_pair_type(vertex.id(), vertex.data().obs_color));
-  return ret;
-} // end of obs_map_function
-
-
-void save_image(const size_t rows, const size_t cols,
-                const std::vector<pred_pair_type>& values,
-                const std::string& fname) {
-  std::cout << "NPixels: " << values.size() << std::endl;
-  // determine the max and min colors
-  float max_color = -std::numeric_limits<float>::max();
-  float min_color =  std::numeric_limits<float>::max();
-  foreach(pred_pair_type pair, values) {
-    max_color = std::max(max_color, pair.second);
-    min_color = std::min(min_color, pair.second);
-  }
-
-  cv::Mat img(cols, rows, CV_8UC1);
-  foreach(pred_pair_type pair, values) {
-    std::pair<int,int> coords = ind2sub(rows,cols, pair.first);
-    float value = (pair.second - min_color) / (max_color - min_color);
-    int color = 255 * value > 255 ? 255 : 255 * value;
-    img.at<unsigned char>(coords.first, coords.second) = color;
-  }
-  cv::imwrite(fname, img);
-}
-
-void create_synthetic_mrf(graphlab::distributed_control& dc,
-                          graph_type& graph,
-                          const size_t rows, const size_t cols) {
-  dc.barrier();
-  const double center_r = rows / 2.0;
-  const double center_c = cols / 2.0;
-  const double max_radius = std::min(rows, cols) / 2.0;
- 
-  for(size_t r = dc.procid(); r < rows; r += dc.numprocs()) {
-    for(size_t c = 0; c < cols; ++c) {
-      // Compute the true pixel value
-      const double distance = sqrt((r-center_r)*(r-center_r) + 
-                                   (c-center_c)*(c-center_c));
-      // Compute ring of sunset
-      const uint16_t ring_color =  
-        std::floor(std::min(1.0, distance/max_radius) * (NCOLORS - 1) );
-      // Compute the true pixel color by masking with the horizon
-      const uint16_t true_color = r < rows/2 ? ring_color : 0;
-      // compute the predicted color
-      const float obs_color = true_color + graphlab::random::normal(0, SIGMA);
-      // determine the true pixel id
-      const graphlab::vertex_id_type vid = sub2ind(rows,cols,r,c);
-      const vertex_data vdata(obs_color, true_color);
-      graph.add_vertex(vid, vdata);
-      // Add the edges
-      if(r + 1 < rows) 
-        graph.add_edge(vid, sub2ind(rows,cols,r+1,c),
-                       edge_data(vid, sub2ind(rows,cols,r+1,c), NCOLORS));
-      if(c + 1 < cols) 
-        graph.add_edge(vid, sub2ind(rows,cols,r,c+1),
-                       edge_data(vid, sub2ind(rows,cols,r,c+1), NCOLORS));
-    } // end of loop over cols
-  } // end of loop over rows
-  dc.barrier();
-}; // end of create synthetic mrf
-
-*/
 
 

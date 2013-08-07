@@ -39,6 +39,10 @@ namespace graphlab {
 /**
  * This class respresents a discrete assignment on a domain, i.e, an
  * index into a domain. E.g., element [3,1] in the domain [0,5) x [0x5).
+ *
+ *  \author Joseph Gonzalez
+ *  \author Scott Richardson     09/2012
+ *
  */
 template<size_t MAX_DIM>
 class discrete_assignment {
