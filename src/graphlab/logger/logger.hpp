@@ -100,13 +100,13 @@
 // totally disable logging
 #define logger(lvl,fmt,...)
 #define logbuf(lvl,fmt,...)
-#define logstream(lvl) null_stream()
+#define logstream(lvl) if(0) null_stream()
 
 #define logger_once(lvl,fmt,...)
-#define logstream_once(lvl) null_stream()
+#define logstream_once(lvl) if(0) null_stream()
 
 #define logger_ontick(sec,lvl,fmt,...)
-#define logstream_ontick(sec, lvl) null_stream()
+#define logstream_ontick(sec, lvl) if(0) null_stream()
 
 #else
 
@@ -119,7 +119,7 @@
                         __func__ ,__LINE__,buf,len))
 
 #define logstream(lvl)                      \
-    (log_stream_dispatch<(lvl >= OUTPUTLEVEL)>::exec(lvl,__FILE__, __func__ ,__LINE__) )
+    if(lvl >= global_logger().get_log_level()) (log_stream_dispatch<(lvl >= OUTPUTLEVEL)>::exec(lvl,__FILE__, __func__ ,__LINE__) )
 
 #define logger_once(lvl,fmt,...)                 \
 {    \
