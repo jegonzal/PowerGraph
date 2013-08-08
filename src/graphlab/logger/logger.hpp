@@ -65,14 +65,20 @@
  *   Used for providing general useful information
  * \def LOG_DEBUG
  *   Debugging purposes only
+ * \def LOG_EVERYTHING
+ *   Log everything 
  */
-#define LOG_NONE 6
-#define LOG_FATAL 5
-#define LOG_ERROR 4
-#define LOG_WARNING 3
-#define LOG_EMPH 2
-#define LOG_INFO 1
-#define LOG_DEBUG 0
+// sgr - needed additional debug levels. I can undo this change if 
+// necessary. although it seems to me that log levels should count 
+// up and saturate so the messages label array can always be used.
+#define LOG_NONE 7
+#define LOG_FATAL 6
+#define LOG_ERROR 5
+#define LOG_WARNING 4
+#define LOG_EMPH 3
+#define LOG_INFO 2
+#define LOG_DEBUG 1
+#define LOG_EVERYTHING 0 // technically unsigned int
 
 /**
  * \def OUTPUTLEVEL
