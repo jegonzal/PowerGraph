@@ -24,68 +24,106 @@
 #ifndef DISCRETE_ASSIGNMENT_HPP
 #define DISCRETE_ASSIGNMENT_HPP
 
+#include <assert.h>
+
+// Random number generation
+#include <graphlab/util/random.hpp>
 
 #include "discrete_variable.hpp"
-#include "discrete_domain.hpp"
-
-
+#include "discrete_bounds.hpp"
 
 
 #include <graphlab/macros_def.hpp>
+namespace graphlab {
 
-
-  
+/**
+ * This class respresents a discrete assignment on a domain, i.e, an
+ * index into a domain. E.g., element [3,1] in the domain [0,5) x [0x5).
+ *
+ *  \author Joseph Gonzalez
+ *  \author Scott Richardson     09/2012
+ *
+ */
 template<size_t MAX_DIM>
 class discrete_assignment {
+  typedef uint16_t  subasg_type;
+
 public:
-  typedef discrete_domain<MAX_DIM> domain_type;
+  typedef subasg_type*         iterator;
+  typedef const subasg_type*   const_iterator;
+
+public:
+  typedef discrete_bounds<MAX_DIM> domain_type;
   typedef discrete_variable        variable_type;
+
   //! Construct an empty discrete_assignment
   discrete_assignment() : _index(0) { }  
 
   //! Construct a zero discrete_assignment over the domain
-  discrete_assignment(const domain_type& args) :
-    _args(args), _index(0) {
+  explicit discrete_assignment(const domain_type& args) :
+      _args(args), _index(0) {
     for(size_t i = 0; i < args.num_vars(); ++i) 
       _asgs[i] = 0;
   }
-
-  //! Construct a zero discrete_assignment over the domain
-  discrete_assignment(const domain_type& args, size_t index) :
-    _args(args), _index(index) {
-    assert(index < _args.size());
-    recompute_asgs();
-  }
-    
-  //! construct an discrete_assignment from two variables
+  
+  //! construct an discrete_assignment from one variable
   discrete_assignment(const variable_type& v1, size_t asg1) :
-    _args(v1), _index(asg1) {
+      _args(v1), _index(asg1) {
     assert(asg1 < v1.size());
     _asgs[0] = asg1;
   }
-
-    
+  
   //! construct an discrete_assignment from two variables
   discrete_assignment(const variable_type& v1, size_t asg1, 
                       const variable_type& v2, size_t asg2) :  
-    _args(v1, v2), _index(0) {
+      _args(v1, v2), _index(0) {
     set_asg(v1.id(), asg1);
-    set_asg(v2.id(), asg2);      
+    set_asg(v2.id(), asg2);
   }
 
-  //! Construct an discrete_assignment from a vector of variables and a
-  //! vector of values
+  //! construct an discrete_assignment from multiple variables
+  // NOTE each element of asg indexes into the dimension defined by the 
+  // corresponding element (variable) of vars
+  discrete_assignment(const std::vector<variable_type>& vars, 
+                      const std::vector<size_t>& asg) :
+      _args(domain_type(vars)), _index(0) {
+    assert(vars.size() == asg.size());
+    // map variables to their assignment in the domain
+    for(size_t j=0; j<asg.size(); ++j) {
+      set_asg(vars[j].id(), asg[j], false);
+    }
+    recompute_linear_index(); 
+  }
+  
+  //! Construct a zero discrete_assignment over the domain
+  // NOTE the domain's dimensions are sorted (based on id) at construction;
+  // the index must be computed accordingly. 
+  discrete_assignment(const domain_type& args, size_t index) :
+      _args(args), _index(index) {
+    assert(index < _args.size());
+    recompute_asgs();
+  }
+
+  //! Construct an discrete_assignment from a vector of variables and an
+  //! assignment vector
+  // NOTE the domain's dimensions are sorted (based on id) at construction;
+  // the asg must be sorted similarly. update() can be used to update an  
+  // existing assignment from another
   discrete_assignment(const domain_type& args,
-                      const std::vector<size_t>& values) :
-    _args(args), _index(0) {
+                      const std::vector<size_t>& asg) :
+      _args(args), _index(0) {
     for(size_t i = 0; i < _args.num_vars(); ++i) {
-      assert(values[i] < args.var(i).size());
-      _asgs[i] = values[i];        
+      assert(asg[i] < args.var(i).size());
+      _asgs[i] = asg[i];
     }
     recompute_linear_index();
   }
-    
-    
+
+  iterator begin() { return &(_asgs[0]); }
+  iterator end() { return &(_asgs[_args.num_vars()]); }
+  const_iterator begin() const { return &(_asgs[0]); }
+  const_iterator end() const { return &(_asgs[_args.num_vars()]); }
+
   // //! Construct the union of two discrete_assignments
   // inline discrete_assignment& operator&=(const discrete_assignment& asg2) {
   //   discrete_assignment asg1 = *this;
@@ -129,10 +167,7 @@ public:
   // discrete_assignment operator&(const discrete_assignment& other) const {
   //   discrete_assignment new_asg = *this;
   //   return new_asg &= other;
-  // }
-
-
-
+  // }  
 
   //! Construct the union of two discrete_assignments
   inline discrete_assignment operator&(const discrete_assignment& other) const {
@@ -170,16 +205,7 @@ public:
     *this = tmp;
     return *this;
   }
-    
-  //! Get the variable in the discrete_assignment
-  const domain_type& args() const { return _args; }
-
-  //! get the number of variables
-  size_t num_vars() const { return _args.num_vars(); }
-
-  //! get the size of the discrete_assignment
-  size_t size() const { return _args.size(); }
-    
+  
   //! Get the next discrete_assignment
   discrete_assignment& operator++() {
     assert(_index < _args.size());
@@ -195,14 +221,38 @@ public:
     return *this;
   }
 
+  //! Make this an ending discrete_assignment
+  const discrete_assignment& make_end() {
+    _index = -1;
+    return *this;
+    // for(size_t i = 0; i < _args.num_vars(); ++i)
+    //   _asgs[i] = _args.var(i).size();
+  }
+
   //! Uniformly sample a new index value
   void uniform_sample() {
     set_index( graphlab::random::fast_uniform(size_t(0), size() - 1)  );
   }
-    
-  //! Get the index of this discrete_assignment
-  size_t linear_index() const { return _index; }
-    
+  
+
+  //! get the domain
+  inline const domain_type& args() const { return _args; }
+
+  //! get the number of variables
+  inline size_t num_vars() const { return _args.num_vars(); }
+
+  //! get the size of the discrete_assignment
+  inline size_t size() const { return _args.size(); }
+
+
+  size_t asg(const variable_type& var) const {
+    return asg(var.id());
+  }
+  void set_asg(const variable_type& var, size_t value) {
+    set_asg(var.id(), value);
+  }
+
+ private:
   size_t asg(size_t var_id) const {
     size_t index = _args.var_location(var_id);
     assert(index < _args.num_vars());
@@ -213,29 +263,34 @@ public:
     assert(index < _args.num_vars());
     return _asgs[index];
   }
-    
-  void set_asg(size_t var_id, size_t value) {
+
+  void set_asg(size_t var_id, size_t value, bool recompute=true) {
     size_t index = _args.var_location(var_id);
     assert(index < _args.num_vars());
     assert(value < _args.var(index).size());
     _asgs[index] = value;
-    recompute_linear_index();
+    if(recompute) recompute_linear_index();
   }
 
-  void set_asg_at(size_t index, size_t value) {
+  void set_asg_at(size_t index, size_t value, bool recompute=true) {
     assert(index < _args.num_vars());
     assert(value < _args.var(index).size());
     _asgs[index] = value;
-    recompute_linear_index();
+    if(recompute) recompute_linear_index();
   }
 
+ public:
+  //! Get the index of this discrete_assignment
+  // NOTE index is serialized according to the linear indexing of the domain
+  inline size_t linear_index() const { return _index; }
+
+  //! Set the index of this discrete_assignment
+  // NOTE index is serialized according to the linear indexing of the domain
   void set_index(size_t index) {
     assert(index < _args.size());
     _index = index;
     recompute_asgs();
   }
-
-
 
   //! Tests whether two discrete_assignments are equal
   bool operator==(const discrete_assignment& other) const {
@@ -243,26 +298,37 @@ public:
   }
   //! Tests whether two discrete_assignments are not equal
   bool operator!=(const discrete_assignment& other) const {
-    return _index != other._index;
+    return !this->operator==(other);
   }
   //! Tests whether this discrete_assignment is < other
   bool operator<(const discrete_assignment& other) const {
     return _index < other._index;
   }
-  //! Make this an ending discrete_assignment
-  void make_end() {
-    _index = -1;
-    // for(size_t i = 0; i < _args.num_vars(); ++i)
-    //   _asgs[i] = _args.var(i).size();
+  //! Tests whether this discrete_assignment is > other
+  bool operator>(const discrete_assignment& other) const {
+    return other.operator<(*this);
   }
-
-  //! Restrict the discrete_assignment to an discrete_assignment over the subdomain
+  //! Tests whether this discrete_assignment is <= other
+  bool operator<=(const discrete_assignment& other) const {
+    return !this->operator>(other);
+  }
+  //! Tests whether this discrete_assignment is >= other
+  bool operator>=(const discrete_assignment& other) const {
+    return !this->operator<(other);
+  }
+  
+  
+  //! Restrict the discrete_assignment to a discrete_assignment over the sub-domain
   discrete_assignment restrict(const domain_type& sub_domain) const {
+    // sub_domain must be a subset of this domain
+    DCHECK_EQ((_args + sub_domain).num_vars(), num_vars());
+
     discrete_assignment other_asg(sub_domain);
     size_t index = 0;
     // Map the variables 
+    // NOTE this depends on the list of variables in both domains being sorted
     for(size_t i = 0; i < _args.num_vars() && 
-          index < sub_domain.num_vars(); ++i) {
+        index < sub_domain.num_vars(); ++i) {
       if(sub_domain.var(index) == _args.var(i)) {
         other_asg._asgs[index] = _asgs[i];
         index++;
@@ -274,9 +340,12 @@ public:
     return other_asg;
   } // end of restrict
 
-    //! Update the variables in this discrete_assignment with the values in the
-    //! other discrete_assignment
+  //! Update the variables in this discrete_assignment with the values in the
+  //! other discrete_assignment
   void update(const discrete_assignment& other) {
+    // REVIEW should this domain be a subset of the other domain?
+
+    // NOTE this depends on the list of variables in both domains being sorted
     for(size_t i = 0, j = 0;
         i < num_vars() && j < other.num_vars(); ) {
       if(_args.var(i) == other._args.var(j)) {
@@ -289,20 +358,32 @@ public:
     }
     recompute_linear_index();
   }
-    
+
   void load(graphlab::iarchive& arc) {
     arc >> _args;
     arc >> _index;
     recompute_asgs();
   }
-    
+  
   void save(graphlab::oarchive& arc) const {
     arc << _args;
     arc << _index;
   }
 
-private:
+  friend std::ostream& operator<<(std::ostream& out,
+                            const discrete_assignment<MAX_DIM>& asg) {
+    out << "{";
+    for(size_t i = 0; i < asg.args().num_vars(); ++i) {
+      // TODO the v_varId is redundant. remove it
+      //out << "v_" << asg.args().var(i).id() << "=";
+      out << asg.asg_at(i);
+      if(i < asg.args().num_vars() - 1) out << ", ";
+    }
+    out << "}=" << asg.linear_index();
+    return out;
+  }
 
+private:
   //! Recompute the index from the discrete_assignment
   void recompute_linear_index() {
     size_t multiple = 1;
@@ -310,7 +391,7 @@ private:
     _index = 0;
     for(size_t i = 0; i < _args.num_vars(); ++i) {
       _index += multiple * _asgs[i];
-      //        assert(_args.var(i).nasgs > 0);
+      // assert(_args.var(i).nasgs > 0);
       multiple *= _args.var(i).size();
     }
   }
@@ -326,46 +407,19 @@ private:
     }
   }
 
-
+  // a discrete domain over a set of variables, e.g., {v1, v2}
   domain_type _args;
-  uint16_t _asgs[MAX_DIM];
+  // an assignment on the domain, e.g., [3,1] (recomputed anytime
+  // _index is updated with recompute_asgs())
+  subasg_type _asgs[MAX_DIM];
+  // the linear index of the assignment _asgs (recomputed anytime _asgs is 
+  // updated with recompute_linear_index())
   uint32_t _index;
 };
 
 
-  
-template<size_t MAX_DIM>
-discrete_assignment<MAX_DIM> discrete_domain<MAX_DIM>::begin() const {
-  return discrete_assignment<MAX_DIM>(*this);
-}
-
-template<size_t MAX_DIM>
-discrete_assignment<MAX_DIM> discrete_domain<MAX_DIM>::end() const {
-  discrete_assignment<MAX_DIM> ret(*this);
-  ret.make_end();
-  return ret;
-}
-
-
-
-
-
-template<size_t MAX_DIM>
-std::ostream& operator<<(std::ostream& out,
-                         const discrete_assignment<MAX_DIM>& asg) {
-  out << "{";
-  for(size_t i = 0; i < asg.args().num_vars(); ++i) {
-    out << "v_" << asg.args().var(i).id()
-        << "=" << asg.asg_at(i);
-    if(i < asg.args().num_vars() - 1) out << ", ";
-  }
-  out << "}=" << asg.linear_index();
-  return out;
-}
-
-
-
+}; // end of namespace graphlab
 
 #include <graphlab/macros_undef.hpp>
-#endif
+#endif // DISCRETE_ASSIGNMENT_HPP
 

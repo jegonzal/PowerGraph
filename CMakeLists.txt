@@ -429,6 +429,8 @@ endif()
 
 # MPI =========================================================================
 # MPI is currently used to establish communication between rpc nodes
+#sgr this name is confusing. i like WITH_MPI better. likewise for NO_OPENMP
+set(NO_MPI ON CACHE BOOL "Don't include MPI support") 
 if(NOT NO_MPI)
   #find_package(MPICH2)
   find_package(MPI) 

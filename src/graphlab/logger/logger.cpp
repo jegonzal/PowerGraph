@@ -45,6 +45,7 @@ void streambuffdestructor(void* v){
 }
 
 const char* messages[] = {  "DEBUG:    ",
+                            "DEBUG:    ",
                             "INFO:     ",
                             "INFO:     ",
                             "WARNING:  ",
@@ -238,8 +239,8 @@ file_logger& file_logger::start_stream(int lineloglevel,const char* file,
                                        const char* function, int line, bool do_start) {
   // get the stream buffer
   logger_impl::streambuff_tls_entry* streambufentry =
-      reinterpret_cast<logger_impl::streambuff_tls_entry*>(
-          pthread_getspecific(streambuffkey));
+        reinterpret_cast<logger_impl::streambuff_tls_entry*>(
+                              pthread_getspecific(streambuffkey));
   // create the key if it doesn't exist
   if (streambufentry == NULL) {
     streambufentry = new logger_impl::streambuff_tls_entry;

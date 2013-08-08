@@ -30,10 +30,15 @@
  */
 
 #include <iostream>
+#include <sstream>
 
 #include <graphlab/logger/assertions.hpp>
 #include <graphlab/serialization/serialization_includes.hpp>
 
+
+// Include the macro for the for each operation
+//#include <graphlab/macros_def.hpp>
+namespace graphlab {
 
 
 /** represents a discrete variable */
@@ -44,10 +49,24 @@ public:
   //! the type used to index the variable assignments
   typedef uint32_t index_type;
 
+  discrete_variable() : id_(0), nasgs_(0) { }
+
   /** construct a discrte variable with a given id and number of
       assignments */
-  inline discrete_variable(id_type id = 0, index_type nasgs = 0) : 
-    id_(id), nasgs_(nasgs) { }
+  discrete_variable(id_type id, index_type nasgs) : 
+    id_(id), 
+    nasgs_(nasgs) { }
+  discrete_variable(const discrete_variable& other) :
+    id_(other.id_), 
+    nasgs_(other.nasgs_) { }
+  discrete_variable& operator=(const discrete_variable& other) {
+    if(this == &other) 
+      return *this;
+
+    id_ = other.id_;
+    nasgs_ = other.nasgs_;
+    return *this;
+  }
   //! get the variable id
   inline id_type& id() { return id_; }
   //! get the variable id
@@ -68,28 +87,34 @@ public:
   inline bool operator!=(const discrete_variable& other) const { 
     return id_ != other.id_; 
   }
+
   //! load the variable from an archive
-  void load(graphlab::iarchive& arc) { arc >> id_ >> nasgs_; }
+  void load(graphlab::iarchive& arc) { 
+    arc >> id_ >> nasgs_;
+  }
   //! save the variable to an archive
-  void save(graphlab::oarchive& arc) const { arc << id_ << nasgs_; }
-    
+  void save(graphlab::oarchive& arc) const { 
+    arc << id_ << nasgs_; 
+  }
+  
 private:
   //! The variable id
   id_type id_;
   //! The number of assignments the variable takes
   index_type nasgs_;
-
 };
 
 
-
-std::ostream& operator<<(std::ostream& out, 
-                         const discrete_variable& var) {
-  // return out << "v_" << var.id()
-  //            << " in {0:" << var.size()-1 << "}";
-  return out << var.id();
+inline std::ostream& operator<<(std::ostream& out, 
+                   const graphlab::discrete_variable& var) {
+  return out << "v_" << var.id();
+  //           << " in {0:" << var.size()-1 << "}";
 }
 
+}; // end of namespace graphlab
 
+
+
+//#include <graphlab/macros_undef.hpp>
 #endif
 
