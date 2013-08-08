@@ -534,6 +534,7 @@ namespace graphlab {
   
     void reserve(size_t newlen) {
       newlen = next_powerof2(newlen);
+      if (newlen <= datalen) return;
       mask = newlen - 1;
       //data.reserve(newlen);
       //data.resize(newlen, std::make_pair<Key, Value>(illegalkey, Value()));
