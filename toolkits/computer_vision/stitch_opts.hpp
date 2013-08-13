@@ -90,6 +90,7 @@ struct Options
     std::string wave_correct_type;
 
     //bundle adjustment options
+    std::string ba_cost_func;
     std::string ba_refine_mask;
 
     //gain compensation options
@@ -101,6 +102,9 @@ struct Options
 
     //saving output
     std::string result_name;
+
+   //saving the adjacency list for creating the graph
+   //std::string graph_name;
    
     // Default values
     Options():
@@ -110,10 +114,11 @@ struct Options
     work_megapix(0.6), seam_megapix(0.1), compose_megapix(-1),
     work_scale(1), seam_scale(1), compose_scale(1),
     seam_work_aspect(1/6), compose_seam_aspect(1), compose_work_aspect(1),
-    warped_image_scale(-1), warp_type("plane"),
-    conf_thresh(1.0),
+    warped_image_scale(-1), warp_type("spherical"),
+    conf_thresh(1.f),
     seam_find_type("gc_color"), terminal_cost(10000.f), bad_region_penalty(1000.f),
     wave_correct_type("horiz"),
+    ba_cost_func("ray"),
     ba_refine_mask("xxxxx"),
     expose_comp_type("gain_blocks"),
     blending_type("multiband"), blend_strength(5),

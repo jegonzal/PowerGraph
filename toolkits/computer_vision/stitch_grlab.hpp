@@ -38,7 +38,9 @@
 #include <vector>
 #include <string>
 #include <fstream>
+#include <iostream>
 #include <math.h>
+#include <unistd.h>
 
 
 #include <Eigen/Dense>

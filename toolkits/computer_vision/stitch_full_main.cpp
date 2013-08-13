@@ -30,6 +30,8 @@
  *  \author Dhruv Batra
  */
 
+/* No adjacency list is externally given here for constructing the graph, 
+ * rather an adjacency list is created here for a fully connected graph*/
 
 #include "stitch_main.hpp"
 
@@ -64,8 +66,7 @@ int main(int argc, char** argv)
     clopts.attach_option("img", img_dir,
                          "The directory containing the images");
     clopts.add_positional("img");
-    clopts.attach_option("graph", graph_path,
-                         "The path to the adjacency list file (could be the prefix in case of multiple files)");
+    
     clopts.add_positional("graph");
     clopts.attach_option("output", opts.output_dir,
                          "The directory in which to save the output");
@@ -87,13 +88,7 @@ int main(int argc, char** argv)
         logstream(LOG_ERROR) << "No image directory was provided." << std::endl;
         return EXIT_FAILURE;
     }
-   
-    if(graph_path.empty())
-    {
-        logstream(LOG_ERROR) << "No adjacency file provided." << std::endl;
-        return EXIT_FAILURE;
-    }
-   
+       
     if (opts.work_megapix > 10)
     {
         logstream(LOG_ERROR) << "Inappropriate value for work_megapix." << std::endl;
@@ -107,7 +102,6 @@ int main(int argc, char** argv)
     << "engine:         " << opts.exec_type << std::endl
     << "scheduler:      " << clopts.get_scheduler_type() << std::endl
     << "img_dir:        " << img_dir << std::endl
-    << "graph_path:     " << graph_path << std::endl
     << "work_megapix:   " << opts.work_megapix << std::endl
     << "verbose:        " << opts.verbose << std::endl;
    
@@ -117,9 +111,7 @@ int main(int argc, char** argv)
     graph_type graph_feat(dc, clopts);
        
     // load the graph
-    //graph.load(img_dir, vertex_loader);
-    vertex_loader(dc, graph_feat, img_dir);
-    graph_feat.load(graph_path, edge_loader);
+    graph_loader(dc, graph_feat, img_dir);
     graph_feat.finalize();
    
     ///////////////////////////////////////////////////////
@@ -140,7 +132,6 @@ int main(int argc, char** argv)
     // Match features in parallel on edges
     graph_feat.transform_edges(match_features);
 
-   
     //if (dc.procid()==0) {
     ///////////////////////////////////////////////////////
     // Compile features
@@ -152,8 +143,7 @@ int main(int argc, char** argv)
     {
         features[i] = vdlist[i].features;
     }
-    vdlist.clear();
-   
+       
     int num_images = features.size();
    
     ///////////////////////////////////////////////////////
@@ -205,6 +195,17 @@ int main(int argc, char** argv)
 
     }
     edlist.clear();
+   
+    ///////////////////////////////////////////////////////
+    // Leave only images we are sure are from the same panorama
+    
+    vector<int> indices = leaveBiggestComponent(features, pairwise_matches, opts.conf_thresh);
+    vector<string> img_path(indices.size());
+    for (size_t i=0; i!=indices.size(); ++i)
+    {
+        img_path[i] = vdlist[indices[i]].img_path;
+    }
+    
 
     ///////////////////////////////////////////////////////
     // Homography-Based Initialization
@@ -229,7 +230,6 @@ int main(int argc, char** argv)
     // Bundle Adjustment
     t = getTickCount();
     Ptr<detail::BundleAdjusterBase> adjuster;
-    //adjuster = new detail::BundleAdjusterRay();
     if (opts.ba_cost_func == "reproj") adjuster = new detail::BundleAdjusterReproj();
     else if (opts.ba_cost_func == "ray") adjuster = new detail::BundleAdjusterRay();
     else
@@ -291,11 +291,11 @@ int main(int argc, char** argv)
     graph_type graph_cam(dc, clopts);
 
     // load the graph
-    if (dc.procid()==0) {
-    vertex_loader(graph_cam, img_dir, cameras);
-    graph_cam.load(graph_path, edge_loader);
-    }
+    if (dc.procid()==0)
+	graph_loader(graph_cam, img_dir, cameras, img_path, indices, pairwise_matches);
+
     graph_cam.finalize();
+    vdlist.clear();
 
     ///////////////////////////////////////////////////////
     // Warp Images in parallel on vertices
@@ -390,7 +390,7 @@ int main(int argc, char** argv)
     blender->blend(result, result_mask);
 
     imwrite(opts.result_name, result);
-    
+           
     LOGLN("Finished, total time: " << ((getTickCount() - app_start_time) / getTickFrequency()) << " sec");
 
     ///////////////////////////////////////////////////////
