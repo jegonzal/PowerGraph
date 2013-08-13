@@ -430,26 +430,26 @@ endif()
 # MPI =========================================================================
 # MPI is currently used to establish communication between rpc nodes
 #sgr this name is confusing. i like WITH_MPI better. likewise for NO_OPENMP
-# set(NO_MPI ON CACHE BOOL "Don't include MPI support") 
-if(NOT NO_MPI)
+if(NO_MPI)
+  message(STATUS "MPI disabled as a configure option.")
+else()
   #find_package(MPICH2)
   find_package(MPI) 
+  if(MPI_FOUND)
+    message(STATUS "MPI Found: " ${MPI_LIBRARY} ${MPI_EXTRA_LIBRARY})
+    add_definitions(-DHAS_MPI)
+    include_directories(${MPI_INCLUDE_PATH})
+  else(MPI_FOUND)
+    message(STATUS "MPI Not Found! Distributed Executables will not be compiled")
+    set(MPI_LIBRARY "")
+    set(MPI_EXTRA_LIBRARY "")
+    # ExternalProject_Add(openmpi
+    #   PREFIX ${GraphLab_SOURCE_DIR}/deps/openmpi
+    #   URL http://www.open-mpi.org/software/ompi/v1.4/downloads/openmpi-1.4.5.tar.gz
+    #   CONFIGURE_COMMAND <SOURCE_DIR>/configure --prefix=<INSTALL_DIR>
+    #   INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local)
+  endif(MPI_FOUND)
 endif()
-
-if(MPI_FOUND)
-  message(STATUS "MPI Found: " ${MPI_LIBRARY} ${MPI_EXTRA_LIBRARY})
-  add_definitions(-DHAS_MPI)
-  include_directories(${MPI_INCLUDE_PATH})
-else(MPI_FOUND)
-  message(STATUS "MPI Not Found! Distributed Executables will not be compiled")
-  set(MPI_LIBRARY "")
-  set(MPI_EXTRA_LIBRARY "")
-  # ExternalProject_Add(openmpi
-  #   PREFIX ${GraphLab_SOURCE_DIR}/deps/openmpi
-  #   URL http://www.open-mpi.org/software/ompi/v1.4/downloads/openmpi-1.4.5.tar.gz
-  #   CONFIGURE_COMMAND <SOURCE_DIR>/configure --prefix=<INSTALL_DIR>
-  #   INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local)
-endif(MPI_FOUND)
 
 
 

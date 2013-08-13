@@ -26,13 +26,15 @@ function print_help {
   echo
   echo "  --no_openmp         Disables OpenMP. Disabled by default on Mac."
   echo
-  echo "  --no_jvm             Disable JVM features including HDFS integration."
+  echo "  --no_mpi            Disables MPI (disables distributed execution)."
+  echo
+  echo "  --no_jvm            Disable JVM features including HDFS integration."
   echo
   echo "  --experimental      Turns on undocumented experimental capabilities. "
   echo
   echo "  --c++11             Turns on C++11 experimental features. "
   echo
-  echo "  --vid32              Switch to 32bit vertex ids."
+  echo "  --vid32             Switch to 32bit vertex ids."
   echo
   echo "  -D var=value        Specify definitions to be passed on to cmake."
 
@@ -117,6 +119,7 @@ EXPERIMENTAL=false
 GRAPHLAB_HOME=$PWD
 DEPS_PREFIX=$PWD/deps/local
 NO_OPENMP=false
+NO_MPI=false
 CPP11=false
 VID32=false
 CFLAGS=""
@@ -143,6 +146,7 @@ while [ $# -gt 0 ]
     --help)                 print_help=1 ;;
     --cleanup)              run_cleanup=1 ;;
     --no_openmp)            no_openmp=1 ;;
+    --no_mpi)               no_mpi=1 ;;
     --no_jvm)               no_jvm=1 ;;
     --experimental)         experimental=1 ;;
     --c++11)                cpp11=1 ;;
@@ -170,6 +174,9 @@ if [[ -n $ide ]]; then
 fi
 if [ $no_openmp ]; then
   NO_OPENMP=true
+fi
+if [ $no_mpi ]; then
+  NO_MPI=true
 fi
 if [ $experimental ]; then
   EXPERIMENTAL=true
@@ -306,6 +313,9 @@ echo -e "\t DEPS_PREFIX=$DEPS_PREFIX" >> configure.deps
 echo -e "# Use OpenMP?  This can accelerate some graph building code: " >> configure.deps
 echo -e "\t NO_OPENMP=$NO_OPENMP" >> configure.deps
 
+echo -e "# Use MPI?  Without MPI GraphLab cannot run distributed: " >> configure.deps
+echo -e "\t NO_MPI=$NO_MPI" >> configure.deps
+
 echo -e "# The c compiler to use: " >> configure.deps
 echo -e "\t CC=$CC" >> configure.deps
 
@@ -343,6 +353,7 @@ cat configure.deps | tee -a $LOG_FILE
 
 ### Add addition config flags =================================================
 CFLAGS="$CFLAGS -D NO_OPENMP:BOOL=$NO_OPENMP"
+CFLAGS="$CFLAGS -D NO_MPI:BOOL=$NO_MPI"
 CFLAGS="$CFLAGS -D CMAKE_INSTALL_PREFIX:STRING=$INSTALL_DIR"
 CFLAGS="$CFLAGS -D EXPERIMENTAL:BOOL=$EXPERIMENTAL"
 CFLAGS="$CFLAGS -D CPP11:BOOL=$CPP11"
