@@ -27,7 +27,7 @@
  * provided in standard UAI file format via Dual-Decomposition. 
  *
  *
- *  \author Dhruv Batra
+ *  \authors Dhruv Batra, André Martins, Aroma Mahendru
  */
 
 
@@ -47,24 +47,33 @@ struct Options
     std::string graph_file;
     std::string output_dir;
     std::string history_file;
-    
+    std::string file_format;
+
     int verbose;
+    int algorithm;  
     
     double dualimprovthres;
     double pdgapthres;
     int maxiter;
     
-    int stepsize_type;    
+    double step_size; 
+    double agg_time; 
     
+    bool debug;
     
     // Default values
     Options(): 
     exec_type("sync"),
-    output_dir("pred"),
+    output_dir("./"),
     history_file("\0"),
-    verbose(0), dualimprovthres(1e-5),
-    stepsize_type(1), pdgapthres(1e-1), 
-    maxiter(10000)
+    verbose(0),
+    dualimprovthres(1e-7), pdgapthres(1e-1), 
+    algorithm(0),
+    maxiter(10000),
+    debug(false),
+    step_size(1.0),
+    file_format("uai"),
+    agg_time(1e-4)
     {}
 };
 
