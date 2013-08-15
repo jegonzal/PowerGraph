@@ -27,11 +27,12 @@
  * provided in standard UAI file format via Dual-Decomposition. 
  *
  *
- *  \author Dhruv Batra
+ *  \authors Dhruv Batra, André Martins, Aroma Mahendru
  */
 
 #include "dd_main.hpp"
 #include "dd_grlab.hpp"
+#include "ad3_qp.hpp"
 
 Options opts;
 
@@ -46,6 +47,7 @@ int main(int argc, char** argv)
     graphlab::mpi_tools::init(argc, argv);
     graphlab::distributed_control dc;
     
+    
     // Parse command line options -----------------------------------------------
     const std::string description = "Dual-Decomposition for MAP-MRF Inference";
     graphlab::command_line_options clopts(description);
@@ -58,18 +60,30 @@ int main(int argc, char** argv)
     clopts.add_positional("output");
     clopts.attach_option("history", opts.history_file, " for saving objective values");
     clopts.add_positional("history");
-    clopts.attach_option("stepsize_type", opts.stepsize_type, "to specify type of stepsize, 0 for no variation, 1 for 1/t type, 2 for polyak");
-    clopts.add_positional("stepsize_type");
+    clopts.attach_option("step_size", opts.step_size, "initial/fixed stepsize");
+    clopts.add_positional("step_size");
+    clopts.attach_option("debug_mode", opts.debug, "to activate debug mode set it to true");
+    clopts.add_positional("debug_mode");
     clopts.attach_option("dualimprovthres", opts.dualimprovthres,
                          "The tolerance level for Dual Convergence.");
-    clopts.attach_option("pdgapthres", opts.pdgapthres,
-                         "The tolerance level for Primal-Dual Gap.");
+     clopts.add_positional("dualimprovthres");                    
+    //clopts.attach_option("pdgapthres", opts.pdgapthres,
+    //                     "The tolerance level for Primal-Dual Gap.");
     clopts.attach_option("maxiter", opts.maxiter,
                          "The maximum no. of DD iterations.");
     clopts.attach_option("verbose", opts.verbose,
                          "Verbosity of Printing: 0 (default, no printing) or 1 (lots).");
     clopts.attach_option("engine", opts.exec_type,
                          "The type of engine to use {async, sync}.");
+    clopts.attach_option("algorithm", opts.algorithm, 
+                         "specify type of algorithm: 0 for dd_symmetric, 1 for dd_projected, 2 for admm");
+    clopts.add_positional("algorithm");
+    clopts.attach_option("format", opts.file_format, 
+                         "specify file format : uai or distr_uai");
+    clopts.add_positional("format");
+    clopts.attach_option("agg_time", opts.agg_time, 
+                         "specify the time period after aggregator works");
+    clopts.add_positional("agg_time");
     
     if(!clopts.parse(argc, argv)) 
     {
@@ -83,6 +97,7 @@ int main(int argc, char** argv)
         return EXIT_FAILURE;
     }
 
+   
     ///! display settings  
     if(dc.procid() == 0) 
     {
@@ -95,7 +110,7 @@ int main(int argc, char** argv)
         ;
     }
     
-        
+       
     // Instantiate graph object
     graph_type graph(dc, clopts);  
     
@@ -103,46 +118,41 @@ int main(int argc, char** argv)
     // load the graph
     //    graph.load(prior_dir, vertex_loader);
     //    graph.load(graph_dir, edge_loader);
+    if(opts.file_format == "uai")
     loadUAIfile(dc, graph, opts.graph_file);
+    else
+    graph.load(opts.graph_file.c_str(), line_parser);
+
     graph.finalize();
-    
-    // Define the engine.
-    typedef graphlab::omni_engine<dd_vertex_program_symmetric> engine_type;
-    //typedef graphlab::omni_engine<dd_vertex_program_projected> engine_type;
 
-    // Instantiate the engine object
-    engine_type engine(dc, graph, opts.exec_type, clopts);
-    engine.signal_all();
-    graphlab::timer timer;
+    // run dual decomposition    
+    switch (opts.algorithm){
+    case 1: run_dd_projected(dc, graph, opts.exec_type, clopts);
+            break;
+    case 2: run_admm(dc, graph, opts.exec_type, clopts);
+            break;
+    default : run_dd_symmetric(dc, graph, opts.exec_type, clopts);
+    }
     
-    // Attach an aggregator to compute primal/dual objective, periodic with 0.5 s intervals.
-    
-     engine.add_vertex_aggregator<objective>("pd_obj",sum, print_obj); 
-     engine.aggregate_periodic("pd_obj",0.0001);
+    // save predictions
+    if(opts.output_dir.find("/", opts.output_dir.size()-1) == std::string::npos){
+    opts.output_dir.append("/"); }
+    opts.output_dir.append("output.txt");
+    graph.save(opts.output_dir.c_str(), graph_writer(), false, true, false); 
 
-    // The main command. Run graphlab
-    engine.start();  
-    // engine.aggregate_now("pd_obj");
-    
-    const double runtime = timer.current_time();    
-    dc.cout() 
-    << "----------------------------------------------------------" << std::endl
-    << "Final Runtime (seconds):   " << runtime 
-    << std::endl
-    << "Updates executed: " << engine.num_updates() << std::endl
-    << "Update Rate (updates/second): " 
-    << engine.num_updates() / runtime << std::endl;
-    
+    // save history 
     if ( opts.history_file.size() < 4 || opts.history_file.find(".txt",opts.history_file.size()-4) == std::string::npos)
     {opts.history_file.append(".txt");} 
     char *filename = (char*)opts.history_file.c_str();
     ofstream file;
     file.open(filename);
     int i = 0;
-    while(i< history[0].size())
-    { file<<history[0][i]<<" "<<history[1][i]<<" "<<history[2][i]<<endl;
+    while(i< global_vars.history[0].size())
+    { file<<global_vars.history[0][i]<<" "<<global_vars.history[1][i]<<" "
+          <<global_vars.history[2][i]<<" "<<global_vars.history[3][i]<<endl;
       i++;}
      file.close();
+    
     graphlab::mpi_tools::finalize();
     return EXIT_SUCCESS;
     
