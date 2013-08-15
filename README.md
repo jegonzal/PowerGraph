@@ -60,7 +60,7 @@ There are however, a few dependencies which we cannot easily satisfy:
    +   Comes with most Mac/Linux systems by default. Recent Ubuntu version will require the zlib1g-dev package.
 
 * Open MPI or MPICH2 [Strongly Recommended]
-   + Required for running GraphLab distributed. Incompatible with OpenMPI 1.5 and 1.6.
+   + Required for running GraphLab distributed. 
 
 * JDK 6 or greater [Optional]
    + Required for HDFS support 

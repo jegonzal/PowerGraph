@@ -38,6 +38,12 @@
 #include <graphlab/rpc/circular_iovec_buffer.hpp>
 #include <graphlab/util/tracepoint.hpp>
 #include <graphlab/util/dense_bitset.hpp>
+
+#ifndef __APPLE__
+// prefix mangling if not Mac
+#include <graphlab/rpc/evwrapdef.h>
+#endif
+#include <event2/event.h>
 namespace graphlab {
 namespace dc_impl {
 
@@ -265,5 +271,11 @@ void process_sock(dc_tcp_comm::socket_info* sockinfo);
 
 } // namespace dc_impl
 } // namespace graphlab
+
+#ifndef __APPLE__
+// prefix mangling if not Mac
+#include <graphlab/rpc/evwrapundef.h>
+#endif
+
 #endif
 
