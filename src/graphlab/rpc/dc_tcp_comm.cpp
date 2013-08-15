@@ -32,9 +32,6 @@
 #include <ifaddrs.h>
 #include <poll.h>
 
-#include <event2/event.h>
-#include <event2/thread.h>
-
 #include <limits>
 #include <vector>
 #include <string>
@@ -49,6 +46,11 @@
 #define compile_barrier() asm volatile("": : :"memory")
 
 #include <graphlab/macros_def.hpp>
+
+// prefix mangling if not Mac
+#include <graphlab/rpc/evwrapdef.h>
+#include <event2/event.h>
+#include <event2/thread.h>
 
 //#define COMM_DEBUG
 namespace graphlab {
