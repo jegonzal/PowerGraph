@@ -48,7 +48,9 @@
 #include <graphlab/macros_def.hpp>
 
 // prefix mangling if not Mac
+#ifndef __APPLE__
 #include <graphlab/rpc/evwrapdef.h>
+#endif
 #include <event2/event.h>
 #include <event2/thread.h>
 
