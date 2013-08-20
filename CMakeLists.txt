@@ -43,8 +43,11 @@ else()
   set(OPENMP_LIBRARIES "gomp")
 endif()
 
-
+if (APPLE)
+link_libraries(pthread rt ${OPENMP_LIBRARIES})
+else()
 link_libraries(pthread ${OPENMP_LIBRARIES})
+endif()
 
 set(CPP11_FLAGS "")
 if(CPP11)
