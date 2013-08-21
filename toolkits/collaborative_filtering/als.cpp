@@ -514,7 +514,7 @@ struct linear_model_saver_U {
   typedef graph_type::vertex_type vertex_type;
   typedef graph_type::edge_type   edge_type;
   /* save the linear model, using the format:
-     nodeid) factor1 factor2 ... factorNLATENT \n
+     nodeid factor1 factor2 ... factorNLATENT \n
   */
   std::string save_vertex(const vertex_type& vertex) const {
     if (vertex.num_out_edges() > 0){
@@ -535,11 +535,11 @@ struct linear_model_saver_V {
   typedef graph_type::vertex_type vertex_type;
   typedef graph_type::edge_type   edge_type;
   /* save the linear model, using the format:
-     nodeid) factor1 factor2 ... factorNLATENT \n
+     nodeid factor1 factor2 ... factorNLATENT \n
   */
   std::string save_vertex(const vertex_type& vertex) const {
     if (vertex.num_out_edges() == 0){
-      std::string ret = boost::lexical_cast<std::string>(-vertex.id()-SAFE_NEG_OFFSET) + ") ";
+      std::string ret = boost::lexical_cast<std::string>(-vertex.id()-SAFE_NEG_OFFSET) + " ";
       for (uint i=0; i< vertex_data::NLATENT; i++)
         ret += boost::lexical_cast<std::string>(vertex.data().factor[i]) + " ";
         ret += "\n";
