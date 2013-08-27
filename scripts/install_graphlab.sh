@@ -1,8 +1,8 @@
 #!/bin/bash
 
-hg clone https://code.google.com/p/graphlabapi/ 
-cd graphlabapi
+git clone https://github.com/graphlab-code/graphlab.git
+cd graphlab
 ./configure | tee install_configure_log.txt
 cd release
-make -j2 | tee ../v2_debug_log.txt
+make -j2 | tee ../v2_build_log.txt
 
