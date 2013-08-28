@@ -216,15 +216,18 @@ int main(int argc, char** argv)
     estimator(features, pairwise_matches, cameras);
     logstream(LOG_EMPH) << "Homography-based init, time: " << ((getTickCount() - t) / getTickFrequency()) << " sec\n";
    
+    LOGLN("Camera's size: " << cameras.size() << "\n");    //added for testing
+
     for (size_t i = 0; i < cameras.size(); ++i)
     {
         Mat R;
-        cameras[i].R.convertTo(R, CV_32F);
+	cameras[i].R.convertTo(R, CV_32F);
         cameras[i].R = R;
         if (dc.procid() == 0)
             logstream(LOG_EMPH) << "Initial intrinsics #" << i << ":\n" << cameras[i].K() << "\n\n";
     }
 
+    LOGLN("Homography-Based Initialization ended...\n");
    
     ///////////////////////////////////////////////////////
     // Bundle Adjustment
