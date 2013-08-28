@@ -648,6 +648,11 @@ int main(int argc, char** argv) {
 
   if (rows <= 0 || cols <= 0)
     logstream(LOG_FATAL)<<"Please specify number of rows/cols of the input matrix" << std::endl;
+
+  if (rows == cols){
+    logstream(LOG_WARNING)<<"GraphLab SVD does not support square matrices. Increasing row size by one." << std::endl;
+    rows++; 
+  }
      
   info.rows = rows;
   info.cols = cols;
