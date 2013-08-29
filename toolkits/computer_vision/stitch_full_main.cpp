@@ -364,6 +364,7 @@ int main(int argc, char** argv)
         blender = Blender::createDefault(blend_type, try_gpu);
         Size dst_sz = resultRoi(corner, size).size();
         float blend_width = sqrt(static_cast<float>(dst_sz.area())) * opts.blend_strength / 100.f;
+
         if (blend_width < 1.f)
             blender = Blender::createDefault(Blender::NO, try_gpu);
         else if (blend_type == Blender::MULTI_BAND)
@@ -389,10 +390,11 @@ int main(int argc, char** argv)
         img_warped_s.release();
     }
     
-    Mat result, result_mask;
+    Mat result, result_mask, resized_result;
     blender->blend(result, result_mask);
 
-    imwrite(opts.result_name, result);
+    resize(result, resized_result, Size(), opts.output_scale, opts.output_scale);
+    imwrite(opts.result_name, resized_result);
            
     LOGLN("Finished, total time: " << ((getTickCount() - app_start_time) / getTickFrequency()) << " sec");
 
