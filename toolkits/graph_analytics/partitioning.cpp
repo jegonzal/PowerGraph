@@ -79,17 +79,25 @@ bool call_graph_laplacian(const std::string& mpi_args,
   return true;
 }
 
+void make_initial_vector_file(const std::string& filename, const size_t num_data){
+  std::ofstream ofs((filename + ".init").c_str());
+  for(size_t i=0;i<num_data;++i){
+    ofs << 0.1*((i+1)%10)/10.0 << "\n";
+  }
+  ofs.close();
+}
+
 bool call_svd(const std::string& mpi_args, const std::string& filename,
     const std::string& svd_dir, const size_t num_clusters, const size_t rank,
     const size_t num_data, const std::string& args) {
-
+  make_initial_vector_file(filename, num_data+1);
   std::stringstream strm;
   if(mpi_args.length() > 0)
     strm << "mpiexec " << mpi_args << " ";
   strm << svd_dir << "svd " + filename + ".glap";
-  strm << " --rows=" << num_data;
+  strm << " --rows=" << num_data+1;
   strm << " --cols=" << num_data;
-  strm << " --nsv=" << rank;
+  strm << " --nsv=" << num_clusters;
   strm << " --nv=" << rank;
   strm << " --max_iter=4";
   strm << " --quiet=1";
@@ -97,6 +105,7 @@ bool call_svd(const std::string& mpi_args, const std::string& filename,
   strm << " --ortho_repeats=3";
   strm << " --id=1";
   strm << " --prediction=" << filename + ".";
+  strm << " --initial_vector=" << filename + ".init";
   strm << " " << args;
   std::cout << "CALLING >" << strm.str() << std::endl;
   int sys_ret = system(strm.str().c_str());
@@ -154,22 +163,23 @@ bool call_kmeans(const std::string& mpi_args, const std::string& filename,
 
 //select good rank
 int get_lanczos_rank(const size_t num_clusters, const size_t num_data) {
-  size_t rank = 1;
-  if (num_data < 1000) {
-    if (num_clusters + 10 <= num_data)
-      rank = num_clusters + 10;
-    else
-      rank = num_data;
-  } else if (num_data < 10000) {
-    rank = num_clusters + 25;
-  } else if (num_data < 100000) {
-    rank = num_clusters + 50;
-  } else if (num_data < 1000000) {
-    rank = num_clusters + 80;
-  } else {
-    rank = num_clusters + 100;
-  }
-  return rank;
+//  size_t rank = 1;
+//  if (num_data < 1000) {
+//    if (num_clusters + 10 <= num_data)
+//      rank = num_clusters + 10;
+//    else
+//      rank = num_data;
+//  } else if (num_data < 10000) {
+//    rank = num_clusters + 25;
+//  } else if (num_data < 100000) {
+//    rank = num_clusters + 50;
+//  } else if (num_data < 1000000) {
+//    rank = num_clusters + 80;
+//  } else {
+//    rank = num_clusters + 100;
+//  }
+//  return rank;
+  return num_clusters + 1;
 }
 
 int main(int argc, char** argv) {
