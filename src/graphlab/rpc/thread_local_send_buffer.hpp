@@ -114,14 +114,18 @@ struct thread_local_buffer {
    */
   inline std::vector<std::pair<char*, size_t> > extract(procid_t target) {
     std::vector<std::pair<char*, size_t> > ret;
-    locks[target].lock();
-    ret.resize(oarc[target].size());
-    for (size_t i = 0;i < oarc[target].size(); ++i) {
-      ret[i].first = oarc[target][i].buf;
-      ret[i].second = oarc[target][i].off;
+    std::vector<oarchive> arcs;
+    if (oarc[target].size() > 0) {
+      locks[target].lock();
+      std::swap(arcs, oarc[target]);
+      locks[target].unlock();
+
+      ret.resize(arcs.size());
+      for (size_t i = 0;i < arcs.size(); ++i) {
+        ret[i].first = arcs[i].buf;
+        ret[i].second = arcs[i].off;
+      }
     }
-    oarc[target].clear();
-    locks[target].unlock();
     return ret; 
   }
 

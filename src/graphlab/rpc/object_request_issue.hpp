@@ -121,7 +121,7 @@ class  BOOST_PP_CAT(FNAME_AND_CALL, N) { \
     release_thread_local_buffer(target, flags & CONTROL_PACKET); \
     if ((flags & CONTROL_PACKET) == 0)                       \
       rmi->inc_bytes_sent(target, curlen);           \
-    pull_flush_soon_thread_local_buffer(target); \
+    pull_flush_thread_local_buffer(target); \
   }\
 };
 
