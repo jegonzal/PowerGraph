@@ -66,7 +66,7 @@
  * \ingroup RPC
  * \def SEND_POLL_TIMEOUT
  * The TCP sender polls the queues every so often to ensure
- * progress; This is the timeout value for the number of nanoseconds
+ * progress; This is the timeout value for the number of microseconds
  * between each poll.
  */
 #define SEND_POLL_TIMEOUT 10000
