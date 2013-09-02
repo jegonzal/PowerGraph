@@ -46,10 +46,9 @@
 
 /**
  * \ingroup rpc
- * \def BUFFER_RELINQUISH_LIMIT
- * Below this limit, a copy of the buffer is made for the sender.
- * Above this limit, the entire buffer is given to the sender.
+ * \def INITIAL_BUFFER_SIZE
+ * The initial size of each thread local buffer.
  */
-#define BUFFER_RELINQUISH_LIMIT 131072
+#define INITIAL_BUFFER_SIZE 4096
 
 #endif

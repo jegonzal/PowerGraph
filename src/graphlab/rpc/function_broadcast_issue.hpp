@@ -28,11 +28,11 @@
 #include <graphlab/rpc/dc_types.hpp>
 #include <graphlab/rpc/dc_internal_types.hpp>
 #include <graphlab/rpc/dc_send.hpp>
+#include <graphlab/rpc/dc_thread_get_send_buffer.hpp>
 #include <graphlab/rpc/function_call_dispatch.hpp>
 #include <graphlab/rpc/function_call_issue.hpp>
 #include <graphlab/rpc/is_rpc_call.hpp>
 #include <boost/preprocessor.hpp>
-#include <graphlab/rpc/archive_memory_pool.hpp>
 #include <graphlab/rpc/function_arg_types_def.hpp>
 
 namespace graphlab{
@@ -163,20 +163,24 @@ template<typename Iterator, typename F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS
 class  BOOST_PP_CAT(FNAME_AND_CALL, N) { \
   public: \
   static void exec(std::vector<dc_send*>& sender, unsigned char flags, Iterator target_begin, Iterator target_end, F remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_) ) {  \
-    oarchive* ptr = oarchive_from_pool();       \
-    oarchive& arc = *ptr;                         \
-    arc.advance(sizeof(size_t) + sizeof(packet_hdr));            \
+    oarchive arc;       \
+    arc.buf = (char*)malloc(INITIAL_BUFFER_SIZE); \
+    arc.len = INITIAL_BUFFER_SIZE; \
+    size_t len = dc_send::write_packet_header(arc, _get_procid(), flags, _get_sequentialization_key()); \
+    uint32_t beginoff = arc.off; \
     dispatch_type d = BOOST_PP_CAT(function_call_issue_detail::dispatch_selector,N)<typename is_rpc_call<F>::type, F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, T) >::dispatchfn();   \
     arc << reinterpret_cast<size_t>(d);       \
     arc << reinterpret_cast<size_t>(remote_function); \
     BOOST_PP_REPEAT(N, GENARC, _)                \
+    *(reinterpret_cast<uint32_t*>(arc.buf + len)) = arc.off - beginoff; \
     Iterator iter = target_begin; \
     while(iter != target_end) { \
-      char* newbuf = (char*)malloc(arc.off); memcpy(newbuf, arc.buf, arc.off); \
-      sender[(*iter)]->send_data((*iter),flags , newbuf, arc.off);    \
+      oarchive* buf = get_thread_local_buffer(*iter);  \
+      buf->write(arc.buf, arc.off);  \
+      release_thread_local_buffer(*iter, flags & CONTROL_PACKET); \
       ++iter;    \
     } \
-    release_oarchive_to_pool(ptr); \
+    free(arc.buf); \
   }\
 };
 

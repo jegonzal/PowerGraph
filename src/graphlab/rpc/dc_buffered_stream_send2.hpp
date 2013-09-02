@@ -28,6 +28,7 @@
 #include <boost/bind.hpp>
 #include <boost/type_traits/is_base_of.hpp>
 #include <graphlab/rpc/dc_internal_types.hpp>
+#include <graphlab/rpc/thread_local_send_buffer.hpp>
 #include <graphlab/rpc/dc_types.hpp>
 #include <graphlab/rpc/dc_comm_base.hpp>
 #include <graphlab/rpc/dc_send.hpp>
@@ -65,60 +66,40 @@ class dc_buffered_stream_send2: public dc_send{
   dc_buffered_stream_send2(distributed_control* dc,
                                    dc_comm_base *comm,
                                    procid_t target) :
-                  dc(dc),  comm(comm), target(target),
-                  writebuffer_totallen(0) {
-    writebuffer_totallen.value = 0;
-    approx_send_queue_size = 0;
-  }
+                  dc(dc),  comm(comm), target(target) { }
 
-  ~dc_buffered_stream_send2() {
-  }
+  ~dc_buffered_stream_send2();
 
+  void register_send_buffer(thread_local_buffer* buffer);
 
-
-
-  /** Called to send data to the target. The caller transfers control of
-  the pointer. The caller MUST ensure that the data be prefixed
-  with sizeof(size_t) + sizeof(packet_hdr) extra bytes at the start for
-  placement of the packet header. */
-  void send_data(procid_t target,
-                 unsigned char packet_type_mask,
-                 char* data, size_t len);
-
-
-  /** Sends the data but without transferring control of the pointer.
-   The function will make a copy of the data before sending it.
-   Unlike send_data, no padding is necessary. */
-  void copy_and_send_data(procid_t target,
-                      unsigned char packet_type_mask,
-                      char* data, size_t len);
+  void unregister_send_buffer(thread_local_buffer* buffer);
 
   size_t get_outgoing_data(circular_iovec_buffer& outdata);
 
+  inline size_t bytes_sent();
 
-  inline size_t bytes_sent() {
-    return bytessent.value;
-  }
-
-  size_t send_queue_length() const {
-    return writebuffer_totallen.value;
-  }
+  void write_to_buffer(char* c, size_t len);
 
   void flush();
+
+  void flush_soon();
 
  private:
   /// pointer to the owner
   distributed_control* dc;
   dc_comm_base *comm;
   procid_t target;
+  atomic<size_t> total_bytes_sent;
 
-  atomic<size_t> writebuffer_totallen;
 
-  inplace_lf_queue sendqueue;
 
-  atomic<size_t> bytessent;
-  volatile size_t approx_send_queue_size;
+  std::vector<thread_local_buffer*> send_buffers;
+  // temporary array matched to the same length as send_buffers
+  // to avoid repeated reallocation of this array when 
+  // get_outgoing_data is called
+  std::vector<std::pair<char*, size_t> > to_send;
 
+  std::vector<std::pair<char*, size_t> > additional_flush_buffers;
   mutex lock;
 };
 

@@ -68,6 +68,18 @@ namespace dc_impl {
 bool thrlocal_sequentialization_key_initialized = false;
 pthread_key_t thrlocal_sequentialization_key;
 
+bool thrlocal_send_buffer_key_initialized = false;
+pthread_key_t thrlocal_send_buffer_key;
+
+void thrlocal_send_buffer_key_deleter(void* p) {
+  if (p != NULL) {
+    thread_local_buffer* buf = (thread_local_buffer*)(p);
+    if (buf != NULL) {
+      delete buf;
+    } 
+  }
+}
+
 } // namespace dc_impl
 
 
@@ -154,6 +166,9 @@ distributed_control::distributed_control(dc_init_param initparam) {
 
 
 distributed_control::~distributed_control() {
+  // detach the instance
+  last_dc = NULL;
+  last_dc_procid = 0;
   distributed_services->full_barrier();
   logstream(LOG_INFO) << "Shutting down distributed control " << std::endl;
   FREE_CALLBACK_EVENT(EVENT_NETWORK_BYTES);
@@ -173,12 +188,16 @@ distributed_control::~distributed_control() {
   for (size_t i = 0;i < senders.size(); ++i) {
     delete senders[i];
   }
+  senders.clear();
+
+  pthread_key_delete(dc_impl::thrlocal_sequentialization_key);
+  pthread_key_delete(dc_impl::thrlocal_send_buffer_key);
+
   size_t bytesreceived = bytes_received();
   for (size_t i = 0;i < receivers.size(); ++i) {
     receivers[i]->shutdown();
     delete receivers[i];
   }
-  senders.clear();
   receivers.clear();
   // shutdown function call handlers
   for (size_t i = 0;i < fcallqueue.size(); ++i) fcallqueue[i].stop_blocking();
@@ -297,6 +316,10 @@ void distributed_control::process_fcall_block(fcallqueue_entry &fcallblock) {
       ASSERT_GE(remaininglen, sizeof(dc_impl::packet_hdr));
       dc_impl::packet_hdr hdr = *reinterpret_cast<dc_impl::packet_hdr*>(data);
       ASSERT_LE(hdr.len, remaininglen);
+
+      if (!(hdr.packet_type_mask & CONTROL_PACKET)) {
+        global_bytes_received[hdr.src].inc(hdr.len);
+      }
 
       exec_function_call(fcallblock.source, hdr.packet_type_mask,
                          data + sizeof(dc_impl::packet_hdr),
@@ -478,15 +501,19 @@ void distributed_control::init(const std::vector<std::string> &machines,
     if (thread::cpu_count() > 2) numhandlerthreads = thread::cpu_count() - 2;
     else numhandlerthreads = 2;
   }
-  // set the value of the last_dc for the get_instance function
-  last_dc = this;
   ASSERT_MSG(machines.size() <= RPC_MAX_N_PROCS,
              "Number of processes exceeded hard limit of %d", RPC_MAX_N_PROCS);
 
   // initialize thread local storage
-    if (dc_impl::thrlocal_sequentialization_key_initialized == false) {
+  if (dc_impl::thrlocal_sequentialization_key_initialized == false) {
     dc_impl::thrlocal_sequentialization_key_initialized = true;
     int err = pthread_key_create(&dc_impl::thrlocal_sequentialization_key, NULL);
+    ASSERT_EQ(err, 0);
+  }
+
+  if (dc_impl::thrlocal_send_buffer_key_initialized == false) {
+    dc_impl::thrlocal_send_buffer_key = true;
+    int err = pthread_key_create(&dc_impl::thrlocal_send_buffer_key, dc_impl::thrlocal_send_buffer_key_deleter);
     ASSERT_EQ(err, 0);
   }
 
@@ -535,8 +562,6 @@ void distributed_control::init(const std::vector<std::string> &machines,
   localprocid = curmachineid;
   localnumprocs = machines.size();
 
-  // set the static variable for the get_instance_procid() function
-  last_dc_procid = localprocid;
 
   // construct the services
   distributed_services = new dc_services(*this);
@@ -579,6 +604,12 @@ void distributed_control::init(const std::vector<std::string> &machines,
 #ifdef HAS_MPI
   if (mpi_tools::initialized()) MPI_Barrier(MPI_COMM_WORLD);
 #endif
+
+  // set the value of the last_dc for the get_instance function
+  last_dc = this;
+  // set the static variable for the get_instance_procid() function
+  last_dc_procid = localprocid;
+
   barrier();
   // initialize the empty stream
   nullstrm.open(boost::iostreams::null_sink());
@@ -604,8 +635,21 @@ void distributed_control::flush() {
   }
 }
 
+void distributed_control::flush(procid_t p) {
+  senders[p]->flush();
+}
 
- /*****************************************************************************
+void distributed_control::flush_soon() {
+  for (procid_t i = 0;i < senders.size(); ++i) {
+    senders[i]->flush_soon();
+  }
+}
+
+
+void distributed_control::flush_soon(procid_t p) {
+  senders[p]->flush_soon();
+}
+/*****************************************************************************
                       Implementation of Full Barrier
 *****************************************************************************/
 /* It is unfortunate but this is copy paste code from dc_dist_object.hpp

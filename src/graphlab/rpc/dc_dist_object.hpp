@@ -29,13 +29,12 @@
 #include <string>
 #include <set>
 #include <graphlab/parallel/atomic.hpp>
+#include <graphlab/parallel/fiber_conditional.hpp>
 #include <graphlab/rpc/dc_internal_types.hpp>
 #include <graphlab/rpc/dc_dist_object_base.hpp>
 #include <graphlab/rpc/object_request_issue.hpp>
 #include <graphlab/rpc/object_call_issue.hpp>
-#include <graphlab/rpc/object_podcall_issue.hpp>
 #include <graphlab/rpc/object_broadcast_issue.hpp>
-#include <graphlab/rpc/object_podcall_broadcast_issue.hpp>
 #include <graphlab/rpc/function_ret_type.hpp>
 #include <graphlab/rpc/mem_function_arg_types_def.hpp>
 #include <graphlab/util/charstream.hpp>
@@ -365,7 +364,6 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
   Generates the interface functions. 3rd argument is a tuple (interface name, issue name, flags)
   */
   BOOST_PP_REPEAT(7, RPC_INTERFACE_GENERATOR, (remote_call, dc_impl::object_call_issue, STANDARD_CALL) )
-  BOOST_PP_REPEAT(7, RPC_INTERFACE_GENERATOR, (pod_call, dc_impl::object_podcall_issue, STANDARD_CALL) )
   BOOST_PP_REPEAT(7, RPC_INTERFACE_GENERATOR, (control_call,dc_impl::object_call_issue, (STANDARD_CALL | CONTROL_PACKET)) )
 
 
@@ -405,7 +403,6 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
   }
 
   BOOST_PP_REPEAT(7, BROADCAST_INTERFACE_GENERATOR, (remote_call, dc_impl::object_broadcast_issue, STANDARD_CALL) )
-  BOOST_PP_REPEAT(7, BROADCAST_INTERFACE_GENERATOR, (pod_call, dc_impl::object_podcall_broadcast_issue, STANDARD_CALL) )
 
   /*
   The generation procedure for requests are the same. The only
@@ -964,7 +961,7 @@ private:
    */
   atomic<int> ab_child_barrier_counter;
   /// condition variable and mutex protecting the barrier variables
-  conditional ab_barrier_cond;
+  fiber_conditional ab_barrier_cond;
   mutex ab_barrier_mut;
   std::string ab_children_data[BARRIER_BRANCH_FACTOR];
   std::string ab_alldata;
@@ -1333,7 +1330,7 @@ private:
    */
   atomic<int> child_barrier_counter;
   /// condition variable and mutex protecting the barrier variables
-  conditional barrier_cond;
+  fiber_conditional barrier_cond;
   mutex barrier_mut;
   procid_t parent;  /// parent node
   size_t childbase; /// id of my first child
@@ -1432,7 +1429,7 @@ private:
 *****************************************************************************/
  private:
   mutex full_barrier_lock;
-  conditional full_barrier_cond;
+  fiber_conditional full_barrier_cond;
   std::vector<size_t> calls_to_receive;
   // used to inform the counter that the full barrier
   // is in effect and all modifications to the calls_recv

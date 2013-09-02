@@ -30,7 +30,7 @@
 #include <graphlab/rpc/dc_send.hpp>
 #include <graphlab/rpc/object_call_dispatch.hpp>
 #include <graphlab/rpc/is_rpc_call.hpp>
-#include <graphlab/rpc/archive_memory_pool.hpp>
+#include <graphlab/rpc/dc_thread_get_send_buffer.hpp>
 #include <boost/preprocessor.hpp>
 #include <graphlab/rpc/dc_compile_parameters.hpp>
 #include <graphlab/util/generics/blob.hpp>
@@ -89,19 +89,20 @@ template<typename T, typename F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, typ
 class  BOOST_PP_CAT(BOOST_PP_TUPLE_ELEM(2,0,FNAME_AND_CALL), N) { \
   public: \
   static void exec(dc_dist_object_base* rmi, dc_send* sender, unsigned char flags, procid_t target, size_t objid, F remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_) ) {  \
-    oarchive* ptr = oarchive_from_pool();       \
+    oarchive* ptr = get_thread_local_buffer(target);  \
     oarchive& arc = *ptr;                         \
-    arc.advance(sizeof(size_t) + sizeof(packet_hdr));            \
+    size_t len = dc_send::write_packet_header(arc, _get_procid(), flags, _get_sequentialization_key()); \
+    uint32_t beginoff = arc.off; \
     dispatch_type d = BOOST_PP_CAT(dc_impl::OBJECT_NONINTRUSIVE_DISPATCH,N)<distributed_control,T,F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N, GENT ,_) >;   \
     arc << reinterpret_cast<size_t>(d);       \
     serialize(arc, (char*)(&remote_function), sizeof(F)); \
     arc << objid;       \
     BOOST_PP_REPEAT(N, GENARC, _)                \
-    char* newbuf = (char*)malloc(arc.off); memcpy(newbuf, arc.buf, arc.off); \
-    sender->send_data(target,flags , newbuf, arc.off);    \
-    release_oarchive_to_pool(ptr); \
+    uint32_t curlen = arc.off - beginoff;   \
+    *(reinterpret_cast<uint32_t*>(arc.buf + len)) = curlen; \
+    release_thread_local_buffer(target, flags & CONTROL_PACKET); \
     if ((flags & CONTROL_PACKET) == 0) {                      \
-      rmi->inc_bytes_sent(target, arc.off - sizeof(size_t));           \
+      rmi->inc_bytes_sent(target, curlen);           \
     } \
   } \
   \
@@ -114,7 +115,9 @@ class object_split_call {
   static oarchive* split_call_begin(dc_dist_object_base* rmi, size_t objid, F remote_function) {
     oarchive* ptr = new oarchive;
     oarchive& arc = *ptr;
-    arc.advance(sizeof(size_t) + sizeof(packet_hdr));
+    arc.buf = (char*)malloc(INITIAL_BUFFER_SIZE); 
+    arc.len = INITIAL_BUFFER_SIZE; 
+    arc.advance(sizeof(packet_hdr));
     dispatch_type d = dc_impl::OBJECT_NONINTRUSIVE_DISPATCH2<distributed_control,T,F,size_t, wild_pointer>;
     arc << reinterpret_cast<size_t>(d);
     serialize(arc, (char*)(&remote_function), sizeof(F));
@@ -130,8 +133,7 @@ class object_split_call {
 
   static void split_call_end(dc_dist_object_base* rmi,
                              oarchive* oarc, dc_send* sender, procid_t target, unsigned char flags) {
-    const size_t headerlen = sizeof(size_t) +
-        sizeof(packet_hdr) +
+    const size_t headerlen = sizeof(packet_hdr) +
         sizeof(size_t) +
         sizeof(F) +
         sizeof(size_t);
@@ -139,11 +141,28 @@ class object_split_call {
     // patch the blob size
     (*reinterpret_cast<size_t*>(oarc->buf + headerlen)) =
         oarc->off - headerlen - sizeof(size_t);
-
-    sender->send_data(target,flags, oarc->buf, oarc->off);
-    if ((flags & CONTROL_PACKET) == 0) {
-      rmi->inc_bytes_sent(target, oarc->off - sizeof(size_t));
+    // write the packet header
+    packet_hdr* hdr = reinterpret_cast<packet_hdr*>(oarc->buf);
+    hdr->len = oarc->off - sizeof(packet_hdr);
+    hdr->src = _get_procid();
+    hdr->packet_type_mask = flags;
+    hdr->sequentialization_key = _get_sequentialization_key();
+    size_t len = hdr->len;
+    oarchive* ptr = get_thread_local_buffer(target);  
+    if (ptr->off == 0) {
+      std::swap(ptr->buf, oarc->buf);
+      std::swap(ptr->off, oarc->off);
+      std::swap(ptr->len, oarc->len);
+//      std::cout << "Split write of " << ptr->off << " bytes" << std::endl;
+    } else {
+      ptr->write(oarc->buf, oarc->off);
+//      std::cout << "Split write 2 of " << ptr->off << " bytes" << std::endl;
     }
+    release_thread_local_buffer(target, flags & CONTROL_PACKET);
+    if ((flags & CONTROL_PACKET) == 0) {
+      rmi->inc_bytes_sent(target, len);
+    }
+    free(oarc->buf);
     delete oarc;
   }
 };
@@ -152,7 +171,6 @@ class object_split_call {
 Generates a function call issue. 3rd argument is a tuple (issue name, dispacther name)
 */
 BOOST_PP_REPEAT(7, REMOTE_CALL_ISSUE_GENERATOR,  (object_call_issue, _) )
-
 
 
 #undef GENARC

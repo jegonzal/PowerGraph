@@ -37,6 +37,7 @@ int add_one(int val) {
 
 int main(int argc, char ** argv) {
   // init MPI
+  global_logger().set_log_level(LOG_INFO);
   mpi_tools::init(argc, argv);
   distributed_control dc;
   

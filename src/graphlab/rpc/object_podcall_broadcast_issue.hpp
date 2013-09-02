@@ -32,6 +32,7 @@
 #include <graphlab/rpc/object_podcall_dispatch.hpp>
 #include <graphlab/rpc/is_rpc_call.hpp>
 #include <graphlab/rpc/pod_template_structs.hpp>
+#include <graphlab/rpc/dc_thread_get_send_buffer.hpp>
 #include <boost/preprocessor.hpp>
 #include <graphlab/rpc/mem_function_arg_types_def.hpp>
 

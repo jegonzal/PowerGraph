@@ -63,7 +63,7 @@ add_library(graphlab STATIC
   rpc/fiber_async_consensus.cpp
   rpc/distributed_event_log.cpp
   rpc/delta_dht.cpp
-  rpc/archive_memory_pool.cpp
+  rpc/thread_local_send_buffer.cpp
   ui/mongoose/mongoose.cpp
   ui/metrics_server.cpp
   rpc/get_current_process_hash.cpp

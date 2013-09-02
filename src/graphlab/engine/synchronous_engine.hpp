@@ -41,6 +41,7 @@
 
 
 #include <graphlab/parallel/pthread_tools.hpp>
+#include <graphlab/parallel/fiber_barrier.hpp>
 #include <graphlab/util/tracepoint.hpp>
 #include <graphlab/util/memory_info.hpp>
 
@@ -340,15 +341,20 @@ namespace graphlab {
     graph_type& graph;
 
     /**
+     * \brief The number of CPUs used.
+     */
+    size_t ncpus;
+
+    /**
      * \brief The local worker threads used by this engine
      */
-    thread_pool threads;
+    fiber_group threads;
 
     /**
      * \brief A thread barrier that is used to control the threads in the
      * thread pool.
      */
-    graphlab::barrier thread_barrier;
+    fiber_barrier thread_barrier;
 
     /**
      * \brief The maximum number of super-steps (iterations) to run
@@ -790,19 +796,21 @@ namespace graphlab {
     template<typename MemberFunction>
     void run_synchronous(MemberFunction member_fun) {
       shared_lvid_counter = 0;
-      if (threads.size() <= 1) {
+      if (ncpus <= 1) {
         INCREMENT_EVENT(EVENT_ACTIVE_CPUS, 1);
         ( (this)->*(member_fun))(0);
         DECREMENT_EVENT(EVENT_ACTIVE_CPUS, 1);
       }
       else {
         // launch the initialization threads
-        for(size_t i = 0; i < threads.size(); ++i) {
+        for(size_t i = 0; i < ncpus; ++i) {
+          fiber_control::affinity_type affinity;
+          affinity.clear(); affinity.set_bit(i);
           boost::function<void(void)> invoke = boost::bind(member_fun, this, i);
           threads.launch(boost::bind(
                 &synchronous_engine::thread_launch_wrapped_event_counter,
                 this,
-                invoke), i);
+                invoke), affinity);
         }
       }
       // Wait for all threads to finish
@@ -997,7 +1005,8 @@ namespace graphlab {
                      graph_type& graph,
                      const graphlab_options& opts) :
     rmi(dc, this), graph(graph),
-    threads(opts.get_ncpus()),
+    ncpus(opts.get_ncpus()),
+    threads(2*1024*1024 /* 2MB stack per fiber*/),
     thread_barrier(opts.get_ncpus()),
     max_iterations(-1), snapshot_interval(-1), iteration_counter(0),
     timeout(0), sched_allv(false),
