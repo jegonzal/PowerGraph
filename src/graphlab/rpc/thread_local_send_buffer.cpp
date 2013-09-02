@@ -8,8 +8,15 @@ thread_local_buffer::thread_local_buffer() {
   // allocate the buffers
   dc = distributed_control::get_instance();
   size_t nprocs = dc->numprocs(); 
-  oarc.resize(nprocs); 
-  locks.resize(nprocs); 
+
+  outbuf.resize(nprocs); 
+  current_archive.resize(nprocs); 
+
+  outbuf_locks.resize(nprocs);
+  archive_locks.resize(nprocs);
+
+  contended.clear();
+
   bytes_sent.resize(nprocs, 0);
   dc->register_send_buffer(this);
   procid = dc->procid();
@@ -20,12 +27,16 @@ thread_local_buffer::~thread_local_buffer() {
   dc->unregister_send_buffer(this);
   push_flush();
   // deallocate the buffers
-  for (size_t i = 0; i < oarc.size(); ++i) {
-    for (size_t j = 0; j < oarc[i].size(); ++j) {
-      if (oarc[i][j].buf) {
-        free(oarc[i][j].buf);
-        oarc[i][j].buf = NULL;
-      }
+  for (size_t i = 0; i < current_archive.size(); ++i) {
+    if (current_archive[i].buf) {
+      free(current_archive[i].buf);
+      current_archive[i].buf = NULL;
+    }
+  }
+
+  for (size_t i = 0; i < outbuf.size(); ++i) {
+    for (size_t j = 0; j < outbuf[i].size(); ++j) {
+      free(outbuf[i][j].first);
     }
   }
 }
@@ -36,7 +47,7 @@ void thread_local_buffer::inc_calls_sent(procid_t target) {
 
 
 void thread_local_buffer::push_flush() {
-  for (size_t i = 0; i < oarc.size(); ++i) {
+  for (size_t i = 0; i < outbuf.size(); ++i) {
     std::vector<std::pair<char*, size_t> >  buf = extract(i);
     for (size_t j = 0;j < buf.size(); ++j) {
       dc->write_to_buffer(i, buf[j].first, buf[j].second);

@@ -3,16 +3,23 @@
 #include <graphlab/serialization/oarchive.hpp>
 #include <graphlab/rpc/dc_compile_parameters.hpp>
 #include <graphlab/rpc/dc_internal_types.hpp>
+#include <graphlab/util/dense_bitset.hpp>
 namespace graphlab {
 class distributed_control;
 
 
 namespace dc_impl {
 struct thread_local_buffer {
-  std::vector<std::vector<oarchive> > oarc;
-  std::vector<mutex> locks;
+  std::vector<std::vector<std::pair<char*, size_t> > > outbuf;
+  std::vector<mutex> outbuf_locks;
   std::vector<size_t> bytes_sent;
+
+  fixed_dense_bitset<RPC_MAX_N_PROCS> contended;
+
+  std::vector<mutex> archive_locks;
+  std::vector<oarchive> current_archive;
   size_t prev_acquire_archive_size;
+
   procid_t procid;
   distributed_control* dc;
 
@@ -24,19 +31,15 @@ struct thread_local_buffer {
    * Acquires a buffer to write to
    */
   inline oarchive* acquire(procid_t target) {
-    locks[target].lock();
+    archive_locks[target].lock();
     // need a new archive, or existing one at risk of being resized
-    if (oarc[target].size() == 0 || oarc[target].back().off >= INITIAL_BUFFER_SIZE) {
-      // allocate a new one
-      oarc[target].push_back(oarchive());
+    if (current_archive[target].buf == NULL) {
+      current_archive[target].buf = (char*)malloc(INITIAL_BUFFER_SIZE);
+      current_archive[target].off = 0;
+      current_archive[target].len = INITIAL_BUFFER_SIZE;
     }
-    if (oarc[target].back().buf == NULL) {
-      oarc[target].back().buf = (char*)malloc(INITIAL_BUFFER_SIZE);
-      oarc[target].back().off = 0;
-      oarc[target].back().len = INITIAL_BUFFER_SIZE;
-    }
-    prev_acquire_archive_size = oarc[target].back().off;
-    return &oarc[target].back();
+    prev_acquire_archive_size = current_archive[target].off;
+    return &current_archive[target];
   }
 
   inline size_t get_bytes_sent(procid_t target) {
@@ -48,10 +51,27 @@ struct thread_local_buffer {
    */
   inline void release(procid_t target, bool do_not_count_bytes_sent) {
     if (!do_not_count_bytes_sent) {
-      bytes_sent[target] += oarc[target].back().off - prev_acquire_archive_size - sizeof(packet_hdr);
+      bytes_sent[target] += current_archive[target].off - prev_acquire_archive_size - sizeof(packet_hdr);
       inc_calls_sent(target);
     }
-    locks[target].unlock();
+
+    if (current_archive[target].off >= INITIAL_BUFFER_SIZE || contended.get(target)) {
+      // shift the buffer into outbuf
+      char* ptr = current_archive[target].buf;
+      size_t len = current_archive[target].off;
+      current_archive[target].buf = NULL; 
+      current_archive[target].off = 0;
+      archive_locks[target].unlock();
+
+      outbuf_locks[target].lock();
+      outbuf[target].push_back(std::make_pair(ptr, len));
+      outbuf_locks[target].unlock();
+      current_archive[target].buf = NULL; 
+      current_archive[target].off = 0;
+      contended.clear_bit(target);
+    } else {
+      archive_locks[target].unlock();
+    }
   }
 
   inline void write(procid_t target, char* c, size_t len, bool do_not_count_bytes_sent) {
@@ -59,12 +79,21 @@ struct thread_local_buffer {
       bytes_sent[target] += len;
       inc_calls_sent(target);
     }
-    locks[target].lock();
-    oarc[target].push_back(oarchive());
-    oarc[target].back().buf = c;
-    oarc[target].back().off = len;
-    oarc[target].back().len = len;
-    locks[target].unlock();
+    // make sure that messsages sent before this write are sent before this write
+    if (current_archive[target].off) {
+      archive_locks[target].lock();
+      outbuf_locks[target].lock();
+      outbuf[target].push_back(std::make_pair(current_archive[target].buf,
+                                              current_archive[target].off));
+      outbuf_locks[target].unlock();
+      current_archive[target].buf = NULL; 
+      current_archive[target].off = 0;
+      contended.clear_bit(target);
+      archive_locks[target].unlock();
+    }
+    outbuf_locks[target].lock();
+    outbuf[target].push_back(std::make_pair(c, len));
+    outbuf_locks[target].unlock();
   }
 
   /**
@@ -114,19 +143,27 @@ struct thread_local_buffer {
    */
   inline std::vector<std::pair<char*, size_t> > extract(procid_t target) {
     std::vector<std::pair<char*, size_t> > ret;
-    std::vector<oarchive> arcs;
-    if (oarc[target].size() > 0) {
-      locks[target].lock();
-      std::swap(arcs, oarc[target]);
-      locks[target].unlock();
-
-      ret.resize(arcs.size());
-      for (size_t i = 0;i < arcs.size(); ++i) {
-        ret[i].first = arcs[i].buf;
-        ret[i].second = arcs[i].off;
-      }
+    if (outbuf[target].size() > 0) {
+      outbuf_locks[target].lock();
+      std::swap(ret, outbuf[target]);
+      outbuf_locks[target].unlock();
     }
-    return ret; 
+    if (current_archive[target].off > 0 ) {
+      if (archive_locks[target].try_lock()) {
+        char* ptr = current_archive[target].buf;
+        size_t len = current_archive[target].off;
+        if (len > 0) {
+          current_archive[target].buf = NULL;
+          current_archive[target].off = 0;
+        }
+        archive_locks[target].unlock();
+        if (len > 0) ret.push_back(std::make_pair(ptr, len));
+        contended.clear_bit(target);
+      } else {
+        contended.set_bit(target);
+      } 
+    } 
+    return ret;
   }
 
   void inc_calls_sent(procid_t target);
