@@ -25,6 +25,7 @@
 #define GRAPHLAB_BUFFERED_EXCHANGE_HPP
 
 #include <graphlab/parallel/pthread_tools.hpp>
+#include <graphlab/parallel/fiber_control.hpp>
 #include <graphlab/rpc/dc.hpp>
 #include <graphlab/rpc/dc_dist_object.hpp>
 #include <graphlab/util/mpi_tools.hpp>
@@ -160,6 +161,7 @@ namespace graphlab {
 
     bool recv(procid_t& ret_proc, buffer_type& ret_buffer,
               const bool try_lock = false) {
+      fiber_control::fast_yield();
       dc_impl::blob read_buffer;
       bool has_lock = false;
       if(try_lock) {

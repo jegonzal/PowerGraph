@@ -423,6 +423,23 @@ void fiber_control::yield() {
   t->parent->yield_to(next_fib);
 }
 
+
+void fiber_control::fast_yield() {
+  tls* t = get_tls_ptr();
+  if (t == NULL) return;
+  // remove some other work to do.
+  fiber_control* parentgroup = t->parent;
+  size_t workerid = t->workerid;
+  fiber* next_fib = NULL;
+  if (parentgroup->schedule[workerid].nactive > 0) {
+    parentgroup->schedule[workerid].active_lock.lock();
+    next_fib = parentgroup->active_queue_remove(workerid);
+    parentgroup->schedule[workerid].active_lock.unlock();
+  }
+  if (next_fib != NULL) t->parent->yield_to(next_fib);
+}
+
+
 void fiber_control::join() {
   join_lock.lock();
   while(fibers_active.value > 0) {

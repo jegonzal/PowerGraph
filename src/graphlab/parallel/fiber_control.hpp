@@ -218,6 +218,14 @@ class fiber_control {
 
 
   /**
+   * Yields to another fiber of the same affinity.
+   * Note that this function will only work within a fiber.
+   * If called from outside a fiber, returns immediately.
+   */
+  static void fast_yield();
+
+
+  /**
    * Returns true if the current worker has other fiber waiting on its queue
    */
   static bool worker_has_fibers_on_queue();
