@@ -66,8 +66,6 @@ struct thread_local_buffer {
       outbuf_locks[target].lock();
       outbuf[target].push_back(std::make_pair(ptr, len));
       outbuf_locks[target].unlock();
-      current_archive[target].buf = NULL; 
-      current_archive[target].off = 0;
       contended.clear_bit(target);
     } else {
       archive_locks[target].unlock();

@@ -86,52 +86,28 @@ namespace dc_impl {
 
   size_t dc_buffered_stream_send2::get_outgoing_data(circular_iovec_buffer& outdata) {
     lock.lock();
-
     size_t sendlen = 0;
     for (size_t i = 0;i < send_buffers.size(); ++i) {
-      to_send[i] = send_buffers[i]->extract(target);
-      for (size_t j = 0;j < to_send[i].size(); ++j) {
-        sendlen += to_send[i][j].second;
-      }
-    }
-    for (size_t i = 0;i < additional_flush_buffers.size(); ++i) {
-      sendlen += additional_flush_buffers[i].second;
-    }
-    // nothing to send
-    if (sendlen == 0) {
-      lock.unlock();
-      return 0;
-    }
-
-    // ok. I have something to send.
-    // construct the block msg header
-//     block_header_type* blockheader = new block_header_type;
-//     (*blockheader) = sendlen;
-//     iovec blockheader_iovec;
-//     blockheader_iovec.iov_base = reinterpret_cast<void*>(blockheader);
-//     blockheader_iovec.iov_len = sizeof(block_header_type);
-//     outdata.write(blockheader_iovec);
-
-    for (size_t i = 0;i < send_buffers.size(); ++i) {
-      for (size_t j = 0;j < to_send[i].size(); ++j) {
-        if (to_send[i][j].second > 0) {
+      std::vector<std::pair<char*, size_t> > ret = send_buffers[i]->extract(target);
+      for (size_t j = 0;j < ret.size(); ++j) {
+        if (ret[j].second > 0) {
           iovec sendvec;
-          sendvec.iov_base = to_send[i][j].first;
-          sendvec.iov_len = to_send[i][j].second;
+          sendvec.iov_base = ret[j].first;
+          sendvec.iov_len = ret[j].second;
+          sendlen += sendvec.iov_len;
           outdata.write(sendvec);
         }
       }
     }
-
     for (size_t i = 0;i < additional_flush_buffers.size(); ++i) {
       iovec sendvec;
       sendvec.iov_base = additional_flush_buffers[i].first;
       sendvec.iov_len = additional_flush_buffers[i].second;
+      sendlen += sendvec.iov_len;
       outdata.write(sendvec);
     }
-    additional_flush_buffers.clear();
     lock.unlock();
-    return sendlen + sizeof(block_header_type);
+    return sendlen;
   }
 } // namespace dc_impl
 } // namespace graphlab
