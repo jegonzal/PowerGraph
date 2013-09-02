@@ -105,12 +105,12 @@ namespace dc_impl {
 
     // ok. I have something to send.
     // construct the block msg header
-    block_header_type* blockheader = new block_header_type;
-    (*blockheader) = sendlen;
-    iovec blockheader_iovec;
-    blockheader_iovec.iov_base = reinterpret_cast<void*>(blockheader);
-    blockheader_iovec.iov_len = sizeof(block_header_type);
-    outdata.write(blockheader_iovec);
+//     block_header_type* blockheader = new block_header_type;
+//     (*blockheader) = sendlen;
+//     iovec blockheader_iovec;
+//     blockheader_iovec.iov_base = reinterpret_cast<void*>(blockheader);
+//     blockheader_iovec.iov_len = sizeof(block_header_type);
+//     outdata.write(blockheader_iovec);
 
     for (size_t i = 0;i < send_buffers.size(); ++i) {
       for (size_t j = 0;j < to_send[i].size(); ++j) {

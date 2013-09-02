@@ -23,7 +23,7 @@
 
 
 #include <iostream>
-
+#include <algorithm>
 #include <graphlab/rpc/dc.hpp>
 #include <graphlab/rpc/dc_internal_types.hpp>
 #include <graphlab/rpc/dc_stream_receive.hpp>
@@ -35,56 +35,58 @@ namespace dc_impl {
 
 
 char* dc_stream_receive::get_buffer(size_t& retbuflength) {
-  if (header_read < sizeof(block_header_type)) {
-    retbuflength = sizeof(block_header_type) - header_read;
-    return (reinterpret_cast<char*>(&cur_chunk_header) + header_read);
-  }
-  else {
-    retbuflength = cur_chunk_header - write_buffer_written;
-    return writebuffer + write_buffer_written;
-  }
+  retbuflength = write_buffer_len - write_buffer_written;
+  return writebuffer + write_buffer_written;
 }
 
 
 char* dc_stream_receive::advance_buffer(char* c, size_t wrotelength, 
                             size_t& retbuflength) {
-  if (header_read != sizeof(block_header_type)) {
-    // tcp is still writing into cur`writelen
-    header_read += wrotelength;
-    ASSERT_LE(header_read, sizeof(block_header_type));
-    // are we done reading the header?
-    if (header_read < sizeof(block_header_type)) {
-      // nope!
-      retbuflength = sizeof(block_header_type) - header_read;
-      return (reinterpret_cast<char*>(&cur_chunk_header) + header_read);
+  // find the last complete message we have read
+  write_buffer_written += wrotelength;
+  if (write_buffer_written >= sizeof(packet_hdr)) {
+    size_t offset = 0;
+    packet_hdr* hdr = reinterpret_cast<packet_hdr*>(writebuffer);
+    // keep pushing the header until I reach a point where there is insufficient
+    // room to read a header, or the message is not large enough
+    while(offset + sizeof(packet_hdr) <= write_buffer_written &&
+          offset + hdr->len + sizeof(packet_hdr) <= write_buffer_written) {
+      offset += hdr->len + sizeof(packet_hdr);
+      hdr = reinterpret_cast<packet_hdr*>(writebuffer + offset);
     }
-    else {
-      // ok header is full. construct the return
-      // bufer and switch to it.
-      ASSERT_TRUE(writebuffer == NULL);
-      writebuffer = (char*)malloc(cur_chunk_header);
-      retbuflength = cur_chunk_header;
-      write_buffer_written = 0;
-      return writebuffer;
-    }
-  }
-  else {
-    // we read the entire header and is reading buffers now
-    // try to store the buffer and see if we are full yet.
-    ASSERT_EQ(header_read, sizeof(block_header_type));
-    write_buffer_written += wrotelength;
-    if (write_buffer_written < cur_chunk_header) {
-      retbuflength = cur_chunk_header - write_buffer_written;
-      return writebuffer + write_buffer_written;
-    }
-  }
 
-  // if we reach here, we have an available block
-  // give away the buffer to dc
-  dc->deferred_function_call_chunk(writebuffer, cur_chunk_header, associated_proc);
-  writebuffer = NULL;
-  write_buffer_written = 0;
-  header_read = 0;
+    if (offset > 0) {
+      // ok. everything before the offset is good
+      // since we are going to give this buffer away, we need to prepare a new buffer
+
+      // allocate whatever it is going to take to hold next message
+      // have we read the incomplete message's header?
+      size_t incomplete_message_len = 0;
+      if (offset + sizeof(packet_hdr) <= write_buffer_written) incomplete_message_len = hdr->len;
+
+      size_t new_buflen = std::max<size_t>(sizeof(packet_hdr) + incomplete_message_len, RECEIVE_BUFFER_SIZE);
+      char* new_writebuffer = (char*)malloc(new_buflen);
+
+      if (write_buffer_len - offset > 0) {
+        // copy over to the new buffer everything we will not use
+        memcpy(new_writebuffer, writebuffer + offset, write_buffer_written - offset);
+      }
+      // if we reach here, we have an available block
+      // give away the buffer to dc
+      dc->deferred_function_call_chunk(writebuffer, offset, associated_proc);
+      writebuffer = new_writebuffer;
+      write_buffer_written -= offset;
+      write_buffer_len = new_buflen;
+    } else {
+      // nothing ready yet
+      // do we have enough room though?
+      if (hdr->len + sizeof(packet_hdr) > write_buffer_len) {
+        size_t newlen = hdr->len + sizeof(packet_hdr);
+        writebuffer = (char*)realloc(writebuffer, newlen);
+        write_buffer_len = newlen;
+      }
+    }
+  }
   return get_buffer(retbuflength);
 }
 

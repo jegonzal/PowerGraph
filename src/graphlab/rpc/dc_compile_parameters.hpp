@@ -47,8 +47,15 @@
 /**
  * \ingroup rpc
  * \def INITIAL_BUFFER_SIZE
- * The initial size of each thread local buffer.
+ * Each thread local buffer comprises of #procs buffers, each of this size
  */
 #define INITIAL_BUFFER_SIZE 4096
+
+/**
+ * \ingroup RPC
+ * \def RECEIVE_BUFFER_SIZE
+ * The size of the receive buffer for each socket
+ */
+#define RECEIVE_BUFFER_SIZE 131072
 
 #endif
