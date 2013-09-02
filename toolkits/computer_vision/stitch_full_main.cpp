@@ -248,6 +248,7 @@ int main(int argc, char** argv)
     if (opts.ba_refine_mask[3] == 'x') refine_mask(1,1) = 1;
     if (opts.ba_refine_mask[4] == 'x') refine_mask(1,2) = 1;
     adjuster->setRefinementMask(refine_mask);
+    LOGLN("I will enter adjuster calculation now...\n");
     (*adjuster)(features, pairwise_matches, cameras);
     if (dc.procid() == 0)
         logstream(LOG_EMPH) << "Bundle Adjustment, time: " << ((getTickCount() - t) / getTickFrequency()) << " sec\n";
