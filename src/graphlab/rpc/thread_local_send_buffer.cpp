@@ -38,8 +38,8 @@ void thread_local_buffer::inc_calls_sent(procid_t target) {
 void thread_local_buffer::push_flush() {
   for (size_t i = 0; i < oarc.size(); ++i) {
     std::vector<std::pair<char*, size_t> >  buf = extract(i);
-    for (size_t i = 0;i < buf.size(); ++i) {
-      dc->write_to_buffer(i, buf[i].first, buf[i].second);
+    for (size_t j = 0;j < buf.size(); ++j) {
+      dc->write_to_buffer(i, buf[j].first, buf[j].second);
     }
     if (buf.size()) dc->flush_soon(i);
   }
