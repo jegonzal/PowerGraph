@@ -75,7 +75,7 @@ namespace graphlab {
   public:
     buffered_exchange(distributed_control& dc,
                       const size_t num_threads = 1,
-                      const size_t max_buffer_size = 1024 * 1024 /* 1MB */) :
+                      const size_t max_buffer_size = DEFAULT_BUFFERED_EXCHANGE_SIZE) :
       rpc(dc, this),
       send_buffers(num_threads *  dc.numprocs()),
       send_locks(num_threads *  dc.numprocs()),

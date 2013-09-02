@@ -52,13 +52,6 @@
 #include <graphlab/rpc/dc_init_from_mpi.hpp>
 #include <graphlab/rpc/dc_init_from_zookeeper.hpp>
 
-// If this option is turned on,
-// all incoming calls from the same machine
-// will always be executed in the same thread.
-// This decreases latency and increases throughput
-// dramatically, but at a cost of parallelism.
-#define RPC_FAST_DISPATCH
-
 
 namespace graphlab {
 
@@ -218,20 +211,13 @@ void distributed_control::exec_function_call(procid_t source,
                                             const char* data,
                                             const size_t len) {
   BEGIN_TRACEPOINT(dc_call_dispatch);
-  // not a POD call
-  if ((packet_type_mask & POD_CALL) == 0) {
-    // extract the dispatch function
-    iarchive arc(data, len);
-    size_t f;
-    arc >> f;
-    // a regular funcion call
-    dc_impl::dispatch_type dispatch = (dc_impl::dispatch_type)f;
-    dispatch(*this, source, packet_type_mask, data + arc.off, len - arc.off);
-  }
-  else {
-    dc_impl::dispatch_type2 dispatch2 = *reinterpret_cast<const dc_impl::dispatch_type2*>(data);
-    dispatch2(*this, source, packet_type_mask, data, len);
-  }
+  // extract the dispatch function
+  iarchive arc(data, len);
+  size_t f;
+  arc >> f;
+  // a regular funcion call
+  dc_impl::dispatch_type dispatch = (dc_impl::dispatch_type)f;
+  dispatch(*this, source, packet_type_mask, data + arc.off, len - arc.off);
   if ((packet_type_mask & CONTROL_PACKET) == 0) inc_calls_received(source);
   END_TRACEPOINT(dc_call_dispatch);
 }
@@ -264,8 +250,16 @@ void distributed_control::deferred_function_call_chunk(char* buf, size_t len, pr
   fc->is_chunk = true;
   fc->source = src;
   fcallqueue_length.inc();
-  //size_t idx = src % fcallqueue.size();
-  //fcallqueue[idx].enqueue(fc, !fcall_handler_blockers.get(idx));
+
+#ifdef RPC_BLOCK_STRIPING
+  static size_t __idx;
+  // approximate balancing
+  size_t idx = __idx++ % fcallqueue.size();
+  fcallqueue[idx].enqueue(fc, !fcall_handler_blockers.get(idx));
+#else
+  idx = src % fcallqueue.size();
+  fcallqueue[idx].enqueue(fc, !fcall_handler_blockers.get(idx));
+#endif
 /*
   if (get_block_sequentialization_key(*fc) > 0) {
     fcallqueue[src % fcallqueue.size()].enqueue(fc);
@@ -279,14 +273,14 @@ void distributed_control::deferred_function_call_chunk(char* buf, size_t len, pr
     fcallqueue[idx].enqueue(fc);
   } */
 
-    const uint32_t prod = 
-        random::fast_uniform(uint32_t(0), 
-                             uint32_t(fcallqueue.size() * fcallqueue.size() - 1));
-  const uint32_t r1 = prod / fcallqueue.size();
-  const uint32_t r2 = prod % fcallqueue.size();
-  uint32_t idx = (fcallqueue[r1].size() < fcallqueue[r2].size()) ? r1 : r2;  
-  fcallqueue[idx].enqueue(fc);
-  END_TRACEPOINT(dc_receive_queuing);
+//   const uint32_t prod = 
+//       random::fast_uniform(uint32_t(0), 
+//                            uint32_t(fcallqueue.size() * fcallqueue.size() - 1));
+//   const uint32_t r1 = prod / fcallqueue.size();
+//   const uint32_t r2 = prod % fcallqueue.size();
+//   uint32_t idx = (fcallqueue[r1].size() < fcallqueue[r2].size()) ? r1 : r2;  
+//   fcallqueue[idx].enqueue(fc);
+//   END_TRACEPOINT(dc_receive_queuing);
 }
 
 
@@ -304,7 +298,7 @@ void distributed_control::process_fcall_block(fcallqueue_entry &fcallblock) {
       }
     }
   }
-#ifdef RPC_FAST_DISPATCH
+#ifdef RPC_DO_NOT_BREAK_BLOCKS
   else {
     fcallqueue_length.dec();
 
