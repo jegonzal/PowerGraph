@@ -148,21 +148,10 @@ class object_split_call {
     hdr->packet_type_mask = flags;
     hdr->sequentialization_key = _get_sequentialization_key();
     size_t len = hdr->len;
-    oarchive* ptr = get_thread_local_buffer(target);  
-    if (ptr->off == 0) {
-      std::swap(ptr->buf, oarc->buf);
-      std::swap(ptr->off, oarc->off);
-      std::swap(ptr->len, oarc->len);
-//      std::cout << "Split write of " << ptr->off << " bytes" << std::endl;
-    } else {
-      ptr->write(oarc->buf, oarc->off);
-//      std::cout << "Split write 2 of " << ptr->off << " bytes" << std::endl;
-    }
-    release_thread_local_buffer(target, flags & CONTROL_PACKET);
+    write_thread_local_buffer(target, oarc->buf, oarc->off, flags & CONTROL_PACKET);
     if ((flags & CONTROL_PACKET) == 0) {
       rmi->inc_bytes_sent(target, len);
     }
-    free(oarc->buf);
     delete oarc;
   }
 };

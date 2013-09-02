@@ -90,7 +90,9 @@ namespace dc_impl {
     size_t sendlen = 0;
     for (size_t i = 0;i < send_buffers.size(); ++i) {
       to_send[i] = send_buffers[i]->extract(target);
-      sendlen += to_send[i].second;
+      for (size_t j = 0;j < to_send[i].size(); ++j) {
+        sendlen += to_send[i][j].second;
+      }
     }
     for (size_t i = 0;i < additional_flush_buffers.size(); ++i) {
       sendlen += additional_flush_buffers[i].second;
@@ -111,11 +113,13 @@ namespace dc_impl {
     outdata.write(blockheader_iovec);
 
     for (size_t i = 0;i < send_buffers.size(); ++i) {
-      if (to_send[i].second > 0) {
-        iovec sendvec;
-        sendvec.iov_base = to_send[i].first;
-        sendvec.iov_len = to_send[i].second;
-        outdata.write(sendvec);
+      for (size_t j = 0;j < to_send[i].size(); ++j) {
+        if (to_send[i][j].second > 0) {
+          iovec sendvec;
+          sendvec.iov_base = to_send[i][j].first;
+          sendvec.iov_len = to_send[i][j].second;
+          outdata.write(sendvec);
+        }
       }
     }
 

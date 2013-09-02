@@ -97,7 +97,7 @@ class dc_buffered_stream_send2: public dc_send{
   // temporary array matched to the same length as send_buffers
   // to avoid repeated reallocation of this array when 
   // get_outgoing_data is called
-  std::vector<std::pair<char*, size_t> > to_send;
+  std::vector<std::vector<std::pair<char*, size_t> > > to_send;
 
   std::vector<std::pair<char*, size_t> > additional_flush_buffers;
   mutex lock;
