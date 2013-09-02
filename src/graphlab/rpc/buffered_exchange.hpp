@@ -136,6 +136,7 @@ namespace graphlab {
           send_locks[index].unlock();
           // complete the send
           rpc.split_call_end(proc, prevarc);
+          rpc.dc().flush_soon(proc);
         }
       }
     }
@@ -152,6 +153,7 @@ namespace graphlab {
         }
         send_locks[i].unlock();
       }
+      rpc.dc().flush_soon();
       rpc.full_barrier();
     } // end of flush
 

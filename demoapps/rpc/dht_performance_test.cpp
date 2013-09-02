@@ -49,7 +49,7 @@ int main(int argc, char ** argv) {
   std::cout << "I am machine id " << dc.procid() 
             << " in " << dc.numprocs() << " machines"<<std::endl;
   dht<std::string, std::string> testdht(dc);
-  
+  dc.barrier();  
   std::vector<std::pair<std::string, std::string> > data;
   const size_t NUMSTRINGS = 10000;
   const size_t strlen[4] = {16, 128, 1024, 10240};
