@@ -43,6 +43,11 @@ std::vector<T> operator+=(std::vector<T>& v1, const std::vector<T>& v2) {
     v1.push_back(v2[i]);
   return v1;
 }
+// template<typename T>
+//     void vector_concat(std::vector<T>& left, const std::vector<T>& right) {
+//       std::copy(right.begin(), right.end(), std::inserter(left, left.end()));
+//     }
+
 namespace tests{
 class distributed_graph_test  {
  public:
@@ -317,6 +322,7 @@ class distributed_graph_test  {
          } // end of save
        };
 
+
    template<typename Graph>
        void check_vertex_info(Graph& g) {
          typedef typename Graph::vertex_id_type vertex_id_type;
@@ -354,8 +360,7 @@ class distributed_graph_test  {
          std::vector<vinfo_map_type> vinfo_map_gather(dc->numprocs());
          vinfo_map_gather[dc->procid()] = vid2info;
          dc->all_gather(vinfo_map_gather);
-         dc->all_gather(vids);
-
+         dc->all_reduce(vids);
          ASSERT_EQ(vids.size(), g.num_vertices());
 
          // check the consistency of vertex_record on each machine. 
