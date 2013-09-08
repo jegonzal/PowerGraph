@@ -84,7 +84,7 @@ namespace graphlab {
        values.assign(value_vec.begin(), value_vec.end());
        sizevec2ptrvec(valueptr_vec, value_ptrs);
 
-       std::vector<valuetype>().swap(value_vec);
+       std::vector<value_type>().swap(value_vec);
        std::vector<sizetype>().swap(valueptr_vec);
      }
 
@@ -164,7 +164,7 @@ namespace graphlab {
 
      /// Repack the values in parallel
      void repack() {
-       // values.print(std::cout);
+       // values.print(std::cerr);
 #ifdef _OPENMP
 #pragma omp parallel for
 #endif
@@ -199,9 +199,29 @@ namespace graphlab {
        values.clear();
      }
 
-     void load(iarchive& iarc) { }
+     void load(iarchive& iarc) { 
+       clear();
+       std::vector<sizetype> valueptr_vec;
+       std::vector<valuetype> all_values;
+       iarc >> valueptr_vec >> all_values;
 
-     void save(oarchive& oarc) const { }
+       wrap(valueptr_vec, all_values);
+     }
+
+     void save(oarchive& oarc) const { 
+       std::vector<sizetype> valueptr_vec(num_keys(), 0);
+       for (size_t i = 1;i < num_keys(); ++i) {
+         const_iterator begin_iter = begin(i - 1);
+         const_iterator end_iter = end(i - 1);
+         sizetype length = begin_iter.pdistance_to(end_iter);
+         valueptr_vec[i] = valueptr_vec[i - 1] + length;
+       }
+
+       std::vector<valuetype> out;
+       std::copy(values.begin(), values.end(), std::inserter(out, out.end()));
+
+       oarc << valueptr_vec << out;
+     }
 
      ////////////////////// Internal APIs /////////////////
    public:
@@ -256,28 +276,28 @@ namespace graphlab {
       // Build the index pointers 
 #ifdef DEBUG_CSR
       for (size_t i = 0; i < permute_index.size(); ++i)
-        std::cout << permute_index[i] << " ";
-      std::cout << std::endl;
+        std::cerr << permute_index[i] << " ";
+      std::cerr << std::endl;
 
       for (size_t i = 0; i < value_ptrs.size(); ++i)
-        std::cout << prefix[i] << " ";
-      std::cout << std::endl;
+        std::cerr << prefix[i] << " ";
+      std::cerr << std::endl;
 
       for (permute_iterator it = _begin; it != _end; ++it) {
-        std::cout << *it << " ";
+        std::cerr << *it << " ";
       }
-      std::cout << std::endl;
+      std::cerr << std::endl;
 
       for (size_t i = 0; i < num_keys(); ++i) {
-        std::cout << i << ": ";
+        std::cerr << i << ": ";
         iterator it = begin(i);
         while (it != end(i)) {
-          std::cout << *it << " "; 
+          std::cerr << *it << " "; 
           ++it;
         }
-        std::cout << std::endl;
+        std::cerr << std::endl;
       }
-      std::cout << std::endl;
+      std::cerr << std::endl;
 #endif
      }
 
