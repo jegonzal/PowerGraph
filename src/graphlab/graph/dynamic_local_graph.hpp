@@ -340,8 +340,8 @@ namespace graphlab {
                           << " secs" << std::endl;
 
 #ifdef DEBUG_GRAPH
-      _csr_storage.meminfo(std::cout);
-      _csc_storage.meminfo(std::cout);
+      _csr_storage.meminfo(std::cerr);
+      _csc_storage.meminfo(std::cerr);
 #endif
     } // End of finalize
 
@@ -721,7 +721,7 @@ namespace std {
 // #endif
 //       logstream(LOG_INFO) << "Graph finalized in " << mytimer.current_time()
 //                           << " secs" << std::endl;
-//       _csr_storage.meminfo(std::cout);
-//       _csc_storage.meminfo(std::cout);
+//       _csr_storage.meminfo(std::cerr);
+//       _csc_storage.meminfo(std::cerr);
 //         return;
 //       }

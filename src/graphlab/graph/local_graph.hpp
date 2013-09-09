@@ -574,7 +574,7 @@ namespace graphlab {
           + _csc_storage.estimate_sizeof()
           + sizeof(edges) + sizeof(EdgeData)*edges.capacity();
       size_t ebuffer_size = edge_buffer.estimate_sizeof();
-      // std::cout << "local_graph: tmplist size: " << (double)elist_size/(1024*1024)
+      // std::cerr << "local_graph: tmplist size: " << (double)elist_size/(1024*1024)
       //           << "  gstoreage size: " << (double)store_size/(1024*1024)
       //           << "  vdata list size: " << (double)vlist_size/(1024*1024)
       //           << std::endl;
