@@ -130,7 +130,8 @@ int main(int argc, char** argv)
 
     ///////////////////////////////////////////////////////
     // Match features in parallel on edges
-    graph_feat.transform_edges(match_features);
+    //graph_feat.transform_edges(match_features);
+    // For now, features matching is done in serial manner.
 
     //if (dc.procid()==0) {
     ///////////////////////////////////////////////////////
@@ -145,20 +146,39 @@ int main(int argc, char** argv)
     }
        
     int num_images = features.size();
-   
-    ///////////////////////////////////////////////////////
-    // Compile matches
+    ////////////////////////////////////////////////////////////////////////////////////////////////////
+    
+    LOG("Pairwise matching");
+    int64 t1 = getTickCount();
+    vector<MatchesInfo> pairwise_matches;
+    BestOf2NearestMatcher matcher(opts.try_gpu, opts.match_conf);
+    matcher(features, pairwise_matches);
+    matcher.collectGarbage();
+    LOGLN("\nPairwise matching, time: " << ((getTickCount() - t1) / getTickFrequency()) << " sec");
+    LOGLN("pairwise_matches.size() = " << pairwise_matches.size() << "\n");
+    /*for (size_t i=0; i!=pairwise_matches.size(); ++i) 
+    {
+        LOGLN("src_img_idx = " << pairwise_matches[i].src_img_idx  << "\t");
+        LOGLN("dst_img_idx = " << pairwise_matches[i].dst_img_idx  << "\t");
+        LOGLN("matches.size() = " << pairwise_matches[i].matches.size()  << "\t");
+        LOGLN("num_inliers = " << pairwise_matches[i].num_inliers  << "\t");
+        LOGLN("confidence = " << pairwise_matches[i].confidence  << "\n");
+    }*/ ////we can uncomment this part to match output with stitching_detailed similar way
+        
+    ///////////////////////////////////////////////////////////////////
+    /* Compile matches
     typedef vector<edge_data> VecED;
     VecED edlist = engine_feat.map_reduce_edges<VecED>(compile_edges);
    
     if ((opts.verbose > 0) & (dc.procid()==0))
         logstream(LOG_EMPH) << "edlist.size() =  " << edlist.size()
-        << "\n";
+        << "\n"; */
+    ///////////////////////////////////////////////////////////////////
+    
+    //vector<MatchesInfo> pairwise_matches(edlist.size()); //not needed for serial implementation
 
-
-    vector<MatchesInfo> pairwise_matches(edlist.size());
     int r,c; int pair_idx;
-    for (size_t i=0; i!=edlist.size(); ++i)
+    for (size_t i=0; i!=pairwise_matches.size(); ++i)
     {
         IND2SUB_RM(i,r,c,num_images)
        
@@ -170,7 +190,7 @@ int main(int argc, char** argv)
         else
             pair_idx = SUB2IND_RM(c,r,num_images);
 
-        pairwise_matches[i] = edlist[pair_idx].matchinfo;
+        pairwise_matches[i] = pairwise_matches[pair_idx];
         pairwise_matches[i].src_img_idx = r;
         pairwise_matches[i].dst_img_idx = c;
        
@@ -194,7 +214,7 @@ int main(int argc, char** argv)
             << "\n";
 
     }
-    edlist.clear();
+    //edlist.clear();*/ not needed for serial implementation
    
     ///////////////////////////////////////////////////////
     // Leave only images we are sure are from the same panorama
@@ -205,7 +225,8 @@ int main(int argc, char** argv)
     {
         img_path[i] = vdlist[indices[i]].img_path;
     }
-    
+
+      
 
     ///////////////////////////////////////////////////////
     // Homography-Based Initialization
@@ -248,7 +269,7 @@ int main(int argc, char** argv)
     if (opts.ba_refine_mask[3] == 'x') refine_mask(1,1) = 1;
     if (opts.ba_refine_mask[4] == 'x') refine_mask(1,2) = 1;
     adjuster->setRefinementMask(refine_mask);
-    LOGLN("I will enter adjuster calculation now...\n");
+    //LOGLN("I will enter adjuster calculation now...\n");
     (*adjuster)(features, pairwise_matches, cameras);
     if (dc.procid() == 0)
         logstream(LOG_EMPH) << "Bundle Adjustment, time: " << ((getTickCount() - t) / getTickFrequency()) << " sec\n";
@@ -397,6 +418,7 @@ int main(int argc, char** argv)
     resize(result, resized_result, Size(), opts.output_scale, opts.output_scale);
     imwrite(opts.result_name, resized_result);
            
+   // imwrite(opts.result_name, result);
     LOGLN("Finished, total time: " << ((getTickCount() - app_start_time) / getTickFrequency()) << " sec");
 
     ///////////////////////////////////////////////////////
