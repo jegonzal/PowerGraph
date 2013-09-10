@@ -626,27 +626,23 @@ required are:
 \verbatim
 > ./connected_component --graph=[graph prefix] --format=[format]
 \endverbatim
-Output looks like:
+
+Here is a toy example, graph with 6 nodes and 5 edges:
 \verbatim
-Connected Component
-INFO:     synchronous_engine.hpp(start:1263): 0: Starting iteration: 0
-INFO:     synchronous_engine.hpp(start:1312):   Active vertices: 2543900
-INFO:     synchronous_engine.hpp(start:1361):    Running Aggregators
-INFO:     synchronous_engine.hpp(start:1263): 0: Starting iteration: 1
-INFO:     synchronous_engine.hpp(start:1312):   Active vertices: 2542610
-INFO:     synchronous_engine.hpp(start:1361):    Running Aggregators
-INFO:     synchronous_engine.hpp(start:1263): 0: Starting iteration: 2
-INFO:     synchronous_engine.hpp(start:1312):   Active vertices: 269254
-INFO:     synchronous_engine.hpp(start:1361):    Running Aggregators
-INFO:     synchronous_engine.hpp(start:1373): 3 iterations completed.
-graph calculation time is 76 sec
-RESULT:
-size  count
-2 160
-3 12
-4 4
-1271764 2
+# example graph
+# vertices: 6 edges: 5
+1 2
+2 3
+4 5
+4 6
+5 6
 \endverbatim
+
+Assume file name is toy_graph, the command used for running connected compnents is
+\verbatim
+> ./connected_component --graph=toy_graph --format=tsv
+\endverbatim
+
 
 When you set <tt>--saveprefix=output_prefix</tt>, the pairs of a Vertex ID and a 
 Component ID will be written to a sequence of files with prefix 
@@ -654,13 +650,26 @@ Component ID will be written to a sequence of files with prefix
 <tt>output_prefix</tt> is <tt>"v_out"</tt>, the output files will be written to:
 
 \verbatim
-v_out_1_of_16
-v_out_2_of_16
-...
-v_out_16_of_16
+out_1_of_4
+out_2_of_4
+out_3_of_4
+out_4_of_4
 \endverbatim
 
-This program can also run distributed by using
+Let's examine the output. The first column is the node id, while the second column is it's assigned component number
+(which is also the lowest node id in this component). In our case:
+\verbatim
+1,1
+2,1
+3,1
+4,4
+5,4
+6,4
+\endverbatim
+
+There are two components. The first compoent is 1,2,3 and the second component is 4,5,6 
+
+Note that this program can also run distributed by using
 \verbatim
 > mpiexec -n [N machines] --hostfile [host file] ./connected_component ....
 \endverbatim
@@ -680,12 +689,36 @@ for computation.
 \li \b --graph_opts (Optional, Default empty). Any additional graph options. See
   graphlab::distributed_graph a list of options.
   
+connected_components_stats is a helper utility, which computes histogram of component 
+sizes. 
 
+Using our toy example
+\verbatim
+# concatante all output files into a single file
+> cat out_*_of_ > out
+# run statistics to get a historgram of components sizes
+> ./connected_component_stats --graph=out
+Connected Component
 
+INFO:     mpi_tools.hpp(init:63): MPI Support was not compiled.
+INFO:     dc.cpp(init:554): Cluster of 1 instances created.
+INFO:     distributed_graph.hpp(set_ingress_method:3192): Automatically determine ingress method: grid
+Loading graph in format: adj
+INFO:     distributed_graph.hpp(load_from_posixfs:2188): Loading graph from file: ./out
+INFO:     distributed_ingress_base.hpp(finalize:185): Finalizing Graph...
+INFO:     distributed_ingress_base.hpp(exchange_global_info:519): Graph info:
+	 nverts: 2
+	 nedges: 0
+	 nreplicas: 2
+	 replication factor: 1
+Complete Finalization in 0.009531
+graph calculation time is 1.2e-05 sec
+RESULT:
+size	count
+3	2
+\endverbatim
 
-
-
-
+As expected, there are two components of size 3.
 
 
 
@@ -797,6 +830,14 @@ assigned partitions. For instance:
 5 1
 \endverbatim
 
+<b>NOTE:</b> To run this program in a distributed setting, you must use the 
+"mpi-args" option, not like other graphlab toolkits. 
+The graph partitioning calls other graphlab programs.
+When "--mpi-args" is set, these graphlab programs are called with "mpiexec" and the 
+string written after the "mpi-args" option.
+For example, if you set --mpi-args="-n 4 --hostfile host", the program calls the 
+other graphlab programs with "mpiexec -n 4 --hostfile host".
+
 \subsection Options
 Relevant options are:
 \li \b --graph (Required). The prefix from which to load the graph data
@@ -812,6 +853,7 @@ Graphlab kmeans is located
 for computation.
 \li \b --graph_opts (Optional, Default empty). Any additional graph options. See
   graphlab::distributed_graph a list of options.
+\li \b --mpi-args (Optional, Default empty). If set, will execute mipexec with the given string.
   
   
 */
