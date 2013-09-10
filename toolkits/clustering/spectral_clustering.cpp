@@ -83,15 +83,23 @@ bool call_graph_laplacian_construction(const std::string& mpi_args,
   return true;
 }
 
+void make_initial_vector_file(const std::string& filename, const size_t num_data){
+  std::ofstream ofs((filename + ".init").c_str());
+  for(size_t i=0;i<num_data;++i){
+    ofs << 0.1*((i+1)%10)/10.0 << "\n";
+  }
+  ofs.close();
+}
+
 bool call_svd(const std::string& mpi_args, const std::string& filename,
     const std::string& svd_dir, const size_t num_clusters, const size_t rank,
     const size_t num_data, const std::string& args) {
-
+  make_initial_vector_file(filename, num_data+1);
   std::stringstream strm;
   if (mpi_args.length() > 0)
     strm << "mpiexec " << mpi_args << " ";
   strm << svd_dir << "svd " + filename + ".glap";
-  strm << " --rows=" << num_data;
+  strm << " --rows=" << num_data+1;
   strm << " --cols=" << num_data;
   strm << " --nsv=" << num_clusters;
   strm << " --nv=" << rank;
@@ -101,6 +109,7 @@ bool call_svd(const std::string& mpi_args, const std::string& filename,
   strm << " --ortho_repeats=3";
   strm << " --id=1";
   strm << " --prediction=" << filename << ".";
+  strm << " --initial_vector=" << filename + ".init";
   strm << " " << args;
   std::cout << "CALLING >" << strm.str() << std::endl;
   int sys_ret = system(strm.str().c_str());
@@ -184,22 +193,23 @@ bool call_kmeans_as_preprocess(const std::string& mpi_args, const std::string& f
 
 //select good value of rank (TODO)
 int get_lanczos_rank(const size_t num_clusters, const size_t num_data) {
-  size_t rank = 1;
-  if (num_data < 1000) {
-    if (num_clusters + 10 <= num_data)
-      rank = num_clusters + 40;
-    else
-      rank = num_data;
-  } else if (num_data < 10000) {
-    rank = num_clusters + 100;
-  } else if (num_data < 100000) {
-    rank = num_clusters + 150;
-  } else if (num_data < 1000000) {
-    rank = num_clusters + 200;
-  } else {
-    rank = num_clusters + 300;
-  }
-  return rank;
+//  size_t rank = 1;
+//  if (num_data < 1000) {
+//    if (num_clusters + 10 <= num_data)
+//      rank = num_clusters + 40;
+//    else
+//      rank = num_data;
+//  } else if (num_data < 10000) {
+//    rank = num_clusters + 100;
+//  } else if (num_data < 100000) {
+//    rank = num_clusters + 150;
+//  } else if (num_data < 1000000) {
+//    rank = num_clusters + 200;
+//  } else {
+//    rank = num_clusters + 300;
+//  }
+//  return rank;
+  return num_clusters+2;
 }
 
 void read_pairs_with_prefix(std::vector<std::vector<size_t> >& ret, const std::string& prefix){
