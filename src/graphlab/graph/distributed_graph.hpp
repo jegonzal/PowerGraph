@@ -525,6 +525,13 @@ namespace graphlab {
       friend class distributed_graph;
     public:
 
+      /** 
+       * \internal
+       * Unimplemented default constructor to help with
+       * various type inference needs
+       */
+      edge_type();
+
       /**
        * \brief Returns the source vertex of the edge.
        * This function returns a vertex_object by value and as a
@@ -795,8 +802,11 @@ namespace graphlab {
      * particular ID.
      *
      * However, each vertex may only be added exactly once.
+     *
+     * Returns true if successful, returns false if a vertex with id (-1) 
+     * was added.
      */
-    void add_vertex(const vertex_id_type& vid,
+    bool add_vertex(const vertex_id_type& vid,
                     const VertexData& vdata = VertexData() ) {
 #ifndef USE_DYNAMIC_LOCAL_GRAPH
       if(finalized) {
@@ -809,13 +819,15 @@ namespace graphlab {
       finalized = false;
 #endif
       if(vid == vertex_id_type(-1)) {
-        logstream(LOG_FATAL)
+        logstream(LOG_ERROR)
           << "\n\tAdding a vertex with id -1 is not allowed."
           << "\n\tThe -1 vertex id is reserved for internal use."
           << std::endl;
+        return false;
       }
       ASSERT_NE(ingress_ptr, NULL);
       ingress_ptr->add_vertex(vid, vdata);
+      return true;
     }
 
 
@@ -831,8 +843,11 @@ namespace graphlab {
      * However, each edge direction may only be added exactly once. i.e.
      * if edge 5->6 is added already, no other calls to add edge 5->6 should be
      * made.
+     *
+     * Returns true on success. Returns false if it is a self-edge, or if
+     * we are trying to create a vertex with ID (vertex_id_type)(-1).
      */
-    void add_edge(vertex_id_type source, vertex_id_type target,
+    bool add_edge(vertex_id_type source, vertex_id_type target,
                   const EdgeData& edata = EdgeData()) {
 
 #ifndef USE_DYNAMIC_LOCAL_GRAPH
@@ -846,30 +861,34 @@ namespace graphlab {
       finalized = false;
 #endif
       if(source == vertex_id_type(-1)) {
-        logstream(LOG_FATAL)
+        logstream(LOG_ERROR)
           << "\n\tThe source vertex with id vertex_id_type(-1)\n"
           << "\tor unsigned value " << vertex_id_type(-1) << " in edge \n"
           << "\t(" << source << "->" << target << ") is not allowed.\n"
           << "\tThe -1 vertex id is reserved for internal use."
           << std::endl;
+        return false;
       }
       if(target == vertex_id_type(-1)) {
-        logstream(LOG_FATAL)
+        logstream(LOG_ERROR)
           << "\n\tThe target vertex with id vertex_id_type(-1)\n"
           << "\tor unsigned value " << vertex_id_type(-1) << " in edge \n"
           << "\t(" << source << "->" << target << ") is not allowed.\n"
           << "\tThe -1 vertex id is reserved for internal use."
           << std::endl;
+        return false;
       }
       if(source == target) {
-        logstream(LOG_FATAL)
+        logstream(LOG_ERROR)
           << "\n\tTrying to add self edge (" << source << "->" << target << ")."
           << "\n\tSelf edges are not allowed."
           << std::endl;
+        return false;
       }
       ASSERT_NE(ingress_ptr, NULL);
 
       ingress_ptr->add_edge(source, target, edata);
+      return true;
     }
 
 
@@ -1139,6 +1158,256 @@ namespace graphlab {
       rpc.all_reduce(wrapper);
       return wrapper.value;
    } // end of map_reduce_edges
+
+
+
+   /**
+    * \brief Performs a fold operation on each vertex in the
+    * graph returning the result.
+    *
+    * Given a fold function, fold_vertices() call the fold function on all
+    * vertices in the graph, passing around a aggregator variable.
+    * The return values are then summed together across machines using the
+    * combiner function and the final result returned. The fold function should
+    * only read the vertex data and should not make any modifications.
+    * fold_vertices() must be called on all machines simultaneously.
+    *
+    * ### Basic Usage
+    * For instance, if the graph has float vertex data, and float edge data:
+    * \code
+    *   typedef graphlab::distributed_graph<float, float> graph_type;
+    * \endcode
+    *
+    * To compute an absolute sum over all the vertex data, we would write
+    * a function which reads in each a vertex, and returns the absolute
+    * value of the data on the vertex.
+    * \code
+    * void absolute_vertex_data(const graph_type::vertex_type& vertex, float& total) {
+    *   total += std::fabs(vertex.data());
+    * }
+    * \endcode
+    * After which calling:
+    * \code
+    * float sum = graph.fold_vertices<float>(absolute_vertex_data);
+    * \endcode
+    * will call the <code>absolute_vertex_data()</code> function
+    * on each vertex in the graph. <code>absolute_vertex_data()</code>
+    * reads the value of the vertex and returns the absolute result.
+    * This return values are then summed together and returned.
+    * All machines see the same result.
+    *
+    * The template argument <code><float></code> is needed to inform
+    * the compiler regarding the return type of the fold function.
+    *
+    * The optional argument vset can be used to restrict he set of vertices
+    * map-reduced over.
+    *
+    * Unlike map_reduce_vertices, this function exposes to a certain extent,
+    * the internals of the parallelism structure since the fold is used within
+    * a thread, but across threads/machines operator+= is used. The behavior
+    * of the foldfunction, or the behavior of the return type should not make
+    * assumptions on the undocumented behavior of this function (such as 
+    * when the fold is used, and when += is used).
+    *
+    * ### Relations
+    * This function is similar to
+    * map_reduce_vertices()
+    * with the difference that this uses a fold and is hence more efficient
+    * for large aggregation objects.
+    * transform_vertices() can be used to perform a similar
+    * but may also make modifications to graph data.
+    *
+    * \tparam ReductionType The output of the map function. Must have
+    *                    operator+= defined, and must be \ref sec_serializable.
+    * \tparam VertexFoldType The type of the fold function.
+    *                          Not generally needed.
+    *                          Can be inferred by the compiler.
+    * \param foldfunction The fold function to use. Must take
+    *                   a \ref vertex_type, or a reference to a
+    *                   \ref vertex_type as its first argument, and a 
+    *                   reference to a ReductionType in its second argument.
+    * \param vset The set of vertices to fold reduce over. Optional. Defaults to
+    *             complete_set()
+    */
+    template <typename ReductionType, typename VertexFoldType>
+    ReductionType fold_vertices(VertexFoldType foldfunction,
+                                      const vertex_set& vset = complete_set()) {
+      BOOST_CONCEPT_ASSERT((graphlab::Serializable<ReductionType>));
+      BOOST_CONCEPT_ASSERT((graphlab::OpPlusEq<ReductionType>));
+      if(!finalized) {
+        logstream(LOG_FATAL)
+          << "\n\tAttempting to run graph.map_reduce_vertices(...) "
+          << "\n\tbefore calling graph.finalize()."
+          << std::endl;
+      }
+
+      rpc.barrier();
+      bool global_result_set = false;
+      ReductionType global_result = ReductionType();
+#ifdef _OPENMP
+#pragma omp parallel
+#endif
+      {
+        ReductionType result = ReductionType();
+#ifdef _OPENMP
+        #pragma omp for
+#endif
+        for (int i = 0; i < (int)local_graph.num_vertices(); ++i) {
+          if (lvid2record[i].owner == rpc.procid() &&
+              vset.l_contains((lvid_type)i)) {
+            const vertex_type vtx(l_vertex(i));
+            foldfunction(vtx, result);
+          }
+        }
+#ifdef _OPENMP
+        #pragma omp critical
+#endif
+        {
+          if (!global_result_set) {
+            global_result = result;
+            global_result_set = true;
+          }
+          else {
+            global_result += result;
+          }
+        }
+      }
+      conditional_addition_wrapper<ReductionType>
+        wrapper(global_result, global_result_set);
+      rpc.all_reduce(wrapper);
+      return wrapper.value;
+    } 
+
+
+
+   /**
+    * \brief Performs a fold operation on each edge in the
+    * graph returning the result.
+    *
+    * Given a fold function, fold_edges() call the fold function on all
+    * edges in the graph passing an aggregator. 
+    * The return values are then summed together across machines and 
+    * final result returned. The fold function should only read data
+    * and should not make any modifications. fold_edges() must be
+    * called on all machines simultaneously.
+    *
+    * ### Basic Usage
+    * For instance, if the graph has float vertex data, and float edge data:
+    * \code
+    *   typedef graphlab::distributed_graph<float, float> graph_type;
+    * \endcode
+    *
+    * To compute an absolute sum over all the edge data, we would write
+    * a function which reads in each a edge, and returns the absolute
+    * value of the data on the edge.
+    * \code
+    * void absolute_edge_data(const graph_type::edge_type& edge, float& acc) {
+    *   acc += std::fabs(edge.data());
+    * }
+    * \endcode
+    * After which calling:
+    * \code
+    * float sum = graph.fold_edges<float>(absolute_edge_data);
+    * \endcode
+    * will call the <code>absolute_edge_data()</code> function
+    * on each edge in the graph. <code>absolute_edge_data()</code>
+    * reads the value of the edge and returns the absolute result.
+    * This return values are then summed together and returned.
+    * All machines see the same result.
+    *
+    * The template argument <code><float></code> is needed to inform
+    * the compiler regarding the return type of the foldfunction.
+    *
+    * The two optional arguments vset and edir can be used to restrict the
+    * set of edges which are map-reduced over.
+    *
+    * ### Relations
+    * This function similar to
+    * graphlab::distributed_graph::map_reduce_edges()
+    * with the difference that this uses a fold and is hence more efficient
+    * for large aggregation objects.
+    * Finally transform_edges() can be used to perform a similar
+    * but may also make modifications to graph data.
+    *
+    * \tparam ReductionType The output of the map function. Must have
+    *                    operator+= defined, and must be \ref sec_serializable.
+    * \tparam EdgeFoldType The type of the Fold function.
+    *                          Not generally needed.
+    *                          Can be inferred by the compiler.
+    * \param fold function The map function to use. Must take
+    *                   a \ref edge_type, or a reference to a
+    *                   \ref edge_type as its first argument, and
+    *                   a reference to a ReductionType in its second argument.
+    * \param vset A set of vertices. Combines with
+    *             edir to identify the set of edges. For instance, if
+    *             edir == IN_EDGES, map_reduce_edges will map over all in edges
+    *             of the vertices in vset. Optional. Defaults to complete_set().
+    * \param edir An edge direction. Combines with vset to identify the set
+    *             of edges to map over. For instance, if
+    *             edir == IN_EDGES, map_reduce_edges will map over all in edges
+    *             of the vertices in vset. Optional. Defaults to IN_EDGES.
+    */
+    template <typename ReductionType, typename FoldFunctionType>
+    ReductionType fold_edges(FoldFunctionType foldfunction,
+                                   const vertex_set& vset = complete_set(),
+                                   edge_dir_type edir = IN_EDGES) {
+      BOOST_CONCEPT_ASSERT((graphlab::Serializable<ReductionType>));
+      BOOST_CONCEPT_ASSERT((graphlab::OpPlusEq<ReductionType>));
+      if(!finalized) {
+        logstream(LOG_FATAL)
+          << "\n\tAttempting to run graph.map_reduce_vertices(...)"
+          << "\n\tbefore calling graph.finalize()."
+          << std::endl;
+      }
+
+      rpc.barrier();
+      bool global_result_set = false;
+      ReductionType global_result = ReductionType();
+#ifdef _OPENMP
+#pragma omp parallel
+#endif
+      {
+        ReductionType result = ReductionType();
+#ifdef _OPENMP
+        #pragma omp for
+#endif
+        for (int i = 0; i < (int)local_graph.num_vertices(); ++i) {
+          if (vset.l_contains((lvid_type)i)) {
+            if (edir == IN_EDGES || edir == ALL_EDGES) {
+              foreach(const local_edge_type& e, l_vertex(i).in_edges()) {
+                  edge_type edge(e);
+                  foldfunction(edge, result);
+              }
+            }
+            if (edir == OUT_EDGES || edir == ALL_EDGES) {
+              foreach(const local_edge_type& e, l_vertex(i).out_edges()) {
+                edge_type edge(e);
+                foldfunction(edge, result);
+              }
+            }
+          }
+        }
+#ifdef _OPENMP
+        #pragma omp critical
+#endif
+        {
+          if (!global_result_set) {
+            global_result = result;
+            global_result_set = true;
+          }
+          else {
+            global_result += result;
+          }
+        }
+      }
+
+      conditional_addition_wrapper<ReductionType>
+        wrapper(global_result, global_result_set);
+      rpc.all_reduce(wrapper);
+      return wrapper.value;
+   } // end of map_reduce_edges
+
+
 
     /**
      * \brief Performs a transformation operation on each vertex in the graph.
@@ -1435,8 +1704,10 @@ namespace graphlab {
      *
      * A graph loaded using load_binary() is already finalized and
      * structure modifications are not permitted after loading.
+     *
+     * Return true on success and false on failure if the file cannot be loaded.
      */
-    void load_binary(const std::string& prefix) {
+    bool load_binary(const std::string& prefix) {
       rpc.full_barrier();
       std::string fname = prefix + tostr(rpc.procid()) + ".bin";
 
@@ -1449,8 +1720,8 @@ namespace graphlab {
         fin.push(in_file);
 
         if(!fin.good()) {
-          logstream(LOG_FATAL) << "\n\tError opening file: " << fname << std::endl;
-          exit(-1);
+          logstream(LOG_ERROR) << "\n\tError opening file: " << fname << std::endl;
+          return false;
         }
         iarchive iarc(fin);
         iarc >> *this;
@@ -1460,6 +1731,10 @@ namespace graphlab {
       } else {
         std::ifstream in_file(fname.c_str(),
                               std::ios_base::in | std::ios_base::binary);
+        if(!in_file.good()) {
+          logstream(LOG_ERROR) << "\n\tError opening file: " << fname << std::endl;
+          return false;
+        }
         boost::iostreams::filtering_stream<boost::iostreams::input> fin;
         fin.push(boost::iostreams::gzip_decompressor());
         fin.push(in_file);
@@ -1471,6 +1746,7 @@ namespace graphlab {
       }
       logstream(LOG_INFO) << "Finish loading graph from " << fname << std::endl;
       rpc.full_barrier();
+      return true;
     } // end of load
 
 
@@ -1492,8 +1768,11 @@ namespace graphlab {
      *
      * If the graph is not alreasy finalized before save_binary() is called,
      * this function will finalize the graph.
+     *
+     * Returns true on success, and false if the graph cannot be loaded from
+     * the specified file.
      */
-    void save_binary(const std::string& prefix) {
+    bool save_binary(const std::string& prefix) {
       rpc.full_barrier();
       finalize();
       timer savetime;  savetime.start();
@@ -1506,8 +1785,8 @@ namespace graphlab {
         fout.push(boost::iostreams::gzip_compressor());
         fout.push(out_file);
         if (!fout.good()) {
-          logstream(LOG_FATAL) << "\n\tError opening file: " << fname << std::endl;
-          exit(-1);
+          logstream(LOG_ERROR) << "\n\tError opening file: " << fname << std::endl;
+          return false;
         }
         oarchive oarc(fout);
         oarc << *this;
@@ -1518,8 +1797,8 @@ namespace graphlab {
         std::ofstream out_file(fname.c_str(),
                                std::ios_base::out | std::ios_base::binary);
         if (!out_file.good()) {
-          logstream(LOG_FATAL) << "\n\tError opening file: " << fname << std::endl;
-          exit(-1);
+          logstream(LOG_ERROR) << "\n\tError opening file: " << fname << std::endl;
+          return false;
         }
         boost::iostreams::filtering_stream<boost::iostreams::output> fout;
         fout.push(boost::iostreams::gzip_compressor());
@@ -1534,6 +1813,7 @@ namespace graphlab {
                           << "Finished saving binary graph: "
                           << savetime.current_time() << std::endl;
       rpc.full_barrier();
+      return true;
     } // end of save
 
 
@@ -2350,6 +2630,16 @@ namespace graphlab {
             << num_out_edges
             << _mirrors;
       } // end of save
+
+      bool operator==(const vertex_record& other) const {
+        return (
+            (owner == other.owner) &&
+            (gvid == other.gvid)  &&
+            (num_in_edges == other.num_in_edges) &&
+            (num_out_edges == other.num_out_edges) && 
+            (_mirrors == other._mirrors)
+            );
+      }
     }; // end of vertex_record
 
 

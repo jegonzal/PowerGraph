@@ -435,12 +435,9 @@ namespace graphlab {
        _size = 0;
      }
 
-     void load(iarchive& iarc) {
-       // TODO
-     }
 
      void save(oarchive& oarc) const {
-       // TODO
+       serialize_iterator(oarc, begin(), end(), size());
      }
    
 
@@ -502,7 +499,7 @@ namespace graphlab {
      /// If nothing to append, return the begin location 
      if (len == 0) { 
        iterator ret(ibegin_ptr, ibegin_ptr->size());
-       return std::make_pair<iterator, iterator>(ret, ret);
+       return std::pair<iterator, iterator>(ret, ret);
      }
 
      /// elements to return
@@ -543,7 +540,7 @@ namespace graphlab {
      }
      _size += len;
 
-     return std::make_pair<iterator,iterator>(
+     return std::pair<iterator,iterator>(
          iterator(ibegin_ptr, ibegin_offset)
          ,iterator(iend_ptr, iend_offset));
    }
