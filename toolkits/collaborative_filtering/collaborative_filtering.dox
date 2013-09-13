@@ -90,9 +90,9 @@ Note: for weighted-ALS, the input has the follwoing format:
 \endverbatim
 Since each rating has its associated weight.
 
-\section Computing ratings (test predictions)
+\section RATINGS Computing ratings (test predictions)
 
-Optionally, you can compute ratings for user/item pairs using the computed linear model. The prediction output Filename is specified by: --predictions=filename . If the --prediction command line is not used, the output is not saved. Additionally you need to prepare a file named somefile.predict inside of your training folder, with user item pairs in the following format: 
+Optionally, you can compute ratings for user/item pairs using the computed linear model. The prediction output Filename is specified by: --predictions=filename . If the --prediction command line is not used, the output is not saved. Additionally you need to prepare a file named somefilename.predict inside of your training folder, with user item pairs in the following format: 
 \verbatim
 [user] [item]\n
 \endverbatim
@@ -158,7 +158,7 @@ Below are ALS related command line options:
 --max_iter=XX The number of iterations.
 --maxval=XX	Maximum allowed rating
 --minval=XX	Min allowed rating
---predictions=XX	File name to write prediction to
+--predictions=XX	File name to write prediction to. Note that you will need a user/item pair input file named something.predict to enable predictions (see section: ratings).
 \endverbatim
 
 And here is an exmaple ALS run:
@@ -255,7 +255,7 @@ Below are CCD++ related command line options:
 --max_iter=XX The number of iterations.
 --maxval=XX	Maximum allowed rating
 --minval=XX	Min allowed rating
---predictions=XX	File name to write prediction to
+--predictions=XX	File name to write prediction to. Note that you will need a user/item pair input file named something.predict to enable predictions (see section: ratings).
 \endverbatim
 
 
@@ -277,7 +277,7 @@ The output of ALS is two matrices: filename.U and filename.V. The matrix U holds
 --max_iter=XX	Max number of iterations
 --maxval=XX	Maximum allowed rating
 --minval=XX	Min allowed rating
---predictions=XX	File name to write predictions to
+--predictions=XX	File name to write prediction to. Note that you will need a user/item pair input file named something.predict to enable predictions (see section: ratings).
 \endverbatim
 
 Here is an example SGD run on small Netflix data:
@@ -395,7 +395,7 @@ The output of bias-SGD consists of two matrices: filename.U and filename.V. The 
 --max_iter=XX	Max number of iterations
 --maxval=XX	Maximum allowed rating
 --minval=XX	Min allowed rating
---predictions=XX	File name to write prediction to
+--predictions=XX	File name to write prediction to. Note that you will need a user/item pair input file named something.predict to enable predictions (see section: ratings).
 \endverbatim
 
 Example for running bias-SGD
@@ -516,7 +516,7 @@ Basic configuration --svdpp_step_dec=XX Multiplicative step decrement (between 0
 --max_iter=XX	Max number of iterations
 --maxval=XX	Maximum allowed rating
 --minval=XX	Min allowed rating
---predictions=XX	File name to write prediction to
+--predictions=XX	File name to write prediction to. Note that you will need a user/item pair input file named something.predict to enable predictions (see section: ratings).
 \endverbatim
 
  Prediction in Koren’s SVD++ algorithm is computed as follows:
@@ -552,7 +552,7 @@ Below are WALS related command line options:
 --max_iter=XX The number of iterations.
 --maxval=XX	Maximum allowed rating
 --minval=XX	Min allowed rating
---predictions=XX	File name to write prediction to
+--predictions=XX	File name to write prediction to. Note that you will need a user/item pair input file named something.predict to enable predictions (see section: ratings).
 
 \endverbatim
 
@@ -744,7 +744,7 @@ mpiexec -n XX ./svd [ rest of the command line aguments ]
 --ortho_repeats Number of repeats on the orthogonalization step. Default is 1 (no repeats). Increase this number for higher accuracy but slower execution. Maximal allowed values is 3.
 --max_iter  Number of allowed restarts. The minimum is 2= no restart.
 --save_vectors=true Save the factorized matrices U and V to file. 
---predictions File name to save prediction to
+--predictions=XX	File name to write prediction to. Note that you will need a user/item pair input file named something.predict to enable predictions (see section: test ratings).
 --tol Convergence threshold. For large matrices set this number set this number higher (for example 1e-1, while for small matrices you can set it to 1e-16). As smaller the convergence threshold execution is slower.
 \endverbatim
 
