@@ -2,7 +2,7 @@ if [ ! -d src ]; then
   echo "Run from the graphlab root folder"
   exit
 fi
-./configure -D MARCH=x86-64 -D MTUNE=generic --no_jvm
+./configure -D MARCH=x86-64 -D MTUNE=generic --no_jvm -D COMPILER_FLAGS="-static-libgcc\ -static-libstdc++"
 scripts/compile_static_release.sh
 
 # is this a openmpi or a mpich2 build?

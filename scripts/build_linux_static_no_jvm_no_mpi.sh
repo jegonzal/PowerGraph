@@ -2,24 +2,13 @@ if [ ! -d src ]; then
   echo "Run from the graphlab root folder"
   exit
 fi
-./configure -D MARCH=x86-64 -D MTUNE=generic -D COMPILER_FLAGS="-static-libgcc\ -static-libstdc++"
-scripts/compile_static_release.sh
+./configure -D MARCH=x86-64 -D MTUNE=generic --no_jvm -D NO_MPI:BOOL=true -D COMPILER_FLAGS:STRING="-static-libgcc\ -static-libstdc++" 
+scripts/compile_static_release.sh $@
 
 # is this a openmpi or a mpich2 build?
+rootdirname="graphlab_no_jvm_no_mpi"
+unstrippeddirname="graphlab_unstripped_no_jvm_no_mpi"
 ISOPENMPI=0
-if grep -q mpi_cxx config.log
-then
-  rootdirname="graphlab_openmpi"
-  unstrippeddirname="graphlab_openmpi_unstripped"
-  ISOPENMPI=1
-elif grep -q mpich config.log
-then
-  rootdirname="graphlab_mpich2"
-  unstrippeddirname="graphlab_mpich2_unstripped"
-else
-  echo "Unable to detect MPI type"
-  exit
-fi
 
 
 # now package a binary release
@@ -30,7 +19,13 @@ mkdir $unstrippeddirname
 mkdir $rootdirname/gldeps
 mkdir $unstrippeddirname/gldeps
 
-for file in `cat scripts/binary_list.txt`
+tmp=$@
+if test $# -lt 1 ; then
+  tmp=`cat scripts/binary_list.txt`
+fi
+
+
+for file in $tmp
 do
   dname=`dirname $file`
   fname=`basename $file`
@@ -43,9 +38,6 @@ do
   do
     depname=`basename $dep`
     # definitely exclude jvm
-    if [[ $depname == "libjvm.so" ]]; then
-      continue
-    fi
     if [ ! -f "$rootdirname/gldeps/$depname" ]; then
       echo "Copying $dep"
       cp "$dep" "$rootdirname/gldeps/"
@@ -78,16 +70,6 @@ cp license/LICENSE.txt $unstrippeddirname/license/
 #copy the README
 cp BINARY_README $rootdirname/README
 cp BINARY_README $unstrippeddirname/README
-
-# I am unable to get openmpi to work properly with the ld hack
-# since it appears to have complicated binary dependencies. 
-# (it forks and launches some other daemon which has its own dependencies)
-# I will give up on this for now and try to get ABI compatibility.
-# it seems like 1.3 is compatible with 1.4 and 1.5 is compatbile with 1.6
-if [ ISOPENMPI -eq 1 ]; then
-  rm $rootdirname/gldeps/libmpi.* $rootdirname/gldeps/libopen-*
-  rm $unstrippeddirname/gldeps/libmpi.* $unstrippeddirname/gldeps/libopen-*
-fi
 
 #pack
 tar -cjvf $rootdirname.tar.bz2 $rootdirname
