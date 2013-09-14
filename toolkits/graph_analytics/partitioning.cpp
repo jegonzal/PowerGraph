@@ -163,23 +163,23 @@ bool call_kmeans(const std::string& mpi_args, const std::string& filename,
 
 //select good rank
 int get_lanczos_rank(const size_t num_clusters, const size_t num_data) {
-//  size_t rank = 1;
-//  if (num_data < 1000) {
-//    if (num_clusters + 10 <= num_data)
-//      rank = num_clusters + 10;
-//    else
-//      rank = num_data;
-//  } else if (num_data < 10000) {
-//    rank = num_clusters + 25;
-//  } else if (num_data < 100000) {
-//    rank = num_clusters + 50;
-//  } else if (num_data < 1000000) {
-//    rank = num_clusters + 80;
-//  } else {
-//    rank = num_clusters + 100;
-//  }
-//  return rank;
-  return num_clusters + 1;
+  size_t rank = 1;
+  if (num_data < 1000) {
+    if (num_clusters + 10 <= num_data)
+      rank = num_clusters + 10;
+    else
+      rank = num_data;
+  } else if (num_data < 10000) {
+    rank = num_clusters + 25;
+  } else if (num_data < 100000) {
+    rank = num_clusters + 50;
+  } else if (num_data < 1000000) {
+    rank = num_clusters + 80;
+  } else {
+    rank = num_clusters + 100;
+  }
+  return rank;
+//  return num_clusters + 1;
 }
 
 int main(int argc, char** argv) {
@@ -193,6 +193,7 @@ int main(int argc, char** argv) {
   size_t num_partitions = 2;
   bool normalized_cut = true;
   bool ratio_cut = false;
+  size_t sv = 0;
   //parse command line
   graphlab::command_line_options clopts(
           "Graph partitioning (normalized cut)");
@@ -211,6 +212,8 @@ int main(int argc, char** argv) {
   clopts.attach_option("mpi-args", mpi_args,
                        "If set, will execute mipexec with the given arguments. "
                        "For example, --mpi-args=\"-n [N machines] --hostfile [host file]\"");
+  clopts.attach_option("sv", sv,
+                       "Number of vectors in each iteration in the Lanczos svd.");
 //  clopts.attach_option("normalized-cut", normalized_cut,
 //                       "do normalized cut");
 //  clopts.attach_option("ratio-cut", ratio_cut,
@@ -235,6 +238,7 @@ int main(int argc, char** argv) {
   remove_opts.push_back("--kmeans-dir");
   remove_opts.push_back("--partitions");
   remove_opts.push_back("--mpi-args");
+  remove_opts.push_back("--sv");
 //  remove_opts.push_back("--normalized-cut");
 //  remove_opts.push_back("--ratio-cut");
   std::string other_args = get_arg_str_without(argc, argv, remove_opts);
@@ -256,12 +260,17 @@ int main(int argc, char** argv) {
   }
   ifs >> num_data;
   //determine the rank of Lanczos method
-  size_t rank = get_lanczos_rank(num_partitions, num_data);
-  if (call_svd(mpi_args, graph_dir, svd_dir, num_partitions, rank, num_data,
+  if(sv == 0){
+    sv = get_lanczos_rank(num_partitions, num_data);
+  }else{
+    if(sv < num_partitions)
+      sv = num_partitions;
+  }
+  if (call_svd(mpi_args, graph_dir, svd_dir, num_partitions, sv, num_data,
       other_args) == false) {
     return EXIT_FAILURE;
   }
-  if (call_eigen_vector_normalization(mpi_args, graph_dir, num_partitions, rank,
+  if (call_eigen_vector_normalization(mpi_args, graph_dir, num_partitions, sv,
       num_data, other_args) == false) {
     return EXIT_FAILURE;
   }
