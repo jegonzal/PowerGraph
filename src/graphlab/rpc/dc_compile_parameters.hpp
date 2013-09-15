@@ -92,7 +92,7 @@
  * \def NUM_FULL_BUFFER_LIMIT 
  * Number of full buffers in the send queue before a flush is explicitly called.
  */
-#define NUM_FULL_BUFFER_LIMIT 16
+#define NUM_FULL_BUFFER_LIMIT 32 
 
 /**************************************************************************/
 /*                                                                        */
