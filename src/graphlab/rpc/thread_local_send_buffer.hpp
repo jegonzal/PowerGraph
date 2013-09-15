@@ -4,17 +4,17 @@
 #include <graphlab/rpc/dc_compile_parameters.hpp>
 #include <graphlab/rpc/dc_internal_types.hpp>
 #include <graphlab/util/dense_bitset.hpp>
+#include <graphlab/util/inplace_lf_queue2.hpp>
 namespace graphlab {
 class distributed_control;
 
 
 namespace dc_impl {
+
 struct thread_local_buffer {
-  std::vector<std::vector<std::pair<char*, size_t> > > outbuf;
-  std::vector<mutex> outbuf_locks;
+  std::vector<inplace_lf_queue2<buffer_elem>* > outbuf;
   std::vector<size_t> bytes_sent;
 
-  fixed_dense_bitset<RPC_MAX_N_PROCS> contended;
 
   std::vector<mutex> archive_locks;
   std::vector<oarchive> current_archive;
@@ -83,10 +83,15 @@ struct thread_local_buffer {
 
   /**
    * Extracts the buffer going to a given target.
+   * The first element of the pair points to the head of the linked list
+   * The linked list ends when the pointer becomes the second element of 
+   * the pair.
    */
-  std::vector<std::pair<char*, size_t> > extract(procid_t target);
+  std::pair<buffer_elem*, buffer_elem*> extract(procid_t target);
 
   void inc_calls_sent(procid_t target);
+
+  void add_to_queue(procid_t target, char* ptr, size_t len);
 };
 }
 }

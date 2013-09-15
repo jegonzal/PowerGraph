@@ -42,7 +42,7 @@ inline void release_thread_local_buffer(procid_t target,
 
 /**
  * \internal
- * Releases the thread local send buffer for the given target
+ * Writes a sequence of bytes to the local send buffer
  */
 inline void write_thread_local_buffer(procid_t target, 
                                       char* c,

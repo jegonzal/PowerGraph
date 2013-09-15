@@ -35,7 +35,7 @@ namespace dc_impl {
   }
 
   void dc_buffered_stream_send2::flush_soon() {
-    comm->trigger_send_timeout(target, true);
+    comm->trigger_send_timeout(target, false);
   }
 
 
@@ -88,14 +88,22 @@ namespace dc_impl {
     lock.lock();
     size_t sendlen = 0;
     for (size_t i = 0;i < send_buffers.size(); ++i) {
-      std::vector<std::pair<char*, size_t> > ret = send_buffers[i]->extract(target);
-      for (size_t j = 0;j < ret.size(); ++j) {
-        if (ret[j].second > 0) {
+      std::pair<buffer_elem*, buffer_elem*> bufs = send_buffers[i]->extract(target);
+      if (bufs.first != NULL) {
+        while(bufs.first != bufs.second) {
+          buffer_elem* prev = bufs.first;
           iovec sendvec;
-          sendvec.iov_base = ret[j].first;
-          sendvec.iov_len = ret[j].second;
+          sendvec.iov_base = bufs.first->buf;
+          sendvec.iov_len = bufs.first->len;
           sendlen += sendvec.iov_len;
           outdata.write(sendvec);
+          buffer_elem** next = &bufs.first->next;
+          volatile buffer_elem** n = (volatile buffer_elem**)(next);
+          while(__unlikely__((*n) == NULL)) {
+            asm volatile("pause\n": : :"memory");
+          }
+          bufs.first = (buffer_elem*)(*n);
+          delete prev;
         }
       }
     }

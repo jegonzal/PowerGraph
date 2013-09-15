@@ -77,7 +77,7 @@
  * \def INITIAL_BUFFER_SIZE
  * Each buffer is allocated to this size at the start
  */
-#define INITIAL_BUFFER_SIZE 8192
+#define INITIAL_BUFFER_SIZE 65536
 
 
 /**
@@ -85,7 +85,7 @@
  * \def FULL_BUFFER_SIZE_LIMIT
  * Once the buffer contents exceeds this, it becomes a full buffer.
  */
-#define FULL_BUFFER_SIZE_LIMIT 4096
+#define FULL_BUFFER_SIZE_LIMIT 63000
 
 /**
  * \ingroup RPC
