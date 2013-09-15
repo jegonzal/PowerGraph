@@ -137,16 +137,16 @@ void thread_local_buffer::write(procid_t target, char* c, size_t len,
     inc_calls_sent(target);
   }
   // make sure that messsages sent before this write are sent before this write
-  if (current_archive[target].off) {
-    archive_locks[target].lock();
-
-    if (current_archive[target].off) {
-      add_to_queue(target, current_archive[target].buf, current_archive[target].off);
-    }
-    current_archive[target].buf = NULL; 
-    current_archive[target].off = 0;
-    archive_locks[target].unlock();
-  }
+//   if (current_archive[target].off) {
+//     archive_locks[target].lock();
+// 
+//     if (current_archive[target].off) {
+//       add_to_queue(target, current_archive[target].buf, current_archive[target].off);
+//     }
+//     current_archive[target].buf = NULL; 
+//     current_archive[target].off = 0;
+//     archive_locks[target].unlock();
+//   }
   add_to_queue(target, c, len);
 }
 
