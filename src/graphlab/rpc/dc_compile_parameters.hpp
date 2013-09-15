@@ -140,7 +140,10 @@
 /**
  * \ingroup RPC
  * \def DEFAULT_BUFFERED_EXCHANGE_SIZE
- * Default capacity of the buffered exchange
+ * maximum size of each buffer in the buffer exchange. Beyond this size,
+ * a send is performed.
  */
-#define DEFAULT_BUFFERED_EXCHANGE_SIZE 64*1024
+#define DEFAULT_BUFFERED_EXCHANGE_SIZE FULL_BUFFER_SIZE_LIMIT
+
+
 #endif
