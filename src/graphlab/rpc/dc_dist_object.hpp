@@ -1462,7 +1462,6 @@ private:
     calls_to_receive.clear(); calls_to_receive.resize(numprocs(), 0);
     for (size_t i = 0;i < numprocs(); ++i) {
       calls_to_receive[i] += all_calls_sent[i][procid()];
-//      std::cout << "Expecting " << calls_to_receive[i] << " calls from " << i << std::endl;
     }
     // clear the counters
     num_proc_recvs_incomplete.value = numprocs();
@@ -1476,11 +1475,18 @@ private:
         if (procs_complete.set_bit(i) == false) {
           num_proc_recvs_incomplete.dec();
         }
+      } else {
+        logstream(LOG_DEBUG) << "Expecting " << calls_to_receive[i] 
+                             << " calls from " << i << " but only " 
+                             << callsreceived[i].value << "received." << std::endl;
       }
     }
 
     full_barrier_lock.lock();
-    while (num_proc_recvs_incomplete.value > 0) full_barrier_cond.wait(full_barrier_lock);
+    while (num_proc_recvs_incomplete.value > 0) {
+      logstream(LOG_DEBUG) << "Calls Incomplete. Waiting." << std::endl;
+      full_barrier_cond.wait(full_barrier_lock);
+    }
     full_barrier_lock.unlock();
     full_barrier_in_effect = false;
 //     for (size_t i = 0; i < numprocs(); ++i) {

@@ -47,7 +47,7 @@
 
 #include <graphlab/rpc/dc_dist_object.hpp>
 #include <graphlab/rpc/distributed_event_log.hpp>
-#include <graphlab/rpc/buffered_exchange.hpp>
+#include <graphlab/rpc/fiber_buffered_exchange.hpp>
 
 
 
@@ -524,7 +524,7 @@ namespace graphlab {
     /**
      * \brief The type of the exchange used to synchronize vertex programs
      */
-    typedef buffered_exchange<vid_prog_pair_type> vprog_exchange_type;
+    typedef fiber_buffered_exchange<vid_prog_pair_type> vprog_exchange_type;
 
     /**
      * \brief The distributed exchange used to synchronize changes to
@@ -540,7 +540,7 @@ namespace graphlab {
     /**
      * \brief The type of the exchange used to synchronize vertex data
      */
-    typedef buffered_exchange<vid_vdata_pair_type> vdata_exchange_type;
+    typedef fiber_buffered_exchange<vid_vdata_pair_type> vdata_exchange_type;
 
     /**
      * \brief The distributed exchange used to synchronize changes to
@@ -557,7 +557,7 @@ namespace graphlab {
      * \brief The type of the exchange used to synchronize gather
      * accumulators
      */
-    typedef buffered_exchange<vid_gather_pair_type> gather_exchange_type;
+    typedef fiber_buffered_exchange<vid_gather_pair_type> gather_exchange_type;
 
     /**
      * \brief The distributed exchange used to synchronize gather
@@ -573,7 +573,7 @@ namespace graphlab {
     /**
      * \brief The type of the exchange used to synchronize messages
      */
-    typedef buffered_exchange<vid_message_pair_type> message_exchange_type;
+    typedef fiber_buffered_exchange<vid_message_pair_type> message_exchange_type;
 
     /**
      * \brief The distributed exchange used to synchronize messages
@@ -896,7 +896,7 @@ namespace graphlab {
      * programs and should be called after a flush of the vertex
      * program exchange.
      */
-    void recv_vertex_programs(const bool try_to_recv = false);
+    void recv_vertex_programs();
 
     /**
      * \brief Send the vertex data for the local vertex id to all of
@@ -915,7 +915,7 @@ namespace graphlab {
      * data and should be called after a flush of the vertex data
      * exchange.
      */
-    void recv_vertex_data(const bool try_to_recv = false);
+    void recv_vertex_data();
 
     /**
      * \brief Send the gather value for the vertex id to its master.
@@ -934,7 +934,7 @@ namespace graphlab {
      * buffered exchange and should be called after the buffered
      * exchange has been flushed
      */
-    void recv_gathers(const bool try_to_recv = false);
+    void recv_gathers();
 
     /**
      * \brief Send the accumulated message for the local vertex to its
@@ -951,7 +951,7 @@ namespace graphlab {
      * buffered exchange and should be called after the buffered
      * exchange has been flushed
      */
-    void recv_messages(const bool try_to_recv = false);
+    void recv_messages();
 
 
   }; // end of class synchronous engine
@@ -1010,10 +1010,10 @@ namespace graphlab {
     thread_barrier(opts.get_ncpus()),
     max_iterations(-1), snapshot_interval(-1), iteration_counter(0),
     timeout(0), sched_allv(false),
-    vprog_exchange(dc, opts.get_ncpus()),
-    vdata_exchange(dc, opts.get_ncpus()),
-    gather_exchange(dc, opts.get_ncpus()),
-    message_exchange(dc, opts.get_ncpus()),
+    vprog_exchange(dc),
+    vdata_exchange(dc),
+    gather_exchange(dc),
+    message_exchange(dc),
     aggregator(dc, graph, new context_type(*this, graph)) {
     // Process any additional options
     std::vector<std::string> keys = opts.get_engine_args().get_option_keys();
@@ -1459,7 +1459,6 @@ namespace graphlab {
   void synchronous_engine<VertexProgram>::
   exchange_messages(const size_t thread_id) {
     context_type context(*this, graph);
-    const bool TRY_TO_RECV = true;
     const size_t TRY_RECV_MOD = 100;
     size_t vcount = 0;
     fixed_dense_bitset<8 * sizeof(size_t)> local_bitset; // a word-size = 64 bit
@@ -1485,10 +1484,10 @@ namespace graphlab {
           // clear the message to save memory
           messages[lvid] = message_type();
         }
-        if(++vcount % TRY_RECV_MOD == 0) recv_messages(TRY_TO_RECV);
+        if(++vcount % TRY_RECV_MOD == 0) recv_messages();
       }
     } // end of loop over vertices to send messages
-    message_exchange.partial_flush(thread_id);
+    message_exchange.partial_flush();
     // Finish sending and receiving all messages
     thread_barrier.wait();
     if(thread_id == 0) message_exchange.flush();
@@ -1502,7 +1501,6 @@ namespace graphlab {
   void synchronous_engine<VertexProgram>::
   receive_messages(const size_t thread_id) {
     context_type context(*this, graph);
-    const bool TRY_TO_RECV = true;
     const size_t TRY_RECV_MOD = 100;
     size_t vcount = 0;
     size_t nactive_inc = 0;
@@ -1544,12 +1542,12 @@ namespace graphlab {
             sync_vertex_program(lvid, thread_id);
           }
         }
-        if(++vcount % TRY_RECV_MOD == 0) recv_vertex_programs(TRY_TO_RECV);
+        if(++vcount % TRY_RECV_MOD == 0) recv_vertex_programs();
       }
     }
 
     num_active_vertices += nactive_inc;
-    vprog_exchange.partial_flush(thread_id);
+    vprog_exchange.partial_flush();
     // Flush the buffer and finish receiving any remaining vertex
     // programs.
     thread_barrier.wait();
@@ -1567,7 +1565,6 @@ namespace graphlab {
   void synchronous_engine<VertexProgram>::
   execute_gathers(const size_t thread_id) {
     context_type context(*this, graph);
-    const bool TRY_TO_RECV = true;
     const size_t TRY_RECV_MOD = 1000;
     size_t vcount = 0;
     const bool caching_enabled = !gather_cache.empty();
@@ -1655,11 +1652,11 @@ namespace graphlab {
         }
 
         // try to recv gathers if there are any in the buffer
-        if(++vcount % TRY_RECV_MOD == 0) recv_gathers(TRY_TO_RECV);
+        if(++vcount % TRY_RECV_MOD == 0) recv_gathers();
       }
     } // end of loop over vertices to compute gather accumulators
     per_thread_compute_time[thread_id] += ti.current_time();
-    gather_exchange.partial_flush(thread_id);
+    gather_exchange.partial_flush();
       // Finish sending and receiving all gather operations
     thread_barrier.wait();
     if(thread_id == 0) gather_exchange.flush();
@@ -1672,7 +1669,6 @@ namespace graphlab {
   void synchronous_engine<VertexProgram>::
   execute_applys(const size_t thread_id) {
     context_type context(*this, graph);
-    const bool TRY_TO_RECV = true;
     const size_t TRY_RECV_MOD = 1000;
     size_t vcount = 0;
     timer ti;
@@ -1719,22 +1715,23 @@ namespace graphlab {
         }
       // try to receive vertex data
         if(++vcount % TRY_RECV_MOD == 0) {
-          recv_vertex_programs(TRY_TO_RECV);
-          recv_vertex_data(TRY_TO_RECV);
+          recv_vertex_programs();
+          recv_vertex_data();
         }
       }
     } // end of loop over vertices to run apply
 
     per_thread_compute_time[thread_id] += ti.current_time();
-    vprog_exchange.partial_flush(thread_id);
-    vdata_exchange.partial_flush(thread_id);
+    vprog_exchange.partial_flush();
+    vdata_exchange.partial_flush();
       // Finish sending and receiving all changes due to apply operations
     thread_barrier.wait();
-    if(thread_id == 0) { vprog_exchange.flush(); vdata_exchange.flush(); }
+    if(thread_id == 0) { 
+      vprog_exchange.flush(); vdata_exchange.flush(); 
+    }
     thread_barrier.wait();
     recv_vertex_programs();
     recv_vertex_data();
-
   } // end of execute_applys
 
 
@@ -1806,8 +1803,7 @@ namespace graphlab {
     local_vertex_type vertex = graph.l_vertex(lvid);
     foreach(const procid_t& mirror, vertex.mirrors()) {
       vprog_exchange.send(mirror,
-                          std::make_pair(vid, vertex_programs[lvid]),
-                          thread_id);
+                          std::make_pair(vid, vertex_programs[lvid]));
     }
   } // end of sync_vertex_program
 
@@ -1815,15 +1811,17 @@ namespace graphlab {
 
   template<typename VertexProgram>
   void synchronous_engine<VertexProgram>::
-  recv_vertex_programs(const bool try_to_recv) {
-    procid_t procid(-1);
-    typename vprog_exchange_type::buffer_type buffer;
-    while(vprog_exchange.recv(procid, buffer, try_to_recv)) {
-      foreach(const vid_prog_pair_type& pair, buffer) {
-        const lvid_type lvid = graph.local_vid(pair.first);
-  //      ASSERT_FALSE(graph.l_is_master(lvid));
-        vertex_programs[lvid] = pair.second;
-        active_minorstep.set_bit(lvid);
+  recv_vertex_programs() {
+    typename vprog_exchange_type::recv_buffer_type recv_buffer;
+    while(vprog_exchange.recv(recv_buffer)) {
+      for (size_t i = 0;i < recv_buffer.size(); ++i) {
+        typename vprog_exchange_type::buffer_type& buffer = recv_buffer[i].buffer;
+        foreach(const vid_prog_pair_type& pair, buffer) {
+          const lvid_type lvid = graph.local_vid(pair.first);
+          //      ASSERT_FALSE(graph.l_is_master(lvid));
+          vertex_programs[lvid] = pair.second;
+          active_minorstep.set_bit(lvid);
+        }
       }
     }
   } // end of recv vertex programs
@@ -1836,7 +1834,7 @@ namespace graphlab {
     const vertex_id_type vid = graph.global_vid(lvid);
     local_vertex_type vertex = graph.l_vertex(lvid);
     foreach(const procid_t& mirror, vertex.mirrors()) {
-      vdata_exchange.send(mirror, std::make_pair(vid, vertex.data()), thread_id);
+      vdata_exchange.send(mirror, std::make_pair(vid, vertex.data()));
     }
   } // end of sync_vertex_data
 
@@ -1846,14 +1844,16 @@ namespace graphlab {
 
   template<typename VertexProgram>
   void synchronous_engine<VertexProgram>::
-  recv_vertex_data(bool try_to_recv) {
-    procid_t procid(-1);
-    typename vdata_exchange_type::buffer_type buffer;
-    while(vdata_exchange.recv(procid, buffer, try_to_recv)) {
-      foreach(const vid_vdata_pair_type& pair, buffer) {
-        const lvid_type lvid = graph.local_vid(pair.first);
-        ASSERT_FALSE(graph.l_is_master(lvid));
-        graph.l_vertex(lvid).data() = pair.second;
+  recv_vertex_data() {
+    typename vdata_exchange_type::recv_buffer_type recv_buffer;
+    while(vdata_exchange.recv(recv_buffer)) {
+      for (size_t i = 0;i < recv_buffer.size(); ++i) {
+        typename vdata_exchange_type::buffer_type& buffer = recv_buffer[i].buffer;
+        foreach(const vid_vdata_pair_type& pair, buffer) {
+          const lvid_type lvid = graph.local_vid(pair.first);
+          ASSERT_FALSE(graph.l_is_master(lvid));
+          graph.l_vertex(lvid).data() = pair.second;
+        }
       }
     }
   } // end of recv vertex data
@@ -1874,28 +1874,30 @@ namespace graphlab {
     } else {
       const procid_t master = graph.l_master(lvid);
       const vertex_id_type vid = graph.global_vid(lvid);
-      gather_exchange.send(master, std::make_pair(vid, accum), thread_id);
+      gather_exchange.send(master, std::make_pair(vid, accum));
     }
   } // end of sync_gather
 
   template<typename VertexProgram>
   void synchronous_engine<VertexProgram>::
-  recv_gathers(const bool try_to_recv) {
-    procid_t procid(-1);
-    typename gather_exchange_type::buffer_type buffer;
-    while(gather_exchange.recv(procid, buffer, try_to_recv)) {
-      foreach(const vid_gather_pair_type& pair, buffer) {
-        const lvid_type lvid = graph.local_vid(pair.first);
-        const gather_type& accum = pair.second;
-        ASSERT_TRUE(graph.l_is_master(lvid));
-        vlocks[lvid].lock();
-        if( has_gather_accum.get(lvid) ) {
-          gather_accum[lvid] += accum;
-        } else {
-          gather_accum[lvid] = accum;
-          has_gather_accum.set_bit(lvid);
+  recv_gathers() {
+    typename gather_exchange_type::recv_buffer_type recv_buffer;
+    while(gather_exchange.recv(recv_buffer)) {
+      for (size_t i = 0;i < recv_buffer.size(); ++i) {
+        typename gather_exchange_type::buffer_type& buffer = recv_buffer[i].buffer;
+        foreach(const vid_gather_pair_type& pair, buffer) {
+          const lvid_type lvid = graph.local_vid(pair.first);
+          const gather_type& accum = pair.second;
+          ASSERT_TRUE(graph.l_is_master(lvid));
+          vlocks[lvid].lock();
+          if( has_gather_accum.get(lvid) ) {
+            gather_accum[lvid] += accum;
+          } else {
+            gather_accum[lvid] = accum;
+            has_gather_accum.set_bit(lvid);
+          }
+          vlocks[lvid].unlock();
         }
-        vlocks[lvid].unlock();
       }
     }
   } // end of recv_gather
@@ -1907,7 +1909,7 @@ namespace graphlab {
     ASSERT_FALSE(graph.l_is_master(lvid));
     const procid_t master = graph.l_master(lvid);
     const vertex_id_type vid = graph.global_vid(lvid);
-    message_exchange.send(master, std::make_pair(vid, messages[lvid]), thread_id);
+    message_exchange.send(master, std::make_pair(vid, messages[lvid]));
   } // end of send_message
 
 
@@ -1915,21 +1917,23 @@ namespace graphlab {
 
   template<typename VertexProgram>
   void synchronous_engine<VertexProgram>::
-  recv_messages(const bool try_to_recv) {
-    procid_t procid(-1);
-    typename message_exchange_type::buffer_type buffer;
-    while(message_exchange.recv(procid, buffer, try_to_recv)) {
-      foreach(const vid_message_pair_type& pair, buffer) {
-        const lvid_type lvid = graph.local_vid(pair.first);
-        ASSERT_TRUE(graph.l_is_master(lvid));
-        vlocks[lvid].lock();
-        if( has_message.get(lvid) ) {
-          messages[lvid] += pair.second;
-        } else {
-          messages[lvid] = pair.second;
-          has_message.set_bit(lvid);
+  recv_messages() {
+    typename message_exchange_type::recv_buffer_type recv_buffer;
+    while(message_exchange.recv(recv_buffer)) {
+      for (size_t i = 0;i < recv_buffer.size(); ++i) {
+        typename message_exchange_type::buffer_type& buffer = recv_buffer[i].buffer;
+        foreach(const vid_message_pair_type& pair, buffer) {
+          const lvid_type lvid = graph.local_vid(pair.first);
+          ASSERT_TRUE(graph.l_is_master(lvid));
+          vlocks[lvid].lock();
+          if( has_message.get(lvid) ) {
+            messages[lvid] += pair.second;
+          } else {
+            messages[lvid] = pair.second;
+            has_message.set_bit(lvid);
+          }
+          vlocks[lvid].unlock();
         }
-        vlocks[lvid].unlock();
       }
     }
   } // end of recv_messages
