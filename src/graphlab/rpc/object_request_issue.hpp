@@ -59,43 +59,35 @@ This is the marshall function for the an object member function call.
 This is very similar to the standard function request issue in request_issue.hpp
 , with the only difference that an object id has to be transmitted
 
-An annoyingly long sequence of type manipulations are needed to identify the return type.
 \code
-template<typename T,
-        typename F ,
-        typename T0> class object_request_issue1
-{
-    public:
-    static request_future<typename function_ret_type<
-              typename boost::remove_const<
-              typename boost::remove_reference<
-              typename boost::function<
-              typename boost::remove_member_pointer<F>
-                ::type>::result_type>::type>::type>::type (void)>
-                exec(dc_send* sender, unsigned char flags, procid_t target,size_t objid, F remote_function , const T0 &i0 )
-    {
-        oarchive arc;
-        arc.advance(sizeof(packet_hdr));
-        request_future<__GLRPC_FRESULT> reply;  
-        dispatch_type d = dc_impl::OBJECT_NONINTRUSIVE_REQUESTDISPATCH1<distributed_control,T,F , T0 >;
-        arc << reinterpret_cast<size_t>(d);
-        serialize(arc, (char*)(&remote_function), sizeof(remote_function));
-        arc << objid;
-        arc << reinterpret_cast<size_t>(reply.reply.get());
-        arc << i0;
-        sender->send_data(target, flags, arc.buf, arc.off);
-        reply.wait();
-        iarchive iarc(reply.val.c, reply.val.len);
-        typename function_ret_type<
-            typename boost::remove_const<
-            typename boost::remove_reference<
-            typename boost::function<
-            typename boost::remove_member_pointer<F>
-                ::type>::result_type>::type>::type>::type result;
-        iarc >> result;
-        reply.val.free();
-        return result;
-    }
+template < typename T, typename F, typename T0 > 
+class object_request_issue1 {
+ public:
+  static void exec (dc_dist_object_base * rmi, dc_send * sender,
+                    size_t request_handle, unsigned char flags,
+                    procid_t target, size_t objid, F remote_function,
+                    const T0 & i0) {
+    oarchive *ptr = get_thread_local_buffer (target);
+    oarchive & arc = *ptr;
+    size_t len =
+      dc_send::write_packet_header (arc, _get_procid (), flags,
+				    _get_sequentialization_key ());
+    uint32_t beginoff = arc.off;
+    dispatch_type d =
+      dc_impl::OBJECT_NONINTRUSIVE_REQUESTDISPATCH1 < distributed_control, T,
+      F, T0 >;
+    arc << reinterpret_cast < size_t > (d);
+    serialize (arc, (char *) (&remote_function), sizeof (remote_function));
+    arc << objid;
+    arc << request_handle;
+    arc << i0;
+    uint32_t curlen = arc.off - beginoff;
+    *(reinterpret_cast < uint32_t * >(arc.buf + len)) = curlen;
+    release_thread_local_buffer (target, flags & CONTROL_PACKET);
+    if ((flags & CONTROL_PACKET) == 0)
+      rmi->inc_bytes_sent (target, curlen);
+    pull_flush_thread_local_buffer (target);
+  }
 };
 \endcode
 

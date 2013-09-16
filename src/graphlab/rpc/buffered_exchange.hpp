@@ -36,7 +36,34 @@ namespace graphlab {
 
   /**
    * \ingroup rpc
-   * \internal
+   *
+   * The buffered exchange provides high performance exchange of bulk data 
+   * between machines. The basic usage is simple:
+   *
+   * For instance, if we are doing bulk exchanges of integers:
+   * \code
+   * buffered_exchange<int> exchange(dc, numthreads);
+   *  .. In parallel .. {
+   *    exchange.send([target machine], [value to send to target], [thread id])
+   *    exchange.partial_flush([thread id]);
+   *  }
+   *
+   *  .. now in 1 thread ..
+   *  exchange.flush()
+   *
+   *  .. In parallel .. {
+   *    procid_t proc;
+   *    buffered_exchange<int>::buffer_type buffer; // (an array of integers)
+   *    while(exchange.recv(proc, buffer)) {
+   *      process array of integers (buffeer) which were sent by proc
+   *    }
+   *  }
+   * \endcode
+   *
+   * \note The buffered exchange sends data in the background, so recv can be
+   * called even before the flush calls.
+   *
+   * \see graphlab::fiber_buffered_exchange
    */
   template<typename T>
   class buffered_exchange {
@@ -74,6 +101,17 @@ namespace graphlab {
     // handler_type recv_handler;
 
   public:
+    /**
+     * Constructs a buffered exchange object.
+     *
+     * \ref dc The master distributed_control object
+     * \ref num_threads The number of threads to support. This is essentially
+     *                  the number of fine-grained locks to use. This does not
+     *                  need to match the total number of threads used during 
+     *                  the exchange process, but there are performance / contention
+     *                  advantages if this matches.
+     * \ref max_buffer_size The size of the per thread and per target send buffer.
+     */
     buffered_exchange(distributed_control& dc,
                       const size_t num_threads = 1,
                       const size_t max_buffer_size = DEFAULT_BUFFERED_EXCHANGE_SIZE) :
@@ -106,6 +144,10 @@ namespace graphlab {
     // max_buffer_size(buffer_size), recv_handler(recv_handler) { rpc.barrier(); }
 
 
+    /**
+     * Sends a value to a target machine.
+     * Use the send buffer owned by thread_id.
+     */
     void send(const procid_t proc, const T& value, const size_t thread_id = 0) {
       ASSERT_LT(proc, rpc.numprocs());
       ASSERT_LT(thread_id, num_threads);
@@ -126,7 +168,9 @@ namespace graphlab {
       }
     } // end of send
 
-
+    /**
+     * Flushes the send buffer owned owned by thread_id.
+     */
     void partial_flush(size_t thread_id) {
       for(procid_t proc = 0; proc < rpc.numprocs(); ++proc) {
         const size_t index = thread_id * rpc.numprocs() + proc;
@@ -142,6 +186,10 @@ namespace graphlab {
       }
     }
 
+    /**
+     * Flushes all send buffers. Must be called only on one thread.
+     * Will not return until all machines call flush.
+     */
     void flush() {
       for(size_t i = 0; i < send_buffers.size(); ++i) {
         const procid_t proc = i % rpc.numprocs();
@@ -159,6 +207,20 @@ namespace graphlab {
     } // end of flush
 
 
+
+    /**
+     * Returns a collection of T sent by ret_proc.
+     *
+     * \param ret_proc On successful return, will contain a valid procid indicating
+     *               that the values in the buffer were sent by that process.
+     * \param ret_buffer A sequence of values sent by ret_proc
+     * \param try_lock If true, will not acquire the lock if the lock is 
+     *                 contended. Useful for polling the receive buffer
+     *                 while sending is occuring.
+     * \return True on success and there are values in the buffer. 
+     *         False if the receive buffer is empty. Or if try_lock is set,
+     *         False may also indicate the buffer lock is being contended.
+     */
     bool recv(procid_t& ret_proc, buffer_type& ret_buffer,
               const bool try_lock = false) {
       fiber_control::fast_yield();
@@ -191,7 +253,7 @@ namespace graphlab {
 
 
     /**
-     * Returns the number of elements to recv
+     * Returns the number of elements available for receiving.
      */
     size_t size() const {
       typedef typename std::deque< buffer_record >::const_iterator iterator;
@@ -204,6 +266,9 @@ namespace graphlab {
       return count;
     } // end of size
 
+    /**
+     * Returns true if there are no elements available for receiving.
+     */
     bool empty() const { return recv_buffers.empty(); }
 
     void clear() { }

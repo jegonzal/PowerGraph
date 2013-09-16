@@ -36,7 +36,53 @@ namespace graphlab {
 
   /**
    * \ingroup rpc
-   * \internal
+   *
+   * The buffered exchange provides high performance exchange of bulk data 
+   * between machines. This is like the \ref graphlab::buffered_exchange, but is
+   * much stricter. All send calls must occur within fibers, and all recv calls
+   * must occur within fibers. Specifically, a collection of "fiber-worker-local"
+   * send buffer and receive buffers are created. Sends by fibers write into the
+   * buffer owned by the current worker handling the fiber. Receives similarly
+   * read from the buffer owned by the current worker handling the fiber.
+   * As such a bit more subtlety is needed to use this class correctly.
+   *
+   * For instance, if we are doing bulk exchanges of integers:
+   * \code
+   * buffered_exchange<int> exchange(dc);
+   *  .. In parallel in fibers .. {
+   *    exchange.send([target machine], [value to send to target])
+   *    exchange.partial_flush();
+   *  }
+   *
+   *  .. now in 1 thread ..
+   *  exchange.flush()
+   *
+   *  .. In parallel in fibers .. {
+   *    procid_t proc;
+   *    std::vector<buffered_exchange<int>::buffer_record> buffer; // (an array of buffers)
+   *    while(exchange.recv(buffer)) {
+   *      for each buffer_record in buffer:
+   *        buffer_record.proc is the machine which sent the contents of this record
+   *        buffer_record.buffer is an array containing values sent by the machine buffer_record.proc
+   *    }
+   *  }
+   *  
+   *  .. now in 1 thread ..
+   *  exchange.recv(buffer, false); // get from all receive buffers
+   *  while(exchange.recv(buffer)) {
+   *    for each buffer_record in buffer:
+   *      buffer_record.proc is the machine which sent the contents of this record
+   *      buffer_record.buffer is an array containing values sent by the machine buffer_record.proc
+   *  }
+   * \endcode
+   *
+   * \note The buffered exchange sends data in the background, so recv can be
+   * called even before the flush calls.
+   * \note The last single threaded receive is not necessary if worker-affinity
+   * is set correctly so that every worker is active in the parallel receiving
+   * block.
+   *
+   * \see graphlab::buffered_exchange
    */
   template<typename T>
   class fiber_buffered_exchange {
@@ -68,10 +114,29 @@ namespace graphlab {
     const size_t max_buffer_size;
 
 
-    // typedef boost::function<void (const T& tref)> handler_type;
-    // handler_type recv_handler;
+    /**
+     * Flushes the send buffer local to worker id "wid" and going to process proc
+     */
+    void flush_buffer(size_t wid, procid_t proc) {
+      if(send_buffers[wid][proc].oarc) {
+        // write the length at the end of the buffere are returning
+        send_buffers[wid][proc].oarc->write(reinterpret_cast<char*>(&send_buffers[wid][proc].numinserts), sizeof(size_t));
+        rpc.split_call_end(proc, send_buffers[wid][proc].oarc);
+//         logstream(LOG_DEBUG) << rpc.procid() << ": Sending exchange of length " 
+//                              << send_buffers[wid][proc].oarc->off << " to " 
+//                              << proc << std::endl;
+        send_buffers[wid][proc].oarc = NULL;
+        send_buffers[wid][proc].numinserts = 0;
+      }
+    }
 
   public:
+    /**
+     * Constructs a buffered exchange object.
+     *
+     * \ref dc The master distributed_control object
+     * \ref max_buffer_size The size of the per thread and per target send buffer.
+     */
     fiber_buffered_exchange(distributed_control& dc,
                       const size_t max_buffer_size = DEFAULT_BUFFERED_EXCHANGE_SIZE) :
       rpc(dc, this),
@@ -103,6 +168,10 @@ namespace graphlab {
     // max_buffer_size(buffer_size), recv_handler(recv_handler) { rpc.barrier(); }
 
 
+    /**
+     * Sends a value to a target machine.
+     * Must be called from within a fiber
+     */
     void send(const procid_t proc, const T& value) {
       size_t wid = fiber_control::get_worker_id();
       if (send_buffers[wid][proc].oarc == NULL) {
@@ -121,25 +190,20 @@ namespace graphlab {
       }
     } // end of send
 
-    void flush_buffer(size_t wid, procid_t proc) {
-      if(send_buffers[wid][proc].oarc) {
-        // write the length at the end of the buffere are returning
-        send_buffers[wid][proc].oarc->write(reinterpret_cast<char*>(&send_buffers[wid][proc].numinserts), sizeof(size_t));
-        rpc.split_call_end(proc, send_buffers[wid][proc].oarc);
-//         logstream(LOG_DEBUG) << rpc.procid() << ": Sending exchange of length " 
-//                              << send_buffers[wid][proc].oarc->off << " to " 
-//                              << proc << std::endl;
-        send_buffers[wid][proc].oarc = NULL;
-        send_buffers[wid][proc].numinserts = 0;
-      }
-    }
-
+    /**
+     * Flushes the send buffers owned by the worker currently running the 
+     * current fiber.
+     */
     void partial_flush() {
       for(procid_t proc = 0; proc < rpc.numprocs(); ++proc) {
         flush_buffer(fiber_control::get_worker_id(), proc);
       }
     }
 
+    /**
+     * Flushes all send buffers. Must be called only on one thread.
+     * Will not return until all machines call flush.
+     */
     void flush() {
       for(size_t i = 0; i < send_buffers.size(); ++i) {
         for (size_t j = 0;j < send_buffers[i].size(); ++j) {
@@ -150,7 +214,14 @@ namespace graphlab {
       rpc.full_barrier();
     } // end of flush
 
-
+    /**
+     * Receives a collection of buffers.
+     * Must be called from within a fiber.
+     * \param ret_buffer If return value is true, this contains a collection of 
+     *                   buffers sent to this machine.
+     * \param self_buffer If true, only receives the worker local buffers.
+     * \returns true If ret_buffer contains values.
+     */
     bool recv(std::vector<buffer_record>& ret_buffer,
               const bool self_buffer = true) {
       fiber_control::fast_yield();
@@ -178,7 +249,7 @@ namespace graphlab {
 
 
     /**
-     * Returns the number of elements to recv
+     * Returns the number of elements avalable for receiving. 
      */
     size_t size() const {
       size_t count = 0;
@@ -188,6 +259,9 @@ namespace graphlab {
       return count;
     } // end of size
 
+    /**
+     * Returns true if there are no elements to receive.
+     */
     bool empty() const { 
       for (size_t i = 0;i < recv_buffers.size(); ++i) {
         if (recv_buffers[i].size() > 0) return false;

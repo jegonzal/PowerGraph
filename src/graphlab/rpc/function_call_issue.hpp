@@ -76,45 +76,45 @@ then perform the type cast.
 The code below generates the following for different number of arguments. Here, we
 demonstrate the 1 argument version.
 \code
-namespace function_call_issue_detail
-{
-    template <typename BoolType,
-            typename F ,
-            typename T0> struct dispatch_selector1
-    {
-        static dispatch_type dispatchfn()
-        {
-            return dc_impl::NONINTRUSIVE_DISPATCH1<distributed_control,F , T0 >;
-        }
-    };
-    template <typename F , typename T0> struct dispatch_selector1<boost::mpl::bool_<true>, F , T0>
-    {
-        static dispatch_type dispatchfn()
-        {
-            return dc_impl::DISPATCH1<distributed_control,F , T0 >;
-        }
-    };
+namespace function_call_issue_detail {
+  template < typename BoolType, typename F, typename T0 > struct dispatch_selector1 {
+    static dispatch_type dispatchfn () {
+      return dc_impl::NONINTRUSIVE_DISPATCH1 < distributed_control, F, T0 >;
+    }
+  };
+  template < typename F, typename T0 > 
+  struct dispatch_selector1 <boost::mpl::bool_ < true >, F, T0 > {
+    static dispatch_type dispatchfn () {
+      return dc_impl::DISPATCH1 < distributed_control, F, T0 >;
+    }
+  };
 }
 
-
-template<typename F , typename T0> class remote_call_issue1
-{
-    public: static void exec(dc_send* sender,
-                            unsigned char flags,
-                            procid_t target,
-                            F remote_function ,
-                            const T0 &i0 )
-    {
-        oarchive arc;
-        arc.advance(sizeof(packet_hdr));
-        dispatch_type d = function_call_issue_detail::dispatch_selector1<typename is_rpc_call<F>::type, F , T0 >::dispatchfn();
-        arc << reinterpret_cast<size_t>(d);
-        arc << reinterpret_cast<size_t>(remote_function);
-        arc << i0;
-        sender->send_data(target,flags , arc.buf, arc.off);
+template < typename F, typename T0 > 
+class remote_call_issue1 {
+ public:
+  static void exec (dc_send * sender, unsigned char flags, procid_t target,
+                  F remote_function, const T0 & i0) {
+    oarchive *ptr = get_thread_local_buffer (target);
+    oarchive & arc = *ptr;
+    if (reinterpret_cast < size_t > (remote_function) == reinterpret_cast <
+	size_t > (request_reply_handler)) {
+      flags |= REPLY_PACKET;
     }
+    size_t len =
+      dc_send::write_packet_header (arc, _get_procid (), flags,
+				    _get_sequentialization_key ());
+    uint32_t beginoff = arc.off;
+    dispatch_type d =
+      function_call_issue_detail::dispatch_selector1 < typename is_rpc_call <
+      F >::type, F, T0 >::dispatchfn ();
+    arc << reinterpret_cast < size_t > (d);
+    arc << reinterpret_cast < size_t > (remote_function);
+    arc << i0;
+    *(reinterpret_cast < uint32_t * >(arc.buf + len)) = arc.off - beginoff;
+    release_thread_local_buffer (target, flags & CONTROL_PACKET);
+  }
 };
-
 \endcode
 
 The basic idea of the code is straightforward.

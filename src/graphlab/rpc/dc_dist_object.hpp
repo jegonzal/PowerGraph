@@ -366,17 +366,48 @@ class dc_dist_object : public dc_impl::dc_dist_object_base{
   BOOST_PP_REPEAT(7, RPC_INTERFACE_GENERATOR, (remote_call, dc_impl::object_call_issue, STANDARD_CALL) )
   BOOST_PP_REPEAT(7, RPC_INTERFACE_GENERATOR, (control_call,dc_impl::object_call_issue, (STANDARD_CALL | CONTROL_PACKET)) )
 
-
+  /**
+   * This generates a "split call". Where the header of the call message
+   * is written to with split_call_begin, and the message actually sent with
+   * split_call_end(). It is then up to the user to serialize the message arguments
+   * into the oarchive returned. The split call can provide performance gains 
+   * when the contents of the message are large, since this allows the user to
+   * control the serialization process. 
+   *
+   * Example:
+   * \code
+   * struct mystruct {
+   *   void function_to_call(size_t len, wild_pointer w) { 
+   *      // w will contain all the serialized contents of ..stuff...
+   *   }
+   *
+   *   void stuff() {
+   *     oarchive* oarc = rmi.split_call_begin(&mystruct::function_to_call);
+   *     (*oarc) << ... stuff...
+   *     rmi.split_call_end(1,  // to machine 1
+   *                        oarc);
+   *     
+   *   }
+   * }
+   * \endcode
+   */
   oarchive* split_call_begin(void (T::*remote_function)(size_t, wild_pointer)) {
     return dc_impl::object_split_call<T, void(T::*)(size_t, wild_pointer)>::split_call_begin(this, obj_id, remote_function);
   }
 
+  /**
+   * Sends a split call started by \ref split_call_begin
+   * See \ref split_call_begin for details.
+   */
   void split_call_end(procid_t target, oarchive* oarc) {
     inc_calls_sent(target);
     return dc_impl::object_split_call<T, void(T::*)(size_t, wild_pointer)>::split_call_end(this, oarc, dc_.senders[target],
                                                                            target, STANDARD_CALL);
   }
 
+  /**
+   * Cancels a split call began with split_call_begin
+   */
   void split_call_cancel(oarchive* oarc) {
     return dc_impl::object_split_call<T, void(T::*)(size_t, wild_pointer)>::split_call_cancel(oarc);
   }

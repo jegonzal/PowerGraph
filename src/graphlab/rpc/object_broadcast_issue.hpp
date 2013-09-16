@@ -44,30 +44,51 @@ namespace dc_impl {
 \file object_broadcast_issue.hpp
  This is an internal function and should not be used directly
 
-Marshalls a object function broadcast to a remote machine.
+See object_call_issue.hpp for details. This is equivalent to the macro
+expansion in object_call_issue with the difference that this takes an iterator 
+sequence listing the machines to send to.
+
+The code below generates the following for different number of arguments. Here, 
+we demonstrate the 1 argument version.
 
 \code
-template<typename T,
-        typename F ,
-        typename T0> class object_call_issue1
-{
-    public: static void exec(dc_send* sender,
-                            unsigned char flags,
-                            procid_t target,
-                            size_t objid,
-                            F remote_function ,
-                            const T0 &i0 )
-    {
-        oarchive arc;
-        arc.advance(sizeof(packet_hdr));
-        dispatch_type d = dc_impl::OBJECT_NONINTRUSIVE_DISPATCH1<distributed_control,T,F , T0 >;
-        arc << reinterpret_cast<size_t>(d);
-        serialize(arc, (char*)(&remote_function), sizeof(F));
-        arc << objid;
-        arc << i0;
-        sender->send_data(target,flags , arc.buf, arc.off);
+template < typename Iterator, typename T, typename F, typename T0 > 
+class object_broadcast_issue1 {
+ public:
+  static void exec (dc_dist_object_base * rmi,
+                    std::vector < dc_send * >sender, unsigned char flags,
+                    Iterator target_begin, Iterator target_end, size_t objid,
+                    F remote_function, const T0 & i0) {
+    oarchive arc;
+    arc.buf = (char *) malloc (65536);
+    arc.len = 65536;
+    size_t len =
+      dc_send::write_packet_header (arc, _get_procid (), flags,
+				    _get_sequentialization_key ());
+    uint32_t beginoff = arc.off;
+    dispatch_type d =
+      dc_impl::OBJECT_NONINTRUSIVE_DISPATCH1 < distributed_control, T, F,
+      T0 >;
+    arc << reinterpret_cast < size_t > (d);
+    serialize (arc, (char *) (&remote_function), sizeof (F));
+    arc << objid;
+    arc << i0;
+    uint32_t curlen = arc.off - beginoff;
+    *(reinterpret_cast < uint32_t * >(arc.buf + len)) = curlen;
+    Iterator iter = target_begin;
+    while (iter != target_end) {
+      oarchive *buf = get_thread_local_buffer (*iter);
+      buf->write (arc.buf, arc.off);
+      release_thread_local_buffer (*iter, flags & CONTROL_PACKET);
+      if ((flags & CONTROL_PACKET) == 0) {
+        rmi->inc_bytes_sent ((*iter), curlen);
+      }
+      ++iter;
     }
+    free (arc.buf);
+  }
 };
+
 \endcode
 */
 

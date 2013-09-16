@@ -58,22 +58,18 @@ and a "procid_t source" as its first 2 arguments.
 For instance, the 1 argument version of this is DISPATCH1:
 
 \code
-template<typename DcType, 
-        typename F , 
-        typename T0> void DISPATCH1 (DcType& dc, 
-                                     procid_t source, 
-                                     unsigned char packet_type_mask, 
-                                     std::istream &strm)
-{
-    iarchive iarc(strm);
-    size_t s;
-    iarc >> s;
-    F f = reinterpret_cast<F>(s);
-    T0 (f0) ;
-    iarc >> (f0) ;
-    f(dc, source , (f0) );
-    charstring_free(f0);
-}
+template<typename DcType, typename F , typename T0> 
+void DISPATCH1 (DcType& dc, procid_t source, unsigned char packet_type_mask, 
+                const char* buf, size_t len) { 
+  iarchive iarc(buf, len);
+  size_t s;
+  iarc >> s;
+  F f = reinterpret_cast<F>(s);
+  T0 (f0) ;
+  iarc >> (f0) ;
+  f(dc, source , (f0) );
+  charstring_free(f0);
+} 
 \endcode
 
 charstring_free is a special template function which calls free(f1)
@@ -118,24 +114,19 @@ This is similar, but generates the non-intrusive version of a
 dispatcher. That is, the target function does not need to take
 "distributed_control &dc, procid_t source" as its first 2 arguments.
 
-
-template<typename DcType, 
-        typename F , 
-        typename T0> void NONINTRUSIVE_DISPATCH1 (DcType& dc, 
-                                                procid_t source, 
-                                                unsigned char packet_type_mask, 
-                                                const char* buf, size_t len) {
-{
-    iarchive iarc(buf, len);
-    size_t s;
-    iarc >> s;
-    F f = reinterpret_cast<F>(s);
-    T0 (f0) ;
-    iarc >> (f0) ;
-    f( (f0) );
-    charstring_free(f0);
+template<typename DcType, typename F , typename T0> 
+void NONINTRUSIVE_DISPATCH1(DcType& dc, procid_t source, 
+                            unsigned char packet_type_mask, 
+                            const char* buf, size_t len) { 
+  iarchive iarc(buf, len);
+  size_t s;
+  iarc >> s;
+  F f = reinterpret_cast<F>(s);
+  T0 (f0) ;
+  iarc >> (f0) ;
+  f( (f0) );
+  charstring_free(f0);
 }
-
 */
 
 

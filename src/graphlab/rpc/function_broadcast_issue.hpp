@@ -44,106 +44,44 @@ namespace dc_impl {
 \internal
 \file function_broadcast_issue.hpp
 
+See function_call_issue.hpp for details. This is equivalent to the macro
+expansion in remote_call_issue with the difference that this takes an iterator 
+sequence listing the machines to send to.
 
-This is an internal function and should not be used directly
-
-A "call" is an RPC which is performed asynchronously.
-There are 2 types of calls. A "basic" call calls a standard C/C++ function
-and does not require the function to be modified.
-while the "regular" call requires the first 2 arguments of the function
-to be "distributed_control &dc, procid_t source".
-
-An "issue" is a wrapper function on the sending side of an RPC
-which encodes the packet and transmits it to the other side.
-(I realized later this is called a "Marshaller")
-
-Native Call Formats \n
-=================== \n
-The format of a "call" packet is in the form of an archive and is as follows
-
-\li (dispatch_type*) -- pointer to target machine's dispatcher function
-\li (void*)          -- pointer to target function
-\li fn::arg1_type    -- target function's 1st argument
-\li fn::arg2_type    -- target function's 2nd argument
-\li  ...
-\li fn::argN_type    -- target function's Nth argument
-
-Argument casting is deferred to as late as possible. So the data type of
-arguments are the data types that the caller use to call the function.
-A dispatcher function will be instantiated with the input types, which will
-then perform the type cast.
-
-
-The code below generates the following for different number of arguments. Here, we
-demonstrate the 1 argument version.
+The code below generates the following for different number of arguments. Here, 
+we demonstrate the 1 argument version.
 \code
-namespace function_call_issue_detail
-{
-    template <typename BoolType,
-            typename F ,
-            typename T0> struct dispatch_selector1
-    {
-        static dispatch_type dispatchfn()
-        {
-            return dc_impl::NONINTRUSIVE_DISPATCH1<distributed_control,F , T0 >;
-        }
-    };
-    template <typename F , typename T0> struct dispatch_selector1<boost::mpl::bool_<true>, F , T0>
-    {
-        static dispatch_type dispatchfn()
-        {
-            return dc_impl::DISPATCH1<distributed_control,F , T0 >;
-        }
-    };
-}
-
-
-template<Iterator, typename F , typename T0> class remote_call_issue1
-{
-    public: static void exec(dc_send* sender,
-                            unsigned char flags,
-                            Iterator target_begin,
-                            Iterator target_end,
-                            F remote_function ,
-                            const T0 &i0 )
-    {
-        oarchive arc;
-        arc.advance(sizeof(packet_hdr));
-        dispatch_type d = function_call_issue_detail::dispatch_selector1<typename is_rpc_call<F>::type, F , T0 >::dispatchfn();
-        arc << reinterpret_cast<size_t>(d);
-        arc << reinterpret_cast<size_t>(remote_function);
-        arc << i0;
-        Iterator iter = target_begin;
-        while(iter != target_end) {
-          Iteratator nextiter = iter; ++nextiter;
-          if (nextiter != target_end) {
-            char* newbuf = malloc(arc.off); memcpy(newbuf, arc.buf, arc.off);
-            sender->send_data((*iter),flags , newbuf, arc.off);
-          }
-          else {
-            sender->send_data((*iter),flags , arc.buf, arc.off);
-          }
-          iter = nextiter;
-        }
+template < typename Iterator, typename F, typename T0 > 
+class remote_broadcast_issue1 {
+ public:
+  static void exec (std::vector < dc_send * >&sender, unsigned char flags,
+                    Iterator target_begin, Iterator target_end,
+                    F remote_function, const T0 & i0) {
+      oarchive arc;
+      arc.buf = (char *) malloc (65536);
+      arc.len = 65536;
+      size_t len =
+        dc_send::write_packet_header (arc, _get_procid (), flags,
+              _get_sequentialization_key ());
+      uint32_t beginoff = arc.off;
+      dispatch_type d =
+        function_call_issue_detail::dispatch_selector1 < typename is_rpc_call <
+        F >::type, F, T0 >::dispatchfn ();
+      arc << reinterpret_cast < size_t > (d);
+      arc << reinterpret_cast < size_t > (remote_function);
+      arc << i0;
+      *(reinterpret_cast < uint32_t * >(arc.buf + len)) = arc.off - beginoff;
+      Iterator iter = target_begin;
+      while (iter != target_end) {
+        oarchive *buf = get_thread_local_buffer (*iter);
+        buf->write (arc.buf, arc.off);
+        release_thread_local_buffer (*iter, flags & CONTROL_PACKET);
+        ++iter;
+      }
+      free (arc.buf);
     }
 };
-
 \endcode
-
-The basic idea of the code is straightforward.
-The receiving end cannot call the target function (remote_function) directly, since it has
-no means of understanding how to deserialize or to construct the stack for the remote_function.
-So instead, we generate a "dispatch" function on the receiving side. The dispatch function
-is constructed according to the type information of the remote_function, and therefore knows
-how to deserialize the data, and issue the function call. That is the "dispatch_type".
-
-However, since we defined two families of receiving functions:
- a non-intrusive version which does not take (dc, procid) as an argument
- and an intrusive version which does, the dispatch function must therefore be slightly different
- for each of them. That is what the dispatch_selector class performs.
- The first template argument of the dispatch_selector family of classes is a boolean flag which
- denotes whether the function is a non-intrusive call or not. This boolean flag itself
- is determined using the is_rpc_call<F>::type template.
 */
 
 
