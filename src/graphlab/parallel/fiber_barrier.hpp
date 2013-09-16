@@ -20,6 +20,9 @@ namespace graphlab {
     fiber_barrier(const fiber_barrier&) { }
 
 
+    // not copyable
+    void operator=(const fiber_barrier& m) { }
+
   public:
     /// Construct a barrier which will only fall when numthreads enter
     fiber_barrier(size_t numthreads) {
@@ -30,9 +33,6 @@ namespace graphlab {
       alive = true;
       fiber_handles.resize(needed);
     }
-
-    // not copyable
-    void operator=(const fiber_barrier& m) { }
 
     void resize_unsafe(size_t numthreads) {
       needed = numthreads;
