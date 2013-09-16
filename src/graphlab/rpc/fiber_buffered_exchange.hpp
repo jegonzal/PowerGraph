@@ -124,7 +124,7 @@ namespace graphlab {
     void flush_buffer(size_t wid, procid_t proc) {
       if(send_buffers[wid][proc].oarc) {
         // write the length at the end of the buffere are returning
-        (*send_buffers[wid][proc].oarc) << (size_t)(send_buffers[wid][proc].numinserts);
+        send_buffers[wid][proc].oarc->write(reinterpret_cast<char*>(&send_buffers[wid][proc].numinserts), sizeof(size_t));
         rpc.split_call_end(proc, send_buffers[wid][proc].oarc);
 //         logstream(LOG_DEBUG) << rpc.procid() << ": Sending exchange of length " 
 //                              << send_buffers[wid][proc].oarc->off << " to " 
@@ -210,7 +210,8 @@ namespace graphlab {
       // to get the number of elements
       iarchive numel_iarc(reinterpret_cast<const char*>(w.ptr) + len - sizeof(size_t),
                           sizeof(size_t));
-      size_t numel; numel_iarc >> numel;
+      size_t numel = 0; 
+      numel_iarc.read(reinterpret_cast<char*>(&numel), sizeof(size_t));
       //std::cout << "Receiving: " << numel << "\n";
       tmp.resize(numel);
       for (size_t i = 0;i < numel; ++i) {

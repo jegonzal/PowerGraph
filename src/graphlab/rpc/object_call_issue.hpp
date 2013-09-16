@@ -123,7 +123,11 @@ class object_split_call {
     serialize(arc, (char*)(&remote_function), sizeof(F));
     arc << objid;
     // make a gap for the blob size argument
-    arc << size_t(0);
+    // write the largest possible size_t. That will allow it to bypass
+    // dynamic length encoding issues.
+    // patch the header with the offset to this point. 
+    (*reinterpret_cast<size_t*>(arc.buf)) = arc.off + 1;
+    arc << (size_t)(-1);
     return ptr;
   }
   static void split_call_cancel(oarchive* oarc) {
@@ -133,14 +137,9 @@ class object_split_call {
 
   static void split_call_end(dc_dist_object_base* rmi,
                              oarchive* oarc, dc_send* sender, procid_t target, unsigned char flags) {
-    const size_t headerlen = sizeof(packet_hdr) +
-        sizeof(size_t) +
-        sizeof(F) +
-        sizeof(size_t);
-
-    // patch the blob size
-    (*reinterpret_cast<size_t*>(oarc->buf + headerlen)) =
-        oarc->off - headerlen - sizeof(size_t);
+    // header points to the location of the blob size argument
+    size_t blobsize_offset = *reinterpret_cast<size_t*>(oarc->buf);
+    (*reinterpret_cast<size_t*>(oarc->buf + blobsize_offset)) = oarc->off - blobsize_offset - sizeof(size_t);
     // write the packet header
     packet_hdr* hdr = reinterpret_cast<packet_hdr*>(oarc->buf);
     hdr->len = oarc->off - sizeof(packet_hdr);
