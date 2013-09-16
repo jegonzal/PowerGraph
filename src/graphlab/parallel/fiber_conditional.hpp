@@ -24,6 +24,9 @@ class fiber_conditional {
    mutex lock;
    mutable std::queue<size_t> fibers; // used to hold the fibers that are waiting here
 
+   // not copyable
+   void operator=(const fiber_conditional& m) { }
+
  public:
    fiber_conditional() {
      int error = pthread_cond_init(&m_cond, NULL);
@@ -39,8 +42,6 @@ class fiber_conditional {
      ASSERT_TRUE(!error);
    }
 
-   // not copyable
-   void operator=(const fiber_conditional& m) { }
 
 
    /// Waits on condition. The mutex must already be acquired. Caller
