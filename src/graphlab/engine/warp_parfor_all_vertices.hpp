@@ -96,7 +96,7 @@ struct parfor_all_vertices_impl{
  * \param graph A reference to the graph object
  * \param fn A function to run on each vertex. Has the prototype void(GraphType::vertex_type). Can be a boost::function
  * \param vset A set of vertices to run on
- * \param nfibers Number of fiber threads to use. Defaults to 3000
+ * \param nfibers Number of fiber threads to use. Defaults to 10000
  * \param stacksize Size of each fiber stack in bytes. Defaults to 16384 bytes
  *
  * \see graphlab::warp::map_reduce_neighborhood()
@@ -106,7 +106,7 @@ template <typename GraphType, typename FunctionType>
 void parfor_all_vertices(GraphType& graph,
                          FunctionType fn,
                          vertex_set vset = GraphType::complete_set(),
-                         size_t nfibers = 3000,
+                         size_t nfibers = 10000,
                          size_t stacksize = 16384) {
   distributed_control::get_instance()->barrier();
   bool old_fast_track = distributed_control::get_instance()->set_fast_track_requests(false);
