@@ -581,7 +581,7 @@ set(CMAKE_CXX_FLAGS_RELEASE
   CACHE STRING "compiler options" FORCE)
 
 set(CMAKE_REQUIRED_FLAGS ${CMAKE_CXX_FLAGS_RELEASE})
-check_cxx_source_compiles("int main(int argc, char** argv) { __builtin_ia32_crc32di(0,0);}" HAS_CRC32)
+check_cxx_source_compiles("int main(int argc, char** argv) { return __builtin_ia32_crc32di(0,0);}" HAS_CRC32)
 set(CMAKE_REQUIRED_FLAGS "")
 if(HAS_CRC32)
   set(CMAKE_CXX_FLAGS_RELEASE

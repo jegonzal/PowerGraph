@@ -22,7 +22,17 @@
 
 // standard C++ headers
 #include <iostream>
+#include <vector>
 #include <cxxtest/TestSuite.h>
+
+
+template<typename T>
+std::vector<T> operator+=(std::vector<T>& v1, const std::vector<T>& v2) {
+  for (size_t i = 0; i < v2.size(); ++i)
+    v1.push_back(v2[i]);
+  return v1;
+}
+
 
 #include <graphlab/rpc/dc.hpp>
 #include <graphlab/util/mpi_tools.hpp>
@@ -36,13 +46,6 @@ graphlab::distributed_control* dc;
 template<typename K, typename V>
 class map_reduce;
 
-
-template<typename T>
-std::vector<T> operator+=(std::vector<T>& v1, const std::vector<T>& v2) {
-  for (size_t i = 0; i < v2.size(); ++i)
-    v1.push_back(v2[i]);
-  return v1;
-}
 namespace tests{
 class distributed_graph_test  {
  public:
