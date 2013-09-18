@@ -46,8 +46,12 @@ namespace graphlab {
 template <typename T>
 class inplace_lf_queue2 {
  public:
-   inline inplace_lf_queue2():head(&sentinel), tail(&sentinel) {
-     sentinel.next = NULL;
+   inline inplace_lf_queue2():sentinel(new T), head(sentinel), tail(sentinel) {
+     sentinel->next = NULL;
+   }
+
+   ~inplace_lf_queue2() {
+     delete sentinel;
    }
 
    void enqueue(T* c) {
@@ -59,11 +63,12 @@ class inplace_lf_queue2 {
      T* prev = c;
      atomic_exchange(tail, prev);
      (*get_next_ptr(prev)) = c;
+     numel.inc();
      asm volatile ("" : : : "memory");
    }
 
-   bool empty() const {
-     return tail == &sentinel;
+   size_t approx_size() {
+    return numel;
    }
 
    T* dequeue_all() {
@@ -76,8 +81,8 @@ class inplace_lf_queue2 {
      // enqueue the sentinel. That will be the new head of the queue.
      // Anything before the sentinel is "returned". And anything after is part
      // of the queue
-     enqueue(&sentinel);
-
+     enqueue(sentinel);
+     numel = 0;
      // The last element in the returned queue
      // will point to the sentinel.
      return ret_head;
@@ -91,13 +96,18 @@ class inplace_lf_queue2 {
      return &(ptr->next);
    }
 
+   T* end_of_dequeue_list() {
+     return sentinel;
+   }
+
    inline const bool end_of_dequeue_list(T* ptr) {
-     return ptr == (&sentinel);
+     return ptr == (sentinel);
    }
 
  private:
 
-   T sentinel;
+   atomic<size_t> numel;
+   T* sentinel;
    T* head;
    T* tail;
 };

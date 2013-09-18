@@ -66,13 +66,6 @@ struct teststruct {
     }
   }
 
-  void perform_short_pod_sends_0(size_t number) {
-    for (size_t i = 0;i < number; ++i) {
-      rmi.pod_call(1, &teststruct::receive_ints, 100,100,1000,5000000);
-    }
-  }
-
-
   void perform_long_sends_0(size_t length, size_t number) {
     std::vector<size_t> v(length, 5000000);
     for (size_t i = 0;i < number; ++i) {
@@ -124,10 +117,12 @@ struct teststruct {
     timer ti;
     std::cout << numthreads << " threaded " << SEND_LIMIT_PRINT << " sends, 4 integer blocks\n";
     ti.start();
-    thread_group thrgrp;
+    fiber_group thrgrp;
     size_t numsends = SEND_LIMIT / (sizeof(size_t) * 4 * numthreads);
     for (size_t i = 0; i < numthreads; ++i) {
-      thrgrp.launch(boost::bind(&teststruct::perform_short_sends_0, this, numsends));
+      fiber_control::affinity_type affinity;
+      affinity.clear(); affinity.set_bit(i % fiber_control::get_instance().num_workers());
+      thrgrp.launch(boost::bind(&teststruct::perform_short_sends_0, this, numsends), affinity);
     }
     thrgrp.join();
     double t1 = ti.current_time();
@@ -137,49 +132,6 @@ struct teststruct {
     double t3 = ti.current_time();
     print_res(t1,t2,t3);
   }
-
-
-  void run_short_pod_sends_0() {
-    if (rmi.procid() == 1) {
-      rmi.full_barrier();
-      return;
-    }
-    timer ti;
-    std::cout << "Single Threaded  "<< SEND_LIMIT_PRINT <<"  POD sends, 4 integers\n";
-    ti.start();
-    size_t numsends = SEND_LIMIT / (sizeof(size_t) * 4);
-    perform_short_pod_sends_0(numsends);
-    double t1 = ti.current_time();
-    rmi.dc().flush();
-    double t2 = ti.current_time();
-    rmi.full_barrier();
-    double t3 = ti.current_time();
-    print_res(t1,t2,t3);
-  }
-
-
-  void run_threaded_short_pod_sends_0(size_t numthreads) {
-    if (rmi.procid() == 1) {
-      rmi.full_barrier();
-      return;
-    }
-    timer ti;
-    std::cout << numthreads << " threaded "<< SEND_LIMIT_PRINT <<" POD sends, 4 integers\n";
-    size_t numsends = SEND_LIMIT / (sizeof(size_t) * 4 * numthreads);
-    ti.start();
-    thread_group thrgrp;
-    for (size_t i = 0; i < numthreads; ++i) {
-      thrgrp.launch(boost::bind(&teststruct::perform_short_pod_sends_0, this, numsends));
-    }
-    thrgrp.join();
-    double t1 = ti.current_time();
-    rmi.dc().flush();
-    double t2 = ti.current_time();
-    rmi.full_barrier();
-    double t3 = ti.current_time();
-    print_res(t1,t2,t3);
-  }
-
 
 
 
@@ -219,9 +171,11 @@ struct teststruct {
     ti.start();
     size_t numsends = SEND_LIMIT / (length * numthreads);
     size_t rd = rdtsc();
-    thread_group thrgrp;
+    fiber_group thrgrp;
     for (size_t i = 0; i < numthreads; ++i) {
-      thrgrp.launch(boost::bind(&teststruct::perform_string_sends_0, this, length, numsends));
+      fiber_control::affinity_type affinity;
+      affinity.clear(); affinity.set_bit(i % fiber_control::get_instance().num_workers());
+      thrgrp.launch(boost::bind(&teststruct::perform_string_sends_0, this, length, numsends), affinity);
     }
     thrgrp.join();
     size_t rd2 = rdtsc();

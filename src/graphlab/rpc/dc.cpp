@@ -52,13 +52,6 @@
 #include <graphlab/rpc/dc_init_from_mpi.hpp>
 #include <graphlab/rpc/dc_init_from_zookeeper.hpp>
 
-// If this option is turned on,
-// all incoming calls from the same machine
-// will always be executed in the same thread.
-// This decreases latency and increases throughput
-// dramatically, but at a cost of parallelism.
-#define RPC_FAST_DISPATCH
-
 
 namespace graphlab {
 
@@ -67,6 +60,18 @@ namespace dc_impl {
 
 bool thrlocal_sequentialization_key_initialized = false;
 pthread_key_t thrlocal_sequentialization_key;
+
+bool thrlocal_send_buffer_key_initialized = false;
+pthread_key_t thrlocal_send_buffer_key;
+
+void thrlocal_send_buffer_key_deleter(void* p) {
+  if (p != NULL) {
+    thread_local_buffer* buf = (thread_local_buffer*)(p);
+    if (buf != NULL) {
+      delete buf;
+    } 
+  }
+}
 
 } // namespace dc_impl
 
@@ -154,6 +159,9 @@ distributed_control::distributed_control(dc_init_param initparam) {
 
 
 distributed_control::~distributed_control() {
+  // detach the instance
+  last_dc = NULL;
+  last_dc_procid = 0;
   distributed_services->full_barrier();
   logstream(LOG_INFO) << "Shutting down distributed control " << std::endl;
   FREE_CALLBACK_EVENT(EVENT_NETWORK_BYTES);
@@ -173,12 +181,16 @@ distributed_control::~distributed_control() {
   for (size_t i = 0;i < senders.size(); ++i) {
     delete senders[i];
   }
+  senders.clear();
+
+  pthread_key_delete(dc_impl::thrlocal_sequentialization_key);
+  pthread_key_delete(dc_impl::thrlocal_send_buffer_key);
+
   size_t bytesreceived = bytes_received();
   for (size_t i = 0;i < receivers.size(); ++i) {
     receivers[i]->shutdown();
     delete receivers[i];
   }
-  senders.clear();
   receivers.clear();
   // shutdown function call handlers
   for (size_t i = 0;i < fcallqueue.size(); ++i) fcallqueue[i].stop_blocking();
@@ -199,20 +211,13 @@ void distributed_control::exec_function_call(procid_t source,
                                             const char* data,
                                             const size_t len) {
   BEGIN_TRACEPOINT(dc_call_dispatch);
-  // not a POD call
-  if ((packet_type_mask & POD_CALL) == 0) {
-    // extract the dispatch function
-    iarchive arc(data, len);
-    size_t f;
-    arc >> f;
-    // a regular funcion call
-    dc_impl::dispatch_type dispatch = (dc_impl::dispatch_type)f;
-    dispatch(*this, source, packet_type_mask, data + arc.off, len - arc.off);
-  }
-  else {
-    dc_impl::dispatch_type2 dispatch2 = *reinterpret_cast<const dc_impl::dispatch_type2*>(data);
-    dispatch2(*this, source, packet_type_mask, data, len);
-  }
+  // extract the dispatch function
+  iarchive arc(data, len);
+  size_t f;
+  arc >> f;
+  // a regular funcion call
+  dc_impl::dispatch_type dispatch = (dc_impl::dispatch_type)f;
+  dispatch(*this, source, packet_type_mask, data + arc.off, len - arc.off);
   if ((packet_type_mask & CONTROL_PACKET) == 0) inc_calls_received(source);
   END_TRACEPOINT(dc_call_dispatch);
 }
@@ -245,8 +250,16 @@ void distributed_control::deferred_function_call_chunk(char* buf, size_t len, pr
   fc->is_chunk = true;
   fc->source = src;
   fcallqueue_length.inc();
-  //size_t idx = src % fcallqueue.size();
-  //fcallqueue[idx].enqueue(fc, !fcall_handler_blockers.get(idx));
+
+#ifdef RPC_BLOCK_STRIPING
+  static size_t __idx;
+  // approximate balancing
+  size_t idx = __idx++ % fcallqueue.size();
+  fcallqueue[idx].enqueue(fc, !fcall_handler_blockers.get(idx));
+#else
+  idx = src % fcallqueue.size();
+  fcallqueue[idx].enqueue(fc, !fcall_handler_blockers.get(idx));
+#endif
 /*
   if (get_block_sequentialization_key(*fc) > 0) {
     fcallqueue[src % fcallqueue.size()].enqueue(fc);
@@ -260,14 +273,14 @@ void distributed_control::deferred_function_call_chunk(char* buf, size_t len, pr
     fcallqueue[idx].enqueue(fc);
   } */
 
-    const uint32_t prod = 
-        random::fast_uniform(uint32_t(0), 
-                             uint32_t(fcallqueue.size() * fcallqueue.size() - 1));
-  const uint32_t r1 = prod / fcallqueue.size();
-  const uint32_t r2 = prod % fcallqueue.size();
-  uint32_t idx = (fcallqueue[r1].size() < fcallqueue[r2].size()) ? r1 : r2;  
-  fcallqueue[idx].enqueue(fc);
-  END_TRACEPOINT(dc_receive_queuing);
+//   const uint32_t prod = 
+//       random::fast_uniform(uint32_t(0), 
+//                            uint32_t(fcallqueue.size() * fcallqueue.size() - 1));
+//   const uint32_t r1 = prod / fcallqueue.size();
+//   const uint32_t r2 = prod % fcallqueue.size();
+//   uint32_t idx = (fcallqueue[r1].size() < fcallqueue[r2].size()) ? r1 : r2;  
+//   fcallqueue[idx].enqueue(fc);
+//   END_TRACEPOINT(dc_receive_queuing);
 }
 
 
@@ -285,7 +298,7 @@ void distributed_control::process_fcall_block(fcallqueue_entry &fcallblock) {
       }
     }
   }
-#ifdef RPC_FAST_DISPATCH
+#ifdef RPC_DO_NOT_BREAK_BLOCKS
   else {
     fcallqueue_length.dec();
 
@@ -297,6 +310,10 @@ void distributed_control::process_fcall_block(fcallqueue_entry &fcallblock) {
       ASSERT_GE(remaininglen, sizeof(dc_impl::packet_hdr));
       dc_impl::packet_hdr hdr = *reinterpret_cast<dc_impl::packet_hdr*>(data);
       ASSERT_LE(hdr.len, remaininglen);
+
+      if (!(hdr.packet_type_mask & CONTROL_PACKET)) {
+        global_bytes_received[hdr.src].inc(hdr.len);
+      }
 
       exec_function_call(fcallblock.source, hdr.packet_type_mask,
                          data + sizeof(dc_impl::packet_hdr),
@@ -478,15 +495,19 @@ void distributed_control::init(const std::vector<std::string> &machines,
     if (thread::cpu_count() > 2) numhandlerthreads = thread::cpu_count() - 2;
     else numhandlerthreads = 2;
   }
-  // set the value of the last_dc for the get_instance function
-  last_dc = this;
   ASSERT_MSG(machines.size() <= RPC_MAX_N_PROCS,
              "Number of processes exceeded hard limit of %d", RPC_MAX_N_PROCS);
 
   // initialize thread local storage
-    if (dc_impl::thrlocal_sequentialization_key_initialized == false) {
+  if (dc_impl::thrlocal_sequentialization_key_initialized == false) {
     dc_impl::thrlocal_sequentialization_key_initialized = true;
     int err = pthread_key_create(&dc_impl::thrlocal_sequentialization_key, NULL);
+    ASSERT_EQ(err, 0);
+  }
+
+  if (dc_impl::thrlocal_send_buffer_key_initialized == false) {
+    dc_impl::thrlocal_send_buffer_key = true;
+    int err = pthread_key_create(&dc_impl::thrlocal_send_buffer_key, dc_impl::thrlocal_send_buffer_key_deleter);
     ASSERT_EQ(err, 0);
   }
 
@@ -535,8 +556,6 @@ void distributed_control::init(const std::vector<std::string> &machines,
   localprocid = curmachineid;
   localnumprocs = machines.size();
 
-  // set the static variable for the get_instance_procid() function
-  last_dc_procid = localprocid;
 
   // construct the services
   distributed_services = new dc_services(*this);
@@ -579,6 +598,12 @@ void distributed_control::init(const std::vector<std::string> &machines,
 #ifdef HAS_MPI
   if (mpi_tools::initialized()) MPI_Barrier(MPI_COMM_WORLD);
 #endif
+
+  // set the value of the last_dc for the get_instance function
+  last_dc = this;
+  // set the static variable for the get_instance_procid() function
+  last_dc_procid = localprocid;
+
   barrier();
   // initialize the empty stream
   nullstrm.open(boost::iostreams::null_sink());
@@ -604,8 +629,21 @@ void distributed_control::flush() {
   }
 }
 
+void distributed_control::flush(procid_t p) {
+  senders[p]->flush();
+}
 
- /*****************************************************************************
+void distributed_control::flush_soon() {
+  for (procid_t i = 0;i < senders.size(); ++i) {
+    senders[i]->flush_soon();
+  }
+}
+
+
+void distributed_control::flush_soon(procid_t p) {
+  senders[p]->flush_soon();
+}
+/*****************************************************************************
                       Implementation of Full Barrier
 *****************************************************************************/
 /* It is unfortunate but this is copy paste code from dc_dist_object.hpp

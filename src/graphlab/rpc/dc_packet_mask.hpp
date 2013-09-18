@@ -60,15 +60,6 @@ namespace graphlab {
    * a reply to a previous request.
    */
   const unsigned char REPLY_PACKET = 32;
-
-  /**
-   * \internal
-   * \ingroup rpc
-   * 
-   * Used to identify that this packet is
-   * serialized using a POD mechanism;
-   */
-  const unsigned char POD_CALL = 64;
 }
 #endif
 

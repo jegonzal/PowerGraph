@@ -32,7 +32,7 @@
 #include <graphlab/rpc/is_rpc_call.hpp>
 #include <graphlab/rpc/request_reply_handler.hpp>
 #include <boost/preprocessor.hpp>
-#include <graphlab/rpc/archive_memory_pool.hpp>
+#include <graphlab/rpc/dc_thread_get_send_buffer.hpp>
 #include <graphlab/rpc/dc_compile_parameters.hpp>
 #include <graphlab/rpc/function_arg_types_def.hpp>
 
@@ -76,45 +76,45 @@ then perform the type cast.
 The code below generates the following for different number of arguments. Here, we
 demonstrate the 1 argument version.
 \code
-namespace function_call_issue_detail
-{
-    template <typename BoolType,
-            typename F ,
-            typename T0> struct dispatch_selector1
-    {
-        static dispatch_type dispatchfn()
-        {
-            return dc_impl::NONINTRUSIVE_DISPATCH1<distributed_control,F , T0 >;
-        }
-    };
-    template <typename F , typename T0> struct dispatch_selector1<boost::mpl::bool_<true>, F , T0>
-    {
-        static dispatch_type dispatchfn()
-        {
-            return dc_impl::DISPATCH1<distributed_control,F , T0 >;
-        }
-    };
+namespace function_call_issue_detail {
+  template < typename BoolType, typename F, typename T0 > struct dispatch_selector1 {
+    static dispatch_type dispatchfn () {
+      return dc_impl::NONINTRUSIVE_DISPATCH1 < distributed_control, F, T0 >;
+    }
+  };
+  template < typename F, typename T0 > 
+  struct dispatch_selector1 <boost::mpl::bool_ < true >, F, T0 > {
+    static dispatch_type dispatchfn () {
+      return dc_impl::DISPATCH1 < distributed_control, F, T0 >;
+    }
+  };
 }
 
-
-template<typename F , typename T0> class remote_call_issue1
-{
-    public: static void exec(dc_send* sender,
-                            unsigned char flags,
-                            procid_t target,
-                            F remote_function ,
-                            const T0 &i0 )
-    {
-        oarchive arc;
-        arc.advance(sizeof(packet_hdr));
-        dispatch_type d = function_call_issue_detail::dispatch_selector1<typename is_rpc_call<F>::type, F , T0 >::dispatchfn();
-        arc << reinterpret_cast<size_t>(d);
-        arc << reinterpret_cast<size_t>(remote_function);
-        arc << i0;
-        sender->send_data(target,flags , arc.buf, arc.off);
+template < typename F, typename T0 > 
+class remote_call_issue1 {
+ public:
+  static void exec (dc_send * sender, unsigned char flags, procid_t target,
+                  F remote_function, const T0 & i0) {
+    oarchive *ptr = get_thread_local_buffer (target);
+    oarchive & arc = *ptr;
+    if (reinterpret_cast < size_t > (remote_function) == reinterpret_cast <
+	size_t > (request_reply_handler)) {
+      flags |= REPLY_PACKET;
     }
+    size_t len =
+      dc_send::write_packet_header (arc, _get_procid (), flags,
+				    _get_sequentialization_key ());
+    uint32_t beginoff = arc.off;
+    dispatch_type d =
+      function_call_issue_detail::dispatch_selector1 < typename is_rpc_call <
+      F >::type, F, T0 >::dispatchfn ();
+    arc << reinterpret_cast < size_t > (d);
+    arc << reinterpret_cast < size_t > (remote_function);
+    arc << i0;
+    *(reinterpret_cast < uint32_t * >(arc.buf + len)) = arc.off - beginoff;
+    release_thread_local_buffer (target, flags & CONTROL_PACKET);
+  }
 };
-
 \endcode
 
 The basic idea of the code is straightforward.
@@ -160,24 +160,19 @@ template<typename F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, typename T)> \
 class  BOOST_PP_CAT(FNAME_AND_CALL, N) { \
   public: \
   static void exec(dc_send* sender, unsigned char flags, procid_t target, F remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_) ) {  \
-    oarchive* ptr = oarchive_from_pool();       \
+    oarchive* ptr = get_thread_local_buffer(target);  \
     oarchive& arc = *ptr;                         \
-    arc.advance(sizeof(size_t) + sizeof(packet_hdr));            \
+    if (reinterpret_cast<size_t>(remote_function) == reinterpret_cast<size_t>(request_reply_handler)) { \
+      flags |= REPLY_PACKET; \
+    } \
+    size_t len = dc_send::write_packet_header(arc, _get_procid(), flags, _get_sequentialization_key()); \
+    uint32_t beginoff = arc.off; \
     dispatch_type d = BOOST_PP_CAT(function_call_issue_detail::dispatch_selector,N)<typename is_rpc_call<F>::type, F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, T) >::dispatchfn();   \
     arc << reinterpret_cast<size_t>(d);       \
     arc << reinterpret_cast<size_t>(remote_function); \
     BOOST_PP_REPEAT(N, GENARC, _)                \
-    if (reinterpret_cast<size_t>(remote_function) == reinterpret_cast<size_t>(request_reply_handler)) { \
-      flags |= REPLY_PACKET; \
-    } \
-    if (arc.off >= BUFFER_RELINQUISH_LIMIT) {  \
-      sender->send_data(target,flags , arc.buf, arc.off);    \
-      arc.buf = NULL; arc.len = 0;   \
-    } else {        \
-      char* newbuf = (char*)malloc(arc.off); memcpy(newbuf, arc.buf, arc.off); \
-      sender->send_data(target,flags , newbuf, arc.off);    \
-    }     \
-    release_oarchive_to_pool(ptr); \
+    *(reinterpret_cast<uint32_t*>(arc.buf + len)) = arc.off - beginoff; \
+    release_thread_local_buffer(target, flags & CONTROL_PACKET); \
   }\
 };
 

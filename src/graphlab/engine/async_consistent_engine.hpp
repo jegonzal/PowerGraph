@@ -198,7 +198,7 @@ namespace graphlab {
    * model to factorized consistency where only individual gather/apply/scatter
    * calls are guaranteed to be locally consistent. Can produce massive
    * increases in throughput at a consistency penalty.
-   * \li \b nfibers (default: 3000) Number of fibers to use
+   * \li \b nfibers (default: 10000) Number of fibers to use
    * \li \b stacksize (default: 16384) Stacksize of each fiber.
    */
   template<typename VertexProgram>
@@ -439,7 +439,7 @@ namespace graphlab {
         engine_start_time(timer::approx_time_seconds()), force_stop(false) {
       rmi.barrier();
 
-      nfibers = 3000;
+      nfibers = 10000;
       stacksize = 16384;
       use_cache = false;
       factorized_consistency = true;

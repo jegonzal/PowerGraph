@@ -132,6 +132,16 @@ struct terminator_token {
 };
 
 
+
+/**
+ * Used to maintain a linked list of buffers.
+ */
+struct buffer_elem {
+  char* buf;
+  size_t len;
+  buffer_elem* next;
+};
+
 }
 }
 
