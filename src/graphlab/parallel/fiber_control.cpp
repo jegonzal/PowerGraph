@@ -25,6 +25,7 @@
 #include <graphlab/util/random.hpp>
 #include <graphlab/parallel/fiber_control.hpp>
 #include <graphlab/logger/assertions.hpp>
+#include <graphlab/rpc/dc.hpp>
 #include <graphlab/macros_def.hpp>
 //#include <valgrind/valgrind.h>
 namespace graphlab {
@@ -150,6 +151,8 @@ fiber_control::fiber* fiber_control::active_queue_remove(size_t workerid) {
 }
 
 void fiber_control::exit() {
+  distributed_control* dc = distributed_control::get_instance();
+  if (dc) dc->flush();
   fiber* fib = get_active_fiber();
   if (fib != NULL) {
     // add to garbage.
@@ -187,6 +190,8 @@ void fiber_control::worker_init(size_t workerid) {
       // if there is a fiber. yield to it
       schedule[workerid].active_lock.unlock();
       yield_to(next_fib);
+      distributed_control* dc = distributed_control::get_instance();
+      if (dc) dc->flush_soon();
       schedule[workerid].active_lock.lock();
     } else {
       // if there is no fiber. wait.
@@ -336,6 +341,12 @@ void fiber_control::yield_to(fiber* next_fib) {
   // reschedule the previous fiber
   if (t->prev_fiber) reschedule_fiber(t->workerid, t->prev_fiber);
   t->prev_fiber = NULL;
+
+  // if distributed_controller alive
+  distributed_control* dc = distributed_control::get_instance();
+  if (dc && t->workerid < dc->num_handler_threads()) {
+    dc->handle_incoming_calls(t->workerid, dc->num_handler_threads());
+  }
 }
 
 void fiber_control::reschedule_fiber(size_t workerid, fiber* fib) {
@@ -411,6 +422,23 @@ void fiber_control::yield() {
   }
   t->parent->yield_to(next_fib);
 }
+
+
+void fiber_control::fast_yield() {
+  tls* t = get_tls_ptr();
+  if (t == NULL) return;
+  // remove some other work to do.
+  fiber_control* parentgroup = t->parent;
+  size_t workerid = t->workerid;
+  fiber* next_fib = NULL;
+  if (parentgroup->schedule[workerid].nactive > 0) {
+    parentgroup->schedule[workerid].active_lock.lock();
+    next_fib = parentgroup->active_queue_remove(workerid);
+    parentgroup->schedule[workerid].active_lock.unlock();
+  }
+  if (next_fib != NULL) t->parent->yield_to(next_fib);
+}
+
 
 void fiber_control::join() {
   join_lock.lock();

@@ -27,6 +27,7 @@
 #include <graphlab/rpc/circular_char_buffer.hpp>
 #include <graphlab/rpc/dc_internal_types.hpp>
 #include <graphlab/rpc/dc_types.hpp>
+#include <graphlab/rpc/dc_compile_parameters.hpp>
 #include <graphlab/rpc/dc_receive.hpp>
 #include <graphlab/parallel/atomic.hpp>
 #include <graphlab/parallel/pthread_tools.hpp>
@@ -50,16 +51,17 @@ class dc_stream_receive: public dc_receive{
  public:
   
   dc_stream_receive(distributed_control* dc, procid_t associated_proc): 
-                  header_read(0), writebuffer(NULL), 
-                  write_buffer_written(0), dc(dc), associated_proc(associated_proc)
-                   { }
+                  writebuffer(NULL), write_buffer_written(0), dc(dc), 
+                  associated_proc(associated_proc) { 
+    writebuffer = (char*)malloc(RECEIVE_BUFFER_SIZE);
+    write_buffer_len = RECEIVE_BUFFER_SIZE;
+  }
 
  private:
 
-  size_t header_read;
-  block_header_type cur_chunk_header;
   char* writebuffer;
   size_t write_buffer_written;
+  size_t write_buffer_len;
   
   /// pointer to the owner
   distributed_control* dc;

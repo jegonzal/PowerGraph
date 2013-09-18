@@ -49,7 +49,7 @@ int main(int argc, char** argv) {
   timer ti;
   // with fibers
   if (dc.procid() == 0) {
-    fiber_group group(4096);
+    fiber_group group(8192);
     for (int i = 0;i < 1600000; ++i) {
       group.launch(boost::bind(test_fiber, 1));
       if (i % 100000 == 0) std::cout << i << "\n";

@@ -330,7 +330,7 @@ namespace graphlab {
     gather_fun(gather_fun), apply_fun(apply_fun), rmi(graph.dc(), this), graph(graph),
     threads(opts.get_ncpus()),
     thread_barrier(opts.get_ncpus()),
-    gather_exchange(graph.dc(), opts.get_ncpus(), 64 * 1024) { } 
+    gather_exchange(graph.dc(), opts.get_ncpus()) { } 
 
 
   template<typename Graph, typename GatherType> 

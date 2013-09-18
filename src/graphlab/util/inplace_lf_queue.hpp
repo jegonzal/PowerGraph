@@ -51,7 +51,11 @@ class inplace_lf_queue {
 
    void enqueue(char* c);
 
+   void enqueue_unsafe(char* c);
+
    char* dequeue_all();
+
+   char* dequeue_all_unsafe();
 
    static inline char* get_next(char* ptr) {
      return *(reinterpret_cast<char**>(ptr));
@@ -70,6 +74,8 @@ class inplace_lf_queue {
    char sentinel[sizeof(size_t)];
    char* head;
    char* tail;
+
+   char cache_line_padding[64 - 24];
 };
 
 

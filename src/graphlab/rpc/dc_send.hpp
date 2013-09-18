@@ -29,6 +29,7 @@
 #include <iostream>
 #include <graphlab/rpc/circular_iovec_buffer.hpp>
 #include <graphlab/rpc/dc_internal_types.hpp>
+#include <graphlab/rpc/thread_local_send_buffer.hpp>
 #include <graphlab/rpc/dc_types.hpp>
 namespace graphlab {
 namespace dc_impl {
@@ -49,31 +50,33 @@ class dc_send{
   
   virtual ~dc_send() { }
 
-  /** Called to send data to the target. The caller transfers control of
-  the pointer. The caller MUST ensure that the data be prefixed
-  with sizeof(packet_hdr) extra bytes at the start for placement of the
-  packet header. This function must be reentrant. */
-  virtual void send_data(procid_t target, 
-                 unsigned char packet_type_mask,
-                 char* data, size_t len) = 0;
-
-  /** Sends the data but without transferring control of the pointer.
-   The function will make a copy of the data before sending it.
-   Unlike send_data, no padding is necessary. This function must be reentrant. */
-  virtual void copy_and_send_data(procid_t target,
-                 unsigned char packet_type_mask,
-                 char* data, size_t len) = 0;
+  virtual void register_send_buffer(thread_local_buffer* buffer) = 0;
+  virtual void unregister_send_buffer(thread_local_buffer* buffer) = 0;
 
   /**
     Bytes sent must be incremented BEFORE the data is transmitted.
     Packets marked CONTROL_PACKET should not be counted
   */
   virtual size_t bytes_sent() = 0;
-  
+ 
+  /**
+   * flushes immediately
+   */ 
   virtual void flush() = 0;
 
-  virtual size_t send_queue_length() const = 0;
-  
+  /**
+   * Requests a flush as soon as possible
+   */
+  virtual void flush_soon() = 0;
+
+
+  /**
+   * Writes a string to an internal buffer to be flushed later.
+   * This is a "slow path" to be used only when the thread local buffer
+   * is not available.
+   */
+  virtual void write_to_buffer(char* c, size_t len) = 0;
+
   virtual size_t set_option(std::string opt, size_t val) {
     return 0;
   }
@@ -85,6 +88,25 @@ class dc_send{
    */
   virtual size_t get_outgoing_data(circular_iovec_buffer& outdata) = 0;
 
+
+  /**
+   * Utility function: writes a packet header into an archive.
+   * but returns an offset to the location of the length entry allowing it to
+   * be filled in later.
+   */
+  inline static size_t write_packet_header(oarchive& oarc, 
+                                           procid_t src, 
+                                           unsigned char packet_type_mask, 
+                                           unsigned char sequentialization_key) {
+    size_t base = oarc.off;
+    oarc.advance(sizeof(packet_hdr));
+    packet_hdr* hdr = reinterpret_cast<packet_hdr*>(oarc.buf + (oarc.off - sizeof(packet_hdr)));
+    hdr->len = 0;
+    hdr->src = src;
+    hdr->packet_type_mask = packet_type_mask;
+    hdr->sequentialization_key = sequentialization_key;
+    return base;
+  }
 };
   
 

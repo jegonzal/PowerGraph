@@ -46,30 +46,22 @@ that it needs to locate the object using dc.get_registered_object(...)
 After the function call, it also needs to increment the call count for
 the object context.
 \code
-template<typename DcType,
-        typename T, 
-        typename F , 
-        typename T0> 
-        void OBJECT_NONINTRUSIVE_DISPATCH1 (DcType& dc, 
-                                          procid_t source, 
-                                          unsigned char packet_type_mask, 
-                                          const char* buf, size_t len) {
-{
-    iarchive iarc(buf, len);
-    F f;
-    deserialize(iarc, (char*)(&f), sizeof(F));
-    size_t objid;
-    iarc >> objid;
-    T* obj = reinterpret_cast<T*>(dc.get_registered_object(objid));
-    T0 (f0) ;
-    iarc >> (f0) ;
-    (obj->*f)( (f0) );
-    charstring_free(f0);
-    if ((packet_type_mask & CONTROL_PACKET) == 0) 
-      dc.get_rmi_instance(objid)->inc_calls_received(source);
+template<typename DcType, typename T, typename F , typename T0 > 
+void OBJECT_NONINTRUSIVE_DISPATCH1(DcType& dc, procid_t source, 
+                                   unsigned char packet_type_mask, 
+                                   const char* buf, size_t len){ 
+  iarchive iarc(buf, len);
+  F f;
+  deserialize(iarc, (char*)(&f), sizeof(F));
+  size_t objid;
+  iarc >> objid;
+  T* obj = reinterpret_cast<T*>(dc.get_registered_object(objid));
+  T0 (f0) ;
+  iarc >> (f0) ;
+  (obj->*f)( (f0) );
+  charstring_free(f0);
+  if ((packet_type_mask & CONTROL_PACKET) == 0) dc.get_rmi_instance(objid)->inc_calls_received(source);
 }
-
-} 
 \endcode
 */
 

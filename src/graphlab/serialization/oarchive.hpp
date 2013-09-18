@@ -35,7 +35,7 @@
 #include <graphlab/logger/assertions.hpp>
 #include <graphlab/serialization/is_pod.hpp>
 #include <graphlab/serialization/has_save.hpp>
-
+#include <graphlab/util/branch_hints.hpp>
 namespace graphlab {
 
   /**
@@ -97,7 +97,7 @@ namespace graphlab {
       : out(NULL),buf(NULL),off(0),len(0) {}
 
     inline void expand_buf(size_t s) {
-        if (off + s > len) {
+        if (__unlikely__(off + s > len)) {
           len = 2 * (s + len);
           buf = (char*)realloc(buf, len);
         }
@@ -122,8 +122,7 @@ namespace graphlab {
         off += sizeof(T);
       }
       else {
-        T localt = t;
-        out->write(reinterpret_cast<char*>(&localt), sizeof(T));
+        out->write(reinterpret_cast<const char*>(&t), sizeof(T));
       }
     }
 
@@ -336,7 +335,6 @@ namespace graphlab {
 #endif
 
 #endif
-
 
 
 
