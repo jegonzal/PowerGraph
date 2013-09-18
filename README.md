@@ -184,7 +184,11 @@ run make install . This will install the following:
     
 Once you have installed GraphLab you can compile your program by running:
 
-    g++ -pthread -lz -ltcmalloc -levent -levent_pthreads -ljson -lboost_filesystem -lboost_program_options -lboost_system -lboost_iostreams -lboost_date_time -lhdfs -lgraphlab hello_world.cpp 
+    g++ -pthread -lzookeeper_mt -lzookeeper_st -lboost_context -lz -ltcmalloc -levent -levent_pthreads -ljson -lboost_filesystem -lboost_program_options -lboost_system -lboost_iostreams -lboost_date_time -lhdfs -lgraphlab hello_world.cpp 
+    
+If you have compiled with MPI support, you will also need
+
+   -lmpi -lmpi++ 
   
   
 
