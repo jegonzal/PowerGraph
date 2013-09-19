@@ -653,19 +653,12 @@ namespace graphlab {
       if (force_stop) return;
       if (graph.is_master(gvid)) {
         internal_signal(graph.vertex(gvid), message);
+      } else {
+        procid_t proc = graph.master(gvid);
+        rmi.remote_call(proc, &async_consistent_engine::internal_signal_gvid,
+                             gvid, message);
       }
     } 
-
-
-
-    void internal_signal_broadcast(vertex_id_type gvid,
-                                   const message_type& message = message_type()) {
-      for (size_t i = 0;i < rmi.numprocs(); ++i) {
-        rmi.remote_call(i, &async_consistent_engine::internal_signal_gvid,
-                        gvid, message);
-      }
-    } // end of signal_broadcast
-
 
 
     void rpc_internal_stop() {
