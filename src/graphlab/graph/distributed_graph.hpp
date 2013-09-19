@@ -82,6 +82,7 @@
 #include <graphlab/graph/ingress/sharding_constraint.hpp>
 #include <graphlab/graph/ingress/distributed_constrained_random_ingress.hpp>
 
+#include <graphlab/graph/graph_hash.hpp>
 
 #include <graphlab/util/hopscotch_map.hpp>
 
@@ -2783,9 +2784,16 @@ namespace graphlab {
      *        master vertex on this machine and false otherwise.
      */
     bool is_master(vertex_id_type vid) const {
-      typename hopscotch_map_type::const_iterator iter = vid2lvid.find(vid);
-      return (iter != vid2lvid.end()) && l_is_master(iter->second);
+      const procid_t owning_proc = graph_hash::hash_vertex(vid) % rpc.numprocs();
+      return (owning_proc == rpc.procid());
     }
+
+
+    procid_t master(vertex_id_type vid) const {
+      const procid_t owning_proc = graph_hash::hash_vertex(vid) % rpc.numprocs();
+      return owning_proc;
+    }
+
     /** \internal
      * \brief Returns true if the provided local vertex ID is a master vertex.
      *        Returns false otherwise.
