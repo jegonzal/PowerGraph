@@ -24,9 +24,9 @@
 /**
  * \file
  * 
- * \brief The main file for the ALS matrix factorization algorithm.
+ * \brief The main file for the SGD matrix factorization algorithm.
  *
- * This file contains the main body of the ALS matrix factorization
+ * This file contains the main body of the SGD matrix factorization
  * algorithm. 
  */
 
@@ -516,10 +516,10 @@ class sgd_vertex_program :
 
 
       /**
-       * \brief The engine type used by the ALS matrix factorization
+       * \brief The engine type used by the SGD matrix factorization
        * algorithm.
        *
-       * The ALS matrix factorization algorithm currently uses the
+       * The SGD matrix factorization algorithm currently uses the
        * synchronous engine.  However we plan to add support for alternative
        * engines in the future.
        */
@@ -531,9 +531,9 @@ class sgd_vertex_program :
 
         // Parse command line options -----------------------------------------------
         const std::string description = 
-          "Compute the ALS factorization of a matrix.";
+          "Compute the SGD factorization of a matrix.";
         graphlab::command_line_options clopts(description);
-        std::string input_dir, output_dir;
+        std::string input_dir;
         std::string predictions;
         size_t interval = 0;
         std::string exec_type = "synchronous";
@@ -561,8 +561,6 @@ class sgd_vertex_program :
             "The time in seconds between error reports");
         clopts.attach_option("predictions", predictions,
             "The prefix (folder and filename) to save predictions.");
-        clopts.attach_option("output", output_dir,
-            "Output results");
         
         parse_implicit_command_line(clopts);
 

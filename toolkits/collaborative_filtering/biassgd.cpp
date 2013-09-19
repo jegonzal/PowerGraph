@@ -142,41 +142,17 @@ get_other_vertex(graph_type::edge_type& edge,
 
 
 /**
- * \brief The gather type used to construct XtX and Xty needed for the BIASSGD
- * update
- *
- * To compute the ALS update we need to compute the sum of 
- * \code
- *  sum: XtX = nbr.pvec.transpose() * nbr.pvec 
- *  sum: Xy  = nbr.pvec * edge.obs
- * \endcode
- * For each of the neighbors of a vertex. 
- *
- * To do this in the Gather-Apply-Scatter model the gather function
- * computes and returns a pair consisting of XtX and Xy which are then
- * added. The gather type represents that tuple and provides the
- * necessary gather_type::operator+= operation.
  *
  */
 class gather_type {
 public:
-  /**
-   * \brief Stores the current sum of nbr.pvec.transpose() *
-   * nbr.pvec
-   */
-
-  /**
-   * \brief Stores the current sum of nbr.pvec * edge.obs
-   */
-  vec_type pvec;
-  double bias;
+  vec_type pvec; //vector of gradient updates
+  double bias; //bias change
 
   /** \brief basic default constructor */
   gather_type() { }
 
   /**
-   * \brief This constructor computes XtX and Xy and stores the result
-   * in XtX and Xy
    */
   gather_type(const vec_type& X, double _bias) {
     pvec = X;
@@ -190,8 +166,6 @@ public:
   void load(graphlab::iarchive& arc) { arc >> pvec >> bias; }  
 
   /** 
-   * \brief Computes XtX += other.XtX and Xy += other.Xy updating this
-   * tuples value
    */
   gather_type& operator+=(const gather_type& other) {
     if (pvec.size() == 0){
@@ -201,6 +175,7 @@ public:
     }
     else if (other.pvec.size() == 0)
       return *this;
+    //sum up gradient updates
     pvec += other.pvec;
     bias += other.bias;
     return *this;
@@ -252,22 +227,25 @@ public:
    vec_type delta, other_delta;
    double bias =0, other_bias = 0;
 
+   //this is a user node
    if (vertex.num_in_edges() == 0){
       vertex_type other_vertex(get_other_vertex(edge, vertex));
       vertex_type my_vertex(vertex);
-      //vertex_data & my_data = my_vertex.data();
+      //predict rating
       double pred = biassgd_vertex_program::GLOBAL_MEAN + 
         edge.source().data().bias + edge.target().data().bias + 
         vertex.data().pvec.dot(other_vertex.data().pvec);
       pred = std::min(pred, biassgd_vertex_program::MAXVAL);
       pred = std::max(pred, biassgd_vertex_program::MINVAL); 
+      //compute the error
       const float err = (pred - edge.data().obs);
       if (debug)
         std::cout<<"entering edge " << (int)edge.source().id() << ":" << (int)edge.target().id() << " err: " << err << " rmse: " << err*err <<std::endl;
       if (std::isnan(err))
         logstream(LOG_FATAL)<<"Got into numeric errors.. try to tune step size and regularization using --lambda and --gamma flags" << std::endl;
+      
       if (edge.data().role == edge_data::TRAIN){
-
+         
         bias = -GAMMA*(err + LAMBDA*my_vertex.data().bias);
         other_bias = -GAMMA*(err + LAMBDA* other_vertex.data().bias);
          
@@ -298,7 +276,7 @@ public:
         pmsg = msg;
      }
   }
-  /** apply collects the sum of XtX and Xy */
+  /** apply graident updates to feature vector */
   void apply(icontext_type& context, vertex_type& vertex,
              const gather_type& sum) {
     // Get and reset the vertex data
@@ -590,9 +568,9 @@ int main(int argc, char** argv) {
 
   // Parse command line options -----------------------------------------------
   const std::string description = 
-    "Compute the ALS factorization of a matrix.";
+    "Compute the bias-SGD factorization of a matrix.";
   graphlab::command_line_options clopts(description);
-  std::string input_dir, output_dir;
+  std::string input_dir;
   std::string predictions;
   size_t interval = 0;
   std::string exec_type = "synchronous";
@@ -620,8 +598,6 @@ int main(int argc, char** argv) {
                        "The time in seconds between error reports");
   clopts.attach_option("predictions", predictions,
                        "The prefix (folder and filename) to save predictions.");
-  clopts.attach_option("output", output_dir,
-                       "Output results");
 
   parse_implicit_command_line(clopts);
 

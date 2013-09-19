@@ -278,6 +278,7 @@ The output of ALS is two matrices: filename.U and filename.V. The matrix U holds
 --maxval=XX	Maximum allowed rating
 --minval=XX	Min allowed rating
 --predictions=XX	File name to write prediction to. Note that you will need a user/item pair input file named something.predict to enable predictions (see section: ratings).
+--tol=XX	Stop computation when absolute error of prediction is less than tolerance. Default is 1e-3.
 \endverbatim
 
 Here is an example SGD run on small Netflix data:
