@@ -728,13 +728,12 @@ namespace graphlab {
 
     /**
      * \brief Called by the context to signal an arbitrary vertex.
-     * This must be done by finding the owner of that vertex.
      *
      * @param [in] gvid the global vertex id of the vertex to signal
      * @param [in] message the message to send to that vertex.
      */
-    void internal_signal_broadcast(vertex_id_type gvid,
-                                   const message_type& message = message_type());
+    void internal_signal_gvid(vertex_id_type gvid,
+                              const message_type& message = message_type());
 
     /**
      * \brief This function tests if this machine is the master of
@@ -1190,13 +1189,13 @@ namespace graphlab {
 
   template<typename VertexProgram>
   void synchronous_engine<VertexProgram>::
-  internal_signal_broadcast(vertex_id_type gvid, const message_type& message) {
-    for (size_t i = 0; i < rmi.numprocs(); ++i) {
-      if(i == rmi.procid()) internal_signal_rpc(gvid, message);
-      else rmi.remote_call(i, &synchronous_engine<VertexProgram>::internal_signal_rpc,
-                          gvid, message);
-    }
-  } // end of internal_signal_broadcast
+  internal_signal_gvid(vertex_id_type gvid, const message_type& message) {
+    procid_t proc = graph.master(gvid);
+    if(proc == rmi.procid()) internal_signal_rpc(gvid, message);
+    else rmi.remote_call(proc, 
+                         &synchronous_engine<VertexProgram>::internal_signal_rpc,
+                         gvid, message);
+  } 
 
   template<typename VertexProgram>
   void synchronous_engine<VertexProgram>::
