@@ -797,24 +797,23 @@ namespace graphlab {
       shared_lvid_counter = 0;
       if (ncpus <= 1) {
         INCREMENT_EVENT(EVENT_ACTIVE_CPUS, 1);
-        ( (this)->*(member_fun))(0);
-        DECREMENT_EVENT(EVENT_ACTIVE_CPUS, 1);
       }
-      else {
-        // launch the initialization threads
-        for(size_t i = 0; i < ncpus; ++i) {
-          fiber_control::affinity_type affinity;
-          affinity.clear(); affinity.set_bit(i);
-          boost::function<void(void)> invoke = boost::bind(member_fun, this, i);
-          threads.launch(boost::bind(
-                &synchronous_engine::thread_launch_wrapped_event_counter,
-                this,
-                invoke), affinity);
-        }
+      // launch the initialization threads
+      for(size_t i = 0; i < ncpus; ++i) {
+        fiber_control::affinity_type affinity;
+        affinity.clear(); affinity.set_bit(i);
+        boost::function<void(void)> invoke = boost::bind(member_fun, this, i);
+        threads.launch(boost::bind(
+              &synchronous_engine::thread_launch_wrapped_event_counter,
+              this,
+              invoke), affinity);
       }
       // Wait for all threads to finish
       threads.join();
       rmi.barrier();
+      if (ncpus <= 1) {
+        DECREMENT_EVENT(EVENT_ACTIVE_CPUS, 1);
+      }
     } // end of run_synchronous
 
     // /**
