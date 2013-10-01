@@ -51,7 +51,7 @@
 
 // Global Types
 // ============================================================================
-typedef int count_type;
+typedef long count_type;
 
 
 /**
@@ -721,15 +721,15 @@ public:
    likelihood_aggregator ret;
     if(is_word(vertex)) {
       for(size_t t = 0; t < NTOPICS; ++t) {
-        const double value = std::max(count_type(factor[t]), count_type(0));
+        const count_type value = std::max(count_type(factor[t]), count_type(0));
         ret.lik_words_given_topics += lgamma(value + BETA);
       }
     } else {  ASSERT_TRUE(is_doc(vertex));
       double ntokens_in_doc = 0;
       for(size_t t = 0; t < NTOPICS; ++t) {
-        const double value = std::max(count_type(factor[t]), count_type(0));
+        const count_type value = std::max(count_type(factor[t]), count_type(0));
         ret.lik_topics += lgamma(value + ALPHA);
-        ntokens_in_doc += factor[t];
+        ntokens_in_doc += value;
       }
       ret.lik_topics -= lgamma(ntokens_in_doc + NTOPICS * ALPHA);
     }
@@ -741,7 +741,9 @@ public:
     // Address the global sum terms
     double denominator = 0;
     for(size_t t = 0; t < NTOPICS; ++t) {
-      denominator += lgamma(GLOBAL_TOPIC_COUNT[t] + NWORDS * BETA);
+      const count_type value = 
+        std::max(count_type(GLOBAL_TOPIC_COUNT[t]), count_type(0));
+      denominator += lgamma(value + NWORDS * BETA);
     } // end of for loop
 
     const double lik_words_given_topics =
@@ -1129,7 +1131,7 @@ int main(int argc, char** argv) {
     ASSERT_TRUE(success);
   }
   
-/*  { // Add the likelihood aggregator
+  { // Add the likelihood aggregator
     const bool success =
       engine.add_vertex_aggregator<likelihood_aggregator>
       ("likelihood", 
@@ -1137,7 +1139,7 @@ int main(int argc, char** argv) {
        likelihood_aggregator::finalize) &&
       engine.aggregate_periodic("likelihood", 10);
     ASSERT_TRUE(success);
-  }*/
+  }
 
   ///! schedule only documents
   dc.cout() << "Running The Collapsed Gibbs Sampler" << std::endl;
