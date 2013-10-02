@@ -51,7 +51,7 @@
 
 // Global Types
 // ============================================================================
-typedef int count_type;
+typedef long count_type;
 
 
 /**
@@ -157,6 +157,12 @@ size_t TOPK = 5;
  * \brief The interval to display topics during execution.
  */
 size_t INTERVAL = 10;
+
+
+/**
+ * \brief The interval to compute & display the likelihood
+ */
+size_t LIK_INTERVAL = 5;
 
 /**
  * \brief The global variable storing the global topic count across
@@ -686,6 +692,35 @@ struct global_counts_aggregator {
 }; // end of global_counts_aggregator struct
 
 
+/**
+ * Computing log_gamma can be a bit slow so this class precomptues 
+ * log gamma for a subset of values.
+ */
+class log_gamma {
+  double offset;
+  std::vector<double> values;
+public:
+  log_gamma(): offset(0) {}
+
+  void init(const double& new_offset, const size_t& buckets) {
+    using boost::math::lgamma;
+    values.resize(buckets);
+    offset = new_offset;
+    for(size_t i = 0; i < values.size(); ++i) {
+      values[i] = lgamma(i + offset);
+    }
+  }
+
+  double operator()(const count_type& index) const {
+    using boost::math::lgamma;
+    if(index < values.size() && index >= 0) { return values[index]; }
+    else { return lgamma(index + offset); }
+  }
+
+};
+
+log_gamma ALPHA_LGAMMA;
+log_gamma BETA_LGAMMA;
 
 /**
  * \brief The Likelihood aggregators maintains the current estimate of
@@ -699,6 +734,22 @@ struct global_counts_aggregator {
  *  llik_topics = ...
  *    ndocs * (gammaln(ntopics * alpha) - ntopics * gammaln(alpha)) + ...
  *    sum_d(sum_t(gammaln(n_td + alpha)) - gammaln(sum_t(n_td) + ntopics * alpha));
+ *
+ * Latex formulation:
+ *
+    \mathcal{L}( w | z) & = T * \left( \log\Gamma(W * \beta) - W * \log\Gamma(\beta) \right) + \\
+    & \sum_{t} \left( \left(\sum_{w} \log\Gamma(N_{wt} + \beta)\right) - 
+           \log\Gamma\left( W * \beta + \sum_{w} N_{wt}  \right) \right) \\
+    & = T * \left( \log\Gamma(W * \beta) - W * \log\Gamma(\beta) \right) - 
+        \sum_{t} \log\Gamma\left( W * \beta + N_{t}  \right) + \\
+    & \sum_{w} \sum_{t} \log\Gamma(N_{wt} + \beta)   \\
+    \\
+    \mathcal{L}(z) & = D * \left(\log\Gamma(T * \alpha) - T * \log\Gamma(\alpha) \right) + \\
+    & \sum_{d} \left( \left(\sum_{t}\log\Gamma(N_{td} + \alpha)\right) -  
+        \log\Gamma\left( T * \alpha + \sum_{t} N_{td} \right) \right) \\
+    \\
+    \mathcal{L}(w,z) & = \mathcal{L}(w | z) + \mathcal{L}(z)
+ *
  */
 class likelihood_aggregator : public graphlab::IS_POD_TYPE {
   typedef graph_type::vertex_type vertex_type;
@@ -715,21 +766,23 @@ public:
 
   static likelihood_aggregator
   map(icontext_type& context, const vertex_type& vertex) {
-    using boost::math::lgamma;
+    // using boost::math::lgamma;
     const factor_type& factor = vertex.data().factor;
     ASSERT_EQ(factor.size(), NTOPICS);
-   likelihood_aggregator ret;
+    likelihood_aggregator ret;
     if(is_word(vertex)) {
       for(size_t t = 0; t < NTOPICS; ++t) {
-        const double value = std::max(count_type(factor[t]), count_type(0));
-        ret.lik_words_given_topics += lgamma(value + BETA);
+        const count_type value = std::max(count_type(factor[t]), count_type(0));
+        //ret.lik_words_given_topics += lgamma(value + BETA);
+        ret.lik_words_given_topics += BETA_LGAMMA(value);
       }
     } else {  ASSERT_TRUE(is_doc(vertex));
       double ntokens_in_doc = 0;
       for(size_t t = 0; t < NTOPICS; ++t) {
-        const double value = std::max(count_type(factor[t]), count_type(0));
-        ret.lik_topics += lgamma(value + ALPHA);
-        ntokens_in_doc += factor[t];
+        const count_type value = std::max(count_type(factor[t]), count_type(0));
+        //ret.lik_topics += lgamma(value + ALPHA);
+        ret.lik_topics += ALPHA_LGAMMA(value);
+        ntokens_in_doc += value;
       }
       ret.lik_topics -= lgamma(ntokens_in_doc + NTOPICS * ALPHA);
     }
@@ -741,7 +794,9 @@ public:
     // Address the global sum terms
     double denominator = 0;
     for(size_t t = 0; t < NTOPICS; ++t) {
-      denominator += lgamma(GLOBAL_TOPIC_COUNT[t] + NWORDS * BETA);
+      const count_type value = 
+        std::max(count_type(GLOBAL_TOPIC_COUNT[t]), count_type(0));
+      denominator += lgamma(value + NWORDS * BETA);
     } // end of for loop
 
     const double lik_words_given_topics =
@@ -1032,6 +1087,7 @@ int main(int argc, char** argv) {
   std::string word_dir;
   std::string exec_type = "asynchronous";
   std::string format = "matrix";
+  
   clopts.attach_option("dictionary", dictionary_fname,
                        "The file containing the list of unique words");
   clopts.attach_option("engine", exec_type, 
@@ -1048,7 +1104,9 @@ int main(int argc, char** argv) {
   clopts.attach_option("topk", TOPK,
                        "The number of words to report");
   clopts.attach_option("interval", INTERVAL,
-                       "statistics reporting interval");
+                       "statistics reporting interval (in seconds)");
+  clopts.attach_option("lik_interval", LIK_INTERVAL,
+                       "likelihood reporting interval (in seconds)");
   clopts.attach_option("max_count", MAX_COUNT,
                        "The maximum number of occurences of a word in a document.");
   clopts.attach_option("format", format,
@@ -1092,6 +1150,11 @@ int main(int argc, char** argv) {
     }
   }
 
+  /// Initialize the log_gamma precached calculations.
+  ALPHA_LGAMMA.init(ALPHA, 100000);
+  BETA_LGAMMA.init(BETA, 1000000);
+
+
   ///! load the graph
   graph_type graph(dc, clopts);
   {
@@ -1129,15 +1192,15 @@ int main(int argc, char** argv) {
     ASSERT_TRUE(success);
   }
   
-/*  { // Add the likelihood aggregator
+  { // Add the likelihood aggregator
     const bool success =
       engine.add_vertex_aggregator<likelihood_aggregator>
       ("likelihood", 
        likelihood_aggregator::map, 
        likelihood_aggregator::finalize) &&
-      engine.aggregate_periodic("likelihood", 10);
+      engine.aggregate_periodic("likelihood", LIK_INTERVAL);
     ASSERT_TRUE(success);
-  }*/
+  }
 
   ///! schedule only documents
   dc.cout() << "Running The Collapsed Gibbs Sampler" << std::endl;
