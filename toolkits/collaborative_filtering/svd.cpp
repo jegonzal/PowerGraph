@@ -333,7 +333,8 @@ void compute_ritz(graph_type::vertex_type & vertex){
   vec tmp = init_vec(&vertex.data().pvec[offset], n);
   tmp = tmp.transpose() * (v_vector ? PT : a);
   memcpy(&vertex.data().pvec[offset] ,&tmp[0], kk*sizeof(double)); 
-  std::cout<<"Entered ritz with " << offset << " , v_vector: " << v_vector << "data_size: " << data_size << " kk: " << kk << std::endl;
+  if (debug)
+    std::cout<<"Entered ritz with " << offset << " , v_vector: " << v_vector << "data_size: " << data_size << " kk: " << kk << std::endl;
 }  
 
 
@@ -645,6 +646,11 @@ int main(int argc, char** argv) {
 
   if (rows <= 0 || cols <= 0)
     logstream(LOG_FATAL)<<"Please specify number of rows/cols of the input matrix" << std::endl;
+
+  if (rows == cols){
+    logstream(LOG_WARNING)<<"GraphLab SVD does not support square matrices. Increasing row size by one." << std::endl;
+    rows++; 
+  }
      
   info.rows = rows;
   info.cols = cols;
