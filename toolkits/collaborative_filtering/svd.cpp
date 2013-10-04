@@ -342,9 +342,7 @@ void compute_ritz(graph_type::vertex_type & vertex){
 vec lanczos(bipartite_graph_descriptor & info, timer & mytimer, vec & errest, 
     const std::string & vecfile){
 
-
   int its = 1;
-  int mpd = 24;
   DistMat A(info);
   DistSlicedMat U(info.is_square() ? data_size : 0, info.is_square() ? 2*data_size : data_size, true, info, "U");
   DistSlicedMat V(0, data_size, false, info, "V");
@@ -386,14 +384,13 @@ vec lanczos(bipartite_graph_descriptor & info, timer & mytimer, vec & errest,
       orthogonalize_vs_all(V, i, beta(i-k-1));
       PRINT_VEC(V[i]);
 
-      PRINT_VEC3("beta", beta, i-k-1); 
+      PRINT_VEC3("beta", beta, i-k-1);
 
       U[i] = V[i]*A._transpose();
       orthogonalize_vs_all(U, i, alpha(i-k));
-
       PRINT_VEC3("alpha", alpha, i-k);
-    }
-
+     }
+    
     V[n]= U[n-1]*A;
     orthogonalize_vs_all(V, n, beta(n-k-1));
     PRINT_VEC3("beta", beta, n-k-1);
@@ -402,12 +399,11 @@ vec lanczos(bipartite_graph_descriptor & info, timer & mytimer, vec & errest,
     BEGIN_TRACEPOINT(svd_bidiagonal);
     PRINT_INT(nv);
     PRINT_NAMED_INT("svd->nconv", nconv);
-    PRINT_NAMED_INT("svd->mpd", mpd);
     n = nv - nconv;
     PRINT_INT(n);
     alpha.conservativeResize(n);
     beta.conservativeResize(n);
-
+    
     PRINT_MAT2("Q",eye(n));
     PRINT_MAT2("PT",eye(n));
     PRINT_VEC2("alpha",alpha);
@@ -417,6 +413,7 @@ vec lanczos(bipartite_graph_descriptor & info, timer & mytimer, vec & errest,
     for (int i=0; i<n-1; i++)
       set_val(T, i, i+1, beta(i));
     PRINT_MAT2("T", T);
+    
     svd(T, a, PT, b);
     PRINT_MAT2("Q", a);
     alpha=b.transpose();
@@ -426,7 +423,7 @@ vec lanczos(bipartite_graph_descriptor & info, timer & mytimer, vec & errest,
     PRINT_VEC2("beta",beta);
     PRINT_MAT2("PT", PT.transpose());
     END_TRACEPOINT(svd_bidiagonal);
-
+    
     //estiamte the error
     BEGIN_TRACEPOINT(svd_error_estimate);
     kk = 0;
@@ -473,10 +470,11 @@ vec lanczos(bipartite_graph_descriptor & info, timer & mytimer, vec & errest,
     }
 
     //compute the ritz eigenvectors of the converged singular triplets
+    DistVec v = V[nconv];
     if (kk > 0){
       PRINT_VEC2("svd->V", V[nconv]);
       BEGIN_TRACEPOINT(matproduct);
-      DistVec v = V[nconv];
+      v = V[nconv];
       pcurrent = &v;
       v_vector = true;
       graphlab::vertex_set nodes = pgraph->select(select_in_range);
@@ -496,7 +494,7 @@ vec lanczos(bipartite_graph_descriptor & info, timer & mytimer, vec & errest,
     if (finished)
       break;
 
-    //V[nconv]=v;
+    V[nconv]=v;
     PRINT_VEC2("svd->V", V[nconv]);
     PRINT_NAMED_INT("svd->nconv", nconv);
 
@@ -513,7 +511,7 @@ vec lanczos(bipartite_graph_descriptor & info, timer & mytimer, vec & errest,
   DistVec normret_tranpose(info, nconv, true, "normret_tranpose");
   INITIALIZE_TRACER(svd_error2, "svd error2");
   BEGIN_TRACEPOINT(svd_error2);
-  for (int i=0; i < std::min(nsv, nconv); i++){
+  for (int i=0; i < std::min(nsv,nconv); i++){
     normret = V[i]*A._transpose() -U[i]*sigma(i);
     double n1 = norm(normret).toDouble();
     PRINT_DBL(n1);
