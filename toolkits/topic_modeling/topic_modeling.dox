@@ -202,7 +202,10 @@ the arguments to be:
 \endverbatim
 
 
+\section convergence Tracking progress
 
+We have added a Likelihood printout every interval seconds (defined using the --interval command line argument)
+which captures the convergence progress of the LDA algorithm. The Likelihood should go up every interval.
 
 \section cgs_lda_options Command Line Options
 
