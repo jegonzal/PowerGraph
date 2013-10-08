@@ -52,7 +52,7 @@ bool finished = false;
 double ortho_repeats = 3;
 bool update_function = false;
 bool save_vectors = false;
-bool use_ids = false;
+bool use_ids = true;
 std::string datafile; 
 std::string vecfile;
 int unittest;
@@ -214,7 +214,7 @@ struct linear_model_saver_V {
           rpos += data_size;
       std::string ret;
       if(use_ids)
-        ret = boost::lexical_cast<std::string>(vertex.id()) + " ";
+        ret = boost::lexical_cast<std::string>(vertex.id()-rows) + " ";
       ret += boost::lexical_cast<std::string>(vertex.data().pvec[rpos]) + "\n";
       return ret;
     }
@@ -334,7 +334,8 @@ void compute_ritz(graph_type::vertex_type & vertex){
   tmp = tmp.transpose() * (v_vector ? PT : a);
   memcpy(&vertex.data().pvec[offset] ,&tmp[0], kk*sizeof(double)); 
   if (debug)
-    std::cout<<"Entered ritz with " << offset << " , v_vector: " << v_vector << "data_size: " << data_size << " kk: " << kk << std::endl;
+    std::cout<<"Entered ritz with " << vertex.id() << " offset: " << offset << " , v_vector: " << v_vector << "data_size: " << 
+	       data_size << " kk: " << kk << " tmp[0] " << tmp[0] << std::endl;
 }  
 
 
@@ -616,7 +617,7 @@ int main(int argc, char** argv) {
   }
   if (quiet){
     global_logger().set_log_level(LOG_ERROR);
-    debug = false;
+    //debug = false;
   }
   if (unittest == 1){
     datafile = "gklanczos_testA/"; 
