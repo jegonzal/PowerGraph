@@ -698,7 +698,7 @@ Ceate a directory named A2, and inside it put the file A2.
 
 Here is an for running SVD (using one mpi node, one core)
 \verbatim
-bickson@thrust:~/graphlab2.1/graphlabapi/debug/toolkits/collaborative_filtering$ ./svd A2 --rows=3 --cols=4 --nsv=4 --nv=4 --max_iter=3 --ncpus=1 --quiet=1
+bickson@thrust:~/graphlab2.1/graphlabapi/debug/toolkits/collaborative_filtering$ ./svd A2 --rows=3 --cols=4 --nsv=4 --nv=4 --max_iter=3 --ncpus=1 --quiet=1 --save_vectors=1
 TCP Communication layer constructed.
 Loading graph.
 Loading graph. Finished in 0.004996
@@ -740,13 +740,55 @@ mpiexec -n XX ./svd [ rest of the command line aguments ]
 
 \verbatim
 --training  Input file directory.
---nv  Number of inner steps of each iterations. Typically the number should be greater than the number of singular values you look for.
+--nv  Number of inner steps of each iterations. Typically the number should be greater than the number of singular values you look for. When nv is higher, accuracy will be higher, but running time slower.
 --nsv Number of singular values requested. Should be typically less than --nv
 --ortho_repeats Number of repeats on the orthogonalization step. Default is 1 (no repeats). Increase this number for higher accuracy but slower execution. Maximal allowed values is 3.
---max_iter  Number of allowed restarts. The minimum is 2= no restart.
+--max_iter  Number of allowed restarts. The minimum is 2= no restart. When max_iter is higher, the result will be more accurate, but the running slower. 
 --save_vectors=true Save the factorized matrices U and V to file. 
 --predictions=XX	File name to write prediction to. Note that you will need a user/item pair input file named something.predict to enable predictions (see section: test ratings).
 --tol Convergence threshold. For large matrices set this number set this number higher (for example 1e-1, while for small matrices you can set it to 1e-16). As smaller the convergence threshold execution is slower.
+\endverbatim
+
+Note: for improving accuracy tol should be reduced. max_iter and nv should be increased.
+
+\subsection SVD0 "SVD Output"
+On default, the singular values will be written to an output file. When using --save_vectors=1 the singular vectors of the matrices U and V will be written into file as well.
+Here is an example of the output files created by the A2 example:
+\verbatim
+-rw-r--r--   1 bickson  staff        224 Oct  8 13:12 singular_values
+-rw-r--r--   1 bickson  staff        102 Oct  8 13:12 V.3_1_of_1
+-rw-r--r--   1 bickson  staff         90 Oct  8 13:12 V.2_1_of_1
+-rw-r--r--   1 bickson  staff         89 Oct  8 13:12 V.1_1_of_1
+-rw-r--r--   1 bickson  staff         92 Oct  8 13:12 V.0_1_of_1
+-rw-r--r--   1 bickson  staff         56 Oct  8 13:12 U.3_1_of_1
+-rw-r--r--   1 bickson  staff         66 Oct  8 13:12 U.2_1_of_1
+-rw-r--r--   1 bickson  staff         68 Oct  8 13:12 U.1_1_of_1
+-rw-r--r--   1 bickson  staff         69 Oct  8 13:12 U.0_1_of_1
+\endverbatim
+<br>
+The singular_values file has a straightforward format:
+\verbatim
+%%GraphLab SVD Solver library. This file contains the singular values.
+2.160971174556
+0.9790200922132
+0.5541592674291
+1.69699593375e-64
+\endverbatim
+
+The singular vector file has the following format:
+\verbatim
+> cat V.0_1_of_1
+0 -0.50467448230910661
+1 -0.46633647481132878
+2 -0.44142369037529217
+3 -0.57704339935747928
+\endverbatim
+
+The first colum is the vector index, and the second column is the vector value.
+Note, that using multicore / distributed the vector columns may appear in a random order.
+In that case, you should sort them out, for example using the sort command:
+\verbatim
+sort -g -k 1,1 V.0_1_of_1 > V0
 \endverbatim
 
 \subsection SVD1 "Understanding the error measure"
