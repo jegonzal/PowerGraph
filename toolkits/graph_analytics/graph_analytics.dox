@@ -640,7 +640,7 @@ Here is a toy example, graph with 6 nodes and 5 edges:
 
 Assume file name is toy_graph, the command used for running connected compnents is
 \verbatim
-> ./connected_component --graph=toy_graph --format=tsv
+> ./connected_component --graph=toy_graph --format=tsv --saveprefix=out
 \endverbatim
 
 
@@ -694,25 +694,25 @@ sizes.
 
 Using our toy example
 \verbatim
-# concatante all output files into a single file
-> cat out_*_of_ > out
-# run statistics to get a historgram of components sizes
 > ./connected_component_stats --graph=out
 Connected Component
 
 INFO:     mpi_tools.hpp(init:63): MPI Support was not compiled.
-INFO:     dc.cpp(init:554): Cluster of 1 instances created.
-INFO:     distributed_graph.hpp(set_ingress_method:3192): Automatically determine ingress method: grid
+INFO:     dc.cpp(init:573): Cluster of 1 instances created.
+INFO:     distributed_graph.hpp(set_ingress_method:3200): Automatically determine ingress method: grid
 Loading graph in format: adj
-INFO:     distributed_graph.hpp(load_from_posixfs:2188): Loading graph from file: ./out
+INFO:     distributed_graph.hpp(load_from_posixfs:2189): Loading graph from file: ./out_1_of_4
+INFO:     distributed_graph.hpp(load_from_posixfs:2189): Loading graph from file: ./out_2_of_4
+INFO:     distributed_graph.hpp(load_from_posixfs:2189): Loading graph from file: ./out_3_of_4
+INFO:     distributed_graph.hpp(load_from_posixfs:2189): Loading graph from file: ./out_4_of_4
 INFO:     distributed_ingress_base.hpp(finalize:185): Finalizing Graph...
 INFO:     distributed_ingress_base.hpp(exchange_global_info:519): Graph info:
 	 nverts: 2
 	 nedges: 0
 	 nreplicas: 2
 	 replication factor: 1
-Complete Finalization in 0.009531
-graph calculation time is 1.2e-05 sec
+Complete Finalization in 0.001965
+graph calculation time is 2.4e-05 sec
 RESULT:
 size	count
 3	2
