@@ -29,6 +29,7 @@ import sys
 import tempfile
 import time
 import urllib2
+import stat
 from optparse import OptionParser
 from sys import stderr
 from boto.ec2.blockdevicemapping import BlockDeviceMapping, EBSBlockDeviceType
@@ -93,6 +94,12 @@ def parse_args():
     print >> stderr, ("ERROR: The -i or --identity-file argument is " +
                       "required for " + action)
     sys.exit(1)
+  private_key_mode = str(oct(os.stat(opts.identity_file)[stat.ST_MODE])[-3:])
+  if private_key_mode != "400" :
+    print >> stderr, ("ERROR: permissions of private key file " +opts.identity_file+
+                      " should be 400")
+    sys.exit(1)
+      
   if os.getenv('AWS_ACCESS_KEY_ID') == None:
     print >> stderr, ("ERROR: The environment variable AWS_ACCESS_KEY_ID " +
                       "must be set")
@@ -356,10 +363,10 @@ def setup_cluster(conn, master_nodes, slave_nodes, zoo_nodes, opts, cluster_name
   master = master_nodes[0].public_dns_name
   if deploy_ssh_key:
     print "Copying SSH key %s to master..." % opts.identity_file
-    # ssh(master, opts, 'sudo mkdir -p /root/.ssh; mkdir tmp')
-    # scp(master, opts, opts.identity_file, 'tmp/id_rsa')
-    # ssh(master, opts, opts.identity_file, 'sudo mv tmp/id_rsa /root/.ssh/')
-    # scp(master, opts, opts.identity_file, '~/.ssh/id_rsa')
+    #ssh(master, opts, 'sudo mkdir -p /root/.ssh; mkdir tmp')
+    #scp(master, opts, opts.identity_file, 'tmp/id_rsa')
+    #ssh(master, opts, opts.identity_file, 'sudo mv tmp/id_rsa /root/.ssh/')
+    #scp(master, opts, opts.identity_file, '~/.ssh/id_rsa')
   print "Copy hostfile to master..."
   hosts = get_internal_ips(conn, opts, cluster_name)
   hostfile = open("machines", "w")
