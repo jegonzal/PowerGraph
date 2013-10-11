@@ -364,12 +364,17 @@ def setup_cluster(conn, master_nodes, slave_nodes, zoo_nodes, opts, cluster_name
   # deploy_files(conn, "deploy.generic", opts, master_nodes, slave_nodes, zoo_nodes)
   master = master_nodes[0].public_dns_name
   if deploy_ssh_key:
-    print "Copying SSH key %s to master..." % opts.identity_file
-    #ssh(master, opts, 'sudo mkdir -p /root/.ssh; mkdir tmp')
-    #scp(master, opts, opts.identity_file, 'tmp/id_rsa')
-    #ssh(master, opts, opts.identity_file, 'sudo mv tmp/id_rsa /root/.ssh/')
-    #scp(master, opts, opts.identity_file, '~/.ssh/id_rsa')
-  print "Copy hostfile to master..."
+    print "Copying SSH key %s to master node %s..." % (opts.identity_file,master)
+    ssh(master, opts, 'sudo mkdir -p /root/.ssh; mkdir tmp')
+    scp(master, opts, opts.identity_file, 'tmp/id_rsa')
+    ssh(master, opts, 'sudo mv tmp/id_rsa ~/.ssh/')
+    for i in slave_nodes:
+       ip = i.public_dns_name    
+       print "Copying SSH key %s to slave node %s..." % (opts.identity_file,ip)
+       ssh(ip, opts, 'sudo mkdir -p /root/.ssh; mkdir tmp')
+       scp(ip, opts, opts.identity_file, 'tmp/id_rsa')
+       ssh(ip, opts, 'sudo mv tmp/id_rsa ~/.ssh/')
+  print "Copy machines hostfile to master..."
   hosts = get_internal_ips(conn, opts, cluster_name)
   hostfile = open("machines", "w")
   for ip in hosts:
@@ -619,6 +624,7 @@ def main():
     proxy_opt = ""
     if opts.proxy_port != None:
       proxy_opt = "-D " + opts.proxy_port
+    scp(master, opts, "machines", '~/machines')
     subprocess.check_call("""ssh -o StrictHostKeyChecking=no -i %s %s ubuntu@%s \"export PATH=$PATH:/bin/hadoop-1.2.1/bin/;
         export CLASSPATH=$CLASSPATH:.:`hadoop classpath`;
         export JAVA_HOME=/usr/lib/jvm/java-6-sun;
@@ -628,11 +634,11 @@ def main():
         git pull;
         ./configure; 
         cd release/toolkits/collaborative_filtering/; 
-        make; 
-        cd release/toolkits/graph_analytics/;
-        make;
+        #make; 
+        cd ../graph_analytics/;
+        #make;
         cd ~/graphlab/release/toolkits;  
-        ~/graphlabapi/scripts/mpirsync
+        bash -x ~/graphlab/scripts/mpirsync
         \"""" % (opts.identity_file, proxy_opt, master), shell=True)
 
   elif action == "update-dbg":
