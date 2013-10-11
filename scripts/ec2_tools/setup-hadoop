@@ -13,7 +13,7 @@ mpiexec.openmpi -hostfile ~/machines -pernode \
 namenode=`head -n 1 ~/machines` # first node is the master
 echo "Setting up config"
 echo -e \
-    "export JAVA_HOME=/usr/lib/jvm/java-6-openjdk-amd64/jre/\n" > /bin/hadoop-1.2.1/conf/hadoop-env.sh
+    "export JAVA_HOME=/usr/lib/jvm/java-6-openjdk-amd64/\n" > /bin/hadoop-1.2.1/conf/hadoop-env.sh
 cat /bin/hadoop-1.2.1/conf/hadoop-env.sh
 mpiexec.openmpi -hostfile ~/machines -pernode \
     scp $namenode:/bin/hadoop-1.2.1/conf/hadoop-env.sh  /bin/hadoop-1.2.1/conf/hadoop-env.sh
@@ -47,7 +47,7 @@ echo -e \
     '<configuration>\n' \
     '  <property>\n' \
     '    <name>mapred.job.tracker</name>\n' \
-    '    <value>'$namenode:1.2.1'</value>\n' \
+    '    <value>'$namenode:19001'</value>\n' \
     '  </property>\n' \
     '  <property>\n' \
     '    <name>mapred.local.dir</name>\n' \

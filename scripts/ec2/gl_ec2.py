@@ -563,12 +563,10 @@ def main():
     proxy_opt = ""
     if opts.proxy_port != None:
       proxy_opt = "-D " + opts.proxy_port
-      # DB: patch to setup-hadoop file, remove when image is updated
-    scp(master, opts, "../ec2_tools/setup-hadoop", '/home/ubuntu/graphlabapi/scripts/ec2_tools/')
-    subprocess.check_call("""ssh -o StrictHostKeyChecking=no -i %s %s ubuntu@%s \"export PATH=$PATH:/opt/hadoop-1.0.1/bin;
+    subprocess.check_call("""ssh -o StrictHostKeyChecking=no -i %s %s ubuntu@%s \"export PATH=$PATH:/opt/hadoop-1.2.1/bin;
         export CLASSPATH=$CLASSPATH:.:\`hadoop classpath\`;
-        export JAVA_HOME=/usr/lib/jvm/java-6-sun;
-        alias mpiexec='mpiexec.openmpi -hostfile ~/machines -x CLASSPATH'; /home/ubuntu/graphlabapi/scripts/ec2_tools/setup-hadoop\"""" % (opts.identity_file, proxy_opt, master), shell=True)
+        export JAVA_HOME=/usr/lib/jvm/java-6-openjdk-amd64/;
+        alias mpiexec='mpiexec.openmpi -hostfile ~/machines -x CLASSPATH -x JAVA_HOME'; /home/ubuntu/graphlab/scripts/ec2_tools/setup-hadoop\"""" % (opts.identity_file, proxy_opt, master), shell=True)
 
   elif action == "check-hadoop":
     (master_nodes, slave_nodes, zoo_nodes) = get_existing_cluster(
@@ -578,9 +576,9 @@ def main():
     proxy_opt = ""
     if opts.proxy_port != None:
       proxy_opt = "-D " + opts.proxy_port
-    subprocess.check_call("""ssh -o StrictHostKeyChecking=no -i %s %s ubuntu@%s \"export PATH=$PATH:/opt/hadoop-1.0.1/bin;
+    subprocess.check_call("""ssh -o StrictHostKeyChecking=no -i %s %s ubuntu@%s \"export PATH=$PATH:/opt/hadoop-1.2.1/bin;
         export CLASSPATH=$CLASSPATH:.:\`hadoop classpath\`;
-        export JAVA_HOME=/usr/lib/jvm/java-6-sun;
+        export JAVA_HOME=/usr/lib/jvm/java-6-openjdk-amd64/;
         jps\"""" % (opts.identity_file, proxy_opt, master), shell=True)
 
   elif action == "stop-hadoop":
@@ -591,10 +589,10 @@ def main():
     proxy_opt = ""
     if opts.proxy_port != None:
       proxy_opt = "-D " + opts.proxy_port
-    subprocess.check_call("""ssh -o StrictHostKeyChecking=no -i %s %s ubuntu@%s \"export PATH=$PATH:/opt/hadoop-1.0.1/bin;
+    subprocess.check_call("""ssh -o StrictHostKeyChecking=no -i %s %s ubuntu@%s \"export PATH=$PATH:/opt/hadoop-1.2.1/bin;
         export CLASSPATH=$CLASSPATH:.:\`hadoop classpath\`;
-        export JAVA_HOME=/usr/lib/jvm/java-6-sun;
-        alias mpiexec='mpiexec -hostfile ~/machines -x CLASSPATH'; /home/ubuntu/graphlabapi/deps/hadoop/src/hadoop/bin/stop-all.sh\"""" % (opts.identity_file, proxy_opt, master), shell=True)
+        export JAVA_HOME=/usr/lib/jvm/java-6-openjdk-amd64/;
+        alias mpiexec='mpiexec -hostfile ~/machines -x CLASSPATH'; /home/ubuntu/graphlab/deps/hadoop/src/hadoop/bin/stop-all.sh\"""" % (opts.identity_file, proxy_opt, master), shell=True)
 
   elif action == "als_demo":
     (master_nodes, slave_nodes, zoo_nodes) = get_existing_cluster(
@@ -604,10 +602,10 @@ def main():
     proxy_opt = ""
     if opts.proxy_port != None:
       proxy_opt = "-D " + opts.proxy_port
-    subprocess.check_call("""ssh -o StrictHostKeyChecking=no -i %s %s ubuntu@%s \"export PATH=$PATH:/opt/hadoop-1.0.1/bin;
-        export CLASSPATH=$CLASSPATH:.:\`hadoop classpath\`;
-        export JAVA_HOME=/usr/lib/jvm/java-6-sun;
-        cd graphlabapi/release/toolkits/collaborative_filtering/;
+    subprocess.check_call("""ssh -o StrictHostKeyChecking=no -i %s %s ubuntu@%s \"export PATH=$PATH:/bin/hadoop-1.2.1/bin;
+        export CLASSPATH=$CLASSPATH:.:\`/bin/hadoop-1.2.1/bin/hadoop classpath\`;
+        export JAVA_HOME=/usr/lib/jvm/java-6-openjdk-amd64/;
+        cd graphlab/release/toolkits/collaborative_filtering/;
         rm -fR smallnetflix; mkdir smallnetflix;
         cd smallnetflix/;
         wget http://graphlab.org/wp-content/uploads/2013/07/smallnetflix_mm.validate.gz;  #ugly, but we need to find a better place to host sample graphlab datasets
@@ -618,7 +616,7 @@ def main():
         hadoop fs -rmr hdfs://\`head -n 1 ~/machines\`/smallnetflix/;
         hadoop fs -copyFromLocal smallnetflix/ /;
         cat ~/machines
-        mpiexec.mpich2 -f ~/machines -envlist CLASSPATH -n 2 /home/ubuntu/graphlabapi/release/toolkits/collaborative_filtering/als --matrix hdfs://\`head -n 1 ~/machines\`/smallnetflix --max_iter=5 --ncpus=1 --predictions=out_predictions --minval=1 --maxval=5;
+        mpiexec.openmpi -hostfile ~/machines -x CLASSPATH -n 2 /home/ubuntu/graphlab/release/toolkits/collaborative_filtering/als --matrix hdfs://\`head -n 1 ~/machines\`/smallnetflix --max_iter=5 --ncpus=1 --predictions=out_predictions --minval=1 --maxval=5;
         \"""" % (opts.identity_file, proxy_opt, master), shell=True)
 
   elif action == "update":
@@ -631,17 +629,17 @@ def main():
       proxy_opt = "-D " + opts.proxy_port
     scp(master, opts, "machines", '~/machines')
     subprocess.check_call("""ssh -o StrictHostKeyChecking=no -i %s %s ubuntu@%s \"export PATH=$PATH:/bin/hadoop-1.2.1/bin/;
-        export CLASSPATH=$CLASSPATH:.:`hadoop classpath`;
-        export JAVA_HOME=/usr/lib/jvm/java-6-sun;
+        export CLASSPATH=$CLASSPATH:.:`/bin/hadoop-1.2.1/bin/hadoop classpath`;
+        export JAVA_HOME=/usr/lib/jvm/java-6-openjdk-amd64/;
         alias mpiexec='mpiexec -hostfile ~/machines -x CLASSPATH'; 
         sudo chmod -R a+rx /home/ubuntu/graphlab/deps/hadoop/; #DB: ugly, but sovles libhdfs bug
         cd graphlab/;
         git pull;
         ./configure; 
         cd release/toolkits/collaborative_filtering/; 
-        #make; 
+        make; 
         cd ../graph_analytics/;
-        #make;
+        make;
         cd ~/graphlab/release/toolkits;  
         bash -x ~/graphlab/scripts/mpirsync
         \"""" % (opts.identity_file, proxy_opt, master), shell=True)
@@ -656,8 +654,8 @@ def main():
       proxy_opt = "-D " + opts.proxy_port
     subprocess.check_call("""ssh -o StrictHostKeyChecking=no -i %s %s ubuntu@%s \"
         sudo apt-get install gdb; 
-        cd graphlabapi/;
-        hg pull; hg update; ./configure; cd debug; make; cd ~/graphlabapi/debug/toolkits;  ~/graphlabapi/scripts/mpirsync
+        cd graphlab/;
+        hg pull; hg update; ./configure; cd debug; make; cd ~/graphlab/debug/toolkits;  ~/graphlab/scripts/mpirsync
         \"""" % (opts.identity_file, proxy_opt, master), shell=True)
 
   elif action == "get-master":
