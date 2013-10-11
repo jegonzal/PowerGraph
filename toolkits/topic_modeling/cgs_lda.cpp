@@ -700,10 +700,11 @@ class log_gamma {
   double offset;
   std::vector<double> values;
 public:
-  log_gamma(): offset(0) {}
+  log_gamma(): offset(1.0) {}
 
   void init(const double& new_offset, const size_t& buckets) {
     using boost::math::lgamma;
+    ASSERT_GT(offset, 0.0);
     values.resize(buckets);
     offset = new_offset;
     for(size_t i = 0; i < values.size(); ++i) {
@@ -920,9 +921,17 @@ bool load_and_initialize_graph(graphlab::distributed_control& dc,
   NWORDS = graph.map_reduce_vertices<size_t>(is_word);
   NDOCS = graph.map_reduce_vertices<size_t>(is_doc);
   NTOKENS = graph.map_reduce_edges<size_t>(count_tokens);
+
+
   dc.cout() << "Number of words:     " << NWORDS  << std::endl;
   dc.cout() << "Number of docs:      " << NDOCS   << std::endl;
   dc.cout() << "Number of tokens:    " << NTOKENS << std::endl;
+
+  ASSERT_GT(NWORDS, 0);
+  ASSERT_GT(NDOCS, 0);
+  ASSERT_GT(NTOKENS, 0);
+
+
   // Prepare the json struct with the word counts
   TOP_WORDS.lock.lock();
   TOP_WORDS.json_string = "{\n" + TOP_WORDS.json_header_string() +
@@ -1150,6 +1159,18 @@ int main(int argc, char** argv) {
     }
   }
 
+  if(ALPHA <= 0) {
+    logstream(LOG_ERROR) 
+      << "Alpha must be positive (alpha=" << ALPHA << ")!"  << std::endl;
+    return EXIT_FAILURE;
+  }
+
+  if(BETA <= 0) {
+    logstream(LOG_ERROR) 
+      << "Beta must be positive (beta=" << BETA << ")!"  << std::endl;
+    return EXIT_FAILURE;
+  }
+   
   /// Initialize the log_gamma precached calculations.
   ALPHA_LGAMMA.init(ALPHA, 100000);
   BETA_LGAMMA.init(BETA, 1000000);
