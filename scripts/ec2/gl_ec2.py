@@ -368,12 +368,17 @@ def setup_cluster(conn, master_nodes, slave_nodes, zoo_nodes, opts, cluster_name
     ssh(master, opts, 'sudo mkdir -p /root/.ssh; mkdir tmp')
     scp(master, opts, opts.identity_file, 'tmp/id_rsa')
     ssh(master, opts, 'sudo mv tmp/id_rsa ~/.ssh/')
+    config = open("config", "w")
+    config.write("StrictHostKeyChecking no\nBatchMode yes\n")
+    config.close()
+    scp(master, opts, "config", ".ssh/config")
     for i in slave_nodes:
        ip = i.public_dns_name    
        print "Copying SSH key %s to slave node %s..." % (opts.identity_file,ip)
        ssh(ip, opts, 'sudo mkdir -p /root/.ssh; mkdir tmp')
        scp(ip, opts, opts.identity_file, 'tmp/id_rsa')
        ssh(ip, opts, 'sudo mv tmp/id_rsa ~/.ssh/')
+       scp(ip, opts, "config", ".ssh/config")
   print "Copy machines hostfile to master..."
   hosts = get_internal_ips(conn, opts, cluster_name)
   hostfile = open("machines", "w")
