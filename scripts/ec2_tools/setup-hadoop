@@ -10,8 +10,16 @@ fi
 mpiexec.openmpi -hostfile ~/machines -pernode \
     sudo rm -fR ~/.ssh/known_hosts
 
+echo "Setting up config"
+echo -e \
+    'export CLASSPATH=$CLASSPATH:.:\`/bin/hadoop-1.2.1/binhadoop classpath\`\n'\
+    'export JAVA_HOME=/usr/lib/jvm/java-6-openjdk-amd64/jre/\n' > /bin/hadoop-1.2.1/conf/hadoop-env.sh
+cat /bin/hadoop-1.2.1/conf/hadoop-env.sh
+mpiexec.openmpi -hostfile ~/machines -pernode \
+    scp $namenode:/bin/hadoop-1.2.1/conf/hadoop-env.sh  /bin/hadoop-1.2.1/conf/hadoop-env.sh
 
 
+     
 namenode=`head -n 1 ~/machines` # first node is the master
 echo "Setting up namenode information."
 echo "  namenode: " $namenode
