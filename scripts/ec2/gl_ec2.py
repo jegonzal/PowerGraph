@@ -35,7 +35,7 @@ from sys import stderr
 from boto.ec2.blockdevicemapping import BlockDeviceMapping, EBSBlockDeviceType
 
 # A static URL from which to figure out the latest Mesos EC2 AMI
-STD_AMI_URL = "https://s3.amazonaws.com/graphlabv2-ami/graphlab2-std"
+STD_AMI_URL = "https://s3.amazonaws.com/GraphLabGit/graphlab2-std"
 HVM_AMI_URL = "https://s3.amazonaws.com/graphlabv2-ami/graphlab2-hvm"
 
 
@@ -59,7 +59,7 @@ def parse_args():
            "WARNING: must be 64-bit; small instances won't work")
   parser.add_option("-m", "--master-instance-type", default="",
       help="Master instance type (leave empty for same as instance-type)")
-  parser.add_option("-r", "--region", default="us-east-1",
+  parser.add_option("-r", "--region", default="us-west-2",
       help="EC2 region zone to launch instances in")
   parser.add_option("-z", "--zone", default="",
       help="Availability zone to launch instances in")
@@ -308,7 +308,9 @@ def get_existing_cluster(conn, opts, cluster_name):
   for res in reservations:
     active = [i for i in res.instances if is_active(i)]
     if len(active) > 0:
-      group_names = [g.name for g in res.groups]
+      print "Acitve: ", active
+      group_names = list(set(g.name for g in i.groups for i in res.instances)) #DB: bug fix as explained here: https://spark-project.atlassian.net/browse/SPARK-749
+      print "Group names: ", group_names 
       if group_names == [cluster_name + "-master"]:
         master_nodes += res.instances
       elif group_names == [cluster_name + "-slaves"]:
@@ -362,12 +364,17 @@ def setup_cluster(conn, master_nodes, slave_nodes, zoo_nodes, opts, cluster_name
   # deploy_files(conn, "deploy.generic", opts, master_nodes, slave_nodes, zoo_nodes)
   master = master_nodes[0].public_dns_name
   if deploy_ssh_key:
-    print "Copying SSH key %s to master..." % opts.identity_file
-    #ssh(master, opts, 'sudo mkdir -p /root/.ssh; mkdir tmp')
-    #scp(master, opts, opts.identity_file, 'tmp/id_rsa')
-    #ssh(master, opts, opts.identity_file, 'sudo mv tmp/id_rsa /root/.ssh/')
-    #scp(master, opts, opts.identity_file, '~/.ssh/id_rsa')
-  print "Copy hostfile to master..."
+    print "Copying SSH key %s to master node %s..." % (opts.identity_file,master)
+    ssh(master, opts, 'sudo mkdir -p /root/.ssh; mkdir tmp')
+    scp(master, opts, opts.identity_file, 'tmp/id_rsa')
+    ssh(master, opts, 'sudo mv tmp/id_rsa ~/.ssh/')
+    for i in slave_nodes:
+       ip = i.public_dns_name    
+       print "Copying SSH key %s to slave node %s..." % (opts.identity_file,ip)
+       ssh(ip, opts, 'sudo mkdir -p /root/.ssh; mkdir tmp')
+       scp(ip, opts, opts.identity_file, 'tmp/id_rsa')
+       ssh(ip, opts, 'sudo mv tmp/id_rsa ~/.ssh/')
+  print "Copy machines hostfile to master..."
   hosts = get_internal_ips(conn, opts, cluster_name)
   hostfile = open("machines", "w")
   for ip in hosts:
@@ -617,12 +624,21 @@ def main():
     proxy_opt = ""
     if opts.proxy_port != None:
       proxy_opt = "-D " + opts.proxy_port
-    subprocess.check_call("""ssh -o StrictHostKeyChecking=no -i %s %s ubuntu@%s \"export PATH=$PATH:/opt/hadoop-1.0.1/bin;
+    scp(master, opts, "machines", '~/machines')
+    subprocess.check_call("""ssh -o StrictHostKeyChecking=no -i %s %s ubuntu@%s \"export PATH=$PATH:/bin/hadoop-1.2.1/bin/;
         export CLASSPATH=$CLASSPATH:.:`hadoop classpath`;
         export JAVA_HOME=/usr/lib/jvm/java-6-sun;
         alias mpiexec='mpiexec -hostfile ~/machines -x CLASSPATH'; 
-        cd graphlabapi/;
-        hg pull; hg update; ./configure; cd release/toolkits/collaborative_filtering/; make; cd ~/graphlabapi/release/toolkits;  ~/graphlabapi/scripts/mpirsync
+        sudo chmod -R a+rx /home/ubuntu/graphlab/deps/hadoop/; #DB: ugly, but sovles libhdfs bug
+        cd graphlab/;
+        git pull;
+        ./configure; 
+        cd release/toolkits/collaborative_filtering/; 
+        #make; 
+        cd ../graph_analytics/;
+        #make;
+        cd ~/graphlab/release/toolkits;  
+        bash -x ~/graphlab/scripts/mpirsync
         \"""" % (opts.identity_file, proxy_opt, master), shell=True)
 
   elif action == "update-dbg":
