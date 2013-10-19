@@ -20,3 +20,6 @@ add_graphlab_executable(partitioning partitioning.cpp)
 # add_graphlab_executable(warp_coloring warp_coloring.cpp)
 # add_graphlab_executable(warp_bond_percolation warp_bond_percolation.cpp)
 # add_graphlab_executable(warp_pagerank_sweeps warp_pagerank_sweeps.cpp)
+
+add_graphlab_executable(TSC TSC.cpp)
+requires_eigen(TSC)
