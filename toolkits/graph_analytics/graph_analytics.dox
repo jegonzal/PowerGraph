@@ -850,8 +850,8 @@ for computation.
   
   
 \section graph_analytics_total_subgraph_centrality "Total Subgraph Centrality"
-Total subgraph centrality was implemented by Jacob Kesinger, see additionl
-detailed in his <a href="http://jacobkesinger.tumblr.com/post/64338572799/total-subgraph-centrality">blog post</a>.
+Total subgraph centrality was implemented by Jacob Kesinger, see additional
+details in his <a href="http://jacobkesinger.tumblr.com/post/64338572799/total-subgraph-centrality">blog post</a>.
 Total Subgraph Communicability is a new centrality measure due to
 Benzi&Klymco [1].   For a directed graph with adjacenty matrix A, 
 
@@ -901,7 +901,7 @@ A = scipy.array([[0,1,0,0,0],[1,0,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,0,1,1,0]])
 scipy.linalg.expm2(A).sum(axis=1)
 \endverbatim
 
-[1]: Benzi, Michele, and Christine Klymko. Total Communicability as a Centrality Measure. ArXiv e-print, February 27, 2013. http://arxiv.org/abs/1302.6770.
+[1]: Benzi, Michele, and Christine Klymko. Total Communicability as a Centrality Measure. ArXiv e-print, February 27, 2013. <a href="http://arxiv.org/abs/1302.6770">arxiv</a>
 
 [2]: Saad, Yousef. “Analysis of Some Krylov Subspace Approximations to the Matrix Exponential Operator.” SIAM Journal on Numerical Analysis 29, no. 1 (1992): 209–228.
 
