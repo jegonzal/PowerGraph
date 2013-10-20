@@ -242,7 +242,7 @@ inline bool init_vec_loader(graph_type& graph,
   std::stringstream strm(line);
   graph_type::vertex_id_type source_id(-1), target_id(-1);
   float obs(0);
-  strm >> source_id >> target_id; 
+  strm >> source_id >> target_id >> obs; 
 
   // Create an edge and add it to the graph
   vertex_data vertex;
