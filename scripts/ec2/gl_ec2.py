@@ -42,7 +42,7 @@ HVM_AMI_URL = "https://s3.amazonaws.com/graphlabv2-ami/graphlab2-hvm"
 # Configure and parse our command-line arguments
 def parse_args():
   parser = OptionParser(usage="gl-ec2 [options] <action> <cluster_name>"
-      + "\n\n<action> can be: launch, destroy, login, stop, start, start-hadoop, stop-hadoop, check-hadoop, get-master, attach-ebs, detach-ebs, als_demo, update, update-dbg",
+      + "\n\n<action> can be: launch, destroy, login, stop, start, start-hadoop, stop-hadoop, check-hadoop, get-master, attach-ebs, detach-ebs, als_demo, svd_demo, update, update-dbg",
       add_help_option=False)
   parser.add_option("-h", "--help", action="help",
                     help="Show this help message and exit")
@@ -90,7 +90,7 @@ def parse_args():
     parser.print_help()
     sys.exit(1)
   (action, cluster_name) = args
-  if opts.identity_file == None and action in ['launch', 'login', 'start-hadoop', 'stop-hadoop', 'check-hadoop', 'als_demo', 'update', 'update-dbg']:
+  if opts.identity_file == None and action in ['launch', 'login', 'start-hadoop', 'stop-hadoop', 'check-hadoop', 'als_demo', 'svd_demo','update', 'update-dbg']:
     print >> stderr, ("ERROR: The -i or --identity-file argument is " +
                       "required for " + action)
     sys.exit(1)
@@ -616,9 +616,31 @@ def main():
         hadoop fs -rmr hdfs://\`head -n 1 ~/machines\`/smallnetflix/;
         hadoop fs -copyFromLocal smallnetflix/ /;
         cat ~/machines
-        mpiexec.openmpi -hostfile ~/machines -x CLASSPATH -n 2 /home/ubuntu/graphlab/release/toolkits/collaborative_filtering/als --matrix hdfs://\`head -n 1 ~/machines\`/smallnetflix --max_iter=5 --ncpus=1 --predictions=out_predictions --minval=1 --maxval=5;
-        \"""" % (opts.identity_file, proxy_opt, master), shell=True)
+        mpiexec.openmpi -hostfile ~/machines -x CLASSPATH -n %d /home/ubuntu/graphlab/release/toolkits/collaborative_filtering/als --matrix hdfs://\`head -n 1 ~/machines\`/smallnetflix --max_iter=5 --ncpus=1 --predictions=out_predictions --minval=1 --maxval=5;
+        \"""" % (opts.identity_file, proxy_opt, master, opts.slaves+1), shell=True)
+  elif action == "svd_demo":
+    (master_nodes, slave_nodes, zoo_nodes) = get_existing_cluster( conn, opts, cluster_name)
+    master = master_nodes[0].public_dns_name
+    print "Running SVD demo on master " + master + "..."
+    proxy_opt = ""
+    if opts.proxy_port != None:
+      proxy_opt = "-D " + opts.proxy_port
+    subprocess.check_call("""ssh -o StrictHostKeyChecking=no -i %s %s ubuntu@%s \"export PATH=$PATH:/bin/hadoop-1.2.1/bin;
+        export CLASSPATH=$CLASSPATH:.:\`/bin/hadoop-1.2.1/bin/hadoop classpath\`;
+        export JAVA_HOME=/usr/lib/jvm/java-6-openjdk-amd64/;
+        cd graphlab/release/toolkits/collaborative_filtering/;
+        rm -fR livejournal; mkdir livejournal; cd livejournal/;
+        wget http://snap.stanford.edu/data/soc-LiveJournal1.txt.gz;
+        gunzip *.gz;
+        cd ..;
+        hadoop fs -rmr hdfs://\`head -n 1 ~/machines\`/livejournal/;
+        hadoop fs -copyFromLocal livejournal/ /;
+        cat ~/machines
+        mpiexec.openmpi -hostfile ~/machines -x CLASSPATH -n %d /home/ubuntu/graphlab/release/toolkits/collaborative_filtering/svd --matrix hdfs://\`head -n 1 ~/machines\`/livejournal --rows=4847572 --cols=4847571 --nsv=2 --nv=7 --max_iter=5 --tol=1e-5 --binary=true --save_vectors=1;
+        \"""" % (opts.identity_file, proxy_opt, master, opts.slaves+1), shell=True)
 
+
+ 
   elif action == "update":
     (master_nodes, slave_nodes, zoo_nodes) = get_existing_cluster(
         conn, opts, cluster_name)
