@@ -64,6 +64,7 @@ bool quiet = false;
 int nconv = 0;
 int n = 0; 
 int kk = 0;
+bool binary = false; //if true, all edges = 1
 mat a,PT;
 bool v_vector = false;
 
@@ -241,7 +242,7 @@ inline bool init_vec_loader(graph_type& graph,
   std::stringstream strm(line);
   graph_type::vertex_id_type source_id(-1), target_id(-1);
   float obs(0);
-  strm >> source_id >> target_id >> obs;
+  strm >> source_id >> target_id; 
 
   // Create an edge and add it to the graph
   vertex_data vertex;
@@ -272,17 +273,24 @@ inline bool graph_loader(graph_type& graph,
   
   // Parse the line
   std::stringstream strm(line);
+  
+  //skip comments begining with "#"
+  if (line.find("#") != std::string::npos)
+    return true;
+
   graph_type::vertex_id_type source_id(-1), target_id(-1);
-  float obs(0);
+  float obs = 1;
   strm >> source_id >> target_id;
-  source_id--; target_id--;
+  //source_id--; target_id--;
   if (source_id >= (uint)rows)
     logstream(LOG_FATAL)<<"Problem at input line: [ " << line << " ] row id ( = " << source_id+1 << " ) should be <= than matrix rows (= " << rows << " ) " << std::endl;
   if (target_id >= (uint)cols)
     logstream(LOG_FATAL)<<"Problem at input line: [ " << line << " ] col id ( = " << target_id+1 << " ) should be <= than matrix cols (= " << cols << " ) " << std::endl;
-  strm >> obs;
+
+  if (!binary)
+     strm >> obs;
   if (!info.is_square())
-  target_id = rows + target_id;
+     target_id = rows + target_id;
 
   if (source_id == target_id){
       vertex_data data;
@@ -610,6 +618,7 @@ int main(int argc, char** argv) {
   clopts.attach_option("quiet", quiet, "quiet mode (less verbose)");
   clopts.attach_option("id", use_ids, "if set, will output row ids for U and V when saving");
   clopts.attach_option("predictions", predictions, "predictions file prefix");
+  clopts.attach_option("binary", binary, "If true, all edges are weighted as one");
   if(!clopts.parse(argc, argv) || input_dir == "") {
     std::cout << "Error in parsing command line arguments." << std::endl;
     clopts.print_description();
