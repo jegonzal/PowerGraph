@@ -331,6 +331,8 @@ namespace graphlab {
     /// Per vertex data locks
     std::vector<simple_spinlock> vertexlocks;
 
+    /// Total update function completion time
+    std::vector<double> total_completion_time;
 
     /**
      * \brief This optional vector contains caches of previous gather
@@ -366,6 +368,8 @@ namespace graphlab {
     size_t nfibers;
     /// set to true if engine is started
     bool started;
+
+    bool track_task_time;
     /// A pointer to the distributed consensus object
     fiber_async_consensus* consensus;
 
@@ -443,10 +447,13 @@ namespace graphlab {
       stacksize = 16384;
       use_cache = false;
       factorized_consistency = true;
+      track_task_time = false;
       timed_termination = (size_t)(-1);
       termination_reason = execution_status::UNSET;
       set_options(opts);
       initialize();
+      total_completion_time.resize(fiber_control::get_instance().num_workers());
+      init();
       rmi.barrier();
     }
 
@@ -481,7 +488,11 @@ namespace graphlab {
           opts.get_engine_args().get_option("nfibers", nfibers);
           if (rmi.procid() == 0)
             logstream(LOG_EMPH) << "Engine Option: nfibers = " << nfibers << std::endl;
-        } else if (opt == "stacksize") {
+        } else if (opt == "track_task_time") {
+          opts.get_engine_args().get_option("track_task_time", track_task_time);
+          if (rmi.procid() == 0)
+            logstream(LOG_EMPH) << "Engine Option: track_task_time = " << track_task_time<< std::endl;
+        }else if (opt == "stacksize") {
           opts.get_engine_args().get_option("stacksize", stacksize);
           if (rmi.procid() == 0)
             logstream(LOG_EMPH) << "Engine Option: stacksize= " << stacksize << std::endl;
@@ -525,7 +536,7 @@ namespace graphlab {
      * This call will initialize all internal and scheduling datastructures.
      * This function must be called prior to any signal function.
      */
-    void initialize() {
+    void init() {
       // construct all the required datastructures
       // deinitialize performs the reverse
       graph.finalize();
@@ -1000,6 +1011,13 @@ namespace graphlab {
                          const message_type& msg) {
       const typename graph_type::vertex_record& rec = graph.l_get_vertex_record(lvid);
       vertex_id_type vid = rec.gvid;
+      char task_time_data[sizeof(timer)];
+      timer* task_time;
+      if (track_task_time) {
+        // placement new to create the timer
+        task_time = reinterpret_cast<timer*>(task_time_data);
+        new (task_time) timer();
+      }
       // if this is another machine's forward it
       if (rec.owner != rmi.procid()) {
         rmi.remote_call(rec.owner, &engine_type::rpc_signal, vid, msg);
@@ -1104,6 +1122,11 @@ namespace graphlab {
         cm_handles[lvid] = NULL;
       }
       release_exclusive_access_to_vertex(lvid);
+      if (track_task_time) {
+        total_completion_time[fiber_control::get_worker_id()] += 
+            task_time->current_time();
+        task_time->~timer();
+      }
       programs_executed.inc(); 
     }
 
@@ -1163,7 +1186,9 @@ namespace graphlab {
           break; 
         }
 
-        if (fiber_control::worker_has_fibers_on_queue()) fiber_control::yield();
+        if (fiber_control::worker_has_priority_fibers_on_queue()) {
+          fiber_control::yield();
+        }
       }
     } // end of thread start
 
@@ -1212,16 +1237,12 @@ namespace graphlab {
       if (rmi.procid() == 0) {
         logstream(LOG_INFO) << "Total Allocated Bytes: " << allocatedmem << std::endl;
       }
-      fiber_group::affinity_type affinity;
-      affinity.clear();
-      for (size_t i = 0; i < ncpus; ++i) {
-        affinity.set_bit(i);
-      }
-      thrgroup.set_affinity(affinity);
       thrgroup.set_stacksize(stacksize);
-
+        
+      size_t effncpus = std::min(ncpus, fiber_control::get_instance().num_workers());
       for (size_t i = 0; i < nfibers ; ++i) {
-        thrgroup.launch(boost::bind(&engine_type::thread_start, this, i));
+        thrgroup.launch(boost::bind(&engine_type::thread_start, this, i), 
+                        i % effncpus);
       }
       thrgroup.join();
       aggregator.stop();
@@ -1244,6 +1265,16 @@ namespace graphlab {
       size_t numadds = messages.num_adds();
       rmi.all_reduce(numadds);
       rmi.cout() << "Schedule Adds: " << numadds << std::endl;
+
+      if (track_task_time) {
+        double total_task_time = 0;
+        for (size_t i = 0;i < total_completion_time.size(); ++i) {
+          total_task_time += total_completion_time[i];
+        }
+        rmi.all_reduce(total_task_time);
+        rmi.cerr() << "Average Task Completion Time = " 
+                   << total_task_time / programs_executed.value << std::endl;
+      }
 
 
       ASSERT_TRUE(scheduler_ptr->empty());

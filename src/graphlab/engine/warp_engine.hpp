@@ -1259,7 +1259,7 @@ namespace warp {
         } else { 
           break; 
         }
-        if (fiber_control::worker_has_fibers_on_queue()) fiber_control::yield();
+        if (fiber_control::worker_has_priority_fibers_on_queue()) fiber_control::yield();
       }
     } // end of thread start
 

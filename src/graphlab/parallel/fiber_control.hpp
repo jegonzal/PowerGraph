@@ -26,7 +26,9 @@
 #include <cstdlib>
 #include <boost/context/all.hpp>
 #include <boost/function.hpp>
+#include <boost/lockfree/queue.hpp>
 #include <graphlab/util/dense_bitset.hpp>
+#include <graphlab/util/inplace_lf_queue2.hpp>
 #include <graphlab/parallel/pthread_tools.hpp>
 #include <graphlab/parallel/atomic.hpp>
 namespace graphlab {
@@ -77,6 +79,7 @@ class fiber_control {
   size_t affinity_base;
   atomic<size_t> fiber_id_counter;
   atomic<size_t> fibers_active;
+  atomic<size_t> active_workers;
   mutex join_lock;
   conditional join_cond;
 
@@ -84,15 +87,17 @@ class fiber_control {
 
   // The scheduler is a simple queue. One for each worker
   struct thread_schedule {
+    thread_schedule():waiting(false) { }
     mutex active_lock;
     conditional active_cond;
-    // used as a sentinel for the actual queues
-    // first element is always head,
-    // tail points to the last element
-    fiber active_head;
-    fiber* active_tail;
-    size_t nactive;
     volatile bool waiting;
+    size_t nwaiting;
+    // a queue of fibers to evaluate before those in the thread_queue
+    inplace_lf_queue2<fiber> affinity_queue;
+    fiber* popped_affinity_queue;
+
+    inplace_lf_queue2<fiber> priority_queue;
+    fiber* popped_priority_queue;
   };
   std::vector<thread_schedule> schedule;
 
@@ -103,6 +108,7 @@ class fiber_control {
   // locks must be acquired outside the call
   void active_queue_insert_head(size_t workerid, fiber* value);
   void active_queue_insert_tail(size_t workerid, fiber* value);
+  void active_queue_insert_tail(fiber* value);
   fiber* active_queue_remove(size_t workerid);
 
   // a thread local storage for the worker to point to a fiber
@@ -126,6 +132,8 @@ class fiber_control {
   /// Returns the current fiber scheduled on this worker thread
   static fiber* get_active_fiber();
 
+  /// Gets a fiber from the lock-free / popped pair
+  fiber* try_pop_queue(inplace_lf_queue2<fiber>& lfqueue, fiber*& popped_queue);
   /// The function that each worker thread starts off running
   void worker_init(size_t workerid);
 
@@ -133,9 +141,12 @@ class fiber_control {
   void yield_to(fiber* next_fib);
   static void trampoline(intptr_t _args);
 
+  void (*flsdeleter)(void*);
+
   size_t pick_fiber_worker(fiber* fib);
 
-  void (*flsdeleter)(void*);
+  // delete copy constructor
+  fiber_control(fiber_control&) {};
   
  public:
 
@@ -229,6 +240,14 @@ class fiber_control {
    * Returns true if the current worker has other fiber waiting on its queue
    */
   static bool worker_has_fibers_on_queue();
+
+
+  /**
+   * Returns true if the current worker has other priority fibers waiting on 
+   * its queue
+   */
+  static bool worker_has_priority_fibers_on_queue();
+
 
   /// True if the singleton instance was created
   static bool instance_created; 
