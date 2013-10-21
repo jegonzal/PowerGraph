@@ -54,7 +54,7 @@ def parse_args():
       help="Key pair to use on instances")
   parser.add_option("-i", "--identity-file", 
       help="SSH private key file to use for logging into instances")
-  parser.add_option("-t", "--instance-type", default="m1.large",
+  parser.add_option("-t", "--instance-type", default="m1.xlarge",
       help="Type of instance to launch (default: m1.large). " +
            "WARNING: must be 64-bit; small instances won't work")
   parser.add_option("-m", "--master-instance-type", default="",
@@ -636,7 +636,7 @@ def main():
         hadoop fs -rmr hdfs://\`head -n 1 ~/machines\`/livejournal/;
         hadoop fs -copyFromLocal livejournal/ /;
         cat ~/machines
-        mpiexec.openmpi -hostfile ~/machines -x CLASSPATH -n %d /home/ubuntu/graphlab/release/toolkits/collaborative_filtering/svd --matrix hdfs://\`head -n 1 ~/machines\`/livejournal --rows=4847572 --cols=4847571 --nsv=2 --nv=7 --max_iter=5 --tol=1e-5 --binary=true --save_vectors=1;
+        mpiexec.openmpi -hostfile ~/machines -x CLASSPATH -n %d /home/ubuntu/graphlab/release/toolkits/collaborative_filtering/svd --matrix hdfs://\`head -n 1 ~/machines\`/livejournal --rows=4847572 --cols=4847571 --nsv=2 --nv=7 --max_iter=3 --tol=1e-2 --binary=true --save_vectors=1;
         \"""" % (opts.identity_file, proxy_opt, master, opts.slaves+1), shell=True)
 
 
