@@ -52,7 +52,7 @@ bool finished = false;
 double ortho_repeats = 3;
 bool update_function = false;
 bool save_vectors = false;
-bool use_ids = false;
+bool use_ids = true;
 std::string datafile; 
 std::string vecfile;
 int unittest;
@@ -64,6 +64,7 @@ bool quiet = false;
 int nconv = 0;
 int n = 0; 
 int kk = 0;
+bool binary = false; //if true, all edges = 1
 mat a,PT;
 bool v_vector = false;
 
@@ -214,7 +215,7 @@ struct linear_model_saver_V {
           rpos += data_size;
       std::string ret;
       if(use_ids)
-        ret = boost::lexical_cast<std::string>(vertex.id()) + " ";
+        ret = boost::lexical_cast<std::string>(vertex.id()-rows) + " ";
       ret += boost::lexical_cast<std::string>(vertex.data().pvec[rpos]) + "\n";
       return ret;
     }
@@ -241,7 +242,7 @@ inline bool init_vec_loader(graph_type& graph,
   std::stringstream strm(line);
   graph_type::vertex_id_type source_id(-1), target_id(-1);
   float obs(0);
-  strm >> source_id >> target_id >> obs;
+  strm >> source_id >> target_id >> obs; 
 
   // Create an edge and add it to the graph
   vertex_data vertex;
@@ -272,17 +273,24 @@ inline bool graph_loader(graph_type& graph,
   
   // Parse the line
   std::stringstream strm(line);
+  
+  //skip comments begining with "#"
+  if (line.find("#") != std::string::npos)
+    return true;
+
   graph_type::vertex_id_type source_id(-1), target_id(-1);
-  float obs(0);
+  float obs = 1;
   strm >> source_id >> target_id;
-  source_id--; target_id--;
+  //source_id--; target_id--;
   if (source_id >= (uint)rows)
     logstream(LOG_FATAL)<<"Problem at input line: [ " << line << " ] row id ( = " << source_id+1 << " ) should be <= than matrix rows (= " << rows << " ) " << std::endl;
   if (target_id >= (uint)cols)
     logstream(LOG_FATAL)<<"Problem at input line: [ " << line << " ] col id ( = " << target_id+1 << " ) should be <= than matrix cols (= " << cols << " ) " << std::endl;
-  strm >> obs;
+
+  if (!binary)
+     strm >> obs;
   if (!info.is_square())
-  target_id = rows + target_id;
+     target_id = rows + target_id;
 
   if (source_id == target_id){
       vertex_data data;
@@ -334,7 +342,8 @@ void compute_ritz(graph_type::vertex_type & vertex){
   tmp = tmp.transpose() * (v_vector ? PT : a);
   memcpy(&vertex.data().pvec[offset] ,&tmp[0], kk*sizeof(double)); 
   if (debug)
-    std::cout<<"Entered ritz with " << offset << " , v_vector: " << v_vector << "data_size: " << data_size << " kk: " << kk << std::endl;
+    std::cout<<"Entered ritz with " << vertex.id() << " offset: " << offset << " , v_vector: " << v_vector << "data_size: " << 
+	       data_size << " kk: " << kk << " tmp[0] " << tmp[0] << std::endl;
 }  
 
 
@@ -342,9 +351,7 @@ void compute_ritz(graph_type::vertex_type & vertex){
 vec lanczos(bipartite_graph_descriptor & info, timer & mytimer, vec & errest, 
     const std::string & vecfile){
 
-
   int its = 1;
-  int mpd = 24;
   DistMat A(info);
   DistSlicedMat U(info.is_square() ? data_size : 0, info.is_square() ? 2*data_size : data_size, true, info, "U");
   DistSlicedMat V(0, data_size, false, info, "V");
@@ -386,14 +393,13 @@ vec lanczos(bipartite_graph_descriptor & info, timer & mytimer, vec & errest,
       orthogonalize_vs_all(V, i, beta(i-k-1));
       PRINT_VEC(V[i]);
 
-      PRINT_VEC3("beta", beta, i-k-1); 
+      PRINT_VEC3("beta", beta, i-k-1);
 
       U[i] = V[i]*A._transpose();
       orthogonalize_vs_all(U, i, alpha(i-k));
-
       PRINT_VEC3("alpha", alpha, i-k);
-    }
-
+     }
+    
     V[n]= U[n-1]*A;
     orthogonalize_vs_all(V, n, beta(n-k-1));
     PRINT_VEC3("beta", beta, n-k-1);
@@ -402,12 +408,11 @@ vec lanczos(bipartite_graph_descriptor & info, timer & mytimer, vec & errest,
     BEGIN_TRACEPOINT(svd_bidiagonal);
     PRINT_INT(nv);
     PRINT_NAMED_INT("svd->nconv", nconv);
-    PRINT_NAMED_INT("svd->mpd", mpd);
     n = nv - nconv;
     PRINT_INT(n);
     alpha.conservativeResize(n);
     beta.conservativeResize(n);
-
+    
     PRINT_MAT2("Q",eye(n));
     PRINT_MAT2("PT",eye(n));
     PRINT_VEC2("alpha",alpha);
@@ -417,6 +422,7 @@ vec lanczos(bipartite_graph_descriptor & info, timer & mytimer, vec & errest,
     for (int i=0; i<n-1; i++)
       set_val(T, i, i+1, beta(i));
     PRINT_MAT2("T", T);
+    
     svd(T, a, PT, b);
     PRINT_MAT2("Q", a);
     alpha=b.transpose();
@@ -426,7 +432,7 @@ vec lanczos(bipartite_graph_descriptor & info, timer & mytimer, vec & errest,
     PRINT_VEC2("beta",beta);
     PRINT_MAT2("PT", PT.transpose());
     END_TRACEPOINT(svd_bidiagonal);
-
+    
     //estiamte the error
     BEGIN_TRACEPOINT(svd_error_estimate);
     kk = 0;
@@ -473,10 +479,11 @@ vec lanczos(bipartite_graph_descriptor & info, timer & mytimer, vec & errest,
     }
 
     //compute the ritz eigenvectors of the converged singular triplets
+    DistVec v = V[nconv];
     if (kk > 0){
       PRINT_VEC2("svd->V", V[nconv]);
       BEGIN_TRACEPOINT(matproduct);
-      DistVec v = V[nconv];
+      v = V[nconv];
       pcurrent = &v;
       v_vector = true;
       graphlab::vertex_set nodes = pgraph->select(select_in_range);
@@ -496,7 +503,7 @@ vec lanczos(bipartite_graph_descriptor & info, timer & mytimer, vec & errest,
     if (finished)
       break;
 
-    //V[nconv]=v;
+    V[nconv]=v;
     PRINT_VEC2("svd->V", V[nconv]);
     PRINT_NAMED_INT("svd->nconv", nconv);
 
@@ -513,7 +520,7 @@ vec lanczos(bipartite_graph_descriptor & info, timer & mytimer, vec & errest,
   DistVec normret_tranpose(info, nconv, true, "normret_tranpose");
   INITIALIZE_TRACER(svd_error2, "svd error2");
   BEGIN_TRACEPOINT(svd_error2);
-  for (int i=0; i < std::min(nsv, nconv); i++){
+  for (int i=0; i < std::min(nsv,nconv); i++){
     normret = V[i]*A._transpose() -U[i]*sigma(i);
     double n1 = norm(normret).toDouble();
     PRINT_DBL(n1);
@@ -611,6 +618,7 @@ int main(int argc, char** argv) {
   clopts.attach_option("quiet", quiet, "quiet mode (less verbose)");
   clopts.attach_option("id", use_ids, "if set, will output row ids for U and V when saving");
   clopts.attach_option("predictions", predictions, "predictions file prefix");
+  clopts.attach_option("binary", binary, "If true, all edges are weighted as one");
   if(!clopts.parse(argc, argv) || input_dir == "") {
     std::cout << "Error in parsing command line arguments." << std::endl;
     clopts.print_description();
@@ -618,7 +626,7 @@ int main(int argc, char** argv) {
   }
   if (quiet){
     global_logger().set_log_level(LOG_ERROR);
-    debug = false;
+    //debug = false;
   }
   if (unittest == 1){
     datafile = "gklanczos_testA/"; 

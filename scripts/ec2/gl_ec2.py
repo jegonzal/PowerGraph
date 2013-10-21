@@ -29,19 +29,20 @@ import sys
 import tempfile
 import time
 import urllib2
+import stat
 from optparse import OptionParser
 from sys import stderr
 from boto.ec2.blockdevicemapping import BlockDeviceMapping, EBSBlockDeviceType
 
 # A static URL from which to figure out the latest Mesos EC2 AMI
-STD_AMI_URL = "https://s3.amazonaws.com/graphlabv2-ami/graphlab2-std"
+STD_AMI_URL = "https://s3.amazonaws.com/GraphLabGit/graphlab2-std"
 HVM_AMI_URL = "https://s3.amazonaws.com/graphlabv2-ami/graphlab2-hvm"
 
 
 # Configure and parse our command-line arguments
 def parse_args():
   parser = OptionParser(usage="gl-ec2 [options] <action> <cluster_name>"
-      + "\n\n<action> can be: launch, destroy, login, stop, start, start-hadoop, stop-hadoop, check-hadoop, get-master, attach-ebs, detach-ebs, als_demo, update, update-dbg",
+      + "\n\n<action> can be: launch, destroy, login, stop, start, start-hadoop, stop-hadoop, check-hadoop, get-master, attach-ebs, detach-ebs, als_demo, svd_demo, update, update-dbg",
       add_help_option=False)
   parser.add_option("-h", "--help", action="help",
                     help="Show this help message and exit")
@@ -53,12 +54,12 @@ def parse_args():
       help="Key pair to use on instances")
   parser.add_option("-i", "--identity-file", 
       help="SSH private key file to use for logging into instances")
-  parser.add_option("-t", "--instance-type", default="m1.large",
+  parser.add_option("-t", "--instance-type", default="m1.xlarge",
       help="Type of instance to launch (default: m1.large). " +
            "WARNING: must be 64-bit; small instances won't work")
   parser.add_option("-m", "--master-instance-type", default="",
       help="Master instance type (leave empty for same as instance-type)")
-  parser.add_option("-r", "--region", default="us-east-1",
+  parser.add_option("-r", "--region", default="us-west-2",
       help="EC2 region zone to launch instances in")
   parser.add_option("-z", "--zone", default="",
       help="Availability zone to launch instances in")
@@ -89,10 +90,16 @@ def parse_args():
     parser.print_help()
     sys.exit(1)
   (action, cluster_name) = args
-  if opts.identity_file == None and action in ['launch', 'login', 'start-hadoop', 'stop-hadoop', 'check-hadoop', 'als_demo', 'update', 'update-dbg']:
+  if opts.identity_file == None and action in ['launch', 'login', 'start-hadoop', 'stop-hadoop', 'check-hadoop', 'als_demo', 'svd_demo','update', 'update-dbg']:
     print >> stderr, ("ERROR: The -i or --identity-file argument is " +
                       "required for " + action)
     sys.exit(1)
+  private_key_mode = str(oct(os.stat(opts.identity_file)[stat.ST_MODE])[-3:])
+  if private_key_mode != "400" :
+    print >> stderr, ("ERROR: permissions of private key file " +opts.identity_file+
+                      " should be 400")
+    sys.exit(1)
+      
   if os.getenv('AWS_ACCESS_KEY_ID') == None:
     print >> stderr, ("ERROR: The environment variable AWS_ACCESS_KEY_ID " +
                       "must be set")
@@ -301,7 +308,9 @@ def get_existing_cluster(conn, opts, cluster_name):
   for res in reservations:
     active = [i for i in res.instances if is_active(i)]
     if len(active) > 0:
-      group_names = [g.name for g in res.groups]
+      print "Acitve: ", active
+      group_names = list(set(g.name for g in i.groups for i in res.instances)) #DB: bug fix as explained here: https://spark-project.atlassian.net/browse/SPARK-749
+      print "Group names: ", group_names 
       if group_names == [cluster_name + "-master"]:
         master_nodes += res.instances
       elif group_names == [cluster_name + "-slaves"]:
@@ -355,12 +364,22 @@ def setup_cluster(conn, master_nodes, slave_nodes, zoo_nodes, opts, cluster_name
   # deploy_files(conn, "deploy.generic", opts, master_nodes, slave_nodes, zoo_nodes)
   master = master_nodes[0].public_dns_name
   if deploy_ssh_key:
-    print "Copying SSH key %s to master..." % opts.identity_file
-    # ssh(master, opts, 'sudo mkdir -p /root/.ssh; mkdir tmp')
-    # scp(master, opts, opts.identity_file, 'tmp/id_rsa')
-    # ssh(master, opts, opts.identity_file, 'sudo mv tmp/id_rsa /root/.ssh/')
-    # scp(master, opts, opts.identity_file, '~/.ssh/id_rsa')
-  print "Copy hostfile to master..."
+    print "Copying SSH key %s to master node %s..." % (opts.identity_file,master)
+    ssh(master, opts, 'sudo mkdir -p /root/.ssh; mkdir tmp')
+    scp(master, opts, opts.identity_file, 'tmp/id_rsa')
+    ssh(master, opts, 'sudo mv tmp/id_rsa ~/.ssh/')
+    config = open("config", "w")
+    config.write("StrictHostKeyChecking no\nBatchMode yes\n")
+    config.close()
+    scp(master, opts, "config", ".ssh/config")
+    for i in slave_nodes:
+       ip = i.public_dns_name    
+       print "Copying SSH key %s to slave node %s..." % (opts.identity_file,ip)
+       ssh(ip, opts, 'sudo mkdir -p /root/.ssh; mkdir tmp')
+       scp(ip, opts, opts.identity_file, 'tmp/id_rsa')
+       ssh(ip, opts, 'sudo mv tmp/id_rsa ~/.ssh/')
+       scp(ip, opts, "config", ".ssh/config")
+  print "Copy machines hostfile to master..."
   hosts = get_internal_ips(conn, opts, cluster_name)
   hostfile = open("machines", "w")
   for ip in hosts:
@@ -544,12 +563,10 @@ def main():
     proxy_opt = ""
     if opts.proxy_port != None:
       proxy_opt = "-D " + opts.proxy_port
-      # DB: patch to setup-hadoop file, remove when image is updated
-    scp(master, opts, "../ec2_tools/setup-hadoop", '/home/ubuntu/graphlabapi/scripts/ec2_tools/')
-    subprocess.check_call("""ssh -o StrictHostKeyChecking=no -i %s %s ubuntu@%s \"export PATH=$PATH:/opt/hadoop-1.0.1/bin;
+    subprocess.check_call("""ssh -o StrictHostKeyChecking=no -i %s %s ubuntu@%s \"export PATH=$PATH:/opt/hadoop-1.2.1/bin;
         export CLASSPATH=$CLASSPATH:.:\`hadoop classpath\`;
-        export JAVA_HOME=/usr/lib/jvm/java-6-sun;
-        alias mpiexec='mpiexec.openmpi -hostfile ~/machines -x CLASSPATH'; /home/ubuntu/graphlabapi/scripts/ec2_tools/setup-hadoop\"""" % (opts.identity_file, proxy_opt, master), shell=True)
+        export JAVA_HOME=/usr/lib/jvm/java-6-openjdk-amd64/;
+        alias mpiexec='mpiexec.openmpi -hostfile ~/machines -x CLASSPATH -x JAVA_HOME'; /home/ubuntu/graphlab/scripts/ec2_tools/setup-hadoop\"""" % (opts.identity_file, proxy_opt, master), shell=True)
 
   elif action == "check-hadoop":
     (master_nodes, slave_nodes, zoo_nodes) = get_existing_cluster(
@@ -559,9 +576,9 @@ def main():
     proxy_opt = ""
     if opts.proxy_port != None:
       proxy_opt = "-D " + opts.proxy_port
-    subprocess.check_call("""ssh -o StrictHostKeyChecking=no -i %s %s ubuntu@%s \"export PATH=$PATH:/opt/hadoop-1.0.1/bin;
+    subprocess.check_call("""ssh -o StrictHostKeyChecking=no -i %s %s ubuntu@%s \"export PATH=$PATH:/opt/hadoop-1.2.1/bin;
         export CLASSPATH=$CLASSPATH:.:\`hadoop classpath\`;
-        export JAVA_HOME=/usr/lib/jvm/java-6-sun;
+        export JAVA_HOME=/usr/lib/jvm/java-6-openjdk-amd64/;
         jps\"""" % (opts.identity_file, proxy_opt, master), shell=True)
 
   elif action == "stop-hadoop":
@@ -572,10 +589,10 @@ def main():
     proxy_opt = ""
     if opts.proxy_port != None:
       proxy_opt = "-D " + opts.proxy_port
-    subprocess.check_call("""ssh -o StrictHostKeyChecking=no -i %s %s ubuntu@%s \"export PATH=$PATH:/opt/hadoop-1.0.1/bin;
+    subprocess.check_call("""ssh -o StrictHostKeyChecking=no -i %s %s ubuntu@%s \"export PATH=$PATH:/opt/hadoop-1.2.1/bin;
         export CLASSPATH=$CLASSPATH:.:\`hadoop classpath\`;
-        export JAVA_HOME=/usr/lib/jvm/java-6-sun;
-        alias mpiexec='mpiexec -hostfile ~/machines -x CLASSPATH'; /home/ubuntu/graphlabapi/deps/hadoop/src/hadoop/bin/stop-all.sh\"""" % (opts.identity_file, proxy_opt, master), shell=True)
+        export JAVA_HOME=/usr/lib/jvm/java-6-openjdk-amd64/;
+        alias mpiexec='mpiexec -hostfile ~/machines -x CLASSPATH'; /home/ubuntu/graphlab/deps/hadoop/src/hadoop/bin/stop-all.sh\"""" % (opts.identity_file, proxy_opt, master), shell=True)
 
   elif action == "als_demo":
     (master_nodes, slave_nodes, zoo_nodes) = get_existing_cluster(
@@ -585,10 +602,10 @@ def main():
     proxy_opt = ""
     if opts.proxy_port != None:
       proxy_opt = "-D " + opts.proxy_port
-    subprocess.check_call("""ssh -o StrictHostKeyChecking=no -i %s %s ubuntu@%s \"export PATH=$PATH:/opt/hadoop-1.0.1/bin;
-        export CLASSPATH=$CLASSPATH:.:\`hadoop classpath\`;
-        export JAVA_HOME=/usr/lib/jvm/java-6-sun;
-        cd graphlabapi/release/toolkits/collaborative_filtering/;
+    subprocess.check_call("""ssh -o StrictHostKeyChecking=no -i %s %s ubuntu@%s \"export PATH=$PATH:/bin/hadoop-1.2.1/bin;
+        export CLASSPATH=$CLASSPATH:.:\`/bin/hadoop-1.2.1/bin/hadoop classpath\`;
+        export JAVA_HOME=/usr/lib/jvm/java-6-openjdk-amd64/;
+        cd graphlab/release/toolkits/collaborative_filtering/;
         rm -fR smallnetflix; mkdir smallnetflix;
         cd smallnetflix/;
         wget http://graphlab.org/wp-content/uploads/2013/07/smallnetflix_mm.validate.gz;  #ugly, but we need to find a better place to host sample graphlab datasets
@@ -599,9 +616,31 @@ def main():
         hadoop fs -rmr hdfs://\`head -n 1 ~/machines\`/smallnetflix/;
         hadoop fs -copyFromLocal smallnetflix/ /;
         cat ~/machines
-        mpiexec.mpich2 -f ~/machines -envlist CLASSPATH -n 2 /home/ubuntu/graphlabapi/release/toolkits/collaborative_filtering/als --matrix hdfs://\`head -n 1 ~/machines\`/smallnetflix --max_iter=5 --ncpus=1 --predictions=out_predictions --minval=1 --maxval=5;
-        \"""" % (opts.identity_file, proxy_opt, master), shell=True)
+        mpiexec.openmpi -hostfile ~/machines -x CLASSPATH -n %d /home/ubuntu/graphlab/release/toolkits/collaborative_filtering/als --matrix hdfs://\`head -n 1 ~/machines\`/smallnetflix --max_iter=5 --ncpus=1 --predictions=out_predictions --minval=1 --maxval=5;
+        \"""" % (opts.identity_file, proxy_opt, master, opts.slaves+1), shell=True)
+  elif action == "svd_demo":
+    (master_nodes, slave_nodes, zoo_nodes) = get_existing_cluster( conn, opts, cluster_name)
+    master = master_nodes[0].public_dns_name
+    print "Running SVD demo on master " + master + "..."
+    proxy_opt = ""
+    if opts.proxy_port != None:
+      proxy_opt = "-D " + opts.proxy_port
+    subprocess.check_call("""ssh -o StrictHostKeyChecking=no -i %s %s ubuntu@%s \"export PATH=$PATH:/bin/hadoop-1.2.1/bin;
+        export CLASSPATH=$CLASSPATH:.:\`/bin/hadoop-1.2.1/bin/hadoop classpath\`;
+        export JAVA_HOME=/usr/lib/jvm/java-6-openjdk-amd64/;
+        cd graphlab/release/toolkits/collaborative_filtering/;
+        rm -fR livejournal; mkdir livejournal; cd livejournal/;
+        wget http://snap.stanford.edu/data/soc-LiveJournal1.txt.gz;
+        gunzip *.gz;
+        cd ..;
+        hadoop fs -rmr hdfs://\`head -n 1 ~/machines\`/livejournal/;
+        hadoop fs -copyFromLocal livejournal/ /;
+        cat ~/machines
+        mpiexec.openmpi -hostfile ~/machines -x CLASSPATH -n %d /home/ubuntu/graphlab/release/toolkits/collaborative_filtering/svd --matrix hdfs://\`head -n 1 ~/machines\`/livejournal --rows=4847572 --cols=4847571 --nsv=2 --nv=7 --max_iter=3 --tol=1e-2 --binary=true --save_vectors=1;
+        \"""" % (opts.identity_file, proxy_opt, master, opts.slaves+1), shell=True)
 
+
+ 
   elif action == "update":
     (master_nodes, slave_nodes, zoo_nodes) = get_existing_cluster(
         conn, opts, cluster_name)
@@ -610,12 +649,21 @@ def main():
     proxy_opt = ""
     if opts.proxy_port != None:
       proxy_opt = "-D " + opts.proxy_port
-    subprocess.check_call("""ssh -o StrictHostKeyChecking=no -i %s %s ubuntu@%s \"export PATH=$PATH:/opt/hadoop-1.0.1/bin;
-        export CLASSPATH=$CLASSPATH:.:`hadoop classpath`;
-        export JAVA_HOME=/usr/lib/jvm/java-6-sun;
+    scp(master, opts, "machines", '~/machines')
+    subprocess.check_call("""ssh -o StrictHostKeyChecking=no -i %s %s ubuntu@%s \"export PATH=$PATH:/bin/hadoop-1.2.1/bin/;
+        export CLASSPATH=$CLASSPATH:.:`/bin/hadoop-1.2.1/bin/hadoop classpath`;
+        export JAVA_HOME=/usr/lib/jvm/java-6-openjdk-amd64/;
         alias mpiexec='mpiexec -hostfile ~/machines -x CLASSPATH'; 
-        cd graphlabapi/;
-        hg pull; hg update; ./configure; cd release/toolkits/collaborative_filtering/; make; cd ~/graphlabapi/release/toolkits;  ~/graphlabapi/scripts/mpirsync
+        sudo chmod -R a+rx /home/ubuntu/graphlab/deps/hadoop/; #DB: ugly, but sovles libhdfs bug
+        cd graphlab/;
+        git pull;
+        ./configure; 
+        cd release/toolkits/collaborative_filtering/; 
+        make; 
+        cd ../graph_analytics/;
+        make;
+        cd ~/graphlab/release/toolkits;  
+        bash -x ~/graphlab/scripts/mpirsync
         \"""" % (opts.identity_file, proxy_opt, master), shell=True)
 
   elif action == "update-dbg":
@@ -628,8 +676,8 @@ def main():
       proxy_opt = "-D " + opts.proxy_port
     subprocess.check_call("""ssh -o StrictHostKeyChecking=no -i %s %s ubuntu@%s \"
         sudo apt-get install gdb; 
-        cd graphlabapi/;
-        hg pull; hg update; ./configure; cd debug; make; cd ~/graphlabapi/debug/toolkits;  ~/graphlabapi/scripts/mpirsync
+        cd graphlab/;
+        hg pull; hg update; ./configure; cd debug; make; cd ~/graphlab/debug/toolkits;  ~/graphlab/scripts/mpirsync
         \"""" % (opts.identity_file, proxy_opt, master), shell=True)
 
   elif action == "get-master":

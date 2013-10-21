@@ -285,7 +285,7 @@
   11 d.gov 10
   \endverbatim
 
-  Where each contains first an ID for the page, then the name of
+  Where each line contains first an ID for the page, then the name of
   the page, and finally a list of all the IDs the page links to.
   Thus describing the following graph:
   

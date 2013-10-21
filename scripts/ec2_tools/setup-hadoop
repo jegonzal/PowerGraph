@@ -10,13 +10,18 @@ fi
 mpiexec.openmpi -hostfile ~/machines -pernode \
     sudo rm -fR ~/.ssh/known_hosts
 
-
-
 namenode=`head -n 1 ~/machines` # first node is the master
+echo "Setting up config"
+echo -e \
+    "export JAVA_HOME=/usr/lib/jvm/java-6-openjdk-amd64/\n" > /bin/hadoop-1.2.1/conf/hadoop-env.sh
+cat /bin/hadoop-1.2.1/conf/hadoop-env.sh
+mpiexec.openmpi -hostfile ~/machines -pernode \
+    scp $namenode:/bin/hadoop-1.2.1/conf/hadoop-env.sh  /bin/hadoop-1.2.1/conf/hadoop-env.sh
+     
 echo "Setting up namenode information."
 echo "  namenode: " $namenode
 # mpiexec.openmpi -hostfile ~/machines -pernode \
-#     ~/bin/set-namenode.sh $namenode /opt/hadoop-1.0.1/conf/core-site.xml
+#     ~/bin/set-namenode.sh $namenode /bin/hadoop-1.2.1/conf/core-site.xml
 
 echo -e \
     '<?xml version="1.0"?>\n'\
@@ -30,10 +35,10 @@ echo -e \
     '    <name>hadoop.tmp.dir</name>\n'\
     '    <value>/mnt/hadoop/tmp</value>\n'\
     ' </property>\n'\
-    '</configuration>\n' > /opt/hadoop-1.0.1/conf/core-site.xml
-cat /opt/hadoop-1.0.1/conf/core-site.xml
+    '</configuration>\n' > /bin/hadoop-1.2.1/conf/core-site.xml
+cat /bin/hadoop-1.2.1/conf/core-site.xml
 mpiexec.openmpi -hostfile ~/machines -pernode \
-    scp $namenode:/opt/hadoop-1.0.1/conf/core-site.xml  /opt/hadoop-1.0.1/conf/core-site.xml
+    scp $namenode:/bin/hadoop-1.2.1/conf/core-site.xml  /bin/hadoop-1.2.1/conf/core-site.xml
 
 
 echo -e \
@@ -61,13 +66,13 @@ echo -e \
     '    <value>4</value> \n' \
     '  </property> \n' \
     '  <property> \n' \
-    '    <name>mapred.child.java.opts</name>\n' \
+    '    <name>mapred.child.java.bins</name>\n' \
     '    <value>-Xmx1500m</value> \n' \
     '  </property> \n' \
-    '</configuration>\n' > /opt/hadoop-1.0.1/conf/mapred-site.xml
-cat /opt/hadoop-1.0.1/conf/mapred-site.xml
+    '</configuration>\n' > /bin/hadoop-1.2.1/conf/mapred-site.xml
+cat /bin/hadoop-1.2.1/conf/mapred-site.xml
 mpiexec.openmpi -hostfile ~/machines -pernode \
-    scp $namenode:/opt/hadoop-1.0.1/conf/mapred-site.xml  /opt/hadoop-1.0.1/conf/mapred-site.xml
+    scp $namenode:/bin/hadoop-1.2.1/conf/mapred-site.xml  /bin/hadoop-1.2.1/conf/mapred-site.xml
 
 
 
@@ -87,15 +92,15 @@ echo -e \
     '    <name>dfs.replication</name>\n' \
     '    <value>3</value> \n' \
     '  </property> \n' \
-    '</configuration>\n' > /opt/hadoop-1.0.1/conf/hdfs-site.xml
-cat /opt/hadoop-1.0.1/conf/hdfs-site.xml
+    '</configuration>\n' > /bin/hadoop-1.2.1/conf/hdfs-site.xml
+cat /bin/hadoop-1.2.1/conf/hdfs-site.xml
 mpiexec.openmpi -hostfile ~/machines -pernode \
-    scp $namenode:/opt/hadoop-1.0.1/conf/hdfs-site.xml  /opt/hadoop-1.0.1/conf/hdfs-site.xml
+    scp $namenode:/bin/hadoop-1.2.1/conf/hdfs-site.xml  /bin/hadoop-1.2.1/conf/hdfs-site.xml
 
 
-echo $namenode > /opt/hadoop-1.0.1/conf/masters
+echo $namenode > /bin/hadoop-1.2.1/conf/masters
 mpiexec.openmpi -hostfile ~/machines -pernode \
-    scp $namenode:/opt/hadoop-1.0.1/conf/masters  /opt/hadoop-1.0.1/conf/masters
+    scp $namenode:/bin/hadoop-1.2.1/conf/masters  /bin/hadoop-1.2.1/conf/masters
 
 
 
@@ -142,12 +147,14 @@ do
   mpiexec.openmpi -host $line -pernode sudo hostname $line
 done < ~/machines
 
-hadoop namenode -format
+export JAVA_HOME=/usr/lib/jvm/java-6-openjdk-amd64/jre/
+
+/bin/hadoop-1.2.1/bin/hadoop namenode -format
 
 
 echo "Starting the dfs:"
-start-dfs.sh
+/bin/hadoop-1.2.1/bin/start-dfs.sh
 echo "Starting map reduce:"
-start-mapred.sh
+/bin/hadoop-1.2.1/bin/start-mapred.sh
 
 

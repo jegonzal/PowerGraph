@@ -15,16 +15,9 @@ The toolkit current contains:
  - \ref graph_analytics_approximate_diameter "Approximate Diameter"
  - \ref graph_analytics_partitioning "Graph Partitioning"
  - \ref graph_coloring "Graph Coloring"
+ - \ref graph_analytics_total_subgraph_centrality "Total Subgraph Centrality"
 
 All toolkits take any of the graph formats described in \ref graph_formats . 
-
-
-
-
-
-
-
-
 
 
 
@@ -640,7 +633,7 @@ Here is a toy example, graph with 6 nodes and 5 edges:
 
 Assume file name is toy_graph, the command used for running connected compnents is
 \verbatim
-> ./connected_component --graph=toy_graph --format=tsv
+> ./connected_component --graph=toy_graph --format=tsv --saveprefix=out
 \endverbatim
 
 
@@ -694,25 +687,25 @@ sizes.
 
 Using our toy example
 \verbatim
-# concatante all output files into a single file
-> cat out_*_of_ > out
-# run statistics to get a historgram of components sizes
 > ./connected_component_stats --graph=out
 Connected Component
 
 INFO:     mpi_tools.hpp(init:63): MPI Support was not compiled.
-INFO:     dc.cpp(init:554): Cluster of 1 instances created.
-INFO:     distributed_graph.hpp(set_ingress_method:3192): Automatically determine ingress method: grid
+INFO:     dc.cpp(init:573): Cluster of 1 instances created.
+INFO:     distributed_graph.hpp(set_ingress_method:3200): Automatically determine ingress method: grid
 Loading graph in format: adj
-INFO:     distributed_graph.hpp(load_from_posixfs:2188): Loading graph from file: ./out
+INFO:     distributed_graph.hpp(load_from_posixfs:2189): Loading graph from file: ./out_1_of_4
+INFO:     distributed_graph.hpp(load_from_posixfs:2189): Loading graph from file: ./out_2_of_4
+INFO:     distributed_graph.hpp(load_from_posixfs:2189): Loading graph from file: ./out_3_of_4
+INFO:     distributed_graph.hpp(load_from_posixfs:2189): Loading graph from file: ./out_4_of_4
 INFO:     distributed_ingress_base.hpp(finalize:185): Finalizing Graph...
 INFO:     distributed_ingress_base.hpp(exchange_global_info:519): Graph info:
 	 nverts: 2
 	 nedges: 0
 	 nreplicas: 2
 	 replication factor: 1
-Complete Finalization in 0.009531
-graph calculation time is 1.2e-05 sec
+Complete Finalization in 0.001965
+graph calculation time is 2.4e-05 sec
 RESULT:
 size	count
 3	2
@@ -856,5 +849,59 @@ for computation.
 \li \b --mpi-args (Optional, Default empty). If set, will execute mipexec with the given string.
   
   
-*/
+\section graph_analytics_total_subgraph_centrality "Total Subgraph Centrality"
+Total subgraph centrality was implemented by Jacob Kesinger, see additional
+details in his <a href="http://jacobkesinger.tumblr.com/post/64338572799/total-subgraph-centrality">blog post</a>.
+Total Subgraph Communicability is a new centrality measure due to
+Benzi&Klymco [1].   For a directed graph with adjacenty matrix A, 
+
+\verbatim
+TSC_i = sum_j exp(A)_{ij} = (exp(A)*1)_i.
+\endverbatim
+
+This code calculates the TSC using an Arnoldi iteration on the Krylov
+subspace {b, Ab,A*Ab, A*A*Ab, ...}  due to Saad[1], and using the new
+warp engine from Graphlab 2.2 (without which this would have been, at
+best, very challenging).
+
+Small components of large graphs will have bogus answers due to
+floating point issues.  To find the exact TSC for a particular node i,
+run with "--column i" to find exp(A)*e_i; you will have to sum the
+resulting output yourself, however.
+
+
+SAMPLE INPUT:
+\verbatim
+0	1
+1	2
+1	3
+2	4
+3	4
+1	0
+2	1
+3	1
+4	2
+4	3
+\endverbatim
+
+OUTPUT:
+\verbatim
+0 5.17784
+1 10.3319
+2 8.49789
+3 8.49789
+4 7.96807
+\endverbatim
+
+You can verify this in python as:
+\verbatim
+import scipy
+import scipy.linalg
+A = scipy.array([[0,1,0,0,0],[1,0,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,0,1,1,0]])
+scipy.linalg.expm2(A).sum(axis=1)
+\endverbatim
+
+[1]: Benzi, Michele, and Christine Klymko. Total Communicability as a Centrality Measure. ArXiv e-print, February 27, 2013. <a href="http://arxiv.org/abs/1302.6770">arxiv</a>
+
+[2]: Saad, Yousef. “Analysis of Some Krylov Subspace Approximations to the Matrix Exponential Operator.” SIAM Journal on Numerical Analysis 29, no. 1 (1992): 209–228.
 
