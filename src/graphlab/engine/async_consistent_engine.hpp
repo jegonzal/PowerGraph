@@ -451,7 +451,7 @@ namespace graphlab {
       timed_termination = (size_t)(-1);
       termination_reason = execution_status::UNSET;
       set_options(opts);
-      initialize();
+      init();
       total_completion_time.resize(fiber_control::get_instance().num_workers());
       init();
       rmi.barrier();
