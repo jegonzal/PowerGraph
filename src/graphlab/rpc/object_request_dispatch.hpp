@@ -148,11 +148,16 @@ void OBJECT_NONINTRUSIVE_REQUESTDISPATCH1 (DcType & dc, procid_t source,
                       request_reply_handler,                          \
                       id,                                               \
                       blob(retstrm->str, retstrm->len));                \
-    } else {                                                            \
-      dc.reply_remote_call(source,                                       \
-                          request_reply_handler,                      \
-                          id,                                           \
-                          blob(retstrm->str, retstrm->len));            \
+    } else if(packet_type_mask & FLUSH_PACKET) {                        \
+      dc.reply_remote_call(source,                                           \
+                      request_reply_handler,                          \
+                      id,                                               \
+                      blob(retstrm->str, retstrm->len));                \
+    }  else {                                                            \
+      dc.remote_call(source,                                       \
+                     request_reply_handler,                      \
+                     id,                                           \
+                     blob(retstrm->str, retstrm->len));            \
     }                                                                   \
     free(retstrm->str);                                                 \
     /* std::cerr << "Request received on " << id << std::endl ; */      \

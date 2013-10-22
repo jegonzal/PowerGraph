@@ -119,6 +119,7 @@ class  BOOST_PP_CAT(FNAME_AND_CALL, N) { \
       ++iter;    \
     } \
     free(arc.buf); \
+    if (flags & FLUSH_PACKET) pull_flush_soon_thread_local_buffer(); \
   }\
 };
 

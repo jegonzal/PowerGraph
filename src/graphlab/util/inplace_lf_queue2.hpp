@@ -71,6 +71,10 @@ class inplace_lf_queue2 {
     return numel;
    }
 
+   bool empty() const {
+     return head->next == NULL;
+   }
+
    T* dequeue_all() {
      // head is the sentinel
      T* ret_head = get_next(head);

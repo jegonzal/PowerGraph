@@ -46,6 +46,17 @@ void fiber_group::launch(const boost::function<void (void)> &spawn_function,
                                        worker_affinity);  
 }
 
+void fiber_group::launch(const boost::function<void (void)> &spawn_function,
+                         size_t worker_affinity) {
+  increment_running_counter();
+  fiber_group::affinity_type affinity;
+  affinity.set_bit(worker_affinity);
+  fiber_control::get_instance().launch(boost::bind(invoke, spawn_function, this), 
+                                       stacksize,
+                                       affinity);  
+}
+
+
 void fiber_group::join() {
   join_lock.lock();
   // no one else is waiting
