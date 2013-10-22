@@ -93,15 +93,14 @@ class fiber_control {
     volatile bool waiting;
     size_t nwaiting;
     // a queue of fibers to evaluate before those in the thread_queue
-    inplace_lf_queue2<fiber> affinity_queue;
+    inplace_lf_queue2<fiber>* affinity_queue;
     fiber* popped_affinity_queue;
 
-    inplace_lf_queue2<fiber> priority_queue;
+    inplace_lf_queue2<fiber>* priority_queue;
     fiber* popped_priority_queue;
   };
   std::vector<thread_schedule> schedule;
 
-  atomic<size_t> nactive;
   thread_group workers;
 
 
@@ -163,9 +162,6 @@ class fiber_control {
                 size_t stacksize = 8192, 
                 affinity_type worker_affinity = all_affinity());
 
-  inline size_t num_active() const {
-    return nactive;
-  }
 
   /**
    * Waits for all functions to join
