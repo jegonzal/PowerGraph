@@ -35,7 +35,7 @@
 #include "eigen_serialization.hpp"
 #include <graphlab/util/stl_util.hpp>
 #include <graphlab.hpp>
-
+#include <graphlab/warp.hpp>
 
 
 //when using negative node id range, we are not allowed to use
@@ -67,6 +67,7 @@ int kk = 0;
 bool binary = false; //if true, all edges = 1
 mat a,PT;
 bool v_vector = false;
+int input_file_offset = 0; //if set to non zero, each row/col id will be reduced the input_file_offset
 
 DECLARE_TRACER(svd_bidiagonal);
 DECLARE_TRACER(svd_error_estimate);
@@ -169,10 +170,10 @@ get_other_vertex(graph_type::edge_type& edge,
 //typedef double gather_type;
 typedef double message_type;
 
-
+typedef graphlab::warp::warp_engine<graph_type> engine_type;
 #include "math.hpp" //uses vertex_data and edge_data so has to be included here
 #include "printouts.hpp" // the same
-typedef graphlab::omni_engine<Axb> engine_type;
+
 engine_type * pengine = NULL;
 
 
@@ -243,6 +244,10 @@ inline bool init_vec_loader(graph_type& graph,
   graph_type::vertex_id_type source_id(-1), target_id(-1);
   float obs(0);
   strm >> source_id >> target_id >> obs; 
+  if (input_file_offset != 0){
+     source_id-= input_file_offset;
+     target_id-= input_file_offset;
+  }
 
   // Create an edge and add it to the graph
   vertex_data vertex;
@@ -281,7 +286,11 @@ inline bool graph_loader(graph_type& graph,
   graph_type::vertex_id_type source_id(-1), target_id(-1);
   float obs = 1;
   strm >> source_id >> target_id;
-  //source_id--; target_id--;
+  
+  if (input_file_offset != 0){
+     source_id-=input_file_offset; 
+     target_id-=input_file_offset;
+  }
   if (source_id >= (uint)rows)
     logstream(LOG_FATAL)<<"Problem at input line: [ " << line << " ] row id ( = " << source_id+1 << " ) should be <= than matrix rows (= " << rows << " ) " << std::endl;
   if (target_id >= (uint)cols)
@@ -369,7 +378,7 @@ vec lanczos(bipartite_graph_descriptor & info, timer & mytimer, vec & errest,
   PRINT_INT(nv);
 
   while(nconv < nsv && its < max_iter){
-    logstream(LOG_INFO)<<"Starting iteration: " << its << " at time: " << mytimer.current_time() << std::endl;
+    logstream(LOG_EMPH)<<"Starting iteration: " << its << " at time: " << mytimer.current_time() << std::endl;
     int k = nconv;
     n  = nv;
     PRINT_INT(k);
@@ -385,7 +394,7 @@ vec lanczos(bipartite_graph_descriptor & info, timer & mytimer, vec & errest,
     PRINT_VEC3("alpha", alpha, 0);
 
     for (int i=k+1; i<n; i++){
-      logstream(LOG_INFO) <<"Starting step: " << i << " at time: " << mytimer.current_time() << std::endl;
+      logstream(LOG_EMPH) <<"Starting step: " << i << " at time: " << mytimer.current_time() << std::endl;
       PRINT_INT(i);
 
       V[i]=U[i-1]*A;
@@ -597,7 +606,6 @@ int main(int argc, char** argv) {
     "Compute the gklanczos factorization of a matrix.";
   graphlab::command_line_options clopts(description);
   std::string input_dir, output_dir;
-  std::string exec_type = "synchronous";
   clopts.attach_option("matrix", input_dir,
       "The directory containing the matrix file");
   clopts.add_positional("matrix");
@@ -619,6 +627,7 @@ int main(int argc, char** argv) {
   clopts.attach_option("id", use_ids, "if set, will output row ids for U and V when saving");
   clopts.attach_option("predictions", predictions, "predictions file prefix");
   clopts.attach_option("binary", binary, "If true, all edges are weighted as one");
+  clopts.attach_option("input_file_offset", input_file_offset, "input file node id offset (default 0)");
   if(!clopts.parse(argc, argv) || input_dir == "") {
     std::cout << "Error in parsing command line arguments." << std::endl;
     clopts.print_description();
@@ -634,6 +643,7 @@ int main(int argc, char** argv) {
     nsv = 3; nv = 3;
     rows = 3; cols = 4;
     debug = true;
+    input_file_offset = 1;
     //core.set_ncpus(1);
   }
   else if (unittest == 2){
@@ -707,7 +717,13 @@ int main(int argc, char** argv) {
     << std::endl;
 
   dc.cout() << "Creating engine" << std::endl;
-  engine_type engine(dc, graph, exec_type, clopts);
+ // Running The Engine -------------------------------------------------------
+  engine_type engine(dc, graph, clopts);
+  //engine.register_map_reduce(AXB_MAP_REDUCE,
+  //                           Axb_map,
+  //                           Axb_combine);
+
+  engine.set_update_function(Axb);
   pengine = &engine;
 
   dc.cout() << "Running SVD (gklanczos)" << std::endl;
@@ -727,7 +743,7 @@ int main(int argc, char** argv) {
     for (int i=0; i< rows; i++){
       int rc = fscanf(file, "%lg\n", &val);
       if (rc != 1)
-        logstream(LOG_FATAL)<<"Failed to open initial vector"<< std::endl;
+        logstream(LOG_FATAL)<<"Failed to read initial vector"<< std::endl;
       input[i] = val;
     }
     fclose(file);

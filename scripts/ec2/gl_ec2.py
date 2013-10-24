@@ -38,6 +38,7 @@ from boto.ec2.blockdevicemapping import BlockDeviceMapping, EBSBlockDeviceType
 STD_AMI_URL = "https://s3.amazonaws.com/GraphLabGit/graphlab2-std"
 HVM_AMI_URL = "https://s3.amazonaws.com/graphlabv2-ami/graphlab2-hvm"
 
+compilation_threads = 4
 
 # Configure and parse our command-line arguments
 def parse_args():
@@ -55,7 +56,7 @@ def parse_args():
   parser.add_option("-i", "--identity-file", 
       help="SSH private key file to use for logging into instances")
   parser.add_option("-t", "--instance-type", default="m1.xlarge",
-      help="Type of instance to launch (default: m1.large). " +
+      help="Type of instance to launch (default: m1.xlarge). " +
            "WARNING: must be 64-bit; small instances won't work")
   parser.add_option("-m", "--master-instance-type", default="",
       help="Master instance type (leave empty for same as instance-type)")
@@ -108,6 +109,10 @@ def parse_args():
     print >> stderr, ("ERROR: The environment variable AWS_SECRET_ACCESS_KEY " +
                       "must be set")
     sys.exit(1)
+
+  if opts.instance_type == "m1.xlarge":
+    compilation_threads = 4
+
   return (opts, action, cluster_name)
 
 
@@ -161,6 +166,8 @@ def launch_cluster(conn, opts, cluster_name):
     master_group.authorize(src_group=slave_group)
     master_group.authorize(src_group=zoo_group)
     master_group.authorize('tcp', 22, 22, '0.0.0.0/0')
+    master_group.authorize('tcp', 0, 65535, '0.0.0.0/0')
+    master_group.authorize('udp', 0, 65535, '0.0.0.0/0')
     master_group.authorize('tcp', 8080, 8081, '0.0.0.0/0')
     master_group.authorize('tcp', 50030, 50030, '0.0.0.0/0')
     master_group.authorize('tcp', 50070, 50070, '0.0.0.0/0')
@@ -170,6 +177,8 @@ def launch_cluster(conn, opts, cluster_name):
     slave_group.authorize(src_group=master_group)
     slave_group.authorize(src_group=slave_group)
     slave_group.authorize(src_group=zoo_group)
+    slave_group.authorize('tcp', 0, 65535, '0.0.0.0/0')
+    slave_group.authorize('udp', 0, 65535, '0.0.0.0/0')
     slave_group.authorize('tcp', 22, 22, '0.0.0.0/0')
     slave_group.authorize('tcp', 8080, 8081, '0.0.0.0/0')
     slave_group.authorize('tcp', 50060, 50060, '0.0.0.0/0')
@@ -659,12 +668,12 @@ def main():
         git pull;
         ./configure; 
         cd release/toolkits/collaborative_filtering/; 
-        make; 
+        make -j %d; 
         cd ../graph_analytics/;
-        make;
+        make -j %d;
         cd ~/graphlab/release/toolkits;  
         bash -x ~/graphlab/scripts/mpirsync
-        \"""" % (opts.identity_file, proxy_opt, master), shell=True)
+        \"""" % (opts.identity_file, proxy_opt, master, compilation_threads, compilation_threads), shell=True)
 
   elif action == "update-dbg":
     (master_nodes, slave_nodes, zoo_nodes) = get_existing_cluster(
