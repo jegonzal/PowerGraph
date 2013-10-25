@@ -28,7 +28,6 @@
 #include "graphlab.hpp"
 #include "graphlab/util/tracepoint.hpp"
 
-#define AXB_MAP_REDUCE 0
 
 DECLARE_TRACER(Axbtrace);
 DECLARE_TRACER(Axbtrace2);
@@ -93,75 +92,93 @@ double runtime = 0;
 using namespace graphlab;
 
 vec curvec;
-
-
-
-double Axb_map(graph_type::edge_type edge, graph_type::vertex_type vertex) {
-  bool brows = vertex.id() < (uint)info.get_start_node(false);
-  if (info.is_square()) 
+/***
+ * UPDATE FUNCTION (ROWS)
+ */
+class Axb :
+  public graphlab::ivertex_program<graph_type, double>,
+  public graphlab::IS_POD_TYPE {
+    float last_change;
+    public:
+    /* Gather the weighted rank of the adjacent page   */
+    double gather(icontext_type& context, const vertex_type& vertex,
+        edge_type& edge) const {
+      bool brows = vertex.id() < (uint)info.get_start_node(false);
+      if (info.is_square()) 
         brows = !mi.A_transpose;
-  if (mi.A_offset  && mi.x_offset >= 0){
-        double val = edge.data().obs * (!brows ? edge.target().data().pvec[mi.x_offset] :
+      if (mi.A_offset  && mi.x_offset >= 0){
+        double val = edge.data().obs * (brows ? edge.target().data().pvec[mi.x_offset] :
             edge.source().data().pvec[mi.x_offset]);
-        //printf("edge on vertex %d [%d-%d] val %lg obs %lg %e %e\n", vertex.id(), edge.source().id(), edge.target().id(), val, edge.data().obs, edge.target().data().pvec[mi.x_offset], edge.source().data().pvec[mi.x_offset]);
+        //printf("edge on vertex %d val %lg obs %lg\n", vertex.id(), val, edge.data().obs);
         return val;
-  }
-  //printf("edge on vertex %d val %lg\n", vertex.id(), 0.0);
-  return 0;
-}
+      }
+      //printf("edge on vertex %d val %lg\n", vertex.id(), 0.0);
+      return 0;
+    }
 
-void Axb_combine(double& v1, const double& v2) {
-  v1 += v2;
-}
+    /* Use the total rank of adjacent pages to update this page */
+    void apply(icontext_type& context, vertex_type& vertex,
+        const double& total) {
 
-void Axb(engine_type::context_type& context,
-                     graph_type::vertex_type& vertex) {
-  //double prev = vertex.data();
-  edge_dir_type type = ALL_EDGES;
-  if (info.is_square() && !mi.A_transpose)
-    type = OUT_EDGES;
-  else if (info.is_square() && mi.A_transpose)
-    type =  IN_EDGES;
-      
-  double total = warp::map_reduce_neighborhood<double>(vertex, type, Axb_map);
+      //printf("Entered apply on node %d value %lg\n", vertex.id(), total);
+      vertex_data & user = vertex.data();
+      assert(mi.x_offset >=0 || mi.y_offset >= 0);
+      assert(mi.r_offset >=0);
 
-  //printf("Entered apply on node %d value %lg\n", vertex.id(), total);
-  vertex_data & user = vertex.data();
-  assert(mi.x_offset >=0 || mi.y_offset >= 0);
-  assert(mi.r_offset >=0);
-
-  double val = total;
+      double val = total;
       //assert(total != 0 || mi.y_offset >= 0);
 
-  //store previous value for convergence detection
-  if (mi.prev_offset >= 0)
-    user.pvec[mi.prev_offset ] = user.pvec[mi.r_offset];
+      //store previous value for convergence detection
+      if (mi.prev_offset >= 0)
+        user.pvec[mi.prev_offset ] = user.pvec[mi.r_offset];
 
-  assert(mi.x_offset >=0 || mi.y_offset>=0);
-  if (mi.A_offset  && mi.x_offset >= 0){
+      assert(mi.x_offset >=0 || mi.y_offset>=0);
+      if (mi.A_offset  && mi.x_offset >= 0){
         if  (info.is_square() && mi.use_diag)// add the diagonal term
           val += (/*mi.c**/ (user.A_ii+ regularization) * user.pvec[mi.x_offset]);
         //printf("node %d added diag term: %lg\n", vertex.id(), user.A_ii);
         val *= mi.c;
       }
-  /***** COMPUTE r = c*I*x  *****/
-  else if (!mi.A_offset && mi.x_offset >= 0){
+      /***** COMPUTE r = c*I*x  *****/
+      else if (!mi.A_offset && mi.x_offset >= 0){
         val = mi.c*user.pvec[mi.x_offset];
-  }
+      }
 
-  /**** COMPUTE r+= d*y (optional) ***/
-  if (mi.y_offset>= 0){
+      /**** COMPUTE r+= d*y (optional) ***/
+      if (mi.y_offset>= 0){
         val += mi.d*user.pvec[mi.y_offset]; 
       }
 
-  /***** compute r = (... ) / div */
-  if (mi.div_offset >= 0){
+      /***** compute r = (... ) / div */
+      if (mi.div_offset >= 0){
         val /= user.pvec[mi.div_offset];
-  }
-  //user.pvec[mi.r_offset] = val;
-  vertex.data().pvec[mi.r_offset] = val;
-}
-   
+      }
+      user.pvec[mi.r_offset] = val;
+      //assert(val != 0);
+      //printf("Exit apply on node %d value %lg\n", vertex.id(), val);
+    }
+    edge_dir_type gather_edges(icontext_type& context,
+        const vertex_type& vertex) const {
+      if (info.is_square() && !mi.A_transpose)
+        return OUT_EDGES;
+      else if (info.is_square() && mi.A_transpose)
+        return IN_EDGES;
+      else return ALL_EDGES;
+    }
+
+
+    edge_dir_type scatter_edges(icontext_type& context,
+        const vertex_type& vertex) const {
+      return NO_EDGES;
+    }
+
+    /* The scatter function just signal adjacent pages */
+    void scatter(icontext_type& context, const vertex_type& vertex,
+        edge_type& edge) const {
+      //context.signal(edge.target());
+    }
+
+  }; 
 
 void init_lanczos_mapr( graph_type::vertex_type& vertex) {
   assert(actual_vector_len > 0);
@@ -171,6 +188,68 @@ void init_lanczos_mapr( graph_type::vertex_type& vertex) {
 
 
 
+#if 0
+struct Axb:
+  public iupdate_functor<graph_type, Axb> {
+
+    void operator()(icontext_type &context){
+      if (context.vertex_id() < (uint)mi.start || context.vertex_id() >= (uint)mi.end)
+        return;
+
+      vertex_data& user = context.vertex_data();
+      bool rows = context.vertex_id() < (uint)info.get_start_node(false);
+      if (info.is_square()) 
+        rows = mi.A_transpose;
+      assert(mi.r_offset >=0);
+      //store previous value for convergence detection
+      if (mi.prev_offset >= 0)
+        user.pvec[mi.prev_offset ] = user.pvec[mi.r_offset];
+
+      double val = 0;
+      assert(mi.x_offset >=0 || mi.y_offset>=0);
+      timer t; t.start();
+
+      /*** COMPUTE r = c*A*x  ********/
+      if (mi.A_offset  && mi.x_offset >= 0){
+        edge_list edges = rows?
+          context.out_edges() : context.in_edges(); 
+        for (size_t i = 0; i < edges.size(); i++){
+          const edge_data & edge = context.edge_data(edges[i]);
+          const vertex_data  & movie = context.const_vertex_data(rows ? edges[i].target() : edges[i].source());
+          val += (edge.weight * movie.pvec[mi.x_offset]);
+        }
+
+        if  (info.is_square() && mi.use_diag)// add the diagonal term
+          val += (/*mi.c**/ (user.A_ii+ regularization) * user.pvec[mi.x_offset]);
+
+        val *= mi.c;
+      }
+      /***** COMPUTE r = c*I*x  *****/
+      else if (!mi.A_offset && mi.x_offset >= 0){
+        val = mi.c*user.pvec[mi.x_offset];
+      }
+
+      /**** COMPUTE r+= d*y (optional) ***/
+      if (mi.y_offset>= 0){
+        val += mi.d*user.pvec[mi.y_offset]; 
+      }
+
+      /***** compute r = (... ) / div */
+      if (mi.div_offset >= 0){
+        val /= user.pvec[mi.div_offset];
+      }
+      user.pvec[mi.r_offset] = val;
+    }
+    void operator+=(const Axb& other) { 
+    }
+
+    void finalize(iglobal_context_type& context) {
+    } 
+  };
+#endif
+//for (int i=start; i< end; i++){  
+//  pgraph->vertex_data(i).pvec[offset] = pvec[i-start];
+//}
 void init_math(graph_type * _pgraph, bipartite_graph_descriptor & _info, double ortho_repeats = 3, 
     bool update_function = false){
   pgraph = _pgraph;
