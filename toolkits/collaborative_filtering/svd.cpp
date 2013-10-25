@@ -35,7 +35,7 @@
 #include "eigen_serialization.hpp"
 #include <graphlab/util/stl_util.hpp>
 #include <graphlab.hpp>
-#include <graphlab/warp.hpp>
+
 
 
 //when using negative node id range, we are not allowed to use
@@ -170,10 +170,10 @@ get_other_vertex(graph_type::edge_type& edge,
 //typedef double gather_type;
 typedef double message_type;
 
-typedef graphlab::warp::warp_engine<graph_type> engine_type;
+
 #include "math.hpp" //uses vertex_data and edge_data so has to be included here
 #include "printouts.hpp" // the same
-
+typedef graphlab::omni_engine<Axb> engine_type;
 engine_type * pengine = NULL;
 
 
@@ -243,11 +243,12 @@ inline bool init_vec_loader(graph_type& graph,
   std::stringstream strm(line);
   graph_type::vertex_id_type source_id(-1), target_id(-1);
   float obs(0);
-  strm >> source_id >> target_id >> obs; 
+  strm >> source_id >> target_id >> obs;
   if (input_file_offset != 0){
      source_id-= input_file_offset;
      target_id-= input_file_offset;
   }
+
 
   // Create an edge and add it to the graph
   vertex_data vertex;
@@ -278,15 +279,9 @@ inline bool graph_loader(graph_type& graph,
   
   // Parse the line
   std::stringstream strm(line);
-  
-  //skip comments begining with "#"
-  if (line.find("#") != std::string::npos)
-    return true;
-
   graph_type::vertex_id_type source_id(-1), target_id(-1);
   float obs = 1;
   strm >> source_id >> target_id;
-  
   if (input_file_offset != 0){
      source_id-=input_file_offset; 
      target_id-=input_file_offset;
@@ -299,7 +294,7 @@ inline bool graph_loader(graph_type& graph,
   if (!binary)
      strm >> obs;
   if (!info.is_square())
-     target_id = rows + target_id;
+    target_id = rows + target_id;
 
   if (source_id == target_id){
       vertex_data data;
@@ -351,8 +346,7 @@ void compute_ritz(graph_type::vertex_type & vertex){
   tmp = tmp.transpose() * (v_vector ? PT : a);
   memcpy(&vertex.data().pvec[offset] ,&tmp[0], kk*sizeof(double)); 
   if (debug)
-    std::cout<<"Entered ritz with " << vertex.id() << " offset: " << offset << " , v_vector: " << v_vector << "data_size: " << 
-	       data_size << " kk: " << kk << " tmp[0] " << tmp[0] << std::endl;
+     std::cout<<"Entered ritz with " << offset << " , v_vector: " << v_vector << "data_size: " << data_size << " kk: " << kk << std::endl;
 }  
 
 
@@ -606,6 +600,7 @@ int main(int argc, char** argv) {
     "Compute the gklanczos factorization of a matrix.";
   graphlab::command_line_options clopts(description);
   std::string input_dir, output_dir;
+  std::string exec_type = "synchronous";
   clopts.attach_option("matrix", input_dir,
       "The directory containing the matrix file");
   clopts.add_positional("matrix");
@@ -635,7 +630,7 @@ int main(int argc, char** argv) {
   }
   if (quiet){
     global_logger().set_log_level(LOG_ERROR);
-    //debug = false;
+    debug = false;
   }
   if (unittest == 1){
     datafile = "gklanczos_testA/"; 
@@ -671,7 +666,6 @@ int main(int argc, char** argv) {
     logstream(LOG_WARNING)<<"GraphLab SVD does not support square matrices. Increasing row size by one." << std::endl;
     rows++; 
   }
-     
   info.rows = rows;
   info.cols = cols;
 
@@ -717,13 +711,7 @@ int main(int argc, char** argv) {
     << std::endl;
 
   dc.cout() << "Creating engine" << std::endl;
- // Running The Engine -------------------------------------------------------
-  engine_type engine(dc, graph, clopts);
-  //engine.register_map_reduce(AXB_MAP_REDUCE,
-  //                           Axb_map,
-  //                           Axb_combine);
-
-  engine.set_update_function(Axb);
+  engine_type engine(dc, graph, exec_type, clopts);
   pengine = &engine;
 
   dc.cout() << "Running SVD (gklanczos)" << std::endl;
