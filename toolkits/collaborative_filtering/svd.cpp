@@ -272,6 +272,8 @@ inline bool graph_loader(graph_type& graph,
     return true;
   if (boost::ends_with(filename,"singular_values") || boost::ends_with(filename, "_v0"))
     return true;
+  if (line.find("#") != std::string::npos)
+    return true;
 
   ASSERT_FALSE(line.empty()); 
   // Determine the role of the data

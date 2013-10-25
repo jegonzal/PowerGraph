@@ -280,7 +280,7 @@ void distributed_control::deferred_function_call_chunk(char* buf, size_t len, pr
 //   const uint32_t r2 = prod % fcallqueue.size();
 //   uint32_t idx = (fcallqueue[r1].size() < fcallqueue[r2].size()) ? r1 : r2;  
 //   fcallqueue[idx].enqueue(fc);
-//   END_TRACEPOINT(dc_receive_queuing);
+  END_TRACEPOINT(dc_receive_queuing);
 }
 
 
