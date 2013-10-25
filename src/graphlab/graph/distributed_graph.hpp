@@ -82,6 +82,9 @@
 #include <graphlab/graph/ingress/sharding_constraint.hpp>
 #include <graphlab/graph/ingress/distributed_constrained_random_ingress.hpp>
 
+#include <graphlab/graph/ingress/distributed_hybrid_ingress.hpp>
+#include <graphlab/graph/ingress/distributed_hybrid_ginger_ingress.hpp>
+
 #include <graphlab/graph/graph_hash.hpp>
 
 #include <graphlab/util/hopscotch_map.hpp>
@@ -401,10 +404,18 @@ namespace graphlab {
     friend class distributed_identity_ingress<VertexData, EdgeData>;
     friend class distributed_oblivious_ingress<VertexData, EdgeData>;
     friend class distributed_constrained_random_ingress<VertexData, EdgeData>;
+    friend class distributed_hybrid_ingress<VertexData, EdgeData>;
+    friend class distributed_hybrid_ginger_ingress<VertexData, EdgeData>;
 
     typedef graphlab::vertex_id_type vertex_id_type;
     typedef graphlab::lvid_type lvid_type;
     typedef graphlab::edge_id_type edge_id_type;
+
+    enum zone_type {HIGH_MASTER = 0, LOW_MASTER, 
+      HIGH_MIRROR, LOW_MIRROR, NUM_ZONE_TYPES};
+
+    enum cuts_type {VERTEX_CUTS = 0, EDGE_CUTS, HYBRID_CUTS, HYBRID_GINGER_CUTS,
+      ZONE_CUTS, NUM_CUTS_TYPES};
 
     struct vertex_type;
     typedef bool edge_list_type;
@@ -613,7 +624,7 @@ namespace graphlab {
                       const graphlab_options& opts = graphlab_options()) :
       rpc(dc, this), finalized(false), vid2lvid(),
       nverts(0), nedges(0), local_own_nverts(0), nreplicas(0),
-      ingress_ptr(NULL), 
+      how_cuts(VERTEX_CUTS), ingress_ptr(NULL),
 #ifdef _OPENMP
       vertex_exchange(dc, omp_get_max_threads()), 
 #else
@@ -637,6 +648,13 @@ namespace graphlab {
       size_t bufsize = 50000;
       bool usehash = false;
       bool userecent = false;
+      // hybrid cut
+      size_t threshold = 100;
+      // ginger heuristic
+      size_t interval = std::numeric_limits<size_t>::max();
+      size_t nedges = 0;
+      size_t nverts = 0;
+    
       std::string ingress_method = "";
       std::vector<std::string> keys = opts.get_graph_args().get_option_keys();
       foreach(std::string opt, keys) {
@@ -650,30 +668,52 @@ namespace graphlab {
           if (!parallel_ingress && rpc.procid() == 0)
             logstream(LOG_EMPH) << "Disable parallel ingress. Graph will be streamed through one node."
               << std::endl;
+        } else if (opt == "threshold") {
+          opts.get_graph_args().get_option("threshold", threshold);
+          if (rpc.procid() == 0)
+            logstream(LOG_EMPH) << "Graph Option: threshold = "
+                                << threshold << std::endl;
+        } else if (opt == "interval") {
+          opts.get_graph_args().get_option("interval", interval);
+          if (rpc.procid() == 0)
+            logstream(LOG_EMPH) << "Graph Option: interval = "
+                                << interval << std::endl;
+        }  else if (opt == "nedges") {
+          opts.get_graph_args().get_option("nedges", nedges);
+          if (rpc.procid() == 0)
+            logstream(LOG_EMPH) << "Graph Option: nedges = "
+                                << nedges << std::endl;
+        } else if (opt == "nverts") {
+          opts.get_graph_args().get_option("nverts", nverts);
+          if (rpc.procid() == 0)
+            logstream(LOG_EMPH) << "Graph Option: nverts = "
+                                << nverts << std::endl;
         }
+        
         /**
          * These options below are deprecated.
          */
         else if (opt == "bufsize") {
           opts.get_graph_args().get_option("bufsize", bufsize);
-           if (rpc.procid() == 0)
+          if (rpc.procid() == 0)
             logstream(LOG_EMPH) << "Graph Option: bufsize = "
               << bufsize << std::endl;
-       } else if (opt == "usehash") {
+        } else if (opt == "usehash") {
           opts.get_graph_args().get_option("usehash", usehash);
           if (rpc.procid() == 0)
             logstream(LOG_EMPH) << "Graph Option: usehash = "
               << usehash << std::endl;
         } else if (opt == "userecent") {
           opts.get_graph_args().get_option("userecent", userecent);
-           if (rpc.procid() == 0)
+          if (rpc.procid() == 0)
             logstream(LOG_EMPH) << "Graph Option: userecent = "
               << userecent << std::endl;
-        }  else {
+        } else {
           logstream(LOG_ERROR) << "Unexpected Graph Option: " << opt << std::endl;
         }
-    }
-      set_ingress_method(ingress_method, bufsize, usehash, userecent);
+      }
+      set_ingress_method(ingress_method, bufsize, usehash, userecent,
+        threshold, nedges, nverts, interval);
     }
 
   public:
@@ -892,6 +932,30 @@ namespace graphlab {
       return true;
     }
 
+    /* used by radj */
+    void add_edge(std::vector<vertex_id_type>& sources, vertex_id_type target,
+                  const std::vector<EdgeData>& edatas) {
+#ifndef USE_DYNAMIC_LOCAL_GRAPH
+      if(finalized) {
+        logstream(LOG_FATAL)
+          << "\n\tAttempting to add an edge to a finalized graph."
+          << "\n\tEdges cannot be added to a graph after finalization."
+          << std::endl;
+      }
+#else 
+      finalized = false;
+#endif
+      if(target == vertex_id_type(-1)) {
+        logstream(LOG_FATAL)
+          << "\n\tThe target vertex with id vertex_id_type(-1)\n"
+          << "\tor unsigned value " << vertex_id_type(-1) << " in edge \n"
+          << "\tThe -1 vertex id is reserved for internal use."
+          << std::endl;
+      }
+      ASSERT_NE(ingress_ptr, NULL);
+
+      ingress_ptr->add_edges(sources, target, edatas);
+    }
 
    /**
     * \brief Performs a map-reduce operation on each vertex in the
@@ -2180,10 +2244,8 @@ namespace graphlab {
         logstream(LOG_WARNING) << "No files found matching " << original_path << std::endl;
       }
 
-#ifdef _OPENMP
-#pragma omp parallel for
-#endif
-      for(size_t i = 0; i < graph_files.size(); ++i) {
+      if (get_cuts_type() == HYBRID_GINGER_CUTS) {
+        for(size_t i = 0; i < graph_files.size(); ++i) {
         if ((parallel_ingress && (i % rpc.numprocs() == rpc.procid()))
             || (!parallel_ingress && (rpc.procid() == 0))) {
           logstream(LOG_EMPH) << "Loading graph from file: " << graph_files[i] << std::endl;
@@ -2206,6 +2268,35 @@ namespace graphlab {
           if (gzip) fin.pop();
         }
       }
+      } else {
+#ifdef _OPENMP
+#pragma omp parallel for
+#endif
+        for(size_t i = 0; i < graph_files.size(); ++i) {
+          if ((parallel_ingress && (i % rpc.numprocs() == rpc.procid()))
+              || (!parallel_ingress && (rpc.procid() == 0))) {
+            logstream(LOG_EMPH) << "Loading graph from file: " << graph_files[i] << std::endl;
+            // is it a gzip file ?
+            const bool gzip = boost::ends_with(graph_files[i], ".gz");
+            // open the stream
+            std::ifstream in_file(graph_files[i].c_str(),
+                                  std::ios_base::in | std::ios_base::binary);
+            // attach gzip if the file is gzip
+            boost::iostreams::filtering_stream<boost::iostreams::input> fin;
+            // Using gzip filter
+            if (gzip) fin.push(boost::iostreams::gzip_decompressor());
+            fin.push(in_file);
+            const bool success = load_from_stream(graph_files[i], fin, line_parser);
+            if(!success) {
+              logstream(LOG_FATAL)
+                << "\n\tError parsing file: " << graph_files[i] << std::endl;
+            }
+            fin.pop();
+            if (gzip) fin.pop();
+          }
+        }
+      }
+
       rpc.full_barrier();
     } // end of load from posixfs
 
@@ -2416,6 +2507,9 @@ namespace graphlab {
       } else if (format == "adj") {
         line_parser = builtin_parsers::adj_parser<distributed_graph>;
         load(path, line_parser);
+      } else if (format == "radj") {
+        line_parser = builtin_parsers::radj_parser<distributed_graph>;
+        load(path, line_parser);
       } else if (format == "tsv") {
         line_parser = builtin_parsers::tsv_parser<distributed_graph>;
         load(path, line_parser);
@@ -2596,6 +2690,8 @@ namespace graphlab {
     struct vertex_record {
       /// The official owning processor for this vertex
       procid_t owner;
+      /// The type of vertex
+      zone_type type;
       /// The local vid of this vertex on this proc
       vertex_id_type gvid;
       /// The number of in edges
@@ -2618,6 +2714,7 @@ namespace graphlab {
       void load(iarchive& arc) {
         clear();
         arc >> owner
+			>> type
             >> gvid
             >> num_in_edges
             >> num_out_edges
@@ -2626,6 +2723,7 @@ namespace graphlab {
 
       void save(oarchive& arc) const {
         arc << owner
+			<< type
             << gvid
             << num_in_edges
             << num_out_edges
@@ -2811,6 +2909,13 @@ namespace graphlab {
       return lvid2record[lvid].owner;
     }
 
+    /** \internal
+     * \brief Returns the type of vertex.
+     */
+    zone_type l_type(lvid_type lvid) const {
+      ASSERT_LT(lvid, lvid2record.size());
+      return lvid2record[lvid].type;
+    }
 
     /** \internal
      *  \brief Returns a reference to the internal graph representation
@@ -3120,6 +3225,10 @@ namespace graphlab {
 
   public:
 
+    cuts_type get_cuts_type() const { return how_cuts; }
+
+    void set_cuts_type(cuts_type type) { how_cuts = type; }
+
     // For the warp engine to find the remote instances of this class
     size_t get_rpc_obj_id() {
       return rpc.get_obj_id();
@@ -3151,6 +3260,9 @@ namespace graphlab {
     /** The global number of vertex replica */
     size_t nreplicas;
 
+    /** The cut type */
+    cuts_type how_cuts;
+
     /** pointer to the distributed ingress object*/
     distributed_ingress_base<VertexData, EdgeData>* ingress_ptr;
 
@@ -3167,7 +3279,9 @@ namespace graphlab {
     lock_manager_type lock_manager;
 
     void set_ingress_method(const std::string& method,
-        size_t bufsize = 50000, bool usehash = false, bool userecent = false) {
+        size_t bufsize = 50000, bool usehash = false, bool userecent = false,
+        size_t threshold = 100, size_t nedges = 0, size_t nverts = 0,
+        size_t interval = std::numeric_limits<size_t>::max()) {
       if(ingress_ptr != NULL) { delete ingress_ptr; ingress_ptr = NULL; }
       if (method == "oblivious") {
         if (rpc.procid() == 0) logstream(LOG_EMPH) << "Use oblivious ingress, usehash: " << usehash
@@ -3182,6 +3296,15 @@ namespace graphlab {
       } else if (method == "pds") {
         if (rpc.procid() == 0)logstream(LOG_EMPH) << "Use pds ingress" << std::endl;
         ingress_ptr = new distributed_constrained_random_ingress<VertexData, EdgeData>(rpc.dc(), *this, "pds");
+      } else if (method == "hybrid") {
+        if (rpc.procid() == 0) logstream(LOG_EMPH) << "Use hybrid ingress" << std::endl;
+        ingress_ptr = new distributed_hybrid_ingress<VertexData, EdgeData>(rpc.dc(), *this, threshold);
+        set_cuts_type(HYBRID_CUTS);
+      } else if (method == "hybrid_ginger") {
+        if (rpc.procid() == 0) logstream(LOG_EMPH) << "Use hybrid ginger ingress" << std::endl;
+        ASSERT_GT(nedges, 0); ASSERT_GT(nverts, 0);
+        ingress_ptr = new distributed_hybrid_ginger_ingress<VertexData, EdgeData>(rpc.dc(), *this, threshold, nedges, nverts, interval);
+        set_cuts_type(HYBRID_GINGER_CUTS);
       } else {
         // use default ingress method if none is specified
         std::string ingress_auto="";

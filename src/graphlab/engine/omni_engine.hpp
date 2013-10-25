@@ -31,6 +31,7 @@
 #include <graphlab/engine/iengine.hpp>
 #include <graphlab/engine/synchronous_engine.hpp>
 #include <graphlab/engine/async_consistent_engine.hpp>
+#include <graphlab/engine/powerlyra_sync_engine.hpp>
 
 namespace graphlab {
 
@@ -136,6 +137,11 @@ namespace graphlab {
      */
     typedef async_consistent_engine<VertexProgram> async_consistent_engine_type;
 
+    /**
+     * \brief the type of powerlyra synchronous engine
+     */
+    typedef powerlyra_sync_engine<VertexProgram> powerlyra_sync_engine_type;
+
 
 
   private:
@@ -193,6 +199,9 @@ namespace graphlab {
       } else if(engine_type == "async" || engine_type == "asynchronous") {
         logstream(LOG_INFO) << "Using the Synchronous engine." << std::endl;
         engine_ptr = new async_consistent_engine_type(dc, graph, new_options);
+      } else if(engine_type == "plsync" || engine_type == "powerlyra_synchronous") {
+        logstream(LOG_INFO) << "Using the PowerLyra Synchronous engine." << std::endl;
+        engine_ptr = new powerlyra_sync_engine_type(dc, graph, new_options);
       } else {
         logstream(LOG_FATAL) << "Invalid engine type: " << engine_type << std::endl;
       }

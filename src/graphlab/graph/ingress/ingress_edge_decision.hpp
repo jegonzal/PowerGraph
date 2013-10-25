@@ -28,6 +28,7 @@
 #include <graphlab/rpc/distributed_event_log.hpp>
 #include <graphlab/util/dense_bitset.hpp>
 #include <boost/random/uniform_int_distribution.hpp>
+#include <math.h>
 
 namespace graphlab {
   template<typename VertexData, typename EdgeData>
@@ -40,6 +41,8 @@ namespace graphlab {
       typedef graphlab::vertex_id_type vertex_id_type;
       typedef distributed_graph<VertexData, EdgeData> graph_type;
       typedef fixed_dense_bitset<RPC_MAX_N_PROCS> bin_counts_type; 
+      typedef typename boost::unordered_map<vertex_id_type, procid_t> master_hash_table_type;
+     
 
     public:
       /** \brief A decision object for computing the edge assingment. */
@@ -66,6 +69,46 @@ namespace graphlab {
         return candidates[graph_hash::hash_edge(edge_pair) % (candidates.size())];
       };
 
+      /** Assign edges via a heuristic method called ginger */
+      procid_t edge_to_proc_ginger (
+          const vertex_id_type vid,
+          master_hash_table_type& mht,
+          master_hash_table_type& mht_incremental,
+          std::vector<size_t>& proc_num_vertices,
+          double alpha,
+          double gamma,
+          std::vector<vertex_id_type>& in) {
+        size_t numprocs = proc_num_vertices.size();
+
+        // Compute the score of each proc.
+        procid_t best_proc = -1;
+        double maxscore = 0.0;
+        std::vector<double> proc_score(numprocs);
+        std::vector<int> proc_degrees(numprocs);
+
+        for (size_t i = 0; i < in.size(); ++i) {
+          if (mht.find(in[i]) != mht.end())
+            proc_degrees[mht[in[i]]]++;
+          else if (mht_incremental.find(in[i]) != mht_incremental.end())
+            proc_degrees[mht_incremental[in[i]]]++;
+        }
+
+        for (size_t i = 0; i < numprocs; ++i) {
+          proc_score[i] = proc_degrees[i] - alpha * gamma * pow(proc_num_vertices[i], gamma-1);
+        }
+        maxscore = *std::max_element(proc_score.begin(), proc_score.end());
+
+        for (size_t i = 0; i < numprocs; ++i) {
+          if (proc_score[i] == maxscore) {
+            best_proc = i;
+            break;
+          }
+        }
+
+        proc_num_vertices[best_proc]++;
+
+        return best_proc;
+      };
 
       /** Greedy assign (source, target) to a machine using: 
        *  bitset<MAX_MACHINE> src_degree : the degree presence of source over machines
