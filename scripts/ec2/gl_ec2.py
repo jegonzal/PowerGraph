@@ -17,8 +17,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import with_statement
-
 import boto
 import logging
 import os
@@ -34,9 +32,8 @@ from optparse import OptionParser
 from sys import stderr
 from boto.ec2.blockdevicemapping import BlockDeviceMapping, EBSBlockDeviceType
 
-# A static URL from which to figure out the latest Mesos EC2 AMI
+# A static URL from which to figure out the latest GraphLab EC2 AMI
 STD_AMI_URL = "https://s3.amazonaws.com/GraphLabGit/graphlab2-std"
-HVM_AMI_URL = "https://s3.amazonaws.com/graphlabv2-ami/graphlab2-hvm"
 
 compilation_threads = 4
 
@@ -52,7 +49,7 @@ def parse_args():
   parser.add_option("-w", "--wait", type="int", default=120,
       help="Seconds to wait for nodes to start (default: 120)")
   parser.add_option("-k", "--key-pair",
-      help="Key pair to use on instances")
+      help="The name of the ssh identitiy key")
   parser.add_option("-i", "--identity-file", 
       help="SSH private key file to use for logging into instances")
   parser.add_option("-t", "--instance-type", default="m1.xlarge",
@@ -212,13 +209,6 @@ def launch_cluster(conn, opts, cluster_name):
       print "GraphLab AMI for Standard Instances: " + opts.ami
     except:
       print >> stderr, "Could not read " + STD_AMI_URL
-  elif opts.ami == "hpc" :
-    try:
-      opts.ami = urllib2.urlopen(HVM_AMI_URL).read().strip()
-      print "GraphLab AMI for HPC Instances: " + opts.ami
-    except:
-      print >> stderr, "Could not read " + HVM_AMI_URL
-
 
   print "Launching instances..."
   try:

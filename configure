@@ -260,8 +260,8 @@ fi
 
 if [ -z $CMAKE ]; then
   echo "This script will now proceed to download CMake and set it up in"
-  echo "the local graphlabapi/deps directory. The GraphLab compilation "
-  echo "process will be directed to use graphlabapi/deps/cmake."
+  echo "the local graphlab/deps directory. The GraphLab compilation "
+  echo "process will be directed to use graphlab/deps/cmake."
   pushd .
   mkdir deps
   cd deps

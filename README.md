@@ -88,7 +88,7 @@ Compiling
 
     ./configure
 
-In the graphlabapi directory, will create two sub-directories, release/ and
+In the graphlab directory, will create two sub-directories, release/ and
 debug/ . cd into either of these directories and running make will build the
 release or the debug versions respectively. Note that this will compile all of
 GraphLab, including all toolkits. Since some toolkits require additional
