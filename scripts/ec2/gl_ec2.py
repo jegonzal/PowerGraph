@@ -40,7 +40,7 @@ compilation_threads = 4
 # Configure and parse our command-line arguments
 def parse_args():
   parser = OptionParser(usage="gl-ec2 [options] <action> <cluster_name>"
-      + "\n\n<action> can be: launch, destroy, login, stop, start, start-hadoop, stop-hadoop, check-hadoop, get-master, attach-ebs, detach-ebs, als_demo, svd_demo, update, update-dbg",
+      + "\n\n<action> can be: launch, destroy, login, stop, start, start-hadoop, stop-hadoop, check-hadoop, get-master, attach-ebs, detach-ebs, als_demo, svd_demo, pagerank_demo, update, update-dbg",
       add_help_option=False)
   parser.add_option("-h", "--help", action="help",
                     help="Show this help message and exit")
@@ -88,7 +88,7 @@ def parse_args():
     parser.print_help()
     sys.exit(1)
   (action, cluster_name) = args
-  if opts.identity_file == None and action in ['launch', 'login', 'start-hadoop', 'stop-hadoop', 'check-hadoop', 'als_demo', 'svd_demo','update', 'update-dbg']:
+  if opts.identity_file == None and action in ['launch', 'login', 'start-hadoop', 'stop-hadoop', 'check-hadoop', 'als_demo', 'svd_demo','pagerank_demo', 'update', 'update-dbg']:
     print >> stderr, ("ERROR: The -i or --identity-file argument is " +
                       "required for " + action)
     sys.exit(1)
@@ -601,9 +601,10 @@ def main():
     proxy_opt = ""
     if opts.proxy_port != None:
       proxy_opt = "-D " + opts.proxy_port
-    subprocess.check_call("""ssh -o StrictHostKeyChecking=no -i %s %s ubuntu@%s \"export PATH=$PATH:/bin/hadoop-1.2.1/bin;
-        export CLASSPATH=$CLASSPATH:.:\`/bin/hadoop-1.2.1/bin/hadoop classpath\`;
-        export JAVA_HOME=/usr/lib/jvm/java-6-openjdk-amd64/;
+    subprocess.check_call("""ssh -o StrictHostKeyChecking=no -i %s %s ubuntu@%s \"
+        #export PATH=$PATH:/bin/hadoop-1.2.1/bin;
+        #export CLASSPATH=$CLASSPATH:.:\`/bin/hadoop-1.2.1/bin/hadoop classpath\`;
+        #export JAVA_HOME=/usr/lib/jvm/java-6-openjdk-amd64/;
         cd graphlab/release/toolkits/collaborative_filtering/;
         rm -fR smallnetflix; mkdir smallnetflix;
         cd smallnetflix/;
@@ -612,11 +613,12 @@ def main():
         gunzip *.gz;
         mv smallnetflix_mm.train_ smallnetflix_mm.train                                   #ugly, but wordpress does not allow .train file.. ;-(
         cd ..;
-        hadoop fs -rmr hdfs://\`head -n 1 ~/machines\`/smallnetflix/;
-        hadoop fs -copyFromLocal smallnetflix/ /;
-        cat ~/machines
-        mpiexec.openmpi -hostfile ~/machines -x CLASSPATH -n %d /home/ubuntu/graphlab/release/toolkits/collaborative_filtering/als --matrix hdfs://\`head -n 1 ~/machines\`/smallnetflix --max_iter=5 --ncpus=1 --predictions=out_predictions --minval=1 --maxval=5;
-        \"""" % (opts.identity_file, proxy_opt, master, opts.slaves+1), shell=True)
+        #hadoop fs -rmr hdfs://\`head -n 1 ~/machines\`/smallnetflix/;
+        #hadoop fs -copyFromLocal smallnetflix/ /;
+        #cat ~/machines
+        mpiexec.openmpi -hostfile ~/machines -n %d /home/ubuntu/graphlab/release/toolkits/collaborative_filtering/als --matrix /home/ubuntu/graphlab/release/toolkits/collaborative_filtering/smallnetflix --max_iter=5 --ncpus=%d --predictions=out_predictions --minval=1 --maxval=5 --D=100;
+        #mpiexec.openmpi -hostfile ~/machines -x CLASSPATH -n %d /home/ubuntu/graphlab/release/toolkits/collaborative_filtering/als --matrix hdfs://\`head -n 1 ~/machines\`/smallnetflix --max_iter=5 --ncpus=1 --predictions=out_predictions --minval=1 --maxval=5;
+        \"""" % (opts.identity_file, proxy_opt, master, opts.slaves+1,compilation_threads), shell=True)
   elif action == "svd_demo":
     (master_nodes, slave_nodes, zoo_nodes) = get_existing_cluster( conn, opts, cluster_name)
     master = master_nodes[0].public_dns_name
