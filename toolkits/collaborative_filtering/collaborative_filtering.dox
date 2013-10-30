@@ -165,7 +165,7 @@ And here is an exmaple ALS run:
 \li Download the files: <a href="http://www.select.cs.cmu.edu/code/graphlab/datasets/smallnetflix_mm.train">smallnetflix_mm.train</a> and <a href="http://www.select.cs.cmu.edu/code/graphlab/datasets/smallnetflix_mm.validate">smallnetflix_mm.validate</a> and save them inside a directory called smallnetflix/.
 \li Run:
 \verbatim
-bickson@thrust:~/graphlab2.1/graphlabapi/debug/toolkits/collaborative_filtering$ ./als smallnetflix/ --max_iter=5 --lambda=0.065 --ncpus=8
+bickson@thrust:~/graphlab2.1/graphlabapi/debug/toolkits/collaborative_filtering$ ./als smallnetflix/ --max_iter=5 --lambda=0.065 --ncpus=8 --minval=1 --maxval=5
 TCP Communication layer constructed.
 Loading graph.
 INFO:     distributed_graph.hpp(load_from_posixfs:1743): Loading graph from file: smallnetflix/smallnetflix_mm.train
