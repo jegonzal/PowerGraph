@@ -635,8 +635,8 @@ def main():
         hadoop fs -rmr hdfs://\`head -n 1 ~/machines\`/livejournal/;
         hadoop fs -copyFromLocal livejournal/ /;
         cat ~/machines
-        mpiexec.openmpi -hostfile ~/machines -x CLASSPATH -n %d /home/ubuntu/graphlab/release/toolkits/collaborative_filtering/svd --matrix hdfs://\`head -n 1 ~/machines\`/livejournal --rows=4847572 --cols=4847571 --nsv=2 --nv=7 --max_iter=3 --tol=1e-2 --binary=true --save_vectors=1;
-        \"""" % (opts.identity_file, proxy_opt, master, opts.slaves+1), shell=True)
+        mpiexec.openmpi -hostfile ~/machines -x CLASSPATH -n %d /home/ubuntu/graphlab/release/toolkits/collaborative_filtering/svd --matrix hdfs://\`head -n 1 ~/machines\`/livejournal --rows=4847572 --cols=4847571 --nsv=2 --nv=7 --max_iter=3 --tol=1e-2 --binary=true --save_vectors=1 --ncpus=%d --input_file_offset=0 ;
+        \"""" % (opts.identity_file, proxy_opt, master, opts.slaves+1, compilation_threads), shell=True)
 
 
  
