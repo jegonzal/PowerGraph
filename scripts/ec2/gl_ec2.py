@@ -34,6 +34,7 @@ from boto.ec2.blockdevicemapping import BlockDeviceMapping, EBSBlockDeviceType
 
 # A static URL from which to figure out the latest GraphLab EC2 AMI
 STD_AMI_URL = "https://s3.amazonaws.com/GraphLabGit/graphlab2-std"
+HVM_AMI_URL = "https://s3.amazonaws.com/GraphLabGit/graphlab2-hvm"
 
 compilation_threads = 4
 
@@ -209,7 +210,13 @@ def launch_cluster(conn, opts, cluster_name):
       print "GraphLab AMI for Standard Instances: " + opts.ami
     except:
       print >> stderr, "Could not read " + STD_AMI_URL
-
+  elif opts.ami == "hpc" :
+    try:
+      opts.ami = urllib2.urlopen(HVM_AMI_URL).read().strip()
+      print "GraphLab AMI for HPC Instances: " + opts.ami
+    except:
+      print >> stderr, "Could not read " + HVM_AMI_URL
+ 
   print "Launching instances..."
   try:
     image = conn.get_all_images(image_ids=[opts.ami])[0]
@@ -615,7 +622,7 @@ def main():
         #hadoop fs -rmr hdfs://\`head -n 1 ~/machines\`/smallnetflix/;
         #hadoop fs -copyFromLocal smallnetflix/ /;
         #cat ~/machines
-        mpiexec.openmpi -hostfile ~/machines -n %d /home/ubuntu/graphlab/release/toolkits/collaborative_filtering/als --matrix /home/ubuntu/graphlab/release/toolkits/collaborative_filtering/smallnetflix --max_iter=5 --ncpus=%d --predictions=out_predictions --minval=1 --maxval=5 --D=100;
+        mpiexec.openmpi -hostfile ~/machines -n %d /home/ubuntu/graphlab/release/toolkits/collaborative_filtering/als --matrix /home/ubuntu/graphlab/release/toolkits/collaborative_filtering/smallnetflix/ --max_iter=5 --ncpus=%d --predictions=out_predictions --minval=1 --maxval=5 --D=100;
         \"""" % (opts.identity_file, proxy_opt, master, opts.slaves+1,compilation_threads), shell=True)
   elif action == "pagerank_demo":
     (master_nodes, slave_nodes, zoo_nodes) = get_existing_cluster(
@@ -652,7 +659,7 @@ def main():
         #hadoop fs -rmr hdfs://\`head -n 1 ~/machines\`/livejournal/;
         #hadoop fs -copyFromLocal livejournal/ /;
         #cat ~/machines
-        mpiexec.openmpi -hostfile ~/machines  -n %d /home/ubuntu/graphlab/release/toolkits/collaborative_filtering/svd --matrix /home/ubuntu/graphlab/release/toolkits/collaborative_filtering/livejournal --rows=4847572 --cols=4847571 --nsv=2 --nv=7 --max_iter=3 --tol=1e-2 --binary=true --save_vectors=1 --ncpus=%d --input_file_offset=0 ;
+        mpiexec.openmpi -hostfile ~/machines  -n %d /home/ubuntu/graphlab/release/toolkits/collaborative_filtering/svd --matrix /home/ubuntu/graphlab/release/toolkits/collaborative_filtering/livejournal --rows=4847572 --cols=4847571 --nsv=2 --nv=7 --max_iter=3 --tol=1e-2 --binary=true --save_vectors=1 --ncpus=%d --input_file_offset=0 --ortho_repeats=1 ;
         \"""" % (opts.identity_file, proxy_opt, master, opts.slaves+1, compilation_threads), shell=True)
 
 
