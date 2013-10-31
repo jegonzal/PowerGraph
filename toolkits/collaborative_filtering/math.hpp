@@ -34,6 +34,9 @@ DECLARE_TRACER(Axbtrace2);
 DECLARE_TRACER(vecequals);
 DECLARE_TRACER(orthogonalize_vs_alltrace);
 DECLARE_TRACER(als_lapack_trace);
+DECLARE_TRACER(orth1);
+DECLARE_TRACER(orth2);
+DECLARE_TRACER(orth3);
 
 double regularization;
 bool debug;
@@ -853,48 +856,26 @@ gather_type map_reduce_ortho(const graph_type::vertex_type & vertex){
     vertex_set nodes = pgraph->select(selected_node);
     if (curoffset > 0){
       for (int j=0; j < mi.ortho_repeats; j++){
+        INITIALIZE_TRACER(orth1, "map reduce in ortho");
+        BEGIN_TRACEPOINT(orth1);
         alphas = pgraph->map_reduce_vertices<gather_type>(map_reduce_ortho, nodes);
-        //std::cout<<"RET VEC" << alphas.pvec << std::endl;
-        //for (int i=0; i< curoffset; i++)
-        //  assert(alphas.pvec[i] != 0);
-        //memset(alphas, 0, sizeof(double)*curoffset);
-        //#pragma omp parallel for
-        //for (int i=mat.start_offset; i< current.offset; i++){
-        //  for (int k=info.get_start_node(!current.transpose); k< info.get_end_node(!current.transpose); k++){
-        //TODO alphas[i-mat.start_offset] += pgraph->vertex_data(k).pvec[i] * pgraph->vertex_data(k).pvec[current.offset];
-        //  }
-        //}
-        //          for (int i=mat.start_offset; i< current.offset; i++){
-        //#pragma omp parallel for
-        //            for (int k=info.get_start_node(!current.transpose); k< info.get_end_node(!current.transpose); k++){
-        //TODO pgraph->vertex_data(k).pvec[current.offset] -= alphas[i-mat.start_offset]  * pgraph->vertex_data(k).pvec[i];
-        //            }
-        //
-        //if (alphas[i-mat.start_offset] != 0)
-        pgraph->transform_vertices(transform_ortho, nodes);
-        //}
+        END_TRACEPOINT(orth1);
       } //for ortho_repeast 
     }
 
-    //delete [] alphas; 
     debug = old_debug;
     current.debug_print(current.name);
-    //    alpha = 0;
-    //double sum = 0;
-    //int k;
-    //#pragma omp parallel for private(k) reduction(+: sum)
-    //for (k=info.get_start_node(!current.transpose); k< info.get_end_node(!current.transpose); k++){
-    //TODO sum = sum + pow(pgraph->vertex_data(k).pvec[current.offset],2);
-    //}    
+    INITIALIZE_TRACER(orth2, "map reduce in ortho2");
+    BEGIN_TRACEPOINT(orth2);
     sum_alpha = pgraph->map_reduce_vertices<gather_type>(map_reduce_sum_power, nodes);
+    END_TRACEPOINT(orth2);
     sum_alpha.training_rmse = sqrt(sum_alpha.training_rmse);
     alpha = sum_alpha.training_rmse;
     if (alpha >= 1e-10 ){
-      //#pragma omp parallel for
-      //for (int k=info.get_start_node(!current.transpose); k< info.get_end_node(!current.transpose); k++){
-      //TODO pgraph->vertex_data(k).pvec[current.offset]/=alpha;
-      //}
-      pgraph->transform_vertices(divide_by_sum, nodes);    
+       INITIALIZE_TRACER(orth3, "transform_vertices in ortho3");
+       BEGIN_TRACEPOINT(orth3);
+       pgraph->transform_vertices(divide_by_sum, nodes);    
+       END_TRACEPOINT(orth3);
     }
     END_TRACEPOINT(orthogonalize_vs_alltrace);
   }
