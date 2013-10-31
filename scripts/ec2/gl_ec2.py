@@ -214,6 +214,7 @@ def launch_cluster(conn, opts, cluster_name):
     try:
       opts.ami = urllib2.urlopen(HVM_AMI_URL).read().strip()
       print "GraphLab AMI for HPC Instances: " + opts.ami
+      compilation_threads = 8
     except:
       print >> stderr, "Could not read " + HVM_AMI_URL
  
@@ -605,62 +606,40 @@ def main():
     master = master_nodes[0].public_dns_name
     print "Running ALS demo on master " + master + "..."
     proxy_opt = ""
+    download_dataset = "rm -fR smallnetflix; mkdir smallnetflix; cd smallnetflix/; wget http://graphlab.org/wp-content/uploads/2013/07/smallnetflix_mm.validate.gz;  #ugly, but we need to find a better place to host sample graphlab datasets wget http://graphlab.org/wp-content/uploads/2013/07/smallnetflix_mm.train_.gz; gunzip *.gz; mv smallnetflix_mm.train_ smallnetflix_mm.train                                   #ugly, but wordpress does not allow .train file.. ;-( cd ..;"
     if opts.proxy_port != None:
       proxy_opt = "-D " + opts.proxy_port
     subprocess.check_call("""ssh -o StrictHostKeyChecking=no -i %s %s ubuntu@%s \"
-        #export PATH=$PATH:/bin/hadoop-1.2.1/bin;
-        #export CLASSPATH=$CLASSPATH:.:\`/bin/hadoop-1.2.1/bin/hadoop classpath\`;
-        #export JAVA_HOME=/usr/lib/jvm/java-6-openjdk-amd64/;
         cd graphlab/release/toolkits/collaborative_filtering/;
-        rm -fR smallnetflix; mkdir smallnetflix;
-        cd smallnetflix/;
-        wget http://graphlab.org/wp-content/uploads/2013/07/smallnetflix_mm.validate.gz;  #ugly, but we need to find a better place to host sample graphlab datasets
-        wget http://graphlab.org/wp-content/uploads/2013/07/smallnetflix_mm.train_.gz;
-        gunzip *.gz;
-        mv smallnetflix_mm.train_ smallnetflix_mm.train                                   #ugly, but wordpress does not allow .train file.. ;-(
-        cd ..;
-        #hadoop fs -rmr hdfs://\`head -n 1 ~/machines\`/smallnetflix/;
-        #hadoop fs -copyFromLocal smallnetflix/ /;
-        #cat ~/machines
+        %s
         mpiexec.openmpi -hostfile ~/machines -n %d /home/ubuntu/graphlab/release/toolkits/collaborative_filtering/als --matrix /home/ubuntu/graphlab/release/toolkits/collaborative_filtering/smallnetflix/ --max_iter=5 --ncpus=%d --predictions=out_predictions --minval=1 --maxval=5 --D=100;
-        \"""" % (opts.identity_file, proxy_opt, master, opts.slaves+1,compilation_threads), shell=True)
+        \"""" % (opts.identity_file, proxy_opt, master, ("" if opts.resume else download_dataset), opts.slaves+1,compilation_threads), shell=True)
   elif action == "pagerank_demo":
-    (master_nodes, slave_nodes, zoo_nodes) = get_existing_cluster(
-        conn, opts, cluster_name)
+    (master_nodes, slave_nodes, zoo_nodes) = get_existing_cluster( conn, opts, cluster_name)
     master = master_nodes[0].public_dns_name
     print "Running pagerank demo on master " + master + "..."
     proxy_opt = ""
+    download_dataset = "rm -fR livejournal; mkdir livejournal; cd livejournal/; wget http://snap.stanford.edu/data/soc-LiveJournal1.txt.gz; gunzip *.gz; cd ..;"
     if opts.proxy_port != None:
       proxy_opt = "-D " + opts.proxy_port
     subprocess.check_call("""ssh -o StrictHostKeyChecking=no -i %s %s ubuntu@%s \"
-        cd graphlab/release/toolkits/graph_analytics/;
-        rm -fR livejounral; mkdir livejounral; cd livejounral/;
-        wget http://snap.stanford.edu/data/soc-LiveJournal1.txt.gz;
-        gunzip soc-LiveJournal1.txt.gz;
-        cd ..;
-        mpiexec.openmpi -hostfile ~/machines -n %d /home/ubuntu/graphlab/release/toolkits/graph_analytics/pagerank --graph /home/ubuntu/graphlab/release/toolkits/graph_analytics/livejounral/soc-LiveJournal1.txt --format=tsv --ncpus=%d --iterations=5 ;
-        \"""" % (opts.identity_file, proxy_opt, master, opts.slaves+1,compilation_threads), shell=True)
+        cd /home/ubuntu/graphlab/release/toolkits/graph_analytics/;
+        %s
+        mpiexec.openmpi -hostfile ~/machines -n %d /home/ubuntu/graphlab/release/toolkits/graph_analytics/pagerank --graph=/home/ubuntu/graphlab/release/toolkits/graph_analytics/livejournal/ --format=tsv --ncpus=%d --iterations=5 ;
+        \"""" % (opts.identity_file, proxy_opt, master,("" if opts.resume else download_dataset), opts.slaves+1,compilation_threads), shell=True)
   elif action == "svd_demo":
     (master_nodes, slave_nodes, zoo_nodes) = get_existing_cluster( conn, opts, cluster_name)
     master = master_nodes[0].public_dns_name
     print "Running SVD demo on master " + master + "..."
     proxy_opt = ""
+    download_dataset = "rm -fR livejournal; mkdir livejournal; cd livejournal/; wget http://snap.stanford.edu/data/soc-LiveJournal1.txt.gz; gunzip *.gz; cd ..;"
     if opts.proxy_port != None:
       proxy_opt = "-D " + opts.proxy_port
     subprocess.check_call("""ssh -o StrictHostKeyChecking=no -i %s %s ubuntu@%s \"
-        #export PATH=$PATH:/bin/hadoop-1.2.1/bin;
-        #export CLASSPATH=$CLASSPATH:.:\`/bin/hadoop-1.2.1/bin/hadoop classpath\`;
-        #export JAVA_HOME=/usr/lib/jvm/java-6-openjdk-amd64/;
         cd graphlab/release/toolkits/collaborative_filtering/;
-        rm -fR livejournal; mkdir livejournal; cd livejournal/;
-        wget http://snap.stanford.edu/data/soc-LiveJournal1.txt.gz;
-        gunzip *.gz;
-        cd ..;
-        #hadoop fs -rmr hdfs://\`head -n 1 ~/machines\`/livejournal/;
-        #hadoop fs -copyFromLocal livejournal/ /;
-        #cat ~/machines
+        %s 
         mpiexec.openmpi -hostfile ~/machines  -n %d /home/ubuntu/graphlab/release/toolkits/collaborative_filtering/svd --matrix /home/ubuntu/graphlab/release/toolkits/collaborative_filtering/livejournal --rows=4847572 --cols=4847571 --nsv=2 --nv=7 --max_iter=3 --tol=1e-2 --binary=true --save_vectors=1 --ncpus=%d --input_file_offset=0 --ortho_repeats=1 ;
-        \"""" % (opts.identity_file, proxy_opt, master, opts.slaves+1, compilation_threads), shell=True)
+        \"""" % (opts.identity_file, proxy_opt, master, ("" if opts.resume else download_dataset), opts.slaves+1, compilation_threads), shell=True)
 
 
  
