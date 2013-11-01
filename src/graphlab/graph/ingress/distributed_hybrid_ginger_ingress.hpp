@@ -121,6 +121,7 @@ namespace graphlab {
     /** Number of edges and vertices in graph. */
     buffered_exchange<edge_buffer_record> hybrid_edge_exchange;
     buffered_exchange<vertex_buffer_record> hybrid_vertex_exchange;
+    buffered_exchange<vertex_buffer_record> temporary_vertex_exchange;
 
     /** master hash table:
      * mht is the synchronized one across the cluster,
@@ -166,7 +167,7 @@ namespace graphlab {
         size_t threshold = 100, size_t nedges = 0, size_t nverts = 0, 
         size_t interval = std::numeric_limits<size_t>::max()) :
         base_type(dc, graph), 
-        hybrid_edge_exchange(dc), hybrid_vertex_exchange(dc),
+        hybrid_edge_exchange(dc), hybrid_vertex_exchange(dc),temporary_vertex_exchange(dc),
         master_exchange(dc),
         hybrid_rpc(dc, this),graph(graph),high_edge_exchange(dc),low_edge_exchange(dc),proc_edges_exchange(dc),
         proc_edges_incremental(dc.numprocs()),proc_num_vertices(dc.numprocs()), threshold(threshold), 
@@ -273,7 +274,7 @@ namespace graphlab {
       const procid_t owning_proc = 
         graph_hash::hash_vertex(vid) % hybrid_rpc.numprocs();
       const vertex_buffer_record record(vid, vdata);
-      hybrid_vertex_exchange.send(owning_proc, record);
+      temporary_vertex_exchange.send(owning_proc, record);
     } // end of add vertex
 
 
@@ -502,7 +503,7 @@ namespace graphlab {
       /*                       flush any additional data                        */
       /*                                                                        */
       /**************************************************************************/
-      hybrid_vertex_exchange.flush();
+      temporary_vertex_exchange.flush();
       
 
       /**************************************************************************/
@@ -583,6 +584,19 @@ namespace graphlab {
       /**************************************************************************/
       // Setup the map containing all the vertices being negotiated by this machine
       {
+        if (temporary_vertex_exchange.size() > 0) {
+          vertex_buffer_type vertex_buffer; procid_t sending_proc(-1);
+          while(temporary_vertex_exchange.recv(sending_proc, vertex_buffer)) {
+            foreach(const vertex_buffer_record& rec, vertex_buffer) {
+              if (mht.find(rec.vid) == mht.end())
+                mht[rec.vid] = graph_hash::hash_vertex(rec.vid) % hybrid_rpc.numprocs(); 
+              hybrid_vertex_exchange.send(mht[rec.vid], rec);
+            }
+          }
+          temporary_vertex_exchange.clear();
+        }
+        hybrid_vertex_exchange.flush();
+
         // receive any vertex data sent by other machines
         if (hybrid_vertex_exchange.size() > 0) {
           vertex_buffer_type vertex_buffer; procid_t sending_proc(-1);
