@@ -606,7 +606,7 @@ def main():
     master = master_nodes[0].public_dns_name
     print "Running ALS demo on master " + master + "..."
     proxy_opt = ""
-    download_dataset = "rm -fR smallnetflix; mkdir smallnetflix; cd smallnetflix/; wget http://graphlab.org/wp-content/uploads/2013/07/smallnetflix_mm.validate.gz;  #ugly, but we need to find a better place to host sample graphlab datasets wget http://graphlab.org/wp-content/uploads/2013/07/smallnetflix_mm.train_.gz; gunzip *.gz; mv smallnetflix_mm.train_ smallnetflix_mm.train                                   #ugly, but wordpress does not allow .train file.. ;-( cd ..;"
+    download_dataset = "rm -fR smallnetflix; mkdir smallnetflix; cd smallnetflix/; wget -q http://graphlab.org/wp-content/uploads/2013/07/smallnetflix_mm.validate.gz; wget http://graphlab.org/wp-content/uploads/2013/07/smallnetflix_mm.train_.gz; gunzip *.gz; mv smallnetflix_mm.train_ smallnetflix_mm.train;cd ..;"
     if opts.proxy_port != None:
       proxy_opt = "-D " + opts.proxy_port
     subprocess.check_call("""ssh -o StrictHostKeyChecking=no -i %s %s ubuntu@%s \"
@@ -619,7 +619,7 @@ def main():
     master = master_nodes[0].public_dns_name
     print "Running pagerank demo on master " + master + "..."
     proxy_opt = ""
-    download_dataset = "rm -fR livejournal; mkdir livejournal; cd livejournal/; wget http://snap.stanford.edu/data/soc-LiveJournal1.txt.gz; gunzip *.gz; cd ..;"
+    download_dataset = "rm -fR livejournal; mkdir livejournal; cd livejournal/; wget -q http://snap.stanford.edu/data/soc-LiveJournal1.txt.gz; gunzip *.gz; cd ..;"
     if opts.proxy_port != None:
       proxy_opt = "-D " + opts.proxy_port
     subprocess.check_call("""ssh -o StrictHostKeyChecking=no -i %s %s ubuntu@%s \"
@@ -632,7 +632,7 @@ def main():
     master = master_nodes[0].public_dns_name
     print "Running SVD demo on master " + master + "..."
     proxy_opt = ""
-    download_dataset = "rm -fR livejournal; mkdir livejournal; cd livejournal/; wget http://snap.stanford.edu/data/soc-LiveJournal1.txt.gz; gunzip *.gz; cd ..;"
+    download_dataset = "rm -fR livejournal; mkdir livejournal; cd livejournal/; wget -q http://snap.stanford.edu/data/soc-LiveJournal1.txt.gz; gunzip *.gz; cd ..;"
     if opts.proxy_port != None:
       proxy_opt = "-D " + opts.proxy_port
     subprocess.check_call("""ssh -o StrictHostKeyChecking=no -i %s %s ubuntu@%s \"
