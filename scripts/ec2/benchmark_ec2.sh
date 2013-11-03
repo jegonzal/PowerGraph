@@ -22,11 +22,21 @@
 # Please send any questions or bug reports to graphlabapi@groups.google.com
 # Written by Danny Bickson
 
+
+############################################################################
+# CONFIGURATION
+############################################################################
 MAX_SLAVES=3  # configure the maximum number of slaves
 MAX_RETRY=3   # configure the number of experiemnt repeats
 PAGERANK=1    # if 1, runs pagerank
 SVD=1         # if 1, runs svd
 ALS=1         # if 1, runs als
+
+#It is recommended to define the below two variables for easier setup
+#uncomment the below two lines once you set them up
+#export AWS_ACCESS_KEY_ID=[ Your access key ]
+#export AWS_SECRET_ACCESS_KEY=[ Your access key secret ]
+######################################################################
 
 # clean old running instances, if any
 echo "y" | ./gl-ec2 -i ~/.ssh/amazonec2.pem -k amazonec2  destroy hpctest  
