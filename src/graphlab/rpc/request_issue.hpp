@@ -155,7 +155,7 @@ class  BOOST_PP_CAT(FNAME_AND_CALL, N) { \
     BOOST_PP_REPEAT(N, GENARC, _)                \
     *(reinterpret_cast<uint32_t*>(arc.buf + len)) = arc.off - beginoff; \
     release_thread_local_buffer(target, flags & CONTROL_PACKET); \
-    pull_flush_thread_local_buffer(target); \
+    if (flags & FLUSH_PACKET) pull_flush_soon_thread_local_buffer(target); \
   }\
 };
 

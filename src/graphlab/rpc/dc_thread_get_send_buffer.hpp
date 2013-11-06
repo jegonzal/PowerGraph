@@ -85,6 +85,17 @@ inline void pull_flush_soon_thread_local_buffer(procid_t proc) {
 
 
 /**
+ * \internal
+ */
+inline void pull_flush_soon_thread_local_buffer() {
+  void* ptr = pthread_getspecific(thrlocal_send_buffer_key);
+  thread_local_buffer* p = (thread_local_buffer*)(ptr);
+  if (p) p->pull_flush_soon();
+}
+
+
+
+/**
  * Gets the current procid.
  * This function really exists to split the dependency between this header and
  * dc.hpp

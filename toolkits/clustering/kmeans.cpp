@@ -673,8 +673,9 @@ public:
 struct cluster_center_reducer {
   std::vector<cluster> new_clusters;
   size_t num_changed;
+  double cost;
 
-  cluster_center_reducer():new_clusters(NUM_CLUSTERS), num_changed(0) { }
+  cluster_center_reducer():new_clusters(NUM_CLUSTERS), num_changed(0), cost(0) { }
 
   static cluster_center_reducer get_center(const graph_type::vertex_type& v) {
     cluster_center_reducer cc;
@@ -686,6 +687,7 @@ struct cluster_center_reducer {
       cc.new_clusters[v.data().best_cluster].center = v.data().point;
     cc.new_clusters[v.data().best_cluster].count = 1;
     cc.num_changed = v.data().changed;
+    cc.cost = v.data().best_distance;
     return cc;
   }
 
@@ -701,15 +703,16 @@ struct cluster_center_reducer {
       }
     }
     num_changed += other.num_changed;
+    cost += other.cost;
     return *this;
   }
 
   void save(graphlab::oarchive& oarc) const {
-    oarc << new_clusters << num_changed;
+    oarc << new_clusters << num_changed <<cost;
   }
 
   void load(graphlab::iarchive& iarc) {
-    iarc >> new_clusters >> num_changed;
+    iarc >> new_clusters >> num_changed >> cost;
   }
 };
 
@@ -719,6 +722,7 @@ struct vertex_writer {
     for (size_t i = 0;i < v.data().point.size(); ++i) {
       strm << v.data().point[i] << "\t";
     }
+    strm << v.data().best_distance << "\t";
     strm << v.data().best_cluster << "\n";
     strm.flush();
     return strm.str();
@@ -783,7 +787,8 @@ int main(int argc, char** argv) {
                        "and must be accessible to the root node.");
   clopts.attach_option("output-data", outdata_file,
                        "If set, will output a copy of the input data with an additional "
-                       "last column denoting the assigned cluster centers. The output "
+                       "two columns. The first added column is the distance to assigned "
+		       "center and the last is the assigned cluster centers. The output "
                        "will be written to a sequence of filenames where each file is "
                        "prefixed by this value. This may be on HDFS.");
   clopts.attach_option("sparse", IS_SPARSE,
@@ -905,7 +910,8 @@ int main(int argc, char** argv) {
     // initialization
     if (iteration_count > 0) {
       dc.cout() << "Kmeans iteration " << iteration_count << ": " <<
-                 "# points with changed assignments = " << cc.num_changed << std::endl;
+                 "# points with changed assignments = " << cc.num_changed << 
+		 " total cost: " << cc.cost << std::endl;
     }
     for (size_t i = 0;i < NUM_CLUSTERS; ++i) {
       double d = cc.new_clusters[i].count;
