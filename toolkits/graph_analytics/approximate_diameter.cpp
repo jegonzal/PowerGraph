@@ -85,9 +85,9 @@ struct vdata {
       size_t size = bitmask1[a].size();
       oarc << size;
       for (size_t i = 0; i < size; ++i)
-        oarc << bitmask1[a][i];
+        oarc << (bool)bitmask1[a][i];
       for (size_t i = 0; i < size; ++i)
-        oarc << bitmask2[a][i];
+        oarc << (bool)bitmask2[a][i];
     }
     oarc << odd_iteration;
   }
@@ -168,7 +168,7 @@ struct bitmask_gatherer {
       size_t size = bitmask[a].size();
       oarc << size;
       for (size_t i = 0; i < size; ++i)
-        oarc << bitmask[a][i];
+        oarc << (bool)bitmask[a][i];
     }
   }
   void load(graphlab::iarchive& iarc) {
