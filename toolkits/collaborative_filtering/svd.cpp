@@ -24,7 +24,8 @@
 /**
  *
  *  Implementation of the Lanczos algorithm, as given in:
- *  http://en.wikipedia.org/wiki/Lanczos_algorithm
+ *  http://www.grycap.upv.es/slepc/documentation/reports/str8.pdf
+ *  (Restarted Lanczos Bidiagonalization for the SVD in SLEPc)
  * 
  *  Code written by Danny Bickson, CMU, June 2011
  * */
@@ -382,6 +383,7 @@ vec lanczos(bipartite_graph_descriptor & info, timer & mytimer, vec & errest,
 
     alpha = zeros(n);
     beta = zeros(n);
+    double dalpha = 0;
 
     U[k] = V[k]*A._transpose();
     PRINT_VEC(U[k]);
@@ -403,7 +405,7 @@ vec lanczos(bipartite_graph_descriptor & info, timer & mytimer, vec & errest,
       U[i] = V[i]*A._transpose();
       orthogonalize_vs_all(U, i, alpha(i-k));
       PRINT_VEC3("alpha", alpha, i-k);
-     }
+    }
     
     V[n]= U[n-1]*A;
     orthogonalize_vs_all(V, n, beta(n-k-1));

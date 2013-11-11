@@ -49,7 +49,8 @@ struct math_info{
   int increment;
   double  c;
   double  d;
-  int x_offset, b_offset , y_offset, r_offset, div_offset, prev_offset, div_const;
+  int x_offset, b_offset , y_offset, r_offset, div_offset, prev_offset;
+  int orthogonalization;
   bool A_offset, A_transpose;
   std::vector<std::string> names;
   bool use_diag;
@@ -70,13 +71,13 @@ struct math_info{
     increment = 2;
     c=1.0; d=0.0;
     x_offset = b_offset = y_offset = r_offset = div_offset = prev_offset = -1;
-    div_const = 0;
     A_offset = false;
     A_transpose = false;
     use_diag = true;
     start = end = -1;
     update_function = false;
     dist_sliced_mat_backslash = false;
+    orthogonalization = 0;
   }
   int increment_offset(){
     return increment++;
@@ -128,6 +129,13 @@ class Axb :
       assert(mi.x_offset >=0 || mi.y_offset >= 0);
       assert(mi.r_offset >=0);
 
+      /* perform orthogonalization of current vector */
+      if (mi.orthogonalization){
+         for (int i=curMat->start_offset; i< pcurrent->offset; i++){
+            vertex.data().pvec[pcurrent->offset] -= alphas.pvec[i-curMat->start_offset] * vertex.data().pvec[i]; 
+         return;
+      }
+
       double val = total;
       //assert(total != 0 || mi.y_offset >= 0);
 
@@ -156,6 +164,7 @@ class Axb :
       if (mi.div_offset >= 0){
         val /= user.pvec[mi.div_offset];
       }
+
       user.pvec[mi.r_offset] = val;
       //assert(val != 0);
       //printf("Exit apply on node %d value %lg\n", vertex.id(), val);
@@ -191,68 +200,6 @@ void init_lanczos_mapr( graph_type::vertex_type& vertex) {
 
 
 
-#if 0
-struct Axb:
-  public iupdate_functor<graph_type, Axb> {
-
-    void operator()(icontext_type &context){
-      if (context.vertex_id() < (uint)mi.start || context.vertex_id() >= (uint)mi.end)
-        return;
-
-      vertex_data& user = context.vertex_data();
-      bool rows = context.vertex_id() < (uint)info.get_start_node(false);
-      if (info.is_square()) 
-        rows = mi.A_transpose;
-      assert(mi.r_offset >=0);
-      //store previous value for convergence detection
-      if (mi.prev_offset >= 0)
-        user.pvec[mi.prev_offset ] = user.pvec[mi.r_offset];
-
-      double val = 0;
-      assert(mi.x_offset >=0 || mi.y_offset>=0);
-      timer t; t.start();
-
-      /*** COMPUTE r = c*A*x  ********/
-      if (mi.A_offset  && mi.x_offset >= 0){
-        edge_list edges = rows?
-          context.out_edges() : context.in_edges(); 
-        for (size_t i = 0; i < edges.size(); i++){
-          const edge_data & edge = context.edge_data(edges[i]);
-          const vertex_data  & movie = context.const_vertex_data(rows ? edges[i].target() : edges[i].source());
-          val += (edge.weight * movie.pvec[mi.x_offset]);
-        }
-
-        if  (info.is_square() && mi.use_diag)// add the diagonal term
-          val += (/*mi.c**/ (user.A_ii+ regularization) * user.pvec[mi.x_offset]);
-
-        val *= mi.c;
-      }
-      /***** COMPUTE r = c*I*x  *****/
-      else if (!mi.A_offset && mi.x_offset >= 0){
-        val = mi.c*user.pvec[mi.x_offset];
-      }
-
-      /**** COMPUTE r+= d*y (optional) ***/
-      if (mi.y_offset>= 0){
-        val += mi.d*user.pvec[mi.y_offset]; 
-      }
-
-      /***** compute r = (... ) / div */
-      if (mi.div_offset >= 0){
-        val /= user.pvec[mi.div_offset];
-      }
-      user.pvec[mi.r_offset] = val;
-    }
-    void operator+=(const Axb& other) { 
-    }
-
-    void finalize(iglobal_context_type& context) {
-    } 
-  };
-#endif
-//for (int i=start; i< end; i++){  
-//  pgraph->vertex_data(i).pvec[offset] = pvec[i-start];
-//}
 void init_math(graph_type * _pgraph, bipartite_graph_descriptor & _info, double ortho_repeats = 3, 
     bool update_function = false){
   pgraph = _pgraph;
@@ -326,6 +273,11 @@ class DistVec{
         mi.d=1.0;
       return *this;
     }
+    DistVec& orthogonalize(){
+      mi.orthogonalization = 1;
+      return *this;
+    }
+
     DistVec& operator+(const DistVec &other){
       mi.x_offset =offset;
       mi.y_offset = other.offset;
@@ -348,7 +300,6 @@ class DistVec{
       mi.d = 1/val;
       return *this;
     }
-
 
     DistVec& operator=(const DistVec & vec);
 
@@ -826,13 +777,14 @@ gather_type map_reduce_ortho(const graph_type::vertex_type & vertex){
 
 
 
-  void transform_ortho(graph_type::vertex_type & vertex){
+  /*void transform_ortho(graph_type::vertex_type & vertex){
     assert(curMat != NULL && curMat->start_offset < pcurrent->offset);
     for (int i=curMat->start_offset; i< pcurrent->offset; i++){
       //assert(alphas.pvec[i-curMat->start_offset] != 0);
       vertex.data().pvec[pcurrent->offset] -= alphas.pvec[i-curMat->start_offset] * vertex.data().pvec[i]; 
     }
-  }
+  }*/
+
   bool selected_node(const graph_type::vertex_type& vertex){
     if (info.is_square())
       return true;
@@ -841,7 +793,7 @@ gather_type map_reduce_ortho(const graph_type::vertex_type & vertex){
   }
 
 
-  void orthogonalize_vs_all(DistSlicedMat & mat, int _curoffset, double &alpha){
+  double orthogonalize_vs_all(DistSlicedMat & mat, int _curoffset, double &alpha){
     assert(mi.ortho_repeats >=1 && mi.ortho_repeats <= 3);
     curoffset = _curoffset;
     curMat = &mat;
@@ -852,7 +804,6 @@ gather_type map_reduce_ortho(const graph_type::vertex_type & vertex){
     DistVec current = mat[curoffset];
     pcurrent =&current;
     assert(mat.start_offset <= current.offset); 
-    //double * alphas = new double[curoffset];
     vertex_set nodes = pgraph->select(selected_node);
     if (curoffset > 0){
       for (int j=0; j < mi.ortho_repeats; j++){
@@ -860,6 +811,8 @@ gather_type map_reduce_ortho(const graph_type::vertex_type & vertex){
         BEGIN_TRACEPOINT(orth1);
         alphas = pgraph->map_reduce_vertices<gather_type>(map_reduce_ortho, nodes);
         END_TRACEPOINT(orth1);
+        //pgraph->transform_vertices(transform_ortho, nodes);
+        mat[_curoffset] = mat[_curoffset].orthogonalize(); 
       } //for ortho_repeast 
     }
 
@@ -874,10 +827,12 @@ gather_type map_reduce_ortho(const graph_type::vertex_type & vertex){
     if (alpha >= 1e-10 ){
        INITIALIZE_TRACER(orth3, "transform_vertices in ortho3");
        BEGIN_TRACEPOINT(orth3);
-       pgraph->transform_vertices(divide_by_sum, nodes);    
+       //pgraph->transform_vertices(divide_by_sum, nodes);    
+       mat[_curoffset] = mat[_curoffset] / alpha;
        END_TRACEPOINT(orth3);
     }
     END_TRACEPOINT(orthogonalize_vs_alltrace);
+    return alpha;
   }
 
 
