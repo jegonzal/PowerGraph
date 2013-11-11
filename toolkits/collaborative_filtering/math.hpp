@@ -49,7 +49,7 @@ struct math_info{
   int increment;
   double  c;
   double  d;
-  int x_offset, b_offset , y_offset, r_offset, div_offset, prev_offset;
+  int x_offset, b_offset , y_offset, r_offset, div_offset, prev_offset, mat_offset, vec_offset;
   int orthogonalization;
   bool A_offset, A_transpose;
   std::vector<std::string> names;
@@ -70,7 +70,7 @@ struct math_info{
   void reset_offsets(){
     increment = 2;
     c=1.0; d=0.0;
-    x_offset = b_offset = y_offset = r_offset = div_offset = prev_offset = -1;
+    x_offset = b_offset = y_offset = r_offset = div_offset = prev_offset = mat_offset = vec_offset = -1;
     A_offset = false;
     A_transpose = false;
     use_diag = true;
@@ -89,6 +89,14 @@ struct math_info{
 
 bipartite_graph_descriptor info;
 math_info mi;
+class DistMat; 
+class DistDouble;
+class DistSlicedMat;
+DistSlicedMat * curMat = NULL;
+gather_type alphas;
+gather_type sum_alpha;
+
+
 
 #define MAX_PRINT_ITEMS 25
 double runtime = 0;
@@ -131,8 +139,9 @@ class Axb :
 
       /* perform orthogonalization of current vector */
       if (mi.orthogonalization){
-         for (int i=curMat->start_offset; i< pcurrent->offset; i++){
-            vertex.data().pvec[pcurrent->offset] -= alphas.pvec[i-curMat->start_offset] * vertex.data().pvec[i]; 
+         for (int i=mi.mat_offset; i< mi.vec_offset; i++){
+            vertex.data().pvec[mi.vec_offset] -= alphas.pvec[i-mi.mat_offset] * vertex.data().pvec[i]; 
+         }
          return;
       }
 
@@ -209,9 +218,6 @@ void init_math(graph_type * _pgraph, bipartite_graph_descriptor & _info, double 
   mi.ortho_repeats = ortho_repeats;
 }
 
-
-class DistMat; 
-class DistDouble;
 
 class DistVec{
   public:
@@ -351,6 +357,81 @@ class DistVec{
 
 DistVec * pcurrent = NULL;
 
+
+class DistSlicedMat{
+  public:
+    bipartite_graph_descriptor info;
+    int start_offset;
+    int end_offset; 
+    std::string name; //optional
+    int start;
+    int end;
+    bool transpose;
+
+    DistSlicedMat(int _start_offset, int _end_offset, bool _transpose, const bipartite_graph_descriptor &_info, std::string _name){
+      assert(_start_offset < _end_offset);
+      assert(_start_offset >= 0);
+      assert(_info.total() > 0);
+      transpose = _transpose;
+      info = _info;
+      init();
+      start_offset = _start_offset;
+      end_offset = _end_offset;
+      name = _name;
+    }
+
+    DistSlicedMat& operator=(DistMat & other);
+
+    void init(){
+      start = info.get_start_node(!transpose);
+      end = info.get_end_node(!transpose);
+      assert(start < end && start >= 0 && end >= 1);
+      //debug_print(name);
+    };
+
+    int size(int dim){ return (dim == 1) ? (end-start) : (end_offset - start_offset) ; }
+
+    void set_cols(int start_col, int end_col, const mat& pmat){
+      assert(start_col >= 0);
+      assert(end_col <= end_offset - start_offset);
+      assert(pmat.rows() == end-start);
+      assert(pmat.cols() >= end_col - start_col);
+      for (int i=start_col; i< end_col; i++)
+        this->operator[](i) = get_col(pmat, i-start_col);
+    }
+    mat get_cols(int start_col, int end_col){
+      assert(start_col < end_offset - start_offset);
+      assert(start_offset + end_col <= end_offset);
+      mat retmat = zeros(end-start, end_col - start_col);
+      for (int i=start_col; i< end_col; i++)
+        set_col(retmat, i-start_col, this->operator[](i-start_col).to_vec());
+      return retmat;
+    }
+
+    void operator=(mat & pmat){
+      assert(end_offset-start_offset <= pmat.cols());
+      assert(end-start == pmat.rows());
+      set_cols(0, pmat.cols(), pmat);
+    }
+
+    std::string get_name(int pos){
+      assert(pos < end_offset - start_offset);
+      assert(pos >= 0);
+      return name;
+    }
+
+    DistVec operator[](int pos){
+      assert(pos < end_offset-start_offset);
+      assert(pos >= 0);
+      DistVec ret(info, start_offset + pos, transpose, get_name(pos));
+      ret.display_offset = pos;
+      return ret;
+    }
+
+};
+
+
+
 void assign_vec(graph_type::vertex_type & vertex){
   if (!info.is_square())
     assert(vertex.id() - pcurrent->start >= 0 && vertex.id() - pcurrent->start < curvec.size());
@@ -433,78 +514,6 @@ vec DistVec::to_vec(int dmax, int doffset){
 }
 
 
-
-class DistSlicedMat{
-  public:
-    bipartite_graph_descriptor info;
-    int start_offset;
-    int end_offset; 
-    std::string name; //optional
-    int start;
-    int end;
-    bool transpose;
-
-    DistSlicedMat(int _start_offset, int _end_offset, bool _transpose, const bipartite_graph_descriptor &_info, std::string _name){
-      assert(_start_offset < _end_offset);
-      assert(_start_offset >= 0);
-      assert(_info.total() > 0);
-      transpose = _transpose;
-      info = _info;
-      init();
-      start_offset = _start_offset;
-      end_offset = _end_offset;
-      name = _name;
-    }
-
-    DistSlicedMat& operator=(DistMat & other);
-
-    void init(){
-      start = info.get_start_node(!transpose);
-      end = info.get_end_node(!transpose);
-      assert(start < end && start >= 0 && end >= 1);
-      //debug_print(name);
-    };
-
-    int size(int dim){ return (dim == 1) ? (end-start) : (end_offset - start_offset) ; }
-
-    void set_cols(int start_col, int end_col, const mat& pmat){
-      assert(start_col >= 0);
-      assert(end_col <= end_offset - start_offset);
-      assert(pmat.rows() == end-start);
-      assert(pmat.cols() >= end_col - start_col);
-      for (int i=start_col; i< end_col; i++)
-        this->operator[](i) = get_col(pmat, i-start_col);
-    }
-    mat get_cols(int start_col, int end_col){
-      assert(start_col < end_offset - start_offset);
-      assert(start_offset + end_col <= end_offset);
-      mat retmat = zeros(end-start, end_col - start_col);
-      for (int i=start_col; i< end_col; i++)
-        set_col(retmat, i-start_col, this->operator[](i-start_col).to_vec());
-      return retmat;
-    }
-
-    void operator=(mat & pmat){
-      assert(end_offset-start_offset <= pmat.cols());
-      assert(end-start == pmat.rows());
-      set_cols(0, pmat.cols(), pmat);
-    }
-
-    std::string get_name(int pos){
-      assert(pos < end_offset - start_offset);
-      assert(pos >= 0);
-      return name;
-    }
-
-    DistVec operator[](int pos){
-      assert(pos < end_offset-start_offset);
-      assert(pos >= 0);
-      DistVec ret(info, start_offset + pos, transpose, get_name(pos));
-      ret.display_offset = pos;
-      return ret;
-    }
-
-};
 
 /*
  * wrapper for computing r = c*A*x+d*b*y
@@ -746,10 +755,6 @@ vec diag(DistMat & mat){
 }
 
 int curoffset = -1;
-DistSlicedMat * curMat = NULL;
-gather_type alphas;
-gather_type sum_alpha;
-
 gather_type map_reduce_ortho(const graph_type::vertex_type & vertex){
   gather_type ret;
   assert(curoffset >= 0);
@@ -797,12 +802,14 @@ gather_type map_reduce_ortho(const graph_type::vertex_type & vertex){
     assert(mi.ortho_repeats >=1 && mi.ortho_repeats <= 3);
     curoffset = _curoffset;
     curMat = &mat;
+    mi.mat_offset = mat.start_offset;
     INITIALIZE_TRACER(orthogonalize_vs_alltrace, "orthogonalization step - optimized");
     BEGIN_TRACEPOINT(orthogonalize_vs_alltrace);
     bool old_debug = debug;
     debug = false;
     DistVec current = mat[curoffset];
     pcurrent =&current;
+    mi.vec_offset = pcurrent->offset;
     assert(mat.start_offset <= current.offset); 
     vertex_set nodes = pgraph->select(selected_node);
     if (curoffset > 0){
