@@ -383,7 +383,6 @@ vec lanczos(bipartite_graph_descriptor & info, timer & mytimer, vec & errest,
 
     alpha = zeros(n);
     beta = zeros(n);
-    double dalpha = 0;
 
     U[k] = V[k]*A._transpose();
     PRINT_VEC(U[k]);
