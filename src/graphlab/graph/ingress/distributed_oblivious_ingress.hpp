@@ -74,7 +74,7 @@ namespace graphlab {
       base_type(dc, graph),
       dht(-1),proc_num_edges(dc.numprocs()), usehash(usehash), userecent(userecent) { 
 
-      INITIALIZE_TRACER(ob_ingress_compute_assignments, "Time spent in compute assignment");
+      //INITIALIZE_TRACER(ob_ingress_compute_assignments, "Time spent in compute assignment");
      }
 
     ~distributed_oblivious_ingress() { }

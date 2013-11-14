@@ -162,9 +162,6 @@ class  BOOST_PP_CAT(FNAME_AND_CALL, N) { \
   static void exec(dc_send* sender, unsigned char flags, procid_t target, F remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_) ) {  \
     oarchive* ptr = get_thread_local_buffer(target);  \
     oarchive& arc = *ptr;                         \
-    if (reinterpret_cast<size_t>(remote_function) == reinterpret_cast<size_t>(request_reply_handler)) { \
-      flags |= REPLY_PACKET; \
-    } \
     size_t len = dc_send::write_packet_header(arc, _get_procid(), flags, _get_sequentialization_key()); \
     uint32_t beginoff = arc.off; \
     dispatch_type d = BOOST_PP_CAT(function_call_issue_detail::dispatch_selector,N)<typename is_rpc_call<F>::type, F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, T) >::dispatchfn();   \
@@ -173,6 +170,7 @@ class  BOOST_PP_CAT(FNAME_AND_CALL, N) { \
     BOOST_PP_REPEAT(N, GENARC, _)                \
     *(reinterpret_cast<uint32_t*>(arc.buf + len)) = arc.off - beginoff; \
     release_thread_local_buffer(target, flags & CONTROL_PACKET); \
+    if (flags & FLUSH_PACKET) pull_flush_soon_thread_local_buffer(target); \
   }\
 };
 

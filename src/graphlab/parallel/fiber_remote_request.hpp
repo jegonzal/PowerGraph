@@ -250,7 +250,7 @@ template<typename F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, typename T)> \
   request_future<__GLRPC_FRESULT> reply(new fiber_reply_container);      \
   distributed_control* dc = distributed_control::get_instance(); \
   ASSERT_NE(dc, NULL); \
-  dc->custom_remote_request(target, reply.get_handle(), remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENI ,_) ); \
+  dc->custom_remote_request(target, reply.get_handle(), STANDARD_CALL, remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENI ,_) ); \
   return reply; \
 } 
 
@@ -266,7 +266,7 @@ template<typename RMI, typename F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, t
                                  F remote_function BOOST_PP_COMMA_IF(N) \
                                  BOOST_PP_ENUM(N,GENARGS ,_) ) {  \
   request_future<__GLRPC_FRESULT> reply(new fiber_reply_container);      \
-  rmi.custom_remote_request(target, reply.get_handle(), remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENI ,_) ); \
+  rmi.custom_remote_request(target, reply.get_handle(), STANDARD_CALL, remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENI ,_) ); \
   return reply; \
 } 
 

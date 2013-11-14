@@ -54,7 +54,7 @@ struct parfor_all_vertices_impl{
   void run_fiber() {
     while (1) {
       size_t lvid = ctr.inc_ret_last();
-      if (lvid >= graph.num_local_vertices()) break;
+      if (lvid >= graph.num_local_vertices() || !vset.l_contains(lvid)) break;
       typename GraphType::local_vertex_type l_vertex = graph.l_vertex(lvid);
       if (l_vertex.owned()) {
         typename GraphType::vertex_type vertex(l_vertex);

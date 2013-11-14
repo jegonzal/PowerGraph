@@ -110,6 +110,7 @@ class  BOOST_PP_CAT(BOOST_PP_TUPLE_ELEM(2,0,FNAME_AND_CALL), N) { \
     if ((flags & CONTROL_PACKET) == 0) {                      \
       rmi->inc_bytes_sent(target, curlen);           \
     } \
+    if (flags & FLUSH_PACKET) pull_flush_soon_thread_local_buffer(target); \
   } \
   \
 };
@@ -176,6 +177,7 @@ class object_split_call {
     if ((flags & CONTROL_PACKET) == 0) {
       rmi->inc_bytes_sent(target, len);
     }
+    if (flags & FLUSH_PACKET) pull_flush_soon_thread_local_buffer(target); 
     delete oarc;
   }
 };

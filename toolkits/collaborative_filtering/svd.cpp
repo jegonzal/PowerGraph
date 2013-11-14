@@ -24,7 +24,8 @@
 /**
  *
  *  Implementation of the Lanczos algorithm, as given in:
- *  http://en.wikipedia.org/wiki/Lanczos_algorithm
+ *  http://www.grycap.upv.es/slepc/documentation/reports/str8.pdf
+ *  (Restarted Lanczos Bidiagonalization for the SVD in SLEPc)
  * 
  *  Code written by Danny Bickson, CMU, June 2011
  * */
@@ -67,6 +68,7 @@ int kk = 0;
 bool binary = false; //if true, all edges = 1
 mat a,PT;
 bool v_vector = false;
+int input_file_offset = 0; //if set to non zero, each row/col id will be reduced the input_file_offset
 
 DECLARE_TRACER(svd_bidiagonal);
 DECLARE_TRACER(svd_error_estimate);
@@ -242,7 +244,12 @@ inline bool init_vec_loader(graph_type& graph,
   std::stringstream strm(line);
   graph_type::vertex_id_type source_id(-1), target_id(-1);
   float obs(0);
-  strm >> source_id >> target_id >> obs; 
+  strm >> source_id >> target_id >> obs;
+  if (input_file_offset != 0){
+     source_id-= input_file_offset;
+     target_id-= input_file_offset;
+  }
+
 
   // Create an edge and add it to the graph
   vertex_data vertex;
@@ -266,6 +273,8 @@ inline bool graph_loader(graph_type& graph,
     return true;
   if (boost::ends_with(filename,"singular_values") || boost::ends_with(filename, "_v0"))
     return true;
+  if (line.find("#") != std::string::npos)
+    return true;
 
   ASSERT_FALSE(line.empty()); 
   // Determine the role of the data
@@ -273,15 +282,13 @@ inline bool graph_loader(graph_type& graph,
   
   // Parse the line
   std::stringstream strm(line);
-  
-  //skip comments begining with "#"
-  if (line.find("#") != std::string::npos)
-    return true;
-
   graph_type::vertex_id_type source_id(-1), target_id(-1);
   float obs = 1;
   strm >> source_id >> target_id;
-  //source_id--; target_id--;
+  if (input_file_offset != 0){
+     source_id-=input_file_offset; 
+     target_id-=input_file_offset;
+  }
   if (source_id >= (uint)rows)
     logstream(LOG_FATAL)<<"Problem at input line: [ " << line << " ] row id ( = " << source_id+1 << " ) should be <= than matrix rows (= " << rows << " ) " << std::endl;
   if (target_id >= (uint)cols)
@@ -290,7 +297,7 @@ inline bool graph_loader(graph_type& graph,
   if (!binary)
      strm >> obs;
   if (!info.is_square())
-     target_id = rows + target_id;
+    target_id = rows + target_id;
 
   if (source_id == target_id){
       vertex_data data;
@@ -342,8 +349,7 @@ void compute_ritz(graph_type::vertex_type & vertex){
   tmp = tmp.transpose() * (v_vector ? PT : a);
   memcpy(&vertex.data().pvec[offset] ,&tmp[0], kk*sizeof(double)); 
   if (debug)
-    std::cout<<"Entered ritz with " << vertex.id() << " offset: " << offset << " , v_vector: " << v_vector << "data_size: " << 
-	       data_size << " kk: " << kk << " tmp[0] " << tmp[0] << std::endl;
+     std::cout<<"Entered ritz with " << offset << " , v_vector: " << v_vector << "data_size: " << data_size << " kk: " << kk << std::endl;
 }  
 
 
@@ -369,7 +375,7 @@ vec lanczos(bipartite_graph_descriptor & info, timer & mytimer, vec & errest,
   PRINT_INT(nv);
 
   while(nconv < nsv && its < max_iter){
-    logstream(LOG_INFO)<<"Starting iteration: " << its << " at time: " << mytimer.current_time() << std::endl;
+    logstream(LOG_EMPH)<<"Starting iteration: " << its << " at time: " << mytimer.current_time() << std::endl;
     int k = nconv;
     n  = nv;
     PRINT_INT(k);
@@ -385,7 +391,7 @@ vec lanczos(bipartite_graph_descriptor & info, timer & mytimer, vec & errest,
     PRINT_VEC3("alpha", alpha, 0);
 
     for (int i=k+1; i<n; i++){
-      logstream(LOG_INFO) <<"Starting step: " << i << " at time: " << mytimer.current_time() << std::endl;
+      logstream(LOG_EMPH) <<"Starting step: " << i << " at time: " << mytimer.current_time() << std::endl;
       PRINT_INT(i);
 
       V[i]=U[i-1]*A;
@@ -398,7 +404,7 @@ vec lanczos(bipartite_graph_descriptor & info, timer & mytimer, vec & errest,
       U[i] = V[i]*A._transpose();
       orthogonalize_vs_all(U, i, alpha(i-k));
       PRINT_VEC3("alpha", alpha, i-k);
-     }
+    }
     
     V[n]= U[n-1]*A;
     orthogonalize_vs_all(V, n, beta(n-k-1));
@@ -619,6 +625,7 @@ int main(int argc, char** argv) {
   clopts.attach_option("id", use_ids, "if set, will output row ids for U and V when saving");
   clopts.attach_option("predictions", predictions, "predictions file prefix");
   clopts.attach_option("binary", binary, "If true, all edges are weighted as one");
+  clopts.attach_option("input_file_offset", input_file_offset, "input file node id offset (default 0)");
   if(!clopts.parse(argc, argv) || input_dir == "") {
     std::cout << "Error in parsing command line arguments." << std::endl;
     clopts.print_description();
@@ -626,7 +633,7 @@ int main(int argc, char** argv) {
   }
   if (quiet){
     global_logger().set_log_level(LOG_ERROR);
-    //debug = false;
+    debug = false;
   }
   if (unittest == 1){
     datafile = "gklanczos_testA/"; 
@@ -634,6 +641,7 @@ int main(int argc, char** argv) {
     nsv = 3; nv = 3;
     rows = 3; cols = 4;
     debug = true;
+    input_file_offset = 1;
     //core.set_ncpus(1);
   }
   else if (unittest == 2){
@@ -661,7 +669,6 @@ int main(int argc, char** argv) {
     logstream(LOG_WARNING)<<"GraphLab SVD does not support square matrices. Increasing row size by one." << std::endl;
     rows++; 
   }
-     
   info.rows = rows;
   info.cols = cols;
 
@@ -727,7 +734,7 @@ int main(int argc, char** argv) {
     for (int i=0; i< rows; i++){
       int rc = fscanf(file, "%lg\n", &val);
       if (rc != 1)
-        logstream(LOG_FATAL)<<"Failed to open initial vector"<< std::endl;
+        logstream(LOG_FATAL)<<"Failed to read initial vector"<< std::endl;
       input[i] = val;
     }
     fclose(file);
