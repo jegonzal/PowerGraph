@@ -69,6 +69,7 @@ bool binary = false; //if true, all edges = 1
 mat a,PT;
 bool v_vector = false;
 int input_file_offset = 0; //if set to non zero, each row/col id will be reduced the input_file_offset
+std::string exec_type = "synchronous";
 
 DECLARE_TRACER(svd_bidiagonal);
 DECLARE_TRACER(svd_error_estimate);
