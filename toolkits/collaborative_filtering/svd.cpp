@@ -603,7 +603,7 @@ int main(int argc, char** argv) {
     "Compute the gklanczos factorization of a matrix.";
   graphlab::command_line_options clopts(description);
   std::string input_dir, output_dir;
-  std::string exec_type = "synchronous";
+  // std::string exec_type = "synchronous";
   clopts.attach_option("matrix", input_dir,
       "The directory containing the matrix file");
   clopts.add_positional("matrix");
@@ -626,6 +626,7 @@ int main(int argc, char** argv) {
   clopts.attach_option("predictions", predictions, "predictions file prefix");
   clopts.attach_option("binary", binary, "If true, all edges are weighted as one");
   clopts.attach_option("input_file_offset", input_file_offset, "input file node id offset (default 0)");
+  clopts.attach_option("engine", exec_type, "specify engine type");
   if(!clopts.parse(argc, argv) || input_dir == "") {
     std::cout << "Error in parsing command line arguments." << std::endl;
     clopts.print_description();
