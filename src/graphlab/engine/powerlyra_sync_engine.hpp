@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2009 Carnegie Mellon University.
+ * Copyright (c) 2013 Institute of Parallel and Distributed Systems, Shanghai Jiao Tong University.
  *     All rights reserved.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,10 +16,9 @@
  *
  * For more about this software visit:
  *
- *      http://www.graphlab.ml.cmu.edu
+ *      http://ipads.se.sjtu.edu.cn/projects/powerlyra.html
  *
  */
-
 
 
 #ifndef GRAPHLAB_POWERLYRA_SYNC_ENGINE_HPP
