@@ -150,7 +150,7 @@ namespace warp {
    *   engine.set_update_function(pagerank);
    *   engine.signal_all();
    *   engine.start();
-   *   std::cout << "Runtime: " << engine.elapsed_time();
+   *   std::cout << "Runtime: " << engine.elapsed_seconds();
    *   graphlab::mpi_tools::finalize();
    * }
    * \endcode
