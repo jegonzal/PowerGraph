@@ -334,7 +334,8 @@ v_out_16_of_16
 \endverbatim
 
 Each line in the output file contains two numbers: a Vertex ID, and the 
-computed PageRank.
+computed PageRank. Note that the output vector is NOT normalized, namely 
+computed entries do not sum into one. 
 
 This program can also run distributed by using
 \verbatim
