@@ -461,6 +461,15 @@ namespace graphlab {
       /*                                                                        */
       /**************************************************************************/
       hybrid_vertex_exchange.flush();
+
+      {
+        size_t changed_size = nedges + hybrid_vertex_exchange.size();
+        hybrid_rpc.all_reduce(changed_size);
+        if (changed_size == 0) {
+          logstream(LOG_INFO) << "Skipping Graph Finalization because no changes happened..." << std::endl;
+          return;
+        }
+      }
       
 
       /**************************************************************************/
@@ -745,12 +754,14 @@ namespace graphlab {
         if (!first_time_finalize) {
           vertex_set changed_vset = vertex_set(false);
           changed_vset.make_explicit(graph);
+
           updated_lvids.resize(graph.num_local_vertices());
           for (lvid_type i = lvid_start; i <  graph.num_local_vertices(); ++i) {
             updated_lvids.set_bit(i);
           }
           changed_vset.localvset = updated_lvids; 
           buffered_exchange<vertex_id_type> vset_exchange(hybrid_rpc.dc());
+
           // sync vset with all mirrors
           changed_vset.synchronize_mirrors_to_master_or(graph, vset_exchange);
           changed_vset.synchronize_master_to_mirrors(graph, vset_exchange);
@@ -761,7 +772,7 @@ namespace graphlab {
                              boost::bind(&distributed_hybrid_ingress::finalize_gather, this, _1, _2), 
                              boost::bind(&distributed_hybrid_ingress::finalize_apply, this, _1, _2, _3));
         vrecord_sync_gas.exec(changed_vset);
-#ifdef TUNING
+
         if(l_procid == 0) {
           memory_info::log_usage("synchronizing vertex (meta)data done.");
           logstream(LOG_EMPH) << "synchrionizing vertex (meta)data: " 
@@ -769,11 +780,10 @@ namespace graphlab {
                               << " secs" 
                               << std::endl;
         }
-#endif
       }
 
       base_type::exchange_global_info();
-#ifdef TUNING
+
       if(l_procid == 0) {
         memory_info::log_usage("exchange global info done.");
         logstream(LOG_EMPH) << "exchange global info: " 
@@ -781,7 +791,6 @@ namespace graphlab {
                             << " secs" 
                             << std::endl;
       }
-#endif
     } // end of modified base finalize
 
   private:
