@@ -217,12 +217,14 @@ int main(int argc, char** argv) {
     // make sure this is the synchronous engine
     dc.cout() << "--iterations set. Forcing Synchronous engine, and running "
               << "for " << ITERATIONS << " iterations." << std::endl;
-    clopts.get_engine_args().set_option("type", "synchronous");
+    //clopts.get_engine_args().set_option("type", "synchronous");
     clopts.get_engine_args().set_option("max_iterations", ITERATIONS);
     clopts.get_engine_args().set_option("sched_allv", true);
   }
 
   // Build the graph ----------------------------------------------------------
+  dc.cout() << "Loading graph." << std::endl;
+  graphlab::timer timer; 
   graph_type graph(dc, clopts);
   if(powerlaw > 0) { // make a synthetic graph
     dc.cout() << "Loading synthetic Powerlaw graph." << std::endl;
@@ -237,8 +239,14 @@ int main(int argc, char** argv) {
     clopts.print_description();
     return 0;
   }
+  dc.cout() << "Loading graph. Finished in " 
+    << timer.current_time() << std::endl;
   // must call finalize before querying the graph
+  dc.cout() << "Finalizing graph." << std::endl;
   graph.finalize();
+  dc.cout() << "Finalizing graph. Finished in " 
+    << timer.current_time() << std::endl;
+
   dc.cout() << "#vertices: " << graph.num_vertices()
             << " #edges:" << graph.num_edges() << std::endl;
 

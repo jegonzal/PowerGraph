@@ -1012,7 +1012,7 @@ namespace graphlab {
       const typename graph_type::vertex_record& rec = graph.l_get_vertex_record(lvid);
       vertex_id_type vid = rec.gvid;
       char task_time_data[sizeof(timer)];
-      timer* task_time;
+      timer* task_time = NULL;
       if (track_task_time) {
         // placement new to create the timer
         task_time = reinterpret_cast<timer*>(task_time_data);
