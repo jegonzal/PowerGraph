@@ -243,6 +243,7 @@ int main(int argc, char** argv) {
     << timer.current_time() << std::endl;
   // must call finalize before querying the graph
   dc.cout() << "Finalizing graph." << std::endl;
+  timer.start();
   graph.finalize();
   dc.cout() << "Finalizing graph. Finished in " 
     << timer.current_time() << std::endl;
@@ -256,11 +257,16 @@ int main(int argc, char** argv) {
   // Running The Engine -------------------------------------------------------
   graphlab::omni_engine<pagerank> engine(dc, graph, exec_type, clopts);
   engine.signal_all();
+  timer.start();
   engine.start();
-  const double runtime = engine.elapsed_seconds();
-  dc.cout() << "Finished Running engine in " << runtime
-            << " seconds." << std::endl;
-
+  const double runtime = timer.current_time();
+  dc.cout() << "----------------------------------------------------------"
+            << std::endl
+            << "Final Runtime (seconds):   " << runtime 
+            << std::endl
+            << "Updates executed: " << engine.num_updates() << std::endl
+            << "Update Rate (updates/second): " 
+            << engine.num_updates() / runtime << std::endl;
 
   const double total_rank = graph.map_reduce_vertices<double>(map_rank);
   std::cout << "Total rank: " << total_rank << std::endl;
@@ -272,9 +278,6 @@ int main(int argc, char** argv) {
                true,     // save vertices
                false);   // do not save edges
   }
-
-  double totalpr = graph.map_reduce_vertices<double>(pagerank_sum);
-  std::cout << "Totalpr = " << totalpr << "\n";
 
   // Tear-down communication layer and quit -----------------------------------
   graphlab::mpi_tools::finalize();

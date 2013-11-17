@@ -624,7 +624,7 @@ int main(int argc, char** argv) {
   
   dc.cout() << "Finalizing graph." << std::endl;
   timer.start();
-   graph.finalize();
+  graph.finalize();
   dc.cout() << "Finalizing graph. Finished in " 
             << timer.current_time() << std::endl;
 
@@ -695,9 +695,9 @@ int main(int argc, char** argv) {
                save_edges, threads_per_machine);
     //save the linear model
     graph.save(predictions + ".U", linear_model_saver_U(),
-		gzip_output, save_edges, save_vertices, threads_per_machine);
+    gzip_output, save_edges, save_vertices, threads_per_machine);
     graph.save(predictions + ".V", linear_model_saver_V(),
-		gzip_output, save_edges, save_vertices, threads_per_machine);
+    gzip_output, save_edges, save_vertices, threads_per_machine);
   
   }
              
