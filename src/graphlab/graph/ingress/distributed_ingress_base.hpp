@@ -496,13 +496,13 @@ namespace graphlab {
           memory_info::log_usage("Finished synchronizing vertex (meta)data");
       }
 
-      exchange_global_info();
+      exchange_global_info(false);
     } // end of finalize
 
 
     /* Exchange graph statistics among all nodes and compute
      * global statistics for the distributed graph. */
-    void exchange_global_info () {
+    void exchange_global_info (bool standalone) {
       // Count the number of vertices owned locally
       graph.local_own_nverts = 0;
       foreach(const vertex_record& record, graph.lvid2record)
@@ -512,33 +512,39 @@ namespace graphlab {
       logstream(LOG_INFO)
         << "Graph Finalize: exchange global statistics " << std::endl;
 
-      // Compute edge counts
-      std::vector<size_t> swap_counts(rpc.numprocs());
-      swap_counts[rpc.procid()] = graph.num_local_edges();
-      rpc.all_gather(swap_counts);
-      graph.nedges = 0;
-      foreach(size_t count, swap_counts) graph.nedges += count;
+      if (standalone) {
+        graph.nedges = graph.num_local_edges();
+        graph.nverts = graph.num_local_own_vertices();
+        graph.nreplicas = graph.num_local_vertices();
+      } else {
+        // Compute edge counts
+        std::vector<size_t> swap_counts(rpc.numprocs());
+        swap_counts[rpc.procid()] = graph.num_local_edges();
+        rpc.all_gather(swap_counts);
+        graph.nedges = 0;
+        foreach(size_t count, swap_counts) graph.nedges += count;
 
 
-      // compute vertex count
-      swap_counts[rpc.procid()] = graph.num_local_own_vertices();
-      rpc.all_gather(swap_counts);
-      graph.nverts = 0;
-      foreach(size_t count, swap_counts) graph.nverts += count;
+        // compute vertex count
+        swap_counts[rpc.procid()] = graph.num_local_own_vertices();
+        rpc.all_gather(swap_counts);
+        graph.nverts = 0;
+        foreach(size_t count, swap_counts) graph.nverts += count;
 
-      // compute replicas
-      swap_counts[rpc.procid()] = graph.num_local_vertices();
-      rpc.all_gather(swap_counts);
-      graph.nreplicas = 0;
-      foreach(size_t count, swap_counts) graph.nreplicas += count;
-
+        // compute replicas
+        swap_counts[rpc.procid()] = graph.num_local_vertices();
+        rpc.all_gather(swap_counts);
+        graph.nreplicas = 0;
+        foreach(size_t count, swap_counts) graph.nreplicas += count;
+      }
 
       if (rpc.procid() == 0) {
         logstream(LOG_EMPH) << "Graph info: "  
                             << "\n\t nverts: " << graph.num_vertices()
                             << "\n\t nedges: " << graph.num_edges()
                             << "\n\t nreplicas: " << graph.nreplicas
-                            << "\n\t replication factor: " << (double)graph.nreplicas/graph.num_vertices()
+                            << "\n\t replication factor: " 
+                            << (double)graph.nreplicas/graph.num_vertices()
                             << std::endl;
       }
     }

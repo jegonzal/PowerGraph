@@ -491,6 +491,7 @@ namespace graphlab {
     void modified_base_finalize(size_t nedges) {
       graphlab::timer ti;
       procid_t l_procid = hybrid_rpc.procid();
+      size_t nprocs = hybrid_rpc.numprocs();
       
       hybrid_rpc.full_barrier();
       
@@ -597,8 +598,8 @@ namespace graphlab {
                   graph.local_graph.num_vertices());
 #ifdef TUNING
         if(l_procid == 0)  {
-          memory_info::log_usage("base::populating local graph done.");
-          logstream(LOG_EMPH) << "base::populating local graph: " 
+          memory_info::log_usage("populating local graph done.");
+          logstream(LOG_EMPH) << "populating local graph: " 
                               << ti.current_time()
                               << " secs" 
                               << std::endl;
@@ -607,15 +608,15 @@ namespace graphlab {
         // Finalize local graph
         graph.local_graph.finalize();
 #ifdef TUNING
-        logstream(LOG_INFO) << "base::local graph info: " << std::endl
+        logstream(LOG_INFO) << "local graph info: " << std::endl
                             << "\t nverts: " << graph.local_graph.num_vertices()
                             << std::endl
                             << "\t nedges: " << graph.local_graph.num_edges()
                             << std::endl;
         
         if(l_procid == 0) {
-          memory_info::log_usage("base::finalizing local graph done."); 
-          logstream(LOG_EMPH) << "base::finalizing local graph: " 
+          memory_info::log_usage("finalizing local graph done."); 
+          logstream(LOG_EMPH) << "finalizing local graph: " 
                               << ti.current_time()
                               << " secs" 
                               << std::endl;
@@ -662,8 +663,8 @@ namespace graphlab {
           logstream(LOG_INFO) << "base::#vert-msgs=" << hybrid_vertex_exchange.size()
                               << std::endl;
           if(l_procid == 0) {        
-            memory_info::log_usage("base::adding vertex data done.");
-            logstream(LOG_EMPH) << "base::adding vertex data: " 
+            memory_info::log_usage("adding vertex data done.");
+            logstream(LOG_EMPH) << "adding vertex data: " 
                                 << ti.current_time()
                                 << " secs" 
                                 << std::endl;
@@ -687,14 +688,17 @@ namespace graphlab {
         foreach(const vid2lvid_pair_type& pair, vid2lvid_buffer) {
           vertex_record& vrec = graph.lvid2record[pair.second];
           vrec.gvid = pair.first;
-          vrec.owner = graph_hash::hash_vertex(pair.first) % hybrid_rpc.numprocs();
+          if (standalone)
+            vrec.owner = 0;
+          else
+            vrec.owner = graph_hash::hash_vertex(pair.first) % nprocs;
         }
         ASSERT_EQ(local_nverts, graph.local_graph.num_vertices());
         ASSERT_EQ(graph.lvid2record.size(), graph.local_graph.num_vertices());
 #ifdef TUNING
         if(l_procid == 0) {
-          memory_info::log_usage("base::allocating lvid2record done.");
-          logstream(LOG_EMPH) << "base::allocating lvid2record: " 
+          memory_info::log_usage("allocating lvid2record done.");
+          logstream(LOG_EMPH) << "allocating lvid2record: " 
                               << ti.current_time()
                               << " secs" 
                               << std::endl;
@@ -708,7 +712,7 @@ namespace graphlab {
       /*                          Master handshake                              */
       /*                                                                        */
       /**************************************************************************/      
-      {
+      if (!standalone) {
 #ifdef _OPENMP
         buffered_exchange<vertex_id_type> vid_buffer(hybrid_rpc.dc(), omp_get_max_threads());
 #else
@@ -763,7 +767,7 @@ namespace graphlab {
         vid_buffer.clear();
 
         if (!flying_vids.empty()) {
-          logstream(LOG_INFO) << "base::#flying-own-nverts="
+          logstream(LOG_INFO) << "#flying-own-nverts="
                               << flying_vids.size() 
                               << std::endl;
 
@@ -787,8 +791,8 @@ namespace graphlab {
 
 #ifdef TUNING
       if(l_procid == 0) {
-        memory_info::log_usage("base::master handshake done.");
-        logstream(LOG_EMPH) << "base::master handshake: " 
+        memory_info::log_usage("master handshake done.");
+        logstream(LOG_EMPH) << "master handshake: " 
                             << ti.current_time()
                             << " secs" 
                             << std::endl;
@@ -819,6 +823,7 @@ namespace graphlab {
       /*              Synchronize vertex data and meta information              */
       /*                                                                        */
       /**************************************************************************/
+      // TODO:  optimization for standalone
       {
         // construct the vertex set of changed vertices
         
@@ -848,20 +853,20 @@ namespace graphlab {
         vrecord_sync_gas.exec(changed_vset);
 
         if(l_procid == 0) {
-          memory_info::log_usage("base::synchronizing vertex (meta)data done.");
-          logstream(LOG_EMPH) << "base::synchrionizing vertex (meta)data: " 
+          memory_info::log_usage("synchronizing vertex (meta)data done.");
+          logstream(LOG_EMPH) << "synchrionizing vertex (meta)data: " 
                               << ti.current_time()
                               << " secs" 
                               << std::endl;
         }
       }
 
-      base_type::exchange_global_info();
+      base_type::exchange_global_info(standalone);
       
 #ifdef TUNING
       if(l_procid == 0) {
-        memory_info::log_usage("base::exchange global info done.");
-        logstream(LOG_EMPH) << "base::exchange global info: " 
+        memory_info::log_usage("exchange global info done.");
+        logstream(LOG_EMPH) << "exchange global info: " 
                             << ti.current_time()
                             << " secs" 
                             << std::endl;
