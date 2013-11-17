@@ -34,6 +34,7 @@
 #include <graphlab/graph/graph_hash.hpp>
 #include <graphlab/rpc/buffered_exchange.hpp>
 #include <graphlab/rpc/distributed_event_log.hpp>
+#include <graphlab/parallel/pthread_tools.hpp>
 #include <graphlab/logger/logger.hpp>
 #include <vector>
 
@@ -88,7 +89,7 @@ namespace graphlab {
         vertex_buffer_type;
 
     std::vector<edge_buffer_record> hybrid_edges;
-
+    simple_spinlock hybrid_edges_lock;
 
     /// one-by-one ingress. e.g., SNAP
     buffered_exchange<edge_buffer_record> hybrid_edge_exchange;
@@ -143,7 +144,9 @@ namespace graphlab {
       const edge_buffer_record record(source, target, edata);
       if (standalone) {
         /* Fast pass for standalone case. */
+        hybrid_edges_lock.lock();
         hybrid_edges.push_back(record);
+        hybrid_edges_lock.unlock();
       } else {
         const procid_t owning_proc = 
           graph_hash::hash_vertex(target) % hybrid_rpc.numprocs();
@@ -161,10 +164,12 @@ namespace graphlab {
                             const std::vector<EdgeData>& edatas) {
       if (standalone) {
         /* fast pass for standalone case. */
+        hybrid_edges_lock.lock();
         for(size_t i = 0; i < sources.size();i++){
           const edge_buffer_record record(sources[i], target, edatas[i]);
           hybrid_edges.push_back(record);
-        }        
+        }
+        hybrid_edges_lock.unlock();
       } else {
         const procid_t target_owner_proc = 
                 graph_hash::hash_vertex(target) % hybrid_rpc.numprocs();

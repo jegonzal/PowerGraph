@@ -33,6 +33,7 @@
 #include <graphlab/graph/graph_hash.hpp>
 #include <graphlab/rpc/buffered_exchange.hpp>
 #include <graphlab/rpc/distributed_event_log.hpp>
+#include <graphlab/parallel/pthread_tools.hpp>
 #include <graphlab/logger/logger.hpp>
 #include <vector>
 #include <map>
@@ -144,6 +145,7 @@ namespace graphlab {
     bool standalone;
 
     std::vector<edge_buffer_record> hybrid_edges;
+    simple_spinlock hybrid_edges_lock;
 
     //these are used for edges balance
     buffered_exchange< proc_edges_pair_type >  proc_edges_exchange;
@@ -196,7 +198,9 @@ namespace graphlab {
       const edge_buffer_record record(source, target, edata);
       if (standalone) {
         /* Fast pass for standalone case. */
+        hybrid_edges_lock.lock();
         hybrid_edges.push_back(record);
+        hybrid_edges_lock.unlock();
       } else {
         const procid_t owning_proc = 
           graph_hash::hash_vertex(target) % hybrid_rpc.numprocs();
@@ -213,10 +217,12 @@ namespace graphlab {
                       const std::vector<EdgeData>& edatas) {
       if (standalone) {
         /* fast pass for standalone case. */
+        hybrid_edges_lock.lock();
         for(size_t i = 0; i < in.size();i++){
           const edge_buffer_record record(in[i], out, edatas[i]);
           hybrid_edges.push_back(record);
-        }        
+        }
+        hybrid_edges_lock.unlock();
       } else {
         procid_t owning_proc = 0;
         if (in.size() >= threshold) {
@@ -334,7 +340,7 @@ namespace graphlab {
       
       size_t nprocs = hybrid_rpc.numprocs();
       procid_t l_procid = hybrid_rpc.procid();
-      size_t nedges;
+      size_t nedges = 0;
 
       if (l_procid == 0) {
         memory_info::log_usage("start finalizing");
