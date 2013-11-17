@@ -209,20 +209,21 @@ struct prediction_saver {
 struct linear_model_saver_U {
   typedef graph_type::vertex_type vertex_type;
   typedef graph_type::edge_type   edge_type;
-
-  int pos;
-  linear_model_saver_U(int pos): pos(pos) {}
-
+  /* save the linear model, using the format:
+     row_id/col_id factor1 factor2 ... factor_k \n
+     ==> where k is the number of converged singular values
+  */
   std::string save_vertex(const vertex_type& vertex) const {
-    if (vertex.id() < (uint)info.rows){
-      std::string ret;
-      if(use_ids)
-        ret = boost::lexical_cast<std::string>(vertex.id() + input_file_offset) + " ";
-      ret += boost::lexical_cast<std::string>(vertex.data().pvec[pos]) + "\n";
+    if (vertex.id() < rows){
+      std::string ret = boost::lexical_cast<std::string>(vertex.id()+input_file_offset) + " ";
+      for (uint i=0; i< nconv; i++)
+        ret += boost::lexical_cast<std::string>(vertex.data().pvec[i]) + " ";
+      ret += "\n";
       return ret;
     }
     else return "";
   }
+ 
   std::string save_edge(const edge_type& edge) const {
     return "";
   }
@@ -231,28 +232,23 @@ struct linear_model_saver_U {
 struct linear_model_saver_V {
   typedef graph_type::vertex_type vertex_type;
   typedef graph_type::edge_type   edge_type;
-
-  int pos;
-  linear_model_saver_V(int pos): pos(pos) {}
-
+  /* save the linear model, using the format:
+     nodeid factor1 factor2 ... factorNLATENT \n
+  */
   std::string save_vertex(const vertex_type& vertex) const {
-    if ((vertex.id() >= (uint)info.rows) || info.is_square()){
-      int rpos = pos;
-      if (info.is_square())
-          rpos += data_size;
-      std::string ret;
-      if(use_ids)
-        ret = boost::lexical_cast<std::string>(vertex.id()-rows+input_file_offset) + " ";
-      ret += boost::lexical_cast<std::string>(vertex.data().pvec[rpos]) + "\n";
+    if (vertex.id() >= rows){
+      std::string ret = boost::lexical_cast<std::string>(vertex.id()-rows+input_file_offset) + " ";
+      for (uint i=0; i< nconv; i++)
+        ret += boost::lexical_cast<std::string>(vertex.data().pvec[i]) + " ";
+      ret += "\n";
       return ret;
-    }
-    else return "";
   }
+  else return "";
+}
   std::string save_edge(const edge_type& edge) const {
     return "";
   }
 }; 
-
 
 
 /**
@@ -543,22 +539,21 @@ void lanczos(bipartite_graph_descriptor & info, timer & mytimer, vec & errest,
   END_TRACEPOINT(svd_error2);
 
   if (save_vectors){
-    BEGIN_TRACEPOINT(svd_vectors);
     if (nconv == 0)
       logstream(LOG_FATAL)<<"No converged vectors. Aborting the save operation" << std::endl;
+    if (predictions == "")
+      logstream(LOG_FATAL)<<"Please specify prediction output fie name using the --predictions=filename command"<<std::endl;
 
+    BEGIN_TRACEPOINT(svd_vectors);
     std::cout << "Saving singular value triplets to files: " << predictions << ".U.* and "<< predictions << ".V.*" <<std::endl;
     const bool gzip_output = false;
     const bool save_vertices = false;
     const bool save_edges = true;
     const size_t threads_per_machine = 1;
-    //save the linear model
-    for (int i=0; i < nsv; i++){
-      pgraph->save(predictions + "U." + boost::lexical_cast<std::string>(i), linear_model_saver_U(i),
+    pgraph->save(predictions + ".U", linear_model_saver_U(),
           gzip_output, save_edges, save_vertices, threads_per_machine);
-      pgraph->save(predictions + "V." + boost::lexical_cast<std::string>(i), linear_model_saver_V(i),
+      pgraph->save(predictions + ".V", linear_model_saver_V(),
           gzip_output, save_edges, save_vertices, threads_per_machine);
-    } 
     END_TRACEPOINT(svd_vectors);
   }
 

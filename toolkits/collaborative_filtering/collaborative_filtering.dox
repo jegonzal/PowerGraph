@@ -698,7 +698,7 @@ Ceate a directory named A2, and inside it put the file A2.
 
 Here is an for running SVD (using one mpi node, one core)
 \verbatim
-bickson@thrust:~/graphlab2.1/graphlabapi/debug/toolkits/collaborative_filtering$ ./svd A2 --rows=3 --cols=4 --nsv=4 --nv=4 --max_iter=3 --ncpus=1 --quiet=1 --save_vectors=1
+bickson@thrust:~/graphlab2.1/graphlabapi/debug/toolkits/collaborative_filtering$ ./svd A2 --rows=3 --cols=4 --nsv=3 --nv=4 --max_iter=3 --quiet=1 --save_vectors=1 --predictions=out
 TCP Communication layer constructed.
 Loading graph.
 Loading graph. Finished in 0.004996
@@ -740,7 +740,7 @@ mpiexec -n XX ./svd [ rest of the command line aguments ]
 
 \verbatim
 --training  Input file directory.
---nv  Number of inner steps of each iterations. Typically the number should be greater than the number of singular values you look for. When nv is higher, accuracy will be higher, but running time slower.
+--nv  Buffer size of vectors. Typically the buffer size should be greater than the number of singular values you look for. When nv is higher, accuracy will be higher, but running time slower.
 --nsv Number of singular values requested. Should be typically less than --nv
 --ortho_repeats Number of repeats on the orthogonalization step. Default is 1 (no repeats). Increase this number for higher accuracy but slower execution. Maximal allowed values is 3.
 --max_iter  Number of allowed restarts. The minimum is 2= no restart. When max_iter is higher, the result will be more accurate, but the running slower. 
@@ -755,15 +755,9 @@ Note: for improving accuracy tol should be reduced. max_iter and nv should be in
 On default, the singular values will be written to an output file. When using --save_vectors=1 the singular vectors of the matrices U and V will be written into file as well.
 Here is an example of the output files created by the A2 example:
 \verbatim
--rw-r--r--   1 bickson  staff        224 Oct  8 13:12 singular_values
--rw-r--r--   1 bickson  staff        102 Oct  8 13:12 V.3_1_of_1
--rw-r--r--   1 bickson  staff         90 Oct  8 13:12 V.2_1_of_1
--rw-r--r--   1 bickson  staff         89 Oct  8 13:12 V.1_1_of_1
--rw-r--r--   1 bickson  staff         92 Oct  8 13:12 V.0_1_of_1
--rw-r--r--   1 bickson  staff         56 Oct  8 13:12 U.3_1_of_1
--rw-r--r--   1 bickson  staff         66 Oct  8 13:12 U.2_1_of_1
--rw-r--r--   1 bickson  staff         68 Oct  8 13:12 U.1_1_of_1
--rw-r--r--   1 bickson  staff         69 Oct  8 13:12 U.0_1_of_1
+-rw-r--r--   1 bickson  staff       136 Nov 17 14:19 outsingular_values
+-rw-r--r--   1 bickson  staff       353 Nov 17 14:19 out.V_1_of_1
+-rw-r--r--   1 bickson  staff       244 Nov 17 14:19 out.U_1_of_1
 \endverbatim
 <br>
 The singular_values file has a straightforward format:
