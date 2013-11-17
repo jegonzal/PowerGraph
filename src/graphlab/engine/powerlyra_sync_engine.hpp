@@ -60,6 +60,7 @@
 
 #define ALIGN_DOWN(_n, _w) ((_n) & (~((_w)-1)))
 
+#undef TUNING
 namespace graphlab {
 
 
@@ -567,15 +568,14 @@ namespace graphlab {
     typedef powerlyra_sync_engine<VertexProgram> engine_type;
 
     /**
-     * \brief The triple type used to activate mirrors.
+     * \brief The pair type used to synchronize vertex programs across machines.
      */
-    typedef triple<vertex_id_type, vertex_program_type, edge_dir_type> 
-      vid_vprog_edir_triple_type;
+    typedef std::pair<vertex_id_type, vertex_program_type> vid_vprog_pair_type;
 
     /**
      * \brief The type of the express used to activate mirrors
      */
-    typedef fiber_buffered_exchange<vid_vprog_edir_triple_type> 
+    typedef fiber_buffered_exchange<vid_vprog_pair_type> 
       activ_exchange_type;
 
     /**
@@ -1136,7 +1136,8 @@ namespace graphlab {
     // Graph should has been finalized
     ASSERT_TRUE(graph.is_finalized());
     // Only support zone cuts
-    ASSERT_TRUE(graph.get_cuts_type() == graph_type::HYBRID_CUTS || graph.get_cuts_type() == graph_type::HYBRID_GINGER_CUTS);
+    ASSERT_TRUE(graph.get_cuts_type() == graph_type::HYBRID_CUTS 
+                || graph.get_cuts_type() == graph_type::HYBRID_GINGER_CUTS);
     // if (rmi.procid() == 0) graph.dump_graph_info();
 
     init();
@@ -1271,7 +1272,9 @@ namespace graphlab {
   void powerlyra_sync_engine<VertexProgram>::
   internal_signal(const vertex_type& vertex) {
     const lvid_type lvid = vertex.local_id();
+    // set an empty message
     messages[lvid] = message_type();
+    // atomic set is enough, without acquiring and releasing lock
     has_message.set_bit(lvid);
   } // end of internal_signal
 
@@ -1376,7 +1379,7 @@ namespace graphlab {
     start_time = timer::approx_time_seconds();
     exec_time = exch_time = recv_time =
       gather_time = apply_time = scatter_time = 0.0;
-    graphlab::timer ti, bk_ti, iter_ti;
+    graphlab::timer ti, bk_ti;
     iteration_counter = 0;
     force_abort = false;
     execution_status::status_enum termination_reason = execution_status::UNSET;
@@ -1405,8 +1408,6 @@ namespace graphlab {
       }
 
       bool print_this_round = (elapsed_seconds() - last_print) >= print_interval;
-      //debug
-      //print_this_round = true;
       if(rmi.procid() == 0 && print_this_round) {
         logstream(LOG_DEBUG)
           << rmi.procid() << ": Starting iteration: " << iteration_counter
@@ -1466,19 +1467,13 @@ namespace graphlab {
       // Check termination condition  ---------------------------------------
       size_t total_active_vertices = num_active_vertices;
       rmi.all_reduce(total_active_vertices);
-      if (rmi.procid() == 0 /*&& print_this_round*/) {
+      if (rmi.procid() == 0 && print_this_round)
         logstream(LOG_EMPH)
-          << iteration_counter << ":"
-          << "\tactive vertices = " << total_active_vertices
-          << "\ttime = " << iter_ti.current_time()
-          << "\tmsg = " << rmi.dc().network_bytes_sent()
-          << std::endl;
-      }
+          << "\tActive vertices: " << total_active_vertices << std::endl;      
       if(total_active_vertices == 0 ) {
         termination_reason = execution_status::TASK_DEPLETION;
         break;
       }
-      iter_ti.start();
 
       // Execute gather operations-------------------------------------------
       // 1. call pre_local_gather, gather and post_local_gather
@@ -1553,7 +1548,6 @@ namespace graphlab {
     if (rmi.procid() == 0) {
       logstream(LOG_EMPH) << iteration_counter
                           << " iterations completed." << std::endl;
-      memory_info::log_usage("Execution completed.");
     }
     // Final barrier to ensure that all engines terminate at the same time
     double total_compute_time = 0;
@@ -1564,16 +1558,20 @@ namespace graphlab {
     all_compute_time_vec[rmi.procid()] = total_compute_time;
     rmi.all_gather(all_compute_time_vec);
 
+#ifdef TUNING
     logstream(LOG_INFO) << "Local Calls(G|A|S): "
                         << completed_gathers.value << "|" 
                         << completed_applys.value << "|"
                         << completed_scatters.value 
                         << std::endl;
+#endif
 
     size_t global_completed = completed_applys;
     rmi.all_reduce(global_completed);
     completed_applys = global_completed;
+    rmi.cout() << "Updates: " << completed_applys.value << "\n";
 
+#ifdef TUNING
     global_completed = completed_gathers;
     rmi.all_reduce(global_completed);
     completed_gathers = global_completed;
@@ -1581,13 +1579,16 @@ namespace graphlab {
     global_completed = completed_scatters;
     rmi.all_reduce(global_completed);
     completed_scatters = global_completed;
+#endif
 
     if (rmi.procid() == 0) {
+#ifdef TUNING
       logstream(LOG_INFO) << "Total Calls(G|A|S): " 
                           << completed_gathers.value << "|" 
                           << completed_applys.value << "|"
                           << completed_scatters.value 
                           << std::endl;
+#endif
       logstream(LOG_INFO) << "Compute Balance: ";
       for (size_t i = 0;i < all_compute_time_vec.size(); ++i) {
         logstream(LOG_INFO) << all_compute_time_vec[i] << " ";
@@ -1602,6 +1603,7 @@ namespace graphlab {
                           << scatter_time
                           << std::endl;
     }
+
     rmi.full_barrier();
     // Stop the aggregator
     aggregator.stop();
@@ -1637,6 +1639,8 @@ namespace graphlab {
   void powerlyra_sync_engine<VertexProgram>::
   exchange_messages(const size_t thread_id) {
     context_type context(*this, graph);
+    const size_t TRY_RECV_MOD = 100;
+    size_t vcount = 0;
     fixed_dense_bitset<8 * sizeof(size_t)> local_bitset; // a word-size = 64 bit
 
     while (1) {
@@ -1663,7 +1667,9 @@ namespace graphlab {
           has_message.clear_bit(lvid);
           // clear the message to save memory
           messages[lvid] = message_type();
+          ++vcount;
         }
+        if(vcount % TRY_RECV_MOD == 0) recv_messages();
       }
     } // end of loop over vertices to send messages
     message_exchange.partial_flush();
@@ -1679,6 +1685,8 @@ namespace graphlab {
   receive_messages(const size_t thread_id) {
     context_type context(*this, graph);
     fixed_dense_bitset<8 * sizeof(size_t)> local_bitset; // a word-size = 64 bit
+    const size_t TRY_RECV_MOD = 100;
+    size_t vcount = 0;
     size_t nactive_inc = 0;
     
     while (1) {
@@ -1710,7 +1718,6 @@ namespace graphlab {
         // Determine if the gather should be run
         const vertex_program_type& const_vprog = vertex_programs[lvid];
         edge_dirs[lvid] = const_vprog.gather_edges(context, vertex);
-        
         if(edge_dirs[lvid] != graphlab::NO_EDGES) {
           active_minorstep.set_bit(lvid);
           // send Gx1 msgs
@@ -1719,9 +1726,11 @@ namespace graphlab {
                 && ((edge_dirs[lvid] == graphlab::OUT_EDGES) 
                     || (edge_dirs[lvid] == graphlab::ALL_EDGES)))) {
             send_activs(lvid, thread_id);
+            ++vcount;
           }
         }
       }
+      if(vcount % TRY_RECV_MOD == 0) recv_activs();
     }
     num_active_vertices += nactive_inc;
     activ_exchange.partial_flush();
@@ -1738,7 +1747,9 @@ namespace graphlab {
   execute_gathers(const size_t thread_id) {
     context_type context(*this, graph);
     const bool caching_enabled = !gather_cache.empty();
-    fixed_dense_bitset<8 * sizeof(size_t)> local_bitset; // a word-size = 64 bit
+    fixed_dense_bitset<8 * sizeof(size_t)> local_bitset; // a word-size = 64 bit    
+    const size_t TRY_RECV_MOD = 1000;
+    size_t vcount = 0;
     size_t ngather_inc = 0;
     timer ti;
     
@@ -1758,6 +1769,8 @@ namespace graphlab {
         if (lvid >= graph.num_local_vertices()) break;
 
         // [TARGET]: High/Low-degree Masters, and High/Low-degree Mirrors
+        if (low_mirror_lvid(lvid)) continue;
+        
         bool accum_is_set = false;
         gather_type accum = gather_type();
         // if caching is enabled and we have a cache entry then use
@@ -1770,7 +1783,7 @@ namespace graphlab {
           const vertex_program_type& vprog = vertex_programs[lvid];
           local_vertex_type local_vertex = graph.l_vertex(lvid);
           const vertex_type vertex(local_vertex);
-          const edge_dir_type gather_dir = edge_dirs[lvid];
+          const edge_dir_type gather_dir = vprog.gather_edges(context, vertex);
           
           size_t edges_touched = 0;
           vprog.pre_local_gather(accum);
@@ -1814,7 +1827,14 @@ namespace graphlab {
         }
 
         // If the accum contains a value for the gather
-        if (accum_is_set) send_accum(lvid, accum, thread_id);
+        if (accum_is_set) { send_accum(lvid, accum, thread_id); ++vcount; }
+        if(!graph.l_is_master(lvid)) {
+          // if this is not the master clear the vertex program
+          vertex_programs[lvid] = vertex_program_type();
+        }
+
+        // try to recv gathers if there are any in the buffer
+        if(vcount % TRY_RECV_MOD == 0) recv_accums();
       }
     } // end of loop over vertices to compute gather accumulators
     completed_gathers += ngather_inc;
@@ -1832,6 +1852,8 @@ namespace graphlab {
   execute_applys(const size_t thread_id) {
     context_type context(*this, graph);
     fixed_dense_bitset<8 * sizeof(size_t)> local_bitset;  // allocate a word size = 64bits
+    const size_t TRY_RECV_MOD = 1000;
+    size_t vcount = 0;
     size_t napply_inc = 0;
     timer ti;
     
@@ -1872,6 +1894,8 @@ namespace graphlab {
           active_minorstep.set_bit(lvid);
         // send Ax1 and Sx1 msgs
         send_updates(lvid, thread_id);
+
+        if(++vcount % TRY_RECV_MOD == 0) recv_updates();
       }
     } // end of loop over vertices to run apply
     completed_applys += napply_inc;
@@ -1932,6 +1956,8 @@ namespace graphlab {
           }
         } // end of if out_edges/all_edges
         INCREMENT_EVENT(EVENT_SCATTERS, edges_touched);
+        // Clear the vertex program
+        vertex_programs[lvid] = vertex_program_type();
         ++nscatter_inc;
       } // end of if active on this minor step
     } // end of loop over vertices to complete scatter operation
@@ -1950,9 +1976,7 @@ namespace graphlab {
     local_vertex_type vertex = graph.l_vertex(lvid);
     foreach(const procid_t& mirror, vertex.mirrors()) {
       activ_exchange.send(mirror,
-                         make_triple(vid, 
-                                     vertex_programs[lvid], 
-                                     edge_dirs[lvid]));
+                          std::make_pair(vid, vertex_programs[lvid]));
     }
   } // end of send_activ
 
@@ -1963,11 +1987,10 @@ namespace graphlab {
     while(activ_exchange.recv(recv_buffer)) {
       for (size_t i = 0;i < recv_buffer.size(); ++i) {
         typename activ_exchange_type::buffer_type& buffer = recv_buffer[i].buffer;
-        foreach(const vid_vprog_edir_triple_type& t, buffer) {
-          const lvid_type lvid = graph.local_vid(t.first);
+        foreach(const vid_vprog_pair_type& pair, buffer) {
+          const lvid_type lvid = graph.local_vid(pair.first);
           ASSERT_FALSE(graph.l_is_master(lvid));
-          vertex_programs[lvid] = t.second;
-          edge_dirs[lvid] = t.third;
+          vertex_programs[lvid] = pair.second;
           active_minorstep.set_bit(lvid);
         }
       }
@@ -2034,7 +2057,7 @@ namespace graphlab {
   recv_accums() {
     typename accum_exchange_type::recv_buffer_type recv_buffer;
     while(accum_exchange.recv(recv_buffer)) {
-      for (size_t i = 0;i < recv_buffer.size(); ++i) {
+      for (size_t i = 0; i < recv_buffer.size(); ++i) {
         typename accum_exchange_type::buffer_type& buffer = recv_buffer[i].buffer;
         foreach(const vid_gather_pair_type& pair, buffer) {
           const lvid_type lvid = graph.local_vid(pair.first);

@@ -1760,7 +1760,7 @@ namespace graphlab {
         local_vertex_type local_vertex = graph.l_vertex(lvid);
         const vertex_type vertex(local_vertex);
         const edge_dir_type scatter_dir = vprog.scatter_edges(context, vertex);
-				size_t edges_touched = 0;
+        size_t edges_touched = 0;
         // Loop over in edges
         if(scatter_dir == IN_EDGES || scatter_dir == ALL_EDGES) {
           foreach(local_edge_type local_edge, local_vertex.in_edges()) {
@@ -1769,7 +1769,7 @@ namespace graphlab {
             vprog.scatter(context, vertex, edge);
             // elocks[local_edge.id()].unlock();
           }
-					++edges_touched;
+          ++edges_touched;
         } // end of if in_edges/all_edges
         // Loop over out edges
         if(scatter_dir == OUT_EDGES || scatter_dir == ALL_EDGES) {
@@ -1779,9 +1779,9 @@ namespace graphlab {
             vprog.scatter(context, vertex, edge);
             // elocks[local_edge.id()].unlock();
           }
-					++edges_touched;
+          ++edges_touched;
         } // end of if out_edges/all_edges
-				INCREMENT_EVENT(EVENT_SCATTERS, edges_touched);
+        INCREMENT_EVENT(EVENT_SCATTERS, edges_touched);
         // Clear the vertex program
         vertex_programs[lvid] = vertex_program_type();
       } // end of if active on this minor step
