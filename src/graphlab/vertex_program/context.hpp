@@ -119,8 +119,19 @@ namespace graphlab {
      * Send a message to a vertex.
      */
     void signal(const vertex_type& vertex, 
-                const message_type& message = message_type()) {
+                const message_type& message) {
       engine.internal_signal(vertex, message);
+    }
+
+    /**
+     * Signal a vertex without a message. 
+     *
+     * This new interface can avoid contention on vertex with a large number of in-edges
+     * for applications that scatter neighboring but without messages 
+     * For example: PageRank with dynamic computation
+     */
+    void signal(const vertex_type& vertex) {
+      engine.internal_signal(vertex);
     }
 
     /**

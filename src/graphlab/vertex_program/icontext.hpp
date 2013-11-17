@@ -211,7 +211,9 @@ namespace graphlab {
      * \param message [in] The message to send, defaults to message_type(). 
      */
     virtual void signal(const vertex_type& vertex, 
-                        const message_type& message = message_type()) { }
+                        const message_type& message) { }
+
+    virtual void signal(const vertex_type& vertex) { }
 
     /**
      * \brief Send a message to a vertex ID.
