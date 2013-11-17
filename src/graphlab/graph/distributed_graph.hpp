@@ -2513,6 +2513,9 @@ namespace graphlab {
       } else if (format == "tsv") {
         line_parser = builtin_parsers::tsv_parser<distributed_graph>;
         load(path, line_parser);
+      } else if (format == "rtsv") {
+        line_parser = builtin_parsers::rtsv_parser<distributed_graph>;
+        load(path, line_parser);
       } else if (format == "csv") {
         line_parser = builtin_parsers::csv_parser<distributed_graph>;
         load(path, line_parser);

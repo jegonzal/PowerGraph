@@ -95,6 +95,24 @@ namespace graphlab {
       return true;
     } // end of tsv parser
 
+    /**
+     * \brief Parse files in the reverse tsv format
+     *
+     * This is identical to the tsv format but reverse edge direction.
+     *
+     */
+    template <typename Graph>
+    bool rtsv_parser(Graph& graph, const std::string& srcfilename,
+                    const std::string& str) {
+      if (str.empty()) return true;
+      size_t source, target;
+      char* targetptr;
+      source = strtoul(str.c_str(), &targetptr, 10);
+      if (targetptr == NULL) return false;
+      target = strtoul(targetptr, NULL, 10);
+      if(source != target) graph.add_edge(target, source);
+      return true;
+    } // end of rtsv parser
 
     template <typename Graph>
     bool csv_parser(Graph& graph, 
