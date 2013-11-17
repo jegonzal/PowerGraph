@@ -1659,10 +1659,8 @@ namespace graphlab {
         if (lvid >= graph.num_local_vertices()) break;
 
         // [TARGET]: High/Low-degree Mirrors
-        if(high_mirror_lvid(lvid)
-            || (low_mirror_lvid(lvid) // only if scatter via in-edge
-                && ((edge_dirs[lvid] == graphlab::IN_EDGES) 
-                    || (edge_dirs[lvid] == graphlab::ALL_EDGES)))) {        
+        // only if scatter via in-edges will set has_message of low_mirror
+        if(!graph.l_is_master(lvid)) {        
           send_message(lvid, messages[lvid], thread_id);
           has_message.clear_bit(lvid);
           // clear the message to save memory
