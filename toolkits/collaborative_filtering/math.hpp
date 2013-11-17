@@ -817,8 +817,8 @@ gather_type map_reduce_ortho(const graph_type::vertex_type & vertex){
         BEGIN_TRACEPOINT(orth1);
         alphas = pgraph->map_reduce_vertices<gather_type>(map_reduce_ortho, nodes);
         END_TRACEPOINT(orth1);
-        pgraph->transform_vertices(transform_ortho, nodes);
-        //mat[_curoffset] = mat[_curoffset].orthogonalize(); 
+        //pgraph->transform_vertices(transform_ortho, nodes);
+        mat[_curoffset] = mat[_curoffset].orthogonalize(); 
       } //for ortho_repeast 
     }
 
@@ -833,8 +833,8 @@ gather_type map_reduce_ortho(const graph_type::vertex_type & vertex){
     if (alpha >= 1e-10 ){
        INITIALIZE_TRACER(orth3, "transform_vertices in ortho3");
        BEGIN_TRACEPOINT(orth3);
-       pgraph->transform_vertices(divide_by_sum, nodes);    
-       //mat[_curoffset] = mat[_curoffset] / alpha;
+       //pgraph->transform_vertices(divide_by_sum, nodes);    
+       mat[_curoffset] = mat[_curoffset] / alpha;
        END_TRACEPOINT(orth3);
     }
     END_TRACEPOINT(orthogonalize_vs_alltrace);
