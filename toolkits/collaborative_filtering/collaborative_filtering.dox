@@ -696,6 +696,7 @@ cat A2
 
 Ceate a directory named A2, and inside it put the file A2.
 
+
 Here is an for running SVD (using one mpi node, one core)
 \verbatim
 bickson@thrust:~/graphlab2.1/graphlabapi/debug/toolkits/collaborative_filtering$ ./svd A2 --rows=3 --cols=4 --nsv=3 --nv=4 --max_iter=3 --quiet=1 --save_vectors=1 --predictions=out
@@ -769,20 +770,58 @@ The singular_values file has a straightforward format:
 1.69699593375e-64
 \endverbatim
 
-The singular vector file has the following format:
+Now let's compate GraphLba's output to Matlab execution:
 \verbatim
-> cat V.0_1_of_1
-0 -0.50467448230910661
-1 -0.46633647481132878
-2 -0.44142369037529217
-3 -0.57704339935747928
+>> A2
+ans =
+
+    0.8147    0.9134    0.2785    0.9649
+    0.9058    0.6324    0.5469    0.1576
+    0.1270    0.0975    0.9575    0.9706
+
+>>[u,d,v] = svd(A2)
+
+u =
+
+   -0.7019    0.2772    0.6561
+   -0.5018    0.4613   -0.7317
+   -0.5055   -0.8428   -0.1847
+
+
+d =
+
+    2.1610         0         0
+         0    0.9790         0
+         0         0    0.5542
+
+
+v =
+
+   -0.5047    0.5481   -0.2737
+   -0.4663    0.4726    0.2139
+   -0.4414   -0.4878   -0.7115
+   -0.5770   -0.4882    0.6108
 \endverbatim
 
-The first colum is the vector index, and the second column is the vector value.
-Note, that using multicore / distributed the vector columns may appear in a random order.
-In that case, you should sort them out, for example using the sort command:
+And here is GraphLab output:
 \verbatim
-sort -g -k 1,1 V.0_1_of_1 > V0
+#> cat out.U_1_of_1
+1 -0.70192004675202879 -0.27716662376092144 -0.6561150132717597 -5.4738221262688167e-48 
+2 -0.50180137502007927 -0.46130533561664677 0.73170538289640219 0 
+3 -0.50547366696553819 0.84283809240244056 0.18471686983009383 -1.3684555315672042e-48 
+
+#> cat out.V_1_of_1
+1 -0.50467448230910661 -0.54813128066725625 0.27370653410216472 -1.0321593257419978e-64 
+2 -0.46633647481132878 -0.47257174529014068 -0.21394855212543565 1.2159686437710111e-64 
+3 -0.44142369037529217 0.48778719783126245 0.71152275587696578 4.1893513895261429e-65 
+4 -0.57704339935747928 0.4881513027120063 -0.61077501430760717 -4.0044466804328635e-65 
+
+#> cat out.singular_values
+%%GraphLab SVD Solver library. This file contains the singular values.
+2.160971174556
+0.9790200922132
+0.5541592674291
+1.69699593375e-64
 \endverbatim
 
 \subsection SVD1 "Understanding the error measure"

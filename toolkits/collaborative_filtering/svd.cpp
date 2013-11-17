@@ -757,7 +757,7 @@ int main(int argc, char** argv) {
   vec errest;
   lanczos( info, timer, errest, vecfile);
 
-  write_output_vector(predictions + "singular_values", singular_values, false, "%GraphLab SVD Solver library. This file contains the singular values.");
+  write_output_vector(predictions + ".singular_values", singular_values, false, "%GraphLab SVD Solver library. This file contains the singular values.");
 
   const double runtime = timer.current_time();
   dc.cout() << "----------------------------------------------------------"
