@@ -225,7 +225,7 @@ namespace graphlab {
         hybrid_edges_lock.unlock();
       } else {
         procid_t owning_proc = 0;
-        if (in.size() >= threshold) {
+        if (in.size() > threshold) {
           // TODO: no need send, just resend latter
           owning_proc = graph_hash::hash_vertex(out) % base_type::rpc.numprocs();
           for (size_t i = 0; i < in.size(); ++i) {
@@ -511,7 +511,7 @@ namespace graphlab {
 
       for (size_t lvid = 0; lvid < graph.num_local_vertices(); lvid++) {
         vertex_record& vrec = graph.lvid2record[lvid];
-        if (vrec.num_in_edges >= threshold) {
+        if (vrec.num_in_edges > threshold) {
           if (vrec.owner == l_procid) {
             vrec.type = graph_type::HIGH_MASTER; 
             high_master ++;

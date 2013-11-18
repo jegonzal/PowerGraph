@@ -174,7 +174,7 @@ namespace graphlab {
         const procid_t target_owner_proc = 
                 graph_hash::hash_vertex(target) % hybrid_rpc.numprocs();
 
-        if(sources.size() >= threshold){
+        if(sources.size() > threshold){
           std::vector<batch_edge_buffer_record> batch_rec_vector(hybrid_rpc.numprocs());
           
           for (size_t i = 0; i < sources.size(); i++){
@@ -423,7 +423,7 @@ namespace graphlab {
 
       for (size_t lvid = 0; lvid < graph.num_local_vertices(); lvid++) {
         vertex_record& vrec = graph.lvid2record[lvid];
-        if (vrec.num_in_edges >= threshold) {
+        if (vrec.num_in_edges > threshold) {
           if (vrec.owner == l_procid) {
             vrec.type = graph_type::HIGH_MASTER; 
             high_master ++;
