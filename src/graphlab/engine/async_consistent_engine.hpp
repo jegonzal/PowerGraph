@@ -177,7 +177,7 @@ namespace graphlab {
    *   graphlab::async_consistent_engine<pagerank_vprog> engine(dc, graph, clopts);
    *   engine.signal_all();
    *   engine.start();
-   *   std::cout << "Runtime: " << engine.elapsed_time();
+   *   std::cout << "Runtime: " << engine.elapsed_seconds();
    *   graphlab::mpi_tools::finalize();
    * }
    * \endcode

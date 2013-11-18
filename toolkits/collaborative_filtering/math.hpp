@@ -115,13 +115,15 @@ class Axb :
     /* Gather the weighted rank of the adjacent page   */
     double gather(icontext_type& context, const vertex_type& vertex,
         edge_type& edge) const {
+
+      if (edge.data().role == edge_data::PREDICT)
+         return 0;
+
       bool brows = vertex.id() < (uint)info.get_start_node(false);
-      if (info.is_square()) 
-        brows = !mi.A_transpose;
       if (mi.A_offset  && mi.x_offset >= 0){
         double val = edge.data().obs * (brows ? edge.target().data().pvec[mi.x_offset] :
             edge.source().data().pvec[mi.x_offset]);
-        //printf("edge on vertex %d val %lg obs %lg\n", vertex.id(), val, edge.data().obs);
+        //printf("gather edge on vertex %d val %lg obs %lg\n", vertex.id(), val, edge.data().obs);
         return val;
       }
       //printf("edge on vertex %d val %lg\n", vertex.id(), 0.0);
@@ -175,16 +177,14 @@ class Axb :
       }
 
       user.pvec[mi.r_offset] = val;
-      //assert(val != 0);
       //printf("Exit apply on node %d value %lg\n", vertex.id(), val);
     }
+
     edge_dir_type gather_edges(icontext_type& context,
         const vertex_type& vertex) const {
-      if (info.is_square() && !mi.A_transpose)
+      if (vertex.id() < rows)
         return OUT_EDGES;
-      else if (info.is_square() && mi.A_transpose)
-        return IN_EDGES;
-      else return ALL_EDGES;
+      else return IN_EDGES;
     }
 
 
@@ -194,10 +194,9 @@ class Axb :
     }
 
     /* The scatter function just signal adjacent pages */
-    void scatter(icontext_type& context, const vertex_type& vertex,
-        edge_type& edge) const {
-      //context.signal(edge.target());
-    }
+    //void scatter(icontext_type& context, const vertex_type& vertex,
+    //    edge_type& edge) const {
+    //}
 
   }; 
 
@@ -782,13 +781,13 @@ gather_type map_reduce_ortho(const graph_type::vertex_type & vertex){
 
 
 
-  /*void transform_ortho(graph_type::vertex_type & vertex){
+  void transform_ortho(graph_type::vertex_type & vertex){
     assert(curMat != NULL && curMat->start_offset < pcurrent->offset);
     for (int i=curMat->start_offset; i< pcurrent->offset; i++){
       //assert(alphas.pvec[i-curMat->start_offset] != 0);
       vertex.data().pvec[pcurrent->offset] -= alphas.pvec[i-curMat->start_offset] * vertex.data().pvec[i]; 
     }
-  }*/
+  }
 
   bool selected_node(const graph_type::vertex_type& vertex){
     if (info.is_square())
