@@ -288,7 +288,7 @@ namespace graphlab {
           proc_edges_exchange.clear();
 
           for (int i=0; i<hybrid_rpc.numprocs(); i++) {
-            proc_num_vertices[i] += proc_edges_incremental[i]*1.0*nverts/nedges;
+            proc_num_vertices[i] += proc_edges_incremental[i]*float(nverts)/nedges;
             proc_edges_incremental[i] = 0;
           }
         }
@@ -558,13 +558,13 @@ namespace graphlab {
         logstream(LOG_EMPH) << "hybrid info: master [" 
                             << high_master << " " 
                             << low_master << " " 
-                            << ((high_master*1.0)/(high_master+low_master)) << "]"
+                            << (float(high_master)/(high_master+low_master)) << "]"
                             << std::endl;
         if ((high_mirror + low_mirror) > 0)
         logstream(LOG_EMPH) << "hybrid info: mirror [" 
                             << high_mirror << " " 
                             << low_mirror << " " 
-                            << ((high_mirror*1.0)/(high_mirror+low_mirror)) << "]"
+                            << (float(high_mirror)/(high_mirror+low_mirror)) << "]"
                             << std::endl;
 
         memory_info::log_usage("set vertex type done."); 

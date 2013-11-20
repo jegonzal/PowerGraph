@@ -56,6 +56,7 @@
 
 #include <graphlab/macros_def.hpp>
 
+#define TUNING
 namespace graphlab {
 
 
@@ -395,6 +396,36 @@ namespace graphlab {
     float start_time;
 
     /**
+     * \brief The total execution time.
+     */
+    double exec_time;
+
+    /**
+     * \brief The time spends on exch-msgs phase.
+     */
+    double exch_time;
+
+    /**
+     * \brief The time spends on recv-msgs phase.
+     */
+    double recv_time;
+
+    /**
+     * \brief The time spends on gather phase.
+     */
+    double gather_time;
+
+    /**
+     * \brief The time spends on apply phase.
+     */
+    double apply_time;
+
+    /**
+     * \brief The time spends on scatter phase.
+     */
+    double scatter_time;
+
+    /**
      * \brief The timeout time in seconds
      */
     float timeout;
@@ -504,9 +535,19 @@ namespace graphlab {
     dense_bitset active_minorstep;
 
     /**
+     * \brief A counter measuring the number of gathers that have been completed
+     */
+    atomic<size_t> completed_gathers;
+
+    /**
      * \brief A counter measuring the number of applys that have been completed
      */
     atomic<size_t> completed_applys;
+
+    /**
+     * \brief A counter measuring the number of scatters that have been completed
+     */
+    atomic<size_t> completed_scatters;
 
 
     /**
@@ -1073,7 +1114,9 @@ namespace graphlab {
     // Clear up
     force_abort = false;
     iteration_counter = 0;
+    completed_gathers = 0;
     completed_applys = 0;
+    completed_scatters = 0;
     has_message.clear();
     has_gather_accum.clear();
     has_cache.clear();
@@ -1279,6 +1322,9 @@ namespace graphlab {
     // Start the timer
     graphlab::timer timer; timer.start();
     start_time = timer::approx_time_seconds();
+    exec_time = exch_time = recv_time =
+      gather_time = apply_time = scatter_time = 0.0;
+    graphlab::timer ti, bk_ti;
     iteration_counter = 0;
     force_abort = false;
     execution_status::status_enum termination_reason =
@@ -1300,6 +1346,7 @@ namespace graphlab {
                         << std::endl;
     }
     // Program Main loop ====================================================
+    ti.start();
     while(iteration_counter < max_iterations && !force_abort ) {
 
       // Check first to see if we are out of time
@@ -1311,7 +1358,7 @@ namespace graphlab {
       bool print_this_round = (elapsed_seconds() - last_print) >= 5;
 
       if(rmi.procid() == 0 && print_this_round) {
-        logstream(LOG_EMPH)
+        logstream(LOG_DEBUG)
           << rmi.procid() << ": Starting iteration: " << iteration_counter
           << std::endl;
         last_print = elapsed_seconds();
@@ -1326,7 +1373,9 @@ namespace graphlab {
       // Exchange Messages --------------------------------------------------
       // Exchange any messages in the local message vectors
       // if (rmi.procid() == 0) std::cout << "Exchange messages..." << std::endl;
+      bk_ti.start();
       run_synchronous( &synchronous_engine::exchange_messages );
+      exch_time += bk_ti.current_time();
       /**
        * Post conditions:
        *   1) only master vertices have messages
@@ -1339,11 +1388,13 @@ namespace graphlab {
 
       // if (rmi.procid() == 0) std::cout << "Receive messages..." << std::endl;
       num_active_vertices = 0;
+      bk_ti.start();
       run_synchronous( &synchronous_engine::receive_messages );
       if (sched_allv) {
         active_minorstep.fill();
       }
       has_message.clear();
+      recv_time += bk_ti.current_time();
       /**
        * Post conditions:
        *   1) there are no messages remaining
@@ -1372,11 +1423,13 @@ namespace graphlab {
       // Execute the gather operation for all vertices that are active
       // in this minor-step (active-minorstep bit set).
       // if (rmi.procid() == 0) std::cout << "Gathering..." << std::endl;
+      bk_ti.start();
       run_synchronous( &synchronous_engine::execute_gathers );
       // Clear the minor step bit since only super-step vertices
       // (only master vertices are required to participate in the
       // apply step)
       active_minorstep.clear(); // rmi.barrier();
+      gather_time += bk_ti.current_time();
       /**
        * Post conditions:
        *   1) gather_accum for all master vertices contains the
@@ -1388,7 +1441,9 @@ namespace graphlab {
       // Execute Apply Operations -------------------------------------------
       // Run the apply function on all active vertices
       // if (rmi.procid() == 0) std::cout << "Applying..." << std::endl;
+      bk_ti.start();
       run_synchronous( &synchronous_engine::execute_applys );
+      apply_time += bk_ti.current_time();
       /**
        * Post conditions:
        *   1) any changes to the vertex data have been synchronized
@@ -1403,13 +1458,15 @@ namespace graphlab {
 
       // Execute Scatter Operations -----------------------------------------
       // Execute each of the scatters on all minor-step active vertices.
+      bk_ti.start();
       run_synchronous( &synchronous_engine::execute_scatters );
+      scatter_time += bk_ti.current_time();
       /**
        * Post conditions:
        *   1) NONE
        */
       if(rmi.procid() == 0 && print_this_round)
-        logstream(LOG_EMPH) << "\t Running Aggregators" << std::endl;
+        logstream(LOG_DEBUG) << "\t Running Aggregators" << std::endl;
       // probe the aggregator
       aggregator.tick_synchronous();
 
@@ -1419,6 +1476,7 @@ namespace graphlab {
         graph.save_binary(snapshot_path);
       }
     }
+    exec_time = ti.current_time();
 
     if (rmi.procid() == 0) {
       logstream(LOG_EMPH) << iteration_counter
@@ -1433,16 +1491,50 @@ namespace graphlab {
     all_compute_time_vec[rmi.procid()] = total_compute_time;
     rmi.all_gather(all_compute_time_vec);
 
+    /*logstream(LOG_INFO) << "Local Calls(G|A|S): "
+                        << completed_gathers.value << "|" 
+                        << completed_applys.value << "|"
+                        << completed_scatters.value 
+                        << std::endl;
+       */
+
     size_t global_completed = completed_applys;
     rmi.all_reduce(global_completed);
     completed_applys = global_completed;
     rmi.cout() << "Updates: " << completed_applys.value << "\n";
+
+#ifdef TUNING
+    global_completed = completed_gathers;
+    rmi.all_reduce(global_completed);
+    completed_gathers = global_completed;
+
+    global_completed = completed_scatters;
+    rmi.all_reduce(global_completed);
+    completed_scatters = global_completed;
+#endif
+
     if (rmi.procid() == 0) {
+#ifdef TUNING
+      logstream(LOG_INFO) << "Total Calls(G|A|S): " 
+                          << completed_gathers.value << "|" 
+                          << completed_applys.value << "|"
+                          << completed_scatters.value 
+                          << std::endl;
+#endif
       logstream(LOG_INFO) << "Compute Balance: ";
       for (size_t i = 0;i < all_compute_time_vec.size(); ++i) {
         logstream(LOG_INFO) << all_compute_time_vec[i] << " ";
       }
       logstream(LOG_INFO) << std::endl;
+      logstream(LOG_EMPH) << "      Execution Time: " << exec_time << std::endl;
+      logstream(LOG_EMPH) << "Breakdown(X|R|G|A|S): " 
+                          << exch_time << "|"
+                          << recv_time << "|"
+                          << gather_time << "|"
+                          << apply_time << "|"
+                          << scatter_time
+                          << std::endl;
+
     }
     rmi.full_barrier();
     // Stop the aggregator
@@ -1566,6 +1658,7 @@ namespace graphlab {
     const size_t TRY_RECV_MOD = 1000;
     size_t vcount = 0;
     const bool caching_enabled = !gather_cache.empty();
+    size_t ngather_inc = 0;
     timer ti;
 
     fixed_dense_bitset<8 * sizeof(size_t)> local_bitset; // a word-size = 64 bit
@@ -1630,8 +1723,9 @@ namespace graphlab {
               // elocks[local_edge.id()].unlock();
               ++edges_touched;
             }
-            INCREMENT_EVENT(EVENT_GATHERS, edges_touched);
           } // end of if out_edges/all_edges
+          INCREMENT_EVENT(EVENT_GATHERS, edges_touched);          
+          ++ngather_inc;
           vprog.post_local_gather(accum);
           // If caching is enabled then save the accumulator to the
           // cache for future iterations.  Note that it is possible
@@ -1652,10 +1746,11 @@ namespace graphlab {
         // try to recv gathers if there are any in the buffer
         if(++vcount % TRY_RECV_MOD == 0) recv_gathers();
       }
-    } // end of loop over vertices to compute gather accumulators
+    } // end of loop over vertices to compute gather accumulators    
+    completed_gathers += ngather_inc;
     per_thread_compute_time[thread_id] += ti.current_time();
     gather_exchange.partial_flush();
-      // Finish sending and receiving all gather operations
+    // Finish sending and receiving all gather operations
     thread_barrier.wait();
     if(thread_id == 0) gather_exchange.flush();
     thread_barrier.wait();
@@ -1669,6 +1764,7 @@ namespace graphlab {
     context_type context(*this, graph);
     const size_t TRY_RECV_MOD = 1000;
     size_t vcount = 0;
+    size_t napply_inc = 0;
     timer ti;
 
     fixed_dense_bitset<8 * sizeof(size_t)> local_bitset;  // allocate a word size = 64bits
@@ -1696,7 +1792,7 @@ namespace graphlab {
         INCREMENT_EVENT(EVENT_APPLIES, 1);
         vertex_programs[lvid].apply(context, vertex, accum);
         // record an apply as a completed task
-        ++completed_applys;
+        ++napply_inc;
         // Clear the accumulator to save some memory
         gather_accum[lvid] = gather_type();
         // synchronize the changed vertex data with all mirrors
@@ -1718,7 +1814,7 @@ namespace graphlab {
         }
       }
     } // end of loop over vertices to run apply
-
+    completed_applys += napply_inc;
     per_thread_compute_time[thread_id] += ti.current_time();
     vprog_exchange.partial_flush();
     vdata_exchange.partial_flush();
@@ -1739,6 +1835,7 @@ namespace graphlab {
   void synchronous_engine<VertexProgram>::
   execute_scatters(const size_t thread_id) {
     context_type context(*this, graph);
+    size_t nscatter_inc = 0;
     timer ti;
     fixed_dense_bitset<8 * sizeof(size_t)> local_bitset; // allocate a word size = 64 bits
     while (1) {
@@ -1784,9 +1881,10 @@ namespace graphlab {
         INCREMENT_EVENT(EVENT_SCATTERS, edges_touched);
         // Clear the vertex program
         vertex_programs[lvid] = vertex_program_type();
+        ++nscatter_inc;
       } // end of if active on this minor step
     } // end of loop over vertices to complete scatter operation
-
+    completed_scatters += nscatter_inc;
     per_thread_compute_time[thread_id] += ti.current_time();
   } // end of execute_scatters
 

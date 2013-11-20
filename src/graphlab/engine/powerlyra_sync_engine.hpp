@@ -60,7 +60,7 @@
 
 #define ALIGN_DOWN(_n, _w) ((_n) & (~((_w)-1)))
 
-#undef TUNING
+#define TUNING
 namespace graphlab {
 
 
@@ -592,13 +592,13 @@ namespace graphlab {
     /**
      * \brief The tetrad type used to update vertex data and activate mirrors.
      */
-    typedef tetrad<vertex_id_type, vertex_data_type, vertex_program_type, 
-      edge_dir_type> vid_vdata_vprog_edir_tetrad_type;
+    typedef tetrad<vertex_id_type, vertex_data_type, edge_dir_type, 
+      vertex_program_type> vid_vdata_edir_vprog_tetrad_type;
 
     /**
      * \brief The type of the express used to update mirrors
      */
-    typedef fiber_buffered_exchange<vid_vdata_vprog_edir_tetrad_type> 
+    typedef fiber_buffered_exchange<vid_vdata_edir_vprog_tetrad_type> 
       update_exchange_type;
 
     /**
@@ -1558,13 +1558,12 @@ namespace graphlab {
     all_compute_time_vec[rmi.procid()] = total_compute_time;
     rmi.all_gather(all_compute_time_vec);
 
-#ifdef TUNING
-    logstream(LOG_INFO) << "Local Calls(G|A|S): "
+    /*logstream(LOG_INFO) << "Local Calls(G|A|S): "
                         << completed_gathers.value << "|" 
                         << completed_applys.value << "|"
                         << completed_scatters.value 
                         << std::endl;
-#endif
+       */
 
     size_t global_completed = completed_applys;
     rmi.all_reduce(global_completed);
@@ -1795,8 +1794,8 @@ namespace graphlab {
                 accum = vprog.gather(context, vertex, edge);
                 accum_is_set = true;
               }
-              ++edges_touched;
             }
+            ++edges_touched;
           } // end of if in_edges/all_edges
           // Loop over out edges
           if(gather_dir == OUT_EDGES || gather_dir == ALL_EDGES) {
@@ -1808,8 +1807,8 @@ namespace graphlab {
                 accum = vprog.gather(context, vertex, edge);
                 accum_is_set = true;
               }
-              ++edges_touched;
-            }
+            }            
+            ++edges_touched;
           } // end of if out_edges/all_edges
           INCREMENT_EVENT(EVENT_GATHERS, edges_touched);
           ++ngather_inc;
@@ -1836,9 +1835,9 @@ namespace graphlab {
       }
     } // end of loop over vertices to compute gather accumulators
     completed_gathers += ngather_inc;
+    per_thread_compute_time[thread_id] += ti.current_time();
     accum_exchange.partial_flush();
     thread_barrier.wait();
-    per_thread_compute_time[thread_id] += ti.current_time();
     if(thread_id == 0) accum_exchange.flush(); // full_barrier
     thread_barrier.wait();
     recv_accums();
@@ -1890,16 +1889,19 @@ namespace graphlab {
 
         if (edge_dirs[lvid] != graphlab::NO_EDGES)
           active_minorstep.set_bit(lvid);
-        // send Ax1 and Sx1 msgs
-        send_updates(lvid, thread_id);
+        else
+          vertex_programs[lvid] = vertex_program_type();
 
+        // send Ax1 and Sx1
+        send_updates(lvid, thread_id);
+        
         if(++vcount % TRY_RECV_MOD == 0) recv_updates();
       }
     } // end of loop over vertices to run apply
     completed_applys += napply_inc;
+    per_thread_compute_time[thread_id] += ti.current_time();
     update_exchange.partial_flush();
     thread_barrier.wait();
-    per_thread_compute_time[thread_id] += ti.current_time();
     // Flush the buffer and finish receiving any remaining updates.
     if(thread_id == 0) update_exchange.flush(); // full_barrier
     thread_barrier.wait();
@@ -1942,16 +1944,16 @@ namespace graphlab {
           foreach(local_edge_type local_edge, local_vertex.in_edges()) {
             edge_type edge(local_edge);
             vprog.scatter(context, vertex, edge);
-            ++edges_touched;
           }
+          ++edges_touched;
         } // end of if in_edges/all_edges
         // Loop over out edges
         if(scatter_dir == OUT_EDGES || scatter_dir == ALL_EDGES) {
           foreach(local_edge_type local_edge, local_vertex.out_edges()) {
             edge_type edge(local_edge);
             vprog.scatter(context, vertex, edge);
-            ++edges_touched;
           }
+          ++edges_touched;
         } // end of if out_edges/all_edges
         INCREMENT_EVENT(EVENT_SCATTERS, edges_touched);
         // Clear the vertex program
@@ -2003,10 +2005,10 @@ namespace graphlab {
     local_vertex_type vertex = graph.l_vertex(lvid);
     foreach(const procid_t& mirror, vertex.mirrors()) {
       update_exchange.send(mirror, 
-                          make_tetrad(vid, 
-                                      vertex.data(), 
-                                      vertex_programs[lvid], 
-                                      edge_dirs[lvid]));
+                           make_tetrad(vid, 
+                                       vertex.data(), 
+                                       edge_dirs[lvid],
+                                       vertex_programs[lvid]));
     }
   } // end of send_update
 
@@ -2017,13 +2019,13 @@ namespace graphlab {
     while(update_exchange.recv(recv_buffer)) {
       for (size_t i = 0;i < recv_buffer.size(); ++i) {
         typename update_exchange_type::buffer_type& buffer = recv_buffer[i].buffer;
-        foreach(const vid_vdata_vprog_edir_tetrad_type& t, buffer) {
+        foreach(const vid_vdata_edir_vprog_tetrad_type& t, buffer) {
           const lvid_type lvid = graph.local_vid(t.first);
           ASSERT_FALSE(graph.l_is_master(lvid));
           graph.l_vertex(lvid).data() = t.second;
-          if (t.fourth != graphlab::NO_EDGES) {
-            vertex_programs[lvid] = t.third;
-            edge_dirs[lvid] = t.fourth;
+          if (t.third != graphlab::NO_EDGES) {
+            edge_dirs[lvid] = t.third;
+            vertex_programs[lvid] = t.fourth;
             active_minorstep.set_bit(lvid);
           }
         }
