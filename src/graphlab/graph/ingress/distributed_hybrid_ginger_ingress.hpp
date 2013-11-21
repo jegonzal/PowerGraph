@@ -145,7 +145,6 @@ namespace graphlab {
     bool standalone;
 
     std::vector<edge_buffer_record> hybrid_edges;
-    simple_spinlock hybrid_edges_lock;
 
     //these are used for edges balance
     buffered_exchange< proc_edges_pair_type >  proc_edges_exchange;
@@ -198,9 +197,8 @@ namespace graphlab {
       const edge_buffer_record record(source, target, edata);
       if (standalone) {
         /* Fast pass for standalone case. */
-        hybrid_edges_lock.lock();
+        // NOTE: forbidden loading in parallel
         hybrid_edges.push_back(record);
-        hybrid_edges_lock.unlock();
       } else {
         const procid_t owning_proc = 
           graph_hash::hash_vertex(target) % hybrid_rpc.numprocs();
@@ -217,12 +215,10 @@ namespace graphlab {
                       const std::vector<EdgeData>& edatas) {
       if (standalone) {
         /* fast pass for standalone case. */
-        hybrid_edges_lock.lock();
         for(size_t i = 0; i < in.size();i++){
           const edge_buffer_record record(in[i], out, edatas[i]);
           hybrid_edges.push_back(record);
         }
-        hybrid_edges_lock.unlock();
       } else {
         procid_t owning_proc = 0;
         if (in.size() > threshold) {
