@@ -1562,9 +1562,8 @@ namespace graphlab {
                         << completed_gathers.value << "|" 
                         << completed_applys.value << "|"
                         << completed_scatters.value 
-                        << std::endl;
-       */
-
+                        << std::endl;*/
+    
     size_t global_completed = completed_applys;
     rmi.all_reduce(global_completed);
     completed_applys = global_completed;
@@ -1766,8 +1765,6 @@ namespace graphlab {
         if (lvid >= graph.num_local_vertices()) break;
 
         // [TARGET]: High/Low-degree Masters, and High/Low-degree Mirrors
-        if (low_mirror_lvid(lvid)) continue;
-        
         bool accum_is_set = false;
         gather_type accum = gather_type();
         // if caching is enabled and we have a cache entry then use
@@ -1794,8 +1791,8 @@ namespace graphlab {
                 accum = vprog.gather(context, vertex, edge);
                 accum_is_set = true;
               }
+              ++edges_touched;
             }
-            ++edges_touched;
           } // end of if in_edges/all_edges
           // Loop over out edges
           if(gather_dir == OUT_EDGES || gather_dir == ALL_EDGES) {
@@ -1807,8 +1804,8 @@ namespace graphlab {
                 accum = vprog.gather(context, vertex, edge);
                 accum_is_set = true;
               }
-            }            
-            ++edges_touched;
+              ++edges_touched;
+            }
           } // end of if out_edges/all_edges
           INCREMENT_EVENT(EVENT_GATHERS, edges_touched);
           ++ngather_inc;
@@ -1944,16 +1941,16 @@ namespace graphlab {
           foreach(local_edge_type local_edge, local_vertex.in_edges()) {
             edge_type edge(local_edge);
             vprog.scatter(context, vertex, edge);
+            ++edges_touched;
           }
-          ++edges_touched;
         } // end of if in_edges/all_edges
         // Loop over out edges
         if(scatter_dir == OUT_EDGES || scatter_dir == ALL_EDGES) {
           foreach(local_edge_type local_edge, local_vertex.out_edges()) {
             edge_type edge(local_edge);
             vprog.scatter(context, vertex, edge);
+            ++edges_touched;
           }
-          ++edges_touched;
         } // end of if out_edges/all_edges
         INCREMENT_EVENT(EVENT_SCATTERS, edges_touched);
         // Clear the vertex program

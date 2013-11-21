@@ -56,7 +56,7 @@
 
 #include <graphlab/macros_def.hpp>
 
-#define TUNING
+#undef TUNING
 namespace graphlab {
 
 
@@ -1495,9 +1495,8 @@ namespace graphlab {
                         << completed_gathers.value << "|" 
                         << completed_applys.value << "|"
                         << completed_scatters.value 
-                        << std::endl;
-       */
-
+                        << std::endl;*/
+    
     size_t global_completed = completed_applys;
     rmi.all_reduce(global_completed);
     completed_applys = global_completed;
@@ -1709,7 +1708,7 @@ namespace graphlab {
               // elocks[local_edge.id()].unlock();
             }
           } // end of if in_edges/all_edges
-            // Loop over out edges
+          // Loop over out edges
           if(gather_dir == OUT_EDGES || gather_dir == ALL_EDGES) {
             foreach(local_edge_type local_edge, local_vertex.out_edges()) {
               edge_type edge(local_edge);
@@ -1865,8 +1864,8 @@ namespace graphlab {
             // elocks[local_edge.id()].lock();
             vprog.scatter(context, vertex, edge);
             // elocks[local_edge.id()].unlock();
+            ++edges_touched;
           }
-          ++edges_touched;
         } // end of if in_edges/all_edges
         // Loop over out edges
         if(scatter_dir == OUT_EDGES || scatter_dir == ALL_EDGES) {
@@ -1875,8 +1874,8 @@ namespace graphlab {
             // elocks[local_edge.id()].lock();
             vprog.scatter(context, vertex, edge);
             // elocks[local_edge.id()].unlock();
+            ++edges_touched;
           }
-          ++edges_touched;
         } // end of if out_edges/all_edges
         INCREMENT_EVENT(EVENT_SCATTERS, edges_touched);
         // Clear the vertex program
