@@ -267,7 +267,7 @@ inline bool graph_loader(graph_type& graph,
   if (line.find("#") != std::string::npos)
     return true;
 
-  ASSERT_FALSE(line.empty()); 
+
   // Determine the role of the data
   edge_data::data_role_type role = edge_data::TRAIN;
   if (boost::ends_with(filename,".predict")) 
@@ -278,6 +278,11 @@ inline bool graph_loader(graph_type& graph,
   graph_type::vertex_id_type source_id(-1), target_id(-1);
   float obs = 1;
   strm >> source_id >> target_id;
+  if (source_id == graph_type::vertex_id_type(-1) || target_id == graph_type::vertex_id_type(-1)){
+    logstream(LOG_WARNING)<<"Failed to read input line: "<< line << " in file: "  << filename << " (or node id is -1). " << std::endl;
+    return true;
+  }
+
   if (input_file_offset != 0){
      source_id-=input_file_offset; 
      target_id-=input_file_offset;
