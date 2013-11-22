@@ -491,38 +491,42 @@ struct linear_model_saver_bias_V {
 }; 
 
 
-
-
 /**
  * \brief The graph loader function is a line parser used for
  * distributed graph construction.
  */
 inline bool graph_loader(graph_type& graph, 
-                         const std::string& filename,
-                         const std::string& line) {
-  ASSERT_FALSE(line.empty()); 
-  // Determine the role of the data
-  edge_data::data_role_type role = edge_data::TRAIN;
-  if(boost::ends_with(filename,".validate")) role = edge_data::VALIDATE;
-  else if(boost::ends_with(filename, ".predict")) role = edge_data::PREDICT;
-  // Parse the line
+    const std::string& filename,
+    const std::string& line) {
+
+ // Parse the line
   std::stringstream strm(line);
   graph_type::vertex_id_type source_id(-1), target_id(-1);
   float obs(0);
   strm >> source_id >> target_id;
 
-   if(role == edge_data::TRAIN || role == edge_data::VALIDATE){
+  if (source_id == graph_type::vertex_id_type(-1) || target_id == graph_type::vertex_id_type(-1)){
+    logstream(LOG_WARNING)<<"Failed to read input line: "<< line << " in file: "  << filename << " (or node id is -1). " << std::endl;
+    return true;
+  }
+
+  // Determine the role of the data
+  edge_data::data_role_type role = edge_data::TRAIN;
+  if(boost::ends_with(filename,".validate")) role = edge_data::VALIDATE;
+  else if(boost::ends_with(filename, ".predict")) role = edge_data::PREDICT;
+ 
+  if(role == edge_data::TRAIN || role == edge_data::VALIDATE){
     strm >> obs;
-    if (obs < biassgd_vertex_program::MINVAL || obs > biassgd_vertex_program::MAXVAL)
-      logstream(LOG_FATAL)<<"Rating values should be between " << biassgd_vertex_program::MINVAL << " and " << biassgd_vertex_program::MAXVAL << ". Got value: " << obs << " [ user: " << source_id << " to item: " <<target_id << " ] " << std::endl; 
+    if (obs < biassgd_vertex_program::MINVAL || obs > biassgd_vertex_program::MAXVAL){
+      logstream(LOG_WARNING)<<"Rating values should be between " << biassgd_vertex_program::MINVAL << " and " << biassgd_vertex_program::MAXVAL << ". Got value: " << obs << " [ user: " << source_id << " to item: " <<target_id << " ] " << std::endl; 
+      assert(false); 
+    }
   }
   target_id = -(graphlab::vertex_id_type(target_id + SAFE_NEG_OFFSET));
   // Create an edge and add it to the graph
   graph.add_edge(source_id, target_id, edge_data(obs, role)); 
   return true; // successful load
 } // end of graph_loader
-
-
 
 
 
