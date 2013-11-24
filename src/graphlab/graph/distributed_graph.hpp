@@ -2219,61 +2219,32 @@ namespace graphlab {
         logstream(LOG_WARNING) << "No files found matching " << original_path << std::endl;
       }
 
-      if (get_cuts_type() == HYBRID_GINGER_CUTS) {
-        for(size_t i = 0; i < graph_files.size(); ++i) {
-          if ((parallel_ingress && (i % rpc.numprocs() == rpc.procid()))
-              || (!parallel_ingress && (rpc.procid() == 0))) {
-            logstream(LOG_EMPH) << "Loading graph from file (sequential): " 
-                                << graph_files[i] << std::endl;
-            // is it a gzip file ?
-            const bool gzip = boost::ends_with(graph_files[i], ".gz");
-            // open the stream
-            std::ifstream in_file(graph_files[i].c_str(),
-                                  std::ios_base::in | std::ios_base::binary);
-            // attach gzip if the file is gzip
-            boost::iostreams::filtering_stream<boost::iostreams::input> fin;
-            // Using gzip filter
-            if (gzip) fin.push(boost::iostreams::gzip_decompressor());
-            fin.push(in_file);
-            const bool success = load_from_stream(graph_files[i], fin, line_parser);
-            if(!success) {
-              logstream(LOG_FATAL)
-                << "\n\tError parsing file: " << graph_files[i] << std::endl;
-            }
-            fin.pop();
-            if (gzip) fin.pop();
-          }
-        }
-      } 
-      else {
 #ifdef _OPENMP
 #pragma omp parallel for
 #endif
-        for(size_t i = 0; i < graph_files.size(); ++i) {
-          if ((parallel_ingress && (i % rpc.numprocs() == rpc.procid()))
-              || (!parallel_ingress && (rpc.procid() == 0))) {
-            logstream(LOG_EMPH) << "Loading graph from file: " << graph_files[i] << std::endl;
-            // is it a gzip file ?
-            const bool gzip = boost::ends_with(graph_files[i], ".gz");
-            // open the stream
-            std::ifstream in_file(graph_files[i].c_str(),
-                                  std::ios_base::in | std::ios_base::binary);
-            // attach gzip if the file is gzip
-            boost::iostreams::filtering_stream<boost::iostreams::input> fin;
-            // Using gzip filter
-            if (gzip) fin.push(boost::iostreams::gzip_decompressor());
-            fin.push(in_file);
-            const bool success = load_from_stream(graph_files[i], fin, line_parser);
-            if(!success) {
-              logstream(LOG_FATAL)
-                << "\n\tError parsing file: " << graph_files[i] << std::endl;
-            }
-            fin.pop();
-            if (gzip) fin.pop();
+      for(size_t i = 0; i < graph_files.size(); ++i) {
+        if ((parallel_ingress && (i % rpc.numprocs() == rpc.procid()))
+            || (!parallel_ingress && (rpc.procid() == 0))) {
+          logstream(LOG_EMPH) << "Loading graph from file: " << graph_files[i] << std::endl;
+          // is it a gzip file ?
+          const bool gzip = boost::ends_with(graph_files[i], ".gz");
+          // open the stream
+          std::ifstream in_file(graph_files[i].c_str(),
+                                std::ios_base::in | std::ios_base::binary);
+          // attach gzip if the file is gzip
+          boost::iostreams::filtering_stream<boost::iostreams::input> fin;
+          // Using gzip filter
+          if (gzip) fin.push(boost::iostreams::gzip_decompressor());
+          fin.push(in_file);
+          const bool success = load_from_stream(graph_files[i], fin, line_parser);
+          if(!success) {
+            logstream(LOG_FATAL)
+              << "\n\tError parsing file: " << graph_files[i] << std::endl;
           }
+          fin.pop();
+          if (gzip) fin.pop();
         }
       }
-
       rpc.full_barrier();
     } // end of load from posixfs
 
@@ -2302,54 +2273,29 @@ namespace graphlab {
         logstream(LOG_WARNING) << "No files found matching " << prefix << std::endl;
       }
 
-      if (get_cuts_type() == HYBRID_GINGER_CUTS) {
-        for(size_t i = 0; i < graph_files.size(); ++i) {
-          if ((parallel_ingress && (i % rpc.numprocs() == rpc.procid())) ||
-              (!parallel_ingress && (rpc.procid() == 0))) {
-            logstream(LOG_EMPH) << "Loading graph from file: " << graph_files[i] << std::endl;
-            // is it a gzip file ?
-            const bool gzip = boost::ends_with(graph_files[i], ".gz");
-            // open the stream
-            graphlab::hdfs::fstream in_file(hdfs, graph_files[i]);
-            boost::iostreams::filtering_stream<boost::iostreams::input> fin;
-            if(gzip) fin.push(boost::iostreams::gzip_decompressor());
-            fin.push(in_file);
-            const bool success = load_from_stream(graph_files[i], fin, line_parser);
-            if(!success) {
-              logstream(LOG_FATAL)
-                << "\n\tError parsing file: " << graph_files[i] << std::endl;
-            }
-            fin.pop();
-            if (gzip) fin.pop();
-          }
-        }
-      }
-      else {
 #ifdef _OPENMP
 #pragma omp parallel for
 #endif
-        for(size_t i = 0; i < graph_files.size(); ++i) {
-          if ((parallel_ingress && (i % rpc.numprocs() == rpc.procid())) ||
-              (!parallel_ingress && (rpc.procid() == 0))) {
-            logstream(LOG_EMPH) << "Loading graph from file: " << graph_files[i] << std::endl;
-            // is it a gzip file ?
-            const bool gzip = boost::ends_with(graph_files[i], ".gz");
-            // open the stream
-            graphlab::hdfs::fstream in_file(hdfs, graph_files[i]);
-            boost::iostreams::filtering_stream<boost::iostreams::input> fin;
-            if(gzip) fin.push(boost::iostreams::gzip_decompressor());
-            fin.push(in_file);
-            const bool success = load_from_stream(graph_files[i], fin, line_parser);
-            if(!success) {
-              logstream(LOG_FATAL)
-                << "\n\tError parsing file: " << graph_files[i] << std::endl;
-            }
-            fin.pop();
-            if (gzip) fin.pop();
+      for(size_t i = 0; i < graph_files.size(); ++i) {
+        if ((parallel_ingress && (i % rpc.numprocs() == rpc.procid())) ||
+            (!parallel_ingress && (rpc.procid() == 0))) {
+          logstream(LOG_EMPH) << "Loading graph from file: " << graph_files[i] << std::endl;
+          // is it a gzip file ?
+          const bool gzip = boost::ends_with(graph_files[i], ".gz");
+          // open the stream
+          graphlab::hdfs::fstream in_file(hdfs, graph_files[i]);
+          boost::iostreams::filtering_stream<boost::iostreams::input> fin;
+          if(gzip) fin.push(boost::iostreams::gzip_decompressor());
+          fin.push(in_file);
+          const bool success = load_from_stream(graph_files[i], fin, line_parser);
+          if(!success) {
+            logstream(LOG_FATAL)
+              << "\n\tError parsing file: " << graph_files[i] << std::endl;
           }
+          fin.pop();
+          if (gzip) fin.pop();
         }
       }
-
       rpc.full_barrier();
     } // end of load from hdfs
 

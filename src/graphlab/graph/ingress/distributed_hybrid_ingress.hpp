@@ -90,7 +90,7 @@ namespace graphlab {
 
     std::vector<edge_buffer_record> hybrid_edges;
 
-    /// one-by-one ingress. e.g., SNAP
+    /* ingress exchange */
     buffered_exchange<edge_buffer_record> hybrid_edge_exchange;
     buffered_exchange<vertex_buffer_record> hybrid_vertex_exchange;
 
@@ -105,10 +105,10 @@ namespace graphlab {
         graph(graph), threshold(threshold),
 #ifdef _OPENMP
         hybrid_edge_exchange(dc, omp_get_max_threads()), 
-        hybrid_vertex_exchange(dc, omp_get_max_threads()),
+        hybrid_vertex_exchange(dc, omp_get_max_threads())
 #else
         hybrid_edge_exchange(dc), 
-        hybrid_vertex_exchange(dc),
+        hybrid_vertex_exchange(dc)
 #endif
     {
       /* fast pass for standalone case. */
@@ -138,14 +138,13 @@ namespace graphlab {
     /* add vdata */
     void add_vertex(vertex_id_type vid, const VertexData& vdata) { 
       const vertex_buffer_record record(vid, vdata);
-      if (standalone) {
-        /* fast pass for redundant finalization with no graph changes. */
-        hybrid_vertex_exchange.send(0, record);
-      } else {
-        const procid_t owning_proc = 
-          graph_hash::hash_vertex(vid) % hybrid_rpc.numprocs();        
-        hybrid_vertex_exchange.send(owning_proc, record);
-      }
+      const procid_t owning_proc = standalone ? 0 :
+        graph_hash::hash_vertex(vid) % hybrid_rpc.numprocs();        
+#ifdef _OPENMP
+      hybrid_vertex_exchange.send(owning_proc, record, omp_get_thread_num());
+#else
+      hybrid_vertex_exchange.send(owning_proc, record);
+#endif
     } // end of add vertex
 
 
@@ -156,6 +155,8 @@ namespace graphlab {
       size_t nprocs = hybrid_rpc.numprocs();
       procid_t l_procid = hybrid_rpc.procid();
       size_t nedges = 0;
+
+      hybrid_rpc.full_barrier();
 
       if (l_procid == 0) {
         memory_info::log_usage("start finalizing");
@@ -189,7 +190,7 @@ namespace graphlab {
 
       /**************************************************************************/
       /*                                                                        */
-      /*                       prepare hybrid ingress                           */
+      /*                       Prepare hybrid ingress                           */
       /*                                                                        */
       /**************************************************************************/ 
       {
@@ -202,8 +203,7 @@ namespace graphlab {
           proc = -1;
           while(hybrid_edge_exchange.recv(proc, edge_buffer))
             foreach(const edge_buffer_record& rec, edge_buffer)
-              hybrid_edges.push_back(rec);
-          
+              hybrid_edges.push_back(rec);          
           hybrid_edge_exchange.clear();
         } else {
           hopscotch_map<vertex_id_type, size_t> in_degree_set;
@@ -216,11 +216,10 @@ namespace graphlab {
             }
           }
           hybrid_edge_exchange.clear();
-          hybrid_rpc.full_barrier(); // sync before reusing
+          hybrid_edge_exchange.barrier(); // barrier before reusing
 #ifdef TUNING
-          if(l_procid == 0) { 
-            memory_info::log_usage("save local edges and count in-degree done.");
-            logstream(LOG_EMPH) << "save local edges and count in-degree: " 
+          if(l_procid == 0) {
+            logstream(LOG_INFO) << "save local edges and count in-degree: " 
                                 << ti.current_time()
                                 << " secs" 
                                 << std::endl;
@@ -243,9 +242,8 @@ namespace graphlab {
             }
           }
 #ifdef TUNING
-          if(l_procid == 0) { 
-            memory_info::log_usage("resend edges of high-degree vertices done.");
-            logstream(LOG_EMPH) << "resend edges of high-degree vertices: " 
+          if(l_procid == 0) {
+            logstream(LOG_INFO) << "resend edges of high-degree vertices: " 
                                 << ti.current_time()
                                 << " secs" 
                                 << std::endl;
@@ -255,9 +253,8 @@ namespace graphlab {
           // receive edges of high-degree vertices
           hybrid_edge_exchange.flush();
 #ifdef TUNING
-          if(l_procid == 0)
-            logstream(LOG_INFO) << "receive high-degree edges: "  
-                                << hybrid_edge_exchange.size() << std::endl;
+          logstream(LOG_INFO) << "receive high-degree edges: "  
+                              << hybrid_edge_exchange.size() << std::endl;
 #endif
           proc = -1;
           while(hybrid_edge_exchange.recv(proc, edge_buffer)) {
@@ -269,9 +266,8 @@ namespace graphlab {
           hybrid_edge_exchange.clear();
           in_degree_set.clear();
 #ifdef TUNING
-          if(l_procid == 0) { 
-            memory_info::log_usage("receive high-degree edges done.");
-            logstream(LOG_EMPH) << "receive high-degree edges: " 
+          if(l_procid == 0) {
+            logstream(LOG_INFO) << "receive high-degree edges: " 
                                 << ti.current_time()
                                 << " secs" 
                                 << std::endl;
@@ -469,8 +465,7 @@ namespace graphlab {
                   graph.local_graph.num_vertices());
 #ifdef TUNING
         if(l_procid == 0)  {
-          memory_info::log_usage("populating local graph done.");
-          logstream(LOG_EMPH) << "populating local graph: " 
+          logstream(LOG_INFO) << "populating local graph: " 
                               << ti.current_time()
                               << " secs" 
                               << std::endl;
@@ -486,8 +481,7 @@ namespace graphlab {
                             << std::endl;
         
         if(l_procid == 0) {
-          memory_info::log_usage("finalizing local graph done."); 
-          logstream(LOG_EMPH) << "finalizing local graph: " 
+          logstream(LOG_INFO) << "finalizing local graph: " 
                               << ti.current_time()
                               << " secs" 
                               << std::endl;
@@ -533,9 +527,8 @@ namespace graphlab {
 #ifdef TUNING
           logstream(LOG_INFO) << "base::#vert-msgs=" << hybrid_vertex_exchange.size()
                               << std::endl;
-          if(l_procid == 0) {        
-            memory_info::log_usage("adding vertex data done.");
-            logstream(LOG_EMPH) << "adding vertex data: " 
+          if(l_procid == 0) {
+            logstream(LOG_INFO) << "adding vertex data: " 
                                 << ti.current_time()
                                 << " secs" 
                                 << std::endl;
@@ -568,8 +561,7 @@ namespace graphlab {
         ASSERT_EQ(graph.lvid2record.size(), graph.local_graph.num_vertices());
 #ifdef TUNING
         if(l_procid == 0) {
-          memory_info::log_usage("allocating lvid2record done.");
-          logstream(LOG_EMPH) << "allocating lvid2record: " 
+          logstream(LOG_INFO) << "allocating lvid2record: " 
                               << ti.current_time()
                               << " secs" 
                               << std::endl;
@@ -662,8 +654,7 @@ namespace graphlab {
 
 #ifdef TUNING
       if(l_procid == 0) {
-        memory_info::log_usage("master handshake done.");
-        logstream(LOG_EMPH) << "master handshake: " 
+        logstream(LOG_INFO) << "master handshake: " 
                             << ti.current_time()
                             << " secs" 
                             << std::endl;
@@ -723,20 +714,20 @@ namespace graphlab {
                              boost::bind(&distributed_hybrid_ingress::finalize_apply, this, _1, _2, _3));
         vrecord_sync_gas.exec(changed_vset);
 
+#ifdef TUNING
         if(l_procid == 0) {
-          memory_info::log_usage("synchronizing vertex (meta)data done.");
-          logstream(LOG_EMPH) << "synchrionizing vertex (meta)data: " 
+          logstream(LOG_INFO) << "synchrionizing vertex (meta)data: " 
                               << ti.current_time()
                               << " secs" 
                               << std::endl;
         }
+#endif
       }
 
       base_type::exchange_global_info(standalone);
 #ifdef TUNING
       if(l_procid == 0) {
-        memory_info::log_usage("exchange global info done.");
-        logstream(LOG_EMPH) << "exchange global info: " 
+        logstream(LOG_INFO) << "exchange global info: " 
                             << ti.current_time()
                             << " secs" 
                             << std::endl;

@@ -70,15 +70,14 @@ namespace graphlab {
       };
 
       /** Assign edges via a heuristic method called ginger */
-      procid_t edge_to_proc_ginger (
-          const vertex_id_type vid,
+      procid_t edge_to_proc_ginger (const std::vector<vertex_id_type>& sources,
+          const vertex_id_type target,
           master_hash_table_type& mht,
-          master_hash_table_type& mht_incremental,
-          std::vector<size_t>& proc_num_vertices,
+          master_hash_table_type& mht_incr,
+          std::vector<size_t>& proc_balance,
           double alpha,
-          double gamma,
-          std::vector<vertex_id_type>& in) {
-        size_t numprocs = proc_num_vertices.size();
+          double gamma) {
+        size_t numprocs = proc_balance.size();
 
         // Compute the score of each proc.
         procid_t best_proc = -1;
@@ -86,27 +85,28 @@ namespace graphlab {
         std::vector<double> proc_score(numprocs);
         std::vector<int> proc_degrees(numprocs);
 
-        for (size_t i = 0; i < in.size(); ++i) {
-          if (mht.find(in[i]) != mht.end())
-            proc_degrees[mht[in[i]]]++;
-          else if (mht_incremental.find(in[i]) != mht_incremental.end())
-            proc_degrees[mht_incremental[in[i]]]++;
+        for (size_t i = 0; i < sources.size(); ++i) {
+          if (mht.find(sources[i]) != mht.end())
+            proc_degrees[mht[sources[i]]]++;
+          else if (mht_incr.find(sources[i]) != mht_incr.end())
+            proc_degrees[mht_incr[sources[i]]]++;
         }
 
         for (size_t i = 0; i < numprocs; ++i) {
-          proc_score[i] = proc_degrees[i] - alpha * gamma * pow(proc_num_vertices[i], gamma-1);
+          proc_score[i] = proc_degrees[i] 
+                        - alpha * gamma * pow(proc_balance[i], (gamma - 1));
         }
-        maxscore = *std::max_element(proc_score.begin(), proc_score.end());
 
+        // TODO: just use std::max
+        maxscore = *std::max_element(proc_score.begin(), proc_score.end());
         for (size_t i = 0; i < numprocs; ++i) {
           if (proc_score[i] == maxscore) {
             best_proc = i;
             break;
           }
         }
-
-        proc_num_vertices[best_proc]++;
-
+        
+        proc_balance[best_proc]++;
         return best_proc;
       };
 
