@@ -96,7 +96,7 @@ namespace graphlab {
     } // end of tsv parser
 
     /**
-     * \brief Parse files in the reverse tsv format
+     * \brief Parse files in the reverse tsv format (for debug)
      *
      * This is identical to the tsv format but reverse edge direction.
      *
@@ -195,74 +195,6 @@ namespace graphlab {
       }
       return true;
     } // end of adj parser
-#endif
-
-#if defined(__cplusplus) && __cplusplus >= 201103L
-    // The spirit parser seems to have issues when compiling under
-    // C++11. Temporary workaround with a hard coded parser. TOFIX
-    template <typename Graph>
-    bool radj_parser(Graph& graph, const std::string& srcfilename,
-                    const std::string& line) {
-      // If the line is empty simply skip it
-      if(line.empty()) return true;
-      std::stringstream strm(line);
-      vertex_id_type target; 
-      size_t n;
-      strm >> target;
-      if (strm.fail()) return false;
-      strm >> n;
-      if (strm.fail()) return true;
-
-      std::vector<vertex_id_type> sources;
-      while (strm.good()) {
-        vertex_id_type source;
-        strm >> source;
-        if (strm.fail()) break;
-        if (target != source) sources.push_back(source);
-      }
-      std::vector<typename Graph::edge_data_type> edatas;
-      edatas.resize(sources.size());
-      graph.add_edge(sources, target, edatas);
-      if (n != sources.size()) return false;
-      return true;
-    } // end of radj parser
-
-#else
-
-    template <typename Graph>
-    bool radj_parser(Graph& graph, const std::string& srcfilename,
-                    const std::string& line) {
-      // If the line is empty simply skip it
-      if(line.empty()) return true;
-      // We use the boost spirit parser which requires (too) many separate
-      // namespaces so to make things clear we shorten them here.
-      namespace qi = boost::spirit::qi;
-      namespace ascii = boost::spirit::ascii;
-      namespace phoenix = boost::phoenix;
-      vertex_id_type target(-1);
-      vertex_id_type nsources(-1);
-      std::vector<vertex_id_type> sources;
-      const bool success = qi::phrase_parse
-        (line.begin(), line.end(),       
-          //  Begin grammar
-          (
-          qi::ulong_[phoenix::ref(target) = qi::_1] >> -qi::char_(",") >>
-          qi::ulong_[phoenix::ref(nsources) = qi::_1] >> -qi::char_(",") >>
-          *(qi::ulong_[phoenix::push_back(phoenix::ref(sources), qi::_1)] % -qi::char_(","))
-          )
-          ,
-          //  End grammar
-          ascii::space); 
-      // Test to see if the boost parser was able to parse the line
-      if(!success || nsources != sources.size()) {
-        logstream(LOG_ERROR) << "Parse error in vertex prior parser." << std::endl;
-        return false;
-      }
-      std::vector<typename Graph::edge_data_type> edatas;
-      edatas.resize(sources.size());
-      graph.add_edge(sources, target, edatas);
-      return true;
-    } // end of radj parser
 #endif
 
     template <typename Graph>

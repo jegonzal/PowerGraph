@@ -932,31 +932,6 @@ namespace graphlab {
       return true;
     }
 
-    /* used by radj */
-    void add_edge(std::vector<vertex_id_type>& sources, vertex_id_type target,
-                  const std::vector<EdgeData>& edatas) {
-#ifndef USE_DYNAMIC_LOCAL_GRAPH
-      if(finalized) {
-        logstream(LOG_FATAL)
-          << "\n\tAttempting to add an edge to a finalized graph."
-          << "\n\tEdges cannot be added to a graph after finalization."
-          << std::endl;
-      }
-#else 
-      finalized = false;
-#endif
-      if(target == vertex_id_type(-1)) {
-        logstream(LOG_FATAL)
-          << "\n\tThe target vertex with id vertex_id_type(-1)\n"
-          << "\tor unsigned value " << vertex_id_type(-1) << " in edge \n"
-          << "\tThe -1 vertex id is reserved for internal use."
-          << std::endl;
-      }
-      ASSERT_NE(ingress_ptr, NULL);
-
-      ingress_ptr->add_edges(sources, target, edatas);
-    }
-
    /**
     * \brief Performs a map-reduce operation on each vertex in the
     * graph returning the result.
@@ -2535,13 +2510,10 @@ namespace graphlab {
       } else if (format == "adj") {
         line_parser = builtin_parsers::adj_parser<distributed_graph>;
         load(path, line_parser);
-      } else if (format == "radj") {
-        line_parser = builtin_parsers::radj_parser<distributed_graph>;
-        load(path, line_parser);
       } else if (format == "tsv") {
         line_parser = builtin_parsers::tsv_parser<distributed_graph>;
         load(path, line_parser);
-      } else if (format == "rtsv") {
+      } else if (format == "rtsv") { // debug
         line_parser = builtin_parsers::rtsv_parser<distributed_graph>;
         load(path, line_parser);
       } else if (format == "csv") {

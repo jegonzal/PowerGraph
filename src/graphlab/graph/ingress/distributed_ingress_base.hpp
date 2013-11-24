@@ -129,11 +129,6 @@ namespace graphlab {
       edge_exchange.send(owning_proc, record);
     } // end of add edge
 
-    /** Stub for ginger ingress. */
-    virtual void add_edges(
-        std::vector<vertex_id_type>& in, 
-        vertex_id_type target,
-        const std::vector<EdgeData>& edatas) { }
 
     /** \brief Add an vertex to the ingress object. */
     virtual void add_vertex(vertex_id_type vid, const VertexData& vdata)  { 

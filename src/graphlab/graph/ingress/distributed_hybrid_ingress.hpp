@@ -94,28 +94,6 @@ namespace graphlab {
     buffered_exchange<edge_buffer_record> hybrid_edge_exchange;
     buffered_exchange<vertex_buffer_record> hybrid_vertex_exchange;
 
-    /// batch ingress. e.g., R-ADJ
-    struct batch_edge_buffer_record {
-      std::vector<vertex_id_type> sources;
-      vertex_id_type target;
-      std::vector<edge_data_type> edatas;
-      
-      batch_edge_buffer_record(
-        const std::vector<vertex_id_type>& sources = std::vector<vertex_id_type>() , 
-        const vertex_id_type& target = vertex_id_type(-1), 
-        const std::vector<edge_data_type>& edatas = std::vector<edge_data_type>()) :
-        sources(sources), target(target), edatas(edatas) { }
-
-      void load(iarchive& arc) { arc >> sources >> target >> edatas; }
-      void save(oarchive& arc) const { arc << sources << target << edatas; }
-    };
-    typedef typename buffered_exchange<batch_edge_buffer_record>::buffer_type 
-        batch_edge_buffer_type;
-
-    buffered_exchange<batch_edge_buffer_record> high_batch_edge_exchange;
-    buffered_exchange<batch_edge_buffer_record> low_batch_edge_exchange;
-
-
     /// detail vertex record for the second pass coordination. 
     typedef typename base_type::vertex_negotiator_record 
       vertex_negotiator_record;
@@ -128,13 +106,9 @@ namespace graphlab {
 #ifdef _OPENMP
         hybrid_edge_exchange(dc, omp_get_max_threads()), 
         hybrid_vertex_exchange(dc, omp_get_max_threads()),
-        high_batch_edge_exchange(dc, omp_get_max_threads()), 
-        low_batch_edge_exchange(dc, omp_get_max_threads())
 #else
         hybrid_edge_exchange(dc), 
         hybrid_vertex_exchange(dc),
-        high_batch_edge_exchange(dc), 
-        low_batch_edge_exchange(dc)
 #endif
     {
       /* fast pass for standalone case. */
@@ -160,56 +134,6 @@ namespace graphlab {
 #endif
     } // end of add edge
 
-    
-    /** Add edges to the ingress object using different assignment policies.
-     *  This function handles the RADJ graph in different ways.
-     *  For high degree edges, hashing from its source vertex;
-     *  for low degree edges, hasing from its target vertex.
-     */
-    void add_edges(std::vector<vertex_id_type>& sources, vertex_id_type target,
-                            const std::vector<EdgeData>& edatas) {
-      if (standalone) {
-        /* fast pass for standalone case. */
-        const batch_edge_buffer_record record(sources, target, edatas);
-#ifdef _OPENMP
-        low_batch_edge_exchange.send(0, record, omp_get_thread_num());
-#else
-        low_batch_edge_exchange.send(0, record);
-#endif
-      } else {
-        const procid_t target_owner_proc = 
-                graph_hash::hash_vertex(target) % hybrid_rpc.numprocs();
-
-        if(sources.size() > threshold){
-          std::vector<batch_edge_buffer_record> batch_rec_vector(hybrid_rpc.numprocs());
-          
-          for (size_t i = 0; i < sources.size(); i++){
-            const procid_t source_owner_proc = 
-                graph_hash::hash_vertex(sources[i]) % hybrid_rpc.numprocs();
-            batch_rec_vector[source_owner_proc].sources.push_back(sources[i]);
-            batch_rec_vector[source_owner_proc].edatas.push_back(edatas[i]);
-          }
-          
-          for (size_t i = 0; i < batch_rec_vector.size(); i++) {
-            if(batch_rec_vector[i].sources.size() > 0){
-              batch_rec_vector[i].target=target;
-#ifdef _OPENMP
-              high_batch_edge_exchange.send((procid_t)i, batch_rec_vector[i], omp_get_thread_num());
-#else
-              high_batch_edge_exchange.send((procid_t)i, batch_rec_vector[i]);
-#endif
-            }
-          }
-        } else{
-          const batch_edge_buffer_record record(sources, target, edatas);
-#ifdef _OPENMP
-          low_batch_edge_exchange.send(target_owner_proc, record, omp_get_thread_num());
-#else
-          low_batch_edge_exchange.send(target_owner_proc, record);
-#endif
-        }
-      }
-    } // end of add edges
 
     /* add vdata */
     void add_vertex(vertex_id_type vid, const VertexData& vdata) { 
@@ -232,7 +156,7 @@ namespace graphlab {
       size_t nprocs = hybrid_rpc.numprocs();
       procid_t l_procid = hybrid_rpc.procid();
       size_t nedges = 0;
-      
+
       if (l_procid == 0) {
         memory_info::log_usage("start finalizing");
         logstream(LOG_EMPH) << "hybrid finalizing ..."
@@ -242,159 +166,108 @@ namespace graphlab {
                             << std::endl;
       }
 
+
+      /**************************************************************************/
+      /*                                                                        */
+      /*                       Flush any additional data                        */
+      /*                                                                        */
+      /**************************************************************************/
+      hybrid_edge_exchange.flush(); hybrid_vertex_exchange.flush();
+
+      /**
+       * Fast pass for redundant finalization with no graph changes. 
+       */
+      {
+        size_t changed_size = hybrid_edge_exchange.size() + hybrid_vertex_exchange.size();
+        hybrid_rpc.all_reduce(changed_size);
+        if (changed_size == 0) {
+          logstream(LOG_INFO) << "Skipping Graph Finalization because no changes happened..." << std::endl;
+          return;
+        }
+      }
+      
+
       /**************************************************************************/
       /*                                                                        */
       /*                       prepare hybrid ingress                           */
       /*                                                                        */
       /**************************************************************************/ 
       {
-        if (standalone) {
-          /* fast pass for redundant finalization with no graph changes. */
-          hybrid_edge_exchange.flush();
-          if (hybrid_edge_exchange.size() > 0) {            
-            edge_buffer_type edge_buffer;
-            procid_t proc = -1;
+        edge_buffer_type edge_buffer;
+        procid_t proc;
+        nedges = hybrid_edge_exchange.size();
 
-            nedges = hybrid_edge_exchange.size();
-            hybrid_edges.reserve(nedges);
-
-            while(hybrid_edge_exchange.recv(proc, edge_buffer))
-              foreach(const edge_buffer_record& rec, edge_buffer)
-                hybrid_edges.push_back(rec);
-            
-            hybrid_edge_exchange.clear();
-          }
+        hybrid_edges.reserve(nedges);
+        if (standalone) { /* fast pass for standalone */
+          proc = -1;
+          while(hybrid_edge_exchange.recv(proc, edge_buffer))
+            foreach(const edge_buffer_record& rec, edge_buffer)
+              hybrid_edges.push_back(rec);
+          
+          hybrid_edge_exchange.clear();
         } else {
           hopscotch_map<vertex_id_type, size_t> in_degree_set;
-          edge_buffer_type edge_buffer;
-          procid_t proc;
 
-          /* collect edges for one-by-one ingress  (e.g. SNAP) */
-          hybrid_edge_exchange.flush();
-          if (hybrid_edge_exchange.size() > 0) {
-            nedges = hybrid_edge_exchange.size();
-            hybrid_edges.reserve(nedges);
-
-            proc = -1;
-            while(hybrid_edge_exchange.recv(proc, edge_buffer)) {
-              foreach(const edge_buffer_record& rec, edge_buffer) {
-                hybrid_edges.push_back(rec);
-                in_degree_set[rec.target]++;
-              }
-            }
-            hybrid_edge_exchange.clear();
-            hybrid_rpc.full_barrier(); // sync before reusing
-#ifdef TUNING
-            if(l_procid == 0) { 
-              memory_info::log_usage("save local edges and count in-degree done.");
-              logstream(LOG_EMPH) << "save local edges and count in-degree: " 
-                                  << ti.current_time()
-                                  << " secs" 
-                                  << std::endl;
-            }
-#endif
-
-            // re-send edges of high-degree vertices
-            for (size_t i = 0; i < hybrid_edges.size(); i++) {
-              edge_buffer_record& rec = hybrid_edges[i];
-              if (in_degree_set[rec.target] > threshold) {
-                const procid_t source_owner_proc = 
-                  graph_hash::hash_vertex(rec.source) % nprocs;
-                if(source_owner_proc != l_procid){
-                  // re-send the edge of high-degree vertices according to source
-                  hybrid_edge_exchange.send(source_owner_proc, rec);
-                  // set re-sent edges as empty for skipping
-                  hybrid_edges[i] = edge_buffer_record();
-                  --nedges;
-                }
-              }
-            }
-#ifdef TUNING
-            if(l_procid == 0) { 
-              memory_info::log_usage("resend edges of high-degree vertices done.");
-              logstream(LOG_EMPH) << "resend edges of high-degree vertices: " 
-                                  << ti.current_time()
-                                  << " secs" 
-                                  << std::endl;
-            }
-#endif
-
-            // receive edges of high-degree vertices
-            hybrid_edge_exchange.flush();
-#ifdef TUNING
-            if(l_procid == 0)
-              logstream(LOG_INFO) << "receive high-degree edges: "  
-                                  << hybrid_edge_exchange.size() << std::endl;
-#endif
-            proc = -1;
-            while(hybrid_edge_exchange.recv(proc, edge_buffer)) {
-              foreach(const edge_buffer_record& rec, edge_buffer) {
-                hybrid_edges.push_back(rec);
-                ++nedges;
-              }
-            }
-            hybrid_edge_exchange.clear();
-            in_degree_set.clear();
-#ifdef TUNING
-            if(l_procid == 0) { 
-              memory_info::log_usage("receive high-degree edges done.");
-              logstream(LOG_EMPH) << "receive high-degree edges: " 
-                                  << ti.current_time()
-                                  << " secs" 
-                                  << std::endl;
-            }
-#endif
-          }
-
-        }
-
-        /* collect edges for batch ingress  (e.g. RADJ) */
-        // store edges of low-degree vertices into hybrid_edges
-        low_batch_edge_exchange.flush();
-        if (low_batch_edge_exchange.size() > 0) {
-          batch_edge_buffer_type batch_edge_buffer;
-          procid_t proc = -1;
-          while(low_batch_edge_exchange.recv(proc, batch_edge_buffer)) {
-            foreach(const batch_edge_buffer_record& batch_rec, batch_edge_buffer) {
-              nedges += batch_rec.sources.size();
-              for(size_t i = 0; i < batch_rec.sources.size();i++){
-                edge_buffer_record rec(batch_rec.sources[i],
-                                       batch_rec.target,
-                                       batch_rec.edatas[i]);
-                hybrid_edges.push_back(rec);
-              }
+          proc = -1;
+          while(hybrid_edge_exchange.recv(proc, edge_buffer)) {
+            foreach(const edge_buffer_record& rec, edge_buffer) {
+              hybrid_edges.push_back(rec);
+              in_degree_set[rec.target]++;
             }
           }
-          low_batch_edge_exchange.clear();
+          hybrid_edge_exchange.clear();
+          hybrid_rpc.full_barrier(); // sync before reusing
 #ifdef TUNING
           if(l_procid == 0) { 
-            memory_info::log_usage("receive low-degree edges done.");
-            logstream(LOG_EMPH) << "receive low-degree edges: " 
+            memory_info::log_usage("save local edges and count in-degree done.");
+            logstream(LOG_EMPH) << "save local edges and count in-degree: " 
                                 << ti.current_time()
                                 << " secs" 
                                 << std::endl;
           }
 #endif
 
-        }
-
-        // store edges of high-degree vertices into hybrid_edges
-        high_batch_edge_exchange.flush();
-        if (high_batch_edge_exchange.size() > 0) {
-          batch_edge_buffer_type batch_edge_buffer;
-          procid_t proc = -1;
-          while(high_batch_edge_exchange.recv(proc, batch_edge_buffer)) {
-            foreach(const batch_edge_buffer_record& batch_rec, batch_edge_buffer) {
-              nedges += batch_rec.sources.size();
-              for(size_t i = 0; i < batch_rec.sources.size(); i++){
-                edge_buffer_record rec(batch_rec.sources[i],
-                                       batch_rec.target,
-                                       batch_rec.edatas[i]);
-                hybrid_edges.push_back(rec);
+          // re-send edges of high-degree vertices
+          for (size_t i = 0; i < hybrid_edges.size(); i++) {
+            edge_buffer_record& rec = hybrid_edges[i];
+            if (in_degree_set[rec.target] > threshold) {
+              const procid_t source_owner_proc = 
+                graph_hash::hash_vertex(rec.source) % nprocs;
+              if(source_owner_proc != l_procid){
+                // re-send the edge of high-degree vertices according to source
+                hybrid_edge_exchange.send(source_owner_proc, rec);
+                // set re-sent edges as empty for skipping
+                hybrid_edges[i] = edge_buffer_record();
+                --nedges;
               }
             }
           }
-          high_batch_edge_exchange.clear();
+#ifdef TUNING
+          if(l_procid == 0) { 
+            memory_info::log_usage("resend edges of high-degree vertices done.");
+            logstream(LOG_EMPH) << "resend edges of high-degree vertices: " 
+                                << ti.current_time()
+                                << " secs" 
+                                << std::endl;
+          }
+#endif
+
+          // receive edges of high-degree vertices
+          hybrid_edge_exchange.flush();
+#ifdef TUNING
+          if(l_procid == 0)
+            logstream(LOG_INFO) << "receive high-degree edges: "  
+                                << hybrid_edge_exchange.size() << std::endl;
+#endif
+          proc = -1;
+          while(hybrid_edge_exchange.recv(proc, edge_buffer)) {
+            foreach(const edge_buffer_record& rec, edge_buffer) {
+              hybrid_edges.push_back(rec);
+              ++nedges;
+            }
+          }
+          hybrid_edge_exchange.clear();
+          in_degree_set.clear();
 #ifdef TUNING
           if(l_procid == 0) { 
             memory_info::log_usage("receive high-degree edges done.");
@@ -417,22 +290,9 @@ namespace graphlab {
       
       // connect to base finalize()
       modified_base_finalize(nedges);
-      if(l_procid == 0) {
-        memory_info::log_usage("base finalizing done.");
-        logstream(LOG_EMPH) << "base finalizing. (" 
-                            << ti.current_time() 
-                            << " secs)" 
-                            << std::endl;
-      }
       
+      // set vertex type for hybrid engine
       set_vertex_type();
-      if(l_procid == 0) {
-        memory_info::log_usage("set vertex type done.");
-        logstream(LOG_EMPH) << "set vertex type. (" 
-                            << ti.current_time() 
-                            << " secs)" 
-                            << std::endl;
-      }
 
       if(l_procid == 0) {
         memory_info::log_usage("hybrid finalizing graph done.");
@@ -565,31 +425,10 @@ namespace graphlab {
 
       /**************************************************************************/
       /*                                                                        */
-      /*                       Flush any additional data                        */
-      /*                                                                        */
-      /**************************************************************************/
-      hybrid_vertex_exchange.flush(); /* edges has stored in hybrid_edges */
-
-      /**
-       * Fast pass for redundant finalization with no graph changes. 
-       */
-      {
-        size_t changed_size = nedges + hybrid_vertex_exchange.size();
-        hybrid_rpc.all_reduce(changed_size);
-        if (changed_size == 0) {
-          logstream(LOG_INFO) << "Skipping Graph Finalization because no changes happened..." << std::endl;
-          return;
-        }
-      }
-      
-
-      /**************************************************************************/
-      /*                                                                        */
       /*                         Construct local graph                          */
       /*                                                                        */
       /**************************************************************************/
-      { 
-        // Add all the edges to the local graph
+      { // Add all the edges to the local graph
         graph.local_graph.reserve_edge_space(nedges + 1);
 
         foreach(const edge_buffer_record& rec, hybrid_edges) {
@@ -894,7 +733,6 @@ namespace graphlab {
       }
 
       base_type::exchange_global_info(standalone);
-      
 #ifdef TUNING
       if(l_procid == 0) {
         memory_info::log_usage("exchange global info done.");
@@ -904,6 +742,14 @@ namespace graphlab {
                             << std::endl;
       }
 #endif
+
+      if(l_procid == 0) {
+        memory_info::log_usage("base finalizing done.");
+        logstream(LOG_EMPH) << "base finalizing. (" 
+                            << ti.current_time() 
+                            << " secs)" 
+                            << std::endl;
+      }
     } // end of modified base finalize
 
   private:
