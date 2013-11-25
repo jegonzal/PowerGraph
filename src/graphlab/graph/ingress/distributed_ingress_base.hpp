@@ -113,7 +113,13 @@ namespace graphlab {
 
   public:
     distributed_ingress_base(distributed_control& dc, graph_type& graph) :
-      rpc(dc, this), graph(graph), vertex_exchange(dc), edge_exchange(dc),
+      rpc(dc, this), graph(graph), 
+#ifdef _OPENMP
+      vertex_exchange(dc, omp_get_max_threads()), 
+      edge_exchange(dc, omp_get_max_threads()),
+#else
+      vertex_exchange(dc), edge_exchange(dc),
+#endif
       edge_decision(dc) {
       rpc.barrier();
     } // end of constructor
@@ -126,7 +132,11 @@ namespace graphlab {
       const procid_t owning_proc = 
         edge_decision.edge_to_proc_random(source, target, rpc.numprocs());
       const edge_buffer_record record(source, target, edata);
+#ifdef _OPENMP
+      edge_exchange.send(owning_proc, record, omp_get_thread_num());
+#else
       edge_exchange.send(owning_proc, record);
+#endif
     } // end of add edge
 
 
@@ -134,7 +144,11 @@ namespace graphlab {
     virtual void add_vertex(vertex_id_type vid, const VertexData& vdata)  { 
       const procid_t owning_proc = graph_hash::hash_vertex(vid) % rpc.numprocs();
       const vertex_buffer_record record(vid, vdata);
+#ifdef _OPENMP
+      vertex_exchange.send(owning_proc, record, omp_get_thread_num());
+#else
       vertex_exchange.send(owning_proc, record);
+#endif
     } // end of add vertex
 
 

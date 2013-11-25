@@ -81,7 +81,11 @@ namespace graphlab {
 
 
       const edge_buffer_record record(source, target, edata);
+#ifdef _OPENMP
+      base_type::edge_exchange.send(owning_proc, record, omp_get_thread_num());
+#else
       base_type::edge_exchange.send(owning_proc, record);
+#endif
     } // end of add edge
   }; // end of distributed_constrained_random_ingress
 }; // end of namespace graphlab
