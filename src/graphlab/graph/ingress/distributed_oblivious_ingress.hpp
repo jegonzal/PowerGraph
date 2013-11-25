@@ -32,6 +32,7 @@
 #include <graphlab/rpc/distributed_event_log.hpp>
 #include <graphlab/util/dense_bitset.hpp>
 #include <graphlab/util/cuckoo_map_pow2.hpp>
+#include <graphlab/parallel/pthread_tools.hpp>
 #include <graphlab/macros_def.hpp>
 namespace graphlab {
   template<typename VertexData, typename EdgeData>
@@ -64,8 +65,9 @@ namespace graphlab {
 
     /** Array of number of edges on each proc. */
     std::vector<size_t> proc_num_edges;
-
-    /** Ingress tratis. */
+    simple_spinlock obliv_lock;
+    
+    /** Ingress traits. */
     bool usehash;
     bool userecent;
 
@@ -82,12 +84,19 @@ namespace graphlab {
     /** Add an edge to the ingress object using oblivious greedy assignment. */
     void add_edge(vertex_id_type source, vertex_id_type target,
                   const EdgeData& edata) {
+      obliv_lock.lock();
       dht[source]; dht[target];
       const procid_t owning_proc = 
         base_type::edge_decision.edge_to_proc_greedy(source, target, dht[source], dht[target], proc_num_edges, usehash, userecent);
+      obliv_lock.unlock();
+
       typedef typename base_type::edge_buffer_record edge_buffer_record;
       edge_buffer_record record(source, target, edata);
+#ifdef _OPENMP
+      base_type::edge_exchange.send(owning_proc, record, omp_get_thread_num());
+#else      
       base_type::edge_exchange.send(owning_proc, record);
+#endif
     } // end of add edge
 
     virtual void finalize() {
