@@ -82,6 +82,10 @@
 #include <graphlab/graph/ingress/sharding_constraint.hpp>
 #include <graphlab/graph/ingress/distributed_constrained_random_ingress.hpp>
 
+#include <graphlab/graph/ingress/distributed_bipartite_hybrid_ingress.hpp>
+#include <graphlab/graph/ingress/distributed_bipartite_hash_ingress.hpp>
+#include <graphlab/graph/ingress/distributed_bipartite_affinity_ingress.hpp>
+
 #include <graphlab/graph/ingress/distributed_hybrid_ingress.hpp>
 #include <graphlab/graph/ingress/distributed_hybrid_ginger_ingress.hpp>
 
@@ -404,6 +408,9 @@ namespace graphlab {
     friend class distributed_identity_ingress<VertexData, EdgeData>;
     friend class distributed_oblivious_ingress<VertexData, EdgeData>;
     friend class distributed_constrained_random_ingress<VertexData, EdgeData>;
+    friend class distributed_bipartite_hybrid_ingress<VertexData, EdgeData>;
+    friend class distributed_bipartite_hash_ingress<VertexData, EdgeData>;
+    friend class distributed_bipartite_affinity_ingress<VertexData, EdgeData>;
     friend class distributed_hybrid_ingress<VertexData, EdgeData>;
     friend class distributed_hybrid_ginger_ingress<VertexData, EdgeData>;
 
@@ -656,6 +663,8 @@ namespace graphlab {
       size_t nverts = 0;
     
       std::string ingress_method = "";
+      bool affinity = false;
+      std::string direction = "source";
       std::vector<std::string> keys = opts.get_graph_args().get_option_keys();
       foreach(std::string opt, keys) {
         if (opt == "ingress") {
@@ -688,6 +697,16 @@ namespace graphlab {
           if (rpc.procid() == 0)
             logstream(LOG_EMPH) << "Graph Option: nverts = "
                                 << nverts << std::endl;
+        } else if (opt == "affinity") {
+          opts.get_graph_args().get_option("affinity", affinity);
+          if (rpc.procid() == 0)
+            logstream(LOG_EMPH) << "Graph Option: affinity = "
+                                << affinity << std::endl;
+        } else if (opt == "direction") {
+          opts.get_graph_args().get_option("direction", direction);
+          if (rpc.procid() == 0)
+            logstream(LOG_EMPH) << "Graph Option: direction = "
+                                << direction << std::endl;
         }
         
         /**
@@ -712,7 +731,7 @@ namespace graphlab {
           logstream(LOG_ERROR) << "Unexpected Graph Option: " << opt << std::endl;
         }
       }
-      set_ingress_method(ingress_method, bufsize, usehash, userecent,
+      set_ingress_method(ingress_method, bufsize, usehash, userecent,affinity,direction,
         threshold, nedges, nverts, interval);
     }
 
@@ -3282,9 +3301,11 @@ namespace graphlab {
     lock_manager_type lock_manager;
 
     void set_ingress_method(const std::string& method,
-        size_t bufsize = 50000, bool usehash = false, bool userecent = false,
+        size_t bufsize = 50000, bool usehash = false, bool userecent = false,bool affinity=false,std::string direction="source",
         size_t threshold = 100, size_t nedges = 0, size_t nverts = 0,
         size_t interval = std::numeric_limits<size_t>::max()) {
+      if(direction!="target")
+        direction="source";
       if(ingress_ptr != NULL) { delete ingress_ptr; ingress_ptr = NULL; }
       if (method == "oblivious") {
         if (rpc.procid() == 0) logstream(LOG_EMPH) << "Use oblivious ingress, usehash: " << usehash
@@ -3299,6 +3320,18 @@ namespace graphlab {
       } else if (method == "pds") {
         if (rpc.procid() == 0)logstream(LOG_EMPH) << "Use pds ingress" << std::endl;
         ingress_ptr = new distributed_constrained_random_ingress<VertexData, EdgeData>(rpc.dc(), *this, "pds");
+      } else if (method == "bipartite") {
+        if(!affinity){
+          if (rpc.procid() == 0) logstream(LOG_EMPH) << "Use bipartite ingress without affinity" << std::endl;
+          ingress_ptr = new distributed_bipartite_hash_ingress<VertexData, EdgeData>(rpc.dc(), *this, direction);
+        }
+        else{
+          if (rpc.procid() == 0) logstream(LOG_EMPH) << "Use bipartite ingress with affinity" << std::endl;
+          ingress_ptr = new distributed_bipartite_affinity_ingress<VertexData, EdgeData>(rpc.dc(), *this, direction);
+        }
+      } else if (method == "bipartite_opt") {
+        if (rpc.procid() == 0) logstream(LOG_EMPH) << "Use bipartite_opt ingress" << std::endl;
+        ingress_ptr = new distributed_bipartite_hybrid_ingress<VertexData, EdgeData>(rpc.dc(), *this, direction);
       } else if (method == "hybrid") {
         if (rpc.procid() == 0) logstream(LOG_EMPH) << "Use hybrid ingress" << std::endl;
         ingress_ptr = new distributed_hybrid_ingress<VertexData, EdgeData>(rpc.dc(), *this, threshold);
