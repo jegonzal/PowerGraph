@@ -599,7 +599,7 @@ void write_output_vector(const std::string datafile, const vec & output, bool is
 
 int main(int argc, char** argv) {
   global_logger().set_log_to_console(true);
-
+  global_logger().set_log_level(LOG_INFO);
   INITIALIZE_TRACER(svd_bidiagonal, "svd bidiagonal");
   INITIALIZE_TRACER(svd_error_estimate, "svd error estimate");
   INITIALIZE_TRACER(svd_swork, "Svd swork");
@@ -700,11 +700,39 @@ int main(int argc, char** argv) {
   pgraph = &graph;
   dc.cout() << "Loading graph. Finished in " 
     << timer.current_time() << std::endl;
+
+
+
+
+
+  size_t bytes_sent=dc.bytes_sent();
+  size_t calls_sent=dc.calls_sent();
+  size_t network_bytes_sent=dc.network_bytes_sent();
+  size_t bytes_received=dc.bytes_received();
+  size_t calls_received=dc.calls_received();
+  dc.cout() << "load_Bytes_Sent: "     << bytes_sent        << std::endl;
+  dc.cout() << "load_Calls_Sent: "     << calls_sent        << std::endl;
+  dc.cout() << "load_Network_Sent: "   << network_bytes_sent<< std::endl;
+  dc.cout() << "load_Bytes_Received: " << bytes_received    << std::endl;
+  dc.cout() << "load_Calls_Received: " << calls_received    << std::endl;
+
   dc.cout() << "Finalizing graph." << std::endl;
   timer.start();
   graph.finalize();
   dc.cout() << "Finalizing graph. Finished in " 
     << timer.current_time() << std::endl;
+
+
+  bytes_sent=dc.bytes_sent()-bytes_sent;
+  calls_sent=dc.calls_sent()-calls_sent;
+  network_bytes_sent=dc.network_bytes_sent()-network_bytes_sent;
+  bytes_received=dc.bytes_received()-bytes_received;
+  calls_received=dc.calls_received()-calls_received;
+  dc.cout() << "finalize_Bytes_Sent: "     << bytes_sent        << std::endl;
+  dc.cout() << "finalize_Calls_Sent: "     << calls_sent        << std::endl;
+  dc.cout() << "finalize_Network_Sent: "   << network_bytes_sent<< std::endl;
+  dc.cout() << "finalize_Bytes_Received: " << bytes_received    << std::endl;
+  dc.cout() << "finalize_Calls_Received: " << calls_received    << std::endl;
 
 
   dc.cout() 
@@ -785,7 +813,16 @@ int main(int argc, char** argv) {
     assert(pow(singular_values[2]-  0.554159, 2) < 1e-8);
    }
  
-
+  bytes_sent=dc.bytes_sent()-bytes_sent;
+  calls_sent=dc.calls_sent()-calls_sent;
+  network_bytes_sent=dc.network_bytes_sent()-network_bytes_sent;
+  bytes_received=dc.bytes_received()-bytes_received;
+  calls_received=dc.calls_received()-calls_received;
+  dc.cout() << "compute_Bytes_Sent: "     << bytes_sent        << std::endl;
+  dc.cout() << "compute_Calls_Sent: "     << calls_sent        << std::endl;
+  dc.cout() << "compute_Network_Sent: "   << network_bytes_sent<< std::endl;
+  dc.cout() << "compute_Bytes_Received: " << bytes_received    << std::endl;
+  dc.cout() << "compute_Calls_Received: " << calls_received    << std::endl;
 
   graphlab::mpi_tools::finalize();
   return EXIT_SUCCESS;

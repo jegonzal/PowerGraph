@@ -47,9 +47,7 @@ namespace graphlab {
     typedef typename base_type::vertex_buffer_record vertex_buffer_record;
     typedef typename buffered_exchange<vertex_buffer_record>::buffer_type 
         vertex_buffer_type;
-    typedef typename std::pair<edge_buffer_record,int> edge_msg;
-    typedef typename buffered_exchange<edge_msg>::buffer_type 
-        edge_msg_type;
+
     
     
     graph_type& graph;
@@ -57,7 +55,6 @@ namespace graphlab {
 
     buffered_exchange<vertex_buffer_record> hybrid_vertex_exchange;
     buffered_exchange<edge_buffer_record> hybrid_edge_exchange;
-    buffered_exchange<edge_msg> hybrid_msg_exchange;
     
     
     std::vector<edge_buffer_record> hybrid_edges;
@@ -69,7 +66,7 @@ namespace graphlab {
   public:
     distributed_bipartite_hybrid_ingress(distributed_control& dc, graph_type& graph,const std::string& specialvertex) :
       base_type(dc, graph),graph(graph),hybrid_rpc(dc, this),
-      hybrid_vertex_exchange(dc),hybrid_edge_exchange(dc),hybrid_msg_exchange(dc)
+      hybrid_vertex_exchange(dc),hybrid_edge_exchange(dc)
     {
 
       if(specialvertex=="source")
@@ -89,12 +86,12 @@ namespace graphlab {
       const edge_buffer_record record(source, target, edata);
       if(source_is_special){  
         const procid_t owning_proc = 
-          graph_hash::hash_vertex(target) % hybrid_rpc.numprocs();
+          graph_hash::hash_vertex(source) % hybrid_rpc.numprocs();
         hybrid_edge_exchange.send(owning_proc, record);
       }
       else{
         const procid_t owning_proc = 
-          graph_hash::hash_vertex(source) % hybrid_rpc.numprocs();
+          graph_hash::hash_vertex(target) % hybrid_rpc.numprocs();
         hybrid_edge_exchange.send(owning_proc, record);
       }
     } // end of add edge
@@ -111,12 +108,18 @@ namespace graphlab {
 
       edge_buffer_type edge_buffer;
       
-      hopscotch_map<vertex_id_type, size_t> in_degree_set;
       procid_t proc;
 
       hybrid_edge_exchange.flush();
       hybrid_vertex_exchange.flush();
-      
+      //std::map<vertex_id_type,std::vector<int> > count_map;
+      boost::unordered_map<vertex_id_type,std::vector<int> > count_map;
+      //std::map<vertex_id_type,procid_t > owner_map;
+      boost::unordered_map<vertex_id_type,procid_t> owner_map;
+      std::set<vertex_id_type> master_set;
+
+      std::vector<int> proc_num_edges;
+
       {
         size_t changed_size = hybrid_edge_exchange.size() + hybrid_vertex_exchange.size();
         hybrid_rpc.all_reduce(changed_size);
@@ -126,81 +129,78 @@ namespace graphlab {
         }
       }
 
+      proc_num_edges.resize(hybrid_rpc.numprocs());
       proc = -1;
       while(hybrid_edge_exchange.recv(proc, edge_buffer)) {
         foreach(const edge_buffer_record& rec, edge_buffer) {
           hybrid_edges.push_back(rec);
-          if(source_is_special)
-            in_degree_set[rec.target]++;
-          else
-            in_degree_set[rec.source]++;
+          if(source_is_special){
+            if(count_map.find(rec.source)==count_map.end()){
+              count_map[rec.source].resize(hybrid_rpc.numprocs());
+              //owner_map[rec.source]=hybrid_rpc.procid();
+            }
+            const procid_t target_proc = 
+              graph_hash::hash_vertex(rec.target) % hybrid_rpc.numprocs();
+            count_map[rec.source][target_proc]+=1;///(msg.second+1);
+            //const procid_t max_proc    = owner_map[rec.source];
+            //if(count_map[rec.source][target_proc] > count_map[rec.source][max_proc])
+              //owner_map[rec.source]=target_proc;
+          } else {
+            if(count_map.find(rec.target)==count_map.end()){
+              count_map[rec.target].resize(hybrid_rpc.numprocs());
+              //owner_map[rec.target]=hybrid_rpc.procid();
+            }
+            const procid_t source_proc = 
+              graph_hash::hash_vertex(rec.source) % hybrid_rpc.numprocs();
+            count_map[rec.target][source_proc]+=1;///(msg.second+1);
+            //const procid_t max_proc    = owner_map[rec.target];
+            //if(count_map[rec.target][source_proc] > count_map[rec.target][max_proc])
+            //  owner_map[rec.target]=source_proc;
+          }
         }
       }
       hybrid_edge_exchange.clear();
-      hybrid_edge_exchange.barrier(); // sync before reusing
-
-      // re-send edges of high-degree vertices
-      for (size_t i = 0; i < hybrid_edges.size(); i++) {
-        edge_buffer_record& rec = hybrid_edges[i];
-        if(source_is_special){
-          const procid_t owner_proc = 
-            graph_hash::hash_vertex(rec.source) % hybrid_rpc.numprocs();
-          hybrid_msg_exchange.send(owner_proc,std::make_pair(rec,in_degree_set[rec.target]));
-        }
-        else{
-          const procid_t owner_proc = 
-            graph_hash::hash_vertex(rec.target) % hybrid_rpc.numprocs();
-          hybrid_msg_exchange.send(owner_proc,std::make_pair(rec,in_degree_set[rec.source]));
-        }
-      }
-      in_degree_set.clear();
-      hybrid_edges.clear();
-      hybrid_msg_exchange.flush();
-      std::map<vertex_id_type,std::vector<float> > count_map;
-      std::map<vertex_id_type,procid_t > owner_map;
-
-      proc = -1;
       
-      edge_msg_type msg_buffer;
-      if(source_is_special){
-        while(hybrid_msg_exchange.recv(proc, msg_buffer)) {
-          foreach(const edge_msg& msg, msg_buffer) {
-            
-            hybrid_edges.push_back(msg.first);
-            if(count_map.find(msg.first.source)==count_map.end()){
-              count_map[msg.first.source].resize(hybrid_rpc.numprocs());
-              owner_map[msg.first.source]=hybrid_rpc.procid();
-            }
-            const procid_t target_proc = 
-              graph_hash::hash_vertex(msg.first.target) % hybrid_rpc.numprocs();
-            //count_map[msg.first.source][target_proc]+=1.0/(msg.second+1);
-            count_map[msg.first.source][target_proc]+=1.0;///(msg.second+1);
-            const procid_t max_proc    = owner_map[msg.first.source];
-            if(count_map[msg.first.source][target_proc] > count_map[msg.first.source][max_proc])
-              owner_map[msg.first.source]=target_proc;
+      proc = -1;
+      buffered_exchange<vertex_id_type> vid_buffer(hybrid_rpc.dc());
+      //for (typename boost::unordered_map<vertex_id_type,procid_t>::iterator it = owner_map.begin();
+      //         it != owner_map.end(); ++it){
+      //  vid_buffer.send(it->second, it->first);
+      for (typename boost::unordered_map<vertex_id_type,std::vector<int> >::iterator it = count_map.begin();
+               it != count_map.end(); ++it){
+        procid_t maxproc=hybrid_rpc.procid();
+        double maxscore =(it->second)[maxproc]-sqrt(1.0*proc_num_edges[maxproc]);
+        for(size_t i=0; i < hybrid_rpc.numprocs();i++){
+          double current_score=(it->second)[i]-sqrt(1.0*proc_num_edges[i]);
+          if(current_score > maxscore){
+            maxscore =current_score;
+            maxproc  =i;
           }
         }
-      }
-      else{
-        while(hybrid_msg_exchange.recv(proc, msg_buffer)) {
-          foreach(const edge_msg& msg, msg_buffer) {
-            
-            hybrid_edges.push_back(msg.first);
-            if(count_map.find(msg.first.target)==count_map.end()){
-              count_map[msg.first.target].resize(hybrid_rpc.numprocs());
-              owner_map[msg.first.target]=hybrid_rpc.procid();
-            }
-            const procid_t source_proc = 
-              graph_hash::hash_vertex(msg.first.source) % hybrid_rpc.numprocs();
-            count_map[msg.first.target][source_proc]+=1.0;///(msg.second+1);
-            const procid_t max_proc    = owner_map[msg.first.target];
-            if(count_map[msg.first.target][source_proc] > count_map[msg.first.target][max_proc])
-              owner_map[msg.first.target]=source_proc;
-          }
+        for(size_t i=0; i < hybrid_rpc.numprocs();i++){
+          proc_num_edges[maxproc]+=(it->second)[i];
         }
+        owner_map[it->first]=maxproc;
+        vid_buffer.send(maxproc, it->first);
       }
 
-      // re-send 
+      vid_buffer.flush();
+      {
+        typename buffered_exchange<vertex_id_type>::buffer_type buffer;
+        procid_t recvid = -1;
+        while(vid_buffer.recv(recvid, buffer)) {
+          foreach(const vertex_id_type vid, buffer) {
+            if(source_is_special)
+              master_set.insert(vid);
+            else
+              master_set.insert(vid);
+          }
+        }
+      }
+      vid_buffer.clear();
+
+
+      // re-send edges
       for (size_t i = 0; i < hybrid_edges.size(); i++) {
         edge_buffer_record& rec = hybrid_edges[i];
         procid_t owner_proc ;
@@ -208,24 +208,9 @@ namespace graphlab {
           owner_proc = owner_map[rec.source];
         else
           owner_proc = owner_map[rec.target];
-        hybrid_edge_exchange.send(owner_proc,rec);   
+        base_type::edge_exchange.send(owner_proc,rec);   
       }
-      hybrid_edge_exchange.flush();
       
-      std::set<vertex_id_type> master_set;
-      proc = -1;
-      while(hybrid_edge_exchange.recv(proc, edge_buffer)) {
-        foreach(const edge_buffer_record& rec, edge_buffer) {
-          //hybrid_edges.push_back(rec);
-          if(source_is_special)
-            master_set.insert(rec.source);
-          else
-            master_set.insert(rec.target);
-          base_type::edge_exchange.send(hybrid_rpc.procid(), rec);
-        }
-      }
-      hybrid_edge_exchange.clear();
-
       graph.lvid2record.resize(master_set.size());
       graph.local_graph.resize(master_set.size());
       lvid_type lvid = 0;

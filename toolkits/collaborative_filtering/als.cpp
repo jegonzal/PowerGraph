@@ -619,6 +619,17 @@ int main(int argc, char** argv) {
   dc.cout() << "Loading graph. Finished in " 
             << timer.current_time() << std::endl;
 
+  size_t bytes_sent=dc.bytes_sent();
+  size_t calls_sent=dc.calls_sent();
+  size_t network_bytes_sent=dc.network_bytes_sent();
+  size_t bytes_received=dc.bytes_received();
+  size_t calls_received=dc.calls_received();
+  dc.cout() << "load_Bytes_Sent: "     << bytes_sent        << std::endl;
+  dc.cout() << "load_Calls_Sent: "     << calls_sent        << std::endl;
+  dc.cout() << "load_Network_Sent: "   << network_bytes_sent<< std::endl;
+  dc.cout() << "load_Bytes_Received: " << bytes_received    << std::endl;
+  dc.cout() << "load_Calls_Received: " << calls_received    << std::endl;
+
   if (dc.procid() == 0) 
     add_implicit_edges<edge_data>(implicitratingtype, graph, dc);
   
@@ -628,6 +639,16 @@ int main(int argc, char** argv) {
   dc.cout() << "Finalizing graph. Finished in " 
             << timer.current_time() << std::endl;
 
+  bytes_sent=dc.bytes_sent()-bytes_sent;
+  calls_sent=dc.calls_sent()-calls_sent;
+  network_bytes_sent=dc.network_bytes_sent()-network_bytes_sent;
+  bytes_received=dc.bytes_received()-bytes_received;
+  calls_received=dc.calls_received()-calls_received;
+  dc.cout() << "finalize_Bytes_Sent: "     << bytes_sent        << std::endl;
+  dc.cout() << "finalize_Calls_Sent: "     << calls_sent        << std::endl;
+  dc.cout() << "finalize_Network_Sent: "   << network_bytes_sent<< std::endl;
+  dc.cout() << "finalize_Bytes_Received: " << bytes_received    << std::endl;
+  dc.cout() << "finalize_Calls_Received: " << calls_received    << std::endl;
 
   dc.cout() 
       << "========== Graph statistics on proc " << dc.procid() 
@@ -681,6 +702,18 @@ int main(int argc, char** argv) {
   dc.cout() << "Final error: " << std::endl;
   engine.aggregate_now("error");
 
+  bytes_sent=dc.bytes_sent()-bytes_sent;
+  calls_sent=dc.calls_sent()-calls_sent;
+  network_bytes_sent=dc.network_bytes_sent()-network_bytes_sent;
+  bytes_received=dc.bytes_received()-bytes_received;
+  calls_received=dc.calls_received()-calls_received;
+  dc.cout() << "compute_Bytes_Sent: "     << bytes_sent        << std::endl;
+  dc.cout() << "compute_Calls_Sent: "     << calls_sent        << std::endl;
+  dc.cout() << "compute_Network_Sent: "   << network_bytes_sent<< std::endl;
+  dc.cout() << "compute_Bytes_Received: " << bytes_received    << std::endl;
+  dc.cout() << "compute_Calls_Received: " << calls_received    << std::endl;
+
+  
   // Make predictions ---------------------------------------------------------
   if(!predictions.empty()) {
     std::cout << "Saving predictions" << std::endl;
