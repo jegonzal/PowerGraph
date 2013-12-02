@@ -422,7 +422,7 @@ namespace graphlab {
       HIGH_MIRROR, LOW_MIRROR, NUM_ZONE_TYPES};
 
     enum cuts_type {VERTEX_CUTS = 0, EDGE_CUTS, HYBRID_CUTS, HYBRID_GINGER_CUTS,
-      ZONE_CUTS, NUM_CUTS_TYPES};
+      ZONE_CUTS, AFFINITY_CUTS,NUM_CUTS_TYPES};
 
     struct vertex_type;
     typedef bool edge_list_type;
@@ -2263,7 +2263,33 @@ namespace graphlab {
         logstream(LOG_WARNING) << "No files found matching " << original_path << std::endl;
       }
 
-      if (get_cuts_type() == HYBRID_GINGER_CUTS) {
+      if (get_cuts_type() == AFFINITY_CUTS) {
+#ifdef _OPENMP
+#pragma omp parallel for
+#endif
+        for(size_t i = 0; i < graph_files.size(); ++i) {
+          if (true) {
+            logstream(LOG_EMPH) << "Loading graph from file: " << graph_files[i] << std::endl;
+            // is it a gzip file ?
+            const bool gzip = boost::ends_with(graph_files[i], ".gz");
+            // open the stream
+            std::ifstream in_file(graph_files[i].c_str(),
+                                  std::ios_base::in | std::ios_base::binary);
+            // attach gzip if the file is gzip
+            boost::iostreams::filtering_stream<boost::iostreams::input> fin;
+            // Using gzip filter
+            if (gzip) fin.push(boost::iostreams::gzip_decompressor());
+            fin.push(in_file);
+            const bool success = load_from_stream(graph_files[i], fin, line_parser);
+            if(!success) {
+              logstream(LOG_FATAL)
+                << "\n\tError parsing file: " << graph_files[i] << std::endl;
+            }
+            fin.pop();
+            if (gzip) fin.pop();
+          }
+        }
+      } else if (get_cuts_type() == HYBRID_GINGER_CUTS) {
         for(size_t i = 0; i < graph_files.size(); ++i) {
         if ((parallel_ingress && (i % rpc.numprocs() == rpc.procid()))
             || (!parallel_ingress && (rpc.procid() == 0))) {
@@ -3328,6 +3354,7 @@ namespace graphlab {
         else{
           if (rpc.procid() == 0) logstream(LOG_EMPH) << "Use bipartite ingress with affinity" << std::endl;
           ingress_ptr = new distributed_bipartite_affinity_ingress<VertexData, EdgeData>(rpc.dc(), *this, direction);
+          set_cuts_type(AFFINITY_CUTS);
         }
       } else if (method == "bipartite_opt") {
         if (rpc.procid() == 0) logstream(LOG_EMPH) << "Use bipartite_opt ingress" << std::endl;
