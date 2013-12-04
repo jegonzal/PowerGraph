@@ -24,7 +24,7 @@ namespace graphlab {
   class distributed_graph;
 
   /**
-   * \brief Ingress object assigning edges using randoming hash function.
+   * \brief Ingress object with data affinity.
    */
   template<typename VertexData, typename EdgeData>
   class distributed_bipartite_affinity_ingress : 
@@ -114,7 +114,7 @@ namespace graphlab {
           return;
         }
       }
-
+      // directly add the vertices loaded from local file to the local graph
       graph.lvid2record.resize(bipartite_vertexs.size());
       graph.local_graph.resize(bipartite_vertexs.size());
       lvid_type lvid = 0;
@@ -127,6 +127,7 @@ namespace graphlab {
         lvid++;
       }
 
+      // use master_exchange to exchange the mapping table
       for (typename master_hash_table_type::iterator it = mht.begin() ; it != mht.end(); ++it) {
         for (procid_t i = 0; i < bipartite_rpc.numprocs(); ++i) {
           if (i != bipartite_rpc.procid())
@@ -143,6 +144,7 @@ namespace graphlab {
       }
       master_exchange.clear();
 
+      // resend all the edges 
       foreach(const edge_buffer_record& rec,bipartite_edges){
         if(source_is_special){
           if(mht.find(rec.source)==mht.end())

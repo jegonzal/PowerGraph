@@ -82,7 +82,7 @@
 #include <graphlab/graph/ingress/sharding_constraint.hpp>
 #include <graphlab/graph/ingress/distributed_constrained_random_ingress.hpp>
 
-#include <graphlab/graph/ingress/distributed_bipartite_hybrid_ingress.hpp>
+#include <graphlab/graph/ingress/distributed_bipartite_opt_ingress.hpp>
 #include <graphlab/graph/ingress/distributed_bipartite_hash_ingress.hpp>
 #include <graphlab/graph/ingress/distributed_bipartite_affinity_ingress.hpp>
 
@@ -408,7 +408,7 @@ namespace graphlab {
     friend class distributed_identity_ingress<VertexData, EdgeData>;
     friend class distributed_oblivious_ingress<VertexData, EdgeData>;
     friend class distributed_constrained_random_ingress<VertexData, EdgeData>;
-    friend class distributed_bipartite_hybrid_ingress<VertexData, EdgeData>;
+    friend class distributed_bipartite_opt_ingress<VertexData, EdgeData>;
     friend class distributed_bipartite_hash_ingress<VertexData, EdgeData>;
     friend class distributed_bipartite_affinity_ingress<VertexData, EdgeData>;
     friend class distributed_hybrid_ingress<VertexData, EdgeData>;
@@ -3358,7 +3358,7 @@ namespace graphlab {
         }
       } else if (method == "bipartite_opt") {
         if (rpc.procid() == 0) logstream(LOG_EMPH) << "Use bipartite_opt ingress" << std::endl;
-        ingress_ptr = new distributed_bipartite_hybrid_ingress<VertexData, EdgeData>(rpc.dc(), *this, direction);
+        ingress_ptr = new distributed_bipartite_opt_ingress<VertexData, EdgeData>(rpc.dc(), *this, direction);
       } else if (method == "hybrid") {
         if (rpc.procid() == 0) logstream(LOG_EMPH) << "Use hybrid ingress" << std::endl;
         ingress_ptr = new distributed_hybrid_ingress<VertexData, EdgeData>(rpc.dc(), *this, threshold);
