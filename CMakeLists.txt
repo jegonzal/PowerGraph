@@ -219,25 +219,26 @@ foreach(blib ${Boost_LIBRARIES})
 endforeach()
 message(STATUS "Boost Shared libs: " ${Boost_SHARED_LIBRARIES})
 
+if(NOT NO_TCMALLOC)
+    if(APPLE)
+    set (tcmalloc_shared "--enable-shared=yes")
+    else()
+    set (tcmalloc_shared "--enable-shared=no")
+    endif()
 
-if(APPLE)
-  set (tcmalloc_shared "--enable-shared=yes")
-else()
-  set (tcmalloc_shared "--enable-shared=no")
+    # TCMalloc  ===================================================================
+    # We use tcmalloc for improved memory allocation performance
+    ExternalProject_Add(libtcmalloc
+    PREFIX ${GraphLab_SOURCE_DIR}/deps/tcmalloc
+    URL http://gperftools.googlecode.com/files/gperftools-2.0.tar.gz
+    URL_MD5 13f6e8961bc6a26749783137995786b6
+    PATCH_COMMAND patch -N -p0 -i ${GraphLab_SOURCE_DIR}/patches/tcmalloc.patch || true
+    CONFIGURE_COMMAND <SOURCE_DIR>/configure --enable-frame-pointers --prefix=<INSTALL_DIR> ${tcmalloc_shared}
+    INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local)
+    #link_libraries(tcmalloc)
+    set(TCMALLOC-FOUND 1)
+    add_definitions(-DHAS_TCMALLOC)
 endif()
-
-# TCMalloc  ===================================================================
-# We use tcmalloc for improved memory allocation performance
-ExternalProject_Add(libtcmalloc
-  PREFIX ${GraphLab_SOURCE_DIR}/deps/tcmalloc
-  URL http://gperftools.googlecode.com/files/gperftools-2.0.tar.gz
-  URL_MD5 13f6e8961bc6a26749783137995786b6
-  PATCH_COMMAND patch -N -p0 -i ${GraphLab_SOURCE_DIR}/patches/tcmalloc.patch || true
-  CONFIGURE_COMMAND <SOURCE_DIR>/configure --enable-frame-pointers --prefix=<INSTALL_DIR> ${tcmalloc_shared}
-  INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local)
-#link_libraries(tcmalloc)
-set(TCMALLOC-FOUND 1)
-add_definitions(-DHAS_TCMALLOC)
 
 
 
@@ -486,11 +487,10 @@ macro(requires_core_deps NAME)
   target_link_libraries(${NAME}
     ${Boost_LIBRARIES}
     z
-    tcmalloc
     event event_pthreads
     zookeeper_mt
     json)
-  add_dependencies(${NAME} boost libevent libjson zookeeper libtcmalloc)
+  add_dependencies(${NAME} boost libevent libjson zookeeper)
   if(MPI_FOUND)
     target_link_libraries(${NAME} ${MPI_LIBRARY} ${MPI_EXTRA_LIBRARY})
   endif(MPI_FOUND)
@@ -498,6 +498,10 @@ macro(requires_core_deps NAME)
     target_link_libraries(${NAME} hdfs ${JAVA_JVM_LIBRARY})
     add_dependencies(${NAME} hadoop)
   endif(HADOOP_FOUND)
+  if(NOT NO_TCMALLOC)
+    target_link_libraries(${NAME} tcmalloc)
+    add_dependencies(${NAME} libtcmalloc)
+  endif()
 endmacro(requires_core_deps)
 
 
