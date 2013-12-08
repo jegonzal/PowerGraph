@@ -124,11 +124,8 @@ public:
     if(USE_DELTA_CACHE) {
       context.post_delta(edge.target(), last_change);
     }
-
-    if(last_change > TOLERANCE || last_change < -TOLERANCE) {
-        context.signal(edge.target());
-    } else {
-      context.signal(edge.target()); //, std::fabs(last_change));
+    else { //  std::fabs(last_change) > TOLERANCE
+      context.signal(edge.target());
     }
   }
 
