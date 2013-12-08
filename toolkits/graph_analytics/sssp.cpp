@@ -169,7 +169,7 @@ public:
     distance_type newd = vertex.data().dist + edge.data().dist;
     if (other.data().dist > newd) {
       const min_distance_type msg(newd);
-      context.signal(other, newd);
+      context.signal(other, msg);
     }
   } // end of scatter
 
