@@ -354,7 +354,7 @@ class svdpp_vertex_program :
         if (phase == PHASE1){
           //user node receives the sum of movie weights
           if (vertex.num_out_edges() > 0){
-            vertex.data().weight = sum.pvec;
+            vertex.data().weight = sum.weight;
             float usrNorm = double(1.0/sqrt(vertex.num_out_edges()));
             vertex.data().weight *= usrNorm;
           }
