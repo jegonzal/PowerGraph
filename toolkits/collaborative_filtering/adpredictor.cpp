@@ -189,7 +189,7 @@ void adpredictor_update(graph_type::vertex_type vertex) {
 	//go over all row nodes
 	if ( vertex.num_out_edges() > 0){
                 if (debug) printf("Entered vertex %llu role %d \n", vertex.id(), vertex.data().type);
-		if (1/*vertex.data().type == TRAIN*/){
+		if (vertex.data().type == TRAIN){
 			vertex_data & row = vertex.data(); 
 			row.likelihood = 0;
 			row.err = 0;
