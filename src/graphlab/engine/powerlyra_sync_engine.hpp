@@ -1612,25 +1612,25 @@ namespace graphlab {
   template<typename VertexProgram>
   inline bool powerlyra_sync_engine<VertexProgram>::
   high_master_lvid(const lvid_type lvid) {
-    return graph.l_type(lvid) == graph_type::HIGH_MASTER;
+    return graph.l_degree_type(lvid) == graph_type::HIGH_MASTER;
   }
 
   template<typename VertexProgram>
   inline bool powerlyra_sync_engine<VertexProgram>::
   low_master_lvid(const lvid_type lvid) {
-    return graph.l_type(lvid) == graph_type::LOW_MASTER;
+    return graph.l_degree_type(lvid) == graph_type::LOW_MASTER;
   }
 
   template<typename VertexProgram>
   inline bool powerlyra_sync_engine<VertexProgram>::
   high_mirror_lvid(const lvid_type lvid) {
-    return graph.l_type(lvid) == graph_type::HIGH_MIRROR;
+    return graph.l_degree_type(lvid) == graph_type::HIGH_MIRROR;
   }
 
   template<typename VertexProgram>
   inline bool powerlyra_sync_engine<VertexProgram>::
   low_mirror_lvid(const lvid_type lvid) {
-    return graph.l_type(lvid) == graph_type::LOW_MIRROR;
+    return graph.l_degree_type(lvid) == graph_type::LOW_MIRROR;
   }
 
   template<typename VertexProgram>

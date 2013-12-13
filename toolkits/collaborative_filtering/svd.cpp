@@ -599,7 +599,7 @@ void write_output_vector(const std::string datafile, const vec & output, bool is
 
 int main(int argc, char** argv) {
   global_logger().set_log_to_console(true);
-
+  global_logger().set_log_level(LOG_INFO);
   INITIALIZE_TRACER(svd_bidiagonal, "svd bidiagonal");
   INITIALIZE_TRACER(svd_error_estimate, "svd error estimate");
   INITIALIZE_TRACER(svd_swork, "Svd swork");
@@ -784,7 +784,7 @@ int main(int argc, char** argv) {
     assert(pow(singular_values[0]-  2.16097, 2) < 1e-8);
     assert(pow(singular_values[2]-  0.554159, 2) < 1e-8);
    }
- 
+
 
 
   graphlab::mpi_tools::finalize();

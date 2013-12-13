@@ -257,10 +257,10 @@ namespace graphlab {
       /**************************************************************************/
       { // Add all the edges to the local graph
         logstream(LOG_INFO) << "Graph Finalize: constructing local graph" << std::endl;
-        const size_t nedges = edge_exchange.size()+1;
+        const size_t nedges = edge_exchange.size() + 1;
         graph.local_graph.reserve_edge_space(nedges + 1);      
         edge_buffer_type edge_buffer;
-        procid_t proc;
+        procid_t proc(-1);
         while(edge_exchange.recv(proc, edge_buffer)) {
           foreach(const edge_buffer_record& rec, edge_buffer) {
             // Get the source_vlid;

@@ -68,8 +68,6 @@ namespace graphlab {
     typedef typename buffered_exchange<vertex_id_type>::buffer_type
         vertex_id_buffer_type;
 
-    typedef typename graph_type::zone_type zone_type;
-
     /// The rpc interface for this object
     dc_dist_object<distributed_hybrid_ingress> hybrid_rpc;
     /// The underlying distributed graph object that is being loaded
@@ -287,8 +285,8 @@ namespace graphlab {
       // connect to base finalize()
       modified_base_finalize(nedges);
       
-      // set vertex type for hybrid engine
-      set_vertex_type();
+      // set vertex degree type for hybrid engine
+      set_degree_type();
 
       if(l_procid == 0) {
         memory_info::log_usage("hybrid finalizing graph done.");
@@ -299,7 +297,7 @@ namespace graphlab {
       }
     } // end of finalize
 
-    void set_vertex_type() {
+    void set_degree_type() {
       graphlab::timer ti;
       procid_t l_procid = hybrid_rpc.procid();
       size_t high_master = 0, high_mirror = 0, low_master = 0, low_mirror = 0;
@@ -308,18 +306,18 @@ namespace graphlab {
         vertex_record& vrec = graph.lvid2record[lvid];
         if (vrec.num_in_edges > threshold) {
           if (vrec.owner == l_procid) {
-            vrec.type = graph_type::HIGH_MASTER; 
+            vrec.dtype = graph_type::HIGH_MASTER; 
             high_master ++;
           } else {
-            vrec.type = graph_type::HIGH_MIRROR;
+            vrec.dtype = graph_type::HIGH_MIRROR;
             high_mirror ++;
           }
         } else {
           if (vrec.owner == l_procid) {
-            vrec.type = graph_type::LOW_MASTER; 
+            vrec.dtype = graph_type::LOW_MASTER; 
             low_master ++;
           } else {
-            vrec.type = graph_type::LOW_MIRROR;
+            vrec.dtype = graph_type::LOW_MIRROR;
             low_mirror ++;
           }
         }        

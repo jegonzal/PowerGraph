@@ -680,7 +680,7 @@ int main(int argc, char** argv) {
   // Compute the final training error -----------------------------------------
   dc.cout() << "Final error: " << std::endl;
   engine.aggregate_now("error");
-
+  
   // Make predictions ---------------------------------------------------------
   if(!predictions.empty()) {
     std::cout << "Saving predictions" << std::endl;

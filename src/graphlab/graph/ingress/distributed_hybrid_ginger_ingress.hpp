@@ -72,16 +72,14 @@ namespace graphlab {
     typedef typename buffered_exchange<vertex_id_type>::buffer_type
         vertex_id_buffer_type;
 
-    /// one-by-one ingress. e.g., SNAP
     typedef typename base_type::edge_buffer_record edge_buffer_record;
     typedef typename buffered_exchange<edge_buffer_record>::buffer_type 
-            edge_buffer_type;
+        edge_buffer_type;
 
     typedef typename base_type::vertex_buffer_record vertex_buffer_record;
     typedef typename buffered_exchange<vertex_buffer_record>::buffer_type 
         vertex_buffer_type;
 
-    /// batch ingress. e.g., R-ADJ
     struct batch_edge_buffer_record {
       std::vector<vertex_id_type> sources;
       vertex_id_type target;
@@ -509,8 +507,8 @@ namespace graphlab {
       // connect to base finalize()
       modified_base_finalize(nedges);
 
-      // set vertex type for hybrid engine
-      set_vertex_type();
+      // set vertex degree type for hybrid engine
+      set_degree_type();
       
       if(l_procid == 0) {
         logstream(LOG_EMPH) << "ginger finalizing graph. (" 
@@ -520,7 +518,7 @@ namespace graphlab {
       }
     } // end of finalize
 
-    void set_vertex_type() {
+    void set_degree_type() {
       graphlab::timer ti;
       procid_t l_procid = hybrid_rpc.procid();
       size_t high_master = 0, high_mirror = 0, low_master = 0, low_mirror = 0;
@@ -529,18 +527,18 @@ namespace graphlab {
         vertex_record& vrec = graph.lvid2record[lvid];
         if (vrec.num_in_edges > threshold) {
           if (vrec.owner == l_procid) {
-            vrec.type = graph_type::HIGH_MASTER; 
+            vrec.dtype = graph_type::HIGH_MASTER; 
             high_master ++;
           } else {
-            vrec.type = graph_type::HIGH_MIRROR;
+            vrec.dtype = graph_type::HIGH_MIRROR;
             high_mirror ++;
           }
         } else {
           if (vrec.owner == l_procid) {
-            vrec.type = graph_type::LOW_MASTER; 
+            vrec.dtype = graph_type::LOW_MASTER; 
             low_master ++;
           } else {
-            vrec.type = graph_type::LOW_MIRROR;
+            vrec.dtype = graph_type::LOW_MIRROR;
             low_mirror ++;
           }
         }        
