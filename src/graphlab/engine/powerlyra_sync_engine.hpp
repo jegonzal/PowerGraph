@@ -48,7 +48,6 @@
 
 #include <graphlab/rpc/dc_dist_object.hpp>
 #include <graphlab/rpc/distributed_event_log.hpp>
-#include <graphlab/rpc/buffered_exchange.hpp>
 #include <graphlab/rpc/fiber_buffered_exchange.hpp>
 
 
@@ -57,8 +56,6 @@
 
 
 #include <graphlab/macros_def.hpp>
-
-#define ALIGN_DOWN(_n, _w) ((_n) & (~((_w)-1)))
 
 #define TUNING
 namespace graphlab {
@@ -207,8 +204,6 @@ namespace graphlab {
    * \see graphlab::omni_engine
    * \see graphlab::async_consistent_engine
    * \see graphlab::semi_synchronous_engine
-   * \see graphlab::power_sync_engine
-   * \see graphlab::lyra_sync_engine
    * \see graphlab::powerlyra_sync_engine
    */
   template<typename VertexProgram>
@@ -724,10 +719,6 @@ namespace graphlab {
     // documentation inherited from iengine
     float elapsed_seconds() const;
 
-    // documentation inherited from iengine
-    double execution_time() const;
-    
-
     /**
      * \brief Get the current iteration number since start was last
      * invoked.
@@ -788,7 +779,7 @@ namespace graphlab {
      *
      * This function is called by the \ref graphlab::context.
      *
-     * @param [in] lvid the local vertex id of the vertex to signal
+     * @param [in] vertex the vertex to signal
      * @param [in] message the message to send to that vertex.
      */
     void internal_signal(const vertex_type& vertex,
@@ -1346,10 +1337,6 @@ namespace graphlab {
   elapsed_seconds() const { return timer::approx_time_seconds() - start_time; }
 
   template<typename VertexProgram>
-  double powerlyra_sync_engine<VertexProgram>::
-  execution_time() const { return exec_time; }
-
-  template<typename VertexProgram>
   int powerlyra_sync_engine<VertexProgram>::
   iteration() const { return iteration_counter; }
 
@@ -1424,9 +1411,8 @@ namespace graphlab {
 
       
       // Exchange Messages --------------------------------------------------
-      // Powergraph: send messages from replicas to master
-      //    - set messages and has_message
-      // Lyra: none
+      // High: send messages from mirrors to master
+      // Low: none (if only IN_EDGES)
       //
       // if (rmi.procid() == 0) std::cout << "Exchange messages..." << std::endl;
       bk_ti.start();
@@ -1442,9 +1428,9 @@ namespace graphlab {
       // 2. call init and gather_edges
       // 3. set active_superstep, active_minorstep and edge_dirs
       // 4. clear has_message
-      // Powergraph: send vprog and edge_dirs from master to replicas
-      //    - set vprog, edge_dirs and set active_minorstep 
-      // Lyra: none
+      //
+      // High: send vprog and edge_dirs from master to mirrors
+      // Low: none (if only IN_EDGES)
       //
       // if (rmi.procid() == 0) std::cout << "Receive messages..." << std::endl;
       bk_ti.start();
@@ -1475,13 +1461,14 @@ namespace graphlab {
         break;
       }
 
+
       // Execute gather operations-------------------------------------------
       // 1. call pre_local_gather, gather and post_local_gather
       // 2. (master) set gather_accum and has_gather_accum
       // 3. clear active_minorstep
-      // Powergraph: send gather_accum from replicas to master
-      //    - set gather_accum and has_gather_accum
-      // Lyra: none
+      //
+      // High: send gather_accum from mirrors to master
+      // Low: none (if only IN_EDGES)
       //
       // if (rmi.procid() == 0) std::cout << "Gathering..." << std::endl;
       bk_ti.start();
@@ -1503,7 +1490,6 @@ namespace graphlab {
       // 1. call apply and scatter_edges
       // 2. set edge_dirs and active_minorstep
       // 3. send vdata, vprog and edge_dirs from master to replicas
-      //    - set vdata, vprog, edge_dirs and active_minorstep
       //
       // if (rmi.procid() == 0) std::cout << "Applying..." << std::endl;
       bk_ti.start();
@@ -1637,10 +1623,10 @@ namespace graphlab {
   void powerlyra_sync_engine<VertexProgram>::
   exchange_messages(const size_t thread_id) {
     context_type context(*this, graph);
+    fixed_dense_bitset<8 * sizeof(size_t)> local_bitset; // a word-size = 64 bit
     const size_t TRY_RECV_MOD = 100;
     size_t vcount = 0;
-    fixed_dense_bitset<8 * sizeof(size_t)> local_bitset; // a word-size = 64 bit
-
+    
     while (1) {
       // increment by a word at a time
       lvid_type lvid_block_start =
@@ -1724,14 +1710,14 @@ namespace graphlab {
             send_activs(lvid, thread_id);
           }
         }
+        if(++vcount % TRY_RECV_MOD == 0) recv_activs();
       }
-      if(++vcount % TRY_RECV_MOD == 0) recv_activs();
     }
     num_active_vertices += nactive_inc;
     activ_exchange.partial_flush();
     thread_barrier.wait();
     // Flush the buffer and finish receiving any remaining activations.
-    if(thread_id == 0) activ_exchange.flush(); // call full_barrier
+    if(thread_id == 0) activ_exchange.flush();
     thread_barrier.wait();
     recv_activs();
   } // end of receive_messages
@@ -1784,6 +1770,7 @@ namespace graphlab {
           if (gather_dir == IN_EDGES || gather_dir == ALL_EDGES) {
             foreach(local_edge_type local_edge, local_vertex.in_edges()) {
               edge_type edge(local_edge);
+              // elocks[local_edge.id()].lock();
               if(accum_is_set) { // \todo hint likely
                 accum += vprog.gather(context, vertex, edge);
               } else {
@@ -1791,12 +1778,14 @@ namespace graphlab {
                 accum_is_set = true;
               }
               ++edges_touched;
+              // elocks[local_edge.id()].unlock();
             }
           } // end of if in_edges/all_edges
           // Loop over out edges
           if(gather_dir == OUT_EDGES || gather_dir == ALL_EDGES) {
             foreach(local_edge_type local_edge, local_vertex.out_edges()) {
               edge_type edge(local_edge);
+              // elocks[local_edge.id()].lock();
               if(accum_is_set) { // \todo hint likely
                 accum += vprog.gather(context, vertex, edge);
               } else {
@@ -1804,6 +1793,7 @@ namespace graphlab {
                 accum_is_set = true;
               }
               ++edges_touched;
+              // elocks[local_edge.id()].unlock();
             }
           } // end of if out_edges/all_edges
           INCREMENT_EVENT(EVENT_GATHERS, edges_touched);
@@ -1834,7 +1824,7 @@ namespace graphlab {
     per_thread_compute_time[thread_id] += ti.current_time();
     accum_exchange.partial_flush();
     thread_barrier.wait();
-    if(thread_id == 0) accum_exchange.flush(); // full_barrier
+    if(thread_id == 0) accum_exchange.flush();
     thread_barrier.wait();
     recv_accums();
   } // end of execute_gathers
@@ -1939,7 +1929,9 @@ namespace graphlab {
         if(scatter_dir == IN_EDGES || scatter_dir == ALL_EDGES) {
           foreach(local_edge_type local_edge, local_vertex.in_edges()) {
             edge_type edge(local_edge);
+            // elocks[local_edge.id()].lock();
             vprog.scatter(context, vertex, edge);
+            // elocks[local_edge.id()].unlock();
             ++edges_touched;
           }
         } // end of if in_edges/all_edges
@@ -1947,7 +1939,9 @@ namespace graphlab {
         if(scatter_dir == OUT_EDGES || scatter_dir == ALL_EDGES) {
           foreach(local_edge_type local_edge, local_vertex.out_edges()) {
             edge_type edge(local_edge);
+            // elocks[local_edge.id()].lock();
             vprog.scatter(context, vertex, edge);
+            // elocks[local_edge.id()].unlock();
             ++edges_touched;
           }
         } // end of if out_edges/all_edges
