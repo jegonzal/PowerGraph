@@ -44,7 +44,6 @@
 #include <graphlab/util/tracepoint.hpp>
 #include <graphlab/util/memory_info.hpp>
 #include <graphlab/util/triple.hpp>
-#include <graphlab/util/tetrad.hpp>
 
 #include <graphlab/rpc/dc_dist_object.hpp>
 #include <graphlab/rpc/distributed_event_log.hpp>
@@ -57,7 +56,7 @@
 
 #include <graphlab/macros_def.hpp>
 
-#define TUNING
+#undef TUNING
 namespace graphlab {
 
 
@@ -456,10 +455,13 @@ namespace graphlab {
     std::vector<simple_spinlock> vlocks;
 
     /**
-     * \brief The egde dirs associated with each vertex on this
-     * machine.
+     * \brief The elocks protect individual edges during gather and
+     * scatter.  Technically there is a potential race since gather
+     * and scatter can modify edge values and can overlap.  The edge
+     * lock ensures that only one gather or scatter occurs on an edge
+     * at a time.
      */
-    std::vector<edge_dir_type> edge_dirs;
+    std::vector<simple_spinlock> elocks;
 
     /**
      * \brief The vertex programs associated with each vertex on this
@@ -585,27 +587,51 @@ namespace graphlab {
     activ_exchange_type activ_exchange;
 
     /**
-     * \brief The tetrad type used to update vertex data and activate mirrors.
+     * \brief The triple type used to update vertex data and activate neighbors.
      */
-    typedef tetrad<vertex_id_type, vertex_data_type, edge_dir_type, 
-      vertex_program_type> vid_vdata_edir_vprog_tetrad_type;
+    typedef triple<vertex_id_type, vertex_data_type, vertex_program_type> 
+      vid_vdata_vprog_triple_type;
 
     /**
-     * \brief The type of the express used to update mirrors
+     * \brief The type of the exchange used to update mirrors
      */
-    typedef fiber_buffered_exchange<vid_vdata_edir_vprog_tetrad_type> 
-      update_exchange_type;
+    typedef fiber_buffered_exchange<vid_vdata_vprog_triple_type> 
+      update_activ_exchange_type;
 
     /**
-     * \brief The type of buffer used by the express to update mirrors
+     * \brief The type of buffer used by the exchange to update mirrors
      */
-    typedef typename update_exchange_type::buffer_type update_buffer_type;
+    typedef typename update_activ_exchange_type::buffer_type 
+      update_activ_buffer_type;
 
     /**
      * \brief The distributed express used to update mirrors
      * vertex programs.
      */
+    update_activ_exchange_type update_activ_exchange;
+
+
+    /**
+     * \brief The triple type used to only update vertex data.
+     */
+    typedef std::pair<vertex_id_type, vertex_data_type> vid_vdata_pair_type;
+    
+    /**
+         * \brief The type of the express used to update mirrors
+         */
+    typedef fiber_buffered_exchange<vid_vdata_pair_type> update_exchange_type;
+
+    /**
+     * \brief The type of buffer used by the exchange to update mirrors
+     */
+    typedef typename update_exchange_type::buffer_type update_buffer_type;
+    
+    /**
+     * \brief The distributed express used to update mirrors
+     * vertex programs.
+     */
     update_exchange_type update_exchange;
+
 
     /**
      * \brief The pair type used to synchronize the results of the gather phase
@@ -961,6 +987,24 @@ namespace graphlab {
     void recv_activs();
 
     /**
+     * \brief Send the update messages (vertex data, program) 
+     * for the local vertex id to all of its mirrors.
+     *
+     * @param [in] lvid the vertex to sync.  It must be the master of that vertex.
+     */
+    void send_updates_activs(lvid_type lvid, size_t thread_id);
+
+    /**
+     * \brief do update and activation to local mirros.
+     *
+     * This function returns when there is nothing left in the
+     * buffered exchange and should be called after the buffered
+     * exchange has been flushed
+     */
+    void recv_updates_activs();
+    
+
+    /**
      * \brief Send the update messages (vertex data, program and edge set) 
      * for the local vertex id to all of its mirrors.
      *
@@ -971,8 +1015,9 @@ namespace graphlab {
     /**
      * \brief do update to local mirros.
      *
-     * This function is a callback of express, and will be invoked when receives 
-     * update message.
+     * This function returns when there is nothing left in the
+     * buffered exchange and should be called after the buffered
+     * exchange has been flushed
      */
     void recv_updates();
 
@@ -1000,8 +1045,7 @@ namespace graphlab {
      *
      * @param [in] lvid the vertex to send
      */
-    void send_message(lvid_type lvid, const message_type& message, 
-                        const size_t thread_id);
+    void send_message(lvid_type lvid, const size_t thread_id);
 
     /**
      * \brief Receive the scatter messages from the buffered exchange.
@@ -1070,6 +1114,7 @@ namespace graphlab {
     max_iterations(-1), snapshot_interval(-1), iteration_counter(0),
     print_interval(5), timeout(0), sched_allv(false),
     activ_exchange(dc),
+    update_activ_exchange(dc),
     update_exchange(dc),
     accum_exchange(dc),
     message_exchange(dc),
@@ -1164,7 +1209,6 @@ namespace graphlab {
     // Allocate vertex locks and vertex programs
     vlocks.resize(l_nverts);
     vertex_programs.resize(l_nverts);
-    edge_dirs.resize(l_nverts);
     
     // Allocate messages and message bitset
     messages.resize(l_nverts, message_type());
@@ -1364,9 +1408,11 @@ namespace graphlab {
     // Reset event log counters?
     // Start the timer
     start_time = timer::approx_time_seconds();
+#ifdef TUNING
     exec_time = exch_time = recv_time =
       gather_time = apply_time = scatter_time = 0.0;
     graphlab::timer ti, bk_ti;
+#endif
     iteration_counter = 0;
     force_abort = false;
     execution_status::status_enum termination_reason = execution_status::UNSET;
@@ -1385,7 +1431,9 @@ namespace graphlab {
     }
 
     // Program Main loop ====================================================
+#ifdef TUNING
     ti.start();
+#endif
     while(iteration_counter < max_iterations && !force_abort ) {
       
       // Check first to see if we are out of time
@@ -1415,9 +1463,13 @@ namespace graphlab {
       // Low: none (if only IN_EDGES)
       //
       // if (rmi.procid() == 0) std::cout << "Exchange messages..." << std::endl;
+#ifdef TUNING
       bk_ti.start();
+#endif
       run_synchronous( &powerlyra_sync_engine::exchange_messages );
+#ifdef TUNING
       exch_time += bk_ti.current_time();
+#endif
       /**
        * Post conditions:
        *   1) master (high and low) vertices have messages
@@ -1433,11 +1485,15 @@ namespace graphlab {
       // Low: none (if only IN_EDGES)
       //
       // if (rmi.procid() == 0) std::cout << "Receive messages..." << std::endl;
+#ifdef TUNING
       bk_ti.start();
+#endif
       run_synchronous( &powerlyra_sync_engine::receive_messages );
       if (sched_allv) active_minorstep.fill();
       has_message.clear();
+#ifdef TUNING
       recv_time += bk_ti.current_time();
+#endif
       /**
        * Post conditions:
        *   1) there are no messages remaining
@@ -1471,13 +1527,17 @@ namespace graphlab {
       // Low: none (if only IN_EDGES)
       //
       // if (rmi.procid() == 0) std::cout << "Gathering..." << std::endl;
+#ifdef TUNING
       bk_ti.start();
+#endif
       run_synchronous( &powerlyra_sync_engine::execute_gathers );
       // Clear the minor step bit since only super-step vertices
       // (only master vertices are required to participate in the
       // apply step)
       active_minorstep.clear();
+#ifdef TUNING
       gather_time += bk_ti.current_time();
+#endif
       /**
        * Post conditions:
        *   1) gather_accum for all master vertices contains the
@@ -1492,9 +1552,13 @@ namespace graphlab {
       // 3. send vdata, vprog and edge_dirs from master to replicas
       //
       // if (rmi.procid() == 0) std::cout << "Applying..." << std::endl;
+#ifdef TUNING
       bk_ti.start();
+#endif
       run_synchronous( &powerlyra_sync_engine::execute_applys );
+#ifdef TUNING
       apply_time += bk_ti.current_time();
+#endif
       /**
        * Post conditions:
        *   1) any changes to the vertex data have been synchronized
@@ -1511,15 +1575,19 @@ namespace graphlab {
       // 1. call scatter (signal: set messages and has_message)
       //
       // if (rmi.procid() == 0) std::cout << "Scattering..." << std::endl;
+#ifdef TUNING
       bk_ti.start();
+#endif
       run_synchronous( &powerlyra_sync_engine::execute_scatters );
+#ifdef TUNING
       scatter_time += bk_ti.current_time();
+#endif
       /**
        * Post conditions:
        *   1) NONE
        */
       if(rmi.procid() == 0 && print_this_round)
-        logstream(LOG_DEBUG) << "\t Running Aggregators" << std::endl;
+        logstream(LOG_EMPH) << "\t Running Aggregators" << std::endl;
       // probe the aggregator
       aggregator.tick_synchronous();
 
@@ -1529,7 +1597,9 @@ namespace graphlab {
         graph.save_binary(snapshot_path);
       }
     }
+#ifdef TUNING
     exec_time = ti.current_time();
+#endif
 
     if (rmi.procid() == 0) {
       logstream(LOG_EMPH) << iteration_counter
@@ -1570,6 +1640,7 @@ namespace graphlab {
       for (size_t i = 0;i < all_compute_time_vec.size(); ++i) {
         logstream(LOG_INFO) << all_compute_time_vec[i] << " ";
       }
+      logstream(LOG_INFO) << std::endl;
 #ifdef TUNING
       logstream(LOG_INFO) << "Total Calls(G|A|S): " 
                           << completed_gathers.value << "|" 
@@ -1643,9 +1714,8 @@ namespace graphlab {
         if (lvid >= graph.num_local_vertices()) break;
 
         // [TARGET]: High/Low-degree Mirrors
-        // only if scatter via in-edges will set has_message of low_mirror
         if(!graph.l_is_master(lvid)) {        
-          send_message(lvid, messages[lvid], thread_id);
+          send_message(lvid, thread_id);
           has_message.clear_bit(lvid);
           // clear the message to save memory
           messages[lvid] = message_type();
@@ -1655,6 +1725,7 @@ namespace graphlab {
       }
     } // end of loop over vertices to send messages
     message_exchange.partial_flush();
+    // Finish sending and receiving all messages
     thread_barrier.wait();
     if(thread_id == 0) message_exchange.flush();
     thread_barrier.wait();
@@ -1686,7 +1757,6 @@ namespace graphlab {
         lvid_type lvid = lvid_block_start + lvid_block_offset;
         if (lvid >= graph.num_local_vertices()) break;
 
-        // [TARGET]: High/Low-degree Masters
         ASSERT_TRUE(graph.l_is_master(lvid));
         // The vertex becomes active for this superstep
         active_superstep.set_bit(lvid);
@@ -1699,14 +1769,14 @@ namespace graphlab {
         if (sched_allv) continue;
         // Determine if the gather should be run
         const vertex_program_type& const_vprog = vertex_programs[lvid];
-        edge_dirs[lvid] = const_vprog.gather_edges(context, vertex);
-        if(edge_dirs[lvid] != graphlab::NO_EDGES) {
+        edge_dir_type gather_dir = const_vprog.gather_edges(context, vertex);
+        if(gather_dir != graphlab::NO_EDGES) {
           active_minorstep.set_bit(lvid);
           // send Gx1 msgs
           if (high_master_lvid(lvid)
               || (low_master_lvid(lvid) // only if gather via out-edge
-                && ((edge_dirs[lvid] == graphlab::OUT_EDGES) 
-                    || (edge_dirs[lvid] == graphlab::ALL_EDGES)))) {
+                && ((gather_dir == graphlab::OUT_EDGES) 
+                    || (gather_dir == graphlab::ALL_EDGES)))) {
             send_activs(lvid, thread_id);
           }
         }
@@ -1715,6 +1785,8 @@ namespace graphlab {
     }
     num_active_vertices += nactive_inc;
     activ_exchange.partial_flush();
+    // Flush the buffer and finish receiving any remaining vertex
+    // programs.
     thread_barrier.wait();
     // Flush the buffer and finish receiving any remaining activations.
     if(thread_id == 0) activ_exchange.flush();
@@ -1777,8 +1849,8 @@ namespace graphlab {
                 accum = vprog.gather(context, vertex, edge);
                 accum_is_set = true;
               }
-              ++edges_touched;
               // elocks[local_edge.id()].unlock();
+              ++edges_touched;
             }
           } // end of if in_edges/all_edges
           // Loop over out edges
@@ -1792,8 +1864,8 @@ namespace graphlab {
                 accum = vprog.gather(context, vertex, edge);
                 accum_is_set = true;
               }
-              ++edges_touched;
               // elocks[local_edge.id()].unlock();
+              ++edges_touched;
             }
           } // end of if out_edges/all_edges
           INCREMENT_EVENT(EVENT_GATHERS, edges_touched);
@@ -1823,6 +1895,7 @@ namespace graphlab {
     completed_gathers += ngather_inc;
     per_thread_compute_time[thread_id] += ti.current_time();
     accum_exchange.partial_flush();
+    // Finish sending and receiving all gather operations
     thread_barrier.wait();
     if(thread_id == 0) accum_exchange.flush();
     thread_barrier.wait();
@@ -1871,27 +1944,34 @@ namespace graphlab {
         // determine if a scatter operation is needed
         const vertex_program_type& const_vprog = vertex_programs[lvid];
         const vertex_type const_vertex = vertex;
-        edge_dirs[lvid] = const_vprog.scatter_edges(context, const_vertex);
-
-        if (edge_dirs[lvid] != graphlab::NO_EDGES)
-          active_minorstep.set_bit(lvid);
-        else
-          vertex_programs[lvid] = vertex_program_type();
-
-        // send Ax1 and Sx1
-        send_updates(lvid, thread_id);
         
-        if(++vcount % TRY_RECV_MOD == 0) recv_updates();
+        if (const_vprog.scatter_edges(context, const_vertex) 
+            != graphlab::NO_EDGES) {
+          // send Ax1 and Sx1
+          send_updates_activs(lvid, thread_id);
+          active_minorstep.set_bit(lvid);
+        } else {
+          // send Ax1
+          send_updates(lvid, thread_id);
+          vertex_programs[lvid] = vertex_program_type();
+        }
+
+        if(++vcount % TRY_RECV_MOD == 0) {
+          recv_updates_activs(); recv_updates();
+        }
       }
     } // end of loop over vertices to run apply
     completed_applys += napply_inc;
     per_thread_compute_time[thread_id] += ti.current_time();
-    update_exchange.partial_flush();
+    update_activ_exchange.partial_flush(); update_exchange.partial_flush();
     thread_barrier.wait();
     // Flush the buffer and finish receiving any remaining updates.
-    if(thread_id == 0) update_exchange.flush(); // full_barrier
+    if(thread_id == 0) {
+      update_activ_exchange.flush(); update_exchange.flush();
+    }
     thread_barrier.wait();
-    recv_updates();
+    recv_updates_activs(); recv_updates();
+    
   } // end of execute_applys
 
 
@@ -1922,7 +2002,7 @@ namespace graphlab {
         const vertex_program_type& vprog = vertex_programs[lvid];
         local_vertex_type local_vertex = graph.l_vertex(lvid);
         const vertex_type vertex(local_vertex);
-        const edge_dir_type scatter_dir = edge_dirs[lvid];
+        const edge_dir_type scatter_dir = vprog.scatter_edges(context, vertex);
 
         size_t edges_touched = 0;
         // Loop over in edges
@@ -1989,16 +2069,44 @@ namespace graphlab {
 
   template<typename VertexProgram>
   inline void powerlyra_sync_engine<VertexProgram>::
+  send_updates_activs(lvid_type lvid, const size_t thread_id) {
+    ASSERT_TRUE(graph.l_is_master(lvid));
+    const vertex_id_type vid = graph.global_vid(lvid);
+    local_vertex_type vertex = graph.l_vertex(lvid);
+    foreach(const procid_t& mirror, vertex.mirrors()) {
+      update_activ_exchange.send(mirror, 
+                           make_triple(vid, 
+                                       vertex.data(), 
+                                       vertex_programs[lvid]));
+    }
+  } // end of send_update
+
+  template<typename VertexProgram>
+  inline void powerlyra_sync_engine<VertexProgram>::
+  recv_updates_activs() {
+    typename update_activ_exchange_type::recv_buffer_type recv_buffer;
+    while(update_activ_exchange.recv(recv_buffer)) {
+      for (size_t i = 0;i < recv_buffer.size(); ++i) {
+        update_activ_buffer_type& buffer = recv_buffer[i].buffer;
+        foreach(const vid_vdata_vprog_triple_type& t, buffer) {
+          const lvid_type lvid = graph.local_vid(t.first);
+          ASSERT_FALSE(graph.l_is_master(lvid));
+          graph.l_vertex(lvid).data() = t.second;
+          vertex_programs[lvid] = t.third;
+          active_minorstep.set_bit(lvid);
+        }
+      }
+    }
+  } // end of recv_updates
+
+  template<typename VertexProgram>
+  inline void powerlyra_sync_engine<VertexProgram>::
   send_updates(lvid_type lvid, const size_t thread_id) {
     ASSERT_TRUE(graph.l_is_master(lvid));
     const vertex_id_type vid = graph.global_vid(lvid);
     local_vertex_type vertex = graph.l_vertex(lvid);
     foreach(const procid_t& mirror, vertex.mirrors()) {
-      update_exchange.send(mirror, 
-                           make_tetrad(vid, 
-                                       vertex.data(), 
-                                       edge_dirs[lvid],
-                                       vertex_programs[lvid]));
+      update_exchange.send(mirror, std::make_pair(vid, vertex.data()));
     }
   } // end of send_update
 
@@ -2008,16 +2116,11 @@ namespace graphlab {
     typename update_exchange_type::recv_buffer_type recv_buffer;
     while(update_exchange.recv(recv_buffer)) {
       for (size_t i = 0;i < recv_buffer.size(); ++i) {
-        typename update_exchange_type::buffer_type& buffer = recv_buffer[i].buffer;
-        foreach(const vid_vdata_edir_vprog_tetrad_type& t, buffer) {
-          const lvid_type lvid = graph.local_vid(t.first);
+        update_buffer_type& buffer = recv_buffer[i].buffer;
+        foreach(const vid_vdata_pair_type& pair, buffer) {
+          const lvid_type lvid = graph.local_vid(pair.first);
           ASSERT_FALSE(graph.l_is_master(lvid));
-          graph.l_vertex(lvid).data() = t.second;
-          if (t.third != graphlab::NO_EDGES) {
-            edge_dirs[lvid] = t.third;
-            vertex_programs[lvid] = t.fourth;
-            active_minorstep.set_bit(lvid);
-          }
+          graph.l_vertex(lvid).data() = pair.second;
         }
       }
     }
@@ -2069,11 +2172,11 @@ namespace graphlab {
 
   template<typename VertexProgram>
   inline void powerlyra_sync_engine<VertexProgram>::
-  send_message(lvid_type lvid, const message_type& message, const size_t thread_id) {
+  send_message(lvid_type lvid, const size_t thread_id) {
     ASSERT_FALSE(graph.l_is_master(lvid));
     const procid_t master = graph.l_master(lvid);
     const vertex_id_type vid = graph.global_vid(lvid);
-    message_exchange.send(master, std::make_pair(vid, message));
+    message_exchange.send(master, std::make_pair(vid, messages[lvid]));
   } // end of send_message
 
   template<typename VertexProgram>
