@@ -1580,17 +1580,16 @@ namespace graphlab {
 #endif
 
     if (rmi.procid() == 0) {
+      logstream(LOG_INFO) << "Compute Balance: ";
+      for (size_t i = 0;i < all_compute_time_vec.size(); ++i) {
+        logstream(LOG_INFO) << all_compute_time_vec[i] << " ";
+      }
 #ifdef TUNING
       logstream(LOG_INFO) << "Total Calls(G|A|S): " 
                           << completed_gathers.value << "|" 
                           << completed_applys.value << "|"
                           << completed_scatters.value 
                           << std::endl;
-#endif
-      logstream(LOG_INFO) << "Compute Balance: ";
-      for (size_t i = 0;i < all_compute_time_vec.size(); ++i) {
-        logstream(LOG_INFO) << all_compute_time_vec[i] << " ";
-      }
       logstream(LOG_INFO) << std::endl;      
       logstream(LOG_EMPH) << "      Execution Time: " << exec_time << std::endl;
       logstream(LOG_EMPH) << "Breakdown(X|R|G|A|S): " 
@@ -1600,6 +1599,7 @@ namespace graphlab {
                           << apply_time << "|"
                           << scatter_time
                           << std::endl;
+#endif
     }
 
     rmi.full_barrier();
@@ -1722,11 +1722,10 @@ namespace graphlab {
                 && ((edge_dirs[lvid] == graphlab::OUT_EDGES) 
                     || (edge_dirs[lvid] == graphlab::ALL_EDGES)))) {
             send_activs(lvid, thread_id);
-            ++vcount;
           }
         }
       }
-      if(vcount % TRY_RECV_MOD == 0) recv_activs();
+      if(++vcount % TRY_RECV_MOD == 0) recv_activs();
     }
     num_active_vertices += nactive_inc;
     activ_exchange.partial_flush();
@@ -1821,14 +1820,14 @@ namespace graphlab {
         }
 
         // If the accum contains a value for the gather
-        if (accum_is_set) { send_accum(lvid, accum, thread_id); ++vcount; }
+        if(accum_is_set) send_accum(lvid, accum, thread_id);
         if(!graph.l_is_master(lvid)) {
           // if this is not the master clear the vertex program
           vertex_programs[lvid] = vertex_program_type();
         }
 
         // try to recv gathers if there are any in the buffer
-        if(vcount % TRY_RECV_MOD == 0) recv_accums();
+        if(++vcount % TRY_RECV_MOD == 0) recv_accums();
       }
     } // end of loop over vertices to compute gather accumulators
     completed_gathers += ngather_inc;

@@ -80,26 +80,12 @@ namespace graphlab {
     typedef typename buffered_exchange<vertex_buffer_record>::buffer_type 
         vertex_buffer_type;
 
-    struct batch_edge_buffer_record {
-      std::vector<vertex_id_type> sources;
-      vertex_id_type target;
-      std::vector<edge_data_type> edatas;
-      
-      batch_edge_buffer_record(
-        const std::vector<vertex_id_type>& sources = std::vector<vertex_id_type>() , 
-        const vertex_id_type& target = vertex_id_type(-1), 
-        const std::vector<edge_data_type>& edatas = std::vector<edge_data_type>()) :
-        sources(sources), target(target), edatas(edatas) { }
-
-      void load(iarchive& arc) { arc >> sources >> target >> edatas; }
-      void save(oarchive& arc) const { arc << sources << target << edatas; }
-    };
-    typedef typename buffered_exchange<batch_edge_buffer_record>::buffer_type 
-        batch_edge_buffer_type;
+    typedef typename boost::unordered_map<vertex_id_type, 
+      std::vector<edge_buffer_record> > raw_map_type;
     
     /// detail vertex record for the second pass coordination. 
     typedef typename base_type::vertex_negotiator_record 
-      vertex_negotiator_record;
+        vertex_negotiator_record;
 
     /// ginger structure
     /** Type of the master location hash table: [vertex-id, location-of-master] */
@@ -111,10 +97,9 @@ namespace graphlab {
         master_buffer_type;
 
     typedef typename std::pair<procid_t,size_t> 
-        proc_edges_pair_type;
-    typedef typename buffered_exchange<proc_edges_pair_type >::buffer_type
-        proc_edges_buffer_type;
-
+        proc_score_pair_type;
+    typedef typename buffered_exchange<proc_score_pair_type >::buffer_type
+        proc_score_buffer_type;
 
     /// The rpc interface for this object
     dc_dist_object<distributed_hybrid_ginger_ingress> hybrid_rpc;
@@ -136,19 +121,14 @@ namespace graphlab {
     buffered_exchange<edge_buffer_record>  low_edge_exchange;
     buffered_exchange<vertex_buffer_record> resend_vertex_exchange;    
 
-    /** master hash table:
-     * mht is the synchronized one across the cluster,
-     * mht_incremental is the new added mht which stays local since the last sync.
-     */
-    // consider both #edge and #vertex
+    /** master hash table (mht): location mapping of low-degree vertices  */
     master_hash_table_type mht;
     buffered_exchange<master_pair_type> mht_exchange;
-    master_hash_table_type mht_incr;
 
-    //these are used for edges balance
+    // consider both #edge and #vertex
     std::vector<size_t> proc_balance;
-    buffered_exchange< proc_edges_pair_type >  proc_edges_exchange;
-    std::vector<size_t> proc_edges_incr;
+    std::vector<size_t> proc_score_incr;
+    buffered_exchange< proc_score_pair_type > proc_score_exchange;
 
     /// heuristic model from fennel
     /// records about the number of edges and vertices in the graph
@@ -178,8 +158,8 @@ namespace graphlab {
         hybrid_vertex_exchange(dc),
 #endif
         high_edge_exchange(dc), low_edge_exchange(dc), resend_vertex_exchange(dc), 
-        mht_exchange(dc), proc_balance(dc.numprocs()), proc_edges_exchange(dc), 
-        proc_edges_incr(dc.numprocs()), 
+        mht_exchange(dc), proc_balance(dc.numprocs()), 
+        proc_score_incr(dc.numprocs()), proc_score_exchange(dc),
         tot_nedges(tot_nedges), tot_nverts(tot_nverts), interval(interval) { 
       ASSERT_GT(tot_nedges, 0); ASSERT_GT(tot_nverts, 0);
       
@@ -222,27 +202,55 @@ namespace graphlab {
 #endif
     } // end of add vertex
 
-    bool is_sync() { return mht_incr.size() > interval; }
 
-    void sync_heurisitc_info() {
+    /* ginger heuristic for low-degree vertex */
+    procid_t ginger_to_proc (const vertex_id_type target,
+        const std::vector<edge_buffer_record>& records) {
+      size_t nprocs = hybrid_rpc.numprocs();    
+      std::vector<double> proc_score(nprocs);
+      std::vector<int> proc_degrees(nprocs);
+    
+      for (size_t i = 0; i < records.size(); ++i) {
+        if (mht.find(records[i].source) != mht.end())
+          proc_degrees[mht[records[i].source]]++;
+      }
+    
+      for (size_t i = 0; i < nprocs; ++i) {
+        proc_score[i] = proc_degrees[i] 
+                      - alpha * gamma * pow(proc_balance[i], (gamma - 1));
+      }
+    
+      double best_score = proc_score[0];
+      procid_t best_proc = 0;
+      for (size_t i = 1; i < nprocs; ++i) {
+        if (proc_score[i] > best_score) {
+          best_score = proc_score[i];
+          best_proc = i;
+        }
+      }
+
+      return best_proc;
+    };
+
+    /* ginger heuristic for low-degree vertex */
+    void sync_heuristic() {
       size_t nprocs = hybrid_rpc.numprocs();
       procid_t l_procid = hybrid_rpc.procid();
 
-      /* send mht_incr */
-      for (typename master_hash_table_type::iterator it = mht_incr.begin();
-              it != mht_incr.end(); ++it) {
-        // broadcast
-        for (procid_t i = 0; i < nprocs; ++i) {
-          if (i != l_procid)
-            mht_exchange.send(i, master_pair_type(it->first, it->second));
-        }
-        // update mht
-        mht[it->first] = it->second;
-      }
-      mht_incr.clear();
+      // send proc_score_incr 
+      for (procid_t p = 0; p < nprocs; p++) {
+        for (procid_t i = 0; i < nprocs; i++)
+          if (i != l_procid) 
+            proc_score_exchange.send(i, std::make_pair(p, proc_score_incr[p]));
+        proc_score_incr[p] = 0;
+      }      
+
+      // flush proc_score_incr and mht but w/o spin 
+      proc_score_exchange.partial_flush(0);
       mht_exchange.partial_flush(0);
 
-      /* try to receive mht_incr and update mht */
+
+      // update local mht and proc_balance
       master_buffer_type master_buffer;
       procid_t proc = -1;
       while(mht_exchange.recv(proc, master_buffer, false)) {
@@ -251,88 +259,104 @@ namespace graphlab {
       }
       mht_exchange.clear();
 
-
-      /* send proc_edges_incr for edges balance */
-      for (procid_t p = 0; p < nprocs; p++) {
-        if (p != l_procid) {
-          for (procid_t i = 0; i < nprocs; i++)
-            proc_edges_exchange.send(p, std::make_pair(i, proc_edges_incr[i]));
-        }
-      }
-      proc_edges_exchange.partial_flush(0);
-
-      /* try to receive proc_edge_inc */
-      proc_edges_buffer_type proc_edge_buffer;
+      proc_score_buffer_type proc_edge_buffer;
       proc = -1;
-      while (proc_edges_exchange.recv(proc, proc_edge_buffer, false)) {
-        foreach (const proc_edges_pair_type& pair, proc_edge_buffer)
-          proc_edges_incr[pair.first] += pair.second;
+      while (proc_score_exchange.recv(proc, proc_edge_buffer, false)) {
+        foreach (const proc_score_pair_type& pair, proc_edge_buffer)
+          proc_balance[pair.first] += pair.second;
       }
-      proc_edges_exchange.clear();
-
-
-      /* roughly convert proc_nedges to proc_nverts for load balancing */
-      for (procid_t i = 0; i < nprocs; i++) {
-        proc_balance[i] += 
-            proc_edges_incr[i] * float(tot_nverts) / tot_nedges;
-        proc_edges_incr[i] = 0;
-      }
+      proc_score_exchange.clear();
     }
 
-    void add_edges(std::vector<vertex_id_type>& sources, vertex_id_type target,
-                      const std::vector<EdgeData>& edatas) {
-      size_t nprocs = hybrid_rpc.numprocs();
-      procid_t owning_proc = 0;
-
-      if (sources.size() > threshold) {
-        // TODO: no need send, just resend latter
-        owning_proc = graph_hash::hash_vertex(target) % nprocs;
-        for (size_t i = 0; i < sources.size(); ++i) {
-          edge_buffer_record record(sources[i], target, edatas[i]);
-          high_edge_exchange.send(owning_proc, record);
-        }
-      } else {
-        owning_proc = base_type::edge_decision.edge_to_proc_ginger(
-            sources, target, mht, mht_incr, proc_balance, alpha, gamma);
-        for (size_t i = 0; i < sources.size(); ++i) {
-          edge_buffer_record record(sources[i], target, edatas[i]);
-          low_edge_exchange.send(owning_proc, record);
-        }
-        
-        // update edge counter
-        proc_edges_incr[owning_proc] += sources.size();
-      }
-      // update vertex mapping table
-      mht_incr[target] = owning_proc;
-
-      // synchronize heurisitic info
-      if (is_sync()) sync_heurisitc_info();
-    } // end of add edges
-
-
     void assign_hybrid_edges() {
-      typedef typename boost::unordered_map<vertex_id_type, batch_edge_buffer_record> 
-                batch_record_map_type;
-      batch_record_map_type batch_map;
+      graphlab::timer ti;
+      size_t nprocs = hybrid_rpc.numprocs();
+      procid_t l_procid = hybrid_rpc.procid();      
+      raw_map_type raw_map;
+      size_t vcount = 0;
 
+      // collect edges
       edge_buffer_type edge_buffer;
       procid_t proc = -1;
       while (hybrid_edge_exchange.recv(proc, edge_buffer)) {
         foreach(const edge_buffer_record& rec, edge_buffer) {
-          batch_map[rec.target].sources.push_back(rec.source);
-          batch_map[rec.target].edatas.push_back(rec.edata);
+          raw_map[rec.target].push_back(rec);
         }
       }
       hybrid_edge_exchange.clear();
 
-      if (hybrid_rpc.procid() == 0)
-        logstream(LOG_INFO) << "receive " << batch_map.size()
-                            << " batch edges done." << std::endl;
-
-      for (typename batch_record_map_type::iterator it = batch_map.begin(); 
-          it != batch_map.end(); ++it) {
-        add_edges(it->second.sources, it->first, it->second.edatas);
+#ifdef TUNING
+      if(l_procid == 0) { 
+        logstream(LOG_INFO) << "collect raw map: " 
+                            << ti.current_time()
+                            << " secs" 
+                            << std::endl;
       }
+      logstream(LOG_INFO) << "receive " << raw_map.size()
+                          << " vertices done." << std::endl;
+#endif
+
+
+      //assign vertices and its in-edges to hosting node
+      for (typename raw_map_type::iterator it = raw_map.begin(); 
+          it != raw_map.end(); ++it) {
+        vertex_id_type target = it->first;
+        procid_t owning_proc = 0;
+        size_t degree = it->second.size();
+
+        if (degree > threshold) {
+          // TODO: no need send, just resend latter
+          owning_proc = graph_hash::hash_vertex(target) % nprocs;
+          for (size_t i = 0; i < degree; ++i)
+            high_edge_exchange.send(owning_proc, it->second[i]);
+        } else {
+          owning_proc = ginger_to_proc(target, it->second);
+          for (size_t i = 0; i < degree; ++i)
+            low_edge_exchange.send(owning_proc, it->second[i]);
+
+          // update mht and nedges_incr
+          for (procid_t p = 0; p < nprocs; ++p) {
+            if (p != l_procid)
+              mht_exchange.send(p, master_pair_type(target, owning_proc));
+            else
+              mht[target] = owning_proc;
+          }
+
+          // adjust balance according to vertex and edge
+          proc_balance[owning_proc]++;
+          proc_balance[owning_proc] += 
+              (degree * float(tot_nverts) / float(tot_nedges));
+
+          proc_score_incr[owning_proc]++;
+          proc_score_incr[owning_proc] += 
+              (degree * float(tot_nverts) / float(tot_nedges));
+        }
+
+        // periodical synchronize heurisitic
+        if ((++vcount % interval) == 0) sync_heuristic();
+      }
+
+      // last synchronize on mht
+      mht_exchange.flush();
+      master_buffer_type master_buffer;
+      proc = -1;
+      while(mht_exchange.recv(proc, master_buffer)) {
+        foreach(const master_pair_type& pair, master_buffer)
+          mht[pair.first] = pair.second;
+      }
+      mht_exchange.clear();
+
+
+#ifdef TUNING
+      //logstream(LOG_INFO) << "balance[";
+      //for (procid_t i = 0; i < nprocs; i++)
+      //  logstream(LOG_INFO) << proc_balance[i] << ",";
+      //logstream(LOG_INFO) << "] ";
+      logstream(LOG_INFO) << "nsyncs(" << (vcount / interval) 
+                          << ") using " << ti.current_time() << " secs "
+                          << "#mht=" << mht.size()
+                          << std::endl;
+#endif
     }
 
     void finalize() {
@@ -350,6 +374,9 @@ namespace graphlab {
                             << " #vertices=" << graph.local_graph.num_vertices()
                             << " #edges=" << graph.local_graph.num_edges()
                             << " threshold=" << threshold
+                            << " interval=" << interval
+                            << " gamma=" << gamma
+                            << " alpha=" << alpha
                             << std::endl;
       }
 
@@ -405,42 +432,13 @@ namespace graphlab {
         }
         hybrid_edge_exchange.clear();
       } else {
-        /* send and receive last mht_incr */
-        for (typename master_hash_table_type::iterator it = mht_incr.begin();
-                 it != mht_incr.end(); ++it) {
-          for (procid_t i = 0; i < nprocs; ++i) {
-            if (i != l_procid)
-              mht_exchange.send(i, master_pair_type(it->first, it->second));
-          }
-          mht[it->first] = it->second;
-        }
-        mht_incr.clear();
-
-        mht_exchange.flush();
-        master_buffer_type master_buffer;
-        procid_t proc = -1;
-        while(mht_exchange.recv(proc, master_buffer)) {
-          foreach(const master_pair_type& pair, master_buffer)
-            mht[pair.first] = pair.second;
-        }
-        mht_exchange.clear();
-
-#ifdef TUNING
-        if(l_procid == 0) { 
-          logstream(LOG_INFO) << "exchange mapping: " 
-                              << ti.current_time()
-                              << " secs" 
-                              << std::endl;
-        }
-#endif
-
         high_edge_exchange.flush(); low_edge_exchange.flush();
 
         nedges = low_edge_exchange.size();
         hybrid_edges.reserve(nedges + high_edge_exchange.size());
 
         edge_buffer_type edge_buffer;
-        proc = -1;
+        procid_t proc = -1;
         while(low_edge_exchange.recv(proc, edge_buffer)) {
           foreach(const edge_buffer_record& rec, edge_buffer) {
             if (mht.find(rec.source) == mht.end())

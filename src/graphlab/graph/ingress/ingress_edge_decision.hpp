@@ -40,9 +40,7 @@ namespace graphlab {
     public:
       typedef graphlab::vertex_id_type vertex_id_type;
       typedef distributed_graph<VertexData, EdgeData> graph_type;
-      typedef fixed_dense_bitset<RPC_MAX_N_PROCS> bin_counts_type; 
-      typedef typename boost::unordered_map<vertex_id_type, procid_t> master_hash_table_type;
-     
+      typedef fixed_dense_bitset<RPC_MAX_N_PROCS> bin_counts_type;     
 
     public:
       /** \brief A decision object for computing the edge assingment. */
@@ -69,46 +67,6 @@ namespace graphlab {
         return candidates[graph_hash::hash_edge(edge_pair) % (candidates.size())];
       };
 
-      /** Assign edges via a heuristic method called ginger */
-      procid_t edge_to_proc_ginger (const std::vector<vertex_id_type>& sources,
-          const vertex_id_type target,
-          master_hash_table_type& mht,
-          master_hash_table_type& mht_incr,
-          std::vector<size_t>& proc_balance,
-          double alpha,
-          double gamma) {
-        size_t numprocs = proc_balance.size();
-
-        // Compute the score of each proc.
-        procid_t best_proc = -1;
-        double maxscore = 0.0;
-        std::vector<double> proc_score(numprocs);
-        std::vector<int> proc_degrees(numprocs);
-
-        for (size_t i = 0; i < sources.size(); ++i) {
-          if (mht.find(sources[i]) != mht.end())
-            proc_degrees[mht[sources[i]]]++;
-          else if (mht_incr.find(sources[i]) != mht_incr.end())
-            proc_degrees[mht_incr[sources[i]]]++;
-        }
-
-        for (size_t i = 0; i < numprocs; ++i) {
-          proc_score[i] = proc_degrees[i] 
-                        - alpha * gamma * pow(proc_balance[i], (gamma - 1));
-        }
-
-        // TODO: just use std::max
-        maxscore = *std::max_element(proc_score.begin(), proc_score.end());
-        for (size_t i = 0; i < numprocs; ++i) {
-          if (proc_score[i] == maxscore) {
-            best_proc = i;
-            break;
-          }
-        }
-        
-        proc_balance[best_proc]++;
-        return best_proc;
-      };
 
       /** Greedy assign (source, target) to a machine using: 
        *  bitset<MAX_MACHINE> src_degree : the degree presence of source over machines

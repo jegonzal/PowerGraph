@@ -301,7 +301,7 @@ namespace graphlab {
       graphlab::timer ti;
       procid_t l_procid = hybrid_rpc.procid();
       size_t high_master = 0, high_mirror = 0, low_master = 0, low_mirror = 0;
-
+      
       for (size_t lvid = 0; lvid < graph.num_local_vertices(); lvid++) {
         vertex_record& vrec = graph.lvid2record[lvid];
         if (vrec.num_in_edges > threshold) {

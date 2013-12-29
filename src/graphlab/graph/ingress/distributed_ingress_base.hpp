@@ -532,6 +532,12 @@ namespace graphlab {
         rpc.all_gather(swap_counts);
         graph.nedges = 0;
         foreach(size_t count, swap_counts) graph.nedges += count;
+        if (rpc.procid() == 0) {
+          size_t max = *std::max_element(swap_counts.begin(), swap_counts.end());
+          logstream(LOG_EMPH) << "edges balance: " 
+                              << (double) max / ((double) graph.nedges / rpc.numprocs())
+                              << std::endl;
+        }
 
 
         // compute vertex count
@@ -539,12 +545,25 @@ namespace graphlab {
         rpc.all_gather(swap_counts);
         graph.nverts = 0;
         foreach(size_t count, swap_counts) graph.nverts += count;
+        if (rpc.procid() == 0) {
+          size_t max = *std::max_element(swap_counts.begin(), swap_counts.end());
+          logstream(LOG_EMPH) << "own vertices balance: " 
+                              << (double) max / ((double) graph.nverts / rpc.numprocs())
+                              << std::endl;
+        }
 
         // compute replicas
         swap_counts[rpc.procid()] = graph.num_local_vertices();
         rpc.all_gather(swap_counts);
         graph.nreplicas = 0;
         foreach(size_t count, swap_counts) graph.nreplicas += count;
+        if (rpc.procid() == 0) {
+          size_t max = *std::max_element(swap_counts.begin(), swap_counts.end());
+          logstream(LOG_EMPH) << "local vertices balance: " 
+                              << (double) max / ((double) graph.nreplicas / rpc.numprocs())
+                              << std::endl;
+        }
+
       }
 
       if (rpc.procid() == 0) {
