@@ -164,7 +164,7 @@ namespace graphlab {
       ASSERT_GT(tot_nedges, 0); ASSERT_GT(tot_nverts, 0);
       
       gamma = 1.5;
-      alpha = sqrt(dc.numprocs()) * tot_nedges / pow(tot_nverts, gamma);
+      alpha = sqrt(dc.numprocs()) * double(tot_nedges) / pow(tot_nverts, gamma);
 
       /* fast pass for standalone case. */
       standalone = hybrid_rpc.numprocs() == 1;

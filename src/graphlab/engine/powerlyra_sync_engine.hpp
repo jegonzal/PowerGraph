@@ -1696,7 +1696,7 @@ namespace graphlab {
     context_type context(*this, graph);
     fixed_dense_bitset<8 * sizeof(size_t)> local_bitset; // a word-size = 64 bit
     const size_t TRY_RECV_MOD = 100;
-    size_t vcount = 0;
+    size_t vcount = 1; // avoid unnecessarily call recv_messages() 
     
     while (1) {
       // increment by a word at a time
