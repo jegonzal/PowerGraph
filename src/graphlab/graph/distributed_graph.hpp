@@ -1842,7 +1842,8 @@ namespace graphlab {
       std::vector<boost_fstream_type*> booststreams;
       graph_files.resize(files_per_machine);
       for(size_t i = 0; i < files_per_machine; ++i) {
-        graph_files[i] = prefix + "_" + tostr(1 + i + rpc.procid() * files_per_machine)
+        //graph_files[i] = prefix + "_" + tostr(1 + i + rpc.procid() * files_per_machine)
+        graph_files[i] = prefix + "." + tostr(1 + i + rpc.procid() * files_per_machine)
           + "_of_" + tostr(rpc.numprocs() * files_per_machine);
         if (gzip) graph_files[i] += ".gz";
       }
