@@ -287,9 +287,11 @@ inline bool graph_loader(graph_type& graph,
      source_id-=input_file_offset; 
      target_id-=input_file_offset;
   }
-  if (source_id >= (uint)rows)
+  //if (source_id >= (uint)rows)
+  if (source_id > (uint)rows)
     logstream(LOG_FATAL)<<"Problem at input line: [ " << line << " ] row id ( = " << source_id+input_file_offset << " ) should be <= than matrix rows (= " << rows << " ) " << std::endl;
-  if (target_id >= (uint)cols)
+  //if (target_id >= (uint)cols)
+  if (target_id > (uint)cols)
     logstream(LOG_FATAL)<<"Problem at input line: [ " << line << " ] col id ( = " << target_id+input_file_offset << " ) should be <= than matrix cols (= " << cols << " ) " << std::endl;
 
   if (!binary)
