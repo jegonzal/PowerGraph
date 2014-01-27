@@ -110,9 +110,9 @@ public:
     //using typename iterator_t::value_type;
     //using typename iterator_t::reference;
     //using typename iterator_t::pointer;
-    typedef typename iterator_t::value_type   value_type;
-    typedef typename iterator_t::reference    reference;
-    typedef typename iterator_t::pointer      pointer;
+    typedef typename iterator_t::value_type   value_type_custom;
+    typedef typename iterator_t::reference    reference_custom;
+    typedef typename iterator_t::pointer      pointer_custom;
 
     assignment_type _asg;
 
@@ -135,10 +135,10 @@ public:
     bool operator!=(const Iterator& other) const {
       return !(*this == other);
     }
-    reference operator*() {
+    reference_custom operator*() {
       return _asg;
     }
-    pointer operator->() {
+    pointer_custom operator->() {
       // this may be more correct, but less clear
       //return &*(domain_type::Iterator)*this;
       return &_asg;
@@ -163,9 +163,9 @@ public:
     //using typename const_iterator_t::value_type;
     //using typename const_iterator_t::reference;
     //using typename const_iterator_t::pointer;
-    typedef typename const_iterator_t::value_type   value_type;
-    typedef typename const_iterator_t::reference    reference;
-    typedef typename const_iterator_t::pointer      pointer;
+    typedef typename const_iterator_t::value_type   value_type_custom;
+    typedef typename const_iterator_t::reference    reference_custom;
+    typedef typename const_iterator_t::pointer      pointer_custom;
 
     assignment_type _asg;
 
@@ -189,10 +189,10 @@ public:
     bool operator!=(const ConstIterator& other) const {
       return !(*this == other);
     }
-    reference operator*() const {
+    reference_custom operator*() const {
       return _asg;
     }
-    pointer operator->() const {
+    pointer_custom operator->() const {
       return &_asg;
     }
     ConstIterator& operator++() {
