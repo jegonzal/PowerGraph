@@ -312,7 +312,7 @@
         return false;
       graph.add_edge(vid, other_vid);
     }
-    retun true;
+    return true;
   }
   \endcode
 
@@ -391,9 +391,11 @@
     while(1){
       graphlab::vertex_id_type other_vid;
       strm >> other_vid;
-      if (strm.fail()) break;
+      if (strm.fail())
+        return false;
       graph.add_edge(vid, other_vid);
     }
+    return true;
   }
 
   int main(int argc, char** argv) {
