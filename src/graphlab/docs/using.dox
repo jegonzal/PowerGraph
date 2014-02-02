@@ -373,7 +373,7 @@
     }
   };
  
-  typedef graphlab::distributed_graph_type<web_page, graphlab::empty> graph_type;
+  typedef graphlab::distributed_graph<web_page, graphlab::empty> graph_type;
 
 
   bool line_parser(graph_type& graph, 
