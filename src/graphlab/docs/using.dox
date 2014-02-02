@@ -312,7 +312,7 @@
         return false;
       graph.add_edge(vid, other_vid);
     }
-    retun true;
+    return true;
   }
   \endcode
 
@@ -373,7 +373,7 @@
     }
   };
  
-  typedef graphlab::distributed_graph_type<web_page, graphlab::empty> graph_type;
+  typedef graphlab::distributed_graph<web_page, graphlab::empty> graph_type;
 
 
   bool line_parser(graph_type& graph, 
@@ -391,9 +391,11 @@
     while(1){
       graphlab::vertex_id_type other_vid;
       strm >> other_vid;
-      if (strm.fail()) break;
+      if (strm.fail())
+        return false;
       graph.add_edge(vid, other_vid);
     }
+    return true;
   }
 
   int main(int argc, char** argv) {
