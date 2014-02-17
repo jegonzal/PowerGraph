@@ -48,14 +48,15 @@ struct Options
     std::string output_dir;
     std::string history_file;
     std::string file_format;
+    std::string output_file;
 
     int verbose;
     int algorithm;  
-    
+    int maxiter;
+
     double dualimprovthres;
     double pdgapthres;
-    int maxiter;
-    
+    double alpha;
     double step_size; 
     double agg_time; 
     
@@ -73,7 +74,9 @@ struct Options
     debug(false),
     step_size(1.0),
     file_format("uai"),
-    agg_time(1e-4)
+    agg_time(1e-4),
+    alpha(1),
+    output_file("output")
     {}
 };
 
