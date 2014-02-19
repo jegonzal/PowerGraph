@@ -1,0 +1,125 @@
+/**
+
+\page factor_graphs Factor Graph Toolkit
+
+\brief 
+The Factor Graph toolkit (defined in toolkits/graphical_models/factors/factor_graph.hpp) 
+is an abstraction layer which is able to translate a factor graph into a 
+graphlab distributed-graph. 
+
+\image html factor_graph_to_distributed_graph.png
+
+A <a href="http://en.wikipedia.org/wiki/Factor_graph">factor graph</a>
+is a bipartite graph composed of two types of vertices: variable nodes 
+and factor nodes. 
+
+A variable specifies a unary discrete 
+<a href="http://en.wikipedia.org/wiki/Probability_mass_function">probabiltiy mass function</a> 
+(PFM) over a set of labels. A variable's PMF is assumed to be defined by a 
+<code>class dense_table</code> in which each label has a corresponding 
+probability. 
+
+A factor specifies a discrete joint probability mass function over 
+a set of neighboring variables which form the factor's domain. The 
+n-D PMF is defined by either a <code>class dense_table</code> or 
+<code>class sparse_table</code> (which is basically just an N-d matrix and is 
+defined in toolkits/graphical_models/factors/dense_table.hpp and sparse_table.hpp), 
+in which each label has a corresponding log probability (we use the log of the 
+belief value for numerical stability).
+NOTE When constructing an n-D table, take care to understand the sorting order 
+of the values in the table and that expected by the various accessors/constructors 
+of the class.
+
+Inference in a factor graph is commonly performed using 
+<a href="http://en.wikipedia.org/wiki/Belief_propagation">loopy belief 
+propagation</a> (LBP), a well-known message-passing algorithm. The vertex program 
+specified in <code>bp_vertex_program.cpp</code> defines the max-sum variant of 
+belief propagation (although sum-product is also supported). Messages between 
+variables and factors are always dense 1-d tables. 
+
+Belief propagation and factor graphs are general tools that have applications in a 
+variety of domains. 
+
+While GraphLab proper supports several common portable graph formats, 
+such as tsv, the Factor Graph toolkit instead defines a factor graph 
+programatically. The typical usasge of the <code>class factor_graph</code> 
+interface would consist of:
+
+-# adding a set of variables to the factor graph by using add_variable(), 
+
+-# defining the prior distribution over each variable by using one 
+of the prior related methods (such as set_prior_for_variable(...) )
+
+-# adding a set of factors to the graph by using add_factor(...), 
+
+-# constructing the distributed graph using make_bp_graph(), 
+
+-# running belief propagation on the distributed graph to propagate the 
+evidence across the graph (outside the scope of this interface), and 
+
+-# loading the results using pull_beliefs_for_variables(...). 
+
+The resulting belief for a variable can be queried using 
+belief_for_variable(var).logP() (i.e., once the evidence has been propagated 
+across the distributed graph and the results pulled back into the
+factor_graph using pull_beliefs_for_variables() ). 
+
+\section factor_graph_structured_prediction A Factor Graph for Structured Prediction
+
+We have implemented the \ref structured_prediction "Structured Prediction" example 
+using a factor graph. We can run the structured prediction application on the 
+synthetic image like this:
+\verbatim
+> ./denoise --damping=.3 
+\endverbatim
+
+The structure prediction application applies the Loopy Belief propagation 
+algorithm to a factor graph encoding encoding the classic 
+<a href="http://en.wikipedia.org/wiki/Potts_model">Potts Model</a>. 
+
+Once the application terminates, the final predictions will be stored in denoised.png.
+
+\image html denoised.jpeg
+
+Not bad! Given the synthetic noisy image (noisy_img.png), denoised.png is very 
+similar to the true underlying image (orig_img.png) that we would like to recover.
+
+
+\subsection structured_predictions_options Options
+
+\li <b>--help</b> Display the help message describing the list of
+options.
+
+\li <b>--damping</b> (Optional, Default 0.1) The amount of damping to
+use. Damping can help ensure that the algorithm converges.  Larger
+damping values lead to slower but more reliable convergence.
+
+
+\li <b>--engine</b> (Optional, Default: asynchronous) The engine type to
+use when executing the vertex-programs
+       - <b>synchronous</b>: All LoopyBP updates are run at the same
+         time (Synchronous BP). This engine exposes greater parallelism but is less
+         computationally efficient.
+       - <b>asynchronous</b>: LoopyBP updates are run asynchronous
+         with priorities (Residual BP). This engine is has greater
+         overhead and exposes less parallelism but can substantially
+         improve the rate over convergence.
+
+\li <b>--ncpus</b> (Optional, Default 2) The number of local computation 
+threads to use on each machine. This should typically match the number 
+of physical cores. 
+
+\li <b>--scheduler</b> (Optional, Default sweep) The scheduler to use when 
+running with the asynchronous engine. The default is typically sufficient. 
+
+\li <b>--engine_opts</b> (Optional, Default empty) Any additional engine
+options. See <b>--engine_help</b> for a list of options.
+
+
+\li <b>--graph_opts</b> (Optional, Default empty) Any additional graph
+options. See <b>--graph_help</b> for a list of options.
+
+\li <b>--scheduler_opts</b> (Optional, Default empty) Any additional scheduler
+options. See <b>--scheduler_help</b> for a list of options.
+
+*/
