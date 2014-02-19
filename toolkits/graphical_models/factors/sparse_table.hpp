@@ -33,6 +33,7 @@
 #include <algorithm>
 #include <limits>
 #include <vector>
+#include <cmath>
 #include <map>
 
 #include <graphlab/serialization/serialization_includes.hpp>
@@ -438,16 +439,84 @@ private:
   }
 
 public:
+  using table_base_t::marginalize;
+
+  // since the message is always a unary distribution, this is basically 
+  // >> sum(
+  //      reshape(
+  //        permute(cavity, circshift(1:ndims(cavity), [0, -msg.dim])), 
+  //      [], msg.numel),
+  //    [], 1)
+  // or more generally, 
+  // >> sum(
+  //      reshape(
+  //        permute(cavity, [setdiff(1:ndims(cavity), msg.dims), msg.dims]),  
+  //      [], msg.numel),
+  //    [], 1)
+  void marginalize(dense_table_t& msg) const {
+    // No need to marginalize
+    if(args() == msg.args()) {
+      // Just copy and return
+      as_dense_table(msg);
+      return;
+    }
+    
+    // the domains cannot be disjoint
+    DCHECK_GT((args() - msg.args()).num_vars(), 0);
+  
+    compact_const_view_t fast_view = as_vector_view();
+    // define the one-to-one mapping from the msg's domain to our's
+    std::vector<size_t> sorting_inds = args().vars_location(msg.args());
+    // reorder the assignments so they can be quickly iterated over
+    permute(sorting_inds, fast_view); 
+
+    assignment_t yasg(args());
+    // Loop over x
+    // NOTE our assignments have been reordered so we can index assignments in 
+    // the two domains consecutively. e.g., if the domain of msg, {v1,v2}, is 
+    // sorted in ascending order, then our assignments must also be sorted in 
+    // assending order over {v1,v2} (although these sub-domains need not be 
+    // be sorted the same.)
+    typename compact_const_view_t::const_iterator fastyasg = fast_view.begin();
+    typename compact_const_view_t::const_iterator yend     = fast_view.end();
+    typename domain_t::const_iterator xasg = msg.args().begin();
+    typename domain_t::const_iterator xend = msg.args().end();
+    for( ; xasg != xend; ++xasg) {
+      double sum = 0;
+
+      // loop over y
+      while(fastyasg != yend) {
+        yasg.set_index(linear_index(*(fastyasg->first))); 
+        if(*xasg != yasg.restrict(xasg->args())) break;
+        
+        //maxval = std::sum(maxval, _dataAtAsg[*fastyasg]);
+        sum += exp(*(fastyasg->second));
+        ++fastyasg;
+      }
+      DASSERT_FALSE( std::isinf(sum) );
+      DASSERT_FALSE( std::isnan(sum) );
+      DCHECK_GE(sum, 0.0);
+      if(sum == 0) 
+        msg.set_logP( *xasg, APPROX_LOG_ZERO() );
+      else 
+        msg.set_logP( *xasg, log(sum) );
+    }
+  }
+
   using table_base_t::MAP;
 
   // since the message is always a unary distribution, this is basically 
-  // >>> max(reshape(permute(
-  //     cavity, circshift(1:ndims(cavity), [1 -msg.dim])), [], msg.numel),
-  //     [], 1)
+  // >> max(
+  //      reshape(
+  //        permute(cavity, circshift(1:ndims(cavity), [0, -msg.dim])), 
+  //      [], msg.numel),
+  //    [], 1)
   // or more generally, 
-  // >>> max(reshape(permute(
-  //     cavity, [setdiff(1:ndims(cavity), msg.dims), msg.dims]), [], msg.numel), 
-  //     [], 1)
+  // >> max(
+  //      reshape(
+  //        permute(cavity, [setdiff(1:ndims(cavity), msg.dims), msg.dims]),  
+  //      [], msg.numel),
+  //    [], 1)
   void MAP(dense_table_t& msg) const {
     // No need to marginalize
     if(args() == msg.args()) {
@@ -706,6 +775,18 @@ public:
     out->divide_equals(base);
   }
   
+  virtual void marginalize(table_base_t& base) const {
+    // ensure we are dealing with a dense_table
+    dense_table_t* msg = dynamic_cast<dense_table_t*>(&base);
+    if(msg == NULL) {
+      std::cout << "ERROR: std::bad_cast" << std::endl;
+      // REVIEW should probably raise an exception
+      ASSERT_TRUE(false);
+    }
+  
+    marginalize(*msg);
+  }
+
   virtual void MAP(table_base_t& base) const {
     // ensure we are dealing with a dense_table
     dense_table_t* msg = dynamic_cast<dense_table_t*>(&base);
