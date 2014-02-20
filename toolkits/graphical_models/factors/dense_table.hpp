@@ -525,7 +525,8 @@ namespace graphlab {
       }
     }
     
-     
+    using table_base_t::marginalize;
+    
     //! msg(x) = sum_y this(x,y) 
     void marginalize(dense_table_impl& msg) const {
       // No need to marginalize
@@ -968,6 +969,20 @@ namespace graphlab {
 
       *out = *this; // deep copy
       out->divide_equals(base);
+    }
+
+    using dense_table_impl_t::marginalize;
+
+    virtual void marginalize(table_base_t& base) const {
+      // ensure we are dealing with a dense_table
+      dense_table* msg = dynamic_cast<dense_table*>(&base);
+      if(msg == NULL) {
+        std::cout << "ERROR: std::bad_cast" << std::endl;
+        // REVIEW should probably raise an exception
+        ASSERT_TRUE(false);
+      }
+
+      dense_table_impl_t::marginalize(*msg);
     }
 
     using dense_table_impl_t::MAP;
