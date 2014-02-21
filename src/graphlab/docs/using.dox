@@ -392,7 +392,7 @@
       graphlab::vertex_id_type other_vid;
       strm >> other_vid;
       if (strm.fail())
-        return false;
+        return true;
       graph.add_edge(vid, other_vid);
     }
     return true;
