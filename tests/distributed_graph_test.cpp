@@ -22,7 +22,17 @@
 
 // standard C++ headers
 #include <iostream>
+#include <vector>
 #include <cxxtest/TestSuite.h>
+
+
+template<typename T>
+std::vector<T> operator+=(std::vector<T>& v1, const std::vector<T>& v2) {
+  for (size_t i = 0; i < v2.size(); ++i)
+    v1.push_back(v2[i]);
+  return v1;
+}
+
 
 #include <graphlab/rpc/dc.hpp>
 #include <graphlab/util/mpi_tools.hpp>
@@ -36,13 +46,6 @@ graphlab::distributed_control* dc;
 template<typename K, typename V>
 class map_reduce;
 
-
-template<typename T>
-std::vector<T> operator+=(std::vector<T>& v1, const std::vector<T>& v2) {
-  for (size_t i = 0; i < v2.size(); ++i)
-    v1.push_back(v2[i]);
-  return v1;
-}
 namespace tests{
 class distributed_graph_test  {
  public:
@@ -50,7 +53,7 @@ class distributed_graph_test  {
      size_t value;
      vertex_data() : value(0) { }
      vertex_data(size_t n) : value(n) { }
-     bool operator==(const vertex_data& other)  {
+     bool operator==(const vertex_data& other)  const {
        return value == other.value;
      }
    };
@@ -59,6 +62,9 @@ class distributed_graph_test  {
      int from;
      int to;
      edge_data (int f = 0, int t = 0) : from(f), to(t) {}
+     bool operator==(const edge_data& other)  const {
+       return ((from == other.from) && (to == other.to));
+     }
    };
 
    /**
@@ -92,10 +98,30 @@ class distributed_graph_test  {
        test_add_edge_impl(g, 10, true);
        test_add_edge_impl(g, 1000, true);
        test_add_edge_impl(g, 10000, true);
-       dc->cout() << "\n+ Pass test: graph dynamicly add edge. :) \n";
+       dc->cout() << "\n+ Pass test: graph dynamically add edge. :) \n";
      } else {
        dc->cout() << "\n- Graph does not support dynamic. Please compile with -DUSE_DYNAMIC_GRAPH \n";
      }
+   }
+
+   /**
+    * Test save load
+    */
+   void test_save_load() {
+     graphlab::distributed_graph<vertex_data, edge_data> g(*dc);
+     for (size_t i = 0; i < 10; ++i) {
+       g.add_edge(i, (i+1), edge_data(i, i+1));
+     }
+     g.finalize();
+     test_save_load_impl(g);
+     if (g.is_dynamic()) {
+       for (size_t i = 0; i < 10; ++i) {
+         g.add_edge(i+1, (i), edge_data(i+1, i));
+       }
+       g.finalize();
+       test_save_load_impl(g);
+     }
+     dc->cout() << "\n+ Pass test: graph save load binary. :) \n";
    }
 
  private: 
@@ -174,7 +200,57 @@ class distributed_graph_test  {
          check_vertex_info(g);
        }
 
+   template<typename Graph>
+       void test_save_load_impl(Graph& g) {
+         typedef typename Graph::local_edge_type local_edge_type;
 
+         using namespace boost::filesystem;
+         path ph = unique_path();
+         if (create_directory(ph)) {
+           path prefix = ph;
+           prefix /= "test"; 
+           dc->cout() << "Save to path: " << prefix.string() << std::endl;
+           g.save_binary(prefix.string());
+
+           Graph g2(*dc);
+           g2.load_binary(prefix.string());
+           ASSERT_EQ(g.num_vertices(), g2.num_vertices());
+           ASSERT_EQ(g.num_edges(), g2.num_edges());
+
+           for (size_t i = 0; i < g.num_local_vertices(); ++i) {
+             // check vertex records
+             ASSERT_TRUE(g.l_get_vertex_record(i) == g2.l_get_vertex_record(i));
+             // check vertex data 
+             ASSERT_TRUE(g.l_vertex(i).data() == g2.l_vertex(i).data());
+
+             // check local in edges
+             ASSERT_EQ(g.l_in_edges(i).size(), g2.l_in_edges(i).size());
+             size_t in_edge_size = g.l_in_edges(i).size();
+             for (size_t j = 0; j < in_edge_size; ++j) {
+               ASSERT_EQ(g.l_in_edges(i)[j].source().lvid,
+                         g2.l_in_edges(i)[j].source().lvid);
+               ASSERT_EQ(g.l_in_edges(i)[j].target().lvid,
+                         g2.l_in_edges(i)[j].target().lvid);
+               ASSERT_TRUE(g.l_in_edges(i)[j].data() == g2.l_in_edges(i)[j].data());
+             }
+
+             // check local out edges
+             ASSERT_EQ(g.l_out_edges(i).size(), g2.l_out_edges(i).size());
+             size_t out_edge_size = g.l_out_edges(i).size();
+             for (size_t j = 0; j < out_edge_size; ++j) {
+               ASSERT_EQ(g.l_out_edges(i)[j].source().lvid,
+                         g2.l_out_edges(i)[j].source().lvid);
+               ASSERT_EQ(g.l_out_edges(i)[j].target().lvid,
+                         g2.l_out_edges(i)[j].target().lvid);
+               ASSERT_TRUE(g.l_out_edges(i)[j].data() == g2.l_out_edges(i)[j].data());
+             }
+           }
+           dc->cout() << "Remove path: " << ph.string()<< std::endl;
+           remove_all(ph);
+         } else {
+           dc->cout() << "Unable to create tmp directory:" << ph.string() << std::endl;
+         }
+       }
 
    template<typename Graph>
        void check_edge_data(Graph& g) {
@@ -354,7 +430,7 @@ class distributed_graph_test  {
          std::vector<vinfo_map_type> vinfo_map_gather(dc->numprocs());
          vinfo_map_gather[dc->procid()] = vid2info;
          dc->all_gather(vinfo_map_gather);
-         dc->all_gather(vids);
+         dc->all_reduce(vids);
 
          ASSERT_EQ(vids.size(), g.num_vertices());
 
@@ -384,6 +460,8 @@ class distributed_graph_test  {
            }
          } // end for loop over all vertices
        }
+
+
 }; // end of distributed_graph_test
 
 } // namespace
@@ -427,6 +505,7 @@ int main(int argc, char** argv) {
   testsuit.test_add_vertex();
   testsuit.test_add_edge();
   testsuit.test_dynamic_add_edge();
+  testsuit.test_save_load();
 
   delete(dc);
   graphlab::mpi_tools::finalize();

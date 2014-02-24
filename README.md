@@ -60,7 +60,7 @@ There are however, a few dependencies which we cannot easily satisfy:
    +   Comes with most Mac/Linux systems by default. Recent Ubuntu version will require the zlib1g-dev package.
 
 * Open MPI or MPICH2 [Strongly Recommended]
-   + Required for running GraphLab distributed. Incompatible with OpenMPI 1.5 and 1.6.
+   + Required for running GraphLab distributed. 
 
 * JDK 6 or greater [Optional]
    + Required for HDFS support 
@@ -88,7 +88,7 @@ Compiling
 
     ./configure
 
-In the graphlabapi directory, will create two sub-directories, release/ and
+In the graphlab directory, will create two sub-directories, release/ and
 debug/ . cd into either of these directories and running make will build the
 release or the debug versions respectively. Note that this will compile all of
 GraphLab, including all toolkits. Since some toolkits require additional
@@ -184,7 +184,11 @@ run make install . This will install the following:
     
 Once you have installed GraphLab you can compile your program by running:
 
-    g++ -pthread -lz -ltcmalloc -levent -levent_pthread -ljson -lboost_filesystem -lboost_program_options -lboost_system -lboost_iostreams -lboost_date_time -lhdfs -lgraphlab hello_world.cpp 
+    g++ -O3 -pthread -lzookeeper_mt -lzookeeper_st -lboost_context -lz -ltcmalloc -levent -levent_pthreads -ljson -lboost_filesystem -lboost_program_options -lboost_system -lboost_iostreams -lboost_date_time -lhdfs -lgraphlab hello_world.cpp 
+    
+If you have compiled with MPI support, you will also need
+
+   -lmpi -lmpi++ 
   
   
 

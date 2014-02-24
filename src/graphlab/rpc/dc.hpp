@@ -28,6 +28,7 @@
 #include <boost/function.hpp>
 #include <graphlab/parallel/pthread_tools.hpp>
 #include <graphlab/parallel/fiber_group.hpp>
+#include <graphlab/parallel/fiber_conditional.hpp>
 #include <graphlab/util/resizing_array_sink.hpp>
 #include <graphlab/util/fiber_blocking_queue.hpp>
 #include <graphlab/util/dense_bitset.hpp>
@@ -48,6 +49,7 @@
 #include <graphlab/rpc/request_reply_handler.hpp>
 #include <graphlab/rpc/function_ret_type.hpp>
 #include <graphlab/rpc/dc_compile_parameters.hpp>
+#include <graphlab/rpc/thread_local_send_buffer.hpp>
 #include <graphlab/util/tracepoint.hpp>
 #include <graphlab/rpc/distributed_event_log.hpp>
 #include <boost/preprocessor.hpp>
@@ -268,6 +270,7 @@ class distributed_control{
   template <typename T> friend class dc_dist_object;
   friend class dc_impl::dc_stream_receive;
   friend class dc_impl::dc_buffered_stream_send2;
+  friend struct dc_impl::thread_local_buffer;
 
   /// disable the operator= by placing it in private
   distributed_control& operator=(const distributed_control& dc) { return *this; }
@@ -309,8 +312,14 @@ class distributed_control{
 
 
   // The procid of the last distributed_control object created
+  // this is quite legacy stuff when we technically permitted multiple DC
+  // objects. Now, a lot of the system is built around the assumption
+  // of a singleton DC.
   static procid_t last_dc_procid;
   // a pointer to the last distributed_control object created
+  // this is quite legacy stuff when we technically permitted multiple DC
+  // objects. Now, a lot of the system is built around the assumption
+  // of a singleton DC.
   static distributed_control* last_dc;
 
   /**
@@ -320,6 +329,10 @@ class distributed_control{
    * one distributed_control.
    */
   static procid_t get_instance_procid();
+
+  inline size_t num_handler_threads() const {
+    return fcallqueue.size();
+  }
 
   /**
    * Gets a pointer to the last distributed_control instance created.
@@ -412,6 +425,9 @@ class distributed_control{
    */
   static unsigned char get_sequentialization_key();
 
+
+
+
   /*
    * The key RPC communication functions are all macro generated
    * and doxygen does not like them so much.
@@ -458,7 +474,7 @@ class distributed_control{
   Generates the interface functions. 3rd argument is a tuple (interface name, issue name, flags)
   */
   BOOST_PP_REPEAT(6, RPC_INTERFACE_GENERATOR, (remote_call, dc_impl::remote_call_issue, STANDARD_CALL) )
-  BOOST_PP_REPEAT(6, RPC_INTERFACE_GENERATOR, (reply_remote_call,dc_impl::remote_call_issue, STANDARD_CALL | REPLY_PACKET) )
+  BOOST_PP_REPEAT(6, RPC_INTERFACE_GENERATOR, (reply_remote_call,dc_impl::remote_call_issue, STANDARD_CALL | FLUSH_PACKET) )
   BOOST_PP_REPEAT(6, RPC_INTERFACE_GENERATOR, (control_call, dc_impl::remote_call_issue, (STANDARD_CALL | CONTROL_PACKET)) )
 
 
@@ -476,28 +492,28 @@ class distributed_control{
 
   #define CUSTOM_REQUEST_INTERFACE_GENERATOR(Z,N,ARGS) \
   template<typename F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, typename T)> \
-    BOOST_PP_TUPLE_ELEM(3,0,ARGS) (procid_t target, size_t handle, F remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_) ) {  \
-    BOOST_PP_CAT( BOOST_PP_TUPLE_ELEM(3,1,ARGS),N) \
+    BOOST_PP_TUPLE_ELEM(2,0,ARGS) (procid_t target, size_t handle, unsigned char flags, F remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_) ) {  \
+    BOOST_PP_CAT( BOOST_PP_TUPLE_ELEM(2,1,ARGS),N) \
         <F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, T)> \
-          ::exec(senders[target],  handle, BOOST_PP_TUPLE_ELEM(3,2,ARGS), target, remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENI ,_) ); \
+          ::exec(senders[target],  handle, flags, target, remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENI ,_) ); \
   }   
 
 
   #define FUTURE_REQUEST_INTERFACE_GENERATOR(Z,N,ARGS) \
   template<typename F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, typename T)> \
-    BOOST_PP_TUPLE_ELEM(1,0,ARGS) (procid_t target, F remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_) ) {  \
+    BOOST_PP_TUPLE_ELEM(2,0,ARGS) (procid_t target, F remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_) ) {  \
     ASSERT_LT(target, senders.size()); \
     request_future<__GLRPC_FRESULT> reply;      \
-    custom_remote_request(target,  reply.get_handle(), remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENI ,_) ); \
+    custom_remote_request(target,  reply.get_handle(), BOOST_PP_TUPLE_ELEM(2,1,ARGS), remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENI ,_) ); \
     return reply; \
   }  
 
 
   #define REQUEST_INTERFACE_GENERATOR(Z,N,ARGS) \
   template<typename F BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM_PARAMS(N, typename T)> \
-    BOOST_PP_TUPLE_ELEM(1,0,ARGS) (procid_t target, F remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_) ) {  \
+    BOOST_PP_TUPLE_ELEM(2,0,ARGS) (procid_t target, F remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENARGS ,_) ) {  \
     request_future<__GLRPC_FRESULT> reply;      \
-    custom_remote_request(target,  reply.get_handle(), remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENI ,_) ); \
+    custom_remote_request(target,  reply.get_handle(), BOOST_PP_TUPLE_ELEM(2,1,ARGS), remote_function BOOST_PP_COMMA_IF(N) BOOST_PP_ENUM(N,GENI ,_) ); \
     return reply(); \
   } 
 
@@ -505,9 +521,9 @@ class distributed_control{
   /*
   Generates the interface functions. 3rd argument is a tuple (interface name, issue name, flags)
   */
-  BOOST_PP_REPEAT(7, CUSTOM_REQUEST_INTERFACE_GENERATOR, (void custom_remote_request, dc_impl::remote_request_issue, (STANDARD_CALL | WAIT_FOR_REPLY)) )
-   BOOST_PP_REPEAT(7, REQUEST_INTERFACE_GENERATOR, (typename dc_impl::function_ret_type<__GLRPC_FRESULT>::type remote_request) )
-  BOOST_PP_REPEAT(7, FUTURE_REQUEST_INTERFACE_GENERATOR, (request_future<__GLRPC_FRESULT> future_remote_request) )
+  BOOST_PP_REPEAT(7, CUSTOM_REQUEST_INTERFACE_GENERATOR, (void custom_remote_request, dc_impl::remote_request_issue) )
+   BOOST_PP_REPEAT(7, REQUEST_INTERFACE_GENERATOR, (typename dc_impl::function_ret_type<__GLRPC_FRESULT>::type remote_request, (STANDARD_CALL | FLUSH_PACKET)) )
+  BOOST_PP_REPEAT(7, FUTURE_REQUEST_INTERFACE_GENERATOR, (request_future<__GLRPC_FRESULT> future_remote_request, (STANDARD_CALL)) )
 
 
 
@@ -956,6 +972,17 @@ class distributed_control{
     registered_rmi_instance[id] = NULL;
   }
 
+  inline void register_send_buffer(dc_impl::thread_local_buffer* buffer) {
+    for (size_t i = 0;i < senders.size(); ++i) {
+      senders[i]->register_send_buffer(buffer);
+    }
+  }
+
+  inline void unregister_send_buffer(dc_impl::thread_local_buffer* buffer) {
+    for (size_t i = 0;i < senders.size(); ++i) {
+      senders[i]->unregister_send_buffer(buffer);
+    }
+  }
 
   /// \endcond
 
@@ -963,6 +990,28 @@ class distributed_control{
    * \brief Performs a local flush of all send buffers
    */
   void flush();
+
+  /**
+   * \brief Performs a local flush of all send buffers
+   */
+  void flush(procid_t p);
+
+  /**
+   * \brief Requests a flush of all send buffers to happen soon;
+   */
+  void flush_soon();
+
+  /**
+   * \brief Requests a flush of one send buffers to happen soon;
+   */
+  void flush_soon(procid_t p);
+
+  /**
+   * \brief Writes a string to the send buffer and flushes
+   */
+  inline void write_to_buffer(procid_t target, char* c, size_t len) {
+    senders[target]->write_to_buffer(c, len);
+  }
 
 
   /**
@@ -1308,7 +1357,7 @@ class distributed_control{
 
  private:
   mutex full_barrier_lock;
-  conditional full_barrier_cond;
+  fiber_conditional full_barrier_cond;
   std::vector<size_t> calls_to_receive;
   // used to inform the counter that the full barrier
   // is in effect and all modifications to the calls_recv

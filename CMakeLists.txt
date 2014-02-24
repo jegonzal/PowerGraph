@@ -43,8 +43,11 @@ else()
   set(OPENMP_LIBRARIES "gomp")
 endif()
 
-
+if (APPLE)
 link_libraries(pthread ${OPENMP_LIBRARIES})
+else()
+link_libraries(pthread rt ${OPENMP_LIBRARIES})
+endif()
 
 set(CPP11_FLAGS "")
 if(CPP11)
@@ -216,25 +219,26 @@ foreach(blib ${Boost_LIBRARIES})
 endforeach()
 message(STATUS "Boost Shared libs: " ${Boost_SHARED_LIBRARIES})
 
+if(NOT NO_TCMALLOC)
+    if(APPLE)
+    set (tcmalloc_shared "--enable-shared=yes")
+    else()
+    set (tcmalloc_shared "--enable-shared=no")
+    endif()
 
-if(APPLE)
-  set (tcmalloc_shared "--enable-shared=yes")
-else()
-  set (tcmalloc_shared "--enable-shared=no")
+    # TCMalloc  ===================================================================
+    # We use tcmalloc for improved memory allocation performance
+    ExternalProject_Add(libtcmalloc
+    PREFIX ${GraphLab_SOURCE_DIR}/deps/tcmalloc
+    URL http://gperftools.googlecode.com/files/gperftools-2.0.tar.gz
+    URL_MD5 13f6e8961bc6a26749783137995786b6
+    PATCH_COMMAND patch -N -p0 -i ${GraphLab_SOURCE_DIR}/patches/tcmalloc.patch || true
+    CONFIGURE_COMMAND <SOURCE_DIR>/configure --enable-frame-pointers --prefix=<INSTALL_DIR> ${tcmalloc_shared}
+    INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local)
+    #link_libraries(tcmalloc)
+    set(TCMALLOC-FOUND 1)
+    add_definitions(-DHAS_TCMALLOC)
 endif()
-
-# TCMalloc  ===================================================================
-# We use tcmalloc for improved memory allocation performance
-ExternalProject_Add(libtcmalloc
-  PREFIX ${GraphLab_SOURCE_DIR}/deps/tcmalloc
-  URL http://gperftools.googlecode.com/files/gperftools-2.0.tar.gz
-  URL_MD5 13f6e8961bc6a26749783137995786b6
-  PATCH_COMMAND patch -N -p0 -i ${GraphLab_SOURCE_DIR}/patches/tcmalloc.patch || true
-  CONFIGURE_COMMAND <SOURCE_DIR>/configure --enable-frame-pointers --prefix=<INSTALL_DIR> ${tcmalloc_shared}
-  INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local)
-#link_libraries(tcmalloc)
-set(TCMALLOC-FOUND 1)
-add_definitions(-DHAS_TCMALLOC)
 
 
 
@@ -331,12 +335,25 @@ endmacro(requires_opencv)
 # libevent ====================================================================
 # LibEvent is used in the RPC layer to manage the interaction between the
 # TCP stack and the event handler threads
-ExternalProject_Add(libevent
-  PREFIX ${GraphLab_SOURCE_DIR}/deps/event
-  URL http://iweb.dl.sourceforge.net/project/levent/libevent/libevent-2.0/libevent-2.0.18-stable.tar.gz
-  URL_MD5 aa1ce9bc0dee7b8084f6855765f2c86a
-  CONFIGURE_COMMAND <SOURCE_DIR>/configure --prefix=<INSTALL_DIR> --disable-openssl
-  INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local)
+
+if (APPLE)
+  ExternalProject_Add(libevent
+    PREFIX ${GraphLab_SOURCE_DIR}/deps/event
+    URL http://iweb.dl.sourceforge.net/project/levent/libevent/libevent-2.0/libevent-2.0.18-stable.tar.gz
+    URL_MD5 aa1ce9bc0dee7b8084f6855765f2c86a
+    CONFIGURE_COMMAND <SOURCE_DIR>/configure --prefix=<INSTALL_DIR> --disable-openssl --enable-shared=no
+    INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local
+  )
+else()
+  ExternalProject_Add(libevent
+    PREFIX ${GraphLab_SOURCE_DIR}/deps/event
+    URL http://iweb.dl.sourceforge.net/project/levent/libevent/libevent-2.0/libevent-2.0.18-stable.tar.gz
+    URL_MD5 aa1ce9bc0dee7b8084f6855765f2c86a
+    CONFIGURE_COMMAND <SOURCE_DIR>/configure --prefix=<INSTALL_DIR> --disable-openssl --enable-shared=no
+    INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local
+    INSTALL_COMMAND prefix=<INSTALL_DIR>/ make install && ${GraphLab_SOURCE_DIR}/patches/libevent_clean_and_remap.sh <INSTALL_DIR>/lib
+  )
+endif()
 #link_libraries(event)
 #link_libraries(event_pthreads)
 
@@ -429,25 +446,27 @@ endif()
 
 # MPI =========================================================================
 # MPI is currently used to establish communication between rpc nodes
-if(NOT NO_MPI)
+#sgr this name is confusing. i like WITH_MPI better. likewise for NO_OPENMP
+if(NO_MPI)
+  message(STATUS "MPI disabled as a configure option.")
+else()
   #find_package(MPICH2)
   find_package(MPI) 
+  if(MPI_FOUND)
+    message(STATUS "MPI Found: " ${MPI_LIBRARY} ${MPI_EXTRA_LIBRARY})
+    add_definitions(-DHAS_MPI)
+    include_directories(${MPI_INCLUDE_PATH})
+  else(MPI_FOUND)
+    message(STATUS "MPI Not Found! Distributed Executables will not be compiled")
+    set(MPI_LIBRARY "")
+    set(MPI_EXTRA_LIBRARY "")
+    # ExternalProject_Add(openmpi
+    #   PREFIX ${GraphLab_SOURCE_DIR}/deps/openmpi
+    #   URL http://www.open-mpi.org/software/ompi/v1.4/downloads/openmpi-1.4.5.tar.gz
+    #   CONFIGURE_COMMAND <SOURCE_DIR>/configure --prefix=<INSTALL_DIR>
+    #   INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local)
+  endif(MPI_FOUND)
 endif()
-
-if(MPI_FOUND)
-  message(STATUS "MPI Found: " ${MPI_LIBRARY} ${MPI_EXTRA_LIBRARY})
-  add_definitions(-DHAS_MPI)
-  include_directories(${MPI_INCLUDE_PATH})
-else(MPI_FOUND)
-  message(STATUS "MPI Not Found! Distributed Executables will not be compiled")
-  set(MPI_LIBRARY "")
-  set(MPI_EXTRA_LIBRARY "")
-  # ExternalProject_Add(openmpi
-  #   PREFIX ${GraphLab_SOURCE_DIR}/deps/openmpi
-  #   URL http://www.open-mpi.org/software/ompi/v1.4/downloads/openmpi-1.4.5.tar.gz
-  #   CONFIGURE_COMMAND <SOURCE_DIR>/configure --prefix=<INSTALL_DIR>
-  #   INSTALL_DIR ${GraphLab_SOURCE_DIR}/deps/local)
-endif(MPI_FOUND)
 
 
 
@@ -468,11 +487,10 @@ macro(requires_core_deps NAME)
   target_link_libraries(${NAME}
     ${Boost_LIBRARIES}
     z
-    tcmalloc
     event event_pthreads
     zookeeper_mt
     json)
-  add_dependencies(${NAME} boost libevent libjson zookeeper libtcmalloc)
+  add_dependencies(${NAME} boost libevent libjson zookeeper)
   if(MPI_FOUND)
     target_link_libraries(${NAME} ${MPI_LIBRARY} ${MPI_EXTRA_LIBRARY})
   endif(MPI_FOUND)
@@ -480,6 +498,10 @@ macro(requires_core_deps NAME)
     target_link_libraries(${NAME} hdfs ${JAVA_JVM_LIBRARY})
     add_dependencies(${NAME} hadoop)
   endif(HADOOP_FOUND)
+  if(NOT NO_TCMALLOC)
+    target_link_libraries(${NAME} tcmalloc)
+    add_dependencies(${NAME} libtcmalloc)
+  endif()
 endmacro(requires_core_deps)
 
 
@@ -563,7 +585,7 @@ set(CMAKE_CXX_FLAGS_RELEASE
   CACHE STRING "compiler options" FORCE)
 
 set(CMAKE_REQUIRED_FLAGS ${CMAKE_CXX_FLAGS_RELEASE})
-check_cxx_source_compiles("int main(int argc, char** argv) { __builtin_ia32_crc32di(0,0);}" HAS_CRC32)
+check_cxx_source_compiles("int main(int argc, char** argv) { return __builtin_ia32_crc32di(0,0);}" HAS_CRC32)
 set(CMAKE_REQUIRED_FLAGS "")
 if(HAS_CRC32)
   set(CMAKE_CXX_FLAGS_RELEASE

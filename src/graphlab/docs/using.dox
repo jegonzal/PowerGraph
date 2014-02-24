@@ -56,8 +56,8 @@
   \page using_graphlab_create_project 1: Creating a GraphLab project
 
   To create a GraphLab project, simply create a sub-directory in the
-  graphlabapi/apps/ folder with your project name. For instance,
-  graphlabapi/apps/my_first_app. Within the sub-directory, create a text file
+  graphlab/apps/ folder with your project name. For instance,
+  graphlab/apps/my_first_app. Within the sub-directory, create a text file
   called CMakeLists.txt with the following contents
 
   \verbatim
@@ -113,9 +113,9 @@
   a number of the core GraphLab objects, whether you are running distributed 
   or not.
 
-  Placing the following code in <tt>my_first_app.cpp</tt>
-  running "make" in the debug/ release/ build folders will create a program 
-  which when executed, will print "Hello World!".
+  Place the following code in <tt>my_first_app.cpp</tt>. To create the 
+  program run the configure script, than run "make" in the debug/ release/ 
+  build folders. The program when executed, will print "Hello World!".
   \code
   #include <graphlab.hpp>
   int main(int argc, char** argv) {
@@ -285,7 +285,7 @@
   11 d.gov 10
   \endverbatim
 
-  Where each contains first an ID for the page, then the name of
+  Where each line contains first an ID for the page, then the name of
   the page, and finally a list of all the IDs the page links to.
   Thus describing the following graph:
   
@@ -308,9 +308,11 @@
     while(1){
       graphlab::vertex_id_type other_vid;
       strm >> other_vid;
-      if (strm.fail()) break;
+      if (strm.fail()) 
+        return true;
       graph.add_edge(vid, other_vid);
     }
+    return true;
   }
   \endcode
 
@@ -371,7 +373,7 @@
     }
   };
  
-  typedef graphlab::distributed_graph_type<web_page, graphlab::empty> graph_type;
+  typedef graphlab::distributed_graph<web_page, graphlab::empty> graph_type;
 
 
   bool line_parser(graph_type& graph, 
@@ -389,9 +391,11 @@
     while(1){
       graphlab::vertex_id_type other_vid;
       strm >> other_vid;
-      if (strm.fail()) break;
+      if (strm.fail())
+        return true;
       graph.add_edge(vid, other_vid);
     }
+    return true;
   }
 
   int main(int argc, char** argv) {

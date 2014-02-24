@@ -34,7 +34,7 @@
 #include <graphlab/util/dense_bitset.hpp>
 #include <graphlab/ui/metrics_server.hpp>
 #include <graphlab/macros_def.hpp>
-
+#define DISABLE_DISTRIBUTED_EVENT_LOG
 namespace graphlab {
 
 
@@ -331,9 +331,10 @@ void distributed_event_logger::set_dc(distributed_control& dc) {
     }
     periodic_timer_stop = false;
     // spawn a thread for the tick
+#ifndef DISABLE_DISTRIBUTED_EVENT_LOG
     tick_thread.launch(boost::bind(&distributed_event_logger::periodic_timer,
           this));
-
+#endif
     // register the metric server callbacks
     add_metric_server_callback("names.json", metric_names_json);
     add_metric_server_callback("metrics_aggregate.json", metric_aggregate_json);

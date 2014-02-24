@@ -4,7 +4,7 @@ if [ ! -d src ]; then
 fi
 
 
-./configure --no_jvm -D NO_MPI:BOOL=true -D COMPILER_FLAGS="-mmacosx-version-min=10.5" -D MARCH=x86-64 -D MTUNE=generic
+./configure --no_jvm -D NO_MPI:BOOL=true -D COMPILER_FLAGS="-mmacosx-version-min=10.7" -D MARCH=x86-64 -D MTUNE=generic -D HAS_CRC32:BOOL=false
 scripts/compile_static_release.sh
 
 echo "Packaging binary release..."

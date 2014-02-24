@@ -124,15 +124,13 @@ namespace graphlab {
     }
 
     /**
-     * Send a message to a vertex ID.
-     * \warning This function will be slow since the current machine do
-     * not know the location of the vertex ID.
-     * \warning This may be unreliable. signals issued near to engine
-     * termination may be lost.
+     * Send a message to an arbitrary vertex ID.
+     * \warning If sending to neighboring vertices, the \ref signal()
+     * function is more efficientas it permits sender side message combining.
      */
     void signal_vid(vertex_id_type vid, 
                     const message_type& message = message_type()) {
-      engine.internal_signal_broadcast(vid, message);
+      engine.internal_signal_gvid(vid, message);
     }
 
 

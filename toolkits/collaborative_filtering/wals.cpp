@@ -384,20 +384,23 @@ public:
 inline bool graph_loader(graph_type& graph, 
                          const std::string& filename,
                          const std::string& line) {
-  ASSERT_FALSE(line.empty()); 
-  namespace qi = boost::spirit::qi;
-  namespace ascii = boost::spirit::ascii;
-  namespace phoenix = boost::phoenix;
-  // Determine the role of the data
-  edge_data::data_role_type role = edge_data::TRAIN;
-  if(boost::ends_with(filename,".validate")) role = edge_data::VALIDATE;
-  else if(boost::ends_with(filename, ".predict")) role = edge_data::PREDICT;
-  // Parse the line
+  
+ // Parse the line
   std::stringstream strm(line);
   graph_type::vertex_id_type source_id(-1), target_id(-1);
   float obs(0), weight(1);
   strm >> source_id >> target_id;
 
+  if (source_id == graph_type::vertex_id_type(-1) || target_id == graph_type::vertex_id_type(-1)){
+    logstream(LOG_WARNING)<<"Failed to read input line: "<< line << " in file: "  << filename << " (or node id is -1). " << std::endl;
+    return true;
+  }
+
+  // Determine the role of the data
+  edge_data::data_role_type role = edge_data::TRAIN;
+  if(boost::ends_with(filename,".validate")) role = edge_data::VALIDATE;
+  else if(boost::ends_with(filename, ".predict")) role = edge_data::PREDICT;
+ 
   // for test files (.predict) no need to read the actual rating value.
   if(role == edge_data::TRAIN || role == edge_data::VALIDATE){
     strm >> obs >> weight;
@@ -599,6 +602,9 @@ int main(int argc, char** argv) {
   //                      "are in a different range allowing user 0 to connect to movie 0");
   clopts.attach_option("output", output_dir,
                        "Output results");
+
+  parse_implicit_command_line(clopts);
+
   if(!clopts.parse(argc, argv) || input_dir == "") {
     std::cout << "Error in parsing command line arguments." << std::endl;
     clopts.print_description();

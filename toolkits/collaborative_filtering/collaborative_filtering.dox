@@ -11,9 +11,9 @@ The collaborative filtering toolkit is written by Danny Bickson, CMU. Please sen
 In GraphLab v1, the collaborative filtering package was implemented and optimized for a multicore machine.  
 Currently this version is deprecated and no longer supported.
 
-If you intend to utilize a single multicore machines it is recommended to take a look at <a href="http://bickson.blogspot.co.il/2012/08/collaborative-filtering-with-graphchi.html">GraphChi collaborative filtering toolkit</a>, which can scale to datasets with billions of recommendations. 
+If you intend to utilize a single multicore machines it is recommended to take a look at GraphChi collaborative filtering toolkit, which can scale to datasets with billions of recommendations. 
 
-In GraphLAb v2, the collaborative filtering toolkit is DISTRIBUTED, targeted for a cluster with a few machines, 
+In GraphLAb v2, the collaborative filtering toolkit is distributed, targeted for a cluster with a few machines, 
 that way we can scale to much larger models.  
 
 The GraphLab collaborative filtering toolkit 2.1 is under active
@@ -90,9 +90,9 @@ Note: for weighted-ALS, the input has the follwoing format:
 \endverbatim
 Since each rating has its associated weight.
 
-\section Computing ratings (test predictions)
+\section RATINGS Computing ratings (test predictions)
 
-Optionally, you can compute ratings for user/item pairs using the computed linear model. The prediction output Filename is specified by: --predictions=filename . If the --prediction command line is not used, the output is not saved. Additionally you need to prepare a file named somefile.predict inside of your training folder, with user item pairs in the following format: 
+Optionally, you can compute ratings for user/item pairs using the computed linear model. The prediction output Filename is specified by: --predictions=filename . If the --prediction command line is not used, the output is not saved. Additionally you need to prepare a file named somefilename.predict inside of your training folder, with user item pairs in the following format: 
 \verbatim
 [user] [item]\n
 \endverbatim
@@ -158,14 +158,14 @@ Below are ALS related command line options:
 --max_iter=XX The number of iterations.
 --maxval=XX	Maximum allowed rating
 --minval=XX	Min allowed rating
---predictions=XX	File name to write prediction to
+--predictions=XX	File name to write prediction to. Note that you will need a user/item pair input file named something.predict to enable predictions (see section: ratings).
 \endverbatim
 
 And here is an exmaple ALS run:
 \li Download the files: <a href="http://www.select.cs.cmu.edu/code/graphlab/datasets/smallnetflix_mm.train">smallnetflix_mm.train</a> and <a href="http://www.select.cs.cmu.edu/code/graphlab/datasets/smallnetflix_mm.validate">smallnetflix_mm.validate</a> and save them inside a directory called smallnetflix/.
 \li Run:
 \verbatim
-bickson@thrust:~/graphlab2.1/graphlabapi/debug/toolkits/collaborative_filtering$ ./als smallnetflix/ --max_iter=5 --lambda=0.065 --ncpus=8
+bickson@thrust:~/graphlab2.1/graphlabapi/debug/toolkits/collaborative_filtering$ ./als smallnetflix/ --max_iter=5 --lambda=0.065 --ncpus=8 --minval=1 --maxval=5
 TCP Communication layer constructed.
 Loading graph.
 INFO:     distributed_graph.hpp(load_from_posixfs:1743): Loading graph from file: smallnetflix/smallnetflix_mm.train
@@ -255,7 +255,7 @@ Below are CCD++ related command line options:
 --max_iter=XX The number of iterations.
 --maxval=XX	Maximum allowed rating
 --minval=XX	Min allowed rating
---predictions=XX	File name to write prediction to
+--predictions=XX	File name to write prediction to. Note that you will need a user/item pair input file named something.predict to enable predictions (see section: ratings).
 \endverbatim
 
 
@@ -277,14 +277,15 @@ The output of ALS is two matrices: filename.U and filename.V. The matrix U holds
 --max_iter=XX	Max number of iterations
 --maxval=XX	Maximum allowed rating
 --minval=XX	Min allowed rating
---predictions=XX	File name to write predictions to
+--predictions=XX	File name to write prediction to. Note that you will need a user/item pair input file named something.predict to enable predictions (see section: ratings).
+--tol=XX	Stop computation when absolute error of prediction is less than tolerance. Default is 1e-3.
 \endverbatim
 
 Here is an example SGD run on small Netflix data:
 \li Download the files: <a href="http://www.select.cs.cmu.edu/code/graphlab/datasets/smallnetflix_mm.train">smallnetflix_mm.train</a> and <a href="http://www.select.cs.cmu.edu/code/graphlab/datasets/smallnetflix_mm.validate">smallnetflix_mm.validate</a> and save them inside a directory called smallnetflix/.
 \li Run:
 \verbatim
-bickson@thrust:~/graphlab2.1/graphlabapi/debug/toolkits/collaborative_filtering$ ./sgd smallnetflix  --ncpus=8 --prediction=out --max_iter=10
+bickson@thrust:~/graphlab2.1/graphlabapi/debug/toolkits/collaborative_filtering$ ./sgd smallnetflix  --ncpus=8 --prediction=out --max_iter=10  --gamma=1e-3 --lambda=5e-4 --step_dec=0.9999 --minval=1 --maxval=5
 TCP Communication layer constructed.
 Loading graph.
 INFO:     distributed_graph.hpp(load_from_posixfs:1743): Loading graph from file: smallnetflix/smallnetflix_mm.train
@@ -395,7 +396,7 @@ The output of bias-SGD consists of two matrices: filename.U and filename.V. The 
 --max_iter=XX	Max number of iterations
 --maxval=XX	Maximum allowed rating
 --minval=XX	Min allowed rating
---predictions=XX	File name to write prediction to
+--predictions=XX	File name to write prediction to. Note that you will need a user/item pair input file named something.predict to enable predictions (see section: ratings).
 \endverbatim
 
 Example for running bias-SGD
@@ -516,7 +517,7 @@ Basic configuration --svdpp_step_dec=XX Multiplicative step decrement (between 0
 --max_iter=XX	Max number of iterations
 --maxval=XX	Maximum allowed rating
 --minval=XX	Min allowed rating
---predictions=XX	File name to write prediction to
+--predictions=XX	File name to write prediction to. Note that you will need a user/item pair input file named something.predict to enable predictions (see section: ratings).
 \endverbatim
 
  Prediction in Koren’s SVD++ algorithm is computed as follows:
@@ -552,7 +553,7 @@ Below are WALS related command line options:
 --max_iter=XX The number of iterations.
 --maxval=XX	Maximum allowed rating
 --minval=XX	Min allowed rating
---predictions=XX	File name to write prediction to
+--predictions=XX	File name to write prediction to. Note that you will need a user/item pair input file named something.predict to enable predictions (see section: ratings).
 
 \endverbatim
 
@@ -679,25 +680,26 @@ Here is an example Matrix Market input file for the matrix A2:
 <235|0>bickson@bigbro6:~/ygraphlab/graphlabapi/debug/toolkits/parsers$ 
 cat A2
 \verbatim
-1 1  0.8147236863931789
-1 2  0.9133758561390194
-1 3  0.2784982188670484
-1 4  0.9648885351992765
-2 1  0.9057919370756192
-2 2  0.6323592462254095
-2 3  0.5468815192049838
-2 4  0.1576130816775483
-3 1  0.1269868162935061
-3 2  0.09754040499940952
-3 3  0.9575068354342976
-3 4  0.9705927817606157
+0 0  0.8147236863931789
+0 1 0.9133758561390194
+0 2  0.2784982188670484
+0 3  0.9648885351992765
+1 0  0.9057919370756192
+1 1  0.6323592462254095
+1 2  0.5468815192049838
+1 3  0.1576130816775483
+2 0  0.1269868162935061
+2 1  0.09754040499940952
+2 2  0.9575068354342976
+2 3  0.9705927817606157
 \endverbatim
 
 Ceate a directory named A2, and inside it put the file A2.
 
+
 Here is an for running SVD (using one mpi node, one core)
 \verbatim
-bickson@thrust:~/graphlab2.1/graphlabapi/debug/toolkits/collaborative_filtering$ ./svd A2 --rows=3 --cols=4 --nsv=4 --nv=4 --max_iter=3 --ncpus=1 --quiet=1
+bickson@thrust:~/graphlab2.1/graphlabapi/debug/toolkits/collaborative_filtering$ ./svd A2 --rows=3 --cols=4 --nsv=3 --nv=4 --max_iter=3 --quiet=1 --save_vectors=1 --predictions=out
 TCP Communication layer constructed.
 Loading graph.
 Loading graph. Finished in 0.004996
@@ -739,13 +741,88 @@ mpiexec -n XX ./svd [ rest of the command line aguments ]
 
 \verbatim
 --training  Input file directory.
---nv  Number of inner steps of each iterations. Typically the number should be greater than the number of singular values you look for.
+--nv  Buffer size of vectors. Typically the buffer size should be greater than the number of singular values you look for. When nv is higher, accuracy will be higher, but running time slower.
 --nsv Number of singular values requested. Should be typically less than --nv
 --ortho_repeats Number of repeats on the orthogonalization step. Default is 1 (no repeats). Increase this number for higher accuracy but slower execution. Maximal allowed values is 3.
---max_iter  Number of allowed restarts. The minimum is 2= no restart.
+--max_iter  Number of allowed restarts. The minimum is 2= no restart. When max_iter is higher, the result will be more accurate, but the running slower. 
 --save_vectors=true Save the factorized matrices U and V to file. 
---predictions File name to save prediction to
+--predictions=XX	File name to write prediction to. Note that you will need a user/item pair input file named something.predict to enable predictions (see section: test ratings).
 --tol Convergence threshold. For large matrices set this number set this number higher (for example 1e-1, while for small matrices you can set it to 1e-16). As smaller the convergence threshold execution is slower.
+\endverbatim
+--input_file_offset - for 1 based array index, use 1, for 0 based array index use 0. (Namely, array first index starts from 1 or 0).
+
+Note: for improving accuracy tol should be reduced. max_iter and nv should be increased.
+
+\subsection SVD0 "SVD Output"
+On default, the singular values will be written to an output file. When using --save_vectors=1 the singular vectors of the matrices U and V will be written into file as well.
+Here is an example of the output files created by the A2 example:
+\verbatim
+-rw-r--r--   1 bickson  staff       136 Nov 17 14:19 outsingular_values
+-rw-r--r--   1 bickson  staff       353 Nov 17 14:19 out.V_1_of_1
+-rw-r--r--   1 bickson  staff       244 Nov 17 14:19 out.U_1_of_1
+\endverbatim
+<br>
+The singular_values file has a straightforward format:
+\verbatim
+%%GraphLab SVD Solver library. This file contains the singular values.
+2.160971174556
+0.9790200922132
+0.5541592674291
+1.69699593375e-64
+\endverbatim
+
+Now let's compate GraphLba's output to Matlab execution:
+\verbatim
+>> A2
+ans =
+
+    0.8147    0.9134    0.2785    0.9649
+    0.9058    0.6324    0.5469    0.1576
+    0.1270    0.0975    0.9575    0.9706
+
+>>[u,d,v] = svd(A2)
+
+u =
+
+   -0.7019    0.2772    0.6561
+   -0.5018    0.4613   -0.7317
+   -0.5055   -0.8428   -0.1847
+
+
+d =
+
+    2.1610         0         0
+         0    0.9790         0
+         0         0    0.5542
+
+
+v =
+
+   -0.5047    0.5481   -0.2737
+   -0.4663    0.4726    0.2139
+   -0.4414   -0.4878   -0.7115
+   -0.5770   -0.4882    0.6108
+\endverbatim
+
+And here is GraphLab output:
+\verbatim
+#> cat out.U_1_of_1
+1 -0.70192004675202879 -0.27716662376092144 -0.6561150132717597 -5.4738221262688167e-48 
+2 -0.50180137502007927 -0.46130533561664677 0.73170538289640219 0 
+3 -0.50547366696553819 0.84283809240244056 0.18471686983009383 -1.3684555315672042e-48 
+
+#> cat out.V_1_of_1
+1 -0.50467448230910661 -0.54813128066725625 0.27370653410216472 -1.0321593257419978e-64 
+2 -0.46633647481132878 -0.47257174529014068 -0.21394855212543565 1.2159686437710111e-64 
+3 -0.44142369037529217 0.48778719783126245 0.71152275587696578 4.1893513895261429e-65 
+4 -0.57704339935747928 0.4881513027120063 -0.61077501430760717 -4.0044466804328635e-65 
+
+#> cat out.singular_values
+%%GraphLab SVD Solver library. This file contains the singular values.
+2.160971174556
+0.9790200922132
+0.5541592674291
+1.69699593375e-64
 \endverbatim
 
 \subsection SVD1 "Understanding the error measure"

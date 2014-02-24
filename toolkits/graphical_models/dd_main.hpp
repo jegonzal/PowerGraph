@@ -44,7 +44,7 @@
 #include <getopt.h>
 
 //#include "utils.h"
-//#include "utils.hpp"
+#include "utils.hpp"
 #include "dd_grlab.hpp"
 #include "ad3_qp.hpp"
 

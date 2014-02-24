@@ -150,7 +150,7 @@ namespace warp {
    *   engine.set_update_function(pagerank);
    *   engine.signal_all();
    *   engine.start();
-   *   std::cout << "Runtime: " << engine.elapsed_time();
+   *   std::cout << "Runtime: " << engine.elapsed_seconds();
    *   graphlab::mpi_tools::finalize();
    * }
    * \endcode
@@ -169,7 +169,7 @@ namespace warp {
    * model to factorized consistency where only individual gather/apply/scatter
    * calls are guaranteed to be locally consistent. Can produce massive
    * increases in throughput at a consistency penalty.
-   * \li \b nfibers (default: 3000) Number of fibers to use
+   * \li \b nfibers (default: 10000) Number of fibers to use
    * \li \b stacksize (default: 16384) Stacksize of each fiber.
    */
   template <typename GraphType, typename MessageType = graphlab::empty>
@@ -373,7 +373,7 @@ namespace warp {
        * and is used to encode iterative computation. Typically a vertex
        * program will signal neighboring vertices during the scatter
        * phase.  A vertex program may choose to signal neighbors on when
-       * changes made during the previos phases break invariants or warrant
+       * changes made during the previous phases break invariants or warrant
        * future computation on neighboring vertices.
        * 
        * The signal function takes two arguments. The first is mandatory
@@ -387,6 +387,31 @@ namespace warp {
       void signal(const vertex_type& vertex, 
                   const message_type& message = message_type()) {
         engine.internal_signal(vertex, message);
+      }
+
+
+
+      /**
+       * \brief Signal an arbitrary vertex ID with a particular message.
+       *
+       * This function is an essential part of the GraphLab abstraction
+       * and is used to encode iterative computation. Typically a vertex
+       * program will signal neighboring vertices during the scatter
+       * phase.  A vertex program may choose to signal neighbors on when
+       * changes made during the previous phases break invariants or warrant
+       * future computation on neighboring vertices.
+       * 
+       * The signal function takes two arguments. The first is mandatory
+       * and specifies which vertex to signal.  The second argument is
+       * optional and is used to send a message.  If no message is
+       * provided then the default message is used.
+       *
+       * \param vertex [in] The vertex to send the message to
+       * \param message [in] The message to send, defaults to message_type(). 
+       */
+      void signal(vertex_id_type gvid, 
+                  const message_type& message = message_type()) {
+        engine.internal_signal_gvid(gvid, message);
       }
 
 
@@ -560,7 +585,7 @@ namespace warp {
         engine_start_time(timer::approx_time_seconds()), force_stop(false) {
       rmi.barrier();
 
-      nfibers = 3000;
+      nfibers = 10000;
       stacksize = 16384;
       factorized_consistency = true;
       update_fn = NULL;
@@ -792,6 +817,10 @@ namespace warp {
       if (force_stop) return;
       if (graph.is_master(gvid)) {
         internal_signal(graph.vertex(gvid), message);
+      } else {
+        procid_t proc = graph.master(gvid);
+        rmi.remote_call(proc, &warp_engine::internal_signal,
+                        gvid, message);
       }
     } 
 
@@ -1230,7 +1259,7 @@ namespace warp {
         } else { 
           break; 
         }
-        if (fiber_control::worker_has_fibers_on_queue()) fiber_control::yield();
+        if (fiber_control::worker_has_priority_fibers_on_queue()) fiber_control::yield();
       }
     } // end of thread start
 

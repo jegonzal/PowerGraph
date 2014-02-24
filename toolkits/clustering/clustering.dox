@@ -288,6 +288,14 @@ assigned clusters. For instance:
 5 1
 \endverbatim
 
+<b>NOTE:</b> To run the spectral clustering in a distributed setting, you must use the 
+"mpi-args" option, not like other graphlab toolkits. 
+The spectral clustering calls other graphlab programs.
+When "--mpi-args" is set, these graphlab programs are called with "mpiexec" and the 
+string written after the "mpi-args" option.
+For example, if you set --mpi-args="-n 4 --hostfile host", the program calls the 
+other graphlab programs with "mpiexec -n 4 --hostfile host".
+
 \subsection Options
 Relevant options are:
 \li \b --data (Required). The prefix from which to load the input data
@@ -311,7 +319,7 @@ this parameter is not respected. It will use all processors on your machine
 if ran in Linux, and will use only 1 processor if ran on Mac</b> 
 \li \b --graph_opts (Optional, Default empty). Any additional graph options. See
   graphlab::distributed_graph a list of options.
-
+\li \b --mpi-args (Optional, Default empty). If set, will execute mipexec with the given string.
 
 
 */

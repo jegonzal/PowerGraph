@@ -152,7 +152,7 @@ To run the CGS_LDA GraphLab application on a single machine we simply run:
 This will run indefinitley display the top words in each topic every
 10 seconds.  To help visualize the output if you open the webpage
 \verbatim
-graphlabapi/toolkits/topic_modeling/http/index.html
+graphlab/toolkits/topic_modeling/http/index.html
 \endverbatim
 We render a word cloud webpage that connects directly to the cgs_lda 
 appliction's internal web-server running on localhost port 8090. 
@@ -202,7 +202,10 @@ the arguments to be:
 \endverbatim
 
 
+\section convergence Tracking progress
 
+We have added a Likelihood printout every interval seconds (defined using the --interval command line argument)
+which captures the convergence progress of the LDA algorithm. The Likelihood should go up every interval.
 
 \section cgs_lda_options Command Line Options
 

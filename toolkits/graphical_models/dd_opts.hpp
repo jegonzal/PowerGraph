@@ -67,16 +67,17 @@ struct Options
     exec_type("sync"),
     output_dir("./"),
     history_file("\0"),
+    file_format("uai"),
+    output_file("output"),
     verbose(0),
-    dualimprovthres(1e-7), pdgapthres(1e-1), 
     algorithm(0),
     maxiter(10000),
-    debug(false),
-    step_size(1.0),
-    file_format("uai"),
-    agg_time(1e-4),
+    dualimprovthres(1e-7),
+    pdgapthres(1e-1),
     alpha(1),
-    output_file("output")
+    step_size(1.0),
+    agg_time(1e-4),
+    debug(false)
     {}
 };
 

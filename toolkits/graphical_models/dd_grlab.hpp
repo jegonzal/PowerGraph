@@ -126,13 +126,14 @@ struct vertex_data
     
 
     vertex_data(): 
-    nvars(0), degree(0), 
+    nvars(0), factor_type(0), degree(0),
+    budget(0),
+    best_configuration(0),
     dual_contrib(0), primal_contrib(0),
-    apply_count(0), best_configuration(0),
-    sum_sq_norm_g(0), primal_res_contrib(0),
-    primal_rel_contrib(0), dual_res_contrib(0),
-    schedule_vertex(true) , factor_type(0),
-    budget(0)
+    dual_res_contrib(0), primal_res_contrib(0), primal_rel_contrib(0),
+    sum_sq_norm_g(0),
+    apply_count(0),
+    schedule_vertex(true)
     {}
     
     void load(graphlab::iarchive& arc) 

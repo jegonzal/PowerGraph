@@ -83,24 +83,34 @@ bool call_graph_laplacian_construction(const std::string& mpi_args,
   return true;
 }
 
+void make_initial_vector_file(const std::string& filename, const size_t num_data){
+  std::ofstream ofs((filename + ".init").c_str());
+  for(size_t i=0;i<num_data;++i){
+    ofs << 0.1*((i+1)%10)/10.0 << "\n";
+  }
+  ofs.close();
+}
+
 bool call_svd(const std::string& mpi_args, const std::string& filename,
     const std::string& svd_dir, const size_t num_clusters, const size_t rank,
     const size_t num_data, const std::string& args) {
-
+  make_initial_vector_file(filename, num_data+1);
   std::stringstream strm;
   if (mpi_args.length() > 0)
     strm << "mpiexec " << mpi_args << " ";
   strm << svd_dir << "svd " + filename + ".glap";
-  strm << " --rows=" << num_data;
+  strm << " --rows=" << num_data+1;
   strm << " --cols=" << num_data;
   strm << " --nsv=" << num_clusters;
   strm << " --nv=" << rank;
-  strm << " --max_iter=4";
+//  strm << " --tol=1e-10";
+//  strm << " --max_iter=20";
   strm << " --quiet=1";
   strm << " --save_vectors=1";
   strm << " --ortho_repeats=3";
   strm << " --id=1";
   strm << " --prediction=" << filename << ".";
+  strm << " --initial_vector=" << filename + ".init";
   strm << " " << args;
   std::cout << "CALLING >" << strm.str() << std::endl;
   int sys_ret = system(strm.str().c_str());
@@ -187,7 +197,7 @@ int get_lanczos_rank(const size_t num_clusters, const size_t num_data) {
   size_t rank = 1;
   if (num_data < 1000) {
     if (num_clusters + 10 <= num_data)
-      rank = num_clusters + 40;
+      rank = num_clusters + 10;
     else
       rank = num_data;
   } else if (num_data < 10000) {
@@ -200,6 +210,7 @@ int get_lanczos_rank(const size_t num_clusters, const size_t num_data) {
     rank = num_clusters + 300;
   }
   return rank;
+//  return num_clusters+2;
 }
 
 void read_pairs_with_prefix(std::vector<std::vector<size_t> >& ret, const std::string& prefix){
@@ -283,9 +294,10 @@ int main(int argc, char** argv) {
   std::string mpi_args;
   size_t num_clusters = 0;
   size_t num_nearests = 30;
-  float sigma = 0.1;
+  float sigma = 1.0;
   float epsilon = 0.0;
   size_t pre_kmeans_clusters = 0;
+  size_t sv = 0;
   //parse command line
   graphlab::command_line_options clopts(
           "Spectral clustering. The input data file is provided by the "
@@ -317,6 +329,8 @@ int main(int argc, char** argv) {
   clopts.attach_option("mpi-args", mpi_args,
           "If set, will execute mipexec with the given arguments. "
           "For example, --mpi-args=\"-n [N machines] --hostfile [host file]\"");
+  clopts.attach_option("sv", sv,
+          "Number of vectors in each iteration in the Lanczos svd.");
   if (!clopts.parse(argc, argv))
     return EXIT_FAILURE;
   if (datafile == "") {
@@ -327,6 +341,7 @@ int main(int argc, char** argv) {
     std::cout << "--cluster is not optional\n";
     return EXIT_FAILURE;
   }
+
   std::vector<std::string> remove_opts;
   remove_opts.push_back("--data");
   remove_opts.push_back("--svd-dir");
@@ -338,6 +353,7 @@ int main(int argc, char** argv) {
   remove_opts.push_back("--mpi-args");
   remove_opts.push_back("--t-nearest");
   remove_opts.push_back("--pre-kmeans-clusters");
+  remove_opts.push_back("--sv");
   std::string other_args = get_arg_str_without(argc, argv, remove_opts);
 
   //preprocess by kmeans for fast clustering
@@ -375,15 +391,20 @@ int main(int argc, char** argv) {
     return EXIT_FAILURE;
   }
   ifs >> num_data;
-  //determine the rank of Lanczos method
-  size_t rank = get_lanczos_rank(num_clusters, num_data);
+  //determine the sv of Lanczos method
+  if(sv == 0){
+    sv = get_lanczos_rank(num_clusters, num_data);
+  }else{
+    if(sv < num_clusters)
+      sv = num_clusters;
+  }
   time(&mid);
-  if (call_svd(mpi_args, datafile, svd_dir, num_clusters, rank, num_data,
+  if (call_svd(mpi_args, datafile, svd_dir, num_clusters, sv, num_data,
       other_args) == false) {
     return EXIT_FAILURE;
   }
   if (call_eigen_vector_normalization(mpi_args, datafile, graph_analytics_dir,
-      num_clusters, rank, num_data, other_args) == false) {
+      num_clusters, sv, num_data, other_args) == false) {
     return EXIT_FAILURE;
   }
   time(&end);

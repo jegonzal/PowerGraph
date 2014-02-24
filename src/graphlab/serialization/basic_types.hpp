@@ -31,7 +31,7 @@
 #include <string>
 #include <graphlab/serialization/serializable_pod.hpp>
 #include <graphlab/logger/assertions.hpp>
-
+#include <stdint.h>
 
 namespace graphlab {
   class oarchive;
@@ -59,6 +59,8 @@ namespace graphlab {
         DASSERT_FALSE(oarc.fail());
       }
     };
+
+
 
 
     /// Serialization of fixed length char arrays
@@ -157,6 +159,83 @@ namespace graphlab {
         iarc >> s.first >> s.second;
       }
     };
+
+
+
+    /** Serialization of 8 byte wide integers
+     * \code 
+     * oarc << vec.length();
+     * \endcode
+     */
+    template <typename OutArcType>
+    struct serialize_impl<OutArcType, unsigned long , true> {
+      static void exec(OutArcType& oarc, const unsigned long & s) {
+        // only bottom 1 byte
+        if ((s >> 8) == 0) {
+          unsigned char c = 0;
+          unsigned char trunc_s = s;
+          oarc.direct_assign(c);
+          oarc.direct_assign(trunc_s);
+        }
+        // only bottom 2 byte
+        else if ((s >> 16) == 0) {
+          unsigned char c = 1;
+          unsigned short trunc_s = s;
+          oarc.direct_assign(c);
+          oarc.direct_assign(trunc_s);
+        }
+        // only bottom 4 byte
+        else if ((s >> 32) == 0) {
+          unsigned char c = 2;
+          uint32_t trunc_s = s;
+          oarc.direct_assign(c);
+          oarc.direct_assign(trunc_s);
+        } 
+        else {
+          unsigned char c = 3;
+          oarc.direct_assign(c);
+          oarc.direct_assign(s);
+        }
+      }
+    };
+
+
+    /// Deserialization of 8 byte wide integer 
+    template <typename InArcType>
+    struct deserialize_impl<InArcType, unsigned long , true> {
+      static void exec(InArcType& iarc, unsigned long & s) {
+        unsigned char c;
+        iarc.read(reinterpret_cast<char*>(&c), 1);
+        switch(c) {
+         case 0: {
+           unsigned char val;
+           iarc.read(reinterpret_cast<char*>(&val), 1);
+           s = val;
+           break;
+         }
+         case 1: {
+           unsigned short val;
+           iarc.read(reinterpret_cast<char*>(&val), 2);
+           s = val;
+           break;
+         }
+         case 2: {
+           uint32_t val;
+           iarc.read(reinterpret_cast<char*>(&val), 4);
+           s = val;
+           break;
+         }
+         case 3: {
+           iarc.read(reinterpret_cast<char*>(&s), 8);
+           break;
+         }
+         default:
+           ASSERT_LE(c, 3);
+        };
+      }
+    };
+
+
 
   } // namespace archive_detail
 } // namespace graphlab

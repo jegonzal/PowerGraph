@@ -370,16 +370,23 @@ inline bool graph_loader(graph_type& graph,
     const std::string& filename,
     const std::string& line) {
   ASSERT_FALSE(line.empty()); 
-  // Determine the role of the data
-  edge_data::data_role_type role = edge_data::TRAIN;
-  if(boost::ends_with(filename,".validate")) role = edge_data::VALIDATE;
-  else if(boost::ends_with(filename, ".predict")) role = edge_data::PREDICT;
-  // Parse the line
+
+ // Parse the line
   std::stringstream strm(line);
   graph_type::vertex_id_type source_id(-1), target_id(-1);
   float weight(0);
   strm >> source_id >> target_id;
 
+  if (source_id == graph_type::vertex_id_type(-1) || target_id == graph_type::vertex_id_type(-1)){
+    logstream(LOG_WARNING)<<"Failed to read input line: "<< line << " in file: "  << filename << " (or node id is -1). " << std::endl;
+    return true;
+  }
+
+  // Determine the role of the data
+  edge_data::data_role_type role = edge_data::TRAIN;
+  if(boost::ends_with(filename,".validate")) role = edge_data::VALIDATE;
+  else if(boost::ends_with(filename, ".predict")) role = edge_data::PREDICT;
+ 
   // for test files (.predict) no need to read the actual rating value.
   if(role == edge_data::TRAIN || role == edge_data::VALIDATE){
     strm >> weight;

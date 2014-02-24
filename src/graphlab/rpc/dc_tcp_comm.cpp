@@ -32,9 +32,6 @@
 #include <ifaddrs.h>
 #include <poll.h>
 
-#include <event2/event.h>
-#include <event2/thread.h>
-
 #include <limits>
 #include <vector>
 #include <string>
@@ -49,6 +46,13 @@
 #define compile_barrier() asm volatile("": : :"memory")
 
 #include <graphlab/macros_def.hpp>
+
+// prefix mangling if not Mac
+#ifndef __APPLE__
+#include <graphlab/rpc/evwrapdef.h>
+#endif
+#include <event2/event.h>
+#include <event2/thread.h>
 
 //#define COMM_DEBUG
 namespace graphlab {
@@ -187,7 +191,7 @@ namespace graphlab {
       send_triggered_timeout.send_all = false;
       send_all_event = event_new(outevbase, -1, EV_TIMEOUT | EV_PERSIST, on_send_event, &(send_all_timeout));
       assert(send_all_event != NULL);
-      struct timeval t = {0, 10000};
+      struct timeval t = {SEND_POLL_TIMEOUT / 1000000, SEND_POLL_TIMEOUT %  1000000} ;
       event_add(send_all_event, &t);
       send_triggered_event = event_new(outevbase, -1, EV_TIMEOUT | EV_PERSIST, on_send_event, &(send_triggered_timeout));
       assert(send_triggered_event != NULL);

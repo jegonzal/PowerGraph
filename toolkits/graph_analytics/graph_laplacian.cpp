@@ -187,7 +187,7 @@ public:
     size_t vid = v.id();
     if(vid == 0)
     	return "";
-    strm << vid << " " << vid << " " << " 2.0\n";
+    strm << vid << " " << vid << " 2.0\n";
     return strm.str();
   }
 

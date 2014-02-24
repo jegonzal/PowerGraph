@@ -25,3 +25,5 @@ add_graphlab_executable(mplp_denoise mplp_denoise.cpp)
 requires_eigen(mplp_denoise)
 requires_opencv(mplp_denoise)
 
+
+subdirs(factors)

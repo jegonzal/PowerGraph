@@ -34,15 +34,6 @@ namespace graphlab {
    */
   const unsigned char STANDARD_CALL = 1;
 
-
-  /**
-   * \internal
-   * \ingroup rpc
-   * 
-   * If WAIT_FOR_REPLY is set, the function call's
-  return will be passed back to the caller */
-  const unsigned char WAIT_FOR_REPLY = 4;
-
   /**
    * \internal
     \ingroup rpc
@@ -51,24 +42,15 @@ namespace graphlab {
     does not increment any counters.
   */
   const unsigned char CONTROL_PACKET = 16; 
-  
-  /**
-   * \internal
-   * \ingroup rpc
-   * 
-   * Used to identify that this packet was 
-   * a reply to a previous request.
-   */
-  const unsigned char REPLY_PACKET = 32;
 
   /**
    * \internal
    * \ingroup rpc
    * 
-   * Used to identify that this packet is
-   * serialized using a POD mechanism;
+   * Used to identify that after sending this 
+   * packet, a flush is required
    */
-  const unsigned char POD_CALL = 64;
+  const unsigned char FLUSH_PACKET = 64;
 }
 #endif
 

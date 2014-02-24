@@ -219,6 +219,19 @@ namespace graphlab {
       /*                                                                        */
       /**************************************************************************/
       edge_exchange.flush(); vertex_exchange.flush();     
+
+      /**
+       * Fast pass for redundant finalization with no graph changes. 
+       */
+      {
+        size_t changed_size = edge_exchange.size() + vertex_exchange.size();
+        rpc.all_reduce(changed_size);
+        if (changed_size == 0) {
+          logstream(LOG_INFO) << "Skipping Graph Finalization because no changes happened..." << std::endl;
+          return;
+        }
+      }
+
       if(rpc.procid() == 0)       
         memory_info::log_usage("Post Flush");
 

@@ -24,7 +24,8 @@
 /**
  *
  *  Implementation of the Lanczos algorithm, as given in:
- *  http://en.wikipedia.org/wiki/Lanczos_algorithm
+ *  http://www.grycap.upv.es/slepc/documentation/reports/str8.pdf
+ *  (Restarted Lanczos Bidiagonalization for the SVD in SLEPc)
  * 
  *  Code written by Danny Bickson, CMU, June 2011
  * */
@@ -43,7 +44,6 @@
 int iter = 0;
 //LANCZOS VARIABLES
 int max_iter = 10;
-bool no_edge_data = false;
 int actual_vector_len = 0;
 int nv = 0;
 int nsv = 0;
@@ -52,7 +52,7 @@ bool finished = false;
 double ortho_repeats = 3;
 bool update_function = false;
 bool save_vectors = false;
-bool use_ids = false;
+bool use_ids = true;
 std::string datafile; 
 std::string vecfile;
 int unittest;
@@ -64,8 +64,11 @@ bool quiet = false;
 int nconv = 0;
 int n = 0; 
 int kk = 0;
+bool binary = false; //if true, all edges = 1
 mat a,PT;
 bool v_vector = false;
+int input_file_offset = 0; //if set to non zero, each row/col id will be reduced the input_file_offset
+vec singular_values;
 
 DECLARE_TRACER(svd_bidiagonal);
 DECLARE_TRACER(svd_error_estimate);
@@ -159,8 +162,7 @@ graph_type * pgraph;
  * \brief Given a vertex and an edge return the other vertex in the
  * edge.
  */
-inline graph_type::vertex_type
-get_other_vertex(graph_type::edge_type& edge, 
+inline graph_type::vertex_type get_other_vertex(graph_type::edge_type& edge, 
     const graph_type::vertex_type& vertex) {
   return vertex.id() == edge.source().id()? edge.target() : edge.source();
 }; // end of get_other_vertex
@@ -177,24 +179,51 @@ engine_type * pengine = NULL;
 
 
 
+/**
+ * \brief The prediction saver is used by the graph.save routine to
+ * output the final predictions back to the filesystem.
+ */
+struct prediction_saver {
+  typedef graph_type::vertex_type vertex_type;
+  typedef graph_type::edge_type   edge_type;
+  std::string save_vertex(const vertex_type& vertex) const {
+    return ""; //nop
+  }
+  std::string save_edge(const edge_type& edge) const {
+    if(edge.data().role == edge_data::PREDICT) {
+      std::stringstream strm;
+      Eigen::DiagonalMatrix<double, Eigen::Dynamic> diagonal_matrix(nconv);      
+      diagonal_matrix.diagonal() = singular_values;
+     const double prediction = 
+        edge.source().data().pvec.head(nconv).transpose() * diagonal_matrix * edge.target().data().pvec.head(nconv);
+      strm << (edge.source().id()+input_file_offset) << '\t';
+      strm << (edge.target().id()-rows+input_file_offset) << '\t';
+      strm << std::setprecision(8) <<prediction << '\n';
+      return strm.str();
+    } else return "";
+  }
+}; // end of prediction_saver
+
+
 
 struct linear_model_saver_U {
   typedef graph_type::vertex_type vertex_type;
   typedef graph_type::edge_type   edge_type;
-
-  int pos;
-  linear_model_saver_U(int pos): pos(pos) {}
-
+  /* save the linear model, using the format:
+     row_id/col_id factor1 factor2 ... factor_k \n
+     ==> where k is the number of converged singular values
+  */
   std::string save_vertex(const vertex_type& vertex) const {
-    if (vertex.id() < (uint)info.rows){
-      std::string ret;
-      if(use_ids)
-        ret = boost::lexical_cast<std::string>(vertex.id() + 1) + " ";
-      ret += boost::lexical_cast<std::string>(vertex.data().pvec[pos]) + "\n";
+    if (vertex.id() < rows){
+      std::string ret = boost::lexical_cast<std::string>(vertex.id()+input_file_offset) + " ";
+      for (uint i=0; i< nconv; i++)
+        ret += boost::lexical_cast<std::string>(vertex.data().pvec[i]) + " ";
+      ret += "\n";
       return ret;
     }
     else return "";
   }
+ 
   std::string save_edge(const edge_type& edge) const {
     return "";
   }
@@ -203,53 +232,23 @@ struct linear_model_saver_U {
 struct linear_model_saver_V {
   typedef graph_type::vertex_type vertex_type;
   typedef graph_type::edge_type   edge_type;
-
-  int pos;
-  linear_model_saver_V(int pos): pos(pos) {}
-
+  /* save the linear model, using the format:
+     nodeid factor1 factor2 ... factorNLATENT \n
+  */
   std::string save_vertex(const vertex_type& vertex) const {
-    if ((vertex.id() >= (uint)info.rows) || info.is_square()){
-      int rpos = pos;
-      if (info.is_square())
-          rpos += data_size;
-      std::string ret;
-      if(use_ids)
-        ret = boost::lexical_cast<std::string>(vertex.id()) + " ";
-      ret += boost::lexical_cast<std::string>(vertex.data().pvec[rpos]) + "\n";
+    if (vertex.id() >= rows){
+      std::string ret = boost::lexical_cast<std::string>(vertex.id()-rows+input_file_offset) + " ";
+      for (uint i=0; i< nconv; i++)
+        ret += boost::lexical_cast<std::string>(vertex.data().pvec[i]) + " ";
+      ret += "\n";
       return ret;
-    }
-    else return "";
   }
+  else return "";
+}
   std::string save_edge(const edge_type& edge) const {
     return "";
   }
 }; 
-
-/**
- * \brief The graph loader function is a line parser used for
- * distributed graph construction.
- */
-inline bool init_vec_loader(graph_type& graph, 
-    const std::string& filename,
-    const std::string& line) {
-  if (filename != vecfile)
-    return true;
-
-  ASSERT_FALSE(line.empty()); 
-
-  // Parse the line
-  std::stringstream strm(line);
-  graph_type::vertex_id_type source_id(-1), target_id(-1);
-  float obs(0);
-  strm >> source_id >> target_id >> obs;
-
-  // Create an edge and add it to the graph
-  vertex_data vertex;
-  vertex.pvec[0] = obs;
-  graph.add_vertex(source_id,vertex); 
-  return true; // successful load
-} // end of graph_loader
-
 
 
 /**
@@ -265,24 +264,40 @@ inline bool graph_loader(graph_type& graph,
     return true;
   if (boost::ends_with(filename,"singular_values") || boost::ends_with(filename, "_v0"))
     return true;
+  if (line.find("#") != std::string::npos)
+    return true;
 
-  ASSERT_FALSE(line.empty()); 
+
   // Determine the role of the data
   edge_data::data_role_type role = edge_data::TRAIN;
-  
+  if (boost::ends_with(filename,".predict")) 
+    role = edge_data::PREDICT;
+ 
   // Parse the line
   std::stringstream strm(line);
   graph_type::vertex_id_type source_id(-1), target_id(-1);
-  float obs(0);
+  float obs = 1;
   strm >> source_id >> target_id;
-  source_id--; target_id--;
-  if (source_id >= (uint)rows)
-    logstream(LOG_FATAL)<<"Problem at input line: [ " << line << " ] row id ( = " << source_id+1 << " ) should be <= than matrix rows (= " << rows << " ) " << std::endl;
-  if (target_id >= (uint)cols)
-    logstream(LOG_FATAL)<<"Problem at input line: [ " << line << " ] col id ( = " << target_id+1 << " ) should be <= than matrix cols (= " << cols << " ) " << std::endl;
-  strm >> obs;
+  if (source_id == graph_type::vertex_id_type(-1) || target_id == graph_type::vertex_id_type(-1)){
+    logstream(LOG_WARNING)<<"Failed to read input line: "<< line << " in file: "  << filename << " (or node id is -1). " << std::endl;
+    return true;
+  }
+
+  if (input_file_offset != 0){
+     source_id-=input_file_offset; 
+     target_id-=input_file_offset;
+  }
+  //if (source_id >= (uint)rows)
+  if (source_id > (uint)rows)
+    logstream(LOG_FATAL)<<"Problem at input line: [ " << line << " ] row id ( = " << source_id+input_file_offset << " ) should be <= than matrix rows (= " << rows << " ) " << std::endl;
+  //if (target_id >= (uint)cols)
+  if (target_id > (uint)cols)
+    logstream(LOG_FATAL)<<"Problem at input line: [ " << line << " ] col id ( = " << target_id+input_file_offset << " ) should be <= than matrix cols (= " << cols << " ) " << std::endl;
+
+  if (!binary)
+     strm >> obs;
   if (!info.is_square())
-  target_id = rows + target_id;
+    target_id = rows + target_id;
 
   if (source_id == target_id){
       vertex_data data;
@@ -334,17 +349,15 @@ void compute_ritz(graph_type::vertex_type & vertex){
   tmp = tmp.transpose() * (v_vector ? PT : a);
   memcpy(&vertex.data().pvec[offset] ,&tmp[0], kk*sizeof(double)); 
   if (debug)
-    std::cout<<"Entered ritz with " << offset << " , v_vector: " << v_vector << "data_size: " << data_size << " kk: " << kk << std::endl;
+     std::cout<<"Entered ritz with " << offset << " , v_vector: " << v_vector << "data_size: " << data_size << " kk: " << kk << std::endl;
 }  
 
 
 
-vec lanczos(bipartite_graph_descriptor & info, timer & mytimer, vec & errest, 
+void lanczos(bipartite_graph_descriptor & info, timer & mytimer, vec & errest, 
     const std::string & vecfile){
 
-
   int its = 1;
-  int mpd = 24;
   DistMat A(info);
   DistSlicedMat U(info.is_square() ? data_size : 0, info.is_square() ? 2*data_size : data_size, true, info, "U");
   DistSlicedMat V(0, data_size, false, info, "V");
@@ -362,7 +375,7 @@ vec lanczos(bipartite_graph_descriptor & info, timer & mytimer, vec & errest,
   PRINT_INT(nv);
 
   while(nconv < nsv && its < max_iter){
-    logstream(LOG_INFO)<<"Starting iteration: " << its << " at time: " << mytimer.current_time() << std::endl;
+    logstream(LOG_EMPH)<<"Starting iteration: " << its << " at time: " << mytimer.current_time() << std::endl;
     int k = nconv;
     n  = nv;
     PRINT_INT(k);
@@ -378,7 +391,7 @@ vec lanczos(bipartite_graph_descriptor & info, timer & mytimer, vec & errest,
     PRINT_VEC3("alpha", alpha, 0);
 
     for (int i=k+1; i<n; i++){
-      logstream(LOG_INFO) <<"Starting step: " << i << " at time: " << mytimer.current_time() << std::endl;
+      logstream(LOG_EMPH) <<"Starting step: " << i << " at time: " << mytimer.current_time() << std::endl;
       PRINT_INT(i);
 
       V[i]=U[i-1]*A;
@@ -386,14 +399,13 @@ vec lanczos(bipartite_graph_descriptor & info, timer & mytimer, vec & errest,
       orthogonalize_vs_all(V, i, beta(i-k-1));
       PRINT_VEC(V[i]);
 
-      PRINT_VEC3("beta", beta, i-k-1); 
+      PRINT_VEC3("beta", beta, i-k-1);
 
       U[i] = V[i]*A._transpose();
       orthogonalize_vs_all(U, i, alpha(i-k));
-
       PRINT_VEC3("alpha", alpha, i-k);
     }
-
+    
     V[n]= U[n-1]*A;
     orthogonalize_vs_all(V, n, beta(n-k-1));
     PRINT_VEC3("beta", beta, n-k-1);
@@ -402,12 +414,11 @@ vec lanczos(bipartite_graph_descriptor & info, timer & mytimer, vec & errest,
     BEGIN_TRACEPOINT(svd_bidiagonal);
     PRINT_INT(nv);
     PRINT_NAMED_INT("svd->nconv", nconv);
-    PRINT_NAMED_INT("svd->mpd", mpd);
     n = nv - nconv;
     PRINT_INT(n);
     alpha.conservativeResize(n);
     beta.conservativeResize(n);
-
+    
     PRINT_MAT2("Q",eye(n));
     PRINT_MAT2("PT",eye(n));
     PRINT_VEC2("alpha",alpha);
@@ -417,6 +428,7 @@ vec lanczos(bipartite_graph_descriptor & info, timer & mytimer, vec & errest,
     for (int i=0; i<n-1; i++)
       set_val(T, i, i+1, beta(i));
     PRINT_MAT2("T", T);
+    
     svd(T, a, PT, b);
     PRINT_MAT2("Q", a);
     alpha=b.transpose();
@@ -426,7 +438,7 @@ vec lanczos(bipartite_graph_descriptor & info, timer & mytimer, vec & errest,
     PRINT_VEC2("beta",beta);
     PRINT_MAT2("PT", PT.transpose());
     END_TRACEPOINT(svd_bidiagonal);
-
+    
     //estiamte the error
     BEGIN_TRACEPOINT(svd_error_estimate);
     kk = 0;
@@ -473,10 +485,11 @@ vec lanczos(bipartite_graph_descriptor & info, timer & mytimer, vec & errest,
     }
 
     //compute the ritz eigenvectors of the converged singular triplets
+    DistVec v = V[nconv];
     if (kk > 0){
       PRINT_VEC2("svd->V", V[nconv]);
       BEGIN_TRACEPOINT(matproduct);
-      DistVec v = V[nconv];
+      v = V[nconv];
       pcurrent = &v;
       v_vector = true;
       graphlab::vertex_set nodes = pgraph->select(select_in_range);
@@ -496,7 +509,7 @@ vec lanczos(bipartite_graph_descriptor & info, timer & mytimer, vec & errest,
     if (finished)
       break;
 
-    //V[nconv]=v;
+    V[nconv]=v;
     PRINT_VEC2("svd->V", V[nconv]);
     PRINT_NAMED_INT("svd->nconv", nconv);
 
@@ -513,7 +526,7 @@ vec lanczos(bipartite_graph_descriptor & info, timer & mytimer, vec & errest,
   DistVec normret_tranpose(info, nconv, true, "normret_tranpose");
   INITIALIZE_TRACER(svd_error2, "svd error2");
   BEGIN_TRACEPOINT(svd_error2);
-  for (int i=0; i < std::min(nsv, nconv); i++){
+  for (int i=0; i < std::min(nsv,nconv); i++){
     normret = V[i]*A._transpose() -U[i]*sigma(i);
     double n1 = norm(normret).toDouble();
     PRINT_DBL(n1);
@@ -533,25 +546,39 @@ vec lanczos(bipartite_graph_descriptor & info, timer & mytimer, vec & errest,
   END_TRACEPOINT(svd_error2);
 
   if (save_vectors){
-    BEGIN_TRACEPOINT(svd_vectors);
     if (nconv == 0)
       logstream(LOG_FATAL)<<"No converged vectors. Aborting the save operation" << std::endl;
+    if (predictions == "")
+      logstream(LOG_FATAL)<<"Please specify prediction output fie name using the --predictions=filename command"<<std::endl;
 
-    std::cout << "Saving predictions to files: " << predictions << ".U.* and "<< predictions << ".V.*" <<std::endl;
+    BEGIN_TRACEPOINT(svd_vectors);
+    std::cout << "Saving singular value triplets to files: " << predictions << ".U.* and "<< predictions << ".V.*" <<std::endl;
     const bool gzip_output = false;
     const bool save_vertices = false;
     const bool save_edges = true;
     const size_t threads_per_machine = 1;
-    //save the linear model
-    for (int i=0; i < nsv; i++){
-      pgraph->save(predictions + "U." + boost::lexical_cast<std::string>(i), linear_model_saver_U(i),
+    pgraph->save(predictions + ".U", linear_model_saver_U(),
           gzip_output, save_edges, save_vertices, threads_per_machine);
-      pgraph->save(predictions + "V." + boost::lexical_cast<std::string>(i), linear_model_saver_V(i),
+      pgraph->save(predictions + ".V", linear_model_saver_V(),
           gzip_output, save_edges, save_vertices, threads_per_machine);
-    } 
     END_TRACEPOINT(svd_vectors);
   }
-  return sigma;
+
+  sigma.conservativeResize(nconv);
+  singular_values = sigma;
+  if(!predictions.empty()) {
+    std::cout << "Saving predictions" << std::endl;
+    const bool gzip_output = false;
+    const bool save_vertices = false;
+    const bool save_edges = true;
+    const size_t threads_per_machine = 1;
+
+    //save the predictions
+    pgraph->save(predictions, prediction_saver(),
+               gzip_output, save_vertices, 
+               save_edges, threads_per_machine);
+  }
+ 
 }
 
 void start_engine(){
@@ -559,6 +586,7 @@ void start_engine(){
   pengine->signal_vset(nodes);
   pengine->start();
 }
+
 void write_output_vector(const std::string datafile, const vec & output, bool issparse, std::string comment)
 {
   FILE * f = fopen(datafile.c_str(),"w");
@@ -597,20 +625,19 @@ int main(int argc, char** argv) {
   clopts.attach_option("initial_vector", vecfile,"optional initial vector");
   clopts.attach_option("debug", debug, "Display debug output.");
   clopts.attach_option("unittest", unittest,  
-      "unit testing 0=None, 1=3x3 matrix");
+      "unit testing 0=None, 1=3x3 matrix, 2=10x10 matrix, 3 = 100x100 matrix");
   clopts.attach_option("max_iter", max_iter, "max iterations");
   clopts.attach_option("ortho_repeats", ortho_repeats, "orthogonalization iterations. 1 = low accuracy but fast, 2 = medium accuracy, 3 = high accuracy but slow.");
   clopts.attach_option("nv", nv, "Number of vectors in each iteration");
   clopts.attach_option("nsv", nsv, "Number of requested singular values to comptue"); 
-  clopts.attach_option("regularization", regularization, "regularization");
   clopts.attach_option("tol", tol, "convergence threshold");
   clopts.attach_option("save_vectors", save_vectors, "save output matrices U and V.");
   clopts.attach_option("rows", rows, "number of rows");
   clopts.attach_option("cols", cols, "number of cols");
-  clopts.attach_option("no_edge_data", no_edge_data, "matrix is binary (optional)");
   clopts.attach_option("quiet", quiet, "quiet mode (less verbose)");
-  clopts.attach_option("id", use_ids, "if set, will output row ids for U and V when saving");
   clopts.attach_option("predictions", predictions, "predictions file prefix");
+  clopts.attach_option("binary", binary, "If true, all edges are weighted as one");
+  clopts.attach_option("input_file_offset", input_file_offset, "input file node id offset (default 0)");
   if(!clopts.parse(argc, argv) || input_dir == "") {
     std::cout << "Error in parsing command line arguments." << std::endl;
     clopts.print_description();
@@ -626,7 +653,7 @@ int main(int argc, char** argv) {
     nsv = 3; nv = 3;
     rows = 3; cols = 4;
     debug = true;
-    //core.set_ncpus(1);
+    input_file_offset = 1;
   }
   else if (unittest == 2){
     datafile = "gklanczos_testB/";
@@ -634,7 +661,7 @@ int main(int argc, char** argv) {
     nsv = 10; nv = 10;
     rows = 10; cols = 10;
     debug = true;  max_iter = 100;
-    //core.set_ncpus(1);
+    input_file_offset = 1;
   }
   else if (unittest == 3){
     datafile = "gklanczos_testC/";
@@ -642,13 +669,26 @@ int main(int argc, char** argv) {
     nsv = 4; nv = 10;
     rows = 25; cols = 25;
     debug = true;  max_iter = 100;
-    //core.set_ncpus(1);
+    input_file_offset = 1;
   }
+  else if (unittest == 4){
+    datafile= "A2/";
+    vecfile = "A2/A2_v0";
+    nsv=3; nv = 4; 
+    rows=3; cols = 4;
+    debug=true; max_iter=3;
+    input_file_offset = 1;
+  }
+
 
 
   if (rows <= 0 || cols <= 0)
     logstream(LOG_FATAL)<<"Please specify number of rows/cols of the input matrix" << std::endl;
-     
+
+  if (rows == cols){
+    logstream(LOG_WARNING)<<"GraphLab SVD does not support square matrices. Increasing row size by one." << std::endl;
+    rows++; 
+  }
   info.rows = rows;
   info.cols = cols;
 
@@ -663,7 +703,6 @@ int main(int argc, char** argv) {
   graphlab::timer timer; 
   graph_type graph(dc, clopts);  
   graph.load(input_dir, graph_loader); 
-  graph.load(input_dir, init_vec_loader); 
   pgraph = &graph;
   dc.cout() << "Loading graph. Finished in " 
     << timer.current_time() << std::endl;
@@ -705,8 +744,8 @@ int main(int argc, char** argv) {
   init_lanczos(&graph, info);
   init_math(&graph, info, ortho_repeats, update_function);
   if (vecfile.size() > 0){
-    std::cout << "Load inital vector from file" << datafile << vecfile << std::endl;
-    FILE * file = fopen((datafile + vecfile).c_str(), "r");
+    std::cout << "Load inital vector from file" << vecfile << std::endl;
+    FILE * file = fopen((vecfile).c_str(), "r");
     if (file == NULL)
       logstream(LOG_FATAL)<<"Failed to open initial vector"<< std::endl;
     vec input = vec::Zero(rows);
@@ -714,7 +753,7 @@ int main(int argc, char** argv) {
     for (int i=0; i< rows; i++){
       int rc = fscanf(file, "%lg\n", &val);
       if (rc != 1)
-        logstream(LOG_FATAL)<<"Failed to open initial vector"<< std::endl;
+        logstream(LOG_FATAL)<<"Failed to read initial vector (on line: "<< i << " ) " << std::endl;
       input[i] = val;
     }
     fclose(file);
@@ -723,9 +762,9 @@ int main(int argc, char** argv) {
   }  
 
   vec errest;
-  vec singular_values = lanczos( info, timer, errest, vecfile);
+  lanczos( info, timer, errest, vecfile);
 
-  write_output_vector(predictions + "singular_values", singular_values, false, "%GraphLab SVD Solver library. This file contains the singular values.");
+  write_output_vector(predictions + ".singular_values", singular_values, false, "%GraphLab SVD Solver library. This file contains the singular values.");
 
   const double runtime = timer.current_time();
   dc.cout() << "----------------------------------------------------------"
@@ -747,7 +786,11 @@ int main(int argc, char** argv) {
     for (int i=0; i< errest.size(); i++)
       assert(errest[i] < 1e-15);
   }
-
+  else if (unittest == 4){
+    assert(pow(singular_values[0]-  2.16097, 2) < 1e-8);
+    assert(pow(singular_values[2]-  0.554159, 2) < 1e-8);
+   }
+ 
 
 
   graphlab::mpi_tools::finalize();
