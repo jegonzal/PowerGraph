@@ -1213,7 +1213,8 @@ void print_obj(dd_vertex_program::icontext_type& context, objective total) {
         }
         
         if((sqrt(total.dual_res/total.total_confs) < opts.dualimprovthres
-             && sqrt(total.primal_res/total.total_confs) < opts.dualimprovthres) && opts.algorithm == 2){ 
+             && sqrt(total.primal_res/total.total_confs) < opts.dualimprovthres)
+      &&(std::fabs(total.dual-global_vars.old_dual) < opts.dualimprovthres)&& opts.algorithm == 2){ 
            global_vars.converged = true;
            cout<< "Dual Objective: " << total.dual<< " "<<"Primal Objective: "<<total.primal<<endl;
            cout<<" Number of iteration at convergence:"<<context.iteration() +2 <<endl;       
