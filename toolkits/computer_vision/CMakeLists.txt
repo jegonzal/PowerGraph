@@ -16,3 +16,7 @@ requires_eigen(stitch)
 add_graphlab_executable(stitch_full stitch_full_main.cpp)
 requires_opencv(stitch_full)
 requires_eigen(stitch_full)
+target_link_libraries( stitch_full ${OpenCV_LIBS} )
+set (CMAKE_C_FLAGS "-g -Wall")
+set (CMAKE_CXX_FLAGS "-g -Wall")
+

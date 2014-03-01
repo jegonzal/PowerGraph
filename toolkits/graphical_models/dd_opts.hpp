@@ -48,14 +48,15 @@ struct Options
     std::string output_dir;
     std::string history_file;
     std::string file_format;
+    std::string output_file;
 
     int verbose;
     int algorithm;  
-    
+    int maxiter;
+
     double dualimprovthres;
     double pdgapthres;
-    int maxiter;
-    
+    double alpha;
     double step_size; 
     double agg_time; 
     
@@ -67,11 +68,13 @@ struct Options
     output_dir("./"),
     history_file("\0"),
     file_format("uai"),
+    output_file("output"),
     verbose(0),
     algorithm(0),
+    maxiter(10000),
     dualimprovthres(1e-7),
     pdgapthres(1e-1),
-    maxiter(10000),
+    alpha(1),
     step_size(1.0),
     agg_time(1e-4),
     debug(false)
