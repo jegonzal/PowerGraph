@@ -84,6 +84,9 @@ int main(int argc, char** argv)
     clopts.attach_option("agg_time", opts.agg_time, 
                          "specify the time period after aggregator works");
     clopts.add_positional("agg_time");
+    clopts.attach_option("alpha", opts.alpha, 
+                         "specify the value of parameter alpha for bethe admm");
+    clopts.add_positional("alpha");
     
     if(!clopts.parse(argc, argv)) 
     {
@@ -118,18 +121,21 @@ int main(int argc, char** argv)
     // load the graph
     //    graph.load(prior_dir, vertex_loader);
     //    graph.load(graph_dir, edge_loader);
+    int nnodes  = 0;
     if(opts.file_format == "uai")
-    loadUAIfile(dc, graph, opts.graph_file);
+    loadUAIfile(dc, graph, opts.graph_file, nnodes);
     else
     graph.load(opts.graph_file.c_str(), line_parser);
 
     graph.finalize();
-
+  
     // run dual decomposition    
     switch (opts.algorithm){
     case 1: run_dd_projected(dc, graph, opts.exec_type, clopts);
             break;
-    case 2: run_admm(dc, graph, opts.exec_type, clopts);
+    case 2: run_ad3(dc, graph, opts.exec_type, clopts);
+            break;
+    case 3: run_bethe_admm(dc, graph, opts.exec_type, clopts);
             break;
     default : run_dd_symmetric(dc, graph, opts.exec_type, clopts);
     }
@@ -138,7 +144,7 @@ int main(int argc, char** argv)
     if(opts.output_dir.find("/", opts.output_dir.size()-1) == std::string::npos){
     opts.output_dir.append("/"); }
     opts.output_dir.append("output.txt");
-    graph.save(opts.output_dir.c_str(), graph_writer(), false, true, false); 
+    graph.save(opts.output_dir.c_str(), graph_writer(), false, true, false,1); 
 
     // save history 
     if ( opts.history_file.size() < 4 || opts.history_file.find(".txt",opts.history_file.size()-4) == std::string::npos)
@@ -150,8 +156,8 @@ int main(int argc, char** argv)
     while(i< global_vars.history[0].size())
     { file<<global_vars.history[0][i]<<" "<<global_vars.history[1][i]<<" "
           <<global_vars.history[2][i]<<" "<<global_vars.history[3][i]<<endl;
-      i++;}
-     file.close();
+     i++;}
+    file.close();
     
     graphlab::mpi_tools::finalize();
     return EXIT_SUCCESS;
