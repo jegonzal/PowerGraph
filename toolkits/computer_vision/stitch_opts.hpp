@@ -62,24 +62,29 @@ struct Options
 
     int verbose;
    
+    bool try_gpu;
     // size of images
     double work_megapix;
     double seam_megapix;
     double compose_megapix;
+    double output_megapix;
 
     double work_scale;
     double seam_scale;
     double compose_scale;
+    double output_scale;
    
     double seam_work_aspect;
     double compose_seam_aspect;
     double compose_work_aspect;
+ //   double output_work_aspect;
    
     double warped_image_scale;
     std::string warp_type;
 
     // match options
     double conf_thresh;
+    float match_conf;
 
     // seam options
     std::string seam_find_type;
@@ -102,7 +107,7 @@ struct Options
 
     //saving output
     std::string result_name;
-
+        
    //saving the adjacency list for creating the graph
    //std::string graph_name;
    
@@ -111,11 +116,12 @@ struct Options
     exec_type("async"),
     output_dir("./"),
     verbose(0),
-    work_megapix(0.6), seam_megapix(0.1), compose_megapix(-1),
-    work_scale(1), seam_scale(1), compose_scale(1),
+    try_gpu(false),
+    work_megapix(0.6), seam_megapix(0.1), compose_megapix(-1), output_megapix(0.6),
+    work_scale(1), seam_scale(1), compose_scale(1), output_scale(1),
     seam_work_aspect(1/6), compose_seam_aspect(1), compose_work_aspect(1),
     warped_image_scale(-1), warp_type("spherical"),
-    conf_thresh(1.f),
+    conf_thresh(1.f), match_conf(0.3f),
     seam_find_type("gc_color"), terminal_cost(10000.f), bad_region_penalty(1000.f),
     wave_correct_type("horiz"),
     ba_cost_func("ray"),
@@ -126,6 +132,7 @@ struct Options
     {}
 };
 
+// output_megapix(1), output_scale(1), 
 extern Options opts;
 
 #endif
