@@ -631,6 +631,9 @@ dc.cout() << "Finalizing graph." << std::endl;
   dc.cout() << "Finalizing graph. Finished in " 
             << timer.current_time() << std::endl;
 
+  if (!graph.num_edges() || !graph.num_vertices())
+     logstream(LOG_FATAL)<< "Failed to load graph. Check your input path: " << input_dir << std::endl;     
+
 
   dc.cout() 
       << "========== Graph statistics on proc " << dc.procid() 
