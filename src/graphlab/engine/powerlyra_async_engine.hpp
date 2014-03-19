@@ -23,8 +23,8 @@
 
 
 
-#ifndef GRAPHLAB_ASYNC_CONSISTENT_ENGINE
-#define GRAPHLAB_ASYNC_CONSISTENT_ENGINE
+#ifndef GRAPHLAB_POWERLYRA_ASYNC_ENGINE_HPP
+#define GRAPHLAB_POWERLYRA_ASYNC_ENGINE_HPP
 
 #include <deque>
 #include <boost/bind.hpp>
@@ -131,11 +131,11 @@ namespace graphlab {
    * should construct an instance of the engine at the same time.
    *
    * Computation is initiated by signaling vertices using either
-   * \ref graphlab::async_consistent_engine::signal or
-   * \ref graphlab::async_consistent_engine::signal_all.  In either case all
+   * \ref graphlab::powerlyra_async_engine::signal or
+   * \ref graphlab::powerlyra_async_engine::signal_all.  In either case all
    * machines should invoke signal or signal all at the same time.  Finally,
    * computation is initiated by calling the
-   * \ref graphlab::async_consistent_engine::start function.
+   * \ref graphlab::powerlyra_async_engine::start function.
    *
    * ### Example Usage
    *
@@ -174,7 +174,7 @@ namespace graphlab {
    *   graph.finalize();
    *   std::cout << "#vertices: " << graph.num_vertices()
    *             << " #edges:" << graph.num_edges() << std::endl;
-   *   graphlab::async_consistent_engine<pagerank_vprog> engine(dc, graph, clopts);
+   *   graphlab::powerlyra_async_engine<pagerank_vprog> engine(dc, graph, clopts);
    *   engine.signal_all();
    *   engine.start();
    *   std::cout << "Runtime: " << engine.elapsed_seconds();
@@ -202,7 +202,7 @@ namespace graphlab {
    * \li \b stacksize (default: 16384) Stacksize of each fiber.
    */
   template<typename VertexProgram>
-  class async_consistent_engine: public iengine<VertexProgram> {
+  class powerlyra_async_engine: public iengine<VertexProgram> {
 
   public:
     /**
@@ -302,10 +302,10 @@ namespace graphlab {
      * \brief The true type of the callback context interface which
      * implements icontext. \see graphlab::icontext graphlab::context
      */
-    typedef context<async_consistent_engine> context_type;
+    typedef context<powerlyra_async_engine> context_type;
 
     // context needs access to internal functions
-    friend class context<async_consistent_engine>;
+    friend class context<powerlyra_async_engine>;
 
     /// \internal \brief The type used to refer to vertices in the local graph
     typedef typename graph_type::local_vertex_type    local_vertex_type;
@@ -315,12 +315,12 @@ namespace graphlab {
     typedef typename graph_type::lvid_type            lvid_type;
 
     /// \internal \brief The type of the current engine instantiation
-    typedef async_consistent_engine<VertexProgram> engine_type;
+    typedef powerlyra_async_engine<VertexProgram> engine_type;
 
     typedef conditional_addition_wrapper<gather_type> conditional_gather_type;
     
     /// The RPC interface
-    dc_dist_object<async_consistent_engine<VertexProgram> > rmi;
+    dc_dist_object<powerlyra_async_engine<VertexProgram> > rmi;
 
     /// A reference to the active graph
     graph_type& graph;
@@ -401,6 +401,9 @@ namespace graphlab {
 
     bool endgame_mode;
 
+    /// The number of try_to_quit
+    long nttqs;
+    
     /// Time when engine is started
     float engine_start_time;
 
@@ -435,7 +438,7 @@ namespace graphlab {
      * \param opts A graphlab::graphlab_options object containing options and
      *             parameters for the scheduler and the engine.
      */
-    async_consistent_engine(distributed_control &dc,
+    powerlyra_async_engine(distributed_control &dc,
                             graph_type& graph,
                             const graphlab_options& opts = graphlab_options()) :
         rmi(dc, this), graph(graph), scheduler_ptr(NULL),
@@ -559,7 +562,7 @@ namespace graphlab {
 
 
   public:
-    ~async_consistent_engine() {
+    ~powerlyra_async_engine() {
       delete consensus;
       delete cmlocks;
       delete scheduler_ptr;
@@ -666,7 +669,7 @@ namespace graphlab {
         internal_signal(graph.vertex(gvid), message);
       } else {
         procid_t proc = graph.master(gvid);
-        rmi.remote_call(proc, &async_consistent_engine::internal_signal_gvid,
+        rmi.remote_call(proc, &powerlyra_async_engine::internal_signal_gvid,
                              gvid, message);
       }
     } 
@@ -685,7 +688,7 @@ namespace graphlab {
      */
     void internal_stop() {
       for (procid_t i = 0;i < rmi.numprocs(); ++i) {
-        rmi.remote_call(i, &async_consistent_engine::rpc_internal_stop);
+        rmi.remote_call(i, &powerlyra_async_engine::rpc_internal_stop);
       }
     }
 
@@ -822,6 +825,8 @@ namespace graphlab {
         force_stop = true;
       }
       fiber_control::yield();
+
+      nttqs ++;
       logstream(LOG_DEBUG) << rmi.procid() << "-" << threadid << ": " << "Termination Attempt " << std::endl;
       has_sched_msg = false;
       consensus->begin_done_critical_section(threadid);
@@ -838,7 +843,7 @@ namespace graphlab {
         endgame_mode = true;
         // put everyone in endgame
         for (procid_t i = 0;i < rmi.dc().numprocs(); ++i) {
-          rmi.remote_call(i, &async_consistent_engine::set_endgame_mode);
+          rmi.remote_call(i, &powerlyra_async_engine::set_endgame_mode);
         } 
         bool ret = consensus->end_done_critical_section(threadid);
         if (ret == false) {
@@ -1003,6 +1008,9 @@ namespace graphlab {
       vertexlocks[lvid].unlock();
     }
 
+    bool high_lvid(const lvid_type lvid) {
+      return graph.l_degree_type(lvid) == graph_type::HIGH;
+    }
 
     /**
      * \internal
@@ -1054,6 +1062,7 @@ namespace graphlab {
       vertex_program_type vprog = vertex_program_type();
       local_vertex_type local_vertex(graph.l_vertex(lvid));
       vertex_type vertex(local_vertex);
+      bool high = high_lvid(lvid);
 
       /**************************************************************************/
       /*                               init phase                               */
@@ -1063,57 +1072,64 @@ namespace graphlab {
       /**************************************************************************/
       /*                              Gather Phase                              */
       /**************************************************************************/
-      conditional_gather_type gather_result;
+      conditional_gather_type gather_result;      
       std::vector<request_future<conditional_gather_type> > gather_futures;
-      foreach(procid_t mirror, local_vertex.mirrors()) {
-        gather_futures.push_back(
-            object_fiber_remote_request(rmi, 
-                                        mirror, 
-                                        &async_consistent_engine::perform_gather, 
-                                        vid,
-                                        vprog));
+      edge_dir_type gather_dir = vprog.gather_edges(context, vertex);
+      
+      if (high || (gather_dir == graphlab::ALL_EDGES) 
+               || (gather_dir == graphlab::OUT_EDGES)) {
+        foreach(procid_t mirror, local_vertex.mirrors()) {
+          gather_futures.push_back(
+              object_fiber_remote_request(rmi, 
+                                          mirror, 
+                                          &powerlyra_async_engine::perform_gather, 
+                                          vid,
+                                          vprog));
+        }
       }
       gather_result += perform_gather(vid, vprog);
-
-      for(size_t i = 0;i < gather_futures.size(); ++i) {
-        gather_result += gather_futures[i]();
+      if (high || (gather_dir == graphlab::ALL_EDGES) 
+               || (gather_dir == graphlab::OUT_EDGES)) {
+        for(size_t i = 0;i < gather_futures.size(); ++i) {
+          gather_result += gather_futures[i]();
+        }
       }
+      
+      /**************************************************************************/
+      /*                              apply phase                               */
+      /**************************************************************************/
+      vertexlocks[lvid].lock();
+      vprog.apply(context, vertex, gather_result.value);      
+      vertexlocks[lvid].unlock();
 
-     /**************************************************************************/
-     /*                              apply phase                               */
-     /**************************************************************************/
-     vertexlocks[lvid].lock();
-     vprog.apply(context, vertex, gather_result.value);      
-     vertexlocks[lvid].unlock();
 
+      /**************************************************************************/
+      /*                            scatter phase                               */
+      /**************************************************************************/
 
-     /**************************************************************************/
-     /*                            scatter phase                               */
-     /**************************************************************************/
+      // should I wait for the scatter? nah... but in case you want to
+      // the code is commented below
+      /*foreach(procid_t mirror, local_vertex.mirrors()) {
+        rmi.remote_call(mirror, 
+                        &powerlyra_async_engine::perform_scatter, 
+                        vid,
+                        vprog,
+                        local_vertex.data());
+      }*/
 
-     // should I wait for the scatter? nah... but in case you want to
-     // the code is commented below
-     /*foreach(procid_t mirror, local_vertex.mirrors()) {
-       rmi.remote_call(mirror, 
-                       &async_consistent_engine::perform_scatter, 
-                       vid,
-                       vprog,
-                       local_vertex.data());
-     }*/
-
-     std::vector<request_future<void> > scatter_futures;
-     foreach(procid_t mirror, local_vertex.mirrors()) {
-       scatter_futures.push_back(
-           object_fiber_remote_request(rmi, 
-                                       mirror, 
-                                       &async_consistent_engine::perform_scatter, 
-                                       vid,
-                                       vprog,
-                                       local_vertex.data()));
-     }
-     perform_scatter_local(lvid, vprog);
-     for(size_t i = 0;i < scatter_futures.size(); ++i) 
-       scatter_futures[i]();
+      std::vector<request_future<void> > scatter_futures;
+      foreach(procid_t mirror, local_vertex.mirrors()) {
+        scatter_futures.push_back(
+            object_fiber_remote_request(rmi, 
+                                        mirror, 
+                                        &powerlyra_async_engine::perform_scatter, 
+                                        vid,
+                                        vprog,
+                                        local_vertex.data()));
+      }
+      perform_scatter_local(lvid, vprog);
+      for(size_t i = 0;i < scatter_futures.size(); ++i) 
+        scatter_futures[i]();
 
       /************************************************************************/
       /*                           Release Locks                              */
@@ -1142,7 +1158,7 @@ namespace graphlab {
       bool has_sched_msg = false;
       std::vector<std::vector<lvid_type> > internal_lvid;
       lvid_type sched_lvid;
-
+      
       message_type msg;
       float last_aggregator_check = timer::approx_time_seconds();
       timer ti; ti.start();
@@ -1234,6 +1250,7 @@ namespace graphlab {
       force_stop = false;
       endgame_mode = false;
       programs_executed = 0;
+      nttqs = 0;
       launch_timer.start();
 
       termination_reason = execution_status::RUNNING;
@@ -1257,6 +1274,9 @@ namespace graphlab {
       size_t ctasks = programs_executed.value;
       rmi.all_reduce(ctasks);
       programs_executed.value = ctasks;
+
+      logstream(LOG_INFO) << rmi.procid() << " #try_to_quit = " << nttqs
+                          << std::endl;
 
       rmi.cout() << "Completed Tasks: " << programs_executed.value << std::endl;
 

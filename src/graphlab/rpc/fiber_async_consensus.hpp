@@ -80,7 +80,7 @@ namespace graphlab {
    * \endcode
    * 
    * Additionally, incoming RPC calls which create work must ensure there are
-   * active fiberswhich are capable of processing the work. An easy solution 
+   * active fibers which are capable of processing the work. An easy solution 
    * will be to simply cancel_one(). Other more optimized solutions
    * include keeping a counter of the number of active fibers, and only calling
    * cancel() or cancel_one() if all fibers are asleep. (Note that the optimized
