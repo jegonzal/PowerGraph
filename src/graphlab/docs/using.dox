@@ -707,7 +707,7 @@ public:
   void apply(icontext_type& context, vertex_type& vertex,
              const gather_type& total) {
     double newval = total * 0.85 + 0.15;
-    double prevval = vertex.data.pagerank;
+    double prevval = vertex.data().pagerank;
     vertex.data().pagerank = newval;
     perform_scatter = (std::fabs(prevval - newval) > 1E-3);
   }
