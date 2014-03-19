@@ -420,8 +420,7 @@ namespace graphlab {
     typedef graphlab::lvid_type lvid_type;
     typedef graphlab::edge_id_type edge_id_type;
 
-    enum degree_type {HIGH_MASTER = 0, LOW_MASTER, 
-      HIGH_MIRROR, LOW_MIRROR, NUM_ZONE_TYPES};
+    enum degree_type {HIGH = 0, LOW, NUM_ZONE_TYPES};
 
     enum cuts_type {VERTEX_CUTS = 0, EDGE_CUTS, HYBRID_CUTS, HYBRID_GINGER_CUTS,
       NUM_CUTS_TYPES};
@@ -2676,9 +2675,9 @@ namespace graphlab {
           NOT be in this set.*/
       mirror_type _mirrors;
       vertex_record() :
-        owner(-1), gvid(-1), num_in_edges(0), num_out_edges(0) { }
+        owner(-1), dtype(HIGH), gvid(-1), num_in_edges(0), num_out_edges(0) { }
       vertex_record(const vertex_id_type& vid) :
-        owner(-1), gvid(vid), num_in_edges(0), num_out_edges(0) { }
+        owner(-1), dtype(HIGH), gvid(vid), num_in_edges(0), num_out_edges(0) { }
       procid_t get_owner () const { return owner; }
       const mirror_type& mirrors() const { return _mirrors; }
       size_t num_mirrors() const { return _mirrors.popcount(); }
@@ -2709,6 +2708,7 @@ namespace graphlab {
       bool operator==(const vertex_record& other) const {
         return (
             (owner == other.owner) &&
+            (dtype == other.dtype) &&
             (gvid == other.gvid)  &&
             (num_in_edges == other.num_in_edges) &&
             (num_out_edges == other.num_out_edges) && 

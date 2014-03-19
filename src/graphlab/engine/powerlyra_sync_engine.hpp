@@ -904,10 +904,8 @@ namespace graphlab {
       }
     } // end of run_synchronous
 
-    inline bool high_master_lvid(const lvid_type lvid);  
-    inline bool low_master_lvid(const lvid_type lvid);
-    inline bool high_mirror_lvid(const lvid_type lvid);  
-    inline bool low_mirror_lvid(const lvid_type lvid);
+    inline bool high_lvid(const lvid_type lvid);  
+    inline bool low_lvid(const lvid_type lvid);
     
     // /**
     //  * \brief Initialize all vertex programs by invoking
@@ -1168,14 +1166,7 @@ namespace graphlab {
     ADD_CUMULATIVE_EVENT(EVENT_GATHERS , "Gathers", "Calls");
     ADD_CUMULATIVE_EVENT(EVENT_SCATTERS , "Scatters", "Calls");
     ADD_INSTANTANEOUS_EVENT(EVENT_ACTIVE_CPUS, "Active Threads", "Threads");
-
-    // Graph should has been finalized
-    ASSERT_TRUE(graph.is_finalized());
-    // Only support zone cuts
-    ASSERT_TRUE(graph.get_cuts_type() == graph_type::HYBRID_CUTS 
-                || graph.get_cuts_type() == graph_type::HYBRID_GINGER_CUTS);
-    // if (rmi.procid() == 0) graph.dump_graph_info();
-
+    graph.finalize();
     init();
   } // end of powerlyra_sync_engine
 
@@ -1668,26 +1659,14 @@ namespace graphlab {
 
   template<typename VertexProgram>
   inline bool powerlyra_sync_engine<VertexProgram>::
-  high_master_lvid(const lvid_type lvid) {
-    return graph.l_degree_type(lvid) == graph_type::HIGH_MASTER;
+  high_lvid(const lvid_type lvid) {
+    return graph.l_degree_type(lvid) == graph_type::HIGH;
   }
 
   template<typename VertexProgram>
   inline bool powerlyra_sync_engine<VertexProgram>::
-  low_master_lvid(const lvid_type lvid) {
-    return graph.l_degree_type(lvid) == graph_type::LOW_MASTER;
-  }
-
-  template<typename VertexProgram>
-  inline bool powerlyra_sync_engine<VertexProgram>::
-  high_mirror_lvid(const lvid_type lvid) {
-    return graph.l_degree_type(lvid) == graph_type::HIGH_MIRROR;
-  }
-
-  template<typename VertexProgram>
-  inline bool powerlyra_sync_engine<VertexProgram>::
-  low_mirror_lvid(const lvid_type lvid) {
-    return graph.l_degree_type(lvid) == graph_type::LOW_MIRROR;
+  low_lvid(const lvid_type lvid) {
+    return graph.l_degree_type(lvid) == graph_type::LOW;
   }
 
   template<typename VertexProgram>
@@ -1773,10 +1752,10 @@ namespace graphlab {
         if(gather_dir != graphlab::NO_EDGES) {
           active_minorstep.set_bit(lvid);
           // send Gx1 msgs
-          if (high_master_lvid(lvid)
-              || (low_master_lvid(lvid) // only if gather via out-edge
-                && ((gather_dir == graphlab::OUT_EDGES) 
-                    || (gather_dir == graphlab::ALL_EDGES)))) {
+          if (high_lvid(lvid)
+              || (low_lvid(lvid) // only if gather via out-edge
+                && ((gather_dir == graphlab::ALL_EDGES) 
+                    || (gather_dir == graphlab::OUT_EDGES)))) {
             send_activs(lvid, thread_id);
           }
         }

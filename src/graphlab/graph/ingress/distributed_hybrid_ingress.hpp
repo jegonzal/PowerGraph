@@ -305,21 +305,13 @@ namespace graphlab {
       for (size_t lvid = 0; lvid < graph.num_local_vertices(); lvid++) {
         vertex_record& vrec = graph.lvid2record[lvid];
         if (vrec.num_in_edges > threshold) {
-          if (vrec.owner == l_procid) {
-            vrec.dtype = graph_type::HIGH_MASTER; 
-            high_master ++;
-          } else {
-            vrec.dtype = graph_type::HIGH_MIRROR;
-            high_mirror ++;
-          }
+          vrec.dtype = graph_type::HIGH; 
+          if (vrec.owner == l_procid) high_master ++;
+          else high_mirror ++;
         } else {
-          if (vrec.owner == l_procid) {
-            vrec.dtype = graph_type::LOW_MASTER; 
-            low_master ++;
-          } else {
-            vrec.dtype = graph_type::LOW_MIRROR;
-            low_mirror ++;
-          }
+          vrec.dtype = graph_type::LOW; 
+          if (vrec.owner == l_procid) low_master ++;
+          else low_mirror ++;
         }        
       }
 
