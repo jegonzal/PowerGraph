@@ -450,7 +450,17 @@
     P.pagerank = 0.85 * acc + 0.15
   \endverbatim
   
-  We need to map this to the GraphLab vertex program.
+  We need to map the pagerank pseudo code to the GraphLab vertex program.
+  Note: an alternate way of presenting the same algorithm in terms of probabilities is:
+  \verbatim
+  P.pagerank2 = 0.85 * acc + 0.15 / n
+  \endverbatim
+  where n is the total number of graph nodes. Both formulations are equivalent since one can easily verify that
+  \verbatim
+  P.pagerank2 * n = P.pagerank
+  \endverbatim
+  In GraphLab, we choose the first implementation, since dealing with graphs with billions of nodes will lead to numerical errors
+  and pagerank values which are very close to zero. 
  
   \section using_graphlab_vertex_program PageRank Vertex Program
 
