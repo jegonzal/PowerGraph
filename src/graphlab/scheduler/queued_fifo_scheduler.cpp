@@ -44,7 +44,7 @@ void queued_fifo_scheduler::initialize_data_structures() {
   ASSERT_GT(ncpus * multi, 1);
   in_queues.resize(ncpus * multi);
   in_queue_locks.resize(ncpus * multi);
-  out_queue_locks.resize(ncpus * multi);
+  out_queue_locks.resize(ncpus);
   out_queues.resize(ncpus);
   vertex_is_scheduled.resize(num_vertices);
 }
