@@ -56,6 +56,10 @@ priority_scheduler::priority_scheduler(size_t num_vertices,
   ASSERT_GE(opts.get_ncpus(), 1);
   set_options(opts);
   initialize_data_structures();
+  logstream(LOG_INFO) << "Priority Scheduler:"
+                    << " min_priority=" << min_priority 
+                    << " multi=" << multi 
+                    << std::endl;
 }
 
 

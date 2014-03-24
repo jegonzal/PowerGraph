@@ -56,7 +56,7 @@
 
 #include <graphlab/macros_def.hpp>
 
-#undef TUNING
+#define TUNING
 namespace graphlab {
 
 

@@ -240,13 +240,13 @@ int main(int argc, char** argv) {
     return 0;
   }
   dc.cout() << "Loading graph. Finished in " 
-    << timer.current_time() << std::endl;
+            << timer.current_time() << std::endl;
   // must call finalize before querying the graph
   dc.cout() << "Finalizing graph." << std::endl;
   timer.start();
   graph.finalize();
   dc.cout() << "Finalizing graph. Finished in " 
-    << timer.current_time() << std::endl;
+            << timer.current_time() << std::endl;
 
   dc.cout() << "#vertices: " << graph.num_vertices()
             << " #edges:" << graph.num_edges() << std::endl;

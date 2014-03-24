@@ -82,6 +82,13 @@ sweep_scheduler::sweep_scheduler(size_t num_vertices,
     for(size_t i = 0; i < cpu2index.size(); ++i) cpu2index[i] = i;
   }
   vertex_is_scheduled.resize(num_vertices);
+
+  logstream(LOG_INFO) << "Sweep Scheduler:"
+                      << " order=" << ordering
+                      << " strict=" << strict_round_robin
+                      << " max_iterations=" << max_iterations
+                      << std::endl;
+
 } // end of constructor
 
 

@@ -100,6 +100,17 @@ struct min_distance_type : graphlab::IS_POD_TYPE {
   }
 };
 
+struct max_distance_type : graphlab::IS_POD_TYPE {
+  distance_type dist;
+  max_distance_type(distance_type dist = 
+                    std::numeric_limits<distance_type>::min()) : dist(dist) { }
+  max_distance_type& operator+=(const max_distance_type& other) {
+    dist = std::max(dist, other.dist);
+    return *this;
+  }
+};
+
+
 
 /**
  * \brief The single source shortest path vertex program.
@@ -192,7 +203,6 @@ struct shortest_path_writer {
 }; // end of shortest_path_writer
 
 
-
 struct max_deg_vertex_reducer: public graphlab::IS_POD_TYPE {
   size_t degree;
   graphlab::vertex_id_type vid;
@@ -209,6 +219,14 @@ max_deg_vertex_reducer find_max_deg_vertex(const graph_type::vertex_type vtx) {
   red.degree = vtx.num_in_edges() + vtx.num_out_edges();
   red.vid = vtx.id();
   return red;
+}
+
+max_distance_type map_dist(const graph_type::vertex_type& v) {
+  if (v.data().dist == std::numeric_limits<distance_type>::max())
+    return std::numeric_limits<distance_type>::min();
+  
+  max_distance_type dist(v.data().dist);
+  return dist;
 }
 
 int main(int argc, char** argv) {
@@ -260,6 +278,8 @@ int main(int argc, char** argv) {
 
 
   // Build the graph ----------------------------------------------------------
+  dc.cout() << "Loading graph." << std::endl;
+  graphlab::timer timer;
   graph_type graph(dc, clopts);
   if(powerlaw > 0) { // make a synthetic graph
     dc.cout() << "Loading synthetic Powerlaw graph." << std::endl;
@@ -272,12 +292,17 @@ int main(int argc, char** argv) {
     clopts.print_description();
     return EXIT_FAILURE;
   }
+  dc.cout() << "Loading graph. Finished in " 
+            << timer.current_time() << std::endl;
   // must call finalize before querying the graph
+  dc.cout() << "Finalizing graph." << std::endl;
+  timer.start();
   graph.finalize();
-  dc.cout() << "#vertices:  " << graph.num_vertices() << std::endl
-            << "#edges:     " << graph.num_edges() << std::endl;
+  dc.cout() << "Finalizing graph. Finished in " 
+            << timer.current_time() << std::endl;
 
-
+  dc.cout() << "#vertices: " << graph.num_vertices()
+            << " #edges:" << graph.num_edges() << std::endl;
 
   if(sources.empty()) {
     if (max_degree_source == false) {
@@ -297,22 +322,28 @@ int main(int argc, char** argv) {
   }
 
 
-
   // Running The Engine -------------------------------------------------------
   graphlab::omni_engine<sssp> engine(dc, graph, exec_type, clopts);
 
-
-  
   // Signal all the vertices in the source set
   for(size_t i = 0; i < sources.size(); ++i) {
     engine.signal(sources[i], min_distance_type(0));
   }
 
+  timer.start();
   engine.start();
-  const float runtime = engine.elapsed_seconds();
-  dc.cout() << "Finished Running engine in " << runtime
-            << " seconds." << std::endl;
+  const double runtime = timer.current_time();
+  dc.cout() << "----------------------------------------------------------"
+            << std::endl
+            << "Final Runtime (seconds):   " << runtime 
+            << std::endl
+            << "Updates executed: " << engine.num_updates() << std::endl
+            << "Update Rate (updates/second): " 
+            << engine.num_updates() / runtime << std::endl;
 
+  const max_distance_type max_dist = 
+      graph.map_reduce_vertices<max_distance_type>(map_dist);
+  std::cout << "Max distance: " << max_dist.dist << std::endl;
 
   // Save the final graph -----------------------------------------------------
   if (saveprefix != "") {

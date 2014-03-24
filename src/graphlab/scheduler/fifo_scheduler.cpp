@@ -53,6 +53,10 @@ fifo_scheduler::fifo_scheduler(size_t num_vertices,
   ASSERT_GE(opts.get_ncpus(), 1);
   set_options(opts);
   initialize_data_structures();
+  logstream(LOG_INFO) << "FIFO Scheduler:"
+                      << " multi=" << multi
+                      << std::endl;
+
 }
 
 

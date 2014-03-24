@@ -58,6 +58,11 @@ queued_fifo_scheduler::queued_fifo_scheduler(size_t num_vertices,
       ASSERT_GE(opts.get_ncpus(), 1);
       set_options(opts);
       initialize_data_structures();
+
+      logstream(LOG_INFO) << "Queued-FIFO Scheduler:"
+                          << " queuesize=" << sub_queue_size 
+                          << " multi=" << multi 
+                          << std::endl;
     }
 
 void queued_fifo_scheduler::set_num_vertices(const lvid_type numv) {
