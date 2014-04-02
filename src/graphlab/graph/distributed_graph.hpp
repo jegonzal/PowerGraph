@@ -420,7 +420,7 @@ namespace graphlab {
     typedef graphlab::lvid_type lvid_type;
     typedef graphlab::edge_id_type edge_id_type;
 
-    enum degree_type {HIGH = 0, LOW, NUM_ZONE_TYPES};
+    enum degree_type {HIGH = 0, LOW, NUM_DEGREE_TYPES};
 
     enum cuts_type {VERTEX_CUTS = 0, EDGE_CUTS, HYBRID_CUTS, HYBRID_GINGER_CUTS,
       NUM_CUTS_TYPES};
