@@ -2,7 +2,7 @@
 
 \page graph_analytics Graph Analytics 
 
-The graph analytics toolkit contains applications for performing graph 
+\brief The graph analytics toolkit contains applications for performing graph 
 analytics and extracting patterns from the graph structure.
 
 The toolkit current contains:
@@ -905,4 +905,4 @@ scipy.linalg.expm2(A).sum(axis=1)
 [1]: Benzi, Michele, and Christine Klymko. Total Communicability as a Centrality Measure. ArXiv e-print, February 27, 2013. <a href="http://arxiv.org/abs/1302.6770">arxiv</a>
 
 [2]: Saad, Yousef. “Analysis of Some Krylov Subspace Approximations to the Matrix Exponential Operator.” SIAM Journal on Numerical Analysis 29, no. 1 (1992): 209–228.
-
+*/

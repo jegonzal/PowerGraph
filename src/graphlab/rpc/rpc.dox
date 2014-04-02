@@ -552,9 +552,9 @@ int add_one(int a) {
 }
 
 ... /* elsewhere */
-graphlab::remote_future<int> future = fiber_remote_request(1, /* call to machine 1 */
-                                                           add_one,
-                                                           1);
+graphlab::request_future<int> future = fiber_remote_request(1, /* call to machine 1 */
+                                                            add_one,
+                                                            1);
 \endcode
 
 Waiting on the future, using either:

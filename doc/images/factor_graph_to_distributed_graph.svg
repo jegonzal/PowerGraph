@@ -1,0 +1,42 @@
+<svg width="640" height="480" xmlns="http://www.w3.org/2000/svg">
+ <!-- Created with SVG-edit - http://svg-edit.googlecode.com/ -->
+ <g>
+  <title>Layer 1</title>
+  <rect id="svg_4" height="41" width="41" y="105" x="247" stroke-width="4" stroke="#000000" fill="#7f00ff"/>
+  <rect id="svg_5" height="41" width="41" y="105" x="407" stroke-width="4" stroke="#000000" fill="#7f00ff"/>
+  <ellipse stroke="#000000" ry="19.5" rx="19.5" id="svg_6" cy="124" cx="347" stroke-linecap="null" stroke-linejoin="null" stroke-dasharray="null" stroke-width="4" fill="#ff3f3f"/>
+  <ellipse id="svg_7" stroke="#000000" ry="19.5" rx="19.5" cy="124" cx="508.5" stroke-linecap="null" stroke-linejoin="null" stroke-dasharray="null" stroke-width="4" fill="#ff3f3f"/>
+  <line id="svg_11" y2="125" x2="245.812058" y1="125" x1="206" stroke-linecap="null" stroke-linejoin="null" stroke-dasharray="null" stroke-width="5" stroke="#000000" fill="none"/>
+  <ellipse id="svg_8" stroke="#000000" ry="19.5" rx="19.5" cy="124" cx="185.5" stroke-linecap="null" stroke-linejoin="null" stroke-dasharray="null" stroke-width="4" fill="#ff3f3f"/>
+  <text style="cursor: move;" stroke="#000000" xml:space="preserve" text-anchor="middle" font-family="serif" font-size="24" id="svg_9" y="129" x="87" stroke-linecap="null" stroke-linejoin="null" stroke-dasharray="null" stroke-width="0" fill="#000000">Factor Graph</text>
+  <line id="svg_20" y2="183.5" x2="268" y1="148" x1="268" stroke-linecap="null" stroke-linejoin="null" stroke-dasharray="null" stroke-width="5" stroke="#000000" fill="none"/>
+  <ellipse id="svg_15" stroke="#000000" ry="19.5" rx="19.5" cy="205" cx="267.5" stroke-linecap="null" stroke-linejoin="null" stroke-dasharray="null" stroke-width="4" fill="#ff3f3f"/>
+  <ellipse id="svg_16" stroke="#000000" ry="19.5" rx="19.5" cy="205" cx="428.5" stroke-linecap="null" stroke-linejoin="null" stroke-dasharray="null" stroke-width="4" fill="#ff3f3f"/>
+  <line id="svg_17" y2="125" x2="329.406022" y1="125" x1="289.593964" stroke-linecap="null" stroke-linejoin="null" stroke-dasharray="null" stroke-width="5" stroke="#000000" fill="none"/>
+  <line id="svg_18" y2="125" x2="408.406022" y1="125" x1="368.593964" stroke-linecap="null" stroke-linejoin="null" stroke-dasharray="null" stroke-width="5" stroke="#000000" fill="none"/>
+  <line id="svg_19" y2="125" x2="488.406022" y1="125" x1="448.593964" stroke-linecap="null" stroke-linejoin="null" stroke-dasharray="null" stroke-width="5" stroke="#000000" fill="none"/>
+  <line id="svg_21" y2="183.5" x2="428.5" y1="148" x1="428.5" stroke-linecap="null" stroke-linejoin="null" stroke-dasharray="null" stroke-width="5" stroke="#000000" fill="none"/>
+  <path id="svg_29" stroke="#000000" transform="rotate(-90.7724 508.587 83.9851)" d="m514.606934,89.510681c-0.998474,-2.252289 -4.832428,-3.3703 -12.389893,-3.612823l-5.11026,-0.164093l0,-1.970947l0,-1.970062l3.857239,0c4.547272,0 7.798676,-0.404846 10.451874,-1.30014c1.56543,-0.529266 2.085693,-0.86557 2.793396,-1.810486l0.869568,-1.1604l2.494507,3.220642l2.494202,3.220581l-2.522217,3.242249l-2.522156,3.243164l-0.41626,-0.937683z" stroke-linecap="null" stroke-linejoin="null" stroke-dasharray="null" stroke-width="5" fill="#000000"/>
+  <text xml:space="preserve" text-anchor="middle" font-family="serif" font-size="20" id="svg_22" y="65" x="510" stroke-linecap="null" stroke-linejoin="null" stroke-dasharray="null" stroke-width="0" stroke="#000000" fill="#000000">variable</text>
+  <path stroke="#000000" transform="rotate(-90.7724 266.87 83.0906)" id="svg_28" d="m272.889771,88.616196c-0.998505,-2.252266 -4.832428,-3.370277 -12.389893,-3.612816l-5.11026,-0.164101l0,-1.970947l0,-1.970055l3.857239,0c4.547272,0 7.798676,-0.404831 10.451874,-1.300148c1.565399,-0.529251 2.085663,-0.865562 2.793396,-1.810463l0.869568,-1.160393l2.494507,3.220612l2.494171,3.220604l-2.522186,3.242249l-2.522186,3.243149l-0.416229,-0.937691z" stroke-linecap="null" stroke-linejoin="null" stroke-dasharray="null" stroke-width="5" fill="#000000"/>
+  <text xml:space="preserve" text-anchor="middle" font-family="serif" font-size="21" id="svg_23" y="64" x="268" stroke-linecap="null" stroke-linejoin="null" stroke-dasharray="null" stroke-width="0" stroke="#000000" fill="#000000">factor node</text>
+  <path transform="rotate(-180 350.52 268.733)" id="svg_30" d="m317.487488,268.65448l33.032135,-32.92128l33.032013,32.92128l-16.515961,0l0,33.078705l-33.032104,0l0,-33.078705l-16.516083,0z" stroke-linecap="null" stroke-linejoin="null" stroke-dasharray="null" stroke-width="5" stroke="#000000" fill="#000000"/>
+  <path stroke="#000000" id="svg_46" d="m170.410004,360.000031l19.428528,-34.000031l19.428543,34.000031l-38.857071,0z" stroke-linecap="null" stroke-linejoin="null" stroke-dasharray="null" stroke-width="4" fill="#ffff56"/>
+  <line id="svg_35" y2="341" x2="260.312058" y1="341" x1="200" stroke-linecap="null" stroke-linejoin="null" stroke-dasharray="null" stroke-width="5" stroke="#000000" fill="none"/>
+  <line id="svg_37" y2="401" x2="272.5" y1="362.194214" x1="272.5" stroke-linecap="null" stroke-linejoin="null" stroke-dasharray="null" stroke-width="5" stroke="#000000" fill="none"/>
+  <line id="svg_40" y2="341" x2="339.906022" y1="341" x1="283" stroke-linecap="null" stroke-linejoin="null" stroke-dasharray="null" stroke-width="5" stroke="#000000" fill="none"/>
+  <line id="svg_41" y2="341" x2="420.906022" y1="341" x1="361" stroke-linecap="null" stroke-linejoin="null" stroke-dasharray="null" stroke-width="5" stroke="#000000" fill="none"/>
+  <line id="svg_42" y2="341" x2="502.906022" y1="341" x1="440" stroke-linecap="null" stroke-linejoin="null" stroke-dasharray="null" stroke-width="5" stroke="#000000" fill="none"/>
+  <line id="svg_43" y2="401" x2="433" y1="362.194214" x1="433" stroke-linecap="null" stroke-linejoin="null" stroke-dasharray="null" stroke-width="5" stroke="#000000" fill="none"/>
+  <path id="svg_48" stroke="#000000" d="m331.071472,360.000031l19.428528,-34.000031l19.428558,34.000031l-38.857086,0z" stroke-linecap="null" stroke-linejoin="null" stroke-dasharray="null" stroke-width="4" fill="#ffff56"/>
+  <path id="svg_49" stroke="#000000" d="m494.071472,360.000031l19.428528,-34.000031l19.428589,34.000031l-38.857117,0z" stroke-linecap="null" stroke-linejoin="null" stroke-dasharray="null" stroke-width="4" fill="#ffff56"/>
+  <path id="svg_50" stroke="#000000" d="m252.071472,360.000031l19.428528,-34.000031l19.428558,34.000031l-38.857086,0z" stroke-linecap="null" stroke-linejoin="null" stroke-dasharray="null" stroke-width="4" fill="#ffff56"/>
+  <path id="svg_51" stroke="#000000" d="m412.071472,360.000031l19.428528,-34.000031l19.428558,34.000031l-38.857086,0z" stroke-linecap="null" stroke-linejoin="null" stroke-dasharray="null" stroke-width="4" fill="#ffff56"/>
+  <path id="svg_52" stroke="#000000" d="m413.5,436.000031l19.428528,-34.000031l19.428558,34.000031l-38.857086,0z" stroke-linecap="null" stroke-linejoin="null" stroke-dasharray="null" stroke-width="4" fill="#ffff56"/>
+  <path id="svg_53" stroke="#000000" d="m253.071472,436.000031l19.428528,-34.000031l19.428558,34.000031l-38.857086,0z" stroke-linecap="null" stroke-linejoin="null" stroke-dasharray="null" stroke-width="4" fill="#ffff56"/>
+  <text xml:space="preserve" text-anchor="middle" font-family="serif" font-size="24" id="svg_54" y="334" x="94" stroke-linecap="null" stroke-linejoin="null" stroke-dasharray="null" stroke-width="0" stroke="#000000" fill="#000000">Distributed</text>
+  <text xml:space="preserve" text-anchor="middle" font-family="serif" font-size="24" id="svg_55" y="367" x="70" stroke-linecap="null" stroke-linejoin="null" stroke-dasharray="null" stroke-width="0" stroke="#000000" fill="#000000">Graph</text>
+  <path id="svg_56" stroke="#000000" transform="rotate(-90.7724 512.587 304.985)" d="m518.607178,310.510834c-0.998535,-2.252289 -4.83252,-3.3703 -12.389923,-3.612823l-5.110291,-0.164093l0,-1.970947l0,-1.970062l3.857269,0c4.547241,0 7.798645,-0.404846 10.451843,-1.30014c1.565491,-0.529266 2.085693,-0.86557 2.793396,-1.810486l0.869629,-1.1604l2.494446,3.220642l2.494202,3.220581l-2.522217,3.242249l-2.522095,3.243164l-0.41626,-0.937683z" stroke-linecap="null" stroke-linejoin="null" stroke-dasharray="null" stroke-width="5" fill="#000000"/>
+  <text xml:space="preserve" text-anchor="middle" font-family="serif" font-size="20" id="svg_57" y="285" x="512" stroke-linecap="null" stroke-linejoin="null" stroke-dasharray="null" stroke-width="0" stroke="#000000" fill="#000000">GraphLab vertex</text>
+ </g>
+</svg>

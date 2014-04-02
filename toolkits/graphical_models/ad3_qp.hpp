@@ -45,14 +45,21 @@
 #define NEARLY_ZERO_TOL(a,tol) (((a)<=(tol)) && ((a)>=(-(tol))))
 #define NEARLY_EQ_TOL(a,b,tol) (((a)-(b))*((a)-(b))<=(tol))
 #define num_max_iterations_QP_ 10
+#define EXP 10
 
 
-/**
- * \brief ADMM vertex program  general implements Alternating direction dual 
- * decomposition for general dense factors.
- */
 
-struct admm_vertex_program_general:public admm_vertex_program {
+////////////////////////////////////////////////////////////////////////////////
+// This class implements the Alternating Directions Dual Decompostion as 
+// described in:
+//
+// André F. T. Martins, Mário A. T. Figueiredo, Pedro M. Q. Aguiar,
+// Noah A. Smith, and Eric P. Xing.
+// "Alternating Directions Dual Decomposition"
+// Arxiv preprint arXiv:1212.6550, 2012.
+/////////////////////////////////////////////////////////////////////////////////
+
+struct ad3_vertex_program:public admm_vertex_program {
 
 /**
  * \brief Maximize returns the maximum value and configuration with reference to 
@@ -67,7 +74,6 @@ void Maximize(vertex_type& vertex, vec additional_log_potentials, vec variable_l
                 double *value) {
           
     vector <Configuration> states(vertex.data().nvars,-1);
-    int best = -1;
     *value = -1e12;
     for (int index = 0;
          index < additional_log_potentials.size();
@@ -342,7 +348,7 @@ void Evaluate(vertex_type& vertex, vec additional_log_potentials, vec variable_l
 void SolveQP_dense(vertex_type& vertex,const gather_type& total,
             vec& variable_posteriors, vec& additional_posteriors) {
    vertex_data& vdata = vertex.data();                        
-   //cout<<"loop 1 in solveQP .."<<endl;
+
    vec additional_log_potentials = vdata.potentials;
    vec variable_log_potentials = total.neighbor_distribution + total.messages;      
    vector <Configuration> active_set_;
@@ -736,7 +742,69 @@ void SolveQP_dense(vertex_type& vertex,const gather_type& total,
 }
 
   
+  int project_onto_budget_constraint(vec& x, int d, double budget) {
+  int j, k, l, level;
+  double s = 0.0;
+  double tau = 0.0, tightsum;
+  double left, right = -std::numeric_limits<double>::infinity();
+  vector<double> y(d, 0.0);
+
+  for (j = 0; j < d; j++) {
+    s -= x[j];
+    y[j] = -x[j];
+  }
+  sort(y.begin(), y.end());
+  tightsum = s;
+  s += budget;
   
+  k = l = level = 0;
+  bool found = false;
+  double val_a, val_b;
+  while (k < d && l < d) {
+    if (level != 0) {
+      tau = (s - tightsum) / static_cast<double>(level);
+    }
+    if (k < d) val_a = y[k];
+    val_b = 1.0 + y[l];
+    left = right;
+    if (k == d || val_b <= val_a) {
+      right = val_b;
+    } else {
+      right = val_a;
+    }
+    if ((level == 0 && s == tightsum) || (level != 0 && tau <= right)) {
+      // Found the right split-point!
+      found = true;
+      break;
+    }
+    if (k == d || val_b <= val_a) {
+      tightsum += val_b;
+      --level;
+      ++l;
+    } else {
+      tightsum -= val_a;
+      ++level;
+      ++k;
+    }
+  }
+
+  if (!found) {
+    left = right;
+    right = std::numeric_limits<double>::infinity();
+  }
+      
+  for (j = 0; j < d; j++) {
+    if (-x[j] >= right) {
+      x[j] = 0.0;
+    } else if (1.0 - x[j] <= left) {
+      x[j] = 1.0;
+    } else {
+      x[j] += tau;
+    }
+  }
+
+  return 0;
+}
   
   // Solve the QP subproblem for budget factor.
   // TODO Enable caching
@@ -744,7 +812,7 @@ void SolveQP_budget(vertex_type& vertex,const gather_type& total,
             vec& variable_posteriors, vec& additional_posteriors){
             
   vertex_data& vdata =  vertex.data();
-  vec variable_log_potentials = total.neighbor_distribution + total.messages;
+  vec variable_log_potentials = total.neighbor_distribution + total.messages;                  
   vector<pair<double,int> > last_sort_;
   for (int f = 0; f < variable_log_potentials.size(); ++f) {
     variable_posteriors[f] = variable_log_potentials[f];
@@ -764,15 +832,13 @@ void SolveQP_budget(vertex_type& vertex,const gather_type& total,
     for (int f = 0; f < variable_log_potentials.size(); ++f) {
       variable_posteriors[f] = variable_log_potentials[f];
     }
-    project_onto_budget_constraint_cached(variable_posteriors, 
+    project_onto_budget_constraint(variable_posteriors, 
                                           variable_log_potentials.size(), 
-                                          static_cast<double>(vdata.budget), 
-                                          last_sort_);
+                                          static_cast<double>(vdata.budget));
   }
-
 }
 
-// Finds best configuration ofr budget factors
+// Finds best configuration of budget factors
 void SolveMAP_budget(vertex_type& vertex,const gather_type& total,
             vec& variable_posteriors, vec& additional_posteriors, double& value) {
  
@@ -818,8 +884,7 @@ void SolveMAP_budget(vertex_type& vertex,const gather_type& total,
     for (int k = num_active; k < vdata.nvars; ++k) {
       int f = scores[k].second;
       variable_posteriors[f] = 0.0;
-    }    
-   // cout<<"third inner loop ..."<<endl;
+    }   
   }
   
   value += sum;
@@ -860,7 +925,7 @@ case 1: SolveQP_budget(vertex,total, variable_posteriors, additional_posteriors)
 }
 };
 
-// General solvMAP function
+// General solveMAP function
 void SolveMAP(vertex_type& vertex,const gather_type& total,
             vec& variable_posteriors, vec& additional_posteriors, double& value){
 switch(vertex.data().factor_type){
@@ -872,5 +937,167 @@ case 1: SolveMAP_budget(vertex,total, variable_posteriors, additional_posteriors
  };
 
 };
+/* end of ad3_vertex_program*/
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+// This class implements the Bethe-ADMM as  described in:
+//
+//   Qiang Fu, Huahua Wang and Arindam Banerjee.
+// "Bethe-ADMM for Tree Decomposition based Parallel MAP Inference"
+//  Conference on Uncertainty in Artificial Intelligence (UAI), 2013
+//
+//////////////////////////////////////////////////////////////////////////////// 
+
+struct bethe_admm_vertex_program:public admm_vertex_program {
+
+/* compute_grad_phi computes the gradient of bethe entropy for the factor */
+  
+       void compute_grad_phi(vertex_type& vertex,vec& unary_beliefs, 
+                   vec& factor_beliefs, vec& unary_grad,vec& factor_grad) {
+
+             vertex_data& vdata = vertex.data();  
+            // computation for variable beliefs  
+             for(int i=0; i< unary_beliefs.size(); i++){
+                 unary_grad[i] *= EXP * (unary_beliefs[i]);
+             }
+             // computation for factor beliefs
+             vector<int> states(vdata.nvars);
+             for(int i=0; i< factor_beliefs.size(); i++){
+                 factor_grad[i] *= factor_beliefs[i] / EXP;
+                 get_configuration_states(vertex, i, &states);
+                 int offset =0;
+                 for(int j=0; j< vdata.nvars; j++){
+                     factor_grad[i] /= unary_beliefs[offset + states[j]];
+                     offset += vdata.cards[j];
+                 }
+             }
+        }
+
+
+/* run_bp computes marginal beliefs using sum-product belief propagation */
+       void run_bp(vertex_type& vertex, vec& unary_pots, vec& factor_pots, 
+             vec& unary_margs, vec& factor_margs) {
+
+            vertex_data& vdata = vertex.data();        
+            unary_margs.resize(unary_pots.size());
+            factor_margs = factor_pots;
+            vector<int> states(vdata.nvars, -1);
+           // computing messages
+           for(int i=0; i < vdata.nvars; i++) {
+               
+               vec messages = factor_pots;
+               for(int j=0; j < factor_pots.size(); j++) {
+                  get_configuration_states(vertex, j, &states);
+                  int offset = 0;
+                  for(int k = 0; k < vdata.nvars; k++) {
+                     if( k != i)
+                     messages[j] *= unary_pots[offset + states[k]];
+                     offset += vdata.cards[k];
+                  }
+               }
+               vector<double>  marg_messages(vdata.cards[i], 0);
+               for(int j=0; j < factor_pots.size(); j++)  {
+                   get_configuration_states(vertex, j, &states);
+                   marg_messages[states[i]] += messages[j];
+                   }
+               int var_offset =0;
+               for(int j=0; j < i; j++) {          
+                   var_offset += vdata.cards[j];
+               }
+               double sum = 0;
+               // computing marginal beliefs for variables
+               for(int j=0; j < marg_messages.size(); j++) { 
+                  unary_margs[var_offset + j] = marg_messages[j] 
+                                           * unary_pots[var_offset + j];
+                  sum += unary_margs[var_offset + j];
+               }
+               for(int j=0; j < marg_messages.size(); j++) { 
+                   unary_margs[var_offset + j] /= sum ; 
+               }       
+          }
+          // compuitng factor beliefs
+          double fact_sum = 0;
+          for(int i=0; i < factor_pots.size(); i++) {
+              get_configuration_states(vertex, i, &states);
+              int offset = 0;
+              for(int j =0; j < vdata.nvars; j++) {
+                 factor_margs[i] *= unary_pots[offset + states[j]];
+                 offset += vdata.cards[j];
+              }
+              fact_sum += factor_margs[i];
+          }
+        
+          for(int i=0; i < factor_pots.size(); i++) {
+              factor_margs[i] /= fact_sum;
+          }
+         
+       }
+
+
+/* adjust_beliefs prevents overflow/ underflow of belief variable */
+       void adjust_beliefs(vertex_type& vertex){
+            
+            vertex_data& vdata = vertex.data();
+            for(int i=0; i< vdata.beliefs.size(); i++){
+                if(vdata.beliefs[i] < 10e-100)
+                   vdata.beliefs[i] = 10e-100;
+            }  
+            for(int i=0; i< vdata.factor_beliefs.size(); i++){
+                if(vdata.factor_beliefs[i] < 10e-100)
+                   vdata.factor_beliefs[i] = 10e-100;
+            } 
+       }
+       
+/* exponentiates potentials for bp. TODO: use faster approximation of pow */
+       void exponentiate(vec& potential_vector){
+       
+            for(int i=0; i< potential_vector.size(); i++){
+                potential_vector[i] = pow(EXP, potential_vector[i]);
+            }
+       }
+       
+
+/* solves QP for factor vertices using bp */
+       void compute_beliefs(vertex_type& vertex,const gather_type& total,
+            vec& variable_posteriors, vec& additional_posteriors){
+
+             vertex_data& vdata = vertex.data();
+             vec unary_eta, factor_eta;
+             // computing eta  
+             factor_eta = (vdata.potentials)/opts.alpha; 
+             unary_eta = total.messages + opts.step_size * (total.neighbor_distribution - vdata.beliefs); 
+             unary_eta = (unary_eta)/opts.alpha;        
+             exponentiate(unary_eta);
+             exponentiate(factor_eta);
+             vec unary_grad, factor_grad;
+             unary_grad.resize(unary_eta.size());
+	     factor_grad.resize(factor_eta.size());
+             compute_grad_phi(vertex, vdata.beliefs, vdata.factor_beliefs, unary_eta, factor_eta);
+             //running bp on eta
+             run_bp(vertex, unary_eta, factor_eta, vdata.beliefs, vdata.factor_beliefs); 
+             //adjust beliefs for overflow/underflow          
+             adjust_beliefs(vertex);             
+        };
+ /* solves MAP for factor vertices */      
+        void SolveMAP(vertex_type& vertex,const gather_type& total,
+            vec& variable_posteriors, vec& additional_posteriors, double& value){
+             vertex_data& vdata = vertex.data();
+             vec beliefs = vdata.potentials;
+             vector<int> states(vdata.nvars);
+             for(int i=0; i< vdata.potentials.size(); i++) {
+                 get_configuration_states(vertex, i, &states);
+                 int offset = 0;
+                 for(int j=0; j< vdata.nvars; j++){
+                     beliefs[i] += total.messages[offset + states[j]];
+                     offset += vdata.cards[j];
+                 }
+             }
+             value = beliefs.maxCoeff();  
+         };
+
+};
+/* end of  bethe_admm_vertex_program */
 
 #endif

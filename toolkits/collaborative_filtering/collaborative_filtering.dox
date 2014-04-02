@@ -680,18 +680,18 @@ Here is an example Matrix Market input file for the matrix A2:
 <235|0>bickson@bigbro6:~/ygraphlab/graphlabapi/debug/toolkits/parsers$ 
 cat A2
 \verbatim
-1 1  0.8147236863931789
-1 2  0.9133758561390194
-1 3  0.2784982188670484
-1 4  0.9648885351992765
-2 1  0.9057919370756192
-2 2  0.6323592462254095
-2 3  0.5468815192049838
-2 4  0.1576130816775483
-3 1  0.1269868162935061
-3 2  0.09754040499940952
-3 3  0.9575068354342976
-3 4  0.9705927817606157
+0 0  0.8147236863931789
+0 1 0.9133758561390194
+0 2  0.2784982188670484
+0 3  0.9648885351992765
+1 0  0.9057919370756192
+1 1  0.6323592462254095
+1 2  0.5468815192049838
+1 3  0.1576130816775483
+2 0  0.1269868162935061
+2 1  0.09754040499940952
+2 2  0.9575068354342976
+2 3  0.9705927817606157
 \endverbatim
 
 Ceate a directory named A2, and inside it put the file A2.
@@ -749,6 +749,7 @@ mpiexec -n XX ./svd [ rest of the command line aguments ]
 --predictions=XX	File name to write prediction to. Note that you will need a user/item pair input file named something.predict to enable predictions (see section: test ratings).
 --tol Convergence threshold. For large matrices set this number set this number higher (for example 1e-1, while for small matrices you can set it to 1e-16). As smaller the convergence threshold execution is slower.
 \endverbatim
+--input_file_offset - for 1 based array index, use 1, for 0 based array index use 0. (Namely, array first index starts from 1 or 0).
 
 Note: for improving accuracy tol should be reduced. max_iter and nv should be increased.
 

@@ -38,7 +38,7 @@ DECLARE_TRACER(orth1);
 DECLARE_TRACER(orth2);
 DECLARE_TRACER(orth3);
 
-double regularization;
+double regularization = 0;
 bool debug;
 bool regnormal;
 
@@ -120,6 +120,8 @@ class Axb :
          return 0;
 
       bool brows = vertex.id() < (uint)info.get_start_node(false);
+      if (info.is_square()) 
+        brows = !mi.A_transpose;
       if (mi.A_offset  && mi.x_offset >= 0){
         double val = edge.data().obs * (brows ? edge.target().data().pvec[mi.x_offset] :
             edge.source().data().pvec[mi.x_offset]);
