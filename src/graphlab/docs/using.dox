@@ -570,7 +570,7 @@ public:
 
   
 ##  <b>scatter_edges(icontext_type& context, const vertex_type& vertex)</b> 
-  Scatter is similarly gather: it is executed on each edge of
+  Scatter is similar to gather: it is executed on each edge of
   the vertex, but does not accumulate any values. 
   Since the pagerank computation does not require a scatter operation we simply
   have scatter_edges return graphlab::NO_EDGES.
@@ -686,7 +686,7 @@ public:
 
   To implement this, we consider the pagerank_program implemented earlier.
   We will not make modifications to the gather phases, but we will change the
-  apply phase and introduce a scatter phase. The goal is to achive the following:
+  apply phase and introduce a scatter phase. The goal is to achieve the following:
   
   \li If the current vertex's PageRank does not change much, no additional
       action is performed.
@@ -781,7 +781,7 @@ public:
  };
  \endcode
 
- The \c save_vertex() and \c save_edge() functions are are respective 
+ The \c save_vertex() and \c save_edge() functions are respectively
  called on each vertex/edge in the graph. These functions return a string
  which is then directly written to the output file.
 
