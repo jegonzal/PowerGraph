@@ -246,7 +246,7 @@ if (dc.procid() == 0) {
 }
 \endcode
 
-Remote calls complete \b immediately, irregardless of how long the function
+Remote calls complete \b immediately, regardless of how long the function
 took on the other side. For instance, processor 0 will take almost no time
 running through this code.
 \code
