@@ -33,7 +33,7 @@ namespace graphlab {
     typedef uint32_t standard_vertex_id_type;
   #else
     typedef uint64_t standard_vertex_id_type;
-  #endif*/
+  #endif
 
   typedef standard_vertex_id_type vertex_id_type;
 
