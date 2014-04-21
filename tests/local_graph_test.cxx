@@ -43,9 +43,9 @@ public:
   };
 
   struct edge_data { 
-    int from; 
-    int to;
-    edge_data (int f = 0, int t = 0) : from(f), to(t) {}
+    graphlab::lvid_type from; 
+    graphlab::lvid_type to;
+    edge_data (graphlab::lvid_type f = 0, graphlab::lvid_type t = 0) : from(f), to(t) {}
   };
 
   /**
@@ -162,15 +162,15 @@ private:
    */
   template<typename Graph>
   void check_adjacency(Graph& g, 
-                       boost::unordered_map<typename Graph::vertex_id_type, 
-                                            std::vector<typename Graph::vertex_id_type> >& in_edges,
-                       boost::unordered_map<typename Graph::vertex_id_type, 
-                                            std::vector<typename Graph::vertex_id_type> >& out_edges,
+                       boost::unordered_map<typename graphlab::lvid_type, 
+                                            std::vector<typename graphlab::lvid_type> >& in_edges,
+                       boost::unordered_map<typename graphlab::lvid_type, 
+                                            std::vector<typename graphlab::lvid_type> >& out_edges,
                        size_t nedges) {
     typedef typename Graph::edge_list_type edge_list_type;
     typedef typename Graph::edge_type edge_type;
     typedef typename Graph::vertex_type vertex_type;
-    typedef typename Graph::vertex_id_type vertex_id_type;
+    typedef typename graphlab::lvid_type vertex_id_type;
 
     // check size 
     ASSERT_EQ(g.num_edges(), nedges);
@@ -214,7 +214,7 @@ template<typename Graph>
       typedef typename Graph::edge_list_type edge_list_type;
       typedef typename Graph::edge_type edge_type;
       typedef typename Graph::vertex_type vertex_type;
-      typedef typename Graph::vertex_id_type vertex_id_type;
+      typedef typename graphlab::lvid_type vertex_id_type;
     for (size_t i = 0; i < g.num_vertices(); ++i) {
       const edge_list_type& in_edges = g.in_edges(i);
       foreach (const edge_type& e, in_edges) {
@@ -231,7 +231,7 @@ template<typename Graph>
 
   template<typename Graph>
   void test_add_edge_impl(Graph& g, size_t nedges, bool use_dynamic=false) {
-    typedef typename Graph::vertex_id_type vertex_id_type;
+    typedef typename graphlab::lvid_type vertex_id_type;
     srand(0);
     g.clear();
     ASSERT_EQ(g.num_edges(), 0);
@@ -289,7 +289,7 @@ template<typename Graph>
     typedef typename Graph::edge_list_type edge_list_type;
     typedef typename Graph::edge_type edge_type;
     typedef typename Graph::vertex_type vertex_type;
-    typedef typename Graph::vertex_id_type vertex_id_type;
+    typedef typename graphlab::lvid_type vertex_id_type;
 
     size_t num_v = 10;
     size_t num_e = 6;
@@ -375,7 +375,7 @@ template<typename Graph>
     typedef typename Graph::edge_list_type edge_list_type;
     typedef typename Graph::edge_type edge_type;
     typedef typename Graph::vertex_type vertex_type;
-    typedef typename Graph::vertex_id_type vertex_id_type;
+    typedef typename graphlab::lvid_type vertex_id_type;
 
     g.clear();
     if (verbose) 
@@ -524,7 +524,7 @@ template<typename Graph>
     typedef typename Graph::edge_list_type edge_list_type;
     typedef typename Graph::edge_type edge_type;
     typedef typename Graph::vertex_type vertex_type;
-    typedef typename Graph::vertex_id_type vertex_id_type;
+    typedef typename graphlab::lvid_type vertex_id_type;
 
     boost::unordered_map<vertex_id_type, std::vector<vertex_id_type> > out_edges;
     boost::unordered_map<vertex_id_type, std::vector<vertex_id_type> > in_edges;

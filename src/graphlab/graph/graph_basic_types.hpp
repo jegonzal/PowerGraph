@@ -26,6 +26,10 @@
 
 #include <stdint.h>
 
+#ifdef EXTERNAL_VERTEX_ID_TYPE_INCLUDE
+  #include EXTERNAL_VERTEX_ID_TYPE_INCLUDE
+#endif
+
 namespace graphlab {
   
   #ifdef USE_VID32
@@ -37,6 +41,8 @@ namespace graphlab {
 
   #ifndef EXTERNAL_VERTEX_ID_TYPE
     typedef standard_vertex_id_type vertex_id_type;
+  #else
+    typedef EXTERNAL_VERTEX_ID_TYPE vertex_id_type;
   #endif
 
   /// Identifier type of a vertex which is only locally consistent. Guaranteed to be integral

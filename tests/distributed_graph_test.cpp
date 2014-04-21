@@ -59,9 +59,9 @@ class distributed_graph_test  {
    };
 
    struct edge_data: public graphlab::IS_POD_TYPE  {
-     int from;
-     int to;
-     edge_data (int f = 0, int t = 0) : from(f), to(t) {}
+     graphlab::vertex_id_type from;
+     graphlab::vertex_id_type to;
+     edge_data (graphlab::vertex_id_type f = 0, graphlab::vertex_id_type t = 0) : from(f), to(t) {}
      bool operator==(const edge_data& other)  const {
        return ((from == other.from) && (to == other.to));
      }
