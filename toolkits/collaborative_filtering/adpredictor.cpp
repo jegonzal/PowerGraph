@@ -113,7 +113,15 @@ typedef graphlab::distributed_graph<vertex_data, edge_data> graph_type;
 
 /* compute v(t) according to equation (9) left */
 double v(double t){
-	return gaussian_normalization * exp(-t*t/2) / phi(t);
+        double phit = phi(t);
+        if (phit == 0)
+            phit = 1e-5;
+	double ret = gaussian_normalization * exp(-t*t/2) / phit;
+        if (std::isinf(ret)){
+           std::cout<<"BUG: " << ret << " " << t << " " << exp(-t*t/2) << " phi(t)" << phi(t) << std::endl;
+           assert(false);
+        }
+        return ret;
 }
 
 /* compute w(t) according to equation (9) right */
@@ -176,11 +184,19 @@ gather_type adpredictor_map2(graph_type::edge_type edge, graph_type::vertex_type
 	gather_type ret;
 	assert(vertex.sigma > 0);
 	assert(other.data().y == -1 || other.data().y == 1);
+        assert(edge.data().x_ij == 1);
 	double product = other.data().y * other.data().xT_mu / sqrt(other.data().sigma);
 	//assert(product > 0);
 	ret.mu = (other.data().y * edge.data().x_ij * vertex.sigma / sqrt(other.data().sigma))  * v(product);
+        if (std::isinf(ret.mu)){
+          std::cout<<"BUG: " << ret.mu << " vertex.sigma " << vertex.sigma << " other.data().sigma " << other.data().sigma << " v(prod) " << v(product);
+          assert(false);
+        }
 	double factor = 1.0 - (edge.data().x_ij * vertex.sigma / other.data().sigma)*w(product);
-	assert(factor > 0);
+        if (factor <= 0){
+          std::cout<<"BUG: " << product << " " << ret.mu << " " << factor <<std::endl;
+	  assert(factor > 0);
+        }
 	ret.sigma = factor;
 	return ret;
 }
