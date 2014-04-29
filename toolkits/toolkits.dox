@@ -27,8 +27,14 @@ factorize large matrices.
 \li \subpage graphical_models contains tools for making joint predictions
 about collections of related random variables.
 
+\li \subpage factor_graphs contains Belief Propagation impelementation for
+factor graphs
+
+\li \subpage linear_solvers contains solvers for linear systems of equations - currently the Jacobi algorithm is implemented
+
 \li \subpage computer_vision contains a collection of tools for
 reasoning about images.
+
 
 
 
