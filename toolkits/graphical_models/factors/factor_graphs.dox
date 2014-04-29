@@ -122,4 +122,33 @@ options. See <b>--graph_help</b> for a list of options.
 \li <b>--scheduler_opts</b> (Optional, Default empty) Any additional scheduler
 options. See <b>--scheduler_help</b> for a list of options.
 
+\section Example
+The test file toolkits/graphical_models/factors/tests/test_bool_var/test_cat_bool_var.cpp
+creates two variables, foo and bool_var_b, each with two states, connected to a 2x2 factor (there is also a unary evidence factor (prior) attached to bool_var_b). Visually, this looks like
+
+\verbatim
+ bool_obs (factor)
+     |
+     |
+ bool_var_b (variable : {false, true})
+     |
+     |
+ factor
+ cat/fp-tp |  false | true |
+ ----------|--------|------|
+ state1    |  0.1   |  0.9 |  ---  foo (variable : {state1, false pos})
+ ----------|--------|------|
+ false pos |  0.8   |  0.2 |
+ ---------------------------
+ joint belief values (cbj)
+\endverbatim
+
+This factor graph, creates two variables, foo and bool_var_b, each with two states. The variables are related to each other through the factor node, cbj. (bool_obs is also a unary evidence factor (prior) attached to bool_var_b.)
+
+A factor or variable's probability mass function (PMF) is specified by a dense_table (which is basically just an N-d matrix and is defined in toolkits/graphical_models/factors/dense_table.hpp) in which each label has a corresponding log probability (we use the log of the belief value for numerical stability). A variable is always a 1D dense_table. Factor cbj is a 2D dense_table with a domain that spans the cross product of domains' the two variables.)
+
+The nlog belief values in the table for this example are arbitrary. You can set them to whatever your discrete probability mass function is using one of dense_table::logP(size_t), dense_table::logP(discrete_assignment), or one of the specialized constructors. (A discrete_assignment is a subindex over a domain (in Matlab, for example, to access element (1,2) in an array, you would do myArray(1,2); analogously, a discrete_assignment specifies this assignment. I can explain these in more detail if you'l like)). 
+
+Once the evidence has been propagated across the distributed graph and the results pulled back into the factor graph using factor_graph.hpp::pull_beliefs_for_variables(), the resulting marginal distribution for the variable var can be queried using factor_graph.hpp::belief_for_variable(var), which returns a 1D dense_table. Then, you can find the most likely value in the distribution using dense_table::max_index(), which returns the linear index of the largest value.
+
 */
