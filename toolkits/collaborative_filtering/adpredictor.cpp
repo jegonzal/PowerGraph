@@ -204,7 +204,7 @@ gather_type adpredictor_map2(graph_type::edge_type edge, graph_type::vertex_type
 void adpredictor_update(graph_type::vertex_type vertex) {
 	//go over all row nodes
 	if ( vertex.num_out_edges() > 0){
-                if (debug) printf("Entered vertex %llu role %d \n", vertex.id(), vertex.data().type);
+                if (debug) printf("Entered vertex %lu role %d \n", vertex.id(), vertex.data().type);
 		if (vertex.data().type == TRAIN){
 			vertex_data & row = vertex.data(); 
 			row.likelihood = 0;
@@ -232,14 +232,16 @@ void adpredictor_update(graph_type::vertex_type vertex) {
 
 			assert(row.sigma > 0);
 		}
-		else if (vertex.data().type == VALIDATE){
+		else if (vertex.data().type == VALIDATE || vertex.data().type == PREDICT){
 			vertex_data & row = vertex.data(); 
 			row.likelihood = 0;
 			row.err = 0;
-			assert(row.y == -1 || row.y == 1);
+			if (vertex.data().type == VALIDATE) 
+     			 	assert(row.y == -1 || row.y == 1);
 			gather_type sum = graphlab::warp::map_reduce_neighborhood<gather_type>(vertex, graphlab::OUT_EDGES, adpredictor_map);
+			row.predict = sum.mu;
 			double predict = sum.mu > 0 ? 1 : -1;                       
-			if (predict != row.y)
+			if (predict != row.y && vertex.data().type == VALIDATE)
 				row.err++;
 		}
                 else assert(false);
@@ -271,14 +273,36 @@ struct model_saver {
 	/* save the linear model, using the format:
 	 */
 	std::string save_vertex(const vertex_type& vertex) const {
+                if (vertex.num_in_edges() == 0 || vertex.data().type != TRAIN)
+		  return "";
+
 		std::stringstream strm;
-		strm << vertex.id() << " " << vertex.data().xT_mu << " " << vertex.data().sigma << std::endl;
+		strm << vertex.id() << " " << vertex.data().xT_mu << " " << std::endl;
 		return strm.str();
 	}
 	std::string save_edge(const edge_type& edge) const {
 		return "";
 	}
 }; // end of prediction_saver
+
+struct prediction_saver {
+	typedef graph_type::vertex_type vertex_type;
+	typedef graph_type::edge_type   edge_type;
+	/* save the linear model, using the format:
+	 */
+	std::string save_vertex(const vertex_type& vertex) const {
+                if (vertex.num_out_edges() == 0 || vertex.data().type != PREDICT)
+		  return "";
+
+		std::stringstream strm;
+		strm << vertex.id() << " " << vertex.data().predict << " " << std::endl;
+		return strm.str();
+	}
+	std::string save_edge(const edge_type& edge) const {
+		return "";
+	}
+}; // end of prediction_saver
+
 
 
 /**
@@ -452,6 +476,7 @@ int main(int argc, char** argv) {
 		const size_t threads_per_machine = 1;
 		//save the predictions
 		graph.save(save_model, model_saver(), gzip_output, save_vertices, save_edges, threads_per_machine);
+		graph.save(save_model + ".predict", prediction_saver(), gzip_output, save_vertices, save_edges, threads_per_machine);
 	}
 
 	graphlab::mpi_tools::finalize();
