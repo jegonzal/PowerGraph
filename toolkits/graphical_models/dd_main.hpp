@@ -52,13 +52,12 @@
 /////////////////////////////////////////////////////////////////////////
 // Load the UAI file. Each factor as a different vertex
 void loadUAIfile(graphlab::distributed_control& dc, graph_type& graph, string graph_file, int& nodes) 
-{
+{  
     // Not sure why this is needed
     dc.barrier();
-    
     // Open file
     ifstream in(graph_file.c_str());
-    
+     
     //CHECK(in.good(),"Could not open file: "+graph_file);
     CHECK(in.good());
     
@@ -74,8 +73,7 @@ void loadUAIfile(graphlab::distributed_control& dc, graph_type& graph, string gr
     in >> nnodes;
     nodes = nnodes;
     //CHECK(nnodes>0, "No. of nodes can't be negative. Are you sure this is a typeUAI energy file?");
-    CHECK(nnodes>0);
-        
+    CHECK(nnodes>0);    
     // Read node cardinalities
     vector<int> cardinalities(nnodes,0);
     int cardinality_i, sum_of_cardinalities = 0;
@@ -84,12 +82,10 @@ void loadUAIfile(graphlab::distributed_control& dc, graph_type& graph, string gr
         in >> cardinality_i;
         cardinalities[i] = cardinality_i;
         sum_of_cardinalities += cardinality_i;
-        
-        //cout << cardinalities[i] << " ";
+       
         //CHECK(in.good(), "Could not finish reading cardinalities. Are you sure this is a typeUAI energy file?");
         CHECK(in.good());
     }
-    
     // Read no. of factors
     in >> nfactors;
     
@@ -185,6 +181,7 @@ void loadUAIfile(graphlab::distributed_control& dc, graph_type& graph, string gr
         }
         
         //CHECK(in.good(), "Could not finish reading factor tables. Are you sure this is a typeUAI energy file?");
+
         CHECK(in.good());
          
 
@@ -193,8 +190,9 @@ void loadUAIfile(graphlab::distributed_control& dc, graph_type& graph, string gr
         if (i%dc.numprocs() != dc.procid()) 
             continue;
         
-        // If all is well, add vertex and edges
-        graph.add_vertex(i,vdata);
+        // If all is well, add vertex and edge
+        graph.add_vertex(i ,vdata);
+
         if (factor_size[i] > 1) // if not a unary, add edges to unaries
             for (int j=0; j!=factor_size[i]; ++j) 
                 graph.add_edge(i,varid[j],edata[j]);
@@ -214,7 +212,7 @@ void loadUAIfile(graphlab::distributed_control& dc, graph_type& graph, string gr
         }
         
     } // End of reading factors     
-    
+   
     dc.barrier();
 } // end of loading UAI file
 
@@ -233,8 +231,9 @@ bool line_parser(graph_type& graph, const std::string& filename, const std::stri
       strm>>vid;
       strm >> vdata.cards[0];
       vdata.potentials.resize(vdata.cards[0]);
-      vdata.beliefs.setOnes(vdata.cards[0]);
-      vdata.beliefs /= vdata.cards[0];
+      //vdata.beliefs.setOnes(vdata.cards[0]);
+      //vdata.beliefs /= vdata.cards[0];
+      vdata.beliefs.setConstant(vdata.cards[0], 0.5);
       vdata.unary_degree.resize(vdata.cards[0], 0);
       for(int i=0; i< vdata.cards[0]; i++){
          strm>>vdata.potentials[i];
@@ -262,6 +261,7 @@ bool line_parser(graph_type& graph, const std::string& filename, const std::stri
      vdata.potentials.setZero(cardprod);
      vdata.beliefs.setOnes(cardprod);
      vdata.beliefs /=cardsum;
+     //vdata.beliefs.setConstant(cardprod, 0.5);
      vdata.factor_beliefs.setOnes(cardprod);
      vdata.factor_beliefs /= cardprod;
      for(int i=0; i<cardprod; i++){
@@ -302,6 +302,7 @@ bool line_parser(graph_type& graph, const std::string& filename, const std::stri
         graph.add_edge(vid, vdata.neighbors[i], edata);
      } 
     }
+    return true;
  }
 /* end of graph loading functions */
 
