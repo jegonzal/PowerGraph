@@ -64,6 +64,12 @@ Factorization', Adv. Neural Info. Proc. Syst. 13, 556-562.
 \verbatim
 V. Hern´andez, J. E. Rom´an and A. Tom´as. STR-8: Restarted Lanczos Bidiagonalization for the SVD in SLEPc. 
 \endverbatim
+
+- \ref ADPREDICTOR "Adpredictor"
+\verbatim
+Graepel, Thore, et al. "Web-scale bayesian click-through rate prediction for sponsored search advertising in microsoft's bing search engine." Proceedings of the 27th International Conference on Machine Learning (ICML-10). 2010.
+\endverbatim
+
 \section Input Input
 
 The input to GraphLab v2.1 collaborative filtering toolkit should be prepared inside a directory. All files in the directory will be read in parallel by GraphLab. Each file has the following text format:
@@ -841,6 +847,25 @@ Namely, the deviation of the approximation sigma(i) u_i  from Av_i , and vice ve
 2) In Mahout there is a single orthonornalization step in each iteration while in our implementation there are two (after computation of u_i and after v_i ).
 3) In Mahout there is no error estimation while we provide for each singular value the approximated error.
 4) Our solution is typically x100 times faster than Mahout.
+
+\section ADPREDICTOR Adpredictor
+In a nutshell, AdPredictor computes a linear regression model with probit link function.
+The input to the algorithm are observations of the type
+\verbatim
+-1 3:1 4:1 6:1 9:1
+1 4:1 5:1 18:1 19:1
+...
+\endverbatim
+
+where the first field -1 is the action (did not click) or 1 (clicked). Next there are pairs of binary features.
+The output of the algorithm are weights for each feature. When a new ad comes in, we should simply sum up the weights for the matching features. If the weights are smaller than zero then the prediction is -1 and vice versa.
+
+Adpredictor takes file in libsvm format. You should prepare a sub folder with the training file and validation (file needs to end with .validate).
+
+You can run adpredictor using the command:
+\verbatim
+./adpredictor --matrix=folder/ --max_iter=10 --beta=1
+\endverbatim
 
 \section Implicit "Implicit Ratings"
 Implicit rating handles the case where we have only positive examples (for example when a user bought a certain product) but we never have indication when a user DID NOT buy another product. The following paper 

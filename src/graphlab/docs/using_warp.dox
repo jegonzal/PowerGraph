@@ -20,7 +20,7 @@ struct vertex_data {
   int neighbor_total;
 };
 
-typedef distributed_graph<vertex_data, empty> graph_type;
+typedef graphlab::distributed_graph<vertex_data, empty> graph_type;
 \endcode
 
 The Warp System is included by including the single header
@@ -34,7 +34,7 @@ vertices, excuting a single function on all vertices.
 
 \code
 // Runs the compute_neighborhood_total function on all vertices in the graph
-warp::parfor_all_vertices(graph, compute_neighborhood_total);
+graphlab::warp::parfor_all_vertices(graph, compute_neighborhood_total);
 
 void compute_neighborhood_total(graph_type::vertex_type vertex) {
   ...
@@ -60,7 +60,7 @@ void combine(int& a, const int& b) {
 }
 
 void compute_neighborhood_total(graph_type::vertex_type vertex) {
-  vertex.value = warp::map_reduce_neighborhood(vertex, ALL_EDGES, gather_value, combine); 
+  vertex.value = graphlab::warp::map_reduce_neighborhood(vertex, ALL_EDGES, gather_value, combine); 
 }
 \endcode
 
@@ -73,7 +73,7 @@ and the following will work just fine:
 
 \code
 void compute_neighborhood_total(graph_type::vertex_type vertex) {
-  vertex.value = warp::map_reduce_neighborhood(vertex, ALL_EDGES, gather_value); 
+  vertex.value = graphlab::warp::map_reduce_neighborhood(vertex, ALL_EDGES, gather_value); 
 }
 \endcode
 
@@ -121,7 +121,7 @@ the behavior of the  Warp System.
   given a graph with a float on each vertex:
 
   \code
-  typedef distributed_graph<float, empty> graph_type;
+  typedef graphlab::distributed_graph<float, graphlab::empty> graph_type;
   \endcode
 
   We use the the parfor_all_vertices to run a pagerank function on all vertices
@@ -130,7 +130,7 @@ the behavior of the  Warp System.
       ...
       for (int i = 0; i < NUM_ITER; ++i) {
         // runs the pagerank function on all the vertices in the graph.
-        warp::parfor_all_vertices(graph, pagerank); 
+        graphlab::warp::parfor_all_vertices(graph, pagerank); 
       }
       ...
     }
@@ -154,9 +154,9 @@ the behavior of the  Warp System.
 
     void pagerank(graph_type::vertex_type vertex) {
       // computes an aggregate over the neighborhood using map_reduce_neighborhood
-      vertex.data() = 0.15 + 0.85 * warp::map_reduce_neighborhood(vertex,
-                                                                  IN_EDGES,
-                                                                  pagerank_map);
+      vertex.data() = 0.15 + 0.85 * graphlab::warp::map_reduce_neighborhood(vertex,
+                                                                            IN_EDGES,
+                                                                            pagerank_map);
     }
 
   \endcode
@@ -165,12 +165,12 @@ the behavior of the  Warp System.
   \code
     void pagerank(graph_type::vertex_type vertex) {
     // computes an aggregate over the neighborhood using map_reduce_neighborhood
-    vertex.data() = 0.15 + 0.85 * warp::map_reduce_neighborhood(vertex,
-                                         IN_EDGES,
-                                         [](graph_type::edge_type edge, 
-                                             graph_type::vertex_type other) { 
-                                           return other.data() / other.num_out_edges();
-                                         });
+    vertex.data() = 0.15 + 0.85 * graphlab::warp::map_reduce_neighborhood(vertex,
+                                            IN_EDGES,
+                                            [](graph_type::edge_type edge, 
+                                                graph_type::vertex_type other) { 
+                                              return other.data() / other.num_out_edges();
+                                            });
     }
   \endcode
   It is important that the C++11 lambda represent
@@ -193,12 +193,12 @@ the behavior of the  Warp System.
 
     void pagerank(graph_type::vertex_type vertex) {
       // computes an aggregate over the neighborhood using map_reduce_neighborhood
-      vertex.data() = 0.15 + warp::map_reduce_neighborhood(vertex,
-                                                           IN_EDGES,
-                                                           float(0.85), // this argument will show up as 
-                                                                        // the 3rd argument in pagerank_map
-                                                           pagerank_map,
-                                                           combiner);
+      vertex.data() = 0.15 + graphlab::warp::map_reduce_neighborhood(vertex,
+                                       IN_EDGES,
+                                       float(0.85), // this argument will show up as 
+                                                    // the 3rd argument in pagerank_map
+                                       pagerank_map,
+                                       combiner);
     }
   \endcode
 
@@ -209,7 +209,7 @@ the behavior of the  Warp System.
    update function. Which is of the type
    \code
      void update_function(engine_type::context& context,
-                         graph_type::vertex_type vertex) {
+                          graph_type::vertex_type vertex) {
      }
    \endcode
 
@@ -225,14 +225,14 @@ the behavior of the  Warp System.
   Given a graph with a float on each vertex:
 
   \code
-  typedef distributed_graph<float, empty> graph_type;
+  typedef graphlab::distributed_graph<float, graphlab::empty> graph_type;
   \endcode 
 
   we first define the engine type
 
 
   \code
-  typedef warp::warp_engine<graph_type> engine_type;
+  typedef graphlab::warp::warp_engine<graph_type> engine_type;
   \endcode 
 
    Now PageRank can be written using the Warp Engine, by defining an update
@@ -244,7 +244,7 @@ the behavior of the  Warp System.
         return other.data() / other.num_out_edges();
       }
       
-      void signal_neighbor(warp_engine_type::context& context,
+      void signal_neighbor(engine_type::context& context,
                            graph_type::edge_type edge, graph_type::vertex_type other) {
         context.signal(other);
       }
@@ -257,13 +257,13 @@ the behavior of the  Warp System.
         float oldval = vertex.data();
 
         // compute the new pagerank using blocking warp function
-        vertex.data() = 0.15 + 0.85 * warp::map_reduce_neighborhood(vertex,
+        vertex.data() = 0.15 + 0.85 *graphlab::warp::map_reduce_neighborhood(vertex,
                                                                     IN_EDGES,
                                                                     pagerank_map);
 
         // Schedule out edges if we exceed tolerance.
         if (std::fabs(oldval - vertex.data()) > TOLERANCE) {
-          warp::broadcast_neighborhood(context,
+          graphlab::warp::broadcast_neighborhood(context,
                                        vertex,
                                        OUT_EDGES,
                                        signal_neighbor);
@@ -292,7 +292,7 @@ the behavior of the  Warp System.
     int main(int argc, char** argv) {
       ...
 
-      graphlab::warp_engine engine(dc, graph);
+      graphlab::warp::warp_engine<graph_type> engine(dc, graph);
       // sets the update function to use
       engine.set_update_function(pagerank_update_function);
       // signals all vertices to run. warp::warp_engine::signal_vset()
