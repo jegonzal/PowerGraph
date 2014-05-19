@@ -124,6 +124,10 @@ struct vertex_data
     
     bool schedule_vertex;      // Decides if vertex is to be scheduled for further iterations or not
     
+    vector<double> distribution_;
+    vector<int> active_set_;
+    vector<double> inverse_A_;
+    vector<pair<double, int> > last_sort_;
 
     vertex_data(): 
     nvars(0), factor_type(0), degree(0),
@@ -147,7 +151,8 @@ struct vertex_data
             >>primal_rel_contrib>>dual_res_contrib
             >>schedule_vertex>>factor_type
             >>budget>>bound_states
-            >>unary_degree;
+            >>unary_degree>>active_set_
+            >>inverse_A_>>last_sort_ ;
     }
     void save(graphlab::oarchive& arc) const 
     {
@@ -160,7 +165,8 @@ struct vertex_data
             <<primal_rel_contrib<<dual_res_contrib
             <<schedule_vertex<<factor_type
             <<budget<<bound_states
-            <<unary_degree;
+            <<unary_degree<<active_set_
+            <<inverse_A_<<last_sort_;
     }
 }; // end of vertex_data
 
@@ -933,6 +939,8 @@ struct admm_vertex_program:public dd_vertex_program {
             " in edges and " << vertex.num_out_edges() << " out edges" << endl; 
             }
             gather_type gatherdata(edata.local_messages);
+            //if(vertex.id() == 2 && context.iteration() %2 == 1){
+            //cout<<edata.local_messages;}
             return gatherdata; 
         } 
         else if(vdata.factor_type ==0){  
@@ -1021,6 +1029,7 @@ struct admm_vertex_program:public dd_vertex_program {
                 vec dual_res_contrib;
                 dual_res_contrib.setZero(vdata.cards[0]);
                 for(int i=0; i<vdata.cards[0]; i++){
+                   
                    dual_res_contrib[i] =  (total.messages[i] / static_cast<double>(vdata.unary_degree[i]))
                                                                                 - vdata.beliefs[i] ;
                    dual_res_contrib[i] = pow(dual_res_contrib[i],2); 
@@ -1034,6 +1043,7 @@ struct admm_vertex_program:public dd_vertex_program {
                 vdata.primal_rel_contrib = vdata.potentials.dot(vdata.beliefs);
             // Find primal contribution
                 vdata.primal_contrib = vdata.potentials[vdata.best_configuration];
+                
             }
         } 
         else{  
@@ -1059,10 +1069,11 @@ struct admm_vertex_program:public dd_vertex_program {
                 }
                 vdata.primal_res_contrib = primal_res_contrib.sum();
             // Compute QP subproblem solution
-                compute_beliefs(vertex, total, vdata.beliefs, vdata.factor_beliefs); 
+                compute_beliefs(vertex, total, vdata.beliefs, vdata.factor_beliefs);
             //Find primal contrib
+                if(vdata.factor_type == 0){
                 int conf_index = get_configuration_index(vertex, total.neighbor_conf);
-                vdata.primal_contrib = vdata.potentials[conf_index]; 
+                vdata.primal_contrib = vdata.potentials[conf_index]; }
             } 
           }
        }
