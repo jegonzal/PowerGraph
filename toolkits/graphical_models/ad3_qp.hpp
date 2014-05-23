@@ -358,8 +358,10 @@ void SolveQP_dense(vertex_type& vertex,const gather_type& total,
    vertex_data& vdata = vertex.data();                        
 
    vec additional_log_potentials = vdata.potentials;
-   vec variable_log_potentials = total.neighbor_distribution + total.messages;   
-
+   vec variable_log_potentials = total.neighbor_distribution + total.messages;      
+   //vector <Configuration> active_set_ = vdata.active_set_;
+   //vector<double> distribution_ = vdata.distribution_;
+   //vector<double> inverse_A_ = vdata.inverse_A_;
   // Initialize the active set.
   
    if (vdata.active_set_.size() == 0) {
@@ -368,7 +370,7 @@ void SolveQP_dense(vertex_type& vertex,const gather_type& total,
     vdata.distribution_.clear();
     // Initialize by solving the LP, discarding the quadratic
     // term.
-   Configuration configuration = -1;
+    Configuration configuration = -1;
     double value;
     Maximize(vertex, additional_log_potentials, variable_log_potentials,
              configuration,
@@ -395,7 +397,7 @@ void SolveQP_dense(vertex_type& vertex,const gather_type& total,
     if (changed_active_set) {
       // Recompute vector b.
       vector<double> b(vdata.active_set_.size() + 1, 0.0);
-     b[0] = 1.0;
+      b[0] = 1.0;
       for (int i = 0; i < vdata.active_set_.size(); ++i) {
         const Configuration &configuration = vdata.active_set_[i];
         double score;
@@ -445,7 +447,7 @@ void SolveQP_dense(vertex_type& vertex,const gather_type& total,
       if (value <= tau + very_small_threshold) { // value <= tau.
         // We have found the solution;
         // the distribution, active set, and inv(A) are cached for the next round.
-        //DeleteConfiguration(&configuration);
+        //DeleteConfiguration(configuration);
         return;
       } else {
         for (int k = 0; k < vdata.active_set_.size(); ++k) {
@@ -464,17 +466,15 @@ void SolveQP_dense(vertex_type& vertex,const gather_type& total,
             // We have found the solution;
             // the distribution, active set, and inv(A)
             // are cached for the next round.
-            //DeleteConfiguration(&configuration);
+            //DeleteConfiguration(configuration);
 
             // Just in case, clean the cache.
             // This may prevent eventual numerical problems in the future.
-            vector <Configuration*> configuration; 
             for (int j = 0; j < vdata.active_set_.size(); ++j) {
               if (j == k) continue; // This configuration was deleted already.
-              configuration.push_back(&(vdata.active_set_[j]));
+              //DeleteConfiguration(active_set_[j]);
             }
             vdata.active_set_.clear();
-            //DeleteConfiguration(configuration);
             vdata.inverse_A_.clear();
             vdata.distribution_.clear();
 
@@ -500,9 +500,9 @@ void SolveQP_dense(vertex_type& vertex,const gather_type& total,
           // Maybe some specialized graph algorithm is cheaper than doing
           // the eigendecomposition.
           vector<double> similarities(vdata.active_set_.size() * vdata.active_set_.size());
-          ComputeActiveSetSimilarities(vertex, vdata.active_set_, &similarities);
+          ComputeActiveSetSimilarities(vertex,vdata.active_set_, &similarities);
           
-          
+          //cout<<"compute active similarities in solveQP .."<<endl;
           vector<double> padded_similarities((vdata.active_set_.size()+2) * 
                                              (vdata.active_set_.size()+2), 1.0);
           for (int i = 0; i < vdata.active_set_.size(); ++i) {
@@ -539,12 +539,10 @@ void SolveQP_dense(vertex_type& vertex,const gather_type& total,
                      << eigenvalues[i] << endl;
                 cout << "Warning: Giving up." << endl;
                 // Clean the cache.
-                vector <Configuration*> configuration;
                 for (int j = 0; j < vdata.active_set_.size(); ++j) {
-                 configuration.push_back(&(vdata.active_set_[j]));
+                  //DeleteConfiguration(active_set_[j]);
                 }
                 vdata.active_set_.clear();
-                //DeleteConfiguration(configuration);
                 vdata.inverse_A_.clear();
                 vdata.distribution_.clear();
                 return;
@@ -572,10 +570,10 @@ void SolveQP_dense(vertex_type& vertex,const gather_type& total,
           InvertAfterRemoval(vdata.inverse_A_, vdata.active_set_, j);
 
           // Remove blocking constraint from the active set.
-          Configuration *configuration = &(vdata.active_set_[j]);
+          //DeleteConfiguration(active_set_[j]); // Delete configutation.
           vdata.active_set_.erase(vdata.active_set_.begin() + j);
-          //DeleteConfiguration(configuration); // Delete configutation.
-          singular = !InvertAfterInsertion(vertex, vdata.inverse_A_, vdata.active_set_, *configuration);
+
+          singular = !InvertAfterInsertion(vertex, vdata.inverse_A_, vdata.active_set_, configuration);
           assert(!singular);
         }
 
@@ -630,10 +628,10 @@ void SolveQP_dense(vertex_type& vertex,const gather_type& total,
           cout << "Removed one element to the active set (iteration "
                << iter << ")." << endl;
         }
-        Configuration *configuration = &(vdata.active_set_[blocking]);
-        // Delete configuration.
+
+        //DeleteConfiguration(active_set_[blocking]); // Delete configutation.
         vdata.active_set_.erase(vdata.active_set_.begin() + blocking);
-        //DeleteConfiguration(configuration);
+
         z.erase(z.begin() + blocking);
         vdata.distribution_.erase(vdata.distribution_.begin() + blocking);
         changed_active_set = true;
@@ -643,19 +641,20 @@ void SolveQP_dense(vertex_type& vertex,const gather_type& total,
       }
     }
   }
-   
+
   // Maximum number of iterations reached.
   // Return the best existing solution by computing the variable marginals 
   // from the full distribution stored in z.
   //assert(false);
-
   ComputeMarginalsFromSparseDistribution(vertex, vdata.active_set_,
                                          z,
                                          variable_posteriors,
-                                         additional_posteriors);
+                                         additional_posteriors); 
+   //vdata.active_set_ = active_set_;
+   //vdata.distribution_ = distribution_;
+   //vdata.inverse_A_ = inverse_A_;
 
   }
-  
   
   void InsertionSort(pair<double, int> arr[], int length) {
   int i, j;
