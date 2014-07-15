@@ -52,25 +52,34 @@ public:
 	double local_value;
 	double total;
 	long count;
+	int edge_count;
 
 	PrestigeAnalysisNode(){
 		local_value=0.0;
 		total=0.0;
 		count=0;
+		edge_count=-1;
 	}
 
 	void save(graphlab::orchive& oarc) const {
-		oarc << djikstra_pieces << local_value << total << count;
+		oarc << djikstra_pieces << local_value << total << count << launched << done;
 	}
 
 	void load(graphlab::iarchive& iarc) {
-		iarc >> djikstra_pieces >> local_value >> total >> count;
+		iarc >> djikstra_pieces >> local_value >> total >> count >> launched >> done;
 	}
 };
 
 class Gather {
 	long id;
 	double cost;
+	int edge_count;
+	
+	Gather(){
+		id=0;
+		cost=0.0;
+		edge_count=1;
+	}
 
 	Gather& operator+=(const Gather& other){
 		if(other.id < 0){
@@ -80,14 +89,22 @@ class Gather {
 			return *this;
 		}		
 		if (cost <= other.cost){
+			this.edge_count++;
 			return *this;
 		}
+		other.edge_count += this->edge_count;
 		return *other;
 	}
 };
 
 class GatherMultiTree {
+public:
 	map<long,Gather> content;
+	int edge_count;
+
+	GatherMultiTree(){
+		edge_count=0;
+	}
 
 	GatherMultiTree& operator+=(const GatherMultiTree& other){
 		return *this;	
@@ -142,6 +159,7 @@ class DjikstraAlgorithm :
 			double c = edge_type.data() + edge.source().data().cost;
 			g.cost = c;
 			g.id = edge.source().data().id;
+			g.edge_count = 1;
 		}else{
 			g.id=0;
 		}
@@ -150,10 +168,11 @@ class DjikstraAlgorithm :
     }
 
     void apply(icontext_type& context, vertex_type& vertex, const gather_type& total) {
-	for(iter *){
+	for(iter*){
 		long key = 0;
 		if(vertex.data()[key].launched = false){
 			vertex.data()[key].launched = true;
+			vertex.data().edge_count = total.data().edge_count;
       			if(vertex.data()[key].cost > total.data().cost){
 				vertex.data()[key].cost = total.data().cost;
 				vertex.data()[key].id = total.data().id;
@@ -162,6 +181,15 @@ class DjikstraAlgorithm :
 			}
       		}else{
 			vertex.data()[key].done = true;
+		}
+	}
+	for(iter*){
+		long key = 0;
+		if(!vertex.data().contains(key)){
+			vertex.data()[key].launched = true;
+			vertex.data().edge_count = total.data().edge_count;
+			vertex.data()[key].cost = total.data().cost;
+			vertex.data()[key].id = total.data().cost;
 		}
 	}
     }
