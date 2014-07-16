@@ -12,19 +12,21 @@ public:
     iarc >> counts >> active;
   }
 
-  BetweenessGather& operator+=(const& BetwenesisGather gather){
-	for(iter*){
-                long key = 0;
-        	this.counts[key] += gather.counts[key];
-		this.edge_count[key] += gather.edge_count[key];
+  BetweenessGather& operator+=(const BetweenessGather& gather){
+    for(std::map<long, long>::const_iterator iter = this->counts.begin();
+        iter != this->counts.end(); ++iter ){
+                long key = *iter;
+                this.counts[key] += gather.counts[key];
+                this.edge_count[key] += gather.edge_count[key];
 	}
-        for(iter*){
-                long key = 0;
+    for(std::map<long, long>::const_iterator iter = this->gather.begin();
+            iter != this->gather.end(); ++iter){
+                long key = *iter;
                 if(this.counts.contains(key)){
                         this.counts[key] = gather.counts[key];
-			this.edge_count[key] = gather.edge_count[key];
+                        this.edge_count[key] = gather.edge_count[key];
                 }
-        }
+    }
 	return this;
 	
 };
@@ -43,19 +45,21 @@ class BetweennessAlgorithm :
 
     gather_type gather(icontext_type& context, const vertex_type& vertex, edge_type& edge) const {
 	BetweenessGather g;
-	for(iter*){
-		long key=0;
+    for(std::map<long, PrestigeNode>::const_iterator iter = vertex.data().map.begin();
+        iter != this->vertex.data().map.end(); ++iter){
+        long key=*iter;
 		if(edge.source().launched == true){
 			g.map[key] = edge.source().data().map[key].count;
 			g.count = 1;
 		}
 	}
-	return *g;	
+    return g;
     }
 
     void apply(icontext_type& context, vertex_type& vertex, const gather_type& total) {
-	for(iter *){
-		long key = 0;
+    for(std::map<long, PrestigeNode>::const_iterator iter = vertex.data().map.begin();
+        iter != this->counts.end(); ++iter){
+        long key = *iter;
 		if((vertex.data()[key].launched == true)&&(vertex.data()[key].done == false)&&(vertex.data()[key].count==total.edge_count[key])){
 			vertex.data()[key].launched = true;
 			vertex.data()[key].count = total[key].count;
@@ -66,8 +70,9 @@ class BetweennessAlgorithm :
     edge_dir_type scatter_edges(icontext_type& context, const vertex_type& vertex) const {
       // if vertex data changes, scatter to all edges.
      	bool done = true;
-	for(iter* ){
-		long key = 0;
+    for(std::map<long, PrestigeNode>::const_iterator iter = vertex.data().map.begin();
+        iter != vertex.data().map.end(); ++iter){
+        long key = *iter;
 		if(vertex_type.data()[key].launched && !vertex_type.data()[key].done){ 
         		done = false;
       		}
@@ -80,11 +85,12 @@ class BetweennessAlgorithm :
     }
 
     void scatter(icontext_type& context, const vertex_type& vertex, edge_type& edge) const {
-        for(iter* ){
-                long key = 0;
+        for(std::map<long, PrestigeNode>::const_iterator iter = vertex.data().map.begin();
+            iter != vertex.data().map.end(); ++iter){
+                long key = *iter;
                 if((vertex.data()[key].done == false) && (vertex.data()[key].launched == true)){
                         context.signal(edge.target());
-			vertex.data().map[key].done = true;
+                        vertex.data().map[key].done = true;
                 }
         }
   };
