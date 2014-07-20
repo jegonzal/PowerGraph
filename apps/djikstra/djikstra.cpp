@@ -1,5 +1,5 @@
 /*  
- * Copyright (c) 2009 Carnegie Mellon University. 
+ * Copyright (c) 2014 Daniel McEnnis.
  *     All rights reserved.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,7 +16,7 @@
  *
  * For more about this software visit:
  *
- *      http://www.graphlab.ml.cmu.edu
+ *      https://www.github.com/dmcennis/graphlab
  *
  */
 
@@ -38,17 +38,17 @@ public:
 	}
 
   void save(graphlab::oarchive& oarc) const {
-    oarc << seen << sent << best_in << cost_in << ;
+    oarc << id << cost << launched << done;
   }
 
   void load(graphlab::iarchive& iarc) {
-    iarc >> cost_in >> best_in >> sent >> seen;
+    iarc >> id >> cost >> launched >> done;
   }
 };
 
 class PrestigeAnalysisNode {
 public:
-	map<long,DjikstraNode> djikstra_pieces;
+    std::map<long,DjikstraNode> djikstra_pieces;
 	double local_value;
 	double total;
 	long count;
@@ -61,16 +61,17 @@ public:
 		edge_count=-1;
 	}
 
-	void save(graphlab::orchive& oarc) const {
-		oarc << djikstra_pieces << local_value << total << count << launched << done;
+    void save(graphlab::oarchive& oarc) const {
+        oarc << djikstra_pieces << local_value << total << count << edge_count;
 	}
 
 	void load(graphlab::iarchive& iarc) {
-		iarc >> djikstra_pieces >> local_value >> total >> count >> launched >> done;
+        iarc >> djikstra_pieces >> local_value >> total >> count >> edge_count;
 	}
 };
 
 class Gather {
+public:
 	long id;
 	double cost;
 	int edge_count;
@@ -85,21 +86,31 @@ class Gather {
 		if(other.id < 0){
 			return *this;
 		}
-		if(this.id < 0){
+        if(this->id < 0){
 			return *this;
 		}		
 		if (cost <= other.cost){
-			this.edge_count++;
+            this->edge_count++;
 			return *this;
 		}
-		other.edge_count += this->edge_count;
-		return *other;
+        this->edge_count += other.edge_count;
+        return *this;
 	}
+
+
+    void save(graphlab::oarchive& oarc) const {
+       oarc << id << cost << edge_count;
+     }
+
+     void load(graphlab::iarchive& iarc) {
+       iarc >> id >> cost >> edge_count;
+     }
+
 };
 
 class GatherMultiTree {
 public:
-	map<long,Gather> content;
+    std::map<long,Gather> content;
 	int edge_count;
 
 	GatherMultiTree(){
@@ -109,6 +120,14 @@ public:
 	GatherMultiTree& operator+=(const GatherMultiTree& other){
 		return *this;	
 	}
+
+    void save(graphlab::oarchive& oarc) const {
+        oarc << content << edge_count;
+    }
+
+    void load(graphlab::iarchive& iarc) {
+        iarc >> content >> edge_count;
+    }
 };
 
 // The vertex data is its label 
@@ -117,28 +136,58 @@ typedef PrestigeAnalysisNode vertex_data_type;
 typedef GatherMultiTree gather_type;
  
 // The graph type is determined by the vertex and edge data types
-typedef graphlab::distributed_graph<PrestigeAnaylsisNode, double> graph_type;
+typedef graphlab::distributed_graph<vertex_data_type, double> graph_type;
 
-bool line_parser(graph_type& graph, const std::string& filename, const std::string& textline) {
-  std::stringstream strm(textline);
-  graphlab::vertex_id_type vid;
-  std::string label;
-  // first entry in the line is a vertex ID
-  strm >> vid;
-  strm >> label;
-  // insert this vertex with its label 
-  graph.add_vertex(vid, label);
-  // while there are elements in the line, continue to read until we fail
-  while(1){
-    graphlab::vertex_id_type other_vid;
-    strm >> other_vid;
-    if (strm.fail())
-      break;
-    graph.add_edge(vid, other_vid);
+//bool line_parser(graph_type& graph, const std::string& filename, const std::string& textline) {
+//  std::stringstream strm(textline);
+//  graphlab::vertex_id_type vid;
+//  std::string label;
+//  // first entry in the line is a vertex ID
+//  strm >> vid;
+//  strm >> label;
+//  // insert this vertex with its label
+//  graph.add_vertex(vid, label);
+//  // while there are elements in the line, continue to read until we fail
+//  while(1){
+//    graphlab::vertex_id_type other_vid;
+//    strm >> other_vid;
+//    if (strm.fail())
+//      break;
+//    graph.add_edge(vid, other_vid);
+//  }
+
+//  return true;
+//}
+
+class ClearBooleans :
+        public graphlab::ivertex_program<graph_type, gather_type>,
+        public graphlab::IS_POD_TYPE {
+public:
+  edge_dir_type gather_edges(icontext_type& context, const vertex_type& vertex) const {
+    return graphlab::NO_EDGES;
   }
 
-  return true;
-}
+  gather_type gather(icontext_type& context, const vertex_type& vertex, edge_type& edge) const {
+        GatherMultiTree g;
+        return g;
+  }
+
+  void apply(icontext_type& context, vertex_type& vertex, const gather_type& total) {
+      for(std::map<long, DjikstraNode>::const_iterator iter = vertex.data().djikstra_pieces.begin();
+          iter != vertex.data().djikstra_pieces.end(); ++iter){
+          long key = iter->first;
+          vertex.data().djikstra_pieces[key].launched = false;
+          vertex.data().djikstra_pieces[key].done = false;
+      }
+  }
+
+  edge_dir_type scatter_edges(icontext_type& context, const vertex_type& vertex) const {
+          return graphlab::NO_EDGES;
+  }
+
+  void scatter(icontext_type& context, const vertex_type& vertex, edge_type& edge) const {
+  }
+};
 
 
 class DjikstraAlgorithm :
@@ -152,81 +201,91 @@ class DjikstraAlgorithm :
     }
 
     gather_type gather(icontext_type& context, const vertex_type& vertex, edge_type& edge) const {
-	Gather g;
-	for(iter*){
-		long key=0;
-		if((edge.source().launched == true)&&(edge.source().done == false)){
-			double c = edge_type.data() + edge.source().data().cost;
-			g.cost = c;
-			g.id = edge.source().data().id;
-			g.edge_count = 1;
-		}else{
-			g.id=0;
-		}
-		return *g;	
-	}
+    Gather g;
+    GatherMultiTree tree;
+        for(std::map<long, DjikstraNode>::const_iterator iter = vertex.data().djikstra_pieces.begin();
+            iter != vertex.data().djikstra_pieces.end(); ++iter){
+            long key=iter->first;
+            if((edge.source().data().djikstra_pieces[key].launched == true)&&
+                    (edge.source().data().djikstra_pieces[key].done == false)){
+                double c = edge.data() + edge.source().data().djikstra_pieces[key].cost;
+                g.cost = c;
+                g.id = edge.source().data().djikstra_pieces[key].id;
+                g.edge_count = 1;
+                tree.content[key] = g;
+            }else{
+                g.id=0;
+            }
+        }
     }
 
     void apply(icontext_type& context, vertex_type& vertex, const gather_type& total) {
-	for(iter*){
-		long key = 0;
-		if(vertex.data()[key].launched = false){
-			vertex.data()[key].launched = true;
-			vertex.data().edge_count = total.data().edge_count;
-      			if(vertex.data()[key].cost > total.data().cost){
-				vertex.data()[key].cost = total.data().cost;
-				vertex.data()[key].id = total.data().id;
-      			}else{
-				vertex.data()[key].done = true;
-			}
+        for(std::map<long, DjikstraNode>::const_iterator iter = vertex.data().djikstra_pieces.begin();
+            iter != vertex.data().djikstra_pieces.end(); ++iter){
+            long key = iter->first;
+            if(vertex.data().djikstra_pieces[key].launched = false){
+                vertex.data().djikstra_pieces[key].launched = true;
+                vertex.data().edge_count = total.edge_count;
+                    if(vertex.data().djikstra_pieces[key].cost > total.content.find(key)->second.cost){
+                    vertex.data().djikstra_pieces[key].cost = total.content.find(key)->second.cost;
+                    vertex.data().djikstra_pieces[key].id = total.content.find(key)->second.id;
+                    }else{
+                    vertex.data().djikstra_pieces[key].done = true;
+                    }
       		}else{
-			vertex.data()[key].done = true;
-		}
-	}
-	for(iter*){
-		long key = 0;
-		if(!vertex.data().contains(key)){
-			vertex.data()[key].launched = true;
-			vertex.data().edge_count = total.data().edge_count;
-			vertex.data()[key].cost = total.data().cost;
-			vertex.data()[key].id = total.data().cost;
-		}
-	}
+                vertex.data().djikstra_pieces[key].done = true;
+            }
+        }
+        for(std::map<long, DjikstraNode>::const_iterator iter = vertex.data().djikstra_pieces.begin();
+            iter != vertex.data().djikstra_pieces.end(); ++iter){
+            long key = iter->first;
+            if(vertex.data().djikstra_pieces.find(key)==vertex.data().djikstra_pieces.end()){
+                vertex.data().djikstra_pieces[key].launched = true;
+                vertex.data().edge_count = total.edge_count;
+                vertex.data().djikstra_pieces[key].cost = total.content.find(key)->second.cost;
+                vertex.data().djikstra_pieces[key].id = total.content.find(key)->second.id;
+            }
+        }
     }
 
     edge_dir_type scatter_edges(icontext_type& context, const vertex_type& vertex) const {
       // if vertex data changes, scatter to all edges.
      	bool done = true;
-	for(iter* ){
-		long key = 0;
-		if(vertex_type.data()[key].launched && !vertex_type.data()[key].done){ 
+        for(std::map<long, DjikstraNode>::const_iterator iter = vertex.data().djikstra_pieces.begin();
+            iter != vertex.data().djikstra_pieces.end(); ++iter){
+            long key = iter->first;
+            if(vertex.data().djikstra_pieces.find(key)->second.launched &&
+                    !vertex.data().djikstra_pieces.find(key)->second.done){
         		done = false;
       		}
-	}
-	if(!done){
-		return graphlab::OUT_EDGES;
-	}else{
-		return graphlab::NO_EDGES;
-	}
+        }
+        if(!done){
+            return graphlab::OUT_EDGES;
+        }else{
+            return graphlab::NO_EDGES;
+        }
     }
 
     void scatter(icontext_type& context, const vertex_type& vertex, edge_type& edge) const {
-	for(iter* ){
-		long key = 0;
-		if((vertex.data()[key].done == false) && (vertex.data()[key].launched == true)){
+    for(std::map<long, DjikstraNode>::const_iterator iter = vertex.data().djikstra_pieces.begin();
+        iter != vertex.data().djikstra_pieces.end(); ++iter){
+        long key = iter->first;
+        if((vertex.data().djikstra_pieces.find(key)->second.done == false) &&
+                (vertex.data().djikstra_pieces.find(key)->second.launched == true)){
       			context.signal(edge.target()); 
     		}
 	}	
-  };
-
-struct labelpropagation_writer {
-  std::string save_vertex(graph_type::vertex_type v) {
-    std::stringstream strm;
-    strm << v.id() << "\t" << v.data() << "\n";
-    return strm.str();
   }
-  std::string save_edge (graph_type::edge_type e) { return ""; }
 };
+
+//struct labelpropagation_writer {
+//  std::string save_vertex(graph_type::vertex_type v) {
+//    std::stringstream strm;
+//    strm << v.id() << "\t" << v.data() << "\n";
+//    return strm.str();
+//  }
+//  std::string save_edge (graph_type::edge_type e) { return ""; }
+//};
 
 
 int main(int argc, char** argv) {
@@ -260,7 +319,7 @@ int main(int argc, char** argv) {
   // Build the graph ----------------------------------------------------------
   graph_type graph(dc);
   dc.cout() << "Loading graph using line parser" << std::endl;
-  graph.load(graph_dir, line_parser);
+//  graph.load(graph_dir, line_parser);
   // must call finalize before querying the graph
   graph.finalize();
 
@@ -274,12 +333,12 @@ int main(int argc, char** argv) {
   const float runtime = engine.elapsed_seconds();
   dc.cout() << "Finished Running engine in " << runtime << " seconds." << std::endl;
 
-  if (saveprefix != "") {
-    graph.save(saveprefix, labelpropagation_writer(),
-       false,  // do not gzip
-       true,   //save vertices
-       false); // do not save edges 
-  }
+//  if (saveprefix != "") {
+//    graph.save(saveprefix, labelpropagation_writer(),
+//       false,  // do not gzip
+//       true,   //save vertices
+//       false); // do not save edges
+//  }
   
 
   graphlab::mpi_tools::finalize();
