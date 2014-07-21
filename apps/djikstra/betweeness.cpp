@@ -283,7 +283,13 @@ class DjikstraAlgorithm :
 struct djikstra_writer {
   std::string save_vertex(graph_type::vertex_type v) {
     std::stringstream strm;
-    strm << v.id() << "\n";
+    strm << v.id() << "\t";
+    double value = 0.0;
+    for(std::map<long,DjikstraNode>::const_iterator iter = v.data().djikstra_pieces.begin();
+        iter != v.data().djikstra_pieces.end();++iter){
+        value += iter->second.cost;
+    }
+    strm << value << std::endl;
     return strm.str();
   }
   std::string save_edge (graph_type::edge_type e) { return ""; }
@@ -336,10 +342,9 @@ public:
 
 };
 
-typedef BetweenessGather gather_type;
 
-class BetweennessAlgorithm :
-  public graphlab::ivertex_program<graph_type, gather_type>,
+class BetweenessAlgorithm :
+  public graphlab::ivertex_program<graph_type, BetweenessGather>,
   public graphlab::IS_POD_TYPE {
     bool changed;
 
@@ -348,14 +353,14 @@ class BetweennessAlgorithm :
       return graphlab::IN_EDGES;
     }
 
-    gather_type gather(icontext_type& context, const vertex_type& vertex, edge_type& edge) const {
+    BetweenessGather gather(icontext_type& context, const vertex_type& vertex, edge_type& edge) const {
 	BetweenessGather g;
     for(std::map<long, DjikstraNode>::const_iterator iter = vertex.data().djikstra_pieces.begin();
         iter != vertex.data().djikstra_pieces.end(); ++iter){
         long key= iter->first;
         if(edge.target().data().djikstra_pieces[key].id == vertex.id()){
             if(edge.source().data().djikstra_pieces[key].launched == true){
-                g.counts[key] = (long)edge.source().data().djikstra_pieces[key].cost;
+                g.counts[key] = edge.source().data().djikstra_pieces[key].cost;
                 g.edge_count[key] = 1;
             }
         }
@@ -363,7 +368,7 @@ class BetweennessAlgorithm :
     return g;
     }
 
-    void apply(icontext_type& context, vertex_type& vertex, const gather_type& total) {
+    void apply(icontext_type& context, vertex_type& vertex, const BetweenessGather& total) {
         for(std::map<long, DjikstraNode>::const_iterator iter = vertex.data().djikstra_pieces.begin();
                 iter != vertex.data().djikstra_pieces.end(); ++iter){
             long key = iter->first;
@@ -408,7 +413,7 @@ class BetweennessAlgorithm :
     }
 };
 
-int main (char** argv){
+int main (int argc, char** argv){
     // Initialize control plain using mpi
     graphlab::mpi_tools::init(argc, argv);
     graphlab::distributed_control dc;
@@ -455,10 +460,14 @@ int main (char** argv){
     graphlab::omni_engine<ClearBooleans> engine2(dc,graph,execution_type,clopts);
     engine2.signal_all();
     engine2.start();
+    const float runtime2 = engine.elapsed_seconds();
+    dc.cout() << "Finished resetting graph engine in " << runtime2 << " seconds." << std::endl;
 
-    graphlab::omni_engine<BetweennessAlgorithm> engine3(dc,graph,execution_type,clopts);
+    graphlab::omni_engine<BetweenessAlgorithm> engine3(dc,graph,execution_type,clopts);
     engine3.signal_all();
     engine3.start();
+    const float runtime3 = engine.elapsed_seconds();
+    dc.cout() << "Finished Betweeness engine in " << runtime3 << " seconds." << std::endl;
 
     if (saveprefix != "") {
       graph.save(saveprefix, djikstra_writer(),
