@@ -25,7 +25,7 @@
 
 class DjikstraNode {
 public:
-    long id;
+    unsigned long id;
     double cost;
     bool launched;
     bool done;
@@ -219,13 +219,14 @@ class DjikstraAlgorithm :
                 g.id=0;
             }
         }
+	return tree;
     }
 
     void apply(icontext_type& context, vertex_type& vertex, const gather_type& total) {
         for(std::map<long, DjikstraNode>::const_iterator iter = vertex.data().djikstra_pieces.begin();
             iter != vertex.data().djikstra_pieces.end(); ++iter){
             long key = iter->first;
-            if(vertex.data().djikstra_pieces[key].launched = false){
+            if(vertex.data().djikstra_pieces[key].launched == false){
                 vertex.data().djikstra_pieces[key].launched = true;
                 vertex.data().edge_count = total.edge_count;
                     if(vertex.data().djikstra_pieces[key].cost > total.content.find(key)->second.cost){
@@ -374,6 +375,7 @@ class BetweenessAlgorithm :
             long key = iter->first;
             if(total.edge_count.find(key)->second==0){
                 vertex.data().djikstra_pieces[key].launched = true;
+		vertex.data().djikstra_pieces[key].cost = 1.0;
             }
             if((vertex.data().djikstra_pieces[key].launched == true)&&
                     (vertex.data().djikstra_pieces[key].done == false)&&
