@@ -20,7 +20,7 @@
  *
  */
 
-
+#include <stdlib.h>
 #include <graphlab.hpp>
 
 class DjikstraNode {
@@ -138,26 +138,27 @@ typedef GatherMultiTree gather_type;
 // The graph type is determined by the vertex and edge data types
 typedef graphlab::distributed_graph<vertex_data_type, double> graph_type;
 
-//bool line_parser(graph_type& graph, const std::string& filename, const std::string& textline) {
-//  std::stringstream strm(textline);
-//  graphlab::vertex_id_type vid;
-//  std::string label;
-//  // first entry in the line is a vertex ID
-//  strm >> vid;
-//  strm >> label;
-//  // insert this vertex with its label
-//  graph.add_vertex(vid, label);
-//  // while there are elements in the line, continue to read until we fail
-//  while(1){
-//    graphlab::vertex_id_type other_vid;
-//    strm >> other_vid;
-//    if (strm.fail())
-//      break;
-//    graph.add_edge(vid, other_vid);
-//  }
+bool line_parser(graph_type& graph, const std::string& filename, const std::string& textline) {
+  std::stringstream strm(textline);
+  graphlab::vertex_id_type vid;
+  // first entry in the line is a vertex ID
+  strm >> vid;
+  PrestigeAnalysisNode node;
+  // insert this vertex with its label
+  graph.add_vertex(vid, node);
+  // while there are elements in the line, continue to read until we fail
+  double edge_val=1.0;
+  while(1){
+    graphlab::vertex_id_type other_vid;
+    strm >> other_vid;
+    strm >> edge_val;
+    if (strm.fail())
+      break;
+    graph.add_edge(vid, other_vid,edge_val);
+  }
 
-//  return true;
-//}
+  return true;
+}
 
 class ClearBooleans :
         public graphlab::ivertex_program<graph_type, gather_type>,
@@ -178,6 +179,7 @@ public:
           long key = iter->first;
           vertex.data().djikstra_pieces[key].launched = false;
           vertex.data().djikstra_pieces[key].done = false;
+          vertex.data().djikstra_pieces[key].cost = 0.0;
       }
   }
 
@@ -278,14 +280,25 @@ class DjikstraAlgorithm :
   }
 };
 
-//struct labelpropagation_writer {
-//  std::string save_vertex(graph_type::vertex_type v) {
-//    std::stringstream strm;
-//    strm << v.id() << "\t" << v.data() << "\n";
-//    return strm.str();
-//  }
-//  std::string save_edge (graph_type::edge_type e) { return ""; }
-//};
+struct djikstra_writer {
+  std::string save_vertex(graph_type::vertex_type v) {
+    std::stringstream strm;
+    strm << v.id() << "\n";
+    return strm.str();
+  }
+  std::string save_edge (graph_type::edge_type e) { return ""; }
+};
+
+size_t num_vertices = 3000;
+
+bool selectVertices(const graph_type::vertex_type& vertex){
+    float r = ((float)random()) / ((float)RAND_MAX);
+    std::cout << "Random seed is " << r << std::endl;
+    if(r < (3000.0 / num_vertices)){
+          return true;
+    }
+    return false;
+}
 
 
 int main(int argc, char** argv) {
@@ -319,28 +332,27 @@ int main(int argc, char** argv) {
   // Build the graph ----------------------------------------------------------
   graph_type graph(dc);
   dc.cout() << "Loading graph using line parser" << std::endl;
-//  graph.load(graph_dir, line_parser);
-  // must call finalize before querying the graph
-  graph.finalize();
 
   dc.cout() << "#vertices: " << graph.num_vertices() << " #edges:" << graph.num_edges() << std::endl;
 
   graphlab::omni_engine<DjikstraAlgorithm> engine(dc, graph, execution_type, clopts);
 
-  engine.signal_all();
+  num_vertices = graph.num_vertices();
+  graphlab::vertex_set start_set = graph.select(selectVertices);
+  engine.signal_vset(start_set);
   engine.start();
 
   const float runtime = engine.elapsed_seconds();
   dc.cout() << "Finished Running engine in " << runtime << " seconds." << std::endl;
 
-//  if (saveprefix != "") {
-//    graph.save(saveprefix, labelpropagation_writer(),
-//       false,  // do not gzip
-//       true,   //save vertices
-//       false); // do not save edges
-//  }
+  if (saveprefix != "") {
+    graph.save(saveprefix, djikstra_writer(),
+       false,  // do not gzip
+       true,   //save vertices
+       false); // do not save edges
+  }
   
 
-  graphlab::mpi_tools::finalize();
+//  graphlab::mpi_tools::finalize();
   return EXIT_SUCCESS;
 }
