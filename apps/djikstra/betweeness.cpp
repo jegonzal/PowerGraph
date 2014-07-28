@@ -21,6 +21,7 @@
  */
 
 #include <stdlib.h>
+#include <math.h>
 #include <graphlab.hpp>
 
 class DjikstraNode {
@@ -288,7 +289,9 @@ struct djikstra_writer {
     double value = 0.0;
     for(std::map<long,DjikstraNode>::const_iterator iter = v.data().djikstra_pieces.begin();
         iter != v.data().djikstra_pieces.end();++iter){
-        value += iter->second.cost;
+        if(iter->first != v.id()){
+            value += iter->second.cost;
+        }
     }
     strm << value << std::endl;
     return strm.str();
@@ -375,13 +378,13 @@ class BetweenessAlgorithm :
             long key = iter->first;
             if(total.edge_count.find(key)->second==0){
                 vertex.data().djikstra_pieces[key].launched = true;
-		vertex.data().djikstra_pieces[key].cost = 1.0;
+                vertex.data().djikstra_pieces[key].cost = 0.0;
             }
             if((vertex.data().djikstra_pieces[key].launched == true)&&
                     (vertex.data().djikstra_pieces[key].done == false)&&
                     (((long)vertex.data().djikstra_pieces[key].cost)==total.edge_count.find(key)->second)){
                 vertex.data().djikstra_pieces[key].done = true;
-                vertex.data().djikstra_pieces[key].cost = (double)total.edge_count.find(key)->second;
+                vertex.data().djikstra_pieces[key].cost = fmax(1.0,(double)total.edge_count.find(key)->second);
             }
         }
     }

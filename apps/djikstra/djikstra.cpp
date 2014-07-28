@@ -284,7 +284,12 @@ class DjikstraAlgorithm :
 struct djikstra_writer {
   std::string save_vertex(graph_type::vertex_type v) {
     std::stringstream strm;
-    strm << v.id() << "\n";
+    strm << v.id();
+    for(std::map<long, DjikstraNode>::const_iterator iter = v.data().djikstra_pieces.begin();
+        iter != v.data().djikstra_pieces.end(); ++iter){
+        long key = iter->first;
+        strm << "\t" << key << "\t" << iter->second.id;
+    }
     return strm.str();
   }
   std::string save_edge (graph_type::edge_type e) { return ""; }
