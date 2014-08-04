@@ -338,6 +338,7 @@ int main(int argc, char** argv) {
   // Build the graph ----------------------------------------------------------
   graph_type graph(dc);
   dc.cout() << "Loading graph using line parser" << std::endl;
+  graph.load(graph_dir, line_parser);
 
   dc.cout() << "#vertices: " << graph.num_vertices() << " #edges:" << graph.num_edges() << std::endl;
 
