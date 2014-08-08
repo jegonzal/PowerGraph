@@ -24,9 +24,20 @@
 #include <math.h>
 #include <graphlab.hpp>
 
+/*
+ * Djikstra Graph Node Class
+ *
+ * This class contains the information about a single graphlab node.
+ * id - current best path's previous node id - next node on path to root
+ * cost - current cost of the path to route by the current route: Note - this
+ *       can become inaccurate in the course of calculations and must be recalculated
+ *       by traversing the shortest path tree to get an accurate result.
+ * launched - has execution of this node been sheduled
+ * done - has execution of this node been completed
+ */
 class DjikstraNode {
 public:
-    unsigned long id;
+    long id;
     double cost;
     bool launched;
     bool done;
@@ -47,6 +58,13 @@ public:
   }
 };
 
+/*
+ * PrestigeAnalysisNode
+ * Graph Node class for running multiple djikstra tree algorithms simultaneously
+ * Contains a map of node id's to DjikstraNode instances
+ * bookkeeping components
+ *
+ */
 class PrestigeAnalysisNode {
 public:
     std::map<long,DjikstraNode> djikstra_pieces;
@@ -71,9 +89,16 @@ public:
     }
 };
 
+/*
+ * Gather class for the Djikstra algorithm.
+ * id: node id of the incoming edge's other end
+ * cost: shortest path cost at the time this node gathers its edges
+ * edge_count: a count of gathered edges
+ *
+ */
 class Gather {
 public:
-    long id;
+    unsigned long id;
     double cost;
     int edge_count;
 
@@ -109,6 +134,11 @@ public:
 
 };
 
+/*
+ * GatherMultiTree
+ * map of djisktra root id's to their asociated content for that tree
+ *
+ */
 class GatherMultiTree {
 public:
     std::map<long,Gather> content;
@@ -139,6 +169,10 @@ typedef GatherMultiTree gather_type;
 // The graph type is determined by the vertex and edge data types
 typedef graphlab::distributed_graph<vertex_data_type, double> graph_type;
 
+/*
+ * Loads graphs in the form 'id (id edge_strength)*'
+ *
+ */
 bool line_parser(graph_type& graph, const std::string& filename, const std::string& textline) {
   std::stringstream strm(textline);
   graphlab::vertex_id_type vid;
@@ -161,6 +195,10 @@ bool line_parser(graph_type& graph, const std::string& filename, const std::stri
   return true;
 }
 
+/*
+ * Algorithm class whose sole purpose is to reset launched and done booleans
+ * for all id's in a PrestigeAnalysisNode
+ */
 class ClearBooleans :
         public graphlab::ivertex_program<graph_type, gather_type>,
         public graphlab::IS_POD_TYPE {
@@ -192,7 +230,19 @@ public:
   }
 };
 
-
+/*
+ * Djikstra Algorithm Class
+ *
+ * Starting from the starting nodes, create an id for this root and signal
+ * all neighbors to start the calculations. Set launched when started, done
+ * when all edges have been signaled.
+ *
+ * As a signal is receieved collect edges to determine if the best path has
+ * changed.  If it has, update. If the first signal is receieved, marked
+ * the node as launched and then mark the node done after signaling neighbors.
+ *
+ * The process terminates when all nodes active have no neighbors that are not done.
+ */
 class DjikstraAlgorithm :
   public graphlab::ivertex_program<graph_type, gather_type>,
   public graphlab::IS_POD_TYPE {
@@ -220,7 +270,7 @@ class DjikstraAlgorithm :
                 g.id=0;
             }
         }
-	return tree;
+    return tree;
     }
 
     void apply(icontext_type& context, vertex_type& vertex, const gather_type& total) {
@@ -282,18 +332,19 @@ class DjikstraAlgorithm :
   }
 };
 
+/*
+ * For every node, print the previous node in its spanning tree for all spanning trees this node is in.
+ *
+ */
 struct djikstra_writer {
   std::string save_vertex(graph_type::vertex_type v) {
     std::stringstream strm;
-    strm << v.id() << "\t";
-    double value = 0.0;
-    for(std::map<long,DjikstraNode>::const_iterator iter = v.data().djikstra_pieces.begin();
-        iter != v.data().djikstra_pieces.end();++iter){
-        if(iter->first != v.id()){
-            value += iter->second.cost;
-        }
+    strm << v.id();
+    for(std::map<long, DjikstraNode>::const_iterator iter = v.data().djikstra_pieces.begin();
+        iter != v.data().djikstra_pieces.end(); ++iter){
+        long key = iter->first;
+        strm << "\t" << key << "\t" << iter->second.id;
     }
-    strm << value << std::endl;
     return strm.str();
   }
   std::string save_edge (graph_type::edge_type e) { return ""; }
@@ -301,6 +352,10 @@ struct djikstra_writer {
 
 size_t num_vertices = 3000;
 
+/*
+ * Select ~3000 root nodes or an exact count which gives up around +/-3% accuracy
+ * in prestige measures. It is a constant memory random selector.
+ */
 bool selectVertices(const graph_type::vertex_type& vertex){
     float r = ((float)random()) / ((float)RAND_MAX);
     std::cout << "Random seed is " << r << std::endl;
@@ -311,7 +366,10 @@ bool selectVertices(const graph_type::vertex_type& vertex){
 }
 
 
-
+/*
+ * Gather object that keeps tra
+ *
+ */
 class BetweenessGather{
 public:
     std::map<long,long> counts;
@@ -346,7 +404,14 @@ public:
 
 };
 
-
+/*
+ * Walk backwards from leaf nodes (those that have no nodes pointing to them in
+ * the gather step). Each signals the node referenced in its internal spanning tree
+ * record. This is performed simultaneously for each spanning tree in the set.
+ *
+ * The betweeness score is cached in the cost field.
+ *
+ */
 class BetweenessAlgorithm :
   public graphlab::ivertex_program<graph_type, BetweenessGather>,
   public graphlab::IS_POD_TYPE {
