@@ -347,6 +347,8 @@ public:
       const vertex_type other_vertex = get_other_vertex(edge, vertex);
       const vertex_data& vdata = vertex.data();
       const vertex_data& other_vdata = other_vertex.data();
+      //TODO:
+      //    Do we need to cap the prediction value into [min, max] here?
       const double pred = vdata.factor.dot(other_vdata.factor);
       const float error = std::fabs(edata.obs - pred);
       const double priority = (error * vdata.residual); 
@@ -499,8 +501,10 @@ struct prediction_saver {
   std::string save_edge(const edge_type& edge) const {
     if(edge.data().role == edge_data::PREDICT) {
       std::stringstream strm;
-      const double prediction = 
+      double prediction =
         edge.source().data().factor.dot(edge.target().data().factor);
+	  prediction = std::min(als_vertex_program::MAXVAL, prediction);
+	  prediction = std::max(als_vertex_program::MINVAL, prediction);
       strm << edge.source().id() << '\t';
       strm << (-edge.target().id() - SAFE_NEG_OFFSET) << '\t';
       strm << prediction << '\n';
@@ -607,10 +611,12 @@ int main(int argc, char** argv) {
   }
 
 
-
   ///! Initialize control plain using mpi
   graphlab::mpi_tools::init(argc, argv);
   graphlab::distributed_control dc;
+
+  dc.cout() << "minval: " << als_vertex_program::MINVAL << std::endl;
+  dc.cout() << "maxval: " << als_vertex_program::MAXVAL << std::endl;
   
   dc.cout() << "Loading graph." << std::endl;
   graphlab::timer timer; 
@@ -688,19 +694,17 @@ int main(int argc, char** argv) {
   if(!predictions.empty()) {
     std::cout << "Saving predictions" << std::endl;
     const bool gzip_output = false;
-    const bool save_vertices = false;
-    const bool save_edges = true;
     const size_t threads_per_machine = 2;
 
     //save the predictions
     graph.save(predictions, prediction_saver(),
-               gzip_output, save_vertices, 
-               save_edges, threads_per_machine);
+               gzip_output, false, 
+               true, threads_per_machine);
     //save the linear model
     graph.save(predictions + ".U", linear_model_saver_U(),
-		gzip_output, save_edges, save_vertices, threads_per_machine);
+		gzip_output, true, false, threads_per_machine);
     graph.save(predictions + ".V", linear_model_saver_V(),
-		gzip_output, save_edges, save_vertices, threads_per_machine);
+		gzip_output, true, false, threads_per_machine);
   
   }
              
