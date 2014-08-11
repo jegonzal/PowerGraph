@@ -20,7 +20,6 @@
  *
  */
 
-
 #include <boost/bind.hpp>
 #include <graphlab/parallel/fiber_group.hpp>
 #include <graphlab/logger/assertions.hpp>
