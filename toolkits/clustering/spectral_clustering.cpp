@@ -110,7 +110,7 @@ bool call_svd(const std::string& mpi_args, const std::string& filename,
   strm << " --save_vectors=1";
   strm << " --ortho_repeats=3";
 //  strm << " --id=1";
-  strm << " --prediction=" << filename; // << ".";
+  strm << " --prediction=" << filename;
   strm << " --initial_vector=" << filename + ".init";
   strm << " " << args;
   std::cout << "CALLING >" << strm.str() << std::endl;
