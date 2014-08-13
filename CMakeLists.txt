@@ -24,7 +24,7 @@ include(CheckCXXSourceCompiles)
 # check we are on a 64 bit machine (else fail)
 if( CMAKE_SIZEOF_VOID_P EQUAL 4 )
    message( SEND_ERROR "GraphLab does not support 32 bit systems. Please switch to 64 bit system and try again" )
-endif ( CMAKE_SIZEOF_VOID_P EQUAL 4 )a
+endif ( CMAKE_SIZEOF_VOID_P EQUAL 4 )
 
 # # Display information about cmake variables
 # include(CMakePrintSystemInformation)
