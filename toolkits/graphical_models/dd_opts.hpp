@@ -35,7 +35,10 @@
 #define __DD_OPTS_HPP__
 
 #include <string>
-
+#define VAR 0
+#define XOR 1
+#define DENSE 2
+#define BUDGET 3
 /////////////////////////////////////////////////////////////////////////
 // Option Struct
 struct Options 
@@ -72,7 +75,7 @@ struct Options
     verbose(0),
     algorithm(0),
     maxiter(10000),
-    dualimprovthres(1e-7),
+    dualimprovthres(1e-12),
     pdgapthres(1e-1),
     alpha(1),
     step_size(1.0),
