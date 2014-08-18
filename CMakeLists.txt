@@ -20,6 +20,12 @@ include(CheckLibraryExists)
 include(CheckFunctionExists)
 include(ExternalProject)
 include(CheckCXXSourceCompiles)
+
+# check we are on a 64 bit machine (else fail)
+if( CMAKE_SIZEOF_VOID_P EQUAL 4 )
+   message( SEND_ERROR "GraphLab does not support 32 bit systems. Please switch to 64 bit system and try again" )
+endif ( CMAKE_SIZEOF_VOID_P EQUAL 4 )
+
 # # Display information about cmake variables
 # include(CMakePrintSystemInformation)
 
@@ -230,6 +236,8 @@ if(NOT NO_TCMALLOC)
     # We use tcmalloc for improved memory allocation performance
     ExternalProject_Add(libtcmalloc
     PREFIX ${GraphLab_SOURCE_DIR}/deps/tcmalloc
+    # Some users can't access domain googlecode.com ,This is a spare URL
+    # URL http://sourceforge.jp/projects/sfnet_gperftools.mirror/downloads/gperftools-2.0.tar.gz
     URL http://gperftools.googlecode.com/files/gperftools-2.0.tar.gz
     URL_MD5 13f6e8961bc6a26749783137995786b6
     PATCH_COMMAND patch -N -p0 -i ${GraphLab_SOURCE_DIR}/patches/tcmalloc.patch || true
@@ -302,7 +310,7 @@ endif()
 # OpenCV =================================================================
 ExternalProject_Add(opencv
   PREFIX ${GraphLab_SOURCE_DIR}/deps/opencv
-  URL http://superb-sea2.dl.sourceforge.net/project/opencvlibrary/opencv-unix/2.4.0/OpenCV-2.4.0.tar.bz2
+  URL http://sourceforge.net/projects/opencvlibrary/files/opencv-unix/2.4.0/OpenCV-2.4.0.tar.bz2/download
   # URL_MD5 010b63a2542c4ec4918c8cb431c00356
   PATCH_COMMAND patch -N -p0 cmake/OpenCVModule.cmake -i ${GraphLab_SOURCE_DIR}/patches/opencv_apple_rpath.patch || true
   CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>
@@ -378,8 +386,8 @@ ExternalProject_Add(libjson
 
 ExternalProject_Add(zookeeper
   PREFIX ${GraphLab_SOURCE_DIR}/deps/zookeeper
-  URL http://apache.cs.utah.edu/zookeeper/zookeeper-3.4.5/zookeeper-3.4.5.tar.gz
-  URL_MD5 f64fef86c0bf2e5e0484d19425b22dcb
+  URL http://apache.cs.utah.edu/zookeeper/zookeeper-3.4.6/zookeeper-3.4.6.tar.gz
+  URL_MD5 971c379ba65714fd25dc5fe8f14e9ad1
   PATCH_COMMAND ${CMAKE_COMMAND} -E copy_directory ${GraphLab_SOURCE_DIR}/patches/zookeeper/ <SOURCE_DIR>
   BUILD_IN_SOURCE 1
   CONFIGURE_COMMAND ./configure --prefix=<INSTALL_DIR> --disable-shared

@@ -23,6 +23,8 @@
 
 #ifndef GRAPHLAB_FIBER_CONTROL_HPP
 #define GRAPHLAB_FIBER_CONTROL_HPP
+
+#include <stdint.h>
 #include <cstdlib>
 #include <boost/context/all.hpp>
 #include <boost/function.hpp>

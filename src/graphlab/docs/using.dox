@@ -697,7 +697,7 @@ public:
   \code
 class dynamic_pagerank_program :
              public graphlab::ivertex_program<graph_type, double>,
-             publlic graphlab::IS_POD_TYPE {
+             public graphlab::IS_POD_TYPE {
 private:
   // a variable local to this program
   bool perform_scatter;
