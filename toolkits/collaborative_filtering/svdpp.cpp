@@ -776,7 +776,7 @@ int main(int argc, char** argv) {
 
 
   // Run the PageRank ---------------------------------------------------------
-  dc.cout() << "Running Bias-SGD" << std::endl;
+  dc.cout() << "Running SVD++" << std::endl;
   dc.cout() << "(C) Code by Danny Bickson, CMU " << std::endl;
   dc.cout() << "Please send bug reports to danny.bickson@gmail.com" << std::endl;
   dc.cout() << "Time   Training    Validation" <<std::endl;

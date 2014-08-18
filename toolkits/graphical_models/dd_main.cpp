@@ -30,9 +30,10 @@
  *  \authors Dhruv Batra, André Martins, Aroma Mahendru
  */
 
-#include "dd_main.hpp"
+
 #include "dd_grlab.hpp"
 #include "ad3_qp.hpp"
+#include "dd_main.hpp"
 
 Options opts;
 
